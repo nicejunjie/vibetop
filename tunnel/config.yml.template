@@ -1,0 +1,26 @@
+# Cloudflare Tunnel ingress config for myhost.
+# After creating the tunnel and getting its UUID, copy this to
+# /etc/cloudflared/config.yml and replace the two placeholders.
+
+tunnel: @TUNNEL_UUID@
+credentials-file: /etc/cloudflared/@TUNNEL_UUID@.json
+
+# Reasonable defaults for low-latency interactive use.
+originRequest:
+  connectTimeout: 10s
+  noTLSVerify: false
+  # Long-lived connections (terminals, xpra, websockets in general):
+  keepAliveTimeout: 90s
+  noHappyEyeballs: false
+
+ingress:
+  # Everything under service.example.com -> myhost's nginx on :80.
+  - hostname: service.example.com
+    service: http://localhost:80
+    originRequest:
+      # nginx already does the right Host -> backend mapping. Pass through.
+      httpHostHeader: service.example.com
+
+  # Catch-all: anything else gets a 404 from cloudflared itself (so the
+  # tunnel never relays unexpected hosts to myhost).
+  - service: http_status:404

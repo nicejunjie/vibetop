@@ -1,0 +1,427 @@
+#!/usr/bin/python3
+"""Lightweight session persistence daemon for ttyd terminals.
+
+Replaces tmux with a transparent PTY bridge that preserves xterm.js scrollback.
+Two modes:
+  claude-session serve N   — daemon: holds bash in a PTY, accepts client connections
+  claude-session attach N  — client: bridges ttyd's PTY to the daemon's socket
+"""
+
+import argparse, errno, fcntl, os, selectors, signal, socket, struct, sys, termios, tty
+
+
+class RingBuffer:
+    """Fixed-size circular byte buffer."""
+
+    def __init__(self, capacity):
+        self._buf = bytearray(capacity)
+        self._cap = capacity
+        self._pos = 0
+        self._len = 0
+
+    def write(self, data):
+        n = len(data)
+        if n >= self._cap:
+            data = data[-self._cap:]
+            n = self._cap
+            self._buf[:] = data
+            self._pos = 0
+            self._len = self._cap
+            return
+        end = self._pos + n
+        if end <= self._cap:
+            self._buf[self._pos:end] = data
+        else:
+            first = self._cap - self._pos
+            self._buf[self._pos:] = data[:first]
+            self._buf[:n - first] = data[first:]
+        self._pos = end % self._cap
+        self._len = min(self._len + n, self._cap)
+
+    def read_all(self):
+        if self._len == 0:
+            return b''
+        start = (self._pos - self._len) % self._cap
+        if start + self._len <= self._cap:
+            return bytes(self._buf[start:start + self._len])
+        first = self._cap - start
+        return bytes(self._buf[start:]) + bytes(self._buf[:self._len - first])
+
+    def clear(self):
+        self._pos = 0
+        self._len = 0
+
+
+def set_pty_size(fd, rows, cols):
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', rows, cols, 0, 0))
+
+
+def get_pty_size(fd):
+    buf = fcntl.ioctl(fd, termios.TIOCGWINSZ, b'\x00' * 8)
+    return struct.unpack('HHHH', buf)[:2]
+
+
+def set_nonblock(fd):
+    flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+    fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+
+# ---------------------------------------------------------------------------
+# serve
+# ---------------------------------------------------------------------------
+
+def cmd_serve(instance):
+    sock_path = f'/tmp/claude-session-{instance}.sock'
+    pid_path = f'/tmp/claude-session-{instance}.pid'
+    size_path = f'/tmp/claude-session-{instance}.size'
+    buf_cap = int(os.environ.get('CLAUDE_SESSION_BUFSIZE', 256 * 1024))
+
+    ring = RingBuffer(buf_cap)
+    clients = {}          # fileno -> socket
+    client_outq = {}      # fileno -> bytearray (pending output)
+    pty_fd = -1
+    child_pid = 0
+    sel = selectors.DefaultSelector()
+    MAX_OUTQ = 1024 * 1024
+
+    # -- helpers --
+
+    def read_saved_size():
+        try:
+            with open(size_path) as f:
+                parts = f.read().split()
+                return int(parts[0]), int(parts[1])
+        except Exception:
+            return 24, 80
+
+    def spawn_shell():
+        nonlocal pty_fd, child_pid
+        master, slave = os.openpty()
+        rows, cols = read_saved_size()
+        set_pty_size(master, rows, cols)
+        pid = os.fork()
+        if pid == 0:
+            os.close(master)
+            os.setsid()
+            fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
+            os.dup2(slave, 0)
+            os.dup2(slave, 1)
+            os.dup2(slave, 2)
+            if slave > 2:
+                os.close(slave)
+            os.environ['TERM'] = os.environ.get('TERM', 'xterm-256color')
+            os.environ['LANG'] = os.environ.get('LANG', 'en_US.UTF-8')
+            os.environ['TERM_ID'] = str(instance)
+            os.execv('/bin/bash', ['bash', '-l'])
+        os.close(slave)
+        set_nonblock(master)
+        pty_fd = master
+        child_pid = pid
+        sel.register(pty_fd, selectors.EVENT_READ, 'pty')
+
+    def remove_client(fd):
+        try:
+            sel.unregister(fd)
+        except Exception:
+            pass
+        sock = clients.pop(fd, None)
+        client_outq.pop(fd, None)
+        if sock:
+            try:
+                sock.close()
+            except Exception:
+                pass
+
+    def broadcast(data):
+        dead = []
+        for fd, sock in clients.items():
+            q = client_outq.get(fd)
+            if q:
+                q.extend(data)
+                if len(q) > MAX_OUTQ:
+                    dead.append(fd)
+                continue
+            try:
+                sent = sock.send(data)
+                if sent < len(data):
+                    client_outq[fd] = bytearray(data[sent:])
+            except (BlockingIOError, InterruptedError):
+                client_outq[fd] = bytearray(data)
+            except Exception:
+                dead.append(fd)
+        for fd in dead:
+            remove_client(fd)
+
+    def flush_client_outq(fd):
+        q = client_outq.get(fd)
+        if not q:
+            return
+        sock = clients.get(fd)
+        if not sock:
+            return
+        try:
+            sent = sock.send(q)
+            if sent >= len(q):
+                del client_outq[fd]
+            else:
+                client_outq[fd] = q[sent:]
+        except (BlockingIOError, InterruptedError):
+            pass
+        except Exception:
+            remove_client(fd)
+
+    def reap_child():
+        nonlocal child_pid, pty_fd
+        if child_pid <= 0:
+            return False
+        try:
+            pid, _ = os.waitpid(child_pid, os.WNOHANG)
+        except ChildProcessError:
+            pid = child_pid
+        if pid == 0:
+            return False
+        try:
+            sel.unregister(pty_fd)
+        except Exception:
+            pass
+        try:
+            os.close(pty_fd)
+        except Exception:
+            pass
+        pty_fd = -1
+        child_pid = 0
+        return True
+
+    # -- signal handlers --
+
+    def on_sigusr1(signum, frame):
+        if pty_fd < 0:
+            return
+        try:
+            rows, cols = read_saved_size()
+            set_pty_size(pty_fd, rows, cols)
+            if child_pid > 0:
+                os.kill(child_pid, signal.SIGWINCH)
+        except Exception:
+            pass
+
+    def on_sigterm(signum, frame):
+        if child_pid > 0:
+            try:
+                os.kill(child_pid, signal.SIGTERM)
+            except Exception:
+                pass
+        for fd in list(clients):
+            remove_client(fd)
+        try:
+            os.unlink(sock_path)
+        except Exception:
+            pass
+        try:
+            os.unlink(pid_path)
+        except Exception:
+            pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGUSR1, on_sigusr1)
+    signal.signal(signal.SIGTERM, on_sigterm)
+
+    # -- setup --
+
+    try:
+        os.unlink(sock_path)
+    except FileNotFoundError:
+        pass
+
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(sock_path)
+    os.chmod(sock_path, 0o600)
+    server.listen(5)
+    server.setblocking(False)
+    sel.register(server, selectors.EVENT_READ, 'server')
+
+    with open(pid_path, 'w') as f:
+        f.write(str(os.getpid()))
+
+    spawn_shell()
+
+    # -- main loop --
+
+    while True:
+        if reap_child():
+            ring.clear()
+            spawn_shell()
+
+        # Determine which clients need write events for pending output
+        for fd in list(client_outq):
+            if fd in clients:
+                try:
+                    sel.modify(fd, selectors.EVENT_READ | selectors.EVENT_WRITE, 'client')
+                except Exception:
+                    pass
+
+        try:
+            events = sel.select(timeout=1.0)
+        except InterruptedError:
+            continue
+
+        for key, mask in events:
+            if key.data == 'server':
+                try:
+                    conn, _ = server.accept()
+                    conn.setblocking(False)
+                    fd = conn.fileno()
+                    clients[fd] = conn
+                    replay = ring.read_all()
+                    initial = b'\033[0m' + replay if replay else b''
+                    if initial:
+                        try:
+                            sent = conn.send(initial)
+                            if sent < len(initial):
+                                client_outq[fd] = bytearray(initial[sent:])
+                        except (BlockingIOError, InterruptedError):
+                            client_outq[fd] = bytearray(initial)
+                        except Exception:
+                            remove_client(fd)
+                            continue
+                    sel.register(fd, selectors.EVENT_READ, 'client')
+                except Exception:
+                    pass
+
+            elif key.data == 'pty':
+                try:
+                    data = os.read(pty_fd, 16384)
+                except OSError as e:
+                    if e.errno == errno.EIO:
+                        continue
+                    raise
+                if data:
+                    ring.write(data)
+                    broadcast(data)
+
+            elif key.data == 'client':
+                fd = key.fd
+
+                if mask & selectors.EVENT_WRITE:
+                    flush_client_outq(fd)
+                    if fd not in client_outq and fd in clients:
+                        try:
+                            sel.modify(fd, selectors.EVENT_READ, 'client')
+                        except Exception:
+                            pass
+
+                if mask & selectors.EVENT_READ:
+                    sock = clients.get(fd)
+                    if not sock:
+                        continue
+                    try:
+                        data = sock.recv(4096)
+                    except Exception:
+                        data = None
+                    if not data:
+                        remove_client(fd)
+                        continue
+                    if pty_fd >= 0:
+                        try:
+                            os.write(pty_fd, data)
+                        except Exception:
+                            pass
+
+
+# ---------------------------------------------------------------------------
+# attach
+# ---------------------------------------------------------------------------
+
+def cmd_attach(instance):
+    sock_path = f'/tmp/claude-session-{instance}.sock'
+    size_path = f'/tmp/claude-session-{instance}.size'
+    pid_path = f'/tmp/claude-session-{instance}.pid'
+
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(sock_path)
+
+    stdin_fd = sys.stdin.fileno()
+    stdout_fd = sys.stdout.fileno()
+
+    def send_resize():
+        try:
+            rows, cols = get_pty_size(stdin_fd)
+            with open(size_path, 'w') as f:
+                f.write(f'{rows} {cols}')
+            with open(pid_path) as f:
+                pid = int(f.read().strip())
+            os.kill(pid, signal.SIGUSR1)
+        except Exception:
+            pass
+
+    send_resize()
+    signal.signal(signal.SIGWINCH, lambda *_: send_resize())
+
+    old_attrs = termios.tcgetattr(stdin_fd)
+    attrs = termios.tcgetattr(stdin_fd)
+    # Input: clear CR→NL conversion (ICRNL) so \r reaches apps as \r,
+    # and disable XON/XOFF flow control (IXON) to pass Ctrl+S/Q through.
+    attrs[0] &= ~(termios.ICRNL | termios.IXON | termios.ISTRIP | termios.INPCK | termios.BRKINT)
+    # Local: raw mode (no echo, no canonical, no signals, no extended)
+    attrs[3] &= ~(termios.ECHO | termios.ICANON | termios.ISIG | termios.IEXTEN)
+    attrs[6][termios.VMIN] = 1
+    attrs[6][termios.VTIME] = 0
+    termios.tcsetattr(stdin_fd, termios.TCSADRAIN, attrs)
+
+    try:
+        import select as _sel
+        while True:
+            try:
+                rlist, _, _ = _sel.select([stdin_fd, sock.fileno()], [], [])
+            except InterruptedError:
+                continue
+
+            for fd in rlist:
+                if fd == stdin_fd:
+                    try:
+                        data = os.read(stdin_fd, 4096)
+                    except OSError:
+                        data = b''
+                    if not data:
+                        return
+                    try:
+                        sock.sendall(data)
+                    except Exception:
+                        return
+                else:
+                    try:
+                        data = sock.recv(16384)
+                    except Exception:
+                        data = b''
+                    if not data:
+                        return
+                    os.write(stdout_fd, data)
+    finally:
+        termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_attrs)
+        sock.close()
+
+
+# ---------------------------------------------------------------------------
+# main
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(description='Terminal session daemon')
+    sub = parser.add_subparsers(dest='command')
+    sub.required = True
+
+    p = sub.add_parser('serve')
+    p.add_argument('instance')
+
+    p = sub.add_parser('attach')
+    p.add_argument('instance')
+
+    args = parser.parse_args()
+    if args.command == 'serve':
+        cmd_serve(args.instance)
+    else:
+        cmd_attach(args.instance)
+
+
+if __name__ == '__main__':
+    main()

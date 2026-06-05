@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>System Monitor — myhost</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #0e1117; color: #e0e0e0; font-family: system-ui, sans-serif; }
+
+  .header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 6px 12px; background: #161b22; border: 1px solid #2a3040; border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+    flex-shrink: 0;
+  }
+  .header .h-label { color: #556; }
+  .header .h-val { color: #9ab; }
+  .header .h-host { color: #8ab4f8; font-weight: 600; font-size: 13px; }
+  .header .h-up { color: #8ab4f8; }
+  #pause-btn {
+    cursor: pointer; margin-left: auto; font-size: 13px; padding: 4px 12px;
+    border-radius: 6px; border: 1px solid #2a3040; background: rgba(255,255,255,0.05);
+    color: #ccc; font-family: system-ui, sans-serif;
+  }
+  #pause-btn:hover { background: rgba(255,255,255,0.12); border-color: #4a5a6a; color: #fff; }
+  #pause-btn.paused { background: rgba(52,168,83,0.15); border-color: #34a853; color: #34a853; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 336px;
+    grid-template-rows: auto auto 1fr;
+    gap: 10px; padding: 12px;
+    height: 100%;
+  }
+  .header { grid-column: 1 / -1; grid-row: 1; }
+  .cpu-card { grid-column: 1; grid-row: 2; }
+  .proc-sidebar {
+    grid-column: 2; grid-row: 2 / 4;
+    display: flex; flex-direction: column;
+    min-height: 0; overflow: hidden;
+  }
+  .metrics {
+    grid-column: 1; grid-row: 3;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: 10px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .metrics .card { grid-column: span 2; }
+
+  .card {
+    background: #161b22; border: 1px solid #2a3040; border-radius: 10px;
+    padding: 10px; display: flex; flex-direction: column; gap: 6px;
+    min-height: 0; min-width: 0; overflow: hidden;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 600; color: #8a9aaa;
+    text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0;
+  }
+  .card-title .avg {
+    float: right; font-size: 12px; color: #9ab; text-transform: none; letter-spacing: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* htop CPU cores */
+  .cpu-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 3px 14px;
+  }
+  .core-row { display: flex; align-items: center; gap: 5px; height: 18px; }
+  .core-id {
+    font-size: 11px; color: #556; min-width: 22px; text-align: right;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .core-bar-wrap {
+    flex: 1; height: 13px; background: #0d1117; border-radius: 2px; overflow: hidden;
+    border: 1px solid #1e2636;
+  }
+  .core-bar { height: 100%; transition: width 0.8s ease; }
+  .core-pct {
+    font-size: 10px; color: #8a9aaa; min-width: 32px; text-align: right;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .core-bar.lo { background: #5a8ab0; }
+  .core-bar.mid { background: #5aad8a; }
+  .core-bar.hi { background: #c0935a; }
+  .core-bar.crit { background: #b85c5c; }
+
+  /* Metric bars */
+  .metric-row { display: flex; align-items: center; gap: 8px; }
+  .metric-label {
+    font-size: 11px; color: #6a7a8a; min-width: 40px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .metric-bar-wrap {
+    flex: 1; height: 16px; background: #1a2030; border-radius: 3px; overflow: hidden;
+    position: relative;
+  }
+  .metric-bar { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+  .metric-bar-text {
+    position: absolute; right: 6px; top: 0; line-height: 16px;
+    font-size: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #ccc; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+
+  /* Charts */
+  .chart-box { display: flex; flex: 1; min-height: 0; }
+  .chart-yaxis {
+    display: flex; flex-direction: column; justify-content: space-between;
+    font-size: 8px; color: #556; min-width: 22px; text-align: right; padding-right: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .chart-wrap { flex: 1; position: relative; min-height: 0; }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .net-rx { color: #5aad8a; }
+  .net-tx { color: #5a8ab0; }
+
+  /* Processes */
+  .proc-header, .proc-row {
+    display: grid;
+    grid-template-columns: 46px 1fr 42px 46px 50px;
+    gap: 6px; align-items: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .proc-header {
+    font-size: 10px; color: #556; border-bottom: 1px solid #2a3040;
+    padding-bottom: 4px; text-transform: uppercase;
+    position: sticky; top: 0; background: #161b22; z-index: 1;
+  }
+  .proc-list { flex: 1; overflow-y: auto; min-height: 0; }
+  .proc-row { font-size: 11px; color: #9ab; padding: 2px 0; }
+  .proc-row:hover { background: rgba(255,255,255,0.03); }
+  .proc-pid { color: #556; }
+  .proc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #cde; }
+  .proc-cpu { text-align: right; }
+  .proc-mem { text-align: right; color: #8a9aaa; }
+  .proc-user { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #6a7a8a; }
+  .proc-cpu.hot { color: #b85c5c; }
+  .proc-cpu.warm { color: #c0935a; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- Header -->
+  <div class="header">
+    <span class="h-host" id="h-host">--</span>
+    <span><span class="h-label">IP </span><span class="h-val" id="h-ips">--</span></span>
+    <span><span class="h-label">UP </span><span class="h-up" id="h-up">--</span></span>
+    <span><span class="h-label">TERMS </span><span class="h-val" id="h-terms">--</span></span>
+    <span id="pause-btn" title="Pause/Resume">⏸ Pause</span>
+  </div>
+
+  <!-- CPU cores -->
+  <div class="card cpu-card">
+    <div class="card-title">CPU <span class="avg" id="cpu-avg">--</span></div>
+    <div class="cpu-grid" id="cpu-grid"></div>
+  </div>
+
+  <!-- Processes sidebar -->
+  <div class="card proc-sidebar">
+    <div class="card-title">Processes (by CPU)</div>
+    <div class="proc-list" id="proc-list">
+      <div class="proc-header">
+        <span>PID</span><span>Name</span><span>CPU%</span><span>MEM</span><span>User</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 metric cards: 3 top + 2 bottom -->
+  <div class="metrics">
+    <!-- Memory -->
+    <div class="card">
+      <div class="card-title">Memory</div>
+      <div class="metric-row">
+        <div class="metric-bar-wrap">
+          <div class="metric-bar" id="mem-bar" style="width:0%;background:#5aad8a"></div>
+          <div class="metric-bar-text" id="mem-bar-text">--</div>
+        </div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-yaxis"><span>100%</span><span>50%</span><span>0%</span></div>
+        <div class="chart-wrap"><canvas id="mem-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- GPU -->
+    <div class="card">
+      <div class="card-title">GPU</div>
+      <div class="metric-row">
+        <div class="metric-label" style="color:#5aad8a">Util</div>
+        <div class="metric-bar-wrap">
+          <div class="metric-bar" id="gpu-bar" style="width:0%;background:#5aad8a"></div>
+          <div class="metric-bar-text" id="gpu-bar-text">--</div>
+        </div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-label" style="color:#5a8ab0">VRAM</div>
+        <div class="metric-bar-wrap">
+          <div class="metric-bar" id="vram-bar" style="width:0%;background:#5a8ab0"></div>
+          <div class="metric-bar-text" id="vram-bar-text">--</div>
+        </div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-yaxis"><span>100%</span><span>50%</span><span>0%</span></div>
+        <div class="chart-wrap"><canvas id="gpu-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Temperature -->
+    <div class="card">
+      <div class="card-title">Temperature <span class="avg"><span id="cpu-temp" style="color:#5aad8a">--</span> CPU <span id="gpu-temp" style="color:#5a8ab0">--</span> GPU</span></div>
+      <div class="chart-box">
+        <div class="chart-yaxis"><span>110°C</span><span>55°C</span><span>0°C</span></div>
+        <div class="chart-wrap"><canvas id="temp-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Network -->
+    <div class="card">
+      <div class="card-title">Network <span class="avg" id="net-stats"><span class="net-rx">↓ --</span> <span class="net-tx">↑ --</span></span></div>
+      <div class="chart-box">
+        <div class="chart-yaxis" id="net-yaxis"><span>--</span><span>--</span><span>0</span></div>
+        <div class="chart-wrap"><canvas id="net-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Power -->
+    <div class="card">
+      <div class="card-title">Power <span class="avg" id="pwr-total">--</span></div>
+      <div class="metric-row">
+        <div class="metric-label" style="color:#5aad8a">CPU</div>
+        <div class="metric-bar-wrap">
+          <div class="metric-bar" id="cpu-pwr-bar" style="width:0%;background:#5aad8a"></div>
+          <div class="metric-bar-text" id="cpu-pwr-text">--</div>
+        </div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-label" style="color:#5a8ab0">GPU</div>
+        <div class="metric-bar-wrap">
+          <div class="metric-bar" id="gpu-pwr-bar" style="width:0%;background:#5a8ab0"></div>
+          <div class="metric-bar-text" id="gpu-pwr-text">--</div>
+        </div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-yaxis" id="pwr-yaxis"><span>--</span><span>--</span><span>0</span></div>
+        <div class="chart-wrap"><canvas id="pwr-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Disk -->
+    <div class="card">
+      <div class="card-title">Disk <span class="avg" id="disk-stats"><span class="net-rx">R --</span> <span class="net-tx">W --</span></span></div>
+      <div class="metric-row">
+        <div class="metric-bar-wrap">
+          <div class="metric-bar" id="disk-bar" style="width:0%;background:#5aad8a"></div>
+          <div class="metric-bar-text" id="disk-bar-text">--</div>
+        </div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-yaxis" id="disk-yaxis"><span>--</span><span>--</span><span>0</span></div>
+        <div class="chart-wrap"><canvas id="disk-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var HISTORY_LEN = 60;
+  var memHist = [], gpuHist = [], vramHist = [];
+  var cpuTempHist = [], gpuTempHist = [];
+  var netRxHist = [], netTxHist = [];
+  var cpuPwrHist = [], gpuPwrHist = [];
+  var diskRdHist = [], diskWrHist = [];
+  var coreRows = [];
+  var lastNet = null, lastNetTime = 0;
+  var netMaxRate = 1024 * 1024;
+  var pwrMax = 300;
+  var diskMaxRate = 1024 * 1024;
+  var CPU_TDP = 170, GPU_TDP = 290;
+
+  function push(arr, val) { arr.push(val); if (arr.length > HISTORY_LEN) arr.shift(); }
+
+  function coreColor(pct) {
+    if (pct >= 90) return 'crit';
+    if (pct >= 70) return 'hi';
+    if (pct >= 40) return 'mid';
+    return 'lo';
+  }
+  function barColor(pct) {
+    if (pct > 90) return '#b85c5c';
+    if (pct > 70) return '#c0935a';
+    return null;
+  }
+  function tempColor(t) {
+    if (t == null) return '#6a7a8a';
+    if (t >= 90) return '#b85c5c';
+    if (t >= 75) return '#c0935a';
+    return '#5aad8a';
+  }
+  function fmtRate(b) {
+    if (b >= 1073741824) return (b / 1073741824).toFixed(1) + ' GB/s';
+    if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB/s';
+    if (b >= 1024) return (b / 1024).toFixed(0) + ' KB/s';
+    return b.toFixed(0) + ' B/s';
+  }
+
+  function buildCoreGrid(n) {
+    var grid = document.getElementById('cpu-grid');
+    grid.innerHTML = '';
+    coreRows = new Array(n);
+    var cols = 4, rows = Math.ceil(n / cols);
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var i = c * rows + r;
+        if (i >= n) continue;
+        var el = document.createElement('div');
+        el.className = 'core-row';
+        el.innerHTML =
+          '<span class="core-id">' + i + '</span>' +
+          '<div class="core-bar-wrap"><div class="core-bar lo" style="width:0%"></div></div>' +
+          '<span class="core-pct">0%</span>';
+        grid.appendChild(el);
+        coreRows[i] = { bar: el.querySelector('.core-bar'), pct: el.querySelector('.core-pct') };
+      }
+    }
+  }
+
+  function updateCores(cores) {
+    if (cores.length !== coreRows.length) buildCoreGrid(cores.length);
+    for (var i = 0; i < cores.length; i++) {
+      var p = Math.max(0, Math.min(100, cores[i]));
+      coreRows[i].bar.style.width = p + '%';
+      coreRows[i].bar.className = 'core-bar ' + coreColor(p);
+      coreRows[i].pct.textContent = p.toFixed(0) + '%';
+    }
+    var avg = cores.reduce(function(a, b) { return a + b; }, 0) / cores.length;
+    document.getElementById('cpu-avg').textContent = avg.toFixed(1) + '% avg (' + cores.length + ' cores)';
+  }
+
+  function setBar(barId, textId, pct, detail, color, fixed) {
+    var bar = document.getElementById(barId);
+    var txt = document.getElementById(textId);
+    bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    bar.style.background = fixed ? color : (barColor(pct) || color);
+    txt.textContent = detail;
+  }
+
+  function drawChart(canvasId, datasets, maxVal) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    var w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#1e2636'; ctx.lineWidth = 1;
+    for (var i = 1; i < 4; i++) {
+      var y = Math.round(h * i / 4) + 0.5;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+    datasets.forEach(function(ds) {
+      var data = ds.data;
+      if (data.length < 2) return;
+      var step = w / (HISTORY_LEN - 1);
+      var offset = HISTORY_LEN - data.length;
+      ctx.beginPath();
+      ctx.strokeStyle = ds.color; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+      for (var j = 0; j < data.length; j++) {
+        var x = (offset + j) * step;
+        var val = data[j] != null ? data[j] : 0;
+        var y = h - (val / maxVal) * h;
+        if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.lineTo((offset + data.length - 1) * step, h);
+      ctx.lineTo(offset * step, h);
+      ctx.closePath();
+      ctx.fillStyle = ds.color.replace(')', ',0.08)').replace('rgb', 'rgba');
+      ctx.fill();
+    });
+  }
+
+  var procHeader = '<div class="proc-header"><span class="proc-pid">PID</span><span class="proc-name">Name</span><span class="proc-cpu">CPU%</span><span class="proc-mem">MEM</span><span class="proc-user">User</span></div>';
+  function updateProcs(procs) {
+    var list = document.getElementById('proc-list');
+    var html = procHeader;
+    for (var i = 0; i < procs.length; i++) {
+      var p = procs[i];
+      var cpuCls = p.cpu >= 80 ? 'hot' : p.cpu >= 30 ? 'warm' : '';
+      html += '<div class="proc-row">' +
+        '<span class="proc-pid">' + p.pid + '</span>' +
+        '<span class="proc-name" title="' + p.name + '">' + p.name + '</span>' +
+        '<span class="proc-cpu ' + cpuCls + '">' + p.cpu.toFixed(1) + '</span>' +
+        '<span class="proc-mem">' + (p.mem_mb >= 1024 ? (p.mem_mb/1024).toFixed(1)+'G' : p.mem_mb.toFixed(0)+'M') + '</span>' +
+        '<span class="proc-user">' + p.user + '</span></div>';
+    }
+    list.innerHTML = html;
+  }
+
+  function updateNet(netData) {
+    var now = Date.now() / 1000;
+    var totalRx = 0, totalTx = 0;
+    Object.keys(netData).forEach(function(k) { totalRx += netData[k].rx_bytes; totalTx += netData[k].tx_bytes; });
+    var rxRate = 0, txRate = 0;
+    if (lastNet !== null) {
+      var dt = now - lastNetTime;
+      if (dt > 0) {
+        var prevRx = 0, prevTx = 0;
+        Object.keys(lastNet).forEach(function(k) { prevRx += lastNet[k].rx_bytes; prevTx += lastNet[k].tx_bytes; });
+        rxRate = (totalRx - prevRx) / dt;
+        txRate = (totalTx - prevTx) / dt;
+      }
+    }
+    lastNet = netData; lastNetTime = now;
+    document.getElementById('net-stats').innerHTML =
+      '<span class="net-rx">↓ ' + fmtRate(rxRate) + '</span> <span class="net-tx">↑ ' + fmtRate(txRate) + '</span>';
+    push(netRxHist, rxRate); push(netTxHist, txRate);
+    var allVals = netRxHist.concat(netTxHist).filter(function(v) { return v > 0; });
+    if (allVals.length > 0) netMaxRate = Math.max.apply(null, allVals) * 1.2;
+    if (netMaxRate < 1024) netMaxRate = 1024;
+    var ya = document.getElementById('net-yaxis');
+    if (ya) ya.innerHTML = '<span>' + fmtRate(netMaxRate) + '</span><span>' + fmtRate(netMaxRate/2) + '</span><span>0</span>';
+    drawChart('net-chart', [
+      {data: netRxHist, color: 'rgb(90,173,138)'},
+      {data: netTxHist, color: 'rgb(90,138,176)'}
+    ], netMaxRate);
+  }
+
+  function update() {
+    fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(d) {
+      if (d.cpu_cores) updateCores(d.cpu_cores);
+      var memPct = d.memory_total_gb > 0 ? (d.memory_used_gb / d.memory_total_gb * 100) : 0;
+      var gpuPct = d.gpu_percent != null ? d.gpu_percent : 0;
+      var vramPct = d.gpu_vram_total_gb > 0 ? (d.gpu_vram_used_gb / d.gpu_vram_total_gb * 100) : 0;
+      push(memHist, memPct);
+      push(gpuHist, gpuPct);
+      push(vramHist, vramPct);
+      push(cpuTempHist, d.cpu_temp);
+      push(gpuTempHist, d.gpu_temp);
+      setBar('mem-bar', 'mem-bar-text', memPct, d.memory_used_gb + ' / ' + d.memory_total_gb + ' GB', '#5aad8a', false);
+      setBar('gpu-bar', 'gpu-bar-text', gpuPct, (d.gpu_percent != null ? d.gpu_percent + '%' : '--'), '#5aad8a', true);
+      setBar('vram-bar', 'vram-bar-text', vramPct, (d.gpu_vram_used_gb != null ? d.gpu_vram_used_gb + ' / ' + d.gpu_vram_total_gb + ' GB' : '--'), '#5a8ab0', true);
+      var ct = d.cpu_temp, gt = d.gpu_temp;
+      document.getElementById('cpu-temp').textContent = ct != null ? ct + '°' : '--';
+      document.getElementById('gpu-temp').textContent = gt != null ? gt + '°' : '--';
+      document.getElementById('h-host').textContent = d.hostname || '--';
+      document.getElementById('h-up').textContent = d.uptime || '--';
+      document.getElementById('h-terms').textContent = d.terminals_running != null ? d.terminals_running : '--';
+      if (d.ips) {
+        var ipStr = Object.keys(d.ips).map(function(k) { return d.ips[k] + ' (' + k + ')'; }).join(', ');
+        document.getElementById('h-ips').textContent = ipStr || '--';
+      }
+      if (d.network) updateNet(d.network);
+      if (d.processes) updateProcs(d.processes);
+      var cpuW = d.cpu_power_w != null ? d.cpu_power_w : 0;
+      var gpuW = d.gpu_power_w != null ? d.gpu_power_w : 0;
+      push(cpuPwrHist, cpuW); push(gpuPwrHist, gpuW);
+      setBar('cpu-pwr-bar', 'cpu-pwr-text', cpuW / CPU_TDP * 100, (d.cpu_power_w != null ? cpuW + 'W' : '--'), '#5aad8a', true);
+      setBar('gpu-pwr-bar', 'gpu-pwr-text', gpuW / GPU_TDP * 100, (d.gpu_power_w != null ? gpuW + 'W' : '--'), '#5a8ab0', true);
+      var totalW = (d.cpu_power_w != null || d.gpu_power_w != null) ? (cpuW + gpuW) + 'W total' : '--';
+      document.getElementById('pwr-total').textContent = totalW;
+      var allPwr = cpuPwrHist.concat(gpuPwrHist).filter(function(v) { return v > 0; });
+      if (allPwr.length > 0) pwrMax = Math.max(Math.max.apply(null, allPwr) * 1.2, 50);
+      var pya = document.getElementById('pwr-yaxis');
+      if (pya) pya.innerHTML = '<span>' + Math.round(pwrMax) + 'W</span><span>' + Math.round(pwrMax/2) + 'W</span><span>0</span>';
+
+      drawChart('mem-chart', [{data: memHist, color: 'rgb(90,173,138)'}], 100);
+      drawChart('gpu-chart', [{data: gpuHist, color: 'rgb(90,173,138)'}, {data: vramHist, color: 'rgb(90,138,176)'}], 100);
+      drawChart('temp-chart', [{data: cpuTempHist, color: 'rgb(90,173,138)'}, {data: gpuTempHist, color: 'rgb(90,138,176)'}], 110);
+      drawChart('pwr-chart', [{data: cpuPwrHist, color: 'rgb(90,173,138)'}, {data: gpuPwrHist, color: 'rgb(90,138,176)'}], pwrMax);
+
+      if (d.disk_total_gb != null) {
+        var diskPct = d.disk_total_gb > 0 ? (d.disk_used_gb / d.disk_total_gb * 100) : 0;
+        setBar('disk-bar', 'disk-bar-text', diskPct, d.disk_used_gb + ' / ' + d.disk_total_gb + ' GB', '#5aad8a', false);
+      }
+      var rdRate = d.disk_read_bytes != null ? d.disk_read_bytes : 0;
+      var wrRate = d.disk_write_bytes != null ? d.disk_write_bytes : 0;
+      push(diskRdHist, rdRate); push(diskWrHist, wrRate);
+      document.getElementById('disk-stats').innerHTML =
+        '<span class="net-rx">R ' + fmtRate(rdRate) + '</span> <span class="net-tx">W ' + fmtRate(wrRate) + '</span>';
+      var allDisk = diskRdHist.concat(diskWrHist).filter(function(v) { return v > 0; });
+      if (allDisk.length > 0) diskMaxRate = Math.max(Math.max.apply(null, allDisk) * 1.2, 1024 * 1024);
+      else diskMaxRate = 1024 * 1024;
+      var dya = document.getElementById('disk-yaxis');
+      if (dya) dya.innerHTML = '<span>' + fmtRate(diskMaxRate) + '</span><span>' + fmtRate(diskMaxRate/2) + '</span><span>0</span>';
+      drawChart('disk-chart', [{data: diskRdHist, color: 'rgb(90,173,138)'}, {data: diskWrHist, color: 'rgb(90,138,176)'}], diskMaxRate);
+    }).catch(function() {});
+  }
+
+  var paused = false;
+  var timer = null;
+  function tick() { if (!paused) update(); }
+  update();
+  timer = setInterval(tick, 3000);
+
+  document.getElementById('pause-btn').addEventListener('click', function() {
+    paused = !paused;
+    this.textContent = paused ? '▶ Resume' : '⏸ Pause';
+    this.classList.toggle('paused', paused);
+  });
+})();
+</script>
+</body>
+</html>

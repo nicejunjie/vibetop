@@ -1,0 +1,19 @@
+[Unit]
+Description=Persistent session daemon for claude-web t%i
+After=network.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_USER@
+WorkingDirectory=~
+Environment=TERM=xterm-256color
+Environment=LANG=en_US.UTF-8
+ExecStart=@APP_DIR@/claude-session serve %i
+Restart=always
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

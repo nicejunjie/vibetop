@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notes — myhost</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: #1a1a2e; font-family: system-ui, sans-serif; }
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; background: #161b22; border-bottom: 1px solid #2a3040;
+    flex-shrink: 0;
+  }
+  .toolbar .title {
+    font-size: 14px; font-weight: 600; color: #9ab;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .toolbar .status {
+    font-size: 12px; color: #556;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .toolbar .status.saved { color: #4a8; }
+  textarea {
+    flex: 1; width: 100%; resize: none;
+    background: #0e1117; color: #d4d8de;
+    border: none; outline: none;
+    padding: 16px 20px;
+    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    tab-size: 4;
+  }
+  textarea::placeholder { color: #3a4050; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <span class="title">Notes</span>
+    <span class="status" id="status"></span>
+  </div>
+  <textarea id="editor" placeholder="Type anything here. Auto-saves as you type." spellcheck="false"></textarea>
+<script>
+(function() {
+  var editor = document.getElementById('editor');
+  var status = document.getElementById('status');
+  var saveTimer = null;
+
+  fetch('/api/notes').then(function(r) { return r.json(); }).then(function(d) {
+    editor.value = d.content || '';
+  });
+
+  function save() {
+    status.textContent = 'saving...';
+    status.className = 'status';
+    fetch('/api/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: editor.value })
+    }).then(function() {
+      status.textContent = 'saved';
+      status.className = 'status saved';
+    }).catch(function() {
+      status.textContent = 'save failed';
+      status.className = 'status';
+    });
+  }
+
+  editor.addEventListener('input', function() {
+    clearTimeout(saveTimer);
+    status.textContent = 'editing...';
+    status.className = 'status';
+    saveTimer = setTimeout(save, 800);
+  });
+
+  editor.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      clearTimeout(saveTimer);
+      save();
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var start = this.selectionStart;
+      this.value = this.value.substring(0, start) + '\t' + this.value.substring(this.selectionEnd);
+      this.selectionStart = this.selectionEnd = start + 1;
+    }
+  });
+})();
+</script>
+</body>
+</html>

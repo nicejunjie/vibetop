@@ -1,0 +1,15 @@
+[Unit]
+Description=FileBrowser web file manager
+After=network.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_USER@
+WorkingDirectory=~
+ExecStart=/usr/local/bin/filebrowser --database @APP_HOME@/.config/filebrowser/filebrowser.db
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+[Unit]
+Description=ttyd for claude-web t%i
+After=claude-web-session@%i.service
+Requires=claude-web-session@%i.service
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_USER@
+ExecStart=@APP_DIR@/ttyd-run.sh %i
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

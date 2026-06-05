@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Terminals — myhost</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: #1a1a2e; font-family: system-ui, sans-serif; }
+
+  .tabs {
+    display: flex; gap: 2px; padding: 4px 8px 0;
+    background: #1a1a2e; flex-shrink: 0;
+    align-items: flex-end;
+  }
+  .tab {
+    position: relative;
+    display: flex; align-items: center;
+    padding: 10px 30px; cursor: grab; user-select: none;
+    min-width: 120px;
+    font-size: 14px; color: #c0dcc0; background: #2a4a35;
+    border: 1px solid #3a6a48; border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    transition: background 0.1s, color 0.1s;
+  }
+  .tab.dragging { opacity: 0.4; cursor: grabbing; }
+  .tab.drag-over-left { box-shadow: -2px 0 0 #4b7; }
+  .tab.drag-over-right { box-shadow: 2px 0 0 #4b7; }
+  .tab:hover { color: #fff; background: #356045; }
+  .tab.active { color: #fff; background: #33aa55; border-color: #44bb77; }
+  .tab.starting { color: #eee; background: #6a5a30; border-color: #887740; }
+  .tab .close {
+    position: absolute; top: 2px; right: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 3px;
+    font-size: 12px; line-height: 1; color: #666;
+    transition: background 0.1s, color 0.1s;
+  }
+  .tab .close:hover { background: #ff4444; color: #fff; }
+  .tab-add {
+    padding: 6px 12px; cursor: pointer; user-select: none;
+    font-size: 16px; color: #555; background: transparent;
+    border: 1px dashed #2a2a4a; border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    transition: color 0.1s, border-color 0.1s;
+  }
+  .tab-add:hover { color: #aaa; border-color: #4a4a6a; }
+
+  .frames { flex: 1; position: relative; }
+  .frames iframe {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: none; background: #2b2b2b;
+    display: none;
+  }
+  .frames iframe.active { display: block; }
+</style>
+</head>
+<body>
+  <div class="tabs" id="tabs"><div class="tab-add" id="add-btn">+</div></div>
+  <div class="frames" id="frames"></div>
+<script>
+(function() {
+  var MAX = 50;
+  var NAMES_KEY = 'terminal-tab-names';
+  var tabs = document.getElementById('tabs');
+  var addBtn = document.getElementById('add-btn');
+  var frames = document.getElementById('frames');
+  var loaded = {};
+  var active = null;
+
+  function api(method, path) {
+    return fetch('/api/terminals' + path, { method: method })
+      .then(function(r) { return r.json(); });
+  }
+
+  function getTabNames() {
+    try { return JSON.parse(localStorage.getItem(NAMES_KEY)) || {}; } catch(e) { return {}; }
+  }
+  function saveTabName(n, name) {
+    var names = getTabNames();
+    if (name) names[n] = name; else delete names[n];
+    localStorage.setItem(NAMES_KEY, JSON.stringify(names));
+  }
+  function tabLabel(n) {
+    var names = getTabNames();
+    return names[n] || 'T' + n;
+  }
+
+  function getTabOrder() {
+    var open = [];
+    tabs.querySelectorAll('.tab').forEach(function(t) { open.push(+t.dataset.n); });
+    return open;
+  }
+  function saveTabOrder() {
+    localStorage.setItem('terminal-tabs', JSON.stringify(getTabOrder()));
+  }
+
+  function addTab(n, starting) {
+    if (tabs.querySelector('.tab[data-n="' + n + '"]')) return;
+    var tab = document.createElement('div');
+    tab.className = 'tab' + (starting ? ' starting' : '');
+    tab.draggable = true;
+    tab.dataset.n = n;
+    tab.innerHTML = '<span class="label">' + tabLabel(n) + '</span><span class="close">×</span>';
+    tabs.insertBefore(tab, addBtn);
+
+    var iframe = document.createElement('iframe');
+    iframe.id = 'frame-' + n;
+    iframe.dataset.n = n;
+    iframe.allow = 'clipboard-read; clipboard-write';
+    frames.appendChild(iframe);
+    saveTabOrder();
+  }
+
+  function removeTab(n) {
+    var tabEl = tabs.querySelector('.tab[data-n="' + n + '"]');
+    var frameEl = document.getElementById('frame-' + n);
+    if (!tabEl) return;
+
+    var remaining = tabs.querySelectorAll('.tab');
+    if (remaining.length <= 1) return;
+
+    var wasActive = tabEl.classList.contains('active');
+    tabEl.remove();
+    if (frameEl) frameEl.remove();
+    delete loaded[n];
+    saveTabOrder();
+
+    api('POST', '/' + n + '/stop');
+
+    if (wasActive) {
+      var first = tabs.querySelector('.tab');
+      if (first) activate(+first.dataset.n);
+    }
+  }
+
+  function activate(n) {
+    active = n;
+    tabs.querySelectorAll('.tab').forEach(function(t) {
+      t.classList.toggle('active', +t.dataset.n === n);
+    });
+    frames.querySelectorAll('iframe').forEach(function(f) {
+      f.classList.toggle('active', +f.dataset.n === n);
+    });
+    if (!loaded[n]) {
+      document.getElementById('frame-' + n).src = '/t' + n + '/';
+      loaded[n] = true;
+    }
+    localStorage.setItem('active-terminal', n);
+    document.title = tabLabel(n) + ' — myhost';
+    focusTerminal(n);
+  }
+
+  function focusTerminal(n) {
+    var iframe = document.getElementById('frame-' + n);
+    if (!iframe) return;
+    iframe.focus();
+    setTimeout(function() {
+      try {
+        var ta = iframe.contentDocument.querySelector('.xterm-helper-textarea');
+        if (ta) ta.focus();
+      } catch(e) {}
+    }, 100);
+  }
+
+  function nextAvailable(running) {
+    var used = {};
+    tabs.querySelectorAll('.tab').forEach(function(t) { used[+t.dataset.n] = true; });
+    if (running) running.forEach(function(n) { used[n] = true; });
+    for (var i = 1; i <= MAX; i++) {
+      if (!used[i]) return i;
+    }
+    return 0;
+  }
+
+  tabs.addEventListener('click', function(e) {
+    if (e.target.closest('.close')) {
+      var tab = e.target.closest('.tab');
+      if (tab) removeTab(+tab.dataset.n);
+      return;
+    }
+    var tab = e.target.closest('.tab');
+    if (tab) activate(+tab.dataset.n);
+  });
+
+  tabs.addEventListener('dblclick', function(e) {
+    var tab = e.target.closest('.tab');
+    if (!tab || e.target.closest('.close')) return;
+    var n = +tab.dataset.n;
+    var label = tab.querySelector('.label');
+    var current = label.textContent;
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = current;
+    input.style.cssText = 'width:80px;font:inherit;background:#111;color:#fff;border:1px solid #4b7;border-radius:3px;padding:0 4px;outline:none;';
+    label.replaceWith(input);
+    input.focus();
+    input.select();
+    function finish() {
+      var val = input.value.trim() || 'T' + n;
+      saveTabName(n, val === 'T' + n ? null : val);
+      var span = document.createElement('span');
+      span.className = 'label';
+      span.textContent = val;
+      input.replaceWith(span);
+    }
+    input.addEventListener('blur', finish);
+    input.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') input.blur();
+      if (ev.key === 'Escape') { input.value = current; input.blur(); }
+    });
+  });
+
+  // -- drag and drop reorder --
+  var dragTab = null;
+
+  tabs.addEventListener('dragstart', function(e) {
+    var tab = e.target.closest('.tab');
+    if (!tab) return;
+    dragTab = tab;
+    tab.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+  });
+
+  tabs.addEventListener('dragend', function(e) {
+    if (dragTab) dragTab.classList.remove('dragging');
+    tabs.querySelectorAll('.tab').forEach(function(t) {
+      t.classList.remove('drag-over-left', 'drag-over-right');
+    });
+    dragTab = null;
+    saveTabOrder();
+  });
+
+  tabs.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    var target = e.target.closest('.tab');
+    if (!target || target === dragTab) return;
+    tabs.querySelectorAll('.tab').forEach(function(t) {
+      t.classList.remove('drag-over-left', 'drag-over-right');
+    });
+    var rect = target.getBoundingClientRect();
+    var mid = rect.left + rect.width / 2;
+    target.classList.add(e.clientX < mid ? 'drag-over-left' : 'drag-over-right');
+  });
+
+  tabs.addEventListener('dragleave', function(e) {
+    var target = e.target.closest('.tab');
+    if (target) target.classList.remove('drag-over-left', 'drag-over-right');
+  });
+
+  tabs.addEventListener('drop', function(e) {
+    e.preventDefault();
+    var target = e.target.closest('.tab');
+    if (!target || !dragTab || target === dragTab) return;
+    var rect = target.getBoundingClientRect();
+    var before = e.clientX < rect.left + rect.width / 2;
+    if (before) {
+      tabs.insertBefore(dragTab, target);
+    } else {
+      tabs.insertBefore(dragTab, target.nextSibling);
+    }
+  });
+
+  addBtn.addEventListener('click', function() {
+    var n = nextAvailable();
+    if (n === 0) return;
+    addTab(n, true);
+    api('POST', '/' + n + '/start').then(function() {
+      var tab = tabs.querySelector('.tab[data-n="' + n + '"]');
+      if (tab) tab.classList.remove('starting');
+      setTimeout(function() { activate(n); }, 500);
+    });
+  });
+
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'focus-terminal' && active) {
+      focusTerminal(active);
+    }
+  });
+
+  // On load: fetch running terminals from API, open tabs for them
+  api('GET', '/status').then(function(data) {
+    var running = data.running || [];
+    if (running.length === 0) {
+      // Start terminal 1 if nothing is running
+      api('POST', '/1/start').then(function() {
+        addTab(1);
+        setTimeout(function() { activate(1); }, 500);
+      });
+      return;
+    }
+    // Restore tab order from localStorage if possible
+    var savedOrder = [];
+    try { savedOrder = JSON.parse(localStorage.getItem('terminal-tabs')) || []; } catch(e) {}
+    var runSet = {};
+    running.forEach(function(n) { runSet[n] = true; });
+    // Add saved tabs that are still running (preserves order)
+    var added = {};
+    savedOrder.forEach(function(n) {
+      if (runSet[n]) { addTab(n); added[n] = true; }
+    });
+    // Add any running tabs not in saved order
+    running.forEach(function(n) {
+      if (!added[n]) addTab(n);
+    });
+    var lastActive = +(localStorage.getItem('active-terminal') || running[0]);
+    if (!tabs.querySelector('.tab[data-n="' + lastActive + '"]')) lastActive = running[0];
+    activate(lastActive);
+  });
+})();
+</script>
+</body>
+</html>

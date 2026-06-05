@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>myhost</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: #0e1117; font-family: system-ui, sans-serif; color: #e0e0e0; }
+
+  /* === Taskbar === */
+  .taskbar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: 54px;
+    display: flex; align-items: center;
+    background: #161b22; border-top: 1px solid #2a3040;
+    z-index: 100; padding: 0 8px; gap: 2px;
+    font-family: system-ui, sans-serif;
+  }
+  .tb-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 14px; height: 38px;
+    border-radius: 8px; cursor: pointer; user-select: none;
+    font-size: 15px; color: #8a9aaa;
+    border: 1px solid transparent;
+  }
+  .tb-item:hover { background: rgba(255,255,255,0.06); color: #c0d0e0; }
+  .tb-item.active { color: #fff; border-color: rgba(255,255,255,0.1); }
+  .tb-item[data-id="home"].active { background: #6b3510; }
+  .tb-item[data-id="terminal"].active { background: #1a5c2a; }
+  .tb-item[data-id="browser"].active { background: #1a3a6b; }
+  .tb-item[data-id="files"].active { background: #3a1a6b; }
+  .tb-item[data-id="notes"].active { background: #0a4a44; }
+  .tb-item[data-id="monitor"].active { background: #4a3010; }
+  .tb-item .icon { font-size: 18px; line-height: 1; }
+
+  .tb-sep {
+    width: 1px; height: 28px; background: #2a3040; margin: 0 8px;
+  }
+  .tb-spacer { flex: 1; }
+
+  .tb-stats {
+    display: flex; align-items: center; gap: 0;
+    font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #6a7a8a; white-space: nowrap;
+  }
+  .tb-stats .val { color: #9ab; }
+  .tb-stats .label { color: #556; margin-right: 3px; }
+  .tb-stats .sep { margin: 0 6px; color: #333; }
+
+  .tb-logout {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 8px;
+    font-size: 18px; color: #aa4444; cursor: pointer;
+    text-decoration: none; margin-left: 8px;
+    border: 1px solid rgba(255,60,60,0.15);
+  }
+  .tb-logout:hover { background: rgba(255,60,60,0.2); color: #ff6666; border-color: rgba(255,60,60,0.3); }
+
+  /* === Frames === */
+  .frames { position: fixed; top: 0; left: 0; right: 0; bottom: 54px; }
+  .frames iframe {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    border: none; background: #1a1a2e; display: none;
+  }
+  .frames iframe.active { display: block; }
+</style>
+</head>
+<body>
+  <div class="frames" id="frames">
+    <iframe id="frame-home" data-id="home" allow="clipboard-read; clipboard-write"></iframe>
+    <iframe id="frame-terminal" data-id="terminal" allow="clipboard-read; clipboard-write"></iframe>
+    <iframe id="frame-browser" data-id="browser" allow="clipboard-read; clipboard-write"></iframe>
+    <iframe id="frame-files" data-id="files" allow="clipboard-read; clipboard-write"></iframe>
+    <iframe id="frame-notes" data-id="notes" allow="clipboard-read; clipboard-write"></iframe>
+    <iframe id="frame-monitor" data-id="monitor" allow="clipboard-read; clipboard-write"></iframe>
+  </div>
+  <div class="taskbar" id="taskbar">
+    <div class="tb-item" data-id="home"><span class="icon">🏠</span> Home</div>
+    <div class="tb-item" data-id="terminal"><span class="icon">⬛</span> Terminal</div>
+    <div class="tb-item" data-id="browser"><span class="icon">🌐</span> Browser</div>
+    <div class="tb-item" data-id="files"><span class="icon">📁</span> Files</div>
+    <div class="tb-item" data-id="notes"><span class="icon">📝</span> Notes</div>
+    <div class="tb-item" data-id="monitor"><span class="icon">📊</span> Monitor</div>
+    <div class="tb-spacer"></div>
+    <div class="tb-stats"><span class="label">CPU</span><span class="val" id="st-cpu">--</span><span class="sep">|</span><span class="label">MEM</span><span class="val" id="st-mem">--</span><span class="sep">|</span><span class="label">GPU</span><span class="val" id="st-gpu">--</span><span class="sep">|</span><span class="label">VRAM</span><span class="val" id="st-vram">--</span></div>
+    <div class="tb-sep"></div>
+    <a class="tb-logout" href="/cdn-cgi/access/logout" title="Logout">⏻</a>
+  </div>
+
+<script>
+(function() {
+  window.addEventListener('beforeunload', function(e) { delete e.returnValue; });
+  window.onbeforeunload = null;
+
+  var v = Date.now();
+  var SOURCES = { home: '/landing.html?v='+v, terminal: '/terminals/', browser: '/browser/', files: '/files/', notes: '/notes.html?v='+v, monitor: '/monitor.html?v='+v };
+  var tabs = document.querySelectorAll('.tb-item');
+  var loaded = {};
+  var active = null;
+
+  function activate(id) {
+    active = id;
+    tabs.forEach(function(t) { t.classList.toggle('active', t.dataset.id === id); });
+    document.querySelectorAll('#frames iframe').forEach(function(f) {
+      f.classList.toggle('active', f.dataset.id === id);
+    });
+    var iframe = document.getElementById('frame-' + id);
+    if (iframe && !loaded[id]) {
+      iframe.src = SOURCES[id];
+      loaded[id] = true;
+    }
+    if (iframe) {
+      iframe.focus();
+      if (id === 'terminal' && iframe.contentWindow) {
+        try { iframe.contentWindow.postMessage({type: 'focus-terminal'}, '*'); } catch(e) {}
+      }
+    }
+    localStorage.setItem('desktop-active', id);
+    document.title = id.charAt(0).toUpperCase() + id.slice(1) + ' — myhost';
+  }
+
+  tabs.forEach(function(t) {
+    t.addEventListener('click', function() { activate(t.dataset.id); });
+  });
+
+  // Status bar
+  function updateStatus() {
+    fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(d) {
+      document.getElementById('st-cpu').textContent = d.cpu_percent + '%' + (d.cpu_temp != null ? ' ' + d.cpu_temp + '°' : '');
+      document.getElementById('st-mem').textContent = d.memory_used_gb + '/' + d.memory_total_gb + 'G';
+      var gp = d.gpu_percent != null ? d.gpu_percent + '%' : '--';
+      document.getElementById('st-gpu').textContent = gp + (d.gpu_temp != null ? ' ' + d.gpu_temp + '°' : '');
+      document.getElementById('st-vram').textContent = d.gpu_vram_used_gb != null ? d.gpu_vram_used_gb + '/' + d.gpu_vram_total_gb + 'G' : 'N/A';
+    }).catch(function() {});
+  }
+  updateStatus();
+  setInterval(updateStatus, 5000);
+
+  // Health check: fetch from parent (works through Cloudflare), relay to Home iframe
+  function updateHealth() {
+    fetch('/api/health').then(function(r) { return r.json(); }).then(function(data) {
+      var homeFrame = document.getElementById('frame-home');
+      if (homeFrame && homeFrame.contentWindow) {
+        try { homeFrame.contentWindow.postMessage({type: 'health', data: data}, '*'); } catch(e) {}
+      }
+      var monFrame = document.getElementById('frame-monitor');
+      if (monFrame && monFrame.contentWindow) {
+        try { monFrame.contentWindow.postMessage({type: 'health', data: data}, '*'); } catch(e) {}
+      }
+    }).catch(function() {});
+  }
+  setInterval(updateHealth, 5000);
+  setTimeout(updateHealth, 2000);
+  setTimeout(updateHealth, 4000);
+
+  // Relay terminal status to Home iframe
+  function updateTerminals() {
+    fetch('/api/terminals/status').then(function(r) { return r.json(); }).then(function(data) {
+      var homeFrame = document.getElementById('frame-home');
+      if (homeFrame && homeFrame.contentWindow) {
+        try { homeFrame.contentWindow.postMessage({type: 'terminals', data: data}, '*'); } catch(e) {}
+      }
+    }).catch(function() {});
+  }
+  setInterval(updateTerminals, 5000);
+  setTimeout(updateTerminals, 2500);
+  setTimeout(updateTerminals, 4500);
+
+  // Listen for URL-open messages from terminal iframes
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'switch-to-browser') {
+      activate('browser');
+    }
+    if (e.data && e.data.type === 'open-in-browser' && e.data.url) {
+      fetch('/api/browser/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: e.data.url })
+      });
+      activate('browser');
+    }
+  });
+
+  // Restore last active tab
+  var last = localStorage.getItem('desktop-active');
+  activate(last && SOURCES[last] ? last : 'terminal');
+})();
+</script>
+</body>
+</html>

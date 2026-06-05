@@ -1,0 +1,17 @@
+# Editor / OS cruft
+*.swp
+*~
+.DS_Store
+.idea/
+.vscode/
+
+# Local secrets / rendered configs (templates are tracked, rendered output is not)
+*.local
+.env
+*.json.bak
+
+# Cloudflare tunnel credentials (never commit)
+*.json
+!**/package.json
+cert.pem
+credentials.json
