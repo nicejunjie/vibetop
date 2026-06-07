@@ -14,29 +14,53 @@
     position: fixed; bottom: 0; left: 0; right: 0; height: 54px;
     display: flex; align-items: center;
     background: #161b22; border-top: 1px solid #2a3040;
-    z-index: 100; padding: 0 8px; gap: 2px;
+    z-index: 100; padding: 0 8px; gap: 4px;
     font-family: system-ui, sans-serif;
   }
-  .tb-item {
-    display: flex; align-items: center; gap: 6px;
-    padding: 6px 14px; height: 38px;
-    border-radius: 8px; cursor: pointer; user-select: none;
-    font-size: 15px; color: #8a9aaa;
-    border: 1px solid transparent;
-  }
-  .tb-item:hover { background: rgba(255,255,255,0.06); color: #c0d0e0; }
-  .tb-item.active { color: #fff; border-color: rgba(255,255,255,0.1); }
-  .tb-item[data-id="home"].active { background: #6b3510; }
-  .tb-item[data-id="terminal"].active { background: #1a5c2a; }
-  .tb-item[data-id="browser"].active { background: #1a3a6b; }
-  .tb-item[data-id="files"].active { background: #3a1a6b; }
-  .tb-item[data-id="notes"].active { background: #0a4a44; }
-  .tb-item[data-id="monitor"].active { background: #4a3010; }
-  .tb-item .icon { font-size: 18px; line-height: 1; }
 
-  .tb-sep {
-    width: 1px; height: 28px; background: #2a3040; margin: 0 8px;
+  /* Start button — always present, like Windows' Start */
+  .start-btn {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; height: 40px;
+    border-radius: 8px; cursor: pointer; user-select: none;
+    font-size: 15px; font-weight: 600; color: #e8eef5;
+    background: linear-gradient(135deg, #b3540f, #d2691e);
+    border: 1px solid rgba(255,255,255,0.12);
   }
+  .start-btn:hover { filter: brightness(1.12); }
+  .start-btn.open { box-shadow: 0 0 0 2px rgba(210,105,30,0.5) inset; filter: brightness(1.12); }
+  .start-btn .icon { font-size: 18px; line-height: 1; }
+
+  .tb-sep { width: 1px; height: 28px; background: #2a3040; margin: 0 6px; }
+
+  /* Open-app buttons (only present while the app is open) */
+  .task-apps { display: flex; align-items: center; gap: 2px; }
+  .task-app {
+    position: relative;
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px 6px 12px; height: 38px;
+    border-radius: 8px; cursor: pointer; user-select: none;
+    font-size: 14px; color: #8a9aaa;
+    border: 1px solid transparent;
+    border-bottom: 2px solid transparent;
+  }
+  .task-app:hover { background: rgba(255,255,255,0.06); color: #c0d0e0; }
+  .task-app.active { color: #fff; background: rgba(255,255,255,0.08); }
+  .task-app .icon { font-size: 17px; line-height: 1; }
+  .task-app .close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; margin-left: 2px; border-radius: 4px;
+    font-size: 14px; line-height: 1; color: #5a6a7a;
+  }
+  .task-app .close:hover { background: #aa3333; color: #fff; }
+  /* per-app accent on the active underline */
+  .task-app.active[data-id="home"]     { border-bottom-color: #d2691e; }
+  .task-app.active[data-id="terminal"] { border-bottom-color: #33aa55; }
+  .task-app.active[data-id="browser"]  { border-bottom-color: #3a7adb; }
+  .task-app.active[data-id="files"]    { border-bottom-color: #8a4adb; }
+  .task-app.active[data-id="notes"]    { border-bottom-color: #1ab3a6; }
+  .task-app.active[data-id="monitor"]  { border-bottom-color: #d2902a; }
+
   .tb-spacer { flex: 1; }
 
   .tb-stats {
@@ -57,22 +81,39 @@
   }
   .tb-logout:hover { background: rgba(255,60,60,0.2); color: #ff6666; border-color: rgba(255,60,60,0.3); }
 
-  /* === Narrow screens: let the taskbar scroll horizontally instead of clipping === */
-  @media (max-width: 736px) {
-    .taskbar {
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;            /* Firefox */
-    }
-    .taskbar::-webkit-scrollbar { display: none; }  /* Chrome/Safari */
-    /* Keep every item at its natural width so the row overflows (and scrolls)
-       rather than shrinking and clipping its contents. */
-    .tb-item, .tb-stats, .tb-logout { flex-shrink: 0; }
-    /* The spacer would otherwise try to fill the row and push the stats/logout
-       off-screen; collapse it so everything sits inline and is scrollable to. */
-    .tb-spacer { flex: 0 0 8px; }
+  /* === Start menu === */
+  .startmenu {
+    position: fixed; bottom: 62px; left: 8px;
+    width: 280px; max-height: calc(100vh - 80px); overflow-y: auto;
+    background: #11161d; border: 1px solid #2a3040; border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+    z-index: 110; padding: 10px;
+    display: none;
   }
+  .startmenu.open { display: block; }
+  .startmenu .sm-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: #556; padding: 4px 8px 8px;
+  }
+  .sm-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 10px; border-radius: 8px; cursor: pointer; user-select: none;
+    color: #c0d0e0; border: 1px solid transparent;
+  }
+  .sm-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
+  .sm-item .sm-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 9px; font-size: 19px; flex-shrink: 0;
+  }
+  .sm-item[data-id="home"]     .sm-icon { background: #6b3510; }
+  .sm-item[data-id="terminal"] .sm-icon { background: #1a5c2a; }
+  .sm-item[data-id="browser"]  .sm-icon { background: #1a3a6b; }
+  .sm-item[data-id="files"]    .sm-icon { background: #3a1a6b; }
+  .sm-item[data-id="notes"]    .sm-icon { background: #0a4a44; }
+  .sm-item[data-id="monitor"]  .sm-icon { background: #4a3010; }
+  .sm-item .sm-name { font-size: 15px; color: #e6edf3; }
+  .sm-item .sm-desc { font-size: 12px; color: #6a7a8a; margin-top: 1px; }
+  .sm-item.running .sm-name::after { content: " \25CF"; color: #34a853; font-size: 10px; vertical-align: middle; }
 
   /* === Frames === */
   .frames { position: fixed; top: 0; left: 0; right: 0; bottom: 54px; }
@@ -81,24 +122,44 @@
     border: none; background: #1a1a2e; display: none;
   }
   .frames iframe.active { display: block; }
+
+  /* Empty desktop hint (shown when no app is focused) */
+  .desktop-hint {
+    position: fixed; inset: 0 0 54px 0; display: flex;
+    align-items: center; justify-content: center;
+    color: #3a4654; font-size: 16px; text-align: center; padding: 24px;
+    pointer-events: none;
+  }
+  .desktop-hint.hidden { display: none; }
+
+  /* === Narrow screens: scrollable taskbar + roomy menu === */
+  @media (max-width: 736px) {
+    .taskbar { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .taskbar::-webkit-scrollbar { display: none; }
+    .start-btn, .task-app, .tb-stats, .tb-logout { flex-shrink: 0; }
+    .tb-spacer { flex: 0 0 8px; }
+    .startmenu { left: 8px; right: 8px; width: auto; }
+  }
 </style>
 </head>
 <body>
-  <div class="frames" id="frames">
-    <iframe id="frame-home" data-id="home" allow="clipboard-read; clipboard-write"></iframe>
-    <iframe id="frame-terminal" data-id="terminal" allow="clipboard-read; clipboard-write"></iframe>
-    <iframe id="frame-browser" data-id="browser" allow="clipboard-read; clipboard-write"></iframe>
-    <iframe id="frame-files" data-id="files" allow="clipboard-read; clipboard-write"></iframe>
-    <iframe id="frame-notes" data-id="notes" allow="clipboard-read; clipboard-write"></iframe>
-    <iframe id="frame-monitor" data-id="monitor" allow="clipboard-read; clipboard-write"></iframe>
+  <div class="frames" id="frames"></div>
+  <div class="desktop-hint" id="desktop-hint">Click <b>&nbsp;⊞ Start&nbsp;</b> to open an app</div>
+
+  <div class="startmenu" id="startmenu">
+    <div class="sm-title">Apps</div>
+    <div class="sm-item" data-id="home"><div class="sm-icon">🏠</div><div><div class="sm-name">Home Service</div><div class="sm-desc">Service list &amp; health</div></div></div>
+    <div class="sm-item" data-id="terminal"><div class="sm-icon">⬛</div><div><div class="sm-name">Terminal</div><div class="sm-desc">Persistent bash sessions</div></div></div>
+    <div class="sm-item" data-id="browser"><div class="sm-icon">🌐</div><div><div class="sm-name">Browser</div><div class="sm-desc">Persistent Chromium via xpra</div></div></div>
+    <div class="sm-item" data-id="files"><div class="sm-icon">📁</div><div><div class="sm-name">Files</div><div class="sm-desc">File manager rooted at home</div></div></div>
+    <div class="sm-item" data-id="notes"><div class="sm-icon">📝</div><div><div class="sm-name">Notes</div><div class="sm-desc">Persistent scratchpad</div></div></div>
+    <div class="sm-item" data-id="monitor"><div class="sm-icon">📊</div><div><div class="sm-name">Monitor</div><div class="sm-desc">Live system dashboard</div></div></div>
   </div>
+
   <div class="taskbar" id="taskbar">
-    <div class="tb-item" data-id="home"><span class="icon">🏠</span> Home</div>
-    <div class="tb-item" data-id="terminal"><span class="icon">⬛</span> Terminal</div>
-    <div class="tb-item" data-id="browser"><span class="icon">🌐</span> Browser</div>
-    <div class="tb-item" data-id="files"><span class="icon">📁</span> Files</div>
-    <div class="tb-item" data-id="notes"><span class="icon">📝</span> Notes</div>
-    <div class="tb-item" data-id="monitor"><span class="icon">📊</span> Monitor</div>
+    <div class="start-btn" id="start-btn"><span class="icon">⊞</span> Start</div>
+    <div class="tb-sep"></div>
+    <div class="task-apps" id="task-apps"></div>
     <div class="tb-spacer"></div>
     <div class="tb-stats"><span class="label">CPU</span><span class="val" id="st-cpu">--</span><span class="sep">|</span><span class="label">MEM</span><span class="val" id="st-mem">--</span><span class="sep">|</span><span class="label">GPU</span><span class="val" id="st-gpu">--</span><span class="sep">|</span><span class="label">VRAM</span><span class="val" id="st-vram">--</span></div>
     <div class="tb-sep"></div>
@@ -110,38 +171,151 @@
   window.addEventListener('beforeunload', function(e) { delete e.returnValue; });
   window.onbeforeunload = null;
 
-  var v = Date.now();
-  var SOURCES = { home: '/landing.html?v='+v, terminal: '/terminals/', browser: '/browser/', files: '/files/', notes: '/notes.html?v='+v, monitor: '/monitor.html?v='+v };
-  var tabs = document.querySelectorAll('.tb-item');
-  var loaded = {};
-  var active = null;
+  var APPS = {
+    home:     { label: 'Home Service', icon: '🏠', src: '/landing.html' },
+    terminal: { label: 'Terminal', icon: '⬛', src: '/terminals/' },
+    browser:  { label: 'Browser',  icon: '🌐', src: '/browser/' },
+    files:    { label: 'Files',    icon: '📁', src: '/files/' },
+    notes:    { label: 'Notes',    icon: '📝', src: '/notes.html' },
+    monitor:  { label: 'Monitor',  icon: '📊', src: '/monitor.html' }
+  };
 
-  function activate(id) {
+  var framesEl  = document.getElementById('frames');
+  var taskAppsEl = document.getElementById('task-apps');
+  var menuEl    = document.getElementById('startmenu');
+  var startBtn  = document.getElementById('start-btn');
+  var hintEl    = document.getElementById('desktop-hint');
+
+  var openApps = [];   // ids, in taskbar order
+  var active   = null;
+
+  function persist() {
+    try {
+      localStorage.setItem('desktop-open', JSON.stringify(openApps));
+      localStorage.setItem('desktop-active', active || '');
+    } catch (e) {}
+  }
+
+  function frameOf(id) { return document.getElementById('frame-' + id); }
+
+  function ensureFrame(id) {
+    var f = frameOf(id);
+    if (!f) {
+      f = document.createElement('iframe');
+      f.id = 'frame-' + id;
+      f.dataset.id = id;
+      f.setAttribute('allow', 'clipboard-read; clipboard-write');
+      f.src = APPS[id].src;            // lazy: loaded once when first opened
+      framesEl.appendChild(f);
+    }
+    return f;
+  }
+
+  function renderTaskbar() {
+    taskAppsEl.innerHTML = '';
+    openApps.forEach(function(id) {
+      var btn = document.createElement('div');
+      btn.className = 'task-app' + (id === active ? ' active' : '');
+      btn.dataset.id = id;
+      btn.innerHTML = '<span class="icon">' + APPS[id].icon + '</span>' +
+                      '<span class="name">' + APPS[id].label + '</span>' +
+                      '<span class="close" title="Close">&times;</span>';
+      taskAppsEl.appendChild(btn);
+    });
+    markMenuRunning();
+  }
+
+  function markMenuRunning() {
+    menuEl.querySelectorAll('.sm-item').forEach(function(it) {
+      it.classList.toggle('running', openApps.indexOf(it.dataset.id) !== -1);
+    });
+  }
+
+  function setActive(id) {
     active = id;
-    tabs.forEach(function(t) { t.classList.toggle('active', t.dataset.id === id); });
     document.querySelectorAll('#frames iframe').forEach(function(f) {
       f.classList.toggle('active', f.dataset.id === id);
     });
-    var iframe = document.getElementById('frame-' + id);
-    if (iframe && !loaded[id]) {
-      iframe.src = SOURCES[id];
-      loaded[id] = true;
-    }
-    if (iframe) {
-      iframe.focus();
-      if (id === 'terminal' && iframe.contentWindow) {
-        try { iframe.contentWindow.postMessage({type: 'focus-terminal'}, '*'); } catch(e) {}
+    hintEl.classList.toggle('hidden', !!id);
+    renderTaskbar();
+    persist();
+    document.title = id ? (APPS[id].label + ' — myhost') : 'myhost';
+    var f = id && frameOf(id);
+    if (f) {
+      f.focus();
+      if (id === 'terminal' && f.contentWindow) {
+        try { f.contentWindow.postMessage({ type: 'focus-terminal' }, '*'); } catch (e) {}
       }
     }
-    localStorage.setItem('desktop-active', id);
-    document.title = id.charAt(0).toUpperCase() + id.slice(1) + ' — myhost';
   }
 
-  tabs.forEach(function(t) {
-    t.addEventListener('click', function() { activate(t.dataset.id); });
+  function launch(id) {
+    if (!APPS[id]) return;
+    if (openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
+    setActive(id);
+    closeMenu();
+    if (id === 'home' || id === 'monitor') {       // populate relayed status promptly
+      setTimeout(relayStatus, 800);
+    }
+  }
+
+  function closeApp(id) {
+    var i = openApps.indexOf(id);
+    if (i === -1) return;
+    openApps.splice(i, 1);
+    var f = frameOf(id);
+    if (f) f.parentNode.removeChild(f);     // fully unload the app
+    if (active === id) {
+      setActive(openApps.length ? openApps[Math.max(0, i - 1)] : null);
+    } else {
+      renderTaskbar();
+      persist();
+    }
+  }
+
+  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); }
+  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); }
+  function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
+
+  // --- events ---
+  startBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleMenu(); });
+
+  menuEl.addEventListener('click', function(e) {
+    var item = e.target.closest('.sm-item');
+    if (item) launch(item.dataset.id);
   });
 
-  // Status bar
+  taskAppsEl.addEventListener('click', function(e) {
+    var btn = e.target.closest('.task-app');
+    if (!btn) return;
+    var id = btn.dataset.id;
+    if (e.target.closest('.close')) { closeApp(id); return; }
+    setActive(id);
+  });
+
+  document.addEventListener('click', function(e) {
+    if (menuEl.classList.contains('open') &&
+        !e.target.closest('#startmenu') && !e.target.closest('#start-btn')) {
+      closeMenu();
+    }
+  });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeMenu(); });
+
+  // Messages from app iframes (e.g. terminal opening a URL in the browser)
+  window.addEventListener('message', function(e) {
+    if (!e.data) return;
+    if (e.data.type === 'switch-to-browser') { launch('browser'); }
+    if (e.data.type === 'open-in-browser' && e.data.url) {
+      fetch('/api/browser/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: e.data.url })
+      });
+      launch('browser');
+    }
+  });
+
+  // --- status bar ---
   function updateStatus() {
     fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(d) {
       document.getElementById('st-cpu').textContent = d.cpu_percent + '%' + (d.cpu_temp != null ? ' ' + d.cpu_temp + '°' : '');
@@ -154,54 +328,47 @@
   updateStatus();
   setInterval(updateStatus, 5000);
 
-  // Health check: fetch from parent (works through Cloudflare), relay to Home iframe
-  function updateHealth() {
+  // Relay status to apps that render it (Monitor + Home Service). Needed because
+  // through the Cloudflare tunnel an iframe's own fetches don't carry the Access
+  // cookie, so the parent fetches and forwards. Only sent to apps that are open.
+  function post(id, msg) {
+    var f = frameOf(id);
+    if (f && f.contentWindow) { try { f.contentWindow.postMessage(msg, '*'); } catch (e) {} }
+  }
+  function relayStatus() {
+    if (openApps.indexOf('monitor') === -1 && openApps.indexOf('home') === -1) return;
     fetch('/api/health').then(function(r) { return r.json(); }).then(function(data) {
-      var homeFrame = document.getElementById('frame-home');
-      if (homeFrame && homeFrame.contentWindow) {
-        try { homeFrame.contentWindow.postMessage({type: 'health', data: data}, '*'); } catch(e) {}
-      }
-      var monFrame = document.getElementById('frame-monitor');
-      if (monFrame && monFrame.contentWindow) {
-        try { monFrame.contentWindow.postMessage({type: 'health', data: data}, '*'); } catch(e) {}
-      }
+      post('monitor', { type: 'health', data: data });
+      post('home', { type: 'health', data: data });
     }).catch(function() {});
-  }
-  setInterval(updateHealth, 5000);
-  setTimeout(updateHealth, 2000);
-  setTimeout(updateHealth, 4000);
-
-  // Relay terminal status to Home iframe
-  function updateTerminals() {
-    fetch('/api/terminals/status').then(function(r) { return r.json(); }).then(function(data) {
-      var homeFrame = document.getElementById('frame-home');
-      if (homeFrame && homeFrame.contentWindow) {
-        try { homeFrame.contentWindow.postMessage({type: 'terminals', data: data}, '*'); } catch(e) {}
-      }
-    }).catch(function() {});
-  }
-  setInterval(updateTerminals, 5000);
-  setTimeout(updateTerminals, 2500);
-  setTimeout(updateTerminals, 4500);
-
-  // Listen for URL-open messages from terminal iframes
-  window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'switch-to-browser') {
-      activate('browser');
+    if (openApps.indexOf('home') !== -1) {
+      fetch('/api/terminals/status').then(function(r) { return r.json(); }).then(function(data) {
+        post('home', { type: 'terminals', data: data });
+      }).catch(function() {});
+      fetch('/services.json').then(function(r) { return r.json(); }).then(function(data) {
+        post('home', { type: 'services', data: data });
+      }).catch(function() {});
     }
-    if (e.data && e.data.type === 'open-in-browser' && e.data.url) {
-      fetch('/api/browser/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: e.data.url })
+  }
+  setInterval(relayStatus, 5000);
+  setTimeout(relayStatus, 1500);
+
+  // --- restore previous session ---
+  try {
+    var saved = JSON.parse(localStorage.getItem('desktop-open') || '[]');
+    if (Array.isArray(saved)) {
+      saved.forEach(function(id) {
+        if (APPS[id] && openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
       });
-      activate('browser');
     }
-  });
-
-  // Restore last active tab
-  var last = localStorage.getItem('desktop-active');
-  activate(last && SOURCES[last] ? last : 'terminal');
+  } catch (e) {}
+  var lastActive = localStorage.getItem('desktop-active');
+  if (openApps.length) {
+    setActive(openApps.indexOf(lastActive) !== -1 ? lastActive : openApps[0]);
+  } else {
+    setActive(null);
+    openMenu();   // fresh desktop: show the launcher so there's an obvious next step
+  }
 })();
 </script>
 </body>

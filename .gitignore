@@ -15,3 +15,12 @@
 !**/package.json
 cert.pem
 credentials.json
+
+# Host-local service list (real hostnames/IPs live here, never committed).
+# Only the generic example is tracked.
+services.json
+!landing/services.example.json
+
+# Python bytecode cache
+__pycache__/
+*.pyc

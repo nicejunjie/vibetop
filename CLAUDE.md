@@ -48,15 +48,15 @@ sudo systemctl status cloudflared
 
 ### Unified desktop (`landing/desktop.html`)
 
-The root page at `/` is a single-page desktop with:
-- **Tab bar** — five pinned tabs: Home (orange, loads `/landing.html`), Terminal (green, loads `/terminals/`), Browser (blue, loads `/browser/`), Files (purple, loads `/files/`), Notes (teal, loads `/notes.html`). Each loads its content in a full-viewport iframe.
-- **Status bar** — live system stats (CPU% + temp, memory, GPU% + temp, VRAM, uptime, terminal count) updated every 5s via `/api/system/status`. CPU temp from `k10temp` (Tctl), GPU temp from `amdgpu` (edge). When the GPU driver locks sysfs during heavy compute, utilization/temp show `--` while VRAM remains available.
-- **Logout button** — upper-right corner, links to `/cdn-cgi/access/logout` (Cloudflare Access).
-- All iframes have `allow="clipboard-read; clipboard-write"` for cross-iframe clipboard support.
-- Remembers last active tab in localStorage.
-- Relays `/api/health` and `/api/terminals/status` to the Home iframe via `postMessage` (required for Cloudflare tunnel where iframe fetches don't carry the Access cookie).
-- Listens for `postMessage` from terminal iframes to auto-switch to Browser tab when a URL is opened.
-- **Mobile** — a `max-width: 736px` breakpoint makes the bottom tab bar horizontally scrollable (instead of clipping the right-side tabs/stats/logout). `monitor.html` has its own `736px` breakpoint that collapses its two-column grid into a single scrollable column (the desktop layout is `overflow:hidden`, so charts get explicit heights or the canvas collapses to zero). The terminal and xpra-browser tabs are still desktop-oriented on touch.
+The root page at `/` is a Windows-style shell:
+- **Start button** — always present at the taskbar's left. Clicking it toggles the **Start menu**, a launcher listing six apps (Home Service, Terminal, Browser, Files, Notes, Monitor) with icon + description. Picking one opens it. (This replaced the old always-pinned tab bar.) **Home Service** is the old service-list page (`landing/index.html`, served at `/landing.html`) wrapped as a launchable app — it shows the service cards, health dots, and dynamic terminal chips. Its extra service cards (and their health-check targets) are **not** in the repo: they're read at runtime from a host-local, gitignored `~/claude-web-www/services.json` (format in `landing/services.example.json`). The page renders them from a direct `/services.json` fetch (LAN) or a parent `postMessage` relay (tunnel), and `terminal-manager.py` merges each entry's `key`/`health` into `/api/health` so the dots work — keeping personal hostnames/IPs out of git.
+- **Taskbar apps** — only *opened* apps get a button (Windows-style), each with a close (×). Multiple apps can be open at once; the focused one is highlighted with a per-app accent underline. The set of open apps and the active one are remembered in `localStorage` (`desktop-open`, `desktop-active`) and restored on reload. On a fresh load with nothing open, the Start menu auto-opens.
+- **App frames** — each app is a full-viewport iframe, created lazily on first open and **removed from the DOM on close** (true unload). All iframes carry `allow="clipboard-read; clipboard-write"` for cross-iframe clipboard.
+- **Status bar** — live system stats (CPU% + temp, memory, GPU% + temp, VRAM) updated every 5s via `/api/system/status`. CPU temp from `k10temp` (Tctl), GPU temp from `amdgpu` (edge). When the GPU driver locks sysfs during heavy compute, utilization/temp show `--` while VRAM remains available.
+- **Logout button** — taskbar far right, links to `/cdn-cgi/access/logout` (Cloudflare Access).
+- Relays `/api/health` (to the Monitor and Home Service apps) and `/api/terminals/status` (to Home Service) via `postMessage`, only when those apps are open — required for the Cloudflare tunnel where an iframe's own fetches don't carry the Access cookie, so the parent fetches and forwards.
+- Listens for `postMessage` from the terminal app to open a clicked URL in the Browser app (launching Browser if it isn't already open).
+- **Mobile** — a `max-width: 736px` breakpoint makes the taskbar horizontally scrollable (instead of clipping apps/stats/logout) and lets the Start menu span the screen width. `monitor.html` has its own `736px` breakpoint that collapses its two-column grid into a single scrollable column (the desktop layout is `overflow:hidden`, so charts get explicit heights or the canvas collapses to zero). The terminal and xpra-browser apps are still desktop-oriented on touch.
 
 ### Shared nginx
 

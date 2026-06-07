@@ -37,6 +37,10 @@ def _app_user():
 
 APP_USER = _app_user()
 NOTES_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-notes.md")
+# Host-local service definitions (gitignored). Each entry may carry a "key" and a
+# "health" URL; those are added to /api/health so the Home Service page can show
+# live dots without baking personal hostnames into the repo.
+SERVICES_FILE = os.path.expanduser(f"~{APP_USER}/claude-web-www/services.json")
 
 # Per-process CPU snapshot for delta-based calculation
 _prev_proc_snap = {}  # pid -> (utime+stime, timestamp)
@@ -473,10 +477,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "terminals": "http://127.0.0.1:7681/t1/",
             "browser": "http://127.0.0.1:14500/",
             "files": "http://127.0.0.1:8085/files/",
-            # Add your own host's services here, matching the data-health
-            # attributes of the cards in landing/index.html. Example:
-            # "myservice": "http://127.0.0.1:8080/",
         }
+        # Merge host-local services (each with a "key" and a "health" URL).
+        try:
+            with open(SERVICES_FILE) as f:
+                for s in json.load(f):
+                    key, url = s.get("key"), s.get("health") or s.get("url")
+                    if key and url:
+                        checks[key] = url
+        except Exception:
+            pass
         result = {}
         for name, url in checks.items():
             try:

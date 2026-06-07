@@ -113,22 +113,16 @@
       </div>
     </section>
 
-    <!-- Add cards here for your own host's services. Example:
-    <section>
+    <!-- Populated at runtime from services.json (a host-local, gitignored file).
+         See services.example.json for the format. -->
+    <section id="services-section" hidden>
       <h2>services-in-browser</h2>
-      <div class="grid">
-        <a class="card" href="http://192.168.1.10:8080" target="_blank" data-health="myservice">
-          <div class="name"><span class="dot"></span>My Service</div>
-          <div class="desc">Description</div>
-          <div class="port">:8080</div>
-        </a>
-      </div>
+      <div class="grid" id="services-grid"></div>
     </section>
-    -->
 
   </main>
   <footer>
-    Edit <code>~/vibe-coding/service-in-browser/landing/index.html</code>, then run <code>./install.sh</code>.
+    Add your services in <code>~/claude-web-www/services.json</code> (see <code>services.example.json</code>).
   </footer>
 <script>
 // Dynamic terminal chips
@@ -150,17 +144,47 @@ window.addEventListener('message', function(e) {
   if (e.data && e.data.type === 'terminals') loadTerminals(e.data.data);
 });
 
+var lastHealth = null;
 function applyHealth(data) {
+  lastHealth = data;
   document.querySelectorAll('a.card[data-health]').forEach(card => {
     const dot = card.querySelector('.dot');
     const key = card.dataset.health;
     if (dot && key in data) { dot.classList.remove('up','down'); dot.classList.add(data[key] ? 'up' : 'down'); }
   });
 }
-// Try fetching directly (works on LAN), also listen for postMessage from parent (works via Cloudflare)
+
+// Host-local service cards, defined in services.json (gitignored). Rendered from
+// either a direct fetch (LAN) or a postMessage relay from the parent (Cloudflare,
+// where iframe fetches don't carry the Access cookie).
+function renderServices(list) {
+  var sec = document.getElementById('services-section');
+  var grid = document.getElementById('services-grid');
+  if (!Array.isArray(list) || !list.length) { sec.hidden = true; return; }
+  grid.innerHTML = '';
+  list.forEach(function(s) {
+    var a = document.createElement('a');
+    a.className = 'card';
+    a.href = s.url || '#';
+    a.target = '_blank';
+    if (s.key) a.dataset.health = s.key;
+    a.innerHTML = '<div class="name"><span class="dot"></span>' + (s.name || '') + '</div>' +
+                  '<div class="desc">' + (s.desc || '') + '</div>' +
+                  '<div class="port">' + (s.port || '') + '</div>';
+    grid.appendChild(a);
+  });
+  sec.hidden = false;
+  if (lastHealth) applyHealth(lastHealth);   // colour the dots we just created
+}
+
+// Try fetching directly (works on LAN/standalone); the parent also relays these
+// via postMessage (works through the Cloudflare tunnel).
 fetch('/api/health').then(r => r.json()).then(applyHealth).catch(() => {});
+fetch('/services.json').then(r => r.json()).then(renderServices).catch(() => {});
 window.addEventListener('message', function(e) {
-  if (e.data && e.data.type === 'health') applyHealth(e.data.data);
+  if (!e.data) return;
+  if (e.data.type === 'health')   applyHealth(e.data.data);
+  if (e.data.type === 'services') renderServices(e.data.data);
 });
 </script>
 </body>
