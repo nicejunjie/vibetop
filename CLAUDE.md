@@ -102,7 +102,7 @@ FileBrowser's icon-only toolbar buttons are enhanced with text labels and an "Op
 
 ### Notes
 
-A persistent scratchpad at `/notes.html`. Auto-saves 800ms after typing, supports Tab and Cmd+S. Content stored at `~/.local/share/myhost-notes.md`, managed via `GET/POST /api/notes` on the manager API. No external service — just a static HTML page + the existing API server.
+A persistent scratchpad at `/notes.html`. Auto-saves 800ms after typing, supports Tab and Cmd+S. Content stored at `~/.local/share/desktop-notes.md`, managed via `GET/POST /api/notes` on the manager API. No external service — just a static HTML page + the existing API server.
 
 ### Landing page (`landing/index.html`)
 

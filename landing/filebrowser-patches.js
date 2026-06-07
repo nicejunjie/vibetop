@@ -21,6 +21,18 @@
     "header #dropdown .action span:not(.counter) { display: block !important; font-size: 11px !important; line-height: 1.2 !important; text-align: center !important; padding: 0 !important; max-width: 60px !important; word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; }",
     "header #dropdown .action i { font-size: 20px !important; margin: 0 !important; padding: 2px !important; display: block !important; }",
     "header .fb-permanent.disabled { opacity: 0.25 !important; pointer-events: none !important; }",
+    // Mobile: let the action toolbar wrap to multiple rows instead of clipping
+    // buttons off the right edge. FileBrowser's header is a single nowrap flex
+    // row by default; on narrow viewports we relax that and grow the header
+    // height to accommodate however many rows are needed.
+    "@media (max-width: 736px) {",
+    "  header { flex-wrap: wrap !important; height: auto !important; min-height: 4em !important; row-gap: 4px !important; padding-top: 4px !important; padding-bottom: 4px !important; }",
+    "  header #dropdown { flex-wrap: wrap !important; height: auto !important; row-gap: 4px !important; }",
+    "  header .action, header .action.fb-permanent { flex: 0 0 auto !important; }",
+    // FileBrowser uses a fixed top offset on the main content equal to header
+    // height; push it down so the wrapped toolbar doesn't overlap the file list.
+    "  main { margin-top: 0 !important; padding-top: 0 !important; }",
+    "}",
   ].join("\n");
   document.head.appendChild(style);
 
