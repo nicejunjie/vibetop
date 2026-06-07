@@ -79,4 +79,74 @@
   } catch(e) {
     console.warn('[xpra-patches] scroll patch failed:', e.message);
   }
+
+  // 3. Mobile on-screen keyboard. We hide xpra's permanent simple-keyboard and
+  //    show/hide it via a floating button. We can't auto-detect taps on remote
+  //    text inputs (the screen is a canvas — there's no DOM to introspect), so
+  //    auto-showing on any tap was too aggressive. The button sits at the
+  //    bottom-right (thumb-reachable) when closed and morphs into a red
+  //    "✕ Hide" pill above the keyboard when open. Two-finger gestures are
+  //    NOT intercepted so xpra's native pinch handling keeps working.
+  try {
+    var css = document.createElement('style');
+    css.textContent =
+      '.simple-keyboard{display:none!important}' +
+      'body.xpra-vkb .simple-keyboard{display:block!important}' +
+      // Closed: ⌨ chip at the bottom-right where the thumb rests on mobile.
+      '#vkb-toggle{position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));' +
+        'z-index:2147483647;min-width:48px;height:48px;padding:0 14px;border-radius:24px;' +
+        'background:#2d6cc0;color:#fff;border:1px solid #2d6cc0;box-shadow:0 4px 14px rgba(0,0,0,.5);' +
+        'font:600 18px/48px system-ui,sans-serif;text-align:center;cursor:pointer;' +
+        '-webkit-user-select:none;user-select:none;display:none;' +
+        'touch-action:manipulation;white-space:nowrap}' +
+      // Open: red dismiss pill. `bottom` is set dynamically in JS to sit right
+      // above the actual keyboard, since the keyboard's height varies by
+      // device/orientation. The CSS fallback (40vh) is a rough guess used only
+      // until the first measurement lands.
+      'body.xpra-vkb #vkb-toggle{bottom:calc(40vh + 4px);' +
+        'background:#d23a2a;color:#fff;border-color:#d23a2a;padding:0 18px;font-size:15px}' +
+      '@media (max-width:900px),(pointer:coarse){#vkb-toggle{display:inline-block}}';
+    document.head.appendChild(css);
+
+    var addBtn = function() {
+      if (document.getElementById('vkb-toggle')) return;
+      var b = document.createElement('div');
+      b.id = 'vkb-toggle';
+      b.title = 'Toggle keyboard';
+      var positionAboveKbd = function() {
+        var kbd = document.querySelector('.simple-keyboard');
+        if (!kbd) { b.style.bottom = ''; return; }
+        var r = kbd.getBoundingClientRect();
+        if (r.height > 0) b.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+      };
+      var setState = function() {
+        var open = document.body.classList.contains('xpra-vkb');
+        b.textContent = open ? '✕  Hide keyboard' : '⌨';
+        if (open) {
+          // Defer one frame so the keyboard has laid out, then re-measure.
+          requestAnimationFrame(positionAboveKbd);
+        } else {
+          b.style.bottom = '';
+        }
+      };
+      setState();
+      var toggle = function(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        document.body.classList.toggle('xpra-vkb');
+        setState();
+      };
+      // Reposition on viewport changes (rotation, address-bar collapse, etc.).
+      window.addEventListener('resize', function() {
+        if (document.body.classList.contains('xpra-vkb')) positionAboveKbd();
+      });
+      b.addEventListener('touchend', toggle, { passive: false });
+      b.addEventListener('click', toggle);
+      document.body.appendChild(b);
+    };
+    if (document.body) addBtn();
+    else document.addEventListener('DOMContentLoaded', addBtn);
+  } catch(e) {
+    console.warn('[xpra-patches] keyboard patch failed:', e.message);
+  }
 })();
