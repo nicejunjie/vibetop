@@ -89,8 +89,8 @@
     display: grid;
     grid-template-columns:
       auto         /* CPU/GPU label */
-      4ch  auto    /* %  number + unit */
-      3ch  auto    /* °  number + unit */
+      3ch  auto    /* %  number + unit (integer 0..100) */
+      2ch  auto    /* °  number + unit (CPU/GPU temps are 2 digits) */
       auto         /* MEM/VRAM label */
       5ch  auto;   /* used/total + G */
     column-gap: 0; row-gap: 1px; align-content: center;
@@ -102,8 +102,8 @@
   .tb-stats .label { color: #556; padding-right: 4px; }
   .tb-stats .n     { color: #9ab; text-align: right; }
   .tb-stats .u     { color: #9ab; text-align: left; }
-  /* Gap between % and the temperature number on the CPU/GPU block */
-  .tb-stats .u:nth-child(8n+3) { padding-right: 8px; }
+  /* Gap between util % and the temperature on the CPU/GPU block. */
+  .tb-stats .u:nth-child(8n+3) { padding-right: 6px; }
   /* Gap between ° and the MEM/VRAM label */
   .tb-stats .u:nth-child(8n+5) { padding-right: 12px; }
 
@@ -445,10 +445,13 @@
           if (unit) document.getElementById(unit).style.visibility = '';
         }
       };
-      set('cpu-n',  d.cpu_percent, 'cpu-u');
-      set('cpu-tn', d.cpu_temp,    'cpu-tu');
-      set('gpu-n',  d.gpu_percent, 'gpu-u');
-      set('gpu-tn', d.gpu_temp,    'gpu-tu');
+      // Round util to integer for the taskbar — 3-char max keeps the grid
+      // tight; the Monitor app shows the precise value when needed.
+      var ri = function(v) { return v != null ? Math.round(v) : null; };
+      set('cpu-n',  ri(d.cpu_percent), 'cpu-u');
+      set('cpu-tn', d.cpu_temp,        'cpu-tu');
+      set('gpu-n',  ri(d.gpu_percent), 'gpu-u');
+      set('gpu-tn', d.gpu_temp,        'gpu-tu');
       // Combine used/total into one cell so there's no whitespace around "/".
       var mem = (d.memory_used_gb != null && d.memory_total_gb != null)
         ? (Math.round(d.memory_used_gb) + '/' + Math.round(d.memory_total_gb)) : null;
