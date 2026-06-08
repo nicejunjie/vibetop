@@ -181,7 +181,7 @@
 
   <!-- CPU cores -->
   <div class="card cpu-card">
-    <div class="card-title">CPU <span class="avg" id="cpu-avg">--</span></div>
+    <div class="card-title">CPU <span class="avg" id="cpu-avg">--</span> <span class="avg" id="load-avg" style="margin-left:8px"></span></div>
     <div class="cpu-grid" id="cpu-grid"></div>
   </div>
 
@@ -367,6 +367,12 @@
     document.getElementById('cpu-avg').textContent = avg.toFixed(1) + '% avg (' + cores.length + ' cores)';
   }
 
+  function renderLoadAvg(la) {
+    var el = document.getElementById('load-avg');
+    if (!la || la[0] == null) { el.textContent = ''; return; }
+    el.textContent = 'load ' + la[0].toFixed(2) + ' ' + la[1].toFixed(2) + ' ' + la[2].toFixed(2);
+  }
+
   function setBar(barId, textId, pct, detail, color, fixed) {
     var bar = document.getElementById(barId);
     var txt = document.getElementById(textId);
@@ -463,6 +469,7 @@
   function update() {
     fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(d) {
       if (d.cpu_cores) updateCores(d.cpu_cores);
+      renderLoadAvg(d.load_avg);
       var memPct = d.memory_total_gb > 0 ? (d.memory_used_gb / d.memory_total_gb * 100) : 0;
       var gpuPct = d.gpu_percent != null ? d.gpu_percent : 0;
       var vramPct = d.gpu_vram_total_gb > 0 ? (d.gpu_vram_used_gb / d.gpu_vram_total_gb * 100) : 0;

@@ -19,6 +19,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 
 MAX_INSTANCE = 50
 
@@ -53,6 +54,55 @@ _prev_proc_time = 0.0
 
 
 # ---- /api/upload helpers ---------------------------------------------------
+
+def _read_loadavg():
+    """Return [1min, 5min, 15min] load averages from /proc/loadavg, or
+    [None, None, None] if it can't be read."""
+    try:
+        with open("/proc/loadavg") as f:
+            parts = f.read().split()
+        return [float(parts[0]), float(parts[1]), float(parts[2])]
+    except (OSError, IndexError, ValueError):
+        return [None, None, None]
+
+
+def _read_amdgpu_pm_info(card_n):
+    """Best-effort parse of /sys/kernel/debug/dri/N/amdgpu_pm_info — used as
+    a fallback when sysfs gpu_busy_percent / hwmon temp read EBUSY under
+    heavy compute. Returns {"load": int|None, "temp": int|None,
+    "power_w": int|None}. Requires root (debugfs is 0700)."""
+    out = {"load": None, "temp": None, "power_w": None}
+    if card_n is None:
+        return out
+    paths = [f"/sys/kernel/debug/dri/{card_n}/amdgpu_pm_info"]
+    # Some kernels expose the file under a PCI-address-based dri index that
+    # doesn't match the cardN number. Probe a couple of indices defensively.
+    for i in range(4):
+        p = f"/sys/kernel/debug/dri/{i}/amdgpu_pm_info"
+        if p not in paths:
+            paths.append(p)
+    for path in paths:
+        try:
+            with open(path) as f:
+                data = f.read()
+        except (FileNotFoundError, PermissionError, OSError):
+            continue
+        m = re.search(r"GPU Load:\s*(\d+)\s*%", data)
+        if m and out["load"] is None:
+            out["load"] = int(m.group(1))
+        m = re.search(r"GPU Temperature:\s*(\d+)\s*C", data)
+        if m and out["temp"] is None:
+            out["temp"] = int(m.group(1))
+        m = re.search(r"([\d.]+)\s*W\s*\(average\s+(?:SoC|GPU)\)", data)
+        if m and out["power_w"] is None:
+            try:
+                out["power_w"] = round(float(m.group(1)))
+            except ValueError:
+                pass
+        if out["load"] is not None and out["temp"] is not None:
+            break
+    return out
+
 
 class _MultipartError(Exception):
     pass
@@ -262,7 +312,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         vals = list(map(int, parts[1:]))
                         cores[name] = vals
             return cores
-        import time
         snap1 = read_proc_stat()
         time.sleep(0.1)
         snap2 = read_proc_stat()
@@ -299,11 +348,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         gpu_percent = None
         gpu_vram_used_gb = None
         gpu_vram_total_gb = None
+        best_card_n = None    # remember card index for the debugfs fallback
         try:
             best_card = None
             best_vram = 0
             for entry in os.listdir("/sys/class/drm"):
-                if not re.match(r"card\d+$", entry):
+                m = re.match(r"card(\d+)$", entry)
+                if not m:
                     continue
                 dev = f"/sys/class/drm/{entry}/device"
                 vram_path = f"{dev}/mem_info_vram_total"
@@ -315,6 +366,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     if vram > best_vram:
                         best_vram = vram
                         best_card = dev
+                        best_card_n = int(m.group(1))
                 except Exception:
                     continue
             if best_card:
@@ -331,6 +383,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     pass
         except Exception:
             pass
+
+        # Fallback: under heavy compute the amdgpu driver locks sysfs files
+        # (EBUSY), so gpu_busy_percent and the hwmon temp both vanish. The
+        # debugfs `amdgpu_pm_info` file is published from a different path
+        # and stays readable. We use it as a backup for both util and temp.
+        # Requires root (manager already runs as root) and debugfs mounted.
+        pm_info = _read_amdgpu_pm_info(best_card_n)
+        if gpu_percent is None and pm_info.get("load") is not None:
+            gpu_percent = pm_info["load"]
 
         # CPU temperature (k10temp Tctl)
         cpu_temp = None
@@ -358,26 +419,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if os.path.exists(label_path):
                     with open(label_path) as f:
                         if f.read().strip() == "edge":
-                            with open(f"{p}/temp1_input") as f2:
-                                gpu_temp = round(int(f2.read().strip()) / 1000)
+                            try:
+                                with open(f"{p}/temp1_input") as f2:
+                                    gpu_temp = round(int(f2.read().strip()) / 1000)
+                            except Exception:
+                                pass
                             for pwr in ("power1_average", "power1_input"):
                                 pwr_path = f"{p}/{pwr}"
                                 if os.path.exists(pwr_path):
-                                    with open(pwr_path) as f2:
-                                        gpu_power_w = round(int(f2.read().strip()) / 1000000)
+                                    try:
+                                        with open(pwr_path) as f2:
+                                            gpu_power_w = round(int(f2.read().strip()) / 1000000)
+                                    except Exception:
+                                        pass
                                     break
                             break
         except Exception:
             pass
 
+        # Apply the debugfs fallback for temp/power too.
+        if gpu_temp is None and pm_info.get("temp") is not None:
+            gpu_temp = pm_info["temp"]
+        if gpu_power_w is None and pm_info.get("power_w") is not None:
+            gpu_power_w = pm_info["power_w"]
+
         # CPU package power (RAPL — delta between calls)
         cpu_power_w = None
         try:
             global _prev_rapl_uj, _prev_rapl_time
-            import time as _time2
+            
             with open("/sys/class/powercap/intel-rapl:0/energy_uj") as f:
                 uj = int(f.read().strip())
-            now = _time2.monotonic()
+            now = time.monotonic()
             if _prev_rapl_time > 0:
                 dt = now - _prev_rapl_time
                 if dt > 0:
@@ -418,14 +491,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pass
         try:
             global _prev_disk_sectors, _prev_disk_time
-            import time as _time3
+            
             with open("/proc/diskstats") as f:
                 for line in f:
                     parts = line.split()
                     if len(parts) >= 14 and parts[2] == "nvme1n1":
                         rd_sectors = int(parts[5])
                         wr_sectors = int(parts[9])
-                        now = _time3.monotonic()
+                        now = time.monotonic()
                         if _prev_disk_time > 0:
                             dt = now - _prev_disk_time
                             if dt > 0:
@@ -442,10 +515,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         processes = []
         try:
             import pwd
-            import time as _time
+            
             page_size = os.sysconf("SC_PAGE_SIZE")
             clk_tck = os.sysconf("SC_CLK_TCK")
-            now = _time.monotonic()
+            now = time.monotonic()
             dt = now - _prev_proc_time if _prev_proc_time else 0
             cur_snap = {}
             for pid_s in os.listdir("/proc"):
@@ -526,6 +599,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "ips": ips,
             "cpu_percent": round(cpu, 1),
             "cpu_cores": cpu_cores,
+            # Load averages from /proc/loadavg (1-, 5-, 15-minute). The full
+            # triple is shown in the Monitor app; the taskbar shows just the
+            # 1-min value as a representative single number.
+            "load_avg": _read_loadavg(),
             "memory_used_gb": round(used_gb, 1),
             "memory_total_gb": round(total_gb, 1),
             "uptime": uptime,

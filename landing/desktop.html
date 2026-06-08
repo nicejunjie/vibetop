@@ -79,16 +79,40 @@
 
   .tb-spacer { flex: 1; }
 
+  /* Each row: [label] [num] [%] [num] [°]  [label] [num/num] [G]  [label] [num]
+     10 columns: CPU/GPU on the left, MEM/VRAM in the middle, LOAD (1-min
+     average) on the right. column-gap is 0 so digits and units touch
+     ("0.6%", "48°", "13/60G"); spacing is added explicitly between groups.
+     LOAD only appears on the top row; the bottom-row tail is blank.
+     tabular-nums keeps digit widths uniform. */
   .tb-stats {
     display: grid;
-    grid-template-columns: auto auto auto auto;
-    column-gap: 7px; align-content: center;
+    /* Fixed widths on the numeric columns so labels don't shift sideways as
+       values change (e.g. "0.3%" → "0%"). `ch` is the width of a digit in
+       the monospace font; tabular-nums keeps it consistent across digits. */
+    grid-template-columns:
+      auto         /* CPU/GPU label */
+      4ch  auto    /* %  number + unit */
+      3ch  auto    /* °  number + unit */
+      auto         /* MEM/VRAM label */
+      5ch  auto    /* used/total + G */
+      auto         /* LOAD label */
+      4ch;         /* load value */
+    column-gap: 0; row-gap: 1px; align-content: center;
     font-size: 12px; line-height: 1.35;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
     color: #6a7a8a; white-space: nowrap;
   }
-  .tb-stats .val { color: #9ab; }
-  .tb-stats .label { color: #556; }
+  .tb-stats .label { color: #556; padding-right: 4px; }
+  .tb-stats .n     { color: #9ab; text-align: right; }
+  .tb-stats .u     { color: #9ab; text-align: left; }
+  /* Gap between % and the temperature number on the CPU/GPU block */
+  .tb-stats .u:nth-child(10n+3) { padding-right: 8px; }
+  /* Gap between ° and the MEM/VRAM label */
+  .tb-stats .u:nth-child(10n+5) { padding-right: 12px; }
+  /* Gap between G (end of mem block) and LOAD label */
+  .tb-stats .u:nth-child(10n+8) { padding-right: 12px; }
 
   .tb-logout {
     display: flex; align-items: center; justify-content: center;
@@ -180,7 +204,23 @@
     <div class="tb-sep"></div>
     <div class="task-apps" id="task-apps"></div>
     <div class="tb-spacer"></div>
-    <div class="tb-stats"><span class="label">CPU</span><span class="val" id="st-cpu">--</span><span class="label">MEM</span><span class="val" id="st-mem">--</span><span class="label">GPU</span><span class="val" id="st-gpu">--</span><span class="label">VRAM</span><span class="val" id="st-vram">--</span></div>
+    <div class="tb-stats">
+      <span class="label">CPU</span>
+      <span class="n"  id="cpu-n">--</span><span class="u" id="cpu-u">%</span>
+      <span class="n"  id="cpu-tn">--</span><span class="u" id="cpu-tu">°</span>
+      <span class="label">MEM</span>
+      <span class="n"  id="mem-ut">--</span><span class="u">G</span>
+      <span class="label">LOAD</span>
+      <span class="n"  id="load-1">--</span>
+
+      <span class="label">GPU</span>
+      <span class="n"  id="gpu-n">--</span><span class="u" id="gpu-u">%</span>
+      <span class="n"  id="gpu-tn">--</span><span class="u" id="gpu-tu">°</span>
+      <span class="label">VRAM</span>
+      <span class="n"  id="vram-ut">--</span><span class="u">G</span>
+      <span class="label"></span>
+      <span class="n"></span>
+    </div>
     <div class="tb-sep"></div>
     <a class="tb-logout" href="/cdn-cgi/access/logout" title="Logout">⏻</a>
   </div>
@@ -405,11 +445,30 @@
   // --- status bar ---
   function updateStatus() {
     fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(d) {
-      document.getElementById('st-cpu').textContent = d.cpu_percent + '%' + (d.cpu_temp != null ? ' ' + d.cpu_temp + '°' : '');
-      document.getElementById('st-mem').textContent = Math.round(d.memory_used_gb) + '/' + Math.round(d.memory_total_gb) + 'G';
-      var gp = d.gpu_percent != null ? d.gpu_percent + '%' : '--';
-      document.getElementById('st-gpu').textContent = gp + (d.gpu_temp != null ? ' ' + d.gpu_temp + '°' : '');
-      document.getElementById('st-vram').textContent = d.gpu_vram_used_gb != null ? Math.round(d.gpu_vram_used_gb) + '/' + Math.round(d.gpu_vram_total_gb) + 'G' : 'N/A';
+      var set = function(id, v, unit) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (v == null) {
+          el.textContent = '--';
+          if (unit) document.getElementById(unit).style.visibility = 'hidden';
+        } else {
+          el.textContent = v;
+          if (unit) document.getElementById(unit).style.visibility = '';
+        }
+      };
+      set('cpu-n',  d.cpu_percent, 'cpu-u');
+      set('cpu-tn', d.cpu_temp,    'cpu-tu');
+      set('gpu-n',  d.gpu_percent, 'gpu-u');
+      set('gpu-tn', d.gpu_temp,    'gpu-tu');
+      // Combine used/total into one cell so there's no whitespace around "/".
+      var mem = (d.memory_used_gb != null && d.memory_total_gb != null)
+        ? (Math.round(d.memory_used_gb) + '/' + Math.round(d.memory_total_gb)) : null;
+      var vram = (d.gpu_vram_used_gb != null && d.gpu_vram_total_gb != null)
+        ? (Math.round(d.gpu_vram_used_gb) + '/' + Math.round(d.gpu_vram_total_gb)) : null;
+      set('mem-ut',  mem);
+      set('vram-ut', vram);
+      var la = d.load_avg && d.load_avg[0];
+      set('load-1', la != null ? la.toFixed(2) : null);
     }).catch(function() {});
   }
   updateStatus();
