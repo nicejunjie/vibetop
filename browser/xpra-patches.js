@@ -117,7 +117,11 @@
       '#xpra-kbd{position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0;' +
         'border:0;padding:0;margin:0;font-size:16px;z-index:-1;' +
         'color:transparent;background:transparent;caret-color:transparent}' +
-      '#vkb-toggle{position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));' +
+      // Right-edge, vertically centered — clear of the taskbar and the home
+      // indicator, and still visible (above the keyboard) when it's open so it
+      // can dismiss. Fixed position, no dynamic repositioning (visualViewport
+      // is unreliable inside an iframe).
+      '#vkb-toggle{position:fixed;right:8px;top:42%;' +
         'z-index:2147483647;min-width:48px;height:48px;padding:0 14px;border-radius:24px;' +
         'background:#2d6cc0;color:#fff;border:1px solid #2d6cc0;box-shadow:0 4px 14px rgba(0,0,0,.5);' +
         'font:600 18px/48px system-ui,sans-serif;text-align:center;cursor:pointer;' +
@@ -173,20 +177,11 @@
       // printable keys + non-empty backspace are handled by onInput's diff
     };
 
-    // Float the open/close button just above the native keyboard (its height
-    // shows up as the gap between the layout viewport and the visual viewport).
-    var reposition = function() {
-      if (!kbdChip) return;
-      if (!kbdOpen) { kbdChip.style.bottom = ''; return; }
-      var vv = window.visualViewport;
-      if (vv) kbdChip.style.bottom = (Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 8) + 'px';
-    };
     var setOpen = function(open) {
       kbdOpen = open;
       if (!kbdChip) return;
       kbdChip.classList.toggle('open', open);
       kbdChip.textContent = open ? '✕  Hide keyboard' : '⌨';
-      if (open) requestAnimationFrame(reposition); else kbdChip.style.bottom = '';
     };
 
     var build = function() {
@@ -211,20 +206,18 @@
       kbdChip = document.createElement('div');
       kbdChip.id = 'vkb-toggle';
       kbdChip.title = 'Keyboard';
-      var toggle = function(ev) {
-        ev.preventDefault(); ev.stopPropagation();
+      // CLICK only (not touchend): preventDefault on a touchend cancels the
+      // synthesized click that iOS needs to raise the keyboard, so the button
+      // appeared dead. `touch-action:manipulation` already removes the click
+      // delay. We don't preventDefault — focus() must run in a clean click
+      // gesture for iOS to open the keyboard.
+      kbdChip.addEventListener('click', function(ev) {
+        ev.stopPropagation();
         if (kbdOpen) { try { kbdInput.blur(); } catch (e) {} }
         else { resetBuf(); try { kbdInput.focus(); } catch (e) {} }
-      };
-      kbdChip.addEventListener('touchend', toggle, { passive: false });
-      kbdChip.addEventListener('click', toggle);
+      });
       setOpen(false);
       document.body.appendChild(kbdChip);
-
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', reposition);
-        window.visualViewport.addEventListener('scroll', reposition);
-      }
     };
     kbdSendChar = sendChar; kbdSendKey = sendKey;   // for the paste patch (5)
     if (document.body) build();
