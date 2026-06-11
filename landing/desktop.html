@@ -298,7 +298,7 @@
     var btn = document.getElementById('kbd-btn');
     var ico = document.getElementById('kbd-ico');
     if (!relay || !btn) return;
-    var lastVal = '', composing = false, flushTimer = null, blurClearTimer = null;
+    var lastVal = '', composing = false, flushTimer = null;
     function postKbd(msg) {
       var f = document.getElementById('frame-browser');
       if (f && f.contentWindow) { try { f.contentWindow.postMessage(msg, '*'); } catch (e) {} }
@@ -316,21 +316,13 @@
       lastVal = v;
     }
     function reset() { if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; } relay.value = ''; lastVal = ''; }
-    relay.addEventListener('focus', function() {
-      // A refocus cancels a pending buffer-clear: iOS dictation churns
-      // focus/blur, and clearing lastVal then made each revision re-forward in
-      // full (the pile-up). Keep the buffer across a quick blur→focus.
-      if (blurClearTimer) { clearTimeout(blurClearTimer); blurClearTimer = null; }
-      btn.classList.add('open'); ico.textContent = '✕';
-    });
-    relay.addEventListener('blur', function() {
-      flush();
-      btn.classList.remove('open'); ico.textContent = '⌨';
-      // Clear the buffer only if the blur sticks (a real dismiss) — not the
-      // transient blur dictation fires, which a focus would cancel above.
-      if (blurClearTimer) clearTimeout(blurClearTimer);
-      blurClearTimer = setTimeout(function() { blurClearTimer = null; relay.value = ''; lastVal = ''; }, 700);
-    });
+    // NEVER reset the diff baseline (lastVal) on focus/blur — iOS dictation
+    // churns focus/blur, and resetting then made each revision re-forward in
+    // full (the pile-up). The baseline only resets on Enter or an intentional
+    // dismiss (the ⌨ button, below). Between those, the buffer just grows and
+    // the diff always forwards the correct delta, so dictation can't pile up.
+    relay.addEventListener('focus', function() { btn.classList.add('open'); ico.textContent = '✕'; });
+    relay.addEventListener('blur',  function() { flush(); btn.classList.remove('open'); ico.textContent = '⌨'; });
     // Dictation/IME compose text in revisions (each firing `input`); forwarding
     // every revision pile-stacked them on the remote. Hold off while composing
     // and forward ONE diff when it settles (compositionend, or a pause as a
@@ -350,10 +342,11 @@
       else if (e.key === 'Tab')     { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Tab' }); }
       else if (e.key === 'Backspace' && relay.value === '') { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Backspace' }); }
     });
-    // Tap the button while the keyboard is up → dismiss; first tap focuses
-    // normally (which is what raises the keyboard).
+    // Tap the button while the keyboard is up → intentional dismiss: flush any
+    // pending text, then reset the baseline so the next field starts clean.
+    // (First tap focuses normally — that's what raises the keyboard.)
     relay.addEventListener('pointerdown', function(e) {
-      if (document.activeElement === relay) { e.preventDefault(); relay.blur(); }
+      if (document.activeElement === relay) { e.preventDefault(); flush(); reset(); relay.blur(); }
     });
   })();
   function updateKbdBtn() {

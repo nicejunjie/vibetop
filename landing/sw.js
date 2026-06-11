@@ -15,7 +15,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
@@ -72,15 +72,24 @@ self.addEventListener('fetch', (e) => {
     // wifi case, where a request can hang 60-100s). Best of both.
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
-      try {
-        const res = await Promise.race([
-          fetch(req),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
-        ]);
+      // Start the network fetch and let it update the cache WHENEVER it
+      // resolves — even after we've already served the cached copy on timeout.
+      // (Previously the fetch was abandoned on timeout, so a consistently-slow
+      // connection would serve the same stale shell forever and never refresh.)
+      const networkPromise = fetch(req).then((res) => {
         if (res && res.ok && res.type === 'basic' && !res.redirected) cache.put(req, res.clone());
         return res;
+      });
+      try {
+        return await Promise.race([
+          networkPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+        ]);
       } catch (_) {
-        return (await cache.match(req)) || (await cache.match('/')) || Response.error();
+        // Timed out (or errored): serve cache now; networkPromise keeps running
+        // and refreshes the cache for next time.
+        return (await cache.match(req)) || (await cache.match('/')) ||
+               networkPromise.catch(() => Response.error());
       }
     })());
     return;
