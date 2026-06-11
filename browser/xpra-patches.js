@@ -96,45 +96,20 @@
     console.warn('[xpra-patches] scroll patch failed:', e.message);
   }
 
-  // 3. Mobile keyboard — use the NATIVE iOS/Android keyboard instead of xpra's
-  //    drawn `.simple-keyboard`. A hidden real <input> receives the native
-  //    keyboard; each character typed is forwarded to the remote as a synthetic
-  //    key event (the same channel xpra forwards — its handlers don't check
-  //    isTrusted). We diff the input's value on every `input` event so backspace
-  //    and autocorrect replacements work; Enter/Tab/empty-backspace go via
-  //    keydown. A ⌨ button raises/dismisses it — iOS only opens the keyboard
-  //    when you tap a real focusable element (focusing the input from a bare
-  //    canvas tap doesn't reliably work), so the button is the dependable
-  //    trigger. The screen is a canvas, so we also can't tell when a remote
-  //    <input> gains focus; the user taps ⌨, then types.
+  // 3. Mobile keyboard — receive keystrokes from the parent desktop's keyboard
+  //    button and forward them to the remote. The button + native <input> live
+  //    in the TOP-LEVEL desktop page (landing/desktop.html), not here: iOS only
+  //    raises the keyboard when you tap a real input directly, and a tap on an
+  //    input inside this xpra page never reliably opened it (the canvas, xpra,
+  //    and our own touch handlers all interfere — whereas a plain input in the
+  //    top-level shell works, like the Notes app). The parent posts each typed
+  //    character/key here; we dispatch it as a synthetic key event (xpra reads
+  //    event.code/key/keyCode; its handlers don't check isTrusted).
   try {
     var css = document.createElement('style');
-    css.textContent =
-      '.simple-keyboard{display:none!important}' +     // never show xpra's drawn keyboard
-      // The button IS the input: iOS only raises the keyboard when the user taps
-      // a real text field directly (programmatic focus of a separate hidden
-      // input does NOT work). So #xpra-kbd is a real <input> styled as the round
-      // ⌨ button on the right edge; tapping it focuses it → keyboard. Its text
-      // is transparent (font-size:16px avoids iOS focus-zoom); the ⌨/✕ glyph is
-      // a sibling overlay with pointer-events:none so taps land on the input.
-      '#vkb-toggle{position:fixed;right:8px;top:42%;z-index:2147483647;' +
-        'width:48px;height:48px;border-radius:24px;display:none;' +
-        'background:#2d6cc0;border:1px solid #2d6cc0;box-shadow:0 4px 14px rgba(0,0,0,.5);' +
-        'touch-action:manipulation;-webkit-user-select:none;user-select:none}' +
-      '#vkb-toggle.open{background:#d23a2a;border-color:#d23a2a}' +
-      '#xpra-kbd{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;' +
-        'border:0;outline:none;background:transparent;color:transparent;caret-color:transparent;' +
-        'font-size:16px;text-align:center;cursor:pointer;z-index:1}' +
-      '#vkb-ico{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
-        'pointer-events:none;font:600 20px system-ui,sans-serif;color:#fff}' +
-      '@media (max-width:900px),(pointer:coarse){#vkb-toggle{display:block}}';
+    css.textContent = '.simple-keyboard{display:none!important}';   // hide xpra's drawn keyboard
     document.head.appendChild(css);
 
-    var kbdInput = null, kbdChip = null, lastVal = '', kbdOpen = false;
-
-    // Dispatch a key press+release on document; xpra reads event.code / key /
-    // keyCode to build the keysym (229 is the IME-composition sentinel — we
-    // never send it, so real characters always go through).
     var sendKey = function(key, code, keyCode, shift) {
       ['keydown', 'keyup'].forEach(function(type) {
         document.dispatchEvent(new KeyboardEvent(type, {
@@ -152,74 +127,14 @@
       // Other symbols: leave code empty; xpra maps them from event.key.
       sendKey(ch, code, kc, shift);
     };
-    var resetBuf = function() { if (kbdInput) kbdInput.value = ''; lastVal = ''; };
-
-    // Diff the input value: deletions after the common prefix → Backspace,
-    // the remaining new tail → forwarded char-by-char. Survives autocorrect
-    // (which deletes a word then inserts the replacement).
-    var onInput = function() {
-      var v = kbdInput.value, i = 0, min = Math.min(v.length, lastVal.length);
-      while (i < min && v.charAt(i) === lastVal.charAt(i)) i++;
-      for (var d = lastVal.length - i; d > 0; d--) sendKey('Backspace', 'Backspace', 8);
-      for (var j = i; j < v.length; j++) sendChar(v.charAt(j));
-      lastVal = v;
-      if (v.length > 80) resetBuf();   // keep the hidden buffer small
-    };
-    var onKeydown = function(e) {
-      if (e.key === 'Enter')   { e.preventDefault(); sendKey('Enter', 'Enter', 13); resetBuf(); }
-      else if (e.key === 'Tab'){ e.preventDefault(); sendKey('Tab', 'Tab', 9); }
-      else if (e.key === 'Backspace' && kbdInput.value === '') {
-        // Empty buffer → the diff sees no change; forward Backspace directly so
-        // the user can keep deleting remote content past what they just typed.
-        e.preventDefault(); sendKey('Backspace', 'Backspace', 8);
-      }
-      // printable keys + non-empty backspace are handled by onInput's diff
-    };
-
-    var setOpen = function(open) {
-      kbdOpen = open;
-      if (kbdChip) kbdChip.classList.toggle('open', open);
-      var ico = document.getElementById('vkb-ico');
-      if (ico) ico.textContent = open ? '✕' : '⌨';
-    };
-
-    var build = function() {
-      if (document.getElementById('vkb-toggle')) return;
-      // The wrapper is the round button; the <input> fills it and is the actual
-      // tap target (so the tap lands ON a real input → iOS opens the keyboard).
-      kbdChip = document.createElement('div');
-      kbdChip.id = 'vkb-toggle';
-      kbdChip.title = 'Keyboard';
-
-      kbdInput = document.createElement('input');
-      kbdInput.id = 'xpra-kbd';
-      kbdInput.type = 'text';
-      kbdInput.setAttribute('autocapitalize', 'off');
-      kbdInput.setAttribute('autocomplete', 'off');
-      kbdInput.setAttribute('autocorrect', 'off');
-      kbdInput.spellcheck = false;
-      kbdInput.addEventListener('input', onInput);
-      kbdInput.addEventListener('keydown', onKeydown);
-      kbdInput.addEventListener('focus', function() { resetBuf(); setOpen(true); });
-      kbdInput.addEventListener('blur', function() { setOpen(false); });
-      // Tapping the button while the keyboard is already up dismisses it; the
-      // first tap (input not yet focused) is left alone so the default focus —
-      // which is what actually raises the keyboard — proceeds untouched.
-      kbdInput.addEventListener('pointerdown', function(e) {
-        if (document.activeElement === kbdInput) { e.preventDefault(); kbdInput.blur(); }
-      });
-
-      var ico = document.createElement('span');
-      ico.id = 'vkb-ico';
-      ico.textContent = '⌨';
-
-      kbdChip.appendChild(kbdInput);
-      kbdChip.appendChild(ico);
-      document.body.appendChild(kbdChip);
-    };
+    var SPECIAL = { Enter: [13], Tab: [9], Backspace: [8], Escape: [27],
+                    ArrowUp: [38], ArrowDown: [40], ArrowLeft: [37], ArrowRight: [39] };
+    window.addEventListener('message', function(e) {
+      var d = e.data; if (!d || !d.type) return;
+      if (d.type === 'kbd-char' && typeof d.ch === 'string') sendChar(d.ch);
+      else if (d.type === 'kbd-key' && SPECIAL[d.key]) sendKey(d.key, d.key, SPECIAL[d.key][0]);
+    });
     kbdSendChar = sendChar; kbdSendKey = sendKey;   // for the paste patch (5)
-    if (document.body) build();
-    else document.addEventListener('DOMContentLoaded', build);
   } catch(e) {
     console.warn('[xpra-patches] keyboard patch failed:', e.message);
   }
@@ -297,21 +212,6 @@
     var SCROLL_TICK = 33;
     var touch = { mode: null, sx: 0, sy: 0, lx: 0, ly: 0, pinch: 0, accum: 0, accumX: 0 };
     // The keyboard button (#vkb-toggle) needs its own touch/click events; if our
-    // window-capture handlers preventDefault'd them the input could never focus
-    // and the keyboard would never open. Detect button taps by COORDINATES (not
-    // e.target — xpra may pointer-capture the canvas, making e.target wrong).
-    var onChip = function(e) {
-      if (e.target && e.target.closest && e.target.closest('#vkb-toggle')) return true;
-      var el = document.getElementById('vkb-toggle');
-      if (!el) return false;
-      var p = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
-      if (p.clientX == null) return false;
-      var r = el.getBoundingClientRect();
-      // Pad the hit area so a slightly-off tap still counts as the button.
-      return p.clientX >= r.left - 8 && p.clientX <= r.right + 8 &&
-             p.clientY >= r.top - 8 && p.clientY <= r.bottom + 8;
-    };
-
     var fireWheel = function(x, y, dx, dy) {
       var c = canvasGet(); if (!c) return;
       c.dispatchEvent(new WheelEvent('wheel', {
@@ -330,7 +230,6 @@
     };
 
     window.addEventListener('touchstart', function(e) {
-      if (onChip(e)) return;
       if (e.touches.length === 2) {
         touch.mode = 'pinch';
         touch.pinch = dist2(e.touches);
@@ -346,7 +245,6 @@
     }, { passive: false, capture: true });
 
     window.addEventListener('touchmove', function(e) {
-      if (onChip(e)) return;
       if (touch.mode === 'pinch' && e.touches.length === 2) {
         e.preventDefault(); e.stopPropagation();
         // Continuous magnification anchored at the pinch midpoint, like Safari.
@@ -389,7 +287,6 @@
     }, { passive: false, capture: true });
 
     window.addEventListener('touchend', function(e) {
-      if (onChip(e)) return;
       e.preventDefault(); e.stopPropagation();
       if (e.touches.length === 0) {
         if (touch.mode === null) fireTap(touch.sx, touch.sy);

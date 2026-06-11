@@ -188,6 +188,32 @@
     .tb-spacer { flex: 0 0 8px; }
     .startmenu { left: 8px; right: 8px; width: auto; }
   }
+
+  /* === Browser keyboard button (touch only) ===
+     The Browser is a remote canvas (xpra) — there's no DOM input to tap to
+     summon the keyboard, and a tap inside that iframe doesn't reliably raise
+     it on iOS. So the keyboard button lives HERE in the top-level shell: a real
+     <input> styled as a round button. Tapping it directly (a real input in the
+     top page) reliably opens the native keyboard; we forward each keystroke
+     into the Browser iframe via postMessage. Shown only while Browser is the
+     active app on a touch device. */
+  #kbd-btn {
+    position: fixed; right: 8px; top: 42%; z-index: 90;
+    width: 50px; height: 50px; border-radius: 25px; display: none;
+    background: #2d6cc0; border: 1px solid #2d6cc0; box-shadow: 0 4px 14px rgba(0,0,0,.5);
+    touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  }
+  body.kbd-on #kbd-btn { display: block; }
+  #kbd-btn.open { background: #d23a2a; border-color: #d23a2a; }
+  #kbd-relay {
+    position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0;
+    border: 0; outline: none; background: transparent; color: transparent;
+    caret-color: transparent; font-size: 16px; text-align: center; cursor: pointer; z-index: 1;
+  }
+  #kbd-ico {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; font: 600 22px system-ui, sans-serif; color: #fff;
+  }
 </style>
 </head>
 <body>
@@ -227,6 +253,9 @@
     <a class="tb-logout" href="/cdn-cgi/access/logout" title="Logout">⏻</a>
   </div>
 
+  <!-- Browser keyboard button (top-level so iOS reliably raises the keyboard) -->
+  <div id="kbd-btn" title="Keyboard"><input id="kbd-relay" type="text" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"><span id="kbd-ico">⌨</span></div>
+
 <script>
 (function() {
   window.addEventListener('beforeunload', function(e) { delete e.returnValue; });
@@ -250,6 +279,54 @@
 
   var openApps = [];   // ids, in taskbar order
   var active   = null;
+
+  // --- Browser keyboard relay -------------------------------------------------
+  // The Browser app is a remote canvas with no DOM input to tap, so we host a
+  // real <input> here in the top page (where iOS reliably raises the keyboard)
+  // and forward every keystroke into the Browser iframe via postMessage. Shown
+  // only while Browser is the active app on a touch device.
+  var IS_TOUCH = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  (function setupKbdRelay() {
+    var relay = document.getElementById('kbd-relay');
+    var btn = document.getElementById('kbd-btn');
+    var ico = document.getElementById('kbd-ico');
+    if (!relay || !btn) return;
+    var lastVal = '';
+    function postKbd(msg) {
+      var f = document.getElementById('frame-browser');
+      if (f && f.contentWindow) { try { f.contentWindow.postMessage(msg, '*'); } catch (e) {} }
+    }
+    function reset() { relay.value = ''; lastVal = ''; }
+    relay.addEventListener('focus', function() { reset(); btn.classList.add('open'); ico.textContent = '✕'; });
+    relay.addEventListener('blur',  function() { btn.classList.remove('open'); ico.textContent = '⌨'; });
+    // Diff the value each input so backspace and autocorrect replacements work.
+    relay.addEventListener('input', function() {
+      var v = relay.value, i = 0, min = Math.min(v.length, lastVal.length);
+      while (i < min && v.charAt(i) === lastVal.charAt(i)) i++;
+      for (var d = lastVal.length - i; d > 0; d--) postKbd({ type: 'kbd-key', key: 'Backspace' });
+      for (var j = i; j < v.length; j++) postKbd({ type: 'kbd-char', ch: v.charAt(j) });
+      lastVal = v;
+      if (v.length > 80) reset();
+    });
+    relay.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter')        { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Enter' }); reset(); }
+      else if (e.key === 'Tab')     { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Tab' }); }
+      else if (e.key === 'Backspace' && relay.value === '') { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Backspace' }); }
+    });
+    // Tap the button while the keyboard is up → dismiss; first tap focuses
+    // normally (which is what raises the keyboard).
+    relay.addEventListener('pointerdown', function(e) {
+      if (document.activeElement === relay) { e.preventDefault(); relay.blur(); }
+    });
+  })();
+  function updateKbdBtn() {
+    if (IS_TOUCH && active === 'browser') document.body.classList.add('kbd-on');
+    else {
+      document.body.classList.remove('kbd-on');
+      var relay = document.getElementById('kbd-relay');
+      if (relay) try { relay.blur(); } catch (e) {}
+    }
+  }
 
   // Persist open-apps + active to the manager API so phones and computers
   // share the same desktop state. Coalesce rapid changes via debounce —
@@ -322,6 +399,7 @@
     hintEl.classList.toggle('hidden', !!id);
     renderTaskbar();
     persist();
+    updateKbdBtn();
     document.title = id ? (APPS[id].label + ' — myhost') : 'myhost';
     var f = id && frameOf(id);
     if (f) {
