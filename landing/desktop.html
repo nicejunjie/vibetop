@@ -196,31 +196,33 @@
     .startmenu { left: 8px; right: 8px; width: auto; }
   }
 
-  /* === Browser keyboard button (touch only) ===
-     The Browser is a remote canvas (xpra) — there's no DOM input to tap to
-     summon the keyboard, and a tap inside that iframe doesn't reliably raise
-     it on iOS. So the keyboard button lives HERE in the top-level shell: a real
-     <input> styled as a round button. Tapping it directly (a real input in the
-     top page) reliably opens the native keyboard; we forward each keystroke
-     into the Browser iframe via postMessage. Shown only while Browser is the
-     active app on a touch device. */
-  #kbd-btn {
-    position: fixed; right: 8px; top: 42%; z-index: 90;
-    width: 50px; height: 50px; border-radius: 25px; display: none;
-    background: #2d6cc0; border: 1px solid #2d6cc0; box-shadow: 0 4px 14px rgba(0,0,0,.5);
-    touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  /* === Compose & Send bar (touch only) ===
+     Browser (xpra canvas) and Terminal (xterm) take keyboard input but have no
+     DOM field of their own, and live keystroke-mirroring breaks under iOS
+     dictation (it rewrites text non-linearly). So the user types/dictates into
+     THIS visible box in the top-level shell — directly tapping a real input
+     reliably raises the native keyboard — then taps Send to forward the final
+     text once. Shown only while Browser/Terminal is active on a touch device.
+     Floats just above the on-screen keyboard. */
+  #kbd-compose {
+    position: fixed; left: 8px; right: 8px; bottom: calc(var(--tb) + 8px); z-index: 95;
+    display: none; align-items: center; gap: 6px; padding: 6px;
+    background: #161b22; border: 1px solid #2a3040; border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.55);
   }
-  body.kbd-on #kbd-btn { display: block; }
-  #kbd-btn.open { background: #d23a2a; border-color: #d23a2a; }
-  #kbd-relay {
-    position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0;
-    border: 0; outline: none; background: transparent; color: transparent;
-    caret-color: transparent; font-size: 16px; text-align: center; cursor: pointer; z-index: 1;
+  body.kbd-on #kbd-compose { display: flex; }
+  #kbd-text {
+    flex: 1; min-width: 0; height: 40px; border-radius: 8px;
+    border: 1px solid #2a3040; background: #0e1117; color: #e6ebf2;
+    padding: 0 12px; font-size: 16px; outline: none;
   }
-  #kbd-ico {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    pointer-events: none; font: 600 22px system-ui, sans-serif; color: #fff;
+  #kbd-text:focus { border-color: #2d6cc0; }
+  #kbd-compose button {
+    flex: 0 0 auto; height: 40px; border-radius: 8px; cursor: pointer;
+    border: 1px solid #2d6cc0; font: 600 14px system-ui, sans-serif;
   }
+  #kbd-send  { padding: 0 16px; background: #2d6cc0; color: #fff; }
+  #kbd-enter { padding: 0 13px; background: rgba(45,108,192,.18); color: #cfe0f5; font-size: 17px; }
 </style>
 </head>
 <body>
@@ -238,7 +240,7 @@
     <div class="sm-item" data-id="upload"><div class="sm-icon">⬆</div><div><div class="sm-name">Upload</div><div class="sm-desc">Quick file upload to ~/Uploads</div></div></div>
     <div class="sm-title sm-title-system">System</div>
     <div class="sm-item" data-id="update"><div class="sm-icon">⬇</div><div><div class="sm-name">Update</div><div class="sm-desc">Pull latest from GitHub &amp; redeploy</div></div></div>
-    <div class="sm-build">build kbd-7</div>
+    <div class="sm-build">build kbd-8</div>
   </div>
 
   <div class="taskbar" id="taskbar">
@@ -264,7 +266,12 @@
   </div>
 
   <!-- Browser keyboard button (top-level so iOS reliably raises the keyboard) -->
-  <div id="kbd-btn" title="Keyboard"><input id="kbd-relay" type="text" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"><span id="kbd-ico">⌨</span></div>
+  <!-- Compose & Send bar (touch, Browser/Terminal): type or dictate, then Send -->
+  <div id="kbd-compose">
+    <input id="kbd-text" type="text" placeholder="Type or dictate, then Send →" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button id="kbd-enter" type="button" title="Send Enter">↵</button>
+    <button id="kbd-send" type="button">Send</button>
+  </div>
 
 <script>
 (function() {
@@ -297,100 +304,68 @@
   // and forward every keystroke into the Browser iframe via postMessage. Shown
   // only while Browser is the active app on a touch device.
   var IS_TOUCH = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-  (function setupKbdRelay() {
-    var relay = document.getElementById('kbd-relay');
-    var btn = document.getElementById('kbd-btn');
-    var ico = document.getElementById('kbd-ico');
-    if (!relay || !btn) return;
-    var lastVal = '', composing = false, flushTimer = null;
+  // Compose & Send: instead of mirroring keystrokes live (which iOS dictation
+  // breaks — it rewrites text non-linearly), the user types/dictates into a
+  // VISIBLE box and taps Send, and we forward the FINAL text once. No live
+  // diffing, so dictation can't pile up. Works for Browser and Terminal (the
+  // two apps that take keyboard input through a remote/canvas with no DOM
+  // field of their own): Browser gets each char as a key event to xpra;
+  // Terminal gets the whole string pasted into the PTY (relayed via
+  // terminals.html → the active /tN/).
+  (function setupKbdCompose() {
+    var bar = document.getElementById('kbd-compose');
+    var text = document.getElementById('kbd-text');
+    var sendBtn = document.getElementById('kbd-send');
+    var enterBtn = document.getElementById('kbd-enter');
+    if (!bar || !text) return;
 
-    // --- Debug overlay: tap the Start-menu build tag to toggle. Shows the raw
-    // input values iOS fires and what we forward, so we can see ground truth. ---
-    var dbgEl = null, dbgBuf = [];
-    function dbg(s) {
-      if (!dbgEl) return;
-      dbgBuf.push(s); if (dbgBuf.length > 80) dbgBuf.shift();
-      dbgEl.textContent = dbgBuf.join(''); dbgEl.scrollTop = dbgEl.scrollHeight;
-    }
-    window.__kbdDbg = function() {
-      if (dbgEl) { dbgEl.remove(); dbgEl = null; return; }
-      dbgEl = document.createElement('div');
-      dbgEl.style.cssText = 'position:fixed;top:0;left:0;right:0;max-height:32vh;overflow:auto;z-index:2147483647;background:rgba(0,0,0,.88);color:#6f6;font:11px ui-monospace,monospace;padding:6px;white-space:pre-wrap;word-break:break-all';
-      document.body.appendChild(dbgEl); dbg('[kbd debug on]\n');
-    };
-    var bt = document.querySelector('.sm-build');
-    if (bt) bt.addEventListener('click', function(e) { e.stopPropagation(); window.__kbdDbg(); });
-
-    function postKbd(msg) {
-      dbg(msg.ch !== undefined ? msg.ch : '<' + msg.key + '>');
-      var f = document.getElementById('frame-browser');
+    function toFrame(id, msg) {
+      var f = document.getElementById('frame-' + id);
       if (f && f.contentWindow) { try { f.contentWindow.postMessage(msg, '*'); } catch (e) {} }
     }
-    // Forward the difference between what we last sent (lastVal) and the input's
-    // current value: backspace to the common prefix, then type the new tail.
-    // Because it's a diff, it correctly handles REPLACEMENTS (autocorrect, and
-    // iOS dictation revising earlier words) — not just appends.
-    function flush() {
-      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-      var v = relay.value;
-      dbg('\n{in=' + JSON.stringify(v) + ' last=' + JSON.stringify(lastVal) + '}>');
-      // iOS dictation transiently CLEARS the field to "" between revisions
-      // before re-setting the next one. Ignore that empty state — otherwise we
-      // emit backspaces (which don't reliably apply on the remote) and then
-      // re-type the whole word on top: the pile-up. Since the transcription
-      // grows by prefix-extension, keeping lastVal and skipping "" makes every
-      // forward a clean append, needing no backspaces at all. (Explicit
-      // deletes still work via the empty-buffer Backspace keydown handler.)
-      if (v === '' && lastVal !== '') return;
-      var i = 0, min = Math.min(v.length, lastVal.length);
-      while (i < min && v.charAt(i) === lastVal.charAt(i)) i++;
-      for (var d = lastVal.length - i; d > 0; d--) postKbd({ type: 'kbd-key', key: 'Backspace' });
-      for (var j = i; j < v.length; j++) postKbd({ type: 'kbd-char', ch: v.charAt(j) });
-      lastVal = v;
+    function sendText() {
+      var t = text.value;
+      if (!t) { text.focus(); return; }
+      if (active === 'terminal') {
+        toFrame('terminal', { type: 'term-input', text: t });
+      } else {
+        for (var i = 0; i < t.length; i++) {
+          var ch = t.charAt(i);
+          if (ch === '\n') toFrame('browser', { type: 'kbd-key', key: 'Enter' });
+          else if (ch === '\t') toFrame('browser', { type: 'kbd-key', key: 'Tab' });
+          else toFrame('browser', { type: 'kbd-char', ch: ch });
+        }
+      }
+      text.value = '';
+      text.focus();   // keep the keyboard up for the next line
     }
-    function reset() { if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; } relay.value = ''; lastVal = ''; }
-    // NEVER reset the diff baseline (lastVal) on focus/blur — iOS dictation
-    // churns focus/blur, and resetting then made each revision re-forward in
-    // full (the pile-up). The baseline only resets on Enter or an intentional
-    // dismiss (the ⌨ button, below). Between those, the buffer just grows and
-    // the diff always forwards the correct delta, so dictation can't pile up.
-    relay.addEventListener('focus', function() { btn.classList.add('open'); ico.textContent = '✕'; });
-    relay.addEventListener('blur',  function() { flush(); btn.classList.remove('open'); ico.textContent = '⌨'; });
-    // ALWAYS debounce. iOS dictation CLEARS then RE-SETS the value between
-    // revisions ("" → "hell"), each firing `input`. Flushing every event read
-    // the intermediate "" and emitted backspaces that then re-typed the whole
-    // word on top — the pile-up (the tell-tale "hh…"). Debouncing means we only
-    // ever read the SETTLED value of each revision, so every forward is a clean
-    // append/delta with no spurious backspaces. A longer delay while composing.
-    function scheduleFlush(ms) {
-      if (flushTimer) clearTimeout(flushTimer);
-      flushTimer = setTimeout(function() { flushTimer = null; flush(); }, ms);
+    function sendEnter() {
+      if (active === 'terminal') toFrame('terminal', { type: 'term-input', text: '\r' });
+      else toFrame('browser', { type: 'kbd-key', key: 'Enter' });
+      text.focus();
     }
-    relay.addEventListener('compositionstart', function() { composing = true; });
-    relay.addEventListener('compositionend', function() { composing = false; scheduleFlush(60); });
-    relay.addEventListener('input', function(e) {
-      scheduleFlush((composing || (e && e.isComposing)) ? 450 : 80);
+    sendBtn.addEventListener('click', sendText);
+    enterBtn.addEventListener('click', sendEnter);
+    text.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); sendText(); }
     });
-    relay.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter')        { e.preventDefault(); flush(); postKbd({ type: 'kbd-key', key: 'Enter' }); reset(); }
-      else if (e.key === 'Tab')     { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Tab' }); }
-      else if (e.key === 'Backspace' && relay.value === '') { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Backspace' }); }
-    });
-    // Tap the button while the keyboard is up → dismiss. Just blur (which
-    // flushes); do NOT reset the baseline here — a stray pointer event during
-    // dictation could otherwise wipe lastVal mid-utterance and cause a pile-up.
-    // The baseline only ever resets on Enter now.
-    relay.addEventListener('pointerdown', function(e) {
-      if (document.activeElement === relay) { e.preventDefault(); relay.blur(); }
-    });
+
+    // Float the bar just above the on-screen keyboard (visualViewport reflects
+    // the keyboard height in the top-level page; in an iframe it wouldn't).
+    function position() {
+      if (!window.visualViewport) return;
+      var kb = window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop;
+      bar.style.bottom = kb > 50 ? (kb + 8) + 'px' : '';
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', position);
+      window.visualViewport.addEventListener('scroll', position);
+    }
   })();
-  function updateKbdBtn() {
-    if (IS_TOUCH && active === 'browser') document.body.classList.add('kbd-on');
-    else {
-      document.body.classList.remove('kbd-on');
-      var relay = document.getElementById('kbd-relay');
-      if (relay) try { relay.blur(); } catch (e) {}
-    }
+  function updateKbdBar() {
+    var on = IS_TOUCH && (active === 'browser' || active === 'terminal');
+    document.body.classList.toggle('kbd-on', on);
+    if (!on) { var t = document.getElementById('kbd-text'); if (t) try { t.blur(); } catch (e) {} }
   }
 
   // Persist open-apps + active to the manager API so phones and computers
@@ -464,7 +439,7 @@
     hintEl.classList.toggle('hidden', !!id);
     renderTaskbar();
     persist();
-    updateKbdBtn();
+    updateKbdBar();
     document.title = id ? (APPS[id].label + ' — myhost') : 'myhost';
     var f = id && frameOf(id);
     if (f) {
