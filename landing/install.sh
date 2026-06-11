@@ -11,6 +11,7 @@ install -m 644 "$DIR/filebrowser-patches.js" "$DST_DIR/filebrowser-patches.js"
 install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
 install -m 644 "$DIR/notes.html" "$DST_DIR/notes.html"
 install -m 644 "$DIR/upload.html" "$DST_DIR/upload.html"
+install -m 644 "$DIR/update.html" "$DST_DIR/update.html"
 # PWA: manifest, service worker, and home-screen icons
 install -m 644 "$DIR/manifest.json" "$DST_DIR/manifest.json"
 install -m 644 "$DIR/sw.js" "$DST_DIR/sw.js"

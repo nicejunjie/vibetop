@@ -49,6 +49,10 @@ UPLOAD_DIR = os.environ.get(
 # live dots without baking personal hostnames into the repo.
 SERVICES_FILE = os.path.expanduser(f"~{APP_USER}/claude-web-www/services.json")
 
+# The git checkout this manager runs from: <repo>/terminal/terminal-manager.py.
+# The Update app pulls + redeploys from here.
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 # Per-process CPU snapshot for delta-based calculation
 _prev_proc_snap = {}  # pid -> (utime+stime, timestamp)
 _prev_proc_time = 0.0
@@ -658,6 +662,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_upload()
         if self.path == "/api/upload/clear":
             return self._handle_upload_clear()
+        if self.path == "/api/update":
+            return self._handle_update()
         self.send_error(404)
 
     def _handle_upload_clear(self):
@@ -814,9 +820,114 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._json(200, {"ok": True, "action": action, "instance": n})
 
+    # ---- Update (git pull + redeploy) -------------------------------------
+    def _git_as_user(self, args, timeout=60):
+        """Run a git command in REPO_DIR as APP_USER (the repo owner — root would
+        trip git's 'dubious ownership' guard, and only APP_USER has the GitHub
+        SSH key). `sudo -u … -H` (not `su -`) avoids a login shell, so the host's
+        MOTD banner doesn't pollute the output. Returns (ok, output)."""
+        cmd = ["sudo", "-n", "-u", APP_USER, "-H",
+               "git", "-C", REPO_DIR] + list(args)
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            return p.returncode == 0, (p.stdout + p.stderr).strip()
+        except Exception as e:
+            return False, str(e)
+
+    def _update_version_info(self):
+        ok, head = self._git_as_user(["log", "-1", "--format=%h\t%cd\t%s",
+                                      "--date=short"])
+        info = {"repo": REPO_DIR}
+        if ok and "\t" in head:
+            commit, date, subject = head.split("\t", 2)
+            info.update({"commit": commit, "date": date, "subject": subject})
+        else:
+            info["error"] = head
+        return info
+
+    def _handle_update(self):
+        """Pull the latest from GitHub and redeploy whatever changed. Each step's
+        output is returned as a log. The manager restarts itself (out-of-band) at
+        the end only if its own file changed, so the new code takes effect."""
+        log = []
+
+        def add(name, ok, out):
+            log.append({"name": name, "ok": bool(ok), "output": (out or "").strip()})
+            return ok
+
+        before, _ = self._git_as_user(["rev-parse", "HEAD"])
+        ok, out = self._git_as_user(["pull", "--ff-only"], timeout=120)
+        add("git pull", ok, out)
+        if not ok:
+            self._json(200, {"ok": False, "log": log,
+                             "message": "git pull failed — resolve it on the host"})
+            return
+        after, _ = self._git_as_user(["rev-parse", "HEAD"])
+
+        changed = []
+        if before and after and before != after:
+            cok, cout = self._git_as_user(["diff", "--name-only",
+                                           before + ".." + after])
+            if cok:
+                changed = [l for l in cout.splitlines() if l]
+
+        if not changed:
+            self._json(200, {"ok": True, "log": log, "changed": [],
+                             "message": "Already up to date."})
+            return
+
+        def deploy(name, argv, env_extra):
+            env = dict(os.environ)
+            env.update(env_extra)
+            try:
+                p = subprocess.run(argv, cwd=REPO_DIR, env=env,
+                                   capture_output=True, text=True, timeout=300)
+                add(name, p.returncode == 0, p.stdout + p.stderr)
+            except Exception as e:
+                add(name, False, str(e))
+
+        touched = lambda prefix: any(c.startswith(prefix) for c in changed)
+        # landing/ → static apps; run as APP_USER ($HOME must be the user's, set
+        # by sudo -H). No login shell, so no MOTD banner in the output.
+        if touched("landing/"):
+            try:
+                p = subprocess.run(
+                    ["sudo", "-n", "-u", APP_USER, "-H",
+                     os.path.join(REPO_DIR, "landing", "install.sh")],
+                    cwd=REPO_DIR, capture_output=True, text=True, timeout=120)
+                add("deploy desktop & apps", p.returncode == 0, p.stdout + p.stderr)
+            except Exception as e:
+                add("deploy desktop & apps", False, str(e))
+        # browser/ and terminal/ touch nginx → run as root (manager is root) with
+        # APP_USER passed in; skip apt/systemd, just redeploy files + reload nginx.
+        base_env = {"APP_USER": APP_USER, "INSTALL_DEPS": "0", "INSTALL_SYSTEMD": "0"}
+        if touched("browser/"):
+            deploy("deploy browser", ["./browser/install.sh"], base_env)
+        if touched("terminal/"):
+            deploy("deploy terminal & nginx", ["./terminal/install.sh"], base_env)
+
+        # Restart the manager out-of-band (via a transient timer so it survives
+        # our own death) only if its code changed — after the response is sent.
+        restart = "terminal/terminal-manager.py" in changed
+        self._json(200, {"ok": True, "log": log, "changed": changed,
+                         "restart": restart,
+                         "message": ("Updated. Restarting the API to apply manager "
+                                     "changes…" if restart else "Updated.")})
+        if restart:
+            try:
+                subprocess.Popen(
+                    ["systemd-run", "--on-active=3",
+                     "systemctl", "restart", "claude-web-manager.service"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+
     def do_GET(self):
         if self.path == "/api/terminals/status":
             self._json(200, {"running": self._get_running_terminals()})
+            return
+        if self.path == "/api/update":
+            self._json(200, self._update_version_info())
             return
         if self.path == "/api/system/status":
             self._json(200, self._get_system_status())
