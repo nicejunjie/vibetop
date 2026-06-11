@@ -66,8 +66,13 @@ Two systemd template units, instantiated for each terminal:
    -t "titleFixed=Terminal N" -t scrollback=50000
    claude-session attach N`. Each browser tab spawns its own attach
    process; the daemon multiplexes them. `-t reconnect=3` makes the
-   browser auto-reconnect 3 s after a WS drop. `Requires=` + `After=`
-   make the ttyd unit depend on its matching session unit.
+   browser auto-reconnect 3 s after an *abnormal* WS drop. A *clean*
+   close (code 1000 — what iOS sends when it suspends a backgrounded
+   tab) instead shows ttyd's "Press ⏎ to Reconnect" overlay; a guard
+   injected by the nginx `sub_filter` watches for it and synthesizes the
+   Enter keypress so the terminal reconnects on its own (see the cross-
+   project CLAUDE.md). `Requires=` + `After=` make the ttyd unit depend
+   on its matching session unit.
 
 Window resize: the attach process writes `rows cols` to
 `/tmp/claude-session-N.size` and sends `SIGUSR1` to the daemon PID

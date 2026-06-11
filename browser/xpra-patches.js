@@ -6,6 +6,12 @@
 (function() {
   'use strict';
 
+  // Shared client-side view zoom — Safari-style magnification of the rendered
+  // canvas (same remote layout, just bigger pixels + pan), applied as a CSS
+  // transform on #screen (see patch 4). getMouse (patch 1) divides click
+  // coordinates by .z so taps still land correctly while magnified.
+  var VIEWZOOM = { z: 1, px: 0, py: 0, min: 1, max: 6 };
+
   // 0. Suppress "leave site?" confirmation on refresh/close.
   try {
     window.onbeforeunload = null;
@@ -28,8 +34,11 @@
       var r = origGM.call(this, e);
       if (e.target && e.target.getBoundingClientRect) {
         var b = e.target.getBoundingClientRect();
-        r.x = this.last_mouse_x = Math.round((e.clientX - b.left) * (this.scale || 1));
-        r.y = this.last_mouse_y = Math.round((e.clientY - b.top) * (this.scale || 1));
+        // b reflects the CSS view-zoom transform, so divide the offset by the
+        // zoom factor to recover real canvas coordinates (z=1 → unchanged).
+        var z = VIEWZOOM.z || 1;
+        r.x = this.last_mouse_x = Math.round((e.clientX - b.left) / z * (this.scale || 1));
+        r.y = this.last_mouse_y = Math.round((e.clientY - b.top) / z * (this.scale || 1));
       }
       return r;
     };
@@ -154,41 +163,63 @@
     console.warn('[xpra-patches] keyboard patch failed:', e.message);
   }
 
-  // 4. Mobile zoom — pinch gesture + visible +/− buttons. The parent desktop
-  //    disables iOS pinch-zoom (so the shell stays at 1.0x), so we translate
-  //    pinches here into Ctrl+= / Ctrl+- keystrokes forwarded to remote
-  //    Chromium. We also expose explicit +/−/⟲ buttons next to the ⌨ chip so
-  //    zoom is discoverable on phones that don't pinch naturally.
+  // 4. Mobile zoom — Safari-style pinch magnification + visible +/− buttons.
+  //    The parent desktop disables iOS's own pinch-zoom, so we implement it
+  //    here as a CSS transform on #screen: the remote layout is UNCHANGED
+  //    (no font/zoom keystrokes to Chromium), we just magnify the rendered
+  //    canvas and let the user pan around it — exactly how Safari zooms a page.
+  //    Purely client-side; the remote never sees it. +/−/⟲ buttons expose it
+  //    for phones that don't pinch naturally.
   try {
-    // Send a Ctrl-modified key to the remote. xpra's HTML5 client listens for
-    // keydown/keyup on document; synthetic events bubble through its handler.
-    // Ctrl+= zooms Chromium in, Ctrl+- out, Ctrl+0 resets to 100%.
-    var sendCtrlKey = function(key, code, keyCode) {
-      ['keydown', 'keyup'].forEach(function(type) {
-        document.dispatchEvent(new KeyboardEvent(type, {
-          key: key, code: code, keyCode: keyCode, which: keyCode,
-          ctrlKey: true, bubbles: true, cancelable: true
-        }));
-      });
-    };
-    var zoomIn    = function() { sendCtrlKey('=', 'Equal',  187); };
-    var zoomOut   = function() { sendCtrlKey('-', 'Minus',  189); };
-    var zoomReset = function() { sendCtrlKey('0', 'Digit0',  48); };
+    var screenElGet = function() { return document.getElementById('screen'); };
 
-    // --- Unified touch handling: pinch-zoom, drag-scroll, tap-click ---
+    // Apply the current zoom/pan as a CSS transform on #screen, clamping the
+    // pan so the magnified canvas can't be dragged off the viewport.
+    var applyZoom = function() {
+      var s = screenElGet(); if (!s) return;
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var minPx = vw * (1 - VIEWZOOM.z), minPy = vh * (1 - VIEWZOOM.z);
+      VIEWZOOM.px = Math.min(0, Math.max(minPx, VIEWZOOM.px));
+      VIEWZOOM.py = Math.min(0, Math.max(minPy, VIEWZOOM.py));
+      s.style.transformOrigin = '0 0';
+      s.style.transform = VIEWZOOM.z === 1 ? '' :
+        'translate(' + VIEWZOOM.px + 'px,' + VIEWZOOM.py + 'px) scale(' + VIEWZOOM.z + ')';
+    };
+    // Zoom to newZ while keeping the content point under (cx,cy) stationary.
+    var zoomAt = function(cx, cy, newZ) {
+      newZ = Math.max(VIEWZOOM.min, Math.min(VIEWZOOM.max, newZ));
+      var contentX = (cx - VIEWZOOM.px) / VIEWZOOM.z;
+      var contentY = (cy - VIEWZOOM.py) / VIEWZOOM.z;
+      VIEWZOOM.px = cx - contentX * newZ;
+      VIEWZOOM.py = cy - contentY * newZ;
+      VIEWZOOM.z = newZ;
+      applyZoom();
+    };
+    var zoomBy = function(factor, cx, cy) {
+      if (cx == null) { cx = window.innerWidth / 2; cy = window.innerHeight / 2; }
+      zoomAt(cx, cy, VIEWZOOM.z * factor);
+    };
+    var zoomReset = function() { VIEWZOOM.z = 1; VIEWZOOM.px = 0; VIEWZOOM.py = 0; applyZoom(); };
+    var midpoint = function(t) {
+      return { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
+    };
+    // Orientation flips invalidate the pan math — reset to 1x.
+    window.addEventListener('orientationchange', zoomReset);
+
+    // --- Unified touch handling: pinch-zoom, drag-pan/scroll, tap-click ---
     // Registered on window in CAPTURE phase so we run BEFORE xpra's own touch
     // handlers on #screen (which would otherwise translate every touch into a
     // mousedown+drag, breaking scroll and treating swipes as text-selection).
     //
     // We take over all touch events on the screen entirely:
-    //   - 2 fingers → pinch maps to Ctrl+= / Ctrl+- (zoom)
-    //   - 1 finger, moved > TAP_PX → wheel events sent to remote (scroll)
+    //   - 2 fingers → pinch magnifies the view (CSS transform, no remote zoom)
+    //   - 1 finger drag, zoomed in → pan the magnified view
+    //   - 1 finger drag, at 1x → wheel events sent to remote (scroll the page)
     //   - 1 finger, no movement → synthetic mousedown/mouseup at touch point
     //     forwarded to xpra as a click
     //
     // xpra's wheel and mouse handlers on #screen forward synthetic events to
     // the remote just fine (its forwarders don't check event.isTrusted).
-    var screenElGet = function() { return document.getElementById('screen'); };
     // xpra attaches its wheel/mouse listeners to the <canvas> inside #screen,
     // not to the wrapper. Wheel/mouse events don't propagate down to children,
     // so we must dispatch directly on the canvas for xpra to forward them.
@@ -200,18 +231,18 @@
       var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
       return Math.sqrt(dx * dx + dy * dy);
     };
-    var PINCH_STEP = 40, TAP_PX = 10;
+    var TAP_PX = 10;
     // SCROLL_TICK: pixels of finger travel per emitted wheel event. The remote
     // Chromium amplifies each wheel deltaY by ~3 lines (Chrome's default), so
     // dividing the raw finger delta keeps page scroll close to finger speed.
     // Higher value = slower scroll relative to finger.
     var SCROLL_TICK = 33;
-    var touch = { mode: null, sx: 0, sy: 0, lx: 0, ly: 0, pinch: 0, accum: 0 };
+    var touch = { mode: null, sx: 0, sy: 0, lx: 0, ly: 0, pinch: 0, accum: 0, accumX: 0 };
 
-    var fireWheel = function(x, y, dy) {
+    var fireWheel = function(x, y, dx, dy) {
       var c = canvasGet(); if (!c) return;
       c.dispatchEvent(new WheelEvent('wheel', {
-        clientX: x, clientY: y, deltaY: dy, deltaX: 0, deltaMode: 0,
+        clientX: x, clientY: y, deltaX: dx, deltaY: dy, deltaMode: 0,
         bubbles: true, cancelable: true
       }));
     };
@@ -235,7 +266,7 @@
         touch.mode = null;            // undecided: tap vs scroll
         touch.sx = touch.lx = t.clientX;
         touch.sy = touch.ly = t.clientY;
-        touch.accum = 0;
+        touch.accum = 0; touch.accumX = 0;
         e.preventDefault(); e.stopPropagation();
       }
     }, { passive: false, capture: true });
@@ -243,9 +274,13 @@
     window.addEventListener('touchmove', function(e) {
       if (touch.mode === 'pinch' && e.touches.length === 2) {
         e.preventDefault(); e.stopPropagation();
-        var d = dist2(e.touches), delta = d - touch.pinch;
-        if (delta >= PINCH_STEP)       { zoomIn();  touch.pinch = d; }
-        else if (delta <= -PINCH_STEP) { zoomOut(); touch.pinch = d; }
+        // Continuous magnification anchored at the pinch midpoint, like Safari.
+        var d = dist2(e.touches);
+        if (touch.pinch > 0) {
+          var mid = midpoint(e.touches);
+          zoomAt(mid.x, mid.y, VIEWZOOM.z * (d / touch.pinch));
+        }
+        touch.pinch = d;
       } else if (e.touches.length === 1) {
         var t = e.touches[0];
         e.preventDefault(); e.stopPropagation();
@@ -256,20 +291,23 @@
           }
         }
         if (touch.mode === 'scroll') {
-          // Finger moving UP (clientY decreasing) → page scrolls DOWN
-          // → positive wheel deltaY. Match natural touch-scroll direction.
-          // Accumulate raw pixel motion; emit one SCROLL_TICK-sized wheel
-          // event per tick so the scroll speed roughly matches finger speed
-          // (xpra/Chromium amplify each wheel event by several lines).
-          touch.accum += (touch.ly - t.clientY);
+          var ddx = t.clientX - touch.lx, ddy = t.clientY - touch.ly;
           touch.lx = t.clientX; touch.ly = t.clientY;
-          while (touch.accum >= SCROLL_TICK) {
-            fireWheel(t.clientX, t.clientY, SCROLL_TICK);
-            touch.accum -= SCROLL_TICK;
-          }
-          while (touch.accum <= -SCROLL_TICK) {
-            fireWheel(t.clientX, t.clientY, -SCROLL_TICK);
-            touch.accum += SCROLL_TICK;
+          if (VIEWZOOM.z > 1.001) {
+            // Magnified: pan the view, canvas following the finger (grab-pan).
+            VIEWZOOM.px += ddx; VIEWZOOM.py += ddy;
+            applyZoom();
+          } else {
+            // At 1x: scroll the remote page on both axes (finger UP → page
+            // scrolls DOWN; finger LEFT → scrolls RIGHT). Accumulate raw pixels
+            // and emit one SCROLL_TICK-sized wheel event per tick so speed
+            // tracks the finger (xpra/Chromium amplify each wheel event).
+            touch.accum  += -ddy;
+            touch.accumX += -ddx;
+            while (touch.accum >= SCROLL_TICK)  { fireWheel(t.clientX, t.clientY, 0,  SCROLL_TICK); touch.accum  -= SCROLL_TICK; }
+            while (touch.accum <= -SCROLL_TICK) { fireWheel(t.clientX, t.clientY, 0, -SCROLL_TICK); touch.accum  += SCROLL_TICK; }
+            while (touch.accumX >= SCROLL_TICK) { fireWheel(t.clientX, t.clientY,  SCROLL_TICK, 0); touch.accumX -= SCROLL_TICK; }
+            while (touch.accumX <= -SCROLL_TICK){ fireWheel(t.clientX, t.clientY, -SCROLL_TICK, 0); touch.accumX += SCROLL_TICK; }
           }
         }
       }
@@ -287,6 +325,7 @@
         touch.mode = 'scroll';
         touch.sx = touch.lx = t.clientX;
         touch.sy = touch.ly = t.clientY;
+        touch.accum = 0; touch.accumX = 0;
       }
     }, { passive: false, capture: true });
 
@@ -320,9 +359,9 @@
         btn.addEventListener('click', handler);
         return btn;
       };
-      wrap.appendChild(mk('−', 'Zoom out', zoomOut));
+      wrap.appendChild(mk('−', 'Zoom out', function() { zoomBy(1 / 1.5); }));
       wrap.appendChild(mk('⟲', 'Reset zoom', zoomReset));
-      wrap.appendChild(mk('+', 'Zoom in',  zoomIn));
+      wrap.appendChild(mk('+', 'Zoom in',  function() { zoomBy(1.5); }));
       document.body.appendChild(wrap);
     };
     if (document.body) addZoomBtns();
