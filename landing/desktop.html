@@ -76,6 +76,7 @@
   .task-app.active[data-id="files"]    { border-bottom-color: #8a4adb; }
   .task-app.active[data-id="notes"]    { border-bottom-color: #1ab3a6; }
   .task-app.active[data-id="monitor"]  { border-bottom-color: #d2902a; }
+  .task-app.active[data-id="upload"]   { border-bottom-color: #3ab36a; }
 
   .tb-spacer { flex: 1; }
 
@@ -146,6 +147,7 @@
   .sm-item[data-id="files"]    .sm-icon { background: #3a1a6b; }
   .sm-item[data-id="notes"]    .sm-icon { background: #0a4a44; }
   .sm-item[data-id="monitor"]  .sm-icon { background: #4a3010; }
+  .sm-item[data-id="upload"]   .sm-icon { background: #0f5c2e; }
   .sm-item .sm-name { font-size: 15px; color: #e6edf3; }
   .sm-item .sm-desc { font-size: 12px; color: #6a7a8a; margin-top: 1px; }
   .sm-item.running .sm-name::after { content: " \25CF"; color: #34a853; font-size: 10px; vertical-align: middle; }
@@ -335,7 +337,7 @@
     if (openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
     setActive(id);
     closeMenu();
-    if (id === 'home' || id === 'monitor') {       // populate relayed status promptly
+    if (id === 'home') {       // populate relayed status promptly
       setTimeout(relayStatus, 800);
     }
   }
@@ -464,27 +466,25 @@
   updateStatus();
   setInterval(updateStatus, 5000);
 
-  // Relay status to apps that render it (Monitor + Home Service). Needed because
-  // through the Cloudflare tunnel an iframe's own fetches don't carry the Access
-  // cookie, so the parent fetches and forwards. Only sent to apps that are open.
+  // Relay status to the Home Service app (the only app that renders it).
+  // Needed because through the Cloudflare tunnel an iframe's own fetches don't
+  // carry the Access cookie, so the parent fetches and forwards. Only sent
+  // while Home is open.
   function post(id, msg) {
     var f = frameOf(id);
     if (f && f.contentWindow) { try { f.contentWindow.postMessage(msg, '*'); } catch (e) {} }
   }
   function relayStatus() {
-    if (openApps.indexOf('monitor') === -1 && openApps.indexOf('home') === -1) return;
+    if (openApps.indexOf('home') === -1) return;
     fetch('/api/health').then(function(r) { return r.json(); }).then(function(data) {
-      post('monitor', { type: 'health', data: data });
       post('home', { type: 'health', data: data });
     }).catch(function() {});
-    if (openApps.indexOf('home') !== -1) {
-      fetch('/api/terminals/status').then(function(r) { return r.json(); }).then(function(data) {
-        post('home', { type: 'terminals', data: data });
-      }).catch(function() {});
-      fetch('/services.json').then(function(r) { return r.json(); }).then(function(data) {
-        post('home', { type: 'services', data: data });
-      }).catch(function() {});
-    }
+    fetch('/api/terminals/status').then(function(r) { return r.json(); }).then(function(data) {
+      post('home', { type: 'terminals', data: data });
+    }).catch(function() {});
+    fetch('/services.json').then(function(r) { return r.json(); }).then(function(data) {
+      post('home', { type: 'services', data: data });
+    }).catch(function() {});
   }
   setInterval(relayStatus, 5000);
   setTimeout(relayStatus, 1500);

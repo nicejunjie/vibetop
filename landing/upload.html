@@ -315,10 +315,6 @@
       el.querySelector('.name').textContent = f.name;
       el.querySelector('.meta').textContent = fmtSize(f.size);
       var entry = { file: f, el: el, state: 'pending' };
-      el.querySelector('.x').addEventListener('click', function(e, entryRef) {
-        // closure-friendly: rebind via dataset index lookup
-        e.preventDefault();
-      });
       // Bind remove via a fresh handler that knows its entry by identity.
       (function(entry) {
         el.querySelector('.x').addEventListener('click', function() {

@@ -14,12 +14,14 @@ Endpoints:
 import http.server
 import json
 import os
+import pwd
 import re
 import shutil
 import socket
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 MAX_INSTANCE = 50
 
@@ -33,7 +35,6 @@ def _app_user():
     env = os.environ.get("APP_USER") or os.environ.get("BROWSER_USER")
     if env:
         return env
-    import pwd
     return pwd.getpwuid(os.stat(__file__).st_uid).pw_name
 
 
@@ -51,6 +52,10 @@ SERVICES_FILE = os.path.expanduser(f"~{APP_USER}/claude-web-www/services.json")
 # Per-process CPU snapshot for delta-based calculation
 _prev_proc_snap = {}  # pid -> (utime+stime, timestamp)
 _prev_proc_time = 0.0
+
+# Whole-system CPU snapshot for delta-based calculation
+# ({name: ticks}, monotonic timestamp) from the previous status call
+_prev_cpu_snap = None
 
 
 # ---- /api/upload helpers ---------------------------------------------------
@@ -301,7 +306,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return sorted(running)
 
     def _get_system_status(self):
-        # CPU: read /proc/stat twice with a tiny interval (aggregate + per-core)
+        # CPU: delta against the snapshot from the previous status call
+        # (clients poll every few seconds, so the window is meaningful).
+        # Only the very first call — or one arriving <0.5s after another —
+        # falls back to a synchronous 0.1s two-read sample.
         def read_proc_stat():
             cores = {}
             with open("/proc/stat") as f:
@@ -312,9 +320,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         vals = list(map(int, parts[1:]))
                         cores[name] = vals
             return cores
-        snap1 = read_proc_stat()
-        time.sleep(0.1)
+        global _prev_cpu_snap
         snap2 = read_proc_stat()
+        prev = _prev_cpu_snap
+        if prev and time.monotonic() - prev[1] >= 0.5:
+            snap1 = prev[0]
+        else:
+            snap1 = snap2
+            time.sleep(0.1)
+            snap2 = read_proc_stat()
+        _prev_cpu_snap = (snap2, time.monotonic())
         def calc_pct(a, b):
             idle_d = b[3] - a[3]
             total_d = sum(b) - sum(a)
@@ -514,8 +529,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         global _prev_proc_snap, _prev_proc_time
         processes = []
         try:
-            import pwd
-            
             page_size = os.sysconf("SC_PAGE_SIZE")
             clk_tck = os.sysconf("SC_CLK_TCK")
             now = time.monotonic()
@@ -580,8 +593,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # IPs — show all interfaces with an assigned IP (skip lo, docker, veth)
         ips = {}
         try:
-            import subprocess as _sp
-            out = _sp.run(["ip", "-4", "-o", "addr", "show"], capture_output=True, text=True)
+            out = subprocess.run(["ip", "-4", "-o", "addr", "show"], capture_output=True, text=True)
             for line in out.stdout.splitlines():
                 parts = line.split()
                 iface = parts[1]
@@ -770,7 +782,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(400, {"error": "invalid characters in url"})
             return
         user = os.environ.get("BROWSER_USER", APP_USER)
-        uid = int(subprocess.check_output(["id", "-u", user]).strip())
+        try:
+            uid = pwd.getpwnam(user).pw_uid
+        except KeyError:
+            self._json(500, {"error": f"unknown user: {user}"})
+            return
         profile = f"/home/{user}/snap/chromium/common/xpra-profile"
         subprocess.Popen(
             ["su", "-", user, "-c",
@@ -866,19 +882,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         checks[key] = url
         except Exception:
             pass
-        result = {}
-        for name, url in checks.items():
+        # Probe concurrently — sequentially, one down service (2s timeout)
+        # delays every dot behind it.
+        def probe(name_url):
+            name, url = name_url
             try:
                 kw = {"timeout": 2}
                 if url.startswith("https"):
                     kw["context"] = ctx
                 urllib.request.urlopen(url, **kw)
-                result[name] = True
+                return name, True
             except urllib.error.HTTPError:
-                result[name] = True
+                return name, True
             except Exception:
-                result[name] = False
-        return result
+                return name, False
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            return dict(ex.map(probe, checks.items()))
 
     def _json(self, code, data):
         body = json.dumps(data).encode()
@@ -894,6 +913,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 7680
-    server = http.server.HTTPServer(("127.0.0.1", port), Handler)
+    # Threaded: a slow request (multi-GB upload, health probe, the 0.1s CPU
+    # sample fallback) must not block the status polls every desktop client
+    # sends — with the plain single-threaded HTTPServer an upload froze every
+    # other endpoint for its whole duration. The _prev_* snapshot globals are
+    # shared across threads; a rare concurrent-poll race only skews one
+    # reading, which the next poll corrects.
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server.daemon_threads = True
     print(f"terminal-manager listening on 127.0.0.1:{port}")
     server.serve_forever()

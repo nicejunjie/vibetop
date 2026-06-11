@@ -57,9 +57,13 @@
       }
       var norm = Utilities.normalizeWheel(e);
       var dy = norm.pixelY, dx = norm.pixelX;
+      // Cap clicks per event: a fast trackpad fling reports deltas in the
+      // thousands, which would burst hundreds of packets down the (possibly
+      // tunneled) websocket and lag everything behind them.
+      var MAX_CLICKS = 10;
       if (dy !== 0) {
         var btn = dy > 0 ? 5 : 4;
-        var n = Math.max(1, Math.round(Math.abs(dy) / 30));
+        var n = Math.min(MAX_CLICKS, Math.max(1, Math.round(Math.abs(dy) / 30)));
         for (var i = 0; i < n; i++) {
           this.send([PACKET_TYPES.button_action, wid, btn, true, coords, modifiers, []]);
           this.send([PACKET_TYPES.button_action, wid, btn, false, coords, modifiers, []]);
@@ -67,7 +71,7 @@
       }
       if (dx !== 0) {
         var btn = dx > 0 ? 7 : 6;
-        var n = Math.max(1, Math.round(Math.abs(dx) / 30));
+        var n = Math.min(MAX_CLICKS, Math.max(1, Math.round(Math.abs(dx) / 30)));
         for (var i = 0; i < n; i++) {
           this.send([PACKET_TYPES.button_action, wid, btn, true, coords, modifiers, []]);
           this.send([PACKET_TYPES.button_action, wid, btn, false, coords, modifiers, []]);

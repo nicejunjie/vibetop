@@ -76,6 +76,25 @@
       .then(function(r) { return r.json(); });
   }
 
+  // The start endpoint returns as soon as systemd is told to launch the
+  // units (systemctl --no-block) — ttyd may not be listening yet. Loading
+  // the iframe at that point captures nginx's 502 page and never recovers,
+  // so poll /tN/ until nginx can actually reach ttyd before activating.
+  function waitReady(n) {
+    return new Promise(function(resolve) {
+      var deadline = Date.now() + 20000;
+      (function ping() {
+        fetch('/t' + n + '/', { cache: 'no-store' }).then(function(r) {
+          if (r.ok || Date.now() > deadline) resolve();
+          else setTimeout(ping, 300);
+        }).catch(function() {
+          if (Date.now() > deadline) resolve();
+          else setTimeout(ping, 300);
+        });
+      })();
+    });
+  }
+
   function getTabNames() {
     try { return JSON.parse(localStorage.getItem(NAMES_KEY)) || {}; } catch(e) { return {}; }
   }
@@ -154,7 +173,14 @@
     focusTerminal(n);
   }
 
+  // Auto-focusing the xterm textarea pops up the on-screen keyboard on mobile.
+  // The design is keyboard-hidden-until-tap on touch, so skip the textarea
+  // focus there (the user taps the terminal to summon it). ttyd also focuses
+  // on WebSocket-connect — that path is suppressed by the touch guard injected
+  // into the /tN/ page itself (see terminal/install.sh sub_filter).
+  var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   function focusTerminal(n) {
+    if (isTouch) return;
     var iframe = document.getElementById('frame-' + n);
     if (!iframe) return;
     iframe.focus();
@@ -271,9 +297,11 @@
     if (n === 0) return;
     addTab(n, true);
     api('POST', '/' + n + '/start').then(function() {
+      return waitReady(n);
+    }).then(function() {
       var tab = tabs.querySelector('.tab[data-n="' + n + '"]');
       if (tab) tab.classList.remove('starting');
-      setTimeout(function() { activate(n); }, 500);
+      activate(n);
     });
   });
 
@@ -314,8 +342,12 @@
     if (running.length === 0) {
       // Start terminal 1 if nothing is running
       api('POST', '/1/start').then(function() {
-        addTab(1);
-        setTimeout(function() { activate(1); }, 500);
+        addTab(1, true);
+        return waitReady(1);
+      }).then(function() {
+        var tab = tabs.querySelector('.tab[data-n="1"]');
+        if (tab) tab.classList.remove('starting');
+        activate(1);
       });
       return;
     }

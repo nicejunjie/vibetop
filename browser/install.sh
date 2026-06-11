@@ -157,7 +157,16 @@ if (( INSTALL_SYSTEMD )); then
     run sudo systemctl daemon-reload
 fi
 
-# 5. nginx snippet -----------------------------------------------------------
+# 5. HTML5 client default settings -------------------------------------------
+# The xpra-html5 package ships its own default-settings.txt; ours tunes the
+# client for this deployment (no floating menu, speed-biased encoding). Apt
+# upgrades overwrite it — re-running this script restores it.
+if [ -d /usr/share/xpra/www ]; then
+    echo "== installing HTML5 client default settings =="
+    cat "$APP_DIR/default-settings.txt" | write_root /usr/share/xpra/www/default-settings.txt
+fi
+
+# 6. nginx snippet -----------------------------------------------------------
 if (( INSTALL_NGINX )); then
     echo "== installing nginx snippet =="
     if ! [ -d /etc/nginx/snippets/claude-extras.d ]; then
@@ -175,7 +184,7 @@ if (( INSTALL_NGINX )); then
     run sudo systemctl reload nginx
 fi
 
-# 6. Enable & start ----------------------------------------------------------
+# 7. Enable & start ----------------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
     echo "== enabling and starting xpra =="
     run sudo systemctl enable --now claude-browser-xpra.service

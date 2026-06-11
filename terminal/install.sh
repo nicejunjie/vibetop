@@ -167,6 +167,13 @@ server {
         client_max_body_size 5G;       # allow large /api/upload posts
         proxy_request_buffering off;   # stream upload body to the manager
         proxy_read_timeout 3600;
+
+        # Status JSON is a few KB and polled every few seconds; gzip shrinks
+        # it ~4x (nginx won't gzip proxied responses without gzip_proxied).
+        gzip on;
+        gzip_proxied any;
+        gzip_types application/json;
+        gzip_min_length 256;
     }
 
     # Dynamic terminal routing: /tN/ -> port from map
@@ -182,8 +189,18 @@ server {
         proxy_send_timeout 86400;
         proxy_buffering off;
 
+        # ttyd's page is a single ~240KB HTML (xterm.js inlined), served
+        # uncompressed because sub_filter needs a plain upstream body. Re-gzip
+        # the filtered output to the client — on slow/mobile links the
+        # uncompressed page was the terminal's whole time-to-content.
+        # WebSocket frames are unaffected.
+        gzip on;
+        gzip_proxied any;
+        gzip_types text/html text/javascript application/javascript text/css application/json;
+        gzip_min_length 1024;
+
         sub_filter 'fontSize:13,' 'fontSize:13,scrollback:$SCROLLBACK,';
-        sub_filter '</head>' '<script>(function(){var isMac=/Mac/.test(navigator.platform);function copySelection(){var t=window.term;if(!t||!t.hasSelection())return;var s=t.getSelection();if(!s)return;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=s;ta.select();document.execCommand(\"copy\");ta.value=\"\"}}var check=setInterval(function(){if(!window.term)return;clearInterval(check);var t=window.term;t.onSelectionChange(function(){if(t.hasSelection())copySelection()});t.attachCustomKeyEventHandler(function(e){if(e.type!==\"keydown\")return true;var mod=isMac?e.metaKey:e.ctrlKey;if(!mod||e.shiftKey||e.altKey)return true;if(isMac&&e.ctrlKey)return true;if(e.key===\"c\"&&t.hasSelection()){copySelection();t.clearSelection();return false}if(e.key===\"v\"){var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}return true}return true})},100);document.addEventListener(\"auxclick\",function(e){if(e.button!==1)return;e.preventDefault();var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}});function sendToBrowser(u){fetch(\"/api/browser/open\",{method:\"POST\",headers:{\"Content-Type\":\"application/json\"},body:JSON.stringify({url:u})});try{window.top.postMessage({type:\"switch-to-browser\"},\"*\")}catch(e){}}var wo=window.open;window.open=function(u){if(u&&(u.startsWith(\"http://\")||u.startsWith(\"https://\"))){sendToBrowser(u);return null}if(!u){return{opener:null,location:Object.defineProperty({},\"href\",{set:function(v){sendToBrowser(v)}})}}return wo.apply(this,arguments)}})();</script></head>';
+        sub_filter '</head>' '<script>(function(){var isMac=/Mac/.test(navigator.platform);var isTouch=window.matchMedia&&window.matchMedia(\"(pointer: coarse)\").matches;if(isTouch){var lastTouch=0;document.addEventListener(\"touchend\",function(){lastTouch=Date.now()},true);document.addEventListener(\"mousedown\",function(){lastTouch=Date.now()},true);document.addEventListener(\"focusin\",function(e){var t=e.target;if(t&&t.classList&&t.classList.contains(\"xterm-helper-textarea\")&&Date.now()-lastTouch>700){t.blur()}},true)}function copySelection(){var t=window.term;if(!t||!t.hasSelection())return;var s=t.getSelection();if(!s)return;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=s;ta.select();document.execCommand(\"copy\");ta.value=\"\"}}var check=setInterval(function(){if(!window.term)return;clearInterval(check);var t=window.term;t.onSelectionChange(function(){if(t.hasSelection())copySelection()});t.attachCustomKeyEventHandler(function(e){if(e.type!==\"keydown\")return true;var mod=isMac?e.metaKey:e.ctrlKey;if(!mod||e.shiftKey||e.altKey)return true;if(isMac&&e.ctrlKey)return true;if(e.key===\"c\"&&t.hasSelection()){copySelection();t.clearSelection();return false}if(e.key===\"v\"){var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}return true}return true})},100);document.addEventListener(\"auxclick\",function(e){if(e.button!==1)return;e.preventDefault();var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}});function sendToBrowser(u){fetch(\"/api/browser/open\",{method:\"POST\",headers:{\"Content-Type\":\"application/json\"},body:JSON.stringify({url:u})});try{window.top.postMessage({type:\"switch-to-browser\"},\"*\")}catch(e){}}var wo=window.open;window.open=function(u){if(u&&(u.startsWith(\"http://\")||u.startsWith(\"https://\"))){sendToBrowser(u);return null}if(!u){return{opener:null,location:Object.defineProperty({},\"href\",{set:function(v){sendToBrowser(v)}})}}return wo.apply(this,arguments)}})();</script></head>';
         sub_filter_once off;
     }
     location ~ ^/t(\d+)$ { return 301 \$scheme://\$host/t\$1/; }

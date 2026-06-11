@@ -421,18 +421,25 @@
   }
 
   var procHeader = '<div class="proc-header"><span class="proc-pid">PID</span><span class="proc-name">Name</span><span class="proc-cpu">CPU%</span><span class="proc-mem">MEM</span><span class="proc-user">User</span></div>';
+  // Process names come from /proc cmdline — arbitrary bytes chosen by whoever
+  // ran the process. Escape before splicing into innerHTML.
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
   function updateProcs(procs) {
     var list = document.getElementById('proc-list');
     var html = procHeader;
     for (var i = 0; i < procs.length; i++) {
       var p = procs[i];
       var cpuCls = p.cpu >= 80 ? 'hot' : p.cpu >= 30 ? 'warm' : '';
+      var name = esc(p.name);
       html += '<div class="proc-row">' +
         '<span class="proc-pid">' + p.pid + '</span>' +
-        '<span class="proc-name" title="' + p.name + '">' + p.name + '</span>' +
+        '<span class="proc-name" title="' + name + '">' + name + '</span>' +
         '<span class="proc-cpu ' + cpuCls + '">' + p.cpu.toFixed(1) + '</span>' +
         '<span class="proc-mem">' + (p.mem_mb >= 1024 ? (p.mem_mb/1024).toFixed(1)+'G' : p.mem_mb.toFixed(0)+'M') + '</span>' +
-        '<span class="proc-user">' + p.user + '</span></div>';
+        '<span class="proc-user">' + esc(p.user) + '</span></div>';
     }
     list.innerHTML = html;
   }

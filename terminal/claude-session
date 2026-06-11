@@ -7,7 +7,7 @@ Two modes:
   claude-session attach N  — client: bridges ttyd's PTY to the daemon's socket
 """
 
-import argparse, errno, fcntl, os, selectors, signal, socket, struct, sys, termios, tty
+import argparse, errno, fcntl, os, selectors, signal, socket, struct, sys, termios, time
 
 
 class RingBuffer:
@@ -338,7 +338,19 @@ def cmd_attach(instance):
     pid_path = f'/tmp/claude-session-{instance}.pid'
 
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect(sock_path)
+    # The serve daemon may still be creating its socket (systemd's After=
+    # only orders process start, not readiness). Retry briefly instead of
+    # dying — ttyd would otherwise show a dead terminal until its 3s
+    # client-side reconnect.
+    deadline = time.monotonic() + 3.0
+    while True:
+        try:
+            sock.connect(sock_path)
+            break
+        except (FileNotFoundError, ConnectionRefusedError):
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
 
     stdin_fd = sys.stdin.fileno()
     stdout_fd = sys.stdout.fileno()

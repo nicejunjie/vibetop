@@ -9,9 +9,12 @@ Group=@APP_USER@
 WorkingDirectory=~
 Environment=HOME=@APP_HOME@
 Environment=XDG_RUNTIME_DIR=/run/user/@APP_UID@
-# Evict dead/stale clients after 20s instead of the 60s default, so a freshly
+# Evict dead/stale clients after 45s instead of the 60s default, so a freshly
 # opened browser doesn't wait on a zombie session from a closed tab/laptop.
-Environment=XPRA_PING_TIMEOUT=20
+# Don't go lower: phones on flaky/power-saving WiFi can stall past 20s while
+# alive, and a backgrounded Safari tab stops answering pings — both got
+# legitimately-connected clients evicted at the old 20s value.
+Environment=XPRA_PING_TIMEOUT=45
 ExecStart=/usr/bin/xpra start-desktop :@DISPLAY_NUM@ \
     --bind-ws=127.0.0.1:@XPRA_PORT@ \
     --ws-auth=none \

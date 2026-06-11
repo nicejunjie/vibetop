@@ -1,0 +1,12 @@
+# Xpra HTML5 client default settings, deployed by install.sh to
+# /usr/share/xpra/www/default-settings.txt (that file is owned by the
+# xpra-html5 package, so an apt upgrade may overwrite it — re-run
+# ./browser/install.sh to restore).
+
+blocked-hosts = xpra.org,www.xpra.org
+
+floating_menu = false
+
+# Performance: prioritize speed during scrolling, recover quality when idle
+min-quality = 30
+min-speed = 70

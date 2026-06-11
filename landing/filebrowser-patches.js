@@ -134,24 +134,6 @@
     });
   }
 
-  // Inject "Open in Browser" into FileBrowser's native context menu
-  function injectContextMenuButton() {
-    var ctxMenu = document.querySelector(".context-menu");
-    if (!ctxMenu || ctxMenu.querySelector(".fb-browser-ctx")) return;
-
-    var btn = document.createElement("button");
-    btn.className = "action fb-browser-ctx";
-    btn.title = "Open in Browser";
-    btn.setAttribute("aria-label", "Open in Browser");
-    btn.innerHTML = '<i class="material-icons">public</i><span>Open in Browser</span>';
-    btn.addEventListener("click", function() {
-      var fp = getFilePath();
-      if (fp) openInBrowser(fp);
-    });
-
-    ctxMenu.appendChild(btn);
-  }
-
   // Hide Vue's dynamic buttons — find any .action in header that isn't ours
   var DYNAMIC_ICON_SET = {};
   PERMANENT_BUTTONS.forEach(function(b) { DYNAMIC_ICON_SET[b.icon] = true; });
@@ -173,7 +155,6 @@
     injectPermanentButtons();
     updatePermanentButtons();
     hideVueButtons();
-    injectContextMenuButton();
     patching = false;
   }
 

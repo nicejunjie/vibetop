@@ -35,9 +35,13 @@ Key xpra flags:
   open at once they would otherwise kick each other in a loop, so the
   phone "never loads." Cloudflare-tunnel clients arrive at nginx from
   `127.0.0.1`, so in the logs a tunnel client shows as a loopback address.
-- `Environment=XPRA_PING_TIMEOUT=20` (in the unit) — evict a dead/stale
-  client after 20s instead of the 60s default, so a freshly opened browser
-  doesn't wait on a zombie session from a closed tab/laptop.
+- `Environment=XPRA_PING_TIMEOUT=45` (in the unit) — evict a dead/stale
+  client after 45s instead of the 60s default, so a freshly opened browser
+  doesn't wait on a zombie session from a closed tab/laptop. Don't go
+  lower: phones on power-saving WiFi can stall past 20s while alive, and
+  a backgrounded Safari tab stops answering pings — at the old 20s value
+  both got legitimately-connected clients evicted (frozen canvas until a
+  manual reload).
 
 ## nginx integration
 
@@ -73,6 +77,21 @@ the tunnel. The asset location fixes both:
 - Assets are proxied (not on nginx's filesystem), so `gzip_static`/the
   shipped `.br`/`.gz` files can't be used directly; nginx compresses on
   the fly instead.
+- `location ~ ^/browser/background\.(jpe?g|png)$ { return 204; }` —
+  xpra's wallpaper is a 4.2 MB jpeg, invisible behind the pinned canvas
+  but re-downloaded on every open (it isn't matched by the asset regex's
+  extension list... and shouldn't be: even one cached download is waste).
+  Must appear *before* the asset regex — first regex match wins.
+- `location = /xpra-patches.js` adds the same `max-age=86400` —
+  the file is served from the web root, outside `/browser/`. The
+  `sub_filter` injects it as `/xpra-patches.js?vN`; bump `N` whenever
+  the file changes (same cache-buster pattern as filebrowser-patches).
+- Why this matters extra on phones: stock iOS Safari over power-saving
+  WiFi can stall individual HTTP requests for 60–100 s. The client's
+  init chain is serial (`<script>` tags, then `importScripts` in the
+  protocol worker, then `default-settings.txt`), so a single stalled
+  request blanks the screen for minutes. Once everything is cacheable,
+  a reopen needs only the WebSocket.
 
 ### sub_filter patches
 
