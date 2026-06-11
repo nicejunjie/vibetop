@@ -298,25 +298,42 @@
     var btn = document.getElementById('kbd-btn');
     var ico = document.getElementById('kbd-ico');
     if (!relay || !btn) return;
-    var lastVal = '';
+    var lastVal = '', composing = false, flushTimer = null;
     function postKbd(msg) {
       var f = document.getElementById('frame-browser');
       if (f && f.contentWindow) { try { f.contentWindow.postMessage(msg, '*'); } catch (e) {} }
     }
-    function reset() { relay.value = ''; lastVal = ''; }
-    relay.addEventListener('focus', function() { reset(); btn.classList.add('open'); ico.textContent = '✕'; });
-    relay.addEventListener('blur',  function() { btn.classList.remove('open'); ico.textContent = '⌨'; });
-    // Diff the value each input so backspace and autocorrect replacements work.
-    relay.addEventListener('input', function() {
+    // Forward the difference between what we last sent (lastVal) and the input's
+    // current value: backspace to the common prefix, then type the new tail.
+    // Because it's a diff, it correctly handles REPLACEMENTS (autocorrect, and
+    // iOS dictation revising earlier words) — not just appends.
+    function flush() {
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
       var v = relay.value, i = 0, min = Math.min(v.length, lastVal.length);
       while (i < min && v.charAt(i) === lastVal.charAt(i)) i++;
       for (var d = lastVal.length - i; d > 0; d--) postKbd({ type: 'kbd-key', key: 'Backspace' });
       for (var j = i; j < v.length; j++) postKbd({ type: 'kbd-char', ch: v.charAt(j) });
       lastVal = v;
-      if (v.length > 80) reset();
+    }
+    function reset() { if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; } relay.value = ''; lastVal = ''; }
+    relay.addEventListener('focus', function() { reset(); btn.classList.add('open'); ico.textContent = '✕'; });
+    relay.addEventListener('blur',  function() { flush(); btn.classList.remove('open'); ico.textContent = '⌨'; });
+    // Dictation/IME compose text in revisions (each firing `input`); forwarding
+    // every revision pile-stacked them on the remote. Hold off while composing
+    // and forward ONE diff when it settles (compositionend, or a pause as a
+    // fallback in case compositionend never fires).
+    relay.addEventListener('compositionstart', function() { composing = true; });
+    relay.addEventListener('compositionend', function() { composing = false; flush(); });
+    relay.addEventListener('input', function(e) {
+      if (composing || (e && e.isComposing)) {
+        if (flushTimer) clearTimeout(flushTimer);
+        flushTimer = setTimeout(function() { flushTimer = null; flush(); }, 600);
+        return;
+      }
+      flush();
     });
     relay.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter')        { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Enter' }); reset(); }
+      if (e.key === 'Enter')        { e.preventDefault(); flush(); postKbd({ type: 'kbd-key', key: 'Enter' }); reset(); }
       else if (e.key === 'Tab')     { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Tab' }); }
       else if (e.key === 'Backspace' && relay.value === '') { e.preventDefault(); postKbd({ type: 'kbd-key', key: 'Backspace' }); }
     });
