@@ -9,6 +9,15 @@
      own zoom internally (xpra zooms its canvas, text apps don't need it). -->
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>myhost</title>
+<!-- PWA: installable, full-screen home-screen app. The manifest + apple-* tags
+     make "Add to Home Screen" launch standalone (no Safari chrome), and sw.js
+     caches the shell so cold loads are instant. -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#161b22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="myhost">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   /* --tb = taskbar height incl. the phone's bottom safe-area (home indicator). */
@@ -546,6 +555,14 @@
     openMenu();
   });
 })();
+
+// PWA service worker — caches the shell for instant cold loads. Registered
+// separately so a failure here can never affect the desktop above.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
+  });
+}
 </script>
 </body>
 </html>

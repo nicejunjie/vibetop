@@ -13,6 +13,7 @@
 # Cloudflare tunnel credentials (never commit)
 *.json
 !**/package.json
+!landing/manifest.json
 cert.pem
 credentials.json
 

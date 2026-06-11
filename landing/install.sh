@@ -11,6 +11,11 @@ install -m 644 "$DIR/filebrowser-patches.js" "$DST_DIR/filebrowser-patches.js"
 install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
 install -m 644 "$DIR/notes.html" "$DST_DIR/notes.html"
 install -m 644 "$DIR/upload.html" "$DST_DIR/upload.html"
+# PWA: manifest, service worker, and home-screen icons
+install -m 644 "$DIR/manifest.json" "$DST_DIR/manifest.json"
+install -m 644 "$DIR/sw.js" "$DST_DIR/sw.js"
+install -d -m 755 "$DST_DIR/icons"
+install -m 644 "$DIR/icons/"*.png "$DST_DIR/icons/"
 install -m 644 "$DIR/services.example.json" "$DST_DIR/services.example.json"
 # Seed services.json from the example only if the host doesn't already have one
 # (it's host-local and gitignored — never overwrite the real list on re-install).
@@ -22,3 +27,4 @@ echo "Installed desktop -> $DST_DIR/index.html"
 echo "Installed landing -> $DST_DIR/landing.html"
 echo "Installed filebrowser-patches.js -> $DST_DIR/filebrowser-patches.js"
 echo "Installed monitor -> $DST_DIR/monitor.html"
+echo "Installed PWA -> $DST_DIR/manifest.json, sw.js, icons/"
