@@ -16,23 +16,32 @@ Five sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192
 
 ## Deploy commands
 
-Each sub-project has an idempotent `install.sh`. Order matters on first deploy:
+**One command, whole stack** — `deploy.sh` orchestrates everything (deps + all
+sub-installers in the right order + a health check), locally or to a remote host:
 
 ```bash
-# 1. Terminal (provisions nginx skeleton with extras include + manager API)
-sudo ./terminal/install.sh
-
-# 2. Browser (drops nginx snippet into the extras dir created above)
-sudo ./browser/install.sh
-
-# 3. Landing page (desktop UI + file manager)
-./landing/install.sh
-
-# 4. Tunnel (installs cloudflared binary; tunnel setup is interactive — see tunnel/README.md)
-sudo ./tunnel/install.sh
+./deploy.sh                                  # deploy on this machine
+./deploy.sh --remote junjie@192.168.1.20     # rsync to HOST:~/vibetop and deploy there
+# flags: --no-browser  --no-files  --with-tunnel  --dry-run
+# (HOST is any ssh destination — user@ip or an ssh-config Host, not a bare shell alias)
 ```
 
-All scripts support `--dry-run` and are configurable via env vars (see script headers).
+Or run the per-project installers by hand (the order `deploy.sh` uses). Each is
+idempotent, supports `--dry-run`, and is env-var configurable (see script headers):
+
+```bash
+sudo ./terminal/install.sh   # 1. nginx site skeleton (extras include) + manager API + ttyd
+sudo ./browser/install.sh    # 2. xpra + Chromium (snap, auto-installed) — drops an extras snippet
+sudo ./files/install.sh      # 3. FileBrowser at /files/ (binary + noauth config + extras snippet)
+./landing/install.sh         # 4. desktop UI + static apps (no sudo — $HOME must resolve to the user's)
+sudo ./tunnel/install.sh     # 5. cloudflared (tunnel setup is interactive — see tunnel/README.md)
+```
+
+Deps the installers handle automatically: `ttyd`/`nginx`/`acl` (apt), `xpra` (xpra.org
+apt repo, suite derived from the OS codename) + `chromium` (snap), and the
+`filebrowser` release binary (pinned `FB_VERSION`, arch-aware). Portability is
+validated on AMD+NVIDIA and AMD+AMD hosts (GPU stats use sysfs/amdgpu with an
+`nvidia-smi` fallback).
 
 ## Health check
 
@@ -114,7 +123,7 @@ nginx proxies `/browser/` to xpra's HTTP/WebSocket port with `sub_filter` patche
 FileBrowser's icon-only toolbar buttons are enhanced with text labels and an "Open in Browser" action:
 - **Text labels** — header and inline `#dropdown` action buttons get column layout (icon above, label below) via injected CSS. Verbose labels are shortened (e.g. "Copy file" → "Copy", "Switch view" → "View").
 - **Permanent action buttons** — Browser, Share, Rename, Copy, Move, Delete, Download buttons are always visible in the header toolbar. They are greyed out (25% opacity, non-clickable) when no file/folder is selected, and active when a selection exists. Vue's own conditional buttons are hidden to avoid duplication. The Browser button is only active for files, not folders. When clicked, non-Browser buttons delegate to Vue's hidden original button via programmatic `.click()` — the hiding CSS must not use `pointer-events:none` or the click delegation breaks.
-- **"Open in Browser" action** — opens the selected file in the embedded Chromium via `POST /api/browser/open` and auto-switches to the Browser tab via `postMessage`. (The native right-click `.context-menu` is hidden by these patches, so nothing is injected into it.) The `/fileview/` location it relies on is a template — render `@APP_HOME@` when deploying `landing/nginx/filebrowser.conf`.
+- **"Open in Browser" action** — opens the selected file in the embedded Chromium via `POST /api/browser/open` and auto-switches to the Browser tab via `postMessage`. (The native right-click `.context-menu` is hidden by these patches, so nothing is injected into it.) The `/fileview/` location it relies on is a template — render `@APP_HOME@` when deploying `files/nginx/filebrowser.conf`.
 - **MutationObserver** — patches run on every DOM change (with `aria-selected` attribute filter) so labels, button state, and Vue button hiding apply instantly without flicker. A 2s fallback interval covers edge cases.
 - **Mobile (≤736px)** — the header toolbar uses `flex-wrap: wrap` so every action button is visible across multiple rows instead of being clipped or hidden behind a `…` overflow trigger; `#dropdown` is forced to render inline (not as a popup) and the more-button is hidden. FileBrowser's stock bottom-floating selection bar (`#file-selection`) and the long-press `.context-menu` are hidden globally — every action already lives in the top toolbar so the popups are redundant. nginx sub_filter loads `filebrowser-patches.js` with a `?vN` cache-buster bumped whenever the CSS changes.
 

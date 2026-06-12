@@ -49,6 +49,17 @@ if ! [ -d "$APP_DIR/systemd" ]; then
     echo "templates not found under APP_DIR=$APP_DIR" >&2; exit 1
 fi
 
+# Auto-install Chromium (snap) when nothing is present and we're allowed to —
+# the manager's /api/browser/open expects the snap-confined xpra-profile path,
+# so snap chromium is the supported browser. (Gated by INSTALL_DEPS.)
+if [ -z "${BROWSER_CMD:-}" ] && [ "${INSTALL_DEPS}" = 1 ] \
+   && ! [ -x /snap/bin/chromium ] && ! [ -x /snap/bin/firefox ] \
+   && ! command -v firefox-esr >/dev/null 2>&1 && ! command -v epiphany >/dev/null 2>&1 \
+   && command -v snap >/dev/null 2>&1; then
+    echo "== installing chromium (snap) =="
+    run sudo snap install chromium
+fi
+
 # Pick a browser if not overridden.
 if [ -z "${BROWSER_CMD:-}" ]; then
     if [ -x /snap/bin/chromium ]; then
@@ -96,13 +107,15 @@ if (( INSTALL_DEPS )); then
         echo "   GPG key already present"
     fi
     if [ ! -f /etc/apt/sources.list.d/xpra.sources ]; then
-        cat <<'REPO_EOF' | write_root /etc/apt/sources.list.d/xpra.sources
+        CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-noble}")"
+        DEB_ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+        cat <<REPO_EOF | write_root /etc/apt/sources.list.d/xpra.sources
 Types: deb
 URIs: https://xpra.org
-Suites: noble
+Suites: $CODENAME
 Components: main
 Signed-By: /usr/share/keyrings/xpra.asc
-Architectures: amd64
+Architectures: $DEB_ARCH
 REPO_EOF
     else
         echo "   apt source already present"

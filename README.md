@@ -31,16 +31,25 @@ even keeps live dictation working on iOS.
 
 ## Deploy
 
-Each sub-project has an idempotent `install.sh`. Order matters on first deploy:
+One command does the whole stack (installs deps, runs every sub-installer in
+order, health-checks), locally or to a remote host over SSH:
 
 ```bash
-sudo ./terminal/install.sh   # nginx skeleton + manager API
-sudo ./browser/install.sh    # nginx snippet for the browser
-./landing/install.sh         # desktop UI + file manager (no sudo)
-sudo ./tunnel/install.sh     # cloudflared binary (tunnel setup is interactive)
+./deploy.sh                                # deploy on this machine
+./deploy.sh --remote user@host             # rsync to host:~/vibetop and deploy there
+# flags: --no-browser  --no-files  --with-tunnel  --dry-run
 ```
 
-All scripts support `--dry-run` and are configurable via env vars (see script headers).
+Or run the per-project installers by hand (the order `deploy.sh` uses; each is
+idempotent, `--dry-run`-able, env-var configurable):
+
+```bash
+sudo ./terminal/install.sh   # nginx skeleton + manager API + ttyd
+sudo ./browser/install.sh    # xpra + Chromium (snap)
+sudo ./files/install.sh      # FileBrowser at /files/
+./landing/install.sh         # desktop UI + static apps (no sudo)
+sudo ./tunnel/install.sh     # cloudflared (tunnel setup is interactive)
+```
 
 See [`CLAUDE.md`](CLAUDE.md) for full architecture, health checks, and operational
 commands, and [`docs/`](docs/) for deep dives.

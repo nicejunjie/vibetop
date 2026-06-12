@@ -1,0 +1,15 @@
+[Unit]
+Description=FileBrowser web file manager (Vibetop)
+After=network.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_USER@
+WorkingDirectory=@APP_HOME@
+ExecStart=@FB_BIN@ --database @FB_DB@
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -156,6 +156,27 @@ def _read_nvidia_gpu():
     return out
 
 
+def _root_disk():
+    """Block device backing '/', partition suffix stripped (nvme1n1p3 -> nvme1n1,
+    sda2 -> sda), for matching /proc/diskstats. None if it can't be determined."""
+    try:
+        with open("/proc/mounts") as f:
+            for line in f:
+                p = line.split()
+                if len(p) >= 2 and p[1] == "/" and p[0].startswith("/dev/"):
+                    name = os.path.basename(p[0])
+                    m = re.match(r"(nvme\d+n\d+|mmcblk\d+)p\d+$", name)
+                    if m:
+                        return m.group(1)
+                    m = re.match(r"([svh]d[a-z]+)\d+$", name)
+                    if m:
+                        return m.group(1)
+                    return name
+    except Exception:
+        pass
+    return None
+
+
 class _MultipartError(Exception):
     pass
 
@@ -562,11 +583,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pass
         try:
             global _prev_disk_sectors, _prev_disk_time
-            
+            root_disk = _root_disk()
             with open("/proc/diskstats") as f:
                 for line in f:
                     parts = line.split()
-                    if len(parts) >= 14 and parts[2] == "nvme1n1":
+                    if len(parts) >= 14 and root_disk and parts[2] == root_disk:
                         rd_sectors = int(parts[5])
                         wr_sectors = int(parts[9])
                         now = time.monotonic()
