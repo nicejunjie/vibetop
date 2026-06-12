@@ -158,7 +158,17 @@
     patching = false;
   }
 
-  var observer = new MutationObserver(patchAll);
+  // Vue emits bursts of mutations; coalesce them into one sweep per animation
+  // frame instead of running patchAll on every single mutation. The observer
+  // covers DOM structure + selection changes, so the old always-on 2s polling
+  // fallback is unnecessary.
+  var scheduled = false;
+  function schedulePatch() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(function() { scheduled = false; patchAll(); });
+  }
+  var observer = new MutationObserver(schedulePatch);
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-selected"] });
-  setInterval(patchAll, 2000);
+  schedulePatch();
 })();

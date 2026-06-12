@@ -21,9 +21,63 @@ import socket
 import subprocess
 import sys
 import time
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 MAX_INSTANCE = 50
+
+# Tiny TTL memo for hot-path values that are cheap to go slightly stale but
+# expensive to recompute (each forks a subprocess). /api/system/status and
+# /api/terminals/status are polled every few seconds by every open client.
+_cache_lock = threading.Lock()
+_cache = {}  # key -> (value, expires_at_monotonic)
+
+
+def _cached(key, ttl, producer):
+    now = time.monotonic()
+    with _cache_lock:
+        hit = _cache.get(key)
+        if hit and hit[1] > now:
+            return hit[0]
+    # Produce outside the lock so a slow subprocess never blocks other handler
+    # threads; a rare double-compute on concurrent misses is harmless.
+    value = producer()
+    with _cache_lock:
+        _cache[key] = (value, time.monotonic() + ttl)
+    return value
+
+
+def _list_running_terminals():
+    out = subprocess.run(
+        ["systemctl", "list-units", "claude-web-ttyd@*",
+         "--no-pager", "--plain", "--no-legend"],
+        capture_output=True, text=True,
+    )
+    running = []
+    for line in out.stdout.strip().split("\n"):
+        m = re.search(r"claude-web-ttyd@(\d+)", line)
+        if m and "running" in line:
+            running.append(int(m.group(1)))
+    return sorted(running)
+
+
+def _list_ips():
+    # All interfaces with an assigned IPv4 (skip lo, docker, veth, bridges).
+    ips = {}
+    try:
+        out = subprocess.run(["ip", "-4", "-o", "addr", "show"],
+                             capture_output=True, text=True)
+        for line in out.stdout.splitlines():
+            parts = line.split()
+            iface = parts[1]
+            if iface == "lo" or iface.startswith(("br-", "veth", "docker")):
+                continue
+            ip = parts[3].split("/")[0]
+            if iface not in ips:
+                ips[iface] = ip
+    except Exception:
+        pass
+    return ips
 
 
 def _app_user():
@@ -427,17 +481,9 @@ _prev_disk_time = 0.0
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def _get_running_terminals(self):
-        out = subprocess.run(
-            ["systemctl", "list-units", "claude-web-ttyd@*",
-             "--no-pager", "--plain", "--no-legend"],
-            capture_output=True, text=True,
-        )
-        running = []
-        for line in out.stdout.strip().split("\n"):
-            m = re.search(r"claude-web-ttyd@(\d+)", line)
-            if m and "running" in line:
-                running.append(int(m.group(1)))
-        return sorted(running)
+        # 2s TTL: both /api/system/status and /api/terminals/status poll this,
+        # and each miss forks `systemctl list-units`.
+        return _cached("running_terminals", 2.0, _list_running_terminals)
 
     def _get_system_status(self):
         # CPU: delta against the snapshot from the previous status call
@@ -734,20 +780,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        # IPs — show all interfaces with an assigned IP (skip lo, docker, veth)
-        ips = {}
-        try:
-            out = subprocess.run(["ip", "-4", "-o", "addr", "show"], capture_output=True, text=True)
-            for line in out.stdout.splitlines():
-                parts = line.split()
-                iface = parts[1]
-                if iface == "lo" or iface.startswith(("br-", "veth", "docker")):
-                    continue
-                ip = parts[3].split("/")[0]
-                if iface not in ips:
-                    ips[iface] = ip
-        except Exception:
-            pass
+        # IPs change rarely; cache for 10s to avoid forking `ip` every poll.
+        ips = _cached("ips", 10.0, _list_ips)
 
         running = self._get_running_terminals()
         result = {
@@ -870,17 +904,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         _chown_app(UPLOAD_DIR)
         saved, total_bytes = [], 0
+        partial = None  # file currently being written, if a part fails mid-copy
         try:
             for filename, src in _iter_multipart_files(body, boundary):
                 safe = _safe_upload_name(filename)
                 dst = _unique_path(os.path.join(UPLOAD_DIR, safe))
+                partial = dst
                 with open(dst, "wb") as out:
                     shutil.copyfileobj(src, out)
                 _chown_app(dst)
                 size = os.path.getsize(dst)
                 total_bytes += size
                 saved.append({"name": os.path.basename(dst), "size": size})
+                partial = None
         except _MultipartError as e:
+            # Discard the half-written file, then drain the unread request body
+            # so leftover bytes don't get parsed as the next request on a
+            # keep-alive connection (which corrupts the following request).
+            if partial:
+                try:
+                    os.remove(partial)
+                except OSError:
+                    pass
+            try:
+                while body.read(65536):
+                    pass
+            except Exception:
+                pass
             self._json(400, {"error": str(e)})
             return
         self._json(200, {"ok": True, "saved": saved, "bytes": total_bytes,

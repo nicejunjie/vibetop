@@ -244,7 +244,7 @@
     <div class="sm-item" data-id="upload"><div class="sm-icon">⬆</div><div><div class="sm-name">Upload</div><div class="sm-desc">Quick file upload to ~/Uploads</div></div></div>
     <div class="sm-title sm-title-system">System</div>
     <div class="sm-item" data-id="update"><div class="sm-icon">⬇</div><div><div class="sm-name">Update</div><div class="sm-desc">Pull latest from GitHub &amp; redeploy</div></div></div>
-    <div class="sm-build"><span class="build-tag">Vibetop · v1.2.5</span></div>
+    <div class="sm-build"><span class="build-tag">Vibetop · v1.2.6</span></div>
   </div>
 
   <div class="taskbar" id="taskbar">
@@ -428,6 +428,11 @@
     active = id;
     document.querySelectorAll('#frames iframe').forEach(function(f) {
       f.classList.toggle('active', f.dataset.id === id);
+      // Let apps pause background work when they're not on top (e.g. Monitor
+      // stops polling). Unknown message types are ignored by every app.
+      if (f.contentWindow) {
+        try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
+      }
     });
     hintEl.classList.toggle('hidden', !!id);
     renderTaskbar();
@@ -453,16 +458,16 @@
         try { f.contentWindow.postMessage({ type: 'focus-terminal' }, '*'); } catch (e) {}
       }
     }
+    // Home is the only app that renders relayed status; refresh it the moment
+    // Home becomes active (the interval relays only while Home is on top).
+    if (id === 'home') setTimeout(relayStatus, 300);
   }
 
   function launch(id) {
     if (!APPS[id]) return;
     if (openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
-    setActive(id);
+    setActive(id);            // relays status itself when id === 'home'
     closeMenu();
-    if (id === 'home') {       // populate relayed status promptly
-      setTimeout(relayStatus, 800);
-    }
   }
 
   function closeApp(id) {
@@ -633,7 +638,10 @@
     if (f && f.contentWindow) { try { f.contentWindow.postMessage(msg, '*'); } catch (e) {} }
   }
   function relayStatus() {
-    if (openApps.indexOf('home') === -1) return;
+    // Only while Home is the active app — relaying to a backgrounded Home is
+    // wasted work (and 3 extra fetches every 5s). setActive('home') kicks an
+    // immediate relay when the user switches back.
+    if (active !== 'home') return;
     fetch('/api/health').then(function(r) { return r.json(); }).then(function(data) {
       post('home', { type: 'health', data: data });
     }).catch(function() {});

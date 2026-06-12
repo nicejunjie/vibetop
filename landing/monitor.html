@@ -388,9 +388,15 @@
     var dpr = window.devicePixelRatio || 1;
     var rect = canvas.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    // Only resize the backing store when dimensions actually change — assigning
+    // canvas.width/height reallocates and clears it, needless every 3s frame.
+    var bw = Math.round(rect.width * dpr), bh = Math.round(rect.height * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw; canvas.height = bh;
+    }
+    // setTransform replaces the matrix (unlike scale(), which compounds), so
+    // it's safe to call each frame whether or not we resized.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var w = rect.width, h = rect.height;
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = '#1e2636'; ctx.lineWidth = 1;
@@ -536,10 +542,30 @@
   }
 
   var paused = false;
+  // appActive: are we the foreground app inside the desktop shell? The shell
+  // keeps the Monitor iframe mounted (display:none) when you switch away, so
+  // without this it would keep polling /api/system/status every 3s forever.
+  // Standalone (opened directly, no shell) there's no broadcast, so it stays
+  // true and runs normally.
+  var appActive = true;
   var timer = null;
-  function tick() { if (!paused) update(); }
+  function shouldRun() { return !paused && appActive && !document.hidden; }
+  function tick() { if (shouldRun()) update(); }
   update();
   timer = setInterval(tick, 3000);
+
+  // The shell broadcasts which app is active; pause when it isn't us, and do an
+  // immediate refresh when we come back so the charts aren't stale.
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'vibetop:active') return;
+    var nowActive = (e.data.active === 'monitor');
+    var wasActive = appActive;
+    appActive = nowActive;
+    if (nowActive && !wasActive && shouldRun()) update();
+  });
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden && shouldRun()) update();
+  });
 
   document.getElementById('pause-btn').addEventListener('click', function() {
     paused = !paused;
