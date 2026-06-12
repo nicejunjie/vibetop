@@ -49,9 +49,18 @@ nginx_write() {
 }
 
 if ! command -v docker >/dev/null 2>&1; then
-    echo "docker is required but not installed. Install Docker, then re-run." >&2
-    exit 1
+    if (( INSTALL_DEPS )); then
+        echo "== installing docker (apt: docker.io) =="
+        run sudo apt-get update -qq
+        run sudo apt-get install -y docker.io
+        run sudo systemctl enable --now docker
+    else
+        echo "docker is required but not installed (INSTALL_DEPS=0). Install it and re-run." >&2
+        exit 1
+    fi
 fi
+# Make sure the daemon is up (freshly installed, or stopped).
+run sudo systemctl start docker 2>/dev/null || true
 
 echo "== claude-office (OnlyOffice Document Server) =="
 echo "   user: $APP_USER   port: $ONLYOFFICE_PORT   image: $ONLYOFFICE_IMAGE"
