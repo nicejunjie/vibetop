@@ -16,6 +16,7 @@ run install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
 run install -m 644 "$DIR/notes.html" "$DST_DIR/notes.html"
 run install -m 644 "$DIR/upload.html" "$DST_DIR/upload.html"
 run install -m 644 "$DIR/update.html" "$DST_DIR/update.html"
+run install -m 644 "$DIR/office-editor.html" "$DST_DIR/office-editor.html"
 # PWA: manifest, service worker, and home-screen icons
 run install -m 644 "$DIR/manifest.json" "$DST_DIR/manifest.json"
 run install -m 644 "$DIR/sw.js" "$DST_DIR/sw.js"

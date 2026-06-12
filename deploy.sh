@@ -10,6 +10,7 @@
 #   --remote HOST    deploy to a remote host over SSH (rsync first)
 #   --no-browser     skip the xpra/Chromium Browser stack (heavy: xpra repo + snap)
 #   --no-files       skip FileBrowser (the Files app)
+#   --no-office      skip OnlyOffice Document Server (docker; heavy ~2GB image)
 #   --with-tunnel    also run the interactive Cloudflare tunnel installer
 #   --dry-run        print what each installer would do, change nothing
 #   --help
@@ -19,13 +20,14 @@
 set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-REMOTE="" ; DO_BROWSER=1 ; DO_FILES=1 ; DO_TUNNEL=0 ; DRY=0
+REMOTE="" ; DO_BROWSER=1 ; DO_FILES=1 ; DO_OFFICE=1 ; DO_TUNNEL=0 ; DRY=0
 PASS=()   # flags forwarded to the remote invocation of this script
 while [ $# -gt 0 ]; do
     case "$1" in
         --remote)      REMOTE="${2:?--remote needs a host}"; shift 2 ;;
         --no-browser)  DO_BROWSER=0; PASS+=("$1"); shift ;;
         --no-files)    DO_FILES=0;   PASS+=("$1"); shift ;;
+        --no-office)   DO_OFFICE=0;  PASS+=("$1"); shift ;;
         --with-tunnel) DO_TUNNEL=1;  PASS+=("$1"); shift ;;
         --dry-run|-n)  DRY=1;        PASS+=("--dry-run"); shift ;;
         --help|-h)     sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -47,7 +49,7 @@ if [ -n "$REMOTE" ]; then
     echo "==> deploying on $REMOTE"
     ssh "$REMOTE" "cd ~/vibetop && DEBIAN_FRONTEND=noninteractive ./deploy.sh ${PASS[*]:-}"
     echo "==> remote health check (loopback http codes)"
-    ssh "$REMOTE" 'for p in / /t1/ /terminals/ /files/ /browser/ /api/system/status; do printf "  %-24s " "$p"; curl -s -o /dev/null -w "%{http_code}\n" --max-time 5 --retry 6 --retry-delay 2 --retry-all-errors "http://127.0.0.1$p" || echo "ERR"; done'
+    ssh "$REMOTE" 'for p in / /t1/ /terminals/ /files/ /browser/ /onlyoffice/healthcheck /api/system/status; do printf "  %-24s " "$p"; curl -s -o /dev/null -w "%{http_code}\n" --max-time 5 --retry 6 --retry-delay 2 --retry-all-errors "http://127.0.0.1$p" || echo "ERR"; done'
     ip=$(ssh "$REMOTE" "hostname -I | awk '{print \$1}'" 2>/dev/null)
     echo "==> done. Open http://${ip:-<remote-ip>}/ on your LAN."
     exit 0
@@ -58,36 +60,43 @@ export DEBIAN_FRONTEND=noninteractive
 DRYFLAG=(); (( DRY )) && DRYFLAG=(--dry-run)
 step() { echo; echo "### $*"; }
 
-step "1/5  Terminal — nginx site + manager + ttyd"
+step "1/6  Terminal — nginx site + manager + ttyd"
 sudo "$REPO_DIR/terminal/install.sh" "${DRYFLAG[@]}"
 
 if (( DO_BROWSER )); then
-    step "2/5  Browser — xpra + Chromium"
+    step "2/6  Browser — xpra + Chromium"
     sudo "$REPO_DIR/browser/install.sh" "${DRYFLAG[@]}"
 else
-    step "2/5  Browser — skipped (--no-browser)"
+    step "2/6  Browser — skipped (--no-browser)"
 fi
 
 if (( DO_FILES )); then
-    step "3/5  Files — FileBrowser"
+    step "3/6  Files — FileBrowser"
     sudo "$REPO_DIR/files/install.sh" "${DRYFLAG[@]}"
 else
-    step "3/5  Files — skipped (--no-files)"
+    step "3/6  Files — skipped (--no-files)"
 fi
 
-step "4/5  Landing — desktop UI + static apps"
+if (( DO_OFFICE )); then
+    step "4/6  Office — OnlyOffice Document Server (docker, ~2GB)"
+    sudo "$REPO_DIR/office/install.sh" "${DRYFLAG[@]}"
+else
+    step "4/6  Office — skipped (--no-office)"
+fi
+
+step "5/6  Landing — desktop UI + static apps"
 "$REPO_DIR/landing/install.sh" "${DRYFLAG[@]}"
 
 if (( DO_TUNNEL )); then
-    step "5/5  Tunnel — Cloudflare (interactive)"
+    step "6/6  Tunnel — Cloudflare (interactive)"
     sudo "$REPO_DIR/tunnel/install.sh" "${DRYFLAG[@]}"
 else
-    step "5/5  Tunnel — skipped (run with --with-tunnel; it's interactive)"
+    step "6/6  Tunnel — skipped (run with --with-tunnel; it's interactive)"
 fi
 
 if (( ! DRY )); then
     step "health check (loopback http codes)"
-    for p in / /t1/ /terminals/ /files/ /browser/ /api/system/status; do
+    for p in / /t1/ /terminals/ /files/ /browser/ /onlyoffice/healthcheck /api/system/status; do
         printf "  %-24s " "$p"
         curl -s -o /dev/null -w "%{http_code}\n" --max-time 5 --retry 6 --retry-delay 2 --retry-all-errors "http://127.0.0.1$p" || echo "ERR"
     done

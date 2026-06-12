@@ -16,7 +16,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v30';
+const VERSION = 'v31';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
@@ -33,7 +33,7 @@ const PRECACHE = [
 ];
 
 // Paths that must always hit the network (live data, websockets, auth).
-const BYPASS = /^\/(api|browser|office|t\d|terminals|files|fileview|services\.json|cdn-cgi)/;
+const BYPASS = /^\/(api|browser|office|onlyoffice|t\d|terminals|files|fileview|services\.json|cdn-cgi)/;
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {

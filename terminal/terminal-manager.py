@@ -11,7 +11,9 @@ Endpoints:
   GET  /api/system/status         — CPU, memory, uptime, terminal count
 """
 
+import base64
 import hashlib
+import hmac
 import http.server
 import json
 import os
@@ -111,7 +113,7 @@ SERVICES_FILE = os.path.expanduser(f"~{APP_USER}/claude-web-www/services.json")
 
 # ---- Office (Word/Excel/PPT) view & edit -----------------------------------
 # View: convert to PDF with headless LibreOffice (cached) and serve it inline.
-# Edit: open the file in LibreOffice on the xpra desktop (the Browser app).
+# Edit: open the file in the OnlyOffice web editor (Document Server, below).
 OFFICE_RE = re.compile(
     r"\.(docx?|docm|dotx?|dotm|xlsx?|xlsm|xlsb|xltx?|xltm|pptx?|pptm|ppsx?|ppsm"
     r"|potx?|potm|odt|ods|odp|ott|ots|otp|rtf|csv|tsv)$", re.I)
@@ -120,7 +122,22 @@ OFFICE_CACHE_DIR = os.path.join(OFFICE_HOME, ".cache", "vibetop-office")
 # A LibreOffice user profile dedicated to headless conversion, kept separate
 # from the interactive instance so a "View" never collides with an open "Edit".
 OFFICE_CONVERT_PROFILE = os.path.join(OFFICE_CACHE_DIR, "lo-convert-profile")
-OFFICE_DISPLAY = os.environ.get("OFFICE_DISPLAY", ":98")  # dedicated Office xpra desktop
+
+# OnlyOffice Document Server (web editor) — the fast in-browser Edit path.
+# Runs in Docker on loopback; nginx proxies /onlyoffice/. The container reaches
+# back to this manager (for the doc + save callback) via host.docker.internal.
+ONLYOFFICE_PORT = os.environ.get("ONLYOFFICE_PORT", "8087")
+ONLYOFFICE_SECRET_FILE = os.path.expanduser(f"~{APP_USER}/.config/vibetop/onlyoffice.secret")
+ONLYOFFICE_HOST = os.environ.get("ONLYOFFICE_CALLBACK_HOST", "http://host.docker.internal")
+# Extension -> OnlyOffice documentType.
+_OO_CELL = {"xlsx", "xls", "xlsm", "xlsb", "xltx", "xltm", "ods", "ots", "csv", "tsv"}
+_OO_SLIDE = {"pptx", "ppt", "pptm", "ppsx", "ppsm", "potx", "potm", "odp", "otp"}
+# Active editing sessions: rel-path -> document key. The key must stay stable
+# for the whole session (it identifies the doc to the server, incl. forcesave),
+# so we mint it at open and reuse it until the session closes — NOT re-derive
+# from mtime, which changes every time we save back. Cleared on close.
+_office_sessions = {}
+_office_sessions_lock = threading.Lock()
 _office_convert_lock = threading.Lock()
 
 # The git checkout this manager runs from: <repo>/terminal/terminal-manager.py.
@@ -299,8 +316,8 @@ def _resolve_under_home(rel):
 
 
 def _office_user_env(user):
-    """Environment for running LibreOffice as APP_USER on the xpra desktop —
-    HOME (for the LO profile), DISPLAY, and the user's session bus."""
+    """Environment for running headless LibreOffice as APP_USER (the View->PDF
+    converter) — HOME for the LO profile, plus PATH/LANG."""
     try:
         pw = pwd.getpwnam(user)
     except KeyError:
@@ -308,32 +325,58 @@ def _office_user_env(user):
     return {
         "HOME": pw.pw_dir,
         "PATH": "/usr/bin:/bin",
-        "DISPLAY": OFFICE_DISPLAY,
-        "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{pw.pw_uid}/bus",
         "LANG": os.environ.get("LANG", "en_US.UTF-8"),
     }
 
 
-def _office_editor_running():
-    """True if an INTERACTIVE LibreOffice is running (the Office app's editor),
-    ignoring the short-lived headless `--convert-to` process used by View. Lets
-    the shell close the Office app when the user quits LibreOffice."""
-    for entry in os.listdir("/proc"):
-        if not entry.isdigit():
-            continue
-        try:
-            with open(f"/proc/{entry}/cmdline", "rb") as f:
-                parts = f.read().split(b"\x00")
-        except OSError:
-            continue
-        # Match the soffice.bin EXECUTABLE (argv[0]), not any process that merely
-        # mentions it in an argument (e.g. a `pkill soffice.bin` command).
-        if not parts or os.path.basename(parts[0]) != b"soffice.bin":
-            continue
-        if any(b"--headless" in p or b"--convert-to" in p for p in parts):
-            continue  # that's the View->PDF converter, not the editor
-        return True
-    return False
+# ---- OnlyOffice Document Server helpers -------------------------------------
+
+def _onlyoffice_secret():
+    try:
+        with open(ONLYOFFICE_SECRET_FILE) as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def _onlyoffice_doctype(ext):
+    ext = ext.lower()
+    if ext in _OO_CELL:
+        return "cell"
+    if ext in _OO_SLIDE:
+        return "slide"
+    return "word"
+
+
+def _onlyoffice_sig(secret, rel):
+    """Short HMAC over the path — authorizes the doc/callback endpoints, which
+    the container reaches unauthenticated (Cloudflare Access is edge-only)."""
+    return hmac.new(secret.encode(), rel.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def _b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def _jwt_sign(payload, secret):
+    head = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
+    body = _b64url(json.dumps(payload, separators=(",", ":")).encode())
+    seg = f"{head}.{body}"
+    sig = _b64url(hmac.new(secret.encode(), seg.encode(), hashlib.sha256).digest())
+    return f"{seg}.{sig}"
+
+
+def _jwt_verify(token, secret):
+    try:
+        head, body, sig = token.split(".")
+        expect = _b64url(hmac.new(secret.encode(), f"{head}.{body}".encode(),
+                                  hashlib.sha256).digest())
+        if not hmac.compare_digest(expect, sig):
+            return None
+        pad = "=" * (-len(body) % 4)
+        return json.loads(base64.urlsafe_b64decode(body + pad))
+    except Exception:
+        return None
 
 
 def _office_convert_to_pdf(src):
@@ -943,8 +986,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_terminal(m)
         if self.path == "/api/browser/open":
             return self._handle_browser_open()
-        if self.path == "/api/office/open":
-            return self._handle_office_open()
+        if self.path.startswith("/api/office/callback"):
+            return self._handle_office_callback()
+        if self.path == "/api/office/forcesave":
+            return self._handle_office_forcesave()
         if self.path == "/api/notes":
             return self._handle_notes_save()
         if self.path == "/api/desktop":
@@ -1148,45 +1193,155 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception:
             pass
 
-    def _handle_office_open(self):
-        # POST {path?} — open a file in LibreOffice on the Office xpra desktop;
-        # with no path, bring up the Start Center (used when the Office app is
-        # opened directly). A running LibreOffice picks up the file in-instance.
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        if length > 4096:
-            self._json(400, {"error": "payload too large"})
-            return
-        body = self.rfile.read(length) if length else b""
-        try:
-            data = json.loads(body) if body else {}
-        except json.JSONDecodeError:
-            self._json(400, {"error": "invalid json"})
-            return
-        soffice = shutil.which("soffice") or shutil.which("libreoffice")
-        if not soffice:
-            self._json(500, {"error": "LibreOffice not installed"})
-            return
-        env = _office_user_env(APP_USER)
-        if env is None:
-            self._json(500, {"error": f"unknown user: {APP_USER}"})
-            return
-        raw = (data.get("path") or "").strip()
-        if raw:
-            src = _resolve_under_home(raw)
-            if not src or not OFFICE_RE.search(src):
-                self._json(400, {"error": "not an editable office file"})
-                return
-            # argv form (no shell) — the filename never gets shell-parsed.
-            subprocess.Popen([soffice, src], env=env, user=APP_USER,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        elif not _office_editor_running():
-            # No file and nothing open yet → LibreOffice Start Center.
-            subprocess.Popen([soffice], env=env, user=APP_USER,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self._json(200, {"ok": True})
+    # ---- OnlyOffice web editor: config / doc-fetch / save-callback ----------
 
-    def _handle_office_status(self):
-        self._json(200, {"running": _office_editor_running()})
+    def _handle_office_config(self):
+        # GET ?path= -> the signed DocEditor config the editor page mounts.
+        rel = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("path", [""])[0]
+        src = _resolve_under_home(rel)
+        secret = _onlyoffice_secret()
+        if not src or not OFFICE_RE.search(src):
+            return self._json(400, {"error": "not an office file"})
+        if not secret:
+            return self._json(500, {"error": "OnlyOffice is not configured on this host"})
+        st = os.stat(src)
+        with _office_sessions_lock:
+            key = _office_sessions.get(rel)
+            if not key:
+                key = hashlib.sha1(
+                    f"{src}:{int(st.st_mtime)}:{st.st_size}:{int(time.time())}".encode()
+                ).hexdigest()[:22]
+                _office_sessions[rel] = key
+        ext = os.path.splitext(src)[1].lstrip(".").lower()
+        qp = urllib.parse.urlencode({"path": rel, "t": _onlyoffice_sig(secret, rel)})
+        cfg = {
+            "document": {
+                "fileType": ext, "key": key, "title": os.path.basename(src),
+                "url": f"{ONLYOFFICE_HOST}/api/office/doc?{qp}",
+                "permissions": {"edit": True, "download": True, "print": True},
+            },
+            "documentType": _onlyoffice_doctype(ext),
+            "editorConfig": {
+                "callbackUrl": f"{ONLYOFFICE_HOST}/api/office/callback?{qp}",
+                "lang": "en", "mode": "edit",
+                "user": {"id": "vibetop", "name": "Vibetop"},
+                "customization": {"forcesave": True, "uiTheme": "theme-dark"},
+            },
+        }
+        cfg["token"] = _jwt_sign(cfg, secret)
+        self._json(200, cfg)
+
+    def _handle_office_doc(self):
+        # GET ?path=&t= -> raw file bytes for the OnlyOffice container to load.
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        rel, tok = q.get("path", [""])[0], q.get("t", [""])[0]
+        src = _resolve_under_home(rel)
+        secret = _onlyoffice_secret()
+        if not src or not secret or not hmac.compare_digest(_onlyoffice_sig(secret, rel), tok):
+            return self.send_error(403)
+        try:
+            with open(src, "rb") as f:
+                body = f.read()
+        except OSError:
+            return self.send_error(404)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except Exception:
+            pass
+
+    def _handle_office_callback(self):
+        # POST ?path=&t= -> OnlyOffice save notifications. status 2/6 means the
+        # edited document is ready; download it from the doc server and write back.
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        rel, tok = q.get("path", [""])[0], q.get("t", [""])[0]
+        src = _resolve_under_home(rel)
+        secret = _onlyoffice_secret()
+        if not src or not secret or not hmac.compare_digest(_onlyoffice_sig(secret, rel), tok):
+            return self._json(200, {"error": 1})
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            data = json.loads(self.rfile.read(length)) if length else {}
+        except Exception:
+            data = {}
+        # With JWT enabled the body is signed — verify and use the decoded payload.
+        auth = self.headers.get("Authorization", "")
+        if not data.get("token") and auth.startswith("Bearer "):
+            data["token"] = auth[7:]
+        if data.get("token"):
+            verified = _jwt_verify(data["token"], secret)
+            if verified is None:
+                print("[office] callback JWT verify FAILED", file=sys.stderr, flush=True)
+                return self._json(200, {"error": 1})
+            data = verified.get("payload", verified)
+        status = data.get("status")
+        if status in (2, 6) and data.get("url"):
+            self._office_save_back(data["url"], src)
+        # 2 = closed-with-changes (saved), 3 = save error, 4 = closed-no-changes.
+        # The editing session has ended → drop the session key so a reopen gets a
+        # fresh key (and loads the file from disk, not the server's stale cache).
+        if status in (2, 3, 4):
+            with _office_sessions_lock:
+                _office_sessions.pop(rel, None)
+        self._json(200, {"error": 0})
+
+    def _handle_office_forcesave(self):
+        # POST {path} — ask OnlyOffice to save the document NOW (autosave + on
+        # leaving the editor), which fires the callback (status 6) and writes back.
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            data = json.loads(self.rfile.read(length)) if length else {}
+        except Exception:
+            data = {}
+        rel = (data.get("path") or "").strip()
+        with _office_sessions_lock:
+            key = _office_sessions.get(rel)
+        if key:
+            self._onlyoffice_forcesave(key)
+        self._json(200, {"ok": bool(key)})
+
+    def _onlyoffice_forcesave(self, key):
+        secret = _onlyoffice_secret()
+        if not secret:
+            return
+        import urllib.request
+        cmd = {"c": "forcesave", "key": key}
+        cmd["token"] = _jwt_sign({"c": "forcesave", "key": key}, secret)
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{ONLYOFFICE_PORT}/coauthoring/CommandService.ashx",
+                data=json.dumps(cmd).encode(),
+                headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                r.read()
+        except Exception as e:
+            print(f"[office] forcesave failed: {e}", file=sys.stderr, flush=True)
+
+    def _office_save_back(self, url, dst):
+        # The url OnlyOffice gives is its own public URL (…/onlyoffice/cache/…);
+        # rewrite it to the local container so we don't loop back through the
+        # tunnel/Access. Then download and atomically replace the file.
+        import urllib.request
+        u = urllib.parse.urlparse(url)
+        path = u.path
+        if path.startswith("/onlyoffice/"):
+            path = path[len("/onlyoffice"):]
+        local = f"http://127.0.0.1:{ONLYOFFICE_PORT}{path}"
+        if u.query:
+            local += "?" + u.query
+        try:
+            with urllib.request.urlopen(local, timeout=60) as r:
+                body = r.read()
+            tmp = dst + ".vibetmp"
+            with open(tmp, "wb") as f:
+                f.write(body)
+            os.replace(tmp, dst)
+            _chown_app(dst)
+        except Exception as e:
+            print(f"[office] save-back failed from {local}: {e}", file=sys.stderr, flush=True)
 
     def _handle_terminal(self, m):
         n, action = int(m.group(1)), m.group(2)
@@ -1346,8 +1501,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/terminals/status":
             self._json(200, {"running": self._get_running_terminals()})
             return
-        if self.path == "/api/office/status":
-            return self._handle_office_status()
+        if self.path.startswith("/api/office/config"):
+            return self._handle_office_config()
+        if self.path.startswith("/api/office/doc"):
+            return self._handle_office_doc()
         if self.path.startswith("/api/office/preview"):
             return self._handle_office_preview()
         if self.path == "/api/update":

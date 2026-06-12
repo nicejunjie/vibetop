@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Office — Vibetop</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #1a1a2e; }
+  #editor { height: 100%; }
+  #msg {
+    display: flex; height: 100%; align-items: center; justify-content: center;
+    color: #9ab; font: 15px system-ui, sans-serif; text-align: center; padding: 24px;
+  }
+  #msg b { color: #cde; }
+</style>
+<!-- DocsAPI loader from the Document Server (proxied at /onlyoffice/). -->
+<script src="/onlyoffice/web-apps/apps/api/documents/api.js"></script>
+</head>
+<body>
+  <div id="msg">Open a document from <b>&nbsp;Files&nbsp;</b> — tap a Word/Excel/PowerPoint file and choose <b>&nbsp;Edit&nbsp;</b>.</div>
+  <div id="editor" style="display:none"></div>
+<script>
+(function() {
+  var path = new URLSearchParams(location.search).get('path');
+  var msg = document.getElementById('msg');
+  var host = document.getElementById('editor');
+  if (!path) return;   // no document → show the placeholder
+  msg.style.display = 'none';
+  host.style.display = 'block';
+
+  function fail(t) { host.style.display = 'none'; msg.style.display = 'flex'; msg.innerHTML = t; }
+  if (!window.DocsAPI) { fail('Office editor service is unavailable.'); return; }
+
+  // Autosave: OnlyOffice only writes back to the real file on a forcesave or
+  // session end, so we force a save periodically while the doc is modified,
+  // whenever the user leaves the Office app, and as the page unloads.
+  var modified = false, saving = false;
+  function forcesave(useBeacon) {
+    if (!modified || saving) return;
+    saving = true; modified = false;
+    var body = JSON.stringify({ path: path });
+    var done = function() { saving = false; };
+    if (useBeacon && navigator.sendBeacon) {
+      navigator.sendBeacon('/api/office/forcesave', new Blob([body], { type: 'application/json' }));
+      done();
+    } else {
+      fetch('/api/office/forcesave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
+        .then(done, done);
+    }
+  }
+
+  fetch('/api/office/config?path=' + encodeURIComponent(path))
+    .then(function(r) { return r.json(); })
+    .then(function(cfg) {
+      if (cfg.error) { fail(cfg.error); return; }
+      cfg.width = '100%';
+      cfg.height = '100%';
+      cfg.type = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 'mobile' : 'desktop';
+      var saveTimer = null;
+      cfg.events = cfg.events || {};
+      cfg.events.onDocumentStateChange = function(e) {
+        // e.data: true = modified, false = the server just saved it.
+        if (e && e.data) {
+          modified = true;
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(function() { forcesave(false); }, 2500);  // autosave after a pause
+        }
+      };
+      new DocsAPI.DocEditor('editor', cfg);
+
+      setInterval(function() { forcesave(false); }, 30000);   // safety net
+      // The shell broadcasts which app is active; save when we're switched away.
+      window.addEventListener('message', function(e) {
+        if (e.data && e.data.type === 'vibetop:active' && e.data.active !== 'office') forcesave(false);
+      });
+      window.addEventListener('pagehide', function() { forcesave(true); });   // app closed
+    })
+    .catch(function() { fail('Could not load the document.'); });
+})();
+</script>
+</body>
+</html>
