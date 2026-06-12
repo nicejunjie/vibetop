@@ -4,20 +4,22 @@
 
 A unified "mini-OS" desktop experience served in the browser, exposed publicly
 over HTTPS via Cloudflare Tunnel with Access auth. The root page is a desktop-like
-UI launchable from a Start menu with seven apps: **Home Service, Terminal,
-Browser, Files, Notes, Monitor, Upload**. Open-app state is synced server-side
-so phone and computer share the same desktop. Installable as a PWA; the Terminal
-even keeps live dictation working on iOS.
+UI launchable from a Start menu with seven everyday apps — **Home Service,
+Terminal, Browser, Files, Notes, Monitor, Upload** — plus a self-updating
+**Update** app. Open-app state is synced server-side so phone and computer share
+the same desktop. Installable as a PWA; the Terminal even keeps iOS voice
+dictation working. Deploys to any Ubuntu host with one command (AMD or NVIDIA).
 
 ## Features
 
-- **Terminal** — persistent bash sessions over ttyd; tabs survive disconnects via a custom `claude-session` daemon (256 KB ring buffer + 50k-line xterm.js scrollback)
+- **Terminal** — persistent bash sessions over ttyd; tabs survive disconnects via a custom `claude-session` daemon (256 KB ring buffer + 50k-line xterm.js scrollback). On touch, tapping the terminal raises the keyboard via an in-page overlay that makes **iOS dictation work** (no character pile-up); on Windows, Ctrl+V pastes cleanly
 - **Browser** — a real, persistent Chromium driven by xpra's HTML5 client; mobile gets tap-click, drag-scroll, two-finger pinch zoom, and a toggleable on-screen keyboard
 - **Files** — FileBrowser rooted at `~`, every toolbar action visible inline (wraps to multiple rows on mobile)
 - **Notes** — single-page Markdown scratchpad, auto-saves
 - **Monitor** — live CPU/MEM/GPU charts, htop-style load average, top processes
 - **Upload** — quick photo-sync drop zone; per-file progress, In-folder listing, Open-in-Files deep link
-- **Status bar** — live system stats (CPU %/°, MEM, GPU %/°, VRAM) at the bottom of every desktop; falls back to debugfs when sysfs locks under GPU compute
+- **Update** — one-tap self-update: `git pull` from GitHub, redeploy only what changed, and an **update-history changelog** with the installed commit badged
+- **Status bar** — live system stats (CPU %/°, MEM, GPU %/°, VRAM) at the bottom of every desktop. GPU from AMD sysfs (with a debugfs fallback when it locks under compute) **or NVIDIA `nvidia-smi`**
 
 ## Sub-projects
 
@@ -50,6 +52,12 @@ sudo ./files/install.sh      # FileBrowser at /files/
 ./landing/install.sh         # desktop UI + static apps (no sudo)
 sudo ./tunnel/install.sh     # cloudflared (tunnel setup is interactive)
 ```
+
+The installers pull their own dependencies — `ttyd`/`nginx`/`acl` (apt), `xpra`
+(xpra.org repo) + `chromium` (snap), and the `filebrowser` release binary — and
+set up the systemd units, nginx site, and the www-data home-dir ACL. Validated
+end-to-end on AMD+NVIDIA and AMD+AMD Ubuntu 24.04 hosts. Remotely-deployed hosts
+are full installs — they self-update from the Start menu like the primary box.
 
 See [`CLAUDE.md`](CLAUDE.md) for full architecture, health checks, and operational
 commands, and [`docs/`](docs/) for deep dives.
