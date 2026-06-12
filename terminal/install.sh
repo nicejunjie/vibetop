@@ -76,11 +76,14 @@ write_root() {
 # doesn't change the config won't reload nginx — which would otherwise sever
 # every live terminal/Browser WebSocket and force a reconnect storm.
 NGINX_DIRTY=0
+# Returns 1 when it changed the file. It's used in a pipe (subshell), so a global
+# set inside wouldn't reach the parent — the caller captures the change as the
+# pipe exit status:  <render> | nginx_write "$dest" || NGINX_DIRTY=1
 nginx_write() {
     local dest="$1" tmp; tmp="$(mktemp)"; cat >"$tmp"
     if [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then rm -f "$tmp"; return 0; fi
     if (( DRY_RUN )); then echo "+ nginx: would update $dest"; else sudo install -m 0644 "$tmp" "$dest"; fi
-    rm -f "$tmp"; NGINX_DIRTY=1
+    rm -f "$tmp"; return 1
 }
 
 cat <<EOF
@@ -135,7 +138,7 @@ if (( INSTALL_NGINX )); then
         echo "   connection_upgrade map already defined elsewhere — skipping"
     else
         cat "$APP_DIR/nginx/claude-web-upgrade.conf" \
-            | nginx_write "/etc/nginx/conf.d/claude-web-upgrade.conf"
+            | nginx_write "/etc/nginx/conf.d/claude-web-upgrade.conf" || NGINX_DIRTY=1
     fi
 
     # 4b. Build port map for terminal routing
@@ -226,7 +229,7 @@ server {
 }
 "
     run sudo install -d -m 0755 /etc/nginx/snippets/claude-extras.d
-    echo "$site_config" | nginx_write "/etc/nginx/sites-available/$NGINX_SITE_NAME"
+    echo "$site_config" | nginx_write "/etc/nginx/sites-available/$NGINX_SITE_NAME" || NGINX_DIRTY=1
 
     # 4c. Disable any other default_server site that would clash
     if [ -L "/etc/nginx/sites-enabled/default" ] \

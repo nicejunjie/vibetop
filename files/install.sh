@@ -46,11 +46,12 @@ write_root() {
 # Write an nginx conf from stdin only if it differs; flag a single reload so a
 # no-op deploy doesn't reload nginx (which severs live terminal/Browser sockets).
 NGINX_DIRTY=0
+# Returns 1 when changed; caller captures it across the pipe via '|| NGINX_DIRTY=1'.
 nginx_write() {
     local dest="$1" tmp; tmp="$(mktemp)"; cat >"$tmp"
     if [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then rm -f "$tmp"; return 0; fi
     if (( DRY_RUN )); then echo "+ nginx: would update $dest"; else sudo install -m 0644 "$tmp" "$dest"; fi
-    rm -f "$tmp"; NGINX_DIRTY=1
+    rm -f "$tmp"; return 1
 }
 fb() { run sudo -u "$APP_USER" "$FB_BIN" --database "$FB_DB" "$@"; }
 
@@ -124,7 +125,7 @@ if (( INSTALL_NGINX )); then
     fi
     sed -e "s|@APP_HOME@|$APP_HOME|g" \
         "$APP_DIR/nginx/filebrowser.conf" \
-        | nginx_write "$NGINX_EXTRAS/filebrowser.conf"
+        | nginx_write "$NGINX_EXTRAS/filebrowser.conf" || NGINX_DIRTY=1
     if (( NGINX_DIRTY )); then
         run sudo nginx -t && run sudo systemctl reload nginx
     else
