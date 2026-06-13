@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Five sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.168.1.10`), exposed publicly at `https://service.example.com/` via Cloudflare Tunnel with Access auth. The root page (`/`) is a desktop-like UI launchable from a Start menu with seven everyday apps (Home Service, Terminal, Browser, Files, Notes, Monitor, Upload) plus an **Update** app in a separate "System" section.
+Six sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.168.1.10`), exposed publicly at `https://service.example.com/` via Cloudflare Tunnel with Access auth. The root page (`/`) is a desktop-like UI launchable from a Start menu with eight everyday apps (Home Service, Terminal, Browser, Files, Office, Notes, Monitor, Upload) plus an **Update** app in a separate "System" section.
 
 | Sub-project | URL path | What |
 |---|---|---|
@@ -12,6 +12,7 @@ Five sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192
 | browser | `/browser/` | Persistent Chromium viewable via xpra HTML5 client |
 | landing | `/` | Unified desktop UI with tab bar, iframe viewport, and status bar |
 | files | `/files/` | FileBrowser file manager rooted at `~` |
+| office | `/onlyoffice/` | OnlyOffice Document Server (Docker) — in-browser Office editing via the manager's `/api/office/*` |
 | tunnel | — | Cloudflare Tunnel + Access config for public HTTPS |
 
 ## Deploy commands
@@ -22,32 +23,42 @@ sub-installers in the right order + a health check), locally or to a remote host
 ```bash
 ./deploy.sh                                  # deploy on this machine
 ./deploy.sh --remote junjie@192.168.1.20     # rsync to HOST:~/vibetop and deploy there
-# flags: --no-browser  --no-files  --with-tunnel  --dry-run
+# flags: --no-browser  --no-files  --no-office  --with-tunnel  --dry-run
 # (HOST is any ssh destination — user@ip or an ssh-config Host, not a bare shell alias)
+sudo ./uninstall.sh                          # tear down the whole runtime (keeps repo + data + image)
 ```
 
-Or run the per-project installers by hand (the order `deploy.sh` uses). Each is
-idempotent, supports `--dry-run`, and is env-var configurable (see script headers):
+It is fully self-installing on a Debian/Ubuntu host (incl. Docker) — no manual
+prerequisites. Or run the per-project installers by hand (the order `deploy.sh`
+uses). Each is idempotent, supports `--dry-run`, env-var configurable (see script
+headers), and **only reloads nginx when its config actually changed** (a re-run
+that changes nothing won't reload — which would otherwise sever live terminal/
+Browser WebSockets; `nginx_write` returns the change as its pipe exit status):
 
 ```bash
 sudo ./terminal/install.sh   # 1. nginx site skeleton (extras include) + manager API + ttyd
-sudo ./browser/install.sh    # 2. xpra + Chromium (snap, auto-installed) — drops an extras snippet
+sudo ./browser/install.sh    # 2. xpra + Chromium (snap) + LibreOffice (office View) — extras snippet
 sudo ./files/install.sh      # 3. FileBrowser at /files/ (binary + noauth config + extras snippet)
-./landing/install.sh         # 4. desktop UI + static apps (no sudo — $HOME must resolve to the user's)
-sudo ./tunnel/install.sh     # 5. cloudflared (tunnel setup is interactive — see tunnel/README.md)
+sudo ./office/install.sh     # 4. Docker + OnlyOffice Document Server at /onlyoffice/ (office Edit)
+./landing/install.sh         # 5. desktop UI + static apps (no sudo — $HOME must resolve to the user's)
+sudo ./tunnel/install.sh     # 6. cloudflared (tunnel setup is interactive — see tunnel/README.md)
 ```
 
 Deps the installers handle automatically: `ttyd`/`nginx`/`acl` (apt), `xpra` (xpra.org
-apt repo, suite derived from the OS codename) + `chromium` (snap), and the
-`filebrowser` release binary (pinned `FB_VERSION`, arch-aware). Portability is
-validated on AMD+NVIDIA and AMD+AMD hosts (GPU stats use sysfs/amdgpu with an
-`nvidia-smi` fallback).
+apt repo, suite derived from the OS codename) + `chromium` (snap) + `libreoffice`
+(apt), the `filebrowser` release binary (pinned `FB_VERSION`, arch-aware), and
+**Docker** (`docker.io`) running `onlyoffice/documentserver` (~2 GB pull, loopback
+`:8087`, generated JWT secret at `~/.config/vibetop/onlyoffice.secret`). Scoped to
+Debian/Ubuntu. Validated on AMD+NVIDIA and AMD+AMD hosts (GPU stats use
+sysfs/amdgpu with an `nvidia-smi` fallback).
 
 ## Health check
 
 ```bash
 systemctl status claude-web-manager claude-browser-xpra claude-web-filebrowser
+docker ps --filter name=vibetop-onlyoffice                      # OnlyOffice container (office Edit)
 curl -sI http://127.0.0.1/ http://127.0.0.1/t1/ http://127.0.0.1/browser/ http://127.0.0.1/files/
+curl -s http://127.0.0.1/onlyoffice/healthcheck                 # -> true when the doc server is up
 curl -s http://127.0.0.1/api/system/status
 curl -s http://127.0.0.1/api/terminals/status
 sudo systemctl status cloudflared
@@ -58,7 +69,7 @@ sudo systemctl status cloudflared
 ### Unified desktop (`landing/desktop.html`)
 
 The root page at `/` is a Windows-style shell:
-- **Start button** — always present at the taskbar's left. Clicking it toggles the **Start menu**, a launcher listing seven everyday apps (Home Service, Terminal, Browser, Files, Notes, Monitor, Upload), then a separated **System** subsection with the **Update** app (set apart since it's rarely used), each with icon + description. Picking one opens it. (This replaced the old always-pinned tab bar.) **Home Service** is the old service-list page (`landing/index.html`, served at `/landing.html`) wrapped as a launchable app — it shows the service cards, health dots, and dynamic terminal chips. Its extra service cards (and their health-check targets) are **not** in the repo: they're read at runtime from a host-local, gitignored `~/claude-web-www/services.json` (format in `landing/services.example.json`). The page renders them from a direct `/services.json` fetch (LAN) or a parent `postMessage` relay (tunnel), and `terminal-manager.py` merges each entry's `key`/`health` into `/api/health` so the dots work — keeping personal hostnames/IPs out of git.
+- **Start button** — always present at the taskbar's left. Clicking it toggles the **Start menu**, a launcher listing eight everyday apps (Home Service, Terminal, Browser, Files, Office, Notes, Monitor, Upload), then a separated **System** subsection with the **Update** app (set apart since it's rarely used), each with icon + description. Picking one opens it. (This replaced the old always-pinned tab bar.) **Home Service** is the old service-list page (`landing/index.html`, served at `/landing.html`) wrapped as a launchable app — it shows the service cards, health dots, and dynamic terminal chips. Its extra service cards (and their health-check targets) are **not** in the repo: they're read at runtime from a host-local, gitignored `~/claude-web-www/services.json` (format in `landing/services.example.json`). The page renders them from a direct `/services.json` fetch (LAN) or a parent `postMessage` relay (tunnel), and `terminal-manager.py` merges each entry's `key`/`health` into `/api/health` so the dots work — keeping personal hostnames/IPs out of git.
 - **Taskbar apps** — only *opened* apps get a button (Windows-style), each with a close (×). Multiple apps can be open at once; the focused one is highlighted with a per-app accent underline. Buttons are **drag-reorderable** (HTML5 DnD — desktop only; it's a no-op on touch so tap/scroll are unaffected): dragover reshuffles the DOM live, dragend reads the new order back into `openApps` and persists it. The set of open apps, their order, and the active one are persisted **server-side** via `GET/POST /api/desktop` (file `~/.local/share/desktop-state.json`) so phone and computer see the same desktop. Restored on every load; on a fresh state with nothing open the Start menu auto-opens.
 - **App frames** — each app is a full-viewport iframe, **created** on first open but only `src`-loaded on first activation (`loadIfNeeded`) so the inner content always measures the real viewport (otherwise xterm.js / FitAddon initialise at 0×0 and the terminal renders truncated). Closed apps are **removed from the DOM** (true unload). All iframes carry `allow="clipboard-read; clipboard-write"` for cross-iframe clipboard.
 - **Status bar** — live system stats updated every 5s via `/api/system/status`: CPU% + temp, MEM used/total, GPU% + temp, VRAM used/total. Rendered in a fixed-width CSS grid (`ch`-sized columns + `tabular-nums`) so labels don't shift sideways as values change digit-count. CPU temp from `k10temp` (Tctl), GPU temp from `amdgpu` (edge). When the GPU driver locks sysfs during heavy compute (EBUSY), util/temp/power **fall back to parsing `/sys/kernel/debug/dri/N/amdgpu_pm_info`** (manager already runs as root) so the numbers stay populated. The full 1/5/15-minute load average is shown only in the Monitor app's CPU card title.
@@ -83,6 +94,9 @@ Services:
   - Browser: `POST /api/browser/open` (validated URL → remote Chromium via the xpra display)
   - Office **View**: `GET /api/office/preview?path=<rel-to-~>` (headless LibreOffice → PDF, cached by mtime under `~/.cache/vibetop-office`, served inline for the shell's read-only doc viewer). Needs `libreoffice-writer/calc/impress` (installed by `browser/install.sh`).
   - Office **Edit**: the **OnlyOffice Document Server** (Docker, `office/install.sh`, nginx `/onlyoffice/`). The shell's Office app loads `/office-editor.html?path=…`, which fetches a JWT-signed editor config from `GET /api/office/config`. The container reaches back via `host.docker.internal` to `GET /api/office/doc` (file bytes) and `POST /api/office/callback` (save) — both authorized by an HMAC `t=` over the path. Autosave: the editor calls `POST /api/office/forcesave` (debounced, on app-switch, and on `pagehide` via `sendBeacon`); the manager issues a `forcesave` command to OnlyOffice (per-session key in `_office_sessions`), which fires the callback and writes the file back atomically. JWT (HS256) signed/verified with the shared secret at `~/.config/vibetop/onlyoffice.secret`. All office paths gate on `_resolve_under_home` + `OFFICE_RE`.
+  - Office **new doc**: `POST /api/office/new {type}` stamps a blank file from a bundled template (`office/templates/new.{docx,xlsx,pptx}`) into `~/Documents` and returns its path — the Office app opened with no file shows a Document/Spreadsheet/Presentation chooser.
+  - Office **download**: `GET /api/office/download?path=` serves the ORIGINAL file as an attachment (the viewer shows a PDF rendition, so its Download button must give the real `.docx/.xlsx/…`; the preview iframe uses `#toolbar=0` to hide the browser's native PDF download).
+  - Opening an office file in Files (`filebrowser-patches.js`): the interceptor matches FileBrowser's own open gesture — single click only **selects**, **double-click** opens (desktop, detected on the click events so the second click is blocked before FileBrowser navigates to its dead-end "Preview not available" page); a single **tap** opens on touch.
   - Notes: `GET/POST /api/notes` (`~/.local/share/desktop-notes.md`)
   - Desktop state: `GET/POST /api/desktop` (`~/.local/share/desktop-state.json` — `{open: [appId,...], active: appId}`, shared between phone and computer)
   - Upload: `POST /api/upload` (streaming multipart parser, writes into `UPLOAD_DIR`, default `~/Uploads`), `GET /api/upload/list`, `POST /api/upload/clear`
@@ -104,6 +118,8 @@ One systemd service:
 - `claude-browser-xpra` — xpra `start-desktop :99` with built-in HTML5 client on loopback:14500
 
 xpra handles the virtual X display (Xorg + dummy video driver for RANDR), window management (matchbox in kiosk mode), browser launching (via `browser-loop.sh` wrapper for auto-restart), and the HTML5 client + WebSocket serving. The display dynamically resizes to match the client's browser viewport. Clipboard is handled natively by xpra. xpra is installed from the xpra.org apt repo. `--sharing=yes` lets multiple clients (e.g. desktop + phone) view the same session at once; `XPRA_PING_TIMEOUT=45` (env in the unit) evicts dead clients faster than the 60s default — but not lower than 45: phones on power-saving WiFi stall past 20s while alive, and backgrounded Safari tabs stop answering pings, so a 20s timeout evicted live clients.
+
+**Low-bandwidth tuning** (unit encoding flags): targets `quality=80`/`speed=100` but with low floors `min-quality=10`, `min-speed=20`, and `bandwidth-detection=yes` so xpra degrades hard (lower quality, heavier compression) on a constrained link like mobile while a good connection stays sharp. (xpra v6's `--bandwidth-limit` is a fixed bits/sec value, not `auto`; the floors are what let auto-detection actually drop quality.)
 
 nginx proxies `/browser/` to xpra's HTTP/WebSocket port with `sub_filter` patches: CSS pins `#screen` to the viewport via `z-index` (hiding xpra's toolbar/login UI and window-decoration chrome like `.windowhead`/`.window-title` without removing keyboard capture elements like `#pasteboard`), and loads `xpra-patches.js` for mouse offset correction, scroll fix, and **mobile touch handling**. The patches JS file is served from the web root and wrapped in `try/catch` for graceful degradation on xpra updates. A separate regex location caches (`max-age=86400`) and gzips xpra's ~2.1MB HTML5 client assets, which xpra otherwise serves uncompressed and `no-store` — the main fix for slow first loads over the tunnel. See `docs/browser.md`.
 
@@ -166,15 +182,22 @@ Clicking a URL in a terminal (Cmd+click / Ctrl+click) or using the "Open in Brow
 
 ## Uninstall
 
-Each sub-project (except landing) has an idempotent `uninstall.sh` that reverses its install. They leave apt packages and user data (browser profile, shell history) in place.
+Top-level `uninstall.sh` tears down the WHOLE runtime in one shot (services, nginx site + snippets, the OnlyOffice container, web root), keeping the repo, user data (`~/.local/share`, `~/Documents`, `~/Uploads`), the JWT secret, and the ~2 GB image:
+
+```bash
+sudo ./uninstall.sh                   # everything; re-deploy with sudo ./deploy.sh
+```
+
+Sub-projects also keep their own idempotent `uninstall.sh` (leave apt packages + user data in place):
 
 ```bash
 sudo ./terminal/uninstall.sh          # stops units, removes nginx site
 sudo ./browser/uninstall.sh           # stops units, removes nginx snippet
+sudo ./office/uninstall.sh            # removes the OnlyOffice container + nginx snippet
 sudo ./tunnel/uninstall.sh            # N/A — uninstall cloudflared manually
 ```
 
-All support `--dry-run`.
+Most support `--dry-run`.
 
 ## Key operational commands
 

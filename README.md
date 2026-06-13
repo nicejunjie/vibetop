@@ -4,18 +4,19 @@
 
 A unified "mini-OS" desktop experience served in the browser, exposed publicly
 over HTTPS via Cloudflare Tunnel with Access auth. The root page is a desktop-like
-UI launchable from a Start menu with seven everyday apps — **Home Service,
-Terminal, Browser, Files, Notes, Monitor, Upload** — plus a self-updating
+UI launchable from a Start menu with eight everyday apps — **Home Service,
+Terminal, Browser, Files, Office, Notes, Monitor, Upload** — plus a self-updating
 **Update** app. Open-app state is synced server-side so phone and computer share
 the same desktop. Installable as a PWA; the Terminal even keeps iOS voice
-dictation working. Deploys to any Ubuntu host with one command (AMD or NVIDIA).
+dictation working. One command deploys the whole stack to a Debian/Ubuntu host —
+fully self-installing, Docker and all (AMD or NVIDIA).
 
 ## Features
 
 - **Terminal** — persistent bash sessions over ttyd; tabs survive disconnects via a custom `claude-session` daemon (256 KB ring buffer + 50k-line xterm.js scrollback). On touch, tapping the terminal raises the keyboard via an in-page overlay that makes **iOS dictation work** (no character pile-up); on Windows, Ctrl+V pastes cleanly
 - **Browser** — a real, persistent Chromium driven by xpra's HTML5 client; mobile gets tap-click, drag-scroll, two-finger pinch zoom, and a toggleable on-screen keyboard
-- **Files** — FileBrowser rooted at `~`, every toolbar action visible inline (wraps to multiple rows on mobile). Tap a Word/Excel/PPT file to **View** it (server renders a read-only PDF via headless LibreOffice, shown in an in-app viewer); the viewer's **Edit** button opens it in the **Office** app
-- **Office** — full in-browser Word/Excel/PowerPoint editing via a self-hosted **OnlyOffice Document Server** (Docker), with autosave back to the file. Native browser rendering — fast, MS-compatible, no remote-desktop streaming
+- **Files** — FileBrowser rooted at `~`, every toolbar action visible inline (wraps to multiple rows on mobile). Open a Word/Excel/PPT file (double-click on desktop, tap on touch) to **View** it — the server renders a read-only PDF via headless LibreOffice in an in-app viewer with **Download** (the original file, not the PDF) and **Edit** buttons
+- **Office** — full in-browser Word/Excel/PowerPoint editing via a self-hosted **OnlyOffice Document Server** (Docker), with autosave back to the file. Native browser rendering — fast, MS-compatible, no remote-desktop streaming. Open it empty to **create a new** Document / Spreadsheet / Presentation
 - **Notes** — single-page Markdown scratchpad, auto-saves
 - **Monitor** — live CPU/MEM/GPU charts, htop-style load average, top processes
 - **Upload** — quick photo-sync drop zone; per-file progress, In-folder listing, Open-in-Files deep link
@@ -41,25 +42,39 @@ order, health-checks), locally or to a remote host over SSH:
 ```bash
 ./deploy.sh                                # deploy on this machine
 ./deploy.sh --remote user@host             # rsync to host:~/vibetop and deploy there
-# flags: --no-browser  --no-files  --with-tunnel  --dry-run
+# flags: --no-browser  --no-files  --no-office  --with-tunnel  --dry-run
+```
+
+It is fully self-installing — no prerequisites beyond a Debian/Ubuntu host with
+SSH + sudo. To tear the whole runtime down again (keeping the repo, your data,
+and the OnlyOffice image):
+
+```bash
+sudo ./uninstall.sh
 ```
 
 Or run the per-project installers by hand (the order `deploy.sh` uses; each is
-idempotent, `--dry-run`-able, env-var configurable):
+idempotent, `--dry-run`-able, env-var configurable, and only reloads nginx when
+its config actually changed — so a re-run won't blip live terminals):
 
 ```bash
 sudo ./terminal/install.sh   # nginx skeleton + manager API + ttyd
-sudo ./browser/install.sh    # xpra + Chromium (snap)
+sudo ./browser/install.sh    # xpra + Chromium (snap) + LibreOffice (office View)
 sudo ./files/install.sh      # FileBrowser at /files/
+sudo ./office/install.sh     # Docker + OnlyOffice Document Server at /onlyoffice/
 ./landing/install.sh         # desktop UI + static apps (no sudo)
 sudo ./tunnel/install.sh     # cloudflared (tunnel setup is interactive)
 ```
 
 The installers pull their own dependencies — `ttyd`/`nginx`/`acl` (apt), `xpra`
-(xpra.org repo) + `chromium` (snap), and the `filebrowser` release binary — and
-set up the systemd units, nginx site, and the www-data home-dir ACL. Validated
-end-to-end on AMD+NVIDIA and AMD+AMD Ubuntu 24.04 hosts. Remotely-deployed hosts
-are full installs — they self-update from the Start menu like the primary box.
+(xpra.org repo) + `chromium` (snap) + `libreoffice` (apt), the `filebrowser`
+release binary, and **Docker** (`docker.io`) for the OnlyOffice container
+(`onlyoffice/documentserver`, ~2 GB pull) — and set up the systemd units, nginx
+site, and the www-data home-dir ACL. Validated end-to-end on AMD+NVIDIA and
+AMD+AMD Ubuntu 24.04 hosts. Remotely-deployed hosts are full installs — they
+self-update code from the Start menu like the primary box (heavy deps like the
+OnlyOffice image are installed only by `deploy.sh`/`office/install.sh`, not the
+in-app Update).
 
 See [`CLAUDE.md`](CLAUDE.md) for full architecture, health checks, and operational
 commands, and [`docs/`](docs/) for deep dives.
