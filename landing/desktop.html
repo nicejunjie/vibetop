@@ -845,9 +845,16 @@
 // updated SW takes control (e.g. after a shell change), reload once so the
 // fresh shell loads immediately instead of needing a second relaunch.
 if ('serviceWorker' in navigator) {
+  // Only reload when an *updated* SW replaces an existing one (to pick up a new
+  // shell). On a brand-new computer the first install's clients.claim() also
+  // fires controllerchange (controller: null -> SW) — reloading THEN throws away
+  // the first page load mid-flight and interrupts a Terminal that's still
+  // connecting ("new computer, had to refresh a few times before I could type").
+  // hadController is false on first install, true on a later update.
+  var hadController = !!navigator.serviceWorker.controller;
   var swRefreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', function() {
-    if (swRefreshing) return;
+    if (swRefreshing || !hadController) return;
     swRefreshing = true;
     window.location.reload();
   });
