@@ -1617,13 +1617,45 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return ok
 
         _, before = self._git_as_user(["rev-parse", "HEAD"])
-        ok, out = self._git_as_user(["pull", "--ff-only"], timeout=120)
-        add("git pull", ok, out)
+
+        ok, out = self._git_as_user(["fetch", "origin", "--prune"], timeout=120)
+        add("git fetch", ok, out)
         if not ok:
             _append_update_history({"time": int(time.time()), "event": "failed",
                                     "message": (out or "")[:200]})
             self._json(200, {"ok": False, "log": log,
-                             "message": "git pull failed — resolve it on the host"})
+                             "message": "git fetch failed — resolve it on the host"})
+            return
+
+        # A dirty working tree blocks a fast-forward. This is common when a host
+        # was deployed by rsync (files copied in without committing). If the tree
+        # ALREADY matches origin/main (identical content — the rsync case), the
+        # local changes are redundant, so hard-reset onto origin/main. If they're
+        # genuine host-local edits (not upstream), bail rather than clobber them.
+        dok, dirty = self._git_as_user(["status", "--porcelain"])
+        if dok and dirty.strip():
+            matches_upstream, _ = self._git_as_user(["diff", "--quiet", "origin/main"])
+            if matches_upstream:
+                ok, out = self._git_as_user(["reset", "--hard", "origin/main"])
+                add("reset working tree to origin/main (local copy already upstream)", ok, out)
+            else:
+                add("git pull", False,
+                    "working tree has local changes not in origin/main:\n" + dirty.strip())
+                _append_update_history({"time": int(time.time()), "event": "failed",
+                                        "message": "dirty working tree (local edits)"})
+                self._json(200, {"ok": False, "log": log,
+                                 "message": "Host has uncommitted local changes not in origin/main "
+                                            "— resolve on the host (git status), then retry."})
+                return
+        else:
+            ok, out = self._git_as_user(["merge", "--ff-only", "origin/main"], timeout=120)
+            add("git pull", ok, out)
+
+        if not ok:
+            _append_update_history({"time": int(time.time()), "event": "failed",
+                                    "message": (out or "")[:200]})
+            self._json(200, {"ok": False, "log": log,
+                             "message": "update failed — resolve it on the host"})
             return
         _, after = self._git_as_user(["rev-parse", "HEAD"])
 
