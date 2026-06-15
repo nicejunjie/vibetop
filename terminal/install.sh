@@ -172,6 +172,15 @@ server {
         rewrite ^ /terminals.html break;
     }
 
+    # On the LAN there's no Cloudflare in front, so the desktop's logout link
+    # (/cdn-cgi/access/logout) reaches this origin and would 404. Serve a
+    # friendly signed-out page instead. Over the tunnel Cloudflare handles
+    # /cdn-cgi/* at its edge, so this block never runs there.
+    location = /cdn-cgi/access/logout {
+        add_header Cache-Control 'no-cache, no-store' always;
+        rewrite ^ /loggedout.html break;
+    }
+
     # Terminal manager & system status API
     location /api/ {
         proxy_pass http://127.0.0.1:$BASE_PORT;

@@ -99,6 +99,14 @@ def _app_user():
 APP_USER = _app_user()
 NOTES_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-notes.md")
 DESKTOP_STATE_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-state.json")
+# Desktop state is a per-instance registry: {"instances": {id: {open, active, ts}},
+# "reset_epoch": N}. The Start-menu "running" dots show the UNION of apps open
+# across instances seen within DESKTOP_TTL (a heartbeat keeps an instance live);
+# windows themselves are local to each instance. reset_epoch is bumped by
+# /api/reset so every instance can detect a logout/reset and clear itself.
+DESKTOP_TTL = 30          # seconds; an instance idle longer drops out of the union
+DESKTOP_MAX_INSTANCES = 24
+_desktop_lock = threading.Lock()
 # Per-host update log (real history of THIS deployment's self-updates, seeded
 # with a "deployed" baseline on first run) — not the git changelog.
 UPDATE_HISTORY_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/vibetop-update-history.json")
@@ -303,6 +311,53 @@ def _chown_app(path):
         os.chown(path, pw.pw_uid, pw.pw_gid)
     except Exception:
         pass
+
+
+def _read_desktop_state():
+    """Load the desktop registry, tolerating a missing/old-format/corrupt file."""
+    try:
+        with open(DESKTOP_STATE_FILE) as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError
+    except (FileNotFoundError, json.JSONDecodeError, ValueError):
+        data = {}
+    if not isinstance(data.get("instances"), dict):
+        data["instances"] = {}
+    if not isinstance(data.get("reset_epoch"), int):
+        data["reset_epoch"] = 0
+    return data
+
+
+def _write_desktop_state(data):
+    os.makedirs(os.path.dirname(DESKTOP_STATE_FILE), exist_ok=True)
+    with open(DESKTOP_STATE_FILE, "w") as f:
+        json.dump(data, f)
+    _chown_app(DESKTOP_STATE_FILE)  # written by root; keep it owned by APP_USER
+
+
+def _desktop_cap(data):
+    """Bound the registry to the most-recently-seen instances."""
+    insts = data["instances"]
+    if len(insts) > DESKTOP_MAX_INSTANCES:
+        keep = sorted(insts.items(), key=lambda kv: kv[1].get("ts", 0),
+                      reverse=True)[:DESKTOP_MAX_INSTANCES]
+        data["instances"] = dict(keep)
+
+
+def _desktop_union(data, now):
+    """Apps open across instances seen within DESKTOP_TTL (order-preserving)."""
+    seen = []
+    for ent in data["instances"].values():
+        try:
+            if now - float(ent.get("ts", 0)) > DESKTOP_TTL:
+                continue
+        except (TypeError, ValueError):
+            continue
+        for app in ent.get("open", []):
+            if app not in seen:
+                seen.append(app)
+    return seen
 
 
 def _resolve_under_home(rel):
@@ -1002,6 +1057,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_notes_save()
         if self.path == "/api/desktop":
             return self._handle_desktop_save()
+        if self.path == "/api/reset":
+            return self._handle_reset()
         if self.path == "/api/upload":
             return self._handle_upload()
         if self.path == "/api/upload/clear":
@@ -1117,9 +1174,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._json(400, {"error": "invalid json"})
             return
-        # Whitelist: only persist {open: [str], active: str|null}. open is
-        # capped at 16 entries to keep the file tiny; ids are stored verbatim
+        # Upsert this instance's open-set into the registry (also its heartbeat)
+        # and return the live cross-instance union + the reset epoch. Whitelist:
+        # {instance: str, open: [str], active: str|null}; ids stored verbatim
         # (the client whitelists against its own APPS map on read).
+        instance = data.get("instance")
+        if not isinstance(instance, str) or not instance:
+            self._json(400, {"error": "instance required"})
+            return
+        instance = instance[:64]
         open_apps = data.get("open", []) or []
         if not isinstance(open_apps, list):
             self._json(400, {"error": "open must be a list"})
@@ -1129,12 +1192,88 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if active is not None and not isinstance(active, str):
             self._json(400, {"error": "active must be a string or null"})
             return
-        state = {"open": open_apps, "active": active}
-        os.makedirs(os.path.dirname(DESKTOP_STATE_FILE), exist_ok=True)
-        with open(DESKTOP_STATE_FILE, "w") as f:
-            json.dump(state, f)
-        _chown_app(DESKTOP_STATE_FILE)  # written by root; keep it owned by APP_USER
-        self._json(200, {"ok": True})
+        now = time.time()
+        with _desktop_lock:
+            state = _read_desktop_state()
+            state["instances"][instance] = {
+                "open": open_apps, "active": active, "ts": now,
+            }
+            _desktop_cap(state)
+            _write_desktop_state(state)
+            resp = {"ok": True, "running": _desktop_union(state, now),
+                    "reset_epoch": state["reset_epoch"]}
+        self._json(200, resp)
+
+    def _handle_reset(self):
+        """Full 'fresh start' reset, wired to the desktop's logout button:
+        stop every terminal (kills their background processes), clear the saved
+        desktop layout, drop in-memory office edit sessions, and reset the
+        Browser to a blank Chromium — so the next login starts clean."""
+        result = {"terminals_stopped": [], "desktop_cleared": False,
+                  "office_sessions_cleared": 0, "browser_reset": False}
+
+        # 1. Stop every running terminal (session + ttyd units).
+        try:
+            running = _list_running_terminals()
+        except Exception:
+            running = []
+        if running:
+            units = []
+            for n in running:
+                units += [f"claude-web-ttyd@{n}.service",
+                          f"claude-web-session@{n}.service"]
+            subprocess.run(["systemctl", "stop", "--no-block"] + units,
+                           check=False, capture_output=True, text=True)
+            result["terminals_stopped"] = running
+        with _cache_lock:                      # so status reflects it at once
+            _cache.pop("running_terminals", None)
+
+        # 2. Clear the desktop registry and bump reset_epoch — every other live
+        #    instance sees the epoch advance on its next heartbeat and tears its
+        #    own desktop down too (the cross-instance logout/reset signal).
+        try:
+            with _desktop_lock:
+                state = _read_desktop_state()
+                state["instances"] = {}
+                state["reset_epoch"] = int(state.get("reset_epoch", 0)) + 1
+                _write_desktop_state(state)
+            result["desktop_cleared"] = True
+        except Exception:
+            pass
+
+        # 3. Drop in-memory office edit sessions (user files left untouched).
+        with _office_sessions_lock:
+            result["office_sessions_cleared"] = len(_office_sessions)
+            _office_sessions.clear()
+
+        # 4. Reset the Browser to a blank Chromium. Stop the service first so
+        #    Chromium is fully dead (and can't re-save its session on exit),
+        #    wipe the session-restore files, then start it again —
+        #    browser-loop.sh respawns Chromium with nothing to restore.
+        if os.path.exists("/etc/systemd/system/claude-browser-xpra.service"):
+            try:
+                subprocess.run(
+                    ["systemctl", "stop", "claude-browser-xpra.service"],
+                    check=False, capture_output=True, text=True, timeout=30)
+                profile = (f"/home/{APP_USER}/snap/chromium/common/"
+                           "xpra-profile/Default")
+                for name in ("Last Session", "Last Tabs",
+                             "Current Session", "Current Tabs"):
+                    try:
+                        os.remove(os.path.join(profile, name))
+                    except OSError:
+                        pass
+                shutil.rmtree(os.path.join(profile, "Sessions"),
+                              ignore_errors=True)
+                subprocess.run(
+                    ["systemctl", "start", "--no-block",
+                     "claude-browser-xpra.service"],
+                    check=False, capture_output=True, text=True)
+                result["browser_reset"] = True
+            except Exception:
+                pass
+
+        self._json(200, {"ok": True, **result})
 
     def _handle_browser_open(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -1584,13 +1723,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 content = ""
             self._json(200, {"content": content})
             return
-        if self.path == "/api/desktop":
-            try:
-                with open(DESKTOP_STATE_FILE) as f:
-                    state = json.load(f)
-            except (FileNotFoundError, json.JSONDecodeError):
-                state = {"open": [], "active": None}
-            self._json(200, state)
+        if self.path.startswith("/api/desktop"):
+            # GET /api/desktop?instance=<id>: this instance's own windows (for
+            # restore) + the live cross-instance union (dots) + reset epoch.
+            qs = urllib.parse.urlparse(self.path).query
+            instance = urllib.parse.parse_qs(qs).get("instance", [""])[0][:64]
+            now = time.time()
+            with _desktop_lock:
+                state = _read_desktop_state()
+                ent = state["instances"].get(instance) if instance else None
+                if instance:
+                    if not isinstance(ent, dict):
+                        ent = {"open": [], "active": None}
+                    ent["ts"] = now              # heartbeat: join the union now
+                    state["instances"][instance] = ent
+                    _desktop_cap(state)
+                    _write_desktop_state(state)
+                resp = {
+                    "open": (ent or {}).get("open", []),
+                    "active": (ent or {}).get("active"),
+                    "running": _desktop_union(state, now),
+                    "reset_epoch": state["reset_epoch"],
+                }
+            self._json(200, resp)
             return
         if self.path == "/api/upload/list":
             files = []

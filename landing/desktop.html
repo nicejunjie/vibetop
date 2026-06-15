@@ -311,7 +311,7 @@
       <span class="n"  id="vram-ut">--</span><span class="u">G</span>
     </div>
     <div class="tb-sep"></div>
-    <a class="tb-logout" href="/cdn-cgi/access/logout" title="Logout">⏻</a>
+    <a class="tb-logout" id="tb-logout" href="/cdn-cgi/access/logout" title="Log out (closes all apps, terminals & browser — fresh start)">⏻</a>
   </div>
 
   <!-- Browser keyboard button (top-level so iOS reliably raises the keyboard) -->
@@ -407,20 +407,71 @@
     if (!on) { var t = document.getElementById('kbd-input'); if (t) try { t.blur(); } catch (e) {} }
   }
 
-  // Persist open-apps + active to the manager API so phones and computers
-  // share the same desktop state. Coalesce rapid changes via debounce —
-  // setActive can fire several times per click.
+  // --- cross-instance state -------------------------------------------------
+  // Windows are LOCAL to each instance (we never open a window because another
+  // device did — that mirrors badly, e.g. the shared single-size xpra Browser
+  // display). What we DO share: the Start-menu "running" dots reflect the UNION
+  // of apps open across every live instance, and a logout/reset clears them all.
+  // The manager keeps a per-instance registry keyed by this id (a heartbeat +
+  // TTL makes the union "live"); the same id lets THIS device restore its own
+  // windows on reload.
+  var INSTANCE_ID;
+  try {
+    INSTANCE_ID = localStorage.getItem('vibetop-instance');
+    if (!INSTANCE_ID) {
+      INSTANCE_ID = 'i-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+      localStorage.setItem('vibetop-instance', INSTANCE_ID);
+    }
+  } catch (e) { INSTANCE_ID = 'i-' + Math.random().toString(36).slice(2, 10); }
+
+  var runningGlobal = [];        // union of open apps across live instances (dots)
+  var lastResetEpoch = null;     // bumped by /api/reset; a change means clear-all
+  var applyingRemote = false;    // suppress persist() during a teardown
+
+  function isRunning(id) {
+    return openApps.indexOf(id) !== -1 || runningGlobal.indexOf(id) !== -1;
+  }
+
+  // Handle a desktop API reply (from a push or the initial load): refresh the
+  // cross-instance "running" dots and, if another instance triggered a
+  // logout/reset (reset_epoch advanced), tear our own desktop down too.
+  function onDesktopResp(d) {
+    if (!d) return;
+    if (Array.isArray(d.running)) { runningGlobal = d.running; markMenuRunning(); }
+    if (typeof d.reset_epoch === 'number') {
+      if (lastResetEpoch === null) lastResetEpoch = d.reset_epoch;
+      else if (d.reset_epoch > lastResetEpoch) { lastResetEpoch = d.reset_epoch; clearAllLocal(); }
+    }
+  }
+
+  // Push our own open-set to the registry (also the heartbeat that keeps us in
+  // the union) and fold the reply back in. Coalesced via debounce — setActive
+  // can fire several times per click.
   var persistTimer = null;
   function persist() {
+    if (applyingRemote) return;
     if (persistTimer) clearTimeout(persistTimer);
-    persistTimer = setTimeout(function() {
-      persistTimer = null;
-      fetch('/api/desktop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ open: openApps, active: active })
-      }).catch(function() {});
-    }, 150);
+    persistTimer = setTimeout(pushDesktop, 150);
+  }
+  function pushDesktop() {
+    if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
+    return fetch('/api/desktop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instance: INSTANCE_ID, open: openApps, active: active })
+    }).then(function(r) { return r.json(); }).then(onDesktopResp).catch(function() {});
+  }
+
+  // Local teardown when a logout/reset fired on another instance.
+  function clearAllLocal() {
+    openApps.slice().forEach(function(id) {
+      var f = frameOf(id);
+      if (f && f.parentNode) f.parentNode.removeChild(f);
+    });
+    openApps = [];
+    applyingRemote = true;
+    try { setActive(null); } finally { applyingRemote = false; }
+    pushDesktop();   // report our now-empty set right away
   }
 
   function frameOf(id) { return document.getElementById('frame-' + id); }
@@ -465,8 +516,9 @@
   }
 
   function markMenuRunning() {
+    // A dot is lit if the app is open here OR on any other live instance.
     menuEl.querySelectorAll('.sm-item').forEach(function(it) {
-      it.classList.toggle('running', openApps.indexOf(it.dataset.id) !== -1);
+      it.classList.toggle('running', isRunning(it.dataset.id));
     });
   }
 
@@ -758,12 +810,18 @@
   setInterval(relayStatus, 5000);
   setTimeout(relayStatus, 1500);
 
-  // --- restore previous session (server-side, so phone + computer share) ---
-  fetch('/api/desktop').then(function(r) { return r.json(); }).then(function(state) {
+  // --- restore THIS instance's own windows; seed the running dots ----------
+  // We fetch by instance id, so each device restores only the windows IT had
+  // open (no cross-instance window mirroring). `running` seeds the dots and
+  // `reset_epoch` baselines the logout/reset detector.
+  fetch('/api/desktop?instance=' + encodeURIComponent(INSTANCE_ID))
+    .then(function(r) { return r.json(); }).then(function(state) {
     var saved = (state && Array.isArray(state.open)) ? state.open : [];
     saved.forEach(function(id) {
       if (APPS[id] && openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
     });
+    runningGlobal = (state && Array.isArray(state.running)) ? state.running : [];
+    lastResetEpoch = (state && typeof state.reset_epoch === 'number') ? state.reset_epoch : 0;
     var lastActive = state && state.active;
     if (openApps.length) {
       setActive(openApps.indexOf(lastActive) !== -1 ? lastActive : openApps[0]);
@@ -771,11 +829,15 @@
       setActive(null);
       openMenu();   // fresh desktop: show the launcher so there's an obvious next step
     }
+    markMenuRunning();
   }).catch(function() {
     // API unreachable — boot to empty desktop instead of hanging on a spinner.
     setActive(null);
     openMenu();
   });
+  // Heartbeat: keeps us in the live union, refreshes other instances' dots, and
+  // catches a logout/reset that happened on another device.
+  setInterval(pushDesktop, 5000);
 })();
 
 // PWA service worker — caches the shell for instant cold loads. Registered
@@ -793,6 +855,20 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(function() {});
   });
 }
+
+// Logout = full reset: close all apps, stop all terminals (and their
+// background processes), reset the Browser to a blank Chromium, then log out —
+// so the next login starts fresh. The href is the no-JS fallback.
+(function() {
+  var logout = document.getElementById('tb-logout');
+  if (!logout) return;
+  logout.addEventListener('click', function(e) {
+    e.preventDefault();
+    if (!confirm('Close all apps, terminals and the browser, and log out?\nAnything running in a terminal will be stopped.')) return;
+    var go = function() { window.location.href = '/cdn-cgi/access/logout'; };
+    fetch('/api/reset', { method: 'POST' }).then(go, go);
+  });
+})();
 </script>
 </body>
 </html>

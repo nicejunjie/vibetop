@@ -177,6 +177,20 @@ run sudo chmod 0755 "$LOOP_SCRIPT"
 
 # 4. systemd unit ------------------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
+    # Enable lingering for APP_USER so systemd-logind keeps user@$APP_UID.service
+    # and $XDG_RUNTIME_DIR (/run/user/$APP_UID) alive even with no login session.
+    # snap chromium needs the user systemd instance + runtime dir to create its
+    # transient tracking scope (snap.chromium.chromium-<uuid>.scope); without
+    # lingering, once the deploying login session ends the runtime dir is torn
+    # down and every browser launch fails ("is not a snap cgroup ..."), leaving
+    # browser-loop.sh crash-looping and the Browser app blank.
+    if [ "$(loginctl show-user "$APP_USER" -p Linger --value 2>/dev/null)" != "yes" ]; then
+        echo "== enabling lingering for $APP_USER (keeps /run/user/$APP_UID alive headless) =="
+        run sudo loginctl enable-linger "$APP_USER"
+    else
+        echo "   lingering already enabled for $APP_USER"
+    fi
+
     echo "== installing systemd unit =="
     sed \
         -e "s|@APP_USER@|$APP_USER|g" \

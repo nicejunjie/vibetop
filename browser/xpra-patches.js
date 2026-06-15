@@ -336,4 +336,44 @@
   } catch(e) {
     console.warn('[xpra-patches] paste patch failed:', e.message);
   }
+
+  // 6. Auto-reconnect — never leave the user stranded on xpra's disconnect
+  //    screen. xpra's built-in reconnect only fires for *abnormal* WS close
+  //    codes (1006, 1008, ...); a *clean* close (1000 — iOS suspending a
+  //    backgrounded tab, or the server's ping-timeout eviction) does NOT
+  //    reconnect, so the "connection lost" page sticks. We listen for xpra's
+  //    own connection-lost / connection-established events (dispatched on
+  //    document): on lost, schedule a reload of /browser/ (reconnects fresh —
+  //    the remote session and its windows are untouched); if established fires
+  //    first, xpra's own reconnect won, so cancel. A reload is deferred while
+  //    the tab is hidden (no point reconnecting a backgrounded tab — retry when
+  //    it's shown again), and an 8s floor via sessionStorage prevents a reload
+  //    loop when the server is genuinely down. Mirrors the ttyd reconnect guard.
+  try {
+    var RECON_KEY = 'xpra-recon-ts';
+    var reconLost = false, reconTimer = null;
+    var armReload = function() {
+      if (reconTimer) return;
+      reconTimer = setTimeout(function() {
+        reconTimer = null;
+        if (!reconLost) return;             // reconnected in the meantime
+        if (document.hidden) return;        // wait for foreground (retried on show)
+        var now = Date.now(), last = +(sessionStorage.getItem(RECON_KEY) || 0);
+        if (now - last < 8000) return;      // floor: don't reload-loop if down
+        sessionStorage.setItem(RECON_KEY, String(now));
+        window.location.reload();
+      }, 2500);                             // let xpra's own reconnect win first
+    };
+    var cancelReload = function() {
+      reconLost = false;
+      if (reconTimer) { clearTimeout(reconTimer); reconTimer = null; }
+    };
+    document.addEventListener('connection-lost', function() { reconLost = true; armReload(); });
+    document.addEventListener('connection-established', cancelReload);
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden && reconLost) armReload();
+    });
+  } catch(e) {
+    console.warn('[xpra-patches] reconnect patch failed:', e.message);
+  }
 })();

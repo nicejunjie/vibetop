@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#161b22">
+  <title>Signed out</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #0e1117; color: #e0e0e0;
+      font-family: system-ui, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #161b22; border: 1px solid #2a3040; border-radius: 14px;
+      padding: 40px 36px; max-width: 380px; width: 100%; text-align: center;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .glyph {
+      width: 64px; height: 64px; margin: 0 auto 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; border-radius: 50%;
+      color: #d2691e; border: 2px solid rgba(210,105,30,0.4);
+      background: rgba(210,105,30,0.08);
+    }
+    h1 { font-size: 20px; font-weight: 600; color: #e8eef5; margin: 0 0 10px; }
+    p { font-size: 14px; line-height: 1.5; color: #8a9aaa; margin: 0 0 24px; }
+    a.btn {
+      display: inline-block; text-decoration: none;
+      font-size: 15px; font-weight: 600; color: #fff;
+      background: linear-gradient(135deg, #b3540f, #d2691e);
+      padding: 11px 26px; border-radius: 9px;
+    }
+    a.btn:hover { filter: brightness(1.08); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="glyph">⏻</div>
+    <h1>You're signed out</h1>
+    <p>All apps, terminals and the browser were closed. Your next sign-in starts fresh.</p>
+    <a class="btn" href="/">Sign in again</a>
+  </div>
+</body>
+</html>
