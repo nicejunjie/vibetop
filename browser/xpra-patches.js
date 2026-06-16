@@ -376,4 +376,32 @@
   } catch(e) {
     console.warn('[xpra-patches] reconnect patch failed:', e.message);
   }
+
+  // 7. Force the server to re-apply our keymap on every (re)connect — fixes
+  //    "a new computer can't type in the Browser (mouse works)". The HTML5
+  //    client sends ["keymap-changed", {keymap}, false] on connect; that
+  //    trailing `false` is the server's `force` flag. xpra's long-lived
+  //    start-desktop session keeps the keyboard config from the FIRST client
+  //    that ever connected, and since every HTML5 client hashes to the same
+  //    keymap, a later client (a different computer/session) matches and is
+  //    "skipped" (server log: "keyboard mapping already configured (skipped)").
+  //    Its keystrokes are then translated against the stale config and dropped —
+  //    mouse forwards fine, typing does nothing. We flip the flag to true so the
+  //    server re-applies the keymap for whoever is connecting. send() takes the
+  //    packet as arguments[0]; we only touch keymap-changed packets.
+  try {
+    var KSP = XpraClient.prototype;
+    var origKSend = KSP.send;
+    KSP.send = function() {
+      try {
+        var pkt = arguments[0];
+        if (pkt && pkt[0] === 'keymap-changed') {
+          if (pkt.length > 2) pkt[2] = true; else pkt.push(true);
+        }
+      } catch (e) {}
+      return origKSend.apply(this, arguments);
+    };
+  } catch(e) {
+    console.warn('[xpra-patches] keymap-force patch failed:', e.message);
+  }
 })();
