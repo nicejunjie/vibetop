@@ -224,7 +224,13 @@ if (( INSTALL_NGINX )); then
     # Deploy xpra patches JS to web root (served as static file at /xpra-patches.js)
     LANDING_DIR="$(getent passwd "$APP_USER" | cut -d: -f6)/claude-web-www"
     run sudo install -m 0644 "$APP_DIR/xpra-patches.js" "$LANDING_DIR/xpra-patches.js"
+    # Cache-buster derived from the patch file's CONTENT, so editing it always
+    # changes the ?v= (busting nginx + the service worker) — no manual version
+    # bump to forget. (This is how the "stale xpra-patches after deploy" class
+    # is made impossible.)
+    PATCH_VER=$(md5sum "$APP_DIR/xpra-patches.js" | cut -c1-10)
     sed -e "s|@XPRA_PORT@|$XPRA_PORT|g" \
+        -e "s|@PATCH_VER@|$PATCH_VER|g" \
         "$APP_DIR/nginx/browser.conf" \
         | nginx_write /etc/nginx/snippets/claude-extras.d/browser.conf || NGINX_DIRTY=1
     if (( NGINX_DIRTY )); then

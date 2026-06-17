@@ -23,6 +23,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import threading
 import urllib.parse
@@ -313,6 +314,27 @@ def _chown_app(path):
         pass
 
 
+def _atomic_write(path, text):
+    """Write `text` to `path` atomically: a temp file in the same dir + os.replace.
+    A crash or a concurrent reader then never sees a truncated/half-written file
+    (a plain open('w')+write/json.dump can be observed mid-write — which for the
+    desktop registry would reset reset_epoch and drop every instance's state)."""
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-", suffix=".swp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.replace(tmp, path)   # atomic on the same filesystem
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    _chown_app(path)            # written by root; keep it owned by APP_USER
+
+
 def _read_desktop_state():
     """Load the desktop registry, tolerating a missing/old-format/corrupt file."""
     try:
@@ -330,10 +352,7 @@ def _read_desktop_state():
 
 
 def _write_desktop_state(data):
-    os.makedirs(os.path.dirname(DESKTOP_STATE_FILE), exist_ok=True)
-    with open(DESKTOP_STATE_FILE, "w") as f:
-        json.dump(data, f)
-    _chown_app(DESKTOP_STATE_FILE)  # written by root; keep it owned by APP_USER
+    _atomic_write(DESKTOP_STATE_FILE, json.dumps(data))
 
 
 def _desktop_cap(data):
@@ -497,6 +516,12 @@ def _git(args, timeout=60):
         return False, str(e)
 
 
+# Serializes the update-history read-modify-write so concurrent /api/update,
+# /api/update/history/clear, and the startup seed can't lose entries or race the
+# first-run baseline.
+_update_lock = threading.Lock()
+
+
 def _read_update_history():
     try:
         with open(UPDATE_HISTORY_FILE) as f:
@@ -508,29 +533,28 @@ def _read_update_history():
 
 def _write_update_history(entries):
     try:
-        os.makedirs(os.path.dirname(UPDATE_HISTORY_FILE), exist_ok=True)
-        with open(UPDATE_HISTORY_FILE, "w") as f:
-            json.dump(entries[-UPDATE_HISTORY_MAX:], f)
-        _chown_app(UPDATE_HISTORY_FILE)
+        _atomic_write(UPDATE_HISTORY_FILE, json.dumps(entries[-UPDATE_HISTORY_MAX:]))
     except Exception:
         pass
 
 
 def _append_update_history(entry):
-    h = _read_update_history()
-    h.append(entry)
-    _write_update_history(h)
+    with _update_lock:
+        h = _read_update_history()
+        h.append(entry)
+        _write_update_history(h)
 
 
 def _seed_update_history():
     """Write a 'deployed' baseline the first time the manager runs (≈ deploy
     time), so the per-host log starts from when this deployment came up."""
-    if os.path.exists(UPDATE_HISTORY_FILE):
-        return
-    ok, head = _git(["log", "-1", "--format=%h\t%s"])
-    commit, subject = (head.split("\t", 1) + [""])[:2] if (ok and "\t" in head) else ("", "")
-    _write_update_history([{"time": int(time.time()), "event": "deployed",
-                            "to": commit, "subject": subject}])
+    with _update_lock:
+        if os.path.exists(UPDATE_HISTORY_FILE):
+            return
+        ok, head = _git(["log", "-1", "--format=%h\t%s"])
+        commit, subject = (head.split("\t", 1) + [""])[:2] if (ok and "\t" in head) else ("", "")
+        _write_update_history([{"time": int(time.time()), "event": "deployed",
+                                "to": commit, "subject": subject}])
 
 
 def _safe_upload_name(name):
@@ -1068,7 +1092,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/update":
             return self._handle_update()
         if self.path == "/api/update/history/clear":
-            _write_update_history([])
+            with _update_lock:
+                _write_update_history([])
             return self._json(200, {"ok": True})
         self.send_error(404)
 
@@ -1102,10 +1127,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(400, {"error": "invalid json"})
             return
         content = data.get("content", "")
-        os.makedirs(os.path.dirname(NOTES_FILE), exist_ok=True)
-        with open(NOTES_FILE, "w") as f:
-            f.write(content)
-        _chown_app(NOTES_FILE)  # written by root; keep it owned by APP_USER
+        _atomic_write(NOTES_FILE, content)  # temp+rename: a crash mid-save can't truncate the note
         self._json(200, {"ok": True})
 
     def _handle_upload(self):
@@ -1535,7 +1557,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             with urllib.request.urlopen(local, timeout=60) as r:
                 body = r.read()
-            tmp = dst + ".vibetmp"
+            # Unique temp per thread: OnlyOffice can fire concurrent callbacks
+            # (autosave + close) for the same file; a shared "dst.vibetmp" would
+            # let two writers interleave and corrupt the saved document.
+            tmp = "%s.vibetmp.%d" % (dst, threading.get_ident())
             with open(tmp, "wb") as f:
                 f.write(body)
             os.replace(tmp, dst)

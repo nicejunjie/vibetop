@@ -90,6 +90,16 @@
     }
   }
 
+  // Register the save-on-leave listeners SYNCHRONOUSLY (not after the async
+  // config fetch resolves) — otherwise a switch-away or close during a slow
+  // OnlyOffice cold-start is missed and that edit window never autosaves.
+  // forcesave() is a no-op until the doc is actually modified, so registering
+  // these before the editor exists is safe.
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'vibetop:active' && e.data.active !== 'office') forcesave(false);
+  });
+  window.addEventListener('pagehide', function() { forcesave(true); });   // app closed
+
   fetch('/api/office/config?path=' + encodeURIComponent(path))
     .then(function(r) { return r.json(); })
     .then(function(cfg) {
@@ -110,11 +120,6 @@
       new DocsAPI.DocEditor('editor', cfg);
 
       setInterval(function() { forcesave(false); }, 30000);   // safety net
-      // The shell broadcasts which app is active; save when we're switched away.
-      window.addEventListener('message', function(e) {
-        if (e.data && e.data.type === 'vibetop:active' && e.data.active !== 'office') forcesave(false);
-      });
-      window.addEventListener('pagehide', function() { forcesave(true); });   // app closed
     })
     .catch(function() { fail('Could not load the document.'); });
 })();

@@ -496,8 +496,41 @@
   // visible guarantees correct initial dimensions.
   function loadIfNeeded(f) {
     if (f && !f.src && f.dataset && f.dataset.src) {
+      // First open: the frame's document isn't ready this tick, so the
+      // activation messaging (focus, resize, vibetop:active, focus-terminal)
+      // would land in about:blank and be lost — the "first open doesn't focus /
+      // doesn't get its active broadcast" race. Defer that to the load event.
+      var id = f.dataset.id;
+      f.addEventListener('load', function onload() {
+        f.removeEventListener('load', onload);
+        notifyActiveFrame(f, id);
+      });
       f.src = f.dataset.src;
     }
+  }
+
+  // Tell a frame it's now the active app: focus it, broadcast active-state, nudge
+  // a resize so it re-measures the viewport, and (Terminal, desktop only)
+  // auto-focus the prompt. Guarded so a frame that finished loading AFTER the
+  // user already switched away doesn't steal focus.
+  function notifyActiveFrame(f, id) {
+    if (!f || f.dataset.id !== active) return;
+    try { f.focus(); } catch (e) {}
+    if (f.contentWindow) {
+      try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
+      // iOS Safari quirk: an iframe laid out while display:none can keep stale
+      // internal dimensions when shown. Forward a resize so it re-measures.
+      try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {}
+    }
+    // Skip auto-focusing xterm.js on touch devices — focusing its hidden
+    // textarea pops up the on-screen keyboard unexpectedly when auto-switching
+    // into Terminal. The user taps the terminal to summon the keyboard.
+    var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (id === 'terminal' && f.contentWindow && !isTouch) {
+      try { f.contentWindow.postMessage({ type: 'focus-terminal' }, '*'); } catch (e) {}
+    }
+    // Home renders relayed status; refresh it the moment it becomes active.
+    if (id === 'home') setTimeout(relayStatus, 300);
   }
 
   function renderTaskbar() {
@@ -527,8 +560,10 @@
     document.querySelectorAll('#frames iframe').forEach(function(f) {
       f.classList.toggle('active', f.dataset.id === id);
       // Let apps pause background work when they're not on top (e.g. Monitor
-      // stops polling). Unknown message types are ignored by every app.
-      if (f.contentWindow) {
+      // stops polling). Only message frames that have actually loaded — a frame
+      // being opened for the first time gets its broadcast on load (see
+      // notifyActiveFrame); messaging its about:blank now would be lost.
+      if (f.src && f.contentWindow && f.dataset.id !== id) {
         try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
       }
     });
@@ -539,26 +574,9 @@
     document.title = id ? (APPS[id].label + ' — Vibetop') : 'Vibetop';
     var f = id && frameOf(id);
     if (f) {
-      loadIfNeeded(f);
-      f.focus();
-      // iOS Safari quirk: an iframe laid out while display:none can keep
-      // stale internal dimensions when shown. Forward a resize event into
-      // the newly-active iframe so its content re-measures the viewport.
-      if (f.contentWindow) {
-        try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {}
-      }
-      // Skip auto-focusing xterm.js on touch devices — focusing its hidden
-      // textarea pops up the on-screen keyboard unexpectedly when the user
-      // auto-switches into Terminal (e.g. after closing Browser). They can
-      // tap the terminal area to summon the keyboard on demand.
-      var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-      if (id === 'terminal' && f.contentWindow && !isTouch) {
-        try { f.contentWindow.postMessage({ type: 'focus-terminal' }, '*'); } catch (e) {}
-      }
+      if (!f.src) loadIfNeeded(f);     // notifyActiveFrame fires on load
+      else notifyActiveFrame(f, id);   // already loaded → notify now
     }
-    // Home is the only app that renders relayed status; refresh it the moment
-    // Home becomes active (the interval relays only while Home is on top).
-    if (id === 'home') setTimeout(relayStatus, 300);
   }
 
   function launch(id) {

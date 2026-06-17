@@ -123,7 +123,13 @@ if (( INSTALL_NGINX )); then
         echo "   $NGINX_EXTRAS does not exist — run terminal/install.sh first" >&2
         exit 1
     fi
+    # Cache-buster for the injected filebrowser-patches.js, derived from its
+    # CONTENT (the file lives in landing/), so editing it always changes the ?v=
+    # and busts nginx + the service worker — no manual bump to forget.
+    FB_PATCH_FILE="$APP_DIR/../landing/filebrowser-patches.js"
+    PATCH_VER=$([ -f "$FB_PATCH_FILE" ] && md5sum "$FB_PATCH_FILE" | cut -c1-10 || echo 0)
     sed -e "s|@APP_HOME@|$APP_HOME|g" \
+        -e "s|@PATCH_VER@|$PATCH_VER|g" \
         "$APP_DIR/nginx/filebrowser.conf" \
         | nginx_write "$NGINX_EXTRAS/filebrowser.conf" || NGINX_DIRTY=1
     if (( NGINX_DIRTY )); then

@@ -16,7 +16,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v38';
+const VERSION = 'v39';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
@@ -25,12 +25,16 @@ const PRECACHE = [
   '/notes.html',
   '/monitor.html',
   '/upload.html',
-  '/filebrowser-patches.js',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/apple-touch-icon.png'
 ];
+
+// The ONLY page navigations we cache. An HTML page not in this set (e.g.
+// office-editor.html, update.html, loggedout.html) is served network-only, so it
+// can never go stale after a deploy that didn't bump VERSION.
+const SHELL_PAGES = new Set(PRECACHE.filter((p) => p === '/' || p.endsWith('.html')));
 
 // Paths that must always hit the network (live data, websockets, auth).
 const BYPASS = /^\/(api|browser|office|onlyoffice|t\d|terminals|files|fileview|services\.json|cdn-cgi)/;
@@ -65,6 +69,8 @@ self.addEventListener('fetch', (e) => {
   if (BYPASS.test(url.pathname)) return;           // live/auth paths: network only
 
   if (req.mode === 'navigate') {
+    // Only known shell pages are cached; any other HTML stays network-only.
+    const cacheable = SHELL_PAGES.has(url.pathname);
     // Page loads (the shell + static app HTML): network-first with a short
     // timeout. This keeps Cloudflare Access working — an expired session
     // returns a redirect we pass straight through and never cache, so the
@@ -78,7 +84,7 @@ self.addEventListener('fetch', (e) => {
       // (Previously the fetch was abandoned on timeout, so a consistently-slow
       // connection would serve the same stale shell forever and never refresh.)
       const networkPromise = fetch(req).then((res) => {
-        if (res && res.ok && res.type === 'basic' && !res.redirected) cache.put(req, res.clone());
+        if (cacheable && res && res.ok && res.type === 'basic' && !res.redirected) cache.put(req, res.clone());
         return res;
       });
       try {

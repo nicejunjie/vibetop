@@ -67,10 +67,22 @@
   var status = document.getElementById('status');
   var linksEl = document.getElementById('links');
   var saveTimer = null, scanTimer = null;
+  var loaded = false;   // gate autosave: never overwrite the stored note before a successful load
 
-  fetch('/api/notes').then(function(r) { return r.json(); }).then(function(d) {
+  fetch('/api/notes').then(function(r) {
+    if (!r.ok) throw new Error('http ' + r.status);
+    return r.json();
+  }).then(function(d) {
     editor.value = d.content || '';
+    loaded = true;
     scanLinks();
+  }).catch(function() {
+    // Cold/slow backend, or a non-JSON Access redirect over the tunnel. Do NOT
+    // mark loaded — otherwise the empty editor's first keystroke would autosave
+    // and clobber the real note. Tell the user to reload before editing.
+    status.textContent = 'load failed — reload';
+    status.className = 'status';
+    editor.placeholder = 'Could not load your notes. Reload before editing (your saved note is intact).';
   });
 
   // --- URL chips: detect every http(s) URL in the note and offer it as a
@@ -134,6 +146,7 @@
   }
 
   function save() {
+    if (!loaded) return;   // the initial load failed — don't overwrite the stored note
     status.textContent = 'saving...';
     status.className = 'status';
     fetch('/api/notes', {
