@@ -181,8 +181,10 @@
     margin-left: 8px; vertical-align: middle; white-space: nowrap; letter-spacing: .02em; }
   .sm-status:empty { display: none; }
   .sm-status.resume { background: rgba(52,168,83,0.18); color: #4ad07a; }   /* existing session */
-  .sm-status.here   { background: rgba(58,122,219,0.18); color: #6ba8ff; }  /* already open in this window */
+  .sm-status.here   { background: rgba(58,122,219,0.18); color: #6ba8ff; }  /* open on another device */
   .sm-status.fresh  { background: rgba(255,255,255,0.07); color: #8a9aaa; } /* brand-new */
+  /* Open as a window in THIS instance → the familiar green dot (no text). */
+  .sm-item.open-here .sm-name::after { content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; }
 
   /* === Frames === */
   .frames { flex: 1 1 auto; position: relative; min-height: 0; }
@@ -560,8 +562,8 @@
   // know BEFORE clicking whether you'll resume an existing session or start
   // fresh. Returns [label, cssClass].
   function appStatus(id) {
-    // Already a window in THIS instance → clicking just focuses it.
-    if (openApps.indexOf(id) !== -1) return ['open here', 'here'];
+    // Already a window in THIS instance → just the green dot, no text badge.
+    if (openApps.indexOf(id) !== -1) return ['', ''];
     // Terminal & Browser have persistent backends that outlive any window:
     if (id === 'terminal')
       return terminalCount > 0
@@ -579,6 +581,7 @@
     menuEl.querySelectorAll('.sm-item').forEach(function(it) {
       var id = it.dataset.id;
       it.classList.toggle('running', isRunning(id));
+      it.classList.toggle('open-here', openApps.indexOf(id) !== -1);  // green dot
       var name = it.querySelector('.sm-name');
       if (!name) return;
       var badge = name.querySelector('.sm-status');
