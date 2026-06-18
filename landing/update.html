@@ -59,6 +59,19 @@
   .status { font-size: 13px; margin-bottom: 12px; min-height: 18px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .status.ok { color: #4a8; } .status.err { color: #d56; } .status.run { color: #6cf; }
+  /* Shown only when an update is held back by genuine local edits on the host. */
+  .blocked { display: none; margin-bottom: 14px; background: #2a1f12;
+    border: 1px solid #6b4a23; border-radius: 10px; padding: 12px 14px; }
+  .blocked.show { display: block; }
+  .blocked-head { font-size: 13px; font-weight: 600; color: #f0b86e; margin-bottom: 8px; }
+  .blocked-list { margin: 0 0 9px; padding: 8px 10px; background: #12161d;
+    border: 1px solid #20262f; border-radius: 6px; white-space: pre-wrap; word-break: break-word;
+    font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cdb89a;
+    max-height: 160px; overflow-y: auto; }
+  .blocked-list:empty { display: none; }
+  .blocked-hint { font-size: 12px; color: #b79a78; margin-bottom: 10px; line-height: 1.5; }
+  button.btn-danger { background: #8a3a2a; border-color: #8a3a2a; }
+  button.btn-danger:hover { background: #a5472f; }
   .log { display: flex; flex-direction: column; gap: 8px; }
   .step {
     background: #0e1117; border: 1px solid #20262f; border-radius: 8px; overflow: hidden;
@@ -118,6 +131,7 @@
       new version. (If it doesn't, pull down to refresh or reopen the app.)</div>
     <div class="check" id="check-result"></div>
     <div class="status" id="status"></div>
+    <div class="blocked" id="blocked"></div>
     <div class="log" id="log"></div>
     <div class="history" id="history-wrap" style="display:none">
       <div class="hist-head">
@@ -283,19 +297,50 @@
     });
   });
 
-  btn.addEventListener('click', function() {
-    if (!confirm('Pull the latest from GitHub and redeploy?')) return;
+  var blockedEl = document.getElementById('blocked');
+
+  // The host has local edits not in origin/main, so the update was held back.
+  // Show what's in the way and offer to discard (stash) it and update.
+  function renderBlocked(d) {
+    blockedEl.className = 'blocked show';
+    blockedEl.innerHTML = '';
+    var head = document.createElement('div'); head.className = 'blocked-head';
+    head.textContent = '⚠️ This host has local changes not in the GitHub version, so the update was held back.';
+    var pre = document.createElement('pre'); pre.className = 'blocked-list';
+    pre.textContent = d.dirty || '';
+    var hint = document.createElement('div'); hint.className = 'blocked-hint';
+    hint.textContent = 'Discarding stashes these changes (recoverable on the host with “git stash list / pop”), then updates.';
+    var fb = document.createElement('button'); fb.className = 'btn-danger';
+    fb.textContent = 'Discard local changes & update';
+    fb.addEventListener('click', function() {
+      if (!confirm('Set this host back to the GitHub version?\n\nYour local changes will be stashed (recoverable with “git stash” on the host), not deleted.')) return;
+      runUpdate(true);
+    });
+    blockedEl.appendChild(head); blockedEl.appendChild(pre);
+    blockedEl.appendChild(hint); blockedEl.appendChild(fb);
+  }
+
+  function runUpdate(force) {
     btn.classList.remove('has-update');
     checkEl.className = 'check'; checkEl.innerHTML = '';
-    checkBtn.disabled = true;
-    btn.disabled = true;
-    setStatus('Updating… (pulling + redeploying, ~10–30s)', 'run');
+    blockedEl.className = 'blocked'; blockedEl.innerHTML = '';
+    checkBtn.disabled = true; btn.disabled = true;
+    setStatus(force ? 'Stashing local changes + updating…' : 'Updating… (pulling + redeploying, ~10–30s)', 'run');
     logEl.innerHTML = '';
-    fetch('/api/update', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+    fetch('/api/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force: !!force })
+    }).then(function(r) { return r.json(); }).then(function(d) {
       renderLog(d.log);
+      btn.disabled = false; checkBtn.disabled = false;
+      if (d.blocked === 'dirty') {           // held back by genuine local edits
+        setStatus('Update held back — this host has local changes.', 'err');
+        renderBlocked(d);
+        return;
+      }
       var base = d.message || (d.ok ? 'Done.' : 'Update failed.');
       setStatus(d.ok ? base + '  ↻ Reload the desktop to load the new version.' : base, d.ok ? 'ok' : 'err');
-      btn.disabled = false; checkBtn.disabled = false;
       if (d.ok) {
         loadVersion();
         var applied = d.changed && d.changed.length;
@@ -315,6 +360,11 @@
       setStatus('Request failed — the API may be restarting. Try reopening this app.', 'err');
       btn.disabled = false; checkBtn.disabled = false;
     });
+  }
+
+  btn.addEventListener('click', function() {
+    if (!confirm('Pull the latest from GitHub and redeploy?')) return;
+    runUpdate(false);
   });
 
   loadVersion();

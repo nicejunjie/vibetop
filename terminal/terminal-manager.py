@@ -1167,6 +1167,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             log.append({"name": name, "ok": bool(ok), "output": (out or "").strip()})
             return ok
 
+        # force=true (from the Update app's "Discard local changes & update"
+        # button) authorizes stashing local edits that would otherwise block the
+        # fast-forward. Body is optional; absent/garbage => force stays False.
+        force = False
+        try:
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            if 0 < length <= 4096:
+                force = bool(json.loads(self.rfile.read(length)).get("force"))
+        except Exception:
+            force = False
+
         _, before = self._git_as_user(["rev-parse", "HEAD"])
 
         ok, out = self._git_as_user(["fetch", "origin", "--prune"], timeout=120)
@@ -1196,14 +1207,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if matches_upstream:
                 ok, out = self._git_as_user(["reset", "--hard", "origin/main"])
                 add("reset working tree to origin/main (local copy already upstream)", ok, out)
+            elif force:
+                # The user chose "Discard local changes & update". Stash the edits
+                # (recoverable via `git stash list`/`pop` on the host) rather than
+                # a destructive reset --hard, then fast-forward normally.
+                sok, sout = self._git_as_user(
+                    ["stash", "push", "--include-untracked",
+                     "-m", "vibetop: auto-stash before update"])
+                add("stash local changes (recoverable: 'git stash list' on host)", sok, sout)
+                if not sok:
+                    _append_update_history({"time": int(time.time()), "event": "failed",
+                                            "message": "stash failed: " + (sout or "")[:160]})
+                    self._json(200, {"ok": False, "log": log,
+                                     "message": "Could not stash local changes — resolve on the host."})
+                    return
+                ok, out = self._git_as_user(["merge", "--ff-only", "origin/main"], timeout=120)
+                add("git pull", ok, out)
             else:
                 add("git pull", False,
                     "working tree has local changes not in origin/main:\n" + dirty.strip())
                 _append_update_history({"time": int(time.time()), "event": "failed",
                                         "message": "dirty working tree (local edits)"})
-                self._json(200, {"ok": False, "log": log,
-                                 "message": "Host has uncommitted local changes not in origin/main "
-                                            "— resolve on the host (git status), then retry."})
+                # blocked=dirty + the file list lets the Update app show what's in
+                # the way and offer the "Discard local changes & update" button.
+                self._json(200, {"ok": False, "log": log, "blocked": "dirty",
+                                 "dirty": dirty.strip(),
+                                 "message": "This host has local edits not in origin/main. "
+                                            "Discard them (they'll be stashed, recoverable) and "
+                                            "update, or resolve on the host."})
                 return
         else:
             ok, out = self._git_as_user(["merge", "--ff-only", "origin/main"], timeout=120)
