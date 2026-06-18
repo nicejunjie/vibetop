@@ -176,15 +176,8 @@
   }
   .sm-item .sm-name { font-size: 14px; color: #e6edf3; display: flex; align-items: center; }
   .sm-item .sm-desc { font-size: 11px; color: #6a7a8a; margin-top: 0; line-height: 1.25; }
-  /* Session badge: tells you what clicking will do — resume vs fresh. */
-  .sm-status { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
-    margin-left: 8px; vertical-align: middle; white-space: nowrap; letter-spacing: .02em; }
-  .sm-status:empty { display: none; }
-  .sm-status.resume { background: rgba(52,168,83,0.18); color: #4ad07a; }   /* existing session */
-  .sm-status.here   { background: rgba(58,122,219,0.18); color: #6ba8ff; }  /* open on another device */
-  .sm-status.fresh  { background: rgba(255,255,255,0.07); color: #8a9aaa; } /* brand-new */
-  /* Open as a window in THIS instance → the familiar green dot (no text). */
-  .sm-item.open-here .sm-name::after { content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; }
+  /* Green dot = an active/existing session you'd resume or join. */
+  .sm-item.running .sm-name::after { content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; }
 
   /* === Frames === */
   .frames { flex: 1 1 auto; position: relative; min-height: 0; }
@@ -436,8 +429,15 @@
   var lastResetEpoch = null;     // bumped by /api/reset; a change means clear-all
   var applyingRemote = false;    // suppress persist() during a teardown
 
+  // An app gets the green dot when it has an active/existing session you'd
+  // resume or join: open here, open on another live instance, a running Terminal
+  // backend, or the (always-persistent) Browser. No dot → opening is fresh.
   function isRunning(id) {
-    return openApps.indexOf(id) !== -1 || runningGlobal.indexOf(id) !== -1;
+    if (openApps.indexOf(id) !== -1) return true;
+    if (runningGlobal.indexOf(id) !== -1) return true;
+    if (id === 'terminal') return terminalCount > 0;
+    if (id === 'browser') return true;   // persistent Chromium — always resumable
+    return false;
   }
 
   // Handle a desktop API reply (from a push or the initial load): refresh the
@@ -556,44 +556,17 @@
     markMenuRunning();
   }
 
-  var terminalCount = 0;   // live terminal backends — resume vs a fresh shell
-
-  // What clicking an app will actually do, surfaced in the Start menu so you
-  // know BEFORE clicking whether you'll resume an existing session or start
-  // fresh. Returns [label, cssClass].
-  function appStatus(id) {
-    // Already a window in THIS instance → just the green dot, no text badge.
-    if (openApps.indexOf(id) !== -1) return ['', ''];
-    // Terminal & Browser have persistent backends that outlive any window:
-    if (id === 'terminal')
-      return terminalCount > 0
-        ? ['resume ' + terminalCount + (terminalCount > 1 ? ' sessions' : ' session'), 'resume']
-        : ['new shell', 'fresh'];
-    if (id === 'browser')
-      return ['resume session', 'resume'];   // the one persistent Chromium — always the same session
-    // Stateless pages: a window open on another device just shares the same
-    // server-side data; opening here shows that same thing.
-    if (runningGlobal.indexOf(id) !== -1) return ['open elsewhere', 'here'];
-    return ['', ''];                          // nothing running — opening is fresh/blank
-  }
+  var terminalCount = 0;   // live terminal backends — lights Terminal's dot even with no window open
 
   function markMenuRunning() {
+    // Green dot = active/existing session (see isRunning). No text badges.
     menuEl.querySelectorAll('.sm-item').forEach(function(it) {
-      var id = it.dataset.id;
-      it.classList.toggle('running', isRunning(id));
-      it.classList.toggle('open-here', openApps.indexOf(id) !== -1);  // green dot
-      var name = it.querySelector('.sm-name');
-      if (!name) return;
-      var badge = name.querySelector('.sm-status');
-      if (!badge) { badge = document.createElement('span'); badge.className = 'sm-status'; name.appendChild(badge); }
-      var s = appStatus(id);
-      badge.textContent = s[0];
-      badge.className = 'sm-status' + (s[1] ? ' ' + s[1] : '');
+      it.classList.toggle('running', isRunning(it.dataset.id));
     });
   }
 
-  // Refresh the live terminal-backend count (drives Terminal's resume/fresh
-  // badge — backends persist even when no Terminal window is open anywhere).
+  // Refresh the live terminal-backend count so Terminal's dot reflects a running
+  // session even when no Terminal window is open on any device.
   function refreshTerminals() {
     fetch('/api/terminals/status').then(function(r) { return r.json(); }).then(function(d) {
       terminalCount = (d && Array.isArray(d.running)) ? d.running.length : 0;
