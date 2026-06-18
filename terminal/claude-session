@@ -7,7 +7,7 @@ Two modes:
   claude-session attach N  — client: bridges ttyd's PTY to the daemon's socket
 """
 
-import argparse, errno, fcntl, os, selectors, signal, socket, struct, sys, termios, time
+import argparse, errno, fcntl, os, select, selectors, signal, socket, struct, sys, termios, time
 
 
 class RingBuffer:
@@ -116,18 +116,24 @@ def cmd_serve(instance):
         set_pty_size(master, rows, cols)
         pid = os.fork()
         if pid == 0:
-            os.close(master)
-            os.setsid()
-            fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
-            os.dup2(slave, 0)
-            os.dup2(slave, 1)
-            os.dup2(slave, 2)
-            if slave > 2:
-                os.close(slave)
-            os.environ['TERM'] = os.environ.get('TERM', 'xterm-256color')
-            os.environ['LANG'] = os.environ.get('LANG', 'en_US.UTF-8')
-            os.environ['TERM_ID'] = str(instance)
-            os.execv('/bin/bash', ['bash', '-l'])
+            # Child: must never return into the parent's serve loop. If anything
+            # here (incl. execv on a missing /bin/bash) raises, _exit hard
+            # instead of falling through and becoming a second daemon.
+            try:
+                os.close(master)
+                os.setsid()
+                fcntl.ioctl(slave, termios.TIOCSCTTY, 0)
+                os.dup2(slave, 0)
+                os.dup2(slave, 1)
+                os.dup2(slave, 2)
+                if slave > 2:
+                    os.close(slave)
+                os.environ['TERM'] = os.environ.get('TERM', 'xterm-256color')
+                os.environ['LANG'] = os.environ.get('LANG', 'en_US.UTF-8')
+                os.environ['TERM_ID'] = str(instance)
+                os.execv('/bin/bash', ['bash', '-l'])
+            except BaseException:
+                os._exit(127)
         os.close(slave)
         set_nonblock(master)
         pty_fd = master
@@ -337,10 +343,19 @@ def cmd_serve(instance):
                         remove_client(fd)
                         continue
                     if pty_fd >= 0:
-                        try:
-                            os.write(pty_fd, data)
-                        except Exception:
-                            pass
+                        # Write ALL the bytes: the master is non-blocking, so a
+                        # large paste can short-write or raise EAGAIN — the old
+                        # single os.write silently dropped the remainder. Loop on
+                        # the unwritten tail, waiting (bounded) for writability.
+                        mv = memoryview(data)
+                        while mv:
+                            try:
+                                mv = mv[os.write(pty_fd, mv):]
+                            except BlockingIOError:
+                                if not select.select([], [pty_fd], [], 1.0)[1]:
+                                    break   # not writable within 1s — give up, don't hang
+                            except OSError:
+                                break
 
 
 # ---------------------------------------------------------------------------
