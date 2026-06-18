@@ -15,4 +15,5 @@ exec /usr/bin/ttyd \
   -t reconnect=3 \
   -t "titleFixed=Terminal ${N}" \
   -t scrollback=50000 \
+  -t disableLeaveAlert=true \
   "${SCRIPT_DIR}/claude-session" attach "${N}"
