@@ -52,12 +52,41 @@
     ov.setAttribute('autocorrect', 'off');
     ov.setAttribute('spellcheck', 'false');
     ov.setAttribute('aria-hidden', 'true');
-    // Transparent BOTTOM strip; the caret is pushed to the prompt line (big
-    // padding-top) so iOS scrolls the shell up to clear the keyboard.
-    ov.style.cssText = 'position:absolute;left:0;right:0;bottom:0;height:8em;box-sizing:border-box;' +
+    // Transparent FULL-HEIGHT overlay. Its caret is parked on the actual xterm
+    // cursor row via a dynamic padding-top (positionCaret), so iOS scrolls the
+    // shell to reveal wherever the prompt really is — the bottom on a full
+    // terminal, the top on a fresh one — instead of always the bottom. That's
+    // what keeps the line you're typing visible (and stops the "jump back to
+    // default" that hid a new terminal's top-of-window prompt).
+    ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:100%;box-sizing:border-box;' +
       'z-index:2147482000;background:transparent;color:transparent;caret-color:transparent;' +
-      'border:0;outline:0;resize:none;margin:0;padding:6.6em 6px 0;font-size:16px;overflow:hidden;-webkit-user-select:text';
+      'border:0;outline:0;resize:none;margin:0;padding:0 6px;font-size:16px;overflow:hidden;-webkit-user-select:text';
     document.body.appendChild(ov);
+
+    // Park the textarea caret on the xterm cursor row (pixel Y from the top of
+    // the terminal) so iOS reveals the real prompt line, not a fixed bottom.
+    function positionCaret() {
+      var t = window.term;
+      try {
+        var rows = t.rows || 24;
+        var h = t.element ? t.element.getBoundingClientRect().height : window.innerHeight;
+        var rh = h / rows;
+        var cy = (t.buffer && t.buffer.active) ? t.buffer.active.cursorY : rows - 1;
+        var y = Math.max(0, Math.min(h - rh, cy * rh));
+        ov.style.paddingTop = Math.round(y) + 'px';
+      } catch (_) {}
+    }
+    // Re-anchor the caret to the cursor row ONLY when the cursor actually moves
+    // (i.e. when you type) — NOT on every render. Render fires on scroll too, and
+    // re-anchoring there made iOS yank the view back to the prompt the instant you
+    // dragged, so you couldn't scroll while the keyboard was up. Typing moves the
+    // cursor → re-anchor → your line stays visible; scrolling doesn't → the view
+    // stays where you put it.
+    try { if (window.term.onCursorMove) window.term.onCursorMove(positionCaret); } catch (_) {}
+    ov.addEventListener('focus', positionCaret);
+    window.addEventListener('resize', positionCaret);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', positionCaret);
+    positionCaret();
 
     var lastSent = '', composing = false, timer = null;
     function flush() {
