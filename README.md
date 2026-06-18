@@ -36,8 +36,26 @@ fully self-installing, Docker and all (AMD or NVIDIA).
 
 ## Deploy
 
-One command does the whole stack (installs deps, runs every sub-installer in
-order, health-checks), locally or to a remote host over SSH:
+**One line on a fresh Debian/Ubuntu host** — installs git, clones the repo to
+`~/vibetop`, then runs the full deploy:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nicejunjie/vibetop/main/bootstrap.sh | bash
+```
+
+Run it as a normal user with sudo (not root — the desktop runs as *your* user).
+Forward `deploy.sh` flags after `-s --`:
+
+```bash
+# skip the heavy bits:
+curl -fsSL https://raw.githubusercontent.com/nicejunjie/vibetop/main/bootstrap.sh | bash -s -- --no-office --no-browser
+# preview without changing anything:
+curl -fsSL https://raw.githubusercontent.com/nicejunjie/vibetop/main/bootstrap.sh | bash -s -- --dry-run
+```
+
+Already have the repo checked out? `deploy.sh` does the whole stack (installs
+deps, runs every sub-installer in order, health-checks), locally or to a remote
+host over SSH:
 
 ```bash
 ./deploy.sh                                # deploy on this machine

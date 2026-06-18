@@ -17,6 +17,19 @@ Six sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.
 
 ## Deploy commands
 
+**Fresh host, one line** — `bootstrap.sh` is the curl-pipe installer: it checks
+the OS is Debian/Ubuntu, installs `git`, clones (or `git`-updates) the repo to
+`~/vibetop` (full clone so the in-app Updater works), then `exec`s `deploy.sh`.
+It is the only step `deploy.sh` can't do itself — getting the repo onto the box.
+Runs as a normal sudo user (it refuses root: the desktop runs as `APP_USER` and
+`landing/install.sh` would deploy to `/root`). Flags after `-s --` pass through
+to `deploy.sh`; env overrides `VIBETOP_DIR`/`VIBETOP_REPO`/`VIBETOP_REF`.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nicejunjie/vibetop/main/bootstrap.sh | bash
+curl -fsSL .../bootstrap.sh | bash -s -- --no-office   # forward deploy.sh flags
+```
+
 **One command, whole stack** — `deploy.sh` orchestrates everything (deps + all
 sub-installers in the right order + a health check), locally or to a remote host:
 
@@ -51,6 +64,25 @@ apt repo, suite derived from the OS codename) + `chromium` (snap) + `libreoffice
 `:8087`, generated JWT secret at `~/.config/vibetop/onlyoffice.secret`). Scoped to
 Debian/Ubuntu. Validated on AMD+NVIDIA and AMD+AMD hosts (GPU stats use
 sysfs/amdgpu with an `nvidia-smi` fallback).
+
+## Tests
+
+Unit tests for the manager's security-critical and pure logic live in
+`terminal/tests/` (pytest). They run without root or any of the systemd/nginx/
+Docker stack — `conftest.py` loads the hyphenated `terminal-manager.py` via
+`importlib` and puts `terminal/` on `sys.path` so its `import system_status`
+resolves:
+
+```bash
+cd terminal && python -m pytest tests/ -q
+```
+
+Coverage targets the things where a silent regression is dangerous: the
+shell-injection guard (`_valid_browser_url`), path-traversal guard
+(`_resolve_under_home`/`OFFICE_RE`), hand-rolled JWT/HMAC (`_jwt_*`,
+`_onlyoffice_sig`), the streaming multipart parser, upload-name sanitization,
+atomic writes, the desktop-union liveness math, and the `system_status`
+collector. Prefer adding a test here when touching any of those.
 
 ## Health check
 
@@ -243,6 +275,12 @@ All `install.sh` scripts share the same patterns:
 - Systemd unit files under `*/systemd/` are templates with `@PLACEHOLDER@` tokens (e.g. `@APP_USER@`, `@DISPLAY_NUM@`). install.sh renders them via `sed` and writes to `/etc/systemd/system/`.
 - nginx configs under `*/nginx/` follow the same pattern.
 
+## Versioning & commits
+
+- The root **`VERSION`** file (e.g. `1.5.6`) is a hand-maintained release number — it is **not** read by any build/deploy script (the `VERSION` strings in `browser/install.sh`/`files/install.sh` are the OS `VERSION_CODENAME` and `FB_VERSION`, unrelated). Bump it when cutting a user-visible release and commit with a `vX.Y.Z: <summary>` subject (see `git log -- VERSION`).
+- **Shell/static-page changes** that affect the cached PWA shell must bump the service-worker cache version: `VERSION` in `landing/sw.js`. The convention is a `(sw vNN->vNN)` suffix on the commit subject (e.g. `… (sw v47->v48)`). Sub-resource JS injected via `sub_filter` (`xpra-patches.js`, `filebrowser-patches.js`, `terminal-kbd.js`) is content-hash cache-busted automatically — never bump those by hand.
+- Per-sub-project `CLAUDE.md` files (`terminal/`, `browser/`, `landing/`) are thin pointers back to this root file and `docs/` — the canonical architecture lives here; keep edits here, not duplicated there.
+
 ## Gotchas
 
 - Snap chromium can't use `--user-data-dir` outside its confinement — the xpra profile lives at `~/snap/chromium/common/xpra-profile`. The `/api/browser/open` handler must pass this profile and `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus` when running `chromium` via `su`, otherwise the URL silently goes nowhere ("Opening in existing browser session" fails without D-Bus, and without `--user-data-dir` it targets the wrong Chromium instance)
@@ -265,6 +303,7 @@ All `install.sh` scripts share the same patterns:
 - **Desktop iframe activation messaging is deferred to the frame's `load`** (`loadIfNeeded`→`notifyActiveFrame` in `desktop.html`). On first open the frame's `src` was just set, so `focus()`/`postMessage`/`resize`/`focus-terminal` fired synchronously would land in `about:blank` and be lost — the "first open doesn't focus / misses its `vibetop:active` broadcast" race. The deferred notify is guarded so a frame that finishes loading after the user switched away doesn't steal focus.
 - xpra patches (`browser/xpra-patches.js`) are served as a standalone JS file from the web root, wrapped in `try/catch` for graceful degradation if xpra updates change the API
 - System status API auto-detects the discrete GPU by picking the card with the most VRAM. CPU temp from `k10temp` (hwmon), GPU temp from `amdgpu` edge sensor (hwmon). During heavy GPU compute, the driver locks sysfs files (`EBUSY`); util/temp/power then fall back to parsing `/sys/kernel/debug/dri/N/amdgpu_pm_info` ("GPU Load", "GPU Temperature", "W (average SoC|GPU)") so the numbers stay populated. The manager runs as root, which is required for debugfs (0700)
+- **The status collection itself lives in `terminal/system_status.py`**, a sibling module the manager imports (`system_status.get_system_status(running_terminals, cached)`), not in the 1900→1425-line `terminal-manager.py`. The CPU/RAPL/disk/process snapshot globals moved with it; the manager injects its running-terminal list and the shared `_cached` memoizer (which stays in the main module because terminal start/stop invalidates its `running_terminals` entry). The manager runs **in-place from the git checkout** (`ExecStart=…/terminal-manager.py`), so the sibling import needs no install change — but the self-update restart trigger in `_handle_update` treats **any `.py` directly under `terminal/`** (not just `terminal-manager.py`) as a manager module, so a pulled change to `system_status.py` still restarts the API
 - Terminal manager API validates URLs for `/api/browser/open` by rejecting shell metacharacters to prevent command injection
 - Terminal instances are dynamic (on-demand via `/api/terminals/`). Systemd template units are not pre-enabled; the manager API starts/stops them. Only `claude-web-manager.service` is enabled at boot
 - **Moving/renaming the repo directory requires re-rendering the 3 systemd units' `@APP_DIR@` AND restarting `claude-web-ttyd@N`.** `ttyd-run.sh` bakes the absolute `claude-session` path into ttyd's per-connection spawn command (`${SCRIPT_DIR}/claude-session attach N`) at ttyd start time, so a running ttyd keeps spawning the *old* path on every fresh WebSocket connect — which fails instantly and shows as a terminal that flashes "connected" in a reconnect loop (existing connections survive because their attach client was already spawned). The `claude-session serve` daemons are path-independent at runtime — they `execv('/bin/bash')` for shells and serve `/tmp/claude-session-N.sock` — so they keep working and must NOT be restarted (that would kill the live shells). So after a move: fix the units, `systemctl restart claude-web-ttyd@N` (sessions preserved), and restart `claude-web-manager` (its `REPO_DIR` is computed from its own script path)
