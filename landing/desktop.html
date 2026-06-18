@@ -174,9 +174,15 @@
     border: 1px solid rgba(80,140,220,0.45); border-radius: 999px;
     padding: 3px 11px; letter-spacing: 0.3px;
   }
-  .sm-item .sm-name { font-size: 15px; color: #e6edf3; }
+  .sm-item .sm-name { font-size: 15px; color: #e6edf3; display: flex; align-items: center; }
   .sm-item .sm-desc { font-size: 12px; color: #6a7a8a; margin-top: 1px; }
-  .sm-item.running .sm-name::after { content: " \25CF"; color: #34a853; font-size: 10px; vertical-align: middle; }
+  /* Session badge: tells you what clicking will do — resume vs fresh. */
+  .sm-status { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+    margin-left: 8px; vertical-align: middle; white-space: nowrap; letter-spacing: .02em; }
+  .sm-status:empty { display: none; }
+  .sm-status.resume { background: rgba(52,168,83,0.18); color: #4ad07a; }   /* existing session */
+  .sm-status.here   { background: rgba(58,122,219,0.18); color: #6ba8ff; }  /* already open in this window */
+  .sm-status.fresh  { background: rgba(255,255,255,0.07); color: #8a9aaa; } /* brand-new */
 
   /* === Frames === */
   .frames { flex: 1 1 auto; position: relative; min-height: 0; }
@@ -548,11 +554,48 @@
     markMenuRunning();
   }
 
+  var terminalCount = 0;   // live terminal backends — resume vs a fresh shell
+
+  // What clicking an app will actually do, surfaced in the Start menu so you
+  // know BEFORE clicking whether you'll resume an existing session or start
+  // fresh. Returns [label, cssClass].
+  function appStatus(id) {
+    // Already a window in THIS instance → clicking just focuses it.
+    if (openApps.indexOf(id) !== -1) return ['open here', 'here'];
+    // Terminal & Browser have persistent backends that outlive any window:
+    if (id === 'terminal')
+      return terminalCount > 0
+        ? ['resume ' + terminalCount + (terminalCount > 1 ? ' sessions' : ' session'), 'resume']
+        : ['new shell', 'fresh'];
+    if (id === 'browser')
+      return ['resume session', 'resume'];   // the one persistent Chromium — always the same session
+    // Stateless pages: a window open on another device just shares the same
+    // server-side data; opening here shows that same thing.
+    if (runningGlobal.indexOf(id) !== -1) return ['open elsewhere', 'here'];
+    return ['', ''];                          // nothing running — opening is fresh/blank
+  }
+
   function markMenuRunning() {
-    // A dot is lit if the app is open here OR on any other live instance.
     menuEl.querySelectorAll('.sm-item').forEach(function(it) {
-      it.classList.toggle('running', isRunning(it.dataset.id));
+      var id = it.dataset.id;
+      it.classList.toggle('running', isRunning(id));
+      var name = it.querySelector('.sm-name');
+      if (!name) return;
+      var badge = name.querySelector('.sm-status');
+      if (!badge) { badge = document.createElement('span'); badge.className = 'sm-status'; name.appendChild(badge); }
+      var s = appStatus(id);
+      badge.textContent = s[0];
+      badge.className = 'sm-status' + (s[1] ? ' ' + s[1] : '');
     });
+  }
+
+  // Refresh the live terminal-backend count (drives Terminal's resume/fresh
+  // badge — backends persist even when no Terminal window is open anywhere).
+  function refreshTerminals() {
+    fetch('/api/terminals/status').then(function(r) { return r.json(); }).then(function(d) {
+      terminalCount = (d && Array.isArray(d.running)) ? d.running.length : 0;
+      markMenuRunning();
+    }).catch(function() {});
   }
 
   function setActive(id) {
@@ -625,7 +668,7 @@
     });
   }
 
-  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); }
+  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); refreshTerminals(); }
   function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); }
   function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
 
@@ -801,6 +844,9 @@
   }
   updateStatus();
   setInterval(updateStatus, 5000);
+  // Keep the Start-menu session badges (esp. Terminal's resume/fresh count) current.
+  refreshTerminals();
+  setInterval(refreshTerminals, 5000);
 
   // Relay status to the Home Service app (the only app that renders it).
   // Needed because through the Cloudflare tunnel an iframe's own fetches don't
