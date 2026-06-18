@@ -856,6 +856,10 @@
   // Heartbeat: keeps us in the live union, refreshes other instances' dots, and
   // catches a logout/reset that happened on another device.
   setInterval(pushDesktop, 5000);
+  // Re-register the instant the tab is shown again — background tabs get their
+  // timers throttled (so the 5s heartbeat stalls), and this also refreshes the
+  // "running" dots immediately when you return to or switch to this machine.
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) pushDesktop(); });
 })();
 
 // PWA service worker — caches the shell for instant cold loads. Registered

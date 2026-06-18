@@ -105,7 +105,12 @@ DESKTOP_STATE_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-state
 # across instances seen within DESKTOP_TTL (a heartbeat keeps an instance live);
 # windows themselves are local to each instance. reset_epoch is bumped by
 # /api/reset so every instance can detect a logout/reset and clear itself.
-DESKTOP_TTL = 30          # seconds; an instance idle longer drops out of the union
+# Liveness window for the union. Must comfortably exceed browsers' background-tab
+# timer throttling — Chrome drops hidden tabs to ~1 heartbeat/minute after 5min —
+# or an idle/backgrounded machine ages out and its "running" dots wrongly go dark
+# on other machines. 120s gives ~2x margin over the 60s throttle; the tradeoff is
+# a machine that fully closed/slept still shows green for up to this long.
+DESKTOP_TTL = 120         # seconds; an instance idle longer drops out of the union
 DESKTOP_MAX_INSTANCES = 24
 _desktop_lock = threading.Lock()
 # Per-host update log (real history of THIS deployment's self-updates, seeded
