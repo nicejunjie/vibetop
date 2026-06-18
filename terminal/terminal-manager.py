@@ -1183,7 +1183,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # ALREADY matches origin/main (identical content — the rsync case), the
         # local changes are redundant, so hard-reset onto origin/main. If they're
         # genuine host-local edits (not upstream), bail rather than clobber them.
-        dok, dirty = self._git_as_user(["status", "--porcelain"])
+        # --untracked-files=no: only TRACKED local modifications are worth
+        # protecting here. Untracked files (stray experiment/backup files left in
+        # a deploy tree) never block a fast-forward — git only refuses if an
+        # incoming file would clobber one — and counting them as "dirty" made the
+        # diff-vs-origin check below always read as "genuine local edits" whenever
+        # the host was behind, so a host with any untracked cruft could never
+        # self-update.
+        dok, dirty = self._git_as_user(["status", "--porcelain", "--untracked-files=no"])
         if dok and dirty.strip():
             matches_upstream, _ = self._git_as_user(["diff", "--quiet", "origin/main"])
             if matches_upstream:
