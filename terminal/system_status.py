@@ -16,7 +16,16 @@ import re
 import shutil
 import socket
 import subprocess
+import threading
 import time
+
+# The collector keeps per-call delta snapshots (CPU/RAPL/disk/process) in module
+# globals; the manager is a ThreadingHTTPServer, so concurrent polls (taskbar +
+# Monitor + several devices) would interleave the read-modify-writes and corrupt
+# each other's delta windows — yielding wrong/negative/spiky numbers. Serialize
+# the whole collector with one lock. It's polled ~every 5s and runs fast, so
+# queueing a concurrent caller is fine.
+_collect_lock = threading.Lock()
 
 # RAPL energy snapshot for CPU power calculation
 _prev_rapl_uj = 0
@@ -44,9 +53,11 @@ def _list_ips():
     ips = {}
     try:
         out = subprocess.run(["ip", "-4", "-o", "addr", "show"],
-                             capture_output=True, text=True)
+                             capture_output=True, text=True, timeout=2)
         for line in out.stdout.splitlines():
             parts = line.split()
+            if len(parts) < 4:
+                continue
             iface = parts[1]
             if iface == "lo" or iface.startswith(("br-", "veth", "docker")):
                 continue
@@ -187,7 +198,13 @@ def get_system_status(running_terminals, cached):
 
     `running_terminals` is the list of running terminal numbers (the manager
     owns that lifecycle); `cached(key, ttl, producer)` is the manager's generic
-    memoizer (used to throttle the `ip addr` fork)."""
+    memoizer (used to throttle the `ip addr` fork). Serialized via `_collect_lock`
+    so concurrent pollers don't corrupt the shared delta snapshots."""
+    with _collect_lock:
+        return _collect(running_terminals, cached)
+
+
+def _collect(running_terminals, cached):
     # CPU: delta against the snapshot from the previous status call
     # (clients poll every few seconds, so the window is meaningful).
     # Only the very first call — or one arriving <0.5s after another —
@@ -213,14 +230,19 @@ def get_system_status(running_terminals, cached):
         snap2 = read_proc_stat()
     _prev_cpu_snap = (snap2, time.monotonic())
     def calc_pct(a, b):
-        idle_d = b[3] - a[3]
         total_d = sum(b) - sum(a)
-        return round(100.0 * (1.0 - idle_d / max(1, total_d)), 1)
+        if total_d <= 0:        # no elapsed time / counter reset → no data
+            return 0.0
+        pct = 100.0 * (1.0 - (b[3] - a[3]) / total_d)
+        return round(min(100.0, max(0.0, pct)), 1)   # clamp; deltas can go out of range
     cpu = calc_pct(snap1["cpu"], snap2["cpu"])
     cpu_cores = []
     i = 0
+    # Require the core in BOTH snapshots — a CPU offlined/hotplugged between the
+    # two /proc/stat reads (slow path) would otherwise KeyError the whole poll.
     while f"cpu{i}" in snap1:
-        cpu_cores.append(calc_pct(snap1[f"cpu{i}"], snap2[f"cpu{i}"]))
+        if f"cpu{i}" in snap2:
+            cpu_cores.append(calc_pct(snap1[f"cpu{i}"], snap2[f"cpu{i}"]))
         i += 1
 
     # Memory
@@ -228,18 +250,22 @@ def get_system_status(running_terminals, cached):
     with open("/proc/meminfo") as f:
         for line in f:
             parts = line.split()
-            if parts[0] in ("MemTotal:", "MemAvailable:"):
+            if parts and parts[0] in ("MemTotal:", "MemAvailable:"):
                 mem[parts[0]] = int(parts[1])
     total_gb = mem.get("MemTotal:", 0) / 1048576
     avail_gb = mem.get("MemAvailable:", 0) / 1048576
     used_gb = total_gb - avail_gb
 
     # Uptime
-    with open("/proc/uptime") as f:
-        secs = int(float(f.read().split()[0]))
-    days, rem = divmod(secs, 86400)
-    hours = rem // 3600
-    uptime = f"{days}d {hours}h" if days else f"{hours}h {rem % 3600 // 60}m"
+    uptime = ""
+    try:
+        with open("/proc/uptime") as f:
+            secs = int(float(f.read().split()[0]))
+        days, rem = divmod(secs, 86400)
+        hours = rem // 3600
+        uptime = f"{days}d {hours}h" if days else f"{hours}h {rem % 3600 // 60}m"
+    except (OSError, ValueError, IndexError):
+        pass
 
     # GPU (AMD via sysfs — find discrete card by largest VRAM)
     gpu_percent = None

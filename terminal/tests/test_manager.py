@@ -56,7 +56,7 @@ def test_valid_browser_url_rejects(mgr, url):
 
 def test_valid_browser_url_rejects_every_metachar(mgr):
     # Each individually-blocked character must fail even in an otherwise-valid URL.
-    for c in ('"', "'", ";", "`", "$", "(", ")", "\n"):
+    for c in ('"', "'", ";", "`", "$", "(", ")", "\n", "\\"):
         assert mgr._valid_browser_url("https://example.com/" + c) is False
 
 

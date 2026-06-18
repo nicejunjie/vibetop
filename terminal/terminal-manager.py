@@ -411,7 +411,7 @@ def _seed_update_history():
                                 "to": commit, "subject": subject}])
 
 
-_URL_BAD_CHARS = ('"', "'", ";", "`", "$", "(", ")", "\n")
+_URL_BAD_CHARS = ('"', "'", ";", "`", "$", "(", ")", "\n", "\\")
 
 
 def _valid_browser_url(url):
@@ -442,6 +442,21 @@ def _unique_path(path):
         cand = f"{base}-{i}{ext}"
         if not os.path.exists(cand):
             return cand
+    raise _MultipartError("destination exists, too many collisions")
+
+
+def _open_unique(path):
+    """Open `path` for exclusive write (O_EXCL), falling back to `path-1`,
+    `path-2`, … on collision. Closes the _unique_path check-then-open TOCTOU:
+    two concurrent uploads of the same name could both pick the same free path
+    and one clobber the other. Returns (file-object, actual-path)."""
+    base, ext = os.path.splitext(path)
+    for i in range(0, 10000):
+        cand = path if i == 0 else f"{base}-{i}{ext}"
+        try:
+            return os.fdopen(os.open(cand, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644), "wb"), cand
+        except FileExistsError:
+            continue
     raise _MultipartError("destination exists, too many collisions")
 
 
@@ -590,9 +605,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _get_system_status(self):
         # Collection lives in system_status.py; inject the running-terminal
         # list and the shared _cached memoizer (terminal start/stop
-        # invalidates its running_terminals entry).
-        return system_status.get_system_status(
-            self._get_running_terminals(), _cached)
+        # invalidates its running_terminals entry). Guarded so an unexpected
+        # /proc/sysfs hiccup degrades to a 200 with an error, not a 500.
+        try:
+            return system_status.get_system_status(
+                self._get_running_terminals(), _cached)
+        except Exception as e:
+            return {"error": "status unavailable: %s" % e}
+
+    def _read_body(self, max_len):
+        """Read the request body bounded by Content-Length. Returns the bytes,
+        or None if the header is missing/non-numeric/over `max_len` — so a bad
+        header can't crash the handler thread (a bare `int(...)` raised
+        ValueError) — and times out a stalled read (30s) instead of blocking the
+        thread forever when a client's Content-Length exceeds what it sends."""
+        try:
+            length = int(self.headers.get("Content-Length", 0) or 0)
+        except (TypeError, ValueError):
+            return None
+        if length < 0 or length > max_len:
+            return None
+        if length == 0:
+            return b""
+        try:
+            self.connection.settimeout(30)
+            return self.rfile.read(length)
+        except (OSError, socket.timeout):
+            return None
+        finally:
+            try:
+                self.connection.settimeout(None)
+            except OSError:
+                pass
 
     def do_POST(self):
         m = re.match(r"/api/terminals/(\d+)/(start|stop)$", self.path)
@@ -645,11 +689,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"ok": True, "removed": removed})
 
     def _handle_notes_save(self):
-        length = int(self.headers.get("Content-Length", 0))
-        if length > 1048576:
-            self._json(400, {"error": "too large (1MB max)"})
+        body = self._read_body(1048576)
+        if body is None:
+            self._json(400, {"error": "invalid or too-large body (1MB max)"})
             return
-        body = self.rfile.read(length) if length else b""
         try:
             data = json.loads(body) if body else {}
         except json.JSONDecodeError:
@@ -686,9 +729,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             for filename, src in _iter_multipart_files(body, boundary):
                 safe = _safe_upload_name(filename)
-                dst = _unique_path(os.path.join(UPLOAD_DIR, safe))
+                out, dst = _open_unique(os.path.join(UPLOAD_DIR, safe))
                 partial = dst
-                with open(dst, "wb") as out:
+                with out:
                     shutil.copyfileobj(src, out)
                 _chown_app(dst)
                 size = os.path.getsize(dst)
@@ -715,11 +758,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                          "dir": UPLOAD_DIR})
 
     def _handle_desktop_save(self):
-        length = int(self.headers.get("Content-Length", 0))
-        if length > 4096:
-            self._json(400, {"error": "too large"})
+        body = self._read_body(4096)
+        if body is None:
+            self._json(400, {"error": "invalid or too-large body"})
             return
-        body = self.rfile.read(length) if length else b""
         try:
             data = json.loads(body) if body else {}
         except json.JSONDecodeError:
@@ -827,11 +869,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"ok": True, **result})
 
     def _handle_browser_open(self):
-        length = int(self.headers.get("Content-Length", 0))
-        if length > 4096:
-            self._json(400, {"error": "payload too large"})
+        body = self._read_body(4096)
+        if body is None:
+            self._json(400, {"error": "invalid or too-large body"})
             return
-        body = self.rfile.read(length) if length else b""
         try:
             data = json.loads(body) if body else {}
         except json.JSONDecodeError:
@@ -848,12 +889,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(500, {"error": f"unknown user: {user}"})
             return
         profile = f"/home/{user}/snap/chromium/common/xpra-profile"
-        subprocess.Popen(
+        # The URL is already validated (http(s) + no shell metacharacters incl.
+        # backslash, see _valid_browser_url) before it reaches this `su -c`
+        # shell string. Reap the child in a daemon thread so short-lived
+        # `chromium <url>` invocations (which exit fast when handing off to the
+        # already-running instance) don't pile up as zombies.
+        proc = subprocess.Popen(
             ["su", "-", user, "-c",
              f'DISPLAY=:99 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus'
              f' /snap/bin/chromium --user-data-dir={profile} "{url}"'],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
+        threading.Thread(target=proc.wait, daemon=True).start()
         self._json(200, {"ok": True, "url": url})
 
     def _handle_office_preview(self):
