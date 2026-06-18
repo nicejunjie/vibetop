@@ -114,8 +114,8 @@
     <div class="hint"><b>Check for update</b> asks GitHub whether newer commits exist (read-only —
       nothing is installed). <b>Update now</b> pulls them and redeploys whatever changed
       (desktop, browser, terminal/nginx); the API restarts itself only if its own code changed.</div>
-    <div class="note">↻ <b>After an update completes, reload the desktop</b> — pull down to refresh,
-      or fully close and reopen the app — so the new version loads.</div>
+    <div class="note">↻ <b>After an update completes, the desktop reloads automatically</b> to load the
+      new version. (If it doesn't, pull down to refresh or reopen the app.)</div>
     <div class="check" id="check-result"></div>
     <div class="status" id="status"></div>
     <div class="log" id="log"></div>
@@ -238,6 +238,21 @@
       .then(function() { loadVersion(); }).catch(function() {});
   });
 
+  // After a successful update, reload the WHOLE desktop (the top window, not just
+  // this iframe) so the new cached shell + service worker take effect. Shows a
+  // short countdown so it isn't jarring; the user can cancel by closing the app.
+  var reloadTimer = null;
+  function reloadDesktopSoon(secs) {
+    if (reloadTimer) return;
+    function reloadTop() { try { (window.top || window).location.reload(); } catch (e) { window.location.reload(); } }
+    function tick() {
+      if (secs <= 0) { setStatus('Reloading…', 'ok'); reloadTop(); return; }
+      setStatus('Updated. ↻ Reloading the desktop in ' + secs + 's…', 'ok');
+      secs--; reloadTimer = setTimeout(tick, 1000);
+    }
+    tick();
+  }
+
   function renderLog(steps) {
     logEl.innerHTML = '';
     (steps || []).forEach(function(s) {
@@ -283,12 +298,18 @@
       btn.disabled = false; checkBtn.disabled = false;
       if (d.ok) {
         loadVersion();
-        // If the API is restarting, re-poll the version once it's back.
-        if (d.restart) {
+        var applied = d.changed && d.changed.length;
+        if (applied && d.restart) {
+          // Manager is restarting; wait for it to come back, then reload the
+          // whole desktop so the new version loads.
           setStatus(d.message + ' (reconnecting…)', 'run');
           setTimeout(loadVersion, 6000);
-          setTimeout(function() { setStatus('Updated. ↻ Reload the desktop to load the new version.', 'ok'); }, 6500);
+          setTimeout(function() { reloadDesktopSoon(3); }, 6500);
+        } else if (applied) {
+          // Files redeployed but the API stayed up — reload to pick up the shell.
+          reloadDesktopSoon(3);
         }
+        // Nothing changed ("Already up to date.") → no reload.
       }
     }).catch(function() {
       setStatus('Request failed — the API may be restarting. Try reopening this app.', 'err');
