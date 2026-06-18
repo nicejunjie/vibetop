@@ -318,6 +318,9 @@
       // Bind remove via a fresh handler that knows its entry by identity.
       (function(entry) {
         el.querySelector('.x').addEventListener('click', function() {
+          // Abort the upload if this item is the one in flight, so ✕ actually
+          // cancels (a large upload couldn't be stopped before).
+          if (entry.xhr) { try { entry.xhr.abort(); } catch (e) {} }
           var i = queue.indexOf(entry);
           if (i !== -1) queue.splice(i, 1);
           el.remove();
@@ -364,6 +367,7 @@
       var fd = new FormData();
       fd.append('file', q.file, q.file.name);
       var xhr = new XMLHttpRequest();
+      q.xhr = xhr;                                  // so ✕ can abort it in flight
       xhr.open('POST', '/api/upload');
       markBadge(q, '0%');
       xhr.upload.onprogress = function(e) {
@@ -372,6 +376,8 @@
         markBadge(q, pct + '%');
         onProgress(e.loaded);
       };
+      xhr.onloadend = function() { q.xhr = null; };  // clear after load/error/abort
+      xhr.onabort = function() { reject(new Error('aborted')); };
       xhr.onload = function() {
         if (xhr.status >= 200 && xhr.status < 300) {
           var resp = {};

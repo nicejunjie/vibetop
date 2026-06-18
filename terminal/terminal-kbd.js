@@ -95,10 +95,13 @@
       dbg(' {in=' + JSON.stringify(v) + ' last=' + JSON.stringify(lastSent) + '}> ');
       // Ignore iOS dictation's transient clear-to-"" between revisions.
       if (v === '' && lastSent !== '') return;
-      var i = 0, min = Math.min(v.length, lastSent.length);
-      while (i < min && v.charAt(i) === lastSent.charAt(i)) i++;
-      for (var d = lastSent.length - i; d > 0; d--) { sendRaw(String.fromCharCode(127)); dbg('<BS>'); }
-      for (var j = i; j < v.length; j++) { sendRaw(v.charAt(j)); dbg(v.charAt(j)); }
+      // Compare by code POINT (Array.from), not UTF-16 unit, so an emoji/astral
+      // char isn't split into two lone surrogates and one delete = one char.
+      var va = Array.from(v), la = Array.from(lastSent);
+      var i = 0, min = Math.min(va.length, la.length);
+      while (i < min && va[i] === la[i]) i++;
+      for (var d = la.length - i; d > 0; d--) { sendRaw(String.fromCharCode(127)); dbg('<BS>'); }
+      for (var j = i; j < va.length; j++) { sendRaw(va[j]); dbg(va[j]); }
       lastSent = v;
     }
     function sched(ms) { if (timer) clearTimeout(timer); timer = setTimeout(flush, ms); }

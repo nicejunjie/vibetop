@@ -373,10 +373,13 @@
       // otherwise emit backspaces + re-type the word: the pile-up). The
       // transcription grows by prefix-extension, so this keeps it pure-append.
       if (v === '' && lastVal !== '') return;
-      var i = 0, min = Math.min(v.length, lastVal.length);
-      while (i < min && v.charAt(i) === lastVal.charAt(i)) i++;
-      for (var d = lastVal.length - i; d > 0; d--) toApp({ type: 'kbd-key', key: 'Backspace' });
-      for (var j = i; j < v.length; j++) toApp({ type: 'kbd-char', ch: v.charAt(j) });
+      // Diff by code POINT (Array.from) not UTF-16 unit, so emoji/astral input
+      // isn't sent as lone surrogates and one Backspace = one char.
+      var va = Array.from(v), la = Array.from(lastVal);
+      var i = 0, min = Math.min(va.length, la.length);
+      while (i < min && va[i] === la[i]) i++;
+      for (var d = la.length - i; d > 0; d--) toApp({ type: 'kbd-key', key: 'Backspace' });
+      for (var j = i; j < va.length; j++) toApp({ type: 'kbd-char', ch: va[j] });
       lastVal = v;
     }
     function reset() { if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; } input.value = ''; lastVal = ''; }
