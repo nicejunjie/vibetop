@@ -17,6 +17,9 @@ set -euo pipefail
 
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+if ! id "$APP_USER" >/dev/null 2>&1; then
+    echo "APP_USER '$APP_USER' does not exist on this system" >&2; exit 1
+fi
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 ONLYOFFICE_PORT="${ONLYOFFICE_PORT:-8087}"
 ONLYOFFICE_IMAGE="${ONLYOFFICE_IMAGE:-onlyoffice/documentserver:latest}"
@@ -77,7 +80,18 @@ if [ ! -s "$SECRET_FILE" ]; then
         sudo -u "$APP_USER" chmod 0600 "$SECRET_FILE"
     fi
 fi
-SECRET="$( (( DRY_RUN )) && echo DRYRUN || sudo cat "$SECRET_FILE")"
+if (( DRY_RUN )); then
+    SECRET=DRYRUN
+else
+    # Read explicitly so a failed cat doesn't abort silently under `set -e`,
+    # and assert non-empty — an empty JWT_SECRET would disable OnlyOffice's
+    # JWT integrity check.
+    SECRET="$(sudo cat "$SECRET_FILE" 2>/dev/null || true)"
+    if [ -z "$SECRET" ]; then
+        echo "ERROR: OnlyOffice JWT secret missing/empty at $SECRET_FILE" >&2
+        exit 1
+    fi
+fi
 
 # 2. Image
 if (( INSTALL_DEPS )); then
@@ -106,7 +120,12 @@ if (( INSTALL_NGINX )); then
         "$APP_DIR/nginx/onlyoffice.conf" \
         | nginx_write /etc/nginx/snippets/claude-extras.d/onlyoffice.conf || NGINX_DIRTY=1
     if (( NGINX_DIRTY )); then
-        run sudo nginx -t && run sudo systemctl reload nginx
+        if run sudo nginx -t; then
+            run sudo systemctl reload nginx
+        else
+            echo "ERROR: generated nginx config failed validation — not reloading" >&2
+            exit 1
+        fi
     else
         echo "   nginx unchanged — skipping reload"
     fi

@@ -208,7 +208,7 @@ fi
 # The xpra-html5 package ships its own default-settings.txt; ours tunes the
 # client for this deployment (no floating menu, speed-biased encoding). Apt
 # upgrades overwrite it — re-running this script restores it.
-if [ -d /usr/share/xpra/www ]; then
+if [ -d /usr/share/xpra/www ] && [ -f "$APP_DIR/default-settings.txt" ]; then
     echo "== installing HTML5 client default settings =="
     cat "$APP_DIR/default-settings.txt" | write_root /usr/share/xpra/www/default-settings.txt
 fi
@@ -234,7 +234,12 @@ if (( INSTALL_NGINX )); then
         "$APP_DIR/nginx/browser.conf" \
         | nginx_write /etc/nginx/snippets/claude-extras.d/browser.conf || NGINX_DIRTY=1
     if (( NGINX_DIRTY )); then
-        run sudo nginx -t && run sudo systemctl reload nginx
+        if run sudo nginx -t; then
+            run sudo systemctl reload nginx
+        else
+            echo "ERROR: generated nginx config failed validation — not reloading" >&2
+            exit 1
+        fi
     else
         echo "   nginx unchanged — skipping reload"
     fi

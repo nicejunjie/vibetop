@@ -18,6 +18,9 @@ set -euo pipefail
 
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+if ! id "$APP_USER" >/dev/null 2>&1; then
+    echo "APP_USER '$APP_USER' does not exist on this system" >&2; exit 1
+fi
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 FB_PORT="${FB_PORT:-8085}"
 FB_BIN="${FB_BIN:-/usr/local/bin/filebrowser}"
@@ -133,7 +136,12 @@ if (( INSTALL_NGINX )); then
         "$APP_DIR/nginx/filebrowser.conf" \
         | nginx_write "$NGINX_EXTRAS/filebrowser.conf" || NGINX_DIRTY=1
     if (( NGINX_DIRTY )); then
-        run sudo nginx -t && run sudo systemctl reload nginx
+        if run sudo nginx -t; then
+            run sudo systemctl reload nginx
+        else
+            echo "ERROR: generated nginx config failed validation — not reloading" >&2
+            exit 1
+        fi
     else
         echo "   nginx unchanged — skipping reload"
     fi

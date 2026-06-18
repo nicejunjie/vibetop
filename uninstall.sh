@@ -12,6 +12,12 @@ set -uo pipefail
 
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
+# Guard the rm -rf below: a bad/missing APP_USER yields an empty APP_HOME, which
+# would make "rm -rf $APP_HOME/claude-web-www" operate at filesystem root.
+if [ -z "$APP_HOME" ] || [ ! -d "$APP_HOME" ]; then
+    echo "could not resolve a valid home dir for APP_USER '$APP_USER' — refusing to run" >&2
+    exit 1
+fi
 echo "== Vibetop uninstall (user: $APP_USER) =="
 
 # 1. systemd services -------------------------------------------------------
