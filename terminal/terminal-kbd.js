@@ -60,7 +60,8 @@
     // default" that hid a new terminal's top-of-window prompt).
     ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:100%;box-sizing:border-box;' +
       'z-index:2147482000;background:transparent;color:transparent;caret-color:transparent;' +
-      'border:0;outline:0;resize:none;margin:0;padding:0 6px;font-size:16px;overflow:hidden;-webkit-user-select:text';
+      'border:0;outline:0;resize:none;margin:0;padding:0 6px;font-size:16px;overflow:hidden;' +
+      '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none';  // stop iOS's own long-press selection/loupe
     document.body.appendChild(ov);
 
     // Park the textarea caret on the xterm cursor row (pixel Y from the top of
@@ -119,10 +120,9 @@
       else if (e.key === 'Backspace' && ov.value === '') { e.preventDefault(); sendRaw(String.fromCharCode(127)); }
     });
 
-    // The overlay covers xterm, so touches never reach it for selection. Route
-    // by gesture: quick tap → keyboard (the textarea's native focus); vertical
-    // drag → scrollback; LONG-PRESS + drag → select text via xterm's API (the
-    // sub_filter's onSelectionChange then auto-copies it to the clipboard).
+    // The overlay covers xterm and would eat every touch, so route by gesture:
+    // quick tap → keyboard; vertical drag → scrollback; long-press → select the
+    // WORD under the finger (drag to extend), then a floating Copy button.
     function cellAt(x, y) {
       var t = window.term, el = t && t.element;
       if (!el) return null;
@@ -139,25 +139,79 @@
       if (e.row < s.row || (e.row === s.row && e.col < s.col)) { s = b; e = a; }
       try { t.select(s.col, s.row, Math.max(1, (e.row - s.row) * t.cols + (e.col - s.col) + 1)); } catch (_) {}
     }
+    function wordAt(cell) {   // word boundaries around a long-pressed cell
+      try {
+        var line = window.term.buffer.active.getLine(cell.row);
+        if (!line) return { s: cell, e: cell };
+        var str = line.translateToString(true), c = cell.col, ws = /\s/;
+        if (c >= str.length || ws.test(str[c])) return { s: cell, e: cell };
+        var a = c, b = c;
+        while (a > 0 && !ws.test(str[a - 1])) a--;
+        while (b < str.length - 1 && !ws.test(str[b + 1])) b++;
+        return { s: { col: a, row: cell.row }, e: { col: b, row: cell.row } };
+      } catch (_) { return { s: cell, e: cell }; }
+    }
+
+    // Floating Copy button shown after a touch selection (auto-copy via
+    // execCommand doesn't work on touch, so give an explicit, tappable copy).
+    var copyBtn = document.createElement('button');
+    copyBtn.textContent = 'Copy';
+    copyBtn.style.cssText = 'position:fixed;z-index:2147483600;display:none;padding:7px 16px;' +
+      'font:600 14px system-ui,sans-serif;background:#2d6cc0;color:#fff;border:0;border-radius:8px;' +
+      'box-shadow:0 2px 10px rgba(0,0,0,.45);-webkit-user-select:none;user-select:none';
+    document.body.appendChild(copyBtn);
+    function hideCopy() { copyBtn.style.display = 'none'; }
+    function showCopy(x, y) {
+      copyBtn.style.left = Math.max(8, Math.min(window.innerWidth - 88, x - 36)) + 'px';
+      copyBtn.style.top = Math.max(8, y - 50) + 'px';
+      copyBtn.style.display = 'block';
+    }
+    function doCopy(s) {
+      if (!s) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(s).catch(execCopy);
+      } else { execCopy(s); }
+    }
+    function execCopy(s) {
+      try {
+        var ta = document.createElement('textarea'); ta.value = s || '';
+        ta.style.cssText = 'position:fixed;top:-9999px;opacity:0'; ta.readOnly = true;
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (_) {}
+    }
+    copyBtn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var t = window.term;
+      doCopy(t && t.hasSelection() ? t.getSelection() : '');
+      hideCopy();
+      try { t.clearSelection(); } catch (_) {}
+    });
+
     var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null;
     ov.addEventListener('touchstart', function (e) {
       var c = e.touches[0];
       startX = c.clientX; startY = prevY = c.clientY; acc = 0; moved = false; selecting = false; anchor = null;
+      hideCopy();
       if (lpTimer) clearTimeout(lpTimer);
-      lpTimer = setTimeout(function () {            // held still ~0.5s → start selecting
+      lpTimer = setTimeout(function () {            // held still ~0.45s → select the word
         if (moved) return;
         selecting = true;
-        try { ov.blur(); } catch (_) {}            // a selection shouldn't raise the keyboard
-        anchor = cellAt(startX, startY);
-        if (anchor) { try { window.term.clearSelection(); } catch (_) {} applySel(anchor, anchor); }
-      }, 500);
+        var cell = cellAt(startX, startY);
+        if (cell) {
+          var w = wordAt(cell);
+          anchor = w.s;
+          try { window.term.clearSelection(); } catch (_) {}
+          applySel(w.s, w.e);
+        }
+      }, 450);
     }, { passive: true });
     ov.addEventListener('touchmove', function (e) {
       var c = e.touches[0], y = c.clientY;
       if (!moved && (Math.abs(c.clientX - startX) > 8 || Math.abs(y - startY) > 8)) {
         moved = true; if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
       }
-      if (selecting) {                              // extend selection cell-by-cell
+      if (selecting) {                              // extend selection to the finger
         var cur = cellAt(c.clientX, y);
         if (cur && anchor) applySel(anchor, cur);
         e.preventDefault(); return;
@@ -172,7 +226,14 @@
     }, { passive: false });
     ov.addEventListener('touchend', function (e) {
       if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
-      if (selecting) { selecting = false; e.preventDefault(); }  // selection set → auto-copied
+      if (selecting) {
+        selecting = false;
+        e.preventDefault();                         // don't raise the keyboard
+        var t = window.term, ct = e.changedTouches[0];
+        if (t && t.hasSelection()) showCopy(ct.clientX, ct.clientY);
+      } else if (!moved) {                          // quick tap: drop any selection, let the keyboard come up
+        try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}
+      }
     }, { passive: false });
 
     dbg(' [overlay ready] ');
