@@ -184,12 +184,16 @@
   // on WebSocket-connect — that path is suppressed by the touch guard injected
   // into the /tN/ page itself (see terminal/install.sh sub_filter).
   var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  // Set while a tab is being renamed so focusTerminal's delayed focus doesn't
+  // steal focus from the rename input (which blurred it and cancelled the edit).
+  var renaming = false;
   function focusTerminal(n) {
     if (isTouch) return;
     var iframe = document.getElementById('frame-' + n);
     if (!iframe) return;
     iframe.focus();
     setTimeout(function() {
+      if (renaming) return;
       try {
         var ta = iframe.contentDocument.querySelector('.xterm-helper-textarea');
         if (ta) ta.focus();
@@ -227,10 +231,12 @@
     input.type = 'text';
     input.value = current;
     input.style.cssText = 'width:80px;font:inherit;background:#111;color:#fff;border:1px solid #4b7;border-radius:3px;padding:0 4px;outline:none;';
+    renaming = true;
     label.replaceWith(input);
     input.focus();
     input.select();
     function finish() {
+      renaming = false;
       var val = input.value.trim() || 'T' + n;
       saveTabName(n, val === 'T' + n ? null : val);
       var span = document.createElement('span');
