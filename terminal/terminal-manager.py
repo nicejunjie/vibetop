@@ -82,6 +82,11 @@ def _app_user():
 
 APP_USER = _app_user()
 NOTES_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-notes.md")
+# Terminal tab names, keyed by instance number. Server-side (not per-browser
+# localStorage) so a rename shows up in every session/device — terminal N is the
+# same shared session everywhere.
+TAB_NAMES_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/terminal-tab-names.json")
+_tab_names_lock = threading.Lock()
 DESKTOP_STATE_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-state.json")
 # Desktop state is a per-instance registry: {"instances": {id: {open, active, ts}},
 # "reset_epoch": N}. The Start-menu "running" dots show the UNION of apps open
@@ -187,6 +192,20 @@ def _atomic_write(path, text):
             pass
         raise
     _chown_app(path)            # written by root; keep it owned by APP_USER
+
+
+def _read_tab_names():
+    """Terminal tab names as {str(n): name}; tolerant of a missing/corrupt file."""
+    try:
+        with open(TAB_NAMES_FILE) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
+        return {}
+
+
+def _write_tab_names(d):
+    _atomic_write(TAB_NAMES_FILE, json.dumps(d))
 
 
 def _read_desktop_state():
@@ -642,6 +661,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         m = re.match(r"/api/terminals/(\d+)/(start|stop)$", self.path)
         if m:
             return self._handle_terminal(m)
+        if self.path == "/api/terminals/names":
+            return self._handle_tab_names_save()
         if self.path == "/api/browser/open":
             return self._handle_browser_open()
         if self.path.startswith("/api/office/callback"):
@@ -701,6 +722,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
         content = data.get("content", "")
         _atomic_write(NOTES_FILE, content)  # temp+rename: a crash mid-save can't truncate the note
         self._json(200, {"ok": True})
+
+    def _handle_tab_names_save(self):
+        # POST {n, name} — upsert (name null/empty clears). Server-side so the
+        # rename propagates to every session, not just the browser that did it.
+        body = self._read_body(65536)
+        if body is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            return self._json(400, {"error": "invalid json"})
+        try:
+            n = int(data.get("n"))
+        except (TypeError, ValueError):
+            return self._json(400, {"error": "bad terminal number"})
+        name = data.get("name")
+        with _tab_names_lock:
+            names = _read_tab_names()
+            if name:
+                names[str(n)] = str(name)[:64]
+            else:
+                names.pop(str(n), None)
+            _write_tab_names(names)
+        self._json(200, {"ok": True, "names": names})
 
     def _handle_upload(self):
         # Parse multipart/form-data and stream each "file" part directly into
@@ -1372,6 +1417,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/terminals/status":
             self._json(200, {"running": self._get_running_terminals()})
+            return
+        if self.path == "/api/terminals/names":
+            self._json(200, {"names": _read_tab_names()})
             return
         if self.path.startswith("/api/office/config"):
             return self._handle_office_config()

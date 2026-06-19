@@ -76,9 +76,13 @@
   var loaded = {};
   var active = null;
 
-  function api(method, path) {
-    return fetch('/api/terminals' + path, { method: method })
-      .then(function(r) { return r.json(); });
+  function api(method, path, body) {
+    var opts = { method: method };
+    if (body !== undefined) {
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = JSON.stringify(body);
+    }
+    return fetch('/api/terminals' + path, opts).then(function(r) { return r.json(); });
   }
 
   // The start endpoint returns as soon as systemd is told to launch the
@@ -100,17 +104,33 @@
     });
   }
 
-  function getTabNames() {
-    try { return JSON.parse(localStorage.getItem(NAMES_KEY)) || {}; } catch(e) { return {}; }
-  }
+  // Tab names live server-side (so a rename shows up in every session/device —
+  // terminal N is the same shared session everywhere), with localStorage as an
+  // instant-load offline cache. tabNames is the live in-memory copy used for
+  // synchronous label rendering.
+  var tabNames = {};
+  try { tabNames = JSON.parse(localStorage.getItem(NAMES_KEY)) || {}; } catch (e) { tabNames = {}; }
+  function tabLabel(n) { return tabNames[n] || ('T' + n); }
   function saveTabName(n, name) {
-    var names = getTabNames();
-    if (name) names[n] = name; else delete names[n];
-    localStorage.setItem(NAMES_KEY, JSON.stringify(names));
+    if (name) tabNames[n] = name; else delete tabNames[n];
+    try { localStorage.setItem(NAMES_KEY, JSON.stringify(tabNames)); } catch (e) {}
+    api('POST', '/names', { n: +n, name: name || null }).catch(function () {});
   }
-  function tabLabel(n) {
-    var names = getTabNames();
-    return names[n] || 'T' + n;
+  function applyTabLabels() {
+    tabs.querySelectorAll('.tab').forEach(function (t) {
+      var lbl = t.querySelector('.label');               // null while a tab is mid-rename — skip
+      if (lbl) lbl.textContent = tabLabel(+t.dataset.n);
+    });
+    if (active) document.title = tabLabel(active) + ' — Vibetop';
+  }
+  function loadTabNames() {
+    return api('GET', '/names').then(function (d) {
+      if (d && d.names) {
+        tabNames = d.names;
+        try { localStorage.setItem(NAMES_KEY, JSON.stringify(tabNames)); } catch (e) {}
+        applyTabLabels();
+      }
+    }).catch(function () {});
   }
 
   function getTabOrder() {
@@ -347,6 +367,14 @@
     });
   }
   window.addEventListener('resize', nudgeActiveFrame);
+
+  // Pull server-side tab names on load, and refresh when this tab regains focus
+  // so a rename done in another session/device shows up here.
+  loadTabNames();
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) loadTabNames();
+  });
+  window.addEventListener('focus', loadTabNames);
 
   // On load: fetch running terminals from API, open tabs for them
   api('GET', '/status').then(function(data) {
