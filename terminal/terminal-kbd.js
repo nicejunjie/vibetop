@@ -119,19 +119,60 @@
       else if (e.key === 'Backspace' && ov.value === '') { e.preventDefault(); sendRaw(String.fromCharCode(127)); }
     });
 
-    // Vertical drag → terminal scrollback (so the strip doesn't kill scrolling).
-    var sy = 0, acc = 0, moved = false;
-    ov.addEventListener('touchstart', function (e) { sy = e.touches[0].clientY; acc = 0; moved = false; }, { passive: true });
+    // The overlay covers xterm, so touches never reach it for selection. Route
+    // by gesture: quick tap → keyboard (the textarea's native focus); vertical
+    // drag → scrollback; LONG-PRESS + drag → select text via xterm's API (the
+    // sub_filter's onSelectionChange then auto-copies it to the clipboard).
+    function cellAt(x, y) {
+      var t = window.term, el = t && t.element;
+      if (!el) return null;
+      var r = el.getBoundingClientRect();
+      var col = Math.max(0, Math.min(t.cols - 1, Math.floor((x - r.left) / (r.width / t.cols))));
+      var vr = Math.max(0, Math.min(t.rows - 1, Math.floor((y - r.top) / (r.height / t.rows))));
+      var base = (t.buffer && t.buffer.active && t.buffer.active.viewportY) || 0;
+      return { col: col, row: base + vr };   // row = absolute buffer line
+    }
+    function applySel(a, b) {
+      var t = window.term;
+      if (!t || !t.select) return;
+      var s = a, e = b;
+      if (e.row < s.row || (e.row === s.row && e.col < s.col)) { s = b; e = a; }
+      try { t.select(s.col, s.row, Math.max(1, (e.row - s.row) * t.cols + (e.col - s.col) + 1)); } catch (_) {}
+    }
+    var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null;
+    ov.addEventListener('touchstart', function (e) {
+      var c = e.touches[0];
+      startX = c.clientX; startY = prevY = c.clientY; acc = 0; moved = false; selecting = false; anchor = null;
+      if (lpTimer) clearTimeout(lpTimer);
+      lpTimer = setTimeout(function () {            // held still ~0.5s → start selecting
+        if (moved) return;
+        selecting = true;
+        try { ov.blur(); } catch (_) {}            // a selection shouldn't raise the keyboard
+        anchor = cellAt(startX, startY);
+        if (anchor) { try { window.term.clearSelection(); } catch (_) {} applySel(anchor, anchor); }
+      }, 500);
+    }, { passive: true });
     ov.addEventListener('touchmove', function (e) {
-      var y = e.touches[0].clientY, dy = y - sy; sy = y;
-      if (Math.abs(dy) > 1) moved = true;
-      acc += dy;
+      var c = e.touches[0], y = c.clientY;
+      if (!moved && (Math.abs(c.clientX - startX) > 8 || Math.abs(y - startY) > 8)) {
+        moved = true; if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+      }
+      if (selecting) {                              // extend selection cell-by-cell
+        var cur = cellAt(c.clientX, y);
+        if (cur && anchor) applySel(anchor, cur);
+        e.preventDefault(); return;
+      }
+      var dy = y - prevY; prevY = y; acc += dy;     // else scroll the scrollback
       var t = window.term;
       if (t && t.scrollLines) {
         while (acc > 18) { t.scrollLines(-1); acc -= 18; }
         while (acc < -18) { t.scrollLines(1); acc += 18; }
       }
-      if (moved) e.preventDefault();   // don't let the textarea scroll itself
+      if (moved) e.preventDefault();
+    }, { passive: false });
+    ov.addEventListener('touchend', function (e) {
+      if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+      if (selecting) { selecting = false; e.preventDefault(); }  // selection set → auto-copied
     }, { passive: false });
 
     dbg(' [overlay ready] ');
