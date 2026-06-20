@@ -172,6 +172,7 @@
     if (frameEl) frameEl.remove();
     delete loaded[n];
     saveTabOrder();
+    saveTabName(n, null);   // closing kills the terminal → forget its custom name
 
     api('POST', '/' + n + '/stop');
 

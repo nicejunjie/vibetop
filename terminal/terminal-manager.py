@@ -884,6 +884,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             result["office_sessions_cleared"] = len(_office_sessions)
             _office_sessions.clear()
 
+        # 3b. Forget terminal tab names — the terminals are gone, so a fresh
+        #     start shouldn't inherit old custom names.
+        try:
+            with _tab_names_lock:
+                _write_tab_names({})
+            result["tab_names_cleared"] = True
+        except Exception:
+            pass
+
         # 4. Reset the Browser to a blank Chromium. Stop the service first so
         #    Chromium is fully dead (and can't re-save its session on exit),
         #    wipe the session-restore files, then start it again —
