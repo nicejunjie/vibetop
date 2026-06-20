@@ -31,7 +31,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
 
-MAX_INSTANCE = 50
+# Upper bound on terminal instances. Reads MAX_INSTANCES so it can't drift from
+# the installer's nginx port map (terminal/install.sh generates /tN/ routes for
+# 1..MAX_INSTANCES); a hardcoded 50 here would reject terminals the nginx map
+# happily routes when the installer is run with a higher MAX_INSTANCES.
+try:
+    MAX_INSTANCE = int(os.environ.get("MAX_INSTANCES", "50"))
+except ValueError:
+    MAX_INSTANCE = 50
 
 # Tiny TTL memo for hot-path values that are cheap to go slightly stale but
 # expensive to recompute (each forks a subprocess). /api/system/status and
@@ -995,9 +1002,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # POST {type} — create a blank document from a bundled template (in
         # ~/Documents) and return its path, so opening the Office app with no
         # file can start a new doc instead of a dead-end.
-        length = int(self.headers.get("Content-Length", 0) or 0)
+        body = self._read_body(65536)
         try:
-            data = json.loads(self.rfile.read(length)) if length else {}
+            data = json.loads(body) if body else {}
         except Exception:
             data = {}
         spec = OFFICE_NEW.get(data.get("type") or "word")
@@ -1111,9 +1118,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         secret = _onlyoffice_secret()
         if not src or not secret or not hmac.compare_digest(_onlyoffice_sig(secret, rel), tok):
             return self._json(200, {"error": 1})
-        length = int(self.headers.get("Content-Length", 0) or 0)
+        body = self._read_body(1048576)
         try:
-            data = json.loads(self.rfile.read(length)) if length else {}
+            data = json.loads(body) if body else {}
         except Exception:
             data = {}
         # With JWT enabled the body is signed — verify and use the decoded payload.
@@ -1140,9 +1147,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _handle_office_forcesave(self):
         # POST {path} — ask OnlyOffice to save the document NOW (autosave + on
         # leaving the editor), which fires the callback (status 6) and writes back.
-        length = int(self.headers.get("Content-Length", 0) or 0)
+        body = self._read_body(65536)
         try:
-            data = json.loads(self.rfile.read(length)) if length else {}
+            data = json.loads(body) if body else {}
         except Exception:
             data = {}
         rel = (data.get("path") or "").strip()
@@ -1184,13 +1191,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             with urllib.request.urlopen(local, timeout=60) as r:
                 body = r.read()
-            # Unique temp per thread: OnlyOffice can fire concurrent callbacks
-            # (autosave + close) for the same file; a shared "dst.vibetmp" would
-            # let two writers interleave and corrupt the saved document.
-            tmp = "%s.vibetmp.%d" % (dst, threading.get_ident())
-            with open(tmp, "wb") as f:
-                f.write(body)
-            os.replace(tmp, dst)
+            # Unique temp in the dest dir: OnlyOffice can fire concurrent callbacks
+            # (autosave + close) for the same file; mkstemp guarantees a distinct
+            # name per write (thread idents are reused, so they could collide).
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(dst), prefix=".vibetmp-")
+            try:
+                with os.fdopen(fd, "wb") as f:
+                    f.write(body)
+                os.replace(tmp, dst)
+            except BaseException:
+                try: os.unlink(tmp)
+                except OSError: pass
+                raise
             _chown_app(dst)
         except Exception as e:
             print(f"[office] save-back failed from {local}: {e}", file=sys.stderr, flush=True)

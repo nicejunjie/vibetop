@@ -256,7 +256,10 @@
     label.replaceWith(input);
     input.focus();
     input.select();
+    var finished = false;
     function finish() {
+      if (finished) return;   // Enter→blur and a real blur can both fire; commit once
+      finished = true;
       renaming = false;
       var val = input.value.trim() || 'T' + n;
       saveTabName(n, val === 'T' + n ? null : val);
@@ -378,6 +381,7 @@
   window.addEventListener('focus', loadTabNames);
 
   // On load: fetch running terminals from API, open tabs for them
+  function initTabs() {
   api('GET', '/status').then(function(data) {
     var running = data.running || [];
     if (running.length === 0) {
@@ -389,6 +393,12 @@
         var tab = tabs.querySelector('.tab[data-n="1"]');
         if (tab) tab.classList.remove('starting');
         activate(1);
+      }).catch(function() {
+        // Start failed (API down at cold load) — drop the half-created tab and
+        // retry the whole init shortly, rather than leaving a stuck UI.
+        var t = tabs.querySelector('.tab[data-n="1"]'); if (t) t.remove();
+        var f = document.getElementById('frame-1'); if (f) f.remove();
+        setTimeout(initTabs, 2000);
       });
       return;
     }
@@ -409,7 +419,13 @@
     var lastActive = +(localStorage.getItem('active-terminal') || running[0]);
     if (!tabs.querySelector('.tab[data-n="' + lastActive + '"]')) lastActive = running[0];
     activate(lastActive);
+  }).catch(function() {
+    // /status fetch failed at load (API briefly down) — retry so we don't sit
+    // with an empty tab bar that only a manual reload fixes.
+    setTimeout(initTabs, 2000);
   });
+  }
+  initTabs();
 })();
 </script>
 </body>

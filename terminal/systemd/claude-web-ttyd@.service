@@ -7,6 +7,8 @@ Requires=claude-web-session@%i.service
 Type=simple
 User=@APP_USER@
 Group=@APP_USER@
+# Port base must match the installer's nginx map; ttyd-run.sh reads it.
+Environment=BASE_PORT=@BASE_PORT@
 # Wait (best-effort, up to ~5s) for the session daemon's socket before ttyd
 # serves. After=/Requires= only order process *start*, not socket readiness — so
 # on a cold start ttyd could accept a WebSocket and spawn `claude-session attach`

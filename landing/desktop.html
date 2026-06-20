@@ -712,8 +712,12 @@
   });
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeMenu(); });
 
-  // Messages from app iframes (e.g. terminal opening a URL in the browser)
+  // Messages from app iframes (e.g. terminal opening a URL in the browser).
+  // All app iframes are same-origin, so reject cross-origin messages — one
+  // branch triggers POST /api/browser/open with e.data.url (defense in depth;
+  // the manager also validates the URL).
   window.addEventListener('message', function(e) {
+    if (e.origin !== location.origin) return;
     if (!e.data) return;
     if (e.data.type === 'switch-to-browser') { launch('browser'); }
     if (e.data.type === 'open-in-browser' && e.data.url) {
