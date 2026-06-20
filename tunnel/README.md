@@ -105,6 +105,24 @@ Visit `https://service.example.com/` — you'll get Cloudflare's
 login screen first. After auth, the request flows through the tunnel
 to myhost's nginx, and you see the landing page.
 
+### 7. (Optional) Let the icons/manifest bypass Access
+
+Access guards **every** path by default, including the favicon and PWA icons.
+Browsers fetch those (for a tab/bookmark/favorite icon) in a context **without**
+your Access cookie, so they get the login page instead of the image — the site
+shows **no icon in Safari favorites** etc. The assets aren't sensitive, so add a
+second Access application that **bypasses** auth for just them:
+
+- **Access → Applications → Add → Self-hosted**, name it e.g. `public assets`.
+- Scope it to these paths on your hostname (Access matches the most specific path
+  first, so they win over the main app; everything else stays protected):
+  `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.json`, `/icons/*`
+- Add one policy with Action **Bypass**, rule **Everyone**.
+
+(Equivalently via the API: `POST /accounts/<id>/access/apps` with
+`type:"self_hosted"`, those paths as `destinations` (`{type:"public",uri:...}`),
+and a `{decision:"bypass",include:[{everyone:{}}]}` policy.)
+
 ## After setup
 
 The cloudflared systemd unit keeps the tunnel up. If myhost reboots, the
