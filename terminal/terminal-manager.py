@@ -1438,7 +1438,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_office_doc()
         if self.path.startswith("/api/office/preview"):
             return self._handle_office_preview()
-        if self.path == "/api/update":
+        if self.path == "/api/update" or self.path.startswith("/api/update?"):
             self._json(200, self._update_version_info())
             return
         if self.path == "/api/system/status":
