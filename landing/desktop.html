@@ -678,12 +678,22 @@
     if (item) launch(item.dataset.id);
   });
 
+  // Switch apps on pointerdown for mouse — same fix as the terminal tabs: when
+  // the focused app's iframe has focus, the browser eats the first click moving
+  // focus back to the parent window, so a click-based switch needed two clicks.
+  // pointerdown fires before that transition. Close + touch stay on click.
+  taskAppsEl.addEventListener('pointerdown', function(e) {
+    if (e.pointerType !== 'mouse' || e.button) return;     // primary mouse only
+    var btn = e.target.closest('.task-app');
+    if (!btn || e.target.closest('.close')) return;        // close handled on click
+    if (btn.dataset.id !== active) setActive(btn.dataset.id);
+  });
   taskAppsEl.addEventListener('click', function(e) {
     var btn = e.target.closest('.task-app');
     if (!btn) return;
     var id = btn.dataset.id;
     if (e.target.closest('.close')) { closeApp(id); return; }
-    setActive(id);
+    if (id !== active) setActive(id);                       // touch / fallback
   });
 
   // --- drag-to-reorder taskbar apps (desktop; HTML5 DnD is a no-op on touch,
