@@ -9,7 +9,16 @@ case "${1:-}" in --dry-run|-n) DRY_RUN=1 ;; esac
 run() { if [ "$DRY_RUN" = 1 ]; then printf '+ %s\n' "$*"; else "$@"; fi; }
 
 run mkdir -p "$DST_DIR"
-run install -m 644 "$DIR/desktop.html" "$DST_DIR/index.html"
+# Stamp the real release number (root VERSION file) into the Start-menu build
+# tag so it can't drift from a hardcoded literal.
+VERSION="$(cat "$DIR/../VERSION" 2>/dev/null | tr -d ' \t\r\n')"
+VERSION="${VERSION:-dev}"
+if [ "$DRY_RUN" = 1 ]; then
+  printf '+ install index.html (sed @VERSION@ -> %s)\n' "$VERSION"
+else
+  sed "s/@VERSION@/$VERSION/g" "$DIR/desktop.html" > "$DST_DIR/index.html"
+  chmod 644 "$DST_DIR/index.html"
+fi
 run install -m 644 "$DIR/index.html" "$DST_DIR/landing.html"
 run install -m 644 "$DIR/filebrowser-patches.js" "$DST_DIR/filebrowser-patches.js"
 run install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
