@@ -239,14 +239,26 @@
     return 0;
   }
 
+  // Activate on pointerdown for MOUSE: when the terminal iframe has focus (you
+  // were typing), the browser spends the first click moving focus back to the
+  // parent window, swallowing it — so a click-based switch needed a second
+  // click. pointerdown fires on the first press, before that focus transition.
+  // (Touch keeps the click path so a horizontal scroll-drag of the tab bar
+  // doesn't activate whatever tab the finger landed on. Close stays on click.)
+  tabs.addEventListener('pointerdown', function(e) {
+    if (e.pointerType !== 'mouse' || e.button) return;   // primary mouse button only
+    if (e.target.closest('.close')) return;              // close is handled on click
+    var tab = e.target.closest('.tab');
+    if (tab && +tab.dataset.n !== active) activate(+tab.dataset.n);
+  });
   tabs.addEventListener('click', function(e) {
     if (e.target.closest('.close')) {
       var tab = e.target.closest('.tab');
       if (tab) removeTab(+tab.dataset.n);
       return;
     }
-    var tab = e.target.closest('.tab');
-    if (tab) activate(+tab.dataset.n);
+    var tab = e.target.closest('.tab');     // touch / fallback activation
+    if (tab && +tab.dataset.n !== active) activate(+tab.dataset.n);
   });
 
   tabs.addEventListener('dblclick', function(e) {
