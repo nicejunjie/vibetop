@@ -20,23 +20,34 @@
   var _saved, _attempt;
   try { _saved = localStorage.getItem(FILES_LAST_KEY); } catch (e) {}
   try { _attempt = sessionStorage.getItem(_ATTEMPT_KEY); } catch (e) {}
-  if (_saved && _atRoot) {
-    var _savedBase = _saved.split("?")[0].replace(/\/+$/, "");
-    var _savedIsRoot = (_savedBase === "/files" || _savedBase === "/files/files");
-    // Restore the last folder. We record the target first; if FileBrowser
-    // bounces us straight back to root (e.g. the folder was deleted) the next
-    // load sees attempt === saved and lets home stand instead of looping. Any
-    // successful landing (below) clears the marker, so a fast legitimate
-    // refresh always restores again.
-    if (!_savedIsRoot && _saved !== _curPath && _attempt !== _saved) {
-      try { sessionStorage.setItem(_ATTEMPT_KEY, _saved); } catch (e) {}
-      location.replace(_saved);
-      return;
+  if (_atRoot) {
+    if (_saved && _attempt === _saved) {
+      // We kicked off a restore to _saved but we're (still/again) at root — it
+      // never settled: a bad/slow/stale saved path that hangs the listing on
+      // first open. PURGE it so Files stops hanging and re-learns from the next
+      // real navigation. (Previously the marker only BLOCKED a re-restore, so the
+      // app loaded fine on reopen but hung again on every fresh session, leaving
+      // the bad path in localStorage forever — the "keeps loading first time"
+      // bug. Self-healing instead.)
+      try { localStorage.removeItem(FILES_LAST_KEY); } catch (e) {}
+      try { sessionStorage.removeItem(_ATTEMPT_KEY); } catch (e) {}
+    } else if (_saved) {
+      var _savedBase = _saved.split("?")[0].replace(/\/+$/, "");
+      var _savedIsRoot = (_savedBase === "/files" || _savedBase === "/files/files");
+      // Restore the last folder. Record the target first; if it doesn't settle
+      // (bounce to root, or a hang followed by a reopen), the check above purges
+      // it next time instead of retrying forever.
+      if (!_savedIsRoot && _saved !== _curPath) {
+        try { sessionStorage.setItem(_ATTEMPT_KEY, _saved); } catch (e) {}
+        location.replace(_saved);
+        return;
+      }
     }
+  } else {
+    // Settled on a real (non-root) folder — the restore succeeded; clear the
+    // marker so the next refresh is free to restore again.
+    try { sessionStorage.removeItem(_ATTEMPT_KEY); } catch (e) {}
   }
-  // On a real (non-root) location the previous restore succeeded — clear the
-  // marker so the next refresh is free to restore.
-  if (!_atRoot) { try { sessionStorage.removeItem(_ATTEMPT_KEY); } catch (e) {} }
 
   // Permanent action buttons: always visible, greyed out when no file selected.
   // When clicked, they delegate to Vue's actual button if it exists.
