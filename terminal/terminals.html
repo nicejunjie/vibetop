@@ -13,11 +13,18 @@
     display: flex; gap: 2px; padding: 4px 8px 0;
     background: #1a1a2e; flex-shrink: 0;
     align-items: flex-end;
+    /* The terminal iframe below is position:absolute (a positioned element),
+       which paints ABOVE this static-positioned bar and was capturing clicks on
+       the bottom edge of the tabs (so only the upper part of a tab responded).
+       Make the bar positioned with a higher stacking order so the whole tab is
+       always clickable. */
+    position: relative; z-index: 2;
     /* Scroll horizontally when the tabs overflow the screen (mobile especially)
        instead of running off-screen unreachably. */
     overflow-x: auto; overflow-y: hidden;
     -webkit-overflow-scrolling: touch; scrollbar-width: none;
   }
+  .frames { z-index: 1; }
   .tabs::-webkit-scrollbar { display: none; }
   .tab {
     position: relative; flex-shrink: 0;
