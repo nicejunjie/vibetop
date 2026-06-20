@@ -23,6 +23,8 @@ run install -m 644 "$DIR/manifest.json" "$DST_DIR/manifest.json"
 run install -m 644 "$DIR/sw.js" "$DST_DIR/sw.js"
 run install -d -m 755 "$DST_DIR/icons"
 run install -m 644 "$DIR/icons/"*.png "$DST_DIR/icons/"
+# favicon at the web root so the browser's automatic /favicon.ico probe resolves
+run install -m 644 "$DIR/icons/favicon.ico" "$DST_DIR/favicon.ico"
 run install -m 644 "$DIR/services.example.json" "$DST_DIR/services.example.json"
 # Seed services.json from the example only if the host doesn't already have one
 # (it's host-local and gitignored — never overwrite the real list on re-install).

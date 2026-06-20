@@ -64,6 +64,12 @@ def main():
         img.save(path)
         print(f"wrote {name} ({size}x{size})")
 
+    # favicon.ico — a multi-size ICO (16/32/48) for browser tabs/bookmarks. Use
+    # a small margin so the 2x2 grid still reads at 16px.
+    fav = render(64, 0.06)
+    fav.save(os.path.join(HERE, "favicon.ico"), sizes=[(16, 16), (32, 32), (48, 48)])
+    print("wrote favicon.ico (16/32/48)")
+
 
 if __name__ == "__main__":
     main()
