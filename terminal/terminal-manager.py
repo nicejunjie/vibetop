@@ -136,6 +136,16 @@ OFFICE_CONVERT_PROFILE = os.path.join(OFFICE_CACHE_DIR, "lo-convert-profile")
 # Runs in Docker on loopback; nginx proxies /onlyoffice/. The container reaches
 # back to this manager (for the doc + save callback) via host.docker.internal.
 ONLYOFFICE_PORT = os.environ.get("ONLYOFFICE_PORT", "8087")
+# Loopback ports the /api/health probe checks. Read from env (fallbacks match the
+# installer defaults) so they don't silently drift if a deploy overrides them.
+def _port_env(name, default):
+    try:
+        return int(os.environ.get(name, default))
+    except ValueError:
+        return default
+BASE_PORT = _port_env("BASE_PORT", 7680)   # /tN/ -> BASE_PORT+N
+XPRA_PORT = _port_env("XPRA_PORT", 14500)  # Browser (xpra HTML5)
+FB_PORT = _port_env("FB_PORT", 8085)       # FileBrowser
 ONLYOFFICE_SECRET_FILE = os.path.expanduser(f"~{APP_USER}/.config/vibetop/onlyoffice.secret")
 ONLYOFFICE_HOST = os.environ.get("ONLYOFFICE_CALLBACK_HOST", "http://host.docker.internal")
 # Extension -> OnlyOffice documentType.
@@ -1123,16 +1133,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             data = json.loads(body) if body else {}
         except Exception:
             data = {}
-        # With JWT enabled the body is signed — verify and use the decoded payload.
+        # The Document Server runs with JWT_ENABLED=true (office/install.sh), so
+        # every callback carries a signed token (body field or Authorization
+        # header). REQUIRE it — the body's url/status drive a file overwrite, so
+        # an unsigned callback (even one that knew the path's t= HMAC) must not be
+        # honored. Verify and use the decoded payload.
         auth = self.headers.get("Authorization", "")
-        if not data.get("token") and auth.startswith("Bearer "):
-            data["token"] = auth[7:]
-        if data.get("token"):
-            verified = _jwt_verify(data["token"], secret)
-            if verified is None:
-                print("[office] callback JWT verify FAILED", file=sys.stderr, flush=True)
-                return self._json(200, {"error": 1})
-            data = verified.get("payload", verified)
+        token = data.get("token") or (auth[7:] if auth.startswith("Bearer ") else "")
+        if not token:
+            print("[office] callback rejected: no JWT", file=sys.stderr, flush=True)
+            return self._json(200, {"error": 1})
+        verified = _jwt_verify(token, secret)
+        if verified is None:
+            print("[office] callback JWT verify FAILED", file=sys.stderr, flush=True)
+            return self._json(200, {"error": 1})
+        data = verified.get("payload", verified)
         status = data.get("status")
         if status in (2, 6) and data.get("url"):
             self._office_save_back(data["url"], src)
@@ -1520,9 +1535,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         checks = {
-            "terminals": "http://127.0.0.1:7681/t1/",
-            "browser": "http://127.0.0.1:14500/",
-            "files": "http://127.0.0.1:8085/files/",
+            "terminals": f"http://127.0.0.1:{BASE_PORT + 1}/t1/",
+            "browser": f"http://127.0.0.1:{XPRA_PORT}/",
+            "files": f"http://127.0.0.1:{FB_PORT}/files/",
         }
         # Merge host-local services (each with a "key" and a "health" URL).
         try:
@@ -1566,7 +1581,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 7680
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else BASE_PORT
     # Threaded: a slow request (multi-GB upload, health probe, the 0.1s CPU
     # sample fallback) must not block the status polls every desktop client
     # sends — with the plain single-threaded HTTPServer an upload froze every

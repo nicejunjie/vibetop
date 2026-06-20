@@ -16,7 +16,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v56';
+const VERSION = 'v58';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
@@ -28,6 +28,7 @@ const PRECACHE = [
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/icons/icon-512-maskable.png',
   '/icons/apple-touch-icon.png'
 ];
 

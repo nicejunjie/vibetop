@@ -1,6 +1,6 @@
 # claude-terminal (project: claude-web on myhost)
 
-Up to 20 browser-accessible persistent terminals at `http://192.168.1.10/tN/`,
+Up to 50 browser-accessible persistent terminals at `http://192.168.1.10/tN/`,
 behind nginx. Close the tab, reopen from any LAN browser (or a different
 machine), and the same shell is there with its current screen state.
 
@@ -10,8 +10,9 @@ Project dir: `~/vibe-coding/service-in-browser/terminal/`
 
 ## What it is
 
-- Up to 20 independent `ttyd` instances on loopback ports `127.0.0.1:7681..7700`,
-  each serving an xterm.js terminal under a base path (`/t1/`..`/t20/`).
+- Up to 50 independent `ttyd` instances on loopback ports `127.0.0.1:7681..7730`
+  (base `BASE_PORT`+N, default 7680), each serving an xterm.js terminal under a
+  base path (`/t1/`..`/t50/`), provisioned on demand (not pre-started).
 - Each ttyd runs `claude-session attach N`, which connects to a
   per-instance `claude-session` daemon over a Unix socket. The daemon
   holds bash in a PTY and:
@@ -26,8 +27,8 @@ Project dir: `~/vibe-coding/service-in-browser/terminal/`
 - nginx injects `scrollback:50000` into xterm.js's Terminal constructor
   via `sub_filter` (ttyd 1.7.4's runtime setter doesn't work) and a
   clipboard polyfill for auto-copy on HTTP origins.
-- Browser tab titles show "Terminal 1" through "Terminal 20", and each
-  shell has `$TERM_ID` set (1–20) for prompt customization.
+- Browser tab titles show "Terminal 1" through "Terminal N", and each
+  shell has `$TERM_ID` set (1–N) for prompt customization.
 - **Scroll**: trackpad / mouse wheel scrolls xterm.js's 50k-line buffer.
 - **Select + copy**: native browser drag-select, auto-copies to clipboard.
   On HTTP origins uses `document.execCommand('copy')` fallback.
@@ -104,7 +105,9 @@ journalctl -u claude-web-ttyd@2 -f
 journalctl -u claude-web-session@2 -f
 ```
 
-All 40 units (20 sessions + 20 ttyd) auto-start on boot via `WantedBy=multi-user.target`.
+Terminal units are **provisioned on demand** by the manager API (the systemd
+template units are not pre-enabled); only `claude-web-manager.service` starts at
+boot. Starting terminal N brings up `claude-web-session@N` + `claude-web-ttyd@N`.
 
 ## Resetting a terminal
 

@@ -282,16 +282,9 @@
 
   <div class="startmenu" id="startmenu">
     <div class="sm-title">Apps</div>
-    <div class="sm-item" data-id="home"><div class="sm-icon">🏠</div><div><div class="sm-name">Home Service</div><div class="sm-desc">Services &amp; health</div></div></div>
-    <div class="sm-item" data-id="terminal"><div class="sm-icon">⬛</div><div><div class="sm-name">Terminal</div><div class="sm-desc">Persistent bash terminals</div></div></div>
-    <div class="sm-item" data-id="browser"><div class="sm-icon">🌐</div><div><div class="sm-name">Browser</div><div class="sm-desc">Persistent web browser</div></div></div>
-    <div class="sm-item" data-id="files"><div class="sm-icon">📁</div><div><div class="sm-name">Files</div><div class="sm-desc">File manager</div></div></div>
-    <div class="sm-item" data-id="office"><div class="sm-icon">📄</div><div><div class="sm-name">Office</div><div class="sm-desc">Edit Office docs</div></div></div>
-    <div class="sm-item" data-id="notes"><div class="sm-icon">📝</div><div><div class="sm-name">Notes</div><div class="sm-desc">Persistent scratchpad</div></div></div>
-    <div class="sm-item" data-id="monitor"><div class="sm-icon">📊</div><div><div class="sm-name">Monitor</div><div class="sm-desc">System monitor</div></div></div>
-    <div class="sm-item" data-id="upload"><div class="sm-icon">⬆</div><div><div class="sm-name">Upload</div><div class="sm-desc">Quick upload to ~/Uploads</div></div></div>
+    <div id="sm-apps"></div>
     <div class="sm-title sm-title-system">System</div>
-    <div class="sm-item" data-id="update"><div class="sm-icon">⬇</div><div><div class="sm-name">Update</div><div class="sm-desc">Pull latest &amp; redeploy</div></div></div>
+    <div id="sm-system"></div>
     <div class="sm-build"><span class="build-tag">Vibetop · v@VERSION@</span></div>
   </div>
 
@@ -324,23 +317,47 @@
 
 <script>
 (function() {
+  // Single source of truth for every app: its taskbar/Start-menu icon, label,
+  // Start-menu description, iframe src, and which Start-menu section it sits in.
+  // The Start-menu items are generated from this (buildStartMenu) so the icon +
+  // label aren't duplicated in static HTML, where they used to drift.
   var APPS = {
-    home:     { label: 'Home Service', icon: '🏠', src: '/landing.html' },
-    terminal: { label: 'Terminal', icon: '⬛', src: '/terminals/?v=3' },
-    browser:  { label: 'Browser',  icon: '🌐', src: '/browser/' },
-    files:    { label: 'Files',    icon: '📁', src: '/files/' },
-    office:   { label: 'Office',   icon: '📄', src: '/office-editor.html' },
-    notes:    { label: 'Notes',    icon: '📝', src: '/notes.html' },
-    monitor:  { label: 'Monitor',  icon: '📊', src: '/monitor.html' },
-    upload:   { label: 'Upload',   icon: '⬆',  src: '/upload.html' },
-    update:   { label: 'Update',   icon: '⬇',  src: '/update.html' }
+    home:     { label: 'Home Service', icon: '🏠', src: '/landing.html',     desc: 'Services & health' },
+    terminal: { label: 'Terminal', icon: '⬛', src: '/terminals/',           desc: 'Persistent bash terminals' },
+    browser:  { label: 'Browser',  icon: '🌐', src: '/browser/',             desc: 'Persistent web browser' },
+    files:    { label: 'Files',    icon: '📁', src: '/files/',               desc: 'File manager' },
+    office:   { label: 'Office',   icon: '📄', src: '/office-editor.html',   desc: 'Edit Office docs' },
+    notes:    { label: 'Notes',    icon: '📝', src: '/notes.html',           desc: 'Persistent scratchpad' },
+    monitor:  { label: 'Monitor',  icon: '📊', src: '/monitor.html',         desc: 'System monitor' },
+    upload:   { label: 'Upload',   icon: '⬆',  src: '/upload.html',          desc: 'Quick upload to ~/Uploads' },
+    update:   { label: 'Update',   icon: '⬇',  src: '/update.html',          desc: 'Pull latest & redeploy', section: 'system' }
   };
+
+  // Build the Start-menu items from APPS into the Apps / System sections.
+  function buildStartMenu() {
+    var apps = document.getElementById('sm-apps'),
+        sys  = document.getElementById('sm-system');
+    if (!apps || !sys) return;
+    Object.keys(APPS).forEach(function(id) {
+      var a = APPS[id];
+      var item = document.createElement('div');
+      item.className = 'sm-item'; item.setAttribute('data-id', id);
+      var ic = document.createElement('div'); ic.className = 'sm-icon'; ic.textContent = a.icon;
+      var box = document.createElement('div');
+      var nm = document.createElement('div'); nm.className = 'sm-name'; nm.textContent = a.label;
+      var ds = document.createElement('div'); ds.className = 'sm-desc'; ds.textContent = a.desc || '';
+      box.appendChild(nm); box.appendChild(ds);
+      item.appendChild(ic); item.appendChild(box);
+      (a.section === 'system' ? sys : apps).appendChild(item);
+    });
+  }
 
   var framesEl  = document.getElementById('frames');
   var taskAppsEl = document.getElementById('task-apps');
   var menuEl    = document.getElementById('startmenu');
   var startBtn  = document.getElementById('start-btn');
   var hintEl    = document.getElementById('desktop-hint');
+  buildStartMenu();   // populate the Start-menu items from APPS
 
   var openApps = [];   // ids, in taskbar order
   var active   = null;
