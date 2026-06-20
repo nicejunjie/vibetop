@@ -236,7 +236,7 @@
   }
 
   function loadVersion() {
-    fetch('/api/update', { cache: 'no-store' }).then(function(r) { return r.json(); }).then(function(d) {
+    fetch('/api/update?_=' + Date.now(), { cache: 'no-store' }).then(function(r) { return r.json(); }).then(function(d) {
       document.getElementById('v-commit').textContent = d.commit ? ('#' + d.commit) : (d.error || 'unknown');
       document.getElementById('v-subject').textContent = d.subject || '';
       document.getElementById('v-date').textContent = d.date || '';
