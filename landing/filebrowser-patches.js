@@ -58,8 +58,17 @@
     { icon: "content_copy", label: "Copy" },
     { icon: "forward", label: "Move" },
     { icon: "delete", label: "Delete" },
-    { icon: "file_download", label: "Download" }
+    { icon: "file_download", label: "Download" },
+    // Always-enabled layout toggle — cycles FileBrowser's list/grid view modes.
+    // (FileBrowser HAS this natively, but its button shows a dynamic icon and
+    // got buried among the wrapped action buttons; surface it explicitly.)
+    { icon: "grid_view", label: "Layout", view: true }
   ];
+  // FileBrowser's native view switcher renders ONE of these icons (it changes
+  // with the current mode). We hide the native button and drive switchView from
+  // the permanent Layout button so the toggle is always discoverable.
+  var VIEW_ICONS = { grid_view: 1, view_module: 1, view_list: 1, view_comfy: 1,
+                     view_comfy_alt: 1, view_compact: 1, mosaic: 1 };
 
   var style = document.createElement("style");
   style.textContent = [
@@ -162,6 +171,20 @@
     }
   }
 
+  // Click the native view switcher (matched by its dynamic icon, hidden by
+  // hideVueButtons but still programmatically clickable) to cycle the layout.
+  function clickViewButton() {
+    var buttons = document.querySelectorAll("header .action:not(.fb-permanent)");
+    for (var i = 0; i < buttons.length; i++) {
+      var icon = buttons[i].querySelector("i.material-icons");
+      if (icon && VIEW_ICONS[icon.textContent.trim()]) {
+        buttons[i].style.pointerEvents = "";
+        buttons[i].click();
+        return;
+      }
+    }
+  }
+
   function injectPermanentButtons() {
     var header = document.querySelector("header");
     if (!header || header.querySelector(".fb-permanent")) return;
@@ -174,12 +197,15 @@
       btn.title = def.label;
       btn.setAttribute("aria-label", def.label);
       btn.setAttribute("data-icon", def.icon);
+      if (def.view) btn.setAttribute("data-always", "1");   // not selection-dependent
       btn.innerHTML = '<i class="material-icons">' + def.icon + '</i><span>' + def.label + '</span>';
       btn.addEventListener("click", function() {
         if (btn.classList.contains("disabled")) return;
         if (def.custom) {
           var fp = getFilePath();
           if (fp) openInBrowser(fp);
+        } else if (def.view) {
+          clickViewButton();
         } else {
           clickVueButton(def.icon);
         }
@@ -289,6 +315,8 @@
     var selected = hasSelection();
     var filePath = getFilePath();
     document.querySelectorAll("header .fb-permanent:not(.fb-office)").forEach(function(btn) {
+      // The Layout toggle is always available (not selection-dependent).
+      if (btn.getAttribute("data-always")) { btn.classList.remove("disabled"); return; }
       var icon = btn.getAttribute("data-icon");
       // Browser button only active for files, not folders
       var active = icon === "public" ? !!filePath : selected;
@@ -304,7 +332,10 @@
   function hideVueButtons() {
     document.querySelectorAll("header .action:not(.fb-permanent)").forEach(function(btn) {
       var icon = btn.querySelector("i.material-icons");
-      if (icon && DYNAMIC_ICON_SET[icon.textContent.trim()]) {
+      var name = icon && icon.textContent.trim();
+      // Hide the native originals we replace with permanent buttons, plus the
+      // native view switcher (driven by the permanent Layout button instead).
+      if (name && (DYNAMIC_ICON_SET[name] || VIEW_ICONS[name])) {
         btn.style.cssText = "position:absolute!important;width:0!important;height:0!important;overflow:hidden!important;opacity:0!important;";
       }
     });
