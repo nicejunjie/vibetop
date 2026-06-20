@@ -91,6 +91,12 @@
     // file is tapped; .context-menu is the right-click / long-press menu.
     // Every action already lives in the top toolbar, so both are redundant.
     "#file-selection, .context-menu { display: none !important; }",
+    // FileBrowser runs with --auth.method=noauth, so its login view (#login) is
+    // never a real destination — it just briefly mounts while the SPA
+    // auto-authenticates, flashing a login form before redirecting to the file
+    // listing. Hide it so that flash isn't visible. (display:none doesn't stop
+    // the Vue component mounting, so the auto-login it triggers still runs.)
+    "#login { display: none !important; }",
   ].join("\n");
   document.head.appendChild(style);
 
