@@ -19,7 +19,36 @@
  */
 (function () {
   var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-  if (!isTouch) return;   // desktop: native xterm, untouched
+
+  // Re-claim the shared PTY's shape for THIS device (double-click on desktop,
+  // double-tap on touch). Terminal N is ONE shared claude-session PTY, so its
+  // rows×cols are owned by whichever device resized last — the other device then
+  // sees mis-shaped (too-narrow / too-wide) output until it re-claims. ttyd only
+  // emits a resize when its computed dims change, so we nudge xterm's size by a
+  // row and restore it: that re-sends THIS browser's real dims to the PTY and the
+  // TUI inside redraws at this device's shape.
+  function claimSize() {
+    var t = window.term; if (!t) return;
+    var c = t.cols, r = t.rows;
+    try { t.resize(c, Math.max(2, r - 1)); t.resize(c, r); } catch (_) {}
+  }
+
+  // Brief toast (used to confirm a touch double-tap registered).
+  function flash(msg) {
+    if (!document.body) return;
+    var el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText = 'position:fixed;left:50%;top:14%;transform:translateX(-50%);z-index:2147483647;' +
+      'background:rgba(45,108,192,.95);color:#fff;font:600 13px system-ui,sans-serif;padding:6px 14px;' +
+      'border-radius:14px;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.4)';
+    document.body.appendChild(el);
+    setTimeout(function () { try { el.remove(); } catch (_) {} }, 900);
+  }
+
+  if (!isTouch) {                       // desktop: native xterm otherwise untouched
+    window.addEventListener('dblclick', claimSize);
+    return;
+  }
 
   // ---- debug overlay (dormant unless something posts {type:'xdbg'}) ----
   var dbgEl = null, dbgBuf = [];
@@ -189,9 +218,11 @@
     });
 
     var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null;
+    var lastTapTime = 0, lastTapX = 0, lastTapY = 0, tStart = 0;   // for double-tap (claimSize)
     ov.addEventListener('touchstart', function (e) {
       var c = e.touches[0];
       startX = c.clientX; startY = prevY = c.clientY; acc = 0; moved = false; selecting = false; anchor = null;
+      tStart = Date.now();
       hideCopy();
       if (lpTimer) clearTimeout(lpTimer);
       lpTimer = setTimeout(function () {            // held still ~0.45s → select the word
@@ -226,12 +257,30 @@
     }, { passive: false });
     ov.addEventListener('touchend', function (e) {
       if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+      var ct = e.changedTouches[0], now = Date.now(), dur = now - tStart;
+      // A BRIEF touch is a tap even if the page drifted under the finger while the
+      // keyboard animated in (that drift sets `moved`, which would otherwise hide
+      // the tap). Two quick taps close in space = double-tap → re-claim this
+      // device's terminal shape. Keyed on duration, not `moved`, so it survives the
+      // keyboard-raise layout shift on the first tap.
+      if (!selecting && dur < 250) {
+        if (now - lastTapTime < 400 &&
+            Math.abs(ct.clientX - lastTapX) < 60 && Math.abs(ct.clientY - lastTapY) < 60) {
+          e.preventDefault();
+          lastTapTime = 0;
+          try { ov.blur(); } catch (_) {}           // reshaping; don't leave the keyboard up
+          flash('↔ resized');
+          claimSize();
+          return;
+        }
+        lastTapTime = now; lastTapX = ct.clientX; lastTapY = ct.clientY;
+      }
       if (selecting) {
         selecting = false;
         e.preventDefault();                         // don't raise the keyboard
-        var t = window.term, ct = e.changedTouches[0];
+        var t = window.term;
         if (t && t.hasSelection()) showCopy(ct.clientX, ct.clientY);
-      } else if (!moved) {                          // quick tap: drop any selection, let the keyboard come up
+      } else if (!moved) {                          // single tap: drop selection, let the keyboard come up
         try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}
       }
     }, { passive: false });
