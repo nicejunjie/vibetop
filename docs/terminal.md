@@ -80,6 +80,18 @@ Window resize: the attach process writes `rows cols` to
 (from `/tmp/claude-session-N.pid`). The daemon applies `TIOCSWINSZ`
 to the shell's PTY.
 
+Re-claim shape across devices: because the PTY is **shared**, its
+`rows×cols` belong to whichever device (desktop tab / phone) fitted last,
+so after switching active device the TUI inside renders at the other
+device's shape. A **double-click** (desktop) / **double-tap** (touch) on
+the terminal re-sends *this* device's size — `terminal-kbd.js`'s
+`claimSize()` nudges xterm by one row and restores it (`term.resize(c,r-1)`
+then `term.resize(c,r)`), since ttyd only emits a resize when its dims
+change; the restore re-fits the PTY to this browser and the TUI redraws.
+The touch double-tap is keyed on touch *duration* (`<250ms`), not finger
+movement, so the keyboard-raise layout shift on the first tap doesn't get
+misread as a scroll and drop the second tap.
+
 ## Files
 
 - `~/vibe-coding/service-in-browser/terminal/claude-session` — Python session daemon/attach tool.
