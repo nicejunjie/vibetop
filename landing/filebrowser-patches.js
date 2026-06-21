@@ -52,6 +52,10 @@
   // Permanent action buttons: always visible, greyed out when no file selected.
   // When clicked, they delegate to Vue's actual button if it exists.
   var PERMANENT_BUTTONS = [
+    // Always-enabled refresh — re-fetches the current folder listing. Files is
+    // always (re)opened at /files/ but the location-memory restore brings us
+    // back to the saved folder, so a plain reload lands on the same listing.
+    { icon: "refresh", label: "Refresh", refresh: true },
     { icon: "public", label: "Browser", custom: true },
     { icon: "share", label: "Share" },
     { icon: "mode_edit", label: "Rename" },
@@ -88,6 +92,12 @@
     // visible without an extra tap.
     "@media (max-width: 736px) {",
     "  header { flex-wrap: wrap !important; height: auto !important; min-height: 4em !important; row-gap: 4px !important; padding-top: 4px !important; padding-bottom: 4px !important; }",
+    // The text editor (#editor-container) and media previewer (#previewer)
+    // hard-code `padding-top: 4em` to clear the FIXED 4em header. Our wrap/grow
+    // rule above must NOT apply to THEIR header: a taller header overflows that
+    // 4em reservation and hides the top line(s) of the file with no way to
+    // scroll up. Pin their header to exactly 4em, single row.
+    "  #editor-container header, #previewer header { flex-wrap: nowrap !important; height: 4em !important; min-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; row-gap: 0 !important; }",
     "  header #dropdown { display: flex !important; flex-wrap: wrap !important; position: static !important; visibility: visible !important; opacity: 1 !important; transform: none !important; box-shadow: none !important; background: transparent !important; height: auto !important; max-height: none !important; row-gap: 4px !important; padding: 0 !important; }",
     "  header .action, header .action.fb-permanent { flex: 0 0 auto !important; }",
     // Hide FileBrowser's "..." / more-actions trigger so the dropdown buttons
@@ -129,6 +139,23 @@
       var text = span.textContent.trim();
       if (RENAMES[text]) span.textContent = RENAMES[text];
     });
+  }
+
+  // The permanent action toolbar belongs to the file LISTING only. FileBrowser
+  // is a Vue SPA whose <header-bar> (incl. #dropdown) is shared across the
+  // listing, the text editor (#editor-container) and the media/PDF previewer
+  // (#previewer), so injecting on "#dropdown present" alone leaked our buttons
+  // into the editor's toolbar — greyed-out and overlapping the breadcrumb.
+  // Gate everything on the listing's own root id instead.
+  function isListingView() {
+    return !!document.getElementById("listing");
+  }
+
+  // Drop any injected buttons when we leave the listing (editor/preview/error/
+  // loading views), so they don't linger in those toolbars. Re-injected by
+  // injectPermanentButtons when the listing comes back.
+  function removeInjectedButtons() {
+    document.querySelectorAll("header .fb-permanent").forEach(function(b) { b.remove(); });
   }
 
   // Check if any item (file or folder) is selected
@@ -186,6 +213,7 @@
   }
 
   function injectPermanentButtons() {
+    if (!isListingView()) return;   // listing-only toolbar (not editor/preview)
     var header = document.querySelector("header");
     if (!header || header.querySelector(".fb-permanent")) return;
     var dropdown = header.querySelector("#dropdown");
@@ -197,13 +225,15 @@
       btn.title = def.label;
       btn.setAttribute("aria-label", def.label);
       btn.setAttribute("data-icon", def.icon);
-      if (def.view) btn.setAttribute("data-always", "1");   // not selection-dependent
+      if (def.view || def.refresh) btn.setAttribute("data-always", "1");   // not selection-dependent
       btn.innerHTML = '<i class="material-icons">' + def.icon + '</i><span>' + def.label + '</span>';
       btn.addEventListener("click", function() {
         if (btn.classList.contains("disabled")) return;
         if (def.custom) {
           var fp = getFilePath();
           if (fp) openInBrowser(fp);
+        } else if (def.refresh) {
+          location.reload();
         } else if (def.view) {
           clickViewButton();
         } else {
@@ -215,6 +245,7 @@
   }
 
   function injectOfficeButtons() {
+    if (!isListingView()) return;   // listing-only toolbar (not editor/preview)
     var header = document.querySelector("header");
     if (!header || header.querySelector(".fb-office")) return;
     // Insert before the action dropdown when present (listing view); on the
@@ -347,6 +378,10 @@
     patching = true;
     rememberLocation();
     maybeAutoOpenOffice();
+    // Outside the listing (text editor, media previewer, error/loading views)
+    // the action toolbar doesn't belong — strip any leftover buttons and stop,
+    // so they don't overlap the editor's own toolbar/breadcrumb.
+    if (!isListingView()) { removeInjectedButtons(); patching = false; return; }
     shortenLabels();
     injectPermanentButtons();
     injectOfficeButtons();
