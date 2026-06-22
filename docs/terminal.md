@@ -92,6 +92,19 @@ The touch double-tap is keyed on touch *duration* (`<250ms`), not finger
 movement, so the keyboard-raise layout shift on the first tap doesn't get
 misread as a scroll and drop the second tap.
 
+**Windows Chromium focus fix.** Any `term.resize()` — the reshape's, *or* the
+desktop shell's re-fit when the Terminal app is (re)activated/refreshed, *or* a
+window resize — **blurs xterm's hidden input textarea on Windows Chromium and it
+never refocuses**, leaving the terminal untypable (macOS and touch restore focus
+on their own). This made the v1.6.6 reshape break typing the instant you
+double-clicked to focus the terminal, and a plain refresh leave Windows unable to
+type, while Mac/iPhone were fine. The cure is a single root fix in
+`terminal-kbd.js`'s non-touch branch: re-`term.focus()` right after
+`term.onResize`, deferred a tick and **guarded by `document.hasFocus()`** so it
+only refocuses while this page is actually focused (never stealing focus from
+another app). With that in place the double-click reshape stays — it's no longer
+the input-killer it was.
+
 ## Files
 
 - `~/vibe-coding/service-in-browser/terminal/claude-session` — Python session daemon/attach tool.

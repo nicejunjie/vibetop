@@ -45,8 +45,33 @@
     setTimeout(function () { try { el.remove(); } catch (_) {} }, 900);
   }
 
-  if (!isTouch) {                       // desktop: native xterm otherwise untouched
+  if (!isTouch) {
+    // Desktop: double-click re-claims the shared PTY's shape for THIS device
+    // (see claimSize) — needed because terminal N is one shared PTY owned by
+    // whichever device resized last, so the desktop otherwise shows the phone's
+    // shape (and vice-versa) until app re-activation.
     window.addEventListener('dblclick', claimSize);
+
+    // The catch on Windows Chromium: ANY t.resize() (claimSize's, OR the
+    // desktop's re-fit on activation/refresh, OR a window resize) blurs xterm's
+    // hidden input textarea and it never regains focus, so the terminal goes
+    // untypable — which is why double-click broke typing AND a plain refresh
+    // broke typing on Windows while macOS/touch were fine (they restore focus).
+    // Cure the root: re-focus xterm right after any resize, but only while this
+    // page actually has focus so we never steal focus from another app. This is
+    // what makes the reshape gesture safe to keep.
+    var poll = setInterval(function () {
+      var t = window.term;
+      if (!t) return;
+      clearInterval(poll);
+      try {
+        t.onResize(function () {
+          setTimeout(function () {
+            try { if (document.hasFocus()) t.focus(); } catch (_) {}
+          }, 0);
+        });
+      } catch (_) {}
+    }, 60);
     return;
   }
 
