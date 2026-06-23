@@ -404,4 +404,33 @@
   } catch(e) {
     console.warn('[xpra-patches] keymap-force patch failed:', e.message);
   }
+
+  // 8. Re-grab keyboard focus when the desktop switches BACK to the Browser.
+  //    The Browser iframe stays loaded (display:none) while another app is
+  //    active, so on switch-back the shell only does iframe.focus() + posts
+  //    {type:'vibetop:active', active:'browser'} — that does NOT restore focus to
+  //    xpra's keyboard-capture element (#pasteboard), so the mouse works but
+  //    typing does nothing until a full refresh. (A fresh load works because xpra
+  //    focuses itself on connect; a flapping/reconnecting WS used to re-focus on
+  //    each reconnect and mask this — once the connection is stable, the bug
+  //    shows.) On activation, focus #pasteboard (deferred a tick: the iframe was
+  //    just un-hidden) so keystrokes flow again.
+  try {
+    var refocusKbd = function() {
+      try {
+        window.focus();
+        var el = document.getElementById('pasteboard') ||
+                 document.querySelector('#screen canvas') || document.body;
+        if (el && el.focus) el.focus();
+      } catch (e) {}
+    };
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'vibetop:active' && e.data.active === 'browser') {
+        setTimeout(refocusKbd, 0);
+        setTimeout(refocusKbd, 150);   // again after layout/visibility settle
+      }
+    });
+  } catch(e) {
+    console.warn('[xpra-patches] refocus patch failed:', e.message);
+  }
 })();
