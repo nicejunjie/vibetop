@@ -184,18 +184,10 @@
   /* === Frames === */
   .frames {
     flex: 1 1 auto; position: relative; min-height: 0;
-    /* Desktop wallpaper — shown when no app is active / all are minimized; any
-       active app iframe is opaque and covers it. The Vibetop 2x2 brand mark
-       (orange/green/blue/purple, same as the icons) centered over a soft radial
-       glow. A tiny inline SVG + a pure-CSS gradient: vector (crisp at any size),
-       no extra request, cached with the shell. */
-    background-color: #0e1117;
-    background-image:
-      url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20240%20240'%3E%3Crect%20x='0'%20y='0'%20width='112'%20height='112'%20rx='28'%20fill='%23d2691e'/%3E%3Crect%20x='128'%20y='0'%20width='112'%20height='112'%20rx='28'%20fill='%2333aa55'/%3E%3Crect%20x='0'%20y='128'%20width='112'%20height='112'%20rx='28'%20fill='%233a7adb'/%3E%3Crect%20x='128'%20y='128'%20width='112'%20height='112'%20rx='28'%20fill='%238a4adb'/%3E%3C/svg%3E"),
-      radial-gradient(130% 90% at 50% 34%, #1c2a44 0%, #121722 46%, #0c0f14 100%);
-    background-repeat: no-repeat;
-    background-position: center 42%, center;
-    background-size: 124px auto, cover;
+    /* Soft radial glow behind the desktop wallpaper. The .wallpaper child holds
+       the brand mark + name + blurb; any active app iframe is opaque and covers
+       both. Pure-CSS gradient — no asset. */
+    background: #0e1117 radial-gradient(130% 90% at 50% 42%, #1c2a44 0%, #121722 48%, #0c0f14 100%);
   }
   .frames iframe {
     position: absolute; inset: 0; width: 100%; height: 100%;
@@ -203,14 +195,31 @@
   }
   .frames iframe.active { display: block; }
 
-  /* Empty desktop hint (shown when no app is focused) */
-  .desktop-hint {
-    position: absolute; inset: 0 0 var(--tb) 0; display: flex;
-    align-items: center; justify-content: center;
-    color: #3a4654; font-size: 16px; text-align: center; padding: 24px;
-    pointer-events: none;
+  /* Desktop wallpaper — the Vibetop brand mark, name, and a one-line "what it is"
+     blurb. A static FIRST child of .frames, so any app iframe added after it
+     (and set .active → opaque) paints over it; it shows on the empty/minimized
+     desktop. Vector logo (crisp at any size) + real page-font text. */
+  .wallpaper {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; gap: 15px;
+    pointer-events: none; user-select: none;
   }
-  .desktop-hint.hidden { display: none; }
+  .wp-logo {
+    width: clamp(150px, 27vmin, 250px); height: auto;
+    opacity: 0.92;   /* near-full — the calm look comes from the muted tile colors, not from fading */
+    filter: drop-shadow(0 12px 40px rgba(0,0,0,0.35));
+  }
+  .wp-name {
+    font-size: clamp(30px, 5.4vmin, 46px); font-weight: 600; letter-spacing: 0.5px;
+    color: #c3ccd6; margin-top: 4px;   /* soft off-white to match the calmer mark */
+  }
+  .wp-desc {
+    max-width: 470px; font-size: clamp(13px, 1.95vmin, 15px); line-height: 1.6; color: #7a8696;
+  }
+  .wp-hint { margin-top: 8px; font-size: 13px; color: #46566a; }
+  .wp-hint b { color: #6b7a8d; font-weight: 600; }
+  .wp-hint.hidden { display: none; }
 
   /* === Narrow screens: scrollable taskbar + roomy menu === */
   @media (max-width: 736px) {
@@ -279,8 +288,19 @@
 </style>
 </head>
 <body>
-  <div class="frames" id="frames"></div>
-  <div class="desktop-hint" id="desktop-hint">Click <b>&nbsp;⊞ Start&nbsp;</b> to open an app</div>
+  <div class="frames" id="frames">
+    <div class="wallpaper" aria-hidden="true">
+      <svg class="wp-logo" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="112" height="112" rx="28" fill="#cb8a4f"/>
+        <rect x="128" y="0" width="112" height="112" rx="28" fill="#54a86e"/>
+        <rect x="0" y="128" width="112" height="112" rx="28" fill="#5184ce"/>
+        <rect x="128" y="128" width="112" height="112" rx="28" fill="#8a64c6"/>
+      </svg>
+      <div class="wp-name">Vibetop</div>
+      <div class="wp-desc">A self-hosted mini-OS desktop in your browser for all your vibe coding needs.</div>
+      <div class="wp-hint" id="wp-hint">Click <b>&nbsp;⊞ Start&nbsp;</b> to open an app</div>
+    </div>
+  </div>
 
   <!-- Read-only document viewer (office files rendered to PDF by the manager) -->
   <div class="docviewer" id="docviewer">
@@ -370,7 +390,7 @@
   var taskAppsEl = document.getElementById('task-apps');
   var menuEl    = document.getElementById('startmenu');
   var startBtn  = document.getElementById('start-btn');
-  var hintEl    = document.getElementById('desktop-hint');
+  var hintEl    = document.getElementById('wp-hint');   // "Click Start" line inside the wallpaper
   buildStartMenu();   // populate the Start-menu items from APPS
 
   var openApps = [];   // ids, in taskbar order
@@ -622,7 +642,9 @@
         try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
       }
     });
-    hintEl.classList.toggle('hidden', !!id || openApps.length > 0);   // hide hint when apps are open but minimized
+    // The wallpaper (logo + name + blurb) shows whenever no app covers it; only
+    // the "Click Start" line is conditional — hide it once any app is open.
+    if (hintEl) hintEl.classList.toggle('hidden', openApps.length > 0);
     renderTaskbar();
     persist();
     updateKbdBar();
