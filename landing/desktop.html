@@ -285,7 +285,7 @@
     <div id="sm-apps"></div>
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
-    <div class="sm-build"><span class="build-tag">Vibetop · v@VERSION@</span></div>
+    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span></span></div>
   </div>
 
   <div class="taskbar" id="taskbar">
@@ -885,6 +885,15 @@
   }
   setInterval(relayStatus, 5000);
   setTimeout(relayStatus, 1500);
+
+  // Start-menu version: fetched live from the manager (which reads the root
+  // VERSION file) so a VERSION bump — or a `git pull` that only touched VERSION —
+  // shows up with NO shell redeploy or sw bump. The @VERSION@ stamped into this
+  // page at deploy time is just the offline/initial fallback.
+  fetch('/api/update').then(function(r) { return r.json(); }).then(function(d) {
+    var el = document.getElementById('build-ver');
+    if (el && d && d.version) el.textContent = d.version;
+  }).catch(function() {});
 
   // --- restore THIS instance's own windows; seed the running dots ----------
   // We fetch by instance id, so each device restores only the windows IT had

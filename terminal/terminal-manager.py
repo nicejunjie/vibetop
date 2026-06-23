@@ -1249,6 +1249,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ok, head = self._git_as_user(["log", "-1", "--format=%h\t%cd\t%s",
                                       "--date=short"])
         info = {"repo": REPO_DIR}
+        try:  # release number (root VERSION file) — lets the shell show it live
+            with open(os.path.join(REPO_DIR, "VERSION")) as f:
+                info["version"] = f.read().strip()
+        except OSError:
+            pass
         if ok and "\t" in head:
             commit, date, subject = head.split("\t", 2)
             info.update({"commit": commit, "date": date, "subject": subject})
