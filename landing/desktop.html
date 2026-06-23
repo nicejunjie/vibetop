@@ -792,6 +792,17 @@
       closeMenu();
     }
   });
+  // Clicking INSIDE an app iframe doesn't reach the document above (the iframe
+  // swallows the event), so the outside-click handler can't catch it and the
+  // Start menu would stay open over the app you just clicked into. Focus moving
+  // into an iframe blurs the parent window and makes that iframe the
+  // activeElement — use that as the signal to close the menu.
+  window.addEventListener('blur', function() {
+    if (menuEl.classList.contains('open') &&
+        document.activeElement && document.activeElement.tagName === 'IFRAME') {
+      closeMenu();
+    }
+  });
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeMenu(); });
 
   // Messages from app iframes (e.g. terminal opening a URL in the browser).
