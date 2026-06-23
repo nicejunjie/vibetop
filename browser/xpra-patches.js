@@ -433,4 +433,19 @@
   } catch(e) {
     console.warn('[xpra-patches] refocus patch failed:', e.message);
   }
+
+  // 9. Dismiss the desktop's Start menu when the user clicks into the Browser.
+  //    While the menu is open the shell lays a transparent scrim over apps so a
+  //    click closes it — but xpra renders into a GPU-composited <canvas>, so the
+  //    click reaches THIS iframe instead of the scrim (normal-HTML apps like Home
+  //    Service are caught by the scrim fine). We run inside the iframe and always
+  //    see the click, so tell the parent to close the menu. Capture phase, so it
+  //    fires even if xpra consumes the event.
+  try {
+    window.addEventListener('pointerdown', function() {
+      try { (window.top || window.parent).postMessage({ type: 'vibetop:dismiss-menu' }, '*'); } catch (e) {}
+    }, true);
+  } catch(e) {
+    console.warn('[xpra-patches] menu-dismiss patch failed:', e.message);
+  }
 })();

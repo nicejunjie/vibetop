@@ -814,6 +814,10 @@
     if (e.origin !== location.origin) return;
     if (!e.data) return;
     if (e.data.type === 'switch-to-browser') { launch('browser'); }
+    // The Browser renders into a GPU-composited canvas, so a click there reaches
+    // xpra instead of the #menu-scrim (normal-HTML apps are caught by the scrim).
+    // xpra-patches posts this from inside the iframe so the menu still closes.
+    if (e.data.type === 'vibetop:dismiss-menu') { if (menuEl.classList.contains('open')) closeMenu(); }
     if (e.data.type === 'open-in-browser' && e.data.url) {
       fetch('/api/browser/open', {
         method: 'POST',
