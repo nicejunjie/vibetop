@@ -16,7 +16,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v67';
+const VERSION = 'v68';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [

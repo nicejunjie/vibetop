@@ -182,7 +182,21 @@
   .sm-item.running .sm-name::after { content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; }
 
   /* === Frames === */
-  .frames { flex: 1 1 auto; position: relative; min-height: 0; }
+  .frames {
+    flex: 1 1 auto; position: relative; min-height: 0;
+    /* Desktop wallpaper — shown when no app is active / all are minimized; any
+       active app iframe is opaque and covers it. The Vibetop 2x2 brand mark
+       (orange/green/blue/purple, same as the icons) centered over a soft radial
+       glow. A tiny inline SVG + a pure-CSS gradient: vector (crisp at any size),
+       no extra request, cached with the shell. */
+    background-color: #0e1117;
+    background-image:
+      url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20240%20240'%3E%3Crect%20x='0'%20y='0'%20width='112'%20height='112'%20rx='28'%20fill='%23d2691e'/%3E%3Crect%20x='128'%20y='0'%20width='112'%20height='112'%20rx='28'%20fill='%2333aa55'/%3E%3Crect%20x='0'%20y='128'%20width='112'%20height='112'%20rx='28'%20fill='%233a7adb'/%3E%3Crect%20x='128'%20y='128'%20width='112'%20height='112'%20rx='28'%20fill='%238a4adb'/%3E%3C/svg%3E"),
+      radial-gradient(130% 90% at 50% 34%, #1c2a44 0%, #121722 46%, #0c0f14 100%);
+    background-repeat: no-repeat;
+    background-position: center 42%, center;
+    background-size: 124px auto, cover;
+  }
   .frames iframe {
     position: absolute; inset: 0; width: 100%; height: 100%;
     border: none; background: #1a1a2e; display: none;
