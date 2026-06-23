@@ -608,7 +608,7 @@
         try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
       }
     });
-    hintEl.classList.toggle('hidden', !!id);
+    hintEl.classList.toggle('hidden', !!id || openApps.length > 0);   // hide hint when apps are open but minimized
     renderTaskbar();
     persist();
     updateKbdBar();
@@ -678,22 +678,40 @@
     if (item) launch(item.dataset.id);
   });
 
-  // Switch apps on pointerdown for mouse — same fix as the terminal tabs: when
-  // the focused app's iframe has focus, the browser eats the first click moving
-  // focus back to the parent window, so a click-based switch needed two clicks.
-  // pointerdown fires before that transition. Close + touch stay on click.
+  // Taskbar button = Windows-style window control: clicking a NON-active window
+  // switches to it; clicking the ALREADY-active window MINIMIZES it (setActive
+  // null → every app iframe hidden, app stays open in the taskbar); clicking it
+  // again restores it. Switching is on pointerdown — same fix as the terminal
+  // tabs: a focused app iframe makes the browser eat the first click moving focus
+  // back to the parent, so click-based switching needed two clicks. Minimize is
+  // decided on pointerup with a movement check so DRAGGING the active button to
+  // reorder doesn't minimize it (dragstart also cancels the pending minimize).
+  // Close + touch stay on click.
+  var lastMouseTaskAt = -1e9;   // suppress the synthetic click that follows a mouse gesture
+  var taskDown = null;          // mousedown on the active button → maybe minimize (decided on up)
   taskAppsEl.addEventListener('pointerdown', function(e) {
-    if (e.pointerType !== 'mouse' || e.button) return;     // primary mouse only
+    if (e.pointerType !== 'mouse' || e.button) return;     // touch/pen handled on click
     var btn = e.target.closest('.task-app');
-    if (!btn || e.target.closest('.close')) return;        // close handled on click
-    if (btn.dataset.id !== active) setActive(btn.dataset.id);
+    if (!btn || e.target.closest('.close')) { taskDown = null; return; }  // close handled on click
+    var id = btn.dataset.id;
+    if (id !== active) { setActive(id); lastMouseTaskAt = e.timeStamp; taskDown = null; }
+    else taskDown = { id: id, x: e.clientX, y: e.clientY };
+  });
+  window.addEventListener('pointerup', function(e) {
+    if (!taskDown || e.pointerType !== 'mouse') return;
+    var d = taskDown; taskDown = null;
+    if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 6 && d.id === active) {
+      setActive(null);                  // a tap (not a drag) on the active window → minimize
+      lastMouseTaskAt = e.timeStamp;
+    }
   });
   taskAppsEl.addEventListener('click', function(e) {
     var btn = e.target.closest('.task-app');
     if (!btn) return;
     var id = btn.dataset.id;
     if (e.target.closest('.close')) { closeApp(id); return; }
-    if (id !== active) setActive(id);                       // touch / fallback
+    if (e.timeStamp - lastMouseTaskAt < 700) return;        // mouse already handled (pointerdown/up)
+    setActive(id === active ? null : id);                  // touch / fallback: minimize active, else switch
   });
 
   // --- drag-to-reorder taskbar apps (desktop; HTML5 DnD is a no-op on touch,
@@ -703,6 +721,7 @@
   taskAppsEl.addEventListener('dragstart', function(e) {
     var btn = e.target.closest('.task-app');
     if (!btn) return;
+    taskDown = null;          // a real drag-reorder cancels a pending minimize
     dragEl = btn;
     btn.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
@@ -908,11 +927,13 @@
     runningGlobal = (state && Array.isArray(state.running)) ? state.running : [];
     lastResetEpoch = (state && typeof state.reset_epoch === 'number') ? state.reset_epoch : 0;
     var lastActive = state && state.active;
-    if (openApps.length) {
-      setActive(openApps.indexOf(lastActive) !== -1 ? lastActive : openApps[0]);
-    } else {
+    if (!openApps.length) {
       setActive(null);
       openMenu();   // fresh desktop: show the launcher so there's an obvious next step
+    } else if (lastActive === null) {
+      setActive(null);   // restore a minimized desktop (apps open, none shown) — don't auto-open one
+    } else {
+      setActive(openApps.indexOf(lastActive) !== -1 ? lastActive : openApps[0]);
     }
     markMenuRunning();
   }).catch(function() {
