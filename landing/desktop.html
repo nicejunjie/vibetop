@@ -141,6 +141,12 @@
     z-index: 110; padding: 7px;
     display: none;
   }
+  /* Invisible click-catcher, shown only while the Start menu is open. Sits above
+     the app iframes (z-index 99) but below the taskbar (100) and menu (110), so a
+     click over an app — including the Browser, which swallows the event so
+     focus/blur tricks miss it — lands on the parent document and the outside-click
+     handler closes the menu. Taskbar and menu clicks stay above it and work. */
+  #menu-scrim { position: fixed; inset: 0; z-index: 99; display: none; }
   .startmenu.open { display: block; }
   .startmenu .sm-title {
     font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
@@ -314,6 +320,7 @@
     <div class="dv-body" id="dv-body"><div class="dv-loading">Rendering…</div></div>
   </div>
 
+  <div id="menu-scrim"></div>
   <div class="startmenu" id="startmenu">
     <div class="sm-title">Apps</div>
     <div id="sm-apps"></div>
@@ -390,6 +397,7 @@
   var taskAppsEl = document.getElementById('task-apps');
   var menuEl    = document.getElementById('startmenu');
   var startBtn  = document.getElementById('start-btn');
+  var scrimEl   = document.getElementById('menu-scrim');
   var hintEl    = document.getElementById('wp-hint');   // "Click Start" line inside the wallpaper
   buildStartMenu();   // populate the Start-menu items from APPS
 
@@ -702,8 +710,8 @@
     });
   }
 
-  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); refreshTerminals(); }
-  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); }
+  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); scrimEl.style.display = 'block'; refreshTerminals(); }
+  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; }
   function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
 
   // --- events ---
@@ -792,17 +800,10 @@
       closeMenu();
     }
   });
-  // Clicking INSIDE an app iframe doesn't reach the document above (the iframe
-  // swallows the event), so the outside-click handler can't catch it and the
-  // Start menu would stay open over the app you just clicked into. Focus moving
-  // into an iframe blurs the parent window and makes that iframe the
-  // activeElement — use that as the signal to close the menu.
-  window.addEventListener('blur', function() {
-    if (menuEl.classList.contains('open') &&
-        document.activeElement && document.activeElement.tagName === 'IFRAME') {
-      closeMenu();
-    }
-  });
+  // (Clicks over an app iframe are caught by #menu-scrim — shown only while the
+  // menu is open — which makes them land on this document so the handler above
+  // closes the menu. This works even for the Browser, which swallows the event
+  // so focus/blur-based detection missed it.)
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeMenu(); });
 
   // Messages from app iframes (e.g. terminal opening a URL in the browser).
