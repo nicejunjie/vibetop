@@ -442,8 +442,17 @@
   //    see the click, so tell the parent to close the menu. Capture phase, so it
   //    fires even if xpra consumes the event.
   try {
-    window.addEventListener('pointerdown', function() {
+    var menuOpen = false;
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'vibetop:menu-open') menuOpen = !!e.data.open;
+    });
+    window.addEventListener('pointerdown', function(ev) {
       try { (window.top || window.parent).postMessage({ type: 'vibetop:dismiss-menu' }, '*'); } catch (e) {}
+      // If the menu is open, CONSUME this click so it only dismisses the menu and
+      // doesn't also act on the remote — matching how the scrim eats the dismiss-
+      // click for other apps. Reset locally so a lost close-notification can
+      // swallow at most this one click (never makes the Browser unclickable).
+      if (menuOpen) { menuOpen = false; ev.preventDefault(); ev.stopPropagation(); }
     }, true);
   } catch(e) {
     console.warn('[xpra-patches] menu-dismiss patch failed:', e.message);

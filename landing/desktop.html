@@ -245,7 +245,7 @@
      (transparent text; the glyph is a pointer-events:none overlay so taps land
      on the input). No visible compose box — text appears straight in the app. */
   #kbd-btn {
-    position: fixed; right: 8px; top: 42%; z-index: 95;
+    position: fixed; right: 8px; top: 42%; z-index: 101;   /* above #menu-scrim (99) so it stays tappable with the menu open */
     width: 50px; height: 50px; border-radius: 25px; display: none;
     background: #2d6cc0; border: 1px solid #2d6cc0; box-shadow: 0 4px 14px rgba(0,0,0,.5);
     touch-action: manipulation; -webkit-user-select: none; user-select: none;
@@ -710,8 +710,15 @@
     });
   }
 
-  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); scrimEl.style.display = 'block'; refreshTerminals(); }
-  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; }
+  // Tell the Browser iframe whether the menu is open so xpra-patches can CONSUME
+  // the dismiss-click (the scrim eats it for other apps; the Browser's click
+  // otherwise reaches xpra too) — keeps the dismiss behaviour consistent.
+  function notifyBrowserMenu(open) {
+    var bf = frameOf('browser');
+    if (bf && bf.contentWindow) { try { bf.contentWindow.postMessage({ type: 'vibetop:menu-open', open: open }, '*'); } catch (e) {} }
+  }
+  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); scrimEl.style.display = 'block'; notifyBrowserMenu(true); refreshTerminals(); }
+  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; notifyBrowserMenu(false); }
   function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
 
   // --- events ---
