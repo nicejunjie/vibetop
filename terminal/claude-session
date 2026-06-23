@@ -249,26 +249,65 @@ def cmd_serve(instance):
 
     # -- setup --
 
-    try:
-        os.unlink(sock_path)
-    except FileNotFoundError:
-        pass
+    def make_listener():
+        # (Re)create the Unix socket + pid file. Called at startup and again by
+        # the watchdog in the main loop if the socket file is ever deleted or
+        # replaced out from under us (e.g. a stray `rm` in /tmp). Without this
+        # the daemon would keep listening on an orphaned in-kernel socket whose
+        # filesystem path is gone — unreachable by attach, recoverable only by a
+        # session-killing restart.
+        try:
+            os.unlink(sock_path)
+        except FileNotFoundError:
+            pass
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.bind(sock_path)
+        os.chmod(sock_path, 0o600)
+        s.listen(5)
+        s.setblocking(False)
+        with open(pid_path, 'w') as f:
+            f.write(str(os.getpid()))
+        return s
 
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(sock_path)
-    os.chmod(sock_path, 0o600)
-    server.listen(5)
-    server.setblocking(False)
+    def sock_sig():
+        # (dev, inode) of the on-disk socket file, or None if it's gone. A
+        # changed/missing signature means the path is no longer our listener.
+        try:
+            st = os.stat(sock_path)
+        except OSError:
+            return None
+        return (st.st_dev, st.st_ino)
+
+    server = make_listener()
+    server_sig = sock_sig()
     sel.register(server, selectors.EVENT_READ, 'server')
-
-    with open(pid_path, 'w') as f:
-        f.write(str(os.getpid()))
 
     spawn_shell()
 
     # -- main loop --
 
+    next_heal = 0.0
     while True:
+        # Watchdog: if our socket file disappeared or was replaced, re-bind it
+        # (and rewrite the pid file) so the daemon self-heals instead of becoming
+        # an unreachable orphan. Throttled to ~1s; existing attached clients are
+        # on their own accepted sockets and are unaffected by the re-bind.
+        now = time.monotonic()
+        if now >= next_heal:
+            next_heal = now + 1.0
+            if sock_sig() != server_sig:
+                try:
+                    sel.unregister(server)
+                except Exception:
+                    pass
+                try:
+                    server.close()
+                except Exception:
+                    pass
+                server = make_listener()
+                server_sig = sock_sig()
+                sel.register(server, selectors.EVENT_READ, 'server')
+
         if reap_child():
             ring.clear()
             spawn_shell()
