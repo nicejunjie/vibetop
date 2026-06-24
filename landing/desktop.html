@@ -1134,10 +1134,27 @@ if ('serviceWorker' in navigator) {
   // new shell is deployed → we fetch the new SW, which fires controllerchange →
   // full refresh. EventSource auto-reconnects if the stream drops. A check on
   // tab-focus is the only fallback (event-driven, not periodic).
+  var loadedShellVer = null;   // shell version this page is running (from the first hello)
+  function triggerRefresh() {
+    // Fetch the new SW (so the reload is served fresh) AND reload directly. Not via
+    // controllerchange: an uncontrolled page (e.g. after a hard reload) never fires
+    // it, which would silently miss the refresh.
+    try { navigator.serviceWorker.getRegistration().then(function(r) { if (r) r.update().catch(function() {}); }); } catch (e) {}
+    doSwReload();
+  }
   function subscribeUpdates() {
     try {
       var es = new EventSource('/api/events');
-      es.addEventListener('reload', function() { checkForUpdate(); });
+      // hello fires on every (re)connect. The FIRST one baselines the version this
+      // page loaded with; a LATER one that differs means the shell changed while we
+      // were disconnected/backgrounded → self-heal (closes the gap where a push that
+      // happened while offline would otherwise be missed). The live `reload` event
+      // covers a foreground tab during a deploy.
+      es.addEventListener('hello', function(e) {
+        if (loadedShellVer === null) loadedShellVer = e.data;
+        else if (e.data && e.data !== loadedShellVer) triggerRefresh();
+      });
+      es.addEventListener('reload', triggerRefresh);
     } catch (e) {}
   }
   document.addEventListener('visibilitychange', function() { if (!document.hidden) checkForUpdate(); });

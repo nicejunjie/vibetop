@@ -2001,6 +2001,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if cur != ver0 and cur != "?":
                     self.wfile.write(f"event: reload\ndata: {cur}\n\n".encode())
                     self.wfile.flush()
+                    print(f"[events] pushed reload {ver0}->{cur}", file=sys.stderr, flush=True)
                     return
                 now = time.monotonic()
                 if now - last_ping >= 18:

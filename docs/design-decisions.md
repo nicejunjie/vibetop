@@ -149,8 +149,22 @@ and why it lost).
   fits the threaded `http.server` (one held thread per client), needs **no nginx
   change** (`X-Accel-Buffering: no` disables response buffering; ~18s pings keep
   nginx/Cloudflare from idling the stream out and detect a dead client), and one
-  server-side version-check replaces N client polls. A check on tab-focus remains
-  as the only fallback (event-driven, not periodic).
+  server-side version-check replaces N client polls.
+- **The reliability gap (and fix) — learned the hard way:** the naïve SSE only
+  notices a version change *while a connection is live*. A tab that's
+  disconnected at deploy time (manager restart, network blip, or a **backgrounded
+  tab whose stream the browser suspended**) reconnects, baselines to the
+  now-current version, and **never learns it should reload** → stale forever. This
+  is exactly the case where stateless polling is more reliable. Fix that keeps the
+  push: the client remembers the version from its **first `hello`**, and on every
+  reconnect compares — if the server's version differs, it **self-heals** (reloads)
+  the moment it reconnects or is brought to the foreground. Plus a second client
+  bug: the reload was driven by `controllerchange`, which an **uncontrolled** page
+  (after a hard reload, `hadController=false`) never fires — so on an explicit
+  `reload`/version-mismatch the client now reloads **directly** (`doSwReload`), not
+  via `controllerchange`. A tab-focus `registration.update()` remains as a last
+  fallback. (`/api/events` logs `[events] pushed reload v…->v…` so a deploy
+  propagating is visible in the journal.)
 - **Why a full reload (not gentle/deferred):** a thorough refresh is intended —
   persistent state survives the reload (terminals/Browser reconnect, notes
   autosave, Files/Notes tabs are server-side), so the brief blip is acceptable and
