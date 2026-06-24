@@ -83,7 +83,11 @@ fi
 # Pick a browser if not overridden.
 if [ -z "${BROWSER_CMD:-}" ]; then
     if [ -x /snap/bin/chromium ]; then
-        BROWSER_CMD="/snap/bin/chromium --no-first-run --no-default-browser-check --restore-last-session --start-maximized --user-data-dir=$APP_HOME/snap/chromium/common/xpra-profile"
+        # --disable-smooth-scrolling: each wheel notch is animated over ~100ms by
+        # default; on this remote xpra display that animation streams back frame
+        # by frame and feels laggy/floaty. Disabling it makes every notch an
+        # instant one-frame jump — crisp and responsive over the wire.
+        BROWSER_CMD="/snap/bin/chromium --no-first-run --no-default-browser-check --restore-last-session --start-maximized --disable-smooth-scrolling --user-data-dir=$APP_HOME/snap/chromium/common/xpra-profile"
     elif [ -x /snap/bin/firefox ]; then
         BROWSER_CMD="/snap/bin/firefox --no-remote"
     elif command -v firefox-esr >/dev/null 2>&1; then

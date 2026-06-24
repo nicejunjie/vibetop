@@ -73,22 +73,32 @@
       // thousands, which would burst hundreds of packets down the (possibly
       // tunneled) websocket and lag everything behind them.
       var MAX_CLICKS = 10;
-      if (dy !== 0) {
-        var btn = dy > 0 ? 5 : 4;
-        var n = Math.min(MAX_CLICKS, Math.max(1, Math.round(Math.abs(dy) / 30)));
+      // Pixels of scroll delta per emitted wheel click. The remote Chromium
+      // amplifies each click by ~3 lines, so a small divisor scrolls very
+      // fast; raise it to slow the trackpad down (higher = slower).
+      var PX_PER_CLICK = 45;
+      // Carry the sub-notch remainder BETWEEN events. A trackpad fires ~60
+      // events/sec with small deltas; the old Math.max(1,…) floored EVERY one
+      // to a full notch, so most scrolling ran at the floor and PX_PER_CLICK
+      // barely mattered (this is the "acceleration" — really a per-event floor
+      // stacking on top of the OS trackpad accel). Accumulating the remainder
+      // makes total notches strictly proportional to pixels travelled, so the
+      // divisor controls speed linearly and there's no floor inflation.
+      var self = this;
+      function emitWheel(delta, accKey, btnNeg, btnPos) {
+        if (delta === 0) return;
+        self[accKey] = (self[accKey] || 0) + delta / PX_PER_CLICK;
+        var n = Math.min(MAX_CLICKS, Math.abs(self[accKey]) | 0);   // whole notches ready
+        if (n === 0) return;
+        var btn = self[accKey] > 0 ? btnPos : btnNeg;
+        self[accKey] -= (self[accKey] > 0 ? n : -n);               // keep the fraction
         for (var i = 0; i < n; i++) {
-          this.send([PACKET_TYPES.button_action, wid, btn, true, coords, modifiers, []]);
-          this.send([PACKET_TYPES.button_action, wid, btn, false, coords, modifiers, []]);
+          self.send([PACKET_TYPES.button_action, wid, btn, true, coords, modifiers, []]);
+          self.send([PACKET_TYPES.button_action, wid, btn, false, coords, modifiers, []]);
         }
       }
-      if (dx !== 0) {
-        var btn = dx > 0 ? 7 : 6;
-        var n = Math.min(MAX_CLICKS, Math.max(1, Math.round(Math.abs(dx) / 30)));
-        for (var i = 0; i < n; i++) {
-          this.send([PACKET_TYPES.button_action, wid, btn, true, coords, modifiers, []]);
-          this.send([PACKET_TYPES.button_action, wid, btn, false, coords, modifiers, []]);
-        }
-      }
+      emitWheel(dy, '_wheelAccY', 4, 5);
+      emitWheel(dx, '_wheelAccX', 6, 7);
       e.preventDefault();
       return false;
     };
