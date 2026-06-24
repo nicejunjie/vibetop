@@ -36,18 +36,29 @@ Linux is the platform that bites you here, because its defaults are permissive:
 `arp_ignore=0` / `arp_announce=0` (ARP flux) and a single main routing table that
 sends all replies out the lowest-metric interface (asymmetry).
 
-**Fix without ongoing fiddling:** run the repo helper —
+**You don't normally run anything by hand: `deploy.sh` auto-applies it.** On every
+deploy it checks whether two or more NICs share a LAN subnet and, if so, runs the
+helper below; on a single-homed host the step is skipped (no-op). So a dual-homed
+host "just works" with the normal deploy, with **no manual OS tweaking** — that's the
+portable path.
+
+Under the hood it's the repo helper, which you can also run directly:
 
 ```bash
 sudo ./tools/setup-samesubnet-routing.sh
 ```
 
 It sets `arp_ignore=1` / `arp_announce=2` (each IP answered only on its own NIC) and
-installs a NetworkManager dispatcher that does **source-based policy routing** (one
-routing table per interface, each defaulting out its own interface) so replies leave
-on the interface they arrived on. It **auto-detects IP/subnet/gateway** (no hardcoded
-addresses), is idempotent, and re-applies on every up/DHCP event. Re-run it after a
-reinstall — it isn't part of `deploy.sh`.
+installs a NetworkManager dispatcher that does **source-based policy routing** — one
+routing table per interface, each defaulting out its own interface, so a reply is
+routed by the address the client connected to and leaves on the **incoming NIC**.
+Pure `iproute2` (no iptables, so it can't clash with a host firewall/VPN). It
+**auto-detects IP/subnet/gateway** (no hardcoded addresses), is idempotent, and
+re-applies on every up/DHCP event.
+
+Note this needs **NetworkManager** for the boot/event persistence (the dispatcher).
+On netplan/systemd-networkd-only hosts, run the helper from a boot unit instead —
+or, better, use one of the tweak-free options below.
 
 ---
 

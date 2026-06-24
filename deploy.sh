@@ -94,6 +94,16 @@ else
     step "6/6  Tunnel — skipped (run with --with-tunnel; it's interactive)"
 fi
 
+# Same-subnet dual-homing: if 2+ NICs share a LAN subnet, the host would answer
+# some clients on the wrong interface (asymmetric routing) and long-lived
+# WebSockets (terminals/Browser) flap ~10s in. Auto-apply per-interface "reply via
+# the incoming NIC" routing so deployment stays portable with no manual host
+# networking. No-op on single-homed hosts. See docs/dual-homed-network.md.
+if (( ! DRY )) && ip -4 route show scope link 2>/dev/null | awk '$3 !~ /^(docker|veth|br-|virbr|lo)/ {print $1}' | sort | uniq -d | grep -q .; then
+    step "network — dual-homed on one subnet; routing replies via the incoming NIC"
+    sudo "$REPO_DIR/tools/setup-samesubnet-routing.sh" || echo "  (same-subnet routing setup failed — see docs/dual-homed-network.md)"
+fi
+
 if (( ! DRY )); then
     step "health check (loopback http codes)"
     for p in / /t1/ /terminals/ /files/ /browser/ /onlyoffice/healthcheck /api/system/status; do

@@ -34,10 +34,13 @@ sysctl --system >/dev/null
 
 cat > "$DISP" <<'EOF'
 #!/bin/sh
-# vibetop: per-interface source routing so replies leave on the SAME interface a
-# request arrived on (no asymmetric routing on a host dual-homed on one subnet).
-# Network-agnostic: auto-detects IP/subnet/gateway; one table per interface
-# (100 + ifindex). Re-applied on every NetworkManager up/dhcp event.
+# vibetop: make a host that's dual-homed on one subnet answer THROUGH THE INCOMING
+# NIC. A reply is routed by the address the client connected to — which equals the
+# interface it arrived on, once ARP flux is stopped — so replies leave on the same
+# NIC, no asymmetric routing. Pure iproute2 (no iptables/firewall changes), so it
+# can't clash with other software. Network-agnostic: auto-detects IP/subnet/
+# gateway; one routing table per interface (100 + ifindex). Re-applied on every
+# NetworkManager up/dhcp event.
 IFACE="$1"; ACTION="$2"
 case "$IFACE" in lo|""|docker*|veth*|br-*|virbr*) exit 0 ;; esac
 IDX=$(cat "/sys/class/net/$IFACE/ifindex" 2>/dev/null) || exit 0
