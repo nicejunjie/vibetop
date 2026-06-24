@@ -54,7 +54,6 @@
 <script>
 (function() {
   var ROOT = '/files/files/';                 // FileBrowser's root listing URL
-  var KEY = 'vibetop:files:tabs';             // {paths:[...], active:idx}
   var tabsEl = document.getElementById('tabs');
   var framesEl = document.getElementById('frames');
   var addBtn = document.getElementById('add');
@@ -62,6 +61,12 @@
   var active = null;
   var seq = 0;
   var lastMouseAt = -1e9;
+  // The tab set is shared across devices (server-side via /api/files/tabs):
+  // loaded when the app opens, saved on change. _loaded gates saving until the
+  // initial load is in; _lastSaved dedupes so we only POST real changes.
+  var _loaded = false;
+  var _lastSaved = null;
+  var _suppress = false;       // true while reconciling to the server (don't echo back)
 
   // Current path of a tab's FileBrowser iframe (same-origin, so readable).
   function curPath(t) {
@@ -71,6 +76,10 @@
     } catch (e) {}
     return null;
   }
+  // Normalize a browse URL (drop query/hash + trailing slash) so the two devices
+  // produce identical strings regardless of FileBrowser's slash canonicalization
+  // — otherwise a slash mismatch would ping-pong reconciles between them.
+  function norm(p) { return (p || '').split('?')[0].split('#')[0].replace(/\/+$/, '') || '/files/files'; }
   function labelFor(path) {
     var rest = (path || '').split('/files/files')[1] || '';
     rest = rest.split('?')[0].split('#')[0].replace(/\/+$/, '');
@@ -80,13 +89,20 @@
     return seg || 'Home';
   }
 
+  function stateStr() {
+    return JSON.stringify({
+      paths: tabs.map(function(t) { return norm(curPath(t) || t.path); }),
+      active: Math.max(0, tabs.indexOf(active))
+    });
+  }
+  // Push the local tab set to the server now (deduped; suppressed while we're
+  // reconciling TO the server so we don't echo a change back).
   function persist() {
-    try {
-      localStorage.setItem(KEY, JSON.stringify({
-        paths: tabs.map(function(t) { return curPath(t) || t.path; }),
-        active: tabs.indexOf(active)
-      }));
-    } catch (e) {}
+    if (_suppress || !_loaded) return;
+    var s = stateStr();
+    if (s === _lastSaved) return;
+    _lastSaved = s;
+    fetch('/api/files/tabs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: s }).catch(function() {});
   }
 
   function renderTabs() {
@@ -105,7 +121,17 @@
     });
   }
 
+  function makeTab(path) {
+    var f = document.createElement('iframe');
+    f.name = 'fbtab';                          // tells filebrowser-patches.js to skip its location-memory
+    f.setAttribute('allow', 'clipboard-read; clipboard-write');
+    f.src = path || ROOT;
+    framesEl.appendChild(f);
+    return { id: ++seq, frame: f, path: path || ROOT };
+  }
+
   function show(t) {
+    if (!t) return;
     tabs.forEach(function(o) { o.frame.classList.toggle('active', o === t); });
     active = t;
     renderTabs();
@@ -113,16 +139,10 @@
   }
 
   function createTab(path, activate) {
-    var id = ++seq;
-    var f = document.createElement('iframe');
-    f.name = 'fbtab';                          // tells filebrowser-patches.js to skip its location-memory
-    f.setAttribute('allow', 'clipboard-read; clipboard-write');
-    f.src = path || ROOT;
-    framesEl.appendChild(f);
-    var t = { id: id, frame: f, path: path || ROOT };
+    var t = makeTab(path);
     tabs.push(t);
     renderTabs();
-    if (activate) show(t);
+    if (activate) show(t); else persist();
     return t;
   }
 
@@ -134,6 +154,28 @@
     if (!tabs.length) { createTab(ROOT, true); return; }   // never zero tabs
     if (active === t) show(tabs[Math.max(0, i - 1)]);
     else { renderTabs(); persist(); }
+  }
+
+  // Reconcile local tabs to the server's shared set (another device changed it).
+  // Reuse iframes whose folder already matches so only genuinely new/changed tabs
+  // reload; then mirror order + active. Suppressed so it doesn't echo back.
+  function reconcile(server) {
+    var pool = {};
+    tabs.forEach(function(t) { var p = norm(curPath(t) || t.path); (pool[p] = pool[p] || []).push(t); });
+    var next = [];
+    (server.paths || []).forEach(function(p) {
+      var arr = pool[norm(p)];
+      next.push(arr && arr.length ? arr.shift() : makeTab(p));
+    });
+    if (!next.length) next.push(makeTab(ROOT));
+    var keep = {}; next.forEach(function(t) { keep[t.id] = true; });
+    tabs.forEach(function(t) { if (!keep[t.id] && t.frame.parentNode) t.frame.parentNode.removeChild(t.frame); });
+    tabs = next;
+    var ai = Math.min(Math.max(0, server.active | 0), tabs.length - 1);
+    _suppress = true;
+    show(tabs[ai]);
+    _suppress = false;
+    _lastSaved = stateStr();
   }
 
   function tabFromEvent(e) {
@@ -177,18 +219,36 @@
     openAt(rel);
   });
 
-  // Keep tab labels + persisted paths current as the user navigates inside a tab.
-  setInterval(function() { renderTabs(); persist(); }, 1200);
-
-  // Restore tabs (or open one at Home).
-  var saved = null;
-  try { saved = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
-  if (saved && Array.isArray(saved.paths) && saved.paths.length) {
-    saved.paths.forEach(function(p) { createTab(p, false); });
-    show(tabs[Math.min(Math.max(0, saved.active | 0), tabs.length - 1)]);
-  } else {
-    createTab(ROOT, true);
+  // Live sync (~2s): push our changes (incl. in-tab navigation, detected via the
+  // live folder paths), else pull the other device's changes and reconcile. Local
+  // changes win their round so we never get reverted mid-action.
+  function tick() {
+    renderTabs();                     // refresh labels from live folder paths
+    if (!_loaded) return;
+    var local = stateStr();
+    if (local !== _lastSaved) { persist(); return; }   // we changed something → push
+    fetch('/api/files/tabs').then(function(r) { return r.json(); }).then(function(s) {
+      if (!s || !Array.isArray(s.paths)) return;
+      var serverStr = JSON.stringify({ paths: s.paths.map(norm), active: (typeof s.active === 'number' ? s.active : 0) });
+      if (serverStr !== stateStr()) reconcile(s);       // another device changed it
+    }).catch(function() {});
   }
+  setInterval(tick, 2000);
+
+  // Initial load of the shared tab set, then live sync takes over.
+  fetch('/api/files/tabs').then(function(r) { return r.json(); }).then(function(s) {
+    if (s && Array.isArray(s.paths) && s.paths.length) {
+      s.paths.forEach(function(p) { createTab(p, false); });
+      show(tabs[Math.min(Math.max(0, s.active | 0), tabs.length - 1)]);
+    } else {
+      createTab(ROOT, true);
+    }
+  }).catch(function() {
+    if (!tabs.length) createTab(ROOT, true);
+  }).then(function() {
+    _lastSaved = stateStr();   // don't immediately re-POST the just-loaded state
+    _loaded = true;
+  });
 })();
 </script>
 </body>

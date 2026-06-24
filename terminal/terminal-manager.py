@@ -139,6 +139,12 @@ def _read_notes_index():
 
 def _write_notes_index(data):
     _atomic_write(NOTES_INDEX_FILE, json.dumps(data))
+
+
+# Files app tab set — shared across devices (one set, loaded when the Files app
+# opens, saved on change). Each entry is a FileBrowser browse URL (/files/files/…).
+FILES_TABS_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-files-tabs.json")
+_files_tabs_lock = threading.Lock()
 # Terminal tab names, keyed by instance number. Server-side (not per-browser
 # localStorage) so a rename shows up in every session/device — terminal N is the
 # same shared session everywhere.
@@ -169,6 +175,22 @@ UPLOAD_DIR = os.environ.get(
 # "health" URL; those are added to /api/health so the Home Service page can show
 # live dots without baking personal hostnames into the repo.
 SERVICES_FILE = os.path.expanduser(f"~{APP_USER}/claude-web-www/services.json")
+# The deployed service-worker file; its VERSION is the shell version. /api/events
+# (SSE) watches it and pushes a 'reload' to every connected client when it changes
+# (a deploy), so clients refresh without polling.
+SW_FILE = os.path.expanduser(f"~{APP_USER}/claude-web-www/sw.js")
+_SW_VER_RE = re.compile(r"VERSION\s*=\s*['\"]([^'\"]+)['\"]")
+
+
+def _shell_version():
+    try:
+        with open(SW_FILE) as f:
+            m = _SW_VER_RE.search(f.read(2000))
+        if m:
+            return m.group(1)
+    except OSError:
+        pass
+    return "?"
 
 # ---- Office (Word/Excel/PPT) view & edit -----------------------------------
 # View: convert to PDF with headless LibreOffice (cached) and serve it inline.
@@ -294,7 +316,32 @@ def _read_desktop_state():
         data["instances"] = {}
     if not isinstance(data.get("reset_epoch"), int):
         data["reset_epoch"] = 0
+    # close_targets: {appId: [instanceId,...]} — the live instances that should
+    # close that app (cross-device close). An instance closes the app when it sees
+    # its own id listed; it then reports an open-set without the app, and the
+    # server prunes it out. Targeting by id (not a global flag) means reloading the
+    # holding instance still closes it, and a stuck holder can't poison the app for
+    # other devices.
+    if not isinstance(data.get("close_targets"), dict):
+        data["close_targets"] = {}
     return data
+
+
+def _desktop_prune_targets(state, now):
+    """Keep a close target only while its instance is still live AND still reports
+    the app open. Honoring a close (reporting an open-set without the app) or going
+    stale drops the instance out; an app with no targets left is removed."""
+    insts = state["instances"]
+    out = {}
+    for app, ids in (state.get("close_targets") or {}).items():
+        keep = [i for i in ids
+                if isinstance(insts.get(i), dict)
+                and (now - float(insts[i].get("ts", 0) or 0)) <= DESKTOP_TTL
+                and app in (insts[i].get("open") or [])]
+        if keep:
+            out[app] = keep
+    state["close_targets"] = out
+    return out
 
 
 def _write_desktop_state(data):
@@ -795,8 +842,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_notes_save()
         if self.path == "/api/notes/tabs":
             return self._handle_notes_tabs()
+        if self.path == "/api/files/tabs":
+            return self._handle_files_tabs_save()
         if self.path == "/api/desktop":
             return self._handle_desktop_save()
+        if self.path == "/api/desktop/close":
+            return self._handle_desktop_close()
         if self.path == "/api/reset":
             return self._handle_reset()
         if self.path == "/api/upload":
@@ -852,6 +903,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
         os.makedirs(NOTES_DIR, exist_ok=True)
         _chown_app(NOTES_DIR)
         _atomic_write(_note_file(nid), content)
+        self._json(200, {"ok": True})
+
+    def _handle_files_tabs_save(self):
+        # POST {paths:[<FileBrowser URL>], active} — the Files app's shared tab set.
+        body = self._read_body(65536)
+        if body is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            return self._json(400, {"error": "invalid json"})
+        raw = data.get("paths")
+        if not isinstance(raw, list):
+            return self._json(400, {"error": "paths must be a list"})
+        # Only keep real FileBrowser browse URLs (these become iframe src in the
+        # wrapper, so reject anything that isn't a /files/files path).
+        paths = [p for p in raw[:32]
+                 if isinstance(p, str) and p.startswith("/files/files") and len(p) <= 2048]
+        if not paths:
+            paths = ["/files/files/"]
+        active = data.get("active")
+        if not isinstance(active, int) or active < 0 or active >= len(paths):
+            active = 0
+        with _files_tabs_lock:
+            _atomic_write(FILES_TABS_FILE, json.dumps({"paths": paths, "active": active}))
         self._json(200, {"ok": True})
 
     def _handle_notes_tabs(self):
@@ -1012,9 +1088,43 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "open": open_apps, "active": active, "ts": now,
             }
             _desktop_cap(state)
+            _desktop_prune_targets(state, now)
             _write_desktop_state(state)
             resp = {"ok": True, "running": _desktop_union(state, now),
-                    "reset_epoch": state["reset_epoch"]}
+                    "reset_epoch": state["reset_epoch"],
+                    "close_targets": state["close_targets"]}
+        self._json(200, resp)
+
+    def _handle_desktop_close(self):
+        # POST {app} — close `app` on every live instance that currently has it
+        # open. We record exactly those instance ids as targets; each closes the
+        # app when it sees its own id, then reports an open-set without it and is
+        # pruned out. (Targeting ids, not a global flag, means reloading the holder
+        # still closes it and a stuck holder can't poison the app elsewhere.)
+        body = self._read_body(4096)
+        if body is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            return self._json(400, {"error": "invalid json"})
+        app = data.get("app")
+        if not isinstance(app, str) or not app or len(app) > 64:
+            return self._json(400, {"error": "app required"})
+        now = time.time()
+        with _desktop_lock:
+            state = _read_desktop_state()
+            insts = state["instances"]
+            holders = [i for i, ent in insts.items()
+                       if isinstance(ent, dict)
+                       and (now - float(ent.get("ts", 0) or 0)) <= DESKTOP_TTL
+                       and app in (ent.get("open") or [])]
+            if holders:
+                tg = state["close_targets"]
+                tg[app] = sorted(set(tg.get(app, []) + holders))
+            _desktop_prune_targets(state, now)
+            _write_desktop_state(state)
+            resp = {"ok": True, "close_targets": state["close_targets"]}
         self._json(200, resp)
 
     def _handle_reset(self):
@@ -1048,6 +1158,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with _desktop_lock:
                 state = _read_desktop_state()
                 state["instances"] = {}
+                state["close_targets"] = {}
                 state["reset_epoch"] = int(state.get("reset_epoch", 0)) + 1
                 _write_desktop_state(state)
             result["desktop_cleared"] = True
@@ -1779,6 +1890,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/system/status":
             self._json(200, self._get_system_status())
             return
+        if self.path == "/api/files/tabs":
+            try:
+                with open(FILES_TABS_FILE) as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+            paths = data.get("paths") if isinstance(data, dict) else None
+            if not isinstance(paths, list) or not paths:
+                paths = ["/files/files/"]
+            active = data.get("active") if isinstance(data, dict) else 0
+            if not isinstance(active, int) or active < 0 or active >= len(paths):
+                active = 0
+            self._json(200, {"paths": paths, "active": active})
+            return
         if self.path == "/api/notes" or self.path.startswith("/api/notes?"):
             # No id -> the tab index {tabs, active}; ?id=N -> {content} of note N.
             nid = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("id", [None])[0]
@@ -1810,12 +1935,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     ent["ts"] = now              # heartbeat: join the union now
                     state["instances"][instance] = ent
                     _desktop_cap(state)
+                _desktop_prune_targets(state, now)
+                if instance:
                     _write_desktop_state(state)
                 resp = {
                     "open": (ent or {}).get("open", []),
                     "active": (ent or {}).get("active"),
                     "running": _desktop_union(state, now),
                     "reset_epoch": state["reset_epoch"],
+                    "close_targets": state["close_targets"],
                 }
             self._json(200, resp)
             return
@@ -1843,7 +1971,44 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/health":
             self._json(200, self._check_health())
             return
+        if self.path == "/api/events":
+            return self._handle_events()
         self.send_error(404)
+
+    def _handle_events(self):
+        # Server-Sent Events: push a 'reload' when the deployed shell version
+        # (sw.js VERSION) changes, so every connected client refreshes on deploy
+        # with no client-side polling. X-Accel-Buffering:no disables nginx response
+        # buffering for this stream (so no nginx config is needed); the ~18s pings
+        # keep proxies from idling the connection out and detect a dead client.
+        ver0 = _cached("shell_ver", 5.0, _shell_version)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Accel-Buffering", "no")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(f"retry: 5000\nevent: hello\ndata: {ver0}\n\n".encode())
+            self.wfile.flush()
+        except (OSError, ValueError):
+            return
+        last_ping = time.monotonic()
+        while True:
+            time.sleep(2)
+            try:
+                cur = _cached("shell_ver", 5.0, _shell_version)
+                if cur != ver0 and cur != "?":
+                    self.wfile.write(f"event: reload\ndata: {cur}\n\n".encode())
+                    self.wfile.flush()
+                    return
+                now = time.monotonic()
+                if now - last_ping >= 18:
+                    self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+                    last_ping = now
+            except (OSError, ValueError):
+                return   # client disconnected / write failed
 
     def _check_health(self):
         import urllib.request, ssl

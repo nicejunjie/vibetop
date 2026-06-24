@@ -188,6 +188,27 @@
   .sm-item .sm-desc { font-size: 11px; color: #6a7a8a; margin-top: 0; line-height: 1.25; }
   /* Green dot = an active/existing session you'd resume or join. */
   .sm-item.running .sm-name::after { content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; }
+  /* "Turn off on all devices" — only on running apps; a soft power glyph (matches
+     the logout ⏻), muted by default so it never looks alarming. Tapping the row
+     still opens the app; this closes it on every client (with a confirm). */
+  .sm-item .sm-close {
+    display: none; flex: 0 0 auto; margin-left: auto;
+    width: 28px; height: 28px; border-radius: 7px; align-items: center;
+    justify-content: center; color: #5d6b7e; font-size: 16px; line-height: 1;
+    transition: background .12s ease, color .12s ease;
+  }
+  /* Quietly visible on every running row (consistent on desktop + touch); a soft
+     tint on hover for affordance. */
+  .sm-item.running .sm-close { display: flex; }
+  .sm-item .sm-close:hover { background: rgba(255,255,255,0.08); color: #d99a9a; }
+  .sm-item .sm-close:active { transform: translateY(1px); }
+  /* Brief notice shown right before an auto-refresh to the latest shell. */
+  .sw-updating {
+    position: fixed; left: 50%; top: 18px; transform: translateX(-50%);
+    z-index: 2147483647; background: #1f2937; color: #e6edf3;
+    font: 13px system-ui, sans-serif; padding: 8px 15px; border-radius: 8px;
+    border: 1px solid #2d6cc0; box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+  }
 
   /* === Frames === */
   .frames {
@@ -378,7 +399,7 @@
     home:     { label: 'Home Service', icon: '🏠', src: '/landing.html',     desc: 'Services & health' },
     terminal: { label: 'Terminal', icon: '⬛', src: '/terminals/',           desc: 'Persistent bash terminals' },
     browser:  { label: 'Browser',  icon: '🌐', src: '/browser/',             desc: 'Persistent web browser' },
-    x11launcher: { label: 'X11 Launcher', icon: '🚀', src: '/apps.html',     desc: 'Launch & switch GUI apps in tabs' },
+    x11launcher: { label: 'X11 Launcher', icon: '🚀', src: '/apps.html',     desc: 'Launch GUI apps' },
     files:    { label: 'Files',    icon: '📁', src: '/files.html',           desc: 'File manager (tabbed)' },
     office:   { label: 'Office',   icon: '📄', src: '/office-editor.html',   desc: 'Edit Office docs' },
     notes:    { label: 'Notes',    icon: '📝', src: '/notes.html',           desc: 'Persistent scratchpad' },
@@ -401,7 +422,9 @@
       var nm = document.createElement('div'); nm.className = 'sm-name'; nm.textContent = a.label;
       var ds = document.createElement('div'); ds.className = 'sm-desc'; ds.textContent = a.desc || '';
       box.appendChild(nm); box.appendChild(ds);
-      item.appendChild(ic); item.appendChild(box);
+      var cl = document.createElement('div'); cl.className = 'sm-close';
+      cl.textContent = '⏻'; cl.title = 'Turn off on all devices';
+      item.appendChild(ic); item.appendChild(box); item.appendChild(cl);
       (a.section === 'system' ? sys : apps).appendChild(item);
     });
   }
@@ -527,6 +550,29 @@
       if (lastResetEpoch === null) lastResetEpoch = d.reset_epoch;
       else if (d.reset_epoch > lastResetEpoch) { lastResetEpoch = d.reset_epoch; clearAllLocal(); }
     }
+    // Cross-device close: the server lists which instances should close which app.
+    // If WE'RE a target and have it open, close it (no baseline needed — once we
+    // close it and report an open-set without it, the server drops us as a target).
+    if (d.close_targets && typeof d.close_targets === 'object') {
+      for (var app in d.close_targets) {
+        var ids = d.close_targets[app];
+        if (Array.isArray(ids) && ids.indexOf(INSTANCE_ID) !== -1 && openApps.indexOf(app) !== -1) {
+          closeApp(app);
+        }
+      }
+    }
+  }
+
+  // Ask every live client to close `app` (the Start-menu "close on all devices").
+  // Confirmed because it's consequential and guards against a mis-tap.
+  function closeEverywhere(id) {
+    if (!APPS[id]) return;
+    if (!confirm('Close ' + APPS[id].label + ' on all devices?')) return;
+    fetch('/api/desktop/close', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app: id })
+    }).then(function(r) { return r.json(); }).then(onDesktopResp).catch(function() {});
+    closeMenu();
   }
 
   // Push our own open-set to the registry (also the heartbeat that keeps us in
@@ -739,7 +785,9 @@
 
   menuEl.addEventListener('click', function(e) {
     var item = e.target.closest('.sm-item');
-    if (item) launch(item.dataset.id);
+    if (!item) return;
+    if (e.target.closest('.sm-close')) { closeEverywhere(item.dataset.id); return; }  // close-everywhere, not launch
+    launch(item.dataset.id);
   });
 
   // Taskbar button = Windows-style window control: clicking a NON-active window
@@ -1060,13 +1108,42 @@ if ('serviceWorker' in navigator) {
   // hadController is false on first install, true on a later update.
   var hadController = !!navigator.serviceWorker.controller;
   var swRefreshing = false;
+  // A new shell took over → do a full refresh of the WHOLE vibetop desktop. One
+  // reload pulls in every app iframe too, so a deploy reaches all of vibetop with
+  // no per-app update logic — a thorough refresh. A brief notice so the reload
+  // reads as intentional. Persistent state survives (terminals/Browser reconnect,
+  // notes autosave, Files/Notes tabs are server-side).
+  function doSwReload() {
+    if (swRefreshing) return; swRefreshing = true;
+    try {
+      var t = document.createElement('div'); t.className = 'sw-updating';
+      t.textContent = 'Updating vibetop to the latest version…';
+      document.body.appendChild(t);
+    } catch (e) {}
+    setTimeout(function() { window.location.reload(); }, 1200);
+  }
+  // hadController guards the first install (its clients.claim() also fires this —
+  // reloading then would throw away the initial load).
   navigator.serviceWorker.addEventListener('controllerchange', function() {
-    if (swRefreshing || !hadController) return;
-    swRefreshing = true;
-    window.location.reload();
+    if (hadController) doSwReload();
   });
+  function checkForUpdate() {
+    navigator.serviceWorker.getRegistration().then(function(r) { if (r) r.update().catch(function() {}); }).catch(function() {});
+  }
+  // Push, not poll: the server streams a 'reload' (SSE /api/events) the instant a
+  // new shell is deployed → we fetch the new SW, which fires controllerchange →
+  // full refresh. EventSource auto-reconnects if the stream drops. A check on
+  // tab-focus is the only fallback (event-driven, not periodic).
+  function subscribeUpdates() {
+    try {
+      var es = new EventSource('/api/events');
+      es.addEventListener('reload', function() { checkForUpdate(); });
+    } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) checkForUpdate(); });
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js').catch(function() {});
+    subscribeUpdates();
   });
 }
 

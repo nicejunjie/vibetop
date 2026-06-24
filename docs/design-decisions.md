@@ -132,6 +132,58 @@ and why it lost).
   message (a few times, to beat the first-load race; the wrapper dedupes) and the
   wrapper opens a tab at that path.
 
+## Auto-refresh every client on deploy (SSE push)
+
+- **Goal:** after a deploy, every connected client should land on the new shell
+  on its own — so fixes/features (e.g. the cross-device close) aren't defeated by
+  a device sitting on a stale cached shell, with no per-app refresh logic.
+- **Mechanism:** the manager serves an **SSE stream `GET /api/events`** that
+  watches the deployed `sw.js` VERSION and pushes a `reload` event when it changes.
+  The client (EventSource) responds by calling `registration.update()`; the new
+  service worker takes control → `controllerchange` → a **full
+  `window.location.reload()`** of the whole desktop (one reload re-loads every app
+  iframe too — thorough, no per-app code). Guarded by `hadController` so the first
+  install doesn't reload mid-load.
+- **Why SSE, not polling:** first built as `registration.update()` polling
+  (~90s + on focus). The user (rightly) wanted push to avoid wasted polling. SSE
+  fits the threaded `http.server` (one held thread per client), needs **no nginx
+  change** (`X-Accel-Buffering: no` disables response buffering; ~18s pings keep
+  nginx/Cloudflare from idling the stream out and detect a dead client), and one
+  server-side version-check replaces N client polls. A check on tab-focus remains
+  as the only fallback (event-driven, not periodic).
+- **Why a full reload (not gentle/deferred):** a thorough refresh is intended —
+  persistent state survives the reload (terminals/Browser reconnect, notes
+  autosave, Files/Notes tabs are server-side), so the brief blip is acceptable and
+  guarantees consistency.
+- **Bootstrap:** a client must already run the auto-refresh build for this to
+  fire; pre-existing open tabs need one manual reload to get onto it.
+
+## Close an app on all devices
+
+- **Problem:** windows are per-instance (opening on one device doesn't open on
+  another — deliberate), and closing was local-only, so an app left open on
+  device A couldn't be closed from device B; its Start-menu union dot stayed green.
+- **Mechanism:** `POST /api/desktop/close {app}` records the **live instances that
+  currently have the app open** in `close_targets` (`{appId:[instanceId,…]}`).
+  Each instance closes the app when it sees its own id in a heartbeat reply, then
+  reports an open-set without it and the server prunes it (also pruned when stale).
+  - *First tried* a per-app counter (`close_ops`) with clients baselining the seen
+    value on load. **Rejected after hitting it live:** a device that held the app
+    on a *stale shell* during the close didn't act, and after reloading it
+    *baselined* the existing counter and still wouldn't close — so the app stayed
+    stuck. Targeting by instance id fixes both: reloading the holder (same
+    `INSTANCE_ID`) still closes it, and a stuck holder can't poison the app for
+    other devices (a global flag would).
+- **UX (why a visible Start-menu button, not the alternatives):** the close
+  affordance lives as a **✕ button on the Start-menu row, shown only when the app
+  is running**, with a **confirm**. Rejected: a window-corner overlay button
+  (apps fill the pane with their own top toolbars → it'd cover their controls, and
+  it can't reach an app open only on another device); a tiny inline ✕ (hard to hit
+  / easy to mis-tap); a hidden long-press/right-click (invisible and finicky on
+  touch). A real tap-target + confirm addresses both "hard to click" and "easy to
+  mis-click," and the Start menu is the one surface that lists apps open on *other*
+  devices. The taskbar × stays local ("close here").
+
 ## Tabs in the Notes app (multiple, renameable notes)
 
 - **Goal:** multiple notes with tabs, renameable like the Terminal tabs.
