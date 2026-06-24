@@ -223,6 +223,15 @@
   .wp-desc {
     max-width: 470px; font-size: clamp(13px, 1.95vmin, 15px); line-height: 1.6; color: #7a8696;
   }
+  .wp-repo {
+    margin-top: -6px; font-size: clamp(12px, 1.7vmin, 14px); color: #5e6b7c;
+  }
+  /* The wallpaper is pointer-events:none so it never eats desktop clicks;
+     re-enable it just on the repo link so it stays tappable. */
+  .wp-repo a {
+    pointer-events: auto; color: #6f93c4; text-decoration: none;
+  }
+  .wp-repo a:hover { text-decoration: underline; }
   .wp-hint { margin-top: 8px; font-size: 13px; color: #46566a; }
   .wp-hint b { color: #6b7a8d; font-weight: 600; }
   .wp-hint.hidden { display: none; }
@@ -303,7 +312,8 @@
         <rect x="128" y="128" width="112" height="112" rx="28" fill="#8a64c6"/>
       </svg>
       <div class="wp-name">Vibetop</div>
-      <div class="wp-desc">A self-hosted mini-OS desktop in your browser for all your vibe coding needs.</div>
+      <div class="wp-desc">A self-hosted mini-OS desktop for anywhere you go.</div>
+      <div class="wp-repo"><a href="https://github.com/nicejunjie/vibetop" target="_blank" rel="noopener">github.com/nicejunjie/vibetop</a></div>
       <div class="wp-hint" id="wp-hint">Click <b>&nbsp;⊞ Start&nbsp;</b> to open an app</div>
     </div>
   </div>
