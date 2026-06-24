@@ -106,7 +106,13 @@
       if (cfg.error) { fail(cfg.error); return; }
       cfg.width = '100%';
       cfg.height = '100%';
-      cfg.type = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 'mobile' : 'desktop';
+      // Always use the DESKTOP editor, even on touch. OnlyOffice Community
+      // Edition's mobile web editor fails with a native "Download failed"
+      // dialog against this backend (the desktop editor downloads the very
+      // same doc fine — verified server-side), so mobile mode just breaks
+      // editing on phones. The desktop editor is responsive (collapsing
+      // toolbar, pinch-zoom) and works on touch, so force it everywhere.
+      cfg.type = 'desktop';
       var saveTimer = null;
       cfg.events = cfg.events || {};
       cfg.events.onDocumentStateChange = function(e) {
