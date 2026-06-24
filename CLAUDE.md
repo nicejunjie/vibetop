@@ -31,7 +31,11 @@ curl -fsSL .../bootstrap.sh | bash -s -- --no-office   # forward deploy.sh flags
 ```
 
 **One command, whole stack** — `deploy.sh` orchestrates everything (deps + all
-sub-installers in the right order + a health check), locally or to a remote host:
+sub-installers in the right order + a health check), locally or to a remote host.
+It also **auto-detects a dual-homed LAN** (2+ NICs on one subnet) and applies the
+"reply via the incoming NIC" routing (`tools/setup-samesubnet-routing.sh`) so such
+hosts work with no manual network tweaking — a no-op on single-homed hosts (see the
+dual-homed gotcha + `docs/dual-homed-network.md`):
 
 ```bash
 ./deploy.sh                                  # deploy on this machine
