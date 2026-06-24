@@ -1,0 +1,59 @@
+[Unit]
+Description=claude-apps xpra session (display :@APPS_DISPLAY_NUM@, HTML5 on 127.0.0.1:@APPS_XPRA_PORT@)
+After=network.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_USER@
+WorkingDirectory=~
+Environment=HOME=@APP_HOME@
+Environment=XDG_RUNTIME_DIR=/run/user/@APP_UID@
+# Evict dead/stale clients after 45s (see claude-browser-xpra for the rationale).
+Environment=XPRA_PING_TIMEOUT=45
+# A bare desktop for launched GUI apps — same as the Browser session but with NO
+# --start child (no Chromium): apps are launched on demand onto this display by
+# the manager (/api/x/launch) and from terminals (DISPLAY=:@APPS_DISPLAY_NUM@).
+# `xhost +local:` disables X access control for local clients — required because
+# snap-confined apps (Firefox, Chromium) launched OUTSIDE xpra's own --start env
+# can't read the X auth cookie and otherwise fail with "cannot open display".
+# Safe here: the display is loopback-only and the host is single-user behind
+# Cloudflare Access. (Native apps like eog/xterm work without it.)
+ExecStart=/usr/bin/xpra start-desktop :@APPS_DISPLAY_NUM@ \
+    --bind-ws=127.0.0.1:@APPS_XPRA_PORT@ \
+    --ws-auth=none \
+    --html=on \
+    --daemon=no \
+    --xvfb=Xorg \
+    --start="matchbox-window-manager -use_titlebar no -use_desktop no" \
+    --start="xhost +local:" \
+    --clipboard=yes \
+    --clipboard-direction=both \
+    --sharing=yes \
+    --resize-display=yes \
+    --input-devices=uinput \
+    --notifications=no \
+    --mdns=no \
+    --printing=no \
+    --pulseaudio=no \
+    --speaker=off \
+    --microphone=off \
+    --dbus=no \
+    --encoding=auto \
+    --quality=80 \
+    --speed=100 \
+    --compression_level=3 \
+    --video-scaling=auto \
+    --sync-xvfb=0 \
+    --bandwidth-detection=yes \
+    --min-quality=10 \
+    --min-speed=20
+ExecStop=/usr/bin/xpra stop :@APPS_DISPLAY_NUM@
+Restart=on-failure
+RestartSec=3
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

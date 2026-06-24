@@ -149,13 +149,13 @@
     console.warn('[xpra-patches] keyboard patch failed:', e.message);
   }
 
-  // 4. Mobile zoom — Safari-style pinch magnification + visible +/− buttons.
+  // 4. Mobile zoom — Safari-style pinch magnification.
   //    The parent desktop disables iOS's own pinch-zoom, so we implement it
   //    here as a CSS transform on #screen: the remote layout is UNCHANGED
   //    (no font/zoom keystrokes to Chromium), we just magnify the rendered
   //    canvas and let the user pan around it — exactly how Safari zooms a page.
-  //    Purely client-side; the remote never sees it. +/−/⟲ buttons expose it
-  //    for phones that don't pinch naturally.
+  //    Purely client-side; the remote never sees it. Pinch out to zoom, pinch
+  //    back to return to 1× — no on-screen zoom buttons.
   try {
     var screenElGet = function() { return document.getElementById('screen'); };
 

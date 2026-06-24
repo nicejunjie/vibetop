@@ -2,16 +2,17 @@
  *
  * Loaded into every /tN/ page (via the sub_filter <script src>). NO-OP on
  * non-touch devices — desktops keep xterm's native textarea (all keys, tap to
- * focus, selection). On touch we lay our OWN transparent <textarea> over the
- * bottom of the terminal: tapping the lower (prompt) area focuses it, so iOS
- * raises the keyboard and dictation buffers into a real field natively (like
- * Notes) instead of streaming half-finished revisions to the PTY (the pile-up).
- * We forward a debounced value-diff to the PTY via coreService.triggerDataEvent.
+ * focus, selection). On touch we lay our OWN transparent FULL-HEIGHT <textarea>
+ * over the terminal: tapping it focuses it, so iOS raises the keyboard and
+ * dictation buffers into a real field natively (like Notes) instead of streaming
+ * half-finished revisions to the PTY (the pile-up). We forward a debounced
+ * value-diff to the PTY via coreService.triggerDataEvent.
  *
- * position:absolute + caret pushed to the bottom (big padding-top) makes iOS
- * scroll the whole shell up so the prompt clears the keyboard — same as the
- * native terminal, where xterm's textarea sits at the cursor. xterm's own
- * textarea is blocked from taking focus on touch (the focusin guard in the
+ * The textarea's caret is parked on the actual xterm cursor row (dynamic
+ * padding-top, positionCaret) so iOS scrolls the shell to reveal wherever the
+ * prompt really is — the top on a fresh terminal, the bottom on a full one,
+ * like the native terminal where xterm's textarea sits at the cursor. xterm's
+ * own textarea is blocked from taking focus on touch (the focusin guard in the
  * sub_filter), so only this input raises the keyboard. Vertical drags pass
  * through as scrollback.
  *

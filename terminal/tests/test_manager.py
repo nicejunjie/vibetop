@@ -66,6 +66,79 @@ def test_valid_browser_url_realistic_injection(mgr):
 
 
 # --------------------------------------------------------------------------
+# Apps launcher: _valid_x_window_id (wmctrl id) + _valid_launch_cmd
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("wid", ["0x0", "0x00a00003", "0xDEADBEEF", "0x1234abcd"])
+def test_valid_x_window_id_accepts(mgr, wid):
+    assert mgr._valid_x_window_id(wid) is True
+
+
+@pytest.mark.parametrize("wid", [
+    "", None,
+    "00a00003",                 # missing 0x prefix
+    "0x",                       # no digits
+    "0xg00d",                   # non-hex char
+    "0x00a00003; xdotool",      # trailing injection
+    "0x00a00003 0x1",           # space-separated second token
+    "0x" + "f" * 17,            # absurdly long
+    "-1",                       # wmctrl desktop sentinel, not a window id
+])
+def test_valid_x_window_id_rejects(mgr, wid):
+    assert mgr._valid_x_window_id(wid) is False
+
+
+@pytest.mark.parametrize("cmd", ["gimp", "eog photo.jpg", "xterm -e htop",
+                                 "nautilus ~/Documents", "x" * 1024])
+def test_valid_launch_cmd_accepts(mgr, cmd):
+    assert mgr._valid_launch_cmd(cmd) is True
+
+
+@pytest.mark.parametrize("cmd", [
+    "", None,
+    "x" * 1025,                 # over the length cap
+    "gimp\nrm -rf ~",           # newline would split the su -c string
+    "gimp\r\nreboot",           # CR/LF
+    "gimp\x00evil",             # embedded NUL
+])
+def test_valid_launch_cmd_rejects(mgr, cmd):
+    assert mgr._valid_launch_cmd(cmd) is False
+
+
+@pytest.mark.parametrize("nid", ["1", "abc", "n-1a2b", "note_3", "A" * 64])
+def test_safe_note_id_accepts(mgr, nid):
+    assert mgr._safe_note_id(nid) is True
+
+
+@pytest.mark.parametrize("nid", [
+    "", None, 1, "A" * 65,
+    "../etc/passwd",            # path traversal
+    "a/b",                      # slash
+    "note.md",                  # dot (would let the .md suffix double up / escape)
+    "x y",                      # space
+    "café",                     # non-ascii
+    "..",
+])
+def test_safe_note_id_rejects(mgr, nid):
+    assert mgr._safe_note_id(nid) is False
+
+
+@pytest.mark.parametrize("cmd,prog", [
+    ("eog", "eog"),
+    ("eog photo.jpg", "eog"),
+    ("firefox", "firefox"),
+    ("/snap/bin/firefox", "/snap/bin/firefox"),
+    ("env GTK_THEME=Adwaita eog x.png", "eog"),     # skip leading VAR=val
+    ("A=1 B=2 gimp", "gimp"),                        # skip multiple env assigns
+    ("xterm -e htop", "xterm"),
+    ("", ""),
+    ("FOO=bar", ""),                                 # only an assignment, no prog
+])
+def test_launch_prog(mgr, cmd, prog):
+    assert mgr._launch_prog(cmd) == prog
+
+
+# --------------------------------------------------------------------------
 # _resolve_under_home — path-traversal guard for office file access
 # --------------------------------------------------------------------------
 

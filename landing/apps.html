@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>X11 Launcher — Vibetop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column; background: #0e1117;
+    font-family: system-ui, sans-serif; color: #d4d8de;
+  }
+  /* Always-visible command bar — type a command and Run, no need for a terminal. */
+  .cmdbar {
+    display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex-shrink: 0;
+    background: #12161d; border-bottom: 1px solid #20262f; position: relative; z-index: 3;
+  }
+  .cmdbar input {
+    flex: 1; min-width: 0; background: #0e1117; color: #e6e9ef;
+    border: 1px solid #2a3040; border-radius: 8px; padding: 9px 12px;
+    font: 16px ui-monospace, SFMono-Regular, Menlo, monospace; outline: none;
+  }
+  .cmdbar input:focus { border-color: #3a7adb; }
+  .cmdbar input::placeholder { color: #46506a; }
+  .cmdbar button {
+    flex: 0 0 auto; border: 0; border-radius: 8px; padding: 9px 18px;
+    font: 600 14px system-ui, sans-serif; cursor: pointer;
+    background: #2d5fb0; color: #fff;
+  }
+  .cmdbar button:hover { background: #356ec9; }
+  .cmdbar button:active { transform: translateY(1px); }
+  /* Tab bar — one tab per running GUI app on the Apps display.
+     position:relative + z-index keeps it clickable above the canvas iframe
+     (a positioned element otherwise paints over a static bar — same fix as
+     the terminal tabs). Hidden entirely when nothing is running. */
+  .tabbar {
+    display: flex; align-items: stretch; flex-shrink: 0;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    position: relative; z-index: 2; min-height: 38px;
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .tabbar.empty { display: none; }
+  .tabbar::-webkit-scrollbar { display: none; }
+  .tabs { display: flex; align-items: stretch; }
+  .tab {
+    display: flex; align-items: center; gap: 8px; padding: 0 10px 0 13px;
+    border-right: 1px solid #222a38; cursor: pointer; max-width: 220px;
+    color: #aab4c5; font-size: 13px; white-space: nowrap; user-select: none;
+    border-bottom: 2px solid transparent;
+  }
+  .tab:hover { background: #1b2330; color: #e6edf3; }
+  .tab.active { background: #1f2937; color: #fff; border-bottom-color: #d2569a; }
+  .tab .lbl { overflow: hidden; text-overflow: ellipsis; }
+  .tab .x {
+    flex: 0 0 auto; width: 18px; height: 18px; line-height: 16px; text-align: center;
+    border-radius: 4px; color: #6b7488; font-size: 14px;
+  }
+  .tab .x:hover { background: #3a2024; color: #f1b3b3; }
+  /* Canvas area — the Apps xpra display (:98). */
+  .frames { position: relative; flex: 1; min-height: 0; background: #0b0d12; }
+  .frames iframe {
+    position: absolute; inset: 0; width: 100%; height: 100%; border: 0;
+  }
+  .empty {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    gap: 8px; color: #c3cdde; padding: 24px; pointer-events: none;
+    font: 15px/1.7 ui-rounded, "Segoe UI", system-ui, sans-serif;
+  }
+  .empty .empty-title {
+    font-size: 19px; font-weight: 600; color: #eef2f8; margin-bottom: 4px;
+    letter-spacing: .2px;
+  }
+  .empty b { color: #eef2f8; font-weight: 600; }
+  .empty code {
+    color: #ffd9a8; background: #20262f; padding: 2px 7px; border-radius: 5px;
+    font: 14px ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .empty.hidden { display: none; }
+  /* Launch progress overlay — shown after Run until the app's window appears.
+     Some apps (cold GNOME ones especially) take several seconds; a blank canvas
+     looked broken. Indeterminate bar since real progress isn't observable. */
+  .launching {
+    position: absolute; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; padding: 24px;
+    text-align: center; pointer-events: none;
+  }
+  .launching.on { display: flex; }
+  .launching .bar {
+    width: 260px; max-width: 72%; height: 6px; border-radius: 3px;
+    background: #1c2330; overflow: hidden;
+  }
+  .launching .bar i {
+    display: block; height: 100%; width: 40%; border-radius: 3px;
+    background: linear-gradient(90deg, #2d5fb0, #6aa6ee);
+    animation: lslide 1.05s ease-in-out infinite;
+  }
+  @keyframes lslide { 0% { margin-left: -42%; } 100% { margin-left: 102%; } }
+  .launching.err .bar { display: none; }
+  .launching .ltxt { font: 16px/1.5 system-ui, sans-serif; color: #e6edf3; }
+  .launching .lhint { font: 13px/1.5 system-ui, sans-serif; color: #8b95a8; max-width: 360px; }
+  .launching.err .lhint { color: #e0a0a0; }
+  .launching .ldismiss {
+    font: 13px system-ui, sans-serif; color: #8fa6cc; cursor: pointer;
+    pointer-events: auto; text-decoration: underline; padding: 6px;
+  }
+  .launching .ldismiss:hover { color: #c5d6ef; }
+</style>
+</head>
+<body>
+  <div class="cmdbar">
+    <input id="cmd" placeholder="Run a command…  e.g.  firefox" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button id="run">Run</button>
+  </div>
+  <div class="tabbar empty" id="tabbar">
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="frames" id="frames">
+    <iframe id="canvas" allow="clipboard-read; clipboard-write"></iframe>
+    <div class="empty" id="empty">
+      <div class="empty-title">Nothing running on the X11 desktop yet</div>
+      <div>Type a command above and hit <b>Run</b> — e.g. <code>firefox</code> or <code>xterm</code>.</div>
+      <div>GUI windows you open from a <b>Terminal</b> — like a <code>gnuplot</code> plot — appear here automatically.</div>
+    </div>
+    <div class="launching" id="launching">
+      <div class="bar"><i></i></div>
+      <div class="ltxt" id="ltxt"></div>
+      <div class="lhint" id="lhint"></div>
+      <div class="ldismiss" id="ldismiss">Dismiss</div>
+    </div>
+  </div>
+<script>
+(function() {
+  var tabbarEl = document.getElementById('tabbar');
+  var tabsEl = document.getElementById('tabs');
+  var cmdEl = document.getElementById('cmd');
+  var runBtn = document.getElementById('run');
+  var canvas = document.getElementById('canvas');
+  var emptyEl = document.getElementById('empty');
+  var launchingEl = document.getElementById('launching');
+  var ltxtEl = document.getElementById('ltxt');
+  var lhintEl = document.getElementById('lhint');
+
+  var activeId = null;       // window we consider focused (client-side)
+  var prevIds = [];          // window ids from the last poll (to spot new ones)
+  var pollTimer = null;
+  var launching = null;      // {baseline:[ids]} while waiting for a launched window
+  var launchTimer = null;
+
+  // The canvas is the Apps xpra display; load it once.
+  canvas.src = '/apps-display/';
+
+  function api(path, body) {
+    return fetch(path, body ? {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    } : undefined);
+  }
+
+  function activate(id) {
+    activeId = id;
+    api('/api/x/activate', { id: id }).catch(function(){});
+    renderActive();
+  }
+  function closeWin(id) {
+    api('/api/x/close', { id: id }).then(function(){ setTimeout(refresh, 250); }).catch(function(){});
+  }
+
+  function renderActive() {
+    Array.prototype.forEach.call(tabsEl.children, function(el) {
+      el.classList.toggle('active', el.dataset.id === activeId);
+    });
+  }
+
+  function render(windows) {
+    tabsEl.innerHTML = '';
+    var ids = windows.map(function(w){ return w.id; });
+
+    // Focus any newly-appeared window — whether launched from the command bar
+    // here or started from a Terminal (gnuplot, etc.). On the first render every
+    // id is "new", so this just focuses the most recent one.
+    var fresh = ids.filter(function(id){ return prevIds.indexOf(id) === -1; });
+    if (fresh.length) activeId = fresh[fresh.length - 1];
+    // If our active tab vanished, fall back to the last one.
+    else if (windows.length && ids.indexOf(activeId) === -1) activeId = ids[ids.length - 1];
+    if (!windows.length) activeId = null;
+
+    windows.forEach(function(w) {
+      var tab = document.createElement('div');
+      tab.className = 'tab'; tab.dataset.id = w.id;
+      var lbl = document.createElement('span'); lbl.className = 'lbl';
+      lbl.textContent = w.title || '(untitled)';
+      tab.title = w.title || '';
+      var x = document.createElement('span'); x.className = 'x'; x.textContent = '×';
+      x.title = 'Close';
+      x.addEventListener('click', function(e){ e.stopPropagation(); closeWin(w.id); });
+      tab.appendChild(lbl); tab.appendChild(x);
+      tab.addEventListener('click', function(){ activate(w.id); });
+      tabsEl.appendChild(tab);
+    });
+    // A launch finished as soon as a window not present before it shows up.
+    if (launching && ids.some(function(id){ return launching.baseline.indexOf(id) === -1; })) {
+      clearLaunching();
+    }
+    prevIds = ids;
+    renderActive();
+    tabbarEl.classList.toggle('empty', windows.length === 0);
+    syncEmpty();
+  }
+
+  function refresh() {
+    fetch('/api/x/windows').then(function(r){ return r.json(); })
+      .then(function(d){ render((d && d.windows) || []); })
+      .catch(function(){});
+  }
+
+  // --- launch progress overlay ---
+  function syncEmpty() {
+    emptyEl.classList.toggle('hidden',
+      tabsEl.children.length > 0 || launchingEl.classList.contains('on'));
+  }
+  function showLaunching(cmd) {
+    launching = { baseline: prevIds.slice() };   // windows present before this launch
+    ltxtEl.textContent = 'Launching ' + cmd + '…';
+    lhintEl.textContent = 'Some apps take a few seconds to start.';
+    launchingEl.classList.remove('err');
+    launchingEl.classList.add('on');
+    syncEmpty();
+    if (launchTimer) clearTimeout(launchTimer);
+    launchTimer = setTimeout(function() {
+      if (launching) lhintEl.textContent =
+        'Still starting… if nothing appears, the command may have failed — Dismiss and check it.';
+    }, 25000);
+  }
+  function failLaunching(cmd, msg) {
+    launching = null;                            // no window will ever arrive
+    if (launchTimer) { clearTimeout(launchTimer); launchTimer = null; }
+    ltxtEl.textContent = 'Couldn’t launch ' + cmd;
+    lhintEl.textContent = msg || 'The command was rejected.';
+    launchingEl.classList.add('on', 'err');
+    syncEmpty();
+  }
+  function clearLaunching() {
+    launching = null;
+    if (launchTimer) { clearTimeout(launchTimer); launchTimer = null; }
+    launchingEl.classList.remove('on', 'err');
+    syncEmpty();
+  }
+  document.getElementById('ldismiss').addEventListener('click', clearLaunching);
+
+  // --- launch ---
+  function launch() {
+    var c = cmdEl.value.trim();
+    if (!c) { cmdEl.focus(); return; }
+    showLaunching(c);               // progress bar until the window appears
+    api('/api/x/launch', { cmd: c })
+      .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, d: d }; }); })
+      .then(function(res) {
+        if (res.ok && res.d.ok) {
+          cmdEl.value = '';           // ready for the next command
+          cmdEl.focus();
+          // The new window gets focused automatically when it shows up (render
+          // focuses freshly-appeared ids); nudge the poll so it appears quickly.
+          setTimeout(refresh, 500); setTimeout(refresh, 1400); setTimeout(refresh, 3000);
+        } else {
+          failLaunching(c, (res.d && res.d.error) || 'The command couldn’t be launched.');
+          cmdEl.focus();
+        }
+      }).catch(function(){ failLaunching(c, 'Could not reach the server.'); });
+  }
+
+  runBtn.addEventListener('click', launch);
+  cmdEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); launch(); }
+  });
+
+  function startPoll() { stopPoll(); refresh(); pollTimer = setInterval(refresh, 2000); }
+  function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  // Pause polling when the desktop switches away from this app, resume when back.
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'vibetop:active') {
+      if (e.data.active === 'x11launcher') startPoll(); else stopPoll();
+    }
+  });
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) stopPoll(); else startPoll();
+  });
+
+  startPoll();
+})();
+</script>
+</body>
+</html>

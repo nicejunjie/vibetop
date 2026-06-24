@@ -86,6 +86,7 @@
   .task-app.active[data-id="home"]     { border-bottom-color: #d2691e; }
   .task-app.active[data-id="terminal"] { border-bottom-color: #33aa55; }
   .task-app.active[data-id="browser"]  { border-bottom-color: #3a7adb; }
+  .task-app.active[data-id="x11launcher"] { border-bottom-color: #d2569a; }
   .task-app.active[data-id="files"]    { border-bottom-color: #8a4adb; }
   .task-app.active[data-id="office"]   { border-bottom-color: #d2691e; }
   .task-app.active[data-id="notes"]    { border-bottom-color: #1ab3a6; }
@@ -165,6 +166,7 @@
   .sm-item[data-id="home"]     .sm-icon { background: #6b3510; }
   .sm-item[data-id="terminal"] .sm-icon { background: #1a5c2a; }
   .sm-item[data-id="browser"]  .sm-icon { background: #1a3a6b; }
+  .sm-item[data-id="x11launcher"] .sm-icon { background: #5c1a44; }
   .sm-item[data-id="files"]    .sm-icon { background: #3a1a6b; }
   .sm-item[data-id="office"]   .sm-icon { background: #6b2a10; }
   .sm-item[data-id="notes"]    .sm-icon { background: #0a4a44; }
@@ -376,7 +378,8 @@
     home:     { label: 'Home Service', icon: '🏠', src: '/landing.html',     desc: 'Services & health' },
     terminal: { label: 'Terminal', icon: '⬛', src: '/terminals/',           desc: 'Persistent bash terminals' },
     browser:  { label: 'Browser',  icon: '🌐', src: '/browser/',             desc: 'Persistent web browser' },
-    files:    { label: 'Files',    icon: '📁', src: '/files/',               desc: 'File manager' },
+    x11launcher: { label: 'X11 Launcher', icon: '🚀', src: '/apps.html',     desc: 'Launch & switch GUI apps in tabs' },
+    files:    { label: 'Files',    icon: '📁', src: '/files.html',           desc: 'File manager (tabbed)' },
     office:   { label: 'Office',   icon: '📄', src: '/office-editor.html',   desc: 'Edit Office docs' },
     notes:    { label: 'Notes',    icon: '📝', src: '/notes.html',           desc: 'Persistent scratchpad' },
     monitor:  { label: 'Monitor',  icon: '📊', src: '/monitor.html',         desc: 'System monitor' },
@@ -851,14 +854,19 @@
       editDoc(e.data.path);
     }
     if (e.data.type === 'open-files-at') {
-      // Deep-link Files at a path relative to FileBrowser's root (~). We set
-      // the iframe src directly so existing FB state is replaced — re-clicking
-      // the button always returns the user to the requested folder.
+      // Deep-link Files at a path relative to ~. Files is now a tabbed wrapper
+      // (files.html), so open a NEW tab there via postMessage instead of
+      // overwriting its src (which would destroy the other tabs). Post a few
+      // times to beat the first-load race; the wrapper dedupes repeats.
       var rel = (e.data.path || '').replace(/^\/+/, '');
-      var url = '/files/files/' + rel.split('/').map(encodeURIComponent).join('/');
       launch('files');
       var f = frameOf('files');
-      if (f) f.src = url;   // overrides the lazy dataset.src on first load too
+      if (f) {
+        var post = function() { try { f.contentWindow.postMessage({ type: 'files-open-tab', path: rel }, '*'); } catch (_) {} };
+        post();
+        f.addEventListener('load', post, { once: true });
+        setTimeout(post, 600);
+      }
     }
   });
 
@@ -947,6 +955,26 @@
   // Keep the Start-menu session badges (esp. Terminal's resume/fresh count) current.
   refreshTerminals();
   setInterval(refreshTerminals, 5000);
+
+  // Auto-surface terminal graphics: watch the X11 Launcher's display for NEW
+  // windows (a gnuplot/matplotlib plot, xeyes, ImageMagick `display`, … started
+  // in a Terminal) and pop the X11 Launcher to the front when one appears, so
+  // graphics show up without manually opening the launcher. Edge-triggered on new
+  // window ids — seeded on the first poll so windows already present at load don't
+  // yank focus — and only switches when the launcher isn't already the active app.
+  var seenXWins = null;   // null until the first poll seeds the baseline
+  function watchXWindows() {
+    if (document.hidden) return;
+    fetch('/api/x/windows').then(function(r) { return r.json(); }).then(function(d) {
+      var ids = (d && Array.isArray(d.windows)) ? d.windows.map(function(w) { return w.id; }) : [];
+      var next = {}; ids.forEach(function(id) { next[id] = 1; });
+      if (seenXWins === null) { seenXWins = next; return; }   // seed, don't trigger
+      var isNew = ids.some(function(id) { return !seenXWins[id]; });
+      seenXWins = next;
+      if (isNew && active !== 'x11launcher') launch('x11launcher');
+    }).catch(function() {});
+  }
+  setInterval(watchXWindows, 4000);
 
   // Relay status to the Home Service app (the only app that renders it).
   // Needed because through the Cloudflare tunnel an iframe's own fetches don't

@@ -1,0 +1,17 @@
+[Unit]
+Description=vibetop X11 Launcher private D-Bus session (no service activation)
+After=network.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_USER@
+Environment=XDG_RUNTIME_DIR=/run/user/@APP_UID@
+# Remove a stale socket from a previous run so the daemon can bind cleanly.
+ExecStartPre=/bin/rm -f /run/user/@APP_UID@/vibetop-apps-bus
+ExecStart=/usr/bin/dbus-daemon --config-file=/etc/vibetop/apps-dbus.conf --nofork --nopidfile
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

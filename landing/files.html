@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Files — Vibetop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: #0e1117; font-family: system-ui, sans-serif; color: #d4d8de; }
+  /* Tab bar — one tab per open folder. position:relative + z-index keeps it
+     clickable above the iframes (a positioned element otherwise paints over a
+     static bar and eats clicks — same fix as the terminal tabs). */
+  .tabbar {
+    display: flex; align-items: stretch; flex-shrink: 0; min-height: 40px;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    position: relative; z-index: 2; overflow-x: auto;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .tabbar::-webkit-scrollbar { display: none; }
+  .tabs { display: flex; align-items: stretch; }
+  .tab {
+    display: flex; align-items: center; gap: 8px; padding: 0 9px 0 13px;
+    border-right: 1px solid #222a38; cursor: pointer; max-width: 200px;
+    color: #aab4c5; font-size: 13px; white-space: nowrap; user-select: none;
+    border-bottom: 2px solid transparent;
+  }
+  .tab:hover { background: #1b2330; color: #e6edf3; }
+  .tab.active { background: #1f2937; color: #fff; border-bottom-color: #8a4adb; }
+  .tab .ic { font-size: 13px; flex-shrink: 0; opacity: .8; }
+  .tab .lbl { overflow: hidden; text-overflow: ellipsis; }
+  .tab .x {
+    flex: 0 0 auto; width: 18px; height: 18px; line-height: 16px; text-align: center;
+    border-radius: 4px; color: #6b7488; font-size: 14px;
+  }
+  .tab .x:hover { background: #3a2024; color: #f1b3b3; }
+  .add {
+    flex: 0 0 auto; width: 40px; background: transparent; border: 0;
+    border-right: 1px solid #222a38; color: #8a6fc0; font-size: 22px;
+    cursor: pointer; line-height: 1;
+  }
+  .add:hover { background: #221a30; color: #b79be8; }
+  .frames { position: relative; flex: 1; min-height: 0; }
+  .frames iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; }
+  .frames iframe.active { display: block; }
+</style>
+</head>
+<body>
+  <div class="tabbar" id="tabbar">
+    <div class="tabs" id="tabs"></div>
+    <button class="add" id="add" title="New folder tab">+</button>
+  </div>
+  <div class="frames" id="frames"></div>
+<script>
+(function() {
+  var ROOT = '/files/files/';                 // FileBrowser's root listing URL
+  var KEY = 'vibetop:files:tabs';             // {paths:[...], active:idx}
+  var tabsEl = document.getElementById('tabs');
+  var framesEl = document.getElementById('frames');
+  var addBtn = document.getElementById('add');
+  var tabs = [];          // {id, frame, path}
+  var active = null;
+  var seq = 0;
+  var lastMouseAt = -1e9;
+
+  // Current path of a tab's FileBrowser iframe (same-origin, so readable).
+  function curPath(t) {
+    try {
+      var p = t.frame.contentWindow.location.pathname;
+      if (/\/files\/files(\/|$)/.test(p)) return p;
+    } catch (e) {}
+    return null;
+  }
+  function labelFor(path) {
+    var rest = (path || '').split('/files/files')[1] || '';
+    rest = rest.split('?')[0].split('#')[0].replace(/\/+$/, '');
+    if (!rest) return 'Home';
+    var seg = rest.split('/').pop();
+    try { seg = decodeURIComponent(seg); } catch (e) {}
+    return seg || 'Home';
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        paths: tabs.map(function(t) { return curPath(t) || t.path; }),
+        active: tabs.indexOf(active)
+      }));
+    } catch (e) {}
+  }
+
+  function renderTabs() {
+    tabsEl.innerHTML = '';
+    tabs.forEach(function(t) {
+      var path = curPath(t) || t.path; t.path = path;
+      var el = document.createElement('div');
+      el.className = 'tab' + (t === active ? ' active' : '');
+      el.dataset.id = t.id;
+      var ic = document.createElement('span'); ic.className = 'ic'; ic.textContent = '📁';
+      var lbl = document.createElement('span'); lbl.className = 'lbl';
+      lbl.textContent = labelFor(path); el.title = labelFor(path);
+      var x = document.createElement('span'); x.className = 'x'; x.textContent = '×'; x.title = 'Close tab';
+      el.appendChild(ic); el.appendChild(lbl); el.appendChild(x);
+      tabsEl.appendChild(el);
+    });
+  }
+
+  function show(t) {
+    tabs.forEach(function(o) { o.frame.classList.toggle('active', o === t); });
+    active = t;
+    renderTabs();
+    persist();
+  }
+
+  function createTab(path, activate) {
+    var id = ++seq;
+    var f = document.createElement('iframe');
+    f.name = 'fbtab';                          // tells filebrowser-patches.js to skip its location-memory
+    f.setAttribute('allow', 'clipboard-read; clipboard-write');
+    f.src = path || ROOT;
+    framesEl.appendChild(f);
+    var t = { id: id, frame: f, path: path || ROOT };
+    tabs.push(t);
+    renderTabs();
+    if (activate) show(t);
+    return t;
+  }
+
+  function closeTab(t) {
+    var i = tabs.indexOf(t);
+    if (i === -1) return;
+    tabs.splice(i, 1);
+    if (t.frame.parentNode) t.frame.parentNode.removeChild(t.frame);
+    if (!tabs.length) { createTab(ROOT, true); return; }   // never zero tabs
+    if (active === t) show(tabs[Math.max(0, i - 1)]);
+    else { renderTabs(); persist(); }
+  }
+
+  function tabFromEvent(e) {
+    var el = e.target.closest('.tab');
+    if (!el) return null;
+    return tabs.filter(function(t) { return String(t.id) === el.dataset.id; })[0] || null;
+  }
+
+  // Switch on pointerdown for mouse (a focused iframe eats the first click moving
+  // focus to the parent — same two-click trap as the terminal tabs); close (×)
+  // and touch stay on click.
+  tabsEl.addEventListener('pointerdown', function(e) {
+    if (e.pointerType !== 'mouse' || e.button) return;
+    if (e.target.closest('.x')) return;
+    var t = tabFromEvent(e);
+    if (t && t !== active) { show(t); lastMouseAt = e.timeStamp; }
+  });
+  tabsEl.addEventListener('click', function(e) {
+    var t = tabFromEvent(e);
+    if (!t) return;
+    if (e.target.closest('.x')) { closeTab(t); return; }
+    if (e.timeStamp - lastMouseAt < 700) return;   // mouse already handled it
+    show(t);
+  });
+  addBtn.addEventListener('click', function() { createTab(ROOT, true); });
+
+  // Deep-link from the desktop (Upload app's "Open in Files"): open a tab at a
+  // path relative to ~. The desktop posts a few times to beat the first-load
+  // race, so dedupe repeats of the same path within a short window.
+  function openAt(rel) {
+    rel = (rel || '').replace(/^\/+/, '');
+    createTab(ROOT + rel.split('/').map(encodeURIComponent).join('/'), true);
+  }
+  var _lastOpen = { path: null, t: 0 };
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'files-open-tab') return;
+    var rel = e.data.path || '';
+    var now = Date.now();
+    if (rel === _lastOpen.path && now - _lastOpen.t < 2500) return;   // dedupe retries
+    _lastOpen = { path: rel, t: now };
+    openAt(rel);
+  });
+
+  // Keep tab labels + persisted paths current as the user navigates inside a tab.
+  setInterval(function() { renderTabs(); persist(); }, 1200);
+
+  // Restore tabs (or open one at Home).
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  if (saved && Array.isArray(saved.paths) && saved.paths.length) {
+    saved.paths.forEach(function(p) { createTab(p, false); });
+    show(tabs[Math.min(Math.max(0, saved.active | 0), tabs.length - 1)]);
+  } else {
+    createTab(ROOT, true);
+  }
+})();
+</script>
+</body>
+</html>

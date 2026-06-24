@@ -3,7 +3,8 @@
  * Caches only the shell and the lightweight static app pages so cold loads are
  * instant. Everything live or auth-sensitive is network-only and never touched:
  *   /api/*        manager API (status, notes, desktop state, uploads…)
- *   /browser/*    xpra HTML5 client + WebSocket
+ *   /browser/*    xpra HTML5 client + WebSocket (Browser app, Chromium)
+ *   /apps-display/* xpra HTML5 client + WebSocket (Apps desktop)
  *   /office/*     xpra HTML5 client + WebSocket (Office app / LibreOffice)
  *   /tN/*         ttyd terminals + WebSocket
  *   /terminals/   tabbed terminal UI (tied to live /tN/ iframes)
@@ -16,7 +17,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v81';
+const VERSION = 'v96';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
@@ -25,6 +26,8 @@ const PRECACHE = [
   '/notes.html',
   '/monitor.html',
   '/upload.html',
+  '/apps.html',
+  '/files.html',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -38,7 +41,9 @@ const PRECACHE = [
 const SHELL_PAGES = new Set(PRECACHE.filter((p) => p === '/' || p.endsWith('.html')));
 
 // Paths that must always hit the network (live data, websockets, auth).
-const BYPASS = /^\/(api|browser|office|onlyoffice|t\d|terminals|files|fileview|services\.json|cdn-cgi)/;
+// Note: `files/` (with slash) so the live FileBrowser SPA at /files/* is bypassed
+// but the tabbed wrapper page /files.html stays cacheable as a shell page.
+const BYPASS = /^\/(api|browser|apps-display|office|onlyoffice|t\d|terminals|files\/|fileview|services\.json|cdn-cgi)/;
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {

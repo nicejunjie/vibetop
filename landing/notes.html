@@ -7,136 +7,259 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; }
-  body { display: flex; flex-direction: column; background: #1a1a2e; font-family: system-ui, sans-serif; }
-  .toolbar {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 14px; background: #161b22; border-bottom: 1px solid #2a3040;
-    flex-shrink: 0;
+  body { display: flex; flex-direction: column; background: #1a1a2e; font-family: system-ui, sans-serif; color: #d4d8de; }
+  /* Tab bar — one tab per note. Double-click a tab to rename; drag to reorder. */
+  .tabbar {
+    display: flex; align-items: stretch; flex-shrink: 0; min-height: 38px;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    position: relative; z-index: 2;
   }
-  .toolbar .title {
-    font-size: 14px; font-weight: 600; color: #9ab;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  .tabs { display: flex; align-items: stretch; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    display: flex; align-items: center; gap: 7px; padding: 0 8px 0 13px;
+    border-right: 1px solid #222a38; cursor: pointer; max-width: 200px;
+    color: #aab4c5; font-size: 13px; white-space: nowrap; user-select: none;
+    border-bottom: 2px solid transparent;
   }
-  .toolbar .status {
-    font-size: 12px; color: #556;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  }
-  .toolbar .status.saved { color: #4a8; }
-  /* Link bar: tappable chips for every URL detected in the note. Hidden when
-     there are none; horizontally scrollable when there are many. */
-  .links {
-    display: none; align-items: center; gap: 6px; flex-wrap: nowrap;
-    overflow-x: auto; padding: 6px 14px; flex-shrink: 0;
-    background: #12161d; border-bottom: 1px solid #20262f;
-    -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  }
+  .tab:hover { background: #1b2330; color: #e6edf3; }
+  .tab.active { background: #1f2937; color: #fff; border-bottom-color: #1ab3a6; }
+  .tab .lbl { overflow: hidden; text-overflow: ellipsis; outline: none; }
+  .tab .lbl[contenteditable="true"] { background: #0e1117; padding: 1px 4px; border-radius: 3px; cursor: text; min-width: 30px; }
+  .tab .x { flex: 0 0 auto; width: 18px; height: 18px; line-height: 16px; text-align: center; border-radius: 4px; color: #6b7488; font-size: 14px; }
+  .tab .x:hover { background: #3a2024; color: #f1b3b3; }
+  .add { flex: 0 0 auto; width: 38px; background: transparent; border: 0; border-right: 1px solid #222a38; color: #2e9e92; font-size: 22px; cursor: pointer; line-height: 1; }
+  .add:hover { background: #0c2b28; color: #4fd0c2; }
+  .status { margin-left: auto; align-self: center; padding: 0 14px; font-size: 12px; color: #556; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+  .status.saved { color: #4a8; }
+  .status.err { color: #d66; }
+  /* Link bar: tappable chips for every URL in the active note. */
+  .links { display: none; align-items: center; gap: 6px; flex-wrap: nowrap; overflow-x: auto; padding: 6px 14px; flex-shrink: 0; background: #12161d; border-bottom: 1px solid #20262f; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .links::-webkit-scrollbar { display: none; }
   .links.on { display: flex; }
-  .link-chip {
-    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
-    max-width: 240px; padding: 4px 10px 4px 9px; border-radius: 14px;
-    background: #1a3a6b; color: #cfe0f5; border: 1px solid #2d6cc0;
-    font: 12px system-ui, sans-serif; cursor: pointer; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; user-select: none;
-  }
+  .link-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; max-width: 240px; padding: 4px 10px 4px 9px; border-radius: 14px; background: #1a3a6b; color: #cfe0f5; border: 1px solid #2d6cc0; font: 12px system-ui, sans-serif; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none; }
   .link-chip:hover { background: #245089; color: #fff; }
-  .link-chip:active { transform: translateY(1px); }
-  .link-chip .ic { font-size: 11px; flex-shrink: 0; }
   .link-chip .lbl { overflow: hidden; text-overflow: ellipsis; }
-  textarea {
-    flex: 1; width: 100%; resize: none;
-    background: #0e1117; color: #d4d8de;
-    border: none; outline: none;
-    padding: 16px 20px;
-    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
-    tab-size: 4;
-  }
+  textarea { flex: 1; width: 100%; resize: none; background: #0e1117; color: #d4d8de; border: none; outline: none; padding: 16px 20px; font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; tab-size: 4; }
   textarea::placeholder { color: #3a4050; }
+  textarea:disabled { color: #46506a; }
 </style>
 </head>
 <body>
-  <div class="toolbar">
-    <span class="title">Notes</span>
+  <div class="tabbar">
+    <div class="tabs" id="tabs"></div>
+    <button class="add" id="add" title="New note">+</button>
     <span class="status" id="status"></span>
   </div>
   <div class="links" id="links"></div>
-  <textarea id="editor" placeholder="Type anything here. Auto-saves as you type." spellcheck="false"></textarea>
+  <textarea id="editor" placeholder="Type anything here. Auto-saves as you type." spellcheck="false" disabled></textarea>
 <script>
 (function() {
-  var editor = document.getElementById('editor');
-  var status = document.getElementById('status');
+  var tabsEl = document.getElementById('tabs');
+  var addBtn = document.getElementById('add');
+  var statusEl = document.getElementById('status');
   var linksEl = document.getElementById('links');
-  var saveTimer = null, scanTimer = null;
-  var loaded = false;   // gate autosave: never overwrite the stored note before a successful load
+  var editor = document.getElementById('editor');
 
-  fetch('/api/notes').then(function(r) {
-    if (!r.ok) throw new Error('http ' + r.status);
-    return r.json();
-  }).then(function(d) {
-    editor.value = d.content || '';
-    loaded = true;
-    scanLinks();
-  }).catch(function() {
-    // Cold/slow backend, or a non-JSON Access redirect over the tunnel. Do NOT
-    // mark loaded — otherwise the empty editor's first keystroke would autosave
-    // and clobber the real note. Tell the user to reload before editing.
-    status.textContent = 'load failed — reload';
-    status.className = 'status';
-    editor.placeholder = 'Could not load your notes. Reload before editing (your saved note is intact).';
+  var tabs = [];               // [{id, name}]
+  var active = null;           // active id
+  var cache = {};              // id -> content (loaded)
+  var ready = false;           // active note's content is loaded → safe to autosave
+  var saveTimer = null, scanTimer = null;
+
+  function api(path, body) {
+    return fetch(path, body ? {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    } : undefined);
+  }
+  function genId() { return 'n-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function setStatus(msg, cls) { statusEl.textContent = msg || ''; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
+
+  function persistTabs() {
+    api('/api/notes/tabs', { tabs: tabs, active: active }).catch(function() {});
+  }
+
+  function renderTabs() {
+    tabsEl.innerHTML = '';
+    tabs.forEach(function(t) {
+      var el = document.createElement('div');
+      el.className = 'tab' + (t.id === active ? ' active' : '');
+      el.dataset.id = t.id; el.draggable = true;
+      var lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = t.name || 'Note'; el.title = t.name || 'Note';
+      var x = document.createElement('span'); x.className = 'x'; x.textContent = '×'; x.title = 'Close note';
+      el.appendChild(lbl); el.appendChild(x);
+      tabsEl.appendChild(el);
+    });
+  }
+
+  function loadContent(id) {
+    // Returns a promise resolving when cache[id] is populated.
+    if (cache.hasOwnProperty(id)) return Promise.resolve();
+    return api('/api/notes?id=' + encodeURIComponent(id))
+      .then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+      .then(function(d) { cache[id] = d.content || ''; });
+  }
+
+  function switchTo(id) {
+    if (id === active && ready) return;
+    flushSave();
+    active = id;
+    ready = false;
+    editor.disabled = true; editor.value = '';
+    setStatus('loading…');
+    renderTabs();
+    loadContent(id).then(function() {
+      if (active !== id) return;            // user switched again meanwhile
+      editor.value = cache[id]; editor.disabled = false; ready = true;
+      setStatus('');
+      scanLinks();
+      editor.focus();
+    }).catch(function() {
+      if (active !== id) return;
+      setStatus('load failed — reload', 'err');
+      editor.placeholder = 'Could not load this note. Reload before editing (your saved note is intact).';
+    });
+    persistTabs();                           // remember active
+  }
+
+  function flushSave() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (ready && active != null) doSave(active, editor.value);
+  }
+  function doSave(id, content) {
+    cache[id] = content;
+    setStatus('saving…');
+    api('/api/notes', { id: id, content: content })
+      .then(function() { if (active === id) setStatus('saved', 'saved'); })
+      .catch(function() { if (active === id) setStatus('save failed', 'err'); });
+  }
+
+  function addNote() {
+    flushSave();
+    var id = genId();
+    tabs.push({ id: id, name: 'Note ' + (tabs.length + 1) });
+    cache[id] = '';
+    renderTabs();
+    persistTabs();
+    switchTo(id);
+  }
+
+  function closeNote(id) {
+    var content = cache[id];
+    if (content === undefined) content = '';   // not loaded; treat as unknown→empty
+    if (content.trim() && !confirm('Delete this note? This can’t be undone.')) return;
+    var i = tabs.findIndex(function(t) { return t.id === id; });
+    if (i === -1) return;
+    tabs.splice(i, 1);
+    delete cache[id];
+    if (!tabs.length) {                         // never zero notes
+      var nid = genId(); tabs.push({ id: nid, name: 'Notes' }); cache[nid] = '';
+    }
+    renderTabs();
+    persistTabs();                              // server deletes the closed note's file
+    if (active === id) { active = null; switchTo(tabs[Math.max(0, i - 1)].id); }
+  }
+
+  function renameTab(el, id) {
+    var lbl = el.querySelector('.lbl');
+    lbl.contentEditable = 'true'; lbl.focus();
+    var range = document.createRange(); range.selectNodeContents(lbl);
+    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    function commit(save) {
+      lbl.contentEditable = 'false';
+      var t = tabs.filter(function(x) { return x.id === id; })[0];
+      if (t && save) {
+        var name = (lbl.textContent || '').trim().slice(0, 64) || t.name;
+        if (name !== t.name) { t.name = name; persistTabs(); }
+      }
+      lbl.textContent = (t ? t.name : lbl.textContent);
+      lbl.onblur = null; lbl.onkeydown = null;
+    }
+    lbl.onblur = function() { commit(true); };
+    lbl.onkeydown = function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); commit(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); commit(false); }
+    };
+  }
+
+  // --- tab events: click=switch, dblclick=rename, ×=close, drag=reorder ---
+  tabsEl.addEventListener('click', function(e) {
+    var el = e.target.closest('.tab'); if (!el) return;
+    var id = el.dataset.id;
+    if (e.target.closest('.x')) { closeNote(id); return; }
+    if (e.target.closest('.lbl') && e.target.isContentEditable) return;  // editing
+    switchTo(id);
+  });
+  tabsEl.addEventListener('dblclick', function(e) {
+    var el = e.target.closest('.tab'); if (!el) return;
+    if (e.target.closest('.x')) return;
+    renameTab(el, el.dataset.id);
+  });
+  addBtn.addEventListener('click', addNote);
+
+  // Drag-reorder (HTML5 DnD; a no-op on touch, so tap/scroll are unaffected).
+  var dragId = null;
+  tabsEl.addEventListener('dragstart', function(e) {
+    var el = e.target.closest('.tab'); if (!el) return;
+    dragId = el.dataset.id; try { e.dataTransfer.effectAllowed = 'move'; } catch (_) {}
+  });
+  tabsEl.addEventListener('dragover', function(e) {
+    if (dragId == null) return;
+    e.preventDefault();
+    var over = e.target.closest('.tab'); if (!over || over.dataset.id === dragId) return;
+    var dragged = tabsEl.querySelector('.tab[data-id="' + CSS.escape(dragId) + '"]');
+    if (!dragged) return;
+    var r = over.getBoundingClientRect();
+    over.parentNode.insertBefore(dragged, (e.clientX < r.left + r.width / 2) ? over : over.nextSibling);
+  });
+  tabsEl.addEventListener('dragend', function() {
+    if (dragId == null) return;
+    dragId = null;
+    var order = Array.prototype.map.call(tabsEl.querySelectorAll('.tab'), function(el) { return el.dataset.id; });
+    tabs.sort(function(a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
+    persistTabs();
   });
 
-  // --- URL chips: detect every http(s) URL in the note and offer it as a
-  // tappable chip that opens in the embedded Browser. (A textarea can't host
-  // clickable text, so we surface the links in a bar above it instead.) ---
-  var URL_RE = /https?:\/\/[^\s<>"'`]+/gi;
-
-  function openUrl(url) {
-    // The manager rejects shell metacharacters; percent-encode the few that
-    // can legitimately appear in a URL so it isn't rejected (Chromium decodes).
-    var safe = url.replace(/[()'"`$;]/g, function(c) {
-      return '%' + c.charCodeAt(0).toString(16).toUpperCase();
-    });
-    var direct = function() {
-      fetch('/api/browser/open', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: safe })
-      }).catch(function() {});
-    };
-    // Relay through the parent desktop so the fetch carries the Access cookie
-    // over the tunnel and the Browser app is brought to the front. Direct
-    // fetch is the standalone (/notes.html opened alone) fallback.
-    try {
-      if (window.top && window.top !== window) {
-        window.top.postMessage({ type: 'open-in-browser', url: safe }, '*');
-      } else { direct(); }
-    } catch (e) { direct(); }
-  }
-
-  function labelFor(url) {
-    try {
-      var u = new URL(url);
-      var s = u.hostname.replace(/^www\./, '');
-      if (u.pathname && u.pathname !== '/') s += u.pathname;
-      return s.length > 34 ? s.slice(0, 33) + '…' : s;
-    } catch (e) {
-      return url.length > 34 ? url.slice(0, 33) + '…' : url;
+  // --- editor autosave ---
+  editor.addEventListener('input', function() {
+    if (!ready) return;
+    clearTimeout(saveTimer); setStatus('editing…');
+    saveTimer = setTimeout(function() { doSave(active, editor.value); }, 800);
+    clearTimeout(scanTimer); scanTimer = setTimeout(scanLinks, 300);
+  });
+  editor.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); flushSave(); }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var s = this.selectionStart;
+      this.value = this.value.substring(0, s) + '\t' + this.value.substring(this.selectionEnd);
+      this.selectionStart = this.selectionEnd = s + 1;
     }
-  }
+  });
 
+  // --- URL chips (per active note) ---
+  var URL_RE = /https?:\/\/[^\s<>"'`]+/gi;
+  function openUrl(url) {
+    var safe = url.replace(/[()'"`$;]/g, function(c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); });
+    var direct = function() { fetch('/api/browser/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: safe }) }).catch(function() {}); };
+    try { if (window.top && window.top !== window) window.top.postMessage({ type: 'open-in-browser', url: safe }, '*'); else direct(); }
+    catch (e) { direct(); }
+  }
+  function labelFor(url) {
+    try { var u = new URL(url); var s = u.hostname.replace(/^www\./, ''); if (u.pathname && u.pathname !== '/') s += u.pathname; return s.length > 34 ? s.slice(0, 33) + '…' : s; }
+    catch (e) { return url.length > 34 ? url.slice(0, 33) + '…' : url; }
+  }
   function scanLinks() {
-    var seen = {}, urls = [], m;
-    URL_RE.lastIndex = 0;
+    var seen = {}, urls = [], m; URL_RE.lastIndex = 0;
     while ((m = URL_RE.exec(editor.value)) !== null) {
-      // Strip trailing sentence punctuation that's unlikely to be part of the URL.
       var u = m[0].replace(/[.,;:!?'")\]]+$/, '');
       if (u && !seen[u]) { seen[u] = 1; urls.push(u); }
     }
     linksEl.innerHTML = '';
     if (!urls.length) { linksEl.classList.remove('on'); return; }
     urls.forEach(function(u) {
-      var chip = document.createElement('span');
-      chip.className = 'link-chip';
-      chip.title = u;
+      var chip = document.createElement('span'); chip.className = 'link-chip'; chip.title = u;
       chip.innerHTML = '<span class="ic">🔗</span><span class="lbl"></span>';
       chip.querySelector('.lbl').textContent = labelFor(u);
       chip.addEventListener('click', function() { openUrl(u); });
@@ -145,44 +268,19 @@
     linksEl.classList.add('on');
   }
 
-  function save() {
-    if (!loaded) return;   // the initial load failed — don't overwrite the stored note
-    status.textContent = 'saving...';
-    status.className = 'status';
-    fetch('/api/notes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: editor.value })
-    }).then(function() {
-      status.textContent = 'saved';
-      status.className = 'status saved';
-    }).catch(function() {
-      status.textContent = 'save failed';
-      status.className = 'status';
-    });
-  }
+  // Flush a pending save when the app is backgrounded / page hidden.
+  document.addEventListener('visibilitychange', function() { if (document.hidden) flushSave(); });
+  window.addEventListener('pagehide', flushSave);
 
-  editor.addEventListener('input', function() {
-    clearTimeout(saveTimer);
-    status.textContent = 'editing...';
-    status.className = 'status';
-    saveTimer = setTimeout(save, 800);
-    clearTimeout(scanTimer);
-    scanTimer = setTimeout(scanLinks, 300);
-  });
-
-  editor.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      clearTimeout(saveTimer);
-      save();
-    }
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      var start = this.selectionStart;
-      this.value = this.value.substring(0, start) + '\t' + this.value.substring(this.selectionEnd);
-      this.selectionStart = this.selectionEnd = start + 1;
-    }
+  // --- init ---
+  api('/api/notes').then(function(r) { return r.json(); }).then(function(idx) {
+    tabs = (idx && Array.isArray(idx.tabs) && idx.tabs.length) ? idx.tabs : [{ id: '1', name: 'Notes' }];
+    var act = (idx && idx.active && tabs.some(function(t) { return t.id === idx.active; })) ? idx.active : tabs[0].id;
+    renderTabs();
+    switchTo(act);
+  }).catch(function() {
+    setStatus('load failed — reload', 'err');
+    editor.placeholder = 'Could not load notes. Reload before editing (your saved notes are intact).';
   });
 })();
 </script>

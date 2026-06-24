@@ -24,6 +24,8 @@ run install -m 644 "$DIR/filebrowser-patches.js" "$DST_DIR/filebrowser-patches.j
 run install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
 run install -m 644 "$DIR/notes.html" "$DST_DIR/notes.html"
 run install -m 644 "$DIR/upload.html" "$DST_DIR/upload.html"
+run install -m 644 "$DIR/files.html" "$DST_DIR/files.html"
+run install -m 644 "$DIR/apps.html" "$DST_DIR/apps.html"
 run install -m 644 "$DIR/update.html" "$DST_DIR/update.html"
 run install -m 644 "$DIR/office-editor.html" "$DST_DIR/office-editor.html"
 run install -m 644 "$DIR/loggedout.html" "$DST_DIR/loggedout.html"

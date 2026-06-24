@@ -13,10 +13,16 @@
     if (OFFICE_RE.test(location.pathname)) return;
     try { localStorage.setItem(FILES_LAST_KEY, location.pathname + location.search); } catch (e) {}
   }
+  // Inside the tabbed Files wrapper (files.html), each tab iframe is named
+  // "fbtab" and opened directly at its own path; the wrapper owns path memory,
+  // so the single-key restore below must NOT run (it would yank every tab to one
+  // saved path). window.name survives the SPA's in-iframe navigations.
+  var IN_TABS = false;
+  try { IN_TABS = (window.name === "fbtab"); } catch (e) {}
   var _ATTEMPT_KEY = "vibetop:files:attempt";
   var _curPath = location.pathname + location.search;
   var _base = location.pathname.replace(/\/+$/, "");
-  var _atRoot = (_base === "/files" || _base === "/files/files");
+  var _atRoot = (!IN_TABS && (_base === "/files" || _base === "/files/files"));
   var _saved, _attempt;
   try { _saved = localStorage.getItem(FILES_LAST_KEY); } catch (e) {}
   try { _attempt = sessionStorage.getItem(_ATTEMPT_KEY); } catch (e) {}

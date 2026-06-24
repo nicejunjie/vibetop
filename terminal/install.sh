@@ -10,6 +10,7 @@
 #   APP_USER         system user that owns the shells            (default: invoking user)
 #   APP_DIR          where ttyd-run.sh lives                     (default: script dir)
 #   BASE_PORT        loopback port base; tN -> BASE_PORT+N       (default 7680)
+#   APPS_DISPLAY     xpra X display exported into terminal shells (default :98)
 #   NGINX_SITE_NAME  filename under sites-available              (default claude-web)
 #   LANDING_DIR      where the landing index.html goes           (default ~APP_USER/claude-web-www)
 #   INSTALL_DEPS     install ttyd/nginx via apt                  (default 1)
@@ -27,6 +28,10 @@ APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 BASE_PORT="${BASE_PORT:-7680}"
 NGINX_SITE_NAME="${NGINX_SITE_NAME:-claude-web}"
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
+APP_UID="$(id -u "$APP_USER" 2>/dev/null || true)"
+# xpra X display the session shells export (so X11 apps started from a terminal
+# render on the Apps desktop). Matches browser/install.sh's APPS_DISPLAY_NUM (:98).
+APPS_DISPLAY="${APPS_DISPLAY:-:98}"
 LANDING_DIR="${LANDING_DIR:-$APP_HOME/claude-web-www}"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
@@ -115,6 +120,9 @@ if (( INSTALL_SYSTEMD )); then
         rendered="$(sed \
             -e "s|@APP_USER@|$APP_USER|g" \
             -e "s|@APP_DIR@|$APP_DIR|g" \
+            -e "s|@BASE_PORT@|$BASE_PORT|g" \
+            -e "s|@APPS_DISPLAY@|$APPS_DISPLAY|g" \
+            -e "s|@APP_UID@|$APP_UID|g" \
             "$APP_DIR/systemd/$unit")"
         echo "$rendered" | write_root "/etc/systemd/system/$unit"
     done

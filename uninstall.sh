@@ -22,7 +22,7 @@ echo "== Vibetop uninstall (user: $APP_USER) =="
 
 # 1. systemd services -------------------------------------------------------
 echo "== stopping & disabling services =="
-units=(claude-web-manager claude-browser-xpra claude-office-xpra claude-web-filebrowser)
+units=(claude-web-manager claude-browser-xpra claude-apps-xpra claude-apps-dbus claude-web-filebrowser)
 for n in $(seq 1 50); do units+=("claude-web-ttyd@$n" "claude-web-session@$n"); done
 for u in "${units[@]}"; do
     systemctl disable --now "$u" >/dev/null 2>&1 || true
@@ -31,7 +31,8 @@ rm -f /etc/systemd/system/claude-web-manager.service \
       /etc/systemd/system/claude-web-ttyd@.service \
       /etc/systemd/system/claude-web-session@.service \
       /etc/systemd/system/claude-browser-xpra.service \
-      /etc/systemd/system/claude-office-xpra.service \
+      /etc/systemd/system/claude-apps-xpra.service \
+      /etc/systemd/system/claude-apps-dbus.service \
       /etc/systemd/system/claude-web-filebrowser.service
 systemctl daemon-reload 2>/dev/null || true
 

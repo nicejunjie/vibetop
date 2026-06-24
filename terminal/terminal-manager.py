@@ -19,6 +19,7 @@ import json
 import os
 import pwd
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -88,7 +89,56 @@ def _app_user():
 
 
 APP_USER = _app_user()
+# Notes: multi-document now. Each note is NOTES_DIR/<id>.md; NOTES_INDEX_FILE holds
+# the tab list/order/names/active ({tabs:[{id,name}], active}) server-side (so a
+# rename/new/reorder shows up on every device, like terminal tab names). NOTES_FILE
+# is the LEGACY single-note file, migrated into tab "1" on first use (kept, not
+# deleted, as a safety net).
 NOTES_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-notes.md")
+NOTES_DIR = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-notes")
+NOTES_INDEX_FILE = os.path.join(NOTES_DIR, "index.json")
+_notes_lock = threading.Lock()
+_NOTE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def _safe_note_id(nid):
+    """A note id is safe iff it's [A-Za-z0-9_-]{1,64} — so it can only ever be a
+    plain filename inside NOTES_DIR, never a path-traversal (`../`, `/etc/...`).
+    Pure function so it can be unit-tested in isolation."""
+    return isinstance(nid, str) and bool(_NOTE_ID_RE.match(nid))
+
+
+def _note_file(nid):
+    return os.path.join(NOTES_DIR, nid + ".md")
+
+
+def _read_notes_index():
+    """Tab index {tabs:[{id,name}], active}. Seeds a default and migrates the
+    legacy single-note file into tab '1' on first use. Serialized by _notes_lock."""
+    with _notes_lock:
+        try:
+            with open(NOTES_INDEX_FILE) as f:
+                data = json.load(f)
+            if isinstance(data, dict) and isinstance(data.get("tabs"), list) and data["tabs"]:
+                return data
+        except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
+            pass
+        os.makedirs(NOTES_DIR, exist_ok=True)
+        _chown_app(NOTES_DIR)
+        if not os.path.exists(_note_file("1")):
+            try:
+                with open(NOTES_FILE) as f:
+                    legacy = f.read()
+            except (FileNotFoundError, OSError):
+                legacy = ""
+            _atomic_write(_note_file("1"), legacy)   # migrate; legacy file left intact
+        data = {"tabs": [{"id": "1", "name": "Notes"}], "active": "1"}
+        _atomic_write(NOTES_INDEX_FILE, json.dumps(data))
+        return data
+
+
+def _write_notes_index(data):
+    _atomic_write(NOTES_INDEX_FILE, json.dumps(data))
 # Terminal tab names, keyed by instance number. Server-side (not per-browser
 # localStorage) so a rename shows up in every session/device — terminal N is the
 # same shared session everywhere.
@@ -146,6 +196,12 @@ def _port_env(name, default):
 BASE_PORT = _port_env("BASE_PORT", 7680)   # /tN/ -> BASE_PORT+N
 XPRA_PORT = _port_env("XPRA_PORT", 14500)  # Browser (xpra HTML5)
 FB_PORT = _port_env("FB_PORT", 8085)       # FileBrowser
+# The X display for the Apps desktop — a SECOND xpra session, separate from the
+# Browser's Chromium display (:99), so the Browser stays its own app. The Apps
+# launcher runs GUI apps here, and terminal shells export it (so X11 apps started
+# from a terminal show up as Apps tabs). Matches browser/install.sh's
+# APPS_DISPLAY_NUM.
+APPS_DISPLAY = os.environ.get("APPS_DISPLAY", ":98")
 ONLYOFFICE_SECRET_FILE = os.path.expanduser(f"~{APP_USER}/.config/vibetop/onlyoffice.secret")
 ONLYOFFICE_HOST = os.environ.get("ONLYOFFICE_CALLBACK_HOST", "http://host.docker.internal")
 # Extension -> OnlyOffice documentType.
@@ -460,6 +516,47 @@ def _valid_browser_url(url):
     return not any(c in url for c in _URL_BAD_CHARS)
 
 
+_WIN_ID_RE = re.compile(r"^0x[0-9a-fA-F]{1,16}$")
+
+
+def _valid_x_window_id(wid):
+    """True if `wid` is a wmctrl window id (0x-prefixed hex). The id is passed
+    to `wmctrl -i -a/-c <id>` as a subprocess argv element (not a shell string),
+    but validating it keeps a malformed value from reaching wmctrl at all. Pure
+    function so it can be unit-tested in isolation."""
+    return bool(wid and _WIN_ID_RE.match(wid))
+
+
+def _valid_launch_cmd(cmd):
+    """True if `cmd` is acceptable to run on the xpra display. The command is the
+    user's own shell command (they already have a terminal as this user, so this
+    is no privilege escalation) — we only reject empty, over-long, or commands
+    with NUL / newlines that would split the `su -c` string into extra commands."""
+    if not cmd or len(cmd) > 1024:
+        return False
+    return "\n" not in cmd and "\r" not in cmd and "\x00" not in cmd
+
+
+def _launch_prog(cmd):
+    """The program token of a shell command, skipping a leading `env` and any
+    VAR=val assignments (e.g. 'env FOO=1 eog x.jpg' -> 'eog', 'A=b /snap/bin/x'
+    -> '/snap/bin/x'). Pure function — used to decide which D-Bus session a
+    launched app gets (snap apps need the real user bus; others get the private
+    apps bus)."""
+    try:
+        toks = shlex.split(cmd)
+    except ValueError:
+        toks = cmd.split()
+    i = 0
+    while i < len(toks):
+        t = toks[i]
+        if os.path.basename(t) == "env" or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t):
+            i += 1
+            continue
+        break
+    return toks[i] if i < len(toks) else ""
+
+
 def _safe_upload_name(name):
     # Browsers may send "C:\\fakepath\\foo.jpg" or "../etc/passwd".
     # Strip any directory components and disallowed characters.
@@ -682,6 +779,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_tab_names_save()
         if self.path == "/api/browser/open":
             return self._handle_browser_open()
+        if self.path == "/api/x/launch":
+            return self._handle_x_launch()
+        if self.path == "/api/x/activate":
+            return self._x_window_action("-a")
+        if self.path == "/api/x/close":
+            return self._x_window_action("-c")
         if self.path.startswith("/api/office/callback"):
             return self._handle_office_callback()
         if self.path == "/api/office/forcesave":
@@ -690,6 +793,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_office_new()
         if self.path == "/api/notes":
             return self._handle_notes_save()
+        if self.path == "/api/notes/tabs":
+            return self._handle_notes_tabs()
         if self.path == "/api/desktop":
             return self._handle_desktop_save()
         if self.path == "/api/reset":
@@ -727,6 +832,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"ok": True, "removed": removed})
 
     def _handle_notes_save(self):
+        # POST {id, content} — save one note's body. id defaults to "1" (legacy
+        # single-note clients). temp+rename so a crash mid-save can't truncate it.
         body = self._read_body(1048576)
         if body is None:
             self._json(400, {"error": "invalid or too-large body (1MB max)"})
@@ -736,9 +843,60 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._json(400, {"error": "invalid json"})
             return
+        nid = data.get("id") or "1"
+        if not _safe_note_id(nid):
+            return self._json(400, {"error": "bad note id"})
         content = data.get("content", "")
-        _atomic_write(NOTES_FILE, content)  # temp+rename: a crash mid-save can't truncate the note
+        if not isinstance(content, str):
+            return self._json(400, {"error": "content must be a string"})
+        os.makedirs(NOTES_DIR, exist_ok=True)
+        _chown_app(NOTES_DIR)
+        _atomic_write(_note_file(nid), content)
         self._json(200, {"ok": True})
+
+    def _handle_notes_tabs(self):
+        # POST {tabs:[{id,name}], active} — the client owns the tab list; we store
+        # it (order/names/active) and DELETE note files whose tab was closed.
+        body = self._read_body(65536)
+        if body is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            return self._json(400, {"error": "invalid json"})
+        raw = data.get("tabs")
+        if not isinstance(raw, list) or not raw:
+            return self._json(400, {"error": "tabs must be a non-empty list"})
+        tabs, seen = [], set()
+        for t in raw[:64]:
+            if not isinstance(t, dict):
+                continue
+            nid = t.get("id")
+            if not _safe_note_id(nid) or nid in seen:
+                continue
+            seen.add(nid)
+            tabs.append({"id": nid, "name": (str(t.get("name") or "Note"))[:64]})
+        if not tabs:
+            return self._json(400, {"error": "no valid tabs"})
+        active = data.get("active")
+        if not (_safe_note_id(active) and active in seen):
+            active = tabs[0]["id"]
+        with _notes_lock:
+            os.makedirs(NOTES_DIR, exist_ok=True)
+            _chown_app(NOTES_DIR)
+            _write_notes_index({"tabs": tabs, "active": active})
+            # A closed tab's note file is removed (the note is gone). The client
+            # confirms before closing a non-empty note, so this isn't a surprise.
+            try:
+                for fn in os.listdir(NOTES_DIR):
+                    if fn.endswith(".md") and fn[:-3] not in seen:
+                        try:
+                            os.remove(os.path.join(NOTES_DIR, fn))
+                        except OSError:
+                            pass
+            except OSError:
+                pass
+        self._json(200, {"ok": True, "tabs": tabs, "active": active})
 
     def _handle_tab_names_save(self):
         # POST {n, name} — upsert (name null/empty clears). Server-side so the
@@ -937,6 +1095,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 pass
 
+        # 5. Clear the Apps desktop — restart its xpra session so every launched
+        #    GUI app (and any X11 app started from a terminal) is gone too.
+        if os.path.exists("/etc/systemd/system/claude-apps-xpra.service"):
+            try:
+                subprocess.run(
+                    ["systemctl", "restart", "--no-block",
+                     "claude-apps-xpra.service"],
+                    check=False, capture_output=True, text=True)
+                result["apps_reset"] = True
+            except Exception:
+                pass
+
         self._json(200, {"ok": True, **result})
 
     def _handle_browser_open(self):
@@ -973,6 +1143,137 @@ class Handler(http.server.BaseHTTPRequestHandler):
         )
         threading.Thread(target=proc.wait, daemon=True).start()
         self._json(200, {"ok": True, "url": url})
+
+    # ---- Apps launcher: run/list/switch GUI apps on the xpra display --------
+
+    def _handle_x_launch(self):
+        # POST {cmd} — run an arbitrary GUI command on the Browser's xpra display
+        # as the app user (their own login shell, like opening a terminal). The
+        # window then appears in the Browser canvas. X11 apps started from a
+        # terminal share this same display (the session unit exports DISPLAY), so
+        # they show up in /api/x/windows without going through here.
+        body = self._read_body(4096)
+        if body is None:
+            self._json(400, {"error": "invalid or too-large body"})
+            return
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            self._json(400, {"error": "invalid json"})
+            return
+        cmd = (data.get("cmd") or "").strip()
+        if not _valid_launch_cmd(cmd):
+            self._json(400, {"error": "invalid command"})
+            return
+        user = os.environ.get("BROWSER_USER", APP_USER)
+        try:
+            uid = pwd.getpwnam(user).pw_uid
+        except KeyError:
+            self._json(500, {"error": f"unknown user: {user}"})
+            return
+        # Pick the D-Bus session per app:
+        #  - snap apps (Firefox/Chromium/…) need the user's REAL session bus to
+        #    run at all (snap confinement / io.snapcraft.SessionAgent); on a bare
+        #    bus they exit immediately. They don't block on the portal anyway.
+        #  - everything else (GTK/GNOME apps like eog/evince) gets the PRIVATE
+        #    apps bus (claude-apps-dbus, no service activation) so they don't hang
+        #    ~25s on xdg-desktop-portal/at-spi activation timeouts — ~0.2s instead.
+        prog = _launch_prog(cmd)
+        is_snap = prog.startswith("/snap/") or (
+            os.path.basename(prog) != "" and
+            os.path.exists(f"/snap/bin/{os.path.basename(prog)}"))
+        dbus_sock = (f"/run/user/{uid}/bus" if is_snap
+                     else f"/run/user/{uid}/vibetop-apps-bus")
+        # Login shell (-) so the user's PATH resolves bare names like `gimp`.
+        # Reap in a daemon thread so short-lived launchers don't linger as zombies.
+        shell_cmd = (f'DISPLAY={APPS_DISPLAY} '
+                     f'DBUS_SESSION_BUS_ADDRESS=unix:path={dbus_sock} '
+                     f'XDG_RUNTIME_DIR=/run/user/{uid} '
+                     f'{cmd}')
+        try:
+            proc = subprocess.Popen(
+                ["su", "-", user, "-c", shell_cmd],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except Exception as e:
+            self._json(500, {"error": str(e)})
+            return
+        # Briefly watch for an immediate failure: a missing/mistyped command exits
+        # fast with non-zero (127 = command not found), while a real GUI app keeps
+        # running. This lets the launcher say "not installed?" right away instead
+        # of leaving the progress bar spinning for 25s. The window itself surfaces
+        # via the /api/x/windows poll, independent of this response.
+        try:
+            rc = proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            rc = None
+        if rc is None:
+            threading.Thread(target=proc.wait, daemon=True).start()  # still running → reap later
+        elif rc != 0:
+            if rc == 127:
+                msg = f"‘{prog}’ isn’t installed (or not in PATH)."
+            else:
+                msg = f"‘{prog}’ exited right away (code {rc}) — it may have failed to start."
+            return self._json(400, {"error": msg})
+        self._json(200, {"ok": True, "cmd": cmd})
+
+    def _run_wmctrl(self, args):
+        """Run wmctrl against the xpra display as the app user. Returns the
+        CompletedProcess, or None if it couldn't run."""
+        user = os.environ.get("BROWSER_USER", APP_USER)
+        try:
+            pw = pwd.getpwnam(user)
+        except KeyError:
+            return None
+        if not shutil.which("wmctrl"):
+            return None
+        env = {
+            "DISPLAY": APPS_DISPLAY,
+            "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{pw.pw_uid}/bus",
+            "HOME": pw.pw_dir, "PATH": "/usr/bin:/bin",
+        }
+        try:
+            return subprocess.run(["wmctrl"] + args, env=env, user=user,
+                                  capture_output=True, text=True, timeout=5)
+        except Exception:
+            return None
+
+    def _handle_x_windows(self):
+        # GET -> {"windows": [{"id", "title"}]} from `wmctrl -l` on the Apps
+        # display. Lines look like `0x01400003  0 host  Title with spaces`
+        # (id, desktop, client host, title). Chromium isn't here (it's on the
+        # Browser's own display), so no filtering beyond the WM desktop sentinel.
+        p = self._run_wmctrl(["-l"])
+        wins = []
+        if p and p.returncode == 0:
+            for line in p.stdout.splitlines():
+                parts = line.split(None, 3)
+                if len(parts) < 3:
+                    continue
+                wid = parts[0]
+                if not _valid_x_window_id(wid):
+                    continue
+                # Skip sticky WM/desktop pseudo-windows (desktop id -1).
+                if parts[1] == "-1":
+                    continue
+                title = parts[3] if len(parts) == 4 else ""
+                wins.append({"id": wid, "title": title})
+        self._json(200, {"windows": wins})
+
+    def _x_window_action(self, flag):
+        body = self._read_body(4096)
+        if body is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            return self._json(400, {"error": "invalid json"})
+        wid = (data.get("id") or "").strip()
+        if not _valid_x_window_id(wid):
+            return self._json(400, {"error": "invalid window id"})
+        p = self._run_wmctrl(["-i", flag, wid])
+        ok = bool(p and p.returncode == 0)
+        self._json(200 if ok else 500, {"ok": ok})
 
     def _handle_office_preview(self):
         # GET /api/office/preview?path=<rel-to-home> — convert to PDF (cached)
@@ -1462,6 +1763,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/terminals/names":
             self._json(200, {"names": _read_tab_names()})
             return
+        if self.path == "/api/x/windows":
+            return self._handle_x_windows()
         if self.path.startswith("/api/office/config"):
             return self._handle_office_config()
         if self.path.startswith("/api/office/download"):
@@ -1476,11 +1779,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/system/status":
             self._json(200, self._get_system_status())
             return
-        if self.path == "/api/notes":
+        if self.path == "/api/notes" or self.path.startswith("/api/notes?"):
+            # No id -> the tab index {tabs, active}; ?id=N -> {content} of note N.
+            nid = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("id", [None])[0]
+            if nid is None:
+                self._json(200, _read_notes_index())
+                return
+            if not _safe_note_id(nid):
+                self._json(400, {"error": "bad note id"})
+                return
             try:
-                with open(NOTES_FILE) as f:
+                with open(_note_file(nid)) as f:
                     content = f.read()
-            except FileNotFoundError:
+            except (FileNotFoundError, OSError):
                 content = ""
             self._json(200, {"content": content})
             return

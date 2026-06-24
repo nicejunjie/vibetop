@@ -1,0 +1,181 @@
+# Design decisions & hard-won fixes
+
+A running log of non-obvious problems this project has hit and how they were
+solved — the *why* behind choices that aren't self-evident from the code, and
+the dead ends that were ruled out. Read this before re-litigating a design or
+"simplifying" something that looks odd; it's probably odd on purpose.
+
+> **Maintenance rule:** whenever you solve a new non-obvious problem (a bug whose
+> cause was surprising, a workaround for an external tool, a design fork with a
+> rejected alternative), **add an entry here** in the same Problem → Cause →
+> Fix → Alternatives-rejected shape. Keep the canonical architecture in
+> [`../CLAUDE.md`](../CLAUDE.md); this file is the *reasoning* and *history*.
+
+Each entry: **Symptom** (what you'd observe), **Cause** (root cause, ideally
+with evidence), **Fix** (what we did), **Rejected** (what we tried or considered
+and why it lost).
+
+---
+
+## GNOME apps (eog, evince) take ~33s to start in the X11 Launcher
+
+- **Symptom:** Launching a GTK/GNOME app (eog, evince) from the X11 Launcher on
+  the Apps display showed a blank canvas for ~33s before the window appeared;
+  Firefox/Chromium/native apps (xterm) were instant.
+- **Cause:** The Apps display (`:98`) is a bare `xpra start-desktop` + matchbox
+  session — **no GNOME session**. GNOME services like `xdg-desktop-portal` are
+  *activatable but hang* there (their backends wait for a session that doesn't
+  exist). GTK apps query the portal on startup and block the **25-second D-Bus
+  method-call timeout**. Evidence: `strace` showed eog threads each blocking in
+  `poll()` for exactly ~25.0s on D-Bus fds; a direct probe of
+  `org.freedesktop.portal.Desktop` activation timed at exactly 25.0s while
+  gvfs/dconf/a11y returned in 0.0s.
+- **Fix:** Run launcher apps against a **private D-Bus session with no service
+  activation** (`claude-apps-dbus`, a `dbus-daemon` with no `<servicedir>`,
+  socket `/run/user/<uid>/vibetop-apps-bus`). On it, those service calls fail
+  fast (ServiceUnknown) instead of hanging → eog starts in ~0.2s. The bus is
+  chosen **per app**: snap apps (Firefox/Chromium, detected via `/snap/bin/<prog>`)
+  get the **real user bus** instead, because they *exit* on a bare bus (snap
+  confinement needs the session bus) and never block on the portal anyway.
+- **Rejected:**
+  - `GTK_USE_PORTAL=0` (per-app env): it *did* stop portal activation, but eog
+    was still ~33s — there was a second hanging service too. Whack-a-mole.
+  - Pointing **terminal** shells at the private bus as well: breaks
+    `systemctl --user`/`gsettings` (they need the real user bus). So terminals
+    keep the user bus; only the launcher routes to the private bus.
+  - Masking `xdg-desktop-portal` globally: would affect a physical GNOME login
+    on the host (if any). The private bus is isolated to launcher apps.
+
+## Snap apps (Firefox/Chromium) won't open the Apps display
+
+- **Symptom:** `firefox` from the launcher did nothing; log showed
+  `Authorization required, but no authorization protocol specified` /
+  `cannot open display :98`. Native apps (xterm) and `wmctrl` worked fine.
+- **Cause:** Snap confinement — a confined snap launched *outside* xpra's own
+  process can't read the X authority cookie, so the X server rejects it. Native
+  same-user clients connect fine.
+- **Fix:** `xhost +local:` at Apps-display startup (a `--start` in
+  `claude-apps-xpra.service`) disables X access control for local clients. Safe:
+  the display is loopback-only and the host is single-user behind Access.
+  `x11-xserver-utils` (provides `xhost`) is an apt dep.
+
+## Browser must stay its own app, but Apps needs its own canvas
+
+- **Symptom:** Wanting a tabbed "launch GUI apps" experience *and* keeping the
+  Browser (Chromium) as a separate app.
+- **Cause:** One xpra display can only present **one canvas**. Chromium and any
+  launched app share a single display, so two canvas iframes of the same display
+  fight over size (a hidden iframe measures 0×0 and shrinks the display) — the
+  same reason multi-device window mirroring was dropped.
+- **Fix:** A **second xpra display** (`:98`, `claude-apps-xpra`, matchbox, no
+  Chromium) dedicated to launched apps, proxied at `/apps-display/`. The Browser
+  keeps `:99`. The X11 Launcher (`apps.html`) embeds the `:98` canvas with a tab
+  bar; the two displays never conflict.
+- **Rejected:** Merging Chromium into one tabbed "Desktop" (user wanted Browser
+  separate); embedding a second canvas of `:99` in the launcher (size conflict).
+
+## X11 apps launched from a Terminal should appear in the launcher
+
+- **Symptom:** Running `gnuplot` (or any GUI app) in a Terminal had nowhere to
+  render.
+- **Fix:** `claude-web-session@.service` exports `DISPLAY=:98` +
+  `DBUS_SESSION_BUS_ADDRESS` + `XDG_RUNTIME_DIR`, so terminal-started GUI apps
+  render on the Apps desktop and show up as tabs. The desktop also polls
+  `/api/x/windows` and auto-opens the X11 Launcher when a new window appears.
+  (`XDG_RUNTIME_DIR` silences/fixes Qt apps like gnuplot's qt terminal.)
+  Note: this is a systemd-unit change — it only lands on a full deploy /
+  `terminal/install.sh`, and only for **newly started** sessions.
+
+## eog/evince single-instance hand-off
+
+- **Symptom:** Launching eog a second time opened no new window; A/B timing
+  tests gave nonsense ("NONE") results.
+- **Cause:** GNOME apps are **GApplication single-instance** — a second launch
+  hands off to the running primary (and with no file, opens nothing). It also
+  made repeated benchmarking unreliable until the `org.gnome.eog` bus name was
+  confirmed released between runs.
+- **Fix / note:** Not "fixed" (it's expected GNOME behavior) — documented so the
+  launcher's "nothing happened" isn't mistaken for a bug, and so future
+  measurements force a clean primary instance.
+
+## `@BASE_PORT@` left unsubstituted in the ttyd unit (latent install bug)
+
+- **Symptom:** A *fresh* install would render `Environment=BASE_PORT=@BASE_PORT@`
+  in `claude-web-ttyd@.service`; `ttyd-run.sh`'s `$(( @BASE_PORT@ + N ))` is a
+  syntax error → ttyd never binds → terminals fail.
+- **Cause:** The unit-render loop in `terminal/install.sh` only substituted
+  `@APP_USER@`/`@APP_DIR@`, not `@BASE_PORT@`. Masked on existing hosts because
+  the in-app Update runs `install.sh` with `INSTALL_SYSTEMD=0` (doesn't re-render
+  units), so they keep their old correctly-rendered files.
+- **Fix:** Added `@BASE_PORT@` (and the new `@APPS_DISPLAY@`/`@APP_UID@`) to the
+  loop's `sed`.
+
+## Tabs in the Files app (multiple folders)
+
+- **Goal:** view several folders at once, switching tabs instead of navigating
+  back and forth.
+- **Approach:** FileBrowser is a single-folder SPA, so the Files app is now a
+  wrapper (`files.html`) hosting **one FileBrowser iframe per tab** (like the
+  Terminal tabs), kept alive so switching is instant and preserves each folder's
+  state. Tab labels are the live folder name, read from each iframe's
+  `contentWindow.location` (same-origin). Open paths persist in `localStorage`.
+- **Gotcha — the location-memory patch fought the tabs:** `filebrowser-patches.js`
+  has a single-key "restore last folder" that `location.replace`s any `/files/`
+  root load to the saved path — which would yank *every* tab to one folder. Fix:
+  the wrapper names each iframe `fbtab` (survives the SPA's in-iframe nav), and
+  the patch skips its location-memory when `window.name === "fbtab"` (the wrapper
+  owns path memory). The SW BYPASS token was tightened from `files` to `files/`
+  so the wrapper page `/files.html` is cacheable while the live SPA at `/files/*`
+  stays network-only.
+- **Deep links:** the Upload app's "Open in Files" used to overwrite the Files
+  iframe `src` (would destroy the tabs); now the desktop posts a `files-open-tab`
+  message (a few times, to beat the first-load race; the wrapper dedupes) and the
+  wrapper opens a tab at that path.
+
+## Tabs in the Notes app (multiple, renameable notes)
+
+- **Goal:** multiple notes with tabs, renameable like the Terminal tabs.
+- **Approach:** Notes went from a single file + single-doc API to **multi-document,
+  server-side**: each note is `~/.local/share/desktop-notes/<id>.md`, the tab index
+  (`{tabs:[{id,name}], active}`) is `index.json` in that dir — server-side so
+  names/order/active propagate across devices (like terminal tab names). API:
+  `GET /api/notes` (index), `GET /api/notes?id=` (content), `POST /api/notes
+  {id,content}` (save), `POST /api/notes/tabs {tabs,active}` (the client owns the
+  tab list; the manager stores it and deletes files for closed tabs).
+- **Data safety:** note ids are sanitized (`_safe_note_id`, `[A-Za-z0-9_-]{1,64}`)
+  so an id can only ever be a plain filename inside the notes dir (no `../`
+  traversal). The **legacy single-note file** (`desktop-notes.md`) is migrated into
+  tab `"1"` on first use and **left intact** (not deleted) as a safety net.
+  Closing a tab deletes its note file, so the frontend **confirms** before closing
+  a non-empty note. Verified end-to-end (migration, create/save/read, close-deletes,
+  traversal-id rejection).
+- **Rejected:** keeping closed-note files as orphans (avoids accidental loss but
+  accumulates dead files) — chose delete-on-close + a frontend confirm instead.
+
+## Launcher "spins forever" on a not-installed / mistyped command
+
+- **Symptom:** Typing a command that isn't installed (e.g. `gimp` when it's not
+  on the host) left the progress bar spinning indefinitely — looked like a slow
+  load, but nothing was ever going to appear.
+- **Cause:** `/api/x/launch` returned `{ok:true}` the instant it spawned the
+  `su -c` shell; it had no idea the command then failed (`command not found`,
+  exit 127), so the window-poll never cleared the bar.
+- **Fix:** After spawning, the manager does a short `proc.wait(timeout=3)`. A
+  missing/mistyped command exits fast with non-zero (127 = not found) → return a
+  `400` with "‘<prog>’ didn't start (exit 127) — not found / not installed?"; a
+  real GUI app is still running at 3s → return ok and reap it in the background.
+  The launcher shows it as a friendly message ("‘gimp’ isn't installed (or not
+  in PATH).") with a Dismiss, not a spinning bar.
+  The 3s only delays the *response* on the rare failure path — success still
+  shows its window via the poll, independent of the response.
+- **Note:** No precheck (`command -v`) — that risked false negatives (aliases,
+  custom PATH) blocking valid launches. Watching the actual exit is accurate.
+
+## Slow app launch looked broken (blank canvas)
+
+- **Symptom:** After hitting Run, the canvas was blank for seconds (esp. cold
+  GNOME apps) and looked frozen.
+- **Fix:** An indeterminate **progress bar** overlay in `apps.html` ("Launching
+  `<cmd>`…") shown until the window appears, with a "still starting / may have
+  failed" hint after 25s and a Dismiss. (Largely moot now that the portal fix
+  makes GNOME apps fast, but it still covers genuinely slow first launches.)
