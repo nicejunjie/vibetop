@@ -208,10 +208,26 @@
   }
 
   // Another client closed this terminal (backend reports it gone) → drop our tab
-  // WITHOUT stopping again. Keeps at least one tab so the UI is never empty.
+  // WITHOUT stopping again. Unlike the user-close path this MAY drop the last tab
+  // (its session is dead — keeping it would just show a 502); the reconcile then
+  // cold-starts a fresh terminal so the UI is never left empty or on a dead tab.
   function dropTabExternal(n) {
-    if (tabs.querySelectorAll('.tab').length <= 1) return;
     reactivateAfter(detachTab(n));
+  }
+
+  // Start a fresh terminal and show it (used at cold load and when a reconcile
+  // emptied the tab bar because every terminal was closed elsewhere).
+  function coldStart() {
+    var n = nextAvailable(lastRunning) || 1;
+    pending[n] = true;
+    api('POST', '/' + n + '/start').then(function() {
+      addTab(n, true);
+      return waitReady(n);
+    }).then(function() {
+      var tab = tabs.querySelector('.tab[data-n="' + n + '"]');
+      if (tab) tab.classList.remove('starting');
+      activate(n);
+    }).catch(function() { delete pending[n]; });
   }
 
   // Reconcile the local tab SET with the shared backend running set, so a tab
@@ -235,6 +251,7 @@
       var n = +t.dataset.n;
       if (!desired[n]) dropTabExternal(n);
     });
+    if (!tabs.querySelector('.tab') && !Object.keys(pending).length) coldStart();  // everything closed elsewhere
     applyTabLabels();
   }
   function syncStatus() {
@@ -418,8 +435,9 @@
 
   window.addEventListener('message', function(e) {
     if (!e.data) return;
-    if (e.data.type === 'focus-terminal' && active) {
-      focusTerminal(active);
+    if (e.data.type === 'focus-terminal') {
+      syncStatus();                 // app just activated → reconcile the set now
+      if (active) focusTerminal(active);
     }
   });
 
