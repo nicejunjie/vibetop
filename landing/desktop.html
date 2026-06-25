@@ -529,14 +529,17 @@
   var lastResetEpoch = null;     // bumped by /api/reset; a change means clear-all
   var applyingRemote = false;    // suppress persist() during a teardown
 
-  // An app gets the green dot when it has an active/existing session you'd
-  // resume or join: open here, open on another live instance, a running Terminal
-  // backend, or the (always-persistent) Browser. No dot → opening is fresh.
+  // An app gets the green dot when its window is open on THIS or another live
+  // instance (or, for Terminal, when a backend session is running). No dot →
+  // opening is fresh. NOTE: Browser is deliberately NOT special-cased to always
+  // show green here — even though its Chromium/xpra session is persistent, a
+  // permanently-green dot made "close on all devices" (the ⏻) look broken (the
+  // window closed everywhere but the dot never went dark). The dot now honestly
+  // tracks whether the Browser window is open somewhere.
   function isRunning(id) {
     if (openApps.indexOf(id) !== -1) return true;
     if (runningGlobal.indexOf(id) !== -1) return true;
     if (id === 'terminal') return terminalCount > 0;
-    if (id === 'browser') return true;   // persistent Chromium — always resumable
     return false;
   }
 
