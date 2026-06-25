@@ -82,6 +82,15 @@
   var frames = document.getElementById('frames');
   var loaded = {};
   var active = null;
+  var inited = false;        // gate the status reconcile until the first build is done
+  // Live-sync of the tab SET against the shared backend running-terminals set:
+  // `pending` = opened here, awaiting backend-running confirmation; `closing` =
+  // closed here, awaiting backend-stopped confirmation. They cover the races
+  // where THIS client just changed a tab and the next status poll hasn't caught up
+  // (so the reconcile neither drops a just-opened tab nor re-adds a just-closed one).
+  var pending = {};
+  var closing = {};
+  var lastRunning = [];      // most recent backend running set (for picking a free N)
 
   function api(method, path, body) {
     var opts = { method: method };
@@ -166,27 +175,71 @@
     saveTabOrder();
   }
 
-  function removeTab(n) {
+  // Remove a tab's DOM + iframe (UI only, no backend stop). Returns whether it
+  // was the active tab so the caller can re-activate a neighbour.
+  function detachTab(n) {
     var tabEl = tabs.querySelector('.tab[data-n="' + n + '"]');
+    if (!tabEl) return false;
     var frameEl = document.getElementById('frame-' + n);
-    if (!tabEl) return;
-
-    var remaining = tabs.querySelectorAll('.tab');
-    if (remaining.length <= 1) return;
-
     var wasActive = tabEl.classList.contains('active');
     tabEl.remove();
     if (frameEl) frameEl.remove();
     delete loaded[n];
     saveTabOrder();
+    return wasActive;
+  }
+  function reactivateAfter(wasActive) {
+    if (!wasActive) return;
+    var first = tabs.querySelector('.tab');
+    if (first) activate(+first.dataset.n);
+  }
+
+  // User closed this tab → stop the shared session (kills it for every client)
+  // and forget its name. Tracked in `closing` so a status poll that still lists
+  // the not-yet-stopped unit doesn't make the reconcile re-add the tab.
+  function removeTab(n) {
+    if (!tabs.querySelector('.tab[data-n="' + n + '"]')) return;
+    if (tabs.querySelectorAll('.tab').length <= 1) return;   // never zero tabs
+    closing[n] = true; delete pending[n];
+    var wasActive = detachTab(n);
     saveTabName(n, null);   // closing kills the terminal → forget its custom name
-
     api('POST', '/' + n + '/stop');
+    reactivateAfter(wasActive);
+  }
 
-    if (wasActive) {
-      var first = tabs.querySelector('.tab');
-      if (first) activate(+first.dataset.n);
-    }
+  // Another client closed this terminal (backend reports it gone) → drop our tab
+  // WITHOUT stopping again. Keeps at least one tab so the UI is never empty.
+  function dropTabExternal(n) {
+    if (tabs.querySelectorAll('.tab').length <= 1) return;
+    reactivateAfter(detachTab(n));
+  }
+
+  // Reconcile the local tab SET with the shared backend running set, so a tab
+  // opened/closed on another client/device appears/disappears here too (order +
+  // active stay device-local; only set membership syncs).
+  function reconcileTabs(running) {
+    lastRunning = running;
+    var runSet = {};
+    running.forEach(function(n) { runSet[n] = true; delete pending[n]; });   // confirmed up
+    Object.keys(closing).forEach(function(n) { if (!runSet[n]) delete closing[n]; });  // confirmed gone
+
+    var desired = {};                                  // (running ∪ pending) − closing
+    running.forEach(function(n) { desired[n] = true; });
+    Object.keys(pending).forEach(function(n) { desired[+n] = true; });
+    Object.keys(closing).forEach(function(n) { delete desired[+n]; });
+
+    Object.keys(desired).forEach(function(n) {         // opened elsewhere → add here
+      if (!tabs.querySelector('.tab[data-n="' + n + '"]')) addTab(+n);
+    });
+    tabs.querySelectorAll('.tab').forEach(function(t) {  // closed elsewhere → drop here
+      var n = +t.dataset.n;
+      if (!desired[n]) dropTabExternal(n);
+    });
+    applyTabLabels();
+  }
+  function syncStatus() {
+    if (!inited) return;
+    api('GET', '/status').then(function(d) { reconcileTabs(d.running || []); }).catch(function() {});
   }
 
   function activate(n) {
@@ -347,8 +400,12 @@
   });
 
   addBtn.addEventListener('click', function() {
-    var n = nextAvailable();
+    // Consider the last-known backend running set too, so we don't pick a number
+    // another client just started (terminal N is shared) before the reconcile
+    // adds it here.
+    var n = nextAvailable(lastRunning);
     if (n === 0) return;
+    pending[n] = true;        // opened here; reconcile keeps it until status confirms
     addTab(n, true);
     api('POST', '/' + n + '/start').then(function() {
       return waitReady(n);
@@ -391,20 +448,25 @@
   }
   window.addEventListener('resize', nudgeActiveFrame);
 
-  // Pull server-side tab names on load, and refresh when this tab regains focus
-  // so a rename done in another session/device shows up here.
+  // Pull server-side tab names + reconcile the tab set on load, and again when
+  // this tab regains focus, so a rename / open / close done in another
+  // session/device shows up here. A 2.5s interval keeps it live while open.
   loadTabNames();
+  function refreshShared() { loadTabNames(); syncStatus(); }
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) loadTabNames();
+    if (!document.hidden) refreshShared();
   });
-  window.addEventListener('focus', loadTabNames);
+  window.addEventListener('focus', refreshShared);
+  setInterval(syncStatus, 2500);
 
   // On load: fetch running terminals from API, open tabs for them
   function initTabs() {
   api('GET', '/status').then(function(data) {
     var running = data.running || [];
+    lastRunning = running;
     if (running.length === 0) {
       // Start terminal 1 if nothing is running
+      pending[1] = true;
       api('POST', '/1/start').then(function() {
         addTab(1, true);
         return waitReady(1);
@@ -412,9 +474,11 @@
         var tab = tabs.querySelector('.tab[data-n="1"]');
         if (tab) tab.classList.remove('starting');
         activate(1);
+        inited = true;
       }).catch(function() {
         // Start failed (API down at cold load) — drop the half-created tab and
         // retry the whole init shortly, rather than leaving a stuck UI.
+        delete pending[1];
         var t = tabs.querySelector('.tab[data-n="1"]'); if (t) t.remove();
         var f = document.getElementById('frame-1'); if (f) f.remove();
         setTimeout(initTabs, 2000);
@@ -438,6 +502,7 @@
     var lastActive = +(localStorage.getItem('active-terminal') || running[0]);
     if (!tabs.querySelector('.tab[data-n="' + lastActive + '"]')) lastActive = running[0];
     activate(lastActive);
+    inited = true;
   }).catch(function() {
     // /status fetch failed at load (API briefly down) — retry so we don't sit
     // with an empty tab bar that only a manual reload fixes.
