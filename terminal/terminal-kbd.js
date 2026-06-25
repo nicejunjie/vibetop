@@ -44,29 +44,34 @@
   // sees mis-shaped (too-narrow / too-wide) output until it re-claims.
   function claimSize() {
     var t = window.term; if (!t) return;
-    var c = t.cols, r = t.rows, r0 = Math.max(2, r - 1);
+    var c = t.cols, r = t.rows, c0 = Math.max(2, c - 1);
     // Send the resize STRAIGHT to ttyd's socket (RESIZE_TERMINAL="1" +
     // {columns,rows}) so the PTY is re-shaped without resizing the visible xterm
     // grid — resizing the grid makes the content jump ("shake").
     //
-    // But it must NUDGE: ttyd applies each frame via TIOCSWINSZ, yet the kernel
-    // raises SIGWINCH (the signal that actually propagates the size down to the
-    // shared claude-session PTY) ONLY when the size CHANGES. This client's ttyd
-    // PTY is already c×r, so re-sending c×r is a silent no-op — the re-claim does
-    // nothing. So send a DIFFERENT size and back ({c,r-1} then {c,r}): two real
-    // changes → two SIGWINCHes → the shared PTY ends up at THIS device's shape,
-    // all without touching the visible grid (the previous version sent c×r once
-    // and quietly stopped re-claiming).
+    // It must NUDGE: ttyd applies each frame via TIOCSWINSZ, yet the kernel raises
+    // SIGWINCH (the signal that actually propagates the size down to the shared
+    // claude-session PTY) ONLY when the size CHANGES. This client's ttyd PTY is
+    // already c×r, so re-sending c×r is a silent no-op and re-claims nothing — so
+    // send a DIFFERENT size and back, then two SIGWINCHes carry this device's
+    // shape to the shared PTY.
+    //
+    // Nudge the COLUMN, not the row, keeping ROWS CONSTANT: the intermediate frame
+    // still streams back to this device's xterm (one redraw at the nudged size),
+    // and a 1-row change makes a bottom-anchored TUI (e.g. a prompt/input box)
+    // bounce up a row then back — the residual "shake". A 1-column change keeps
+    // every row in place, so the bottom line doesn't move; the blip is just one
+    // column of width for a single frame, far less perceptible.
     try {
       if (ttydWS && ttydWS.readyState === 1) {
         var enc = new TextEncoder();
-        ttydWS.send(enc.encode('1' + JSON.stringify({ columns: c, rows: r0 })));
+        ttydWS.send(enc.encode('1' + JSON.stringify({ columns: c0, rows: r })));
         ttydWS.send(enc.encode('1' + JSON.stringify({ columns: c, rows: r })));
         return;
       }
     } catch (_) {}
     // Fallback if the socket wasn't captured: nudge via xterm (visible, but works).
-    try { t.resize(c, r0); t.resize(c, r); } catch (_) {}
+    try { t.resize(c0, r); t.resize(c, r); } catch (_) {}
   }
 
   // Brief toast (used to confirm a touch double-tap registered).

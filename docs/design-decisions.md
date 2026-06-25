@@ -294,11 +294,28 @@ and why it lost).
   ⇒ nothing propagates ⇒ silent no-op. The old visible nudge worked precisely
   because `r-1 ≠ r` forced two real size changes (two SIGWINCHes).
 - **Fix:** Keep sending straight to the socket (so the visible grid never resizes
-  → no shake), but **nudge over the socket**: send `{c, r-1}` then `{c, r}`. Two
+  → no shake), but **nudge over the socket**: send a neighbour size and back. Two
   genuine size changes → two SIGWINCHes → the shared PTY ends up at this device's
   shape, all without touching the visible xterm grid. Same trick as the original,
   one layer lower.
+- **Residual shake (the nudge's intermediate frame), fixed in two parts:** the
+  nudge's *first* size still streams a redraw back to this device. (1) **Nudge the
+  COLUMN, not the row** (`{c-1,r}` then `{c,r}`): a row nudge makes a bottom-anchored
+  TUI (prompt/input box) bounce up a row and back — very visible; a column nudge
+  keeps every row in place, so the blip is one column of width for one frame. (2)
+  **Debounce the resize in the `claude-session` serve daemon** (`RESIZE_DEBOUNCE`
+  ~35ms): SIGUSR1 no longer applies the resize inline — it arms a deadline and the
+  main loop applies the *latest* saved size once the burst settles, collapsing the
+  nudge's two rapid resizes into a single `TIOCSWINSZ` + SIGWINCH. So the shell
+  redraws **once, at the final size** — the intermediate frame never reaches it.
+  This is what made the shake intermittent ("once every few double-clicks"): the
+  two SIGWINCHes sometimes coalesced in the shell and sometimes didn't; the
+  debounce makes the single-redraw outcome deterministic. (Daemon change ⇒ only
+  **new** sessions get it — the serve daemons are never restarted, since that would
+  kill live shells; existing terminals get the column-nudge mitigation until
+  reopened.)
 - **Rejected:** sending `c×r` once (the regression — same size, no SIGWINCH);
-  a server-side "force resize even if unchanged" in claude-session (more surface
-  area, and the kernel SIGWINCH suppression is upstream of it anyway — you'd have
-  to bypass the SIGWINCH path entirely). The client-side nudge is the smallest fix.
+  a row nudge (visible vertical bounce — switched to a column nudge); a magic
+  input-escape to re-assert size without a nudge (could collide with real
+  input/paste). The column nudge + daemon debounce together cover both the
+  re-claim correctness and the residual shake with minimal surface area.

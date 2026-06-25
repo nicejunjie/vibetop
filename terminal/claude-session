@@ -98,6 +98,16 @@ def cmd_serve(instance):
     child_pid = 0
     sel = selectors.DefaultSelector()
     MAX_OUTQ = 1024 * 1024
+    # Resize debounce: a SIGUSR1 (an attach client's size changed) doesn't apply
+    # the resize inline — it arms a deadline, and the main loop applies the LATEST
+    # saved size once things go quiet. This collapses a rapid burst of resizes into
+    # a single TIOCSWINSZ + SIGWINCH, so the shell redraws once at the final size.
+    # Without it, the desktop "re-claim shape" gesture (which nudges the size to a
+    # neighbour and back to force a SIGWINCH) made the shell redraw at the
+    # intermediate size first — a visible one-off "shake".
+    RESIZE_DEBOUNCE = 0.035
+    pending_resize = False
+    resize_deadline = 0.0
 
     # -- helpers --
 
@@ -215,7 +225,11 @@ def cmd_serve(instance):
 
     # -- signal handlers --
 
-    def on_sigusr1(signum, frame):
+    def apply_resize():
+        # Apply the latest saved size to the shared PTY once (called from the main
+        # loop after the debounce window, not inline in the signal handler).
+        nonlocal pending_resize
+        pending_resize = False
         if pty_fd < 0:
             return
         try:
@@ -225,6 +239,12 @@ def cmd_serve(instance):
                 os.kill(child_pid, signal.SIGWINCH)
         except Exception:
             pass
+
+    def on_sigusr1(signum, frame):
+        # Just arm the debounce; the main loop applies the resize once it's quiet.
+        nonlocal pending_resize, resize_deadline
+        pending_resize = True
+        resize_deadline = time.monotonic() + RESIZE_DEBOUNCE
 
     def on_sigterm(signum, frame):
         if child_pid > 0:
@@ -312,6 +332,15 @@ def cmd_serve(instance):
             ring.clear()
             spawn_shell()
 
+        # Apply a debounced resize once the burst has settled (see RESIZE_DEBOUNCE).
+        # While one is pending, shorten the select timeout so we apply promptly.
+        timeout = 1.0
+        if pending_resize:
+            if now >= resize_deadline:
+                apply_resize()
+            else:
+                timeout = max(0.0, resize_deadline - now)
+
         # Determine which clients need write events for pending output
         for fd in list(client_outq):
             if fd in clients:
@@ -321,7 +350,7 @@ def cmd_serve(instance):
                     pass
 
         try:
-            events = sel.select(timeout=1.0)
+            events = sel.select(timeout=timeout)
         except InterruptedError:
             continue
 
