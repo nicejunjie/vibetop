@@ -21,15 +21,40 @@
 (function () {
   var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
+  // Capture ttyd's WebSocket (this script runs at end of <head>, before ttyd opens
+  // the socket on load) so claimSize can re-send the terminal size straight to the
+  // PTY without resizing the visible terminal.
+  var ttydWS = null;
+  (function () {
+    var Native = window.WebSocket; if (!Native) return;
+    function WS(url, proto) {
+      var ws = (proto === undefined) ? new Native(url) : new Native(url, proto);
+      try { ttydWS = ws; } catch (_) {}
+      return ws;
+    }
+    WS.prototype = Native.prototype;
+    WS.CONNECTING = Native.CONNECTING; WS.OPEN = Native.OPEN;
+    WS.CLOSING = Native.CLOSING; WS.CLOSED = Native.CLOSED;
+    try { window.WebSocket = WS; } catch (_) {}
+  })();
+
   // Re-claim the shared PTY's shape for THIS device (double-click on desktop,
   // double-tap on touch). Terminal N is ONE shared claude-session PTY, so its
   // rows×cols are owned by whichever device resized last — the other device then
-  // sees mis-shaped (too-narrow / too-wide) output until it re-claims. ttyd only
-  // emits a resize when its computed dims change, so we nudge xterm's size by a
-  // row and restore it: that re-sends THIS browser's real dims to the PTY and the
-  // TUI inside redraws at this device's shape.
+  // sees mis-shaped (too-narrow / too-wide) output until it re-claims.
   function claimSize() {
     var t = window.term; if (!t) return;
+    // Preferred: send the resize STRAIGHT to ttyd's socket (RESIZE_TERMINAL="1" +
+    // {columns,rows}) so the PTY is re-shaped without touching the visible xterm —
+    // resizing xterm makes the content jump ("shake") even when nothing changed.
+    try {
+      if (ttydWS && ttydWS.readyState === 1) {
+        ttydWS.send(new TextEncoder().encode('1' + JSON.stringify({ columns: t.cols, rows: t.rows })));
+        return;
+      }
+    } catch (_) {}
+    // Fallback if the socket wasn't captured: ttyd only emits a resize when its
+    // computed dims change, so nudge xterm by a row and restore (visible, but works).
     var c = t.cols, r = t.rows;
     try { t.resize(c, Math.max(2, r - 1)); t.resize(c, r); } catch (_) {}
   }
