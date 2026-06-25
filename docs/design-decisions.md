@@ -275,3 +275,30 @@ and why it lost).
   and journald-only loses the easy `tail -f` a file gives); a verbose access log
   at INFO (drowns the signal — kept at DEBUG); external logrotate (the rotating
   handler is self-contained and needs no host config).
+
+## Killing the terminal "shake" silently broke the double-click/tap re-claim
+
+- **Symptom:** Double-click (desktop) / double-tap (touch) on a terminal used to
+  re-claim the shared PTY's shape for this device. After the fix that stopped the
+  content from "shaking" on double-click, the gesture stopped reshaping anything —
+  no shake, but no re-claim either.
+- **Cause:** The shake came from `claimSize()` resizing the *visible xterm grid*
+  (`term.resize(c, r-1); term.resize(c, r)`) — the rows jump. The shake-fix sent
+  the resize straight to ttyd's WebSocket instead (no grid resize), but sent the
+  **current** dims `{columns:c, rows:r}` — exactly the size this client's ttyd PTY
+  was **already** at. ttyd dutifully calls `TIOCSWINSZ(c,r)`, but the **kernel
+  raises SIGWINCH only when the winsize actually changes**, so no SIGWINCH fired —
+  and SIGWINCH is the whole propagation chain: `claude-session attach`'s SIGWINCH
+  handler (`send_resize`, line ~439) writes the size + SIGUSR1s the serve daemon,
+  which `TIOCSWINSZ`es the *shared* bash PTY and SIGWINCHes the shell. No SIGWINCH
+  ⇒ nothing propagates ⇒ silent no-op. The old visible nudge worked precisely
+  because `r-1 ≠ r` forced two real size changes (two SIGWINCHes).
+- **Fix:** Keep sending straight to the socket (so the visible grid never resizes
+  → no shake), but **nudge over the socket**: send `{c, r-1}` then `{c, r}`. Two
+  genuine size changes → two SIGWINCHes → the shared PTY ends up at this device's
+  shape, all without touching the visible xterm grid. Same trick as the original,
+  one layer lower.
+- **Rejected:** sending `c×r` once (the regression — same size, no SIGWINCH);
+  a server-side "force resize even if unchanged" in claude-session (more surface
+  area, and the kernel SIGWINCH suppression is upstream of it anyway — you'd have
+  to bypass the SIGWINCH path entirely). The client-side nudge is the smallest fix.

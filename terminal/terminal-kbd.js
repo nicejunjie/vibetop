@@ -44,19 +44,29 @@
   // sees mis-shaped (too-narrow / too-wide) output until it re-claims.
   function claimSize() {
     var t = window.term; if (!t) return;
-    // Preferred: send the resize STRAIGHT to ttyd's socket (RESIZE_TERMINAL="1" +
-    // {columns,rows}) so the PTY is re-shaped without touching the visible xterm —
-    // resizing xterm makes the content jump ("shake") even when nothing changed.
+    var c = t.cols, r = t.rows, r0 = Math.max(2, r - 1);
+    // Send the resize STRAIGHT to ttyd's socket (RESIZE_TERMINAL="1" +
+    // {columns,rows}) so the PTY is re-shaped without resizing the visible xterm
+    // grid — resizing the grid makes the content jump ("shake").
+    //
+    // But it must NUDGE: ttyd applies each frame via TIOCSWINSZ, yet the kernel
+    // raises SIGWINCH (the signal that actually propagates the size down to the
+    // shared claude-session PTY) ONLY when the size CHANGES. This client's ttyd
+    // PTY is already c×r, so re-sending c×r is a silent no-op — the re-claim does
+    // nothing. So send a DIFFERENT size and back ({c,r-1} then {c,r}): two real
+    // changes → two SIGWINCHes → the shared PTY ends up at THIS device's shape,
+    // all without touching the visible grid (the previous version sent c×r once
+    // and quietly stopped re-claiming).
     try {
       if (ttydWS && ttydWS.readyState === 1) {
-        ttydWS.send(new TextEncoder().encode('1' + JSON.stringify({ columns: t.cols, rows: t.rows })));
+        var enc = new TextEncoder();
+        ttydWS.send(enc.encode('1' + JSON.stringify({ columns: c, rows: r0 })));
+        ttydWS.send(enc.encode('1' + JSON.stringify({ columns: c, rows: r })));
         return;
       }
     } catch (_) {}
-    // Fallback if the socket wasn't captured: ttyd only emits a resize when its
-    // computed dims change, so nudge xterm by a row and restore (visible, but works).
-    var c = t.cols, r = t.rows;
-    try { t.resize(c, Math.max(2, r - 1)); t.resize(c, r); } catch (_) {}
+    // Fallback if the socket wasn't captured: nudge via xterm (visible, but works).
+    try { t.resize(c, r0); t.resize(c, r); } catch (_) {}
   }
 
   // Brief toast (used to confirm a touch double-tap registered).
