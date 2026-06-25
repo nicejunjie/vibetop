@@ -99,7 +99,16 @@ curl -s http://127.0.0.1/onlyoffice/healthcheck                 # -> true when t
 curl -s http://127.0.0.1/api/system/status
 curl -s http://127.0.0.1/api/terminals/status
 sudo systemctl status cloudflared
+sudo tail -f /var/log/vibetop/manager.log                       # manager actions/errors (also: journalctl -u claude-web-manager)
 ```
+
+The manager logs via a `vibetop` Python logger to **both** journald (stderr) and a
+self-rotating file `/var/log/vibetop/manager.log` (`RotatingFileHandler`,
+~12 MB cap = 2 MB × 6, no logrotate/cron needed). It's **selective**: `INFO` on
+real actions (terminal start/stop, `x/launch`, cross-device close, reset, update
+outcome, SSE reload push) and `WARNING` on failures; the per-request HTTP access
+log is at `DEBUG` (off by default). Raise verbosity with `LOG_LEVEL=DEBUG` in the
+unit's environment. See `docs/design-decisions.md` for the rationale.
 
 ## Architecture
 

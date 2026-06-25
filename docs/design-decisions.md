@@ -245,3 +245,33 @@ and why it lost).
   `<cmd>`…") shown until the window appears, with a "still starting / may have
   failed" hint after 25s and a Dismiss. (Largely moot now that the portal fix
   makes GNOME apps fast, but it still covers genuinely slow first launches.)
+
+## No server-side logs made debugging slow ("limited logs on the server side")
+
+- **Symptom:** Several hard bugs this cycle (eog portal hang, snap firefox not
+  launching, an instance stuck not auto-refreshing) were diagnosed almost blind —
+  `terminal-manager.py` did its work silently. `log_message` was a bare `pass`
+  (HTTP access lines suppressed) and the only prints were a handful of `[office]`
+  stderr lines, so the journal carried almost nothing about what the manager did
+  or why a request failed.
+- **Fix:** A single `logging` logger (`vibetop`) set up at import
+  (`_setup_logging`): a `StreamHandler` to stderr (→ journald, which stamps the
+  time) **and** a `RotatingFileHandler` at `/var/log/vibetop/manager.log`. Level
+  is `INFO` by default, `LOG_LEVEL` env overrides. Selective, not chatty — INFO
+  on the actions that matter (terminal start/stop, `x/launch` with which bus,
+  cross-device close, reset summary, update outcome, SSE reload push) and WARNING
+  on failures (office callback/forcesave/save-back, launch fast-fail, status
+  collection error, update pull failure). The noisy per-request HTTP access log is
+  routed to `log.debug`, so it's off at INFO but available via `LOG_LEVEL=DEBUG`.
+- **Self-cleaning:** `RotatingFileHandler(maxBytes=2_000_000, backupCount=5)` caps
+  the on-disk log at ~12 MB total (1 active + 5 rotated) and rotates in place — no
+  cron/logrotate needed, so it can't grow unbounded. journald applies its own
+  retention to the stderr copy. The dir is created on first run; if `/var/log`
+  isn't writable the handler is skipped (journal-only) rather than crashing.
+- **Shadowing gotcha:** `_handle_update` had a local `log = []` (its step list)
+  that shadowed the module logger; renamed to `steps` so `log.*` in that method
+  reaches the logger.
+- **Rejected:** print-to-stderr only (no file, no levels — can't dial verbosity,
+  and journald-only loses the easy `tail -f` a file gives); a verbose access log
+  at INFO (drowns the signal — kept at DEBUG); external logrotate (the rotating
+  handler is self-contained and needs no host config).

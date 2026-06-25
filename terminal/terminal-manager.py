@@ -16,6 +16,8 @@ import hashlib
 import hmac
 import http.server
 import json
+import logging
+import logging.handlers
 import os
 import pwd
 import re
@@ -31,6 +33,38 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
+
+# ---- logging -----------------------------------------------------------------
+# Selective + leveled: errors and significant events (terminal/app launches,
+# reset, cross-device close, office save-back, deploys, SSE pushes) at INFO; the
+# noisy per-request access log only at DEBUG (`LOG_LEVEL=DEBUG` on the unit).
+# Emitted to stderr (systemd journal: `journalctl -u claude-web-manager`) AND a
+# **self-rotating file** so logs stay bounded/cleaned without any external config:
+# /var/log/vibetop/manager.log, ~2 MB × 5 = ~12 MB cap, oldest auto-pruned.
+LOG_FILE = "/var/log/vibetop/manager.log"
+
+
+def _setup_logging():
+    lg = logging.getLogger("vibetop")
+    if lg.handlers:                 # idempotent (the module is re-imported under pytest)
+        return lg
+    lg.setLevel(getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO))
+    lg.propagate = False
+    sh = logging.StreamHandler(sys.stderr)               # -> journald (it adds the timestamp)
+    sh.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+    lg.addHandler(sh)
+    try:                                                 # bounded, self-cleaning file
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        fh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=2_000_000, backupCount=5)
+        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s",
+                                          "%Y-%m-%d %H:%M:%S"))
+        lg.addHandler(fh)
+    except OSError:
+        pass                                             # no /var/log perms -> journal only
+    return lg
+
+
+log = _setup_logging()
 
 # Upper bound on terminal instances. Reads MAX_INSTANCES so it can't drift from
 # the installer's nginx port map (terminal/install.sh generates /tN/ routes for
@@ -791,6 +825,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return system_status.get_system_status(
                 self._get_running_terminals(), _cached)
         except Exception as e:
+            log.warning("system status collection failed: %s", e)
             return {"error": "status unavailable: %s" % e}
 
     def _read_body(self, max_len):
@@ -1125,6 +1160,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _desktop_prune_targets(state, now)
             _write_desktop_state(state)
             resp = {"ok": True, "close_targets": state["close_targets"]}
+        log.info("desktop close %r on %d instance(s)", app, len(holders))
         self._json(200, resp)
 
     def _handle_reset(self):
@@ -1218,6 +1254,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 pass
 
+        log.info("reset: stopped %d terminal(s), browser_reset=%s apps_reset=%s",
+                 len(result["terminals_stopped"]), result.get("browser_reset"),
+                 result.get("apps_reset"))
         self._json(200, {"ok": True, **result})
 
     def _handle_browser_open(self):
@@ -1295,6 +1334,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             os.path.exists(f"/snap/bin/{os.path.basename(prog)}"))
         dbus_sock = (f"/run/user/{uid}/bus" if is_snap
                      else f"/run/user/{uid}/vibetop-apps-bus")
+        log.info("x/launch %r (bus=%s)", cmd, "user" if is_snap else "apps")
         # Login shell (-) so the user's PATH resolves bare names like `gimp`.
         # Reap in a daemon thread so short-lived launchers don't linger as zombies.
         shell_cmd = (f'DISPLAY={APPS_DISPLAY} '
@@ -1321,6 +1361,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if rc is None:
             threading.Thread(target=proc.wait, daemon=True).start()  # still running → reap later
         elif rc != 0:
+            log.warning("x/launch %r exited fast (rc=%d)", prog, rc)
             if rc == 127:
                 msg = f"‘{prog}’ isn’t installed (or not in PATH)."
             else:
@@ -1553,11 +1594,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         auth = self.headers.get("Authorization", "")
         token = data.get("token") or (auth[7:] if auth.startswith("Bearer ") else "")
         if not token:
-            print("[office] callback rejected: no JWT", file=sys.stderr, flush=True)
+            log.warning("office: callback rejected (no JWT) for %s", rel)
             return self._json(200, {"error": 1})
         verified = _jwt_verify(token, secret)
         if verified is None:
-            print("[office] callback JWT verify FAILED", file=sys.stderr, flush=True)
+            log.warning("office: callback JWT verify failed for %s", rel)
             return self._json(200, {"error": 1})
         data = verified.get("payload", verified)
         status = data.get("status")
@@ -1601,7 +1642,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with urllib.request.urlopen(req, timeout=10) as r:
                 r.read()
         except Exception as e:
-            print(f"[office] forcesave failed: {e}", file=sys.stderr, flush=True)
+            log.warning("office: forcesave failed: %s", e)
 
     def _office_save_back(self, url, dst):
         # The url OnlyOffice gives is its own public URL (…/onlyoffice/cache/…);
@@ -1632,7 +1673,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 raise
             _chown_app(dst)
         except Exception as e:
-            print(f"[office] save-back failed from {local}: {e}", file=sys.stderr, flush=True)
+            log.warning("office: save-back failed from %s: %s", local, e)
 
     def _handle_terminal(self, m):
         n, action = int(m.group(1)), m.group(2)
@@ -1648,8 +1689,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 check=True, capture_output=True, text=True,
             )
         except subprocess.CalledProcessError as e:
+            log.warning("terminal %d %s failed: %s", n, action, (e.stderr or "").strip())
             self._json(500, {"error": e.stderr.strip()})
             return
+        log.info("terminal %d %s", n, action)
         self._json(200, {"ok": True, "action": action, "instance": n})
 
     # ---- Update (git pull + redeploy) -------------------------------------
@@ -1706,10 +1749,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         """Pull the latest from GitHub and redeploy whatever changed. Each step's
         output is returned as a log. The manager restarts itself (out-of-band) at
         the end only if its own file changed, so the new code takes effect."""
-        log = []
+        steps = []          # not `log`: that name is the module-level logger
 
         def add(name, ok, out):
-            log.append({"name": name, "ok": bool(ok), "output": (out or "").strip()})
+            steps.append({"name": name, "ok": bool(ok), "output": (out or "").strip()})
             return ok
 
         # force=true (from the Update app's "Discard local changes & update"
@@ -1730,7 +1773,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not ok:
             _append_update_history({"time": int(time.time()), "event": "failed",
                                     "message": (out or "")[:200]})
-            self._json(200, {"ok": False, "log": log,
+            self._json(200, {"ok": False, "log": steps,
                              "message": "git fetch failed — resolve it on the host"})
             return
 
@@ -1763,7 +1806,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not sok:
                     _append_update_history({"time": int(time.time()), "event": "failed",
                                             "message": "stash failed: " + (sout or "")[:160]})
-                    self._json(200, {"ok": False, "log": log,
+                    self._json(200, {"ok": False, "log": steps,
                                      "message": "Could not stash local changes — resolve on the host."})
                     return
                 ok, out = self._git_as_user(["merge", "--ff-only", "origin/main"], timeout=120)
@@ -1775,7 +1818,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                         "message": "dirty working tree (local edits)"})
                 # blocked=dirty + the file list lets the Update app show what's in
                 # the way and offer the "Discard local changes & update" button.
-                self._json(200, {"ok": False, "log": log, "blocked": "dirty",
+                self._json(200, {"ok": False, "log": steps, "blocked": "dirty",
                                  "dirty": dirty.strip(),
                                  "message": "This host has local edits not in origin/main. "
                                             "Discard them (they'll be stashed, recoverable) and "
@@ -1786,9 +1829,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             add("git pull", ok, out)
 
         if not ok:
+            log.warning("update: pull failed: %s", (out or "").strip()[:200])
             _append_update_history({"time": int(time.time()), "event": "failed",
                                     "message": (out or "")[:200]})
-            self._json(200, {"ok": False, "log": log,
+            self._json(200, {"ok": False, "log": steps,
                              "message": "update failed — resolve it on the host"})
             return
         _, after = self._git_as_user(["rev-parse", "HEAD"])
@@ -1801,7 +1845,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 changed = [l for l in cout.splitlines() if l]
 
         if not changed:
-            self._json(200, {"ok": True, "log": log, "changed": [],
+            self._json(200, {"ok": True, "log": steps, "changed": [],
                              "message": "Already up to date."})
             return
 
@@ -1854,7 +1898,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # claude-session are excluded.
         restart = any(c.startswith("terminal/") and c.endswith(".py")
                       and "/" not in c[len("terminal/"):] for c in changed)
-        self._json(200, {"ok": True, "log": log, "changed": changed,
+        log.info("update: %s..%s applied (%d file(s) changed, restart=%s)",
+                 (before or "")[:7], (after or "")[:7], len(changed), restart)
+        self._json(200, {"ok": True, "log": steps, "changed": changed,
                          "restart": restart,
                          "message": ("Updated. Restarting the API to apply manager "
                                      "changes…" if restart else "Updated.")})
@@ -2001,7 +2047,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if cur != ver0 and cur != "?":
                     self.wfile.write(f"event: reload\ndata: {cur}\n\n".encode())
                     self.wfile.flush()
-                    print(f"[events] pushed reload {ver0}->{cur}", file=sys.stderr, flush=True)
+                    log.info("events: pushed reload %s->%s", ver0, cur)
                     return
                 now = time.monotonic()
                 if now - last_ping >= 18:
@@ -2059,7 +2105,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt, *args):
-        pass
+        # Per-request access line — high volume (every client polls a few endpoints
+        # every 5s), so keep it at DEBUG (LOG_LEVEL=DEBUG to turn it on).
+        log.debug("%s %s", self.address_string(), fmt % args)
 
 
 if __name__ == "__main__":
@@ -2075,5 +2123,6 @@ if __name__ == "__main__":
     _seed_update_history()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
     server.daemon_threads = True
-    print(f"terminal-manager listening on 127.0.0.1:{port}")
+    log.info("terminal-manager listening on 127.0.0.1:%d (log level %s)",
+             port, logging.getLevelName(log.level))
     server.serve_forever()
