@@ -218,12 +218,13 @@
       else if (e.key === 'Backspace' && ov.value === '') { e.preventDefault(); sendRaw(String.fromCharCode(127)); }
     });
 
-    // System key bar (rendered at the desktop level — see desktop.html). The iOS
-    // keyboard has no arrows/Esc/Tab/Ctrl, so the desktop shows a bar and sends
-    // {type:'kbd-key', key} when a button is tapped; map it to PTY bytes here.
-    // We tell the desktop when our textarea is focused (keyboard up) so it can
-    // show/hide the bar; positioning is the desktop's job — we never move the
-    // terminal.
+    // System key bar: rendered AND shown/hidden/positioned by the desktop, which
+    // watches its OWN top-level visualViewport for the keyboard. The nested-iframe
+    // visualViewport here does NOT shrink when the keyboard appears on iOS
+    // (confirmed on-device: vvH stays at the iframe height, inset always 0), so
+    // the terminal can't detect or position the keyboard — the top frame can. We
+    // just receive the taps and turn them into PTY bytes (arrows = normal-mode
+    // cursor sequences).
     var KBD_KEY_BYTES = {
       Escape: '\x1b', Tab: '\x09', CtrlC: '\x03', Enter: '\r', Backspace: '\x7f',
       ArrowUp: '\x1b[A', ArrowDown: '\x1b[B', ArrowRight: '\x1b[C', ArrowLeft: '\x1b[D'
@@ -232,25 +233,6 @@
       var d = e.data;
       if (d && d.type === 'kbd-key' && KBD_KEY_BYTES[d.key]) { sendRaw(KBD_KEY_BYTES[d.key]); dbg(' <' + d.key + '> '); }
     });
-    // Drive the bar off the KEYBOARD being up (our own visualViewport shrinks
-    // for it), NOT the textarea's focus. ttyd's hidden helper textarea steals
-    // focus right after our overlay gets it, firing a blur — so a focus/blur-
-    // driven bar flashed then vanished. The keyboard staying up is the stable
-    // signal. We also send the keyboard inset so the desktop can place the bar
-    // just above the keyboard (bottom).
-    var kbShown = false;
-    function kbInset() {
-      var vv = window.visualViewport;
-      return vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-    }
-    function syncBar() {
-      var inset = kbInset(), up = inset > 100;     // keyboard is ~250-340px; 100 = a safe floor
-      if (up) { kbShown = true; try { window.parent.postMessage({ type: 'kbd-bar', show: true, inset: inset }, '*'); } catch (_) {} }
-      else if (kbShown) { kbShown = false; try { window.parent.postMessage({ type: 'kbd-bar', show: false }, '*'); } catch (_) {} }
-    }
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncBar);
-    ov.addEventListener('focus', function () { setTimeout(syncBar, 60); });   // nudge once the keyboard starts to rise
-    ov.addEventListener('blur', function () { setTimeout(syncBar, 250); });   // re-check; if the keyboard's still up the bar stays (fixes the flash)
 
     // The overlay covers xterm and would eat every touch, so route by gesture:
     // quick tap → keyboard; vertical drag → scrollback; long-press → select the
