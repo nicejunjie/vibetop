@@ -562,11 +562,32 @@
     var IS_PWA = !!(window.navigator.standalone || (window.matchMedia &&
                     window.matchMedia('(display-mode: standalone)').matches));
     var IOS_ACCESSORY = IS_PWA ? 62 : 104;
-    function showBar(inset) {
-      bar.style.bottom = (Math.max(0, inset || 0) + IOS_ACCESSORY) + 'px';
-      bar.style.display = 'flex';
+    var BAR_HEIGHT = 50;     // button row (40) + padding (5*2)
+    var SHIFT_MARGIN = 12;   // gap between the prompt and the bar's top edge
+    var taskbar = document.getElementById('taskbar');
+
+    // Tell the active app how many px are occluded at the bottom (keyboard +
+    // iOS accessory + our bar), so it can lift its own content (the terminal's
+    // prompt) clear of the bar — deterministic, instead of hoping iOS scrolls a
+    // focused input. The terminal acts on it; apps that ignore it are unaffected.
+    function sendShift(px) {
+      var f = active && frameOf(active);
+      if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-shift', px: px }, '*'); } catch (e) {} }
     }
-    function hideBar() { bar.style.display = 'none'; }
+    function showBar(inset) {
+      var base = Math.max(0, inset || 0);
+      bar.style.bottom = (base + IOS_ACCESSORY) + 'px';
+      bar.style.display = 'flex';
+      // Hide the taskbar while typing — with the keyboard up it otherwise floats
+      // in the strip between our bar and the keys (clutter). It returns on hide.
+      if (taskbar) taskbar.style.visibility = 'hidden';
+      sendShift(base + IOS_ACCESSORY + BAR_HEIGHT + SHIFT_MARGIN);
+    }
+    function hideBar() {
+      bar.style.display = 'none';
+      if (taskbar) taskbar.style.visibility = '';
+      sendShift(0);
+    }
 
     window.addEventListener('message', function (e) {
       if (e.origin !== location.origin) return;
