@@ -189,7 +189,7 @@ server {
         # server scope where the proxy locations' own add_headers would void them.)
         add_header X-Content-Type-Options 'nosniff' always;
         add_header Referrer-Policy 'same-origin' always;
-        add_header Content-Security-Policy "frame-ancestors 'self'" always;
+        add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
     }
 
     location = /terminals { return 301 /terminals/; }
