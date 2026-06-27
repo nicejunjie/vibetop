@@ -144,19 +144,9 @@
     };
     var SPECIAL = { Enter: [13], Tab: [9], Backspace: [8], Escape: [27],
                     ArrowUp: [38], ArrowDown: [40], ArrowLeft: [37], ArrowRight: [39] };
-    var sendCtrl = function(ch) {   // Ctrl+<ch> (e.g. ^C) as a real modified key
-      var up = ch.toUpperCase();
-      ['keydown', 'keyup'].forEach(function(type) {
-        document.dispatchEvent(new KeyboardEvent(type, {
-          key: ch, code: 'Key' + up, keyCode: up.charCodeAt(0), which: up.charCodeAt(0),
-          ctrlKey: true, bubbles: true, cancelable: true
-        }));
-      });
-    };
     window.addEventListener('message', function(e) {
       var d = e.data; if (!d || !d.type) return;
       if (d.type === 'kbd-char' && typeof d.ch === 'string') sendChar(d.ch);
-      else if (d.type === 'kbd-key' && d.key === 'CtrlC') sendCtrl('c');
       else if (d.type === 'kbd-key' && SPECIAL[d.key]) sendKey(d.key, d.key, SPECIAL[d.key][0]);
     });
     kbdSendChar = sendChar; kbdSendKey = sendKey;   // for the paste patch (5)

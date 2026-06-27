@@ -511,11 +511,15 @@
   // --- system-wide key bar (arrows / Esc / Tab / ^C) ------------------------
   // The soft keyboard has none of these, which TUIs in the Terminal (a menu you
   // move with ↑/↓, Esc/^C) and pages in the Browser need. Render ONE bar at the
-  // desktop level — pinned just above the keyboard, below the whole vibetop UI —
-  // and route each tap to whichever app is active via the {type:'kbd-key', key}
-  // message the Browser (xpra-patches) already understands and the Terminal
-  // (terminal-kbd.js → PTY bytes, relayed through terminals.html) now does too.
-  // Touch only; desktops have real keys.
+  // desktop level and route each tap to whichever app is active via the
+  // {type:'kbd-key', key} message the Browser (xpra-patches) already understands
+  // and the Terminal (terminal-kbd.js → PTY bytes, relayed via terminals.html) does.
+  //
+  // It lives at the TOP of the screen on purpose: the strip above the keyboard is
+  // a losing battle on iOS (keyboard height isn't reported to this frame for a
+  // nested-iframe input, and iOS paints its own AutoFill/^v/Done rows there at
+  // heights we can't measure or suppress). The top never collides with the
+  // keyboard, the prompt, or iOS keyboard chrome. Touch only.
   (function () {
     if (!IS_TOUCH) return;
     var KEYS = [
@@ -524,9 +528,10 @@
     ];
     var bar = document.createElement('div');
     bar.id = 'sys-keybar';
-    bar.style.cssText = 'position:fixed;left:0;display:none;z-index:9000;box-sizing:border-box;' +
-      'width:100%;gap:5px;padding:5px;background:rgba(20,20,22,.97);' +
-      'border-top:1px solid rgba(255,255,255,.14);-webkit-user-select:none;user-select:none';
+    bar.style.cssText = 'position:fixed;left:0;right:0;top:0;display:none;z-index:9000;box-sizing:border-box;' +
+      'padding:calc(env(safe-area-inset-top, 0px) + 4px) 5px 5px;gap:5px;' +
+      'background:rgba(20,20,22,.97);border-bottom:1px solid rgba(255,255,255,.14);' +
+      '-webkit-user-select:none;user-select:none';
     function routeKey(keyName) {
       var f = active && frameOf(active);
       if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-key', key: keyName }, '*'); } catch (e) {} }
@@ -537,82 +542,26 @@
       b.style.cssText = 'flex:1 1 0;min-width:0;height:40px;margin:0;padding:0;font:600 16px system-ui,sans-serif;' +
         'color:#e8e8ea;background:#3a3a3c;border:0;border-radius:8px;touch-action:manipulation;' +
         '-webkit-user-select:none;user-select:none';
-      // touchstart preventDefault so tapping a key never moves focus off the
-      // active app's input (which would dismiss the keyboard); fire on touchend.
       b.addEventListener('touchstart', function (e) { e.preventDefault(); b.style.background = '#5a5a5c'; }, { passive: false });
       b.addEventListener('touchend', function (e) { e.preventDefault(); b.style.background = '#3a3a3c'; routeKey(k[1]); }, { passive: false });
       bar.appendChild(b);
     });
     document.body.appendChild(bar);
 
-    // Position by KEYBOARD INSET (px from the layout bottom = keyboard height),
-    // not the top-level visualViewport: when the keyboard is raised by an input
-    // inside a nested iframe (the Terminal, 2 frames down), the TOP window's
-    // visualViewport does NOT shrink, so we can't measure the keyboard here —
-    // the app that raised it tells us (postMessage below). bottom:inset puts the
-    // bar right on top of the keyboard.
-    // iOS draws its own accessory above the keys — native chrome we can't
-    // suppress (autocomplete="off" doesn't stop the domain pill) and whose
-    // height visualViewport doesn't report. We must lift our bar above it.
-    // It's TALLER in Safari (the AutoFill/domain-suggestion row + the form
-    // ^/v/Done nav, ~2 rows) than in an installed PWA (just the nav, ~1 row),
-    // so size the clearance per context. The cost is a thin terminal strip below
-    // the bar when iOS shows less than the worst case — preferable to covered
-    // keys (and the user OK'd the gap). Tunable.
-    var IS_PWA = !!(window.navigator.standalone || (window.matchMedia &&
-                    window.matchMedia('(display-mode: standalone)').matches));
-    var IOS_ACCESSORY = IS_PWA ? 62 : 104;
-    var BAR_HEIGHT = 50;     // button row (40) + padding (5*2)
-    var SHIFT_MARGIN = 12;   // gap between the prompt and the bar's top edge
-    var taskbar = document.getElementById('taskbar');
+    function showBar() { bar.style.display = 'flex'; }
+    function hideBar() { bar.style.display = 'none'; }
 
-    // Tell the active app how many px are occluded at the bottom (keyboard +
-    // iOS accessory + our bar), so it can lift its own content (the terminal's
-    // prompt) clear of the bar — deterministic, instead of hoping iOS scrolls a
-    // focused input. The terminal acts on it; apps that ignore it are unaffected.
-    function sendShift(px) {
-      var f = active && frameOf(active);
-      if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-shift', px: px }, '*'); } catch (e) {} }
-    }
-    function showBar(inset) {
-      var base = Math.max(0, inset || 0);
-      bar.style.bottom = (base + IOS_ACCESSORY) + 'px';
-      bar.style.display = 'flex';
-      // Hide the taskbar while typing — with the keyboard up it otherwise floats
-      // in the strip between our bar and the keys (clutter). It returns on hide.
-      if (taskbar) taskbar.style.visibility = 'hidden';
-      sendShift(base + IOS_ACCESSORY + BAR_HEIGHT + SHIFT_MARGIN);
-    }
-    function hideBar() {
-      bar.style.display = 'none';
-      if (taskbar) taskbar.style.visibility = '';
-      sendShift(0);
-    }
-
+    // The Terminal (nested iframe) reports keyboard up/down, relayed up through
+    // terminals.html as {type:'kbd-bar', show}.
     window.addEventListener('message', function (e) {
       if (e.origin !== location.origin) return;
       var d = e.data; if (!d || d.type !== 'kbd-bar') return;
-      if (d.show) showBar(d.inset); else hideBar();
+      if (d.show) showBar(); else hideBar();
     });
 
-    // The Browser's keyboard is the desktop's OWN top-level #kbd-input, so here
-    // the top visualViewport DOES reflect it — drive the bar from that directly.
-    function topInset() {
-      var vv = window.visualViewport;
-      return vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-    }
+    // The Browser's keyboard is the desktop's OWN top-level #kbd-input.
     var ki = document.getElementById('kbd-input');
-    if (ki) {
-      ki.addEventListener('focus', function () { setTimeout(function () { showBar(topInset()); }, 120); });
-      ki.addEventListener('blur', function () { hideBar(); });
-    }
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', function () {
-        if (bar.style.display === 'none') return;
-        var ti = topInset();
-        if (ti > 80) bar.style.bottom = (ti + IOS_ACCESSORY) + 'px';   // keep tracking the top-level keyboard (Browser)
-      });
-    }
+    if (ki) { ki.addEventListener('focus', showBar); ki.addEventListener('blur', hideBar); }
   })();
 
   // --- cross-instance state -------------------------------------------------

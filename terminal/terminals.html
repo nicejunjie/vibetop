@@ -455,15 +455,13 @@
       syncStatus();                 // app just activated → reconcile the set now
       if (active) focusTerminal(active);
     }
-    // Relay desktop -> active /tN/: the system key bar (arrows/Esc/Tab/^C, which
-    // terminal-kbd.js turns into PTY bytes) and the keyboard-shift amount (how
-    // far to lift the terminal content so the prompt clears the bar).
-    if ((e.data.type === 'kbd-key' || e.data.type === 'kbd-shift') && active) {
+    // Relay the desktop's system key bar (arrows/Esc/Tab/^C) DOWN to the active
+    // terminal's /tN/ iframe, where terminal-kbd.js turns it into PTY bytes.
+    if (e.data.type === 'kbd-key' && active) {
       var kf = document.getElementById('frame-' + active);
       if (kf && kf.contentWindow) { try { kf.contentWindow.postMessage(e.data, '*'); } catch (_) {} }
     }
-    // Relay a /tN/ keyboard show/hide request (with keyboard inset) UP to the
-    // desktop, which shows the system key bar above the keyboard.
+    // Relay a /tN/ keyboard show/hide request UP to the desktop (it shows the bar).
     if (e.data.type === 'kbd-bar') {
       try { window.parent.postMessage(e.data, '*'); } catch (_) {}
     }

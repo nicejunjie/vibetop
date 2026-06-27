@@ -487,31 +487,35 @@ and why it lost).
   transient cause (a deploy mid-swap of `/bin/bash`) should self-heal; backoff
   recovers without a permanent dead tab.
 
-## Mobile terminal needs an on-screen arrow/Esc/Ctrl bar
+## Mobile on-screen key bar (arrows/Esc/^C) lives at the TOP, not above the keyboard
 
-- **Symptom:** On a phone, a TUI you navigate with arrow keys was unusable in the
-  terminal — e.g. Claude Code's `/rate-limit-options` picker (or `git rebase -i`,
-  `vim`, `less`): the soft keyboard has **no ↑/↓/←/→, Esc, Tab, or Ctrl**, and
-  there's no scroll-to-select, so the highlighted option can't be moved.
-- **Cause:** The mobile path (`terminal-kbd.js`) forwards a debounced *value-diff*
-  of a transparent `<textarea>` to the PTY — great for text and dictation, but it
-  only ever emits printable characters (plus Enter/Tab/Backspace via `keydown`).
-  Keys that aren't on the iOS keyboard simply have no source, so they were never
-  sent — a documented limitation, not a bug, but a crippling one for TUIs.
-- **Fix:** An accessory **key bar** above the keyboard (touch only) with
-  `esc / tab / ^C / ← ↑ ↓ →`; each button sends the raw byte sequence straight to
-  the PTY via the existing `sendRaw` → `triggerDataEvent` path (arrows use the
-  normal-mode cursor sequences `ESC [ A/B/C/D`). The bar is positioned on the
-  bottom edge of `visualViewport` (which shrinks when the keyboard is up) and
-  shown/hidden on the textarea's focus/blur.
-- **Non-obvious bit:** the buttons fire on **`touchend`** but call
-  `preventDefault()` on **`touchstart`** — that stops the tap from moving focus
-  off the textarea, so the keyboard stays up across repeated arrow presses
-  (otherwise the first arrow tap would blur the field and dismiss the keyboard).
-  No cache-buster bump needed: `terminal-kbd.js` is content-hash `?v=`'d by
-  `terminal/install.sh`, so a deploy/Update picks up the new bytes automatically.
-- **Rejected:** Sending arrows in *application* cursor mode (`ESC O A`) — normal
-  mode (`ESC [ A`) is what the default keypad state emits and what Ink/readline
-  expect; apps that switch to DECCKM also read both. A persistent/always-visible
-  bar — it would eat terminal space and bottom-edge scroll/tap gestures when not
-  typing; tying it to keyboard focus keeps it out of the way otherwise.
+- **Symptom:** The iOS soft keyboard has no arrows/Esc/Tab/Ctrl, so TUIs you
+  navigate with ↑/↓ (Claude Code's picker, `git rebase -i`, `vim`) were unusable
+  on a phone. Many attempts to put an accessory bar in the strip *just above the
+  keyboard* failed: it either showed under iOS's own AutoFill/`^v Done` rows, or
+  covered the terminal's prompt, or didn't show at all.
+- **Cause:** The bottom strip is hostile on iOS and unfixable by tuning. (1) When
+  the keyboard is raised by an input inside a *nested iframe* (the terminal is 2
+  frames down), the **top frame's `visualViewport` doesn't shrink**, so the
+  desktop can't even measure the keyboard to position a bar there. (2) iOS paints
+  its **own accessory rows** (AutoFill/domain pill, form `^ v Done`) in that strip,
+  over our content, at heights we can't measure or suppress (`autocomplete=off`
+  doesn't stop the domain pill). Offsets became a per-device guessing game; a
+  content-shift transform broke layout.
+- **Fix:** Render ONE system-wide bar at the **desktop level, pinned to the TOP**
+  of the screen (`#sys-keybar`, below the status-bar safe-area), shown while a
+  keyboard is up. It never collides with the keyboard, the prompt (which the
+  existing caret-park keeps just above the keyboard), or iOS keyboard chrome.
+  Each tap routes `{type:'kbd-key', key}` to the active app's frame — the Browser
+  (xpra-patches) already understood it; the Terminal relays it desktop →
+  terminals.html → `/tN/`, where `terminal-kbd.js` maps it to PTY bytes (arrows =
+  `ESC[A/B/C/D`). The terminal reports keyboard up/down so the desktop shows/hides.
+- **Rejected:** Bottom placement with a per-context offset (`IOS_ACCESSORY`
+  guess) — unverifiable and wrong on some devices. A CSS-transform "shift the
+  terminal up" — fought iOS auto-scroll and broke layout. Relying on iOS to
+  auto-scroll a focused textarea above the bar — doesn't work 3 iframes deep.
+- **Testing lesson:** This was verified in **Playwright WebKit** (Safari's
+  engine) driving the live stack with a `visualViewport`-mocked keyboard +
+  screenshots, against a **throwaway terminal** (never the user's sessions).
+  Chromium emulation passed a test the real iPhone failed — see
+  [[mobile-ui-needs-webkit-or-device]] in memory: don't ship iOS UI blind.

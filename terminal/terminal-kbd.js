@@ -150,30 +150,42 @@
     ov.setAttribute('autocorrect', 'off');
     ov.setAttribute('spellcheck', 'false');
     ov.setAttribute('aria-hidden', 'true');
-    // Transparent full-height overlay that captures typing/dictation/gestures.
-    // The terminal's visibility above the keyboard is handled by shifting the
-    // terminal CONTENT up (applyShift), not by parking this textarea's caret and
-    // hoping iOS auto-scrolls — that was unreliable through the nested iframe and
-    // kept hiding the prompt. So this layer is a plain full-height capture surface.
+    // Transparent FULL-HEIGHT overlay. Its caret is parked on the actual xterm
+    // cursor row via a dynamic padding-top (positionCaret), so iOS scrolls the
+    // shell to reveal wherever the prompt really is — the bottom on a full
+    // terminal, the top on a fresh one — instead of always the bottom. That's
+    // what keeps the line you're typing visible (and stops the "jump back to
+    // default" that hid a new terminal's top-of-window prompt).
     ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:100%;box-sizing:border-box;' +
       'z-index:2147482000;background:transparent;color:transparent;caret-color:transparent;' +
       'border:0;outline:0;resize:none;margin:0;padding:0 6px;font-size:16px;overflow:hidden;' +
       '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none';  // stop iOS's own long-press selection/loupe
     document.body.appendChild(ov);
 
-    // Slide the terminal's content up by `px` so its bottom rows (the prompt)
-    // sit ABOVE the desktop key bar + iOS keyboard chrome, then back to 0 when
-    // the keyboard hides. The desktop computes `px` from the bar's REAL geometry
-    // (keyboard inset + accessory clearance + bar height) and sends {type:
-    // 'kbd-shift'} — fully deterministic, no dependence on iOS auto-scrolling a
-    // focused input (which doesn't work reliably 3 iframes deep). A CSS transform
-    // (not a resize/scroll) leaves xterm's grid + the shared PTY size untouched,
-    // and getBoundingClientRect stays transform-aware so taps still map to cells.
-    function applyShift(px) {
-      var t = window.term; if (!t || !t.element) return;
-      t.element.style.transition = 'transform .15s ease-out';
-      t.element.style.transform = px > 0 ? ('translateY(-' + Math.round(px) + 'px)') : '';
+    // Park the textarea caret on the xterm cursor row (pixel Y from the top of
+    // the terminal) so iOS reveals the real prompt line, not a fixed bottom.
+    function positionCaret() {
+      var t = window.term;
+      try {
+        var rows = t.rows || 24;
+        var h = t.element ? t.element.getBoundingClientRect().height : window.innerHeight;
+        var rh = h / rows;
+        var cy = (t.buffer && t.buffer.active) ? t.buffer.active.cursorY : rows - 1;
+        var y = Math.max(0, Math.min(h - rh, cy * rh));
+        ov.style.paddingTop = Math.round(y) + 'px';
+      } catch (_) {}
     }
+    // Re-anchor the caret to the cursor row ONLY when the cursor actually moves
+    // (i.e. when you type) — NOT on every render. Render fires on scroll too, and
+    // re-anchoring there made iOS yank the view back to the prompt the instant you
+    // dragged, so you couldn't scroll while the keyboard was up. Typing moves the
+    // cursor → re-anchor → your line stays visible; scrolling doesn't → the view
+    // stays where you put it.
+    try { if (window.term.onCursorMove) window.term.onCursorMove(positionCaret); } catch (_) {}
+    ov.addEventListener('focus', positionCaret);
+    window.addEventListener('resize', positionCaret);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', positionCaret);
+    positionCaret();
 
     var lastSent = '', composing = false, timer = null;
     function flush() {
@@ -205,6 +217,24 @@
       else if (e.key === 'Tab') { e.preventDefault(); sendRaw(String.fromCharCode(9)); dbg(' <TAB> '); }
       else if (e.key === 'Backspace' && ov.value === '') { e.preventDefault(); sendRaw(String.fromCharCode(127)); }
     });
+
+    // System key bar (rendered at the desktop level — see desktop.html). The iOS
+    // keyboard has no arrows/Esc/Tab/Ctrl, so the desktop shows a bar and sends
+    // {type:'kbd-key', key} when a button is tapped; map it to PTY bytes here.
+    // We tell the desktop when our textarea is focused (keyboard up) so it can
+    // show/hide the bar; positioning is the desktop's job — we never move the
+    // terminal.
+    var KBD_KEY_BYTES = {
+      Escape: '\x1b', Tab: '\x09', CtrlC: '\x03', Enter: '\r', Backspace: '\x7f',
+      ArrowUp: '\x1b[A', ArrowDown: '\x1b[B', ArrowRight: '\x1b[C', ArrowLeft: '\x1b[D'
+    };
+    window.addEventListener('message', function (e) {
+      var d = e.data;
+      if (d && d.type === 'kbd-key' && KBD_KEY_BYTES[d.key]) { sendRaw(KBD_KEY_BYTES[d.key]); dbg(' <' + d.key + '> '); }
+    });
+    function reportBar(show) { try { window.parent.postMessage({ type: 'kbd-bar', show: show }, '*'); } catch (_) {} }
+    ov.addEventListener('focus', function () { reportBar(true); });
+    ov.addEventListener('blur', function () { reportBar(false); });
 
     // The overlay covers xterm and would eat every touch, so route by gesture:
     // quick tap → keyboard; vertical drag → scrollback; long-press → select the
@@ -273,44 +303,6 @@
       hideCopy();
       try { t.clearSelection(); } catch (_) {}
     });
-
-    // The arrow/Esc/Ctrl key bar lives at the DESKTOP level (a system-wide
-    // accessory in desktop.html, so it sits below the whole vibetop UI and works
-    // across apps) rather than overlapping the terminal here. The desktop routes
-    // each tap down as {type:'kbd-key', key:<name>}; map it to the PTY bytes.
-    // sendRaw works regardless of focus, so the bar never has to hold the caret.
-    var KBD_KEY_BYTES = {
-      Escape: '\x1b', Tab: '\x09', CtrlC: '\x03', Enter: '\r', Backspace: '\x7f',
-      ArrowUp: '\x1b[A', ArrowDown: '\x1b[B', ArrowRight: '\x1b[C', ArrowLeft: '\x1b[D'
-    };
-    window.addEventListener('message', function (e) {
-      var d = e.data; if (!d) return;
-      if (d.type === 'kbd-key' && KBD_KEY_BYTES[d.key]) {
-        sendRaw(KBD_KEY_BYTES[d.key]); dbg(' <' + d.key + '> ');
-      } else if (d.type === 'kbd-shift') {
-        applyShift(+d.px || 0);
-      }
-    });
-
-    // Tell the desktop to show/hide its system key bar. The desktop can't measure
-    // the keyboard itself (its top-level visualViewport doesn't shrink for a
-    // keyboard raised by THIS nested iframe), so report the inset — the keyboard
-    // height = layout height minus the visible viewport — which OUR vv does know.
-    function reportBar(show) {
-      var vv = window.visualViewport;
-      var inset = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-      try { window.parent.postMessage({ type: 'kbd-bar', show: show, inset: inset }, '*'); } catch (_) {}
-    }
-    ov.addEventListener('focus', function () {
-      reportBar(true);
-      setTimeout(function () { if (document.activeElement === ov) reportBar(true); }, 300); // after the keyboard animates in
-    });
-    ov.addEventListener('blur', function () { reportBar(false); applyShift(0); });
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', function () {
-        if (document.activeElement === ov) reportBar(true);   // keyboard settled/changed height
-      });
-    }
 
     var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null;
     var lastTapTime = 0, lastTapX = 0, lastTapY = 0, tStart = 0;   // for double-tap (claimSize)
