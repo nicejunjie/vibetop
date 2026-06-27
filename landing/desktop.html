@@ -508,6 +508,67 @@
     if (!on) { var t = document.getElementById('kbd-input'); if (t) try { t.blur(); } catch (e) {} }
   }
 
+  // --- system-wide key bar (arrows / Esc / Tab / ^C) ------------------------
+  // The soft keyboard has none of these, which TUIs in the Terminal (a menu you
+  // move with ↑/↓, Esc/^C) and pages in the Browser need. Render ONE bar at the
+  // desktop level — pinned just above the keyboard, below the whole vibetop UI —
+  // and route each tap to whichever app is active via the {type:'kbd-key', key}
+  // message the Browser (xpra-patches) already understands and the Terminal
+  // (terminal-kbd.js → PTY bytes, relayed through terminals.html) now does too.
+  // Touch only; desktops have real keys.
+  (function () {
+    if (!IS_TOUCH) return;
+    var KEYS = [
+      ['esc', 'Escape'], ['tab', 'Tab'], ['^C', 'CtrlC'],
+      ['←', 'ArrowLeft'], ['↑', 'ArrowUp'], ['↓', 'ArrowDown'], ['→', 'ArrowRight']
+    ];
+    var BAR_H = 50;
+    var bar = document.createElement('div');
+    bar.id = 'sys-keybar';
+    bar.style.cssText = 'position:fixed;left:0;display:none;z-index:9000;box-sizing:border-box;' +
+      'width:100%;gap:5px;padding:5px;background:rgba(20,20,22,.97);' +
+      'border-top:1px solid rgba(255,255,255,.14);-webkit-user-select:none;user-select:none';
+    function routeKey(keyName) {
+      var f = active && frameOf(active);
+      if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-key', key: keyName }, '*'); } catch (e) {} }
+    }
+    KEYS.forEach(function (k) {
+      var b = document.createElement('button');
+      b.textContent = k[0];
+      b.style.cssText = 'flex:1 1 0;min-width:0;height:40px;margin:0;padding:0;font:600 16px system-ui,sans-serif;' +
+        'color:#e8e8ea;background:#3a3a3c;border:0;border-radius:8px;touch-action:manipulation;' +
+        '-webkit-user-select:none;user-select:none';
+      // touchstart preventDefault so tapping a key never moves focus off the
+      // active app's input (which would dismiss the keyboard); fire on touchend.
+      b.addEventListener('touchstart', function (e) { e.preventDefault(); b.style.background = '#5a5a5c'; }, { passive: false });
+      b.addEventListener('touchend', function (e) { e.preventDefault(); b.style.background = '#3a3a3c'; routeKey(k[1]); }, { passive: false });
+      bar.appendChild(b);
+    });
+    document.body.appendChild(bar);
+
+    var vv = window.visualViewport;
+    function reposition() {
+      if (!vv) { bar.style.bottom = '0'; bar.style.top = ''; return; }
+      bar.style.top = Math.round(vv.offsetTop + vv.height - BAR_H) + 'px';
+      bar.style.left = Math.round(vv.offsetLeft) + 'px';
+      bar.style.width = Math.round(vv.width) + 'px';
+      bar.style.bottom = '';
+    }
+    function update() {
+      // Keyboard up ⇒ the visual viewport is much shorter than the layout — show
+      // the bar above it, whatever app raised the keyboard. (~120px guards
+      // against small URL-bar/IME shifts being mistaken for a keyboard.)
+      var kbUp = vv ? (window.innerHeight - vv.height - vv.offsetTop) > 120 : false;
+      if (kbUp) { bar.style.display = 'flex'; reposition(); }
+      else { bar.style.display = 'none'; }
+    }
+    if (vv) {
+      vv.addEventListener('resize', update);
+      vv.addEventListener('scroll', function () { if (bar.style.display !== 'none') reposition(); });
+    }
+    window.addEventListener('orientationchange', function () { setTimeout(update, 300); });
+  })();
+
   // --- cross-instance state -------------------------------------------------
   // Windows are LOCAL to each instance (we never open a window because another
   // device did — that mirrors badly, e.g. the shared single-size xpra Browser
