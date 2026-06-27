@@ -150,20 +150,22 @@
     ov.setAttribute('autocorrect', 'off');
     ov.setAttribute('spellcheck', 'false');
     ov.setAttribute('aria-hidden', 'true');
-    // Transparent FULL-HEIGHT overlay. Its caret is parked on the actual xterm
-    // cursor row via a dynamic padding-top (positionCaret), so iOS scrolls the
-    // shell to reveal wherever the prompt really is — the bottom on a full
-    // terminal, the top on a fresh one — instead of always the bottom. That's
-    // what keeps the line you're typing visible (and stops the "jump back to
-    // default" that hid a new terminal's top-of-window prompt).
-    ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:100%;box-sizing:border-box;' +
+    // Transparent overlay. Its caret is parked on the actual xterm cursor row via
+    // a dynamic padding-top (positionCaret), so iOS auto-scrolls the shell to
+    // reveal the real prompt line above the keyboard. The desktop's system key
+    // bar sits in that same strip just above the keyboard, so we park the caret
+    // an extra KBD_BAR_RESERVE px BELOW the prompt — iOS then scrolls the prompt
+    // that much higher, clearing the bar so it never covers the line you type on
+    // (the textarea is taller than the terminal to make room for the offset).
+    var KBD_BAR_RESERVE = 64;   // desktop bar height (~50) + margin; keep in sync with desktop BAR_H
+    ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:calc(100% + ' + KBD_BAR_RESERVE + 'px);box-sizing:border-box;' +
       'z-index:2147482000;background:transparent;color:transparent;caret-color:transparent;' +
       'border:0;outline:0;resize:none;margin:0;padding:0 6px;font-size:16px;overflow:hidden;' +
       '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none';  // stop iOS's own long-press selection/loupe
     document.body.appendChild(ov);
 
-    // Park the textarea caret on the xterm cursor row (pixel Y from the top of
-    // the terminal) so iOS reveals the real prompt line, not a fixed bottom.
+    // Park the textarea caret KBD_BAR_RESERVE px below the xterm cursor row, so
+    // iOS reveals the prompt line that much above the keyboard — clear of the bar.
     function positionCaret() {
       var t = window.term;
       try {
@@ -171,7 +173,7 @@
         var h = t.element ? t.element.getBoundingClientRect().height : window.innerHeight;
         var rh = h / rows;
         var cy = (t.buffer && t.buffer.active) ? t.buffer.active.cursorY : rows - 1;
-        var y = Math.max(0, Math.min(h - rh, cy * rh));
+        var y = Math.max(0, Math.min(h - rh, cy * rh)) + KBD_BAR_RESERVE;
         ov.style.paddingTop = Math.round(y) + 'px';
       } catch (_) {}
     }
