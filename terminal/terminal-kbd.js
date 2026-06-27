@@ -232,9 +232,25 @@
       var d = e.data;
       if (d && d.type === 'kbd-key' && KBD_KEY_BYTES[d.key]) { sendRaw(KBD_KEY_BYTES[d.key]); dbg(' <' + d.key + '> '); }
     });
-    function reportBar(show) { try { window.parent.postMessage({ type: 'kbd-bar', show: show }, '*'); } catch (_) {} }
-    ov.addEventListener('focus', function () { reportBar(true); });
-    ov.addEventListener('blur', function () { reportBar(false); });
+    // Drive the bar off the KEYBOARD being up (our own visualViewport shrinks
+    // for it), NOT the textarea's focus. ttyd's hidden helper textarea steals
+    // focus right after our overlay gets it, firing a blur — so a focus/blur-
+    // driven bar flashed then vanished. The keyboard staying up is the stable
+    // signal. We also send the keyboard inset so the desktop can place the bar
+    // just above the keyboard (bottom).
+    var kbShown = false;
+    function kbInset() {
+      var vv = window.visualViewport;
+      return vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+    }
+    function syncBar() {
+      var inset = kbInset(), up = inset > 100;     // keyboard is ~250-340px; 100 = a safe floor
+      if (up) { kbShown = true; try { window.parent.postMessage({ type: 'kbd-bar', show: true, inset: inset }, '*'); } catch (_) {} }
+      else if (kbShown) { kbShown = false; try { window.parent.postMessage({ type: 'kbd-bar', show: false }, '*'); } catch (_) {} }
+    }
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncBar);
+    ov.addEventListener('focus', function () { setTimeout(syncBar, 60); });   // nudge once the keyboard starts to rise
+    ov.addEventListener('blur', function () { setTimeout(syncBar, 250); });   // re-check; if the keyboard's still up the bar stays (fixes the flash)
 
     // The overlay covers xterm and would eat every touch, so route by gesture:
     // quick tap → keyboard; vertical drag → scrollback; long-press → select the

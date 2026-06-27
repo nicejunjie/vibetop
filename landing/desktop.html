@@ -526,11 +526,13 @@
       ['esc', 'Escape'], ['tab', 'Tab'], ['^C', 'CtrlC'],
       ['←', 'ArrowLeft'], ['↑', 'ArrowUp'], ['↓', 'ArrowDown'], ['→', 'ArrowRight']
     ];
+    var CLEARANCE = 0;   // px above the keyboard. 0 = flush to the keyboard top.
     var bar = document.createElement('div');
     bar.id = 'sys-keybar';
-    bar.style.cssText = 'position:fixed;left:0;right:0;top:0;display:none;z-index:9000;box-sizing:border-box;' +
-      'padding:calc(env(safe-area-inset-top, 0px) + 4px) 5px 5px;gap:5px;' +
-      'background:rgba(20,20,22,.97);border-bottom:1px solid rgba(255,255,255,.14);' +
+    // Pinned to the BOTTOM, just above the keyboard (bottom = keyboard inset,
+    // set in showBar). z-index above the app iframes.
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;display:none;z-index:9000;box-sizing:border-box;' +
+      'padding:5px;gap:5px;background:rgba(20,20,22,.97);border-top:1px solid rgba(255,255,255,.14);' +
       '-webkit-user-select:none;user-select:none';
     function routeKey(keyName) {
       var f = active && frameOf(active);
@@ -548,20 +550,37 @@
     });
     document.body.appendChild(bar);
 
-    function showBar() { bar.style.display = 'flex'; }
+    // Sit the bar `inset` px from the bottom — i.e. right on top of the keyboard.
+    function showBar(inset) { bar.style.bottom = (Math.max(0, inset || 0) + CLEARANCE) + 'px'; bar.style.display = 'flex'; }
     function hideBar() { bar.style.display = 'none'; }
 
-    // The Terminal (nested iframe) reports keyboard up/down, relayed up through
-    // terminals.html as {type:'kbd-bar', show}.
+    // The Terminal (nested iframe) reports keyboard up/down + its height (inset),
+    // relayed up through terminals.html as {type:'kbd-bar', show, inset}. Driven
+    // by the keyboard being up (not focus), so it stays put instead of flashing.
     window.addEventListener('message', function (e) {
       if (e.origin !== location.origin) return;
       var d = e.data; if (!d || d.type !== 'kbd-bar') return;
-      if (d.show) showBar(); else hideBar();
+      if (d.show) showBar(d.inset); else hideBar();
     });
 
-    // The Browser's keyboard is the desktop's OWN top-level #kbd-input.
+    // The Browser's keyboard is the desktop's OWN top-level #kbd-input, so the
+    // top visualViewport reflects it directly.
+    function topInset() {
+      var vv = window.visualViewport;
+      return vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+    }
     var ki = document.getElementById('kbd-input');
-    if (ki) { ki.addEventListener('focus', showBar); ki.addEventListener('blur', hideBar); }
+    if (ki) {
+      ki.addEventListener('focus', function () { setTimeout(function () { showBar(topInset()); }, 120); });
+      ki.addEventListener('blur', hideBar);
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', function () {
+        if (bar.style.display === 'none') return;
+        var ti = topInset();
+        if (ti > 80) bar.style.bottom = (ti + CLEARANCE) + 'px';   // track the top-level (Browser) keyboard
+      });
+    }
   })();
 
   // --- cross-instance state -------------------------------------------------
