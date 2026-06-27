@@ -156,7 +156,13 @@
     // terminal, the top on a fresh one — instead of always the bottom. That's
     // what keeps the line you're typing visible (and stops the "jump back to
     // default" that hid a new terminal's top-of-window prompt).
-    ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:100%;box-sizing:border-box;' +
+    // Height is the terminal + KBD_RESERVE extra below it: positionCaret can then
+    // park the caret KBD_RESERVE px BELOW the real prompt row, so iOS scrolls the
+    // prompt up far enough to clear the on-screen key bar (which sits just above
+    // the keyboard, right where the prompt would otherwise land — it was hiding
+    // the line you type on).
+    var KBD_RESERVE = 64;
+    ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:calc(100% + ' + KBD_RESERVE + 'px);box-sizing:border-box;' +
       'z-index:2147482000;background:transparent;color:transparent;caret-color:transparent;' +
       'border:0;outline:0;resize:none;margin:0;padding:0 6px;font-size:16px;overflow:hidden;' +
       '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none';  // stop iOS's own long-press selection/loupe
@@ -171,7 +177,11 @@
         var h = t.element ? t.element.getBoundingClientRect().height : window.innerHeight;
         var rh = h / rows;
         var cy = (t.buffer && t.buffer.active) ? t.buffer.active.cursorY : rows - 1;
-        var y = Math.max(0, Math.min(h - rh, cy * rh));
+        // Park the caret KBD_RESERVE px BELOW the prompt row so iOS scrolls the
+        // prompt up clear of the on-screen key bar (the textarea is that much
+        // taller than the terminal to make room). Without the reserve the prompt
+        // landed exactly under the bar — hidden, so you couldn't see what you typed.
+        var y = Math.max(0, Math.min(h - rh, cy * rh)) + KBD_RESERVE;
         ov.style.paddingTop = Math.round(y) + 'px';
       } catch (_) {}
     }
@@ -319,6 +329,12 @@
       b.addEventListener('touchend', function (e) {
         e.preventDefault(); b.style.background = '#3a3a3c';
         sendRaw(k[1]); dbg(' <' + k[0] + '> ');
+        // Belt-and-suspenders: if the tap did move focus off the textarea (so the
+        // keyboard would otherwise dismiss / typing would stop), put it back.
+        // No-op when focus was retained (the touchstart preventDefault above).
+        if (document.activeElement !== ov) {
+          try { ov.focus({ preventScroll: true }); } catch (_) { try { ov.focus(); } catch (__) {} }
+        }
       }, { passive: false });
       keyBar.appendChild(b);
     });
