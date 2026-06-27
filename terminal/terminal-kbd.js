@@ -286,6 +286,68 @@
       try { t.clearSelection(); } catch (_) {}
     });
 
+    // ---- on-screen key bar (the iOS keyboard has no arrows/Esc/Ctrl) -------
+    // TUIs that need keys the soft keyboard doesn't have — a menu you move with
+    // ↑/↓ (Claude Code's option picker, git rebase -i), Esc to cancel, Tab to
+    // complete, Ctrl-C to interrupt — were unusable on mobile. Lay a small
+    // accessory bar just above the keyboard whose buttons send the raw byte
+    // sequences straight to the PTY (sendRaw → triggerDataEvent), so they work
+    // regardless of where the caret is.
+    var keyBar = document.createElement('div');
+    keyBar.style.cssText = 'position:fixed;left:0;display:none;z-index:2147483500;' +
+      'box-sizing:border-box;width:100%;gap:5px;padding:5px 5px;' +
+      'background:rgba(28,28,30,.97);border-top:1px solid rgba(255,255,255,.12);' +
+      '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none';
+    // label, byte sequence. Arrows use the normal-mode cursor sequences (ESC [ A
+    // …), which Ink/readline/curses TUIs accept; ^C/Esc/Tab are single bytes.
+    var KEYS = [
+      ['esc', '\x1b'], ['tab', '\x09'], ['^C', '\x03'],
+      ['←', '\x1b[D'], ['↑', '\x1b[A'], ['↓', '\x1b[B'], ['→', '\x1b[C']
+    ];
+    KEYS.forEach(function (k) {
+      var b = document.createElement('button');
+      b.textContent = k[0];
+      b.style.cssText = 'flex:1 1 0;min-width:0;height:40px;margin:0;padding:0;' +
+        'font:600 16px system-ui,sans-serif;color:#e8e8ea;background:#3a3a3c;' +
+        'border:0;border-radius:8px;touch-action:manipulation;' +
+        '-webkit-user-select:none;user-select:none';
+      // touchstart preventDefault keeps the textarea focused (so the keyboard
+      // doesn't dismiss) and blocks scrolling; the key fires on touchend.
+      b.addEventListener('touchstart', function (e) {
+        e.preventDefault(); b.style.background = '#5a5a5c';
+      }, { passive: false });
+      b.addEventListener('touchend', function (e) {
+        e.preventDefault(); b.style.background = '#3a3a3c';
+        sendRaw(k[1]); dbg(' <' + k[0] + '> ');
+      }, { passive: false });
+      keyBar.appendChild(b);
+    });
+    document.body.appendChild(keyBar);
+
+    function positionKeyBar() {
+      // Sit on the bottom edge of the VISIBLE viewport (just above the soft
+      // keyboard). visualViewport shrinks when the keyboard is up; without it,
+      // fall back to the layout bottom.
+      var vv = window.visualViewport, h = 50;
+      if (vv) {
+        keyBar.style.top = Math.round(vv.offsetTop + vv.height - h) + 'px';
+        keyBar.style.left = Math.round(vv.offsetLeft) + 'px';
+        keyBar.style.width = Math.round(vv.width) + 'px';
+        keyBar.style.bottom = '';
+      } else {
+        keyBar.style.bottom = '0'; keyBar.style.top = '';
+      }
+    }
+    function showKeyBar() { keyBar.style.display = 'flex'; positionKeyBar(); }
+    function hideKeyBar() { keyBar.style.display = 'none'; }
+    ov.addEventListener('focus', showKeyBar);
+    ov.addEventListener('blur', hideKeyBar);
+    if (window.visualViewport) {
+      var reposition = function () { if (keyBar.style.display !== 'none') positionKeyBar(); };
+      window.visualViewport.addEventListener('resize', reposition);
+      window.visualViewport.addEventListener('scroll', reposition);
+    }
+
     var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null;
     var lastTapTime = 0, lastTapX = 0, lastTapY = 0, tStart = 0;   // for double-tap (claimSize)
     ov.addEventListener('touchstart', function (e) {

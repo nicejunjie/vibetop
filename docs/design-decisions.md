@@ -486,3 +486,32 @@ and why it lost).
 - **Rejected:** A hard "give up after N" that leaves the terminal dead — a
   transient cause (a deploy mid-swap of `/bin/bash`) should self-heal; backoff
   recovers without a permanent dead tab.
+
+## Mobile terminal needs an on-screen arrow/Esc/Ctrl bar
+
+- **Symptom:** On a phone, a TUI you navigate with arrow keys was unusable in the
+  terminal — e.g. Claude Code's `/rate-limit-options` picker (or `git rebase -i`,
+  `vim`, `less`): the soft keyboard has **no ↑/↓/←/→, Esc, Tab, or Ctrl**, and
+  there's no scroll-to-select, so the highlighted option can't be moved.
+- **Cause:** The mobile path (`terminal-kbd.js`) forwards a debounced *value-diff*
+  of a transparent `<textarea>` to the PTY — great for text and dictation, but it
+  only ever emits printable characters (plus Enter/Tab/Backspace via `keydown`).
+  Keys that aren't on the iOS keyboard simply have no source, so they were never
+  sent — a documented limitation, not a bug, but a crippling one for TUIs.
+- **Fix:** An accessory **key bar** above the keyboard (touch only) with
+  `esc / tab / ^C / ← ↑ ↓ →`; each button sends the raw byte sequence straight to
+  the PTY via the existing `sendRaw` → `triggerDataEvent` path (arrows use the
+  normal-mode cursor sequences `ESC [ A/B/C/D`). The bar is positioned on the
+  bottom edge of `visualViewport` (which shrinks when the keyboard is up) and
+  shown/hidden on the textarea's focus/blur.
+- **Non-obvious bit:** the buttons fire on **`touchend`** but call
+  `preventDefault()` on **`touchstart`** — that stops the tap from moving focus
+  off the textarea, so the keyboard stays up across repeated arrow presses
+  (otherwise the first arrow tap would blur the field and dismiss the keyboard).
+  No cache-buster bump needed: `terminal-kbd.js` is content-hash `?v=`'d by
+  `terminal/install.sh`, so a deploy/Update picks up the new bytes automatically.
+- **Rejected:** Sending arrows in *application* cursor mode (`ESC O A`) — normal
+  mode (`ESC [ A`) is what the default keypad state emits and what Ink/readline
+  expect; apps that switch to DECCKM also read both. A persistent/always-visible
+  bar — it would eat terminal space and bottom-edge scroll/tap gestures when not
+  typing; tying it to keyboard focus keeps it out of the way otherwise.
