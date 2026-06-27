@@ -13,7 +13,7 @@ set -uo pipefail
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 # Guard the rm -rf below: a bad/missing APP_USER yields an empty APP_HOME, which
-# would make "rm -rf $APP_HOME/claude-web-www" operate at filesystem root.
+# would make "rm -rf $APP_HOME/vibetop-www" operate at filesystem root.
 if [ -z "$APP_HOME" ] || [ ! -d "$APP_HOME" ]; then
     echo "could not resolve a valid home dir for APP_USER '$APP_USER' — refusing to run" >&2
     exit 1
@@ -22,18 +22,18 @@ echo "== Vibetop uninstall (user: $APP_USER) =="
 
 # 1. systemd services -------------------------------------------------------
 echo "== stopping & disabling services =="
-units=(claude-web-manager claude-browser-xpra claude-apps-xpra claude-apps-dbus claude-web-filebrowser)
-for n in $(seq 1 50); do units+=("claude-web-ttyd@$n" "claude-web-session@$n"); done
+units=(vibetop-manager vibetop-browser-xpra vibetop-apps-xpra vibetop-apps-dbus vibetop-filebrowser)
+for n in $(seq 1 50); do units+=("vibetop-ttyd@$n" "vibetop-session@$n"); done
 for u in "${units[@]}"; do
     systemctl disable --now "$u" >/dev/null 2>&1 || true
 done
-rm -f /etc/systemd/system/claude-web-manager.service \
-      /etc/systemd/system/claude-web-ttyd@.service \
-      /etc/systemd/system/claude-web-session@.service \
-      /etc/systemd/system/claude-browser-xpra.service \
-      /etc/systemd/system/claude-apps-xpra.service \
-      /etc/systemd/system/claude-apps-dbus.service \
-      /etc/systemd/system/claude-web-filebrowser.service
+rm -f /etc/systemd/system/vibetop-manager.service \
+      /etc/systemd/system/vibetop-ttyd@.service \
+      /etc/systemd/system/vibetop-session@.service \
+      /etc/systemd/system/vibetop-browser-xpra.service \
+      /etc/systemd/system/vibetop-apps-xpra.service \
+      /etc/systemd/system/vibetop-apps-dbus.service \
+      /etc/systemd/system/vibetop-filebrowser.service
 systemctl daemon-reload 2>/dev/null || true
 
 # 2. OnlyOffice container ---------------------------------------------------
@@ -44,17 +44,17 @@ fi
 
 # 3. nginx ------------------------------------------------------------------
 echo "== removing nginx config =="
-rm -f /etc/nginx/sites-enabled/claude-web /etc/nginx/sites-available/claude-web \
-      /etc/nginx/conf.d/claude-web-upgrade.conf
-rm -f /etc/nginx/snippets/claude-extras.d/*.conf 2>/dev/null || true
-rmdir /etc/nginx/snippets/claude-extras.d 2>/dev/null || true
+rm -f /etc/nginx/sites-enabled/vibetop /etc/nginx/sites-available/vibetop \
+      /etc/nginx/conf.d/vibetop-upgrade.conf
+rm -f /etc/nginx/snippets/vibetop-extras.d/*.conf 2>/dev/null || true
+rmdir /etc/nginx/snippets/vibetop-extras.d 2>/dev/null || true
 if command -v nginx >/dev/null 2>&1; then
     nginx -t >/dev/null 2>&1 && systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
 fi
 
 # 4. deployed web root ------------------------------------------------------
 echo "== removing deployed web root =="
-rm -rf "$APP_HOME/claude-web-www"
+rm -rf "$APP_HOME/vibetop-www"
 
 echo
 echo "Removed: services, nginx config, OnlyOffice container, web root."

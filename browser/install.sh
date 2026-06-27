@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-command deploy for claude-browser: a remote browser viewable from any
+# One-command deploy for vibetop-browser: a remote browser viewable from any
 # browser via xpra's HTML5 client, persistent across disconnects.
 #
 # Architecture (all on myhost, mostly loopback):
@@ -38,7 +38,7 @@ INSTALL_DEPS="${INSTALL_DEPS:-1}"
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
 DRY_RUN="${DRY_RUN:-0}"
-LOOP_SCRIPT="/usr/local/lib/claude-browser/browser-loop.sh"
+LOOP_SCRIPT="/usr/local/lib/vibetop-browser/browser-loop.sh"
 
 for arg in "$@"; do
     case "$arg" in
@@ -107,7 +107,7 @@ if [ -z "${BROWSER_CMD:-}" ]; then
 fi
 
 cat <<EOF
-claude-browser install (xpra)
+vibetop-browser install (xpra)
   user          : $APP_USER (uid $APP_UID)
   app dir       : $APP_DIR
   display       : :$DISPLAY_NUM (Browser)  :$APPS_DISPLAY_NUM (Apps)
@@ -173,8 +173,8 @@ fi
 
 # 2. Stop legacy VNC services if present -------------------------------------
 echo "== cleaning up legacy VNC services (if any) =="
-for legacy in claude-browser-app claude-browser-novnc \
-              claude-browser-wm claude-browser-xserver; do
+for legacy in vibetop-browser-app vibetop-browser-novnc \
+              vibetop-browser-wm vibetop-browser-xserver; do
     if systemctl list-unit-files "${legacy}.service" >/dev/null 2>&1; then
         run sudo systemctl disable --now "${legacy}.service" 2>/dev/null || true
         run sudo rm -f "/etc/systemd/system/${legacy}.service"
@@ -212,8 +212,8 @@ if (( INSTALL_SYSTEMD )); then
         -e "s|@DISPLAY_NUM@|$DISPLAY_NUM|g" \
         -e "s|@XPRA_PORT@|$XPRA_PORT|g" \
         -e "s|@LOOP_SCRIPT@|$LOOP_SCRIPT|g" \
-        "$APP_DIR/systemd/claude-browser-xpra.service" \
-        | write_root /etc/systemd/system/claude-browser-xpra.service
+        "$APP_DIR/systemd/vibetop-browser-xpra.service" \
+        | write_root /etc/systemd/system/vibetop-browser-xpra.service
     # Second display for the Apps desktop (no Chromium child).
     sed \
         -e "s|@APP_USER@|$APP_USER|g" \
@@ -221,8 +221,8 @@ if (( INSTALL_SYSTEMD )); then
         -e "s|@APP_UID@|$APP_UID|g" \
         -e "s|@APPS_DISPLAY_NUM@|$APPS_DISPLAY_NUM|g" \
         -e "s|@APPS_XPRA_PORT@|$APPS_XPRA_PORT|g" \
-        "$APP_DIR/systemd/claude-apps-xpra.service" \
-        | write_root /etc/systemd/system/claude-apps-xpra.service
+        "$APP_DIR/systemd/vibetop-apps-xpra.service" \
+        | write_root /etc/systemd/system/vibetop-apps-xpra.service
     # Private D-Bus session for launcher apps (no service activation) so GNOME
     # apps don't hang ~25s on xdg-desktop-portal/at-spi activation timeouts.
     run sudo install -d -m 0755 /etc/vibetop
@@ -231,8 +231,8 @@ if (( INSTALL_SYSTEMD )); then
     sed \
         -e "s|@APP_USER@|$APP_USER|g" \
         -e "s|@APP_UID@|$APP_UID|g" \
-        "$APP_DIR/systemd/claude-apps-dbus.service" \
-        | write_root /etc/systemd/system/claude-apps-dbus.service
+        "$APP_DIR/systemd/vibetop-apps-dbus.service" \
+        | write_root /etc/systemd/system/vibetop-apps-dbus.service
     run sudo systemctl daemon-reload
 fi
 
@@ -248,13 +248,13 @@ fi
 # 6. nginx snippet -----------------------------------------------------------
 if (( INSTALL_NGINX )); then
     echo "== installing nginx snippet =="
-    if ! [ -d /etc/nginx/snippets/claude-extras.d ]; then
-        echo "   /etc/nginx/snippets/claude-extras.d does not exist —"
-        echo "   re-run claude-web's install.sh first so the include path is wired up." >&2
+    if ! [ -d /etc/nginx/snippets/vibetop-extras.d ]; then
+        echo "   /etc/nginx/snippets/vibetop-extras.d does not exist —"
+        echo "   re-run vibetop's install.sh first so the include path is wired up." >&2
         exit 1
     fi
     # Deploy xpra patches JS to web root (served as static file at /xpra-patches.js)
-    LANDING_DIR="$(getent passwd "$APP_USER" | cut -d: -f6)/claude-web-www"
+    LANDING_DIR="$(getent passwd "$APP_USER" | cut -d: -f6)/vibetop-www"
     run sudo install -m 0644 "$APP_DIR/xpra-patches.js" "$LANDING_DIR/xpra-patches.js"
     # Cache-buster derived from the patch file's CONTENT, so editing it always
     # changes the ?v= (busting nginx + the service worker) — no manual version
@@ -266,7 +266,7 @@ if (( INSTALL_NGINX )); then
         -e "s|@APPS_DISPLAY_NUM@|$APPS_DISPLAY_NUM|g" \
         -e "s|@PATCH_VER@|$PATCH_VER|g" \
         "$APP_DIR/nginx/browser.conf" \
-        | nginx_write /etc/nginx/snippets/claude-extras.d/browser.conf || NGINX_DIRTY=1
+        | nginx_write /etc/nginx/snippets/vibetop-extras.d/browser.conf || NGINX_DIRTY=1
     if (( NGINX_DIRTY )); then
         if run sudo nginx -t; then
             run sudo systemctl reload nginx
@@ -282,9 +282,9 @@ fi
 # 7. Enable & start ----------------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
     echo "== enabling and starting xpra =="
-    run sudo systemctl enable --now claude-apps-dbus.service
-    run sudo systemctl enable --now claude-browser-xpra.service
-    run sudo systemctl enable --now claude-apps-xpra.service
+    run sudo systemctl enable --now vibetop-apps-dbus.service
+    run sudo systemctl enable --now vibetop-browser-xpra.service
+    run sudo systemctl enable --now vibetop-apps-xpra.service
 fi
 
 echo

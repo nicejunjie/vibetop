@@ -1,0 +1,23 @@
+[Unit]
+Description=Terminal manager API (start/stop terminal instances on demand)
+After=network.target
+# Crash-loop guard: tolerate flapping (a bad deploy, a transient dependency) but
+# give up after 10 failures in 5 min instead of hot-looping forever.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 @APP_DIR@/terminal-manager.py @BASE_PORT@
+Restart=on-failure
+RestartSec=2
+# Liveness watchdog: the manager pets this only while a loopback GET /api/ping
+# actually answers (see _watchdog_loop), so a WEDGED process — stuck accept
+# loop, exhausted threads, deadlock — is restarted, not just a crashed one
+# (which Restart=on-failure already covers). 60s window, petted every ~20s, so
+# two consecutive missed probes are tolerated before a restart (no flapping
+# under a brief load spike). A watchdog kill exits non-zero → Restart fires.
+WatchdogSec=60
+
+[Install]
+WantedBy=multi-user.target

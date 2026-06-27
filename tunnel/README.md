@@ -1,4 +1,4 @@
-# claude-tunnel
+# vibetop-tunnel
 
 Cloudflare Tunnel exposing myhost's nginx at `https://service.example.com/`,
 behind Cloudflare Access (one-time email PIN + Google login).

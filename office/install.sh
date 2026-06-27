@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-command deploy for claude-office: OnlyOffice Document Server in Docker,
+# One-command deploy for vibetop-office: OnlyOffice Document Server in Docker,
 # fronted by nginx at /onlyoffice/. Powers the Files app's "Edit" (fast,
 # native-in-browser editing) and saves back to the file via the manager's
 # /api/office/{config,doc,callback,forcesave} endpoints.
@@ -68,7 +68,7 @@ fi
 # Make sure the daemon is up (freshly installed, or stopped).
 run sudo systemctl start docker 2>/dev/null || true
 
-echo "== claude-office (OnlyOffice Document Server) =="
+echo "== vibetop-office (OnlyOffice Document Server) =="
 echo "   user: $APP_USER   port: $ONLYOFFICE_PORT   image: $ONLYOFFICE_IMAGE"
 
 # 1. JWT secret — shared between the container and the manager. Generated once.
@@ -111,14 +111,14 @@ run docker run -d --name "$CONTAINER" --restart unless-stopped \
 
 # 4. nginx snippet
 if (( INSTALL_NGINX )); then
-    if ! [ -d /etc/nginx/snippets/claude-extras.d ]; then
-        echo "   /etc/nginx/snippets/claude-extras.d missing — run terminal/install.sh first." >&2
+    if ! [ -d /etc/nginx/snippets/vibetop-extras.d ]; then
+        echo "   /etc/nginx/snippets/vibetop-extras.d missing — run terminal/install.sh first." >&2
         exit 1
     fi
     echo "== installing nginx snippet =="
     sed -e "s|@ONLYOFFICE_PORT@|$ONLYOFFICE_PORT|g" \
         "$APP_DIR/nginx/onlyoffice.conf" \
-        | nginx_write /etc/nginx/snippets/claude-extras.d/onlyoffice.conf || NGINX_DIRTY=1
+        | nginx_write /etc/nginx/snippets/vibetop-extras.d/onlyoffice.conf || NGINX_DIRTY=1
     if (( NGINX_DIRTY )); then
         if run sudo nginx -t; then
             run sudo systemctl reload nginx

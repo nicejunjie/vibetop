@@ -3,7 +3,7 @@
 # Override DST_DIR=... to write somewhere else.
 set -e
 DIR="$(dirname "$(readlink -f "$0")")"
-DST_DIR="${DST_DIR:-$HOME/claude-web-www}"
+DST_DIR="${DST_DIR:-$HOME/vibetop-www}"
 DRY_RUN="${DRY_RUN:-0}"
 case "${1:-}" in --dry-run|-n) DRY_RUN=1 ;; esac
 run() { if [ "$DRY_RUN" = 1 ]; then printf '+ %s\n' "$*"; else "$@"; fi; }

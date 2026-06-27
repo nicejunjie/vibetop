@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Launches ttyd for instance $1 (1..N), bound to loopback. nginx proxies
 # /tN/ -> http://127.0.0.1:$((BASE_PORT+N))/tN/. Each instance attaches to
-# the claude-session daemon for that instance.
+# the vibetop-session daemon for that instance.
 #
 # BASE_PORT must match the installer's port base (it generates the nginx port
 # map from BASE_PORT). The ttyd systemd unit passes it via Environment; the
@@ -21,4 +21,4 @@ exec /usr/bin/ttyd \
   -t "titleFixed=Terminal ${N}" \
   -t scrollback=50000 \
   -t disableLeaveAlert=true \
-  "${SCRIPT_DIR}/claude-session" attach "${N}"
+  "${SCRIPT_DIR}/vibetop-session" attach "${N}"

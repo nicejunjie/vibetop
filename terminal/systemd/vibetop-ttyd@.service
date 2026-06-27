@@ -1,7 +1,7 @@
 [Unit]
-Description=ttyd for claude-web t%i
-After=claude-web-session@%i.service
-Requires=claude-web-session@%i.service
+Description=ttyd for vibetop t%i
+After=vibetop-session@%i.service
+Requires=vibetop-session@%i.service
 
 [Service]
 Type=simple
@@ -11,12 +11,12 @@ Group=@APP_USER@
 Environment=BASE_PORT=@BASE_PORT@
 # Wait (best-effort, up to ~5s) for the session daemon's socket before ttyd
 # serves. After=/Requires= only order process *start*, not socket readiness — so
-# on a cold start ttyd could accept a WebSocket and spawn `claude-session attach`
+# on a cold start ttyd could accept a WebSocket and spawn `vibetop-session attach`
 # before the daemon bound its socket, failing the first connection (the "flashes
 # connected / reconnect loop" on a brand-new terminal). ttyd serves HTTP only
 # after this, so the client's readiness poll (/tN/ returns 200) then also implies
 # the backend is ready. ($$ escapes $ for systemd; %i is the instance number.)
-ExecStartPre=/bin/sh -c 'for n in $$(seq 50); do [ -S /tmp/claude-session-%i.sock ] && exit 0; sleep 0.1; done; exit 0'
+ExecStartPre=/bin/sh -c 'for n in $$(seq 50); do [ -S /tmp/vibetop-session-%i.sock ] && exit 0; sleep 0.1; done; exit 0'
 ExecStart=@APP_DIR@/ttyd-run.sh %i
 Restart=on-failure
 NoNewPrivileges=yes

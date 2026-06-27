@@ -31,7 +31,7 @@ and why it lost).
   `org.freedesktop.portal.Desktop` activation timed at exactly 25.0s while
   gvfs/dconf/a11y returned in 0.0s.
 - **Fix:** Run launcher apps against a **private D-Bus session with no service
-  activation** (`claude-apps-dbus`, a `dbus-daemon` with no `<servicedir>`,
+  activation** (`vibetop-apps-dbus`, a `dbus-daemon` with no `<servicedir>`,
   socket `/run/user/<uid>/vibetop-apps-bus`). On it, those service calls fail
   fast (ServiceUnknown) instead of hanging → eog starts in ~0.2s. The bus is
   chosen **per app**: snap apps (Firefox/Chromium, detected via `/snap/bin/<prog>`)
@@ -55,7 +55,7 @@ and why it lost).
   process can't read the X authority cookie, so the X server rejects it. Native
   same-user clients connect fine.
 - **Fix:** `xhost +local:` at Apps-display startup (a `--start` in
-  `claude-apps-xpra.service`) disables X access control for local clients. Safe:
+  `vibetop-apps-xpra.service`) disables X access control for local clients. Safe:
   the display is loopback-only and the host is single-user behind Access.
   `x11-xserver-utils` (provides `xhost`) is an apt dep.
 
@@ -67,7 +67,7 @@ and why it lost).
   launched app share a single display, so two canvas iframes of the same display
   fight over size (a hidden iframe measures 0×0 and shrinks the display) — the
   same reason multi-device window mirroring was dropped.
-- **Fix:** A **second xpra display** (`:98`, `claude-apps-xpra`, matchbox, no
+- **Fix:** A **second xpra display** (`:98`, `vibetop-apps-xpra`, matchbox, no
   Chromium) dedicated to launched apps, proxied at `/apps-display/`. The Browser
   keeps `:99`. The X11 Launcher (`apps.html`) embeds the `:98` canvas with a tab
   bar; the two displays never conflict.
@@ -78,7 +78,7 @@ and why it lost).
 
 - **Symptom:** Running `gnuplot` (or any GUI app) in a Terminal had nowhere to
   render.
-- **Fix:** `claude-web-session@.service` exports `DISPLAY=:98` +
+- **Fix:** `vibetop-session@.service` exports `DISPLAY=:98` +
   `DBUS_SESSION_BUS_ADDRESS` + `XDG_RUNTIME_DIR`, so terminal-started GUI apps
   render on the Apps desktop and show up as tabs. The desktop also polls
   `/api/x/windows` and auto-opens the X11 Launcher when a new window appears.
@@ -101,7 +101,7 @@ and why it lost).
 ## `@BASE_PORT@` left unsubstituted in the ttyd unit (latent install bug)
 
 - **Symptom:** A *fresh* install would render `Environment=BASE_PORT=@BASE_PORT@`
-  in `claude-web-ttyd@.service`; `ttyd-run.sh`'s `$(( @BASE_PORT@ + N ))` is a
+  in `vibetop-ttyd@.service`; `ttyd-run.sh`'s `$(( @BASE_PORT@ + N ))` is a
   syntax error → ttyd never binds → terminals fail.
 - **Cause:** The unit-render loop in `terminal/install.sh` only substituted
   `@APP_USER@`/`@APP_DIR@`, not `@BASE_PORT@`. Masked on existing hosts because
@@ -288,7 +288,7 @@ and why it lost).
   **current** dims `{columns:c, rows:r}` — exactly the size this client's ttyd PTY
   was **already** at. ttyd dutifully calls `TIOCSWINSZ(c,r)`, but the **kernel
   raises SIGWINCH only when the winsize actually changes**, so no SIGWINCH fired —
-  and SIGWINCH is the whole propagation chain: `claude-session attach`'s SIGWINCH
+  and SIGWINCH is the whole propagation chain: `vibetop-session attach`'s SIGWINCH
   handler (`send_resize`, line ~439) writes the size + SIGUSR1s the serve daemon,
   which `TIOCSWINSZ`es the *shared* bash PTY and SIGWINCHes the shell. No SIGWINCH
   ⇒ nothing propagates ⇒ silent no-op. The old visible nudge worked precisely
@@ -303,7 +303,7 @@ and why it lost).
   COLUMN, not the row** (`{c-1,r}` then `{c,r}`): a row nudge makes a bottom-anchored
   TUI (prompt/input box) bounce up a row and back — very visible; a column nudge
   keeps every row in place, so the blip is one column of width for one frame. (2)
-  **Debounce the resize in the `claude-session` serve daemon** (`RESIZE_DEBOUNCE`
+  **Debounce the resize in the `vibetop-session` serve daemon** (`RESIZE_DEBOUNCE`
   ~35ms): SIGUSR1 no longer applies the resize inline — it arms a deadline and the
   main loop applies the *latest* saved size once the burst settles, collapsing the
   nudge's two rapid resizes into a single `TIOCSWINSZ` + SIGWINCH. So the shell
@@ -319,3 +319,109 @@ and why it lost).
   input-escape to re-assert size without a nudge (could collide with real
   input/paste). The column nudge + daemon debounce together cover both the
   re-claim correctness and the residual shake with minimal surface area.
+
+## "Random characters" appear at the prompt (`2RR0;276;0c10;rgb:…$y`)
+
+- **Symptom:** An idle terminal periodically shows bursts of garbage the user
+  never typed, e.g. `…$ 2RR0;276;0c10;rgb:d2d2/d2d2/d2d211;rgb:2b2b/2b2b/2b2b12;2$y`
+  repeated several times after the prompt. Harmless (Enter clears it) but noisy.
+- **Cause:** These are terminal **query *responses***, not random bytes — decode
+  to a Cursor-Position Report, Secondary Device Attributes (`…;276;…c`), OSC 10/11
+  foreground/background color replies, and a DECRPM mode report. Some program
+  (a prompt hook, a bg-color-sniffing tool, a TUI — often re-firing on `SIGWINCH`,
+  which vibetop generates a lot via the resize/reshape machinery) writes a
+  capability **probe** to the PTY. That probe is PTY *output*, so it lands in
+  `vibetop-session`'s ring buffer. Two shared-session mechanisms then turn one
+  probe into repeated garbage: (1) **broadcast** — the live PTY stream fans out to
+  *every* attached xterm.js client, so each connected browser/tab/device answers
+  the same probe, and all answers are written back into the *one* shared PTY and
+  echoed at the prompt; (2) **replay** — `vibetop-session` replays its ring buffer
+  to each freshly (re)connected client to restore the screen, and vibetop
+  reconnects often (mobile suspend/resume, the reconnect guard). A probe sitting in
+  the ring gets **re-sent to every reconnecting xterm, which re-answers it** — so
+  one stale probe produces a fresh burst on every reconnect. (1) adds one copy per
+  extra live client; (2) is what makes it *recurring*.
+- **Fix:** Strip terminal query-**request** sequences (DA `…c`, DSR/CPR `…n`,
+  DECRQM `…$p`, OSC color/palette `…;?…`) from the ring-buffer **replay only**
+  (`strip_terminal_queries` in `vibetop-session`, applied where a new client is
+  sent `ring.read_all()`). The **live** broadcast path is untouched — a real probe
+  still reaches clients and is answered once, which is correct; only *replayed*
+  (stale) probes are dropped, so a reconnect never re-answers. Color/cursor *set*
+  sequences (real screen state, e.g. `OSC 11;rgb:…` with no `?`, and a window
+  title that merely *contains* a `?`) are deliberately preserved. Pure function,
+  unit-tested in `terminal/tests/test_claude_session.py` (strip-vs-preserve table).
+- **Rejected:** stripping queries from what's *stored* in the ring (a probe split
+  across two `os.read()` chunks could be written non-contiguously — strip at replay
+  time instead, where `read_all()` is one contiguous snapshot); de-duplicating the
+  near-simultaneous responses from multiple **live** clients in the serve daemon
+  (timing-fragile, and the per-extra-client duplication is minor and non-recurring
+  — usually 1–2 clients); fixing it shell-side (can't, the emitter is arbitrary
+  user software). Daemon change ⇒ only **new** sessions get it (serve daemons are
+  never restarted — that would kill live shells); existing terminals stop on the
+  next fresh session.
+
+## macOS "error beep" when copying in a terminal (Cmd+C)
+
+- **Symptom:** On macOS, pressing Cmd+C in a terminal plays the system error
+  sound (NSBeep) — even when the copy itself works.
+- **Cause:** Two things compounded. (1) xterm.js's selection is **not** a DOM
+  selection (it paints to a canvas), so when the native Cmd+C key-equivalent
+  reaches the browser it finds nothing selected to copy and macOS beeps. (2) The
+  copy handler (the `attachCustomKeyEventHandler` injected via the `/tN/`
+  `sub_filter`) returned `false` to "consume" Cmd+C — but **returning `false`
+  from an xterm custom key handler does NOT call `preventDefault()`**: xterm's
+  `_keyDown` returns early *before* its internal `_cancel()` (which is what
+  preventDefaults). So the native Cmd+C still fired → beep. The no-selection case
+  was worse: the handler fell through to `return true`, never even trying to
+  consume it.
+- **Fix:** Call `e.preventDefault()` **explicitly** on the copy chord (don't rely
+  on `return false`). The handler now: with a selection → `copySelection()` +
+  `preventDefault()` + `return false` (no native copy to clobber it or beep);
+  Cmd+C with no selection on macOS → `preventDefault()` + `return false` (swallow
+  it — Cmd never means SIGINT). The **non-Mac `Ctrl+C` with no selection still
+  returns `true`** so it passes through as SIGINT (the interrupt must survive).
+- **Rejected:** relying on `return false` alone (the original bug — doesn't
+  preventDefault); mirroring the xterm selection into a hidden DOM selection so
+  the native copy has something to grab (more moving parts than just
+  preventDefaulting and doing our own `execCommand('copy')`). Lives in the
+  `sub_filter` (inline, no-store on `/tN/`), so it ships on the next
+  `terminal/install.sh` / in-app Update + nginx reload — no cache-bust needed.
+
+## Closing a tab killed detached processes (ssh ControlPersist, tmux, nohup)
+
+- **Symptom:** With `ControlMaster auto` / `ControlPersist`, an ssh connection
+  re-authenticated every time — closing the terminal you'd `ssh`'d from dropped
+  the persistent master, so the next connection re-prompted. Same for `tmux`,
+  `nohup`, and disowned jobs: things that survive closing a *normal* terminal got
+  killed when a vibetop tab closed.
+- **Cause:** A vibetop terminal is a systemd unit (`vibetop-session@N`). Closing
+  a tab does `systemctl stop`, and the default **`KillMode=control-group`** SIGKILLs
+  *every* process in the unit's cgroup. A normal terminal close only sends SIGHUP
+  to the foreground session — daemonized processes (ssh's `ControlPersist` master
+  `setsid`s itself, as do tmux servers and `nohup`/disowned jobs) escape that and
+  live on. vibetop's cgroup-kill was strictly more aggressive, so it killed the
+  very processes the user detached *on purpose*.
+- **Fix:** Set **`KillMode=process`** on `vibetop-session@.service`, so a tab-close
+  `stop` signals only the serve daemon (the unit's main process). When it exits it
+  closes the PTY master; the kernel hangs up the foreground shell (SIGHUP), bash
+  forwards SIGHUP to its jobs and exits, and `setsid`'d daemons survive — exactly
+  like closing a real terminal. The serve daemon's SIGTERM handler also now sends
+  the shell **SIGHUP** (not SIGTERM, which interactive bash ignores) for an
+  immediate, explicit hangup. **Logout/reset still wipes everything:** `_handle_reset`
+  now `systemctl kill --kill-whom=all --signal=SIGKILL`s the cgroups *before*
+  stopping (that hits every process regardless of `KillMode`), so "clean slate on
+  logout" is preserved — only single-tab-close is gentle.
+- **Tradeoff (accepted):** closing a tab no longer guarantees zero leftover
+  processes — a stuck/SIGHUP-trapping background process now lingers until logout
+  or reboot, the same way it would on any real terminal. This is the cost of
+  matching normal-terminal semantics; logout/reboot remain the hard reset.
+- **Rejected:** a `~/.bashrc` `ssh` wrapper that runs the master in a transient
+  `systemd-run --user` scope (works, but pushes the fix onto every user and only
+  covers interactive ssh — should be solved once, server-side); `KillMode=mixed`
+  (still SIGKILLs the whole cgroup at the end — no better than control-group for
+  this); leaving it and documenting the wrapper (the platform should behave like a
+  terminal, not require per-user setup). **Deploy:** unit change ⇒ needs a full
+  `terminal/install.sh` (systemd) + `daemon-reload`, *not* the in-app Updater (it
+  skips units); after daemon-reload even existing terminals stop gently. The
+  serve-daemon SIGHUP tweak only affects *new* sessions (daemons aren't restarted),
+  but `KillMode=process` alone already does the job via the kernel PTY hangup.

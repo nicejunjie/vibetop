@@ -39,7 +39,7 @@
   })();
 
   // Re-claim the shared PTY's shape for THIS device (double-click on desktop,
-  // double-tap on touch). Terminal N is ONE shared claude-session PTY, so its
+  // double-tap on touch). Terminal N is ONE shared vibetop-session PTY, so its
   // rows×cols are owned by whichever device resized last — the other device then
   // sees mis-shaped (too-narrow / too-wide) output until it re-claims.
   function claimSize() {
@@ -51,7 +51,7 @@
     //
     // It must NUDGE: ttyd applies each frame via TIOCSWINSZ, yet the kernel raises
     // SIGWINCH (the signal that actually propagates the size down to the shared
-    // claude-session PTY) ONLY when the size CHANGES. This client's ttyd PTY is
+    // vibetop-session PTY) ONLY when the size CHANGES. This client's ttyd PTY is
     // already c×r, so re-sending c×r is a silent no-op and re-claims nothing — so
     // send a DIFFERENT size and back, then two SIGWINCHes carry this device's
     // shape to the shared PTY.

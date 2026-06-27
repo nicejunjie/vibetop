@@ -1,4 +1,4 @@
-# claude-terminal (project: claude-web on myhost)
+# vibetop-terminal (project: vibetop on myhost)
 
 Up to 50 browser-accessible persistent terminals at `http://192.168.1.10/tN/`,
 behind nginx. Close the tab, reopen from any LAN browser (or a different
@@ -13,8 +13,8 @@ Project dir: `~/vibe-coding/service-in-browser/terminal/`
 - Up to 50 independent `ttyd` instances on loopback ports `127.0.0.1:7681..7730`
   (base `BASE_PORT`+N, default 7680), each serving an xterm.js terminal under a
   base path (`/t1/`..`/t50/`), provisioned on demand (not pre-started).
-- Each ttyd runs `claude-session attach N`, which connects to a
-  per-instance `claude-session` daemon over a Unix socket. The daemon
+- Each ttyd runs `vibetop-session attach N`, which connects to a
+  per-instance `vibetop-session` daemon over a Unix socket. The daemon
   holds bash in a PTY and:
   - the shell process persists across disconnects;
   - output is recorded in a 256KB ring buffer and replayed on reconnect,
@@ -49,23 +49,23 @@ Project dir: `~/vibe-coding/service-in-browser/terminal/`
 - No auth. LAN-only. Exposed publicly via Cloudflare Tunnel at
   `https://service.example.com/` with Access auth.
 
-## Architecture: claude-session + ttyd + nginx
+## Architecture: vibetop-session + ttyd + nginx
 
 Two systemd template units, instantiated for each terminal:
 
-1. **`claude-web-session@N.service`** (`Type=simple`) — runs
-   `claude-session serve N` as user `myuser`. The daemon spawns
-   `/bin/bash -l` in a PTY, listens on `/tmp/claude-session-N.sock`,
+1. **`vibetop-session@N.service`** (`Type=simple`) — runs
+   `vibetop-session serve N` as user `myuser`. The daemon spawns
+   `/bin/bash -l` in a PTY, listens on `/tmp/vibetop-session-N.sock`,
    and records output in a 256KB ring buffer. On connect, it sends
    `\033[0m` (SGR reset) + ring buffer contents for screen repaint.
    When bash exits (e.g. user types `exit`), the daemon clears the
    ring buffer and spawns a new bash. `Restart=always` handles daemon
    crashes. `WorkingDirectory=~` makes new shells start in `$HOME`.
    Sets `TERM=xterm-256color`, `LANG=en_US.UTF-8`, `TERM_ID=N`.
-2. **`claude-web-ttyd@N.service`** — runs `ttyd-run.sh N`, which execs
+2. **`vibetop-ttyd@N.service`** — runs `ttyd-run.sh N`, which execs
    `ttyd -W -i 127.0.0.1 -p $((7680+N)) -b /tN/ -t reconnect=3
    -t "titleFixed=Terminal N" -t scrollback=50000
-   claude-session attach N`. Each browser tab spawns its own attach
+   vibetop-session attach N`. Each browser tab spawns its own attach
    process; the daemon multiplexes them. `-t reconnect=3` makes the
    browser auto-reconnect 3 s after an *abnormal* WS drop. A *clean*
    close (code 1000 — what iOS sends when it suspends a backgrounded
@@ -76,8 +76,8 @@ Two systemd template units, instantiated for each terminal:
    on its matching session unit.
 
 Window resize: the attach process writes `rows cols` to
-`/tmp/claude-session-N.size` and sends `SIGUSR1` to the daemon PID
-(from `/tmp/claude-session-N.pid`). The daemon applies `TIOCSWINSZ`
+`/tmp/vibetop-session-N.size` and sends `SIGUSR1` to the daemon PID
+(from `/tmp/vibetop-session-N.pid`). The daemon applies `TIOCSWINSZ`
 to the shell's PTY.
 
 Re-claim shape across devices: because the PTY is **shared**, its
@@ -107,32 +107,32 @@ the input-killer it was.
 
 ## Files
 
-- `~/vibe-coding/service-in-browser/terminal/claude-session` — Python session daemon/attach tool.
+- `~/vibe-coding/service-in-browser/terminal/vibetop-session` — Python session daemon/attach tool.
 - `~/vibe-coding/service-in-browser/terminal/ttyd-run.sh` — ttyd launcher; takes instance
   number, computes port and attach command.
 - `~/vibe-coding/service-in-browser/terminal/terminals.html` — tabbed UI page.
-- `/etc/systemd/system/claude-web-session@.service` — session daemon template.
-- `/etc/systemd/system/claude-web-ttyd@.service` — ttyd template.
-- `/etc/nginx/sites-available/claude-web` — per-instance `location /tN/`
+- `/etc/systemd/system/vibetop-session@.service` — session daemon template.
+- `/etc/systemd/system/vibetop-ttyd@.service` — ttyd template.
+- `/etc/nginx/sites-available/vibetop` — per-instance `location /tN/`
   proxy blocks with `sub_filter` for scrollback and clipboard, plus
-  `include /etc/nginx/snippets/claude-extras.d/*.conf` so sibling
-  projects (claude-browser) can drop in their own location blocks.
-- `/etc/nginx/conf.d/claude-web-upgrade.conf` — `$connection_upgrade`
+  `include /etc/nginx/snippets/vibetop-extras.d/*.conf` so sibling
+  projects (vibetop-browser) can drop in their own location blocks.
+- `/etc/nginx/conf.d/vibetop-upgrade.conf` — `$connection_upgrade`
   map (only present if not already defined elsewhere on the host).
 
 ## Operations
 
 ```bash
-sudo systemctl status 'claude-web-*@*'
-sudo systemctl restart claude-web-ttyd@2          # reconnect t2; session daemon untouched
-sudo systemctl restart claude-web-session@2       # kills daemon + shell, restarts fresh
-journalctl -u claude-web-ttyd@2 -f
-journalctl -u claude-web-session@2 -f
+sudo systemctl status 'vibetop-*@*'
+sudo systemctl restart vibetop-ttyd@2          # reconnect t2; session daemon untouched
+sudo systemctl restart vibetop-session@2       # kills daemon + shell, restarts fresh
+journalctl -u vibetop-ttyd@2 -f
+journalctl -u vibetop-session@2 -f
 ```
 
 Terminal units are **provisioned on demand** by the manager API (the systemd
-template units are not pre-enabled); only `claude-web-manager.service` starts at
-boot. Starting terminal N brings up `claude-web-session@N` + `claude-web-ttyd@N`.
+template units are not pre-enabled); only `vibetop-manager.service` starts at
+boot. Starting terminal N brings up `vibetop-session@N` + `vibetop-ttyd@N`.
 
 ## Resetting a terminal
 
@@ -147,7 +147,7 @@ Terminals are created dynamically on demand via the manager API — click
 are pre-configured in the nginx `map`. To increase beyond 50, bump
 `MAX_INSTANCES` and re-run `install.sh`.
 
-## Why claude-session (after tmux)
+## Why vibetop-session (after tmux)
 
 The original architecture used tmux for session persistence. tmux
 manages its own screen by repainting with cursor positioning (escape
@@ -155,7 +155,7 @@ sequences like `\e[H`, `\e[K`) instead of letting output scroll
 naturally. This prevents xterm.js scrollback from working — users
 got only ~80 lines of mouse-wheel scroll.
 
-`claude-session` is a lightweight Python daemon (~250 lines) that
+`vibetop-session` is a lightweight Python daemon (~250 lines) that
 holds bash in a PTY and passes output through transparently. No
 escape sequence processing, no screen management. xterm.js sees
 raw output and accumulates it in its scrollback buffer. On reconnect,

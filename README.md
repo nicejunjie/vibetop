@@ -13,7 +13,7 @@ fully self-installing, Docker and all (AMD or NVIDIA).
 
 ## Features
 
-- **Terminal** — persistent bash sessions over ttyd; tabs survive disconnects via a custom `claude-session` daemon (256 KB ring buffer + 50k-line xterm.js scrollback). On touch, tapping the terminal raises the keyboard via an in-page overlay that makes **iOS dictation work** (no character pile-up); on Windows, Ctrl+V pastes cleanly
+- **Terminal** — persistent bash sessions over ttyd; tabs survive disconnects via a custom `vibetop-session` daemon (256 KB ring buffer + 50k-line xterm.js scrollback). On touch, tapping the terminal raises the keyboard via an in-page overlay that makes **iOS dictation work** (no character pile-up); on Windows, Ctrl+V pastes cleanly
 - **Browser** — a real, persistent Chromium driven by xpra's HTML5 client; mobile gets tap-click, drag-scroll, two-finger pinch zoom, and a toggleable on-screen keyboard
 - **Files** — FileBrowser rooted at `~`, every toolbar action visible inline (wraps to multiple rows on mobile). Open a Word/Excel/PPT file (double-click on desktop, tap on touch) to **View** it — the server renders a read-only PDF via headless LibreOffice in an in-app viewer with **Download** (the original file, not the PDF) and **Edit** buttons
 - **Office** — full in-browser Word/Excel/PowerPoint editing via a self-hosted **OnlyOffice Document Server** (Docker), with autosave back to the file. Native browser rendering — fast, MS-compatible, no remote-desktop streaming. Open it empty to **create a new** Document / Spreadsheet / Presentation
@@ -27,7 +27,7 @@ fully self-installing, Docker and all (AMD or NVIDIA).
 
 | Sub-project | URL path | What |
 |---|---|---|
-| `terminal` | `/t1/`..`/t50/`, `/terminals/`, `/api/` | Dynamic persistent bash terminals (ttyd + claude-session) + manager API |
+| `terminal` | `/t1/`..`/t50/`, `/terminals/`, `/api/` | Dynamic persistent bash terminals (ttyd + vibetop-session) + manager API |
 | `browser`  | `/browser/` | Persistent Chromium viewable via xpra HTML5 client |
 | `landing`  | `/` | Unified desktop UI with tab bar, iframe viewport, and status bar |
 | `files`    | `/files/` | FileBrowser file manager rooted at `~` |

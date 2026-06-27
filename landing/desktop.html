@@ -359,7 +359,7 @@
     <div id="sm-apps"></div>
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
-    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span></span></div>
+    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span><span id="build-date"></span></span></div>
   </div>
 
   <div class="taskbar" id="taskbar">
@@ -1060,6 +1060,8 @@
   fetch('/api/update').then(function(r) { return r.json(); }).then(function(d) {
     var el = document.getElementById('build-ver');
     if (el && d && d.version) el.textContent = d.version;
+    var de = document.getElementById('build-date');
+    if (de && d && d.version_date) de.textContent = ' (' + d.version_date + ')';
   }).catch(function() {});
 
   // --- restore THIS instance's own windows; seed the running dots ----------

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+#
+# vibetop pre-commit — run the fast unit suites before a commit lands (~3s).
+#
+# Versioned in-repo (not .git/hooks) so it's shared. Enable it once per clone:
+#   git config core.hooksPath .githooks
+#
+# Bypass for a single commit with `git commit --no-verify`, or set SKIP_TESTS=1.
+# Each runner is skipped (with a warning) if its tool isn't installed, so the
+# hook never blocks a commit just because node or pytest is missing locally.
+set -uo pipefail
+
+root="$(git rev-parse --show-toplevel)" || exit 0
+cd "$root" || exit 0
+
+if [ "${SKIP_TESTS:-0}" = "1" ]; then
+    echo "pre-commit: SKIP_TESTS=1 — skipping tests."
+    exit 0
+fi
+
+fail=0
+
+# Python: terminal-manager security/pure logic + desktop state + metrics smoke.
+if command -v python >/dev/null 2>&1 && python -m pytest --version >/dev/null 2>&1; then
+    echo "pre-commit: pytest…"
+    ( cd terminal && python -m pytest tests/ -q ) || fail=1
+else
+    echo "pre-commit: pytest unavailable — skipping Python tests." >&2
+fi
+
+# JavaScript: tab-set reconciliation + service-worker routing (node built-in).
+if command -v node >/dev/null 2>&1; then
+    echo "pre-commit: node --test…"
+    node --test terminal/lib/*.test.js landing/*.test.js || fail=1
+else
+    echo "pre-commit: node unavailable — skipping JS tests." >&2
+fi
+
+if [ "$fail" != "0" ]; then
+    echo "pre-commit: tests FAILED — commit aborted (override with --no-verify)." >&2
+    exit 1
+fi
+echo "pre-commit: all tests passed."

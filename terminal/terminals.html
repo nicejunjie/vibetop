@@ -73,8 +73,31 @@
 <body>
   <div class="tabs" id="tabs"><div class="tab-add" id="add-btn">+</div></div>
   <div class="frames" id="frames"></div>
+<!-- Pure tab-set reconciliation (unit-tested in terminal/lib/tab-sync.test.js).
+     Content-hash ?v= is sed'd in by terminal/install.sh, like terminal-kbd.js. -->
+<script src="/tab-sync.js?v=@SYNC_VER@"></script>
 <script>
 (function() {
+  // tab-sync.js (the <script src> above) provides the pure reconcile/nextAvailable
+  // logic. It loads on the same page fetch as this HTML — and terminals.html is
+  // network-only (sw BYPASS), so if the network is up enough to deliver this page
+  // it delivers the module too. This fallback is pure defense-in-depth: should the
+  // module ever be missing/blocked, the terminal degrades to "just mirror the
+  // running set" instead of a white screen (the tested logic stays the source of
+  // truth — this is a deliberately dumb safety net, not a second implementation).
+  var TabSync = window.TabSync || {
+    reconcile: function (running, pending, closing) {
+      return { desired: (running || []).slice().sort(function (a, b) { return a - b; }),
+               pending: pending || {}, closing: closing || {} };
+    },
+    nextAvailable: function (used, running, max) {
+      var u = {};
+      (used || []).concat(running || []).forEach(function (n) { u[n] = true; });
+      for (var i = 1; i <= max; i++) { if (!u[i]) return i; }
+      return 0;
+    }
+  };
+
   var MAX = 50;
   var NAMES_KEY = 'terminal-tab-names';
   var tabs = document.getElementById('tabs');
@@ -235,17 +258,14 @@
   // active stay device-local; only set membership syncs).
   function reconcileTabs(running) {
     lastRunning = running;
-    var runSet = {};
-    running.forEach(function(n) { runSet[n] = true; delete pending[n]; });   // confirmed up
-    Object.keys(closing).forEach(function(n) { if (!runSet[n]) delete closing[n]; });  // confirmed gone
+    // Pure decision (TabSync.reconcile): desired set + drained pending/closing.
+    var r = TabSync.reconcile(running, pending, closing);
+    pending = r.pending; closing = r.closing;
+    var desired = {};
+    r.desired.forEach(function(n) { desired[n] = true; });
 
-    var desired = {};                                  // (running ∪ pending) − closing
-    running.forEach(function(n) { desired[n] = true; });
-    Object.keys(pending).forEach(function(n) { desired[+n] = true; });
-    Object.keys(closing).forEach(function(n) { delete desired[+n]; });
-
-    Object.keys(desired).forEach(function(n) {         // opened elsewhere → add here
-      if (!tabs.querySelector('.tab[data-n="' + n + '"]')) addTab(+n);
+    r.desired.forEach(function(n) {                    // opened elsewhere → add here
+      if (!tabs.querySelector('.tab[data-n="' + n + '"]')) addTab(n);
     });
     tabs.querySelectorAll('.tab').forEach(function(t) {  // closed elsewhere → drop here
       var n = +t.dataset.n;
@@ -300,13 +320,9 @@
   }
 
   function nextAvailable(running) {
-    var used = {};
-    tabs.querySelectorAll('.tab').forEach(function(t) { used[+t.dataset.n] = true; });
-    if (running) running.forEach(function(n) { used[n] = true; });
-    for (var i = 1; i <= MAX; i++) {
-      if (!used[i]) return i;
-    }
-    return 0;
+    var used = [];
+    tabs.querySelectorAll('.tab').forEach(function(t) { used.push(+t.dataset.n); });
+    return TabSync.nextAvailable(used, running, MAX);
   }
 
   // Activate on pointerdown for MOUSE: when the terminal iframe has focus (you

@@ -38,3 +38,18 @@ def mgr():
 def status():
     import system_status
     return system_status
+
+
+@pytest.fixture(scope="session")
+def csession():
+    """The `vibetop-session` daemon module. It has no `.py` extension, so an
+    explicit SourceFileLoader is needed (spec_from_file_location can't infer one).
+    Its `if __name__ == '__main__'` guard means import only defines functions/
+    classes — no daemon/socket side effects."""
+    import importlib.machinery
+    path = os.path.join(_TERMINAL_DIR, "vibetop-session")
+    loader = importlib.machinery.SourceFileLoader("claude_session", path)
+    spec = importlib.util.spec_from_loader("claude_session", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module

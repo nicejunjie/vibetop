@@ -1,5 +1,5 @@
 [Unit]
-Description=claude-apps xpra session (display :@APPS_DISPLAY_NUM@, HTML5 on 127.0.0.1:@APPS_XPRA_PORT@)
+Description=vibetop-apps xpra session (display :@APPS_DISPLAY_NUM@, HTML5 on 127.0.0.1:@APPS_XPRA_PORT@)
 After=network.target
 
 [Service]
@@ -9,7 +9,7 @@ Group=@APP_USER@
 WorkingDirectory=~
 Environment=HOME=@APP_HOME@
 Environment=XDG_RUNTIME_DIR=/run/user/@APP_UID@
-# Evict dead/stale clients after 45s (see claude-browser-xpra for the rationale).
+# Evict dead/stale clients after 45s (see vibetop-browser-xpra for the rationale).
 Environment=XPRA_PING_TIMEOUT=45
 # A bare desktop for launched GUI apps — same as the Browser session but with NO
 # --start child (no Chromium): apps are launched on demand onto this display by

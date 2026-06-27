@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-command deploy for claude-web: persistent ttyd terminals behind nginx.
+# One-command deploy for vibetop: persistent ttyd terminals behind nginx.
 #
 # Usage:
 #   ./install.sh                  # full install with defaults
@@ -11,8 +11,8 @@
 #   APP_DIR          where ttyd-run.sh lives                     (default: script dir)
 #   BASE_PORT        loopback port base; tN -> BASE_PORT+N       (default 7680)
 #   APPS_DISPLAY     xpra X display exported into terminal shells (default :98)
-#   NGINX_SITE_NAME  filename under sites-available              (default claude-web)
-#   LANDING_DIR      where the landing index.html goes           (default ~APP_USER/claude-web-www)
+#   NGINX_SITE_NAME  filename under sites-available              (default vibetop)
+#   LANDING_DIR      where the landing index.html goes           (default ~APP_USER/vibetop-www)
 #   INSTALL_DEPS     install ttyd/nginx via apt                  (default 1)
 #   INSTALL_SYSTEMD  render & enable systemd units               (default 1)
 #   INSTALL_NGINX    write & enable nginx site                   (default 1)
@@ -26,13 +26,13 @@ MAX_INSTANCES="${MAX_INSTANCES:-50}"
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 BASE_PORT="${BASE_PORT:-7680}"
-NGINX_SITE_NAME="${NGINX_SITE_NAME:-claude-web}"
+NGINX_SITE_NAME="${NGINX_SITE_NAME:-vibetop}"
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 APP_UID="$(id -u "$APP_USER" 2>/dev/null || true)"
 # xpra X display the session shells export (so X11 apps started from a terminal
 # render on the Apps desktop). Matches browser/install.sh's APPS_DISPLAY_NUM (:98).
 APPS_DISPLAY="${APPS_DISPLAY:-:98}"
-LANDING_DIR="${LANDING_DIR:-$APP_HOME/claude-web-www}"
+LANDING_DIR="${LANDING_DIR:-$APP_HOME/vibetop-www}"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
@@ -92,7 +92,7 @@ nginx_write() {
 }
 
 cat <<EOF
-claude-web install
+vibetop install
   max instances : $MAX_INSTANCES       (ports $((BASE_PORT+1))..$((BASE_PORT+MAX_INSTANCES)))
   user          : $APP_USER
   app dir       : $APP_DIR
@@ -111,12 +111,12 @@ if (( INSTALL_DEPS )); then
 fi
 
 # 2. ttyd-run.sh executable bit ---------------------------------------------
-run chmod +x "$APP_DIR/ttyd-run.sh" "$APP_DIR/claude-session"
+run chmod +x "$APP_DIR/ttyd-run.sh" "$APP_DIR/vibetop-session"
 
 # 3. systemd unit templates --------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
     echo "== installing systemd unit templates =="
-    for unit in claude-web-session@.service claude-web-ttyd@.service; do
+    for unit in vibetop-session@.service vibetop-ttyd@.service; do
         rendered="$(sed \
             -e "s|@APP_USER@|$APP_USER|g" \
             -e "s|@APP_DIR@|$APP_DIR|g" \
@@ -131,8 +131,8 @@ if (( INSTALL_SYSTEMD )); then
     rendered="$(sed \
         -e "s|@APP_DIR@|$APP_DIR|g" \
         -e "s|@BASE_PORT@|$BASE_PORT|g" \
-        "$APP_DIR/systemd/claude-web-manager.service")"
-    echo "$rendered" | write_root "/etc/systemd/system/claude-web-manager.service"
+        "$APP_DIR/systemd/vibetop-manager.service")"
+    echo "$rendered" | write_root "/etc/systemd/system/vibetop-manager.service"
 
     run sudo systemctl daemon-reload
 fi
@@ -151,8 +151,8 @@ if (( INSTALL_NGINX )); then
     if sudo grep -rqsE 'map[[:space:]]+\$http_upgrade[[:space:]]+\$connection_upgrade' /etc/nginx/; then
         echo "   connection_upgrade map already defined elsewhere — skipping"
     else
-        cat "$APP_DIR/nginx/claude-web-upgrade.conf" \
-            | nginx_write "/etc/nginx/conf.d/claude-web-upgrade.conf" || NGINX_DIRTY=1
+        cat "$APP_DIR/nginx/vibetop-upgrade.conf" \
+            | nginx_write "/etc/nginx/conf.d/vibetop-upgrade.conf" || NGINX_DIRTY=1
     fi
 
     # 4b. Build port map for terminal routing
@@ -241,17 +241,17 @@ server {
         gzip_min_length 1024;
 
         sub_filter 'fontSize:13,' 'fontSize:13,scrollback:$SCROLLBACK,';
-        sub_filter '</head>' '<script>(function(){var isMac=/Mac/.test(navigator.platform);var isTouch=window.matchMedia&&window.matchMedia(\"(pointer: coarse)\").matches;var blockTa=true;if(isTouch){document.addEventListener(\"focusin\",function(e){var t=e.target;if(blockTa&&t&&t.classList&&t.classList.contains(\"xterm-helper-textarea\"))t.blur()},true)}function copySelection(){var t=window.term;if(!t||!t.hasSelection())return;var s=t.getSelection();if(!s)return;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=s;blockTa=false;ta.select();document.execCommand(\"copy\");blockTa=true;ta.value=\"\"}}var check=setInterval(function(){if(!window.term)return;clearInterval(check);var t=window.term;t.onSelectionChange(function(){if(t.hasSelection())copySelection()});t.attachCustomKeyEventHandler(function(e){if(e.type!==\"keydown\")return true;var mod=isMac?e.metaKey:e.ctrlKey;if(!mod||e.shiftKey||e.altKey)return true;if(isMac&&e.ctrlKey)return true;if(e.key===\"c\"&&t.hasSelection()){copySelection();t.clearSelection();return false}if(e.key===\"v\"||e.key===\"V\"){if(!isMac)return false;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}return true}return true})},100);document.addEventListener(\"auxclick\",function(e){if(e.button!==1)return;e.preventDefault();var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}});function sendToBrowser(u){fetch(\"/api/browser/open\",{method:\"POST\",headers:{\"Content-Type\":\"application/json\"},body:JSON.stringify({url:u})});try{window.top.postMessage({type:\"switch-to-browser\"},\"*\")}catch(e){}}var wo=window.open;window.open=function(u){if(u&&(u.startsWith(\"http://\")||u.startsWith(\"https://\"))){sendToBrowser(u);return null}if(!u){return{opener:null,location:Object.defineProperty({},\"href\",{set:function(v){sendToBrowser(v)}})}}return wo.apply(this,arguments)}})();(function(){var RK=\"ttyd-recon-ts\",busy=false,tries=0,firstStuck=0;function fireEnter(){var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){[\"keydown\",\"keyup\"].forEach(function(ty){ta.dispatchEvent(new KeyboardEvent(ty,{key:\"Enter\",code:\"Enter\",keyCode:13,which:13,bubbles:true,cancelable:true}))})}}function stuck(){var b=document.body;if(!b)return false;var d=b.querySelectorAll(\"div\");for(var i=0;i<d.length;i++){var t=d[i].textContent||\"\";if(t.indexOf(\"Press\")!==-1&&t.indexOf(\"Reconnect\")!==-1)return true}return false}function attempt(){if(!stuck()){busy=false;tries=0;firstStuck=0;return}if(!firstStuck)firstStuck=Date.now();fireEnter();tries++;if(Date.now()-firstStuck>20000){var now=Date.now(),last=+(sessionStorage.getItem(RK)||0);if(now-last>30000){sessionStorage.setItem(RK,now);location.reload();return}}var delay=Math.min(8000,700*Math.pow(1.6,Math.min(tries,6)))+Math.random()*1000;setTimeout(attempt,delay)}function handle(){if(busy)return;busy=true;setTimeout(attempt,200)}function check(n){var t=(n&&n.textContent)||\"\";if(t.indexOf(\"Reconnect\")!==-1&&t.indexOf(\"Press\")!==-1)handle()}var obs=new MutationObserver(function(ms){ms.forEach(function(m){if(m.type===\"characterData\")check(m.target.parentNode);(m.addedNodes||[]).forEach(check)})});function startObs(){if(!document.body){setTimeout(startObs,50);return}obs.observe(document.body,{childList:true,subtree:true,characterData:true});if(stuck())handle()}startObs()})();</script><script src=\"/terminal-kbd.js?v=${KBD_VER}\"></script></head>';
+        sub_filter '</head>' '<script>(function(){var isMac=/Mac/.test(navigator.platform);var isTouch=window.matchMedia&&window.matchMedia(\"(pointer: coarse)\").matches;var blockTa=true;if(isTouch){document.addEventListener(\"focusin\",function(e){var t=e.target;if(blockTa&&t&&t.classList&&t.classList.contains(\"xterm-helper-textarea\"))t.blur()},true)}function copySelection(){var t=window.term;if(!t||!t.hasSelection())return;var s=t.getSelection();if(!s)return;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=s;blockTa=false;ta.select();document.execCommand(\"copy\");blockTa=true;ta.value=\"\"}}var check=setInterval(function(){if(!window.term)return;clearInterval(check);var t=window.term;t.onSelectionChange(function(){if(t.hasSelection())copySelection()});t.attachCustomKeyEventHandler(function(e){if(e.type!==\"keydown\")return true;var mod=isMac?e.metaKey:e.ctrlKey;if(!mod||e.shiftKey||e.altKey)return true;if(isMac&&e.ctrlKey)return true;if(e.key===\"c\"){if(t.hasSelection()){copySelection();t.clearSelection();e.preventDefault();return false}if(isMac){e.preventDefault();return false}return true}if(e.key===\"v\"||e.key===\"V\"){if(!isMac)return false;var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}return true}return true})},100);document.addEventListener(\"auxclick\",function(e){if(e.button!==1)return;e.preventDefault();var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){ta.value=\"\";ta.focus()}});function sendToBrowser(u){fetch(\"/api/browser/open\",{method:\"POST\",headers:{\"Content-Type\":\"application/json\"},body:JSON.stringify({url:u})});try{window.top.postMessage({type:\"switch-to-browser\"},\"*\")}catch(e){}}var wo=window.open;window.open=function(u){if(u&&(u.startsWith(\"http://\")||u.startsWith(\"https://\"))){sendToBrowser(u);return null}if(!u){return{opener:null,location:Object.defineProperty({},\"href\",{set:function(v){sendToBrowser(v)}})}}return wo.apply(this,arguments)}})();(function(){var RK=\"ttyd-recon-ts\",busy=false,tries=0,firstStuck=0;function fireEnter(){var ta=document.querySelector(\".xterm-helper-textarea\");if(ta){[\"keydown\",\"keyup\"].forEach(function(ty){ta.dispatchEvent(new KeyboardEvent(ty,{key:\"Enter\",code:\"Enter\",keyCode:13,which:13,bubbles:true,cancelable:true}))})}}function stuck(){var b=document.body;if(!b)return false;var d=b.querySelectorAll(\"div\");for(var i=0;i<d.length;i++){var t=d[i].textContent||\"\";if(t.indexOf(\"Press\")!==-1&&t.indexOf(\"Reconnect\")!==-1)return true}return false}function attempt(){if(!stuck()){busy=false;tries=0;firstStuck=0;return}if(!firstStuck)firstStuck=Date.now();fireEnter();tries++;if(Date.now()-firstStuck>20000){var now=Date.now(),last=+(sessionStorage.getItem(RK)||0);if(now-last>30000){sessionStorage.setItem(RK,now);location.reload();return}}var delay=Math.min(8000,700*Math.pow(1.6,Math.min(tries,6)))+Math.random()*1000;setTimeout(attempt,delay)}function handle(){if(busy)return;busy=true;setTimeout(attempt,200)}function check(n){var t=(n&&n.textContent)||\"\";if(t.indexOf(\"Reconnect\")!==-1&&t.indexOf(\"Press\")!==-1)handle()}var obs=new MutationObserver(function(ms){ms.forEach(function(m){if(m.type===\"characterData\")check(m.target.parentNode);(m.addedNodes||[]).forEach(check)})});function startObs(){if(!document.body){setTimeout(startObs,50);return}obs.observe(document.body,{childList:true,subtree:true,characterData:true});if(stuck())handle()}startObs()})();</script><script src=\"/terminal-kbd.js?v=${KBD_VER}\"></script></head>';
         sub_filter_once off;
     }
     location ~ ^/t(\d+)$ { return 301 \$scheme://\$host/t\$1/; }
 
-    # Sibling projects (e.g. claude-browser) drop /etc/nginx/snippets/claude-extras.d/*.conf
+    # Sibling projects (e.g. vibetop-browser) drop /etc/nginx/snippets/vibetop-extras.d/*.conf
     # to add their own location blocks without modifying this file.
-    include /etc/nginx/snippets/claude-extras.d/*.conf;
+    include /etc/nginx/snippets/vibetop-extras.d/*.conf;
 }
 "
-    run sudo install -d -m 0755 /etc/nginx/snippets/claude-extras.d
+    run sudo install -d -m 0755 /etc/nginx/snippets/vibetop-extras.d
     echo "$site_config" | nginx_write "/etc/nginx/sites-available/$NGINX_SITE_NAME" || NGINX_DIRTY=1
 
     # 4c. Disable any other default_server site that would clash
@@ -286,10 +286,28 @@ server {
         fi
     done
 
-    # Install terminals.html to the landing dir for /terminals/ route
-    if [ -f "$APP_DIR/terminals.html" ]; then
+    # Pure tab-set reconciliation module loaded by terminals.html (<script src>).
+    # Content-hash cache-buster, same convention as terminal-kbd.js — editing the
+    # JS changes its hash → the ?v= changes → nginx + the service worker fetch the
+    # new copy. Unit-tested in terminal/lib/tab-sync.test.js (node --test).
+    if [ -f "$APP_DIR/lib/tab-sync.js" ]; then
         run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
-            "$APP_DIR/terminals.html" "$LANDING_DIR/terminals.html"
+            "$APP_DIR/lib/tab-sync.js" "$LANDING_DIR/tab-sync.js"
+    fi
+    SYNC_VER=$([ -f "$APP_DIR/lib/tab-sync.js" ] && md5sum "$APP_DIR/lib/tab-sync.js" | cut -c1-10 || echo 0)
+
+    # Install terminals.html to the landing dir for /terminals/ route, stamping
+    # the tab-sync.js cache-buster into its <script src="/tab-sync.js?v=@SYNC_VER@">.
+    if [ -f "$APP_DIR/terminals.html" ]; then
+        if (( DRY_RUN )); then
+            echo "+ would render terminals.html (@SYNC_VER@ -> $SYNC_VER) -> $LANDING_DIR/terminals.html"
+        else
+            tmp_th="$(mktemp)"
+            sed "s/@SYNC_VER@/$SYNC_VER/g" "$APP_DIR/terminals.html" > "$tmp_th"
+            sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
+                "$tmp_th" "$LANDING_DIR/terminals.html"
+            rm -f "$tmp_th"
+        fi
     fi
 
     # Mobile keyboard/dictation patch (loaded into /tN/ via the sub_filter
@@ -338,19 +356,19 @@ fi
 # 6. Enable & start services -------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
     echo "== enabling terminal manager =="
-    run sudo systemctl enable --now claude-web-manager.service
+    run sudo systemctl enable --now vibetop-manager.service
 
     # Start terminal 1 if nothing is running
-    if ! systemctl is-active --quiet claude-web-ttyd@1.service 2>/dev/null; then
+    if ! systemctl is-active --quiet vibetop-ttyd@1.service 2>/dev/null; then
         echo "== starting terminal 1 =="
-        run sudo systemctl start claude-web-session@1.service claude-web-ttyd@1.service
+        run sudo systemctl start vibetop-session@1.service vibetop-ttyd@1.service
     fi
 
     # Stop and disable any pre-provisioned instances beyond what's running
     echo "== disabling pre-provisioned instances (now on-demand) =="
     for i in $(seq 1 99); do
-        if systemctl is-enabled --quiet "claude-web-ttyd@$i.service" 2>/dev/null; then
-            run sudo systemctl disable "claude-web-ttyd@$i.service" "claude-web-session@$i.service" 2>/dev/null || true
+        if systemctl is-enabled --quiet "vibetop-ttyd@$i.service" 2>/dev/null; then
+            run sudo systemctl disable "vibetop-ttyd@$i.service" "vibetop-session@$i.service" 2>/dev/null || true
         fi
     done
 fi

@@ -38,7 +38,7 @@ import system_status  # sibling module: /api/system/status data collection
 # Selective + leveled: errors and significant events (terminal/app launches,
 # reset, cross-device close, office save-back, deploys, SSE pushes) at INFO; the
 # noisy per-request access log only at DEBUG (`LOG_LEVEL=DEBUG` on the unit).
-# Emitted to stderr (systemd journal: `journalctl -u claude-web-manager`) AND a
+# Emitted to stderr (systemd journal: `journalctl -u vibetop-manager`) AND a
 # **self-rotating file** so logs stay bounded/cleaned without any external config:
 # /var/log/vibetop/manager.log, ~2 MB × 5 = ~12 MB cap, oldest auto-pruned.
 LOG_FILE = "/var/log/vibetop/manager.log"
@@ -96,15 +96,41 @@ def _cached(key, ttl, producer):
     return value
 
 
+# ---- lightweight self-metrics ------------------------------------------------
+# In-process counters surfaced at GET /api/metrics for self-diagnosis (the next
+# weird sync/load bug should be answerable from data, not theory). Cheap: a dict
+# behind a lock, bumped on the hot path. No external deps, no time series — a
+# snapshot. The SSE /api/events stream is excluded from the latency average (it's
+# long-lived by design and would dwarf everything).
+_METRICS = {
+    "requests_total": 0,           # every request, incl. /api/ping + SSE
+    "request_seconds_total": 0.0,  # summed latency of non-SSE requests
+    "request_counted": 0,          # denominator for the average (non-SSE)
+    "in_flight": 0,                # gauge: requests currently being served
+    "responses": {},               # status code -> count
+    "errors_total": 0,             # responses with code >= 500
+    "sse_clients": 0,              # gauge: open /api/events streams
+    "terminals_started_total": 0,
+    "terminals_stopped_total": 0,
+}
+_metrics_lock = threading.Lock()
+_START_TIME = time.time()
+
+
+def _metric_inc(key, n=1):
+    with _metrics_lock:
+        _METRICS[key] += n
+
+
 def _list_running_terminals():
     out = subprocess.run(
-        ["systemctl", "list-units", "claude-web-ttyd@*",
+        ["systemctl", "list-units", "vibetop-ttyd@*",
          "--no-pager", "--plain", "--no-legend"],
         capture_output=True, text=True,
     )
     running = []
     for line in out.stdout.strip().split("\n"):
-        m = re.search(r"claude-web-ttyd@(\d+)", line)
+        m = re.search(r"vibetop-ttyd@(\d+)", line)
         if m and "running" in line:
             running.append(int(m.group(1)))
     return sorted(running)
@@ -208,11 +234,11 @@ UPLOAD_DIR = os.environ.get(
 # Host-local service definitions (gitignored). Each entry may carry a "key" and a
 # "health" URL; those are added to /api/health so the Home Service page can show
 # live dots without baking personal hostnames into the repo.
-SERVICES_FILE = os.path.expanduser(f"~{APP_USER}/claude-web-www/services.json")
+SERVICES_FILE = os.path.expanduser(f"~{APP_USER}/vibetop-www/services.json")
 # The deployed service-worker file; its VERSION is the shell version. /api/events
 # (SSE) watches it and pushes a 'reload' to every connected client when it changes
 # (a deploy), so clients refresh without polling.
-SW_FILE = os.path.expanduser(f"~{APP_USER}/claude-web-www/sw.js")
+SW_FILE = os.path.expanduser(f"~{APP_USER}/vibetop-www/sw.js")
 _SW_VER_RE = re.compile(r"VERSION\s*=\s*['\"]([^'\"]+)['\"]")
 
 
@@ -1179,8 +1205,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if running:
             units = []
             for n in running:
-                units += [f"claude-web-ttyd@{n}.service",
-                          f"claude-web-session@{n}.service"]
+                units += [f"vibetop-ttyd@{n}.service",
+                          f"vibetop-session@{n}.service"]
+            # Logout/reset = hard clean slate. The session unit is KillMode=process
+            # (so a plain tab-close `stop` spares detached procs — ssh masters,
+            # tmux, nohup), but logout must wipe them: SIGKILL the whole cgroup
+            # first (`kill --kill-whom=all` hits every process regardless of
+            # KillMode), then stop. (Killing the main pid can momentarily trip
+            # Restart=always, but the immediate stop cancels it and the detached
+            # procs are already dead — outcome is a clean slate either way.)
+            subprocess.run(["systemctl", "kill", "--kill-whom=all",
+                            "--signal=SIGKILL"] + units,
+                           check=False, capture_output=True, text=True)
             subprocess.run(["systemctl", "stop", "--no-block"] + units,
                            check=False, capture_output=True, text=True)
             result["terminals_stopped"] = running
@@ -1219,10 +1255,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         #    Chromium is fully dead (and can't re-save its session on exit),
         #    wipe the session-restore files, then start it again —
         #    browser-loop.sh respawns Chromium with nothing to restore.
-        if os.path.exists("/etc/systemd/system/claude-browser-xpra.service"):
+        if os.path.exists("/etc/systemd/system/vibetop-browser-xpra.service"):
             try:
                 subprocess.run(
-                    ["systemctl", "stop", "claude-browser-xpra.service"],
+                    ["systemctl", "stop", "vibetop-browser-xpra.service"],
                     check=False, capture_output=True, text=True, timeout=30)
                 profile = (f"/home/{APP_USER}/snap/chromium/common/"
                            "xpra-profile/Default")
@@ -1236,7 +1272,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                               ignore_errors=True)
                 subprocess.run(
                     ["systemctl", "start", "--no-block",
-                     "claude-browser-xpra.service"],
+                     "vibetop-browser-xpra.service"],
                     check=False, capture_output=True, text=True)
                 result["browser_reset"] = True
             except Exception:
@@ -1244,11 +1280,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # 5. Clear the Apps desktop — restart its xpra session so every launched
         #    GUI app (and any X11 app started from a terminal) is gone too.
-        if os.path.exists("/etc/systemd/system/claude-apps-xpra.service"):
+        if os.path.exists("/etc/systemd/system/vibetop-apps-xpra.service"):
             try:
                 subprocess.run(
                     ["systemctl", "restart", "--no-block",
-                     "claude-apps-xpra.service"],
+                     "vibetop-apps-xpra.service"],
                     check=False, capture_output=True, text=True)
                 result["apps_reset"] = True
             except Exception:
@@ -1326,7 +1362,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         #    run at all (snap confinement / io.snapcraft.SessionAgent); on a bare
         #    bus they exit immediately. They don't block on the portal anyway.
         #  - everything else (GTK/GNOME apps like eog/evince) gets the PRIVATE
-        #    apps bus (claude-apps-dbus, no service activation) so they don't hang
+        #    apps bus (vibetop-apps-dbus, no service activation) so they don't hang
         #    ~25s on xdg-desktop-portal/at-spi activation timeouts — ~0.2s instead.
         prog = _launch_prog(cmd)
         is_snap = prog.startswith("/snap/") or (
@@ -1680,7 +1716,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if n < 1 or n > MAX_INSTANCE:
             self._json(400, {"error": f"instance must be 1-{MAX_INSTANCE}"})
             return
-        units = [f"claude-web-session@{n}.service", f"claude-web-ttyd@{n}.service"]
+        units = [f"vibetop-session@{n}.service", f"vibetop-ttyd@{n}.service"]
         if action == "stop":
             units.reverse()
         try:
@@ -1693,6 +1729,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(500, {"error": e.stderr.strip()})
             return
         log.info("terminal %d %s", n, action)
+        _metric_inc("terminals_started_total" if action == "start"
+                    else "terminals_stopped_total")
         self._json(200, {"ok": True, "action": action, "instance": n})
 
     # ---- Update (git pull + redeploy) -------------------------------------
@@ -1709,6 +1747,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 info["version"] = f.read().strip()
         except OSError:
             pass
+        # Date this version was cut = the last commit that touched the VERSION
+        # file (the `vX.Y.Z:` bump), so the Start menu can show "v1.9.10 (2026-06-26)"
+        # without hard-coding — fetched live like the version number itself.
+        okv, vdate = self._git_as_user(["log", "-1", "--format=%cd",
+                                        "--date=short", "--", "VERSION"])
+        if okv and vdate.strip():
+            info["version_date"] = vdate.strip()
         if ok and "\t" in head:
             commit, date, subject = head.split("\t", 2)
             info.update({"commit": commit, "date": date, "subject": subject})
@@ -1895,7 +1940,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # our own death) only if its code changed — after the response is sent.
         # Any .py directly under terminal/ is a manager module (terminal-manager.py
         # and its siblings like system_status.py); tests/ and the path-independent
-        # claude-session are excluded.
+        # vibetop-session are excluded.
         restart = any(c.startswith("terminal/") and c.endswith(".py")
                       and "/" not in c[len("terminal/"):] for c in changed)
         log.info("update: %s..%s applied (%d file(s) changed, restart=%s)",
@@ -1908,12 +1953,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 subprocess.Popen(
                     ["systemd-run", "--on-active=3",
-                     "systemctl", "restart", "claude-web-manager.service"],
+                     "systemctl", "restart", "vibetop-manager.service"],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
 
     def do_GET(self):
+        if self.path == "/api/ping":
+            # Trivial liveness probe (no side effects): the systemd watchdog and
+            # any external monitor hit this to confirm the HTTP loop is answering.
+            self._json(200, {"ok": True})
+            return
         if self.path == "/api/terminals/status":
             self._json(200, {"running": self._get_running_terminals()})
             return
@@ -2019,9 +2069,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/events":
             return self._handle_events()
+        if self.path == "/api/metrics":
+            return self._handle_metrics()
         self.send_error(404)
 
+    def _handle_metrics(self):
+        # Snapshot the in-process counters (see _METRICS). A plain JSON snapshot —
+        # no time series — meant for `curl …/api/metrics | jq` and a future
+        # external monitor. Cheap enough to poll.
+        with _metrics_lock:
+            counted = _METRICS["request_counted"]
+            avg = (_METRICS["request_seconds_total"] / counted) if counted else 0.0
+            data = {
+                "uptime_seconds": round(time.time() - _START_TIME, 1),
+                "requests_total": _METRICS["requests_total"],
+                "requests_in_flight": _METRICS["in_flight"],
+                "request_avg_seconds": round(avg, 4),
+                "responses": {str(k): v for k, v in _METRICS["responses"].items()},
+                "errors_total": _METRICS["errors_total"],
+                "sse_clients": _METRICS["sse_clients"],
+                "terminals_started_total": _METRICS["terminals_started_total"],
+                "terminals_stopped_total": _METRICS["terminals_stopped_total"],
+            }
+        data["terminals_running"] = len(self._get_running_terminals())
+        self._json(200, data)
+
     def _handle_events(self):
+        # Track the open-stream gauge for /api/metrics around the stream's life.
+        with _metrics_lock:
+            _METRICS["sse_clients"] += 1
+        try:
+            self._events_stream()
+        finally:
+            with _metrics_lock:
+                _METRICS["sse_clients"] -= 1
+
+    def _events_stream(self):
         # Server-Sent Events: push a 'reload' when the deployed shell version
         # (sw.js VERSION) changes, so every connected client refreshes on deploy
         # with no client-side polling. X-Accel-Buffering:no disables nginx response
@@ -2109,6 +2192,88 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # every 5s), so keep it at DEBUG (LOG_LEVEL=DEBUG to turn it on).
         log.debug("%s %s", self.address_string(), fmt % args)
 
+    def handle_one_request(self):
+        # Wrap each request for the /api/metrics counters: total, in-flight gauge,
+        # and summed latency. The long-lived SSE stream is excluded from the
+        # latency sum (it would dwarf real request times) but still counts as a
+        # request and as an sse_clients gauge entry (tracked in _handle_events).
+        start = time.monotonic()
+        with _metrics_lock:
+            _METRICS["requests_total"] += 1
+            _METRICS["in_flight"] += 1
+        try:
+            super().handle_one_request()
+        finally:
+            dt = time.monotonic() - start
+            is_sse = getattr(self, "path", "") == "/api/events"
+            with _metrics_lock:
+                _METRICS["in_flight"] -= 1
+                if not is_sse:
+                    _METRICS["request_seconds_total"] += dt
+                    _METRICS["request_counted"] += 1
+
+    def log_request(self, code="-", size="-"):
+        # Called by send_response/send_error for every reply — the one place that
+        # sees the final status code. Tally it (and 5xx as errors) for /api/metrics,
+        # then fall through to the default (DEBUG access line via log_message).
+        try:
+            c = int(code)
+        except (TypeError, ValueError):
+            c = 0
+        with _metrics_lock:
+            _METRICS["responses"][c] = _METRICS["responses"].get(c, 0) + 1
+            if c >= 500:
+                _METRICS["errors_total"] += 1
+        super().log_request(code, size)
+
+
+def _sd_notify(state):
+    """Best-effort systemd sd_notify, no python-systemd dependency. A no-op when
+    not run under systemd (NOTIFY_SOCKET unset), so local and test runs are
+    unaffected. `state` is e.g. "READY=1" or "WATCHDOG=1"."""
+    addr = os.environ.get("NOTIFY_SOCKET")
+    if not addr:
+        return
+    if addr[0] == "@":                       # abstract namespace socket
+        addr = "\0" + addr[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as s:
+            s.connect(addr)
+            s.sendall(state.encode())
+    except OSError:
+        pass
+
+
+def _watchdog_loop(port):
+    """Pet systemd's watchdog only while the manager is actually answering HTTP.
+
+    systemd sets WATCHDOG_USEC when the unit has WatchdogSec=; we ping at half
+    that period. Crucially the ping is gated on a real loopback GET /api/ping —
+    so a *wedged* manager (accept loop stuck, thread pool exhausted, interpreter
+    deadlocked) stops petting the dog and systemd restarts it, which a plain
+    Restart=on-failure (crash-only) would never catch. A single slow probe is
+    tolerated: the timeout (half-period) < WatchdogSec, so it takes two
+    consecutive misses to trip — no spurious restart under a brief load spike."""
+    import urllib.request
+    usec = os.environ.get("WATCHDOG_USEC")
+    if not usec:
+        return                               # WatchdogSec= not set on the unit
+    try:
+        # Pet at a third of the window so two consecutive missed probes are
+        # tolerated before WatchdogSec trips (no flap under a brief load spike).
+        period = max(1.0, int(usec) / 1e6 / 3.0)
+    except ValueError:
+        return
+    url = f"http://127.0.0.1:{port}/api/ping"
+    while True:
+        time.sleep(period)
+        try:
+            with urllib.request.urlopen(url, timeout=period) as r:
+                if r.status == 200:
+                    _sd_notify("WATCHDOG=1")
+        except Exception:
+            pass                             # missed ping → systemd notices if it persists
+
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else BASE_PORT
@@ -2125,4 +2290,6 @@ if __name__ == "__main__":
     server.daemon_threads = True
     log.info("terminal-manager listening on 127.0.0.1:%d (log level %s)",
              port, logging.getLevelName(log.level))
+    _sd_notify("READY=1")                                 # Type=notify readiness (ignored otherwise)
+    threading.Thread(target=_watchdog_loop, args=(port,), daemon=True).start()
     server.serve_forever()

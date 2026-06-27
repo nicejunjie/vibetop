@@ -1,0 +1,36 @@
+[Unit]
+Description=Persistent session daemon for vibetop t%i
+After=network.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+Group=@APP_USER@
+WorkingDirectory=~
+Environment=TERM=xterm-256color
+Environment=LANG=en_US.UTF-8
+# Point shells at the Apps xpra display so GUI (X11) apps started from a terminal
+# (gnuplot, matplotlib, xeyes, ImageMagick display, …) render on the Apps desktop
+# and show up as tabs in the X11 Apps app. XDG_RUNTIME_DIR keeps Qt/dbus apps
+# (e.g. gnuplot's qt terminal) from warning/misbehaving.
+Environment=DISPLAY=@APPS_DISPLAY@
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/@APP_UID@/bus
+Environment=XDG_RUNTIME_DIR=/run/user/@APP_UID@
+ExecStart=@APP_DIR@/vibetop-session serve %i
+Restart=always
+# Closing a tab `systemctl stop`s this unit. With the default KillMode=control-group
+# systemd SIGKILLs the WHOLE cgroup — including processes the user deliberately
+# detached (ssh ControlPersist masters, tmux, nohup/disowned jobs), which on a
+# normal terminal survive a hangup. KillMode=process makes stop signal only the
+# serve daemon (the main process); when it exits it closes the PTY master, the
+# kernel hangs up the foreground shell (SIGHUP), bash forwards SIGHUP to its jobs,
+# and setsid'd daemons escape — exactly like closing a real terminal. The logout/
+# reset path still wipes everything (it SIGKILLs the cgroup explicitly — see
+# _handle_reset), so "clean slate on logout" is preserved.
+KillMode=process
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target

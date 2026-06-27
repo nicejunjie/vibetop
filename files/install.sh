@@ -26,7 +26,7 @@ FB_PORT="${FB_PORT:-8085}"
 FB_BIN="${FB_BIN:-/usr/local/bin/filebrowser}"
 FB_VERSION="${FB_VERSION:-v2.63.3}"
 FB_DB="$APP_HOME/.config/filebrowser/filebrowser.db"
-NGINX_EXTRAS="/etc/nginx/snippets/claude-extras.d"
+NGINX_EXTRAS="/etc/nginx/snippets/vibetop-extras.d"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
@@ -93,7 +93,7 @@ fi
 
 # 2. Config (run as APP_USER; stop the service first so the bolt db isn't locked)
 echo "== configuring filebrowser db =="
-run sudo systemctl stop claude-web-filebrowser.service 2>/dev/null || true
+run sudo systemctl stop vibetop-filebrowser.service 2>/dev/null || true
 run sudo -u "$APP_USER" mkdir -p "$APP_HOME/.config/filebrowser"
 if ! [ -f "$FB_DB" ] && (( ! DRY_RUN )); then
     fb config init
@@ -111,12 +111,12 @@ if (( INSTALL_SYSTEMD )); then
         -e "s|@APP_HOME@|$APP_HOME|g" \
         -e "s|@FB_BIN@|$FB_BIN|g" \
         -e "s|@FB_DB@|$FB_DB|g" \
-        "$APP_DIR/systemd/claude-web-filebrowser.service" \
-        | write_root /etc/systemd/system/claude-web-filebrowser.service
+        "$APP_DIR/systemd/vibetop-filebrowser.service" \
+        | write_root /etc/systemd/system/vibetop-filebrowser.service
     run sudo systemctl daemon-reload
-    run sudo systemctl enable --now claude-web-filebrowser.service
+    run sudo systemctl enable --now vibetop-filebrowser.service
 else
-    run sudo systemctl restart claude-web-filebrowser.service 2>/dev/null || true
+    run sudo systemctl restart vibetop-filebrowser.service 2>/dev/null || true
 fi
 
 # 4. nginx snippet -----------------------------------------------------------

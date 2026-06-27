@@ -3,11 +3,11 @@
 
 Replaces tmux with a transparent PTY bridge that preserves xterm.js scrollback.
 Two modes:
-  claude-session serve N   — daemon: holds bash in a PTY, accepts client connections
-  claude-session attach N  — client: bridges ttyd's PTY to the daemon's socket
+  vibetop-session serve N   — daemon: holds bash in a PTY, accepts client connections
+  vibetop-session attach N  — client: bridges ttyd's PTY to the daemon's socket
 """
 
-import argparse, errno, fcntl, os, select, selectors, signal, socket, struct, sys, termios, time
+import argparse, errno, fcntl, os, re, select, selectors, signal, socket, struct, sys, termios, time
 
 
 class RingBuffer:
@@ -52,6 +52,35 @@ class RingBuffer:
         self._len = 0
 
 
+# Terminal *query-request* escape sequences — the ones the emulator must ANSWER:
+#   CSI … c        Device Attributes        (DA1/DA2/DA3)   answered with CSI … c
+#   CSI … n        Device/Cursor Status     (DSR/CPR)       answered with CSI … R / … n
+#   CSI … $p       Request Mode             (DECRQM)        answered with CSI … $y
+#   OSC … ; ? ST   color/palette query      (OSC 10/11/12/4) answered with OSC … ; rgb:…
+# These belong in the LIVE stream (answered once, by whoever asked) but NOT in the
+# ring-buffer replay: replaying a stale query to a freshly (re)connected xterm.js
+# makes it re-answer, and that answer lands in the shared PTY's input and is echoed
+# at the prompt as garbage like "0;276;0c10;rgb:…11;rgb:…$y". With a shared session
+# (multi-client broadcast) and vibetop's frequent reconnects, one old query can be
+# re-answered on every reconnect. Stripping query REQUESTS from the replay stops it;
+# color/cursor *set* sequences (real screen state, e.g. OSC 11;rgb:… with no '?') are
+# left intact. See docs/design-decisions.md.
+_QUERY_REQUEST_RE = re.compile(
+    rb'\x1b\[[0-9;?>=]*c'              # DA request (primary/secondary/tertiary)
+    rb'|\x1b\[[0-9;?]*n'              # DSR / cursor-position request
+    rb'|\x1b\[[0-9;?]*\$p'           # DECRQM (request mode)
+    rb'|\x1b\][0-9;]*\?(?:\x07|\x1b\\)'   # OSC color/palette query (the ';?' form)
+)
+
+
+def strip_terminal_queries(data):
+    """Remove terminal query-REQUEST sequences (DA/DSR/CPR/DECRQM/OSC-color '?')
+    from `data`. Used only on the ring-buffer replay sent to a new client, so a
+    reconnect never re-triggers a query answer that would be echoed at the prompt.
+    Pure — unit-tested in terminal/tests/test_claude_session.py."""
+    return _QUERY_REQUEST_RE.sub(b'', data)
+
+
 def set_pty_size(fd, rows, cols):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', rows, cols, 0, 0))
 
@@ -86,9 +115,9 @@ def write_all(fd, data):
 # ---------------------------------------------------------------------------
 
 def cmd_serve(instance):
-    sock_path = f'/tmp/claude-session-{instance}.sock'
-    pid_path = f'/tmp/claude-session-{instance}.pid'
-    size_path = f'/tmp/claude-session-{instance}.size'
+    sock_path = f'/tmp/vibetop-session-{instance}.sock'
+    pid_path = f'/tmp/vibetop-session-{instance}.pid'
+    size_path = f'/tmp/vibetop-session-{instance}.size'
     buf_cap = int(os.environ.get('CLAUDE_SESSION_BUFSIZE', 256 * 1024))
 
     ring = RingBuffer(buf_cap)
@@ -247,9 +276,16 @@ def cmd_serve(instance):
         resize_deadline = time.monotonic() + RESIZE_DEBOUNCE
 
     def on_sigterm(signum, frame):
+        # Hang up the shell rather than SIGTERM it (interactive bash ignores
+        # SIGTERM anyway). SIGHUP is the terminal-hangup signal: bash forwards it
+        # to its jobs and exits, while setsid'd daemons (ssh ControlPersist master,
+        # tmux, nohup) are in their own session and survive — exactly like closing
+        # a real terminal. Paired with KillMode=process on the unit (so systemd
+        # doesn't then SIGKILL the whole cgroup). Closing the PTY on exit (below)
+        # would also raise SIGHUP, but signalling explicitly is immediate/robust.
         if child_pid > 0:
             try:
-                os.kill(child_pid, signal.SIGTERM)
+                os.kill(child_pid, signal.SIGHUP)
             except Exception:
                 pass
         for fd in list(clients):
@@ -361,7 +397,10 @@ def cmd_serve(instance):
                     conn.setblocking(False)
                     fd = conn.fileno()
                     clients[fd] = conn
-                    replay = ring.read_all()
+                    # Strip query REQUESTS from the replay so this fresh client
+                    # doesn't re-answer a stale DA/CPR/color/mode probe (the answer
+                    # would be injected into the shared PTY and echoed at the prompt).
+                    replay = strip_terminal_queries(ring.read_all())
                     initial = b'\033[0m' + replay if replay else b''
                     if initial:
                         try:
@@ -431,9 +470,9 @@ def cmd_serve(instance):
 # ---------------------------------------------------------------------------
 
 def cmd_attach(instance):
-    sock_path = f'/tmp/claude-session-{instance}.sock'
-    size_path = f'/tmp/claude-session-{instance}.size'
-    pid_path = f'/tmp/claude-session-{instance}.pid'
+    sock_path = f'/tmp/vibetop-session-{instance}.sock'
+    size_path = f'/tmp/vibetop-session-{instance}.size'
+    pid_path = f'/tmp/vibetop-session-{instance}.pid'
 
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     # The serve daemon may still be creating its socket (systemd's After=

@@ -1,4 +1,4 @@
-# claude-browser (project on myhost)
+# vibetop-browser (project on myhost)
 
 A persistent web browser running on myhost, viewable from any browser
 at `http://192.168.1.10/browser/` (or `https://service.example.com/browser/`
@@ -12,7 +12,7 @@ Project dir: `~/vibe-coding/service-in-browser/browser/`
 
 One systemd service running as user `myuser`:
 
-**`claude-browser-xpra.service`** — xpra `start-desktop :99` with:
+**`vibetop-browser-xpra.service`** — xpra `start-desktop :99` with:
 - **Xorg + dummy video driver** as the virtual display (full RANDR
   support for dynamic resize — the display resolution changes to match
   the client's browser viewport)
@@ -45,8 +45,8 @@ Key xpra flags:
 
 ## nginx integration
 
-claude-web's site includes `/etc/nginx/snippets/claude-extras.d/*.conf`,
-and claude-browser drops `browser.conf` there:
+vibetop's site includes `/etc/nginx/snippets/vibetop-extras.d/*.conf`,
+and vibetop-browser drops `browser.conf` there:
 
 - `location = /browser` → `301` to `/browser/`
 - `location /browser/` — reverse-proxy to `127.0.0.1:14500` with WS
@@ -143,20 +143,20 @@ The install also:
 - `browser/install.sh` — one-command deploy (adds repo, installs
   packages, renders templates, enables service)
 - `browser/uninstall.sh` — clean removal (also handles legacy VNC units)
-- `browser/systemd/claude-browser-xpra.service` — unit template
+- `browser/systemd/vibetop-browser-xpra.service` — unit template
   (`@APP_USER@`, `@DISPLAY_NUM@`, `@XPRA_PORT@`, `@LOOP_SCRIPT@`, etc.)
 - `browser/nginx/browser.conf` — location snippet template with
   sub_filter patches (`@XPRA_PORT@`)
 - `browser/browser-loop.sh` — chromium restart wrapper template
-  (`@BROWSER_CMD@`), deployed to `/usr/local/lib/claude-browser/`
+  (`@BROWSER_CMD@`), deployed to `/usr/local/lib/vibetop-browser/`
 
 ## Operations
 
 ```bash
-systemctl status claude-browser-xpra
-sudo systemctl restart claude-browser-xpra        # restart full session
+systemctl status vibetop-browser-xpra
+sudo systemctl restart vibetop-browser-xpra        # restart full session
 xpra info :99                                      # session info
-journalctl -u claude-browser-xpra -f               # logs
+journalctl -u vibetop-browser-xpra -f               # logs
 DISPLAY=:99 xrandr                                 # check display modes
 DISPLAY=:99 xwininfo -root -children               # list X windows
 ss -tlnp | grep :14500                             # confirm loopback listen

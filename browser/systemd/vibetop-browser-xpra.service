@@ -1,5 +1,5 @@
 [Unit]
-Description=claude-browser xpra session (display :@DISPLAY_NUM@, HTML5 on 127.0.0.1:@XPRA_PORT@)
+Description=vibetop-browser xpra session (display :@DISPLAY_NUM@, HTML5 on 127.0.0.1:@XPRA_PORT@)
 After=network.target
 
 [Service]

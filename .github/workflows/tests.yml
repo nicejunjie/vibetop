@@ -1,0 +1,30 @@
+name: tests
+
+# Run the unit suites on every push and PR. No services/root needed: the Python
+# tests load terminal-manager.py in-process (the one systemctl-backed call is
+# stubbed in test_metrics) and the JS tests use node's built-in runner with no deps.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install pytest
+        run: python -m pip install --upgrade pip pytest
+      - name: pytest (terminal manager)
+        run: cd terminal && python -m pytest tests/ -q
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: node --test (tab-sync + service worker)
+        run: node --test terminal/lib/*.test.js landing/*.test.js

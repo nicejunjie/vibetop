@@ -1,15 +1,15 @@
-# claude-browser
+# vibetop-browser
 
 A web browser running on myhost, viewable from any browser via xpra's HTML5
-client at `http://<host>/browser/`. Same persistence story as claude-web's
+client at `http://<host>/browser/`. Same persistence story as vibetop's
 terminals — close the tab, reopen from any device, same browser session,
 same tabs, same scroll position.
 
 ## One-command deploy
 
-Prerequisite: claude-web's `install.sh` must have been run on this host
+Prerequisite: vibetop's `install.sh` must have been run on this host
 first, so the nginx site exists and includes
-`/etc/nginx/snippets/claude-extras.d/*.conf`.
+`/etc/nginx/snippets/vibetop-extras.d/*.conf`.
 
 ```bash
 cd ~/vibe-coding/service-in-browser/browser
@@ -27,12 +27,12 @@ Open `http://<host>/browser/` from any browser.
   stack (Xvnc + openbox + chromium + noVNC/websockify).
 - **chromium** (snap) running on `:99` via `browser-loop.sh` auto-restart
   wrapper. Profile persists at `~/snap/chromium/common/chromium/`.
-- An nginx snippet at `/etc/nginx/snippets/claude-extras.d/browser.conf`
+- An nginx snippet at `/etc/nginx/snippets/vibetop-extras.d/browser.conf`
   that proxies `/browser/` to xpra's HTTP/WebSocket port with CSS/JS
   patches injected via `sub_filter` for mouse offset correction and
   scroll fix.
 
-The single `claude-browser-xpra` unit has `Restart=on-failure`. If xpra
+The single `vibetop-browser-xpra` unit has `Restart=on-failure`. If xpra
 dies, systemd brings it back. If chromium crashes, `browser-loop.sh`
 restarts it within 2 seconds.
 
@@ -78,9 +78,9 @@ the snap use its default profile dir, which persists fine. Override with
 ## Files written
 
 ```
-/etc/systemd/system/claude-browser-xpra.service    # xpra session
-/etc/nginx/snippets/claude-extras.d/browser.conf   # /browser/ location
-/usr/local/lib/claude-browser/browser-loop.sh      # chromium restart wrapper
+/etc/systemd/system/vibetop-browser-xpra.service    # xpra session
+/etc/nginx/snippets/vibetop-extras.d/browser.conf   # /browser/ location
+/usr/local/lib/vibetop-browser/browser-loop.sh      # chromium restart wrapper
 /etc/apt/sources.list.d/xpra.sources               # xpra.org apt repo
 /usr/share/keyrings/xpra.asc                       # xpra.org GPG key
 /etc/udev/rules.d/99-uinput.rules                  # uinput access for input
@@ -90,10 +90,10 @@ the snap use its default profile dir, which persists fine. Override with
 ## Operations
 
 ```bash
-systemctl status claude-browser-xpra
-sudo systemctl restart claude-browser-xpra   # restart full session
+systemctl status vibetop-browser-xpra
+sudo systemctl restart vibetop-browser-xpra   # restart full session
 xpra info :99                                 # session info
-journalctl -u claude-browser-xpra -f          # logs
+journalctl -u vibetop-browser-xpra -f          # logs
 DISPLAY=:99 xrandr                            # check display resolution
 ```
 
