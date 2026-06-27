@@ -522,7 +522,6 @@
       ['esc', 'Escape'], ['tab', 'Tab'], ['^C', 'CtrlC'],
       ['←', 'ArrowLeft'], ['↑', 'ArrowUp'], ['↓', 'ArrowDown'], ['→', 'ArrowRight']
     ];
-    var BAR_H = 50;
     var bar = document.createElement('div');
     bar.id = 'sys-keybar';
     bar.style.cssText = 'position:fixed;left:0;display:none;z-index:9000;box-sizing:border-box;' +
@@ -546,27 +545,42 @@
     });
     document.body.appendChild(bar);
 
-    var vv = window.visualViewport;
-    function reposition() {
-      if (!vv) { bar.style.bottom = '0'; bar.style.top = ''; return; }
-      bar.style.top = Math.round(vv.offsetTop + vv.height - BAR_H) + 'px';
-      bar.style.left = Math.round(vv.offsetLeft) + 'px';
-      bar.style.width = Math.round(vv.width) + 'px';
-      bar.style.bottom = '';
+    // Position by KEYBOARD INSET (px from the layout bottom = keyboard height),
+    // not the top-level visualViewport: when the keyboard is raised by an input
+    // inside a nested iframe (the Terminal, 2 frames down), the TOP window's
+    // visualViewport does NOT shrink, so we can't measure the keyboard here —
+    // the app that raised it tells us (postMessage below). bottom:inset puts the
+    // bar right on top of the keyboard.
+    function showBar(inset) {
+      bar.style.bottom = Math.max(0, inset || 0) + 'px';
+      bar.style.display = 'flex';
     }
-    function update() {
-      // Keyboard up ⇒ the visual viewport is much shorter than the layout — show
-      // the bar above it, whatever app raised the keyboard. (~120px guards
-      // against small URL-bar/IME shifts being mistaken for a keyboard.)
-      var kbUp = vv ? (window.innerHeight - vv.height - vv.offsetTop) > 120 : false;
-      if (kbUp) { bar.style.display = 'flex'; reposition(); }
-      else { bar.style.display = 'none'; }
+    function hideBar() { bar.style.display = 'none'; }
+
+    window.addEventListener('message', function (e) {
+      if (e.origin !== location.origin) return;
+      var d = e.data; if (!d || d.type !== 'kbd-bar') return;
+      if (d.show) showBar(d.inset); else hideBar();
+    });
+
+    // The Browser's keyboard is the desktop's OWN top-level #kbd-input, so here
+    // the top visualViewport DOES reflect it — drive the bar from that directly.
+    function topInset() {
+      var vv = window.visualViewport;
+      return vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
     }
-    if (vv) {
-      vv.addEventListener('resize', update);
-      vv.addEventListener('scroll', function () { if (bar.style.display !== 'none') reposition(); });
+    var ki = document.getElementById('kbd-input');
+    if (ki) {
+      ki.addEventListener('focus', function () { setTimeout(function () { showBar(topInset()); }, 120); });
+      ki.addEventListener('blur', function () { hideBar(); });
     }
-    window.addEventListener('orientationchange', function () { setTimeout(update, 300); });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', function () {
+        if (bar.style.display === 'none') return;
+        var ti = topInset();
+        if (ti > 80) bar.style.bottom = ti + 'px';   // keep tracking the top-level keyboard (Browser)
+      });
+    }
   })();
 
   // --- cross-instance state -------------------------------------------------

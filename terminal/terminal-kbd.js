@@ -312,6 +312,26 @@
       }
     });
 
+    // Tell the desktop to show/hide its system key bar. The desktop can't measure
+    // the keyboard itself (its top-level visualViewport doesn't shrink for a
+    // keyboard raised by THIS nested iframe), so report the inset — the keyboard
+    // height = layout height minus the visible viewport — which OUR vv does know.
+    function reportBar(show) {
+      var vv = window.visualViewport;
+      var inset = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+      try { window.parent.postMessage({ type: 'kbd-bar', show: show, inset: inset }, '*'); } catch (_) {}
+    }
+    ov.addEventListener('focus', function () {
+      reportBar(true);
+      setTimeout(function () { if (document.activeElement === ov) reportBar(true); }, 300); // after the keyboard animates in
+    });
+    ov.addEventListener('blur', function () { reportBar(false); });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', function () {
+        if (document.activeElement === ov) reportBar(true);   // keyboard settled/changed height
+      });
+    }
+
     var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null;
     var lastTapTime = 0, lastTapX = 0, lastTapY = 0, tStart = 0;   // for double-tap (claimSize)
     ov.addEventListener('touchstart', function (e) {
