@@ -27,8 +27,10 @@ def test_get_system_status_shape(status):
     assert result["terminals_running"] == 3
     # The injected memoizer was used for the IP lookup.
     assert ("ips", 10.0) in calls
-    # Types the front-end relies on.
-    assert isinstance(result["cpu_percent"], float)
+    # Types the front-end relies on. cpu_percent is a float normally, but None
+    # if /proc/stat couldn't be read this poll (the collector degrades that one
+    # field instead of failing the whole status); the UI null-handles it (ri()).
+    assert result["cpu_percent"] is None or isinstance(result["cpu_percent"], float)
     assert isinstance(result["cpu_cores"], list)
     assert isinstance(result["processes"], list)
     assert isinstance(result["memory_total_gb"], float)

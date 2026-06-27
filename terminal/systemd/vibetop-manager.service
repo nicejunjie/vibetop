@@ -19,5 +19,24 @@ RestartSec=2
 # under a brief load spike). A watchdog kill exits non-zero → Restart fires.
 WatchdogSec=60
 
+# Sandboxing — DELIBERATELY conservative. This service runs as root and is the
+# one that legitimately needs broad power: it drives systemctl, drops to
+# APP_USER via su/sudo (both setuid), reads sysfs/debugfs, and rewrites
+# /etc/nginx + /etc/systemd + the web root during an in-app Update. So the
+# usual heavy directives are OFF ON PURPOSE — NoNewPrivileges/RestrictSUIDSGID
+# would break su/sudo; ProtectSystem=strict / ProtectHome would break the
+# updater and home writes; PrivateTmp would hide the session sockets. What's
+# left are the directives that add real protection without touching any of
+# that: block kernel tampering, new namespaces, realtime abuse, and personality
+# changes.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+
 [Install]
 WantedBy=multi-user.target

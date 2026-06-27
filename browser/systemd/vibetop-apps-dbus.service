@@ -12,6 +12,12 @@ ExecStartPre=/bin/rm -f /run/user/@APP_UID@/vibetop-apps-bus
 ExecStart=/usr/bin/dbus-daemon --config-file=/etc/vibetop/apps-dbus.conf --nofork --nopidfile
 Restart=on-failure
 RestartSec=2
+# Sandboxing — match the sibling units. The bus daemon needs no privilege
+# escalation, kernel-knob access, module loading, or cgroup management.
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
 
 [Install]
 WantedBy=multi-user.target

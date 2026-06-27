@@ -194,6 +194,13 @@ def test_resolve_under_home_rejects_empty(mgr, home):
     assert mgr._resolve_under_home(None) is None
 
 
+def test_resolve_under_home_rejects_nul_byte(mgr, home):
+    # A NUL byte makes os.path.realpath raise ValueError; the guard must return
+    # None (treat as unsafe) rather than let it 500 the handler thread.
+    assert mgr._resolve_under_home("Documents/\x00report.docx") is None
+    assert mgr._resolve_under_home("\x00") is None
+
+
 # --------------------------------------------------------------------------
 # OFFICE_RE — only office document extensions match
 # --------------------------------------------------------------------------
@@ -259,6 +266,15 @@ def test_jwt_alg_none_forgery_is_rejected(mgr):
     assert mgr._jwt_verify(f"{head}.{body}.", SECRET) is None
 
 
+def test_jwt_rejects_non_dict_payload(mgr):
+    # A correctly-signed token whose payload decodes to a non-dict (list/int/str)
+    # must verify to None, not a list — callers do claims.get(...), which would
+    # otherwise raise AttributeError.
+    for payload in ([1, 2, 3], 42, "hi", None):
+        token = mgr._jwt_sign(payload, SECRET)
+        assert mgr._jwt_verify(token, SECRET) is None
+
+
 # --------------------------------------------------------------------------
 # _onlyoffice_sig — HMAC authorizing the unauthenticated doc/callback endpoints
 # --------------------------------------------------------------------------
@@ -273,6 +289,49 @@ def test_onlyoffice_sig_varies_by_path_and_secret(mgr):
     base = mgr._onlyoffice_sig(SECRET, "a.docx")
     assert base != mgr._onlyoffice_sig(SECRET, "b.docx")
     assert base != mgr._onlyoffice_sig("other", "a.docx")
+
+
+# --------------------------------------------------------------------------
+# _onlyoffice_doctype — extension -> OnlyOffice editor type routing
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("ext,expected", [
+    ("docx", "word"), ("DOCX", "word"), ("odt", "word"), ("txt", "word"),
+    ("", "word"),                                   # unknown -> word default
+    ("xlsx", "cell"), ("xls", "cell"), ("csv", "cell"), ("ods", "cell"),
+    ("pptx", "slide"), ("ppt", "slide"), ("odp", "slide"),
+])
+def test_onlyoffice_doctype(mgr, ext, expected):
+    assert mgr._onlyoffice_doctype(ext) == expected
+
+
+# --------------------------------------------------------------------------
+# _csrf_ok — cross-origin POST guard (Handler method, tested standalone)
+# --------------------------------------------------------------------------
+
+def _handler_with_headers(mgr, headers):
+    # Build a Handler without running BaseHTTPRequestHandler.__init__ (which would
+    # try to read a real request); _csrf_ok only reads self.headers.get(...).
+    h = mgr.Handler.__new__(mgr.Handler)
+    h.headers = headers
+    return h
+
+
+def test_csrf_ok_allows_missing_origin(mgr):
+    # curl / the OnlyOffice container / health tooling send no Origin.
+    assert _handler_with_headers(mgr, {"Host": "192.168.1.10"})._csrf_ok() is True
+
+
+def test_csrf_ok_allows_matching_origin(mgr):
+    h = _handler_with_headers(mgr, {"Origin": "https://service.example.com",
+                                    "Host": "service.example.com"})
+    assert h._csrf_ok() is True
+
+
+def test_csrf_ok_rejects_cross_origin(mgr):
+    h = _handler_with_headers(mgr, {"Origin": "https://evil.example",
+                                    "Host": "192.168.1.10"})
+    assert h._csrf_ok() is False
 
 
 # --------------------------------------------------------------------------
@@ -449,6 +508,48 @@ def test_multipart_content_containing_boundary_prefix(mgr):
         ('Content-Disposition: form-data; name="file"; filename="t.txt"', tricky),
     ])
     assert out == [("t.txt", tricky)]
+
+
+class _DripReader:
+    """A reader that returns at most `n` bytes per read regardless of the size
+    asked — to force the parser's short-read / boundary-holdback path (where a
+    boundary or CRLF is split across reads). The production code reads from a
+    live socket, which behaves exactly like this; the BytesIO-backed tests above
+    never exercised it because BytesIO satisfies any read in one shot."""
+    def __init__(self, data, n=1):
+        self._b = io.BytesIO(data)
+        self._n = n
+
+    def read(self, size=-1):
+        if size is None or size < 0:
+            size = self._n
+        return self._b.read(min(size, self._n))
+
+
+def test_multipart_streaming_one_byte_at_a_time(mgr):
+    # Same content as the multi-file + boundary-prefix cases, but drip-fed one
+    # byte per read so every boundary/CRLF lands across a read boundary.
+    token = "BOUND"
+    # Resembles the boundary but never the real \r\n--BOUND separator sequence.
+    tricky = b"--BOUND but not really\r\nmore data and --BOUNDish too"
+    body = _build_multipart(token, [
+        ('Content-Disposition: form-data; name="csrf"', b"ignore-me"),
+        ('Content-Disposition: form-data; name="file"; filename="one.txt"', b"first chunk"),
+        ('Content-Disposition: form-data; name="file"; filename="two.bin"', tricky),
+    ])
+    src = _DripReader(body, 1)
+    boundary = ("--" + token).encode()
+    out = [(fn, b"".join(_collect(r)))
+           for fn, r in mgr._iter_multipart_files(src, boundary)]
+    assert out == [("one.txt", b"first chunk"), ("two.bin", tricky)]
+
+
+def _collect(reader):
+    while not reader.done:
+        c = reader.read()
+        if not c:
+            break
+        yield c
 
 
 # --------------------------------------------------------------------------

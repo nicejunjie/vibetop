@@ -47,6 +47,38 @@ _prev_cpu_snap = None
 _root_disk_cached = False
 _root_disk_value = None
 
+# RAPL package domain dir is fixed at runtime — discover once, then cache.
+_rapl_dir_cached = False
+_rapl_dir_value = None
+
+
+def _rapl_dir():
+    """The powercap RAPL *package* domain backing CPU power, e.g.
+    /sys/class/powercap/intel-rapl:0. Prefer :0, else the first top-level
+    intel-rapl:N domain (multi-socket / non-domain-0 hosts where :0 is absent).
+    Returns None if RAPL isn't exposed. Computed once and cached."""
+    global _rapl_dir_cached, _rapl_dir_value
+    if _rapl_dir_cached:
+        return _rapl_dir_value
+    base = "/sys/class/powercap"
+    chosen = None
+    try:
+        if os.path.exists(f"{base}/intel-rapl:0/energy_uj"):
+            chosen = f"{base}/intel-rapl:0"
+        else:
+            # Top-level package domains are "intel-rapl:N" (subzones have a
+            # second colon, "intel-rapl:N:M" — skip those).
+            for name in sorted(os.listdir(base)):
+                if re.match(r"intel-rapl:\d+$", name) and \
+                        os.path.exists(f"{base}/{name}/energy_uj"):
+                    chosen = f"{base}/{name}"
+                    break
+    except OSError:
+        chosen = None
+    _rapl_dir_value = chosen
+    _rapl_dir_cached = True
+    return _rapl_dir_value
+
 
 def _list_ips():
     # All interfaces with an assigned IPv4 (skip lo, docker, veth, bridges).
@@ -90,8 +122,8 @@ def _read_amdgpu_pm_info(card_n):
         return out
     paths = [f"/sys/kernel/debug/dri/{card_n}/amdgpu_pm_info"]
     # Some kernels expose the file under a PCI-address-based dri index that
-    # doesn't match the cardN number. Probe a couple of indices defensively.
-    for i in range(4):
+    # doesn't match the cardN number. Probe several indices defensively.
+    for i in range(8):
         p = f"/sys/kernel/debug/dri/{i}/amdgpu_pm_info"
         if p not in paths:
             paths.append(p)
@@ -220,38 +252,49 @@ def _collect(running_terminals, cached):
                     cores[name] = vals
         return cores
     global _prev_cpu_snap
-    snap2 = read_proc_stat()
-    prev = _prev_cpu_snap
-    if prev and time.monotonic() - prev[1] >= 0.5:
-        snap1 = prev[0]
-    else:
-        snap1 = snap2
-        time.sleep(0.1)
-        snap2 = read_proc_stat()
-    _prev_cpu_snap = (snap2, time.monotonic())
-    def calc_pct(a, b):
-        total_d = sum(b) - sum(a)
-        if total_d <= 0:        # no elapsed time / counter reset → no data
-            return 0.0
-        pct = 100.0 * (1.0 - (b[3] - a[3]) / total_d)
-        return round(min(100.0, max(0.0, pct)), 1)   # clamp; deltas can go out of range
-    cpu = calc_pct(snap1["cpu"], snap2["cpu"])
+    cpu = None
     cpu_cores = []
-    i = 0
-    # Require the core in BOTH snapshots — a CPU offlined/hotplugged between the
-    # two /proc/stat reads (slow path) would otherwise KeyError the whole poll.
-    while f"cpu{i}" in snap1:
-        if f"cpu{i}" in snap2:
-            cpu_cores.append(calc_pct(snap1[f"cpu{i}"], snap2[f"cpu{i}"]))
-        i += 1
+    # Guard the whole CPU section: a transient /proc/stat read failure should
+    # omit the CPU fields, not abort the entire status poll (taking GPU/disk/mem
+    # down with it).
+    try:
+        snap2 = read_proc_stat()
+        prev = _prev_cpu_snap
+        if prev and time.monotonic() - prev[1] >= 0.5:
+            snap1 = prev[0]
+        else:
+            snap1 = snap2
+            time.sleep(0.1)
+            snap2 = read_proc_stat()
+        _prev_cpu_snap = (snap2, time.monotonic())
+
+        def calc_pct(a, b):
+            total_d = sum(b) - sum(a)
+            if total_d <= 0:        # no elapsed time / counter reset → no data
+                return 0.0
+            pct = 100.0 * (1.0 - (b[3] - a[3]) / total_d)
+            return round(min(100.0, max(0.0, pct)), 1)   # clamp; deltas can go out of range
+        cpu = calc_pct(snap1["cpu"], snap2["cpu"])
+        i = 0
+        # Require the core in BOTH snapshots — a CPU offlined/hotplugged between
+        # the two /proc/stat reads (slow path) would otherwise KeyError the poll.
+        while f"cpu{i}" in snap1:
+            if f"cpu{i}" in snap2:
+                cpu_cores.append(calc_pct(snap1[f"cpu{i}"], snap2[f"cpu{i}"]))
+            i += 1
+    except (OSError, ValueError, KeyError):
+        pass
 
     # Memory
     mem = {}
-    with open("/proc/meminfo") as f:
-        for line in f:
-            parts = line.split()
-            if parts and parts[0] in ("MemTotal:", "MemAvailable:"):
-                mem[parts[0]] = int(parts[1])
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                parts = line.split()
+                if parts and parts[0] in ("MemTotal:", "MemAvailable:"):
+                    mem[parts[0]] = int(parts[1])
+    except (OSError, ValueError):
+        pass
     total_gb = mem.get("MemTotal:", 0) / 1048576
     avail_gb = mem.get("MemAvailable:", 0) / 1048576
     used_gb = total_gb - avail_gb
@@ -271,7 +314,8 @@ def _collect(running_terminals, cached):
     gpu_percent = None
     gpu_vram_used_gb = None
     gpu_vram_total_gb = None
-    best_card_n = None    # remember card index for the debugfs fallback
+    best_card_n = None      # remember card index for the debugfs fallback
+    best_card_dev = None    # the selected card's device dir (for hwmon matching)
     try:
         best_card = None
         best_vram = 0
@@ -289,6 +333,7 @@ def _collect(running_terminals, cached):
                 if vram > best_vram:
                     best_vram = vram
                     best_card = dev
+                    best_card_dev = dev
                     best_card_n = int(m.group(1))
             except Exception:
                 continue
@@ -307,15 +352,6 @@ def _collect(running_terminals, cached):
     except Exception:
         pass
 
-    # Fallback: under heavy compute the amdgpu driver locks sysfs files
-    # (EBUSY), so gpu_busy_percent and the hwmon temp both vanish. The
-    # debugfs `amdgpu_pm_info` file is published from a different path
-    # and stays readable. We use it as a backup for both util and temp.
-    # Requires root (manager already runs as root) and debugfs mounted.
-    pm_info = _read_amdgpu_pm_info(best_card_n)
-    if gpu_percent is None and pm_info.get("load") is not None:
-        gpu_percent = pm_info["load"]
-
     # CPU temperature (k10temp Tctl)
     cpu_temp = None
     try:
@@ -332,12 +368,29 @@ def _collect(running_terminals, cached):
     # GPU temperature and power (amdgpu — discrete card only, skip integrated)
     gpu_temp = None
     gpu_power_w = None
+    # On a hybrid system (iGPU + dGPU both amdgpu) more than one hwmon reports
+    # name "amdgpu"; reading the first one can return the integrated GPU's
+    # sensor instead of the discrete card we selected by VRAM above. Bind the
+    # hwmon to the chosen card by comparing the resolved device path.
+    best_card_real = None
+    if best_card_dev:
+        try:
+            best_card_real = os.path.realpath(best_card_dev)
+        except OSError:
+            best_card_real = None
     try:
         for hwmon in sorted(os.listdir("/sys/class/hwmon")):
             p = f"/sys/class/hwmon/{hwmon}"
             with open(f"{p}/name") as f:
                 if f.read().strip() != "amdgpu":
                     continue
+            # Skip hwmons that don't belong to the selected card (when known).
+            if best_card_real is not None:
+                try:
+                    if os.path.realpath(f"{p}/device") != best_card_real:
+                        continue
+                except OSError:
+                    pass
             label_path = f"{p}/temp1_label"
             if os.path.exists(label_path):
                 with open(label_path) as f:
@@ -360,11 +413,21 @@ def _collect(running_terminals, cached):
     except Exception:
         pass
 
-    # Apply the debugfs fallback for temp/power too.
-    if gpu_temp is None and pm_info.get("temp") is not None:
-        gpu_temp = pm_info["temp"]
-    if gpu_power_w is None and pm_info.get("power_w") is not None:
-        gpu_power_w = pm_info["power_w"]
+    # Fallback: under heavy compute the amdgpu driver locks sysfs files (EBUSY),
+    # so gpu_busy_percent and the hwmon temp/power vanish. The debugfs
+    # `amdgpu_pm_info` file is published from a different path and stays
+    # readable. Read it ONLY when sysfs actually left a gap (not on every poll —
+    # debugfs is 0700 and the read is comparatively expensive). Requires root
+    # (manager already runs as root) and debugfs mounted.
+    if best_card_n is not None and (gpu_percent is None or gpu_temp is None
+                                    or gpu_power_w is None):
+        pm_info = _read_amdgpu_pm_info(best_card_n)
+        if gpu_percent is None and pm_info.get("load") is not None:
+            gpu_percent = pm_info["load"]
+        if gpu_temp is None and pm_info.get("temp") is not None:
+            gpu_temp = pm_info["temp"]
+        if gpu_power_w is None and pm_info.get("power_w") is not None:
+            gpu_power_w = pm_info["power_w"]
 
     # NVIDIA portability: if no AMD card was found, fill the same GPU fields
     # from nvidia-smi (no-op on AMD hosts, where the card was found above).
@@ -380,20 +443,21 @@ def _collect(running_terminals, cached):
     cpu_power_w = None
     try:
         global _prev_rapl_uj, _prev_rapl_time
-
-        with open("/sys/class/powercap/intel-rapl:0/energy_uj") as f:
-            uj = int(f.read().strip())
-        now = time.monotonic()
-        if _prev_rapl_time > 0:
-            dt = now - _prev_rapl_time
-            if dt > 0:
-                duj = uj - _prev_rapl_uj
-                if duj < 0:
-                    with open("/sys/class/powercap/intel-rapl:0/max_energy_range_uj") as f:
-                        duj += int(f.read().strip())
-                cpu_power_w = round(duj / (dt * 1000000))
-        _prev_rapl_uj = uj
-        _prev_rapl_time = now
+        rapl = _rapl_dir()
+        if rapl:
+            with open(f"{rapl}/energy_uj") as f:
+                uj = int(f.read().strip())
+            now = time.monotonic()
+            if _prev_rapl_time > 0:
+                dt = now - _prev_rapl_time
+                if dt > 0:
+                    duj = uj - _prev_rapl_uj
+                    if duj < 0:
+                        with open(f"{rapl}/max_energy_range_uj") as f:
+                            duj += int(f.read().strip())
+                    cpu_power_w = round(duj / (dt * 1000000))
+            _prev_rapl_uj = uj
+            _prev_rapl_time = now
     except Exception:
         pass
 
@@ -435,8 +499,13 @@ def _collect(running_terminals, cached):
                     if _prev_disk_time > 0:
                         dt = now - _prev_disk_time
                         if dt > 0:
-                            disk_read_bytes = int((rd_sectors - _prev_disk_sectors[0]) * 512 / dt)
-                            disk_write_bytes = int((wr_sectors - _prev_disk_sectors[1]) * 512 / dt)
+                            # Clamp: deltas go negative on a counter reset (reboot
+                            # between polls) or if the root device changed — a
+                            # negative byte-rate is nonsense, so floor at 0.
+                            d_rd = max(0, rd_sectors - _prev_disk_sectors[0])
+                            d_wr = max(0, wr_sectors - _prev_disk_sectors[1])
+                            disk_read_bytes = int(d_rd * 512 / dt)
+                            disk_write_bytes = int(d_wr * 512 / dt)
                     _prev_disk_sectors = (rd_sectors, wr_sectors)
                     _prev_disk_time = now
                     break
@@ -483,11 +552,16 @@ def _collect(running_terminals, cached):
                 cur_snap[pid] = ticks
                 cpu_pct = 0.0
                 if dt > 0 and pid in _prev_proc_snap:
-                    delta_ticks = ticks - _prev_proc_snap[pid]
+                    # max(0,...): on PID reuse the new process's ticks can be
+                    # below the dead one's snapshot — a negative % is bogus.
+                    delta_ticks = max(0, ticks - _prev_proc_snap[pid])
                     cpu_pct = (delta_ticks / clk_tck) / dt * 100
-                with open(f"/proc/{pid_s}/status") as f:
-                    uid_line = [l for l in f if l.startswith("Uid:")]
-                uid = int(uid_line[0].split()[1]) if uid_line else 0
+                # Owner UID from the dir's stat (cheaper than opening+parsing
+                # /proc/PID/status just for the Uid: line).
+                try:
+                    uid = os.stat(f"/proc/{pid_s}").st_uid
+                except OSError:
+                    uid = 0
                 try:
                     user = pwd.getpwuid(uid).pw_name
                 except KeyError:
@@ -515,7 +589,7 @@ def _collect(running_terminals, cached):
     result = {
         "hostname": socket.gethostname(),
         "ips": ips,
-        "cpu_percent": round(cpu, 1),
+        "cpu_percent": round(cpu, 1) if cpu is not None else None,
         "cpu_cores": cpu_cores,
         # Load averages from /proc/loadavg (1-, 5-, 15-minute). The full
         # triple is shown in the Monitor app; the taskbar shows just the

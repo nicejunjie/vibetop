@@ -101,9 +101,12 @@
     // Cure the root: re-focus xterm right after any resize, but only while this
     // page actually has focus so we never steal focus from another app. This is
     // what makes the reshape gesture safe to keep.
+    var pollTries = 0;
     var poll = setInterval(function () {
       var t = window.term;
-      if (!t) return;
+      // Give up after ~30s (500 × 60ms) if ttyd never sets window.term, rather
+      // than polling forever on a page where xterm never initialised.
+      if (!t) { if (++pollTries > 500) clearInterval(poll); return; }
       clearInterval(poll);
       try {
         t.onResize(function () {
@@ -354,7 +357,11 @@
     dbg(' [overlay ready] ');
   }
 
+  var ivTries = 0;
   var iv = setInterval(function () {
-    if (window.term && document.body) { clearInterval(iv); init(); }
+    if (window.term && document.body) { clearInterval(iv); init(); return; }
+    // Stop after ~60s (600 × 100ms): if xterm never came up, the overlay can't
+    // attach, so keep the interval from running for the life of a dead page.
+    if (++ivTries > 600) clearInterval(iv);
   }, 100);
 })();

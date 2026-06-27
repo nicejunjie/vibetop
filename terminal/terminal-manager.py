@@ -123,11 +123,18 @@ def _metric_inc(key, n=1):
 
 
 def _list_running_terminals():
-    out = subprocess.run(
-        ["systemctl", "list-units", "vibetop-ttyd@*",
-         "--no-pager", "--plain", "--no-legend"],
-        capture_output=True, text=True,
-    )
+    # On the status hot path (every client polls this every few seconds). A
+    # wedged systemd/D-Bus must not stall every poll behind it forever, so cap
+    # the fork with a timeout and degrade to "none running" rather than raising.
+    try:
+        out = subprocess.run(
+            ["systemctl", "list-units", "vibetop-ttyd@*",
+             "--no-pager", "--plain", "--no-legend"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        log.warning("list-units failed/timed out: %s", e)
+        return []
     running = []
     for line in out.stdout.strip().split("\n"):
         m = re.search(r"vibetop-ttyd@(\d+)", line)
@@ -439,8 +446,13 @@ def _resolve_under_home(rel):
     if not rel:
         return None
     rel = rel.lstrip("/")
-    base = os.path.realpath(OFFICE_HOME)
-    full = os.path.realpath(os.path.join(base, rel))
+    try:
+        base = os.path.realpath(OFFICE_HOME)
+        full = os.path.realpath(os.path.join(base, rel))
+    except ValueError:
+        # Embedded NUL byte (or similar) in the path — realpath raises rather
+        # than returning a string; treat as unsafe instead of 500-ing the handler.
+        return None
     if full != base and not full.startswith(base + os.sep):
         return None
     if not os.path.isfile(full):
@@ -507,7 +519,11 @@ def _jwt_verify(token, secret):
         if not hmac.compare_digest(expect, sig):
             return None
         pad = "=" * (-len(body) % 4)
-        return json.loads(base64.urlsafe_b64decode(body + pad))
+        claims = json.loads(base64.urlsafe_b64decode(body + pad))
+        # A JWT payload can decode to any JSON type (list/str/int). Callers do
+        # claims.get(...), so only a dict is a valid result — anything else is
+        # rejected rather than left to raise AttributeError downstream.
+        return claims if isinstance(claims, dict) else None
     except Exception:
         return None
 
@@ -571,8 +587,17 @@ def _git(args, timeout=60):
 
 # Serializes the update-history read-modify-write so concurrent /api/update,
 # /api/update/history/clear, and the startup seed can't lose entries or race the
-# first-run baseline.
+# first-run baseline. Held only for the brief file read-modify-write — NOT across
+# the long pull/redeploy (that's _update_run_lock below), so the frequently-polled
+# GET /api/update (which calls _seed_update_history) never blocks behind a running
+# update.
 _update_lock = threading.Lock()
+
+# Serializes the whole update OPERATION (git fetch/reset/stash/ff + redeploy) so
+# two concurrent /api/update or /api/update/check passes can't run in one
+# checkout at once (index.lock conflicts, half-applied trees). Separate from
+# _update_lock so a long update doesn't stall version-info reads/history appends.
+_update_run_lock = threading.Lock()
 
 
 def _read_update_history():
@@ -879,7 +904,36 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except OSError:
                 pass
 
+    def _csrf_ok(self):
+        """Reject cross-site browser POSTs. State-changing endpoints (launch a
+        command, reset, update, upload) have no application-layer auth — the trust
+        model is Cloudflare Access + a trusted LAN. But that leaves them open to a
+        CSRF: a malicious page the user visits can fetch() the LAN/origin manager
+        (json.loads of the raw body sidesteps a CORS preflight, and the browser
+        still attaches the user's Access cookie). So when a browser DOES send an
+        Origin, require it to match this request's Host. Requests with no Origin
+        (curl/the operational CLI, the OnlyOffice container's server-side
+        callback, health tooling) are unaffected — they aren't browser contexts
+        and aren't a CSRF vector."""
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True
+        host = self.headers.get("Host", "")
+        try:
+            return urllib.parse.urlparse(origin).netloc == host
+        except Exception:
+            return False
+
     def do_POST(self):
+        # The OnlyOffice container's save callback is a server-to-server POST
+        # authenticated by its own path HMAC (t=) + a required JWT, not a browser
+        # request — exempt it from the Origin/CSRF gate so a proxy that injected
+        # an Origin can't 403 it and silently lose document saves.
+        if not self.path.startswith("/api/office/callback") and not self._csrf_ok():
+            log.warning("rejected cross-origin POST to %s (Origin=%s Host=%s)",
+                        self.path, self.headers.get("Origin"), self.headers.get("Host"))
+            self._json(403, {"error": "cross-origin request rejected"})
+            return
         m = re.match(r"/api/terminals/(\d+)/(start|stop)$", self.path)
         if m:
             return self._handle_terminal(m)
@@ -1111,6 +1165,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 pass
             self._json(400, {"error": str(e)})
             return
+        except Exception as e:
+            # A non-parse failure mid-copy (disk full, permission, I/O error).
+            # Without this the partial file leaked and the thread died with no
+            # response. Drop the partial and close the connection (the request
+            # body is only partly consumed, so the keep-alive socket can't be
+            # safely reused) after sending a 500.
+            if partial:
+                try:
+                    os.remove(partial)
+                except OSError:
+                    pass
+            log.warning("upload failed mid-copy: %s", e)
+            self.close_connection = True
+            try:
+                self._json(500, {"error": "upload failed (server write error)"})
+            except Exception:
+                pass
+            return
         self._json(200, {"ok": True, "saved": saved, "bytes": total_bytes,
                          "dir": UPLOAD_DIR})
 
@@ -1214,11 +1286,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # KillMode), then stop. (Killing the main pid can momentarily trip
             # Restart=always, but the immediate stop cancels it and the detached
             # procs are already dead — outcome is a clean slate either way.)
-            subprocess.run(["systemctl", "kill", "--kill-whom=all",
-                            "--signal=SIGKILL"] + units,
-                           check=False, capture_output=True, text=True)
-            subprocess.run(["systemctl", "stop", "--no-block"] + units,
-                           check=False, capture_output=True, text=True)
+            try:
+                subprocess.run(["systemctl", "kill", "--kill-whom=all",
+                                "--signal=SIGKILL"] + units,
+                               check=False, capture_output=True, text=True, timeout=30)
+                subprocess.run(["systemctl", "stop", "--no-block"] + units,
+                               check=False, capture_output=True, text=True, timeout=30)
+            except (subprocess.TimeoutExpired, OSError) as e:
+                log.warning("reset: stopping terminals timed out/failed: %s", e)
             result["terminals_stopped"] = running
         with _cache_lock:                      # so status reflects it at once
             _cache.pop("running_terminals", None)
@@ -1285,7 +1360,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 subprocess.run(
                     ["systemctl", "restart", "--no-block",
                      "vibetop-apps-xpra.service"],
-                    check=False, capture_output=True, text=True)
+                    check=False, capture_output=True, text=True, timeout=30)
                 result["apps_reset"] = True
             except Exception:
                 pass
@@ -1541,6 +1616,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     f"{src}:{int(st.st_mtime)}:{st.st_size}:{int(time.time())}".encode()
                 ).hexdigest()[:22]
                 _office_sessions[rel] = key
+                # Bound the map: a session is normally popped on the close
+                # callback, but a callback that never arrives (container/network
+                # death) would leak an entry forever. Drop the oldest beyond the
+                # cap (dicts preserve insertion order) so it can't grow without
+                # limit. The dropped session just re-mints a key on next open.
+                while len(_office_sessions) > 64:
+                    _office_sessions.pop(next(iter(_office_sessions)))
         ext = os.path.splitext(src)[1].lstrip(".").lower()
         qp = urllib.parse.urlencode({"path": rel, "t": _onlyoffice_sig(secret, rel)})
         cfg = {
@@ -1566,7 +1648,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         rel, tok = q.get("path", [""])[0], q.get("t", [""])[0]
         src = _resolve_under_home(rel)
         secret = _onlyoffice_secret()
-        if not src or not secret or not hmac.compare_digest(_onlyoffice_sig(secret, rel), tok):
+        if (not src or not secret or not OFFICE_RE.search(src)
+                or not hmac.compare_digest(_onlyoffice_sig(secret, rel), tok)):
             return self.send_error(403)
         try:
             with open(src, "rb") as f:
@@ -1615,7 +1698,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         rel, tok = q.get("path", [""])[0], q.get("t", [""])[0]
         src = _resolve_under_home(rel)
         secret = _onlyoffice_secret()
-        if not src or not secret or not hmac.compare_digest(_onlyoffice_sig(secret, rel), tok):
+        if (not src or not secret or not OFFICE_RE.search(src)
+                or not hmac.compare_digest(_onlyoffice_sig(secret, rel), tok)):
             return self._json(200, {"error": 1})
         body = self._read_body(1048576)
         try:
@@ -1637,6 +1721,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             log.warning("office: callback JWT verify failed for %s", rel)
             return self._json(200, {"error": 1})
         data = verified.get("payload", verified)
+        if not isinstance(data, dict):
+            data = verified
         status = data.get("status")
         if status in (2, 6) and data.get("url"):
             self._office_save_back(data["url"], src)
@@ -1722,11 +1808,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             subprocess.run(
                 ["systemctl", action, "--no-block"] + units,
-                check=True, capture_output=True, text=True,
+                check=True, capture_output=True, text=True, timeout=30,
             )
         except subprocess.CalledProcessError as e:
             log.warning("terminal %d %s failed: %s", n, action, (e.stderr or "").strip())
-            self._json(500, {"error": e.stderr.strip()})
+            self._json(500, {"error": (e.stderr or "").strip()})
+            return
+        except (subprocess.TimeoutExpired, OSError) as e:
+            log.warning("terminal %d %s timed out/failed: %s", n, action, e)
+            self._json(500, {"error": "systemctl timed out"})
             return
         log.info("terminal %d %s", n, action)
         _metric_inc("terminals_started_total" if action == "start"
@@ -1766,6 +1856,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return info
 
     def _handle_update_check(self):
+        with _update_run_lock:
+            return self._handle_update_check_locked()
+
+    def _handle_update_check_locked(self):
         """Fetch from GitHub and report whether newer commits exist — WITHOUT
         applying anything. 'git fetch' updates the remote-tracking ref only; the
         working tree and HEAD are untouched, so this is a read-only probe."""
@@ -1791,6 +1885,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                          "local": (local or "")[:7], "remote": (remote or "")[:7]})
 
     def _handle_update(self):
+        # Serialize the whole update against any other update/check so two
+        # concurrent triggers (a double-tap, two devices) can't race git in one
+        # checkout. Uses _update_run_lock (NOT _update_lock) so the brief
+        # history-file lock — and thus the frequently-polled GET /api/update,
+        # which seeds history — stays responsive during the multi-minute op.
+        with _update_run_lock:
+            return self._handle_update_locked()
+
+    def _handle_update_locked(self):
         """Pull the latest from GitHub and redeploy whatever changed. Each step's
         output is returned as a log. The manager restarts itself (out-of-band) at
         the end only if its own file changed, so the new code takes effect."""
@@ -1803,11 +1906,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # force=true (from the Update app's "Discard local changes & update"
         # button) authorizes stashing local edits that would otherwise block the
         # fast-forward. Body is optional; absent/garbage => force stays False.
+        # Body is optional; absent/garbage => force stays False. Read via
+        # _read_body (Content-Length-bounded + 30s socket timeout) so a client
+        # that sends a Content-Length then stalls can't pin this thread.
         force = False
         try:
-            length = int(self.headers.get("Content-Length", 0) or 0)
-            if 0 < length <= 4096:
-                force = bool(json.loads(self.rfile.read(length)).get("force"))
+            body = self._read_body(4096)
+            if body:
+                force = bool(json.loads(body).get("force"))
         except Exception:
             force = False
 
@@ -1943,13 +2049,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # vibetop-session are excluded.
         restart = any(c.startswith("terminal/") and c.endswith(".py")
                       and "/" not in c[len("terminal/"):] for c in changed)
-        log.info("update: %s..%s applied (%d file(s) changed, restart=%s)",
-                 (before or "")[:7], (after or "")[:7], len(changed), restart)
-        self._json(200, {"ok": True, "log": steps, "changed": changed,
-                         "restart": restart,
-                         "message": ("Updated. Restarting the API to apply manager "
-                                     "changes…" if restart else "Updated.")})
-        if restart:
+        # A redeploy step (install.sh) can fail after the pull succeeded — the
+        # code is on disk but not actually deployed (nginx not reloaded, units
+        # not re-rendered). Surface that as ok:false so the Update app doesn't
+        # report success (and reload onto a half-deployed shell), and log it as a
+        # 'failed' event rather than the 'updated' recorded above.
+        failed = [s["name"] for s in steps if not s["ok"]]
+        deploy_ok = not failed
+        if not deploy_ok:
+            _append_update_history({"time": int(time.time()), "event": "failed",
+                                    "message": "redeploy step(s) failed: "
+                                               + ", ".join(failed)[:200]})
+        log.info("update: %s..%s applied (%d file(s) changed, restart=%s, deploy_ok=%s)",
+                 (before or "")[:7], (after or "")[:7], len(changed), restart, deploy_ok)
+        self._json(200, {"ok": deploy_ok, "log": steps, "changed": changed,
+                         "restart": restart and deploy_ok,
+                         "failed": failed,
+                         "message": (("Updated. Restarting the API to apply manager "
+                                      "changes…" if restart else "Updated.") if deploy_ok
+                                     else "Pulled new code, but a redeploy step failed — "
+                                          "check the log and resolve on the host.")})
+        # Only restart the manager if the redeploy actually succeeded — restarting
+        # onto a half-deployed tree would compound the failure.
+        if restart and deploy_ok:
             try:
                 subprocess.Popen(
                     ["systemd-run", "--on-active=3",
@@ -2167,7 +2289,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 kw = {"timeout": 2}
                 if url.startswith("https"):
                     kw["context"] = ctx
-                urllib.request.urlopen(url, **kw)
+                with urllib.request.urlopen(url, **kw):
+                    pass          # close the response so the socket isn't leaked
                 return name, True
             except urllib.error.HTTPError:
                 return name, True

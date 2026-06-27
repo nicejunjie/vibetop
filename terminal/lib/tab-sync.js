@@ -43,7 +43,12 @@
 
     var newPending = {};
     Object.keys(pending).forEach(function (k) {
-      if (!runSet[k]) newPending[k] = true;          // still not confirmed up → keep
+      // Keep only tabs still awaiting their "running" confirmation AND not also
+      // closed-here. A tab opened then closed locally before the backend ever
+      // confirmed it running would otherwise linger in pending (its `closing`
+      // entry gets dropped below because it was never in runSet) and the tab
+      // would reappear — a phantom. The local close supersedes the local open.
+      if (!runSet[k] && !closing[k]) newPending[k] = true;
     });
     var newClosing = {};
     Object.keys(closing).forEach(function (k) {

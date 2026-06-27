@@ -87,6 +87,15 @@ test("does not mutate the input pending/closing objects", () => {
   assert.deepEqual(closing, set(2), "input closing untouched");
 });
 
+test("opened then closed before ever running → tab does not linger (phantom)", () => {
+  // Tab 4 was opened here (pending) then closed here (closing) before the
+  // backend ever reported it running. The close must win — it must not reappear.
+  const r = reconcile([1, 2], set(4), set(4));
+  assert.deepEqual(r.desired, [1, 2]);
+  assert.deepEqual(r.pending, {});   // not kept as pending
+  assert.deepEqual(r.closing, {});   // nothing to wait for (never ran)
+});
+
 // -- nextAvailable ---------------------------------------------------------
 
 test("nextAvailable returns the lowest free slot", () => {

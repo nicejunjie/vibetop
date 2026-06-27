@@ -172,12 +172,24 @@ server {
     listen [::]:80 default_server;
     server_name _;
 
+    # Don't advertise the nginx version in Server: / error pages.
+    server_tokens off;
+
     root $LANDING_DIR;
     index index.html;
 
     location / {
         try_files \$uri \$uri/ =404;
         add_header Cache-Control 'no-cache, no-store' always;
+        # Security headers on the shell/static HTML. frame-ancestors 'self'
+        # blocks external sites from framing the desktop (clickjacking); the
+        # desktop frames its own same-origin app pages, so it's unaffected.
+        # (nginx drops INHERITED add_headers in any location that sets its own,
+        # so these live here next to the existing Cache-Control rather than at
+        # server scope where the proxy locations' own add_headers would void them.)
+        add_header X-Content-Type-Options 'nosniff' always;
+        add_header Referrer-Policy 'same-origin' always;
+        add_header Content-Security-Policy "frame-ancestors 'self'" always;
     }
 
     location = /terminals { return 301 /terminals/; }

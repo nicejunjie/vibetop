@@ -7,6 +7,11 @@ on:
   push:
   pull_request:
 
+# Least privilege: the suites only read the checkout — drop the default
+# read/write GITHUB_TOKEN so a compromised dependency can't push or open PRs.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

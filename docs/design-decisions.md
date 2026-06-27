@@ -425,3 +425,64 @@ and why it lost).
   skips units); after daemon-reload even existing terminals stop gently. The
   serve-daemon SIGHUP tweak only affects *new* sessions (daemons aren't restarted),
   but `KillMode=process` alone already does the job via the kernel PTY hangup.
+
+## Root manager service is only *partially* sandboxed (on purpose)
+
+- **Symptom:** A code review flagged that `vibetop-manager.service` runs as root
+  with **zero** systemd hardening while the unprivileged child units (session,
+  browser-xpra) carry `ProtectKernel*`/`ProtectControlGroups` — backwards on its
+  face.
+- **Cause:** The manager genuinely needs broad power: it drives `systemctl`,
+  drops to `APP_USER` via `su`/`sudo` (both **setuid**), reads sysfs/debugfs, and
+  during an in-app Update it rewrites `/etc/nginx`, `/etc/systemd`, and the web
+  root, then runs the per-project `install.sh` scripts. Almost every heavyweight
+  directive breaks one of those.
+- **Fix:** Add only the directives that harden without touching that surface:
+  `ProtectKernelTunables/Modules/Logs`, `ProtectClock`, `ProtectHostname`,
+  `RestrictNamespaces`, `RestrictRealtime`, `LockPersonality`. Plus an
+  application-layer `_csrf_ok()` Origin/Host check on state-changing POSTs (see
+  below), since the real exposure is a browser-driven request, not a local FS
+  escape.
+- **Rejected:** `NoNewPrivileges=yes` / `RestrictSUIDSGID=yes` — both break
+  `su`/`sudo`, which the manager uses for every git op and app launch (symptom
+  would be "sudo: a password is required" / EPERM). `ProtectSystem=strict` +
+  `ReadWritePaths` — the Updater writes `/etc` and `/usr/local`; the allow-list
+  would be large, fragile, and silently break a redeploy. `ProtectHome` — it
+  writes the user's web root and `~/.config`. `PrivateTmp` — would hide the
+  `/tmp/vibetop-session-*.sock` world the session children live in. `ProtectControlGroups` —
+  left off because the manager spawns transient units via `systemd-run`.
+
+## CSRF on the no-auth manager API (Origin check, not tokens)
+
+- **Symptom:** Every `/api/*` endpoint trusts whatever reaches `127.0.0.1` — and
+  some are destructive or RCE-shaped (`/api/x/launch` runs a shell command as
+  `APP_USER`, `/api/reset`, `/api/update`). The trust model is "Cloudflare Access
+  at the edge + a trusted LAN," so there's no app-layer auth. That leaves a CSRF
+  hole: a malicious web page the user visits can `fetch()` the LAN/origin manager
+  (a `text/plain` POST whose body is `json.loads`-parsed needs no CORS preflight,
+  and the browser still attaches the user's Access cookie over the tunnel).
+- **Fix:** `_csrf_ok()` rejects a POST whose `Origin` header is present but
+  doesn't match `Host`. That blocks the cross-site browser case while leaving the
+  legitimate non-browser callers untouched — `curl`/the operational CLI and the
+  **OnlyOffice container's** server-side callback send *no* `Origin`, so they pass.
+- **Rejected:** A CSRF token / session — there's no login or session to hang it
+  on (auth is entirely at the Cloudflare edge), so a token would need its own
+  bootstrap and storage for marginal gain over the Origin check. Blanket-blocking
+  no-Origin requests — would break `curl`, health probes, and the OnlyOffice
+  callback (the one server-to-server caller).
+
+## `vibetop-session` shell-respawn needs backoff
+
+- **Symptom:** Review flagged that the serve daemon's main loop respawns the shell
+  the instant the child dies (`if reap_child(): ring.clear(); spawn_shell()`).
+- **Cause:** If `/bin/bash` can't `exec` (missing, not executable, bad mount), the
+  forked child `_exit(127)`s immediately, the PTY master goes readable with `EIO`
+  so `select` returns at once, `reap_child()` is true next iteration, and it forks
+  again — a **tight fork loop** pinning a CPU, with nothing throttling it.
+- **Fix:** Track `last_spawn`; if a shell lived <1s, count it and `sleep` with
+  capped exponential backoff + jitter (0.1s→8s) before respawning, resetting the
+  counter once a shell survives. Normal `exit`-respawn (the shell lived a while)
+  is unaffected — it respawns instantly as before.
+- **Rejected:** A hard "give up after N" that leaves the terminal dead — a
+  transient cause (a deploy mid-swap of `/bin/bash`) should self-heal; backoff
+  recovers without a permanent dead tab.

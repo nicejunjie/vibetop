@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 # Install the desktop UI and landing page into the location nginx serves from.
 # Override DST_DIR=... to write somewhere else.
-set -e
+set -euo pipefail
 DIR="$(dirname "$(readlink -f "$0")")"
 DST_DIR="${DST_DIR:-$HOME/vibetop-www}"
 DRY_RUN="${DRY_RUN:-0}"
 case "${1:-}" in --dry-run|-n) DRY_RUN=1 ;; esac
 run() { if [ "$DRY_RUN" = 1 ]; then printf '+ %s\n' "$*"; else "$@"; fi; }
+
+# Refuse an empty/`/`-rooted destination (e.g. $HOME unset) — a `mkdir -p ""`
+# or writes to `/` are never intended.
+if [ -z "$DST_DIR" ] || [ "$DST_DIR" = "/" ]; then
+  echo "DST_DIR is empty or '/' (is \$HOME set?) — refusing." >&2
+  exit 1
+fi
 
 run mkdir -p "$DST_DIR"
 # Stamp the real release number (root VERSION file) into the Start-menu build

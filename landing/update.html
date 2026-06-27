@@ -157,7 +157,7 @@
     checkEl.className = 'check show';
     if (!d.ok) {
       checkEl.classList.add('err');
-      checkEl.innerHTML = '<div class="check-head">⚠️ ' + (d.message || 'Check failed.') + '</div>';
+      checkEl.innerHTML = '<div class="check-head">⚠️ ' + escapeHtml(d.message || 'Check failed.') + '</div>';
       return;
     }
     if (!d.behind) {
@@ -172,7 +172,7 @@
                ' available — tap “Update now” to install.</div>';
     var card = '<div class="check-card">';
     (d.commits || []).forEach(function(c) {
-      card += '<div class="check-commit"><span class="h">#' + c.commit + '</span>  ' +
+      card += '<div class="check-commit"><span class="h">#' + escapeHtml(c.commit) + '</span>  ' +
               escapeHtml(c.subject) + '</div>';
     });
     card += '</div>';

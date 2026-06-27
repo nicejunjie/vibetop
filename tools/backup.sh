@@ -141,8 +141,13 @@ if (( DRY_RUN )); then
 fi
 
 mkdir -p "$BACKUP_DIR"
+# The archive holds the OnlyOffice JWT secret + FileBrowser DB + personal docs,
+# so keep both the directory and the file owner-only (default umask would leave
+# them world-readable). umask in a subshell so the caller's umask is untouched.
+chmod 700 "$BACKUP_DIR" 2>/dev/null || true
 # -C HOME_DIR so paths in the tar are home-relative → restore with `tar xzf … -C ~`.
-tar czf "$archive" -C "$HOME_DIR" "${present[@]}"
+( umask 077; tar czf "$archive" -C "$HOME_DIR" "${present[@]}" )
+chmod 600 "$archive" 2>/dev/null || true
 size="$(du -h "$archive" | cut -f1)"
 echo "Wrote $archive ($size, ${#present[@]} item(s))."
 

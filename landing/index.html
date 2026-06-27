@@ -125,12 +125,28 @@
     Add your services in <code>~/vibetop-www/services.json</code> (see <code>services.example.json</code>).
   </footer>
 <script>
+// HTML-escape any value before it goes into innerHTML. services.json is
+// host-local and the running list comes from our own API, but escaping keeps a
+// stray <, &, or quote in a service name/desc from breaking the markup (or
+// being a stored-XSS sink if that file is ever fed less-trusted content).
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+// Only allow http(s) or same-origin/relative links — never a javascript: URL.
+function safeUrl(u) {
+  u = String(u || '');
+  return /^(https?:\/\/|\/)/i.test(u) ? u : '#';
+}
 // Dynamic terminal chips
 function loadTerminals(data) {
   var chips = document.getElementById('term-chips');
   var running = (data && data.running) || [];
   chips.innerHTML = '';
   running.forEach(n => {
+    n = Number(n);                       // server sends integers; coerce defensively
+    if (!Number.isInteger(n)) return;
     var a = document.createElement('a');
     a.className = 'term-chip';
     a.href = '/t' + n + '/';
@@ -165,12 +181,12 @@ function renderServices(list) {
   list.forEach(function(s) {
     var a = document.createElement('a');
     a.className = 'card';
-    a.href = s.url || '#';
+    a.href = safeUrl(s.url);
     a.target = '_blank';
     if (s.key) a.dataset.health = s.key;
-    a.innerHTML = '<div class="name"><span class="dot"></span>' + (s.name || '') + '</div>' +
-                  '<div class="desc">' + (s.desc || '') + '</div>' +
-                  '<div class="port">' + (s.port || '') + '</div>';
+    a.innerHTML = '<div class="name"><span class="dot"></span>' + esc(s.name) + '</div>' +
+                  '<div class="desc">' + esc(s.desc) + '</div>' +
+                  '<div class="port">' + esc(s.port) + '</div>';
     grid.appendChild(a);
   });
   sec.hidden = false;

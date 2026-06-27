@@ -351,6 +351,11 @@
   });
 
   clearBtn.addEventListener('click', function() {
+    // Abort any upload currently in flight before dropping the queue, otherwise
+    // Clear emptied the list but the active XHR kept running to completion.
+    queue.forEach(function(entry) {
+      if (entry.xhr) { try { entry.xhr.abort(); } catch (e) {} }
+    });
     queue = [];
     list.innerHTML = '';
     bar.classList.remove('on'); fill.style.width = '0%';

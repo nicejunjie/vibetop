@@ -16,14 +16,19 @@
   var kbdSendChar = null, kbdSendKey = null;
 
   // 0. Suppress "leave site?" confirmation on refresh/close.
+  //    Neutralise the property-based handler, then add a capture-phase
+  //    beforeunload listener that stops any other handler from running and
+  //    clears returnValue — the browser only shows the prompt when a handler
+  //    leaves a returnValue, so this suppresses the dialog WITHOUT the old
+  //    override that replaced window.addEventListener and silently dropped
+  //    EVERY beforeunload registration on the page (a global side effect).
   try {
     window.onbeforeunload = null;
     Object.defineProperty(window, 'onbeforeunload', { get: function() { return null; }, set: function() {}, configurable: true });
-    var origAEL = window.addEventListener.bind(window);
-    window.addEventListener = function(type) {
-      if (type === 'beforeunload') return;
-      return origAEL.apply(null, arguments);
-    };
+    window.addEventListener('beforeunload', function(e) {
+      e.stopImmediatePropagation();
+      delete e.returnValue;
+    }, true);
   } catch(e) {
     console.warn('[xpra-patches] beforeunload patch failed:', e.message);
   }

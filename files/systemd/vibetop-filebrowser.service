@@ -10,6 +10,13 @@ WorkingDirectory=@APP_HOME@
 ExecStart=@FB_BIN@ --database @FB_DB@
 Restart=on-failure
 RestartSec=2
+# Sandboxing — match the sibling units (session, browser-xpra). FileBrowser
+# never tweaks kernel knobs, loads modules, or manages cgroups, and as a plain
+# Go binary it needs no privilege escalation.
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
 
 [Install]
 WantedBy=multi-user.target

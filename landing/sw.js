@@ -17,7 +17,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v123';
+const VERSION = 'v124';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
@@ -99,10 +99,16 @@ self.addEventListener('fetch', (e) => {
           new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
         ]);
       } catch (_) {
-        // Timed out (or errored): serve cache now; networkPromise keeps running
-        // and refreshes the cache for next time.
-        return (await cache.match(req)) || (await cache.match('/')) ||
-               networkPromise.catch(() => Response.error());
+        // Timed out (or errored). For a known shell page, serve its cached copy
+        // (or the desktop shell '/' as a last resort) so the app still opens
+        // offline. For any OTHER same-origin page (office-editor.html,
+        // update.html, loggedout.html…) do NOT substitute the desktop shell —
+        // that would render the wrong page; wait for the real network response.
+        if (cacheable) {
+          return (await cache.match(req)) || (await cache.match('/')) ||
+                 networkPromise.catch(() => Response.error());
+        }
+        return networkPromise.catch(() => Response.error());
       }
     })());
     return;

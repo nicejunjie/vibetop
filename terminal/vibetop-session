@@ -7,7 +7,7 @@ Two modes:
   vibetop-session attach N  — client: bridges ttyd's PTY to the daemon's socket
 """
 
-import argparse, errno, fcntl, os, re, select, selectors, signal, socket, struct, sys, termios, time
+import argparse, errno, fcntl, os, random, re, select, selectors, signal, socket, struct, sys, termios, time
 
 
 class RingBuffer:
@@ -137,6 +137,12 @@ def cmd_serve(instance):
     RESIZE_DEBOUNCE = 0.035
     pending_resize = False
     resize_deadline = 0.0
+    # Respawn backoff: if a freshly-spawned shell dies almost immediately
+    # (e.g. /bin/bash missing or unexecutable), respawning instantly is a tight
+    # fork loop that pins a CPU. Track when the current shell started and how
+    # many quick deaths in a row we've seen.
+    last_spawn = 0.0
+    respawn_fails = 0
 
     # -- helpers --
 
@@ -144,12 +150,21 @@ def cmd_serve(instance):
         try:
             with open(size_path) as f:
                 parts = f.read().split()
-                return int(parts[0]), int(parts[1])
+            rows, cols = int(parts[0]), int(parts[1])
         except Exception:
             return 24, 80
+        # Clamp: the size file lives at a predictable /tmp path and is written by
+        # the attach client, so a garbage or out-of-range value (negative, or
+        # above the unsigned-short TIOCSWINSZ limit) would raise struct.error in
+        # set_pty_size and crash the daemon — losing the session. Bound it to
+        # sane terminal dimensions.
+        rows = min(9999, max(1, rows))
+        cols = min(9999, max(1, cols))
+        return rows, cols
 
     def spawn_shell():
-        nonlocal pty_fd, child_pid
+        nonlocal pty_fd, child_pid, last_spawn
+        last_spawn = time.monotonic()
         master, slave = os.openpty()
         rows, cols = read_saved_size()
         set_pty_size(master, rows, cols)
@@ -317,11 +332,27 @@ def cmd_serve(instance):
         except FileNotFoundError:
             pass
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.bind(sock_path)
+        # Create the socket already restricted (no group/other) — bind() honours
+        # the umask, so without this there's a window between bind and chmod where
+        # the predictable /tmp socket is connectable by other local users.
+        old_umask = os.umask(0o177)
+        try:
+            s.bind(sock_path)
+        finally:
+            os.umask(old_umask)
         os.chmod(sock_path, 0o600)
         s.listen(5)
         s.setblocking(False)
-        with open(pid_path, 'w') as f:
+        # Write the pid via O_NOFOLLOW (+ unlink first): the path is predictable
+        # and in world-writable /tmp, so a pre-planted symlink must not get this
+        # write redirected (truncating an arbitrary file the daemon can reach).
+        try:
+            os.unlink(pid_path)
+        except FileNotFoundError:
+            pass
+        pid_fd = os.open(pid_path,
+                         os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(pid_fd, 'w') as f:
             f.write(str(os.getpid()))
         return s
 
@@ -366,6 +397,16 @@ def cmd_serve(instance):
 
         if reap_child():
             ring.clear()
+            # If the shell barely lived, back off before respawning so a shell
+            # that can't start (missing/unexecutable /bin/bash) can't spin into a
+            # tight fork loop. Capped exponential backoff + jitter; reset once a
+            # shell survives long enough to be considered healthy.
+            if time.monotonic() - last_spawn < 1.0:
+                respawn_fails += 1
+                delay = min(8.0, 0.1 * (2 ** min(respawn_fails, 7))) + random.uniform(0, 0.3)
+                time.sleep(delay)
+            else:
+                respawn_fails = 0
             spawn_shell()
 
         # Apply a debounced resize once the burst has settled (see RESIZE_DEBOUNCE).
@@ -495,8 +536,19 @@ def cmd_attach(instance):
     def send_resize():
         try:
             rows, cols = get_pty_size(stdin_fd)
-            with open(size_path, 'w') as f:
+            # Write atomically (temp in the same dir + rename) so the serve
+            # daemon's reader can never see a torn/empty file mid-write — a
+            # partial read fell back to 24x80, momentarily shrinking the shell.
+            # O_NOFOLLOW guards the predictable /tmp path against a symlink.
+            tmp = f'{size_path}.{os.getpid()}.tmp'
+            try:
+                os.unlink(tmp)
+            except FileNotFoundError:
+                pass
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, 'w') as f:
                 f.write(f'{rows} {cols}')
+            os.replace(tmp, size_path)
             with open(pid_path) as f:
                 pid = int(f.read().strip())
             os.kill(pid, signal.SIGUSR1)

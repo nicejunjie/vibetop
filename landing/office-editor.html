@@ -69,7 +69,10 @@
   msg.style.display = 'none';
   host.style.display = 'block';
 
-  function fail(t) { host.style.display = 'none'; msg.style.display = 'flex'; msg.innerHTML = t; }
+  // textContent, not innerHTML: `t` includes server-supplied error strings
+  // (e.g. fail(cfg.error) from /api/office/config), which must not be parsed as
+  // HTML. All messages here are plain text anyway.
+  function fail(t) { host.style.display = 'none'; msg.style.display = 'flex'; msg.textContent = t; }
   if (!window.DocsAPI) { fail('Office editor service is unavailable.'); return; }
 
   // Autosave: OnlyOffice only writes back to the real file on a forcesave or
