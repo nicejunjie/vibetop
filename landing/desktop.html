@@ -551,8 +551,16 @@
     // visualViewport does NOT shrink, so we can't measure the keyboard here —
     // the app that raised it tells us (postMessage below). bottom:inset puts the
     // bar right on top of the keyboard.
+    // iOS draws its own suggestion/AutoFill row (e.g. the current domain pill)
+    // and the form ^/v/Done nav just above the keys — native chrome we can't
+    // suppress (autocomplete="off" doesn't stop the domain pill). It would land
+    // on the same strip as our bar and cover the middle keys, so lift ours one
+    // accessory row (~IOS_ACCESSORY px) above the keyboard to clear it. When iOS
+    // shows no suggestion this leaves a thin strip below the bar — preferable to
+    // covered keys.
+    var IOS_ACCESSORY = 46;
     function showBar(inset) {
-      bar.style.bottom = Math.max(0, inset || 0) + 'px';
+      bar.style.bottom = (Math.max(0, inset || 0) + IOS_ACCESSORY) + 'px';
       bar.style.display = 'flex';
     }
     function hideBar() { bar.style.display = 'none'; }
@@ -578,7 +586,7 @@
       window.visualViewport.addEventListener('resize', function () {
         if (bar.style.display === 'none') return;
         var ti = topInset();
-        if (ti > 80) bar.style.bottom = ti + 'px';   // keep tracking the top-level keyboard (Browser)
+        if (ti > 80) bar.style.bottom = (ti + IOS_ACCESSORY) + 'px';   // keep tracking the top-level keyboard (Browser)
       });
     }
   })();
