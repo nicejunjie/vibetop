@@ -161,7 +161,10 @@
     // prompt up far enough to clear the on-screen key bar (which sits just above
     // the keyboard, right where the prompt would otherwise land — it was hiding
     // the line you type on).
-    var KBD_RESERVE = 64;
+    // Must exceed the desktop bar's distance above the keyboard (its iOS-accessory
+    // clearance ~104 in Safari + the bar's own height ~50) so the prompt scrolls
+    // ABOVE the bar, not just above the keyboard. Generous to cover the worst case.
+    var KBD_RESERVE = 168;
     ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:calc(100% + ' + KBD_RESERVE + 'px);box-sizing:border-box;' +
       'z-index:2147482000;background:transparent;color:transparent;caret-color:transparent;' +
       'border:0;outline:0;resize:none;margin:0;padding:0 6px;font-size:16px;overflow:hidden;' +
