@@ -107,10 +107,12 @@ fi
 # "/"). FileBrowser runs as APP_USER, so its reach is exactly that user's — no
 # more than their Terminal already has.
 fb config set --address 127.0.0.1 --port "$FB_PORT" --baseurl /files \
-              --root / --auth.method=noauth
-# The noauth user is jailed to its own `scope`; without widening it to the new
-# root it would stay stuck at its creation-time home. Re-applied every run.
-fb users update admin --scope / 2>/dev/null || true
+              --root / --auth.method=noauth --hideDotfiles
+# The noauth user (admin) is what FileBrowser actually serves as, and its PER-USER
+# settings OVERRIDE the defaults above — so apply scope + hideDotfiles ON IT too,
+# or it stays jailed to its creation-time home AND keeps listing .* files (the
+# defaults' hideDotfiles doesn't reach an existing user). Re-applied every run.
+fb users update admin --scope / --hideDotfiles 2>/dev/null || true
 
 # 3. systemd unit ------------------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
