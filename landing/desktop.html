@@ -184,8 +184,9 @@
     border: 1px solid rgba(80,140,220,0.45); border-radius: 999px;
     padding: 3px 11px; letter-spacing: 0.3px;
   }
-  /* Release date on its own quiet line under the pill. */
-  .sm-build .build-date { display: block; margin-top: 4px; font: 400 10px ui-monospace, Menlo, monospace; color: #6a7a8a; letter-spacing: 0.2px; }
+  /* Build number + date together on a quiet line under the pill, so the date
+     reads as the build date — not "today". */
+  .sm-build .build-meta { display: block; margin-top: 4px; font: 400 10px ui-monospace, Menlo, monospace; color: #6a7a8a; letter-spacing: 0.2px; }
   .sm-item .sm-name { font-size: 14px; color: #e6edf3; display: flex; align-items: center; }
   .sm-item .sm-desc { font-size: 11px; color: #6a7a8a; margin-top: 0; line-height: 1.25; }
   /* Green dot = an active/existing session you'd resume or join. */
@@ -361,7 +362,7 @@
     <div id="sm-apps"></div>
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
-    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span><span id="build-sw"> · build @SW_VERSION@</span></span><span class="build-date" id="build-date"></span></div>
+    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span></span><span class="build-meta">build @SW_VERSION@<span id="build-date"></span></span></div>
   </div>
 
   <div class="taskbar" id="taskbar">
@@ -1128,7 +1129,7 @@
     var el = document.getElementById('build-ver');
     if (el && d && d.version) el.textContent = d.version;
     var de = document.getElementById('build-date');
-    if (de && d && d.version_date) de.textContent = d.version_date;   // now its own line — no parens
+    if (de && d && d.version_date) de.textContent = ' · ' + d.version_date;   // " · <date>" after "build vN"
   }).catch(function() {});
 
   // --- restore THIS instance's own windows; seed the running dots ----------
