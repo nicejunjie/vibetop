@@ -620,3 +620,38 @@ and why it lost).
   container running** (tearing it down would drop open editors + cost ~1-2 min);
   container arg/image changes still need a full `deploy.sh`, exactly like
   systemd-unit changes for `browser/`/`terminal/`.
+
+---
+
+## Browser clicks land ~one line low after an xpra restart (xpra 6.5 regression)
+
+- **Symptom:** In the Browser app, clicks registered ~one character/line **below**
+  the cursor. Appeared with no Browser code change — it started right after an
+  unrelated `systemctl restart vibetop-browser-xpra` (done while fixing other
+  things). A second, **older deployment (`legion`, v1.9.10) did NOT have it**.
+- **Cause:** **A server-side regression in xpra 6.5.** `apt` had upgraded
+  `xpra 6.4.4 → 6.5` (here: 2026-06-27) but the *running* `vibetop-browser-xpra`
+  process kept executing the old 6.4.4 binaries — and was fine. The restart loaded
+  the new **6.5** binaries, which mis-place the click. Proof it's the server, not
+  our code: the xpra **HTML5 client JS is byte-identical** between 6.4.4 and 6.5
+  (`getMouse`, cursor `xhot/yhot` handling all the same), and `legion` (xpra 6.4)
+  is immune. The 6.5 changelog documents **no** pointer/cursor change, so it's an
+  unintended side effect (xpra has a long history of HTML5 mouse-offset bugs).
+- **Fix:** Downgrade to the known-good version and pin it:
+  `apt-get install --allow-downgrades xpra*=6.4.4-r0-1` (all 9 xpra packages) then
+  `apt-mark hold` them, then restart `vibetop-browser-xpra` + `vibetop-apps-xpra`.
+  Verify with `xpra info :99 | grep build.version` → `6.4`. Revisit (unhold +
+  test) when a fixed xpra ships (6.5.x/6.6) or report it upstream.
+- **Rejected (wasted ~2h):** Patching the click mapping in `xpra-patches.js`
+  (`getMouse` canvas-rect math, then a native-cursor override). All no-ops/worse —
+  the client coordinates were already correct (a debug overlay showed `getMouse`
+  mapping 1:1 at top/middle/bottom). The bug was never in the JS.
+- **Diagnostic lessons (the fast path next time):** (1) **Trust a known-good peer
+  host** — `legion` running an older build immediately localized it to *something
+  that changed on z20*, not the app. (2) For a "was-fine-now-broken with no code
+  change" service bug, **check running-binary vs installed-package version**
+  (`xpra info :99` build.version vs `dpkg -l xpra`): an `apt` upgrade doesn't
+  restart the daemon, so a restart can silently swap in new, regressed binaries
+  long after the upgrade. (3) A green on-screen debug overlay reporting
+  `client→remote` coords (temporary, in `xpra-patches.js`) proved the client math
+  was right and stopped the guess-and-deploy loop. See [[bisect-against-known-good-first]].
