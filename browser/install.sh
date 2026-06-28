@@ -20,6 +20,8 @@
 #   INSTALL_DEPS   install xpra from xpra.org repo             (default 1)
 #   INSTALL_SYSTEMD render & enable systemd unit               (default 1)
 #   INSTALL_NGINX  drop the location snippet                   (default 1)
+#   XPRA_PIN       apt version-glob to pin xpra to             (default 6.4.*; empty=no pin)
+#                  (xpra 6.5 has a Browser click-offset regression — see below)
 #   DRY_RUN        print actions without executing             (default 0)
 
 set -euo pipefail
@@ -141,7 +143,24 @@ REPO_EOF
         echo "   apt source already present"
     fi
 
-    echo "== installing xpra =="
+    # Pin xpra to 6.4.x. xpra 6.5 has a server-side click-offset regression in
+    # start-desktop + HTML5 (clicks land ~1 line below the cursor; the HTML5
+    # client JS is identical 6.4.4<->6.5, and xpra 6.4 hosts are immune — so it's
+    # the 6.5 server). See docs/design-decisions.md. Priority 1001 forces 6.4.x
+    # even over an already-installed 6.5 (self-heals). To move to a fixed xpra
+    # later: re-run with XPRA_PIN= (empty) and `apt-mark unhold xpra*`, then test.
+    XPRA_PIN="${XPRA_PIN-6.4.*}"
+    if [ -n "$XPRA_PIN" ]; then
+        cat <<PIN_EOF | write_root /etc/apt/preferences.d/vibetop-xpra.pref
+Package: xpra xpra-server xpra-x11 xpra-common xpra-codecs xpra-codecs-extras xpra-client xpra-client-gtk3 xpra-audio
+Pin: version $XPRA_PIN
+Pin-Priority: 1001
+PIN_EOF
+    else
+        run sudo rm -f /etc/apt/preferences.d/vibetop-xpra.pref
+    fi
+
+    echo "== installing xpra (pinned: ${XPRA_PIN:-none}) =="
     run sudo apt-get update -qq
     # wmctrl: the Apps launcher lists/raises/closes windows on the xpra display.
     # x11-xserver-utils: provides xhost, used to allow snap apps (Firefox/Chromium)
