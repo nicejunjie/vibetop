@@ -53,7 +53,10 @@
   <div class="frames" id="frames"></div>
 <script>
 (function() {
-  var ROOT = '/files/files/';                 // FileBrowser's root listing URL
+  // Default folder = the user's home, stamped at deploy (@APP_HOME@). FileBrowser's
+  // root is "/", so "/" stays reachable by navigating up or typing it in the path
+  // bar — but the Files app OPENS at home, not the filesystem root.
+  var HOME = '/files/files@APP_HOME@/';
   var tabsEl = document.getElementById('tabs');
   var framesEl = document.getElementById('frames');
   var addBtn = document.getElementById('add');
@@ -83,7 +86,8 @@
   function labelFor(path) {
     var rest = (path || '').split('/files/files')[1] || '';
     rest = rest.split('?')[0].split('#')[0].replace(/\/+$/, '');
-    if (!rest) return 'Home';
+    if (!rest) return 'Home';                 // filesystem root "/"
+    if (rest === '@APP_HOME@') return 'Home'; // the home folder, not its basename
     var seg = rest.split('/').pop();
     try { seg = decodeURIComponent(seg); } catch (e) {}
     return seg || 'Home';
@@ -125,9 +129,9 @@
     var f = document.createElement('iframe');
     f.name = 'fbtab';                          // tells filebrowser-patches.js to skip its location-memory
     f.setAttribute('allow', 'clipboard-read; clipboard-write');
-    f.src = path || ROOT;
+    f.src = path || HOME;
     framesEl.appendChild(f);
-    return { id: ++seq, frame: f, path: path || ROOT };
+    return { id: ++seq, frame: f, path: path || HOME };
   }
 
   function show(t) {
@@ -151,7 +155,7 @@
     if (i === -1) return;
     tabs.splice(i, 1);
     if (t.frame.parentNode) t.frame.parentNode.removeChild(t.frame);
-    if (!tabs.length) { createTab(ROOT, true); return; }   // never zero tabs
+    if (!tabs.length) { createTab(HOME, true); return; }   // never zero tabs
     if (active === t) show(tabs[Math.max(0, i - 1)]);
     else { renderTabs(); persist(); }
   }
@@ -167,7 +171,7 @@
       var arr = pool[norm(p)];
       next.push(arr && arr.length ? arr.shift() : makeTab(p));
     });
-    if (!next.length) next.push(makeTab(ROOT));
+    if (!next.length) next.push(makeTab(HOME));
     var keep = {}; next.forEach(function(t) { keep[t.id] = true; });
     tabs.forEach(function(t) { if (!keep[t.id] && t.frame.parentNode) t.frame.parentNode.removeChild(t.frame); });
     tabs = next;
@@ -200,14 +204,14 @@
     if (e.timeStamp - lastMouseAt < 700) return;   // mouse already handled it
     show(t);
   });
-  addBtn.addEventListener('click', function() { createTab(ROOT, true); });
+  addBtn.addEventListener('click', function() { createTab(HOME, true); });
 
   // Deep-link from the desktop (Upload app's "Open in Files"): open a tab at a
   // path relative to ~. The desktop posts a few times to beat the first-load
   // race, so dedupe repeats of the same path within a short window.
   function openAt(rel) {
     rel = (rel || '').replace(/^\/+/, '');
-    createTab(ROOT + rel.split('/').map(encodeURIComponent).join('/'), true);
+    createTab(HOME + rel.split('/').map(encodeURIComponent).join('/'), true);
   }
   var _lastOpen = { path: null, t: 0 };
   window.addEventListener('message', function(e) {
@@ -241,10 +245,10 @@
       s.paths.forEach(function(p) { createTab(p, false); });
       show(tabs[Math.min(Math.max(0, s.active | 0), tabs.length - 1)]);
     } else {
-      createTab(ROOT, true);
+      createTab(HOME, true);
     }
   }).catch(function() {
-    if (!tabs.length) createTab(ROOT, true);
+    if (!tabs.length) createTab(HOME, true);
   }).then(function() {
     _lastSaved = stateStr();   // don't immediately re-POST the just-loaded state
     _loaded = true;
