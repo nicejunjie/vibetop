@@ -2060,6 +2060,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if touched("office/"):
             deploy("deploy office (nginx)", ["./office/install.sh"],
                    {**base_env, "INSTALL_CONTAINER": "0"})
+        # files/ — or the FileBrowser patch JS. The patch JS lives under landing/
+        # but its nginx ?v= cache-buster is computed by files/install.sh, so a
+        # patch-only change MUST re-render the /files/ snippet too or the browser
+        # keeps serving the old cached JS (stale ?v=). INSTALL_DEPS/SYSTEMD=0 keeps
+        # it to config (idempotent) + nginx + a brief filebrowser restart.
+        if touched("files/") or "landing/filebrowser-patches.js" in changed:
+            deploy("deploy files & nginx", ["./files/install.sh"], base_env)
 
         # Restart the manager out-of-band (via a transient timer so it survives
         # our own death) only if its code changed — after the response is sent.

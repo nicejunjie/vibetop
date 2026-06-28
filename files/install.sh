@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Install FileBrowser as the Vibetop "Files" app: served at /files/ from
-# 127.0.0.1:8085, rooted at the user's home, no auth (Cloudflare Access or the
-# LAN boundary is the gate). Idempotent and re-runnable. --dry-run previews.
+# 127.0.0.1:8085, rooted at / (the whole filesystem — the user asked to browse
+# "/"; FileBrowser runs as APP_USER so it can only read/write what that user can,
+# same reach as their Terminal), no auth (Cloudflare Access or the LAN boundary is
+# the gate). Idempotent and re-runnable. --dry-run previews.
 #
 # Run AFTER terminal/install.sh (which creates the nginx extras dir + include).
 #
@@ -61,7 +63,7 @@ fb() { run sudo -u "$APP_USER" "$FB_BIN" --database "$FB_DB" "$@"; }
 cat <<EOF
 filebrowser install
   user        : $APP_USER   (home $APP_HOME)
-  port        : 127.0.0.1:$FB_PORT  ->  /files/   (root: $APP_HOME, no auth)
+  port        : 127.0.0.1:$FB_PORT  ->  /files/   (root: /, no auth)
   binary / db : $FB_BIN  |  $FB_DB
   deps        : $INSTALL_DEPS   systemd: $INSTALL_SYSTEMD   nginx: $INSTALL_NGINX
   dry run     : $DRY_RUN
@@ -101,8 +103,14 @@ if ! [ -f "$FB_DB" ] && (( ! DRY_RUN )); then
     fb users add admin "$(openssl rand -hex 12 2>/dev/null || echo changeme123)" --perm.admin || true
 fi
 # Settings are idempotent — safe to set on every run.
+# root=/ so the Files app can browse the whole filesystem (the user asked for
+# "/"). FileBrowser runs as APP_USER, so its reach is exactly that user's — no
+# more than their Terminal already has.
 fb config set --address 127.0.0.1 --port "$FB_PORT" --baseurl /files \
-              --root "$APP_HOME" --auth.method=noauth
+              --root / --auth.method=noauth
+# The noauth user is jailed to its own `scope`; without widening it to the new
+# root it would stay stuck at its creation-time home. Re-applied every run.
+fb users update admin --scope / 2>/dev/null || true
 
 # 3. systemd unit ------------------------------------------------------------
 if (( INSTALL_SYSTEMD )); then

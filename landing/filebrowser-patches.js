@@ -122,6 +122,12 @@
     // listing. Hide it so that flash isn't visible. (display:none doesn't stop
     // the Vue component mounting, so the auto-login it triggers still runs.)
     "#login { display: none !important; }",
+    // Address bar: the current full path as a selectable/copyable + typable
+    // field (FileBrowser only shows a breadcrumb of links). Sits at the top of
+    // the listing; Enter navigates, Copy copies. Theme-agnostic (color:inherit).
+    "#fb-addrbar { display:flex; align-items:center; gap:6px; padding:6px 10px; box-sizing:border-box; width:100%; border-bottom:1px solid rgba(128,128,128,0.25); }",
+    "#fb-addrbar input { flex:1 1 auto; min-width:0; font:13px ui-monospace,Menlo,Consolas,monospace; padding:6px 8px; border:1px solid rgba(128,128,128,0.45); border-radius:6px; background:rgba(128,128,128,0.06); color:inherit; }",
+    "#fb-addrbar .fb-addr-btn { flex:0 0 auto; cursor:pointer; white-space:nowrap; border:1px solid rgba(128,128,128,0.45); border-radius:6px; background:transparent; color:inherit; padding:6px 10px; font:13px system-ui,sans-serif; }",
   ].join("\n");
   document.head.appendChild(style);
 
@@ -162,6 +168,7 @@
   // injectPermanentButtons when the listing comes back.
   function removeInjectedButtons() {
     document.querySelectorAll("header .fb-permanent").forEach(function(b) { b.remove(); });
+    var ab = document.getElementById("fb-addrbar"); if (ab) ab.remove();
   }
 
   // Check if any item (file or folder) is selected
@@ -216,6 +223,71 @@
         return;
       }
     }
+  }
+
+  // --- Address bar: full path, copyable + typable ------------------------
+  // The browse URL is /files/files/<path-relative-to-root>; with root="/" that
+  // tail IS the absolute path (minus the leading slash). Decode each segment.
+  function currentFullPath() {
+    var m = location.pathname.match(/\/files\/files(\/.*)?$/);
+    var rel = (m && m[1]) ? m[1] : "/";
+    var parts = rel.split("/").filter(Boolean).map(function(s) {
+      try { return decodeURIComponent(s); } catch (e) { return s; }
+    });
+    return "/" + parts.join("/");
+  }
+  function goToPath(p) {
+    if (p == null) return;
+    p = p.trim();
+    if (!p) return;
+    if (p.charAt(0) !== "/") p = "/" + p;            // treat input as absolute
+    p = p.replace(/\/{2,}/g, "/");                    // collapse //
+    var enc = p.replace(/^\/+/, "").split("/").filter(Boolean)
+               .map(encodeURIComponent).join("/");
+    location.assign("/files/files/" + enc);          // SPA loads that folder
+  }
+  function legacyCopy(input) {
+    try { input.focus(); input.select(); document.execCommand("copy"); } catch (e) {}
+  }
+  function injectAddressBar() {
+    if (!isListingView()) return;
+    var listing = document.getElementById("listing");
+    if (!listing || !listing.parentNode) return;
+    if (document.getElementById("fb-addrbar")) return;
+    var bar = document.createElement("div");
+    bar.id = "fb-addrbar";
+    var input = document.createElement("input");
+    input.id = "fb-addr-input";
+    input.type = "text";
+    input.spellcheck = false;
+    input.setAttribute("autocapitalize", "off");
+    input.setAttribute("autocorrect", "off");
+    input.setAttribute("aria-label", "Folder path — edit and press Enter to go");
+    input.value = currentFullPath();
+    input.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") { e.preventDefault(); goToPath(input.value); }
+    });
+    var copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "fb-addr-btn";
+    copy.textContent = "Copy";
+    copy.title = "Copy the full path";
+    copy.addEventListener("click", function() {
+      var v = input.value, orig = copy.textContent;
+      var done = function() { copy.textContent = "Copied"; setTimeout(function() { copy.textContent = orig; }, 1000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(v).then(done, function() { legacyCopy(input); done(); });
+      } else { legacyCopy(input); done(); }
+    });
+    bar.appendChild(input);
+    bar.appendChild(copy);
+    listing.parentNode.insertBefore(bar, listing);
+  }
+  function updateAddressBar() {
+    var input = document.getElementById("fb-addr-input");
+    if (!input || document.activeElement === input) return;   // don't clobber mid-type
+    var p = currentFullPath();
+    if (input.value !== p) input.value = p;
   }
 
   function injectPermanentButtons() {
@@ -391,8 +463,10 @@
     shortenLabels();
     injectPermanentButtons();
     injectOfficeButtons();
+    injectAddressBar();
     updatePermanentButtons();
     updateOfficeButtons();
+    updateAddressBar();
     hideVueButtons();
     patching = false;
   }
