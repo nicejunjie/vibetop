@@ -68,6 +68,25 @@
     console.warn('[xpra-patches] getMouse patch failed:', e.message);
   }
 
+  // 1b. Native cursor: getMouse now sends the true pointer 1:1, but xpra still
+  //     PAINTS its own pointer — the #shadow_pointer image (positioned without
+  //     subtracting the cursor hotspot) and/or a server cursor — whose visible
+  //     tip sits ~one line off the real pointer. You aim with that drawn cursor,
+  //     so clicks land offset ("a bit lower") even though the coordinates are
+  //     correct. Fix: hide xpra's drawn pointer and show the browser's NATIVE
+  //     cursor, which the OS always places exactly at the true pointer (with the
+  //     correct hotspot). Trade-off: the cursor is the native arrow rather than
+  //     the remote's shape — accuracy over cosmetics, as requested.
+  try {
+    var cstyle = document.createElement('style');
+    cstyle.textContent =
+      '#shadow_pointer{display:none!important}' +
+      '#screen,#screen canvas{cursor:default!important}';
+    (document.head || document.documentElement).appendChild(cstyle);
+  } catch(e) {
+    console.warn('[xpra-patches] native-cursor patch failed:', e.message);
+  }
+
   // 2. Scroll fix: xpra's default scroll handler accumulates wheel deltas
   //    to 120 units before sending, which makes slow trackpad scrolling
   //    unresponsive. Replace with immediate per-event dispatch.
