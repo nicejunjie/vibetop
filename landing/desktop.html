@@ -1129,7 +1129,10 @@
     var el = document.getElementById('build-ver');
     if (el && d && d.version) el.textContent = d.version;
     var de = document.getElementById('build-date');
-    if (de && d && d.version_date) de.textContent = ' · ' + d.version_date;   // " · <date>" after "build vN"
+    // build_date = when sw.js (the "build vN") was last cut — matches the build
+    // number beside it. NOT version_date (the VERSION-file/release date), which
+    // goes stale when a shell-only build bumps sw.js without cutting a release.
+    if (de && d && d.build_date) de.textContent = ' · ' + d.build_date;   // " · <date>" after "build vN"
   }).catch(function() {});
 
   // --- restore THIS instance's own windows; seed the running dots ----------

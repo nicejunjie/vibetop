@@ -1844,6 +1844,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                         "--date=short", "--", "VERSION"])
         if okv and vdate.strip():
             info["version_date"] = vdate.strip()
+        # Date THIS shell build was cut = the last commit that touched sw.js
+        # (whose VERSION is the "build vN" shown in the tag). Distinct from
+        # version_date (the release/VERSION-file bump): a shell-only build bumps
+        # sw.js WITHOUT cutting a new release, so the build tag's date must track
+        # sw.js — pairing it with version_date shows a stale date next to a newer
+        # build number (e.g. "build v143 · <v1.11.4's date>").
+        okb, bdate = self._git_as_user(["log", "-1", "--format=%cd",
+                                        "--date=short", "--", "landing/sw.js"])
+        if okb and bdate.strip():
+            info["build_date"] = bdate.strip()
         if ok and "\t" in head:
             commit, date, subject = head.split("\t", 2)
             info.update({"commit": commit, "date": date, "subject": subject})
