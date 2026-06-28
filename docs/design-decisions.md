@@ -568,3 +568,50 @@ and why it lost).
   behavior WebKit reproduces faithfully (unlike the keyboard-viewport quirks),
   so the harness caught all three before deploy. Don't touch the 80 ms→0 flush
   without re-checking the `composing` path still batches dictation.
+
+---
+
+## OnlyOffice "Download failed" over the Cloudflare tunnel (but fine on the LAN)
+
+- **Symptom:** Opening/creating a doc in the Office app showed OnlyOffice's
+  native **"Error: Download failed"** dialog — but **only over the tunnel**
+  (`https://service…`), on *both* phone and desktop. The **LAN**
+  (`http://z20.local`) worked. First mis-reported as phone-only (the phone was
+  just the tunnel client), which echoes — but is **not** — the older mobile-editor
+  "Download failed" (that one was the Community mobile web editor; fixed by
+  forcing `cfg.type='desktop'`, still in place). Here the desktop editor loads
+  fully, then the document never appears.
+- **Cause:** **Mixed content.** The editor UI loads, then the browser fetches the
+  converted document at `…/onlyoffice/cache/files/data/<key>/Editor.bin`. Over
+  the tunnel that request **never reached the origin** (0 hits in nginx; a
+  browser-side block, not an edge block — a request killed *before* it's sent).
+  Why: OnlyOffice builds that as an **absolute** URL whose scheme comes from
+  `X-Forwarded-Proto`. Our `onlyoffice.conf` sent `X-Forwarded-Proto $scheme`,
+  but over the tunnel the `cloudflared → nginx` hop is plain **http**, so
+  `$scheme=http` even though the client is on **https**. So the DS handed the
+  browser an `http://service…/…/Editor.bin` link; on an **https** page that's
+  active mixed content → blocked → "Download failed." On the **http** LAN page the
+  http link is same-scheme, so it always worked. (Two red herrings ruled out
+  first: the container *does* download the original doc fine — `GET /api/office/doc
+  → 200` over the tunnel — and OnlyOffice's own `document_editor_service_worker.js`
+  only registers in a secure context, but its scope is `/onlyoffice/<version>/`,
+  so it never touches the `/onlyoffice/cache/` path.)
+- **Fix:** Forward the **external** scheme: `proxy_set_header X-Forwarded-Proto
+  $http_x_forwarded_proto;` in `office/nginx/onlyoffice.conf`. `cloudflared` sends
+  `X-Forwarded-Proto: https`, so the DS now builds `https://` URLs over the
+  tunnel; on a direct LAN request the header is absent → nginx omits it → the DS's
+  own nginx (`http-common.conf`'s `$the_scheme` map) falls back to its `http`
+  `$scheme`. Verified with `tcpdump` on loopback `:8087`: `X-Forwarded-Proto:
+  https` now reaches the container and the `Editor.bin` GETs hit the origin.
+- **Rejected:** Hardcoding `https` (breaks the http LAN — the reverse mixed-content
+  problem). Patching the container's nginx (its `$the_scheme` map already honors
+  the incoming header — the only broken hop was ours). An Access bypass for
+  `/onlyoffice/*` (wrong layer — the request never reached Cloudflare; and it'd
+  needlessly expose the editor/cache publicly). Chasing the server-side download
+  path (the *container's* download was always 200; the failing fetch was the
+  *browser's*).
+- **Note:** purely an nginx-snippet change — no `sw.js`/shell bump (the PWA SW
+  bypasses `/onlyoffice` and `office-editor.html` is network-only). Heads-up: the
+  in-app Updater redeploys `landing/`/`browser/`/`terminal/` only, **not**
+  `office/`, so an `office/` change reaches a running host via `deploy.sh` /
+  `office/install.sh`, not the Update app.
