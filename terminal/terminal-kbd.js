@@ -164,6 +164,17 @@
       '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none';  // stop iOS's own long-press selection/loupe
     document.body.appendChild(ov);
 
+    // This overlay is THE terminal input on touch. xterm's hidden helper textarea
+    // keeps grabbing focus (on WS-connect, renders, etc.); the focusin guard in
+    // terminal/install.sh bounces that stolen focus BACK here — but ONLY while
+    // "armed" (after the user has genuinely tapped to type), so the keyboard
+    // doesn't pop up on page load. Before this, the guard blurred the helper to
+    // <body>, leaving NO focused input, so keystrokes were silently dropped (the
+    // terminal-only typing-fails / first-char-lost bug). Disarm on app-switch.
+    try { window.__termOverlay = ov; } catch (_) {}
+    ov.addEventListener('focus', function () { try { window.__termArmed = true; } catch (_) {} });
+    window.addEventListener('blur', function () { try { window.__termArmed = false; } catch (_) {} });
+
     // Park the textarea caret KBD_BAR_RESERVE px below the xterm cursor row, so
     // iOS reveals the prompt line that much above the keyboard — clear of the bar.
     function positionCaret() {
@@ -174,7 +185,12 @@
         var rh = h / rows;
         var cy = (t.buffer && t.buffer.active) ? t.buffer.active.cursorY : rows - 1;
         var y = Math.max(0, Math.min(h - rh, cy * rh)) + KBD_BAR_RESERVE;
-        ov.style.paddingTop = Math.round(y) + 'px';
+        var p = Math.round(y) + 'px';
+        // Only write when it actually changes. cursorY changes on a newline/wrap,
+        // NOT on every character, so same-row typing no longer mutates paddingTop
+        // — which stops iOS reveal-scrolling on every keystroke (the typing-lag
+        // cause once the overlay became taller-than-viewport / scrollable).
+        if (ov.style.paddingTop !== p) ov.style.paddingTop = p;
       } catch (_) {}
     }
     // Re-anchor the caret to the cursor row ONLY when the cursor actually moves
@@ -184,7 +200,6 @@
     // cursor → re-anchor → your line stays visible; scrolling doesn't → the view
     // stays where you put it.
     try { if (window.term.onCursorMove) window.term.onCursorMove(positionCaret); } catch (_) {}
-    ov.addEventListener('focus', positionCaret);
     window.addEventListener('resize', positionCaret);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', positionCaret);
     positionCaret();
@@ -193,9 +208,11 @@
     function flush() {
       timer = null;
       var v = ov.value;
-      dbg(' {in=' + JSON.stringify(v) + ' last=' + JSON.stringify(lastSent) + '}> ');
-      // Ignore iOS dictation's transient clear-to-"" between revisions.
-      if (v === '' && lastSent !== '') return;
+      if (dbgEl) dbg(' {in=' + JSON.stringify(v) + ' last=' + JSON.stringify(lastSent) + '}> ');
+      // Ignore iOS dictation's transient clear-to-"" between revisions — but ONLY
+      // while composing. Outside composition an empty value is a genuine line
+      // clear and must emit the backspaces (else ov and the PTY desync).
+      if (v === '' && lastSent !== '' && composing) return;
       // Compare by code POINT (Array.from), not UTF-16 unit, so an emoji/astral
       // char isn't split into two lone surrogates and one delete = one char.
       var va = Array.from(v), la = Array.from(lastSent);
@@ -208,11 +225,31 @@
     function sched(ms) { if (timer) clearTimeout(timer); timer = setTimeout(flush, ms); }
     function clr() { if (timer) { clearTimeout(timer); timer = null; } ov.value = ''; lastSent = ''; }
 
+    // On a GENUINE (re)focus — the start of a new typing session — reset the
+    // value-diff baseline so the first char is sent as-is. Stale lastSent/ov.value
+    // from a prior session made the first letter's diff wrong (spurious backspaces
+    // or a swallowed char): the occasional dropped-first-letter. SKIP this on the
+    // focusin guard's bounce re-focus (window.__termBouncing), which fires every
+    // time xterm steals focus mid-typing — resetting then would wipe in-flight
+    // input. Always re-anchor the caret either way.
+    ov.addEventListener('focus', function () {
+      positionCaret();
+      if (window.__termBouncing) return;
+      ov.value = ''; lastSent = ''; composing = false;
+      if (timer) { clearTimeout(timer); timer = null; }
+    });
+
     ov.addEventListener('compositionstart', function () { dbg(' (cs)'); composing = true; });
     ov.addEventListener('compositionend', function () { dbg(' (ce)'); composing = false; sched(40); });
     ov.addEventListener('input', function (e) {
-      dbg(' i[' + JSON.stringify(ov.value) + ' c=' + (e && e.isComposing) + ']');
-      sched((composing || (e && e.isComposing)) ? 400 : 80);
+      if (dbgEl) dbg(' i[' + JSON.stringify(ov.value) + ' c=' + (e && e.isComposing) + ']');
+      // Normal typing: flush IMMEDIATELY so the keystroke round-trips to the PTY
+      // with no artificial delay — as snappy as a native field, minus only the
+      // unavoidable PTY-echo round-trip (the shell, not the browser, renders the
+      // char). Only dictation/IME (composing) keeps a debounce so its streamed
+      // revisions are batched instead of sent as half-words.
+      if (composing || (e && e.isComposing)) { sched(400); }
+      else { if (timer) { clearTimeout(timer); timer = null; } flush(); }
     });
     ov.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); flush(); sendRaw(String.fromCharCode(13)); clr(); dbg(' <ENTER> '); }

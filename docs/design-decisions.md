@@ -519,3 +519,52 @@ and why it lost).
   screenshots, against a **throwaway terminal** (never the user's sessions).
   Chromium emulation passed a test the real iPhone failed — see
   [[mobile-ui-needs-webkit-or-device]] in memory: don't ship iOS UI blind.
+
+## Mobile terminal typing: dropped keystrokes, dropped first letter, input lag
+
+- **Symptom:** After the mobile keyboard work landed, typing in the **terminal
+  only** (every other app was fine) would intermittently **drop the first
+  letter**, **drop keystrokes entirely**, or feel **laggy** — "I have to type it
+  a few times." None of this reproduced in the Browser/Notes overlays.
+- **Cause:** Three independent bugs in the touch input path (the transparent
+  overlay `terminal-kbd.js` + the `focusin` guard injected by
+  `terminal/install.sh`), root-caused with an ultracode multi-agent workflow:
+  1. **Blur-to-nothing.** The guard's job is to stop xterm's hidden
+     `.xterm-helper-textarea` from raising the keyboard on load, so it blurred
+     the helper whenever it took focus. But it blurred to **`document.body`** —
+     not a text field. xterm re-focuses that helper constantly (WS-connect, every
+     render), so mid-typing a steal → blur → **focus on `<body>` → the keystroke
+     went nowhere.** Terminal-only because no other app fights xterm for focus.
+  2. **Stale value-diff baseline.** Input is sent by diffing the overlay's value
+     against `lastSent`, which was reset **only on Enter**. A typing session that
+     began with leftover state (keyboard dismissed/re-summoned, an un-Entered
+     line) mis-computed the **first** char's diff — swallowing it or emitting
+     spurious backspaces.
+  3. **Artificial 80 ms debounce.** Every keystroke sat in a `setTimeout(…, 80)`
+     before reaching the PTY — batching meant for dictation, but pure latency for
+     normal typing (Notes is a native field with none).
+- **Fix:**
+  1. The guard **bounces the stolen focus back to the overlay** instead of
+     blurring to `<body>` — gated by `window.__termArmed` (set on the overlay's
+     first genuine focus, so the keyboard still doesn't pop up on load) and
+     `window.__termBouncing` (set around the guard's `focus()` call so the
+     genuine-focus baseline reset below can tell a bounce from a real refocus and
+     **never wipes in-flight input**). Focus can no longer land on `<body>`.
+  2. **Reset the diff baseline (`ov.value`/`lastSent`) on a genuine refocus**
+     (skipped when `__termBouncing`), so the first char of every session is sent
+     as-is. The empty-value guard is also scoped to `composing` so a real line
+     clear isn't swallowed.
+  3. **Flush normal typing immediately** (synchronously in the `input` handler);
+     only `composing` (dictation/IME) keeps the 400 ms debounce. The remaining
+     gap from Notes is the **unavoidable PTY-echo round-trip** — the shell, not
+     the browser, renders the char; small on LAN, = network RTT over the tunnel.
+- **Rejected:** Lowering/removing the debounce alone (didn't address the focus
+  drops). Resetting the baseline on **every** focus (the guard's bounce re-focus
+  fires mid-typing, so this wiped in-flight chars — hence the `__termBouncing`
+  gate). Letting the helper keep focus (xterm's native input streams half-formed
+  dictation to the PTY — the very pile-up the overlay exists to prevent).
+- **Testing lesson:** Same WebKit-on-throwaway-terminal harness as above. The
+  focus-steal/bounce and the synchronous-vs-debounced flush are deterministic DOM
+  behavior WebKit reproduces faithfully (unlike the keyboard-viewport quirks),
+  so the harness caught all three before deploy. Don't touch the 80 ms→0 flush
+  without re-checking the `composing` path still batches dictation.
