@@ -8,8 +8,9 @@
 
   // Shared client-side view zoom — Safari-style magnification of the rendered
   // canvas (same remote layout, just bigger pixels + pan), applied as a CSS
-  // transform on #screen (see patch 4). getMouse (patch 1) divides click
-  // coordinates by .z so taps still land correctly while magnified.
+  // transform on #screen (see patch 4). getMouse (patch 1) maps clicks straight
+  // from the canvas's on-screen rect, which already reflects this transform, so
+  // taps land correctly while magnified with no separate .z math.
   var VIEWZOOM = { z: 1, px: 0, py: 0, min: 1, max: 6 };
 
   // Exposed by patch 3 (native keyboard) for the paste patch (5).
@@ -33,20 +34,33 @@
     console.warn('[xpra-patches] beforeunload patch failed:', e.message);
   }
 
-  // 1. Mouse offset fix: getMouse uses clientX/clientY (viewport coords)
-  //    but the canvas may not start at (0,0). Patch to use canvas-relative coords.
+  // 1. Mouse offset + scale fix. Map the click to REMOTE pixels purely from the
+  //    drawing canvas's live geometry — no hard-coded offsets or scale factors.
+  //    Why not e.target's rect: in start-desktop the event often fires on a
+  //    window/content div whose top sits below the canvas (the hidden title-bar
+  //    gap), so every click landed above the cursor (the ~½" offset). And
+  //    this.scale can go stale across resizes/reconnects. Using the canvas's own
+  //    rect (origin) + buffer-size÷rendered-size (scale) derives everything from
+  //    what's actually on screen, so it self-corrects for offset, scale, DPR and
+  //    the CSS view-zoom (already baked into getBoundingClientRect) at once.
   try {
     var P = XpraClient.prototype;
     var origGM = P.getMouse;
     P.getMouse = function(e) {
       var r = origGM.call(this, e);
-      if (e.target && e.target.getBoundingClientRect) {
-        var b = e.target.getBoundingClientRect();
-        // b reflects the CSS view-zoom transform, so divide the offset by the
-        // zoom factor to recover real canvas coordinates (z=1 → unchanged).
-        var z = VIEWZOOM.z || 1;
-        r.x = this.last_mouse_x = Math.round((e.clientX - b.left) / z * (this.scale || 1));
-        r.y = this.last_mouse_y = Math.round((e.clientY - b.top) / z * (this.scale || 1));
+      // The remote framebuffer is drawn on this <canvas>; prefer the clicked
+      // canvas, else the desktop canvas under #screen.
+      var canvas = (e.target && e.target.tagName === 'CANVAS') ? e.target
+                 : (document.getElementById('screen') || document).querySelector('canvas');
+      if (canvas && canvas.width && canvas.height && canvas.getBoundingClientRect) {
+        var b = canvas.getBoundingClientRect();
+        if (b.width && b.height) {
+          // canvas.width/height = remote resolution; b.width/height = on-screen
+          // size (incl. the view-zoom transform). Their ratio maps viewport px
+          // -> remote px; (clientX-b.left) is the offset from the canvas origin.
+          r.x = this.last_mouse_x = Math.round((e.clientX - b.left) * (canvas.width  / b.width));
+          r.y = this.last_mouse_y = Math.round((e.clientY - b.top)  * (canvas.height / b.height));
+        }
       }
       return r;
     };
