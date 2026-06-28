@@ -611,7 +611,12 @@ and why it lost).
   path (the *container's* download was always 200; the failing fetch was the
   *browser's*).
 - **Note:** purely an nginx-snippet change — no `sw.js`/shell bump (the PWA SW
-  bypasses `/onlyoffice` and `office-editor.html` is network-only). Heads-up: the
-  in-app Updater redeploys `landing/`/`browser/`/`terminal/` only, **not**
-  `office/`, so an `office/` change reaches a running host via `deploy.sh` /
-  `office/install.sh`, not the Update app.
+  bypasses `/onlyoffice` and `office-editor.html` is network-only). Deploy gap
+  found + closed alongside this: the in-app Updater redeployed
+  `landing/`/`browser/`/`terminal/` but **not** `office/`, so this fix wouldn't
+  have reached a host that updates via the app. The Updater now runs
+  `office/install.sh` on an `office/` change — with the new `INSTALL_CONTAINER=0`
+  knob so it only re-renders the nginx snippet and **leaves the live OnlyOffice
+  container running** (tearing it down would drop open editors + cost ~1-2 min);
+  container arg/image changes still need a full `deploy.sh`, exactly like
+  systemd-unit changes for `browser/`/`terminal/`.

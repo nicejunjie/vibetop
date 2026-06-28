@@ -2041,6 +2041,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             deploy("deploy browser", ["./browser/install.sh"], base_env)
         if touched("terminal/"):
             deploy("deploy terminal & nginx", ["./terminal/install.sh"], base_env)
+        # office/ → just re-render the /onlyoffice/ nginx snippet. INSTALL_CONTAINER=0
+        # keeps the live OnlyOffice container (an in-app update must not tear it down
+        # — that drops open editors + ~1-2 min downtime); container/image changes
+        # need a full deploy, same as systemd-unit changes for browser/terminal. The
+        # bundled new-doc templates (office/templates/) need no step — the manager
+        # reads them straight from the checkout.
+        if touched("office/"):
+            deploy("deploy office (nginx)", ["./office/install.sh"],
+                   {**base_env, "INSTALL_CONTAINER": "0"})
 
         # Restart the manager out-of-band (via a transient timer so it survives
         # our own death) only if its code changed — after the response is sent.

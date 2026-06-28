@@ -10,7 +10,8 @@
 # Env knobs:
 #   ONLYOFFICE_PORT   loopback port for the container         (default 8087)
 #   ONLYOFFICE_IMAGE  image to run               (default onlyoffice/documentserver)
-#   INSTALL_DEPS      docker pull the image                   (default 1)
+#   INSTALL_DEPS      install docker + pull the image         (default 1)
+#   INSTALL_CONTAINER (re)create the OnlyOffice container     (default 1)
 #   INSTALL_NGINX     render & reload the nginx snippet       (default 1)
 #   DRY_RUN           print actions only                      (default 0)
 set -euo pipefail
@@ -26,14 +27,16 @@ ONLYOFFICE_IMAGE="${ONLYOFFICE_IMAGE:-onlyoffice/documentserver:latest}"
 CONTAINER="vibetop-onlyoffice"
 SECRET_FILE="$APP_HOME/.config/vibetop/onlyoffice.secret"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
+INSTALL_CONTAINER="${INSTALL_CONTAINER:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 
 for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=1 ;;
+        --no-container) INSTALL_CONTAINER=0 ;;
         --no-nginx) INSTALL_NGINX=0 ;;
-        --help|-h) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help|-h) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown flag: $arg" >&2; exit 2 ;;
     esac
 done
@@ -100,14 +103,22 @@ if (( INSTALL_DEPS )); then
 fi
 
 # 3. (Re)create the container — loopback only; reachable back to the host for
-#    the doc fetch + save callback via host.docker.internal.
-echo "== (re)creating container $CONTAINER =="
-run docker rm -f "$CONTAINER" 2>/dev/null || true
-run docker run -d --name "$CONTAINER" --restart unless-stopped \
-    -p "127.0.0.1:${ONLYOFFICE_PORT}:80" \
-    -e JWT_ENABLED=true -e JWT_SECRET="$SECRET" -e JWT_HEADER=Authorization \
-    --add-host=host.docker.internal:host-gateway \
-    "$ONLYOFFICE_IMAGE"
+#    the doc fetch + save callback via host.docker.internal. Skipped on a
+#    snippet-only redeploy (INSTALL_CONTAINER=0, e.g. the in-app Updater): a
+#    proxy-snippet refresh must NOT tear down a live OnlyOffice (it would drop
+#    every open editor + cost ~1-2 min downtime). Container arg/image changes
+#    therefore need a full deploy, like systemd-unit changes for browser/terminal.
+if (( INSTALL_CONTAINER )); then
+    echo "== (re)creating container $CONTAINER =="
+    run docker rm -f "$CONTAINER" 2>/dev/null || true
+    run docker run -d --name "$CONTAINER" --restart unless-stopped \
+        -p "127.0.0.1:${ONLYOFFICE_PORT}:80" \
+        -e JWT_ENABLED=true -e JWT_SECRET="$SECRET" -e JWT_HEADER=Authorization \
+        --add-host=host.docker.internal:host-gateway \
+        "$ONLYOFFICE_IMAGE"
+else
+    echo "== keeping existing container (INSTALL_CONTAINER=0) =="
+fi
 
 # 4. nginx snippet
 if (( INSTALL_NGINX )); then
@@ -132,6 +143,9 @@ if (( INSTALL_NGINX )); then
 fi
 
 echo
-echo "done. The Document Server takes ~1-2 min to become healthy on first start:"
-echo "  curl -s http://127.0.0.1:${ONLYOFFICE_PORT}/healthcheck   # -> true"
-echo "  open the Office app via Files -> Edit"
+echo "done."
+if (( INSTALL_CONTAINER )); then
+    echo "The Document Server takes ~1-2 min to become healthy on first start:"
+    echo "  curl -s http://127.0.0.1:${ONLYOFFICE_PORT}/healthcheck   # -> true"
+    echo "  open the Office app via Files -> Edit"
+fi
