@@ -16,14 +16,19 @@ if [ -z "$DST_DIR" ] || [ "$DST_DIR" = "/" ]; then
 fi
 
 run mkdir -p "$DST_DIR"
-# Stamp the real release number (root VERSION file) into the Start-menu build
-# tag so it can't drift from a hardcoded literal.
+# Stamp the release number (root VERSION file) AND the service-worker build
+# (sw.js VERSION) into the Start-menu build tag so neither can drift from a
+# hardcoded literal — and so the build number renders instantly on load with NO
+# runtime dependency (it reflects the actual shell that was deployed, which is
+# exactly what "did a fresh shell load?" wants to show).
 VERSION="$(cat "$DIR/../VERSION" 2>/dev/null | tr -d ' \t\r\n')"
 VERSION="${VERSION:-dev}"
+SW_VERSION="$(grep -o "VERSION = 'v[0-9]\+'" "$DIR/sw.js" 2>/dev/null | grep -o 'v[0-9]\+')"
+SW_VERSION="${SW_VERSION:-?}"
 if [ "$DRY_RUN" = 1 ]; then
-  printf '+ install index.html (sed @VERSION@ -> %s)\n' "$VERSION"
+  printf '+ install index.html (sed @VERSION@ -> %s, @SW_VERSION@ -> %s)\n' "$VERSION" "$SW_VERSION"
 else
-  sed "s/@VERSION@/$VERSION/g" "$DIR/desktop.html" > "$DST_DIR/index.html"
+  sed -e "s/@VERSION@/$VERSION/g" -e "s/@SW_VERSION@/$SW_VERSION/g" "$DIR/desktop.html" > "$DST_DIR/index.html"
   chmod 644 "$DST_DIR/index.html"
 fi
 run install -m 644 "$DIR/index.html" "$DST_DIR/landing.html"

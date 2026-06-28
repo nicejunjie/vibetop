@@ -361,7 +361,7 @@
     <div id="sm-apps"></div>
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
-    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span><span id="build-sw"></span></span><span class="build-date" id="build-date"></span></div>
+    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span><span id="build-sw"> · build @SW_VERSION@</span></span><span class="build-date" id="build-date"></span></div>
   </div>
 
   <div class="taskbar" id="taskbar">
@@ -1223,11 +1223,6 @@ if ('serviceWorker' in navigator) {
       // happened while offline would otherwise be missed). The live `reload` event
       // covers a foreground tab during a deploy.
       es.addEventListener('hello', function(e) {
-        // Append the running shell build (e.g. "· build v139") to the Start-menu
-        // build tag — the truest "did a fresh shell load?" signal, since it bumps
-        // on every shell deploy (the release version doesn't).
-        var sw = document.getElementById('build-sw');
-        if (sw && e.data) sw.textContent = ' · build ' + e.data;
         if (loadedShellVer === null) loadedShellVer = e.data;
         else if (e.data && e.data !== loadedShellVer) triggerRefresh();
       });
