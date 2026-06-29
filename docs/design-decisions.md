@@ -655,3 +655,60 @@ and why it lost).
   long after the upgrade. (3) A green on-screen debug overlay reporting
   `client→remote` coords (temporary, in `xpra-patches.js`) proved the client math
   was right and stopped the guess-and-deploy loop. See [[bisect-against-known-good-first]].
+
+## Browser "loading" spinner every few seconds with TWO devices (stale xpra client state — NOT a code/version bug)
+
+- **Symptom:** The Browser app reloads to the connecting/"loading" spinner every
+  few seconds — **only the Browser** (Terminal is rock-solid), and **only when it's
+  open on 2+ clients at once** (desktop + phone, or two tabs). A **single** client
+  is always stable. Reported as version-specific (works on the older `legion` host,
+  broken on `z20`).
+- **Cause (validated):** **Accumulated stale runtime state, not code.** The session
+  ended back on the *exact* stock build it started on (v1.11.6) and the Browser was
+  fixed — so no code change cured it. What did: a full teardown+redeploy (1)
+  **restarted `vibetop-browser-xpra` from zero** (`clients=0`), dropping accumulated
+  **stale/zombie xpra clients** (backgrounded tabs, suspended-phone connections that
+  hadn't hit `XPRA_PING_TIMEOUT` yet) all contending for the single shared session;
+  and (2) made **both devices reload onto one consistent shell**, ending a
+  cache-mismatch fight. The reload itself is `xpra-patches.js` patch 6 firing on
+  each `connection-lost`, which turns the contention into a visible loop.
+- **Cure (no redeploy/downgrade needed):** `sudo systemctl restart
+  vibetop-browser-xpra` (or the desktop **Logout/reset** button, which does the
+  same), then reload both devices. Clears the stale clients and resyncs the shells.
+- **Why Terminal is immune:** ttyd + `vibetop-session` let many viewers share one
+  PTY with no steal/session-ownership semantics; xpra has a single shared session
+  that stale clients can wedge.
+- **Rejected / dead ends (do NOT re-chase — each cost real time):**
+  - **xpra 6.5** — the running binary was 6.4.4; 6.5 is the *click-offset* bug
+    (separate entry above), unrelated to this loop.
+  - **A vibetop version regression** — `git diff 689bb6e(v1.9.10=legion) HEAD --
+    browser/` shows the Browser stack is byte-identical to legion (same xpra flags,
+    same `/browser/` iframe); downgrading the code changes nothing for the Browser.
+  - **Forcing client sharing via the iframe URL** (`/browser/?sharing=true&steal=false`):
+    made it **worse** — a non-sharing/steal mismatch across mixed cached shells
+    caused `Disconnecting … session busy (this session is already active)`
+    reject-loops. Reverted.
+  - **`--clipboard-direction=to-server`** to kill the clipboard-storm
+    (`Warning: more than 30 clipboard requests per second!`): the storm is a
+    *symptom* of two clients syncing, not the disconnect cause; didn't fix the loop.
+  - **A full v1.9.10 redeploy** as the apples-to-apples legion test: tripped a
+    **separate** xpra failure on z20 — `authentication failed: missing remote
+    username` (the HTML5 login window) despite `--ws-auth=none`, which v1.11.6 does
+    NOT exhibit. Left uninvestigated; it broke the Browser entirely, so the legion
+    comparison never actually ran.
+- **Operational gotchas hit along the way (worth caution):**
+  - **`deploy.sh` must run as the user, NOT `sudo`.** `sudo ./deploy.sh` runs the
+    no-sudo `landing/install.sh` as root → web root deploys to `/root/...www`
+    instead of `~/...www`, and `/browser/` 404s/ERRs. Run `./deploy.sh` (it `sudo`s
+    per-step internally).
+  - **Don't deploy mismatched shells to a multi-client xpra.** Flip-flopping the
+    deployed shell while two devices are connected leaves them on different cached
+    builds that can't agree to share — it manufactures the very loop you're chasing.
+    If you must change the iframe/shell, bump `sw.js` VERSION and reload **all**
+    devices before judging the result.
+- **Diagnostic fast-path:** `xpra info :99 | grep clients=` — **one client = stable**
+  immediately localizes it to multi-client stale state. Then read the live journal
+  disconnect **reason** (`journalctl -u vibetop-browser-xpra -f`) *before* changing
+  anything — `same uuid` = a client reconnecting, `session busy` = a sharing/steal
+  mismatch, `missing remote username` = an auth/deploy problem. See
+  [[bisect-against-known-good-first]], [[fix-root-cause-keep-the-feature]].
