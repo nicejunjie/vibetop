@@ -17,6 +17,31 @@ and why it lost).
 
 ---
 
+## Mobile key bar stuck visible on iPad (but fine on iPhone)
+
+- **Symptom:** The on-screen `esc / tab / ^C / arrows` bar (`#sys-keybar`) is
+  stuck at the bottom of the desktop on iPad with **no keyboard up**, never
+  auto-hides, and overlaps the taskbar so the status bar looks "boxed." iPhone is
+  fine. (Reported via screenshot in `~/Uploads`.)
+- **Cause:** The keyboard detector in `desktop.html`'s `syncBar` decides "keyboard
+  up" by `curH() < baseH - 150`, where `baseH` is the no-keyboard baseline. But
+  `baseH` was **monotonic — it only ever grew** (`if (h > baseH) baseH = h`).
+  iPad gets rotated constantly: visit in portrait → `baseH` = tall portrait
+  height; rotate to landscape → height drops ~300px (> the 150 threshold) but
+  `baseH` stays stuck at the portrait value, so `kbUp` is **permanently true** in
+  landscape. iPhone escapes it because it's used in one orientation, so `baseH`
+  never inflates.
+- **Fix:** Re-baseline on a **viewport width change** — the soft keyboard shrinks
+  height but never width, while rotation / Split View change width. On `w !==
+  baseW`, reset `baseH = 0` so it re-climbs from the new orientation's no-keyboard
+  height. Also bound to `orientationchange`. (`landing/desktop.html`, sw v145->v146.)
+- **Rejected:** A timed re-measure after `orientationchange` (racy if the keyboard
+  opens within the delay; could wedge `baseH` too low → bar never shows). Using
+  `window.innerHeight - visualViewport.height` as the inset — dead on iOS, where
+  the keyboard shrinks **both** (see the keybar-detection commit `aa145ea`).
+
+---
+
 ## GNOME apps (eog, evince) take ~33s to start in the X11 Launcher
 
 - **Symptom:** Launching a GTK/GNOME app (eog, evince) from the X11 Launcher on

@@ -562,7 +562,15 @@
     function curH() { var vv = window.visualViewport; return vv ? vv.height : window.innerHeight; }
     function vvBottom() { var vv = window.visualViewport; return vv ? (vv.offsetTop + vv.height) : window.innerHeight; }
     var baseH = curH();
+    var baseW = window.innerWidth;
     function syncBar() {
+      // The keyboard shrinks HEIGHT but never WIDTH; rotation / Split View change
+      // width. So a width change means a non-keyboard geometry change -> drop the
+      // baseline and let it re-climb from the new orientation's no-keyboard height.
+      // Without this, baseH only ever grew, so after an iPad was ever in a TALLER
+      // orientation the shorter one read as "keyboard up" forever (bar stuck on).
+      var w = window.innerWidth;
+      if (w !== baseW) { baseW = w; baseH = 0; }
       var h = curH();
       if (h > baseH) baseH = h;             // URL-bar collapse makes it taller -> new baseline
       var kbUp = h < baseH - 150;           // keyboard ~300px; URL bar ~60px; 150 distinguishes them
@@ -574,6 +582,7 @@
       window.visualViewport.addEventListener('scroll', syncBar);
     }
     window.addEventListener('resize', syncBar);
+    window.addEventListener('orientationchange', syncBar);
   })();
 
   // --- cross-instance state -------------------------------------------------
