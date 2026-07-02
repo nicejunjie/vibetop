@@ -387,6 +387,7 @@
       lpTimer = setTimeout(function () {            // held still ~0.45s → select the word
         if (moved) return;
         selecting = true;
+        try { ov.blur(); } catch (_) {}            // selecting, not typing — dismiss the keyboard (iOS focuses the overlay on touch)
         var cell = cellAt(startX, startY);
         if (cell) {
           var w = wordAt(cell);
@@ -437,6 +438,7 @@
       if (selecting) {
         selecting = false;
         e.preventDefault();                         // don't raise the keyboard
+        try { ov.blur(); } catch (_) {}             // and dismiss it if iOS raised it during the long-press
         var t = window.term;
         if (t && t.hasSelection()) showCopy(ct.clientX, ct.clientY);
       } else if (!moved) {                          // single tap
