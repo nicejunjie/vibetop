@@ -1047,6 +1047,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_desktop_save()
         if self.path == "/api/desktop/close":
             return self._handle_desktop_close()
+        if self.path == "/api/desktop/ui":
+            return self._handle_desktop_ui()
         if self.path == "/api/reset":
             return self._handle_reset()
         if self.path == "/api/upload":
@@ -1323,7 +1325,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _write_desktop_state(state)
             resp = {"ok": True, "running": _desktop_union(state, now),
                     "reset_epoch": state["reset_epoch"],
-                    "close_targets": state["close_targets"]}
+                    "close_targets": state["close_targets"],
+                    "sys_stats": state.get("sys_stats", True)}
         self._json(200, resp)
 
     def _handle_desktop_close(self):
@@ -1357,6 +1360,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _write_desktop_state(state)
             resp = {"ok": True, "close_targets": state["close_targets"]}
         log.info("desktop close %r on %d instance(s)", app, len(holders))
+        self._json(200, resp)
+
+    def _handle_desktop_ui(self):
+        # POST {sysStats: bool} — a SHARED, cross-instance UI preference (whether
+        # the taskbar system-stats readout shows). Stored on the desktop state so
+        # every client converges on the same value via the 5s heartbeat.
+        body = self._read_body(4096)
+        if body is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            return self._json(400, {"error": "invalid json"})
+        with _desktop_lock:
+            state = _read_desktop_state()
+            if "sysStats" in data:
+                state["sys_stats"] = bool(data["sysStats"])
+            _write_desktop_state(state)
+            resp = {"ok": True, "sys_stats": state.get("sys_stats", True)}
         self._json(200, resp)
 
     def _handle_reset(self):
@@ -2312,6 +2334,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "running": _desktop_union(state, now),
                     "reset_epoch": state["reset_epoch"],
                     "close_targets": state["close_targets"],
+                    "sys_stats": state.get("sys_stats", True),
                 }
             self._json(200, resp)
             return

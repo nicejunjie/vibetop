@@ -27,6 +27,7 @@
 </style>
 <!-- DocsAPI loader from the Document Server (proxied at /onlyoffice/). -->
 <script src="/onlyoffice/web-apps/apps/api/documents/api.js"></script>
+  <script src="/vibe-modal.js"></script>
 </head>
 <body>
   <div id="msg">
@@ -59,9 +60,9 @@
           .then(function(r) { return r.json(); })
           .then(function(d) {
             if (d && d.ok && d.path) location.search = '?path=' + encodeURIComponent(d.path);
-            else { alert((d && d.error) || 'Could not create the document.'); setDisabled(false); }
+            else { vibeAlert((d && d.error) || 'Could not create the document.'); setDisabled(false); }
           })
-          .catch(function() { alert('Could not reach the document service.'); setDisabled(false); });
+          .catch(function() { vibeAlert('Could not reach the document service.'); setDisabled(false); });
       });
     });
     return;

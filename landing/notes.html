@@ -44,6 +44,7 @@
   textarea::placeholder { color: #3a4050; }
   textarea:disabled { color: #46506a; }
 </style>
+  <script src="/vibe-modal.js"></script>
 </head>
 <body>
   <div class="tabbar">
@@ -159,17 +160,21 @@
   function closeNote(id) {
     var content = cache[id];
     if (content === undefined) content = '';   // not loaded; treat as unknown→empty
-    if (content.trim() && !confirm('Delete this note? This can’t be undone.')) return;
-    var i = tabs.findIndex(function(t) { return t.id === id; });
-    if (i === -1) return;
-    tabs.splice(i, 1);
-    delete cache[id];
-    if (!tabs.length) {                         // never zero notes
-      var nid = genId(); tabs.push({ id: nid, name: 'Notes' }); cache[nid] = '';
+    function doClose() {
+      var i = tabs.findIndex(function(t) { return t.id === id; });
+      if (i === -1) return;
+      tabs.splice(i, 1);
+      delete cache[id];
+      if (!tabs.length) {                         // never zero notes
+        var nid = genId(); tabs.push({ id: nid, name: 'Notes' }); cache[nid] = '';
+      }
+      renderTabs();
+      persistTabs();                              // server deletes the closed note's file
+      if (active === id) { active = null; switchTo(tabs[Math.max(0, i - 1)].id); }
     }
-    renderTabs();
-    persistTabs();                              // server deletes the closed note's file
-    if (active === id) { active = null; switchTo(tabs[Math.max(0, i - 1)].id); }
+    if (content.trim()) {
+      vibeConfirm('Delete this note? This can’t be undone.', { okText: 'Delete', danger: true }).then(function(ok) { if (ok) doClose(); });
+    } else { doClose(); }
   }
 
   function renameTab(el, id) {

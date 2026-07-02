@@ -154,6 +154,7 @@
   .status.error { color: #d27a7a; }
   .status.ok    { color: #7ad28a; }
 </style>
+  <script src="/vibe-modal.js"></script>
 </head>
 <body>
   <h1>Upload</h1>
@@ -292,18 +293,20 @@
 
   refreshBtn.addEventListener('click', loadFolder);
   clearFolder.addEventListener('click', function() {
-    if (!confirm('Delete all files in this folder?')) return;
-    clearFolder.disabled = true;
-    fetch('/api/upload/clear', { method: 'POST' })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        setStatus('Removed ' + (d.removed || 0) + ' file' + ((d.removed === 1) ? '' : 's'), 'ok');
-        loadFolder();
-      })
-      .catch(function() {
-        setStatus('Clear failed', 'error');
-        clearFolder.disabled = false;
-      });
+    vibeConfirm('Delete all files in this folder?', { okText: 'Delete all', danger: true }).then(function(ok) {
+      if (!ok) return;
+      clearFolder.disabled = true;
+      fetch('/api/upload/clear', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          setStatus('Removed ' + (d.removed || 0) + ' file' + ((d.removed === 1) ? '' : 's'), 'ok');
+          loadFolder();
+        })
+        .catch(function() {
+          setStatus('Clear failed', 'error');
+          clearFolder.disabled = false;
+        });
+    });
   });
 
   function addFiles(files) {

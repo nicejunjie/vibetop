@@ -417,6 +417,7 @@
     color: #9ab; font: 14px system-ui, sans-serif;
   }
 </style>
+  <script src="/vibe-modal.js"></script>
 </head>
 <body>
   <div class="cu-strip" id="cu-strip" hidden></div>
@@ -768,6 +769,8 @@
   // logout/reset (reset_epoch advanced), tear our own desktop down too.
   function onDesktopResp(d) {
     if (!d) return;
+    // Shared taskbar-stats preference, converged across all clients via this heartbeat.
+    if (typeof d.sys_stats === 'boolean' && window.applyServerSysStats) window.applyServerSysStats(d.sys_stats);
     if (Array.isArray(d.running)) { runningGlobal = d.running; markMenuRunning(); }
     if (typeof d.reset_epoch === 'number') {
       if (lastResetEpoch === null) lastResetEpoch = d.reset_epoch;
@@ -790,12 +793,14 @@
   // Confirmed because it's consequential and guards against a mis-tap.
   function closeEverywhere(id) {
     if (!APPS[id]) return;
-    if (!confirm('Close ' + APPS[id].label + ' on all devices?')) return;
-    fetch('/api/desktop/close', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app: id })
-    }).then(function(r) { return r.json(); }).then(onDesktopResp).catch(function() {});
-    closeMenu();
+    vibeConfirm('Close ' + APPS[id].label + ' on all devices?', { okText: 'Close', danger: true }).then(function(ok) {
+      if (!ok) return;
+      fetch('/api/desktop/close', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app: id })
+      }).then(function(r) { return r.json(); }).then(onDesktopResp).catch(function() {});
+      closeMenu();
+    });
   }
 
   // Push our own open-set to the registry (also the heartbeat that keeps us in
@@ -1207,10 +1212,12 @@
   });
 
   // --- status bar ---
-  // --- Optional taskbar system stats (Utilities ▸ System Stats toggle) -------
-  // Pure client-side, per-device preference. When off, the CPU/GPU/MEM/VRAM
-  // readout (and its separator) are hidden and the poll is skipped, freeing the
-  // space for app tabs (which grow to fill it).
+  // --- Taskbar system stats (Utilities ▸ System Stats toggle) ----------------
+  // SHARED across all clients: the preference lives on the server (desktop state)
+  // and every client converges via the 5s desktop heartbeat (applyServerSysStats
+  // from onDesktopResp). localStorage is only a fast-load cache so there's no
+  // flash before the first heartbeat. When off, the CPU/GPU/MEM/VRAM readout (and
+  // its separator) are hidden and the poll is skipped, freeing space for tabs.
   function sysStatsOn() { return localStorage.getItem('vibetop:sysstats') !== '0'; }  // default on
   function applySysStats() {
     var on = sysStatsOn();
@@ -1223,10 +1230,21 @@
       if (ds) ds.textContent = on ? 'On — CPU/GPU in taskbar' : 'Off';
     }
   }
-  window.toggleSysStats = function() {
-    localStorage.setItem('vibetop:sysstats', sysStatsOn() ? '0' : '1');
+  function setSysStatsLocal(on) {
+    localStorage.setItem('vibetop:sysstats', on ? '1' : '0');
     applySysStats();
-    if (sysStatsOn()) updateStatus();   // refresh immediately when turned back on
+    if (on) updateStatus();   // refresh immediately when shown
+  }
+  // Reconcile with the shared server value (from the desktop heartbeat).
+  window.applyServerSysStats = function(on) {
+    if (on === sysStatsOn()) return;
+    setSysStatsLocal(on);
+  };
+  window.toggleSysStats = function() {
+    var want = !sysStatsOn();
+    setSysStatsLocal(want);   // optimistic; other clients pick it up on their heartbeat
+    fetch('/api/desktop/ui', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sysStats: want }) }).catch(function() {});
   };
 
   function updateStatus() {
@@ -1434,9 +1452,12 @@
   if (!logout) return;
   logout.addEventListener('click', function(e) {
     e.preventDefault();
-    if (!confirm('Close all apps, terminals and the browser, and log out?\nAnything running in a terminal will be stopped.')) return;
-    var go = function() { window.location.href = '/cdn-cgi/access/logout'; };
-    fetch('/api/reset', { method: 'POST' }).then(go, go);
+    vibeConfirm('Close all apps, terminals and the browser, and log out?\nAnything running in a terminal will be stopped.',
+      { okText: 'Log out', danger: true }).then(function(ok) {
+      if (!ok) return;
+      var go = function() { window.location.href = '/cdn-cgi/access/logout'; };
+      fetch('/api/reset', { method: 'POST' }).then(go, go);
+    });
   });
 })();
 
@@ -1445,12 +1466,13 @@
 // headers on live API calls. Start ▸ System ▸ "Claude Usage" toggles a local
 // pass-through proxy (POST /api/claude/usage) that Claude Code is routed through
 // to capture them; GET /api/claude/usage serves the latest. The strip is a
-// glanceable session/weekly % bar. ✕ dismisses it for THIS tab only (the real
-// off is the Start-menu toggle).
+// glanceable session/weekly % bar. The on/off state is server-side (shared), so
+// the strip shows on EVERY client whenever it's enabled; the strip ✕ and the
+// Start-menu toggle both turn the feature off everywhere (no per-tab hide).
 (function claudeUsage() {
   var strip = document.getElementById('cu-strip');
   if (!strip) return;
-  var enabled = false, hidden = sessionStorage.getItem('cu-hidden') === '1';
+  var enabled = false;
   var lastData = null;
   function fmtReset(ts) {
     if (!ts) return '';
@@ -1491,7 +1513,9 @@
     if (d) lastData = d;
     enabled = !!(d && d.enabled);
     updateToggleRow();
-    if (!enabled || hidden) { strip.hidden = true; return; }
+    // Show the strip whenever the (server-side, shared) feature is enabled — no
+    // per-tab hide, so every client is consistent: on = shown everywhere.
+    if (!enabled) { strip.hidden = true; return; }
     strip.hidden = false;
     var html = '<span class="cu-brand">Claude</span><span class="cu-metrics">';
     if (d.session && d.session.pct != null) {
@@ -1502,10 +1526,10 @@
     } else {
       html += '<span class="cu-dim">waiting for first API call…</span>';
     }
-    html += '</span><span class="cu-x" id="cu-x" title="Hide (turn off in Start ▸ System)">✕</span>';
+    html += '</span><span class="cu-x" id="cu-x" title="Turn off Claude Usage (all devices)">✕</span>';
     strip.innerHTML = html;
     var x = document.getElementById('cu-x');
-    if (x) x.onclick = function() { hidden = true; sessionStorage.setItem('cu-hidden', '1'); strip.hidden = true; };
+    if (x) x.onclick = function() { window.toggleClaudeUsage(); };   // ✕ = turn the feature off everywhere
   }
   function poll() {
     fetch('/api/claude/usage', { cache: 'no-store' })
@@ -1513,7 +1537,6 @@
   }
   window.toggleClaudeUsage = function() {
     var want = !enabled;
-    if (want) { hidden = false; sessionStorage.removeItem('cu-hidden'); }
     // Optimistic: reflect the new state instantly (the POST runs systemctl, so
     // it's not immediate), then reconcile with the server via poll().
     var opt = {}; for (var k in (lastData || {})) opt[k] = lastData[k];

@@ -109,6 +109,7 @@
   .hist-sub.err { color: #d99; }
   .hist-empty { padding: 12px 14px; font-size: 13px; color: #5a6a7a; }
 </style>
+  <script src="/vibe-modal.js"></script>
 </head>
 <body>
   <div class="bar">
@@ -247,9 +248,11 @@
   }
 
   document.getElementById('hist-clear').addEventListener('click', function() {
-    if (!confirm('Clear the update history for this host?')) return;
-    fetch('/api/update/history/clear', { method: 'POST' })
-      .then(function() { loadVersion(); }).catch(function() {});
+    vibeConfirm('Clear the update history for this host?', { okText: 'Clear', danger: true }).then(function(ok) {
+      if (!ok) return;
+      fetch('/api/update/history/clear', { method: 'POST' })
+        .then(function() { loadVersion(); }).catch(function() {});
+    });
   });
 
   // After a successful update, reload the WHOLE desktop (the top window, not just
@@ -313,8 +316,8 @@
     var fb = document.createElement('button'); fb.className = 'btn-danger';
     fb.textContent = 'Discard local changes & update';
     fb.addEventListener('click', function() {
-      if (!confirm('Set this host back to the GitHub version?\n\nYour local changes will be stashed (recoverable with “git stash” on the host), not deleted.')) return;
-      runUpdate(true);
+      vibeConfirm('Set this host back to the GitHub version?\n\nYour local changes will be stashed (recoverable with “git stash” on the host), not deleted.',
+        { okText: 'Discard & update', danger: true }).then(function(ok) { if (ok) runUpdate(true); });
     });
     blockedEl.appendChild(head); blockedEl.appendChild(pre);
     blockedEl.appendChild(hint); blockedEl.appendChild(fb);
@@ -363,8 +366,9 @@
   }
 
   btn.addEventListener('click', function() {
-    if (!confirm('Pull the latest from GitHub and redeploy?')) return;
-    runUpdate(false);
+    vibeConfirm('Pull the latest from GitHub and redeploy?', { okText: 'Update' }).then(function(ok) {
+      if (ok) runUpdate(false);
+    });
   });
 
   loadVersion();
