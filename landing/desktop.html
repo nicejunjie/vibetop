@@ -528,7 +528,7 @@
   // The Start-menu items are generated from this (buildStartMenu) so the icon +
   // label aren't duplicated in static HTML, where they used to drift.
   var APPS = {
-    home:     { label: 'Home Service', icon: '🏠', src: '/landing.html',     desc: 'Services & health' },
+    home:     { label: 'Services', icon: '📡', src: '/landing.html',         desc: 'Network services on this host' },
     terminal: { label: 'Terminal', icon: '⬛', src: '/terminals/',           desc: 'Persistent bash terminals' },
     browser:  { label: 'Browser',  icon: '🌐', src: '/browser/',             desc: 'Persistent web browser' },
     x11launcher: { label: 'X11 Launcher', icon: '🚀', src: '/apps.html',     desc: 'Launch GUI apps' },
@@ -1309,26 +1309,17 @@
   }
   setInterval(watchXWindows, 4000);
 
-  // Relay status to the Home Service app (the only app that renders it).
-  // Needed because through the Cloudflare tunnel an iframe's own fetches don't
-  // carry the Access cookie, so the parent fetches and forwards. Only sent
-  // while Home is open.
+  // Relay the auto-discovered network services to the Services app (the only app
+  // that renders it). Needed because through the Cloudflare tunnel an iframe's
+  // own fetch doesn't carry the Access cookie, so the parent fetches and
+  // forwards. Only sent while Services ('home') is the active app.
   function post(id, msg) {
     var f = frameOf(id);
     if (f && f.contentWindow) { try { f.contentWindow.postMessage(msg, '*'); } catch (e) {} }
   }
   function relayStatus() {
-    // Only while Home is the active app — relaying to a backgrounded Home is
-    // wasted work (and 3 extra fetches every 5s). setActive('home') kicks an
-    // immediate relay when the user switches back.
-    if (active !== 'home') return;
-    fetch('/api/health').then(function(r) { return r.json(); }).then(function(data) {
-      post('home', { type: 'health', data: data });
-    }).catch(function() {});
-    fetch('/api/terminals/status').then(function(r) { return r.json(); }).then(function(data) {
-      post('home', { type: 'terminals', data: data });
-    }).catch(function() {});
-    fetch('/services.json').then(function(r) { return r.json(); }).then(function(data) {
+    if (active !== 'home') return;   // backgrounded Services = wasted scan/relay
+    fetch('/api/services/discover').then(function(r) { return r.json(); }).then(function(data) {
       post('home', { type: 'services', data: data });
     }).catch(function() {});
   }

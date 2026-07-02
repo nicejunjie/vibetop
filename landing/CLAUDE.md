@@ -5,7 +5,7 @@ Unified desktop UI and supporting static pages. Deployed via `./install.sh` (no 
 ## Files
 
 - `desktop.html` — main desktop UI at `/` (Start menu, iframe viewport, status bar, server-side state via `/api/desktop`)
-- `index.html` — old service listing page, preserved at `/landing.html` (Home Service app)
+- `index.html` — Services app at `/landing.html`: auto-discovering network-service dashboard (renders `GET /api/services/discover`)
 - `notes.html` — scratchpad at `/notes.html` (Notes app)
 - `monitor.html` — live system dashboard at `/monitor.html` (Monitor app; CPU/MEM/GPU charts, htop-style load average, process list)
 - `upload.html` — quick-sync drop zone at `/upload.html` (Upload app; per-file progress, In-folder listing with Clear-all + Open-in-Files deep link, sequential XHR uploads to `/api/upload`)

@@ -6,202 +6,136 @@
 <title>Vibetop — services</title>
 <style>
   :root {
-    --bg: #0f1115;
-    --fg: #e6e8eb;
-    --muted: #9aa4af;
-    --card: #171a21;
-    --border: #242934;
-    --accent: #5ea1ff;
+    --bg: #0f1115; --fg: #e6e8eb; --muted: #9aa4af;
+    --card: #171a21; --border: #242934; --accent: #5ea1ff;
   }
   @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f7f8fa;
-      --fg: #0f1115;
-      --muted: #5f6b78;
-      --card: #ffffff;
-      --border: #e4e7ec;
-      --accent: #2563eb;
-    }
+    :root { --bg: #f7f8fa; --fg: #0f1115; --muted: #5f6b78;
+            --card: #ffffff; --border: #e4e7ec; --accent: #2563eb; }
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 2rem 1rem;
+    margin: 0; padding: 1.75rem 1rem 3rem;
     background: var(--bg); color: var(--fg);
     font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     display: flex; flex-direction: column; align-items: center;
   }
-  header { margin-bottom: 2rem; text-align: center; }
-  header h1 { margin: 0; font-size: 1.75rem; letter-spacing: -0.02em; }
-  header p { margin: 0.25rem 0 0; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95rem; }
+  header { margin-bottom: 1.5rem; text-align: center; }
+  header h1 { margin: 0; font-size: 1.6rem; letter-spacing: -0.02em; }
+  header p { margin: 0.25rem 0 0; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; }
   main { width: 100%; max-width: 960px; }
-  section { margin-bottom: 2rem; }
-  section h2 {
-    margin: 0 0 0.75rem;
-    font-size: 0.8rem; font-weight: 600;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--muted);
-  }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-  section.terminals .grid {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-  .term-chips {
-    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0.6rem;
-  }
-  .term-chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 10px; font-size: 0.8rem; color: var(--muted);
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 12px; text-decoration: none;
-    transition: border-color 0.12s;
-  }
-  .term-chip:hover { border-color: var(--accent); color: var(--fg); }
-  a.card {
-    display: block;
-    padding: 1rem 1.1rem;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--fg); text-decoration: none;
+  .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.9rem; gap: 1rem; }
+  .bar h2 { margin: 0; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .refresh { background: var(--card); color: var(--muted); border: 1px solid var(--border); border-radius: 8px;
+             padding: 5px 12px; font-size: 0.82rem; cursor: pointer; transition: border-color .12s, color .12s; }
+  .refresh:hover { border-color: var(--accent); color: var(--fg); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+  .card {
+    position: relative; display: block; padding: 1rem 1.1rem;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    color: var(--fg); text-decoration: none; cursor: pointer;
     transition: transform .08s ease, border-color .12s ease;
   }
-  a.card:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .name { font-weight: 600; font-size: 1.05rem; display: flex; align-items: center; gap: 6px; }
-  .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--border); flex-shrink: 0;
-    transition: background 0.3s;
-  }
+  .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .name { font-weight: 600; font-size: 1.05rem; display: flex; align-items: center; gap: 7px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
   .dot.up { background: #22c55e; }
   .dot.down { background: #ef4444; }
-  .desc { color: var(--muted); font-size: 0.9rem; margin-top: 0.2rem; }
-  .port { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; margin-top: 0.4rem; }
-  footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.85rem; text-align: center; }
+  .desc { color: var(--muted); font-size: 0.9rem; margin-top: 0.2rem; min-height: 1.35em; }
+  .row { display: flex; align-items: center; justify-content: space-between; margin-top: 0.55rem; }
+  .port { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+  .ext { color: var(--muted); font-size: 0.8rem; text-decoration: none; padding: 2px 6px; border-radius: 6px; }
+  .ext:hover { color: var(--fg); background: rgba(128,128,128,0.12); }
+  .empty { color: var(--muted); text-align: center; padding: 2.5rem 1rem; font-size: 0.95rem; }
+  footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.82rem; text-align: center; max-width: 640px; }
   footer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 </style>
 </head>
 <body>
   <header>
-    <h1>Vibetop</h1>
-    <p>192.168.1.10</p>
+    <h1>Services</h1>
+    <p id="host">this host</p>
   </header>
   <main>
-    <section class="terminals">
-      <h2>terminal-in-browser</h2>
-      <div class="grid">
-        <a class="card" href="/terminals/" target="_blank" data-health="terminals">
-          <div class="name"><span class="dot"></span>Terminals</div>
-          <div class="desc">Tabbed persistent bash sessions</div>
-          <div class="port">/terminals/</div>
-        </a>
-      </div>
-      <div class="term-chips" id="term-chips"></div>
-    </section>
-
-    <section>
-      <h2>browser-in-browser</h2>
-      <div class="grid">
-        <a class="card" href="/browser/" target="_blank" data-health="browser">
-          <div class="name"><span class="dot"></span>Browser</div>
-          <div class="desc">Persistent Chromium via xpra</div>
-          <div class="port">/browser/</div>
-        </a>
-      </div>
-    </section>
-
-    <!-- Populated at runtime from services.json (a host-local, gitignored file).
-         See services.example.json for the format. -->
-    <section id="services-section" hidden>
-      <h2>services-in-browser</h2>
-      <div class="grid" id="services-grid"></div>
-    </section>
-
+    <div class="bar">
+      <h2>Network services</h2>
+      <button class="refresh" id="refresh" type="button">↻ Refresh</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" hidden>No network services detected.</div>
   </main>
   <footer>
-    Add your services in <code>~/vibetop-www/services.json</code> (see <code>services.example.json</code>).
+    Auto-discovered from services listening on a network address (<code>ss -tlnp</code>).
+    Tap a card to open it in the embedded Browser; use ↗ to open in a new tab (LAN only).
   </footer>
 <script>
-// HTML-escape any value before it goes into innerHTML. services.json is
-// host-local and the running list comes from our own API, but escaping keeps a
-// stray <, &, or quote in a service name/desc from breaking the markup (or
-// being a stored-XSS sink if that file is ever fed less-trusted content).
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
-// Only allow http(s) or same-origin/relative links — never a javascript: URL.
-function safeUrl(u) {
-  u = String(u || '');
-  return /^(https?:\/\/|\/)/i.test(u) ? u : '#';
-}
-// Dynamic terminal chips
-function loadTerminals(data) {
-  var chips = document.getElementById('term-chips');
-  var running = (data && data.running) || [];
-  chips.innerHTML = '';
-  running.forEach(n => {
-    n = Number(n);                       // server sends integers; coerce defensively
-    if (!Number.isInteger(n)) return;
-    var a = document.createElement('a');
-    a.className = 'term-chip';
-    a.href = '/t' + n + '/';
-    a.target = '_blank';
-    a.innerHTML = '<span class="dot up" style="width:6px;height:6px"></span>T' + n;
-    chips.appendChild(a);
-  });
-}
-fetch('/api/terminals/status').then(r => r.json()).then(loadTerminals).catch(() => {});
-window.addEventListener('message', function(e) {
-  if (e.data && e.data.type === 'terminals') loadTerminals(e.data.data);
-});
+// Only http(s) — never a javascript: URL slipped in via a service name/cmdline.
+function safeUrl(u) { u = String(u || ''); return /^https?:\/\//i.test(u) ? u : ''; }
 
-var lastHealth = null;
-function applyHealth(data) {
-  lastHealth = data;
-  document.querySelectorAll('a.card[data-health]').forEach(card => {
-    const dot = card.querySelector('.dot');
-    const key = card.dataset.health;
-    if (dot && key in data) { dot.classList.remove('up','down'); dot.classList.add(data[key] ? 'up' : 'down'); }
-  });
+// Open a service. Prefer the embedded Browser (Chromium runs ON this host, so it
+// reaches the LAN service whether you're on the LAN or coming through the tunnel);
+// fall back to a direct call when this page is standalone (no parent shell).
+function openInBrowser(url) {
+  var safe = safeUrl(url);
+  if (!safe) return;
+  var direct = function () {
+    fetch('/api/browser/open', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: safe }) }).catch(function () {});
+  };
+  try {
+    if (window.top && window.top !== window) window.top.postMessage({ type: 'open-in-browser', url: safe }, '*');
+    else direct();
+  } catch (e) { direct(); }
 }
 
-// Host-local service cards, defined in services.json (gitignored). Rendered from
-// either a direct fetch (LAN) or a postMessage relay from the parent (Cloudflare,
-// where iframe fetches don't carry the Access cookie).
-function renderServices(list) {
-  var sec = document.getElementById('services-section');
-  var grid = document.getElementById('services-grid');
-  if (!Array.isArray(list) || !list.length) { sec.hidden = true; return; }
+function render(model) {
+  var grid = document.getElementById('grid');
+  var empty = document.getElementById('empty');
+  var list = (model && Array.isArray(model.services)) ? model.services : [];
+  if (model && model.lan_ip) document.getElementById('host').textContent = model.lan_ip;
+  if (!list.length) { grid.innerHTML = ''; empty.hidden = false; return; }
+  empty.hidden = true;
   grid.innerHTML = '';
-  list.forEach(function(s) {
-    var a = document.createElement('a');
-    a.className = 'card';
-    a.href = safeUrl(s.url);
-    a.target = '_blank';
-    if (s.key) a.dataset.health = s.key;
-    a.innerHTML = '<div class="name"><span class="dot"></span>' + esc(s.name) + '</div>' +
-                  '<div class="desc">' + esc(s.desc) + '</div>' +
-                  '<div class="port">' + esc(s.port) + '</div>';
-    grid.appendChild(a);
+  list.forEach(function (s) {
+    var url = safeUrl(s.url);
+    var card = document.createElement('div');
+    card.className = 'card';
+    var up = s.health === 'up';
+    card.innerHTML =
+      '<div class="name"><span class="dot ' + (up ? 'up' : 'down') + '"></span>' + esc(s.name) + '</div>' +
+      '<div class="desc">' + esc(s.desc || '') + '</div>' +
+      '<div class="row"><span class="port">' + esc(s.port) + '</span>' +
+      (url ? '<a class="ext" href="' + esc(url) + '" target="_blank" rel="noopener" title="Open in a new tab">↗ new tab</a>' : '') +
+      '</div>';
+    if (url) {
+      card.addEventListener('click', function (e) {
+        // Let the ↗ link do its native new-tab thing; the rest of the card opens
+        // in the embedded Browser.
+        if (e.target.closest('.ext')) return;
+        openInBrowser(url);
+      });
+    }
+    grid.appendChild(card);
   });
-  sec.hidden = false;
-  if (lastHealth) applyHealth(lastHealth);   // colour the dots we just created
 }
 
-// Try fetching directly (works on LAN/standalone); the parent also relays these
-// via postMessage (works through the Cloudflare tunnel).
-fetch('/api/health').then(r => r.json()).then(applyHealth).catch(() => {});
-fetch('/services.json').then(r => r.json()).then(renderServices).catch(() => {});
-window.addEventListener('message', function(e) {
-  if (!e.data) return;
-  if (e.data.type === 'health')   applyHealth(e.data.data);
-  if (e.data.type === 'services') renderServices(e.data.data);
+// Fetch directly (works on LAN / standalone); the parent shell also relays this
+// via postMessage (needed through the Cloudflare tunnel, where an iframe's own
+// fetch doesn't carry the Access cookie).
+function load() {
+  fetch('/api/services/discover').then(function (r) { return r.json(); }).then(render).catch(function () {});
+}
+window.addEventListener('message', function (e) {
+  if (e.data && e.data.type === 'services') render(e.data.data);
 });
+document.getElementById('refresh').addEventListener('click', load);
+load();
+setInterval(load, 5000);
 </script>
 </body>
 </html>

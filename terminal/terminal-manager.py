@@ -34,6 +34,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
 import claude_stats   # sibling module: /api/claude/stats token/cost analytics
+import service_discovery  # sibling module: /api/services/discover network-service scan
 
 # ---- logging -----------------------------------------------------------------
 # Selective + leveled: errors and significant events (terminal/app launches,
@@ -2393,6 +2394,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/health":
             self._json(200, self._check_health())
+            return
+        if self.path == "/api/services/discover":
+            # Auto-discovered network services (listening non-loopback sockets).
+            # Memoized ~5s: the scan shells out to `ss` + reads /proc, and every
+            # open Services dashboard polls this.
+            self._json(200, _cached("services_discover", 5.0,
+                                    service_discovery.discover))
             return
         if self.path == "/api/events":
             return self._handle_events()
