@@ -45,8 +45,9 @@
   .desc { color: var(--muted); font-size: 0.9rem; margin-top: 0.2rem; min-height: 1.35em; }
   .row { display: flex; align-items: center; justify-content: space-between; margin-top: 0.55rem; }
   .port { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
-  .ext { color: var(--muted); font-size: 0.8rem; text-decoration: none; padding: 2px 6px; border-radius: 6px; }
-  .ext:hover { color: var(--fg); background: rgba(128,128,128,0.12); }
+  .ext { color: var(--muted); font-size: 0.78rem; font-family: inherit; line-height: 1.4;
+         background: none; border: 1px solid var(--border); cursor: pointer; padding: 2px 8px; border-radius: 6px; }
+  .ext:hover { color: var(--fg); border-color: var(--accent); }
   .empty { color: var(--muted); text-align: center; padding: 2.5rem 1rem; font-size: 0.95rem; }
   footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.82rem; text-align: center; max-width: 640px; }
   footer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -67,7 +68,7 @@
   </main>
   <footer>
     Auto-discovered from services listening on a network address (<code>ss -tlnp</code>).
-    Tap a card to open it in the embedded Browser; use ↗ to open in a new tab (LAN only).
+    Tap a card to open the service in a new tab; use <strong>⧉ Browser</strong> to open it in the embedded Browser (for remote/tunnel access).
   </footer>
 <script>
 function esc(s) {
@@ -104,23 +105,26 @@ function render(model) {
   grid.innerHTML = '';
   list.forEach(function (s) {
     var url = safeUrl(s.url);
-    var card = document.createElement('div');
-    card.className = 'card';
     var up = s.health === 'up';
+    // The whole card opens the service in a NEW TAB — your real browser, which is
+    // the right way to reach a service on your own LAN (full-featured, no xpra
+    // latency). The secondary "⧉ Browser" button opens it in the embedded
+    // Browser instead, for when you're remote / on the tunnel and can't reach the
+    // LAN address directly (Chromium runs on the host, so it can).
+    var card = document.createElement(url ? 'a' : 'div');
+    card.className = 'card';
+    if (url) { card.href = url; card.target = '_blank'; card.rel = 'noopener'; }
     card.innerHTML =
       '<div class="name"><span class="dot ' + (up ? 'up' : 'down') + '"></span>' + esc(s.name) + '</div>' +
       '<div class="desc">' + esc(s.desc || '') + '</div>' +
       '<div class="row"><span class="port">' + esc(s.port) + '</span>' +
-      (url ? '<a class="ext" href="' + esc(url) + '" target="_blank" rel="noopener" title="Open in a new tab">↗ new tab</a>' : '') +
+      (url ? '<button class="ext" type="button" title="Open in the embedded Browser">⧉ Browser</button>' : '') +
       '</div>';
-    if (url) {
-      card.addEventListener('click', function (e) {
-        // Let the ↗ link do its native new-tab thing; the rest of the card opens
-        // in the embedded Browser.
-        if (e.target.closest('.ext')) return;
-        openInBrowser(url);
-      });
-    }
+    var btn = card.querySelector('.ext');
+    if (btn) btn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();   // don't also fire the card's new-tab nav
+      openInBrowser(url);
+    });
     grid.appendChild(card);
   });
 }
