@@ -66,6 +66,8 @@
   var cache = {};              // id -> content (loaded)
   var ready = false;           // active note's content is loaded → safe to autosave
   var saveTimer = null, scanTimer = null;
+  var initDone = false;        // don't live-sync before the first load lands
+  var _lastTabsSig = null;     // last tab set (ids+names+order) known to match the server
 
   function api(path, body) {
     return fetch(path, body ? {
@@ -76,7 +78,13 @@
   function genId() { return 'n-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function setStatus(msg, cls) { statusEl.textContent = msg || ''; statusEl.className = 'status' + (cls ? ' ' + cls : ''); }
 
+  // Signature of the SHARED tab state (ids + names + order). `active` is NOT in it:
+  // which tab is focused stays device-local (Notes is a live editor — syncing
+  // active would yank the other device's editor away mid-type).
+  function tabsSig() { return JSON.stringify(tabs.map(function(t) { return [t.id, t.name]; })); }
+
   function persistTabs() {
+    _lastTabsSig = tabsSig();
     api('/api/notes/tabs', { tabs: tabs, active: active }).catch(function() {});
   }
 
@@ -269,13 +277,48 @@
   }
 
   // Flush a pending save when the app is backgrounded / page hidden.
-  document.addEventListener('visibilitychange', function() { if (document.hidden) flushSave(); });
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) flushSave(); else tick();   // re-sync tabs when we come back
+  });
   window.addEventListener('pagehide', flushSave);
+  window.addEventListener('focus', tick);
+
+  // --- live tab sync (~2s) ------------------------------------------------
+  // The tab SET (ids/names/order) is shared server-side; add/close/rename/reorder
+  // on one device should appear on the others without a reload. Adopt the server
+  // set when it differs from ours, but keep OUR active tab (only jump if it was
+  // closed elsewhere) so the editor isn't yanked away while typing.
+  function reconcile(idx) {
+    tabs = idx.tabs.map(function(t) { return { id: t.id, name: t.name }; });
+    var keep = {}; tabs.forEach(function(t) { keep[t.id] = true; });
+    Object.keys(cache).forEach(function(id) { if (!keep[id]) delete cache[id]; });
+    _lastTabsSig = tabsSig();
+    if (keep[active]) { renderTabs(); }               // our note survives → stay put
+    else {                                            // it was closed elsewhere → move
+      var act = (idx.active && keep[idx.active]) ? idx.active : (tabs[0] && tabs[0].id);
+      active = null; renderTabs();
+      if (act) switchTo(act);
+    }
+  }
+  function tick() {
+    if (!initDone) return;
+    // Don't clobber an in-progress rename or drag.
+    if (dragId != null || tabsEl.querySelector('.lbl[contenteditable="true"]')) return;
+    if (tabsSig() !== _lastTabsSig) { persistTabs(); return; }   // we changed it → push, win this round
+    api('/api/notes').then(function(r) { return r.json(); }).then(function(idx) {
+      if (!idx || !Array.isArray(idx.tabs) || !idx.tabs.length) return;
+      var ssig = JSON.stringify(idx.tabs.map(function(t) { return [t.id, t.name]; }));
+      if (ssig !== _lastTabsSig) reconcile(idx);
+    }).catch(function() {});
+  }
+  setInterval(tick, 2000);
 
   // --- init ---
   api('/api/notes').then(function(r) { return r.json(); }).then(function(idx) {
     tabs = (idx && Array.isArray(idx.tabs) && idx.tabs.length) ? idx.tabs : [{ id: '1', name: 'Notes' }];
     var act = (idx && idx.active && tabs.some(function(t) { return t.id === idx.active; })) ? idx.active : tabs[0].id;
+    _lastTabsSig = tabsSig();
+    initDone = true;
     renderTabs();
     switchTo(act);
   }).catch(function() {

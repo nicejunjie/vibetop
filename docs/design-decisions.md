@@ -17,6 +17,26 @@ and why it lost).
 
 ---
 
+## Notes tabs didn't live-sync across devices
+
+- **Symptom:** Adding / renaming / closing / reordering a Notes tab on one device
+  didn't show up on another until a manual reload. Terminal and Files tabs sync
+  live; Notes didn't.
+- **Cause:** `notes.html` fetched `/api/notes` **once** at init and never polled —
+  it had no reconcile loop at all (unlike `files.html`'s ~2s `tick`).
+- **Fix:** A ~2s `tick()` (plus focus / visibility triggers): if our tab set
+  changed we push (`persistTabs`), else we pull `/api/notes` and `reconcile()` the
+  shared set. The shared signature is ids + names + order only. Guarded against
+  clobbering an in-progress rename (`contenteditable` tab) or drag.
+- **Rejected:** Syncing the **active** tab too (as `files.html` does). Notes is a
+  live text editor — adopting a remote active would yank the editor to a different
+  note mid-type. So active stays **device-local**; we only jump if our active tab
+  was *closed* on another device (like the Terminal tabs' "set membership syncs,
+  active stays local"). Full real-time **content** co-editing was also left out of
+  scope (needs conflict resolution) — only the tab set syncs.
+
+---
+
 ## Mobile key bar stuck visible on iPad (but fine on iPhone)
 
 - **Symptom:** The on-screen `esc / tab / ^C / arrows` bar (`#sys-keybar`) is
