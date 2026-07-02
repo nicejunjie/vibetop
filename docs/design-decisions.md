@@ -892,3 +892,48 @@ and why it lost).
   real page headlessly (CDP) rather than by reading the code — static review kept
   reporting the logic as "correct." Same family as the "clickable chrome next to an
   app iframe" runtime traps that only a real browser catches.
+
+## Terminal/Files link → embedded Browser silently stopped opening (RestrictNamespaces vs snap-confine)
+
+*Symptom:* clicking a URL in a terminal (or a Services card's "⧉ Browser", or a
+Files "Open in Browser") **switched to the Browser app but the page never
+loaded** — the embedded Chromium stayed on its previous tab. `POST
+/api/browser/open` returned `{"ok":true}`, and running the *exact same*
+`su - <user> -c '… /snap/bin/chromium --user-data-dir=… "<url>"'` command by hand
+(or via `systemd-run`, or a root `subprocess.Popen`) opened + foregrounded the tab
+correctly. Only the invocation **from the running `vibetop-manager` service**
+failed — deterministically. "It worked 20 minutes ago" was the tell: it broke the
+moment the manager was **restarted** (for an unrelated feature), not on any code
+change to the browser path.
+
+*Cause:* the manager unit carried **`RestrictNamespaces=yes`** (added in v1.11.0's
+security hardening). Snap Chromium launches through **`snap-confine`, which creates
+a mount namespace** — `RestrictNamespaces=yes` blocks that syscall for the service
+*and all its children*, so the hand-off `chromium <url>` couldn't start its confined
+sandbox and died before reaching the already-running instance's singleton socket.
+`Popen` still succeeded (it forked `su`), so the handler reported success and the
+failure was invisible. It stayed dormant for months because the *running* manager
+process predated the directive being loaded; restarting it activated the
+restriction for the first time. (The same directive silently breaks the X11
+Launcher's snap-app launches — Firefox/Chromium on `:98`.)
+
+*Fix:* remove `RestrictNamespaces` from `terminal/systemd/vibetop-manager.service`.
+The manager already turns OFF `NoNewPrivileges`/`ProtectHome`/`PrivateTmp`
+on purpose (they'd break `su`/home/session-sockets); `RestrictNamespaces` belongs
+in that same "incompatible with what this service must do" bucket, because the
+service's job includes launching confined **snap** apps. A unit change needs
+`daemon-reload` + manager restart (the in-app Update runs with `INSTALL_SYSTEMD=0`,
+so it will NOT pick this up — a full `deploy.sh`/`terminal/install.sh` or manual
+unit edit is required).
+
+*How it was found:* isolate manager-vs-manual by handing the URL off directly and
+watching the xpra window title flip (`DISPLAY=:99 wmctrl -l`) — title change =
+hand-off + foreground both worked. Every context (manual `su -`, `systemd-run`,
+root `Popen`) foregrounded; only the live service didn't, and adding
+`-p RestrictNamespaces=yes` to a `systemd-run` reproduced the failure exactly.
+
+*Rejected:* allowlisting namespace types (`RestrictNamespaces=mnt user …`) — snap
+-confine's exact set is fiddly and version-dependent; launching the hand-off via
+`systemd-run --scope` to escape the sandbox — extra moving parts for a service
+that's already root-with-`su` (so the directive bought little real isolation
+anyway).
