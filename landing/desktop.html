@@ -773,7 +773,7 @@
     if (!d) return;
     // Shared shell-level toggles, converged across all clients via this heartbeat.
     if (typeof d.sys_stats === 'boolean' && window.applyServerSysStats) window.applyServerSysStats(d.sys_stats);
-    if (typeof d.claude_usage === 'boolean' && window.applyServerClaudeUsage) window.applyServerClaudeUsage(d.claude_usage);
+    if (typeof d.claude_usage === 'boolean' && window.applyServerClaudeUsage) window.applyServerClaudeUsage(d.claude_usage, d.claude);
     // Folded-in shell polls: taskbar system stats (present only when sys_stats is
     // on) and the terminal count for the Start-menu badge. Set terminalCount
     // before markMenuRunning so the Terminal dot reflects it this beat.
@@ -1501,9 +1501,9 @@
   }
   function updateToggleRow() {
     // Look the row up via document (NOT the outer `menuEl` closure var — this
-    // IIFE lives outside the main script's scope, so referencing menuEl here
-    // threw a ReferenceError that poll()'s .catch swallowed, silently killing
-    // every render — the "toggle does nothing / strip never shows" bug).
+    // IIFE lives in a nested scope; referencing menuEl here once threw a
+    // ReferenceError that a render-path .catch swallowed, silently killing every
+    // render — the "toggle does nothing / strip never shows" bug).
     var it = document.querySelector('.sm-item[data-id="claudeusage"]');
     if (it) {
       it.classList.toggle('cu-on', enabled);
@@ -1537,41 +1537,40 @@
     var x = document.getElementById('cu-x');
     if (x) x.onclick = function() { window.toggleClaudeUsage(); };   // ✕ = turn the feature off everywhere
   }
-  function poll() {
-    fetch('/api/claude/usage', { cache: 'no-store' })
-      .then(function(r) { return r.json(); }).then(render).catch(function() {});
-  }
-  // Reconcile the enabled flag with the shared server value delivered on the 5s
-  // desktop heartbeat (onDesktopResp) — same channel/cadence as System Stats, so
-  // the strip appears/disappears within ~5s instead of waiting for the 30s poll.
-  // The heartbeat only carries the boolean; the numbers stay on the 30s poll
-  // (they only change on a real API call). Skip briefly after a LOCAL toggle so
-  // a heartbeat firing mid-`systemctl` (settings.json not yet written) can't
+  // Both the enabled flag AND the numbers now ride the 5s desktop heartbeat
+  // (onDesktopResp → here): the manager folds `claude` (the /api/claude/usage
+  // payload) onto every heartbeat when the feature is on, so this feature has NO
+  // standalone poll anymore — the strip updates within ~5s of a real API call
+  // instead of up to 30s. `on` is the boolean flag; `data` is the numbers
+  // payload (present only when enabled). Skip briefly after a LOCAL toggle so a
+  // heartbeat firing mid-`systemctl` (settings.json not yet written) can't
   // clobber the optimistic state.
-  window.applyServerClaudeUsage = function(on) {
+  window.applyServerClaudeUsage = function(on, data) {
     if (Date.now() < localOverrideUntil) return;
+    if (data) { render(data); return; }        // enabled: full payload rode in
     if (on === enabled) return;
     var opt = {}; for (var k in (lastData || {})) opt[k] = lastData[k];
     opt.enabled = on;
-    render(opt);
+    render(opt);                                // disabled (or flag-only): hide
   };
   window.toggleClaudeUsage = function() {
     var want = !enabled;
     // Optimistic: reflect the new state instantly (the POST runs systemctl, so
-    // it's not immediate), then reconcile with the server via poll().
-    localOverrideUntil = Date.now() + 5000;
+    // it's not immediate). Guard against a mid-`systemctl` heartbeat until the
+    // POST confirms; then clear the guard and kick a heartbeat to pull the real
+    // (server-confirmed) state + numbers.
+    localOverrideUntil = Date.now() + 8000;     // fallback if the POST never resolves
     var opt = {}; for (var k in (lastData || {})) opt[k] = lastData[k];
     opt.enabled = want;
     render(opt);
     fetch('/api/claude/usage', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: want })
-    }).then(function(r) { return r.json(); }).then(function() { poll(); })
-      .catch(function() { poll(); });
+    }).then(function() { localOverrideUntil = 0; pushDesktop(); })
+      .catch(function() { localOverrideUntil = 0; });
   };
-  poll();
-  setInterval(poll, 30000);
-  document.addEventListener('visibilitychange', function() { if (!document.hidden) poll(); });
+  // No initial poll / interval / visibilitychange handler: the restore GET and
+  // the 5s heartbeat (which also re-fires on visibilitychange) drive the strip.
 })();
 </script>
 </body>

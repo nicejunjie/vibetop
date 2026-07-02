@@ -299,6 +299,26 @@ def _read_claude_usage():
         return None
 
 
+def _claude_usage_payload(enabled=None):
+    """The `/api/claude/usage` response shape: {enabled} + the latest captured
+    numbers (session/weekly/status/stale/ageSec). Shared by the GET endpoint and
+    the desktop heartbeat (which folds these numbers in when enabled), so both
+    stay in lock-step. Pass `enabled` to avoid a redundant settings read when the
+    caller already computed it."""
+    out = {"enabled": _claude_usage_enabled() if enabled is None else enabled}
+    u = _read_claude_usage()
+    if u:
+        age = int(time.time()) - int(u.get("updated") or 0)
+        out.update({
+            "session": u.get("session"), "weekly": u.get("weekly"),
+            "status": u.get("status"),
+            "representative": u.get("representative"),
+            "updated": u.get("updated"),
+            "ageSec": age, "stale": age > CLAUDE_USAGE_STALE_SEC,
+        })
+    return out
+
+
 def _set_claude_usage_env(on):
     """Add/remove env.ANTHROPIC_BASE_URL in ~/.claude/settings.json, preserving
     everything else. On disable it only removes the key when it's *ours*, so a
@@ -1339,6 +1359,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "terminals_running": nterm}
         if want_sys:   # taskbar stats only when the shared toggle is on
             resp["system"] = self._get_system_status()
+        if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
+            resp["claude"] = _claude_usage_payload(cu)
         self._json(200, resp)
 
     def _handle_desktop_close(self):
@@ -2272,18 +2294,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(200, self._get_system_status())
             return
         if self.path == "/api/claude/usage":
-            u = _read_claude_usage()
-            out = {"enabled": _claude_usage_enabled()}
-            if u:
-                age = int(time.time()) - int(u.get("updated") or 0)
-                out.update({
-                    "session": u.get("session"), "weekly": u.get("weekly"),
-                    "status": u.get("status"),
-                    "representative": u.get("representative"),
-                    "updated": u.get("updated"),
-                    "ageSec": age, "stale": age > CLAUDE_USAGE_STALE_SEC,
-                })
-            self._json(200, out)
+            self._json(200, _claude_usage_payload())
             return
         if self.path == "/api/claude/stats":
             try:
@@ -2355,6 +2366,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 }
             if want_sys:   # taskbar stats folded onto the heartbeat
                 resp["system"] = self._get_system_status()
+            if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
+                resp["claude"] = _claude_usage_payload(cu)
             self._json(200, resp)
             return
         if self.path == "/api/upload/list":
