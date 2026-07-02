@@ -17,7 +17,7 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v159';
+const VERSION = 'v169';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
@@ -25,6 +25,7 @@ const PRECACHE = [
   '/landing.html',
   '/notes.html',
   '/monitor.html',
+  '/token-stats.html',
   '/upload.html',
   '/apps.html',
   '/files.html',

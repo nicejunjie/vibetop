@@ -33,6 +33,7 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
+import claude_stats   # sibling module: /api/claude/stats token/cost analytics
 
 # ---- logging -----------------------------------------------------------------
 # Selective + leveled: errors and significant events (terminal/app launches,
@@ -2249,6 +2250,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "ageSec": age, "stale": age > CLAUDE_USAGE_STALE_SEC,
                 })
             self._json(200, out)
+            return
+        if self.path == "/api/claude/stats":
+            try:
+                self._json(200, claude_stats.get_stats(OFFICE_HOME))
+            except Exception as e:
+                log.warning("claude stats failed: %s", e)
+                self._json(500, {"error": str(e)})
             return
         if self.path == "/api/files/tabs":
             try:

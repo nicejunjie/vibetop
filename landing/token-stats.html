@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Claude Token Usage</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #0e1117; color: #e6edf3; font-family: system-ui, sans-serif;
+    font-size: 14px; overflow-y: auto; -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 16px 16px 40px; }
+  h1 { font-size: 18px; margin: 0; font-weight: 650; display: flex; align-items: center; gap: 10px; }
+  h1 .tag { font-size: 11px; font-weight: 600; color: #d2902a; border: 1px solid #4a3a1a;
+            background: #241d10; padding: 1px 7px; border-radius: 999px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .sub { color: #7a8a9a; font-size: 12px; margin: 2px 0 16px; }
+  .sub a, .refresh { color: #58a6ff; cursor: pointer; }
+  .refresh { font-size: 12px; user-select: none; }
+  .refresh:hover { text-decoration: underline; }
+
+  /* Summary cards */
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+  .card { background: #161b22; border: 1px solid #2a3040; border-radius: 10px; padding: 12px 14px; }
+  .card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #7a8a9a; }
+  .card .cost { font-size: 24px; font-weight: 700; margin: 4px 0 2px; color: #e6edf3; font-variant-numeric: tabular-nums; }
+  .card .tok { font-size: 12px; color: #9fb0c0; font-variant-numeric: tabular-nums; }
+  .card .req { font-size: 11px; color: #6a7a8a; margin-top: 3px; }
+
+  .panel { background: #161b22; border: 1px solid #2a3040; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+  .panel h2 { font-size: 13px; margin: 0 0 12px; font-weight: 600; color: #c8d4e0;
+              display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .seg { display: inline-flex; border: 1px solid #2a3040; border-radius: 7px; overflow: hidden; }
+  .seg button { background: transparent; color: #9fb0c0; border: 0; padding: 3px 10px; font-size: 11px; cursor: pointer; font-family: inherit; }
+  .seg button.on { background: #2a3444; color: #fff; }
+
+  /* Averages */
+  .avgs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .avg { background: #10151c; border: 1px solid #232b36; border-radius: 8px; padding: 10px 12px; }
+  .avg .k { font-size: 11px; color: #7a8a9a; }
+  .avg .v { font-size: 18px; font-weight: 700; margin: 3px 0 1px; font-variant-numeric: tabular-nums; }
+  .avg .t { font-size: 11px; color: #8a9aaa; font-variant-numeric: tabular-nums; }
+
+  /* Bar charts (y-axis column + gridlined plot area) */
+  .chart-box { display: flex; gap: 8px; }
+  .chart-y { width: 48px; height: 150px; display: flex; flex-direction: column;
+             justify-content: space-between; text-align: right; color: #6a7a8a;
+             font-size: 10px; font-variant-numeric: tabular-nums; }
+  .chart-main { flex: 1 1 0; min-width: 0; }
+  .bars { display: flex; align-items: flex-end; gap: 3px; height: 150px;
+          background:
+            linear-gradient(#232b36, #232b36) left 0    / 100% 1px no-repeat,
+            linear-gradient(#232b36, #232b36) left 50%  / 100% 1px no-repeat; }
+  .bars.hourly { gap: 2px; }
+  .bar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; position: relative; }
+  .bar > i { display: block; width: 100%; background: #3a7adb; border-radius: 2px 2px 0 0; min-height: 1px; transition: height .3s; }
+  .bar.dim > i { background: #24303f; }
+  .bar:hover > i { filter: brightness(1.25); }
+  .bar .tip { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+              background: #0b0e14; border: 1px solid #2a3040; border-radius: 6px; padding: 4px 8px;
+              font-size: 11px; white-space: nowrap; z-index: 5; pointer-events: none; margin-bottom: 4px; }
+  .bar:hover .tip { display: block; }
+  .axis { display: flex; justify-content: space-between; color: #6a7a8a; font-size: 10px; margin-top: 6px; }
+
+  /* Model table */
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid #20262f; white-space: nowrap; }
+  th { color: #7a8a9a; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  td:first-child, th:first-child { text-align: left; }
+  .mdot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 8px; vertical-align: middle; }
+  .costbar { height: 5px; border-radius: 3px; margin-top: 4px; background: #3a7adb; }
+  .muted { color: #7a8a9a; }
+
+  @media (max-width: 720px) {
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    .bars { height: 120px; }
+    table { font-size: 12px; }
+    th, td { padding: 6px 5px; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Claude Token Usage <span class="tag">estimated cost</span></h1>
+    <span class="refresh" id="refresh">↻ refresh</span>
+  </div>
+  <div class="sub" id="sub">Loading…</div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="panel">
+    <h2>Averages</h2>
+    <div class="avgs" id="avgs"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Per day (last 30 days)
+      <span class="seg" id="daymode"><button data-m="cost" class="on">Cost</button><button data-m="tokens">Tokens</button></span>
+    </h2>
+    <div class="chart-box">
+      <div class="chart-y" id="dayY"></div>
+      <div class="chart-main">
+        <div class="bars" id="dayBars"></div>
+        <div class="axis" id="dayAxis"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Per hour (last 48 h)</h2>
+    <div class="chart-box">
+      <div class="chart-y" id="hourY"></div>
+      <div class="chart-main">
+        <div class="bars hourly" id="hourBars"></div>
+        <div class="axis" id="hourAxis"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>By model <span class="muted" id="cacheStat"></span></h2>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th>Model</th><th>Requests</th><th class="hide-sm">Input</th><th class="hide-sm">Output</th>
+        <th class="hide-sm">Cache read</th><th>Est. cost</th>
+      </tr></thead>
+      <tbody id="modelRows"></tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+var MODEL_COLOR = { opus: '#d2902a', fable: '#a479e2', haiku: '#34a853', sonnet: '#3a7adb' };
+function tier(m){ m=(m||'').toLowerCase();
+  if (m.indexOf('haiku')>=0) return 'haiku';
+  if (m.indexOf('sonnet')>=0) return 'sonnet';
+  if (m.indexOf('fable')>=0||m.indexOf('mythos')>=0) return 'fable';
+  return 'opus'; }
+function color(m){ return MODEL_COLOR[tier(m)] || '#3a7adb'; }
+function fmtTok(n){
+  if (n >= 1e9) return (n/1e9).toFixed(2)+'B';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return String(n||0);
+}
+function fmtCost(c){ c=c||0;
+  if (c >= 1000) return '$'+(c/1000).toFixed(2)+'k';
+  if (c >= 100)  return '$'+c.toFixed(0);
+  return '$'+c.toFixed(2);
+}
+function fmtCostFull(c){ return '$'+(c||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+var dayMode = 'cost';
+var lastData = null;
+
+function setY(id, max, fmt){
+  document.getElementById(id).innerHTML =
+    '<span>'+fmt(max)+'</span><span>'+fmt(max/2)+'</span><span>0</span>';
+}
+
+function renderAverages(d){
+  var w = d.windows;
+  var s  = Math.max(1, d.sessions || 0);
+  var ad = Math.max(1, d.activeDays || 0);
+  var rq = Math.max(1, w.all.req || 0);
+  var tiles = [
+    ['Per day · 7-day avg',        w.d7.cost/7,   w.d7.tokens/7],
+    ['Per day · 30-day avg',       w.d30.cost/30, w.d30.tokens/30],
+    ['Per active day · all-time',  w.all.cost/ad, w.all.tokens/ad],
+    ['Per request · all-time',     w.all.cost/rq, w.all.tokens/rq],
+    ['Per session · all-time',     w.all.cost/s,  w.all.tokens/s]
+  ];
+  document.getElementById('avgs').innerHTML = tiles.map(function(t){
+    return '<div class="avg"><div class="k">'+t[0]+'</div>'
+      + '<div class="v">'+fmtCostFull(t[1])+'</div>'
+      + '<div class="t">'+fmtTok(Math.round(t[2]))+' tokens</div></div>';
+  }).join('');
+}
+
+function renderCards(w){
+  var defs = [['Today','today'],['7 days','d7'],['30 days','d30'],['All time','all']];
+  document.getElementById('cards').innerHTML = defs.map(function(d){
+    var e = w[d[1]] || {};
+    return '<div class="card"><div class="k">'+d[0]+'</div>'
+      + '<div class="cost">'+fmtCostFull(e.cost)+'</div>'
+      + '<div class="tok">'+fmtTok(e.tokens)+' tokens</div>'
+      + '<div class="req">'+(e.req||0).toLocaleString()+' requests</div></div>';
+  }).join('');
+}
+
+function renderDayBars(days){
+  var max = 1;
+  days.forEach(function(d){ var v = dayMode==='cost'? d.cost : d.tokens; if (v>max) max=v; });
+  setY('dayY', max, dayMode==='cost'? fmtCost : fmtTok);
+  document.getElementById('dayBars').innerHTML = days.map(function(d){
+    var v = dayMode==='cost'? d.cost : d.tokens;
+    var h = Math.max(1, Math.round(v/max*100));
+    var lbl = dayMode==='cost'? fmtCostFull(d.cost) : fmtTok(d.tokens)+' tok';
+    var dim = v>0? '' : ' dim';
+    return '<div class="bar'+dim+'"><span class="tip">'+d.date+'<br>'+lbl+'</span>'
+         + '<i style="height:'+h+'%"></i></div>';
+  }).join('');
+  var ax = document.getElementById('dayAxis');
+  ax.innerHTML = '<span>'+days[0].date.slice(5)+'</span><span>'+days[days.length-1].date.slice(5)+'</span>';
+}
+
+function renderHourBars(hours){
+  var max = 1;
+  hours.forEach(function(h){ if (h.tokens>max) max=h.tokens; });
+  setY('hourY', max, fmtTok);
+  document.getElementById('hourBars').innerHTML = hours.map(function(h){
+    var height = Math.max(1, Math.round(h.tokens/max*100));
+    var d = new Date(h.h*3600*1000);
+    var label = d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric'});
+    var dim = h.tokens>0? '' : ' dim';
+    return '<div class="bar'+dim+'"><span class="tip">'+label+'<br>'+fmtTok(h.tokens)+' tok · '+fmtCostFull(h.cost)+'</span>'
+         + '<i style="height:'+height+'%;background:#7a5cff"></i></div>';
+  }).join('');
+  var first = new Date(hours[0].h*3600*1000), last = new Date(hours[hours.length-1].h*3600*1000);
+  var opt = {hour:'numeric'};
+  document.getElementById('hourAxis').innerHTML =
+    '<span>'+first.toLocaleString(undefined,{weekday:'short',hour:'numeric'})+'</span>'
+    + '<span>'+last.toLocaleString(undefined,{hour:'numeric'})+' (now)</span>';
+}
+
+function renderModels(models){
+  var maxCost = 1;
+  models.forEach(function(m){ if (m.cost>maxCost) maxCost=m.cost; });
+  document.getElementById('modelRows').innerHTML = models.map(function(m){
+    var c = color(m.model);
+    return '<tr>'
+      + '<td><span class="mdot" style="background:'+c+'"></span>'+m.model+'</td>'
+      + '<td>'+(m.req||0).toLocaleString()+'</td>'
+      + '<td class="hide-sm">'+fmtTok(m.in)+'</td>'
+      + '<td class="hide-sm">'+fmtTok(m.out)+'</td>'
+      + '<td class="hide-sm">'+fmtTok(m.cr)+'</td>'
+      + '<td><b>'+fmtCostFull(m.cost)+'</b>'
+      + '<div class="costbar" style="width:'+Math.max(3,Math.round(m.cost/maxCost*100))+'%;background:'+c+'"></div></td>'
+      + '</tr>';
+  }).join('') || '<tr><td colspan="6" class="muted">No usage recorded yet.</td></tr>';
+}
+
+function render(d){
+  lastData = d;
+  renderCards(d.windows);
+  renderAverages(d);
+  renderDayBars(d.byDay);
+  renderHourBars(d.byHour);
+  renderModels(d.byModel);
+  document.getElementById('cacheStat').textContent =
+    '· cache hit ' + Math.round((d.cacheHitRate||0)*100) + '% · ' + d.sessions + ' sessions';
+  var ago = Math.max(0, Math.round((Date.now()/1000) - d.updated));
+  document.getElementById('sub').innerHTML =
+    'Reconstructed from local Claude Code transcripts; cost is an <b>estimate</b> at public per-token rates. Updated '
+    + (ago<60? ago+'s' : Math.round(ago/60)+'m') + ' ago.';
+}
+
+function load(){
+  document.getElementById('refresh').textContent = '↻ …';
+  fetch('/api/claude/stats', { cache: 'no-store' })
+    .then(function(r){ return r.json(); })
+    .then(render)
+    .catch(function(){ document.getElementById('sub').textContent = 'Failed to load stats.'; })
+    .then(function(){ document.getElementById('refresh').textContent = '↻ refresh'; });
+}
+
+document.getElementById('daymode').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  dayMode = b.dataset.m;
+  [].forEach.call(this.querySelectorAll('button'), function(x){ x.classList.toggle('on', x===b); });
+  if (lastData) renderDayBars(lastData.byDay);
+});
+document.getElementById('refresh').addEventListener('click', load);
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) load(); });
+
+load();
+setInterval(load, 45000);
+</script>
+</body>
+</html>

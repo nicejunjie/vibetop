@@ -34,6 +34,7 @@ fi
 run install -m 644 "$DIR/index.html" "$DST_DIR/landing.html"
 run install -m 644 "$DIR/filebrowser-patches.js" "$DST_DIR/filebrowser-patches.js"
 run install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
+run install -m 644 "$DIR/token-stats.html" "$DST_DIR/token-stats.html"
 run install -m 644 "$DIR/notes.html" "$DST_DIR/notes.html"
 run install -m 644 "$DIR/upload.html" "$DST_DIR/upload.html"
 if [ "$DRY_RUN" = 1 ]; then

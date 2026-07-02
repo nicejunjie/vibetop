@@ -100,7 +100,7 @@
 
   /* Start button — always present, like Windows' Start */
   .start-btn {
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
     padding: 8px 16px; height: 40px;
     border-radius: 8px; cursor: pointer; user-select: none;
     font-size: 15px; font-weight: 600; color: #e8eef5;
@@ -114,9 +114,17 @@
   .tb-sep { width: 1px; height: 28px; background: #2a3040; margin: 0 6px; }
 
   /* Open-app buttons (only present while the app is open) */
-  .task-apps { display: flex; align-items: center; gap: 2px; }
+  /* The open-app buttons GROW to fill all the space between Start and the stats
+     (tabs left-aligned, empty room to their right when few — the familiar look),
+     and SCROLL within that region when there are too many to fit, so they never
+     overflow into (and overlap) the right-hand system stats. The stats + Start +
+     logout are flex-shrink:0 and stay put. */
+  .task-apps { display: flex; align-items: center; gap: 2px;
+    flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; }
+  .task-apps::-webkit-scrollbar { display: none; }
   .task-app {
-    position: relative;
+    position: relative; flex-shrink: 0;
     display: flex; align-items: center; gap: 6px;
     padding: 6px 10px 6px 12px; height: 38px;
     border-radius: 8px; cursor: pointer; user-select: none;
@@ -147,7 +155,7 @@
   .task-app.active[data-id="upload"]   { border-bottom-color: #3ab36a; }
   .task-app.active[data-id="update"]   { border-bottom-color: #8a8a9a; }
 
-  .tb-spacer { flex: 1; }
+  .tb-spacer { flex: 0 0 10px; }  /* just a fixed gap between the tab strip and the stats — the tab strip itself now fills the space */
 
   /* Each row: [label] [num] [%] [num] [°]  [label] [num/num] [G]
      Numeric columns use fixed `ch` widths so labels don't shift sideways as
@@ -163,7 +171,7 @@
       2ch  auto    /* °  number + unit (CPU/GPU temps are 2 digits) */
       auto         /* MEM/VRAM label */
       5ch  auto;   /* used/total + G */
-    column-gap: 0; row-gap: 1px; align-content: center;
+    column-gap: 0; row-gap: 1px; align-content: center; flex-shrink: 0;
     font-size: 12px; line-height: 1.35;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-variant-numeric: tabular-nums;
@@ -178,7 +186,7 @@
   .tb-stats .u:nth-child(8n+5) { padding-right: 12px; }
 
   .tb-logout {
-    display: flex; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     width: 36px; height: 36px; border-radius: 8px;
     font-size: 18px; color: #aa4444; cursor: pointer;
     text-decoration: none; margin-left: 8px;
@@ -238,7 +246,7 @@
   .sm-parent:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
   .sm-parent .sm-icon {
     display: flex; align-items: center; justify-content: center;
-    width: 30px; height: 30px; border-radius: 8px; font-size: 22px; flex-shrink: 0;
+    width: 30px; height: 30px; border-radius: 8px; font-size: 26px; flex-shrink: 0;
     background: #3a3320;
   }
   .sm-parent .sm-parent-name { flex: 1; font-size: 14px; color: #e6edf3; }
@@ -250,6 +258,8 @@
     content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; vertical-align: middle;
   }
   .sm-item[data-id="claudeusage"] .sm-icon { background: #234a2f; }
+  .sm-item[data-id="tokenstats"] .sm-icon { background: #1f3350; }
+  .sm-item[data-id="sysstats"] .sm-icon { background: #3a2340; }
   /* Build tag — lets you confirm whether a fresh shell loaded (vs a stale
      service-worker cache). Bump it whenever the shell changes. */
   .sm-build { text-align: center; padding: 5px 0 2px; }
@@ -342,6 +352,9 @@
     .taskbar { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
     .taskbar::-webkit-scrollbar { display: none; }
     .start-btn, .task-app, .tb-stats, .tb-logout { flex-shrink: 0; }
+    /* On phones the whole taskbar scrolls as one unit, so the tab strip should
+       be its natural width (no grow, no nested scroll) and let the bar scroll. */
+    .task-apps { flex: 0 0 auto; min-width: auto; overflow: visible; }
     .tb-spacer { flex: 0 0 8px; }
     /* Keep the menu a comfortable width on phones (was full-width via right:8px)
        — capped so it never overflows a very narrow screen. */
@@ -441,7 +454,7 @@
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
     <div class="sm-parent" id="sm-util-parent">
-      <div class="sm-icon">🧰</div>
+      <div class="sm-icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></div>
       <div class="sm-parent-name">Utilities</div>
       <div class="sm-caret">▶</div>
     </div>
@@ -467,7 +480,7 @@
       <span class="label">VRAM</span>
       <span class="n"  id="vram-ut">--</span><span class="u">G</span>
     </div>
-    <div class="tb-sep"></div>
+    <div class="tb-sep" id="tb-stats-sep"></div>
     <a class="tb-logout" id="tb-logout" href="/cdn-cgi/access/logout" title="Log out (closes all apps, terminals & browser — fresh start)">⏻</a>
   </div>
 
@@ -498,7 +511,13 @@
     notes:       svgIcon('M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'),
     monitor:     svgIcon('M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z'),
     upload:      svgIcon('M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z'),
-    update:      svgIcon('M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z')
+    update:      svgIcon('M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z'),
+    // Utilities — same Material 24-grid SVG style as the apps above (a gauge for
+    // the usage strip, an assessment/bar-chart for token stats) so the Start-menu
+    // icons match in style and size instead of falling back to emoji.
+    claudeusage: svgIcon('M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z'),
+    tokenstats:  svgIcon('M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z'),
+    sysstats:    svgIcon('M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z')
   };
 
   // Single source of truth for every app: its taskbar/Start-menu icon, label,
@@ -520,7 +539,13 @@
     // (routes Claude Code through the local capture proxy). Handled specially in
     // the Start-menu click handler — no iframe, no src. Lives under the
     // collapsible "Utilities" submenu (section 'utilities').
-    claudeusage: { label: 'Claude Usage', icon: '📈', desc: 'Off', section: 'utilities', toggle: true }
+    claudeusage: { label: 'Claude Usage', icon: '📈', desc: 'Off', section: 'utilities', toggle: true },
+    // A normal app (iframe) under Utilities: token-consumption + estimated-cost
+    // analytics parsed from Claude Code's local transcripts.
+    tokenstats: { label: 'Token Stats', icon: '📊', src: '/token-stats.html', desc: 'Token use & est. cost', section: 'utilities' },
+    // Client-side toggle (not an app): show/hide the CPU/GPU/MEM/VRAM readout in
+    // the taskbar, freeing that space for app tabs. Per-device (localStorage).
+    sysstats: { label: 'System Stats', icon: '🖥', desc: 'CPU/GPU in taskbar', section: 'utilities', toggle: true }
   };
   // Attach the matching SVG icon to each app (fallback stays the `icon` emoji).
   Object.keys(APPS).forEach(function(id) { if (ICON[id]) APPS[id].svg = ICON[id]; });
@@ -995,7 +1020,10 @@
     var item = e.target.closest('.sm-item');
     if (!item) return;
     var id = item.dataset.id;
-    if (APPS[id] && APPS[id].toggle) { toggleClaudeUsage(); return; }   // a toggle row, not an app
+    if (APPS[id] && APPS[id].toggle) {   // a toggle row, not an app
+      if (id === 'sysstats') { toggleSysStats(); } else { toggleClaudeUsage(); }
+      return;
+    }
     if (e.target.closest('.sm-close')) { closeEverywhere(id); return; }  // close-everywhere, not launch
     launch(id);
   });
@@ -1179,7 +1207,30 @@
   });
 
   // --- status bar ---
+  // --- Optional taskbar system stats (Utilities ▸ System Stats toggle) -------
+  // Pure client-side, per-device preference. When off, the CPU/GPU/MEM/VRAM
+  // readout (and its separator) are hidden and the poll is skipped, freeing the
+  // space for app tabs (which grow to fill it).
+  function sysStatsOn() { return localStorage.getItem('vibetop:sysstats') !== '0'; }  // default on
+  function applySysStats() {
+    var on = sysStatsOn();
+    var el = document.querySelector('.tb-stats'); if (el) el.style.display = on ? '' : 'none';
+    var sep = document.getElementById('tb-stats-sep'); if (sep) sep.style.display = on ? '' : 'none';
+    var it = document.querySelector('.sm-item[data-id="sysstats"]');
+    if (it) {
+      it.classList.toggle('cu-on', on);
+      var ds = it.querySelector('.sm-desc');
+      if (ds) ds.textContent = on ? 'On — CPU/GPU in taskbar' : 'Off';
+    }
+  }
+  window.toggleSysStats = function() {
+    localStorage.setItem('vibetop:sysstats', sysStatsOn() ? '0' : '1');
+    applySysStats();
+    if (sysStatsOn()) updateStatus();   // refresh immediately when turned back on
+  };
+
   function updateStatus() {
+    if (!sysStatsOn()) return;   // stats hidden -> skip the poll entirely
     fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(d) {
       var set = function(id, v, unit) {
         var el = document.getElementById(id);
@@ -1208,6 +1259,7 @@
       set('vram-ut', vram);
     }).catch(function() {});
   }
+  applySysStats();   // apply the saved show/hide preference before the first poll
   updateStatus();
   setInterval(updateStatus, 5000);
   // Keep the Start-menu session badges (esp. Terminal's resume/fresh count) current.
@@ -1314,21 +1366,23 @@
 // separately so a failure here can never affect the desktop above. When an
 // updated SW takes control (e.g. after a shell change), reload once so the
 // fresh shell loads immediately instead of needing a second relaunch.
-if ('serviceWorker' in navigator) {
-  // Only reload when an *updated* SW replaces an existing one (to pick up a new
-  // shell). On a brand-new computer the first install's clients.claim() also
-  // fires controllerchange (controller: null -> SW) — reloading THEN throws away
-  // the first page load mid-flight and interrupts a Terminal that's still
-  // connecting ("new computer, had to refresh a few times before I could type").
-  // hadController is false on first install, true on a later update.
-  var hadController = !!navigator.serviceWorker.controller;
+// Auto-refresh on deploy. The SSE reload path uses a plain window.location.reload()
+// and does NOT need a service worker — so it must run even on insecure origins
+// (http://z20.local, http://<LAN-IP>) where `navigator.serviceWorker` is undefined
+// (it's a secure-context-only API). Previously this whole block was nested in
+// `if ('serviceWorker' in navigator)`, so LAN/HTTP sessions never subscribed to
+// /api/events and never auto-updated, while the HTTPS tunnel (a secure context)
+// did. The SW-specific bits (register + controllerchange) stay guarded below.
+(function autoRefresh() {
+  var hasSW = ('serviceWorker' in navigator);
   var swRefreshing = false;
-  // A new shell took over → do a full refresh of the WHOLE vibetop desktop. One
+  var loadedShellVer = null;   // shell version this page is running (from the first hello)
+  // A new shell was deployed → full refresh of the WHOLE vibetop desktop. One
   // reload pulls in every app iframe too, so a deploy reaches all of vibetop with
-  // no per-app update logic — a thorough refresh. A brief notice so the reload
-  // reads as intentional. Persistent state survives (terminals/Browser reconnect,
-  // notes autosave, Files/Notes tabs are server-side).
-  function doSwReload() {
+  // no per-app update logic. A brief notice so the reload reads as intentional.
+  // Persistent state survives (terminals/Browser reconnect, notes autosave,
+  // Files/Notes tabs are server-side).
+  function doReload() {
     if (swRefreshing) return; swRefreshing = true;
     try {
       var t = document.createElement('div'); t.className = 'sw-updating';
@@ -1337,34 +1391,17 @@ if ('serviceWorker' in navigator) {
     } catch (e) {}
     setTimeout(function() { window.location.reload(); }, 1200);
   }
-  // hadController guards the first install (its clients.claim() also fires this —
-  // reloading then would throw away the initial load).
-  navigator.serviceWorker.addEventListener('controllerchange', function() {
-    if (hadController) doSwReload();
-  });
-  function checkForUpdate() {
-    navigator.serviceWorker.getRegistration().then(function(r) { if (r) r.update().catch(function() {}); }).catch(function() {});
+  function updateSW() {   // no-op without a SW (insecure origin) — guarded
+    try { if (hasSW) navigator.serviceWorker.getRegistration().then(function(r) { if (r) r.update().catch(function() {}); }).catch(function() {}); } catch (e) {}
   }
-  // Push, not poll: the server streams a 'reload' (SSE /api/events) the instant a
-  // new shell is deployed → we fetch the new SW, which fires controllerchange →
-  // full refresh. EventSource auto-reconnects if the stream drops. A check on
-  // tab-focus is the only fallback (event-driven, not periodic).
-  var loadedShellVer = null;   // shell version this page is running (from the first hello)
-  function triggerRefresh() {
-    // Fetch the new SW (so the reload is served fresh) AND reload directly. Not via
-    // controllerchange: an uncontrolled page (e.g. after a hard reload) never fires
-    // it, which would silently miss the refresh.
-    try { navigator.serviceWorker.getRegistration().then(function(r) { if (r) r.update().catch(function() {}); }); } catch (e) {}
-    doSwReload();
-  }
+  function triggerRefresh() { updateSW(); doReload(); }
   function subscribeUpdates() {
     try {
       var es = new EventSource('/api/events');
-      // hello fires on every (re)connect. The FIRST one baselines the version this
-      // page loaded with; a LATER one that differs means the shell changed while we
-      // were disconnected/backgrounded → self-heal (closes the gap where a push that
-      // happened while offline would otherwise be missed). The live `reload` event
-      // covers a foreground tab during a deploy.
+      // hello fires on every (re)connect. The FIRST baselines this page's version;
+      // a LATER one that differs means the shell changed while we were
+      // disconnected/backgrounded → self-heal. The live `reload` event covers a
+      // foreground tab during a deploy.
       es.addEventListener('hello', function(e) {
         if (loadedShellVer === null) loadedShellVer = e.data;
         else if (e.data && e.data !== loadedShellVer) triggerRefresh();
@@ -1372,12 +1409,22 @@ if ('serviceWorker' in navigator) {
       es.addEventListener('reload', triggerRefresh);
     } catch (e) {}
   }
-  document.addEventListener('visibilitychange', function() { if (!document.hidden) checkForUpdate(); });
+  // SW-specific (secure context only): register the SW and reload when an *updated*
+  // SW replaces an existing one. hadController is false on first install (its
+  // clients.claim() also fires controllerchange — reloading then would throw away
+  // the initial load), true on a later update.
+  if (hasSW) {
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (hadController) doReload();
+    });
+  }
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) updateSW(); });
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js').catch(function() {});
-    subscribeUpdates();
+    if (hasSW) navigator.serviceWorker.register('/sw.js').catch(function() {});
+    subscribeUpdates();   // always — SSE reload works without a SW
   });
-}
+})();
 
 // Logout = full reset: close all apps, stop all terminals (and their
 // background processes), reset the Browser to a blank Chromium, then log out —
