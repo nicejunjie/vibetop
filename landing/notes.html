@@ -66,6 +66,7 @@
   var cache = {};              // id -> content (loaded)
   var ready = false;           // active note's content is loaded → safe to autosave
   var saveTimer = null, scanTimer = null;
+  var savingInFlight = false;  // a save POST is in flight — treat as "busy" like a pending edit
   var initDone = false;        // don't live-sync before the first load lands
   var _lastTabsSig = null;     // last tab set (ids+names+order) known to match the server
 
@@ -137,10 +138,12 @@
   }
   function doSave(id, content) {
     cache[id] = content;
+    savingInFlight = true;
     setStatus('saving…');
     api('/api/notes', { id: id, content: content })
       .then(function() { if (active === id) setStatus('saved', 'saved'); })
-      .catch(function() { if (active === id) setStatus('save failed', 'err'); });
+      .catch(function() { if (active === id) setStatus('save failed', 'err'); })
+      .then(function() { savingInFlight = false; });   // clear busy either way (no .finally on old Safari)
   }
 
   function addNote() {
@@ -233,7 +236,7 @@
   editor.addEventListener('input', function() {
     if (!ready) return;
     clearTimeout(saveTimer); setStatus('editing…');
-    saveTimer = setTimeout(function() { doSave(active, editor.value); }, 800);
+    saveTimer = setTimeout(function() { saveTimer = null; doSave(active, editor.value); }, 800);
     clearTimeout(scanTimer); scanTimer = setTimeout(scanLinks, 300);
   });
   editor.addEventListener('keydown', function(e) {
@@ -300,8 +303,34 @@
       if (act) switchTo(act);
     }
   }
+  // Live-sync the OPEN note's body: pull the active note and apply a remote change
+  // (edited on another device) into the editor — but only while WE aren't mid-edit
+  // (pending debounce or a save in flight), so our own typing always wins and is
+  // never clobbered. Same last-writer-wins model as the autosave. Caret is kept
+  // best-effort so a background refresh doesn't jump the cursor.
+  function syncContent() {
+    if (!ready || active == null) return;
+    if (saveTimer !== null || savingInFlight) return;      // local edit in progress → skip
+    var id = active;
+    api('/api/notes?id=' + encodeURIComponent(id))
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (!d || active !== id) return;                   // switched away while awaiting
+        if (saveTimer !== null || savingInFlight) return;  // started editing while awaiting
+        var remote = d.content || '';
+        cache[id] = remote;
+        if (remote === editor.value) return;               // already in sync
+        var s = editor.selectionStart, e = editor.selectionEnd;
+        editor.value = remote;
+        try { editor.selectionStart = Math.min(s, remote.length); editor.selectionEnd = Math.min(e, remote.length); } catch (_) {}
+        scanLinks();
+        setStatus('synced', 'saved');
+      }).catch(function() {});
+  }
+
   function tick() {
     if (!initDone) return;
+    syncContent();                                         // refresh the open note's body
     // Don't clobber an in-progress rename or drag.
     if (dragId != null || tabsEl.querySelector('.lbl[contenteditable="true"]')) return;
     if (tabsSig() !== _lastTabsSig) { persistTabs(); return; }   // we changed it → push, win this round

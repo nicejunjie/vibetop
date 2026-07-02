@@ -32,8 +32,15 @@ and why it lost).
   live text editor — adopting a remote active would yank the editor to a different
   note mid-type. So active stays **device-local**; we only jump if our active tab
   was *closed* on another device (like the Terminal tabs' "set membership syncs,
-  active stays local"). Full real-time **content** co-editing was also left out of
-  scope (needs conflict resolution) — only the tab set syncs.
+  active stays local").
+- **Follow-up — content sync:** tabs synced but the note *body* didn't. Added
+  `syncContent()` to the same `tick()`: poll the **active** note's content and
+  apply a remote change into the editor — but **only while we're not mid-edit**
+  (`saveTimer !== null || savingInFlight`), so local typing always wins (same
+  last-writer-wins model as the autosave; no OT/CRDT). Programmatic `editor.value
+  = …` doesn't fire `input`, so there's no save loop; caret offset is preserved
+  best-effort so a background refresh doesn't jump the cursor. Only the *open*
+  note is polled (bounded cost); non-active notes refresh on switch.
 
 ---
 
