@@ -1315,7 +1315,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(400, {"error": "active must be a string or null"})
             return
         now = time.time()
-        cu = _claude_usage_enabled()   # shell-level flag, ridden on the heartbeat
+        # Shell-tier polls folded onto this 5s heartbeat (consolidate within the
+        # tier): the Claude-Usage flag, the terminal count for the Start-menu
+        # badge, and (below) the taskbar system stats. All computed OUTSIDE
+        # _desktop_lock and memoized, so folding them in doesn't lengthen the
+        # lock or duplicate work across clients.
+        cu = _claude_usage_enabled()
+        nterm = len(self._get_running_terminals())
         with _desktop_lock:
             state = _read_desktop_state()
             state["instances"][instance] = {
@@ -1324,11 +1330,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _desktop_cap(state)
             _desktop_prune_targets(state, now)
             _write_desktop_state(state)
+            want_sys = state.get("sys_stats", True)
             resp = {"ok": True, "running": _desktop_union(state, now),
                     "reset_epoch": state["reset_epoch"],
                     "close_targets": state["close_targets"],
-                    "sys_stats": state.get("sys_stats", True),
-                    "claude_usage": cu}
+                    "sys_stats": want_sys,
+                    "claude_usage": cu,
+                    "terminals_running": nterm}
+        if want_sys:   # taskbar stats only when the shared toggle is on
+            resp["system"] = self._get_system_status()
         self._json(200, resp)
 
     def _handle_desktop_close(self):
@@ -2319,6 +2329,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             instance = urllib.parse.parse_qs(qs).get("instance", [""])[0][:64]
             now = time.time()
             cu = _claude_usage_enabled()   # shell-level flag, ridden on the heartbeat
+            nterm = len(self._get_running_terminals())   # Start-menu badge, folded on
             with _desktop_lock:
                 state = _read_desktop_state()
                 ent = state["instances"].get(instance) if instance else None
@@ -2331,15 +2342,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 _desktop_prune_targets(state, now)
                 if instance:
                     _write_desktop_state(state)
+                want_sys = state.get("sys_stats", True)
                 resp = {
                     "open": (ent or {}).get("open", []),
                     "active": (ent or {}).get("active"),
                     "running": _desktop_union(state, now),
                     "reset_epoch": state["reset_epoch"],
                     "close_targets": state["close_targets"],
-                    "sys_stats": state.get("sys_stats", True),
+                    "sys_stats": want_sys,
                     "claude_usage": cu,
+                    "terminals_running": nterm,
                 }
+            if want_sys:   # taskbar stats folded onto the heartbeat
+                resp["system"] = self._get_system_status()
             self._json(200, resp)
             return
         if self.path == "/api/upload/list":

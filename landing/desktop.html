@@ -59,7 +59,9 @@
   .cu-strip .cu-lbl { color: #8a9aaa; }
   .cu-strip .cu-pct { font-variant-numeric: tabular-nums; color: #dbe4ee; font-weight: 600; }
   .cu-strip .cu-bar { width: 52px; height: 7px; border-radius: 4px; background: #2a3444; overflow: hidden; }
-  .cu-strip .cu-fill { height: 100%; width: 0; background: #34a853; transition: width .4s; }
+  /* display:block so width/height apply — a bare <span> is inline and ignores
+     them, which left the fill invisible (the bar looked like a flat grey track). */
+  .cu-strip .cu-fill { display: block; height: 100%; width: 0; background: #34a853; transition: width .4s; }
   .cu-strip .cu-fill.warn { background: #d2902a; }
   .cu-strip .cu-fill.crit { background: #d24b3a; }
   .cu-strip .cu-dim { color: #6a7a8a; font-variant-numeric: tabular-nums; }
@@ -772,6 +774,11 @@
     // Shared shell-level toggles, converged across all clients via this heartbeat.
     if (typeof d.sys_stats === 'boolean' && window.applyServerSysStats) window.applyServerSysStats(d.sys_stats);
     if (typeof d.claude_usage === 'boolean' && window.applyServerClaudeUsage) window.applyServerClaudeUsage(d.claude_usage);
+    // Folded-in shell polls: taskbar system stats (present only when sys_stats is
+    // on) and the terminal count for the Start-menu badge. Set terminalCount
+    // before markMenuRunning so the Terminal dot reflects it this beat.
+    if (d.system) renderSysStats(d.system);
+    if (typeof d.terminals_running === 'number') terminalCount = d.terminals_running;
     if (Array.isArray(d.running)) { runningGlobal = d.running; markMenuRunning(); }
     if (typeof d.reset_epoch === 'number') {
       if (lastResetEpoch === null) lastResetEpoch = d.reset_epoch;
@@ -919,12 +926,6 @@
 
   // Refresh the live terminal-backend count so Terminal's dot reflects a running
   // session even when no Terminal window is open on any device.
-  function refreshTerminals() {
-    fetch('/api/terminals/status').then(function(r) { return r.json(); }).then(function(d) {
-      terminalCount = (d && Array.isArray(d.running)) ? d.running.length : 0;
-      markMenuRunning();
-    }).catch(function() {});
-  }
 
   function setActive(id) {
     active = id;
@@ -1005,7 +1006,7 @@
     var bf = frameOf('browser');
     if (bf && bf.contentWindow) { try { bf.contentWindow.postMessage({ type: 'vibetop:menu-open', open: open }, '*'); } catch (e) {} }
   }
-  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); scrimEl.style.display = 'block'; notifyBrowserMenu(true); refreshTerminals(); }
+  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); scrimEl.style.display = 'block'; notifyBrowserMenu(true); pushDesktop(); }   // heartbeat refreshes the running dots + terminal badge
   function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; notifyBrowserMenu(false); }
   function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
 
@@ -1234,7 +1235,9 @@
   function setSysStatsLocal(on) {
     localStorage.setItem('vibetop:sysstats', on ? '1' : '0');
     applySysStats();
-    if (on) updateStatus();   // refresh immediately when shown
+    // When turned on locally, the next heartbeat renders the numbers (toggleSysStats
+    // kicks one right after the server agrees; a peer-driven change already rode in
+    // on the heartbeat that delivered it).
   }
   // Reconcile with the shared server value (from the desktop heartbeat).
   window.applyServerSysStats = function(on) {
@@ -1245,45 +1248,46 @@
     var want = !sysStatsOn();
     setSysStatsLocal(want);   // optimistic; other clients pick it up on their heartbeat
     fetch('/api/desktop/ui', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sysStats: want }) }).catch(function() {});
+      body: JSON.stringify({ sysStats: want }) })
+      .then(function() { if (want) pushDesktop(); })   // server now agrees → heartbeat returns d.system to render now
+      .catch(function() {});
   };
 
-  function updateStatus() {
-    if (!sysStatsOn()) return;   // stats hidden -> skip the poll entirely
-    fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(d) {
-      var set = function(id, v, unit) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        if (v == null) {
-          el.textContent = '--';
-          if (unit) document.getElementById(unit).style.visibility = 'hidden';
-        } else {
-          el.textContent = v;
-          if (unit) document.getElementById(unit).style.visibility = '';
-        }
-      };
-      // Round util to integer for the taskbar — 3-char max keeps the grid
-      // tight; the Monitor app shows the precise value when needed.
-      var ri = function(v) { return v != null ? Math.round(v) : null; };
-      set('cpu-n',  ri(d.cpu_percent), 'cpu-u');
-      set('cpu-tn', d.cpu_temp,        'cpu-tu');
-      set('gpu-n',  ri(d.gpu_percent), 'gpu-u');
-      set('gpu-tn', d.gpu_temp,        'gpu-tu');
-      // Combine used/total into one cell so there's no whitespace around "/".
-      var mem = (d.memory_used_gb != null && d.memory_total_gb != null)
-        ? (Math.round(d.memory_used_gb) + '/' + Math.round(d.memory_total_gb)) : null;
-      var vram = (d.gpu_vram_used_gb != null && d.gpu_vram_total_gb != null)
-        ? (Math.round(d.gpu_vram_used_gb) + '/' + Math.round(d.gpu_vram_total_gb)) : null;
-      set('mem-ut',  mem);
-      set('vram-ut', vram);
-    }).catch(function() {});
+  // Render-only: the taskbar stats now arrive on the desktop heartbeat as
+  // `d.system` (see onDesktopResp) — the standalone /api/system/status poll was
+  // folded onto that 5s channel. `d` is the system-status object.
+  function renderSysStats(d) {
+    if (!d) return;
+    var set = function(id, v, unit) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (v == null) {
+        el.textContent = '--';
+        if (unit) document.getElementById(unit).style.visibility = 'hidden';
+      } else {
+        el.textContent = v;
+        if (unit) document.getElementById(unit).style.visibility = '';
+      }
+    };
+    // Round util to integer for the taskbar — 3-char max keeps the grid
+    // tight; the Monitor app shows the precise value when needed.
+    var ri = function(v) { return v != null ? Math.round(v) : null; };
+    set('cpu-n',  ri(d.cpu_percent), 'cpu-u');
+    set('cpu-tn', d.cpu_temp,        'cpu-tu');
+    set('gpu-n',  ri(d.gpu_percent), 'gpu-u');
+    set('gpu-tn', d.gpu_temp,        'gpu-tu');
+    // Combine used/total into one cell so there's no whitespace around "/".
+    var mem = (d.memory_used_gb != null && d.memory_total_gb != null)
+      ? (Math.round(d.memory_used_gb) + '/' + Math.round(d.memory_total_gb)) : null;
+    var vram = (d.gpu_vram_used_gb != null && d.gpu_vram_total_gb != null)
+      ? (Math.round(d.gpu_vram_used_gb) + '/' + Math.round(d.gpu_vram_total_gb)) : null;
+    set('mem-ut',  mem);
+    set('vram-ut', vram);
   }
-  applySysStats();   // apply the saved show/hide preference before the first poll
-  updateStatus();
-  setInterval(updateStatus, 5000);
-  // Keep the Start-menu session badges (esp. Terminal's resume/fresh count) current.
-  refreshTerminals();
-  setInterval(refreshTerminals, 5000);
+  applySysStats();   // apply the saved show/hide preference before the first heartbeat
+  // No standalone stats/terminal polls: both fold onto the 5s desktop heartbeat
+  // (renderSysStats + terminalCount in onDesktopResp). The first heartbeat fires
+  // ~150ms after the restore GET (setActive → persist → pushDesktop).
 
   // Auto-surface terminal graphics: watch the X11 Launcher's display for NEW
   // windows (a gnuplot/matplotlib plot, xeyes, ImageMagick `display`, … started
