@@ -29,7 +29,8 @@
   .refresh { background: var(--card); color: var(--muted); border: 1px solid var(--border); border-radius: 8px;
              padding: 5px 12px; font-size: 0.82rem; cursor: pointer; transition: border-color .12s, color .12s; }
   .refresh:hover { border-color: var(--accent); color: var(--fg); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }   /* phone: single column */
   .card {
     position: relative; display: block; padding: 1rem 1.1rem;
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
