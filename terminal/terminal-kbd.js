@@ -279,7 +279,11 @@
     function cellAt(x, y) {
       var t = window.term, el = t && t.element;
       if (!el) return null;
-      var r = el.getBoundingClientRect();
+      // Measure the .xterm-screen (the actual rows), NOT .element — the latter
+      // includes ~5px top + ~8px bottom padding, which skews both the origin and
+      // the per-row height (drifts up to a row toward the bottom).
+      var scr = el.querySelector('.xterm-screen') || el;
+      var r = scr.getBoundingClientRect();
       var col = Math.max(0, Math.min(t.cols - 1, Math.floor((x - r.left) / (r.width / t.cols))));
       var vr = Math.max(0, Math.min(t.rows - 1, Math.floor((y - r.top) / (r.height / t.rows))));
       var base = (t.buffer && t.buffer.active && t.buffer.active.viewportY) || 0;
@@ -376,11 +380,16 @@
       try { t.clearSelection(); } catch (_) {}
     });
 
-    var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null;
+    var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null, startCell = null;
     var lastTapTime = 0, lastTapX = 0, lastTapY = 0, tStart = 0;   // for double-tap (claimSize)
     ov.addEventListener('touchstart', function (e) {
       var c = e.touches[0];
       startX = c.clientX; startY = prevY = c.clientY; acc = 0; moved = false; selecting = false; anchor = null;
+      // Capture the cell NOW, while the finger position and the layout agree. If
+      // this becomes a long-press the keyboard animates up and scrolls the
+      // terminal, so re-measuring later (at the 450ms timer) would map the stale
+      // finger-y onto the shifted rows and select ~2 rows too low.
+      startCell = cellAt(startX, startY);
       tStart = Date.now();
       hideCopy();
       if (lpTimer) clearTimeout(lpTimer);
@@ -388,7 +397,7 @@
         if (moved) return;
         selecting = true;
         try { ov.blur(); } catch (_) {}            // selecting, not typing — dismiss the keyboard (iOS focuses the overlay on touch)
-        var cell = cellAt(startX, startY);
+        var cell = startCell;                       // captured at touchstart, before any keyboard-driven scroll
         if (cell) {
           var w = wordAt(cell);
           anchor = w.s;
@@ -446,7 +455,7 @@
         // the keyboard — the touch equivalent of the desktop's Cmd/Ctrl+click.
         // window.open is overridden by the /tN/ sub_filter to POST
         // /api/browser/open + switch to the Browser app (same path as desktop).
-        var cell = cellAt(ct.clientX, ct.clientY);
+        var cell = startCell;   // captured at touchstart (consistent with the finger position)
         var url = cell && urlAt(cell);
         if (url) {
           e.preventDefault();
