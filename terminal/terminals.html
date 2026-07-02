@@ -494,14 +494,14 @@
 
   // Pull server-side tab names + reconcile the tab set on load, and again when
   // this tab regains focus, so a rename / open / close done in another
-  // session/device shows up here. A 2.5s interval keeps it live while open.
+  // session/device shows up here. A 2s interval keeps it live while open.
   loadTabNames();
   function refreshShared() { loadTabNames(); syncStatus(); }
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) refreshShared();
   });
   window.addEventListener('focus', refreshShared);
-  setInterval(syncStatus, 2500);
+  setInterval(syncStatus, 2000);
 
   // On load: fetch running terminals from API, open tabs for them
   function initTabs() {

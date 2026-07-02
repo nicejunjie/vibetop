@@ -389,7 +389,7 @@
     var rect = canvas.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     // Only resize the backing store when dimensions actually change — assigning
-    // canvas.width/height reallocates and clears it, needless every 3s frame.
+    // canvas.width/height reallocates and clears it, needless every 2s frame.
     var bw = Math.round(rect.width * dpr), bh = Math.round(rect.height * dpr);
     if (canvas.width !== bw || canvas.height !== bh) {
       canvas.width = bw; canvas.height = bh;
@@ -544,7 +544,7 @@
   var paused = false;
   // appActive: are we the foreground app inside the desktop shell? The shell
   // keeps the Monitor iframe mounted (display:none) when you switch away, so
-  // without this it would keep polling /api/system/status every 3s forever.
+  // without this it would keep polling /api/system/status every 2s forever.
   // Standalone (opened directly, no shell) there's no broadcast, so it stays
   // true and runs normally.
   var appActive = true;
@@ -552,7 +552,7 @@
   function shouldRun() { return !paused && appActive && !document.hidden; }
   function tick() { if (shouldRun()) update(); }
   update();
-  timer = setInterval(tick, 3000);
+  timer = setInterval(tick, 2000);
 
   // The shell broadcasts which app is active; pause when it isn't us, and do an
   // immediate refresh when we come back so the charts aren't stale.
