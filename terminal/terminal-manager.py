@@ -1315,6 +1315,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(400, {"error": "active must be a string or null"})
             return
         now = time.time()
+        cu = _claude_usage_enabled()   # shell-level flag, ridden on the heartbeat
         with _desktop_lock:
             state = _read_desktop_state()
             state["instances"][instance] = {
@@ -1326,7 +1327,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             resp = {"ok": True, "running": _desktop_union(state, now),
                     "reset_epoch": state["reset_epoch"],
                     "close_targets": state["close_targets"],
-                    "sys_stats": state.get("sys_stats", True)}
+                    "sys_stats": state.get("sys_stats", True),
+                    "claude_usage": cu}
         self._json(200, resp)
 
     def _handle_desktop_close(self):
@@ -2316,6 +2318,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             qs = urllib.parse.urlparse(self.path).query
             instance = urllib.parse.parse_qs(qs).get("instance", [""])[0][:64]
             now = time.time()
+            cu = _claude_usage_enabled()   # shell-level flag, ridden on the heartbeat
             with _desktop_lock:
                 state = _read_desktop_state()
                 ent = state["instances"].get(instance) if instance else None
@@ -2335,6 +2338,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "reset_epoch": state["reset_epoch"],
                     "close_targets": state["close_targets"],
                     "sys_stats": state.get("sys_stats", True),
+                    "claude_usage": cu,
                 }
             self._json(200, resp)
             return

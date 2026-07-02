@@ -769,8 +769,9 @@
   // logout/reset (reset_epoch advanced), tear our own desktop down too.
   function onDesktopResp(d) {
     if (!d) return;
-    // Shared taskbar-stats preference, converged across all clients via this heartbeat.
+    // Shared shell-level toggles, converged across all clients via this heartbeat.
     if (typeof d.sys_stats === 'boolean' && window.applyServerSysStats) window.applyServerSysStats(d.sys_stats);
+    if (typeof d.claude_usage === 'boolean' && window.applyServerClaudeUsage) window.applyServerClaudeUsage(d.claude_usage);
     if (Array.isArray(d.running)) { runningGlobal = d.running; markMenuRunning(); }
     if (typeof d.reset_epoch === 'number') {
       if (lastResetEpoch === null) lastResetEpoch = d.reset_epoch;
@@ -1474,6 +1475,7 @@
   if (!strip) return;
   var enabled = false;
   var lastData = null;
+  var localOverrideUntil = 0;   // ignore heartbeat reconcile briefly after a local toggle
   function fmtReset(ts) {
     if (!ts) return '';
     var s = Math.max(0, ts - Math.floor(Date.now() / 1000));
@@ -1535,10 +1537,25 @@
     fetch('/api/claude/usage', { cache: 'no-store' })
       .then(function(r) { return r.json(); }).then(render).catch(function() {});
   }
+  // Reconcile the enabled flag with the shared server value delivered on the 5s
+  // desktop heartbeat (onDesktopResp) — same channel/cadence as System Stats, so
+  // the strip appears/disappears within ~5s instead of waiting for the 30s poll.
+  // The heartbeat only carries the boolean; the numbers stay on the 30s poll
+  // (they only change on a real API call). Skip briefly after a LOCAL toggle so
+  // a heartbeat firing mid-`systemctl` (settings.json not yet written) can't
+  // clobber the optimistic state.
+  window.applyServerClaudeUsage = function(on) {
+    if (Date.now() < localOverrideUntil) return;
+    if (on === enabled) return;
+    var opt = {}; for (var k in (lastData || {})) opt[k] = lastData[k];
+    opt.enabled = on;
+    render(opt);
+  };
   window.toggleClaudeUsage = function() {
     var want = !enabled;
     // Optimistic: reflect the new state instantly (the POST runs systemctl, so
     // it's not immediate), then reconcile with the server via poll().
+    localOverrideUntil = Date.now() + 5000;
     var opt = {}; for (var k in (lastData || {})) opt[k] = lastData[k];
     opt.enabled = want;
     render(opt);
