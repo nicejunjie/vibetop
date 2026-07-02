@@ -304,6 +304,40 @@
         return { s: { col: a, row: cell.row }, e: { col: b, row: cell.row } };
       } catch (_) { return { s: cell, e: cell }; }
     }
+    // Reassemble the LOGICAL line a cell sits on — a long URL wraps across several
+    // visual rows (isWrapped), so we walk back to the wrap start and forward
+    // through the continuations, using full-width (untrimmed) rows so column
+    // offsets stay aligned. Returns { str, offset } (offset = the cell's index
+    // into str), or null.
+    function logicalLineAt(cell) {
+      try {
+        var buf = window.term.buffer.active, start = cell.row;
+        while (start > 0) { var ln = buf.getLine(start); if (ln && ln.isWrapped) start--; else break; }
+        var str = '', offset = -1, r = start;
+        while (true) {
+          var line = buf.getLine(r);
+          if (!line) break;
+          if (r === cell.row) offset = str.length + cell.col;
+          str += line.translateToString(false);   // full width → predictable offsets
+          var nx = buf.getLine(r + 1);
+          if (nx && nx.isWrapped) r++; else break;
+        }
+        return offset < 0 ? null : { str: str, offset: offset };
+      } catch (_) { return null; }
+    }
+    // The http(s) URL the tapped cell falls inside, or null. Mirrors the desktop
+    // web-links behaviour so a tap opens the same link a Cmd/Ctrl+click would.
+    function urlAt(cell) {
+      var L = logicalLineAt(cell);
+      if (!L) return null;
+      var re = /https?:\/\/[^\s"'<>`(){}\[\]]+/g, m;
+      while ((m = re.exec(L.str))) {
+        if (L.offset >= m.index && L.offset < m.index + m[0].length) {
+          return m[0].replace(/[.,;:!?'")\]]+$/, '');   // trim trailing punctuation
+        }
+      }
+      return null;
+    }
 
     // Floating Copy button shown after a touch selection (auto-copy via
     // execCommand doesn't work on touch, so give an explicit, tappable copy).
@@ -404,8 +438,21 @@
         e.preventDefault();                         // don't raise the keyboard
         var t = window.term;
         if (t && t.hasSelection()) showCopy(ct.clientX, ct.clientY);
-      } else if (!moved) {                          // single tap: drop selection, let the keyboard come up
-        try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}
+      } else if (!moved) {                          // single tap
+        // If the tap landed on a URL, open it in the Browser instead of raising
+        // the keyboard — the touch equivalent of the desktop's Cmd/Ctrl+click.
+        // window.open is overridden by the /tN/ sub_filter to POST
+        // /api/browser/open + switch to the Browser app (same path as desktop).
+        var cell = cellAt(ct.clientX, ct.clientY);
+        var url = cell && urlAt(cell);
+        if (url) {
+          e.preventDefault();
+          try { ov.blur(); } catch (_) {}           // don't pop the keyboard
+          try { window.open(url); } catch (_) {}
+          flash('↗ opening link');
+          return;
+        }
+        try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}  // else let the keyboard come up
       }
     }, { passive: false });
 
