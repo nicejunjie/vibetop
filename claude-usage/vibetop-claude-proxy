@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""vibetop-claude-proxy — opt-in pass-through proxy to api.anthropic.com that
+records the `anthropic-ratelimit-unified-*` response headers (the REAL Max-plan
+usage %) to ~/.local/share/vibetop-claude-usage.json for the desktop's usage
+strip (GET /api/claude/usage).
+
+There is no API to *query* plan usage; the numbers only exist as response
+headers on live API calls. So Claude Code is pointed here via
+`ANTHROPIC_BASE_URL=http://127.0.0.1:PORT` (set in ~/.claude/settings.json's
+`env` block by the manager's toggle). Every request is forwarded verbatim
+upstream and the response streamed back verbatim, capturing the usage headers
+on the way through.
+
+Design constraints — this sits in Claude Code's critical path, so:
+  * FAIL-OPEN: any upstream error relays a 502; a broken client pipe is
+    swallowed. Header-capture failures never affect the relayed response.
+  * STREAMING: the response body is streamed (read1) so SSE token output stays
+    responsive; the connection is closed per-response to delimit the body
+    (we send de-chunked bytes, so we must not also pass Transfer-Encoding).
+  * STDLIB ONLY — no deps, like the rest of vibetop. Runs as APP_USER on
+    loopback; the toggle is what makes it opt-in (nothing routes here when off).
+"""
+import http.client
+import http.server
+import json
+import os
+import sys
+import tempfile
+import threading
+import time
+
+UPSTREAM_HOST = os.environ.get("CLAUDE_UPSTREAM", "api.anthropic.com")
+PORT = int(os.environ.get("CLAUDE_PROXY_PORT", "7690"))
+OUT_FILE = os.environ.get(
+    "CLAUDE_USAGE_FILE",
+    os.path.expanduser("~/.local/share/vibetop-claude-usage.json"),
+)
+# Hop-by-hop headers (RFC 7230 §6.1) — never forwarded/relayed. Host is reset
+# to the upstream; Content-Length is recomputed/omitted per direction.
+HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+       "te", "trailers", "transfer-encoding", "upgrade", "host"}
+_wlock = threading.Lock()
+
+
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _record(header_items):
+    """Parse the unified rate-limit headers into the usage JSON. Utilization is
+    a 0..1 fraction; reset is a unix timestamp (seconds)."""
+    g = {k.lower(): v for k, v in header_items}
+
+    def h(name):
+        return g.get("anthropic-ratelimit-unified-" + name)
+
+    # Only real Anthropic API responses carry these; skip anything else so a
+    # stray non-API response can't blank the file.
+    if h("5h-utilization") is None and h("status") is None:
+        return
+    out = {
+        "status": h("status"),
+        "representative": h("representative-claim"),
+        "session": {"pct": _num(h("5h-utilization")), "status": h("5h-status"),
+                    "reset": _num(h("5h-reset"))},
+        "weekly": {"pct": _num(h("7d-utilization")), "status": h("7d-status"),
+                   "reset": _num(h("7d-reset"))},
+        "updated": int(time.time()),
+    }
+    try:
+        d = os.path.dirname(OUT_FILE)
+        os.makedirs(d, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=d, prefix=".cu-")
+        with os.fdopen(fd, "w") as f:
+            json.dump(out, f)
+        os.replace(tmp, OUT_FILE)   # atomic; a reader never sees a half-write
+    except Exception as e:
+        sys.stderr.write("[claude-proxy] usage write failed: %s\n" % e)
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    server_version = "vibetop-claude-proxy"
+
+    def _forward(self):
+        # Claude's requests are length-delimited JSON POSTs. (A chunked request
+        # body would need streaming; Claude Code doesn't send one.)
+        n = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(n) if n else b""
+        req_headers = {k: v for k, v in self.headers.items()
+                       if k.lower() not in HOP}
+        req_headers["Host"] = UPSTREAM_HOST
+        conn = None
+        try:
+            conn = http.client.HTTPSConnection(UPSTREAM_HOST, 443, timeout=900)
+            conn.request(self.command, self.path, body=body, headers=req_headers)
+            resp = conn.getresponse()
+        except Exception as e:
+            sys.stderr.write("[claude-proxy] upstream error: %s\n" % e)
+            try:
+                self.send_error(502, "upstream error")
+            except Exception:
+                pass
+            if conn:
+                conn.close()
+            return
+
+        try:
+            with _wlock:
+                _record(resp.getheaders())
+        except Exception:
+            pass   # header capture must never affect the relay
+
+        # Relay status + headers. We stream de-chunked bytes and close the
+        # connection to delimit the body, so drop Content-Length/Transfer-
+        # Encoding and force Connection: close.
+        self.send_response_only(resp.status, resp.reason)
+        for k, v in resp.getheaders():
+            lk = k.lower()
+            if lk in HOP or lk == "content-length":
+                continue
+            self.send_header(k, v)
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        try:
+            while True:
+                chunk = resp.read1(65536) if hasattr(resp, "read1") \
+                    else resp.read(65536)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass   # client went away mid-stream — fine
+        finally:
+            conn.close()
+
+    do_GET = do_POST = do_PUT = do_DELETE = do_PATCH = _forward
+
+    def log_message(self, *a):
+        pass   # quiet; errors go to stderr explicitly
+
+
+def main():
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    httpd.daemon_threads = True
+    sys.stderr.write("[claude-proxy] listening on 127.0.0.1:%d -> %s (usage -> %s)\n"
+                     % (PORT, UPSTREAM_HOST, OUT_FILE))
+    sys.stderr.flush()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()

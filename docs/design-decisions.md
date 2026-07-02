@@ -812,3 +812,83 @@ and why it lost).
   the Terminal muscle-memory the user already has. Hijacking double-click
   **unconditionally** (no "smaller than me" guard) — floods the server with a RANDR
   resize on every word-select double-click. See [[fix-root-cause-keep-the-feature]].
+
+## Claude plan-usage strip: capturing the real Max-plan % (there is no query API), and the pinned-session footgun
+
+- **Context:** The desktop wanted a live "session 51% · week 5%" strip showing the
+  **real** Claude Max-plan usage. There is **no API to query plan usage** — the
+  numbers exist only as `anthropic-ratelimit-unified-*` **response headers** on
+  live API calls (`…-5h-utilization` = session 0..1, `…-5h-reset` = unix ts,
+  `…-7d-utilization` = weekly, `…-representative-claim` = which limit binds). ccusage
+  gives token/cost estimates, not the real plan %. So the only way to the real
+  numbers is to **observe Claude Code's own traffic**.
+- **Design:** an opt-in pass-through proxy (`claude-usage/vibetop-claude-proxy`,
+  stdlib streaming, loopback) forwards every request to `api.anthropic.com` verbatim
+  and records the usage headers to `~/.local/share/vibetop-claude-usage.json`. Claude
+  Code is pointed at it via `ANTHROPIC_BASE_URL=http://127.0.0.1:7690`, set in
+  `~/.claude/settings.json`'s `env` block — **verified** that `env` applies to
+  Claude's *own* API base URL, not just the Bash tool, so it's the whole toggle (add
+  the key = on, remove = off). The manager serves `GET/POST /api/claude/usage`;
+  `desktop.html` renders the strip + a Start▸System toggle. Fail-open (a proxy error
+  relays 502; capture never affects the relayed stream); the connection is closed
+  per-response to delimit the de-chunked body.
+- **Symptom (the footgun):** while test-toggling the feature, **this operator's own
+  live Claude session started throwing `API Error: Unable to connect to API
+  (ConnectionRefused)`** — repeatedly — while *other* Claude sessions on the box were
+  fine. It looked like the proxy was crashing/flapping.
+- **Cause:** NOT a crash — `NRestarts=0`, no OOM. A Claude Code session reads
+  `ANTHROPIC_BASE_URL` **once at startup** and is **pinned** to it for its whole
+  life. The operator's session had started while the feature was on, so it was
+  routing through `127.0.0.1:7690`. The **disable** path ran `systemctl stop` on the
+  proxy — pulling the socket out from under that still-running, pinned session →
+  ConnectionRefused on every request until systemd's `Restart=` brought it back.
+  Removing the env from settings.json does **not** rescue a process that already
+  cached it; only a restart of that session would. Lightweight standalone sessions
+  weren't pinned, so they were unaffected — which masked the cause as
+  session-specific flakiness.
+- **Fix:** **disable must never stop a proxy that live sessions are pinned to.**
+  `_set_claude_usage(False)` now removes the env (so NEW sessions stop routing) and
+  runs `systemctl disable` **without `--now`** — the boot-time start is removed but
+  the running process is **left alive** for pinned sessions. The idle loopback proxy
+  is harmless when nothing routes to it and is gone on the next reboot, by when no
+  session is still pinned. Enable stays `enable --now` **then** write env (start
+  before routing). A unit test (`test_claude_usage.py::test_toggle_ordering_and_proxy_left_running`)
+  pins "no `--now` on disable" so this can't regress.
+- **Corollary — testing the toggle can knock over the tester.** Because the dev
+  session doing the work can itself be pinned to the proxy, exercising the on/off
+  toggle from that session is self-endangering. Test proxy/settings changes from an
+  **isolated subagent or a nested `claude -p` with its own env**, and **never stop
+  the proxy** while any pinned session is live. (The disable-doesn't-stop fix makes
+  the common case safe, but a hard stop/reboot/uninstall still breaks pinned
+  sessions — that's inherent to routing a long-lived client through a local proxy.)
+- **Rejected:** **OTEL / ccusage for the real %** — ccusage is tokens/cost only (an
+  estimate, not the plan %); OTEL (if it even exports the unified gauge) is more
+  moving parts than a header tap. **A TLS-intercepting forward proxy** (mitmproxy +
+  a trusted CA) — captures HTTPS headers too but needs cert trust; pointing
+  `ANTHROPIC_BASE_URL` at a plain-HTTP local proxy that does its own upstream TLS
+  avoids all of that. **Scoping the env to vibetop terminals only** (instead of the
+  global settings.json that also catches the operator's dev session) would avoid
+  pinning the dev session at all — a cleaner future design, but it needs per-terminal
+  env injection; the global toggle is simpler and, with disable-doesn't-stop, safe
+  enough. See [[fix-root-cause-keep-the-feature]].
+- **Second bug — the toggle "did nothing" in the UI (silent swallowed error).**
+  *Symptom:* clicking Start ▸ System ▸ Claude Usage flipped the **server** state
+  (POST succeeded) but the desktop never showed the strip or updated the row — on
+  load *or* after clicking — with **zero console errors**. *Cause:* the usage
+  `(function claudeUsage(){…})()` IIFE was appended **outside** desktop.html's main
+  script wrapper (the same wrapper whose local `var`s make `window.APPS`
+  `undefined`), so `updateToggleRow()`'s reference to the outer `menuEl` closure var
+  was a `ReferenceError`. `render()` calls `updateToggleRow()` **first**, so it threw
+  before touching the strip — and `poll()`'s `.then(render).catch(function(){})`
+  **swallowed** the throw, so every render silently died with no log. `toggleClaudeUsage`
+  itself only touches IIFE-local vars, which is why the POST still worked and masked
+  it as a "server didn't react" bug. *Fix:* the IIFE is now self-contained — it looks
+  the row up with `document.querySelector('.sm-item[data-id="claudeusage"]')` instead
+  of the outer `menuEl` — plus an **optimistic** update (reflect the new state
+  instantly, since the POST runs `systemctl` and isn't immediate, then reconcile on
+  the next `poll()`). *Lesson:* a blanket `.catch(()=>{})` on a fetch chain hides
+  render-time exceptions; when a handler's network side-effect works but the DOM never
+  changes, suspect a **swallowed throw in the render path**, and verify by driving the
+  real page headlessly (CDP) rather than by reading the code — static review kept
+  reporting the logic as "correct." Same family as the "clickable chrome next to an
+  app iframe" runtime traps that only a real browser catches.

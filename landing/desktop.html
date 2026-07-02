@@ -35,6 +35,59 @@
     display: flex; flex-direction: column; position: relative;
   }
 
+  /* === Claude usage strip (opt-in) — thin full-width bar above the app area.
+     A flex child before .frames, so it simply shrinks the app viewport; hidden
+     unless the feature is on (and not dismissed for the session). === */
+  .cu-strip {
+    flex: 0 0 auto; min-height: 26px; display: flex; align-items: center;
+    flex-wrap: wrap; gap: 6px 8px; box-sizing: border-box; position: relative;
+    padding: 4px 30px 4px 10px; font-size: 12px; line-height: 1.3; white-space: normal;
+    background: #10161f; border-bottom: 1px solid #222c3a; color: #9fb0c0;
+    font-family: system-ui, sans-serif; user-select: none;
+  }
+  .cu-strip[hidden] { display: none; }
+  .cu-strip .cu-brand { font-weight: 600; color: #c8d4e0; margin-right: 2px; }
+  .cu-strip .cu-metrics { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+  /* Each metric is a self-contained chip — reads cleanly on its own whether it's
+     inline (desktop, one 26px line) or wrapped onto its own line (narrow phone),
+     so there are no dangling separators or misaligned columns. */
+  .cu-strip .cu-seg {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    background: rgba(255,255,255,0.04); border: 1px solid #222c3a;
+    border-radius: 6px; padding: 1px 8px;
+  }
+  .cu-strip .cu-lbl { color: #8a9aaa; }
+  .cu-strip .cu-pct { font-variant-numeric: tabular-nums; color: #dbe4ee; font-weight: 600; }
+  .cu-strip .cu-bar { width: 52px; height: 7px; border-radius: 4px; background: #2a3444; overflow: hidden; }
+  .cu-strip .cu-fill { height: 100%; width: 0; background: #34a853; transition: width .4s; }
+  .cu-strip .cu-fill.warn { background: #d2902a; }
+  .cu-strip .cu-fill.crit { background: #d24b3a; }
+  .cu-strip .cu-dim { color: #6a7a8a; font-variant-numeric: tabular-nums; }
+  /* ✕ pinned to the top-right corner (out of flow) so it never orphans onto its
+     own wrapped line. */
+  .cu-strip .cu-x { position: absolute; top: 3px; right: 5px; cursor: pointer; color: #6a7a8a; padding: 1px 7px; border-radius: 4px; line-height: 1.3; }
+  .cu-strip .cu-x:hover { background: rgba(255,255,255,0.08); color: #c0d0e0; }
+  /* Narrow screens: stack the metrics as full-width rows with the brand on its
+     own line, so the two chip BOXES share a left edge (and their internal
+     label→bar→% columns align via min-widths) instead of one being pushed in by
+     the "Claude" label. On wider screens they stay inline on one line. */
+  @media (max-width: 600px) {
+    /* brand as a left column, the two metric chips stacked to its right -> the
+       whole strip is 2 lines (not 3), and the chip boxes still share a left edge
+       with their label/bar/% columns aligned. */
+    .cu-strip { flex-wrap: nowrap; align-items: flex-start; }
+    .cu-strip .cu-brand { margin: 2px 8px 0 0; flex: 0 0 auto; }
+    .cu-strip .cu-metrics { flex-direction: column; align-items: stretch; gap: 4px; flex: 1 1 auto; }
+    .cu-strip .cu-seg { width: 100%; box-sizing: border-box; justify-content: flex-start; }
+    .cu-strip .cu-lbl { min-width: 3.6em; }
+    .cu-strip .cu-pct { min-width: 2.6em; text-align: right; }
+    .cu-strip .cu-asof { font-size: 11px; }
+  }
+  /* toggle row's On state gets a green dot, like a running app */
+  .sm-item[data-id="claudeusage"].cu-on .sm-name::after {
+    content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px;
+  }
+
   /* === Taskbar === */
   .taskbar {
     flex: 0 0 auto; height: var(--tb);
@@ -175,6 +228,28 @@
   .sm-item[data-id="update"]   .sm-icon { background: #3a3a4a; }
   /* "System" subheading sits apart from the everyday apps above it */
   .sm-title-system { margin-top: 3px; border-top: 1px solid #222a36; padding-top: 7px; }
+  /* Collapsible "Utilities" parent → a nested (two-level) submenu. Clicking the
+     parent row expands/collapses the .sm-sub group beneath it. */
+  .sm-parent {
+    display: flex; align-items: center; gap: 10px;
+    padding: 5px 9px; border-radius: 8px; cursor: pointer; user-select: none;
+    color: #c0d0e0; border: 1px solid transparent;
+  }
+  .sm-parent:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
+  .sm-parent .sm-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 8px; font-size: 22px; flex-shrink: 0;
+    background: #3a3320;
+  }
+  .sm-parent .sm-parent-name { flex: 1; font-size: 14px; color: #e6edf3; }
+  .sm-parent .sm-caret { color: #7a8a9a; font-size: 11px; transition: transform .15s ease; }
+  .sm-parent.open .sm-caret { transform: rotate(90deg); }
+  .sm-sub { display: none; margin: 1px 0 2px 14px; padding-left: 8px; border-left: 1px solid #222a36; }
+  .sm-sub.open { display: block; }
+  .sm-parent.has-active .sm-parent-name::after {
+    content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; vertical-align: middle;
+  }
+  .sm-item[data-id="claudeusage"] .sm-icon { background: #234a2f; }
   /* Build tag — lets you confirm whether a fresh shell loaded (vs a stale
      service-worker cache). Bump it whenever the shell changes. */
   .sm-build { text-align: center; padding: 5px 0 2px; }
@@ -331,6 +406,7 @@
 </style>
 </head>
 <body>
+  <div class="cu-strip" id="cu-strip" hidden></div>
   <div class="frames" id="frames">
     <div class="wallpaper" aria-hidden="true">
       <svg class="wp-logo" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
@@ -364,6 +440,12 @@
     <div id="sm-apps"></div>
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
+    <div class="sm-parent" id="sm-util-parent">
+      <div class="sm-icon">🧰</div>
+      <div class="sm-parent-name">Utilities</div>
+      <div class="sm-caret">▶</div>
+    </div>
+    <div class="sm-sub" id="sm-utilities"></div>
     <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span></span><span class="build-meta">build @SW_VERSION@<span id="build-date"></span></span></div>
   </div>
 
@@ -433,7 +515,12 @@
     notes:    { label: 'Notes',    icon: '📝', src: '/notes.html',           desc: 'Persistent scratchpad' },
     monitor:  { label: 'Monitor',  icon: '📊', src: '/monitor.html',         desc: 'System monitor' },
     upload:   { label: 'Upload',   icon: '⬆',  src: '/upload.html',          desc: 'Quick upload to ~/Uploads' },
-    update:   { label: 'Update',   icon: '🔄', src: '/update.html',          desc: 'Pull latest & redeploy', section: 'system' }
+    update:   { label: 'Update',   icon: '🔄', src: '/update.html',          desc: 'Pull latest & redeploy', section: 'system' },
+    // A toggle row, not an app: flips the opt-in Claude plan-usage strip on/off
+    // (routes Claude Code through the local capture proxy). Handled specially in
+    // the Start-menu click handler — no iframe, no src. Lives under the
+    // collapsible "Utilities" submenu (section 'utilities').
+    claudeusage: { label: 'Claude Usage', icon: '📈', desc: 'Off', section: 'utilities', toggle: true }
   };
   // Attach the matching SVG icon to each app (fallback stays the `icon` emoji).
   Object.keys(APPS).forEach(function(id) { if (ICON[id]) APPS[id].svg = ICON[id]; });
@@ -441,7 +528,8 @@
   // Build the Start-menu items from APPS into the Apps / System sections.
   function buildStartMenu() {
     var apps = document.getElementById('sm-apps'),
-        sys  = document.getElementById('sm-system');
+        sys  = document.getElementById('sm-system'),
+        util = document.getElementById('sm-utilities');
     if (!apps || !sys) return;
     Object.keys(APPS).forEach(function(id) {
       var a = APPS[id];
@@ -456,7 +544,9 @@
       var cl = document.createElement('div'); cl.className = 'sm-close';
       cl.textContent = '⏻'; cl.title = 'Turn off on all devices';
       item.appendChild(ic); item.appendChild(box); item.appendChild(cl);
-      (a.section === 'system' ? sys : apps).appendChild(item);
+      var target = a.section === 'utilities' ? util
+                 : a.section === 'system' ? sys : apps;
+      (target || sys).appendChild(item);
     });
   }
 
@@ -892,10 +982,22 @@
   startBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleMenu(); });
 
   menuEl.addEventListener('click', function(e) {
+    // A collapsible submenu header ("Utilities") — expand/collapse the .sm-sub
+    // group right after it (two-level nested menu).
+    var parent = e.target.closest('.sm-parent');
+    if (parent) {
+      var open = !parent.classList.contains('open');
+      parent.classList.toggle('open', open);
+      var sub = parent.nextElementSibling;
+      if (sub && sub.classList.contains('sm-sub')) sub.classList.toggle('open', open);
+      return;
+    }
     var item = e.target.closest('.sm-item');
     if (!item) return;
-    if (e.target.closest('.sm-close')) { closeEverywhere(item.dataset.id); return; }  // close-everywhere, not launch
-    launch(item.dataset.id);
+    var id = item.dataset.id;
+    if (APPS[id] && APPS[id].toggle) { toggleClaudeUsage(); return; }   // a toggle row, not an app
+    if (e.target.closest('.sm-close')) { closeEverywhere(id); return; }  // close-everywhere, not launch
+    launch(id);
   });
 
   // Taskbar button = Windows-style window control: clicking a NON-active window
@@ -1289,6 +1391,96 @@ if ('serviceWorker' in navigator) {
     var go = function() { window.location.href = '/cdn-cgi/access/logout'; };
     fetch('/api/reset', { method: 'POST' }).then(go, go);
   });
+})();
+
+// --- Claude plan-usage strip (opt-in) --------------------------------------
+// There is no API to query Max-plan usage; the numbers exist only as response
+// headers on live API calls. Start ▸ System ▸ "Claude Usage" toggles a local
+// pass-through proxy (POST /api/claude/usage) that Claude Code is routed through
+// to capture them; GET /api/claude/usage serves the latest. The strip is a
+// glanceable session/weekly % bar. ✕ dismisses it for THIS tab only (the real
+// off is the Start-menu toggle).
+(function claudeUsage() {
+  var strip = document.getElementById('cu-strip');
+  if (!strip) return;
+  var enabled = false, hidden = sessionStorage.getItem('cu-hidden') === '1';
+  var lastData = null;
+  function fmtReset(ts) {
+    if (!ts) return '';
+    var s = Math.max(0, ts - Math.floor(Date.now() / 1000));
+    var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
+        m = Math.floor((s % 3600) / 60);
+    if (d > 0) return d + 'd ' + h + 'h';           // days out (e.g. weekly): "6d 23h"
+    if (h > 0) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
+    return m + 'm';
+  }
+  function seg(label, pct, reset) {
+    var p = Math.round((pct || 0) * 100);
+    var cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
+    var rtxt = reset ? fmtReset(reset) : '';
+    var r = rtxt ? '<span class="cu-dim">· resets ' + rtxt + '</span>' : '';
+    var title = rtxt ? ' title="resets in ' + rtxt + '"' : '';
+    return '<span class="cu-seg"' + title + '><span class="cu-lbl">' + label + '</span>' +
+      '<span class="cu-bar"><span class="cu-fill ' + cls + '" style="width:' + p + '%"></span></span>' +
+      '<span class="cu-pct">' + p + '%</span>' + r + '</span>';
+  }
+  function updateToggleRow() {
+    // Look the row up via document (NOT the outer `menuEl` closure var — this
+    // IIFE lives outside the main script's scope, so referencing menuEl here
+    // threw a ReferenceError that poll()'s .catch swallowed, silently killing
+    // every render — the "toggle does nothing / strip never shows" bug).
+    var it = document.querySelector('.sm-item[data-id="claudeusage"]');
+    if (it) {
+      it.classList.toggle('cu-on', enabled);
+      var ds = it.querySelector('.sm-desc');
+      if (ds) ds.textContent = enabled ? 'On — plan usage strip' : 'Off';
+    }
+    // Mirror the active state onto the collapsed "Utilities" parent so you can
+    // see something inside is on without expanding it.
+    var parent = document.getElementById('sm-util-parent');
+    if (parent) parent.classList.toggle('has-active', enabled);
+  }
+  function render(d) {
+    if (d) lastData = d;
+    enabled = !!(d && d.enabled);
+    updateToggleRow();
+    if (!enabled || hidden) { strip.hidden = true; return; }
+    strip.hidden = false;
+    var html = '<span class="cu-brand">Claude</span><span class="cu-metrics">';
+    if (d.session && d.session.pct != null) {
+      html += seg('session', d.session.pct, d.session.reset);
+      if (d.weekly && d.weekly.pct != null)
+        html += seg('week', d.weekly.pct, d.weekly.reset);
+      if (d.stale) html += '<span class="cu-dim cu-asof">as of ' + Math.round((d.ageSec || 0) / 60) + 'm ago</span>';
+    } else {
+      html += '<span class="cu-dim">waiting for first API call…</span>';
+    }
+    html += '</span><span class="cu-x" id="cu-x" title="Hide (turn off in Start ▸ System)">✕</span>';
+    strip.innerHTML = html;
+    var x = document.getElementById('cu-x');
+    if (x) x.onclick = function() { hidden = true; sessionStorage.setItem('cu-hidden', '1'); strip.hidden = true; };
+  }
+  function poll() {
+    fetch('/api/claude/usage', { cache: 'no-store' })
+      .then(function(r) { return r.json(); }).then(render).catch(function() {});
+  }
+  window.toggleClaudeUsage = function() {
+    var want = !enabled;
+    if (want) { hidden = false; sessionStorage.removeItem('cu-hidden'); }
+    // Optimistic: reflect the new state instantly (the POST runs systemctl, so
+    // it's not immediate), then reconcile with the server via poll().
+    var opt = {}; for (var k in (lastData || {})) opt[k] = lastData[k];
+    opt.enabled = want;
+    render(opt);
+    fetch('/api/claude/usage', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: want })
+    }).then(function(r) { return r.json(); }).then(function() { poll(); })
+      .catch(function() { poll(); });
+  };
+  poll();
+  setInterval(poll, 30000);
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) poll(); });
 })();
 </script>
 </body>

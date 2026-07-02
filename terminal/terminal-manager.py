@@ -259,6 +259,89 @@ def _shell_version():
         pass
     return "?"
 
+# ---- Claude plan-usage strip (opt-in) --------------------------------------
+# There is no API to *query* Max-plan usage; the numbers exist only as
+# `anthropic-ratelimit-unified-*` response headers on live API calls. The opt-in
+# vibetop-claude-proxy pass-through captures them to CLAUDE_USAGE_FILE. Turning
+# the feature ON starts that proxy AND adds ANTHROPIC_BASE_URL to the user's
+# Claude settings so Claude Code routes through it; OFF removes both. Nothing
+# routes through the proxy while the feature is off.
+CLAUDE_USAGE_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/vibetop-claude-usage.json")
+CLAUDE_SETTINGS_FILE = os.path.expanduser(f"~{APP_USER}/.claude/settings.json")
+CLAUDE_PROXY_URL = "http://127.0.0.1:7690"
+CLAUDE_PROXY_SERVICE = "vibetop-claude-proxy.service"
+CLAUDE_USAGE_STALE_SEC = 15 * 60   # usage only refreshes on a real API call
+_claude_lock = threading.Lock()
+
+
+def _claude_settings_read():
+    try:
+        with open(CLAUDE_SETTINGS_FILE) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _claude_usage_enabled():
+    """Enabled == our proxy URL is wired into the user's Claude settings env."""
+    env = _claude_settings_read().get("env")
+    return isinstance(env, dict) and env.get("ANTHROPIC_BASE_URL") == CLAUDE_PROXY_URL
+
+
+def _read_claude_usage():
+    try:
+        with open(CLAUDE_USAGE_FILE) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _set_claude_usage_env(on):
+    """Add/remove env.ANTHROPIC_BASE_URL in ~/.claude/settings.json, preserving
+    everything else. On disable it only removes the key when it's *ours*, so a
+    user's own ANTHROPIC_BASE_URL is never clobbered."""
+    d = _claude_settings_read()
+    env = d.get("env")
+    if not isinstance(env, dict):
+        env = {}
+    if on:
+        env["ANTHROPIC_BASE_URL"] = CLAUDE_PROXY_URL
+    elif env.get("ANTHROPIC_BASE_URL") == CLAUDE_PROXY_URL:
+        env.pop("ANTHROPIC_BASE_URL", None)
+    if env:
+        d["env"] = env
+    else:
+        d.pop("env", None)
+    os.makedirs(os.path.dirname(CLAUDE_SETTINGS_FILE), exist_ok=True)
+    _atomic_write(CLAUDE_SETTINGS_FILE, json.dumps(d, indent=2))
+
+
+def _set_claude_usage(on):
+    """Toggle the feature. ON: start the proxy, THEN route Claude to it. OFF:
+    remove the env so NEW sessions stop routing, and disable the unit at boot —
+    but DO NOT stop the running proxy. Any Claude session started while the
+    feature was on is pinned to ANTHROPIC_BASE_URL for its whole life; killing
+    the proxy out from under it gives ConnectionRefused on every request (learned
+    the hard way — a test toggle-off broke the operator's own live session). The
+    idle loopback proxy is harmless when nothing routes to it, and it's gone on
+    the next reboot — by when no session is still pinned. Serialized so
+    concurrent toggles can't interleave the steps."""
+    with _claude_lock:
+        if on:
+            subprocess.run(["systemctl", "enable", "--now", CLAUDE_PROXY_SERVICE],
+                           capture_output=True, text=True, timeout=30)
+            _set_claude_usage_env(True)
+        else:
+            _set_claude_usage_env(False)
+            # `disable` (NOT `disable --now`): stop it starting at boot, leave the
+            # current process alive for sessions pinned to it.
+            subprocess.run(["systemctl", "disable", CLAUDE_PROXY_SERVICE],
+                           capture_output=True, text=True, timeout=30)
+    log.info("claude usage enabled" if on else
+             "claude usage disabled (proxy left running for pinned sessions)")
+
 # ---- Office (Word/Excel/PPT) view & edit -----------------------------------
 # View: convert to PDF with headless LibreOffice (cached) and serve it inline.
 # Edit: open the file in the OnlyOffice web editor (Document Server, below).
@@ -977,6 +1060,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with _update_lock:
                 _write_update_history([])
             return self._json(200, {"ok": True})
+        if self.path == "/api/claude/usage":
+            raw = self._read_body(64 * 1024)
+            if raw is None:
+                return self._json(400, {"error": "invalid or too-large body"})
+            try:
+                data = json.loads(raw or b"{}")
+            except ValueError:
+                return self._json(400, {"error": "invalid json"})
+            try:
+                _set_claude_usage(bool(data.get("enabled")))
+            except Exception as e:
+                log.warning("claude usage toggle failed: %s", e)
+                return self._json(500, {"error": str(e)})
+            return self._json(200, {"ok": True, "enabled": _claude_usage_enabled()})
         self.send_error(404)
 
     def _handle_upload_clear(self):
@@ -2067,6 +2164,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # it to config (idempotent) + nginx + a brief filebrowser restart.
         if touched("files/") or "landing/filebrowser-patches.js" in changed:
             deploy("deploy files & nginx", ["./files/install.sh"], base_env)
+        # claude-usage/ — the opt-in usage proxy runs in-place from the checkout,
+        # so install.sh (INSTALL_SYSTEMD=0) just re-renders nothing and try-restarts
+        # the proxy IF it's running (feature on), picking up new proxy code.
+        if touched("claude-usage/"):
+            deploy("deploy claude-usage", ["./claude-usage/install.sh"], base_env)
 
         # Restart the manager out-of-band (via a transient timer so it survives
         # our own death) only if its code changed — after the response is sent.
@@ -2133,6 +2235,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/system/status":
             self._json(200, self._get_system_status())
+            return
+        if self.path == "/api/claude/usage":
+            u = _read_claude_usage()
+            out = {"enabled": _claude_usage_enabled()}
+            if u:
+                age = int(time.time()) - int(u.get("updated") or 0)
+                out.update({
+                    "session": u.get("session"), "weekly": u.get("weekly"),
+                    "status": u.get("status"),
+                    "representative": u.get("representative"),
+                    "updated": u.get("updated"),
+                    "ageSec": age, "stale": age > CLAUDE_USAGE_STALE_SEC,
+                })
+            self._json(200, out)
             return
         if self.path == "/api/files/tabs":
             try:

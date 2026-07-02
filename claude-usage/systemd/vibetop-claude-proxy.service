@@ -1,0 +1,20 @@
+[Unit]
+Description=vibetop Claude usage proxy (captures Max-plan rate-limit headers)
+Documentation=https://github.com/nicejunjie/vibetop
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@APP_USER@
+# Runs in-place from the git checkout (like vibetop-manager), so an Update that
+# changes the proxy just needs a restart, no file copy. Loopback-only; ~ resolves
+# to APP_USER's home (systemd sets $HOME), where the usage JSON is written.
+Environment=CLAUDE_PROXY_PORT=7690
+ExecStart=@APP_DIR@/claude-usage/vibetop-claude-proxy
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

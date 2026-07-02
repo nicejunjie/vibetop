@@ -13,6 +13,7 @@ Six sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.
 | landing | `/` | Unified desktop UI with tab bar, iframe viewport, and status bar |
 | files | `/files/` | FileBrowser file manager rooted at `/` (whole filesystem, as `APP_USER`) |
 | office | `/onlyoffice/` | OnlyOffice Document Server (Docker) — in-browser Office editing via the manager's `/api/office/*` |
+| claude-usage | `/api/claude/usage` | Opt-in pass-through proxy that captures the real Claude Max-plan usage headers for the desktop's usage strip |
 | tunnel | — | Cloudflare Tunnel + Access config for public HTTPS |
 
 ## Deploy commands
@@ -92,7 +93,11 @@ counters (`test_metrics.py` boots the server in-thread over a real socket), the
 **ring-buffer replay sanitization** (`test_claude_session.py` —
 `strip_terminal_queries` drops stale DA/CPR/color/mode *probes* from a reconnect
 replay so they aren't re-answered into the prompt, while preserving real screen
-state), and the `system_status` collector. Prefer adding a test here when touching any.
+state), the `system_status` collector, and the **Claude-usage settings surgery**
+(`test_claude_usage.py` — `_set_claude_usage_env` preserves the user's other
+settings and only removes *our* `ANTHROPIC_BASE_URL` on disable; the toggle never
+runs `--now` on disable so a pinned session's proxy isn't stopped). Prefer adding a
+test here when touching any.
 
 **JavaScript** — the fragile front-end logic that kept regressing is now DOM-free
 and unit-tested with node's built-in runner (no deps):
@@ -288,6 +293,10 @@ A self-update app at `/update.html` (Start menu → **System** section) that pul
 3. If a manager module changed — **any `.py` directly under `terminal/`** (`terminal-manager.py` or a sibling like `system_status.py`; `tests/` and the path-independent `vibetop-session` are excluded) — the manager restarts **out-of-band** via `systemd-run --on-active=3 systemctl restart vibetop-manager` (a transient timer, so the restart survives the manager's own death — a child in the manager's cgroup would be killed mid-restart). The response is sent first; `update.html` re-polls the version after the blip.
 
 The whole log (each step's stdout/stderr + ok/fail) is returned and shown in the app. **After a successful update that changed something, the app reloads the whole desktop** (the top window, after a short countdown — waiting for the API to come back if the manager restarted) so the new cached shell + service worker take effect; nothing reloads if already up to date. **Bootstrap:** the *first* deploy of this feature needs a manual `sudo systemctl restart vibetop-manager` (the running manager predates the `/api/update` route); after that it self-updates.
+
+### Claude plan-usage strip (`claude-usage/`, opt-in)
+
+A thin full-width strip at the **top** of the desktop showing the **real** Claude Max-plan usage — `session (5h) NN% · resets Xh · week (7d) NN%`, color-graded (green <70 / amber <90 / red). **There is no API to query plan usage**; the numbers exist only as `anthropic-ratelimit-unified-*` **response headers** on live API calls (`…-5h-utilization`/`-5h-reset`/`-7d-utilization`/`-representative-claim`). So the feature **observes Claude Code's own traffic**: `claude-usage/vibetop-claude-proxy` is an opt-in, stdlib, loopback pass-through to `api.anthropic.com` (streaming, fail-open — a proxy error relays 502, header-capture never touches the relayed body) that records the parsed headers to `~/.local/share/vibetop-claude-usage.json`. Claude Code routes through it via `ANTHROPIC_BASE_URL=http://127.0.0.1:7690`, set in **`~/.claude/settings.json`'s `env` block** (verified to apply to Claude's *own* API base URL, so that key IS the toggle). The manager serves `GET /api/claude/usage` (`{enabled, session, weekly, status, representative, stale, ageSec}`) and `POST /api/claude/usage {enabled}`; the desktop polls it every 30s and renders the strip, with a **Start ▸ System ▸ "Claude Usage"** toggle row (not an app — special-cased in the Start-menu click handler) and a strip ✕ that hides it for the tab only. The proxy's systemd unit ships **installed but disabled** (opt-in); enabling runs `enable --now` **then** writes the env (start before routing). **The disable path removes the env and `disable`s the unit but does NOT stop the running proxy** — a Claude Code session reads `ANTHROPIC_BASE_URL` **once at startup** and is *pinned* to it for life, so stopping the proxy out from under a pinned session gives `ConnectionRefused` on every request (this bit the operator's own session during testing — see `docs/design-decisions.md`). The idle loopback proxy is harmless and gone on the next reboot. **Testing caveat:** the dev session doing the work can itself be pinned to the proxy, so exercise the toggle from an **isolated subagent / nested `claude -p`**, and never hard-stop the proxy while a pinned session is live. The proxy runs in-place from the checkout (like the manager), so an in-app Update that changes `claude-usage/` just `try-restart`s it (a no-op unless the feature is on). Numbers only refresh on a real API call — `GET` reports `stale`/`ageSec` so the strip can show "as of Xm ago".
 
 ### Landing page (`landing/index.html`)
 

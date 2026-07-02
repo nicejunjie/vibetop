@@ -87,6 +87,9 @@ fi
 step "5/6  Landing — desktop UI + static apps"
 "$REPO_DIR/landing/install.sh" "${DRYFLAG[@]}"
 
+step "5b/6 Claude usage — opt-in usage-capture proxy (unit installed, left off)"
+sudo "$REPO_DIR/claude-usage/install.sh" "${DRYFLAG[@]}"
+
 if (( DO_TUNNEL )); then
     step "6/6  Tunnel — Cloudflare (interactive)"
     sudo "$REPO_DIR/tunnel/install.sh" "${DRYFLAG[@]}"
