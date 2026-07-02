@@ -363,7 +363,8 @@
       try {
         var ta = document.createElement('textarea'); ta.value = s || '';
         ta.style.cssText = 'position:fixed;top:-9999px;opacity:0'; ta.readOnly = true;
-        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.appendChild(ta); ta.select();
+        window.__allowCopy = true; document.execCommand('copy'); window.__allowCopy = false;  // pass the sub_filter copy gate
         document.body.removeChild(ta);
       } catch (_) {}
     }
