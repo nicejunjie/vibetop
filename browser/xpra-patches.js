@@ -472,4 +472,63 @@
   } catch(e) {
     console.warn('[xpra-patches] menu-dismiss patch failed:', e.message);
   }
+
+  // 10. Desktop "re-claim my size" — double-click to resize the shared display
+  //     back to THIS client's viewport. The Browser is a SINGLE shared xpra
+  //     display (start-desktop :99), so its resolution belongs to whichever
+  //     client connected/resized last: when the phone connects it advertises
+  //     its small viewport and the display shrinks for EVERYONE, incl. the
+  //     desktop — and xpra's _screen_resized() re-sends only when THIS client's
+  //     container actually changed, so the desktop (whose window didn't change)
+  //     can't get its resolution back on its own. This is the Browser analogue
+  //     of the Terminal's double-click "claim the shape" (a shared PTY/display
+  //     can only be one size; the other device sees it until IT re-claims).
+  //
+  //     A double-click re-claims: bust _screen_resized's no-op guard
+  //     (desktop_width=-1) then call it, which sends configure_display with our
+  //     real container size → the server RANDR-resizes the display back up. We
+  //     re-claim ONLY when the display is actually SMALLER than our viewport
+  //     (another device shrank it — detected from the largest mapped window's
+  //     w/h, which tracks the display in start-desktop mode), so an ordinary
+  //     double-click on a web page doesn't spam server resizes. We never
+  //     preventDefault, so the double-click still reaches the remote (word
+  //     select etc. keep working). Desktop mouse only; touch would be a
+  //     double-tap wired into the patch-4 touch layer (not done yet).
+  try {
+    var CLAIM_TOL = 40;   // px slack: ignore decoration/rounding differences
+    var displaySmaller = function(c) {
+      var maxW = 0, maxH = 0, id, w;
+      for (id in c.id_to_window) {
+        w = c.id_to_window[id];
+        if (!w) continue;
+        if (w.w > maxW) maxW = w.w;
+        if (w.h > maxH) maxH = w.h;
+      }
+      if (!maxW) return false;                       // nothing mapped yet
+      return maxW < c.container.clientWidth  - CLAIM_TOL ||
+             maxH < c.container.clientHeight - CLAIM_TOL;
+    };
+    var claimSize = function() {
+      var c = window.client;
+      if (!c || !c.connected || !c.container) return;
+      if (!displaySmaller(c)) return;                // already our size → no-op
+      c.desktop_width = -1; c.desktop_height = -1;   // bust _screen_resized's guard
+      try { c._screen_resized(); } catch (e) {}      // re-send our size → server RANDR
+    };
+    // Detect the double-click from pointer timing (capture phase, never
+    // preventDefault) so it's independent of how xpra/jQuery handle the mouse.
+    var lastTs = 0, lastX = 0, lastY = 0;
+    window.addEventListener('pointerdown', function(ev) {
+      if (ev.pointerType === 'touch') return;        // desktop mouse only
+      var now = ev.timeStamp || 0;
+      if (now - lastTs < 400 && Math.abs(ev.clientX - lastX) < 12 && Math.abs(ev.clientY - lastY) < 12) {
+        claimSize();
+        lastTs = 0;                                  // consume — a 3rd click isn't a 2nd claim
+      } else {
+        lastTs = now; lastX = ev.clientX; lastY = ev.clientY;
+      }
+    }, true);
+  } catch(e) {
+    console.warn('[xpra-patches] size-claim patch failed:', e.message);
+  }
 })();

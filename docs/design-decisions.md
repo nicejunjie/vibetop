@@ -764,3 +764,44 @@ and why it lost).
   anything — `same uuid` = a client reconnecting, `session busy` = a sharing/steal
   mismatch, `missing remote username` = an auth/deploy problem. See
   [[bisect-against-known-good-first]], [[fix-root-cause-keep-the-feature]].
+
+## Browser stuck at the phone's tiny size on the desktop (no way to re-claim)
+
+- **Symptom:** Open the Browser on a phone and the shared xpra display shrinks to
+  the phone's viewport **for every client**, including the desktop — and unlike the
+  Terminal (double-click re-claims the shape) there was **no way** to grow it back
+  on the desktop. It stayed the little size.
+- **Cause:** The Browser is a **single shared** xpra `start-desktop :99` display, so
+  its resolution belongs to whichever client connected/resized last. xpra's HTML5
+  client advertises its size via `_screen_resized()` → `send([configure_display,
+  {"desktop-size":[container.clientWidth, container.clientHeight], …}])`, and the
+  server RANDR-resizes the one display to match. When the phone connects it sends
+  its small size and the display shrinks everywhere. The desktop **can't** re-send
+  its size on its own: `_screen_resized()` early-returns unless **this client's**
+  `container` actually changed (`container.clientWidth !== desktop_width`) — and the
+  desktop's window never changed, the *phone* shrank the display. Same "same-size =
+  no-op" wall as the Terminal re-claim (SIGWINCH only fires on a real change).
+- **Fix:** Patch 10 in `xpra-patches.js` — the Browser analogue of the Terminal's
+  double-click re-claim. On a desktop double-click, bust the guard
+  (`client.desktop_width = -1`) and call `client._screen_resized()`, which re-sends
+  **this** client's real container size → the server resizes the shared display back
+  up. Reuses xpra's own packet-builder (monitors/dpi/vrefresh) so it survives xpra
+  API drift. Two guards keep it unsurprising: (1) it re-claims **only when the
+  display is actually smaller than our viewport** — measured from the largest mapped
+  window's `w`/`h` (`id_to_window`), which tracks the display in start-desktop mode —
+  so an ordinary double-click on a web page doesn't spam server RANDR resizes; (2) it
+  **never `preventDefault`s**, so the double-click still reaches the remote Chromium
+  (word-select etc. keep working). The double-click is detected from `pointerdown`
+  timing in the capture phase (two within 400ms / 12px), independent of how
+  xpra/jQuery handle the mouse. Manual, like the Terminal — a shared display can only
+  be one size, so the phone then sees the desktop's size until *it* re-claims
+  (symmetric; the accepted single-shared-display tradeoff, same reason window
+  mirroring was removed).
+- **Rejected:** **auto-reclaim** when the desktop is the active app — stable (the
+  phone, whose container is unchanged, doesn't fight back) but it means the phone can
+  **never** hold the display small while the desktop tab is open; manual keeps both
+  devices in control, matching the Terminal. A dedicated **on-screen "Fit" button** —
+  no gesture conflict, but adds chrome the desktop Browser doesn't have and breaks
+  the Terminal muscle-memory the user already has. Hijacking double-click
+  **unconditionally** (no "smaller than me" guard) — floods the server with a RANDR
+  resize on every word-select double-click. See [[fix-root-cause-keep-the-feature]].
