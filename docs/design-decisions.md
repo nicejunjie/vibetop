@@ -782,21 +782,28 @@ and why it lost).
   desktop's window never changed, the *phone* shrank the display. Same "same-size =
   no-op" wall as the Terminal re-claim (SIGWINCH only fires on a real change).
 - **Fix:** Patch 10 in `xpra-patches.js` — the Browser analogue of the Terminal's
-  double-click re-claim. On a desktop double-click, bust the guard
-  (`client.desktop_width = -1`) and call `client._screen_resized()`, which re-sends
-  **this** client's real container size → the server resizes the shared display back
-  up. Reuses xpra's own packet-builder (monitors/dpi/vrefresh) so it survives xpra
-  API drift. Two guards keep it unsurprising: (1) it re-claims **only when the
-  display is actually smaller than our viewport** — measured from the largest mapped
-  window's `w`/`h` (`id_to_window`), which tracks the display in start-desktop mode —
-  so an ordinary double-click on a web page doesn't spam server RANDR resizes; (2) it
-  **never `preventDefault`s**, so the double-click still reaches the remote Chromium
-  (word-select etc. keep working). The double-click is detected from `pointerdown`
-  timing in the capture phase (two within 400ms / 12px), independent of how
-  xpra/jQuery handle the mouse. Manual, like the Terminal — a shared display can only
-  be one size, so the phone then sees the desktop's size until *it* re-claims
-  (symmetric; the accepted single-shared-display tradeoff, same reason window
-  mirroring was removed).
+  double-click/double-tap re-claim. On a **desktop double-click** *or* **mobile
+  double-tap**, bust the guard (`client.desktop_width = -1`) and call
+  `client._screen_resized()`, which re-sends **this** client's real container size →
+  the server resizes the shared display to match. Reuses xpra's own packet-builder
+  (monitors/dpi/vrefresh) so it survives xpra API drift. Two guards keep it
+  unsurprising: (1) it re-claims **only when the display size DIFFERS from our
+  viewport** — measured from the largest mapped window's `w`/`h` (`id_to_window`),
+  which tracks the display in start-desktop mode — so an ordinary double-click/tap
+  doesn't spam server RANDR resizes. **The mismatch is two-directional on purpose:**
+  the desktop needs to GROW the display back (a phone shrank it) while the phone
+  needs to SHRINK it (the desktop grew it), so a "smaller than me" test would work
+  for the desktop but be a no-op on the phone (the display is *bigger* than the phone
+  there) — the first cut shipped that one-directional guard and the phone double-tap
+  did nothing; `abs(diff) > tol` fixes both. (2) It **never `preventDefault`s** the
+  mouse path, so the double-click still reaches the remote Chromium (word-select etc.
+  keep working); on touch the double-tap still fires its taps to the remote exactly
+  as before — the re-claim is purely additive. Desktop double-click is detected from
+  `pointerdown` timing (two within 400ms / 12px); the touch double-tap is detected in
+  the patch-4 touch layer's `touchend` tap branch (two no-movement taps within
+  400ms / 28px). Manual, like the Terminal — a shared display can only be one size,
+  so the other device sees this one's size until *it* re-claims (symmetric; the
+  accepted single-shared-display tradeoff, same reason window mirroring was removed).
 - **Rejected:** **auto-reclaim** when the desktop is the active app — stable (the
   phone, whose container is unchanged, doesn't fight back) but it means the phone can
   **never** hold the display small while the desktop tab is open; manual keeps both

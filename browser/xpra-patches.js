@@ -15,6 +15,11 @@
   // Exposed by patch 3 (native keyboard) for the paste patch (5).
   var kbdSendChar = null, kbdSendKey = null;
 
+  // Set by patch 10 (re-claim the shared display size); called by the touch
+  // layer (patch 4) for the double-tap, and by patch 10 itself for desktop
+  // double-click. Null until patch 10 runs, but a gesture can only fire later.
+  var claimDisplaySize = null;
+
   // 0. Suppress "leave site?" confirmation on refresh/close.
   //    Neutralise the property-based handler, then add a capture-phase
   //    beforeunload listener that stops any other handler from running and
@@ -225,6 +230,7 @@
     // Higher value = slower scroll relative to finger.
     var SCROLL_TICK = 33;
     var touch = { mode: null, sx: 0, sy: 0, lx: 0, ly: 0, pinch: 0, accum: 0, accumX: 0 };
+    var lastTapTs = 0, lastTapX = 0, lastTapY = 0;   // double-tap → re-claim size (patch 10)
     var fireWheel = function(x, y, dx, dy) {
       var c = canvasGet(); if (!c) return;
       c.dispatchEvent(new WheelEvent('wheel', {
@@ -302,7 +308,21 @@
     window.addEventListener('touchend', function(e) {
       e.preventDefault(); e.stopPropagation();
       if (e.touches.length === 0) {
-        if (touch.mode === null) fireTap(touch.sx, touch.sy);
+        if (touch.mode === null) {
+          // A tap (no movement). If it's the SECOND quick tap near the first,
+          // it's a double-tap → re-claim the shared display for this device
+          // (patch 10). The tap still fires to the remote as before — we only
+          // ADD the re-claim, so ordinary tapping is unchanged.
+          var tnow = e.timeStamp || 0;
+          if (tnow - lastTapTs < 400 &&
+              Math.abs(touch.sx - lastTapX) < 28 && Math.abs(touch.sy - lastTapY) < 28) {
+            if (claimDisplaySize) claimDisplaySize();
+            lastTapTs = 0;                              // consume — a 3rd tap starts fresh
+          } else {
+            lastTapTs = tnow; lastTapX = touch.sx; lastTapY = touch.sy;
+          }
+          fireTap(touch.sx, touch.sy);
+        }
         touch.mode = null;
       } else if (e.touches.length === 1 && touch.mode === 'pinch') {
         // One finger lifted during pinch — switch to scroll mode using the
@@ -484,19 +504,24 @@
   //     of the Terminal's double-click "claim the shape" (a shared PTY/display
   //     can only be one size; the other device sees it until IT re-claims).
   //
-  //     A double-click re-claims: bust _screen_resized's no-op guard
-  //     (desktop_width=-1) then call it, which sends configure_display with our
-  //     real container size → the server RANDR-resizes the display back up. We
-  //     re-claim ONLY when the display is actually SMALLER than our viewport
-  //     (another device shrank it — detected from the largest mapped window's
-  //     w/h, which tracks the display in start-desktop mode), so an ordinary
-  //     double-click on a web page doesn't spam server resizes. We never
-  //     preventDefault, so the double-click still reaches the remote (word
-  //     select etc. keep working). Desktop mouse only; touch would be a
-  //     double-tap wired into the patch-4 touch layer (not done yet).
+  //     A double-click (desktop) / double-tap (touch, wired into patch 4)
+  //     re-claims: bust _screen_resized's no-op guard (desktop_width=-1) then
+  //     call it, which sends configure_display with our real container size →
+  //     the server RANDR-resizes the display to match. We re-claim ONLY when
+  //     the display size DIFFERS from our viewport (either direction — the
+  //     desktop grows it back, the phone shrinks it; detected from the largest
+  //     mapped window's w/h, which tracks the display in start-desktop mode), so
+  //     an ordinary double-click/tap doesn't spam server resizes. We never
+  //     preventDefault the mouse path, so the double-click still reaches the
+  //     remote (word select etc. keep working).
   try {
     var CLAIM_TOL = 40;   // px slack: ignore decoration/rounding differences
-    var displaySmaller = function(c) {
+    // Does the shared display size differ from THIS client's viewport? True in
+    // EITHER direction: the desktop wants to GROW it back (a phone shrank it),
+    // the phone wants to SHRINK it (the desktop grew it) — so we compare
+    // absolute difference, not just "smaller". The largest mapped window's w/h
+    // tracks the display in start-desktop mode.
+    var displayMismatch = function(c) {
       var maxW = 0, maxH = 0, id, w;
       for (id in c.id_to_window) {
         w = c.id_to_window[id];
@@ -505,16 +530,17 @@
         if (w.h > maxH) maxH = w.h;
       }
       if (!maxW) return false;                       // nothing mapped yet
-      return maxW < c.container.clientWidth  - CLAIM_TOL ||
-             maxH < c.container.clientHeight - CLAIM_TOL;
+      return Math.abs(maxW - c.container.clientWidth)  > CLAIM_TOL ||
+             Math.abs(maxH - c.container.clientHeight) > CLAIM_TOL;
     };
     var claimSize = function() {
       var c = window.client;
       if (!c || !c.connected || !c.container) return;
-      if (!displaySmaller(c)) return;                // already our size → no-op
+      if (!displayMismatch(c)) return;               // already our size → no-op
       c.desktop_width = -1; c.desktop_height = -1;   // bust _screen_resized's guard
       try { c._screen_resized(); } catch (e) {}      // re-send our size → server RANDR
     };
+    claimDisplaySize = claimSize;                    // let the touch layer re-claim too
     // Detect the double-click from pointer timing (capture phase, never
     // preventDefault) so it's independent of how xpra/jQuery handle the mouse.
     var lastTs = 0, lastX = 0, lastY = 0;

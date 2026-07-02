@@ -75,7 +75,7 @@
   .task-app.active { color: #fff; background: rgba(255,255,255,0.08); }
   /* drag-to-reorder: the dragged button is dimmed while it's being moved */
   .task-app.dragging { opacity: 0.4; }
-  .task-app .icon { font-size: 17px; line-height: 1; }
+  .task-app .icon { font-size: 22px; line-height: 1; display: inline-flex; }
   .task-app .close {
     display: inline-flex; align-items: center; justify-content: center;
     width: 18px; height: 18px; margin-left: 2px; border-radius: 4px;
@@ -161,7 +161,7 @@
   .sm-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
   .sm-item .sm-icon {
     display: flex; align-items: center; justify-content: center;
-    width: 30px; height: 30px; border-radius: 8px; font-size: 16px; flex-shrink: 0;
+    width: 30px; height: 30px; border-radius: 8px; font-size: 28px; flex-shrink: 0;
   }
   .sm-item[data-id="home"]     .sm-icon { background: #6b3510; }
   .sm-item[data-id="terminal"] .sm-icon { background: #1a5c2a; }
@@ -268,7 +268,9 @@
     .taskbar::-webkit-scrollbar { display: none; }
     .start-btn, .task-app, .tb-stats, .tb-logout { flex-shrink: 0; }
     .tb-spacer { flex: 0 0 8px; }
-    .startmenu { left: 8px; right: 8px; width: auto; }
+    /* Keep the menu a comfortable width on phones (was full-width via right:8px)
+       — capped so it never overflows a very narrow screen. */
+    .startmenu { left: 8px; right: auto; width: min(300px, calc(100vw - 16px)); }
   }
 
   /* === Implicit keyboard ⌨ button (touch only) ===
@@ -394,6 +396,29 @@
 
 <script>
 (function() {
+  // Every app's Start-menu/taskbar icon is an inline SVG (Material "filled" set,
+  // drawn in currentColor) rather than an emoji, so the launcher is ONE
+  // consistent, crisp icon set that renders identically on desktop and phone —
+  // emoji vary per-OS and mix colored "stickers" with flat arrow glyphs. Each
+  // app still keeps an `icon` emoji as a graceful-degradation fallback;
+  // buildStartMenu + the taskbar prefer `svg` (attached below). width/height:1em
+  // so the icon scales with the font-size (16px menu tile, 17px taskbar).
+  function svgIcon(d) {
+    return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="' + d + '"/></svg>';
+  }
+  var ICON = {
+    home:        svgIcon('M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z'),
+    terminal:    svgIcon('M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM7 9.5 8.5 8l3 3-3 3L7 12.5 8.5 11 7 9.5zm5 4.5h5v1.5h-5V14z'),
+    browser:     svgIcon('M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z'),
+    x11launcher: svgIcon('M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z'),
+    files:       svgIcon('M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z'),
+    office:      svgIcon('M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'),
+    notes:       svgIcon('M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'),
+    monitor:     svgIcon('M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z'),
+    upload:      svgIcon('M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z'),
+    update:      svgIcon('M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z')
+  };
+
   // Single source of truth for every app: its taskbar/Start-menu icon, label,
   // Start-menu description, iframe src, and which Start-menu section it sits in.
   // The Start-menu items are generated from this (buildStartMenu) so the icon +
@@ -408,8 +433,10 @@
     notes:    { label: 'Notes',    icon: '📝', src: '/notes.html',           desc: 'Persistent scratchpad' },
     monitor:  { label: 'Monitor',  icon: '📊', src: '/monitor.html',         desc: 'System monitor' },
     upload:   { label: 'Upload',   icon: '⬆',  src: '/upload.html',          desc: 'Quick upload to ~/Uploads' },
-    update:   { label: 'Update',   icon: '⬇',  src: '/update.html',          desc: 'Pull latest & redeploy', section: 'system' }
+    update:   { label: 'Update',   icon: '🔄', src: '/update.html',          desc: 'Pull latest & redeploy', section: 'system' }
   };
+  // Attach the matching SVG icon to each app (fallback stays the `icon` emoji).
+  Object.keys(APPS).forEach(function(id) { if (ICON[id]) APPS[id].svg = ICON[id]; });
 
   // Build the Start-menu items from APPS into the Apps / System sections.
   function buildStartMenu() {
@@ -420,7 +447,8 @@
       var a = APPS[id];
       var item = document.createElement('div');
       item.className = 'sm-item'; item.setAttribute('data-id', id);
-      var ic = document.createElement('div'); ic.className = 'sm-icon'; ic.textContent = a.icon;
+      var ic = document.createElement('div'); ic.className = 'sm-icon';
+      if (a.svg) ic.innerHTML = a.svg; else ic.textContent = a.icon;
       var box = document.createElement('div');
       var nm = document.createElement('div'); nm.className = 'sm-name'; nm.textContent = a.label;
       var ds = document.createElement('div'); ds.className = 'sm-desc'; ds.textContent = a.desc || '';
@@ -751,7 +779,7 @@
       btn.className = 'task-app' + (id === active ? ' active' : '');
       btn.dataset.id = id;
       btn.draggable = true;     // reorder via drag (desktop; ignored on touch)
-      btn.innerHTML = '<span class="icon">' + APPS[id].icon + '</span>' +
+      btn.innerHTML = '<span class="icon">' + (APPS[id].svg || APPS[id].icon) + '</span>' +
                       '<span class="name">' + APPS[id].label + '</span>' +
                       '<span class="close" title="Close">&times;</span>';
       taskAppsEl.appendChild(btn);
