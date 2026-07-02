@@ -376,9 +376,72 @@
       e.preventDefault(); e.stopPropagation();
       var t = window.term;
       doCopy(t && t.hasSelection() ? t.getSelection() : '');
-      hideCopy();
+      hideCopy(); hideHandles();
       try { t.clearSelection(); } catch (_) {}
     });
+
+    // --- iOS-style draggable selection handles -----------------------------
+    // After a touch selection settles, a dot sits at each end (start/end are
+    // absolute buffer cells in selStart/selEnd). Dragging a dot moves that end
+    // (clamped so start never crosses end), re-applies the xterm selection, and
+    // repositions live. Positions derive from the buffer cell + current
+    // viewportY, so they track scrollback; a dot scrolled out of view hides.
+    var selStart = null, selEnd = null, hStart = null, hEnd = null, handlesOn = false;
+    function scrGeom() {
+      var t = window.term, el = t && t.element; if (!el) return null;
+      var scr = el.querySelector('.xterm-screen') || el, r = scr.getBoundingClientRect();
+      return { r: r, rowH: r.height / t.rows, colW: r.width / t.cols,
+               vpY: (t.buffer && t.buffer.active && t.buffer.active.viewportY) || 0, rows: t.rows };
+    }
+    function cellXY(cell, atEnd) {   // buffer cell -> viewport px (corner of the cell)
+      var g = scrGeom(); if (!g) return null;
+      var vr = cell.row - g.vpY;
+      if (vr < 0 || vr > g.rows) return null;   // out of the visible viewport
+      return { x: g.r.left + (cell.col + (atEnd ? 1 : 0)) * g.colW,
+               y: g.r.top + (vr + (atEnd ? 1 : 0)) * g.rowH };
+    }
+    function positionHandles() {
+      if (!handlesOn || !hStart || !selStart || !selEnd) return;
+      var a = cellXY(selStart, false), b = cellXY(selEnd, true);
+      hStart.style.display = a ? 'block' : 'none';
+      if (a) { hStart.style.left = a.x + 'px'; hStart.style.top = a.y + 'px'; }
+      hEnd.style.display = b ? 'block' : 'none';
+      if (b) { hEnd.style.left = b.x + 'px'; hEnd.style.top = b.y + 'px'; }
+    }
+    function hideHandles() { handlesOn = false; if (hStart) hStart.style.display = 'none'; if (hEnd) hEnd.style.display = 'none'; }
+    function before(a, b) { return a.row < b.row || (a.row === b.row && a.col < b.col); }
+    function makeHandle(isEnd) {
+      var h = document.createElement('div');
+      h.style.cssText = 'position:fixed;z-index:2147483602;width:20px;height:20px;margin:-10px 0 0 -10px;' +
+        'border-radius:50%;background:#2d6cc0;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.5);' +
+        'display:none;touch-action:none;-webkit-user-select:none;user-select:none';
+      document.body.appendChild(h);
+      var active = false;
+      h.addEventListener('touchstart', function (e) { e.preventDefault(); e.stopPropagation(); active = true; hideCopy(); }, { passive: false });
+      h.addEventListener('touchmove', function (e) {
+        if (!active) return; e.preventDefault(); e.stopPropagation();
+        var c = e.touches[0], cell = cellAt(c.clientX, c.clientY);
+        if (!cell) return;
+        if (isEnd) { if (before(cell, selStart)) cell = selStart; selEnd = cell; }   // clamp: never cross
+        else       { if (before(selEnd, cell)) cell = selEnd; selStart = cell; }
+        try { applySel(selStart, selEnd); } catch (_) {}
+        positionHandles();
+      }, { passive: false });
+      h.addEventListener('touchend', function (e) {
+        if (!active) return; e.preventDefault(); e.stopPropagation(); active = false;
+        var ct = e.changedTouches[0];
+        if (window.term && window.term.hasSelection()) showCopy(ct.clientX, ct.clientY - 30);
+      }, { passive: false });
+      return h;
+    }
+    function showHandles(s, en) {
+      if (!hStart) { hStart = makeHandle(false); hEnd = makeHandle(true); }
+      selStart = s; selEnd = en;
+      if (before(selEnd, selStart)) { var t = selStart; selStart = selEnd; selEnd = t; }   // order start<=end
+      handlesOn = true;
+      positionHandles();
+    }
+    try { window.term.onScroll(positionHandles); } catch (_) {}   // follow scrollback
 
     var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null, startCell = null;
     var lastTapTime = 0, lastTapX = 0, lastTapY = 0, tStart = 0;   // for double-tap (claimSize)
@@ -397,10 +460,11 @@
         if (moved) return;
         selecting = true;
         try { ov.blur(); } catch (_) {}            // selecting, not typing — dismiss the keyboard (iOS focuses the overlay on touch)
+        hideHandles();                              // drop any prior selection's handles
         var cell = startCell;                       // captured at touchstart, before any keyboard-driven scroll
         if (cell) {
           var w = wordAt(cell);
-          anchor = w.s;
+          anchor = w.s; selStart = w.s; selEnd = w.e;
           try { window.term.clearSelection(); } catch (_) {}
           applySel(w.s, w.e);
         }
@@ -413,7 +477,7 @@
       }
       if (selecting) {                              // extend selection to the finger
         var cur = cellAt(c.clientX, y);
-        if (cur && anchor) applySel(anchor, cur);
+        if (cur && anchor) { applySel(anchor, cur); selStart = anchor; selEnd = cur; }
         e.preventDefault(); return;
       }
       var dy = y - prevY; prevY = y; acc += dy;     // else scroll the scrollback
@@ -449,7 +513,7 @@
         e.preventDefault();                         // don't raise the keyboard
         try { ov.blur(); } catch (_) {}             // and dismiss it if iOS raised it during the long-press
         var t = window.term;
-        if (t && t.hasSelection()) showCopy(ct.clientX, ct.clientY);
+        if (t && t.hasSelection()) { showCopy(ct.clientX, ct.clientY); showHandles(selStart, selEnd); }
       } else if (!moved) {                          // single tap
         // If the tap landed on a URL, open it in the Browser instead of raising
         // the keyboard — the touch equivalent of the desktop's Cmd/Ctrl+click.
@@ -464,7 +528,8 @@
           flash('↗ opening link');
           return;
         }
-        try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}  // else let the keyboard come up
+        try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}
+        hideHandles();  // tapping elsewhere dismisses the selection + its handles, then the keyboard comes up
       }
     }, { passive: false });
 
