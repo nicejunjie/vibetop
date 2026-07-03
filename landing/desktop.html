@@ -688,31 +688,12 @@
       if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-key', key: keyName }, '*'); } catch (e) {} }
     }
     var HSTEP = 14, VSTEP = 20;   // px of slide per one arrow (arrow-key trackpad)
-    // Haptics. Android Chrome has the Vibration API; iOS Safari (incl. standalone
-    // PWA) does NOT — but iOS 17.4+ fires a subtle haptic when a <input switch>
-    // toggles. We click a hidden one to trigger it. GOTCHAS learned the hard way:
-    //  - the switch must be RENDERED IN THE VIEWPORT (1x1, opacity:0) — parked at
-    //    top:-9999px, iOS skips the toggle haptic entirely.
-    //  - click the wrapping <label> (not the input) — the reported-working pattern.
-    // Kept 1x1/opacity:0/tabindex=-1 and focus is restored after, so it can't steal
-    // focus from the terminal input (which would drop the on-screen keyboard).
-    var _hapLabel = null, _hapInput = null;
-    function haptic(ms) {
-      try {
-        if (navigator.vibrate) { navigator.vibrate(ms || 12); return; }
-        if (!_hapLabel) {
-          _hapLabel = document.createElement('label');
-          _hapLabel.setAttribute('aria-hidden', 'true');
-          _hapLabel.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0;z-index:-1;overflow:hidden';
-          _hapInput = document.createElement('input');
-          _hapInput.type = 'checkbox'; _hapInput.setAttribute('switch', ''); _hapInput.tabIndex = -1;
-          _hapLabel.appendChild(_hapInput); document.body.appendChild(_hapLabel);
-        }
-        var prev = document.activeElement;
-        _hapLabel.click();                               // toggling the switch is what fires the iOS haptic
-        if (document.activeElement === _hapInput) { _hapInput.blur(); if (prev && prev.focus) try { prev.focus({ preventScroll: true }); } catch (e) {} }
-      } catch (e) {}
-    }
+    // Haptics: Android Chrome has the Vibration API and buzzes. iOS Safari (incl.
+    // standalone PWA) does NOT expose it, and there's no web path that works here:
+    // the iOS 17.4+ <input switch> toggle-haptic only fires when the switch is
+    // rendered in the viewport, but clicking it there steals focus and drops the
+    // on-screen keyboard (hiding this very keybar) — so it's a no-op on iPhone.
+    function haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {} }
     KEYS.forEach(function (k) {
       var b = document.createElement('button');
       b.textContent = k[0];
@@ -743,7 +724,7 @@
           if (!lockAxis) {
             if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
             lockAxis = Math.abs(ax) >= Math.abs(ay) ? 'h' : 'v';
-            haptic(12);   // buzz once when the trackpad engages (Android: Vibration API; iOS 17.4+: <input switch> haptic)
+            haptic(12);   // buzz once when the trackpad engages (Android only — iOS has no usable web haptic here)
           }
           if (lockAxis === 'h') {   // Ctrl+F/Ctrl+B = move the cursor (emacs), not ←/→ (which a TUI reuses as menu nav on an empty prompt)
             while (ax >= HSTEP)  { routeKey('CtrlF'); ax -= HSTEP; }
