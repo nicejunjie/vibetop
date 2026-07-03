@@ -688,12 +688,6 @@
       if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-key', key: keyName }, '*'); } catch (e) {} }
     }
     var HSTEP = 14, VSTEP = 20;   // px of slide per one arrow (arrow-key trackpad)
-    // Haptics: Android Chrome has the Vibration API and buzzes. iOS Safari (incl.
-    // standalone PWA) does NOT expose it, and there's no web path that works here:
-    // the iOS 17.4+ <input switch> toggle-haptic only fires when the switch is
-    // rendered in the viewport, but clicking it there steals focus and drops the
-    // on-screen keyboard (hiding this very keybar) — so it's a no-op on iPhone.
-    function haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {} }
     KEYS.forEach(function (k) {
       var b = document.createElement('button');
       b.textContent = k[0];
@@ -724,7 +718,6 @@
           if (!lockAxis) {
             if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
             lockAxis = Math.abs(ax) >= Math.abs(ay) ? 'h' : 'v';
-            haptic(12);   // buzz once when the trackpad engages (Android only — iOS has no usable web haptic here)
           }
           if (lockAxis === 'h') {   // Ctrl+F/Ctrl+B = move the cursor (emacs), not ←/→ (which a TUI reuses as menu nav on an empty prompt)
             while (ax >= HSTEP)  { routeKey('CtrlF'); ax -= HSTEP; }
