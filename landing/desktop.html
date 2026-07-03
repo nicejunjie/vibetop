@@ -719,9 +719,9 @@
             if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
             lockAxis = Math.abs(ax) >= Math.abs(ay) ? 'h' : 'v';
           }
-          if (lockAxis === 'h') {
-            while (ax >= HSTEP)  { routeKey('ArrowRight'); ax -= HSTEP; }
-            while (ax <= -HSTEP) { routeKey('ArrowLeft');  ax += HSTEP; }
+          if (lockAxis === 'h') {   // Ctrl+F/Ctrl+B = move the cursor (emacs), not ←/→ (which a TUI reuses as menu nav on an empty prompt)
+            while (ax >= HSTEP)  { routeKey('CtrlF'); ax -= HSTEP; }
+            while (ax <= -HSTEP) { routeKey('CtrlB'); ax += HSTEP; }
           } else {
             while (ay >= VSTEP)  { routeKey('ArrowDown');  ay -= VSTEP; }
             while (ay <= -VSTEP) { routeKey('ArrowUp');    ay += VSTEP; }

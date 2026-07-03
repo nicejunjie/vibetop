@@ -266,7 +266,8 @@
     // cursor sequences).
     var KBD_KEY_BYTES = {
       Escape: '\x1b', Tab: '\x09', CtrlC: '\x03', Enter: '\r', Backspace: '\x7f',
-      ArrowUp: '\x1b[A', ArrowDown: '\x1b[B', ArrowRight: '\x1b[C', ArrowLeft: '\x1b[D'
+      ArrowUp: '\x1b[A', ArrowDown: '\x1b[B', ArrowRight: '\x1b[C', ArrowLeft: '\x1b[D',
+      CtrlB: '\x02', CtrlF: '\x06'   // emacs/readline backward-char / forward-char (cursor move, NOT the arrow-menu)
     };
     window.addEventListener('message', function (e) {
       var d = e.data;
