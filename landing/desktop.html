@@ -690,25 +690,27 @@
     var HSTEP = 14, VSTEP = 20;   // px of slide per one arrow (arrow-key trackpad)
     // Haptics. Android Chrome has the Vibration API; iOS Safari (incl. standalone
     // PWA) does NOT — but iOS 17.4+ fires a subtle haptic when a <input switch>
-    // toggles, so we synthetically click a hidden one. Kept off-screen +
-    // pointer-events:none + tabindex=-1 and blurred after, so it never steals
-    // focus from the terminal's input (which would drop the on-screen keyboard).
-    var _hapSwitch = null;
+    // toggles. We click a hidden one to trigger it. GOTCHAS learned the hard way:
+    //  - the switch must be RENDERED IN THE VIEWPORT (1x1, opacity:0) — parked at
+    //    top:-9999px, iOS skips the toggle haptic entirely.
+    //  - click the wrapping <label> (not the input) — the reported-working pattern.
+    // Kept 1x1/opacity:0/tabindex=-1 and focus is restored after, so it can't steal
+    // focus from the terminal input (which would drop the on-screen keyboard).
+    var _hapLabel = null, _hapInput = null;
     function haptic(ms) {
       try {
         if (navigator.vibrate) { navigator.vibrate(ms || 12); return; }
-        if (!_hapSwitch) {
-          var lab = document.createElement('label');
-          lab.setAttribute('aria-hidden', 'true');
-          lab.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
-          var inp = document.createElement('input');
-          inp.type = 'checkbox'; inp.setAttribute('switch', ''); inp.tabIndex = -1;
-          lab.appendChild(inp); document.body.appendChild(lab);
-          _hapSwitch = inp;
+        if (!_hapLabel) {
+          _hapLabel = document.createElement('label');
+          _hapLabel.setAttribute('aria-hidden', 'true');
+          _hapLabel.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0;z-index:-1;overflow:hidden';
+          _hapInput = document.createElement('input');
+          _hapInput.type = 'checkbox'; _hapInput.setAttribute('switch', ''); _hapInput.tabIndex = -1;
+          _hapLabel.appendChild(_hapInput); document.body.appendChild(_hapLabel);
         }
         var prev = document.activeElement;
-        _hapSwitch.click();                              // the toggle is what fires the iOS haptic
-        if (document.activeElement === _hapSwitch) { _hapSwitch.blur(); if (prev && prev.focus) try { prev.focus({ preventScroll: true }); } catch (e) {} }
+        _hapLabel.click();                               // toggling the switch is what fires the iOS haptic
+        if (document.activeElement === _hapInput) { _hapInput.blur(); if (prev && prev.focus) try { prev.focus({ preventScroll: true }); } catch (e) {} }
       } catch (e) {}
     }
     KEYS.forEach(function (k) {
