@@ -381,56 +381,74 @@
     });
 
     // --- iOS-style draggable selection handles -----------------------------
-    // After a touch selection settles, a dot sits at each end (start/end are
-    // absolute buffer cells in selStart/selEnd). Dragging a dot moves that end
-    // (clamped so start never crosses end), re-applies the xterm selection, and
-    // repositions live. Positions derive from the buffer cell + current
-    // viewportY, so they track scrollback; a dot scrolled out of view hides.
-    var selStart = null, selEnd = null, hStart = null, hEnd = null, handlesOn = false;
+    // Each end gets an iOS-style handle: a thin 2px stem the height of the edge
+    // cell (marks the boundary, hides no content) capped by a small knob that
+    // sits ABOVE the start / BELOW the end, off the text line. Dragging a knob
+    // moves that endpoint. selStart/selEnd are absolute buffer cells so the
+    // handles track scrollback (onScroll -> positionHandles) and hide off-screen.
+    var selStart = null, selEnd = null, hStart = null, hEnd = null, handlesOn = false, KNOB = 34;
     function scrGeom() {
       var t = window.term, el = t && t.element; if (!el) return null;
       var scr = el.querySelector('.xterm-screen') || el, r = scr.getBoundingClientRect();
       return { r: r, rowH: r.height / t.rows, colW: r.width / t.cols,
                vpY: (t.buffer && t.buffer.active && t.buffer.active.viewportY) || 0, rows: t.rows };
     }
-    function cellXY(cell, atEnd) {   // buffer cell -> viewport px (corner of the cell)
+    function edgePx(cell, atEnd) {   // buffer cell -> {x, yTop, rowH} of its left/right edge (null if off-view)
       var g = scrGeom(); if (!g) return null;
       var vr = cell.row - g.vpY;
-      if (vr < 0 || vr > g.rows) return null;   // out of the visible viewport
-      return { x: g.r.left + (cell.col + (atEnd ? 1 : 0)) * g.colW,
-               y: g.r.top + (vr + (atEnd ? 1 : 0)) * g.rowH };
+      if (vr < 0 || vr >= g.rows) return null;
+      return { x: g.r.left + (cell.col + (atEnd ? 1 : 0)) * g.colW, yTop: g.r.top + vr * g.rowH, rowH: g.rowH };
+    }
+    function cellCenterY(cell) { var e = edgePx(cell, false); return e ? e.yTop + e.rowH / 2 : null; }
+    function before(a, b) { return a.row < b.row || (a.row === b.row && a.col < b.col); }
+    function placeHandle(h, cell, isEnd) {
+      var e = cell && edgePx(cell, isEnd);
+      if (!e) { h.style.display = 'none'; return; }
+      h.style.display = 'block';
+      h.style.left = e.x + 'px'; h.style.top = e.yTop + 'px';
+      h._stem.style.height = e.rowH + 'px';
+      h._grab.style.top = (isEnd ? e.rowH : -KNOB) + 'px';
     }
     function positionHandles() {
-      if (!handlesOn || !hStart || !selStart || !selEnd) return;
-      var a = cellXY(selStart, false), b = cellXY(selEnd, true);
-      hStart.style.display = a ? 'block' : 'none';
-      if (a) { hStart.style.left = a.x + 'px'; hStart.style.top = a.y + 'px'; }
-      hEnd.style.display = b ? 'block' : 'none';
-      if (b) { hEnd.style.left = b.x + 'px'; hEnd.style.top = b.y + 'px'; }
+      if (!handlesOn || !hStart) return;
+      if (!hStart._dragging) placeHandle(hStart, selStart, false);
+      if (!hEnd._dragging) placeHandle(hEnd, selEnd, true);
     }
     function hideHandles() { handlesOn = false; if (hStart) hStart.style.display = 'none'; if (hEnd) hEnd.style.display = 'none'; }
-    function before(a, b) { return a.row < b.row || (a.row === b.row && a.col < b.col); }
     function makeHandle(isEnd) {
-      var h = document.createElement('div');
-      h.style.cssText = 'position:fixed;z-index:2147483602;width:20px;height:20px;margin:-10px 0 0 -10px;' +
-        'border-radius:50%;background:#2d6cc0;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.5);' +
-        'display:none;touch-action:none;-webkit-user-select:none;user-select:none';
+      var h = document.createElement('div');   // anchor at the cell edge; stem + knob overflow it
+      h.style.cssText = 'position:fixed;z-index:2147483646;width:0;height:0;display:none;pointer-events:none';
+      var stem = document.createElement('div');
+      stem.style.cssText = 'position:absolute;left:-1px;top:0;width:2px;background:#2d6cc0;pointer-events:none';
+      var grab = document.createElement('div');   // transparent hit target holding the visible knob
+      grab.style.cssText = 'position:absolute;left:' + (-KNOB / 2) + 'px;width:' + KNOB + 'px;height:' + KNOB + 'px;' +
+        'pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none';
+      var dot = document.createElement('div');   // small knob capping the stem (above start / below end)
+      dot.style.cssText = 'position:absolute;left:' + ((KNOB - 13) / 2) + 'px;' + (isEnd ? 'top:1px;' : 'bottom:1px;') +
+        'width:13px;height:13px;border-radius:50%;background:#2d6cc0;box-shadow:0 0 0 1.5px #fff,0 1px 3px rgba(0,0,0,.4)';
+      grab.appendChild(dot); h.appendChild(stem); h.appendChild(grab);
       document.body.appendChild(h);
-      var active = false;
-      h.addEventListener('touchstart', function (e) { e.preventDefault(); e.stopPropagation(); active = true; hideCopy(); }, { passive: false });
-      h.addEventListener('touchmove', function (e) {
-        if (!active) return; e.preventDefault(); e.stopPropagation();
-        var c = e.touches[0], cell = cellAt(c.clientX, c.clientY);
+      h._stem = stem; h._grab = grab;
+      var offY = 0;
+      grab.addEventListener('touchstart', function (e) {
+        e.preventDefault(); e.stopPropagation(); h._dragging = true; hideCopy();
+        var refY = cellCenterY(isEnd ? selEnd : selStart);   // pin the finger's offset from the cell center → no jump on grab
+        offY = (refY != null) ? (e.touches[0].clientY - refY) : 0;
+      }, { passive: false });
+      grab.addEventListener('touchmove', function (e) {
+        if (!h._dragging) return; e.preventDefault(); e.stopPropagation();
+        var c = e.touches[0], cell = cellAt(c.clientX, c.clientY - offY);   // track the same point on the cell we grabbed
         if (!cell) return;
         if (isEnd) { if (before(cell, selStart)) cell = selStart; selEnd = cell; }   // clamp: never cross
         else       { if (before(selEnd, cell)) cell = selEnd; selStart = cell; }
         try { applySel(selStart, selEnd); } catch (_) {}
-        positionHandles();
+        placeHandle(h, cell, isEnd);
       }, { passive: false });
-      h.addEventListener('touchend', function (e) {
-        if (!active) return; e.preventDefault(); e.stopPropagation(); active = false;
+      grab.addEventListener('touchend', function (e) {
+        if (!h._dragging) return; e.preventDefault(); e.stopPropagation(); h._dragging = false;
         var ct = e.changedTouches[0];
-        if (window.term && window.term.hasSelection()) showCopy(ct.clientX, ct.clientY - 30);
+        if (window.term && window.term.hasSelection()) showCopy(ct.clientX, ct.clientY - 44);
+        positionHandles();
       }, { passive: false });
       return h;
     }
@@ -438,7 +456,7 @@
       if (!hStart) { hStart = makeHandle(false); hEnd = makeHandle(true); }
       selStart = s; selEnd = en;
       if (before(selEnd, selStart)) { var t = selStart; selStart = selEnd; selEnd = t; }   // order start<=end
-      handlesOn = true;
+      handlesOn = true; hStart._dragging = false; hEnd._dragging = false;
       positionHandles();
     }
     try { window.term.onScroll(positionHandles); } catch (_) {}   // follow scrollback
