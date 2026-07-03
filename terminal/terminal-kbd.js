@@ -218,7 +218,7 @@
     if (window.visualViewport) window.visualViewport.addEventListener('resize', positionCaret);
     positionCaret();
 
-    var lastSent = '', composing = false, timer = null;
+    var lastSent = '', composing = false, timer = null, lastInputTs = 0;
     function flush() {
       timer = null;
       var v = ov.value;
@@ -238,6 +238,14 @@
     }
     function sched(ms) { if (timer) clearTimeout(timer); timer = setTimeout(flush, ms); }
     function clr() { if (timer) { clearTimeout(timer); timer = null; } ov.value = ''; lastSent = ''; }
+    // Drop the value-diff mirror so the NEXT keystroke is sent as a clean delta from
+    // the shell's real cursor, not diffed against a now-stale baseline. Call whenever
+    // the shell line may have changed out-of-band from the overlay: the cursor was
+    // moved by the trackpad/arrows, ^C/Esc/Tab reshaped the line, or the tab returned
+    // from the background on a device switch. Without this the next flush emits
+    // spurious backspaces or dumps a bundle of characters (the "slide breaks typing /
+    // types in the wrong place / pastes a bundle" reports). Cheap and idempotent.
+    function resetBaseline() { if (timer) { clearTimeout(timer); timer = null; } ov.value = ''; lastSent = ''; composing = false; }
 
     // On a GENUINE (re)focus — the start of a new typing session — reset the
     // value-diff baseline so the first char is sent as-is. Stale lastSent/ov.value
@@ -248,7 +256,14 @@
     // input. Always re-anchor the caret either way.
     ov.addEventListener('focus', function () {
       positionCaret();
-      if (window.__termBouncing) return;
+      // Preserve the in-flight baseline ONLY for a rapid bounce DURING active typing
+      // (xterm keeps stealing focus mid-keystroke and the focusin guard bounces it
+      // back here — resetting then would wipe the char in flight). A bounce that
+      // arrives after an idle gap — a WS reconnect, or the tab returning from the
+      // background on a device switch — is NOT mid-typing, so the mirror is stale and
+      // MUST be reset or the next diff corrupts the line. Time since the last real
+      // keystroke distinguishes the two (active typing bounces within milliseconds).
+      if (window.__termBouncing && (Date.now() - lastInputTs) < 1500) return;
       ov.value = ''; lastSent = ''; composing = false;
       if (timer) { clearTimeout(timer); timer = null; }
     });
@@ -256,6 +271,7 @@
     ov.addEventListener('compositionstart', function () { dbg(' (cs)'); composing = true; });
     ov.addEventListener('compositionend', function () { dbg(' (ce)'); composing = false; sched(40); });
     ov.addEventListener('input', function (e) {
+      lastInputTs = Date.now();
       if (dbgEl) dbg(' i[' + JSON.stringify(ov.value) + ' c=' + (e && e.isComposing) + ']');
       // Normal typing: flush IMMEDIATELY so the keystroke round-trips to the PTY
       // with no artificial delay — as snappy as a native field, minus only the
@@ -266,9 +282,15 @@
       else { if (timer) { clearTimeout(timer); timer = null; } flush(); }
     });
     ov.addEventListener('keydown', function (e) {
+      lastInputTs = Date.now();
       if (e.key === 'Enter') { e.preventDefault(); flush(); sendRaw(String.fromCharCode(13)); clr(); dbg(' <ENTER> '); }
       else if (e.key === 'Tab') { e.preventDefault(); sendRaw(String.fromCharCode(9)); dbg(' <TAB> '); }
       else if (e.key === 'Backspace' && ov.value === '') { e.preventDefault(); sendRaw(String.fromCharCode(127)); }
+    });
+    // Returning from the background (the common "device switch" path on iOS) may have
+    // reconnected the WS and redrawn the shell line — the mirror is stale, so reset it.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') resetBaseline();
     });
 
     // System key bar: rendered AND shown/hidden/positioned by the desktop, which
@@ -285,7 +307,15 @@
     };
     window.addEventListener('message', function (e) {
       var d = e.data;
-      if (d && d.type === 'kbd-key' && KBD_KEY_BYTES[d.key]) { sendRaw(KBD_KEY_BYTES[d.key]); dbg(' <' + d.key + '> '); }
+      if (d && d.type === 'kbd-key' && KBD_KEY_BYTES[d.key]) {
+        sendRaw(KBD_KEY_BYTES[d.key]); dbg(' <' + d.key + '> ');
+        // The system key bar / arrow-key trackpad just moved the shell cursor or
+        // reshaped the line (Ctrl+F/B, arrows, ^C, Esc, Tab) — the overlay's mirror
+        // no longer matches, so reset it. Without this a slide followed by typing
+        // diffs against a stale baseline and corrupts the line (the reported
+        // "touch slide interferes with the keyboard").
+        resetBaseline();
+      }
     });
 
     // The overlay covers xterm and would eat every touch, so route by gesture:

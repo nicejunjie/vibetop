@@ -1019,3 +1019,48 @@ guard is deliberately one-sided:
   covers `Ctrl-L` and any TUI that redraws from the top.
 - Resetting scroll on overlay `blur` — would fight a user who scrolled back through
   history and then dismissed the keyboard.
+
+## Mobile terminal: the trackpad slide / a device switch corrupts typing (stale value-diff mirror)
+
+*Symptom:* On the phone, "occasionally the touch slide interferes with the
+keyboard — it can't type, types in the wrong place, or even dumps a bundle of
+characters. Happens most during device switching."
+
+*Cause:* The touch overlay (`terminal-kbd.js`) mirrors the current input line in a
+hidden `<textarea>` and forwards a **value-diff** (`ov.value` vs `lastSent`) to the
+PTY. That mirror silently desyncs whenever the shell line changes **out-of-band**
+from the overlay — and then the next diff is computed against a stale baseline,
+emitting spurious backspaces or dumping the whole delta as a bundle. Two triggers,
+matching the report exactly:
+- **The arrow-key trackpad slide.** It sends `Ctrl+F`/`Ctrl+B`/arrows straight to
+  the PTY (`kbd-key` → `sendRaw`), moving the **shell** cursor — but the overlay
+  still assumes edits append at its textarea's end. The next backspace/keystroke is
+  diffed against a line whose cursor has moved → wrong place / bundle.
+- **Device switching.** Returning from the background reconnects the WS and redraws
+  the shell line, but the refocus arrives as a **bounce** (xterm steals focus on
+  reconnect → the `focusin` guard bounces it back with `__termBouncing=1`). The
+  focus handler deliberately **skips** the baseline reset during a bounce (to protect
+  a char in flight during *active* typing) — so the stale mirror survives into the
+  new session and the first keystroke corrupts the line.
+
+*Fix (`terminal-kbd.js`):* re-ground the mirror whenever the line may have changed
+out-of-band. `resetBaseline()` (`ov.value=''`, `lastSent=''`, drop any pending
+flush) is now called: (1) in the `kbd-key` handler after every trackpad/arrow/^C/
+Esc/Tab byte; (2) on `visibilitychange`→visible (the device-switch path); and (3)
+the bounce-skip in the focus handler is **time-gated** — it only preserves the
+baseline for a bounce within 1.5 s of the last real keystroke (genuinely mid-typing);
+a bounce after any idle gap (reconnect / background return) resets. After a reset the
+next keystroke is sent as a clean delta from the shell's real cursor: append → the
+char; backspace on an empty overlay → a single DEL. Verified with Playwright/WebKit
+by capturing the PTY byte stream: `hello` + `ArrowLeft` + `hi` now sends
+`h,e,l,l,o,\e[D,h,i` (was `…,\x7f\x7f\x7f\x7f,i`); a hidden→visible cycle then `x`
+sends just `x`; normal typing + backspace is unchanged (`a,b,c,\x7f`).
+
+*Rejected:*
+- Teaching the mirror to track the shell cursor position (so mid-line edits map
+  correctly) — the overlay can't observe the shell's cursor without parsing the
+  output stream; re-grounding to empty is simpler and robust, at the cost of losing
+  textarea-native mid-line editing (rare on a terminal, and already unsupported once
+  the shell cursor moves).
+- Resetting on the overlay's `blur` — would fight a user who scrolled back and then
+  dismissed the keyboard, and misses the trackpad case (no blur happens there).
