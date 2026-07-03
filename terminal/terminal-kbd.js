@@ -191,6 +191,20 @@
         // — which stops iOS reveal-scrolling on every keystroke (the typing-lag
         // cause once the overlay became taller-than-viewport / scrollable).
         if (ov.style.paddingTop !== p) ov.style.paddingTop = p;
+        // Undo iOS's stale reveal-scroll when the cursor jumps UP. iOS scrolls the
+        // document to keep the focused caret above the keyboard, but ONLY on user
+        // caret events — never when WE move the caret up. So after `clear`/Ctrl-L/a
+        // TUI redraw yanks the cursor from a deep row to the top, the document stays
+        // scrolled down over the now-empty region and the whole terminal is pushed
+        // off the top of the screen — a blank black screen until you type/scroll.
+        // When the caret is high enough that everything above it already fits in the
+        // visible band, pin the document back to the top ourselves. We deliberately
+        // leave the scroll ALONE when the caret is deep (y > visible height) so the
+        // working bottom-reveal while typing on a full screen is untouched, and
+        // manual scrollback (which fires no cursor-move) is never fought.
+        var visH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        var se = document.scrollingElement || document.documentElement;
+        if (se && y <= visH - rh && se.scrollTop !== 0) se.scrollTop = 0;
       } catch (_) {}
     }
     // Re-anchor the caret to the cursor row ONLY when the cursor actually moves

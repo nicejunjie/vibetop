@@ -977,3 +977,45 @@ on-screen = broken keyboard. Reverted to `navigator.vibrate`-only.
 bridging `UIImpactFeedbackGenerator`, or a Capacitor/Cordova wrapper) — out of
 scope for a pure PWA. Don't re-try the `<input switch>` route; it was tested
 on-device (iOS PWA) and fails as documented.
+
+## Mobile terminal goes fully blank after `clear` (stale iOS reveal-scroll)
+
+*Symptom:* On the phone, running `clear` (or anything that redraws from the top —
+`Ctrl-L`, a TUI repaint) turns the terminal into an **all-black screen**. The
+prompt is gone; it comes back only once you type a key or drag to scroll. Desktop
+is unaffected.
+
+*Cause:* The mobile input overlay (`terminal-kbd.js`) parks its transparent
+textarea caret at `cursorY × rowHeight + KBD_BAR_RESERVE` (`positionCaret`), and
+relies on **iOS to reveal-scroll the document** so that caret sits above the
+keyboard. iOS only reveal-scrolls on *user* caret events — it never scrolls when
+*we* move the caret. So when `clear` yanks the cursor from a deep row to row 0,
+`paddingTop` drops but the document stays scrolled down (iOS left it where the
+deep caret was), now over the **cleared/empty** region — the prompt is at the top,
+scrolled off the top of the screen. Verified with Playwright/WebKit: after `clear`
+the xterm **buffer is correct** (prompt at row 0, `viewportY 0`, scrollback
+cleared), but `document.scrollingElement.scrollTop` stayed non-zero and the
+`.xterm-screen` top measured **above** the viewport (negative `top`). It self-heals
+on the next keystroke/scroll because that re-triggers an iOS reveal.
+
+*Fix:* In `positionCaret`, after updating `paddingTop`, if the caret is high
+enough that everything above it already fits in the visible band
+(`y <= visualViewport.height - rowHeight`), pin the document back to the top
+ourselves (`document.scrollingElement.scrollTop = 0`). This runs on `onCursorMove`
+(which `clear` fires), so the reset lands exactly when the cursor jumps up. The
+guard is deliberately one-sided:
+- **Deep caret** (`y > visible height`, i.e. typing at the bottom of a full screen
+  with the keyboard up) → **left alone**, so the working bottom-reveal is untouched.
+- **Manual scrollback** fires no cursor-move, so `positionCaret` doesn't run and
+  the reset never fights a user drag.
+- **Keyboard down** → `visualViewport.height` is full, so the caret always "fits"
+  and any residual reveal-scroll is cleared — which is correct, since the document
+  should never be scrolled when the keyboard is down (xterm's own viewport picks
+  the visible rows).
+
+*Rejected:*
+- Detecting the `ED 2`/`ED 3` (`\E[2J`/`\E[3J`) escape specifically to scroll to
+  top — narrower and more fragile than keying off the caret position, which also
+  covers `Ctrl-L` and any TUI that redraws from the top.
+- Resetting scroll on overlay `blur` — would fight a user who scrolled back through
+  history and then dismissed the keyboard.
