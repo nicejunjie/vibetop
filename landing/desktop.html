@@ -687,59 +687,52 @@
       var f = active && frameOf(active);
       if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-key', key: keyName }, '*'); } catch (e) {} }
     }
+    var HSTEP = 14, VSTEP = 20;   // px of slide per one arrow (arrow-key trackpad)
     KEYS.forEach(function (k) {
       var b = document.createElement('button');
       b.textContent = k[0];
       b.style.cssText = 'flex:1 1 0;min-width:0;height:40px;margin:0;padding:0;font:600 16px system-ui,sans-serif;' +
         'color:#e8e8ea;background:#3a3a3c;border:0;border-radius:8px;touch-action:manipulation;' +
         '-webkit-user-select:none;user-select:none';
-      b.addEventListener('touchstart', function (e) { e.preventDefault(); b.style.background = '#5a5a5c'; }, { passive: false });
-      b.addEventListener('touchend', function (e) { e.preventDefault(); b.style.background = '#3a3a3c'; routeKey(k[1]); }, { passive: false });
+      if (k[1].indexOf('Arrow') !== 0) {                 // esc / tab / ^C — plain tap
+        b.addEventListener('touchstart', function (e) { e.preventDefault(); b.style.background = '#5a5a5c'; }, { passive: false });
+        b.addEventListener('touchend', function (e) { e.preventDefault(); b.style.background = '#3a3a3c'; routeKey(k[1]); }, { passive: false });
+      } else {
+        // Arrow keys double as a TRACKPAD: a tap sends this arrow once; press and
+        // SLIDE (any arrow works) moves the cursor, distance-proportional, via the
+        // same arrow path. Axis-locked so a horizontal slide never leaks ↑/↓ (a TUI
+        // like Claude Code reads those as history/menu nav). Saves a dedicated key.
+        b.style.touchAction = 'none';                    // let the slide through instead of scrolling
+        var px, py, ax, ay, moved, lockAxis;
+        b.addEventListener('touchstart', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          var t = e.touches[0]; px = t.clientX; py = t.clientY; ax = 0; ay = 0; moved = false; lockAxis = null;
+          b.style.background = '#5a5a5c';
+        }, { passive: false });
+        b.addEventListener('touchmove', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          var t = e.touches[0];
+          ax += t.clientX - px; ay += t.clientY - py; px = t.clientX; py = t.clientY;
+          if (!moved && (Math.abs(ax) > 8 || Math.abs(ay) > 8)) moved = true;   // a slide, not a tap
+          if (!moved) return;
+          if (!lockAxis) {
+            if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
+            lockAxis = Math.abs(ax) >= Math.abs(ay) ? 'h' : 'v';
+          }
+          if (lockAxis === 'h') {
+            while (ax >= HSTEP)  { routeKey('ArrowRight'); ax -= HSTEP; }
+            while (ax <= -HSTEP) { routeKey('ArrowLeft');  ax += HSTEP; }
+          } else {
+            while (ay >= VSTEP)  { routeKey('ArrowDown');  ay -= VSTEP; }
+            while (ay <= -VSTEP) { routeKey('ArrowUp');    ay += VSTEP; }
+          }
+        }, { passive: false });
+        var done = function (e) { if (e) e.preventDefault(); b.style.background = '#3a3a3c'; };
+        b.addEventListener('touchend', function (e) { done(e); if (!moved) routeKey(k[1]); }, { passive: false });   // tap → one arrow
+        b.addEventListener('touchcancel', done, { passive: false });
+      }
       bar.appendChild(b);
     });
-
-    // Trackpad key: press and SLIDE on it to move the cursor — sends ←/→/↑/↓ via
-    // routeKey (the arrow path that already works), distance-proportional. A
-    // dedicated surface, so it never clashes with the terminal's own touch
-    // gestures; touch capture lets the slide continue past the button edge.
-    (function () {
-      var pad = document.createElement('button');
-      pad.textContent = '⇆';
-      pad.setAttribute('aria-label', 'Slide to move the cursor');
-      pad.style.cssText = 'flex:1.6 1 0;min-width:0;height:40px;margin:0;padding:0;font:600 18px system-ui,sans-serif;' +
-        'color:#bcd;background:#2c3e50;border:0;border-radius:8px;touch-action:none;' +
-        'background-image:radial-gradient(rgba(255,255,255,.20) 1px,transparent 1.5px);background-size:8px 8px;' +
-        '-webkit-user-select:none;user-select:none';
-      var px = 0, py = 0, ax = 0, ay = 0, lockAxis = null, HSTEP = 14, VSTEP = 20;   // px of slide per one arrow
-      pad.addEventListener('touchstart', function (e) {
-        e.preventDefault(); e.stopPropagation();
-        var t = e.touches[0]; px = t.clientX; py = t.clientY; ax = 0; ay = 0; lockAxis = null;
-        pad.style.background = '#3d5468';
-      }, { passive: false });
-      pad.addEventListener('touchmove', function (e) {
-        e.preventDefault(); e.stopPropagation();
-        var t = e.touches[0];
-        ax += t.clientX - px; ay += t.clientY - py; px = t.clientX; py = t.clientY;
-        // Lock to the DOMINANT axis for the whole slide: a horizontal swipe must
-        // not leak ↑/↓ (a TUI like Claude Code reads those as history/menu nav,
-        // not cursor movement). Decide once movement is unambiguous (>12px).
-        if (!lockAxis) {
-          if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
-          lockAxis = Math.abs(ax) >= Math.abs(ay) ? 'h' : 'v';
-        }
-        if (lockAxis === 'h') {
-          while (ax >= HSTEP)  { routeKey('ArrowRight'); ax -= HSTEP; }
-          while (ax <= -HSTEP) { routeKey('ArrowLeft');  ax += HSTEP; }
-        } else {
-          while (ay >= VSTEP)  { routeKey('ArrowDown');  ay -= VSTEP; }
-          while (ay <= -VSTEP) { routeKey('ArrowUp');    ay += VSTEP; }
-        }
-      }, { passive: false });
-      function relax(e) { if (e) e.preventDefault(); pad.style.background = '#2c3e50'; }
-      pad.addEventListener('touchend', relax, { passive: false });
-      pad.addEventListener('touchcancel', relax, { passive: false });
-      bar.appendChild(pad);
-    })();
 
     document.body.appendChild(bar);
 
