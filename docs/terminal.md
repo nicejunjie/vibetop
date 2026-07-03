@@ -17,7 +17,7 @@ Project dir: `~/vibe-coding/service-in-browser/terminal/`
   per-instance `vibetop-session` daemon over a Unix socket. The daemon
   holds bash in a PTY and:
   - the shell process persists across disconnects;
-  - output is recorded in a 256KB ring buffer and replayed on reconnect,
+  - output is recorded in a 2MB ring buffer and replayed on reconnect,
     so any new tab/device sees the current screen state plus recent history;
   - multiple browser tabs share the same session (daemon fans output
     to all connected clients);
@@ -56,7 +56,7 @@ Two systemd template units, instantiated for each terminal:
 1. **`vibetop-session@N.service`** (`Type=simple`) — runs
    `vibetop-session serve N` as user `myuser`. The daemon spawns
    `/bin/bash -l` in a PTY, listens on `/tmp/vibetop-session-N.sock`,
-   and records output in a 256KB ring buffer. On connect, it sends
+   and records output in a 2MB ring buffer. On connect, it sends
    `\033[0m` (SGR reset) + ring buffer contents for screen repaint.
    When bash exits (e.g. user types `exit`), the daemon clears the
    ring buffer and spawns a new bash. `Restart=always` handles daemon
@@ -159,7 +159,7 @@ got only ~80 lines of mouse-wheel scroll.
 holds bash in a PTY and passes output through transparently. No
 escape sequence processing, no screen management. xterm.js sees
 raw output and accumulates it in its scrollback buffer. On reconnect,
-the daemon replays its 256KB ring buffer so the screen state and
+the daemon replays its 2MB ring buffer so the screen state and
 recent history are restored.
 
 Before tmux, `dtach` was tried but it doesn't preserve screen state

@@ -118,7 +118,13 @@ def cmd_serve(instance):
     sock_path = f'/tmp/vibetop-session-{instance}.sock'
     pid_path = f'/tmp/vibetop-session-{instance}.pid'
     size_path = f'/tmp/vibetop-session-{instance}.size'
-    buf_cap = int(os.environ.get('CLAUDE_SESSION_BUFSIZE', 256 * 1024))
+    # Replay ring buffer: the ENTIRE buffer is re-sent to every (re)connecting
+    # client (see ring.read_all() below), so it IS the effective scrollback after
+    # any reconnect — xterm's 50000-line client buffer gets rebuilt only from this.
+    # 256 KB (~2k lines) felt short on mobile, where the PWA reconnects often; 2 MB
+    # (~15-20k lines) is the balance between deep history and a heavier replay burst
+    # on each reconnect. Override with CLAUDE_SESSION_BUFSIZE (bytes) if needed.
+    buf_cap = int(os.environ.get('CLAUDE_SESSION_BUFSIZE', 2 * 1024 * 1024))
 
     ring = RingBuffer(buf_cap)
     clients = {}          # fileno -> socket
