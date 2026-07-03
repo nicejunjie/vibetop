@@ -718,6 +718,7 @@
           if (!lockAxis) {
             if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
             lockAxis = Math.abs(ax) >= Math.abs(ay) ? 'h' : 'v';
+            dismissHint(true);   // they found the trackpad — retire the hint for good
           }
           if (lockAxis === 'h') {   // Ctrl+F/Ctrl+B = move the cursor (emacs), not ←/→ (which a TUI reuses as menu nav on an empty prompt)
             while (ax >= HSTEP)  { routeKey('CtrlF'); ax -= HSTEP; }
@@ -736,6 +737,43 @@
 
     document.body.appendChild(bar);
 
+    // One-time coach hint. The arrow keys double as a cursor trackpad (press &
+    // slide), which is undiscoverable. Float a small dismissible tip above the bar
+    // the first few times it appears, until the user actually slides (they've
+    // learned it) or taps it away — then persist "done" so it never nags again.
+    var HINT_KEY = 'vibetop:kbdhint';
+    var hintDone = false;
+    try { hintDone = localStorage.getItem(HINT_KEY) === 'done'; } catch (e) {}
+    var hintShows = 0, hintTimer = null;
+    var hint = document.createElement('div');
+    hint.style.cssText = 'position:fixed;left:8px;right:8px;top:0;display:none;z-index:9001;box-sizing:border-box;' +
+      'padding:9px 32px 9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
+      'font:500 13px system-ui,sans-serif;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.45);' +
+      '-webkit-user-select:none;user-select:none';
+    hint.innerHTML = 'Tip: press &amp; hold an arrow, then <b>slide</b> to move the cursor';
+    var hintX = document.createElement('span');
+    hintX.textContent = '×';
+    hintX.style.cssText = 'position:absolute;right:9px;top:50%;transform:translateY(-50%);font:400 19px system-ui;line-height:1;padding:0 4px;opacity:.9';
+    hint.appendChild(hintX);
+    document.body.appendChild(hint);
+    function dismissHint(persist) {
+      hint.style.display = 'none';
+      if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+      if (persist && !hintDone) { hintDone = true; try { localStorage.setItem(HINT_KEY, 'done'); } catch (e) {} }
+    }
+    function positionHint() {
+      hint.style.top = Math.round(vvBottom() - BAR_H - (hint.offsetHeight || 40) - 6) + 'px';
+    }
+    function maybeShowHint() {
+      if (hintDone || hintShows >= 3) return;   // at most 3 nudges/session, then leave it
+      hintShows++;
+      hint.style.display = 'block';
+      positionHint();                            // measure real height (may wrap to 2 lines) then place
+      if (hintTimer) clearTimeout(hintTimer);
+      hintTimer = setTimeout(function () { hint.style.display = 'none'; }, 6000);
+    }
+    hint.addEventListener('click', function () { dismissHint(true); });
+
     // iOS keyboard detection. CONFIRMED ON-DEVICE: when the keyboard opens, BOTH
     // window.innerHeight AND visualViewport.height shrink to the visible area
     // (796 -> 476), so `innerHeight - vv.height` is ALWAYS ~0 and useless. The
@@ -746,6 +784,7 @@
     function vvBottom() { var vv = window.visualViewport; return vv ? (vv.offsetTop + vv.height) : window.innerHeight; }
     var baseH = curH();
     var baseW = window.innerWidth;
+    var wasUp = false;
     function syncBar() {
       // The keyboard shrinks HEIGHT but never WIDTH; rotation / Split View change
       // width. So a width change means a non-keyboard geometry change -> drop the
@@ -757,8 +796,14 @@
       var h = curH();
       if (h > baseH) baseH = h;             // URL-bar collapse makes it taller -> new baseline
       var kbUp = h < baseH - 150;           // keyboard ~300px; URL bar ~60px; 150 distinguishes them
-      if (kbUp) { bar.style.top = Math.round(vvBottom() - BAR_H) + 'px'; bar.style.display = 'flex'; }
-      else { bar.style.display = 'none'; }
+      if (kbUp) {
+        bar.style.top = Math.round(vvBottom() - BAR_H) + 'px'; bar.style.display = 'flex';
+        if (!wasUp) maybeShowHint();                                   // keyboard just opened → nudge
+        else if (hint.style.display !== 'none') positionHint();        // keep it pinned during URL-bar scroll
+      } else {
+        bar.style.display = 'none'; dismissHint(false);                // keyboard closed → hide (don't persist)
+      }
+      wasUp = kbUp;
     }
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', syncBar);
