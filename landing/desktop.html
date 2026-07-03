@@ -688,6 +688,7 @@
       if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-key', key: keyName }, '*'); } catch (e) {} }
     }
     var HSTEP = 14, VSTEP = 20;   // px of slide per one arrow (arrow-key trackpad)
+    var padTimer = null, padActive = false, HOLD_MS = 200;   // long-press → trackpad morph
     KEYS.forEach(function (k) {
       var b = document.createElement('button');
       b.textContent = k[0];
@@ -708,12 +709,15 @@
           e.preventDefault(); e.stopPropagation();
           var t = e.touches[0]; px = t.clientX; py = t.clientY; ax = 0; ay = 0; moved = false; lockAxis = null;
           b.style.background = '#5a5a5c';
+          padActive = false; if (padTimer) clearTimeout(padTimer);
+          padTimer = setTimeout(enterPad, HOLD_MS);         // hold without releasing → morph into the trackpad
         }, { passive: false });
         b.addEventListener('touchmove', function (e) {
           e.preventDefault(); e.stopPropagation();
           var t = e.touches[0];
           ax += t.clientX - px; ay += t.clientY - py; px = t.clientX; py = t.clientY;
           if (!moved && (Math.abs(ax) > 8 || Math.abs(ay) > 8)) moved = true;   // a slide, not a tap
+          if (moved) enterPad();                                                 // a slide also morphs the bar
           if (!moved) return;
           if (!lockAxis) {
             if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
@@ -728,12 +732,28 @@
             while (ay <= -VSTEP) { routeKey('ArrowUp');    ay += VSTEP; }
           }
         }, { passive: false });
-        var done = function (e) { if (e) e.preventDefault(); b.style.background = '#3a3a3c'; };
-        b.addEventListener('touchend', function (e) { done(e); if (!moved) routeKey(k[1]); }, { passive: false });   // tap → one arrow
+        var done = function (e) { if (e) e.preventDefault(); b.style.background = '#3a3a3c'; exitPad(); };
+        b.addEventListener('touchend', function (e) { var wasPad = padActive; done(e); if (!moved && !wasPad) routeKey(k[1]); }, { passive: false });   // quick tap → one arrow; a long-press (pad shown) sends nothing
         b.addEventListener('touchcancel', done, { passive: false });
       }
       bar.appendChild(b);
     });
+
+    // A long-press (or slide) morphs the WHOLE bar into a "trackpad" surface —
+    // a dot-grid panel + label — as live feedback that the arrows are now a
+    // cursor pad. Purely visual: an overlay with pointer-events:none over the
+    // buttons (the touch is already captured by the button that got touchstart,
+    // so the overlay never intercepts the ongoing slide), fading in/out.
+    var pad = document.createElement('div');
+    pad.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
+      'opacity:0;transition:opacity .12s ease;pointer-events:none;z-index:2;color:#c2c2c8;' +
+      'font:600 13px system-ui,sans-serif;letter-spacing:.3px;background:#1c1c1e;' +
+      'background-image:radial-gradient(rgba(255,255,255,.16) 1px,transparent 1.5px);background-size:14px 14px;' +
+      'box-shadow:inset 0 0 0 1px rgba(255,255,255,.09),inset 0 8px 22px rgba(0,0,0,.4)';
+    pad.innerHTML = '<span>⇔ ⇕&nbsp;&nbsp;slide to move the cursor</span>';
+    bar.appendChild(pad);
+    function enterPad() { if (padTimer) { clearTimeout(padTimer); padTimer = null; } if (padActive) return; padActive = true; pad.style.opacity = '1'; dismissHint(true); }
+    function exitPad() { if (padTimer) { clearTimeout(padTimer); padTimer = null; } padActive = false; pad.style.opacity = '0'; }
 
     document.body.appendChild(bar);
 
