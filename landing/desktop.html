@@ -697,6 +697,40 @@
       b.addEventListener('touchend', function (e) { e.preventDefault(); b.style.background = '#3a3a3c'; routeKey(k[1]); }, { passive: false });
       bar.appendChild(b);
     });
+
+    // Trackpad key: press and SLIDE on it to move the cursor — sends ←/→/↑/↓ via
+    // routeKey (the arrow path that already works), distance-proportional. A
+    // dedicated surface, so it never clashes with the terminal's own touch
+    // gestures; touch capture lets the slide continue past the button edge.
+    (function () {
+      var pad = document.createElement('button');
+      pad.textContent = '⇆';
+      pad.setAttribute('aria-label', 'Slide to move the cursor');
+      pad.style.cssText = 'flex:1.6 1 0;min-width:0;height:40px;margin:0;padding:0;font:600 18px system-ui,sans-serif;' +
+        'color:#bcd;background:#2c3e50;border:0;border-radius:8px;touch-action:none;' +
+        'background-image:radial-gradient(rgba(255,255,255,.20) 1px,transparent 1.5px);background-size:8px 8px;' +
+        '-webkit-user-select:none;user-select:none';
+      var px = 0, py = 0, ax = 0, ay = 0, HSTEP = 14, VSTEP = 20;   // px of slide per one arrow
+      pad.addEventListener('touchstart', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var t = e.touches[0]; px = t.clientX; py = t.clientY; ax = 0; ay = 0;
+        pad.style.background = '#3d5468';
+      }, { passive: false });
+      pad.addEventListener('touchmove', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var t = e.touches[0];
+        ax += t.clientX - px; ay += t.clientY - py; px = t.clientX; py = t.clientY;
+        while (ax >= HSTEP)  { routeKey('ArrowRight'); ax -= HSTEP; }
+        while (ax <= -HSTEP) { routeKey('ArrowLeft');  ax += HSTEP; }
+        while (ay >= VSTEP)  { routeKey('ArrowDown');  ay -= VSTEP; }
+        while (ay <= -VSTEP) { routeKey('ArrowUp');    ay += VSTEP; }
+      }, { passive: false });
+      function relax(e) { if (e) e.preventDefault(); pad.style.background = '#2c3e50'; }
+      pad.addEventListener('touchend', relax, { passive: false });
+      pad.addEventListener('touchcancel', relax, { passive: false });
+      bar.appendChild(pad);
+    })();
+
     document.body.appendChild(bar);
 
     // iOS keyboard detection. CONFIRMED ON-DEVICE: when the keyboard opens, BOTH
