@@ -688,6 +688,7 @@
       if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-key', key: keyName }, '*'); } catch (e) {} }
     }
     var HSTEP = 14, VSTEP = 20;   // px of slide per one arrow (arrow-key trackpad)
+    function haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {} }
     KEYS.forEach(function (k) {
       var b = document.createElement('button');
       b.textContent = k[0];
@@ -718,6 +719,7 @@
           if (!lockAxis) {
             if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
             lockAxis = Math.abs(ax) >= Math.abs(ay) ? 'h' : 'v';
+            haptic(12);   // buzz once when the trackpad engages (Android; iOS Safari has no web Vibration API — silent no-op there)
           }
           if (lockAxis === 'h') {   // Ctrl+F/Ctrl+B = move the cursor (emacs), not ←/→ (which a TUI reuses as menu nav on an empty prompt)
             while (ax >= HSTEP)  { routeKey('CtrlF'); ax -= HSTEP; }
