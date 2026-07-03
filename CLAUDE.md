@@ -339,7 +339,7 @@ Clicking a URL in a terminal (Cmd+click / Ctrl+click) or using the "Open in Brow
 Top-level `uninstall.sh` tears down the WHOLE runtime in one shot (services, nginx site + snippets, the OnlyOffice container, web root), keeping the repo, user data (`~/.local/share`, `~/Documents`, `~/Uploads`), the JWT secret, and the ~2 GB image:
 
 ```bash
-sudo ./uninstall.sh                   # everything; re-deploy with sudo ./deploy.sh
+sudo ./uninstall.sh                   # everything; re-deploy with ./deploy.sh
 ```
 
 Sub-projects also keep their own idempotent `uninstall.sh` (leave apt packages + user data in place):

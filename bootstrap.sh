@@ -27,7 +27,7 @@ die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # --- Preconditions ----------------------------------------------------------
 # Not root: the desktop runs as your user (terminals = your shell, Files = your
-# ~), and landing/install.sh refuses to run as root (it would deploy to /root).
+# ~), and landing/install.sh refuses root (or re-execs as your $SUDO_USER).
 if [ "$(id -u)" -eq 0 ]; then
     die "Run this as a normal user with sudo, not as root.
        The Vibetop desktop runs as your user — its Terminal is your shell and

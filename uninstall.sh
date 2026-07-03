@@ -59,4 +59,4 @@ rm -rf "$APP_HOME/vibetop-www"
 echo
 echo "Removed: services, nginx config, OnlyOffice container, web root."
 echo "Kept: this repo, ~/.config/vibetop, ~/.local/share, ~/Documents, ~/Uploads, the OnlyOffice image."
-echo "Re-deploy with:  sudo ./deploy.sh"
+echo "Re-deploy with:  ./deploy.sh"

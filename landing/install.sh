@@ -2,6 +2,20 @@
 # Install the desktop UI and landing page into the location nginx serves from.
 # Override DST_DIR=... to write somewhere else.
 set -euo pipefail
+
+# Must NOT run as root: this script deploys to $HOME (root would deploy to
+# /root while nginx serves the real user's home). Under `sudo ./deploy.sh`,
+# re-exec as the invoking user so files land in their home.
+if [ "$(id -u)" -eq 0 ]; then
+  if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ]; then
+    echo "landing/install.sh: running as root — re-executing as \$SUDO_USER ($SUDO_USER) so files land in that user's home" >&2
+    exec sudo -u "$SUDO_USER" -H "$0" "$@"
+  fi
+  echo "landing/install.sh must NOT run as root: it deploys to \$HOME (would be /root)." >&2
+  echo "Run it as your normal user — deploy.sh already invokes it without sudo." >&2
+  exit 1
+fi
+
 DIR="$(dirname "$(readlink -f "$0")")"
 DST_DIR="${DST_DIR:-$HOME/vibetop-www}"
 DRY_RUN="${DRY_RUN:-0}"

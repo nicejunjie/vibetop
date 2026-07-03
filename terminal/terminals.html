@@ -187,7 +187,9 @@
     tab.className = 'tab' + (starting ? ' starting' : '');
     tab.draggable = true;
     tab.dataset.n = n;
-    tab.innerHTML = '<span class="label">' + tabLabel(n) + '</span><span class="close">×</span>';
+    var _lbl = document.createElement('span'); _lbl.className = 'label'; _lbl.textContent = tabLabel(n);
+    var _cls = document.createElement('span'); _cls.className = 'close'; _cls.textContent = '×';
+    tab.appendChild(_lbl); tab.appendChild(_cls);
     tabs.insertBefore(tab, addBtn);
 
     var iframe = document.createElement('iframe');
