@@ -937,3 +937,43 @@ root `Popen`) foregrounded; only the live service didn't, and adding
 `systemd-run --scope` to escape the sandbox — extra moving parts for a service
 that's already root-with-`su` (so the directive bought little real isolation
 anyway).
+
+## Mobile haptics for the arrow-key trackpad — no usable iOS web path (Android only)
+
+*Goal:* a small buzz when a slide on the on-screen arrow keys locks into
+"trackpad" mode, so there's tactile confirmation the pad engaged.
+
+*What works:* `navigator.vibrate(12)` on the axis-lock. Fires on **Android
+Chrome**. On **iOS Safari (incl. standalone PWA) the Vibration API doesn't
+exist**, so it's a silent no-op there.
+
+*The iOS dead-end:* iOS 17.4+ plays a subtle system haptic when an
+`<input type="checkbox" switch>` toggles, and the community trick is to click a
+hidden one from within a user gesture. It does **not** work here, for two
+compounding reasons found by testing on-device:
+- **Off-screen (`top:-9999px`) → no haptic at all.** iOS only plays the toggle
+  haptic when the switch is actually **rendered in the viewport**. (Confirmed the
+  device's system haptics were on — the terminal's native long-press *text
+  selection* buzzed fine the whole time; only our synthetic toggle was silent.)
+- **In-viewport → it steals focus and drops the keyboard.** Rendered at 1×1
+  opacity:0 so it *can* buzz, clicking the `<label>`/switch moves focus to the
+  checkbox, which blurs the terminal's input (2 iframes down) → iOS hides the
+  on-screen keyboard → **the arrow keybar itself disappears** (it only shows
+  while a keyboard is up). Blurring the switch + refocusing afterward doesn't
+  help: from the top document `activeElement` is the *iframe element*, not the
+  inner input, so the keyboard's already gone. `preventScroll`/`pointer-events`
+  don't stop the focus move.
+
+So on iOS the switch hack is strictly lose-lose: off-screen = no buzz,
+on-screen = broken keyboard. Reverted to `navigator.vibrate`-only.
+
+*Rejected:*
+- `<input switch>` toggle hack (both placements — see above).
+- Reaching cross-frame to refocus the terminal input after the toggle — fragile,
+  and the keyboard has already begun animating down by then; not worth it for a
+  buzz.
+
+*If revisited:* the only real iOS haptic path is native (a WKWebView host app
+bridging `UIImpactFeedbackGenerator`, or a Capacitor/Cordova wrapper) — out of
+scope for a pure PWA. Don't re-try the `<input switch>` route; it was tested
+on-device (iOS PWA) and fails as documented.
