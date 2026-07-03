@@ -688,7 +688,29 @@
       if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-key', key: keyName }, '*'); } catch (e) {} }
     }
     var HSTEP = 14, VSTEP = 20;   // px of slide per one arrow (arrow-key trackpad)
-    function haptic(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 12); } catch (e) {} }
+    // Haptics. Android Chrome has the Vibration API; iOS Safari (incl. standalone
+    // PWA) does NOT — but iOS 17.4+ fires a subtle haptic when a <input switch>
+    // toggles, so we synthetically click a hidden one. Kept off-screen +
+    // pointer-events:none + tabindex=-1 and blurred after, so it never steals
+    // focus from the terminal's input (which would drop the on-screen keyboard).
+    var _hapSwitch = null;
+    function haptic(ms) {
+      try {
+        if (navigator.vibrate) { navigator.vibrate(ms || 12); return; }
+        if (!_hapSwitch) {
+          var lab = document.createElement('label');
+          lab.setAttribute('aria-hidden', 'true');
+          lab.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
+          var inp = document.createElement('input');
+          inp.type = 'checkbox'; inp.setAttribute('switch', ''); inp.tabIndex = -1;
+          lab.appendChild(inp); document.body.appendChild(lab);
+          _hapSwitch = inp;
+        }
+        var prev = document.activeElement;
+        _hapSwitch.click();                              // the toggle is what fires the iOS haptic
+        if (document.activeElement === _hapSwitch) { _hapSwitch.blur(); if (prev && prev.focus) try { prev.focus({ preventScroll: true }); } catch (e) {} }
+      } catch (e) {}
+    }
     KEYS.forEach(function (k) {
       var b = document.createElement('button');
       b.textContent = k[0];
@@ -719,7 +741,7 @@
           if (!lockAxis) {
             if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
             lockAxis = Math.abs(ax) >= Math.abs(ay) ? 'h' : 'v';
-            haptic(12);   // buzz once when the trackpad engages (Android; iOS Safari has no web Vibration API — silent no-op there)
+            haptic(12);   // buzz once when the trackpad engages (Android: Vibration API; iOS 17.4+: <input switch> haptic)
           }
           if (lockAxis === 'h') {   // Ctrl+F/Ctrl+B = move the cursor (emacs), not ←/→ (which a TUI reuses as menu nav on an empty prompt)
             while (ax >= HSTEP)  { routeKey('CtrlF'); ax -= HSTEP; }
