@@ -671,10 +671,13 @@
   // keyboard, the prompt, or iOS keyboard chrome. Touch only.
   (function () {
     if (!IS_TOUCH) return;
-    var KEYS = [
-      ['esc', 'Escape'], ['tab', 'Tab'], ['^C', 'CtrlC'],
-      ['←', 'ArrowLeft'], ['↑', 'ArrowUp'], ['↓', 'ArrowDown'], ['→', 'ArrowRight']
-    ];
+    // Two groups so the trackpad can sit BETWEEN them (mid-row) rather than at the
+    // far edge: a trackpad pinned to the right edge has no room to slide the cursor
+    // rightward (you run off the screen). Placed after ^C it has the arrow keys'
+    // width to its right (and touch capture lets a slide continue over them to the
+    // edge), so both directions have room.
+    var KEYS_L = [['esc', 'Escape'], ['tab', 'Tab'], ['^C', 'CtrlC']];
+    var KEYS_R = [['←', 'ArrowLeft'], ['↑', 'ArrowUp'], ['↓', 'ArrowDown'], ['→', 'ArrowRight']];
     var BAR_H = 50;      // button row (40) + padding (5*2)
     var bar = document.createElement('div');
     bar.id = 'sys-keybar';
@@ -687,7 +690,7 @@
       var f = active && frameOf(active);
       if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: 'kbd-key', key: keyName }, '*'); } catch (e) {} }
     }
-    KEYS.forEach(function (k) {
+    function addKey(k) {
       var b = document.createElement('button');
       b.textContent = k[0];
       b.style.cssText = 'flex:1 1 0;min-width:0;height:40px;margin:0;padding:0;font:600 16px system-ui,sans-serif;' +
@@ -696,12 +699,14 @@
       b.addEventListener('touchstart', function (e) { e.preventDefault(); b.style.background = '#5a5a5c'; }, { passive: false });
       b.addEventListener('touchend', function (e) { e.preventDefault(); b.style.background = '#3a3a3c'; routeKey(k[1]); }, { passive: false });
       bar.appendChild(b);
-    });
+    }
+    KEYS_L.forEach(addKey);
 
     // Trackpad key: press and SLIDE on it to move the cursor — sends ←/→/↑/↓ via
     // routeKey (the arrow path that already works), distance-proportional. A
     // dedicated surface, so it never clashes with the terminal's own touch
-    // gestures; touch capture lets the slide continue past the button edge.
+    // gestures; touch capture lets the slide continue past the button edge. Sits
+    // mid-row (after ^C, before the arrows) so a rightward slide has room.
     (function () {
       var pad = document.createElement('button');
       pad.textContent = '⇆';
@@ -730,6 +735,8 @@
       pad.addEventListener('touchcancel', relax, { passive: false });
       bar.appendChild(pad);
     })();
+
+    KEYS_R.forEach(addKey);
 
     document.body.appendChild(bar);
 
