@@ -1335,7 +1335,7 @@
     }
   }
   function setSysStatsLocal(on) {
-    localStorage.setItem('vibetop:sysstats', on ? '1' : '0');
+    try { localStorage.setItem('vibetop:sysstats', on ? '1' : '0'); } catch (e) {}
     applySysStats();
     // When turned on locally, the next heartbeat renders the numbers (toggleSysStats
     // kicks one right after the server agrees; a peer-driven change already rode in

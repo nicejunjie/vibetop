@@ -557,6 +557,7 @@
   // The shell broadcasts which app is active; pause when it isn't us, and do an
   // immediate refresh when we come back so the charts aren't stale.
   window.addEventListener('message', function(e) {
+    if (e.origin !== location.origin) return;
     if (!e.data || e.data.type !== 'vibetop:active') return;
     var nowActive = (e.data.active === 'monitor');
     var wasActive = appActive;

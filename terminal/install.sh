@@ -356,7 +356,8 @@ case "$INSTALL_LANDING" in
     *) echo "INSTALL_LANDING must be 0, 1, or force (got: $INSTALL_LANDING)" >&2; exit 1 ;;
 esac
 if (( write_landing )); then
-    echo "== writing landing page =="
+    # Only preps the dir + traversal ACLs; the page itself is deployed by landing/install.sh.
+    echo "== preparing landing dir =="
     run sudo install -d -o "$APP_USER" -g "$APP_USER" -m 0755 "$LANDING_DIR"
     p="$LANDING_DIR"
     while p="$(dirname "$p")" && [ "$p" != "/" ] && [ -n "$p" ]; do

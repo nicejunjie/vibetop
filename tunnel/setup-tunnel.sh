@@ -95,7 +95,11 @@ echo "== rendering config.yml =="
 if [ -f "$APP_DIR/config.yml.template" ]; then
     sed "s/@TUNNEL_UUID@/$UUID/g" "$APP_DIR/config.yml.template" \
         | run sudo tee /etc/cloudflared/config.yml > /dev/null
-    echo "   written to /etc/cloudflared/config.yml"
+    if (( DRY_RUN )); then
+        echo "   would write /etc/cloudflared/config.yml"
+    else
+        echo "   written to /etc/cloudflared/config.yml"
+    fi
 else
     echo "   template not found at $APP_DIR/config.yml.template" >&2
     exit 1

@@ -52,7 +52,7 @@ if [ -f /etc/nginx/sites-available/default ] && [ ! -L /etc/nginx/sites-enabled/
     run sudo ln -sfn /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
     echo "   re-enabled default site"
 fi
-run sudo nginx -t && run sudo systemctl reload nginx
+run sudo nginx -t && run sudo systemctl reload nginx || true   # best-effort: never abort cleanup on a broken/absent nginx
 
 echo "== removing landing files =="
 run rm -f "$LANDING_DIR/index.html" "$LANDING_DIR/landing.html" \

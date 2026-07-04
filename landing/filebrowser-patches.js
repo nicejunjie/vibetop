@@ -183,7 +183,9 @@
     var sel = document.querySelector('[aria-selected="true"]:not([data-dir="true"])');
     if (sel) {
       var name = sel.getAttribute("aria-label");
-      if (name) return (p || "") + name;
+      // p (from location.pathname) is already percent-encoded; encode the raw
+      // aria-label name to match, so spaces/#/? survive the /fileview/ URL.
+      if (name) return (p || "") + encodeURIComponent(name);
     }
     return null;
   }

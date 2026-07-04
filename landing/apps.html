@@ -280,6 +280,7 @@
 
   // Pause polling when the desktop switches away from this app, resume when back.
   window.addEventListener('message', function(e) {
+    if (e.origin !== location.origin) return;
     if (e.data && e.data.type === 'vibetop:active') {
       if (e.data.active === 'x11launcher') startPoll(); else stopPoll();
     }

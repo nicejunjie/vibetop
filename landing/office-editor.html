@@ -100,6 +100,7 @@
   // forcesave() is a no-op until the doc is actually modified, so registering
   // these before the editor exists is safe.
   window.addEventListener('message', function(e) {
+    if (e.origin !== location.origin) return;
     if (e.data && e.data.type === 'vibetop:active' && e.data.active !== 'office') forcesave(false);
   });
   window.addEventListener('pagehide', function() { forcesave(true); });   // app closed

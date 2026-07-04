@@ -112,11 +112,26 @@ fi
 if (( INSTALL_CONTAINER )); then
     echo "== (re)creating container $CONTAINER =="
     run docker rm -f "$CONTAINER" 2>/dev/null || true
-    run docker run -d --name "$CONTAINER" --restart unless-stopped \
-        -p "127.0.0.1:${ONLYOFFICE_PORT}:80" \
-        -e JWT_ENABLED=true -e JWT_SECRET="$SECRET" -e JWT_HEADER=Authorization \
-        --add-host=host.docker.internal:host-gateway \
-        "$ONLYOFFICE_IMAGE"
+    # The JWT secret goes in via a 0600 --env-file (not -e JWT_SECRET=...) so it
+    # never shows up in the docker CLI's process args (ps).
+    if (( DRY_RUN )); then
+        run docker run -d --name "$CONTAINER" --restart unless-stopped \
+            -p "127.0.0.1:${ONLYOFFICE_PORT}:80" \
+            -e JWT_ENABLED=true --env-file "<jwt-secret-env-file>" -e JWT_HEADER=Authorization \
+            --add-host=host.docker.internal:host-gateway \
+            "$ONLYOFFICE_IMAGE"
+    else
+        ENVFILE="$(umask 077; mktemp)"
+        trap 'rm -f "$ENVFILE"' EXIT
+        printf 'JWT_SECRET=%s\n' "$SECRET" > "$ENVFILE"
+        docker run -d --name "$CONTAINER" --restart unless-stopped \
+            -p "127.0.0.1:${ONLYOFFICE_PORT}:80" \
+            -e JWT_ENABLED=true --env-file "$ENVFILE" -e JWT_HEADER=Authorization \
+            --add-host=host.docker.internal:host-gateway \
+            "$ONLYOFFICE_IMAGE"
+        rm -f "$ENVFILE"
+        trap - EXIT
+    fi
 else
     echo "== keeping existing container (INSTALL_CONTAINER=0) =="
 fi

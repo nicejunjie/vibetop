@@ -136,6 +136,7 @@ function load() {
   fetch('/api/services/discover').then(function (r) { return r.json(); }).then(render).catch(function () {});
 }
 window.addEventListener('message', function (e) {
+  if (e.origin !== location.origin) return;
   if (e.data && e.data.type === 'services') render(e.data.data);
 });
 document.getElementById('refresh').addEventListener('click', load);

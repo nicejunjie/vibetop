@@ -178,7 +178,7 @@
     return open;
   }
   function saveTabOrder() {
-    localStorage.setItem('terminal-tabs', JSON.stringify(getTabOrder()));
+    try { localStorage.setItem('terminal-tabs', JSON.stringify(getTabOrder())); } catch (e) {}
   }
 
   function addTab(n, starting) {
@@ -293,7 +293,7 @@
       document.getElementById('frame-' + n).src = '/t' + n + '/';
       loaded[n] = true;
     }
-    localStorage.setItem('active-terminal', n);
+    try { localStorage.setItem('active-terminal', n); } catch (e) {}
     document.title = tabLabel(n) + ' — Vibetop';
     focusTerminal(n);
   }
@@ -452,6 +452,7 @@
   });
 
   window.addEventListener('message', function(e) {
+    if (e.origin !== location.origin) return;
     if (!e.data) return;
     if (e.data.type === 'focus-terminal') {
       syncStatus();                 // app just activated → reconcile the set now
