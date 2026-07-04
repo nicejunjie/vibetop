@@ -86,6 +86,7 @@ NGINX_DIRTY=0
 # pipe exit status:  <render> | nginx_write "$dest" || NGINX_DIRTY=1
 nginx_write() {
     local dest="$1" tmp; tmp="$(mktemp)"; cat >"$tmp"
+    if ! [ -s "$tmp" ]; then echo "nginx_write: refusing to write EMPTY config to $dest (upstream render failed?)" >&2; rm -f "$tmp"; return 0; fi
     if [ -f "$dest" ] && cmp -s "$tmp" "$dest"; then rm -f "$tmp"; return 0; fi
     if (( DRY_RUN )); then echo "+ nginx: would update $dest"; else sudo install -m 0644 "$tmp" "$dest"; fi
     rm -f "$tmp"; return 1

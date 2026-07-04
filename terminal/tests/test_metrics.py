@@ -63,6 +63,20 @@ def test_metrics_counts_requests_and_statuses(server):
     assert m["sse_clients"] == 0
 
 
+def test_events_rejects_past_sse_cap(server, mgr):
+    # Saturate the gauge so the next /api/events is rejected with 503. Never open
+    # a non-rejected stream here — it would block forever (SSE never returns).
+    with mgr._metrics_lock:
+        mgr._METRICS["sse_clients"] = mgr._SSE_MAX_CLIENTS
+    try:
+        with pytest.raises(urllib.error.HTTPError) as ei:
+            urllib.request.urlopen(server + "/api/events", timeout=5)
+        assert ei.value.code == 503
+    finally:
+        with mgr._metrics_lock:
+            mgr._METRICS["sse_clients"] = 0
+
+
 def test_metrics_shape_is_stable(server):
     _, m = _get(server, "/api/metrics")
     for key in (

@@ -107,6 +107,16 @@ if (( ! DRY )) && ip -4 route show scope link 2>/dev/null | awk '$3 !~ /^(docker
     sudo "$REPO_DIR/tools/setup-samesubnet-routing.sh" || echo "  (same-subnet routing setup failed — see docs/dual-homed-network.md)"
 fi
 
+# The manager runs in-place from the checkout, so a git-pull + redeploy otherwise
+# leaves the OLD process serving new code. Restart it (quick, watchdog-backed;
+# does NOT touch terminals/Browser — those are separate units). The in-app Updater
+# restarts itself out-of-band and never runs this script, so this only affects a
+# manual ./deploy.sh.
+if (( ! DRY )); then
+    step "restart manager (load new code)"
+    sudo systemctl try-restart vibetop-manager || echo "  (manager restart failed — check: systemctl status vibetop-manager)"
+fi
+
 if (( ! DRY )); then
     step "health check (loopback http codes)"
     for p in / /t1/ /terminals/ /files/ /browser/ /onlyoffice/healthcheck /api/system/status; do

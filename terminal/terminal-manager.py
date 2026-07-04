@@ -232,6 +232,7 @@ DESKTOP_STATE_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-state
 # a machine that fully closed/slept still shows green for up to this long.
 DESKTOP_TTL = 120         # seconds; an instance idle longer drops out of the union
 DESKTOP_MAX_INSTANCES = 24
+_SSE_MAX_CLIENTS = 64   # cap concurrent /api/events streams; each pins a thread for the client's lifetime
 _desktop_lock = threading.Lock()
 # Per-host update log (real history of THIS deployment's self-updates, seeded
 # with a "deployed" baseline on first run) — not the git changelog.
@@ -2430,9 +2431,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, data)
 
     def _handle_events(self):
-        # Track the open-stream gauge for /api/metrics around the stream's life.
+        # Cap concurrent streams: each holds a thread for the client's lifetime and
+        # ThreadingHTTPServer has no connection limit, so an abusive client could
+        # exhaust the pool. Reject past the cap with 503 (EventSource auto-retries).
         with _metrics_lock:
-            _METRICS["sse_clients"] += 1
+            if _METRICS["sse_clients"] >= _SSE_MAX_CLIENTS:
+                over = True
+            else:
+                _METRICS["sse_clients"] += 1
+                over = False
+        if over:
+            try:
+                self.send_response(503)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Retry-After", "10")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(b"too many event streams\n")
+            except (OSError, ValueError):
+                pass
+            return
         try:
             self._events_stream()
         finally:

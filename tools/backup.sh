@@ -94,6 +94,13 @@ if (( INSTALL_TIMER )); then
     svc=/etc/systemd/system/vibetop-backup.service
     tmr=/etc/systemd/system/vibetop-backup.timer
     echo "Installing daily backup timer running: $SELF  (as $APP_USER)"
+    if (( DRY_RUN )); then
+        echo "Would write $svc (oneshot service running $SELF as $APP_USER)."
+        echo "Would write $tmr (OnCalendar=daily, Persistent=true)."
+        echo "Would run: sudo systemctl daemon-reload"
+        echo "Would run: sudo systemctl enable --now vibetop-backup.timer"
+        exit 0
+    fi
     sudo tee "$svc" >/dev/null <<EOF
 [Unit]
 Description=vibetop user-data backup
