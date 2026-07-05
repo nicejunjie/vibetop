@@ -507,7 +507,8 @@
     try { window.term.onScroll(positionHandles); } catch (_) {}   // follow scrollback
 
     var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null, startCell = null;
-    var lastTapTime = 0, lastTapX = 0, lastTapY = 0, tStart = 0;   // for double-tap (claimSize)
+    var lastTapTime = 0, lastTapX = 0, lastTapY = 0, didScroll = false;   // double-tap (claimSize) + tap-vs-scroll
+    var DBLTAP_MS = 450, DBLTAP_PX = 90;   // two quick taps at ~the same spot → re-claim the shared PTY shape
     ov.addEventListener('touchstart', function (e) {
       var c = e.touches[0];
       startX = c.clientX; startY = prevY = c.clientY; acc = 0; moved = false; selecting = false; anchor = null;
@@ -516,7 +517,7 @@
       // terminal, so re-measuring later (at the 450ms timer) would map the stale
       // finger-y onto the shifted rows and select ~2 rows too low.
       startCell = cellAt(startX, startY);
-      tStart = Date.now();
+      didScroll = false;
       hideCopy();
       if (lpTimer) clearTimeout(lpTimer);
       lpTimer = setTimeout(function () {            // held still ~0.45s → select the word
@@ -546,54 +547,67 @@
       var dy = y - prevY; prevY = y; acc += dy;     // else scroll the scrollback
       var t = window.term;
       if (t && t.scrollLines) {
-        while (acc > 18) { t.scrollLines(-1); acc -= 18; }
-        while (acc < -18) { t.scrollLines(1); acc += 18; }
+        while (acc > 18) { t.scrollLines(-1); acc -= 18; didScroll = true; }
+        while (acc < -18) { t.scrollLines(1); acc += 18; didScroll = true; }
       }
       if (moved) e.preventDefault();
     }, { passive: false });
     ov.addEventListener('touchend', function (e) {
       if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
-      var ct = e.changedTouches[0], now = Date.now(), dur = now - tStart;
-      // A BRIEF touch is a tap even if the page drifted under the finger while the
-      // keyboard animated in (that drift sets `moved`, which would otherwise hide
-      // the tap). Two quick taps close in space = double-tap → re-claim this
-      // device's terminal shape. Keyed on duration, not `moved`, so it survives the
-      // keyboard-raise layout shift on the first tap.
-      if (!selecting && dur < 250) {
-        if (now - lastTapTime < 400 &&
-            Math.abs(ct.clientX - lastTapX) < 60 && Math.abs(ct.clientY - lastTapY) < 60) {
-          e.preventDefault();
-          lastTapTime = 0;
-          try { ov.blur(); } catch (_) {}           // reshaping; don't leave the keyboard up
-          flash('↔ resized');
-          claimSize();
-          return;
-        }
-        lastTapTime = now; lastTapX = ct.clientX; lastTapY = ct.clientY;
-      }
+      var ct = e.changedTouches[0], now = Date.now();
+
+      // Long-press selection just ended → finalize it; it is never a tap.
       if (selecting) {
         selecting = false;
         e.preventDefault();                         // don't raise the keyboard
         try { ov.blur(); } catch (_) {}             // and dismiss it if iOS raised it during the long-press
-        var t = window.term;
-        if (t && t.hasSelection()) { showCopy(ct.clientX, ct.clientY); showHandles(selStart, selEnd); }
-      } else if (!moved) {                          // single tap
-        // If the tap landed on a URL, open it in the Browser instead of raising
-        // the keyboard — the touch equivalent of the desktop's Cmd/Ctrl+click.
-        // window.open is overridden by the /tN/ sub_filter to POST
-        // /api/browser/open + switch to the Browser app (same path as desktop).
-        var cell = startCell;   // captured at touchstart (consistent with the finger position)
-        var url = cell && urlAt(cell);
-        if (url) {
-          e.preventDefault();
-          try { ov.blur(); } catch (_) {}           // don't pop the keyboard
-          try { window.open(url); } catch (_) {}
-          flash('↗ opening link');
-          return;
-        }
-        try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}
-        hideHandles();  // tapping elsewhere dismisses the selection + its handles, then the keyboard comes up
+        var ts = window.term;
+        if (ts && ts.hasSelection()) { showCopy(ct.clientX, ct.clientY); showHandles(selStart, selEnd); }
+        return;
       }
+
+      // A gesture that actually SCROLLED the scrollback is not a tap. We gate the
+      // tap test on a real scroll (didScroll), NOT the finger drift the keyboard
+      // animation causes nor a strict duration — the old `dur < 250` test dropped
+      // slightly-long taps, so the double-tap never registered and only the
+      // keyboard came up (the reported bug). A brief tap that merely drifted still
+      // counts.
+      if (didScroll) return;
+
+      // A tap ON a URL opens it in the Browser (no keyboard) — handled first so a
+      // link tap never feeds the resize double-tap.
+      var url = startCell && urlAt(startCell);
+      if (url) {
+        e.preventDefault();
+        try { ov.blur(); } catch (_) {}
+        try { window.open(url); } catch (_) {}
+        flash('↗ opening link');
+        lastTapTime = 0;
+        return;
+      }
+
+      // DOUBLE-TAP (two quick taps ~the same spot) → re-claim this device's terminal
+      // shape. Checked BEFORE the single-tap path and returns immediately, so a
+      // double-tap runs ONLY the resize — it never opens a link, clears a selection,
+      // or leaves the keyboard up. The FIRST tap already raised the keyboard
+      // natively (iOS only lets us raise it inside the tap gesture, so it can't be
+      // deferred to wait for a second tap), so we blur here to drop it right back.
+      if (now - lastTapTime < DBLTAP_MS &&
+          Math.abs(ct.clientX - lastTapX) < DBLTAP_PX && Math.abs(ct.clientY - lastTapY) < DBLTAP_PX) {
+        e.preventDefault();
+        lastTapTime = 0;
+        try { ov.blur(); } catch (_) {}
+        flash('↔ resized');
+        claimSize();
+        return;
+      }
+
+      // SINGLE tap: remember it (so a quick second tap becomes the double-tap above)
+      // and dismiss any active selection. No preventDefault → iOS raises the
+      // keyboard natively, so tapping to type stays instant.
+      lastTapTime = now; lastTapX = ct.clientX; lastTapY = ct.clientY;
+      try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}
+      hideHandles();
     }, { passive: false });
 
     dbg(' [overlay ready] ');
