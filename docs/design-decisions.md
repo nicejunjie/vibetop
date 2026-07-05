@@ -1064,3 +1064,64 @@ sends just `x`; normal typing + backspace is unchanged (`a,b,c,\x7f`).
   the shell cursor moves).
 - Resetting on the overlay's `blur` — would fight a user who scrolled back and then
   dismissed the keyboard, and misses the trackpad case (no blur happens there).
+
+## Mobile terminal resize: two-finger tap, not single-finger double-tap (iOS keyboard conflict)
+
+*Goal:* a touch gesture to re-claim the shared PTY's shape for this device
+(`claimSize()`), the mobile analogue of the desktop's double-click.
+
+*Symptom (the dead end):* a single-finger **double-tap** on the terminal was tried
+first. With the keyboard **hidden** it was unusable: the first tap raises the iOS
+keyboard (native focus of the input overlay), which slides up **under the finger**,
+so the **second tap lands on a keyboard key and types a stray character** — and iOS
+delivers that tap to the system keyboard, not to our overlay, so there's *also* no
+resize. Even with the keyboard already up, a double-tap on the editable overlay pops
+iOS's native **Paste** bubble / word-select. Tuning the double-tap detection
+(duration vs. `didScroll`, window/px tolerances) improved *registration* but could
+never fix the stray-key problem — that tap is physically on the system keyboard.
+
+*Root cause:* iOS only raises the keyboard when an input is focused **inside the tap
+gesture itself**. So the first tap *must* raise the keyboard for single-tap-to-type
+to work, and a delayed/deferred `focus()` (to "wait and see" if a second tap is
+coming) does **not** raise the keyboard on iOS. There is no way to have "single tap
+raises the keyboard" and "double tap raises no keyboard" from the same finger.
+
+*Fix:* make the resize a **two-finger tap**. Two fingers never focus the overlay
+textarea, so **no keyboard ever rises** — safe regardless of keyboard state.
+`preventDefault` on every touchend of the two-finger gesture blocks stray focus;
+`claimSize()` fires once all fingers lift within 600ms. Single-finger double-tap is
+left entirely to iOS (native selection / Paste). A versioned-key coach hint
+("two-finger tap to resize…") teaches it. Verified in Playwright/WebKit with the
+legacy `document.createTouch`/`createTouchList` API (Playwright's `touchscreen` is
+single-finger only): two-finger dispatch fires the resize and leaves the overlay
+unfocused (keyboard down); real-device confirmation from the operator.
+
+*Rejected:*
+- **Single-finger double-tap, any variant** — stray key from the risen keyboard
+  (hidden) or the Paste bubble (up); unfixable, it's how iOS routes the 2nd tap.
+- **Gating single-finger double-tap to keyboard-up only** (an interim step, on
+  `ovFocused`) — removed: still popped the Paste menu, and split the gesture
+  confusingly across keyboard states.
+- **Deferring the keyboard to disambiguate** — a `setTimeout`'d `focus()` won't
+  raise the iOS keyboard (must be in-gesture), so single-tap-to-type would break.
+
+## Coach banners: show every time until ×, with a persisted max-showings cap
+
+*Context:* the two blue coach tips (terminal two-finger-resize; desktop arrow-key
+trackpad) started as "nudge a few times per session, then auto-hide, and retire the
+moment the user does the gesture." The operator wanted them **more discoverable**:
+show **every time** and only disappear when the user explicitly taps the **×**.
+
+*Design:* no auto-hide, no per-session cap, and doing the gesture does **not**
+dismiss the banner — only the × persists `done` (localStorage). Safety net so it
+can't nag forever if the × is never tapped: a **persisted show-count** capped at
+`TF_MAX`/`HINT_MAX` (10); the count is stored under the same key (an integer) until
+the × writes the `done` sentinel. The banner text states the cap ("shows up to 10
+times — tap × to dismiss") with the number interpolated from the constant so copy
+and behavior can't drift.
+
+*Gotcha — resetting dismissed state:* changing a tip's behavior doesn't re-show it
+to anyone who already dismissed the old one (their `done` flag suppresses it). The
+fix is to **version the localStorage key** (`…:v2`); bumping the `:vN` suffix
+re-runs the "campaign" for everyone. This is why the operator "didn't see the tip"
+after the behavior change — their old `vibetop:2fingerhint` was still `done`.
