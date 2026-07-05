@@ -773,7 +773,8 @@
       'padding:9px 32px 9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
       'font:500 13px system-ui,sans-serif;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.45);' +
       '-webkit-user-select:none;user-select:none';
-    hint.innerHTML = 'Tip: press &amp; hold an arrow, then <b>slide</b> to move the cursor';
+    hint.innerHTML = '<div>Tip: press &amp; hold an arrow, then <b>slide</b> to move the cursor</div>' +
+      '<div style="margin-top:3px;font-size:11px;opacity:.85;font-weight:400">This tip shows up to ' + HINT_MAX + ' times — tap × to dismiss it</div>';
     var hintX = document.createElement('span');
     hintX.textContent = '×';
     hintX.style.cssText = 'position:absolute;right:9px;top:50%;transform:translateY(-50%);font:400 19px system-ui;line-height:1;padding:0 4px;opacity:.9';

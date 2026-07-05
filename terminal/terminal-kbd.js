@@ -640,7 +640,13 @@
       tfEl.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:2147483000;box-sizing:border-box;' +
         'padding:9px 34px 9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
         'font:500 13px system-ui,sans-serif;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.45)';
-      tfEl.textContent = 'Tip: two-finger tap to resize the terminal to this screen';
+      var tfMain = document.createElement('div');
+      tfMain.textContent = 'Tip: two-finger tap to resize the terminal to this screen';
+      tfEl.appendChild(tfMain);
+      var tfNote = document.createElement('div');
+      tfNote.textContent = 'This tip shows up to ' + TF_MAX + ' times — tap × to dismiss it';
+      tfNote.style.cssText = 'margin-top:3px;font-size:11px;opacity:.85;font-weight:400';
+      tfEl.appendChild(tfNote);
       var x = document.createElement('span');
       x.textContent = '×';
       x.style.cssText = 'position:absolute;right:10px;top:50%;transform:translateY(-50%);font:400 19px system-ui;line-height:1;padding:0 6px;opacity:.9';
