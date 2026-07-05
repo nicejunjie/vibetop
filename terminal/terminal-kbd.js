@@ -509,7 +509,21 @@
     var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null, startCell = null;
     var lastTapTime = 0, lastTapX = 0, lastTapY = 0, didScroll = false;   // double-tap (claimSize) + tap-vs-scroll
     var DBLTAP_MS = 450, DBLTAP_PX = 90;   // two quick taps at ~the same spot → re-claim the shared PTY shape
+    var twoFinger = false, twoFingerStart = 0;   // two-finger tap → resize (raises NO keyboard — the reliable path)
+    // The overlay's focus state ≈ the keyboard being up (the nested /tN/ iframe
+    // can't read the keyboard via visualViewport). Single-finger double-tap resize
+    // is gated on this so it only fires when the keyboard is ALREADY up.
+    var ovFocused = false;
+    ov.addEventListener('focus', function () { ovFocused = true; });
+    ov.addEventListener('blur', function () { ovFocused = false; });
     ov.addEventListener('touchstart', function (e) {
+      if (e.touches.length >= 2) {                 // two fingers → resize gesture (no keyboard)
+        twoFinger = true; twoFingerStart = Date.now();
+        if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+        selecting = false;
+        return;
+      }
+      twoFinger = false;
       var c = e.touches[0];
       startX = c.clientX; startY = prevY = c.clientY; acc = 0; moved = false; selecting = false; anchor = null;
       // Capture the cell NOW, while the finger position and the layout agree. If
@@ -535,6 +549,7 @@
       }, 450);
     }, { passive: true });
     ov.addEventListener('touchmove', function (e) {
+      if (twoFinger) { e.preventDefault(); return; }   // two-finger resize gesture: ignore scroll/select
       var c = e.touches[0], y = c.clientY;
       if (!moved && (Math.abs(c.clientX - startX) > 8 || Math.abs(y - startY) > 8)) {
         moved = true; if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
@@ -555,6 +570,21 @@
     ov.addEventListener('touchend', function (e) {
       if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
       var ct = e.changedTouches[0], now = Date.now();
+
+      // TWO-FINGER TAP → re-claim the terminal shape. Two fingers never focus the
+      // textarea, so the keyboard never rises — this is the reliable way to resize
+      // when the keyboard is HIDDEN (a single-finger double-tap there raises the
+      // keyboard, and the 2nd tap lands on the just-risen keyboard and types a stray
+      // key). preventDefault every touchend of the gesture so no stray focus; fire
+      // once ALL fingers have lifted.
+      if (twoFinger) {
+        e.preventDefault();
+        if (e.touches.length === 0) {              // last finger up → gesture complete
+          var d2 = now - twoFingerStart; twoFinger = false;
+          if (d2 < 600) { flash('↔ resized'); claimSize(); }
+        }
+        return;
+      }
 
       // Long-press selection just ended → finalize it; it is never a tap.
       if (selecting) {
@@ -586,26 +616,26 @@
         return;
       }
 
-      // DOUBLE-TAP (two quick taps ~the same spot) → re-claim this device's terminal
-      // shape. Checked BEFORE the single-tap path and returns immediately, so a
-      // double-tap runs ONLY the resize — it never opens a link, clears a selection,
-      // or leaves the keyboard up. The FIRST tap already raised the keyboard
-      // natively (iOS only lets us raise it inside the tap gesture, so it can't be
-      // deferred to wait for a second tap), so we blur here to drop it right back.
-      if (now - lastTapTime < DBLTAP_MS &&
+      // SINGLE-FINGER double-tap → resize, but ONLY when the keyboard is ALREADY up
+      // (ovFocused). From a HIDDEN keyboard the first tap raises it and the second
+      // would land on the just-risen keyboard and type a stray key — so a
+      // keyboard-hidden resize must use the TWO-FINGER tap above. With the keyboard
+      // already up, both taps land on the terminal above it (safe) and we keep the
+      // keyboard (no blur) so typing continues. Checked before the single-tap path.
+      if (ovFocused && now - lastTapTime < DBLTAP_MS &&
           Math.abs(ct.clientX - lastTapX) < DBLTAP_PX && Math.abs(ct.clientY - lastTapY) < DBLTAP_PX) {
         e.preventDefault();
         lastTapTime = 0;
-        try { ov.blur(); } catch (_) {}
         flash('↔ resized');
         claimSize();
         return;
       }
 
-      // SINGLE tap: remember it (so a quick second tap becomes the double-tap above)
-      // and dismiss any active selection. No preventDefault → iOS raises the
-      // keyboard natively, so tapping to type stays instant.
-      lastTapTime = now; lastTapX = ct.clientX; lastTapY = ct.clientY;
+      // SINGLE tap: dismiss any active selection and let iOS raise the keyboard
+      // natively (no preventDefault) so tapping to type stays instant. Arm a
+      // double-tap candidate ONLY while the keyboard is up (see the gate above), so
+      // the hidden-keyboard case never tries the fragile single-finger double-tap.
+      if (ovFocused) { lastTapTime = now; lastTapX = ct.clientX; lastTapY = ct.clientY; }
       try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}
       hideHandles();
     }, { passive: false });
