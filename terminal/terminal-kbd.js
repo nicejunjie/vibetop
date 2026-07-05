@@ -507,15 +507,12 @@
     try { window.term.onScroll(positionHandles); } catch (_) {}   // follow scrollback
 
     var startX = 0, startY = 0, prevY = 0, acc = 0, moved = false, lpTimer = null, selecting = false, anchor = null, startCell = null;
-    var lastTapTime = 0, lastTapX = 0, lastTapY = 0, didScroll = false;   // double-tap (claimSize) + tap-vs-scroll
-    var DBLTAP_MS = 450, DBLTAP_PX = 90;   // two quick taps at ~the same spot → re-claim the shared PTY shape
-    var twoFinger = false, twoFingerStart = 0;   // two-finger tap → resize (raises NO keyboard — the reliable path)
-    // The overlay's focus state ≈ the keyboard being up (the nested /tN/ iframe
-    // can't read the keyboard via visualViewport). Single-finger double-tap resize
-    // is gated on this so it only fires when the keyboard is ALREADY up.
-    var ovFocused = false;
-    ov.addEventListener('focus', function () { ovFocused = true; });
-    ov.addEventListener('blur', function () { ovFocused = false; });
+    var didScroll = false;   // did this gesture actually scroll the scrollback (vs a tap)
+    // Resize gesture is the TWO-FINGER tap: it raises NO keyboard, so it's safe with
+    // the keyboard hidden. Single-finger double-tap is deliberately NOT a resize —
+    // it belongs to iOS's native text selection / Paste bubble on the editable
+    // overlay, and fighting it (the old keyboard-up double-tap) also popped that menu.
+    var twoFinger = false, twoFingerStart = 0;
     ov.addEventListener('touchstart', function (e) {
       if (e.touches.length >= 2) {                 // two fingers → resize gesture (no keyboard)
         twoFinger = true; twoFingerStart = Date.now();
@@ -581,7 +578,7 @@
         e.preventDefault();
         if (e.touches.length === 0) {              // last finger up → gesture complete
           var d2 = now - twoFingerStart; twoFinger = false;
-          if (d2 < 600) { flash('↔ resized'); claimSize(); }
+          if (d2 < 600) { flash('↔ resized'); claimSize(); tfDismiss(true); }   // they found it → retire the hint
         }
         return;
       }
@@ -596,49 +593,61 @@
         return;
       }
 
-      // A gesture that actually SCROLLED the scrollback is not a tap. We gate the
-      // tap test on a real scroll (didScroll), NOT the finger drift the keyboard
-      // animation causes nor a strict duration — the old `dur < 250` test dropped
-      // slightly-long taps, so the double-tap never registered and only the
-      // keyboard came up (the reported bug). A brief tap that merely drifted still
-      // counts.
+      // A gesture that actually SCROLLED the scrollback is not a tap — skip the tap
+      // handling below. We gate on a real scroll (didScroll), not finger drift, so a
+      // brief tap that merely drifted (e.g. the keyboard animating in) still counts.
       if (didScroll) return;
 
-      // A tap ON a URL opens it in the Browser (no keyboard) — handled first so a
-      // link tap never feeds the resize double-tap.
+      // A tap ON a URL opens it in the Browser (no keyboard).
       var url = startCell && urlAt(startCell);
       if (url) {
         e.preventDefault();
         try { ov.blur(); } catch (_) {}
         try { window.open(url); } catch (_) {}
         flash('↗ opening link');
-        lastTapTime = 0;
         return;
       }
 
-      // SINGLE-FINGER double-tap → resize, but ONLY when the keyboard is ALREADY up
-      // (ovFocused). From a HIDDEN keyboard the first tap raises it and the second
-      // would land on the just-risen keyboard and type a stray key — so a
-      // keyboard-hidden resize must use the TWO-FINGER tap above. With the keyboard
-      // already up, both taps land on the terminal above it (safe) and we keep the
-      // keyboard (no blur) so typing continues. Checked before the single-tap path.
-      if (ovFocused && now - lastTapTime < DBLTAP_MS &&
-          Math.abs(ct.clientX - lastTapX) < DBLTAP_PX && Math.abs(ct.clientY - lastTapY) < DBLTAP_PX) {
-        e.preventDefault();
-        lastTapTime = 0;
-        flash('↔ resized');
-        claimSize();
-        return;
-      }
-
-      // SINGLE tap: dismiss any active selection and let iOS raise the keyboard
-      // natively (no preventDefault) so tapping to type stays instant. Arm a
-      // double-tap candidate ONLY while the keyboard is up (see the gate above), so
-      // the hidden-keyboard case never tries the fragile single-finger double-tap.
-      if (ovFocused) { lastTapTime = now; lastTapX = ct.clientX; lastTapY = ct.clientY; }
+      // SINGLE tap: dismiss any active (long-press) selection and let iOS raise the
+      // keyboard natively (no preventDefault) so tapping to type stays instant. A
+      // single-finger double-tap is intentionally left to iOS (native Paste bubble /
+      // word select) — it is NOT a resize; use the two-finger tap above for that.
       try { if (window.term && window.term.hasSelection()) window.term.clearSelection(); } catch (_) {}
       hideHandles();
     }, { passive: false });
+
+    // One-time coach hint for the two-finger resize (the gesture is undiscoverable),
+    // mirroring the desktop's arrow-key trackpad tip. Shown a few times until the
+    // user does a two-finger tap (tfDismiss(true) in the gesture) or taps it away,
+    // then persisted so it never nags again. Touch-only (this whole file is), and
+    // self-contained in the /tN/ page.
+    var TF_KEY = 'vibetop:2fingerhint', tfDone = false, tfEl = null, tfTimer = null, tfShows = 0;
+    try { tfDone = localStorage.getItem(TF_KEY) === 'done'; } catch (_) {}
+    function tfDismiss(persist) {
+      if (tfTimer) { clearTimeout(tfTimer); tfTimer = null; }
+      if (tfEl) { try { tfEl.remove(); } catch (_) {} tfEl = null; }
+      if (persist && !tfDone) { tfDone = true; try { localStorage.setItem(TF_KEY, 'done'); } catch (_) {} }
+    }
+    function tfShow() {
+      if (tfDone || tfEl || tfShows >= 3 || document.hidden) return;
+      var host = window.term && window.term.element;   // skip while the terminal isn't laid out (Terminal app hidden)
+      if (!host || host.getBoundingClientRect().height < 40) return;
+      tfShows++;
+      tfEl = document.createElement('div');
+      tfEl.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:2147483000;box-sizing:border-box;' +
+        'padding:9px 34px 9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
+        'font:500 13px system-ui,sans-serif;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.45)';
+      tfEl.textContent = 'Tip: two-finger tap to resize the terminal to this screen';
+      var x = document.createElement('span');
+      x.textContent = '×';
+      x.style.cssText = 'position:absolute;right:10px;top:50%;transform:translateY(-50%);font:400 19px system-ui;line-height:1;padding:0 6px;opacity:.9';
+      tfEl.appendChild(x);
+      tfEl.addEventListener('click', function () { tfDismiss(true); });   // tap anywhere on it (incl. ×) dismisses for good
+      document.body.appendChild(tfEl);
+      tfTimer = setTimeout(function () { if (tfEl) { try { tfEl.remove(); } catch (_) {} tfEl = null; } }, 7000);   // auto-hide (not persisted)
+    }
+    setTimeout(tfShow, 1800);   // after the terminal has settled (it loads only when the app is opened = visible)
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(tfShow, 600); });
 
     dbg(' [overlay ready] ');
   }
