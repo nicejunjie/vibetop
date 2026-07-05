@@ -578,7 +578,7 @@
         e.preventDefault();
         if (e.touches.length === 0) {              // last finger up → gesture complete
           var d2 = now - twoFingerStart; twoFinger = false;
-          if (d2 < 600) { flash('↔ resized'); claimSize(); tfDismiss(true); }   // they found it → retire the hint
+          if (d2 < 600) { flash('↔ resized'); claimSize(); }   // hint stays until the user taps its × (or TF_MAX)
         }
         return;
       }
@@ -616,23 +616,26 @@
       hideHandles();
     }, { passive: false });
 
-    // One-time coach hint for the two-finger resize (the gesture is undiscoverable),
-    // mirroring the desktop's arrow-key trackpad tip. Shown a few times until the
-    // user does a two-finger tap (tfDismiss(true) in the gesture) or taps it away,
-    // then persisted so it never nags again. Touch-only (this whole file is), and
-    // self-contained in the /tN/ page.
-    var TF_KEY = 'vibetop:2fingerhint', tfDone = false, tfEl = null, tfTimer = null, tfShows = 0;
-    try { tfDone = localStorage.getItem(TF_KEY) === 'done'; } catch (_) {}
-    function tfDismiss(persist) {
-      if (tfTimer) { clearTimeout(tfTimer); tfTimer = null; }
+    // Coach hint for the two-finger resize (undiscoverable gesture). It shows EVERY
+    // time the terminal is visible and stays until the user taps its × — that
+    // persists "done" (localStorage) so it never shows again. Safety net: after
+    // TF_MAX total showings it stops on its own even if × was never tapped (the
+    // count is persisted). No auto-hide; doing the gesture does NOT dismiss it.
+    // Touch-only (this whole file is), self-contained in the /tN/ page.
+    var TF_KEY = 'vibetop:2fingerhint', TF_MAX = 10, tfDone = false, tfCount = 0, tfEl = null;
+    try { var _tv = localStorage.getItem(TF_KEY); if (_tv === 'done') tfDone = true; else tfCount = parseInt(_tv, 10) || 0; } catch (_) {}
+    if (tfCount >= TF_MAX) tfDone = true;
+    function tfDismiss() {   // the × → never again
       if (tfEl) { try { tfEl.remove(); } catch (_) {} tfEl = null; }
-      if (persist && !tfDone) { tfDone = true; try { localStorage.setItem(TF_KEY, 'done'); } catch (_) {} }
+      tfDone = true; try { localStorage.setItem(TF_KEY, 'done'); } catch (_) {}
     }
     function tfShow() {
-      if (tfDone || tfEl || tfShows >= 3 || document.hidden) return;
+      if (tfDone || tfEl || document.hidden) return;
       var host = window.term && window.term.element;   // skip while the terminal isn't laid out (Terminal app hidden)
       if (!host || host.getBoundingClientRect().height < 40) return;
-      tfShows++;
+      tfCount++;
+      try { localStorage.setItem(TF_KEY, String(tfCount)); } catch (_) {}
+      if (tfCount >= TF_MAX) tfDone = true;   // this is the last showing
       tfEl = document.createElement('div');
       tfEl.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:2147483000;box-sizing:border-box;' +
         'padding:9px 34px 9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
@@ -642,9 +645,8 @@
       x.textContent = '×';
       x.style.cssText = 'position:absolute;right:10px;top:50%;transform:translateY(-50%);font:400 19px system-ui;line-height:1;padding:0 6px;opacity:.9';
       tfEl.appendChild(x);
-      tfEl.addEventListener('click', function () { tfDismiss(true); });   // tap anywhere on it (incl. ×) dismisses for good
+      tfEl.addEventListener('click', function () { tfDismiss(); });   // ONLY the × (tap anywhere on the banner) closes it for good
       document.body.appendChild(tfEl);
-      tfTimer = setTimeout(function () { if (tfEl) { try { tfEl.remove(); } catch (_) {} tfEl = null; } }, 7000);   // auto-hide (not persisted)
     }
     setTimeout(tfShow, 1800);   // after the terminal has settled (it loads only when the app is opened = visible)
     document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(tfShow, 600); });

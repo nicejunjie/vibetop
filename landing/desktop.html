@@ -722,7 +722,8 @@
           if (!lockAxis) {
             if (Math.abs(ax) < 12 && Math.abs(ay) < 12) return;
             lockAxis = Math.abs(ax) >= Math.abs(ay) ? 'h' : 'v';
-            dismissHint(true);   // they found the trackpad — retire the hint for good
+            // (the hint stays until the user taps its × or HINT_MAX is reached — using
+            // the trackpad no longer retires it)
           }
           if (lockAxis === 'h') {   // Ctrl+F/Ctrl+B = move the cursor (emacs), not ←/→ (which a TUI reuses as menu nav on an empty prompt)
             while (ax >= HSTEP)  { routeKey('CtrlF'); ax -= HSTEP; }
@@ -752,19 +753,21 @@
       'box-shadow:inset 0 0 0 1px rgba(255,255,255,.09),inset 0 8px 22px rgba(0,0,0,.4)';
     pad.innerHTML = '<span>⇔ ⇕&nbsp;&nbsp;slide to move the cursor</span>';
     bar.appendChild(pad);
-    function enterPad() { if (padTimer) { clearTimeout(padTimer); padTimer = null; } if (padActive) return; padActive = true; pad.style.opacity = '1'; dismissHint(true); }
+    function enterPad() { if (padTimer) { clearTimeout(padTimer); padTimer = null; } if (padActive) return; padActive = true; pad.style.opacity = '1'; }
     function exitPad() { if (padTimer) { clearTimeout(padTimer); padTimer = null; } padActive = false; pad.style.opacity = '0'; }
 
     document.body.appendChild(bar);
 
-    // One-time coach hint. The arrow keys double as a cursor trackpad (press &
-    // slide), which is undiscoverable. Float a small dismissible tip above the bar
-    // the first few times it appears, until the user actually slides (they've
-    // learned it) or taps it away — then persist "done" so it never nags again.
-    var HINT_KEY = 'vibetop:kbdhint';
-    var hintDone = false;
-    try { hintDone = localStorage.getItem(HINT_KEY) === 'done'; } catch (e) {}
-    var hintShows = 0, hintTimer = null;
+    // Coach hint. The arrow keys double as a cursor trackpad (press & slide), which
+    // is undiscoverable. Float a tip above the bar EVERY time the keyboard opens; it
+    // stays up (no auto-hide) until the user taps its × — that persists "done" so it
+    // never shows again. Safety net: after HINT_MAX total showings it stops on its
+    // own even if × was never tapped (the count is persisted). Using the trackpad
+    // does NOT retire it.
+    var HINT_KEY = 'vibetop:kbdhint', HINT_MAX = 10;
+    var hintDone = false, hintCount = 0;
+    try { var _hv = localStorage.getItem(HINT_KEY); if (_hv === 'done') hintDone = true; else hintCount = parseInt(_hv, 10) || 0; } catch (e) {}
+    if (hintCount >= HINT_MAX) hintDone = true;
     var hint = document.createElement('div');
     hint.style.cssText = 'position:fixed;left:8px;right:8px;top:0;display:none;z-index:9001;box-sizing:border-box;' +
       'padding:9px 32px 9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
@@ -776,21 +779,20 @@
     hintX.style.cssText = 'position:absolute;right:9px;top:50%;transform:translateY(-50%);font:400 19px system-ui;line-height:1;padding:0 4px;opacity:.9';
     hint.appendChild(hintX);
     document.body.appendChild(hint);
-    function dismissHint(persist) {
+    function dismissHint(persist) {   // persist=true ONLY from the × ; keyboard-close just hides it (re-shows next open)
       hint.style.display = 'none';
-      if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
       if (persist && !hintDone) { hintDone = true; try { localStorage.setItem(HINT_KEY, 'done'); } catch (e) {} }
     }
     function positionHint() {
       hint.style.top = Math.round(vvBottom() - BAR_H - (hint.offsetHeight || 40) - 6) + 'px';
     }
     function maybeShowHint() {
-      if (hintDone || hintShows >= 3) return;   // at most 3 nudges/session, then leave it
-      hintShows++;
+      if (hintDone) return;
+      hintCount++;
+      try { localStorage.setItem(HINT_KEY, String(hintCount)); } catch (e) {}
+      if (hintCount >= HINT_MAX) hintDone = true;   // this is the last showing
       hint.style.display = 'block';
-      positionHint();                            // measure real height (may wrap to 2 lines) then place
-      if (hintTimer) clearTimeout(hintTimer);
-      hintTimer = setTimeout(function () { hint.style.display = 'none'; }, 6000);
+      positionHint();                               // measure real height (may wrap to 2 lines) then place
     }
     hint.addEventListener('click', function () { dismissHint(true); });
 
