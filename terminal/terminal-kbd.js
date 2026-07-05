@@ -622,7 +622,9 @@
     // TF_MAX total showings it stops on its own even if × was never tapped (the
     // count is persisted). No auto-hide; doing the gesture does NOT dismiss it.
     // Touch-only (this whole file is), self-contained in the /tN/ page.
-    var TF_KEY = 'vibetop:2fingerhint', TF_MAX = 10, tfDone = false, tfCount = 0, tfEl = null;
+    // Key is versioned (:v2): the show-every-time-until-× behavior is a new campaign,
+    // so bumping it re-shows the tip to anyone who dismissed the old auto-retiring one.
+    var TF_KEY = 'vibetop:2fingerhint:v2', TF_MAX = 10, tfDone = false, tfCount = 0, tfEl = null;
     try { var _tv = localStorage.getItem(TF_KEY); if (_tv === 'done') tfDone = true; else tfCount = parseInt(_tv, 10) || 0; } catch (_) {}
     if (tfCount >= TF_MAX) tfDone = true;
     function tfDismiss() {   // the × → never again
