@@ -98,6 +98,38 @@ def _cached(key, ttl, producer):
     return value
 
 
+# ---- system-health warnings --------------------------------------------------
+# A single, extensible producer of "something is wrong" alerts, surfaced as a red
+# banner on EVERY client via the desktop heartbeat (see /api/desktop). It is the
+# generic mechanism: to add a future warning (a wedged service, an overheating GPU,
+# a failed backup…), append another block here that returns
+#   {"id": <stable-slug>, "level": "warn"|"critical", "text": <human message>}
+# The frontend keys dismissal on id+level, so an escalation (warn -> critical)
+# re-surfaces even after the user dismissed the milder one. Kept cheap — this rides
+# the 5s heartbeat (memoized ~5s); each check must be a fast syscall, no subprocess.
+def _system_warnings():
+    warns = []
+    # Disk almost full: the operator's own workloads (not vibetop) can fill the
+    # root FS; when they do, atomic state writes / terminals / saves fail in
+    # confusing, intermittent ways. Surface it loudly BEFORE 100%. %/free match df.
+    try:
+        st = os.statvfs("/")
+        used = st.f_blocks - st.f_bfree
+        denom = used + st.f_bavail
+        pct = round(100.0 * used / denom) if denom > 0 else 0
+        free_gb = st.f_frsize * st.f_bavail / (1024 ** 3)
+        if pct >= 95 or free_gb < 2:
+            warns.append({"id": "disk", "level": "critical",
+                          "text": "Disk almost full — %d%% used, %.1f GB free. "
+                                  "Free space now; apps, terminals and saves may fail." % (pct, free_gb)})
+        elif pct >= 90 or free_gb < 10:
+            warns.append({"id": "disk", "level": "warn",
+                          "text": "Low disk space — %d%% used, %.1f GB free." % (pct, free_gb)})
+    except Exception:
+        pass
+    return warns
+
+
 # ---- lightweight self-metrics ------------------------------------------------
 # In-process counters surfaced at GET /api/metrics for self-diagnosis (the next
 # weird sync/load bug should be answerable from data, not theory). Cheap: a dict
@@ -1363,6 +1395,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             resp["system"] = self._get_system_status()
         if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
             resp["claude"] = _claude_usage_payload(cu)
+        # System-health warnings ride the heartbeat too, ALWAYS (independent of the
+        # stats toggle) — a red banner must show even with the stats readout off.
+        resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)
         self._json(200, resp)
 
     def _handle_desktop_close(self):
@@ -2370,6 +2405,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 resp["system"] = self._get_system_status()
             if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
                 resp["claude"] = _claude_usage_payload(cu)
+            resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)   # red-banner alerts (always)
             self._json(200, resp)
             return
         if self.path == "/api/upload/list":

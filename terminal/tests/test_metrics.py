@@ -86,3 +86,24 @@ def test_metrics_shape_is_stable(server):
     ):
         assert key in m, f"missing metric: {key}"
     assert isinstance(m["responses"], dict)
+
+
+def test_system_warnings_thresholds(mgr, monkeypatch):
+    # _system_warnings keys off statvfs; drive it through healthy/warn/critical.
+    import os as _os
+
+    class St:
+        def __init__(self, frsize, blocks, bfree, bavail):
+            self.f_frsize, self.f_blocks, self.f_bfree, self.f_bavail = frsize, blocks, bfree, bavail
+
+    def at(st):
+        monkeypatch.setattr(mgr.os, "statvfs", lambda p: st)
+        return mgr._system_warnings()
+
+    assert at(St(4096, 100_000_000, 30_000_000, 29_000_000)) == []          # ~71% healthy
+    w = at(St(4096, 100_000_000, 10_000_000, 9_000_000))                    # ~91%
+    assert len(w) == 1 and w[0]["id"] == "disk" and w[0]["level"] == "warn"
+    c = at(St(4096, 1_000_000, 50_000, 40_000))                            # ~96%
+    assert len(c) == 1 and c[0]["level"] == "critical"
+    c2 = at(St(4096, 100_000_000, 1_000_000, 400_000))                     # <2GB free
+    assert c2 and c2[0]["level"] == "critical"

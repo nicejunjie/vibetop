@@ -478,12 +478,22 @@ def _collect(running_terminals, cached):
     # Disk usage and I/O
     disk_used_gb = None
     disk_total_gb = None
+    disk_free_gb = None
+    disk_pct = None
     disk_read_bytes = None
     disk_write_bytes = None
     try:
         st = os.statvfs("/")
         disk_total_gb = round(st.f_frsize * st.f_blocks / (1024**3), 1)
         disk_used_gb = round(st.f_frsize * (st.f_blocks - st.f_bfree) / (1024**3), 1)
+        # Space AVAILABLE to non-root and the Use% exactly as `df` reports them
+        # (both exclude the root-reserved blocks) — so the taskbar matches what the
+        # operator sees on the shell, and turns red before the disk is truly 100%.
+        disk_free_gb = round(st.f_frsize * st.f_bavail / (1024**3), 1)
+        used_blocks = st.f_blocks - st.f_bfree
+        denom = used_blocks + st.f_bavail
+        if denom > 0:
+            disk_pct = round(100.0 * used_blocks / denom)
     except Exception:
         pass
     try:
@@ -619,6 +629,8 @@ def _collect(running_terminals, cached):
     if disk_total_gb is not None:
         result["disk_total_gb"] = disk_total_gb
         result["disk_used_gb"] = disk_used_gb
+        result["disk_free_gb"] = disk_free_gb
+        result["disk_pct"] = disk_pct
     if disk_read_bytes is not None:
         result["disk_read_bytes"] = disk_read_bytes
         result["disk_write_bytes"] = disk_write_bytes

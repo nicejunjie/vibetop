@@ -187,6 +187,22 @@
   /* Gap between ° and the MEM/VRAM label */
   .tb-stats .u:nth-child(8n+5) { padding-right: 12px; }
 
+  /* === System-health warning banner === */
+  #sys-warn { position: fixed; top: 0; left: 0; right: 0; z-index: 9500; }
+  #sys-warn:empty { display: none; }
+  #sys-warn .sw-row {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    background: #d9531e; color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.4);
+    font: 600 13px system-ui, sans-serif; border-bottom: 1px solid rgba(0,0,0,.25);
+  }
+  #sys-warn .sw-row.sw-crit { background: #c62828; }
+  #sys-warn .sw-msg { flex: 1 1 auto; min-width: 0; }
+  #sys-warn .sw-x {
+    flex: 0 0 auto; cursor: pointer; font: 400 20px system-ui; line-height: 1;
+    padding: 0 6px; opacity: .9; -webkit-user-select: none; user-select: none;
+  }
+  #sys-warn .sw-x:hover { opacity: 1; }
+
   .tb-logout {
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     width: 36px; height: 36px; border-radius: 8px;
@@ -486,6 +502,10 @@
     <div class="tb-sep" id="tb-stats-sep"></div>
     <a class="tb-logout" id="tb-logout" href="/cdn-cgi/access/logout" title="Log out (closes all apps, terminals & browser — fresh start)">⏻</a>
   </div>
+
+  <!-- System-health warning banner (disk-full etc.) — driven by the heartbeat's
+       `warnings` array (see renderWarnings). Hidden until there's something to say. -->
+  <div id="sys-warn"></div>
 
   <!-- Browser keyboard button (top-level so iOS reliably raises the keyboard) -->
   <!-- Implicit keyboard (touch, Browser/Terminal): tap the ⌨ button to raise the
@@ -885,6 +905,7 @@
     // on) and the terminal count for the Start-menu badge. Set terminalCount
     // before markMenuRunning so the Terminal dot reflects it this beat.
     if (d.system) renderSysStats(d.system);
+    renderWarnings(d.warnings);   // system-health red banner (disk-full etc.), always on the heartbeat
     if (typeof d.terminals_running === 'number') terminalCount = d.terminals_running;
     if (Array.isArray(d.running)) { runningGlobal = d.running; markMenuRunning(); }
     if (typeof d.reset_epoch === 'number') {
@@ -1391,6 +1412,43 @@
     set('mem-ut',  mem);
     set('vram-ut', vram);
   }
+
+  // System-health warning banner, driven by the heartbeat's `warnings` array (see
+  // `_system_warnings` server-side). Generic + extensible: each {id, level, text}
+  // renders as a red row (`critical` a deeper red). Dismissal is per (id+level) for
+  // the SESSION only, so a cleared-then-returning warning re-shows next session and
+  // an escalation (warn → critical) re-shows immediately even if the milder one was
+  // dismissed. When the condition clears (empty array) the banner hides itself
+  // (#sys-warn:empty { display:none }).
+  function renderWarnings(warns) {
+    var host = document.getElementById('sys-warn');
+    if (!host) return;
+    warns = Array.isArray(warns) ? warns : [];
+    var snoozed = {};
+    try { snoozed = JSON.parse(sessionStorage.getItem('vibetop:warnsnooze') || '{}'); } catch (e) {}
+    var show = warns.filter(function (w) { return w && w.text && snoozed[w.id] !== w.level; });
+    host.innerHTML = '';
+    show.forEach(function (w) {
+      var row = document.createElement('div');
+      row.className = 'sw-row' + (w.level === 'critical' ? ' sw-crit' : '');
+      var msg = document.createElement('span');
+      msg.className = 'sw-msg';
+      msg.textContent = '⚠ ' + w.text;   // textContent — never trust server text as HTML
+      row.appendChild(msg);
+      var x = document.createElement('span');
+      x.className = 'sw-x'; x.textContent = '×'; x.title = 'Dismiss for this session';
+      x.addEventListener('click', function () {
+        var s = {};
+        try { s = JSON.parse(sessionStorage.getItem('vibetop:warnsnooze') || '{}'); } catch (e) {}
+        s[w.id] = w.level;
+        try { sessionStorage.setItem('vibetop:warnsnooze', JSON.stringify(s)); } catch (e) {}
+        renderWarnings(warns);
+      });
+      row.appendChild(x);
+      host.appendChild(row);
+    });
+  }
+
   applySysStats();   // apply the saved show/hide preference before the first heartbeat
   // No standalone stats/terminal polls: both fold onto the 5s desktop heartbeat
   // (renderSysStats + terminalCount in onDesktopResp). The first heartbeat fires
