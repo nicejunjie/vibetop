@@ -191,20 +191,23 @@
         // — which stops iOS reveal-scrolling on every keystroke (the typing-lag
         // cause once the overlay became taller-than-viewport / scrollable).
         if (ov.style.paddingTop !== p) ov.style.paddingTop = p;
-        // Undo iOS's stale reveal-scroll when the cursor jumps UP. iOS scrolls the
-        // document to keep the focused caret above the keyboard, but ONLY on user
-        // caret events — never when WE move the caret up. So after `clear`/Ctrl-L/a
-        // TUI redraw yanks the cursor from a deep row to the top, the document stays
-        // scrolled down over the now-empty region and the whole terminal is pushed
-        // off the top of the screen — a blank black screen until you type/scroll.
-        // When the caret is high enough that everything above it already fits in the
-        // visible band, pin the document back to the top ourselves. We deliberately
-        // leave the scroll ALONE when the caret is deep (y > visible height) so the
-        // working bottom-reveal while typing on a full screen is untouched, and
-        // manual scrollback (which fires no cursor-move) is never fought.
-        var visH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        // Undo a STALE document scroll — but ONLY when it's safe, never when it's
+        // iOS's live keyboard reveal. iOS scrolls the document to keep the focused
+        // caret above the keyboard, but only on user caret events, never when WE move
+        // the caret. Two cases leave a wrong scroll that we must correct:
+        //   (1) the cursor jumps to the TOP (`clear`/Ctrl-L/TUI redraw) while the doc
+        //       is still scrolled down from a deep caret → the terminal is pushed off
+        //       the top of the screen (the blank-after-clear bug), and
+        //   (2) the keyboard is DOWN, so no reveal is wanted and the scroll belongs at 0.
+        // CRUCIAL REGRESSION FIX: when the keyboard is UP and the caret is mid/deep
+        // screen, do NOT touch the scroll — that IS iOS's live reveal. The earlier
+        // `y <= visH - rh` test fired for almost any caret (the nested iframe's
+        // visualViewport doesn't shrink, so visH is the full height), so it fought
+        // the reveal for a normal TUI input a few rows from the bottom — shoving the
+        // active line behind the keyboard and making it jump on every keystroke.
         var se = document.scrollingElement || document.documentElement;
-        if (se && y <= visH - rh && se.scrollTop !== 0) se.scrollTop = 0;
+        var kbDown = (document.activeElement !== ov);
+        if (se && se.scrollTop !== 0 && (cy <= 2 || kbDown)) se.scrollTop = 0;
       } catch (_) {}
     }
     // Re-anchor the caret to the cursor row ONLY when the cursor actually moves
