@@ -483,6 +483,22 @@
     scheduled = true;
     requestAnimationFrame(function() { scheduled = false; patchAll(); });
   }
+  // FileBrowser's root is "/" (the whole filesystem, so the app can browse /), so
+  // its built-in "My files" button navigates to "/". Redirect it to the user's HOME
+  // instead — matching where the Files app's tabs open. Capture phase so we beat
+  // FileBrowser's own Vue click handler (stopImmediatePropagation blocks it), and
+  // reuse goToPath for the SPA navigation. `@APP_HOME@` is stamped to the real home
+  // path by files/install.sh.
+  document.addEventListener("click", function(e) {
+    var btn = e.target.closest && e.target.closest("button.action");
+    if (!btn) return;
+    var lbl = (btn.getAttribute("aria-label") || "").trim().toLowerCase();
+    if (lbl !== "my files") return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    goToPath("@APP_HOME@");
+  }, true);
+
   var observer = new MutationObserver(schedulePatch);
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-selected"] });
   schedulePatch();

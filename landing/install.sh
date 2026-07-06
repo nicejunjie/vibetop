@@ -46,7 +46,15 @@ else
   chmod 644 "$DST_DIR/index.html"
 fi
 run install -m 644 "$DIR/index.html" "$DST_DIR/landing.html"
-run install -m 644 "$DIR/filebrowser-patches.js" "$DST_DIR/filebrowser-patches.js"
+if [ "$DRY_RUN" = 1 ]; then
+  printf '+ install filebrowser-patches.js (sed @APP_HOME@ -> %s)\n' "$HOME"
+else
+  # Stamp the home dir so the "My files" redirect targets ~ (FileBrowser's root is /).
+  # MUST stamp here too: deploy.sh runs landing/install.sh AFTER files/install.sh, so a
+  # raw copy would clobber files/install.sh's stamped copy with a literal @APP_HOME@.
+  sed -e "s|@APP_HOME@|$HOME|g" "$DIR/filebrowser-patches.js" > "$DST_DIR/filebrowser-patches.js"
+  chmod 644 "$DST_DIR/filebrowser-patches.js"
+fi
 run install -m 644 "$DIR/vibe-modal.js" "$DST_DIR/vibe-modal.js"
 run install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
 run install -m 644 "$DIR/token-stats.html" "$DST_DIR/token-stats.html"
