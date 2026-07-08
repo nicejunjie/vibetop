@@ -23,6 +23,21 @@ fully self-installing, Docker and all (AMD or NVIDIA).
 - **Update** — one-tap self-update: `git pull` from GitHub, redeploy only what changed, and an **update-history changelog** with the installed commit badged
 - **Status bar** — live system stats (CPU %/°, MEM, GPU %/°, VRAM) at the bottom of every desktop. GPU from AMD sysfs (with a debugfs fallback when it locks under compute) **or NVIDIA `nvidia-smi`**
 
+## Why not just VNC?
+
+VNC and remote desktops stream **pixels** — a compressed video of the whole screen. Vibetop streams **data**: each app sends its content (terminal text, file lists, documents) and renders natively in your browser, so it stays crisp and fast — especially on a phone. Only the Browser and GUI apps are pixel-streamed, via **xpra** (a modern VNC cousin).
+
+| | VNC | Vibetop |
+|---|---|---|
+| Sends over the wire | Pixels of the whole screen | App **data** — pixels only for the Browser + GUI apps |
+| Text | Blurry when compressed | Crisp DOM text at any zoom |
+| Mobile | Mouse emulation, no real keyboard | Native keyboard + iOS dictation, touch gestures |
+| Bandwidth / latency | Heavy, laggy on slow links | Light and responsive for text work |
+| Access | A VNC port + (often weak) auth | Behind HTTPS + Cloudflare Access, no open ports |
+| Scope | The whole desktop | Curated apps **+** an X11 Launcher for any GUI app |
+
+**In short:** VNC gives you your screen as video; Vibetop gives you your machine as fast, crisp, mobile-native apps — falling back to a stream only where a real browser or GUI app needs it.
+
 ## Sub-projects
 
 | Sub-project | URL path | What |
