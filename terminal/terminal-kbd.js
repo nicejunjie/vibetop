@@ -21,6 +21,50 @@
 (function () {
   var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
+  // Loading bar — a thin animated bar across the top of the terminal while it
+  // (re)connects and replays its ring buffer, so a slow replay (a busy session, a
+  // phone waking several tabs at once) never just looks like a blank/frozen/dead
+  // screen. Runs on EVERY device (this is above the touch-only branch). It's shown
+  // per ttyd WebSocket (each (re)connect replays), after a short delay so an instant
+  // connect doesn't flash it, and hidden the moment the replay burst goes idle — or
+  // after a cap, so a terminal producing continuous output can't pin it up.
+  var _bar = null, _barCss = false;
+  function _barEl() {
+    if (!_barCss) {
+      _barCss = true;
+      var st = document.createElement('style');
+      st.textContent =
+        '#vt-load{position:fixed;top:0;left:0;right:0;height:3px;z-index:2147483600;' +
+        'background:rgba(255,255,255,.06);overflow:hidden;pointer-events:none;opacity:0;transition:opacity .18s}' +
+        '#vt-load.on{opacity:1}' +
+        '#vt-load::before{content:"";position:absolute;top:0;bottom:0;left:0;width:35%;border-radius:3px;' +
+        'background:#0a84ff;animation:vt-ld 1.1s ease-in-out infinite}' +
+        '@keyframes vt-ld{0%{left:-35%}55%{left:70%}100%{left:105%}}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+    if (!_bar) { _bar = document.createElement('div'); _bar.id = 'vt-load'; (document.body || document.documentElement).appendChild(_bar); }
+    return _bar;
+  }
+  function _barShow() { try { _barEl().classList.add('on'); } catch (_) {} }
+  function _barHide() { try { if (_bar) _bar.classList.remove('on'); } catch (_) {} }
+  function loadingBar(ws) {
+    var idle = null, cap = null, done = false;
+    var show = setTimeout(_barShow, 160);   // don't flash on an instant connect
+    function fin() {
+      if (done) return; done = true;
+      clearTimeout(show); if (idle) clearTimeout(idle); if (cap) clearTimeout(cap);
+      _barHide();
+      try { ws.removeEventListener('message', onmsg); } catch (_) {}
+    }
+    function onmsg() { if (idle) clearTimeout(idle); idle = setTimeout(fin, 300); }  // replay burst ended
+    try {
+      ws.addEventListener('message', onmsg);
+      ws.addEventListener('close', fin);
+      ws.addEventListener('error', fin);
+    } catch (_) {}
+    cap = setTimeout(fin, 8000);   // backstop: never pin the bar on continuous output
+  }
+
   // Capture ttyd's WebSocket (this script runs at end of <head>, before ttyd opens
   // the socket on load) so claimSize can re-send the terminal size straight to the
   // PTY without resizing the visible terminal.
@@ -29,7 +73,7 @@
     var Native = window.WebSocket; if (!Native) return;
     function WS(url, proto) {
       var ws = (proto === undefined) ? new Native(url) : new Native(url, proto);
-      try { ttydWS = ws; } catch (_) {}
+      try { ttydWS = ws; loadingBar(ws); } catch (_) {}
       return ws;
     }
     WS.prototype = Native.prototype;
