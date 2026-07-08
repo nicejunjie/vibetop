@@ -224,6 +224,15 @@
     function positionCaret() {
       var t = window.term;
       try {
+        // If the user has scrolled UP into scrollback, do NOTHING. positionCaret's
+        // only job is revealing the PROMPT while you type at the bottom; up in
+        // history it fights you: a TUI (Claude Code, htop, …) repaints in place, so
+        // the cursor moves on every frame → this fires → it re-parks the caret at
+        // the bottom and iOS re-reveals it, yanking your view back down. That is the
+        // mobile-only "can't scroll a live response" bug — desktop has no overlay/
+        // caret/reveal, so its scroll just holds (which is why desktop was fine).
+        var ba = t.buffer && t.buffer.active;
+        if (ba && (ba.baseY - ba.viewportY) > 1) return;
         var rows = t.rows || 24;
         var h = t.element ? t.element.getBoundingClientRect().height : window.innerHeight;
         var rh = h / rows;

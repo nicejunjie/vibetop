@@ -1125,3 +1125,38 @@ to anyone who already dismissed the old one (their `done` flag suppresses it). T
 fix is to **version the localStorage key** (`…:v2`); bumping the `:vN` suffix
 re-runs the "campaign" for everyone. This is why the operator "didn't see the tip"
 after the behavior change — their old `vibetop:2fingerhint` was still `done`.
+
+## Mobile terminal: can't scroll back through a *live* Claude/TUI response (desktop was fine)
+
+**Symptom.** On the phone, scrolling up to read earlier output *while Claude Code
+(or any full-screen TUI) is mid-response* snapped the view straight back to the
+bottom on every frame — you could only scroll once the turn finished. On the
+**desktop the exact same session scrolled fine.** The desktop-vs-mobile split is
+the whole clue.
+
+**Cause.** *Not* the scroll buffer. xterm's `viewportY` holds its scrolled-up
+position through streaming output on both platforms — verified once the test
+stopped sending a stray `\r` (an Enter counts as user input and triggers xterm's
+own `scrollOnUserInput` snap-to-bottom, which faked a "yank" in every early
+repro). The real culprit is the **mobile-only input overlay** (`terminal-kbd.js`):
+on touch it parks a transparent textarea's caret on the cursor row via a dynamic
+`padding-top` (`positionCaret`) so iOS reveal-scrolls the *prompt* above the
+keyboard. `positionCaret` is bound to `onCursorMove` — and a TUI repaints its
+region **in place**, moving the cursor on every frame (Claude Code doesn't even
+grow scrollback mid-turn: `baseY` stays put while it rewrites the live screen). So
+each repaint re-parked the caret at the bottom and iOS re-revealed it, dragging
+the *visible* view down even though `viewportY` never moved. Desktop has no
+overlay/caret/reveal, so its scroll just held.
+
+**Fix.** Gate `positionCaret`: when the user has scrolled up into scrollback
+(`baseY - viewportY > 1`) it early-returns and does nothing. Its only job is
+revealing the prompt while you type *at the bottom*; up in history it was purely
+fighting the user. Normal cases are unaffected (at the bottom the gate is off, so
+caret-park + the `clear` scroll-reset still run). Verified on WebKit: scrolled-up
+view HELD + `padding-top` frozen during a TUI animation, while typing at the
+bottom still tracked the cursor row.
+
+**Rejected.** A terminal-side "scroll lock" (buffer output while scrolled up, catch
+up on release) — Claude Code (Ink) emits cursor **queries** mid-render and waits
+for replies, so intercepting/buffering its byte stream risks stalling it. Not
+worth the fragility when the actual bug was our own overlay, not xterm.
