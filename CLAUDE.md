@@ -172,6 +172,13 @@ each runner self-skips if its tool isn't installed.
 
 ## Health check
 
+**`sudo ./tools/doctor.sh`** is the fastest first stop on a misbehaving host — a
+read-only config diagnostic that codifies the gotchas below + `docs/design-
+decisions.md` into PASS/WARN/FAIL checks with the one-line fix each (RestrictNamespaces
+on the manager, `APP_USER` linger, dual-homed NICs, xpra version, unstamped units,
+`KillMode=process`, D-Bus/xhost, disk, ACLs, nginx `-t`). Where `smoke-test.sh`
+asks "is it up?", doctor asks "is it configured to *stay* up?". Then the manual probes:
+
 ```bash
 systemctl status vibetop-manager vibetop-browser-xpra vibetop-x11-xpra vibetop-x11-dbus vibetop-filebrowser
 docker ps --filter name=vibetop-onlyoffice                      # OnlyOffice container (office Edit)
