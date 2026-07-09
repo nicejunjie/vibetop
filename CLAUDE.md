@@ -72,6 +72,42 @@ sysfs/amdgpu with an `nvidia-smi` fallback).
 
 ## Tests
 
+**One command — `./run-tests.sh`** runs the whole hermetic regression suite (no
+root/systemd/nginx/Docker; external processes are stubbed): the two Python roots
+(`terminal/tests/` + `claude-usage/tests/`) and every JS unit (`node --test`).
+`--live` additionally runs the live-host smoke test (below). It's a **dev-only
+tool** — no installer runs it and it deploys nothing; CI (`.github/workflows/
+tests.yml`) and the pre-commit hook both call it, so the suites can't drift.
+
+```bash
+./run-tests.sh                 # all hermetic tiers (what CI + pre-commit run)
+./run-tests.sh --live          # + tools/smoke-test.sh against 127.0.0.1
+./run-tests.sh --live --base http://192.168.1.10
+```
+
+The tiers (each independently runnable, ~5s total):
+- **Endpoint contracts** (`terminal/tests/test_api_*.py`) — a hermetic in-process
+  HTTP harness (`conftest.py`'s `client` fixture boots `mgr.Handler` on an
+  ephemeral socket with a tmp HOME + stubbed systemctl/su/git/wmctrl/libreoffice)
+  asserts every `/api/*` endpoint's request→response **and** on-disk side effect:
+  notes, files-tabs, desktop registry, upload, terminals, office (JWT/HMAC),
+  browser/x11, claude usage+stats, update (all git branches), reset, CSRF, SSE.
+- **Static/integrity** (`test_static.py`) — `py_compile` every `.py`, `bash -n` +
+  `shellcheck -S error` every `.sh`, the `@PLACEHOLDER@`-stamping invariant, sw.js
+  PRECACHE-source existence, and HTML asset-ref resolution.
+- **claude-usage proxy** (`claude-usage/tests/`) — header capture (`_record`),
+  fail-open relay, atomic write; importlib-loads the hyphenated proxy.
+- **JavaScript** (`node --test`) — service-worker routing (`sw.test.js`), tab-set
+  reconcile (`tab-sync.test.js`), coach-tip state machine (`coach.test.js`), the
+  terminal-kbd key-byte map (`terminal-kbd.test.js`), and a syntax guard that
+  `vm.Script`-compiles every injected/deployed script (`js-syntax.test.js`).
+
+**Live-host smoke test** — `tools/smoke-test.sh` is the ONE tier needing the
+running stack; it turns the Health-check curls below into asserting checks with a
+pass/fail summary + non-zero exit (systemd units active, `/`/`/tN/`/`/browser/`/
+`/files/` 200, `/api/ping`, SSE `retry:`, OnlyOffice). Run it post-deploy; **not**
+in CI. `--no-office` / `--base URL`.
+
 **Python** — unit/smoke tests for the manager's security-critical and pure logic
 live in `terminal/tests/` (pytest). They run without root or any of the systemd/
 nginx/Docker stack — `conftest.py` loads the hyphenated `terminal-manager.py` via
@@ -121,14 +157,14 @@ cacheable-shell-nav vs. network-only-nav vs. SWR sub-resource.
 A focused **security review** of the manager's auth paths (no vulns found — the
 trust model is the takeaway) is in `docs/security-review.md`.
 
-**CI + pre-commit** — `.github/workflows/tests.yml` runs both suites on every
-push/PR (no services/root: the Python tests load the manager in-process with the
-one systemctl call stubbed; the JS tests are dep-free). A versioned pre-commit
-hook (`.githooks/pre-commit`) runs the same suites locally — enable it once per
-clone:
+**CI + pre-commit** — `.github/workflows/tests.yml` runs `./run-tests.sh` on every
+push/PR (no services/root: the Python tests load the manager/proxy in-process with
+external processes stubbed; the JS tests are dep-free; shellcheck is installed for
+the static tier). A versioned pre-commit hook (`.githooks/pre-commit`) runs the
+**same** `./run-tests.sh` locally — enable it once per clone:
 
 ```bash
-git config core.hooksPath .githooks      # then commits run pytest + node --test
+git config core.hooksPath .githooks      # then commits run ./run-tests.sh
 ```
 
 Bypass a single commit with `git commit --no-verify` or `SKIP_TESTS=1 git commit`;

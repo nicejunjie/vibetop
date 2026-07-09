@@ -53,3 +53,170 @@ def csession():
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
     return module
+
+
+# ---------------------------------------------------------------------------
+# Hermetic in-process HTTP harness (Tier 1 endpoint contract tests)
+#
+# Boots the manager's real ThreadingHTTPServer on an ephemeral loopback port and
+# drives it over HTTP, but with every APP_USER-derived state path redirected into
+# a throwaway tmp HOME and the external-process boundary (systemctl/su/git/wmctrl/
+# libreoffice/system-status) stubbed. So the endpoint tests exercise the actual
+# request parsing, CSRF gate, JSON contracts, and on-disk side effects — without
+# root, systemd, nginx, or touching the real ~. Nothing here is deployed; these
+# fixtures live only under tests/ (installers copy an explicit file allowlist to
+# ~/vibetop-www and never touch tests/).
+# ---------------------------------------------------------------------------
+import http.server
+import json as _json
+import threading
+import urllib.error
+import urllib.request
+
+# State-path module globals to redirect. Handlers read them at call time, so a
+# per-test monkeypatch of the module attribute is enough (no reload needed).
+_HOME_PATHS = {
+    "NOTES_FILE": ".local/share/desktop-notes.md",
+    "NOTES_DIR": ".local/share/desktop-notes",
+    "NOTES_INDEX_FILE": ".local/share/desktop-notes/index.json",
+    "FILES_TABS_FILE": ".local/share/desktop-files-tabs.json",
+    "TAB_NAMES_FILE": ".local/share/terminal-tab-names.json",
+    "DESKTOP_STATE_FILE": ".local/share/desktop-state.json",
+    "UPDATE_HISTORY_FILE": ".local/share/vibetop-update-history.json",
+    "UPLOAD_DIR": "Uploads",
+    "SERVICES_FILE": "vibetop-www/services.json",
+    "SW_FILE": "vibetop-www/sw.js",
+    "CLAUDE_USAGE_FILE": ".local/share/vibetop-claude-usage.json",
+    "CLAUDE_SETTINGS_FILE": ".claude/settings.json",
+    "OFFICE_HOME": "",
+    "OFFICE_CACHE_DIR": ".cache/vibetop-office",
+    "OFFICE_CONVERT_PROFILE": ".cache/vibetop-office/lo-convert-profile",
+    "ONLYOFFICE_SECRET_FILE": ".config/vibetop/onlyoffice.secret",
+    "OFFICE_NEW_DIR": "Documents",
+}
+
+
+class _FakeCompleted:
+    def __init__(self, args, returncode=0, stdout="", stderr=""):
+        self.args = args
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class _FakeProc:
+    """Popen stand-in: a timed wait() raises TimeoutExpired (the "still-running
+    GUI app" case x/launch expects), an untimed wait() returns 0 (browser/open's
+    reaper thread)."""
+    def __init__(self, args, subprocess_mod):
+        self.args = args
+        self._sp = subprocess_mod
+
+    def wait(self, timeout=None):
+        if timeout is not None:
+            raise self._sp.TimeoutExpired(self.args, timeout)
+        return 0
+
+
+@pytest.fixture()
+def home(mgr, monkeypatch, tmp_path):
+    """Redirect all state paths into a tmp HOME and reset the manager's mutable
+    module state (memo cache, office sessions). Yields the home dir Path."""
+    h = tmp_path / "home"
+    for name, rel in _HOME_PATHS.items():
+        monkeypatch.setattr(mgr, name, str(h / rel) if rel else str(h))
+    (h / ".local" / "share").mkdir(parents=True, exist_ok=True)
+    # Reset process-global mutable state so tests don't bleed into each other.
+    if hasattr(mgr, "_cache"):
+        mgr._cache.clear()
+    if hasattr(mgr, "_office_sessions"):
+        mgr._office_sessions.clear()
+    return h
+
+
+@pytest.fixture()
+def stubs(mgr, monkeypatch):
+    """Stub the external-process boundary with recording fakes. Individual tests
+    override any entry (e.g. a scripted `_git`, a failing systemctl) as needed."""
+    rec = {"run": [], "popen": []}
+
+    def fake_run(args, **kw):
+        rec["run"].append(list(args) if isinstance(args, (list, tuple)) else args)
+        return _FakeCompleted(args, returncode=0)
+
+    def fake_popen(args, **kw):
+        rec["popen"].append(list(args) if isinstance(args, (list, tuple)) else args)
+        return _FakeProc(args, mgr.subprocess)
+
+    monkeypatch.setattr(mgr.subprocess, "run", fake_run)
+    monkeypatch.setattr(mgr.subprocess, "Popen", fake_popen)
+    # No real terminals / heavy /proc scans in the endpoint tests.
+    monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [])
+    monkeypatch.setattr(mgr.Handler, "_get_system_status",
+                        lambda self: {"cpu": {"pct": 0}, "mem": {}})
+    monkeypatch.setattr(mgr, "_system_warnings", lambda: [])
+    return rec
+
+
+class _Client:
+    """Minimal HTTP client for the harness. GET/POST return (status, parsed-json).
+    POSTs default to a same-origin Origin so the CSRF gate passes; pass
+    origin=<other> to exercise the cross-origin rejection."""
+    def __init__(self, base):
+        self.base = base
+        self.host = base.split("://", 1)[1]
+
+    def _do(self, req):
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                raw = r.read()
+                return r.status, (_json.loads(raw) if raw else None)
+        except urllib.error.HTTPError as e:
+            raw = e.read()
+            try:
+                return e.code, _json.loads(raw) if raw else None
+            except ValueError:
+                return e.code, raw
+
+    def get(self, path):
+        return self._do(urllib.request.Request(self.base + path))
+
+    def get_raw(self, path):
+        """GET returning (status, headers, raw-bytes) for non-JSON endpoints
+        (office doc/download/preview)."""
+        try:
+            with urllib.request.urlopen(
+                    urllib.request.Request(self.base + path), timeout=10) as r:
+                return r.status, dict(r.headers), r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, dict(e.headers), e.read()
+
+    def post(self, path, body=None, origin="__same__", raw=None,
+             headers=None):
+        data = raw if raw is not None else _json.dumps(body or {}).encode()
+        h = {"Content-Type": "application/json"}
+        if origin == "__same__":
+            h["Origin"] = "http://" + self.host
+        elif origin is not None:
+            h["Origin"] = origin
+        if headers:
+            h.update(headers)
+        return self._do(urllib.request.Request(self.base + path, data=data,
+                                               method="POST", headers=h))
+
+
+@pytest.fixture()
+def client(mgr, home, stubs):
+    """Boot the manager in-thread over a real socket and yield a _Client.
+    Depends on `home` (sandbox paths) + `stubs` (no external processes)."""
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), mgr.Handler)
+    srv.daemon_threads = True
+    # Small poll interval so srv.shutdown() returns promptly (the default 0.5s
+    # per-test teardown otherwise dominates the suite's wall-clock).
+    t = threading.Thread(target=lambda: srv.serve_forever(poll_interval=0.02),
+                         daemon=True)
+    t.start()
+    try:
+        yield _Client(f"http://127.0.0.1:{srv.server_address[1]}")
+    finally:
+        srv.shutdown()

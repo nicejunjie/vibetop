@@ -20,6 +20,13 @@ import pytest
 def server(mgr, monkeypatch):
     # The only non-pure bit /api/metrics touches — keep it off systemctl.
     monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [3, 7])
+    # _METRICS is a process-global counter shared with every other test that
+    # drives a server (the endpoint suites intentionally produce some 500s).
+    # Zero it in place so this test measures from a clean slate regardless of
+    # run order — otherwise `errors_total == 0` is a false failure.
+    with mgr._metrics_lock:
+        for k, v in list(mgr._METRICS.items()):
+            mgr._METRICS[k] = {} if isinstance(v, dict) else (0.0 if isinstance(v, float) else 0)
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), mgr.Handler)
     srv.daemon_threads = True
     t = threading.Thread(target=srv.serve_forever, daemon=True)
