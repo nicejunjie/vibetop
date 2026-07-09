@@ -24,12 +24,14 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   /* --tb = taskbar height incl. the phone's bottom safe-area (home indicator). */
   :root { --tb: calc(54px + env(safe-area-inset-bottom)); }
-  html, body { height: 100%; height: 100svh; overflow: hidden; }
-  /* Flex column sized to the SMALL viewport (svh) — the portion always visible
-     even when iOS Safari shows its URL/toolbar. dvh would let body exceed the
-     visible area when toolbars expand, pushing the taskbar off-screen. svh
-     guarantees the taskbar stays in the safe visible region; the tradeoff is
-     a tiny strip of body background below the taskbar when toolbars retract. */
+  html, body { height: 100%; height: 100svh; height: var(--app-h, 100svh); overflow: hidden; }
+  /* `100svh` is the DEFAULT (correct in Safari and normal standalone). But an
+     installed iOS PWA freezes `svh` too SHORT after a Cloudflare Access login
+     (black band below the taskbar) — confirmed on-device that ONLY `svh` is wrong;
+     visualViewport.height / clientHeight / dvh all report the true usable height.
+     So in standalone apph.js sets `--app-h` from those correct metrics (it can only
+     ever equal the content area, never overshoot into the status-bar strip the way
+     `100vh` did). Unset in Safari, so the `100svh` fallback rules there. */
   body {
     background: #0e1117; font-family: system-ui, sans-serif; color: #e0e0e0;
     display: flex; flex-direction: column; position: relative;
@@ -437,6 +439,7 @@
 </style>
   <script src="/vibe-modal.js"></script>
   <script src="/coach.js"></script>
+  <script src="/apph.js"></script>
 </head>
 <body>
   <div class="cu-strip" id="cu-strip" hidden></div>

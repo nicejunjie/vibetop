@@ -69,6 +69,67 @@ and why it lost).
 
 ---
 
+## Black band below the taskbar after a Cloudflare Access login (installed PWA only, iOS)
+
+- **Symptom:** In the **installed (Add-to-Home-Screen) PWA** on iOS, the **first**
+  desktop load *after being made to re-authenticate with Cloudflare Access* renders
+  the whole shell (Claude strip, app area, taskbar) in the **top ~80%** of the screen
+  with a dead **black band** filling the bottom ~20%. It does **not** self-heal;
+  closing the PWA and reopening fixes it. It happens **only in the standalone PWA**
+  (the same site in the normal Safari browser is fine) and **only on the auth
+  navigation** (a normal open with a valid session is fine). (Reported via screenshot
+  in `~/Uploads`.)
+- **Cause:** A known, still-open **WebKit standalone-PWA bug**, not our code and not
+  Cloudflare's. In an installed web app WebKit resolves `100svh` (and
+  `-webkit-fill-available`, and even `visualViewport.height`) **too short** — WebKit
+  [bug 254868](https://bugs.webkit.org/show_bug.cgi?id=254868) (open, reproduced on
+  iOS 18.3.1). Cloudflare Access sends the shell through a **cross-origin redirect**
+  (`service…` → `*.cloudflareaccess.com` login → back); iOS shows in-app browser
+  chrome for that out-of-scope page, and on the return the **short "small viewport"
+  gets frozen with no corrective `resize` ever fired** (the `innerHeight`/`resize`
+  half of WebKit [bug 170595](https://bugs.webkit.org/show_bug.cgi?id=170595) — stale
+  in app web views but not MobileSafari; the exact OAuth-return band is reported at
+  [discussions.apple.com/thread/251535534](https://discussions.apple.com/thread/251535534)).
+  So `body{height:100svh}` fills the frozen-short viewport → band. Regular Safari has
+  no scope boundary / no chrome transition, so it's unaffected.
+- **What an on-device diagnostic actually showed (overturning the research):** an
+  on-screen readout in the frozen state (screen 956px, dpr 3) reported `svh=753`,
+  `bodyH=753` (the band) — but `visualViewport.height=894`, `clientHeight=894`,
+  `innerHeight=894`, `dvh=894` (= 956 − ~62px status bar = the TRUE usable height), and
+  `lvh=vh=956` (full screen). So on this device **only `svh` is frozen-short**;
+  `visualViewport.height`/`clientHeight`/`dvh` are all correct (the WebKit-bug write-ups
+  claiming those are *also* poisoned did not hold here). A **reload did NOT unfreeze `svh`**
+  (`reload=tried`, still 753). `vh`/`lvh` = 956 is why an earlier `100vh` swap overshot and
+  cut off the taskbar (they include the opaque status-bar strip).
+- **Fix — `landing/apph.js` drives the height from the CORRECT metric (`svh` is the
+  only broken one):** `body`/`html` default to `100svh` (`height: var(--app-h, 100svh)`) —
+  correct in Safari and untouched there. In **standalone only**, `apph.js` sets `--app-h`
+  to `max(visualViewport.height, documentElement.clientHeight)`, clamped to `screen.height`.
+  Those two both measure the content area **below** the opaque status bar, so the value can
+  only ever equal the true usable height — it can **never overshoot** into the status-bar
+  strip the way `100vh`/`lvh` (956) did, and it's **not frozen** the way `svh` is. It keeps
+  the running **max** (reset on an `innerWidth` change = rotation), so the soft keyboard —
+  which only shrinks the *visual* viewport — can never shrink the shell. `--app-h` is set on
+  both `html` and `body` so `html`'s `overflow:hidden` doesn't clip a taller body (no
+  `position:fixed` needed — the band was purely `body` being too short, not mis-positioned).
+  Ships with a `#vhdbg` / `localStorage.vhdbg='1'` diagnostic overlay (metrics + a colored
+  line at each candidate height) — the tool that produced the numbers above. (sw v209→v214.)
+- **Dead ends (each shipped, observed to fail, reverted):**
+  - `@media (display-mode: standalone){ height:100vh }` — **overshot**, cutting the taskbar
+    off the bottom (`vh`=956 includes the opaque status bar; the true usable area is 894).
+  - A "learned known-good height + engage-only-when-suspect" adaptive module — over-built on
+    the false premise that `visualViewport`/`clientHeight` were also poisoned; a variant of
+    it produced a *bigger* band. The diagnostic showed those metrics are fine, so the simple
+    "use them directly" fix above is right.
+  - `location.reload()` on detecting the short viewport (to automate "reopen") — the reload
+    does **not** unfreeze `svh` (diagnostic: `reload=tried`, still 753); reopening works only
+    because it's a brand-new web view. Removed.
+  - Naive `--app-h = innerHeight`/`visualViewport.height` *without* a keyboard guard — both
+    shrink when the soft keyboard opens (iOS: 796→476), which would collapse the shell mid-
+    type; the running-max (reset on width change) is what makes it keyboard-safe.
+
+---
+
 ## GNOME apps (eog, evince) take ~33s to start in the X11 Launcher
 
 - **Symptom:** Launching a GTK/GNOME app (eog, evince) from the X11 Launcher on

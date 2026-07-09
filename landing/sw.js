@@ -17,13 +17,14 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v209';
+const VERSION = 'v214';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
   '/',
   '/vibe-modal.js',
   '/coach.js',
+  '/apph.js',
   '/landing.html',
   '/notes.html',
   '/monitor.html',
