@@ -66,7 +66,7 @@ def test_valid_browser_url_realistic_injection(mgr):
 
 
 # --------------------------------------------------------------------------
-# Apps launcher: _valid_x_window_id (wmctrl id) + _valid_launch_cmd
+# X11 Launcher: _valid_x_window_id (wmctrl id) + _valid_launch_cmd
 # --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("wid", ["0x0", "0x00a00003", "0xDEADBEEF", "0x1234abcd"])

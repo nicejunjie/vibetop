@@ -14,8 +14,8 @@
 #   APP_DIR        where the templates live                    (default: script dir)
 #   DISPLAY_NUM    X display number (Chromium / Browser app)   (default 99)
 #   XPRA_PORT      xpra WebSocket+HTML5 port (loopback)        (default 14500)
-#   APPS_DISPLAY_NUM  X display for the Apps desktop           (default 98)
-#   APPS_XPRA_PORT    xpra port for the Apps desktop (loopback)(default 14501)
+#   X11_DISPLAY_NUM  X display for the X11 desktop           (default 98)
+#   X11_XPRA_PORT    xpra port for the X11 desktop (loopback)(default 14501)
 #   BROWSER_CMD    full command for the browser                (default: auto-detect chromium/firefox)
 #   INSTALL_DEPS   install xpra from xpra.org repo             (default 1)
 #   INSTALL_SYSTEMD render & enable systemd unit               (default 1)
@@ -32,10 +32,10 @@ APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 APP_UID="$(id -u "$APP_USER")"
 DISPLAY_NUM="${DISPLAY_NUM:-99}"
 XPRA_PORT="${XPRA_PORT:-14500}"
-# Second xpra display for the Apps desktop (launched GUI apps + terminal X11
+# Second xpra display for the X11 desktop (launched GUI apps + terminal X11
 # apps), kept separate from Chromium's display so the Browser stays its own app.
-APPS_DISPLAY_NUM="${APPS_DISPLAY_NUM:-98}"
-APPS_XPRA_PORT="${APPS_XPRA_PORT:-14501}"
+X11_DISPLAY_NUM="${X11_DISPLAY_NUM:-98}"
+X11_XPRA_PORT="${X11_XPRA_PORT:-14501}"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
@@ -113,8 +113,8 @@ cat <<EOF
 vibetop-browser install (xpra)
   user          : $APP_USER (uid $APP_UID)
   app dir       : $APP_DIR
-  display       : :$DISPLAY_NUM (Browser)  :$APPS_DISPLAY_NUM (Apps)
-  xpra port     : $XPRA_PORT (Browser)  $APPS_XPRA_PORT (Apps)  [loopback]
+  display       : :$DISPLAY_NUM (Browser)  :$X11_DISPLAY_NUM (X11)
+  xpra port     : $XPRA_PORT (Browser)  $X11_XPRA_PORT (X11)  [loopback]
   browser cmd   : $BROWSER_CMD
   deps          : $INSTALL_DEPS    systemd: $INSTALL_SYSTEMD    nginx: $INSTALL_NGINX
   dry run       : $DRY_RUN
@@ -163,9 +163,9 @@ PIN_EOF
 
     echo "== installing xpra (pinned: ${XPRA_PIN:-none}) =="
     run sudo apt-get update -qq
-    # wmctrl: the Apps launcher lists/raises/closes windows on the xpra display.
+    # wmctrl: the X11 Launcher lists/raises/closes windows on the xpra display.
     # x11-xserver-utils: provides xhost, used to allow snap apps (Firefox/Chromium)
-    # to open the Apps display (they can't read the X auth cookie when confined).
+    # to open the X11 display (they can't read the X auth cookie when confined).
     run sudo apt-get install -y xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils
     # Disable xpra's built-in socket activation (conflicts with our own unit)
     if systemctl is-enabled xpra-server.socket >/dev/null 2>&1; then
@@ -234,25 +234,25 @@ if (( INSTALL_SYSTEMD )); then
         -e "s|@LOOP_SCRIPT@|$LOOP_SCRIPT|g" \
         "$APP_DIR/systemd/vibetop-browser-xpra.service" \
         | write_root /etc/systemd/system/vibetop-browser-xpra.service
-    # Second display for the Apps desktop (no Chromium child).
+    # Second display for the X11 desktop (no Chromium child).
     sed \
         -e "s|@APP_USER@|$APP_USER|g" \
         -e "s|@APP_HOME@|$APP_HOME|g" \
         -e "s|@APP_UID@|$APP_UID|g" \
-        -e "s|@APPS_DISPLAY_NUM@|$APPS_DISPLAY_NUM|g" \
-        -e "s|@APPS_XPRA_PORT@|$APPS_XPRA_PORT|g" \
-        "$APP_DIR/systemd/vibetop-apps-xpra.service" \
-        | write_root /etc/systemd/system/vibetop-apps-xpra.service
+        -e "s|@X11_DISPLAY_NUM@|$X11_DISPLAY_NUM|g" \
+        -e "s|@X11_XPRA_PORT@|$X11_XPRA_PORT|g" \
+        "$APP_DIR/systemd/vibetop-x11-xpra.service" \
+        | write_root /etc/systemd/system/vibetop-x11-xpra.service
     # Private D-Bus session for launcher apps (no service activation) so GNOME
     # apps don't hang ~25s on xdg-desktop-portal/at-spi activation timeouts.
     run sudo install -d -m 0755 /etc/vibetop
-    sed -e "s|@APP_UID@|$APP_UID|g" "$APP_DIR/dbus/apps-dbus.conf" \
-        | write_root /etc/vibetop/apps-dbus.conf
+    sed -e "s|@APP_UID@|$APP_UID|g" "$APP_DIR/dbus/x11-dbus.conf" \
+        | write_root /etc/vibetop/x11-dbus.conf
     sed \
         -e "s|@APP_USER@|$APP_USER|g" \
         -e "s|@APP_UID@|$APP_UID|g" \
-        "$APP_DIR/systemd/vibetop-apps-dbus.service" \
-        | write_root /etc/systemd/system/vibetop-apps-dbus.service
+        "$APP_DIR/systemd/vibetop-x11-dbus.service" \
+        | write_root /etc/systemd/system/vibetop-x11-dbus.service
     run sudo systemctl daemon-reload
 fi
 
@@ -282,8 +282,8 @@ if (( INSTALL_NGINX )); then
     # is made impossible.)
     PATCH_VER=$(md5sum "$APP_DIR/xpra-patches.js" | cut -c1-10)
     sed -e "s|@XPRA_PORT@|$XPRA_PORT|g" \
-        -e "s|@APPS_XPRA_PORT@|$APPS_XPRA_PORT|g" \
-        -e "s|@APPS_DISPLAY_NUM@|$APPS_DISPLAY_NUM|g" \
+        -e "s|@X11_XPRA_PORT@|$X11_XPRA_PORT|g" \
+        -e "s|@X11_DISPLAY_NUM@|$X11_DISPLAY_NUM|g" \
         -e "s|@PATCH_VER@|$PATCH_VER|g" \
         "$APP_DIR/nginx/browser.conf" \
         | nginx_write /etc/nginx/snippets/vibetop-extras.d/browser.conf || NGINX_DIRTY=1
@@ -302,9 +302,9 @@ fi
 # 7. Enable & start ----------------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
     echo "== enabling and starting xpra =="
-    run sudo systemctl enable --now vibetop-apps-dbus.service
+    run sudo systemctl enable --now vibetop-x11-dbus.service
     run sudo systemctl enable --now vibetop-browser-xpra.service
-    run sudo systemctl enable --now vibetop-apps-xpra.service
+    run sudo systemctl enable --now vibetop-x11-xpra.service
 fi
 
 echo

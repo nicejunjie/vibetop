@@ -11,7 +11,7 @@ reviewed 2026-06-26.
 the tunnel) and network trust (on the LAN). Past it, an authenticated user has
 full code execution as `APP_USER`, by design.** That's not a bug to fix; it's
 what the product *is*: the Terminal runs arbitrary shell as `APP_USER`, and the
-X11 Launcher (`POST /api/x/launch`) runs any command on the Apps display. There
+X11 Launcher (`POST /api/x/launch`) runs any command on the X11 display. There
 is no privilege escalation to defend against between "can reach the app" and "can
 run code as the user" — those are the same capability.
 

@@ -72,9 +72,9 @@ and why it lost).
 ## GNOME apps (eog, evince) take ~33s to start in the X11 Launcher
 
 - **Symptom:** Launching a GTK/GNOME app (eog, evince) from the X11 Launcher on
-  the Apps display showed a blank canvas for ~33s before the window appeared;
+  the X11 display showed a blank canvas for ~33s before the window appeared;
   Firefox/Chromium/native apps (xterm) were instant.
-- **Cause:** The Apps display (`:98`) is a bare `xpra start-desktop` + matchbox
+- **Cause:** The X11 display (`:98`) is a bare `xpra start-desktop` + matchbox
   session — **no GNOME session**. GNOME services like `xdg-desktop-portal` are
   *activatable but hang* there (their backends wait for a session that doesn't
   exist). GTK apps query the portal on startup and block the **25-second D-Bus
@@ -83,8 +83,8 @@ and why it lost).
   `org.freedesktop.portal.Desktop` activation timed at exactly 25.0s while
   gvfs/dconf/a11y returned in 0.0s.
 - **Fix:** Run launcher apps against a **private D-Bus session with no service
-  activation** (`vibetop-apps-dbus`, a `dbus-daemon` with no `<servicedir>`,
-  socket `/run/user/<uid>/vibetop-apps-bus`). On it, those service calls fail
+  activation** (`vibetop-x11-dbus`, a `dbus-daemon` with no `<servicedir>`,
+  socket `/run/user/<uid>/vibetop-x11-bus`). On it, those service calls fail
   fast (ServiceUnknown) instead of hanging → eog starts in ~0.2s. The bus is
   chosen **per app**: snap apps (Firefox/Chromium, detected via `/snap/bin/<prog>`)
   get the **real user bus** instead, because they *exit* on a bare bus (snap
@@ -98,7 +98,7 @@ and why it lost).
   - Masking `xdg-desktop-portal` globally: would affect a physical GNOME login
     on the host (if any). The private bus is isolated to launcher apps.
 
-## Snap apps (Firefox/Chromium) won't open the Apps display
+## Snap apps (Firefox/Chromium) won't open the X11 display
 
 - **Symptom:** `firefox` from the launcher did nothing; log showed
   `Authorization required, but no authorization protocol specified` /
@@ -107,7 +107,7 @@ and why it lost).
   process can't read the X authority cookie, so the X server rejects it. Native
   same-user clients connect fine.
 - **Fix:** `xhost +local:` at Apps-display startup (a `--start` in
-  `vibetop-apps-xpra.service`) disables X access control for local clients. Safe:
+  `vibetop-x11-xpra.service`) disables X access control for local clients. Safe:
   the display is loopback-only and the host is single-user behind Access.
   `x11-xserver-utils` (provides `xhost`) is an apt dep.
 
@@ -119,9 +119,9 @@ and why it lost).
   launched app share a single display, so two canvas iframes of the same display
   fight over size (a hidden iframe measures 0×0 and shrinks the display) — the
   same reason multi-device window mirroring was dropped.
-- **Fix:** A **second xpra display** (`:98`, `vibetop-apps-xpra`, matchbox, no
-  Chromium) dedicated to launched apps, proxied at `/apps-display/`. The Browser
-  keeps `:99`. The X11 Launcher (`apps.html`) embeds the `:98` canvas with a tab
+- **Fix:** A **second xpra display** (`:98`, `vibetop-x11-xpra`, matchbox, no
+  Chromium) dedicated to launched apps, proxied at `/x11-display/`. The Browser
+  keeps `:99`. The X11 Launcher (`x11launcher.html`) embeds the `:98` canvas with a tab
   bar; the two displays never conflict.
 - **Rejected:** Merging Chromium into one tabbed "Desktop" (user wanted Browser
   separate); embedding a second canvas of `:99` in the launcher (size conflict).
@@ -132,7 +132,7 @@ and why it lost).
   render.
 - **Fix:** `vibetop-session@.service` exports `DISPLAY=:98` +
   `DBUS_SESSION_BUS_ADDRESS` + `XDG_RUNTIME_DIR`, so terminal-started GUI apps
-  render on the Apps desktop and show up as tabs. The desktop also polls
+  render on the X11 desktop and show up as tabs. The desktop also polls
   `/api/x/windows` and auto-opens the X11 Launcher when a new window appears.
   (`XDG_RUNTIME_DIR` silences/fixes Qt apps like gnuplot's qt terminal.)
   Note: this is a systemd-unit change — it only lands on a full deploy /
@@ -159,7 +159,7 @@ and why it lost).
   `@APP_USER@`/`@APP_DIR@`, not `@BASE_PORT@`. Masked on existing hosts because
   the in-app Update runs `install.sh` with `INSTALL_SYSTEMD=0` (doesn't re-render
   units), so they keep their old correctly-rendered files.
-- **Fix:** Added `@BASE_PORT@` (and the new `@APPS_DISPLAY@`/`@APP_UID@`) to the
+- **Fix:** Added `@BASE_PORT@` (and the new `@X11_DISPLAY@`/`@APP_UID@`) to the
   loop's `sed`.
 
 ## Tabs in the Files app (multiple folders)
@@ -293,7 +293,7 @@ and why it lost).
 
 - **Symptom:** After hitting Run, the canvas was blank for seconds (esp. cold
   GNOME apps) and looked frozen.
-- **Fix:** An indeterminate **progress bar** overlay in `apps.html` ("Launching
+- **Fix:** An indeterminate **progress bar** overlay in `x11launcher.html` ("Launching
   `<cmd>`…") shown until the window appears, with a "still starting / may have
   failed" hint after 25s and a Dismiss. (Largely moot now that the portal fix
   makes GNOME apps fast, but it still covers genuinely slow first launches.)
@@ -691,7 +691,7 @@ and why it lost).
   unintended side effect (xpra has a long history of HTML5 mouse-offset bugs).
 - **Fix:** Downgrade to the known-good version and pin it:
   `apt-get install --allow-downgrades xpra*=6.4.4-r0-1` (all 9 xpra packages) then
-  `apt-mark hold` them, then restart `vibetop-browser-xpra` + `vibetop-apps-xpra`.
+  `apt-mark hold` them, then restart `vibetop-browser-xpra` + `vibetop-x11-xpra`.
   Verify with `xpra info :99 | grep build.version` → `6.4`. Revisit (unhold +
   test) when a fixed xpra ships (6.5.x/6.6) or report it upstream.
 - **Rejected (wasted ~2h):** Patching the click mapping in `xpra-patches.js`
@@ -1160,3 +1160,37 @@ bottom still tracked the cursor row.
 up on release) — Claude Code (Ink) emits cursor **queries** mid-render and waits
 for replies, so intercepting/buffering its byte stream risks stalling it. Not
 worth the fragility when the actual bug was our own overlay, not xterm.
+
+## Snap GUI apps fail on the X11 display with "Authorization required" (xhost +local: is not enough)
+
+**Symptom.** Launching a **snap** GUI app (Firefox, Chromium) from a Terminal or
+`/api/x/launch` onto the X11 display `:98` prints snapd mount-namespace warnings
+(harmless) and then dies with **`Authorization required, but no authorization
+protocol specified`** — even though the unit already runs `xhost +local:` and the
+`:98` ACL shows `LOCAL:`. Native apps (`eog`, `xterm`, `xeyes`) work fine.
+
+**Cause.** Two things compound:
+1. A confined snap **can't read `~/.Xauthority`** — the snap `home` interface
+   grants non-hidden files in the real home but **excludes dotfiles**, and that's
+   exactly where the `:98` cookie lives (Xorg was started `-auth ~/.Xauthority`).
+   So the snap sends **no auth cookie** and must fall back to the host ACL.
+2. `xhost +local:` (`FamilyLocalHost`) is **not honored for the Unix-socket
+   connection** by this X server. Proven directly: a no-cookie client
+   (`env XAUTHORITY=/dev/null xdpyinfo`) got `Authorization required` under the
+   `LOCAL:` ACL, but connected (`name of display: :98`) the moment
+   `xhost +si:localuser:<user>` was added.
+
+**Fix.** Use the **server-interpreted local-user** grant, not `local:`:
+`--start="xhost +si:localuser:@APP_USER@"` in `vibetop-x11-xpra.service`
+(`browser/install.sh` renders `@APP_USER@`). `si:localuser:` uses the socket peer's
+credentials (`getpeereid`) and reliably grants that user with no cookie. Tighter
+than `+local:` too (one user, not any local user) and safe here (loopback-only,
+single-user, behind Access). Native apps are unaffected — they read the cookie.
+NB: a unit change only lands on a full deploy / `browser/install.sh`
+(`INSTALL_SYSTEMD=1`), **not** the in-app Update (`INSTALL_SYSTEMD=0`); patch the
+installed unit + `daemon-reload` (no restart needed — a live `xhost` on the
+running display holds until it restarts) to fix an existing host in place.
+
+**Rejected.** `xhost +` (disable access control entirely) — works, but broader than
+needed; `+si:localuser:` grants exactly the one user. Relocating the xauth cookie
+to a non-dotfile the snap can read — more moving parts than a one-line ACL grant.

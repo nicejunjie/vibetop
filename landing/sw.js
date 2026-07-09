@@ -4,7 +4,7 @@
  * instant. Everything live or auth-sensitive is network-only and never touched:
  *   /api/*        manager API (status, notes, desktop state, uploads…)
  *   /browser/*    xpra HTML5 client + WebSocket (Browser app, Chromium)
- *   /apps-display/* xpra HTML5 client + WebSocket (Apps desktop)
+ *   /x11-display/* xpra HTML5 client + WebSocket (X11 desktop)
  *   /office/*     xpra HTML5 client + WebSocket (Office app / LibreOffice)
  *   /tN/*         ttyd terminals + WebSocket
  *   /terminals/   tabbed terminal UI (tied to live /tN/ iframes)
@@ -17,18 +17,19 @@
  * caches. sw.js itself is served no-store (nginx `location /`), so the browser
  * re-checks it on navigation and picks up the new VERSION.
  */
-const VERSION = 'v205';
+const VERSION = 'v209';
 const CACHE = 'shell-' + VERSION;
 
 const PRECACHE = [
   '/',
   '/vibe-modal.js',
+  '/coach.js',
   '/landing.html',
   '/notes.html',
   '/monitor.html',
   '/token-stats.html',
   '/upload.html',
-  '/apps.html',
+  '/x11launcher.html',
   '/files.html',
   '/manifest.json',
   '/icons/icon-192.png',
@@ -45,7 +46,7 @@ const SHELL_PAGES = new Set(PRECACHE.filter((p) => p === '/' || p.endsWith('.htm
 // Paths that must always hit the network (live data, websockets, auth).
 // Note: `files/` (with slash) so the live FileBrowser SPA at /files/* is bypassed
 // but the tabbed wrapper page /files.html stays cacheable as a shell page.
-const BYPASS = /^\/(api|browser|apps-display|office|onlyoffice|t\d|terminals|files\/|fileview|services\.json|cdn-cgi)/;
+const BYPASS = /^\/(api|browser|x11-display|office|onlyoffice|t\d|terminals|files\/|fileview|services\.json|cdn-cgi)/;
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {

@@ -672,48 +672,25 @@
       hideHandles();
     }, { passive: false });
 
-    // Coach hint for the two-finger resize (undiscoverable gesture). It shows EVERY
-    // time the terminal is visible and stays until the user taps its × — that
-    // persists "done" (localStorage) so it never shows again. Safety net: after
-    // TF_MAX total showings it stops on its own even if × was never tapped (the
-    // count is persisted). No auto-hide; doing the gesture does NOT dismiss it.
-    // Touch-only (this whole file is), self-contained in the /tN/ page.
-    // Key is versioned (:v2): the show-every-time-until-× behavior is a new campaign,
-    // so bumping it re-shows the tip to anyone who dismissed the old auto-retiring one.
-    var TF_KEY = 'vibetop:2fingerhint:v2', TF_MAX = 10, tfDone = false, tfCount = 0, tfEl = null;
-    try { var _tv = localStorage.getItem(TF_KEY); if (_tv === 'done') tfDone = true; else tfCount = parseInt(_tv, 10) || 0; } catch (_) {}
-    if (tfCount >= TF_MAX) tfDone = true;
-    function tfDismiss() {   // the × → never again
-      if (tfEl) { try { tfEl.remove(); } catch (_) {} tfEl = null; }
-      tfDone = true; try { localStorage.setItem(TF_KEY, 'done'); } catch (_) {}
-    }
-    function tfShow() {
-      if (tfDone || tfEl || document.hidden) return;
+    // Coach tips for the terminal's undiscoverable gestures, via the SHARED vibeCoach
+    // helper (coach.js, injected before this script by terminal/install.sh's sub_filter).
+    // Three touch tips ROTATE (one per open) so each gets airtime — one banner at a
+    // time. Each shows every open until its × is tapped (persists 'done'), with a
+    // max-showings cap. The two-finger tip keeps its original key ('…:2fingerhint:v2')
+    // so anyone who already dismissed it stays dismissed. (The show-until-×/cap/
+    // versioned-key logic used to be inline here; it now lives once in coach.js.)
+    function coachTerminal() {
+      if (!window.vibeCoach) return;
       var host = window.term && window.term.element;   // skip while the terminal isn't laid out (Terminal app hidden)
       if (!host || host.getBoundingClientRect().height < 40) return;
-      tfCount++;
-      try { localStorage.setItem(TF_KEY, String(tfCount)); } catch (_) {}
-      if (tfCount >= TF_MAX) tfDone = true;   // this is the last showing
-      tfEl = document.createElement('div');
-      tfEl.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:2147483000;box-sizing:border-box;' +
-        'padding:9px 34px 9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
-        'font:500 13px system-ui,sans-serif;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.45)';
-      var tfMain = document.createElement('div');
-      tfMain.textContent = 'Tip: two-finger tap to resize the terminal to this screen';
-      tfEl.appendChild(tfMain);
-      var tfNote = document.createElement('div');
-      tfNote.textContent = 'This tip shows up to ' + TF_MAX + ' times — tap × to dismiss it';
-      tfNote.style.cssText = 'margin-top:3px;font-size:11px;opacity:.85;font-weight:400';
-      tfEl.appendChild(tfNote);
-      var x = document.createElement('span');
-      x.textContent = '×';
-      x.style.cssText = 'position:absolute;right:10px;top:50%;transform:translateY(-50%);font:400 19px system-ui;line-height:1;padding:0 6px;opacity:.9';
-      tfEl.appendChild(x);
-      tfEl.addEventListener('click', function () { tfDismiss(); });   // ONLY the × (tap anywhere on the banner) closes it for good
-      document.body.appendChild(tfEl);
+      window.vibeCoach([
+        { key: 'vibetop:2fingerhint:v2', text: 'Tip: two-finger tap to resize the terminal to this screen' },
+        { key: 'vibetop:tip:term-link:v1', text: 'Tip: tap a link in the terminal to open it in the Browser' },
+        { key: 'vibetop:tip:term-copy:v1', text: 'Tip: long-press to select text, then tap Copy' }
+      ], { surface: 'terminal', rotate: true });
     }
-    setTimeout(tfShow, 1800);   // after the terminal has settled (it loads only when the app is opened = visible)
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(tfShow, 600); });
+    setTimeout(coachTerminal, 1800);   // after the terminal has settled (it loads only when the app is opened = visible)
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(coachTerminal, 600); });
 
     dbg(' [overlay ready] ');
   }

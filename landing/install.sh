@@ -56,6 +56,7 @@ else
   chmod 644 "$DST_DIR/filebrowser-patches.js"
 fi
 run install -m 644 "$DIR/vibe-modal.js" "$DST_DIR/vibe-modal.js"
+run install -m 644 "$DIR/coach.js" "$DST_DIR/coach.js"
 run install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
 run install -m 644 "$DIR/token-stats.html" "$DST_DIR/token-stats.html"
 run install -m 644 "$DIR/notes.html" "$DST_DIR/notes.html"
@@ -67,7 +68,7 @@ else
   sed -e "s|@APP_HOME@|$HOME|g" "$DIR/files.html" > "$DST_DIR/files.html"
   chmod 644 "$DST_DIR/files.html"
 fi
-run install -m 644 "$DIR/apps.html" "$DST_DIR/apps.html"
+run install -m 644 "$DIR/x11launcher.html" "$DST_DIR/x11launcher.html"
 run install -m 644 "$DIR/update.html" "$DST_DIR/update.html"
 run install -m 644 "$DIR/office-editor.html" "$DST_DIR/office-editor.html"
 run install -m 644 "$DIR/loggedout.html" "$DST_DIR/loggedout.html"

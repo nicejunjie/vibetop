@@ -423,12 +423,12 @@ def _port_env(name, default):
 BASE_PORT = _port_env("BASE_PORT", 7680)   # /tN/ -> BASE_PORT+N
 XPRA_PORT = _port_env("XPRA_PORT", 14500)  # Browser (xpra HTML5)
 FB_PORT = _port_env("FB_PORT", 8085)       # FileBrowser
-# The X display for the Apps desktop — a SECOND xpra session, separate from the
+# The X display for the X11 desktop — a SECOND xpra session, separate from the
 # Browser's Chromium display (:99), so the Browser stays its own app. The Apps
 # launcher runs GUI apps here, and terminal shells export it (so X11 apps started
 # from a terminal show up as Apps tabs). Matches browser/install.sh's
-# APPS_DISPLAY_NUM.
-APPS_DISPLAY = os.environ.get("APPS_DISPLAY", ":98")
+# X11_DISPLAY_NUM.
+X11_DISPLAY = os.environ.get("X11_DISPLAY", ":98")
 ONLYOFFICE_SECRET_FILE = os.path.expanduser(f"~{APP_USER}/.config/vibetop/onlyoffice.secret")
 ONLYOFFICE_HOST = os.environ.get("ONLYOFFICE_CALLBACK_HOST", "http://host.docker.internal")
 # Extension -> OnlyOffice documentType.
@@ -1544,13 +1544,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 pass
 
-        # 5. Clear the Apps desktop — restart its xpra session so every launched
+        # 5. Clear the X11 desktop — restart its xpra session so every launched
         #    GUI app (and any X11 app started from a terminal) is gone too.
-        if os.path.exists("/etc/systemd/system/vibetop-apps-xpra.service"):
+        if os.path.exists("/etc/systemd/system/vibetop-x11-xpra.service"):
             try:
                 subprocess.run(
                     ["systemctl", "restart", "--no-block",
-                     "vibetop-apps-xpra.service"],
+                     "vibetop-x11-xpra.service"],
                     check=False, capture_output=True, text=True, timeout=30)
                 result["apps_reset"] = True
             except Exception:
@@ -1596,7 +1596,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         threading.Thread(target=proc.wait, daemon=True).start()
         self._json(200, {"ok": True, "url": url})
 
-    # ---- Apps launcher: run/list/switch GUI apps on the xpra display --------
+    # ---- X11 Launcher: run/list/switch GUI apps on the xpra display --------
 
     def _handle_x_launch(self):
         # POST {cmd} — run an arbitrary GUI command on the Browser's xpra display
@@ -1628,18 +1628,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         #    run at all (snap confinement / io.snapcraft.SessionAgent); on a bare
         #    bus they exit immediately. They don't block on the portal anyway.
         #  - everything else (GTK/GNOME apps like eog/evince) gets the PRIVATE
-        #    apps bus (vibetop-apps-dbus, no service activation) so they don't hang
+        #    apps bus (vibetop-x11-dbus, no service activation) so they don't hang
         #    ~25s on xdg-desktop-portal/at-spi activation timeouts — ~0.2s instead.
         prog = _launch_prog(cmd)
         is_snap = prog.startswith("/snap/") or (
             os.path.basename(prog) != "" and
             os.path.exists(f"/snap/bin/{os.path.basename(prog)}"))
         dbus_sock = (f"/run/user/{uid}/bus" if is_snap
-                     else f"/run/user/{uid}/vibetop-apps-bus")
+                     else f"/run/user/{uid}/vibetop-x11-bus")
         log.info("x/launch %r (bus=%s)", cmd, "user" if is_snap else "apps")
         # Login shell (-) so the user's PATH resolves bare names like `gimp`.
         # Reap in a daemon thread so short-lived launchers don't linger as zombies.
-        shell_cmd = (f'DISPLAY={APPS_DISPLAY} '
+        shell_cmd = (f'DISPLAY={X11_DISPLAY} '
                      f'DBUS_SESSION_BUS_ADDRESS=unix:path={dbus_sock} '
                      f'XDG_RUNTIME_DIR=/run/user/{uid} '
                      f'{cmd}')
@@ -1682,7 +1682,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not shutil.which("wmctrl"):
             return None
         env = {
-            "DISPLAY": APPS_DISPLAY,
+            "DISPLAY": X11_DISPLAY,
             "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{pw.pw_uid}/bus",
             "HOME": pw.pw_dir, "PATH": "/usr/bin:/bin",
         }

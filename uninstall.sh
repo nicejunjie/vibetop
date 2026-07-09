@@ -22,7 +22,7 @@ echo "== Vibetop uninstall (user: $APP_USER) =="
 
 # 1. systemd services -------------------------------------------------------
 echo "== stopping & disabling services =="
-units=(vibetop-manager vibetop-browser-xpra vibetop-apps-xpra vibetop-apps-dbus vibetop-filebrowser vibetop-claude-proxy)
+units=(vibetop-manager vibetop-browser-xpra vibetop-x11-xpra vibetop-x11-dbus vibetop-filebrowser vibetop-claude-proxy)
 for n in $(seq 1 50); do units+=("vibetop-ttyd@$n" "vibetop-session@$n"); done
 for u in "${units[@]}"; do
     systemctl disable --now "$u" >/dev/null 2>&1 || true
@@ -31,8 +31,8 @@ rm -f /etc/systemd/system/vibetop-manager.service \
       /etc/systemd/system/vibetop-ttyd@.service \
       /etc/systemd/system/vibetop-session@.service \
       /etc/systemd/system/vibetop-browser-xpra.service \
-      /etc/systemd/system/vibetop-apps-xpra.service \
-      /etc/systemd/system/vibetop-apps-dbus.service \
+      /etc/systemd/system/vibetop-x11-xpra.service \
+      /etc/systemd/system/vibetop-x11-dbus.service \
       /etc/systemd/system/vibetop-filebrowser.service \
       /etc/systemd/system/vibetop-claude-proxy.service
 systemctl daemon-reload 2>/dev/null || true

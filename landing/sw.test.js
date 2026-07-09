@@ -56,7 +56,7 @@ const MUST_BYPASS = [
   "/api/events",
   "/api/system/status",
   "/browser/",
-  "/apps-display/",
+  "/x11-display/",
   "/office/config",
   "/onlyoffice/healthcheck",
   "/t1/",

@@ -1,5 +1,5 @@
 [Unit]
-Description=vibetop-apps xpra session (display :@APPS_DISPLAY_NUM@, HTML5 on 127.0.0.1:@APPS_XPRA_PORT@)
+Description=vibetop-x11 xpra session (display :@X11_DISPLAY_NUM@, HTML5 on 127.0.0.1:@X11_XPRA_PORT@)
 After=network.target
 
 [Service]
@@ -13,20 +13,25 @@ Environment=XDG_RUNTIME_DIR=/run/user/@APP_UID@
 Environment=XPRA_PING_TIMEOUT=45
 # A bare desktop for launched GUI apps — same as the Browser session but with NO
 # --start child (no Chromium): apps are launched on demand onto this display by
-# the manager (/api/x/launch) and from terminals (DISPLAY=:@APPS_DISPLAY_NUM@).
-# `xhost +local:` disables X access control for local clients — required because
-# snap-confined apps (Firefox, Chromium) launched OUTSIDE xpra's own --start env
-# can't read the X auth cookie and otherwise fail with "cannot open display".
-# Safe here: the display is loopback-only and the host is single-user behind
-# Cloudflare Access. (Native apps like eog/xterm work without it.)
-ExecStart=/usr/bin/xpra start-desktop :@APPS_DISPLAY_NUM@ \
-    --bind-ws=127.0.0.1:@APPS_XPRA_PORT@ \
+# the manager (/api/x/launch) and from terminals (DISPLAY=:@X11_DISPLAY_NUM@).
+# `xhost +si:localuser:@APP_USER@` grants the local user X access WITHOUT a cookie
+# — required because snap-confined apps (Firefox, Chromium) launched OUTSIDE xpra's
+# own --start env can't read the X auth cookie: the snap `home` interface excludes
+# dotfiles, so ~/.Xauthority (where the :98 cookie lives) is unreadable, and they
+# fall back to the host ACL. Must be `si:localuser:` — the older `+local:`
+# (FamilyLocalHost) is NOT honored for the Unix-socket connection (proven: a
+# no-cookie client got "Authorization required" under +local: but connected under
+# +si:localuser:). See docs/design-decisions.md. Safe here: the display is
+# loopback-only, single-user, behind Cloudflare Access. (Native apps like
+# eog/xterm read the cookie fine and don't need this.)
+ExecStart=/usr/bin/xpra start-desktop :@X11_DISPLAY_NUM@ \
+    --bind-ws=127.0.0.1:@X11_XPRA_PORT@ \
     --ws-auth=none \
     --html=on \
     --daemon=no \
     --xvfb=Xorg \
     --start="matchbox-window-manager -use_titlebar no -use_desktop no" \
-    --start="xhost +local:" \
+    --start="xhost +si:localuser:@APP_USER@" \
     --clipboard=yes \
     --clipboard-direction=both \
     --sharing=yes \
@@ -48,7 +53,7 @@ ExecStart=/usr/bin/xpra start-desktop :@APPS_DISPLAY_NUM@ \
     --bandwidth-detection=yes \
     --min-quality=10 \
     --min-speed=20
-ExecStop=/usr/bin/xpra stop :@APPS_DISPLAY_NUM@
+ExecStop=/usr/bin/xpra stop :@X11_DISPLAY_NUM@
 Restart=on-failure
 RestartSec=3
 ProtectKernelTunables=yes

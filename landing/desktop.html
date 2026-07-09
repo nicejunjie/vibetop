@@ -436,6 +436,7 @@
   }
 </style>
   <script src="/vibe-modal.js"></script>
+  <script src="/coach.js"></script>
 </head>
 <body>
   <div class="cu-strip" id="cu-strip" hidden></div>
@@ -551,7 +552,7 @@
     home:     { label: 'Services', icon: '📡', src: '/landing.html',         desc: 'Network services on this host' },
     terminal: { label: 'Terminal', icon: '⬛', src: '/terminals/',           desc: 'Persistent bash terminals' },
     browser:  { label: 'Browser',  icon: '🌐', src: '/browser/',             desc: 'Persistent web browser' },
-    x11launcher: { label: 'X11 Launcher', icon: '🚀', src: '/apps.html',     desc: 'Launch GUI apps' },
+    x11launcher: { label: 'X11 Launcher', icon: '🚀', src: '/x11launcher.html',     desc: 'Launch GUI apps' },
     files:    { label: 'Files',    icon: '📁', src: '/files.html',           desc: 'File manager' },
     office:   { label: 'Office',   icon: '📄', src: '/office-editor.html',   desc: 'Edit Office docs' },
     notes:    { label: 'Notes',    icon: '📝', src: '/notes.html',           desc: 'Persistent scratchpad' },
@@ -887,6 +888,13 @@
   // window closed everywhere but the dot never went dark). The dot now honestly
   // tracks whether the Browser window is open somewhere.
   function isRunning(id) {
+    // X11 Launcher's dot tracks GUI apps RUNNING on :98 (like Terminal's tracks live
+    // sessions) — NOT merely having the launcher window open. So closing every app
+    // clears the dot even while the launcher stays open, and orphaned apps (window
+    // closed) still light it + its ⏻ close-all. Must come BEFORE the window/union
+    // checks below, which would otherwise light it just for being open. (xWinCount is
+    // fed by watchXWindows; hoisted like terminalCount.)
+    if (id === 'x11launcher') return xWinCount > 0;
     if (openApps.indexOf(id) !== -1) return true;
     if (runningGlobal.indexOf(id) !== -1) return true;
     if (id === 'terminal') return terminalCount > 0;
@@ -929,14 +937,32 @@
   // Confirmed because it's consequential and guards against a mis-tap.
   function closeEverywhere(id) {
     if (!APPS[id]) return;
-    vibeConfirm('Close ' + APPS[id].label + ' on all devices?', { okText: 'Close', danger: true }).then(function(ok) {
+    var msg = id === 'x11launcher'
+      ? 'Close X11 Launcher and all its apps on all devices?'
+      : 'Close ' + APPS[id].label + ' on all devices?';
+    vibeConfirm(msg, { okText: 'Close', danger: true }).then(function(ok) {
       if (!ok) return;
+      // X11 Launcher: also close every GUI-app window on the :98 X11 display —
+      // closing the launcher should close the apps running in it.
+      if (id === 'x11launcher') closeAllXWindows();
       fetch('/api/desktop/close', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ app: id })
       }).then(function(r) { return r.json(); }).then(onDesktopResp).catch(function() {});
       closeMenu();
     });
+  }
+
+  // Close every window on the X11 display (:98) via the per-window close endpoint.
+  function closeAllXWindows() {
+    fetch('/api/x/windows').then(function(r) { return r.json(); }).then(function(d) {
+      ((d && Array.isArray(d.windows)) ? d.windows : []).forEach(function(w) {
+        fetch('/api/x/close', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: w.id })
+        }).catch(function() {});
+      });
+    }).catch(function() {});
   }
 
   // Push our own open-set to the registry (also the heartbeat that keeps us in
@@ -1079,6 +1105,20 @@
       if (!f.src) loadIfNeeded(f);     // notifyActiveFrame fires on load
       else notifyActiveFrame(f, id);   // already loaded → notify now
     }
+    setTimeout(function () { if (active === id) coachForApp(id); }, 800);   // in-app tip once it settles
+  }
+
+  // Desktop-driven coach tips (shared vibeCoach helper, coach.js). Shown over the
+  // active app's iframe so we teach in-app tricks without editing each app. Placed
+  // above the taskbar (bottom offset) to clear the top usage/warning strips.
+  function coachForApp(id) {
+    if (!window.vibeCoach) return;
+    var ex = document.querySelector('.vibe-coach'); if (ex) { try { ex.remove(); } catch (e) {} }   // clear the previous surface's tip
+    if (id === 'files') {
+      vibeCoach({ key: 'vibetop:tip:files-addr:v1', text: 'Tip: in Files, type any path in the address bar and press Enter to jump straight there' }, { bottom: 60 });
+    } else if (id === 'browser') {
+      vibeCoach({ key: 'vibetop:tip:browser-fit:v1', text: 'Tip: double-click (or double-tap) the Browser to fit it to your screen · tap the ⌨ button to type' }, { bottom: 60 });
+    }
   }
 
   function launch(id) {
@@ -1134,7 +1174,16 @@
     var bf = frameOf('browser');
     if (bf && bf.contentWindow) { try { bf.contentWindow.postMessage({ type: 'vibetop:menu-open', open: open }, '*'); } catch (e) {} }
   }
-  function openMenu()  { menuEl.classList.add('open'); startBtn.classList.add('open'); scrimEl.style.display = 'block'; notifyBrowserMenu(true); pushDesktop(); }   // heartbeat refreshes the running dots + terminal badge
+  function openMenu()  {
+    menuEl.classList.add('open'); startBtn.classList.add('open'); scrimEl.style.display = 'block'; notifyBrowserMenu(true); pushDesktop();   // heartbeat refreshes the running dots + terminal badge
+    // Cross-device close tip — only when something is running that ISN'T open here
+    // (that's the case where the ⏻ is the only way to reach/close it).
+    try {
+      if (window.vibeCoach && runningGlobal.some(function (a) { return openApps.indexOf(a) === -1; })) {
+        vibeCoach({ key: 'vibetop:tip:crossclose:v1', text: 'Tip: an app running on another device shows a ⏻ here — tap it to close that app on every device' }, { top: 8 });
+      }
+    } catch (e) {}
+  }
   function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; notifyBrowserMenu(false); }
   function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
 
@@ -1461,10 +1510,14 @@
   // window ids — seeded on the first poll so windows already present at load don't
   // yank focus — and only switches when the launcher isn't already the active app.
   var seenXWins = null;   // null until the first poll seeds the baseline
+  var xWinCount = 0;      // apps on the :98 X11 display — keeps the X11 Launcher's
+                          // Start-menu row "running" (dot + ⏻ close-all) even when its
+                          // window is closed, so orphaned apps stay reachable to close.
   function watchXWindows() {
     if (document.hidden) return;
     fetch('/api/x/windows').then(function(r) { return r.json(); }).then(function(d) {
       var ids = (d && Array.isArray(d.windows)) ? d.windows.map(function(w) { return w.id; }) : [];
+      if (ids.length !== xWinCount) { xWinCount = ids.length; markMenuRunning(); }   // light/clear the launcher's row
       var next = {}; ids.forEach(function(id) { next[id] = 1; });
       if (seenXWins === null) { seenXWins = next; return; }   // seed, don't trigger
       var isNew = ids.some(function(id) { return !seenXWins[id]; });
