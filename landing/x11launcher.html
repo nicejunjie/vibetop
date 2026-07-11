@@ -108,17 +108,13 @@
   .launching .ldismiss:hover { color: #c5d6ef; }
   /* Coach banner — teaches the non-obvious close logic (closing this app leaves its
      windows running; close them from Start ▸ ⏻). Same UX as the mobile terminal tips:
-     shows every open until × tapped, with a max-showings cap. */
+     shows every open until tapped, with a max-showings cap. */
   .coach {
-    flex-shrink: 0; position: relative; margin: 8px; padding: 9px 34px 9px 13px;
+    flex-shrink: 0; position: relative; margin: 8px; padding: 9px 13px;
     background: #0a84ff; color: #fff; border-radius: 11px; cursor: pointer;
     font: 500 13px system-ui, sans-serif; box-shadow: 0 4px 18px rgba(0,0,0,.4);
   }
   .coach .cnote { margin-top: 3px; font-size: 11px; opacity: .85; font-weight: 400; }
-  .coach .cx {
-    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-    font: 400 19px system-ui; line-height: 1; padding: 0 6px; opacity: .9;
-  }
 </style>
 </head>
 <body>
@@ -297,10 +293,10 @@
   // tips (terminal-kbd.js): shows every time the launcher opens until the user taps ×,
   // with a COACH_MAX safety cap if × is never tapped. Versioned key (:v1) so a future
   // reword can re-show to anyone who dismissed the old one.
-  var COACH_KEY = 'vibetop:x11hint:v1', COACH_MAX = 10, coachDone = false, coachCount = 0, coachEl = null;
+  var COACH_KEY = 'vibetop:x11hint:v1', COACH_MAX = 3, coachDone = false, coachCount = 0, coachEl = null;
   try { var _cv = localStorage.getItem(COACH_KEY); if (_cv === 'done') coachDone = true; else coachCount = parseInt(_cv, 10) || 0; } catch (_) {}
   if (coachCount >= COACH_MAX) coachDone = true;
-  function coachDismiss() {   // the × → never again
+  function coachDismiss() {   // tap on the banner → never again
     if (coachEl) { try { coachEl.remove(); } catch (_) {} coachEl = null; }
     coachDone = true; try { localStorage.setItem(COACH_KEY, 'done'); } catch (_) {}
   }
@@ -316,12 +312,9 @@
     coachEl.appendChild(main);
     var note = document.createElement('div');
     note.className = 'cnote';
-    note.textContent = 'This tip shows up to ' + COACH_MAX + ' times — tap × to dismiss it';
+    note.textContent = 'This tip shows up to ' + COACH_MAX + ' times — tap this tip to dismiss';
     coachEl.appendChild(note);
-    var x = document.createElement('span');
-    x.className = 'cx'; x.textContent = '×';
-    coachEl.appendChild(x);
-    coachEl.addEventListener('click', function () { coachDismiss(); });   // tap anywhere on the banner (or the ×) closes it for good
+    coachEl.addEventListener('click', function () { coachDismiss(); });   // tap anywhere on the banner closes it for good
     document.body.insertBefore(coachEl, tabbarEl);
   }
 

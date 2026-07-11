@@ -634,7 +634,7 @@
         e.preventDefault();
         if (e.touches.length === 0) {              // last finger up → gesture complete
           var d2 = now - twoFingerStart; twoFinger = false;
-          if (d2 < 600) { flash('↔ resized'); claimSize(); }   // hint stays until the user taps its × (or TF_MAX)
+          if (d2 < 600) { flash('↔ resized'); claimSize(); }   // hint stays until the user taps it (or the max-showings cap)
         }
         return;
       }

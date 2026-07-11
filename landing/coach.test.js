@@ -1,5 +1,5 @@
 /* Tests for coach.js — the shared coach-tip banner state machine
- * (show-every-open-until-×, max-10 cap, versioned keys, one-at-a-time, rotate).
+ * (show-every-open-until-tapped, max-3 cap, versioned keys, one-at-a-time, rotate).
  *
  *   node --test landing/        (or: cd landing && node --test)
  *
@@ -93,15 +93,14 @@ test("clicking dismisses for good (persists 'done')", () => {
   assert.equal(env.vibeCoach(TIP), null, "dismissed tip never shows again");
 });
 
-test("retires after MAX showings even if × never tapped", () => {
+test("retires after MAX showings even if never tapped", () => {
   const env = makeEnv();
   let shown = 0;
   for (let i = 0; i < 15; i++) {
     const el = env.vibeCoach(TIP);
     if (el) { shown++; el.remove(); }        // simulate a fresh page open
   }
-  assert.equal(env.window && undefined, undefined);
-  assert.equal(shown, 10, "shows exactly MAX (10) times, then retires");
+  assert.equal(shown, 3, "shows exactly MAX (3) times, then retires");
 });
 
 test("versioned key: bumping :vN re-shows to someone who dismissed :v1", () => {

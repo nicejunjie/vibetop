@@ -790,23 +790,19 @@
     // does NOT retire it.
     // Key is versioned (:v2): the show-every-time-until-× behavior is a new campaign,
     // so bumping it re-shows the tip to anyone who dismissed the old auto-retiring one.
-    var HINT_KEY = 'vibetop:kbdhint:v2', HINT_MAX = 10;
+    var HINT_KEY = 'vibetop:kbdhint:v2', HINT_MAX = 3;
     var hintDone = false, hintCount = 0;
     try { var _hv = localStorage.getItem(HINT_KEY); if (_hv === 'done') hintDone = true; else hintCount = parseInt(_hv, 10) || 0; } catch (e) {}
     if (hintCount >= HINT_MAX) hintDone = true;
     var hint = document.createElement('div');
     hint.style.cssText = 'position:fixed;left:8px;right:8px;top:0;display:none;z-index:9001;box-sizing:border-box;' +
-      'padding:9px 32px 9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
+      'padding:9px 13px;background:#0a84ff;color:#fff;border-radius:11px;' +
       'font:500 13px system-ui,sans-serif;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.45);' +
       '-webkit-user-select:none;user-select:none';
     hint.innerHTML = '<div>Tip: press &amp; hold an arrow, then <b>slide</b> to move the cursor</div>' +
-      '<div style="margin-top:3px;font-size:11px;opacity:.85;font-weight:400">This tip shows up to ' + HINT_MAX + ' times — tap × to dismiss it</div>';
-    var hintX = document.createElement('span');
-    hintX.textContent = '×';
-    hintX.style.cssText = 'position:absolute;right:9px;top:50%;transform:translateY(-50%);font:400 19px system-ui;line-height:1;padding:0 4px;opacity:.9';
-    hint.appendChild(hintX);
+      '<div style="margin-top:3px;font-size:11px;opacity:.85;font-weight:400">This tip shows up to ' + HINT_MAX + ' times — tap this tip to dismiss</div>';
     document.body.appendChild(hint);
-    function dismissHint(persist) {   // persist=true ONLY from the × ; keyboard-close just hides it (re-shows next open)
+    function dismissHint(persist) {   // persist=true from a tap on the banner; keyboard-close just hides it (re-shows next open)
       hint.style.display = 'none';
       if (persist && !hintDone) { hintDone = true; try { localStorage.setItem(HINT_KEY, 'done'); } catch (e) {} }
     }
