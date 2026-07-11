@@ -80,6 +80,8 @@ _HOME_PATHS = {
     "NOTES_DIR": ".local/share/desktop-notes",
     "NOTES_INDEX_FILE": ".local/share/desktop-notes/index.json",
     "FILES_TABS_FILE": ".local/share/desktop-files-tabs.json",
+    "SHARES_FILE": ".local/share/vibetop-shares.json",
+    "SHARE_ROOT": "",   # fence public shares to the tmp HOME
     "TAB_NAMES_FILE": ".local/share/terminal-tab-names.json",
     "DESKTOP_STATE_FILE": ".local/share/desktop-state.json",
     "UPDATE_HISTORY_FILE": ".local/share/vibetop-update-history.json",

@@ -214,6 +214,7 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;   # so a share link gets the right scheme
         client_max_body_size 5G;       # allow large /api/upload posts
         proxy_request_buffering off;   # stream upload body to the manager
         proxy_read_timeout 3600;
@@ -224,6 +225,22 @@ server {
         gzip_proxied any;
         gzip_types application/json;
         gzip_min_length 256;
+    }
+
+    # Public file-share links (Files app) -> manager. This is the ONE path meant to
+    # be reachable WITHOUT auth (the /s/<token> capability is the gate). On the LAN
+    # nginx is the only gate, so it just works; over the Cloudflare tunnel you must
+    # add an Access Bypass app (rule Everyone) scoped to /s/ (see tunnel/README.md),
+    # or the link hits the login page. Read-only downloads: buffering off so a large
+    # file/zip streams straight through instead of spooling in nginx.
+    location /s/ {
+        proxy_pass http://127.0.0.1:$BASE_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_buffering off;
+        proxy_read_timeout 3600;
     }
 
     # Dynamic terminal routing: /tN/ -> port from map

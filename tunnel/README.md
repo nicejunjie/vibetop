@@ -123,6 +123,24 @@ second Access application that **bypasses** auth for just them:
 `type:"self_hosted"`, those paths as `destinations` (`{type:"public",uri:...}`),
 and a `{decision:"bypass",include:[{everyone:{}}]}` policy.)
 
+### 8. (Required for public file-share links) Bypass Access for `/s/*`
+
+The Files app's **Share** action mints a passwordless, read-only link
+(`https://<host>/s/<token>`). Over the tunnel Access guards every path, so without
+a bypass the recipient — who has no Access account — just hits the login page. Add a
+self-hosted Access app exactly like §7, scoped to the share path:
+
+- **Access → Applications → Add → Self-hosted**, name it e.g. `file shares`.
+- Scope it to `/s/*` on your hostname (more specific than the main app, so it wins;
+  everything else stays protected).
+- Add one policy with Action **Bypass**, rule **Everyone**.
+
+Security note: this makes **only** `/s/<token>` public — the random 128-bit token is
+the gate, and the manager fences shares to files/folders under your home (never
+dotfiles), serves them read-only, and lets you expire/revoke them from the Share
+dialog's **Manage links**. On the LAN there's no Cloudflare in front, so share links
+work with no extra setup. (Skip this if you only use vibetop on the LAN.)
+
 ## After setup
 
 The cloudflared systemd unit keeps the tunnel up. If myhost reboots, the

@@ -63,7 +63,10 @@
     // back to the saved folder, so a plain reload lands on the same listing.
     { icon: "refresh", label: "Refresh", refresh: true },
     { icon: "public", label: "Browser", custom: true },
-    { icon: "share", label: "Share" },
+    // Share = OUR passwordless public link (not FileBrowser's Access-gated share):
+    // a read-only /s/<token> URL reachable without login. Works for files AND
+    // folders (a folder downloads as a .zip). See terminal-manager.py /api/share.
+    { icon: "share", label: "Share", share: true },
     { icon: "mode_edit", label: "Rename" },
     { icon: "content_copy", label: "Copy" },
     { icon: "forward", label: "Move" },
@@ -200,6 +203,219 @@
     try { window.top.postMessage({ type: "switch-to-browser" }, "*"); } catch(e) {}
   }
 
+  // --- Public share links (our passwordless /s/<token>) ---------------------
+  var SHARE_HOME = "@APP_HOME@";   // stamped by landing/install.sh (e.g. /home/you)
+
+  // The selected file/folder as { abs, name, isDir }, or null.
+  function selectedItem() {
+    var sel = document.querySelector('[aria-selected="true"]');
+    if (!sel) return null;
+    var name = sel.getAttribute("aria-label");
+    if (!name) return null;
+    return { abs: currentFullPath().replace(/\/+$/, "") + "/" + name, name: name,
+             isDir: sel.getAttribute("data-dir") === "true" };
+  }
+  // Absolute path -> path relative to home, or null if outside home (shares are
+  // fenced to home; the backend enforces this too).
+  function toHomeRel(abs) {
+    var h = SHARE_HOME.replace(/\/+$/, "");
+    if (abs === h) return "";
+    if (abs.indexOf(h + "/") === 0) return abs.slice(h.length + 1);
+    return null;
+  }
+
+  function shareApi(method, path, body) {
+    return fetch(path, {
+      method: method,
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function(r) {
+      return r.json().catch(function(){ return {}; })
+              .then(function(j){ return { ok: r.ok, data: j }; });
+    });
+  }
+
+  function copyText(text, btn) {
+    var orig = btn ? btn.textContent : null;
+    var done = function(){ if (btn) { btn.textContent = "Copied"; setTimeout(function(){ btn.textContent = orig; }, 1100); } };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function(){ legacyCopyText(text); done(); });
+    } else { legacyCopyText(text); done(); }
+  }
+  function legacyCopyText(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.cssText = "position:fixed;opacity:0;";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    ta.remove();
+  }
+
+  var TTL_OPTS = [["1", "1 day"], ["7", "7 days"], ["30", "30 days"], ["0", "Never"]];
+  function expiryText(expires) {
+    if (!expires) return "Never expires";
+    var d = new Date(expires * 1000);
+    return "Expires " + d.toLocaleDateString() + " " +
+           d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+  function mkbtn(label, kind) {
+    var b = document.createElement("button"); b.type = "button";
+    b.className = "vt-share-btn vt-" + (kind || "ghost"); b.textContent = label;
+    return b;
+  }
+
+  var _shareCss = false;
+  function ensureShareCss() {
+    if (_shareCss) return; _shareCss = true;
+    var st = document.createElement("style");
+    st.textContent =
+      ".vt-share-ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(6,9,14,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);padding:18px;box-sizing:border-box;font-family:system-ui,sans-serif;}" +
+      ".vt-share-card{width:100%;max-width:460px;max-height:85vh;overflow:auto;background:#0e1117;color:#e0e0e0;border:1px solid #2a3444;border-radius:12px;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.5);box-sizing:border-box;}" +
+      ".vt-share-h{font-size:16px;font-weight:650;color:#eaf0f6;margin-bottom:6px;}" +
+      ".vt-share-sub{font-weight:400;color:#8a9aaa;font-size:13px;}" +
+      ".vt-share-p{font-size:13px;color:#9fb0c0;line-height:1.45;margin:0 0 12px;}" +
+      ".vt-share-row{display:flex;gap:8px;align-items:center;margin-top:10px;}" +
+      ".vt-share-end{justify-content:flex-end;flex-wrap:wrap;}" +
+      ".vt-share-url{flex:1 1 auto;min-width:0;background:#0b0f15;border:1px solid #2a3444;border-radius:8px;color:#dbe4ee;padding:8px 10px;font:13px ui-monospace,monospace;}" +
+      ".vt-share-select{background:#0b0f15;border:1px solid #2a3444;border-radius:8px;color:#dbe4ee;padding:7px 8px;font-size:13px;}" +
+      ".vt-share-exp{flex:1 1 auto;font-size:12px;color:#8a9aaa;}" +
+      ".vt-share-btn{border:1px solid #2a3444;background:#1a2230;color:#dbe4ee;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}" +
+      ".vt-share-btn:hover{background:#222c3a;}" +
+      ".vt-share-btn.vt-primary{background:#2563eb;border-color:#2563eb;color:#fff;}" +
+      ".vt-share-btn.vt-primary:hover{background:#1d4ed8;}" +
+      ".vt-share-btn.vt-danger{background:transparent;border-color:#7f2d2d;color:#eb9090;}" +
+      ".vt-share-btn.vt-danger:hover{background:#3a1e1e;}" +
+      ".vt-share-btn.vt-ghost{background:transparent;}" +
+      ".vt-share-list{margin-top:10px;display:flex;flex-direction:column;gap:8px;}" +
+      ".vt-share-item{display:flex;gap:8px;align-items:center;border:1px solid #222c3a;border-radius:8px;padding:8px 10px;}" +
+      ".vt-share-meta{flex:1 1 auto;min-width:0;}" +
+      ".vt-share-name{color:#dbe4ee;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
+      ".vt-share-tag{background:#222c3a;border-radius:4px;padding:0 5px;margin-left:4px;font-size:11px;color:#9fb0c0;}" +
+      ".vt-share-dim{color:#6a7a8a;font-size:12px;}";
+    document.head.appendChild(st);
+  }
+
+  function modal() {
+    ensureShareCss();
+    var ov = document.createElement("div"); ov.className = "vt-share-ov";
+    var card = document.createElement("div"); card.className = "vt-share-card";
+    ov.appendChild(card);
+    function close() { ov.remove(); document.removeEventListener("keydown", onKey); }
+    function onKey(e) { if (e.key === "Escape") close(); }
+    ov.addEventListener("click", function(e) { if (e.target === ov) close(); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(ov);
+    return { card: card, close: close };
+  }
+
+  function infoModal(title, msg) {
+    var m = modal();
+    m.card.innerHTML = '<div class="vt-share-h">' + esc(title) + '</div>' +
+                       '<p class="vt-share-p">' + esc(msg) + '</p>';
+    var row = document.createElement("div"); row.className = "vt-share-row vt-share-end";
+    var ok = mkbtn("OK", "primary"); ok.addEventListener("click", m.close);
+    row.appendChild(ok); m.card.appendChild(row);
+  }
+
+  function openShareFlow() {
+    var it = selectedItem();
+    if (!it) return;
+    var rel = toHomeRel(it.abs);
+    if (rel === null || rel === "") {
+      infoModal("Can't share this", "Only files and folders under your home folder can be shared as a public link.");
+      return;
+    }
+    shareApi("POST", "/api/share", { path: rel, ttl: 7 }).then(function(r) {
+      if (!r.ok) { infoModal("Share failed", (r.data && r.data.error) || "Could not create the link."); return; }
+      shareDialog(r.data, rel);
+    });
+  }
+
+  function shareDialog(data, rel) {
+    var m = modal();
+    var token = data.token, kind = data.kind, name = data.name;
+    m.card.innerHTML =
+      '<div class="vt-share-h">Public link<span class="vt-share-sub"> · ' + esc(name) +
+        (kind === "dir" ? " (folder → .zip)" : "") + '</span></div>' +
+      '<p class="vt-share-p">Anyone with this link can ' +
+        (kind === "dir" ? "download this folder as a zip" : "view or download this file") +
+        '. No login required — treat the link like a password.</p>';
+    var urlRow = document.createElement("div"); urlRow.className = "vt-share-row";
+    var input = document.createElement("input");
+    input.className = "vt-share-url"; input.readOnly = true; input.value = data.url;
+    input.addEventListener("focus", function(){ input.select(); });
+    var copy = mkbtn("Copy", "primary");
+    copy.addEventListener("click", function(){ copyText(input.value, copy); });
+    urlRow.appendChild(input); urlRow.appendChild(copy);
+    m.card.appendChild(urlRow);
+
+    var expRow = document.createElement("div"); expRow.className = "vt-share-row";
+    var lbl = document.createElement("span"); lbl.className = "vt-share-exp";
+    lbl.textContent = expiryText(data.expires);
+    var sel = document.createElement("select"); sel.className = "vt-share-select";
+    TTL_OPTS.forEach(function(o) {
+      var op = document.createElement("option"); op.value = o[0]; op.textContent = o[1];
+      if (o[0] === "7") op.selected = true; sel.appendChild(op);
+    });
+    sel.addEventListener("change", function() {
+      shareApi("POST", "/api/share/revoke", { token: token });   // re-mint with new lifetime
+      shareApi("POST", "/api/share", { path: rel, ttl: parseFloat(sel.value) }).then(function(r) {
+        if (r.ok) { token = r.data.token; input.value = r.data.url; lbl.textContent = expiryText(r.data.expires); }
+      });
+    });
+    expRow.appendChild(lbl); expRow.appendChild(sel);
+    m.card.appendChild(expRow);
+
+    var act = document.createElement("div"); act.className = "vt-share-row vt-share-end";
+    var manage = mkbtn("Manage links", "ghost");
+    manage.addEventListener("click", function(){ m.close(); manageDialog(); });
+    var revoke = mkbtn("Revoke", "danger");
+    revoke.addEventListener("click", function(){ shareApi("POST", "/api/share/revoke", { token: token }); m.close(); });
+    var done = mkbtn("Done", "primary"); done.addEventListener("click", m.close);
+    act.appendChild(manage); act.appendChild(revoke); act.appendChild(done);
+    m.card.appendChild(act);
+  }
+
+  function manageDialog() {
+    var m = modal();
+    m.card.innerHTML = '<div class="vt-share-h">Shared links</div>';
+    var list = document.createElement("div"); list.className = "vt-share-list";
+    list.textContent = "Loading…";
+    m.card.appendChild(list);
+    var foot = document.createElement("div"); foot.className = "vt-share-row vt-share-end";
+    var close = mkbtn("Close", "primary"); close.addEventListener("click", m.close);
+    foot.appendChild(close); m.card.appendChild(foot);
+    shareApi("GET", "/api/share/list").then(function(r) {
+      var shares = (r.data && r.data.shares) || [];
+      list.innerHTML = "";
+      if (!shares.length) { list.textContent = "No active links."; return; }
+      shares.forEach(function(s) {
+        var row = document.createElement("div"); row.className = "vt-share-item";
+        var meta = document.createElement("div"); meta.className = "vt-share-meta";
+        meta.innerHTML =
+          '<div class="vt-share-name">' + esc(s.name) +
+            (s.kind === "dir" ? ' <span class="vt-share-tag">folder</span>' : "") + '</div>' +
+          '<div class="vt-share-dim">' + esc(expiryText(s.expires)) + " · " +
+            s.hits + " hit" + (s.hits === 1 ? "" : "s") + '</div>';
+        var cbtn = mkbtn("Copy", "ghost");
+        cbtn.addEventListener("click", function(){ copyText(s.url, cbtn); });
+        var rbtn = mkbtn("Revoke", "danger");
+        rbtn.addEventListener("click", function() {
+          shareApi("POST", "/api/share/revoke", { token: s.token }).then(function() {
+            row.remove();
+            if (!list.querySelector(".vt-share-item")) list.textContent = "No active links.";
+          });
+        });
+        row.appendChild(meta); row.appendChild(cbtn); row.appendChild(rbtn);
+        list.appendChild(row);
+      });
+    });
+  }
+
   // Find Vue's actual button by icon name and click it
   function clickVueButton(iconName) {
     var buttons = document.querySelectorAll("header .action:not(.fb-permanent)");
@@ -312,6 +528,8 @@
         if (def.custom) {
           var fp = getFilePath();
           if (fp) openInBrowser(fp);
+        } else if (def.share) {
+          openShareFlow();
         } else if (def.refresh) {
           location.reload();
         } else if (def.view) {

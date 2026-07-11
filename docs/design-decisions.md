@@ -1255,3 +1255,53 @@ running display holds until it restarts) to fix an existing host in place.
 **Rejected.** `xhost +` (disable access control entirely) — works, but broader than
 needed; `+si:localuser:` grants exactly the one user. Relocating the xauth cookie
 to a non-dotfile the snap can read — more moving parts than a one-line ACL grant.
+
+---
+
+## Public file-share links (Files app) — punching a hole through Access, safely
+
+- **Symptom / need:** the Files app can browse the host as `APP_USER`, but there was
+  no way to hand a file to someone who isn't a vibetop user — every URL is behind
+  Cloudflare Access (tunnel) or the LAN boundary. Ask: a **passwordless, read-only
+  public link** to a file (and, later, a folder), secured by an unguessable token.
+- **Cause:** a public link is deliberately reachable **without** auth, so the whole
+  existing trust model ("anyone past Access is `APP_USER`") doesn't apply to it — the
+  token has to be the *only* gate, and the serving path has to be locked down.
+- **Fix — capability token + tightly-fenced serving** (`terminal-manager.py` +
+  `/s/` nginx location + `filebrowser-patches.js`):
+  - **Token = `secrets.token_urlsafe(16)`** (128-bit random), stored in a server-side
+    registry (`~/.local/share/vibetop-shares.json`). Random > "hash of the path" (a
+    path hash is guessable if the path is known). Stateful (not a self-signed JWT) so
+    links can be **listed and revoked** — revocation is a safety feature, and a
+    stateless token can't be revoked.
+  - **Read-only, GET/HEAD only**, on a dedicated top-level path `/s/<token>` (not under
+    `/api/`) so the Cloudflare Access **Bypass** app is cleanly scoped (manual operator
+    step — can't be automated in code; see `tunnel/README.md` §8). On the LAN nginx is
+    the only gate, so it just works.
+  - **Fenced to `SHARE_ROOT` (default = home) + no dotfiles** via `_safe_share_target`
+    — stricter than `_resolve_under_home`: rejects any dot-segment (`~/.ssh`,
+    `~/.config/*`) and anything outside home, so a public link can never publish
+    `/etc/*` or a secret even though FileBrowser's root is `/`. Re-validated on **every**
+    fetch (symlink-resolved) so a moved/replaced/now-dotfile target 404s.
+  - **Same-origin XSS guard** (the subtle one — the file is served from the app's own
+    origin): every `/s/` response sets `X-Content-Type-Options: nosniff` +
+    `Content-Security-Policy: default-src 'none'; sandbox`, and only a safe allowlist
+    (images / PDF / text / audio / video) is served `inline`; **everything else —
+    notably `.html`/`.svg` — is forced to an `attachment` download** as
+    `application/octet-stream`, so a shared file can't run JS in-origin. `?dl=1` forces
+    download for anything. Unit-tested (`test_api_share.py`).
+  - **Folders → on-the-fly `.zip`** (`_serve_share_zip`): built to a temp file then
+    streamed, skipping dotfiles/dot-dirs and any symlink escaping the fence, capped by
+    `SHARE_ZIP_MAX_FILES`/`_BYTES`. Files stream in 64 KB chunks with single-`Range`
+    (`206`) support for media seek.
+  - **Expiry (default 7 days) + revoke**, both lazily pruned; the Share dialog's
+    **Manage links** lists all active shares with per-link copy/revoke.
+- **Rejected:** a stateless signed token (`_jwt_sign`) — no revocation/listing; a
+  path *hash* as the token — guessable; serving under `/api/share/<token>` — muddies
+  the Access-bypass scope with the authed API; allowing the whole FS (FileBrowser's
+  root) — unsafe for a public link, so home-only is the default (`SHARE_ROOT` env
+  widens it); `X-Accel-Redirect` offload to nginx — better for huge files but splits
+  the security-critical serve across two components; kept it in one auditable place
+  (noted as a future perf option). A separate `share.example.com` origin would beat
+  the same-origin XSS risk outright but needs extra DNS/Access setup — the
+  attachment+`nosniff`+sandbox-CSP mitigation covers it for v1.

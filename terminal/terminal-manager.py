@@ -18,9 +18,11 @@ import http.server
 import json
 import logging
 import logging.handlers
+import mimetypes
 import os
 import pwd
 import re
+import secrets
 import shlex
 import shutil
 import socket
@@ -30,6 +32,7 @@ import tempfile
 import time
 import threading
 import urllib.parse
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
@@ -272,6 +275,35 @@ UPDATE_HISTORY_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/vibetop-upda
 UPDATE_HISTORY_MAX = 200
 UPLOAD_DIR = os.environ.get(
     "UPLOAD_DIR", os.path.expanduser(f"~{APP_USER}/Uploads")
+)
+# Public share links (Files app): {token: {rel, name, created, expires, hits}}.
+# A share is a passwordless, read-only, capability URL (/s/<token>) reachable
+# WITHOUT Cloudflare Access — the random token is the only gate — so the registry
+# lives server-side (not a self-signed token) to allow listing + revocation, and
+# every knob below is a safety fence. See docs/design-decisions.md.
+SHARES_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/vibetop-shares.json")
+_shares_lock = threading.Lock()
+SHARE_DEFAULT_TTL_DAYS = 7          # a new link expires in a week unless told otherwise
+SHARE_MAX = 500                    # cap the registry so it can't grow unbounded
+# A shared FOLDER is served as an on-the-fly .zip. Bound it so a huge tree can't
+# exhaust disk/time (env-overridable). Dotfiles/dot-dirs and symlink-escapes are
+# skipped while zipping, same fence as a file share.
+SHARE_ZIP_MAX_FILES = int(os.environ.get("SHARE_ZIP_MAX_FILES", "50000"))
+SHARE_ZIP_MAX_BYTES = int(os.environ.get("SHARE_ZIP_MAX_BYTES", str(10 * 1024**3)))  # 10 GiB
+# Shareable files are fenced to this root (+ no dotfiles); default = APP_USER's home,
+# NOT FileBrowser's "/", so a public link can never publish /etc/* or a dot-secret.
+# (Computed here, not via OFFICE_HOME, which is defined later in the file.)
+SHARE_ROOT = os.environ.get("SHARE_ROOT", os.path.expanduser(f"~{APP_USER}"))
+# Optional public base (e.g. https://service.example.com); else derived from the
+# request Host + X-Forwarded-Proto so the link matches how you reached the app.
+SHARE_PUBLIC_BASE = os.environ.get("SHARE_PUBLIC_BASE", "").rstrip("/")
+# Content-Types served INLINE (viewable in-browser). Everything else — notably
+# text/html and image/svg+xml — is forced to an attachment download, so a shared
+# file can never run JavaScript in the app's own origin (same-origin XSS guard).
+SHARE_INLINE_TYPES = (
+    "application/pdf", "text/plain",
+    "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/x-icon",
+    "audio/", "video/",
 )
 # Host-local service definitions (gitignored). Each entry may carry a "key" and a
 # "health" URL; those are added to /api/health so the Home Service page can show
@@ -596,6 +628,76 @@ def _resolve_under_home(rel):
     if not os.path.isfile(full):
         return None
     return full
+
+
+def _safe_share_target(rel):
+    """Map a home-relative path to an absolute file OR directory under SHARE_ROOT
+    for public sharing, refusing anything unsafe. Stricter than _resolve_under_home:
+    fenced to SHARE_ROOT (default = home) AND rejects any dotfile / dot-directory
+    component (~/.ssh, ~/.config/*, secrets) — those must never become a public
+    link. Symlinks are resolved on both ends, so a symlink out of the fence is
+    caught. Returns (abspath, kind) with kind in {"file","dir"}, or (None, None)."""
+    if not rel:
+        return (None, None)
+    rel = rel.lstrip("/")
+    # Reject a leading-dot in ANY segment of the requested path (pre-realpath, on
+    # the user-supplied relative path — catches ".ssh/id_rsa", "a/.env", "..").
+    for part in rel.replace("\\", "/").split("/"):
+        if part.startswith("."):
+            return (None, None)
+    try:
+        base = os.path.realpath(SHARE_ROOT)
+        full = os.path.realpath(os.path.join(base, rel))
+    except ValueError:
+        return (None, None)
+    if full != base and not full.startswith(base + os.sep):
+        return (None, None)
+    # Also reject if realpath landed on any dot component (e.g. the target was a
+    # symlink into a hidden dir).
+    inside = full[len(base):].lstrip(os.sep)
+    if any(p.startswith(".") for p in inside.split(os.sep) if p):
+        return (None, None)
+    if os.path.isfile(full):
+        return (full, "file")
+    if os.path.isdir(full):
+        return (full, "dir")
+    return (None, None)
+
+
+class _ShareTooBig(Exception):
+    """Raised while zipping a shared folder that exceeds SHARE_ZIP_MAX_* caps."""
+
+
+def _read_shares():
+    """Load the share registry, tolerating a missing/old-format/corrupt file."""
+    try:
+        with open(SHARES_FILE) as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
+        data = {}
+    return data
+
+
+def _write_shares(data):
+    _atomic_write(SHARES_FILE, json.dumps(data))
+
+
+def _share_prune(reg, now=None):
+    """Drop entries whose expiry has passed (expires==0 means never). Mutates and
+    returns the registry. Any malformed entry is dropped too."""
+    if now is None:
+        now = time.time()
+    for tok in list(reg.keys()):
+        ent = reg.get(tok)
+        if not isinstance(ent, dict) or "rel" not in ent:
+            del reg[tok]
+            continue
+        exp = ent.get("expires", 0) or 0
+        if exp and now >= exp:
+            del reg[tok]
+    return reg
 
 
 def _office_user_env(user):
@@ -1097,6 +1199,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_notes_tabs()
         if self.path == "/api/files/tabs":
             return self._handle_files_tabs_save()
+        if self.path == "/api/share":
+            return self._handle_share_create()
+        if self.path == "/api/share/revoke":
+            return self._handle_share_revoke()
         if self.path == "/api/desktop":
             return self._handle_desktop_save()
         if self.path == "/api/desktop/close":
@@ -2302,6 +2408,263 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 pass
 
+    # ---- public share links (Files app) -------------------------------------
+    def _share_url(self, token):
+        """Public URL for a token: SHARE_PUBLIC_BASE if set, else derived from the
+        request Host + X-Forwarded-Proto so the link matches how you reached the
+        app (tunnel host over the tunnel, LAN IP on the LAN)."""
+        if SHARE_PUBLIC_BASE:
+            return SHARE_PUBLIC_BASE + "/s/" + token
+        host = self.headers.get("Host", "") or "127.0.0.1"
+        proto = self.headers.get("X-Forwarded-Proto") or "http"
+        return "%s://%s/s/%s" % (proto, host, token)
+
+    def _handle_share_create(self):
+        # POST /api/share {path, ttl(days)} -> mint a public read-only link.
+        raw = self._read_body(64 * 1024)
+        if raw is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(raw or b"{}")
+        except ValueError:
+            return self._json(400, {"error": "invalid json"})
+        rel = (data.get("path") or "").strip()
+        target, kind = _safe_share_target(rel)
+        if not target:
+            return self._json(400, {"error": "not shareable: must be a file or folder "
+                                             "under home, and not a dotfile"})
+        ttl = data.get("ttl", SHARE_DEFAULT_TTL_DAYS)
+        try:
+            ttl = float(ttl)
+        except (TypeError, ValueError):
+            ttl = SHARE_DEFAULT_TTL_DAYS
+        now = time.time()
+        expires = 0 if ttl <= 0 else now + ttl * 86400
+        token = secrets.token_urlsafe(16)          # 128-bit unguessable capability
+        name = os.path.basename(target.rstrip("/")) or "share"
+        with _shares_lock:
+            reg = _read_shares()
+            _share_prune(reg, now)
+            if len(reg) >= SHARE_MAX:              # evict the oldest to bound the file
+                oldest = min(reg, key=lambda t: reg[t].get("created", 0))
+                del reg[oldest]
+            reg[token] = {"rel": rel.lstrip("/"), "name": name, "kind": kind,
+                          "created": now, "expires": expires, "hits": 0}
+            _write_shares(reg)
+        log.info("share created: %s (%s) token=%s… expires=%s",
+                 name, kind, token[:6], int(expires))
+        return self._json(200, {"token": token, "url": self._share_url(token),
+                                "name": name, "kind": kind, "expires": int(expires)})
+
+    def _handle_share_list(self):
+        # GET /api/share/list -> active shares (authed; for the manage UI).
+        now = time.time()
+        with _shares_lock:
+            reg = _read_shares()
+            _share_prune(reg, now)
+            _write_shares(reg)
+            items = [{
+                "token": tok,
+                "url": self._share_url(tok),
+                "name": ent.get("name", ""),
+                "rel": ent.get("rel", ""),
+                "kind": ent.get("kind", "file"),
+                "created": int(ent.get("created", 0)),
+                "expires": int(ent.get("expires", 0)),
+                "hits": int(ent.get("hits", 0)),
+            } for tok, ent in reg.items() if isinstance(ent, dict)]
+        items.sort(key=lambda x: x["created"], reverse=True)
+        return self._json(200, {"shares": items})
+
+    def _handle_share_revoke(self):
+        # POST /api/share/revoke {token}
+        raw = self._read_body(64 * 1024)
+        if raw is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(raw or b"{}")
+        except ValueError:
+            return self._json(400, {"error": "invalid json"})
+        token = (data.get("token") or "").strip()
+        removed = False
+        with _shares_lock:
+            reg = _read_shares()
+            if token in reg:
+                del reg[token]
+                removed = True
+            _share_prune(reg)
+            _write_shares(reg)
+        return self._json(200, {"ok": True, "removed": removed})
+
+    def _share_safety_headers(self):
+        # The file is served from the app's OWN origin, so neutralize any active
+        # content: nosniff + a null/sandbox CSP mean a shared .html/.svg can't run
+        # JS in-origin even if a browser tried to render it.
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'none'; sandbox")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Cache-Control", "private, no-store")
+
+    def _handle_share_serve(self):
+        # GET/HEAD /s/<token>[?dl=1] -- PUBLIC, no auth; the token is the only gate.
+        parsed = urllib.parse.urlparse(self.path)
+        token = parsed.path[len("/s/"):].split("/")[0]
+        if not re.match(r"^[A-Za-z0-9_-]{8,64}$", token or ""):
+            return self.send_error(404)
+        force_dl = "dl" in urllib.parse.parse_qs(parsed.query)
+        now = time.time()
+        ent = None
+        with _shares_lock:
+            reg = _read_shares()
+            before = len(reg)
+            _share_prune(reg, now)
+            e = reg.get(token)
+            changed = len(reg) != before
+            if isinstance(e, dict):
+                ent = dict(e)
+                if not self.headers.get("Range"):    # count a fresh download, not each range
+                    reg[token]["hits"] = int(e.get("hits", 0)) + 1
+                    changed = True
+            if changed:
+                _write_shares(reg)
+        if ent is None:
+            return self.send_error(404)
+        # Re-validate the target on every fetch (moved/replaced/now-dotfile -> 404).
+        target, kind = _safe_share_target(ent.get("rel", ""))
+        if not target or kind != ent.get("kind", "file"):
+            return self.send_error(404)
+        if kind == "dir":
+            return self._serve_share_zip(target, ent.get("name") or "share")
+        return self._serve_share_file(target, ent.get("name") or os.path.basename(target),
+                                      force_dl, self.headers.get("Range"))
+
+    def _serve_share_file(self, path, name, force_dl, range_hdr):
+        try:
+            size = os.path.getsize(path)
+        except OSError:
+            return self.send_error(404)
+        ctype = mimetypes.guess_type(name)[0] or "application/octet-stream"
+        inline = (not force_dl) and any(
+            ctype == t or (t.endswith("/") and ctype.startswith(t))
+            for t in SHARE_INLINE_TYPES)
+        start, end, partial = 0, size - 1, False
+        if range_hdr:
+            m = re.match(r"bytes=(\d*)-(\d*)$", range_hdr.strip())
+            if m and (m.group(1) or m.group(2)):
+                if m.group(1) == "":
+                    start, end = max(0, size - int(m.group(2))), size - 1
+                else:
+                    start = int(m.group(1))
+                    end = int(m.group(2)) if m.group(2) else size - 1
+                if start > end or start >= max(size, 1):
+                    self.send_response(416)
+                    self.send_header("Content-Range", "bytes */%d" % size)
+                    self.end_headers()
+                    return
+                end = min(end, size - 1)
+                partial = True
+        length = end - start + 1
+        self.send_response(206 if partial else 200)
+        # inline only for the safe allowlist; everything else downloads as octet-stream
+        self.send_header("Content-Type", ctype if inline else "application/octet-stream")
+        self.send_header("Content-Length", str(length))
+        self.send_header("Accept-Ranges", "bytes")
+        if partial:
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+        self.send_header("Content-Disposition",
+                         "%s; filename=\"%s\"; filename*=UTF-8''%s"
+                         % ("inline" if inline else "attachment",
+                            name.replace('"', ''), urllib.parse.quote(name)))
+        self._share_safety_headers()
+        self.end_headers()
+        if self.command == "HEAD":
+            return
+        try:
+            with open(path, "rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(65536, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+        except (OSError, BrokenPipeError, ConnectionError):
+            pass
+
+    def _serve_share_zip(self, absdir, name):
+        # A shared FOLDER -> an on-the-fly .zip (built to a temp file on disk, then
+        # streamed). Skips dotfiles/dot-dirs and any symlink escaping SHARE_ROOT.
+        base = os.path.realpath(SHARE_ROOT)
+        tmpdir = OFFICE_CACHE_DIR
+        try:
+            os.makedirs(tmpdir, exist_ok=True)
+        except OSError:
+            tmpdir = None
+        fd, tmppath = tempfile.mkstemp(prefix=".share-", suffix=".zip", dir=tmpdir)
+        os.close(fd)
+        try:
+            total = count = 0
+            top = os.path.basename(absdir.rstrip("/")) or "share"
+            with zipfile.ZipFile(tmppath, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as z:
+                for root, dirs, files in os.walk(absdir):
+                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                    for fn in files:
+                        if fn.startswith("."):
+                            continue
+                        p = os.path.join(root, fn)
+                        if os.path.islink(p):
+                            continue
+                        rp = os.path.realpath(p)
+                        if rp != base and not rp.startswith(base + os.sep):
+                            continue            # escaped the fence
+                        if not os.path.isfile(rp):
+                            continue
+                        try:
+                            sz = os.path.getsize(rp)
+                        except OSError:
+                            continue
+                        count += 1
+                        total += sz
+                        if count > SHARE_ZIP_MAX_FILES or total > SHARE_ZIP_MAX_BYTES:
+                            raise _ShareTooBig()
+                        try:
+                            z.write(rp, os.path.join(top, os.path.relpath(p, absdir)))
+                        except OSError:
+                            continue
+            zsize = os.path.getsize(tmppath)
+            fn = (name or "share") + ".zip"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(zsize))
+            self.send_header("Content-Disposition",
+                             "attachment; filename=\"%s\"; filename*=UTF-8''%s"
+                             % (fn.replace('"', ''), urllib.parse.quote(fn)))
+            self._share_safety_headers()
+            self.end_headers()
+            if self.command == "HEAD":
+                return
+            with open(tmppath, "rb") as f:
+                while True:
+                    chunk = f.read(65536)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except _ShareTooBig:
+            self.send_error(413, "Folder too large to share as a zip")
+        except (OSError, BrokenPipeError, ConnectionError):
+            pass
+        finally:
+            try:
+                os.unlink(tmppath)
+            except OSError:
+                pass
+
+    def do_HEAD(self):
+        if self.path.startswith("/s/"):
+            return self._handle_share_serve()
+        self.send_error(404)
+
     def do_GET(self):
         if self.path == "/api/ping":
             # Trivial liveness probe (no side effects): the systemd watchdog and
@@ -2340,6 +2703,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log.warning("claude stats failed: %s", e)
                 self._json(500, {"error": str(e)})
             return
+        if self.path == "/api/share/list":
+            return self._handle_share_list()
         if self.path == "/api/files/tabs":
             try:
                 with open(FILES_TABS_FILE) as f:
@@ -2443,6 +2808,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_events()
         if self.path == "/api/metrics":
             return self._handle_metrics()
+        if self.path.startswith("/s/"):
+            return self._handle_share_serve()
         self.send_error(404)
 
     def _handle_metrics(self):
