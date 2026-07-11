@@ -47,6 +47,67 @@ Each per-user resource must be re-provisioned per identity:
 - **State** — per-user desktop/notes land naturally in each user's own
   `~/.local/share` once they run as separate OS users.
 
+## Filesystem layout (where things install)
+
+Today's layout is **single-user-shaped and wrong for multi-user**: the shared,
+**root-run** code lives inside one user's home (`~/vibetop` checkout, served from
+`~/vibetop-www`, secret in `~/.config/vibetop`). That's fine while that user *is*
+the trusted operator, but the moment other people get real shells (B/C/D) it's a
+**privilege-escalation hole** — a tenant could edit `terminal-manager.py` (runs as
+**root**) or `desktop.html`/`apph.js` (served to *everyone*) and own the box or all
+tenants. So the governing rule is: **shared/root-owned things move out of every
+home into one system tree; only per-user state stays in homes.**
+
+### Two places, conceptually
+
+**1. One shared tree — `/opt/vibetop/`, root-owned, not tenant-writable:**
+
+```
+/opt/vibetop/
+├── app/     # the git checkout — code, install scripts, unit + nginx templates
+│            #   (manager runs from here as root; in-app Update git-pulls here)
+├── www/     # static shell + JS  (nginx root)          [today: ~/vibetop-www]
+├── etc/     # config + secrets   (onlyoffice.secret, x11-dbus.conf)
+│            #                                           [today: ~/.config/vibetop, /etc/vibetop]
+└── var/     # shared mutable data (FileBrowser accounts DB) + logs
+             #                                           [today: /var/log/vibetop, ~/.config/filebrowser]
+```
+
+One path to back up, to `chown root`, and to reason about. This also tidies the
+*single-user* install, which is currently spread across `~/vibetop`,
+`~/vibetop-www`, `~/.config/vibetop`, `/etc/vibetop`, and `/var/log/vibetop`.
+
+**2. Each user's `$HOME`** — their private state (`~/.local/share/desktop-*`,
+notes, files-tabs, `~/Documents`, `~/Uploads`), owned by them. This is **not**
+scatter to eliminate — it **is** the isolation: "personal stuff in `$HOME`, owned
+by that user" is the whole security boundary in B/C, enforced by Unix perms.
+Per-user services (terminals, Browser xpra display) run **as that user** and write
+only there.
+
+### The only bits that must live outside the tree — and they're just pointers
+
+Systemd and nginx dictate where their configs go (true for *every* service). Keep
+the real files in the tree and let the OS dirs reference them, so `/etc` holds no
+vibetop *content* — only links back into `/opt/vibetop`:
+
+- `/etc/systemd/system/vibetop-*.service` → **symlinks** into
+  `/opt/vibetop/app/systemd/` (systemd follows symlinked units).
+- `/etc/nginx/…` → a one-line `include /opt/vibetop/app/nginx/*.conf;`.
+
+Everything else (ttyd, xpra, chromium snap, the FileBrowser binary,
+Docker/OnlyOffice) is apt/snap-managed system packages — not vibetop's to place.
+
+### How much relocation each option needs
+
+- **A (soft namespacing, one trusted OS user):** the `/opt` move is *optional* —
+  there's still one trusted user who owns the code; you mainly key state by identity.
+- **B / D (real per-user isolation):** the `/opt/vibetop` + symlink/include
+  relocation is **mandatory** — it's the boundary that stops tenant X from tampering
+  with root-run code or tenant Y's data.
+- **C (container/VM per user):** "shared" and "per-user" collapse — each tenant gets
+  the whole `/opt/vibetop` + home inside their own image, so the split matters per
+  image rather than per path.
+
 ## The two questions that fork the whole design
 
 1. **Trust model** — trusted few (→ A) · real isolation, semi-trusted (→ B) ·
