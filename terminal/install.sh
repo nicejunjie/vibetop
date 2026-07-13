@@ -45,6 +45,13 @@ DRY_RUN="${DRY_RUN:-0}"
 # credential-entry pages only. Loopback (the cloudflared tunnel, which terminates
 # TLS at Cloudflare's edge, and local tooling) and the Docker->host OnlyOffice
 # callback stay on http. Disable with ENABLE_TLS=0 (then LAN logins are cleartext).
+#
+# Host-local deploy overrides: a root-owned /etc/vibetop/deploy.env (not in git)
+# is sourced here so a host can persist a choice like ENABLE_TLS=0 across plain
+# `./deploy.sh` runs (and in-app Updates) without re-passing the flag. Explicit
+# env vars still win — the file should use `${VAR:-default}` assignment so it
+# only sets a default when the var is unset (see the file the installer writes).
+[ -r /etc/vibetop/deploy.env ] && . /etc/vibetop/deploy.env
 ENABLE_TLS="${ENABLE_TLS:-1}"
 TLS_DIR="${TLS_DIR:-/etc/vibetop/tls}"
 TLS_CERT="${TLS_CERT:-$TLS_DIR/cert.pem}"

@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <meta name="theme-color" content="#161b22">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0e1117">
   <title>Sign in — vibetop</title>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <style>
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
@@ -12,65 +15,106 @@
       background: #0e1117; color: #e0e0e0;
       font-family: system-ui, -apple-system, sans-serif;
       display: flex; align-items: center; justify-content: center;
-      padding: 24px;
+      padding: 24px; position: relative; overflow: hidden;
+    }
+    /* Ambient depth: a warm accent glow up top plus faint hints of the other
+       three tile colors, so the flat card sits in the same lit space as the
+       desktop shell instead of a dead black field. Pointer-inert, behind all. */
+    body::before {
+      content: ""; position: fixed; inset: -20% -10% auto -10%; height: 70%;
+      background:
+        radial-gradient(60% 60% at 50% 0%, rgba(210,105,30,0.16), transparent 70%),
+        radial-gradient(40% 50% at 12% 8%, rgba(51,170,85,0.08), transparent 70%),
+        radial-gradient(45% 55% at 88% 4%, rgba(58,122,219,0.10), transparent 70%);
+      pointer-events: none; z-index: 0;
     }
     .card {
-      background: #161b22; border: 1px solid #2a3040; border-radius: 14px;
-      padding: 36px 32px; max-width: 380px; width: 100%;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      position: relative; z-index: 1;
+      background: #161b22; border: 1px solid #2a3040; border-radius: 16px;
+      padding: 34px 30px 28px; max-width: 380px; width: 100%;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02) inset;
     }
     .brand {
-      display: flex; align-items: center; gap: 12px; margin: 0 0 22px;
-      justify-content: center;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 14px; margin: 4px 0 20px;
     }
-    .brand .logo {
-      width: 40px; height: 40px; border-radius: 10px; flex: 0 0 auto;
-      background: conic-gradient(from 135deg, #d2691e, #b3540f, #7a94c0, #4a6b8a, #d2691e);
+    .brand .logo { width: 56px; height: 56px; flex: 0 0 auto; display: block;
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,0.45)); }
+    .brand h1 {
+      font-size: 24px; font-weight: 700; color: #e8eef5; margin: 0;
+      letter-spacing: .2px;
     }
-    .brand h1 { font-size: 20px; font-weight: 700; color: #e8eef5; margin: 0; letter-spacing: .3px; }
+    .brand h1 .dot { color: #d2691e; }
     p.sub { font-size: 13px; line-height: 1.5; color: #8a9aaa; margin: 0 0 22px; text-align: center; }
     label { display: block; font-size: 12px; color: #8a9aaa; margin: 0 0 6px; font-weight: 600; }
-    .field { margin: 0 0 16px; }
+    .field { margin: 0 0 15px; }
     input {
-      width: 100%; padding: 11px 13px; font-size: 16px;
+      width: 100%; padding: 12px 13px; font-size: 16px;
       background: #0e1117; color: #e8eef5;
-      border: 1px solid #2a3040; border-radius: 9px; outline: none;
+      border: 1px solid #2a3040; border-radius: 10px; outline: none;
+      transition: border-color .15s, box-shadow .15s;
     }
-    input:focus { border-color: #d2691e; box-shadow: 0 0 0 2px rgba(210,105,30,0.18); }
+    input::placeholder { color: #5a6b7a; }
+    input:focus { border-color: #d2691e; box-shadow: 0 0 0 3px rgba(210,105,30,0.18); }
     button {
-      width: 100%; margin-top: 4px; cursor: pointer;
+      width: 100%; margin-top: 6px; cursor: pointer;
       font-size: 15px; font-weight: 700; color: #fff; border: 0;
       background: linear-gradient(135deg, #b3540f, #d2691e);
-      padding: 12px; border-radius: 9px;
+      padding: 13px; border-radius: 10px;
+      transition: filter .15s, transform .05s;
     }
-    button:hover { filter: brightness(1.08); }
+    button:hover { filter: brightness(1.1); }
+    button:active { transform: translateY(1px); }
     button:disabled { opacity: .6; cursor: default; filter: none; }
     .err {
-      display: none; margin: 0 0 16px; padding: 10px 12px; border-radius: 8px;
+      display: none; margin: 0 0 16px; padding: 10px 12px; border-radius: 9px;
       font-size: 13px; color: #ffb4a2;
       background: rgba(210,60,30,0.12); border: 1px solid rgba(210,60,30,0.35);
     }
     .err.show { display: block; }
-    .hint { margin: 18px 0 0; font-size: 12px; color: #6a7a8a; text-align: center; line-height: 1.5; }
+    .hint {
+      margin: 20px 0 0; font-size: 12px; color: #6a7a8a;
+      text-align: center; line-height: 1.5;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .hint svg { flex: 0 0 auto; opacity: .8; }
   </style>
 </head>
 <body>
   <form class="card" id="form" autocomplete="on">
-    <div class="brand"><div class="logo"></div><h1>vibetop</h1></div>
+    <div class="brand">
+      <!-- vibetop mark: the 2×2 launcher grid (orange/green/blue/purple) from
+           landing/icons/generate-icons.py, inlined so it's crisp at any size. -->
+      <svg class="logo" viewBox="0 0 100 100" role="img" aria-label="vibetop">
+        <rect x="16" y="16" width="30" height="30" rx="7" fill="#d2691e"/>
+        <rect x="54" y="16" width="30" height="30" rx="7" fill="#33aa55"/>
+        <rect x="16" y="54" width="30" height="30" rx="7" fill="#3a7adb"/>
+        <rect x="54" y="54" width="30" height="30" rx="7" fill="#8a4adb"/>
+      </svg>
+      <h1>vibetop</h1>
+    </div>
     <p class="sub">Sign in with your Linux account on this machine.</p>
     <div class="err" id="err"></div>
     <div class="field">
       <label for="u">Username</label>
       <input id="u" name="username" autocapitalize="none" autocorrect="off"
-             spellcheck="false" autocomplete="username" required autofocus>
+             spellcheck="false" autocomplete="username" placeholder="your linux user"
+             required autofocus>
     </div>
     <div class="field">
       <label for="p">Password</label>
-      <input id="p" name="password" type="password"
+      <input id="p" name="password" type="password" placeholder="••••••••"
              autocomplete="current-password" required>
     </div>
     <button id="go" type="submit">Sign in</button>
-    <p class="hint">Your session stays signed in for 7 days on this device.</p>
+    <p class="hint">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6a7a8a"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      Stays signed in for 7 days on this device.
+    </p>
   </form>
   <script>
     // Where to go after a successful login: honor a ?next= (same-origin path only).
@@ -100,6 +144,7 @@
         });
         if (r.ok) { location.replace(nextUrl()); return; }
         if (r.status === 401) showErr('Invalid username or password.');
+        else if (r.status === 429) showErr('Too many attempts — please wait and try again.');
         else showErr('Sign-in failed (' + r.status + '). Please try again.');
       } catch (_) {
         showErr('Network error — could not reach the server.');
