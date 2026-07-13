@@ -205,19 +205,36 @@
   }
   #sys-warn .sw-x:hover { opacity: 1; }
 
+  .tb-logout-wrap { position: relative; flex-shrink: 0; margin-left: 8px; }
   .tb-logout {
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
     width: 36px; height: 36px; border-radius: 8px;
     font-size: 18px; color: #aa4444; cursor: pointer;
-    text-decoration: none; margin-left: 8px;
+    background: none; padding: 0; font-family: inherit;
     border: 1px solid rgba(255,60,60,0.15);
   }
-  .tb-logout:hover { background: rgba(255,60,60,0.2); color: #ff6666; border-color: rgba(255,60,60,0.3); }
-  /* "Log out all devices" — set apart (smaller glyph, stronger accent) so it's not
-     mistaken for the plain per-device logout. */
-  .tb-logout-all { font-size: 12px; letter-spacing: -2px; margin-left: 4px;
-    color: #cc3333; border-color: rgba(255,60,60,0.28); }
-  .tb-logout-all:hover { background: rgba(255,60,60,0.28); }
+  .tb-logout:hover, .tb-logout[aria-expanded="true"] {
+    background: rgba(255,60,60,0.2); color: #ff6666; border-color: rgba(255,60,60,0.3);
+  }
+  /* Drop-UP menu (taskbar sits at the viewport bottom). */
+  .tb-logout-menu {
+    position: absolute; bottom: calc(100% + 8px); right: 0;
+    min-width: 200px; padding: 6px; z-index: 300;
+    background: #161d29; border: 1px solid #2a3342; border-radius: 11px;
+    box-shadow: 0 -10px 34px rgba(0,0,0,0.55);
+  }
+  .tb-logout-menu[hidden] { display: none; }
+  .tb-lo-item {
+    display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left;
+    padding: 8px 12px; border: 0; border-radius: 7px; background: none;
+    color: #d6dee8; cursor: pointer; font-family: inherit;
+  }
+  .tb-lo-item + .tb-lo-item { margin-top: 2px; }
+  .tb-lo-item:hover { background: rgba(255,255,255,0.06); }
+  .tb-lo-t { font-size: 13px; font-weight: 600; }
+  .tb-lo-sub { font-size: 11px; color: #7d8a99; }
+  .tb-lo-danger .tb-lo-t { color: #ff7a7a; }
+  .tb-lo-danger:hover { background: rgba(255,60,60,0.14); }
 
   /* === Start menu === */
   .startmenu {
@@ -509,8 +526,19 @@
       <span class="n"  id="vram-ut">--</span><span class="u">G</span>
     </div>
     <div class="tb-sep" id="tb-stats-sep"></div>
-    <a class="tb-logout" id="tb-logout" href="/login.html" title="Log out this device (your terminals &amp; files keep running)">⏻</a>
-    <a class="tb-logout tb-logout-all" id="tb-logout-all" href="/cdn-cgi/access/logout" title="Log out ALL devices (invalidate every session for your account &amp; fresh-start reset)">⏻⏻</a>
+    <div class="tb-logout-wrap" id="tb-logout-wrap">
+      <button class="tb-logout" id="tb-logout" title="Log out" aria-haspopup="true" aria-expanded="false">⏻</button>
+      <div class="tb-logout-menu" id="tb-logout-menu" role="menu" hidden>
+        <button class="tb-lo-item" id="tb-lo-this" role="menuitem">
+          <span class="tb-lo-t">Log out</span>
+          <span class="tb-lo-sub">this device</span>
+        </button>
+        <button class="tb-lo-item tb-lo-danger" id="tb-lo-all" role="menuitem">
+          <span class="tb-lo-t">Log out all devices</span>
+          <span class="tb-lo-sub">sign out everywhere &amp; reset</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- System-health warning banner (disk-full etc.) — driven by the heartbeat's
@@ -1667,33 +1695,41 @@
 // background processes), reset the Browser to a blank Chromium, then log out —
 // so the next login starts fresh. The href is the no-JS fallback.
 (function() {
-  // Two logout buttons:
-  //  • Log out (this device): clear THIS browser's session; your terminals/files
-  //    keep running (you may be signed in elsewhere). -> /login.html
+  // One ⏻ button -> a small drop-up menu with two actions:
+  //  • Log out (this device): clear THIS browser's session; terminals/files keep
+  //    running (you may be signed in elsewhere). -> /login.html
   //  • Log out all devices: invalidate every session for your account (server-side
-  //    token-epoch bump) AND fresh-start reset (stop your terminals, clear desktop),
-  //    then the Cloudflare Access logout.
-  var logout = document.getElementById('tb-logout');
-  if (logout) logout.addEventListener('click', function(e) {
-    e.preventDefault();
-    var go = function() { window.location.href = '/login.html'; };
-    fetch('/api/logout', { method: 'POST' }).then(go, go);
-  });
-
-  var logoutAll = document.getElementById('tb-logout-all');
-  if (logoutAll) logoutAll.addEventListener('click', function(e) {
-    e.preventDefault();
-    vibeConfirm('Log out of ALL your devices?\nEvery browser signed in as you will be signed out, your terminals will be stopped, and the desktop reset.',
-      { okText: 'Log out everywhere', danger: true }).then(function(ok) {
-      if (!ok) return;
-      var go = function() { window.location.href = '/cdn-cgi/access/logout'; };
-      // reset (fresh start) then invalidate every session, then edge logout.
-      fetch('/api/reset', { method: 'POST' })
-        .then(function() { return fetch('/api/logout/all', { method: 'POST' }); },
-              function() { return fetch('/api/logout/all', { method: 'POST' }); })
-        .then(go, go);
+  //    token-epoch bump) AND fresh-start reset, then the Cloudflare Access logout.
+  var btn = document.getElementById('tb-logout');
+  var menu = document.getElementById('tb-logout-menu');
+  if (btn && menu) {
+    var closeMenu = function() { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var willOpen = menu.hidden;
+      menu.hidden = !willOpen;
+      btn.setAttribute('aria-expanded', String(willOpen));
     });
-  });
+    menu.addEventListener('click', function(e) { e.stopPropagation(); });
+    document.addEventListener('click', function() { if (!menu.hidden) closeMenu(); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeMenu(); });
+
+    document.getElementById('tb-lo-this').addEventListener('click', function() {
+      closeMenu();
+      var go = function() { window.location.href = '/login.html'; };
+      fetch('/api/logout', { method: 'POST' }).then(go, go);
+    });
+    document.getElementById('tb-lo-all').addEventListener('click', function() {
+      closeMenu();
+      vibeConfirm('Log out of ALL your devices?\nEvery browser signed in as you will be signed out, your terminals will be stopped, and the desktop reset.',
+        { okText: 'Log out everywhere', danger: true }).then(function(ok) {
+        if (!ok) return;
+        var go = function() { window.location.href = '/cdn-cgi/access/logout'; };
+        var all = function() { return fetch('/api/logout/all', { method: 'POST' }); };
+        fetch('/api/reset', { method: 'POST' }).then(all, all).then(go, go);
+      });
+    });
+  }
 })();
 
 // --- Claude plan-usage strip (opt-in) --------------------------------------
