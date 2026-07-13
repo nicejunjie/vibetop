@@ -269,18 +269,19 @@
     font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
     color: #556; padding: 2px 8px 4px;
   }
-  /* Signed-in user header — ONE compact row (small avatar + name · @login inline)
-     so it adds minimal height and the Start menu stays short on mobile. */
+  /* Signed-in user header — sized to MATCH the (trimmed) app rows (.sm-item:
+     26px avatar, 4px 8px padding, gap 9px) so it reads as one of the family,
+     not a taller or thinner odd-one-out. Single line (name · @login). */
   .sm-user {
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 9px;
     padding: 4px 8px; margin: 0 0 4px; border-radius: 8px;
     background: rgba(210,105,30,0.08); border: 1px solid #2a3040;
   }
   .sm-user[hidden] { display: none; }
   .sm-user-av {
-    width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700; color: #fff;
+    font-size: 12px; font-weight: 700; color: #fff;
     background: linear-gradient(135deg, #b3540f, #d2691e);
   }
   .sm-user-txt { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
@@ -288,14 +289,14 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sm-user-login { font-size: 11px; color: #8a9aaa; flex-shrink: 0; }
   .sm-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 5px 9px; border-radius: 8px; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 9px;
+    padding: 4px 8px; border-radius: 8px; cursor: pointer; user-select: none;
     color: #c0d0e0; border: 1px solid transparent;
   }
   .sm-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
   .sm-item .sm-icon {
     display: flex; align-items: center; justify-content: center;
-    width: 30px; height: 30px; border-radius: 8px; font-size: 28px; flex-shrink: 0;
+    width: 26px; height: 26px; border-radius: 7px; font-size: 24px; flex-shrink: 0;
   }
   .sm-item[data-id="home"]     .sm-icon { background: #6b3510; }
   .sm-item[data-id="terminal"] .sm-icon { background: #1a5c2a; }
@@ -312,14 +313,14 @@
   /* Collapsible "Utilities" parent → a nested (two-level) submenu. Clicking the
      parent row expands/collapses the .sm-sub group beneath it. */
   .sm-parent {
-    display: flex; align-items: center; gap: 10px;
-    padding: 5px 9px; border-radius: 8px; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 9px;
+    padding: 4px 8px; border-radius: 8px; cursor: pointer; user-select: none;
     color: #c0d0e0; border: 1px solid transparent;
   }
   .sm-parent:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
   .sm-parent .sm-icon {
     display: flex; align-items: center; justify-content: center;
-    width: 30px; height: 30px; border-radius: 8px; font-size: 26px; flex-shrink: 0;
+    width: 26px; height: 26px; border-radius: 7px; font-size: 22px; flex-shrink: 0;
     background: #3a3320;
   }
   .sm-parent .sm-parent-name { flex: 1; font-size: 14px; color: #e6edf3; }
@@ -573,21 +574,26 @@
     <div class="tb-sep" id="tb-stats-sep"></div>
     <div class="tb-logout-wrap" id="tb-logout-wrap">
       <button class="tb-logout" id="tb-logout" title="Log out" aria-haspopup="true" aria-expanded="false">⏻</button>
-      <div class="tb-logout-menu" id="tb-logout-menu" role="menu" hidden>
-        <div class="tb-lo-who" id="tb-lo-who" hidden>
-          <span class="tb-lo-who-name" id="tb-lo-who-name"></span>
-          <span class="tb-lo-who-login" id="tb-lo-who-login"></span>
-        </div>
-        <button class="tb-lo-item" id="tb-lo-this" role="menuitem">
-          <span class="tb-lo-t">Log out</span>
-          <span class="tb-lo-sub">this device</span>
-        </button>
-        <button class="tb-lo-item tb-lo-danger" id="tb-lo-all" role="menuitem">
-          <span class="tb-lo-t">Log out all devices</span>
-          <span class="tb-lo-sub">sign out everywhere &amp; reset</span>
-        </button>
-      </div>
     </div>
+  </div>
+
+  <!-- Logout drop-up lives as a BODY child (NOT inside .taskbar): on mobile the
+       taskbar is an overflow-x scroll container, which on iOS clips/traps a
+       position:fixed descendant — so the menu showed nothing. As a body child
+       (like #startmenu) it's free of that. Toggled by #tb-logout via id. -->
+  <div class="tb-logout-menu" id="tb-logout-menu" role="menu" hidden>
+    <div class="tb-lo-who" id="tb-lo-who" hidden>
+      <span class="tb-lo-who-name" id="tb-lo-who-name"></span>
+      <span class="tb-lo-who-login" id="tb-lo-who-login"></span>
+    </div>
+    <button class="tb-lo-item" id="tb-lo-this" role="menuitem">
+      <span class="tb-lo-t">Log out</span>
+      <span class="tb-lo-sub">this device</span>
+    </button>
+    <button class="tb-lo-item tb-lo-danger" id="tb-lo-all" role="menuitem">
+      <span class="tb-lo-t">Log out all devices</span>
+      <span class="tb-lo-sub">sign out everywhere &amp; reset</span>
+    </button>
   </div>
 
   <!-- System-health warning banner (disk-full etc.) — driven by the heartbeat's
