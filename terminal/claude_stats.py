@@ -50,20 +50,25 @@ def _cost(tier, tin, tout, cw5, cw1h, cr):
 
 
 _lock = threading.Lock()
-_cache = {"ts": 0.0, "data": None}
+# Per-user cache: home -> {"ts", "data"}. MUST be keyed by home — a single-user
+# host had one home so a time-only cache was fine, but on a multi-user host that
+# would serve whichever user computed last to whoever asked next within the TTL,
+# leaking one user's token/cost stats to another (a real isolation breach).
+_cache = {}
 _TTL = 45   # seconds — token stats don't need sub-minute freshness
 
 
 def get_stats(home):
-    """Cached entry point. `home` is APP_USER's home directory."""
+    """Cached entry point, memoized PER `home` (each user sees only their own
+    transcripts under ~/.claude). `home` is the requesting user's home dir."""
     now = time.time()
     with _lock:
-        if _cache["data"] is not None and now - _cache["ts"] < _TTL:
-            return _cache["data"]
+        ent = _cache.get(home)
+        if ent is not None and now - ent["ts"] < _TTL:
+            return ent["data"]
     data = _compute(home)
     with _lock:
-        _cache["ts"] = time.time()
-        _cache["data"] = data
+        _cache[home] = {"ts": time.time(), "data": data}
     return data
 
 
