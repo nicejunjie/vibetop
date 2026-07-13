@@ -605,6 +605,18 @@ def _resource_props():
     return props
 
 
+def _workdir_props(pw):
+    """A `systemd-run` transient unit defaults to WorkingDirectory=/, so a login
+    shell (and any file dialog) starts in the filesystem root instead of the
+    user's home — the "terminal opens in /" bug. Pin it to the user's home like
+    SSH/login does. Falls back to no property (systemd's /) if the home is
+    missing/unreadable, so a homeless account can still start a session."""
+    home = pw.pw_dir
+    if home and os.path.isdir(home):
+        return ["--property", f"WorkingDirectory={home}"]
+    return []
+
+
 def _sanitize_unit(s):
     # A Linux login name is a safe subset of systemd unit chars; be defensive.
     return re.sub(r"[^A-Za-z0-9_.-]", "_", str(s))
@@ -739,7 +751,7 @@ def _start_user_terminal(user, n):
     port = _user_term_port(user, n)
     sess_unit, ttyd_unit = _term_units(user, n)
     base = (["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
-            + _resource_props())
+            + _resource_props() + _workdir_props(pw))     # land the shell in ~, not /
     setenvs = []
     for e in _user_terminal_setenvs(user):
         setenvs += ["--setenv", e]
@@ -783,9 +795,11 @@ def _stop_user_terminal(user, n):
 
 
 # ---- Per-user Files (FileBrowser as the user, Phase 3b) --------------------
-# One FileBrowser per user, run AS them via systemd-run, rooted at THEIR home
-# (so it opens at ~ and can't escape it — belt (scope) and braces (Unix perms));
-# per-user port + DB. nginx routes /files/ to the user's port via authcheck.
+# One FileBrowser per user, run AS them via systemd-run, rooted at "/" (whole
+# filesystem — same as the single-user Files app and consistent with the user's
+# Terminal; Unix perms are the fence since it runs as them). The app OPENS at
+# their real home (files.html anchors on /api/me) but can navigate the tree.
+# Per-user port + DB. nginx routes /files/ to the user's port via authcheck.
 FB_BIN = os.environ.get("FB_BIN", "/usr/local/bin/filebrowser")
 FB_APP_BASE = _port_env("FB_APP_BASE", 18000)     # per-user FileBrowser port = base + slot
 
@@ -814,8 +828,8 @@ def _run_as(user, argv, timeout=30):
 
 def _provision_user_filebrowser(user, home, port):
     """First-run setup of the user's FileBrowser DB (as the user): init, an
-    internal admin (noauth serves as it), and config (root=home, scope=home,
-    baseurl, hidden dotfiles). Idempotent — safe to re-run."""
+    internal admin (noauth serves as it), and config (root=/, scope=/, baseurl,
+    hidden dotfiles). Idempotent — safe to re-run."""
     db = _fb_db(home)
     try:
         os.makedirs(os.path.dirname(db), exist_ok=True)
@@ -827,11 +841,18 @@ def _provision_user_filebrowser(user, home, port):
         _run_as(user, [FB_BIN, "-d", db, "config", "init"])
         _run_as(user, [FB_BIN, "-d", db, "users", "add", "admin",
                        secrets.token_hex(12), "--perm.admin"])
+    # Root at "/" (whole filesystem) — the same model as the single-user Files app
+    # and consistent with this user's Terminal: they run AS themselves, so Unix
+    # permissions are the fence (SSH-equivalent trust). The app *opens* at their
+    # real home (files.html anchors on /api/me), but they can navigate anywhere
+    # their perms allow, and the address bar shows real paths (/home/you) instead
+    # of "/". (Rooting at home instead showed home AS "/", which read as the same
+    # "landed in /" bug as the terminal.)
     _run_as(user, [FB_BIN, "-d", db, "config", "set", "--address", "127.0.0.1",
-                   "--port", str(port), "--baseurl", "/files", "--root", home,
+                   "--port", str(port), "--baseurl", "/files", "--root", "/",
                    "--auth.method=noauth", "--hideDotfiles"])
     _run_as(user, [FB_BIN, "-d", db, "users", "update", "admin",
-                   "--scope", home, "--hideDotfiles"])
+                   "--scope", "/", "--hideDotfiles"])
 
 
 def _start_user_filebrowser(user):
@@ -857,7 +878,7 @@ def _start_user_filebrowser(user):
     db = _fb_db(home)
     r = subprocess.run(
         ["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
-        + _resource_props() +
+        + _resource_props() + _workdir_props(pw) +
         [f"--unit={unit}", "--setenv", f"HOME={home}",
          FB_BIN, "-d", db, "-a", "127.0.0.1", "-p", str(port)],
         capture_output=True, text=True, timeout=30)
@@ -918,7 +939,7 @@ def _start_user_xpra(user, kind):
                "--setenv", "XPRA_PING_TIMEOUT=45"]
     r = subprocess.run(
         ["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
-        + _resource_props() + [f"--unit={unit}"] + setenvs +
+        + _resource_props() + _workdir_props(pw) + [f"--unit={unit}"] + setenvs +
         [helper, kind, str(disp), str(port)],
         capture_output=True, text=True, timeout=30)
     if r.returncode != 0:
@@ -3611,6 +3632,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Trivial liveness probe (no side effects): the systemd watchdog and
             # any external monitor hit this to confirm the HTTP loop is answering.
             self._json(200, {"ok": True})
+            return
+        if self.path == "/api/me":
+            # The authenticated principal for this request + their real home.
+            # Front-ends that are static files (can't be stamped per-user) use
+            # this to anchor on the logged-in user's home — notably files.html,
+            # which opens the Files app at ~ (FileBrowser is rooted at /).
+            user = _ctx_user()
+            self._json(200, {"user": user, "home": _ctx_home()})
             return
         if self.path == "/api/terminals/status":
             self._json(200, {"running": self._get_running_terminals()})

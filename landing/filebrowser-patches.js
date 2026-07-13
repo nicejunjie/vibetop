@@ -204,7 +204,18 @@
   }
 
   // --- Public share links (our passwordless /s/<token>) ---------------------
-  var SHARE_HOME = "@APP_HOME@";   // stamped by landing/install.sh (e.g. /home/you)
+  // Home path: stamped at deploy in single-user (@APP_HOME@ -> /home/you); empty
+  // in the multi-user build (the logged-in user is unknown at deploy), so resolve
+  // it once at runtime from /api/me. Used to fence shares to home and to point
+  // the "My files" button at the real home below.
+  var SHARE_HOME = "@APP_HOME@";
+  if (!SHARE_HOME) {
+    try {
+      fetch("/api/me").then(function(r){ return r.json(); }).then(function(d){
+        if (d && d.home) SHARE_HOME = d.home;
+      }).catch(function(){});
+    } catch (e) {}
+  }
 
   // The selected file/folder as { abs, name, isDir }, or null.
   function selectedItem() {
@@ -705,8 +716,9 @@
   // its built-in "My files" button navigates to "/". Redirect it to the user's HOME
   // instead — matching where the Files app's tabs open. Capture phase so we beat
   // FileBrowser's own Vue click handler (stopImmediatePropagation blocks it), and
-  // reuse goToPath for the SPA navigation. `@APP_HOME@` is stamped to the real home
-  // path by files/install.sh.
+  // reuse goToPath for the SPA navigation. SHARE_HOME is the real home path
+  // (stamped in single-user, resolved from /api/me in multi-user); "/" is a safe
+  // fallback if it hasn't resolved yet.
   document.addEventListener("click", function(e) {
     var btn = e.target.closest && e.target.closest("button.action");
     if (!btn) return;
@@ -714,7 +726,7 @@
     if (lbl !== "my files") return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    goToPath("@APP_HOME@");
+    goToPath(SHARE_HOME || "/");
   }, true);
 
   var observer = new MutationObserver(schedulePatch);

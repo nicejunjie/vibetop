@@ -11,23 +11,8 @@ import os
 import pytest
 
 
-@pytest.fixture()
-def users(mgr, home, monkeypatch, tmp_path):
-    """Map alice/bob (and APP_USER) to distinct tmp homes; yield a dict of
-    {name: (home_path, cookie)}. Depends on `client`'s `home` fixture having
-    already set the session-secret sandbox."""
-    homes = {}
-    for name in ("alice", "bob"):
-        h = tmp_path / name
-        (h / ".local" / "share").mkdir(parents=True, exist_ok=True)
-        (h / "Documents").mkdir(exist_ok=True)
-        (h / "Uploads").mkdir(exist_ok=True)
-        homes[name] = h
-    default_home = tmp_path / "home"
-    monkeypatch.setattr(mgr, "_user_home",
-                        lambda u: str(homes.get(u, default_home)))
-    return {name: (h, "vt_session=" + mgr._sign_session(name))
-            for name, h in homes.items()}
+# The `users` fixture (alice/bob → distinct tmp homes + session cookies) lives in
+# conftest.py so test_user_home.py can share it.
 
 
 # --- notes ------------------------------------------------------------------

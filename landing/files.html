@@ -53,10 +53,22 @@
   <div class="frames" id="frames"></div>
 <script>
 (function() {
-  // Default folder = the user's home, stamped at deploy (@APP_HOME@). FileBrowser's
-  // root is "/", so "/" stays reachable by navigating up or typing it in the path
-  // bar — but the Files app OPENS at home, not the filesystem root.
-  var HOME = '/files/files@APP_HOME@/';
+  // Default folder = the user's home. FileBrowser's root is "/", so "/" stays
+  // reachable by navigating up or typing it in the path bar — but the app OPENS
+  // at home, not the filesystem root. The home path is stamped at deploy in the
+  // single-user build (@APP_HOME@ -> /home/you); in the MULTI-USER build it's
+  // stamped empty (the logged-in user is unknown at deploy) and resolved at
+  // runtime from /api/me (see resolveHome below), so each user opens at THEIR ~.
+  var HOME_PATH = '@APP_HOME@';                 // '' in multi-user until resolved
+  var HOME = '/files/files' + HOME_PATH + '/';
+  // Resolve the real home once (multi-user) before the initial tab load, so the
+  // first tab opens at ~ rather than the filesystem root.
+  function resolveHome(done) {
+    if (HOME_PATH) { done(); return; }          // single-user: known at deploy
+    fetch('/api/me').then(function(r) { return r.json(); }).then(function(d) {
+      if (d && d.home) { HOME_PATH = d.home; HOME = '/files/files' + d.home + '/'; }
+    }).catch(function() {}).then(done);
+  }
   var tabsEl = document.getElementById('tabs');
   var framesEl = document.getElementById('frames');
   var addBtn = document.getElementById('add');
@@ -87,7 +99,8 @@
     var rest = (path || '').split('/files/files')[1] || '';
     rest = rest.split('?')[0].split('#')[0].replace(/\/+$/, '');
     if (!rest) return 'Home';                 // filesystem root "/"
-    if (rest === '@APP_HOME@') return 'Home'; // the home folder, not its basename
+    // The user's home folder is labelled "Home", not its basename.
+    if (HOME_PATH && rest.replace(/\/+$/, '') === HOME_PATH.replace(/\/+$/, '')) return 'Home';
     var seg = rest.split('/').pop();
     try { seg = decodeURIComponent(seg); } catch (e) {}
     return seg || 'Home';
@@ -240,19 +253,23 @@
   }
   setInterval(tick, 2000);
 
-  // Initial load of the shared tab set, then live sync takes over.
-  fetch('/api/files/tabs').then(function(r) { return r.json(); }).then(function(s) {
-    if (s && Array.isArray(s.paths) && s.paths.length) {
-      s.paths.forEach(function(p) { createTab(p, false); });
-      show(tabs[Math.min(Math.max(0, s.active | 0), tabs.length - 1)]);
-    } else {
-      createTab(HOME, true);
-    }
-  }).catch(function() {
-    if (!tabs.length) createTab(HOME, true);
-  }).then(function() {
-    _lastSaved = stateStr();   // don't immediately re-POST the just-loaded state
-    _loaded = true;
+  // Initial load of the shared tab set, then live sync takes over. Gated on
+  // resolveHome so HOME points at the logged-in user's real home before the
+  // fallback "open a Home tab" path can fire.
+  resolveHome(function() {
+    fetch('/api/files/tabs').then(function(r) { return r.json(); }).then(function(s) {
+      if (s && Array.isArray(s.paths) && s.paths.length) {
+        s.paths.forEach(function(p) { createTab(p, false); });
+        show(tabs[Math.min(Math.max(0, s.active | 0), tabs.length - 1)]);
+      } else {
+        createTab(HOME, true);
+      }
+    }).catch(function() {
+      if (!tabs.length) createTab(HOME, true);
+    }).then(function() {
+      _lastSaved = stateStr();   // don't immediately re-POST the just-loaded state
+      _loaded = true;
+    });
   });
 })();
 </script>

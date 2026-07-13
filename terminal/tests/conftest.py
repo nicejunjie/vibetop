@@ -147,6 +147,25 @@ def home(mgr, monkeypatch, tmp_path):
 
 
 @pytest.fixture()
+def users(mgr, home, monkeypatch, tmp_path):
+    """Map alice/bob to distinct tmp homes (APP_USER falls back to a default
+    home); yield {name: (home_path, cookie)}. Depends on `home` for the
+    session-secret sandbox. Shared by test_multiuser.py and test_user_home.py."""
+    homes = {}
+    for name in ("alice", "bob"):
+        h = tmp_path / name
+        (h / ".local" / "share").mkdir(parents=True, exist_ok=True)
+        (h / "Documents").mkdir(exist_ok=True)
+        (h / "Uploads").mkdir(exist_ok=True)
+        homes[name] = h
+    default_home = tmp_path / "home"
+    monkeypatch.setattr(mgr, "_user_home",
+                        lambda u: str(homes.get(u, default_home)))
+    return {name: (h, "vt_session=" + mgr._sign_session(name))
+            for name, h in homes.items()}
+
+
+@pytest.fixture()
 def stubs(mgr, monkeypatch):
     """Stub the external-process boundary with recording fakes. Individual tests
     override any entry (e.g. a scripted `_git`, a failing systemctl) as needed."""
