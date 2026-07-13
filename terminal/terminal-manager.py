@@ -631,13 +631,49 @@ def _user_slot(user):
         slot = 0
         while slot in used:
             slot += 1
-        reg[user] = {"slot": slot}
+        ent = ent if isinstance(ent, dict) else {}     # preserve token_epoch etc.
+        ent["slot"] = slot
+        reg[user] = ent
         try:
             os.makedirs(os.path.dirname(USERS_REGISTRY), exist_ok=True)
             _atomic_write(USERS_REGISTRY, json.dumps(reg))
         except OSError:
             pass
         return slot
+
+
+def _user_token_epoch(user):
+    """The user's session-token epoch (0 by default). A 'log out everywhere' bumps
+    it; tokens embed the epoch at mint time and are rejected once it advances,
+    invalidating every device signed in as that user. Cached ~5s so the
+    per-request _verify_session stays cheap (a logout-everywhere takes effect
+    within ~5s on other devices)."""
+    def _read():
+        ent = _read_users_registry().get(user)
+        try:
+            return int(ent.get("token_epoch", 0)) if isinstance(ent, dict) else 0
+        except (TypeError, ValueError):
+            return 0
+    return _cached("token_epoch:" + user, 5.0, _read)
+
+
+def _bump_token_epoch(user):
+    """Invalidate every existing session for `user` (log out everywhere)."""
+    with _users_lock:
+        reg = _read_users_registry()
+        ent = reg.get(user) if isinstance(reg.get(user), dict) else {}
+        try:
+            ent["token_epoch"] = int(ent.get("token_epoch", 0)) + 1
+        except (TypeError, ValueError):
+            ent["token_epoch"] = 1
+        reg[user] = ent
+        try:
+            os.makedirs(os.path.dirname(USERS_REGISTRY), exist_ok=True)
+            _atomic_write(USERS_REGISTRY, json.dumps(reg))
+        except OSError:
+            pass
+    with _cache_lock:
+        _cache.pop("token_epoch:" + user, None)
 
 
 def _user_term_port(user, n):
@@ -1172,13 +1208,16 @@ def _session_secret():
 
 
 def _sign_session(user, ttl=SESSION_TTL):
-    """A session token = the OnlyOffice-style HS256 JWT over {u, exp}, signed with
-    the session secret (reuses _jwt_sign so there's one signing primitive)."""
-    return _jwt_sign({"u": user, "exp": int(time.time()) + int(ttl)}, _session_secret())
+    """A session token = the OnlyOffice-style HS256 JWT over {u, e, exp}, signed
+    with the session secret (reuses _jwt_sign so there's one signing primitive).
+    `e` is the user's token epoch at mint time — a 'log out everywhere' bumps it,
+    invalidating this and every other token for the user."""
+    return _jwt_sign({"u": user, "e": _user_token_epoch(user),
+                      "exp": int(time.time()) + int(ttl)}, _session_secret())
 
 
 def _verify_session(token):
-    """Return the username from a valid, unexpired session token, else None."""
+    """Return the username from a valid, unexpired, non-revoked session token."""
     claims = _jwt_verify(token, _session_secret())
     if not claims:
         return None
@@ -1188,7 +1227,16 @@ def _verify_session(token):
     except (TypeError, ValueError):
         return None
     u = claims.get("u")
-    return u if isinstance(u, str) and _USERNAME_RE.match(u) else None
+    if not (isinstance(u, str) and _USERNAME_RE.match(u)):
+        return None
+    # Session revocation: a token minted before the user's last "log out
+    # everywhere" (its epoch < the current epoch) is rejected.
+    try:
+        if int(claims.get("e", 0)) < _user_token_epoch(u):
+            return None
+    except (TypeError, ValueError):
+        return None
+    return u
 
 
 # --- PAM authentication via ctypes (no pip dependency; libpam is always present
@@ -1850,8 +1898,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(payload)
         log.info("login ok: %s", user)
 
-    def _handle_logout(self):
-        payload = b'{"ok": true}'
+    def _clear_session_cookie(self, payload=b'{"ok": true}'):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Set-Cookie",
@@ -1860,6 +1907,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _handle_logout(self):
+        # This device only: clear the vt_session cookie. Other devices/tokens for
+        # the same user stay valid until they expire (stateless-cookie auth).
+        self._clear_session_cookie()
+
+    def _handle_logout_all(self):
+        # Everywhere: bump the user's token epoch so EVERY issued session for them
+        # is rejected on its next request (this device's cookie is cleared too).
+        # Requires a valid session (never falls back to APP_USER) so an anonymous
+        # request can't invalidate the operator.
+        user = self._session_user()
+        if not user:
+            return self._json(401, {"error": "not signed in"})
+        _bump_token_epoch(user)
+        log.info("logout-all: %s (all sessions invalidated)", user)
+        self._clear_session_cookie()
 
     def _ensure_user_terminal(self, user, n):
         """Return the per-user port for terminal N, starting the terminal (as the
@@ -1947,6 +2011,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_login()
         if self.path == "/api/logout":
             return self._handle_logout()
+        if self.path == "/api/logout/all":
+            return self._handle_logout_all()
         m = re.match(r"/api/terminals/(\d+)/(start|stop)$", self.path)
         if m:
             return self._handle_terminal(m)

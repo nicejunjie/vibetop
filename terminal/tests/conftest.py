@@ -128,6 +128,9 @@ def home(mgr, monkeypatch, tmp_path):
     # the tmp HOME so the per-user path helpers land there (single-user tests).
     # Multi-user tests override this with a {user: home} map.
     monkeypatch.setattr(mgr, "_user_home", lambda u: str(h))
+    # Per-user registry (slots + token epochs) into the tmp HOME so logout-all /
+    # port-slot tests are writable + hermetic.
+    monkeypatch.setattr(mgr, "USERS_REGISTRY", str(h / "vibetop-users.json"))
     (h / ".local" / "share").mkdir(parents=True, exist_ok=True)
     # Reset process-global mutable state so tests don't bleed into each other.
     if hasattr(mgr, "_cache"):

@@ -178,6 +178,37 @@ def test_logout_clears_cookie(mgr, client):
     assert "vt_session=" in sc and "Max-Age=0" in sc
 
 
+def test_logout_this_device_does_not_revoke_others(mgr, client, monkeypatch):
+    # Clearing this cookie must NOT invalidate a token still held elsewhere.
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: True)
+    _s, h, _ = client.post_full("/api/login", {"username": "alice", "password": "pw"})
+    cookie = _cookie_pair(h)
+    client.post("/api/logout")                       # this device
+    # the other device's token is still valid
+    st, hdrs, _ = client.get_full("/api/authcheck", cookie=cookie,
+                                  headers={"X-Original-URI": "/api/notes"})
+    assert st == 200 and hdrs.get("X-Vibetop-User") == "alice"
+
+
+def test_logout_all_revokes_every_session(mgr, client, monkeypatch):
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: True)
+    _s, h, _ = client.post_full("/api/login", {"username": "alice", "password": "pw"})
+    cookie = _cookie_pair(h)
+    # the token works
+    assert client.get_full("/api/authcheck", cookie=cookie,
+                           headers={"X-Original-URI": "/api/notes"})[0] == 200
+    # log out everywhere
+    assert client.post("/api/logout/all", cookie=cookie)[0] == 200
+    # the SAME token is now rejected (epoch advanced) — every device is out
+    assert client.get_full("/api/authcheck", cookie=cookie,
+                           headers={"X-Original-URI": "/api/notes"})[0] == 401
+
+
+def test_logout_all_requires_session(mgr, client):
+    # An anonymous request must not be able to invalidate anyone (esp. the operator)
+    assert client.post("/api/logout/all")[0] == 401
+
+
 # --- end-to-end -------------------------------------------------------------
 
 def test_login_then_authcheck_roundtrip(mgr, client, monkeypatch):
