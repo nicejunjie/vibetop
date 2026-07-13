@@ -157,6 +157,9 @@ def stubs(mgr, monkeypatch):
 
     monkeypatch.setattr(mgr.subprocess, "run", fake_run)
     monkeypatch.setattr(mgr.subprocess, "Popen", fake_popen)
+    # Neutralize sleeps (the per-user terminal socket-wait polls up to 5s; the
+    # login throttle sleeps 0.5s) so the hermetic suite stays fast.
+    monkeypatch.setattr(mgr.time, "sleep", lambda *a, **k: None)
     # No real terminals / heavy /proc scans in the endpoint tests.
     monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [])
     monkeypatch.setattr(mgr.Handler, "_get_system_status",

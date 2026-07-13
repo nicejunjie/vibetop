@@ -3,13 +3,19 @@ POST /api/terminals/{n}/start|stop, GET /api/terminals/status,
 GET/POST /api/terminals/names. systemctl is stubbed (see `stubs` fixture)."""
 
 
-def test_start_dispatches_systemctl(client, stubs):
+def test_start_dispatches_systemd_run_per_user(client, stubs):
     status, body = client.post("/api/terminals/5/start", {})
     assert status == 200
     assert body == {"ok": True, "action": "start", "instance": 5}
-    # A systemctl start --no-block for the session + ttyd units was invoked.
-    starts = [c for c in stubs["run"] if "start" in c and "--no-block" in c]
-    assert starts and any("vibetop-ttyd@5.service" in c for c in starts)
+    # The terminal is launched as the request user (APP_USER here) via a
+    # per-user systemd-run transient unit, NOT the old global template.
+    runs = [c for c in stubs["run"] if isinstance(c, list)]
+    sess = [c for c in runs if "systemd-run" in c
+            and any("--unit=vibetop-uterm-" in a and a.endswith("-5.service") for a in c)]
+    ttyd = [c for c in runs if "systemd-run" in c
+            and any("--unit=vibetop-uttyd-" in a and a.endswith("-5.service") for a in c)]
+    assert sess and ttyd
+    assert any(a.startswith("--uid=") for a in sess[0])   # runs AS the user
 
 
 def test_stop_dispatches_systemctl(client, stubs):
@@ -24,12 +30,14 @@ def test_instance_out_of_range_rejected(client):
     assert status == 400
 
 
-def test_start_surfaces_systemctl_failure(client, mgr, monkeypatch):
-    def boom(args, **kw):
-        raise mgr.subprocess.CalledProcessError(1, args, stderr="unit not found")
-    monkeypatch.setattr(mgr.subprocess, "run", boom)
+def test_start_surfaces_launch_failure(client, mgr, monkeypatch):
+    # systemd-run returns non-zero + stderr -> the error is surfaced as 500.
+    class _R:
+        def __init__(s, rc, err): s.returncode = rc; s.stderr = err; s.stdout = ""
+    monkeypatch.setattr(mgr.subprocess, "run", lambda *a, **k: _R(1, "unit failed to start"))
+    monkeypatch.setattr(mgr.time, "sleep", lambda *a, **k: None)
     status, body = client.post("/api/terminals/5/start", {})
-    assert status == 500 and "unit not found" in body["error"]
+    assert status == 500 and "unit failed to start" in body["error"]
 
 
 def test_status_lists_running(client, mgr, monkeypatch):

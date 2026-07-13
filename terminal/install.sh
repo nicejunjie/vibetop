@@ -124,6 +124,17 @@ fi
 # 2. ttyd-run.sh executable bit ---------------------------------------------
 run chmod +x "$APP_DIR/ttyd-run.sh" "$APP_DIR/vibetop-session"
 
+# 2b. World-readable copies of the per-user helper scripts -------------------
+# Multi-user: a terminal runs AS the logged-in user via systemd-run, so the
+# scripts it execs (vibetop-session, ttyd-run.sh) must be reachable by EVERY
+# user — not inside the operator's 0750 home where the checkout lives (a
+# non-owner gets 203/EXEC "Permission denied"). Install root-owned 0755 copies to
+# a shared dir the manager execs from (TERM_HELPER_DIR). Re-copied on every deploy
+# (incl. the in-app Update) so they track the checkout.
+run sudo install -d -m 0755 /usr/local/lib/vibetop
+run sudo install -m 0755 "$APP_DIR/vibetop-session" /usr/local/lib/vibetop/vibetop-session
+run sudo install -m 0755 "$APP_DIR/ttyd-run.sh" /usr/local/lib/vibetop/ttyd-run.sh
+
 # 3. systemd unit templates --------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
     echo "== installing systemd unit templates =="
@@ -360,11 +371,15 @@ $tls_redirect_if        auth_request /internal/authcheck;
         proxy_read_timeout 3600;
     }
 
-    # Dynamic terminal routing: /tN/ -> port from map
+    # Dynamic terminal routing: /tN/ -> the PER-USER ttyd port. The authcheck
+    # subrequest resolves the logged-in user's terminal N (starting it on demand)
+    # and returns it in X-Term-Port, which we route to. (The \$term_port map above
+    # is retained but unused — routing is by identity now, not by N alone.)
     location ~ ^/t(\d+)/(.*)$ {
         auth_request /internal/authcheck;
+        auth_request_set \$tport \$upstream_http_x_term_port;
         error_page 401 = @login;
-        proxy_pass http://127.0.0.1:\$term_port;
+        proxy_pass http://127.0.0.1:\$tport;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection \$connection_upgrade;

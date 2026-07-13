@@ -162,25 +162,29 @@ def _metric_inc(key, n=1):
         _METRICS[key] += n
 
 
-def _list_running_terminals():
-    # On the status hot path (every client polls this every few seconds). A
-    # wedged systemd/D-Bus must not stall every poll behind it forever, so cap
-    # the fork with a timeout and degrade to "none running" rather than raising.
+def _list_running_terminals(user=None):
+    # Running terminal instance numbers for `user` (per-user vibetop-uttyd-<user>-<N>
+    # transient units). On the status hot path (every client polls this every few
+    # seconds). A wedged systemd/D-Bus must not stall every poll behind it forever,
+    # so cap the fork with a timeout and degrade to "none running" rather than raise.
+    pat = ("vibetop-uttyd-%s-*" % _sanitize_unit(user)) if user else "vibetop-uttyd-*"
     try:
         out = subprocess.run(
-            ["systemctl", "list-units", "vibetop-ttyd@*",
-             "--no-pager", "--plain", "--no-legend"],
+            ["systemctl", "list-units", pat,
+             "--no-pager", "--plain", "--no-legend", "--all"],
             capture_output=True, text=True, timeout=10,
         )
     except (subprocess.TimeoutExpired, OSError) as e:
         log.warning("list-units failed/timed out: %s", e)
         return []
     running = []
+    who = re.escape(_sanitize_unit(user)) if user else r"[A-Za-z0-9_.-]+?"
+    rx = re.compile(r"vibetop-uttyd-" + who + r"-(\d+)\.service")
     for line in out.stdout.strip().split("\n"):
-        m = re.search(r"vibetop-ttyd@(\d+)", line)
+        m = rx.search(line)
         if m and "running" in line:
             running.append(int(m.group(1)))
-    return sorted(running)
+    return sorted(set(running))
 
 
 def _app_user():
@@ -559,6 +563,153 @@ _office_convert_lock = threading.Lock()
 # The git checkout this manager runs from: <repo>/terminal/terminal-manager.py.
 # The Update app pulls + redeploys from here.
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TERMINAL_DIR = os.path.dirname(os.path.abspath(__file__))   # vibetop-session, ttyd-run.sh
+# World-readable/executable copies of the per-user helper scripts. Multi-user: a
+# terminal runs AS the logged-in user, so the scripts it execs (vibetop-session,
+# ttyd-run.sh) must be reachable by every user — NOT inside the operator's 0750
+# home where the checkout lives. terminal/install.sh copies them here (0755).
+TERM_HELPER_DIR = "/usr/local/lib/vibetop"
+
+
+def _term_helper(name):
+    p = os.path.join(TERM_HELPER_DIR, name)
+    return p if os.path.exists(p) else os.path.join(TERMINAL_DIR, name)
+
+
+# ---- Per-user terminals (multi-user Phase 3) -------------------------------
+# A terminal runs as the AUTHENTICATED user via a `systemd-run` transient unit, so
+# each user gets a real shell in their own home. For (user, N): the session daemon
+# and ttyd are units vibetop-uterm-<user>-<N> / vibetop-uttyd-<user>-<N>, the
+# vibetop-session instance id is "<user>-<N>" (socket /tmp/vibetop-session-<id>.sock),
+# and ttyd binds a PER-USER port so nginx can route /tN/ by identity (via authcheck).
+USERS_REGISTRY = "/var/lib/vibetop/users.json"     # {user:{slot:k}} — root-owned
+USER_TERM_BASE = _port_env("USER_TERM_BASE", 17000)
+PER_USER_TERMS = 100                               # port span per user (>= MAX_INSTANCE)
+_users_lock = threading.Lock()
+
+
+def _sanitize_unit(s):
+    # A Linux login name is a safe subset of systemd unit chars; be defensive.
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", str(s))
+
+
+def _read_users_registry():
+    try:
+        with open(USERS_REGISTRY) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _user_slot(user):
+    """Stable small-integer slot for a user (assigned on first use), carving a
+    per-user terminal port block. Persisted in a root-owned registry."""
+    with _users_lock:
+        reg = _read_users_registry()
+        ent = reg.get(user)
+        if isinstance(ent, dict) and isinstance(ent.get("slot"), int):
+            return ent["slot"]
+        used = {e.get("slot") for e in reg.values() if isinstance(e, dict)}
+        slot = 0
+        while slot in used:
+            slot += 1
+        reg[user] = {"slot": slot}
+        try:
+            os.makedirs(os.path.dirname(USERS_REGISTRY), exist_ok=True)
+            _atomic_write(USERS_REGISTRY, json.dumps(reg))
+        except OSError:
+            pass
+        return slot
+
+
+def _user_term_port(user, n):
+    return USER_TERM_BASE + _user_slot(user) * PER_USER_TERMS + int(n)
+
+
+def _term_instance(user, n):
+    return f"{_sanitize_unit(user)}-{int(n)}"
+
+
+def _term_units(user, n):
+    tag = _term_instance(user, n)
+    return f"vibetop-uterm-{tag}.service", f"vibetop-uttyd-{tag}.service"
+
+
+def _provision_user(user):
+    """One-time-ish setup so a user's terminal has a working runtime: linger keeps
+    /run/user/<uid> alive (D-Bus/XDG for GUI apps + systemctl --user). Idempotent
+    and best-effort — a plain shell works even if this fails."""
+    try:
+        subprocess.run(["loginctl", "enable-linger", user],
+                       capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _user_terminal_setenvs(user):
+    envs = ["TERM=xterm-256color", "LANG=en_US.UTF-8"]
+    try:
+        uid = pwd.getpwnam(user).pw_uid
+        envs += [f"DISPLAY={X11_DISPLAY}",
+                 f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus",
+                 f"XDG_RUNTIME_DIR=/run/user/{uid}"]
+    except KeyError:
+        pass
+    return envs
+
+
+def _start_user_terminal(user, n):
+    """Launch the session daemon + ttyd for (user, N) as that user. Returns
+    (ok, port_or_error)."""
+    try:
+        pw = pwd.getpwnam(user)
+    except KeyError:
+        return False, f"unknown user {user}"
+    _provision_user(user)
+    inst = _term_instance(user, n)
+    port = _user_term_port(user, n)
+    sess_unit, ttyd_unit = _term_units(user, n)
+    base = ["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
+    setenvs = []
+    for e in _user_terminal_setenvs(user):
+        setenvs += ["--setenv", e]
+    try:
+        r1 = subprocess.run(
+            base + [f"--unit={sess_unit}"] + setenvs +
+            [_term_helper("vibetop-session"), "serve", inst],
+            capture_output=True, text=True, timeout=30)
+        if r1.returncode != 0:
+            return False, (r1.stderr or r1.stdout or "session start failed").strip()
+        # Wait for the daemon to bind its socket before starting ttyd (which would
+        # otherwise `attach` to a not-yet-existent socket and exit). Mirrors the
+        # old ttyd unit's ExecStartPre.
+        sock = f"/tmp/vibetop-session-{inst}.sock"
+        for _ in range(50):
+            if os.path.exists(sock):
+                break
+            time.sleep(0.1)
+        r2 = subprocess.run(
+            base + [f"--unit={ttyd_unit}"] + setenvs +
+            [_term_helper("ttyd-run.sh"), inst, str(port), str(int(n))],
+            capture_output=True, text=True, timeout=30)
+        if r2.returncode != 0:
+            subprocess.run(["systemctl", "stop", sess_unit],
+                           capture_output=True, timeout=15)
+            return False, (r2.stderr or r2.stdout or "ttyd start failed").strip()
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    return True, port
+
+
+def _stop_user_terminal(user, n):
+    sess_unit, ttyd_unit = _term_units(user, n)
+    try:
+        subprocess.run(["systemctl", "stop", ttyd_unit, sess_unit],
+                       capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    return True, None
 
 # System-status readers (CPU/MEM/GPU/disk/net/processes) live in system_status.py
 # and are reached via system_status.get_system_status(); the per-poll CPU/RAPL/
@@ -1379,9 +1530,12 @@ class _LimitedReader:
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def _get_running_terminals(self):
-        # 2s TTL: both /api/system/status and /api/terminals/status poll this,
-        # and each miss forks `systemctl list-units`.
-        return _cached("running_terminals", 2.0, _list_running_terminals)
+        # 2s TTL, per-user: both /api/system/status and /api/terminals/status poll
+        # this, and each miss forks `systemctl list-units`. Scoped to the request
+        # user so each user sees only their own running terminals.
+        user = _ctx_user()
+        return _cached("running_terminals:" + user, 2.0,
+                       lambda: _list_running_terminals(user))
 
     def _get_system_status(self):
         # Collection lives in system_status.py; inject the running-terminal
@@ -1521,12 +1675,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _ensure_user_terminal(self, user, n):
+        """Return the per-user port for terminal N, starting the terminal (as the
+        user) if it isn't already running. Idempotent + cheap on the hot path: the
+        running set is cached ~2s, so only a genuine cold /tN/ triggers a start."""
+        port = _user_term_port(user, n)
+        running = _cached("running_terminals:" + user, 2.0,
+                          lambda: _list_running_terminals(user))
+        if n not in running:
+            ok, res = _start_user_terminal(user, n)
+            _cache.pop("running_terminals:" + user, None)
+            if not ok:
+                log.warning("authcheck: start terminal %s-%d failed: %s", user, n, res)
+        return port
+
     def _handle_authcheck(self):
         """nginx auth_request target. Allows public paths (the allowlist) through
         regardless of cookie; otherwise requires a valid session and returns the
-        username in X-Vibetop-User. 401 when unauthenticated on a gated path.
-        (Per-user upstream-port resolution arrives in Phase 3.)"""
-        if _is_public_path(self.headers.get("X-Original-URI", "")):
+        username in X-Vibetop-User. For a /tN/ request it also resolves (and
+        cold-starts) the user's per-user terminal port in X-Term-Port, which nginx
+        routes to. 401 when unauthenticated on a gated path."""
+        orig = self.headers.get("X-Original-URI", "")
+        if _is_public_path(orig):
             self.send_response(200)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -1539,6 +1709,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self.send_response(200)
         self.send_header("X-Vibetop-User", user)
+        m = re.match(r"/t(\d+)(?:/|$)", orig.split("?", 1)[0])
+        if m:
+            n = int(m.group(1))
+            if 1 <= n <= MAX_INSTANCE:
+                try:
+                    self.send_header("X-Term-Port", str(self._ensure_user_terminal(user, n)))
+                except Exception as e:
+                    log.warning("authcheck: term-port resolve failed: %s", e)
         self.send_header("Content-Length", "0")
         self.end_headers()
 
@@ -1949,23 +2127,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         result = {"terminals_stopped": [], "desktop_cleared": False,
                   "office_sessions_cleared": 0, "browser_reset": False}
 
-        # 1. Stop every running terminal (session + ttyd units).
+        # 1. Stop THIS user's running terminals (per-user reset — a logout clears
+        #    only the logging-out user's session, not other users' terminals).
+        user = _ctx_user()
         try:
-            running = _list_running_terminals()
+            running = _list_running_terminals(user)
         except Exception:
             running = []
         if running:
             units = []
             for n in running:
-                units += [f"vibetop-ttyd@{n}.service",
-                          f"vibetop-session@{n}.service"]
-            # Logout/reset = hard clean slate. The session unit is KillMode=process
-            # (so a plain tab-close `stop` spares detached procs — ssh masters,
-            # tmux, nohup), but logout must wipe them: SIGKILL the whole cgroup
-            # first (`kill --kill-whom=all` hits every process regardless of
-            # KillMode), then stop. (Killing the main pid can momentarily trip
-            # Restart=always, but the immediate stop cancels it and the detached
-            # procs are already dead — outcome is a clean slate either way.)
+                s, t = _term_units(user, n)
+                units += [t, s]
+            # Hard clean slate: SIGKILL the whole cgroup first (hits every process
+            # regardless of KillMode), then stop.
             try:
                 subprocess.run(["systemctl", "kill", "--kill-whom=all",
                                 "--signal=SIGKILL"] + units,
@@ -1976,7 +2151,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log.warning("reset: stopping terminals timed out/failed: %s", e)
             result["terminals_stopped"] = running
         with _cache_lock:                      # so status reflects it at once
-            _cache.pop("running_terminals", None)
+            _cache.pop("running_terminals:" + user, None)
 
         # 2. Clear the desktop registry and bump reset_epoch — every other live
         #    instance sees the epoch advance on its next heartbeat and tears its
@@ -2489,23 +2664,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if n < 1 or n > MAX_INSTANCE:
             self._json(400, {"error": f"instance must be 1-{MAX_INSTANCE}"})
             return
-        units = [f"vibetop-session@{n}.service", f"vibetop-ttyd@{n}.service"]
-        if action == "stop":
-            units.reverse()
-        try:
-            subprocess.run(
-                ["systemctl", action, "--no-block"] + units,
-                check=True, capture_output=True, text=True, timeout=30,
-            )
-        except subprocess.CalledProcessError as e:
-            log.warning("terminal %d %s failed: %s", n, action, (e.stderr or "").strip())
-            self._json(500, {"error": (e.stderr or "").strip()})
+        # Per-user: start/stop the terminal for THIS request's Linux user, running
+        # as them (systemd-run --uid) in their own home.
+        user = _ctx_user()
+        if action == "start":
+            ok, res = _start_user_terminal(user, n)
+        else:
+            ok, res = _stop_user_terminal(user, n)
+        _cache.pop("running_terminals:" + user, None)
+        if not ok:
+            log.warning("terminal %s-%d %s failed: %s", user, n, action, res)
+            self._json(500, {"error": str(res)})
             return
-        except (subprocess.TimeoutExpired, OSError) as e:
-            log.warning("terminal %d %s timed out/failed: %s", n, action, e)
-            self._json(500, {"error": "systemctl timed out"})
-            return
-        log.info("terminal %d %s", n, action)
+        log.info("terminal %s-%d %s", user, n, action)
         _metric_inc("terminals_started_total" if action == "start"
                     else "terminals_stopped_total")
         self._json(200, {"ok": True, "action": action, "instance": n})

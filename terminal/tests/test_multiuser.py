@@ -138,6 +138,38 @@ def test_share_cannot_target_another_users_home(client, mgr, users):
     assert st == 400          # not shareable from bob's home
 
 
+# --- per-user terminal port allocation + naming (Phase 3) -------------------
+
+def test_user_slot_stable_and_distinct(mgr, monkeypatch, tmp_path):
+    monkeypatch.setattr(mgr, "USERS_REGISTRY", str(tmp_path / "users.json"))
+    a1 = mgr._user_slot("alice")
+    a2 = mgr._user_slot("alice")        # stable
+    b1 = mgr._user_slot("bob")
+    assert a1 == a2
+    assert a1 != b1                     # distinct users get distinct slots
+
+
+def test_user_term_port_disjoint_ranges(mgr, monkeypatch, tmp_path):
+    monkeypatch.setattr(mgr, "USERS_REGISTRY", str(tmp_path / "users.json"))
+    monkeypatch.setattr(mgr, "USER_TERM_BASE", 17000)
+    monkeypatch.setattr(mgr, "PER_USER_TERMS", 100)
+    aports = {mgr._user_term_port("alice", n) for n in range(1, 51)}
+    bports = {mgr._user_term_port("bob", n) for n in range(1, 51)}
+    assert aports.isdisjoint(bports)    # no two users can collide on a port
+    # and a user's port is deterministic in their own block
+    assert mgr._user_term_port("alice", 1) + 4 == mgr._user_term_port("alice", 5)
+
+
+def test_term_instance_and_unit_naming(mgr):
+    assert mgr._term_instance("alice", 3) == "alice-3"
+    s, t = mgr._term_units("alice", 3)
+    assert s == "vibetop-uterm-alice-3.service"
+    assert t == "vibetop-uttyd-alice-3.service"
+    # a hostile username can't inject unit-name/systemd metacharacters
+    s2, _ = mgr._term_units("a b/c;d", 1)
+    assert s2 == "vibetop-uterm-a_b_c_d-1.service"
+
+
 # --- office (doc endpoint binds the owner into the HMAC) ---------------------
 
 def test_office_doc_bound_to_owner(client, mgr, users):

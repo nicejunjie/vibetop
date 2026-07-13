@@ -1369,3 +1369,47 @@ to a non-dotfile the snap can read — more moving parts than a one-line ACL gra
   single host with the manager already central and root, extending nginx (`auth_request`)
   + the manager (PAM + session) is far less moving-parts than a new reverse-proxy
   process, and reuses the existing loopback trust boundary.
+
+---
+
+## Multi-user Phase 3: per-user terminals run AS the logged-in user
+
+- **Context:** A Terminal must be a real shell as the *authenticated* Linux user in
+  their own `$HOME` (not the single deploy user). Each `(user, N)` runs as a
+  `systemd-run --uid=<user>` transient unit — `vibetop-uterm-<user>-<N>` (the
+  session daemon) + `vibetop-uttyd-<user>-<N>` (ttyd) — with the `vibetop-session`
+  instance id `<user>-<N>` (socket `/tmp/vibetop-session-<user>-<N>.sock`) and a
+  **per-user ttyd port** from a small registry-assigned slot
+  (`/var/lib/vibetop/users.json`: `port = USER_TERM_BASE + slot*PER_USER_TERMS + N`).
+  nginx routes `/tN/` to that port via the `authcheck` subrequest (`X-Term-Port` →
+  `auth_request_set` → `proxy_pass`), cold-starting the terminal on first hit.
+- **Why `systemd-run` transient units, not the `@N` templates:** a system-unit
+  template can't set `User=` from its instance (`%i`), so per-user terminals can't
+  reuse `vibetop-ttyd@N`. `systemd-run --uid` runs as the user with no pre-installed
+  per-user unit files and cleans up on stop (`--collect`). (The `@N` templates are
+  still installed but unused.)
+- **The 203/EXEC trap — the per-user helper scripts must live OUTSIDE the operator's
+  home.** First live run failed silently: `/api/terminals/1/start` returned 200 but
+  the unit died instantly with `Failed to execute …/vibetop-session: Permission
+  denied` (status **203/EXEC**). Cause: the checkout lives in the operator's `$HOME`
+  (mode **0750**), so *another* Linux user can't traverse in to exec `vibetop-session`
+  / `ttyd-run.sh`. Fix: `terminal/install.sh` installs **root-owned 0755 copies** to
+  `/usr/local/lib/vibetop/` (matching the existing `browser-loop.sh` precedent) and
+  the manager execs them from there (`_term_helper`, falling back to the checkout for
+  dev/tests). This is the *minimum* of the `docs/multi-user.md` `/opt/vibetop` move —
+  enough to let per-user terminals launch; the full relocation is Phase 4 hardening.
+  Only surfaced on a real multi-user host (the deploy user could always exec its own
+  files; the hermetic tests don't launch real units).
+- **ttyd-run.sh generalized** to `(<instance-id> <port> <base-N>)` — the instance id
+  drives `vibetop-session attach` (per-user), while `-b /tN/` + the title use the base
+  number the browser reaches; the legacy single-arg numeric form still works.
+- **Everything per-user is scoped by identity:** `_list_running_terminals(user)` (its
+  `_cached` key is `running_terminals:<user>`), `/api/terminals/status`, and
+  `/api/reset` all act on the request user's own terminals only. `vibetop-session`
+  already accepted a *string* instance (socket path is `…-{instance}.sock`), so the
+  compound `<user>-<N>` id namespaced cleanly with no daemon change.
+- **Rejected: `systemd --user` per user.** Cleaner in theory (implicit `User=`) but
+  needs a live user manager + linger + `XDG_RUNTIME_DIR` wiring per user before any
+  terminal can start; `systemd-run --uid` from the root manager is simpler and has no
+  such bootstrap. (Linger is still enabled in `_provision_user` so `/run/user/<uid>`
+  D-Bus/XDG exist for GUI apps launched from the shell.)
