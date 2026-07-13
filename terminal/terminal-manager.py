@@ -2436,7 +2436,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # badge, and (below) the taskbar system stats. All computed OUTSIDE
         # _desktop_lock and memoized, so folding them in doesn't lengthen the
         # lock or duplicate work across clients.
-        cu = _claude_usage_enabled()
+        # Claude Usage is operator-only: _claude_usage_payload() reads APP_USER's
+        # usage file, and the direct GET /api/claude/usage is _require_admin-gated.
+        # So gate the heartbeat fold to APP_USER too — otherwise a non-admin's
+        # (un-gated) heartbeat would disclose the operator's plan usage, bypassing
+        # that gate. Non-admins see claude_usage:false and no `claude` payload.
+        cu = _claude_usage_enabled() and _ctx_user() == APP_USER
         nterm = len(self._get_running_terminals())
         with _desktop_lock:
             state = _read_desktop_state()

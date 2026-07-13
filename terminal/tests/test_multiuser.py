@@ -53,6 +53,25 @@ def test_desktop_state_separated_by_user(client, mgr, users):
     assert "i2" in b["instances"] and "i1" not in b["instances"]
 
 
+def test_desktop_heartbeat_claude_usage_operator_only(client, mgr, users, monkeypatch):
+    # Claude Usage reads APP_USER's file and its direct GET is admin-gated; the
+    # /api/desktop heartbeat fold must be operator-only too, or a non-admin who
+    # polls the (un-gated) heartbeat would read the operator's plan usage.
+    monkeypatch.setattr(mgr, "_claude_usage_enabled", lambda: True)
+    monkeypatch.setattr(mgr, "_claude_usage_payload",
+                        lambda enabled=None: {"session": {"pct": 0.42}})
+    op_ck = "vt_session=" + mgr._sign_session(mgr.APP_USER)
+    (_, alice_ck) = users["alice"]
+    assert mgr.APP_USER != "alice"
+    body = {"instance": "i1", "open": [], "active": None}
+
+    _s, op = client.post("/api/desktop", body, cookie=op_ck)
+    assert op["claude_usage"] is True and "claude" in op        # operator: folded
+
+    _s, al = client.post("/api/desktop", body, cookie=alice_ck)
+    assert al["claude_usage"] is False and "claude" not in al   # non-admin: withheld
+
+
 # --- uploads ----------------------------------------------------------------
 
 def test_uploads_land_in_requesting_users_home(client, mgr, users):
