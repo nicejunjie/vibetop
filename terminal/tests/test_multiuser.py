@@ -187,6 +187,28 @@ def test_non_admin_denied_shared_subsystems(client, mgr, users):
     assert client.get("/api/x/windows", cookie=ck)[0] == 403
 
 
+def test_system_status_process_list_scoped(mgr, monkeypatch):
+    # The top-processes list is filtered to the requesting user (admin sees all).
+    monkeypatch.setattr(mgr.system_status, "get_system_status",
+                        lambda rt, c: {"cpu": {"pct": 5}, "processes": [
+                            {"pid": 1, "user": "alice", "name": "a"},
+                            {"pid": 2, "user": "bob", "name": "b"}]})
+
+    class H:
+        _get_running_terminals = lambda self: []
+        _get_system_status = mgr.Handler._get_system_status
+    h = H()
+    try:
+        mgr._req_ctx.user = mgr.APP_USER            # operator -> all
+        assert len(h._get_system_status()["processes"]) == 2
+        mgr._req_ctx.user = "alice"                 # non-admin -> own only
+        assert [p["user"] for p in h._get_system_status()["processes"]] == ["alice"]
+        mgr._req_ctx.user = "bob"
+        assert [p["user"] for p in h._get_system_status()["processes"]] == ["bob"]
+    finally:
+        mgr._req_ctx.user = None
+
+
 def test_fileview_authcheck_admin_only(client, mgr, users):
     # /fileview/ (raw file alias, APP_USER's tree) via authcheck: non-admin -> 403,
     # unauthenticated -> 401. (The nginx location gates on this.)

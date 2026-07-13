@@ -1699,11 +1699,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # invalidates its running_terminals entry). Guarded so an unexpected
         # /proc/sysfs hiccup degrades to a 200 with an error, not a 500.
         try:
-            return system_status.get_system_status(
+            st = system_status.get_system_status(
                 self._get_running_terminals(), _cached)
         except Exception as e:
             log.warning("system status collection failed: %s", e)
             return {"error": "status unavailable: %s" % e}
+        # Multi-user: the top-processes list carries every user's process names —
+        # a non-admin sees only their OWN processes (the operator sees all). CPU/
+        # MEM/GPU aggregates stay visible to everyone (just hardware stats).
+        if isinstance(st, dict) and st.get("processes") and _ctx_user() != APP_USER:
+            me = _ctx_user()
+            st = dict(st)
+            st["processes"] = [p for p in st["processes"] if p.get("user") == me]
+        return st
 
     def _read_body(self, max_len):
         """Read the request body bounded by Content-Length. Returns the bytes,
