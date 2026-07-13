@@ -216,9 +216,14 @@
   .tb-logout:hover, .tb-logout[aria-expanded="true"] {
     background: rgba(255,60,60,0.2); color: #ff6666; border-color: rgba(255,60,60,0.3);
   }
-  /* Drop-UP menu (taskbar sits at the viewport bottom). */
+  /* Drop-UP menu (taskbar sits at the viewport bottom). position:FIXED (not
+     absolute-in-.tb-logout-wrap) so it escapes the taskbar's clip box — on
+     narrow screens the taskbar is `overflow-y:hidden` for horizontal scroll,
+     which otherwise clipped this drop-up (it sits ABOVE the bar) and it showed
+     nothing. Anchored to the viewport just above the taskbar, like the Start
+     menu. No ancestor is transformed, so fixed resolves to the viewport. */
   .tb-logout-menu {
-    position: absolute; bottom: calc(100% + 8px); right: 0;
+    position: fixed; bottom: calc(var(--tb) + 8px); right: 8px;
     min-width: 200px; padding: 6px; z-index: 300;
     background: #161d29; border: 1px solid #2a3342; border-radius: 11px;
     box-shadow: 0 -10px 34px rgba(0,0,0,0.55);
@@ -264,24 +269,24 @@
     font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
     color: #556; padding: 2px 8px 4px;
   }
-  /* Signed-in user header at the top of the Start menu (avatar + name + @login). */
+  /* Signed-in user header — ONE compact row (small avatar + name · @login inline)
+     so it adds minimal height and the Start menu stays short on mobile. */
   .sm-user {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 9px; margin: 1px 0 6px; border-radius: 9px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px; margin: 0 0 4px; border-radius: 8px;
     background: rgba(210,105,30,0.08); border: 1px solid #2a3040;
   }
   .sm-user[hidden] { display: none; }
   .sm-user-av {
-    width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+    width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 16px; font-weight: 700; color: #fff;
+    font-size: 11px; font-weight: 700; color: #fff;
     background: linear-gradient(135deg, #b3540f, #d2691e);
   }
-  .sm-user-txt { min-width: 0; }
-  .sm-user-name { font-size: 14px; font-weight: 700; color: #e8eef5;
+  .sm-user-txt { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .sm-user-name { font-size: 13px; font-weight: 700; color: #e8eef5;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .sm-user-login { font-size: 11px; color: #8a9aaa;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sm-user-login { font-size: 11px; color: #8a9aaa; flex-shrink: 0; }
   .sm-item {
     display: flex; align-items: center; gap: 10px;
     padding: 5px 9px; border-radius: 8px; cursor: pointer; user-select: none;
