@@ -293,7 +293,7 @@ $tls_redirect_if        add_header Cache-Control 'no-cache, no-store' always;
     }
 
     # The desktop shell entry. Unauthenticated -> login. (Static assets are served
-    # by the prefix `location /` above and stay public; their DATA is gated at /api.)
+    # by the prefix location / above and stay public; their DATA is gated at /api.)
     location = / {
 $tls_redirect_if        auth_request /internal/authcheck;
         error_page 401 = @login;
