@@ -1,6 +1,21 @@
-# Multi-user — options (roadmap, NOT yet implemented)
+# Multi-user — options (Option B implemented on the `multi-user` branch)
 
-Status: **design notes to revisit.** Vibetop today is **single-user to the bone** —
+> **Status update:** **Option B is implemented** on the `multi-user` branch — vibetop
+> as a web remote-desktop for the host's *real Linux users* (PAM login; each user runs
+> as themselves in their real `$HOME`; Unix-permission = SSH-equivalent isolation).
+> Done + validated live: Linux-account login (PAM) + nginx `auth_request` gate + LAN
+> TLS (Phase 1); per-user state + office (Phase 2); **per-user terminals** (a shell as
+> the user, Phase 3) and **per-user Files** (FileBrowser as the user, rooted at their
+> home, Phase 3b); brute-force lockout, per-unit resource caps, and per-user telemetry
+> scoping (Phase 4, partial). Subsystems not yet per-user — **Browser/X11** (per-user
+> xpra + snap Chromium, the heaviest) and Claude-usage/Update — are **admin-gated**
+> (operator only) so they're safe until made per-user. See the multi-user entries in
+> `docs/design-decisions.md` for the how/why and the hard-won fixes (the 203/EXEC
+> helper-script relocation; the "widen authN, lock down authZ in the same pass" rule).
+> The options table below is the original decision framing, kept for context.
+
+The rest of this doc is the original design framing. Vibetop was **single-user to
+the bone** —
 everything runs as one `APP_USER`, and the security model is "anyone past
 Cloudflare Access is trusted and gets a shell as that user" (a Terminal ≡ SSH as
 `APP_USER`). "Multi-user" is therefore not one feature; the right design depends
