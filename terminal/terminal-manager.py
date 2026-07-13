@@ -627,6 +627,19 @@ def _user_term_port(user, n):
     return USER_TERM_BASE + _user_slot(user) * PER_USER_TERMS + int(n)
 
 
+def _wait_tcp(port, timeout=8.0):
+    """Poll until 127.0.0.1:port accepts a connection (or timeout). Avoids a
+    cold-start 502 when nginx would proxy to a service that isn't listening yet."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", int(port)), timeout=0.5):
+                return True
+        except OSError:
+            time.sleep(0.1)
+    return False
+
+
 def _term_instance(user, n):
     return f"{_sanitize_unit(user)}-{int(n)}"
 
@@ -697,6 +710,7 @@ def _start_user_terminal(user, n):
             subprocess.run(["systemctl", "stop", sess_unit],
                            capture_output=True, timeout=15)
             return False, (r2.stderr or r2.stdout or "ttyd start failed").strip()
+        _wait_tcp(port)                 # so the first /tN/ hit doesn't 502
     except (OSError, subprocess.SubprocessError) as e:
         return False, str(e)
     return True, port
@@ -710,6 +724,91 @@ def _stop_user_terminal(user, n):
     except (OSError, subprocess.SubprocessError) as e:
         return False, str(e)
     return True, None
+
+
+# ---- Per-user Files (FileBrowser as the user, Phase 3b) --------------------
+# One FileBrowser per user, run AS them via systemd-run, rooted at THEIR home
+# (so it opens at ~ and can't escape it — belt (scope) and braces (Unix perms));
+# per-user port + DB. nginx routes /files/ to the user's port via authcheck.
+FB_BIN = os.environ.get("FB_BIN", "/usr/local/bin/filebrowser")
+FB_APP_BASE = _port_env("FB_APP_BASE", 18000)     # per-user FileBrowser port = base + slot
+
+
+def _user_app_port(user, base):
+    return base + _user_slot(user)
+
+
+def _fb_unit(user):
+    return f"vibetop-ufiles-{_sanitize_unit(user)}.service"
+
+
+def _fb_db(home):
+    return os.path.join(home, ".config", "filebrowser", "filebrowser.db")
+
+
+def _run_as(user, argv, timeout=30):
+    """Run argv as `user` (root -> setuid). Returns the CompletedProcess or None."""
+    try:
+        return subprocess.run(argv, user=user, capture_output=True, text=True,
+                              timeout=timeout)
+    except (OSError, subprocess.SubprocessError) as e:
+        log.warning("run-as %s failed: %s", user, e)
+        return None
+
+
+def _provision_user_filebrowser(user, home, port):
+    """First-run setup of the user's FileBrowser DB (as the user): init, an
+    internal admin (noauth serves as it), and config (root=home, scope=home,
+    baseurl, hidden dotfiles). Idempotent — safe to re-run."""
+    db = _fb_db(home)
+    try:
+        os.makedirs(os.path.dirname(db), exist_ok=True)
+        _chown_app(os.path.dirname(db), user)
+        _chown_app(os.path.dirname(os.path.dirname(db)), user)
+    except OSError:
+        pass
+    if not os.path.exists(db):
+        _run_as(user, [FB_BIN, "-d", db, "config", "init"])
+        _run_as(user, [FB_BIN, "-d", db, "users", "add", "admin",
+                       secrets.token_hex(12), "--perm.admin"])
+    _run_as(user, [FB_BIN, "-d", db, "config", "set", "--address", "127.0.0.1",
+                   "--port", str(port), "--baseurl", "/files", "--root", home,
+                   "--auth.method=noauth", "--hideDotfiles"])
+    _run_as(user, [FB_BIN, "-d", db, "users", "update", "admin",
+                   "--scope", home, "--hideDotfiles"])
+
+
+def _start_user_filebrowser(user):
+    """Ensure the user's FileBrowser is running; return (ok, port_or_error)."""
+    try:
+        pw = pwd.getpwnam(user)
+    except KeyError:
+        return False, f"unknown user {user}"
+    home = _user_home(user)
+    port = _user_app_port(user, FB_APP_BASE)
+    unit = _fb_unit(user)
+    # Already running? (cheap check via the unit's active state)
+    try:
+        st = subprocess.run(["systemctl", "is-active", unit],
+                            capture_output=True, text=True, timeout=10)
+        if st.stdout.strip() == "active":
+            return True, port
+    except (OSError, subprocess.SubprocessError):
+        pass
+    if not os.path.exists(FB_BIN):
+        return False, "filebrowser not installed"
+    _provision_user_filebrowser(user, home, port)
+    db = _fb_db(home)
+    r = subprocess.run(
+        ["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}",
+         f"--unit={unit}", "--setenv", f"HOME={home}",
+         FB_BIN, "-d", db, "-a", "127.0.0.1", "-p", str(port)],
+        capture_output=True, text=True, timeout=30)
+    if r.returncode != 0:
+        return False, (r.stderr or r.stdout or "filebrowser start failed").strip()
+    _wait_tcp(port)                     # so the first /files/ hit doesn't 502
+    return True, port
+
 
 # System-status readers (CPU/MEM/GPU/disk/net/processes) live in system_status.py
 # and are reached via system_status.get_system_status(); the per-poll CPU/RAPL/
@@ -1177,19 +1276,19 @@ def _authenticate(user, password):
 _PUBLIC_EXACT = frozenset({
     "/api/login", "/api/logout", "/api/authcheck",
     "/api/ping", "/api/health", "/api/metrics",
+    # OnlyOffice CONTAINER endpoints (server-to-server, no browser cookie) — each is
+    # its own HMAC+JWT-gated exact path, matched exactly (NOT startswith, so a
+    # crafted /api/office/doc-anything can never ride the allowlist).
+    "/api/office/callback", "/api/office/doc",
 })
-_PUBLIC_PREFIX = ("/api/office/callback", "/api/office/doc")
 
 
 def _is_public_path(uri):
     """True if `uri` (an nginx X-Original-URI, may carry a query) is reachable
-    without a session. Pure function — unit-tested in isolation."""
+    without a session. Exact-match only. Pure function — unit-tested."""
     if not isinstance(uri, str):
         return False
-    path = uri.split("?", 1)[0]
-    if path in _PUBLIC_EXACT:
-        return True
-    return any(path == p or path.startswith(p) for p in _PUBLIC_PREFIX)
+    return uri.split("?", 1)[0] in _PUBLIC_EXACT
 
 
 def _office_convert_to_pdf(src, user=None):
@@ -1622,6 +1721,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception:
             _req_ctx.user = None
 
+    def _require_admin(self):
+        """Guard for subsystems NOT yet made per-user (Browser/X11, Files-as-view,
+        Claude-usage, Update). The gate admits every Linux user, but these still
+        act as APP_USER — so a non-admin user calling them would act AS the
+        operator (RCE/DoS/data). Restrict them to the operator (APP_USER) until
+        each is per-user. Returns True if allowed; else writes 403 and returns
+        False. Cookieless loopback/admin tooling (_ctx_user()==APP_USER) passes."""
+        if _ctx_user() == APP_USER:
+            return True
+        log.warning("admin-only %s denied for user %s", self.path, _ctx_user())
+        self._json(403, {"error": "this feature is available to the operator only "
+                                  "(not yet per-user)"})
+        return False
+
     def _req_is_https(self):
         # nginx forwards the original scheme; over the tunnel/TLS it's https.
         return self.headers.get("X-Forwarded-Proto", "").lower() == "https"
@@ -1689,6 +1802,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log.warning("authcheck: start terminal %s-%d failed: %s", user, n, res)
         return port
 
+    def _ensure_user_filebrowser(self, user):
+        """Return the user's FileBrowser port, starting it (as the user) on demand.
+        Memoized ~5s so the hot /files/ path doesn't re-check systemd every request."""
+        def _start():
+            ok, res = _start_user_filebrowser(user)
+            if not ok:
+                log.warning("authcheck: start filebrowser for %s failed: %s", user, res)
+                return None
+            return res
+        return _cached("fb_port:" + user, 5.0, _start)
+
     def _handle_authcheck(self):
         """nginx auth_request target. Allows public paths (the allowlist) through
         regardless of cookie; otherwise requires a valid session and returns the
@@ -1707,9 +1831,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        path = orig.split("?", 1)[0]
+        # /fileview/ serves raw files as the nginx worker (APP_USER's tree, shared
+        # embedded Browser) -> operator only until it's per-user (Phase 3c).
+        if path.startswith("/fileview/") and user != APP_USER:
+            self.send_response(403)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         self.send_response(200)
         self.send_header("X-Vibetop-User", user)
-        m = re.match(r"/t(\d+)(?:/|$)", orig.split("?", 1)[0])
+        m = re.match(r"/t(\d+)(?:/|$)", path)
         if m:
             n = int(m.group(1))
             if 1 <= n <= MAX_INSTANCE:
@@ -1717,6 +1849,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.send_header("X-Term-Port", str(self._ensure_user_terminal(user, n)))
                 except Exception as e:
                     log.warning("authcheck: term-port resolve failed: %s", e)
+        elif path == "/files/" or path.startswith("/files/"):
+            try:
+                port = self._ensure_user_filebrowser(user)
+                if port:
+                    self.send_header("X-App-Port", str(port))
+            except Exception as e:
+                log.warning("authcheck: files-port resolve failed: %s", e)
         self.send_header("Content-Length", "0")
         self.end_headers()
 
@@ -1726,7 +1865,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # authenticated by its own path HMAC (t=) + a required JWT, not a browser
         # request — exempt it from the Origin/CSRF gate so a proxy that injected
         # an Origin can't 403 it and silently lose document saves.
-        if not self.path.startswith("/api/office/callback") and not self._csrf_ok():
+        if self.path.split("?", 1)[0] != "/api/office/callback" and not self._csrf_ok():
             log.warning("rejected cross-origin POST to %s (Origin=%s Host=%s)",
                         self.path, self.headers.get("Origin"), self.headers.get("Host"))
             self._json(403, {"error": "cross-origin request rejected"})
@@ -1781,10 +1920,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/update":
             return self._handle_update()
         if self.path == "/api/update/history/clear":
+            if not self._require_admin():
+                return
             with _update_lock:
                 _write_update_history([])
             return self._json(200, {"ok": True})
         if self.path == "/api/claude/usage":
+            # Reads/writes APP_USER's ~/.claude/settings.json + a single shared
+            # proxy service -> operator only until per-user (else any user toggles
+            # the admin's Claude proxy routing).
+            if not self._require_admin():
+                return
             raw = self._read_body(64 * 1024)
             if raw is None:
                 return self._json(400, {"error": "invalid or too-large body"})
@@ -2152,6 +2298,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             result["terminals_stopped"] = running
         with _cache_lock:                      # so status reflects it at once
             _cache.pop("running_terminals:" + user, None)
+        # Stop this user's FileBrowser too (fresh slate).
+        try:
+            subprocess.run(["systemctl", "stop", _fb_unit(user)],
+                           check=False, capture_output=True, text=True, timeout=20)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        with _cache_lock:
+            _cache.pop("fb_port:" + user, None)
 
         # 2. Clear the desktop registry and bump reset_epoch — every other live
         #    instance sees the epoch advance on its next heartbeat and tears its
@@ -2180,6 +2334,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             result["tab_names_cleared"] = True
         except Exception:
             pass
+
+        # 4 & 5 reset the SHARED Browser/X11 xpra displays (APP_USER's) — only the
+        # operator may, or a non-admin logout would kill everyone's Browser/X11
+        # session and wipe the admin's Chromium profile (cross-user DoS). Per-user
+        # Browser/X11 (Phase 3c) will make these per-user.
+        if _ctx_user() != APP_USER:
+            log.info("reset: %s (non-admin) -> per-user terminals/desktop only",
+                     _ctx_user())
+            self._json(200, result)
+            return
 
         # 4. Reset the Browser to a blank Chromium. Stop the service first so
         #    Chromium is fully dead (and can't re-save its session on exit),
@@ -2226,6 +2390,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"ok": True, **result})
 
     def _handle_browser_open(self):
+        # Runs chromium on the SHARED xpra display as APP_USER -> admin-only until
+        # the Browser is per-user (else any user gets code-exec as the operator).
+        if not self._require_admin():
+            return
         body = self._read_body(4096)
         if body is None:
             self._json(400, {"error": "invalid or too-large body"})
@@ -2263,11 +2431,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # ---- X11 Launcher: run/list/switch GUI apps on the xpra display --------
 
     def _handle_x_launch(self):
-        # POST {cmd} — run an arbitrary GUI command on the Browser's xpra display
-        # as the app user (their own login shell, like opening a terminal). The
-        # window then appears in the Browser canvas. X11 apps started from a
-        # terminal share this same display (the session unit exports DISPLAY), so
-        # they show up in /api/x/windows without going through here.
+        # POST {cmd} — run an arbitrary GUI command on the SHARED X11 xpra display
+        # as APP_USER. Admin-only until the X11 display is per-user: otherwise any
+        # authenticated Linux user gets arbitrary code execution AS the operator
+        # (there is no command allowlist, by design).
+        if not self._require_admin():
+            return
         body = self._read_body(4096)
         if body is None:
             self._json(400, {"error": "invalid or too-large body"})
@@ -2357,10 +2526,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return None
 
     def _handle_x_windows(self):
-        # GET -> {"windows": [{"id", "title"}]} from `wmctrl -l` on the Apps
-        # display. Lines look like `0x01400003  0 host  Title with spaces`
-        # (id, desktop, client host, title). Chromium isn't here (it's on the
-        # Browser's own display), so no filtering beyond the WM desktop sentinel.
+        # GET -> {"windows": [{"id", "title"}]} from `wmctrl -l` on the SHARED Apps
+        # display (APP_USER's). Admin-only until per-user, so a non-admin can't
+        # enumerate/act on the operator's windows.
+        if not self._require_admin():
+            return
         p = self._run_wmctrl(["-l"])
         wins = []
         if p and p.returncode == 0:
@@ -2379,6 +2549,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"windows": wins})
 
     def _x_window_action(self, flag):
+        if not self._require_admin():      # shared display -> admin-only (see x/launch)
+            return
         body = self._read_body(4096)
         if body is None:
             return self._json(400, {"error": "invalid or too-large body"})
@@ -2724,6 +2896,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return info
 
     def _handle_update_check(self):
+        if not self._require_admin():       # host-wide git pull + redeploy -> operator only
+            return
         with _update_run_lock:
             return self._handle_update_check_locked()
 
@@ -2753,6 +2927,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                          "local": (local or "")[:7], "remote": (remote or "")[:7]})
 
     def _handle_update(self):
+        if not self._require_admin():       # git pull + root redeploy -> operator only
+            return
         # Serialize the whole update against any other update/check so two
         # concurrent triggers (a double-tap, two devices) can't race git in one
         # checkout. Uses _update_run_lock (NOT _update_lock) so the brief
@@ -3265,6 +3441,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(200, self._get_system_status())
             return
         if self.path == "/api/claude/usage":
+            if not self._require_admin():   # discloses APP_USER's plan usage
+                return
             self._json(200, _claude_usage_payload())
             return
         if self.path == "/api/claude/stats":
@@ -3312,7 +3490,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             qs = urllib.parse.urlparse(self.path).query
             instance = urllib.parse.parse_qs(qs).get("instance", [""])[0][:64]
             now = time.time()
-            cu = _claude_usage_enabled()   # shell-level flag, ridden on the heartbeat
+            # Claude usage reflects APP_USER's ~/.claude + a single shared proxy, so
+            # only fold it for the operator (else it leaks the admin's plan usage to
+            # every user). Non-admins get claude_usage:false and no numbers.
+            cu = _claude_usage_enabled() and (_ctx_user() == APP_USER)
             nterm = len(self._get_running_terminals())   # Start-menu badge, folded on
             with _desktop_lock:
                 state = _read_desktop_state()

@@ -136,7 +136,9 @@ def test_is_public_path(mgr):
         assert mgr._is_public_path(p), p
     for p in ("/api/notes", "/api/desktop", "/api/reset", "/api/upload",
               "/api/office/forcesave", "/api/office/config", "/api/system/status",
-              "/api/office", "", "/api/loginx"):
+              "/api/office", "", "/api/loginx",
+              # exact-match: a crafted suffix must NOT ride the allowlist (#7)
+              "/api/office/callback-evil", "/api/office/doc/../x", "/api/logout-x"):
         assert not mgr._is_public_path(p), p
 
 

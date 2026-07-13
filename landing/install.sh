@@ -49,10 +49,11 @@ run install -m 644 "$DIR/index.html" "$DST_DIR/landing.html"
 if [ "$DRY_RUN" = 1 ]; then
   printf '+ install filebrowser-patches.js (sed @APP_HOME@ -> %s)\n' "$HOME"
 else
-  # Stamp the home dir so the "My files" redirect targets ~ (FileBrowser's root is /).
-  # MUST stamp here too: deploy.sh runs landing/install.sh AFTER files/install.sh, so a
+  # Multi-user: each user's FileBrowser is rooted at THEIR home, so the app's
+  # "home" IS the FileBrowser root — stamp @APP_HOME@ empty (home = "/"). MUST
+  # stamp here too: deploy.sh runs landing/install.sh AFTER files/install.sh, so a
   # raw copy would clobber files/install.sh's stamped copy with a literal @APP_HOME@.
-  sed -e "s|@APP_HOME@|$HOME|g" "$DIR/filebrowser-patches.js" > "$DST_DIR/filebrowser-patches.js"
+  sed -e "s|@APP_HOME@||g" "$DIR/filebrowser-patches.js" > "$DST_DIR/filebrowser-patches.js"
   chmod 644 "$DST_DIR/filebrowser-patches.js"
 fi
 run install -m 644 "$DIR/vibe-modal.js" "$DST_DIR/vibe-modal.js"
@@ -65,8 +66,9 @@ run install -m 644 "$DIR/upload.html" "$DST_DIR/upload.html"
 if [ "$DRY_RUN" = 1 ]; then
   printf '+ install files.html (sed @APP_HOME@ -> %s)\n' "$HOME"
 else
-  # Stamp the home dir so the Files app defaults to ~ (its FileBrowser root is /).
-  sed -e "s|@APP_HOME@|$HOME|g" "$DIR/files.html" > "$DST_DIR/files.html"
+  # Multi-user: FileBrowser is rooted at each user's home, so the default folder
+  # is the FileBrowser root — stamp @APP_HOME@ empty (HOME = '/files/files/').
+  sed -e "s|@APP_HOME@||g" "$DIR/files.html" > "$DST_DIR/files.html"
   chmod 644 "$DST_DIR/files.html"
 fi
 run install -m 644 "$DIR/x11launcher.html" "$DST_DIR/x11launcher.html"

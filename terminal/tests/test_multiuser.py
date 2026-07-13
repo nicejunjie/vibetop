@@ -170,6 +170,72 @@ def test_term_instance_and_unit_naming(mgr):
     assert s2 == "vibetop-uterm-a_b_c_d-1.service"
 
 
+# --- admin-gated single-user subsystems (review fixes #3/#4/#5/#6) ----------
+
+def test_non_admin_denied_shared_subsystems(client, mgr, users):
+    # A logged-in NON-admin user (alice != APP_USER) is refused the subsystems
+    # that still act as APP_USER (Browser/X11/Update/Claude), so they can't act
+    # as the operator. (Cookieless == APP_USER == allowed, covered elsewhere.)
+    (_, ck) = users["alice"]
+    assert mgr.APP_USER != "alice"
+    assert client.post("/api/browser/open", {"url": "http://x"}, cookie=ck)[0] == 403
+    assert client.post("/api/x/launch", {"cmd": "xterm"}, cookie=ck)[0] == 403
+    assert client.post("/api/x/activate", {"id": "0x1"}, cookie=ck)[0] == 403
+    assert client.post("/api/update", {}, cookie=ck)[0] == 403
+    assert client.post("/api/claude/usage", {"enabled": True}, cookie=ck)[0] == 403
+    assert client.get("/api/claude/usage", cookie=ck)[0] == 403
+    assert client.get("/api/x/windows", cookie=ck)[0] == 403
+
+
+def test_fileview_authcheck_admin_only(client, mgr, users):
+    # /fileview/ (raw file alias, APP_USER's tree) via authcheck: non-admin -> 403,
+    # unauthenticated -> 401. (The nginx location gates on this.)
+    (_, ck) = users["alice"]
+    s_noauth, _, _ = client.get_full(
+        "/api/authcheck", headers={"X-Original-URI": "/fileview/etc/passwd"})
+    s_alice, _, _ = client.get_full(
+        "/api/authcheck", cookie=ck,
+        headers={"X-Original-URI": "/fileview/etc/passwd"})
+    assert s_noauth == 401       # anonymous
+    assert s_alice == 403        # authenticated non-admin
+
+
+def test_non_admin_reset_spares_shared_browser(client, mgr, users, monkeypatch):
+    # A non-admin logout resets only their own terminals/desktop — it must NOT
+    # touch the shared Browser/X11 (no browser_reset in the result).
+    (_, ck) = users["alice"]
+    monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [])
+    status, body = client.post("/api/reset", {}, cookie=ck)
+    assert status == 200
+    assert body.get("browser_reset") in (False, None)
+    assert body.get("apps_reset") in (False, None)
+
+
+# --- per-user Files (Phase 3b) ----------------------------------------------
+
+def test_files_port_and_unit_per_user(mgr, monkeypatch, tmp_path):
+    monkeypatch.setattr(mgr, "USERS_REGISTRY", str(tmp_path / "u.json"))
+    monkeypatch.setattr(mgr, "FB_APP_BASE", 18000)
+    assert mgr._user_app_port("alice", mgr.FB_APP_BASE) != \
+        mgr._user_app_port("bob", mgr.FB_APP_BASE)
+    assert mgr._fb_unit("alice") == "vibetop-ufiles-alice.service"
+    assert mgr._fb_unit("a b;c") == "vibetop-ufiles-a_b_c.service"
+
+
+def test_authcheck_files_returns_per_user_app_port(client, mgr, users, monkeypatch):
+    # /files/ authcheck cold-starts the user's FileBrowser and returns its port.
+    monkeypatch.setattr(mgr, "_start_user_filebrowser",
+                        lambda u: (True, 18000 + (1 if u == "bob" else 0)))
+    (_, a_ck) = users["alice"]
+    (_, b_ck) = users["bob"]
+    _s, ah, _ = client.get_full("/api/authcheck", cookie=a_ck,
+                                headers={"X-Original-URI": "/files/"})
+    _s, bh, _ = client.get_full("/api/authcheck", cookie=b_ck,
+                                headers={"X-Original-URI": "/files/"})
+    assert ah.get("X-App-Port") == "18000"
+    assert bh.get("X-App-Port") == "18001"      # different port per user
+
+
 # --- office (doc endpoint binds the owner into the HMAC) ---------------------
 
 def test_office_doc_bound_to_owner(client, mgr, users):

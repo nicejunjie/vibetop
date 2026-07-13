@@ -1413,3 +1413,45 @@ to a non-dotfile the snap can read — more moving parts than a one-line ACL gra
   terminal can start; `systemd-run --uid` from the root manager is simpler and has no
   such bootstrap. (Linger is still enabled in `_provision_user` so `/run/user/<uid>`
   D-Bus/XDG exist for GUI apps launched from the shell.)
+
+---
+
+## Multi-user Phase 3b/review: per-user Files + "admin-gate the not-yet-per-user"
+
+- **Per-user Files.** FileBrowser now runs per user (a `systemd-run --uid` transient
+  unit `vibetop-ufiles-<user>`, per-user port `FB_APP_BASE + slot`, per-user DB),
+  **rooted at the user's home** (`--root/--scope <home>`) so it opens at `~`, can't
+  escape it, and its writes have the user's own permissions. The shared single-user
+  `vibetop-filebrowser.service` is retired. Rooting at home (not `/`) also let the
+  `@APP_HOME@` front-end patches keep working by stamping it **empty** (home = the
+  FileBrowser root = `/`), avoiding a runtime `whoami` fetch in the fragile
+  `filebrowser-patches.js`. nginx `/files/` routes to the per-user port via
+  `authcheck` → `X-App-Port` (the `/tN/` pattern). A `_wait_tcp` after launch stops
+  the first hit from 502-ing before the service is listening.
+- **The invariant the fable review caught — and the fix pattern.** A model-driven
+  adversarial review found the real bug class: **the login gate was widened to every
+  Linux user before Browser/X11/Files-raw-view/Claude-usage/Update were made
+  per-user, so those still acted as `APP_USER`.** Concretely: `/fileview/` was
+  *ungated* (unauthenticated arbitrary file read as the nginx worker — **critical**);
+  `/api/x/launch` + `/api/browser/open` gave any user **RCE as the operator**;
+  `/api/reset` tore down the shared Browser/X11 for everyone; `/api/claude/usage`
+  read/wrote `APP_USER`'s `~/.claude`; `/api/update` let any user redeploy the host.
+  - **Fix = `_require_admin()` (`_ctx_user() == APP_USER`) on every subsystem that
+    still acts as the operator**, until it is per-user. Cookieless loopback/admin
+    tooling is `APP_USER`, so it still passes; a non-admin session gets 403. `/reset`
+    keeps the per-user terminal/desktop teardown for everyone but gates the shared
+    Browser/X11 reset to the operator. `/fileview/`'s admin check lives in `authcheck`
+    (not an nginx `if`, which evaluates in the rewrite phase *before* `auth_request`
+    populates the user variable — so an `if ($vt_user != …)` 403s everyone, including
+    the admin). **Takeaway: widen the authN gate and lock down authZ in the same pass
+    — a per-request identity is not per-user isolation until every subsystem consumes
+    it.**
+- **Exact-match the public allowlist.** `_is_public_path` (and the CSRF exemption)
+  matched `/api/office/{callback,doc}` with `startswith`, so `/api/office/doc-anything`
+  was needlessly public. Now exact-match (split off the query, compare `==`). Not
+  currently exploitable (the raw URI is forwarded unchanged and those handlers are
+  HMAC-gated), but the fragile pattern is gone.
+- **Verified live on Legion:** unauth `/fileview/etc/passwd` → login redirect (was a
+  raw read); a non-admin session → 403 on `/fileview/` and every shared subsystem;
+  per-user Files serves each user their own home; the operator (via an `APP_USER`
+  session) still has everything.

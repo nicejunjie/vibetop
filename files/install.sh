@@ -94,40 +94,16 @@ if ! [ -x "$FB_BIN" ] && (( ! DRY_RUN )); then
     exit 1
 fi
 
-# 2. Config (run as APP_USER; stop the service first so the bolt db isn't locked)
-echo "== configuring filebrowser db =="
-run sudo systemctl stop vibetop-filebrowser.service 2>/dev/null || true
-run sudo -u "$APP_USER" mkdir -p "$APP_HOME/.config/filebrowser"
-if ! [ -f "$FB_DB" ] && (( ! DRY_RUN )); then
-    fb config init
-    # noauth needs one user to act as; create an admin (only used internally).
-    fb users add admin "$(openssl rand -hex 12 2>/dev/null || echo changeme123)" --perm.admin || true
-fi
-# Settings are idempotent — safe to set on every run.
-# root=/ so the Files app can browse the whole filesystem (the user asked for
-# "/"). FileBrowser runs as APP_USER, so its reach is exactly that user's — no
-# more than their Terminal already has.
-fb config set --address 127.0.0.1 --port "$FB_PORT" --baseurl /files \
-              --root / --auth.method=noauth --hideDotfiles
-# The noauth user (admin) is what FileBrowser actually serves as, and its PER-USER
-# settings OVERRIDE the defaults above — so apply scope + hideDotfiles ON IT too,
-# or it stays jailed to its creation-time home AND keeps listing .* files (the
-# defaults' hideDotfiles doesn't reach an existing user). Re-applied every run.
-fb users update admin --scope / --hideDotfiles 2>/dev/null || true
-
-# 3. systemd unit ------------------------------------------------------------
+# 2. Per-user FileBrowser — NO shared service ------------------------------
+# Multi-user: the manager launches a FileBrowser per logged-in user (as that
+# user, rooted at their home) on demand via systemd-run, each on its own port
+# (see terminal-manager.py `_start_user_filebrowser`). It provisions each user's
+# DB (~/.config/filebrowser/filebrowser.db) on first start. So there is no shared,
+# single-user FileBrowser service anymore — retire any lingering one from an older
+# deploy (its :$FB_PORT / root=/ instance would otherwise keep running as APP_USER).
+echo "== per-user FileBrowser (managed on demand by the manager) =="
 if (( INSTALL_SYSTEMD )); then
-    echo "== installing systemd unit =="
-    sed -e "s|@APP_USER@|$APP_USER|g" \
-        -e "s|@APP_HOME@|$APP_HOME|g" \
-        -e "s|@FB_BIN@|$FB_BIN|g" \
-        -e "s|@FB_DB@|$FB_DB|g" \
-        "$APP_DIR/systemd/vibetop-filebrowser.service" \
-        | write_root /etc/systemd/system/vibetop-filebrowser.service
-    run sudo systemctl daemon-reload
-    run sudo systemctl enable --now vibetop-filebrowser.service
-else
-    run sudo systemctl restart vibetop-filebrowser.service 2>/dev/null || true
+    run sudo systemctl disable --now vibetop-filebrowser.service 2>/dev/null || true
 fi
 
 # 4. nginx snippet -----------------------------------------------------------
@@ -143,6 +119,7 @@ if (( INSTALL_NGINX )); then
     FB_PATCH_FILE="$APP_DIR/../landing/filebrowser-patches.js"
     PATCH_VER=$([ -f "$FB_PATCH_FILE" ] && md5sum "$FB_PATCH_FILE" | cut -c1-10 || echo 0)
     sed -e "s|@APP_HOME@|$APP_HOME|g" \
+        -e "s|@APP_USER@|$APP_USER|g" \
         -e "s|@PATCH_VER@|$PATCH_VER|g" \
         "$APP_DIR/nginx/filebrowser.conf" \
         | nginx_write "$NGINX_EXTRAS/filebrowser.conf" || NGINX_DIRTY=1
