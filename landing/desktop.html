@@ -399,6 +399,12 @@
     font-size: clamp(30px, 5.4vmin, 46px); font-weight: 600; letter-spacing: 0.5px;
     color: #c3ccd6; margin-top: 4px;   /* soft off-white to match the calmer mark */
   }
+  /* Personal greeting (the signed-in user), filled from /api/me. */
+  .wp-greet {
+    font-size: clamp(15px, 2.2vmin, 18px); font-weight: 600; letter-spacing: 0.2px;
+    color: #d2a56a; margin-top: -6px;   /* warm accent, tucked under the brand name */
+  }
+  .wp-greet[hidden] { display: none; }
   .wp-desc {
     max-width: 470px; font-size: clamp(13px, 1.95vmin, 15px); line-height: 1.6; color: #7a8696;
   }
@@ -500,6 +506,7 @@
         <rect x="128" y="128" width="112" height="112" rx="28" fill="#8a64c6"/>
       </svg>
       <div class="wp-name">Vibetop</div>
+      <div class="wp-greet" id="wp-greet" hidden></div>
       <div class="wp-desc">A self-hosted mini-OS desktop for anywhere you go.</div>
       <div class="wp-repo"><a href="https://github.com/nicejunjie/vibetop" target="_blank" rel="noopener">github.com/nicejunjie/vibetop</a></div>
       <div class="wp-hint" id="wp-hint">Click <b>&nbsp;⊞ Start&nbsp;</b> to open an app</div>
@@ -1789,6 +1796,9 @@
     var wl = document.getElementById('tb-lo-who-login');
     if (wl) { wl.textContent = full ? ('@' + login) : ''; wl.hidden = !full; }
     var who = document.getElementById('tb-lo-who'); if (who) who.hidden = false;
+    // Wallpaper greeting (shown on the empty desktop, under the brand name)
+    set('wp-greet', 'Welcome back, ' + display);
+    var wg = document.getElementById('wp-greet'); if (wg) wg.hidden = false;
   }).catch(function() {});
 })();
 
