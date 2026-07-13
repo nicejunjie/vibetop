@@ -235,6 +235,14 @@
   .tb-lo-sub { font-size: 11px; color: #7d8a99; }
   .tb-lo-danger .tb-lo-t { color: #ff7a7a; }
   .tb-lo-danger:hover { background: rgba(255,60,60,0.14); }
+  /* "Signed in as …" header above the logout actions. */
+  .tb-lo-who {
+    display: flex; flex-direction: column; gap: 1px;
+    padding: 6px 12px 9px; margin: 2px 0 5px; border-bottom: 1px solid #263041;
+  }
+  .tb-lo-who[hidden] { display: none; }
+  .tb-lo-who-name { font-size: 13px; font-weight: 700; color: #e8eef5; }
+  .tb-lo-who-login { font-size: 11px; color: #7d8a99; font-variant-numeric: tabular-nums; }
 
   /* === Start menu === */
   .startmenu {
@@ -256,6 +264,24 @@
     font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
     color: #556; padding: 2px 8px 4px;
   }
+  /* Signed-in user header at the top of the Start menu (avatar + name + @login). */
+  .sm-user {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 9px; margin: 1px 0 6px; border-radius: 9px;
+    background: rgba(210,105,30,0.08); border: 1px solid #2a3040;
+  }
+  .sm-user[hidden] { display: none; }
+  .sm-user-av {
+    width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, #b3540f, #d2691e);
+  }
+  .sm-user-txt { min-width: 0; }
+  .sm-user-name { font-size: 14px; font-weight: 700; color: #e8eef5;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sm-user-login { font-size: 11px; color: #8a9aaa;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sm-item {
     display: flex; align-items: center; gap: 10px;
     padding: 5px 9px; border-radius: 8px; cursor: pointer; user-select: none;
@@ -494,6 +520,13 @@
 
   <div id="menu-scrim"></div>
   <div class="startmenu" id="startmenu">
+    <div class="sm-user" id="sm-user" hidden>
+      <div class="sm-user-av" id="sm-user-av"></div>
+      <div class="sm-user-txt">
+        <div class="sm-user-name" id="sm-user-name"></div>
+        <div class="sm-user-login" id="sm-user-login"></div>
+      </div>
+    </div>
     <div class="sm-title">Applications</div>
     <div id="sm-apps"></div>
     <div class="sm-title sm-title-system">System</div>
@@ -529,6 +562,10 @@
     <div class="tb-logout-wrap" id="tb-logout-wrap">
       <button class="tb-logout" id="tb-logout" title="Log out" aria-haspopup="true" aria-expanded="false">⏻</button>
       <div class="tb-logout-menu" id="tb-logout-menu" role="menu" hidden>
+        <div class="tb-lo-who" id="tb-lo-who" hidden>
+          <span class="tb-lo-who-name" id="tb-lo-who-name"></span>
+          <span class="tb-lo-who-login" id="tb-lo-who-login"></span>
+        </div>
         <button class="tb-lo-item" id="tb-lo-this" role="menuitem">
           <span class="tb-lo-t">Log out</span>
           <span class="tb-lo-sub">this device</span>
@@ -1730,6 +1767,29 @@
       });
     });
   }
+})();
+
+// --- Signed-in user (Start menu + logout menu) -----------------------------
+// One fetch of /api/me (username + GECOS full name) shows who's signed in. The
+// full name is preferred as the display; @username is the secondary line (and
+// omitted when there's no full name, since the name line already IS the login).
+(function() {
+  fetch('/api/me').then(function(r) { return r.json(); }).then(function(me) {
+    if (!me || !me.user) return;
+    var full = (me.name || '').trim(), login = me.user, display = full || login;
+    var set = function(id, t) { var el = document.getElementById(id); if (el) el.textContent = t; };
+    // Start-menu header
+    set('sm-user-av', display.charAt(0).toUpperCase());
+    set('sm-user-name', display);
+    var sl = document.getElementById('sm-user-login');
+    if (sl) { sl.textContent = full ? ('@' + login) : ''; sl.style.display = full ? '' : 'none'; }
+    var su = document.getElementById('sm-user'); if (su) su.hidden = false;
+    // Logout drop-up header
+    set('tb-lo-who-name', display);
+    var wl = document.getElementById('tb-lo-who-login');
+    if (wl) { wl.textContent = full ? ('@' + login) : ''; wl.hidden = !full; }
+    var who = document.getElementById('tb-lo-who'); if (who) who.hidden = false;
+  }).catch(function() {});
 })();
 
 // --- Claude plan-usage strip (opt-in) --------------------------------------

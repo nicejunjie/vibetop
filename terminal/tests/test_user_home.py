@@ -14,8 +14,8 @@ import pwd
 import pytest
 
 
-def _pw(name, home, uid=4001, gid=4001):
-    return pwd.struct_passwd((name, "x", uid, gid, "", str(home), "/bin/bash"))
+def _pw(name, home, uid=4001, gid=4001, gecos=""):
+    return pwd.struct_passwd((name, "x", uid, gid, gecos, str(home), "/bin/bash"))
 
 
 # -- _workdir_props: pin the shell's CWD to the user's home -----------------
@@ -80,3 +80,19 @@ def test_api_me_returns_request_user_and_home(client, mgr, users):
     b_home, b_ck = users["bob"]
     st, _h, body = client.get_full("/api/me", cookie=b_ck)
     assert st == 200 and body["user"] == "bob" and body["home"] == str(b_home)
+
+
+def test_api_me_includes_gecos_full_name(client, mgr, users, monkeypatch):
+    # /api/me exposes the display name (GECOS field 1) for the Start/logout menus.
+    a_home, a_ck = users["alice"]
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: _pw("alice", a_home, gecos="Alice Smith,Rm 1,,"))
+    st, _h, body = client.get_full("/api/me", cookie=a_ck)
+    assert st == 200 and body["name"] == "Alice Smith"
+
+
+def test_api_me_name_empty_when_no_gecos(client, mgr, users, monkeypatch):
+    a_home, a_ck = users["alice"]
+    monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: _pw("alice", a_home, gecos=""))
+    _st, _h, body = client.get_full("/api/me", cookie=a_ck)
+    assert body["name"] == ""

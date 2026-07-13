@@ -3639,12 +3639,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(200, {"ok": True})
             return
         if self.path == "/api/me":
-            # The authenticated principal for this request + their real home.
-            # Front-ends that are static files (can't be stamped per-user) use
-            # this to anchor on the logged-in user's home — notably files.html,
-            # which opens the Files app at ~ (FileBrowser is rooted at /).
+            # The authenticated principal for this request + their real home and
+            # display (GECOS) name. Front-ends that are static files (can't be
+            # stamped per-user) use this: files.html anchors the Files app at ~
+            # (FileBrowser is rooted at /), and the desktop shell shows who's
+            # signed in (Start menu + logout menu).
             user = _ctx_user()
-            self._json(200, {"user": user, "home": _ctx_home()})
+            name = ""
+            try:
+                # GECOS field 1 is the full name (comma-separated: name,room,...).
+                name = (pwd.getpwnam(user).pw_gecos or "").split(",")[0].strip()
+            except KeyError:
+                pass
+            self._json(200, {"user": user, "home": _ctx_home(), "name": name})
             return
         if self.path == "/api/terminals/status":
             self._json(200, {"running": self._get_running_terminals()})
