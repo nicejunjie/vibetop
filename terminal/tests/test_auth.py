@@ -106,6 +106,18 @@ def test_login_no_secure_flag_on_http(mgr, client, monkeypatch):
     assert "Secure" not in headers.get("Set-Cookie", "")
 
 
+def test_login_lockout_after_repeated_failures(mgr, client, monkeypatch):
+    monkeypatch.setattr(mgr, "LOGIN_MAX_FAILS", 3)
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: False)
+    for _ in range(3):
+        assert client.post("/api/login", {"username": "alice", "password": "x"})[0] == 401
+    # further attempts for this user are locked out (429), even with the right pw
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: True)
+    assert client.post("/api/login", {"username": "alice", "password": "pw"})[0] == 429
+    # a different username is unaffected
+    assert client.post("/api/login", {"username": "bob", "password": "pw"})[0] == 200
+
+
 # --- /api/authcheck (nginx auth_request target) -----------------------------
 
 def test_authcheck_no_cookie_401(mgr, client):

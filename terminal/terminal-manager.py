@@ -587,6 +587,23 @@ USER_TERM_BASE = _port_env("USER_TERM_BASE", 17000)
 PER_USER_TERMS = 100                               # port span per user (>= MAX_INSTANCE)
 _users_lock = threading.Lock()
 
+# Per-unit resource caps for the systemd-run transient units (multi-user safety on
+# a shared box). TasksMax defaults on (cheap fork-bomb protection, generous enough
+# not to bother normal use); MemoryMax/CPUQuota are opt-in (empty = no cap) since a
+# wrong memory cap OOM-kills a legit workload. All env-overridable.
+USER_TASKS_MAX = os.environ.get("USER_TASKS_MAX", "4000")
+USER_MEM_MAX = os.environ.get("USER_MEM_MAX", "")          # e.g. "4G"
+USER_CPU_QUOTA = os.environ.get("USER_CPU_QUOTA", "")      # e.g. "400%"
+
+
+def _resource_props():
+    props = []
+    for name, val in (("TasksMax", USER_TASKS_MAX), ("MemoryMax", USER_MEM_MAX),
+                      ("CPUQuota", USER_CPU_QUOTA)):
+        if val:
+            props += ["--property", f"{name}={val}"]
+    return props
+
 
 def _sanitize_unit(s):
     # A Linux login name is a safe subset of systemd unit chars; be defensive.
@@ -683,7 +700,8 @@ def _start_user_terminal(user, n):
     inst = _term_instance(user, n)
     port = _user_term_port(user, n)
     sess_unit, ttyd_unit = _term_units(user, n)
-    base = ["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
+    base = (["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
+            + _resource_props())
     setenvs = []
     for e in _user_terminal_setenvs(user):
         setenvs += ["--setenv", e]
@@ -800,8 +818,9 @@ def _start_user_filebrowser(user):
     _provision_user_filebrowser(user, home, port)
     db = _fb_db(home)
     r = subprocess.run(
-        ["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}",
-         f"--unit={unit}", "--setenv", f"HOME={home}",
+        ["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
+        + _resource_props() +
+        [f"--unit={unit}", "--setenv", f"HOME={home}",
          FB_BIN, "-d", db, "-a", "127.0.0.1", "-p", str(port)],
         capture_output=True, text=True, timeout=30)
     if r.returncode != 0:
@@ -1261,6 +1280,44 @@ def _authenticate(user, password):
     """Identity check seam — wraps PAM. Tests monkeypatch this to avoid real
     credentials."""
     return _pam_authenticate(user, password, PAM_SERVICE)
+
+
+# Login brute-force lockout: per-username failed-attempt tracking. After
+# LOGIN_MAX_FAILS failures within LOGIN_FAIL_WINDOW seconds, further attempts are
+# refused (429) for the rest of the window — cheap defense on top of PAM (the
+# server is threaded, so attempts would otherwise parallelize freely).
+LOGIN_MAX_FAILS = int(os.environ.get("LOGIN_MAX_FAILS", "10"))
+LOGIN_FAIL_WINDOW = int(os.environ.get("LOGIN_FAIL_WINDOW", "300"))
+_login_fails = {}
+_login_fails_lock = threading.Lock()
+
+
+def _login_recent_fails(user, now):
+    return [t for t in _login_fails.get(user, []) if now - t < LOGIN_FAIL_WINDOW]
+
+
+def _login_locked(user, now=None):
+    now = time.time() if now is None else now
+    with _login_fails_lock:
+        fails = _login_recent_fails(user, now)
+        _login_fails[user] = fails
+        return len(fails) >= LOGIN_MAX_FAILS
+
+
+def _login_record_fail(user, now=None):
+    now = time.time() if now is None else now
+    with _login_fails_lock:
+        fails = _login_recent_fails(user, now)
+        fails.append(now)
+        _login_fails[user] = fails
+        if len(_login_fails) > 10000:      # bound the map against username spraying
+            for k in [k for k, v in _login_fails.items() if not _login_recent_fails(k, now)]:
+                _login_fails.pop(k, None)
+
+
+def _login_clear(user):
+    with _login_fails_lock:
+        _login_fails.pop(user, None)
 
 
 # Paths reachable WITHOUT a session — the allowlist that the nginx auth_request
@@ -1752,6 +1809,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pw = data.get("password", "")
         if not isinstance(user, str) or not isinstance(pw, str) or not user or not pw:
             return self._json(400, {"error": "username and password required"})
+        if _login_locked(user):
+            log.warning("login locked (too many failures) for %r from %s",
+                        user, self.address_string())
+            time.sleep(0.5)
+            return self._json(429, {"error": "too many failed attempts — "
+                                             "try again in a few minutes"})
         ok = False
         if _USERNAME_RE.match(user) and len(pw) <= 1024:
             try:
@@ -1759,9 +1822,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:                # never let an auth backend error 500
                 log.warning("auth backend error for %r: %s", user, e)
         if not ok:
-            time.sleep(0.5)                       # mild brute-force friction (Phase 4: pam_faillock)
+            _login_record_fail(user)
+            time.sleep(0.5)                       # per-attempt friction
             log.warning("failed login for %r from %s", user, self.address_string())
             return self._json(401, {"error": "invalid credentials"})
+        _login_clear(user)                        # reset on success
         tok = _sign_session(user)
         cookie = (f"{SESSION_COOKIE}={tok}; Path=/; HttpOnly; SameSite=Lax; "
                   f"Max-Age={SESSION_TTL}")
@@ -3550,7 +3615,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(200, self._check_health())
             return
         if self.path == "/api/services/discover":
-            # Auto-discovered network services (listening non-loopback sockets).
+            # Auto-discovered network services (listening non-loopback sockets +
+            # /proc cmdlines). Host-wide info incl. other users' processes ->
+            # operator only (a non-admin shouldn't enumerate the host's services).
+            if not self._require_admin():
+                return
             # Memoized ~5s: the scan shells out to `ss` + reads /proc, and every
             # open Services dashboard polls this.
             self._json(200, _cached("services_discover", 5.0,

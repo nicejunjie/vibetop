@@ -138,6 +138,8 @@ def home(mgr, monkeypatch, tmp_path):
     # SESSION_SECRET_FILE is (re)generated fresh.
     if hasattr(mgr, "_session_secret_cache"):
         mgr._session_secret_cache = None
+    if hasattr(mgr, "_login_fails"):        # don't bleed lockout state across tests
+        mgr._login_fails.clear()
     return h
 
 
