@@ -45,9 +45,10 @@ def test_config_spreadsheet_doctype(client, mgr, home):
 
 def test_doc_serves_bytes_with_valid_hmac(client, mgr, home):
     rel, secret = _setup(mgr, home)
-    sig = mgr._onlyoffice_sig(secret, rel)
+    u = mgr.APP_USER
+    sig = mgr._onlyoffice_sig(secret, u, rel)
     status, headers, body = client.get_raw(
-        "/api/office/doc?path=%s&t=%s" % (rel, sig))
+        "/api/office/doc?path=%s&u=%s&t=%s" % (rel, u, sig))
     assert status == 200
     assert headers.get("Content-Type") == "application/octet-stream"
     assert body[:2] == b"PK"                 # docx is a zip
@@ -55,7 +56,17 @@ def test_doc_serves_bytes_with_valid_hmac(client, mgr, home):
 
 def test_doc_rejects_bad_hmac(client, mgr, home):
     rel, _ = _setup(mgr, home)
-    status, _, _ = client.get_raw("/api/office/doc?path=%s&t=forged" % rel)
+    status, _, _ = client.get_raw(
+        "/api/office/doc?path=%s&u=%s&t=forged" % (rel, mgr.APP_USER))
+    assert status == 403
+
+
+def test_doc_rejects_hmac_for_other_user(client, mgr, home):
+    # A token minted for user APP_USER must not authorize a different u=.
+    rel, secret = _setup(mgr, home)
+    sig = mgr._onlyoffice_sig(secret, mgr.APP_USER, rel)
+    status, _, _ = client.get_raw(
+        "/api/office/doc?path=%s&u=%s&t=%s" % (rel, "someoneelse", sig))
     assert status == 403
 
 
@@ -75,30 +86,35 @@ def test_download_rejects_escape(client, mgr, home):
 
 def test_callback_rejects_missing_jwt(client, mgr, home):
     rel, secret = _setup(mgr, home)
-    sig = mgr._onlyoffice_sig(secret, rel)
+    u = mgr.APP_USER
+    sig = mgr._onlyoffice_sig(secret, u, rel)
     # Valid path HMAC but no JWT in body/header -> refused (error 1).
-    status, body = client.post("/api/office/callback?path=%s&t=%s" % (rel, sig),
-                               {"status": 2, "url": "http://x/y"})
+    status, body = client.post(
+        "/api/office/callback?path=%s&u=%s&t=%s" % (rel, u, sig),
+        {"status": 2, "url": "http://x/y"})
     assert status == 200 and body == {"error": 1}
 
 
 def test_callback_bad_hmac(client, mgr, home):
     rel, _ = _setup(mgr, home)
-    status, body = client.post("/api/office/callback?path=%s&t=nope" % rel,
-                               {"status": 2})
+    status, body = client.post(
+        "/api/office/callback?path=%s&u=%s&t=nope" % (rel, mgr.APP_USER),
+        {"status": 2})
     assert status == 200 and body == {"error": 1}
 
 
 def test_callback_valid_jwt_closes_session(client, mgr, home):
     rel, secret = _setup(mgr, home)
-    sig = mgr._onlyoffice_sig(secret, rel)
-    mgr._office_sessions[rel] = "somekey"
+    u = mgr.APP_USER
+    sig = mgr._onlyoffice_sig(secret, u, rel)
+    mgr._office_sessions[(u, rel)] = "somekey"
     # status 4 = closed with no changes -> {"error":0}, session dropped, no write.
     token = mgr._jwt_sign({"status": 4}, secret)
-    status, body = client.post("/api/office/callback?path=%s&t=%s" % (rel, sig),
-                               {"status": 4, "token": token})
+    status, body = client.post(
+        "/api/office/callback?path=%s&u=%s&t=%s" % (rel, u, sig),
+        {"status": 4, "token": token})
     assert status == 200 and body == {"error": 0}
-    assert rel not in mgr._office_sessions
+    assert (u, rel) not in mgr._office_sessions
 
 
 def test_new_document_from_template(client, mgr, home):

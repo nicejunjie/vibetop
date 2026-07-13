@@ -28,7 +28,7 @@ def test_upload_writes_file(client, mgr):
     assert status == 200 and body["ok"] is True
     assert body["saved"][0]["name"] == "photo.jpg"
     assert body["saved"][0]["size"] == len(b"\xff\xd8imagedata")
-    dst = os.path.join(mgr.UPLOAD_DIR, "photo.jpg")
+    dst = os.path.join(mgr._upload_dir(), "photo.jpg")
     assert os.path.isfile(dst)
     with open(dst, "rb") as f:
         assert f.read() == b"\xff\xd8imagedata"
@@ -47,9 +47,9 @@ def test_upload_sanitizes_traversal_name(client, mgr):
     # Directory components stripped -> lands as a plain name inside UPLOAD_DIR.
     saved = body["saved"][0]["name"]
     assert "/" not in saved and saved == "evil.txt"
-    assert os.path.isfile(os.path.join(mgr.UPLOAD_DIR, saved))
+    assert os.path.isfile(os.path.join(mgr._upload_dir(), saved))
     # Nothing escaped the inbox.
-    assert not os.path.exists(os.path.join(mgr.UPLOAD_DIR, "..", "etc", "evil.txt"))
+    assert not os.path.exists(os.path.join(mgr._upload_dir(), "..", "etc", "evil.txt"))
 
 
 def test_upload_rejects_non_multipart(client):
@@ -71,4 +71,4 @@ def test_upload_clear_removes_files(client, mgr):
     _upload(client, [("file", "gone.txt", b"x")])
     status, body = client.post("/api/upload/clear", {})
     assert status == 200 and body["removed"] >= 1
-    assert os.listdir(mgr.UPLOAD_DIR) == []
+    assert os.listdir(mgr._upload_dir()) == []

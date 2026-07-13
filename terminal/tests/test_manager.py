@@ -144,8 +144,9 @@ def test_launch_prog(mgr, cmd, prog):
 
 @pytest.fixture
 def home(mgr, tmp_path, monkeypatch):
-    """Point OFFICE_HOME at a temp dir with a known file, restore after."""
-    monkeypatch.setattr(mgr, "OFFICE_HOME", str(tmp_path))
+    """Point the per-user home at a temp dir with a known file, restore after.
+    (Multi-user: office paths resolve under _user_home(request_user).)"""
+    monkeypatch.setattr(mgr, "_user_home", lambda u: str(tmp_path))
     (tmp_path / "Documents").mkdir()
     f = tmp_path / "Documents" / "report.docx"
     f.write_text("x")
@@ -280,15 +281,16 @@ def test_jwt_rejects_non_dict_payload(mgr):
 # --------------------------------------------------------------------------
 
 def test_onlyoffice_sig_is_deterministic(mgr):
-    a = mgr._onlyoffice_sig(SECRET, "Documents/x.docx")
-    b = mgr._onlyoffice_sig(SECRET, "Documents/x.docx")
+    a = mgr._onlyoffice_sig(SECRET, "alice", "Documents/x.docx")
+    b = mgr._onlyoffice_sig(SECRET, "alice", "Documents/x.docx")
     assert a == b and len(a) == 32
 
 
-def test_onlyoffice_sig_varies_by_path_and_secret(mgr):
-    base = mgr._onlyoffice_sig(SECRET, "a.docx")
-    assert base != mgr._onlyoffice_sig(SECRET, "b.docx")
-    assert base != mgr._onlyoffice_sig("other", "a.docx")
+def test_onlyoffice_sig_varies_by_user_path_and_secret(mgr):
+    base = mgr._onlyoffice_sig(SECRET, "alice", "a.docx")
+    assert base != mgr._onlyoffice_sig(SECRET, "alice", "b.docx")   # path
+    assert base != mgr._onlyoffice_sig("other", "alice", "a.docx")  # secret
+    assert base != mgr._onlyoffice_sig(SECRET, "bob", "a.docx")     # user
 
 
 # --------------------------------------------------------------------------

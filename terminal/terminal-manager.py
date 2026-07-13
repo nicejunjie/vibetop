@@ -196,27 +196,64 @@ def _app_user():
 
 
 APP_USER = _app_user()
-# Notes: multi-document now. Each note is NOTES_DIR/<id>.md; NOTES_INDEX_FILE holds
-# the tab list/order/names/active ({tabs:[{id,name}], active}) server-side (so a
-# rename/new/reorder shows up on every device, like terminal tab names). NOTES_FILE
-# is the LEGACY single-note file, migrated into tab "1" on first use (kept, not
-# deleted, as a safety net).
-NOTES_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-notes.md")
-NOTES_DIR = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-notes")
-NOTES_INDEX_FILE = os.path.join(NOTES_DIR, "index.json")
+
+
+def _user_home(user):
+    """Home directory for a Linux user. Multi-user (Option B): per-request state
+    and file ops resolve under the *authenticated* user's real home. Overridable
+    in tests (monkeypatched to a tmp dir)."""
+    try:
+        return pwd.getpwnam(user).pw_dir
+    except KeyError:
+        return os.path.expanduser(f"~{user}")
+
+
+# Per-request identity. The server is threaded (one thread per request), so the
+# authenticated user for the in-flight request lives in a thread-local set at the
+# top of dispatch (_bind_request_user). The per-user path helpers and _chown_app
+# read it, so a handler's on-disk effects land in THAT user's home. Falls back to
+# APP_USER for cookieless loopback/admin requests (and unit tests that don't set
+# a user).
+_req_ctx = threading.local()
+
+
+def _ctx_user():
+    return getattr(_req_ctx, "user", None) or APP_USER
+
+
+def _ctx_home():
+    return _user_home(_ctx_user())
+
+
+# Notes: multi-document. Each note is <notes_dir>/<id>.md; the index holds the tab
+# list/order/names/active ({tabs:[{id,name}], active}). The legacy single-note file
+# is migrated into tab "1" on first use (kept as a safety net). Per the request
+# user's home (multi-user).
+def _notes_legacy_file():
+    return os.path.join(_ctx_home(), ".local/share/desktop-notes.md")
+
+
+def _notes_dir():
+    return os.path.join(_ctx_home(), ".local/share/desktop-notes")
+
+
+def _notes_index_file():
+    return os.path.join(_notes_dir(), "index.json")
+
+
 _notes_lock = threading.Lock()
 _NOTE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 def _safe_note_id(nid):
     """A note id is safe iff it's [A-Za-z0-9_-]{1,64} — so it can only ever be a
-    plain filename inside NOTES_DIR, never a path-traversal (`../`, `/etc/...`).
+    plain filename inside _notes_dir(), never a path-traversal (`../`, `/etc/...`).
     Pure function so it can be unit-tested in isolation."""
     return isinstance(nid, str) and bool(_NOTE_ID_RE.match(nid))
 
 
 def _note_file(nid):
-    return os.path.join(NOTES_DIR, nid + ".md")
+    return os.path.join(_notes_dir(), nid + ".md")
 
 
 def _read_notes_index():
@@ -224,40 +261,51 @@ def _read_notes_index():
     legacy single-note file into tab '1' on first use. Serialized by _notes_lock."""
     with _notes_lock:
         try:
-            with open(NOTES_INDEX_FILE) as f:
+            with open(_notes_index_file()) as f:
                 data = json.load(f)
             if isinstance(data, dict) and isinstance(data.get("tabs"), list) and data["tabs"]:
                 return data
         except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
             pass
-        os.makedirs(NOTES_DIR, exist_ok=True)
-        _chown_app(NOTES_DIR)
+        os.makedirs(_notes_dir(), exist_ok=True)
+        _chown_app(_notes_dir())
         if not os.path.exists(_note_file("1")):
             try:
-                with open(NOTES_FILE) as f:
+                with open(_notes_legacy_file()) as f:
                     legacy = f.read()
             except (FileNotFoundError, OSError):
                 legacy = ""
             _atomic_write(_note_file("1"), legacy)   # migrate; legacy file left intact
         data = {"tabs": [{"id": "1", "name": "Notes"}], "active": "1"}
-        _atomic_write(NOTES_INDEX_FILE, json.dumps(data))
+        _atomic_write(_notes_index_file(), json.dumps(data))
         return data
 
 
 def _write_notes_index(data):
-    _atomic_write(NOTES_INDEX_FILE, json.dumps(data))
+    _atomic_write(_notes_index_file(), json.dumps(data))
 
 
-# Files app tab set — shared across devices (one set, loaded when the Files app
-# opens, saved on change). Each entry is a FileBrowser browse URL (/files/files/…).
-FILES_TABS_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-files-tabs.json")
+# Files app tab set — shared across a user's devices (one set, loaded when the
+# Files app opens, saved on change). Each entry is a FileBrowser browse URL.
+# Per the request user's home (multi-user).
+def _files_tabs_file():
+    return os.path.join(_ctx_home(), ".local/share/desktop-files-tabs.json")
+
+
 _files_tabs_lock = threading.Lock()
-# Terminal tab names, keyed by instance number. Server-side (not per-browser
-# localStorage) so a rename shows up in every session/device — terminal N is the
-# same shared session everywhere.
-TAB_NAMES_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/terminal-tab-names.json")
+
+
+# Terminal tab names, keyed by instance number. Server-side so a rename shows up
+# on every device of the same user.
+def _tab_names_file():
+    return os.path.join(_ctx_home(), ".local/share/terminal-tab-names.json")
+
+
 _tab_names_lock = threading.Lock()
-DESKTOP_STATE_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/desktop-state.json")
+
+
+def _desktop_state_file():
+    return os.path.join(_ctx_home(), ".local/share/desktop-state.json")
 # Desktop state is a per-instance registry: {"instances": {id: {open, active, ts}},
 # "reset_epoch": N}. The Start-menu "running" dots show the UNION of apps open
 # across instances seen within DESKTOP_TTL (a heartbeat keeps an instance live);
@@ -276,15 +324,27 @@ _desktop_lock = threading.Lock()
 # with a "deployed" baseline on first run) — not the git changelog.
 UPDATE_HISTORY_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/vibetop-update-history.json")
 UPDATE_HISTORY_MAX = 200
-UPLOAD_DIR = os.environ.get(
-    "UPLOAD_DIR", os.path.expanduser(f"~{APP_USER}/Uploads")
-)
+
+
+# Upload drop zone. Per-user (~user/Uploads) unless _upload_dir() env pins a single
+# shared dir for the whole host.
+def _upload_dir():
+    return os.environ.get("UPLOAD_DIR") or os.path.join(_ctx_home(), "Uploads")
 # Public share links (Files app): {token: {rel, name, created, expires, hits}}.
 # A share is a passwordless, read-only, capability URL (/s/<token>) reachable
 # WITHOUT Cloudflare Access — the random token is the only gate — so the registry
 # lives server-side (not a self-signed token) to allow listing + revocation, and
 # every knob below is a safety fence. See docs/design-decisions.md.
+# The registry is GLOBAL (one file), not per-user: the public /s/<token> handler
+# has no session cookie, so it can't know a per-user home. Each entry records its
+# OWNER instead, and both creation and serving fence to that owner's home.
 SHARES_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/vibetop-shares.json")
+
+
+def _shares_file():
+    return SHARES_FILE
+
+
 _shares_lock = threading.Lock()
 SHARE_DEFAULT_TTL_DAYS = 7          # a new link expires in a week unless told otherwise
 SHARE_MAX = 500                    # cap the registry so it can't grow unbounded
@@ -293,10 +353,12 @@ SHARE_MAX = 500                    # cap the registry so it can't grow unbounded
 # skipped while zipping, same fence as a file share.
 SHARE_ZIP_MAX_FILES = int(os.environ.get("SHARE_ZIP_MAX_FILES", "50000"))
 SHARE_ZIP_MAX_BYTES = int(os.environ.get("SHARE_ZIP_MAX_BYTES", str(10 * 1024**3)))  # 10 GiB
-# Shareable files are fenced to this root (+ no dotfiles); default = APP_USER's home,
-# NOT FileBrowser's "/", so a public link can never publish /etc/* or a dot-secret.
-# (Computed here, not via OFFICE_HOME, which is defined later in the file.)
-SHARE_ROOT = os.environ.get("SHARE_ROOT", os.path.expanduser(f"~{APP_USER}"))
+# Shareable files are fenced to this root (+ no dotfiles); default = the OWNER's
+# home, NOT FileBrowser's "/", so a public link can never publish /etc/* or a
+# dot-secret. `user` = the share owner (create: the authenticated user; serve: the
+# owner recorded in the entry). SHARE_ROOT env pins one shared root for the host.
+def _share_root(user=None):
+    return os.environ.get("SHARE_ROOT") or _user_home(user or _ctx_user())
 # Optional public base (e.g. https://service.example.com); else derived from the
 # request Host + X-Forwarded-Proto so the link matches how you reached the app.
 SHARE_PUBLIC_BASE = os.environ.get("SHARE_PUBLIC_BASE", "").rstrip("/")
@@ -438,11 +500,21 @@ def _set_claude_usage(on):
 OFFICE_RE = re.compile(
     r"\.(docx?|docm|dotx?|dotm|xlsx?|xlsm|xlsb|xltx?|xltm|pptx?|pptm|ppsx?|ppsm"
     r"|potx?|potm|odt|ods|odp|ott|ots|otp|rtf|csv|tsv)$", re.I)
-OFFICE_HOME = os.path.expanduser(f"~{APP_USER}")
-OFFICE_CACHE_DIR = os.path.join(OFFICE_HOME, ".cache", "vibetop-office")
+# Office paths are per-user (multi-user): a logged-in user views/edits files under
+# THEIR home. `user=None` resolves the current request's user (_ctx_user); the
+# container callbacks pass the owning user explicitly (from the signed token).
+def _office_home(user=None):
+    return _user_home(user or _ctx_user())
+
+
+def _office_cache_dir(user=None):
+    return os.path.join(_office_home(user), ".cache", "vibetop-office")
+
+
 # A LibreOffice user profile dedicated to headless conversion, kept separate
 # from the interactive instance so a "View" never collides with an open "Edit".
-OFFICE_CONVERT_PROFILE = os.path.join(OFFICE_CACHE_DIR, "lo-convert-profile")
+def _office_convert_profile(user=None):
+    return os.path.join(_office_cache_dir(user), "lo-convert-profile")
 
 # OnlyOffice Document Server (web editor) — the fast in-browser Edit path.
 # Runs in Docker on loopback; nginx proxies /onlyoffice/. The container reaches
@@ -471,7 +543,8 @@ _OO_CELL = {"xlsx", "xls", "xlsm", "xlsb", "xltx", "xltm", "ods", "ots", "csv", 
 _OO_SLIDE = {"pptx", "ppt", "pptm", "ppsx", "ppsm", "potx", "potm", "odp", "otp"}
 # "New document" — blank templates (bundled in the repo) stamped into ~/Documents
 # when the Office app is opened with no file. documentType -> (ext, label).
-OFFICE_NEW_DIR = os.path.join(OFFICE_HOME, "Documents")
+def _office_new_dir(user=None):
+    return os.path.join(_office_home(user), "Documents")
 OFFICE_NEW = {"word": ("docx", "Document"),
               "cell": ("xlsx", "Spreadsheet"),
               "slide": ("pptx", "Presentation")}
@@ -496,13 +569,15 @@ class _MultipartError(Exception):
     pass
 
 
-def _chown_app(path):
-    """Set ownership of `path` to APP_USER if running as root (the manager
-    typically does). Best-effort — silently ignored on failure."""
+def _chown_app(path, user=None):
+    """chown `path` to `user` (default: the current request's authenticated user)
+    when running as root. Best-effort — silently ignored on failure. Multi-user:
+    per-user state lands in the requesting user's home and must be owned by them;
+    cookieless/loopback requests fall back to APP_USER via _ctx_user()."""
     try:
         if os.geteuid() != 0:
             return
-        pw = pwd.getpwnam(APP_USER)
+        pw = pwd.getpwnam(user or _ctx_user())
         os.chown(path, pw.pw_uid, pw.pw_gid)
     except Exception:
         pass
@@ -532,7 +607,7 @@ def _atomic_write(path, text):
 def _read_tab_names():
     """Terminal tab names as {str(n): name}; tolerant of a missing/corrupt file."""
     try:
-        with open(TAB_NAMES_FILE) as f:
+        with open(_tab_names_file()) as f:
             d = json.load(f)
         return d if isinstance(d, dict) else {}
     except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
@@ -540,13 +615,13 @@ def _read_tab_names():
 
 
 def _write_tab_names(d):
-    _atomic_write(TAB_NAMES_FILE, json.dumps(d))
+    _atomic_write(_tab_names_file(), json.dumps(d))
 
 
 def _read_desktop_state():
     """Load the desktop registry, tolerating a missing/old-format/corrupt file."""
     try:
-        with open(DESKTOP_STATE_FILE) as f:
+        with open(_desktop_state_file()) as f:
             data = json.load(f)
         if not isinstance(data, dict):
             raise ValueError
@@ -585,7 +660,7 @@ def _desktop_prune_targets(state, now):
 
 
 def _write_desktop_state(data):
-    _atomic_write(DESKTOP_STATE_FILE, json.dumps(data))
+    _atomic_write(_desktop_state_file(), json.dumps(data))
 
 
 def _desktop_cap(data):
@@ -612,15 +687,15 @@ def _desktop_union(data, now):
     return seen
 
 
-def _resolve_under_home(rel):
-    """Map a FileBrowser-relative path to an absolute file under APP_USER's home,
-    refusing anything that escapes it (symlinks resolved). Returns None if the
-    path is unsafe or not a regular file."""
+def _resolve_under_home(rel, user=None):
+    """Map a FileBrowser-relative path to an absolute file under `user`'s home
+    (default: the current request's user), refusing anything that escapes it
+    (symlinks resolved). Returns None if the path is unsafe or not a regular file."""
     if not rel:
         return None
     rel = rel.lstrip("/")
     try:
-        base = os.path.realpath(OFFICE_HOME)
+        base = os.path.realpath(_office_home(user))
         full = os.path.realpath(os.path.join(base, rel))
     except ValueError:
         # Embedded NUL byte (or similar) in the path — realpath raises rather
@@ -633,13 +708,14 @@ def _resolve_under_home(rel):
     return full
 
 
-def _safe_share_target(rel):
-    """Map a home-relative path to an absolute file OR directory under SHARE_ROOT
-    for public sharing, refusing anything unsafe. Stricter than _resolve_under_home:
-    fenced to SHARE_ROOT (default = home) AND rejects any dotfile / dot-directory
-    component (~/.ssh, ~/.config/*, secrets) — those must never become a public
-    link. Symlinks are resolved on both ends, so a symlink out of the fence is
-    caught. Returns (abspath, kind) with kind in {"file","dir"}, or (None, None)."""
+def _safe_share_target(rel, user=None):
+    """Map a home-relative path to an absolute file OR directory under `user`'s
+    share root (default: the current request's user) for public sharing, refusing
+    anything unsafe. Stricter than _resolve_under_home: fenced to _share_root(user)
+    AND rejects any dotfile / dot-directory component (~/.ssh, ~/.config/*, secrets)
+    — those must never become a public link. Symlinks are resolved on both ends, so
+    a symlink out of the fence is caught. Returns (abspath, kind) with kind in
+    {"file","dir"}, or (None, None)."""
     if not rel:
         return (None, None)
     rel = rel.lstrip("/")
@@ -649,7 +725,7 @@ def _safe_share_target(rel):
         if part.startswith("."):
             return (None, None)
     try:
-        base = os.path.realpath(SHARE_ROOT)
+        base = os.path.realpath(_share_root(user))
         full = os.path.realpath(os.path.join(base, rel))
     except ValueError:
         return (None, None)
@@ -674,7 +750,7 @@ class _ShareTooBig(Exception):
 def _read_shares():
     """Load the share registry, tolerating a missing/old-format/corrupt file."""
     try:
-        with open(SHARES_FILE) as f:
+        with open(_shares_file()) as f:
             data = json.load(f)
         if not isinstance(data, dict):
             raise ValueError
@@ -684,7 +760,7 @@ def _read_shares():
 
 
 def _write_shares(data):
-    _atomic_write(SHARES_FILE, json.dumps(data))
+    _atomic_write(_shares_file(), json.dumps(data))
 
 
 def _share_prune(reg, now=None):
@@ -736,10 +812,13 @@ def _onlyoffice_doctype(ext):
     return "word"
 
 
-def _onlyoffice_sig(secret, rel):
-    """Short HMAC over the path — authorizes the doc/callback endpoints, which
-    the container reaches unauthenticated (Cloudflare Access is edge-only)."""
-    return hmac.new(secret.encode(), rel.encode(), hashlib.sha256).hexdigest()[:32]
+def _onlyoffice_sig(secret, user, rel):
+    """Short HMAC over (user, path) — authorizes the doc/callback endpoints, which
+    the container reaches unauthenticated (Cloudflare Access is edge-only). Binding
+    the USER means a token minted for one user's file can't be replayed to read or
+    overwrite another user's path."""
+    msg = f"{user}\x00{rel}".encode()
+    return hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()[:32]
 
 
 def _b64url(data):
@@ -962,10 +1041,12 @@ def _is_public_path(uri):
     return any(path == p or path.startswith(p) for p in _PUBLIC_PREFIX)
 
 
-def _office_convert_to_pdf(src):
-    """Convert `src` to PDF via headless LibreOffice, cached by realpath+mtime.
-    Returns the cached PDF path, or None on failure. Serialized: LibreOffice
-    locks its profile, so two conversions can't share one safely."""
+def _office_convert_to_pdf(src, user=None):
+    """Convert `src` to PDF via headless LibreOffice **as `user`** (default: the
+    current request's user), cached by realpath+mtime under that user's cache dir.
+    Returns the cached PDF path, or None on failure. Serialized: LibreOffice locks
+    its profile, so two conversions can't share one safely."""
+    user = user or _ctx_user()
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice:
         return None
@@ -973,29 +1054,30 @@ def _office_convert_to_pdf(src):
         st = os.stat(src)
     except OSError:
         return None
+    cache_dir = _office_cache_dir(user)
     key = hashlib.sha1(f"{src}:{int(st.st_mtime)}:{st.st_size}".encode()).hexdigest()
-    cached = os.path.join(OFFICE_CACHE_DIR, key + ".pdf")
+    cached = os.path.join(cache_dir, key + ".pdf")
     if os.path.isfile(cached):
         return cached
     with _office_convert_lock:
         if os.path.isfile(cached):       # another thread just made it
             return cached
-        os.makedirs(OFFICE_CACHE_DIR, exist_ok=True)
-        _chown_app(OFFICE_CACHE_DIR)
-        _chown_app(os.path.dirname(OFFICE_CACHE_DIR))
-        env = _office_user_env(APP_USER)
+        os.makedirs(cache_dir, exist_ok=True)
+        _chown_app(cache_dir, user)
+        _chown_app(os.path.dirname(cache_dir), user)
+        env = _office_user_env(user)
         if env is None:
             return None
         try:
             p = subprocess.run(
                 [soffice, "--headless", "--nologo", "--norestore",
-                 "-env:UserInstallation=file://" + OFFICE_CONVERT_PROFILE,
-                 "--convert-to", "pdf", "--outdir", OFFICE_CACHE_DIR, src],
-                env=env, user=APP_USER, capture_output=True, text=True, timeout=120)
+                 "-env:UserInstallation=file://" + _office_convert_profile(user),
+                 "--convert-to", "pdf", "--outdir", cache_dir, src],
+                env=env, user=user, capture_output=True, text=True, timeout=120)
         except Exception:
             return None
         # LibreOffice writes <stem>.pdf into outdir; rename to the cache key.
-        produced = os.path.join(OFFICE_CACHE_DIR,
+        produced = os.path.join(cache_dir,
                                 os.path.splitext(os.path.basename(src))[0] + ".pdf")
         if not os.path.isfile(produced):
             return None
@@ -1003,7 +1085,7 @@ def _office_convert_to_pdf(src):
             os.replace(produced, cached)
         except OSError:
             return None
-        _chown_app(cached)
+        _chown_app(cached, user)
         return cached
 
 
@@ -1375,6 +1457,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         tok = self._cookie_value(SESSION_COOKIE)
         return _verify_session(tok) if tok else None
 
+    def _bind_request_user(self):
+        """Bind this request's authenticated Linux user into the thread-local
+        context so the per-user path helpers (_ctx_home) resolve under their home.
+        Cookieless requests (loopback admin, the OnlyOffice container) fall back to
+        APP_USER. Re-set per request so a keep-alive connection can't leak identity
+        between requests on the same thread."""
+        try:
+            _req_ctx.user = self._session_user()
+        except Exception:
+            _req_ctx.user = None
+
     def _req_is_https(self):
         # nginx forwards the original scheme; over the tunnel/TLS it's https.
         return self.headers.get("X-Forwarded-Proto", "").lower() == "https"
@@ -1450,6 +1543,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        self._bind_request_user()
         # The OnlyOffice container's save callback is a server-to-server POST
         # authenticated by its own path HMAC (t=) + a required JWT, not a browser
         # request — exempt it from the Origin/CSRF gate so a proxy that injected
@@ -1529,15 +1623,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_error(404)
 
     def _handle_upload_clear(self):
-        # Delete every regular file directly inside UPLOAD_DIR. Subdirectories
+        # Delete every regular file directly inside _upload_dir(). Subdirectories
         # are left alone (this endpoint is for clearing the quick-sync inbox,
         # not nuking arbitrary trees).
-        if not os.path.isdir(UPLOAD_DIR):
+        if not os.path.isdir(_upload_dir()):
             self._json(200, {"ok": True, "removed": 0})
             return
         removed = 0
-        for name in os.listdir(UPLOAD_DIR):
-            p = os.path.join(UPLOAD_DIR, name)
+        for name in os.listdir(_upload_dir()):
+            p = os.path.join(_upload_dir(), name)
             try:
                 if os.path.isfile(p) and not os.path.islink(p):
                     os.remove(p)
@@ -1564,8 +1658,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         content = data.get("content", "")
         if not isinstance(content, str):
             return self._json(400, {"error": "content must be a string"})
-        os.makedirs(NOTES_DIR, exist_ok=True)
-        _chown_app(NOTES_DIR)
+        os.makedirs(_notes_dir(), exist_ok=True)
+        _chown_app(_notes_dir())
         _atomic_write(_note_file(nid), content)
         self._json(200, {"ok": True})
 
@@ -1591,7 +1685,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not isinstance(active, int) or active < 0 or active >= len(paths):
             active = 0
         with _files_tabs_lock:
-            _atomic_write(FILES_TABS_FILE, json.dumps({"paths": paths, "active": active}))
+            _atomic_write(_files_tabs_file(), json.dumps({"paths": paths, "active": active}))
         self._json(200, {"ok": True})
 
     def _handle_notes_tabs(self):
@@ -1622,16 +1716,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not (_safe_note_id(active) and active in seen):
             active = tabs[0]["id"]
         with _notes_lock:
-            os.makedirs(NOTES_DIR, exist_ok=True)
-            _chown_app(NOTES_DIR)
+            os.makedirs(_notes_dir(), exist_ok=True)
+            _chown_app(_notes_dir())
             _write_notes_index({"tabs": tabs, "active": active})
             # A closed tab's note file is removed (the note is gone). The client
             # confirms before closing a non-empty note, so this isn't a surprise.
             try:
-                for fn in os.listdir(NOTES_DIR):
+                for fn in os.listdir(_notes_dir()):
                     if fn.endswith(".md") and fn[:-3] not in seen:
                         try:
-                            os.remove(os.path.join(NOTES_DIR, fn))
+                            os.remove(os.path.join(_notes_dir(), fn))
                         except OSError:
                             pass
             except OSError:
@@ -1664,7 +1758,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _handle_upload(self):
         # Parse multipart/form-data and stream each "file" part directly into
-        # UPLOAD_DIR. We don't use cgi.FieldStorage because it spools entire
+        # _upload_dir(). We don't use cgi.FieldStorage because it spools entire
         # uploads to memory/temp first; this hand-parser streams chunk-by-chunk
         # so multi-GB uploads stay flat in memory.
         ctype = self.headers.get("Content-Type", "")
@@ -1682,14 +1776,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(411, {"error": "Content-Length required"})
             return
         body = _LimitedReader(self.rfile, length)
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-        _chown_app(UPLOAD_DIR)
+        os.makedirs(_upload_dir(), exist_ok=True)
+        _chown_app(_upload_dir())
         saved, total_bytes = [], 0
         partial = None  # file currently being written, if a part fails mid-copy
         try:
             for filename, src in _iter_multipart_files(body, boundary):
                 safe = _safe_upload_name(filename)
-                out, dst = _open_unique(os.path.join(UPLOAD_DIR, safe))
+                out, dst = _open_unique(os.path.join(_upload_dir(), safe))
                 partial = dst
                 with out:
                     shutil.copyfileobj(src, out)
@@ -1733,7 +1827,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 pass
             return
         self._json(200, {"ok": True, "saved": saved, "bytes": total_bytes,
-                         "dir": UPLOAD_DIR})
+                         "dir": _upload_dir()})
 
     def _handle_desktop_save(self):
         body = self._read_body(4096)
@@ -2175,33 +2269,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not os.path.isfile(tmpl):
             return self._json(500, {"error": "blank template missing"})
         try:
-            os.makedirs(OFFICE_NEW_DIR, exist_ok=True)
-            _chown_app(OFFICE_NEW_DIR)
+            os.makedirs(_office_new_dir(), exist_ok=True)
+            _chown_app(_office_new_dir())
             dst = _unique_path(os.path.join(
-                OFFICE_NEW_DIR, f"{label} {time.strftime('%Y-%m-%d %H%M')}.{ext}"))
+                _office_new_dir(), f"{label} {time.strftime('%Y-%m-%d %H%M')}.{ext}"))
             shutil.copyfile(tmpl, dst)
             _chown_app(dst)
         except OSError as e:
             return self._json(500, {"error": f"could not create document: {e}"})
-        self._json(200, {"ok": True, "path": os.path.relpath(dst, OFFICE_HOME)})
+        self._json(200, {"ok": True, "path": os.path.relpath(dst, _office_home())})
 
     def _handle_office_config(self):
-        # GET ?path= -> the signed DocEditor config the editor page mounts.
+        # GET ?path= -> the signed DocEditor config the editor page mounts. The
+        # doc/callback URLs carry the owning user (u=) so the container's cookieless
+        # callbacks resolve under the right home; the HMAC binds (user, path).
+        owner = _ctx_user()
         rel = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("path", [""])[0]
-        src = _resolve_under_home(rel)
+        src = _resolve_under_home(rel, owner)
         secret = _onlyoffice_secret()
         if not src or not OFFICE_RE.search(src):
             return self._json(400, {"error": "not an office file"})
         if not secret:
             return self._json(500, {"error": "OnlyOffice is not configured on this host"})
         st = os.stat(src)
+        skey = (owner, rel)
         with _office_sessions_lock:
-            key = _office_sessions.get(rel)
+            key = _office_sessions.get(skey)
             if not key:
                 key = hashlib.sha1(
                     f"{src}:{int(st.st_mtime)}:{st.st_size}:{int(time.time())}".encode()
                 ).hexdigest()[:22]
-                _office_sessions[rel] = key
+                _office_sessions[skey] = key
                 # Bound the map: a session is normally popped on the close
                 # callback, but a callback that never arrives (container/network
                 # death) would leak an entry forever. Drop the oldest beyond the
@@ -2210,7 +2308,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 while len(_office_sessions) > 64:
                     _office_sessions.pop(next(iter(_office_sessions)))
         ext = os.path.splitext(src)[1].lstrip(".").lower()
-        qp = urllib.parse.urlencode({"path": rel, "t": _onlyoffice_sig(secret, rel)})
+        qp = urllib.parse.urlencode({"path": rel, "u": owner,
+                                     "t": _onlyoffice_sig(secret, owner, rel)})
         cfg = {
             "document": {
                 "fileType": ext, "key": key, "title": os.path.basename(src),
@@ -2229,13 +2328,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, cfg)
 
     def _handle_office_doc(self):
-        # GET ?path=&t= -> raw file bytes for the OnlyOffice container to load.
+        # GET ?path=&u=&t= -> raw file bytes for the OnlyOffice container to load.
+        # Cookieless (container->host): the owner comes from u=, authorized by the
+        # HMAC over (u, path).
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        rel, tok = q.get("path", [""])[0], q.get("t", [""])[0]
-        src = _resolve_under_home(rel)
+        rel, owner, tok = q.get("path", [""])[0], q.get("u", [""])[0], q.get("t", [""])[0]
+        src = _resolve_under_home(rel, owner)
         secret = _onlyoffice_secret()
         if (not src or not secret or not OFFICE_RE.search(src)
-                or not hmac.compare_digest(_onlyoffice_sig(secret, rel), tok)):
+                or not hmac.compare_digest(_onlyoffice_sig(secret, owner, rel), tok)):
             return self.send_error(403)
         try:
             with open(src, "rb") as f:
@@ -2281,11 +2382,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # POST ?path=&t= -> OnlyOffice save notifications. status 2/6 means the
         # edited document is ready; download it from the doc server and write back.
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        rel, tok = q.get("path", [""])[0], q.get("t", [""])[0]
-        src = _resolve_under_home(rel)
+        rel, owner, tok = q.get("path", [""])[0], q.get("u", [""])[0], q.get("t", [""])[0]
+        src = _resolve_under_home(rel, owner)
         secret = _onlyoffice_secret()
         if (not src or not secret or not OFFICE_RE.search(src)
-                or not hmac.compare_digest(_onlyoffice_sig(secret, rel), tok)):
+                or not hmac.compare_digest(_onlyoffice_sig(secret, owner, rel), tok)):
             return self._json(200, {"error": 1})
         body = self._read_body(1048576)
         try:
@@ -2311,13 +2412,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             data = verified
         status = data.get("status")
         if status in (2, 6) and data.get("url"):
-            self._office_save_back(data["url"], src)
+            self._office_save_back(data["url"], src, owner)
         # 2 = closed-with-changes (saved), 3 = save error, 4 = closed-no-changes.
         # The editing session has ended → drop the session key so a reopen gets a
         # fresh key (and loads the file from disk, not the server's stale cache).
         if status in (2, 3, 4):
             with _office_sessions_lock:
-                _office_sessions.pop(rel, None)
+                _office_sessions.pop((owner, rel), None)
         self._json(200, {"error": 0})
 
     def _handle_office_forcesave(self):
@@ -2330,7 +2431,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             data = {}
         rel = (data.get("path") or "").strip()
         with _office_sessions_lock:
-            key = _office_sessions.get(rel)
+            key = _office_sessions.get((_ctx_user(), rel))
         if key:
             self._onlyoffice_forcesave(key)
         self._json(200, {"ok": bool(key)})
@@ -2352,7 +2453,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             log.warning("office: forcesave failed: %s", e)
 
-    def _office_save_back(self, url, dst):
+    def _office_save_back(self, url, dst, user=None):
         # The url OnlyOffice gives is its own public URL (…/onlyoffice/cache/…);
         # rewrite it to the local container so we don't loop back through the
         # tunnel/Access. Then download and atomically replace the file.
@@ -2379,7 +2480,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 try: os.unlink(tmp)
                 except OSError: pass
                 raise
-            _chown_app(dst)
+            _chown_app(dst, user)
         except Exception as e:
             log.warning("office: save-back failed from %s: %s", local, e)
 
@@ -2718,7 +2819,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except ValueError:
             return self._json(400, {"error": "invalid json"})
         rel = (data.get("path") or "").strip()
-        target, kind = _safe_share_target(rel)
+        owner = _ctx_user()
+        target, kind = _safe_share_target(rel, owner)
         if not target:
             return self._json(400, {"error": "not shareable: must be a file or folder "
                                              "under home, and not a dotfile"})
@@ -2738,7 +2840,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 oldest = min(reg, key=lambda t: reg[t].get("created", 0))
                 del reg[oldest]
             reg[token] = {"rel": rel.lstrip("/"), "name": name, "kind": kind,
-                          "created": now, "expires": expires, "hits": 0}
+                          "owner": owner, "created": now, "expires": expires, "hits": 0}
             _write_shares(reg)
         log.info("share created: %s (%s) token=%s… expires=%s",
                  name, kind, token[:6], int(expires))
@@ -2752,6 +2854,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             reg = _read_shares()
             _share_prune(reg, now)
             _write_shares(reg)
+            me = _ctx_user()
             items = [{
                 "token": tok,
                 "url": self._share_url(tok),
@@ -2761,7 +2864,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "created": int(ent.get("created", 0)),
                 "expires": int(ent.get("expires", 0)),
                 "hits": int(ent.get("hits", 0)),
-            } for tok, ent in reg.items() if isinstance(ent, dict)]
+            } for tok, ent in reg.items()
+                if isinstance(ent, dict) and ent.get("owner", APP_USER) == me]
         items.sort(key=lambda x: x["created"], reverse=True)
         return self._json(200, {"shares": items})
 
@@ -2778,7 +2882,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         removed = False
         with _shares_lock:
             reg = _read_shares()
-            if token in reg:
+            # Only the owner may revoke their own link.
+            if token in reg and reg[token].get("owner", APP_USER) == _ctx_user():
                 del reg[token]
                 removed = True
             _share_prune(reg)
@@ -2818,12 +2923,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 _write_shares(reg)
         if ent is None:
             return self.send_error(404)
-        # Re-validate the target on every fetch (moved/replaced/now-dotfile -> 404).
-        target, kind = _safe_share_target(ent.get("rel", ""))
+        # Re-validate the target on every fetch (moved/replaced/now-dotfile -> 404),
+        # fenced to the OWNER's home (this request is cookieless/public).
+        owner = ent.get("owner", APP_USER)
+        target, kind = _safe_share_target(ent.get("rel", ""), owner)
         if not target or kind != ent.get("kind", "file"):
             return self.send_error(404)
         if kind == "dir":
-            return self._serve_share_zip(target, ent.get("name") or "share")
+            return self._serve_share_zip(target, ent.get("name") or "share", owner)
         return self._serve_share_file(target, ent.get("name") or os.path.basename(target),
                                       force_dl, self.headers.get("Range"))
 
@@ -2881,11 +2988,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (OSError, BrokenPipeError, ConnectionError):
             pass
 
-    def _serve_share_zip(self, absdir, name):
+    def _serve_share_zip(self, absdir, name, owner=None):
         # A shared FOLDER -> an on-the-fly .zip (built to a temp file on disk, then
-        # streamed). Skips dotfiles/dot-dirs and any symlink escaping SHARE_ROOT.
-        base = os.path.realpath(SHARE_ROOT)
-        tmpdir = OFFICE_CACHE_DIR
+        # streamed). Skips dotfiles/dot-dirs and any symlink escaping the owner's root.
+        base = os.path.realpath(_share_root(owner))
+        tmpdir = _office_cache_dir(owner)
         try:
             os.makedirs(tmpdir, exist_ok=True)
         except OSError:
@@ -2950,11 +3057,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 pass
 
     def do_HEAD(self):
+        self._bind_request_user()
         if self.path.startswith("/s/"):
             return self._handle_share_serve()
         self.send_error(404)
 
     def do_GET(self):
+        self._bind_request_user()
         if self.path == "/api/authcheck":
             return self._handle_authcheck()
         if self.path == "/api/ping":
@@ -2989,7 +3098,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/claude/stats":
             try:
-                self._json(200, claude_stats.get_stats(OFFICE_HOME))
+                self._json(200, claude_stats.get_stats(_office_home()))
             except Exception as e:
                 log.warning("claude stats failed: %s", e)
                 self._json(500, {"error": str(e)})
@@ -2998,7 +3107,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_share_list()
         if self.path == "/api/files/tabs":
             try:
-                with open(FILES_TABS_FILE) as f:
+                with open(_files_tabs_file()) as f:
                     data = json.load(f)
             except Exception:
                 data = {}
@@ -3066,9 +3175,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/upload/list":
             files = []
-            if os.path.isdir(UPLOAD_DIR):
-                for name in sorted(os.listdir(UPLOAD_DIR)):
-                    p = os.path.join(UPLOAD_DIR, name)
+            if os.path.isdir(_upload_dir()):
+                for name in sorted(os.listdir(_upload_dir())):
+                    p = os.path.join(_upload_dir(), name)
                     try:
                         st = os.stat(p)
                     except OSError:
@@ -3082,8 +3191,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Compute path relative to APP_USER's home so the client can deep-
             # link into FileBrowser (which is rooted at ~).
             home = os.path.expanduser(f"~{APP_USER}").rstrip("/") + "/"
-            rel = UPLOAD_DIR[len(home):] if UPLOAD_DIR.startswith(home) else None
-            self._json(200, {"dir": UPLOAD_DIR, "rel_to_home": rel, "files": files})
+            rel = _upload_dir()[len(home):] if _upload_dir().startswith(home) else None
+            self._json(200, {"dir": _upload_dir(), "rel_to_home": rel, "files": files})
             return
         if self.path == "/api/health":
             self._json(200, self._check_health())

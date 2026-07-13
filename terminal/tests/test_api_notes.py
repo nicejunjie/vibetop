@@ -77,8 +77,8 @@ def test_tabs_drop_bad_ids_and_dupes(client):
 
 def test_legacy_single_note_migrated_into_tab_one(client, mgr):
     # Seed the LEGACY single-note file; first index read migrates it into tab 1.
-    os.makedirs(os.path.dirname(mgr.NOTES_FILE), exist_ok=True)
-    with open(mgr.NOTES_FILE, "w") as f:
+    os.makedirs(os.path.dirname(mgr._notes_legacy_file()), exist_ok=True)
+    with open(mgr._notes_legacy_file(), "w") as f:
         f.write("legacy content")
     _, idx = client.get("/api/notes")
     assert idx["tabs"][0]["id"] == "1"

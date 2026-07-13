@@ -75,26 +75,22 @@ import urllib.request
 
 # State-path module globals to redirect. Handlers read them at call time, so a
 # per-test monkeypatch of the module attribute is enough (no reload needed).
+# Global (non-per-user) module constants to redirect into the tmp HOME. The
+# per-user state paths (notes, desktop, files-tabs, tab-names, uploads, shares)
+# are NO LONGER module constants — they're helpers that resolve under the request
+# user's home, so the `home` fixture monkeypatches `_user_home` instead (below).
+# The office/claude constants are still module-level (not yet per-user), so they
+# stay here.
 _HOME_PATHS = {
-    "NOTES_FILE": ".local/share/desktop-notes.md",
-    "NOTES_DIR": ".local/share/desktop-notes",
-    "NOTES_INDEX_FILE": ".local/share/desktop-notes/index.json",
-    "FILES_TABS_FILE": ".local/share/desktop-files-tabs.json",
-    "SHARES_FILE": ".local/share/vibetop-shares.json",
-    "SHARE_ROOT": "",   # fence public shares to the tmp HOME
-    "TAB_NAMES_FILE": ".local/share/terminal-tab-names.json",
-    "DESKTOP_STATE_FILE": ".local/share/desktop-state.json",
     "UPDATE_HISTORY_FILE": ".local/share/vibetop-update-history.json",
-    "UPLOAD_DIR": "Uploads",
     "SERVICES_FILE": "vibetop-www/services.json",
     "SW_FILE": "vibetop-www/sw.js",
     "CLAUDE_USAGE_FILE": ".local/share/vibetop-claude-usage.json",
     "CLAUDE_SETTINGS_FILE": ".claude/settings.json",
-    "OFFICE_HOME": "",
-    "OFFICE_CACHE_DIR": ".cache/vibetop-office",
-    "OFFICE_CONVERT_PROFILE": ".cache/vibetop-office/lo-convert-profile",
     "ONLYOFFICE_SECRET_FILE": ".config/vibetop/onlyoffice.secret",
-    "OFFICE_NEW_DIR": "Documents",
+    # Share registry is a single GLOBAL file (owner recorded per entry); redirect
+    # it into the tmp HOME so share tests stay hermetic.
+    "SHARES_FILE": ".local/share/vibetop-shares.json",
     "SESSION_SECRET_FILE": ".config/vibetop/session.secret",
 }
 
@@ -128,6 +124,10 @@ def home(mgr, monkeypatch, tmp_path):
     h = tmp_path / "home"
     for name, rel in _HOME_PATHS.items():
         monkeypatch.setattr(mgr, name, str(h / rel) if rel else str(h))
+    # Per-user state resolves under _user_home(request_user); point every user at
+    # the tmp HOME so the per-user path helpers land there (single-user tests).
+    # Multi-user tests override this with a {user: home} map.
+    monkeypatch.setattr(mgr, "_user_home", lambda u: str(h))
     (h / ".local" / "share").mkdir(parents=True, exist_ok=True)
     # Reset process-global mutable state so tests don't bleed into each other.
     if hasattr(mgr, "_cache"):

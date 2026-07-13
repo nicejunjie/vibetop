@@ -128,7 +128,7 @@ def test_cap_noop_under_limit(mgr):
 def test_read_desktop_state_normalizes_missing_keys(mgr, tmp_path, monkeypatch):
     f = tmp_path / "desktop-state.json"
     f.write_text(json.dumps({"instances": {"a": _inst(["terminal"], 1.0)}}))
-    monkeypatch.setattr(mgr, "DESKTOP_STATE_FILE", str(f))
+    monkeypatch.setattr(mgr, "_desktop_state_file", lambda: str(f))
     data = mgr._read_desktop_state()
     assert data["reset_epoch"] == 0                  # defaulted
     assert data["close_targets"] == {}               # defaulted
@@ -139,7 +139,7 @@ def test_read_desktop_state_normalizes_missing_keys(mgr, tmp_path, monkeypatch):
 def test_read_desktop_state_survives_corrupt_file(mgr, tmp_path, monkeypatch, bad):
     f = tmp_path / "desktop-state.json"
     f.write_text(bad)
-    monkeypatch.setattr(mgr, "DESKTOP_STATE_FILE", str(f))
+    monkeypatch.setattr(mgr, "_desktop_state_file", lambda: str(f))
     data = mgr._read_desktop_state()
     # Always returns a usable, fully-defaulted shape — never raises.
     assert data["instances"] == {}
@@ -148,6 +148,6 @@ def test_read_desktop_state_survives_corrupt_file(mgr, tmp_path, monkeypatch, ba
 
 
 def test_read_desktop_state_missing_file(mgr, tmp_path, monkeypatch):
-    monkeypatch.setattr(mgr, "DESKTOP_STATE_FILE", str(tmp_path / "nope.json"))
+    monkeypatch.setattr(mgr, "_desktop_state_file", lambda: str(tmp_path / "nope.json"))
     data = mgr._read_desktop_state()
     assert data == {"instances": {}, "reset_epoch": 0, "close_targets": {}}
