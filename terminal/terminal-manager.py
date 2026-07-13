@@ -714,10 +714,12 @@ def _provision_user(user):
 
 
 def _user_terminal_setenvs(user):
+    # Export the user's OWN X11 display so a GUI app run from their terminal shows
+    # up on their X11 Launcher (once that display is open). D-Bus/XDG are their own.
     envs = ["TERM=xterm-256color", "LANG=en_US.UTF-8"]
     try:
         uid = pwd.getpwnam(user).pw_uid
-        envs += [f"DISPLAY={X11_DISPLAY}",
+        envs += [f"DISPLAY=:{_user_xpra_display(user, 'x11')}",
                  f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus",
                  f"XDG_RUNTIME_DIR=/run/user/{uid}"]
     except KeyError:
@@ -863,6 +865,74 @@ def _start_user_filebrowser(user):
         return False, (r.stderr or r.stdout or "filebrowser start failed").strip()
     _wait_tcp(port)                     # so the first /files/ hit doesn't 502
     return True, port
+
+
+# ---- Per-user Browser + X11 (xpra displays, Phase 3c) ----------------------
+# Each user gets their OWN Browser xpra (Chromium desktop) and X11 xpra (bare
+# desktop for GUI apps), run AS them via systemd-run, on per-user displays+ports
+# from their slot. nginx routes /browser/ and /x11-display/ to the user's port via
+# authcheck (X-App-Port). Display numbers avoid the legacy shared :98/:99.
+BROWSER_DISP_BASE = _port_env("BROWSER_DISP_BASE", 200)
+BROWSER_XPRA_BASE = _port_env("BROWSER_XPRA_BASE", 24500)
+X11_DISP_BASE = _port_env("X11_DISP_BASE", 340)
+X11_XPRA_BASE = _port_env("X11_XPRA_BASE", 24700)
+
+
+def _user_xpra_display(user, kind):
+    base = BROWSER_DISP_BASE if kind == "browser" else X11_DISP_BASE
+    return base + _user_slot(user)
+
+
+def _user_xpra_port(user, kind):
+    base = BROWSER_XPRA_BASE if kind == "browser" else X11_XPRA_BASE
+    return base + _user_slot(user)
+
+
+def _xpra_unit(user, kind):
+    tag = "ubrowser" if kind == "browser" else "ux11"
+    return f"vibetop-{tag}-{_sanitize_unit(user)}.service"
+
+
+def _start_user_xpra(user, kind):
+    """Ensure the user's `kind` (browser|x11) xpra display is running; return
+    (ok, port_or_error). Launched AS the user; snap Chromium (browser) lives in
+    their own ~/snap profile."""
+    try:
+        pw = pwd.getpwnam(user)
+    except KeyError:
+        return False, f"unknown user {user}"
+    disp, port = _user_xpra_display(user, kind), _user_xpra_port(user, kind)
+    unit = _xpra_unit(user, kind)
+    try:
+        st = subprocess.run(["systemctl", "is-active", unit],
+                            capture_output=True, text=True, timeout=10)
+        if st.stdout.strip() == "active":
+            _wait_tcp(port, 3)
+            return True, port
+    except (OSError, subprocess.SubprocessError):
+        pass
+    _provision_user(user)               # linger -> /run/user/<uid> for snap + xpra
+    helper = _term_helper("xpra-app.sh")
+    setenvs = ["--setenv", f"HOME={pw.pw_dir}",
+               "--setenv", f"XDG_RUNTIME_DIR=/run/user/{pw.pw_uid}",
+               "--setenv", "XPRA_PING_TIMEOUT=45"]
+    r = subprocess.run(
+        ["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
+        + _resource_props() + [f"--unit={unit}"] + setenvs +
+        [helper, kind, str(disp), str(port)],
+        capture_output=True, text=True, timeout=30)
+    if r.returncode != 0:
+        return False, (r.stderr or r.stdout or "xpra start failed").strip()
+    _wait_tcp(port, timeout=20)          # xpra (Xorg + WM + child) is slower to bind
+    return True, port
+
+
+def _stop_user_xpra(user, kind):
+    try:
+        subprocess.run(["systemctl", "stop", _xpra_unit(user, kind)],
+                       capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 # System-status readers (CPU/MEM/GPU/disk/net/processes) live in system_status.py
@@ -1950,6 +2020,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return res
         return _cached("fb_port:" + user, 5.0, _start)
 
+    def _ensure_user_xpra(self, user, kind):
+        """Return the user's `kind` (browser|x11) xpra port, starting it on demand.
+        Memoized ~5s so the hot asset requests don't re-check systemd each time."""
+        def _start():
+            ok, res = _start_user_xpra(user, kind)
+            if not ok:
+                log.warning("authcheck: start %s xpra for %s failed: %s", kind, user, res)
+                return None
+            return res
+        return _cached(f"xpra_port:{kind}:" + user, 5.0, _start)
+
     def _handle_authcheck(self):
         """nginx auth_request target. Allows public paths (the allowlist) through
         regardless of cookie; otherwise requires a valid session and returns the
@@ -1986,13 +2067,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.send_header("X-Term-Port", str(self._ensure_user_terminal(user, n)))
                 except Exception as e:
                     log.warning("authcheck: term-port resolve failed: %s", e)
-        elif path == "/files/" or path.startswith("/files/"):
+        elif path.startswith("/files/"):
             try:
                 port = self._ensure_user_filebrowser(user)
                 if port:
                     self.send_header("X-App-Port", str(port))
             except Exception as e:
                 log.warning("authcheck: files-port resolve failed: %s", e)
+        elif path.startswith("/browser/") or path.startswith("/x11-display/"):
+            kind = "browser" if path.startswith("/browser/") else "x11"
+            try:
+                port = self._ensure_user_xpra(user, kind)
+                if port:
+                    self.send_header("X-App-Port", str(port))
+            except Exception as e:
+                log.warning("authcheck: %s-port resolve failed: %s", kind, e)
         self.send_header("Content-Length", "0")
         self.end_headers()
 
@@ -2474,65 +2563,41 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        # 4 & 5 reset the SHARED Browser/X11 xpra displays (APP_USER's) — only the
-        # operator may, or a non-admin logout would kill everyone's Browser/X11
-        # session and wipe the admin's Chromium profile (cross-user DoS). Per-user
-        # Browser/X11 (Phase 3c) will make these per-user.
-        if _ctx_user() != APP_USER:
-            log.info("reset: %s (non-admin) -> per-user terminals/desktop only",
-                     _ctx_user())
-            self._json(200, result)
-            return
+        # 4. Reset THIS user's Browser xpra to a blank Chromium: stop it, wipe
+        #    their session-restore files, and let it re-start on demand fresh.
+        try:
+            _stop_user_xpra(user, "browser")
+            profile = os.path.join(_user_home(user), "snap", "chromium",
+                                   "common", "xpra-profile", "Default")
+            for name in ("Last Session", "Last Tabs", "Current Session", "Current Tabs"):
+                try:
+                    os.remove(os.path.join(profile, name))
+                except OSError:
+                    pass
+            shutil.rmtree(os.path.join(profile, "Sessions"), ignore_errors=True)
+            result["browser_reset"] = True
+        except Exception:
+            pass
+        with _cache_lock:
+            _cache.pop("xpra_port:browser:" + user, None)
 
-        # 4. Reset the Browser to a blank Chromium. Stop the service first so
-        #    Chromium is fully dead (and can't re-save its session on exit),
-        #    wipe the session-restore files, then start it again —
-        #    browser-loop.sh respawns Chromium with nothing to restore.
-        if os.path.exists("/etc/systemd/system/vibetop-browser-xpra.service"):
-            try:
-                subprocess.run(
-                    ["systemctl", "stop", "vibetop-browser-xpra.service"],
-                    check=False, capture_output=True, text=True, timeout=30)
-                profile = (f"/home/{APP_USER}/snap/chromium/common/"
-                           "xpra-profile/Default")
-                for name in ("Last Session", "Last Tabs",
-                             "Current Session", "Current Tabs"):
-                    try:
-                        os.remove(os.path.join(profile, name))
-                    except OSError:
-                        pass
-                shutil.rmtree(os.path.join(profile, "Sessions"),
-                              ignore_errors=True)
-                subprocess.run(
-                    ["systemctl", "start", "--no-block",
-                     "vibetop-browser-xpra.service"],
-                    check=False, capture_output=True, text=True)
-                result["browser_reset"] = True
-            except Exception:
-                pass
+        # 5. Stop THIS user's X11 xpra so every launched GUI app is gone too.
+        try:
+            _stop_user_xpra(user, "x11")
+            result["apps_reset"] = True
+        except Exception:
+            pass
+        with _cache_lock:
+            _cache.pop("xpra_port:x11:" + user, None)
 
-        # 5. Clear the X11 desktop — restart its xpra session so every launched
-        #    GUI app (and any X11 app started from a terminal) is gone too.
-        if os.path.exists("/etc/systemd/system/vibetop-x11-xpra.service"):
-            try:
-                subprocess.run(
-                    ["systemctl", "restart", "--no-block",
-                     "vibetop-x11-xpra.service"],
-                    check=False, capture_output=True, text=True, timeout=30)
-                result["apps_reset"] = True
-            except Exception:
-                pass
-
-        log.info("reset: stopped %d terminal(s), browser_reset=%s apps_reset=%s",
-                 len(result["terminals_stopped"]), result.get("browser_reset"),
-                 result.get("apps_reset"))
+        log.info("reset: %s — %d terminal(s), browser_reset=%s apps_reset=%s",
+                 user, len(result["terminals_stopped"]),
+                 result.get("browser_reset"), result.get("apps_reset"))
         self._json(200, {"ok": True, **result})
 
     def _handle_browser_open(self):
-        # Runs chromium on the SHARED xpra display as APP_USER -> admin-only until
-        # the Browser is per-user (else any user gets code-exec as the operator).
-        if not self._require_admin():
-            return
+        # Open a URL in THIS user's own Browser (Chromium on their per-user xpra
+        # display, as them). No longer admin-only — it acts as the request user.
         body = self._read_body(4096)
         if body is None:
             self._json(400, {"error": "invalid or too-large body"})
@@ -2546,21 +2611,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not _valid_browser_url(url):
             self._json(400, {"error": "invalid url"})
             return
-        user = os.environ.get("BROWSER_USER", APP_USER)
+        user = _ctx_user()
         try:
             uid = pwd.getpwnam(user).pw_uid
         except KeyError:
             self._json(500, {"error": f"unknown user: {user}"})
             return
-        profile = f"/home/{user}/snap/chromium/common/xpra-profile"
+        self._ensure_user_xpra(user, "browser")     # make sure their display exists
+        disp = _user_xpra_display(user, "browser")
+        profile = os.path.join(_user_home(user), "snap", "chromium",
+                               "common", "xpra-profile")
         # The URL is already validated (http(s) + no shell metacharacters incl.
-        # backslash, see _valid_browser_url) before it reaches this `su -c`
-        # shell string. Reap the child in a daemon thread so short-lived
-        # `chromium <url>` invocations (which exit fast when handing off to the
-        # already-running instance) don't pile up as zombies.
+        # backslash) before it reaches this `su -c` shell string. Reap the child in
+        # a daemon thread so short-lived `chromium <url>` hand-offs don't pile up.
         proc = subprocess.Popen(
             ["su", "-", user, "-c",
-             f'DISPLAY=:99 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus'
+             f'DISPLAY=:{disp} DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus'
              f' /snap/bin/chromium --user-data-dir={profile} "{url}"'],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
@@ -2570,12 +2636,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # ---- X11 Launcher: run/list/switch GUI apps on the xpra display --------
 
     def _handle_x_launch(self):
-        # POST {cmd} — run an arbitrary GUI command on the SHARED X11 xpra display
-        # as APP_USER. Admin-only until the X11 display is per-user: otherwise any
-        # authenticated Linux user gets arbitrary code execution AS the operator
-        # (there is no command allowlist, by design).
-        if not self._require_admin():
-            return
+        # POST {cmd} — run a GUI command on THIS user's own X11 xpra display, as
+        # them (their own login shell, like opening a terminal — no escalation,
+        # so no longer admin-only). No command allowlist by design (same as their
+        # Terminal). Their display is started on demand if not already up.
         body = self._read_body(4096)
         if body is None:
             self._json(400, {"error": "invalid or too-large body"})
@@ -2589,29 +2653,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not _valid_launch_cmd(cmd):
             self._json(400, {"error": "invalid command"})
             return
-        user = os.environ.get("BROWSER_USER", APP_USER)
+        user = _ctx_user()
         try:
             uid = pwd.getpwnam(user).pw_uid
         except KeyError:
             self._json(500, {"error": f"unknown user: {user}"})
             return
-        # Pick the D-Bus session per app:
-        #  - snap apps (Firefox/Chromium/…) need the user's REAL session bus to
-        #    run at all (snap confinement / io.snapcraft.SessionAgent); on a bare
-        #    bus they exit immediately. They don't block on the portal anyway.
-        #  - everything else (GTK/GNOME apps like eog/evince) gets the PRIVATE
-        #    apps bus (vibetop-x11-dbus, no service activation) so they don't hang
-        #    ~25s on xdg-desktop-portal/at-spi activation timeouts — ~0.2s instead.
+        self._ensure_user_xpra(user, "x11")          # start their display if needed
+        disp = _user_xpra_display(user, "x11")
         prog = _launch_prog(cmd)
-        is_snap = prog.startswith("/snap/") or (
-            os.path.basename(prog) != "" and
-            os.path.exists(f"/snap/bin/{os.path.basename(prog)}"))
-        dbus_sock = (f"/run/user/{uid}/bus" if is_snap
-                     else f"/run/user/{uid}/vibetop-x11-bus")
-        log.info("x/launch %r (bus=%s)", cmd, "user" if is_snap else "apps")
+        # Per-user: use the user's own session bus for every app (the shared
+        # private "apps bus" was single-user). Snap apps need it; GTK/GNOME apps
+        # work but may pause ~25s on an xdg-desktop-portal activation timeout — a
+        # known per-user degradation (a per-user private bus would restore ~0.2s).
+        dbus_sock = f"/run/user/{uid}/bus"
+        log.info("x/launch %r for %s (display :%d)", cmd, user, disp)
         # Login shell (-) so the user's PATH resolves bare names like `gimp`.
         # Reap in a daemon thread so short-lived launchers don't linger as zombies.
-        shell_cmd = (f'DISPLAY={X11_DISPLAY} '
+        shell_cmd = (f'DISPLAY=:{disp} '
                      f'DBUS_SESSION_BUS_ADDRESS=unix:path={dbus_sock} '
                      f'XDG_RUNTIME_DIR=/run/user/{uid} '
                      f'{cmd}')
@@ -2644,9 +2703,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"ok": True, "cmd": cmd})
 
     def _run_wmctrl(self, args):
-        """Run wmctrl against the xpra display as the app user. Returns the
+        """Run wmctrl against THIS user's own X11 xpra display, as them. Returns the
         CompletedProcess, or None if it couldn't run."""
-        user = os.environ.get("BROWSER_USER", APP_USER)
+        user = _ctx_user()
         try:
             pw = pwd.getpwnam(user)
         except KeyError:
@@ -2654,7 +2713,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not shutil.which("wmctrl"):
             return None
         env = {
-            "DISPLAY": X11_DISPLAY,
+            "DISPLAY": f":{_user_xpra_display(user, 'x11')}",
             "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{pw.pw_uid}/bus",
             "HOME": pw.pw_dir, "PATH": "/usr/bin:/bin",
         }
@@ -2665,11 +2724,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return None
 
     def _handle_x_windows(self):
-        # GET -> {"windows": [{"id", "title"}]} from `wmctrl -l` on the SHARED Apps
-        # display (APP_USER's). Admin-only until per-user, so a non-admin can't
-        # enumerate/act on the operator's windows.
-        if not self._require_admin():
-            return
+        # GET -> {"windows": [{"id", "title"}]} from `wmctrl -l` on THIS user's own
+        # X11 display. Returns [] if their display isn't up yet (wmctrl fails).
         p = self._run_wmctrl(["-l"])
         wins = []
         if p and p.returncode == 0:
@@ -2688,8 +2744,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"windows": wins})
 
     def _x_window_action(self, flag):
-        if not self._require_admin():      # shared display -> admin-only (see x/launch)
-            return
+        # Raise/close a window on THIS user's own X11 display (per-user).
         body = self._read_body(4096)
         if body is None:
             return self._json(400, {"error": "invalid or too-large body"})

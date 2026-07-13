@@ -53,8 +53,8 @@ done
 if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist" >&2; exit 1
 fi
-if ! [ -d "$APP_DIR/systemd" ]; then
-    echo "templates not found under APP_DIR=$APP_DIR" >&2; exit 1
+if ! [ -f "$APP_DIR/xpra-app.sh" ]; then
+    echo "xpra-app.sh not found under APP_DIR=$APP_DIR" >&2; exit 1
 fi
 
 run() {
@@ -201,58 +201,30 @@ for legacy in vibetop-browser-app vibetop-browser-novnc \
     fi
 done
 
-# 3. Browser loop script -----------------------------------------------------
-echo "== installing browser loop script =="
-run sudo install -d -m 0755 "$(dirname "$LOOP_SCRIPT")"
-sed -e "s|@BROWSER_CMD@|$BROWSER_CMD|g" \
-    "$APP_DIR/browser-loop.sh" | write_root "$LOOP_SCRIPT"
-run sudo chmod 0755 "$LOOP_SCRIPT"
+# 3. Per-user xpra launcher scripts ------------------------------------------
+# Multi-user: the manager starts a Browser + X11 xpra PER USER via systemd-run
+# (`_start_user_xpra`), so the scripts they exec must be reachable by EVERY user
+# — root-owned 0755 in a shared dir, not APP_USER's 0750 home (same as the
+# terminal helpers). browser-loop.sh is self-contained now (profile from $HOME).
+echo "== installing per-user xpra launcher scripts =="
+run sudo install -d -m 0755 /usr/local/lib/vibetop
+run sudo install -m 0755 "$APP_DIR/xpra-app.sh" /usr/local/lib/vibetop/xpra-app.sh
+run sudo install -m 0755 "$APP_DIR/browser-loop.sh" /usr/local/lib/vibetop/browser-loop.sh
 
-# 4. systemd unit ------------------------------------------------------------
+# 4. Retire the shared single-user xpra services -----------------------------
+# Browser/X11 are per-user now (launched on demand by the manager). Keep APP_USER
+# lingering (snap chromium needs /run/user/<uid>; the manager also enables linger
+# per user on first Browser/X11 use), and disable any shared instance from an
+# older deploy.
 if (( INSTALL_SYSTEMD )); then
-    # Enable lingering for APP_USER so systemd-logind keeps user@$APP_UID.service
-    # and $XDG_RUNTIME_DIR (/run/user/$APP_UID) alive even with no login session.
-    # snap chromium needs the user systemd instance + runtime dir to create its
-    # transient tracking scope (snap.chromium.chromium-<uuid>.scope); without
-    # lingering, once the deploying login session ends the runtime dir is torn
-    # down and every browser launch fails ("is not a snap cgroup ..."), leaving
-    # browser-loop.sh crash-looping and the Browser app blank.
     if [ "$(loginctl show-user "$APP_USER" -p Linger --value 2>/dev/null)" != "yes" ]; then
-        echo "== enabling lingering for $APP_USER (keeps /run/user/$APP_UID alive headless) =="
+        echo "== enabling lingering for $APP_USER =="
         run sudo loginctl enable-linger "$APP_USER"
-    else
-        echo "   lingering already enabled for $APP_USER"
     fi
-
-    echo "== installing systemd unit =="
-    sed \
-        -e "s|@APP_USER@|$APP_USER|g" \
-        -e "s|@APP_HOME@|$APP_HOME|g" \
-        -e "s|@APP_UID@|$APP_UID|g" \
-        -e "s|@DISPLAY_NUM@|$DISPLAY_NUM|g" \
-        -e "s|@XPRA_PORT@|$XPRA_PORT|g" \
-        -e "s|@LOOP_SCRIPT@|$LOOP_SCRIPT|g" \
-        "$APP_DIR/systemd/vibetop-browser-xpra.service" \
-        | write_root /etc/systemd/system/vibetop-browser-xpra.service
-    # Second display for the X11 desktop (no Chromium child).
-    sed \
-        -e "s|@APP_USER@|$APP_USER|g" \
-        -e "s|@APP_HOME@|$APP_HOME|g" \
-        -e "s|@APP_UID@|$APP_UID|g" \
-        -e "s|@X11_DISPLAY_NUM@|$X11_DISPLAY_NUM|g" \
-        -e "s|@X11_XPRA_PORT@|$X11_XPRA_PORT|g" \
-        "$APP_DIR/systemd/vibetop-x11-xpra.service" \
-        | write_root /etc/systemd/system/vibetop-x11-xpra.service
-    # Private D-Bus session for launcher apps (no service activation) so GNOME
-    # apps don't hang ~25s on xdg-desktop-portal/at-spi activation timeouts.
-    run sudo install -d -m 0755 /etc/vibetop
-    sed -e "s|@APP_UID@|$APP_UID|g" "$APP_DIR/dbus/x11-dbus.conf" \
-        | write_root /etc/vibetop/x11-dbus.conf
-    sed \
-        -e "s|@APP_USER@|$APP_USER|g" \
-        -e "s|@APP_UID@|$APP_UID|g" \
-        "$APP_DIR/systemd/vibetop-x11-dbus.service" \
-        | write_root /etc/systemd/system/vibetop-x11-dbus.service
+    echo "== retiring shared xpra services (Browser/X11 are per-user now) =="
+    for u in vibetop-browser-xpra vibetop-x11-xpra vibetop-x11-dbus; do
+        run sudo systemctl disable --now "$u.service" 2>/dev/null || true
+    done
     run sudo systemctl daemon-reload
 fi
 
@@ -281,10 +253,7 @@ if (( INSTALL_NGINX )); then
     # bump to forget. (This is how the "stale xpra-patches after deploy" class
     # is made impossible.)
     PATCH_VER=$(md5sum "$APP_DIR/xpra-patches.js" | cut -c1-10)
-    sed -e "s|@XPRA_PORT@|$XPRA_PORT|g" \
-        -e "s|@X11_XPRA_PORT@|$X11_XPRA_PORT|g" \
-        -e "s|@X11_DISPLAY_NUM@|$X11_DISPLAY_NUM|g" \
-        -e "s|@PATCH_VER@|$PATCH_VER|g" \
+    sed -e "s|@PATCH_VER@|$PATCH_VER|g" \
         "$APP_DIR/nginx/browser.conf" \
         | nginx_write /etc/nginx/snippets/vibetop-extras.d/browser.conf || NGINX_DIRTY=1
     if (( NGINX_DIRTY )); then
@@ -299,14 +268,9 @@ if (( INSTALL_NGINX )); then
     fi
 fi
 
-# 7. Enable & start ----------------------------------------------------------
-if (( INSTALL_SYSTEMD )); then
-    echo "== enabling and starting xpra =="
-    run sudo systemctl enable --now vibetop-x11-dbus.service
-    run sudo systemctl enable --now vibetop-browser-xpra.service
-    run sudo systemctl enable --now vibetop-x11-xpra.service
-fi
+# 7. (No shared services to start — Browser/X11 xpra are launched per user on
+#    demand by the manager via systemd-run.)
 
 echo
-echo "done. open:"
+echo "done. Browser/X11 are per-user, started on demand. Open:"
 echo "  http://<host>/browser/"

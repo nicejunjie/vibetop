@@ -165,6 +165,9 @@ def stubs(mgr, monkeypatch):
     # Neutralize sleeps (the per-user terminal socket-wait polls up to 5s; the
     # login throttle sleeps 0.5s) so the hermetic suite stays fast.
     monkeypatch.setattr(mgr.time, "sleep", lambda *a, **k: None)
+    # _wait_tcp would busy-loop the full timeout against a port nothing is
+    # listening on (the launches are stubbed) — short-circuit it.
+    monkeypatch.setattr(mgr, "_wait_tcp", lambda *a, **k: True)
     # No real terminals / heavy /proc scans in the endpoint tests.
     monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [])
     monkeypatch.setattr(mgr.Handler, "_get_system_status",

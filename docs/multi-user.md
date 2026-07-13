@@ -5,11 +5,12 @@
 > as themselves in their real `$HOME`; Unix-permission = SSH-equivalent isolation).
 > Done + validated live: Linux-account login (PAM) + nginx `auth_request` gate + LAN
 > TLS (Phase 1); per-user state + office (Phase 2); **per-user terminals** (a shell as
-> the user, Phase 3) and **per-user Files** (FileBrowser as the user, rooted at their
-> home, Phase 3b); brute-force lockout, per-unit resource caps, and per-user telemetry
-> scoping (Phase 4, partial). Subsystems not yet per-user — **Browser/X11** (per-user
-> xpra + snap Chromium, the heaviest) and Claude-usage/Update — are **admin-gated**
-> (operator only) so they're safe until made per-user. See the multi-user entries in
+> the user, Phase 3), **per-user Files** (FileBrowser as the user, rooted at their home,
+> Phase 3b), and **per-user Browser + X11** (each user's own xpra display + snap
+> Chromium, Phase 3c); brute-force lockout, per-unit resource caps, per-user telemetry
+> scoping, and two-scope logout (this device / all devices) (Phase 4). The only
+> subsystems still operator-only (they act on the whole host) are **Claude-usage** and
+> **Update** — deliberately admin-gated. See the multi-user entries in
 > `docs/design-decisions.md` for the how/why and the hard-won fixes (the 203/EXEC
 > helper-script relocation; the "widen authN, lock down authZ in the same pass" rule).
 > The options table below is the original decision framing, kept for context.

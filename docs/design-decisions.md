@@ -1455,3 +1455,35 @@ to a non-dotfile the snap can read — more moving parts than a one-line ACL gra
   raw read); a non-admin session → 403 on `/fileview/` and every shared subsystem;
   per-user Files serves each user their own home; the operator (via an `APP_USER`
   session) still has everything.
+
+---
+
+## Multi-user Phase 3c: per-user Browser + X11 (xpra + snap Chromium as the user)
+
+- **Context:** The last per-user conversion, and the heaviest. Each user gets their
+  OWN Browser xpra (a Chromium desktop) and X11 xpra (a bare desktop for GUI apps),
+  launched AS them via `systemd-run --uid` (units `vibetop-ubrowser-<user>` /
+  `vibetop-ux11-<user>`), on per-user display numbers + HTML5 ports from their slot
+  (avoiding the legacy shared `:98`/`:99`). nginx routes `/browser/` + `/x11-display/`
+  (and their asset sub-locations) to the user's port via `authcheck` -> `X-App-Port`,
+  cold-starting the display on first hit (`_wait_tcp` up to 20s — xpra is slow to
+  bind). The shared single-user xpra services are retired; a common `xpra-app.sh`
+  launcher (world-executable in `/usr/local/lib/vibetop`, like the terminal helpers)
+  runs either kind. `/api/browser/open`, `/api/x/launch`, and the wmctrl handlers are
+  no longer admin-gated — they act as the request user on THAT user's display;
+  terminals export the user's own `:DISPLAY` so a GUI app run from a shell surfaces on
+  their X11 Launcher.
+- **snap Chromium per user actually works** — the biggest unknown (the CLAUDE.md
+  documents a wall of snap/xpra/linger gotchas for the single `APP_USER`). Validated
+  live on Legion: two users each got their own Browser xpra with
+  `/snap/chromium/.../chrome` running AS them, on disjoint ports (24500 vs 24501), and
+  `x/launch xterm` produced an `xterm` owned by the user (the `root` in `ps` is only
+  the `su -` wrapper). The keys were already in place from the terminal work:
+  `_provision_user` enables **linger** so `/run/user/<uid>` (and the user's session bus
+  + snap tracking scope) exist headless, and the launcher scripts live outside the
+  operator's 0750 home (the 203/EXEC lesson).
+- **Accepted per-user degradation:** launched GTK/GNOME apps use the user's real
+  session bus (the single-user "private apps bus" that dodged the ~25s
+  xdg-desktop-portal activation hang was one shared instance). They still work, just
+  with the portal pause; a per-user private bus would restore ~0.2s and is a noted
+  future refinement. snap apps (which need the real bus) and native apps are fine.

@@ -172,19 +172,30 @@ def test_term_instance_and_unit_naming(mgr):
 
 # --- admin-gated single-user subsystems (review fixes #3/#4/#5/#6) ----------
 
-def test_non_admin_denied_shared_subsystems(client, mgr, users):
-    # A logged-in NON-admin user (alice != APP_USER) is refused the subsystems
-    # that still act as APP_USER (Browser/X11/Update/Claude), so they can't act
-    # as the operator. (Cookieless == APP_USER == allowed, covered elsewhere.)
+def test_non_admin_denied_admin_only_subsystems(client, mgr, users):
+    # Subsystems that still act as APP_USER (Update, Claude, host-service scan) are
+    # refused for a non-admin. (Browser/X11 are now PER-USER — see below.)
     (_, ck) = users["alice"]
     assert mgr.APP_USER != "alice"
-    assert client.post("/api/browser/open", {"url": "http://x"}, cookie=ck)[0] == 403
-    assert client.post("/api/x/launch", {"cmd": "xterm"}, cookie=ck)[0] == 403
-    assert client.post("/api/x/activate", {"id": "0x1"}, cookie=ck)[0] == 403
     assert client.post("/api/update", {}, cookie=ck)[0] == 403
     assert client.post("/api/claude/usage", {"enabled": True}, cookie=ck)[0] == 403
     assert client.get("/api/claude/usage", cookie=ck)[0] == 403
-    assert client.get("/api/x/windows", cookie=ck)[0] == 403
+    assert client.get("/api/services/discover", cookie=ck)[0] == 403
+
+
+def test_browser_x11_are_per_user_not_admin_gated(client, mgr, users, monkeypatch):
+    # Browser/X11 now run as the request user -> a non-admin is NOT 403'd.
+    import types
+    (_, ck) = users["alice"]
+    monkeypatch.setattr(mgr, "_start_user_xpra", lambda u, k: (True, 24500))
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: types.SimpleNamespace(pw_uid=4321, pw_gid=4321,
+                                                        pw_dir="/home/" + u))
+    monkeypatch.setattr(
+        mgr.subprocess, "Popen",
+        lambda *a, **k: type("P", (), {"wait": lambda s, timeout=None: 0})())
+    assert client.post("/api/browser/open", {"url": "http://x"}, cookie=ck)[0] == 200
+    assert client.get("/api/x/windows", cookie=ck)[0] == 200   # 200 (empty), not 403
 
 
 def test_system_status_process_list_scoped(mgr, monkeypatch):
@@ -222,15 +233,13 @@ def test_fileview_authcheck_admin_only(client, mgr, users):
     assert s_alice == 403        # authenticated non-admin
 
 
-def test_non_admin_reset_spares_shared_browser(client, mgr, users, monkeypatch):
-    # A non-admin logout resets only their own terminals/desktop — it must NOT
-    # touch the shared Browser/X11 (no browser_reset in the result).
+def test_non_admin_reset_is_per_user(client, mgr, users, monkeypatch):
+    # A non-admin logout/reset now resets THEIR OWN terminals/desktop/browser/x11
+    # (per-user) — it succeeds and never touches another user or the operator.
     (_, ck) = users["alice"]
     monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [])
     status, body = client.post("/api/reset", {}, cookie=ck)
-    assert status == 200
-    assert body.get("browser_reset") in (False, None)
-    assert body.get("apps_reset") in (False, None)
+    assert status == 200 and body.get("ok") is True
 
 
 # --- per-user Files (Phase 3b) ----------------------------------------------
