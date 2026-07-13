@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#161b22">
+  <title>Sign in — vibetop</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #0e1117; color: #e0e0e0;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #161b22; border: 1px solid #2a3040; border-radius: 14px;
+      padding: 36px 32px; max-width: 380px; width: 100%;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .brand {
+      display: flex; align-items: center; gap: 12px; margin: 0 0 22px;
+      justify-content: center;
+    }
+    .brand .logo {
+      width: 40px; height: 40px; border-radius: 10px; flex: 0 0 auto;
+      background: conic-gradient(from 135deg, #d2691e, #b3540f, #7a94c0, #4a6b8a, #d2691e);
+    }
+    .brand h1 { font-size: 20px; font-weight: 700; color: #e8eef5; margin: 0; letter-spacing: .3px; }
+    p.sub { font-size: 13px; line-height: 1.5; color: #8a9aaa; margin: 0 0 22px; text-align: center; }
+    label { display: block; font-size: 12px; color: #8a9aaa; margin: 0 0 6px; font-weight: 600; }
+    .field { margin: 0 0 16px; }
+    input {
+      width: 100%; padding: 11px 13px; font-size: 16px;
+      background: #0e1117; color: #e8eef5;
+      border: 1px solid #2a3040; border-radius: 9px; outline: none;
+    }
+    input:focus { border-color: #d2691e; box-shadow: 0 0 0 2px rgba(210,105,30,0.18); }
+    button {
+      width: 100%; margin-top: 4px; cursor: pointer;
+      font-size: 15px; font-weight: 700; color: #fff; border: 0;
+      background: linear-gradient(135deg, #b3540f, #d2691e);
+      padding: 12px; border-radius: 9px;
+    }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: .6; cursor: default; filter: none; }
+    .err {
+      display: none; margin: 0 0 16px; padding: 10px 12px; border-radius: 8px;
+      font-size: 13px; color: #ffb4a2;
+      background: rgba(210,60,30,0.12); border: 1px solid rgba(210,60,30,0.35);
+    }
+    .err.show { display: block; }
+    .hint { margin: 18px 0 0; font-size: 12px; color: #6a7a8a; text-align: center; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <form class="card" id="form" autocomplete="on">
+    <div class="brand"><div class="logo"></div><h1>vibetop</h1></div>
+    <p class="sub">Sign in with your Linux account on this machine.</p>
+    <div class="err" id="err"></div>
+    <div class="field">
+      <label for="u">Username</label>
+      <input id="u" name="username" autocapitalize="none" autocorrect="off"
+             spellcheck="false" autocomplete="username" required autofocus>
+    </div>
+    <div class="field">
+      <label for="p">Password</label>
+      <input id="p" name="password" type="password"
+             autocomplete="current-password" required>
+    </div>
+    <button id="go" type="submit">Sign in</button>
+    <p class="hint">Your session stays signed in for 7 days on this device.</p>
+  </form>
+  <script>
+    // Where to go after a successful login: honor a ?next= (same-origin path only).
+    function nextUrl() {
+      try {
+        const n = new URLSearchParams(location.search).get('next');
+        if (n && n.startsWith('/') && !n.startsWith('//')) return n;
+      } catch (_) {}
+      return '/';
+    }
+    const form = document.getElementById('form');
+    const err = document.getElementById('err');
+    const go = document.getElementById('go');
+    function showErr(msg) { err.textContent = msg; err.classList.add('show'); }
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.classList.remove('show');
+      const username = document.getElementById('u').value.trim();
+      const password = document.getElementById('p').value;
+      if (!username || !password) { showErr('Enter your username and password.'); return; }
+      go.disabled = true; go.textContent = 'Signing in…';
+      try {
+        const r = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        if (r.ok) { location.replace(nextUrl()); return; }
+        if (r.status === 401) showErr('Invalid username or password.');
+        else showErr('Sign-in failed (' + r.status + '). Please try again.');
+      } catch (_) {
+        showErr('Network error — could not reach the server.');
+      }
+      go.disabled = false; go.textContent = 'Sign in';
+      document.getElementById('p').value = '';
+    });
+  </script>
+</body>
+</html>

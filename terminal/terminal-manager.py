@@ -12,8 +12,11 @@ Endpoints:
 """
 
 import base64
+import ctypes
+import ctypes.util
 import hashlib
 import hmac
+import http.cookies
 import http.server
 import json
 import logging
@@ -768,6 +771,197 @@ def _jwt_verify(token, secret):
         return None
 
 
+# ---- Auth: PAM login + signed session cookie -------------------------------
+# vibetop's identity IS the host's Linux accounts (multi-user Option B): a user
+# logs in with their real Linux username+password, authenticated via PAM (same
+# stack as SSH/login), and everything then runs as that user. The manager runs as
+# root, which PAM needs to read the shadow database. This is the auth foundation
+# (Phase 1); per-user runtime routing lands in later phases.
+
+SESSION_COOKIE = "vt_session"
+SESSION_TTL = 7 * 24 * 3600                      # "remember me" for 7 days
+SESSION_SECRET_FILE = "/etc/vibetop/session.secret"
+PAM_SERVICE = os.environ.get("VIBETOP_PAM_SERVICE", "vibetop")
+_USERNAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")   # POSIX-ish login name
+_session_secret_cache = None
+_session_secret_lock = threading.Lock()
+
+
+def _session_secret():
+    """The HMAC key for session cookies. Read from a root-owned 0600 file, created
+    on first use. Falls back to an ephemeral in-memory key if the path isn't
+    writable (e.g. under pytest) — fine, it just invalidates cookies on restart."""
+    global _session_secret_cache
+    if _session_secret_cache:
+        return _session_secret_cache
+    with _session_secret_lock:
+        if _session_secret_cache:
+            return _session_secret_cache
+        try:
+            with open(SESSION_SECRET_FILE) as f:
+                sec = f.read().strip()
+            if sec:
+                _session_secret_cache = sec
+                return sec
+        except OSError:
+            pass
+        sec = secrets.token_hex(32)
+        try:
+            os.makedirs(os.path.dirname(SESSION_SECRET_FILE), exist_ok=True)
+            fd = os.open(SESSION_SECRET_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(sec)
+        except FileExistsError:                  # a racing process wrote it first
+            try:
+                with open(SESSION_SECRET_FILE) as f:
+                    sec = f.read().strip() or sec
+            except OSError:
+                pass
+        except OSError:
+            pass                                 # not persistable — ephemeral key
+        _session_secret_cache = sec
+        return sec
+
+
+def _sign_session(user, ttl=SESSION_TTL):
+    """A session token = the OnlyOffice-style HS256 JWT over {u, exp}, signed with
+    the session secret (reuses _jwt_sign so there's one signing primitive)."""
+    return _jwt_sign({"u": user, "exp": int(time.time()) + int(ttl)}, _session_secret())
+
+
+def _verify_session(token):
+    """Return the username from a valid, unexpired session token, else None."""
+    claims = _jwt_verify(token, _session_secret())
+    if not claims:
+        return None
+    try:
+        if int(claims.get("exp", 0)) < int(time.time()):
+            return None
+    except (TypeError, ValueError):
+        return None
+    u = claims.get("u")
+    return u if isinstance(u, str) and _USERNAME_RE.match(u) else None
+
+
+# --- PAM authentication via ctypes (no pip dependency; libpam is always present
+# on Debian/Ubuntu). Single-shot: answer the password prompt(s), run auth +
+# account management. Returns True only on PAM_SUCCESS for both. -------------
+class _PamMessage(ctypes.Structure):
+    _fields_ = [("msg_style", ctypes.c_int), ("msg", ctypes.c_char_p)]
+
+
+class _PamResponse(ctypes.Structure):
+    _fields_ = [("resp", ctypes.c_char_p), ("resp_retcode", ctypes.c_int)]
+
+
+_PAM_CONV_FUNC = ctypes.CFUNCTYPE(
+    ctypes.c_int, ctypes.c_int,
+    ctypes.POINTER(ctypes.POINTER(_PamMessage)),
+    ctypes.POINTER(ctypes.POINTER(_PamResponse)),
+    ctypes.c_void_p)
+
+
+class _PamConv(ctypes.Structure):
+    _fields_ = [("conv", _PAM_CONV_FUNC), ("appdata_ptr", ctypes.c_void_p)]
+
+
+def _pam_authenticate(username, password, service=None):
+    """Authenticate `username`/`password` against PAM service `service`.
+    Returns True on success. Any error (missing libpam, bad service, wrong creds)
+    returns False — never raises."""
+    service = (service or PAM_SERVICE)
+    try:
+        libpam = ctypes.CDLL(ctypes.util.find_library("pam") or "libpam.so.0")
+        libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6")
+    except OSError:
+        log.warning("PAM unavailable (libpam not loadable)")
+        return False
+
+    calloc = libc.calloc
+    calloc.restype = ctypes.c_void_p
+    calloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t]
+    strdup = libc.strdup
+    strdup.restype = ctypes.c_void_p
+    strdup.argtypes = [ctypes.c_char_p]
+
+    pw_bytes = password.encode("utf-8", "surrogateescape")
+
+    # PAM frees the response array + strings, so they must be malloc'd (calloc/
+    # strdup), never Python-owned memory.
+    @_PAM_CONV_FUNC
+    def _conv(n_msg, messages, p_response, _app):
+        buf = calloc(n_msg, ctypes.sizeof(_PamResponse))
+        if not buf:
+            return 5                              # PAM_BUF_ERR
+        p_response[0] = ctypes.cast(buf, ctypes.POINTER(_PamResponse))
+        for i in range(n_msg):
+            style = messages[i].contents.msg_style
+            if style in (1, 2):                   # PROMPT_ECHO_OFF / PROMPT_ECHO_ON
+                p_response[0][i].resp = ctypes.cast(strdup(pw_bytes), ctypes.c_char_p)
+                p_response[0][i].resp_retcode = 0
+        return 0                                  # PAM_SUCCESS
+
+    handle = ctypes.c_void_p()
+    conv = _PamConv(_conv, None)
+    pam_start = libpam.pam_start
+    pam_start.restype = ctypes.c_int
+    pam_start.argtypes = [ctypes.c_char_p, ctypes.c_char_p,
+                          ctypes.POINTER(_PamConv), ctypes.POINTER(ctypes.c_void_p)]
+    rc = pam_start(service.encode(), username.encode(), ctypes.byref(conv),
+                   ctypes.byref(handle))
+    if rc != 0:
+        log.warning("pam_start failed (%s) for service %s", rc, service)
+        return False
+    try:
+        for fn in ("pam_authenticate", "pam_acct_mgmt"):
+            f = getattr(libpam, fn)
+            f.restype = ctypes.c_int
+            f.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            rc = f(handle, 0)
+            if rc != 0:
+                return False
+        return True
+    finally:
+        pam_end = libpam.pam_end
+        pam_end.restype = ctypes.c_int
+        pam_end.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        pam_end(handle, rc)
+
+
+def _authenticate(user, password):
+    """Identity check seam — wraps PAM. Tests monkeypatch this to avoid real
+    credentials."""
+    return _pam_authenticate(user, password, PAM_SERVICE)
+
+
+# Paths reachable WITHOUT a session — the allowlist that the nginx auth_request
+# gate consults via /api/authcheck (X-Original-URI). Kept here (not in nginx) so
+# it's one testable policy:
+#   - login/logout/authcheck: the auth handshake itself
+#   - ping/health/metrics: loopback liveness/diagnostics (also hit directly, but
+#     harmless to allow through nginx too)
+#   - office callback/doc: the OnlyOffice CONTAINER reaches these server-to-server
+#     (no browser cookie); they're authorized by their own path HMAC + JWT
+# /s/ share links are a separate nginx location with no auth_request, so they
+# aren't listed here.
+_PUBLIC_EXACT = frozenset({
+    "/api/login", "/api/logout", "/api/authcheck",
+    "/api/ping", "/api/health", "/api/metrics",
+})
+_PUBLIC_PREFIX = ("/api/office/callback", "/api/office/doc")
+
+
+def _is_public_path(uri):
+    """True if `uri` (an nginx X-Original-URI, may carry a query) is reachable
+    without a session. Pure function — unit-tested in isolation."""
+    if not isinstance(uri, str):
+        return False
+    path = uri.split("?", 1)[0]
+    if path in _PUBLIC_EXACT:
+        return True
+    return any(path == p or path.startswith(p) for p in _PUBLIC_PREFIX)
+
+
 def _office_convert_to_pdf(src):
     """Convert `src` to PDF via headless LibreOffice, cached by realpath+mtime.
     Returns the cached PDF path, or None on failure. Serialized: LibreOffice
@@ -1164,6 +1358,97 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception:
             return False
 
+    # ---- Auth (Phase 1): PAM login + session cookie ------------------------
+    def _cookie_value(self, name):
+        raw = self.headers.get("Cookie")
+        if not raw:
+            return None
+        try:
+            jar = http.cookies.SimpleCookie(raw)
+        except http.cookies.CookieError:
+            return None
+        m = jar.get(name)
+        return m.value if m else None
+
+    def _session_user(self):
+        """The authenticated Linux username for this request, or None."""
+        tok = self._cookie_value(SESSION_COOKIE)
+        return _verify_session(tok) if tok else None
+
+    def _req_is_https(self):
+        # nginx forwards the original scheme; over the tunnel/TLS it's https.
+        return self.headers.get("X-Forwarded-Proto", "").lower() == "https"
+
+    def _handle_login(self):
+        """POST {username,password} -> PAM auth -> set a signed 7-day cookie."""
+        body = self._read_body(64 * 1024)
+        if body is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(body or b"{}")
+        except ValueError:
+            return self._json(400, {"error": "invalid json"})
+        user = data.get("username", "")
+        pw = data.get("password", "")
+        if not isinstance(user, str) or not isinstance(pw, str) or not user or not pw:
+            return self._json(400, {"error": "username and password required"})
+        ok = False
+        if _USERNAME_RE.match(user) and len(pw) <= 1024:
+            try:
+                ok = bool(_authenticate(user, pw))
+            except Exception as e:                # never let an auth backend error 500
+                log.warning("auth backend error for %r: %s", user, e)
+        if not ok:
+            time.sleep(0.5)                       # mild brute-force friction (Phase 4: pam_faillock)
+            log.warning("failed login for %r from %s", user, self.address_string())
+            return self._json(401, {"error": "invalid credentials"})
+        tok = _sign_session(user)
+        cookie = (f"{SESSION_COOKIE}={tok}; Path=/; HttpOnly; SameSite=Lax; "
+                  f"Max-Age={SESSION_TTL}")
+        if self._req_is_https():
+            cookie += "; Secure"
+        payload = json.dumps({"ok": True, "user": user}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Set-Cookie", cookie)
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
+        log.info("login ok: %s", user)
+
+    def _handle_logout(self):
+        payload = b'{"ok": true}'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Set-Cookie",
+                         f"{SESSION_COOKIE}=; Path=/; HttpOnly; Max-Age=0")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _handle_authcheck(self):
+        """nginx auth_request target. Allows public paths (the allowlist) through
+        regardless of cookie; otherwise requires a valid session and returns the
+        username in X-Vibetop-User. 401 when unauthenticated on a gated path.
+        (Per-user upstream-port resolution arrives in Phase 3.)"""
+        if _is_public_path(self.headers.get("X-Original-URI", "")):
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        user = self._session_user()
+        if not user:
+            self.send_response(401)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("X-Vibetop-User", user)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_POST(self):
         # The OnlyOffice container's save callback is a server-to-server POST
         # authenticated by its own path HMAC (t=) + a required JWT, not a browser
@@ -1174,6 +1459,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         self.path, self.headers.get("Origin"), self.headers.get("Host"))
             self._json(403, {"error": "cross-origin request rejected"})
             return
+        if self.path == "/api/login":
+            return self._handle_login()
+        if self.path == "/api/logout":
+            return self._handle_logout()
         m = re.match(r"/api/terminals/(\d+)/(start|stop)$", self.path)
         if m:
             return self._handle_terminal(m)
@@ -2666,6 +2955,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_error(404)
 
     def do_GET(self):
+        if self.path == "/api/authcheck":
+            return self._handle_authcheck()
         if self.path == "/api/ping":
             # Trivial liveness probe (no side effects): the systemd watchdog and
             # any external monitor hit this to confirm the HTTP loop is answering.

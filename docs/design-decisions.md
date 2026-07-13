@@ -1305,3 +1305,67 @@ to a non-dotfile the snap can read — more moving parts than a one-line ACL gra
   (noted as a future perf option). A separate `share.example.com` origin would beat
   the same-origin XSS risk outright but needs extra DNS/Access setup — the
   attachment+`nosniff`+sandbox-CSP mitigation covers it for v1.
+
+---
+
+## Multi-user auth (Phase 1): Linux-account login, where the gate lives
+
+- **Context:** Making vibetop multi-user (Option B — a web remote-desktop for the
+  host's *real* Linux users; see `docs/multi-user.md`). Identity = the host's Linux
+  accounts via **PAM**; login is username+password (LAN direct, tunnel behind
+  Cloudflare Access first), remembered 7 days. Isolation is Unix permissions =
+  SSH-equivalent (a host-root user is root through vibetop — by design). This entry
+  records the non-obvious *where/how* of the auth gate; the per-user runtime
+  (services running as each user) is a later phase.
+- **PAM via `ctypes`, not a pip module.** The manager is stdlib-only (hand-rolled
+  JWT, multipart, sd_notify). `_pam_authenticate` loads `libpam.so.0` via ctypes and
+  runs a single-shot conversation (`pam_authenticate` + `pam_acct_mgmt`) against the
+  `vibetop` PAM service (`/etc/pam.d/vibetop` → `common-auth`/`common-account`, dropped
+  by `terminal/install.sh`). The session cookie **reuses `_jwt_sign`/`_jwt_verify`**
+  (one signing primitive) over `{u, exp}`, keyed by a root-owned
+  `/etc/vibetop/session.secret`. `_authenticate` is a seam tests monkeypatch, so the
+  whole flow is hermetic (no real creds).
+- **The gate: nginx `auth_request` → the manager's `/api/authcheck`, with the
+  public-path allowlist IN THE MANAGER.** Every protected location
+  (`/`, `/api/`, `/tN/`, `/browser/`, `/x11-display/`, `/files/`, `/onlyoffice/`) has
+  one line — `auth_request /internal/authcheck` — and `/internal/authcheck` proxies to
+  `/api/authcheck`, which allowlists the public paths (login/logout/authcheck,
+  ping/health/metrics, `/api/office/{callback,doc}`) via the `X-Original-URI` header.
+  - **Why the allowlist lives in Python, not nginx:** it's *one* testable policy
+    (`_is_public_path`) instead of a dozen nginx carve-out `location` blocks, and it
+    keeps the OnlyOffice **container** callbacks (server-to-server, no browser cookie,
+    HMAC-authed) reachable without duplicating their proxy config. Verified end-to-end:
+    a cookieless `/api/office/doc` returns **403** (allowlist let it *past the session
+    gate*, then the manager's own HMAC rejected the forged path) — exactly the intended
+    layering, not a 401.
+  - **Loopback admin tooling is unaffected** because it hits `127.0.0.1:7680`
+    **directly**, bypassing nginx and therefore the gate — the watchdog's `/api/ping`,
+    `doctor.sh`, and `smoke-test.sh` keep working with no cookie. (Browser traffic can
+    only reach the manager *through* nginx, where the gate applies.)
+- **Rejected: gating `/api/` inside the manager.** Tempting (defense in depth,
+  hermetic), but nginx-proxied browser requests and direct loopback-admin requests
+  **both** arrive at the manager from `127.0.0.1`, so the manager can't tell "trusted
+  local curl" from "hostile LAN client via nginx" by source IP. Gating at nginx (which
+  loopback admin bypasses) draws that line cleanly.
+- **LAN TLS: redirect http→https only for LAN clients, only on the credential pages.**
+  A Linux password is POSTed to `/api/login`, so LAN clients must use https
+  (self-signed by default, `TLS_CERT`/`TLS_KEY` to override; `ENABLE_TLS=0` opts out
+  with a cleartext warning). The redirect is `set $vt_up "$scheme$vt_is_lan"; if
+  ($vt_up = "http1") return 301 https…`, placed **only** in `location = /` and
+  `location = /login.html`.
+  - **Two carve-outs that a blanket redirect would break:** (1) the **tunnel** — over
+    Cloudflare the browser is already https and cloudflared reaches nginx on http from
+    **loopback**; `$vt_is_lan` is 0 for `127.0.0.1`/`::1`, so the tunnel hop is never
+    redirected (TLS is terminated at Cloudflare's edge). (2) the **OnlyOffice Docker
+    callback** — the container reaches the host via `host.docker.internal`, i.e. the
+    Docker bridge IP (non-loopback → `$vt_is_lan`=1), so a *server-wide* redirect would
+    301 its http callback; scoping the redirect to `/` and `/login.html` (never
+    `/api/`) leaves the callback on http. Both verified live: loopback http `/` → 302
+    to `/login.html` over **http** (not https); LAN-IP http `/` → **301 to https**;
+    LAN-IP http `/api/office/callback` → **not** redirected.
+  - **`http2 on;` avoided** — it's nginx ≥1.25 syntax; Ubuntu 24.04 ships 1.24 (fails
+    config test). HTTP/2 does nothing for the WebSocket-heavy traffic anyway.
+- **Rejected: a separate front "gateway" service** (the Firecracker-era design). For a
+  single host with the manager already central and root, extending nginx (`auth_request`)
+  + the manager (PAM + session) is far less moving-parts than a new reverse-proxy
+  process, and reuses the existing loopback trust boundary.

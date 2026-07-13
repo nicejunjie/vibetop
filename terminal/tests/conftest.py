@@ -95,6 +95,7 @@ _HOME_PATHS = {
     "OFFICE_CONVERT_PROFILE": ".cache/vibetop-office/lo-convert-profile",
     "ONLYOFFICE_SECRET_FILE": ".config/vibetop/onlyoffice.secret",
     "OFFICE_NEW_DIR": "Documents",
+    "SESSION_SECRET_FILE": ".config/vibetop/session.secret",
 }
 
 
@@ -133,6 +134,10 @@ def home(mgr, monkeypatch, tmp_path):
         mgr._cache.clear()
     if hasattr(mgr, "_office_sessions"):
         mgr._office_sessions.clear()
+    # Session-secret is cached in a module global; clear it so each test's tmp
+    # SESSION_SECRET_FILE is (re)generated fresh.
+    if hasattr(mgr, "_session_secret_cache"):
+        mgr._session_secret_cache = None
     return h
 
 
@@ -180,8 +185,26 @@ class _Client:
             except ValueError:
                 return e.code, raw
 
-    def get(self, path):
-        return self._do(urllib.request.Request(self.base + path))
+    def get(self, path, cookie=None):
+        h = {"Cookie": cookie} if cookie else {}
+        return self._do(urllib.request.Request(self.base + path, headers=h))
+
+    def get_full(self, path, cookie=None, headers=None):
+        """GET returning (status, headers-dict, parsed-json-or-None)."""
+        h = dict(headers or {})
+        if cookie:
+            h["Cookie"] = cookie
+        req = urllib.request.Request(self.base + path, headers=h)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                raw = r.read()
+                return r.status, dict(r.headers), (_json.loads(raw) if raw else None)
+        except urllib.error.HTTPError as e:
+            raw = e.read()
+            try:
+                return e.code, dict(e.headers), (_json.loads(raw) if raw else None)
+            except ValueError:
+                return e.code, dict(e.headers), raw
 
     def get_raw(self, path):
         """GET returning (status, headers, raw-bytes) for non-JSON endpoints
@@ -194,17 +217,46 @@ class _Client:
             return e.code, dict(e.headers), e.read()
 
     def post(self, path, body=None, origin="__same__", raw=None,
-             headers=None):
+             headers=None, cookie=None):
         data = raw if raw is not None else _json.dumps(body or {}).encode()
         h = {"Content-Type": "application/json"}
         if origin == "__same__":
             h["Origin"] = "http://" + self.host
         elif origin is not None:
             h["Origin"] = origin
+        if cookie:
+            h["Cookie"] = cookie
         if headers:
             h.update(headers)
         return self._do(urllib.request.Request(self.base + path, data=data,
                                                method="POST", headers=h))
+
+    def post_full(self, path, body=None, origin="__same__", raw=None,
+                  headers=None, cookie=None):
+        """POST returning (status, headers-dict, parsed-json-or-None) — for
+        asserting Set-Cookie and other response headers."""
+        data = raw if raw is not None else _json.dumps(body or {}).encode()
+        h = {"Content-Type": "application/json"}
+        if origin == "__same__":
+            h["Origin"] = "http://" + self.host
+        elif origin is not None:
+            h["Origin"] = origin
+        if cookie:
+            h["Cookie"] = cookie
+        if headers:
+            h.update(headers)
+        req = urllib.request.Request(self.base + path, data=data, method="POST",
+                                     headers=h)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                raw_b = r.read()
+                return r.status, dict(r.headers), (_json.loads(raw_b) if raw_b else None)
+        except urllib.error.HTTPError as e:
+            raw_b = e.read()
+            try:
+                return e.code, dict(e.headers), (_json.loads(raw_b) if raw_b else None)
+            except ValueError:
+                return e.code, dict(e.headers), raw_b
 
 
 @pytest.fixture()

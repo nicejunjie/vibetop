@@ -39,6 +39,16 @@ INSTALL_NGINX="${INSTALL_NGINX:-1}"
 SCROLLBACK="${SCROLLBACK:-50000}"
 INSTALL_LANDING="${INSTALL_LANDING:-0}"
 DRY_RUN="${DRY_RUN:-0}"
+# TLS on the LAN: with multi-user login, a Linux password is POSTed to /api/login,
+# so LAN clients must not use plain http. We serve https on :443 (self-signed by
+# default; override with TLS_CERT/TLS_KEY) and redirect LAN http->https on the
+# credential-entry pages only. Loopback (the cloudflared tunnel, which terminates
+# TLS at Cloudflare's edge, and local tooling) and the Docker->host OnlyOffice
+# callback stay on http. Disable with ENABLE_TLS=0 (then LAN logins are cleartext).
+ENABLE_TLS="${ENABLE_TLS:-1}"
+TLS_DIR="${TLS_DIR:-/etc/vibetop/tls}"
+TLS_CERT="${TLS_CERT:-$TLS_DIR/cert.pem}"
+TLS_KEY="${TLS_KEY:-$TLS_DIR/key.pem}"
 
 for arg in "$@"; do
     case "$arg" in
@@ -136,6 +146,17 @@ if (( INSTALL_SYSTEMD )); then
     echo "$rendered" | write_root "/etc/systemd/system/vibetop-manager.service"
 
     run sudo systemctl daemon-reload
+
+    # 3b. PAM service for the manager's Linux-account login (/api/login). Without
+    # this file, PAM's service name "vibetop" falls back to /etc/pam.d/other,
+    # whose policy is host-dependent. Delegate to the host's standard stacks
+    # (same effective policy as console login). Only auth+account are needed —
+    # the manager calls pam_authenticate + pam_acct_mgmt, no session/password.
+    printf '%s\n' \
+        '# Managed by vibetop terminal/install.sh — Linux-account login for /api/login.' \
+        'auth     include common-auth' \
+        'account  include common-account' \
+        | write_root "/etc/pam.d/vibetop"
 fi
 
 # 4. nginx config ------------------------------------------------------------
@@ -156,6 +177,61 @@ if (( INSTALL_NGINX )); then
             | nginx_write "/etc/nginx/conf.d/vibetop-upgrade.conf" || NGINX_DIRTY=1
     fi
 
+    # 4a2. TLS material (self-signed by default) + config fragments. Empty vars
+    # when TLS is off, so the server block renders http-only unchanged.
+    lan_map=""; tls_listen=""; tls_redirect_if=""
+    if [ "$ENABLE_TLS" = 1 ]; then
+        if ! sudo test -f "$TLS_CERT" || ! sudo test -f "$TLS_KEY"; then
+            if [ "$TLS_CERT" = "$TLS_DIR/cert.pem" ] && [ "$TLS_KEY" = "$TLS_DIR/key.pem" ]; then
+                if command -v openssl >/dev/null 2>&1; then
+                    echo "   generating self-signed TLS cert -> $TLS_DIR (override with TLS_CERT/TLS_KEY)"
+                    run sudo install -d -m 0755 "$TLS_DIR"
+                    host_cn="$(hostname -f 2>/dev/null || hostname)"
+                    sans="DNS:${host_cn},DNS:localhost,IP:127.0.0.1"
+                    for ip in $(hostname -I 2>/dev/null || true); do
+                        case "$ip" in *.*) sans="$sans,IP:$ip" ;; esac
+                    done
+                    if run sudo openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+                            -keyout "$TLS_KEY" -out "$TLS_CERT" \
+                            -subj "/CN=${host_cn}" -addext "subjectAltName=${sans}" 2>/dev/null; then
+                        run sudo chmod 600 "$TLS_KEY"
+                    else
+                        echo "   WARNING: cert generation failed — disabling TLS (LAN logins would be cleartext)"; ENABLE_TLS=0
+                    fi
+                else
+                    echo "   WARNING: openssl not found — disabling TLS (LAN logins will be cleartext)"; ENABLE_TLS=0
+                fi
+            else
+                echo "   WARNING: TLS_CERT/TLS_KEY not found — disabling TLS (provide a cert or unset the vars)"; ENABLE_TLS=0
+            fi
+        fi
+    fi
+    if [ "$ENABLE_TLS" = 1 ]; then
+        lan_map="# Non-loopback (LAN) clients — used to upgrade cleartext logins to https.
+map \$remote_addr \$vt_is_lan {
+    default 1;
+    127.0.0.1 0;
+    ::1 0;
+}
+
+"
+        tls_listen="    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    ssl_certificate $TLS_CERT;
+    ssl_certificate_key $TLS_KEY;
+    ssl_protocols TLSv1.2 TLSv1.3;
+"
+        # A LAN client on http reaching a credential-entry page -> https. \$vt_up
+        # is 'http1' only for http + non-loopback, so the tunnel (loopback) and the
+        # Docker->host OnlyOffice callback are never redirected. Injected into the
+        # shell-entry and login locations only (not /api).
+        tls_redirect_if="        set \$vt_up \"\$scheme\$vt_is_lan\";
+        if (\$vt_up = \"http1\") { return 301 https://\$host\$request_uri; }
+"
+    else
+        echo "   NOTE: TLS disabled — LAN logins send the Linux password over cleartext http."
+    fi
+
     # 4b. Build port map for terminal routing
     map_entries=""
     for i in $(seq 1 "$MAX_INSTANCES"); do
@@ -163,7 +239,7 @@ if (( INSTALL_NGINX )); then
 "
     done
 
-    site_config="# Terminal port map: /tN/ -> port BASE_PORT+N
+    site_config="${lan_map}# Terminal port map: /tN/ -> port BASE_PORT+N
 map \$uri \$term_port {
     default \"\";
 $map_entries}
@@ -171,7 +247,7 @@ $map_entries}
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name _;
+$tls_listen    server_name _;
 
     # Don't advertise the nginx version in Server: / error pages.
     server_tokens off;
@@ -193,8 +269,45 @@ server {
         add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
     }
 
+    # --- Auth gate (multi-user Option B) ---------------------------------
+    # Every protected surface delegates to the manager's /api/authcheck: 200 for a
+    # valid Linux session cookie (or an allowlisted public path), else 401. The
+    # manager owns the public-path allowlist (login/health/OnlyOffice callbacks),
+    # so nginx needs only this one internal endpoint + auth_request lines.
+    # (Loopback admin tooling hits 127.0.0.1:$BASE_PORT directly, bypassing nginx
+    # and this gate — watchdog/doctor/smoke-test are unaffected.)
+    location = /internal/authcheck {
+        internal;
+        proxy_pass http://127.0.0.1:$BASE_PORT/api/authcheck;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length \"\";
+        proxy_set_header X-Original-URI \$request_uri;
+    }
+    location @login { return 302 /login.html; }
+
+    # The login page — public (no auth), but LAN clients are upgraded to https so
+    # the password POST isn't sent in cleartext.
+    location = /login.html {
+$tls_redirect_if        add_header Cache-Control 'no-cache, no-store' always;
+        try_files /login.html =404;
+    }
+
+    # The desktop shell entry. Unauthenticated -> login. (Static assets are served
+    # by the prefix `location /` above and stay public; their DATA is gated at /api.)
+    location = / {
+$tls_redirect_if        auth_request /internal/authcheck;
+        error_page 401 = @login;
+        add_header Cache-Control 'no-cache, no-store' always;
+        add_header X-Content-Type-Options 'nosniff' always;
+        add_header Referrer-Policy 'same-origin' always;
+        add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
+        try_files /index.html =404;
+    }
+
     location = /terminals { return 301 /terminals/; }
     location = /terminals/ {
+        auth_request /internal/authcheck;
+        error_page 401 = @login;
         add_header Cache-Control 'no-cache, no-store' always;
         rewrite ^ /terminals.html break;
     }
@@ -210,6 +323,10 @@ server {
 
     # Terminal manager & system status API
     location /api/ {
+        # Gate on a valid session; the manager allowlists the public API paths
+        # (login/health/OnlyOffice callbacks), so a 401 here is a real deny for a
+        # browser XHR (JS reads the 401 and redirects to login itself).
+        auth_request /internal/authcheck;
         proxy_pass http://127.0.0.1:$BASE_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -245,6 +362,8 @@ server {
 
     # Dynamic terminal routing: /tN/ -> port from map
     location ~ ^/t(\d+)/(.*)$ {
+        auth_request /internal/authcheck;
+        error_page 401 = @login;
         proxy_pass http://127.0.0.1:\$term_port;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
