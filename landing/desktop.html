@@ -216,14 +216,14 @@
   .tb-logout:hover, .tb-logout[aria-expanded="true"] {
     background: rgba(255,60,60,0.2); color: #ff6666; border-color: rgba(255,60,60,0.3);
   }
-  /* Drop-UP menu (taskbar sits at the viewport bottom). position:FIXED (not
-     absolute-in-.tb-logout-wrap) so it escapes the taskbar's clip box — on
-     narrow screens the taskbar is `overflow-y:hidden` for horizontal scroll,
-     which otherwise clipped this drop-up (it sits ABOVE the bar) and it showed
-     nothing. Anchored to the viewport just above the taskbar, like the Start
-     menu. No ancestor is transformed, so fixed resolves to the viewport. */
+  /* Drop-UP menu. Identical anchoring to #startmenu: a <body> child (body is
+     position:relative) positioned ABSOLUTE just above the taskbar, so it tracks
+     the real body height (var(--app-h)) rather than the layout viewport — no
+     offset on the iOS frozen-svh moment before apph.js settles. As a body child
+     (not inside .taskbar) it's also free of the taskbar's overflow clip box that
+     hid the earlier in-taskbar version on mobile. */
   .tb-logout-menu {
-    position: fixed; bottom: calc(var(--tb) + 8px); right: 8px;
+    position: absolute; bottom: calc(var(--tb) + 8px); right: 8px;
     min-width: 200px; padding: 6px; z-index: 300;
     background: #161d29; border: 1px solid #2a3342; border-radius: 11px;
     box-shadow: 0 -10px 34px rgba(0,0,0,0.55);
@@ -588,10 +588,10 @@
     </div>
   </div>
 
-  <!-- Logout drop-up lives as a BODY child (NOT inside .taskbar): on mobile the
-       taskbar is an overflow-x scroll container, which on iOS clips/traps a
-       position:fixed descendant — so the menu showed nothing. As a body child
-       (like #startmenu) it's free of that. Toggled by #tb-logout via id. -->
+  <!-- Logout drop-up lives as a BODY child (NOT inside .taskbar): the taskbar is
+       an overflow scroll container on mobile that clipped an in-taskbar menu, so
+       it showed nothing. As a body child it's free of that — same structure and
+       absolute-in-body anchoring as #startmenu. Toggled by #tb-logout via id. -->
   <div class="tb-logout-menu" id="tb-logout-menu" role="menu" hidden>
     <div class="tb-lo-who" id="tb-lo-who" hidden>
       <span class="tb-lo-who-name" id="tb-lo-who-name"></span>
@@ -1808,7 +1808,7 @@
     var full = (me.name || '').trim(), login = me.user, display = full || login;
     var set = function(id, t) { var el = document.getElementById(id); if (el) el.textContent = t; };
     // Start-menu header
-    set('sm-user-av', display.charAt(0).toUpperCase());
+    set('sm-user-av', ([...display][0] || '').toUpperCase());   // [...] handles astral chars
     set('sm-user-name', display);
     var sl = document.getElementById('sm-user-login');
     if (sl) { sl.textContent = full ? ('@' + login) : ''; sl.style.display = full ? '' : 'none'; }
