@@ -269,34 +269,34 @@
     font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
     color: #556; padding: 2px 8px 4px;
   }
-  /* Signed-in user header — sized to MATCH the (trimmed) app rows (.sm-item:
-     26px avatar, 4px 8px padding, gap 9px) so it reads as one of the family,
-     not a taller or thinner odd-one-out. Single line (name · @login). */
+  /* Signed-in user header — sized to MATCH the app rows (.sm-item) so it reads as
+     one of the family. Desktop keeps the roomy 30px size; the ≤736px media query
+     below trims it (and the app rows) together to save height on mobile. */
   .sm-user {
-    display: flex; align-items: center; gap: 9px;
-    padding: 4px 8px; margin: 0 0 4px; border-radius: 8px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 5px 9px; margin: 0 0 5px; border-radius: 8px;
     background: rgba(210,105,30,0.08); border: 1px solid #2a3040;
   }
   .sm-user[hidden] { display: none; }
   .sm-user-av {
-    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700; color: #fff;
+    font-size: 14px; font-weight: 700; color: #fff;
     background: linear-gradient(135deg, #b3540f, #d2691e);
   }
   .sm-user-txt { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-  .sm-user-name { font-size: 13px; font-weight: 700; color: #e8eef5;
+  .sm-user-name { font-size: 14px; font-weight: 700; color: #e8eef5;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sm-user-login { font-size: 11px; color: #8a9aaa; flex-shrink: 0; }
   .sm-item {
-    display: flex; align-items: center; gap: 9px;
-    padding: 4px 8px; border-radius: 8px; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 10px;
+    padding: 5px 9px; border-radius: 8px; cursor: pointer; user-select: none;
     color: #c0d0e0; border: 1px solid transparent;
   }
   .sm-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
   .sm-item .sm-icon {
     display: flex; align-items: center; justify-content: center;
-    width: 26px; height: 26px; border-radius: 7px; font-size: 24px; flex-shrink: 0;
+    width: 30px; height: 30px; border-radius: 8px; font-size: 28px; flex-shrink: 0;
   }
   .sm-item[data-id="home"]     .sm-icon { background: #6b3510; }
   .sm-item[data-id="terminal"] .sm-icon { background: #1a5c2a; }
@@ -313,14 +313,14 @@
   /* Collapsible "Utilities" parent → a nested (two-level) submenu. Clicking the
      parent row expands/collapses the .sm-sub group beneath it. */
   .sm-parent {
-    display: flex; align-items: center; gap: 9px;
-    padding: 4px 8px; border-radius: 8px; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 10px;
+    padding: 5px 9px; border-radius: 8px; cursor: pointer; user-select: none;
     color: #c0d0e0; border: 1px solid transparent;
   }
   .sm-parent:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
   .sm-parent .sm-icon {
     display: flex; align-items: center; justify-content: center;
-    width: 26px; height: 26px; border-radius: 7px; font-size: 22px; flex-shrink: 0;
+    width: 30px; height: 30px; border-radius: 8px; font-size: 26px; flex-shrink: 0;
     background: #3a3320;
   }
   .sm-parent .sm-parent-name { flex: 1; font-size: 14px; color: #e6edf3; }
@@ -439,6 +439,17 @@
     /* Keep the menu a comfortable width on phones (was full-width via right:8px)
        — capped so it never overflows a very narrow screen. */
     .startmenu { left: 8px; right: auto; width: min(260px, calc(100vw - 16px)); }
+    /* Trim every Start-menu row on phones to save vertical height (desktop keeps
+       the roomy defaults above). Rows ~40px -> ~34px. */
+    .sm-user, .sm-item, .sm-parent { gap: 9px; padding: 4px 8px; }
+    .sm-user { margin-bottom: 4px; }
+    .sm-item .sm-icon, .sm-parent .sm-icon, .sm-user-av {
+      width: 26px; height: 26px; border-radius: 7px;
+    }
+    .sm-item .sm-icon { font-size: 24px; }
+    .sm-parent .sm-icon { font-size: 22px; }
+    .sm-user-av { font-size: 12px; }
+    .sm-user-name { font-size: 13px; }
   }
 
   /* === Implicit keyboard ⌨ button (touch only) ===
