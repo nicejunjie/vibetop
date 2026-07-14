@@ -21,6 +21,11 @@
 set -euo pipefail
 
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
+# The proxy runs as the OPERATOR (human admin whose Claude Code is observed), not
+# APP_USER (which may be the `vibetop` service account). Default: first
+# VIBETOP_ADMINS entry, else APP_USER (backward-compatible on a home install).
+OPERATOR="${OPERATOR:-${VIBETOP_ADMINS:-$APP_USER}}"
+OPERATOR="${OPERATOR%%,*}"
 # APP_DIR = repo root (this script lives in <repo>/claude-usage/)
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 if ! id "$APP_USER" >/dev/null 2>&1; then
@@ -59,6 +64,7 @@ run chmod +x "$APP_DIR/claude-usage/vibetop-claude-proxy"
 if (( INSTALL_SYSTEMD )); then
     echo "== installing systemd unit (disabled until the feature is turned on) =="
     sed -e "s|@APP_USER@|$APP_USER|g" \
+        -e "s|@OPERATOR@|$OPERATOR|g" \
         -e "s|@APP_DIR@|$APP_DIR|g" \
         "$APP_DIR/claude-usage/systemd/$UNIT" \
         | write_root "/etc/systemd/system/$UNIT"

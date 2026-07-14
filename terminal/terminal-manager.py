@@ -429,7 +429,11 @@ def _shell_version():
 # the feature ON starts that proxy AND adds ANTHROPIC_BASE_URL to the user's
 # Claude settings so Claude Code routes through it; OFF removes both. Nothing
 # routes through the proxy while the feature is off.
-CLAUDE_USAGE_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/vibetop-claude-usage.json")
+# Both follow OPERATOR (the human whose Claude Code is observed), NOT APP_USER —
+# once APP_USER is the `vibetop` service account, the proxy still writes into the
+# operator's home (it runs as OPERATOR), so the manager must read there too.
+CLAUDE_USAGE_FILE = (os.environ.get("CLAUDE_USAGE_FILE")
+                     or os.path.expanduser(f"~{OPERATOR}/.local/share/vibetop-claude-usage.json"))
 CLAUDE_SETTINGS_FILE = os.path.expanduser(f"~{OPERATOR}/.claude/settings.json")
 CLAUDE_PROXY_URL = "http://127.0.0.1:7690"
 CLAUDE_PROXY_SERVICE = "vibetop-claude-proxy.service"

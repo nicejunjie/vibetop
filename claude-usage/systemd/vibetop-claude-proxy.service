@@ -6,10 +6,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=@APP_USER@
-# Runs in-place from the git checkout (like vibetop-manager), so an Update that
-# changes the proxy just needs a restart, no file copy. Loopback-only; ~ resolves
-# to APP_USER's home (systemd sets $HOME), where the usage JSON is written.
+# Runs as the OPERATOR (the human whose Claude Code is observed) — NOT APP_USER,
+# which may be the `vibetop` service account that never runs Claude Code. systemd
+# sets $HOME to the operator's home, where the usage JSON is written and where the
+# manager reads it (CLAUDE_USAGE_FILE). Loopback-only, in-place from the checkout.
+User=@OPERATOR@
 Environment=CLAUDE_PROXY_PORT=7690
 ExecStart=@APP_DIR@/claude-usage/vibetop-claude-proxy
 Restart=always
