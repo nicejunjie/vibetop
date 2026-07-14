@@ -246,7 +246,7 @@ if (( INSTALL_NGINX )); then
         exit 1
     fi
     # Deploy xpra patches JS to web root (served as static file at /xpra-patches.js)
-    LANDING_DIR="$(getent passwd "$APP_USER" | cut -d: -f6)/vibetop-www"
+    LANDING_DIR="${LANDING_DIR:-$(getent passwd "$APP_USER" | cut -d: -f6)/vibetop-www}"
     run sudo install -m 0644 "$APP_DIR/xpra-patches.js" "$LANDING_DIR/xpra-patches.js"
     # Cache-buster derived from the patch file's CONTENT, so editing it always
     # changes the ?v= (busting nginx + the service worker) — no manual version

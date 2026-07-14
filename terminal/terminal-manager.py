@@ -202,6 +202,33 @@ def _app_user():
 APP_USER = _app_user()
 
 
+def _admin_users():
+    """The human admin(s) — kept SEPARATE from APP_USER (the service account that
+    owns the code + runs deploys). Once prod lives in /opt/vibetop owned by a
+    no-login `vibetop` account, APP_USER == 'vibetop', which nobody logs in as —
+    so the web-UI admin identity must be named explicitly. Comma-separated
+    `VIBETOP_ADMINS`; defaults to [APP_USER] so a home-owned install (where
+    APP_USER *is* the operator) behaves exactly as before."""
+    env = (os.environ.get("VIBETOP_ADMINS") or "").strip()
+    if env:
+        return [u.strip() for u in env.split(",") if u.strip()]
+    return [APP_USER]
+
+
+ADMIN_USERS = _admin_users()
+# The operator whose Claude Code the (single) plan-usage strip observes — the
+# first admin (the feature reads one ~/.claude). Falls back to APP_USER.
+OPERATOR = ADMIN_USERS[0] if ADMIN_USERS else APP_USER
+
+
+def _is_admin(user):
+    # A named human admin, OR APP_USER itself — the latter only ever appears as
+    # _ctx_user() on a cookieless loopback request (trusted local/admin tooling;
+    # nginx blocks cookieless access to protected paths, and `vibetop` is a
+    # no-login account nobody can authenticate as).
+    return user == APP_USER or user in ADMIN_USERS
+
+
 def _user_home(user):
     """Home directory for a Linux user. Multi-user (Option B): per-request state
     and file ops resolve under the *authenticated* user's real home. Overridable
@@ -403,7 +430,7 @@ def _shell_version():
 # Claude settings so Claude Code routes through it; OFF removes both. Nothing
 # routes through the proxy while the feature is off.
 CLAUDE_USAGE_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/vibetop-claude-usage.json")
-CLAUDE_SETTINGS_FILE = os.path.expanduser(f"~{APP_USER}/.claude/settings.json")
+CLAUDE_SETTINGS_FILE = os.path.expanduser(f"~{OPERATOR}/.claude/settings.json")
 CLAUDE_PROXY_URL = "http://127.0.0.1:7690"
 CLAUDE_PROXY_SERVICE = "vibetop-claude-proxy.service"
 CLAUDE_USAGE_STALE_SEC = 15 * 60   # usage only refreshes on a real API call
@@ -540,7 +567,8 @@ FB_PORT = _port_env("FB_PORT", 8085)       # FileBrowser
 # from a terminal show up as Apps tabs). Matches browser/install.sh's
 # X11_DISPLAY_NUM.
 X11_DISPLAY = os.environ.get("X11_DISPLAY", ":98")
-ONLYOFFICE_SECRET_FILE = os.path.expanduser(f"~{APP_USER}/.config/vibetop/onlyoffice.secret")
+ONLYOFFICE_SECRET_FILE = (os.environ.get("ONLYOFFICE_SECRET_FILE")
+                          or os.path.expanduser(f"~{APP_USER}/.config/vibetop/onlyoffice.secret"))
 ONLYOFFICE_HOST = os.environ.get("ONLYOFFICE_CALLBACK_HOST", "http://host.docker.internal")
 # Extension -> OnlyOffice documentType.
 _OO_CELL = {"xlsx", "xls", "xlsm", "xlsb", "xltx", "xltm", "ods", "ots", "csv", "tsv"}
@@ -1255,7 +1283,7 @@ def _jwt_verify(token, secret):
 
 SESSION_COOKIE = "vt_session"
 SESSION_TTL = 7 * 24 * 3600                      # "remember me" for 7 days
-SESSION_SECRET_FILE = "/etc/vibetop/session.secret"
+SESSION_SECRET_FILE = os.environ.get("SESSION_SECRET_FILE") or "/etc/vibetop/session.secret"
 PAM_SERVICE = os.environ.get("VIBETOP_PAM_SERVICE", "vibetop")
 _USERNAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")   # POSIX-ish login name
 _session_secret_cache = None
@@ -1931,8 +1959,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         act as APP_USER — so a non-admin user calling them would act AS the
         operator (RCE/DoS/data). Restrict them to the operator (APP_USER) until
         each is per-user. Returns True if allowed; else writes 403 and returns
-        False. Cookieless loopback/admin tooling (_ctx_user()==APP_USER) passes."""
-        if _ctx_user() == APP_USER:
+        False. Admits the named admins (VIBETOP_ADMINS) plus APP_USER — the latter
+        is cookieless loopback/admin tooling (_ctx_user() falls back to APP_USER)."""
+        if _is_admin(_ctx_user()):
             return True
         log.warning("admin-only %s denied for user %s", self.path, _ctx_user())
         self._json(403, {"error": "this feature is available to the operator only "
@@ -2441,7 +2470,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # So gate the heartbeat fold to APP_USER too — otherwise a non-admin's
         # (un-gated) heartbeat would disclose the operator's plan usage, bypassing
         # that gate. Non-admins see claude_usage:false and no `claude` payload.
-        cu = _claude_usage_enabled() and _ctx_user() == APP_USER
+        cu = _claude_usage_enabled() and _is_admin(_ctx_user())
         nterm = len(self._get_running_terminals())
         with _desktop_lock:
             state = _read_desktop_state()
@@ -3728,7 +3757,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Claude usage reflects APP_USER's ~/.claude + a single shared proxy, so
             # only fold it for the operator (else it leaks the admin's plan usage to
             # every user). Non-admins get claude_usage:false and no numbers.
-            cu = _claude_usage_enabled() and (_ctx_user() == APP_USER)
+            cu = _claude_usage_enabled() and _is_admin(_ctx_user())
             nterm = len(self._get_running_terminals())   # Start-menu badge, folded on
             with _desktop_lock:
                 state = _read_desktop_state()

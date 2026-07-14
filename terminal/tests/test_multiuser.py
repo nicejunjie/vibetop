@@ -187,6 +187,21 @@ def test_non_admin_denied_admin_only_subsystems(client, mgr, users):
     assert client.get("/api/services/discover", cookie=ck)[0] == 403
 
 
+def test_admin_gate_honors_admin_users_setting(client, mgr, users, monkeypatch):
+    # Decoupling: once APP_USER is a no-login service account (`vibetop`), the human
+    # admin(s) are named in ADMIN_USERS (env VIBETOP_ADMINS). A named admin passes
+    # the gate; a non-admin does not; APP_USER (cookieless loopback tooling) always
+    # does. This is what lets junjie stay admin after APP_USER becomes `vibetop`.
+    monkeypatch.setattr(mgr, "ADMIN_USERS", ["alice"])
+    assert mgr._is_admin("alice") is True
+    assert mgr._is_admin("bob") is False
+    assert mgr._is_admin(mgr.APP_USER) is True             # loopback / service acct
+    (_, alice_ck) = users["alice"]
+    (_, bob_ck) = users["bob"]
+    assert client.get("/api/claude/usage", cookie=alice_ck)[0] == 200   # named admin
+    assert client.get("/api/claude/usage", cookie=bob_ck)[0] == 403     # non-admin
+
+
 def test_browser_x11_are_per_user_not_admin_gated(client, mgr, users, monkeypatch):
     # Browser/X11 now run as the request user -> a non-admin is NOT 403'd.
     import types
