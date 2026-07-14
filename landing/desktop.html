@@ -346,8 +346,13 @@
   /* Build number + date together on a quiet line under the pill, so the date
      reads as the build date — not "today". */
   .sm-build .build-meta { display: block; margin-top: 4px; font: 400 10px ui-monospace, Menlo, monospace; color: #6a7a8a; letter-spacing: 0.2px; }
+  /* Text column shrinks (min-width:0) so the description ellipsizes instead of
+     wrapping to a 2nd line — the narrow (240px) menu + a running app's ⏻ button
+     left "Persistent bash terminals" too wide for one line on iPad. */
+  .sm-item .sm-text { flex: 1 1 auto; min-width: 0; }
   .sm-item .sm-name { font-size: 14px; color: #e6edf3; display: flex; align-items: center; }
-  .sm-item .sm-desc { font-size: 11px; color: #6a7a8a; margin-top: 0; line-height: 1.25; }
+  .sm-item .sm-desc { font-size: 11px; color: #6a7a8a; margin-top: 0; line-height: 1.25;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Green dot = an active/existing session you'd resume or join. */
   .sm-item.running .sm-name::after { content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; }
   /* "Turn off on all devices" — only on running apps; a soft power glyph (matches
@@ -689,7 +694,7 @@
       item.className = 'sm-item'; item.setAttribute('data-id', id);
       var ic = document.createElement('div'); ic.className = 'sm-icon';
       if (a.svg) ic.innerHTML = a.svg; else ic.textContent = a.icon;
-      var box = document.createElement('div');
+      var box = document.createElement('div'); box.className = 'sm-text';
       var nm = document.createElement('div'); nm.className = 'sm-name'; nm.textContent = a.label;
       var ds = document.createElement('div'); ds.className = 'sm-desc'; ds.textContent = a.desc || '';
       box.appendChild(nm); box.appendChild(ds);
