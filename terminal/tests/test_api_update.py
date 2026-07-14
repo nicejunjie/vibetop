@@ -83,7 +83,15 @@ def test_update_restart_when_manager_module_changes(client, mgr, stubs, monkeypa
     status, body = client.post("/api/update", {})
     assert status == 200 and body["ok"] is True
     assert body["restart"] is True               # a sibling .py under terminal/
-    # A transient systemd-run restart was scheduled out-of-band.
+    # A transient systemd-run restart is scheduled out-of-band — the response
+    # flushes first (so the restart survives the manager's own death), then a
+    # separate server thread records the popen. Poll rather than racing the
+    # assert (real time.sleep: the stubs fixture only patches the manager's).
+    import time
+    for _ in range(300):
+        if any("systemd-run" in c for c in stubs["popen"]):
+            break
+        time.sleep(0.01)
     assert any("systemd-run" in c for c in stubs["popen"])
 
 
