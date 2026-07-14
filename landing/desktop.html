@@ -252,7 +252,7 @@
   /* === Start menu === */
   .startmenu {
     position: absolute; bottom: calc(var(--tb) + 8px); left: 8px;
-    width: 280px; max-height: calc(100svh - var(--tb) - 26px); overflow-y: auto;
+    width: 240px; max-height: calc(100svh - var(--tb) - 26px); overflow-y: auto;
     background: #11161d; border: 1px solid #2a3040; border-radius: 12px;
     box-shadow: 0 12px 40px rgba(0,0,0,0.55);
     z-index: 110; padding: 7px;
@@ -438,7 +438,7 @@
     .tb-spacer { flex: 0 0 8px; }
     /* Keep the menu a comfortable width on phones (was full-width via right:8px)
        — capped so it never overflows a very narrow screen. */
-    .startmenu { left: 8px; right: auto; width: min(300px, calc(100vw - 16px)); }
+    .startmenu { left: 8px; right: auto; width: min(260px, calc(100vw - 16px)); }
   }
 
   /* === Implicit keyboard ⌨ button (touch only) ===
