@@ -345,7 +345,16 @@
     color: #7a8a9a; padding: 2px 8px 6px; cursor: pointer; user-select: none;
   }
   .sm-fly-head:hover { color: #cde; }
-  .sm-sub.overlay .sm-fly-head::before { content: "\2039  "; font-size: 14px; }  /* ‹ back, when overlaying */
+  /* Narrow screens have no room beside the menu, so instead of a floating panel
+     that partially overlaps it, the menu shows ONLY the Utilities "page" (other
+     sections hidden) with #sm-utilities filling it in-flow. The header's ‹ = back. */
+  .startmenu.util-page > :not(#sm-utilities) { display: none; }
+  .startmenu.util-page #sm-utilities {
+    display: block; position: static; width: auto;
+    max-height: none; overflow: visible;
+    background: none; border: none; box-shadow: none; padding: 0;
+  }
+  .startmenu.util-page .sm-fly-head::before { content: "\2039  "; font-size: 14px; }
   .sm-parent.has-active .sm-parent-name::after {
     content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; vertical-align: middle;
   }
@@ -1320,39 +1329,51 @@
   function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; closeUtilFlyout(); notifyBrowserMenu(false); }
   function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
 
-  // --- Utilities cascading flyout (never grows the menu vertically) ----------
+  // --- Utilities submenu: side flyout on desktop, in-menu drill-down on narrow --
   var utilParent = document.getElementById('sm-util-parent');
   var utilSub = document.getElementById('sm-utilities');
-  function positionUtilFlyout() {
-    var mr = menuEl.getBoundingClientRect(), W = 240;
-    utilSub.style.bottom = (window.innerHeight - mr.bottom) + 'px';
-    utilSub.style.right = 'auto';
-    if (mr.right + 6 + W <= window.innerWidth - 6) {          // room to the right
-      utilSub.style.left = (mr.right + 6) + 'px'; utilSub.style.width = W + 'px';
-      utilSub.classList.remove('overlay');
-    } else if (mr.left - 6 - W >= 6) {                        // room to the left
-      utilSub.style.left = (mr.left - 6 - W) + 'px'; utilSub.style.width = W + 'px';
-      utilSub.classList.remove('overlay');
-    } else {                                                  // no side room → overlay the menu
-      utilSub.style.left = mr.left + 'px'; utilSub.style.width = mr.width + 'px';
-      utilSub.classList.add('overlay');
+  var UTIL_W = 240;
+  // Where (if anywhere) a fixed side panel fits: its left px, or null = no side room.
+  function utilSideLeft() {
+    var mr = menuEl.getBoundingClientRect();
+    if (mr.right + 6 + UTIL_W <= window.innerWidth - 6) return mr.right + 6;   // right
+    if (mr.left - 6 - UTIL_W >= 6) return mr.left - 6 - UTIL_W;                // left
+    return null;                                                              // none
+  }
+  function utilFlyoutOpen() { return utilSub.classList.contains('open') || menuEl.classList.contains('util-page'); }
+  function openUtilFlyout() {
+    utilParent.classList.add('open');
+    var mr = menuEl.getBoundingClientRect(), left = utilSideLeft();
+    utilSub.style.cssText = '';                 // clear any prior inline positioning
+    if (left != null) {                         // desktop: fixed panel beside the menu
+      menuEl.classList.remove('util-page');
+      utilSub.classList.add('open');
+      utilSub.style.left = left + 'px';
+      utilSub.style.width = UTIL_W + 'px';
+      utilSub.style.bottom = (window.innerHeight - mr.bottom) + 'px';
+    } else {                                    // narrow: drill-down page inside the menu
+      utilSub.classList.remove('open');
+      menuEl.classList.add('util-page');
     }
   }
-  function openUtilFlyout() { utilParent.classList.add('open'); utilSub.classList.add('open'); positionUtilFlyout(); }
-  function closeUtilFlyout() { utilParent.classList.remove('open'); utilSub.classList.remove('open'); }
-  function toggleUtilFlyout() { utilSub.classList.contains('open') ? closeUtilFlyout() : openUtilFlyout(); }
-  // Desktop convenience: hover opens the flyout; leaving either side closes it
-  // (a short delay bridges the gap between the parent row and the panel).
+  function closeUtilFlyout() {
+    utilParent.classList.remove('open');
+    utilSub.classList.remove('open');
+    menuEl.classList.remove('util-page');
+  }
+  function toggleUtilFlyout() { utilFlyoutOpen() ? closeUtilFlyout() : openUtilFlyout(); }
+  // Desktop convenience: hover opens the SIDE flyout (never the drill-down, which
+  // hides the parent row and would flicker); leaving either side closes it.
   if (!IS_TOUCH) {
     var flyCloseT;
-    var arm = function () { flyCloseT = setTimeout(closeUtilFlyout, 220); };
+    var arm = function () { if (utilSub.classList.contains('open')) flyCloseT = setTimeout(closeUtilFlyout, 220); };
     var cancel = function () { clearTimeout(flyCloseT); };
-    utilParent.addEventListener('mouseenter', function () { cancel(); openUtilFlyout(); });
+    utilParent.addEventListener('mouseenter', function () { cancel(); if (utilSideLeft() != null) openUtilFlyout(); });
     utilParent.addEventListener('mouseleave', arm);
     utilSub.addEventListener('mouseenter', cancel);
     utilSub.addEventListener('mouseleave', arm);
   }
-  window.addEventListener('resize', function () { if (utilSub.classList.contains('open')) positionUtilFlyout(); });
+  window.addEventListener('resize', function () { if (utilFlyoutOpen()) openUtilFlyout(); });
 
   // --- events ---
   startBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleMenu(); });
