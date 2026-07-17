@@ -1758,7 +1758,9 @@
     // it self-updates on every deploy with nothing hardcoded in the image.
     var vv = document.getElementById('wp-ver');
     if (vv && d && d.version) {
+      var sw = (document.getElementById('build-sw') || {}).textContent || '';  // stamped @SW_VERSION@
       var parts = ['Vibetop v' + d.version];
+      if (sw) parts.push('build ' + sw);
       if (d.version_date) parts.push(d.version_date);
       if (d.commit) parts.push(d.commit);
       vv.textContent = parts.join('  ·  ');
