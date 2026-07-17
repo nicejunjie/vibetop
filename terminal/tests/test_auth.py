@@ -218,3 +218,139 @@ def test_login_then_authcheck_roundtrip(mgr, client, monkeypatch):
     cookie = _cookie_pair(headers)
     status, hdrs, _ = client.get_full("/api/authcheck", cookie=cookie)
     assert status == 200 and hdrs.get("X-Vibetop-User") == "junjie"
+
+
+# --- sudo gate (_can_sudo / _require_sudo) + Config app authZ ---------------
+import types
+
+
+def _fake_pw(name="alice", uid=1001, gid=1001, shell="/bin/bash"):
+    return types.SimpleNamespace(pw_name=name, pw_uid=uid, pw_gid=gid,
+                                 pw_shell=shell, pw_gecos=name + ",,,",
+                                 pw_dir="/home/" + name)
+
+
+def _fake_gr(name, gid, members):
+    return types.SimpleNamespace(gr_name=name, gr_gid=gid, gr_mem=list(members))
+
+
+def test_can_sudo_supplementary_member(mgr, home, monkeypatch):
+    monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: _fake_pw(u, gid=1001))
+    monkeypatch.setattr(mgr.grp, "getgrnam",
+                        lambda n: _fake_gr("sudo", 27, ["alice"]) if n == "sudo"
+                        else (_ for _ in ()).throw(KeyError(n)))
+    mgr._cache.clear()
+    assert mgr._can_sudo("alice") is True
+    assert mgr._can_sudo("bob") is False
+
+
+def test_can_sudo_primary_gid(mgr, home, monkeypatch):
+    # A user whose PRIMARY group IS sudo (gr_mem empty) still counts.
+    monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: _fake_pw(u, gid=27))
+    monkeypatch.setattr(mgr.grp, "getgrnam",
+                        lambda n: _fake_gr("sudo", 27, []) if n == "sudo"
+                        else (_ for _ in ()).throw(KeyError(n)))
+    mgr._cache.clear()
+    assert mgr._can_sudo("carol") is True
+
+
+def test_me_reports_can_sudo(client, mgr, users, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: u == "alice")
+    assert client.get("/api/me", cookie=users["alice"][1])[1]["can_sudo"] is True
+    assert client.get("/api/me", cookie=users["bob"][1])[1]["can_sudo"] is False
+
+
+def test_config_endpoints_require_sudo(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: u == "alice")
+    bob = users["bob"][1]
+    assert client.get("/api/config/idle", cookie=bob)[0] == 403
+    assert client.get("/api/config/users", cookie=bob)[0] == 403
+    assert client.post("/api/config/idle",
+                       {"enabled": False, "minutes": 30}, cookie=bob)[0] == 403
+    assert client.post("/api/config/users/remove",
+                       {"username": "x"}, cookie=bob)[0] == 403
+    # cookieless (falls back to APP_USER) is also refused
+    assert client.get("/api/config/idle")[0] == 403
+    # the sudo user gets through
+    alice = users["alice"][1]
+    assert client.get("/api/config/idle", cookie=alice)[0] == 200
+    assert client.get("/api/config/users", cookie=alice)[0] == 200
+
+
+def test_user_add_rejects_bad_and_protected(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    ck = users["alice"][1]
+    for bad in ("root", "Bad Name", "", mgr.APP_USER):
+        assert client.post("/api/config/users/add",
+                           {"username": bad, "password": "pw123456"}, cookie=ck)[0] == 400
+    assert not any(isinstance(c, list) and c and c[0] == "useradd" for c in stubs["run"])
+
+
+def test_user_remove_refuses_self(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    st, body = client.post("/api/config/users/remove",
+                           {"username": "alice"}, cookie=users["alice"][1])
+    assert st == 400 and "yourself" in body["error"]
+    assert not any(isinstance(c, list) and c and c[0] == "userdel" for c in stubs["run"])
+
+
+def test_passwd_uses_stdin_not_argv(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: _fake_pw(u, uid=1005))
+    st, _ = client.post("/api/config/users/passwd",
+                        {"username": "testu", "password": "s3cret!"}, cookie=users["alice"][1])
+    assert st == 200
+    idx = next(i for i, c in enumerate(stubs["run"])
+               if isinstance(c, list) and c and c[0] == "chpasswd")
+    assert stubs["run_kw"][idx].get("input") == "testu:s3cret!"          # on STDIN
+    assert all("s3cret!" not in " ".join(map(str, c))                    # never in argv
+               for c in stubs["run"] if isinstance(c, list))
+
+
+def test_user_add_sequence(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: (_ for _ in ()).throw(KeyError(u)))   # not-yet-existing
+    st, body = client.post("/api/config/users/add",
+                           {"username": "newbie", "password": "pw123456"}, cookie=users["alice"][1])
+    assert st == 200 and body["user"] == "newbie"
+    order = [c[0] for c in stubs["run"]
+             if isinstance(c, list) and c and c[0] in ("useradd", "chpasswd", "loginctl")]
+    assert order[:3] == ["useradd", "chpasswd", "loginctl"]
+
+
+def test_passwd_and_remove_reject_protected(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    ck = users["alice"][1]
+    for ep in ("/api/config/users/passwd", "/api/config/users/remove"):
+        for bad in ("root", mgr.APP_USER):
+            assert client.post(ep, {"username": bad, "password": "pw123456"},
+                               cookie=ck)[0] == 400
+    assert not any(isinstance(c, list) and c and c[0] in ("chpasswd", "userdel")
+                   for c in stubs["run"])
+
+
+def test_passwd_and_remove_reject_system_account(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    # A syntactically valid name that resolves to a system account (uid<1000,
+    # nologin) must be refused by _is_real_login_user, not just the name denylist.
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: _fake_pw(u, uid=1, shell="/usr/sbin/nologin"))
+    ck = users["alice"][1]
+    assert client.post("/api/config/users/passwd",
+                       {"username": "daemon", "password": "pw123456"}, cookie=ck)[0] == 400
+    assert client.post("/api/config/users/remove",
+                       {"username": "daemon"}, cookie=ck)[0] == 400
+    assert not any(isinstance(c, list) and c and c[0] in ("chpasswd", "userdel")
+                   for c in stubs["run"])
+
+
+def test_password_rejects_control_chars(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: (_ for _ in ()).throw(KeyError(u)))
+    ck = users["alice"][1]
+    for bad in ("a\nb", "a\x00b"):        # CR/LF corrupt the chpasswd line; NUL is mishandled
+        assert client.post("/api/config/users/add",
+                           {"username": "newbie", "password": bad}, cookie=ck)[0] == 400
+    assert not any(isinstance(c, list) and c and c[0] == "useradd" for c in stubs["run"])

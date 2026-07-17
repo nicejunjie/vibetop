@@ -22,6 +22,7 @@ import json
 import logging
 import logging.handlers
 import mimetypes
+import grp
 import os
 import pwd
 import re
@@ -227,6 +228,31 @@ def _is_admin(user):
     # nginx blocks cookieless access to protected paths, and `vibetop` is a
     # no-login account nobody can authenticate as).
     return user == APP_USER or user in ADMIN_USERS
+
+
+# Sudo capability of a real OS user — the gate for the Config admin app. This is
+# DELIBERATELY distinct from _is_admin (VIBETOP_ADMINS): Config does OS-level
+# things (add/remove Linux users, reset OS passwords), so it keys on actual
+# membership in a sudoers-granting group, not the app's admin list. Cached ~30s
+# (group files rarely change) so /api/me + the user list stay cheap.
+_SUDO_GROUPS = ("sudo", "admin", "wheel")
+
+
+def _can_sudo(user):
+    def _compute():
+        try:
+            pw = pwd.getpwnam(user)
+        except KeyError:
+            return False
+        for gname in _SUDO_GROUPS:
+            try:
+                gr = grp.getgrnam(gname)
+            except KeyError:
+                continue
+            if user in gr.gr_mem or gr.gr_gid == pw.pw_gid:   # supplementary OR primary
+                return True
+        return False
+    return _cached("can_sudo:" + user, 30.0, _compute)
 
 
 def _user_home(user):
@@ -721,6 +747,225 @@ def _bump_token_epoch(user):
             pass
     with _cache_lock:
         _cache.pop("token_epoch:" + user, None)
+
+
+# ---- Idle reaper (opt-in; default OFF) ---------------------------------------
+# Per-user services start on demand but are otherwise only stopped by an explicit
+# Logout — so a user who just closes the tab leaves a full stack (ttyd +
+# FileBrowser + two xpra displays = Xorg+Chromium each) resident forever. The
+# reaper stops the RAM-hog services of a user idle (no web heartbeat) longer than
+# the admin-set threshold. Opt-in via the Config app; policy is host-wide.
+IDLE_POLICY_FILE = os.environ.get("IDLE_POLICY_FILE") or "/var/lib/vibetop/idle.json"
+_idle_lock = threading.Lock()
+IDLE_MIN_MINUTES, IDLE_MAX_MINUTES = 1, 1440
+IDLE_DEFAULT_MINUTES = 30
+
+
+def _read_idle_policy():
+    """{"enabled": bool, "minutes": int(clamped), "reapTerminals": bool}. Missing
+    or corrupt file -> all defaults (disabled), so the reaper is OFF by default."""
+    try:
+        with open(IDLE_POLICY_FILE) as f:
+            d = json.load(f)
+        d = d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        d = {}
+    try:
+        minutes = int(d.get("minutes", IDLE_DEFAULT_MINUTES))
+    except (TypeError, ValueError):
+        minutes = IDLE_DEFAULT_MINUTES
+    minutes = max(IDLE_MIN_MINUTES, min(IDLE_MAX_MINUTES, minutes))
+    return {"enabled": bool(d.get("enabled", False)), "minutes": minutes,
+            "reapTerminals": bool(d.get("reapTerminals", False))}
+
+
+def _write_idle_policy(enabled, minutes, reap_terminals):
+    with _idle_lock:
+        try:
+            os.makedirs(os.path.dirname(IDLE_POLICY_FILE), exist_ok=True)
+            _atomic_write(IDLE_POLICY_FILE, json.dumps(
+                {"enabled": bool(enabled), "minutes": int(minutes),
+                 "reapTerminals": bool(reap_terminals)}))
+        except OSError as e:
+            log.warning("idle policy write failed: %s", e)
+
+
+def _user_last_heartbeat(user):
+    """Newest instance `ts` from a user's OWN desktop-state.json (built from
+    _user_home(user), NOT _ctx_home — the reaper runs off the request path).
+    None if the user has no desktop state / no instances."""
+    path = os.path.join(_user_home(user), ".local/share/desktop-state.json")
+    try:
+        with open(path) as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        return None
+    inst = state.get("instances") if isinstance(state, dict) else None
+    if not isinstance(inst, dict):
+        return None
+    ts = [e["ts"] for e in inst.values()
+          if isinstance(e, dict) and isinstance(e.get("ts"), (int, float))]
+    return max(ts) if ts else None
+
+
+def _reap_user(user, reap_terminals=False):
+    """Stop a user's per-user services to reclaim resources, WITHOUT wiping any of
+    their state (desktop layout / notes / office / browser profile all survive, so
+    their windows restore on next login). Mirrors the service-stopping subset of
+    _handle_reset but takes an explicit `user`, so it's safe from a background
+    thread. Always stops the RAM hogs (Browser + X11 xpra + FileBrowser); stops
+    terminals only when reap_terminals (they're cheap and may hold a running job)."""
+    stopped = {"terminals": [], "filebrowser": False, "xpra": []}
+    if reap_terminals:
+        try:
+            running = _list_running_terminals(user)
+        except Exception:
+            running = []
+        for n in running:
+            try:
+                _stop_user_terminal(user, n)
+            except Exception:
+                pass
+        if running:
+            stopped["terminals"] = running
+        with _cache_lock:
+            _cache.pop("running_terminals:" + user, None)
+    try:
+        subprocess.run(["systemctl", "stop", _fb_unit(user)],
+                       check=False, capture_output=True, text=True, timeout=20)
+        stopped["filebrowser"] = True
+    except (OSError, subprocess.SubprocessError):
+        pass
+    with _cache_lock:
+        _cache.pop("fb_port:" + user, None)
+    for kind in ("browser", "x11"):
+        try:
+            _stop_user_xpra(user, kind)
+            stopped["xpra"].append(kind)
+        except Exception:
+            pass
+        with _cache_lock:
+            _cache.pop(f"xpra_port:{kind}:" + user, None)
+    log.info("reaper: reaped idle user %s (terminals=%s fb=%s xpra=%s)",
+             user, stopped["terminals"], stopped["filebrowser"], stopped["xpra"])
+    return stopped
+
+
+def _reap_idle_users(now=None):
+    """One reaper pass. No-op (returns []) when disabled. Returns the list of
+    reaped users (for tests/logging). Candidates come from the users registry
+    (every user who ever opened a per-user app has a slot) — cheap, no per-tick
+    subprocess; a user with no desktop state or a fresh heartbeat is skipped."""
+    policy = _read_idle_policy()
+    if not policy["enabled"]:
+        return []
+    now = time.time() if now is None else now
+    cutoff = policy["minutes"] * 60
+    reaped = []
+    for user in list(_read_users_registry().keys()):
+        try:
+            last = _user_last_heartbeat(user)
+            if last is None or (now - last) <= cutoff:
+                continue
+            _reap_user(user, policy["reapTerminals"])
+            reaped.append(user)
+        except Exception as e:
+            log.warning("reaper: failed to reap %s: %s", user, e)
+    return reaped
+
+
+def _reaper_loop():
+    """Background thread: one idle pass per minute (a no-op while the policy is
+    disabled, which is the default)."""
+    while True:
+        time.sleep(60)
+        try:
+            _reap_idle_users()
+        except Exception as e:
+            log.warning("reaper loop error: %s", e)
+
+
+# ---- User management (Config app; sudo-gated) --------------------------------
+# Add/remove real Linux users, reset their OS password, and list who exists /
+# who's online. The manager is root, so these shell out to useradd/chpasswd/
+# userdel. Guards live in the handlers (_valid_target_user + _is_real_login_user);
+# passwords go via chpasswd STDIN, never argv.
+UID_MIN, UID_MAX = 1000, 65533           # real login users (skip system + nobody)
+_NOLOGIN_SHELLS = ("nologin", "false", "sync", "")
+
+
+def _is_real_login_user(pw):
+    if not (UID_MIN <= pw.pw_uid <= UID_MAX):
+        return False
+    return os.path.basename(pw.pw_shell or "") not in _NOLOGIN_SHELLS
+
+
+def _online_users():
+    """Users with a vibetop web heartbeat within DESKTOP_TTL (web-online). A pure
+    SSH session isn't counted — presence here means 'has a live desktop'."""
+    now = time.time()
+    out = set()
+    for u in _read_users_registry():
+        t = _user_last_heartbeat(u)
+        if t is not None and (now - t) < DESKTOP_TTL:
+            out.add(u)
+    return out
+
+
+def _list_real_users():
+    online = _online_users()
+    users = []
+    for pw in pwd.getpwall():
+        if not _is_real_login_user(pw):
+            continue
+        users.append({
+            "user": pw.pw_name, "uid": pw.pw_uid,
+            "name": (pw.pw_gecos or "").split(",")[0].strip(),
+            "sudo": _can_sudo(pw.pw_name), "online": pw.pw_name in online,
+        })
+    users.sort(key=lambda u: u["user"])
+    return users
+
+
+def _valid_target_user(username):
+    """(ok, err) — a syntactically valid, non-protected target for user ops.
+    Refuses root/APP_USER/named admins so a sudoer can't lock out the operator."""
+    if not (isinstance(username, str) and _USERNAME_RE.match(username)):
+        return False, "invalid username"
+    if username in ("root", APP_USER) or username in ADMIN_USERS:
+        return False, "protected user"
+    return True, None
+
+
+def _valid_password(pw):
+    # Reject CR/LF (would split the chpasswd `user:pass` line) and NUL (mishandled
+    # on a text stdin / by PAM).
+    return (isinstance(pw, str) and 1 <= len(pw) <= 1024
+            and "\n" not in pw and "\r" not in pw and "\0" not in pw)
+
+
+def _set_unix_password(username, password):
+    """Set a user's OS password via `chpasswd` with `user:pass` on STDIN — NEVER
+    on argv (argv is world-readable via /proc). Returns (ok, err)."""
+    try:
+        r = subprocess.run(["chpasswd"], input=f"{username}:{password}",
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    if r.returncode != 0:
+        return False, (r.stderr or "chpasswd failed").strip()
+    return True, None
+
+
+def _drop_user_from_registry(user):
+    with _users_lock:
+        reg = _read_users_registry()
+        if reg.pop(user, None) is not None:
+            try:
+                os.makedirs(os.path.dirname(USERS_REGISTRY), exist_ok=True)
+                _atomic_write(USERS_REGISTRY, json.dumps(reg))
+            except OSError:
+                pass
 
 
 def _user_term_port(user, n):
@@ -1995,6 +2240,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                   "(not yet per-user)"})
         return False
 
+    def _require_sudo(self):
+        """Guard for the Config admin app (idle policy + user management). Gates on
+        real OS sudo membership (_can_sudo), NOT VIBETOP_ADMINS — these endpoints do
+        OS-level user/password ops. Returns True if allowed; else writes 403."""
+        if _can_sudo(_ctx_user()):
+            return True
+        log.warning("sudo-only %s denied for user %s", self.path, _ctx_user())
+        self._json(403, {"error": "this feature requires sudo privileges"})
+        return False
+
     def _req_is_https(self):
         # nginx forwards the original scheme; over the tunnel/TLS it's https.
         return self.headers.get("X-Forwarded-Proto", "").lower() == "https"
@@ -2216,6 +2471,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_desktop_ui()
         if self.path == "/api/reset":
             return self._handle_reset()
+        if self.path == "/api/config/idle":
+            return self._handle_config_idle_set()
+        if self.path == "/api/config/users/add":
+            return self._handle_config_user_add()
+        if self.path == "/api/config/users/passwd":
+            return self._handle_config_user_passwd()
+        if self.path == "/api/config/users/remove":
+            return self._handle_config_user_remove()
         if self.path == "/api/upload":
             return self._handle_upload()
         if self.path == "/api/upload/clear":
@@ -2676,6 +2939,151 @@ class Handler(http.server.BaseHTTPRequestHandler):
                  user, len(result["terminals_stopped"]),
                  result.get("browser_reset"), result.get("apps_reset"))
         self._json(200, {"ok": True, **result})
+
+    # ---- Config app (sudo-gated): idle policy + user management ---------------
+    def _config_body(self):
+        """Read+parse a JSON body for the config endpoints. Returns the dict, or
+        None on a missing/oversize/invalid body (caller emits 400)."""
+        body = self._read_body(64 * 1024)
+        if body is None:
+            return None
+        try:
+            data = json.loads(body or b"{}")
+        except ValueError:
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _handle_config_idle_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, _read_idle_policy())
+
+    def _handle_config_idle_set(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        try:
+            minutes = int(data.get("minutes"))
+        except (TypeError, ValueError):
+            return self._json(400, {"error": "minutes must be an integer"})
+        if not (IDLE_MIN_MINUTES <= minutes <= IDLE_MAX_MINUTES):
+            return self._json(400, {"error": f"minutes must be "
+                                             f"{IDLE_MIN_MINUTES}..{IDLE_MAX_MINUTES}"})
+        enabled = bool(data.get("enabled", False))
+        reap_terminals = bool(data.get("reapTerminals", False))
+        _write_idle_policy(enabled, minutes, reap_terminals)
+        log.info("config: idle policy enabled=%s minutes=%d reapTerminals=%s (by %s)",
+                 enabled, minutes, reap_terminals, _ctx_user())
+        self._json(200, {"ok": True, "enabled": enabled, "minutes": minutes,
+                         "reapTerminals": reap_terminals})
+
+    def _handle_config_users_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, {"users": _list_real_users()})
+
+    def _handle_config_user_add(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        username = (data.get("username") or "").strip()
+        password = data.get("password") or ""
+        ok, err = _valid_target_user(username)
+        if not ok:
+            return self._json(400, {"error": err})
+        if not _valid_password(password):
+            return self._json(400, {"error": "invalid password"})
+        try:
+            pwd.getpwnam(username)
+            return self._json(409, {"error": "user already exists"})
+        except KeyError:
+            pass
+        try:
+            r = subprocess.run(["useradd", "-m", "-s", "/bin/bash", username],
+                               capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError) as e:
+            return self._json(500, {"error": str(e)})
+        if r.returncode != 0:
+            return self._json(500, {"error": (r.stderr or "useradd failed").strip()})
+        ok2, err2 = _set_unix_password(username, password)
+        if not ok2:
+            # Roll back the just-created (password-unset) account so a retry isn't
+            # blocked by a 409 and no password-locked account is left behind.
+            try:
+                subprocess.run(["userdel", "-r", username],
+                               check=False, capture_output=True, text=True, timeout=60)
+            except (OSError, subprocess.SubprocessError):
+                pass
+            return self._json(500, {"error": "user created but password not set: " + err2})
+        _provision_user(username)              # enable-linger so their runtime works
+        log.info("config: added user %s (by %s)", username, _ctx_user())
+        self._json(200, {"ok": True, "user": username})
+
+    def _handle_config_user_passwd(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        username = (data.get("username") or "").strip()
+        password = data.get("password") or ""
+        ok, err = _valid_target_user(username)
+        if not ok:
+            return self._json(400, {"error": err})
+        if not _valid_password(password):
+            return self._json(400, {"error": "invalid password"})
+        try:
+            pw = pwd.getpwnam(username)
+        except KeyError:
+            return self._json(404, {"error": "no such user"})
+        if not _is_real_login_user(pw):
+            return self._json(400, {"error": "not a real login user"})
+        ok2, err2 = _set_unix_password(username, password)
+        if not ok2:
+            return self._json(500, {"error": err2})
+        _bump_token_epoch(username)            # bounce their vibetop sessions
+        log.info("config: reset password for %s (by %s)", username, _ctx_user())
+        self._json(200, {"ok": True})
+
+    def _handle_config_user_remove(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        username = (data.get("username") or "").strip()
+        keep_home = bool(data.get("keepHome", False))
+        ok, err = _valid_target_user(username)
+        if not ok:
+            return self._json(400, {"error": err})
+        if username == _ctx_user():
+            return self._json(400, {"error": "cannot remove yourself"})
+        try:
+            pw = pwd.getpwnam(username)
+        except KeyError:
+            return self._json(404, {"error": "no such user"})
+        if not _is_real_login_user(pw):
+            return self._json(400, {"error": "refusing to remove a system account"})
+        try:
+            _reap_user(username, reap_terminals=True)   # free units/ports first
+        except Exception:
+            pass
+        _bump_token_epoch(username)                     # revoke sessions
+        argv = ["userdel"] + ([] if keep_home else ["-r"]) + [username]
+        try:
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        except (OSError, subprocess.SubprocessError) as e:
+            return self._json(500, {"error": str(e)})
+        if r.returncode != 0:
+            return self._json(500, {"error": (r.stderr or "userdel failed").strip()})
+        _drop_user_from_registry(username)
+        log.info("config: removed user %s keepHome=%s (by %s)",
+                 username, keep_home, _ctx_user())
+        self._json(200, {"ok": True})
 
     def _handle_browser_open(self):
         # Open a URL in THIS user's own Browser (Chromium on their per-user xpra
@@ -3707,8 +4115,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 name = (pwd.getpwnam(user).pw_gecos or "").split(",")[0].strip()
             except KeyError:
                 pass
-            self._json(200, {"user": user, "home": _ctx_home(), "name": name})
+            self._json(200, {"user": user, "home": _ctx_home(), "name": name,
+                             "can_sudo": _can_sudo(user)})
             return
+        if self.path == "/api/config/idle":
+            return self._handle_config_idle_get()
+        if self.path == "/api/config/users":
+            return self._handle_config_users_get()
         if self.path == "/api/terminals/status":
             self._json(200, {"running": self._get_running_terminals()})
             return
@@ -4096,4 +4509,5 @@ if __name__ == "__main__":
              port, logging.getLevelName(log.level))
     _sd_notify("READY=1")                                 # Type=notify readiness (ignored otherwise)
     threading.Thread(target=_watchdog_loop, args=(port,), daemon=True).start()
+    threading.Thread(target=_reaper_loop, daemon=True).start()  # idle reaper (opt-in)
     server.serve_forever()

@@ -96,6 +96,7 @@ test("every precached *.html (and /) classifies as a cacheable shell nav", () =>
 
 const NAVIGATE_NOCACHE = [
   "/update.html",
+  "/config.html",
   "/loggedout.html",
 ];
 for (const p of NAVIGATE_NOCACHE) {

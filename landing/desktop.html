@@ -158,6 +158,7 @@
   .task-app.active[data-id="monitor"]  { border-bottom-color: #d2902a; }
   .task-app.active[data-id="upload"]   { border-bottom-color: #3ab36a; }
   .task-app.active[data-id="update"]   { border-bottom-color: #8a8a9a; }
+  .task-app.active[data-id="config"]   { border-bottom-color: #8a8a9a; }
 
   .tb-spacer { flex: 0 0 10px; }  /* just a fixed gap between the tab strip and the stats — the tab strip itself now fills the space */
 
@@ -308,6 +309,7 @@
   .sm-item[data-id="monitor"]  .sm-icon { background: #4a3010; }
   .sm-item[data-id="upload"]   .sm-icon { background: #0f5c2e; }
   .sm-item[data-id="update"]   .sm-icon { background: #3a3a4a; }
+  .sm-item[data-id="config"]   .sm-icon { background: #3a3a4a; }
   /* "System" subheading sits apart from the everyday apps above it */
   .sm-title-system { margin-top: 3px; border-top: 1px solid #222a36; padding-top: 7px; }
   /* Collapsible "Utilities" parent → a nested (two-level) submenu. Clicking the
@@ -649,7 +651,9 @@
     // icons match in style and size instead of falling back to emoji.
     claudeusage: svgIcon('M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z'),
     tokenstats:  svgIcon('M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z'),
-    sysstats:    svgIcon('M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z')
+    sysstats:    svgIcon('M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z'),
+    // System administration (settings gear) — a System-section app, sudo-gated.
+    config:      svgIcon('M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z')
   };
 
   // Single source of truth for every app: its taskbar/Start-menu icon, label,
@@ -667,6 +671,10 @@
     monitor:  { label: 'Monitor',  icon: '📊', src: '/monitor.html',         desc: 'System monitor', section: 'utilities' },
     upload:   { label: 'Upload',   icon: '⬆',  src: '/upload.html',          desc: 'Quick upload to ~/Uploads' },
     update:   { label: 'Update',   icon: '🔄', src: '/update.html',          desc: 'Pull latest & redeploy', section: 'system' },
+    // System administration (idle-timeout policy + user management). Shown only
+    // to users with OS sudo (sudo:true) — the row is hidden until /api/me reports
+    // can_sudo; the real gate is a 403 on every /api/config/* endpoint.
+    config:   { label: 'Config',   icon: '⚙',  src: '/config.html',          desc: 'System administration', section: 'system', sudo: true },
     // A toggle row, not an app: flips the opt-in Claude plan-usage strip on/off
     // (routes Claude Code through the local capture proxy). Handled specially in
     // the Start-menu click handler — no iframe, no src. Lives under the
@@ -701,6 +709,10 @@
       var cl = document.createElement('div'); cl.className = 'sm-close';
       cl.textContent = '⏻'; cl.title = 'Turn off on all devices';
       item.appendChild(ic); item.appendChild(box); item.appendChild(cl);
+      // Sudo-only rows (Config) stay hidden until /api/me confirms OS sudo. Mark
+      // them with a class so the /api/me handler (a separate IIFE, no APPS scope)
+      // can reveal them without referencing APPS.
+      if (a.sudo) { item.classList.add('sm-sudo'); if (!window.canSudo) item.style.display = 'none'; }
       var target = a.section === 'utilities' ? util
                  : a.section === 'system' ? sys : apps;
       (target || sys).appendChild(item);
@@ -1227,6 +1239,7 @@
 
   function launch(id) {
     if (!APPS[id]) return;
+    if (APPS[id].sudo && !window.canSudo) return;   // sudo-only app; real gate is the 403
     if (openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
     setActive(id);            // relays status itself when id === 'home'
     closeMenu();
@@ -1670,7 +1683,9 @@
     .then(function(r) { return r.json(); }).then(function(state) {
     var saved = (state && Array.isArray(state.open)) ? state.open : [];
     saved.forEach(function(id) {
-      if (APPS[id] && openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
+      // Never auto-restore a sudo-only app (Config): its endpoints 403 for a
+      // demoted user, and it dodges the /api/me-vs-restore load race. Open on demand.
+      if (APPS[id] && !APPS[id].sudo && openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
     });
     runningGlobal = (state && Array.isArray(state.running)) ? state.running : [];
     lastResetEpoch = (state && typeof state.reset_epoch === 'number') ? state.reset_epoch : 0;
@@ -1810,6 +1825,13 @@
 (function() {
   fetch('/api/me').then(function(r) { return r.json(); }).then(function(me) {
     if (!me || !me.user) return;
+    // Reveal the sudo-only Start-menu rows (Config) once the server confirms this
+    // Linux user has OS sudo. buildStartMenu ran at load with canSudo falsy, so the
+    // row is currently hidden; unhide it here. Real enforcement is server-side 403.
+    window.canSudo = !!me.can_sudo;
+    if (window.canSudo) {
+      document.querySelectorAll('.sm-item.sm-sudo').forEach(function(el) { el.style.display = ''; });
+    }
     var full = (me.name || '').trim(), login = me.user, display = full || login;
     var set = function(id, t) { var el = document.getElementById(id); if (el) el.textContent = t; };
     // Start-menu header

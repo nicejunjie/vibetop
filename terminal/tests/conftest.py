@@ -131,6 +131,9 @@ def home(mgr, monkeypatch, tmp_path):
     # Per-user registry (slots + token epochs) into the tmp HOME so logout-all /
     # port-slot tests are writable + hermetic.
     monkeypatch.setattr(mgr, "USERS_REGISTRY", str(h / "vibetop-users.json"))
+    # Idle-reaper policy file into the tmp HOME so config/reaper tests are hermetic
+    # (never touch the real /var/lib/vibetop/idle.json).
+    monkeypatch.setattr(mgr, "IDLE_POLICY_FILE", str(h / "vibetop-idle.json"))
     (h / ".local" / "share").mkdir(parents=True, exist_ok=True)
     # Reset process-global mutable state so tests don't bleed into each other.
     if hasattr(mgr, "_cache"):
@@ -169,10 +172,11 @@ def users(mgr, home, monkeypatch, tmp_path):
 def stubs(mgr, monkeypatch):
     """Stub the external-process boundary with recording fakes. Individual tests
     override any entry (e.g. a scripted `_git`, a failing systemctl) as needed."""
-    rec = {"run": [], "popen": []}
+    rec = {"run": [], "popen": [], "run_kw": []}
 
     def fake_run(args, **kw):
         rec["run"].append(list(args) if isinstance(args, (list, tuple)) else args)
+        rec["run_kw"].append(kw)          # parallel to rec["run"] (e.g. capture input=)
         return _FakeCompleted(args, returncode=0)
 
     def fake_popen(args, **kw):

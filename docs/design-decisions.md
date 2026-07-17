@@ -17,6 +17,49 @@ and why it lost).
 
 ---
 
+## Config admin app: sudo gate, and an idle reaper that spares terminals by default
+
+- **Context:** Making vibetop a real shared-host product surfaced two gaps: idle
+  per-user services (each idle user leaves ttyd + FileBrowser + **two** xpra
+  displays = Xorg+Chromium resident forever, only ever stopped by explicit
+  Logout), and no way to manage accounts without SSH. Both now live in a
+  sudo-gated **Config** app (`landing/config.html` + `/api/config/*`).
+- **Why gate on OS sudo, not `VIBETOP_ADMINS`:** the existing admin gate
+  (`_is_admin`) is the app's operator list, used for features that act *as*
+  `APP_USER` (Update, Claude-usage). Config instead does **OS-level** things
+  (create/delete Linux users, reset OS passwords), so the right authority is real
+  membership in a sudoers group (`_can_sudo` → `sudo`/`admin`/`wheel`, supplementary
+  or primary GID). The two gates coexist by design — a sudoer who isn't in
+  `VIBETOP_ADMINS` sees Config but not Update. Client hiding (`.sm-sudo` +
+  `/api/me can_sudo`) is cosmetic; the real gate is a `_require_sudo` 403 on every
+  endpoint. `can_sudo` rides `/api/me` (static per session), **not** the 5s
+  heartbeat — a group lookup every 5s would be pure waste.
+- **Reaper spares terminals by default (the real fork):** "idle" means *no web
+  heartbeat*, but a vibetop terminal can hold a long-running build with the tab
+  merely closed — so a blanket reap would SIGKILL someone's job. The big RAM hog
+  is the xpra displays (Xorg+Chromium), not a bash PTY. So `_reap_user` stops
+  **Browser xpra + X11 xpra + FileBrowser always**, and terminals **only** when an
+  explicit `reapTerminals` sub-flag is set. Reaping is **non-destructive** (only
+  `systemctl stop`, no file ops) so desktop-state/notes/office survive and windows
+  restore next login — which is what makes reaping *any* idle user (including the
+  operator) safe and un-surprising.
+- **Rejected:** (1) *Reap on stop / on logout only* — that's the status quo that
+  leaks; a walk-away user never triggers it. The reaper keys off the heartbeat, not
+  client cooperation. (2) *Reap everything including terminals by default* — nukes
+  long jobs; made it an opt-in flag instead. (3) *Enumerate reap candidates by
+  scanning `systemctl list-units` every tick* — the users registry already lists
+  everyone who opened a per-user app, so a per-tick subprocess is avoidable. (4)
+  *Default on* — a reaper that silently kills your apps is hostile; it ships **off**.
+- **User-mgmt hardening (from the fable QA pass):** password to `chpasswd` via
+  **STDIN, never argv** (argv is world-readable in `/proc`); reject CR/LF **and NUL**
+  in passwords; strict `_USERNAME_RE` before any shell-out (blocks `-r`-style flag
+  injection since a name can't start with `-`); refuse root/`APP_USER`/named-admins
+  and system accounts (`_is_real_login_user`) and self-removal; **roll back**
+  (`userdel -r`) a just-created account if its password step fails, so a retry isn't
+  blocked by a 409 and no password-locked account is left behind.
+
+---
+
 ## A stale terminal tab name reappears on a new terminal after an abnormal close
 
 - **Symptom:** You rename terminal N (say "build"), then vibetop closes
