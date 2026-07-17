@@ -17,6 +17,43 @@ and why it lost).
 
 ---
 
+## A stale terminal tab name reappears on a new terminal after an abnormal close
+
+- **Symptom:** You rename terminal N (say "build"), then vibetop closes
+  abnormally — the browser/PWA is killed, the host reboots, or the manager
+  restarts (a self-update). Later you open a **new** terminal that reuses number N
+  and it comes up already labelled "build" instead of the default `TN`.
+- **Cause:** Tab names are server-side (`terminal-tab-names.json`, keyed by
+  instance number) and were only ever cleared in two places: the **client's**
+  tab-close handler (`POST /api/terminals/names {n,name:null}`) and `/api/reset`.
+  Both depend on the browser cooperating on a clean close. An abnormal close runs
+  neither, so the name outlives its session; when number N is later reused for a
+  brand-new session, the name is still on file and the fresh tab inherits it. The
+  name's lifetime was tied to *the browser closing the tab*, not to *the session*.
+- **Fix:** Tie the name to the session. The manager now **forgets the stored name
+  whenever a genuinely fresh session starts** for that number —
+  `_forget_tab_name(user, n)` in `_start_user_terminal`, gated on
+  `was_running = n in _list_running_terminals(user)` (read through the ~2s
+  running-set cache, so no extra `systemctl` fork on the hot path) so it only fires
+  on a *fresh* start, never on a live-session reconnect (which must keep its
+  label). This covers every abnormal-close path because it keys off the actual
+  session lifecycle, not client cooperation. The client mirrors it locally
+  (`forgetLocalName` in `terminals.html`) for the explicit `+` / cold-start
+  gestures — but **not** in the reconcile path, where a number opened on another
+  device legitimately keeps its shared name — so the new tab shows `TN`
+  immediately, ahead of the next names poll. The tab-names file/read/write are
+  now `user`-parameterized so the off-request-path clear scopes to the right home.
+- **Rejected:** (1) *Clear on stop* (`_stop_user_terminal`) — doesn't cover the
+  cases that actually leak: a reboot/crash kills the session **without** a stop,
+  so the name still survives. Clear-on-fresh-start is the only point that sees
+  every path. (2) *Always clear on any start* — would wipe a valid label when a
+  reconnect issues an idempotent re-start against a live session; hence the
+  `was_running` gate. (3) *Client-only fix* (refresh names harder) — the root
+  state is server-side and shared across devices; a client patch can't forget what
+  the server still remembers.
+
+---
+
 ## Notes tabs didn't live-sync across devices
 
 - **Symptom:** Adding / renaming / closing / reordering a Notes tab on one device

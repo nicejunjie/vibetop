@@ -59,3 +59,29 @@ def test_tab_name_upsert_and_clear(client):
 def test_tab_name_bad_number_rejected(client):
     status, _ = client.post("/api/terminals/names", {"n": "abc", "name": "x"})
     assert status == 400
+
+
+def test_fresh_start_clears_stale_tab_name(client, stubs):
+    # An abnormal close (browser crash / host reboot / manager restart) leaves the
+    # name behind but never runs the client's name-clear POST. Starting a FRESH
+    # session for that number must forget the stale name server-side, so a reused
+    # terminal doesn't inherit it. (Stubbed list-units -> nothing running -> the
+    # start is a fresh one.)
+    client.post("/api/terminals/names", {"n": 5, "name": "build"})
+    _, got = client.get("/api/terminals/names")
+    assert got["names"].get("5") == "build"
+    status, _ = client.post("/api/terminals/5/start", {})
+    assert status == 200
+    _, got = client.get("/api/terminals/names")
+    assert "5" not in got["names"]                 # fresh start forgot the stale name
+
+
+def test_start_of_running_terminal_keeps_name(client, mgr, stubs, monkeypatch):
+    # A start against an ALREADY-live session (a reconnect / idempotent re-start)
+    # is not fresh — the name is a valid label for that session and must survive.
+    monkeypatch.setattr(mgr, "_list_running_terminals", lambda user=None: [6])
+    client.post("/api/terminals/names", {"n": 6, "name": "logs"})
+    status, _ = client.post("/api/terminals/6/start", {})
+    assert status == 200
+    _, got = client.get("/api/terminals/names")
+    assert got["names"].get("6") == "logs"         # live session -> name preserved

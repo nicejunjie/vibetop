@@ -327,9 +327,12 @@ _files_tabs_lock = threading.Lock()
 
 
 # Terminal tab names, keyed by instance number. Server-side so a rename shows up
-# on every device of the same user.
-def _tab_names_file():
-    return os.path.join(_ctx_home(), ".local/share/terminal-tab-names.json")
+# on every device of the same user. `user` scopes it to a specific Linux user's
+# home (used off the request path, e.g. clearing a name when a fresh session
+# starts); default follows the current request's user.
+def _tab_names_file(user=None):
+    home = _user_home(user) if user else _ctx_home()
+    return os.path.join(home, ".local/share/terminal-tab-names.json")
 
 
 _tab_names_lock = threading.Lock()
@@ -778,6 +781,12 @@ def _start_user_terminal(user, n):
         pw = pwd.getpwnam(user)
     except KeyError:
         return False, f"unknown user {user}"
+    # A FRESH start (no live session for this number) must forget any tab name
+    # left over from a prior session — see _forget_tab_name. Read from the ~2s
+    # running-set cache so this adds no extra systemctl fork on the hot path, and
+    # reflects the pre-start state (callers pop the cache only *after* starting).
+    was_running = n in _cached("running_terminals:" + user, 2.0,
+                               lambda: _list_running_terminals(user))
     _provision_user(user)
     inst = _term_instance(user, n)
     port = _user_term_port(user, n)
@@ -813,6 +822,8 @@ def _start_user_terminal(user, n):
         _wait_tcp(port)                 # so the first /tN/ hit doesn't 502
     except (OSError, subprocess.SubprocessError) as e:
         return False, str(e)
+    if not was_running:
+        _forget_tab_name(user, n)       # fresh session -> clean name
     return True, port
 
 
@@ -1032,18 +1043,30 @@ def _atomic_write(path, text):
     _chown_app(path)            # written by root; keep it owned by APP_USER
 
 
-def _read_tab_names():
+def _read_tab_names(user=None):
     """Terminal tab names as {str(n): name}; tolerant of a missing/corrupt file."""
     try:
-        with open(_tab_names_file()) as f:
+        with open(_tab_names_file(user)) as f:
             d = json.load(f)
         return d if isinstance(d, dict) else {}
     except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
         return {}
 
 
-def _write_tab_names(d):
-    _atomic_write(_tab_names_file(), json.dumps(d))
+def _write_tab_names(d, user=None):
+    _atomic_write(_tab_names_file(user), json.dumps(d))
+
+
+def _forget_tab_name(user, n):
+    """Drop the stored tab name for (user, N). Called when a genuinely FRESH
+    terminal session starts, so a reused number can't inherit a name left behind
+    by an abnormal close (browser crash / host reboot / manager restart) where the
+    client's name-clear POST never ran. Ties the name's lifetime to the session,
+    not to the browser cooperating on close."""
+    with _tab_names_lock:
+        names = _read_tab_names(user)
+        if names.pop(str(int(n)), None) is not None:
+            _write_tab_names(names, user)
 
 
 def _read_desktop_state():

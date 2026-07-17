@@ -171,6 +171,18 @@
       }
     }).catch(function () {});
   }
+  // A brand-new terminal (a fresh session started here via "+" / cold-start) must
+  // not inherit a name a prior session left in this device's cache — the server
+  // clears it on a fresh start (abnormal-close safety); mirror that locally so the
+  // new tab shows 'TN' immediately, not the stale name, before the next names poll.
+  // NOT called from the reconcile path, where a number opened on another device
+  // legitimately keeps its shared name.
+  function forgetLocalName(n) {
+    if (tabNames[n] == null) return;
+    delete tabNames[n];
+    try { localStorage.setItem(NAMES_KEY, JSON.stringify(tabNames)); } catch (e) {}
+    applyTabLabels();
+  }
 
   function getTabOrder() {
     var open = [];
@@ -245,6 +257,7 @@
   function coldStart() {
     var n = nextAvailable(lastRunning) || 1;
     pending[n] = true;
+    forgetLocalName(n);            // fresh session -> no inherited name
     api('POST', '/' + n + '/start').then(function() {
       addTab(n, true);
       return waitReady(n);
@@ -441,6 +454,7 @@
     var n = nextAvailable(lastRunning);
     if (n === 0) return;
     pending[n] = true;        // opened here; reconcile keeps it until status confirms
+    forgetLocalName(n);       // fresh session -> no inherited name
     addTab(n, true);
     api('POST', '/' + n + '/start').then(function() {
       return waitReady(n);
