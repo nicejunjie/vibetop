@@ -328,8 +328,24 @@
   .sm-parent .sm-parent-name { flex: 1; font-size: 14px; color: #e6edf3; }
   .sm-parent .sm-caret { color: #7a8a9a; font-size: 11px; transition: transform .15s ease; }
   .sm-parent.open .sm-caret { transform: rotate(90deg); }
-  .sm-sub { display: none; margin: 1px 0 2px 14px; padding-left: 8px; border-left: 1px solid #222a36; }
+  /* Utilities submenu is a CASCADING FLYOUT, not an inline expander — so opening it
+     never grows the menu vertically. position:fixed (JS-placed) escapes the menu's
+     own overflow-y clip because no ancestor establishes a containing block. It sits
+     beside the menu on desktop, or overlays it as a "second page" when there's no
+     side room (narrow screens). */
+  .sm-sub {
+    display: none; position: fixed; width: 240px;
+    max-height: calc(100svh - var(--tb) - 26px); overflow-y: auto;
+    background: #11161d; border: 1px solid #2a3040; border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.55); z-index: 112; padding: 7px;
+  }
   .sm-sub.open { display: block; }
+  .sm-fly-head {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: #7a8a9a; padding: 2px 8px 6px; cursor: pointer; user-select: none;
+  }
+  .sm-fly-head:hover { color: #cde; }
+  .sm-sub.overlay .sm-fly-head::before { content: "\2039  "; font-size: 14px; }  /* ‹ back, when overlaying */
   .sm-parent.has-active .sm-parent-name::after {
     content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; vertical-align: middle;
   }
@@ -567,7 +583,7 @@
       <div class="sm-parent-name">Utilities</div>
       <div class="sm-caret">▶</div>
     </div>
-    <div class="sm-sub" id="sm-utilities"></div>
+    <div class="sm-sub" id="sm-utilities"><div class="sm-fly-head">Utilities</div></div>
     <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span></span><span class="build-meta">build @SW_VERSION@<span id="build-date"></span></span></div>
   </div>
 
@@ -1301,23 +1317,52 @@
       }
     } catch (e) {}
   }
-  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; notifyBrowserMenu(false); }
+  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; closeUtilFlyout(); notifyBrowserMenu(false); }
   function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
+
+  // --- Utilities cascading flyout (never grows the menu vertically) ----------
+  var utilParent = document.getElementById('sm-util-parent');
+  var utilSub = document.getElementById('sm-utilities');
+  function positionUtilFlyout() {
+    var mr = menuEl.getBoundingClientRect(), W = 240;
+    utilSub.style.bottom = (window.innerHeight - mr.bottom) + 'px';
+    utilSub.style.right = 'auto';
+    if (mr.right + 6 + W <= window.innerWidth - 6) {          // room to the right
+      utilSub.style.left = (mr.right + 6) + 'px'; utilSub.style.width = W + 'px';
+      utilSub.classList.remove('overlay');
+    } else if (mr.left - 6 - W >= 6) {                        // room to the left
+      utilSub.style.left = (mr.left - 6 - W) + 'px'; utilSub.style.width = W + 'px';
+      utilSub.classList.remove('overlay');
+    } else {                                                  // no side room → overlay the menu
+      utilSub.style.left = mr.left + 'px'; utilSub.style.width = mr.width + 'px';
+      utilSub.classList.add('overlay');
+    }
+  }
+  function openUtilFlyout() { utilParent.classList.add('open'); utilSub.classList.add('open'); positionUtilFlyout(); }
+  function closeUtilFlyout() { utilParent.classList.remove('open'); utilSub.classList.remove('open'); }
+  function toggleUtilFlyout() { utilSub.classList.contains('open') ? closeUtilFlyout() : openUtilFlyout(); }
+  // Desktop convenience: hover opens the flyout; leaving either side closes it
+  // (a short delay bridges the gap between the parent row and the panel).
+  if (!IS_TOUCH) {
+    var flyCloseT;
+    var arm = function () { flyCloseT = setTimeout(closeUtilFlyout, 220); };
+    var cancel = function () { clearTimeout(flyCloseT); };
+    utilParent.addEventListener('mouseenter', function () { cancel(); openUtilFlyout(); });
+    utilParent.addEventListener('mouseleave', arm);
+    utilSub.addEventListener('mouseenter', cancel);
+    utilSub.addEventListener('mouseleave', arm);
+  }
+  window.addEventListener('resize', function () { if (utilSub.classList.contains('open')) positionUtilFlyout(); });
 
   // --- events ---
   startBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleMenu(); });
 
   menuEl.addEventListener('click', function(e) {
-    // A collapsible submenu header ("Utilities") — expand/collapse the .sm-sub
-    // group right after it (two-level nested menu).
-    var parent = e.target.closest('.sm-parent');
-    if (parent) {
-      var open = !parent.classList.contains('open');
-      parent.classList.toggle('open', open);
-      var sub = parent.nextElementSibling;
-      if (sub && sub.classList.contains('sm-sub')) sub.classList.toggle('open', open);
-      return;
-    }
+    // Flyout title doubles as a "back"/close on the Utilities cascading panel.
+    if (e.target.closest('.sm-fly-head')) { closeUtilFlyout(); return; }
+    // The "Utilities" parent opens/closes its flyout (positioned beside/over the
+    // menu — see toggleUtilFlyout — so it never grows the menu vertically).
+    if (e.target.closest('.sm-parent')) { toggleUtilFlyout(); return; }
     var item = e.target.closest('.sm-item');
     if (!item) return;
     var id = item.dataset.id;
