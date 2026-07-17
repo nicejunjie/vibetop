@@ -373,7 +373,9 @@
      service-worker cache). Bump it whenever the shell changes. */
   /* One centered pill: "Vibetop · v<release> · build <N>" (release keeps the
      semver v; the build is labelled and un-prefixed so the two don't both read "v"). */
-  .sm-build { text-align: center; padding: 6px 0 2px; }
+  /* A footer, separated from the menu items by a divider (so it doesn't read as
+     another System row). */
+  .sm-build { text-align: center; margin-top: 7px; border-top: 1px solid #222a36; padding: 8px 0 2px; }
   /* Quiet footer text — no pill/border/accent, so the build line recedes. */
   .sm-build .build-tag {
     display: inline-block; font: 500 11px ui-monospace, Menlo, monospace;
