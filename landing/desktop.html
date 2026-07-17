@@ -280,13 +280,15 @@
   }
   .sm-user[hidden] { display: none; }
   .sm-user-av {
-    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-size: 14px; font-weight: 700; color: #fff;
+    font-size: 15px; font-weight: 700; color: #fff;
     background: linear-gradient(135deg, #b3540f, #d2691e);
   }
   .sm-user-txt { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-  .sm-user-name { font-size: 14px; font-weight: 700; color: #e8eef5;
+  /* The signed-in user is the most prominent thing in the menu (bigger + brighter
+     than the app rows below). Apps sit a tier down, the build line quietest. */
+  .sm-user-name { font-size: 16px; font-weight: 700; color: #f4f8fc;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sm-user-login { font-size: 11px; color: #8a9aaa; flex-shrink: 0; }
   .sm-item {
@@ -491,8 +493,8 @@
     }
     .sm-item .sm-icon { font-size: 24px; }
     .sm-parent .sm-icon { font-size: 22px; }
-    .sm-user-av { font-size: 12px; }
-    .sm-user-name { font-size: 13px; }
+    .sm-user-av { font-size: 13px; }
+    .sm-user-name { font-size: 15px; }
   }
 
   /* === Implicit keyboard ⌨ button (touch only) ===
