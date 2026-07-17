@@ -609,7 +609,7 @@
       <div class="sm-caret">▶</div>
     </div>
     <div class="sm-sub" id="sm-utilities"><div class="sm-fly-head"><span class="fh-back">‹ Back</span><span class="fh-name">Utilities</span></div></div>
-    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span> · build <span id="build-sw">@SW_VERSION@</span></span></div>
+    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span> (build <span id="build-sw">@SW_VERSION@</span>)</span></div>
   </div>
 
   <div class="taskbar" id="taskbar">
@@ -1760,8 +1760,7 @@
     var vv = document.getElementById('wp-ver');
     if (vv && d && d.version) {
       var sw = _bsw ? _bsw.textContent : '';
-      var parts = ['Vibetop v' + d.version];
-      if (sw) parts.push('build ' + sw);
+      var parts = ['Vibetop v' + d.version + (sw ? ' (build ' + sw + ')' : '')];
       if (d.version_date) parts.push(d.version_date);
       if (d.commit) parts.push(d.commit);
       vv.textContent = parts.join('  ·  ');
