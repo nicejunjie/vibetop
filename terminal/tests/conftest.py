@@ -131,9 +131,10 @@ def home(mgr, monkeypatch, tmp_path):
     # Per-user registry (slots + token epochs) into the tmp HOME so logout-all /
     # port-slot tests are writable + hermetic.
     monkeypatch.setattr(mgr, "USERS_REGISTRY", str(h / "vibetop-users.json"))
-    # Idle-reaper policy file into the tmp HOME so config/reaper tests are hermetic
-    # (never touch the real /var/lib/vibetop/idle.json).
+    # Idle-reaper + resource-cap policy files into the tmp HOME so config tests are
+    # hermetic (never touch the real /var/lib/vibetop/*.json).
     monkeypatch.setattr(mgr, "IDLE_POLICY_FILE", str(h / "vibetop-idle.json"))
+    monkeypatch.setattr(mgr, "RESOURCE_POLICY_FILE", str(h / "vibetop-resources.json"))
     (h / ".local" / "share").mkdir(parents=True, exist_ok=True)
     # Reset process-global mutable state so tests don't bleed into each other.
     if hasattr(mgr, "_cache"):

@@ -27,6 +27,14 @@
   button.btn-danger:hover { background: #a5472f; }
   button.sm { padding: 6px 12px; font-size: 12.5px; border-radius: 7px; }
   .body { flex: 1; overflow-y: auto; padding: 16px; }
+  /* Two sub-sections: Vibetop (how vibetop runs) vs System (the Linux host). */
+  .tabs { display: flex; gap: 4px; padding: 0 14px; background: #161b22; border-bottom: 1px solid #2a3040; flex-shrink: 0; }
+  .tab { background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0;
+    color: #9ab; font: 600 13px system-ui, sans-serif; padding: 10px 14px; }
+  .tab:hover { background: #1b212b; color: #cde; }
+  .tab.active { color: #6cf; border-bottom-color: #2d6cc0; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
   .card { background: #12161d; border: 1px solid #20262f; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
   .card > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #7a8aa0; margin-bottom: 4px; }
   .hint { font-size: 12px; color: #6a7a8a; margin-bottom: 12px; line-height: 1.5; }
@@ -44,19 +52,56 @@
   .status { font-size: 13px; min-height: 18px; margin-top: 10px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .status.ok { color: #4a8; } .status.err { color: #d56; } .status.run { color: #6cf; }
-  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-  th, td { text-align: left; padding: 8px 8px; border-top: 1px solid #1b212b; font-size: 13.5px; }
-  th { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #556; border-top: none; }
-  td.user { font: 600 13.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #cde; }
-  td.uid { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #6a7a8a; }
-  td.acts { text-align: right; white-space: nowrap; }
-  td.acts button { margin-left: 6px; }
-  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  /* Users render as a card list (a table overflows on phones). Each card is a
+     flex row on desktop that wraps to stacked on narrow screens. */
+  .user-list { margin-top: 8px; }
+  .user-card { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+    padding: 10px 2px; border-top: 1px solid #1b212b; }
+  .u-id { flex: 1 1 150px; min-width: 0; }
+  .u-name { font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #cde;
+    overflow: hidden; text-overflow: ellipsis; }
+  .u-sub { font-size: 12px; color: #6a7a8a; margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; }
+  .u-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .u-last { font-size: 12.5px; color: #8a9aaa; white-space: nowrap; }
+  .u-acts { display: flex; gap: 6px; margin-left: auto; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
   .badge.sudo { background: rgba(138,58,42,0.25); color: #f0a58e; border: 1px solid #6b3423; }
   .badge.on   { background: rgba(46,125,70,0.22); color: #7fd39a; border: 1px solid #2e5d3e; }
   .badge.off  { background: #1b212b; color: #6a7a8a; border: 1px solid #2a3040; }
   .add-form { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-  .add-form .f { display: flex; flex-direction: column; gap: 4px; }
+  .add-form .f { display: flex; flex-direction: column; gap: 4px; flex: 1 1 150px; min-width: 0; }
+  .add-form .f input { width: 100%; }
+  .add-form button { flex: 0 0 auto; }
+  .cap-l { flex: 0 0 130px; }
+  #res-card input[type=text] { flex: 1 1 180px; min-width: 0; }
+  /* Service health rows */
+  .svc-list { margin-top: 4px; }
+  .svc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+    padding: 10px 2px; border-top: 1px solid #1b212b; }
+  .svc-name { flex: 1 1 auto; font-weight: 600; color: #cde; font-size: 13.5px; }
+  .svc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .svc-active .svc-dot { background: #34a853; } .svc-active .svc-status { color: #7fd39a; }
+  .svc-bad .svc-dot { background: #d56; } .svc-bad .svc-status { color: #f0a58e; }
+  .svc-unknown .svc-dot { background: #8a8a4a; } .svc-unknown .svc-status { color: #cbb36a; }
+  .svc-status { font-size: 12.5px; }
+  /* Disk usage */
+  .disk-fs { margin-bottom: 12px; }
+  .disk-fs-head { display: flex; justify-content: space-between; font-size: 13px; color: #cde; margin-bottom: 4px; }
+  .disk-fs-head .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #8a9aaa; font-size: 12px; }
+  .bar-track { height: 8px; background: #0e1117; border: 1px solid #20262f; border-radius: 6px; overflow: hidden; }
+  .bar-fill { height: 100%; background: #2d6cc0; }
+  .bar-fill.warn { background: #d59a2e; } .bar-fill.crit { background: #d56; }
+  .disk-homes { margin-top: 10px; }
+  .disk-home { display: flex; justify-content: space-between; font-size: 12.5px; padding: 4px 0; border-top: 1px solid #1b212b; }
+  .disk-home .u { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #bcd; }
+  .disk-home .sz { color: #8a9aaa; }
+  @media (max-width: 560px) {
+    .u-acts { margin-left: 0; width: 100%; }
+    .u-acts button { flex: 1; }
+    .add-form button { width: 100%; }
+    .cap-l { flex: 1 1 100%; }
+  }
   .denied { display: none; padding: 20px; text-align: center; color: #d56; font-size: 14px; }
   /* Tiny styled prompt (vibe-modal has no text prompt) */
   .vt-ov { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none;
@@ -74,47 +119,88 @@
 </head>
 <body>
   <div class="bar"><span class="title">⚙ Config</span><span class="spacer"></span></div>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="vibetop">Vibetop</button>
+    <button class="tab" data-tab="system">System</button>
+  </div>
   <div class="body" id="body">
 
-    <div class="card" id="idle-card">
-      <h2>Idle timeout</h2>
-      <div class="hint">Stops a user's background apps (Browser &amp; X11 displays, file
-        manager) after they've been away this long, to reclaim RAM. Their windows
-        restore on next login — nothing is deleted. <b>Default: off.</b></div>
-      <div class="row">
-        <label class="chk"><input type="checkbox" id="idle-enabled"> Enable idle timeout</label>
+    <!-- ===== Vibetop: how vibetop runs (idle policy, caps, its services) ===== -->
+    <div class="tab-panel active" data-tab="vibetop">
+
+      <div class="card" id="idle-card">
+        <h2>Idle timeout</h2>
+        <div class="hint">Stops a user's background apps (Browser &amp; X11 displays, file
+          manager) after they've been away this long, to reclaim RAM. Their windows
+          restore on next login — nothing is deleted. <b>Default: off.</b></div>
+        <div class="row">
+          <label class="chk"><input type="checkbox" id="idle-enabled"> Enable idle timeout</label>
+        </div>
+        <div class="row">
+          <span class="fld-label">Stop after</span>
+          <input type="number" id="idle-hours" min="1" max="168" value="2">
+          <span class="fld-label">hours idle</span>
+        </div>
+        <div class="row">
+          <label class="chk"><input type="checkbox" id="idle-reapterms"> Also stop idle terminals
+            <span class="fld-label">(may end a long-running job whose tab was closed)</span></label>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button id="idle-save">Save</button>
+          <span class="status" id="idle-status"></span>
+        </div>
       </div>
-      <div class="row">
-        <span class="fld-label">Stop after</span>
-        <input type="number" id="idle-minutes" min="1" max="1440" value="30">
-        <span class="fld-label">minutes idle</span>
+
+      <div class="card" id="res-card">
+        <h2>Per-user resource caps</h2>
+        <div class="hint">Limits applied to each user's sessions so one user can't starve
+          the box. <b>Applies to newly-started sessions</b> — existing ones keep their
+          current limits. Leave a field blank for no cap.</div>
+        <div class="row"><span class="fld-label cap-l">Max memory / user</span>
+          <input type="text" id="res-mem" spellcheck="false" placeholder="e.g. 4G — blank = none"></div>
+        <div class="row"><span class="fld-label cap-l">CPU quota / user</span>
+          <input type="text" id="res-cpu" spellcheck="false" placeholder="e.g. 400% — blank = none"></div>
+        <div class="row"><span class="fld-label cap-l">Max tasks / user</span>
+          <input type="text" id="res-tasks" spellcheck="false" placeholder="e.g. 4000 or infinity"></div>
+        <div class="row" style="margin-top:14px">
+          <button id="res-save">Save</button>
+          <span class="status" id="res-status"></span>
+        </div>
       </div>
-      <div class="row">
-        <label class="chk"><input type="checkbox" id="idle-reapterms"> Also stop idle terminals
-          <span class="fld-label">(may end a long-running job whose tab was closed)</span></label>
+
+      <div class="card" id="svc-card">
+        <h2>Service health</h2>
+        <div class="hint">Shared vibetop services on this host. Restarting is disruptive —
+          e.g. restarting the web server briefly drops every open terminal &amp; browser.</div>
+        <div id="svc-body" class="svc-list"></div>
       </div>
-      <div class="row" style="margin-top:14px">
-        <button id="idle-save">Save</button>
-        <span class="status" id="idle-status"></span>
-      </div>
+
     </div>
 
-    <div class="card" id="users-card">
-      <h2>Users</h2>
-      <div class="hint">Real Linux login accounts on this host. Adding one lets that
-        person sign in to vibetop with their own isolated desktop.</div>
-      <div class="add-form">
-        <div class="f"><span class="fld-label">New username</span>
-          <input type="text" id="add-user" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="e.g. alex"></div>
-        <div class="f"><span class="fld-label">Password</span>
-          <input type="password" id="add-pw" autocomplete="new-password" placeholder="initial password"></div>
-        <button id="add-btn">Add user</button>
+    <!-- ===== System: the underlying Linux host (accounts, disk) ===== -->
+    <div class="tab-panel" data-tab="system">
+
+      <div class="card" id="users-card">
+        <h2>Users</h2>
+        <div class="hint">Real Linux login accounts on this host. Adding one lets that
+          person sign in to vibetop with their own isolated desktop.</div>
+        <div class="add-form">
+          <div class="f"><span class="fld-label">New username</span>
+            <input type="text" id="add-user" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="e.g. alex"></div>
+          <div class="f"><span class="fld-label">Password</span>
+            <input type="password" id="add-pw" autocomplete="new-password" placeholder="initial password"></div>
+          <button id="add-btn">Add user</button>
+        </div>
+        <div class="status" id="add-status"></div>
+        <div id="users-body" class="user-list"></div>
       </div>
-      <div class="status" id="add-status"></div>
-      <table id="users-tbl">
-        <thead><tr><th>User</th><th>UID</th><th>Name</th><th></th><th></th></tr></thead>
-        <tbody id="users-body"></tbody>
-      </table>
+
+      <div class="card" id="disk-card">
+        <h2>Disk usage</h2>
+        <div class="hint">Filesystem usage and the largest home directories.</div>
+        <div id="disk-body"></div>
+      </div>
+
     </div>
 
   </div>
@@ -195,6 +281,7 @@
   function handle403(res) {
     if (res.status === 403) {
       document.getElementById('body').style.display = 'none';
+      var t = document.getElementById('tabs'); if (t) t.style.display = 'none';
       document.getElementById('denied').style.display = 'block';
       return true;
     }
@@ -203,7 +290,7 @@
 
   // ---- Idle policy ----------------------------------------------------------
   var idleEnabled = document.getElementById('idle-enabled'),
-      idleMinutes = document.getElementById('idle-minutes'),
+      idleHours = document.getElementById('idle-hours'),
       idleReap = document.getElementById('idle-reapterms'),
       idleStatus = document.getElementById('idle-status');
   function loadIdle() {
@@ -211,46 +298,60 @@
       if (handle403(res)) return;
       var p = res.data || {};
       idleEnabled.checked = !!p.enabled;
-      idleMinutes.value = p.minutes || 30;
+      idleHours.value = p.hours || 2;
       idleReap.checked = !!p.reapTerminals;
     });
   }
   document.getElementById('idle-save').addEventListener('click', function () {
-    var m = parseInt(idleMinutes.value, 10);
-    if (!(m >= 1 && m <= 1440)) { setStatus(idleStatus, 'Minutes must be 1–1440', 'err'); return; }
+    var h = parseInt(idleHours.value, 10);
+    if (!(h >= 1 && h <= 168)) { setStatus(idleStatus, 'Hours must be 1–168', 'err'); return; }
     setStatus(idleStatus, 'Saving…', 'run');
-    api('POST', '/api/config/idle', { enabled: idleEnabled.checked, minutes: m, reapTerminals: idleReap.checked })
+    api('POST', '/api/config/idle', { enabled: idleEnabled.checked, hours: h, reapTerminals: idleReap.checked })
       .then(function (res) {
         if (handle403(res)) return;
-        if (res.status === 200) setStatus(idleStatus, res.data.enabled ? 'Saved — idle timeout on (' + res.data.minutes + ' min)' : 'Saved — idle timeout off', 'ok');
+        if (res.status === 200) setStatus(idleStatus, res.data.enabled ? 'Saved — idle timeout on (' + res.data.hours + 'h)' : 'Saved — idle timeout off', 'ok');
         else setStatus(idleStatus, (res.data && res.data.error) || 'Save failed', 'err');
       });
   });
 
   // ---- Users ----------------------------------------------------------------
   var usersBody = document.getElementById('users-body'), addStatus = document.getElementById('add-status');
+  // Human "last active" from an epoch-seconds heartbeat (null = never signed in).
+  function relTime(epoch) {
+    if (epoch == null) return 'never';
+    var s = Math.floor(Date.now() / 1000 - epoch);
+    if (s < 90) return 'just now';
+    if (s < 3600) return Math.round(s / 60) + 'm ago';
+    if (s < 86400) return Math.round(s / 3600) + 'h ago';
+    if (s < 30 * 86400) return Math.round(s / 86400) + 'd ago';
+    return new Date(epoch * 1000).toISOString().slice(0, 10);   // YYYY-MM-DD for older
+  }
   function loadUsers() {
     api('GET', '/api/config/users').then(function (res) {
       if (handle403(res)) return;
       var users = (res.data && res.data.users) || [];
       usersBody.innerHTML = users.map(function (u) {
-        var badges = (u.sudo ? '<span class="badge sudo">sudo</span> ' : '') +
+        var badges = (u.sudo ? '<span class="badge sudo">sudo</span>' : '') +
           (u.online ? '<span class="badge on">online</span>' : '<span class="badge off">idle</span>');
-        return '<tr data-user="' + esc(u.user) + '">' +
-          '<td class="user">' + esc(u.user) + '</td>' +
-          '<td class="uid">' + esc(u.uid) + '</td>' +
-          '<td>' + esc(u.name || '') + '</td>' +
-          '<td>' + badges + '</td>' +
-          '<td class="acts">' +
+        var sub = 'uid ' + esc(u.uid) + (u.name ? ' · ' + esc(u.name) : '');
+        var lastTitle = u.lastActive ? esc(new Date(u.lastActive * 1000).toLocaleString()) : 'never signed in';
+        return '<div class="user-card" data-user="' + esc(u.user) + '">' +
+          '<div class="u-id"><div class="u-name">' + esc(u.user) + '</div>' +
+            '<div class="u-sub">' + sub + '</div></div>' +
+          '<div class="u-meta">' +
+            '<span class="u-last" title="' + lastTitle + '">' + esc(relTime(u.lastActive)) + '</span>' +
+            badges +
+          '</div>' +
+          '<div class="u-acts">' +
             '<button class="btn-secondary sm act-pw">Reset password</button>' +
             '<button class="btn-danger sm act-rm">Remove</button>' +
-          '</td></tr>';
+          '</div></div>';
       }).join('');
     });
   }
   usersBody.addEventListener('click', function (e) {
     var btn = e.target.closest('button'); if (!btn) return;
-    var user = btn.closest('tr').getAttribute('data-user');
+    var user = btn.closest('.user-card').getAttribute('data-user');
     if (btn.classList.contains('act-pw')) resetPassword(user);
     else if (btn.classList.contains('act-rm')) removeUser(user);
   });
@@ -292,8 +393,113 @@
     });
   });
 
+  // ---- Tabs (Vibetop / System) ----------------------------------------------
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('.tab'); if (!b) return;
+    var tab = b.getAttribute('data-tab');
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t === b); });
+    document.querySelectorAll('.tab-panel').forEach(function (p) {
+      p.classList.toggle('active', p.getAttribute('data-tab') === tab);
+    });
+  });
+
+  function fmtBytes(n) {
+    if (n == null) return '—';
+    var u = ['B', 'KB', 'MB', 'GB', 'TB'], i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i];
+  }
+
+  // ---- Resource caps --------------------------------------------------------
+  var resMem = document.getElementById('res-mem'), resCpu = document.getElementById('res-cpu'),
+      resTasks = document.getElementById('res-tasks'), resStatus = document.getElementById('res-status');
+  function loadResources() {
+    api('GET', '/api/config/resources').then(function (res) {
+      if (handle403(res)) return;
+      var p = res.data || {};
+      resMem.value = p.memMax || ''; resCpu.value = p.cpuQuota || ''; resTasks.value = p.tasksMax || '';
+    });
+  }
+  document.getElementById('res-save').addEventListener('click', function () {
+    setStatus(resStatus, 'Saving…', 'run');
+    api('POST', '/api/config/resources',
+        { memMax: resMem.value.trim(), cpuQuota: resCpu.value.trim(), tasksMax: resTasks.value.trim() })
+      .then(function (res) {
+        if (handle403(res)) return;
+        if (res.status === 200) setStatus(resStatus, 'Saved — applies to newly-started sessions', 'ok');
+        else setStatus(resStatus, (res.data && res.data.error) || 'Save failed', 'err');
+      });
+  });
+
+  // ---- Service health -------------------------------------------------------
+  var svcBody = document.getElementById('svc-body');
+  function loadServices() {
+    api('GET', '/api/config/services').then(function (res) {
+      if (handle403(res)) return;
+      var svcs = (res.data && res.data.services) || [];
+      svcBody.innerHTML = svcs.map(function (s) {
+        var cls = s.status === 'active' ? 'svc-active'
+          : /^(activating|reloading|deactivating|unknown)$/.test(s.status) ? 'svc-unknown'
+          : 'svc-bad';
+        return '<div class="svc-row ' + cls + '" data-svc="' + esc(s.name) + '">' +
+          '<span class="svc-dot"></span>' +
+          '<span class="svc-name">' + esc(s.label) + '</span>' +
+          '<span class="svc-status">' + esc(s.status) + '</span>' +
+          '<button class="btn-secondary sm act-restart">Restart</button>' +
+        '</div>';
+      }).join('');
+    });
+  }
+  svcBody.addEventListener('click', function (e) {
+    var btn = e.target.closest('button.act-restart'); if (!btn) return;
+    var row = btn.closest('.svc-row'), name = row.getAttribute('data-svc');
+    var label = row.querySelector('.svc-name').textContent;
+    vibeConfirm('Restart ' + label + '?\n\nThis can briefly interrupt active sessions.',
+                { okText: 'Restart', danger: true }).then(function (ok) {
+      if (!ok) return;
+      btn.disabled = true; btn.textContent = 'Restarting…';
+      api('POST', '/api/config/services/restart', { service: name }).then(function (res) {
+        if (res.status === 200) { setTimeout(loadServices, 4500); }
+        else {
+          vibeAlert('Restart failed: ' + ((res.data && res.data.error) || res.status));
+          btn.disabled = false; btn.textContent = 'Restart';
+        }
+      }).catch(function () {
+        // Restarting the manager itself drops this very request — recover the UI.
+        btn.disabled = false; btn.textContent = 'Restart';
+        setTimeout(loadServices, 6000);
+      });
+    });
+  });
+
+  // ---- Disk usage -----------------------------------------------------------
+  function loadDisk() {
+    api('GET', '/api/config/disk').then(function (res) {
+      if (handle403(res)) return;
+      var d = res.data || {}, html = '';
+      (d.filesystems || []).forEach(function (f) {
+        var cls = f.pct >= 95 ? 'crit' : (f.pct >= 90 ? 'warn' : '');
+        html += '<div class="disk-fs"><div class="disk-fs-head">' +
+          '<span>' + esc(f.mount) + ' — ' + f.pct + '% used</span>' +
+          '<span class="mono">' + fmtBytes(f.free) + ' free / ' + fmtBytes(f.total) + '</span></div>' +
+          '<div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + Math.min(100, f.pct) + '%"></div></div></div>';
+      });
+      var homes = d.homes || [];
+      if (homes.length) {
+        html += '<div class="disk-homes">' + homes.map(function (h) {
+          return '<div class="disk-home"><span class="u">' + esc(h.user) + '</span>' +
+            '<span class="sz">' + fmtBytes(h.bytes) + '</span></div>';
+        }).join('') + '</div>';
+      }
+      document.getElementById('disk-body').innerHTML = html || '<div class="hint">No data.</div>';
+    });
+  }
+
   loadIdle();
+  loadResources();
+  loadServices();
   loadUsers();
+  loadDisk();
 })();
 </script>
 </body>

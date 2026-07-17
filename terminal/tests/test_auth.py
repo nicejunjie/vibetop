@@ -263,18 +263,21 @@ def test_me_reports_can_sudo(client, mgr, users, monkeypatch):
 def test_config_endpoints_require_sudo(client, mgr, users, stubs, monkeypatch):
     monkeypatch.setattr(mgr, "_can_sudo", lambda u: u == "alice")
     bob = users["bob"][1]
-    assert client.get("/api/config/idle", cookie=bob)[0] == 403
-    assert client.get("/api/config/users", cookie=bob)[0] == 403
-    assert client.post("/api/config/idle",
-                       {"enabled": False, "minutes": 30}, cookie=bob)[0] == 403
-    assert client.post("/api/config/users/remove",
-                       {"username": "x"}, cookie=bob)[0] == 403
+    for ep in ("/api/config/idle", "/api/config/users", "/api/config/resources",
+               "/api/config/disk", "/api/config/services"):
+        assert client.get(ep, cookie=bob)[0] == 403, ep
+    for ep, body in (("/api/config/idle", {"enabled": False, "hours": 2}),
+                     ("/api/config/resources", {"memMax": ""}),
+                     ("/api/config/services/restart", {"service": "nginx"}),
+                     ("/api/config/users/remove", {"username": "x"})):
+        assert client.post(ep, body, cookie=bob)[0] == 403, ep
     # cookieless (falls back to APP_USER) is also refused
     assert client.get("/api/config/idle")[0] == 403
-    # the sudo user gets through
+    # the sudo user gets through the read endpoints
     alice = users["alice"][1]
-    assert client.get("/api/config/idle", cookie=alice)[0] == 200
-    assert client.get("/api/config/users", cookie=alice)[0] == 200
+    for ep in ("/api/config/idle", "/api/config/users", "/api/config/resources",
+               "/api/config/disk", "/api/config/services"):
+        assert client.get(ep, cookie=alice)[0] == 200, ep
 
 
 def test_user_add_rejects_bad_and_protected(client, mgr, users, stubs, monkeypatch):

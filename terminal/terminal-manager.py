@@ -652,15 +652,63 @@ _users_lock = threading.Lock()
 # a shared box). TasksMax defaults on (cheap fork-bomb protection, generous enough
 # not to bother normal use); MemoryMax/CPUQuota are opt-in (empty = no cap) since a
 # wrong memory cap OOM-kills a legit workload. All env-overridable.
-USER_TASKS_MAX = os.environ.get("USER_TASKS_MAX", "4000")
-USER_MEM_MAX = os.environ.get("USER_MEM_MAX", "")          # e.g. "4G"
+USER_TASKS_MAX = os.environ.get("USER_TASKS_MAX", "4000")  # env = the default cap
+USER_MEM_MAX = os.environ.get("USER_MEM_MAX", "")          # e.g. "4G" ("" = uncapped)
 USER_CPU_QUOTA = os.environ.get("USER_CPU_QUOTA", "")      # e.g. "400%"
+
+# Admin-editable overrides (Config app) persisted here; each field validated so it
+# can only ever be a well-formed systemd property value (these go into `--property
+# Name=VALUE` argv). "" = no cap for that dimension. Applies to NEWLY-started
+# sessions (existing transient units keep the cap they launched with).
+RESOURCE_POLICY_FILE = os.environ.get("RESOURCE_POLICY_FILE") or "/var/lib/vibetop/resources.json"
+_resource_lock = threading.Lock()
+# Nonzero (a 0 cap bricks every new session) — leading [1-9]. "infinity" = uncapped.
+_TASKS_RE = re.compile(r"[1-9]\d{0,8}|infinity")
+_MEM_RE = re.compile(r"[1-9]\d{0,5}[KMGT]?|infinity")   # bytes or K/M/G/T suffix
+_CPU_RE = re.compile(r"[1-9]\d{0,4}%")                  # e.g. 400%
+
+
+def _valid_cap(val, rx):
+    # fullmatch, not match: `$`/`match` accept a trailing newline (or trailing
+    # junk), which would emit a malformed `--property Name=VALUE\n` that fails
+    # every session start. "" = uncapped.
+    return val == "" or rx.fullmatch(val) is not None
+
+
+def _read_resource_policy():
+    """{"tasksMax","memMax","cpuQuota"} as validated strings; each '' = uncapped.
+    A field that's missing/invalid/corrupt falls back to the env default."""
+    d = {}
+    try:
+        with open(RESOURCE_POLICY_FILE) as f:
+            d = json.load(f)
+        d = d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        d = {}
+
+    def pick(key, default, rx):
+        v = d.get(key)
+        return v if isinstance(v, str) and _valid_cap(v, rx) else default
+    return {"tasksMax": pick("tasksMax", USER_TASKS_MAX, _TASKS_RE),
+            "memMax": pick("memMax", USER_MEM_MAX, _MEM_RE),
+            "cpuQuota": pick("cpuQuota", USER_CPU_QUOTA, _CPU_RE)}
+
+
+def _write_resource_policy(tasks_max, mem_max, cpu_quota):
+    with _resource_lock:
+        try:
+            os.makedirs(os.path.dirname(RESOURCE_POLICY_FILE), exist_ok=True)
+            _atomic_write(RESOURCE_POLICY_FILE, json.dumps(
+                {"tasksMax": tasks_max, "memMax": mem_max, "cpuQuota": cpu_quota}))
+        except OSError as e:
+            log.warning("resource policy write failed: %s", e)
 
 
 def _resource_props():
+    pol = _read_resource_policy()
     props = []
-    for name, val in (("TasksMax", USER_TASKS_MAX), ("MemoryMax", USER_MEM_MAX),
-                      ("CPUQuota", USER_CPU_QUOTA)):
+    for name, val in (("TasksMax", pol["tasksMax"]), ("MemoryMax", pol["memMax"]),
+                      ("CPUQuota", pol["cpuQuota"])):
         if val:
             props += ["--property", f"{name}={val}"]
     return props
@@ -757,12 +805,12 @@ def _bump_token_epoch(user):
 # the admin-set threshold. Opt-in via the Config app; policy is host-wide.
 IDLE_POLICY_FILE = os.environ.get("IDLE_POLICY_FILE") or "/var/lib/vibetop/idle.json"
 _idle_lock = threading.Lock()
-IDLE_MIN_MINUTES, IDLE_MAX_MINUTES = 1, 1440
-IDLE_DEFAULT_MINUTES = 30
+IDLE_MIN_HOURS, IDLE_MAX_HOURS = 1, 168        # 1 hour .. 1 week
+IDLE_DEFAULT_HOURS = 2
 
 
 def _read_idle_policy():
-    """{"enabled": bool, "minutes": int(clamped), "reapTerminals": bool}. Missing
+    """{"enabled": bool, "hours": int(clamped), "reapTerminals": bool}. Missing
     or corrupt file -> all defaults (disabled), so the reaper is OFF by default."""
     try:
         with open(IDLE_POLICY_FILE) as f:
@@ -771,20 +819,25 @@ def _read_idle_policy():
     except (OSError, ValueError):
         d = {}
     try:
-        minutes = int(d.get("minutes", IDLE_DEFAULT_MINUTES))
+        hours = int(d.get("hours"))
     except (TypeError, ValueError):
-        minutes = IDLE_DEFAULT_MINUTES
-    minutes = max(IDLE_MIN_MINUTES, min(IDLE_MAX_MINUTES, minutes))
-    return {"enabled": bool(d.get("enabled", False)), "minutes": minutes,
+        # Legacy files stored the threshold in `minutes`; convert (round up) so an
+        # already-enabled reaper keeps a sane threshold instead of the default.
+        try:
+            hours = max(1, (int(d["minutes"]) + 59) // 60)
+        except (TypeError, ValueError, KeyError):
+            hours = IDLE_DEFAULT_HOURS
+    hours = max(IDLE_MIN_HOURS, min(IDLE_MAX_HOURS, hours))
+    return {"enabled": bool(d.get("enabled", False)), "hours": hours,
             "reapTerminals": bool(d.get("reapTerminals", False))}
 
 
-def _write_idle_policy(enabled, minutes, reap_terminals):
+def _write_idle_policy(enabled, hours, reap_terminals):
     with _idle_lock:
         try:
             os.makedirs(os.path.dirname(IDLE_POLICY_FILE), exist_ok=True)
             _atomic_write(IDLE_POLICY_FILE, json.dumps(
-                {"enabled": bool(enabled), "minutes": int(minutes),
+                {"enabled": bool(enabled), "hours": int(hours),
                  "reapTerminals": bool(reap_terminals)}))
         except OSError as e:
             log.warning("idle policy write failed: %s", e)
@@ -860,7 +913,7 @@ def _reap_idle_users(now=None):
     if not policy["enabled"]:
         return []
     now = time.time() if now is None else now
-    cutoff = policy["minutes"] * 60
+    cutoff = policy["hours"] * 3600
     reaped = []
     for user in list(_read_users_registry().keys()):
         try:
@@ -900,28 +953,24 @@ def _is_real_login_user(pw):
     return os.path.basename(pw.pw_shell or "") not in _NOLOGIN_SHELLS
 
 
-def _online_users():
-    """Users with a vibetop web heartbeat within DESKTOP_TTL (web-online). A pure
-    SSH session isn't counted — presence here means 'has a live desktop'."""
-    now = time.time()
-    out = set()
-    for u in _read_users_registry():
-        t = _user_last_heartbeat(u)
-        if t is not None and (now - t) < DESKTOP_TTL:
-            out.add(u)
-    return out
-
-
 def _list_real_users():
-    online = _online_users()
+    """Real login users with sudo/online flags and their last web-activity time.
+    `lastActive` is the newest desktop-state heartbeat `ts` (epoch seconds) or None
+    if the user has never opened a vibetop desktop; `online` = that heartbeat is
+    within DESKTOP_TTL. Both come from one heartbeat read per user (a pure SSH
+    session isn't counted — presence here means 'has a live/recent web desktop')."""
+    now = time.time()
     users = []
     for pw in pwd.getpwall():
         if not _is_real_login_user(pw):
             continue
+        last = _user_last_heartbeat(pw.pw_name)
         users.append({
             "user": pw.pw_name, "uid": pw.pw_uid,
             "name": (pw.pw_gecos or "").split(",")[0].strip(),
-            "sudo": _can_sudo(pw.pw_name), "online": pw.pw_name in online,
+            "sudo": _can_sudo(pw.pw_name),
+            "online": last is not None and (now - last) < DESKTOP_TTL,
+            "lastActive": last,        # epoch seconds, or None if never seen
         })
     users.sort(key=lambda u: u["user"])
     return users
@@ -966,6 +1015,115 @@ def _drop_user_from_registry(user):
                 _atomic_write(USERS_REGISTRY, json.dumps(reg))
             except OSError:
                 pass
+
+
+# ---- Disk usage (Config app) -------------------------------------------------
+def _disk_usage():
+    """Filesystem usage for the roots that matter + the largest real-user homes.
+    Reuses the df-style statvfs math from _system_warnings (Use%/free exclude the
+    root reserve). Home sizes via `du -sx` (bounded by a timeout, best-effort)."""
+    fs = []
+    seen = set()
+    for mount in ("/", "/home"):
+        try:
+            st = os.statvfs(mount)
+        except OSError:
+            continue
+        key = (st.f_fsid, st.f_blocks)
+        if st.f_blocks == 0 or key in seen:      # skip /home if same fs as /
+            continue
+        seen.add(key)
+        used = st.f_blocks - st.f_bfree
+        denom = used + st.f_bavail
+        fs.append({
+            "mount": mount,
+            "total": st.f_frsize * st.f_blocks,
+            "used": st.f_frsize * used,
+            "free": st.f_frsize * st.f_bavail,
+            "pct": round(100.0 * used / denom) if denom > 0 else 0,
+        })
+    homes = []
+    truncated = False
+    budget = time.monotonic() + 20.0        # overall wall-clock cap across all du's
+    for pw in pwd.getpwall():
+        if not _is_real_login_user(pw):
+            continue
+        h = pw.pw_dir
+        if not h or not os.path.isdir(h):
+            continue
+        if time.monotonic() > budget:        # many/large homes — stop rather than hang
+            truncated = True
+            break
+        try:
+            r = subprocess.run(["du", "-sx", "--block-size=1", h],
+                               capture_output=True, text=True, timeout=15)
+            if r.returncode == 0:
+                homes.append({"user": pw.pw_name, "bytes": int(r.stdout.split()[0])})
+        except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+            pass
+    homes.sort(key=lambda x: -x["bytes"])
+    return {"filesystems": fs, "homes": homes, "truncated": truncated}
+
+
+# ---- Service health (Config app) ---------------------------------------------
+# The shared, host-level services (per-user terminals/xpra/files are dynamic and
+# excluded). `kind` picks the status/restart mechanism. Restart is allowlisted to
+# exactly these names.
+_HEALTH_SERVICES = [
+    {"label": "Manager", "name": "vibetop-manager", "kind": "unit"},
+    {"label": "Web (nginx)", "name": "nginx", "kind": "unit"},
+    {"label": "Tunnel", "name": "cloudflared", "kind": "unit"},
+    {"label": "Office (OnlyOffice)", "name": "vibetop-onlyoffice", "kind": "docker"},
+]
+_HEALTH_BY_NAME = {s["name"]: s for s in _HEALTH_SERVICES}
+
+
+def _service_status(name, kind):
+    try:
+        if kind == "docker":
+            r = subprocess.run(["docker", "inspect", "-f", "{{.State.Running}}", name],
+                               capture_output=True, text=True, timeout=10)
+            if r.returncode != 0:
+                return "inactive"
+            return "active" if r.stdout.strip() == "true" else "inactive"
+        r = subprocess.run(["systemctl", "is-active", name],
+                           capture_output=True, text=True, timeout=10)
+        return (r.stdout or r.stderr).strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+def _service_health():
+    return [{"label": s["label"], "name": s["name"], "kind": s["kind"],
+             "status": _service_status(s["name"], s["kind"])}
+            for s in _HEALTH_SERVICES]
+
+
+def _restart_service(name):
+    """Restart an allowlisted shared service. System units restart OUT-OF-BAND via
+    a transient timer (like the self-update), so bouncing nginx/the manager doesn't
+    kill this very request mid-flight. Returns (ok, err)."""
+    svc = _HEALTH_BY_NAME.get(name)
+    if not svc:
+        return False, "unknown service"
+    try:
+        if svc["kind"] == "docker":
+            r = subprocess.run(["docker", "restart", name],
+                               check=False, capture_output=True, text=True, timeout=60)
+        else:
+            # --collect so a failed transient unit (e.g. nginx with a bad config)
+            # is reaped instead of lingering and blocking every future restart with
+            # "unit already exists". Deferred timer so bouncing nginx/the manager
+            # can't kill this in-flight request.
+            r = subprocess.run(["systemd-run", "--collect", "--on-active=2",
+                                f"--unit=vibetop-cfg-restart-{_sanitize_unit(name)}",
+                                "systemctl", "restart", name],
+                               check=False, capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    if r.returncode != 0:
+        return False, (r.stderr or r.stdout or "restart failed").strip()[:300]
+    return True, None
 
 
 def _user_term_port(user, n):
@@ -2473,6 +2631,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_reset()
         if self.path == "/api/config/idle":
             return self._handle_config_idle_set()
+        if self.path == "/api/config/resources":
+            return self._handle_config_resources_set()
+        if self.path == "/api/config/services/restart":
+            return self._handle_config_service_restart()
         if self.path == "/api/config/users/add":
             return self._handle_config_user_add()
         if self.path == "/api/config/users/passwd":
@@ -2965,24 +3127,76 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if data is None:
             return self._json(400, {"error": "invalid body"})
         try:
-            minutes = int(data.get("minutes"))
+            hours = int(data.get("hours"))
         except (TypeError, ValueError):
-            return self._json(400, {"error": "minutes must be an integer"})
-        if not (IDLE_MIN_MINUTES <= minutes <= IDLE_MAX_MINUTES):
-            return self._json(400, {"error": f"minutes must be "
-                                             f"{IDLE_MIN_MINUTES}..{IDLE_MAX_MINUTES}"})
+            return self._json(400, {"error": "hours must be an integer"})
+        if not (IDLE_MIN_HOURS <= hours <= IDLE_MAX_HOURS):
+            return self._json(400, {"error": f"hours must be "
+                                             f"{IDLE_MIN_HOURS}..{IDLE_MAX_HOURS}"})
         enabled = bool(data.get("enabled", False))
         reap_terminals = bool(data.get("reapTerminals", False))
-        _write_idle_policy(enabled, minutes, reap_terminals)
-        log.info("config: idle policy enabled=%s minutes=%d reapTerminals=%s (by %s)",
-                 enabled, minutes, reap_terminals, _ctx_user())
-        self._json(200, {"ok": True, "enabled": enabled, "minutes": minutes,
+        _write_idle_policy(enabled, hours, reap_terminals)
+        log.info("config: idle policy enabled=%s hours=%d reapTerminals=%s (by %s)",
+                 enabled, hours, reap_terminals, _ctx_user())
+        self._json(200, {"ok": True, "enabled": enabled, "hours": hours,
                          "reapTerminals": reap_terminals})
 
     def _handle_config_users_get(self):
         if not self._require_sudo():
             return
         self._json(200, {"users": _list_real_users()})
+
+    def _handle_config_resources_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, _read_resource_policy())
+
+    def _handle_config_resources_set(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        tasks = (data.get("tasksMax") or "").strip()
+        mem = (data.get("memMax") or "").strip()
+        cpu = (data.get("cpuQuota") or "").strip()
+        if not _valid_cap(tasks, _TASKS_RE):
+            return self._json(400, {"error": "tasksMax must be a number or 'infinity' (or blank)"})
+        if not _valid_cap(mem, _MEM_RE):
+            return self._json(400, {"error": "memMax must look like 4G / 512M / a byte count (or blank)"})
+        if not _valid_cap(cpu, _CPU_RE):
+            return self._json(400, {"error": "cpuQuota must look like 400% (or blank)"})
+        _write_resource_policy(tasks, mem, cpu)
+        log.info("config: resource caps tasksMax=%r memMax=%r cpuQuota=%r (by %s)",
+                 tasks, mem, cpu, _ctx_user())
+        self._json(200, {"ok": True, "tasksMax": tasks, "memMax": mem, "cpuQuota": cpu})
+
+    def _handle_config_disk_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, _cached("disk_usage", 30.0, _disk_usage))
+
+    def _handle_config_services_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, {"services": _cached("svc_health", 5.0, _service_health)})
+
+    def _handle_config_service_restart(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        name = (data.get("service") or "").strip()
+        if name not in _HEALTH_BY_NAME:
+            return self._json(400, {"error": "unknown service"})
+        ok, err = _restart_service(name)
+        if not ok:
+            return self._json(500, {"error": err})
+        with _cache_lock:
+            _cache.pop("svc_health", None)
+        log.info("config: restart service %s (by %s)", name, _ctx_user())
+        self._json(200, {"ok": True})
 
     def _handle_config_user_add(self):
         if not self._require_sudo():
@@ -4120,6 +4334,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/config/idle":
             return self._handle_config_idle_get()
+        if self.path == "/api/config/resources":
+            return self._handle_config_resources_get()
+        if self.path == "/api/config/disk":
+            return self._handle_config_disk_get()
+        if self.path == "/api/config/services":
+            return self._handle_config_services_get()
         if self.path == "/api/config/users":
             return self._handle_config_users_get()
         if self.path == "/api/terminals/status":
