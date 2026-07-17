@@ -136,37 +136,42 @@ def test_list_real_users_reports_last_active(mgr, home, users, monkeypatch):
 # --- resource caps -----------------------------------------------------------
 
 def test_resource_policy_defaults_to_env(mgr, home):
-    # No file -> env defaults (TasksMax 4000, others uncapped).
-    pol = mgr._read_resource_policy()
-    assert pol == {"tasksMax": mgr.USER_TASKS_MAX, "memMax": mgr.USER_MEM_MAX,
-                   "cpuQuota": mgr.USER_CPU_QUOTA}
+    # No file -> mem/cpu uncapped (TasksMax is applied separately, not stored here).
+    assert mgr._read_resource_policy() == {"memMax": mgr.USER_MEM_MAX, "cpuCores": ""}
 
 
 def test_resource_policy_roundtrip_and_props(mgr, home):
-    mgr._write_resource_policy("2000", "4G", "400%")
-    assert mgr._read_resource_policy() == {"tasksMax": "2000", "memMax": "4G", "cpuQuota": "400%"}
+    mgr._write_resource_policy("4G", "4")
+    assert mgr._read_resource_policy() == {"memMax": "4G", "cpuCores": "4"}
     props = mgr._resource_props()
-    assert "--property" in props and "MemoryMax=4G" in props
-    assert "CPUQuota=400%" in props and "TasksMax=2000" in props
+    assert "MemoryMax=4G" in props
+    assert "CPUQuota=400%" in props                    # 4 cores -> 400%
+    assert f"TasksMax={mgr.USER_TASKS_MAX}" in props   # fixed fork-bomb default, always applied
 
 
 def test_resource_policy_rejects_bad_values_falls_back(mgr, home):
-    # A corrupt/invalid field is ignored (falls back to the env default) on read.
     with open(mgr.RESOURCE_POLICY_FILE, "w") as f:
-        f.write('{"memMax": "4G; rm -rf /", "cpuQuota": "lots", "tasksMax": "x"}')
+        f.write('{"memMax": "4G; rm -rf /", "cpuCores": "lots"}')
     pol = mgr._read_resource_policy()
-    assert pol["memMax"] == mgr.USER_MEM_MAX          # invalid -> env default
-    assert pol["cpuQuota"] == mgr.USER_CPU_QUOTA
-    assert pol["tasksMax"] == mgr.USER_TASKS_MAX
+    assert pol["memMax"] == mgr.USER_MEM_MAX           # invalid -> env default
+    assert pol["cpuCores"] == ""                       # invalid -> uncapped
+
+
+def test_resource_policy_migrates_legacy_cpuquota(mgr, home):
+    with open(mgr.RESOURCE_POLICY_FILE, "w") as f:
+        f.write('{"cpuQuota": "400%"}')                # legacy percentage schema
+    assert mgr._read_resource_policy()["cpuCores"] == "4"
 
 
 def test_resources_endpoint_validates(client, mgr, users, stubs, monkeypatch):
     monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
     ck = users["alice"][1]
-    assert client.post("/api/config/resources", {"memMax": "4G; rm", "cpuQuota": "", "tasksMax": ""}, cookie=ck)[0] == 400
-    assert client.post("/api/config/resources", {"memMax": "", "cpuQuota": "banana", "tasksMax": ""}, cookie=ck)[0] == 400
-    st, body = client.post("/api/config/resources", {"memMax": "4G", "cpuQuota": "200%", "tasksMax": "1000"}, cookie=ck)
-    assert st == 200 and mgr._read_resource_policy()["memMax"] == "4G"
+    assert client.post("/api/config/resources", {"memMax": "4G; rm", "cpuCores": ""}, cookie=ck)[0] == 400
+    assert client.post("/api/config/resources", {"memMax": "", "cpuCores": "banana"}, cookie=ck)[0] == 400
+    assert client.post("/api/config/resources", {"memMax": "", "cpuCores": "0"}, cookie=ck)[0] == 400
+    st, _ = client.post("/api/config/resources", {"memMax": "4G", "cpuCores": "8"}, cookie=ck)
+    assert st == 200 and mgr._read_resource_policy() == {"memMax": "4G", "cpuCores": "8"}
+    assert "hostCores" in client.get("/api/config/resources", cookie=ck)[1]   # UI hint
 
 
 # --- disk usage --------------------------------------------------------------
@@ -218,17 +223,17 @@ def test_restart_service_allowlist(mgr, home, stubs):
 
 def test_resource_cap_rejects_zero_and_trailing_newline(mgr, home):
     # 0 caps brick new sessions; a trailing newline emits a malformed --property.
-    assert not mgr._valid_cap("0", mgr._TASKS_RE)
-    assert not mgr._valid_cap("0%", mgr._CPU_RE)
+    assert not mgr._valid_cap("0", mgr._CORES_RE)
     assert not mgr._valid_cap("0G", mgr._MEM_RE)
-    assert not mgr._valid_cap("4000\n", mgr._TASKS_RE)
+    assert not mgr._valid_cap("4\n", mgr._CORES_RE)
     assert not mgr._valid_cap("4G\n", mgr._MEM_RE)
-    assert mgr._valid_cap("infinity", mgr._TASKS_RE)
+    assert mgr._valid_cap("8", mgr._CORES_RE)
+    assert mgr._valid_cap("infinity", mgr._MEM_RE)
     assert mgr._valid_cap("", mgr._MEM_RE)               # blank = uncapped
-    # A hand-edited file with a trailing-newline value falls back to the env default.
+    # A hand-edited file with a trailing-newline value falls back to the default.
     with open(mgr.RESOURCE_POLICY_FILE, "w") as f:
-        f.write('{"tasksMax": "4000\\n"}')
-    assert mgr._read_resource_policy()["tasksMax"] == mgr.USER_TASKS_MAX
+        f.write('{"cpuCores": "4\\n"}')
+    assert mgr._read_resource_policy()["cpuCores"] == ""
 
 
 def test_idle_policy_migrates_legacy_minutes(mgr, home):

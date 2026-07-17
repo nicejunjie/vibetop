@@ -158,10 +158,9 @@
           current limits. Leave a field blank for no cap.</div>
         <div class="row"><span class="fld-label cap-l">Max memory / user</span>
           <input type="text" id="res-mem" spellcheck="false" placeholder="e.g. 4G — blank = none"></div>
-        <div class="row"><span class="fld-label cap-l">CPU quota / user</span>
-          <input type="text" id="res-cpu" spellcheck="false" placeholder="e.g. 400% — blank = none"></div>
-        <div class="row"><span class="fld-label cap-l">Max tasks / user</span>
-          <input type="text" id="res-tasks" spellcheck="false" placeholder="e.g. 4000 or infinity"></div>
+        <div class="row"><span class="fld-label cap-l">CPU cores / user</span>
+          <input type="number" id="res-cpu" min="1" step="1" placeholder="e.g. 4 — blank = none">
+          <span class="fld-label" id="res-cpu-hint"></span></div>
         <div class="row" style="margin-top:14px">
           <button id="res-save">Save</button>
           <span class="status" id="res-status"></span>
@@ -412,18 +411,20 @@
 
   // ---- Resource caps --------------------------------------------------------
   var resMem = document.getElementById('res-mem'), resCpu = document.getElementById('res-cpu'),
-      resTasks = document.getElementById('res-tasks'), resStatus = document.getElementById('res-status');
+      resStatus = document.getElementById('res-status');
   function loadResources() {
     api('GET', '/api/config/resources').then(function (res) {
       if (handle403(res)) return;
       var p = res.data || {};
-      resMem.value = p.memMax || ''; resCpu.value = p.cpuQuota || ''; resTasks.value = p.tasksMax || '';
+      resMem.value = p.memMax || ''; resCpu.value = p.cpuCores || '';
+      var hint = document.getElementById('res-cpu-hint');
+      if (hint && p.hostCores) hint.textContent = 'of ' + p.hostCores + ' on this host';
     });
   }
   document.getElementById('res-save').addEventListener('click', function () {
     setStatus(resStatus, 'Saving…', 'run');
     api('POST', '/api/config/resources',
-        { memMax: resMem.value.trim(), cpuQuota: resCpu.value.trim(), tasksMax: resTasks.value.trim() })
+        { memMax: resMem.value.trim(), cpuCores: resCpu.value.trim() })
       .then(function (res) {
         if (handle403(res)) return;
         if (res.status === 200) setStatus(resStatus, 'Saved — applies to newly-started sessions', 'ok');

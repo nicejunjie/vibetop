@@ -663,9 +663,8 @@ USER_CPU_QUOTA = os.environ.get("USER_CPU_QUOTA", "")      # e.g. "400%"
 RESOURCE_POLICY_FILE = os.environ.get("RESOURCE_POLICY_FILE") or "/var/lib/vibetop/resources.json"
 _resource_lock = threading.Lock()
 # Nonzero (a 0 cap bricks every new session) — leading [1-9]. "infinity" = uncapped.
-_TASKS_RE = re.compile(r"[1-9]\d{0,8}|infinity")
 _MEM_RE = re.compile(r"[1-9]\d{0,5}[KMGT]?|infinity")   # bytes or K/M/G/T suffix
-_CPU_RE = re.compile(r"[1-9]\d{0,4}%")                  # e.g. 400%
+_CORES_RE = re.compile(r"[1-9]\d{0,3}")                 # whole logical cores, 1..9999
 
 
 def _valid_cap(val, rx):
@@ -675,9 +674,20 @@ def _valid_cap(val, rx):
     return val == "" or rx.fullmatch(val) is not None
 
 
+def _cpuquota_to_cores(q):
+    """Migrate a legacy cpuQuota string ('400%') to whole logical cores ('4')."""
+    try:
+        if isinstance(q, str) and q.endswith("%"):
+            return str(max(1, round(int(q[:-1]) / 100)))
+    except (ValueError, TypeError):
+        pass
+    return ""
+
+
 def _read_resource_policy():
-    """{"tasksMax","memMax","cpuQuota"} as validated strings; each '' = uncapped.
-    A field that's missing/invalid/corrupt falls back to the env default."""
+    """{"memMax","cpuCores"} as validated strings; each '' = uncapped. A missing/
+    invalid/corrupt field falls back to the env default. (TasksMax is NOT admin-
+    tunable — a fixed env default applied by _resource_props for fork-bomb safety.)"""
     d = {}
     try:
         with open(RESOURCE_POLICY_FILE) as f:
@@ -685,21 +695,20 @@ def _read_resource_policy():
         d = d if isinstance(d, dict) else {}
     except (OSError, ValueError):
         d = {}
+    mem = d.get("memMax")
+    mem = mem if isinstance(mem, str) and _valid_cap(mem, _MEM_RE) else USER_MEM_MAX
+    cores = d.get("cpuCores")
+    if not (isinstance(cores, str) and _valid_cap(cores, _CORES_RE)):
+        cores = _cpuquota_to_cores(d.get("cpuQuota"))    # legacy "400%" -> "4"
+    return {"memMax": mem, "cpuCores": cores}
 
-    def pick(key, default, rx):
-        v = d.get(key)
-        return v if isinstance(v, str) and _valid_cap(v, rx) else default
-    return {"tasksMax": pick("tasksMax", USER_TASKS_MAX, _TASKS_RE),
-            "memMax": pick("memMax", USER_MEM_MAX, _MEM_RE),
-            "cpuQuota": pick("cpuQuota", USER_CPU_QUOTA, _CPU_RE)}
 
-
-def _write_resource_policy(tasks_max, mem_max, cpu_quota):
+def _write_resource_policy(mem_max, cpu_cores):
     with _resource_lock:
         try:
             os.makedirs(os.path.dirname(RESOURCE_POLICY_FILE), exist_ok=True)
             _atomic_write(RESOURCE_POLICY_FILE, json.dumps(
-                {"tasksMax": tasks_max, "memMax": mem_max, "cpuQuota": cpu_quota}))
+                {"memMax": mem_max, "cpuCores": cpu_cores}))
         except OSError as e:
             log.warning("resource policy write failed: %s", e)
 
@@ -707,10 +716,12 @@ def _write_resource_policy(tasks_max, mem_max, cpu_quota):
 def _resource_props():
     pol = _read_resource_policy()
     props = []
-    for name, val in (("TasksMax", pol["tasksMax"]), ("MemoryMax", pol["memMax"]),
-                      ("CPUQuota", pol["cpuQuota"])):
-        if val:
-            props += ["--property", f"{name}={val}"]
+    if USER_TASKS_MAX:                     # fixed fork-bomb default (env), not admin-tunable
+        props += ["--property", f"TasksMax={USER_TASKS_MAX}"]
+    if pol["memMax"]:
+        props += ["--property", f"MemoryMax={pol['memMax']}"]
+    if pol["cpuCores"]:                    # N logical cores -> systemd CPUQuota=N*100%
+        props += ["--property", f"CPUQuota={int(pol['cpuCores']) * 100}%"]
     return props
 
 
@@ -3149,7 +3160,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _handle_config_resources_get(self):
         if not self._require_sudo():
             return
-        self._json(200, _read_resource_policy())
+        pol = _read_resource_policy()
+        pol["hostCores"] = os.cpu_count() or 0     # UI hint: this host's logical cores
+        self._json(200, pol)
 
     def _handle_config_resources_set(self):
         if not self._require_sudo():
@@ -3157,19 +3170,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         data = self._config_body()
         if data is None:
             return self._json(400, {"error": "invalid body"})
-        tasks = (data.get("tasksMax") or "").strip()
         mem = (data.get("memMax") or "").strip()
-        cpu = (data.get("cpuQuota") or "").strip()
-        if not _valid_cap(tasks, _TASKS_RE):
-            return self._json(400, {"error": "tasksMax must be a number or 'infinity' (or blank)"})
+        cores = (data.get("cpuCores") or "").strip()
         if not _valid_cap(mem, _MEM_RE):
             return self._json(400, {"error": "memMax must look like 4G / 512M / a byte count (or blank)"})
-        if not _valid_cap(cpu, _CPU_RE):
-            return self._json(400, {"error": "cpuQuota must look like 400% (or blank)"})
-        _write_resource_policy(tasks, mem, cpu)
-        log.info("config: resource caps tasksMax=%r memMax=%r cpuQuota=%r (by %s)",
-                 tasks, mem, cpu, _ctx_user())
-        self._json(200, {"ok": True, "tasksMax": tasks, "memMax": mem, "cpuQuota": cpu})
+        if not _valid_cap(cores, _CORES_RE):
+            return self._json(400, {"error": "CPU cores must be a whole number (or blank)"})
+        _write_resource_policy(mem, cores)
+        log.info("config: resource caps memMax=%r cpuCores=%r (by %s)", mem, cores, _ctx_user())
+        self._json(200, {"ok": True, "memMax": mem, "cpuCores": cores})
 
     def _handle_config_disk_get(self):
         if not self._require_sudo():
