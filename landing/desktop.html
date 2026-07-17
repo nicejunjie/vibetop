@@ -372,11 +372,10 @@
   /* One centered pill: "Vibetop · v<release> · build <N>" (release keeps the
      semver v; the build is labelled and un-prefixed so the two don't both read "v"). */
   .sm-build { text-align: center; padding: 6px 0 2px; }
+  /* Quiet footer text — no pill/border/accent, so the build line recedes. */
   .sm-build .build-tag {
-    display: inline-block; font: 600 11px ui-monospace, Menlo, monospace;
-    color: #9ecbff; background: rgba(45,108,192,0.18);
-    border: 1px solid rgba(80,140,220,0.45); border-radius: 999px;
-    padding: 3px 11px; letter-spacing: 0.3px; white-space: nowrap;
+    display: inline-block; font: 500 11px ui-monospace, Menlo, monospace;
+    color: #5b6879; letter-spacing: 0.3px; white-space: nowrap; padding: 2px 0;
   }
   /* Text column shrinks (min-width:0) so the description ellipsizes instead of
      wrapping to a 2nd line — the narrow (240px) menu + a running app's ⏻ button
