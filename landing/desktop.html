@@ -369,16 +369,16 @@
   .sm-item[data-id="sysstats"] .sm-icon { background: #3a2340; }
   /* Build tag — lets you confirm whether a fresh shell loaded (vs a stale
      service-worker cache). Bump it whenever the shell changes. */
-  .sm-build { text-align: center; padding: 5px 0 2px; }
+  /* One centered row: the version pill (release + build number) plus a quiet
+     build date — merged up from what used to be a second line. Wrap-safe. */
+  .sm-build { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 7px; padding: 6px 0 2px; }
   .sm-build .build-tag {
-    display: inline-block; font: 600 11px ui-monospace, Menlo, monospace;
+    font: 600 11px ui-monospace, Menlo, monospace;
     color: #9ecbff; background: rgba(45,108,192,0.18);
     border: 1px solid rgba(80,140,220,0.45); border-radius: 999px;
-    padding: 3px 11px; letter-spacing: 0.3px;
+    padding: 3px 11px; letter-spacing: 0.3px; white-space: nowrap;
   }
-  /* Build number + date together on a quiet line under the pill, so the date
-     reads as the build date — not "today". */
-  .sm-build .build-meta { display: block; margin-top: 4px; font: 400 10px ui-monospace, Menlo, monospace; color: #6a7a8a; letter-spacing: 0.2px; }
+  .sm-build .build-date { font: 400 10px ui-monospace, Menlo, monospace; color: #6a7a8a; letter-spacing: 0.2px; }
   /* Text column shrinks (min-width:0) so the description ellipsizes instead of
      wrapping to a 2nd line — the narrow (240px) menu + a running app's ⏻ button
      left "Persistent bash terminals" too wide for one line on iPad. */
@@ -449,6 +449,13 @@
     color: #d2a56a; margin-top: -6px;   /* warm accent, tucked under the brand name */
   }
   .wp-greet[hidden] { display: none; }
+  /* Full version stamp — filled LIVE from /api/update (version · release date ·
+     commit), so it's never hardcoded and updates itself on every deploy. */
+  .wp-ver {
+    margin-top: -6px; letter-spacing: 0.3px; color: #5b6879;
+    font: 500 clamp(11px, 1.6vmin, 13px) ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .wp-ver:empty { display: none; }   /* no empty gap before the fetch resolves */
   .wp-desc {
     max-width: 470px; font-size: clamp(13px, 1.95vmin, 15px); line-height: 1.6; color: #7a8696;
   }
@@ -562,6 +569,7 @@
       </svg>
       <div class="wp-name">Vibetop</div>
       <div class="wp-greet" id="wp-greet" hidden></div>
+      <div class="wp-ver" id="wp-ver"></div>
       <div class="wp-desc">A self-hosted mini-OS desktop for anywhere you go.</div>
       <div class="wp-repo"><a href="https://github.com/nicejunjie/vibetop" target="_blank" rel="noopener">github.com/nicejunjie/vibetop</a></div>
       <div class="wp-hint" id="wp-hint">Click <b>&nbsp;⊞ Start&nbsp;</b> to open an app</div>
@@ -599,7 +607,7 @@
       <div class="sm-caret">▶</div>
     </div>
     <div class="sm-sub" id="sm-utilities"><div class="sm-fly-head"><span class="fh-back">‹ Back</span><span class="fh-name">Utilities</span></div></div>
-    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span></span><span class="build-meta">build @SW_VERSION@<span id="build-date"></span></span></div>
+    <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span> · <span id="build-sw">@SW_VERSION@</span></span><span class="build-date" id="build-date"></span></div>
   </div>
 
   <div class="taskbar" id="taskbar">
@@ -1741,10 +1749,20 @@
     var el = document.getElementById('build-ver');
     if (el && d && d.version) el.textContent = d.version;
     var de = document.getElementById('build-date');
-    // build_date = when sw.js (the "build vN") was last cut — matches the build
-    // number beside it. NOT version_date (the VERSION-file/release date), which
-    // goes stale when a shell-only build bumps sw.js without cutting a release.
-    if (de && d && d.build_date) de.textContent = ' · ' + d.build_date;   // " · <date>" after "build vN"
+    // build_date = when the shell (the "· vN" build number in the pill) was cut —
+    // matches that build number, NOT version_date (the release date), which goes
+    // stale when a shell-only build bumps sw.js without cutting a release.
+    if (de && d && d.build_date) de.textContent = d.build_date;
+    // Full version stamp on the desktop wallpaper — version · release date ·
+    // commit, all live from the manager (which reads the VERSION file + git), so
+    // it self-updates on every deploy with nothing hardcoded in the image.
+    var vv = document.getElementById('wp-ver');
+    if (vv && d && d.version) {
+      var parts = ['Vibetop v' + d.version];
+      if (d.version_date) parts.push(d.version_date);
+      if (d.commit) parts.push(d.commit);
+      vv.textContent = parts.join('  ·  ');
+    }
   }).catch(function() {});
 
   // --- restore THIS instance's own windows; seed the running dots ----------
