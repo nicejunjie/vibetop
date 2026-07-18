@@ -17,6 +17,54 @@ and why it lost).
 
 ---
 
+## Uploads over ~1 MB failed with a 500 (the `auth_request` body-size trap)
+
+**Symptom:** From the phone, some photos uploaded fine while a specific one always
+"Failed" — reproducibly. Bigger tell: the progress bar climbed to ~82% then
+stalled and failed. The manager log showed *no* upload error at all; the nginx
+error log did: `client intended to send too large body: 1433503 bytes,
+subrequest: "/internal/authcheck"` followed by `auth request unexpected status:
+413`, and the access log showed `POST /api/upload → 500`. It was **size-gated,
+not content-gated**: files < 1 MB (a 257 KB screenshot) always worked, files
+> 1 MB (a 1.4 MB photo) always failed — regardless of the file, across retries
+with fresh multipart boundaries.
+
+**Cause:** `/api/upload` had `client_max_body_size 5G`, but that's not the only
+location the body is size-checked against. Every protected request first runs the
+`auth_request` subrequest to `location = /internal/authcheck`, and **nginx
+enforces the *main* request body's size against the subrequest location's
+`client_max_body_size`** — which was unset there, so it inherited nginx's **1 MB
+default**. So the auth subrequest 413'd on any body > 1 MB, and `auth_request`
+turns a non-200/401/403 subrequest status into a **500** for the main request.
+The body is never even forwarded to the auth endpoint (`proxy_pass_request_body
+off`) — nginx still runs the size check. The "82% then fail" is the browser
+buffering most of the small body into the socket before nginx resets the
+connection after the early rejection (progress counts bytes *written*, not
+*accepted*).
+
+**Fix:** add `client_max_body_size 5G;` inside the `location = /internal/authcheck`
+block (in `terminal/install.sh`, which generates the site). Every protected
+location shares this one auth subrequest, so the single line fixes uploads through
+all of them; `/api/` already allowed 5G, and the body isn't sent to the manager
+regardless, so raising it here is free of security cost. Verified: a 2 MB POST
+through the gate now returns `401` (auth reached, missing cookie) instead of the
+old `500` (size-gate before auth). Also hardened the **Upload app** UX so a
+genuine failure is legible: each failed file shows a reason line (mapped from the
+HTTP status → too-large / session-expired / server-error / the manager's `{error}`
+/ network-dropped / cancelled) and a **↻ Retry** button that re-uploads just that
+file — mobile-network drops are now recoverable in place instead of an opaque
+"Failed".
+
+**Rejected:** setting `client_max_body_size` at the `server`/`http` level — would
+work, but it also lifts the 1 MB safety cap on every non-upload JSON endpoint
+(`/api/desktop`, etc.); the surgical per-location fix keeps those protected while
+only the auth subrequest (which never touches the body) is widened. Also
+considered raising it only on `/api/` (already done — that wasn't the location
+doing the 413; the *subrequest* was, which is easy to miss because the main
+location looks correctly configured).
+
+---
+
 ## Config admin app: sudo gate, and an idle reaper that spares terminals by default
 
 - **Context:** Making vibetop a real shared-host product surfaced two gaps: idle
