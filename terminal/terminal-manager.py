@@ -630,6 +630,11 @@ TERMINAL_DIR = os.path.dirname(os.path.abspath(__file__))   # vibetop-session, t
 # ttyd-run.sh) must be reachable by every user — NOT inside the operator's 0750
 # home where the checkout lives. terminal/install.sh copies them here (0755).
 TERM_HELPER_DIR = "/usr/local/lib/vibetop"
+# The xdg-open/$BROWSER shim that routes a terminal's "open a browser" into the
+# user's vibetop Browser (installed by terminal/install.sh). A long-lived per-user
+# token exported into the terminal env lets the shim authenticate the browser-open.
+XDG_OPEN_SHIM = "/usr/local/bin/xdg-open"
+BROWSER_TOKEN_TTL = 3650 * 24 * 3600            # ~10y — the token lives with the terminal
 
 
 def _term_helper(name):
@@ -1185,6 +1190,16 @@ def _user_terminal_setenvs(user):
                  f"XDG_RUNTIME_DIR=/run/user/{uid}"]
     except KeyError:
         pass
+    # Route "open a browser" (OAuth logins, xdg-open, $BROWSER) into THIS user's
+    # vibetop Browser app: a long-lived per-user token the shim presents to the
+    # manager's /api/browser/open (see terminal/xdg-open-shim.sh). Best-effort.
+    try:
+        envs.append("VIBETOP_SESSION=" + _sign_session(user, ttl=BROWSER_TOKEN_TTL))
+        envs.append(f"VIBETOP_MGR_PORT={BASE_PORT}")
+        if os.path.exists(XDG_OPEN_SHIM):
+            envs.append(f"BROWSER={XDG_OPEN_SHIM}")
+    except Exception as e:
+        log.warning("terminal env: browser-open setup failed for %s: %s", user, e)
     return envs
 
 

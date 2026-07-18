@@ -357,3 +357,12 @@ def test_password_rejects_control_chars(client, mgr, users, stubs, monkeypatch):
         assert client.post("/api/config/users/add",
                            {"username": "newbie", "password": bad}, cookie=ck)[0] == 400
     assert not any(isinstance(c, list) and c and c[0] == "useradd" for c in stubs["run"])
+
+
+def test_terminal_env_carries_browser_open_token(mgr, home):
+    # New terminals export a long-lived per-user token + manager port so the
+    # xdg-open/$BROWSER shim can open a browser in that user's vibetop Browser.
+    envs = mgr._user_terminal_setenvs("alice")
+    d = dict(e.split("=", 1) for e in envs)
+    assert "VIBETOP_SESSION" in d and "VIBETOP_MGR_PORT" in d
+    assert mgr._verify_session(d["VIBETOP_SESSION"]) == "alice"   # valid session for alice

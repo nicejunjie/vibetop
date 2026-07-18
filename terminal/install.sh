@@ -141,6 +141,10 @@ run chmod +x "$APP_DIR/ttyd-run.sh" "$APP_DIR/vibetop-session"
 run sudo install -d -m 0755 /usr/local/lib/vibetop
 run sudo install -m 0755 "$APP_DIR/vibetop-session" /usr/local/lib/vibetop/vibetop-session
 run sudo install -m 0755 "$APP_DIR/ttyd-run.sh" /usr/local/lib/vibetop/ttyd-run.sh
+# xdg-open shim: ahead of /usr/bin on PATH + used as $BROWSER in terminals, so a
+# CLI "open a browser" (OAuth logins) opens in the user's vibetop Browser. Defers
+# to the real /usr/bin/xdg-open outside vibetop terminals (no VIBETOP_SESSION).
+run sudo install -m 0755 "$APP_DIR/xdg-open-shim.sh" /usr/local/bin/xdg-open
 
 # 3. systemd unit templates --------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
