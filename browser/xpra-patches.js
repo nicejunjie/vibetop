@@ -14,6 +14,8 @@
 
   // Exposed by patch 3 (native keyboard) for the paste patch (5).
   var kbdSendChar = null, kbdSendKey = null, kbdSendText = null;
+  // CJK/Unicode text awaiting a clipboard-request round-trip (served by patch 3c).
+  var pendingPaste = null, pendingPasteTs = 0, PENDING_PASTE_TTL = 3000;
 
   // Set by patch 10 (re-claim the shared display size); called by the touch
   // layer (patch 4) for the double-tap, and by patch 10 itself for desktop
@@ -166,16 +168,31 @@
     var typeRun = function(s) {
       if (ASCII_RE.test(s)) { for (var i = 0; i < s.length; i++) sendChar(s.charAt(i)); return; }
       var c = window.client;
-      if (!c || !c.connected || !c.topwindow || !c.send_clipboard_token) {
-        for (var j = 0; j < s.length; j++) sendChar(s.charAt(j));   // best effort if client not ready
-        return;
+      if (!c || !c.connected || !c.send_clipboard_token) {
+        console.warn('[xpra-patches] text inject: no client/clipboard'); return;
+      }
+      if (!c.topwindow) {   // same requirement as xpra's own tablet input (index.html:1029)
+        // Fail LOUD (a silent per-char fallback types nothing for CJK). c.warn is
+        // relayed to the SERVER journal, so this is diagnosable without the device.
+        try { if (c.warn) c.warn('[vibetop] text inject: no top window'); } catch (e2) {}
+        console.warn('[xpra-patches] text inject: no top window'); return;
       }
       try {
-        c.clipboard_buffer = s;
+        // The token CARRIES the UTF-8 data: the server caches it and claims the X
+        // CLIPBOARD selection, so the remote paste is answered server-side (no
+        // navigator.clipboard round-trip). pendingPaste + patch 3c cover the case
+        // where Chromium requests a target the token didn't wrap.
+        pendingPaste = s; pendingPasteTs = Date.now();
+        c.clipboard_buffer = s;              // keep client state consistent
         c.send_clipboard_token(s);
+        // DIRECT key-action packets, never synthetic KeyboardEvents: swap_keys is
+        // TRUE on iPad ("MacIntel") and would rewrite Control->Meta. Release carries
+        // [] so Control isn't left logically held (else a following click = Ctrl+click).
         c.send(["key-action", c.topwindow, "v", true,  ["control"], 118, "v", 86, 0]);
-        c.send(["key-action", c.topwindow, "v", false, ["control"], 118, "v", 86, 0]);
-      } catch (err) {}
+        c.send(["key-action", c.topwindow, "v", false, [],          118, "v", 86, 0]);
+      } catch (err) {
+        console.warn('[xpra-patches] text inject failed:', err.message);
+      }
     };
     var sendText = function(text) {
       if (!text) return;
@@ -198,6 +215,32 @@
     kbdSendChar = sendChar; kbdSendKey = sendKey; kbdSendText = sendText;   // for the paste patch (5)
   } catch(e) {
     console.warn('[xpra-patches] keyboard patch failed:', e.message);
+  }
+
+  // 3c. Answer a remote paste's clipboard-request from our pending injected text
+  //     (CJK/Unicode). Normally the token (typeRun) carries the data and the
+  //     server answers the paste entirely server-side; this covers the case where
+  //     Chromium requests a target the token didn't wrap, whose stock handler
+  //     hits navigator.clipboard.read() — blocked on iOS outside a user gesture.
+  //     MUST wrap the PROTOTYPE: init_packet_handlers() captures
+  //     this._process_clipboard_request into the dispatch map at client init, and
+  //     we run before the client is constructed, so this wrapper is what's captured
+  //     (an instance-level wrap installed later would never be consulted).
+  try {
+    var CRP = XpraClient.prototype;
+    var origClipReq = CRP._process_clipboard_request;
+    CRP._process_clipboard_request = function(packet) {
+      if (pendingPaste && packet && packet[2] === 'CLIPBOARD' &&
+          (Date.now() - pendingPasteTs) < PENDING_PASTE_TTL) {
+        // send_clipboard_string(request_id, selection, text, datatype); never ''
+        // (that sends clipboard-contents-none).
+        this.send_clipboard_string(packet[1], packet[2], pendingPaste, 'UTF8_STRING');
+        return;
+      }
+      return origClipReq.apply(this, arguments);
+    };
+  } catch(e) {
+    console.warn('[xpra-patches] clipboard-request patch failed:', e.message);
   }
 
   // 4. Mobile zoom — Safari-style pinch magnification.
