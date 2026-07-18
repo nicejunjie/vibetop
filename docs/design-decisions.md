@@ -17,6 +17,53 @@ and why it lost).
 
 ---
 
+## Mobile Browser typing: dropped/reordered letters, and Chinese typed nothing
+
+**Symptom:** On iPhone, typing into the Browser (xpra) via the ⌨ button: fast typing
+lost letters; `hpc` came out `hc` or `pc` (a spurious backspace of a middle/first
+char); and **Chinese via pinyin typed nothing at all** while English worked.
+
+**Cause — two independent bugs in the same relay:**
+1. *Dropped/reordered (the diff):* the desktop shell's `#kbd-input` forwarded keys by
+   a **debounced value-diff** — compare `input.value` to `lastVal`, emit Backspaces +
+   chars. That assumes `input.value` only ever grows by append between flushes, which
+   **WebKit violates**: marked-text/QuickType/dictation rewrite the field
+   *non-monotonically* (delete-then-reinsert across separate input tasks). An 80 ms
+   flush timer sampling the field mid-rewrite saw a half-state (e.g. `"h"` while `"hp"`
+   was being rewritten) → computed a spurious Backspace → `hpc` rendered `hc`. Fast
+   typing is the same failure continuously.
+2. *CJK dropped (the server):* a Chinese character has **no X11 keysym**, and the
+   whole path (synthetic KeyboardEvent → xpra `_keyb_process` → `key-action` with a
+   keyval) dies at the server: xpra 6.4.4 `keyboard.py` `_process_key_action` does
+   `if keycode >= 0` and **silently drops** anything `find_matching_keycode` can't
+   resolve, and that only resolves keysyms present in the live X keymap (no hanzi). The
+   client's own tablet-input path (`#pasteboard`) sends the raw codepoint (not even
+   X's `0x1000000|cp` Unicode-keysym convention), so it dies too — **routing CJK
+   through `#pasteboard` does not work** (a dead end we verified before shipping).
+
+**Fix:**
+- *Diff → read-and-clear* (`landing/desktop.html setupKbd`): mirror xpra's own
+  `#pasteboard` handler — empty the field on every commit, so there's no stored value
+  to mis-diff and no debounce window to sample mid-rewrite. Forward committed text as
+  one `kbd-text` run; IME is gated by `compositionstart/end` (forward nothing until the
+  commit); dictation is committed once on an idle timer (`inputType ===
+  'insertDictationText'`); Enter/Backspace are suppressed mid-composition (`keyCode
+  229`).
+- *CJK via the clipboard channel* (`browser/xpra-patches.js`): ASCII still types as key
+  events; **non-ASCII is injected via the remote clipboard + one synthetic Ctrl+V**
+  (`client.send_clipboard_token(text)` then a `v`+Control key-action) — the Unicode-
+  clean path that already makes Mac Cmd+V paste CJK in production. Accepted tradeoff:
+  the *remote* clipboard then holds that text (that's what a paste is); the local iOS
+  clipboard is untouched. The non-Mac Ctrl+V paste path reuses the same `sendText`, so
+  pasted CJK works too.
+
+**Rejected:** routing CJK through xpra's `#pasteboard`/`keyval=codepoint` — the server
+drops it (see cause 2). Patching individual WebKit rewrite *shapes* on top of the diff —
+whack-a-mole; read-and-clear removes the whole class. **Lesson: never try to type
+non-ASCII into xpra as key events; use the clipboard channel.**
+
+---
+
 ## The mobile Browser lost ALL its patches — `/xpra-patches.js` 404'd after the `/opt` move
 
 **Symptom:** On iPhone, the Browser app showed **two stacked keyboards** — xpra's own

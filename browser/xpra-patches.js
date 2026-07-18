@@ -13,7 +13,7 @@
   var VIEWZOOM = { z: 1, px: 0, py: 0, min: 1, max: 6 };
 
   // Exposed by patch 3 (native keyboard) for the paste patch (5).
-  var kbdSendChar = null, kbdSendKey = null;
+  var kbdSendChar = null, kbdSendKey = null, kbdSendText = null;
 
   // Set by patch 10 (re-claim the shared display size); called by the touch
   // layer (patch 4) for the double-tap, and by patch 10 itself for desktop
@@ -142,23 +142,60 @@
         }));
       });
     };
-    var sendChar = function(ch) {
+    var sendChar = function(ch) {   // ASCII only; non-ASCII goes via sendText (clipboard)
       var code = '', kc = ch.charCodeAt(0), shift = false, up = ch.toUpperCase();
       if (ch >= 'a' && ch <= 'z')      { code = 'Key' + up;  kc = up.charCodeAt(0); }
       else if (ch >= 'A' && ch <= 'Z') { code = 'Key' + ch;  kc = ch.charCodeAt(0); shift = true; }
       else if (ch >= '0' && ch <= '9') { code = 'Digit' + ch; kc = ch.charCodeAt(0); }
       else if (ch === ' ')             { code = 'Space'; kc = 32; }
-      // Other symbols: leave code empty; xpra maps them from event.key.
+      // Other ASCII symbols: leave code empty; xpra maps them from event.key.
       sendKey(ch, code, kc, shift);
     };
     var SPECIAL = { Enter: [13], Tab: [9], Backspace: [8], Escape: [27],
                     ArrowUp: [38], ArrowDown: [40], ArrowLeft: [37], ArrowRight: [39] };
+    // Committed text runs (from the desktop shell's #kbd-input, read-and-clear).
+    // ASCII types through the proven per-char key-event path. Non-ASCII (CJK from a
+    // pinyin IME, emoji, accented Latin) CANNOT be typed as key events — the X
+    // keymap has no keysym for it and the xpra server silently drops unmapped keys
+    // (server keyboard.py: `if keycode >= 0`), which is the real reason "Chinese
+    // types nothing". Inject it via the remote clipboard + one synthetic Ctrl+V —
+    // the Unicode-clean mechanism the Mac Cmd+V paste path already uses. Accepted
+    // side effect: the REMOTE clipboard then holds that text (that's what a paste
+    // is); the local iOS clipboard is untouched (the token flows client->server).
+    var ASCII_RE = /^[\x20-\x7e]*$/;
+    var typeRun = function(s) {
+      if (ASCII_RE.test(s)) { for (var i = 0; i < s.length; i++) sendChar(s.charAt(i)); return; }
+      var c = window.client;
+      if (!c || !c.connected || !c.topwindow || !c.send_clipboard_token) {
+        for (var j = 0; j < s.length; j++) sendChar(s.charAt(j));   // best effort if client not ready
+        return;
+      }
+      try {
+        c.clipboard_buffer = s;
+        c.send_clipboard_token(s);
+        c.send(["key-action", c.topwindow, "v", true,  ["control"], 118, "v", 86, 0]);
+        c.send(["key-action", c.topwindow, "v", false, ["control"], 118, "v", 86, 0]);
+      } catch (err) {}
+    };
+    var sendText = function(text) {
+      if (!text) return;
+      // Split Tab/Enter out so a committed/pasted run with newlines still works.
+      var parts = String(text).split(/(\r\n|\n|\r|\t)/);
+      for (var p = 0; p < parts.length; p++) {
+        var seg = parts[p];
+        if (!seg) continue;
+        if (seg === '\t') sendKey('Tab', 'Tab', 9);
+        else if (seg === '\n' || seg === '\r' || seg === '\r\n') sendKey('Enter', 'Enter', 13);
+        else typeRun(seg);
+      }
+    };
     window.addEventListener('message', function(e) {
       var d = e.data; if (!d || !d.type) return;
-      if (d.type === 'kbd-char' && typeof d.ch === 'string') sendChar(d.ch);
+      if (d.type === 'kbd-char' && typeof d.ch === 'string') sendChar(d.ch);           // legacy shell
+      else if (d.type === 'kbd-text' && typeof d.text === 'string') sendText(d.text);   // new read-and-clear shell
       else if (d.type === 'kbd-key' && SPECIAL[d.key]) sendKey(d.key, d.key, SPECIAL[d.key][0]);
     });
-    kbdSendChar = sendChar; kbdSendKey = sendKey;   // for the paste patch (5)
+    kbdSendChar = sendChar; kbdSendKey = sendKey; kbdSendText = sendText;   // for the paste patch (5)
   } catch(e) {
     console.warn('[xpra-patches] keyboard patch failed:', e.message);
   }
@@ -362,6 +399,9 @@
         e.preventDefault(); e.stopPropagation();   // block xpra's own (failing) handling
         navigator.clipboard.readText().then(function(text) {
           if (!text) return;
+          // sendText handles ASCII (per-char keys), non-ASCII (remote clipboard +
+          // Ctrl+V — so pasted CJK works too), and \n->Enter / \t->Tab.
+          if (kbdSendText) { kbdSendText(text); return; }
           text = text.replace(/\r\n/g, '\n');
           for (var i = 0; i < text.length; i++) {
             var ch = text.charAt(i);
