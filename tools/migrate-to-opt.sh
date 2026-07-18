@@ -20,7 +20,12 @@
 set -euo pipefail
 
 OPT="${OPT:-/opt/vibetop}"
-APP="$OPT/app"; WWW="$OPT/www"; ETC="$OPT/etc"; VAR="$OPT/var"
+# WWW must match what the installers default to ($APP_HOME/vibetop-www, i.e.
+# $OPT/vibetop-www) — otherwise a later in-app Update (which doesn't pass
+# LANDING_DIR/DST_DIR) re-renders the nginx root to vibetop-www and re-deploys
+# there, silently orphaning any file an unchanged sub-project owns (this is how
+# xpra-patches.js 404'd after the /opt move). Keep these in lockstep.
+APP="$OPT/app"; WWW="$OPT/vibetop-www"; ETC="$OPT/etc"; VAR="$OPT/var"
 SVC="${SVC_USER:-vibetop}"
 REPO_URL="${REPO_URL:-https://github.com/nicejunjie/vibetop.git}"   # public → no key
 BRANCH="${MIGRATE_BRANCH:-main}"

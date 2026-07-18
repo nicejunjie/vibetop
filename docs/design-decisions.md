@@ -17,6 +17,52 @@ and why it lost).
 
 ---
 
+## The mobile Browser lost ALL its patches — `/xpra-patches.js` 404'd after the `/opt` move
+
+**Symptom:** On iPhone, the Browser app showed **two stacked keyboards** — xpra's own
+drawn on-screen keyboard (`.simple-keyboard`, a desktop layout with `tab`/brackets)
+appeared by default and stacked above iOS's native keyboard; typing via the ⌨ button
+was dead, taps stole focus (closing the iOS keyboard), paste/reconnect/size-reclaim all
+gone. It *looked* like a keyboard-logic regression.
+
+**Cause:** `browser/xpra-patches.js` (all 10 patches — the `.simple-keyboard{display:none}`
+hide, touch routing, keystroke forwarding, paste, auto-reconnect, keymap-force) was
+**404ing** on the live host, so the Browser page ran completely unpatched. The web root
+had forked: `tools/migrate-to-opt.sh` set it up at `/opt/vibetop/www`, but every
+installer **defaults** `LANDING_DIR`/`DST_DIR` to `<APP_HOME>/vibetop-www` =
+`/opt/vibetop/vibetop-www`. The first in-app Update after migration that touched
+`landing/` + `terminal/` (but not `browser/`) re-rendered the nginx root to
+`vibetop-www` and re-deployed the landing files there — but `browser/install.sh`
+didn't run (its dir was unchanged), so `xpra-patches.js` stayed orphaned in the old
+`/opt/vibetop/www`. nginx's `location = /xpra-patches.js` used `add_header … always`,
+so the **404 itself was cached for 24 h** on the phone. The `.simple-keyboard` OSK is
+ON by default for mobile UAs (`getboolparam("keyboard", Utilities.isMobile())`), so
+with the hide missing it showed. (A red herring: the desktop's own key-bar had *also*
+been overlapping there and was hidden in the Browser just before — but that only
+uncovered the real 404-driven double-keyboard.)
+
+**Fix (defense in depth, since the single point of failure was one 404):**
+1. **Deploy the file to the right root** — any `browser/` change makes the Update run
+   `browser/install.sh`, which installs `xpra-patches.js` into `vibetop-www` and
+   recomputes its `?v=` md5 (auto-busting the cached 404 via a new URL).
+2. **nginx sub_filter now also hides `.simple-keyboard`** (both `/browser/` and
+   `/x11-display/`) — the OSK can't appear even if the JS 404s again.
+3. **`keyboard = false` in `browser/default-settings.txt`** — disables the drawn OSK at
+   the xpra source (only gates the OSK; `capture_keyboard`/typing is independent).
+4. **Dropped `always`** from the `/xpra-patches.js` cache header so a 404 is never cached.
+5. **`tools/migrate-to-opt.sh` WWW → `$OPT/vibetop-www`** so migration and installers
+   agree — the fork can't recur.
+
+**Rejected:** chasing the CSS specificity (`!important` vs inline `display:block`) — a
+dead end; the rule was never served. Bumping a hand version — `xpra-patches.js` is
+content-hash busted, so editing it is enough. Lesson: the Update's "only redeploy
+sub-projects whose dir changed" optimization can't self-heal a shared-web-root move
+that an *unchanged* sub-project owns files in; keep migration paths == installer
+defaults, and prefer nginx/source-level suppression over a JS-only guard for anything
+that must not fail open.
+
+---
+
 ## Uploads over ~1 MB failed with a 500 (the `auth_request` body-size trap)
 
 **Symptom:** From the phone, some photos uploaded fine while a specific one always

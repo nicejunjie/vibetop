@@ -7,6 +7,14 @@ blocked-hosts = xpra.org,www.xpra.org
 
 floating_menu = false
 
+# Never show the client's own drawn on-screen keyboard. It defaults ON for mobile
+# user-agents (index.html: getboolparam("keyboard", Utilities.isMobile())), which
+# on iOS stacks a second (desktop-layout) keyboard above iOS's native one. Typing
+# is done via the desktop shell's real <input> (#kbd-input) instead, forwarded to
+# the remote by xpra-patches.js. This flag only gates the drawn OSK; key capture
+# (client.capture_keyboard) is independent, so typing is unaffected.
+keyboard = false
+
 # Performance: prioritize speed during scrolling, recover quality when idle
 min-quality = 30
 min-speed = 70

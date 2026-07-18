@@ -126,6 +126,10 @@
   //    character/key here; we dispatch it as a synthetic key event (xpra reads
   //    event.code/key/keyCode; its handlers don't check isTrusted).
   try {
+    // Backstop only: the PRIMARY hide is the nginx sub_filter CSS in
+    // browser/nginx/browser.conf (+ `keyboard = false` in default-settings.txt),
+    // both of which apply even if THIS file fails to load — which it did once,
+    // 404'd from the wrong web root after the /opt move, leaving the OSK visible.
     var css = document.createElement('style');
     css.textContent = '.simple-keyboard{display:none!important}';   // hide xpra's drawn keyboard
     document.head.appendChild(css);
