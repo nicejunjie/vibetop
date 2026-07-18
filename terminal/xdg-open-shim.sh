@@ -33,7 +33,7 @@ if command -v curl >/dev/null 2>&1 && \
         -H "Cookie: vt_session=${VIBETOP_SESSION}" \
         --data "{\"url\":\"${url}\"}" \
         "http://127.0.0.1:${port}/api/browser/open" >/dev/null 2>&1; then
-    printf '\n[vibetop] Opened in the Browser app — switch to Browser to continue:\n  %s\n\n' "$url" >&2
+    printf '\n[vibetop] Opening in the Browser app:\n  %s\n\n' "$url" >&2
     exit 0
 fi
 

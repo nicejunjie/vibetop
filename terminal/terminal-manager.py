@@ -380,6 +380,23 @@ DESKTOP_TTL = 120         # seconds; an instance idle longer drops out of the un
 DESKTOP_MAX_INSTANCES = 24
 _SSE_MAX_CLIENTS = 64   # cap concurrent /api/events streams; each pins a thread for the client's lifetime
 _desktop_lock = threading.Lock()
+# Per-user "bring the Browser app to the front" signal (a monotonic counter). A
+# terminal's xdg-open/$BROWSER shim opens a URL in the user's Browser server-side,
+# with no front-end to switch the desktop — so browser-open bumps this and the
+# user's /api/events SSE streams push an `open-browser` event that the desktop acts
+# on (activates the Browser app).
+_browser_focus = {}
+_browser_focus_lock = threading.Lock()
+
+
+def _signal_browser_focus(user):
+    with _browser_focus_lock:
+        _browser_focus[user] = _browser_focus.get(user, 0) + 1
+
+
+def _browser_focus_count(user):
+    with _browser_focus_lock:
+        return _browser_focus.get(user, 0)
 # Per-host update log (real history of THIS deployment's self-updates, seeded
 # with a "deployed" baseline on first run) — not the git changelog.
 UPDATE_HISTORY_FILE = os.path.expanduser(f"~{APP_USER}/.local/share/vibetop-update-history.json")
@@ -3359,6 +3376,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         threading.Thread(target=proc.wait, daemon=True).start()
+        _signal_browser_focus(user)     # nudge the user's desktop to switch to the Browser app
         self._json(200, {"ok": True, "url": url})
 
     # ---- X11 Launcher: run/list/switch GUI apps on the xpra display --------
@@ -4571,6 +4589,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # buffering for this stream (so no nginx config is needed); the ~18s pings
         # keep proxies from idling the connection out and detect a dead client.
         ver0 = _cached("shell_ver", 5.0, _shell_version)
+        user = _ctx_user()                       # this stream's authenticated user (from the cookie)
+        focus_seen = _browser_focus_count(user)
         try:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
@@ -4592,6 +4612,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self.wfile.flush()
                     log.info("events: pushed reload %s->%s", ver0, cur)
                     return
+                f = _browser_focus_count(user)   # a terminal opened a browser for this user
+                if f != focus_seen:
+                    focus_seen = f
+                    self.wfile.write(b"event: open-browser\ndata: 1\n\n")
+                    self.wfile.flush()
+                    log.info("events: pushed open-browser for %s", user)
                 now = time.monotonic()
                 if now - last_ping >= 18:
                     self.wfile.write(b": ping\n\n")

@@ -1850,6 +1850,12 @@
         else if (e.data && e.data !== loadedShellVer) triggerRefresh();
       });
       es.addEventListener('reload', triggerRefresh);
+      // A CLI in a terminal opened a URL in this user's Browser (via the xdg-open
+      // shim) — there's no front-end in that path, so the manager pushes this to
+      // surface it. Reuse the existing switch-to-browser message handler.
+      es.addEventListener('open-browser', function() {
+        try { window.postMessage({ type: 'switch-to-browser' }, location.origin); } catch (e) {}
+      });
     } catch (e) {}
   }
   // SW-specific (secure context only): register the SW and reload when an *updated*

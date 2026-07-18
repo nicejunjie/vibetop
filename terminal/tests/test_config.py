@@ -260,3 +260,13 @@ def test_restart_endpoint_rejects_unknown_service(client, mgr, users, stubs, mon
     assert not any(isinstance(c, list) and "systemd-run" in c for c in stubs["run"])
     # an allowlisted service is accepted (deferred restart, stubbed)
     assert client.post("/api/config/services/restart", {"service": "nginx"}, cookie=ck)[0] == 200
+
+
+def test_browser_focus_signal_counter(mgr, home):
+    # browser-open bumps a per-user counter; the SSE stream watches it to push an
+    # "open-browser" event (switch the desktop to the Browser app).
+    u = "alice"
+    base = mgr._browser_focus_count(u)
+    mgr._signal_browser_focus(u)
+    assert mgr._browser_focus_count(u) == base + 1
+    assert mgr._browser_focus_count("bob") == 0     # per-user, isolated
