@@ -824,10 +824,24 @@
       sendText(takeField());
     }
 
-    input.addEventListener('focus', function() { btn.classList.add('open'); ico.textContent = '✕'; });
+    // iOS scrolls the whole shell up to "reveal" whatever input you focus — and
+    // since #kbd-input sits mid-screen, that drags the remote page's TOP off the
+    // top of the view, so you can't see a text box you're typing into up there.
+    // The input is invisible (text goes to the remote via xdotool), so there's
+    // nothing to reveal: pin the shell at scroll 0 for as long as it's focused.
+    function lockScroll() { if (window.pageYOffset || document.documentElement.scrollTop) window.scrollTo(0, 0); }
+    input.addEventListener('focus', function() {
+      btn.classList.add('open'); ico.textContent = '✕';
+      window.scrollTo(0, 0);
+      window.addEventListener('scroll', lockScroll, { passive: true });
+      if (window.visualViewport) window.visualViewport.addEventListener('scroll', lockScroll);
+    });
     input.addEventListener('blur',  function() {
       if (!composing) { finalizeDictation(); flushText(); }   // ship anything still pending, now
       btn.classList.remove('open'); ico.textContent = '⌨';
+      window.removeEventListener('scroll', lockScroll);
+      if (window.visualViewport) window.visualViewport.removeEventListener('scroll', lockScroll);
+      window.scrollTo(0, 0);
     });
     // IME (pinyin etc.) owns the field until compositionend; forward nothing until
     // then, then send the committed text as one run.
