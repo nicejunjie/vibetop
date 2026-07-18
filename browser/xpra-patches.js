@@ -552,6 +552,23 @@
         setTimeout(refocusKbd, 150);   // again after layout/visibility settle
       }
     });
+    // Any mouse click inside the Browser page must ALSO restore key capture.
+    // xpra's own jQuery mousedown handler returns false (preventDefault), so a
+    // click on the canvas never performs the browser's default focus transfer —
+    // once top-level focus drifted to the parent shell (a taskbar click on the
+    // already-active Browser, opening/closing the Start menu, a reconnect reload
+    // while the parent held focus), clicking the page can't bring typing back:
+    // the mouse still works (forwarding doesn't need focus) but keys target the
+    // parent document. Re-focus #pasteboard after every non-touch pointerdown
+    // (deferred so xpra's own handling of the event is untouched; touch input
+    // rides xdotool and doesn't need this).
+    window.addEventListener('pointerdown', function(ev) {
+      if (ev.pointerType === 'touch') return;
+      setTimeout(refocusKbd, 0);
+    }, true);
+    // After a (re)connect: a patch-6 reload can finish while the parent shell
+    // holds focus, leaving xpra's own autofocus in an unfocused frame.
+    document.addEventListener('connection-established', function() { setTimeout(refocusKbd, 150); });
   } catch(e) {
     console.warn('[xpra-patches] refocus patch failed:', e.message);
   }
