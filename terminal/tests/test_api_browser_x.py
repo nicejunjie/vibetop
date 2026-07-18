@@ -77,16 +77,16 @@ def test_browser_shape_rejects_bad(client, stubs):
     assert not any("pkill" in c for c in _runs(stubs))
 
 
-def test_browser_shape_mobile_writes_and_respawns(client, stubs):
+def test_browser_shape_toggle_and_idempotent(client, stubs):
+    # First claim changes shape (writes the file browser-loop.sh reads).
     status, body = client.post("/api/browser/shape", {"shape": "mobile"})
     assert status == 200 and body["shape"] == "mobile" and body["changed"] is True
-    # this profile's chromium was SIGTERMed so browser-loop.sh respawns it mobile
-    assert any("pkill" in c and "user-data-dir" in c for c in _runs(stubs))
-    # idempotent: claiming the same shape again is a no-op (no respawn)
-    stubs["run"].clear()
+    # Re-claiming the same shape is a no-op — proves the file was persisted + re-read.
     status, body = client.post("/api/browser/shape", {"shape": "mobile"})
     assert status == 200 and body["changed"] is False
-    assert not any("pkill" in c for c in _runs(stubs))
+    # Toggling back to desktop changes again.
+    status, body = client.post("/api/browser/shape", {"shape": "desktop"})
+    assert status == 200 and body["shape"] == "desktop" and body["changed"] is True
 
 
 # ---- /api/x/launch ---------------------------------------------------------

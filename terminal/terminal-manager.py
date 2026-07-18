@@ -27,6 +27,7 @@ import os
 import pwd
 import re
 import secrets
+import signal
 import shlex
 import shutil
 import socket
@@ -1466,6 +1467,33 @@ def _chown_app(path, user=None):
         os.chown(path, pw.pw_uid, pw.pw_gid)
     except Exception:
         pass
+
+
+def _sigterm_browser_chromium(user, profile):
+    """SIGTERM the user's Browser chromium — identified by `--user-data-dir=<profile>`
+    in its cmdline — so browser-loop.sh respawns it in the newly-written shape.
+    A /proc scan (exact substring + owner check) rather than `pkill -f <regex>`:
+    a profile path can contain regex metacharacters, `re.escape` emits `\\-`/`\\.`
+    that pgrep's ERE mishandles (the reshape silently no-ops), and a pattern that
+    literally appears in the pkill argv risks self-matching. Manager runs as root,
+    so os.kill reaches the user's процессы."""
+    marker = ("--user-data-dir=" + profile).encode()
+    try:
+        uid = pwd.getpwnam(user).pw_uid
+    except KeyError:
+        return
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        p = "/proc/" + pid
+        try:
+            if os.stat(p).st_uid != uid:
+                continue
+            with open(p + "/cmdline", "rb") as f:
+                if marker in f.read():
+                    os.kill(int(pid), signal.SIGTERM)
+        except (OSError, ProcessLookupError, ValueError):
+            continue
 
 
 def _atomic_write(path, text):
@@ -3521,9 +3549,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # SIGTERM only THIS user's chromium of THIS profile (its cmdline carries
             # --user-data-dir=<profile>; browser-loop.sh's does not), so the loop
             # respawns it with the new shape.
-            subprocess.run(["pkill", "-u", user, "-f",
-                            "--user-data-dir=" + re.escape(profile)],
-                           capture_output=True, timeout=10)
+            _sigterm_browser_chromium(user, profile)
         except Exception as e:
             log.warning("browser reshape failed for %s: %s", user, e)
             self._json(500, {"error": "reshape failed"})
