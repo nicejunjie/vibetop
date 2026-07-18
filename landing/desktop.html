@@ -828,17 +828,29 @@
     // since #kbd-input sits mid-screen, that drags the remote page's TOP off the
     // top of the view, so you can't see a text box you're typing into up there.
     // The input is invisible (text goes to the remote via xdotool), so there's
-    // nothing to reveal: pin the shell at scroll 0 for as long as it's focused.
+    // nothing to reveal: keep the shell pinned at scroll 0 while it's focused.
+    // Resetting on the `scroll` EVENT is one frame LATE — the page visibly jumps
+    // up then snaps back (a flash). So reset on every animation FRAME (before the
+    // paint) through the ~0.7s keyboard-open animation, so iOS's scroll never
+    // renders. The scroll listener stays as a cheap later backstop.
+    var rafId = 0, pinUntil = 0;
+    function pinFrame() {
+      if (window.pageYOffset || document.documentElement.scrollTop) window.scrollTo(0, 0);
+      rafId = Date.now() < pinUntil ? requestAnimationFrame(pinFrame) : 0;
+    }
+    function startPin() { pinUntil = Date.now() + 700; if (!rafId) rafId = requestAnimationFrame(pinFrame); }
+    function stopPin() { pinUntil = 0; if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } }
     function lockScroll() { if (window.pageYOffset || document.documentElement.scrollTop) window.scrollTo(0, 0); }
     input.addEventListener('focus', function() {
       btn.classList.add('open'); ico.textContent = '✕';
-      window.scrollTo(0, 0);
+      window.scrollTo(0, 0); startPin();
       window.addEventListener('scroll', lockScroll, { passive: true });
       if (window.visualViewport) window.visualViewport.addEventListener('scroll', lockScroll);
     });
     input.addEventListener('blur',  function() {
       if (!composing) { finalizeDictation(); flushText(); }   // ship anything still pending, now
       btn.classList.remove('open'); ico.textContent = '⌨';
+      stopPin();
       window.removeEventListener('scroll', lockScroll);
       if (window.visualViewport) window.visualViewport.removeEventListener('scroll', lockScroll);
       window.scrollTo(0, 0);
