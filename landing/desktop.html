@@ -789,19 +789,34 @@
     var composing = false, dictTimer = null;
     var lastCommit = '', lastCommitTs = 0;   // swallow WebKit's trailing re-insert after compositionend
 
-    // Forward text/keys to the Browser iframe (xpra). Touch + Browser only — the
-    // Terminal raises its own keyboard via the in-page overlay (terminal-kbd.js).
-    function toApp(msg) {
-      var f = document.getElementById('frame-browser');
-      if (f && f.contentWindow) { try { f.contentWindow.postMessage(msg, '*'); } catch (e) {} }
+    // Deliver committed text + nav keys to THIS user's Browser via the manager,
+    // which injects them SERVER-SIDE with `xdotool` (POST /api/browser/type|key).
+    // The remote X server can't accept CJK/emoji as key events (no keysym) and iOS
+    // blocks the clipboard route; xdotool types any Unicode straight into Chromium.
+    // Touch + Browser only — the Terminal has its own overlay (terminal-kbd.js).
+    // POSTs are SERIALIZED so text and a following key can't race out of order, and
+    // text is coalesced ~40ms so fast typing isn't one subprocess per keystroke.
+    var postQ = Promise.resolve();
+    function post(path, payload) {
+      postQ = postQ.then(function () {
+        return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                             body: JSON.stringify(payload) }).catch(function () {});
+      });
     }
-    // READ-AND-CLEAR (mirrors xpra's own #pasteboard tablet input): the field is
-    // emptied on every commit, so it never accumulates a value to mis-diff. This
-    // replaces the old debounced value-diff, whose axiom "input.value only grows by
-    // append between flushes" WebKit violates — marked-text/dictation rewrite the
-    // field non-monotonically, so a flush sampling mid-rewrite emitted spurious
-    // backspaces ("hpc"->"hc") and lost/duplicated letters on fast typing.
-    function sendText(t) { if (t) toApp({ type: 'kbd-text', text: t }); }
+    var textBuf = '', flushT = null;
+    function flushText() {
+      if (flushT) { clearTimeout(flushT); flushT = null; }
+      if (!textBuf) return;
+      var t = textBuf; textBuf = '';
+      post('/api/browser/type', { text: t });
+    }
+    // READ-AND-CLEAR (mirrors xpra's own tablet input): the field is emptied on
+    // every commit, so it never accumulates a value to mis-diff. Replaces the old
+    // debounced value-diff, whose "input.value only grows by append" axiom WebKit
+    // violates (marked-text/dictation rewrite non-monotonically) — a flush sampling
+    // mid-rewrite emitted spurious backspaces ("hpc"->"hc") and lost letters.
+    function sendText(t) { if (!t) return; textBuf += t; if (flushT) clearTimeout(flushT); flushT = setTimeout(flushText, 40); }
+    function sendKey(k) { flushText(); post('/api/browser/key', { key: k }); }   // flush pending text first (keeps order)
     function takeField() { var v = input.value; if (v) input.value = ''; return v; }
     function finalizeDictation() {
       if (dictTimer) { clearTimeout(dictTimer); dictTimer = null; }
@@ -810,7 +825,7 @@
 
     input.addEventListener('focus', function() { btn.classList.add('open'); ico.textContent = '✕'; });
     input.addEventListener('blur',  function() {
-      if (!composing) finalizeDictation();               // ship anything still pending
+      if (!composing) { finalizeDictation(); flushText(); }   // ship anything still pending, now
       btn.classList.remove('open'); ico.textContent = '⌨';
     });
     // IME (pinyin etc.) owns the field until compositionend; forward nothing until
@@ -841,9 +856,9 @@
     });
     input.addEventListener('keydown', function(e) {
       if (composing || e.isComposing || e.keyCode === 229) return;   // Enter/Backspace belong to the IME mid-composition
-      if (e.key === 'Enter')      { e.preventDefault(); finalizeDictation(); toApp({ type: 'kbd-key', key: 'Enter' }); }
-      else if (e.key === 'Tab')   { e.preventDefault(); toApp({ type: 'kbd-key', key: 'Tab' }); }
-      else if (e.key === 'Backspace' && input.value === '') { e.preventDefault(); toApp({ type: 'kbd-key', key: 'Backspace' }); }
+      if (e.key === 'Enter')      { e.preventDefault(); finalizeDictation(); sendKey('Enter'); }
+      else if (e.key === 'Tab')   { e.preventDefault(); sendKey('Tab'); }
+      else if (e.key === 'Backspace' && input.value === '') { e.preventDefault(); sendKey('Backspace'); }
     });
     // Tap the ⌨ button while the keyboard is up → dismiss (blur ships pending text).
     input.addEventListener('pointerdown', function(e) {

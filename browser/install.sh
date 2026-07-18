@@ -166,7 +166,10 @@ PIN_EOF
     # wmctrl: the X11 Launcher lists/raises/closes windows on the xpra display.
     # x11-xserver-utils: provides xhost, used to allow snap apps (Firefox/Chromium)
     # to open the X11 display (they can't read the X auth cookie when confined).
-    run sudo apt-get install -y xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils
+    # xdotool: server-side Unicode text injection into the Browser (the mobile
+    # keyboard delivers committed text via /api/browser/type -> `xdotool type`,
+    # which can carry CJK/emoji/accents that the X key-event path cannot).
+    run sudo apt-get install -y xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils xdotool
     # Disable xpra's built-in socket activation (conflicts with our own unit)
     if systemctl is-enabled xpra-server.socket >/dev/null 2>&1; then
         run sudo systemctl disable --now xpra-server.socket

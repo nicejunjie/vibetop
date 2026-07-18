@@ -2642,6 +2642,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_tab_names_save()
         if self.path == "/api/browser/open":
             return self._handle_browser_open()
+        if self.path == "/api/browser/type":
+            return self._handle_browser_type()
+        if self.path == "/api/browser/key":
+            return self._handle_browser_key()
         if self.path == "/api/x/launch":
             return self._handle_x_launch()
         if self.path == "/api/x/activate":
@@ -3378,6 +3382,95 @@ class Handler(http.server.BaseHTTPRequestHandler):
         threading.Thread(target=proc.wait, daemon=True).start()
         _signal_browser_focus(user)     # nudge the user's desktop to switch to the Browser app
         self._json(200, {"ok": True, "url": url})
+
+    def _handle_browser_type(self):
+        # Inject committed TEXT into THIS user's Browser (Chromium on their xpra
+        # display) via `xdotool type`. This is how the mobile keyboard delivers
+        # text: the phone's own IME composes (pinyin/dictation/autocorrect) and we
+        # type the finished string server-side. xdotool uses X's Unicode-keysym
+        # mechanism, so CJK/emoji/accents land verbatim — the key-event path can't
+        # carry them (the X server drops keys with no keysym) and iOS blocks the
+        # clipboard route. Text goes on STDIN (never a shell string), so there is
+        # no metacharacter-injection surface at all.
+        body = self._read_body(65536)
+        if body is None:
+            self._json(400, {"error": "invalid or too-large body"})
+            return
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            self._json(400, {"error": "invalid json"})
+            return
+        text = data.get("text", "")
+        if not isinstance(text, str) or not text:
+            self._json(400, {"error": "text required"})
+            return
+        if len(text) > 10000:
+            self._json(400, {"error": "text too long"})
+            return
+        user = _ctx_user()
+        self._ensure_user_xpra(user, "browser")
+        disp = _user_xpra_display(user, "browser")
+        try:
+            # `su <user> -c` (no login shell) as the display owner; DISPLAY inline;
+            # xhost si:localuser lets them reach the display with no X cookie. The
+            # only interpolation is `disp` (an int) — the text is stdin.
+            r = subprocess.run(
+                ["su", user, "-c",
+                 f"DISPLAY=:{disp} exec /usr/bin/xdotool type --clearmodifiers --file -"],
+                input=text.encode("utf-8"), timeout=15,
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            )
+        except Exception as e:
+            log.warning("browser type failed for %s: %s", user, e)
+            self._json(500, {"error": "type failed"})
+            return
+        if r.returncode != 0:
+            log.warning("browser type xdotool rc=%s: %s", r.returncode,
+                        (r.stderr or b"").decode("utf-8", "replace")[:200])
+            self._json(500, {"error": "type failed"})
+            return
+        self._json(200, {"ok": True})
+
+    # Committed-text keyboard: navigation/edit keys the phone IME can't send as
+    # text. Allowlist only — the value is a fixed xdotool keysym (no injection).
+    _XDOTOOL_KEYS = {
+        "Enter": "Return", "Backspace": "BackSpace", "Tab": "Tab", "Escape": "Escape",
+        "ArrowUp": "Up", "ArrowDown": "Down", "ArrowLeft": "Left", "ArrowRight": "Right",
+        "Home": "Home", "End": "End", "Delete": "Delete", "Space": "space",
+    }
+
+    def _handle_browser_key(self):
+        body = self._read_body(4096)
+        if body is None:
+            self._json(400, {"error": "invalid or too-large body"})
+            return
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            self._json(400, {"error": "invalid json"})
+            return
+        keysym = self._XDOTOOL_KEYS.get(data.get("key", ""))
+        if not keysym:
+            self._json(400, {"error": "invalid key"})
+            return
+        user = _ctx_user()
+        self._ensure_user_xpra(user, "browser")
+        disp = _user_xpra_display(user, "browser")
+        try:
+            r = subprocess.run(
+                ["su", user, "-c",
+                 f"DISPLAY=:{disp} exec /usr/bin/xdotool key --clearmodifiers {keysym}"],
+                timeout=10, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            )
+        except Exception as e:
+            log.warning("browser key failed for %s: %s", user, e)
+            self._json(500, {"error": "key failed"})
+            return
+        if r.returncode != 0:
+            self._json(500, {"error": "key failed"})
+            return
+        self._json(200, {"ok": True})
 
     # ---- X11 Launcher: run/list/switch GUI apps on the xpra display --------
 

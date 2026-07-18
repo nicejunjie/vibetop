@@ -27,6 +27,48 @@ def test_browser_open_rejects_shell_metachars(client):
     assert status == 400
 
 
+# ---- /api/browser/type (server-side xdotool text injection) -----------------
+
+def _runs(stubs):
+    return [" ".join(a) for a in stubs["run"] if isinstance(a, list)]
+
+
+def test_browser_type_injects_unicode_via_stdin(client, stubs):
+    txt = "你好 hi 🎉 café"
+    status, body = client.post("/api/browser/type", {"text": txt})
+    assert status == 200 and body["ok"]
+    # an `xdotool type` command was run...
+    assert any("xdotool type --clearmodifiers --file -" in c for c in _runs(stubs))
+    # ...with the text on STDIN (input=), never interpolated into the command,
+    # so CJK/emoji/metacharacters carry no injection risk.
+    assert any(kw.get("input") == txt.encode("utf-8") for kw in stubs["run_kw"])
+    assert all("你好" not in c for c in _runs(stubs))
+
+
+def test_browser_type_rejects_empty(client):
+    status, _ = client.post("/api/browser/type", {"text": ""})
+    assert status == 400
+
+
+def test_browser_type_rejects_too_long(client):
+    status, _ = client.post("/api/browser/type", {"text": "x" * 10001})
+    assert status == 400
+
+
+# ---- /api/browser/key (allowlisted navigation keys) -------------------------
+
+def test_browser_key_allowlisted(client, stubs):
+    status, body = client.post("/api/browser/key", {"key": "Enter"})
+    assert status == 200 and body["ok"]
+    assert any("xdotool key --clearmodifiers Return" in c for c in _runs(stubs))
+
+
+def test_browser_key_rejects_unknown(client, stubs):
+    status, _ = client.post("/api/browser/key", {"key": "rm -rf ~"})
+    assert status == 400
+    assert not any("xdotool key" in c for c in _runs(stubs))
+
+
 # ---- /api/x/launch ---------------------------------------------------------
 
 def test_x_launch_valid_command(client, stubs):
