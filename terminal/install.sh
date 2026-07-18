@@ -300,6 +300,14 @@ $tls_listen    server_name _;
     # and this gate — watchdog/doctor/smoke-test are unaffected.)
     location = /internal/authcheck {
         internal;
+        # auth_request runs this subrequest for EVERY protected request, and
+        # nginx size-checks the main request's body against THIS location's
+        # client_max_body_size (default 1M) even though the body is never
+        # forwarded here (proxy_pass_request_body off). Without a raised limit,
+        # any upload >1M gets the auth subrequest 413'd -> the whole request
+        # 500s (\"auth request unexpected status: 413\"). /api/ already allows 5G,
+        # so match it here; the body isn't sent to the manager regardless.
+        client_max_body_size 5G;
         proxy_pass http://127.0.0.1:$BASE_PORT/api/authcheck;
         proxy_pass_request_body off;
         proxy_set_header Content-Length \"\";
