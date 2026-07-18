@@ -49,18 +49,27 @@ char); and **Chinese via pinyin typed nothing at all** while English worked.
   commit); dictation is committed once on an idle timer (`inputType ===
   'insertDictationText'`); Enter/Backspace are suppressed mid-composition (`keyCode
   229`).
-- *CJK via the clipboard channel* (`browser/xpra-patches.js`): ASCII still types as key
-  events; **non-ASCII is injected via the remote clipboard + one synthetic Ctrl+V**
-  (`client.send_clipboard_token(text)` then a `v`+Control key-action) — the Unicode-
-  clean path that already makes Mac Cmd+V paste CJK in production. Accepted tradeoff:
-  the *remote* clipboard then holds that text (that's what a paste is); the local iOS
-  clipboard is untouched. The non-Mac Ctrl+V paste path reuses the same `sendText`, so
-  pasted CJK works too.
+- *CJK via SERVER-SIDE injection* (`terminal/terminal-manager.py` + `landing/desktop.html`):
+  the shell's committed text is delivered to a manager endpoint **`POST /api/browser/type
+  {text}`**, which runs **`xdotool type --file -`** (text on stdin) as the user on their
+  xpra display; nav keys go via **`POST /api/browser/key`** (allowlisted xdotool keysym).
+  `xdotool` uses X's Unicode-keysym mechanism (temporarily remaps a spare keycode via
+  XTEST), so **any** codepoint — hanzi, emoji, accents — lands in Chromium. This sidesteps
+  BOTH the keysym-drop AND iOS's clipboard restrictions, and deletes the fragile
+  client-side key relay for mobile text. **Proven on z20 without an iOS device**: POSTing
+  `你好世界🎉café` through the real nginx→auth→manager path and reading it back from
+  Chromium's X clipboard returned it verbatim. ASCII rides the same endpoint (text
+  coalesced ~40 ms; POSTs serialized so text can't race a following key).
 
-**Rejected:** routing CJK through xpra's `#pasteboard`/`keyval=codepoint` — the server
-drops it (see cause 2). Patching individual WebKit rewrite *shapes* on top of the diff —
-whack-a-mole; read-and-clear removes the whole class. **Lesson: never try to type
-non-ASCII into xpra as key events; use the clipboard channel.**
+**Rejected (the CJK dead-ends, in order tried):** (1) key events / xpra `#pasteboard`
+`keyval=codepoint` — the server drops unmapped keysyms (cause 2). (2) The client clipboard
+channel (`send_clipboard_token` + synthetic Ctrl+V) — the token *does* carry data
+server-side, but a leftover paste target makes xpra's client answer from
+`navigator.clipboard.read()`, which **iOS gates behind a user-gesture/permission prompt**
+outside a tap — dead on iOS. (3) Patching WebKit rewrite *shapes* on the diff — whack-a-mole.
+**Lesson: never type non-ASCII into xpra from the client; inject it server-side with
+`xdotool`** (which is what xpra itself could do with keysym remapping but doesn't). A 15-year-
+old tool doing its one job beat three rounds of client-side cleverness.
 
 ---
 
