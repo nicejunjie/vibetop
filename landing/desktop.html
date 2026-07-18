@@ -1056,29 +1056,6 @@
     var baseH = curH();
     var baseW = window.innerWidth;
     var wasUp = false;
-    // Keyboard-aware Browser display: while the keyboard covers the bottom of the
-    // streamed canvas, post the VISIBLE height to the Browser iframe (debounced —
-    // vv fires many times during the open/close animation); xpra-patches.js patch
-    // 11 shrinks the remote display to it so Chromium reflows and bottom text
-    // fields land above the keyboard. h=0 restores full height.
-    var kbvT = null, kbvSent = 0;
-    function scheduleKbdViewport(kbUp) {
-      if (!IS_TOUCH) return;
-      if (kbvT) clearTimeout(kbvT);
-      kbvT = setTimeout(function() {
-        kbvT = null;
-        var f = document.getElementById('frame-browser');
-        if (!f || !f.contentWindow) { kbvSent = 0; return; }
-        var h = 0;
-        if (kbUp && active === 'browser') {
-          var top = Math.max(0, f.getBoundingClientRect().top);   // below the cu-strip / warning banner
-          h = Math.max(0, Math.round(curH() - top));
-        }
-        if (h === kbvSent) return;
-        kbvSent = h;
-        try { f.contentWindow.postMessage({ type: 'vibetop:kbd-viewport', h: h }, '*'); } catch (e) {}
-      }, 200);
-    }
     function syncBar() {
       // The keyboard shrinks HEIGHT but never WIDTH; rotation / Split View change
       // width. So a width change means a non-keyboard geometry change -> drop the
@@ -1102,7 +1079,6 @@
         bar.style.display = 'none'; dismissHint(false);                // keyboard closed / suppressed → hide
       }
       wasUp = kbUp && !suppress;
-      scheduleKbdViewport(kbUp);   // shrink the Browser's remote display to the visible area (bottom fields)
     }
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', syncBar);
