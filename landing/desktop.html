@@ -508,13 +508,14 @@
      (transparent text; the glyph is a pointer-events:none overlay so taps land
      on the input). No visible compose box — text appears straight in the app. */
   #kbd-btn {
-    position: fixed; right: 8px; top: 42%; z-index: 101;   /* above #menu-scrim (99) so it stays tappable with the menu open */
-    width: 50px; height: 50px; border-radius: 25px; display: none;
-    background: #2d6cc0; border: 1px solid #2d6cc0; box-shadow: 0 4px 14px rgba(0,0,0,.5);
+    position: fixed; right: 6px; top: 44%; z-index: 101;   /* above #menu-scrim (99) so it stays tappable with the menu open */
+    width: 40px; height: 40px; border-radius: 20px; display: none;
+    background: #2d6cc0; border: 1px solid #2d6cc0; box-shadow: 0 3px 10px rgba(0,0,0,.45);
+    opacity: .42; transition: opacity .15s;                /* quiet at rest (minimal UI); full while typing */
     touch-action: manipulation; -webkit-user-select: none; user-select: none;
   }
   body.kbd-on #kbd-btn { display: block; }
-  #kbd-btn.open { background: #d23a2a; border-color: #d23a2a; }
+  #kbd-btn.open { background: #d23a2a; border-color: #d23a2a; opacity: 1; }
   #kbd-input {
     position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0;
     border: 0; outline: none; background: transparent; color: transparent;
@@ -522,7 +523,7 @@
   }
   #kbd-ico {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    pointer-events: none; font: 600 22px system-ui, sans-serif; color: #fff;
+    pointer-events: none; font: 600 19px system-ui, sans-serif; color: #fff;
   }
 
   /* === Document viewer (read-only office preview) === */
