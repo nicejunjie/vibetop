@@ -109,7 +109,7 @@
     color: #3a4654; text-align: center; padding: 18px; font-size: 12px;
   }
   .item {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
     padding: 10px 12px; border-radius: 10px;
     background: #11161d; margin-bottom: 6px;
     border: 1px solid transparent;
@@ -132,6 +132,19 @@
     cursor: pointer;
   }
   .item .x:hover { background: #2a3040; color: #e8eef5; }
+  /* Retry (↻) — only shown on a failed item (toggled via [hidden]). */
+  .item .retry {
+    flex: 0 0 auto; width: 28px; height: 28px; border-radius: 14px;
+    background: transparent; color: #6b9ed2; border: none; font-size: 16px;
+    cursor: pointer;
+  }
+  .item .retry:hover { background: #22304a; color: #cfe3ff; }
+  /* Failure reason — a full-width line under the file row (wraps below). */
+  .item .reason {
+    flex: 1 0 100%; font-size: 11.5px; color: #d27a7a;
+    padding-left: 2px; line-height: 1.3;
+  }
+  .item:not(.error) .reason { display: none; }
 
   /* === Progress + status === */
   .progress {
@@ -235,10 +248,85 @@
     if (!b) {
       b = document.createElement('span');
       b.className = 'badge';
-      // Insert before the remove (×) button so the badge sits inline.
-      q.el.insertBefore(b, q.el.querySelector('.x'));
+      // Insert before the retry/remove buttons so the badge sits inline.
+      q.el.insertBefore(b, q.el.querySelector('.retry') || q.el.querySelector('.x'));
     }
     b.textContent = text;
+  }
+
+  // Human-readable reason for a failed upload (shown under the file row).
+  function failReason(err) {
+    if (!err) return 'Upload failed';
+    if (err.kind === 'aborted') return 'Cancelled';
+    if (err.kind === 'network') return 'Network dropped — check your connection and retry';
+    var s = err.status || 0;
+    if (s === 413) return 'File is larger than the server allows';
+    if (s === 401 || s === 403) return 'Session expired — reload the page and sign in again';
+    if (err.serverError) return err.serverError + ' (' + s + ')';
+    if (s >= 500) return 'Server error (' + s + ') — try again';
+    if (s >= 400) return 'Rejected by server (' + s + ')';
+    return 'Upload failed';
+  }
+
+  // Mark an item failed: red badge, reason line, reveal the ↻ retry button.
+  function markFailed(q, err) {
+    q.state = 'error';
+    q.el.classList.remove('done');
+    q.el.classList.add('error');
+    markBadge(q, 'Failed');
+    var r = q.el.querySelector('.reason');
+    if (r) r.textContent = failReason(err);
+    var rb = q.el.querySelector('.retry');
+    if (rb) rb.hidden = false;
+  }
+
+  function markDone(q, resp) {
+    if (resp && resp.dir) dirEl.textContent = resp.dir;
+    q.state = 'done';
+    q.el.classList.remove('error');
+    q.el.classList.add('done');
+    markBadge(q, '✓ Done');
+    var r = q.el.querySelector('.reason'); if (r) r.textContent = '';
+    var rb = q.el.querySelector('.retry'); if (rb) rb.hidden = true;
+  }
+
+  // Recompute the page status line from the queue's current states.
+  function summarize() {
+    var done = queue.filter(function(q) { return q.state === 'done'; }).length;
+    var fail = queue.filter(function(q) { return q.state === 'error'; }).length;
+    if (fail) setStatus(done + ' uploaded · ' + fail + ' failed', 'error');
+    else if (done) setStatus('Uploaded ' + done + ' file' + (done === 1 ? '' : 's'), 'ok');
+    else setStatus('');
+  }
+
+  var busy = false;   // a batch or a retry is in flight (guards overlap)
+
+  // Re-upload a single failed item (the ↻ button), reusing the progress bar.
+  function retryOne(entry) {
+    if (busy || entry.state !== 'error') return;
+    busy = true;
+    entry.state = 'pending';
+    entry.el.classList.remove('error', 'done');
+    var r = entry.el.querySelector('.reason'); if (r) r.textContent = '';
+    entry.el.querySelector('.retry').hidden = true;
+    bar.classList.add('on');
+    setStatus('Retrying ' + entry.file.name + '…');
+    var total = entry.file.size || 1;
+    uploadOne(entry, function(loaded) {
+      var pct = 100 * loaded / total;
+      fill.style.width = pct.toFixed(1) + '%';
+      pctEl.textContent = pct.toFixed(0) + '%';
+    }).then(function(resp) {
+      markDone(entry, resp);
+      loadFolder();
+    }).catch(function(err) {
+      markFailed(entry, err);
+    }).then(function() {
+      bar.classList.remove('on'); fill.style.width = '0%'; pctEl.textContent = '';
+      busy = false;
+      summarize();
+      refreshSendBtn();
+    });
   }
 
   function refreshSendBtn() {
@@ -314,11 +402,14 @@
       var f = files[i];
       var el = document.createElement('div');
       el.className = 'item';
-      el.innerHTML = '<span class="name"></span><span class="meta"></span><button class="x" title="Remove">×</button>';
+      el.innerHTML = '<span class="name"></span><span class="meta"></span>' +
+        '<button class="retry" title="Retry" hidden>↻</button>' +
+        '<button class="x" title="Remove">×</button>' +
+        '<span class="reason"></span>';
       el.querySelector('.name').textContent = f.name;
       el.querySelector('.meta').textContent = fmtSize(f.size);
       var entry = { file: f, el: el, state: 'pending' };
-      // Bind remove via a fresh handler that knows its entry by identity.
+      // Bind remove + retry via fresh handlers that know their entry by identity.
       (function(entry) {
         el.querySelector('.x').addEventListener('click', function() {
           // Abort the upload if this item is the one in flight, so ✕ actually
@@ -328,6 +419,9 @@
           if (i !== -1) queue.splice(i, 1);
           el.remove();
           refreshSendBtn();
+        });
+        el.querySelector('.retry').addEventListener('click', function() {
+          if (entry.state === 'error') retryOne(entry);
         });
       })(entry);
       queue.push(entry);
@@ -385,27 +479,33 @@
         onProgress(e.loaded);
       };
       xhr.onloadend = function() { q.xhr = null; };  // clear after load/error/abort
-      xhr.onabort = function() { reject(new Error('aborted')); };
+      xhr.onabort = function() { var e = new Error('aborted'); e.kind = 'aborted'; reject(e); };
       xhr.onload = function() {
         if (xhr.status >= 200 && xhr.status < 300) {
           var resp = {};
           try { resp = JSON.parse(xhr.responseText); } catch (e) {}
           resolve(resp);
         } else {
-          reject(new Error('HTTP ' + xhr.status));
+          // Carry the status + any server {error} so the UI can say WHY.
+          var e = new Error('http ' + xhr.status);
+          e.status = xhr.status;
+          try { e.serverError = (JSON.parse(xhr.responseText) || {}).error || ''; } catch (_) {}
+          reject(e);
         }
       };
-      xhr.onerror = function() { reject(new Error('network')); };
+      xhr.onerror = function() { var e = new Error('network'); e.kind = 'network'; reject(e); };
       xhr.send(fd);
     });
   }
 
   sendBtn.addEventListener('click', function() {
+    if (busy) return;
     var pending = queue.filter(function(q) { return q.state === 'pending'; });
     if (!pending.length) return;
 
     var totalBytes = pending.reduce(function(a, q) { return a + q.file.size; }, 0);
-    var doneBytes = 0, nDone = 0, nFail = 0;
+    var doneBytes = 0;
+    busy = true;
     sendBtn.disabled = true;
     bar.classList.add('on');
 
@@ -414,11 +514,8 @@
         bar.classList.remove('on');
         fill.style.width = '0%';
         pctEl.textContent = '';
-        if (nFail === 0) {
-          setStatus('Uploaded ' + nDone + ' file' + (nDone === 1 ? '' : 's'), 'ok');
-        } else {
-          setStatus(nDone + ' uploaded · ' + nFail + ' failed', 'error');
-        }
+        busy = false;
+        summarize();
         refreshSendBtn();
         return;
       }
@@ -433,22 +530,13 @@
         fill.style.width = pct.toFixed(1) + '%';
         pctEl.textContent = pct.toFixed(0) + '%';
       }).then(function(resp) {
-        if (resp && resp.dir) dirEl.textContent = resp.dir;
         doneBytes += q.file.size;
-        nDone++;
-        q.state = 'done';
-        q.el.classList.remove('error');
-        q.el.classList.add('done');
-        markBadge(q, '✓ Done');
+        markDone(q, resp);
         loadFolder();   // refresh after each successful upload
         step(i + 1);
-      }).catch(function() {
+      }).catch(function(err) {
         doneBytes += q.file.size;   // skip past it so progress doesn't stall
-        nFail++;
-        q.state = 'error';
-        q.el.classList.remove('done');
-        q.el.classList.add('error');
-        markBadge(q, 'Failed');
+        markFailed(q, err);
         step(i + 1);
       });
     }
