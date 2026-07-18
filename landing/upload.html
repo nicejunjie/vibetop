@@ -238,6 +238,21 @@
     return (n / 1073741824).toFixed(2) + ' GB';
   }
 
+  // Cloudflare's Free/Pro plan rejects any request body over 100 MB at its edge
+  // (a 413 before the tunnel), and it can't be raised. That limit applies ONLY to
+  // traffic coming through the tunnel — a LAN client talks straight to nginx
+  // (5 GB cap), bypassing Cloudflare entirely. So block oversize files ONLY when
+  // we were reached via the public hostname; on a private/LAN address, don't.
+  var TUNNEL_MAX = 100 * 1000 * 1000;   // ~95 MiB; safely under Cloudflare's 100 MB
+  function isLanHost() {
+    var h = location.hostname || '';
+    return h === 'localhost' || h === '127.0.0.1' || /\.local$/.test(h) ||
+      /^10\./.test(h) || /^192\.168\./.test(h) || /^169\.254\./.test(h) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(h);
+  }
+  var VIA_TUNNEL = !isLanHost();
+  function overTunnelCap(f) { return VIA_TUNNEL && f.size > TUNNEL_MAX; }
+
   function setStatus(msg, kind) {
     status.textContent = msg || '';
     status.className = 'status' + (kind ? ' ' + kind : '');
@@ -398,6 +413,7 @@
   });
 
   function addFiles(files) {
+    var blocked = 0;
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       var el = document.createElement('div');
@@ -421,14 +437,28 @@
           refreshSendBtn();
         });
         el.querySelector('.retry').addEventListener('click', function() {
-          if (entry.state === 'error') retryOne(entry);
+          if (entry.state === 'error' && !entry.sizeBlocked) retryOne(entry);
         });
       })(entry);
+      // Block oversize files up front when we came in over the tunnel — they'd get
+      // a confusing edge 413 from Cloudflare. Mark failed with a clear reason and
+      // NO retry (retrying over the same path can't help; the LAN can). It's not
+      // 'pending', so it's excluded from the batch and keeps Upload enabled for
+      // the rest.
+      if (overTunnelCap(f)) {
+        entry.state = 'error';
+        entry.sizeBlocked = true;
+        blocked++;
+        el.classList.add('error');
+        markBadge(entry, 'Too big');
+        var rn = el.querySelector('.reason');
+        if (rn) rn.textContent = 'Too large to upload over the internet (Cloudflare caps requests at 100 MB). Upload it on the local network instead, or split the file.';
+      }
       queue.push(entry);
       list.appendChild(el);
     }
     refreshSendBtn();
-    setStatus('');
+    setStatus(blocked ? (blocked + ' file' + (blocked === 1 ? '' : 's') + ' too large for remote upload — see below') : '', blocked ? 'error' : '');
   }
 
   picker.addEventListener('change', function() {
