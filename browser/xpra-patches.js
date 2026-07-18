@@ -644,4 +644,41 @@
   } catch(e) {
     console.warn('[xpra-patches] size-claim patch failed:', e.message);
   }
+
+  // 11. Keyboard-aware display height (touch). While the iOS keyboard covers the
+  //     bottom of the canvas, the desktop shell posts the VISIBLE height
+  //     ({type:'vibetop:kbd-viewport', h}). We shrink #screen to it (an inline
+  //     style with 'important' outranks the sub_filter's height:100vh!important)
+  //     and re-send our size via the SAME configure_display path as patch 10 —
+  //     the server RANDR-resizes, remote Chromium reflows into the short viewport,
+  //     so a fixed bottom bar sits above the keyboard by layout and an in-flow
+  //     bottom field is caret-scrolled into view on the first keystroke (typing is
+  //     server-side xdotool, unaffected by canvas size). h=0 restores 100vh. The
+  //     canvas stays 1:1 with the visible area, so getMouse (patch 1) is unchanged.
+  //     Restore only re-grows if the display is still at OUR shrunken size — if
+  //     another client re-claimed while we typed, leave it (double-tap re-claims).
+  try {
+    var kbdH = 0;
+    var largestWinH = function(c) {
+      var m = 0, id, w;
+      for (id in c.id_to_window) { w = c.id_to_window[id]; if (w && w.h > m) m = w.h; }
+      return m;
+    };
+    window.addEventListener('message', function(e) {
+      var d = e.data; if (!d || d.type !== 'vibetop:kbd-viewport') return;
+      var h = (typeof d.h === 'number' && d.h >= 200) ? Math.round(d.h) : 0;
+      if (h === kbdH) return;
+      var prev = kbdH; kbdH = h;
+      var s = document.getElementById('screen'); if (!s) return;
+      if (h > 0) s.style.setProperty('height', h + 'px', 'important');
+      else s.style.removeProperty('height');
+      var c = window.client;
+      if (!c || !c.connected || !c.container) return;
+      if (h === 0 && prev > 0 && Math.abs(largestWinH(c) - prev) > 40) return;   // someone else claimed meanwhile
+      c.desktop_width = -1; c.desktop_height = -1;                                // bust the same-size guard (as patch 10)
+      try { c._screen_resized(); } catch (err) {}
+    });
+  } catch(e) {
+    console.warn('[xpra-patches] kbd-viewport patch failed:', e.message);
+  }
 })();
