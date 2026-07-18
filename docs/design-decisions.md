@@ -17,6 +17,49 @@ and why it lost).
 
 ---
 
+## The streamed Browser is device-SHAPED (mobile browser on a phone, desktop on a computer)
+
+**Symptom / framing:** The Browser felt bad on mobile — couldn't zoom out, awkward
+touch, a long keyboard saga. The instinct to "use the phone's native Safari" is WRONG
+and misses the product's whole point: **the Browser's value is that it runs on the
+host** — it browses from the *host's* network/location, so it bypasses the *user's*
+local firewall / content filters / geo-blocks / censorship, inside the mini-OS desktop.
+A native client browser would browse from the user's restricted local network and
+defeat that entirely. So streaming a host browser is mandatory; the job is to make the
+*host-streamed* browser device-appropriate.
+
+**Cause:** the host ran ONE desktop-shaped Chromium (desktop UA, desktop layout) and
+streamed it to phones too — so a phone got a desktop page crammed onto a phone screen
+(too wide, wrong layout, needs a zoom-out that a pixel stream fundamentally can't do
+without a re-render). Nearly all the mobile friction traces to shaping the browser for
+the wrong device, not to streaming itself. (Proven on z20: a Chromium launched with a
+mobile UA renders sites' real mobile layouts at phone width — Wikipedia served its
+Minerva mobile skin instead of the squeezed desktop Vector skin.)
+
+**Fix — "shape-claim":** ONE per-user Chromium that **reshapes to the device viewing
+it**. `browser/browser-loop.sh` reads `$PROFILE/vibetop-shape` (`mobile`|`desktop`) each
+(re)spawn and picks the flag set (mobile: mobile UA + `--touch-events` + overlay
+scrollbars; desktop: as before). On connect, `xpra-patches.js` patch 11 POSTs
+`/api/browser/shape` with `mobile` on touch / `desktop` otherwise; the manager writes
+the shape file and SIGTERMs that user's chromium so the loop respawns it in the new
+shape — **same profile + `--restore-last-session`, so tabs/logins follow you across
+devices** (continuity is free, not a feature to build). Idempotent (no-op when already
+that shape); the double-tap size-reclaim gesture re-asserts shape too. Desktop is
+unchanged (it claims `desktop`). Still 100% host-streamed — the anti-restriction value
+is intact.
+
+**Rejected:** native client browser (defeats the anti-restriction value — the whole
+point). Two Chromium instances per user (a desktop + a mobile display): Chromium
+hard-locks a profile, so logins/cookies wouldn't roam → no continuity; 2× resources;
+`/api/browser/open` becomes ambiguous. Per-tab CDP `Emulation` device metrics (elegant
+on paper): `--load-extension`/debugger friction under snap confinement, DevTools-version
+fragility. Client-side fit-width/zoom-out or `Ctrl+-`: a pixel stream can't reflow, and
+`Ctrl+-` breaks layouts. Deferred: 2×-DPI crispness (`--force-device-scale-factor=2`)
+needs a paired client display-upscale (xpra `client.scale=2`) or the CSS viewport
+halves — shipped mobile *layout* first (the experience win), DPI as a follow-up.
+
+---
+
 ## Mobile Browser typing: dropped/reordered letters, and Chinese typed nothing
 
 **Symptom:** On iPhone, typing into the Browser (xpra) via the ⌨ button: fast typing

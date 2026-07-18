@@ -69,6 +69,26 @@ def test_browser_key_rejects_unknown(client, stubs):
     assert not any("xdotool key" in c for c in _runs(stubs))
 
 
+# ---- /api/browser/shape (device shaping: mobile vs desktop) ------------------
+
+def test_browser_shape_rejects_bad(client, stubs):
+    status, _ = client.post("/api/browser/shape", {"shape": "phone"})
+    assert status == 400
+    assert not any("pkill" in c for c in _runs(stubs))
+
+
+def test_browser_shape_mobile_writes_and_respawns(client, stubs):
+    status, body = client.post("/api/browser/shape", {"shape": "mobile"})
+    assert status == 200 and body["shape"] == "mobile" and body["changed"] is True
+    # this profile's chromium was SIGTERMed so browser-loop.sh respawns it mobile
+    assert any("pkill" in c and "user-data-dir" in c for c in _runs(stubs))
+    # idempotent: claiming the same shape again is a no-op (no respawn)
+    stubs["run"].clear()
+    status, body = client.post("/api/browser/shape", {"shape": "mobile"})
+    assert status == 200 and body["changed"] is False
+    assert not any("pkill" in c for c in _runs(stubs))
+
+
 # ---- /api/x/launch ---------------------------------------------------------
 
 def test_x_launch_valid_command(client, stubs):

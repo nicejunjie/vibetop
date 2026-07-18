@@ -2646,6 +2646,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_browser_type()
         if self.path == "/api/browser/key":
             return self._handle_browser_key()
+        if self.path == "/api/browser/shape":
+            return self._handle_browser_shape()
         if self.path == "/api/x/launch":
             return self._handle_x_launch()
         if self.path == "/api/x/activate":
@@ -3471,6 +3473,63 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(500, {"error": "key failed"})
             return
         self._json(200, {"ok": True})
+
+    _BROWSER_SHAPES = ("desktop", "mobile")
+
+    def _handle_browser_shape(self):
+        # POST {shape:"mobile"|"desktop"} — reshape THIS user's Browser Chromium to
+        # the claiming device. Writes the shape file browser-loop.sh reads, then
+        # SIGTERMs their chromium so the loop respawns it with the matching flags
+        # (mobile UA + touch + 2x DPI for a phone; desktop otherwise). Same profile
+        # + --restore-last-session, so tabs/logins follow across devices. No-op when
+        # already that shape. Claimed by xpra-patches on connect + the double-tap
+        # re-claim gesture. Acts as the request user (per-user), like /browser/open.
+        body = self._read_body(4096)
+        if body is None:
+            self._json(400, {"error": "invalid or too-large body"})
+            return
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            self._json(400, {"error": "invalid json"})
+            return
+        shape = data.get("shape")
+        if shape not in self._BROWSER_SHAPES:
+            self._json(400, {"error": "invalid shape"})
+            return
+        user = _ctx_user()
+        self._ensure_user_xpra(user, "browser")
+        profile = os.path.join(_user_home(user), "snap", "chromium",
+                               "common", "xpra-profile")
+        sf = os.path.join(profile, "vibetop-shape")
+        try:
+            with open(sf) as f:
+                cur = f.read().strip()
+        except OSError:
+            cur = "desktop"
+        if cur == shape:
+            self._json(200, {"ok": True, "shape": shape, "changed": False})
+            return
+        try:
+            os.makedirs(profile, exist_ok=True)
+            _atomic_write(sf, shape)
+            _chown_app(sf, user)            # browser-loop.sh reads it AS the user
+            try:
+                os.chmod(sf, 0o644)
+            except OSError:
+                pass
+            # SIGTERM only THIS user's chromium of THIS profile (its cmdline carries
+            # --user-data-dir=<profile>; browser-loop.sh's does not), so the loop
+            # respawns it with the new shape.
+            subprocess.run(["pkill", "-u", user, "-f",
+                            "--user-data-dir=" + re.escape(profile)],
+                           capture_output=True, timeout=10)
+        except Exception as e:
+            log.warning("browser reshape failed for %s: %s", user, e)
+            self._json(500, {"error": "reshape failed"})
+            return
+        log.info("browser shape -> %s for %s", shape, user)
+        self._json(200, {"ok": True, "shape": shape, "changed": True})
 
     # ---- X11 Launcher: run/list/switch GUI apps on the xpra display --------
 

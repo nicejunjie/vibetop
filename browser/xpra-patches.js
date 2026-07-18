@@ -640,6 +640,7 @@
     var claimSize = function() {
       var c = window.client;
       if (!c || !c.connected || !c.container) return;
+      if (window.__vtClaimShape) window.__vtClaimShape();   // re-assert THIS device's shape too
       if (!displayMismatch(c)) return;               // already our size → no-op
       c.desktop_width = -1; c.desktop_height = -1;   // bust _screen_resized's guard
       try { c._screen_resized(); } catch (e) {}      // re-send our size → server RANDR
@@ -660,5 +661,32 @@
     }, true);
   } catch(e) {
     console.warn('[xpra-patches] size-claim patch failed:', e.message);
+  }
+
+  // 11. Device shape-claim. Browser page ONLY (this file is also injected into
+  //     /x11-display/, which must not reshape). On every (re)connect, tell the
+  //     manager the SHAPE this device wants — mobile for touch, desktop otherwise
+  //     — via POST /api/browser/shape. The manager respawns the host Chromium with
+  //     a mobile UA + touch for a phone (sites serve their real phone layout, sized
+  //     to the screen — no more desktop-page-crammed-on-a-phone) or desktop flags
+  //     for a computer, from the SAME profile so tabs/logins follow across devices.
+  //     Idempotent server-side (changed:false = no-op when already that shape).
+  try {
+    if (location.pathname.indexOf('/browser') === 0) {
+      var IS_TOUCH_DEV = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+      var claimShape = function() {
+        try {
+          fetch('/api/browser/shape', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shape: IS_TOUCH_DEV ? 'mobile' : 'desktop' })
+          }).catch(function() {});
+        } catch (e) {}
+      };
+      document.addEventListener('connection-established', claimShape);
+      window.__vtClaimShape = claimShape;   // patch 10's re-claim gesture asserts shape too
+      claimShape();                         // and once now (idempotent) in case we're already connected
+    }
+  } catch(e) {
+    console.warn('[xpra-patches] shape patch failed:', e.message);
   }
 })();
