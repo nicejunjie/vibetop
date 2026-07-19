@@ -9,6 +9,30 @@
      own zoom internally (xpra zooms its canvas, text apps don't need it). -->
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Vibetop</title>
+<script>
+/* Auth guard (runs first). If Cloudflare Access — or the vibetop session — has
+   expired, the service worker can serve the cached, un-authenticated shell → a
+   black screen (you had to close+reopen to get the login). Probe auth on load;
+   on a redirect/401, force a NETWORK-ONLY reload (?vtreauth, honored by sw.js) so
+   the browser follows the redirect to the login page. Guarded to fire once per
+   session so a persistent failure can't reload-loop. Async — no delay when authed. */
+(function () {
+  function reauth() {
+    try { if (sessionStorage.getItem('vt:reauth')) return; sessionStorage.setItem('vt:reauth', '1'); } catch (e) {}
+    location.replace('/?vtreauth=' + Date.now());
+  }
+  try {
+    fetch('/api/me', { redirect: 'manual', cache: 'no-store' }).then(function (r) {
+      if (!r) return;
+      if (r.status === 200) { try { sessionStorage.removeItem('vt:reauth'); } catch (e) {} return; }
+      // Re-auth ONLY on a clear auth failure: an opaque redirect (Cloudflare Access
+      // login) or a 401/403 (expired vibetop session). NOT on 5xx / network errors —
+      // those can be transient and must never trigger a reload.
+      if (r.type === 'opaqueredirect' || r.status === 401 || r.status === 403) reauth();
+    }).catch(function () {});
+  } catch (e) {}
+})();
+</script>
 <!-- PWA: installable, full-screen home-screen app. The manifest + apple-* tags
      make "Add to Home Screen" launch standalone (no Safari chrome), and sw.js
      caches the shell so cold loads are instant. -->
