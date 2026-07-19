@@ -1197,6 +1197,31 @@ def _provision_user(user):
         pass
 
 
+def _write_browser_token(user):
+    """Persist a long-lived per-user browser-open token at
+    ~/.config/vibetop/browser.token (0600, owned by the user). The xdg-open shim
+    reads it so "open a browser" (OAuth logins etc.) routes into THIS user's
+    Browser app from ANY of their processes — including terminals started before
+    the VIBETOP_SESSION env existed. This is what makes the routing GENERAL: it no
+    longer depends on a terminal having inherited the env. Best-effort."""
+    try:
+        home = _user_home(user)
+        cfg = os.path.join(home, ".config")
+        d = os.path.join(cfg, "vibetop")
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, "browser.token")
+        token = _sign_session(user, ttl=BROWSER_TOKEN_TTL)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(token)
+        for p in (cfg, d, path):        # keep everything owned by the user
+            _chown_app(p, user)
+        return path
+    except Exception as e:
+        log.warning("browser token write failed for %s: %s", user, e)
+        return None
+
+
 def _user_terminal_setenvs(user):
     # Export the user's OWN X11 display so a GUI app run from their terminal shows
     # up on their X11 Launcher (once that display is open). D-Bus/XDG are their own.
@@ -1216,6 +1241,7 @@ def _user_terminal_setenvs(user):
         envs.append(f"VIBETOP_MGR_PORT={BASE_PORT}")
         if os.path.exists(XDG_OPEN_SHIM):
             envs.append(f"BROWSER={XDG_OPEN_SHIM}")
+        _write_browser_token(user)   # also drop the token file so old/env-less terminals route too
     except Exception as e:
         log.warning("terminal env: browser-open setup failed for %s: %s", user, e)
     return envs
@@ -4956,6 +4982,12 @@ if __name__ == "__main__":
     log.info("terminal-manager listening on 127.0.0.1:%d (log level %s)",
              port, logging.getLevelName(log.level))
     _sd_notify("READY=1")                                 # Type=notify readiness (ignored otherwise)
+    # Drop the per-user browser-open token file for every provisioned user, so a
+    # terminal that's ALREADY running (started before this env existed) routes
+    # "open a browser" into the Browser app on the next xdg-open — no restart, no
+    # new terminal needed. Cheap + idempotent; runs once at startup.
+    for _u in list(_read_users_registry().keys()):
+        _write_browser_token(_u)
     threading.Thread(target=_watchdog_loop, args=(port,), daemon=True).start()
     threading.Thread(target=_reaper_loop, daemon=True).start()  # idle reaper (opt-in)
     server.serve_forever()

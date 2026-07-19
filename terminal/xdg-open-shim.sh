@@ -18,8 +18,18 @@ defer() {
     exit 0
 }
 
-# Not a vibetop terminal, or not an http(s) URL -> hand back to the real xdg-open.
-if [ -z "${VIBETOP_SESSION:-}" ]; then
+# The routing token: the terminal env (VIBETOP_SESSION) if present, else the
+# per-user token file the manager drops for every vibetop user. The file makes
+# routing GENERAL — it works from ANY of the user's processes (old terminals with
+# no env, subshells, cron) without depending on an inherited env var.
+token="${VIBETOP_SESSION:-}"
+if [ -z "$token" ] && [ -r "${HOME:-/nonexistent}/.config/vibetop/browser.token" ]; then
+    token=$(cat "${HOME}/.config/vibetop/browser.token" 2>/dev/null)
+fi
+
+# No token at all (a genuine non-vibetop user), or not an http(s) URL -> hand
+# back to the real xdg-open so system behaviour is unchanged everywhere else.
+if [ -z "$token" ]; then
     defer "$@"
 fi
 case $url in
@@ -30,7 +40,7 @@ esac
 port=${VIBETOP_MGR_PORT:-7680}
 if command -v curl >/dev/null 2>&1 && \
    curl -fsS -m 15 -X POST -H 'Content-Type: application/json' \
-        -H "Cookie: vt_session=${VIBETOP_SESSION}" \
+        -H "Cookie: vt_session=${token}" \
         --data "{\"url\":\"${url}\"}" \
         "http://127.0.0.1:${port}/api/browser/open" >/dev/null 2>&1; then
     printf '\n[vibetop] Opening in the Browser app:\n  %s\n\n' "$url" >&2
