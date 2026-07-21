@@ -169,6 +169,10 @@ def _compute(home):
                     s[k] += d[k]
         return s
 
+    def day_at(offset):
+        return by_day.get(
+            (today - timedelta(days=offset)).strftime("%Y-%m-%d")) or _blank()
+
     total = _blank()
     for e in by_model.values():
         for k in total:
@@ -221,7 +225,8 @@ def _compute(home):
         "spanDays": span_days,
         "cacheHitRate": round(cache_hit, 4),
         "windows": {
-            "today": _fmt(sum_days(1)),
+            "today": _fmt(day_at(0)),
+            "yesterday": _fmt(day_at(1)),
             "d7": _fmt(sum_days(7)),
             "d30": _fmt(sum_days(30)),
             "all": _fmt(total),

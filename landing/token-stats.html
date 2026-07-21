@@ -22,7 +22,7 @@
   .refresh:hover { text-decoration: underline; }
 
   /* Summary cards */
-  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
   .card { background: #161b22; border: 1px solid #2a3040; border-radius: 10px; padding: 12px 14px; }
   .card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #7a8a9a; }
   .card .cost { font-size: 24px; font-weight: 700; margin: 4px 0 2px; color: #e6edf3; font-variant-numeric: tabular-nums; }
@@ -185,7 +185,7 @@ function renderAverages(d){
 }
 
 function renderCards(w){
-  var defs = [['Today','today'],['7 days','d7'],['30 days','d30']];
+  var defs = [['Today','today'],['Yesterday','yesterday'],['7 days','d7'],['30 days','d30']];
   document.getElementById('cards').innerHTML = defs.map(function(d){
     var e = w[d[1]] || {};
     return '<div class="card"><div class="k">'+d[0]+'</div>'
