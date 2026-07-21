@@ -75,6 +75,7 @@ run install -m 644 "$DIR/x11launcher.html" "$DST_DIR/x11launcher.html"
 run install -m 644 "$DIR/update.html" "$DST_DIR/update.html"
 run install -m 644 "$DIR/config.html" "$DST_DIR/config.html"
 run install -m 644 "$DIR/office-editor.html" "$DST_DIR/office-editor.html"
+run install -m 644 "$DIR/video.html" "$DST_DIR/video.html"
 run install -m 644 "$DIR/loggedout.html" "$DST_DIR/loggedout.html"
 run install -m 644 "$DIR/login.html" "$DST_DIR/login.html"
 # PWA: manifest, service worker, and home-screen icons

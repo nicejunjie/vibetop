@@ -8,9 +8,9 @@
   function rememberLocation() {
     // Only remember real browse routes (not /files/settings, /login…).
     if (!/\/files\/files(\/|$)/.test(location.pathname)) return;
-    // Don't remember an office file we opened (it auto-launches the viewer) —
-    // remember the folder we were in, so a refresh returns to the listing.
-    if (OFFICE_RE.test(location.pathname)) return;
+    // Don't remember an office/video file we opened (it auto-launches the viewer /
+    // player) — remember the folder we were in, so a refresh returns to the listing.
+    if (OFFICE_RE.test(location.pathname) || VIDEO_RE.test(location.pathname)) return;
     try { localStorage.setItem(FILES_LAST_KEY, location.pathname + location.search); } catch (e) {}
   }
   // Inside the tabbed Files wrapper (files.html), each tab iframe is named
@@ -139,6 +139,10 @@
   // and Edit (opens it in LibreOffice on the Browser desktop). Both delegate to
   // the parent shell, which holds the Cloudflare Access cookie for /api calls.
   var OFFICE_RE = /\.(docx?|docm|dotx?|dotm|xlsx?|xlsm|xlsb|xltx?|xltm|pptx?|pptm|ppsx?|ppsm|potx?|potm|odt|ods|odp|ott|ots|otp|rtf|csv|tsv)$/i;
+  // Video files open in vibetop's in-Files player (video.html) instead of
+  // FileBrowser's plain <video> previewer — which can't play .mkv/.avi and offers
+  // no audio/subtitle track selection. Double-click/tap posts a `video-view`.
+  var VIDEO_RE = /\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$/i;
   var OFFICE_BUTTONS = [
     { icon: "visibility", label: "View", act: "office-view" },
     { icon: "border_color", label: "Edit", act: "office-edit" }
@@ -599,28 +603,49 @@
     return OFFICE_RE.test(name) ? { item: item, name: name } : null;
   }
   function openOffice(name) {
+    postForItem(name, "office-view");
+  }
+  function videoItem(e) {
+    var item = e.target.closest("[aria-label]");
+    if (!item || !item.hasAttribute("data-dir") || item.getAttribute("data-dir") === "true") return null;
+    var name = item.getAttribute("aria-label") || "";
+    return VIDEO_RE.test(name) ? { item: item, name: name } : null;
+  }
+  function openVideo(name) {
+    postForItem(name, "video-view");
+  }
+  // Turn a listing item name into its home-relative path and hand it to the shell.
+  function postForItem(name, type) {
     var dir = location.pathname.replace(/.*\/files\/?/, "");
     if (dir && !/\/$/.test(dir)) dir = dir.replace(/[^/]*$/, "");   // keep just the folder
     var rel = dir + name;
     try { rel = decodeURIComponent(rel); } catch (e) {}
-    try { window.top.postMessage({ type: "office-view", path: rel }, "*"); } catch (e) {}
+    try { window.top.postMessage({ type: type, path: rel }, "*"); } catch (e) {}
+  }
+  // Match an office OR video item and remember how to open it.
+  function interceptItem(e) {
+    var o = officeItem(e);
+    if (o) { o.open = openOffice; return o; }
+    o = videoItem(e);
+    if (o) { o.open = openVideo; return o; }
+    return null;
   }
   var _click = { item: null, t: 0 };
   document.addEventListener("click", function(e) {
-    var o = officeItem(e);
+    var o = interceptItem(e);
     if (!o) return;
-    if (IS_TOUCH) { e.preventDefault(); e.stopPropagation(); openOffice(o.name); return; }
+    if (IS_TOUCH) { e.preventDefault(); e.stopPropagation(); o.open(o.name); return; }
     var now = Date.now();
     if (_click.item === o.item && now - _click.t < 450) {   // second click → open
       e.preventDefault(); e.stopPropagation();
       _click.item = null; _click.t = 0;
-      openOffice(o.name);
+      o.open(o.name);
     } else {
       _click.item = o.item; _click.t = now;                 // first click → let FB select
     }
   }, true);
   document.addEventListener("dblclick", function(e) {
-    if (officeItem(e)) { e.preventDefault(); e.stopPropagation(); }  // never let FB open it
+    if (interceptItem(e)) { e.preventDefault(); e.stopPropagation(); }  // never let FB open it
   }, true);
 
   // Fallback: if a click slips past the interceptor (unusual DOM) and
@@ -640,6 +665,21 @@
     if (rel === _autoOpened) return;                     // already opened this one
     _autoOpened = rel;
     try { window.top.postMessage({ type: "office-view", path: rel }, "*"); } catch (e) {}
+  }
+  // Same fallback for a video FileBrowser navigated to (its plain previewer).
+  var _autoOpenedVideo = null;
+  function currentVideoFile() {
+    var p = location.pathname.replace(/.*\/files\/?/, "");
+    if (!p || /\/$/.test(p)) return null;                // a folder listing, not a file
+    if (!VIDEO_RE.test(p)) return null;                  // not a video file
+    try { return decodeURIComponent(p); } catch (e) { return p; }
+  }
+  function maybeAutoOpenVideo() {
+    var rel = currentVideoFile();
+    if (!rel) { _autoOpenedVideo = null; return; }       // reset when back on a listing
+    if (rel === _autoOpenedVideo) return;                // already opened this one
+    _autoOpenedVideo = rel;
+    try { window.top.postMessage({ type: "video-view", path: rel }, "*"); } catch (e) {}
   }
 
   function updateOfficeButtons() {
@@ -687,6 +727,7 @@
     patching = true;
     rememberLocation();
     maybeAutoOpenOffice();
+    maybeAutoOpenVideo();
     // Outside the listing (text editor, media previewer, error/loading views)
     // the action toolbar doesn't belong — strip any leftover buttons and stop,
     // so they don't overlap the editor's own toolbar/breadcrumb.

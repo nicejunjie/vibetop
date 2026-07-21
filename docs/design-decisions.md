@@ -1760,3 +1760,46 @@ to a non-dotfile the snap can read — more moving parts than a one-line ACL gra
   xdg-desktop-portal activation hang was one shared instance). They still work, just
   with the portal pause; a per-user private bus would restore ~0.2s and is a noted
   future refinement. snap apps (which need the real bus) and native apps are fine.
+
+---
+
+## In-Files video: .mkv "opens but doesn't play", and no audio/subtitle track picker
+
+**Symptom:** Double-clicking a video in the Files app opened FileBrowser's built-in
+previewer, but `.mkv` files showed nothing (black), while `.mp4` played. And even for
+files that played, there was no way to switch **audio track** or **subtitle language**
+— which a translation-review workflow (one MKV carrying Japanese+Chinese audio and
+Chinese/English/Japanese subs) needs. Fullscreen was also missing inside the app iframe.
+
+**Cause:** FileBrowser's preview is a bare HTML5 `<video>` element. Browsers **cannot
+demux the Matroska (.mkv) container at all** — even though the user's MKVs held
+browser-friendly H.264+AAC, the container itself is unplayable in `<video>`. A plain
+`<video>` also exposes no audio-track picker, and its native CC button is unreliable
+inside a nested app iframe.
+
+**Fix:** A dedicated in-Files player (`landing/video.html`, opened via a `video-view`
+postMessage like the office viewer) backed by three manager endpoints
+(`/api/video/{info,media,subs}`) that use ffmpeg:
+- `info` probes tracks (ffprobe → per-type audio/subtitle indices for `-map 0:a:N`/`0:s:N`).
+- `media` serves **one browser-playable MP4 per audio track**, cached by
+  `sha1(src:mtime:size:audioIndex)`. For the common H.264-in-MKV case this is a
+  **lossless container remux** (`-c copy`, ~0.035s); transcode only when the video
+  codec isn't browser-compatible. Range-served (206) so seeking works.
+- `subs` extracts a subtitle stream to WebVTT (`-f webvtt`), served as `text/vtt`.
+
+The page switches audio by **swapping `<video>.src` and restoring `currentTime`**,
+switches subtitles via WebVTT `<track>` + `textTracks[i].mode`, and has an explicit
+fullscreen button (`requestFullscreen()` on the wrapper, `webkitEnterFullscreen()`
+iOS fallback; the app iframe gains `allow="fullscreen; autoplay"`).
+
+**Rejected:**
+- *`HTMLMediaElement.audioTracks` on one multi-audio MP4* — the seamless way to switch
+  audio without a src-swap, but `audioTracks` is undefined in Firefox and doesn't
+  reliably switch progressive-MP4 output in Chrome. The per-track-file + src-swap
+  approach works in every browser (incl. the embedded xpra Chromium and iOS Safari)
+  with perfect seeking, at the cost of a brief re-buffer on switch (fine for review).
+- *On-the-fly transcode streamed via a pipe* (`frag_keyframe+empty_moov`) — avoids the
+  cache but breaks Range/seeking; the cache-then-Range-serve gives real seeking and the
+  remux is near-instant for the copy case.
+- *Image-based subtitles (PGS/VobSub)* can't become WebVTT — those tracks are omitted
+  from the picker (text subs only).

@@ -94,6 +94,14 @@ if ! [ -x "$FB_BIN" ] && (( ! DRY_RUN )); then
     exit 1
 fi
 
+# 1b. ffmpeg — powers the in-Files video player (probe tracks, remux per audio
+# track to a browser-playable MP4, extract subtitles to WebVTT). The manager
+# degrades gracefully if it's absent (the player shows "ffmpeg not installed").
+if (( INSTALL_DEPS )) && ! command -v ffprobe >/dev/null 2>&1; then
+    echo "== installing ffmpeg (in-Files video player) =="
+    run sudo apt-get update -qq && run sudo apt-get install -y ffmpeg
+fi
+
 # 2. Per-user FileBrowser — NO shared service ------------------------------
 # Multi-user: the manager launches a FileBrowser per logged-in user (as that
 # user, rooted at their home) on demand via systemd-run, each on its own port

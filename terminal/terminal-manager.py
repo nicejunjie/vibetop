@@ -639,6 +639,36 @@ _office_sessions = {}
 _office_sessions_lock = threading.Lock()
 _office_convert_lock = threading.Lock()
 
+# ---- Video player (in-Files) -----------------------------------------------
+# Browsers can't demux .mkv/.avi and can't switch embedded audio/subtitle tracks
+# in a plain <video>. The video app (video.html) drives three endpoints that read
+# files under the user's home (VIDEO_RE + _resolve_under_home), using ffmpeg to:
+#  - probe tracks (/api/video/info),
+#  - serve one browser-playable MP4 PER AUDIO track (/api/video/media) — a lossless
+#    remux when the video is already H.264 (~instant), transcode only otherwise;
+#    the page switches audio by swapping <video> src, subtitles via WebVTT <track>,
+#  - extract a subtitle stream to WebVTT (/api/video/subs).
+# Prepared MP4s + VTTs are cached by realpath+mtime+size under the user's cache dir,
+# same scheme as the office PDF cache.
+VIDEO_RE = re.compile(
+    r"\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$", re.I)
+# Codecs a browser <video> can play directly (so we can `-c copy` remux, not
+# transcode). Anything else -> transcode to H.264/AAC (slow, cached once).
+_VIDEO_OK_VCODECS = {"h264", "vp8", "vp9", "av1"}
+_VIDEO_OK_ACODECS = {"aac", "mp3"}
+# Containers we can stream as-is (fast path, no ffmpeg) when the video codec is
+# compatible and there's a single audio track.
+_VIDEO_DIRECT_EXT = {".mp4", ".m4v", ".webm"}
+# Text subtitle codecs that convert cleanly to WebVTT; image subs (PGS/VobSub)
+# can't be shown as text tracks and are omitted from the picker.
+_VIDEO_TEXT_SUBS = {"subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text"}
+_VIDEO_PREP_TIMEOUT = _port_env("VIDEO_PREP_TIMEOUT", 1800)  # transcode ceiling
+_video_convert_lock = threading.Lock()
+
+
+def _video_cache_dir(user=None):
+    return os.path.join(_office_home(user), ".cache", "vibetop-video")
+
 # The git checkout this manager runs from: <repo>/terminal/terminal-manager.py.
 # The Update app pulls + redeploys from here.
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2088,6 +2118,171 @@ def _office_convert_to_pdf(src, user=None):
             return None
         _chown_app(cached, user)
         return cached
+
+
+def _ffprobe(src):
+    """Probe `src` with ffprobe -> parsed JSON dict, or None. A dedicated wrapper
+    so tests can monkeypatch it. Run as root (the manager) — _resolve_under_home
+    has already fenced the path to the request user's home."""
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return None
+    try:
+        p = subprocess.run(
+            [ffprobe, "-v", "quiet", "-print_format", "json",
+             "-show_format", "-show_streams", src],
+            capture_output=True, text=True, timeout=30)
+    except Exception:
+        return None
+    if p.returncode != 0:
+        return None
+    try:
+        return json.loads(p.stdout)
+    except (ValueError, TypeError):
+        return None
+
+
+def _video_probe_tracks(src):
+    """ffprobe -> {video:{codec,width,height}, audio:[{ai,codec,lang,title}],
+    subs:[{si,codec,lang,title}], duration}. `ai`/`si` are per-type stream indices
+    for ffmpeg's -map 0:a:<ai> / 0:s:<si>; image-only subtitle streams are dropped
+    from `subs` but still counted so kept text subs keep their true 0:s:N index."""
+    data = _ffprobe(src)
+    if not data:
+        return None
+    video, audio, subs = None, [], []
+    ai = si = 0
+    for s in data.get("streams", []):
+        ct = s.get("codec_type")
+        codec = s.get("codec_name", "") or ""
+        if ct == "video":
+            # Skip attached cover-art/thumbnail "video" streams.
+            if video is None and codec not in ("mjpeg", "png", "bmp", "gif"):
+                video = {"codec": codec, "width": s.get("width"),
+                         "height": s.get("height")}
+        elif ct == "audio":
+            tags = s.get("tags") or {}
+            audio.append({"ai": ai, "codec": codec,
+                          "lang": tags.get("language", "") or "",
+                          "title": tags.get("title", "") or ""})
+            ai += 1
+        elif ct == "subtitle":
+            if codec in _VIDEO_TEXT_SUBS:
+                tags = s.get("tags") or {}
+                subs.append({"si": si, "codec": codec,
+                             "lang": tags.get("language", "") or "",
+                             "title": tags.get("title", "") or ""})
+            si += 1
+    try:
+        duration = float((data.get("format") or {}).get("duration") or 0)
+    except (TypeError, ValueError):
+        duration = 0
+    return {"video": video, "audio": audio, "subs": subs, "duration": duration}
+
+
+def _video_prepared_path(src, aidx, user=None):
+    """Build (once, cached) a browser-playable MP4 of `src` carrying video + the
+    single audio track `aidx`. Lossless `-c copy` when the codecs are already
+    browser-compatible (the H.264-in-MKV common case, ~instant), transcoding only
+    what isn't. Returns the cached path or None. Serialized like the office cache."""
+    user = user or _ctx_user()
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+    try:
+        st = os.stat(src)
+    except OSError:
+        return None
+    tracks = _video_probe_tracks(src)
+    if not tracks:
+        return None
+    vcodec = (tracks.get("video") or {}).get("codec", "")
+    acodec = next((a["codec"] for a in tracks.get("audio", []) if a["ai"] == aidx), "")
+    vc = (["-c:v", "copy"] if vcodec in _VIDEO_OK_VCODECS
+          else ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+                "-pix_fmt", "yuv420p"])
+    ac = (["-c:a", "copy"] if acodec in _VIDEO_OK_ACODECS
+          else ["-c:a", "aac", "-b:a", "192k"])
+    cache_dir = _video_cache_dir(user)
+    key = hashlib.sha1(
+        f"{src}:{int(st.st_mtime)}:{st.st_size}:a{aidx}".encode()).hexdigest()
+    cached = os.path.join(cache_dir, key + ".mp4")
+    if os.path.isfile(cached):
+        return cached
+    with _video_convert_lock:
+        if os.path.isfile(cached):
+            return cached
+        os.makedirs(cache_dir, exist_ok=True)
+        _chown_app(cache_dir, user)
+        _chown_app(os.path.dirname(cache_dir), user)
+        tmp = cached + ".tmp.mp4"
+        cmd = ([ffmpeg, "-y", "-i", src, "-map", "0:v:0", "-map", "0:a:%d" % aidx]
+               + vc + ac + ["-movflags", "+faststart", tmp])
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True,
+                               timeout=_VIDEO_PREP_TIMEOUT)
+        except Exception:
+            _rm_quiet(tmp)
+            return None
+        if p.returncode != 0 or not os.path.isfile(tmp):
+            _rm_quiet(tmp)
+            return None
+        try:
+            os.replace(tmp, cached)
+        except OSError:
+            _rm_quiet(tmp)
+            return None
+        _chown_app(cached, user)
+        return cached
+
+
+def _ffmpeg_extract_subs(src, sidx, user=None):
+    """Extract subtitle stream `sidx` (per-type) to a cached WebVTT file. Returns
+    the path or None."""
+    user = user or _ctx_user()
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+    try:
+        st = os.stat(src)
+    except OSError:
+        return None
+    cache_dir = _video_cache_dir(user)
+    key = hashlib.sha1(
+        f"{src}:{int(st.st_mtime)}:{st.st_size}:s{sidx}".encode()).hexdigest()
+    cached = os.path.join(cache_dir, key + ".vtt")
+    if os.path.isfile(cached):
+        return cached
+    with _video_convert_lock:
+        if os.path.isfile(cached):
+            return cached
+        os.makedirs(cache_dir, exist_ok=True)
+        _chown_app(cache_dir, user)
+        _chown_app(os.path.dirname(cache_dir), user)
+        tmp = cached + ".tmp.vtt"
+        cmd = [ffmpeg, "-y", "-i", src, "-map", "0:s:%d" % sidx, "-f", "webvtt", tmp]
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        except Exception:
+            _rm_quiet(tmp)
+            return None
+        if p.returncode != 0 or not os.path.isfile(tmp):
+            _rm_quiet(tmp)
+            return None
+        try:
+            os.replace(tmp, cached)
+        except OSError:
+            _rm_quiet(tmp)
+            return None
+        _chown_app(cached, user)
+        return cached
+
+
+def _rm_quiet(path):
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
 
 
 def _git(args, timeout=60):
@@ -3741,6 +3936,154 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception:
             pass
 
+    # ---- Video player (in-Files) --------------------------------------------
+
+    def _handle_video_info(self):
+        # GET /api/video/info?path=<rel-to-home> — probe audio/subtitle tracks.
+        q = urllib.parse.urlparse(self.path).query
+        rel = urllib.parse.parse_qs(q).get("path", [""])[0]
+        src = _resolve_under_home(rel)
+        if not src or not VIDEO_RE.search(src):
+            self._json(400, {"ok": False, "error": "not a video file"})
+            return
+        if not shutil.which("ffprobe") or not shutil.which("ffmpeg"):
+            self._json(200, {"ok": False, "ffmpeg": False})
+            return
+        tracks = _video_probe_tracks(src)
+        if not tracks:
+            self._json(200, {"ok": False, "ffmpeg": True, "error": "probe failed"})
+            return
+        v = tracks.get("video") or {}
+        vcodec = v.get("codec", "")
+        ext = os.path.splitext(src)[1].lower()
+        needs = (ext not in _VIDEO_DIRECT_EXT
+                 or vcodec not in _VIDEO_OK_VCODECS
+                 or len(tracks.get("audio", [])) > 1)
+        self._json(200, {
+            "ok": True, "ffmpeg": True,
+            "name": os.path.basename(src),
+            "duration": tracks.get("duration", 0),
+            "video": {"codec": vcodec,
+                      "compatible": vcodec in _VIDEO_OK_VCODECS,
+                      "width": v.get("width"), "height": v.get("height")},
+            "needsPrepare": needs,
+            "audio": tracks.get("audio", []),
+            "subs": tracks.get("subs", []),
+        })
+
+    def _handle_video_media(self):
+        # GET/HEAD /api/video/media?path=<rel>&audio=<per-type audio index>
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        rel = q.get("path", [""])[0]
+        try:
+            aidx = max(0, int(q.get("audio", ["0"])[0]))
+        except ValueError:
+            aidx = 0
+        src = _resolve_under_home(rel)
+        if not src or not VIDEO_RE.search(src):
+            return self.send_error(404)
+        ext = os.path.splitext(src)[1].lower()
+        # Fast path: a browser-playable container+codec with a single audio track
+        # streams as-is (no ffmpeg). Otherwise build/serve a per-audio MP4.
+        direct = False
+        if ext in _VIDEO_DIRECT_EXT:
+            tracks = _video_probe_tracks(src)
+            if tracks:
+                vcodec = (tracks.get("video") or {}).get("codec", "")
+                direct = (vcodec in _VIDEO_OK_VCODECS
+                          and len(tracks.get("audio", [])) <= 1)
+        if direct:
+            return self._serve_file_range(src, os.path.basename(src),
+                                          self.headers.get("Range"))
+        prepared = _video_prepared_path(src, aidx)
+        if not prepared:
+            return self.send_error(500, "video prepare failed")
+        # Bytes are MP4 regardless of the source extension — pin the type.
+        self._serve_file_range(prepared, os.path.basename(src),
+                               self.headers.get("Range"), ctype="video/mp4")
+
+    def _handle_video_subs(self):
+        # GET /api/video/subs?path=<rel>&sub=<per-type subtitle index> — WebVTT.
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        rel = q.get("path", [""])[0]
+        try:
+            sidx = max(0, int(q.get("sub", ["0"])[0]))
+        except ValueError:
+            sidx = 0
+        src = _resolve_under_home(rel)
+        if not src or not VIDEO_RE.search(src):
+            return self.send_error(404)
+        vtt = _ffmpeg_extract_subs(src, sidx)
+        if not vtt:
+            return self.send_error(404)
+        try:
+            with open(vtt, "rb") as f:
+                body = f.read()
+        except OSError:
+            return self.send_error(404)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/vtt; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "private, max-age=60")
+        self.end_headers()
+        if self.command == "HEAD":
+            return
+        try:
+            self.wfile.write(body)
+        except Exception:
+            pass
+
+    def _serve_file_range(self, path, name, range_hdr, ctype=None):
+        """Serve a file inline with HTTP Range support (206/416/HEAD) — the
+        streaming loop from _serve_share_file, without the share safety headers,
+        so <video> can seek. `ctype` overrides the guessed content-type (the
+        prepared cache is .mp4 bytes under a .mkv source name)."""
+        try:
+            size = os.path.getsize(path)
+        except OSError:
+            return self.send_error(404)
+        ctype = ctype or mimetypes.guess_type(name)[0] or "application/octet-stream"
+        start, end, partial = 0, size - 1, False
+        if range_hdr:
+            m = re.match(r"bytes=(\d*)-(\d*)$", range_hdr.strip())
+            if m and (m.group(1) or m.group(2)):
+                if m.group(1) == "":
+                    start, end = max(0, size - int(m.group(2))), size - 1
+                else:
+                    start = int(m.group(1))
+                    end = int(m.group(2)) if m.group(2) else size - 1
+                if start > end or start >= max(size, 1):
+                    self.send_response(416)
+                    self.send_header("Content-Range", "bytes */%d" % size)
+                    self.end_headers()
+                    return
+                end = min(end, size - 1)
+                partial = True
+        length = end - start + 1
+        self.send_response(206 if partial else 200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(length))
+        self.send_header("Accept-Ranges", "bytes")
+        if partial:
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+        self.send_header("Cache-Control", "private, max-age=60")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        if self.command == "HEAD":
+            return
+        try:
+            with open(path, "rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(65536, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+        except (OSError, BrokenPipeError, ConnectionError):
+            pass
+
     # ---- OnlyOffice web editor: config / doc-fetch / save-callback ----------
 
     def _handle_office_new(self):
@@ -4551,6 +4894,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._bind_request_user()
         if self.path.startswith("/s/"):
             return self._handle_share_serve()
+        if self.path.startswith("/api/video/media"):
+            return self._handle_video_media()
         self.send_error(404)
 
     def do_GET(self):
@@ -4604,6 +4949,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_office_doc()
         if self.path.startswith("/api/office/preview"):
             return self._handle_office_preview()
+        if self.path.startswith("/api/video/info"):
+            return self._handle_video_info()
+        if self.path.startswith("/api/video/media"):
+            return self._handle_video_media()
+        if self.path.startswith("/api/video/subs"):
+            return self._handle_video_subs()
         if self.path == "/api/update" or self.path.startswith("/api/update?"):
             self._json(200, self._update_version_info())
             return
