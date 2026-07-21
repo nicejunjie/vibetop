@@ -612,7 +612,15 @@
     return VIDEO_RE.test(name) ? { item: item, name: name } : null;
   }
   function openVideo(name) {
-    postForItem(name, "video-view");
+    // Build the item's ABSOLUTE path (FileBrowser root = /) from the current
+    // folder via currentFullPath() — the robust helper the Share/address-bar
+    // features use. NOT postForItem's location.pathname strip, which drops the
+    // folder name when its URL lacks a trailing slash (e.g. .../test_data ->
+    // "test_data" mistaken for a filename and stripped, so the file 404s). The
+    // manager's _resolve_media_path accepts this absolute form (fenced to home).
+    var base = currentFullPath().replace(/\/+$/, "");
+    var rel = (base + "/" + name).replace(/^\/+/, "");
+    try { window.top.postMessage({ type: "video-view", path: rel }, "*"); } catch (e) {}
   }
   // Turn a listing item name into its home-relative path and hand it to the shell.
   function postForItem(name, type) {
