@@ -202,9 +202,11 @@ def _compute(home):
 
     active_days = len(by_day)
     if by_day:
-        first = datetime.strptime(min(by_day.keys()), "%Y-%m-%d").date()
+        first_day = min(by_day.keys())
+        first = datetime.strptime(first_day, "%Y-%m-%d").date()
         span_days = (today - first).days + 1
     else:
+        first_day = None
         span_days = 0
 
     return {
@@ -212,6 +214,10 @@ def _compute(home):
         "estimate": True,
         "sessions": len(sessions),
         "activeDays": active_days,
+        # The earliest day with retained data. Claude Code deletes transcripts
+        # older than `cleanupPeriodDays` (default 30), so "all time" is really a
+        # rolling window bounded by that — firstDay/spanDays let the UI say so.
+        "firstDay": first_day,
         "spanDays": span_days,
         "cacheHitRate": round(cache_hit, 4),
         "windows": {

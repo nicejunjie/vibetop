@@ -22,7 +22,7 @@
   .refresh:hover { text-decoration: underline; }
 
   /* Summary cards */
-  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
   .card { background: #161b22; border: 1px solid #2a3040; border-radius: 10px; padding: 12px 14px; }
   .card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #7a8a9a; }
   .card .cost { font-size: 24px; font-weight: 700; margin: 4px 0 2px; color: #e6edf3; font-variant-numeric: tabular-nums; }
@@ -167,15 +167,15 @@ function setY(id, max, fmt){
 
 function renderAverages(d){
   var w = d.windows;
-  var s  = Math.max(1, d.sessions || 0);
-  var ad = Math.max(1, d.activeDays || 0);
-  var rq = Math.max(1, w.all.req || 0);
+  // Fixed windows only — no "all time" (Claude Code prunes transcripts older
+  // than cleanupPeriodDays, so a cumulative total swings unpredictably).
+  var r30 = Math.max(1, w.d30.req || 0);
+  var r7  = Math.max(1, w.d7.req || 0);
   var tiles = [
-    ['Per day · 7-day avg',        w.d7.cost/7,   w.d7.tokens/7],
-    ['Per day · 30-day avg',       w.d30.cost/30, w.d30.tokens/30],
-    ['Per active day · all-time',  w.all.cost/ad, w.all.tokens/ad],
-    ['Per request · all-time',     w.all.cost/rq, w.all.tokens/rq],
-    ['Per session · all-time',     w.all.cost/s,  w.all.tokens/s]
+    ['Per day · 7-day avg',      w.d7.cost/7,     w.d7.tokens/7],
+    ['Per day · 30-day avg',     w.d30.cost/30,   w.d30.tokens/30],
+    ['Per request · 30 days',    w.d30.cost/r30,  w.d30.tokens/r30],
+    ['Per request · 7 days',     w.d7.cost/r7,    w.d7.tokens/r7]
   ];
   document.getElementById('avgs').innerHTML = tiles.map(function(t){
     return '<div class="avg"><div class="k">'+t[0]+'</div>'
@@ -185,7 +185,7 @@ function renderAverages(d){
 }
 
 function renderCards(w){
-  var defs = [['Today','today'],['7 days','d7'],['30 days','d30'],['All time','all']];
+  var defs = [['Today','today'],['7 days','d7'],['30 days','d30']];
   document.getElementById('cards').innerHTML = defs.map(function(d){
     var e = w[d[1]] || {};
     return '<div class="card"><div class="k">'+d[0]+'</div>'
@@ -257,9 +257,16 @@ function render(d){
   document.getElementById('cacheStat').textContent =
     '· cache hit ' + Math.round((d.cacheHitRate||0)*100) + '% · ' + d.sessions + ' sessions';
   var ago = Math.max(0, Math.round((Date.now()/1000) - d.updated));
+  var retain = '';
+  if (d.firstDay) {
+    var fd = new Date(d.firstDay + 'T00:00:00');
+    retain = ' Covers the ' + (d.spanDays||0) + ' days Claude Code still retains on disk (since '
+      + fd.toLocaleDateString(undefined,{month:'short',day:'numeric'})
+      + '); older transcripts are auto-deleted, so there is no reliable all-time total.';
+  }
   document.getElementById('sub').innerHTML =
-    'Reconstructed from local Claude Code transcripts; cost is an <b>estimate</b> at public per-token rates. Updated '
-    + (ago<60? ago+'s' : Math.round(ago/60)+'m') + ' ago.';
+    'Reconstructed from local Claude Code transcripts; cost is an <b>estimate</b> at public per-token rates.'
+    + retain + ' Updated ' + (ago<60? ago+'s' : Math.round(ago/60)+'m') + ' ago.';
 }
 
 function load(){
