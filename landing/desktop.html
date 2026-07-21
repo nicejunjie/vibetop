@@ -1172,6 +1172,13 @@
     // Shared shell-level toggles, converged across all clients via this heartbeat.
     if (typeof d.sys_stats === 'boolean' && window.applyServerSysStats) window.applyServerSysStats(d.sys_stats);
     if (typeof d.claude_usage === 'boolean' && window.applyServerClaudeUsage) window.applyServerClaudeUsage(d.claude_usage, d.claude);
+    // Feature-hints kill-switch (Config): mirror the host-wide flag into
+    // localStorage (shared across all same-origin surfaces — incl. the terminal
+    // /tN/ iframes — where coach.js reads it). Yank any live banner when off.
+    if (typeof d.hints === 'boolean') {
+      try { localStorage.setItem('vibetop:hints', d.hints ? '1' : '0'); } catch (e) {}
+      if (!d.hints) { var _c = document.querySelector('.vibe-coach'); if (_c) { try { _c.remove(); } catch (e) {} } }
+    }
     // Folded-in shell polls: taskbar system stats (present only when sys_stats is
     // on) and the terminal count for the Start-menu badge. Set terminalCount
     // before markMenuRunning so the Terminal dot reflects it this beat.

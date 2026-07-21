@@ -135,6 +135,7 @@ def home(mgr, monkeypatch, tmp_path):
     # hermetic (never touch the real /var/lib/vibetop/*.json).
     monkeypatch.setattr(mgr, "IDLE_POLICY_FILE", str(h / "vibetop-idle.json"))
     monkeypatch.setattr(mgr, "RESOURCE_POLICY_FILE", str(h / "vibetop-resources.json"))
+    monkeypatch.setattr(mgr, "HINTS_POLICY_FILE", str(h / "vibetop-hints.json"))
     (h / ".local" / "share").mkdir(parents=True, exist_ok=True)
     # Reset process-global mutable state so tests don't bleed into each other.
     if hasattr(mgr, "_cache"):

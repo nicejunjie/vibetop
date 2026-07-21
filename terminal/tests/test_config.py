@@ -40,6 +40,34 @@ def test_idle_policy_clamps_and_tolerates_junk(mgr, home):
                                        "reapTerminals": False}
 
 
+# --- feature-hints kill-switch -----------------------------------------------
+
+def test_hints_default_on_and_roundtrip(mgr, home):
+    assert mgr._read_hints_enabled() is True          # historical default: hints on
+    mgr._write_hints_enabled(False)
+    assert mgr._read_hints_enabled() is False
+    mgr._write_hints_enabled(True)
+    assert mgr._read_hints_enabled() is True
+
+
+def test_hints_defaults_on_when_corrupt(mgr, home):
+    with open(mgr.HINTS_POLICY_FILE, "w") as f:
+        f.write("{not json")
+    assert mgr._read_hints_enabled() is True
+
+
+def test_hints_endpoint_gated_and_roundtrips(client, mgr, users, stubs, monkeypatch):
+    ck = users["alice"][1]
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: False)   # non-sudo -> 403 on both verbs
+    assert client.get("/api/config/hints", cookie=ck)[0] == 403
+    assert client.post("/api/config/hints", {"enabled": False}, cookie=ck)[0] == 403
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    assert client.get("/api/config/hints", cookie=ck)[1]["enabled"] is True   # default
+    st, body = client.post("/api/config/hints", {"enabled": False}, cookie=ck)
+    assert st == 200 and body["enabled"] is False and mgr._read_hints_enabled() is False
+    assert client.get("/api/config/hints", cookie=ck)[1]["enabled"] is False
+
+
 # --- heartbeat read (target home, not ctx home) ------------------------------
 
 def test_user_last_heartbeat_reads_target_home(mgr, home, users):

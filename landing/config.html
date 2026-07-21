@@ -151,6 +151,21 @@
         </div>
       </div>
 
+      <div class="card" id="hints-card">
+        <h2>Feature hints</h2>
+        <div class="hint">The blue tip banners that teach vibetop's less-obvious gestures
+          (two-finger resize, tap-a-link, long-press to copy, cross-device close, …).
+          Turn them off host-wide once everyone's up to speed. Applies to every user
+          and device within a few seconds. <b>Default: on.</b></div>
+        <div class="row">
+          <label class="chk"><input type="checkbox" id="hints-enabled"> Show feature hints</label>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button id="hints-save">Save</button>
+          <span class="status" id="hints-status"></span>
+        </div>
+      </div>
+
       <div class="card" id="res-card">
         <h2>Per-user resource caps</h2>
         <div class="hint">Limits applied to each user's sessions so one user can't starve
@@ -311,6 +326,24 @@
         if (res.status === 200) setStatus(idleStatus, res.data.enabled ? 'Saved — idle timeout on (' + res.data.hours + 'h)' : 'Saved — idle timeout off', 'ok');
         else setStatus(idleStatus, (res.data && res.data.error) || 'Save failed', 'err');
       });
+  });
+
+  // ---- Feature hints (coach-tip banners) ------------------------------------
+  var hintsEnabled = document.getElementById('hints-enabled'),
+      hintsStatus = document.getElementById('hints-status');
+  function loadHints() {
+    api('GET', '/api/config/hints').then(function (res) {
+      if (handle403(res)) return;
+      hintsEnabled.checked = res.data && res.data.enabled !== false;   // default on
+    });
+  }
+  document.getElementById('hints-save').addEventListener('click', function () {
+    setStatus(hintsStatus, 'Saving…', 'run');
+    api('POST', '/api/config/hints', { enabled: hintsEnabled.checked }).then(function (res) {
+      if (handle403(res)) return;
+      if (res.status === 200) setStatus(hintsStatus, res.data.enabled ? 'Saved — hints on' : 'Saved — hints off', 'ok');
+      else setStatus(hintsStatus, (res.data && res.data.error) || 'Save failed', 'err');
+    });
   });
 
   // ---- Users ----------------------------------------------------------------
@@ -497,6 +530,7 @@
   }
 
   loadIdle();
+  loadHints();
   loadResources();
   loadServices();
   loadUsers();

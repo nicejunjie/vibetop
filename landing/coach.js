@@ -22,6 +22,11 @@
   window.VIBE_COACH_MAX = MAX;
   window.vibeCoach = function (tips, opts) {
     opts = opts || {};
+    // Global kill-switch (Config ▸ Vibetop ▸ Feature hints). The host-wide flag
+    // rides the desktop heartbeat and desktop.html mirrors it here; '0' = hints
+    // off. This is the single choke-point every surface's tips flow through
+    // (terminal, Files, Browser, cross-device ⏻, X11), so one check disables all.
+    try { if (localStorage.getItem('vibetop:hints') === '0') return null; } catch (_) {}
     if (!Array.isArray(tips)) tips = [tips];
     if (document.hidden) return null;
     if (document.querySelector('.vibe-coach')) return null;   // one banner at a time, per surface

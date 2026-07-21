@@ -907,6 +907,32 @@ def _write_idle_policy(enabled, hours, reap_terminals):
             log.warning("idle policy write failed: %s", e)
 
 
+# Host-wide "show coach-tip hints" flag (the blue feature-tip banners, coach.js).
+# Toggled from the Config app; rides the desktop heartbeat so every client — incl.
+# the terminal /tN/ iframes via localStorage — converges within ~5s.
+HINTS_POLICY_FILE = os.environ.get("HINTS_POLICY_FILE") or "/var/lib/vibetop/hints.json"
+_hints_lock = threading.Lock()
+
+
+def _read_hints_enabled():
+    """True = show feature hints (the historical default). Missing/corrupt -> True."""
+    try:
+        with open(HINTS_POLICY_FILE) as f:
+            d = json.load(f)
+        return bool(d.get("enabled", True)) if isinstance(d, dict) else True
+    except (OSError, ValueError):
+        return True
+
+
+def _write_hints_enabled(enabled):
+    with _hints_lock:
+        try:
+            os.makedirs(os.path.dirname(HINTS_POLICY_FILE), exist_ok=True)
+            _atomic_write(HINTS_POLICY_FILE, json.dumps({"enabled": bool(enabled)}))
+        except OSError as e:
+            log.warning("hints policy write failed: %s", e)
+
+
 def _user_last_heartbeat(user):
     """Newest instance `ts` from a user's OWN desktop-state.json (built from
     _user_home(user), NOT _ctx_home — the reaper runs off the request path).
@@ -2954,6 +2980,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_reset()
         if self.path == "/api/config/idle":
             return self._handle_config_idle_set()
+        if self.path == "/api/config/hints":
+            return self._handle_config_hints_set()
         if self.path == "/api/config/resources":
             return self._handle_config_resources_set()
         if self.path == "/api/config/services/restart":
@@ -3269,6 +3297,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # System-health warnings ride the heartbeat too, ALWAYS (independent of the
         # stats toggle) — a red banner must show even with the stats readout off.
         resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)
+        resp["hints"] = _cached("hints_enabled", 5.0, _read_hints_enabled)   # feature-tip kill-switch
         self._json(200, resp)
 
     def _handle_desktop_close(self):
@@ -3463,6 +3492,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
                  enabled, hours, reap_terminals, _ctx_user())
         self._json(200, {"ok": True, "enabled": enabled, "hours": hours,
                          "reapTerminals": reap_terminals})
+
+    def _handle_config_hints_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, {"enabled": _read_hints_enabled()})
+
+    def _handle_config_hints_set(self):
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        enabled = bool(data.get("enabled", True))
+        _write_hints_enabled(enabled)
+        with _cache_lock:                      # so the next heartbeat reflects it now, not in ~5s
+            _cache.pop("hints_enabled", None)
+        log.info("config: feature hints enabled=%s (by %s)", enabled, _ctx_user())
+        self._json(200, {"ok": True, "enabled": enabled})
 
     def _handle_config_users_get(self):
         if not self._require_sudo():
@@ -4958,6 +5005,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/api/config/idle":
             return self._handle_config_idle_get()
+        if self.path == "/api/config/hints":
+            return self._handle_config_hints_get()
         if self.path == "/api/config/resources":
             return self._handle_config_resources_get()
         if self.path == "/api/config/disk":
@@ -5077,6 +5126,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
                 resp["claude"] = _claude_usage_payload(cu)
             resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)   # red-banner alerts (always)
+            resp["hints"] = _cached("hints_enabled", 5.0, _read_hints_enabled)   # feature-tip kill-switch
             self._json(200, resp)
             return
         if self.path == "/api/upload/list":
