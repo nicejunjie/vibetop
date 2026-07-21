@@ -25,13 +25,44 @@
   select:hover, button.btn:hover { border-color: #3a4452; background: #1b212b; }
   select:disabled { opacity: .5; cursor: default; }
   button.btn { line-height: 1; }
-  #stage { flex: 1 1 auto; min-height: 0; position: relative;
-           display: flex; align-items: center; justify-content: center;
-           background: #000; }
-  video { width: 100%; height: 100%; background: #000; }
+
+  #stage { flex: 1 1 auto; min-height: 0; position: relative; background: #000;
+           display: flex; align-items: center; justify-content: center; }
+  /* No native `controls` — Safari dims the whole frame behind them on mouse-move
+     ("entire video greyed"). We draw our own bar, which never tints the video. */
+  video { width: 100%; height: 100%; object-fit: contain; background: #000;
+          display: block; }
+
+  /* Custom control bar — auto-hides while playing; only a slim bottom gradient,
+     never a full-frame scrim. */
+  #ctrls {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; gap: 12px;
+    padding: 20px 14px 12px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.55));
+    transition: opacity .18s ease; opacity: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  #stage.hidebar #ctrls { opacity: 0; pointer-events: none; }
+  #stage.hidebar { cursor: none; }
+  .cbtn { background: none; border: 0; color: #fff; cursor: pointer;
+          font-size: 20px; line-height: 1; padding: 4px; width: 30px; }
+  .cbtn:hover { color: #cfe3ff; }
+  #seek { flex: 1 1 auto; height: 16px; position: relative; cursor: pointer;
+          display: flex; align-items: center; }
+  #seek .track { position: absolute; left: 0; right: 0; height: 4px;
+                 background: rgba(255,255,255,0.25); border-radius: 3px; }
+  #buf  { position: absolute; left: 0; height: 4px; width: 0;
+          background: rgba(255,255,255,0.4); border-radius: 3px; }
+  #prog { position: absolute; left: 0; height: 4px; width: 0;
+          background: #4a86e8; border-radius: 3px; }
+  #knob { position: absolute; width: 12px; height: 12px; border-radius: 50%;
+          background: #fff; left: 0; margin-left: -6px; box-shadow: 0 0 3px rgba(0,0,0,.6); }
+  #time { color: #dfe8f4; font-size: 12px; white-space: nowrap; }
+
   #msg { position: absolute; inset: 0; display: none; align-items: center;
          justify-content: center; text-align: center; padding: 24px;
-         color: #9ab; }
+         color: #9ab; background: rgba(10,12,18,0.72); }
   #msg.show { display: flex; }
   #msg b { color: #cde; }
   .spin { width: 22px; height: 22px; border: 3px solid #2a3040;
@@ -55,7 +86,13 @@
     <button class="btn" id="fs-btn" title="Fullscreen">⛶ Fullscreen</button>
   </div>
   <div id="stage">
-    <video id="v" controls playsinline preload="metadata"></video>
+    <video id="v" playsinline preload="metadata"></video>
+    <div id="ctrls">
+      <button class="cbtn" id="play" title="Play/Pause">▶</button>
+      <div id="seek"><div class="track"></div><div id="buf"></div><div id="prog"></div><div id="knob"></div></div>
+      <span id="time">0:00 / 0:00</span>
+      <button class="cbtn" id="mute" title="Mute" style="font-size:17px">🔊</button>
+    </div>
     <div id="msg" class="show"><div><div class="spin"></div>Loading…</div></div>
   </div>
 </div>
@@ -68,20 +105,23 @@
     por: "Português", ita: "Italiano", ara: "العربية", hin: "हिन्दी",
     vie: "Tiếng Việt", tha: "ไทย", ind: "Bahasa", nld: "Nederlands"
   };
-  function langName(code) {
-    if (!code) return "";
-    return LANGS[code.toLowerCase()] || code.toUpperCase();
-  }
+  function langName(code) { return code ? (LANGS[code.toLowerCase()] || code.toUpperCase()) : ""; }
   function trackLabel(t, i, kind) {
-    var parts = [];
-    var ln = langName(t.lang);
+    var parts = [], ln = langName(t.lang);
     if (ln) parts.push(ln);
     if (t.title && t.title !== ln) parts.push(t.title);
     return parts.join(" — ") || (kind + " " + (i + 1));
   }
+  function fmt(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    s = Math.floor(s);
+    var m = Math.floor(s / 60), ss = s % 60;
+    return m + ":" + (ss < 10 ? "0" : "") + ss;
+  }
 
   var path = new URLSearchParams(location.search).get("path") || "";
   var v = document.getElementById("v");
+  var stage = document.getElementById("stage");
   var msgEl = document.getElementById("msg");
   var nameEl = document.getElementById("name");
   var audioCtl = document.getElementById("audio-ctl");
@@ -89,47 +129,90 @@
   var subCtl = document.getElementById("sub-ctl");
   var subSel = document.getElementById("sub-sel");
   var fsBtn = document.getElementById("fs-btn");
-  var stage = document.getElementById("stage");
+  var playBtn = document.getElementById("play");
+  var muteBtn = document.getElementById("mute");
+  var seek = document.getElementById("seek");
+  var buf = document.getElementById("buf");
+  var prog = document.getElementById("prog");
+  var knob = document.getElementById("knob");
+  var timeEl = document.getElementById("time");
+  var enc = encodeURIComponent;
 
   function showMsg(html) { msgEl.innerHTML = "<div>" + html + "</div>"; msgEl.classList.add("show"); }
   function hideMsg() { msgEl.classList.remove("show"); }
-  var enc = encodeURIComponent;
+  function mediaUrl(aidx) { return "/api/video/media?path=" + enc(path) + "&audio=" + aidx; }
 
-  function mediaUrl(aidx) {
-    return "/api/video/media?path=" + enc(path) + "&audio=" + aidx;
-  }
+  // ---- custom controls -----------------------------------------------------
+  function setPlayIcon() { playBtn.textContent = v.paused ? "▶" : "⏸"; }
+  function togglePlay() { if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function(){}); } else v.pause(); }
+  playBtn.addEventListener("click", togglePlay);
+  v.addEventListener("play", setPlayIcon);
+  v.addEventListener("pause", function(){ setPlayIcon(); showBar(); });
+  v.addEventListener("timeupdate", function () {
+    var d = v.duration || 0, c = v.currentTime || 0;
+    var pct = d ? (c / d * 100) : 0;
+    prog.style.width = pct + "%"; knob.style.left = pct + "%";
+    timeEl.textContent = fmt(c) + " / " + fmt(d);
+    try {
+      if (v.buffered.length) buf.style.width = (Math.min(v.buffered.end(v.buffered.length - 1), d) / (d || 1) * 100) + "%";
+    } catch (e) {}
+  });
+  muteBtn.addEventListener("click", function () {
+    v.muted = !v.muted; muteBtn.textContent = v.muted ? "🔇" : "🔊";
+  });
 
-  // Swap the audio track without losing the play position.
-  function setAudio(aidx) {
-    var t = v.currentTime, wasPlaying = !v.paused && !v.ended;
-    v.src = mediaUrl(aidx);
-    v.load();
-    v.addEventListener("loadedmetadata", function once() {
-      v.removeEventListener("loadedmetadata", once);
-      try { if (t) v.currentTime = t; } catch (e) {}
-      if (wasPlaying) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
-      applySub();  // re-assert the chosen subtitle after the reload
-    });
+  // Scrub (click + drag) on the seek bar.
+  function seekTo(clientX) {
+    var r = seek.getBoundingClientRect();
+    var f = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    if (v.duration) v.currentTime = f * v.duration;
   }
+  var scrubbing = false;
+  seek.addEventListener("pointerdown", function (e) {
+    scrubbing = true; seek.setPointerCapture(e.pointerId); seekTo(e.clientX);
+  });
+  seek.addEventListener("pointermove", function (e) { if (scrubbing) seekTo(e.clientX); });
+  seek.addEventListener("pointerup", function () { scrubbing = false; });
 
-  // Text tracks are <track> children (lazy-fetched only when not "disabled").
-  function applySub() {
-    var want = subSel.value;  // "" = off, else the per-type stream index
-    var tt = v.textTracks;
-    for (var i = 0; i < tt.length; i++) {
-      var sidx = v.querySelectorAll("track")[i];
-      var id = sidx ? sidx.getAttribute("data-si") : "";
-      tt[i].mode = (id === want && want !== "") ? "showing" : "disabled";
-    }
+  // Click the video toggles play (ignore clicks on the control bar).
+  v.addEventListener("click", togglePlay);
+
+  // Auto-hide the bar while playing; reveal on movement/touch.
+  var idle;
+  function showBar() {
+    stage.classList.remove("hidebar");
+    clearTimeout(idle);
+    idle = setTimeout(function () { if (!v.paused && !scrubbing) stage.classList.add("hidebar"); }, 2500);
   }
+  stage.addEventListener("pointermove", showBar);
+  stage.addEventListener("pointerdown", showBar);
+  showBar();
 
   function enterFullscreen() {
-    var el = stage;
-    if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    if (stage.requestFullscreen) stage.requestFullscreen().catch(function(){});
+    else if (stage.webkitRequestFullscreen) stage.webkitRequestFullscreen();
     else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();  // iOS
   }
   fsBtn.addEventListener("click", enterFullscreen);
+
+  // ---- audio / subtitle switching ------------------------------------------
+  function setAudio(aidx) {
+    var t = v.currentTime, wasPlaying = !v.paused && !v.ended;
+    v.src = mediaUrl(aidx); v.load();
+    v.addEventListener("loadedmetadata", function once() {
+      v.removeEventListener("loadedmetadata", once);
+      try { if (t) v.currentTime = t; } catch (e) {}
+      if (wasPlaying) { var p = v.play(); if (p && p.catch) p.catch(function(){}); }
+      applySub();
+    });
+  }
+  function applySub() {
+    var want = subSel.value, tt = v.textTracks, tracks = v.querySelectorAll("track");
+    for (var i = 0; i < tt.length; i++) {
+      var el = tracks[i], id = el ? el.getAttribute("data-si") : "";
+      tt[i].mode = (id === want && want !== "") ? "showing" : "disabled";
+    }
+  }
 
   if (!path) { showMsg("No file selected. Open a video from <b>Files</b>."); return; }
 
@@ -139,62 +222,53 @@
       if (!info || info.ffmpeg === false) {
         showMsg("<b>ffmpeg is not installed</b><br><br>The video player needs " +
                 "ffmpeg to play this file.<br>Install it with " +
-                "<code>sudo apt install ffmpeg</code>.");
-        return;
+                "<code>sudo apt install ffmpeg</code>."); return;
       }
       if (!info.ok) { showMsg("Couldn't read this video.<br>" + (info.error || "")); return; }
 
       nameEl.textContent = info.name || "Video";
       document.title = (info.name || "Video") + " — Vibetop";
 
-      // Audio picker (only when there's a choice).
       var audio = info.audio || [];
       if (audio.length > 1) {
         audio.forEach(function (a, i) {
           var o = document.createElement("option");
-          o.value = a.ai; o.textContent = trackLabel(a, i, "Track");
-          audioSel.appendChild(o);
+          o.value = a.ai; o.textContent = trackLabel(a, i, "Track"); audioSel.appendChild(o);
         });
         audioSel.addEventListener("change", function () { setAudio(audioSel.value); });
         audioCtl.style.display = "";
       }
       var firstAi = audio.length ? audio[0].ai : 0;
 
-      // Subtitle picker + lazy <track>s.
       var subs = info.subs || [];
       if (subs.length) {
         var off = document.createElement("option");
         off.value = ""; off.textContent = "Off"; subSel.appendChild(off);
         subs.forEach(function (s, i) {
           var o = document.createElement("option");
-          o.value = s.si; o.textContent = trackLabel(s, i, "Subtitle");
-          subSel.appendChild(o);
+          o.value = s.si; o.textContent = trackLabel(s, i, "Subtitle"); subSel.appendChild(o);
           var tr = document.createElement("track");
-          tr.kind = "subtitles";
-          tr.label = trackLabel(s, i, "Subtitle");
+          tr.kind = "subtitles"; tr.label = trackLabel(s, i, "Subtitle");
           if (s.lang) tr.srclang = s.lang;
           tr.src = "/api/video/subs?path=" + enc(path) + "&sub=" + s.si;
-          tr.setAttribute("data-si", String(s.si));
-          v.appendChild(tr);
+          tr.setAttribute("data-si", String(s.si)); v.appendChild(tr);
         });
         subSel.addEventListener("change", applySub);
         subCtl.style.display = "";
       }
 
-      // Preparing state: non-H.264 / MKV needs an ffmpeg pass before first bytes.
       if (info.needsPrepare) {
         showMsg('<div class="spin"></div>Preparing video…<br>' +
-                '<span style="color:#6a7a8a;font-size:12px">' +
-                (info.video && !info.video.compatible
-                  ? "transcoding (first play only)" : "remuxing") + "</span>");
+                '<span style="color:#8a97a8;font-size:12px">' +
+                (info.video && !info.video.compatible ? "transcoding (first play only)" : "remuxing") +
+                "</span>");
       }
       v.addEventListener("loadeddata", hideMsg, { once: true });
       v.addEventListener("error", function () {
-        showMsg("Playback failed.<br><span style='color:#6a7a8a;font-size:12px'>" +
+        showMsg("Playback failed.<br><span style='color:#8a97a8;font-size:12px'>" +
                 "The file may use a codec this browser can't play.</span>");
       });
-      v.src = mediaUrl(firstAi);
-      v.load();
+      v.src = mediaUrl(firstAi); v.load();
     })
     .catch(function () { showMsg("Couldn't reach the server."); });
 })();
