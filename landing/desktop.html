@@ -1631,6 +1631,9 @@
     if (e.data.type === 'video-view' && e.data.path) {
       openVideo(e.data.path);
     }
+    if (e.data.type === 'close-app' && e.data.app) {
+      closeApp(e.data.app);
+    }
     if (e.data.type === 'open-files-at') {
       // Deep-link Files at a path relative to ~. Files is now a tabbed wrapper
       // (files.html), so open a NEW tab there via postMessage instead of
