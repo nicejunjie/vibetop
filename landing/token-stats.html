@@ -174,8 +174,8 @@ function renderAverages(d){
   var tiles = [
     ['Per day · 7-day avg',      w.d7.cost/7,     w.d7.tokens/7],
     ['Per day · 30-day avg',     w.d30.cost/30,   w.d30.tokens/30],
-    ['Per request · 30 days',    w.d30.cost/r30,  w.d30.tokens/r30],
-    ['Per request · 7 days',     w.d7.cost/r7,    w.d7.tokens/r7]
+    ['Per request · 7 days',     w.d7.cost/r7,    w.d7.tokens/r7],
+    ['Per request · 30 days',    w.d30.cost/r30,  w.d30.tokens/r30]
   ];
   document.getElementById('avgs').innerHTML = tiles.map(function(t){
     return '<div class="avg"><div class="k">'+t[0]+'</div>'
