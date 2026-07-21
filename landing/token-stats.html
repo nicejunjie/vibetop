@@ -150,19 +150,44 @@ function fmtTok(n){
   if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
   return String(n||0);
 }
-function fmtCost(c){ c=c||0;
-  if (c >= 1000) return '$'+(c/1000).toFixed(2)+'k';
-  if (c >= 100)  return '$'+c.toFixed(0);
-  return '$'+c.toFixed(2);
-}
 function fmtCostFull(c){ return '$'+(c||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+// Short axis-tick label for cost — natural round values ($0, $100, $1.5k).
+function axisCost(v){
+  if (v >= 1000) return '$' + +(v/1000).toFixed(1) + 'k';
+  return '$' + +v.toFixed(v < 10 ? 1 : 0);
+}
 
 var dayMode = 'cost';
 var lastData = null;
 
-function setY(id, max, fmt){
-  document.getElementById(id).innerHTML =
-    '<span>'+fmt(max)+'</span><span>'+fmt(max/2)+'</span><span>0</span>';
+// Round a raw data max up to a "nice" axis with natural tick steps
+// (1/2/2.5/5 ×10ⁿ), aiming for ~4 intervals. Returns {max, ticks:[0..max]}.
+function niceScale(rawMax){
+  var max = rawMax > 0 ? rawMax : 1;
+  var rough = max / 4;
+  var mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  var norm = rough / mag;
+  var step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+  var niceMax = Math.ceil(max / step) * step;
+  var ticks = [];
+  for (var v = 0; v <= niceMax + step / 2; v += step) ticks.push(v);
+  return { max: niceMax, ticks: ticks };
+}
+
+// Draw the y-axis labels + a gridline per tick, and return the nice max the
+// bars should scale to. `barsId`'s background is rebuilt as one 1px line per tick.
+function setY(yId, barsId, rawMax, fmt){
+  var sc = niceScale(rawMax);
+  document.getElementById(yId).innerHTML =
+    sc.ticks.slice().reverse().map(function(v){ return '<span>' + fmt(v) + '</span>'; }).join('');
+  var n = sc.ticks.length - 1;
+  var lines = [];
+  for (var i = 0; i <= n; i++){
+    var p = (i / n * 100).toFixed(3);
+    lines.push('linear-gradient(#232b36,#232b36) left ' + p + '% / 100% 1px no-repeat');
+  }
+  document.getElementById(barsId).style.background = lines.join(',');
+  return sc.max;
 }
 
 function renderAverages(d){
@@ -196,9 +221,9 @@ function renderCards(w){
 }
 
 function renderDayBars(days){
-  var max = 1;
-  days.forEach(function(d){ var v = dayMode==='cost'? d.cost : d.tokens; if (v>max) max=v; });
-  setY('dayY', max, dayMode==='cost'? fmtCost : fmtTok);
+  var raw = 0;
+  days.forEach(function(d){ var v = dayMode==='cost'? d.cost : d.tokens; if (v>raw) raw=v; });
+  var max = setY('dayY', 'dayBars', raw, dayMode==='cost'? axisCost : fmtTok);
   document.getElementById('dayBars').innerHTML = days.map(function(d){
     var v = dayMode==='cost'? d.cost : d.tokens;
     var h = Math.max(1, Math.round(v/max*100));
@@ -212,9 +237,9 @@ function renderDayBars(days){
 }
 
 function renderHourBars(hours){
-  var max = 1;
-  hours.forEach(function(h){ if (h.tokens>max) max=h.tokens; });
-  setY('hourY', max, fmtTok);
+  var raw = 0;
+  hours.forEach(function(h){ if (h.tokens>raw) raw=h.tokens; });
+  var max = setY('hourY', 'hourBars', raw, fmtTok);
   document.getElementById('hourBars').innerHTML = hours.map(function(h){
     var height = Math.max(1, Math.round(h.tokens/max*100));
     var d = new Date(h.h*3600*1000);
