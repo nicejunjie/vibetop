@@ -51,6 +51,10 @@
   .fld-label { font-size: 12px; color: #8a9aaa; }
   .status { font-size: 13px; min-height: 18px; margin-top: 10px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  /* The universal Save + its status live in the fixed top bar (never scrolls). */
+  .bar .status { margin-top: 0; flex: 0 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar #save-all { flex-shrink: 0; }
   .status.ok { color: #4a8; } .status.err { color: #d56; } .status.run { color: #6cf; }
   /* Users render as a card list (a table overflows on phones). Each card is a
      flex row on desktop that wraps to stacked on narrow screens. */
@@ -118,7 +122,14 @@
   <script src="/vibe-modal.js"></script>
 </head>
 <body>
-  <div class="bar"><span class="title">⚙ Config</span><span class="spacer"></span></div>
+  <!-- The bar sits OUTSIDE the scrolling .body, so this Save stays put as you
+       scroll. It batch-saves the settings cards (idle / hints / resource caps);
+       it's disabled until something changes and only POSTs the sections you
+       edited. The per-row action buttons (add user, restart, …) are immediate
+       and stay on their cards — they aren't "settings" to batch. -->
+  <div class="bar"><span class="title">⚙ Config</span><span class="spacer"></span>
+    <span class="status" id="save-status"></span>
+    <button id="save-all" disabled>Save changes</button></div>
   <div class="tabs" id="tabs">
     <button class="tab active" data-tab="vibetop">Vibetop</button>
     <button class="tab" data-tab="system">System</button>
@@ -145,10 +156,6 @@
           <label class="chk"><input type="checkbox" id="idle-reapterms"> Also stop idle terminals
             <span class="fld-label">(may end a long-running job whose tab was closed)</span></label>
         </div>
-        <div class="row" style="margin-top:14px">
-          <button id="idle-save">Save</button>
-          <span class="status" id="idle-status"></span>
-        </div>
       </div>
 
       <div class="card" id="hints-card">
@@ -159,10 +166,6 @@
           and device within a few seconds. <b>Default: on.</b></div>
         <div class="row">
           <label class="chk"><input type="checkbox" id="hints-enabled"> Show feature hints</label>
-        </div>
-        <div class="row" style="margin-top:14px">
-          <button id="hints-save">Save</button>
-          <span class="status" id="hints-status"></span>
         </div>
       </div>
 
@@ -176,10 +179,6 @@
         <div class="row"><span class="fld-label cap-l">CPU cores / user</span>
           <input type="number" id="res-cpu" min="1" step="1" placeholder="e.g. 4 — blank = none">
           <span class="fld-label" id="res-cpu-hint"></span></div>
-        <div class="row" style="margin-top:14px">
-          <button id="res-save">Save</button>
-          <span class="status" id="res-status"></span>
-        </div>
       </div>
 
       <div class="card" id="svc-card">
@@ -302,11 +301,63 @@
     return false;
   }
 
-  // ---- Idle policy ----------------------------------------------------------
-  var idleEnabled = document.getElementById('idle-enabled'),
+  // ---- Universal save -------------------------------------------------------
+  // One Save (pinned in the top bar) commits all three settings cards. Each writes
+  // a different backend, so we snapshot each card's last-saved value and POST only
+  // the ones that actually changed; the button is disabled until something differs.
+  var saveBtn = document.getElementById('save-all'),
+      saveStatus = document.getElementById('save-status'),
+      idleEnabled = document.getElementById('idle-enabled'),
       idleHours = document.getElementById('idle-hours'),
       idleReap = document.getElementById('idle-reapterms'),
-      idleStatus = document.getElementById('idle-status');
+      hintsEnabled = document.getElementById('hints-enabled'),
+      resMem = document.getElementById('res-mem'),
+      resCpu = document.getElementById('res-cpu');
+  var loaded = { idle: null, hints: null, res: null };   // last-saved snapshot (null = not loaded yet)
+  function curIdle() { return { enabled: idleEnabled.checked, hours: parseInt(idleHours.value, 10) || 0, reapTerminals: idleReap.checked }; }
+  function curHints() { return { enabled: hintsEnabled.checked }; }
+  function curRes() { return { memMax: resMem.value.trim(), cpuCores: resCpu.value.trim() }; }
+  function idleDirty() { var a = loaded.idle, b = curIdle(); return !!a && (a.enabled !== b.enabled || a.hours !== b.hours || a.reapTerminals !== b.reapTerminals); }
+  function hintsDirty() { return !!loaded.hints && loaded.hints.enabled !== curHints().enabled; }
+  function resDirty() { var a = loaded.res, b = curRes(); return !!a && (a.memMax !== b.memMax || a.cpuCores !== b.cpuCores); }
+  function refreshDirty() { saveBtn.disabled = !(idleDirty() || hintsDirty() || resDirty()); }
+  ['idle-enabled', 'idle-hours', 'idle-reapterms', 'hints-enabled', 'res-mem', 'res-cpu'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.addEventListener('change', refreshDirty);
+    el.addEventListener('input', refreshDirty);   // live for the text/number fields
+  });
+  function saveAll() {
+    if (idleDirty() && !(curIdle().hours >= 1 && curIdle().hours <= 168)) {   // server enforces this too
+      setStatus(saveStatus, 'Idle hours must be 1–168', 'err'); return;
+    }
+    var jobs = [];
+    if (idleDirty()) jobs.push(api('POST', '/api/config/idle', curIdle()).then(function (r) { return { sec: 'idle', r: r }; }));
+    if (hintsDirty()) jobs.push(api('POST', '/api/config/hints', curHints()).then(function (r) { return { sec: 'hints', r: r }; }));
+    if (resDirty()) jobs.push(api('POST', '/api/config/resources', curRes()).then(function (r) { return { sec: 'res', r: r }; }));
+    if (!jobs.length) return;
+    saveBtn.disabled = true;
+    setStatus(saveStatus, 'Saving…', 'run');
+    Promise.all(jobs).then(function (results) {
+      var err = null, denied = false;
+      results.forEach(function (x) {
+        if (x.r.status === 403) { handle403(x.r); denied = true; return; }
+        if (x.r.status === 200) {   // commit only the sections that succeeded (a bad field stays dirty)
+          if (x.sec === 'idle') loaded.idle = curIdle();
+          else if (x.sec === 'hints') loaded.hints = curHints();
+          else if (x.sec === 'res') loaded.res = curRes();
+        } else if (err === null) { err = (x.r.data && x.r.data.error) || 'Save failed'; }
+      });
+      if (denied) return;   // panel already replaced by the "requires sudo" view
+      setStatus(saveStatus, err || 'Saved', err ? 'err' : 'ok');
+      refreshDirty();
+    });
+  }
+  saveBtn.addEventListener('click', saveAll);
+  document.addEventListener('keydown', function (e) {   // Cmd/Ctrl+S saves too
+    if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); if (!saveBtn.disabled) saveAll(); }
+  });
+
+  // ---- Idle policy ----------------------------------------------------------
   function loadIdle() {
     api('GET', '/api/config/idle').then(function (res) {
       if (handle403(res)) return;
@@ -314,37 +365,18 @@
       idleEnabled.checked = !!p.enabled;
       idleHours.value = p.hours || 2;
       idleReap.checked = !!p.reapTerminals;
+      loaded.idle = curIdle(); refreshDirty();
     });
   }
-  document.getElementById('idle-save').addEventListener('click', function () {
-    var h = parseInt(idleHours.value, 10);
-    if (!(h >= 1 && h <= 168)) { setStatus(idleStatus, 'Hours must be 1–168', 'err'); return; }
-    setStatus(idleStatus, 'Saving…', 'run');
-    api('POST', '/api/config/idle', { enabled: idleEnabled.checked, hours: h, reapTerminals: idleReap.checked })
-      .then(function (res) {
-        if (handle403(res)) return;
-        if (res.status === 200) setStatus(idleStatus, res.data.enabled ? 'Saved — idle timeout on (' + res.data.hours + 'h)' : 'Saved — idle timeout off', 'ok');
-        else setStatus(idleStatus, (res.data && res.data.error) || 'Save failed', 'err');
-      });
-  });
 
   // ---- Feature hints (coach-tip banners) ------------------------------------
-  var hintsEnabled = document.getElementById('hints-enabled'),
-      hintsStatus = document.getElementById('hints-status');
   function loadHints() {
     api('GET', '/api/config/hints').then(function (res) {
       if (handle403(res)) return;
       hintsEnabled.checked = res.data && res.data.enabled !== false;   // default on
+      loaded.hints = curHints(); refreshDirty();
     });
   }
-  document.getElementById('hints-save').addEventListener('click', function () {
-    setStatus(hintsStatus, 'Saving…', 'run');
-    api('POST', '/api/config/hints', { enabled: hintsEnabled.checked }).then(function (res) {
-      if (handle403(res)) return;
-      if (res.status === 200) setStatus(hintsStatus, res.data.enabled ? 'Saved — hints on' : 'Saved — hints off', 'ok');
-      else setStatus(hintsStatus, (res.data && res.data.error) || 'Save failed', 'err');
-    });
-  });
 
   // ---- Users ----------------------------------------------------------------
   var usersBody = document.getElementById('users-body'), addStatus = document.getElementById('add-status');
@@ -443,8 +475,6 @@
   }
 
   // ---- Resource caps --------------------------------------------------------
-  var resMem = document.getElementById('res-mem'), resCpu = document.getElementById('res-cpu'),
-      resStatus = document.getElementById('res-status');
   function loadResources() {
     api('GET', '/api/config/resources').then(function (res) {
       if (handle403(res)) return;
@@ -452,18 +482,9 @@
       resMem.value = p.memMax || ''; resCpu.value = p.cpuCores || '';
       var hint = document.getElementById('res-cpu-hint');
       if (hint && p.hostCores) hint.textContent = 'of ' + p.hostCores + ' on this host';
+      loaded.res = curRes(); refreshDirty();
     });
   }
-  document.getElementById('res-save').addEventListener('click', function () {
-    setStatus(resStatus, 'Saving…', 'run');
-    api('POST', '/api/config/resources',
-        { memMax: resMem.value.trim(), cpuCores: resCpu.value.trim() })
-      .then(function (res) {
-        if (handle403(res)) return;
-        if (res.status === 200) setStatus(resStatus, 'Saved — applies to newly-started sessions', 'ok');
-        else setStatus(resStatus, (res.data && res.data.error) || 'Save failed', 'err');
-      });
-  });
 
   // ---- Service health -------------------------------------------------------
   var svcBody = document.getElementById('svc-body');
