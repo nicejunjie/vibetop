@@ -62,7 +62,10 @@
               background: #0b0e14; border: 1px solid #2a3040; border-radius: 6px; padding: 4px 8px;
               font-size: 11px; white-space: nowrap; z-index: 5; pointer-events: none; margin-bottom: 4px; }
   .bar:hover .tip { display: block; }
-  .axis { display: flex; justify-content: space-between; color: #6a7a8a; font-size: 10px; margin-top: 6px; }
+  /* One cell per bar (matching .bars gap) so tick labels align under bars. */
+  .axis { display: flex; gap: 3px; color: #6a7a8a; font-size: 10px; margin-top: 6px; }
+  .axis.hourly { gap: 2px; }
+  .axis span { flex: 1 1 0; min-width: 0; white-space: nowrap; text-align: center; overflow: visible; }
 
   /* Model table */
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -174,6 +177,27 @@ function niceScale(rawMax){
   return { max: niceMax, ticks: ticks };
 }
 
+// X-axis: one cell per bar (aligns with .bars), labelled at `tickCount` evenly
+// spaced positions incl. both ends. `labelFor(i)` returns the tick's text.
+function buildXAxis(axisId, n, tickCount, labelFor, hourly){
+  var el = document.getElementById(axisId);
+  el.className = 'axis' + (hourly ? ' hourly' : '');
+  if (n <= 0){ el.innerHTML = ''; return; }
+  var mark = {};
+  var t = Math.max(2, Math.min(tickCount, n));
+  for (var k = 0; k < t; k++) mark[Math.round(k * (n - 1) / (t - 1))] = true;
+  var cells = [];
+  for (var i = 0; i < n; i++){
+    if (mark[i]){
+      var al = i === 0 ? 'left' : (i === n - 1 ? 'right' : 'center');
+      cells.push('<span style="text-align:' + al + '">' + labelFor(i) + '</span>');
+    } else {
+      cells.push('<span></span>');
+    }
+  }
+  el.innerHTML = cells.join('');
+}
+
 // Draw the y-axis labels + a gridline per tick, and return the nice max the
 // bars should scale to. `barsId`'s background is rebuilt as one 1px line per tick.
 function setY(yId, barsId, rawMax, fmt){
@@ -232,8 +256,7 @@ function renderDayBars(days){
     return '<div class="bar'+dim+'"><span class="tip">'+d.date+'<br>'+lbl+'</span>'
          + '<i style="height:'+h+'%"></i></div>';
   }).join('');
-  var ax = document.getElementById('dayAxis');
-  ax.innerHTML = '<span>'+days[0].date.slice(5)+'</span><span>'+days[days.length-1].date.slice(5)+'</span>';
+  buildXAxis('dayAxis', days.length, 7, function(i){ return days[i].date.slice(5); }, false);
 }
 
 function renderHourBars(hours){
@@ -248,11 +271,13 @@ function renderHourBars(hours){
     return '<div class="bar'+dim+'"><span class="tip">'+label+'<br>'+fmtTok(h.tokens)+' tok · '+fmtCostFull(h.cost)+'</span>'
          + '<i style="height:'+height+'%;background:#7a5cff"></i></div>';
   }).join('');
-  var first = new Date(hours[0].h*3600*1000), last = new Date(hours[hours.length-1].h*3600*1000);
-  var opt = {hour:'numeric'};
-  document.getElementById('hourAxis').innerHTML =
-    '<span>'+first.toLocaleString(undefined,{weekday:'short',hour:'numeric'})+'</span>'
-    + '<span>'+last.toLocaleString(undefined,{hour:'numeric'})+' (now)</span>';
+  var last = hours.length - 1;
+  buildXAxis('hourAxis', hours.length, 7, function(i){
+    var d = new Date(hours[i].h*3600*1000);
+    if (i === last) return d.toLocaleString(undefined,{hour:'numeric'}) + ' (now)';
+    if (i === 0)    return d.toLocaleString(undefined,{weekday:'short',hour:'numeric'});
+    return d.toLocaleString(undefined,{hour:'numeric'});
+  }, true);
 }
 
 function renderModels(models){
