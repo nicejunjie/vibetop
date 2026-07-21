@@ -1689,6 +1689,31 @@ def _resolve_under_home(rel, user=None):
     return full
 
 
+def _resolve_media_path(rel, user=None):
+    """Resolve a path the Files app sends for the video player, fenced to `user`'s
+    home. FileBrowser is rooted at `/`, so its paths are ABSOLUTE (e.g.
+    `home/junjie/clip.mp4`) — _resolve_under_home would treat that as home-relative
+    and look for `~/home/junjie/clip.mp4` (the "not a video file" bug). So try the
+    absolute interpretation first, then fall back to home-relative (tests / direct
+    callers). Both are fenced under home (the manager runs as root — never serve
+    outside the user's own tree). Returns an abspath or None."""
+    if not rel:
+        return None
+    rel = rel.lstrip("/")
+    try:
+        base = os.path.realpath(_office_home(user))
+    except ValueError:
+        return None
+    for cand in ("/" + rel, os.path.join(base, rel)):
+        try:
+            full = os.path.realpath(cand)
+        except ValueError:
+            continue
+        if (full == base or full.startswith(base + os.sep)) and os.path.isfile(full):
+            return full
+    return None
+
+
 def _safe_share_target(rel, user=None):
     """Map a home-relative path to an absolute file OR directory under `user`'s
     share root (default: the current request's user) for public sharing, refusing
@@ -3942,7 +3967,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # GET /api/video/info?path=<rel-to-home> — probe audio/subtitle tracks.
         q = urllib.parse.urlparse(self.path).query
         rel = urllib.parse.parse_qs(q).get("path", [""])[0]
-        src = _resolve_under_home(rel)
+        src = _resolve_media_path(rel)
         if not src or not VIDEO_RE.search(src):
             self._json(400, {"ok": False, "error": "not a video file"})
             return
@@ -3979,7 +4004,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             aidx = max(0, int(q.get("audio", ["0"])[0]))
         except ValueError:
             aidx = 0
-        src = _resolve_under_home(rel)
+        src = _resolve_media_path(rel)
         if not src or not VIDEO_RE.search(src):
             return self.send_error(404)
         ext = os.path.splitext(src)[1].lower()
@@ -4010,7 +4035,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             sidx = max(0, int(q.get("sub", ["0"])[0]))
         except ValueError:
             sidx = 0
-        src = _resolve_under_home(rel)
+        src = _resolve_media_path(rel)
         if not src or not VIDEO_RE.search(src):
             return self.send_error(404)
         vtt = _ffmpeg_extract_subs(src, sidx)
