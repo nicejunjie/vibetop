@@ -90,12 +90,22 @@ def test_info_rejects_non_video(client, mgr, home, monkeypatch):
     _which_ok(monkeypatch, mgr)
     status, body = client.get("/api/video/info?path=notes.txt")
     assert status == 400
+    assert body["code"] == "notvideo"
+
+
+def test_info_missing_file_is_notfound(client, mgr, home, monkeypatch):
+    # A video-extension path that doesn't exist (moved/renamed/deleted) -> 404.
+    _which_ok(monkeypatch, mgr)
+    status, body = client.get("/api/video/info?path=ghost.mp4")
+    assert status == 404
+    assert body["code"] == "notfound"
 
 
 def test_info_rejects_traversal(client, mgr, home, monkeypatch):
+    # Video extension but escapes home -> resolves to nothing -> 404 not found.
     _which_ok(monkeypatch, mgr)
     status, body = client.get("/api/video/info?path=../../etc/passwd.mp4")
-    assert status == 400
+    assert status == 404
 
 
 # ---- /api/video/media (Range) ----------------------------------------------

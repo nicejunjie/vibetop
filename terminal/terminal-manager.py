@@ -3967,16 +3967,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # GET /api/video/info?path=<rel-to-home> — probe audio/subtitle tracks.
         q = urllib.parse.urlparse(self.path).query
         rel = urllib.parse.parse_qs(q).get("path", [""])[0]
+        # Distinguish the failure modes so the player can say what actually went
+        # wrong: wrong extension vs the file being gone (moved/renamed/deleted —
+        # common when a pipeline regenerates it) vs a genuine decode failure.
+        if not rel or not VIDEO_RE.search(rel):
+            self._json(400, {"ok": False, "code": "notvideo", "error": "not a video file"})
+            return
         src = _resolve_media_path(rel)
-        if not src or not VIDEO_RE.search(src):
-            self._json(400, {"ok": False, "error": "not a video file"})
+        if not src:
+            self._json(404, {"ok": False, "code": "notfound",
+                             "error": "file not found (moved, renamed, or deleted)"})
             return
         if not shutil.which("ffprobe") or not shutil.which("ffmpeg"):
             self._json(200, {"ok": False, "ffmpeg": False})
             return
         tracks = _video_probe_tracks(src)
         if not tracks:
-            self._json(200, {"ok": False, "ffmpeg": True, "error": "probe failed"})
+            self._json(200, {"ok": False, "ffmpeg": True, "code": "probefail",
+                             "error": "could not read this file (corrupt or unsupported format)"})
             return
         v = tracks.get("video") or {}
         vcodec = v.get("codec", "")

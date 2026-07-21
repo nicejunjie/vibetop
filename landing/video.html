@@ -289,7 +289,23 @@
                 "ffmpeg to play this file.<br>Install it with " +
                 "<code>sudo apt install ffmpeg</code>."); return;
       }
-      if (!info.ok) { showMsg("Couldn't read this video.<br>" + (info.error || "")); return; }
+      if (!info.ok) {
+        var sub = "color:#8a97a8;font-size:12px";
+        if (info.code === "notfound") {
+          showMsg("<b>File not found</b><br><br>This video may have been moved, " +
+                  "renamed, or deleted.<br><span style='" + sub + "'>" +
+                  "Close this and reopen it from <b>Files</b>.</span>");
+        } else if (info.code === "notvideo") {
+          showMsg("<b>Not a video file</b>");
+        } else if (info.code === "probefail") {
+          showMsg("<b>Couldn't read this video</b><br><span style='" + sub + "'>" +
+                  "The file may be corrupt or use an unsupported format.</span>");
+        } else {
+          showMsg("<b>Couldn't open this video</b>" +
+                  (info.error ? "<br><span style='" + sub + "'>" + info.error + "</span>" : ""));
+        }
+        return;
+      }
 
       nameEl.textContent = info.name || "Video";
       document.title = (info.name || "Video") + " — Vibetop";
@@ -333,8 +349,9 @@
       }
       v.addEventListener("loadeddata", hideMsg, { once: true });
       v.addEventListener("error", function () {
-        showMsg("Playback failed.<br><span style='color:#8a97a8;font-size:12px'>" +
-                "The file may use a codec this browser can't play.</span>");
+        showMsg("<b>Playback failed</b><br><span style='color:#8a97a8;font-size:12px'>" +
+                "The file may use a codec this browser can't play, or it was " +
+                "removed while playing.</span>");
       });
       v.src = mediaUrl(firstAi); v.load();
     })
