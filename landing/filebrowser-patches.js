@@ -134,17 +134,16 @@
   ].join("\n");
   document.head.appendChild(style);
 
-  // Office files (Word/Excel/PPT/ODF) get two extra toolbar buttons, shown only
-  // when such a file is open: View (server renders a read-only PDF in the shell)
-  // and Edit (opens it in LibreOffice on the Browser desktop). Both delegate to
-  // the parent shell, which holds the Cloudflare Access cookie for /api calls.
+  // Office files (Word/Excel/PPT/ODF) get an Edit toolbar button (opens the
+  // OnlyOffice editor), shown only when such a file is selected. There is NO
+  // "View" button: double-click (desktop) / tap (touch) already opens the
+  // read-only viewer, so a separate View button just duplicated the gesture.
   var OFFICE_RE = /\.(docx?|docm|dotx?|dotm|xlsx?|xlsm|xlsb|xltx?|xltm|pptx?|pptm|ppsx?|ppsm|potx?|potm|odt|ods|odp|ott|ots|otp|rtf|csv|tsv)$/i;
   // Video files open in vibetop's in-Files player (video.html) instead of
   // FileBrowser's plain <video> previewer — which can't play .mkv/.avi and offers
   // no audio/subtitle track selection. Double-click/tap posts a `video-view`.
   var VIDEO_RE = /\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$/i;
   var OFFICE_BUTTONS = [
-    { icon: "visibility", label: "View", act: "office-view" },
     { icon: "border_color", label: "Edit", act: "office-edit" }
   ];
 
