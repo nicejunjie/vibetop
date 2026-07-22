@@ -185,7 +185,17 @@
   // into the editor's toolbar — greyed-out and overlapping the breadcrumb.
   // Gate everything on the listing's own root id instead.
   function isListingView() {
-    return !!document.getElementById("listing");
+    if (document.getElementById("listing")) return true;   // folder with items
+    // EMPTY folder: FileBrowser renders no #listing — just a .message empty-state
+    // (icon 'sentiment_dissatisfied'). We still want the toolbar + address bar there
+    // (it's exactly where you'd Paste into a new folder). An ERROR page also uses
+    // .message but with icon 'gps_off', so key on the icon (language-stable), not text.
+    var m = document.querySelector(".message");
+    if (m) {
+      var ic = m.querySelector("i.material-icons, .material-icons");
+      if (ic && (ic.textContent || "").indexOf("sentiment_dissatisfied") !== -1) return true;
+    }
+    return false;
   }
 
   // Drop any injected buttons when we leave the listing (editor/preview/error/
@@ -502,8 +512,10 @@
   }
   function injectAddressBar() {
     if (!isListingView()) return;
-    var listing = document.getElementById("listing");
-    if (!listing || !listing.parentNode) return;
+    // Anchor above the listing, or above the empty-state message when the folder
+    // is empty (no #listing) — so the path bar shows in both.
+    var anchor = document.getElementById("listing") || document.querySelector(".message");
+    if (!anchor || !anchor.parentNode) return;
     if (document.getElementById("fb-addrbar")) return;
     var bar = document.createElement("div");
     bar.id = "fb-addrbar";
@@ -550,7 +562,7 @@
     bar.appendChild(fwd);
     bar.appendChild(input);
     bar.appendChild(copy);
-    listing.parentNode.insertBefore(bar, listing);
+    anchor.parentNode.insertBefore(bar, anchor);
   }
   function updateAddressBar() {
     var input = document.getElementById("fb-addr-input");
