@@ -1098,10 +1098,14 @@
       var h = curH();
       if (h > baseH) baseH = h;             // URL-bar collapse makes it taller -> new baseline
       var kbUp = h < baseH - 150;           // keyboard ~300px; URL bar ~60px; 150 distinguishes them
-      // Suppress our bar while the Browser is active: its keyboard is a real
-      // <input> (#kbd-input), so iOS paints its own AutoFill/^v/Done accessory in
-      // the same strip and the two bars collide (iOS's can't be hidden from web).
-      var suppress = (active === 'browser');
+      // Show this bar ONLY for the Terminal. It's the sole app that consumes the
+      // kbd-key messages — TUIs need esc/tab/^C/arrows the soft keyboard lacks.
+      // Every OTHER app (Files, Notes, Upload, …) is a normal HTML input where
+      // iOS's own keyboard is sufficient, so the bar there is dead: its keys route
+      // to an iframe that ignores them (the "keyboard control tab does nothing in
+      // the Files address bar" report). The Browser is also excluded — it has its
+      // own real <input> whose iOS AutoFill/^v/Done accessory would collide here.
+      var suppress = (active !== 'terminal');
       if (kbUp && !suppress) {
         bar.style.top = Math.round(vvBottom() - BAR_H) + 'px'; bar.style.display = 'flex';
         if (!wasUp) maybeShowHint();                                   // keyboard just opened → nudge
