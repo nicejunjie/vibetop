@@ -2220,6 +2220,43 @@ def _ffprobe(src):
         return None
 
 
+def _mp4_is_faststart(path, ext):
+    """True if `path` can be streamed RAW to a browser. webm always can; an
+    mp4/m4v/mov can only if its `moov` (index) atom precedes `mdat` (data) —
+    "faststart". A moov-at-END mp4 plays fine in a local player (random access)
+    but streams POORLY over HTTP: the browser can't buffer progressively and reads
+    it in a fragmented pattern → choppy playback from the start, even on a fast LAN.
+    Those get routed through the remux path instead (relocates moov, lossless).
+    Only the first few top-level atoms are read (cheap). Unknown → True (don't force
+    an expensive remux on something we couldn't parse)."""
+    if ext not in (".mp4", ".m4v", ".mov"):
+        return True
+    try:
+        with open(path, "rb") as f:
+            off = 0
+            for _ in range(8):
+                hdr = f.read(8)
+                if len(hdr) < 8:
+                    break
+                size = int.from_bytes(hdr[:4], "big")
+                typ = hdr[4:8]
+                if typ == b"moov":
+                    return True             # index before data → faststart
+                if typ == b"mdat":
+                    return False            # data first → not faststart
+                if size == 1:               # 64-bit extended size
+                    size = int.from_bytes(f.read(8), "big")
+                elif size == 0:
+                    break                   # atom runs to EOF; nothing after it
+                if size < 8:
+                    break
+                off += size
+                f.seek(off)
+    except OSError:
+        pass
+    return True
+
+
 def _video_probe_tracks(src):
     """ffprobe -> {video:{codec,width,height}, audio:[{ai,codec,lang,title}],
     subs:[{si,codec,lang,title}], duration}. `ai`/`si` are per-type stream indices
@@ -4065,7 +4102,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ext = os.path.splitext(src)[1].lower()
         needs = (ext not in _VIDEO_DIRECT_EXT
                  or vcodec not in _VIDEO_OK_VCODECS
-                 or len(tracks.get("audio", [])) > 1)
+                 or len(tracks.get("audio", [])) > 1
+                 or not _mp4_is_faststart(src, ext))
         self._json(200, {
             "ok": True, "ffmpeg": True,
             "name": os.path.basename(src),
@@ -4098,7 +4136,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if tracks:
                 vcodec = (tracks.get("video") or {}).get("codec", "")
                 direct = (vcodec in _VIDEO_OK_VCODECS
-                          and len(tracks.get("audio", [])) <= 1)
+                          and len(tracks.get("audio", [])) <= 1
+                          and _mp4_is_faststart(src, ext))   # non-faststart -> remux
         if direct:
             return self._serve_file_range(src, os.path.basename(src),
                                           self.headers.get("Range"))
