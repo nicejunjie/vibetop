@@ -143,7 +143,13 @@
     "#fb-addrbar .fb-nav-btn { padding:6px; min-width:40px; display:inline-flex; align-items:center; justify-content:center; }",
     "#fb-addrbar .fb-nav-btn .material-icons { font-size:19px; line-height:1; }",
     "#fb-addrbar .fb-nav-btn:active { background:rgba(128,128,128,0.14); }",
-    "@media (max-width:736px){ #fb-addrbar { gap:8px; padding:8px 10px; } #fb-addrbar .fb-nav-btn { min-width:44px; padding:9px 6px; } #fb-addrbar input { padding:8px; } #fb-addrbar .fb-addr-btn { padding:9px 12px; } }",
+    // Mobile: a narrow phone can't fit [<][>][path][Copy] on one row without
+    // starving the path field (it truncated to the useless head "/home/junjie/…").
+    // So on ≤736px the bar WRAPS: the path input takes a full-width first row
+    // (order:-1, flex-basis:100%) and the controls [<][>] … [Copy] sit on a compact
+    // second row (Copy pushed right). The input is also scrolled to its END on
+    // mobile (see updateAddressBar) so the current FOLDER is what's visible.
+    "@media (max-width:736px){ #fb-addrbar { gap:8px; padding:8px 10px; flex-wrap:wrap; } #fb-addrbar input { order:-1; flex:1 1 100%; padding:9px 10px; font-size:14px; } #fb-addrbar .fb-nav-btn { min-width:46px; padding:9px 6px; } #fb-addrbar .fb-addr-btn { padding:9px 14px; } #fb-addrbar .fb-copy-btn { margin-left:auto; } }",
     // Keep dotfiles out of LISTINGS (clean), while the server now ALLOWS access to
     // them (hideDotfiles is off server-side — see terminal-manager.py). FileBrowser
     // labels each listing item with aria-label=<filename>, so this hides names that
@@ -553,7 +559,7 @@
     });
     var copy = document.createElement("button");
     copy.type = "button";
-    copy.className = "fb-addr-btn";
+    copy.className = "fb-addr-btn fb-copy-btn";
     copy.textContent = "Copy";
     copy.title = "Copy the full path";
     copy.addEventListener("click", function() {
@@ -568,6 +574,7 @@
     bar.appendChild(input);
     bar.appendChild(copy);
     anchor.parentNode.insertBefore(bar, anchor);
+    requestAnimationFrame(function () { revealPathTail(input); });   // show the tail on first paint (mobile)
   }
   function updateAddressBar() {
     var input = document.getElementById("fb-addr-input");
@@ -581,6 +588,17 @@
       if (name) p = p.replace(/\/+$/, "") + "/" + name;
     }
     if (input.value !== p) input.value = p;
+    revealPathTail(input);
+  }
+  // On mobile the path field is full-width but a deep path still overflows; the
+  // useful part is the END (the current folder), so scroll the input to reveal it
+  // rather than the predictable "/home/junjie/…" head. Only when not focused (so
+  // editing/caret movement isn't fought) and only on phones (desktop stays
+  // head-anchored, URL-bar style). Cheap: a single scrollLeft set.
+  function revealPathTail(input) {
+    if (!input || document.activeElement === input) return;
+    if (window.innerWidth > 736) return;
+    try { input.scrollLeft = input.scrollWidth; } catch (e) {}
   }
 
   // --- Copy/Paste clipboard --------------------------------------------------
