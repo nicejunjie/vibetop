@@ -272,6 +272,39 @@
   }
   fsBtn.addEventListener("click", enterFullscreen);
 
+  // ---- keyboard shortcuts (desktop) — like any online video player ----------
+  function seekBy(sec) {
+    if (!v.duration) return;
+    v.currentTime = Math.max(0, Math.min(v.duration, (v.currentTime || 0) + sec));
+    showBar();
+  }
+  function nudgeVol(delta) { applyVol((v.muted ? 0 : v.volume) + delta, true); showBar(); }
+  document.addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var tag = ((e.target && e.target.tagName) || "").toLowerCase();
+    if (tag === "input" || tag === "select" || tag === "textarea") return;   // let form controls keep arrows
+    var k = e.key;
+    switch (k) {
+      case "ArrowLeft":  seekBy(-5); break;                 // ← / → : skip 5s
+      case "ArrowRight": seekBy(5); break;
+      case "j": case "J": seekBy(-10); break;               // j / l : skip 10s
+      case "l": case "L": seekBy(10); break;
+      case "ArrowUp":   nudgeVol(0.05); break;              // ↑ / ↓ : volume
+      case "ArrowDown": nudgeVol(-0.05); break;
+      case " ": case "k": case "K": togglePlay(); showBar(); break;   // space / k : play-pause
+      case "m": case "M": muteBtn.click(); break;           // m : mute
+      case "f": case "F": enterFullscreen(); break;         // f : fullscreen
+      case "Home": if (v.duration) { v.currentTime = 0; showBar(); } break;
+      case "End":  if (v.duration) { v.currentTime = Math.max(0, v.duration - 1); showBar(); } break;
+      default:
+        if (k >= "0" && k <= "9" && v.duration) {            // 0–9 : jump to 0%–90%
+          v.currentTime = v.duration * (parseInt(k, 10) / 10); showBar(); break;
+        }
+        return;                                              // unhandled → leave default
+    }
+    e.preventDefault();
+  });
+
   document.getElementById("close-btn").addEventListener("click", function () {
     try { v.pause(); } catch (e) {}
     try { window.top.postMessage({ type: "close-app", app: "video" }, "*"); } catch (e) {}
