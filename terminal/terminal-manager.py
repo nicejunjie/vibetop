@@ -669,6 +669,96 @@ _video_convert_lock = threading.Lock()
 def _video_cache_dir(user=None):
     return os.path.join(_office_home(user), ".cache", "vibetop-video")
 
+
+# Prepared/transcoded videos are cached per user under ~/.cache/vibetop-video, but
+# each is as big as (or bigger than) its source, so the cache grows without bound.
+# Two-part bound (mtime is "last used" — bumped on every serve so a video you're
+# still watching/re-watching is never evicted mid-playback):
+#   • age: drop any entry not used within VIDEO_CACHE_MAX_AGE (idle transcodes go),
+#   • size: if still over VIDEO_CACHE_MAX_BYTES, evict least-recently-used until under.
+# Pruned after each prepare AND swept periodically (so idle caches clean even with no
+# new prepare); the just-made/served file (`keep`) is never removed. Env-tunable.
+VIDEO_CACHE_MAX_BYTES = int(os.environ.get("VIDEO_CACHE_MAX_BYTES") or 6 * 1024**3)
+VIDEO_CACHE_MAX_AGE = int(os.environ.get("VIDEO_CACHE_MAX_AGE") or 3600)   # 1 hour
+VIDEO_CACHE_SWEEP_INTERVAL = int(os.environ.get("VIDEO_CACHE_SWEEP_INTERVAL") or 600)  # 10 min
+
+
+def _video_cache_prune(cache_dir, keep=None):
+    """Age- then size-bound the video cache in `cache_dir`. Never removes `keep`.
+    Best-effort; never raises."""
+    try:
+        keep = os.path.abspath(keep) if keep else None
+        now = time.time()
+        entries = []                        # (mtime, size, path) for evictable files
+        for name in os.listdir(cache_dir):
+            if not name.endswith(".mp4") or name.endswith(".tmp.mp4"):
+                continue                    # skip in-progress writes
+            p = os.path.join(cache_dir, name)
+            if keep and os.path.abspath(p) == keep:
+                continue                    # never touch the current file
+            try:
+                st = os.stat(p)
+            except OSError:
+                continue
+            entries.append((st.st_mtime, st.st_size, p))
+        # (1) age TTL: drop anything not used within the window.
+        fresh = []
+        for mtime, size, p in entries:
+            if now - mtime > VIDEO_CACHE_MAX_AGE:
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+            else:
+                fresh.append((mtime, size, p))
+        # (2) size cap on what remains (count the kept file too).
+        keep_size = 0
+        if keep:
+            try:
+                keep_size = os.path.getsize(keep)
+            except OSError:
+                pass
+        total = keep_size + sum(s for _m, s, _p in fresh)
+        if total <= VIDEO_CACHE_MAX_BYTES:
+            return
+        fresh.sort()                        # least-recently-used first
+        for _mtime, size, p in fresh:
+            if total <= VIDEO_CACHE_MAX_BYTES:
+                break
+            try:
+                os.remove(p)
+                total -= size
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def _video_cache_sweep_once():
+    """Prune every real user's video cache — run periodically so idle caches are
+    cleaned even when no new video is being prepared (the manager is root, so it can
+    reach each home). Best-effort."""
+    try:
+        seen = set()
+        for pw in pwd.getpwall():
+            if not (1000 <= pw.pw_uid <= 65533) or not pw.pw_dir or pw.pw_dir in seen:
+                continue
+            seen.add(pw.pw_dir)
+            cd = os.path.join(pw.pw_dir, ".cache", "vibetop-video")
+            if os.path.isdir(cd):
+                _video_cache_prune(cd)
+    except Exception as e:
+        log.warning("video cache sweep failed: %s", e)
+
+
+def _video_cache_sweep_loop():
+    while True:
+        try:
+            time.sleep(VIDEO_CACHE_SWEEP_INTERVAL)
+            _video_cache_sweep_once()
+        except Exception:
+            time.sleep(VIDEO_CACHE_SWEEP_INTERVAL)
+
 # The git checkout this manager runs from: <repo>/terminal/terminal-manager.py.
 # The Update app pulls + redeploys from here.
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2311,6 +2401,7 @@ def _video_prepared_path(src, aidx, user=None):
             _rm_quiet(tmp)
             return None
         _chown_app(cached, user)
+        _video_cache_prune(cache_dir, keep=cached)   # bound the cache (LRU eviction)
         return cached
 
 
@@ -4105,6 +4196,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         prepared = _video_prepared_path(src, aidx)
         if not prepared:
             return self.send_error(500, "video prepare failed")
+        try:
+            os.utime(prepared, None)   # LRU: mark as recently used so it's not evicted mid-watch
+        except OSError:
+            pass
         # Bytes are MP4 regardless of the source extension — pin the type.
         self._serve_file_range(prepared, os.path.basename(src),
                                self.headers.get("Range"), ctype="video/mp4")
@@ -5451,4 +5546,5 @@ if __name__ == "__main__":
         _write_browser_token(_u)
     threading.Thread(target=_watchdog_loop, args=(port,), daemon=True).start()
     threading.Thread(target=_reaper_loop, daemon=True).start()  # idle reaper (opt-in)
+    threading.Thread(target=_video_cache_sweep_loop, daemon=True).start()  # bound the video cache
     server.serve_forever()

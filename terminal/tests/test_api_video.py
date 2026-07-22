@@ -31,6 +31,35 @@ def _mkfile(home, rel, content=b"x"):
     return p
 
 
+def test_video_cache_prune(mgr, tmp_path, monkeypatch):
+    import os, time
+    monkeypatch.setattr(mgr, "VIDEO_CACHE_MAX_AGE", 3600)   # 1h
+    monkeypatch.setattr(mgr, "VIDEO_CACHE_MAX_BYTES", 150)
+    cache = tmp_path / "vc"; cache.mkdir()
+    now = time.time()
+
+    def mk(name, size, age_s):
+        p = cache / name
+        p.write_bytes(b"x" * size)
+        os.utime(p, (now - age_s, now - age_s))
+        return p
+
+    mk("old.mp4", 10, 7200)     # 2h since last use -> age-evicted
+    mk("f1.mp4", 60, 100)       # fresh, older of the two
+    mk("f2.mp4", 60, 50)        # fresh, newer
+    mk("busy.tmp.mp4", 999, 7200)   # in-progress write -> never touched
+    keep = mk("keep.mp4", 60, 5)     # the current file
+
+    mgr._video_cache_prune(str(cache), keep=str(keep))
+    names = set(os.listdir(str(cache)))
+    assert "old.mp4" not in names       # age TTL evicted the idle one
+    assert "busy.tmp.mp4" in names      # in-progress .tmp.mp4 left alone
+    assert "keep.mp4" in names          # the current file is never evicted
+    # cap 150: keep(60)+f2(60)=120 fits, +f1(60)=180 doesn't -> LRU f1 evicted, f2 kept.
+    assert "f1.mp4" not in names
+    assert "f2.mp4" in names
+
+
 def _which_ok(monkeypatch, mgr):
     monkeypatch.setattr(mgr.shutil, "which", lambda name: "/usr/bin/" + name)
 
