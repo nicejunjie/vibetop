@@ -624,21 +624,39 @@
     t.querySelector(".fb-msg").textContent = text;
   }
   function hidePasteToast() { var t = document.getElementById("fb-paste-toast"); if (t) t.remove(); }
+  function fbSize(abs) {   // current byte size of a file via FileBrowser's own API
+    return fetch("/files/api/resources" + encFbPath(abs), { headers: { "X-Auth": fbToken() } })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(j) { return j && typeof j.size === "number" ? j.size : 0; })
+      .catch(function() { return 0; });
+  }
   var _pasting = false;
+  // Real % progress: FileBrowser copies write DIRECTLY to the destination (the file
+  // grows), so we poll the dest size against the source size for a true byte-based
+  // percentage across all items. onProgress(pct|null, curItem, totalItems).
   function pasteClipboardInto(destDir, items, onProgress, cb) {
-    var ok = 0, fail = 0, i = 0, base = destDir.replace(/\/+$/, "");
-    function next() {
-      if (i >= items.length) { cb(ok, fail); return; }
-      var it = items[i++], dest = base + "/" + it.name;
-      var url = "/files/api/resources" + encFbPath(it.abs) +
-                "?action=copy&destination=" + encFbPath(dest) + "&override=false&rename=true";
-      fetch(url, { method: "PATCH", headers: { "X-Auth": fbToken() } })
-        .then(function(r) { if (r.ok) ok++; else fail++; })
-        .catch(function() { fail++; })
-        .then(function() { if (onProgress) onProgress(ok + fail); next(); });
-    }
-    if (!items.length) { cb(0, 0); return; }
-    next();
+    var base = destDir.replace(/\/+$/, ""), tok = fbToken();
+    Promise.all(items.map(function(it) { return fbSize(it.abs); })).then(function(sizes) {
+      var total = 0; sizes.forEach(function(s) { total += s; });
+      var doneBytes = 0, ok = 0, fail = 0, i = 0;
+      function pct(cur) { return total > 0 ? Math.min(100, Math.round((doneBytes + cur) / total * 100)) : null; }
+      function next() {
+        if (i >= items.length) { cb(ok, fail); return; }
+        var it = items[i], srcSize = sizes[i], dest = base + "/" + it.name, curNum = i + 1;
+        var poll = setInterval(function() {
+          fbSize(dest).then(function(ds) { onProgress(pct(Math.min(ds, srcSize)), curNum, items.length); });
+        }, 500);
+        var url = "/files/api/resources" + encFbPath(it.abs) +
+                  "?action=copy&destination=" + encFbPath(dest) + "&override=false&rename=true";
+        fetch(url, { method: "PATCH", headers: { "X-Auth": tok } })
+          .then(function(r) { if (r.ok) ok++; else fail++; })
+          .catch(function() { fail++; })
+          .then(function() { clearInterval(poll); doneBytes += srcSize; i++; onProgress(pct(0), i, items.length); next(); });
+      }
+      if (!items.length) { cb(0, 0); return; }
+      onProgress(pct(0), 0, items.length);
+      next();
+    });
   }
 
   function injectPermanentButtons() {
@@ -680,9 +698,12 @@
           if (!clip.length) return;
           _pasting = true;
           var total = clip.length;
-          pasteToast(total > 1 ? "Pasting 0/" + total + "…" : "Pasting…", true);
+          pasteToast("Pasting… 0%", true);
           pasteClipboardInto(currentFullPath(), clip,
-            function(done) { if (total > 1) pasteToast("Pasting " + done + "/" + total + "…", true); },
+            function(pct, cur, tot) {
+              var head = tot > 1 ? ("Pasting " + Math.max(1, cur) + "/" + tot + "… ") : "Pasting… ";
+              pasteToast(head + (pct == null ? "" : pct + "%"), true);
+            },
             function(ok, fail) {
               _pasting = false;
               pasteToast(fail ? ("Pasted " + ok + ", " + fail + " failed") : ("Pasted " + (ok > 1 ? ok : "") + " ✓").replace("  ", " "), false);
