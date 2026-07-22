@@ -147,12 +147,37 @@
     return { id: ++seq, frame: f, path: path || HOME };
   }
 
+  // Self-heal the "restored folder shows empty until you navigate" race. On a
+  // refresh, FileBrowser sometimes loads the deep folder URL but never settles its
+  // listing — most often on a slow NFS mount, or a tab that initialised while its
+  // iframe was hidden (0×0). The fix people find is to go up a dir and back (a
+  // re-navigation). So: while a tab is the visible one, if its FileBrowser shows
+  // NEITHER a populated listing NOR an empty-folder message for two consecutive
+  // checks, reload that one iframe once — the same effect as re-navigating.
+  function watchFrame(f) {
+    if (f._watchIv) clearInterval(f._watchIv);
+    var stuck = 0, n = 0;
+    f._watchIv = setInterval(function() {
+      if (++n > 8 || f._healed) { clearInterval(f._watchIv); f._watchIv = null; return; }
+      if (!f.classList.contains('active')) { stuck = 0; return; }   // only heal the visible tab
+      var win, d, path;
+      try { win = f.contentWindow; d = win.document; path = win.location.pathname; } catch (e) { return; }
+      if (path.indexOf('/files/files') !== 0) { stuck = 0; return; }   // editor/preview, not a listing
+      if (d.getElementById('listing') || d.querySelector('.message')) { stuck = 0; return; }   // rendered (list or empty-state)
+      if (++stuck >= 2) {                                             // stuck twice (~3.6s) → heal once
+        f._healed = true; clearInterval(f._watchIv); f._watchIv = null;
+        try { win.location.reload(); } catch (e) {}
+      }
+    }, 1800);
+  }
+
   function show(t) {
     if (!t) return;
     tabs.forEach(function(o) { o.frame.classList.toggle('active', o === t); });
     active = t;
     renderTabs();
     persist();
+    watchFrame(t.frame);
   }
 
   function createTab(path, activate) {
