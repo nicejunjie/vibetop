@@ -150,6 +150,11 @@
     // start with a dot in both list and mosaic views. Access still works: typing a
     // dotfile path in the address bar navigates straight in.
     "#listing [aria-label^='.'] { display:none !important; }",
+    // Paste progress toast (a server-side copy of a big file takes a few seconds;
+    // this makes it obvious it's working instead of looking dead).
+    "#fb-paste-toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:2147483000; display:flex; align-items:center; gap:10px; padding:11px 16px; border-radius:11px; background:#12161d; color:#e6edf3; border:1px solid #2a3444; box-shadow:0 8px 30px rgba(0,0,0,.5); font:500 13px system-ui,sans-serif; }",
+    "#fb-paste-toast .fb-spin { width:15px; height:15px; border:2px solid rgba(255,255,255,0.25); border-top-color:#4a86e8; border-radius:50%; animation:fbspin 0.8s linear infinite; flex:0 0 auto; }",
+    "@keyframes fbspin { to { transform:rotate(360deg); } }",
   ].join("\n");
   document.head.appendChild(style);
 
@@ -568,6 +573,13 @@
     var input = document.getElementById("fb-addr-input");
     if (!input || document.activeElement === input) return;   // don't clobber mid-type
     var p = currentFullPath();
+    // When exactly one item is selected, show its FULL path (incl. the filename) so
+    // it's visible + copyable; a folder listing with no selection shows the folder.
+    var sel = document.querySelectorAll('[aria-selected="true"]');
+    if (sel.length === 1) {
+      var name = sel[0].getAttribute("aria-label");
+      if (name) p = p.replace(/\/+$/, "") + "/" + name;
+    }
     if (input.value !== p) input.value = p;
   }
 
@@ -604,8 +616,16 @@
     span.textContent = text;
     btn._flt = setTimeout(function() { if (btn._orig != null) { span.textContent = btn._orig; btn._orig = null; } }, 1400);
   }
+  function pasteToast(text, spinning) {
+    var t = document.getElementById("fb-paste-toast");
+    if (!t) { t = document.createElement("div"); t.id = "fb-paste-toast";
+      (document.body || document.documentElement).appendChild(t); }
+    t.innerHTML = (spinning ? '<span class="fb-spin"></span>' : "") + '<span class="fb-msg"></span>';
+    t.querySelector(".fb-msg").textContent = text;
+  }
+  function hidePasteToast() { var t = document.getElementById("fb-paste-toast"); if (t) t.remove(); }
   var _pasting = false;
-  function pasteClipboardInto(destDir, items, cb) {
+  function pasteClipboardInto(destDir, items, onProgress, cb) {
     var ok = 0, fail = 0, i = 0, base = destDir.replace(/\/+$/, "");
     function next() {
       if (i >= items.length) { cb(ok, fail); return; }
@@ -615,7 +635,7 @@
       fetch(url, { method: "PATCH", headers: { "X-Auth": fbToken() } })
         .then(function(r) { if (r.ok) ok++; else fail++; })
         .catch(function() { fail++; })
-        .then(next);
+        .then(function() { if (onProgress) onProgress(ok + fail); next(); });
     }
     if (!items.length) { cb(0, 0); return; }
     next();
@@ -659,12 +679,15 @@
           var clip = readClip();
           if (!clip.length) return;
           _pasting = true;
-          flashBtnLabel(btn, "Pasting…");
-          pasteClipboardInto(currentFullPath(), clip, function(ok, fail) {
-            _pasting = false;
-            flashBtnLabel(btn, fail ? ("Pasted " + ok + " · " + fail + " failed") : (ok > 1 ? "Pasted " + ok : "Pasted"));
-            setTimeout(function() { location.reload(); }, 700);   // show the pasted item(s)
-          });
+          var total = clip.length;
+          pasteToast(total > 1 ? "Pasting 0/" + total + "…" : "Pasting…", true);
+          pasteClipboardInto(currentFullPath(), clip,
+            function(done) { if (total > 1) pasteToast("Pasting " + done + "/" + total + "…", true); },
+            function(ok, fail) {
+              _pasting = false;
+              pasteToast(fail ? ("Pasted " + ok + ", " + fail + " failed") : ("Pasted " + (ok > 1 ? ok : "") + " ✓").replace("  ", " "), false);
+              setTimeout(function() { hidePasteToast(); location.reload(); }, 900);   // show the pasted item(s)
+            });
         } else {
           clickVueButton(def.icon);
         }
