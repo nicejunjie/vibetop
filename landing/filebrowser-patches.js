@@ -98,22 +98,28 @@
     "header #dropdown .action span:not(.counter) { display: block !important; font-size: 11px !important; line-height: 1.2 !important; text-align: center !important; padding: 0 !important; max-width: 60px !important; word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; }",
     "header #dropdown .action i { font-size: 20px !important; margin: 0 !important; padding: 2px !important; display: block !important; }",
     "header .fb-permanent.disabled { opacity: 0.25 !important; pointer-events: none !important; }",
-    // Mobile: let the action toolbar wrap to multiple rows instead of clipping
-    // buttons off the right edge OR collapsing them into a "..." overflow menu.
-    // FileBrowser's stock behavior on narrow viewports is to hide extras inside
-    // a popup #dropdown opened by a "more" button; we instead force #dropdown
-    // to render inline + wrapped and hide the more-button so every action is
-    // visible without an extra tap.
+    // Mobile control bar — a SINGLE fixed-height, horizontally-scrollable row.
+    // (Previously it WRAPPED all ~14 buttons to 2-3 rows; since `header` is
+    // position:fixed, a taller-than-expected header slid past the content's top
+    // offset and BURIED the address bar's path input under it on narrow widths —
+    // the "address bar disappeared" bug. A constant header height means the
+    // content always clears it.) Buttons scroll horizontally instead of stacking;
+    // combined with the contextual-hide rule below, browsing shows only the few
+    // relevant actions and selecting a file reveals the rest — verified on WebKit.
     "@media (max-width: 736px) {",
-    "  header { flex-wrap: wrap !important; height: auto !important; min-height: 4em !important; row-gap: 4px !important; padding-top: 4px !important; padding-bottom: 4px !important; }",
+    "  header { flex-wrap: nowrap !important; height: 54px !important; min-height: 54px !important; overflow-x: auto !important; overflow-y: hidden !important; -webkit-overflow-scrolling: touch !important; align-items: center !important; column-gap: 2px !important; row-gap: 0 !important; padding: 4px 6px !important; }",
+    "  header::-webkit-scrollbar { height: 0 !important; width: 0 !important; }",
     // The text editor (#editor-container) and media previewer (#previewer)
-    // hard-code `padding-top: 4em` to clear the FIXED 4em header. Our wrap/grow
-    // rule above must NOT apply to THEIR header: a taller header overflows that
-    // 4em reservation and hides the top line(s) of the file with no way to
-    // scroll up. Pin their header to exactly 4em, single row.
+    // hard-code `padding-top: 4em` to clear the FIXED 4em header. Pin their header
+    // to exactly 4em, single row (their few buttons never need the scroll row).
     "  #editor-container header, #previewer header { flex-wrap: nowrap !important; height: 4em !important; min-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; row-gap: 0 !important; }",
-    "  header #dropdown { display: flex !important; flex-wrap: wrap !important; position: static !important; visibility: visible !important; opacity: 1 !important; transform: none !important; box-shadow: none !important; background: transparent !important; height: auto !important; max-height: none !important; row-gap: 4px !important; padding: 0 !important; }",
+    "  header #dropdown { display: flex !important; flex-wrap: nowrap !important; position: static !important; visibility: visible !important; opacity: 1 !important; transform: none !important; box-shadow: none !important; background: transparent !important; height: auto !important; max-height: none !important; row-gap: 0 !important; padding: 0 !important; }",
     "  header .action, header .action.fb-permanent { flex: 0 0 auto !important; }",
+    // Contextual: on mobile HIDE (not just grey) any action that needs a
+    // selection/clipboard, so the browse toolbar is short; the same .disabled
+    // toggle the app already drives on selection then reveals them. Desktop keeps
+    // the greyed-out treatment (the non-media rule above).
+    "  header .fb-permanent.disabled { display: none !important; }",
     // Hide FileBrowser's "..." / more-actions trigger so the dropdown buttons
     // stay flattened into the header instead of being a popup.
     "  header > .action[aria-haspopup], header .action.show-more, header > .action.more, header > .action[title=\"More\"], header > .action[aria-label=\"More\"] { display: none !important; }",
