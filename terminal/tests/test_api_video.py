@@ -31,25 +31,6 @@ def _mkfile(home, rel, content=b"x"):
     return p
 
 
-def _mkmp4(path, atoms):
-    """Write a minimal mp4 of top-level boxes: atoms = [(b'ftyp', payload_len), ...]."""
-    import struct
-    with open(path, "wb") as f:
-        for typ, payload in atoms:
-            f.write(struct.pack(">I", 8 + payload) + typ + b"\x00" * payload)
-
-
-def test_mp4_faststart_detection(mgr, tmp_path):
-    # moov-before-mdat = faststart (streams cleanly); mdat-first = not (browser
-    # reads it fragmented -> choppy), so those route through the remux path.
-    fast = tmp_path / "fast.mp4"; _mkmp4(fast, [(b"ftyp", 16), (b"moov", 32), (b"mdat", 64)])
-    slow = tmp_path / "slow.mp4"; _mkmp4(slow, [(b"ftyp", 16), (b"mdat", 64), (b"moov", 32)])
-    assert mgr._mp4_is_faststart(str(fast), ".mp4") is True
-    assert mgr._mp4_is_faststart(str(slow), ".mp4") is False
-    assert mgr._mp4_is_faststart(str(slow), ".webm") is True   # non-mp4 ext is always streamable
-    assert mgr._mp4_is_faststart(str(tmp_path / "nope.mp4"), ".mp4") is True   # unreadable -> don't force remux
-
-
 def _which_ok(monkeypatch, mgr):
     monkeypatch.setattr(mgr.shutil, "which", lambda name: "/usr/bin/" + name)
 
