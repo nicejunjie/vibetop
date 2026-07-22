@@ -17,6 +17,45 @@ and why it lost).
 
 ---
 
+## Files app 403'd a user's own dotfiles ("You don't have permissions to access this")
+
+**Symptom:** Navigating to a dotted path in the Files app — e.g. `/tnas/junjie/.av`
+(a dir the user owns/reaches) — returned FileBrowser's **"You don't have permissions
+to access this"** (HTTP 403), even though the same user's **Terminal** (running as
+them) `ls`'d it fine. Looked like a permissions/NFS/multi-user bug.
+
+**Cause:** *Not* Unix permissions and *not* our nginx (the dotfile 403 there is only
+on `/fileview/`, not `/files/`). The per-user FileBrowser was provisioned with
+**`--hideDotfiles`** (`_provision_user_filebrowser`: `config set --hideDotfiles` +
+`users update admin --hideDotfiles`). FileBrowser's `hideDotfiles` **conflates two
+things**: it hides dotfiles from listings AND its access checker (`data.Check`)
+returns **403 for any path starting with `.`**. So direct access to a dotfile was
+blocked purely by that flag. Verified the OS was innocent: a shell with the *same*
+uid + supplementary groups as the FileBrowser process (incl. `adm`, which `.av`'s
+`drwxrwx--- 2000 adm` grants via group) read it without issue. This contradicted the
+app's own model — "runs as you; Unix perms are the fence, SSH-equivalent" — by hiding
+the user's own reachable data behind a hard block.
+
+**Fix — decouple hide from block:** turn `hideDotfiles` **off** server-side
+(`--hideDotfiles=false` on both the `config set` and `users update admin` lines, so
+existing users flip on their next FileBrowser restart), which stops the 403 and lets
+a **typed path** navigate straight into a dotfile. Then keep listings clean
+**client-side** in `filebrowser-patches.js` with one CSS rule —
+`#listing [aria-label^='.'] { display:none !important; }` (FileBrowser labels each
+item `aria-label=<filename>`, so this hides dotfile rows in list *and* mosaic views).
+Net: dotfiles stay hidden in listings but are reachable by typing the path — exactly
+the "hidden but accessible" behavior a file-manager-as-you should have.
+
+**Rejected:** (1) *Remove `--hideDotfiles` entirely and show dotfiles* — simplest, but
+clutters every home listing with `.bashrc`/`.cache`/`.config` and loses the clean
+default the user wanted. (2) *Keep the flag, tell the user to toggle "Hide dotfiles"
+off in FileBrowser Settings* — that toggle re-blocks access when re-enabled (same
+conflation) and our re-provision would stomp it on restart; also buried. (3) *A
+toolbar "Show hidden" toggle wired to the user's `hideDotfiles`* — more UI for a
+default the user explicitly wanted to keep (hidden), and still all-or-nothing per the
+conflation. The server-off + client-CSS split is the only option that keeps listings
+hidden **and** access open without a per-file mechanism FileBrowser doesn't offer.
+
 ## The streamed Browser is device-SHAPED (mobile browser on a phone, desktop on a computer)
 
 **Symptom / framing:** The Browser felt bad on mobile — couldn't zoom out, awkward

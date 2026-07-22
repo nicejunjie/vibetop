@@ -1420,11 +1420,18 @@ def _provision_user_filebrowser(user, home, port):
     # their perms allow, and the address bar shows real paths (/home/you) instead
     # of "/". (Rooting at home instead showed home AS "/", which read as the same
     # "landed in /" bug as the terminal.)
+    # hideDotfiles is deliberately OFF: FileBrowser's flag conflates "hide from
+    # listings" with "403 on direct access", which broke access to a user's own
+    # dotfiles (e.g. ~/.ssh, /tnas/you/.av) even though their Terminal — running
+    # as the same user — can read them (SSH-equivalent trust). We instead keep
+    # listings clean CLIENT-side (filebrowser-patches.js hides dotfile rows), so
+    # dotfiles stay hidden in listings but remain reachable by typing the path in
+    # the address bar. See docs/design-decisions.md.
     _run_as(user, [FB_BIN, "-d", db, "config", "set", "--address", "127.0.0.1",
                    "--port", str(port), "--baseurl", "/files", "--root", "/",
-                   "--auth.method=noauth", "--hideDotfiles"])
+                   "--auth.method=noauth", "--hideDotfiles=false"])
     _run_as(user, [FB_BIN, "-d", db, "users", "update", "admin",
-                   "--scope", "/", "--hideDotfiles"])
+                   "--scope", "/", "--hideDotfiles=false"])
 
 
 def _start_user_filebrowser(user):

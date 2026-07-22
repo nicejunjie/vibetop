@@ -139,6 +139,12 @@
     "#fb-addrbar .fb-nav-btn .material-icons { font-size:19px; line-height:1; }",
     "#fb-addrbar .fb-nav-btn:active { background:rgba(128,128,128,0.14); }",
     "@media (max-width:736px){ #fb-addrbar { gap:8px; padding:8px 10px; } #fb-addrbar .fb-nav-btn { min-width:44px; padding:9px 6px; } #fb-addrbar input { padding:8px; } #fb-addrbar .fb-addr-btn { padding:9px 12px; } }",
+    // Keep dotfiles out of LISTINGS (clean), while the server now ALLOWS access to
+    // them (hideDotfiles is off server-side — see terminal-manager.py). FileBrowser
+    // labels each listing item with aria-label=<filename>, so this hides names that
+    // start with a dot in both list and mosaic views. Access still works: typing a
+    // dotfile path in the address bar navigates straight in.
+    "#listing [aria-label^='.'] { display:none !important; }",
   ].join("\n");
   document.head.appendChild(style);
 
