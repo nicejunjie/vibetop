@@ -38,6 +38,16 @@ _prev_disk_time = 0.0
 # Per-process CPU snapshot for delta-based calculation
 _prev_proc_snap = {}  # pid -> ticks
 _prev_proc_time = 0.0
+# Memoized top-process list. The per-process CPU% is a delta since the previous
+# collection, so the delta WINDOW must be a consistent interval. Without this memo
+# it was `now - _prev_proc_time` = the gap to whoever polled last, and with the
+# taskbar poll (2s) + every client's heartbeat (5s) interleaving that gap collapses
+# to a sub-second window — where a process with a steady CPU drizzle (a Node/JS
+# event loop like Claude Code) ticks in almost every window and out-ranks a busier
+# compute burst (python) whose scheduling didn't line up with that tiny window.
+# Recomputing at most once per _PROC_TTL pins the window to ~_PROC_TTL.
+_proc_cache = []          # last computed top-process list
+_PROC_TTL = 1.8           # seconds; slightly under the 2s taskbar/Monitor poll
 
 # Whole-system CPU snapshot for delta-based calculation
 # ({name: ticks}, monotonic timestamp) from the previous status call
@@ -223,6 +233,83 @@ def _root_disk_uncached():
     except Exception:
         pass
     return None
+
+
+def _collect_top_procs():
+    """Top ~30 processes by CPU%, delta-based (like htop) over the gap since the
+    PREVIOUS run of this function. The caller memoizes it (~_PROC_TTL) so that gap
+    is a consistent window — which is what makes the ranking reflect sustained load
+    instead of which process happened to tick in a sub-second sampling window. Runs
+    under _collect_lock (via get_system_status), so the module snapshots are safe."""
+    global _prev_proc_snap, _prev_proc_time
+    processes = []
+    try:
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        clk_tck = os.sysconf("SC_CLK_TCK")
+        now = time.monotonic()
+        dt = now - _prev_proc_time if _prev_proc_time else 0
+        cur_snap = {}
+        for pid_s in os.listdir("/proc"):
+            if not pid_s.isdigit():
+                continue
+            try:
+                with open(f"/proc/{pid_s}/stat") as f:
+                    stat = f.read()
+                comm_start = stat.index("(")
+                comm_end = stat.rindex(")")
+                short_name = stat[comm_start+1:comm_end]
+                fields = stat[comm_end+2:].split()
+                utime = int(fields[11])
+                stime = int(fields[12])
+                rss = int(fields[21]) * page_size / (1024 * 1024)
+                ticks = utime + stime
+                pid = int(pid_s)
+                # Get descriptive name from cmdline
+                try:
+                    with open(f"/proc/{pid_s}/cmdline") as f:
+                        cmdline = f.read().split("\x00")
+                    cmdline = [c for c in cmdline if c]
+                    if len(cmdline) > 1 and cmdline[0].endswith(("python3", "python", "node")):
+                        name = os.path.basename(cmdline[1])
+                    elif cmdline:
+                        name = os.path.basename(cmdline[0])
+                    else:
+                        name = short_name
+                except Exception:
+                    name = short_name
+                cur_snap[pid] = ticks
+                cpu_pct = 0.0
+                if dt > 0 and pid in _prev_proc_snap:
+                    # max(0,...): on PID reuse the new process's ticks can be
+                    # below the dead one's snapshot — a negative % is bogus.
+                    delta_ticks = max(0, ticks - _prev_proc_snap[pid])
+                    cpu_pct = (delta_ticks / clk_tck) / dt * 100
+                # Owner UID from the dir's stat (cheaper than opening+parsing
+                # /proc/PID/status just for the Uid: line).
+                try:
+                    uid = os.stat(f"/proc/{pid_s}").st_uid
+                except OSError:
+                    uid = 0
+                try:
+                    user = pwd.getpwuid(uid).pw_name
+                except KeyError:
+                    user = str(uid)
+                processes.append({
+                    "pid": pid,
+                    "name": name,
+                    "cpu": round(cpu_pct, 1),
+                    "mem_mb": round(rss, 1),
+                    "user": user,
+                })
+            except Exception:
+                continue
+        _prev_proc_snap = cur_snap
+        _prev_proc_time = now
+        processes.sort(key=lambda p: p["cpu"], reverse=True)
+        processes = processes[:30]
+    except Exception:
+        pass
+    return processes
 
 
 def get_system_status(running_terminals, cached):
@@ -522,75 +609,12 @@ def _collect(running_terminals, cached):
     except Exception:
         pass
 
-    # Top processes by CPU (delta-based like htop)
-    global _prev_proc_snap, _prev_proc_time
-    processes = []
-    try:
-        page_size = os.sysconf("SC_PAGE_SIZE")
-        clk_tck = os.sysconf("SC_CLK_TCK")
-        now = time.monotonic()
-        dt = now - _prev_proc_time if _prev_proc_time else 0
-        cur_snap = {}
-        for pid_s in os.listdir("/proc"):
-            if not pid_s.isdigit():
-                continue
-            try:
-                with open(f"/proc/{pid_s}/stat") as f:
-                    stat = f.read()
-                comm_start = stat.index("(")
-                comm_end = stat.rindex(")")
-                short_name = stat[comm_start+1:comm_end]
-                fields = stat[comm_end+2:].split()
-                utime = int(fields[11])
-                stime = int(fields[12])
-                rss = int(fields[21]) * page_size / (1024 * 1024)
-                ticks = utime + stime
-                pid = int(pid_s)
-                # Get descriptive name from cmdline
-                try:
-                    with open(f"/proc/{pid_s}/cmdline") as f:
-                        cmdline = f.read().split("\x00")
-                    cmdline = [c for c in cmdline if c]
-                    if len(cmdline) > 1 and cmdline[0].endswith(("python3", "python", "node")):
-                        name = os.path.basename(cmdline[1])
-                    elif cmdline:
-                        name = os.path.basename(cmdline[0])
-                    else:
-                        name = short_name
-                except Exception:
-                    name = short_name
-                cur_snap[pid] = ticks
-                cpu_pct = 0.0
-                if dt > 0 and pid in _prev_proc_snap:
-                    # max(0,...): on PID reuse the new process's ticks can be
-                    # below the dead one's snapshot — a negative % is bogus.
-                    delta_ticks = max(0, ticks - _prev_proc_snap[pid])
-                    cpu_pct = (delta_ticks / clk_tck) / dt * 100
-                # Owner UID from the dir's stat (cheaper than opening+parsing
-                # /proc/PID/status just for the Uid: line).
-                try:
-                    uid = os.stat(f"/proc/{pid_s}").st_uid
-                except OSError:
-                    uid = 0
-                try:
-                    user = pwd.getpwuid(uid).pw_name
-                except KeyError:
-                    user = str(uid)
-                processes.append({
-                    "pid": pid,
-                    "name": name,
-                    "cpu": round(cpu_pct, 1),
-                    "mem_mb": round(rss, 1),
-                    "user": user,
-                })
-            except Exception:
-                continue
-        _prev_proc_snap = cur_snap
-        _prev_proc_time = now
-        processes.sort(key=lambda p: p["cpu"], reverse=True)
-        processes = processes[:30]
-    except Exception:
-        pass
+    # Top processes by CPU — memoized so the delta window is a consistent ~_PROC_TTL
+    # no matter how many pollers call us (see _collect_top_procs / _proc_cache).
+    global _proc_cache
+    if not _proc_cache or (time.monotonic() - _prev_proc_time) >= _PROC_TTL:
+        _proc_cache = _collect_top_procs()
+    processes = _proc_cache
 
     # IPs change rarely; cache for 10s to avoid forking `ip` every poll.
     ips = cached("ips", 10.0, _list_ips)

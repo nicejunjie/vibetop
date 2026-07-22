@@ -58,6 +58,35 @@ def test_list_ips_returns_dict(status):
     assert isinstance(ips, dict)
 
 
+def test_top_procs_memoized_so_delta_window_is_consistent(status, monkeypatch):
+    # The per-process CPU% is a delta over the gap since the previous collection.
+    # If every poller (Monitor 2s + each client's heartbeat 5s) recollected, that
+    # gap would shrink to a sub-second window and the ranking would reflect which
+    # process happened to tick in it (a steady drizzle beating a busy python), not
+    # sustained load. So _collect_top_procs must run at most once per _PROC_TTL and
+    # interleaved calls must SHARE that one sample.
+    calls = []
+
+    def fake_collect():
+        calls.append(1)
+        status._prev_proc_time = status.time.monotonic()   # real fn stamps its run time
+        return [{"pid": 1, "name": "x", "cpu": 1.0, "mem_mb": 1.0, "user": "u"}]
+
+    monkeypatch.setattr(status, "_collect_top_procs", fake_collect)
+    status._proc_cache = []
+    status._prev_proc_time = 0.0
+    cb = lambda k, t, p: p()
+
+    for _ in range(3):                       # three back-to-back pollers
+        status.get_system_status([], cb)
+    assert len(calls) == 1, "interleaved pollers must share one sample, not recollect"
+
+    # Once the window has elapsed, the next poll recomputes (fresh delta window).
+    status._prev_proc_time -= status._PROC_TTL + 1
+    status.get_system_status([], cb)
+    assert len(calls) == 2
+
+
 def test_cpu_snapshot_delta_path(status):
     # First call seeds the snapshot (synchronous 0.1s sample); the second call,
     # arriving >0.5s later via the fixture's reuse, should exercise the delta
