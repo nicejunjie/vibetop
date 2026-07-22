@@ -131,6 +131,14 @@
     "#fb-addrbar { display:flex; align-items:center; gap:6px; padding:6px 10px; box-sizing:border-box; width:100%; border-bottom:1px solid rgba(128,128,128,0.25); }",
     "#fb-addrbar input { flex:1 1 auto; min-width:0; font:13px ui-monospace,Menlo,Consolas,monospace; padding:6px 8px; border:1px solid rgba(128,128,128,0.45); border-radius:6px; background:rgba(128,128,128,0.06); color:inherit; }",
     "#fb-addrbar .fb-addr-btn { flex:0 0 auto; cursor:pointer; white-space:nowrap; border:1px solid rgba(128,128,128,0.45); border-radius:6px; background:transparent; color:inherit; padding:6px 10px; font:13px system-ui,sans-serif; }",
+    // Browser-style Back/Forward arrows at the head of the address bar. Compact,
+    // icon-only, with a comfortable tap target on touch (min 40px wide, taller on
+    // phones). Disabled state dims + drops the pointer (best-effort, since the
+    // History API can't report whether back/forward is actually available).
+    "#fb-addrbar .fb-nav-btn { padding:6px; min-width:40px; display:inline-flex; align-items:center; justify-content:center; }",
+    "#fb-addrbar .fb-nav-btn .material-icons { font-size:19px; line-height:1; }",
+    "#fb-addrbar .fb-nav-btn:active { background:rgba(128,128,128,0.14); }",
+    "@media (max-width:736px){ #fb-addrbar { gap:8px; padding:8px 10px; } #fb-addrbar .fb-nav-btn { min-width:44px; padding:9px 6px; } #fb-addrbar input { padding:8px; } #fb-addrbar .fb-addr-btn { padding:9px 12px; } }",
   ].join("\n");
   document.head.appendChild(style);
 
@@ -488,6 +496,22 @@
     if (document.getElementById("fb-addrbar")) return;
     var bar = document.createElement("div");
     bar.id = "fb-addrbar";
+    // Back / Forward: drive the iframe's own session history — folder clicks and
+    // the address bar's goToPath (location.assign) both push entries, and the
+    // location-memory restore uses location.replace (no entry), so back()/forward()
+    // walk the folders the user actually visited without escaping the app.
+    function navBtn(icon, label, fn) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "fb-addr-btn fb-nav-btn";
+      b.title = label;
+      b.setAttribute("aria-label", label);
+      b.innerHTML = '<i class="material-icons">' + icon + '</i>';
+      b.addEventListener("click", function () { try { fn(); } catch (e) {} });
+      return b;
+    }
+    var back = navBtn("arrow_back", "Back", function () { history.back(); });
+    var fwd = navBtn("arrow_forward", "Forward", function () { history.forward(); });
     var input = document.createElement("input");
     input.id = "fb-addr-input";
     input.type = "text";
@@ -511,6 +535,8 @@
         navigator.clipboard.writeText(v).then(done, function() { legacyCopy(input); done(); });
       } else { legacyCopy(input); done(); }
     });
+    bar.appendChild(back);
+    bar.appendChild(fwd);
     bar.appendChild(input);
     bar.appendChild(copy);
     listing.parentNode.insertBefore(bar, listing);
