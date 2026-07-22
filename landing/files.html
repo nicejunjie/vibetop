@@ -147,35 +147,34 @@
     return { id: ++seq, frame: f, path: path || HOME };
   }
 
-  // Self-heal the "restored folder shows empty until you navigate/refresh" race,
-  // which happens on a slow NFS mount: FileBrowser loads the deep folder URL (and
-  // sometimes even renders it), then the listing ends up empty and never settles.
-  // A refresh fixes it — so we do that automatically. While a tab is the visible
-  // one, if its FileBrowser shows NO listed items AND no empty-folder message for
-  // ~6s straight, reload that one iframe. The 6s wait is deliberately long so a
-  // genuinely slow-but-working NFS load isn't interrupted; capped at 2 reloads so
-  // it can't loop, and watched for ~26s to also catch a listing that renders then
-  // empties. An empty folder (its "lonely" .message) is left alone.
-  function watchFrame(f) {
-    if (f._watchIv) clearInterval(f._watchIv);
-    f._heals = 0;
-    var stuck = 0, n = 0;
-    f._watchIv = setInterval(function() {
-      if (++n > 13) { clearInterval(f._watchIv); f._watchIv = null; return; }   // ~26s window
-      if (!f.classList.contains('active')) { stuck = 0; return; }   // only heal the visible tab
-      var win, d, path;
-      try { win = f.contentWindow; d = win.document; path = win.location.pathname; } catch (e) { return; }
-      if (path.indexOf('/files/files') !== 0) { stuck = 0; return; }   // editor/preview, not a listing
-      var listing = d.getElementById('listing');
-      var ok = (listing && listing.querySelector('.item')) || d.querySelector('.message');
-      if (ok) { stuck = 0; return; }                                  // real content (items) or empty-state
-      if (++stuck >= 3) {                                             // ~6s continuously empty → reload
-        stuck = 0;
-        if (f._heals < 2) { f._heals++; try { win.location.reload(); } catch (e) {} }
-        else { clearInterval(f._watchIv); f._watchIv = null; }        // give up after 2 tries
-      }
-    }, 2000);
-  }
+  // Self-heal the "NFS folder shows empty until you refresh" issue. It shows up
+  // after a folder tab has been inactive a while — switched to another desktop app,
+  // backgrounded, or just idle: on a slow NFS mount FileBrowser's listing ends up
+  // empty and never settles. A refresh fixes it, so one always-on watcher does that
+  // automatically. It acts ONLY on the visible tab of a VISIBLE Files app (our iframe
+  // has window.innerHeight===0 while hidden behind another app), and ONLY after the
+  // listing is empty — no items AND no empty-folder message — for ~6s straight (long
+  // enough not to interrupt a genuinely slow load). The heal count resets once the
+  // folder renders, so a later re-stick heals again, but it can't loop on a folder
+  // that just won't render (capped at 3 tries until it next renders). An actually-
+  // empty folder (its "lonely" .message) is left alone.
+  var _healStuck = 0, _healCount = {};
+  setInterval(function() {
+    var t = active;
+    if (!t || document.hidden || window.innerHeight === 0) { _healStuck = 0; return; }   // Files not visible
+    var f = t.frame, win, d, path;
+    if (!f.classList.contains('active')) { _healStuck = 0; return; }
+    try { win = f.contentWindow; d = win.document; path = win.location.pathname; } catch (e) { _healStuck = 0; return; }
+    if (path.indexOf('/files/files') !== 0) { _healStuck = 0; return; }   // editor/preview, not a listing
+    var listing = d.getElementById('listing');
+    if ((listing && listing.querySelector('.item')) || d.querySelector('.message')) {
+      _healStuck = 0; _healCount[t.id] = 0; return;                        // rendered (items) or empty-state
+    }
+    if (++_healStuck >= 3) {                                               // ~6s continuously empty → reload
+      _healStuck = 0;
+      if ((_healCount[t.id] || 0) < 3) { _healCount[t.id] = (_healCount[t.id] || 0) + 1; try { win.location.reload(); } catch (e) {} }
+    }
+  }, 2000);
 
   function show(t) {
     if (!t) return;
@@ -183,7 +182,6 @@
     active = t;
     renderTabs();
     persist();
-    watchFrame(t.frame);
   }
 
   function createTab(path, activate) {
