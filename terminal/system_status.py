@@ -235,6 +235,49 @@ def _root_disk_uncached():
     return None
 
 
+# Interpreters whose *real* identity is the script they run, not the binary — so
+# `python3 worker.py` should read "worker.py", not "python3". Matched on the
+# argv[0] basename (covers /usr/bin/python3.11, a venv "python", "node", …).
+_INTERP_PREFIXES = ("python", "node", "bash", "sh", "dash", "perl", "ruby")
+# Flags that consume an INLINE program (code/module) rather than a script file:
+# after these there is no filename to name the process from, so fall back to the
+# interpreter's own name (e.g. `python3 -c "…"` → "python3", not "-c" or the code).
+_INTERP_INLINE_FLAGS = {"-c", "-e", "--eval", "-m", "--module"}
+
+
+def _display_name(cmdline, short_name):
+    """Pick a human-legible name for a process from its argv (`cmdline`, already
+    NUL-split with empties dropped) and its /proc `comm` (`short_name`) as a
+    fallback. For a plain program use its basename; for an interpreter, name it
+    after the first real script/file argument — but NEVER from a flag (a token
+    starting with "-") nor from `-c/-e/-m` inline code (those fall back to the
+    interpreter itself, e.g. `python3 -c "…"` → "python3"). Pure/stringly-typed
+    so it's unit-testable without /proc."""
+    if not cmdline:
+        return short_name
+    base0 = os.path.basename(cmdline[0])
+    is_interp = any(base0.startswith(p) for p in _INTERP_PREFIXES)
+    if is_interp and len(cmdline) > 1:
+        for tok in cmdline[1:]:
+            if tok.startswith("-"):
+                # An inline-code / module flag means no script follows that we'd
+                # want to name from — stop and fall back to the interpreter.
+                if tok in _INTERP_INLINE_FLAGS:
+                    break
+                continue          # a plain flag (-u, -O, …) — keep scanning
+            # First non-flag token = the script/file the interpreter is running.
+            cand = os.path.basename(tok)
+            if cand:
+                return cand
+            break
+        return base0              # -c/-e/-m, or no real script arg found
+    # Non-interpreter (or a bare interpreter with no args). Use argv[0]'s
+    # basename, unless it's empty or a login-shell "-bash" style flag name.
+    if base0 and not base0.startswith("-"):
+        return base0
+    return short_name
+
+
 def _collect_top_procs():
     """Top ~30 processes by CPU%, delta-based (like htop) over the gap since the
     PREVIOUS run of this function. The caller memoizes it (~_PROC_TTL) so that gap
@@ -269,12 +312,7 @@ def _collect_top_procs():
                     with open(f"/proc/{pid_s}/cmdline") as f:
                         cmdline = f.read().split("\x00")
                     cmdline = [c for c in cmdline if c]
-                    if len(cmdline) > 1 and cmdline[0].endswith(("python3", "python", "node")):
-                        name = os.path.basename(cmdline[1])
-                    elif cmdline:
-                        name = os.path.basename(cmdline[0])
-                    else:
-                        name = short_name
+                    name = _display_name(cmdline, short_name)
                 except Exception:
                     name = short_name
                 cur_snap[pid] = ticks

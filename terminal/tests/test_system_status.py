@@ -87,6 +87,32 @@ def test_top_procs_memoized_so_delta_window_is_consistent(status, monkeypatch):
     assert len(calls) == 2
 
 
+def test_display_name_never_a_flag_or_inline_code(status):
+    # An interpreter invoked with -c/-e/-m has no script file to name from, so the
+    # name must fall back to the interpreter — NOT the flag ("-c") and NOT the
+    # inline code. This is the "Monitor shows a row named '-c'" regression: the old
+    # rule grabbed cmdline[1] blindly, yielding "-c" for `python3 -c "…"`.
+    dn = status._display_name
+    # -c / -e / -m inline: interpreter basename, never "-c"/"-e"/the code/module.
+    assert dn(["python3", "-c", "while True: pass"], "python3") == "python3"
+    assert dn(["/usr/bin/python3.11", "-c", "x=1"], "python3") == "python3.11"
+    assert dn(["node", "-e", "for(;;){}"], "node") == "node"
+    assert dn(["bash", "-c", "sleep 1"], "bash") == "bash"
+    assert dn(["python3", "-m", "http.server"], "python3") == "python3"
+    for cmd in (["python3", "-c", "code"], ["node", "-e", "code"],
+                ["sh", "-c", "cmd"]):
+        assert not dn(cmd, "x").startswith("-")
+    # A real script arg IS used (basename), skipping leading plain flags.
+    assert dn(["python3", "/opt/app/train.py", "--epochs", "5"], "python3") == "train.py"
+    assert dn(["python3", "-u", "worker.py"], "python3") == "worker.py"
+    assert dn(["node", "/srv/app/server.js"], "node") == "server.js"
+    # Non-interpreters use argv[0]; a login-shell "-bash" / empty argv falls back
+    # to comm (never a "-"-prefixed name).
+    assert dn(["/usr/lib/firefox/firefox"], "firefox") == "firefox"
+    assert dn(["-bash"], "bash") == "bash"
+    assert dn([], "kworker/0:1") == "kworker/0:1"
+
+
 def test_cpu_snapshot_delta_path(status):
     # First call seeds the snapshot (synchronous 0.1s sample); the second call,
     # arriving >0.5s later via the fixture's reuse, should exercise the delta

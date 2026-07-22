@@ -2763,10 +2763,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             log.warning("system status collection failed: %s", e)
             return {"error": "status unavailable: %s" % e}
         # Multi-user: the top-processes list carries every user's process names —
-        # a non-admin sees only their OWN processes (the operator sees all). CPU/
-        # MEM/GPU aggregates stay visible to everyone (just hardware stats).
-        if isinstance(st, dict) and st.get("processes") and _ctx_user() != APP_USER:
-            me = _ctx_user()
+        # a non-admin sees only their OWN processes; an ADMIN (VIBETOP_ADMINS, e.g.
+        # the human operator on a prod host where APP_USER is the no-login service
+        # account) sees ALL of them. Gate on _is_admin, NOT `!= APP_USER`: the
+        # latter wrongly filtered the admin too, hiding the real CPU hogs (root/
+        # other-user jobs) so the Monitor surfaced the admin's own idle process
+        # (e.g. claude) as the top one. CPU/MEM/GPU aggregates stay visible to all.
+        me = _ctx_user()
+        if isinstance(st, dict) and st.get("processes") and not _is_admin(me):
             st = dict(st)
             st["processes"] = [p for p in st["processes"] if p.get("user") == me]
         return st

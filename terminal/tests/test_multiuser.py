@@ -235,6 +235,15 @@ def test_system_status_process_list_scoped(mgr, monkeypatch):
         assert [p["user"] for p in h._get_system_status()["processes"]] == ["alice"]
         mgr._req_ctx.user = "bob"
         assert [p["user"] for p in h._get_system_status()["processes"]] == ["bob"]
+        # Regression: a VIBETOP_ADMINS admin who is NOT APP_USER (the prod case —
+        # APP_USER is the no-login `vibetop` service account, the human is an admin)
+        # must see ALL processes. The old gate `!= APP_USER` filtered this admin to
+        # only their own procs, hiding the real CPU hogs (root/other-user jobs) so
+        # the Monitor surfaced an idle own-process (e.g. claude) as the top one.
+        monkeypatch.setattr(mgr, "ADMIN_USERS", ["carol"])
+        mgr._req_ctx.user = "carol"                 # admin, but != APP_USER
+        assert mgr._is_admin("carol") is True
+        assert len(h._get_system_status()["processes"]) == 2
     finally:
         mgr._req_ctx.user = None
 
