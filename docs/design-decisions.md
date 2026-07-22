@@ -17,6 +17,46 @@ and why it lost).
 
 ---
 
+## Video/office viewers couldn't open a user's files OUTSIDE their home
+
+**Symptom:** After dotfiles became reachable in the file browser, the **video player**
+(and the **office** viewer) still failed on files under `/tnas/…`, `/mnt/…`, anywhere
+outside `~` — e.g. a video at `/tnas/junjie/.av/x.mp4` that the user's Terminal plays
+fine. Looked like the dotfile fix was incomplete; actually it was unrelated to dotfiles.
+
+**Cause:** The **file browser** (FileBrowser) runs **as the user**, rooted at `/`, so
+Unix perms are its fence — it reaches anything the user can. But the **video/office
+viewers are served by the manager, which runs as ROOT**. To stop root from handing a
+user *any* file on the box (`/etc/shadow`, other users' data), `_resolve_media_path` /
+`_resolve_under_home` **fenced to the user's home** (`realpath` must start with
+`$HOME`). So every file outside home — dot or not — was refused by those two viewers,
+while the browser showed it. A deliberate, security-*tested* fence that was simply too
+coarse.
+
+**Fix — authorize as the user instead of fencing to home.** Replace the home fence
+with an **as-the-user read check** (`_user_can_read`): resolve the path (`realpath`,
+absolute-first since FileBrowser sends absolute paths, home-relative fallback), then
+verify the *user* can read it before root serves it. Since root's own `access(2)`
+bypasses permissions, the check runs a `test -r` child launched with the user's
+**uid + primary gid + full supplementary group set** (`os.getgrouplist` →
+`subprocess(..., user=, group=, extra_groups=)`). Verified on the host: `/tnas/you/.av`
+(reachable only via the `adm` supplementary group over NFS `sec=sys`) → allowed;
+`/etc/shadow` → refused; `/etc/passwd` (world-readable) → allowed. The read check
+**subsumes** path-traversal / symlink / absolute escapes — any of them can only ever
+land on a file the user could already read — so the old `../`, symlink-escape, and
+absolute-outside guards (and their tests) become an authorization test instead: "serve
+iff the user can read it." Non-root (dev/tests) can't `setuid`, so the check falls back
+to a plain `os.access` with the current creds; a conftest autouse pins it to `os.access`
+so resolution is deterministic regardless of the test runner's uid.
+
+**Rejected:** (1) *Keep the home fence, symlink the NAS into `~`* — per-user manual
+setup, breaks for arbitrary mounts, and doesn't generalize. (2) *Run ffmpeg/LibreOffice
+as the user (systemd-run/su) so no root read happens* — the correct end state, but a
+much larger change to the whole prep/cache pipeline, and the direct-serve path
+(`.mp4`/`.webm` streamed by the manager) would STILL need an as-user gate, so the gate
+is required regardless; do the gate first. (3) *Widen the fence to a hardcoded allowlist
+of mounts* — brittle and still coarser than the user's real perms.
+
 ## Files app 403'd a user's own dotfiles ("You don't have permissions to access this")
 
 **Symptom:** Navigating to a dotted path in the Files app — e.g. `/tnas/junjie/.av`

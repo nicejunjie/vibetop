@@ -1701,50 +1701,70 @@ def _desktop_union(data, now):
     return seen
 
 
-def _resolve_under_home(rel, user=None):
-    """Map a FileBrowser-relative path to an absolute file under `user`'s home
-    (default: the current request's user), refusing anything that escapes it
-    (symlinks resolved). Returns None if the path is unsafe or not a regular file."""
+def _user_can_read(path, user):
+    """True iff `user` can read `path` under REAL Unix perms — ownership, ALL of
+    their supplementary groups, and ACLs. The manager runs as root, whose own
+    access(2) bypasses permissions, so we must check with the *user's* credentials:
+    a `test -r` child launched with their uid + primary gid + full supplementary
+    group set (via getgrouplist). This is the authorization boundary that lets the
+    root-served video/office viewers reach exactly what the user could open in their
+    own Terminal — and nothing more (other users' files, /etc/shadow, …). When NOT
+    running as root (dev/tests) we can't drop privileges, so fall back to a direct
+    os.access with the current process creds (which own the test fixtures)."""
+    try:
+        if os.geteuid() != 0:
+            return os.access(path, os.R_OK)
+        pw = pwd.getpwnam(user)
+        gids = os.getgrouplist(user, pw.pw_gid)
+    except (KeyError, OSError, TypeError):
+        return False
+    try:
+        r = subprocess.run(["/usr/bin/test", "-r", path],
+                           user=pw.pw_uid, group=pw.pw_gid, extra_groups=gids,
+                           timeout=10, stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return r.returncode == 0
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
+
+
+def _resolve_user_file(rel, user=None):
+    """Resolve a Files-app path to an absolute regular file the `user` is AUTHORIZED
+    to read, or None. FileBrowser is rooted at `/`, so the paths it sends are
+    ABSOLUTE (e.g. `tnas/you/clip.mp4`); a home-relative interpretation is also
+    accepted as a fallback (tests / `office/new` / direct callers). We do NOT fence
+    to home — the file browser (running AS the user) can reach anything the user's
+    Unix perms allow, so the root-served viewers must match that, no more no less.
+    The fence is instead an as-the-user read check (`_user_can_read`) on the
+    realpath (symlinks resolved first), which subsumes path-traversal / symlink /
+    absolute-path escapes: any of them can only ever land on a file the user could
+    already read. Returns an abspath or None. See docs/design-decisions.md."""
     if not rel:
         return None
     rel = rel.lstrip("/")
+    u = user or _ctx_user()
     try:
-        base = os.path.realpath(_office_home(user))
-        full = os.path.realpath(os.path.join(base, rel))
-    except ValueError:
-        # Embedded NUL byte (or similar) in the path — realpath raises rather
-        # than returning a string; treat as unsafe instead of 500-ing the handler.
-        return None
-    if full != base and not full.startswith(base + os.sep):
-        return None
-    if not os.path.isfile(full):
-        return None
-    return full
-
-
-def _resolve_media_path(rel, user=None):
-    """Resolve a path the Files app sends for the video player, fenced to `user`'s
-    home. FileBrowser is rooted at `/`, so its paths are ABSOLUTE (e.g.
-    `home/junjie/clip.mp4`) — _resolve_under_home would treat that as home-relative
-    and look for `~/home/junjie/clip.mp4` (the "not a video file" bug). So try the
-    absolute interpretation first, then fall back to home-relative (tests / direct
-    callers). Both are fenced under home (the manager runs as root — never serve
-    outside the user's own tree). Returns an abspath or None."""
-    if not rel:
-        return None
-    rel = rel.lstrip("/")
-    try:
-        base = os.path.realpath(_office_home(user))
+        base = os.path.realpath(_office_home(u))
     except ValueError:
         return None
     for cand in ("/" + rel, os.path.join(base, rel)):
         try:
-            full = os.path.realpath(cand)
+            full = os.path.realpath(cand)   # NUL/etc -> ValueError -> skip this cand
         except ValueError:
             continue
-        if (full == base or full.startswith(base + os.sep)) and os.path.isfile(full):
+        if os.path.isfile(full) and _user_can_read(full, u):
             return full
     return None
+
+
+# Office and video both resolve Files-app paths the same way now (authorize-as-user);
+# kept as named aliases so their many call sites read intently.
+def _resolve_under_home(rel, user=None):
+    return _resolve_user_file(rel, user)
+
+
+def _resolve_media_path(rel, user=None):
+    return _resolve_user_file(rel, user)
 
 
 def _safe_share_target(rel, user=None):

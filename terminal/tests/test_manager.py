@@ -139,7 +139,10 @@ def test_launch_prog(mgr, cmd, prog):
 
 
 # --------------------------------------------------------------------------
-# _resolve_under_home — path-traversal guard for office file access
+# _resolve_under_home / _resolve_media_path — authorize-as-user file access for
+# the root-served office/video viewers. The fence is no longer "under home" but
+# "the user can read it" (_user_can_read), so they match the file browser's reach
+# (which runs AS the user) without letting root serve files the user can't read.
 # --------------------------------------------------------------------------
 
 @pytest.fixture
@@ -163,23 +166,31 @@ def test_resolve_under_home_strips_leading_slash(mgr, home):
     assert mgr._resolve_under_home("/Documents/report.docx") is not None
 
 
-def test_resolve_under_home_rejects_dotdot_escape(mgr, home):
-    assert mgr._resolve_under_home("../../../etc/passwd") is None
-    assert mgr._resolve_under_home("Documents/../../outside") is None
+def test_resolve_allows_readable_file_outside_home(mgr, home, tmp_path):
+    # The NEW behavior: a real, readable file OUTSIDE home resolves (authorize-as-
+    # user), matching the file browser's reach. FileBrowser sends absolute paths.
+    outside = tmp_path.parent / "clip_outside.docx"
+    outside.write_text("x")
+    absrel = str(outside).lstrip("/")
+    assert mgr._resolve_under_home(absrel) == str(outside.resolve())
 
 
-def test_resolve_under_home_rejects_absolute_outside(mgr, home):
-    # lstrip("/") turns "/etc/passwd" into "etc/passwd" under home -> not a file.
-    assert mgr._resolve_under_home("/etc/passwd") is None
+def test_resolve_symlink_to_readable_is_allowed(mgr, home, tmp_path):
+    # A symlink to a file the user can read is fine now — they could read it in a
+    # Terminal too; the read gate (not the location) is the fence.
+    target = tmp_path.parent / "target.docx"
+    target.write_text("x")
+    (home / "link.docx").symlink_to(target)
+    assert mgr._resolve_under_home("link.docx") == str(target.resolve())
 
 
-def test_resolve_under_home_rejects_symlink_escape(mgr, home, tmp_path):
-    secret = tmp_path.parent / "secret.txt"
-    secret.write_text("top secret")
-    link = home / "escape.docx"
-    link.symlink_to(secret)
-    # realpath resolves the symlink to outside home -> refused.
-    assert mgr._resolve_under_home("escape.docx") is None
+def test_resolve_rejects_when_user_cannot_read(mgr, home, monkeypatch):
+    # The gate is the boundary: if the user can't read it, a real file is refused —
+    # this is what keeps root from serving /etc/shadow or another user's files.
+    monkeypatch.setattr(mgr, "_user_can_read", lambda path, user=None: False)
+    assert mgr._resolve_under_home("Documents/report.docx") is None
+    # video resolver shares the same gate
+    assert mgr._resolve_media_path("Documents/report.docx") is None
 
 
 def test_resolve_under_home_rejects_directory(mgr, home):

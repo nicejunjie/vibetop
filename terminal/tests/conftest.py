@@ -151,6 +151,18 @@ def home(mgr, monkeypatch, tmp_path):
     return h
 
 
+@pytest.fixture(autouse=True)
+def _read_gate_via_access(mgr, monkeypatch):
+    """The as-the-user read gate (_user_can_read) drops privileges via setuid, which
+    needs root; hermetic tests run non-root. Pin the gate to os.access with the test
+    process's own creds (it owns the tmp fixtures) so video/office path resolution is
+    deterministic regardless of the runner's uid. A test that needs the gate to
+    REFUSE monkeypatches it to False itself (that later setattr wins)."""
+    if hasattr(mgr, "_user_can_read"):
+        monkeypatch.setattr(mgr, "_user_can_read",
+                            lambda path, user=None: os.access(path, os.R_OK))
+
+
 @pytest.fixture()
 def users(mgr, home, monkeypatch, tmp_path):
     """Map alice/bob to distinct tmp homes (APP_USER falls back to a default
