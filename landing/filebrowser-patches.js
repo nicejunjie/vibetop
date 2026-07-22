@@ -575,7 +575,18 @@
   // Copy stashes the selected item(s); Paste copies them into the current folder
   // via FileBrowser's OWN API (the same PATCH its frontend uses), so you can Copy
   // in one folder and Paste in another — no destination-picker dialog.
-  var fbClipboard = [];   // [{abs, name}]
+  //
+  // The clipboard is PERSISTED in localStorage, not just an in-memory var: moving
+  // to the destination folder (address bar → location.assign, or any reload) throws
+  // the page away, which is exactly the copy-here / paste-there flow — an in-memory
+  // clipboard would be gone by the time you got there (Paste stuck greyed). Paste's
+  // enabled state is recomputed from the stored clipboard on every button refresh.
+  var CLIP_KEY = "vibetop:files:clip";
+  function readClip() {
+    try { var v = JSON.parse(localStorage.getItem(CLIP_KEY) || "[]"); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function writeClip(arr) { try { localStorage.setItem(CLIP_KEY, JSON.stringify(arr || [])); } catch (e) {} }
   function selectedItemsAll() {
     var out = [], base = currentFullPath().replace(/\/+$/, "");
     document.querySelectorAll('[aria-selected="true"]').forEach(function(el) {
@@ -593,15 +604,15 @@
     span.textContent = text;
     btn._flt = setTimeout(function() { if (btn._orig != null) { span.textContent = btn._orig; btn._orig = null; } }, 1400);
   }
-  function pasteClipboardInto(destDir, cb) {
-    var items = fbClipboard.slice(), tok = fbToken(), ok = 0, fail = 0, i = 0;
-    var base = destDir.replace(/\/+$/, "");
+  var _pasting = false;
+  function pasteClipboardInto(destDir, items, cb) {
+    var ok = 0, fail = 0, i = 0, base = destDir.replace(/\/+$/, "");
     function next() {
       if (i >= items.length) { cb(ok, fail); return; }
       var it = items[i++], dest = base + "/" + it.name;
       var url = "/files/api/resources" + encFbPath(it.abs) +
                 "?action=copy&destination=" + encFbPath(dest) + "&override=false&rename=true";
-      fetch(url, { method: "PATCH", headers: { "X-Auth": tok } })
+      fetch(url, { method: "PATCH", headers: { "X-Auth": fbToken() } })
         .then(function(r) { if (r.ok) ok++; else fail++; })
         .catch(function() { fail++; })
         .then(next);
@@ -638,13 +649,19 @@
         } else if (def.view) {
           clickViewButton();
         } else if (def.copy) {
-          fbClipboard = selectedItemsAll();
-          if (fbClipboard.length) flashBtnLabel(btn, fbClipboard.length > 1 ? "Copied " + fbClipboard.length : "Copied");
-          updatePermanentButtons();   // enable Paste now
+          var picked = selectedItemsAll();
+          if (!picked.length) return;                 // nothing selected (button is greyed anyway)
+          writeClip(picked);
+          flashBtnLabel(btn, picked.length > 1 ? "Copied " + picked.length : "Copied");
+          updatePermanentButtons();                   // enable Paste now (and in other tabs on next refresh)
         } else if (def.paste) {
-          if (!fbClipboard.length) return;
+          if (_pasting) return;
+          var clip = readClip();
+          if (!clip.length) return;
+          _pasting = true;
           flashBtnLabel(btn, "Pasting…");
-          pasteClipboardInto(currentFullPath(), function(ok, fail) {
+          pasteClipboardInto(currentFullPath(), clip, function(ok, fail) {
+            _pasting = false;
             flashBtnLabel(btn, fail ? ("Pasted " + ok + " · " + fail + " failed") : (ok > 1 ? "Pasted " + ok : "Pasted"));
             setTimeout(function() { location.reload(); }, 700);   // show the pasted item(s)
           });
@@ -802,8 +819,14 @@
     var selected = hasSelection();
     var filePath = getFilePath();
     document.querySelectorAll("header .fb-permanent:not(.fb-office)").forEach(function(btn) {
-      // Paste is enabled whenever the clipboard has items (independent of selection).
-      if (btn.getAttribute("data-paste")) { btn.classList.toggle("disabled", fbClipboard.length === 0); return; }
+      // Paste is enabled whenever the (persisted) clipboard has items — independent
+      // of the current selection, and surviving navigation to the destination folder.
+      if (btn.getAttribute("data-paste")) {
+        var nclip = readClip().length;
+        btn.classList.toggle("disabled", nclip === 0);
+        btn.title = nclip ? ("Paste " + nclip + " item" + (nclip > 1 ? "s" : "") + " here") : "Paste";
+        return;
+      }
       // The Layout toggle is always available (not selection-dependent).
       if (btn.getAttribute("data-always")) { btn.classList.remove("disabled"); return; }
       var icon = btn.getAttribute("data-icon");
