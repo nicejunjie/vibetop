@@ -251,8 +251,19 @@
   seek.addEventListener("pointermove", function (e) { if (scrubbing) seekTo(e.clientX); });
   seek.addEventListener("pointerup", function () { scrubbing = false; });
 
-  // Click the video toggles play (ignore clicks on the control bar).
-  v.addEventListener("click", togglePlay);
+  // Click the video toggles play; DOUBLE-click toggles fullscreen. The single-click
+  // action is deferred briefly so a double-click doesn't also fire play/pause (the
+  // 2nd click cancels the pending single). Clicks on the control bar don't hit here.
+  var _clickT = null;
+  v.addEventListener("click", function () {
+    if (_clickT) { clearTimeout(_clickT); _clickT = null; return; }  // part of a dblclick
+    _clickT = setTimeout(function () { _clickT = null; togglePlay(); }, 250);
+  });
+  v.addEventListener("dblclick", function (e) {
+    e.preventDefault();
+    if (_clickT) { clearTimeout(_clickT); _clickT = null; }
+    toggleFullscreen();
+  });
 
   // Auto-hide the bar while playing; reveal on movement/touch.
   var idle;
@@ -265,12 +276,21 @@
   stage.addEventListener("pointerdown", showBar);
   showBar();
 
+  function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
   function enterFullscreen() {
     if (stage.requestFullscreen) stage.requestFullscreen().catch(function(){});
     else if (stage.webkitRequestFullscreen) stage.webkitRequestFullscreen();
     else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();  // iOS
   }
-  fsBtn.addEventListener("click", enterFullscreen);
+  function toggleFullscreen() {
+    if (isFullscreen()) {
+      if (document.exitFullscreen) document.exitFullscreen().catch(function(){});
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  }
+  fsBtn.addEventListener("click", toggleFullscreen);
 
   // ---- keyboard shortcuts (desktop) — like any online video player ----------
   function seekBy(sec) {
@@ -293,7 +313,7 @@
       case "ArrowDown": nudgeVol(-0.05); break;
       case " ": case "k": case "K": togglePlay(); showBar(); break;   // space / k : play-pause
       case "m": case "M": muteBtn.click(); break;           // m : mute
-      case "f": case "F": enterFullscreen(); break;         // f : fullscreen
+      case "f": case "F": toggleFullscreen(); break;        // f : fullscreen toggle
       case "Home": if (v.duration) { v.currentTime = 0; showBar(); } break;
       case "End":  if (v.duration) { v.currentTime = Math.max(0, v.duration - 1); showBar(); } break;
       default:
