@@ -68,7 +68,12 @@
     // folders (a folder downloads as a .zip). See terminal-manager.py /api/share.
     { icon: "share", label: "Share", share: true },
     { icon: "mode_edit", label: "Rename" },
-    { icon: "content_copy", label: "Copy" },
+    // Copy/Paste are an OS-style clipboard (Copy stashes the selection here, Paste
+    // drops it into the folder you navigate to) — replacing FileBrowser's native
+    // Copy, which pops a destination-picker dialog. Paste is enabled only when the
+    // clipboard has something.
+    { icon: "content_copy", label: "Copy", copy: true },
+    { icon: "content_paste", label: "Paste", paste: true },
     { icon: "forward", label: "Move" },
     { icon: "delete", label: "Delete" },
     { icon: "file_download", label: "Download" },
@@ -554,6 +559,45 @@
     if (input.value !== p) input.value = p;
   }
 
+  // --- Copy/Paste clipboard --------------------------------------------------
+  // Copy stashes the selected item(s); Paste copies them into the current folder
+  // via FileBrowser's OWN API (the same PATCH its frontend uses), so you can Copy
+  // in one folder and Paste in another — no destination-picker dialog.
+  var fbClipboard = [];   // [{abs, name}]
+  function selectedItemsAll() {
+    var out = [], base = currentFullPath().replace(/\/+$/, "");
+    document.querySelectorAll('[aria-selected="true"]').forEach(function(el) {
+      var name = el.getAttribute("aria-label");
+      if (name) out.push({ name: name, abs: base + "/" + name });
+    });
+    return out;
+  }
+  function fbToken() { try { return localStorage.getItem("jwt") || ""; } catch (e) { return ""; } }
+  function encFbPath(abs) { return abs.split("/").map(encodeURIComponent).join("/"); }   // encode segments, keep "/"
+  function flashBtnLabel(btn, text) {
+    var span = btn.querySelector("span"); if (!span) return;
+    if (btn._flt) clearTimeout(btn._flt);
+    if (btn._orig == null) btn._orig = span.textContent;
+    span.textContent = text;
+    btn._flt = setTimeout(function() { if (btn._orig != null) { span.textContent = btn._orig; btn._orig = null; } }, 1400);
+  }
+  function pasteClipboardInto(destDir, cb) {
+    var items = fbClipboard.slice(), tok = fbToken(), ok = 0, fail = 0, i = 0;
+    var base = destDir.replace(/\/+$/, "");
+    function next() {
+      if (i >= items.length) { cb(ok, fail); return; }
+      var it = items[i++], dest = base + "/" + it.name;
+      var url = "/files/api/resources" + encFbPath(it.abs) +
+                "?action=copy&destination=" + encFbPath(dest) + "&override=false&rename=true";
+      fetch(url, { method: "PATCH", headers: { "X-Auth": tok } })
+        .then(function(r) { if (r.ok) ok++; else fail++; })
+        .catch(function() { fail++; })
+        .then(next);
+    }
+    if (!items.length) { cb(0, 0); return; }
+    next();
+  }
+
   function injectPermanentButtons() {
     if (!isListingView()) return;   // listing-only toolbar (not editor/preview)
     var header = document.querySelector("header");
@@ -568,6 +612,7 @@
       btn.setAttribute("aria-label", def.label);
       btn.setAttribute("data-icon", def.icon);
       if (def.view || def.refresh) btn.setAttribute("data-always", "1");   // not selection-dependent
+      if (def.paste) btn.setAttribute("data-paste", "1");                  // gated on the clipboard, not selection
       btn.innerHTML = '<i class="material-icons">' + def.icon + '</i><span>' + def.label + '</span>';
       btn.addEventListener("click", function() {
         if (btn.classList.contains("disabled")) return;
@@ -580,6 +625,17 @@
           location.reload();
         } else if (def.view) {
           clickViewButton();
+        } else if (def.copy) {
+          fbClipboard = selectedItemsAll();
+          if (fbClipboard.length) flashBtnLabel(btn, fbClipboard.length > 1 ? "Copied " + fbClipboard.length : "Copied");
+          updatePermanentButtons();   // enable Paste now
+        } else if (def.paste) {
+          if (!fbClipboard.length) return;
+          flashBtnLabel(btn, "Pasting…");
+          pasteClipboardInto(currentFullPath(), function(ok, fail) {
+            flashBtnLabel(btn, fail ? ("Pasted " + ok + " · " + fail + " failed") : (ok > 1 ? "Pasted " + ok : "Pasted"));
+            setTimeout(function() { location.reload(); }, 700);   // show the pasted item(s)
+          });
         } else {
           clickVueButton(def.icon);
         }
@@ -734,6 +790,8 @@
     var selected = hasSelection();
     var filePath = getFilePath();
     document.querySelectorAll("header .fb-permanent:not(.fb-office)").forEach(function(btn) {
+      // Paste is enabled whenever the clipboard has items (independent of selection).
+      if (btn.getAttribute("data-paste")) { btn.classList.toggle("disabled", fbClipboard.length === 0); return; }
       // The Layout toggle is always available (not selection-dependent).
       if (btn.getAttribute("data-always")) { btn.classList.remove("disabled"); return; }
       var icon = btn.getAttribute("data-icon");
