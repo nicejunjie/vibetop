@@ -1882,3 +1882,60 @@ iOS fallback; the app iframe gains `allow="fullscreen; autoplay"`).
   remux is near-instant for the copy case.
 - *Image-based subtitles (PGS/VobSub)* can't become WebVTT — those tracks are omitted
   from the picker (text subs only).
+
+## Mobile Files app: toolbar, clickable breadcrumb, folder-nav recovery (a long iteration)
+
+Related mobile-only (≤736px) fixes to the Files app (`landing/filebrowser-patches.js`),
+landed v1.16.31–44 after many wrong turns. Recorded so the dead ends aren't re-explored.
+All verified on **WebKit** (the iOS engine) against the live `/files/` page (playwright +
+a `_sign_session` cookie + `add_style_tag`/route-override to test without deploying) —
+Chromium emulation does not reproduce these; see the WebKit-harness note above.
+
+**Toolbar layout — sticky grid, not a wrapping/scrolling fixed header.**
+- Symptom: mobile toolbar buttons clipped / needed horizontal scroll; and, separately,
+  the address bar's path input "disappeared."
+- Cause: FileBrowser's `<header>` is `position: fixed`. The old `flex-wrap: wrap` let the
+  (taller, wrapped) fixed header grow past the content's top offset and *cover* the
+  content below it (the buried address bar). A later single-row `overflow-x: auto` hid
+  buttons off-screen ("needs scrolling, terrible").
+- Fix: header is now an in-flow **`position: sticky` CSS grid** (`repeat(8,1fr)`,
+  `#dropdown{display:contents}` so its native buttons join the grid). In-flow ⇒ content
+  always flows *below* it (overlap impossible); a grid never scrolls horizontally. Every
+  action is a uniform icon-over-label cell, **all buttons always visible** (selection-
+  dependent ones greyed, not hidden — the user wanted all buttons). The icon/label size
+  rules MUST include the `#dropdown .action` selector or the natives render a different
+  size (base `header #dropdown .action` outranks plain `header .action` via the id).
+- Rejected: `flex-wrap:wrap` on a fixed header (buries content); single-row horizontal
+  scroll (hides buttons); a `…` overflow menu (user wants every button visible).
+
+**Clickable breadcrumb — build your own; never relocate a Vue node.**
+- Symptom: the clickable path bar (`Home › a › b`, each an `<a>` that navigates) was gone
+  on mobile; after a "fix" it then vanished *intermittently*.
+- Cause: (1) it was hidden as a "duplicate" of the editable address box — it is NOT, the
+  segments are clickable navigation. (2) The next attempt *relocated* FileBrowser's native
+  breadcrumb node in the DOM (it sits before the header and is `position:sticky`, so it's
+  hidden under our sticky toolbar) — but it is a **Vue-managed node**, and Vue destroyed
+  the orphaned node on its next re-render → flaky "gone again."
+- Fix: on mobile, hide FileBrowser's native breadcrumb and build our **own** `#fb-crumbs`
+  from `currentFullPath()` — tappable segments injected above the address bar, fully ours
+  so nothing can strand it. **One line**: `_fitCrumbs` measures `scrollWidth` and collapses
+  the fewest leading segments behind a middle `…` (which links to the deepest hidden
+  folder → tap to walk up); Home + current always shown; re-fits on rotation.
+- Rejected: moving/reparenting a framework-managed DOM node to reposition it — inherently
+  fragile; build your own from the model instead.
+
+**Don't strip nav on a permission-denied folder.**
+- Symptom: navigating into a folder you can't read left you stranded — no toolbar, no
+  address bar, no way back.
+- Cause: the error page ("You don't have permissions to access this", `.message` icon
+  `error`) has no `#listing`, so `isListingView()` returned false and the patch removed the
+  toolbar + address bar. Its only remaining link (breadcrumb Home) jumps to `/`, not back.
+- Fix: `isListingView()` treats an error `.message` like an empty folder, so the nav stays
+  and the address bar's **← Back** (history.back → previous folder, verified) is available.
+  (The old comment guessed the icon was `gps_off`; the real one is `error`.)
+
+**Video/office open gesture on touch — double-tap, not single-tap.**
+- Symptom: a single tap on a video played it immediately.
+- Fix: touch now uses the same double-click detection as mouse — first tap falls through so
+  FileBrowser *selects* the file (it selects on a single tap on touch, verified), only a
+  second tap within the window opens it. Dropped the `IS_TOUCH` single-tap-opens branch.
