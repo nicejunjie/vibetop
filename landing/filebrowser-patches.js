@@ -797,8 +797,11 @@
 
   // FileBrowser can't preview office files — opening one lands on its "Preview
   // is not available" page. We open OUR viewer instead, and must do so on the
-  // SAME gesture FileBrowser uses so office files behave like every other type:
-  // single click only SELECTS, double-click opens (desktop); a tap opens (touch).
+  // SAME gesture FileBrowser uses so office/video files behave like every other
+  // type: a single click/tap only SELECTS; DOUBLE click/tap opens — ON TOUCH TOO.
+  // (A single tap must never play a video — the user wants tap = select, and only
+  // the second tap opens/plays. FileBrowser already selects a file on a single tap
+  // on touch, verified, so the first tap just falls through to it.)
   //
   // FileBrowser detects its double-click via plain click events, so we can't just
   // listen for "dblclick" (it fires too late — FileBrowser has already navigated,
@@ -806,7 +809,6 @@
   // double-click ourselves and block only the SECOND click (so FileBrowser never
   // opens), leaving the first click to select normally. A capture-phase dblclick
   // block is a belt-and-suspenders for any build that opens on the native event.
-  var IS_TOUCH = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
   function officeItem(e) {
     var item = e.target.closest("[aria-label]");
     if (!item || !item.hasAttribute("data-dir") || item.getAttribute("data-dir") === "true") return null;
@@ -853,9 +855,10 @@
   document.addEventListener("click", function(e) {
     var o = interceptItem(e);
     if (!o) return;
-    if (IS_TOUCH) { e.preventDefault(); e.stopPropagation(); o.open(o.name); return; }
+    // Touch takes the same path as mouse now: the first tap falls through so
+    // FileBrowser selects the file; only a second tap within the window opens it.
     var now = Date.now();
-    if (_click.item === o.item && now - _click.t < 450) {   // second click → open
+    if (_click.item === o.item && now - _click.t < 450) {   // second click/tap → open
       e.preventDefault(); e.stopPropagation();
       _click.item = null; _click.t = 0;
       o.open(o.name);
