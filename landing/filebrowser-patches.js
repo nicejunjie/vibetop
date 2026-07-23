@@ -242,15 +242,18 @@
   // Gate everything on the listing's own root id instead.
   function isListingView() {
     if (document.getElementById("listing")) return true;   // folder with items
-    // EMPTY folder: FileBrowser renders no #listing — just a .message empty-state
-    // (icon 'sentiment_dissatisfied'). We still want the toolbar + address bar there
-    // (it's exactly where you'd Paste into a new folder). An ERROR page also uses
-    // .message but with icon 'gps_off', so key on the icon (language-stable), not text.
-    var m = document.querySelector(".message");
-    if (m) {
-      var ic = m.querySelector("i.material-icons, .material-icons");
-      if (ic && (ic.textContent || "").indexOf("sentiment_dissatisfied") !== -1) return true;
-    }
+    // A `.message` view with no #listing is either an EMPTY folder (icon
+    // 'sentiment_dissatisfied') or an ERROR page — e.g. permission-denied ("You
+    // don't have permissions to access this", icon 'error'). Keep the nav (toolbar
+    // + address bar + breadcrumb) in BOTH: on an error page the address bar's ←
+    // Back is the only reliable way OUT of a folder you can't read (verified:
+    // history.back returns to the previous folder; the breadcrumb Home only jumps
+    // to '/'). Previously error pages fell through here and got stripped bare, so
+    // you were stranded. Exclude only the editor/previewer (they don't use
+    // .message anyway, but guard to be safe).
+    if (document.querySelector(".message") &&
+        !document.getElementById("editor-container") &&
+        !document.getElementById("previewer")) return true;
     return false;
   }
 
