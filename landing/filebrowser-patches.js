@@ -128,12 +128,18 @@
     "  header #dropdown { display: contents !important; }",
     // Each action = a centered icon-over-label cell.
     "  header .action, header #dropdown .action, header .action.fb-permanent { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: flex-start !important; gap: 1px !important; width: auto !important; min-width: 0 !important; max-width: none !important; height: auto !important; margin: 0 !important; padding: 3px 1px !important; border-radius: 6px !important; }",
-    "  header .action i, header .action.fb-permanent i { font-size: 18px !important; margin: 0 !important; padding: 0 !important; }",
-    "  header .action span:not(.counter), header .action.fb-permanent span:not(.counter) { font-size: 8px !important; line-height: 1.05 !important; text-align: center !important; max-width: 100% !important; white-space: normal !important; word-break: break-word !important; display: block !important; margin: 0 !important; }",
+    // Icon + label sizes must include the #dropdown selectors, else the base
+    // `header #dropdown .action {i,span}` rules (higher specificity, the #dropdown
+    // id) win and the native Upload/Info/Select render bigger than the rest — the
+    // "sizes aren't consistent" report. One size for every icon, one for every
+    // label; 9px labels (a touch bigger than before, using the spare row height)
+    // without wrapping "Download" at 8 columns.
+    "  header .action i, header .action.fb-permanent i, header #dropdown .action i { font-size: 20px !important; width: auto !important; height: auto !important; margin: 0 !important; padding: 0 !important; }",
+    "  header .action span:not(.counter), header .action.fb-permanent span:not(.counter), header #dropdown .action span:not(.counter) { font-size: 9px !important; line-height: 1.1 !important; text-align: center !important; max-width: 100% !important; white-space: normal !important; word-break: break-word !important; display: block !important; margin: 0 !important; }",
     // Relabel FB's verbose native "Toggle sidebar" to a clean "Menu"; Search keeps
     // its own label. (The sidebar holds My files / New folder / New file.)
     "  header .action.menu-button span:not(.counter) { display: none !important; }",
-    "  header .action.menu-button::after { content: \"Menu\"; font-size: 8px; line-height: 1.05; }",
+    "  header .action.menu-button::after { content: \"Menu\"; font-size: 9px; line-height: 1.1; }",
     // ALL buttons stay visible: GREY the disabled ones (don't hide them), so the
     // grid is stable and every action is discoverable; selecting a file lights the
     // selection actions up. (Overrides the desktop opacity/pointer-events rule.)
