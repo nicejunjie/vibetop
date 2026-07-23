@@ -188,7 +188,12 @@
     // grows to fill and is scrolled to its END (see updateAddressBar/revealPathTail)
     // so the current FOLDER is always visible even though it's narrower than
     // full-width. Just touch-sized padding here; no wrap.
-    "@media (max-width:736px){ #fb-addrbar { gap:6px; padding:8px 10px; } #fb-addrbar input { flex:1 1 auto; min-width:0; padding:9px 10px; font-size:14px; } #fb-addrbar .fb-nav-btn { min-width:44px; padding:9px 6px; } #fb-addrbar .fb-addr-btn { padding:9px 12px; } }",
+    // Single row, bulletproof: the [<][>] and Copy buttons NEVER shrink
+    // (flex:0 0 auto) and the input fills only the LEFTOVER (flex:1 1 0, basis 0)
+    // — so a long path can't grow the input's basis and shove the buttons off the
+    // right edge (real-iOS symptom: "address buttons gone, only the text box").
+    // Explicit nowrap so it can't wrap either.
+    "@media (max-width:736px){ #fb-addrbar { gap:6px; padding:8px 10px; flex-wrap:nowrap; } #fb-addrbar input { flex:1 1 0; min-width:0; width:auto; padding:9px 10px; font-size:14px; } #fb-addrbar .fb-nav-btn { flex:0 0 auto; min-width:44px; padding:9px 6px; } #fb-addrbar .fb-addr-btn { flex:0 0 auto; padding:9px 12px; } }",
     // Keep dotfiles out of LISTINGS (clean), while the server now ALLOWS access to
     // them (hideDotfiles is off server-side — see terminal-manager.py). FileBrowser
     // labels each listing item with aria-label=<filename>, so this hides names that
