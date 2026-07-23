@@ -117,11 +117,10 @@
     // previewer (they keep a fixed 4em header); unsupported browsers just keep the
     // old padding (dead space, no breakage).
     "  body:not(:has(#editor-container)):not(:has(#previewer)) { padding-top: 0 !important; }",
-    // Show FB's CLICKABLE breadcrumb (Home › folder › folder — each segment an
-    // <a> that navigates) and let it flow in-place: position:static so it sits
-    // where placeBreadcrumb() moves it (just above the address bar, i.e. below the
-    // toolbar) instead of sticky-hidden under the sticky toolbar. Wraps freely.
-    "  body:not(:has(#editor-container)):not(:has(#previewer)) .breadcrumbs { display: flex !important; position: static !important; top: auto !important; flex-wrap: wrap !important; height: auto !important; max-height: none !important; overflow: visible !important; padding: 8px 12px !important; }",
+    // Hide FileBrowser's native (Vue) breadcrumb on mobile — we render our OWN
+    // clickable #fb-crumbs (buildCrumbs) instead, because moving the Vue node made
+    // it vanish intermittently. Desktop keeps FB's native breadcrumb.
+    "  body:not(:has(#editor-container)):not(:has(#previewer)) .breadcrumbs { display: none !important; }",
     // FB renders a literal <title> element inside the header as a flex-grow spacer.
     "  header > title { display: none !important; }",
     // display:contents dissolves the #dropdown box so its buttons become grid
@@ -174,6 +173,15 @@
     // field (FileBrowser only shows a breadcrumb of links). Sits at the top of
     // the listing; Enter navigates, Copy copies. Theme-agnostic (color:inherit).
     "#fb-addrbar { display:flex; align-items:center; gap:6px; padding:6px 10px; box-sizing:border-box; width:100%; border-bottom:1px solid rgba(128,128,128,0.25); }",
+    // Our own clickable breadcrumb (mobile only; desktop uses FileBrowser's native
+    // one). A wrapping row of tappable segments above the address bar.
+    "#fb-crumbs { display:none; }",
+    "@media (max-width:736px){ #fb-crumbs { display:flex; flex-wrap:wrap; align-items:center; gap:2px 2px; padding:8px 12px; box-sizing:border-box; width:100%; border-bottom:1px solid rgba(128,128,128,0.25); color:inherit; } }",
+    "#fb-crumbs .fb-crumb { flex:0 0 auto; cursor:pointer; border:0; background:transparent; color:inherit; padding:5px 7px; border-radius:6px; font:15px system-ui,sans-serif; line-height:1.1; white-space:nowrap; }",
+    "#fb-crumbs .fb-crumb:active { background:rgba(128,128,128,0.18); }",
+    "#fb-crumbs .fb-crumb-home { padding:5px 6px; }",
+    "#fb-crumbs .fb-crumb-home i { font-size:20px; display:block; }",
+    "#fb-crumbs .fb-crumb-sep { flex:0 0 auto; opacity:0.45; font-size:15px; padding:0 1px; }",
     "#fb-addrbar input { flex:1 1 auto; min-width:0; font:13px ui-monospace,Menlo,Consolas,monospace; padding:6px 8px; border:1px solid rgba(128,128,128,0.45); border-radius:6px; background:rgba(128,128,128,0.06); color:inherit; }",
     "#fb-addrbar .fb-addr-btn { flex:0 0 auto; cursor:pointer; white-space:nowrap; border:1px solid rgba(128,128,128,0.45); border-radius:6px; background:transparent; color:inherit; padding:6px 10px; font:13px system-ui,sans-serif; }",
     // Browser-style Back/Forward arrows at the head of the address bar. Compact,
@@ -263,6 +271,7 @@
   function removeInjectedButtons() {
     document.querySelectorAll("header .fb-permanent").forEach(function(b) { b.remove(); });
     var ab = document.getElementById("fb-addrbar"); if (ab) ab.remove();
+    var cr = document.getElementById("fb-crumbs"); if (cr) cr.remove();
   }
 
   // Check if any item (file or folder) is selected
@@ -624,20 +633,49 @@
     anchor.parentNode.insertBefore(bar, anchor);
     requestAnimationFrame(function () { revealPathTail(input); });   // show the tail on first paint (mobile)
   }
-  // FileBrowser's clickable breadcrumb (Home › folder › folder, each an <a> that
-  // navigates) sits BEFORE the header in the DOM and is position:sticky, so with
-  // our sticky in-flow toolbar it renders UNDERNEATH the toolbar (invisible). Move
-  // it to sit right ABOVE the address bar — i.e. below the toolbar — where it's
-  // visible. The links keep working after the move (verified). The CSS un-hides it
-  // and makes it position:static so it flows here. Re-runs each patch cycle so a
-  // FileBrowser re-render can't strand it back under the toolbar.
-  function placeBreadcrumb() {
-    var bc = document.querySelector(".breadcrumbs");
-    var ab = document.getElementById("fb-addrbar");
-    if (!bc || !ab || !ab.parentNode) return;
-    if (ab.previousElementSibling !== bc) {
-      try { ab.parentNode.insertBefore(bc, ab); } catch (e) {}
+  // OWN clickable breadcrumb (mobile). FileBrowser's native breadcrumb is a
+  // Vue-managed node that sits BEFORE the header and is position:sticky — under our
+  // sticky toolbar it's hidden, and MOVING it in the DOM to fix that made Vue
+  // destroy it on the next re-render (the "clickable path bar vanished, again"
+  // bug — intermittent by nature). So on mobile we hide the native one and build
+  // our OWN `#fb-crumbs` here — a row of clickable segments (Home › a › b › c),
+  // each navigating via goToPath — placed just above the address bar (below the
+  // toolbar). Fully under our control, so a FileBrowser re-render can't strand it.
+  // Only rebuilt when the path changes. (Desktop keeps FileBrowser's own breadcrumb.)
+  function buildCrumbs() {
+    var anchor = document.getElementById("fb-addrbar");
+    if (!anchor || !anchor.parentNode) return;
+    var path = currentFullPath().replace(/\/+$/, "");
+    var crumbs = document.getElementById("fb-crumbs");
+    if (!crumbs) {
+      crumbs = document.createElement("div");
+      crumbs.id = "fb-crumbs";
+      anchor.parentNode.insertBefore(crumbs, anchor);
     }
+    if (crumbs.getAttribute("data-path") === path) return;   // unchanged — keep it
+    crumbs.setAttribute("data-path", path);
+    crumbs.textContent = "";
+    function crumb(label, target, home) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "fb-crumb" + (home ? " fb-crumb-home" : "");
+      if (home) b.innerHTML = '<i class="material-icons">home</i>';
+      else b.textContent = label;
+      b.title = target;
+      b.setAttribute("aria-label", home ? "Root /" : label);
+      b.addEventListener("click", function () { goToPath(target); });
+      return b;
+    }
+    crumbs.appendChild(crumb("", "/", true));
+    var acc = "";
+    path.split("/").filter(Boolean).forEach(function (seg) {
+      acc += "/" + seg;
+      var sep = document.createElement("span");
+      sep.className = "fb-crumb-sep";
+      sep.textContent = "›";   // ›
+      crumbs.appendChild(sep);
+      crumbs.appendChild(crumb(seg, acc, false));
+    });
   }
   function updateAddressBar() {
     var input = document.getElementById("fb-addr-input");
@@ -996,7 +1034,7 @@
     injectPermanentButtons();
     injectOfficeButtons();
     injectAddressBar();
-    placeBreadcrumb();
+    buildCrumbs();
     updatePermanentButtons();
     updateOfficeButtons();
     updateAddressBar();
