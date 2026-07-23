@@ -98,58 +98,55 @@
     "header #dropdown .action span:not(.counter) { display: block !important; font-size: 11px !important; line-height: 1.2 !important; text-align: center !important; padding: 0 !important; max-width: 60px !important; word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; }",
     "header #dropdown .action i { font-size: 20px !important; margin: 0 !important; padding: 2px !important; display: block !important; }",
     "header .fb-permanent.disabled { opacity: 0.25 !important; pointer-events: none !important; }",
-    // Mobile control bar — an IN-FLOW, WRAPPING, STICKY toolbar. The header is
-    // no longer position:fixed, so the content (breadcrumb / address bar /
-    // listing) always flows BELOW it no matter how many rows it wraps to — both
-    // failed designs are structurally impossible now: the fixed+wrap "taller
-    // header buries the address bar" bug AND the single-row horizontal scroll
-    // (buttons running off-screen). sticky (not static) keeps the toolbar
-    // visible while scrolling the listing; sticky is in-flow so it has the same
-    // no-overlap guarantee. Browse mode (no selection) shows few buttons -> ONE
-    // row on a 393px phone; selecting a file wraps to two compact rows, every
-    // button fully visible. Verified on WebKit (iOS engine) in both states.
+    // Mobile control bar — an even GRID (5 columns): every action is a uniform
+    // cell, icon OVER its text label, and ALL buttons stay visible (the ones that
+    // need a selection are greyed, never removed). Icon AND text kept, per the
+    // user's ask; the only change from desktop is the LAYOUT. The header is
+    // IN-FLOW + sticky (not position:fixed), so the content (breadcrumb / address
+    // bar / listing) always flows BELOW it — overlap is impossible — and a grid
+    // never needs horizontal scroll. This replaces the two rejected designs (a
+    // wrapped fixed header that buried the address bar; a single-row bar that ran
+    // buttons off-screen). #dropdown is display:contents so its native buttons
+    // (Upload/Info/Select) fall into the SAME grid as one flat set. Verified on
+    // WebKit (iOS engine): 15 cells, 3 rows, no overlap, no horizontal scroll.
     "@media (max-width: 736px) {",
-    "  header { position: sticky !important; top: 0 !important; left: auto !important; right: auto !important; z-index: 50 !important; width: auto !important; flex-wrap: wrap !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; align-items: center !important; row-gap: 0 !important; column-gap: 0 !important; padding: 2px 4px !important; background: var(--surfacePrimary, #fff) !important; border-bottom: 1px solid rgba(128,128,128,0.25) !important; box-shadow: none !important; }",
+    "  header { display: grid !important; grid-template-columns: repeat(5, 1fr) !important; gap: 4px 2px !important; align-items: start !important; position: sticky !important; top: 0 !important; z-index: 50 !important; width: auto !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; padding: 6px 6px !important; background: var(--surfacePrimary, #fff) !important; border-bottom: 1px solid rgba(128,128,128,0.25) !important; box-shadow: none !important; }",
     // The 64px body padding-top existed to clear the old FIXED header; with the
-    // header in-flow it is pure dead space above the breadcrumb — reclaim it.
-    // The text editor / media previewer keep a FIXED 4em header (below) and
-    // hard-code their own padding-top:4em clearance, so only zero the body
-    // padding when neither is mounted. :has() needs WebKit 15.4+/modern —
-    // unsupported browsers just keep the old padding (dead space, no breakage).
+    // header in-flow it is dead space — reclaim it. :has() guards the editor /
+    // previewer (they keep a fixed 4em header); unsupported browsers just keep the
+    // old padding (dead space, no breakage).
     "  body:not(:has(#editor-container)):not(:has(#previewer)) { padding-top: 0 !important; }",
-    // FileBrowser's breadcrumb bar is sticky at top:4em (tuned to sit under the
-    // old FIXED header) — with the header in-flow that pins it OVER our toolbar.
-    // Let it flow normally above the toolbar and scroll away.
+    // FB's breadcrumb is sticky at top:4em (tuned to the old FIXED header); with
+    // the header in-flow that would pin it OVER the toolbar. Let it flow normally.
     "  body:not(:has(#editor-container)):not(:has(#previewer)) .breadcrumbs { position: static !important; top: auto !important; }",
-    // FB renders a literal <title> element inside the header as a flex-grow:1
-    // spacer — it splits the single row in half; hide it so the buttons pack.
+    // FB renders a literal <title> element inside the header as a flex-grow spacer.
     "  header > title { display: none !important; }",
-    // The text editor (#editor-container) and media previewer (#previewer)
-    // hard-code `padding-top: 4em` to clear a FIXED 4em header — keep theirs
-    // fixed + single row (their few buttons fit; ours are removed there).
-    "  #editor-container header, #previewer header { position: fixed !important; top: 0 !important; flex-wrap: nowrap !important; height: 4em !important; min-height: 0 !important; max-height: none !important; padding: 0 0.5em !important; row-gap: 0 !important; border-bottom: none !important; }",
-    "  header #dropdown { display: flex !important; flex-wrap: wrap !important; position: static !important; visibility: visible !important; opacity: 1 !important; transform: none !important; box-shadow: none !important; background: transparent !important; height: auto !important; max-height: none !important; row-gap: 0 !important; column-gap: 0 !important; padding: 0 !important; }",
-    "  header .action, header .action.fb-permanent { flex: 0 0 auto !important; }",
-    // Slightly tighter buttons so the full browse-mode set fits one 393px-phone
-    // row (the header's parent column is ~361px wide). Labels keep the buttons
-    // comfortably tappable (~40px+).
-    "  header .action, header #dropdown .action, header .action.fb-permanent { padding-left: 4px !important; padding-right: 4px !important; }",
-    // Contextual: on mobile HIDE (not just grey) any action that needs a
-    // selection/clipboard, so the browse toolbar is short; the same .disabled
-    // toggle the app already drives on selection then reveals them. Desktop keeps
-    // the greyed-out treatment (the non-media rule above).
-    "  header .fb-permanent.disabled { display: none !important; }",
-    // The natives hideVueButtons squashes (inline position:absolute;width:0;
-    // opacity:0) are invisible but still tappable phantoms — fully hide them on
-    // mobile (display:none still lets clickVueButton's programmatic .click() work).
-    "  header .action:not(.fb-permanent)[style*=\"opacity: 0\"] { display: none !important; }",
-    // The office Edit button hides itself with a plain inline display:none, which
-    // the base `display: inline-flex !important` rule above overrides — let the
-    // inline hide win on mobile so a stray Edit doesn't show for non-office files.
+    // display:contents dissolves the #dropdown box so its buttons become grid
+    // cells of the header itself (one flat, uniform set).
+    "  header #dropdown { display: contents !important; }",
+    // Each action = a centered icon-over-label cell.
+    "  header .action, header #dropdown .action, header .action.fb-permanent { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: flex-start !important; gap: 3px !important; width: auto !important; min-width: 0 !important; max-width: none !important; height: auto !important; margin: 0 !important; padding: 6px 2px !important; border-radius: 8px !important; }",
+    "  header .action i, header .action.fb-permanent i { font-size: 21px !important; margin: 0 !important; padding: 0 !important; }",
+    "  header .action span:not(.counter), header .action.fb-permanent span:not(.counter) { font-size: 10px !important; line-height: 1.1 !important; text-align: center !important; max-width: 100% !important; white-space: normal !important; word-break: break-word !important; display: block !important; margin: 0 !important; }",
+    // Relabel FB's verbose native "Toggle sidebar" to a clean "Menu"; Search keeps
+    // its own label. (The sidebar holds My files / New folder / New file.)
+    "  header .action.menu-button span:not(.counter) { display: none !important; }",
+    "  header .action.menu-button::after { content: \"Menu\"; font-size: 10px; line-height: 1.1; }",
+    // ALL buttons stay visible: GREY the disabled ones (don't hide them), so the
+    // grid is stable and every action is discoverable; selecting a file lights the
+    // selection actions up. (Overrides the desktop opacity/pointer-events rule.)
+    "  header .fb-permanent.disabled { display: flex !important; opacity: 0.3 !important; pointer-events: none !important; }",
+    // Drop the squashed native duplicates (hideVueButtons -> inline
+    // position:absolute; Switch view, native Download) so they don't linger as
+    // invisible, tappable phantoms overlapping the grid.
+    "  header #dropdown .action[style*=\"position:absolute\"], header #dropdown .action[style*=\"position: absolute\"] { display: none !important; }",
+    // The office Edit button hides itself via inline display:none — let that win.
     "  header .fb-office[style*=\"display: none\"] { display: none !important; }",
-    // Hide FileBrowser's "..." / more-actions trigger so the dropdown buttons
-    // stay flattened into the header instead of being a popup.
+    // Hide FileBrowser's "..." / more-actions trigger (every action is in the grid).
     "  header > .action[aria-haspopup], header .action.show-more, header > .action.more, header > .action[title=\"More\"], header > .action[aria-label=\"More\"] { display: none !important; }",
+    // Editor / previewer keep a FIXED single-row 4em header (grid off) since they
+    // hard-code padding-top:4em clearance and only carry a few buttons.
+    "  #editor-container header, #previewer header { display: flex !important; grid-template-columns: none !important; position: fixed !important; top: 0 !important; flex-wrap: nowrap !important; height: 4em !important; min-height: 0 !important; max-height: none !important; padding: 0 0.5em !important; border-bottom: none !important; }",
     "  main { margin-top: 0 !important; padding-top: 0 !important; }",
     "}",
     // Hide FileBrowser's selection-action popups: #file-selection is the
