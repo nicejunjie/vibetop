@@ -176,11 +176,14 @@
     // Our own clickable breadcrumb (mobile only; desktop uses FileBrowser's native
     // one). A wrapping row of tappable segments above the address bar.
     "#fb-crumbs { display:none; }",
-    "@media (max-width:736px){ #fb-crumbs { display:flex; flex-wrap:wrap; align-items:center; gap:2px 2px; padding:8px 12px; box-sizing:border-box; width:100%; border-bottom:1px solid rgba(128,128,128,0.25); color:inherit; } }",
+    // ONE line: nowrap + overflow:hidden so _fitCrumbs can measure overflow and
+    // collapse the middle to '…'.
+    "@media (max-width:736px){ #fb-crumbs { display:flex; flex-wrap:nowrap; overflow:hidden; white-space:nowrap; align-items:center; gap:0 2px; padding:8px 12px; box-sizing:border-box; width:100%; border-bottom:1px solid rgba(128,128,128,0.25); color:inherit; } }",
     "#fb-crumbs .fb-crumb { flex:0 0 auto; cursor:pointer; border:0; background:transparent; color:inherit; padding:5px 7px; border-radius:6px; font:15px system-ui,sans-serif; line-height:1.1; white-space:nowrap; }",
     "#fb-crumbs .fb-crumb:active { background:rgba(128,128,128,0.18); }",
     "#fb-crumbs .fb-crumb-home { padding:5px 6px; }",
     "#fb-crumbs .fb-crumb-home i { font-size:20px; display:block; }",
+    "#fb-crumbs .fb-crumb-cur { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }",
     "#fb-crumbs .fb-crumb-sep { flex:0 0 auto; opacity:0.45; font-size:15px; padding:0 1px; }",
     "#fb-addrbar input { flex:1 1 auto; min-width:0; font:13px ui-monospace,Menlo,Consolas,monospace; padding:6px 8px; border:1px solid rgba(128,128,128,0.45); border-radius:6px; background:rgba(128,128,128,0.06); color:inherit; }",
     "#fb-addrbar .fb-addr-btn { flex:0 0 auto; cursor:pointer; white-space:nowrap; border:1px solid rgba(128,128,128,0.45); border-radius:6px; background:transparent; color:inherit; padding:6px 10px; font:13px system-ui,sans-serif; }",
@@ -642,6 +645,62 @@
   // each navigating via goToPath — placed just above the address bar (below the
   // toolbar). Fully under our control, so a FileBrowser re-render can't strand it.
   // Only rebuilt when the path changes. (Desktop keeps FileBrowser's own breadcrumb.)
+  var _crumbResizeBound = false;
+  function _crumbBtn(label, target, home) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "fb-crumb" + (home ? " fb-crumb-home" : "");
+    if (home) b.innerHTML = '<i class="material-icons">home</i>';
+    else b.textContent = label;
+    b.title = target;
+    b.setAttribute("aria-label", home ? "Root /" : label);
+    b.addEventListener("click", function () { goToPath(target); });
+    return b;
+  }
+  function _crumbSep() {
+    var s = document.createElement("span");
+    s.className = "fb-crumb-sep";
+    s.textContent = "›";   // ›
+    return s;
+  }
+  function _crumbEllipsis(target) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "fb-crumb fb-crumb-ellipsis";
+    b.textContent = "…";   // …
+    b.title = target;
+    b.setAttribute("aria-label", "Hidden folders — tap to go up");
+    b.addEventListener("click", function () { goToPath(target); });   // walk up into the collapsed part
+    return b;
+  }
+  // Render Home [› …] › <the last (segs.length-hide) segments>. `hide` = how many
+  // leading segments (after Home) to collapse behind the … (which itself links to
+  // the deepest hidden folder, so tapping it walks up).
+  function _renderCrumbs(crumbs, segs, hide) {
+    crumbs.textContent = "";
+    crumbs.appendChild(_crumbBtn("", "/", true));
+    if (hide > 0) {
+      crumbs.appendChild(_crumbSep());
+      crumbs.appendChild(_crumbEllipsis(segs[hide - 1].target));
+    }
+    for (var i = hide; i < segs.length; i++) {
+      crumbs.appendChild(_crumbSep());
+      var b = _crumbBtn(segs[i].label, segs[i].target, false);
+      if (i === segs.length - 1) b.classList.add("fb-crumb-cur");   // current folder — allowed to ellipsize if huge
+      crumbs.appendChild(b);
+    }
+  }
+  // ONE line always: collapse the fewest leading segments so it fits (… in the
+  // middle). Home and the current folder always stay; readable + space-saving.
+  function _fitCrumbs(crumbs, segs) {
+    if (crumbs.clientWidth < 10) { requestAnimationFrame(function () { _fitCrumbs(crumbs, segs); }); return; }
+    for (var hide = 0; hide <= Math.max(0, segs.length - 1); hide++) {
+      _renderCrumbs(crumbs, segs, hide);
+      if (crumbs.scrollWidth <= crumbs.clientWidth + 1) return;   // fits on one line
+    }
+    // even Home › … › current overflows (a very long current name) — leave it;
+    // .fb-crumb-cur is overflow:hidden;text-overflow:ellipsis so it clips cleanly.
+  }
   function buildCrumbs() {
     var anchor = document.getElementById("fb-addrbar");
     if (!anchor || !anchor.parentNode) return;
@@ -652,30 +711,19 @@
       crumbs.id = "fb-crumbs";
       anchor.parentNode.insertBefore(crumbs, anchor);
     }
+    if (!_crumbResizeBound) {   // re-fit on rotation / width change
+      _crumbResizeBound = true;
+      window.addEventListener("resize", function () {
+        var c = document.getElementById("fb-crumbs");
+        if (c && c._segs) _fitCrumbs(c, c._segs);
+      });
+    }
     if (crumbs.getAttribute("data-path") === path) return;   // unchanged — keep it
     crumbs.setAttribute("data-path", path);
-    crumbs.textContent = "";
-    function crumb(label, target, home) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "fb-crumb" + (home ? " fb-crumb-home" : "");
-      if (home) b.innerHTML = '<i class="material-icons">home</i>';
-      else b.textContent = label;
-      b.title = target;
-      b.setAttribute("aria-label", home ? "Root /" : label);
-      b.addEventListener("click", function () { goToPath(target); });
-      return b;
-    }
-    crumbs.appendChild(crumb("", "/", true));
-    var acc = "";
-    path.split("/").filter(Boolean).forEach(function (seg) {
-      acc += "/" + seg;
-      var sep = document.createElement("span");
-      sep.className = "fb-crumb-sep";
-      sep.textContent = "›";   // ›
-      crumbs.appendChild(sep);
-      crumbs.appendChild(crumb(seg, acc, false));
-    });
+    var segs = [], acc = "";
+    path.split("/").filter(Boolean).forEach(function (seg) { acc += "/" + seg; segs.push({ label: seg, target: acc }); });
+    crumbs._segs = segs;
+    _fitCrumbs(crumbs, segs);
   }
   function updateAddressBar() {
     var input = document.getElementById("fb-addr-input");
