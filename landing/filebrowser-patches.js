@@ -111,7 +111,7 @@
     // WebKit (iOS engine): 15 cells, 2 rows (~89px), no overlap, no horiz scroll.
     // 8 columns keeps it to TWO rows so the toolbar doesn't eat the screen.
     "@media (max-width: 736px) {",
-    "  header { display: grid !important; grid-template-columns: repeat(8, 1fr) !important; gap: 2px 1px !important; align-items: start !important; position: sticky !important; top: 0 !important; z-index: 50 !important; width: auto !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; padding: 4px 4px !important; background: var(--surfacePrimary, #fff) !important; border-bottom: 1px solid rgba(128,128,128,0.25) !important; box-shadow: none !important; }",
+    "  header { display: grid !important; grid-template-columns: repeat(8, 1fr) !important; gap: 4px 0 !important; align-items: start !important; position: sticky !important; top: 0 !important; z-index: 50 !important; width: auto !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; padding: 6px 2px !important; background: var(--surfacePrimary, #fff) !important; border-bottom: 1px solid rgba(128,128,128,0.25) !important; box-shadow: none !important; }",
     // The 64px body padding-top existed to clear the old FIXED header; with the
     // header in-flow it is dead space — reclaim it. :has() guards the editor /
     // previewer (they keep a fixed 4em header); unsupported browsers just keep the
@@ -127,19 +127,20 @@
     // cells of the header itself (one flat, uniform set).
     "  header #dropdown { display: contents !important; }",
     // Each action = a centered icon-over-label cell.
-    "  header .action, header #dropdown .action, header .action.fb-permanent { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: flex-start !important; gap: 1px !important; width: auto !important; min-width: 0 !important; max-width: none !important; height: auto !important; margin: 0 !important; padding: 3px 1px !important; border-radius: 6px !important; }",
-    // Icon + label sizes must include the #dropdown selectors, else the base
-    // `header #dropdown .action {i,span}` rules (higher specificity, the #dropdown
-    // id) win and the native Upload/Info/Select render bigger than the rest — the
-    // "sizes aren't consistent" report. One size for every icon, one for every
-    // label; 9px labels (a touch bigger than before, using the spare row height)
-    // without wrapping "Download" at 8 columns.
-    "  header .action i, header .action.fb-permanent i, header #dropdown .action i { font-size: 20px !important; width: auto !important; height: auto !important; margin: 0 !important; padding: 0 !important; }",
-    "  header .action span:not(.counter), header .action.fb-permanent span:not(.counter), header #dropdown .action span:not(.counter) { font-size: 9px !important; line-height: 1.1 !important; text-align: center !important; max-width: 100% !important; white-space: normal !important; word-break: break-word !important; display: block !important; margin: 0 !important; }",
+    "  header .action, header #dropdown .action, header .action.fb-permanent { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: flex-start !important; gap: 2px !important; width: auto !important; min-width: 0 !important; max-width: none !important; height: auto !important; margin: 0 !important; padding: 4px 0 !important; border-radius: 6px !important; }",
+    // Icon + label sizes MUST include the #dropdown selectors, else the base
+    // `header #dropdown .action {i,span}` rules (higher specificity via the
+    // #dropdown id) win and the native Upload/Info/Select render bigger than the
+    // rest — the "sizes aren't consistent" report. One size for every icon, one
+    // for every label. Sized up to use the spare row height (icons 24, labels 10);
+    // labels are white-space:nowrap with slight negative letter-spacing so the
+    // longest ("Download") stays ONE line at 8 columns instead of wrapping.
+    "  header .action i, header .action.fb-permanent i, header #dropdown .action i { font-size: 24px !important; width: auto !important; height: auto !important; margin: 0 !important; padding: 0 !important; }",
+    "  header .action span:not(.counter), header .action.fb-permanent span:not(.counter), header #dropdown .action span:not(.counter) { font-size: 10px !important; line-height: 1.15 !important; letter-spacing: -0.3px !important; text-align: center !important; max-width: 100% !important; white-space: nowrap !important; word-break: normal !important; overflow: visible !important; display: block !important; margin: 0 !important; }",
     // Relabel FB's verbose native "Toggle sidebar" to a clean "Menu"; Search keeps
     // its own label. (The sidebar holds My files / New folder / New file.)
     "  header .action.menu-button span:not(.counter) { display: none !important; }",
-    "  header .action.menu-button::after { content: \"Menu\"; font-size: 9px; line-height: 1.1; }",
+    "  header .action.menu-button::after { content: \"Menu\"; font-size: 10px; line-height: 1.15; letter-spacing: -0.3px; white-space: nowrap; }",
     // ALL buttons stay visible: GREY the disabled ones (don't hide them), so the
     // grid is stable and every action is discoverable; selecting a file lights the
     // selection actions up. (Overrides the desktop opacity/pointer-events rule.)
