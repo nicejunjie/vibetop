@@ -117,10 +117,11 @@
     // previewer (they keep a fixed 4em header); unsupported browsers just keep the
     // old padding (dead space, no breakage).
     "  body:not(:has(#editor-container)):not(:has(#previewer)) { padding-top: 0 !important; }",
-    // Hide FB's breadcrumb on mobile: its path duplicates the editable address bar
-    // right below the toolbar, and removing it puts the TOOLBAR at the very top
-    // (the breadcrumb otherwise renders above it). One path display, toolbar on top.
-    "  body:not(:has(#editor-container)):not(:has(#previewer)) .breadcrumbs { display: none !important; }",
+    // Show FB's CLICKABLE breadcrumb (Home › folder › folder — each segment an
+    // <a> that navigates) and let it flow in-place: position:static so it sits
+    // where placeBreadcrumb() moves it (just above the address bar, i.e. below the
+    // toolbar) instead of sticky-hidden under the sticky toolbar. Wraps freely.
+    "  body:not(:has(#editor-container)):not(:has(#previewer)) .breadcrumbs { display: flex !important; position: static !important; top: auto !important; flex-wrap: wrap !important; height: auto !important; max-height: none !important; overflow: visible !important; padding: 8px 12px !important; }",
     // FB renders a literal <title> element inside the header as a flex-grow spacer.
     "  header > title { display: none !important; }",
     // display:contents dissolves the #dropdown box so its buttons become grid
@@ -620,6 +621,21 @@
     anchor.parentNode.insertBefore(bar, anchor);
     requestAnimationFrame(function () { revealPathTail(input); });   // show the tail on first paint (mobile)
   }
+  // FileBrowser's clickable breadcrumb (Home › folder › folder, each an <a> that
+  // navigates) sits BEFORE the header in the DOM and is position:sticky, so with
+  // our sticky in-flow toolbar it renders UNDERNEATH the toolbar (invisible). Move
+  // it to sit right ABOVE the address bar — i.e. below the toolbar — where it's
+  // visible. The links keep working after the move (verified). The CSS un-hides it
+  // and makes it position:static so it flows here. Re-runs each patch cycle so a
+  // FileBrowser re-render can't strand it back under the toolbar.
+  function placeBreadcrumb() {
+    var bc = document.querySelector(".breadcrumbs");
+    var ab = document.getElementById("fb-addrbar");
+    if (!bc || !ab || !ab.parentNode) return;
+    if (ab.previousElementSibling !== bc) {
+      try { ab.parentNode.insertBefore(bc, ab); } catch (e) {}
+    }
+  }
   function updateAddressBar() {
     var input = document.getElementById("fb-addr-input");
     if (!input || document.activeElement === input) return;   // don't clobber mid-type
@@ -977,6 +993,7 @@
     injectPermanentButtons();
     injectOfficeButtons();
     injectAddressBar();
+    placeBreadcrumb();
     updatePermanentButtons();
     updateOfficeButtons();
     updateAddressBar();
