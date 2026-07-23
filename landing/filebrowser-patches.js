@@ -117,9 +117,10 @@
     // previewer (they keep a fixed 4em header); unsupported browsers just keep the
     // old padding (dead space, no breakage).
     "  body:not(:has(#editor-container)):not(:has(#previewer)) { padding-top: 0 !important; }",
-    // FB's breadcrumb is sticky at top:4em (tuned to the old FIXED header); with
-    // the header in-flow that would pin it OVER the toolbar. Let it flow normally.
-    "  body:not(:has(#editor-container)):not(:has(#previewer)) .breadcrumbs { position: static !important; top: auto !important; }",
+    // Hide FB's breadcrumb on mobile: its path duplicates the editable address bar
+    // right below the toolbar, and removing it puts the TOOLBAR at the very top
+    // (the breadcrumb otherwise renders above it). One path display, toolbar on top.
+    "  body:not(:has(#editor-container)):not(:has(#previewer)) .breadcrumbs { display: none !important; }",
     // FB renders a literal <title> element inside the header as a flex-grow spacer.
     "  header > title { display: none !important; }",
     // display:contents dissolves the #dropdown box so its buttons become grid
@@ -174,13 +175,13 @@
     "#fb-addrbar .fb-nav-btn { padding:6px; min-width:40px; display:inline-flex; align-items:center; justify-content:center; }",
     "#fb-addrbar .fb-nav-btn .material-icons { font-size:19px; line-height:1; }",
     "#fb-addrbar .fb-nav-btn:active { background:rgba(128,128,128,0.14); }",
-    // Mobile: a narrow phone can't fit [<][>][path][Copy] on one row without
-    // starving the path field (it truncated to the useless head "/home/junjie/…").
-    // So on ≤736px the bar WRAPS: the path input takes a full-width first row
-    // (order:-1, flex-basis:100%) and the controls [<][>] … [Copy] sit on a compact
-    // second row (Copy pushed right). The input is also scrolled to its END on
-    // mobile (see updateAddressBar) so the current FOLDER is what's visible.
-    "@media (max-width:736px){ #fb-addrbar { gap:8px; padding:8px 10px; flex-wrap:wrap; } #fb-addrbar input { order:-1; flex:1 1 100%; padding:9px 10px; font-size:14px; } #fb-addrbar .fb-nav-btn { min-width:46px; padding:9px 6px; } #fb-addrbar .fb-addr-btn { padding:9px 14px; } #fb-addrbar .fb-copy-btn { margin-left:auto; } }",
+    // Mobile: keep the address bar on ONE row — [<][>][ path ][Copy] together —
+    // directly beneath the toolbar (the breadcrumb is hidden on mobile, so the
+    // toolbar is the top element and this bar sits right under it). The path field
+    // grows to fill and is scrolled to its END (see updateAddressBar/revealPathTail)
+    // so the current FOLDER is always visible even though it's narrower than
+    // full-width. Just touch-sized padding here; no wrap.
+    "@media (max-width:736px){ #fb-addrbar { gap:6px; padding:8px 10px; } #fb-addrbar input { flex:1 1 auto; min-width:0; padding:9px 10px; font-size:14px; } #fb-addrbar .fb-nav-btn { min-width:44px; padding:9px 6px; } #fb-addrbar .fb-addr-btn { padding:9px 12px; } }",
     // Keep dotfiles out of LISTINGS (clean), while the server now ALLOWS access to
     // them (hideDotfiles is off server-side — see terminal-manager.py). FileBrowser
     // labels each listing item with aria-label=<filename>, so this hides names that
