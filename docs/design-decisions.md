@@ -511,6 +511,48 @@ location looks correctly configured).
   - Masking `xdg-desktop-portal` globally: would affect a physical GNOME login
     on the host (if any). The private bus is isolated to launcher apps.
 
+## The private X11 D-Bus bus was silently 100%-broken (two config bugs) + a measurement trap
+
+- **Symptom (reported):** "evince opens really slowly again; long after the terminal
+  command the X11 window appears — it was solved before, and I remember something had
+  to stay pinned running in the background." The multi-user migration moved the fix
+  from the shared `:98` display to a per-user `_ensure_user_x11_dbus` bus.
+- **What was actually broken:** `_ensure_user_x11_dbus` could **never start the bus** —
+  every launch silently fell back to the real user bus. Two independent config bugs:
+  1. **`--` inside an XML comment.** `browser/dbus/x11-dbus.conf`'s comment described
+     the flags as `--config-file … --nofork …`. XML forbids `--` in comments, so
+     **expat rejected the entire file** → `dbus[…]: Failed to start message bus: Error
+     in file …x11-dbus.conf, line 4: not well-formed (invalid token)`. The whole config
+     is dead over two literal hyphens in a *comment*.
+  2. **`--address` is ignored when `--config-file` is given (dbus 1.16).** Even with the
+     XML fixed, dbus-daemon errors `Configuration file needs one or more <listen>
+     elements giving addresses`. dbus 1.16 does **not** honor the `--address=…` CLI flag
+     alongside `--config-file`; the listen address must be a `<listen>` element **inside**
+     the config. Since the socket path is per-user, the manager now **renders a per-user
+     config** (`/run/user/<uid>/vibetop-x11-dbus.conf` = the shared policy template with
+     `<listen>unix:path=…/vibetop-x11-bus</listen>` injected after `<busconfig>`) and
+     starts `dbus-daemon --config-file=<that>` with **no** `--address`. Also
+     `systemctl reset-failed` before `systemd-run` so a prior failed unit can be reused.
+- **The measurement trap (why the panic was overstated):** the whole time, evince/eog
+  actually mapped in **~0.5s** on *both* buses — I could not reproduce a 25–33s hang.
+  The "31s" readings were a **broken test harness**: `wmctrl -l | grep -qi evince` in a
+  poll loop **never matches**, because evince's window *title* is the document name
+  (`t.pdf`), not "evince" — so the loop always ran to its ~30s cap and reported a
+  phantom hang. A single `wmctrl` is 0.005s and `xterm` maps in 0.5s; the display was
+  never slow. **Lesson: measure GUI-app launch with `xdotool search --sync --class …`
+  (blocks until the window truly maps), never by grepping `wmctrl` titles.** This is
+  now in the QA charter.
+- **Net:** the private-bus mechanism is repaired so it genuinely fast-fails portal/a11y
+  (verified: eog logs `org.a11y.Bus … ServiceUnknown` in 0.0s on it) — the guard for if
+  the portal-hang condition recurs — but on the current host neither bus is slow. Two
+  static tests now lock both bugs shut: `test_xml_config_files_are_well_formed` (the
+  `--`-comment class) and `test_x11_dbus_template_ready_for_listen_injection` (the
+  rendered per-user config parses, has `<listen>` + `<type>`, and no `<servicedir>`).
+- **Also seen (latent, cleaned):** two `ibus-daemon --xim --replace` were running at once
+  for the user (a broken half-replaced state) plus hundreds of stale `~/.cache/ibus/dbus-*`
+  sockets. Not the cause (evince is 0.5s with ibus alive *and* dead), but unhealthy —
+  worth watching if intermittent slowness ever returns.
+
 ## Snap apps (Firefox/Chromium) won't open the X11 display
 
 - **Symptom:** `firefox` from the launcher did nothing; log showed

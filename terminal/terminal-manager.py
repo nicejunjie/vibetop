@@ -1725,12 +1725,38 @@ def _ensure_user_x11_dbus(user, uid, gid):
     if not os.path.exists(X11_DBUS_CONF):
         return None                      # config not deployed (e.g. --no-browser) -> real bus
     _provision_user(user)                # linger -> /run/user/<uid> exists
+    # dbus-daemon (1.16) IGNORES --address when --config-file is given: it requires a
+    # <listen> element INSIDE the config ("Configuration file needs one or more
+    # <listen> elements"). The socket path is per-user, so render a per-user config =
+    # the shared policy template with <listen> injected, and point --config-file at it
+    # (no --address). Ephemeral, co-located with the socket in the tmpfs runtime dir.
+    try:
+        tpl = open(X11_DBUS_CONF, "r", encoding="utf-8").read()
+    except OSError as e:
+        log.warning("x11 private dbus: cannot read %s: %s", X11_DBUS_CONF, e)
+        return None
+    if "<busconfig>" not in tpl:
+        log.warning("x11 private dbus: %s missing <busconfig>", X11_DBUS_CONF)
+        return None
+    per_user_conf = f"/run/user/{uid}/vibetop-x11-dbus.conf"
+    rendered = tpl.replace("<busconfig>",
+                           f"<busconfig>\n  <listen>unix:path={sock}</listen>", 1)
+    try:
+        with open(per_user_conf, "w", encoding="utf-8") as f:
+            f.write(rendered)
+        os.chmod(per_user_conf, 0o644)   # root-written into the user's 0700 dir; user must read it
+    except OSError as e:
+        log.warning("x11 private dbus: cannot write %s: %s", per_user_conf, e)
+        return None
+    # Clear any prior failed unit (e.g. an earlier bad config) so systemd-run can reuse the name.
+    subprocess.run(["systemctl", "reset-failed", unit],
+                   capture_output=True, text=True)
     try:
         r = subprocess.run(
             ["systemd-run", "--collect", f"--uid={user}", f"--gid={gid}", f"--unit={unit}",
              "--setenv", f"XDG_RUNTIME_DIR=/run/user/{uid}",
              "/usr/bin/dbus-daemon", "--nofork", "--nopidfile",
-             f"--config-file={X11_DBUS_CONF}", f"--address=unix:path={sock}"],
+             f"--config-file={per_user_conf}"],
             capture_output=True, text=True, timeout=20)
     except (OSError, subprocess.SubprocessError) as e:
         log.warning("x11 private dbus start failed for %s: %s", user, e)

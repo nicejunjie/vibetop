@@ -82,7 +82,18 @@ check the real behaviour.
    the X11 Launcher); the window must appear almost immediately. A ~25s stall means
    a GNOME/GTK app is on the real session bus and hanging on the xdg-desktop-portal/
    at-spi activation timeout — it must use the **private, activation-free D-Bus bus**
-   (`_ensure_user_x11_dbus`). Guarded by `test_x_launch_gnome_app_uses_private_*`.
+   (`_ensure_user_x11_dbus`). Guarded by `test_x_launch_gnome_app_uses_private_*` and
+   two static config guards (`test_xml_config_files_are_well_formed`,
+   `test_x11_dbus_template_ready_for_listen_injection` — the private bus was once
+   silently 100%-broken by a `--` in an XML comment *and* a missing `<listen>`; see
+   `docs/design-decisions.md`). **MEASURE IT RIGHT:** time to window with
+   `DISPLAY=:<n> xdotool search --sync --class '[Ee]vince'` (blocks until the window
+   truly maps). **Do NOT** poll `wmctrl -l | grep evince` — evince's window *title* is
+   the document name, not "evince", so that loop never matches and reports a phantom
+   ~30s "hang" when the app was actually 0.5s. Cross-check X liveness first: one
+   `wmctrl -l` should return in <10ms and `xterm` should map in <1s.
+   Verify on the **private bus** the a11y lookup fast-fails (eog stderr:
+   `org.a11y.Bus … ServiceUnknown` in 0.0s), not a 25s timeout.
 2. **Chinese / IME input in the mobile terminal.** Type pinyin (e.g. `shou ji`), watch
    the candidate bar, select 手机 — the shell must show **只有 手机**, never the raw
    `shou ji` mid-composition. Guarded by `terminal/lib/kbd-input.test.js`, but IME
