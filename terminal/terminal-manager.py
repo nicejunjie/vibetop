@@ -1748,9 +1748,12 @@ def _ensure_user_x11_dbus(user, uid, gid):
     except OSError as e:
         log.warning("x11 private dbus: cannot write %s: %s", per_user_conf, e)
         return None
-    # Clear any prior failed unit (e.g. an earlier bad config) so systemd-run can reuse the name.
-    subprocess.run(["systemctl", "reset-failed", unit],
-                   capture_output=True, text=True)
+    # We reach here only when the unit isn't healthy (not active, or active but the
+    # socket is gone — a stale/broken daemon holding the name). systemd-run can't reuse
+    # the name of an ACTIVE unit and reset-failed only clears FAILED ones, so stop first
+    # (covers the orphaned-daemon case), then reset-failed (covers the failed-config case).
+    subprocess.run(["systemctl", "stop", unit], capture_output=True, text=True)
+    subprocess.run(["systemctl", "reset-failed", unit], capture_output=True, text=True)
     try:
         r = subprocess.run(
             ["systemd-run", "--collect", f"--uid={user}", f"--gid={gid}", f"--unit={unit}",
