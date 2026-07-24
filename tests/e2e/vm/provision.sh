@@ -33,8 +33,20 @@ rsync -a --delete --exclude 'tests/e2e/node_modules' --exclude '.git' \
   /home/vagrant/vibetop/ /home/$E2E_USER/vibetop/
 chown -R "$E2E_USER:$E2E_USER" /home/$E2E_USER/vibetop
 
-echo "== deploy the lean stack as the e2e user =="
-sudo -u "$E2E_USER" bash -lc 'cd ~/vibetop && ./deploy.sh --no-browser --no-office' \
+# X11 test apps (xlogo/xeyes/…) for the X11-lifecycle spec. Cheap (~2 MB) and
+# harmless on the lean VM; the spec self-skips when the X11 stack isn't deployed.
+apt-get install -y x11-apps >/dev/null 2>&1 || echo "WARN: x11-apps not installed"
+
+# Lean by default (fast). VIBETOP_E2E_FULL=1 additionally deploys the browser + X11
+# xpra stack so the /browser/, /x11-display/ and X11-lifecycle specs run HERE (else
+# they self-skip). Heavier — pulls xpra + snap chromium. Office stays off either way.
+if [[ "${VIBETOP_E2E_FULL:-0}" == "1" ]]; then
+  DEPLOY_FLAGS="--no-office"
+else
+  DEPLOY_FLAGS="--no-browser --no-office"
+fi
+echo "== deploy as the e2e user ($DEPLOY_FLAGS) =="
+sudo -u "$E2E_USER" bash -lc "cd ~/vibetop && ./deploy.sh $DEPLOY_FLAGS" \
   || echo "deploy.sh returned non-zero (tolerated); ensuring services below"
 
 echo "== ensure core services + neutralize the LAN http->https upgrade =="

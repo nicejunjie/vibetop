@@ -78,6 +78,36 @@ seam only, never by pixel-clicking the remote canvas. Use the disposable contain
   the LAN (or BrowserStack) as the final sign-off lane for those specific bugs — the
   class of bug that has bitten this project before.
 
+## Per-user surface + X11 lifecycle (regression guards for the 502 / private-bus class)
+
+Two specs guard the bugs that reached the operator this session — a per-user
+app silently 502ing, and X11 GUI-app launch behavior:
+
+- **`tests/surface-health.spec.js`** — as the logged-in user, every per-user app
+  endpoint (`/`, `/files/`, `/terminals/`, `/t1/`, and, where deployed, `/browser/`
+  + `/x11-display/`) must actually serve **200 with real content**, not a 502/500.
+  This is the guard for the "stale baked-in port" class (a port-scheme change left
+  the xpra + FileBrowser units on their old ports → 502). The core endpoints run on
+  the lean VM; the two xpra endpoints **self-skip** where the browser stack isn't
+  deployed.
+- **`tests/x11-lifecycle.spec.js`** — a GUI app launched onto the X11 display must
+  appear **fast** (the private-bus regression: on the wrong D-Bus bus a GNOME/GTK
+  app hangs ~40s), and **closing the whole X11 Launcher must close its apps** (so a
+  foreground-blocked terminal returns). Uses `/api/x/windows` (= `wmctrl -l`, the
+  correct "usable window" metric — **not** `xdotool --class`, which matches a
+  premature window and hid the 40s hang twice; see `docs/qa-charter.md` watchlist
+  #1). Needs the live X11 stack; self-skips where it isn't deployed.
+
+**Running the X11/Browser specs:** the default VM deploys lean (`--no-browser`), so
+those specs skip. To run them in the VM, deploy the full stack:
+
+```bash
+VIBETOP_E2E_FULL=1 tests/e2e/run-vm.sh      # pulls xpra + snap chromium (heavier)
+```
+
+Or point the suite at any full-stack instance (e.g. the real host) via
+`VIBETOP_BASE_URL` — the specs run wherever `/x11-display/` is present.
+
 ## Files
 
 | File | Purpose |
@@ -85,6 +115,9 @@ seam only, never by pixel-clicking the remote canvas. Use the disposable contain
 | `playwright.config.js` | projects (4), baseURL, storageState wiring |
 | `global-setup.js` | obtains the cookie, writes `storageState` |
 | `tests/smoke.spec.js` | first suite (shell UI, desktop + mobile) |
+| `tests/surface-health.spec.js` | every per-user app serves 200 (the 502 class) |
+| `tests/x11-lifecycle.spec.js` | X11 launch speed + close-launcher-closes-apps (needs full stack) |
 | `run.sh` | build container → deploy → mint cookie → run → teardown |
+| `run-vm.sh` | host-safe KVM VM (default); `VIBETOP_E2E_FULL=1` for the browser/X11 stack |
 | `docker/` | the disposable systemd instance (Dockerfile + firstboot) |
 | `../../tools/mint-session-cookie.py` | signs a real `vt_session` (single source of truth) |

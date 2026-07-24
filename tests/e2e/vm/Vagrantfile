@@ -26,5 +26,9 @@ Vagrant.configure("2") do |config|
     lv.default_prefix = "vibetop_e2e"
   end
 
-  config.vm.provision "shell", path: "provision.sh"
+  # Forward VIBETOP_E2E_FULL so `VIBETOP_E2E_FULL=1 vagrant up` deploys the full
+  # browser + X11 xpra stack (for the /browser/, /x11-display/ and X11-lifecycle
+  # specs). Default (unset) keeps the lean, fast --no-browser deploy.
+  config.vm.provision "shell", path: "provision.sh",
+    env: { "VIBETOP_E2E_FULL" => ENV.fetch("VIBETOP_E2E_FULL", "0") }
 end
