@@ -1,0 +1,15 @@
+{
+  "name": "vibetop-e2e",
+  "private": true,
+  "description": "Playwright end-to-end tests for the vibetop desktop shell (desktop + mobile, real WebKit for iOS fidelity).",
+  "scripts": {
+    "test": "playwright test",
+    "test:desktop": "playwright test --project=desktop-chromium --project=desktop-firefox",
+    "test:mobile": "playwright test --project=iphone-13-mini --project=iphone-15 --project=iphone-17 --project=iphone-17-pro-max --project=mobile-chrome",
+    "report": "playwright show-report",
+    "install-browsers": "playwright install chromium firefox webkit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

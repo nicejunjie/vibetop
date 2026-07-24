@@ -1,0 +1,30 @@
+# Disposable vibetop instance for e2e tests — a real KVM VM (libvirt), NOT a
+# container. A VM has its OWN kernel and cgroup tree, so it is fully isolated from
+# the host: it physically cannot hang or panic the host the way a privileged
+# systemd container can. This is the host-SAFE way to run the disposable instance.
+#
+# Boots Ubuntu 24.04, deploys the lean stack (deploy.sh --no-browser --no-office),
+# and forwards its port 80 to 127.0.0.1:8091 on the host for Playwright.
+Vagrant.configure("2") do |config|
+  # Official Ubuntu 24.04 cloud image (libvirt provider). generic/ubuntu2404 was
+  # pulled from the registry in the HashiCorp migration.
+  config.vm.box = "cloud-image/ubuntu-24.04"
+  config.vm.hostname = "vibetop-e2e"
+
+  # Sync the repo in (rsync — no shared-fs surprises). Excludes keep it lean.
+  config.vm.synced_folder "../../..", "/home/vagrant/vibetop", type: "rsync",
+    rsync__exclude: [".git/", ".claude/", "tests/e2e/node_modules/",
+                     "tests/e2e/.auth/", "tests/e2e/test-results/",
+                     "tests/e2e/playwright-report/"]
+
+  # Reach the VM's nginx from the host at 127.0.0.1:8091.
+  config.vm.network "forwarded_port", guest: 80, host: 8091, host_ip: "127.0.0.1"
+
+  config.vm.provider :libvirt do |lv|
+    lv.memory = 4096
+    lv.cpus = 4
+    lv.default_prefix = "vibetop_e2e"
+  end
+
+  config.vm.provision "shell", path: "provision.sh"
+end

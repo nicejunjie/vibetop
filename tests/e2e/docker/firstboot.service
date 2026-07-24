@@ -1,0 +1,17 @@
+[Unit]
+Description=vibetop e2e first-boot deploy
+After=network-online.target systemd-user-sessions.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=e2e
+RemainAfterExit=yes
+# deploy.sh uses sudo internally (passwordless for e2e).
+ExecStart=/usr/local/bin/vibetop-firstboot.sh
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target
