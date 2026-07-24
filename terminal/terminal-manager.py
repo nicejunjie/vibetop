@@ -1595,12 +1595,22 @@ def _start_user_filebrowser(user):
     home = _user_home(user)
     port = _user_fb_port(user)
     unit = _fb_unit(user)
-    # Already running? (cheap check via the unit's active state)
+    # Already running AND actually listening on the EXPECTED port? Reuse it. But
+    # the port is baked into the transient unit's args at creation, so after a
+    # port-scheme change (or a wedged FileBrowser) the unit stays "active" on the
+    # OLD port while nginx routes to the new one → /files/ 502s. Verify the port
+    # answers; if not, tear it down and recreate on the correct port (self-heal,
+    # same as the xpra path).
     try:
         st = subprocess.run(["systemctl", "is-active", unit],
                             capture_output=True, text=True, timeout=10)
         if st.stdout.strip() == "active":
-            return True, port
+            if _wait_tcp(port, 3):
+                return True, port
+            log.warning("filebrowser for %s is active but not listening on :%d "
+                        "(stale/wrong port) — recreating", user, port)
+            subprocess.run(["systemctl", "stop", unit], capture_output=True, text=True)
+            subprocess.run(["systemctl", "reset-failed", unit], capture_output=True, text=True)
     except (OSError, subprocess.SubprocessError):
         pass
     if not os.path.exists(FB_BIN):

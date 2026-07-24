@@ -262,6 +262,36 @@ def test_stale_xpra_on_wrong_port_is_recreated(mgr, monkeypatch):
         "must recreate the xpra via systemd-run (on the correct port)"
 
 
+def test_stale_filebrowser_on_wrong_port_is_recreated(mgr, monkeypatch):
+    # Same class as the xpra bug: FileBrowser's port is baked into its unit, so an
+    # "active" unit on a stale port (post port-scheme change) must be recreated,
+    # not reused (else /files/ 502s). Skip if filebrowser isn't "installed".
+    import types
+    _real_exists = os.path.exists
+    monkeypatch.setattr(mgr.os.path, "exists",
+                        lambda p: True if p == mgr.FB_BIN else _real_exists(p))
+    calls = []
+
+    def fake_run(args, **kw):
+        calls.append(list(args))
+        out = "active\n" if args[:2] == ["systemctl", "is-active"] else ""
+        return types.SimpleNamespace(returncode=0, stdout=out, stderr="")
+
+    monkeypatch.setattr(mgr.subprocess, "run", fake_run)
+    monkeypatch.setattr(mgr, "_wait_tcp", lambda port, timeout=8.0: False)   # not on expected port
+    monkeypatch.setattr(mgr, "_provision_user_filebrowser", lambda u, h, p: None)
+    monkeypatch.setattr(mgr, "_user_home", lambda u: "/home/" + u)
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: types.SimpleNamespace(pw_uid=4321, pw_gid=4321,
+                                                        pw_dir="/home/" + u, pw_name=u))
+    mgr._start_user_filebrowser("alice")
+    unit = mgr._fb_unit("alice")
+    assert any(c[:2] == ["systemctl", "stop"] and unit in c for c in calls), \
+        "a stale (wrong-port) but active FileBrowser must be stopped before recreate"
+    assert any(c and c[0] == "systemd-run" for c in calls), \
+        "must recreate FileBrowser via systemd-run (on the correct port)"
+
+
 def test_healthy_xpra_on_right_port_is_reused_not_recreated(mgr, monkeypatch):
     # The common path: active AND listening on the expected port -> reuse, no churn.
     import types
