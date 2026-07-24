@@ -1771,7 +1771,8 @@ to a non-dotfile the snap can read — more moving parts than a one-line ACL gra
 ## Multi-user Phase 3b/review: per-user Files + "admin-gate the not-yet-per-user"
 
 - **Per-user Files.** FileBrowser now runs per user (a `systemd-run --uid` transient
-  unit `vibetop-ufiles-<user>`, per-user port `FB_APP_BASE + slot`, per-user DB),
+  unit `vibetop-ufiles-<user>`, per-user port inside the user's own terminal-port
+  block — `USER_TERM_BASE + slot*PER_USER_TERMS + USER_FB_OFFSET` — per-user DB),
   **rooted at the user's home** (`--root/--scope <home>`) so it opens at `~`, can't
   escape it, and its writes have the user's own permissions. The shared single-user
   `vibetop-filebrowser.service` is retired. Rooting at home (not `/`) also let the
@@ -1939,3 +1940,160 @@ Chromium emulation does not reproduce these; see the WebKit-harness note above.
 - Fix: touch now uses the same double-click detection as mouse — first tap falls through so
   FileBrowser *selects* the file (it selects on a single tap on touch, verified), only a
   second tap within the window opens it. Dropped the `IS_TOUCH` single-tap-opens branch.
+
+---
+
+## Code-review hardening pass (auth gate, port blocks, and assorted fixes)
+
+A picky end-to-end review turned up a security hole plus a batch of correctness/
+data-loss bugs. The non-obvious ones:
+
+**Loopback trust vs. multi-user tenants — the manager can't treat a cookieless
+request as `APP_USER`.**
+- Symptom: on a `/opt/vibetop` multi-user host, any local tenant could
+  `curl 127.0.0.1:7680/api/x/launch -d '{"cmd":"…"}'` and have it run as `vibetop`
+  (→ tamper with the root-run code tree → root). `/api/browser/*`, the X11
+  endpoints, and every `_require_admin` surface (`/api/update` = root redeploy!)
+  were reachable the same way.
+- Cause: the auth gate lived only in nginx's `auth_request`; `do_POST/do_GET` didn't
+  re-check it, and `_ctx_user()` **fell back to `APP_USER`** for a cookieless
+  request. `_require_admin` then admitted `APP_USER`. The single-operator "loopback
+  = trusted" model was never tightened for Option B, where tenants share loopback.
+- Key insight: nginx enforces `auth_request` on `/api/`, so a request that reaches
+  the manager **without a cookie came directly** (bypassing nginx) — i.e. a tenant.
+  Legit cookieless callers are only health probes (safe reads), the OnlyOffice
+  container (its own HMAC on `/api/office/callback|doc`), and the `xdg-open` shim
+  (which *does* send `VIBETOP_SESSION`).
+- Fix: `_require_authed()` (mandatory session, no `APP_USER` fallback) on the six
+  command-executing endpoints (`browser/open|type|key|shape`, `x/launch`,
+  `x/activate|close`), placed AFTER input validation so bad-input 400s still land
+  first; and `_require_admin` now gates on `self._session_user()`, not
+  `_ctx_user()`. `Rejected` (Alternative): a broad "require a session for every
+  endpoint" — too much test churn and needless for the per-user *data* endpoints
+  (a cookieless call there only touches `APP_USER`'s own empty service-account home).
+
+**Per-user port collision at the 11th user.**
+- Symptom: once a host had ≥11 users, a terminal and some user's FileBrowser fought
+  for the same TCP port (502 / unit fails), order-dependent.
+- Cause: separate bands — terminals `17000 + slot*100 + n`, FileBrowser
+  `18000 + slot`, xpra `24500/24700 + slot`. The 100-ports-per-user terminal band
+  grows into 18000 at slot 10, overrunning the FileBrowser band.
+- Fix: put EVERY per-user TCP port inside that user's own 100-port block
+  (`USER_TERM_BASE + slot*PER_USER_TERMS + offset`): terminals at offsets
+  `1..MAX_INSTANCE`, the three app ports just above them. Two users' blocks are
+  disjoint by construction, so no collision at any slot count. (xpra X *display*
+  numbers are a separate namespace and stay `200/340 + slot`.)
+
+**User removal didn't revoke the removed user's live web session.**
+- Symptom: `userdel` a user and their already-open desktop tab kept passing
+  `/api/authcheck` until the 7-day cookie expiry; a re-created same-name account
+  even accepted the old cookie.
+- Cause: remove bumped the token epoch (0→1, the revocation) then
+  `_drop_user_from_registry` deleted the whole entry, so `_user_token_epoch` read
+  it back as 0 → `0 < 0` false → token still valid.
+- Fix: `_tombstone_user_in_registry` keeps a `{token_epoch}` tombstone (drops the
+  slot/heartbeat) so revocation survives removal AND re-creation; the reaper skips
+  a heartbeat-less tombstone.
+
+**`/api/reset` wiped every user's OnlyOffice edit sessions.** Reset is per-user
+everywhere else, but `_office_sessions.clear()` emptied the process-global dict, so
+another user's autosave/forcesave silently no-op'd. Fixed to clear only the
+`(user, …)` keys.
+
+**Smaller ones:** login `?next=` open-redirect (resolve against origin, require it
+to stay same-origin — `startsWith('/')&&!'//'` was bypassable via `/\\host`); notes
+lost unsaved text when a background sync ran after a *failed* autosave (added an
+`unsaved` flag cleared only on a confirmed save, plus a retry); notes deleted a
+never-opened-this-session tab with no confirm (fetch the body first); a desktop-only
+infinite `requestAnimationFrame` in the mobile breadcrumb fitter (cap + bail when
+`display:none`); `__allowCopy`/`blockTa` could leak `true` if `execCommand('copy')`
+threw (try/finally); the ttyd reconnect-overlay `stuck()` scan bounded to short text
+so it can't match terminal content; the `+`-button terminal start got the `.catch`
+its siblings already had; `RESIZE_DEBOUNCE` now wakes via `set_wakeup_fd` (PEP-475
+made the bare signal a no-op on an idle terminal); a per-user SSE sub-cap; and
+`doctor.sh`'s home-traversability check (the octal globs were inverted — `700`
+falsely PASSed, `755` falsely WARNed).
+
+---
+
+## iOS standalone PWA: active line hidden BELOW the screen after reopening from idle
+
+- **Symptom (mobile, real device only):** in the installed PWA, "from time to time,
+  especially after the app is idle then reopened," the terminal's active bottom line
+  (and generally the bottom of the shell) is hidden **below the physical screen
+  edge**, unscrollably — with **no keyboard involved**. Rotating the phone fixes it.
+- **Cause:** `apph.js` set `--app-h` (the shell height) to a **running MAX** of
+  `max(visualViewport.height, clientHeight)`, clamped only to full `screen.height`,
+  and re-baselined that max **only on a width change (rotation)**. On reopen-from-
+  idle iOS momentarily reports a too-tall height (≈ full screen, incl. the status-bar
+  / home-indicator strip) during the app-switcher animation; `apph.js`'s re-sample
+  timers catch it, `maxH` **latches** to it, and it can't shrink back until rotation.
+  The shell (and the terminal iframe inside it) is then taller than the visible area,
+  so the bottom rows render off-screen. The running MAX — meant only to stop the soft
+  keyboard from shrinking the shell — was the trap.
+- **Fix:** the running MAX now applies **only while the keyboard is actually up**
+  (detected by `clientHeight - visualViewport.height > 100`, since the keyboard
+  shrinks the visual viewport but not the layout viewport). Keyboard **down** →
+  `maxH = current height` (follow DOWN), so a stale too-tall value from a reopen
+  transient is discarded within ~1 render instead of sticking until rotation. Keyboard
+  up → only grow (original anti-jump behavior preserved).
+- **Rejected:** (a) reset `maxH` on `visibilitychange` only — the post-reopen
+  transient is caught by the re-sample timers *after* the reset, so it re-latches;
+  (b) drop the running MAX entirely and use `clientHeight` alone — correct in theory
+  (clientHeight is keyboard-immune) but a bigger behavioral change than needed.
+- **Detection gap:** `apph.js` is **inert outside the installed standalone PWA**, so
+  neither emulated WebKit nor a normal mobile-Safari tab can reproduce it — it needs
+  the home-screen PWA backgrounded and reopened on a real iPhone. This is the exact
+  "real-device sign-off" lane the QA charter (`docs/qa-charter.md`) now mandates.
+
+---
+
+## Mobile terminal IME: raw pinyin leaked into the shell — extract + unit-test the input state machine
+
+- **Symptom (recurred more than once):** typing pinyin in the mobile terminal echoed
+  the RAW pinyin ("shou ji") into the shell *before* the user picked a candidate
+  (手机), then corrupted the line on selection.
+- **Cause:** `terminal-kbd.js` forwarded the overlay textarea's value-diff to the PTY
+  on a 400 ms debounce **even during IME composition** — a normal pause to look at
+  candidates (>400 ms) flushed the intermediate pinyin. The 400 ms was tuned for iOS
+  *dictation's* streamed revisions but broke every paused pinyin entry.
+- **Fix:** during composition forward **nothing** until `compositionend` (candidate
+  selected); keep only a long (6 s) safety flush for iOS *dictation*, which composes
+  for many seconds without ending — far beyond any real candidate-selection pause.
+- **Durable fix (the real answer to "stop it recurring"):** the whole value-diff +
+  IME/dictation state machine is extracted into `terminal/lib/kbd-input.js` (DOM-free),
+  which `terminal-kbd.js` loads via the sub_filter `<script src>` and which is pinned
+  by `terminal/lib/kbd-input.test.js` (9 cases; the cardinal one: *pinyin must never
+  reach the PTY mid-composition*). This is the project's established "extract the
+  fragile front-end logic that keeps regressing → DOM-free unit test" pattern (cf.
+  `tab-sync.js`). IME can't be driven in emulation/CI at the browser level, so the
+  unit test on the extracted pure logic is what makes this class CI-testable with no
+  device. `install.sh` deploys `kbd-input.js` and injects it BEFORE `terminal-kbd.js`.
+
+---
+
+## X11 GUI apps (evince/eog) open ~25s slow again — the per-user private D-Bus bus regressed
+
+- **Symptom (recurred):** launching a GNOME/GTK app (evince, eog) onto the X11 display
+  is very slow — the window appears ~25s after the terminal command / the X11 Launcher
+  reacts long after. "It was fixed before, now it's back."
+- **Cause:** the multi-user conversion dropped the single-user optimization. It now
+  gives EVERY launched app the user's REAL session bus (`/run/user/<uid>/bus`). A
+  GNOME/GTK app on a real bus asks it to activate `org.freedesktop.portal.Desktop` /
+  at-spi; in this sessionless desktop nothing answers and the app blocks ~25s on the
+  activation timeout. (The manager comment even admitted it as a "known per-user
+  degradation".)
+- **Fix:** restore the private bus, per-user. `_ensure_user_x11_dbus(user, uid, gid)`
+  starts one `dbus-daemon` per user (transient systemd-run unit, on demand — the
+  "thing pinned in the background") with a config that has **NO `<servicedir>`**
+  (`/etc/vibetop/x11-dbus.conf`), so an activation request fails INSTANTLY instead of
+  timing out → ~0.2s startup. `_is_snap_launch` routes snap apps (Firefox/Chromium)
+  to the REAL bus (confinement needs it; they don't hang on the portal); everything
+  else gets the private bus. Falls back to the real bus if the private one can't
+  start (slow but functional).
+- **Rejected:** a single shared private bus across users (the old single-user shape) —
+  breaks per-user isolation; each user gets their own now.
+- **Guarded:** `test_x_launch_gnome_app_uses_private_activation_free_bus` /
+  `test_x_launch_snap_app_keeps_the_real_session_bus` pin the bus choice so the
+  multi-user path can't silently revert to the real bus again. Added to the QA
+  recurring-regression watchlist (`docs/qa-charter.md`).

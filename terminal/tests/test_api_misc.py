@@ -59,12 +59,17 @@ def test_reset_bumps_epoch_and_clears_registry(client, mgr):
     assert after["open"] == []          # registry cleared
 
 
-def test_reset_clears_office_sessions(client, mgr):
-    mgr._office_sessions["some/doc.docx"] = "key123"
+def test_reset_clears_only_this_users_office_sessions(client, mgr):
+    # Reset (cookieless -> APP_USER) must drop only APP_USER's edit sessions, not
+    # another user's — a global .clear() would break every other user's autosave.
+    # Keys are (owner, rel) tuples.
+    mgr._office_sessions[(mgr.APP_USER, "mine.docx")] = "keyA"
+    mgr._office_sessions[("someone_else", "theirs.docx")] = "keyB"
     status, body = client.post("/api/reset", {})
     assert status == 200
     assert body["office_sessions_cleared"] == 1
-    assert mgr._office_sessions == {}
+    assert (mgr.APP_USER, "mine.docx") not in mgr._office_sessions
+    assert mgr._office_sessions.get(("someone_else", "theirs.docx")) == "keyB"
 
 
 def test_reset_clears_tab_names(client, mgr):
@@ -78,13 +83,13 @@ def test_reset_clears_tab_names(client, mgr):
 
 # ---- /api/services/discover ------------------------------------------------
 
-def test_services_discover_shape(client, mgr, monkeypatch):
+def test_services_discover_shape(client, mgr, monkeypatch, op_cookie):
     fake = {"lan_ip": "192.168.1.10",
             "services": [{"name": "Ollama", "port": 11434, "proc": "ollama",
                           "url": "http://192.168.1.10:11434/", "health": "up"}]}
     monkeypatch.setattr(mgr.service_discovery, "discover", lambda: fake)
     mgr._cache.clear()
-    status, body = client.get("/api/services/discover")
+    status, body = client.get("/api/services/discover", cookie=op_cookie)
     assert status == 200
     assert body == fake
 

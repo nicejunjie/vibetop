@@ -10,10 +10,19 @@ def _wmctrl_result(returncode=0, stdout=""):
 
 # ---- /api/browser/open -----------------------------------------------------
 
-def test_browser_open_valid_url(client, stubs):
-    status, body = client.post("/api/browser/open", {"url": "https://example.com/x"})
+def test_browser_open_valid_url(client, stubs, op_cookie):
+    status, body = client.post("/api/browser/open", {"url": "https://example.com/x"},
+                               cookie=op_cookie)
     assert status == 200 and body["url"] == "https://example.com/x"
     assert stubs["popen"]                      # a chromium su -c was launched
+
+
+def test_browser_open_requires_session(client, stubs):
+    # Cookieless (a local tenant hitting the loopback port directly) must NOT act
+    # as APP_USER — command execution requires a valid login session.
+    status, _ = client.post("/api/browser/open", {"url": "https://example.com/x"})
+    assert status == 401
+    assert not stubs["popen"]                  # nothing launched
 
 
 def test_browser_open_rejects_non_http(client):
@@ -33,9 +42,9 @@ def _runs(stubs):
     return [" ".join(a) for a in stubs["run"] if isinstance(a, list)]
 
 
-def test_browser_type_injects_unicode_via_stdin(client, stubs):
+def test_browser_type_injects_unicode_via_stdin(client, stubs, op_cookie):
     txt = "你好 hi 🎉 café"
-    status, body = client.post("/api/browser/type", {"text": txt})
+    status, body = client.post("/api/browser/type", {"text": txt}, cookie=op_cookie)
     assert status == 200 and body["ok"]
     # an `xdotool type` command was run...
     assert any("xdotool type --clearmodifiers --file -" in c for c in _runs(stubs))
@@ -57,8 +66,8 @@ def test_browser_type_rejects_too_long(client):
 
 # ---- /api/browser/key (allowlisted navigation keys) -------------------------
 
-def test_browser_key_allowlisted(client, stubs):
-    status, body = client.post("/api/browser/key", {"key": "Enter"})
+def test_browser_key_allowlisted(client, stubs, op_cookie):
+    status, body = client.post("/api/browser/key", {"key": "Enter"}, cookie=op_cookie)
     assert status == 200 and body["ok"]
     assert any("xdotool key --clearmodifiers Return" in c for c in _runs(stubs))
 
@@ -77,24 +86,67 @@ def test_browser_shape_rejects_bad(client, stubs):
     assert not any("pkill" in c for c in _runs(stubs))
 
 
-def test_browser_shape_toggle_and_idempotent(client, stubs):
+def test_browser_shape_toggle_and_idempotent(client, stubs, op_cookie):
     # First claim changes shape (writes the file browser-loop.sh reads).
-    status, body = client.post("/api/browser/shape", {"shape": "mobile"})
+    status, body = client.post("/api/browser/shape", {"shape": "mobile"}, cookie=op_cookie)
     assert status == 200 and body["shape"] == "mobile" and body["changed"] is True
     # Re-claiming the same shape is a no-op — proves the file was persisted + re-read.
-    status, body = client.post("/api/browser/shape", {"shape": "mobile"})
+    status, body = client.post("/api/browser/shape", {"shape": "mobile"}, cookie=op_cookie)
     assert status == 200 and body["changed"] is False
     # Toggling back to desktop changes again.
-    status, body = client.post("/api/browser/shape", {"shape": "desktop"})
+    status, body = client.post("/api/browser/shape", {"shape": "desktop"}, cookie=op_cookie)
     assert status == 200 and body["shape"] == "desktop" and body["changed"] is True
 
 
 # ---- /api/x/launch ---------------------------------------------------------
 
-def test_x_launch_valid_command(client, stubs):
-    status, body = client.post("/api/x/launch", {"cmd": "xterm"})
+def _last_popen(stubs):
+    p = stubs["popen"][-1]
+    return " ".join(p) if isinstance(p, list) else str(p)
+
+
+def test_x_launch_valid_command(client, stubs, op_cookie):
+    status, body = client.post("/api/x/launch", {"cmd": "xterm"}, cookie=op_cookie)
     assert status == 200 and body["cmd"] == "xterm"
     assert stubs["popen"]
+
+
+# ---- D-Bus choice: GNOME apps must get the private, activation-free bus ------
+# Regression guard for the "evince opens really slowly / X11 launcher reacts long
+# after the terminal command" bug: on the user's real session bus, a GNOME/GTK app
+# hangs ~25s on the xdg-desktop-portal/at-spi activation timeout. It MUST use the
+# private bus instead. Snap apps keep the real bus (confinement). See
+# _ensure_user_x11_dbus / docs/design-decisions.md.
+
+def test_is_snap_launch_detection(mgr):
+    assert mgr._is_snap_launch("/snap/bin/firefox") is True     # snap path prefix
+    assert mgr._is_snap_launch("/usr/bin/vibetop-no-such-xyz") is False
+    assert mgr._is_snap_launch("") is False
+
+
+def test_x_launch_gnome_app_uses_private_activation_free_bus(client, stubs, op_cookie, mgr, monkeypatch):
+    monkeypatch.setattr(mgr, "_is_snap_launch", lambda prog: False)   # GNOME/GTK path
+    monkeypatch.setattr(mgr, "_ensure_user_x11_dbus",
+                        lambda u, uid, gid: "/run/user/%d/vibetop-x11-bus" % uid)
+    status, _ = client.post("/api/x/launch", {"cmd": "evince /tmp/x.pdf"}, cookie=op_cookie)
+    assert status == 200
+    cmd = _last_popen(stubs)
+    assert "vibetop-x11-bus" in cmd, "GNOME app must use the private activation-free bus"
+
+
+def test_x_launch_snap_app_keeps_the_real_session_bus(client, stubs, op_cookie, mgr, monkeypatch):
+    monkeypatch.setattr(mgr, "_is_snap_launch", lambda prog: True)    # snap path
+    status, _ = client.post("/api/x/launch", {"cmd": "firefox"}, cookie=op_cookie)
+    assert status == 200
+    cmd = _last_popen(stubs)
+    assert "vibetop-x11-bus" not in cmd and "/bus" in cmd, "snap app must keep the real session bus"
+
+
+def test_x_launch_requires_session(client, stubs):
+    # Cookieless direct-to-loopback call must not run a command as APP_USER.
+    status, _ = client.post("/api/x/launch", {"cmd": "xterm"})
+    assert status == 401
+    assert not stubs["popen"]
 
 
 def test_x_launch_rejects_empty(client):
@@ -107,7 +159,7 @@ def test_x_launch_rejects_newline_injection(client):
     assert status == 400
 
 
-def test_x_launch_reports_command_not_found(client, mgr, monkeypatch):
+def test_x_launch_reports_command_not_found(client, mgr, monkeypatch, op_cookie):
     # A fast non-zero exit (127) -> "isn't installed" 400, not a spinning launcher.
     class Proc:
         def __init__(self, *a, **k):
@@ -115,7 +167,8 @@ def test_x_launch_reports_command_not_found(client, mgr, monkeypatch):
         def wait(self, timeout=None):
             return 127
     monkeypatch.setattr(mgr.subprocess, "Popen", lambda *a, **k: Proc())
-    status, body = client.post("/api/x/launch", {"cmd": "definitelynotinstalled"})
+    status, body = client.post("/api/x/launch", {"cmd": "definitelynotinstalled"},
+                               cookie=op_cookie)
     assert status == 400 and "installed" in body["error"]
 
 
@@ -134,10 +187,10 @@ def test_x_windows_parses_wmctrl(client, mgr, monkeypatch):
     assert body["windows"][0]["title"] == "Firefox"
 
 
-def test_x_activate_valid_id(client, mgr, monkeypatch):
+def test_x_activate_valid_id(client, mgr, monkeypatch, op_cookie):
     monkeypatch.setattr(mgr.Handler, "_run_wmctrl",
                         lambda self, args: _wmctrl_result(0))
-    status, body = client.post("/api/x/activate", {"id": "0x01400003"})
+    status, body = client.post("/api/x/activate", {"id": "0x01400003"}, cookie=op_cookie)
     assert status == 200 and body["ok"] is True
 
 

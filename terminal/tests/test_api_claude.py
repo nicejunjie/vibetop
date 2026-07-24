@@ -5,30 +5,37 @@ import json
 import os
 
 
-def test_usage_disabled_by_default(client):
-    status, body = client.get("/api/claude/usage")
+def test_usage_disabled_by_default(client, op_cookie):
+    status, body = client.get("/api/claude/usage", cookie=op_cookie)
     assert status == 200 and body["enabled"] is False
 
 
-def test_enable_wires_base_url_into_settings(client, mgr, stubs):
-    status, body = client.post("/api/claude/usage", {"enabled": True})
+def test_usage_requires_admin_session(client):
+    # Operator-only surface: a cookieless direct-to-loopback call must not read or
+    # toggle the operator's Claude proxy routing.
+    assert client.get("/api/claude/usage")[0] == 403
+    assert client.post("/api/claude/usage", {"enabled": True})[0] == 403
+
+
+def test_enable_wires_base_url_into_settings(client, mgr, stubs, op_cookie):
+    status, body = client.post("/api/claude/usage", {"enabled": True}, cookie=op_cookie)
     assert status == 200 and body["enabled"] is True
     with open(mgr.CLAUDE_SETTINGS_FILE) as f:
         settings = json.load(f)
     assert settings["env"]["ANTHROPIC_BASE_URL"] == mgr.CLAUDE_PROXY_URL
     # It started the proxy unit before routing to it.
     assert any("enable" in c and "--now" in c for c in stubs["run"])
-    _, got = client.get("/api/claude/usage")
+    _, got = client.get("/api/claude/usage", cookie=op_cookie)
     assert got["enabled"] is True
 
 
-def test_disable_removes_only_our_key(client, mgr, stubs):
+def test_disable_removes_only_our_key(client, mgr, stubs, op_cookie):
     # Pre-seed the user's OWN env alongside ours; disable must keep theirs.
     os.makedirs(os.path.dirname(mgr.CLAUDE_SETTINGS_FILE), exist_ok=True)
     with open(mgr.CLAUDE_SETTINGS_FILE, "w") as f:
         json.dump({"env": {"ANTHROPIC_BASE_URL": mgr.CLAUDE_PROXY_URL,
                            "MY_VAR": "keep"}}, f)
-    status, body = client.post("/api/claude/usage", {"enabled": False})
+    status, body = client.post("/api/claude/usage", {"enabled": False}, cookie=op_cookie)
     assert status == 200 and body["enabled"] is False
     with open(mgr.CLAUDE_SETTINGS_FILE) as f:
         settings = json.load(f)

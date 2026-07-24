@@ -68,6 +68,7 @@
   var ready = false;           // active note's content is loaded → safe to autosave
   var saveTimer = null, scanTimer = null;
   var savingInFlight = false;  // a save POST is in flight — treat as "busy" like a pending edit
+  var unsaved = false;         // local edits not yet CONFIRMED saved (stays true if a save fails)
   var initDone = false;        // don't live-sync before the first load lands
   var _lastTabsSig = null;     // last tab set (ids+names+order) known to match the server
 
@@ -116,6 +117,7 @@
     flushSave();
     active = id;
     ready = false;
+    unsaved = false;             // fresh note starts clean (don't inherit prior dirty state)
     editor.disabled = true; editor.value = '';
     setStatus('loading…');
     renderTabs();
@@ -142,8 +144,21 @@
     savingInFlight = true;
     setStatus('saving…');
     api('/api/notes', { id: id, content: content })
-      .then(function() { if (active === id) setStatus('saved', 'saved'); })
-      .catch(function() { if (active === id) setStatus('save failed', 'err'); })
+      .then(function() {
+        // Only a CONFIRMED save clears `unsaved` — and only if the editor still
+        // holds exactly what we saved (the user may have typed more meanwhile).
+        if (active === id && editor.value === content) unsaved = false;
+        if (active === id) setStatus('saved', 'saved');
+      })
+      .catch(function() {
+        if (active === id) setStatus('save failed — retrying', 'err');
+        // Keep `unsaved` true (guards syncContent from clobbering the user's text)
+        // and re-arm the autosave so a transient network blip self-heals instead
+        // of silently losing the edit on the next background sync.
+        if (active === id && saveTimer === null) {
+          saveTimer = setTimeout(function() { saveTimer = null; doSave(active, editor.value); }, 3000);
+        }
+      })
       .then(function() { savingInFlight = false; });   // clear busy either way (no .finally on old Safari)
   }
 
@@ -158,8 +173,6 @@
   }
 
   function closeNote(id) {
-    var content = cache[id];
-    if (content === undefined) content = '';   // not loaded; treat as unknown→empty
     function doClose() {
       var i = tabs.findIndex(function(t) { return t.id === id; });
       if (i === -1) return;
@@ -172,9 +185,23 @@
       persistTabs();                              // server deletes the closed note's file
       if (active === id) { active = null; switchTo(tabs[Math.max(0, i - 1)].id); }
     }
-    if (content.trim()) {
-      vibeConfirm('Delete this note? This can’t be undone.', { okText: 'Delete', danger: true }).then(function(ok) { if (ok) doClose(); });
-    } else { doClose(); }
+    function decide(content) {
+      if ((content || '').trim()) {
+        vibeConfirm('Delete this note? This can’t be undone.', { okText: 'Delete', danger: true }).then(function(ok) { if (ok) doClose(); });
+      } else { doClose(); }
+    }
+    var content = cache[id];
+    if (content !== undefined) { decide(content); return; }
+    // Not loaded THIS session — tabs are shared across devices, so many tabs were
+    // never opened here. Fetch the body before deciding, so we never silently
+    // delete a note that actually has content (the old code treated unknown as
+    // empty and skipped the confirmation). If the fetch fails, confirm to be safe.
+    api('/api/notes?id=' + encodeURIComponent(id))
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) { decide(d ? (d.content || '') : ''); })
+      .catch(function() {
+        vibeConfirm('Delete this note? This can’t be undone.', { okText: 'Delete', danger: true }).then(function(ok) { if (ok) doClose(); });
+      });
   }
 
   function renameTab(el, id) {
@@ -240,6 +267,7 @@
   // --- editor autosave ---
   editor.addEventListener('input', function() {
     if (!ready) return;
+    unsaved = true;              // dirty until a save confirms
     clearTimeout(saveTimer); setStatus('editing…');
     saveTimer = setTimeout(function() { saveTimer = null; doSave(active, editor.value); }, 800);
     clearTimeout(scanTimer); scanTimer = setTimeout(scanLinks, 300);
@@ -269,7 +297,13 @@
   function scanLinks() {
     var seen = {}, urls = [], m; URL_RE.lastIndex = 0;
     while ((m = URL_RE.exec(editor.value)) !== null) {
-      var u = m[0].replace(/[.,;:!?'")\]]+$/, '');
+      var u = m[0].replace(/[.,;:!?'"\]]+$/, '');   // trailing punctuation, except ')'
+      // Strip a trailing ')' only when it's UNBALANCED (sentence punctuation), so a
+      // URL whose own path has parens — e.g. wikipedia .../Foo_(bar) — keeps it.
+      while (u.charAt(u.length - 1) === ')' &&
+             (u.split(')').length - 1) > (u.split('(').length - 1)) {
+        u = u.slice(0, -1);
+      }
       if (u && !seen[u]) { seen[u] = 1; urls.push(u); }
     }
     linksEl.innerHTML = '';
@@ -315,13 +349,13 @@
   // best-effort so a background refresh doesn't jump the cursor.
   function syncContent() {
     if (!ready || active == null) return;
-    if (saveTimer !== null || savingInFlight) return;      // local edit in progress → skip
+    if (unsaved || saveTimer !== null || savingInFlight) return;  // local edit unsaved/in progress → skip
     var id = active;
     api('/api/notes?id=' + encodeURIComponent(id))
       .then(function(r) { return r.ok ? r.json() : null; })
       .then(function(d) {
         if (!d || active !== id) return;                   // switched away while awaiting
-        if (saveTimer !== null || savingInFlight) return;  // started editing while awaiting
+        if (unsaved || saveTimer !== null || savingInFlight) return;  // started editing while awaiting
         var remote = d.content || '';
         cache[id] = remote;
         if (remote === editor.value) return;               // already in sync

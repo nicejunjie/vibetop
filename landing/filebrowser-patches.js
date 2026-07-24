@@ -692,8 +692,19 @@
   }
   // ONE line always: collapse the fewest leading segments so it fits (… in the
   // middle). Home and the current folder always stay; readable + space-saving.
+  var _crumbFitTries = 0;
   function _fitCrumbs(crumbs, segs) {
-    if (crumbs.clientWidth < 10) { requestAnimationFrame(function () { _fitCrumbs(crumbs, segs); }); return; }
+    // The crumb bar is mobile-only (display:none on desktop → clientWidth 0). Wait
+    // a few frames for the mobile layout to settle, but CAP the retries: an
+    // unconditional rAF-reschedule spun forever on desktop (permanently 0-width)
+    // and leaked a fresh loop on every folder change / window resize.
+    if (crumbs.clientWidth < 10) {
+      if (crumbs.offsetParent === null || _crumbFitTries >= 20) { _crumbFitTries = 0; return; }
+      _crumbFitTries++;
+      requestAnimationFrame(function () { _fitCrumbs(crumbs, segs); });
+      return;
+    }
+    _crumbFitTries = 0;
     for (var hide = 0; hide <= Math.max(0, segs.length - 1); hide++) {
       _renderCrumbs(crumbs, segs, hide);
       if (crumbs.scrollWidth <= crumbs.clientWidth + 1) return;   // fits on one line
@@ -967,19 +978,23 @@
     if (o) { o.open = openVideo; return o; }
     return null;
   }
-  var _click = { item: null, t: 0 };
+  var _click = { name: null, t: 0 };
   document.addEventListener("click", function(e) {
     var o = interceptItem(e);
     if (!o) return;
     // Touch takes the same path as mouse now: the first tap falls through so
     // FileBrowser selects the file; only a second tap within the window opens it.
+    // Key on the file NAME, not the DOM node: selecting the file flips
+    // aria-selected and Vue may re-render (replace) the row node, so a node-identity
+    // check saw the second tap as a fresh first tap and never opened. Names are
+    // unique within a folder and stable across the re-render.
     var now = Date.now();
-    if (_click.item === o.item && now - _click.t < 450) {   // second click/tap → open
+    if (_click.name === o.name && now - _click.t < 450) {   // second click/tap → open
       e.preventDefault(); e.stopPropagation();
-      _click.item = null; _click.t = 0;
+      _click.name = null; _click.t = 0;
       o.open(o.name);
     } else {
-      _click.item = o.item; _click.t = now;                 // first click → let FB select
+      _click.name = o.name; _click.t = now;                 // first click → let FB select
     }
   }, true);
   document.addEventListener("dblclick", function(e) {

@@ -172,7 +172,15 @@ if have getfacl; then
     if getfacl -p "$APP_HOME" 2>/dev/null | grep -q 'user:www-data:'; then ok "www-data has an ACL on $APP_HOME (nginx can traverse)"
     else
         perm="$(stat -c '%a' "$APP_HOME" 2>/dev/null || echo '')"
-        case "$perm" in *7[0-4]|75[0-5]|0*) adv "no www-data ACL on $APP_HOME (mode $perm) — nginx may 403 static files. Fix: 'setfacl -m u:www-data:--x $APP_HOME'";; *) ok "$APP_HOME mode $perm is world-traversable";; esac
+        # nginx (www-data) can traverse the home iff the OTHER-execute bit is set,
+        # i.e. the LAST octal digit is odd (1/3/5/7). Match on that directly — the
+        # old glob (*7[0-4]|75[0-5]|0*) was wrong: it PASSED 700 (no other access!)
+        # and WARNed 755 (which is traversable).
+        case "$perm" in
+            "") adv "could not stat $APP_HOME to check nginx traversal" ;;
+            *[1357]) ok "$APP_HOME mode $perm is world-traversable (nginx can enter)" ;;
+            *) adv "no www-data ACL on $APP_HOME (mode $perm) — nginx may 403 static files. Fix: 'setfacl -m u:www-data:--x $APP_HOME'" ;;
+        esac
     fi
 fi
 

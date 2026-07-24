@@ -169,7 +169,8 @@ PIN_EOF
     # xdotool: server-side Unicode text injection into the Browser (the mobile
     # keyboard delivers committed text via /api/browser/type -> `xdotool type`,
     # which can carry CJK/emoji/accents that the X key-event path cannot).
-    run sudo apt-get install -y xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils xdotool
+    # dbus: provides dbus-daemon for the private, activation-free per-user X11 app bus.
+    run sudo apt-get install -y xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils xdotool dbus
     # Disable xpra's built-in socket activation (conflicts with our own unit)
     if systemctl is-enabled xpra-server.socket >/dev/null 2>&1; then
         run sudo systemctl disable --now xpra-server.socket
@@ -213,6 +214,15 @@ echo "== installing per-user xpra launcher scripts =="
 run sudo install -d -m 0755 /usr/local/lib/vibetop
 run sudo install -m 0755 "$APP_DIR/xpra-app.sh" /usr/local/lib/vibetop/xpra-app.sh
 run sudo install -m 0755 "$APP_DIR/browser-loop.sh" /usr/local/lib/vibetop/browser-loop.sh
+
+# Private, activation-free D-Bus config for X11 GUI apps (evince/eog/…). The manager
+# starts one dbus-daemon per user with this config (no <servicedir>) so GNOME/GTK
+# apps don't hang ~25s on the xdg-desktop-portal/at-spi activation timeout. See
+# terminal-manager.py:_ensure_user_x11_dbus and docs/design-decisions.md.
+if [ -f "$APP_DIR/dbus/x11-dbus.conf" ]; then
+    run sudo install -d -m 0755 /etc/vibetop
+    run sudo install -m 0644 "$APP_DIR/dbus/x11-dbus.conf" /etc/vibetop/x11-dbus.conf
+fi
 
 # 4. Retire the shared single-user xpra services -----------------------------
 # Browser/X11 are per-user now (launched on demand by the manager). Keep APP_USER

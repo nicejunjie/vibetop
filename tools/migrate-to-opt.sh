@@ -131,7 +131,15 @@ echo "-- terminal (main nginx site: root -> $WWW + systemd units -> $APP)"
 echo "-- daemon-reload + restart vibetop-manager (now execs from $APP)"
 systemctl daemon-reload
 systemctl restart vibetop-manager
-nginx -t && systemctl reload nginx || true
+# Reload nginx only if the re-rendered config validates — but do NOT swallow a
+# validation failure (the old `|| true` hid a broken site and still printed DONE,
+# leaving nginx on the pre-migration config with no signal).
+if nginx -t; then
+  systemctl reload nginx
+else
+  echo "!! nginx -t FAILED after re-rendering the site — NOT reloading. Fix the" >&2
+  echo "!! config above; nginx is still serving its previous configuration." >&2
+fi
 
 # 9) decommission legacy single-user orphans (multi-user uses per-user units)
 for u in vibetop-session@1 vibetop-ttyd@1; do

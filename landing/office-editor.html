@@ -84,13 +84,18 @@
     if (!modified || saving) return;
     saving = true; modified = false;
     var body = JSON.stringify({ path: path });
-    var done = function() { saving = false; };
+    var ok = function() { saving = false; };
+    // On failure, re-arm `modified` so the 30s safety-net (and the next app-switch)
+    // retries — otherwise a transient blip on the final autosave cleared `modified`
+    // and that edit was never written back by vibetop.
+    var fail = function() { saving = false; modified = true; };
     if (useBeacon && navigator.sendBeacon) {
+      // Beacon is fire-and-forget (used on pagehide); no callback to detect failure.
       navigator.sendBeacon('/api/office/forcesave', new Blob([body], { type: 'application/json' }));
-      done();
+      ok();
     } else {
       fetch('/api/office/forcesave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
-        .then(done, done);
+        .then(function(r) { if (r && r.ok) ok(); else fail(); }, fail);
     }
   }
 

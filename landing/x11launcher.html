@@ -319,14 +319,20 @@
   }
 
   // Pause polling when the desktop switches away from this app, resume when back.
+  // Track whether WE are the active app so a tab foreground doesn't resume the 2s
+  // wmctrl poll while some other app (e.g. Terminal) is showing — the launcher
+  // iframe stays mounted (display:none) when inactive, so an unconditional resume
+  // on visibilitychange kept shelling out /api/x/windows invisibly.
+  var appActive = true;   // the frame only loads once it's first activated
   window.addEventListener('message', function(e) {
     if (e.origin !== location.origin) return;
     if (e.data && e.data.type === 'vibetop:active') {
-      if (e.data.active === 'x11launcher') { startPoll(); coachShow(); } else stopPoll();
+      appActive = (e.data.active === 'x11launcher');
+      if (appActive) { startPoll(); coachShow(); } else stopPoll();
     }
   });
   document.addEventListener('visibilitychange', function(){
-    if (document.hidden) stopPoll(); else startPoll();
+    if (document.hidden) stopPoll(); else if (appActive) startPoll();
   });
 
   startPoll();

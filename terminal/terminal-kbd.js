@@ -274,34 +274,26 @@
     if (window.visualViewport) window.visualViewport.addEventListener('resize', positionCaret);
     positionCaret();
 
-    var lastSent = '', composing = false, timer = null, lastInputTs = 0;
-    function flush() {
-      timer = null;
-      var v = ov.value;
-      if (dbgEl) dbg(' {in=' + JSON.stringify(v) + ' last=' + JSON.stringify(lastSent) + '}> ');
-      // Ignore iOS dictation's transient clear-to-"" between revisions — but ONLY
-      // while composing. Outside composition an empty value is a genuine line
-      // clear and must emit the backspaces (else ov and the PTY desync).
-      if (v === '' && lastSent !== '' && composing) return;
-      // Compare by code POINT (Array.from), not UTF-16 unit, so an emoji/astral
-      // char isn't split into two lone surrogates and one delete = one char.
-      var va = Array.from(v), la = Array.from(lastSent);
-      var i = 0, min = Math.min(va.length, la.length);
-      while (i < min && va[i] === la[i]) i++;
-      for (var d = la.length - i; d > 0; d--) { sendRaw(String.fromCharCode(127)); dbg('<BS>'); }
-      for (var j = i; j < va.length; j++) { sendRaw(va[j]); dbg(va[j]); }
-      lastSent = v;
-    }
-    function sched(ms) { if (timer) clearTimeout(timer); timer = setTimeout(flush, ms); }
-    function clr() { if (timer) { clearTimeout(timer); timer = null; } ov.value = ''; lastSent = ''; }
-    // Drop the value-diff mirror so the NEXT keystroke is sent as a clean delta from
-    // the shell's real cursor, not diffed against a now-stale baseline. Call whenever
-    // the shell line may have changed out-of-band from the overlay: the cursor was
-    // moved by the trackpad/arrows, ^C/Esc/Tab reshaped the line, or the tab returned
-    // from the background on a device switch. Without this the next flush emits
-    // spurious backspaces or dumps a bundle of characters (the "slide breaks typing /
-    // types in the wrong place / pastes a bundle" reports). Cheap and idempotent.
-    function resetBaseline() { if (timer) { clearTimeout(timer); timer = null; } ov.value = ''; lastSent = ''; composing = false; }
+    var lastInputTs = 0;
+    // Input-forwarding state machine (value-diff + IME/dictation gating) — DOM-free
+    // and UNIT-TESTED in terminal/lib/kbd-input.test.js, loaded here via the
+    // <script src="/kbd-input.js"> the sub_filter injects before this file. It is the
+    // single source of truth for "which bytes reach the PTY", so the IME rule (raw
+    // pinyin is NEVER echoed mid-composition) can't silently regress again. sendRaw
+    // emits to the PTY; dbg mirrors each byte into the debug overlay when enabled.
+    var fwd = (window.TerminalKbdInput && window.TerminalKbdInput.create)
+      ? window.TerminalKbdInput.create(function (b) {
+          sendRaw(b);
+          if (dbgEl) dbg(b === String.fromCharCode(127) ? '<BS>' : b);
+        })
+      : { input: function () {}, compositionStart: function () {}, compositionEnd: function () {},
+          enter: function () {}, tab: function () {}, backspaceEmpty: function () {}, reset: function () {} };
+    // resetBaseline: reset the value-diff mirror AND clear the overlay so the next
+    // keystroke is a clean delta from the shell's real cursor. Call whenever the line
+    // changed out-of-band (cursor moved by trackpad/arrows, ^C/Esc/Tab, or the tab
+    // returned from the background). Without it the next diff emits spurious
+    // backspaces or dumps a bundle (the "slide breaks typing / wrong place" reports).
+    function resetBaseline() { fwd.reset(); ov.value = ''; }
 
     // On a GENUINE (re)focus — the start of a new typing session — reset the
     // value-diff baseline so the first char is sent as-is. Stale lastSent/ov.value
@@ -320,28 +312,26 @@
       // MUST be reset or the next diff corrupts the line. Time since the last real
       // keystroke distinguishes the two (active typing bounces within milliseconds).
       if (window.__termBouncing && (Date.now() - lastInputTs) < 1500) return;
-      ov.value = ''; lastSent = ''; composing = false;
-      if (timer) { clearTimeout(timer); timer = null; }
+      resetBaseline();
     });
 
-    ov.addEventListener('compositionstart', function () { dbg(' (cs)'); composing = true; });
-    ov.addEventListener('compositionend', function () { dbg(' (ce)'); composing = false; sched(40); });
+    // IME/dictation + value-diff forwarding — all in kbd-input.js (the fwd machine),
+    // where the rules are pinned by unit tests. The handlers here only translate DOM
+    // events into fwd calls + drive the debug overlay. The cardinal rule lives in
+    // fwd: during composition (pinyin/zhuyin/kana) NOTHING is forwarded until
+    // compositionend, so the raw pinyin never echoes into the shell before selection.
+    ov.addEventListener('compositionstart', function () { dbg(' (cs)'); fwd.compositionStart(); });
+    ov.addEventListener('compositionend', function () { dbg(' (ce)'); fwd.compositionEnd(ov.value); });
     ov.addEventListener('input', function (e) {
       lastInputTs = Date.now();
       if (dbgEl) dbg(' i[' + JSON.stringify(ov.value) + ' c=' + (e && e.isComposing) + ']');
-      // Normal typing: flush IMMEDIATELY so the keystroke round-trips to the PTY
-      // with no artificial delay — as snappy as a native field, minus only the
-      // unavoidable PTY-echo round-trip (the shell, not the browser, renders the
-      // char). Only dictation/IME (composing) keeps a debounce so its streamed
-      // revisions are batched instead of sent as half-words.
-      if (composing || (e && e.isComposing)) { sched(400); }
-      else { if (timer) { clearTimeout(timer); timer = null; } flush(); }
+      fwd.input(ov.value, !!(e && e.isComposing));
     });
     ov.addEventListener('keydown', function (e) {
       lastInputTs = Date.now();
-      if (e.key === 'Enter') { e.preventDefault(); flush(); sendRaw(String.fromCharCode(13)); clr(); dbg(' <ENTER> '); }
-      else if (e.key === 'Tab') { e.preventDefault(); sendRaw(String.fromCharCode(9)); dbg(' <TAB> '); }
-      else if (e.key === 'Backspace' && ov.value === '') { e.preventDefault(); sendRaw(String.fromCharCode(127)); }
+      if (e.key === 'Enter') { e.preventDefault(); fwd.enter(ov.value); ov.value = ''; dbg(' <ENTER> '); }
+      else if (e.key === 'Tab') { e.preventDefault(); fwd.tab(); dbg(' <TAB> '); }
+      else if (e.key === 'Backspace' && ov.value === '') { e.preventDefault(); fwd.backspaceEmpty(); }
     });
     // Returning from the background (the common "device switch" path on iOS) may have
     // reconnected the WS and redrawn the shell line — the mirror is stale, so reset it.
@@ -469,7 +459,11 @@
         var ta = document.createElement('textarea'); ta.value = s || '';
         ta.style.cssText = 'position:fixed;top:-9999px;opacity:0'; ta.readOnly = true;
         document.body.appendChild(ta); ta.select();
-        window.__allowCopy = true; document.execCommand('copy'); window.__allowCopy = false;  // pass the sub_filter copy gate
+        // try/finally so a throwing execCommand can't leave __allowCopy stuck true
+        // (which would re-enable ttyd's copy-on-select clipboard clobber for the
+        // rest of the page's life — the gate exists precisely to suppress that).
+        try { window.__allowCopy = true; document.execCommand('copy'); }
+        finally { window.__allowCopy = false; }
         document.body.removeChild(ta);
       } catch (_) {}
     }

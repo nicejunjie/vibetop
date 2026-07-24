@@ -308,6 +308,17 @@ class _Client:
 
 
 @pytest.fixture()
+def op_cookie(mgr, home):
+    """A Cookie header for the operator (APP_USER, the default admin). Endpoints
+    that execute a command / act on a user's session, and the admin-only surfaces,
+    now require a valid session (no cookieless APP_USER fallback — that would let a
+    local tenant hitting the loopback port directly act as the operator). Success-
+    path tests for those endpoints pass this; bad-input tests stay cookieless (the
+    input 400s land before the auth gate)."""
+    return "vt_session=" + mgr._sign_session(mgr.APP_USER)
+
+
+@pytest.fixture()
 def client(mgr, home, stubs):
     """Boot the manager in-thread over a real socket and yield a _Client.
     Depends on `home` (sandbox paths) + `stubs` (no external processes)."""

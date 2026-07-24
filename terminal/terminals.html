@@ -462,6 +462,13 @@
       var tab = tabs.querySelector('.tab[data-n="' + n + '"]');
       if (tab) tab.classList.remove('starting');
       activate(n);
+    }).catch(function() {
+      // Start/wait failed (manager briefly down/saturated). Without this, pending[n]
+      // stayed true forever — reconcile (running ∪ pending) then forced the dead
+      // number into `desired` on every poll, so the tab sat yellow permanently and
+      // nextAvailable skipped n for good. Drop the half-created tab + iframe.
+      delete pending[n];
+      reactivateAfter(detachTab(n));
     });
   });
 

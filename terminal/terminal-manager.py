@@ -380,6 +380,8 @@ def _desktop_state_file():
 DESKTOP_TTL = 120         # seconds; an instance idle longer drops out of the union
 DESKTOP_MAX_INSTANCES = 24
 _SSE_MAX_CLIENTS = 64   # cap concurrent /api/events streams; each pins a thread for the client's lifetime
+_SSE_MAX_PER_USER = 12  # per-user sub-cap so one user's many tabs can't starve the global pool
+_sse_per_user = {}      # user -> open /api/events stream count (guarded by _metrics_lock)
 _desktop_lock = threading.Lock()
 # Per-user "bring the Browser app to the front" signal (a monotonic counter). A
 # terminal's xdg-open/$BROWSER shim opens a URL in the user's Browser server-side,
@@ -788,7 +790,22 @@ def _term_helper(name):
 # and ttyd binds a PER-USER port so nginx can route /tN/ by identity (via authcheck).
 USERS_REGISTRY = "/var/lib/vibetop/users.json"     # {user:{slot:k}} — root-owned
 USER_TERM_BASE = _port_env("USER_TERM_BASE", 17000)
-PER_USER_TERMS = 100                               # port span per user (>= MAX_INSTANCE)
+PER_USER_TERMS = 100                               # port span per user block
+# EVERY per-user TCP port (the user's terminals AND their FileBrowser + both xpra
+# HTML5 ports) lives inside that one 100-port block: base + slot*100 + offset.
+# Terminals take offsets 1..MAX_INSTANCE; the three app ports sit just above the
+# terminal range (so they never overlap a terminal) and still inside the block (so
+# they never reach into the NEXT user's block). This makes cross-user port
+# collisions impossible at any slot count. The old layout put FileBrowser at
+# 18000+slot and the xpra ports at 24500/24700+slot as SEPARATE bands, which the
+# terminal band (17000+slot*100+n) overran once slots reached ~10 — e.g. the 11th
+# user's (slot 10) terminals 18001..18050 collided with slots 1..50 FileBrowsers.
+USER_FB_OFFSET = MAX_INSTANCE + 1                  # FileBrowser, just past the terminals
+USER_BROWSER_XPRA_OFFSET = MAX_INSTANCE + 2        # Browser xpra HTML5 port
+USER_X11_XPRA_OFFSET = MAX_INSTANCE + 3            # X11 xpra HTML5 port
+if USER_X11_XPRA_OFFSET >= PER_USER_TERMS:         # guardrail: block must hold them all
+    raise SystemExit("MAX_INSTANCES too large for PER_USER_TERMS "
+                     f"({MAX_INSTANCE} + 3 app ports must be < {PER_USER_TERMS})")
 _users_lock = threading.Lock()
 
 # Per-unit resource caps for the systemd-run transient units (multi-user safety on
@@ -1197,6 +1214,33 @@ def _drop_user_from_registry(user):
                 pass
 
 
+def _tombstone_user_in_registry(user):
+    """On user removal: strip the slot/heartbeat but KEEP the (already-bumped)
+    token_epoch as a tombstone, so every session ever issued to `user` stays
+    revoked even though the registry entry no longer describes a live user — and,
+    if the username is later re-created (fresh account, epoch would otherwise reset
+    to 0), old cookies minted at the lower epoch still can't validate. Dropping the
+    whole entry (the previous behavior) reset the epoch to 0 on read, which
+    silently un-did the `_bump_token_epoch` revocation done just before userdel."""
+    with _users_lock:
+        reg = _read_users_registry()
+        ent = reg.get(user)
+        if not isinstance(ent, dict):
+            return                                  # nothing to tombstone
+        try:
+            epoch = int(ent.get("token_epoch", 0))
+        except (TypeError, ValueError):
+            epoch = 0
+        reg[user] = {"token_epoch": epoch}          # drop slot/ts, keep the epoch
+        try:
+            os.makedirs(os.path.dirname(USERS_REGISTRY), exist_ok=True)
+            _atomic_write(USERS_REGISTRY, json.dumps(reg))
+        except OSError:
+            pass
+    with _cache_lock:                               # so revocation is visible at once
+        _cache.pop("token_epoch:" + user, None)
+
+
 # ---- Disk usage (Config app) -------------------------------------------------
 def _disk_usage():
     """Filesystem usage for the roots that matter + the largest real-user homes.
@@ -1306,8 +1350,15 @@ def _restart_service(name):
     return True, None
 
 
+def _user_block_port(user, offset):
+    """A port inside this user's own 100-port block (base + slot*100 + offset).
+    Every per-user TCP port is derived from here, so two users' ports can never
+    collide regardless of slot count (see the USER_*_OFFSET notes)."""
+    return USER_TERM_BASE + _user_slot(user) * PER_USER_TERMS + int(offset)
+
+
 def _user_term_port(user, n):
-    return USER_TERM_BASE + _user_slot(user) * PER_USER_TERMS + int(n)
+    return _user_block_port(user, int(n))
 
 
 def _wait_tcp(port, timeout=8.0):
@@ -1463,11 +1514,10 @@ def _stop_user_terminal(user, n):
 # their real home (files.html anchors on /api/me) but can navigate the tree.
 # Per-user port + DB. nginx routes /files/ to the user's port via authcheck.
 FB_BIN = os.environ.get("FB_BIN", "/usr/local/bin/filebrowser")
-FB_APP_BASE = _port_env("FB_APP_BASE", 18000)     # per-user FileBrowser port = base + slot
 
 
-def _user_app_port(user, base):
-    return base + _user_slot(user)
+def _user_fb_port(user):
+    return _user_block_port(user, USER_FB_OFFSET)
 
 
 def _fb_unit(user):
@@ -1531,7 +1581,7 @@ def _start_user_filebrowser(user):
     except KeyError:
         return False, f"unknown user {user}"
     home = _user_home(user)
-    port = _user_app_port(user, FB_APP_BASE)
+    port = _user_fb_port(user)
     unit = _fb_unit(user)
     # Already running? (cheap check via the unit's active state)
     try:
@@ -1562,10 +1612,12 @@ def _start_user_filebrowser(user):
 # desktop for GUI apps), run AS them via systemd-run, on per-user displays+ports
 # from their slot. nginx routes /browser/ and /x11-display/ to the user's port via
 # authcheck (X-App-Port). Display numbers avoid the legacy shared :98/:99.
+# xpra X DISPLAY numbers are a SEPARATE namespace from TCP ports (no overlap with
+# the port blocks). Browser displays start at 200, X11 at 340 — a 140-slot gap, so
+# the two display bands stay disjoint up to ~140 concurrent users (well past any
+# real host; the TCP ports, the reachable collision, are fully block-isolated).
 BROWSER_DISP_BASE = _port_env("BROWSER_DISP_BASE", 200)
-BROWSER_XPRA_BASE = _port_env("BROWSER_XPRA_BASE", 24500)
 X11_DISP_BASE = _port_env("X11_DISP_BASE", 340)
-X11_XPRA_BASE = _port_env("X11_XPRA_BASE", 24700)
 
 
 def _user_xpra_display(user, kind):
@@ -1574,8 +1626,10 @@ def _user_xpra_display(user, kind):
 
 
 def _user_xpra_port(user, kind):
-    base = BROWSER_XPRA_BASE if kind == "browser" else X11_XPRA_BASE
-    return base + _user_slot(user)
+    # The xpra HTML5 port lives in the user's own per-user block (like their
+    # terminals + FileBrowser), so it can never collide with another user's ports.
+    off = USER_BROWSER_XPRA_OFFSET if kind == "browser" else USER_X11_XPRA_OFFSET
+    return _user_block_port(user, off)
 
 
 def _xpra_unit(user, kind):
@@ -1623,6 +1677,73 @@ def _stop_user_xpra(user, kind):
                        capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.SubprocessError):
         pass
+
+
+# ---- Per-user private D-Bus bus for X11 GUI apps (evince/eog/…) --------------
+# GNOME/GTK apps launched onto the X11 display try to activate org.freedesktop.
+# portal.Desktop / at-spi over the SESSION bus; in this sessionless desktop that
+# activation has nothing to answer and blocks ~25s per app ("evince opens really
+# slowly / the launcher reacts long after the terminal command"). The fix: give
+# them a PRIVATE session bus whose config has NO <servicedir>, so the activation
+# request fails instantly instead of timing out — ~0.2s startup. Snap apps
+# (Firefox/Chromium) keep the REAL user bus (confinement needs it; they don't hang
+# on the portal). This restores the single-user optimization the multi-user
+# conversion dropped, now per-user. The private dbus-daemon is the "thing pinned in
+# the background" — started on demand per user, like the xpra displays.
+X11_DBUS_CONF = os.environ.get("X11_DBUS_CONF", "/etc/vibetop/x11-dbus.conf")
+
+
+def _is_snap_launch(prog):
+    """True for a snap-packaged GUI (needs the REAL user session bus; doesn't hang
+    on the portal). Everything else (GNOME/GTK/X apps) gets the private bus."""
+    if not prog:
+        return False
+    return prog.startswith("/snap/") or os.path.exists("/snap/bin/" + os.path.basename(prog))
+
+
+def _x11dbus_unit(user):
+    return f"vibetop-ux11dbus-{_sanitize_unit(user)}.service"
+
+
+def _x11dbus_socket(uid):
+    return f"/run/user/{uid}/vibetop-x11-bus"
+
+
+def _ensure_user_x11_dbus(user, uid, gid):
+    """Ensure the user's private, activation-free D-Bus session bus is running and
+    return its socket path — or None if it can't be started (caller then falls back
+    to the real user bus, i.e. the slow-but-works path)."""
+    sock = _x11dbus_socket(uid)
+    unit = _x11dbus_unit(user)
+    try:
+        st = subprocess.run(["systemctl", "is-active", unit],
+                            capture_output=True, text=True, timeout=10)
+        if st.stdout.strip() == "active" and os.path.exists(sock):
+            return sock
+    except (OSError, subprocess.SubprocessError):
+        pass
+    if not os.path.exists(X11_DBUS_CONF):
+        return None                      # config not deployed (e.g. --no-browser) -> real bus
+    _provision_user(user)                # linger -> /run/user/<uid> exists
+    try:
+        r = subprocess.run(
+            ["systemd-run", "--collect", f"--uid={user}", f"--gid={gid}", f"--unit={unit}",
+             "--setenv", f"XDG_RUNTIME_DIR=/run/user/{uid}",
+             "/usr/bin/dbus-daemon", "--nofork", "--nopidfile",
+             f"--config-file={X11_DBUS_CONF}", f"--address=unix:path={sock}"],
+            capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError) as e:
+        log.warning("x11 private dbus start failed for %s: %s", user, e)
+        return None
+    if r.returncode != 0:
+        log.warning("x11 private dbus rc=%s for %s: %s", r.returncode, user,
+                    (r.stderr or r.stdout or "").strip()[:200])
+        return None
+    for _ in range(30):                  # wait for the socket to appear (~0-1s)
+        if os.path.exists(sock):
+            break
+        time.sleep(0.1)
+    return sock if os.path.exists(sock) else None
 
 
 # System-status readers (CPU/MEM/GPU/disk/net/processes) live in system_status.py
@@ -2849,19 +2970,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _req_ctx.user = None
 
     def _require_admin(self):
-        """Guard for subsystems NOT yet made per-user (Browser/X11, Files-as-view,
-        Claude-usage, Update). The gate admits every Linux user, but these still
-        act as APP_USER — so a non-admin user calling them would act AS the
-        operator (RCE/DoS/data). Restrict them to the operator (APP_USER) until
-        each is per-user. Returns True if allowed; else writes 403 and returns
-        False. Admits the named admins (VIBETOP_ADMINS) plus APP_USER — the latter
-        is cookieless loopback/admin tooling (_ctx_user() falls back to APP_USER)."""
-        if _is_admin(_ctx_user()):
+        """Guard for operator-only subsystems (Claude-usage, Update). Requires an
+        authenticated admin SESSION — it gates on `_session_user()` (the verified
+        cookie), NOT `_ctx_user()` (which falls back to APP_USER for cookieless
+        requests). That fallback must never grant operator access: on a multi-user
+        host a local tenant can reach the manager's loopback port directly
+        (bypassing nginx's auth_request) with no cookie, and admitting that as
+        APP_USER would let them trigger a root redeploy / toggle the admin's proxy.
+        Returns True if allowed; else writes 403 and returns False."""
+        u = self._session_user()
+        if u and _is_admin(u):
             return True
-        log.warning("admin-only %s denied for user %s", self.path, _ctx_user())
+        log.warning("admin-only %s denied for user %s", self.path, u or "<anon>")
         self._json(403, {"error": "this feature is available to the operator only "
                                   "(not yet per-user)"})
         return False
+
+    def _require_authed(self):
+        """Guard for endpoints that execute a command / act on a specific user's
+        session (Browser + X11 launch/type/key/shape/activate/close). A valid login
+        session is mandatory — there is NO APP_USER fallback here, because a
+        cookieless request reaching this loopback server came directly from a local
+        tenant (nginx's auth_request would have 401'd an unauthenticated proxy
+        request before it ever reached us), and acting as APP_USER for it is a
+        tenant->operator command-execution escalation. Returns the authenticated
+        username, or writes 401 and returns None."""
+        u = self._session_user()
+        if u:
+            return u
+        log.warning("auth-required %s rejected (no session)", self.path)
+        self._json(401, {"error": "authentication required"})
+        return None
 
     def _require_sudo(self):
         """Guard for the Config admin app (idle policy + user management). Gates on
@@ -3006,8 +3145,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         path = orig.split("?", 1)[0]
         # /fileview/ serves raw files as the nginx worker (APP_USER's tree, shared
-        # embedded Browser) -> operator only until it's per-user (Phase 3c).
-        if path.startswith("/fileview/") and user != APP_USER:
+        # embedded Browser) -> operator only until it's per-user (Phase 3c). Gate on
+        # _is_admin, NOT `user != APP_USER`: on prod APP_USER is the no-login service
+        # account (`vibetop`) while the human operator logs in as a named admin, so
+        # `!= APP_USER` denied EVERY real session (feature dead). The named admins
+        # (VIBETOP_ADMINS) are exactly who should reach it.
+        if path.startswith("/fileview/") and not _is_admin(user):
             self.send_response(403)
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -3530,10 +3673,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        # 3. Drop in-memory office edit sessions (user files left untouched).
+        # 3. Drop THIS user's in-memory office edit sessions (user files left
+        #    untouched). Scoped to `user` — a global .clear() would wipe every
+        #    other user's live edit sessions too, so their autosave/forcesave would
+        #    silently no-op (cross-user data loss). Keys are (owner, rel).
         with _office_sessions_lock:
-            result["office_sessions_cleared"] = len(_office_sessions)
-            _office_sessions.clear()
+            mine = [k for k in _office_sessions if isinstance(k, tuple) and k[0] == user]
+            for k in mine:
+                _office_sessions.pop(k, None)
+            result["office_sessions_cleared"] = len(mine)
 
         # 3b. Forget terminal tab names — the terminals are gone, so a fresh
         #     start shouldn't inherit old custom names.
@@ -3784,7 +3932,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(500, {"error": str(e)})
         if r.returncode != 0:
             return self._json(500, {"error": (r.stderr or "userdel failed").strip()})
-        _drop_user_from_registry(username)
+        _tombstone_user_in_registry(username)       # keep the epoch tombstone (revocation)
         log.info("config: removed user %s keepHome=%s (by %s)",
                  username, keep_home, _ctx_user())
         self._json(200, {"ok": True})
@@ -3805,7 +3953,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not _valid_browser_url(url):
             self._json(400, {"error": "invalid url"})
             return
-        user = _ctx_user()
+        user = self._require_authed()
+        if not user:
+            return
         try:
             uid = pwd.getpwnam(user).pw_uid
         except KeyError:
@@ -3853,7 +4003,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if len(text) > 10000:
             self._json(400, {"error": "text too long"})
             return
-        user = _ctx_user()
+        user = self._require_authed()
+        if not user:
+            return
         self._ensure_user_xpra(user, "browser")
         disp = _user_xpra_display(user, "browser")
         try:
@@ -3899,7 +4051,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not keysym:
             self._json(400, {"error": "invalid key"})
             return
-        user = _ctx_user()
+        user = self._require_authed()
+        if not user:
+            return
         self._ensure_user_xpra(user, "browser")
         disp = _user_xpra_display(user, "browser")
         try:
@@ -3940,7 +4094,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if shape not in self._BROWSER_SHAPES:
             self._json(400, {"error": "invalid shape"})
             return
-        user = _ctx_user()
+        user = self._require_authed()
+        if not user:
+            return
         self._ensure_user_xpra(user, "browser")
         profile = os.path.join(_user_home(user), "snap", "chromium",
                                "common", "xpra-profile")
@@ -3992,7 +4148,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not _valid_launch_cmd(cmd):
             self._json(400, {"error": "invalid command"})
             return
-        user = _ctx_user()
+        user = self._require_authed()
+        if not user:
+            return
         try:
             uid = pwd.getpwnam(user).pw_uid
         except KeyError:
@@ -4001,11 +4159,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._ensure_user_xpra(user, "x11")          # start their display if needed
         disp = _user_xpra_display(user, "x11")
         prog = _launch_prog(cmd)
-        # Per-user: use the user's own session bus for every app (the shared
-        # private "apps bus" was single-user). Snap apps need it; GTK/GNOME apps
-        # work but may pause ~25s on an xdg-desktop-portal activation timeout — a
-        # known per-user degradation (a per-user private bus would restore ~0.2s).
-        dbus_sock = f"/run/user/{uid}/bus"
+        # D-Bus per app. Snap apps (Firefox/Chromium) need the user's REAL session
+        # bus (confinement) and don't hang on the portal, so they keep it. GNOME/GTK
+        # apps (evince/eog/…) get the PRIVATE, activation-free bus so they don't wait
+        # out the ~25s xdg-desktop-portal/at-spi activation timeout (the "evince opens
+        # slowly / launcher reacts late" bug). Falls back to the real bus if the
+        # private one can't start (slow but functional).
+        if _is_snap_launch(prog):
+            dbus_sock = f"/run/user/{uid}/bus"
+        else:
+            try:
+                gid = pwd.getpwnam(user).pw_gid
+            except KeyError:
+                gid = uid
+            dbus_sock = _ensure_user_x11_dbus(user, uid, gid) or f"/run/user/{uid}/bus"
         log.info("x/launch %r for %s (display :%d)", cmd, user, disp)
         # Login shell (-) so the user's PATH resolves bare names like `gimp`.
         # Reap in a daemon thread so short-lived launchers don't linger as zombies.
@@ -4094,6 +4261,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         wid = (data.get("id") or "").strip()
         if not _valid_x_window_id(wid):
             return self._json(400, {"error": "invalid window id"})
+        # Command execution as the user -> require an authenticated session (no
+        # APP_USER fallback for a cookieless direct-to-loopback tenant call).
+        if not self._require_authed():
+            return
         p = self._run_wmctrl(["-i", flag, wid])
         ok = bool(p and p.returncode == 0)
         self._json(200 if ok else 500, {"ok": ok})
@@ -5322,12 +5493,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _handle_events(self):
         # Cap concurrent streams: each holds a thread for the client's lifetime and
         # ThreadingHTTPServer has no connection limit, so an abusive client could
-        # exhaust the pool. Reject past the cap with 503 (EventSource auto-retries).
+        # exhaust the pool. A GLOBAL cap alone let ONE user's tabs (up to 64) starve
+        # every other user's auto-refresh stream, so also enforce a per-user
+        # sub-cap. Reject past either cap with 503 (EventSource auto-retries).
+        user = _ctx_user()
         with _metrics_lock:
-            if _METRICS["sse_clients"] >= _SSE_MAX_CLIENTS:
+            cur_user = _sse_per_user.get(user, 0)
+            if _METRICS["sse_clients"] >= _SSE_MAX_CLIENTS or cur_user >= _SSE_MAX_PER_USER:
                 over = True
             else:
                 _METRICS["sse_clients"] += 1
+                _sse_per_user[user] = cur_user + 1
                 over = False
         if over:
             try:
@@ -5345,6 +5521,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         finally:
             with _metrics_lock:
                 _METRICS["sse_clients"] -= 1
+                _n = _sse_per_user.get(user, 0) - 1
+                if _n > 0:
+                    _sse_per_user[user] = _n
+                else:
+                    _sse_per_user.pop(user, None)
 
     def _events_stream(self):
         # Server-Sent Events: push a 'reload' when the deployed shell version

@@ -1329,6 +1329,22 @@
   }
 
   function renderTaskbar() {
+    // If the buttons already match openApps (same ids, same order), only move the
+    // active highlight in place — do NOT rebuild. A full innerHTML wipe here
+    // detached the drag source mid-gesture: pressing a BACKGROUND app fires
+    // pointerdown→setActive→renderTaskbar, which destroyed the button before
+    // dragstart, so reordering a non-active app silently failed in Chromium.
+    var existing = Array.prototype.map.call(
+      taskAppsEl.querySelectorAll('.task-app'), function (b) { return b.dataset.id; });
+    var same = existing.length === openApps.length &&
+               existing.every(function (id, i) { return id === openApps[i]; });
+    if (same) {
+      Array.prototype.forEach.call(taskAppsEl.querySelectorAll('.task-app'), function (b) {
+        b.classList.toggle('active', b.dataset.id === active);
+      });
+      markMenuRunning();
+      return;
+    }
     taskAppsEl.innerHTML = '';
     openApps.forEach(function(id) {
       var btn = document.createElement('div');
@@ -1747,18 +1763,24 @@
     // kicks one right after the server agrees; a peer-driven change already rode in
     // on the heartbeat that delivered it).
   }
-  // Reconcile with the shared server value (from the desktop heartbeat).
+  // Reconcile with the shared server value (from the desktop heartbeat). Guarded
+  // by a short local-override window like the Claude-Usage toggle: without it, a
+  // heartbeat already in flight when the user toggles carries the OLD value and
+  // reverts the readout for ~1 tick before the POST lands (visible flicker).
+  var sysStatsOverrideUntil = 0;
   window.applyServerSysStats = function(on) {
+    if (Date.now() < sysStatsOverrideUntil) return;
     if (on === sysStatsOn()) return;
     setSysStatsLocal(on);
   };
   window.toggleSysStats = function() {
     var want = !sysStatsOn();
     setSysStatsLocal(want);   // optimistic; other clients pick it up on their heartbeat
+    sysStatsOverrideUntil = Date.now() + 8000;   // fallback if the POST never resolves
     fetch('/api/desktop/ui', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sysStats: want }) })
-      .then(function() { if (want) pushDesktop(); })   // server now agrees → heartbeat returns d.system to render now
-      .catch(function() {});
+      .then(function() { sysStatsOverrideUntil = 0; if (want) pushDesktop(); })   // server agrees → heartbeat returns d.system
+      .catch(function() { sysStatsOverrideUntil = 0; });
   };
 
   // Render-only: the taskbar stats now arrive on the desktop heartbeat as

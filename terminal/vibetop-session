@@ -132,6 +132,18 @@ def cmd_serve(instance):
     pty_fd = -1
     child_pid = 0
     sel = selectors.DefaultSelector()
+    # Self-pipe so a signal (SIGUSR1 = a client resized) actually wakes sel.select.
+    # Since Python 3.5 (PEP 475) a signal whose handler just returns causes the
+    # interrupted select to RESTART with its original timeout — so on a quiet
+    # terminal an armed resize would sit until the 1s select naturally expired
+    # (~1s late) instead of applying within RESIZE_DEBOUNCE. set_wakeup_fd writes a
+    # byte on every signal delivery, which we register as a readable fd so select
+    # returns at once and the loop recomputes the shortened timeout.
+    _wake_r, _wake_w = os.pipe()
+    os.set_blocking(_wake_r, False)
+    os.set_blocking(_wake_w, False)
+    signal.set_wakeup_fd(_wake_w)
+    sel.register(_wake_r, selectors.EVENT_READ, 'wakeup')
     MAX_OUTQ = 1024 * 1024
     # Resize debounce: a SIGUSR1 (an attach client's size changed) doesn't apply
     # the resize inline — it arms a deadline, and the main loop applies the LATEST
@@ -438,6 +450,12 @@ def cmd_serve(instance):
             continue
 
         for key, mask in events:
+            if key.data == 'wakeup':
+                try:
+                    os.read(_wake_r, 4096)     # drain the signal bytes; the flags are already set
+                except OSError:
+                    pass
+                continue
             if key.data == 'server':
                 try:
                     conn, _ = server.accept()

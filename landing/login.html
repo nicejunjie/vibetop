@@ -118,10 +118,17 @@
   </form>
   <script>
     // Where to go after a successful login: honor a ?next= (same-origin path only).
+    // Resolve against our own origin and require the result to STAY on it — a bare
+    // startsWith('/') && !startsWith('//') check is bypassable (e.g. "/\\evil.com"
+    // or "/%09/evil.com": browsers normalize "\" -> "/" and strip tab/newline, so
+    // it becomes protocol-relative -> an off-origin open redirect from a link a
+    // victim is phished with, after they've entered real credentials).
     function nextUrl() {
       try {
         const n = new URLSearchParams(location.search).get('next');
-        if (n && n.startsWith('/') && !n.startsWith('//')) return n;
+        if (!n) return '/';
+        const u = new URL(n, location.origin);
+        if (u.origin === location.origin) return u.pathname + u.search + u.hash;
       } catch (_) {}
       return '/';
     }

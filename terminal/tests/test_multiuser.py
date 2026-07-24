@@ -164,6 +164,24 @@ def test_user_term_port_disjoint_ranges(mgr, monkeypatch, tmp_path):
     assert mgr._user_term_port("alice", 1) + 4 == mgr._user_term_port("alice", 5)
 
 
+def test_all_per_user_ports_never_collide_across_many_users(mgr, monkeypatch, tmp_path):
+    # Regression: the 11th user's terminals (slot 10 -> 18001..18050) used to
+    # collide with slots 1..50's FileBrowsers (18000+slot). Assert that EVERY
+    # per-user TCP port (terminals + FileBrowser + both xpra HTML5 ports) is
+    # globally unique across a realistic fleet.
+    monkeypatch.setattr(mgr, "USERS_REGISTRY", str(tmp_path / "users.json"))
+    seen = {}
+    for i in range(40):                          # 40 users, well past the old break at 11
+        u = f"user{i}"
+        ports = ([mgr._user_term_port(u, n) for n in range(1, mgr.MAX_INSTANCE + 1)]
+                 + [mgr._user_fb_port(u),
+                    mgr._user_xpra_port(u, "browser"),
+                    mgr._user_xpra_port(u, "x11")])
+        for p in ports:
+            assert p not in seen, f"port {p} for {u} collides with {seen.get(p)}"
+            seen[p] = u
+
+
 def test_term_instance_and_unit_naming(mgr):
     assert mgr._term_instance("alice", 3) == "alice-3"
     s, t = mgr._term_units("alice", 3)
@@ -274,9 +292,9 @@ def test_non_admin_reset_is_per_user(client, mgr, users, monkeypatch):
 
 def test_files_port_and_unit_per_user(mgr, monkeypatch, tmp_path):
     monkeypatch.setattr(mgr, "USERS_REGISTRY", str(tmp_path / "u.json"))
-    monkeypatch.setattr(mgr, "FB_APP_BASE", 18000)
-    assert mgr._user_app_port("alice", mgr.FB_APP_BASE) != \
-        mgr._user_app_port("bob", mgr.FB_APP_BASE)
+    assert mgr._user_fb_port("alice") != mgr._user_fb_port("bob")
+    # FileBrowser sits inside the user's own terminal block, above the terminals.
+    assert mgr._user_fb_port("alice") == mgr._user_term_port("alice", mgr.USER_FB_OFFSET)
     assert mgr._fb_unit("alice") == "vibetop-ufiles-alice.service"
     assert mgr._fb_unit("a b;c") == "vibetop-ufiles-a_b_c.service"
 

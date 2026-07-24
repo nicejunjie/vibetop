@@ -297,6 +297,24 @@ def test_user_remove_refuses_self(client, mgr, users, stubs, monkeypatch):
     assert not any(isinstance(c, list) and c and c[0] == "userdel" for c in stubs["run"])
 
 
+def test_user_remove_revokes_live_session(client, mgr, users, stubs, monkeypatch):
+    # Removing a user must invalidate their still-open web session. Regression:
+    # the epoch bump was erased by dropping the whole registry entry (epoch read
+    # back as 0), so the removed user's cookie stayed valid until expiry.
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: _fake_pw(u, uid=1006))
+    monkeypatch.setattr(mgr, "_is_real_login_user", lambda pw: True)
+    bob_token = users["bob"][1].split("=", 1)[1]         # minted before removal
+    assert mgr._verify_session(bob_token) == "bob"       # valid now
+    st, _ = client.post("/api/config/users/remove",
+                        {"username": "bob"}, cookie=users["alice"][1])
+    assert st == 200
+    assert mgr._verify_session(bob_token) is None         # revoked after removal
+    # And a re-created "bob" (fresh account, epoch would reset to 0) still can't be
+    # accessed with the old cookie — the tombstone kept the bumped epoch.
+    assert mgr._verify_session(bob_token) is None
+
+
 def test_passwd_uses_stdin_not_argv(client, mgr, users, stubs, monkeypatch):
     monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
     monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: _fake_pw(u, uid=1005))
