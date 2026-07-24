@@ -1663,8 +1663,19 @@ def _start_user_xpra(user, kind):
         st = subprocess.run(["systemctl", "is-active", unit],
                             capture_output=True, text=True, timeout=10)
         if st.stdout.strip() == "active":
-            _wait_tcp(port, 3)
-            return True, port
+            # Active AND actually listening on the EXPECTED port → reuse it. But an
+            # active unit can be bound to a STALE port: its port is baked into the
+            # transient unit's ExecStart at creation, so after a port-scheme change
+            # (or a wedged xpra) the unit stays "active" on the OLD port while nginx
+            # routes to the new one → every /browser//x11-display/ request 502s.
+            # Verify the expected port answers; if not, tear the unit down and fall
+            # through to recreate it on the correct port (self-heals the migration).
+            if _wait_tcp(port, 3):
+                return True, port
+            log.warning("xpra %s for %s is active but not listening on :%d "
+                        "(stale/wrong port) — recreating", kind, user, port)
+            subprocess.run(["systemctl", "stop", unit], capture_output=True, text=True)
+            subprocess.run(["systemctl", "reset-failed", unit], capture_output=True, text=True)
     except (OSError, subprocess.SubprocessError):
         pass
     _provision_user(user)               # linger -> /run/user/<uid> for snap + xpra

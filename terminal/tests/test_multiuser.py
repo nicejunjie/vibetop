@@ -235,6 +235,52 @@ def test_browser_x11_are_per_user_not_admin_gated(client, mgr, users, monkeypatc
     assert client.get("/api/x/windows", cookie=ck)[0] == 200   # 200 (empty), not 403
 
 
+def test_stale_xpra_on_wrong_port_is_recreated(mgr, monkeypatch):
+    # An "active" xpra unit bound to a STALE port (the port is baked into the
+    # transient unit at creation, so after a port-scheme change the unit stays
+    # active on the OLD port while nginx routes to the new one -> every request
+    # 502s) must be torn down and recreated, not blindly reused.
+    import types
+    calls = []
+
+    def fake_run(args, **kw):
+        calls.append(list(args))
+        out = "active\n" if args[:2] == ["systemctl", "is-active"] else ""
+        return types.SimpleNamespace(returncode=0, stdout=out, stderr="")
+
+    monkeypatch.setattr(mgr.subprocess, "run", fake_run)
+    monkeypatch.setattr(mgr, "_wait_tcp", lambda port, timeout=8.0: False)  # nothing on expected port
+    monkeypatch.setattr(mgr, "_provision_user", lambda u: None)
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: types.SimpleNamespace(pw_uid=4321, pw_gid=4321,
+                                                        pw_dir="/home/" + u, pw_name=u))
+    ok, res = mgr._start_user_xpra("alice", "x11")
+    unit = mgr._xpra_unit("alice", "x11")
+    assert any(c[:2] == ["systemctl", "stop"] and unit in c for c in calls), \
+        "a stale (wrong-port) but active xpra must be stopped before recreate"
+    assert any(c and c[0] == "systemd-run" for c in calls), \
+        "must recreate the xpra via systemd-run (on the correct port)"
+
+
+def test_healthy_xpra_on_right_port_is_reused_not_recreated(mgr, monkeypatch):
+    # The common path: active AND listening on the expected port -> reuse, no churn.
+    import types
+    calls = []
+    monkeypatch.setattr(mgr.subprocess, "run",
+                        lambda args, **kw: (calls.append(list(args)),
+                                            types.SimpleNamespace(returncode=0,
+                                                stdout="active\n" if args[:2] == ["systemctl", "is-active"] else "",
+                                                stderr=""))[1])
+    monkeypatch.setattr(mgr, "_wait_tcp", lambda port, timeout=8.0: True)   # port answers
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: types.SimpleNamespace(pw_uid=4321, pw_gid=4321,
+                                                        pw_dir="/home/" + u, pw_name=u))
+    ok, res = mgr._start_user_xpra("alice", "x11")
+    assert ok and res == mgr._user_xpra_port("alice", "x11")
+    assert not any(c and c[0] == "systemd-run" for c in calls), "healthy xpra must not be recreated"
+    assert not any(c[:2] == ["systemctl", "stop"] for c in calls), "healthy xpra must not be stopped"
+
+
 def test_system_status_process_list_scoped(mgr, monkeypatch):
     # The top-processes list is filtered to the requesting user (admin sees all).
     monkeypatch.setattr(mgr.system_status, "get_system_status",
