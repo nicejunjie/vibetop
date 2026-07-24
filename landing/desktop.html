@@ -1422,6 +1422,15 @@
   function closeApp(id) {
     var i = openApps.indexOf(id);
     if (i === -1) return;
+    // Closing the X11 Launcher closes the GUI apps running in it (graceful
+    // wmctrl -c). Without this, an app launched from a terminal keeps running on
+    // the X11 display after the launcher is closed, so that terminal (blocked on
+    // the foreground app) never returns — the app's own tab × already does this,
+    // but closing the whole launcher didn't. Only fires on an explicit close
+    // (this taskbar ×, the Start-menu ⏻, a cross-device close) — NOT on a deploy
+    // reload or reset, which tear iframes down via reload()/clearAllLocal(), never
+    // closeApp — so a routine refresh can't kill your apps.
+    if (id === 'x11launcher') closeAllXWindows();
     // Blur whatever has focus inside the closing iframe — xpra's #pasteboard
     // textarea grabs focus on touch, which keeps iOS Safari's visual viewport
     // shifted (as if a keyboard is up) even after the iframe is gone.
