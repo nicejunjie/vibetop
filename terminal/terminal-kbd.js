@@ -65,6 +65,26 @@
     cap = setTimeout(fin, 8000);   // backstop: never pin the bar on continuous output
   }
 
+  // Auto-refit self-heal (desktop). Re-run ttyd's FitAddon by dispatching a
+  // 'resize' — the SAME heal the desktop already does on app-activation — but fire
+  // it automatically on the events that let the terminal drift to a wrong width
+  // WHILE you're looking at it: after a (re)connect's ring-buffer replay (which can
+  // render at a stale width — the "the screen wrapped itself, I did nothing" bug),
+  // a layout/scrollbar change, and the tab returning to the foreground. So you no
+  // longer have to switch apps and back to un-wrap it. Guarded to non-zero size;
+  // ttyd only resizes the PTY when the computed cols/rows ACTUALLY change, so a
+  // steady terminal sees no churn (no "shake") and a same-size refit is a no-op.
+  // Mobile keeps its own keyboard/caret-aware resize path (two-finger claim), so
+  // this is desktop-only. (function declarations → hoisted, usable below.)
+  function reFit() {
+    try {
+      var t = window.term;
+      if (t && t.element && t.element.clientWidth > 0) window.dispatchEvent(new Event('resize'));
+    } catch (_) {}
+  }
+  var _refitT = null;
+  function reFitSoon() { if (_refitT) clearTimeout(_refitT); _refitT = setTimeout(reFit, 180); }
+
   // Capture ttyd's WebSocket (this script runs at end of <head>, before ttyd opens
   // the socket on load) so claimSize can re-send the terminal size straight to the
   // PTY without resizing the visible terminal.
@@ -73,7 +93,12 @@
     var Native = window.WebSocket; if (!Native) return;
     function WS(url, proto) {
       var ws = (proto === undefined) ? new Native(url) : new Native(url, proto);
-      try { ttydWS = ws; loadingBar(ws); } catch (_) {}
+      try {
+        ttydWS = ws; loadingBar(ws);
+        // Re-fit after a (re)connect's replay settles so the buffer isn't left
+        // rendered at a stale width. Desktop only.
+        if (!isTouch) ws.addEventListener('open', function () { setTimeout(reFit, 500); });
+      } catch (_) {}
       return ws;
     }
     WS.prototype = Native.prototype;
@@ -159,6 +184,18 @@
           }, 0);
         });
       } catch (_) {}
+      // Auto-refit self-heal (see reFit above): re-fit when the terminal's own box
+      // resizes (a scrollbar appearing, any layout shift) or the tab comes back to
+      // the foreground — so a width drift un-wraps itself without switching apps.
+      try {
+        if (window.ResizeObserver && t.element) {
+          var ro = new ResizeObserver(function () { reFitSoon(); });
+          ro.observe(t.element);
+          if (t.element.parentElement) ro.observe(t.element.parentElement);
+        }
+      } catch (_) {}
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) reFitSoon(); });
+      window.addEventListener('pageshow', function () { reFitSoon(); });
     }, 60);
     return;
   }
