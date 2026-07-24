@@ -505,9 +505,12 @@ location looks correctly configured).
 - **Rejected:**
   - `GTK_USE_PORTAL=0` (per-app env): it *did* stop portal activation, but eog
     was still ~33s — there was a second hanging service too. Whack-a-mole.
-  - Pointing **terminal** shells at the private bus as well: breaks
-    `systemctl --user`/`gsettings` (they need the real user bus). So terminals
-    keep the user bus; only the launcher routes to the private bus.
+  - ~~Pointing **terminal** shells at the private bus as well: breaks
+    `systemctl --user`/`gsettings`.~~ **This turned out to be false — see the
+    terminal-launch section below.** `systemctl --user`/`gsettings` reach the user
+    manager via `$XDG_RUNTIME_DIR`, *not* `DBUS_SESSION_BUS_ADDRESS`, so they work
+    identically on the private bus (verified). Terminals now DO use the private bus;
+    only snap browsers are special-cased back to the real bus.
   - Masking `xdg-desktop-portal` globally: would affect a physical GNOME login
     on the host (if any). The private bus is isolated to launcher apps.
 
@@ -552,6 +555,45 @@ location looks correctly configured).
   for the user (a broken half-replaced state) plus hundreds of stale `~/.cache/ibus/dbus-*`
   sockets. Not the cause (evince is 0.5s with ibus alive *and* dead), but unhealthy —
   worth watching if intermittent slowness ever returns.
+
+## The REAL evince-slowness: terminal-launched GUI apps were on the real (hanging) bus
+
+- **Symptom:** "evince from the **terminal** is still slow — long after I type it, the X11
+  Launcher finally shows the window." The X11 Launcher's own launches (`/api/x/launch`)
+  were fast (they pick the private bus), but typing `evince` in a terminal was ~40s.
+- **A second measurement trap (worse than the first):** I first "verified" terminal evince
+  at 0.5s with `xdotool search --sync --class '[Ee]vince'` and wrongly concluded it was
+  fine. **`xdotool --class` finds a *premature/transient* evince window that exists at
+  ~0.5s**, but the real, usable, WM-managed document window (the one `wmctrl -l` lists and
+  the desktop's auto-surface + the human both see) doesn't appear until the portal/a11y
+  activation finally times out. Measured correctly (**time until `wmctrl -l` lists it**):
+  real user bus = **42s (timeout)**, private bus = **0.11s**. Lesson updated in the QA
+  charter: for GUI-launch timing use **`wmctrl -l` listing** (or the app's own "ready"),
+  because `xdotool --class` matches a window that isn't yet the usable top-level.
+- **Cause:** the terminal exported `DBUS_SESSION_BUS_ADDRESS=…/run/user/<uid>/bus` (the real
+  session bus), so GUI apps launched from it hit the same portal/at-spi hang the launcher
+  was fixed for. Env-var workarounds don't help — `GTK_USE_PORTAL=0`, `GTK_A11Y=none`, and
+  `NO_AT_BRIDGE=1` (alone *and* combined) all still timed out at ~40s on the real bus (a
+  third hanging service; the whack-a-mole the launcher fix already warned about).
+- **Fix:** the terminal now points D-Bus at the **private activation-free bus** too
+  (`_user_terminal_setenvs` calls `_ensure_user_x11_dbus` and exports its socket; falls
+  back to the real bus if it can't start). This is the earlier-"rejected" option, and the
+  rejection reason was **wrong**: `systemctl --user`, `gsettings`, and `loginctl` reach the
+  user manager through `$XDG_RUNTIME_DIR` (the systemd private socket / dconf DB), **not**
+  `DBUS_SESSION_BUS_ADDRESS` — verified all three behave identically on the private bus.
+- **The one real exception — snap browsers:** `firefox`/`chromium` (snap) **exit** on the
+  private bus: snap-confine creates a transient systemd scope via `org.freedesktop.systemd1`
+  which the activation-free bus doesn't provide (`cannot create transient scope: …
+  ServiceUnknown`). So `terminal/realbus-shim.sh` is installed as `/usr/local/bin/firefox`
+  and `/usr/local/bin/chromium` (ahead of `/snap/bin` on PATH); it puts the real user bus
+  back and hands off to the snap. Only names that are *actually* snaps here get shadowed
+  (the installer removes a stale shim otherwise), so a non-snap firefox/chromium is
+  untouched. This inverts the maintenance burden: one short, stable list (the GUI snaps)
+  instead of an ever-growing list of hang-prone GNOME apps.
+- **Note:** the env is baked at terminal start, so the fix only reaches **new** terminals —
+  open a fresh one after deploying. Guarded by
+  `test_terminal_env_uses_private_dbus_bus_when_available` +
+  `test_terminal_env_falls_back_to_real_bus_if_private_unavailable`.
 
 ## Snap apps (Firefox/Chromium) won't open the X11 display
 

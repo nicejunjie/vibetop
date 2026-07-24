@@ -1421,12 +1421,24 @@ def _write_browser_token(user):
 
 def _user_terminal_setenvs(user):
     # Export the user's OWN X11 display so a GUI app run from their terminal shows
-    # up on their X11 Launcher (once that display is open). D-Bus/XDG are their own.
+    # up on their X11 Launcher (once that display is open).
     envs = ["TERM=xterm-256color", "LANG=en_US.UTF-8"]
     try:
-        uid = pwd.getpwnam(user).pw_uid
+        pw = pwd.getpwnam(user)
+        uid, gid = pw.pw_uid, pw.pw_gid
+        # Point D-Bus at the per-user PRIVATE, activation-free bus (same one the X11
+        # Launcher uses), NOT the real session bus: on the real bus a GNOME/GTK app
+        # (evince, eog, …) launched from the terminal hangs ~40s on the
+        # xdg-desktop-portal/at-spi activation timeout (no GNOME session here);
+        # on the private bus it starts in ~0.1s. systemctl --user / gsettings are
+        # unaffected (they reach the user manager via $XDG_RUNTIME_DIR, not this
+        # address — verified). Snap browsers (firefox/chromium) are the one thing
+        # that needs the real bus, and get it back via the /usr/local/bin real-bus
+        # shims (they can't run on the activation-free bus at all). Falls back to
+        # the real bus if the private bus can't be started (no worse than before).
+        bus = _ensure_user_x11_dbus(user, uid, gid) or f"/run/user/{uid}/bus"
         envs += [f"DISPLAY=:{_user_xpra_display(user, 'x11')}",
-                 f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus",
+                 f"DBUS_SESSION_BUS_ADDRESS=unix:path={bus}",
                  f"XDG_RUNTIME_DIR=/run/user/{uid}"]
     except KeyError:
         pass

@@ -146,6 +146,21 @@ run sudo install -m 0755 "$APP_DIR/ttyd-run.sh" /usr/local/lib/vibetop/ttyd-run.
 # to the real /usr/bin/xdg-open outside vibetop terminals (no VIBETOP_SESSION).
 run sudo install -m 0755 "$APP_DIR/xdg-open-shim.sh" /usr/local/bin/xdg-open
 
+# real-bus shim for SNAP browsers. The vibetop terminal points D-Bus at the private
+# activation-free bus so GNOME/GTK apps launch fast; snaps can't use that bus (they
+# need org.freedesktop.systemd1 for a transient scope), so /usr/local/bin/{firefox,
+# chromium} (ahead of /snap/bin) hand them the REAL user bus. Only shadow a name
+# that is actually a snap here, so a non-snap firefox/chromium is left untouched.
+run sudo install -m 0755 "$APP_DIR/realbus-shim.sh" /usr/local/lib/vibetop/realbus-shim.sh
+for snapapp in firefox chromium; do
+    if [[ -x "/snap/bin/$snapapp" ]]; then
+        run sudo ln -sf /usr/local/lib/vibetop/realbus-shim.sh "/usr/local/bin/$snapapp"
+    else
+        # not a snap: remove any stale shim so we never shadow a real binary
+        [[ -L "/usr/local/bin/$snapapp" ]] && run sudo rm -f "/usr/local/bin/$snapapp"
+    fi
+done
+
 # 3. systemd unit templates --------------------------------------------------
 if (( INSTALL_SYSTEMD )); then
     echo "== installing systemd unit templates =="

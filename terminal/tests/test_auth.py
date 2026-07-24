@@ -384,3 +384,31 @@ def test_terminal_env_carries_browser_open_token(mgr, home):
     d = dict(e.split("=", 1) for e in envs)
     assert "VIBETOP_SESSION" in d and "VIBETOP_MGR_PORT" in d
     assert mgr._verify_session(d["VIBETOP_SESSION"]) == "alice"   # valid session for alice
+
+
+def _stub_pwd(mgr, monkeypatch, uid=4321, gid=4321):
+    import types
+    monkeypatch.setattr(mgr.pwd, "getpwnam",
+                        lambda u: types.SimpleNamespace(pw_uid=uid, pw_gid=gid, pw_name=u))
+
+
+def test_terminal_env_uses_private_dbus_bus_when_available(mgr, monkeypatch):
+    # GUI apps from the terminal must sit on the private activation-free bus so
+    # GNOME/GTK apps don't hang ~40s on the portal/a11y timeout. When the private
+    # bus is up, the terminal env points D-Bus at it (not the real /run/user/N/bus).
+    _stub_pwd(mgr, monkeypatch, uid=4321)
+    monkeypatch.setattr(mgr, "_ensure_user_x11_dbus",
+                        lambda u, i, g: f"/run/user/{i}/vibetop-x11-bus")
+    d = dict(e.split("=", 1) for e in mgr._user_terminal_setenvs("alice"))
+    assert d.get("DBUS_SESSION_BUS_ADDRESS") == "unix:path=/run/user/4321/vibetop-x11-bus", \
+        "terminal must point D-Bus at the private activation-free bus"
+
+
+def test_terminal_env_falls_back_to_real_bus_if_private_unavailable(mgr, monkeypatch):
+    # If the private bus can't start, fall back to the real user bus (no worse than
+    # before) rather than pointing at a dead socket.
+    _stub_pwd(mgr, monkeypatch, uid=4321)
+    monkeypatch.setattr(mgr, "_ensure_user_x11_dbus", lambda u, i, g: None)
+    d = dict(e.split("=", 1) for e in mgr._user_terminal_setenvs("alice"))
+    assert d.get("DBUS_SESSION_BUS_ADDRESS") == "unix:path=/run/user/4321/bus", \
+        "must fall back to the real user bus when the private bus is unavailable"

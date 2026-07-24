@@ -86,14 +86,21 @@ check the real behaviour.
    two static config guards (`test_xml_config_files_are_well_formed`,
    `test_x11_dbus_template_ready_for_listen_injection` — the private bus was once
    silently 100%-broken by a `--` in an XML comment *and* a missing `<listen>`; see
-   `docs/design-decisions.md`). **MEASURE IT RIGHT:** time to window with
-   `DISPLAY=:<n> xdotool search --sync --class '[Ee]vince'` (blocks until the window
-   truly maps). **Do NOT** poll `wmctrl -l | grep evince` — evince's window *title* is
-   the document name, not "evince", so that loop never matches and reports a phantom
-   ~30s "hang" when the app was actually 0.5s. Cross-check X liveness first: one
-   `wmctrl -l` should return in <10ms and `xterm` should map in <1s.
-   Verify on the **private bus** the a11y lookup fast-fails (eog stderr:
-   `org.a11y.Bus … ServiceUnknown` in 0.0s), not a 25s timeout.
+   `docs/design-decisions.md`). **MEASURE IT RIGHT — this bit us TWICE:** time until
+   **`wmctrl -l` LISTS the window** (the usable, WM-managed top-level — what the desktop's
+   auto-surface AND the human see), matching the *document/title* text, e.g.
+   `for i in $(seq 1 400); do wmctrl -l | grep -qiE 't.pdf|Document' && break; sleep 0.1; done`.
+   Two traps: (a) **`xdotool search --sync --class evince` LIES** — it matches a
+   premature/transient evince window at ~0.5s while the real document window is still ~40s
+   away on a hanging bus (this is what made me wrongly "verify" it fast); (b) **`wmctrl -l |
+   grep evince` also lies** — evince's title is the *document* name, not "evince", so it
+   never matches and reports a phantom hang. Grep the title text, list-wait on `wmctrl`.
+   Cross-check X liveness first: one `wmctrl -l` returns in <10ms and `xterm` maps in <1s.
+   **Test BOTH launch paths:** the X11 Launcher (`/api/x/launch`) AND **typing the app in a
+   terminal** — they use different D-Bus buses; both must be ~0.1s now (the terminal points
+   at the private bus too, snap browsers excepted via `/usr/local/bin` real-bus shims). The
+   terminal env is baked at start, so test in a **fresh** terminal. On the private bus the
+   a11y lookup fast-fails (eog stderr: `org.a11y.Bus … ServiceUnknown` in 0.0s).
 2. **Chinese / IME input in the mobile terminal.** Type pinyin (e.g. `shou ji`), watch
    the candidate bar, select 手机 — the shell must show **只有 手机**, never the raw
    `shou ji` mid-composition. Guarded by `terminal/lib/kbd-input.test.js`, but IME
