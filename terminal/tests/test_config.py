@@ -161,6 +161,143 @@ def test_list_real_users_reports_last_active(mgr, home, users, monkeypatch):
     assert out[0]["lastActive"] == 222.0
 
 
+# --- active sessions + sign-out ----------------------------------------------
+#
+# Sessions are stateless signed cookies and can't be enumerated, so "who is signed
+# in" is inferred from each open desktop's heartbeat. `devices` must therefore count
+# only instances inside DESKTOP_TTL, while `lastActive` keeps the newest ts of any
+# instance (so a user who was here yesterday is still listed, and revocable).
+
+def _only_user(mgr, monkeypatch, name="alice", uid=1001, sudo=False):
+    monkeypatch.setattr(mgr.pwd, "getpwall", lambda: [
+        types.SimpleNamespace(pw_name=name, pw_uid=uid, pw_gid=uid,
+                              pw_shell="/bin/bash", pw_gecos=name + ",,,",
+                              pw_dir="/home/" + name)])
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: sudo)
+
+
+def test_user_presence_counts_only_live_devices(mgr, home, users):
+    import time
+    now = time.time()
+    _write_state(users["alice"][0], {
+        "live1": {"ts": now - 5},                     # inside DESKTOP_TTL
+        "live2": {"ts": now - 30},                    # inside
+        "stale": {"ts": now - mgr.DESKTOP_TTL - 60},  # outside
+    })
+    last, devices = mgr._user_presence("alice")
+    assert devices == 2                       # the stale instance is not a device
+    assert last == now - 5                    # newest heartbeat overall
+
+
+def test_user_presence_absent_state(mgr, home, users):
+    assert mgr._user_presence("bob") == (None, 0)
+
+
+def test_list_active_sessions_omits_never_signed_in(mgr, home, users, monkeypatch):
+    _only_user(mgr, monkeypatch)
+    assert mgr._list_active_sessions() == []          # no heartbeat -> not a session
+    _write_state(users["alice"][0], {"i1": {"ts": 500.0}})
+    out = mgr._list_active_sessions()
+    assert [s["user"] for s in out] == ["alice"]
+    assert out[0]["lastActive"] == 500.0
+    assert out[0]["devices"] == 0                     # ancient ts -> signed in, none live
+
+
+def test_sessions_endpoint_gated(client, mgr, users, stubs, monkeypatch):
+    _only_user(mgr, monkeypatch)
+    ck = users["alice"][1]
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: False)
+    assert client.get("/api/config/sessions", cookie=ck)[0] == 403
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    st, body = client.get("/api/config/sessions", cookie=ck)
+    assert st == 200 and body["sessions"] == []
+
+
+def test_signout_revokes_live_session(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: types.SimpleNamespace(
+        pw_name=u, pw_uid=1006, pw_gid=1006, pw_shell="/bin/bash",
+        pw_gecos=u + ",,,", pw_dir="/home/" + u))
+    monkeypatch.setattr(mgr, "_is_real_login_user", lambda pw: True)
+    bob_token = users["bob"][1].split("=", 1)[1]
+    assert mgr._verify_session(bob_token) == "bob"
+    st, body = client.post("/api/config/sessions/signout",
+                           {"username": "bob"}, cookie=users["alice"][1])
+    assert st == 200 and body["ok"] is True and body["stopApps"] is False
+    assert mgr._verify_session(bob_token) is None      # every device is kicked
+    # Default is non-destructive: no service was stopped.
+    assert not any(isinstance(c, list) and c[:2] == ["systemctl", "stop"]
+                   for c in stubs["run"])
+
+
+def test_signout_stop_apps_reaps(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: types.SimpleNamespace(
+        pw_name=u, pw_uid=1006, pw_gid=1006, pw_shell="/bin/bash",
+        pw_gecos=u + ",,,", pw_dir="/home/" + u))
+    monkeypatch.setattr(mgr, "_is_real_login_user", lambda pw: True)
+    reaped = []
+    monkeypatch.setattr(mgr, "_reap_user",
+                        lambda u, reap_terminals=False: reaped.append((u, reap_terminals)))
+    st, body = client.post("/api/config/sessions/signout",
+                           {"username": "bob", "stopApps": True}, cookie=users["alice"][1])
+    assert st == 200 and body["stopApps"] is True
+    assert reaped == [("bob", True)]                   # terminals included on opt-in
+
+
+def test_signout_survives_a_failing_reap(client, mgr, users, stubs, monkeypatch):
+    # The revocation already happened; a reap failure must not turn it into a 500.
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: types.SimpleNamespace(
+        pw_name=u, pw_uid=1006, pw_gid=1006, pw_shell="/bin/bash",
+        pw_gecos=u + ",,,", pw_dir="/home/" + u))
+    monkeypatch.setattr(mgr, "_is_real_login_user", lambda pw: True)
+
+    def boom(u, reap_terminals=False):
+        raise OSError("systemctl exploded")
+    monkeypatch.setattr(mgr, "_reap_user", boom)
+    bob_token = users["bob"][1].split("=", 1)[1]
+    st, _ = client.post("/api/config/sessions/signout",
+                        {"username": "bob", "stopApps": True}, cookie=users["alice"][1])
+    assert st == 200
+    assert mgr._verify_session(bob_token) is None
+
+
+def test_signout_refuses_protected_and_bogus_targets(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    ck = users["alice"][1]
+    for target in ("root", mgr.APP_USER, "bad name", "", "../etc"):
+        st, _ = client.post("/api/config/sessions/signout", {"username": target}, cookie=ck)
+        assert st == 400, target
+    # A named admin can't be signed out either (no locking the operator out).
+    monkeypatch.setattr(mgr, "ADMIN_USERS", ["carol"])
+    assert client.post("/api/config/sessions/signout", {"username": "carol"}, cookie=ck)[0] == 400
+
+
+def test_signout_unknown_and_system_accounts(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: True)
+    ck = users["alice"][1]
+
+    def missing(u):
+        raise KeyError(u)
+    monkeypatch.setattr(mgr.pwd, "getpwnam", missing)
+    assert client.post("/api/config/sessions/signout", {"username": "ghost"}, cookie=ck)[0] == 404
+    monkeypatch.setattr(mgr.pwd, "getpwnam", lambda u: types.SimpleNamespace(
+        pw_name=u, pw_uid=3, pw_gid=3, pw_shell="/usr/sbin/nologin",
+        pw_gecos="", pw_dir="/"))
+    monkeypatch.setattr(mgr, "_is_real_login_user", lambda pw: False)
+    assert client.post("/api/config/sessions/signout", {"username": "daemon"}, cookie=ck)[0] == 400
+
+
+def test_signout_requires_sudo(client, mgr, users, stubs, monkeypatch):
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: False)
+    bob_token = users["bob"][1].split("=", 1)[1]
+    st, _ = client.post("/api/config/sessions/signout",
+                        {"username": "bob"}, cookie=users["alice"][1])
+    assert st == 403
+    assert mgr._verify_session(bob_token) == "bob"     # untouched
+
+
 # --- resource caps -----------------------------------------------------------
 
 def test_resource_policy_defaults_to_env(mgr, home):

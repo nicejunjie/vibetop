@@ -114,7 +114,7 @@
   .vt-modal { background: #12161d; border: 1px solid #2a3040; border-radius: 12px;
     padding: 18px 18px 16px; width: 100%; max-width: 380px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
   .vt-modal h3 { font-size: 15px; color: #e8eef5; margin-bottom: 8px; }
-  .vt-modal .m-label { font-size: 13px; color: #9ab; margin-bottom: 8px; line-height: 1.45; }
+  .vt-modal .m-label { font-size: 13px; color: #9ab; margin-bottom: 8px; line-height: 1.45; white-space: pre-line; }
   .vt-modal input { width: 100%; }
   .vt-modal label.chk { margin-top: 12px; }
   .vt-modal .m-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
@@ -138,6 +138,14 @@
 
     <!-- ===== Vibetop: how vibetop runs (idle policy, caps, its services) ===== -->
     <div class="tab-panel active" data-tab="vibetop">
+
+      <div class="card" id="sessions-card">
+        <h2>Active sessions</h2>
+        <div class="hint">Who is signed in to vibetop right now. <b>Devices</b> counts
+          browsers with a live desktop; signing out ends every session for that person
+          (they can sign back in immediately).</div>
+        <div id="sessions-body" class="user-list"></div>
+      </div>
 
       <div class="card" id="idle-card">
         <h2>Idle timeout</h2>
@@ -206,6 +214,10 @@
         </div>
         <div class="status" id="add-status"></div>
         <div id="users-body" class="user-list"></div>
+        <div class="row">
+          <label class="chk"><input type="checkbox" id="users-advanced"> Advanced: allow deleting accounts
+            <span class="fld-label">(permanently removes the Linux account; re-locks on reload)</span></label>
+        </div>
       </div>
 
       <div class="card" id="disk-card">
@@ -266,6 +278,8 @@
     inp.type = o.password ? 'password' : 'text';
     inp.value = '';
     inp.placeholder = o.placeholder || '';
+    // noInput: a pure confirm (optionally with the checkbox) — no type-to-confirm box.
+    inp.style.display = o.noInput ? 'none' : '';
     var chkWrap = document.getElementById('vt-chk-wrap'), chk = document.getElementById('vt-chk');
     if (o.checkboxLabel) {
       chkWrap.style.display = ''; chk.checked = !!o.checkboxChecked;
@@ -275,19 +289,25 @@
     ok.textContent = o.okText || 'OK';
     ok.className = o.danger ? 'btn-danger' : '';
     ov.classList.add('show');
-    setTimeout(function () { inp.focus(); }, 30);
+    setTimeout(function () { (o.noInput ? ok : inp).focus(); }, 30);
     return new Promise(function (resolve) {
+      // With noInput the box is hidden, so Escape is bound on the overlay instead
+      // (Enter already activates the focused OK button natively).
+      var keyTarget = o.noInput ? ov : inp;
       function done(val) {
         ov.classList.remove('show');
         ok.removeEventListener('click', onOk); cancel.removeEventListener('click', onCancel);
-        inp.removeEventListener('keydown', onKey);
+        keyTarget.removeEventListener('keydown', onKey);
         resolve(val);
       }
       function onOk() { done({ value: inp.value, checked: chk.checked }); }
       function onCancel() { done(null); }
-      function onKey(e) { if (e.key === 'Enter') onOk(); else if (e.key === 'Escape') onCancel(); }
+      function onKey(e) {
+        if (e.key === 'Escape') onCancel();
+        else if (e.key === 'Enter' && !o.noInput) onOk();
+      }
       ok.addEventListener('click', onOk); cancel.addEventListener('click', onCancel);
-      inp.addEventListener('keydown', onKey);
+      keyTarget.addEventListener('keydown', onKey);
     });
   }
 
@@ -378,8 +398,72 @@
     });
   }
 
+  // ---- Active sessions ------------------------------------------------------
+  // Sessions are stateless signed cookies and can't be enumerated, so presence is
+  // inferred server-side from each open desktop's 5s heartbeat.
+  var sessionsBody = document.getElementById('sessions-body');
+  var sessionsTimer = null;
+  function loadSessions() {
+    return api('GET', '/api/config/sessions').then(function (res) {
+      if (handle403(res)) return;
+      var list = (res.data && res.data.sessions) || [];
+      if (!list.length) {
+        sessionsBody.innerHTML = '<div class="hint">No one has signed in to vibetop yet.</div>';
+        return;
+      }
+      sessionsBody.innerHTML = list.map(function (s) {
+        var live = s.devices > 0;
+        var badges = (s.sudo ? '<span class="badge sudo">sudo</span>' : '') +
+          (live ? '<span class="badge on">online</span>' : '<span class="badge off">idle</span>');
+        var devs = live ? (s.devices + (s.devices === 1 ? ' device' : ' devices')) : 'no live device';
+        var lastTitle = esc(new Date(s.lastActive * 1000).toLocaleString());
+        return '<div class="user-card" data-user="' + esc(s.user) + '">' +
+          '<div class="u-id"><div class="u-name">' + esc(s.user) + '</div>' +
+            '<div class="u-sub">' + esc(devs) + '</div></div>' +
+          '<div class="u-meta">' +
+            '<span class="u-last" title="' + lastTitle + '">' + esc(relTime(s.lastActive)) + '</span>' +
+            badges +
+          '</div>' +
+          '<div class="u-acts">' +
+            '<button class="btn-secondary sm act-so">Sign out</button>' +
+          '</div></div>';
+      }).join('');
+    });
+  }
+  sessionsBody.addEventListener('click', function (e) {
+    var btn = e.target.closest('button.act-so'); if (!btn) return;
+    signOutUser(btn.closest('.user-card').getAttribute('data-user'));
+  });
+  function signOutUser(user) {
+    vtPrompt({
+      title: 'Sign out ' + user, noInput: true, danger: true, okText: 'Sign out',
+      message: 'Ends every vibetop session for "' + user + '" on all their devices. ' +
+               'They can sign back in immediately. Nothing is deleted.',
+      checkboxLabel: 'Also stop their running apps and terminals',
+      checkboxChecked: false
+    }).then(function (r) {
+      if (!r) return;
+      api('POST', '/api/config/sessions/signout', { username: user, stopApps: r.checked })
+        .then(function (res) {
+          if (res.status === 200) loadSessions();
+          else vibeAlert('Sign out failed: ' + ((res.data && res.data.error) || res.status));
+        });
+    });
+  }
+  // Poll only while the Vibetop tab is the visible one AND the page is foregrounded.
+  function sessionsPolling(on) {
+    if (sessionsTimer) { clearInterval(sessionsTimer); sessionsTimer = null; }
+    if (on) { loadSessions(); sessionsTimer = setInterval(loadSessions, 10000); }
+  }
+  document.addEventListener('visibilitychange', function () {
+    sessionsPolling(!document.hidden && currentTab() === 'vibetop');
+  });
+
   // ---- Users ----------------------------------------------------------------
   var usersBody = document.getElementById('users-body'), addStatus = document.getElementById('add-status');
+  // Destructive account deletion is gated behind an explicit unlock that is NOT
+  // persisted, so a reload always re-locks it.
+  var advanced = false;
   // Human "last active" from an epoch-seconds heartbeat (null = never signed in).
   function relTime(epoch) {
     if (epoch == null) return 'never';
@@ -408,7 +492,7 @@
           '</div>' +
           '<div class="u-acts">' +
             '<button class="btn-secondary sm act-pw">Reset password</button>' +
-            '<button class="btn-danger sm act-rm">Remove</button>' +
+            (advanced ? '<button class="btn-danger sm act-rm">Delete account</button>' : '') +
           '</div></div>';
       }).join('');
     });
@@ -431,19 +515,25 @@
       });
   }
   function removeUser(user) {
-    vtPrompt({ title: 'Remove ' + user, danger: true, okText: 'Remove user',
-      message: 'This deletes the Linux account "' + user + '". Type the username to confirm.',
-      placeholder: user, checkboxLabel: 'Keep their home directory', checkboxChecked: false })
+    vtPrompt({ title: 'Delete account ' + user, danger: true, okText: 'Delete account',
+      message: 'Permanently deletes the Linux account "' + user + '" and signs them out. ' +
+               'This cannot be undone. To just end their sessions, use Sign out on the ' +
+               'Vibetop tab instead.\n\nType the username to confirm.',
+      placeholder: user, checkboxLabel: 'Keep their home directory (their files)', checkboxChecked: true })
       .then(function (r) {
         if (!r) return;
-        if (r.value !== user) { vibeAlert('Name did not match — not removed.'); return; }
+        if (r.value !== user) { vibeAlert('Name did not match — nothing was deleted.'); return; }
         api('POST', '/api/config/users/remove', { username: user, keepHome: r.checked })
           .then(function (res) {
-            if (res.status === 200) { loadUsers(); }
-            else vibeAlert('Remove failed: ' + ((res.data && res.data.error) || res.status));
+            if (res.status === 200) { loadUsers(); loadSessions(); }
+            else vibeAlert('Delete failed: ' + ((res.data && res.data.error) || res.status));
           });
       });
   }
+  document.getElementById('users-advanced').addEventListener('change', function () {
+    advanced = this.checked;
+    loadUsers();          // re-render so the delete button appears/disappears
+  });
   document.getElementById('add-btn').addEventListener('click', function () {
     var u = document.getElementById('add-user').value.trim(), pw = document.getElementById('add-pw').value;
     if (!u || !pw) { setStatus(addStatus, 'Username and password required', 'err'); return; }
@@ -458,6 +548,10 @@
   });
 
   // ---- Tabs (Vibetop / System) ----------------------------------------------
+  function currentTab() {
+    var t = document.querySelector('.tab.active');
+    return t ? t.getAttribute('data-tab') : 'vibetop';
+  }
   document.getElementById('tabs').addEventListener('click', function (e) {
     var b = e.target.closest('.tab'); if (!b) return;
     var tab = b.getAttribute('data-tab');
@@ -465,6 +559,7 @@
     document.querySelectorAll('.tab-panel').forEach(function (p) {
       p.classList.toggle('active', p.getAttribute('data-tab') === tab);
     });
+    sessionsPolling(tab === 'vibetop' && !document.hidden);
   });
 
   function fmtBytes(n) {
@@ -556,6 +651,7 @@
   loadServices();
   loadUsers();
   loadDisk();
+  sessionsPolling(true);       // Vibetop is the default tab
 })();
 </script>
 </body>

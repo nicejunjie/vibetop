@@ -4,7 +4,7 @@
 # account, while DEVELOPMENT stays in the operator's home checkout.
 #
 #   dev  : ~operator/vibe-coding/vibetop  (edit/commit/push — unchanged)
-#   prod : /opt/vibetop/{app,www,etc,var} (vibetop-owned; manager runs here as root;
+#   prod : /opt/vibetop/{app,vibetop-www,etc,var} (vibetop-owned; manager runs as root;
 #          self-update git-pulls here as vibetop over HTTPS; secrets in etc/)
 #
 # The human admin (operator) is kept separate from APP_USER via VIBETOP_ADMINS so

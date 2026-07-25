@@ -1040,22 +1040,34 @@ def _write_hints_enabled(enabled):
             log.warning("hints policy write failed: %s", e)
 
 
-def _user_last_heartbeat(user):
-    """Newest instance `ts` from a user's OWN desktop-state.json (built from
+def _user_presence(user):
+    """(last_ts, live_devices) from a user's OWN desktop-state.json (built from
     _user_home(user), NOT _ctx_home — the reaper runs off the request path).
-    None if the user has no desktop state / no instances."""
+
+    `last_ts` is the newest instance heartbeat (epoch seconds) or None if the user
+    has no desktop state / no instances; `live_devices` counts the instances whose
+    heartbeat is within DESKTOP_TTL, i.e. browsers currently holding a desktop.
+    One reader for both so the parse guards can't drift apart."""
     path = os.path.join(_user_home(user), ".local/share/desktop-state.json")
     try:
         with open(path) as f:
             state = json.load(f)
     except (OSError, ValueError):
-        return None
+        return None, 0
     inst = state.get("instances") if isinstance(state, dict) else None
     if not isinstance(inst, dict):
-        return None
+        return None, 0
     ts = [e["ts"] for e in inst.values()
           if isinstance(e, dict) and isinstance(e.get("ts"), (int, float))]
-    return max(ts) if ts else None
+    if not ts:
+        return None, 0
+    now = time.time()
+    return max(ts), sum(1 for t in ts if (now - t) < DESKTOP_TTL)
+
+
+def _user_last_heartbeat(user):
+    """Newest instance `ts` for a user, or None. See _user_presence."""
+    return _user_presence(user)[0]
 
 
 def _reap_user(user, reap_terminals=False):
@@ -1171,6 +1183,31 @@ def _list_real_users():
         })
     users.sort(key=lambda u: u["user"])
     return users
+
+
+def _list_active_sessions():
+    """Users who have actually used a vibetop desktop, newest activity first.
+
+    Sessions are stateless signed cookies, so they can't be enumerated — presence
+    is inferred from the desktop-state heartbeat each open browser writes every 5s.
+    `devices` counts instances heartbeating within DESKTOP_TTL (0 = signed in at
+    some point but nothing live right now, which is still worth showing so an admin
+    can revoke it). A user who has never opened the desktop is omitted."""
+    sessions = []
+    for pw in pwd.getpwall():
+        if not _is_real_login_user(pw):
+            continue
+        last, devices = _user_presence(pw.pw_name)
+        if last is None:
+            continue
+        sessions.append({
+            "user": pw.pw_name,
+            "devices": devices,
+            "lastActive": last,
+            "sudo": _can_sudo(pw.pw_name),
+        })
+    sessions.sort(key=lambda s: s["lastActive"], reverse=True)
+    return sessions
 
 
 def _valid_target_user(username):
@@ -3319,6 +3356,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_user_passwd()
         if self.path == "/api/config/users/remove":
             return self._handle_config_user_remove()
+        if self.path == "/api/config/sessions/signout":
+            return self._handle_config_session_signout()
         if self.path == "/api/upload":
             return self._handle_upload()
         if self.path == "/api/upload/clear":
@@ -3962,6 +4001,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
         _bump_token_epoch(username)            # bounce their vibetop sessions
         log.info("config: reset password for %s (by %s)", username, _ctx_user())
         self._json(200, {"ok": True})
+
+    def _handle_config_sessions_get(self):
+        if not self._require_sudo():
+            return
+        self._json(200, {"sessions": _cached("active_sessions", 5.0, _list_active_sessions)})
+
+    def _handle_config_session_signout(self):
+        """Revoke every vibetop session for a user (they land on the login page
+        within ~5s, the token_epoch cache TTL). Non-destructive by default: their
+        terminals/Browser/X11 keep running and restore on next login, mirroring the
+        idle reaper. `stopApps` opts into stopping those services too."""
+        if not self._require_sudo():
+            return
+        data = self._config_body()
+        if data is None:
+            return self._json(400, {"error": "invalid body"})
+        username = (data.get("username") or "").strip()
+        stop_apps = bool(data.get("stopApps", False))
+        ok, err = _valid_target_user(username)
+        if not ok:
+            return self._json(400, {"error": err})
+        try:
+            pw = pwd.getpwnam(username)
+        except KeyError:
+            return self._json(404, {"error": "no such user"})
+        if not _is_real_login_user(pw):
+            return self._json(400, {"error": "refusing to sign out a system account"})
+        _bump_token_epoch(username)                     # revoke sessions
+        if stop_apps:
+            # Best-effort: a reap failure must not turn a successful revocation
+            # into a 500 — the sessions are already gone.
+            try:
+                _reap_user(username, reap_terminals=True)
+            except Exception as e:
+                log.warning("signout: reap failed for %s: %s", username, e)
+        with _cache_lock:
+            _cache.pop("active_sessions", None)
+        log.info("config: signed out %s stopApps=%s (by %s)",
+                 username, stop_apps, _ctx_user())
+        self._json(200, {"ok": True, "stopApps": stop_apps})
 
     def _handle_config_user_remove(self):
         if not self._require_sudo():
@@ -5374,6 +5453,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_config_services_get()
         if self.path == "/api/config/users":
             return self._handle_config_users_get()
+        if self.path == "/api/config/sessions":
+            return self._handle_config_sessions_get()
         if self.path == "/api/terminals/status":
             self._json(200, {"running": self._get_running_terminals()})
             return

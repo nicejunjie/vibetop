@@ -6,7 +6,7 @@ via Cloudflare Tunnel). Same continuity story as the terminals: close
 the tab, reopen from any device, same browser, same tabs, same scroll
 position.
 
-Project dir: `~/vibe-coding/service-in-browser/browser/`
+Project dir: `browser/` (repo-relative; prod checkout is `/opt/vibetop/app`)
 
 ## What it is
 

@@ -289,6 +289,54 @@ location looks correctly configured).
 
 ---
 
+## "Remove" was account deletion sitting next to "Reset password" — and there was no way to just sign someone out
+
+- **Symptom:** The Config app's Users card gave every account two equally-weighted
+  buttons: `[Reset password]` and `[Remove]`. "Remove" reads like it revokes
+  access; it actually runs `userdel -r` — the Linux account **and** the home
+  directory. Worse, the destructive option was the *default*: the confirm's "Keep
+  their home directory" checkbox started **unchecked**. Meanwhile an admin who
+  merely wanted to boot a user had no lever at all — `/api/logout-all` only acts
+  on the caller (`_session_user()`, deliberately, so an anonymous request can't
+  invalidate the operator), so the only workaround was resetting their password
+  as a side effect.
+- **Cause:** The two actions were never separated by *blast radius*. The Users
+  card is OS-account administration (create/delete an account); "who is using
+  vibetop right now, kick them" is a vibetop-runtime concern that had no home in
+  the UI, so it silently collapsed into the nearest destructive button.
+- **Fix, three parts:**
+  1. **A new `Active sessions` card on the Vibetop tab**, separate from System ▸
+     Users. Sessions are stateless signed cookies and **cannot be enumerated**, so
+     presence is inferred from the 5s desktop heartbeat each open browser already
+     writes: `_user_presence(user)` reads that user's `desktop-state.json` once and
+     returns `(newest ts, live-device count)` (live = within `DESKTOP_TTL`).
+     `_user_last_heartbeat` became a wrapper on it so the parse guards can't drift.
+     A user with a heartbeat but zero live devices is still listed — they're signed
+     in somewhere and therefore still worth revoking.
+  2. **`POST /api/config/sessions/signout`** bumps the user's token epoch, so every
+     device fails its next `_verify_session` within ~5s. It is **non-destructive by
+     default**: terminals/Browser/X11 keep running and restore on next login, the
+     same philosophy as the idle reaper. `stopApps:true` opts into a reap as well,
+     wrapped in try/except — the revocation already succeeded, so a systemctl
+     failure must not surface as a 500.
+  3. **Deletion demoted, not removed.** The button is relabelled `Delete account`
+     and only renders when an `Advanced: allow deleting accounts` checkbox is
+     ticked; that flag is deliberately **not persisted**, so every reload re-locks
+     it. The confirm now defaults to **keeping** the home directory and names Sign
+     out as the thing you probably wanted.
+- **Rejected:** *Renaming "Remove" to "Logout"* — it would have made the label
+  match the user's mental model while the code still deleted the account: the
+  worst possible outcome. *Making sign-out reap services* — an admin signing out a
+  user who merely closed a laptop lid would kill their running jobs; resource
+  reclamation is the idle reaper's job, and the checkbox covers the deliberate
+  case. *Moving deletion behind a `⋯` overflow menu* — still one tap from the safe
+  action, and it needs popup/outside-click machinery for no safety gain over a
+  card-level unlock. *Putting the active list inside the Users card* — mixes "who
+  is online now" with "which OS accounts exist", which is exactly the conflation
+  that caused the original problem.
+
+---
+
 ## Config admin app: sudo gate, and an idle reaper that spares terminals by default
 
 - **Context:** Making vibetop a real shared-host product surfaced two gaps: idle

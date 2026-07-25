@@ -6,7 +6,7 @@ machine), and the same shell is there with its current screen state.
 
 A tabbed UI at `/terminals/` provides add/close/reorder/rename for tabs.
 
-Project dir: `~/vibe-coding/service-in-browser/terminal/`
+Project dir: `terminal/` (repo-relative; prod checkout is `/opt/vibetop/app`)
 
 ## What it is
 
@@ -78,19 +78,44 @@ Two systemd template units, instantiated for each terminal:
 Window resize: the attach process writes `rows cols` to
 `/tmp/vibetop-session-N.size` and sends `SIGUSR1` to the daemon PID
 (from `/tmp/vibetop-session-N.pid`). The daemon applies `TIOCSWINSZ`
-to the shell's PTY.
+to the shell's PTY — **debounced** (`RESIZE_DEBOUNCE` ~35ms): SIGUSR1 arms a
+deadline and the main loop applies the *latest* size once the burst settles, so a
+rapid pair of resizes collapses into one `TIOCSWINSZ` + SIGWINCH and the shell
+redraws once. (Daemon change ⇒ only **new** sessions get it; serve daemons are
+never restarted, since that would kill live shells.)
 
 Re-claim shape across devices: because the PTY is **shared**, its
 `rows×cols` belong to whichever device (desktop tab / phone) fitted last,
 so after switching active device the TUI inside renders at the other
-device's shape. A **double-click** (desktop) / **double-tap** (touch) on
-the terminal re-sends *this* device's size — `terminal-kbd.js`'s
-`claimSize()` nudges xterm by one row and restores it (`term.resize(c,r-1)`
-then `term.resize(c,r)`), since ttyd only emits a resize when its dims
-change; the restore re-fits the PTY to this browser and the TUI redraws.
-The touch double-tap is keyed on touch *duration* (`<250ms`), not finger
-movement, so the keyboard-raise layout shift on the first tap doesn't get
-misread as a scroll and drop the second tap.
+device's shape.
+
+**Automatic self-heal (desktop).** The terminal can also drift to a wrong width
+*mid-session on the same device* — every line wrapping ~1 column too narrow
+("the screen wrapped itself, I did nothing"), most often when a brief WebSocket
+blip reconnects and **replays the ring buffer at a stale width** (a scrollbar or
+layout shift does it too). `terminal-kbd.js`'s non-touch branch fires a
+`resize`→FitAddon heal on its own: after each ttyd (re)connect's replay settles,
+on a `ResizeObserver` of the terminal box, and when the tab returns to the
+foreground. Debounced and guarded to a non-zero size; ttyd only resizes the PTY
+when the computed cols/rows actually change, so a steady terminal sees no churn.
+
+**Manual re-claim.** A **double-click** (desktop) / **two-finger tap** (touch)
+re-sends *this* device's size via `claimSize()`, which writes straight to ttyd's
+WebSocket (`RESIZE_TERMINAL="1"` + `{columns,rows}`; the socket is captured by
+wrapping `window.WebSocket` before ttyd opens it) so the **visible xterm grid
+never resizes** — resizing the grid is what made the content visibly "shake".
+Because the kernel raises SIGWINCH only when the winsize actually *changes*,
+sending the current dims would be a silent no-op, so `claimSize` **nudges the
+column and back** (`{c-1,r}` then `{c,r}`): two real changes → two SIGWINCHes →
+the shared PTY ends up at this device's shape. A *row* nudge was rejected — it
+makes a bottom-anchored TUI bounce a row; a column nudge keeps every row in
+place. Falls back to the old visible `term.resize()` pair if the socket wasn't
+captured. The other device sees mis-shaped output until *it* re-claims — the PTY
+can't be two shapes at once. Full derivation, incl. the regression where killing
+the shake silently killed the re-claim: `docs/design-decisions.md` §"Killing the
+terminal 'shake'…"; the touch gesture choice (two-finger tap, and why a
+single-finger double-tap is deliberately NOT a resize) is in the same file under
+§"Mobile terminal resize".
 
 **Windows Chromium focus fix.** Any `term.resize()` — the reshape's, *or* the
 desktop shell's re-fit when the Terminal app is (re)activated/refreshed, *or* a
@@ -105,12 +130,77 @@ only refocuses while this page is actually focused (never stealing focus from
 another app). With that in place the double-click reshape stays — it's no longer
 the input-killer it was.
 
+## Mobile touch layer (`terminal-kbd.js`)
+
+Injected into every `/tN/` page by the nginx `sub_filter`. **Non-touch is
+untouched** — desktop keeps native xterm (all keys, tap-to-focus, selection); only
+the auto-refit and Windows focus fix above run there.
+
+**Why an overlay at all.** On touch the script lays a full-height transparent
+`<textarea>` over the terminal. Tapping it focuses *it*, so iOS raises the
+keyboard and **dictation buffers into a real field natively** (like Notes) instead
+of xterm streaming half-finished revisions to the PTY. Input is forwarded as a
+debounced value-diff via xterm's `coreService.triggerDataEvent`, ignoring iOS
+dictation's transient clear-to-`""`; Enter→CR, Backspace→DEL, Tab→TAB. Arrows/
+Ctrl/Esc aren't on the iOS keyboard, so they come from the desktop shell's system
+key bar instead. xterm's own helper textarea is blocked from taking focus on touch
+(the `focusin` guard in the sub_filter) so only this input raises the keyboard.
+
+**Caret parking — two rules that look redundant and are not.** The textarea's
+caret is parked on the real xterm cursor row via a dynamic `padding-top` =
+`buffer.active.cursorY` × row-height, so iOS's "reveal the caret" scroll lands on
+wherever the prompt actually is — the *top* of a freshly-opened terminal, the
+*bottom* of a full one. (An earlier fixed `bottom:0` strip only ever revealed the
+bottom, pushing a fresh terminal's prompt off-screen.) Then:
+
+1. Re-anchor **only on `onCursorMove`**, never on `onRender`. Render also fires on
+   scroll, so re-anchoring there made iOS yank the view back to the prompt the
+   instant you dragged — you couldn't scroll with the keyboard up.
+2. **`positionCaret` early-returns unless the view is at the bottom**
+   (`baseY - viewportY > 1`). Scrolled up into scrollback it does nothing, because
+   a full-screen TUI (Claude Code, htop) repaints *in place* — moving the cursor
+   every frame — so the re-park + iOS reveal would drag you back to the bottom on
+   each repaint, making a *live* response unscrollable. Desktop has no overlay or
+   reveal, which is why the bug was mobile-only.
+
+Net: typing always keeps the line you're typing visible; manual scrollback stays
+where you left it.
+
+**Gesture routing.** The overlay covers xterm and would otherwise eat every touch,
+so gestures are dispatched explicitly:
+
+| Gesture | Result |
+|---|---|
+| quick tap | raise the keyboard — **or**, if the tap lands on an `http(s)` URL, open it in the Browser (`urlAt`/`logicalLineAt` reassemble the wrapped logical line under the finger and hand it to the sub_filter's overridden `window.open`) |
+| vertical drag | scrollback |
+| long-press (~0.45s) | select the word under the finger, drag to extend, then a floating **Copy** button + two iOS-style drag handles |
+| two-finger tap | re-claim the terminal shape (see above) |
+
+**Selection internals (each line is a fixed bug).** The long-press **blurs the
+overlay** on select-start *and* on touchend — `preventDefault` alone didn't
+reliably un-focus the textarea iOS had already focused, so the keyboard popped up
+mid-selection. The target cell is **captured at `touchstart`** (`startCell`), not
+re-measured when the 450ms timer fires: the keyboard animating up between those
+moments scrolls the terminal, so a late re-measure mapped a stale finger-y onto
+shifted rows and selected ~2 rows too low. `cellAt` measures **`.xterm-screen`**
+(the actual rows), not `.element` — the latter carries ~5px top / ~8px bottom
+padding that skews both the origin and the per-row height. Handles are a 2px stem
+the height of the edge cell (marks the boundary without hiding content) capped by
+a knob placed *above* the start / *below* the end, inside a 34px transparent hit
+target; the drag is **relative** (`touchstart` pins the finger's offset from the
+cell centre as `offY`) so it never jumps on grab. `selStart`/`selEnd` are absolute
+buffer cells, so `positionHandles` on `onScroll` tracks them through scrollback and
+hides a handle that scrolls out of view. iOS's own long-press selection/loupe is
+suppressed on the overlay (`user-select:none` + `-webkit-touch-callout:none`) so
+these handlers own the gesture — the desktop copy-on-`onSelectionChange` path
+doesn't work on touch, hence the explicit Copy button.
+
 ## Files
 
-- `~/vibe-coding/service-in-browser/terminal/vibetop-session` — Python session daemon/attach tool.
-- `~/vibe-coding/service-in-browser/terminal/ttyd-run.sh` — ttyd launcher; takes instance
+- `terminal/vibetop-session` — Python session daemon/attach tool.
+- `terminal/ttyd-run.sh` — ttyd launcher; takes instance
   number, computes port and attach command.
-- `~/vibe-coding/service-in-browser/terminal/terminals.html` — tabbed UI page.
+- `terminal/terminals.html` — tabbed UI page.
 - `/etc/systemd/system/vibetop-session@.service` — session daemon template.
 - `/etc/systemd/system/vibetop-ttyd@.service` — ttyd template.
 - `/etc/nginx/sites-available/vibetop` — per-instance `location /tN/`
