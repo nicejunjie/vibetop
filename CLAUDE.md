@@ -118,7 +118,26 @@ The tiers (each independently runnable, ~5s total):
 running stack; it turns the Health-check curls below into asserting checks with a
 pass/fail summary + non-zero exit (systemd units active, `/`/`/tN/`/`/browser/`/
 `/files/` 200, `/api/ping`, SSE `retry:`, OnlyOffice). Run it post-deploy; **not**
-in CI. `--no-office` / `--base URL`.
+in CI. `--no-office` / `--base URL` / `--cookie` / `--user`.
+
+> **Run it with `sudo`.** On a multi-user host every surface is behind
+> `auth_request`, so an unauthenticated probe gets 302/401 and *every* check fails
+> on a perfectly healthy host. The script detects the gate (unauthenticated `GET /`
+> redirects), mints a real `vt_session` via `tools/mint-session-cookie.py` — which
+> needs root to read `/etc/vibetop/session.secret` — and **validates it against
+> `/api/authcheck` before trusting it**. That validation is not optional paranoia:
+> `_session_secret()` falls back to an *ephemeral in-memory key* when it can't read
+> the secret file, so a non-root mint returns a well-formed, correctly-prefixed
+> token signed with the wrong key (see `docs/design-decisions.md`). With no valid
+> cookie the surface/API checks are **skipped** and the script exits **2 =
+> INCONCLUSIVE** — never 0, so a deploy gate can't read "couldn't test" as "fine".
+> The shared `vibetop-{browser-xpra,x11-xpra,filebrowser}` units are the **legacy
+> single-user** services: on a gated host they're reported SKIP (per-user transient
+> units replace them, and with nobody signed in zero of those running is also
+> correct) — the authenticated HTTP probes are the real per-user health check,
+> since they cold-start the service and then assert it serves. **Side effect:**
+> because they cold-start, running the script starts the probe user's terminal /
+> Browser / X11 / FileBrowser if they're down — it is not read-only on a live host.
 
 **Python** — unit/smoke tests for the manager's security-critical and pure logic
 live in `terminal/tests/` (pytest). They run without root or any of the systemd/

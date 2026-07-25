@@ -70,7 +70,15 @@ fi
 # --- Optional: live-host smoke test -----------------------------------------
 if [ "$RUN_LIVE" = 1 ]; then
     hr "smoke — live host (needs the deployed stack)"
-    if ./tools/smoke-test.sh "${BASE_ARGS[@]}"; then ok "live smoke"; else no "live smoke"; fi
+    # smoke-test exits 2 = INCONCLUSIVE (auth gate on, no session cookie, so the
+    # surface/API checks never ran). Still a non-zero overall exit — "couldn't
+    # test" must never read as "tested and fine" — but say which it was.
+    ./tools/smoke-test.sh "${BASE_ARGS[@]}"; smoke_rc=$?
+    case "$smoke_rc" in
+        0) ok "live smoke" ;;
+        2) no "live smoke (INCONCLUSIVE — re-run with sudo so it can mint a session cookie)" ;;
+        *) no "live smoke" ;;
+    esac
 fi
 
 echo

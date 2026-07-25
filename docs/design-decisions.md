@@ -289,6 +289,47 @@ location looks correctly configured).
 
 ---
 
+## The live smoke test reported 12 failures on a healthy multi-user host — and a non-root cookie mint made it look worse
+
+- **Symptom:** `tools/smoke-test.sh` on a fully working host: `3 passed, 12
+  failed`. Every surface (`/`, `/tN/`, `/browser/`, `/x11-display/`, `/files/`)
+  "returned 302, want 200", the manager API bodies were all "missing", and
+  `vibetop-x11-xpra` / `vibetop-filebrowser` were reported inactive. Nothing was
+  actually wrong: the same paths returned **200 with a session cookie**, and the
+  per-user services (`vibetop-ubrowser-junjie`, `vibetop-ufiles-junjie`,
+  `vibetop-ux11-junjie`, three terminals) were all running.
+- **Cause, two independent ones:**
+  1. The script predates multi-user auth. Every protected location is behind
+     nginx `auth_request`, so an **unauthenticated** probe is redirected (302) or
+     401s. The test asserted 200 unconditionally.
+  2. The shared `vibetop-{browser-xpra,x11-xpra,filebrowser}` units are the
+     **legacy single-user** services. A multi-user host runs one transient unit
+     **per user**, started on demand — so an inactive shared unit is correct, and
+     so is *zero* per-user units when nobody is signed in.
+- **The trap that made the fix subtle:** the obvious repair — mint a cookie with
+  `tools/mint-session-cookie.py` — appears to work as a normal user. It prints a
+  perfectly well-formed `vt_session=eyJ…` token. But `_session_secret()`
+  **falls back to an ephemeral in-memory key** (`secrets.token_hex(32)`) when it
+  can't read the root-owned `0600` `/etc/vibetop/session.secret`. So a non-root
+  mint yields a token signed with the *wrong key* — indistinguishable by shape,
+  rejected by the server. A `case "$COOKIE" in vt_session=*)` shape check happily
+  accepts it, and every surface check goes red again, now for an invisible reason.
+- **Fix:** detect the gate (unauthenticated `GET /` redirects), mint a cookie, and
+  then **validate it against `/api/authcheck` before trusting it** — 200 or
+  discard. Validating against the server is robust to *why* the token is bad
+  (wrong key, expired, wrong user, rotated secret) instead of enumerating causes.
+  With no valid cookie the surface/API checks are skipped and the script exits
+  **2 = INCONCLUSIVE**; `run-tests.sh` surfaces that distinctly. Shared units
+  report SKIP on a gated host, since the authenticated HTTP probe — which
+  cold-starts the per-user service and then asserts it serves — is the real check.
+- **Rejected:** *asserting 302 instead of 200* (tests the login redirect, not the
+  app); *dropping the surface checks* (throws away the only end-to-end coverage);
+  *exiting 0 when checks are skipped* (a deploy gate would read "couldn't test" as
+  "tested and fine" — the inverse of the original bug); *shape-checking the minted
+  cookie* (the trap above).
+
+---
+
 ## "Remove" was account deletion sitting next to "Reset password" — and there was no way to just sign someone out
 
 - **Symptom:** The Config app's Users card gave every account two equally-weighted
