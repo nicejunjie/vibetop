@@ -80,3 +80,56 @@ def test_realistic_prompt_line_survives(csession):
 
 def test_empty_input(csession):
     assert csession.strip_terminal_queries(b"") == b""
+
+
+# -- adaptive replay: screen-size floor + slow-client truncation ------------
+#
+# For a client too slow to receive the whole ring, adaptive mode jumps it to the
+# current screen: a clear + the newest `screen_replay_bytes(rows,cols)` of the
+# still-unsent tail. Both helpers are pure; the truncation must never reorder
+# (only ever drop the OLD middle) or it would corrupt xterm.
+
+CLEAR = b"\x1b[H\x1b[2J"
+
+
+def test_screen_bytes_floor_applies_to_small_terminal(csession):
+    # 24x80 default is ~7.5 KB of cells -> the 16 KB floor wins.
+    assert csession.screen_replay_bytes(24, 80) == 16 * 1024
+    # A tiny PTY still gets the floor, never a few bytes.
+    assert csession.screen_replay_bytes(1, 1) == 16 * 1024
+
+
+def test_screen_bytes_scales_with_big_screen(csession):
+    # A large, potentially colored desktop screen exceeds the floor (200*50*4).
+    assert csession.screen_replay_bytes(50, 200) == 50 * 200 * 4
+
+
+def test_screen_bytes_custom_floor_and_bad_input(csession):
+    assert csession.screen_replay_bytes(10, 10, floor=1024) == 1024      # 400 cells < floor
+    # Garbage dimensions fall back to 24x80 (then the default 16 KB floor).
+    assert csession.screen_replay_bytes(None, "x") == 16 * 1024
+
+
+def test_truncate_keeps_newest_tail_with_clear(csession):
+    pending = b"OLDEST" + b"." * 1000 + b"NEWEST"
+    out = csession.truncate_replay(pending, 16)
+    assert out.startswith(CLEAR)                      # jumps to a clean screen
+    tail = out[len(CLEAR):]
+    assert tail == pending[-16:]                      # exactly the newest 16 bytes
+    assert tail.endswith(b"NEWEST")                   # newest kept
+    assert b"OLDEST" not in out                       # old middle dropped
+
+
+def test_truncate_short_pending_is_kept_whole(csession):
+    # When the remaining tail already fits, nothing is dropped (still cleared).
+    pending = b"tiny remainder"
+    out = csession.truncate_replay(pending, 16 * 1024)
+    assert out == CLEAR + pending
+
+
+def test_truncate_never_reorders(csession):
+    # The kept bytes must be a contiguous suffix of the input (in-order), so xterm
+    # can't be corrupted by older bytes arriving after newer ones.
+    pending = bytes(range(256)) * 8
+    out = csession.truncate_replay(pending, 100)
+    assert out == CLEAR + pending[-100:]

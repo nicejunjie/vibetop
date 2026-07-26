@@ -1500,7 +1500,9 @@ def _user_terminal_setenvs(user):
     # daemon's built-in defaults (no pacing, 2 MB ring), so this is a no-op by
     # default. Only reaches sessions started AFTER a manager restart.
     for k in ("CLAUDE_SESSION_REPLAY_RATE", "CLAUDE_SESSION_REPLAY_CHUNK",
-              "CLAUDE_SESSION_BUFSIZE"):
+              "CLAUDE_SESSION_BUFSIZE",
+              "CLAUDE_SESSION_REPLAY_ADAPTIVE", "CLAUDE_SESSION_REPLAY_BUDGET",
+              "CLAUDE_SESSION_REPLAY_SNDBUF", "CLAUDE_SESSION_REPLAY_SCREEN"):
         v = os.environ.get(k)
         if v:
             envs.append(f"{k}={v}")

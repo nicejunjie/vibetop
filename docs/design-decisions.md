@@ -76,6 +76,31 @@ mark like SSE `Last-Event-ID`/mosh), but the client is ttyd+xterm, whose reconne
 hands the daemon an **anonymous** fresh connection with no channel to say "I have
 up to N"; doing it properly needs a vibetop-owned replay side-channel, deferred.
 
+**Follow-up — adaptive replay (`CLAUDE_SESSION_REPLAY_ADAPTIVE`, opt-in).** The
+fixed rate above works but has to be guessed. The adaptive mode auto-fits the
+connection with two mechanisms and **no rate to set**: (1) it **shrinks the
+accepted socket's `SO_SNDBUF`** (default 32 KB) so the existing `EVENT_WRITE`
+drain meters output to whatever the link actually takes, and only ~one small
+buffer ever sits ahead of the keepalive — a fast client still gets the whole ring
+at full speed (the buffer drains instantly), a slow one is throttled to its real
+rate. This directly *overcomes* rejected-alternative (3): the reason backpressure
+"couldn't distinguish fast from slow" was the ~200 KB default `SO_SNDBUF` swallowing
+the burst before any short-write; shrinking it makes the short-write track real
+delivery. (2) A **budget truncation**: send the ring oldest→newest, and if after
+`REPLAY_BUDGET` (2.5 s) a client still has a large backlog, replace it with a clear +
+the current screen (`screen_replay_bytes` = `max(16 KB, rows*cols*4)`, so a big
+colored desktop screen isn't clipped) via `truncate_replay` — in-order (only the OLD
+middle is dropped, never reordered, so xterm can't be corrupted), landing a very slow
+client on a usable prompt in ~budget instead of tens of seconds of scrollback. Smoke-
+validated: a 4 KB/150 ms reader gets truncated to ~one screen (keeps the newest bytes),
+a fast reader gets the whole ring untouched. **Caveat:** both mechanisms need the
+downstream chain (pipe→ttyd→libwebsockets→WS) to actually backpressure; if lws buffers
+unboundedly the mode degrades to ~unpaced (no worse than today), so the real-link
+behavior — and the exact `SO_SNDBUF`/budget — must be validated on an actual thin link,
+not trusted from theory. Kept default-off behind the flag for that reason. The pure
+pieces (`screen_replay_bytes`, `truncate_replay`) are unit-tested; the loop path is
+smoke-tested (`tests/` guards the helpers).
+
 ## Video/office viewers couldn't open a user's files OUTSIDE their home
 
 **Symptom:** After dotfiles became reachable in the file browser, the **video player**

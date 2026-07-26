@@ -81,6 +81,31 @@ def strip_terminal_queries(data):
     return _QUERY_REQUEST_RE.sub(b'', data)
 
 
+def screen_replay_bytes(rows, cols, floor=16 * 1024):
+    """Minimum replay that should cover the *current screen* of a rows×cols
+    terminal — the truncation target for a client too slow to receive the whole
+    ring. ~4 bytes/cell leaves room for SGR/UTF-8 overhead; floored so a tiny PTY
+    (or a bad size) still gets a sensible minimum, and a big/colored desktop
+    screen isn't clipped below one screenful. Pure — unit-tested."""
+    try:
+        cells = max(1, int(rows)) * max(1, int(cols))
+    except (TypeError, ValueError):
+        cells = 24 * 80
+    return max(int(floor), cells * 4)
+
+
+def truncate_replay(pending, screen_bytes):
+    """'Jump to current screen' for a client too slow to receive the rest of its
+    replay: a clear-screen + home, then the newest `screen_bytes` of the still-
+    unsent tail. Ordering is preserved — we only ever drop the OLD middle, never
+    reorder — so it can't corrupt xterm; the client keeps whatever older scrollback
+    already arrived, loses the skipped middle, and lands on a usable prompt fast.
+    Pure — unit-tested."""
+    n = len(pending)
+    tail = bytes(pending[-screen_bytes:]) if screen_bytes and n > screen_bytes else bytes(pending)
+    return b'\x1b[H\x1b[2J' + tail
+
+
 def set_pty_size(fd, rows, cols):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', rows, cols, 0, 0))
 
@@ -144,10 +169,35 @@ def cmd_serve(instance):
     PACED = replay_rate > 0 and replay_chunk > 0
     replay_interval = (replay_chunk / replay_rate) if PACED else 0.0     # seconds between chunks
 
+    # Adaptive replay (opt-in, default OFF; OVERRIDES the fixed rate above when set).
+    # Instead of a hand-set rate, adapt to the connection itself. Two mechanisms:
+    #  1. Shrink the accepted socket's send buffer (SO_SNDBUF). The existing
+    #     EVENT_WRITE-driven drain then meters output to whatever the link actually
+    #     takes, and only ~one small buffer sits ahead of ttyd's WebSocket keepalive
+    #     ping — so a fast client still gets the whole ring at full speed (the buffer
+    #     drains instantly), while a slow one is throttled to its real rate with the
+    #     keepalive kept alive. No magic rate to guess.
+    #  2. Budget truncation: send the ring oldest→newest; if after REPLAY_BUDGET
+    #     seconds a slow client still has a large backlog un-sent, replace it with a
+    #     clear + the current screen (screen_replay_bytes) so it lands on a usable
+    #     prompt fast instead of waiting tens of seconds on scrollback. In-order, so
+    #     it can't corrupt the display (see truncate_replay).
+    # Needs the downstream chain to backpressure (a short write / a full socket) to
+    # observe 'slow'; if ttyd/libwebsockets buffers unboundedly the mode degrades to
+    # ~unpaced (no worse than today). Validate on a real thin link before trusting
+    # the tuning. See docs/design-decisions.md.
+    ADAPTIVE = os.environ.get('CLAUDE_SESSION_REPLAY_ADAPTIVE', '').lower() not in ('', '0', 'false', 'no')
+    adapt_budget = float(os.environ.get('CLAUDE_SESSION_REPLAY_BUDGET', 2.5))     # sec before truncating a slow client
+    adapt_sndbuf = int(os.environ.get('CLAUDE_SESSION_REPLAY_SNDBUF', 32 * 1024)) # small send buf sharpens backpressure
+    adapt_screen_floor = int(os.environ.get('CLAUDE_SESSION_REPLAY_SCREEN', 16 * 1024))
+    if ADAPTIVE:
+        PACED = False               # adaptive supersedes the fixed-rate gate
+
     ring = RingBuffer(buf_cap)
     clients = {}          # fileno -> socket
     client_outq = {}      # fileno -> bytearray (pending output)
     pace_next = {}        # fileno -> monotonic time before which we must not send (paced only)
+    replay_deadline = {}  # fileno -> monotonic budget end; truncate a slow client's backlog past it (adaptive only)
     pty_fd = -1
     child_pid = 0
     sel = selectors.DefaultSelector()
@@ -239,6 +289,7 @@ def cmd_serve(instance):
         sock = clients.pop(fd, None)
         client_outq.pop(fd, None)
         pace_next.pop(fd, None)
+        replay_deadline.pop(fd, None)
         if sock:
             try:
                 sock.close()
@@ -294,6 +345,7 @@ def cmd_serve(instance):
             pace_next[fd] = time.monotonic() + replay_interval
         if sent >= len(q):
             del client_outq[fd]
+            replay_deadline.pop(fd, None)    # backlog fully delivered — nothing to truncate
         else:
             client_outq[fd] = q[sent:]
 
@@ -470,6 +522,30 @@ def cmd_serve(instance):
             else:
                 timeout = max(0.0, resize_deadline - now)
 
+        # Adaptive replay: once a client's budget expires, if it still has a large
+        # backlog it's too slow to receive the whole ring in time — jump it to the
+        # current screen (clear + newest screenful) so it lands on a usable prompt.
+        # While the budget is still running, shorten the timeout so we act on time.
+        # Cheap: replay_deadline is empty except briefly after a (re)connect.
+        if ADAPTIVE and replay_deadline:
+            try:
+                rows, cols = get_pty_size(pty_fd) if pty_fd >= 0 else (24, 80)
+            except Exception:
+                rows, cols = 24, 80
+            sb = screen_replay_bytes(rows, cols, adapt_screen_floor)
+            for fd in list(replay_deadline):
+                if fd not in clients:
+                    replay_deadline.pop(fd, None)
+                    continue
+                dl = replay_deadline[fd]
+                if now < dl:
+                    timeout = min(timeout, max(0.0, dl - now))
+                    continue
+                q = client_outq.get(fd)
+                if q and len(q) > sb:
+                    client_outq[fd] = bytearray(truncate_replay(q, sb))
+                replay_deadline.pop(fd, None)
+
         # Determine which clients need write events for pending output. When
         # paced, a client still inside its inter-chunk gap requests NO write event
         # (a writable socket would otherwise spin the loop) and instead shortens
@@ -507,18 +583,28 @@ def cmd_serve(instance):
                     conn.setblocking(False)
                     fd = conn.fileno()
                     clients[fd] = conn
+                    if ADAPTIVE:
+                        # Shrink the send buffer so the EVENT_WRITE drain meters to
+                        # the real link and only a little sits ahead of the keepalive.
+                        try:
+                            conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, adapt_sndbuf)
+                        except OSError:
+                            pass
                     # Strip query REQUESTS from the replay so this fresh client
                     # doesn't re-answer a stale DA/CPR/color/mode probe (the answer
                     # would be injected into the shared PTY and echoed at the prompt).
                     replay = strip_terminal_queries(ring.read_all())
                     initial = b'\033[0m' + replay if replay else b''
                     if initial:
-                        if PACED:
-                            # Hand the whole replay to the paced queue; the main
-                            # loop meters it out chunk-by-chunk from the first tick,
-                            # so it never floods the WebSocket keepalive off a
-                            # thin link.
+                        if PACED or ADAPTIVE:
+                            # Queue the whole replay; the drain (fixed-paced, or
+                            # adaptive via the small send buffer) meters it out
+                            # without flooding the WebSocket keepalive off a thin link.
                             client_outq[fd] = bytearray(initial)
+                            if ADAPTIVE:
+                                # Arm the budget: a client still far behind after
+                                # adapt_budget gets jumped to the current screen.
+                                replay_deadline[fd] = time.monotonic() + adapt_budget
                         else:
                             try:
                                 sent = conn.send(initial)
