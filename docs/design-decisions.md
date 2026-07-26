@@ -95,11 +95,16 @@ client on a usable prompt in ~budget instead of tens of seconds of scrollback. S
 validated: a 4 KB/150 ms reader gets truncated to ~one screen (keeps the newest bytes),
 a fast reader gets the whole ring untouched. **Caveat:** both mechanisms need the
 downstream chain (pipe→ttyd→libwebsockets→WS) to actually backpressure; if lws buffers
-unboundedly the mode degrades to ~unpaced (no worse than today), so the real-link
-behavior — and the exact `SO_SNDBUF`/budget — must be validated on an actual thin link,
-not trusted from theory. Kept default-off behind the flag for that reason. The pure
-pieces (`screen_replay_bytes`, `truncate_replay`) are unit-tested; the loop path is
-smoke-tested (`tests/` guards the helpers).
+unboundedly the mode degrades to ~unpaced, so the real-link behavior — and the exact
+`SO_SNDBUF`/budget — should still be validated on an actual thin link. **Shipped
+default ON** (`CLAUDE_SESSION_REPLAY_ADAPTIVE` defaults to `1`): it strictly improves
+the fast-link case (no fixed-rate throttle on a good connection) and auto-handles the
+slow one, and the degradation floor is "no worse than unpaced." Escape hatch:
+`CLAUDE_SESSION_REPLAY_ADAPTIVE=0` disables it and falls back to the fixed
+`CLAUDE_SESSION_REPLAY_RATE` (if set) as a static floor — the one line to pull if the
+full ttyd→lws→WS chain turns out not to backpressure and the reconnect loop returns.
+The pure pieces (`screen_replay_bytes`, `truncate_replay`) are unit-tested; the loop
+path is smoke-tested (`tests/` guards the helpers).
 
 ## Video/office viewers couldn't open a user's files OUTSIDE their home
 

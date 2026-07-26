@@ -169,7 +169,7 @@ def cmd_serve(instance):
     PACED = replay_rate > 0 and replay_chunk > 0
     replay_interval = (replay_chunk / replay_rate) if PACED else 0.0     # seconds between chunks
 
-    # Adaptive replay (opt-in, default OFF; OVERRIDES the fixed rate above when set).
+    # Adaptive replay (default ON; OVERRIDES the fixed rate above).
     # Instead of a hand-set rate, adapt to the connection itself. Two mechanisms:
     #  1. Shrink the accepted socket's send buffer (SO_SNDBUF). The existing
     #     EVENT_WRITE-driven drain then meters output to whatever the link actually
@@ -184,9 +184,10 @@ def cmd_serve(instance):
     #     it can't corrupt the display (see truncate_replay).
     # Needs the downstream chain to backpressure (a short write / a full socket) to
     # observe 'slow'; if ttyd/libwebsockets buffers unboundedly the mode degrades to
-    # ~unpaced (no worse than today). Validate on a real thin link before trusting
-    # the tuning. See docs/design-decisions.md.
-    ADAPTIVE = os.environ.get('CLAUDE_SESSION_REPLAY_ADAPTIVE', '').lower() not in ('', '0', 'false', 'no')
+    # ~unpaced. So it ships DEFAULT ON — disable with CLAUDE_SESSION_REPLAY_ADAPTIVE=0,
+    # which falls back to the fixed CLAUDE_SESSION_REPLAY_RATE (if set) as a static
+    # floor. See docs/design-decisions.md.
+    ADAPTIVE = os.environ.get('CLAUDE_SESSION_REPLAY_ADAPTIVE', '1').lower() not in ('0', 'false', 'no')
     adapt_budget = float(os.environ.get('CLAUDE_SESSION_REPLAY_BUDGET', 2.5))     # sec before truncating a slow client
     adapt_sndbuf = int(os.environ.get('CLAUDE_SESSION_REPLAY_SNDBUF', 32 * 1024)) # small send buf sharpens backpressure
     adapt_screen_floor = int(os.environ.get('CLAUDE_SESSION_REPLAY_SCREEN', 16 * 1024))
