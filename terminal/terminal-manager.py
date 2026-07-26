@@ -1490,6 +1490,20 @@ def _user_terminal_setenvs(user):
         _write_browser_token(user)   # also drop the token file so old/env-less terminals route too
     except Exception as e:
         log.warning("terminal env: browser-open setup failed for %s: %s", user, e)
+    # Forward the session daemon's tuning knobs from the manager's environment so a
+    # host can set a low-bandwidth profile in ONE place (the manager unit /
+    # /etc/vibetop/manager.env) and have it reach every user's session — systemd-run
+    # doesn't inherit the manager's env, so an un-forwarded var never arrives.
+    # CLAUDE_SESSION_REPLAY_RATE (bytes/sec) paces the on-connect ring replay so a
+    # thin/high-latency link doesn't flood the WebSocket keepalive into a reconnect
+    # loop; CLAUDE_SESSION_BUFSIZE caps the ring (less to replay). Unset -> the
+    # daemon's built-in defaults (no pacing, 2 MB ring), so this is a no-op by
+    # default. Only reaches sessions started AFTER a manager restart.
+    for k in ("CLAUDE_SESSION_REPLAY_RATE", "CLAUDE_SESSION_REPLAY_CHUNK",
+              "CLAUDE_SESSION_BUFSIZE"):
+        v = os.environ.get(k)
+        if v:
+            envs.append(f"{k}={v}")
     return envs
 
 

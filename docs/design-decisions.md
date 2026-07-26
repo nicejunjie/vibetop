@@ -17,6 +17,65 @@ and why it lost).
 
 ---
 
+## A terminal loops "loading / disconnect / reconnect" forever on a thin link (in-flight WiFi)
+
+**Symptom:** On a very low-bandwidth, high-latency connection (airplane WiFi, a
+weak tether), **one** terminal — always the busiest one — never finishes loading:
+it connects, disconnects, and reconnects on a tight cycle indefinitely, while
+quieter terminals are fine. On the same host over LAN or cellular it's perfect. A
+secondary symptom on touch clients: the soft keyboard **keeps dropping** while you
+type (each reconnect steals focus and iOS collapses the keyboard).
+
+**Cause:** On every (re)connect, `vibetop-session` replays its **entire ring
+buffer** — up to 2 MB (`CLAUDE_SESSION_BUFSIZE`) — as one burst to rebuild
+scrollback (`terminal/vibetop-session`, `ring.read_all()` on accept). WebSocket
+ping/pong are control frames but ride the **same ordered TCP stream** as that data,
+so on a thin link the keepalive ping sits behind the whole 2 MB burst and reaches
+the client tens of seconds late; ttyd declares the socket dead and its
+`reconnect=3` reconnects, re-replaying the full burst → a permanent loop. It hits
+the busiest terminal because its ring is fullest (or it's actively streaming
+output, which keeps the pipe saturated). The keyboard-drop is the *same* churn:
+every reconnect re-inits the terminal / fires the reconnect guard's synthesized
+Enter, blurring the overlay input.
+
+**Fix:** **Paced replay** (opt-in, default off). Setting `CLAUDE_SESSION_REPLAY_RATE`
+(bytes/sec) meters ALL output to a client to that rate with a one-chunk burst
+(`CLAUDE_SESSION_REPLAY_CHUNK`, default 32 KB), so no more than one chunk sits
+ahead of a ping at any moment and the keepalive survives. Implemented as a
+per-client gate on the existing `client_outq` drain: a `pace_next[fd]` deadline;
+while inside the gap the fd requests **no** write event (so a writable socket can't
+spin the loop) and the select timeout is shortened to the gap's end. Live output is
+routed through the same queue so it can't jump ahead of a draining replay.
+`rate<=0` (the default) is byte-for-byte the old path — flush drains the whole
+queue at socket speed — so **LAN is unaffected** (smoke-measured: 196 KB replays in
+0.01 s unpaced vs a metered ~30 KB/s when set). The manager forwards
+`CLAUDE_SESSION_REPLAY_RATE`/`_CHUNK`/`CLAUDE_SESSION_BUFSIZE` from its own env into
+each `systemd-run` session (`_user_terminal_setenvs`) — systemd-run does **not**
+inherit the manager's env, so without this the knob would silently never arrive.
+Set the low-bandwidth profile once in `/etc/vibetop/manager.env` (e.g.
+`CLAUDE_SESSION_REPLAY_RATE=131072`, and optionally a smaller
+`CLAUDE_SESSION_BUFSIZE`) + restart the manager; it applies to sessions started
+after. Immediate relief with no deploy: restart the offending terminal (× then +)
+to clear its 2 MB ring, or stop whatever is streaming in it.
+
+**Rejected:** (1) *Just lower the ring cap* — helps (less to replay) but doesn't
+stop the loop; a smaller burst can still outlast the keepalive on a bad enough
+link, and you lose scrollback for everyone. Kept as a complementary knob, not the
+fix. (2) *An always-on pace rate* — any rate low enough to help a plane (~256 KB/s)
+adds ~8 s to a 2 MB reconnect-repaint on LAN, a regression for everyone to fix one
+trip. Made it opt-in instead. (3) *Adaptive rate from backpressure detection* — a
+short-write on the unix socket happens on LAN too (SO_SNDBUF ~208 KB < 2 MB), so
+"backpressure seen" doesn't distinguish a fast link that drains in 1 ms from a slow
+one that takes seconds; measuring drain-rate reliably is fiddly and untested, so a
+plain configurable rate won over a clever heuristic. (4) *Chunk without pacing* —
+the daemon already queues non-blocking (`client_outq`); splitting the write without
+a wall-clock gap changes nothing, because the bytes still enter the pipeline as
+fast as it drains. (5) *Delta/resume replay (send only what the client lacks)* —
+the right long-term design (sequence-tag the stream, client reports its high-water
+mark like SSE `Last-Event-ID`/mosh), but the client is ttyd+xterm, whose reconnect
+hands the daemon an **anonymous** fresh connection with no channel to say "I have
+up to N"; doing it properly needs a vibetop-owned replay side-channel, deferred.
+
 ## Video/office viewers couldn't open a user's files OUTSIDE their home
 
 **Symptom:** After dotfiles became reachable in the file browser, the **video player**

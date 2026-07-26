@@ -126,9 +126,28 @@ def cmd_serve(instance):
     # on each reconnect. Override with CLAUDE_SESSION_BUFSIZE (bytes) if needed.
     buf_cap = int(os.environ.get('CLAUDE_SESSION_BUFSIZE', 2 * 1024 * 1024))
 
+    # Paced replay (opt-in, default OFF = byte-for-byte the old behavior).
+    # On a thin/high-latency link (in-flight WiFi, tether) the on-connect replay
+    # of the whole ring buffer is one big burst that queues ahead of ttyd's
+    # WebSocket keepalive ping in the same TCP stream; the ping arrives too late,
+    # ttyd declares the socket dead and reconnects, re-replaying the burst -> a
+    # permanent "loading / disconnect / reconnect" loop (worst on the busiest
+    # terminal, whose ring is fullest). Setting CLAUDE_SESSION_REPLAY_RATE (bytes
+    # per second) meters ALL output to a client to that rate with a one-chunk
+    # burst, so no more than CLAUDE_SESSION_REPLAY_CHUNK bytes sit ahead of a ping
+    # at once and the keepalive survives. Metering every burst (not just the
+    # replay) also keeps a heavy live burst (`cat bigfile`) from tripping the same
+    # timeout. rate<=0 disables it entirely: flush drains the whole queue at socket
+    # speed exactly as before, so LAN is unaffected. See docs/design-decisions.md.
+    replay_rate = int(os.environ.get('CLAUDE_SESSION_REPLAY_RATE', 0))   # bytes/sec, 0 = unlimited
+    replay_chunk = int(os.environ.get('CLAUDE_SESSION_REPLAY_CHUNK', 32 * 1024))
+    PACED = replay_rate > 0 and replay_chunk > 0
+    replay_interval = (replay_chunk / replay_rate) if PACED else 0.0     # seconds between chunks
+
     ring = RingBuffer(buf_cap)
     clients = {}          # fileno -> socket
     client_outq = {}      # fileno -> bytearray (pending output)
+    pace_next = {}        # fileno -> monotonic time before which we must not send (paced only)
     pty_fd = -1
     child_pid = 0
     sel = selectors.DefaultSelector()
@@ -219,6 +238,7 @@ def cmd_serve(instance):
             pass
         sock = clients.pop(fd, None)
         client_outq.pop(fd, None)
+        pace_next.pop(fd, None)
         if sock:
             try:
                 sock.close()
@@ -233,6 +253,11 @@ def cmd_serve(instance):
                 q.extend(data)
                 if len(q) > MAX_OUTQ:
                     dead.append(fd)
+                continue
+            if PACED:
+                # Enqueue instead of sending inline so live output stays ordered
+                # behind any draining replay and is metered by the same gate.
+                client_outq[fd] = bytearray(data)
                 continue
             try:
                 sent = sock.send(data)
@@ -252,16 +277,25 @@ def cmd_serve(instance):
         sock = clients.get(fd)
         if not sock:
             return
+        data = q
+        if PACED:
+            if time.monotonic() < pace_next.get(fd, 0.0):
+                return                       # inside the inter-chunk gap; retried on the timeout wake
+            if len(q) > replay_chunk:
+                data = memoryview(q)[:replay_chunk]
         try:
-            sent = sock.send(q)
-            if sent >= len(q):
-                del client_outq[fd]
-            else:
-                client_outq[fd] = q[sent:]
+            sent = sock.send(data)
         except (BlockingIOError, InterruptedError):
-            pass
+            return
         except Exception:
             remove_client(fd)
+            return
+        if PACED and sent > 0:
+            pace_next[fd] = time.monotonic() + replay_interval
+        if sent >= len(q):
+            del client_outq[fd]
+        else:
+            client_outq[fd] = q[sent:]
 
     def reap_child():
         nonlocal child_pid, pty_fd
@@ -436,13 +470,24 @@ def cmd_serve(instance):
             else:
                 timeout = max(0.0, resize_deadline - now)
 
-        # Determine which clients need write events for pending output
+        # Determine which clients need write events for pending output. When
+        # paced, a client still inside its inter-chunk gap requests NO write event
+        # (a writable socket would otherwise spin the loop) and instead shortens
+        # the select timeout so we wake exactly when its gap ends.
         for fd in list(client_outq):
-            if fd in clients:
-                try:
-                    sel.modify(fd, selectors.EVENT_READ | selectors.EVENT_WRITE, 'client')
-                except Exception:
-                    pass
+            if fd not in clients:
+                continue
+            want_write = True
+            if PACED:
+                pn = pace_next.get(fd, 0.0)
+                if now < pn:
+                    want_write = False
+                    timeout = min(timeout, max(0.0, pn - now))
+            try:
+                mask = selectors.EVENT_READ | (selectors.EVENT_WRITE if want_write else 0)
+                sel.modify(fd, mask, 'client')
+            except Exception:
+                pass
 
         try:
             events = sel.select(timeout=timeout)
@@ -468,15 +513,22 @@ def cmd_serve(instance):
                     replay = strip_terminal_queries(ring.read_all())
                     initial = b'\033[0m' + replay if replay else b''
                     if initial:
-                        try:
-                            sent = conn.send(initial)
-                            if sent < len(initial):
-                                client_outq[fd] = bytearray(initial[sent:])
-                        except (BlockingIOError, InterruptedError):
+                        if PACED:
+                            # Hand the whole replay to the paced queue; the main
+                            # loop meters it out chunk-by-chunk from the first tick,
+                            # so it never floods the WebSocket keepalive off a
+                            # thin link.
                             client_outq[fd] = bytearray(initial)
-                        except Exception:
-                            remove_client(fd)
-                            continue
+                        else:
+                            try:
+                                sent = conn.send(initial)
+                                if sent < len(initial):
+                                    client_outq[fd] = bytearray(initial[sent:])
+                            except (BlockingIOError, InterruptedError):
+                                client_outq[fd] = bytearray(initial)
+                            except Exception:
+                                remove_client(fd)
+                                continue
                     sel.register(fd, selectors.EVENT_READ, 'client')
                 except Exception:
                     pass
