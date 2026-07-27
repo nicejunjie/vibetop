@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
 # deploy.sh — one-command full deploy of Vibetop (the whole stack).
 #
-#   ./deploy.sh                   deploy on THIS machine
-#   ./deploy.sh --remote HOST     rsync this repo to HOST:~/vibetop and deploy there
+#   sudo ./deploy.sh              deploy on THIS machine
+#   ./deploy.sh --remote HOST     rsync this repo to HOST and deploy there
 #                                 (HOST is any ssh destination: user@ip or an
 #                                  ssh-config Host; a bare shell alias won't work)
 #
+# RUN IT AS ROOT (it re-execs under sudo if you don't). Vibetop installs like
+# ordinary server software — root-owned code in /opt/vibetop, owned by a no-login
+# `vibetop` service account — and needs NO username. People arrive afterwards by
+# logging in with their own Linux account: every per-user path is resolved at
+# runtime from the session cookie, and per-user services are transient units
+# created on demand. Name admins (for Update / Claude-usage) with VIBETOP_ADMINS;
+# under `sudo` the invoking user is seeded as the first one.
+#
 # Flags:
 #   --remote HOST    deploy to a remote host over SSH (rsync first)
+#   --admins a,b     Linux users granted the operator-only surfaces
 #   --no-browser     skip the xpra/Chromium Browser stack (heavy: xpra repo + snap)
 #   --no-files       skip FileBrowser (the Files app)
 #   --no-office      skip OnlyOffice Document Server (docker; heavy ~2GB image)
@@ -19,18 +28,26 @@
 # then browser/files (drop extras snippets), then landing (static UI), tunnel last.
 set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=tools/lib/layout.sh
+. "$REPO_DIR/tools/lib/layout.sh"
 
 REMOTE="" ; DO_BROWSER=1 ; DO_FILES=1 ; DO_OFFICE=1 ; DO_TUNNEL=0 ; DRY=0
+ADMINS="${VIBETOP_ADMINS:-}"
+ORIG_ARGS=("$@")   # the parse loop below shifts "$@" empty; the staging re-exec
+                   # needs the ORIGINAL flags or it silently drops every one of
+                   # them (--no-office, --admins, …) and deploys the wrong stack.
 PASS=()   # flags forwarded to the remote invocation of this script
 while [ $# -gt 0 ]; do
     case "$1" in
         --remote)      REMOTE="${2:?--remote needs a host}"; shift 2 ;;
+        --admins)      ADMINS="${2:?--admins needs a list}"; PASS+=("$1" "$2"); shift 2 ;;
+        --admins=*)    ADMINS="${1#--admins=}"; PASS+=("$1"); shift ;;
         --no-browser)  DO_BROWSER=0; PASS+=("$1"); shift ;;
         --no-files)    DO_FILES=0;   PASS+=("$1"); shift ;;
         --no-office)   DO_OFFICE=0;  PASS+=("$1"); shift ;;
         --with-tunnel) DO_TUNNEL=1;  PASS+=("$1"); shift ;;
         --dry-run|-n)  DRY=1;        PASS+=("--dry-run"); shift ;;
-        --help|-h)     sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help|-h)     sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown flag: $1" >&2; exit 2 ;;
     esac
 done
@@ -56,43 +73,111 @@ if [ -n "$REMOTE" ]; then
 fi
 
 # --- Local mode -------------------------------------------------------------
+vt_require_root "$0" "$@"          # no-op when already root; re-execs otherwise
 export DEBIAN_FRONTEND=noninteractive
 DRYFLAG=(); (( DRY )) && DRYFLAG=(--dry-run)
 step() { echo; echo "### $*"; }
 
+# Under `sudo`, seed the admin list with the invoking human so the operator-only
+# surfaces (Update, Claude-usage) aren't locked out on a normal interactive
+# install. Pure root with no --admins leaves it empty: nobody gets those two
+# surfaces until VIBETOP_ADMINS is set, which is the safe unattended default.
+if [ -z "$ADMINS" ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ]; then
+    ADMINS="$SUDO_USER"
+fi
+
+# A pre-/opt install (nginx serving out of somebody's home) is NOT silently
+# relocated — moving the web root and secrets is migrate-to-opt.sh's job, which
+# preserves live sessions and keeps a rollback. Just deploy it where it already is.
+LEGACY_WWW="$(vt_existing_home_install)"
+if [ -n "$LEGACY_WWW" ]; then
+    echo "==> existing home-based install detected (nginx root: $LEGACY_WWW)"
+    echo "    Deploying in place, NOT relocating. To move it to $VT_OPT:"
+    echo "        sudo tools/migrate-to-opt.sh"
+else
+    # --- System layout: root-owned tree, no-login service account, no username -
+    step "0/6  Layout — $VT_OPT (service account: $VT_SVC)"
+    if (( DRY )); then
+        echo "+ create account $VT_SVC; mkdir $VT_OPT{,/app,/vibetop-www,/etc,/var}"
+        echo "+ write $VT_ENV_FILE (VIBETOP_ADMINS=$ADMINS)"
+        [ "$REPO_DIR" = "$VT_APP" ] || \
+            echo "+ stage $REPO_DIR -> $VT_APP, then re-run from there"
+        echo "  (dry run does NOT stage, so the paths below still show $REPO_DIR)"
+    else
+        vt_ensure_service_account
+        vt_ensure_dirs
+        vt_write_manager_env "$ADMINS"
+        echo "-- $VT_ENV_FILE: VIBETOP_ADMINS=${ADMINS:-<none — set it to enable Update/Claude-usage>}"
+
+        # Stage the checkout into the system tree and continue from THERE: the
+        # manager execs in-place from its checkout and the in-app Updater pulls
+        # into it, so it must not live in anyone's home.
+        if [ "$REPO_DIR" != "$VT_APP" ] && [ -z "${VIBETOP_STAGED:-}" ]; then
+            step "0b/6 Staging the checkout -> $VT_APP"
+            install -d -m 0755 -o "$VT_SVC" -g "$VT_SVC" "$VT_APP"
+            if command -v rsync >/dev/null 2>&1; then
+                # .git included: the Updater needs a real checkout. --delete so a
+                # re-run can't leave removed files behind.
+                rsync -a --delete --exclude='*.pyc' --exclude='tests/e2e/node_modules/' \
+                      "$REPO_DIR"/ "$VT_APP"/
+            else
+                cp -a "$REPO_DIR"/. "$VT_APP"/
+            fi
+            chown -R "$VT_SVC:$VT_SVC" "$VT_APP"
+            sudo -u "$VT_SVC" git config --global --add safe.directory "$VT_APP" 2>/dev/null || true
+            echo "==> continuing from $VT_APP"
+            exec env VIBETOP_STAGED=1 "$VT_APP/deploy.sh" "${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}"
+        fi
+    fi
+    # Every sub-installer runs with the service identity + system paths, so
+    # nothing keys off the invoking user's $HOME.
+    vt_installer_env_array
+fi
+
+# Installers inherit the layout env when we set one up (empty on a legacy host,
+# where their own defaults still resolve to the existing home install).
+INST_ENV=(); [ -n "$LEGACY_WWW" ] || INST_ENV=("${VT_ENV_ARRAY[@]}")
+
 step "1/6  Terminal — nginx site + manager + ttyd"
-sudo "$REPO_DIR/terminal/install.sh" "${DRYFLAG[@]}"
+env "${INST_ENV[@]}" "$REPO_DIR/terminal/install.sh" "${DRYFLAG[@]}"
 
 if (( DO_BROWSER )); then
     step "2/6  Browser — xpra + Chromium"
-    sudo "$REPO_DIR/browser/install.sh" "${DRYFLAG[@]}"
+    env "${INST_ENV[@]}" "$REPO_DIR/browser/install.sh" "${DRYFLAG[@]}"
 else
     step "2/6  Browser — skipped (--no-browser)"
 fi
 
 if (( DO_FILES )); then
     step "3/6  Files — FileBrowser"
-    sudo "$REPO_DIR/files/install.sh" "${DRYFLAG[@]}"
+    env "${INST_ENV[@]}" "$REPO_DIR/files/install.sh" "${DRYFLAG[@]}"
 else
     step "3/6  Files — skipped (--no-files)"
 fi
 
 if (( DO_OFFICE )); then
     step "4/6  Office — OnlyOffice Document Server (docker, ~2GB)"
-    sudo "$REPO_DIR/office/install.sh" "${DRYFLAG[@]}"
+    env "${INST_ENV[@]}" "$REPO_DIR/office/install.sh" "${DRYFLAG[@]}"
 else
     step "4/6  Office — skipped (--no-office)"
 fi
 
+# Landing writes the web root. On the system layout that is $VT_WWW owned by the
+# service account, so run it AS that account; on a legacy home install it still
+# re-execs itself as $SUDO_USER to land in that person's home.
 step "5/6  Landing — desktop UI + static apps"
-"$REPO_DIR/landing/install.sh" "${DRYFLAG[@]}"
+if [ -n "$LEGACY_WWW" ]; then
+    "$REPO_DIR/landing/install.sh" "${DRYFLAG[@]}"
+else
+    sudo -u "$VT_SVC" -H env "${INST_ENV[@]}" "$REPO_DIR/landing/install.sh" "${DRYFLAG[@]}"
+fi
 
 step "5b/6 Claude usage — opt-in usage-capture proxy (unit installed, left off)"
-sudo "$REPO_DIR/claude-usage/install.sh" "${DRYFLAG[@]}"
+env "${INST_ENV[@]}" "$REPO_DIR/claude-usage/install.sh" "${DRYFLAG[@]}"
 
 if (( DO_TUNNEL )); then
     step "6/6  Tunnel — Cloudflare (interactive)"
-    sudo "$REPO_DIR/tunnel/install.sh" "${DRYFLAG[@]}"
+    env "${INST_ENV[@]}" "$REPO_DIR/tunnel/install.sh" "${DRYFLAG[@]}"
 else
     step "6/6  Tunnel — skipped (run with --with-tunnel; it's interactive)"
 fi

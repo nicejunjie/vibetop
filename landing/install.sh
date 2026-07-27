@@ -3,16 +3,18 @@
 # Override DST_DIR=... to write somewhere else.
 set -euo pipefail
 
-# Must NOT run as root: this script deploys to $HOME (root would deploy to
-# /root while nginx serves the real user's home). Under `sudo ./deploy.sh`,
-# re-exec as the invoking user so files land in their home.
-if [ "$(id -u)" -eq 0 ]; then
+# Root is fine ONLY when the destination is stated explicitly (the system layout:
+# deploy.sh runs this as the `vibetop` service account with DST_DIR=/opt/vibetop/
+# vibetop-www). Without DST_DIR this script falls back to $HOME, and as root that
+# is /root — files nginx will never serve. So in that case re-exec as the invoking
+# human (legacy home install), or refuse.
+if [ "$(id -u)" -eq 0 ] && [ -z "${DST_DIR:-}" ]; then
   if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ]; then
-    echo "landing/install.sh: running as root — re-executing as \$SUDO_USER ($SUDO_USER) so files land in that user's home" >&2
+    echo "landing/install.sh: running as root with no DST_DIR — re-executing as \$SUDO_USER ($SUDO_USER) so files land in that user's home" >&2
     exec sudo -u "$SUDO_USER" -H "$0" "$@"
   fi
-  echo "landing/install.sh must NOT run as root: it deploys to \$HOME (would be /root)." >&2
-  echo "Run it as your normal user — deploy.sh already invokes it without sudo." >&2
+  echo "landing/install.sh: running as root with no DST_DIR — it would deploy to /root." >&2
+  echo "Pass DST_DIR=<web root> (deploy.sh does this), or run it as your normal user." >&2
   exit 1
 fi
 

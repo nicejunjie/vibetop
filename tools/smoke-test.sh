@@ -37,6 +37,7 @@ set -uo pipefail
 
 BASE="http://127.0.0.1"
 CHECK_OFFICE=1
+CHECK_BROWSER=-1        # -1 = auto-detect from the installed nginx snippet
 COOKIE=""
 PROBE_USER=""
 REPO="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
@@ -44,6 +45,7 @@ REPO="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-office) CHECK_OFFICE=0 ;;
+        --no-browser) CHECK_BROWSER=0 ;;
         --base) BASE="${2:-}"; shift ;;
         --base=*) BASE="${1#--base=}" ;;
         --cookie) COOKIE="${2:-}"; shift ;;
@@ -83,6 +85,17 @@ fetch() {
 root_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "$BASE/" 2>/dev/null || echo 000)"
 AUTH_GATE=0
 case "$root_code" in 301|302|303|307|308|401|403) AUTH_GATE=1 ;; esac
+
+# Was the Browser stack deployed? Its nginx snippet is the authoritative local
+# signal; for a remote --base we can't look, so assume yes unless --no-browser.
+if [ "$CHECK_BROWSER" = -1 ]; then
+    if [ -d /etc/nginx/snippets/vibetop-extras.d ]; then
+        CHECK_BROWSER=0
+        [ -f /etc/nginx/snippets/vibetop-extras.d/browser.conf ] && CHECK_BROWSER=1
+    else
+        CHECK_BROWSER=1
+    fi
+fi
 
 detect_probe_user() {
     local u=""
@@ -184,8 +197,15 @@ if [ "$AUTH_GATE" = 1 ] && [ -z "$COOKIE" ]; then
 else
     http_is "desktop shell" "/" 200
     http_is "terminal t1"   "/t1/" 200
-    http_is "browser xpra"  "/browser/" 200
-    http_is "x11 display"   "/x11-display/" 200
+    # A lean deploy (--no-browser) never installs the xpra snippet, so /browser/
+    # and /x11-display/ 404 by design. Assert them only when the stack is
+    # actually deployed; otherwise this reports a red failure for a correct host.
+    if [ "$CHECK_BROWSER" = 0 ]; then
+        grey "browser xpra + x11 display (browser stack not deployed)"
+    else
+        http_is "browser xpra"  "/browser/" 200
+        http_is "x11 display"   "/x11-display/" 200
+    fi
     http_is "file manager"  "/files/" 200
 fi
 

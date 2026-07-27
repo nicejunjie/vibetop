@@ -26,18 +26,19 @@ say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # --- Preconditions ----------------------------------------------------------
-# Not root: the desktop runs as your user (terminals = your shell, Files = your
-# ~), and landing/install.sh refuses root (or re-execs as your $SUDO_USER).
-if [ "$(id -u)" -eq 0 ]; then
-    die "Run this as a normal user with sudo, not as root.
-       The Vibetop desktop runs as your user — its Terminal is your shell and
-       Files is your home directory — so it can't be installed as root.
-       On a root-only cloud box, create a user first, then re-run as them:
-           adduser bob && usermod -aG sudo bob && su - bob
-           curl -fsSL $REPO_RAW | bash"
+# Root is fine — vibetop installs like ordinary server software (root-owned code
+# under /opt/vibetop, a no-login `vibetop` service account) and needs no username.
+# People arrive afterwards by logging in with their own Linux accounts.
+IS_ROOT=0; [ "$(id -u)" -eq 0 ] && IS_ROOT=1
+# as_root — run a command with privilege, whichever way we have it.
+as_root() { if [ "$IS_ROOT" = 1 ]; then "$@"; else sudo "$@"; fi; }
+if [ "$IS_ROOT" = 1 ]; then
+    # Never clone into /root: deploy.sh stages the checkout into /opt/vibetop/app
+    # anyway, so land the source somewhere FHS-appropriate in the meantime.
+    DIR="${VIBETOP_DIR:-/usr/local/src/vibetop}"
+else
+    command -v sudo >/dev/null 2>&1 || die "sudo is required but not installed."
 fi
-
-command -v sudo >/dev/null 2>&1 || die "sudo is required but not installed."
 
 [ -r /etc/os-release ] || die "No /etc/os-release — Vibetop targets Debian/Ubuntu."
 . /etc/os-release
@@ -48,14 +49,16 @@ case " ${ID:-} ${ID_LIKE:-} " in
 esac
 
 # Prime sudo once up front so the long deploy isn't interrupted by a prompt.
-say "checking sudo access (you may be prompted for your password)"
-sudo -v || die "sudo access is required."
+if [ "$IS_ROOT" = 0 ]; then
+    say "checking sudo access (you may be prompted for your password)"
+    sudo -v || die "sudo access is required."
+fi
 
 # --- git: needed to fetch the repo before deploy.sh exists ------------------
 if ! command -v git >/dev/null 2>&1; then
     say "installing git"
-    sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git ca-certificates
+    as_root env DEBIAN_FRONTEND=noninteractive apt-get update -qq
+    as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git ca-certificates
 fi
 
 # --- Clone, or update an existing checkout (idempotent / re-runnable) --------
@@ -68,6 +71,8 @@ elif [ -e "$DIR" ]; then
     die "$DIR exists but isn't a Vibetop checkout. Move it aside, or set VIBETOP_DIR=<path>."
 else
     say "cloning $REPO -> $DIR"
+    # The parent may not exist (e.g. /usr/local/src on a minimal image).
+    mkdir -p "$(dirname "$DIR")" 2>/dev/null || as_root mkdir -p "$(dirname "$DIR")"
     # A full clone (not --depth) so the in-app Update app can `git log`/`pull`.
     git clone --branch "$REF" "$REPO" "$DIR"
 fi

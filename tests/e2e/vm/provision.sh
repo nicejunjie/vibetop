@@ -27,11 +27,9 @@ loginctl enable-linger e2e2 2>/dev/null || true
 mkdir -p /home/e2e2/.local/share /home/e2e2/Documents /home/e2e2/Uploads
 chown -R e2e2:e2e2 /home/e2e2
 
-echo "== copy the synced repo into the e2e user's home (deploy refuses root, wants \$HOME) =="
-mkdir -p /home/$E2E_USER/vibetop
-rsync -a --delete --exclude 'tests/e2e/node_modules' --exclude '.git' \
-  /home/vagrant/vibetop/ /home/$E2E_USER/vibetop/
-chown -R "$E2E_USER:$E2E_USER" /home/$E2E_USER/vibetop
+# deploy.sh runs as ROOT and stages the checkout into /opt/vibetop/app itself —
+# no per-user copy, no $HOME. --admins names the human who gets the operator-only
+# surfaces (Update / Claude-usage); everything else is per-user.
 
 # X11 test apps (xlogo/xeyes/…) for the X11-lifecycle spec. Cheap (~2 MB) and
 # harmless on the lean VM; the spec self-skips when the X11 stack isn't deployed.
@@ -45,8 +43,9 @@ if [[ "${VIBETOP_E2E_FULL:-0}" == "1" ]]; then
 else
   DEPLOY_FLAGS="--no-browser --no-office"
 fi
-echo "== deploy as the e2e user ($DEPLOY_FLAGS) =="
-sudo -u "$E2E_USER" bash -lc "cd ~/vibetop && ./deploy.sh $DEPLOY_FLAGS" \
+echo "== deploy as root ($DEPLOY_FLAGS, admins=$E2E_USER) =="
+# shellcheck disable=SC2086  # DEPLOY_FLAGS is a deliberate word-split flag list
+( cd /home/vagrant/vibetop && ./deploy.sh --admins "$E2E_USER" $DEPLOY_FLAGS ) \
   || echo "deploy.sh returned non-zero (tolerated); ensuring services below"
 
 echo "== ensure core services + neutralize the LAN http->https upgrade =="

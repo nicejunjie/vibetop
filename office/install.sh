@@ -76,12 +76,18 @@ echo "== vibetop-office (OnlyOffice Document Server) =="
 echo "   user: $APP_USER   port: $ONLYOFFICE_PORT   image: $ONLYOFFICE_IMAGE"
 
 # 1. JWT secret — shared between the container and the manager. Generated once.
+# Written as ROOT, into whatever directory SECRET_FILE names: on the system
+# layout that is /opt/vibetop/etc (0700 root), where an `sudo -u $APP_USER tee`
+# fails with "Permission denied" and leaves the deploy half-done. The only
+# reader is the manager, which runs as root, so root:root 0600 is both correct
+# and tighter than the old APP_USER-owned file.
 if [ ! -s "$SECRET_FILE" ]; then
     echo "== generating JWT secret =="
-    run sudo -u "$APP_USER" install -d -m 0750 "$APP_HOME/.config/vibetop"
+    run sudo install -d -m 0700 -o root -g root "$(dirname "$SECRET_FILE")"
     if (( ! DRY_RUN )); then
-        openssl rand -hex 32 | sudo -u "$APP_USER" tee "$SECRET_FILE" >/dev/null
-        sudo -u "$APP_USER" chmod 0600 "$SECRET_FILE"
+        openssl rand -hex 32 | sudo tee "$SECRET_FILE" >/dev/null
+        sudo chown root:root "$SECRET_FILE"
+        sudo chmod 0600 "$SECRET_FILE"
     fi
 fi
 if (( DRY_RUN )); then
