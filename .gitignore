@@ -25,3 +25,9 @@ services.json
 # Python bytecode cache
 __pycache__/
 *.pyc
+
+# Vagrant runtime state for the disposable test VMs (per-machine ids, pids,
+# logs and a throwaway private key) — regenerated on every `vagrant up`.
+.vagrant/
+# matrix run logs, one per distro, regenerated each run
+tests/matrix/logs/

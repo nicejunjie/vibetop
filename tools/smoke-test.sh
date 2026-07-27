@@ -82,9 +82,18 @@ fetch() {
 # legacy no-auth install answers 200. This is the cheapest reliable signal for
 # "does this host gate its surfaces", and it decides both whether we need a
 # cookie and whether the shared legacy units are expected to be running.
-root_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "$BASE/" 2>/dev/null || echo 000)"
+# Retry hard here: run straight after a deploy (or an nginx reload) the first
+# probe can hit a moment when nothing is listening. A connection error would
+# read as "no auth gate", so no cookie gets minted and EVERY later check fails
+# with a 302 — a healthy host reported as broken, which is the exact failure
+# mode this script exists to avoid.
+root_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 \
+             --retry 5 --retry-delay 1 --retry-connrefused --retry-all-errors \
+             "$BASE/" 2>/dev/null || echo 000)"
 AUTH_GATE=0
 case "$root_code" in 301|302|303|307|308|401|403) AUTH_GATE=1 ;; esac
+NOTHING_LISTENING=0
+[ "$root_code" = 000 ] && NOTHING_LISTENING=1
 
 # Was the Browser stack deployed? Its nginx snippet is the authoritative local
 # signal; for a remote --base we can't look, so assume yes unless --no-browser.
@@ -108,13 +117,27 @@ detect_probe_user() {
     printf '%s' "$u"
 }
 
+COOKIE_USER_NOTE=""
 if [ "$AUTH_GATE" = 1 ] && [ -z "$COOKIE" ]; then
     [ -n "$PROBE_USER" ] || PROBE_USER="$(detect_probe_user)"
     minter="$REPO/tools/mint-session-cookie.py"
-    if [ -n "$PROBE_USER" ] && [ -r "$minter" ]; then
-        COOKIE="$(python3 "$minter" "$PROBE_USER" 2>/dev/null | tail -1)"
-        case "$COOKIE" in vt_session=*) ;; *) COOKIE="" ;; esac
+    MINT_ERR=""
+    if [ -z "$PROBE_USER" ]; then
+        MINT_ERR="could not determine a probe user (VIBETOP_ADMINS unset?)"
+    elif [ ! -r "$minter" ]; then
+        MINT_ERR="minter not readable at $minter"
+    else
+        # Capture stderr: swallowing it here once hid the real cause (a wrong
+        # secret path) behind a generic "no cookie" and cost a debug cycle.
+        _mint_err_file="$(mktemp)"
+        COOKIE="$(python3 "$minter" "$PROBE_USER" 2>"$_mint_err_file" | tail -1)"
+        case "$COOKIE" in
+            vt_session=*) ;;
+            *) COOKIE=""; MINT_ERR="$(head -2 "$_mint_err_file" | tr '\n' ' ')" ;;
+        esac
+        rm -f "$_mint_err_file"
     fi
+    [ -n "$COOKIE" ] || [ -z "$MINT_ERR" ] || COOKIE_USER_NOTE="mint failed: $MINT_ERR"
 fi
 
 # ALWAYS validate the cookie against the server before trusting it — a
@@ -124,7 +147,6 @@ fi
 # with the wrong key. Believing it turned every surface check into a red FAIL
 # that looked like a broken host. /api/authcheck is the cheap arbiter (200 for a
 # valid session, 401 otherwise) and has no side effects.
-COOKIE_USER_NOTE=""
 if [ -n "$COOKIE" ]; then
     ac="$(fetch -o /dev/null -w '%{http_code}' "$BASE/api/authcheck" 2>/dev/null || echo 000)"
     if [ "$ac" != "200" ]; then
@@ -184,6 +206,8 @@ if [ "$AUTH_GATE" = 1 ]; then
         note "run with sudo (only root can read the signing secret) or pass --cookie 'vt_session=…'"
     fi
 fi
+
+[ "$NOTHING_LISTENING" = 1 ] && red "nothing answering at $BASE/ — is nginx running?"
 
 echo "── systemd units ─────────────────────────────"
 unit_active vibetop-manager.service

@@ -81,11 +81,23 @@ def main():
     if override:
         mgr.SESSION_SECRET_FILE = override
         mgr._session_secret_cache = None
-    if not os.access(mgr.SESSION_SECRET_FILE, os.R_OK):
-        # Fail loudly: signing would silently fall back to an ephemeral key and
-        # produce a well-formed token the server rejects.
-        sys.exit(f"cannot read {mgr.SESSION_SECRET_FILE} — run as root "
-                 f"(the signing secret is 0600 root-owned)")
+    # Signing with the wrong key yields a well-formed token the server rejects,
+    # so fail loudly rather than silently falling back to an ephemeral key. But
+    # distinguish the two cases: the secret is created LAZILY by the manager on
+    # first use, so on a freshly-installed host where nobody has logged in yet it
+    # simply does not exist — and _session_secret() will create it (as root),
+    # which is exactly what the server would do.
+    _secret = mgr.SESSION_SECRET_FILE
+    if os.path.exists(_secret):
+        if not os.access(_secret, os.R_OK):
+            sys.exit(f"cannot read {_secret} — run as root "
+                     f"(the signing secret is 0600 root-owned)")
+    elif not os.access(os.path.dirname(_secret) or "/", os.W_OK):
+        # NB: os.path.exists() is also False when the *directory* is unreadable
+        # (/opt/vibetop/etc is 0700 root), so cover both readings here.
+        sys.exit(f"cannot use {_secret}: it does not exist yet and its directory "
+                 f"is not writable, or it is hidden behind a 0700 directory — "
+                 f"run as root")
 
     ttl = args.ttl if args.ttl is not None else mgr.SESSION_TTL
     token = mgr._sign_session(args.user, ttl=ttl)

@@ -1,0 +1,34 @@
+# Parameterized disposable VM for the install matrix (tests/matrix/run.sh).
+#
+# One VM per distro, booted serially. Unlike tests/e2e/vm/Vagrantfile this
+# forwards no ports and runs no Playwright: every assertion runs INSIDE the
+# guest (assert.sh), so the only thing that crosses back is a result line. That
+# keeps it usable for distros where the browser stack may not even install.
+#
+# Driven entirely by env:
+#   VIBETOP_BOX     vagrant box to boot            (required)
+#   VIBETOP_MATRIX_FULL=1   deploy the heavy stack (default: lean)
+box = ENV['VIBETOP_BOX'] or raise "VIBETOP_BOX is required (see tests/matrix/run.sh)"
+
+Vagrant.configure("2") do |config|
+  config.vm.box = box
+  config.vm.hostname = "vibetop-matrix"
+
+  # Some cloud images ship without the vagrant user's insecure key handling or
+  # with SELinux relabeling that makes the default rsync slow/awkward; rsync is
+  # still the most portable sync across distro images.
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  config.vm.synced_folder "../..", "/opt/vibetop-src", type: "rsync",
+    rsync__exclude: [".git/", ".claude/", "tests/e2e/node_modules/",
+                     "tests/e2e/.auth/", "tests/e2e/test-results/",
+                     "tests/e2e/playwright-report/"]
+
+  config.vm.provider :libvirt do |lv|
+    lv.memory = ENV.fetch("VIBETOP_MATRIX_FULL", "0") == "1" ? 6144 : 3072
+    lv.cpus = 4
+    lv.default_prefix = "vibetop_matrix"
+  end
+
+  config.vm.provision "shell", path: "provision.sh",
+    env: { "VIBETOP_MATRIX_FULL" => ENV.fetch("VIBETOP_MATRIX_FULL", "0") }
+end
