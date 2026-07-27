@@ -378,6 +378,68 @@ location looks correctly configured).
 
 ---
 
+## Porting the installers off apt (and the bug Debian's packaging had been hiding)
+
+- **Context:** the installers were apt-only, and the claim "Debian/Ubuntu" was
+  never tested. Standing up `tests/matrix/` (one disposable VM per distro,
+  installing as root and asserting seven things inside the guest) turned that
+  into evidence: **Debian 12 did not install at all**, and the RPM distros died
+  at the first `apt-get`.
+- **Every fact below was OBSERVED in a VM, not read in a manual.** That matters
+  because the guesses would have been wrong in both directions — e.g. ttyd turns
+  out to be packaged on Fedora and in EPEL, but *not* in Debian, which is the
+  opposite of the intuition that "RPM is the awkward one".
+- **The blockers, in the order a run hits them:**
+  1. **No `apt-get`.** Now dispatched through `tools/lib/osdeps.sh`
+     (`vt_pkg_install`), which also maps the names that differ:
+     `xserver-xorg-video-dummy`→`xorg-x11-drv-dummy`,
+     `fonts-liberation`→`liberation-fonts`, `x11-xserver-utils`→
+     `xorg-x11-server-utils` on EL but `xhost` on Fedora (the umbrella package
+     doesn't exist there), and `docker.io`→*nothing* (podman only).
+  2. **EPEL.** On EL, `ttyd`/`wmctrl`/`xdotool`/`xpra` are EPEL-only, so four
+     core packages are unresolvable without `epel-release`.
+  3. **nginx layout.** RHEL/Fedora have `conf.d/` and **no `sites-enabled`
+     include at all**, so writing to `sites-available` is silently never loaded.
+     They also ship an in-file `server { listen 80; server_name _; }` inside
+     `nginx.conf` that collides with our `listen 80 default_server` — it can't be
+     removed by dropping a file, so the installer comments it out idempotently
+     (marker: `vibetop-disabled-default`).
+  4. **`www-data` does not exist** on RHEL (nginx runs as `nginx`), so the
+     hardcoded traversal ACL died with `setfacl: Option -m: Invalid argument
+     near character 3`. Now resolved from `nginx.conf`.
+  5. **SELinux.** The one that is invisible until everything else is right: with
+     SELinux enforcing, nginx may not open a TCP connection to a loopback
+     upstream, so *every* route 502s while the config is perfect —
+     `avc: denied { name_connect } for comm="nginx" dest=7680`. Fixed with
+     `setsebool -P httpd_can_network_connect 1`, before the reload.
+  6. **PAM stack names.** Debian has `common-auth`/`common-account`; RHEL/Fedora
+     have `system-auth`/`password-auth` and neither `common-*`. Writing the
+     Debian names made every login 401 with `_pam_load_conf_file: unable to open
+     config for common-auth`.
+- **The bug Debian had been hiding:** after all six, RHEL still aborted with
+  `nginx.service is not active, cannot reload.` **Nothing in this repo has ever
+  started nginx.** On Debian/Ubuntu the package postinst starts *and* enables it,
+  so our `reload` had been succeeding by accident for the project's whole life.
+  `dnf install nginx` leaves it stopped and `disabled` — so not only did the
+  install fail, nginx would not have survived a reboot. The installer now
+  enables it and starts it when inactive (and skips the redundant reload, since a
+  fresh start already loads the new config). This is the recurring shape of a
+  portability bug: not "the new platform is broken" but "the old platform was
+  papering over something we never did ourselves".
+- **Rejected:** *pinning EPEL's xpra* (5.0.2 against prod's 6.4.4, and Ubuntu's
+  3.1.5 was already rejected as too old for the HTML5 client) — the Browser stack
+  stays Debian-only until xpra.org's RPM repo is wired up deliberately;
+  *substituting podman for docker* in the Office installer without testing it;
+  *creating `sites-available`/`sites-enabled` on RHEL* — the directories are not
+  the problem, the missing `include` is.
+- **Also fixed in passing, and NOT RPM-specific:** `files/install.sh` installed
+  ffmpeg as `run apt-get update && run apt-get install -y ffmpeg`. As a
+  non-final element of an `&&` list it was exempt from `set -e`, so on any distro
+  lacking the package the failure was **silent** and the installer reported
+  success while the in-Files video player quietly degraded.
+
+---
+
 ## The live smoke test reported 12 failures on a healthy multi-user host — and a non-root cookie mint made it look worse
 
 - **Symptom:** `tools/smoke-test.sh` on a fully working host: `3 passed, 12

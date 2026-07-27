@@ -27,9 +27,9 @@ DISTROS='
 ubuntu-24.04       cloud-image/ubuntu-24.04    supported
 ubuntu-22.04       cloud-image/ubuntu-22.04    supported
 debian-12          cloud-image/debian-12       supported
-rocky-9            rockylinux/9                experimental
+rocky-9            cloud-image/rocky-9         experimental
 almalinux-9        almalinux/9                 experimental
-fedora-40          fedora/40-cloud-base        experimental
+fedora-43          cloud-image/fedora-43       experimental
 '
 
 KEEP=0; WANT_ALL=0; PICK=()

@@ -20,6 +20,8 @@ set -euo pipefail
 
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+# shellcheck source=../tools/lib/osdeps.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/tools/lib/osdeps.sh"
 if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist on this system" >&2; exit 1
 fi
@@ -99,7 +101,18 @@ fi
 # degrades gracefully if it's absent (the player shows "ffmpeg not installed").
 if (( INSTALL_DEPS )) && ! command -v ffprobe >/dev/null 2>&1; then
     echo "== installing ffmpeg (in-Files video player) =="
-    run sudo apt-get update -qq && run sudo apt-get install -y ffmpeg
+    # ffmpeg is OPTIONAL, so a failure must not abort the deploy — but it must
+    # also not be silent. The previous form was
+    #     run sudo apt-get update -qq && run sudo apt-get install -y ffmpeg
+    # where, as a non-final element of an `&&` list, the failure was exempt from
+    # `set -e`: on any distro without an ffmpeg package the installer sailed on
+    # reporting success while the video player was quietly degraded.
+    if vt_pkg_refresh && vt_pkg_install ffmpeg; then
+        :
+    else
+        echo "   NOTE: ffmpeg not installed (no package on ${VT_OS_ID:-this distro}?)." >&2
+        echo "   The in-Files video player will show 'ffmpeg not installed'; everything else works." >&2
+    fi
 fi
 
 # 2. Per-user FileBrowser — NO shared service ------------------------------

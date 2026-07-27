@@ -95,8 +95,14 @@ vt_installer_env_array() {
 # re-run of deploy.sh on a legacy host does NOT silently relocate it (that is
 # migrate-to-opt.sh's job, with its backups and secret preservation).
 vt_existing_home_install() {
-    local site=/etc/nginx/sites-available/vibetop root=""
-    [ -r "$site" ] || return 0
+    # The site file is at sites-available/ on Debian and conf.d/ on RHEL — check
+    # both, or this silently reports "no existing install" on RPM distros.
+    local site root=""
+    for site in /etc/nginx/sites-available/vibetop /etc/nginx/conf.d/vibetop.conf; do
+        [ -r "$site" ] && break
+        site=""
+    done
+    [ -n "$site" ] || return 0
     root="$(sed -n 's/^[[:space:]]*root[[:space:]]\+\([^;]*\);.*/\1/p' "$site" | head -1)"
     case "$root" in
         /home/*) printf '%s' "$root" ;;

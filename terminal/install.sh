@@ -31,6 +31,10 @@ TTYD_VERSION="${TTYD_VERSION:-1.7.7}"
 TTYD_BIN="${TTYD_BIN:-/usr/local/bin/ttyd}"
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+# Everything that differs between distro families (package names, nginx layout,
+# PAM stack names, SELinux) lives in one place — see tools/lib/osdeps.sh.
+# shellcheck source=../tools/lib/osdeps.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/tools/lib/osdeps.sh"
 BASE_PORT="${BASE_PORT:-7680}"
 NGINX_SITE_NAME="${NGINX_SITE_NAME:-vibetop}"
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
@@ -163,14 +167,17 @@ install_ttyd_binary() {
 }
 
 if (( INSTALL_DEPS )); then
-    echo "== installing apt packages =="
-    run sudo apt-get update -qq
-    run sudo apt-get install -y nginx acl
+    echo "== installing packages ($VT_FAMILY: ${VT_OS_ID:-unknown} ${VT_OS_VER:-}) =="
+    run vt_pkg_refresh
+    run vt_enable_epel
+    run vt_pkg_install nginx acl
     if command -v ttyd >/dev/null 2>&1; then
         echo "== ttyd already present ($(command -v ttyd)) =="
-    elif sudo apt-get install -y ttyd >/dev/null 2>&1; then
+    elif (( DRY_RUN )) || vt_pkg_install ttyd >/dev/null 2>&1; then
         echo "== installed ttyd from the distro repo =="
     else
+        # Debian has no ttyd package at all; EL has it only via EPEL. Falling
+        # back keeps the install working wherever the repos come up short.
         echo "== no ttyd package here; installing upstream $TTYD_VERSION binary =="
         install_ttyd_binary || echo "WARN: ttyd install failed — terminals will not start"
     fi
@@ -237,10 +244,14 @@ if (( INSTALL_SYSTEMD )); then
     # whose policy is host-dependent. Delegate to the host's standard stacks
     # (same effective policy as console login). Only auth+account are needed —
     # the manager calls pam_authenticate + pam_acct_mgmt, no session/password.
+    # The stack NAMES are distro-specific: Debian has common-auth/common-account,
+    # RHEL/Fedora have system-auth/password-auth and no common-* at all. Writing
+    # the Debian names on RHEL makes every login 401 with
+    # "_pam_load_conf_file: unable to open config for common-auth".
     printf '%s\n' \
         '# Managed by vibetop terminal/install.sh — Linux-account login for /api/login.' \
-        'auth     include common-auth' \
-        'account  include common-account' \
+        "auth     include $(vt_pam_auth_stack)" \
+        "account  include $(vt_pam_account_stack)" \
         | write_root "/etc/pam.d/vibetop"
 fi
 
@@ -501,23 +512,62 @@ $tls_redirect_if        auth_request /internal/authcheck;
 }
 "
     run sudo install -d -m 0755 /etc/nginx/snippets/vibetop-extras.d
-    echo "$site_config" | nginx_write "/etc/nginx/sites-available/$NGINX_SITE_NAME" || NGINX_DIRTY=1
+    # Debian: sites-available + a sites-enabled symlink. RHEL/Fedora: conf.d only
+    # — nginx.conf there includes `conf.d/*.conf` and has NO sites-enabled
+    # include, so writing to sites-available would be silently never loaded.
+    SITE_PATH="$(vt_nginx_site_path "$NGINX_SITE_NAME")"
+    echo "   site file    : $SITE_PATH"
+    echo "$site_config" | nginx_write "$SITE_PATH" || NGINX_DIRTY=1
 
-    # 4c. Disable any other default_server site that would clash
-    if [ -L "/etc/nginx/sites-enabled/default" ] \
-        && [ "$(readlink -f /etc/nginx/sites-enabled/default 2>/dev/null || true)" \
-             != "$(readlink -f /etc/nginx/sites-available/$NGINX_SITE_NAME 2>/dev/null || true)" ]; then
-        echo "   disabling /etc/nginx/sites-enabled/default (was: $(readlink /etc/nginx/sites-enabled/default))"
-        run sudo rm -f /etc/nginx/sites-enabled/default
-        NGINX_DIRTY=1
+    if vt_nginx_uses_sites_dirs; then
+        # 4c. Disable any other default_server site that would clash
+        if [ -L "/etc/nginx/sites-enabled/default" ] \
+            && [ "$(readlink -f /etc/nginx/sites-enabled/default 2>/dev/null || true)" \
+                 != "$(readlink -f "$SITE_PATH" 2>/dev/null || true)" ]; then
+            echo "   disabling /etc/nginx/sites-enabled/default (was: $(readlink /etc/nginx/sites-enabled/default))"
+            run sudo rm -f /etc/nginx/sites-enabled/default
+            NGINX_DIRTY=1
+        fi
+        # Enable our site (idempotent); a (re)created symlink needs a reload too.
+        if [ "$(readlink -f /etc/nginx/sites-enabled/$NGINX_SITE_NAME 2>/dev/null || true)" \
+             != "$(readlink -f "$SITE_PATH" 2>/dev/null || true)" ]; then
+            NGINX_DIRTY=1
+        fi
+        run sudo ln -sfn "$SITE_PATH" "/etc/nginx/sites-enabled/$NGINX_SITE_NAME"
+    else
+        # RHEL/Fedora ship an in-file `server { listen 80; server_name _; }` in
+        # nginx.conf itself. It can't be removed by dropping a file, and it makes
+        # nginx warn 'conflicting server name "_" on 0.0.0.0:80, ignored' against
+        # our `listen 80 default_server`. Comment it out once, idempotently.
+        if grep -q '^\s*server\s*{' /etc/nginx/nginx.conf 2>/dev/null \
+           && ! grep -q 'vibetop-disabled-default' /etc/nginx/nginx.conf 2>/dev/null; then
+            echo "   neutralising the stock default server block in nginx.conf"
+            run sudo cp -n /etc/nginx/nginx.conf /etc/nginx/nginx.conf.vibetop-orig
+            run sudo python3 - <<'PYEOF'
+import re
+p = "/etc/nginx/nginx.conf"
+src = open(p).read()
+if "vibetop-disabled-default" not in src:
+    # Comment out the first top-level `server { … }` block (the stock :80 one).
+    i = src.find("\n    server {")
+    if i != -1:
+        depth, j = 0, src.index("{", i)
+        k = j
+        while k < len(src):
+            if src[k] == "{": depth += 1
+            elif src[k] == "}":
+                depth -= 1
+                if depth == 0: break
+            k += 1
+        block = src[i:k+1]
+        src = (src[:i] + "\n    # vibetop-disabled-default: superseded by the vibetop site\n"
+               + "\n".join("    #" + ln.lstrip() if ln.strip() else "" for ln in block.splitlines())
+               + src[k+1:])
+        open(p, "w").write(src)
+PYEOF
+            NGINX_DIRTY=1
+        fi
     fi
-    # Enable our site (idempotent); a (re)created symlink needs a reload too.
-    if [ "$(readlink -f /etc/nginx/sites-enabled/$NGINX_SITE_NAME 2>/dev/null || true)" \
-         != "$(readlink -f /etc/nginx/sites-available/$NGINX_SITE_NAME 2>/dev/null || true)" ]; then
-        NGINX_DIRTY=1
-    fi
-    run sudo ln -sfn "/etc/nginx/sites-available/$NGINX_SITE_NAME" \
-                     "/etc/nginx/sites-enabled/$NGINX_SITE_NAME"
 
     # Ensure the landing dir exists. The landing installer also creates it, but
     # the terminal installer can run first on a fresh machine (per the deploy
@@ -528,12 +578,21 @@ $tls_redirect_if        auth_request /internal/authcheck;
     # 0750 — grant execute (traversal) on each ancestor it can't enter. This
     # MUST run for any nginx install (not just when we write the landing page),
     # or `/` 404s with "stat() … Permission denied".
-    p="$LANDING_DIR"
-    while p="$(dirname "$p")" && [ "$p" != "/" ] && [ -n "$p" ]; do
-        if ! sudo -u www-data test -x "$p" 2>/dev/null; then
-            run sudo setfacl -m u:www-data:x "$p"
-        fi
-    done
+    # The nginx worker user is distro-specific: www-data on Debian, `nginx` on
+    # RHEL/Fedora — where www-data does not exist at all, so a hardcoded
+    # `setfacl -m u:www-data:x` dies with "Invalid argument near character 3"
+    # and aborts the installer.
+    NGX_USER="$(vt_nginx_user)"
+    if [ -z "$NGX_USER" ]; then
+        echo "   WARN: could not determine the nginx worker user; skipping traversal ACLs" >&2
+    else
+        p="$LANDING_DIR"
+        while p="$(dirname "$p")" && [ "$p" != "/" ] && [ -n "$p" ]; do
+            if ! sudo -u "$NGX_USER" test -x "$p" 2>/dev/null; then
+                run sudo setfacl -m "u:$NGX_USER:x" "$p"
+            fi
+        done
+    fi
 
     # Pure tab-set reconciliation module loaded by terminals.html (<script src>).
     # Content-hash cache-buster, same convention as terminal-kbd.js — editing the
@@ -572,6 +631,26 @@ $tls_redirect_if        auth_request /internal/authcheck;
             "$APP_DIR/terminal-kbd.js" "$LANDING_DIR/terminal-kbd.js"
     fi
 
+    # Must run BEFORE the reload: with SELinux enforcing, nginx may not connect to
+    # our loopback upstreams, so every route 502s ("connect() to 127.0.0.1:7680
+    # failed (13: Permission denied)") even though the config is perfect. No-op
+    # where SELinux is absent or permissive.
+    run vt_selinux_allow_proxy
+
+    # Nothing in this repo has ever STARTED nginx — on Debian/Ubuntu the package
+    # postinst starts it, so our `reload` below succeeded by accident. RPM
+    # packaging does not, so the first RHEL deploy aborted here with
+    # "nginx.service is not active, cannot reload." Enable it as well: it was
+    # also left `disabled`, so it would not have survived a reboot.
+    if ! systemctl is-enabled --quiet nginx 2>/dev/null; then
+        run sudo systemctl enable nginx
+    fi
+    if ! systemctl is-active --quiet nginx 2>/dev/null; then
+        echo "== nginx is not running — starting it =="
+        run sudo systemctl start nginx
+        NGINX_DIRTY=0   # a fresh start already loaded the new config
+    fi
+
     if (( NGINX_DIRTY )); then
         if run sudo nginx -t; then
             run sudo systemctl reload nginx
@@ -601,12 +680,21 @@ if (( write_landing )); then
     # Only preps the dir + traversal ACLs; the page itself is deployed by landing/install.sh.
     echo "== preparing landing dir =="
     run sudo install -d -o "$APP_USER" -g "$APP_USER" -m 0755 "$LANDING_DIR"
-    p="$LANDING_DIR"
-    while p="$(dirname "$p")" && [ "$p" != "/" ] && [ -n "$p" ]; do
-        if ! sudo -u www-data test -x "$p" 2>/dev/null; then
-            run sudo setfacl -m u:www-data:x "$p"
-        fi
-    done
+    # The nginx worker user is distro-specific: www-data on Debian, `nginx` on
+    # RHEL/Fedora — where www-data does not exist at all, so a hardcoded
+    # `setfacl -m u:www-data:x` dies with "Invalid argument near character 3"
+    # and aborts the installer.
+    NGX_USER="$(vt_nginx_user)"
+    if [ -z "$NGX_USER" ]; then
+        echo "   WARN: could not determine the nginx worker user; skipping traversal ACLs" >&2
+    else
+        p="$LANDING_DIR"
+        while p="$(dirname "$p")" && [ "$p" != "/" ] && [ -n "$p" ]; do
+            if ! sudo -u "$NGX_USER" test -x "$p" 2>/dev/null; then
+                run sudo setfacl -m "u:$NGX_USER:x" "$p"
+            fi
+        done
+    fi
 fi
 
 # 6. Enable & start services -------------------------------------------------
