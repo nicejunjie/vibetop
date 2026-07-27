@@ -31,3 +31,4 @@ __pycache__/
 .vagrant/
 # matrix run logs, one per distro, regenerated each run
 tests/matrix/logs/
+tests/matrix/.vagrant-*/

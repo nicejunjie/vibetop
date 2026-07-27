@@ -26,7 +26,10 @@ Vagrant.configure("2") do |config|
   config.vm.provider :libvirt do |lv|
     lv.memory = ENV.fetch("VIBETOP_MATRIX_FULL", "0") == "1" ? 6144 : 3072
     lv.cpus = 4
-    lv.default_prefix = "vibetop_matrix"
+    # Distinct domain name per distro so rows can run CONCURRENTLY without
+    # fighting over one libvirt domain (paired with a per-distro
+    # VAGRANT_DOTFILE_PATH, which run.sh sets).
+    lv.default_prefix = "vibetop_matrix_#{ENV.fetch('VIBETOP_MATRIX_NAME', 'x')}"
   end
 
   config.vm.provision "shell", path: "provision.sh",

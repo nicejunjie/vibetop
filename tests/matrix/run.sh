@@ -66,7 +66,12 @@ run_one() {   # run_one <name> <box> <tier>
     echo "════════════════════════════════════════════════════════════"
     : > "$log"
 
-    ( cd "$HERE" && VIBETOP_BOX="$box" vagrant up --provider=libvirt ) >>"$log" 2>&1 || rc=$?
+    # Per-distro vagrant state + domain name so rows are independent and can be
+    # run concurrently (one shared .vagrant/ would have them clobber each other's
+    # machine id and destroy the wrong VM).
+    local vg=(env "VIBETOP_BOX=$box" "VIBETOP_MATRIX_NAME=$name"
+              "VAGRANT_DOTFILE_PATH=$HERE/.vagrant-$name")
+    ( cd "$HERE" && "${vg[@]}" vagrant up --provider=libvirt ) >>"$log" 2>&1 || rc=$?
 
     if grep -q 'MATRIX_RESULT PASS' "$log"; then
         result=PASS
@@ -89,9 +94,11 @@ run_one() {   # run_one <name> <box> <tier>
     [ "$tier" = supported ] && [ "$result" = FAIL ] && supported_failed=1
 
     if [ "$result" = FAIL ] && [ "$KEEP" = 1 ]; then
-        echo "  (--keep: leaving the VM up; 'cd $HERE && VIBETOP_BOX=$box vagrant ssh')"
+        echo "  (--keep: VM left up. To poke at it:"
+        echo "     cd $HERE && VIBETOP_BOX=$box VIBETOP_MATRIX_NAME=$name \\"
+        echo "       VAGRANT_DOTFILE_PATH=$HERE/.vagrant-$name vagrant ssh)"
     else
-        ( cd "$HERE" && VIBETOP_BOX="$box" vagrant destroy -f ) >>"$log" 2>&1 || true
+        ( cd "$HERE" && "${vg[@]}" vagrant destroy -f ) >>"$log" 2>&1 || true
     fi
     return 0
 }

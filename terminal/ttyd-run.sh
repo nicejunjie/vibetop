@@ -21,7 +21,24 @@ PORT="${2:-$(( ${BASE_PORT:-7680} + BASE_N ))}"
 case "$PORT" in ''|*[!0-9]*) echo "port must be numeric" >&2; exit 2 ;; esac
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-exec /usr/bin/ttyd \
+# Resolve ttyd rather than hardcoding /usr/bin/ttyd: where a distro has no ttyd
+# package (Debian, RPM distros) the installer drops the upstream binary in
+# /usr/local/bin, and a hardcoded path fails with a bare status 127 —
+# "/usr/bin/ttyd: No such file or directory" — which surfaces only as a terminal
+# that never serves. $TTYD_BIN lets the unit override explicitly.
+TTYD="${TTYD_BIN:-}"
+if [ -z "$TTYD" ]; then
+    for c in /usr/local/bin/ttyd /usr/bin/ttyd /bin/ttyd; do
+        [ -x "$c" ] && { TTYD="$c"; break; }
+    done
+fi
+[ -n "$TTYD" ] || TTYD="$(command -v ttyd 2>/dev/null)"
+if [ -z "$TTYD" ]; then
+    echo "ttyd not found (looked in /usr/local/bin, /usr/bin, \$PATH)" >&2
+    exit 127
+fi
+
+exec "$TTYD" \
   -W \
   -i 127.0.0.1 \
   -p "$PORT" \

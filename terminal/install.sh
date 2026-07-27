@@ -23,6 +23,12 @@
 set -euo pipefail
 
 MAX_INSTANCES="${MAX_INSTANCES:-50}"
+# Upstream ttyd, used only where the distro has no package (Debian, RPM distros).
+# 1.7.7 is what this project already runs, and the nginx sub_filter anchor
+# ('fontSize:13,' in ttyd's bundled JS) is verified against it — bumping this
+# means re-checking that the scrollback/cursor injection still lands.
+TTYD_VERSION="${TTYD_VERSION:-1.7.7}"
+TTYD_BIN="${TTYD_BIN:-/usr/local/bin/ttyd}"
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 BASE_PORT="${BASE_PORT:-7680}"
@@ -122,10 +128,52 @@ EOF
 echo
 
 # 1. Dependencies ------------------------------------------------------------
+# ttyd is handled separately from nginx/acl: it is in Ubuntu's `universe` but has
+# NO package in Debian ("E: Package 'ttyd' has no installation candidate"), which
+# meant a distro we document as supported did not install at all. So prefer the
+# distro package and fall back to the pinned upstream static binary — the same
+# pattern files/install.sh already uses for FileBrowser, and the portable answer
+# for any distro whose repos lack it.
+install_ttyd_binary() {
+    local arch url sums tmp want got
+    case "$(uname -m)" in
+        x86_64)  arch=x86_64 ;;
+        aarch64|arm64) arch=aarch64 ;;
+        armv7l)  arch=armhf ;;
+        armv6l)  arch=arm ;;
+        i386|i686) arch=i686 ;;
+        s390x)   arch=s390x ;;
+        *) echo "no upstream ttyd build for $(uname -m) — install ttyd manually" >&2; return 1 ;;
+    esac
+    url="https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.${arch}"
+    if (( DRY_RUN )); then echo "+ download $url -> $TTYD_BIN (checksum-verified)"; return 0; fi
+    tmp="$(mktemp)"
+    curl -fsSL "$url" -o "$tmp" || { echo "ttyd download failed: $url" >&2; rm -f "$tmp"; return 1; }
+    # Verify against the release's SHA256SUMS — this is a curl-to-root-binary, so
+    # an unverified download would be a supply-chain hole.
+    sums="$(curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/SHA256SUMS" 2>/dev/null || true)"
+    want="$(printf '%s\n' "$sums" | awk -v f="ttyd.$arch" '$2==f || $2=="*"f {print $1}' | head -1)"
+    got="$(sha256sum "$tmp" | awk '{print $1}')"
+    if [ -n "$want" ] && [ "$want" != "$got" ]; then
+        echo "ttyd checksum mismatch (want $want, got $got) — refusing to install" >&2
+        rm -f "$tmp"; return 1
+    fi
+    [ -n "$want" ] || echo "WARN: no SHA256SUMS entry for ttyd.$arch; installing unverified" >&2
+    sudo install -m 0755 "$tmp" "$TTYD_BIN" && rm -f "$tmp"
+}
+
 if (( INSTALL_DEPS )); then
     echo "== installing apt packages =="
     run sudo apt-get update -qq
-    run sudo apt-get install -y ttyd nginx acl
+    run sudo apt-get install -y nginx acl
+    if command -v ttyd >/dev/null 2>&1; then
+        echo "== ttyd already present ($(command -v ttyd)) =="
+    elif sudo apt-get install -y ttyd >/dev/null 2>&1; then
+        echo "== installed ttyd from the distro repo =="
+    else
+        echo "== no ttyd package here; installing upstream $TTYD_VERSION binary =="
+        install_ttyd_binary || echo "WARN: ttyd install failed — terminals will not start"
+    fi
 fi
 
 # 2. ttyd-run.sh executable bit ---------------------------------------------
