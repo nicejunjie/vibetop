@@ -167,14 +167,32 @@ if [ "$JOBS" -gt 1 ]; then
     echo "(each FULL row wants ~8GB RAM — size -j to the host, not the core count:"
     echo " swapping produces flaky failures, which is worse than running serially)"
 fi
+# vagrant-libvirt creates a SHARED management network ("vagrant-libvirt") on
+# first use and removes it when the last machine goes away. Launching rows
+# simultaneously makes each of them try to create it, and all but one lose:
+#     Error occurred while creating new network: ... network 'vagrant-libvirt'
+#     already exists with uuid ...
+# The row dies before any MATRIX_CHECK, so it reports as a harness failure on a
+# perfectly good distro. Let the FIRST row establish the network, then fan out.
+first=1
 for entry in "${SELECTED[@]}"; do
     IFS='|' read -r name box tier <<< "$entry"
     if [ "$JOBS" -le 1 ]; then
         run_one "$name" "$box" "$tier"
-    else
-        # Throttle to JOBS concurrent rows.
-        while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do sleep 5; done
-        run_one "$name" "$box" "$tier" &
+        continue
+    fi
+    while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do sleep 5; done
+    run_one "$name" "$box" "$tier" &
+    if [ "$first" = 1 ]; then
+        first=0
+        # Only the first launch needs to win the race; wait for the network to
+        # exist (or for that row to finish) before releasing the others.
+        for _ in $(seq 1 60); do
+            virsh -c qemu:///system net-info vagrant-libvirt >/dev/null 2>&1 && break
+            sudo -n virsh net-info vagrant-libvirt >/dev/null 2>&1 && break
+            jobs -rp | grep -q . || break
+            sleep 5
+        done
     fi
 done
 wait
