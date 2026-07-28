@@ -24,7 +24,15 @@ Vagrant.configure("2") do |config|
                      "tests/e2e/playwright-report/"]
 
   config.vm.provider :libvirt do |lv|
-    lv.memory = ENV.fetch("VIBETOP_MATRIX_FULL", "0") == "1" ? 6144 : 3072
+    # A FULL row runs xpra + Chromium + the OnlyOffice container (which alone
+    # wants ~2GB RAM), so it needs materially more than a lean row.
+    full = ENV.fetch("VIBETOP_MATRIX_FULL", "0") == "1"
+    lv.memory = full ? 8192 : 3072
+    # DISK, not just RAM: the OnlyOffice image unpacks to well over the cloud
+    # image's stock ~10GB root and the first FULL run died with
+    # "no space left on device" mid-layer-extract. Cloud images grow the root
+    # filesystem on boot, so enlarging the volume is enough.
+    lv.machine_virtual_size = full ? 40 : 20
     lv.cpus = 4
     # Distinct domain name per distro so rows can run CONCURRENTLY without
     # fighting over one libvirt domain (paired with a per-distro

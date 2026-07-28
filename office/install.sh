@@ -18,6 +18,8 @@ set -euo pipefail
 
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+# shellcheck source=../tools/lib/osdeps.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/tools/lib/osdeps.sh"
 if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist on this system" >&2; exit 1
 fi
@@ -58,19 +60,40 @@ nginx_write() {
     rm -f "$tmp"; return 1
 }
 
-if ! command -v docker >/dev/null 2>&1; then
+# Container runtime: docker on Debian/Ubuntu, podman on RPM distros — there is
+# NO docker package in any enabled EL/Fedora repo (only podman/podman-docker).
+# podman is CLI-compatible for everything used here, including
+# --add-host=host.docker.internal:host-gateway, which the OnlyOffice container
+# needs to call back to the manager.
+OCI="${OCI:-}"
+if [ -z "$OCI" ]; then
+    if command -v docker >/dev/null 2>&1; then OCI=docker
+    elif command -v podman >/dev/null 2>&1; then OCI=podman
+    fi
+fi
+if [ -z "$OCI" ]; then
     if (( INSTALL_DEPS )); then
-        echo "== installing docker (apt: docker.io) =="
-        run sudo apt-get update -qq
-        run sudo apt-get install -y docker.io
-        run sudo systemctl enable --now docker
+        if [ "$VT_FAMILY" = rhel ]; then
+            echo "== installing podman (dnf; no docker package on RPM) =="
+            run vt_pkg_install podman && OCI=podman
+            # podman honours --restart policies only via this unit; without it
+            # the container would not come back after a reboot.
+            run sudo systemctl enable --now podman-restart.service 2>/dev/null || true
+        else
+            echo "== installing docker (apt: docker.io) =="
+            run vt_pkg_refresh
+            run vt_pkg_install docker.io && OCI=docker
+            run sudo systemctl enable --now docker
+        fi
     else
-        echo "docker is required but not installed (INSTALL_DEPS=0). Install it and re-run." >&2
+        echo "a container runtime (docker or podman) is required but not installed (INSTALL_DEPS=0)." >&2
         exit 1
     fi
 fi
-# Make sure the daemon is up (freshly installed, or stopped).
-run sudo systemctl start docker 2>/dev/null || true
+[ -n "$OCI" ] || { echo "no container runtime available" >&2; exit 1; }
+echo "   container cli : $OCI"
+# Make sure the daemon is up (freshly installed, or stopped). podman is daemonless.
+[ "$OCI" = docker ] && run sudo systemctl start docker 2>/dev/null || true
 
 echo "== vibetop-office (OnlyOffice Document Server) =="
 echo "   user: $APP_USER   port: $ONLYOFFICE_PORT   image: $ONLYOFFICE_IMAGE"
@@ -106,7 +129,7 @@ fi
 # 2. Image
 if (( INSTALL_DEPS )); then
     echo "== pulling image (large, ~2GB first time) =="
-    run docker pull "$ONLYOFFICE_IMAGE"
+    run $OCI pull "$ONLYOFFICE_IMAGE"
 fi
 
 # 3. (Re)create the container — loopback only; reachable back to the host for
@@ -117,11 +140,11 @@ fi
 #    therefore need a full deploy, like systemd-unit changes for browser/terminal.
 if (( INSTALL_CONTAINER )); then
     echo "== (re)creating container $CONTAINER =="
-    run docker rm -f "$CONTAINER" 2>/dev/null || true
+    run $OCI rm -f "$CONTAINER" 2>/dev/null || true
     # The JWT secret goes in via a 0600 --env-file (not -e JWT_SECRET=...) so it
     # never shows up in the docker CLI's process args (ps).
     if (( DRY_RUN )); then
-        run docker run -d --name "$CONTAINER" --restart unless-stopped \
+        run $OCI run -d --name "$CONTAINER" --restart unless-stopped \
             -p "127.0.0.1:${ONLYOFFICE_PORT}:80" \
             -e JWT_ENABLED=true --env-file "<jwt-secret-env-file>" -e JWT_HEADER=Authorization \
             --add-host=host.docker.internal:host-gateway \
@@ -130,7 +153,7 @@ if (( INSTALL_CONTAINER )); then
         ENVFILE="$(umask 077; mktemp)"
         trap 'rm -f "$ENVFILE"' EXIT
         printf 'JWT_SECRET=%s\n' "$SECRET" > "$ENVFILE"
-        docker run -d --name "$CONTAINER" --restart unless-stopped \
+        $OCI run -d --name "$CONTAINER" --restart unless-stopped \
             -p "127.0.0.1:${ONLYOFFICE_PORT}:80" \
             -e JWT_ENABLED=true --env-file "$ENVFILE" -e JWT_HEADER=Authorization \
             --add-host=host.docker.internal:host-gateway \

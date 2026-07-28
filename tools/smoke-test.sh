@@ -245,7 +245,9 @@ fi
 
 if [ "$CHECK_OFFICE" = 1 ]; then
     echo "── OnlyOffice (Office Edit) ──────────────────"
-    if command -v docker >/dev/null 2>&1 && docker ps --filter name=vibetop-onlyoffice --format '{{.Names}}' 2>/dev/null | grep -q vibetop-onlyoffice; then
+    # docker on Debian, podman on RPM — check whichever exists.
+_oci="$(command -v docker || command -v podman || true)"
+if [ -n "$_oci" ] && "$_oci" ps --filter name=vibetop-onlyoffice --format '{{.Names}}' 2>/dev/null | grep -q vibetop-onlyoffice; then
         green "OnlyOffice container running"
     else
         red "OnlyOffice container not running (use --no-office to skip)"

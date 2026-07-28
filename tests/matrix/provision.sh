@@ -30,8 +30,12 @@ done
 loginctl enable-linger "$U1" 2>/dev/null || true
 loginctl enable-linger "$U2" 2>/dev/null || true
 
+# FULL means FULL: Browser (xpra + Chromium) *and* Office (the ~2GB OnlyOffice
+# container). The previous "full" still passed --no-office, so Office was never
+# exercised by the matrix at all — the green table was quietly narrower than it
+# looked.
 if [ "${VIBETOP_MATRIX_FULL:-0}" = "1" ]; then
-    FLAGS="--no-office"
+    FLAGS=""
 else
     FLAGS="--no-browser --no-office"
 fi
@@ -60,4 +64,5 @@ done
 
 echo "=== assert ==="
 VT_U1="$U1" VT_P1="$P1" VT_U2="$U2" VT_P2="$P2" DEPLOY_RC="$deploy_rc" \
+    VT_FULL="${VIBETOP_MATRIX_FULL:-0}" \
     bash "$SRC/tests/matrix/assert.sh"

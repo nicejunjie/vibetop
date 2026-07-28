@@ -51,7 +51,9 @@ else
 fi
 
 # 3. serving -----------------------------------------------------------------
-smoke_out="$( "$SRC/tools/smoke-test.sh" --no-office 2>&1 )"; smoke_rc=$?
+SMOKE_ARGS=(--no-office)
+[ "${VT_FULL:-0}" = "1" ] && SMOKE_ARGS=()   # full run asserts Office too
+smoke_out="$( "$SRC/tools/smoke-test.sh" "${SMOKE_ARGS[@]}" 2>&1 )"; smoke_rc=$?
 echo "$smoke_out" | sed 's/^/  smoke| /'
 case "$smoke_rc" in
     0) check serving PASS "$(echo "$smoke_out" | tail -1)" ;;
@@ -98,6 +100,36 @@ if [ -n "$CK2" ]; then
     fi
 else
     check authz SKIP "second user could not log in"
+fi
+
+# 6. full stack (only when deployed) -----------------------------------------
+# The lean rows deliberately skip these; a FULL run must actually prove them, or
+# "matrix green" means less than it appears. Authenticated, because every one of
+# these surfaces is behind the auth gate.
+if [ "${VT_FULL:-0}" = "1" ]; then
+    code() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 -H "Cookie: $CK1" "http://127.0.0.1$1"; }
+    for probe in "/browser/:Browser (xpra+Chromium)" "/x11-display/:X11 display"; do
+        p="${probe%%:*}"; label="${probe#*:}"
+        c="$(code "$p")"
+        if [ "$c" = 200 ]; then check "full${p//\//-}" PASS "$label -> 200"
+        else check "full${p//\//-}" FAIL "$label ($p) -> $c, want 200"; fi
+    done
+    # OnlyOffice: the container must be running AND answering through nginx.
+    # docker on Debian, podman on RPM — check whichever exists.
+    _oci="$(command -v docker || command -v podman || true)"
+    if [ -n "$_oci" ] && "$_oci" ps --filter name=vibetop-onlyoffice --format '{{.Names}}' 2>/dev/null | grep -q vibetop-onlyoffice; then
+        hc="$(curl -s --max-time 30 -H "Cookie: $CK1" http://127.0.0.1/onlyoffice/healthcheck || true)"
+        if printf '%s' "$hc" | grep -q true; then check full-office PASS "OnlyOffice healthcheck true"
+        else check full-office FAIL "OnlyOffice container up but healthcheck said '${hc:-<empty>}'"; fi
+    else
+        check full-office FAIL "vibetop-onlyoffice container is not running"
+    fi
+    # A real GUI app on the X11 display proves the launcher path end to end.
+    # Shape is {"windows": [...]} (terminal-manager.py `self._json(200, {"windows": wins})`),
+    # NOT a bare array — an empty list is a healthy answer on a fresh desktop.
+    xw="$(curl -s --max-time 15 -H "Cookie: $CK1" http://127.0.0.1/api/x/windows || true)"
+    if printf '%s' "$xw" | grep -q '"windows"'; then check full-x11-api PASS "/api/x/windows -> ${xw:0:40}"
+    else check full-x11-api FAIL "/api/x/windows -> '${xw:0:60}'"; fi
 fi
 
 echo "MATRIX_RESULT $([ "$fails" -eq 0 ] && echo PASS || echo FAIL)"

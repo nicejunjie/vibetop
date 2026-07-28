@@ -28,6 +28,8 @@ set -euo pipefail
 
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+# shellcheck source=../tools/lib/osdeps.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/tools/lib/osdeps.sh"
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 APP_UID="$(id -u "$APP_USER")"
 DISPLAY_NUM="${DISPLAY_NUM:-99}"
@@ -97,6 +99,13 @@ if [ -z "${BROWSER_CMD:-}" ]; then
         # by frame and feels laggy/floaty. Disabling it makes every notch an
         # instant one-frame jump — crisp and responsive over the wire.
         BROWSER_CMD="/snap/bin/chromium --no-first-run --no-default-browser-check --restore-last-session --start-maximized --disable-smooth-scrolling --user-data-dir=$APP_HOME/snap/chromium/common/xpra-profile"
+    elif command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1; then
+        # Distro Chromium (RPM distros have no snap). The --user-data-dir MUST
+        # match what the manager's _chromium_for_user() computes, or
+        # /api/browser/open opens the URL in a different instance — the same
+        # class of bug as the snap-profile mismatch documented in CLAUDE.md.
+        CHROME_BIN="$(command -v chromium 2>/dev/null || command -v chromium-browser)"
+        BROWSER_CMD="$CHROME_BIN --no-first-run --no-default-browser-check --restore-last-session --start-maximized --disable-smooth-scrolling --user-data-dir=$APP_HOME/.config/vibetop/chromium-profile"
     elif [ -x /snap/bin/firefox ]; then
         BROWSER_CMD="/snap/bin/firefox --no-remote"
     elif command -v firefox-esr >/dev/null 2>&1; then
@@ -122,6 +131,62 @@ EOF
 echo
 
 # 1. Dependencies ------------------------------------------------------------
+# vt_xpra_repo_rpm — xpra.org's RPM repos, verified to exist at
+# packaging/repos/<distro>/xpra.repo (Fedora | almalinux | rockylinux; RHEL and
+# CentOS use the almalinux file). EPEL's xpra is 5.0.2, far behind the 6.x this
+# project runs, and Ubuntu's 3.1.5 was already rejected as too old for the HTML5
+# client — so on RPM we must use xpra.org, not the distro/EPEL package.
+vt_xpra_repo_rpm() {
+    local distro
+    case "$VT_OS_ID" in
+        fedora)              distro=Fedora ;;
+        rocky)               distro=rockylinux ;;
+        almalinux|rhel|centos) distro=almalinux ;;
+        *)                   distro=almalinux ;;
+    esac
+    if [ -f /etc/yum.repos.d/xpra.repo ]; then
+        echo "   xpra.repo already present"; return 0
+    fi
+    echo "== adding xpra.org repository ($distro) =="
+    # RHEL clones need CRB + EPEL for xpra's dependencies (xpra.org's own docs).
+    if [ "$VT_OS_ID" != fedora ]; then
+        run sudo dnf config-manager --set-enabled crb 2>/dev/null \
+            || run sudo dnf config-manager --set-enabled powertools 2>/dev/null || true
+    fi
+    run sudo curl -fsSL -o /etc/yum.repos.d/xpra.repo \
+        "https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/$distro/xpra.repo"
+}
+
+if (( INSTALL_DEPS )) && [ "$VT_FAMILY" = rhel ]; then
+    vt_enable_epel
+    vt_xpra_repo_rpm
+    echo "== installing xpra + X11 helpers (dnf) =="
+    run vt_pkg_refresh
+    # Names differ from Debian: xorg-x11-drv-dummy, and x11-xserver-utils maps to
+    # xorg-x11-server-utils on EL but `xhost` on Fedora (see tools/lib/osdeps.sh).
+    run vt_pkg_install xpra xserver-xorg-video-dummy matchbox-window-manager \
+        wmctrl x11-xserver-utils xdotool dbus-daemon
+    if ! command -v soffice >/dev/null 2>&1; then
+        echo "== installing libreoffice (office view/edit) =="
+        run vt_pkg_install libreoffice-writer libreoffice-calc libreoffice-impress \
+            fonts-liberation || echo "WARN: libreoffice install incomplete (office View may not render)"
+    fi
+    # Chromium: there is no snap on RPM, so use the distro package. The manager
+    # resolves the binary + profile dir at runtime (_chromium_for_user).
+    if [ -z "${BROWSER_CMD:-}" ] && ! command -v chromium >/dev/null 2>&1 \
+       && ! command -v chromium-browser >/dev/null 2>&1; then
+        echo "== installing chromium (dnf) =="
+        run vt_pkg_install chromium || echo "WARN: no chromium package — set BROWSER_CMD"
+    fi
+    if systemctl is-enabled xpra-server.socket >/dev/null 2>&1; then
+        run sudo systemctl disable --now xpra-server.socket
+    fi
+    if [ ! -f /etc/udev/rules.d/99-uinput.rules ]; then
+        echo 'KERNEL=="uinput", MODE="0666"' | write_root /etc/udev/rules.d/99-uinput.rules
+    fi
+    INSTALL_DEPS=0      # the Debian block below is apt-only; we're done here
+fi
+
 if (( INSTALL_DEPS )); then
     echo "== adding xpra.org repository =="
     if [ ! -f /usr/share/keyrings/xpra.asc ]; then

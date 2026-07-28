@@ -1787,6 +1787,31 @@ def _is_snap_launch(prog):
     return prog.startswith("/snap/") or os.path.exists("/snap/bin/" + os.path.basename(prog))
 
 
+# Chromium is snap-packaged on Ubuntu but an ordinary RPM on RHEL/Fedora, where
+# snap does not exist at all. Resolve BOTH the binary and its profile directory
+# in one place: the profile path is not cosmetic — /api/browser/open must reuse
+# the exact --user-data-dir the xpra session's Chromium was started with, or the
+# URL opens in a different instance (or silently nowhere).
+_CHROMIUM_CANDIDATES = ("/snap/bin/chromium", "/usr/bin/chromium",
+                        "/usr/bin/chromium-browser", "/usr/bin/chrome")
+
+
+def _chromium_for_user(user):
+    """(binary, profile_dir) for this user's Browser Chromium, or (None, None).
+
+    Snap keeps its profile under ~/snap/chromium/common (snap confinement can't
+    write elsewhere); a distro Chromium has no such restriction, so it gets a
+    profile under ~/.config/vibetop to keep the two from colliding on a host
+    that somehow has both."""
+    home = _user_home(user)
+    binary = next((c for c in _CHROMIUM_CANDIDATES if os.path.exists(c)), None)
+    if binary is None:
+        return None, None
+    if binary.startswith("/snap/"):
+        return binary, os.path.join(home, "snap", "chromium", "common", "xpra-profile")
+    return binary, os.path.join(home, ".config", "vibetop", "chromium-profile")
+
+
 def _x11dbus_unit(user):
     return f"vibetop-ux11dbus-{_sanitize_unit(user)}.service"
 
@@ -3813,8 +3838,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         #    their session-restore files, and let it re-start on demand fresh.
         try:
             _stop_user_xpra(user, "browser")
-            profile = os.path.join(_user_home(user), "snap", "chromium",
-                                   "common", "xpra-profile", "Default")
+            _, _prof = _chromium_for_user(user)
+            profile = os.path.join(_prof or "", "Default")
             for name in ("Last Session", "Last Tabs", "Current Session", "Current Tabs"):
                 try:
                     os.remove(os.path.join(profile, name))
@@ -4120,15 +4145,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._ensure_user_xpra(user, "browser")     # make sure their display exists
         disp = _user_xpra_display(user, "browser")
-        profile = os.path.join(_user_home(user), "snap", "chromium",
-                               "common", "xpra-profile")
+        _chrome, profile = _chromium_for_user(user)
+        if not _chrome:
+            # Fail loudly: without this the f-string below would interpolate the
+            # literal "None" and `su -c` would report a confusing command-not-found.
+            log.warning("browser/open: no chromium found (looked in %s)",
+                        ", ".join(_CHROMIUM_CANDIDATES))
+            self._json(500, {"error": "no chromium installed on this host"})
+            return
         # The URL is already validated (http(s) + no shell metacharacters incl.
         # backslash) before it reaches this `su -c` shell string. Reap the child in
         # a daemon thread so short-lived `chromium <url>` hand-offs don't pile up.
         proc = subprocess.Popen(
             ["su", "-", user, "-c",
              f'DISPLAY=:{disp} DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus'
-             f' /snap/bin/chromium --user-data-dir={profile} "{url}"'],
+             f' {_chrome} --user-data-dir={profile} "{url}"'],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         threading.Thread(target=proc.wait, daemon=True).start()
@@ -4255,8 +4286,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not user:
             return
         self._ensure_user_xpra(user, "browser")
-        profile = os.path.join(_user_home(user), "snap", "chromium",
-                               "common", "xpra-profile")
+        _chrome, profile = _chromium_for_user(user)
         sf = os.path.join(profile, "vibetop-shape")
         try:
             with open(sf) as f:
