@@ -135,6 +135,49 @@ vt_pam_account_stack() {
 #   avc: denied { name_connect } for comm="nginx" dest=7680 ... tclass=tcp_socket
 #   nginx: connect() to 127.0.0.1:7680 failed (13: Permission denied)
 # httpd_can_network_connect is the documented boolean for exactly this.
+# vt_selinux_allow_xpra — let xpra start a display when launched by systemd-run.
+#
+# xpra.org's RPM ships its OWN SELinux policy module, which contains:
+#     type_transition initrc_t     xpra_exec_t:process xpra_t;
+#     type_transition unconfined_t xpra_exec_t:process unconfined_t;
+# The manager starts each per-user display with `systemd-run` (_start_user_xpra),
+# and that unit runs as initrc_t — so xpra transitions into the CONFINED xpra_t
+# domain, which may not create its session directory under /run/user/<uid>
+# (user_tmp_t) nor the /tmp/<display> fallback. It dies with:
+#     PermissionError: [Errno 13] Permission denied: '/run/user/<uid>'
+# and /browser/ + /x11-display/ then 502.
+#
+# Two things make this genuinely nasty to diagnose:
+#  1. The SAME command run interactively (`su - user`) WORKS, because the
+#     transition from unconfined_t deliberately does not confine it. So it looks
+#     like a uid/permissions bug in our systemd-run wiring, which it is not.
+#  2. NO AVC is ever recorded — `ausearch -m avc` stays empty even with dontaudit
+#     disabled (semodule -DB) — so the usual SELinux diagnostic says "not me".
+#
+# Making just this one domain permissive keeps the rest of the system Enforcing.
+# It is narrow and reversible (`semanage permissive -d xpra_t`). The alternative,
+# a custom policy granting xpra_t write access to user_tmp_t and user_home_t,
+# would be a broader grant than this and needs a maintained policy module.
+vt_selinux_allow_xpra() {
+    command -v getenforce >/dev/null 2>&1 || return 0
+    [ "$(getenforce 2>/dev/null || echo Disabled)" = Enforcing ] || return 0
+    # Only relevant when the xpra policy module is actually installed.
+    command -v semodule >/dev/null 2>&1 && semodule -l 2>/dev/null | grep -qx xpra || return 0
+    if ! command -v semanage >/dev/null 2>&1; then
+        echo "== installing policycoreutils-python-utils (for semanage) =="
+        sudo dnf install -y policycoreutils-python-utils >/dev/null 2>&1 || {
+            echo "WARN: semanage unavailable; xpra displays will fail to start under SELinux" >&2
+            return 0; }
+    fi
+    if semanage permissive -l 2>/dev/null | grep -qx xpra_t; then
+        echo "   SELinux: xpra_t already permissive"
+        return 0
+    fi
+    echo "== SELinux: making the xpra_t domain permissive (system stays Enforcing) =="
+    sudo semanage permissive -a xpra_t \
+        || echo "WARN: could not make xpra_t permissive; the Browser/X11 displays will not start" >&2
+}
+
 # vt_firewall_open_web — open 80/443 when firewalld is present.
 #
 # This is a REBOOT-LATENT trap, which is why it is easy to miss: the base cloud

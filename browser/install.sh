@@ -197,6 +197,9 @@ if (( INSTALL_DEPS )) && [ "$VT_FAMILY" = rhel ]; then
         run vt_pkg_install libreoffice-writer libreoffice-calc libreoffice-impress \
             fonts-liberation || echo "WARN: libreoffice install incomplete (office View may not render)"
     fi
+    # Without this the per-user displays cannot start at all under SELinux —
+    # and it reports no AVC, so it looks like a plain permission bug.
+    run vt_selinux_allow_xpra
     # Disable xpra's own socket activation under BOTH packaging names: Debian
     # ships xpra-server.socket, the RPM ships xpra.socket. Checking only the
     # Debian name left the RPM unit enabled and LISTENING ON *:14500 — vibetop's
