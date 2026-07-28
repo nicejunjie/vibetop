@@ -155,11 +155,16 @@ echo
 # client — so on RPM we must use xpra.org, not the distro/EPEL package.
 vt_xpra_repo_rpm() {
     local distro
+    # EL9 clones all take the almalinux repo, INCLUDING Rocky. xpra.org ships a
+    # rockylinux/ directory too, but it demonstrably lacks the 6.4.x builds:
+    # a matrix run with the same pin got 6.4.4 on almalinux-9 and fell back to
+    # 6.5.2 (the click-offset regression line) on rocky-9, from the same
+    # $releasever/$basearch. The packages are binary-compatible across EL9
+    # rebuilds, and xpra.org's own docs already say RHEL/CentOS use the
+    # almalinux file — so Rocky joins them rather than taking a worse repo.
     case "$VT_OS_ID" in
-        fedora)              distro=Fedora ;;
-        rocky)               distro=rockylinux ;;
-        almalinux|rhel|centos) distro=almalinux ;;
-        *)                   distro=almalinux ;;
+        fedora) distro=Fedora ;;
+        *)      distro=almalinux ;;
     esac
     if [ -f /etc/yum.repos.d/xpra.repo ]; then
         echo "   xpra.repo already present"; return 0
