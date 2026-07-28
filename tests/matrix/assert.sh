@@ -87,6 +87,36 @@ else
     check pam-reject FAIL "wrong password -> $bad (want 401)"
 fi
 
+# 4b. terminal actually has a SHELL ------------------------------------------
+# /tN/ returning 200 proves only that ttyd is listening. ttyd stays up even when
+# the session daemon died, so a terminal can answer 200 with nothing behind it —
+# exactly what SELinux did on Fedora (os.openpty() -> PermissionError, silently,
+# with no AVC). Assert the session unit is active AND has a live shell child.
+if [ -n "$CK1" ]; then
+    curl -s -o /dev/null --max-time 20 -H "Cookie: $CK1" http://127.0.0.1/t1/ || true
+    sh_ok=0; sh_why="no session unit"
+    for _ in $(seq 1 10); do
+        unit="vibetop-uterm-${VT_U1}-1.service"
+        if [ "$(systemctl is-active "$unit" 2>/dev/null)" = active ]; then
+            mp="$(systemctl show "$unit" -p MainPID --value 2>/dev/null)"
+            if [ -n "$mp" ] && [ "$mp" != 0 ] && pgrep -P "$mp" bash >/dev/null 2>&1; then
+                sh_ok=1; break
+            fi
+            sh_why="unit active but no shell child (openpty denied?)"
+        else
+            sh_why="session unit not active: $(systemctl is-active "$unit" 2>/dev/null)"
+        fi
+        sleep 2
+    done
+    if [ "$sh_ok" = 1 ]; then
+        check terminal-shell PASS "a live shell is attached to terminal 1"
+    else
+        check terminal-shell FAIL "$sh_why"
+    fi
+else
+    check terminal-shell SKIP "no session cookie"
+fi
+
 # 5. isolation ---------------------------------------------------------------
 if [ -n "$CK2" ]; then
     upd="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Cookie: $CK2" \

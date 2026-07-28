@@ -873,6 +873,43 @@ def _write_resource_policy(mem_max, cpu_cores):
             log.warning("resource policy write failed: %s", e)
 
 
+def _selinux_enforcing():
+    try:
+        with open("/sys/fs/selinux/enforce") as f:
+            return f.read().strip() == "1"
+    except OSError:
+        return False
+
+
+_SELINUX_SVC_CTX = "system_u:system_r:unconfined_service_t:s0"
+
+
+def _selinux_props():
+    """SELinux context for a per-user transient unit, on enforcing hosts only.
+
+    The manager is itself a service in init_t, so a plain `systemd-run` puts the
+    unit in init_t too — and init_t may not open a PTY. The session daemon dies
+    with `os.openpty() -> PermissionError` while ttyd stays up and /tN/ still
+    answers 200, so the terminal is a silent blank. Worse, the denial is
+    dontaudit-silenced: `ausearch -m avc` shows NOTHING, even with dontaudit
+    disabled, so it reads as a plain EPERM. (Proven by making init_t permissive:
+    the same call then succeeds.)
+
+    unconfined_service_t is what an ordinary, policy-uncovered service gets, and
+    it can allocate PTYs. It requires the helper scripts to be labelled bin_t —
+    this domain cannot exec lib_t, which is what /usr/local/lib gives them, and
+    the unit would fail 203/EXEC instead. terminal/install.sh sets that label.
+
+    Trade-off worth stating: these per-user units are then SELinux-unconfined.
+    They already run as the target user with that user's uid, and Unix
+    permissions are vibetop's stated isolation boundary, so this does not widen
+    what a tenant can reach — it matches what the same session would get if an
+    admin had launched it interactively."""
+    if not _selinux_enforcing():
+        return []
+    return ["--property", f"SELinuxContext={_SELINUX_SVC_CTX}"]
+
+
 def _resource_props():
     pol = _read_resource_policy()
     props = []
@@ -1527,7 +1564,8 @@ def _start_user_terminal(user, n):
     port = _user_term_port(user, n)
     sess_unit, ttyd_unit = _term_units(user, n)
     base = (["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
-            + _resource_props() + _workdir_props(pw))     # land the shell in ~, not /
+            + _resource_props() + _workdir_props(pw)      # land the shell in ~, not /
+            + _selinux_props())                           # or openpty() is denied
     setenvs = []
     for e in _user_terminal_setenvs(user):
         setenvs += ["--setenv", e]

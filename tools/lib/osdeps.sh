@@ -186,6 +186,31 @@ vt_selinux_allow_xpra() {
         || echo "WARN: could not make xpra_t permissive; the Browser/X11 displays will not start" >&2
 }
 
+# vt_selinux_label_helpers <dir> — label the per-user helper scripts bin_t.
+#
+# They live under /usr/local/lib, which SELinux labels lib_t. The per-user
+# transient units run as unconfined_service_t (see _selinux_props() in the
+# manager — init_t cannot open a PTY), and that domain may NOT exec a lib_t
+# file: the unit dies 203/EXEC "Failed to execute ...: Permission denied".
+# bin_t is also simply the correct label for an executable.
+#
+# Both halves are required and neither works alone:
+#   init_t                + lib_t  -> execs fine, openpty() denied (silent blank terminal)
+#   unconfined_service_t  + lib_t  -> 203/EXEC
+#   unconfined_service_t  + bin_t  -> works
+vt_selinux_label_helpers() {
+    local dir="${1:-/usr/local/lib/vibetop}"
+    command -v getenforce >/dev/null 2>&1 || return 0
+    [ "$(getenforce 2>/dev/null || echo Disabled)" = Disabled ] && return 0
+    command -v semanage >/dev/null 2>&1 || {
+        sudo dnf install -y policycoreutils-python-utils >/dev/null 2>&1 || return 0; }
+    command -v semanage >/dev/null 2>&1 || return 0
+    echo "== SELinux: labelling $dir as bin_t (executables) =="
+    sudo semanage fcontext -a -t bin_t "${dir}(/.*)?" >/dev/null 2>&1 \
+        || sudo semanage fcontext -m -t bin_t "${dir}(/.*)?" >/dev/null 2>&1 || true
+    sudo restorecon -R "$dir" >/dev/null 2>&1 || true
+}
+
 # vt_firewall_open_web — open 80/443 when firewalld is present.
 #
 # This is a REBOOT-LATENT trap, which is why it is easy to miss: the base cloud
