@@ -91,15 +91,20 @@ if [ -z "${BROWSER_CMD:-}" ] && [ "${INSTALL_DEPS}" = 1 ] \
     run sudo snap install chromium
 fi
 
-# Chromium on RPM must be installed BEFORE the picker below: the picker exits 1
-# when it finds nothing, and the RPM dependency block runs later in the file — so
-# a clean RHEL/Fedora host died with "no browser found" at step 2/6 before ever
-# reaching the install. (Debian gets away with it because its snap install sits
-# above the picker.)
-if [ "$VT_FAMILY" = rhel ] && (( INSTALL_DEPS )) && [ -z "${BROWSER_CMD:-}" ] \
-   && ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
-    echo "== installing chromium (dnf) =="
-    vt_enable_epel
+# Distro Chromium, installed BEFORE the picker below, for every host WITHOUT
+# snap. The picker exits 1 when it finds nothing, so this must not run after it.
+#
+# Not gated on RPM: Debian 12's cloud image has no snapd either, so the snap
+# block above is skipped there too and a clean Debian host died with
+# "no browser found" at step 2/6 — even though Debian packages `chromium`. Only
+# Ubuntu reliably has snap, which is what masked this.
+if (( INSTALL_DEPS )) && [ -z "${BROWSER_CMD:-}" ] \
+   && ! [ -x /snap/bin/chromium ] && ! [ -x /snap/bin/firefox ] \
+   && ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1 \
+   && ! command -v firefox-esr >/dev/null 2>&1 && ! command -v epiphany >/dev/null 2>&1; then
+    echo "== installing chromium (distro package; no snap on this host) =="
+    vt_enable_epel                       # no-op off EL
+    run vt_pkg_refresh
     run vt_pkg_install chromium || echo "WARN: no chromium package — set BROWSER_CMD"
 fi
 
