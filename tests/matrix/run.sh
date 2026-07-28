@@ -12,6 +12,11 @@
 #   tests/matrix/run.sh --keep             # don't destroy a FAILING vm (debug)
 #   VIBETOP_MATRIX_FULL=1 tests/matrix/run.sh   # heavy stack too
 #   VIBETOP_MATRIX_TIMEOUT=20m tests/matrix/run.sh   # per-row hard deadline
+#   tests/matrix/run.sh --all -j3                    # 3 rows at a time
+#
+# Rows are independent (per-distro VAGRANT_DOTFILE_PATH + libvirt domain name),
+# so -j runs them concurrently. Size it by RAM, not cores: a FULL row wants ~8GB,
+# so -j3 needs ~24GB. Oversubscribing swaps, and swapping causes flaky failures.
 #
 # Each row has a HARD per-row deadline (default 30m lean / 75m full). A row that
 # stops making progress FAILS as "TIMED OUT" instead of hanging the run — an apt
@@ -46,11 +51,13 @@ else
     ROW_TIMEOUT="${VIBETOP_MATRIX_TIMEOUT:-30m}"
 fi
 
-KEEP=0; WANT_ALL=0; PICK=()
+KEEP=0; WANT_ALL=0; JOBS=1; PICK=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --keep) KEEP=1 ;;
         --all)  WANT_ALL=1 ;;
+        -j)     JOBS="${2:?-j needs a number}"; shift ;;
+        -j*)    JOBS="${1#-j}" ;;
         -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         -*) echo "unknown flag: $1" >&2; exit 2 ;;
         *) PICK+=("$1") ;;
@@ -115,8 +122,10 @@ run_one() {   # run_one <name> <box> <tier>
     sed -n 's/.*MATRIX_CHECK /  /p' "$log" || true
     echo "  -> $name: $result ${detail:+($detail)}   log: ${log#"$HERE"/}"
 
-    ROWS+=("$name|$tier|$result|$detail")
-    [ "$tier" = supported ] && [ "$result" = FAIL ] && supported_failed=1
+    # Written to a file, not an array: with -j the row runs in a SUBSHELL, and a
+    # `ROWS+=(...)` there would be discarded when it exits — the summary would
+    # silently lose every parallel row.
+    printf '%s|%s|%s|%s\n' "$name" "$tier" "$result" "$detail" > "$LOGDIR/$name.result"
 
     if [ "$result" = FAIL ] && [ "$KEEP" = 1 ]; then
         echo "  (--keep: VM left up. To poke at it:"
@@ -138,11 +147,43 @@ run_one() {   # run_one <name> <box> <tier>
     return 0
 }
 
+SELECTED=()
 while read -r name box tier; do
     [ -n "$name" ] || continue
     wanted "$name" "$tier" || continue
-    run_one "$name" "$box" "$tier"
+    SELECTED+=("$name|$box|$tier")
+    rm -f "$LOGDIR/$name.result"
 done <<< "$(printf '%s\n' "$DISTROS" | sed '/^[[:space:]]*$/d')"
+
+if [ "$JOBS" -gt 1 ]; then
+    echo "running ${#SELECTED[@]} rows, ${JOBS} at a time"
+    echo "(each FULL row wants ~8GB RAM — size -j to the host, not the core count:"
+    echo " swapping produces flaky failures, which is worse than running serially)"
+fi
+for entry in "${SELECTED[@]}"; do
+    IFS='|' read -r name box tier <<< "$entry"
+    if [ "$JOBS" -le 1 ]; then
+        run_one "$name" "$box" "$tier"
+    else
+        # Throttle to JOBS concurrent rows.
+        while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do sleep 5; done
+        run_one "$name" "$box" "$tier" &
+    fi
+done
+wait
+
+# Collect in the DISTROS order so the table reads the same however it was run.
+for entry in "${SELECTED[@]}"; do
+    IFS='|' read -r name _ tier <<< "$entry"
+    if [ -r "$LOGDIR/$name.result" ]; then
+        ROWS+=("$(cat "$LOGDIR/$name.result")")
+        IFS='|' read -r _ rtier rres _ < "$LOGDIR/$name.result"
+        [ "$rtier" = supported ] && [ "$rres" = FAIL ] && supported_failed=1
+    else
+        ROWS+=("$name|$tier|FAIL|no result file (row died before reporting)")
+        [ "$tier" = supported ] && supported_failed=1
+    fi
+done
 
 echo
 echo "════════════════════════════════════════════════════════════"
