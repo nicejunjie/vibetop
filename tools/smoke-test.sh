@@ -156,10 +156,27 @@ if [ -n "$COOKIE" ]; then
 fi
 
 # http_is <name> <path> <expected-code>
+#
+# Retries, because these probes are not passive reads: per-user services start ON
+# DEMAND, so the first hit on /tN/, /files/, /browser/ or /x11-display/ has to
+# cold-start that user's terminal / FileBrowser / xpra display. A first-EVER
+# FileBrowser start also creates its database, which has been measured taking
+# longer than a single 8s budget on a loaded host — reporting 000 on a perfectly
+# healthy stack. (Steady-state cold starts measure ~0.16s, so this is about the
+# first-init outlier, not normal latency.)
 http_is() {
-    local name="$1" path="$2" want="$3" got
-    got="$(fetch -o /dev/null -w '%{http_code}' "$BASE$path" 2>/dev/null || echo 000)"
-    if [ "$got" = "$want" ]; then green "$name ($path -> $got)"; else red "$name ($path -> $got, want $want)"; fi
+    local name="$1" path="$2" want="$3" got="" i
+    for i in 1 2 3 4 5 6; do
+        got="$(fetch --max-time 20 -o /dev/null -w '%{http_code}' "$BASE$path" 2>/dev/null || echo 000)"
+        [ "$got" = "$want" ] && break
+        # Only a cold start is worth waiting for; a definite wrong answer is final.
+        case "$got" in 000|502|503|504) sleep 3 ;; *) break ;; esac
+    done
+    if [ "$got" = "$want" ]; then
+        green "$name ($path -> $got)"
+    else
+        red "$name ($path -> $got, want $want)"
+    fi
 }
 
 # body_has <name> <path> <extended-regex>
