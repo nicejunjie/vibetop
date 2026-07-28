@@ -11,6 +11,11 @@
 #   tests/matrix/run.sh ubuntu-24.04 rocky-9
 #   tests/matrix/run.sh --keep             # don't destroy a FAILING vm (debug)
 #   VIBETOP_MATRIX_FULL=1 tests/matrix/run.sh   # heavy stack too
+#   VIBETOP_MATRIX_TIMEOUT=20m tests/matrix/run.sh   # per-row hard deadline
+#
+# Each row has a HARD per-row deadline (default 30m lean / 75m full). A row that
+# stops making progress FAILS as "TIMED OUT" instead of hanging the run — an apt
+# debconf prompt once blocked a row for 5h19m at zero load.
 #
 # Exit status: 0 = every SUPPORTED distro passed. An experimental row failing,
 # or a box that can't be fetched, is reported but does NOT fail the run — the
@@ -31,6 +36,15 @@ rocky-9            cloud-image/rocky-9         experimental
 almalinux-9        almalinux/9                 experimental
 fedora-43          cloud-image/fedora-43       experimental
 '
+
+# Per-row hard deadline. A FULL row legitimately takes far longer (xpra +
+# Chromium + LibreOffice + a ~2GB OnlyOffice image), so it gets a bigger budget.
+# Override with VIBETOP_MATRIX_TIMEOUT (any `timeout` duration, e.g. 90m).
+if [ "${VIBETOP_MATRIX_FULL:-0}" = "1" ]; then
+    ROW_TIMEOUT="${VIBETOP_MATRIX_TIMEOUT:-75m}"
+else
+    ROW_TIMEOUT="${VIBETOP_MATRIX_TIMEOUT:-30m}"
+fi
 
 KEEP=0; WANT_ALL=0; PICK=()
 while [ $# -gt 0 ]; do
@@ -71,9 +85,20 @@ run_one() {   # run_one <name> <box> <tier>
     # machine id and destroy the wrong VM).
     local vg=(env "VIBETOP_BOX=$box" "VIBETOP_MATRIX_NAME=$name"
               "VAGRANT_DOTFILE_PATH=$HERE/.vagrant-$name")
-    ( cd "$HERE" && "${vg[@]}" vagrant up --provider=libvirt ) >>"$log" 2>&1 || rc=$?
+    # HARD DEADLINE. An unattended installer can block forever on an interactive
+    # prompt — an apt debconf dialog once held a row for 5h19m at zero load, with
+    # no error, no timeout and no CPU to notice. A row that stops making progress
+    # must fail, not hang, or the whole matrix is unusable unattended.
+    # --kill-after gives vagrant a window to unwind after SIGTERM before SIGKILL.
+    ( cd "$HERE" && timeout --kill-after=120 "$ROW_TIMEOUT" \
+        "${vg[@]}" vagrant up --provider=libvirt ) >>"$log" 2>&1 || rc=$?
 
-    if grep -q 'MATRIX_RESULT PASS' "$log"; then
+    # 124 = timeout fired (137 if it needed the KILL). Check FIRST: a timed-out
+    # row may have written partial MATRIX_CHECK lines, and reporting those as a
+    # real result would hide the hang.
+    if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+        result=FAIL; detail="TIMED OUT after ${ROW_TIMEOUT} (no progress)"
+    elif grep -q 'MATRIX_RESULT PASS' "$log"; then
         result=PASS
     elif grep -q 'MATRIX_RESULT FAIL' "$log"; then
         result=FAIL
@@ -99,6 +124,16 @@ run_one() {   # run_one <name> <box> <tier>
         echo "       VAGRANT_DOTFILE_PATH=$HERE/.vagrant-$name vagrant ssh)"
     else
         ( cd "$HERE" && "${vg[@]}" vagrant destroy -f ) >>"$log" 2>&1 || true
+        # Fallback: after a timeout, vagrant may refuse to destroy ("kill any
+        # ruby/vagrant processes") and leave the domain running with its disk
+        # allocated. Reap it directly so a long matrix run can't strand VMs.
+        local dom="vibetop_matrix_${name}default"
+        if virsh -c qemu:///system dominfo "$dom" >/dev/null 2>&1 \
+           || sudo -n virsh dominfo "$dom" >/dev/null 2>&1; then
+            echo "  (forcing teardown of leftover domain $dom)"
+            sudo -n virsh destroy "$dom" >/dev/null 2>&1 || true
+            sudo -n virsh undefine "$dom" --remove-all-storage >/dev/null 2>&1 || true
+        fi
     fi
     return 0
 }
