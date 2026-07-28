@@ -13,8 +13,30 @@
 # manager "reshapes" by SIGTERMing chromium; this loop respawns it. The UA Chrome
 # version is derived live so the UA can't drift from the real binary.
 set -u
-PROFILE="${1:-$HOME/snap/chromium/common/xpra-profile}"
-BROWSER_BIN="${BROWSER_BIN:-/snap/bin/chromium}"
+# Resolve Chromium instead of hardcoding the snap path. This script is what
+# ACTUALLY launches the browser (xpra-app.sh --start=…, with no arguments), so a
+# hardcoded /snap/bin/chromium meant that on any distro without snap the loop
+# spun forever on "No such file or directory" and the Browser app was a blank
+# desktop — while /browser/ still answered 200, because xpra's HTML5 server is up
+# regardless of whether its child started. Keep this candidate list and the
+# profile rule identical to _chromium_for_user() in terminal/terminal-manager.py:
+# /api/browser/open must reuse the SAME --user-data-dir or a forwarded URL opens
+# in a different instance.
+if [ -z "${BROWSER_BIN:-}" ]; then
+    for _c in /snap/bin/chromium /usr/bin/chromium /usr/bin/chromium-browser /usr/bin/chrome; do
+        [ -x "$_c" ] && { BROWSER_BIN="$_c"; break; }
+    done
+fi
+if [ -z "${BROWSER_BIN:-}" ]; then
+    echo "browser-loop: no chromium found (looked in /snap/bin, /usr/bin)" >&2
+    exit 127
+fi
+case "$BROWSER_BIN" in
+    /snap/*) _def_profile="$HOME/snap/chromium/common/xpra-profile" ;;
+    *)       _def_profile="$HOME/.config/vibetop/chromium-profile" ;;
+esac
+PROFILE="${1:-$_def_profile}"
+mkdir -p "$PROFILE" 2>/dev/null || true
 while true; do
     EXTRA=()
     if [ "$(cat "$PROFILE/vibetop-shape" 2>/dev/null)" = "mobile" ]; then

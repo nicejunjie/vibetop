@@ -91,6 +91,18 @@ if [ -z "${BROWSER_CMD:-}" ] && [ "${INSTALL_DEPS}" = 1 ] \
     run sudo snap install chromium
 fi
 
+# Chromium on RPM must be installed BEFORE the picker below: the picker exits 1
+# when it finds nothing, and the RPM dependency block runs later in the file — so
+# a clean RHEL/Fedora host died with "no browser found" at step 2/6 before ever
+# reaching the install. (Debian gets away with it because its snap install sits
+# above the picker.)
+if [ "$VT_FAMILY" = rhel ] && (( INSTALL_DEPS )) && [ -z "${BROWSER_CMD:-}" ] \
+   && ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
+    echo "== installing chromium (dnf) =="
+    vt_enable_epel
+    run vt_pkg_install chromium || echo "WARN: no chromium package — set BROWSER_CMD"
+fi
+
 # Pick a browser if not overridden.
 if [ -z "${BROWSER_CMD:-}" ]; then
     if [ -x /snap/bin/chromium ]; then
@@ -164,23 +176,37 @@ if (( INSTALL_DEPS )) && [ "$VT_FAMILY" = rhel ]; then
     run vt_pkg_refresh
     # Names differ from Debian: xorg-x11-drv-dummy, and x11-xserver-utils maps to
     # xorg-x11-server-utils on EL but `xhost` on Fedora (see tools/lib/osdeps.sh).
-    run vt_pkg_install xpra xserver-xorg-video-dummy matchbox-window-manager \
+    # xpra 6.5 has the Browser click-offset regression this project holds back
+    # from on Debian (XPRA_PIN=6.4.*). Prefer 6.4.x where the repo offers it —
+    # Fedora's xpra.org repo carries 6.4.4; EL9's carries ONLY 6.5.x, so this is
+    # best-effort and must not fail the install.
+    XPRA_RPM_PIN="${XPRA_RPM_PIN:-6.4}"
+    _xpra_pkg=xpra
+    if [ -n "$XPRA_RPM_PIN" ] && (( ! DRY_RUN )) \
+       && dnf --showduplicates list xpra 2>/dev/null | grep -q " $XPRA_RPM_PIN\."; then
+        _xpra_pkg="xpra-${XPRA_RPM_PIN}*"
+        echo "   pinning xpra to ${XPRA_RPM_PIN}.x (6.5 has the click-offset regression)"
+    else
+        echo "   NOTE: no xpra ${XPRA_RPM_PIN}.x in this repo — installing the newest available."
+        echo "         xpra 6.5 carries a known Browser click-offset regression."
+    fi
+    run vt_pkg_install "$_xpra_pkg" xserver-xorg-video-dummy matchbox-window-manager \
         wmctrl x11-xserver-utils xdotool dbus-daemon
     if ! command -v soffice >/dev/null 2>&1; then
         echo "== installing libreoffice (office view/edit) =="
         run vt_pkg_install libreoffice-writer libreoffice-calc libreoffice-impress \
             fonts-liberation || echo "WARN: libreoffice install incomplete (office View may not render)"
     fi
-    # Chromium: there is no snap on RPM, so use the distro package. The manager
-    # resolves the binary + profile dir at runtime (_chromium_for_user).
-    if [ -z "${BROWSER_CMD:-}" ] && ! command -v chromium >/dev/null 2>&1 \
-       && ! command -v chromium-browser >/dev/null 2>&1; then
-        echo "== installing chromium (dnf) =="
-        run vt_pkg_install chromium || echo "WARN: no chromium package — set BROWSER_CMD"
-    fi
-    if systemctl is-enabled xpra-server.socket >/dev/null 2>&1; then
-        run sudo systemctl disable --now xpra-server.socket
-    fi
+    # Disable xpra's own socket activation under BOTH packaging names: Debian
+    # ships xpra-server.socket, the RPM ships xpra.socket. Checking only the
+    # Debian name left the RPM unit enabled and LISTENING ON *:14500 — vibetop's
+    # own XPRA_PORT, and a non-loopback listener on a host that binds everything
+    # else to 127.0.0.1.
+    for _sock in xpra-server.socket xpra.socket; do
+        if systemctl is-enabled "$_sock" >/dev/null 2>&1; then
+            run sudo systemctl disable --now "$_sock"
+        fi
+    done
     if [ ! -f /etc/udev/rules.d/99-uinput.rules ]; then
         echo 'KERNEL=="uinput", MODE="0666"' | write_root /etc/udev/rules.d/99-uinput.rules
     fi
@@ -237,9 +263,16 @@ PIN_EOF
     # dbus: provides dbus-daemon for the private, activation-free per-user X11 app bus.
     run sudo apt-get install -y xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils xdotool dbus
     # Disable xpra's built-in socket activation (conflicts with our own unit)
-    if systemctl is-enabled xpra-server.socket >/dev/null 2>&1; then
-        run sudo systemctl disable --now xpra-server.socket
-    fi
+    # Disable xpra's own socket activation under BOTH packaging names: Debian
+    # ships xpra-server.socket, the RPM ships xpra.socket. Checking only the
+    # Debian name left the RPM unit enabled and LISTENING ON *:14500 — vibetop's
+    # own XPRA_PORT, and a non-loopback listener on a host that binds everything
+    # else to 127.0.0.1.
+    for _sock in xpra-server.socket xpra.socket; do
+        if systemctl is-enabled "$_sock" >/dev/null 2>&1; then
+            run sudo systemctl disable --now "$_sock"
+        fi
+    done
     # Allow non-console users to run Xorg (needed for the dummy video driver)
     if grep -q 'allowed_users=console' /etc/X11/Xwrapper.config 2>/dev/null; then
         run sudo sed -i 's/allowed_users=console/allowed_users=anybody/' /etc/X11/Xwrapper.config

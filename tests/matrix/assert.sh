@@ -114,6 +114,18 @@ if [ "${VT_FULL:-0}" = "1" ]; then
         if [ "$c" = 200 ]; then check "full${p//\//-}" PASS "$label -> 200"
         else check "full${p//\//-}" FAIL "$label ($p) -> $c, want 200"; fi
     done
+    # /browser/ returning 200 is NOT proof the Browser works: xpra's HTML5 server
+    # answers whether or not its child app started. On RPM, browser-loop.sh was
+    # spinning on a missing /snap/bin/chromium forever and this row was still
+    # "green" while the Browser app was a blank desktop. So assert the actual
+    # Chromium process, with the profile the manager expects.
+    if pgrep -af 'chromium.*--user-data-dir' >/dev/null 2>&1; then
+        _cprof="$(pgrep -af 'chromium.*--user-data-dir' | head -1 | grep -o '\-\-user-data-dir=[^ ]*' | head -1)"
+        check full-chromium PASS "chromium running (${_cprof:-profile?})"
+    else
+        check full-chromium FAIL "no chromium process — browser-loop failed to launch it (xpra serves 200 regardless)"
+    fi
+
     # OnlyOffice: the container must be running AND answering through nginx.
     # docker on Debian, podman on RPM — check whichever exists.
     _oci="$(command -v docker || command -v podman || true)"

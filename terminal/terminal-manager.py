@@ -1859,6 +1859,18 @@ def _ensure_user_x11_dbus(user, uid, gid):
     except OSError as e:
         log.warning("x11 private dbus: cannot write %s: %s", per_user_conf, e)
         return None
+    # SELinux: /run/user/<uid> is labelled user_tmp_t, and dbus-daemon runs as
+    # system_dbusd_t, which may not open a file with that label:
+    #   avc: denied { open } comm="dbus-daemon" path=".../vibetop-x11-dbus.conf"
+    #        scontext=system_dbusd_t tcontext=user_tmp_t
+    # The unit then dies and the private activation-free bus is silently absent —
+    # so GNOME/GTK apps fall back to the real bus and the ~25-40s
+    # xdg-desktop-portal hang returns, with nothing in the logs to explain why.
+    # Relabel to match dbus's own config so it can read it. DAC is already fine
+    # (root:root 0644); this is purely the MAC label.
+    if shutil.which("chcon"):
+        subprocess.run(["chcon", "--reference=/etc/dbus-1/system.conf", per_user_conf],
+                       capture_output=True, text=True)
     # We reach here only when the unit isn't healthy (not active, or active but the
     # socket is gone — a stale/broken daemon holding the name). systemd-run can't reuse
     # the name of an ACTIVE unit and reset-failed only clears FAILED ones, so stop first

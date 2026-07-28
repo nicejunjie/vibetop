@@ -25,7 +25,12 @@ if ! id "$APP_USER" >/dev/null 2>&1; then
 fi
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 ONLYOFFICE_PORT="${ONLYOFFICE_PORT:-8087}"
-ONLYOFFICE_IMAGE="${ONLYOFFICE_IMAGE:-onlyoffice/documentserver:latest}"
+# Fully qualified ON PURPOSE: podman (EL9/Fedora) ships
+# short-name-mode="enforcing" and must prompt to disambiguate an unqualified
+# name — impossible non-interactively, so `podman pull onlyoffice/...` dies
+# with "short-name resolution enforced but cannot prompt without a TTY".
+# Docker silently assumes docker.io, which is why Ubuntu never hit this.
+ONLYOFFICE_IMAGE="${ONLYOFFICE_IMAGE:-docker.io/onlyoffice/documentserver:latest}"
 CONTAINER="vibetop-onlyoffice"
 SECRET_FILE="${SECRET_FILE:-$APP_HOME/.config/vibetop/onlyoffice.secret}"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
@@ -78,7 +83,6 @@ if [ -z "$OCI" ]; then
             run vt_pkg_install podman && OCI=podman
             # podman honours --restart policies only via this unit; without it
             # the container would not come back after a reboot.
-            run sudo systemctl enable --now podman-restart.service 2>/dev/null || true
         else
             echo "== installing docker (apt: docker.io) =="
             run vt_pkg_refresh
@@ -92,6 +96,12 @@ if [ -z "$OCI" ]; then
 fi
 [ -n "$OCI" ] || { echo "no container runtime available" >&2; exit 1; }
 echo "   container cli : $OCI"
+# podman honours --restart policies only via this unit. Enabling it ONLY inside
+# the install branch meant a host that already had podman (most cloud images)
+# silently lost restart-on-boot — the exact failure the unit exists to prevent.
+if [ "$OCI" = podman ]; then
+    run sudo systemctl enable --now podman-restart.service 2>/dev/null || true
+fi
 # Make sure the daemon is up (freshly installed, or stopped). podman is daemonless.
 [ "$OCI" = docker ] && run sudo systemctl start docker 2>/dev/null || true
 

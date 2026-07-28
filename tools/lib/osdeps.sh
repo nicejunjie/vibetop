@@ -135,6 +135,30 @@ vt_pam_account_stack() {
 #   avc: denied { name_connect } for comm="nginx" dest=7680 ... tclass=tcp_socket
 #   nginx: connect() to 127.0.0.1:7680 failed (13: Permission denied)
 # httpd_can_network_connect is the documented boolean for exactly this.
+# vt_firewall_open_web — open 80/443 when firewalld is present.
+#
+# This is a REBOOT-LATENT trap, which is why it is easy to miss: the base cloud
+# images have no firewalld, but xpra's RPM dependency chain pulls it in and it
+# lands ENABLED. It is inactive for the rest of that boot (it was installed after
+# boot), so everything works and the matrix goes green — and then the host comes
+# back after a reboot with the default `public` zone, which permits only ssh/mdns/
+# dhcpv6-client. vibetop becomes LAN-unreachable. A matrix that never reboots
+# cannot catch this, so the installer has to be unconditionally correct.
+vt_firewall_open_web() {
+    command -v firewall-cmd >/dev/null 2>&1 || return 0
+    systemctl is-enabled --quiet firewalld 2>/dev/null || \
+        systemctl is-active --quiet firewalld 2>/dev/null || return 0
+    echo "== firewalld present — opening http/https =="
+    local svc changed=0
+    for svc in http https; do
+        if ! sudo firewall-cmd --permanent --query-service="$svc" >/dev/null 2>&1; then
+            sudo firewall-cmd --permanent --add-service="$svc" >/dev/null 2>&1 && changed=1
+        fi
+    done
+    [ "$changed" = 1 ] && { sudo firewall-cmd --reload >/dev/null 2>&1 || true; }
+    return 0
+}
+
 vt_selinux_allow_proxy() {
     command -v getenforce >/dev/null 2>&1 || return 0
     [ "$(getenforce 2>/dev/null || echo Disabled)" = Enforcing ] || return 0
