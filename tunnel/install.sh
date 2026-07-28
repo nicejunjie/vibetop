@@ -23,7 +23,7 @@ else
     fi
     echo "== installing cloudflared =="
     run sudo apt-get update -qq
-    run sudo apt-get install -y cloudflared
+    run sudo DEBIAN_FRONTEND=noninteractive apt-get install -y cloudflared
 fi
 
 echo

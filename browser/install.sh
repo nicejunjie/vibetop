@@ -285,7 +285,9 @@ PIN_EOF
     # keyboard delivers committed text via /api/browser/type -> `xdotool type`,
     # which can carry CJK/emoji/accents that the X key-event path cannot).
     # dbus: provides dbus-daemon for the private, activation-free per-user X11 app bus.
-    run sudo apt-get install -y xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils xdotool dbus
+    run sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        -o Dpkg::Options::=--force-confold \
+        xpra xserver-xorg-video-dummy matchbox-window-manager wmctrl x11-xserver-utils xdotool dbus
     # Disable xpra's built-in socket activation (conflicts with our own unit)
     # Disable xpra's own socket activation under BOTH packaging names: Debian
     # ships xpra-server.socket, the RPM ships xpra.socket. Checking only the
@@ -311,7 +313,7 @@ PIN_EOF
     # (Writer/Calc/Impress) + Liberation fonts for faithful Arial/Times layout.
     if ! command -v soffice >/dev/null 2>&1; then
         echo "== installing libreoffice (office view/edit) =="
-        run sudo apt-get install -y --no-install-recommends \
+        run sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             libreoffice-writer libreoffice-calc libreoffice-impress \
             libreoffice-gtk3 fonts-liberation
     fi

@@ -77,7 +77,8 @@ echo
 if (( INSTALL_DEPS )) && ! [ -x "$FB_BIN" ]; then
     echo "== installing filebrowser $FB_VERSION binary =="
     if ! command -v curl >/dev/null 2>&1; then
-        run sudo apt-get update -qq && run sudo apt-get install -y curl
+        run sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq \
+            && run sudo DEBIAN_FRONTEND=noninteractive apt-get install -y curl
     fi
     case "$(uname -m)" in
         x86_64)        fb_arch=amd64 ;;

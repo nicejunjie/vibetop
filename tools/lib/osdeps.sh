@@ -50,9 +50,16 @@ vt_pkg_name() {
     esac
 }
 
+# DEBIAN_FRONTEND must be passed THROUGH sudo, not merely exported: sudo strips
+# the environment by default, so `export DEBIAN_FRONTEND=noninteractive` in
+# deploy.sh never reaches `sudo apt-get`. That was survivable while we only
+# installed ttyd/nginx/acl (none of which prompt) — but installing chromium on a
+# snap-less Debian pulls in keyboard-configuration, which opens an interactive
+# debconf dialog and BLOCKS FOREVER. Observed as a matrix row sitting at
+# "Setting up keyboard-configuration" for 5h19m at zero host load.
 vt_pkg_refresh() {
     case "$VT_FAMILY" in
-        debian) sudo apt-get update -qq ;;
+        debian) sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq ;;
         rhel)   sudo dnf -q makecache 2>/dev/null || true ;;
     esac
 }
@@ -80,7 +87,8 @@ vt_pkg_install() {
     done
     [ ${#pkgs[@]} -gt 0 ] || return "$missing"
     case "$VT_FAMILY" in
-        debian) sudo apt-get install -y "${pkgs[@]}" || return 1 ;;
+        debian) sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                    -o Dpkg::Options::=--force-confold "${pkgs[@]}" || return 1 ;;
         rhel)   sudo dnf install -y "${pkgs[@]}" || return 1 ;;
         *) echo "unsupported distro '${VT_OS_ID:-unknown}' — install manually: ${pkgs[*]}" >&2; return 1 ;;
     esac
