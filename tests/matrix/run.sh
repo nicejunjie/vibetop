@@ -136,12 +136,19 @@ run_one() {   # run_one <name> <box> <tier>
         # Fallback: after a timeout, vagrant may refuse to destroy ("kill any
         # ruby/vagrant processes") and leave the domain running with its disk
         # allocated. Reap it directly so a long matrix run can't strand VMs.
-        local dom="vibetop_matrix_${name}default"
+        # Machine is now named after the distro, so the domain is
+        # <default_prefix><machine> = vibetop_matrix_<name>. The older
+        # "<name>default" form is still reaped so a mixed-vintage host is clean.
+        local dom="vibetop_matrix_${name}"
         if virsh -c qemu:///system dominfo "$dom" >/dev/null 2>&1 \
            || sudo -n virsh dominfo "$dom" >/dev/null 2>&1; then
             echo "  (forcing teardown of leftover domain $dom)"
             sudo -n virsh destroy "$dom" >/dev/null 2>&1 || true
             sudo -n virsh undefine "$dom" --remove-all-storage >/dev/null 2>&1 || true
+        fi
+        if sudo -n virsh dominfo "${dom}default" >/dev/null 2>&1; then
+            sudo -n virsh destroy "${dom}default" >/dev/null 2>&1 || true
+            sudo -n virsh undefine "${dom}default" --remove-all-storage >/dev/null 2>&1 || true
         fi
     fi
     return 0

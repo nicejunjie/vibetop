@@ -10,7 +10,16 @@
 #   VIBETOP_MATRIX_FULL=1   deploy the heavy stack (default: lean)
 box = ENV['VIBETOP_BOX'] or raise "VIBETOP_BOX is required (see tests/matrix/run.sh)"
 
+# Name the machine after the distro. Vagrant's machine index (~/.vagrant.d, GLOBAL
+# and shared regardless of VAGRANT_DOTFILE_PATH) is keyed by machine name, so
+# leaving every row as the default "default" made concurrent `vagrant up` calls
+# race on the same index entry:
+#     Failed to lock new machine: default (RuntimeError)
+# Per-distro dotfile paths isolate local state but NOT that global index.
+name = ENV.fetch('VIBETOP_MATRIX_NAME', 'default')
+
 Vagrant.configure("2") do |config|
+  config.vm.define name
   config.vm.box = box
   config.vm.hostname = "vibetop-matrix"
 
@@ -37,7 +46,8 @@ Vagrant.configure("2") do |config|
     # Distinct domain name per distro so rows can run CONCURRENTLY without
     # fighting over one libvirt domain (paired with a per-distro
     # VAGRANT_DOTFILE_PATH, which run.sh sets).
-    lv.default_prefix = "vibetop_matrix_#{ENV.fetch('VIBETOP_MATRIX_NAME', 'x')}"
+    # Domain becomes "<prefix><machine name>" = vibetop_matrix_<distro>.
+    lv.default_prefix = "vibetop_matrix_"
   end
 
   config.vm.provision "shell", path: "provision.sh",
