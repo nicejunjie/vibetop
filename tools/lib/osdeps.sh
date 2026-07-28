@@ -192,13 +192,21 @@ vt_firewall_open_web() {
     systemctl is-enabled --quiet firewalld 2>/dev/null || \
         systemctl is-active --quiet firewalld 2>/dev/null || return 0
     echo "== firewalld present — opening http/https =="
-    local svc changed=0
-    for svc in http https; do
-        if ! sudo firewall-cmd --permanent --query-service="$svc" >/dev/null 2>&1; then
-            sudo firewall-cmd --permanent --add-service="$svc" >/dev/null 2>&1 && changed=1
-        fi
-    done
-    [ "$changed" = 1 ] && { sudo firewall-cmd --reload >/dev/null 2>&1 || true; }
+    local svc
+    if systemctl is-active --quiet firewalld 2>/dev/null; then
+        for svc in http https; do
+            sudo firewall-cmd --permanent --add-service="$svc" >/dev/null 2>&1 || true
+        done
+        sudo firewall-cmd --reload >/dev/null 2>&1 || true
+    else
+        # Installed but not running (xpra's deps pull it in AFTER boot). The
+        # --permanent calls fail with rc=252 "FirewallD is not running" in that
+        # state, so use the offline tool — otherwise the rules are never written
+        # and the host loses :80/:443 on its next reboot.
+        for svc in http https; do
+            sudo firewall-offline-cmd --add-service="$svc" >/dev/null 2>&1 || true
+        done
+    fi
     return 0
 }
 

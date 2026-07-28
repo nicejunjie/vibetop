@@ -1816,14 +1816,51 @@ def _x11dbus_unit(user):
     return f"vibetop-ux11dbus-{_sanitize_unit(user)}.service"
 
 
+X11DBUS_DIR = "/run/vibetop/x11bus"
+
+
 def _x11dbus_socket(uid):
-    return f"/run/user/{uid}/vibetop-x11-bus"
+    """Where the per-user private X11 bus socket lives.
+
+    NOT /run/user/<uid>: that tree is labelled user_tmp_t, and dbus-daemon runs
+    as system_dbusd_t, which SELinux does not allow to create a sock_file there:
+        avc: denied { create } comm="dbus-daemon" name="vibetop-x11-bus"
+             scontext=system_dbusd_t tcontext=user_tmp_t tclass=sock_file
+    The daemon then exits with 'Failed to bind socket ... Permission denied',
+    the bus is silently absent, and GNOME/GTK apps fall back to the real bus —
+    bringing back the ~25-40s xdg-desktop-portal hang with nothing in the logs.
+    (Relabelling only the CONFIG file fixed an earlier { open } denial and merely
+    exposed this one a step later.)
+
+    /run/vibetop/x11bus is ours, so we can create it once with a label dbus is
+    allowed to write, and it survives being a per-user path via the filename."""
+    return f"{X11DBUS_DIR}/{uid}"
+
+
+def _ensure_x11dbus_dir():
+    """Create the shared socket directory with a dbus-writable SELinux label.
+
+    0755 root: the socket files themselves are per-user and created 0600 by
+    dbus-daemon, so the directory only needs to be traversable."""
+    try:
+        os.makedirs(X11DBUS_DIR, mode=0o755, exist_ok=True)
+        os.chmod(X11DBUS_DIR, 0o755)
+    except OSError as e:
+        log.warning("x11 private dbus: cannot create %s: %s", X11DBUS_DIR, e)
+        return False
+    # Give it the label dbus uses for its own runtime sockets, so system_dbusd_t
+    # may create one here. No-op where SELinux isn't in use.
+    if shutil.which("chcon") and os.path.isdir("/run/dbus"):
+        subprocess.run(["chcon", "--reference=/run/dbus", X11DBUS_DIR],
+                       capture_output=True, text=True)
+    return True
 
 
 def _ensure_user_x11_dbus(user, uid, gid):
     """Ensure the user's private, activation-free D-Bus session bus is running and
     return its socket path — or None if it can't be started (caller then falls back
     to the real user bus, i.e. the slow-but-works path)."""
+    _ensure_x11dbus_dir()
     sock = _x11dbus_socket(uid)
     unit = _x11dbus_unit(user)
     try:

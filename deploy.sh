@@ -30,6 +30,8 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tools/lib/layout.sh
 . "$REPO_DIR/tools/lib/layout.sh"
+# shellcheck source=tools/lib/osdeps.sh
+. "$REPO_DIR/tools/lib/osdeps.sh"
 
 REMOTE="" ; DO_BROWSER=1 ; DO_FILES=1 ; DO_OFFICE=1 ; DO_TUNNEL=0 ; DRY=0
 ADMINS="${VIBETOP_ADMINS:-}"
@@ -180,6 +182,16 @@ if (( DO_TUNNEL )); then
     env "${INST_ENV[@]}" "$REPO_DIR/tunnel/install.sh" "${DRYFLAG[@]}"
 else
     step "6/6  Tunnel — skipped (run with --with-tunnel; it's interactive)"
+fi
+
+# Firewall LAST: firewalld is not on the base cloud images — xpra's RPM
+# dependency chain installs it (ENABLED) during the Browser step, so any earlier
+# call finds no firewall-cmd and silently does nothing. It stays INACTIVE for the
+# rest of this boot, so everything works and the matrix passes; the host then
+# comes back after a reboot with only ssh/mdns allowed and vibetop is
+# LAN-unreachable. Must run after every installer that can pull it in.
+if (( ! DRY )); then
+    vt_firewall_open_web
 fi
 
 # Same-subnet dual-homing: if 2+ NICs share a LAN subnet, the host would answer

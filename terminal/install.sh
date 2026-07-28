@@ -636,9 +636,6 @@ PYEOF
     # failed (13: Permission denied)") even though the config is perfect. No-op
     # where SELinux is absent or permissive.
     run vt_selinux_allow_proxy
-    # xpra's RPM deps can install firewalld ENABLED; without this the host is
-    # LAN-unreachable after the next reboot (see tools/lib/osdeps.sh).
-    run vt_firewall_open_web
 
     # Nothing in this repo has ever STARTED nginx — on Debian/Ubuntu the package
     # postinst starts it, so our `reload` below succeeded by accident. RPM
