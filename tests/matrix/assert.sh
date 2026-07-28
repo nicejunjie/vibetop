@@ -126,6 +126,18 @@ if [ "${VT_FULL:-0}" = "1" ]; then
         check full-chromium FAIL "no chromium process — browser-loop failed to launch it (xpra serves 200 regardless)"
     fi
 
+    # xpra VERSION, not just "a display serves". 6.5.x carries the Browser
+    # click-offset regression this project pins away from — and the pin failed
+    # SILENTLY once already (an epoch-blind grep), installing the bad version
+    # while every other check stayed green. Assert the version itself.
+    _xv="$( (rpm -q --qf '%{VERSION}' xpra 2>/dev/null \
+             || dpkg-query -W -f='${Version}' xpra 2>/dev/null) | head -1 )"
+    case "${_xv:-unknown}" in
+        6.5*) check xpra-version FAIL "xpra $_xv — the click-offset regression line; the 6.4 pin did not take" ;;
+        6.*)  check xpra-version PASS "xpra $_xv" ;;
+        *)    check xpra-version SKIP "could not determine the xpra version (${_xv:-none})" ;;
+    esac
+
     # OnlyOffice: the container must be running AND answering through nginx.
     # docker on Debian, podman on RPM — check whichever exists.
     _oci="$(command -v docker || command -v podman || true)"

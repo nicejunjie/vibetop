@@ -182,8 +182,13 @@ if (( INSTALL_DEPS )) && [ "$VT_FAMILY" = rhel ]; then
     # best-effort and must not fail the install.
     XPRA_RPM_PIN="${XPRA_RPM_PIN:-6.4}"
     _xpra_pkg=xpra
+    # Strip the RPM EPOCH before matching. dnf prints "1:6.4.4-10.r0.fc43", so a
+    # naive `grep " 6.4\."` never matches — the "1:" sits between the space and
+    # the version — and the pin silently no-opped, installing the very 6.5 build
+    # it exists to avoid while the matrix stayed green.
     if [ -n "$XPRA_RPM_PIN" ] && (( ! DRY_RUN )) \
-       && dnf --showduplicates list xpra 2>/dev/null | grep -q " $XPRA_RPM_PIN\."; then
+       && dnf --showduplicates list xpra 2>/dev/null \
+          | awk '{print $2}' | sed 's/^[0-9]*://' | grep -q "^$XPRA_RPM_PIN\."; then
         _xpra_pkg="xpra-${XPRA_RPM_PIN}*"
         echo "   pinning xpra to ${XPRA_RPM_PIN}.x (6.5 has the click-offset regression)"
     else
