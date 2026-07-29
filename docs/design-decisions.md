@@ -17,6 +17,84 @@ and why it lost).
 
 ---
 
+## The Claude-usage strip froze for a day: a config value with two resolvers
+
+**Symptom:** the desktop's Claude-usage strip read `updated 955m ago` and never
+advanced. The proxy was **running**, listening on `:7690`, `ANTHROPIC_BASE_URL`
+was set in `~/.claude/settings.json`, and it was demonstrably relaying traffic
+(9.6s of CPU). Nothing looked broken. The only evidence was in a journal nobody
+tails:
+
+```
+[claude-proxy] usage write failed: [Errno 13] Permission denied:
+    /opt/vibetop/.local/share/.cu-rnv6wbkn
+```
+
+**Cause:** the proxy's unit said `User=vibetop` — the **service account** — so it
+resolved `~/.local/share` to `/opt/vibetop/...` and every capture died with
+EACCES, while the manager kept reading the **operator's** copy under
+`/home/junjie/...`, untouched since the `/opt` migration. A *stale but plausible*
+number, which is far worse than an error: the surface looked alive.
+
+The unit template already guards this with `User=@OPERATOR@`. The stamping is
+where it went wrong, and it took **two scripts each doing something reasonable**:
+
+- `claude-usage/install.sh` resolved `OPERATOR` from `$VIBETOP_ADMINS` **in its
+  environment**, falling back to `APP_USER`. But that value lives in
+  `/etc/vibetop/manager.env`, which it never read.
+- `tools/lib/layout.sh`'s `vt_installer_env_array` — the one shared "install into
+  the /opt layout" env handed to every sub-installer — passed `APP_USER`,
+  `APP_HOME`, `LANDING_DIR` and the secret paths, but **not `VIBETOP_ADMINS`**.
+- `tools/migrate-to-opt.sh` *does* pass `VIBETOP_ADMINS`… and deliberately skips
+  the claude-usage installer, so as not to disrupt a pinned Claude Code session.
+
+So the script that knew the operator never ran the installer, and the installer
+that ran never knew the operator. `deploy.sh` then rendered `User=vibetop`, and
+every subsequent deploy re-rendered it the same way.
+
+**Fix (four layers, because any one alone just moves the trap):**
+1. **One authority.** `vt_installer_env_array` now reads `VIBETOP_ADMINS` from
+   the manager env file it itself writes, and passes it to *every* installer —
+   not just the one that happened to need it today.
+2. **Belt.** `claude-usage/install.sh` also reads the env file directly when the
+   variable isn't in its environment (the lookup `tools/smoke-test.sh` already
+   used), validates the resolved operator exists, and prints it in the banner —
+   the banner previously showed only `APP_USER`, which is *why* a wrong operator
+   was invisible at install time.
+3. **The producer checks its own output.** After rendering, the installer probes
+   that the operator can actually write their `~/.local/share`, and warns loudly
+   with the exact cause if not. This runs on every deploy, unprompted.
+4. **A detector.** `tools/doctor.sh` gained an *Operator identity* section: it
+   compares the deployed unit's `User=` against `VIBETOP_ADMINS`, refuses an
+   operator that is the service account, and scans the proxy's journal **since
+   the unit last started** (not a flat 24h window — a check that stays red after
+   you fix it stops being read).
+
+Locked by two static tests: one drives the real installer in `--dry-run` against
+a fake env file and asserts the rendered identity; one asserts
+`vt_installer_env_array` carries `VIBETOP_ADMINS`. Both fail against the pre-fix
+code (`User=root`).
+
+**The generalizable lesson:** when a producer and a consumer resolve the same
+identity or path *independently*, they will eventually disagree, and the failure
+is silent because each side is individually correct. This is the same shape as
+`xpra-patches.js` 404ing after the `/opt` move (`www` vs `vibetop-www`). The
+durable countermeasure is a single authority plus an automated agreement check —
+not a more careful default.
+
+**Rejected:**
+- **Making the usage strip raise a red system-health banner when data is stale.**
+  Staleness is ambiguous: it also means "you simply haven't used Claude in 16h",
+  so it would cry wolf. The config comparison has no false positives.
+- **Having the proxy expose a `/health` endpoint** with relayed/captured counts
+  for the manager to poll. Genuinely diagnostic, but it adds an endpoint to an
+  auth-free loopback proxy to detect something a config assertion already catches
+  before it can happen.
+- **Defaulting `OPERATOR` to "the first non-system user with a `~/.claude`".**
+  Guessing an identity is how you get a *different* silent misattribution.
+
+---
+
 ## Scheduled terminal messages ("resume when the token limit resets")
 
 **Symptom (need, not bug):** a Claude Code session stops at its 5-hour token limit

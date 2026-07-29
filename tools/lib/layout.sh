@@ -78,12 +78,25 @@ EOF
 # $HOME. Sets VT_ENV_ARRAY; an array (not a string) so nothing word-splits.
 #     vt_installer_env_array
 #     env "${VT_ENV_ARRAY[@]}" ./terminal/install.sh
+#
+# VIBETOP_ADMINS is in here for a reason. It names the human OPERATOR, which is
+# a different identity from APP_USER (the service account) — see the
+# operator-vs-service-account trap in CLAUDE.md. Omitting it doesn't fail; it
+# makes every installer that needs the operator silently fall back to APP_USER.
+# That is exactly how the Claude-usage proxy came to run as `vibetop` and write
+# its capture into /opt/vibetop/.local/share, where the manager never looks
+# (v1.18.4). Read from the manager env file this same library writes, so there is
+# ONE authority for who the operator is.
 vt_installer_env_array() {
+    local admins=""
+    [ -r "$VT_ENV_FILE" ] && \
+        admins="$(sed -n 's/^[[:space:]]*VIBETOP_ADMINS=//p' "$VT_ENV_FILE" | head -1)"
     VT_ENV_ARRAY=(
         APP_USER="$VT_SVC"
         APP_HOME="$VT_OPT"
         LANDING_DIR="$VT_WWW"
         DST_DIR="$VT_WWW"
+        VIBETOP_ADMINS="${VIBETOP_ADMINS:-$admins}"
         SECRET_FILE="$VT_ETC/onlyoffice.secret"
         ONLYOFFICE_SECRET_FILE="$VT_ETC/onlyoffice.secret"
         SESSION_SECRET_FILE="$VT_ETC/session.secret"

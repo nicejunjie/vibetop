@@ -117,6 +117,66 @@ if unit_exists vibetop-x11-xpra.service; then
 fi
 
 # ---------------------------------------------------------------------------
+head_ "Operator identity (APP_USER vs the human admin)"
+# Three identities exist and must not be conflated (CLAUDE.md §Multi-user):
+# APP_USER (service account), OPERATOR (the human admin in VIBETOP_ADMINS), and
+# the per-request user. Anything that means "the operator's home" — Claude usage
+# capture, ~/.claude settings — must resolve to OPERATOR. When a producer falls
+# back to APP_USER the failure is SILENT and asymmetric: it writes to one home
+# while the manager reads the other, so the surface serves stale-but-plausible
+# data indefinitely. That is the shape of the v1.18.4 bug; these checks make the
+# divergence visible instead of leaving it to be noticed by eye.
+VT_ENV="${VT_ENV_FILE:-/etc/vibetop/manager.env}"   # overridable so the check is testable
+ADMINS=""
+[ -r "$VT_ENV" ] && ADMINS="$(sed -n 's/^[[:space:]]*VIBETOP_ADMINS=//p' "$VT_ENV" | head -1)"
+OPERATOR="${ADMINS%%,*}"
+
+if [ ! -r "$VT_ENV" ]; then
+    info "$VT_ENV absent — single-operator home install, APP_USER is the operator"
+elif [ -z "$OPERATOR" ]; then
+    adv "VIBETOP_ADMINS is empty in $VT_ENV — Update + Claude-usage are unavailable to everyone ('VIBETOP_ADMINS=<you>' then restart vibetop-manager)"
+elif ! id "$OPERATOR" >/dev/null 2>&1; then
+    bad "VIBETOP_ADMINS names '$OPERATOR', who is not a user on this host — fix $VT_ENV"
+else
+    ok "operator = $OPERATOR (VIBETOP_ADMINS in $VT_ENV)"
+    # The operator must be a real human login, never the service account: the
+    # service account's home is /opt/vibetop, which has no ~/.claude to observe.
+    if [ "$OPERATOR" = "$APP_USER" ] && [ "${APP_HOME#/opt/}" != "$APP_HOME" ]; then
+        bad "operator == APP_USER ($APP_USER), whose home is $APP_HOME — the operator must be the HUMAN admin; set VIBETOP_ADMINS in $VT_ENV and re-run claude-usage/install.sh"
+    fi
+fi
+
+# The rendered proxy unit's User= is the check that would have caught v1.18.4.
+if unit_exists vibetop-claude-proxy.service; then
+    PU="$(sed -n 's/^User=//p' /etc/systemd/system/vibetop-claude-proxy.service | head -1)"
+    if [ -z "$PU" ]; then
+        adv "vibetop-claude-proxy has no User= — it would run as root"
+    elif [ -z "$OPERATOR" ]; then
+        skip "vibetop-claude-proxy User=$PU (no operator named — nothing to compare against)"
+    elif [ "$PU" != "$OPERATOR" ]; then
+        bad "vibetop-claude-proxy runs as '$PU' but the operator is '$OPERATOR' — its usage capture lands in the WRONG home and the desktop strip freezes. Fix: 'sudo env APP_USER=$APP_USER APP_DIR=$ROOT $ROOT/claude-usage/install.sh'"
+    else
+        ok "vibetop-claude-proxy User=$PU matches the operator"
+    fi
+    # Cheap corroboration: the symptom itself, straight from the proxy's journal.
+    # Scoped to THIS run of the unit (not a flat -24h window) — otherwise the
+    # failures logged before a fix keep the check red long after it's repaired,
+    # and a check that stays red after you fix it stops being read.
+    if [ "$IS_ROOT" = 1 ] && have journalctl && \
+       [ "$(systemctl is-active vibetop-claude-proxy 2>/dev/null)" = active ]; then
+        # "Wed 2026-07-29 14:16:20 CDT" -> "2026-07-29 14:16:20" (journalctl --since)
+        since="$(systemctl show vibetop-claude-proxy -p ActiveEnterTimestamp --value 2>/dev/null \
+                 | cut -d' ' -f2-3)"
+        [ -n "$since" ] || since="-1h"
+        wf="$(journalctl -u vibetop-claude-proxy --since "$since" --no-pager 2>/dev/null \
+              | grep -c 'usage write failed' || true)"
+        [ "${wf:-0}" -gt 0 ] \
+            && bad "$wf 'usage write failed' entries since the proxy started — it is relaying but storing nothing, so the usage strip is frozen ('journalctl -u vibetop-claude-proxy | tail')" \
+            || ok "proxy has stored every capture since it started (no write failures)"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 head_ "xpra"
 if have xpra; then
     xv="$(xpra --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -1)"

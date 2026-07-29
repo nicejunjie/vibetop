@@ -184,6 +184,49 @@ def test_filebrowser_patch_home_stamped_in_both_installers():
             assert "@APP_HOME@" in f.read(), f"{inst} must stamp @APP_HOME@"
 
 
+# ---- Operator identity: the proxy unit must not render as the service account --
+
+def test_claude_proxy_unit_renders_the_operator_not_app_user(tmp_path):
+    """The Claude-usage proxy stores its capture in the home of whoever its unit
+    says User=, and the manager reads the OPERATOR's home. When install.sh
+    resolved the operator from $VIBETOP_ADMINS in the environment only — while
+    the value actually lives in /etc/vibetop/manager.env — a prod host rendered
+    User=<service account>, the proxy dropped every write with EACCES, and the
+    usage strip silently froze for a day (v1.18.4).
+
+    Drive the real installer in --dry-run (writes nothing) against a fake env
+    file and assert the identity it would render.
+    """
+    inst = os.path.join(_REPO, "claude-usage", "install.sh")
+    env_file = tmp_path / "manager.env"
+    me = subprocess.run(["id", "-un"], capture_output=True, text=True).stdout.strip()
+    env_file.write_text("VIBETOP_ADMINS=%s,someone-else\n" % me)
+
+    env = dict(os.environ, APP_USER="root", APP_DIR=_REPO,
+               VT_ENV_FILE=str(env_file))
+    env.pop("VIBETOP_ADMINS", None)          # the whole point: NOT in the environment
+    out = subprocess.run(["bash", inst, "--dry-run"], capture_output=True,
+                         text=True, env=env).stdout
+
+    assert "User=%s" % me in out, (
+        "proxy unit renders the wrong identity — it must come from "
+        "VIBETOP_ADMINS in the manager env file, not fall back to APP_USER:\n" + out)
+    assert "User=root" not in out, "fell back to APP_USER (the v1.18.4 bug)"
+
+
+def test_installer_env_array_carries_the_operator():
+    """The shared /opt-layout installer env is the single place every sub-installer
+    gets its identity from. VIBETOP_ADMINS missing there is what made the proxy
+    installer fall back to APP_USER in the first place."""
+    with open(os.path.join(_REPO, "tools", "lib", "layout.sh")) as f:
+        src = f.read()
+    m = re.search(r"vt_installer_env_array\(\)\s*\{(.*?)\n\}", src, re.S)
+    assert m, "vt_installer_env_array not found in tools/lib/layout.sh"
+    assert "VIBETOP_ADMINS=" in m.group(1), (
+        "vt_installer_env_array must pass VIBETOP_ADMINS — without it every "
+        "installer needing the operator silently falls back to APP_USER")
+
+
 # ---- Service-worker PRECACHE integrity -------------------------------------
 
 def _sw_precache():

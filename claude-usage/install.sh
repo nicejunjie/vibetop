@@ -88,6 +88,26 @@ if (( INSTALL_SYSTEMD )); then
     # Do NOT enable/start — opt-in. But if it's already running (feature on),
     # restart to pick up new proxy code. try-restart is a no-op when inactive.
     run sudo systemctl try-restart "$UNIT" 2>/dev/null || true
+
+    # Post-condition: the identity we just rendered must actually be able to
+    # store a capture. The proxy resolves ~/.local/share from its OWN uid, so a
+    # wrong User= doesn't fail loudly — it relays fine and drops every write with
+    # EACCES into its journal, while the strip serves the operator's last good
+    # file forever. Verify here, where the mistake is made, instead of leaving it
+    # for someone to notice a frozen percentage days later.
+    if (( ! DRY_RUN )); then
+        CAPTURE_DIR="$(getent passwd "$OPERATOR" | cut -d: -f6)/.local/share"
+        if sudo -u "$OPERATOR" -H test -w "$CAPTURE_DIR" 2>/dev/null \
+           || sudo -u "$OPERATOR" -H mkdir -p "$CAPTURE_DIR" 2>/dev/null; then
+            echo "   capture path OK: $CAPTURE_DIR (writable by $OPERATOR)"
+        else
+            echo "!! WARNING: $OPERATOR cannot write $CAPTURE_DIR — the proxy will"  >&2
+            echo "!!   relay traffic but silently drop every usage capture, and the" >&2
+            echo "!!   desktop strip will freeze at its last value."                 >&2
+            echo "!!   Is OPERATOR right? VIBETOP_ADMINS in $VT_ENV_FILE names the"  >&2
+            echo "!!   human admin; it must NOT be the service account ($APP_USER)." >&2
+        fi
+    fi
 else
     echo "== INSTALL_SYSTEMD=0 — skipping unit; try-restart to pick up code =="
     run sudo systemctl try-restart "$UNIT" 2>/dev/null || true
