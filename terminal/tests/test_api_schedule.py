@@ -72,9 +72,21 @@ def test_rejects_bad_input(client, home, op_cookie, body, frag):
 
 def test_rejects_a_time_that_has_passed(client, home, op_cookie):
     status, body = client.post("/api/terminals/schedules",
-                               {"term": 1, "text": "x", "at": time.time() - 5},
+                               {"term": 1, "text": "x", "at": time.time() - 3600},
                                cookie=op_cookie)
     assert status == 400 and "already passed" in body["error"]
+
+
+def test_accepts_now_despite_the_pickers_minute_granularity(client, mgr, home, op_cookie):
+    """The UI defaults the field to NOW, and datetime-local only resolves to the
+    minute — so a "send it now" submit arrives already up to ~59s in the past.
+    Inside SCHED_PAST_TOLERANCE that must be accepted and fire on the next tick."""
+    at = time.time() - (mgr.SCHED_PAST_TOLERANCE - 15)
+    status, body = client.post("/api/terminals/schedules",
+                               {"term": 1, "text": "continue", "at": at},
+                               cookie=op_cookie)
+    assert status == 200
+    assert mgr._due_schedules(mgr._read_schedules(), time.time())   # due right away
 
 
 def test_rejects_beyond_the_horizon(client, mgr, home, op_cookie):

@@ -2301,7 +2301,7 @@ def _share_prune(reg, now=None):
 SCHEDULES_FILE = os.environ.get("SCHEDULES_FILE") or "/var/lib/vibetop/schedules.json"
 SCHED_MAX_PER_USER = 20             # pending cap per user
 SCHED_MAX_HORIZON = 30 * 86400      # no scheduling further out than a month
-SCHED_MIN_LEAD = 20                 # must be at least a tick away
+SCHED_PAST_TOLERANCE = 90           # how far into the past `at` may be — see below
 SCHED_LATE_GRACE = 2 * 3600         # fire up to 2h late (manager restart), else "missed"
 SCHED_TICK = 15                     # sweeper period -> ±15s accuracy
 SCHED_TEXT_MAX = 2000
@@ -5291,7 +5291,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             return self._json(400, {"error": "at must be a unix timestamp"})
         now = time.time()
-        if at < now + SCHED_MIN_LEAD:
+        # A small past tolerance rather than a required lead: the UI's
+        # datetime-local picker only resolves to the MINUTE, so "now" is already
+        # up to 59s in the past by the time it's submitted, and the seconds spent
+        # typing the message add more. Inside the window it just fires on the next
+        # sweeper tick (≤15s), which is what "send it now" should do; outside it,
+        # scheduling 9am when it's 10am is still caught.
+        if at < now - SCHED_PAST_TOLERANCE:
             return self._json(400, {"error": "that time has already passed"})
         if at > now + SCHED_MAX_HORIZON:
             return self._json(400, {

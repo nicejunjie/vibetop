@@ -130,7 +130,7 @@
     background: #17172c; border: 1px solid #3a3a5a; border-radius: 5px;
   }
   .sched-panel input:focus { outline: none; border-color: #4ec36a; }
-  .sp-quick { display: flex; gap: 6px; margin-bottom: 8px; }
+  .sp-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
   .sp-quick button, .sp-go {
     font: inherit; font-size: 12px; cursor: pointer; border-radius: 5px;
     padding: 5px 9px; color: #cfe; background: #2c2c4a; border: 1px solid #3f3f63;
@@ -170,6 +170,8 @@
     <input type="text" id="sp-text" maxlength="2000" placeholder="Message to send, e.g. continue">
     <input type="datetime-local" id="sp-at">
     <div class="sp-quick">
+      <button type="button" data-min="1">+1m</button>
+      <button type="button" data-min="5">+5m</button>
       <button type="button" data-min="30">+30m</button>
       <button type="button" data-min="60">+1h</button>
       <button type="button" data-min="300">+5h</button>
@@ -436,7 +438,7 @@
   }
   function fmtIn(at) {
     var s = Math.round(at - Date.now() / 1000);
-    if (s <= 0) return 'any moment';
+    if (s <= 0) return 'now';        // due, firing on the next sweeper tick
     // Whole minutes FIRST, then split — rounding the remainder separately can
     // land on 60 and print "in 8h 60m". Ceil, not round: the picker's minute
     // granularity means "+5h" lands ~59s short, and "in 4h 59m" right after
@@ -501,7 +503,14 @@
     var bar = schedBtn.getBoundingClientRect();
     schedPanel.style.top = Math.round(bar.bottom + 4) + 'px';
     spErr.textContent = '';
-    if (!spAt.value) spAt.value = toLocalInput(new Date(Date.now() + 3600e3));
+    // Default to NOW, so the field reads as "send it now" and the quick-adds
+    // nudge from there. Only re-seeded when the current value is stale (past),
+    // so reopening the panel never discards a future time you already picked.
+    // The server allows a small past window (SCHED_PAST_TOLERANCE) because this
+    // input only resolves to the minute — submitting "now" fires on the next tick.
+    if (!spAt.value || new Date(spAt.value).getTime() <= Date.now()) {
+      spAt.value = toLocalInput(new Date());
+    }
     renderSchedules();
     if (!isTouch) setTimeout(function () { spText.focus(); }, 20);
   }
