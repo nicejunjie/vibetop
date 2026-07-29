@@ -24,12 +24,27 @@ APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 # The proxy runs as the OPERATOR (human admin whose Claude Code is observed), not
 # APP_USER (which may be the `vibetop` service account). Default: first
 # VIBETOP_ADMINS entry, else APP_USER (backward-compatible on a home install).
+#
+# VIBETOP_ADMINS normally lives in /etc/vibetop/manager.env (written by deploy.sh
+# / migrate-to-opt.sh) and is NOT in this script's environment, so read it from
+# there first — same lookup tools/smoke-test.sh does. Without this, a prod host
+# (APP_USER=vibetop) silently renders User=vibetop, and the proxy then writes its
+# capture into the SERVICE ACCOUNT's home while the manager reads the operator's:
+# the usage strip freezes at whatever it held before the /opt migration, with
+# `usage write failed: Permission denied` the only clue (in the proxy's journal).
+VT_ENV_FILE="${VT_ENV_FILE:-/etc/vibetop/manager.env}"
+if [ -z "${VIBETOP_ADMINS:-}" ] && [ -r "$VT_ENV_FILE" ]; then
+    VIBETOP_ADMINS="$(sed -n 's/^[[:space:]]*VIBETOP_ADMINS=//p' "$VT_ENV_FILE" | head -1)"
+fi
 OPERATOR="${OPERATOR:-${VIBETOP_ADMINS:-$APP_USER}}"
 OPERATOR="${OPERATOR%%,*}"
 # APP_DIR = repo root (this script lives in <repo>/claude-usage/)
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist on this system" >&2; exit 1
+fi
+if ! id "$OPERATOR" >/dev/null 2>&1; then
+    echo "OPERATOR '$OPERATOR' does not exist on this system" >&2; exit 1
 fi
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 DRY_RUN="${DRY_RUN:-0}"
@@ -53,6 +68,7 @@ write_root() {
 cat <<EOF
 claude-usage install
   user     : $APP_USER
+  operator : $OPERATOR    (proxy runs as them; capture lands in their ~/.local/share)
   repo dir : $APP_DIR
   proxy    : 127.0.0.1:7690 -> api.anthropic.com   (opt-in; unit stays disabled)
   systemd  : $INSTALL_SYSTEMD    dry run: $DRY_RUN
