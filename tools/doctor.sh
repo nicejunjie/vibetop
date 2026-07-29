@@ -177,6 +177,86 @@ if unit_exists vibetop-claude-proxy.service; then
 fi
 
 # ---------------------------------------------------------------------------
+head_ "Web root (nginx root vs where the installers deploy)"
+# The second instance of the same class as the operator checks above: the nginx
+# `root` is rendered by terminal/install.sh from LANDING_DIR, while the files are
+# put there by landing/install.sh from DST_DIR. Two resolvers, one path — and an
+# in-app Update passes NEITHER, so both fall back to $APP_HOME/vibetop-www. A
+# deploy that once used a different value leaves a fully-populated directory that
+# nginx never serves, and the only symptom is a 404 on an injected asset (this is
+# how xpra-patches.js went missing after the /opt move and the mobile Browser
+# silently lost every patch).
+SITE="${VT_SITE_FILE:-/etc/nginx/sites-available/vibetop}"      # overridable = testable
+[ -f "$SITE" ] || SITE=/etc/nginx/conf.d/vibetop.conf          # RHEL-family layout
+# Paths nginx PROXIES rather than serving from disk — a ref into one of these is
+# not a missing file. Mirrors sw.js's BYPASS list.
+PROXIED_RE='^/(api|browser|x11-display|office|onlyoffice|t[0-9]|terminals|files|fileview|cdn-cgi|s)/'
+
+if [ ! -f "$SITE" ]; then
+    adv "no vibetop nginx site found — is terminal/install.sh deployed?"
+else
+    WEBROOT="$(sed -n 's/^[[:space:]]*root[[:space:]]\{1,\}\([^;]*\);.*/\1/p' "$SITE" | head -1)"
+    if [ -z "$WEBROOT" ]; then
+        bad "no 'root' directive in $SITE — nginx has nothing to serve the shell from"
+    elif [ ! -d "$WEBROOT" ]; then
+        bad "nginx root '$WEBROOT' does not exist — the desktop will 404 ('landing/install.sh')"
+    else
+        ok "nginx serves $WEBROOT"
+        for f in index.html sw.js; do
+            [ -f "$WEBROOT/$f" ] && ok "$f present in the web root" \
+                || bad "$WEBROOT/$f missing — re-run landing/install.sh"
+        done
+
+        # Every asset the nginx config INJECTS by sub_filter must exist at the
+        # served root. This is the exact check the xpra-patches.js 404 needed.
+        miss=""
+        for ref in $(grep -rhoE '/[A-Za-z0-9_.-]+\.js\?v=[A-Za-z0-9]+' \
+                        "$SITE" /etc/nginx/snippets/vibetop-extras.d/ 2>/dev/null \
+                     | sed 's/?.*//' | sort -u); do
+            [ -f "$WEBROOT$ref" ] || miss="$miss $ref"
+        done
+        [ -n "$miss" ] \
+            && bad "nginx injects scripts that are NOT at the served root:$miss — the pages load but their patches silently do nothing (re-run the owning install.sh)" \
+            || ok "every sub_filter-injected script resolves under the web root"
+
+        # Same test for the deployed pages' own local <script src="/…"> refs.
+        miss=""
+        for ref in $(grep -rhoE '<script src="/[^"?]+' "$WEBROOT"/*.html 2>/dev/null \
+                     | sed 's/.*"//' | sort -u); do
+            printf '%s' "$ref" | grep -qE "$PROXIED_RE" && continue   # proxied, not on disk
+            [ -f "$WEBROOT$ref" ] || miss="$miss $ref"
+        done
+        [ -n "$miss" ] \
+            && bad "deployed pages reference scripts missing from the web root:$miss (re-run landing/install.sh)" \
+            || ok "deployed pages' local script refs all resolve"
+
+        # An ORPHANED web root beside the served one: the signature of a deploy
+        # that used a different LANDING_DIR/DST_DIR. Harmless if stale, but if it
+        # is NEWER than what nginx serves, the last deploy went to the wrong
+        # place and you are looking at old files wondering why nothing changed.
+        for sib in "$(dirname "$WEBROOT")"/*www*/; do
+            sib="${sib%/}"
+            [ -d "$sib" ] && [ "$sib" != "$WEBROOT" ] || continue
+            [ -f "$sib/index.html" ] || [ -f "$sib/sw.js" ] || continue
+            if [ "$sib/index.html" -nt "$WEBROOT/index.html" ]; then
+                bad "$sib is NEWER than the served root $WEBROOT — a deploy landed in the wrong directory and is not being served (check LANDING_DIR/DST_DIR)"
+            else
+                adv "$sib looks like an orphaned web root (older than the served one, not served) — safe to remove once confirmed"
+            fi
+        done
+
+        # "Bumped sw.js but never deployed" — the documented release-checklist
+        # trap: without the DEPLOYED version changing, no client auto-refreshes.
+        src_sw="$(sed -n "s/^const VERSION = '\(v[0-9]*\)'.*/\1/p" "$ROOT/landing/sw.js" 2>/dev/null | head -1)"
+        dep_sw="$(sed -n "s/^const VERSION = '\(v[0-9]*\)'.*/\1/p" "$WEBROOT/sw.js" 2>/dev/null | head -1)"
+        if [ -n "$src_sw" ] && [ -n "$dep_sw" ]; then
+            [ "$src_sw" = "$dep_sw" ] && ok "deployed sw.js matches the checkout ($dep_sw)" \
+                || adv "checkout has sw.js $src_sw but $dep_sw is deployed — clients won't auto-refresh until landing/install.sh runs"
+        fi
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 head_ "xpra"
 if have xpra; then
     xv="$(xpra --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -1)"

@@ -227,6 +227,46 @@ def test_installer_env_array_carries_the_operator():
         "installer needing the operator silently falls back to APP_USER")
 
 
+def test_doctor_proxied_prefixes_cover_the_sw_bypass_list():
+    """doctor.sh's web-root check skips refs into PROXIED paths (they're served by
+    a proxy, not from disk). That list mirrors sw.js's BYPASS — two independent
+    copies of one fact, the very drift this check exists to catch. If a new
+    proxied prefix is added to sw.js and not to doctor, doctor starts reporting a
+    proxied URL as a missing file.
+
+    Not equality: `services.json` IS a real file in the web root (so sw bypasses
+    it but doctor must not skip it), and doctor additionally covers `/s/` share
+    links, which sw never sees.
+    """
+    def prefixes(raw):
+        out = set()
+        for tok in raw.split("|"):
+            # The terminal prefix is spelled differently by design: JS `t\d` vs
+            # POSIX `t[0-9]`. Fold both to `t` BEFORE unescaping, or stripping
+            # the backslash turns `t\d` into the bogus literal `td`.
+            if tok in (r"t\d", "t[0-9]"):
+                out.add("t")
+            else:
+                out.add(tok.replace("\\", "").rstrip("/"))
+        return out
+
+    sw = open(os.path.join(_REPO, "landing", "sw.js")).read()
+    m = re.search(r"const BYPASS = /\^\\/\((.*?)\)/", sw)
+    assert m, "could not find BYPASS in sw.js"
+    sw_prefixes = prefixes(m.group(1))
+
+    doc = open(os.path.join(_REPO, "tools", "doctor.sh")).read()
+    m = re.search(r"PROXIED_RE='\^/\((.*?)\)/'", doc)
+    assert m, "could not find PROXIED_RE in tools/doctor.sh"
+    doc_prefixes = prefixes(m.group(1))
+
+    served_from_disk = {"services.json"}
+    missing = sw_prefixes - doc_prefixes - served_from_disk
+    assert not missing, (
+        "tools/doctor.sh PROXIED_RE is missing proxied prefixes that sw.js "
+        "bypasses %r — doctor will report those URLs as missing files" % sorted(missing))
+
+
 # ---- Service-worker PRECACHE integrity -------------------------------------
 
 def _sw_precache():

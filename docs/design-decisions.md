@@ -82,6 +82,30 @@ is silent because each side is individually correct. This is the same shape as
 durable countermeasure is a single authority plus an automated agreement check —
 not a more careful default.
 
+**The web-root instance of the same class**, now covered by a second doctor
+section (*Web root*). nginx's `root` is rendered by `terminal/install.sh` from
+`LANDING_DIR`; the files are put there by `landing/install.sh` from `DST_DIR`.
+Two resolvers, one path — and an in-app Update passes **neither**, so both fall
+back to `$APP_HOME/vibetop-www`. A deploy that once used a different value leaves
+a fully-populated directory nginx never serves, and the only symptom is a 404 on
+an injected asset. The checks:
+- every `?v=`-busted script the nginx config **injects by sub_filter** must exist
+  at the served root (the exact check the `xpra-patches.js` 404 needed);
+- every local `<script src="/…">` in the **deployed** pages must resolve there,
+  skipping proxied prefixes (`/onlyoffice/…/api.js` is served by the container,
+  not from disk);
+- a sibling `*www*` directory holding an `index.html`/`sw.js` is reported —
+  **FAIL if it is newer** than the served root (the last deploy went to the wrong
+  place and you are staring at old files), WARN if merely orphaned;
+- the deployed `sw.js` VERSION vs the checkout's — "bumped but never deployed"
+  means no client auto-refreshes, the documented release-checklist trap.
+
+Writing that skip-list duplicated `sw.js`'s `BYPASS` into `doctor.sh` — the very
+divergence this entry is about — so
+`test_static.py::test_doctor_proxied_prefixes_cover_the_sw_bypass_list` pins the
+two together (allowing the two deliberate differences: `services.json` is a real
+file in the web root, and `/s/` share links never reach the service worker).
+
 **Rejected:**
 - **Making the usage strip raise a red system-health banner when data is stale.**
   Staleness is ambiguous: it also means "you simply haven't used Claude in 16h",
