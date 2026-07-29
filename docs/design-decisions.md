@@ -39,9 +39,16 @@ straight into the PTY master, so `_inject_terminal` connects, `sendall(text + b"
 and closes. Three details are load-bearing:
 - **`\r`, not `\n`** — the attach client clears `ICRNL`, so `\r` is what a real
   Enter delivers.
-- **Write and close without ever reading** — on connect the daemon queues its whole
-  replay ring (up to 2 MB) to the new client and drops it past `MAX_OUTQ` (1 MB).
-  A short-lived write-only connection sidesteps both.
+- **Drain and discard for 0.75s before closing** (`INJECT_DRAIN`). The first cut
+  wrote and closed immediately, reasoning that the replay ring the daemon queues
+  at every new client (up to 2 MB) was ours to ignore. On a live terminal that
+  silently lost every message while still reporting `sent`: closing with the
+  replay unread makes the **daemon's own** `recv()` fail with ECONNRESET, so it
+  takes the `if not data: remove_client(fd)` branch and drops the client *before*
+  writing our bytes to the PTY. Holding the socket briefly — draining and
+  throwing the replay away — fixes it. Empirically: close-immediately never
+  executed the command, a 0.5s hold always did. Guarded by
+  `test_inject_survives_the_replay_the_daemon_queues_on_connect`.
 - **Injection happens outside `_schedules_lock`** — a wedged session daemon would
   otherwise block every schedules request behind the sweeper's 5s socket timeout.
 

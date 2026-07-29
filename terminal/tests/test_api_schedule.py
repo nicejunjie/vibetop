@@ -276,6 +276,38 @@ def test_inject_writes_text_and_carriage_return_to_the_session_socket(
     assert got == [b"continue\r"]
 
 
+def test_inject_survives_the_replay_the_daemon_queues_on_connect(mgr, tmp_path, monkeypatch):
+    """Regression: vibetop-session pushes its whole replay ring at every new
+    client. Closing with that unread makes the daemon's OWN recv() fail
+    (ECONNRESET) and it drops the client before writing our bytes to the PTY —
+    the message is lost while the sweeper still reports "sent". _inject_terminal
+    drains first; this server reproduces the shape."""
+    sock_path = str(tmp_path / "busy.sock")
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(sock_path)
+    srv.listen(1)
+    got, err = [], []
+
+    def daemon_like():
+        conn, _ = srv.accept()
+        with conn:
+            try:
+                conn.sendall(b"replay" * 100000)     # ~600 KB, like a warm ring
+                got.append(conn.recv(4096))
+            except OSError as e:                     # what the real daemon hits
+                err.append(str(e))
+    t = threading.Thread(target=daemon_like, daemon=True)
+    t.start()
+
+    monkeypatch.setattr(mgr, "_list_running_terminals", lambda user: [1])
+    monkeypatch.setattr(mgr, "_term_socket", lambda user, n: sock_path)
+    ok, _ = mgr._inject_terminal("alice", 1, "continue")
+    t.join(timeout=10)
+    srv.close()
+    assert ok
+    assert got == [b"continue\r"], "bytes lost to the replay race (%s)" % err
+
+
 def test_inject_refuses_when_the_terminal_is_not_running(mgr, monkeypatch):
     """Deliberately does NOT cold-start: a fresh bash has none of the session the
     message was written for, so it would land as `command not found`."""

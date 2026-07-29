@@ -2306,6 +2306,7 @@ SCHED_LATE_GRACE = 2 * 3600         # fire up to 2h late (manager restart), else
 SCHED_TICK = 15                     # sweeper period -> ±15s accuracy
 SCHED_TEXT_MAX = 2000
 SCHED_KEEP_DONE = 24 * 3600         # keep fired/failed entries this long (UI history)
+INJECT_DRAIN = 0.75                 # hold+drain the socket this long — see _inject_terminal
 _schedules_lock = threading.Lock()
 
 
@@ -2415,9 +2416,16 @@ def _inject_terminal(user, n, text):
     the session the message was written for, so "continue" would land as
     `command not found`. A clear failure beats a confusing one.
 
-    Writes and closes without ever reading: on connect the daemon queues its whole
-    replay ring to us, and drops the client past MAX_OUTQ (1 MB). Sends \\r, not
-    \\n — the attach client clears ICRNL, so \\r is what a real Enter delivers."""
+    Sends \\r, not \\n — the attach client clears ICRNL, so \\r is what a real
+    Enter delivers.
+
+    After sending it DRAINS AND DISCARDS for INJECT_DRAIN seconds instead of
+    closing straight away. That is not politeness: on connect the daemon queues
+    its whole replay ring to the new client, and closing with that still unread
+    makes the daemon's own recv() fail (ECONNRESET), so it drops the client at
+    `if not data: remove_client(fd)` — BEFORE writing our bytes to the PTY. The
+    message vanishes while the sweeper still reports "sent". Verified on a live
+    terminal: close-immediately never executed, a short drain always did."""
     try:
         running = _list_running_terminals(user)
     except Exception:
@@ -2431,6 +2439,16 @@ def _inject_terminal(user, n, text):
         s.settimeout(5)
         s.connect(sock_path)
         s.sendall(text.encode("utf-8", "replace") + b"\r")
+        deadline = time.monotonic() + INJECT_DRAIN
+        s.settimeout(0.2)
+        while time.monotonic() < deadline:
+            try:
+                if not s.recv(65536):       # daemon hung up — nothing left to drain
+                    break
+            except socket.timeout:
+                continue                    # idle terminal: just let the window run out
+            except OSError:
+                break
         return True, None
     except (OSError, socket.timeout) as e:
         return False, f"could not reach terminal {int(n)}: {e}"
