@@ -17,6 +17,68 @@ and why it lost).
 
 ---
 
+## Scheduled terminal messages ("resume when the token limit resets")
+
+**Symptom (need, not bug):** a Claude Code session stops at its 5-hour token limit
+and prints the reset time. Resuming meant being at the keyboard at that moment —
+so an overnight limit cost the whole night.
+
+**Cause:** nothing was wrong; the missing capability was "type this into terminal N
+at 07:00". The obvious place to put a timer — the browser — is the one place it
+can't live: a `setTimeout` in `terminals.html` dies with the tab, with the device
+sleeping, and with the reload the SSE deploy-push triggers. The unattended case is
+the *only* case that matters here.
+
+**Fix:** a server-side sweeper thread (`_schedule_loop`, 15s tick) over a registry
+at `/var/lib/vibetop/schedules.json`, plus a `⏱` control on the Terminal tab bar
+(`GET/POST /api/terminals/schedules`, `POST /api/terminals/schedules/cancel`; the
+list rides the existing 2.5s `/api/terminals/status` poll rather than adding a
+second loop). Firing needed **no new mechanism**: `vibetop-session`'s Unix socket
+is a raw bidirectional byte stream, and every byte a client sends is written
+straight into the PTY master, so `_inject_terminal` connects, `sendall(text + b"\r")`,
+and closes. Three details are load-bearing:
+- **`\r`, not `\n`** — the attach client clears `ICRNL`, so `\r` is what a real
+  Enter delivers.
+- **Write and close without ever reading** — on connect the daemon queues its whole
+  replay ring (up to 2 MB) to the new client and drops it past `MAX_OUTQ` (1 MB).
+  A short-lived write-only connection sidesteps both.
+- **Injection happens outside `_schedules_lock`** — a wedged session daemon would
+  otherwise block every schedules request behind the sweeper's 5s socket timeout.
+
+**Security — the registry is root-owned `0600` inside a `0700` directory.** The
+sweeper runs as root and writes into whichever user's PTY an entry names, so a
+tenant-writable registry would be code execution as another user. That is why
+`_write_schedules` passes `owner="root"` to `_atomic_write` (whose default chowns
+to the *request* user — correct for per-user state in a home, wrong here) and why
+`_var_lib_dir()` locks the directory down: `os.makedirs` leaves it `0755`, and the
+sibling registries (`users.json`, `idle.json`, `resources.json`) live in it too.
+Ownership always comes from the session, never from a body field.
+
+A missed window is **not** silently dropped: an entry fires up to `SCHED_LATE_GRACE`
+(2h) late, so a manager restart or brief outage still delivers, and only past that
+is it marked `missed` and shown as such. The idle reaper also stops reaping a
+user's *terminals* while they hold a pending schedule — otherwise the feature would
+fail with "terminal N is not running" at exactly the unattended moment it exists for.
+
+**Rejected:**
+- **A client-side timer.** Dies with the tab/device/reload — see above.
+- **Cold-starting a stopped terminal at fire time.** A fresh bash has none of the
+  session the message was written for, so "continue" would land as
+  `command not found`. Failing loudly with "terminal N is not running" is honest;
+  typing into the wrong context is not.
+- **`TIOCSTI`** to fake terminal input from outside — disabled on modern kernels.
+- **One `systemd-run --on-calendar` transient timer per schedule.** Works, but
+  scatters the state across systemd units instead of one inspectable registry, and
+  can't be listed, cancelled, or shown with an outcome coherently.
+- **Auto-reading the Claude reset time** from the usage proxy to schedule "at next
+  reset". Deferred: it would couple this to the opt-in Claude-usage feature, and
+  the reset time is already on screen — an absolute picker with `+30m/+1h/+5h`
+  quick-fill covers it without the coupling.
+- **Multi-line messages.** Rejected: we append the Enter ourselves, and allowing
+  `\r`/`\n` would let one entry chain commands past what was reviewed in the form.
+
+---
+
 ## A terminal loops "loading / disconnect / reconnect" forever on a thin link (in-flight WiFi)
 
 **Symptom:** On a very low-bandwidth, high-latency connection (airplane WiFi, a

@@ -136,6 +136,8 @@ def home(mgr, monkeypatch, tmp_path):
     monkeypatch.setattr(mgr, "IDLE_POLICY_FILE", str(h / "vibetop-idle.json"))
     monkeypatch.setattr(mgr, "RESOURCE_POLICY_FILE", str(h / "vibetop-resources.json"))
     monkeypatch.setattr(mgr, "HINTS_POLICY_FILE", str(h / "vibetop-hints.json"))
+    # Scheduled-terminal-message registry (normally root-owned in /var/lib/vibetop).
+    monkeypatch.setattr(mgr, "SCHEDULES_FILE", str(h / "vibetop-schedules.json"))
     (h / ".local" / "share").mkdir(parents=True, exist_ok=True)
     # Reset process-global mutable state so tests don't bleed into each other.
     if hasattr(mgr, "_cache"):

@@ -43,7 +43,8 @@ def test_start_surfaces_launch_failure(client, mgr, monkeypatch):
 def test_status_lists_running(client, mgr, monkeypatch):
     monkeypatch.setattr(mgr.Handler, "_get_running_terminals", lambda self: [1, 4])
     status, body = client.get("/api/terminals/status")
-    assert status == 200 and body == {"running": [1, 4]}
+    # Scheduled messages ride this same poll (see test_api_schedule.py).
+    assert status == 200 and body == {"running": [1, 4], "schedules": []}
 
 
 def test_tab_name_upsert_and_clear(client):

@@ -7,7 +7,9 @@ Runs as root so it can manage systemd units.
 Endpoints:
   POST /api/terminals/{n}/start   — start session + ttyd for instance N
   POST /api/terminals/{n}/stop    — stop ttyd + session for instance N
-  GET  /api/terminals/status      — {"running": [1, 3, 5, ...]}
+  GET  /api/terminals/status      — {"running": [1, 3, 5, ...], "schedules": [...]}
+  GET/POST /api/terminals/schedules — messages queued to be typed into a terminal
+  POST /api/terminals/schedules/cancel — drop one queued message
   GET  /api/system/status         — CPU, memory, uptime, terminal count
 """
 
@@ -1166,7 +1168,12 @@ def _reap_idle_users(now=None):
             last = _user_last_heartbeat(user)
             if last is None or (now - last) <= cutoff:
                 continue
-            _reap_user(user, policy["reapTerminals"])
+            # A pending scheduled message targets a specific terminal; reaping it
+            # would make the schedule fail with "terminal N is not running" at
+            # exactly the unattended moment the feature exists for. The other
+            # (expensive) services are still reclaimed.
+            reap_terms = policy["reapTerminals"] and not _user_has_pending_schedule(user)
+            _reap_user(user, reap_terms)
             reaped.append(user)
         except Exception as e:
             log.warning("reaper: failed to reap %s: %s", user, e)
@@ -2023,11 +2030,16 @@ def _sigterm_browser_chromium(user, profile):
             continue
 
 
-def _atomic_write(path, text):
+def _atomic_write(path, text, owner=None):
     """Write `text` to `path` atomically: a temp file in the same dir + os.replace.
     A crash or a concurrent reader then never sees a truncated/half-written file
     (a plain open('w')+write/json.dump can be observed mid-write — which for the
-    desktop registry would reset reset_epoch and drop every instance's state)."""
+    desktop registry would reset reset_epoch and drop every instance's state).
+
+    `owner` overrides who the result is chown'd to (default: the request user).
+    Pass owner="root" for a registry the manager ACTS ON as root — see
+    _write_schedules: a file the manager reads to decide whose PTY to write to
+    must not be writable by a tenant."""
     d = os.path.dirname(path)
     os.makedirs(d, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-", suffix=".swp")
@@ -2041,7 +2053,7 @@ def _atomic_write(path, text):
         except OSError:
             pass
         raise
-    _chown_app(path)            # written by root; keep it owned by APP_USER
+    _chown_app(path, owner)     # written by root; keep it owned by the state's user
 
 
 def _read_tab_names(user=None):
@@ -2274,6 +2286,229 @@ def _share_prune(reg, now=None):
         if exp and now >= exp:
             del reg[tok]
     return reg
+
+
+# ---- Scheduled terminal messages --------------------------------------------
+# "Type this into terminal N at 07:00" — the answer to a Claude Code session that
+# stopped at its 5h token limit overnight. A background sweeper injects the text
+# into the session's PTY, so it fires whether or not any browser tab is open (a
+# client-side setTimeout dies with the tab, the device sleeping, or a deploy
+# reload — i.e. exactly the unattended case this exists for).
+#
+# The injection channel already existed and needed nothing new: vibetop-session's
+# Unix socket is a raw bidirectional byte stream, and every byte a client sends is
+# written straight into the PTY master — indistinguishable from typing.
+SCHEDULES_FILE = os.environ.get("SCHEDULES_FILE") or "/var/lib/vibetop/schedules.json"
+SCHED_MAX_PER_USER = 20             # pending cap per user
+SCHED_MAX_HORIZON = 30 * 86400      # no scheduling further out than a month
+SCHED_MIN_LEAD = 20                 # must be at least a tick away
+SCHED_LATE_GRACE = 2 * 3600         # fire up to 2h late (manager restart), else "missed"
+SCHED_TICK = 15                     # sweeper period -> ±15s accuracy
+SCHED_TEXT_MAX = 2000
+SCHED_KEEP_DONE = 24 * 3600         # keep fired/failed entries this long (UI history)
+_schedules_lock = threading.Lock()
+
+
+def _var_lib_dir():
+    """Ensure /var/lib/vibetop exists as 0700 root:root and return it.
+
+    The directory holds registries the manager ACTS ON as root (schedules, port
+    slots, policies). os.makedirs leaves it 0755, which would let a tenant who
+    owns a file inside it rewrite that file — and schedules.json names both the
+    user and the text to inject, so a writable copy is code execution as another
+    user. Locking the directory closes that for every registry inside it at once.
+    Nothing but the (root) manager reads this path."""
+    d = os.path.dirname(SCHEDULES_FILE)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    try:
+        if os.geteuid() == 0:
+            os.chown(d, 0, 0)
+        os.chmod(d, 0o700)
+    except OSError:
+        pass
+    return d
+
+
+def _read_schedules():
+    """Load the schedule registry ({user: [entry, ...]}), tolerating a missing or
+    corrupt file. Malformed users/entries are dropped rather than raising — a bad
+    file must not wedge the sweeper thread forever."""
+    try:
+        with open(SCHEDULES_FILE) as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, OSError):
+        return {}
+    return {u: [e for e in lst if isinstance(e, dict) and "id" in e]
+            for u, lst in data.items()
+            if isinstance(u, str) and isinstance(lst, list)}
+
+
+def _write_schedules(reg):
+    """Persist the registry as root-owned 0600. NOT _atomic_write's default chown:
+    see _var_lib_dir — the sweeper trusts this file's `user` key to pick whose PTY
+    to write to, so it must not be tenant-writable."""
+    _var_lib_dir()
+    _atomic_write(SCHEDULES_FILE, json.dumps(reg), owner="root")
+    try:
+        os.chmod(SCHEDULES_FILE, 0o600)
+    except OSError:
+        pass
+
+
+def _prune_schedules(reg, now=None):
+    """Drop finished entries older than SCHED_KEEP_DONE and cap each user's list.
+    Mutates and returns the registry."""
+    now = time.time() if now is None else now
+    for user in list(reg.keys()):
+        kept = [e for e in reg[user]
+                if e.get("status") == "pending"
+                or (now - (e.get("fired") or e.get("at") or 0)) < SCHED_KEEP_DONE]
+        # Newest-first, then cap: pending entries are already capped at creation,
+        # so this only ever trims history.
+        kept.sort(key=lambda e: e.get("at") or 0, reverse=True)
+        if len(kept) > SCHED_MAX_PER_USER * 2:
+            pend = [e for e in kept if e.get("status") == "pending"]
+            done = [e for e in kept if e.get("status") != "pending"]
+            kept = pend + done[:SCHED_MAX_PER_USER]
+        if kept:
+            reg[user] = kept
+        else:
+            del reg[user]
+    return reg
+
+
+def _user_schedules(user):
+    """This user's entries, newest-first. Read-only convenience."""
+    lst = list(_read_schedules().get(user, []))
+    lst.sort(key=lambda e: e.get("at") or 0, reverse=True)
+    return lst
+
+
+def _user_has_pending_schedule(user):
+    return any(e.get("status") == "pending" for e in _read_schedules().get(user, []))
+
+
+def _valid_schedule_text(text):
+    """Single line, non-empty, bounded. Any C0 control is rejected: we append the
+    Enter ourselves, and allowing \\r/\\n would let one entry chain commands past
+    what the user reviewed in the form."""
+    if not isinstance(text, str):
+        return None
+    t = text.strip()
+    if not t or len(t) > SCHED_TEXT_MAX:
+        return None
+    if any(ord(c) < 0x20 or ord(c) == 0x7f for c in t):
+        return None
+    return t
+
+
+def _term_socket(user, n):
+    return f"/tmp/vibetop-session-{_term_instance(user, n)}.sock"
+
+
+def _inject_terminal(user, n, text):
+    """Type `text` + Enter into (user, N)'s PTY. Returns (ok, error).
+
+    Deliberately does NOT cold-start a stopped terminal: a fresh bash has none of
+    the session the message was written for, so "continue" would land as
+    `command not found`. A clear failure beats a confusing one.
+
+    Writes and closes without ever reading: on connect the daemon queues its whole
+    replay ring to us, and drops the client past MAX_OUTQ (1 MB). Sends \\r, not
+    \\n — the attach client clears ICRNL, so \\r is what a real Enter delivers."""
+    try:
+        running = _list_running_terminals(user)
+    except Exception:
+        running = []
+    sock_path = _term_socket(user, n)
+    if int(n) not in running or not os.path.exists(sock_path):
+        return False, f"terminal {int(n)} is not running"
+    s = None
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(5)
+        s.connect(sock_path)
+        s.sendall(text.encode("utf-8", "replace") + b"\r")
+        return True, None
+    except (OSError, socket.timeout) as e:
+        return False, f"could not reach terminal {int(n)}: {e}"
+    finally:
+        if s is not None:
+            try:
+                s.close()
+            except OSError:
+                pass
+
+
+def _due_schedules(reg, now=None):
+    """Pure: [(user, entry)] for every pending entry whose time has come."""
+    now = time.time() if now is None else now
+    due = []
+    for user, lst in reg.items():
+        for ent in lst:
+            if ent.get("status") == "pending" and (ent.get("at") or 0) <= now:
+                due.append((user, ent))
+    return due
+
+
+def _run_due_schedules(now=None):
+    """One sweeper pass: fire everything due, record the outcome. Returns the list
+    of entries acted on (for tests/logging).
+
+    The injection happens OUTSIDE the registry lock (a wedged session daemon would
+    otherwise block every /api/terminals/schedules request behind it), then the
+    statuses are applied in one locked read-modify-write keyed by entry id."""
+    now = time.time() if now is None else now
+    with _schedules_lock:
+        due = _due_schedules(_read_schedules(), now)
+    if not due:
+        return []
+    results = {}
+    for user, ent in due:
+        eid, n, text = ent.get("id"), ent.get("term"), ent.get("text") or ""
+        if now - (ent.get("at") or 0) > SCHED_LATE_GRACE:
+            # The host was down/asleep long past the point where firing would
+            # still be what the user meant.
+            results[eid] = ("missed", "missed by more than "
+                                      f"{SCHED_LATE_GRACE // 3600}h")
+            log.warning("schedule %s (%s term %s) missed", eid, user, n)
+            continue
+        try:
+            ok, err = _inject_terminal(user, n, text)
+        except Exception as e:                      # never let one bad entry kill the pass
+            ok, err = False, str(e)
+        results[eid] = ("sent", None) if ok else ("failed", err)
+        log.info("schedule %s fired: %s term %s -> %s", eid, user, n,
+                 "sent" if ok else "failed: %s" % err)
+    fired = []
+    with _schedules_lock:
+        reg = _read_schedules()
+        for user, lst in reg.items():
+            for ent in lst:
+                res = results.get(ent.get("id"))
+                if res and ent.get("status") == "pending":
+                    ent["status"], ent["error"] = res
+                    ent["fired"] = now
+                    fired.append(ent)
+        _prune_schedules(reg, now)
+        try:
+            _write_schedules(reg)
+        except OSError as e:
+            log.warning("schedule write failed: %s", e)
+    return fired
+
+
+def _schedule_loop():
+    """Background thread: fire due scheduled messages. Cheap while idle — one
+    small JSON read per tick, and nothing else until something is due."""
+    while True:
+        time.sleep(SCHED_TICK)
+        try:
+            _run_due_schedules()
+        except Exception as e:
+            log.warning("schedule loop error: %s", e)
 
 
 def _office_user_env(user):
@@ -3432,6 +3667,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_terminal(m)
         if self.path == "/api/terminals/names":
             return self._handle_tab_names_save()
+        if self.path == "/api/terminals/schedules":
+            return self._handle_schedule_create()
+        if self.path == "/api/terminals/schedules/cancel":
+            return self._handle_schedule_cancel()
         if self.path == "/api/browser/open":
             return self._handle_browser_open()
         if self.path == "/api/browser/type":
@@ -4991,6 +5230,111 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     else "terminals_stopped_total")
         self._json(200, {"ok": True, "action": action, "instance": n})
 
+    # ---- Scheduled terminal messages --------------------------------------
+    def _schedules_payload(self, user=None):
+        """This user's schedule entries, newest-first. Memoized on the same 2s TTL
+        as the running-terminal list, since both ride the /status poll."""
+        user = user or _ctx_user()
+        return _cached("schedules:" + user, 2.0, lambda: _user_schedules(user))
+
+    @staticmethod
+    def _drop_schedules_cache(user):
+        with _cache_lock:
+            _cache.pop("schedules:" + user, None)
+
+    def _handle_schedule_create(self):
+        """POST /api/terminals/schedules {term, text, at} — queue a message to be
+        typed into one of THIS user's terminals at an absolute time.
+
+        The owner is the authenticated user, never a body field: the sweeper runs
+        as root and writes into whichever user's PTY the entry names."""
+        raw = self._read_body(64 * 1024)
+        if raw is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(raw or b"{}")
+        except ValueError:
+            return self._json(400, {"error": "invalid json"})
+        if not isinstance(data, dict):
+            return self._json(400, {"error": "invalid json"})
+        try:
+            n = int(data.get("term"))
+        except (TypeError, ValueError):
+            return self._json(400, {"error": "term must be a number"})
+        if n < 1 or n > MAX_INSTANCE:
+            return self._json(400, {"error": f"term must be 1-{MAX_INSTANCE}"})
+        text = _valid_schedule_text(data.get("text"))
+        if text is None:
+            return self._json(400, {
+                "error": "text must be a single non-empty line "
+                         f"(max {SCHED_TEXT_MAX} chars, no line breaks)"})
+        try:
+            at = float(data.get("at"))
+        except (TypeError, ValueError):
+            return self._json(400, {"error": "at must be a unix timestamp"})
+        now = time.time()
+        if at < now + SCHED_MIN_LEAD:
+            return self._json(400, {"error": "that time has already passed"})
+        if at > now + SCHED_MAX_HORIZON:
+            return self._json(400, {
+                "error": f"can't schedule more than {SCHED_MAX_HORIZON // 86400} days out"})
+        user = _ctx_user()
+        ent = {"id": secrets.token_urlsafe(8), "term": n, "text": text,
+               "at": at, "created": now, "status": "pending",
+               "fired": None, "error": None}
+        with _schedules_lock:
+            reg = _read_schedules()
+            lst = reg.setdefault(user, [])
+            if sum(1 for e in lst if e.get("status") == "pending") >= SCHED_MAX_PER_USER:
+                return self._json(400, {
+                    "error": f"at most {SCHED_MAX_PER_USER} pending messages — "
+                             "cancel one first"})
+            lst.append(ent)
+            _prune_schedules(reg, now)
+            try:
+                _write_schedules(reg)
+            except OSError as e:
+                log.warning("schedule write failed: %s", e)
+                return self._json(500, {"error": "could not save the schedule"})
+        self._drop_schedules_cache(user)
+        log.info("schedule %s queued: %s term %d in %ds", ent["id"], user, n,
+                 int(at - now))
+        return self._json(200, {"ok": True, "id": ent["id"], "schedule": ent})
+
+    def _handle_schedule_cancel(self):
+        """POST /api/terminals/schedules/cancel {id} — drop one of this user's
+        entries. Scoped to the caller's own list, so an id alone reveals nothing
+        about (and can't touch) another user's schedules."""
+        raw = self._read_body(64 * 1024)
+        if raw is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            data = json.loads(raw or b"{}")
+        except ValueError:
+            return self._json(400, {"error": "invalid json"})
+        eid = (data or {}).get("id") if isinstance(data, dict) else None
+        if not isinstance(eid, str) or not eid:
+            return self._json(400, {"error": "id required"})
+        user = _ctx_user()
+        with _schedules_lock:
+            reg = _read_schedules()
+            lst = reg.get(user) or []
+            keep = [e for e in lst if e.get("id") != eid]
+            if len(keep) == len(lst):
+                return self._json(404, {"error": "no such scheduled message"})
+            if keep:
+                reg[user] = keep
+            else:
+                reg.pop(user, None)
+            try:
+                _write_schedules(reg)
+            except OSError as e:
+                log.warning("schedule write failed: %s", e)
+                return self._json(500, {"error": "could not save the schedule"})
+        self._drop_schedules_cache(user)
+        log.info("schedule %s cancelled by %s", eid, user)
+        return self._json(200, {"ok": True})
+
     # ---- Update (git pull + redeploy) -------------------------------------
     def _git_as_user(self, args, timeout=60):
         """Run a git command in REPO_DIR as APP_USER. See module-level _git()."""
@@ -5589,7 +5933,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/config/sessions":
             return self._handle_config_sessions_get()
         if self.path == "/api/terminals/status":
-            self._json(200, {"running": self._get_running_terminals()})
+            # Scheduled messages ride this poll (terminals.html already runs it
+            # every ~2.5s) rather than adding a second client loop — the same
+            # consolidate-onto-an-existing-poll rule the desktop heartbeat follows.
+            self._json(200, {"running": self._get_running_terminals(),
+                             "schedules": self._schedules_payload()})
+            return
+        if self.path == "/api/terminals/schedules":
+            self._json(200, {"schedules": self._schedules_payload()})
             return
         if self.path == "/api/terminals/names":
             self._json(200, {"names": _read_tab_names()})
@@ -6008,4 +6359,5 @@ if __name__ == "__main__":
     threading.Thread(target=_watchdog_loop, args=(port,), daemon=True).start()
     threading.Thread(target=_reaper_loop, daemon=True).start()  # idle reaper (opt-in)
     threading.Thread(target=_video_cache_sweep_loop, daemon=True).start()  # bound the video cache
+    threading.Thread(target=_schedule_loop, daemon=True).start()  # scheduled terminal messages
     server.serve_forever()

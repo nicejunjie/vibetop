@@ -21,7 +21,7 @@ Six sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.
 ## Deploy commands
 
 **Fresh host, one line** — `bootstrap.sh` is the curl-pipe installer: it checks
-the OS is Debian/Ubuntu, installs `git`, clones (or `git`-updates) the repo to
+the OS is supported (Debian/Ubuntu or RHEL-family), installs `git`, clones (or `git`-updates) the repo to
 `~/vibetop` (full clone so the in-app Updater works), then `exec`s `deploy.sh`.
 It is the only step `deploy.sh` can't do itself — getting the repo onto the box.
 Runs as a normal sudo user (it refuses root: the desktop runs as `APP_USER` and
@@ -50,7 +50,7 @@ sudo ./uninstall.sh                          # tear down the whole runtime (keep
 
 **Prod layout (multi-user hosts) — `/opt/vibetop/`.** A home-owned checkout (`~/vibetop`) is fine for a single trusted operator, but a multi-user host relocates the shared, root-run code out of every home into one root-owned tree so a tenant can't tamper with root-run code or another tenant's data: `/opt/vibetop/{app,vibetop-www,etc,var}` (app = git checkout the manager runs from + in-app Update pulls; **`vibetop-www` = nginx root**; etc = secrets; var = shared DB/logs), owned by a no-login `vibetop` account, prod git remote **HTTPS** (public repo → keyless self-update). **The web root is `vibetop-www`, NOT `www`** — the installers default to `$APP_HOME/vibetop-www` and an in-app Update doesn't pass `LANDING_DIR`/`DST_DIR`, so it re-renders the nginx root to `vibetop-www` and deploys there; anything written to a `www/` would be silently orphaned (this is how `xpra-patches.js` 404'd after the `/opt` move). A stale `/opt/vibetop/www/` may still exist on migrated hosts — it is not served. Confirm with `grep root /etc/nginx/sites-available/vibetop`. Migrate an existing home install with `sudo tools/migrate-to-opt.sh` (idempotent; `--rollback` points prod back at the home checkout; it creates the service account, copies secrets preserving values, writes `/etc/vibetop/manager.env` with `VIBETOP_ADMINS=`, re-renders units+nginx). **Dev/prod split on `z20`:** the home checkout is edit/commit/push only — it is NOT what runs; ship via commit+push then the in-app Update (or re-run `migrate-to-opt.sh`). See `docs/multi-user.md` §"Filesystem layout".
 
-It is fully self-installing on a Debian/Ubuntu host (incl. Docker) — no manual
+It is fully self-installing on any supported host (incl. the container runtime) — no manual
 prerequisites. Or run the per-project installers by hand (the order `deploy.sh`
 uses). Each is idempotent, supports `--dry-run`, env-var configurable (see script
 headers), and **only reloads nginx when its config actually changed** (a re-run
@@ -71,7 +71,13 @@ apt repo, suite derived from the OS codename) + `chromium` (snap) + `libreoffice
 (apt), the `filebrowser` release binary (pinned `FB_VERSION`, arch-aware), and
 **Docker** (`docker.io`) running `onlyoffice/documentserver` (~2 GB pull, loopback
 `:8087`, generated JWT secret at `~/.config/vibetop/onlyoffice.secret`). Scoped to
-Debian/Ubuntu. Validated on AMD+NVIDIA and AMD+AMD hosts (GPU stats use
+**Supported distros** (every one proven green by the full-stack matrix,
+`tests/matrix/run.sh --all -j3`, 14 checks per row incl. a live shell, a live
+Chromium process, OnlyOffice and a real PAM login): **Ubuntu 22.04/24.04,
+Debian 12, Rocky 9, AlmaLinux 9, Fedora 43**. Package names, the nginx layout
+(`sites-available` vs `conf.d`), the PAM stack (`common-auth` vs `system-auth`),
+SELinux and the container runtime (docker vs podman) all differ by family and are
+resolved in one place — `tools/lib/osdeps.sh`. Validated on AMD+NVIDIA and AMD+AMD hosts (GPU stats use
 sysfs/amdgpu with an `nvidia-smi` fallback).
 
 ## Tests
@@ -316,6 +322,7 @@ One nginx site at `/etc/nginx/sites-available/vibetop` (`listen 80 default_serve
 Services:
 - `vibetop-manager.service` — threaded Python HTTP server on `127.0.0.1:7680` (runs as root; `ThreadingHTTPServer` so a slow request — a multi-GB upload, health probes — can't block the status polls). Manages terminal lifecycle and provides system status. Endpoints:
   - Terminal: `POST /api/terminals/{n}/start|stop`, `GET /api/terminals/status`
+  - Scheduled terminal messages (see the Scheduled messages section): `GET/POST /api/terminals/schedules`, `POST /api/terminals/schedules/cancel`
   - System: `GET /api/system/status` (CPU + per-core, MEM, GPU, VRAM, load_avg, etc.), `GET /api/health`
   - Services: `GET /api/services/discover` — auto-discovered network services from listening non-loopback sockets (`ss -tlnp` + `/proc` cmdline naming, via the `service_discovery` sibling module; powers the Services dashboard)
   - Browser: `POST /api/browser/open` (validated URL → remote Chromium via the xpra display)
@@ -409,6 +416,14 @@ FileBrowser's icon-only toolbar buttons are enhanced with text labels and an "Op
 - **Location memory (self-healing)** — the patch remembers the last folder (`localStorage` `vibetop:files:lastpath`) and `location.replace`s back to it on open, since the shell always (re)loads Files at `/files/`. A `sessionStorage` attempt-marker guards against loops. **Crucially**, if the patch finds itself back at root with the marker still pointing at the saved path (the restore never settled — a stale/slow/bad folder that hangs the listing), it **purges** the saved path rather than just blocking a retry. Without this, a bad saved path hung the app on first open of every fresh session ("keeps loading the first time; OK if I close and reopen") and stayed in `localStorage` forever.
 - **No login flash** — FileBrowser runs `--auth.method=noauth`, but its SPA still briefly mounts the login view (`#login`) while auto-authenticating. The hide rule lives BOTH in the patches' injected CSS AND — critically — as an inline `<style>` injected into `<head>` by the nginx `sub_filter` (a `</head>` rule in `files/nginx/filebrowser.conf`), because the end-of-`<body>` patches.js applies too late (the SPA has already painted `#login`). `display:none` doesn't stop the Vue component mounting, so the auto-login it triggers still runs.
 - **Mobile (≤736px)** — a deliberately-iterated layout (v1.16.31–44; see `docs/design-decisions.md` §"Mobile Files app" for the dead ends, and `memory` [[files-mobile-layout]]). Top to bottom: **(1) toolbar** = FileBrowser's `<header>` rendered as an in-flow **`position: sticky` CSS grid** (`repeat(8,1fr)`, `#dropdown{display:contents}` folds its native Upload/Info/Select into the grid) — every action a uniform icon-over-label cell, **all buttons always visible** (selection-dependent ones greyed, not hidden). Sticky+in-flow so content always clears it (the old `position:fixed` + `flex-wrap:wrap` *buried* the content below; a single-row `overflow-x:auto` hid buttons — both rejected). Icon/label size rules must include the `#dropdown .action` selector or the natives size differently (id specificity). **(2) our own clickable breadcrumb** `#fb-crumbs` (`buildCrumbs`) — FileBrowser's native breadcrumb is `display:none` on mobile (moving its Vue node to reposition it made Vue destroy it); we build tappable segments from `currentFullPath()`, **one line** with a middle `…` collapse (`_fitCrumbs` measures `scrollWidth`, keeps Home + current, `…` links to the deepest hidden folder; re-fits on rotation). **(3) address bar** `#fb-addrbar` — one row `[←][→][ editable path ][Copy]`, buttons `flex:0 0 auto` + input `flex:1 1 0` so a long path can't shove the buttons off-screen; input scrolled to its tail (`revealPathTail`). A **permission-denied folder keeps the nav**: `isListingView()` treats the error `.message` (icon `error`) like an empty folder, so the address bar's **← Back** is your way out (stripping it stranded you). FileBrowser's stock bottom `#file-selection` bar and the long-press `.context-menu` are hidden (every action lives in the toolbar). Desktop (>736px) keeps the plain labeled toolbar + FileBrowser's own breadcrumb. nginx sub_filter loads `filebrowser-patches.js` with a content-hash `?v=` cache-buster (auto-derived by the installer, no manual bump).
+
+### Scheduled terminal messages (⏱ on the Terminal tab bar)
+
+Queue text to be **typed into a terminal and submitted at a given time** — the answer to a Claude Code session that stops at its 5h token limit overnight. A `⏱` button sits at the right of the Terminal tab bar (outside the scrolling `.tabs` strip, so a long tab list scrolls *under* it — the same `flex:1 1 auto` + fixed-sibling split as the desktop taskbar), badged with the **active terminal's** pending count; it opens a panel listing this user's entries (the active terminal's first, others tagged with their tab name) plus a form: message, `datetime-local`, and `+30m / +1h / +5h` quick-fill. The client sends an **epoch** (`at`), so the server does no timezone parsing.
+
+**The timer is server-side** — a client `setTimeout` dies with the tab, the device sleeping, or the deploy reload, i.e. exactly the unattended case. A sweeper thread (`_schedule_loop`, `SCHED_TICK` 15s, started next to `_reaper_loop`) fires due entries via **`_inject_terminal`**, which needs no new mechanism: `vibetop-session`'s Unix socket is a raw byte stream whose every received byte is written into the PTY master, so it connects to `/tmp/vibetop-session-<user>-<N>.sock`, `sendall(text + b"\r")` (**`\r`** — the attach client clears `ICRNL`) and closes **without reading** (the daemon queues its whole replay ring on connect and drops a client past `MAX_OUTQ`). It **refuses a stopped terminal** rather than cold-starting one: a fresh bash has none of the session the message was for. A late entry still fires for up to `SCHED_LATE_GRACE` (2h) so a manager restart doesn't drop it; past that it's marked `missed`. The idle reaper skips reaping a user's **terminals** while they hold a pending schedule.
+
+State is one **root-owned `0600`** registry at `/var/lib/vibetop/schedules.json` (`{user:[{id,term,text,at,status,fired,error}]}`), guarded by `_schedules_lock`; `_var_lib_dir()` also forces that directory to `0700 root:root`. **This ownership is load-bearing, not tidiness:** the sweeper is root and writes into whichever user's PTY an entry names, so a tenant-writable registry would be code execution as another user — hence `_write_schedules` passes `owner="root"` to `_atomic_write` (whose default chowns to the *request* user, right for per-user home state, wrong here), and the owner always comes from the session, never a body field. Validation: `term` 1..`MAX_INSTANCE`, text a single non-empty line ≤2000 chars (**any C0 control rejected** — we append the Enter, and `\r`/`\n` would let one entry chain commands), `at` between +20s and +30d, ≤20 pending per user. The list **rides the existing 2.5s `/api/terminals/status` poll** (folded in as `schedules`) rather than adding a second client loop. Tested in `terminal/tests/test_api_schedule.py` (incl. a real AF_UNIX socket asserting the exact `b"continue\r"` bytes); rationale + rejected alternatives in `docs/design-decisions.md`.
 
 ### Notes
 

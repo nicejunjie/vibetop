@@ -9,16 +9,23 @@
   html, body { height: 100%; overflow: hidden; }
   body { display: flex; flex-direction: column; background: #1a1a2e; font-family: system-ui, sans-serif; }
 
-  .tabs {
-    display: flex; gap: 2px; padding: 4px 8px 0;
-    background: #1a1a2e; flex-shrink: 0;
-    align-items: flex-end;
+  /* The bar row: scrolling tab strip + fixed-width controls beside it. The
+     controls live OUTSIDE .tabs so a long tab list scrolls under them instead of
+     shoving them off-screen (same split as the desktop taskbar's .task-apps). */
+  .tabbar {
+    display: flex; align-items: flex-end; gap: 6px;
+    padding: 4px 8px 0; background: #1a1a2e; flex-shrink: 0;
     /* The terminal iframe below is position:absolute (a positioned element),
        which paints ABOVE this static-positioned bar and was capturing clicks on
        the bottom edge of the tabs (so only the upper part of a tab responded).
        Make the bar positioned with a higher stacking order so the whole tab is
        always clickable. */
     position: relative; z-index: 2;
+  }
+  .tabs {
+    display: flex; gap: 2px;
+    align-items: flex-end;
+    flex: 1 1 auto; min-width: 0;
     /* Scroll horizontally when the tabs overflow the screen (mobile especially)
        instead of running off-screen unreachably. */
     overflow-x: auto; overflow-y: hidden;
@@ -61,6 +68,83 @@
   }
   .tab-add:hover { color: #aaa; border-color: #4a4a6a; }
 
+  /* ---- Scheduled messages (⏱) ------------------------------------------- */
+  .sched-btn {
+    position: relative; flex-shrink: 0; align-self: stretch;
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 10px; margin-bottom: 1px; cursor: pointer; user-select: none;
+    font-size: 15px; line-height: 1; color: #7a8a7f; background: transparent;
+    border: 1px solid transparent; border-radius: 6px;
+  }
+  .sched-btn:hover { color: #cfe; background: #24243e; }
+  .sched-btn.open { color: #fff; background: #2a4a35; border-color: #3a6a48; }
+  .sched-btn .badge {
+    min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: #10240f; background: #4ec36a;
+  }
+  .sched-btn .badge[hidden] { display: none; }
+
+  .sched-panel {
+    position: fixed; right: 8px; z-index: 20;
+    width: 340px; max-width: calc(100vw - 16px);
+    /* Column layout with only the LIST scrolling, so the form (and the Schedule
+       button) is never pushed below the fold on a short viewport. */
+    display: flex; flex-direction: column; max-height: calc(100vh - 60px);
+    padding: 12px; border-radius: 8px;
+    color: #dfe7e0; background: #21213a;
+    border: 1px solid #3a3a5a; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    font-size: 13px;
+  }
+  .sched-panel[hidden] { display: none; }
+  .sched-panel h3 { flex-shrink: 0; font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 2px; }
+  .sched-panel .hint { flex-shrink: 0; color: #8b93a6; font-size: 11.5px; line-height: 1.45; margin-bottom: 10px; }
+  .sched-panel > input, .sp-quick, .sp-actions { flex-shrink: 0; }
+  .sp-list { list-style: none; margin-bottom: 10px; flex: 0 1 auto; overflow-y: auto; }
+  .sp-list:empty { display: none; }
+  .sp-list li {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 6px 0; border-top: 1px solid #32324e;
+  }
+  .sp-list li .when { flex-shrink: 0; color: #9fd3ae; font-variant-numeric: tabular-nums; }
+  .sp-list li.done .when, .sp-list li.bad .when { color: #6f7a86; }
+  .sp-list li.bad .when { color: #d98080; }
+  .sp-list li .what {
+    flex: 1 1 auto; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sp-list li .what .tag {
+    display: inline-block; margin-right: 5px; padding: 0 4px; border-radius: 3px;
+    font-size: 10.5px; color: #cbd6cd; background: #33334f;
+  }
+  .sp-list li .note { display: block; font-size: 11px; color: #8b93a6; }
+  .sp-list li.done .what, .sp-list li.bad .what { color: #8b93a6; }
+  .sp-list li .x {
+    flex-shrink: 0; cursor: pointer; padding: 0 4px; border-radius: 3px;
+    color: #6f7a86; font-size: 14px; line-height: 1;
+  }
+  .sp-list li .x:hover { color: #fff; background: #b04040; }
+  .sched-panel input[type=text], .sched-panel input[type=datetime-local] {
+    width: 100%; padding: 7px 8px; margin-bottom: 6px;
+    font: inherit; font-size: 13px; color: #eee;
+    background: #17172c; border: 1px solid #3a3a5a; border-radius: 5px;
+  }
+  .sched-panel input:focus { outline: none; border-color: #4ec36a; }
+  .sp-quick { display: flex; gap: 6px; margin-bottom: 8px; }
+  .sp-quick button, .sp-go {
+    font: inherit; font-size: 12px; cursor: pointer; border-radius: 5px;
+    padding: 5px 9px; color: #cfe; background: #2c2c4a; border: 1px solid #3f3f63;
+  }
+  .sp-quick button:hover { background: #3a3a5e; }
+  .sp-go {
+    font-size: 13px; padding: 6px 14px; font-weight: 600;
+    color: #10240f; background: #4ec36a; border-color: #4ec36a;
+  }
+  .sp-go:hover { background: #5ed67a; }
+  .sp-actions { display: flex; align-items: center; gap: 8px; }
+  .sp-err { flex: 1 1 auto; min-width: 0; color: #ff9b9b; font-size: 11.5px; }
+  .sp-err.ok { color: #9fd3ae; }
+
   .frames { flex: 1; position: relative; }
   .frames iframe {
     position: absolute; inset: 0; width: 100%; height: 100%;
@@ -71,7 +155,30 @@
 </style>
 </head>
 <body>
-  <div class="tabs" id="tabs"><div class="tab-add" id="add-btn">+</div></div>
+  <div class="tabbar">
+    <div class="tabs" id="tabs"><div class="tab-add" id="add-btn">+</div></div>
+    <div class="sched-btn" id="sched-btn" title="Scheduled messages" role="button"
+         tabindex="0" aria-label="Scheduled messages">⏱<span class="badge" id="sched-badge" hidden></span></div>
+  </div>
+  <!-- Anchored under the ⏱ button in JS. Outside .tabs on purpose: that strip is
+       overflow-x:auto, which would clip an absolutely-positioned child. -->
+  <div class="sched-panel" id="sched-panel" hidden>
+    <h3>Scheduled for <span id="sp-term">this terminal</span></h3>
+    <div class="hint">Typed into the terminal and submitted at the time you pick —
+      whether or not this page is open. Handy when a session stops at its token limit.</div>
+    <ul class="sp-list" id="sp-list"></ul>
+    <input type="text" id="sp-text" maxlength="2000" placeholder="Message to send, e.g. continue">
+    <input type="datetime-local" id="sp-at">
+    <div class="sp-quick">
+      <button type="button" data-min="30">+30m</button>
+      <button type="button" data-min="60">+1h</button>
+      <button type="button" data-min="300">+5h</button>
+    </div>
+    <div class="sp-actions">
+      <span class="sp-err" id="sp-err"></span>
+      <button type="button" class="sp-go" id="sp-go">Schedule</button>
+    </div>
+  </div>
   <div class="frames" id="frames"></div>
 <!-- Pure tab-set reconciliation (unit-tested in terminal/lib/tab-sync.test.js).
      Content-hash ?v= is sed'd in by terminal/install.sh, like terminal-kbd.js. -->
@@ -291,8 +398,171 @@
   }
   function syncStatus() {
     if (!inited) return;
-    api('GET', '/status').then(function(d) { reconcileTabs(d.running || []); }).catch(function() {});
+    api('GET', '/status').then(function(d) {
+      reconcileTabs(d.running || []);
+      setSchedules(d.schedules);      // rides this poll — no second loop
+    }).catch(function() {});
   }
+
+  // ---- Scheduled messages (⏱) ---------------------------------------------
+  // Queue text to be typed into a terminal at a given time. The timer lives on
+  // the server (a client setTimeout would die with this tab), so this UI is only
+  // a view: it posts an entry and renders whatever the status poll reports back.
+  var schedBtn = document.getElementById('sched-btn');
+  var schedBadge = document.getElementById('sched-badge');
+  var schedPanel = document.getElementById('sched-panel');
+  var spList = document.getElementById('sp-list');
+  var spText = document.getElementById('sp-text');
+  var spAt = document.getElementById('sp-at');
+  var spErr = document.getElementById('sp-err');
+  var schedules = [];
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function pad2(x) { return (x < 10 ? '0' : '') + x; }
+  function toLocalInput(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+           'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function fmtClock(at) {
+    var d = new Date(at * 1000);
+    var hm = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    var today = new Date();
+    if (d.toDateString() === today.toDateString()) return hm;
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hm;
+  }
+  function fmtIn(at) {
+    var s = Math.round(at - Date.now() / 1000);
+    if (s <= 0) return 'any moment';
+    // Whole minutes FIRST, then split — rounding the remainder separately can
+    // land on 60 and print "in 8h 60m". Ceil, not round: the picker's minute
+    // granularity means "+5h" lands ~59s short, and "in 4h 59m" right after
+    // tapping +5h reads like an off-by-one.
+    var m = Math.ceil(s / 60);
+    if (m < 60) return 'in ' + m + 'm';
+    var h = Math.floor(m / 60); m = m % 60;
+    if (h < 24) return 'in ' + h + 'h' + (m ? ' ' + m + 'm' : '');
+    return 'in ' + Math.round(h / 24) + 'd';
+  }
+
+  function setSchedules(list) {
+    if (!Array.isArray(list)) return;
+    schedules = list;
+    renderSchedules();
+  }
+  function pendingFor(n) {
+    return schedules.filter(function (e) {
+      return e.status === 'pending' && +e.term === +n;
+    }).length;
+  }
+  function renderSchedules() {
+    var count = active ? pendingFor(active) : 0;
+    schedBadge.textContent = count;
+    schedBadge.hidden = !count;
+    if (schedPanel.hidden) return;
+    document.getElementById('sp-term').textContent = tabLabel(active);
+    // This terminal's entries first, then the rest (tagged) — so a message queued
+    // on a terminal you've since switched away from is still visible/cancellable.
+    var mine = [], others = [];
+    schedules.forEach(function (e) {
+      (+e.term === +active ? mine : others).push(e);
+    });
+    var rows = mine.concat(others).slice(0, 40).map(function (e) {
+      var cls = e.status === 'pending' ? '' : (e.status === 'sent' ? 'done' : 'bad');
+      var when = e.status === 'pending'
+        ? fmtClock(e.at) + ' · ' + fmtIn(e.at)
+        : fmtClock(e.at);
+      var note = '';
+      if (e.status === 'sent') note = 'sent';
+      else if (e.status === 'missed') note = 'missed — the host was down';
+      else if (e.status === 'failed') note = e.error || 'failed';
+      var tag = (+e.term === +active) ? '' :
+                '<span class="tag">' + esc(tabLabel(+e.term)) + '</span>';
+      return '<li class="' + cls + '" data-id="' + esc(e.id) + '">' +
+               '<span class="when">' + esc(when) + '</span>' +
+               '<span class="what">' + tag + esc(e.text) +
+                 (note ? '<span class="note">' + esc(note) + '</span>' : '') +
+               '</span>' +
+               '<span class="x" title="Cancel">×</span>' +
+             '</li>';
+    });
+    spList.innerHTML = rows.join('');
+  }
+
+  function openSched() {
+    if (!active) return;
+    schedPanel.hidden = false;
+    schedBtn.classList.add('open');
+    // Anchor under the bar. Fixed positioning + a measured top keeps it correct
+    // regardless of the tab strip's height or horizontal scroll.
+    var bar = schedBtn.getBoundingClientRect();
+    schedPanel.style.top = Math.round(bar.bottom + 4) + 'px';
+    spErr.textContent = '';
+    if (!spAt.value) spAt.value = toLocalInput(new Date(Date.now() + 3600e3));
+    renderSchedules();
+    if (!isTouch) setTimeout(function () { spText.focus(); }, 20);
+  }
+  function closeSched() {
+    schedPanel.hidden = true;
+    schedBtn.classList.remove('open');
+  }
+  function toggleSched() { schedPanel.hidden ? openSched() : closeSched(); }
+
+  function refreshSchedules() {
+    return api('GET', '/schedules')
+      .then(function (d) { setSchedules(d.schedules); })
+      .catch(function () {});
+  }
+
+  function submitSchedule() {
+    var text = spText.value.trim();
+    if (!text) { spErr.className = 'sp-err'; spErr.textContent = 'Type a message first.'; return; }
+    if (!spAt.value) { spErr.className = 'sp-err'; spErr.textContent = 'Pick a time.'; return; }
+    var at = new Date(spAt.value).getTime() / 1000;
+    if (!isFinite(at)) { spErr.className = 'sp-err'; spErr.textContent = 'That time is not valid.'; return; }
+    spErr.className = 'sp-err'; spErr.textContent = '';
+    api('POST', '/schedules', { term: active, text: text, at: at }).then(function (d) {
+      if (d && d.error) { spErr.textContent = d.error; return; }
+      spText.value = '';
+      spErr.className = 'sp-err ok';
+      spErr.textContent = 'Scheduled ' + fmtIn(at) + '.';
+      refreshSchedules();
+    }).catch(function () { spErr.textContent = 'Could not reach the server.'; });
+  }
+
+  schedBtn.addEventListener('click', toggleSched);
+  schedBtn.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSched(); }
+  });
+  document.getElementById('sp-go').addEventListener('click', submitSchedule);
+  spText.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); submitSchedule(); }
+  });
+  schedPanel.querySelector('.sp-quick').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-min]');
+    if (!b) return;
+    spAt.value = toLocalInput(new Date(Date.now() + (+b.dataset.min) * 60000));
+  });
+  spList.addEventListener('click', function (e) {
+    var li = e.target.closest('li[data-id]');
+    if (!li || !e.target.closest('.x')) return;
+    api('POST', '/schedules/cancel', { id: li.dataset.id })
+      .then(refreshSchedules).catch(function () {});
+  });
+  // Close on outside click / Escape, like the desktop's Start menu.
+  document.addEventListener('pointerdown', function (e) {
+    if (schedPanel.hidden) return;
+    if (schedPanel.contains(e.target) || schedBtn.contains(e.target)) return;
+    closeSched();
+  }, true);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !schedPanel.hidden) closeSched();
+  });
+  // Relative times ("in 4h") go stale while the panel sits open.
+  setInterval(function () { if (!schedPanel.hidden) renderSchedules(); }, 30000);
 
   function activate(n) {
     active = n;
@@ -308,6 +578,7 @@
     }
     try { localStorage.setItem('active-terminal', n); } catch (e) {}
     document.title = tabLabel(n) + ' — Vibetop';
+    renderSchedules();          // badge + panel are scoped to the active terminal
     focusTerminal(n);
   }
 
@@ -532,6 +803,7 @@
   api('GET', '/status').then(function(data) {
     var running = data.running || [];
     lastRunning = running;
+    setSchedules(data.schedules);
     if (running.length === 0) {
       // Start terminal 1 if nothing is running
       pending[1] = true;
