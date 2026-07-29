@@ -215,11 +215,25 @@ if (( ! DRY )); then
 fi
 
 if (( ! DRY )); then
-    step "health check (loopback http codes)"
-    for p in / /t1/ /terminals/ /files/ /browser/ /onlyoffice/healthcheck /api/system/status; do
-        printf "  %-24s " "$p"
-        curl -s -o /dev/null -w "%{http_code}\n" --max-time 5 --retry 6 --retry-delay 2 --retry-all-errors "http://127.0.0.1$p" || echo "ERR"
+    step "health check"
+    # Wait for the manager we just restarted BEFORE probing. Every protected
+    # location goes through auth_request -> the manager, so probing during its
+    # restart made all seven paths print ERR on a perfectly healthy deploy —
+    # a false alarm on every single run.
+    for _ in $(seq 1 30); do
+        curl -sf -o /dev/null --max-time 2 http://127.0.0.1/api/ping && break
+        sleep 1
     done
+    # Prefer the real gate: smoke-test authenticates, so it reports the actual
+    # state instead of the 302s an unauthenticated probe gets on a gated host.
+    if [ -x "$REPO_DIR/tools/smoke-test.sh" ]; then
+        "$REPO_DIR/tools/smoke-test.sh" || echo "  (see failures above)"
+    else
+        for p in /api/ping / /t1/ /files/; do
+            printf "  %-24s " "$p"
+            curl -s -o /dev/null -w "%{http_code}\n" --max-time 5 "http://127.0.0.1$p" || echo "ERR"
+        done
+    fi
 fi
 echo
 echo "Vibetop deployed. Open http://<this-host>/ on your LAN."
