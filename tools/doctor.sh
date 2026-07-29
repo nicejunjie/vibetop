@@ -402,8 +402,14 @@ if [ -f /etc/nginx/snippets/vibetop-extras.d/onlyoffice.conf ]; then
 fi
 
 # The manager runs in-place from a FULL git clone (so the in-app Updater works).
-if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$ROOT" remote get-url origin >/dev/null 2>&1 && ok "repo is a full git clone with an 'origin' remote (in-app Update works)" \
+# `-c safe.directory` is required, not cosmetic: on a prod host the checkout is
+# owned by the service account while doctor runs as root, so git refuses it with
+# "detected dubious ownership" — which read as "not a git checkout" and warned on
+# a host whose in-app Update works fine. Same rule as everywhere else here:
+# "I can't look" must not be reported as "it isn't there".
+vt_git() { git -c safe.directory="$ROOT" -C "$ROOT" "$@"; }
+if vt_git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    vt_git remote get-url origin >/dev/null 2>&1 && ok "repo is a full git clone with an 'origin' remote (in-app Update works)" \
         || adv "repo has no 'origin' remote — the in-app Update can't fetch (was this a tarball, not a clone?)"
 else adv "$ROOT is not a git checkout — the in-app Update needs a full clone"; fi
 
