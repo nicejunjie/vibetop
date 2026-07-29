@@ -106,6 +106,32 @@ divergence this entry is about — so
 two together (allowing the two deliberate differences: `services.json` is a real
 file in the web root, and `/s/` share links never reach the service worker).
 
+**Postscript: the detector had the same disease.** With both sections added,
+`doctor.sh` printed **5 FAILs on a healthy `/opt` host** — four for the shared
+`vibetop-{browser-xpra,x11-xpra,x11-dbus,filebrowser}` units being "inactive"
+(they are the LEGACY single-user services; a multi-user host runs one transient
+unit per user, so inactive is *correct* — `smoke-test.sh` had known this for a
+while and reported SKIP), and one for the OnlyOffice JWT secret being "missing"
+at `$APP_HOME/.config/vibetop/onlyoffice.secret` — which doctor resolved
+**independently** while the authority, `ONLYOFFICE_SECRET_FILE` in
+`/etc/vibetop/manager.env`, points at `/opt/vibetop/etc/`. The tool built to
+catch two-resolver drift contained an instance of it.
+
+Fixed by giving doctor a `MULTIUSER` flag (read from the deployed site's
+`auth_request /internal/authcheck` — doctor is offline, so it reads config where
+smoke-test probes HTTP), a `shared_unit` helper mirroring smoke-test's, and a
+single `vt_env_get` accessor for the manager env file. Also: a `0700` secret
+directory now reports SKIP for a non-root run rather than "missing" — **"I can't
+look" must never be reported as "it isn't there"**, the same rule that makes
+`smoke-test.sh` exit 2 = INCONCLUSIVE instead of 0. Verified in both directions:
+a simulated single-user site still FAILs on those inactive units, so the checks
+kept their teeth.
+
+The rule this leaves behind: **a check that is red on a healthy host is worse
+than no check**, because it trains everyone to ignore the output — the same reason
+the proxy journal scan is scoped to the current run of the unit rather than a flat
+24h window.
+
 **Rejected:**
 - **Making the usage strip raise a red system-health banner when data is stale.**
   Staleness is ambiguous: it also means "you simply haven't used Claude in 16h",

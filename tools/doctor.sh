@@ -39,6 +39,31 @@ head_() { printf '\n%s── %s%s\n' "$(c b)" "$1" "$(c 0)"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 unit_exists() { [ -f "/etc/systemd/system/$1" ]; }
 
+# The nginx site (both distro layouts) — used by the Services and Web-root checks.
+SITE="${VT_SITE_FILE:-/etc/nginx/sites-available/vibetop}"      # overridable = testable
+[ -f "$SITE" ] || SITE=/etc/nginx/conf.d/vibetop.conf           # RHEL-family layout
+
+# Is this a MULTI-USER host? Decided from the deployed nginx config: the
+# multi-user build gates every surface with `auth_request /internal/authcheck`.
+# It matters because the shared vibetop-{browser-xpra,x11-xpra,x11-dbus,
+# filebrowser} units are the LEGACY single-user services — a multi-user host runs
+# one transient unit PER USER instead, so those being inactive is CORRECT there.
+# Reporting them as failures made doctor print 5 FAILs on a perfectly healthy
+# host, and a diagnostic that cries wolf is one people stop reading.
+# (tools/smoke-test.sh draws the same distinction from an unauthenticated GET /;
+# doctor is offline/read-only, so it reads the config instead.)
+MULTIUSER=0
+[ -f "$SITE" ] && grep -q 'auth_request */internal/authcheck' "$SITE" 2>/dev/null && MULTIUSER=1
+
+# Config authority for the system tree (secret paths + the admin list). Anything
+# that resolves one of these independently drifts — see docs/design-decisions.md
+# §"a config value with two resolvers".
+VT_ENV="${VT_ENV_FILE:-/etc/vibetop/manager.env}"
+vt_env_get() {  # vt_env_get KEY -> value from the manager env file, else empty
+    [ -r "$VT_ENV" ] || return 0
+    sed -n "s/^[[:space:]]*$1=//p" "$VT_ENV" | head -1
+}
+
 printf '%svibetop doctor%s — user=%s home=%s %s\n' "$(c b)" "$(c 0)" "$APP_USER" "$APP_HOME" \
     "$( [ "$IS_ROOT" = 1 ] && echo '(root)' || echo '(non-root — some checks skipped; run with sudo for all)')"
 
@@ -56,11 +81,36 @@ have cloudflared && ok "cloudflared present (tunnel)" || info "cloudflared not f
 
 # ---------------------------------------------------------------------------
 head_ "Services"
-for u in vibetop-manager vibetop-browser-xpra vibetop-x11-xpra vibetop-x11-dbus vibetop-filebrowser; do
-    if ! unit_exists "$u.service"; then adv "$u.service not installed"; continue; fi
+[ "$MULTIUSER" = 1 ] && info "multi-user host — shared xpra/FileBrowser units are legacy; per-user transient units replace them"
+
+# The manager is the one service that must be up on every layout.
+if ! unit_exists vibetop-manager.service; then adv "vibetop-manager.service not installed"
+else
+    state="$(systemctl is-active vibetop-manager.service 2>/dev/null || true)"
+    [ "$state" = active ] && ok "vibetop-manager active" \
+        || bad "vibetop-manager is '$state' — 'systemctl status vibetop-manager' / 'journalctl -u vibetop-manager'"
+fi
+
+# shared_unit <unit> <per-user-glob> <label> — see the MULTIUSER note above.
+# Mirrors tools/smoke-test.sh's shared_unit: active => PASS; inactive on a
+# multi-user host => SKIP (with the per-user count, so "nothing running" is still
+# visible); inactive on a single-user host => FAIL, which is the real defect.
+shared_unit() {
+    local u="$1" glob="$2" label="$3" state n
+    if ! unit_exists "$u.service"; then adv "$u.service not installed"; return; fi
     state="$(systemctl is-active "$u.service" 2>/dev/null || true)"
-    if [ "$state" = active ]; then ok "$u active"; else bad "$u is '$state' — 'systemctl status $u' / 'journalctl -u $u'"; fi
-done
+    if [ "$state" = active ]; then ok "$u active"; return; fi
+    if [ "$MULTIUSER" = 1 ]; then
+        n="$(systemctl list-units --type=service --state=running --no-legend "$glob" 2>/dev/null | wc -l)"
+        skip "$u inactive — multi-user host uses per-user $label ($n running)"
+    else
+        bad "$u is '$state' — 'systemctl status $u' / 'journalctl -u $u'"
+    fi
+}
+shared_unit vibetop-browser-xpra 'vibetop-ubrowser-*'  "Browser xpra"
+shared_unit vibetop-x11-xpra     'vibetop-ux11-*'      "X11 xpra"
+shared_unit vibetop-x11-dbus     'vibetop-ux11dbus-*'  "X11 D-Bus"
+shared_unit vibetop-filebrowser  'vibetop-ufiles-*'    "FileBrowser"
 if unit_exists vibetop-manager.service; then
     en="$(systemctl is-enabled vibetop-manager.service 2>/dev/null || true)"
     [ "$en" = enabled ] && ok "vibetop-manager enabled at boot" || adv "vibetop-manager not enabled — won't start on reboot ('systemctl enable vibetop-manager')"
@@ -126,9 +176,7 @@ head_ "Operator identity (APP_USER vs the human admin)"
 # while the manager reads the other, so the surface serves stale-but-plausible
 # data indefinitely. That is the shape of the v1.18.4 bug; these checks make the
 # divergence visible instead of leaving it to be noticed by eye.
-VT_ENV="${VT_ENV_FILE:-/etc/vibetop/manager.env}"   # overridable so the check is testable
-ADMINS=""
-[ -r "$VT_ENV" ] && ADMINS="$(sed -n 's/^[[:space:]]*VIBETOP_ADMINS=//p' "$VT_ENV" | head -1)"
+ADMINS="$(vt_env_get VIBETOP_ADMINS)"      # VT_ENV + vt_env_get are defined once, up top
 OPERATOR="${ADMINS%%,*}"
 
 if [ ! -r "$VT_ENV" ]; then
@@ -186,8 +234,7 @@ head_ "Web root (nginx root vs where the installers deploy)"
 # nginx never serves, and the only symptom is a 404 on an injected asset (this is
 # how xpra-patches.js went missing after the /opt move and the mobile Browser
 # silently lost every patch).
-SITE="${VT_SITE_FILE:-/etc/nginx/sites-available/vibetop}"      # overridable = testable
-[ -f "$SITE" ] || SITE=/etc/nginx/conf.d/vibetop.conf          # RHEL-family layout
+# $SITE is resolved once at the top (both distro layouts).
 # Paths nginx PROXIES rather than serving from disk — a ref into one of these is
 # not a missing file. Mirrors sw.js's BYPASS list.
 PROXIED_RE='^/(api|browser|x11-display|office|onlyoffice|t[0-9]|terminals|files|fileview|cdn-cgi|s)/'
@@ -333,10 +380,25 @@ if have df; then
     else ok "root disk ${usep} used, ${avail_gb}G free"; fi
 fi
 
-# OnlyOffice JWT secret (only relevant if Office Edit is deployed).
+# OnlyOffice JWT secret (only relevant if Office Edit is deployed). The path has
+# ONE authority — ONLYOFFICE_SECRET_FILE in the manager env file — and only falls
+# back to the legacy home location when that file doesn't name it. Resolving
+# $APP_HOME/.config/... unconditionally (as this check used to) reported the
+# secret MISSING on every /opt host, where it lives in /opt/vibetop/etc: a FAIL
+# on a host whose Office Edit works fine.
 if [ -f /etc/nginx/snippets/vibetop-extras.d/onlyoffice.conf ]; then
-    [ -f "$APP_HOME/.config/vibetop/onlyoffice.secret" ] && ok "OnlyOffice JWT secret present" \
-        || bad "OnlyOffice nginx snippet present but the JWT secret is missing ($APP_HOME/.config/vibetop/onlyoffice.secret)"
+    OO_SECRET="$(vt_env_get ONLYOFFICE_SECRET_FILE)"
+    [ -n "$OO_SECRET" ] || OO_SECRET="$APP_HOME/.config/vibetop/onlyoffice.secret"
+    OO_DIR="$(dirname "$OO_SECRET")"
+    if [ -f "$OO_SECRET" ]; then
+        ok "OnlyOffice JWT secret present ($OO_SECRET)"
+    elif [ "$IS_ROOT" != 1 ] && [ ! -r "$OO_DIR" ]; then
+        # /opt/vibetop/etc is 0700 root:root — a non-root probe can't stat inside
+        # it, and "can't look" must not be reported as "isn't there".
+        skip "OnlyOffice JWT secret: $OO_DIR not readable as $(id -un) — re-run with sudo"
+    else
+        bad "OnlyOffice nginx snippet present but the JWT secret is missing ($OO_SECRET)"
+    fi
 fi
 
 # The manager runs in-place from a FULL git clone (so the in-app Updater works).

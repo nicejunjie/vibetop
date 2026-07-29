@@ -232,8 +232,24 @@ each runner self-skips if its tool isn't installed.
 read-only config diagnostic that codifies the gotchas below + `docs/design-
 decisions.md` into PASS/WARN/FAIL checks with the one-line fix each (RestrictNamespaces
 on the manager, `APP_USER` linger, dual-homed NICs, xpra version, unstamped units,
-`KillMode=process`, D-Bus/xhost, disk, ACLs, nginx `-t`). Where `smoke-test.sh`
-asks "is it up?", doctor asks "is it configured to *stay* up?". Then the manual probes:
+`KillMode=process`, D-Bus/xhost, disk, ACLs, nginx `-t`), plus two **agreement**
+sections for the producer/consumer path pairs that drift silently — *Operator
+identity* (proxy unit `User=` vs `VIBETOP_ADMINS`) and *Web root* (nginx `root` vs
+where the installers deploy; injected-script resolution; orphaned `*www*` dirs;
+deployed-vs-checkout `sw.js`). Where `smoke-test.sh`
+asks "is it up?", doctor asks "is it configured to *stay* up?".
+
+**It is multi-user aware, and that is load-bearing.** `MULTIUSER` is decided from
+the deployed site's `auth_request /internal/authcheck`, and the shared
+`vibetop-{browser-xpra,x11-xpra,x11-dbus,filebrowser}` units are then reported
+**SKIP** with their per-user counts instead of FAIL — they're the legacy
+single-user services, correctly inactive on a multi-user host (same distinction
+`smoke-test.sh` draws). Likewise the OnlyOffice secret path comes from
+`ONLYOFFICE_SECRET_FILE` in `/etc/vibetop/manager.env`, not a hardcoded
+`$APP_HOME/.config/...`, and an unreadable `0700` secret dir reports SKIP, never
+"missing". Before these, doctor printed **5 FAILs on a perfectly healthy `/opt`
+host** — and a diagnostic that cries wolf is one people stop reading, so keep new
+checks layout-aware. Then the manual probes:
 
 ```bash
 systemctl status vibetop-manager vibetop-browser-xpra vibetop-x11-xpra vibetop-x11-dbus vibetop-filebrowser
