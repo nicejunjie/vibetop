@@ -2,6 +2,29 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Orientation (read this first)
+
+This file is long and exhaustive by design. Don't read it end-to-end — jump by task:
+
+- **Deploying / installing** → *Deploy commands*. Fresh host = `bootstrap.sh`; whole stack = `deploy.sh`; prod is the `/opt/vibetop/` layout, not a home checkout.
+- **A host is misbehaving** → `sudo ./tools/doctor.sh` first (config diagnostic), then *Health check*. "Is it up?" = `tools/smoke-test.sh` (run with `sudo`).
+- **Changing code / running tests** → `./run-tests.sh` (all hermetic tiers; what CI + the pre-commit hook run). See *Tests*.
+- **Understanding *why* something odd is the way it is** → `docs/design-decisions.md` (Symptom→Cause→Fix→Rejected) **before** re-litigating it. Add an entry whenever you solve a new non-obvious problem.
+- **Multi-user / identity** (`APP_USER` vs `OPERATOR` vs the request user) → *Multi-user & identity model*. These three are NOT interchangeable — conflating them caused real bugs.
+- **QA / review / e2e** → `docs/qa-charter.md` is binding: correctness **and** experience, judged as a picky user.
+
+**First-time setup in a fresh clone:** `git config core.hooksPath .githooks` so commits run `./run-tests.sh` (bypass one commit with `SKIP_TESTS=1`).
+
+**Dev/prod flow (reference host `z20`):** dev work lives on the **`multi-user`** branch (a home checkout that only edits/commits/pushes — it is NOT what runs). Prod runs from `/opt/vibetop/app` as the `vibetop` service account and self-updates by fast-forwarding to **`origin/main`**. So committed work reaches prod only via merge → `main` → the in-app **Update** (or `tools/migrate-to-opt.sh`); a push alone deploys nothing.
+
+**Canonical app inventory** (source of truth: the `APPS` map in `landing/desktop.html` — the README groups these more loosely):
+
+| Start-menu section | Apps |
+|---|---|
+| Everyday (un-sectioned) | Terminal, Browser, X11 Launcher, Files, Office, Notes, Upload |
+| **Utilities** flyout | Services (`home`), Monitor, Token Stats + the Claude-Usage / System-Stats **toggles** |
+| **System** | Update, Config (sudo-gated) |
+
 ## Overview
 
 Six sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.168.1.10`), exposed publicly at `https://service.example.com/` via Cloudflare Tunnel with Access auth. The root page (`/`) is a desktop-like UI launchable from a Start menu with seven everyday apps (Terminal, Browser, X11 Launcher, Files, Office, Notes, Upload), a **System** section with an **Update** app, and a **Utilities** flyout (Services, Monitor, Token Stats + the Claude-Usage/System-Stats toggles).
