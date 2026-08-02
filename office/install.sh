@@ -139,7 +139,29 @@ fi
 # 2. Image
 if (( INSTALL_DEPS )); then
     echo "== pulling image (large, ~2GB first time) =="
-    run $OCI pull "$ONLYOFFICE_IMAGE"
+    # Retry with backoff. The image is ~2GB from Docker Hub, and a transient
+    # TLS-handshake / network timeout (observed in the full-stack VM matrix when
+    # several hosts pull concurrently, and easy to hit on a slow or rate-limited
+    # link) would otherwise abort the WHOLE deploy with exit 1 — landing never
+    # installs, so `/` 404s. A blip should self-heal, not sink the install.
+    if (( DRY_RUN )); then
+        printf '+ %s\n' "$OCI pull $ONLYOFFICE_IMAGE (up to 4 attempts, backoff)"
+    else
+        pull_ok=0
+        for attempt in 1 2 3 4; do
+            if $OCI pull "$ONLYOFFICE_IMAGE"; then pull_ok=1; break; fi
+            if (( attempt < 4 )); then
+                delay=$(( attempt * 10 ))
+                echo "   image pull failed (attempt $attempt/4) — retrying in ${delay}s…" >&2
+                sleep "$delay"
+            fi
+        done
+        if (( ! pull_ok )); then
+            echo "ERROR: could not pull $ONLYOFFICE_IMAGE after 4 attempts" \
+                 "(network/registry issue?). Re-run office/install.sh to retry." >&2
+            exit 1
+        fi
+    fi
 fi
 
 # 3. (Re)create the container — loopback only; reachable back to the host for
