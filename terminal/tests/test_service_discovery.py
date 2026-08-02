@@ -1,6 +1,8 @@
 """Unit tests for service_discovery's pure helpers (parse_ss, classify,
 _effective_proc). No `ss`/`/proc`/root needed — the scan is mocked by feeding
 parse_ss captured output and calling classify directly."""
+import os
+
 import service_discovery as sd
 
 
@@ -75,3 +77,90 @@ def test_effective_proc_prefers_script_over_interpreter():
     assert sd._effective_proc("python3", "python3 /x/vsmagent") == "vsmagent"
     assert sd._effective_proc("nginx", "nginx: master") == "nginx"     # not generic
     assert sd._effective_proc("python3", "") == "python3"              # no cmdline
+
+
+def test_parse_ss_skips_nonnumeric_port():
+    # A malformed local column whose ":tail" isn't a port must be dropped, not crash.
+    rows = sd.parse_ss("LISTEN 0 128 0.0.0.0:notaport 0.0.0.0:*\n"
+                       "LISTEN 0 128 0.0.0.0:8080 0.0.0.0:* users:((\"app\",pid=7,fd=3))\n")
+    assert [r["port"] for r in rows] == [8080]
+
+
+# ---------------------------------------------------------------------------
+# discover() — the orchestration the pure helpers feed into: run ss, name each
+# listener, dedup by port, sort, build the URL. Mocked at the ss/proc/lan-ip
+# boundary so it's hermetic. Previously untested end-to-end.
+# ---------------------------------------------------------------------------
+def _stub_discover(monkeypatch, ss_out, cmdlines=None, lan_ip="192.168.1.10"):
+    cmdlines = cmdlines or {}
+
+    class _R:
+        def __init__(self, stdout):
+            self.stdout = stdout
+    monkeypatch.setattr(sd.subprocess, "run", lambda *a, **k: _R(ss_out))
+    monkeypatch.setattr(sd, "_cmdline", lambda pid: cmdlines.get(pid, ""))
+    monkeypatch.setattr(sd, "_lan_ip", lambda: lan_ip)
+
+
+def test_discover_names_dedupes_sorts_and_builds_urls(monkeypatch):
+    ss_out = (
+        'LISTEN 0 4096 127.0.0.1:7680 0.0.0.0:* users:(("python3",pid=999,fd=1))\n'   # loopback → drop
+        'LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=1,fd=3))\n'             # infra → drop
+        'LISTEN 0 4096 0.0.0.0:8080 0.0.0.0:* users:(("python3",pid=20,fd=8))\n'      # Open WebUI
+        'LISTEN 0 5 *:302 *:* users:(("python3",pid=30,fd=6))\n'                      # ThinLinc (https)
+        'LISTEN 0 4096 0.0.0.0:8080 0.0.0.0:* users:(("python3",pid=21,fd=9))\n'      # dup port 8080
+    )
+    cmdlines = {
+        20: "python3 /snap/open-webui/82/bin/open-webui serve",
+        30: "/opt/thinlinc/libexec/python3 /opt/thinlinc/sbin/tlwebaccess",
+        21: "python3 /snap/open-webui/82/bin/open-webui serve",
+    }
+    _stub_discover(monkeypatch, ss_out, cmdlines)
+    r = sd.discover()
+    assert r["lan_ip"] == "192.168.1.10"
+    # 302 sorts before 8080; the second 8080 is deduped away.
+    assert [s["port"] for s in r["services"]] == [":302", ":8080"]
+    thinlinc, webui = r["services"]
+    assert thinlinc["name"] == "ThinLinc Web Access"
+    assert thinlinc["url"] == "https://192.168.1.10:302/"     # https recognizer
+    assert webui["name"] == "Open WebUI"
+    assert webui["url"] == "http://192.168.1.10:8080/"        # plain http
+    assert all(s["health"] == "up" for s in r["services"])
+
+
+def test_discover_empty_when_ss_fails(monkeypatch):
+    def boom(*a, **k):
+        raise OSError("ss not found")
+    monkeypatch.setattr(sd.subprocess, "run", boom)
+    monkeypatch.setattr(sd, "_lan_ip", lambda: "10.0.0.1")
+    r = sd.discover()
+    assert r == {"lan_ip": "10.0.0.1", "services": []}
+
+
+def test_cmdline_reads_and_degrades_gracefully():
+    assert sd._cmdline(None) == ""                 # no pid
+    assert sd._cmdline(2_147_483_646) == ""        # non-existent pid → OSError → ""
+    mine = sd._cmdline(os.getpid())                # our own /proc/self/cmdline
+    assert "python" in mine.lower() or mine != ""  # the read path returns something
+
+
+def test_lan_ip_falls_back_to_loopback_on_error(monkeypatch):
+    class _BadSock:
+        def __init__(self, *a, **k):
+            raise OSError("no network")
+    monkeypatch.setattr(sd.socket, "socket", _BadSock)
+    assert sd._lan_ip() == "127.0.0.1"
+
+
+def test_lan_ip_returns_default_route_source(monkeypatch):
+    class _FakeSock:
+        def __init__(self, *a, **k):
+            self.connected = None
+        def connect(self, addr):
+            self.connected = addr
+        def getsockname(self):
+            return ("192.168.1.10", 54321)
+        def close(self):
+            pass
+    monkeypatch.setattr(sd.socket, "socket", lambda *a, **k: _FakeSock())
+    assert sd._lan_ip() == "192.168.1.10"

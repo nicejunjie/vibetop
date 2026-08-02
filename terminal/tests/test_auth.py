@@ -47,6 +47,85 @@ def test_session_bad_username_claim_rejected(mgr, home):
     assert mgr._verify_session(forged) is None
 
 
+# --- _session_secret: the HMAC key backing every cookie ---------------------
+# This is the root of the whole auth model. Its documented footgun: when the
+# secret file can't be read/written it silently falls back to an EPHEMERAL
+# in-memory key — correct behaviour, but it means a non-root mint signs with the
+# wrong key (why smoke-test.sh validates against /api/authcheck). These pin the
+# persist / read / cache / race / ephemeral paths.
+
+def test_session_secret_generates_and_persists_0600(mgr, home, monkeypatch):
+    import os
+    monkeypatch.setattr(mgr, "_session_secret_cache", None)
+    sec = mgr._session_secret()
+    assert isinstance(sec, str) and len(sec) == 64          # token_hex(32)
+    # Persisted to the configured path, contents match, owner-only perms.
+    with open(mgr.SESSION_SECRET_FILE) as f:
+        assert f.read().strip() == sec
+    assert os.stat(mgr.SESSION_SECRET_FILE).st_mode & 0o077 == 0   # no group/other bits
+
+
+def test_session_secret_reads_existing_file(mgr, home, monkeypatch):
+    import os
+    os.makedirs(os.path.dirname(mgr.SESSION_SECRET_FILE), exist_ok=True)
+    with open(mgr.SESSION_SECRET_FILE, "w") as f:
+        f.write("deadbeef-existing-secret\n")               # pre-existing key
+    monkeypatch.setattr(mgr, "_session_secret_cache", None)
+    assert mgr._session_secret() == "deadbeef-existing-secret"
+
+
+def test_session_secret_is_cached_after_first_read(mgr, home, monkeypatch):
+    import os
+    monkeypatch.setattr(mgr, "_session_secret_cache", None)
+    first = mgr._session_secret()
+    # Change the file underneath; a cached read must NOT pick up the change
+    # (else concurrent requests could sign with different keys).
+    with open(mgr.SESSION_SECRET_FILE, "w") as f:
+        f.write("a-different-secret")
+    assert mgr._session_secret() == first
+
+
+def test_session_secret_race_reads_winner(mgr, home, monkeypatch):
+    # Simulate the O_EXCL race: our create loses because another process created
+    # the file first (and wrote its own secret). We must adopt the winner's value,
+    # not our just-generated one — otherwise two managers sign with rival keys.
+    import os
+    monkeypatch.setattr(mgr, "_session_secret_cache", None)
+    real_open = mgr.os.open
+
+    def racing_open(path, flags, mode=0o777):
+        with open(path, "w") as f:
+            f.write("winner-secret\n")                       # the racer's write
+        raise FileExistsError(path)                          # our O_EXCL now fails
+    monkeypatch.setattr(mgr.os, "open", racing_open)
+    try:
+        assert mgr._session_secret() == "winner-secret"
+    finally:
+        monkeypatch.setattr(mgr.os, "open", real_open)
+
+
+def test_session_secret_race_reread_fails_uses_own_key(mgr, home, monkeypatch):
+    # O_EXCL reports the file exists, but the re-read then fails too (gone/
+    # unreadable). We must not crash — fall back to our just-generated key.
+    monkeypatch.setattr(mgr, "_session_secret_cache", None)
+
+    def exists_but_unreadable(path, flags, mode=0o777):
+        raise FileExistsError(path)                          # exists, but we wrote nothing
+    monkeypatch.setattr(mgr.os, "open", exists_but_unreadable)
+    sec = mgr._session_secret()
+    assert isinstance(sec, str) and len(sec) == 64           # own generated key, no crash
+
+
+def test_session_secret_ephemeral_when_unpersistable(mgr, home, monkeypatch):
+    # Unwritable, unreadable target → an in-memory key, no crash. A signed token
+    # still round-trips within the process (the key is just lost on restart).
+    monkeypatch.setattr(mgr, "SESSION_SECRET_FILE", "/proc/vibetop-nonexistent/session.secret")
+    monkeypatch.setattr(mgr, "_session_secret_cache", None)
+    sec = mgr._session_secret()
+    assert isinstance(sec, str) and len(sec) == 64
+    assert mgr._verify_session(mgr._sign_session("alice")) == "alice"   # usable in-process
+
+
 # --- /api/login -------------------------------------------------------------
 
 def test_login_success_sets_cookie(mgr, client, monkeypatch):
