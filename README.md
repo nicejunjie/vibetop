@@ -8,7 +8,8 @@ UI launchable from a Start menu with eight everyday apps — **Home Service,
 Terminal, Browser, Files, Office, Notes, Monitor, Upload** — plus a self-updating
 **Update** app. Open-app state is synced server-side so phone and computer share
 the same desktop. Installable as a PWA; the Terminal even keeps iOS voice
-dictation working. One command deploys the whole stack to a Debian/Ubuntu host —
+dictation working. One command deploys the whole stack to a Debian/Ubuntu or
+RHEL-family host —
 fully self-installing, Docker and all (AMD or NVIDIA).
 
 ## Features
@@ -51,7 +52,8 @@ VNC and remote desktops stream **pixels** — a compressed video of the whole sc
 
 ## Deploy
 
-**One line on a fresh Debian/Ubuntu host** — installs git, clones the repo to
+**One line on a fresh host** (Ubuntu 22.04/24.04, Debian 12, Rocky 9,
+AlmaLinux 9, Fedora 43) — installs git, clones the repo to
 `~/vibetop`, then runs the full deploy:
 
 ```bash
@@ -78,7 +80,7 @@ host over SSH:
 # flags: --no-browser  --no-files  --no-office  --with-tunnel  --dry-run
 ```
 
-It is fully self-installing — no prerequisites beyond a Debian/Ubuntu host with
+It is fully self-installing — no prerequisites beyond a supported host with
 SSH + sudo. To tear the whole runtime down again (keeping the repo, your data,
 and the OnlyOffice image):
 

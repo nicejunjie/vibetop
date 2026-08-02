@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# bootstrap.sh — one-line installer for Vibetop on a fresh Debian/Ubuntu host.
+# bootstrap.sh — one-line installer for Vibetop on a fresh Debian/Ubuntu or
+# RHEL-family (Rocky/AlmaLinux/Fedora) host.
 #
 #   curl -fsSL https://raw.githubusercontent.com/nicejunjie/vibetop/main/bootstrap.sh | bash
 #
@@ -40,12 +41,19 @@ else
     command -v sudo >/dev/null 2>&1 || die "sudo is required but not installed."
 fi
 
-[ -r /etc/os-release ] || die "No /etc/os-release — Vibetop targets Debian/Ubuntu."
+[ -r /etc/os-release ] || die "No /etc/os-release — cannot identify this distro."
 . /etc/os-release
+# Supported families, each proven green by the full-stack matrix (tests/matrix):
+#   debian  -> Ubuntu 22.04/24.04, Debian 12
+#   rhel    -> Rocky 9, AlmaLinux 9, Fedora 43
 case " ${ID:-} ${ID_LIKE:-} " in
-    *" debian "*|*" ubuntu "*) ;;
-    *) die "Vibetop installs are scoped to Debian/Ubuntu (found: ${PRETTY_NAME:-unknown}).
+    *" debian "*|*" ubuntu "*|*" rhel "*|*" fedora "*|*" centos "*) ;;
+    *) case "${ID:-}" in
+           debian|ubuntu|fedora|rocky|almalinux|centos|rhel) ;;
+           *) die "Unsupported distro: ${PRETTY_NAME:-unknown}.
+       Vibetop installs on Debian/Ubuntu and RHEL-family (Rocky/Alma/Fedora).
        You can still install manually — see the README.";;
+       esac ;;
 esac
 
 # Prime sudo once up front so the long deploy isn't interrupted by a prompt.
@@ -57,8 +65,16 @@ fi
 # --- git: needed to fetch the repo before deploy.sh exists ------------------
 if ! command -v git >/dev/null 2>&1; then
     say "installing git"
-    as_root env DEBIAN_FRONTEND=noninteractive apt-get update -qq
-    as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git ca-certificates
+    if command -v apt-get >/dev/null 2>&1; then
+        as_root env DEBIAN_FRONTEND=noninteractive apt-get update -qq
+        as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git ca-certificates
+    elif command -v dnf >/dev/null 2>&1; then
+        # git is NOT in the RHEL/Fedora cloud base images, and the in-app
+        # Updater needs it, so this is not optional there.
+        as_root dnf install -y git ca-certificates >/dev/null
+    else
+        die "no supported package manager (apt-get/dnf) found."
+    fi
 fi
 
 # --- Clone, or update an existing checkout (idempotent / re-runnable) --------

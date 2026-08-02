@@ -7,7 +7,7 @@
 # per-distro log come back.
 #
 #   tests/matrix/run.sh                    # the supported set
-#   tests/matrix/run.sh --all              # + experimental rows (Fedora, …)
+#   tests/matrix/run.sh --all              # + any experimental rows (none today)
 #   tests/matrix/run.sh ubuntu-24.04 rocky-9
 #   tests/matrix/run.sh --keep             # don't destroy a FAILING vm (debug)
 #   VIBETOP_MATRIX_FULL=1 tests/matrix/run.sh   # heavy stack too
@@ -22,9 +22,15 @@
 # stops making progress FAILS as "TIMED OUT" instead of hanging the run — an apt
 # debconf prompt once blocked a row for 5h19m at zero load.
 #
-# Exit status: 0 = every SUPPORTED distro passed. An experimental row failing,
-# or a box that can't be fetched, is reported but does NOT fail the run — the
-# point is a truthful report, not a green tick.
+# Exit status: 0 = every SUPPORTED distro passed. All six rows (Ubuntu 22.04/
+# 24.04, Debian 12, Rocky 9, AlmaLinux 9, Fedora 43) are supported, so any of
+# them failing fails the run. A box that can't be fetched is SKIPped, not failed.
+#
+# NOTE: the RPM rows depend on third-party repos that move independently of this
+# project — xpra.org (we pin 6.4.x; Fedora already ships 6.5.x), EPEL (ttyd,
+# wmctrl, xdotool on EL9), and the vagrant box images (rockylinux/9 has already
+# 404'd once when Rocky pruned old images). Those can turn red without any
+# change here.
 #
 # Requires libvirt/KVM + vagrant + vagrant-libvirt, and membership of `libvirt`.
 set -uo pipefail
@@ -37,9 +43,9 @@ DISTROS='
 ubuntu-24.04       cloud-image/ubuntu-24.04    supported
 ubuntu-22.04       cloud-image/ubuntu-22.04    supported
 debian-12          cloud-image/debian-12       supported
-rocky-9            cloud-image/rocky-9         experimental
-almalinux-9        almalinux/9                 experimental
-fedora-43          cloud-image/fedora-43       experimental
+rocky-9            cloud-image/rocky-9         supported
+almalinux-9        almalinux/9                 supported
+fedora-43          cloud-image/fedora-43       supported
 '
 
 # Per-row hard deadline. A FULL row legitimately takes far longer (xpra +
