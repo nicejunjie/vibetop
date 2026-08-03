@@ -2151,30 +2151,6 @@ def _desktop_union(data, now):
     return seen
 
 
-def _clean_split(sp):
-    """Validate a per-instance split-view layout ({apps:[a,b], ratio}) from the
-    client. FAIL-SAFE: any malformed shape returns None and never raises — it's a
-    cosmetic window-arrangement field that must not 400 the 5s heartbeat. Requires
-    two distinct non-empty app-id strings; ratio (left pane's width fraction) is
-    clamped to [0.05, 0.95]. Mirrors landing/split.js's sanitizeSplit, minus the
-    open-set check (membership is re-validated client-side on restore)."""
-    if not isinstance(sp, dict):
-        return None
-    apps = sp.get("apps")
-    if (not isinstance(apps, list) or len(apps) != 2
-            or not all(isinstance(a, str) and a for a in apps)
-            or apps[0] == apps[1]):
-        return None
-    try:
-        ratio = float(sp.get("ratio", 0.5))
-    except (TypeError, ValueError):
-        ratio = 0.5
-    if ratio != ratio:   # NaN
-        ratio = 0.5
-    ratio = max(0.05, min(0.95, ratio))
-    return {"apps": [apps[0][:64], apps[1][:64]], "ratio": ratio}
-
-
 def _user_can_read(path, user):
     """True iff `user` can read `path` under REAL Unix perms — ownership, ALL of
     their supplementary groups, and ACLs. The manager runs as root, whose own
@@ -4037,10 +4013,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if active is not None and not isinstance(active, str):
             self._json(400, {"error": "active must be a string or null"})
             return
-        # Split-view layout (per-instance window arrangement). Fail-safe to None so
-        # a cosmetic field can never break the heartbeat; GET-only restore data, so
-        # it is NOT echoed in this POST reply (keeps the heartbeat contract stable).
-        split = _clean_split(data.get("split"))
         now = time.time()
         # Shell-tier polls folded onto this 5s heartbeat (consolidate within the
         # tier): the Claude-Usage flag, the terminal count for the Start-menu
@@ -4057,7 +4029,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with _desktop_lock:
             state = _read_desktop_state()
             state["instances"][instance] = {
-                "open": open_apps, "active": active, "ts": now, "split": split,
+                "open": open_apps, "active": active, "ts": now,
             }
             _desktop_cap(state)
             _desktop_prune_targets(state, now)
@@ -6090,7 +6062,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 resp = {
                     "open": (ent or {}).get("open", []),
                     "active": (ent or {}).get("active"),
-                    "split": (ent or {}).get("split"),   # per-instance split-view layout (restore)
                     "running": _desktop_union(state, now),
                     "reset_epoch": state["reset_epoch"],
                     "close_targets": state["close_targets"],

@@ -22,7 +22,6 @@ const REPO = path.join(__dirname, "..");
 const SCRIPTS = [
   "landing/coach.js",
   "landing/vibe-modal.js",
-  "landing/split.js",
   "landing/apph.js",
   "landing/filebrowser-patches.js",
   "landing/sw.js",
