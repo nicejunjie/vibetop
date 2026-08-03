@@ -171,6 +171,19 @@
     font-size: 14px; line-height: 1; color: #5a6a7a;
   }
   .task-app .close:hover { background: #aa3333; color: #fff; }
+  /* ◫ split control — tile this app beside the current one. Hidden until the
+     desktop is wide enough to split (body.can-split); revealed on hover for a
+     mouse, always-subtle on a wide touch screen (no hover). */
+  .task-app .split {
+    display: none; align-items: center; justify-content: center;
+    width: 18px; height: 18px; margin-left: 2px; border-radius: 4px;
+    font-size: 12px; line-height: 1; color: #5a6a7a;
+  }
+  .task-app .split:hover { background: rgba(255,255,255,0.14); color: #cfe0f0; }
+  body.can-split .task-app:hover .split { display: inline-flex; opacity: .75; }
+  body.can-split.is-touch .task-app .split { display: inline-flex; opacity: .5; }
+  /* the non-focused pane's taskbar button, so both tiled apps read as "on screen" */
+  .task-app.paned { background: rgba(255,255,255,0.06); color: #c0d0e0; }
   /* per-app accent on the active underline */
   .task-app.active[data-id="home"]     { border-bottom-color: #d2691e; }
   .task-app.active[data-id="terminal"] { border-bottom-color: #33aa55; }
@@ -445,10 +458,22 @@
     background: #0e1117 radial-gradient(130% 90% at 50% 42%, #1c2a44 0%, #121722 48%, #0c0f14 100%);
   }
   .frames iframe {
-    position: absolute; inset: 0; width: 100%; height: 100%;
+    /* top/bottom/left + width (NOT inset:0/height) so split view can override
+       left+width per pane without over-constraining against a right:0. */
+    position: absolute; top: 0; bottom: 0; left: 0; width: 100%;
     border: none; background: #1a1a2e; display: none;
   }
   .frames iframe.active { display: block; }
+
+  /* Split view: a draggable divider between two panes, plus a transparent mask
+     shown during the drag (iframes swallow pointer events, so without the mask
+     the drag dies the instant the cursor crosses a pane). */
+  #pane-divider {
+    position: absolute; top: 0; bottom: 0; width: 6px; margin-left: -3px;
+    z-index: 5; cursor: col-resize; background: #222c3a; display: none;
+  }
+  #pane-divider:hover, #pane-divider.dragging { background: #3a7adb; }
+  #pane-dragmask { position: absolute; inset: 0; z-index: 6; cursor: col-resize; display: none; }
 
   /* Desktop wallpaper — the Vibetop brand mark, name, and a one-line "what it is"
      blurb. A static FIRST child of .frames, so any app iframe added after it
@@ -582,6 +607,7 @@
 </style>
   <script src="/vibe-modal.js"></script>
   <script src="/coach.js"></script>
+  <script src="/split.js"></script>
   <script src="/apph.js"></script>
 </head>
 <body>
@@ -601,6 +627,8 @@
       <div class="wp-repo"><a href="https://github.com/nicejunjie/vibetop" target="_blank" rel="noopener">github.com/nicejunjie/vibetop</a></div>
       <div class="wp-hint" id="wp-hint">Click <b>&nbsp;⊞ Start&nbsp;</b> to open an app</div>
     </div>
+    <div id="pane-divider"></div>
+    <div id="pane-dragmask"></div>
   </div>
 
   <!-- Read-only document viewer (office files rendered to PDF by the manager) -->
@@ -802,6 +830,20 @@
 
   var openApps = [];   // ids, in taskbar order
   var active   = null;
+  // Split view: null, or { apps:[leftId,rightId], ratio }. `active` stays the
+  // single FOCUSED-pane id (everything keys off it); `split` is an intent that
+  // renders as two panes only when both apps are open AND the desktop is wide
+  // enough (paneApps/visibleSet, in split.js). See docs — window-arrangement
+  // state, per-instance.
+  var split = null;
+  var dividerEl = document.getElementById('pane-divider');
+  var dragMaskEl = document.getElementById('pane-dragmask');
+  // Width gate: two usable panes need room. 736px is the CSS "narrow" line, so
+  // 900px is the split floor. Below it, a split collapses to the focused pane
+  // (the intent is kept and re-tiles when the window widens).
+  var splitMQ = window.matchMedia ? window.matchMedia('(min-width: 900px)')
+                                  : { matches: true, addEventListener: function(){}, addListener: function(){} };
+  function canSplit() { return !!splitMQ.matches; }
 
   // --- Browser keyboard relay ------------------------------------------------
   // The Browser (xpra canvas) takes keyboard input but has no DOM field of its
@@ -1253,7 +1295,10 @@
     return fetch('/api/desktop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ instance: INSTANCE_ID, open: openApps, active: active })
+      // `split` MUST ride every heartbeat — the manager rewrites the whole
+      // instance entry each beat, so an omitted field is wiped within 5s. null
+      // when not tiled (that's also how unsplit persists).
+      body: JSON.stringify({ instance: INSTANCE_ID, open: openApps, active: active, split: split })
     }).then(function(r) { return r.json(); }).then(onDesktopResp).catch(function() {});
   }
 
@@ -1264,6 +1309,7 @@
       if (f && f.parentNode) f.parentNode.removeChild(f);
     });
     openApps = [];
+    split = null;
     applyingRemote = true;
     try { setActive(null); } finally { applyingRemote = false; }
     pushDesktop();   // report our now-empty set right away
@@ -1295,36 +1341,97 @@
       // activation messaging (focus, resize, vibetop:active, focus-terminal)
       // would land in about:blank and be lost — the "first open doesn't focus /
       // doesn't get its active broadcast" race. Defer that to the load event.
-      var id = f.dataset.id;
       f.addEventListener('load', function onload() {
         f.removeEventListener('load', onload);
-        notifyActiveFrame(f, id);
+        // Still visible? (the user may have switched/closed before it loaded.)
+        // A visible NON-focused pane still needs its initial resize — hence the
+        // visible-set check, not the old dataset.id!==active early-return.
+        if (visibleIds().indexOf(f.dataset.id) === -1) return;
+        notifyVisibleFrame(f, f.dataset.id === active);
       });
       f.src = f.dataset.src;
     }
   }
 
-  // Tell a frame it's now the active app: focus it, broadcast active-state, nudge
-  // a resize so it re-measures the viewport, and (Terminal, desktop only)
-  // auto-focus the prompt. Guarded so a frame that finished loading AFTER the
-  // user already switched away doesn't steal focus.
-  function notifyActiveFrame(f, id) {
-    if (!f || f.dataset.id !== active) return;
+  // The app id(s) currently on screen: [] (wallpaper), [id] (single), or
+  // [left,right] (tiled). Pure logic lives in split.js so it's unit-tested.
+  function visibleIds() {
+    if (!window.VibeSplit) return active ? [active] : [];
+    return VibeSplit.visibleSet(active, split, openApps, canSplit());
+  }
+
+  // Position one pane iframe. twoPane=false → clear inline left/width so it falls
+  // back to the CSS fullscreen (left:0 + width:100%). vi 0=left, 1=right.
+  function applyPaneGeom(f, twoPane, vi, ratio) {
+    if (!f) return;
+    if (!twoPane) { f.style.left = ''; f.style.width = ''; return; }
+    var pct = ratio * 100;
+    if (vi === 0) { f.style.left = '0'; f.style.width = pct + '%'; }
+    else { f.style.left = pct + '%'; f.style.width = (100 - pct) + '%'; }
+  }
+
+  function positionDivider(twoPane, ratio) {
+    if (!dividerEl) return;
+    if (twoPane) { dividerEl.style.left = (ratio * 100) + '%'; dividerEl.style.display = 'block'; }
+    else { dividerEl.style.display = 'none'; }
+  }
+
+  // The SOLE DOM visibility/geometry mutator. Shows the visible set (1 or 2
+  // panes, or the wallpaper), lays out pane geometry, drives the pause/resume
+  // broadcast, and loads/notifies each visible frame. setActive/splitBeside set
+  // the state (active/split) then delegate the pixels here.
+  function applyLayout() {
+    var vis = visibleIds();
+    var twoPane = vis.length === 2;
+    var ratio = (split && split.ratio) || 0.5;
+    document.querySelectorAll('#frames iframe').forEach(function(f) {
+      var id = f.dataset.id;
+      var vi = vis.indexOf(id);
+      if (vi === -1) {
+        f.classList.remove('active');
+        f.style.left = ''; f.style.width = '';
+        // A loaded, now-hidden frame is told the FOCUSED id so it pauses (e.g.
+        // Monitor stops polling). Skip unloaded frames (about:blank).
+        if (f.src && f.contentWindow) {
+          try { f.contentWindow.postMessage({ type: 'vibetop:active', active: active }, '*'); } catch (e) {}
+        }
+      } else {
+        f.classList.add('active');
+        applyPaneGeom(f, twoPane, vi, ratio);   // geometry BEFORE load → no 0×0
+      }
+    });
+    positionDivider(twoPane, ratio);
+    // Wallpaper "Click Start" hint hides once any app is open (same as before).
+    if (hintEl) hintEl.classList.toggle('hidden', openApps.length > 0);
+    // Load/notify each visible frame. A visible pane is told IT is active (so it
+    // never pauses — the load-bearing rule that keeps a non-focused pane live).
+    vis.forEach(function(id) {
+      var f = frameOf(id);
+      if (!f) return;
+      if (!f.src) loadIfNeeded(f);                 // notify fires on load
+      else notifyVisibleFrame(f, id === active);   // already loaded → notify now
+    });
+  }
+
+  // Tell a VISIBLE frame it's on screen: broadcast active-state (its own id, so
+  // it doesn't pause) + nudge a resize. Only the FOCUSED pane additionally gets
+  // focus + (Terminal, desktop) auto-focus. A non-focused pane must NOT steal
+  // focus / pop the touch keyboard.
+  function notifyVisibleFrame(f, focused) {
+    if (!f || !f.contentWindow) return;
+    var id = f.dataset.id;
+    try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
+    // iOS Safari quirk: an iframe laid out while hidden can keep stale internal
+    // dimensions when shown. Forward a resize so it re-measures.
+    try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {}
+    if (!focused) return;
     try { f.focus(); } catch (e) {}
-    if (f.contentWindow) {
-      try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
-      // iOS Safari quirk: an iframe laid out while display:none can keep stale
-      // internal dimensions when shown. Forward a resize so it re-measures.
-      try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {}
-    }
-    // Skip auto-focusing xterm.js on touch devices — focusing its hidden
-    // textarea pops up the on-screen keyboard unexpectedly when auto-switching
-    // into Terminal. The user taps the terminal to summon the keyboard.
-    var isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-    if (id === 'terminal' && f.contentWindow && !isTouch) {
+    // Skip auto-focusing xterm.js on touch — focusing its hidden textarea pops
+    // the on-screen keyboard. The user taps the terminal to summon it.
+    if (id === 'terminal' && !IS_TOUCH) {
       try { f.contentWindow.postMessage({ type: 'focus-terminal' }, '*'); } catch (e) {}
     }
-    // Home renders relayed status; refresh it the moment it becomes active.
+    // Home renders relayed status; refresh it the moment it becomes focused.
     if (id === 'home') setTimeout(relayStatus, 300);
   }
 
@@ -1334,6 +1441,12 @@
     // detached the drag source mid-gesture: pressing a BACKGROUND app fires
     // pointerdown→setActive→renderTaskbar, which destroyed the button before
     // dragstart, so reordering a non-active app silently failed in Chromium.
+    // When actually showing two panes, mark the NON-focused pane's button so both
+    // tiled apps read as "on screen" (the focused one keeps the .active accent).
+    var panes = (window.VibeSplit &&
+                 VibeSplit.visibleSet(active, split, openApps, canSplit()).length === 2)
+                ? split.apps : null;
+    function isPaned(id) { return !!(panes && id !== active && panes.indexOf(id) !== -1); }
     var existing = Array.prototype.map.call(
       taskAppsEl.querySelectorAll('.task-app'), function (b) { return b.dataset.id; });
     var same = existing.length === openApps.length &&
@@ -1341,6 +1454,7 @@
     if (same) {
       Array.prototype.forEach.call(taskAppsEl.querySelectorAll('.task-app'), function (b) {
         b.classList.toggle('active', b.dataset.id === active);
+        b.classList.toggle('paned', isPaned(b.dataset.id));
       });
       markMenuRunning();
       return;
@@ -1348,11 +1462,12 @@
     taskAppsEl.innerHTML = '';
     openApps.forEach(function(id) {
       var btn = document.createElement('div');
-      btn.className = 'task-app' + (id === active ? ' active' : '');
+      btn.className = 'task-app' + (id === active ? ' active' : '') + (isPaned(id) ? ' paned' : '');
       btn.dataset.id = id;
       btn.draggable = true;     // reorder via drag (desktop; ignored on touch)
       btn.innerHTML = '<span class="icon">' + (APPS[id].svg || APPS[id].icon) + '</span>' +
                       '<span class="name">' + APPS[id].label + '</span>' +
+                      '<span class="split" title="Tile beside the current app">&#9707;</span>' +
                       '<span class="close" title="Close">&times;</span>';
       taskAppsEl.appendChild(btn);
     });
@@ -1371,31 +1486,47 @@
   // Refresh the live terminal-backend count so Terminal's dot reflects a running
   // session even when no Terminal window is open on any device.
 
+  // Focus/show app `id` (or null = minimize; the wallpaper shows). Split-aware:
+  // switching to an app that ISN'T part of the current tiling ends the split;
+  // focusing one of the two panes keeps it tiled (applyLayout re-highlights).
+  // DOM work is delegated to applyLayout via commitLayout.
   function setActive(id) {
     active = id;
-    document.querySelectorAll('#frames iframe').forEach(function(f) {
-      f.classList.toggle('active', f.dataset.id === id);
-      // Let apps pause background work when they're not on top (e.g. Monitor
-      // stops polling). Only message frames that have actually loaded — a frame
-      // being opened for the first time gets its broadcast on load (see
-      // notifyActiveFrame); messaging its about:blank now would be lost.
-      if (f.src && f.contentWindow && f.dataset.id !== id) {
-        try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
-      }
-    });
-    // The wallpaper (logo + name + blurb) shows whenever no app covers it; only
-    // the "Click Start" line is conditional — hide it once any app is open.
-    if (hintEl) hintEl.classList.toggle('hidden', openApps.length > 0);
+    if (id && split && split.apps.indexOf(id) === -1) split = null;   // switch to a 3rd app ends tiling
+    commitLayout();
+  }
+
+  // Shared tail for setActive + splitBeside: repaint + the non-DOM side-effects
+  // (taskbar, persist, kbd bar, title, in-app coach tip). applyLayout does pixels.
+  function commitLayout() {
+    applyLayout();
     renderTaskbar();
     persist();
     updateKbdBar();
-    document.title = id ? (APPS[id].label + ' — Vibetop') : 'Vibetop';
-    var f = id && frameOf(id);
-    if (f) {
-      if (!f.src) loadIfNeeded(f);     // notifyActiveFrame fires on load
-      else notifyActiveFrame(f, id);   // already loaded → notify now
+    document.title = active ? (APPS[active].label + ' — Vibetop') : 'Vibetop';
+    var cur = active;
+    setTimeout(function () { if (active === cur) coachForApp(cur); }, 800);   // in-app tip once it settles
+  }
+
+  // Tile `targetId` beside the currently-focused app (the ◫ button). Not split →
+  // active|target 50/50, focus moves to target. Already split → replace the
+  // NON-focused pane with target (focus moves to it). Clicking ◫ on the focused
+  // pane un-tiles. Too narrow, or nothing to anchor beside → just open/focus it.
+  function splitBeside(targetId) {
+    if (!APPS[targetId]) return;
+    if (APPS[targetId].sudo && !window.canSudo) return;
+    if (!canSplit() || !active) { setActive(targetId); return; }   // no room / no anchor
+    if (openApps.indexOf(targetId) === -1) { openApps.push(targetId); ensureFrame(targetId); }
+    var next = window.VibeSplit ? VibeSplit.splitBesideNext(active, targetId, split) : null;
+    if (!next) {
+      // null = can't tile with self, OR clicked ◫ on the focused pane → un-tile.
+      if (split && split.apps.indexOf(targetId) !== -1) split = null;
+      setActive(targetId);
+      return;
     }
-    setTimeout(function () { if (active === id) coachForApp(id); }, 800);   // in-app tip once it settles
+    split = next;
+    active = targetId;   // focus the app you just summoned into the pane
+    commitLayout();
   }
 
   // Desktop-driven coach tips (shared vibeCoach helper, coach.js). Shown over the
@@ -1417,11 +1548,30 @@
     if (openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
     setActive(id);            // relays status itself when id === 'home'
     closeMenu();
+    maybeSplitTip();
+  }
+
+  // Teach the ◫ split control the first few times two apps are open on a wide
+  // desktop (the button is hover-revealed, so a nudge helps). vibeCoach self-caps
+  // at 3 shows + dismiss-on-tap; a no-op on touch/narrow or when already tiled.
+  function maybeSplitTip() {
+    if (!window.vibeCoach || IS_TOUCH || !canSplit() || split) return;
+    if (openApps.length < 2) return;
+    vibeCoach({ key: 'vibetop:tip:split:v1',
+                text: 'Tip: hover a taskbar app and click ◫ to tile it beside the current one' },
+              { bottom: 60 });
   }
 
   function closeApp(id) {
     var i = openApps.indexOf(id);
     if (i === -1) return;
+    // If a tiled pane is closing, the other pane survives fullscreen. Compute it
+    // before we mutate openApps/split, then drop the split.
+    var survivor = null;
+    if (split && split.apps.indexOf(id) !== -1) {
+      survivor = split.apps[0] === id ? split.apps[1] : split.apps[0];
+      split = null;
+    }
     // Closing the X11 Launcher closes the GUI apps running in it (graceful
     // wmctrl -c). Without this, an app launched from a terminal keeps running on
     // the X11 display after the launcher is closed, so that terminal (blocked on
@@ -1445,7 +1595,9 @@
     openApps.splice(i, 1);
     var f = frameOf(id);
     if (f) f.parentNode.removeChild(f);     // fully unload the app
-    if (active === id) {
+    if (survivor && openApps.indexOf(survivor) !== -1) {
+      setActive(survivor);   // collapse the split → the other pane goes fullscreen
+    } else if (active === id) {
       setActive(openApps.length ? openApps[Math.max(0, i - 1)] : null);
     } else {
       renderTaskbar();
@@ -1568,6 +1720,9 @@
     if (e.pointerType !== 'mouse' || e.button) return;     // touch/pen handled on click
     var btn = e.target.closest('.task-app');
     if (!btn || e.target.closest('.close')) { taskDown = null; return; }  // close handled on click
+    // ◫ handled on click (splitBeside). Without this the mouse-down would switch
+    // active to THIS app first, destroying the "beside the current app" anchor.
+    if (e.target.closest('.split')) { taskDown = null; return; }
     var id = btn.dataset.id;
     if (id !== active) { setActive(id); lastMouseTaskAt = e.timeStamp; taskDown = null; }
     else taskDown = { id: id, x: e.clientX, y: e.clientY };
@@ -1585,6 +1740,7 @@
     if (!btn) return;
     var id = btn.dataset.id;
     if (e.target.closest('.close')) { closeApp(id); return; }
+    if (e.target.closest('.split')) { splitBeside(id); return; }   // ◫ → tile beside current
     if (e.timeStamp - lastMouseTaskAt < 700) return;        // mouse already handled (pointerdown/up)
     setActive(id === active ? null : id);                  // touch / fallback: minimize active, else switch
   });
@@ -1596,6 +1752,8 @@
   taskAppsEl.addEventListener('dragstart', function(e) {
     var btn = e.target.closest('.task-app');
     if (!btn) return;
+    // Grabbing the ◫ or × glyph must not start a reorder drag.
+    if (e.target.closest('.split') || e.target.closest('.close')) { e.preventDefault(); return; }
     taskDown = null;          // a real drag-reorder cancels a pending minimize
     dragEl = btn;
     btn.classList.add('dragging');
@@ -1624,6 +1782,65 @@
       persist();
     }
   });
+
+  // --- split view: width gate + draggable divider ---------------------------
+  document.body.classList.toggle('can-split', canSplit());   // reveals the ◫ buttons
+  if (IS_TOUCH) document.body.classList.add('is-touch');
+  (function onSplitWidth() {
+    function apply() {
+      document.body.classList.toggle('can-split', canSplit());
+      applyLayout();     // narrow → collapse to the focused pane; wide → re-tile
+      renderTaskbar();
+    }
+    if (splitMQ.addEventListener) splitMQ.addEventListener('change', apply);
+    else if (splitMQ.addListener) splitMQ.addListener(apply);   // Safari < 14
+  })();
+
+  (function setupDivider() {
+    if (!dividerEl) return;
+    var dragging = false, raf = null;
+    function paneFrames() {
+      var vis = visibleIds();
+      return vis.length === 2 ? [frameOf(vis[0]), frameOf(vis[1])] : null;
+    }
+    function fanout(pf) {
+      if (!pf) return;
+      pf.forEach(function(f) {
+        if (f && f.contentWindow) { try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {} }
+      });
+    }
+    function onMove(e) {
+      if (!dragging || !split) return;
+      var rect = framesEl.getBoundingClientRect();
+      var r = VibeSplit.clampRatio((e.clientX - rect.left) / rect.width);
+      split.ratio = r;
+      dividerEl.style.left = (r * 100) + '%';
+      var pf = paneFrames();
+      if (pf) { applyPaneGeom(pf[0], true, 0, r); applyPaneGeom(pf[1], true, 1, r); }
+      // Throttle the resize fan-out to a frame — xpra RANDR resize is expensive.
+      if (!raf) raf = requestAnimationFrame(function() { raf = null; fanout(pf); });
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false;
+      dividerEl.classList.remove('dragging');
+      if (dragMaskEl) dragMaskEl.style.display = 'none';
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      var keep = split && VibeSplit.edgeUnsplit(split, split.ratio);
+      if (keep) { split = null; setActive(keep); }   // dragged to an edge → un-tile
+      else { fanout(paneFrames()); persist(); }        // persist the new ratio
+    }
+    dividerEl.addEventListener('pointerdown', function(e) {
+      if (!split) return;
+      e.preventDefault();
+      dragging = true;
+      dividerEl.classList.add('dragging');
+      if (dragMaskEl) dragMaskEl.style.display = 'block';
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  })();
 
   document.addEventListener('click', function(e) {
     if (menuEl.classList.contains('open') &&
@@ -1944,6 +2161,10 @@
     });
     runningGlobal = (state && Array.isArray(state.running)) ? state.running : [];
     lastResetEpoch = (state && typeof state.reset_epoch === 'number') ? state.reset_epoch : 0;
+    // Restore this instance's split layout (only if both panes are open). Set
+    // BEFORE setActive so applyLayout tiles; if the window is currently narrow,
+    // paneApps collapses it but the intent persists for when it widens.
+    split = (state && window.VibeSplit) ? VibeSplit.sanitizeSplit(state.split, openApps) : null;
     var lastActive = state && state.active;
     if (!openApps.length) {
       setActive(null);
