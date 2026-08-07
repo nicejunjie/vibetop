@@ -444,11 +444,65 @@
        both. Pure-CSS gradient — no asset. */
     background: #0e1117 radial-gradient(130% 90% at 50% 42%, #1c2a44 0%, #121722 48%, #0c0f14 100%);
   }
+  /* Each app iframe lives inside a .win container ("window"). Default/mobile:
+     the window is full-bleed and chromeless — visually identical to a bare
+     full-screen iframe; only the active window shows. Window mode (?wm=1, added
+     in a later phase) gives it floating geometry + a title bar + resize handles.
+     The explicit height chain — .win (inset:0, definite) → .win-body (flex:1,
+     definite) → iframe (height:100% of a definite parent) — is load-bearing: an
+     <iframe> is a REPLACED element, so height:auto would collapse it to its
+     intrinsic ~150px. Keep height:100% here, always. */
+  .win { position: absolute; inset: 0; display: none; flex-direction: column; }
+  .win.active { display: flex; }
+  .win-titlebar { display: none; }   /* chromeless by default; window mode reveals it */
+  .win-body { flex: 1 1 auto; min-height: 0; position: relative; }
+
+  /* --- Window mode (body.wm, ?wm=1, desktop only): floating, movable, resizable
+     windows. All open windows show at once, z-ordered; the focused one is
+     accented. In default/mobile mode none of this applies (.win stays full-bleed
+     chromeless above). --- */
+  body.wm .win.floating {
+    border: 1px solid #2a3342; border-radius: 8px; overflow: hidden;
+    box-shadow: 0 10px 44px rgba(0,0,0,0.55);
+  }
+  body.wm .win.floating.maximized { border: 0; border-radius: 0; box-shadow: none; }
+  body.wm .win.floating > .win-titlebar {
+    display: flex; align-items: center; gap: 8px; flex: 0 0 32px; height: 32px;
+    padding: 0 4px 0 10px; background: #171d28; color: #93a4b6;
+    cursor: move; user-select: none; font-size: 13px;
+  }
+  body.wm .win.floating.focused > .win-titlebar { background: #1e2735; color: #e2ebf4; }
+  .win-titlebar .wt-ico { width: 18px; height: 18px; display: inline-flex; flex: 0 0 auto; }
+  .win-titlebar .wt-ico svg { width: 16px; height: 16px; }
+  .win-titlebar .wt-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .win-titlebar .wt-min, .win-titlebar .wt-max, .win-titlebar .wt-close {
+    width: 26px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 5px; cursor: pointer; color: #7a8a9c; flex: 0 0 auto; font-size: 15px; line-height: 1;
+  }
+  .win-titlebar .wt-min:hover, .win-titlebar .wt-max:hover { background: rgba(255,255,255,0.12); color: #cfe0f0; }
+  .win-titlebar .wt-close:hover { background: #aa3333; color: #fff; }
+  /* snap preview — where a title-bar drag will drop the window (half / maximize) */
+  #win-snap {
+    position: absolute; z-index: 99997; display: none; pointer-events: none;
+    background: rgba(58,122,219,0.22); border: 2px solid #3a7adb; border-radius: 8px;
+  }
+  /* resize handles — only interactive on a floating, non-maximized window */
+  .win-rz { display: none; position: absolute; z-index: 3; }
+  body.wm .win.floating:not(.maximized) .win-rz { display: block; }
+  .win-rz-n { top: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
+  .win-rz-s { bottom: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
+  .win-rz-e { right: 0; top: 0; bottom: 0; width: 5px; cursor: ew-resize; }
+  .win-rz-w { left: 0; top: 0; bottom: 0; width: 5px; cursor: ew-resize; }
+  .win-rz-ne { top: 0; right: 0; width: 13px; height: 13px; cursor: nesw-resize; z-index: 4; }
+  .win-rz-nw { top: 0; left: 0; width: 13px; height: 13px; cursor: nwse-resize; z-index: 4; }
+  .win-rz-se { bottom: 0; right: 0; width: 13px; height: 13px; cursor: nwse-resize; z-index: 4; }
+  .win-rz-sw { bottom: 0; left: 0; width: 13px; height: 13px; cursor: nesw-resize; z-index: 4; }
+  /* overlay shown during a move/resize so the drag doesn't die over an iframe */
+  #win-dragmask { position: absolute; inset: 0; z-index: 99998; display: none; }
   .frames iframe {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    border: none; background: #1a1a2e; display: none;
+    border: none; background: #1a1a2e; display: block;
   }
-  .frames iframe.active { display: block; }
 
   /* Desktop wallpaper — the Vibetop brand mark, name, and a one-line "what it is"
      blurb. A static FIRST child of .frames, so any app iframe added after it
@@ -582,6 +636,7 @@
 </style>
   <script src="/vibe-modal.js"></script>
   <script src="/coach.js"></script>
+  <script src="/winmgr.js"></script>
   <script src="/apph.js"></script>
 </head>
 <body>
@@ -601,6 +656,8 @@
       <div class="wp-repo"><a href="https://github.com/nicejunjie/vibetop" target="_blank" rel="noopener">github.com/nicejunjie/vibetop</a></div>
       <div class="wp-hint" id="wp-hint">Click <b>&nbsp;⊞ Start&nbsp;</b> to open an app</div>
     </div>
+    <div id="win-snap"></div>
+    <div id="win-dragmask"></div>
   </div>
 
   <!-- Read-only document viewer (office files rendered to PDF by the manager) -->
@@ -802,6 +859,127 @@
 
   var openApps = [];   // ids, in taskbar order
   var active   = null;
+
+  // --- Floating window mode (real desktop-OS windows) ------------------------
+  // Enabled by ?wm=1 or localStorage['vibetop:wm']='1' (default OFF → the classic
+  // full-screen switcher). Desktop only — on touch/narrow, apps stay full-screen
+  // chromeless (windows make no sense on a phone). Geometry lives per-app in
+  // `wins` and localStorage (device-local); pure math is in winmgr.js (VibeWin).
+  // Default ON (desktop). Opt out with ?wm=0 or localStorage['vibetop:wm']='0';
+  // ?wm=1 forces on. windowModeOn() still gates to desktop (non-touch, ≥900px),
+  // so phones/tablets always get the classic full-screen desktop.
+  var WM_FLAG = /[?&]wm=0(&|$)/.test(location.search) ? false
+              : /[?&]wm=1(&|$)/.test(location.search) ? true
+              : (function(){ try { return localStorage.getItem('vibetop:wm') !== '0'; } catch (e) { return true; } })();
+  var wins = {};       // id -> {left,top,width,height,z,max,prev}
+  var zTop = 10;
+  function windowModeOn() {
+    return WM_FLAG && !IS_TOUCH && (window.innerWidth || 1000) >= 900;
+  }
+  function frameBox() { var r = framesEl.getBoundingClientRect(); return { w: r.width, h: r.height }; }
+  function winGeom(id) {
+    if (!wins[id]) {
+      var g = window.VibeWin ? VibeWin.defaultGeom(frameBox(), openApps.indexOf(id))
+                             : { left: 40, top: 30, width: 900, height: 640 };
+      g.z = ++zTop; wins[id] = g;
+    }
+    return wins[id];
+  }
+  function applyWinGeom(w, g) {
+    if (g.max) {
+      w.classList.add('maximized');
+      w.style.left = '0'; w.style.top = '0'; w.style.width = '100%'; w.style.height = '100%';
+    } else {
+      w.classList.remove('maximized');
+      w.style.left = g.left + 'px'; w.style.top = g.top + 'px';
+      w.style.width = g.width + 'px'; w.style.height = g.height + 'px';
+    }
+    w.style.zIndex = g.z || 1;
+  }
+  function raiseWin(id) {
+    if (!windowModeOn()) return;
+    var g = winGeom(id); g.z = ++zTop;
+    var w = winOf(id); if (w) w.style.zIndex = g.z;
+  }
+  function pumpActive(f, tellId) {
+    if (f && f.src && f.contentWindow) {
+      try { f.contentWindow.postMessage({ type: 'vibetop:active', active: tellId }, '*'); } catch (e) {}
+    }
+  }
+  function nudgeResize(id) {
+    var f = frameOf(id);
+    if (f && f.contentWindow) { try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {} }
+  }
+  function toggleMax(id) {
+    var g = winGeom(id);
+    if (g.max) { g.max = false; if (g.prev) { g.left = g.prev.left; g.top = g.prev.top; g.width = g.prev.width; g.height = g.prev.height; } }
+    else { g.prev = { left: g.left, top: g.top, width: g.width, height: g.height }; g.max = true; g.z = ++zTop; }
+    renderWindows(); nudgeResize(id); saveWins();
+  }
+  function minimizeWin(id) {
+    var g = winGeom(id); g.min = true;
+    // Move focus off the minimized window to the next open, non-minimized one.
+    if (active === id) {
+      var next = null;
+      for (var k = openApps.length - 1; k >= 0; k--) {
+        var oid = openApps[k];
+        if (oid !== id && !(wins[oid] && wins[oid].min)) { next = oid; break; }
+      }
+      active = next;
+    }
+    renderWindows(); renderTaskbar(); saveWins();
+  }
+  function saveWins() { try { localStorage.setItem('vibetop:wins', JSON.stringify(wins)); } catch (e) {} }
+  function loadWins() {
+    try {
+      var s = JSON.parse(localStorage.getItem('vibetop:wins') || '{}');
+      if (s && typeof s === 'object') {
+        wins = s;
+        Object.keys(wins).forEach(function(k){ var z = wins[k] && wins[k].z; if (z > zTop) zTop = z; });
+      }
+    } catch (e) {}
+  }
+  // The sole visibility/geometry mutator. Default mode: only `active` shows
+  // (classic full-bleed). Window mode: every open window shows at once, floating
+  // + z-ordered, the focused (active) one accented. A visible window is told
+  // it's active so it never pauses (Monitor keeps polling). setActive delegates.
+  function renderWindows() {
+    var wm = windowModeOn();
+    document.body.classList.toggle('wm', wm);
+    document.querySelectorAll('#frames .win').forEach(function(w) {
+      var id = w.dataset.id, f = w.querySelector('iframe');
+      if (wm) {
+        var g = winGeom(id), vis = !g.min;
+        w.classList.add('floating');
+        w.classList.toggle('active', vis);          // minimized → hidden (taskbar restores)
+        w.classList.toggle('focused', vis && id === active);
+        if (vis) applyWinGeom(w, g);
+        pumpActive(f, vis ? id : active);            // visible → own id (never pause); minimized → paused
+      } else {
+        w.classList.remove('floating', 'focused', 'maximized');
+        w.style.left = w.style.top = w.style.width = w.style.height = w.style.zIndex = '';
+        var on = id === active;
+        w.classList.toggle('active', on);
+        if (!on) pumpActive(f, active);    // hidden → focused id (pause)
+      }
+    });
+  }
+  // Keep windows inside the box when the viewport changes (clamp), then repaint.
+  function reflowWindows() {
+    if (windowModeOn() && window.VibeWin) {
+      var box = frameBox();
+      Object.keys(wins).forEach(function(id) {
+        var g = wins[id];
+        if (winOf(id) && g && !g.max) {
+          var c = VibeWin.clampGeom(g, box);
+          g.left = c.left; g.top = c.top; g.width = c.width; g.height = c.height;
+        }
+      });
+    }
+    renderWindows();
+  }
+  loadWins();
+  window.addEventListener('resize', reflowWindows);
 
   // --- Browser keyboard relay ------------------------------------------------
   // The Browser (xpra canvas) takes keyboard input but has no DOM field of its
@@ -1260,8 +1438,8 @@
   // Local teardown when a logout/reset fired on another instance.
   function clearAllLocal() {
     openApps.slice().forEach(function(id) {
-      var f = frameOf(id);
-      if (f && f.parentNode) f.parentNode.removeChild(f);
+      var w = winOf(id);
+      if (w && w.parentNode) w.parentNode.removeChild(w);
     });
     openApps = [];
     applyingRemote = true;
@@ -1270,16 +1448,43 @@
   }
 
   function frameOf(id) { return document.getElementById('frame-' + id); }
+  function winOf(id) { return document.getElementById('win-' + id); }
 
   function ensureFrame(id) {
     var f = frameOf(id);
     if (!f) {
+      // Wrap the iframe in its window container ONCE, at creation (while it's
+      // still about:blank — no reload). The iframe never leaves .win-body, so
+      // xpra/terminal state and the deferred-src 0×0 fix are preserved.
+      var win = document.createElement('div');
+      win.className = 'win';
+      win.id = 'win-' + id;
+      win.dataset.id = id;
+      // Title bar (hidden in default mode via CSS; shown + draggable in window mode).
+      var bar = document.createElement('div');
+      bar.className = 'win-titlebar';
+      bar.innerHTML = '<span class="wt-ico">' + (APPS[id].svg || APPS[id].icon) + '</span>' +
+                      '<span class="wt-name">' + APPS[id].label + '</span>' +
+                      '<span class="wt-min" title="Minimize">–</span>' +
+                      '<span class="wt-max" title="Maximize">▢</span>' +
+                      '<span class="wt-close" title="Close">&times;</span>';
+      var body = document.createElement('div');
+      body.className = 'win-body';
       f = document.createElement('iframe');
       f.id = 'frame-' + id;
       f.dataset.id = id;
       f.dataset.src = APPS[id].src;    // deferred — see loadIfNeeded()
       f.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen; autoplay');
-      framesEl.appendChild(f);
+      body.appendChild(f);
+      win.appendChild(bar);
+      win.appendChild(body);
+      ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(function(d) {
+        var h = document.createElement('div');
+        h.className = 'win-rz win-rz-' + d;
+        h.dataset.dir = d;
+        win.appendChild(h);
+      });
+      framesEl.appendChild(win);
     }
     return f;
   }
@@ -1373,16 +1578,9 @@
 
   function setActive(id) {
     active = id;
-    document.querySelectorAll('#frames iframe').forEach(function(f) {
-      f.classList.toggle('active', f.dataset.id === id);
-      // Let apps pause background work when they're not on top (e.g. Monitor
-      // stops polling). Only message frames that have actually loaded — a frame
-      // being opened for the first time gets its broadcast on load (see
-      // notifyActiveFrame); messaging its about:blank now would be lost.
-      if (f.src && f.contentWindow && f.dataset.id !== id) {
-        try { f.contentWindow.postMessage({ type: 'vibetop:active', active: id }, '*'); } catch (e) {}
-      }
-    });
+    if (id && wins[id]) wins[id].min = false;   // focusing a window un-minimizes it
+    if (id) raiseWin(id);      // window mode: bring the focused window to the front
+    renderWindows();           // the SOLE visibility/geometry mutator (both modes)
     // The wallpaper (logo + name + blurb) shows whenever no app covers it; only
     // the "Click Start" line is conditional — hide it once any app is open.
     if (hintEl) hintEl.classList.toggle('hidden', openApps.length > 0);
@@ -1417,6 +1615,16 @@
     if (openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
     setActive(id);            // relays status itself when id === 'home'
     closeMenu();
+    maybeWinTip();
+  }
+
+  // First-run tip teaching the window controls (only in window mode; vibeCoach
+  // self-caps at 3 shows + dismiss-on-tap; a no-op on touch/narrow).
+  function maybeWinTip() {
+    if (!window.vibeCoach || !windowModeOn()) return;
+    vibeCoach({ key: 'vibetop:tip:wm:v1',
+                text: 'Windows: drag the title bar to move · drag an edge or corner to resize · drag to a screen side to snap them together' },
+              { bottom: 60 });
   }
 
   function closeApp(id) {
@@ -1443,8 +1651,8 @@
     }
 
     openApps.splice(i, 1);
-    var f = frameOf(id);
-    if (f) f.parentNode.removeChild(f);     // fully unload the app
+    var w = winOf(id);
+    if (w) w.parentNode.removeChild(w);     // fully unload the app (window + its iframe)
     if (active === id) {
       setActive(openApps.length ? openApps[Math.max(0, i - 1)] : null);
     } else {
@@ -1624,6 +1832,79 @@
       persist();
     }
   });
+
+  // --- window mode: move / resize / focus (pointer, desktop) ----------------
+  // Delegated on #frames. A drag-mask overlay covers the iframes during a drag
+  // so the pointer stream doesn't die when the cursor crosses another window.
+  (function setupWM() {
+    var mask = document.getElementById('win-dragmask');
+    var snapEl = document.getElementById('win-snap');
+    var drag = null, raf = null;
+    // Snap target for a title-bar drag near a screen edge (relative to #frames).
+    function snapAt(e) {
+      if (!drag || drag.mode !== 'move' || !window.VibeWin) return null;
+      var r = framesEl.getBoundingClientRect();
+      return VibeWin.snapTarget(e.clientX - r.left, e.clientY - r.top, { w: r.width, h: r.height });
+    }
+    function onMove(e) {
+      if (!drag || !window.VibeWin) return;
+      var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy, g = winGeom(drag.id), ng;
+      if (drag.mode === 'move') ng = VibeWin.clampGeom({ left: drag.g0.left + dx, top: drag.g0.top + dy, width: drag.g0.width, height: drag.g0.height }, frameBox());
+      else ng = VibeWin.resizeGeom(drag.g0, drag.dir, dx, dy, frameBox());
+      g.left = ng.left; g.top = ng.top; g.width = ng.width; g.height = ng.height;
+      var w = winOf(drag.id); if (w) applyWinGeom(w, g);
+      // Live snap preview: highlight where a drop near an edge would place it.
+      if (drag.mode === 'move' && snapEl) {
+        var s = snapAt(e); drag.snap = s;
+        if (s) { snapEl.style.display = 'block'; snapEl.style.left = s.left + 'px'; snapEl.style.top = s.top + 'px'; snapEl.style.width = s.width + 'px'; snapEl.style.height = s.height + 'px'; }
+        else snapEl.style.display = 'none';
+      }
+      // Throttle the resize fan-out into the iframe (xpra RANDR is expensive).
+      if (drag.mode === 'resize' && !raf) raf = requestAnimationFrame(function(){ raf = null; nudgeResize(drag.id); });
+    }
+    function onUp() {
+      if (!drag) return;
+      if (mask) mask.style.display = 'none';
+      if (snapEl) snapEl.style.display = 'none';
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      // Drop near an edge → snap (top = maximize, sides = half-screen split view).
+      if (drag.snap) {
+        var g = winGeom(drag.id), box = frameBox();
+        if (drag.snap.width >= box.w - 2 && drag.snap.height >= box.h - 2) { g.prev = drag.g0; g.max = true; }
+        else { g.max = false; g.left = drag.snap.left; g.top = drag.snap.top; g.width = drag.snap.width; g.height = drag.snap.height; }
+        var w = winOf(drag.id); if (w) applyWinGeom(w, g);
+      }
+      nudgeResize(drag.id); saveWins(); drag = null;
+    }
+    framesEl.addEventListener('pointerdown', function(e) {
+      if (!windowModeOn() || e.button) return;
+      var w = e.target.closest('.win'); if (!w) return;
+      var id = w.dataset.id;
+      if (id !== active) setActive(id); else raiseWin(id);   // click any window → focus/raise it
+      if (e.target.closest('.wt-close') || e.target.closest('.wt-max') || e.target.closest('.wt-min')) return;   // buttons act on click
+      var g = winGeom(id); if (g.max) return;                 // a maximized window isn't dragged/resized
+      var rz = e.target.closest('.win-rz'), tb = e.target.closest('.win-titlebar');
+      var g0 = { left: g.left, top: g.top, width: g.width, height: g.height };
+      if (rz) drag = { id: id, mode: 'resize', dir: rz.dataset.dir, sx: e.clientX, sy: e.clientY, g0: g0 };
+      else if (tb) drag = { id: id, mode: 'move', sx: e.clientX, sy: e.clientY, g0: g0, snap: null };
+      else return;                                            // pointerdown on the body → just focus (above)
+      e.preventDefault();
+      if (mask) mask.style.display = 'block';
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+    framesEl.addEventListener('click', function(e) {
+      var w = e.target.closest('.win'); if (!w || !windowModeOn()) return;
+      if (e.target.closest('.wt-close')) closeApp(w.dataset.id);
+      else if (e.target.closest('.wt-min')) minimizeWin(w.dataset.id);
+      else if (e.target.closest('.wt-max')) toggleMax(w.dataset.id);
+    });
+    framesEl.addEventListener('dblclick', function(e) {
+      if (!windowModeOn()) return;
+      var tb = e.target.closest('.win-titlebar'); if (tb) toggleMax(tb.closest('.win').dataset.id);
+    });
+  })();
 
   document.addEventListener('click', function(e) {
     if (menuEl.classList.contains('open') &&
