@@ -875,12 +875,18 @@
   // full-screen switcher). Desktop only — on touch/narrow, apps stay full-screen
   // chromeless (windows make no sense on a phone). Geometry lives per-app in
   // `wins` and localStorage (device-local); pure math is in winmgr.js (VibeWin).
-  // Default ON (desktop). Opt out with ?wm=0 or localStorage['vibetop:wm']='0';
-  // ?wm=1 forces on. windowModeOn() still gates to desktop (non-touch, ≥900px),
-  // so phones/tablets always get the classic full-screen desktop.
-  var WM_FLAG = /[?&]wm=0(&|$)/.test(location.search) ? false
-              : /[?&]wm=1(&|$)/.test(location.search) ? true
-              : (function(){ try { return localStorage.getItem('vibetop:wm') !== '0'; } catch (e) { return true; } })();
+  // Default OFF — the classic full-screen desktop. Opt IN with ?wm=1 (windows),
+  // which STICKS on this device (persisted to localStorage); ?wm=0 turns it back
+  // off. So a one-time ?wm=1 enables windows for good on that iPad/desktop, no
+  // need to re-add the flag each visit.
+  var WM_FLAG = (function(){
+    var qs = location.search;
+    try {
+      if (/[?&]wm=1(&|$)/.test(qs)) { localStorage.setItem('vibetop:wm', '1'); return true; }
+      if (/[?&]wm=0(&|$)/.test(qs)) { localStorage.setItem('vibetop:wm', '0'); return false; }
+      return localStorage.getItem('vibetop:wm') === '1';   // default OFF (full screen)
+    } catch (e) { return /[?&]wm=1(&|$)/.test(qs); }
+  })();
   var wins = {};       // id -> {left,top,width,height,z,max,prev}
   var zTop = 10;
   function windowModeOn() {
