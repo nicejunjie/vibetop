@@ -1838,9 +1838,20 @@
   menuEl.addEventListener('click', function(e) {
     // Flyout title doubles as a "back"/close on the Utilities cascading panel.
     if (e.target.closest('.sm-fly-head')) { closeUtilFlyout(); return; }
-    // The "Utilities" parent opens/closes its flyout (positioned beside/over the
-    // menu — see toggleUtilFlyout — so it never grows the menu vertically).
-    if (e.target.closest('.sm-parent')) { toggleUtilFlyout(); return; }
+    // The "Utilities" parent OPENS its flyout (positioned beside/over the menu so
+    // it never grows the menu vertically). Open (idempotent), NOT toggle: on a
+    // non-coarse pointer (iPad + trackpad/keyboard) a tap fires mouseenter — which
+    // hover-opens it — then click, which used to toggle it right back closed, so
+    // the flyout never appeared. Closing is via ‹ Back, an outside tap, or (mouse)
+    // hovering away.
+    if (e.target.closest('.sm-parent')) {
+      // Pure touch (no hover bound): tap toggles. Mouse/trackpad (hover already
+      // opened it on mouseenter): just ENSURE open — never close here, or the
+      // hover-open→click-close race hides the flyout. Close via ‹ Back / outside.
+      if (IS_TOUCH) { utilFlyoutOpen() ? closeUtilFlyout() : openUtilFlyout(); }
+      else { openUtilFlyout(); }
+      return;
+    }
     var item = e.target.closest('.sm-item');
     if (!item) return;
     var id = item.dataset.id;
