@@ -518,6 +518,14 @@
   body.is-touch .win-rz-se, body.is-touch .win-rz-sw { width: 26px; height: 26px; }
   body.is-touch .win-titlebar .wt-min, body.is-touch .win-titlebar .wt-max,
   body.is-touch .win-titlebar .wt-close { width: 34px; height: 32px; font-size: 17px; }
+  /* Visible grip in the SE corner so resizing is discoverable — touch has no
+     hover cursor, so an invisible edge is unusable. Diagonal lines are the
+     universal "drag to resize" affordance. */
+  body.wm .win.floating:not(.maximized) .win-rz-se {
+    background: repeating-linear-gradient(-45deg, transparent 0, transparent 3px,
+                rgba(170,190,210,0.6) 3px, rgba(170,190,210,0.6) 4px);
+    border-bottom-right-radius: 7px;
+  }
   /* overlay shown during a move/resize so the drag doesn't die over an iframe */
   #win-dragmask { position: absolute; inset: 0; z-index: 99998; display: none; touch-action: none; }
   .frames iframe {
@@ -833,6 +841,10 @@
     // Client-side toggle (not an app): show/hide the CPU/GPU/MEM/VRAM readout in
     // the taskbar, freeing that space for app tabs. Per-device (localStorage).
     sysstats: { label: 'System Stats', icon: '🖥', desc: 'CPU/GPU in taskbar', section: 'utilities', toggle: true },
+    // Client-side toggle (not an app): floating resizable windows vs the classic
+    // full-screen desktop. Per-device (localStorage). Only takes visible effect
+    // on tablet/desktop sizes (phones stay full-screen).
+    winmode: { label: 'Window mode', icon: '🗔', desc: 'Off — full-screen apps', section: 'utilities', toggle: true },
     // In-Files video player. `hidden` = no Start-menu tile: it's opened only by
     // double-clicking a video in Files (a `video-view` postMessage -> openVideo),
     // like the office viewer. Registered here so the taskbar/title can render it.
@@ -982,6 +994,24 @@
     saveWins();
   }
   function saveWins() { try { localStorage.setItem('vibetop:wins', JSON.stringify(wins)); } catch (e) {} }
+  // The Start ▸ Utilities ▸ "Window mode" toggle — a discoverable, visible switch
+  // between floating windows and the classic full-screen desktop (no URL flag).
+  // Applies LIVE (reassigns WM_FLAG + re-renders), per-device via localStorage.
+  function toggleWindowMode() {
+    WM_FLAG = !WM_FLAG;
+    try { localStorage.setItem('vibetop:wm', WM_FLAG ? '1' : '0'); } catch (e) {}
+    renderWindows(); renderTaskbar(); applyWinModeMenu();
+    if (WM_FLAG) { var cur = active; setTimeout(function(){ maybeWinTip(); if (cur) coachForApp(cur); }, 300); }
+  }
+  function applyWinModeMenu() {
+    var it = document.querySelector('.sm-item[data-id="winmode"]');
+    if (!it) return;
+    it.classList.toggle('cu-on', WM_FLAG);
+    var ds = it.querySelector('.sm-desc');
+    if (ds) ds.textContent = !WM_FLAG ? 'Off — full-screen apps'
+      : (windowModeOn() ? 'On — drag title bar to move, edges to resize'
+                        : 'On (screen too small — full-screen)');
+  }
   function loadWins() {
     try {
       var s = JSON.parse(localStorage.getItem('vibetop:wins') || '{}');
@@ -1815,7 +1845,9 @@
     if (!item) return;
     var id = item.dataset.id;
     if (APPS[id] && APPS[id].toggle) {   // a toggle row, not an app
-      if (id === 'sysstats') { toggleSysStats(); } else { toggleClaudeUsage(); }
+      if (id === 'sysstats') { toggleSysStats(); }
+      else if (id === 'winmode') { toggleWindowMode(); }
+      else { toggleClaudeUsage(); }
       return;
     }
     if (e.target.closest('.sm-close')) { closeEverywhere(id); return; }  // close-everywhere, not launch
@@ -2202,6 +2234,7 @@
   }
 
   applySysStats();   // apply the saved show/hide preference before the first heartbeat
+  applyWinModeMenu();   // reflect the window-mode on/off state in its Start-menu toggle
   // No standalone stats/terminal polls: both fold onto the 5s desktop heartbeat
   // (renderSysStats + terminalCount in onDesktopResp). The first heartbeat fires
   // ~150ms after the restore GET (setActive → persist → pushDesktop).
