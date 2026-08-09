@@ -51,9 +51,35 @@ test("defaultGeom cascades and fits inside the box", () => {
   }
 });
 
-test("snapTarget: edges snap to maximize / halves, middle is free", () => {
-  assert.deepEqual(W.snapTarget(700, 5, BOX), { left: 0, top: 0, width: 1400, height: 800 });     // top
+test("snapTarget: left/right edges snap to halves; top and middle are free", () => {
   assert.deepEqual(W.snapTarget(5, 400, BOX), { left: 0, top: 0, width: 700, height: 800 });      // left half
   assert.deepEqual(W.snapTarget(1398, 400, BOX), { left: 700, top: 0, width: 700, height: 800 }); // right half
-  assert.equal(W.snapTarget(700, 400, BOX), null);                                                // middle
+  assert.equal(W.snapTarget(700, 5, BOX), null);      // top no longer maximizes (use the ▢ button)
+  assert.equal(W.snapTarget(700, 400, BOX), null);    // middle → free move
+});
+
+test("tileGrid: 2 windows = side-by-side halves, no gap", () => {
+  const g = W.tileGrid(2, BOX);
+  assert.equal(g.length, 2);
+  assert.deepEqual(g[0], { left: 0, top: 0, width: 700, height: 800 });
+  assert.deepEqual(g[1], { left: 700, top: 0, width: 700, height: 800 });
+});
+
+test("tileGrid: 4 windows = 2×2 quadrants covering the box", () => {
+  const g = W.tileGrid(4, BOX);
+  assert.equal(g.length, 4);
+  assert.deepEqual(g[0], { left: 0, top: 0, width: 700, height: 400 });
+  assert.deepEqual(g[3], { left: 700, top: 400, width: 700, height: 400 });
+});
+
+test("tileGrid: 3 windows = two halves over one full-width row", () => {
+  const g = W.tileGrid(3, BOX);
+  assert.equal(g.length, 3);
+  assert.equal(g[0].width, 700); assert.equal(g[1].left, 700);   // top row: two halves
+  assert.deepEqual(g[2], { left: 0, top: 400, width: 1400, height: 400 });  // bottom: full width
+});
+
+test("tileGrid: 1 window fills the box; 0 → empty", () => {
+  assert.deepEqual(W.tileGrid(1, BOX), [{ left: 0, top: 0, width: 1400, height: 800 }]);
+  assert.deepEqual(W.tileGrid(0, BOX), []);
 });

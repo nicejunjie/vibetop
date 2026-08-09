@@ -47,18 +47,39 @@
     }, box);
   }
 
-  // Snap target when a window is dragged so the pointer is within `edge` px of a
-  // screen edge: top → maximize, left/right → that half. Else null (free move).
+  // Snap target when a window is dragged within `edge` px of a LEFT/RIGHT screen
+  // edge → that half. Else null. (No top→maximize: full-screen is the ▢ button;
+  // snapping is only for the hard-to-hit precise HALF.)
   function snapTarget(px, py, box, edge) {
     edge = edge || 18;
-    if (py <= edge) return { left: 0, top: 0, width: box.w, height: box.h };
-    if (px <= edge) return { left: 0, top: 0, width: Math.round(box.w / 2), height: box.h };
-    if (px >= box.w - edge) return { left: box.w - Math.round(box.w / 2), top: 0, width: Math.round(box.w / 2), height: box.h };
+    var half = Math.round(box.w / 2);
+    if (px <= edge) return { left: 0, top: 0, width: half, height: box.h };
+    if (px >= box.w - edge) return { left: box.w - half, top: 0, width: half, height: box.h };
     return null;
   }
 
+  // "Tidy": tile n windows into an even grid filling the box (row-major). 2 →
+  // side-by-side halves, 3 → two halves over one full-width, 4 → 2×2, etc. The
+  // last row stretches its items to fill the width; last col/row absorb rounding
+  // so there are no gaps. Returns n geoms.
+  function tileGrid(n, box) {
+    if (n <= 0) return [];
+    var cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), out = [];
+    for (var i = 0; i < n; i++) {
+      var r = Math.floor(i / cols), c = i % cols;
+      var rowItems = (r === rows - 1) ? (n - cols * (rows - 1)) : cols;
+      var cw = Math.floor(box.w / rowItems), ch = Math.floor(box.h / rows);
+      out.push({
+        left: c * cw, top: r * ch,
+        width: (c === rowItems - 1) ? (box.w - c * cw) : cw,
+        height: (r === rows - 1) ? (box.h - r * ch) : ch,
+      });
+    }
+    return out;
+  }
+
   var api = { clampGeom: clampGeom, resizeGeom: resizeGeom, defaultGeom: defaultGeom,
-              snapTarget: snapTarget, MINW: MINW, MINH: MINH };
+              snapTarget: snapTarget, tileGrid: tileGrid, MINW: MINW, MINH: MINH };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VibeWin = api;
 })(typeof self !== 'undefined' ? self : this);

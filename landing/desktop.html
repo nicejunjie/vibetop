@@ -139,6 +139,17 @@
   .start-btn.open { box-shadow: 0 0 0 2px rgba(210,105,30,0.5) inset; filter: brightness(1.12); }
   .start-btn .icon { font-size: 18px; line-height: 1; }
 
+  /* Tidy-windows button — only in window mode; tiles open windows evenly. */
+  .tidy-btn {
+    display: none; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 40px; height: 40px; margin-left: 4px;
+    border-radius: 8px; cursor: pointer; font-size: 19px; line-height: 1;
+    color: #b9c6d4; background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+  }
+  .tidy-btn:hover { background: rgba(255,255,255,0.12); color: #eaf1f8; }
+  body.wm .tidy-btn { display: inline-flex; }
+
   .tb-sep { width: 1px; height: 28px; background: #2a3040; margin: 0 6px; }
 
   /* Open-app buttons (only present while the app is open) */
@@ -706,6 +717,7 @@
 
   <div class="taskbar" id="taskbar">
     <div class="start-btn" id="start-btn"><span class="icon">⊞</span> Start</div>
+    <button class="tidy-btn" id="tidy-btn" title="Tidy windows — tile them evenly (halves/grid)">▦</button>
     <div class="tb-sep"></div>
     <div class="task-apps" id="task-apps"></div>
     <div class="tb-spacer"></div>
@@ -951,6 +963,23 @@
       active = next;
     }
     renderWindows(); renderTaskbar(); saveWins();
+  }
+  // "Tidy" — tile every open (non-minimized) window into an even grid: 2 →
+  // precise left/right halves, 3 → two-over-one, 4 → quadrants. One tap gives an
+  // exact split (much easier than nudging edges, especially on touch).
+  function tidyWindows() {
+    if (!windowModeOn() || !window.VibeWin) return;
+    var vis = openApps.filter(function(id){ return !(wins[id] && wins[id].min); });
+    if (!vis.length) return;
+    var geoms = VibeWin.tileGrid(vis.length, frameBox());
+    vis.forEach(function(id, i){
+      var g = winGeom(id), t = geoms[i];
+      g.max = false; g.prev = null;
+      g.left = t.left; g.top = t.top; g.width = t.width; g.height = t.height;
+    });
+    renderWindows();
+    vis.forEach(nudgeResize);
+    saveWins();
   }
   function saveWins() { try { localStorage.setItem('vibetop:wins', JSON.stringify(wins)); } catch (e) {} }
   function loadWins() {
@@ -1653,8 +1682,8 @@
   // self-caps at 3 shows + dismiss-on-tap; a no-op on touch/narrow).
   function maybeWinTip() {
     if (!window.vibeCoach || !windowModeOn()) return;
-    vibeCoach({ key: 'vibetop:tip:wm:v1',
-                text: 'Windows: drag the title bar to move · drag an edge or corner to resize · drag to a screen side to snap them together' },
+    vibeCoach({ key: 'vibetop:tip:wm:v2',
+                text: 'Windows: drag the title bar to move · drag an edge/corner to resize · tap ▦ (top-left) to tidy them into an even split' },
               { bottom: 60 });
   }
 
@@ -1774,6 +1803,7 @@
 
   // --- events ---
   startBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleMenu(); });
+  (function(){ var tb = document.getElementById('tidy-btn'); if (tb) tb.addEventListener('click', function(e){ e.stopPropagation(); tidyWindows(); }); })();
 
   menuEl.addEventListener('click', function(e) {
     // Flyout title doubles as a "back"/close on the Utilities cascading panel.
@@ -1899,11 +1929,10 @@
       if (snapEl) snapEl.style.display = 'none';
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      // Drop near an edge → snap (top = maximize, sides = half-screen split view).
+      // Drop near a left/right edge → snap to that half (precise split view).
       if (drag.snap) {
-        var g = winGeom(drag.id), box = frameBox();
-        if (drag.snap.width >= box.w - 2 && drag.snap.height >= box.h - 2) { g.prev = drag.g0; g.max = true; }
-        else { g.max = false; g.left = drag.snap.left; g.top = drag.snap.top; g.width = drag.snap.width; g.height = drag.snap.height; }
+        var g = winGeom(drag.id);
+        g.max = false; g.left = drag.snap.left; g.top = drag.snap.top; g.width = drag.snap.width; g.height = drag.snap.height;
         var w = winOf(drag.id); if (w) applyWinGeom(w, g);
       }
       nudgeResize(drag.id); saveWins(); drag = null;
