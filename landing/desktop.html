@@ -1971,7 +1971,7 @@
   (function setupWM() {
     var mask = document.getElementById('win-dragmask');
     var snapEl = document.getElementById('win-snap');
-    var drag = null, raf = null;
+    var drag = null, raf = null, lastTbTap = null;
     // Snap target for a title-bar drag near a screen edge (relative to #frames).
     function snapAt(e) {
       if (!drag || drag.mode !== 'move' || !window.VibeWin) return null;
@@ -2015,8 +2015,20 @@
       var id = w.dataset.id;
       if (id !== active) setActive(id); else raiseWin(id);   // click any window → focus/raise it
       if (e.target.closest('.wt-close') || e.target.closest('.wt-max') || e.target.closest('.wt-min')) return;   // buttons act on click
-      var g = winGeom(id); if (g.max) return;                 // a maximized window isn't dragged/resized
       var rz = e.target.closest('.win-rz'), tb = e.target.closest('.win-titlebar');
+      // Double-tap/click the title bar → maximize/restore. Detected from two
+      // pointerdowns (works for mouse AND touch; iOS fires `dblclick` unreliably
+      // and the move-drag would otherwise swallow it). BEFORE the maximized-bail,
+      // so double-tapping a maximized bar still restores it.
+      if (tb) {
+        var now = e.timeStamp || 0;
+        if (lastTbTap && lastTbTap.id === id && (now - lastTbTap.t) < 400 &&
+            Math.abs(e.clientX - lastTbTap.x) < 24 && Math.abs(e.clientY - lastTbTap.y) < 24) {
+          lastTbTap = null; e.preventDefault(); toggleMax(id); return;
+        }
+        lastTbTap = { t: now, x: e.clientX, y: e.clientY, id: id };
+      }
+      var g = winGeom(id); if (g.max) return;                 // a maximized window isn't dragged/resized
       var g0 = { left: g.left, top: g.top, width: g.width, height: g.height };
       if (rz) drag = { id: id, mode: 'resize', dir: rz.dataset.dir, sx: e.clientX, sy: e.clientY, g0: g0 };
       else if (tb) drag = { id: id, mode: 'move', sx: e.clientX, sy: e.clientY, g0: g0, snap: null };
@@ -2033,10 +2045,8 @@
       else if (e.target.closest('.wt-min')) minimizeWin(w.dataset.id);
       else if (e.target.closest('.wt-max')) toggleMax(w.dataset.id);
     });
-    framesEl.addEventListener('dblclick', function(e) {
-      if (!windowModeOn()) return;
-      var tb = e.target.closest('.win-titlebar'); if (tb) toggleMax(tb.closest('.win').dataset.id);
-    });
+    // (title-bar double-tap maximize is handled in pointerdown above — the native
+    // dblclick event is unreliable on touch, so we don't rely on it.)
   })();
 
   document.addEventListener('click', function(e) {
