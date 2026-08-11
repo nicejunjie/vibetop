@@ -497,6 +497,10 @@
   .win-titlebar .wt-min, .win-titlebar .wt-max, .win-titlebar .wt-close {
     width: 26px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
     border-radius: 5px; cursor: pointer; color: #7a8a9c; flex: 0 0 auto; font-size: 15px; line-height: 1;
+    /* Above the resize handles (z-index 3–4): the × sits at the right edge under
+       .win-rz-e / .win-rz-ne, which otherwise stole the tap (min/max, further
+       left, were unaffected — the tell). */
+    position: relative; z-index: 5;
   }
   .win-titlebar .wt-min:hover, .win-titlebar .wt-max:hover { background: rgba(255,255,255,0.12); color: #cfe0f0; }
   .win-titlebar .wt-close:hover { background: #aa3333; color: #fff; }
