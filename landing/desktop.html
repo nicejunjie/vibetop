@@ -995,10 +995,13 @@
     var vis = openApps.filter(function(id){ return !(wins[id] && wins[id].min); });
     if (!vis.length) return;
     var geoms = VibeWin.tileGrid(vis.length, frameBox());
+    var GAP = 8;   // inset each tile so its resize grips never sit at the extreme frame edge
     vis.forEach(function(id, i){
       var g = winGeom(id), t = geoms[i];
       g.max = false; g.prev = null;
-      g.left = t.left; g.top = t.top; g.width = t.width; g.height = t.height;
+      g.left = t.left + GAP; g.top = t.top + GAP;
+      g.width = Math.max(VibeWin.MINW, t.width - 2 * GAP);
+      g.height = Math.max(VibeWin.MINH, t.height - 2 * GAP);
     });
     renderWindows();
     vis.forEach(nudgeResize);
@@ -1740,9 +1743,15 @@
   // self-caps at 3 shows + dismiss-on-tap; a no-op on touch/narrow).
   function maybeWinTip() {
     if (!window.vibeCoach || !windowModeOn()) return;
-    vibeCoach({ key: 'vibetop:tip:wm:v2',
+    vibeCoach({ key: 'vibetop:tip:wm:v3',
                 text: 'Windows: drag the title bar to move · drag an edge/corner to resize · tap ▦ (top-left) to tidy them into an even split' },
               { bottom: 60 });
+    // The banner sits over the bottom edge/corner of a full-frame window and was
+    // eating taps on the resize grips it describes. Make it click-through so it
+    // can never block window chrome, and auto-hide it (it can't be tap-dismissed
+    // once click-through).
+    var el = document.querySelector('.vibe-coach');
+    if (el) { el.style.pointerEvents = 'none'; setTimeout(function(){ if (el && el.parentNode) el.remove(); }, 7000); }
   }
 
   function closeApp(id) {
