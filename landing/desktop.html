@@ -450,6 +450,13 @@
   /* === Frames === */
   .frames {
     flex: 1 1 auto; position: relative; min-height: 0;
+    /* isolation + overflow: CONTAIN floating windows here. Without a stacking
+       context, a window's z-index (and the 99998 drag-mask) escape to the root
+       and paint OVER the taskbar (z-index 100) and Start menu (110) — the window
+       covered the Start button and the menu wouldn't pop up. isolate keeps all
+       window stacking below the chrome; overflow:hidden clips a window that
+       extends past the frame so it can never spill onto the taskbar. */
+    isolation: isolate; overflow: hidden;
     /* Soft radial glow behind the desktop wallpaper. The .wallpaper child holds
        the brand mark + name + blurb; any active app iframe is opaque and covers
        both. Pure-CSS gradient — no asset. */
@@ -1035,7 +1042,16 @@
         w.classList.add('floating');
         w.classList.toggle('active', vis);          // minimized → hidden (taskbar restores)
         w.classList.toggle('focused', vis && id === active);
-        if (vis) applyWinGeom(w, g);
+        if (vis) {
+          // Keep the window inside the CURRENT frame (it may have been sized when
+          // the frame was taller — e.g. before the Claude-usage strip appeared —
+          // which pushed its bottom over the taskbar).
+          if (!g.max && window.VibeWin) {
+            var c = VibeWin.clampGeom(g, frameBox());
+            g.left = c.left; g.top = c.top; g.width = c.width; g.height = c.height;
+          }
+          applyWinGeom(w, g);
+        }
         pumpActive(f, vis ? id : active);            // visible → own id (never pause); minimized → paused
       } else {
         w.classList.remove('floating', 'focused', 'maximized');
@@ -1062,6 +1078,14 @@
   }
   loadWins();
   window.addEventListener('resize', reflowWindows);
+  // Re-clamp windows whenever the FRAME itself resizes — not just the viewport.
+  // The Claude-usage strip, the warnings banner, and the on-screen keyboard all
+  // change #frames' height with no window 'resize' event, which used to leave a
+  // window's bottom hanging over the taskbar. rAF-debounced.
+  if (window.ResizeObserver) {
+    var _roT = null;
+    new ResizeObserver(function(){ if (_roT) return; _roT = requestAnimationFrame(function(){ _roT = null; reflowWindows(); }); }).observe(framesEl);
+  }
   // Enlarge window chrome (title bar, resize grips) for touch. Self-contained
   // (don't reference IS_TOUCH — it's assigned later in this IIFE) and OR of every
   // touch signal, since no single one is reliable everywhere: maxTouchPoints (5
@@ -1972,6 +1996,7 @@
       if (snapEl) snapEl.style.display = 'none';
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       // Drop near a left/right edge → snap to that half (precise split view).
       if (drag.snap) {
         var g = winGeom(drag.id);
@@ -1996,6 +2021,7 @@
       if (mask) mask.style.display = 'block';
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);   // iOS may fire cancel, not up — don't leave the mask stuck
     });
     framesEl.addEventListener('click', function(e) {
       var w = e.target.closest('.win'); if (!w || !windowModeOn()) return;
