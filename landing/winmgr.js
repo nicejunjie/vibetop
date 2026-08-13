@@ -64,7 +64,20 @@
   // so there are no gaps. Returns n geoms.
   function tileGrid(n, box) {
     if (n <= 0) return [];
-    var cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), out = [];
+    var cols = Math.ceil(Math.sqrt(n));
+    // On a PORTRAIT frame, two windows side by side are two slivers: a 656px-wide
+    // iPad in portrait puts them exactly on the 320px minimum width, so they can't
+    // even be resized narrower. Stack them instead — full width, half height each.
+    // Landscape is unchanged (that's where side-by-side halves are the point).
+    if (n === 2 && box.h > box.w) cols = 1;
+    // Never ask for more columns/rows than the box can actually hold at the
+    // minimum window size. A sqrt(n) grid on a narrow frame produced tiles
+    // NARROWER than MINW; the caller then clamps each one up to MINW, and the
+    // tiles OVERLAP — on a 656px-wide iPad, 5 windows landed at x=8/226/336 all
+    // 320 wide, so a window's ×/▢/– hit-tested to its neighbour and the first tap
+    // did nothing. "Tidy" promising an even split must not hand back overlaps.
+    cols = Math.max(1, Math.min(cols, Math.floor(box.w / MINW) || 1));
+    var rows = Math.ceil(n / cols), out = [];
     for (var i = 0; i < n; i++) {
       var r = Math.floor(i / cols), c = i % cols;
       var rowItems = (r === rows - 1) ? (n - cols * (rows - 1)) : cols;
@@ -78,8 +91,18 @@
     return out;
   }
 
+  // How many windows this box can tile at the minimum window size. Above it,
+  // tiling is impossible without overlap (the minimum is a hard floor — the
+  // caller clamps every tile up to it, so a grid that asks for more columns than
+  // fit hands back overlapping windows whose controls hit-test to a neighbour).
+  // The caller is expected to tile only this many and minimize the rest.
+  function tileCapacity(box) {
+    return Math.max(1, Math.floor(box.w / MINW) || 1) * Math.max(1, Math.floor(box.h / MINH) || 1);
+  }
+
   var api = { clampGeom: clampGeom, resizeGeom: resizeGeom, defaultGeom: defaultGeom,
-              snapTarget: snapTarget, tileGrid: tileGrid, MINW: MINW, MINH: MINH };
+              snapTarget: snapTarget, tileGrid: tileGrid, tileCapacity: tileCapacity,
+              MINW: MINW, MINH: MINH };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VibeWin = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -53,9 +53,12 @@ test.describe('multi-user isolation (backend)', () => {
 
   test('a cookieless request cannot execute a command as the operator (auth gate)', async ({ playwright, baseURL }) => {
     // The loopback-auth-bypass fix: no cookie -> /api/x/launch must 401, not run as
-    // APP_USER. Use a FRESH request context so it carries no session cookie (the
-    // default `request` fixture would inherit the project's storageState cookie).
-    const rc = await playwright.request.newContext();
+    // APP_USER. The storageState MUST be cleared explicitly: playwright.request
+    // .newContext() inherits `use` from the config, storageState included, so a
+    // bare newContext() still carried the session cookie — this assertion was
+    // vacuous, and only passed because a deploy without the X11 stack made an
+    // AUTHENTICATED x/launch fail too. With the stack present it returned 200.
+    const rc = await playwright.request.newContext({ storageState: { cookies: [], origins: [] } });
     const res = await rc.post(baseURL + '/api/x/launch', { data: { cmd: 'xterm' } });
     // The security property is "a cookieless request does NOT execute a command":
     // it must be rejected (4xx), never accepted (2xx). The exact code can be 401

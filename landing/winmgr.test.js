@@ -83,3 +83,42 @@ test("tileGrid: 1 window fills the box; 0 → empty", () => {
   assert.deepEqual(W.tileGrid(1, BOX), [{ left: 0, top: 0, width: 1400, height: 800 }]);
   assert.deepEqual(W.tileGrid(0, BOX), []);
 });
+
+test("tileGrid: 2 windows on a PORTRAIT box stack instead of becoming slivers", () => {
+  const portrait = { w: 656, h: 851 };            // iPad (gen 11) in portrait
+  const g = W.tileGrid(2, portrait);
+  assert.equal(g.length, 2);
+  assert.deepEqual(g[0], { left: 0, top: 0, width: 656, height: 425 });
+  assert.deepEqual(g[1], { left: 0, top: 425, width: 656, height: 426 });
+  // Side by side there would be 328px columns — under the 320 minimum once the
+  // Tidy gutter is taken off, i.e. unresizable slivers.
+  for (const t of g) assert.ok(t.width >= W.MINW && t.height >= W.MINH);
+});
+
+test("tileGrid: never asks for more columns than the box fits at MINW", () => {
+  // A 656px-wide iPad in portrait fits exactly 2 minimum-width columns. The old
+  // ceil(sqrt(5)) = 3 columns produced 218px tiles that the caller clamped up to
+  // 320 — overlapping windows whose controls hit-tested to a neighbour.
+  for (const box of [{ w: 656, h: 851 }, { w: 834, h: 1101 }, { w: 1194, h: 741 }, { w: 600, h: 867 }]) {
+    const cap = W.tileCapacity(box);
+    for (let n = 1; n <= cap; n++) {
+      const tiles = W.tileGrid(n, box).map((t) => ({
+        left: t.left + 8, top: t.top + 8,
+        width: Math.max(W.MINW, t.width - 16), height: Math.max(W.MINH, t.height - 16),
+      })).map((g) => W.clampGeom(g, box));
+      for (let i = 0; i < tiles.length; i++) for (let j = i + 1; j < tiles.length; j++) {
+        const a = tiles[i], b = tiles[j];
+        const ox = Math.max(0, Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left));
+        const oy = Math.max(0, Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top));
+        assert.equal(ox * oy, 0, `overlap at ${box.w}x${box.h} n=${n} tiles ${i}/${j}`);
+      }
+    }
+  }
+});
+
+test("tileCapacity: how many windows a frame can hold at the minimum size", () => {
+  assert.equal(W.tileCapacity({ w: 656, h: 851 }), 2 * 4);
+  assert.equal(W.tileCapacity({ w: 600, h: 867 }), 1 * 4);
+  assert.equal(W.tileCapacity({ w: 1920, h: 987 }), 6 * 4);
+  assert.ok(W.tileCapacity({ w: 100, h: 100 }) >= 1);   // never zero
+});

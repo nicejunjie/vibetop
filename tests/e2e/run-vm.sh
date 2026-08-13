@@ -50,9 +50,15 @@ done
 echo "   serving."
 
 echo "== mint vt_session cookies inside the VM (user + a 2nd user for isolation tests) =="
-TOKEN="$( cd "$VMDIR" && vagrant ssh -c "sudo python3 /home/$E2E_USER/vibetop/tools/mint-session-cookie.py $E2E_USER --value-only" 2>/dev/null | tr -d '\r' | tail -1 )"
-[ -n "$TOKEN" ] || { echo "!! failed to mint cookie"; exit 1; }
-TOKEN2="$( cd "$VMDIR" && vagrant ssh -c "sudo python3 /home/$E2E_USER/vibetop/tools/mint-session-cookie.py e2e2 --value-only" 2>/dev/null | tr -d '\r' | tail -1 )"
+# Mint from the DEPLOYED checkout. The repo is rsynced to /home/vagrant/vibetop
+# (see the Vagrantfile) and staged to /opt/vibetop/app by deploy.sh — it is NOT
+# at /home/$E2E_USER/vibetop, which is what this used to try: the mint returned
+# empty and the script exited 1 before running a single test.
+MINTER=/opt/vibetop/app/tools/mint-session-cookie.py
+mint() { ( cd "$VMDIR" && vagrant ssh -c "sudo python3 $MINTER $1 --value-only" 2>/dev/null | tr -d '\r' | tail -1 ); }
+TOKEN="$(mint "$E2E_USER")"
+[ -n "$TOKEN" ] || { echo "!! failed to mint cookie (no $MINTER in the VM?)"; exit 1; }
+TOKEN2="$(mint e2e2)"
 
 echo "== install Playwright browsers (first run only) =="
 cd "$HERE"

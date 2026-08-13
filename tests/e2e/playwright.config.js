@@ -48,5 +48,12 @@ module.exports = defineConfig({
     { name: 'iphone-17',         use: { ...devices['iPhone 17'] } },        // 402w — current base
     { name: 'iphone-17-pro-max', use: { ...devices['iPhone 17 Pro Max'] } }, // 440w — largest
     { name: 'mobile-chrome',     use: { ...devices['Pixel 7'] } },          // Android/Chromium
+    // Tablets — the form factor WINDOW MODE is built for (its gate is
+    // `max(w,h) >= 1000 || w >= 900`), and the one that had no lane at all: every
+    // v1.19.5–.9 hit-testing bug was found by ad-hoc iPad emulation, not by CI.
+    // Both orientations, because the gate flips on rotation.
+    { name: 'ipad-pro-11',           use: { ...devices['iPad Pro 11'] } },            // 834x1194
+    { name: 'ipad-pro-11-landscape', use: { ...devices['iPad Pro 11 landscape'] } },  // 1194x834
+    { name: 'ipad-gen-11',           use: { ...devices['iPad (gen 11)'] } },          // 656x944 — BELOW the gate
   ],
 });

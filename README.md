@@ -4,24 +4,31 @@
 
 A unified "mini-OS" desktop experience served in the browser, exposed publicly
 over HTTPS via Cloudflare Tunnel with Access auth. The root page is a desktop-like
-UI launchable from a Start menu with eight everyday apps — **Home Service,
-Terminal, Browser, Files, Office, Notes, Monitor, Upload** — plus a self-updating
-**Update** app. Open-app state is synced server-side so phone and computer share
-the same desktop. Installable as a PWA; the Terminal even keeps iOS voice
-dictation working. One command deploys the whole stack to a Debian/Ubuntu or
-RHEL-family host —
+UI launchable from a Start menu with seven everyday apps — **Terminal, Browser,
+X11 Launcher, Files, Office, Notes, Upload** — a **Utilities** flyout (Services,
+Monitor, Token Stats), and a **System** section with a self-updating **Update**
+app and a sudo-gated **Config** admin app. It is **multi-user**: everyone with a
+Linux account on the host logs in with their own username and password, and gets
+their own terminals, files, and browser running as themselves. Open-app state is
+synced server-side so phone and computer share the same desktop; apps run
+full-screen by default, with an optional floating-window mode. Installable as a
+PWA; the Terminal even keeps iOS voice dictation working. One command deploys the
+whole stack to a Debian/Ubuntu or RHEL-family host —
 fully self-installing, Docker and all (AMD or NVIDIA).
 
 ## Features
 
-- **Terminal** — persistent bash sessions over ttyd; tabs survive disconnects via a custom `vibetop-session` daemon (256 KB ring buffer + 50k-line xterm.js scrollback). On touch, tapping the terminal raises the keyboard via an in-page overlay that makes **iOS dictation work** (no character pile-up); on Windows, Ctrl+V pastes cleanly
+- **Multi-user** — everyone signs in with their real Linux username + password (PAM). Terminals, Files, Browser and X11 apps all run **as that user** in their own `$HOME`, so Unix permissions are the isolation boundary — a Terminal is exactly an SSH session as yourself
+- **Terminal** — persistent bash sessions over ttyd; tabs survive disconnects via a custom `vibetop-session` daemon (2 MB replay ring buffer + 50k-line xterm.js scrollback). On touch, tapping the terminal raises the keyboard via an in-page overlay that makes **iOS dictation work** (no character pile-up); on Windows, Ctrl+V pastes cleanly. Queue a message to be typed into a terminal at a set time (⏱) — for the Claude Code session that stops at its token limit overnight
 - **Browser** — a real, persistent Chromium driven by xpra's HTML5 client; mobile gets tap-click, drag-scroll, two-finger pinch zoom, and a toggleable on-screen keyboard
-- **Files** — FileBrowser rooted at `~`, every toolbar action visible inline (wraps to multiple rows on mobile). Open a Word/Excel/PPT file (double-click on desktop, tap on touch) to **View** it — the server renders a read-only PDF via headless LibreOffice in an in-app viewer with **Download** (the original file, not the PDF) and **Edit** buttons
+- **X11 Launcher** — run any GUI app (evince, eog, gnuplot, a snap Firefox) on its own X11 display, one tab per window. Apps started from a Terminal show up here automatically
+- **Files** — FileBrowser rooted at `/` (your reach is your Unix permissions), every toolbar action visible inline, with a purpose-built mobile layout. Open a Word/Excel/PPT file (double-click on desktop, double-tap on touch) to **View** it — the server renders a read-only PDF via headless LibreOffice in an in-app viewer with **Download** (the original file, not the PDF) and **Edit** buttons; videos open in a built-in player, and any file or folder can be turned into a **public share link**
 - **Office** — full in-browser Word/Excel/PowerPoint editing via a self-hosted **OnlyOffice Document Server** (Docker), with autosave back to the file. Native browser rendering — fast, MS-compatible, no remote-desktop streaming. Open it empty to **create a new** Document / Spreadsheet / Presentation
-- **Notes** — single-page Markdown scratchpad, auto-saves
+- **Notes** — tabbed Markdown scratchpad; auto-saves and syncs across your devices while you type
 - **Monitor** — live CPU/MEM/GPU charts, htop-style load average, top processes
 - **Upload** — quick photo-sync drop zone; per-file progress, In-folder listing, Open-in-Files deep link
 - **Update** — one-tap self-update: `git pull` from GitHub, redeploy only what changed, and an **update-history changelog** with the installed commit badged
+- **Config** (admins only) — add/remove users, sign someone out, reclaim idle sessions, set per-user memory/CPU caps, check disk and service health
 - **Status bar** — live system stats (CPU %/°, MEM, GPU %/°, VRAM) at the bottom of every desktop. GPU from AMD sysfs (with a debugfs fallback when it locks under compute) **or NVIDIA `nvidia-smi`**
 
 ## Why not just VNC?
@@ -44,10 +51,11 @@ VNC and remote desktops stream **pixels** — a compressed video of the whole sc
 | Sub-project | URL path | What |
 |---|---|---|
 | `terminal` | `/t1/`..`/t50/`, `/terminals/`, `/api/` | Dynamic persistent bash terminals (ttyd + vibetop-session) + manager API |
-| `browser`  | `/browser/` | Persistent Chromium viewable via xpra HTML5 client |
-| `landing`  | `/` | Unified desktop UI with tab bar, iframe viewport, and status bar |
-| `files`    | `/files/` | FileBrowser file manager rooted at `~` |
+| `browser`  | `/browser/`, `/x11-display/` | Persistent Chromium via xpra HTML5, plus a second display for the X11 Launcher's GUI apps |
+| `landing`  | `/` | Unified desktop UI with taskbar, iframe viewport, and status bar |
+| `files`    | `/files/` | FileBrowser file manager rooted at `/` (as the authenticated user) |
 | `office`   | `/onlyoffice/` | OnlyOffice Document Server (Docker) — in-browser Office editing, autosaved via the manager's `/api/office/*` endpoints |
+| `claude-usage` | `/api/claude/usage` | Opt-in proxy that captures real Claude Max-plan usage headers for the desktop's usage strip |
 | `tunnel`   | — | Cloudflare Tunnel + Access config for public HTTPS |
 
 ## Deploy
@@ -60,8 +68,11 @@ AlmaLinux 9, Fedora 43) — installs git, clones the repo to
 curl -fsSL https://raw.githubusercontent.com/nicejunjie/vibetop/main/bootstrap.sh | bash
 ```
 
-Run it as a normal user with sudo (not root — the desktop runs as *your* user).
-Forward `deploy.sh` flags after `-s --`:
+Run it as root, or as a normal user with sudo — either works. Vibetop installs
+like ordinary server software (root-owned code under `/opt/vibetop`, owned by a
+no-login `vibetop` service account) and needs **no username**: people arrive
+afterwards by logging in with their own Linux accounts. Forward `deploy.sh` flags
+after `-s --`:
 
 ```bash
 # skip the heavy bits:
@@ -75,10 +86,14 @@ deps, runs every sub-installer in order, health-checks), locally or to a remote
 host over SSH:
 
 ```bash
-./deploy.sh                                # deploy on this machine
+sudo ./deploy.sh                           # deploy on this machine
 ./deploy.sh --remote user@host             # rsync to host:~/vibetop and deploy there
-# flags: --no-browser  --no-files  --no-office  --with-tunnel  --dry-run
+# flags: --admins a,b  --no-browser  --no-files  --no-office  --with-tunnel  --dry-run
 ```
+
+`--admins` names the Linux users who get the admin-only surfaces (Update, Claude
+usage); under `sudo` the invoking user is seeded as the first admin, so you can
+usually leave it off.
 
 It is fully self-installing — no prerequisites beyond a supported host with
 SSH + sudo. To tear the whole runtime down again (keeping the repo, your data,

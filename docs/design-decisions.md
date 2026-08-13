@@ -2618,3 +2618,194 @@ falsely PASSed, `755` falsely WARNed).
   `test_x_launch_snap_app_keeps_the_real_session_bus` pin the bus choice so the
   multi-user path can't silently revert to the real bus again. Added to the QA
   recurring-regression watchlist (`docs/qa-charter.md`).
+
+---
+
+## Window mode: the chrome kept eating the window's own gestures (v1.19.5–.9)
+
+- **Symptom:** five separate-looking bugs in a row, all right after the floating
+  window manager shipped. The Start ▸ Utilities flyout wouldn't open on an iPad with
+  a trackpad. A window painted **over** the taskbar, hiding the Start button, and the
+  Start menu wouldn't pop up. A window's **×** was unclickable (min/max, further from
+  the right edge, worked — the tell). Double-tap-to-maximize fired inconsistently on
+  touch. After **Tidy**, the single full-frame window couldn't be resized at all.
+- **Cause:** one failure mode wearing five hats — **something painted on top of the
+  window's own controls won the hit test**, or a second handler undid the first:
+  - `#frames` was not a stacking context, so a window's `z-index` (and the drag
+    mask's `99998`) escaped to the root and stacked above the taskbar (100) and the
+    Start menu (110).
+  - The right-edge/corner resize handles (`.win-rz-e` / `.win-rz-ne`, enlarged to
+    16/26px on touch) sit at `z-index` 3–4 — **above** the title-bar buttons — and
+    the × lives at the window's top-right, i.e. directly underneath them.
+  - The window-mode **coach tip** is stacked above the window, and a Tidy'd single
+    window's bottom edge lands exactly where that banner is drawn: the hint that
+    says "drag edges to resize" was itself eating the taps on those edges.
+  - On a non-coarse pointer, tapping "Utilities" fired `mouseenter` (hover-opens the
+    flyout) and then `click` (toggles it) — open, then immediately closed.
+  - Native `dblclick` is unreliable on iOS *and* the title-bar move-drag swallowed it.
+- **Fix:** contain the stacking rather than chase z-indexes — `#frames` gets
+  `isolation:isolate` + `overflow:hidden`, so every window stacks **below** the chrome
+  and any spill is clipped. Title-bar buttons raised to `z-index:5` (above the resize
+  handles). The coach tip made `pointer-events:none` + auto-hiding, so it can never
+  block window chrome. Tidy insets each tile by an 8px gutter so grips never sit at
+  the extreme frame edge. The Utilities parent **ensures-open** on non-touch (hover
+  still manages close) and only tap-toggles on pure touch. Double-tap detected from
+  two `pointerdown`s (<400ms, <24px) instead of `dblclick`, before the maximized-bail
+  so a maximized bar restores. Plus: a `ResizeObserver` on `#frames` re-clamps windows
+  on ANY frame resize (usage strip, warning banner, keyboard, rotation), and drags end
+  on `pointercancel` too (iOS) so the drag mask can't stick and swallow later taps.
+- **Rejected:** bumping the taskbar/menu z-index above the windows — it fixes the
+  symptom for today's numbers and breaks again the next time a window gets raised
+  (`z` grows unboundedly via `zTop`); the containment is what makes it structural.
+- **Takeaway for new window chrome:** anything drawn over a window — a coach tip, a
+  banner, a mask — must be `pointer-events:none` or explicitly stacked below the
+  window controls, and any new control near an edge must be tested against the resize
+  handle that overlaps it. Verify by **hit-testing in a real browser** (WebKit at iPad
+  size caught all five); none of these are visible in a static read of the CSS.
+
+---
+
+## Window mode round 2 (v1.19.10): the banner, the dead buttons, and the gate
+
+A QA pass on real WebKit (iPad Pro 11 + iPad gen 11, both orientations, against a
+disposable VM) found four more of these, all verified by measurement rather than
+by reading the CSS. Each fix is now pinned by `tests/e2e/tests/window-mode.spec.js`.
+
+**1. The system-warning banner made a window uncontrollable.**
+- **Symptom:** with the disk-warning banner showing, pressing ▦ Tidy left the top
+  row of windows with no reachable title bar — ×, ▢ and – all did nothing.
+- **Cause:** `#sys-warn` was `position: fixed; top:0; z-index:9500`. A fixed
+  element overlays `#frames` **without changing its size**, so the v1.19.6
+  `ResizeObserver` that re-clamps windows could never see it. Tidy puts the top
+  row at y=8; the banner occupies 0–39. Measured: `elementFromPoint` on the title
+  bar returned `.sw-row`, and a Playwright click on × timed out.
+- **Fix:** make the banner a `flex: 0 0 auto` first child of `<body>` — in the
+  flow, exactly like `.cu-strip` already was. It now shrinks `#frames`, the
+  existing observer re-clamps, and no window can sit under it.
+- **Rejected:** clamping windows to a hardcoded banner height, or raising window
+  z-index — both re-break the moment another fixed overlay appears. The rule is:
+  **shell chrome above the app area belongs in the flex flow, not on top of it.**
+  Still overlay-positioned and still in this class if they grow: `#sys-keybar`
+  (+ its hint) and `.kbd-chip`.
+
+**2. `tabindex` on the window buttons silently killed them (WebKit).**
+- **Symptom:** after making ×/▢/– keyboard-reachable, they stopped responding to
+  taps and clicks on iPad — while the window still focused and raised normally.
+- **Cause:** measured — `pointerdown` and `pointerup` both landed on the button,
+  but **no `click` was dispatched at all**. `tabindex="0"` makes WebKit focus the
+  span on pointerdown; `setActive()` then moves focus into the app's iframe
+  (`notifyActiveFrame` → `f.focus()`) mid-gesture, and WebKit suppresses the
+  click. A/B proof: removing `tabindex` at runtime made the very same click work.
+- **Fix:** drive the buttons from **pointerdown + pointerup** (act only if the
+  release lands on the same control), and keep `role`/`tabindex`/`aria-label`
+  plus an Enter/Space handler for the keyboard. Do not move them back to `click`.
+
+**3. Double-tap-to-maximize ate the drag that followed a tap.**
+- **Symptom:** tap a background window's title bar to focus it, then drag to move
+  it → it maximized instead. Reproduced 100%: tap, 120ms, drag 140px → maximized.
+- **Cause:** the double-tap was decided on the second `pointerdown`, before it was
+  knowable whether that press would become a drag. Since click-to-focus did not
+  exist yet (below), tap-then-drag was the *normal* way to move a window.
+- **Fix:** arm on pointerdown, decide in `onUp` — maximize only if the gesture
+  moved < 10px; a real drag also clears the pairing so the next press is fresh.
+
+**4. Clicking an app's content did not focus or raise its window.**
+- **Cause:** pointer events inside an iframe never bubble to the parent, and there
+  was no relay — only the title bar, the 5px edges and the taskbar raised a window.
+- **Fix:** every app frame is same-origin, so the parent attaches a capture-phase
+  `pointerdown` listener to the frame's own `contentDocument` (re-wired on each
+  `load`, since navigation replaces the document). No per-app code.
+- **Rejected:** watching the top window's `blur` and reading `document.activeElement`.
+  It looks equivalent and passes a naive test, but **misses the common case**: when
+  focus already sits in ANOTHER app's iframe the top window never had focus, so it
+  never fires `blur`. Measured on WebKit — do not "simplify" back to it.
+
+**5. The size gate excluded the current base iPad.**
+- **Symptom:** on an iPad (gen 11) window mode worked in landscape and silently
+  turned itself off in portrait.
+- **Cause:** the gate was `max(w,h) >= 1000 || w >= 900`; that iPad is 656x944, so
+  both arms failed in portrait (944x656 landscape passed the second arm).
+- **Fix:** gate on the **short** side too — `min >= 600 && max >= 900`, plus a
+  fine-pointer arm so a short, wide *desktop* window keeps windows. Checked against
+  Playwright's whole device table: every tablet passes in both orientations, and no
+  phone does. A long-side-only test cannot work — Pixel 9 Pro landscape is 900x375
+  and Galaxy A55 landscape is 1040x480.
+
+**Also in this pass:** opening a 2nd app auto-tiles (it used to cascade 32px and
+bury the first, so window mode looked exactly like the full-screen switcher) until
+the user arranges a window themselves; the snap zone went 18px → 28 (mouse) / 48
+(touch), because at 18 a drop 24px from the edge merely clamped the window flush
+to it at its original width, which *looks* snapped — 6px of travel decided it; the
+taskbar now marks minimized windows and minimizes the focused one on click; ▢
+becomes ❐/"Restore" while maximized; and `closeApp`'s `display:none` reflow kick is
+skipped in window mode, where it flashed every open window on each close.
+
+**Process note:** none of this had e2e coverage, because `playwright.config.js` had
+no tablet lane at all — window mode's own gate means it only ever runs on tablets
+and desktops. Added `ipad-pro-11`, `ipad-pro-11-landscape` and `ipad-gen-11`.
+`tests/e2e/run-vm.sh` was also broken (it minted the session cookie from
+`/home/$E2E_USER/vibetop`, but the Vagrantfile rsyncs to `/home/vagrant/vibetop`,
+so the documented one-command e2e path exited 1 before running anything).
+
+**Round-2 follow-ups found by pushing further (same v1.19.10 pass):**
+
+- **A coach banner made windows unresizable — again.** The banner renders at
+  `bottom: 60`, i.e. exactly over the bottom edge and SE grip of any window that
+  reaches that far, and it stacks above the window. Measured: `elementFromPoint`
+  on an SE grip returned `.vibe-coach`, and the window could not be resized. The
+  v1.19.9 patch was **racy and partial** — it set `pointerEvents='none'` from a
+  single `querySelector('.vibe-coach')` immediately after `vibeCoach()`, which
+  misses the banner whenever it renders a tick later, and it never covered the
+  per-app tips `coachForApp` shows for Files/Browser. Fixed declaratively with
+  `body.wm .vibe-coach { pointer-events: none }` plus an auto-hide (a
+  click-through banner can't be tap-dismissed). **Rule: nothing that overlays the
+  app area may be pointer-interactive in window mode.**
+- **Click-to-focus has to recurse.** Terminal and Files are wrappers hosting their
+  own iframes, so a listener on the wrapper document never sees a click in the
+  actual terminal or file list — the two most-used apps were the ones the first
+  fix missed. `wireDoc` now walks nested same-origin frames and is re-run from the
+  5s heartbeat (new terminal tabs are new iframes). The nested walk must run even
+  for an already-wired document, or the sweep returns early and never picks them up.
+- **Portrait tiling.** `tileGrid` chose columns from `sqrt(n)` regardless of aspect,
+  so two windows on a 656px-wide iPad in portrait became two ~320px slivers sitting
+  exactly ON `MINW` — unresizable. Two windows on a portrait box now stack.
+- **A security e2e test was vacuous.** `multiuser.spec.js`'s "cookieless request
+  cannot execute a command" built its request context with
+  `playwright.request.newContext()`, which **inherits `use.storageState`** — so it
+  sent the session cookie and was not cookieless at all. It only ever passed
+  because a `--no-browser` deploy made an *authenticated* `/api/x/launch` fail too;
+  with the X11 stack present it returned 200 and the test failed. The gate itself
+  was fine (a genuinely bare context gets 401). Now clears storageState explicitly.
+  Lesson: a negative security assertion that has never been seen to fail for the
+  RIGHT reason is not evidence.
+
+**Third round (independent adversarial QA agent, judged and verified):** an agent
+re-tested the above on a disposable VM and found two more real defects, both
+confirmed by reproducing its measurements exactly:
+
+- **▦ Tidy handed back OVERLAPPING windows on a narrow frame.** `tileGrid` chose
+  `ceil(sqrt(n))` columns regardless of width; `tidyWindows` then clamps every
+  tile up to `MINW`, so on a 656px-wide iPad five windows all landed 320 wide at
+  x=8/226/336 — a window's ×/▢/– hit-tested to its *neighbour* and the first tap
+  did nothing. Same failure class as the banner and the coach tip, from a third
+  direction. Fixed by capping columns at `floor(box.w / MINW)` **and** adding
+  `tileCapacity(box)`: above what the frame can hold at minimum size, Tidy tiles
+  what fits (keeping the focused window) and **minimizes the rest** — visible in
+  the taskbar, one tap to restore, nothing stranded under an identical neighbour.
+  Rejected: letting tiles go below MINW (the global `clampGeom` pushes them back
+  up, re-creating the overlap), and cascading the overflow (a 32px stagger still
+  buries the previous window's × under the next window's body).
+- **Double-tap maximize did not mark the window user-arranged**, so the next app
+  opened auto-tiled it and silently discarded the maximize — while the ▢ button's
+  maximize survived. Two gestures, identical intent, opposite outcome: the `onUp`
+  double-tap branch returned before `markUserArranged`.
+
+Also fixed from that pass: the window-mode tip was visible for exactly 800 ms
+(`setActive` schedules `coachForApp` at +800 ms, which unconditionally removes the
+current banner — so the tip was created and immediately destroyed, burning one of
+its three lifetime showings each time); it pointed at "▦ (top-left)" when the
+button is in the bottom taskbar (text corrected, key bumped to `:v4`); the
+Start-menu Window-mode row went stale below the size gate (`applyWinModeMenu` ran
+only on toggle and init — now also on reflow and menu-open); the ▦ button had no
+`aria-label` (its accessible name was "▦"); and `minimizeWin` bypassed
+`setActive`, leaving `document.title` naming the window that was just minimized.

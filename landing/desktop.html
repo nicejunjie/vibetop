@@ -173,6 +173,11 @@
   }
   .task-app:hover { background: rgba(255,255,255,0.06); color: #c0d0e0; }
   .task-app.active { color: #fff; background: rgba(255,255,255,0.08); }
+  /* Window mode: a minimized window is still open but off-screen. Dim its icon
+     and label so "minimized" is distinguishable from "sitting right there" —
+     without it, minimize gave no feedback at all. Not colour-only: it's opacity
+     plus the app's accent underline going away with .active. */
+  .task-app.minimized .icon, .task-app.minimized .name { opacity: 0.45; }
   /* drag-to-reorder: the dragged button is dimmed while it's being moved */
   .task-app.dragging { opacity: 0.4; }
   .task-app .icon { font-size: 22px; line-height: 1; display: inline-flex; }
@@ -225,8 +230,16 @@
   /* Gap between ° and the MEM/VRAM label */
   .tb-stats .u:nth-child(8n+5) { padding-right: 12px; }
 
-  /* === System-health warning banner === */
-  #sys-warn { position: fixed; top: 0; left: 0; right: 0; z-index: 9500; }
+  /* === System-health warning banner ===
+     IN THE FLEX FLOW (a `flex:0 0 auto` first child of body, like .cu-strip) —
+     deliberately NOT position:fixed. As a fixed overlay it covered the top of
+     #frames without changing its size, so the ResizeObserver that re-clamps
+     windows could never see it: a Tidy'd window's title bar landed at y=8 UNDER
+     the banner and the window became uncontrollable — its ×, ▢ and – all
+     hit-tested to the banner, so it could not be closed, moved or maximized.
+     In-flow, the banner shrinks #frames, the observer re-clamps, and no window
+     can ever sit beneath it. Keep it in-flow. */
+  #sys-warn { flex: 0 0 auto; position: relative; z-index: 9500; }
   #sys-warn:empty { display: none; }
   #sys-warn .sw-row {
     display: flex; align-items: center; gap: 10px; padding: 9px 12px;
@@ -504,6 +517,12 @@
   }
   .win-titlebar .wt-min:hover, .win-titlebar .wt-max:hover { background: rgba(255,255,255,0.12); color: #cfe0f0; }
   .win-titlebar .wt-close:hover { background: #aa3333; color: #fff; }
+  /* Visible keyboard focus — the controls are reachable by Tab now, so they must
+     show where focus is. */
+  .win-titlebar .wt-min:focus-visible, .win-titlebar .wt-max:focus-visible,
+  .win-titlebar .wt-close:focus-visible {
+    outline: 2px solid #5aa2f0; outline-offset: -2px; color: #eaf1f8;
+  }
   /* snap preview — where a title-bar drag will drop the window (half / maximize) */
   #win-snap {
     position: absolute; z-index: 99997; display: none; pointer-events: none;
@@ -539,6 +558,17 @@
   }
   /* overlay shown during a move/resize so the drag doesn't die over an iframe */
   #win-dragmask { position: absolute; inset: 0; z-index: 99998; display: none; touch-action: none; }
+  /* A coach banner sits at bottom:60 — right on top of the bottom edge and SE
+     resize grip of any window reaching that far, and it stacks above the window.
+     Measured: elementFromPoint on an SE grip returned the banner, so the window
+     could not be resized (the very tip that says "drag an edge to resize" was
+     eating the drag). v1.19.9 fixed only the window-mode tip, and only via a
+     one-shot querySelector right after vibeCoach() — a race that silently missed
+     the banner whenever it rendered a tick later, and never covered the per-app
+     tips from coachForApp at all. Do it declaratively instead: in window mode
+     EVERY coach banner is click-through, so none can block window chrome.
+     Trade-off: it can't be tap-dismissed there, so window-mode tips auto-hide. */
+  body.wm .vibe-coach { pointer-events: none; }
   .frames iframe {
     position: absolute; inset: 0; width: 100%; height: 100%;
     border: none; background: #1a1a2e; display: block;
@@ -680,6 +710,11 @@
   <script src="/apph.js"></script>
 </head>
 <body>
+  <!-- System-health warning banner (disk-full etc.) — driven by the heartbeat's
+       `warnings` array (see renderWarnings). Hidden until there's something to say.
+       FIRST flex child, above the usage strip: it must SHRINK the app area, never
+       overlay it (see the CSS note). -->
+  <div id="sys-warn"></div>
   <div class="cu-strip" id="cu-strip" hidden></div>
   <div class="frames" id="frames">
     <div class="wallpaper" aria-hidden="true">
@@ -736,7 +771,7 @@
 
   <div class="taskbar" id="taskbar">
     <div class="start-btn" id="start-btn"><span class="icon">⊞</span> Start</div>
-    <button class="tidy-btn" id="tidy-btn" title="Tidy windows — tile them evenly (halves/grid)">▦</button>
+    <button class="tidy-btn" id="tidy-btn" aria-label="Tidy windows" title="Tidy windows — tile them evenly (halves/grid)">▦</button>
     <div class="tb-sep"></div>
     <div class="task-apps" id="task-apps"></div>
     <div class="tb-spacer"></div>
@@ -777,10 +812,6 @@
       <span class="tb-lo-sub">sign out everywhere &amp; reset</span>
     </button>
   </div>
-
-  <!-- System-health warning banner (disk-full etc.) — driven by the heartbeat's
-       `warnings` array (see renderWarnings). Hidden until there's something to say. -->
-  <div id="sys-warn"></div>
 
   <!-- Browser keyboard button (top-level so iOS reliably raises the keyboard) -->
   <!-- Implicit keyboard (touch, Browser/Terminal): tap the ⌨ button to raise the
@@ -926,13 +957,23 @@
   var zTop = 10;
   function windowModeOn() {
     // Windows on desktops AND tablets/iPads; phones stay full-screen. Gate by
-    // SCREEN SIZE, not touch: a tablet's larger screen dimension is >= 1000 in
-    // either orientation (iPad portrait 1024–1366 tall, landscape >= 1024 wide),
-    // while phones top out well under 1000; a narrow desktop window still gets
-    // windows via the >= 900 width test. Touch drag/resize is handled (enlarged
-    // handles + touch-action) — see the body.is-touch CSS.
+    // SCREEN SIZE, not touch — but on BOTH sides, not just the long one.
+    //
+    // The old test (`max >= 1000 || w >= 900`) got this wrong twice over: the
+    // current base iPad is 656x944, so BOTH arms failed in portrait and window
+    // mode silently switched itself off when that iPad was rotated — while a
+    // phone in landscape is long but shallow (Pixel 9 Pro 900x375, Pixel 8 Pro
+    // 945x396, iPhone 17 Pro Max 838x390) and sailed through a long-side-only
+    // test. Every real tablet is >= 600 on its SHORT side in both orientations
+    // (iPad gen 11 656, Nexus 7 600, unfolded Z Fold 928); every phone is well
+    // under it. Touch drag/resize is handled — see the body.is-touch CSS.
     var w = window.innerWidth || 0, h = window.innerHeight || 0;
-    return WM_FLAG && (Math.max(w, h) >= 1000 || w >= 900);
+    if (!WM_FLAG) return false;
+    if (Math.min(w, h) >= 600 && Math.max(w, h) >= 900) return true;
+    // A mouse-driven desktop keeps windows at any height — a short, wide browser
+    // window is still a desktop. The fine-pointer test is what keeps a shallow
+    // phone in landscape out of this arm.
+    return w >= 900 && !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
   }
   function frameBox() { var r = framesEl.getBoundingClientRect(); return { w: r.width, h: r.height }; }
   function winGeom(id) {
@@ -984,16 +1025,54 @@
         if (oid !== id && !(wins[oid] && wins[oid].min)) { next = oid; break; }
       }
       active = next;
+      // Focus moved without going through setActive(), so bring the bits it
+      // normally owns along: the tab title otherwise still named the window that
+      // was just minimized (or a app when nothing is on screen at all).
+      document.title = active ? (APPS[active] ? APPS[active].label + " — Vibetop" : "Vibetop") : 'Vibetop';
+      persist();
     }
     renderWindows(); renderTaskbar(); saveWins();
   }
   // "Tidy" — tile every open (non-minimized) window into an even grid: 2 →
   // precise left/right halves, 3 → two-over-one, 4 → quadrants. One tap gives an
   // exact split (much easier than nudging edges, especially on touch).
+  // True once the user has positioned ANY window themselves (drag, resize,
+  // maximize, edge-snap). Until then the shell may arrange windows for them; after
+  // it, their layout is theirs and nothing rearranges it behind their back.
+  function markUserArranged(id) { var g = wins[id]; if (g) g.user = true; }
+  function anyUserArranged() {
+    return openApps.some(function(id){ return wins[id] && wins[id].user; });
+  }
+  // Opening a second app used to cascade it 32px down-right, which covered ~90%
+  // of the first window — so window mode LOOKED like the old full-screen switcher
+  // and the whole point was invisible. While the user hasn't arranged anything
+  // themselves, lay the windows out for them instead (the same tiling the ▦ Tidy
+  // button does). Capped at 4, beyond which tiles get too small to be a favour.
+  function autoTileIfUntouched() {
+    if (!windowModeOn() || anyUserArranged()) return;
+    var vis = openApps.filter(function(id){ return !(wins[id] && wins[id].min); });
+    if (vis.length < 2 || vis.length > 4) return;
+    tidyWindows();
+  }
   function tidyWindows() {
     if (!windowModeOn() || !window.VibeWin) return;
     var vis = openApps.filter(function(id){ return !(wins[id] && wins[id].min); });
     if (!vis.length) return;
+    // A frame can only hold so many windows at the minimum size. Asking for more
+    // used to hand back an OVERLAPPING grid (5 windows on a 656px-wide iPad all
+    // landed 320 wide at x=8/226/336, so a window's ×/▢/– hit-tested to its
+    // neighbour and the first tap did nothing). Tile what fits — keeping the
+    // focused window — and minimize the rest: visible in the taskbar, one tap to
+    // bring back, and nothing is left unreachable under an identical neighbour.
+    var cap = VibeWin.tileCapacity(frameBox());
+    if (vis.length > cap) {
+      var keep = [];
+      if (active && vis.indexOf(active) !== -1) keep.push(active);
+      vis.forEach(function(id) { if (keep.length < cap && keep.indexOf(id) === -1) keep.push(id); });
+      vis.forEach(function(id) { if (keep.indexOf(id) === -1) winGeom(id).min = true; });
+      vis = openApps.filter(function(id) { return keep.indexOf(id) !== -1; });   // keep taskbar order
+      renderTaskbar();
+    }
     var geoms = VibeWin.tileGrid(vis.length, frameBox());
     var GAP = 8;   // inset each tile so its resize grips never sit at the extreme frame edge
     vis.forEach(function(id, i){
@@ -1047,6 +1126,14 @@
       if (wm) {
         var g = winGeom(id), vis = !g.min;
         w.classList.add('floating');
+        // The maximize control has to say which way it goes — it was a fixed ▢
+        // labelled "Maximize" even while the window WAS maximized.
+        var mx = w.querySelector('.wt-max');
+        if (mx) {
+          mx.textContent = g.max ? '❐' : '▢';
+          mx.setAttribute('title', g.max ? 'Restore' : 'Maximize');
+          mx.setAttribute('aria-label', g.max ? 'Restore' : 'Maximize');
+        }
         w.classList.toggle('active', vis);          // minimized → hidden (taskbar restores)
         w.classList.toggle('focused', vis && id === active);
         if (vis) {
@@ -1070,7 +1157,12 @@
     });
   }
   // Keep windows inside the box when the viewport changes (clamp), then repaint.
+  // Also refresh the Start-menu row: whether the screen is big enough for windows
+  // is a function of the viewport, so on a resize/rotation past the gate the row
+  // otherwise kept claiming "On — drag title bar to move" while the desktop had
+  // silently gone back to full-screen (applyWinModeMenu ran only on toggle+init).
   function reflowWindows() {
+    applyWinModeMenu();
     if (windowModeOn() && window.VibeWin) {
       var box = frameBox();
       Object.keys(wins).forEach(function(id) {
@@ -1549,6 +1641,10 @@
   }
   function pushDesktop() {
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
+    // Pick up nested app frames created since the last beat (a new terminal tab,
+    // a new Files tab) for click-to-focus. Idempotent and a no-op outside window
+    // mode — see wireWinFocus.
+    if (window.rewireWinFocus) window.rewireWinFocus();
     return fetch('/api/desktop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1584,11 +1680,18 @@
       // Title bar (hidden in default mode via CSS; shown + draggable in window mode).
       var bar = document.createElement('div');
       bar.className = 'win-titlebar';
+      // The controls are real buttons: focusable, labelled, Enter/Space-activated.
+      // They were bare <span>s, so nothing about a window was reachable without a
+      // pointer. role+tabindex keeps the existing CSS/hit-testing untouched.
+      var ctl = function(cls, label, glyph) {
+        return '<span class="' + cls + '" role="button" tabindex="0" aria-label="' + label +
+               '" title="' + label + '">' + glyph + '</span>';
+      };
       bar.innerHTML = '<span class="wt-ico">' + (APPS[id].svg || APPS[id].icon) + '</span>' +
                       '<span class="wt-name">' + APPS[id].label + '</span>' +
-                      '<span class="wt-min" title="Minimize">–</span>' +
-                      '<span class="wt-max" title="Maximize">▢</span>' +
-                      '<span class="wt-close" title="Close">&times;</span>';
+                      ctl('wt-min', 'Minimize', '–') +
+                      ctl('wt-max', 'Maximize', '▢') +
+                      ctl('wt-close', 'Close', '&times;');
       var body = document.createElement('div');
       body.className = 'win-body';
       f = document.createElement('iframe');
@@ -1625,6 +1728,11 @@
       f.addEventListener('load', function onload() {
         f.removeEventListener('load', onload);
         notifyActiveFrame(f, id);
+      });
+      // Click-to-focus needs re-wiring on EVERY load, not just the first: an app
+      // that navigates (Files, the office editor) gets a fresh contentDocument.
+      f.addEventListener('load', function () {
+        if (window.wireWinFocus) window.wireWinFocus(f, id);
       });
       f.src = f.dataset.src;
     }
@@ -1664,9 +1772,14 @@
       taskAppsEl.querySelectorAll('.task-app'), function (b) { return b.dataset.id; });
     var same = existing.length === openApps.length &&
                existing.every(function (id, i) { return id === openApps[i]; });
+    // A minimized window is off-screen but still open — the button has to say so,
+    // or minimize is a one-way trip with no feedback (it looked identical to a
+    // window sitting right there).
+    var minned = function (id) { return !!(windowModeOn() && wins[id] && wins[id].min); };
     if (same) {
       Array.prototype.forEach.call(taskAppsEl.querySelectorAll('.task-app'), function (b) {
         b.classList.toggle('active', b.dataset.id === active);
+        b.classList.toggle('minimized', minned(b.dataset.id));
       });
       markMenuRunning();
       return;
@@ -1674,7 +1787,7 @@
     taskAppsEl.innerHTML = '';
     openApps.forEach(function(id) {
       var btn = document.createElement('div');
-      btn.className = 'task-app' + (id === active ? ' active' : '');
+      btn.className = 'task-app' + (id === active ? ' active' : '') + (minned(id) ? ' minimized' : '');
       btn.dataset.id = id;
       btn.draggable = true;     // reorder via drag (desktop; ignored on touch)
       btn.innerHTML = '<span class="icon">' + (APPS[id].svg || APPS[id].icon) + '</span>' +
@@ -1728,30 +1841,48 @@
     } else if (id === 'browser') {
       vibeCoach({ key: 'vibetop:tip:browser-fit:v1', text: 'Tip: double-click (or double-tap) the Browser to fit it to your screen · tap the ⌨ button to type' }, { bottom: 60 });
     }
+    coachAutoHideInWindowMode();
+  }
+  // In window mode a banner is click-through (CSS above), so it can't be
+  // tap-dismissed — retire it on a timer instead of leaving it parked over the
+  // windows for the rest of the session.
+  function coachAutoHideInWindowMode() {
+    if (!windowModeOn()) return;
+    setTimeout(function() {
+      var el = document.querySelector('.vibe-coach');
+      if (el && el.parentNode) { try { el.remove(); } catch (e) {} }
+    }, 9000);
   }
 
   function launch(id) {
     if (!APPS[id]) return;
     if (APPS[id].sudo && !window.canSudo) return;   // sudo-only app; real gate is the 403
-    if (openApps.indexOf(id) === -1) { openApps.push(id); ensureFrame(id); }
+    var isNew = openApps.indexOf(id) === -1;
+    if (isNew) { openApps.push(id); ensureFrame(id); }
     setActive(id);            // relays status itself when id === 'home'
     closeMenu();
-    maybeWinTip();
+    if (isNew) autoTileIfUntouched();   // lay out FOR the user until they arrange it themselves
+    // AFTER setActive's coachForApp (+800ms), which unconditionally removes the
+    // current banner: calling this synchronously here made the window-mode tip
+    // flash for exactly 800ms — unreadable, and it still burned one of its three
+    // lifetime showings each time.
+    setTimeout(maybeWinTip, 900);
   }
 
   // First-run tip teaching the window controls (only in window mode; vibeCoach
   // self-caps at 3 shows + dismiss-on-tap; a no-op on touch/narrow).
   function maybeWinTip() {
     if (!window.vibeCoach || !windowModeOn()) return;
-    vibeCoach({ key: 'vibetop:tip:wm:v3',
-                text: 'Windows: drag the title bar to move · drag an edge/corner to resize · tap ▦ (top-left) to tidy them into an even split' },
+    // :v4 — the old text said the ▦ button was "top-left"; it is in the TASKBAR,
+    // which is along the bottom. Bumping the key re-shows the corrected tip to
+    // anyone who already saw the wrong one.
+    vibeCoach({ key: 'vibetop:tip:wm:v4',
+                text: 'Windows: drag the title bar to move · drag an edge or corner to resize · tap ▦ in the taskbar to tidy them into an even split' },
               { bottom: 60 });
-    // The banner sits over the bottom edge/corner of a full-frame window and was
-    // eating taps on the resize grips it describes. Make it click-through so it
-    // can never block window chrome, and auto-hide it (it can't be tap-dismissed
-    // once click-through).
-    var el = document.querySelector('.vibe-coach');
-    if (el) { el.style.pointerEvents = 'none'; setTimeout(function(){ if (el && el.parentNode) el.remove(); }, 7000); }
+    // Click-through comes from the `body.wm .vibe-coach` CSS rule (race-free —
+    // the old one-shot querySelector here missed the banner whenever it rendered
+    // a tick later, leaving it blocking the resize grips it describes).
+    coachAutoHideInWindowMode();
   }
 
   function closeApp(id) {
@@ -1780,6 +1911,9 @@
     openApps.splice(i, 1);
     var w = winOf(id);
     if (w) w.parentNode.removeChild(w);     // fully unload the app (window + its iframe)
+    // Keep this app's geometry for the next open, but never its minimized flag —
+    // a reopened app must not come back already hidden.
+    if (wins[id]) { wins[id].min = false; saveWins(); }
     if (active === id) {
       setActive(openApps.length ? openApps[Math.max(0, i - 1)] : null);
     } else {
@@ -1788,12 +1922,16 @@
     }
 
     // Force a layout pass after the iframe swap so the taskbar slot and the
-    // newly-active iframe both recompute against the current viewport.
+    // newly-active iframe both recompute against the current viewport. The
+    // display:none/reflow kick is for the FULL-SCREEN desktop, where the next
+    // app's iframe has to re-measure the viewport; in window mode every window
+    // has explicit geometry, and blanking #frames there flashed EVERY open
+    // window for a frame on each close. So skip the kick, keep the notify.
     window.scrollTo(0, 0);
-    framesEl.style.display = 'none';
-    void framesEl.offsetHeight;
+    var wmNow = windowModeOn();
+    if (!wmNow) { framesEl.style.display = 'none'; void framesEl.offsetHeight; }
     requestAnimationFrame(function() {
-      framesEl.style.display = '';
+      if (!wmNow) framesEl.style.display = '';
       window.dispatchEvent(new Event('resize'));
       var nf = active && frameOf(active);
       if (nf && nf.contentWindow) {
@@ -1811,6 +1949,7 @@
   }
   function openMenu()  {
     menuEl.classList.add('open'); startBtn.classList.add('open'); scrimEl.style.display = 'block'; notifyBrowserMenu(true); pushDesktop();   // heartbeat refreshes the running dots + terminal badge
+    applyWinModeMenu();   // the row's state depends on the viewport — refresh it as the menu opens
     // Cross-device close tip — only when something is running that ISN'T open here
     // (that's the case where the ⏻ is the only way to reach/close it).
     try {
@@ -1913,6 +2052,20 @@
   // Close + touch stay on click.
   var lastMouseTaskAt = -1e9;   // suppress the synthetic click that follows a mouse gesture
   var taskDown = null;          // mousedown on the active button → maybe minimize (decided on up)
+  // What a taskbar button does depends on the mode. In the classic full-screen
+  // desktop `setActive(null)` IS minimizing (only the active app is shown). In
+  // window mode every open window is visible, so that did nothing but drop the
+  // focus highlight — the button appeared dead. Here it means the Windows thing:
+  // focused → minimize, minimized → restore, background → focus and raise.
+  function taskbarToggle(id) {
+    if (windowModeOn()) {
+      var g = wins[id];
+      if (g && g.min) { setActive(id); return; }         // minimized → restore + focus
+      if (id === active) { minimizeWin(id); return; }    // focused  → minimize
+      setActive(id); return;                             // background → focus + raise
+    }
+    setActive(id === active ? null : id);
+  }
   taskAppsEl.addEventListener('pointerdown', function(e) {
     if (e.pointerType !== 'mouse' || e.button) return;     // touch/pen handled on click
     var btn = e.target.closest('.task-app');
@@ -1925,7 +2078,7 @@
     if (!taskDown || e.pointerType !== 'mouse') return;
     var d = taskDown; taskDown = null;
     if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 6 && d.id === active) {
-      setActive(null);                  // a tap (not a drag) on the active window → minimize
+      taskbarToggle(d.id);              // a tap (not a drag) on the active window → minimize
       lastMouseTaskAt = e.timeStamp;
     }
   });
@@ -1935,7 +2088,7 @@
     var id = btn.dataset.id;
     if (e.target.closest('.close')) { closeApp(id); return; }
     if (e.timeStamp - lastMouseTaskAt < 700) return;        // mouse already handled (pointerdown/up)
-    setActive(id === active ? null : id);                  // touch / fallback: minimize active, else switch
+    taskbarToggle(id);                                     // touch / fallback: minimize active, else switch
   });
 
   // --- drag-to-reorder taskbar apps (desktop; HTML5 DnD is a no-op on touch,
@@ -1980,16 +2133,78 @@
   (function setupWM() {
     var mask = document.getElementById('win-dragmask');
     var snapEl = document.getElementById('win-snap');
-    var drag = null, raf = null, lastTbTap = null;
+    var drag = null, raf = null, lastTbTap = null, btnDown = null;
+    var DBL_SLOP = 10;   // px a "double-tap" may wander before it counts as a drag
+
+    // Clicking INSIDE an app's content must focus and raise its window — the
+    // baseline every window manager has. Pointer events inside an iframe never
+    // bubble to us, so before this the ONLY ways to raise a window were its title
+    // bar, its 5px edges, and the taskbar; clicking the app itself did nothing.
+    //
+    // Every app frame is SAME-ORIGIN, so the parent can just listen on the
+    // frame's own document — no per-app code.
+    //
+    // It must recurse. Terminal and Files are WRAPPERS that host their own
+    // iframes (desktop → terminals.html → /tN/, desktop → files.html →
+    // FileBrowser), so a listener on the wrapper's document never sees a click
+    // in the actual terminal or file list — the two most-used apps were exactly
+    // the ones click-to-focus missed. Each document is tagged so re-wiring is
+    // idempotent, and every frame is re-wired on `load` (navigation replaces the
+    // document, and a new terminal tab is a brand-new iframe).
+    //
+    // Rejected: watching the top window's `blur` + document.activeElement. It
+    // misses BOTH cases — when focus already sits in another app's iframe the
+    // top window never had focus so no blur fires, and a click on a
+    // non-focusable area of a nested frame doesn't move activeElement at all
+    // (measured on WebKit: it stayed on the previous app's iframe). Also
+    // rejected: a MutationObserver per document — xterm mutates the DOM
+    // constantly, so a subtree observer there would fire nonstop.
+    function wireDoc(d, id) {
+      if (!d) return;
+      if (!d.__vtWinFocus) {           // attach the listener exactly once per document
+        d.__vtWinFocus = true;
+        d.addEventListener('pointerdown', function() {
+          if (windowModeOn() && id !== active) setActive(id);
+        }, true);
+      }
+      // ALWAYS re-walk the nested frames, even for an already-wired document: a
+      // wrapper (terminals.html, files.html) creates its iframes later and adds
+      // more as tabs open, so an early return here would permanently miss them.
+      Array.prototype.forEach.call(d.querySelectorAll('iframe'), function(fr) { wireFrame(fr, id); });
+    }
+    function wireFrame(fr, id) {
+      if (!fr.__vtWinLoad) {
+        fr.__vtWinLoad = true;
+        fr.addEventListener('load', function() { try { wireDoc(fr.contentDocument, id); } catch (e) {} });
+      }
+      try { wireDoc(fr.contentDocument, id); } catch (e) {}   // cross-origin: skip, title bar still works
+    }
+    window.wireWinFocus = function(f, id) { if (f) wireFrame(f, id); };
+    // Catch nested frames created AFTER their wrapper loaded (a new terminal tab,
+    // a Files tab). Rides the existing 5s heartbeat rather than adding a timer;
+    // the __vtWinFocus tags make the sweep a no-op once everything is wired.
+    window.rewireWinFocus = function() {
+      if (!windowModeOn()) return;
+      openApps.forEach(function(id) { var f = frameOf(id); if (f) wireFrame(f, id); });
+    };
     // Snap target for a title-bar drag near a screen edge (relative to #frames).
     function snapAt(e) {
       if (!drag || drag.mode !== 'move' || !window.VibeWin) return null;
       var r = framesEl.getBoundingClientRect();
-      return VibeWin.snapTarget(e.clientX - r.left, e.clientY - r.top, { w: r.width, h: r.height });
+      // The snap zone has to be hittable with a FINGER. At the old 18px, landing
+      // the pointer 24px from the edge merely clamped the window flush to it at
+      // its original width — which looks like it snapped — so the difference
+      // between "flush left" and "snapped to a half" was 6px of travel. Give
+      // touch a fat zone and the mouse a slightly generous one.
+      var edge = document.body.classList.contains('is-touch') ? 48 : 28;
+      return VibeWin.snapTarget(e.clientX - r.left, e.clientY - r.top, { w: r.width, h: r.height }, edge);
     }
     function onMove(e) {
       if (!drag || !window.VibeWin) return;
       var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy, g = winGeom(drag.id), ng;
+      drag.moved = Math.max(drag.moved || 0, Math.abs(dx), Math.abs(dy));
+      // A maximized window tracked only to decide double-tap-vs-drag: never moves.
+      if (drag.mode === 'tap') return;
       if (drag.mode === 'move') ng = VibeWin.clampGeom({ left: drag.g0.left + dx, top: drag.g0.top + dy, width: drag.g0.width, height: drag.g0.height }, frameBox());
       else ng = VibeWin.resizeGeom(drag.g0, drag.dir, dx, dy, frameBox());
       g.left = ng.left; g.top = ng.top; g.width = ng.width; g.height = ng.height;
@@ -2000,8 +2215,17 @@
         if (s) { snapEl.style.display = 'block'; snapEl.style.left = s.left + 'px'; snapEl.style.top = s.top + 'px'; snapEl.style.width = s.width + 'px'; snapEl.style.height = s.height + 'px'; }
         else snapEl.style.display = 'none';
       }
-      // Throttle the resize fan-out into the iframe (xpra RANDR is expensive).
-      if (drag.mode === 'resize' && !raf) { var rid = drag.id; raf = requestAnimationFrame(function(){ raf = null; nudgeResize(rid); }); }
+      // Fan the new size into the iframe while dragging, but SPARINGLY: for the
+      // Browser this is an xpra RANDR resize, which is expensive — a rAF would
+      // fire it ~60×/s. Every drop calls nudgeResize once more (see onUp), so
+      // this is only for live reflow.
+      if (drag.mode === 'resize') {
+        var now = e.timeStamp || 0;
+        if (!drag.lastNudge || (now - drag.lastNudge) > 150) {
+          drag.lastNudge = now;
+          if (!raf) { var rid = drag.id; raf = requestAnimationFrame(function(){ raf = null; nudgeResize(rid); }); }
+        }
+      }
     }
     function onUp() {
       if (!drag) return;
@@ -2010,12 +2234,38 @@
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
+      // Double-tap maximize/restore is decided HERE, not on the second
+      // pointerdown: at pointerdown we cannot yet know whether the press becomes
+      // a DRAG. Deciding early meant "tap the title bar to focus, then drag to
+      // move" — the natural two-step for a background window — maximized instead
+      // of moving. Only a gesture that stayed put counts as a double-tap.
+      if (drag.dbl && (drag.moved || 0) < DBL_SLOP) {
+        var did = drag.id;
+        // Undo any sub-threshold drift first, so a later restore puts the window
+        // back exactly where it was rather than a few px off.
+        if (drag.mode === 'move' && drag.g0) {
+          var gd = winGeom(did);
+          gd.left = drag.g0.left; gd.top = drag.g0.top;
+          gd.width = drag.g0.width; gd.height = drag.g0.height;
+        }
+        drag = null;
+        // Same intent as pressing ▢, so it must set the same flag — otherwise a
+        // double-tap maximize was silently thrown away by the auto-tile the next
+        // time an app was opened, while the ▢ button's maximize survived.
+        markUserArranged(did);
+        toggleMax(did); saveWins(); return;
+      }
       // Drop near a left/right edge → snap to that half (precise split view).
       if (drag.snap) {
         var g = winGeom(drag.id);
         g.max = false; g.left = drag.snap.left; g.top = drag.snap.top; g.width = drag.snap.width; g.height = drag.snap.height;
         var w = winOf(drag.id); if (w) applyWinGeom(w, g);
       }
+      // A real drag ends the double-tap pairing, so the NEXT press can't be read
+      // as the second half of one — and means the user has arranged this window,
+      // so nothing auto-tiles it from under them afterwards.
+      if ((drag.moved || 0) >= DBL_SLOP) { lastTbTap = null; markUserArranged(drag.id); }
+      if (drag.snap) markUserArranged(drag.id);
       nudgeResize(drag.id); saveWins(); drag = null;
     }
     framesEl.addEventListener('pointerdown', function(e) {
@@ -2023,24 +2273,40 @@
       var w = e.target.closest('.win'); if (!w) return;
       var id = w.dataset.id;
       if (id !== active) setActive(id); else raiseWin(id);   // click any window → focus/raise it
-      if (e.target.closest('.wt-close') || e.target.closest('.wt-max') || e.target.closest('.wt-min')) return;   // buttons act on click
+      // Title-bar buttons act on POINTERUP, not click. They carry tabindex (so
+      // they're keyboard-reachable), which makes WebKit focus the span on
+      // pointerdown — and because setActive() above moves focus into the app's
+      // iframe mid-gesture, WebKit then dispatches NO click at all: the ×, ▢ and
+      // – became dead on iPad while pointerdown/pointerup still fired normally.
+      // Measured; see docs/design-decisions.md. Do not move these back to click.
+      var ctlEl = e.target.closest('.wt-close') || e.target.closest('.wt-max') || e.target.closest('.wt-min');
+      if (ctlEl) { btnDown = { id: id, el: ctlEl }; return; }
       var rz = e.target.closest('.win-rz'), tb = e.target.closest('.win-titlebar');
       // Double-tap/click the title bar → maximize/restore. Detected from two
       // pointerdowns (works for mouse AND touch; iOS fires `dblclick` unreliably
-      // and the move-drag would otherwise swallow it). BEFORE the maximized-bail,
-      // so double-tapping a maximized bar still restores it.
+      // and the move-drag would otherwise swallow it) — but only ARMED here; the
+      // decision happens in onUp once we know whether the press became a drag.
+      var dbl = false;
       if (tb) {
         var now = e.timeStamp || 0;
         if (lastTbTap && lastTbTap.id === id && (now - lastTbTap.t) < 400 &&
             Math.abs(e.clientX - lastTbTap.x) < 24 && Math.abs(e.clientY - lastTbTap.y) < 24) {
-          lastTbTap = null; e.preventDefault(); toggleMax(id); return;
+          dbl = true; lastTbTap = null;
+        } else {
+          lastTbTap = { t: now, x: e.clientX, y: e.clientY, id: id };
         }
-        lastTbTap = { t: now, x: e.clientX, y: e.clientY, id: id };
       }
-      var g = winGeom(id); if (g.max) return;                 // a maximized window isn't dragged/resized
+      var g = winGeom(id);
       var g0 = { left: g.left, top: g.top, width: g.width, height: g.height };
-      if (rz) drag = { id: id, mode: 'resize', dir: rz.dataset.dir, sx: e.clientX, sy: e.clientY, g0: g0 };
-      else if (tb) drag = { id: id, mode: 'move', sx: e.clientX, sy: e.clientY, g0: g0, snap: null };
+      if (g.max) {
+        // A maximized window isn't dragged or resized — but a double-tap must
+        // still RESTORE it, so track the gesture (mode 'tap' moves nothing) and
+        // let onUp decide.
+        if (!dbl) return;
+        drag = { id: id, mode: 'tap', sx: e.clientX, sy: e.clientY, g0: g0, dbl: true, moved: 0 };
+      }
+      else if (rz) drag = { id: id, mode: 'resize', dir: rz.dataset.dir, sx: e.clientX, sy: e.clientY, g0: g0, moved: 0 };
+      else if (tb) drag = { id: id, mode: 'move', sx: e.clientX, sy: e.clientY, g0: g0, snap: null, dbl: dbl, moved: 0 };
       else return;                                            // pointerdown on the body → just focus (above)
       e.preventDefault();
       if (mask) mask.style.display = 'block';
@@ -2048,11 +2314,32 @@
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onUp);   // iOS may fire cancel, not up — don't leave the mask stuck
     });
-    framesEl.addEventListener('click', function(e) {
-      var w = e.target.closest('.win'); if (!w || !windowModeOn()) return;
-      if (e.target.closest('.wt-close')) closeApp(w.dataset.id);
-      else if (e.target.closest('.wt-min')) minimizeWin(w.dataset.id);
-      else if (e.target.closest('.wt-max')) toggleMax(w.dataset.id);
+    // The other half of the pointerup-based buttons: act only if the release
+    // lands on the SAME control the press started on (a press that slides off
+    // cancels, exactly like a native button).
+    function runCtl(e) {
+      if (!btnDown) return;
+      var d = btnDown; btnDown = null;
+      if (!windowModeOn() || !e.target.closest) return;
+      var up = e.target.closest('.wt-close') || e.target.closest('.wt-max') || e.target.closest('.wt-min');
+      if (up !== d.el) return;
+      if (d.el.classList.contains('wt-close')) closeApp(d.id);
+      else if (d.el.classList.contains('wt-min')) minimizeWin(d.id);
+      else { markUserArranged(d.id); toggleMax(d.id); }
+    }
+    framesEl.addEventListener('pointerup', runCtl);
+    framesEl.addEventListener('pointercancel', function() { btnDown = null; });
+    // Keyboard activation for the title-bar controls (they carry role=button +
+    // tabindex, so they are in the tab order; Enter/Space must then work).
+    framesEl.addEventListener('keydown', function(e) {
+      if (!windowModeOn()) return;
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+      var t = e.target; if (!t || !t.closest) return;
+      var w = t.closest('.win'); if (!w) return;
+      var id = w.dataset.id;
+      if (t.closest('.wt-close')) { e.preventDefault(); closeApp(id); }
+      else if (t.closest('.wt-min')) { e.preventDefault(); minimizeWin(id); }
+      else if (t.closest('.wt-max')) { e.preventDefault(); markUserArranged(id); toggleMax(id); }
     });
     // (title-bar double-tap maximize is handled in pointerdown above — the native
     // dblclick event is unreliable on touch, so we don't rely on it.)
@@ -2388,6 +2675,11 @@
       setActive(openApps.indexOf(lastActive) !== -1 ? lastActive : openApps[0]);
     }
     markMenuRunning();
+    // Teach the window controls on a RESTORED desktop too. maybeWinTip used to
+    // fire only from the Utilities toggle and from launch(), so someone who
+    // enabled window mode and reloaded never saw it again — the one 7-second
+    // banner at toggle time was the entire onboarding. vibeCoach still self-caps.
+    if (openApps.length) setTimeout(maybeWinTip, 900);
   }).catch(function() {
     // API unreachable — boot to empty desktop instead of hanging on a spinner.
     setActive(null);
