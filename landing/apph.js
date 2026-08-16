@@ -30,7 +30,9 @@
     standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) ||
                  window.navigator.standalone === true;
   } catch (e) {}
-  if (!standalone && !force) return;
+  // NOTE: deliberately no early return for "not standalone" — apply() already
+  // no-ops off-standalone (see below), and the fit watchdog at the bottom of this
+  // file must run on EVERY device, not just an installed PWA.
 
   var root = document.documentElement;
 
@@ -57,6 +59,60 @@
     if (maxH > 0) root.style.setProperty('--app-h', maxH + 'px');
     if (force) diag();
   }
+
+  // ---- fit watchdog: runs on EVERY device, no per-device constants -------------
+  // The invariant: the shell's bottom edge sits exactly on the visible viewport's
+  // bottom edge. Everything else (the app area, the taskbar, every app iframe) is
+  // laid out from that, so if this holds, nothing can be cut off or leave a band.
+  //
+  // Why a watchdog rather than a better one-shot measurement: every height source
+  // iOS offers has been caught lying at least once — `svh` freezes after a
+  // cross-origin login, and the running max above (which exists BECAUSE of that)
+  // can only ever grow, so a single over-read leaves the shell too tall for the
+  // rest of that orientation and the bottom runs off-screen. Measuring repeatedly
+  // and correcting drift is self-healing whichever metric is wrong, on hardware we
+  // have never tested, with no device sniffing.
+  //
+  // Cooperates with apply(): a correction also lowers `maxH`, otherwise the next
+  // apply() would restore the bad height and the two would fight.
+  // Skipped while the keyboard is up — that shrink is real but transient, and the
+  // shell reserves it via --kb-inset instead (see desktop.html).
+  var strikes = 0, wdW = 0, fixes = 0;
+  function visibleBottom() {
+    var vv = window.visualViewport;
+    return vv ? (vv.offsetTop + vv.height) : (root.clientHeight || 0);
+  }
+  function watchdog() {
+    var body = document.body; if (!body) return;
+    var w = window.innerWidth;
+    if (w !== wdW) { wdW = w; strikes = 0; return; }      // rotation: let it settle first
+    if (window.__vtKbUp) { strikes = 0; return; }         // keyboard: --kb-inset owns that
+    var r = body.getBoundingClientRect();
+    var visible = Math.round(visibleBottom());
+    var drift = Math.round(r.bottom) - visible;           // >0 = runs off-screen, <0 = dead band
+    if (Math.abs(drift) <= 2) { strikes = 0; return; }
+    if (++strikes < 2) return;                            // must persist — ignore mid-animation reads
+    strikes = 0;
+    var target = Math.round(visible - r.top);
+    if (target < 240) return;                             // implausible: don't collapse the shell
+    maxH = target;                                        // keep apply() from undoing it
+    root.style.setProperty('--app-h', target + 'px');
+    fixes++;
+    // Leave a breadcrumb for the shell to report on its heartbeat, so a phone we
+    // have no access to tells us it had to self-correct, with the raw numbers.
+    window.__vtFitReport = {
+      n: fixes, drift: drift, applied: target, visible: visible,
+      clientH: root.clientHeight || 0, innerH: window.innerHeight || 0,
+      vvH: window.visualViewport ? Math.round(visualViewport.height) : null,
+      vvTop: window.visualViewport ? Math.round(visualViewport.offsetTop) : null,
+      w: w, standalone: standalone
+    };
+    if (force) diag();
+  }
+  setInterval(watchdog, 1000);
+  addEventListener('resize', watchdog);
+  addEventListener('orientationchange', watchdog);
+  if (window.visualViewport) visualViewport.addEventListener('resize', watchdog);
 
   function tick() { apply(); [80, 300, 800, 1800].forEach(function (ms) { setTimeout(apply, ms); }); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tick);

@@ -2809,3 +2809,54 @@ Start-menu Window-mode row went stale below the size gate (`applyWinModeMenu` ra
 only on toggle and init — now also on reflow and menu-open); the ▦ button had no
 `aria-label` (its accessible name was "▦"); and `minimizeWin` bypassed
 `setActive`, leaving `document.title` naming the window that was just minimized.
+
+---
+
+## The shell must FIT the screen, continuously — not measure it once (v1.19.11)
+
+- **Symptom (reported from an iPhone, standalone PWA):** after the first Cloudflare
+  Access login the desktop's bottom was cut off — the terminal's last row sliced in
+  half; raising the keyboard then added a dead band at the bottom.
+- **First hypothesis, WRONG — and worth recording because it cost a VM cycle:** that
+  the Claude-usage strip (which arrives late, on the heartbeat) shrank the app area
+  while the terminal kept stale rows, since `terminal-kbd.js` gates its whole
+  auto-refit self-heal behind `if (!isTouch)` — on touch there is no refit at all.
+  Measured on a mobile WebKit lane, A/B against the unfixed build: **both re-fit,
+  35 → 28 rows.** Shrinking `#frames` shrinks the *iframe element*, which fires a
+  native `resize` inside the terminal page, which runs ttyd's FitAddon. Container
+  changes already propagate for free. Do not "fix" that again.
+- **Why no test ever caught the real thing:** `apph.js` starts with
+  `if (!standalone && !force) return;` — the entire `--app-h` path exists only in an
+  installed PWA. Playwright is never standalone and the harness has no Access, so
+  the implicated code is unreachable by construction. (Compounding it:
+  `terminal.spec.js` is `backendOnly` → desktop-chromium only, so the Terminal had
+  never run on a phone lane at all, and its one assertion is
+  `expect(.xterm).toBeVisible()` — presence, not geometry. A terminal with its last
+  row sliced in half passes that.)
+- **Fix — assert the invariant instead of trusting a metric.** Every height source
+  iOS offers has been caught lying: `svh` freezes after a cross-origin login, and
+  the running max that works around it can only ever GROW, so a single over-read
+  leaves the shell too tall for the rest of that orientation. So `apph.js` now runs
+  a **fit watchdog on every device** (1s tick + viewport events): the shell's bottom
+  edge must equal the visible viewport's bottom edge; drift persisting across two
+  checks corrects `--app-h` (and lowers `maxH`, or `apply()` would restore the bad
+  height and the two would fight). Self-healing in both directions, no device
+  sniffing, no per-device constants.
+- **The keyboard is reserved, not corrected.** Its shrink is real but transient, so
+  the watchdog skips while `window.__vtKbUp` is set and the shell instead reserves
+  the covered strip as `--kb-inset` (measured: everything below the visual
+  viewport's bottom, plus the key bar's height), applied as `body { padding-bottom }`
+  — border-box, so `#frames` becomes exactly the visible app area and every app
+  iframe re-measures natively.
+- **It self-reports.** On a correction the shell rides one compact `viewport` object
+  along on its existing 5s heartbeat; the manager logs it (whitelisted keys, numeric
+  bounds, never stored, never echoed). A phone we cannot drive now tells us what it
+  measured and what it changed — no debug build, no user action. This is the answer
+  to "make it work on every phone": the fleet reports its own layout bugs.
+- **Rejected:** asking the user to enable `#vhdbg` and send screenshots (works, but
+  needs a human per device and per occurrence); a bigger one-shot measurement (the
+  same class of bug, one metric later); shrinking `--app-h` for the keyboard (it is
+  transient — the shell would fight the soft keyboard's open/close animation).
+- **Still unverified:** the standalone-PWA-behind-Access path itself. `tests/e2e/
+  tests/viewport-fit.spec.js` pins the invariant and the self-correction on all ten
+  lanes, but only the telemetry can confirm the real device.
