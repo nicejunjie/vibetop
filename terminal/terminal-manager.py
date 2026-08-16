@@ -2380,6 +2380,30 @@ def _prune_schedules(reg, now=None):
     return reg
 
 
+def _prune_expired_schedules(now=None):
+    """Expire history on its own, without waiting for the next entry to fire.
+
+    `_prune_schedules` only ran from the two paths that already rewrite the
+    registry — a sweeper pass that fired something, and creating a new entry — so
+    with nothing else queued the last batch's history sat in the panel forever and
+    the SCHED_KEEP_DONE window never actually elapsed for anyone. The sweeper now
+    calls this every tick instead. Cheap: it reads the small JSON it already reads
+    and rewrites the file ONLY when the prune really dropped something."""
+    now = time.time() if now is None else now
+    with _schedules_lock:
+        reg = _read_schedules()
+        before = sum(len(v) for v in reg.values())
+        _prune_schedules(reg, now)
+        if sum(len(v) for v in reg.values()) == before:
+            return False
+        try:
+            _write_schedules(reg)
+        except OSError as e:
+            log.warning("schedule prune write failed: %s", e)
+            return False
+    return True
+
+
 def _user_schedules(user):
     """This user's entries, newest-first. Read-only convenience."""
     lst = list(_read_schedules().get(user, []))
@@ -2482,6 +2506,10 @@ def _run_due_schedules(now=None):
     with _schedules_lock:
         due = _due_schedules(_read_schedules(), now)
     if not due:
+        # Nothing to fire is the COMMON case, and it is exactly when history would
+        # otherwise never expire — so age it out here rather than only on a firing
+        # pass. Writes only when something actually aged out.
+        _prune_expired_schedules(now)
         return []
     results = {}
     for user, ent in due:

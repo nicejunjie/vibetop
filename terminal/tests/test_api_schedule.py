@@ -260,6 +260,34 @@ def test_prune_keeps_pending_and_drops_old_history(mgr):
     assert ids == {"keep-pending", "fresh-done"}
 
 
+def test_history_expires_on_an_idle_sweeper_pass(mgr, home):
+    """The prune used to run ONLY on a pass that fired something (and on create),
+    so once your last message had fired, its history sat there forever — the 24h
+    window never elapsed for anyone. An idle tick must age it out."""
+    now = time.time()
+    old = _mk(mgr, "u", id="old-done", at=now - mgr.SCHED_KEEP_DONE - 60,
+              status="sent")
+    old["fired"] = now - mgr.SCHED_KEEP_DONE - 60
+    fresh = _mk(mgr, "u", id="fresh-done", at=now - 60, status="sent")
+    mgr._write_schedules({"u": [old, fresh]})
+
+    assert mgr._run_due_schedules(now) == []          # nothing due: an idle pass
+    assert {e["id"] for e in mgr._read_schedules()["u"]} == {"fresh-done"}
+
+
+def test_idle_pass_does_not_rewrite_when_nothing_expired(mgr, home, monkeypatch):
+    """It runs every SCHED_TICK, so it must stay a read until there is real work —
+    no rewriting the registry (or churning its mtime) 5760 times a day."""
+    mgr._write_schedules({"u": [_mk(mgr, "u", id="fresh-done", at=time.time() - 60,
+                                    status="sent")]})
+    writes = []
+    real_write = mgr._write_schedules
+    monkeypatch.setattr(mgr, "_write_schedules",
+                        lambda reg: (writes.append(1), real_write(reg))[1])
+    assert mgr._prune_expired_schedules() is False
+    assert writes == []
+
+
 # ---- injection (real socket) ------------------------------------------------
 
 def test_inject_writes_text_and_carriage_return_to_the_session_socket(

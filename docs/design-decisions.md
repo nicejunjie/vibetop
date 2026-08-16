@@ -2860,3 +2860,31 @@ only on toggle and init — now also on reflow and menu-open); the ▦ button ha
 - **Still unverified:** the standalone-PWA-behind-Access path itself. `tests/e2e/
   tests/viewport-fit.spec.js` pins the invariant and the self-correction on all ten
   lanes, but only the telemetry can confirm the real device.
+
+---
+
+## The 24h schedule history never expired — a correct prune with no idle call site (v1.19.13)
+
+- **Symptom:** fired/missed entries stayed in the ⏱ Scheduled-messages panel
+  indefinitely, even though `SCHED_KEEP_DONE` has been 24h since the feature
+  shipped and `_prune_schedules` implements exactly that window.
+- **Cause:** `_prune_schedules` was only ever called from the two paths that
+  already rewrite the registry — `_run_due_schedules` *after* it fired something,
+  and the create handler. But the sweeper returns early on `if not due: return []`,
+  which is what happens on essentially every tick. So once your last message had
+  fired, nothing pruned it again unless you happened to queue another one; the 24h
+  window could only elapse for someone who kept scheduling.
+- **Why the tests missed it:**
+  `test_prune_keeps_pending_and_drops_old_history` covers the pure function, which
+  was right all along. Nothing asserted it was *reachable*. In a unit suite a
+  tested function with a missing call site is indistinguishable from a working
+  feature — the assertion has to be at the seam, on an idle pass.
+- **Fix:** `_prune_expired_schedules()` runs on every sweeper tick (`SCHED_TICK`
+  15s). It takes the lock, prunes, and rewrites **only when the prune actually
+  dropped something**, so an idle host stays a small read rather than churning a
+  root-owned file 5760 times a day.
+- **Rejected:** filtering expired entries at read time in `_user_schedules` — the
+  panel would look right while the file grew forever, and this is root-owned state
+  the sweeper acts on, so it should be true on disk, not just in the view. Also
+  rejected: a separate reaper thread — the sweeper already ticks at the right
+  cadence and holds the right lock.
