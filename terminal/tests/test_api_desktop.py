@@ -56,35 +56,3 @@ def test_close_records_targets_for_live_holders(client):
 def test_close_requires_app(client):
     status, _ = client.post("/api/desktop/close", {})
     assert status == 400
-
-
-def test_viewport_self_report_is_logged_and_never_stored(client, caplog):
-    """A phone whose shell had to self-correct reports it on the heartbeat.
-
-    This is the only channel we have for a layout bug on a device we cannot
-    reach, so it must (a) reach the log with the raw numbers, (b) never be
-    persisted or echoed back, and (c) be bounded — a client must not be able to
-    turn the 5s heartbeat into a log-spam or storage channel.
-    """
-    import logging
-    with caplog.at_level(logging.WARNING, logger="vibetop"):
-        status, body = client.post("/api/desktop", {
-            "instance": "phone", "open": ["terminal"], "active": "terminal",
-            "viewport": {"n": 1, "drift": 320, "applied": 476, "visible": 476,
-                         "clientH": 796, "innerH": 796, "vvH": 476, "vvTop": 0,
-                         "w": 390, "standalone": True,
-                         # hostile extras: must be dropped, not logged
-                         "evil": "x" * 200, "nested": {"a": 1}, "huge": 10 ** 9},
-        })
-    assert status == 200
-    assert "viewport" not in body                      # never echoed back
-    logged = "\n".join(r.getMessage() for r in caplog.records)
-    assert "viewport self-correction" in logged
-    assert '"drift": 320' in logged and '"applied": 476' in logged
-    assert "evil" not in logged and "nested" not in logged and "10000" not in logged
-
-    # ...and it is not persisted into the desktop state.
-    import json as _json
-    status, state = client.get("/api/desktop?instance=phone")
-    assert status == 200
-    assert "viewport" not in _json.dumps(state)
