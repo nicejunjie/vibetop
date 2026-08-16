@@ -133,3 +133,29 @@ Docker/OnlyOffice) is apt/snap-managed system packages — not vibetop's to plac
 
 Answer these first when we revisit; everything downstream (routing, provisioning,
 auth) follows from them.
+
+---
+
+# Identity model as implemented
+
+Vibetop runs each of the host's **real Linux users** as themselves (Option B, implemented — `docs/multi-user.md`). Three distinct identities in `terminal/terminal-manager.py`, do not conflate them:
+
+- **`APP_USER`** — the service/code owner that runs deploys and owns the checkout (`vibetop` on prod). Only appears as the request user on a cookieless loopback call (trusted local tooling).
+- **`OPERATOR` / `ADMIN_USERS`** — the *human* admin(s), named in **`VIBETOP_ADMINS`** (comma-separated, loaded from `/etc/vibetop/manager.env`; defaults to `[APP_USER]` so a home-owned single-user install behaves as before). `OPERATOR = ADMIN_USERS[0]`. `_is_admin()` gates the operator-only surfaces (**Claude-usage**, **Update**) — everything else is per-user.
+- **The per-request authenticated user** — `_ctx_user()` (from a per-request thread-local set by the session cookie). **All per-user state and file ops resolve under `_ctx_home()`** = that user's real `$HOME`, so notes/desktop/files-tabs/uploads/office land in each user's own `~/.local/share` etc. by construction.
+
+> **Operator-vs-service-account trap:** any `~`-path that semantically means *"the human operator's home"* (Claude usage/settings, `~/.claude`) must use **`OPERATOR`**, not `APP_USER` — after `APP_USER=vibetop` those pointed at the empty `/opt/vibetop`. The proxy unit's `User=` must also be `@OPERATOR@`. See `docs/design-decisions.md`.
+>
+> **`VIBETOP_ADMINS` has ONE authority: `/etc/vibetop/manager.env`.** Every installer receives it through `vt_installer_env_array` (`tools/lib/layout.sh`), which reads it from that file — **do not add another resolver**. An installer that resolves the operator on its own falls back to `APP_USER` when the variable isn't in its environment, which is silent (it renders a valid unit that writes to the wrong home) and re-applies on every deploy: that is exactly how the Claude-usage proxy came to run as `vibetop` and freeze the usage strip for a day (v1.18.4/.5). Guards: `tools/doctor.sh` §*Operator identity* compares the deployed `User=` against `VIBETOP_ADMINS` and scans the proxy journal since the unit last started; `claude-usage/install.sh` probes that the operator can write their `~/.local/share` right after rendering; `test_static.py::test_claude_proxy_unit_renders_the_operator_not_app_user` + `::test_installer_env_array_carries_the_operator` pin both ends.
+
+**Auth (LAN + tunnel, one gate).** nginx `auth_request` on every protected location delegates to the manager's **`GET /api/authcheck`** (`location = /internal/authcheck` → `/api/authcheck`, passing `X-Original-URI`): 200 (with `X-Vibetop-User`) for a valid session, 401 otherwise. A **public-path allowlist** (`_is_public_path` — login/logout/authcheck, static shell assets, `/s/` shares) is kept in the manager (not nginx) so it's testable. Login: **`POST /api/login {username,password}`** → **PAM** (`_pam_authenticate` via `ctypes`/`libpam`, stdlib-only; PAM service `vibetop` = `/etc/pam.d/vibetop`) → a signed **`vt_session`** cookie (HMAC over user+expiry+token-epoch, 7-day, `HttpOnly`/`SameSite=Lax`/`Secure` on https). Brute-force **lockout** after repeated failures + per-attempt sleep. **`/api/logout`** clears this device's cookie; **`/api/logout-all`** bumps the user's **token epoch** so every issued session for them is rejected (stateless-cookie revocation). Session secret at `/etc/vibetop/session.secret`.
+
+**Per-user runtime — services run AS the logged-in user via `systemd-run` transient units** (`--collect --uid=<user> --gid=<gid>`, per-user resource caps, `WorkingDirectory=<home>`), on per-user port blocks (`_user_slot`/`_user_term_port`):
+- **Terminals** — `/tN/` authcheck resolves the user's per-user ttyd port, cold-starts the terminal as them if needed (`_ensure_user_terminal`), and returns it in **`X-Term-Port`**; nginx `auth_request_set $tport $upstream_http_x_term_port` routes there. So **terminal N is shared across *that user's own* devices, not across users**.
+- **Files** — one FileBrowser per user (`_ensure_user_filebrowser`, `--auth.method=noauth`, run as them, rooted at `/`), started on demand; port returned to nginx like terminals.
+- **Browser / X11** — each user gets their **own** xpra display + snap Chromium (`_ensure_user_xpra(user, kind)`), not the one shared `:99`/`:98`. `_provision_user` runs `loginctl enable-linger` so `/run/user/<uid>` exists for snap+xpra.
+- **Stale-port self-heal (xpra + FileBrowser).** Each per-user service's TCP port is **baked into its transient unit's `ExecStart` at creation**, so a port-scheme change (or a wedged service) leaves an `active` unit on the OLD port while nginx routes to the NEW one → `/browser/`, `/x11-display/`, `/files/` **502**. `systemctl restart` does NOT fix it (re-runs the baked args). So `_start_user_xpra`/`_start_user_filebrowser` reuse an `active` unit **only if `_wait_tcp(expected_port)` succeeds**; otherwise they stop + reset-failed + recreate it on the correct port. (`docs/design-decisions.md`; guarded by `test_stale_{xpra,filebrowser}_on_wrong_port_*` + the e2e `surface-health.spec.js`.)
+- **The 203/EXEC trap:** per-user helper scripts must live *outside* the operator's `$HOME` (a home is `0750`, so the target user's `systemd-run` process can't exec a script under it → status 203/EXEC) — the minimum reason the `/opt/vibetop` move is mandatory for real per-user isolation.
+
+With `VIBETOP_ADMINS` unset (a home-owned single-operator install) all three identities collapse onto one user — the degenerate case the defaults preserve.
+

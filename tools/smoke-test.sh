@@ -4,7 +4,7 @@
 #
 # This is the ONE tier that needs the running stack (systemd + nginx + xpra +
 # FileBrowser + optionally the OnlyOffice container). It formalizes the "Health
-# check" section of CLAUDE.md into asserting checks with a pass/fail summary and
+# check" section of docs/operations.md into asserting checks with a pass/fail summary and
 # a non-zero exit on any failure — so a deploy can be gated on it.
 #
 # It is a DEV/OPS tool only: no installer runs it, and it deploys nothing. Run it

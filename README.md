@@ -126,8 +126,9 @@ self-update code from the Start menu like the primary box (heavy deps like the
 OnlyOffice image are installed only by `deploy.sh`/`office/install.sh`, not the
 in-app Update).
 
-See [`CLAUDE.md`](CLAUDE.md) for full architecture, health checks, and operational
-commands, and [`docs/`](docs/) for deep dives.
+See [`CLAUDE.md`](CLAUDE.md) for the doc index and the rules that bind every
+change; the architecture, health checks, and operational commands live in
+[`docs/`](docs/).
 
 ## Screenshots
 

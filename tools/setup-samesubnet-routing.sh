@@ -2,7 +2,7 @@
 # Fix a host that reaches ONE LAN subnet through TWO+ interfaces (e.g. ethernet +
 # WiFi both on 192.168.x): ARP flux + asymmetric routing break long-lived
 # WebSockets (vibetop terminals / Browser) ~10s in, for some clients only. See
-# the "Dual-homed deploy host" gotcha in ../CLAUDE.md.
+# the "Dual-homed deploy host" gotcha in ../docs/gotchas.md.
 #
 # It installs two host-local pieces (NOT managed by deploy.sh — re-run this after
 # a reinstall):

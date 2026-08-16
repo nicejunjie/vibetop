@@ -81,7 +81,7 @@ EOF
 #
 # VIBETOP_ADMINS is in here for a reason. It names the human OPERATOR, which is
 # a different identity from APP_USER (the service account) — see the
-# operator-vs-service-account trap in CLAUDE.md. Omitting it doesn't fail; it
+# operator-vs-service-account trap in CLAUDE.md (Identity model). Omitting it doesn't fail; it
 # makes every installer that needs the operator silently fall back to APP_USER.
 # That is exactly how the Claude-usage proxy came to run as `vibetop` and write
 # its capture into /opt/vibetop/.local/share, where the manager never looks

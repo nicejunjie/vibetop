@@ -120,7 +120,7 @@ if [ -z "${BROWSER_CMD:-}" ]; then
         # Distro Chromium (RPM distros have no snap). The --user-data-dir MUST
         # match what the manager's _chromium_for_user() computes, or
         # /api/browser/open opens the URL in a different instance — the same
-        # class of bug as the snap-profile mismatch documented in CLAUDE.md.
+        # class of bug as the snap-profile mismatch documented in docs/gotchas.md.
         CHROME_BIN="$(command -v chromium 2>/dev/null || command -v chromium-browser)"
         BROWSER_CMD="$CHROME_BIN --no-first-run --no-default-browser-check --restore-last-session --start-maximized --disable-smooth-scrolling --user-data-dir=$APP_HOME/.config/vibetop/chromium-profile"
     elif [ -x /snap/bin/firefox ]; then
