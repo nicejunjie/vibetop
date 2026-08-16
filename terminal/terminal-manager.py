@@ -3429,6 +3429,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except OSError:
                 pass
 
+    def _via_cf_access(self):
+        """Did this request arrive through Cloudflare Access (the tunnel), rather
+        than straight off the LAN?
+
+        Only the shell's Logout button uses it: signing out should also end the
+        Cloudflare session, but `/cdn-cgi/access/logout` is handled at Cloudflare's
+        edge and only exists there — on the LAN nothing is in front of nginx, so
+        that path falls through to a static loggedout.html dead end. So the button
+        asks here and picks its destination.
+
+        Access injects these on every request it forwards; a LAN client has
+        neither. They are trivially spoofable by a LAN client, and deliberately not
+        trusted for anything: the worst a forgery buys you is your own logout
+        landing on a different page. Never gate authorization on this.
+        """
+        return bool(self.headers.get("Cf-Access-Jwt-Assertion")
+                    or self.headers.get("Cf-Access-Authenticated-User-Email"))
+
     def _csrf_ok(self):
         """Reject cross-site browser POSTs. State-changing endpoints (launch a
         command, reset, update, upload) have no application-layer auth — the trust
@@ -5968,7 +5986,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except KeyError:
                 pass
             self._json(200, {"user": user, "home": _ctx_home(), "name": name,
-                             "can_sudo": _can_sudo(user)})
+                             "can_sudo": _can_sudo(user),
+                             "via_access": self._via_cf_access()})
             return
         if self.path == "/api/config/idle":
             return self._handle_config_idle_get()

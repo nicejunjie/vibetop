@@ -2966,3 +2966,36 @@ why the feature went anyway, so the next attempt starts from the right premise.
   v1.19.14), it must not double-count the bottom safe-area inset, and it should
   hide the shell chrome (taskbar, usage strip) rather than shrink the app, or
   landscape stays unusable.
+
+---
+
+## "Log out" now ends the Cloudflare session too — but only when there is one (v1.19.18)
+
+- **Symptom:** the operator tapped ⏻ ▸ *Log out (this device)* to force a fresh
+  Cloudflare Access login (to reproduce the post-login `svh` freeze) and was
+  returned to the vibetop login form still authenticated to Access — "I only
+  logged out of Linux".
+- **Cause, and it was by design:** the two gates are different layers. Access
+  authenticates the *person/device at the perimeter*; the `vt_session` cookie
+  authenticates *which Linux user*. Only *Log out all devices* navigated to
+  `/cdn-cgi/access/logout`, and that path also runs `/api/reset` — it stops every
+  terminal and signs out every device, far too destructive for "sign out here".
+- **Why not just always add the Access logout:** `/cdn-cgi/access/logout` is
+  handled at **Cloudflare's edge and exists only there**. On the LAN nothing sits
+  in front of nginx, so the request falls through to the static `loggedout.html`
+  dead end instead of the login form. Unconditionally adding it would fix the
+  tunnel and degrade the LAN.
+- **Fix:** `GET /api/me` reports **`via_access`** (`_via_cf_access()` — true when
+  Access's `Cf-Access-Jwt-Assertion` / `Cf-Access-Authenticated-User-Email` headers
+  are present), and the Logout handlers pick their destination from it: through the
+  tunnel → `/cdn-cgi/access/logout`, on the LAN → `/login.html`. Same label, no new
+  menu row, honest on both paths.
+- **The header is presentation-only and must stay that way.** A LAN client can
+  forge it trivially. The only thing it decides is which page *your own* logout
+  lands on; identity still comes from the session cookie. Pinned by
+  `test_cf_access_header_is_presentation_only_and_grants_nothing`. **Never gate
+  authorization on a `Cf-*` header** — nginx does not strip client-supplied ones.
+- **Rejected:** a third *"Log out of Cloudflare"* menu row. It needs the same
+  header detection anyway (or it is a dead row on the LAN), so it costs the same
+  server work plus a permanent extra choice in the menu — and it would leave plain
+  "Log out" still landing you past the outer gate, which is the actual complaint.

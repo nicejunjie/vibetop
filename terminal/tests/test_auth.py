@@ -339,6 +339,38 @@ def test_me_reports_can_sudo(client, mgr, users, monkeypatch):
     assert client.get("/api/me", cookie=users["bob"][1])[1]["can_sudo"] is False
 
 
+def test_me_reports_whether_the_request_came_through_cloudflare_access(client, users):
+    """The shell's Logout button ends the Access session too — but only when there
+    IS one. On the LAN nothing sits in front of nginx, so /cdn-cgi/access/logout is
+    a static dead end and the button must keep going to the login form instead."""
+    ck = users["alice"][1]
+    # LAN: no Access headers.
+    assert client.get("/api/me", cookie=ck)[1]["via_access"] is False
+    # Through the tunnel: Access injects its JWT on every request it forwards.
+    for h in ({"Cf-Access-Jwt-Assertion": "eyJhbGciOiJSUzI1NiJ9.x.y"},
+              {"Cf-Access-Authenticated-User-Email": "someone@example.com"}):
+        _st, _hd, body = client.get_full("/api/me", cookie=ck, headers=h)
+        assert body["via_access"] is True, h
+
+
+def test_cf_access_header_is_presentation_only_and_grants_nothing(client, mgr, users,
+                                                                  monkeypatch):
+    """The header is trivially spoofable from the LAN, so it must not be a way in.
+    Forging it buys you a different logout landing page and nothing else."""
+    spoof = {"Cf-Access-Jwt-Assertion": "forged",
+             "Cf-Access-Authenticated-User-Email": "root@example.com"}
+    # The identity still comes from the session, never from the header: cookieless
+    # here is the trusted-loopback path, which resolves to APP_USER — NOT to the
+    # address the forged header claims. (Remote cookieless requests never reach the
+    # manager at all; nginx's auth_request rejects them first.)
+    _st, _hd, body = client.get_full("/api/me", headers=spoof)
+    assert body["user"] == mgr.APP_USER
+    # And it cannot promote a non-sudo user.
+    monkeypatch.setattr(mgr, "_can_sudo", lambda u: False)
+    _st, _hd, body = client.get_full("/api/me", cookie=users["bob"][1], headers=spoof)
+    assert body["user"] == "bob" and body["can_sudo"] is False
+
+
 def test_config_endpoints_require_sudo(client, mgr, users, stubs, monkeypatch):
     monkeypatch.setattr(mgr, "_can_sudo", lambda u: u == "alice")
     bob = users["bob"][1]

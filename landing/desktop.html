@@ -2789,7 +2789,15 @@
 
     document.getElementById('tb-lo-this').addEventListener('click', function() {
       closeMenu();
-      var go = function() { window.location.href = '/login.html'; };
+      // End the Cloudflare Access session too, so "Log out" means logged out
+      // rather than "still past the outer gate, just back at the vibetop login".
+      // ONLY when we actually came in through Access (window.viaAccess, set from
+      // /api/me): /cdn-cgi/access/logout is handled at Cloudflare's edge, and on
+      // the LAN — where nothing sits in front of nginx — it is a static dead-end
+      // page, so there we keep going straight to the login form.
+      var go = function() {
+        window.location.href = window.viaAccess ? '/cdn-cgi/access/logout' : '/login.html';
+      };
       fetch('/api/logout', { method: 'POST' }).then(go, go);
     });
     document.getElementById('tb-lo-all').addEventListener('click', function() {
@@ -2797,7 +2805,10 @@
       vibeConfirm('Log out of ALL your devices?\nEvery browser signed in as you will be signed out, your terminals will be stopped, and the desktop reset.',
         { okText: 'Log out everywhere', danger: true }).then(function(ok) {
         if (!ok) return;
-        var go = function() { window.location.href = '/cdn-cgi/access/logout'; };
+        // Same LAN/Access split as the single-device logout above.
+        var go = function() {
+          window.location.href = window.viaAccess ? '/cdn-cgi/access/logout' : '/login.html';
+        };
         var all = function() { return fetch('/api/logout/all', { method: 'POST' }); };
         fetch('/api/reset', { method: 'POST' }).then(all, all).then(go, go);
       });
@@ -2816,6 +2827,9 @@
     // Linux user has OS sudo. buildStartMenu ran at load with canSudo falsy, so the
     // row is currently hidden; unhide it here. Real enforcement is server-side 403.
     window.canSudo = !!me.can_sudo;
+    // Whether this request came through Cloudflare Access — decides where the
+    // Logout button lands (see the tb-lo-this handler). Presentation only.
+    window.viaAccess = !!me.via_access;
     if (window.canSudo) {
       document.querySelectorAll('.sm-item.sm-sudo').forEach(function(el) { el.style.display = ''; });
     }
