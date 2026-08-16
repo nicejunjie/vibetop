@@ -553,7 +553,14 @@
   schedPanel.querySelector('.sp-quick').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-min]');
     if (!b) return;
-    spAt.value = toLocalInput(new Date(Date.now() + (+b.dataset.min) * 60000));
+    // Additive: each tap adds to the time already in the field, so +1h then +30m
+    // is 1h30m out, not 30m. openSched seeds the field to now, so the first tap
+    // still lands on now + N; an empty or stale (past) value falls back to now.
+    // The minute of slack absorbs that seed's truncation to whole minutes, which
+    // reads as up to 59s in the past.
+    var base = spAt.value ? new Date(spAt.value).getTime() : NaN;
+    if (!isFinite(base) || base < Date.now() - 60000) base = Date.now();
+    spAt.value = toLocalInput(new Date(base + (+b.dataset.min) * 60000));
   });
   spList.addEventListener('click', function (e) {
     var li = e.target.closest('li[data-id]');
