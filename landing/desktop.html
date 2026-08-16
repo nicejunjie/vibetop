@@ -235,6 +235,11 @@
   }
   .tb-clock .t { display: block; color: #9ab; }
   .tb-clock .d { display: block; color: #556; }
+  /* Phones only — NOT tablets. The phone's own status bar shows the time right
+     above the taskbar, and that is where tab room is scarcest. 600px clears every
+     phone (iPhone 17 Pro Max 440, Pixel 7 412) while the 656px base iPad keeps
+     its clock in portrait, where it has the width to spare. */
+  @media (max-width: 600px) { .tb-clock { display: none; } }
   .tb-stats .label { color: #556; padding-right: 4px; }
   .tb-stats .n     { color: #9ab; text-align: right; }
   .tb-stats .u     { color: #9ab; text-align: left; }
@@ -640,9 +645,6 @@
     .taskbar { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
     .taskbar::-webkit-scrollbar { display: none; }
     .start-btn, .task-app, .tb-stats, .tb-logout { flex-shrink: 0; }
-    /* The phone's own status bar already shows the time right above us — a second
-       clock would only cost tab room on the narrowest screens. */
-    .tb-clock { display: none; }
     /* On phones the whole taskbar scrolls as one unit, so the tab strip should
        be its natural width (no grow, no nested scroll) and let the bar scroll. */
     .task-apps { flex: 0 0 auto; min-width: auto; overflow: visible; }

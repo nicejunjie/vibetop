@@ -3,7 +3,7 @@
 //
 // Both halves matter. It lives in the taskbar's flex-shrink:0 zone so a long tab
 // list scrolls UNDER it rather than shoving it off-screen — the layout bug the
-// stats block was already designed around. And it is hidden below 736px on
+// stats block was already designed around. And it is hidden below 600px on
 // purpose: the phone's own status bar shows the time a centimetre above the
 // taskbar, so a second clock would only cost tab room where there is least of it.
 // A breakpoint is exactly the kind of thing that regresses silently.
@@ -26,7 +26,7 @@ const clock = (page) => page.evaluate(() => {
 });
 
 test('phones hide it — the OS status bar already shows the time', async ({ page, isMobile, viewport }) => {
-  test.skip(!viewport || viewport.width > 736, 'not a phone-width lane');
+  test.skip(!viewport || viewport.width > 600, "not a phone-width lane");
   await page.goto('/');
   await page.waitForTimeout(600);
   const c = await clock(page);
@@ -35,7 +35,7 @@ test('phones hide it — the OS status bar already shows the time', async ({ pag
 });
 
 test('desktop and tablet show it, next to the power button, inside the bar', async ({ page, viewport }) => {
-  test.skip(!!viewport && viewport.width <= 736, 'phone-width lane hides it by design');
+  test.skip(!!viewport && viewport.width <= 600, "phone-width lane hides it by design");
   await page.goto('/');
   await page.waitForTimeout(600);
   const c = await clock(page);
@@ -47,7 +47,7 @@ test('desktop and tablet show it, next to the power button, inside the bar', asy
 });
 
 test('a taskbar full of apps scrolls under the clock instead of pushing it off', async ({ page, viewport }) => {
-  test.skip(!!viewport && viewport.width <= 736, 'phone-width lane hides it by design');
+  test.skip(!!viewport && viewport.width <= 600, "phone-width lane hides it by design");
   await page.goto('/');
   await page.waitForTimeout(600);
   // Fill the tab strip well past the bar's width without opening real apps.
