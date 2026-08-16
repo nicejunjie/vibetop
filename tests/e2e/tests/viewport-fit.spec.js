@@ -71,4 +71,67 @@ test.describe('shell fits the visible viewport', () => {
     expect(reports[0]).toHaveProperty('clientH');
     expect(reports[0]).toHaveProperty('vvH');
   });
+
+  // The regression that ate the terminal (v1.19.12): the keyboard reservation was
+  // measured as `body.getBoundingClientRect().height + kbInset`, but `* {
+  // box-sizing: border-box }` means that rect ALREADY includes the padding — so
+  // the inset was counted twice and fed straight back in. iOS fires 2-3 resize
+  // events per keyboard raise, so the reservation grew on each one and the app
+  // area collapsed to a third of the screen with a black band above the key bar.
+  //
+  // No real soft keyboard is needed to catch it, and none is available here: the
+  // bug is a feedback loop, so it shows up as NON-IDEMPOTENCE. Occlude a stubbed
+  // visual viewport once, then fire the event repeatedly WITHOUT changing any
+  // geometry — a correct reservation is identical every time.
+  test('the keyboard reservation is idempotent (no ratchet on repeated events)', async ({ page }) => {
+    const KB = 320;                       // pretend keyboard height, in CSS px
+    await page.addInitScript((kb) => {
+      // Shrink ONLY the visual viewport, which is what a soft keyboard does — a
+      // real page resize would shrink the layout viewport too and hide the bug.
+      const real = window.visualViewport;
+      const et = new EventTarget();
+      const fake = {
+        get height() { return (real ? real.height : innerHeight) - window.__fakeKb; },
+        get width() { return real ? real.width : innerWidth; },
+        get offsetTop() { return 0; },
+        get offsetLeft() { return 0; },
+        get scale() { return 1; },
+        addEventListener: et.addEventListener.bind(et),
+        removeEventListener: et.removeEventListener.bind(et),
+        dispatchEvent: et.dispatchEvent.bind(et),
+      };
+      window.__fakeKb = 0;
+      window.__kbHeight = kb;
+      Object.defineProperty(window, 'visualViewport', { get: () => fake, configurable: true });
+    }, KB);
+
+    await page.goto('/');
+    await page.waitForTimeout(1200);
+    const before = await geom(page);
+    expect(before.kbInset === '' || before.kbInset === '0px').toBeTruthy();
+
+    // Raise the "keyboard", then fire the resize the way iOS does — several times,
+    // with nothing else changing.
+    const insets = await page.evaluate(async () => {
+      const seen = [];
+      window.__fakeKb = window.__kbHeight;
+      for (let i = 0; i < 4; i++) {
+        window.visualViewport.dispatchEvent(new Event('resize'));
+        await new Promise((r) => setTimeout(r, 120));
+        seen.push(getComputedStyle(document.documentElement)
+          .getPropertyValue('--kb-inset').trim());
+      }
+      return seen;
+    });
+
+    // Every pass must agree. (Whether the shell classifies this as "keyboard up"
+    // at all depends on the lane's geometry — if it reserves nothing, that is
+    // consistent too. What must never happen is a value that keeps growing.)
+    expect(new Set(insets).size).toBe(1);
+    const px = parseInt(insets[0], 10) || 0;
+    expect(px).toBeLessThan(KB + 200);         // never more than the keyboard + the key bar
+    const g = await geom(page);
+    expect(g.shellBottom - g.visibleBottom).toBeGreaterThanOrEqual(0);   // nothing above the keyboard is wasted
+    expect(px === 0 || g.taskbarBottom <= g.visibleBottom + 2).toBeTruthy();
+  });
 });

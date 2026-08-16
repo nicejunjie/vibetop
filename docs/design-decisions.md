@@ -2888,3 +2888,41 @@ only on toggle and init — now also on reflow and menu-open); the ▦ button ha
   the sweeper acts on, so it should be true on disk, not just in the view. Also
   rejected: a separate reaper thread — the sweeper already ticks at the right
   cadence and holds the right lock.
+
+---
+
+## The keyboard reservation ratcheted: a measurement that included its own output (v1.19.14)
+
+- **Symptom (iPad, reported with a screenshot):** hide the soft keyboard and bring
+  it back, and the shell collapsed to roughly a third of the screen — terminal,
+  taskbar, then a tall black band, then the system key bar and the keyboard. It got
+  worse per keyboard cycle, and v1.19.11 had introduced it.
+- **Cause — a feedback loop, not a wrong constant.** `syncBar` measured the shell as
+  `body.getBoundingClientRect().height + kbInset`, "the current inset added back".
+  But `desktop.html` sets `* { box-sizing: border-box }`, so that rect **already is**
+  the full shell height with `--kb-inset` inside it. Adding the inset back
+  double-counted it, and the result *became* the next `kbInset` — so every event
+  grew the reservation by roughly (shell − keyboard top). iOS fires 2-3 visual
+  viewport resizes per keyboard raise. Working the reported geometry (shell 1950,
+  keyboard top at 1350, key bar 80): pass 1 reserves 680 — correct, content ends
+  exactly at the key bar — pass 2 reserves 1360, leaving ~590px of shell. That is
+  the screenshot.
+- **Fix:** measure the shell alone (`rect.height`, nothing added). The property that
+  matters is not the exact number but **idempotence**: no value derived from the
+  current inset may feed into computing the next one.
+- **Also hardened:** the fit watchdog skipped on `window.__vtKbUp`, a flag another
+  file sets — and `apph.js` registers its `visualViewport` listener *before*
+  `desktop.html` registers `syncBar`, so on the first resize of a keyboard raise it
+  read a stale flag. It now also derives occlusion itself (visual viewport more than
+  100px shorter than the layout viewport), so correctness no longer depends on
+  script order across two files.
+- **How it is now caught without a real keyboard:** a soft keyboard can't be raised
+  in Playwright, and shrinking the page shrinks the *layout* viewport too, which
+  hides the bug. `viewport-fit.spec.js` instead stubs `window.visualViewport` so
+  only the visual viewport shrinks, then fires the resize event repeatedly with
+  **nothing else changing** — a correct reservation is identical every time. Run
+  against the shipped v1.19.11 build it reports four different values from four
+  identical events; against the fix, one.
+- **Note for the next person:** the watchdog half of v1.19.11 had logged **zero**
+  self-corrections in production when this was diagnosed. Only the `--kb-inset` half
+  was ever doing anything — and it was the half that broke.

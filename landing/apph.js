@@ -87,6 +87,13 @@
     var w = window.innerWidth;
     if (w !== wdW) { wdW = w; strikes = 0; return; }      // rotation: let it settle first
     if (window.__vtKbUp) { strikes = 0; return; }         // keyboard: --kb-inset owns that
+    // ...and don't depend on that flag alone: this file registers its
+    // visualViewport listener before desktop.html registers syncBar, so on the
+    // first resize of a keyboard raise the flag is still stale. A visual viewport
+    // materially shorter than the layout viewport means something is covering it
+    // (keyboard, input accessory) — never a shell that needs resizing.
+    var occl = window.visualViewport;
+    if (occl && (root.clientHeight - occl.height) > 100) { strikes = 0; return; }
     var r = body.getBoundingClientRect();
     var visible = Math.round(visibleBottom());
     var drift = Math.round(r.bottom) - visible;           // >0 = runs off-screen, <0 = dead band

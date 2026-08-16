@@ -1488,8 +1488,11 @@
     var baseH = curH();
     var baseW = window.innerWidth;
     var wasUp = false;
-    // --kb-inset plumbing. Measured against the FULL shell height (the current
-    // inset added back), so successive events can't ratchet it down to zero.
+    // --kb-inset plumbing. NOTHING derived from the current inset may feed back
+    // into computing the next one, or the two form a loop. `* { box-sizing:
+    // border-box }` means body's border box IS the shell height with the padding
+    // already inside it, so the measurement below is independent of the inset by
+    // construction — and therefore idempotent, which is the property that matters.
     var kbInset = 0;
     function setKbInset(px) {
       px = Math.max(0, Math.round(px));
@@ -1532,7 +1535,12 @@
       // Also publish the keyboard state for apph.js's fit watchdog, which must NOT
       // treat this (real, transient) shrink as a shell that needs correcting.
       window.__vtKbUp = kbUp;
-      var shellH = Math.round(document.body.getBoundingClientRect().height) + kbInset;
+      // Border-box: this is the shell's full height whatever --kb-inset currently
+      // is. Adding the inset back (as this once did) double-counted it and fed the
+      // sum straight back in, so each of the 2-3 resize events iOS fires per
+      // keyboard raise grew the reservation again — the app area collapsed to a
+      // third of the screen with a black band above the key bar.
+      var shellH = Math.round(document.body.getBoundingClientRect().height);
       var covered = kbUp ? Math.max(0, shellH - Math.round(vvBottom())) : 0;
       if (covered > 0 && !suppress) covered += BAR_H;                  // the bar floats over the app area too
       setKbInset(covered);
