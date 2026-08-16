@@ -222,6 +222,19 @@
     font-variant-numeric: tabular-nums;
     color: #6a7a8a; white-space: nowrap;
   }
+  /* Two rows like .tb-stats, so the clock drops into the taskbar's existing
+     vertical rhythm without changing its height. tabular-nums + a reserved
+     min-width keep the bar from jiggling as the digits change (a 12-hour locale
+     swings between "9:05 AM" and "12:05 PM"), the same lesson the stats grid
+     encodes with its ch-sized columns. */
+  .tb-clock {
+    flex-shrink: 0; margin-left: 10px; min-width: 11ch; text-align: right;
+    font-size: 12px; line-height: 1.35; white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .tb-clock .t { display: block; color: #9ab; }
+  .tb-clock .d { display: block; color: #556; }
   .tb-stats .label { color: #556; padding-right: 4px; }
   .tb-stats .n     { color: #9ab; text-align: right; }
   .tb-stats .u     { color: #9ab; text-align: left; }
@@ -627,6 +640,9 @@
     .taskbar { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
     .taskbar::-webkit-scrollbar { display: none; }
     .start-btn, .task-app, .tb-stats, .tb-logout { flex-shrink: 0; }
+    /* The phone's own status bar already shows the time right above us — a second
+       clock would only cost tab room on the narrowest screens. */
+    .tb-clock { display: none; }
     /* On phones the whole taskbar scrolls as one unit, so the tab strip should
        be its natural width (no grow, no nested scroll) and let the bar scroll. */
     .task-apps { flex: 0 0 auto; min-width: auto; overflow: visible; }
@@ -789,6 +805,15 @@
       <span class="n"  id="vram-ut">--</span><span class="u">G</span>
     </div>
     <div class="tb-sep" id="tb-stats-sep"></div>
+    <!-- Clock: trailing edge next to ⏻, the corner Windows/ChromeOS/Linux panels
+         all use. It sits in the flex-shrink:0 zone, so a long tab list scrolls
+         under it instead of shoving it off (see .task-apps). Hidden on phones —
+         the OS status bar shows the time a centimetre above this bar, and that is
+         exactly where taskbar width is scarcest. -->
+    <div class="tb-clock" id="tb-clock">
+      <span class="t" id="tb-clock-t">--:--</span>
+      <span class="d" id="tb-clock-d"></span>
+    </div>
     <div class="tb-logout-wrap" id="tb-logout-wrap">
       <button class="tb-logout" id="tb-logout" title="Log out" aria-haspopup="true" aria-expanded="false">⏻</button>
     </div>
@@ -2814,6 +2839,35 @@
       });
     });
   }
+})();
+
+// --- Taskbar clock ---------------------------------------------------------
+// The DEVICE's local time, not the host's: a taskbar clock answers "what time is
+// it where I am", and it matches the ⏱ schedule panel, which is already
+// device-local. Locale-aware, so a 12h/24h preference is honoured for free.
+(function() {
+  var t = document.getElementById('tb-clock-t'), d = document.getElementById('tb-clock-d');
+  if (!t || !d) return;
+  var timer = null;
+  function paint() {
+    var now = new Date();
+    t.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    d.textContent = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    t.parentNode.title = now.toLocaleString();          // full date/time on hover
+  }
+  // Tick on the MINUTE BOUNDARY rather than every second: nothing here shows
+  // seconds, so a 1s interval would be 60x the wakeups for an identical display.
+  // Re-armed from the wall clock each time, so it can't drift. Background tabs
+  // throttle timers, so we repaint on return instead of trusting the timer fired.
+  function arm() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function() { paint(); arm(); }, 60000 - (Date.now() % 60000) + 50);
+  }
+  paint(); arm();
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) { paint(); arm(); }
+  });
+  window.addEventListener('focus', paint);
 })();
 
 // --- Signed-in user (Start menu + logout menu) -----------------------------
