@@ -228,7 +228,13 @@
      swings between "9:05 AM" and "12:05 PM"), the same lesson the stats grid
      encodes with its ch-sized columns. */
   .tb-clock {
-    flex-shrink: 0; margin-left: 10px; min-width: 11ch; text-align: right;
+    /* Balanced on both sides: the gap to the separator on the left is
+       6px (.tb-sep margin) + 10px, and to the ⏻ on the right is 8px + 8px
+       (.tb-logout-wrap margin-left) — 16px either way. Centred, not right-aligned,
+       so the reserved slack splits evenly instead of piling up on one side and
+       leaving the shorter row (the time) hanging off-centre above the date. */
+    flex-shrink: 0; margin-left: 10px; margin-right: 8px;
+    min-width: 11ch; text-align: center;
     font-size: 12px; line-height: 1.35; white-space: nowrap;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-variant-numeric: tabular-nums;
