@@ -503,11 +503,12 @@
     var bar = schedBtn.getBoundingClientRect();
     schedPanel.style.top = Math.round(bar.bottom + 4) + 'px';
     spErr.textContent = '';
-    // Default to NOW, so the field reads as "send it now" and the quick-adds
-    // nudge from there. Only re-seeded when the current value is stale (past),
-    // so reopening the panel never discards a future time you already picked.
-    // The server allows a small past window (SCHED_PAST_TOLERANCE) because this
-    // input only resolves to the minute — submitting "now" fires on the next tick.
+    // Always open at NOW, so the field reads as "send it now" and the quick-adds
+    // count up from there. closeSched clears it, so this seeds on every open — a
+    // stale time carried over from the last visit would otherwise become a silent
+    // base for the additive +N buttons. The server allows a small past window
+    // (SCHED_PAST_TOLERANCE) because this input only resolves to the minute, so
+    // submitting "now" fires on the next sweeper tick rather than being rejected.
     if (!spAt.value || new Date(spAt.value).getTime() <= Date.now()) {
       spAt.value = toLocalInput(new Date());
     }
@@ -517,6 +518,11 @@
   function closeSched() {
     schedPanel.hidden = true;
     schedBtn.classList.remove('open');
+    // Drop the picked time on close (⏱ again, outside click, or Escape) so the
+    // panel always reopens at now instead of wherever the last session's taps
+    // left it. openSched re-seeds from the cleared value.
+    spAt.value = '';
+    spErr.textContent = '';
   }
   function toggleSched() { schedPanel.hidden ? openSched() : closeSched(); }
 
