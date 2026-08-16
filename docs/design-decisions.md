@@ -2926,3 +2926,43 @@ only on toggle and init — now also on reflow and menu-open); the ▦ button ha
 - **Note for the next person:** the watchdog half of v1.19.11 had logged **zero**
   self-corrections in production when this was diagnosed. Only the `--kb-inset` half
   was ever doing anything — and it was the half that broke.
+
+---
+
+## Reverted: the whole viewport-fit feature (v1.19.15) — the keyboard premise was wrong
+
+The two entries above (v1.19.11, v1.19.14) describe a feature that **no longer
+exists**. Keep them: the analysis is correct and the traps are real. This records
+why the feature went anyway, so the next attempt starts from the right premise.
+
+- **What was reverted:** `--kb-inset` (reserving the strip the soft keyboard
+  covers) *and* the `apph.js` fit watchdog + its manager-side self-report. Back to
+  the v1.19.10 shell.
+- **Why — measured, on the reporter's own devices.** With the ratchet fixed, the
+  layout obeyed its invariant exactly, and the result was still worse than what it
+  replaced: on an **iPad in landscape** with the keyboard up, the Claude strip,
+  window title bar, terminal tab bar, taskbar and system key bar left the terminal
+  **~53 CSS px — two lines of text**. On **iPhone** a ~24px black strip sat between
+  the taskbar and the key bar, because the taskbar reserves
+  `env(safe-area-inset-bottom)` for the home indicator *and* the keyboard strip was
+  reserved on top of it — the same region counted twice.
+- **The premise:** "the app area must never extend behind the keyboard." For a
+  terminal that is simply false. Content behind the keyboard is not lost — it is
+  scrolled, and `terminal-kbd.js` already keeps the cursor row above the keyboard
+  (`positionCaret`). Reserving the strip converts "full-height terminal, prompt
+  visible, rest scrollable" into "two visible lines". A shell with this much
+  vertical chrome cannot afford to subtract the keyboard as well.
+- **The watchdog went with it** for a different reason: it had logged **zero**
+  self-corrections in production across every device the operator used. It was
+  carrying risk and complexity (a 1s interval, a cross-file `__vtKbUp` flag with a
+  script-order dependency, a telemetry channel) for no observed benefit.
+- **Still open — the bug that started it:** on an installed iOS PWA, right after a
+  Cloudflare Access login, `svh` freezes too short and the bottom of the desktop is
+  cut off. `apph.js`'s original `--app-h` running-max (v1.16.x, still in place)
+  addresses that. If it recurs, fix *that* narrowly — do not re-derive a
+  general-purpose layout watchdog for it.
+- **If the keyboard strip is ever attempted again:** the reservation must be
+  idempotent (nothing derived from the current inset may feed the next one — see
+  v1.19.14), it must not double-count the bottom safe-area inset, and it should
+  hide the shell chrome (taskbar, usage strip) rather than shrink the app, or
+  landscape stays unusable.

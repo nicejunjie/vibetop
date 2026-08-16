@@ -4037,25 +4037,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(400, {"error": "open must be a list"})
             return
         open_apps = [str(x) for x in open_apps[:16]]
-        # Optional viewport self-report: the shell's fit watchdog sends this ONCE
-        # per correction when it had to resize itself to match the visible
-        # viewport. It is the only way we learn about a layout bug on a phone we
-        # cannot reach — no debug build, no user action. Log-only: never stored,
-        # never echoed back, and strictly bounded so a client cannot use the
-        # heartbeat as a log-spam channel.
-        vp = data.get("viewport")
-        if isinstance(vp, dict):
-            safe = {}
-            for k in ("n", "drift", "applied", "visible", "clientH", "innerH",
-                      "vvH", "vvTop", "w", "standalone"):
-                v = vp.get(k)
-                if isinstance(v, bool) or v is None:
-                    safe[k] = v
-                elif isinstance(v, (int, float)) and -100000 < v < 100000:
-                    safe[k] = int(v)
-            if safe:
-                log.warning("viewport self-correction from %s: %s",
-                            _ctx_user(), json.dumps(safe, sort_keys=True))
         active = data.get("active")
         if active is not None and not isinstance(active, str):
             self._json(400, {"error": "active must be a string or null"})
