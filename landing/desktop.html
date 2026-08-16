@@ -235,11 +235,6 @@
   }
   .tb-clock .t { display: block; color: #9ab; }
   .tb-clock .d { display: block; color: #556; }
-  /* Phones only — NOT tablets. The phone's own status bar shows the time right
-     above the taskbar, and that is where tab room is scarcest. 600px clears every
-     phone (iPhone 17 Pro Max 440, Pixel 7 412) while the 656px base iPad keeps
-     its clock in portrait, where it has the width to spare. */
-  @media (max-width: 600px) { .tb-clock { display: none; } }
   .tb-stats .label { color: #556; padding-right: 4px; }
   .tb-stats .n     { color: #9ab; text-align: right; }
   .tb-stats .u     { color: #9ab; text-align: left; }
@@ -809,9 +804,10 @@
     <div class="tb-sep" id="tb-stats-sep"></div>
     <!-- Clock: trailing edge next to ⏻, the corner Windows/ChromeOS/Linux panels
          all use. It sits in the flex-shrink:0 zone, so a long tab list scrolls
-         under it instead of shoving it off (see .task-apps). Hidden on phones —
-         the OS status bar shows the time a centimetre above this bar, and that is
-         exactly where taskbar width is scarcest. -->
+         under it instead of shoving it off (see .task-apps). Shown at every width:
+         below 736px the whole bar is one horizontal scroller, so the clock costs
+         scroll distance rather than visible tab room, and having it there beats
+         reaching for the OS status bar. -->
     <div class="tb-clock" id="tb-clock">
       <span class="t" id="tb-clock-t">--:--</span>
       <span class="d" id="tb-clock-d"></span>
