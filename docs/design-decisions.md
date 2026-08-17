@@ -2999,3 +2999,52 @@ why the feature went anyway, so the next attempt starts from the right premise.
   header detection anyway (or it is a dead row on the LAN), so it costs the same
   server work plus a permanent extra choice in the menu — and it would leave plain
   "Log out" still landing you past the outer gate, which is the actual complaint.
+
+---
+
+## The phone never re-claimed the shared terminal shape on a device switch (v1.19.25)
+
+- **Symptom:** switch from desktop to phone and one terminal renders at the
+  *desktop's* shape — a TUI's bottom-anchored prompt sliced in half under the
+  taskbar, while other terminals look fine. Intermittent, and switching tabs or
+  apps cures it.
+- **Reproduced** on a scratch terminal against the live build, reading the real PTY
+  with `stty size` while two browsers shared it:
+
+  ```
+  1. phone opened        PTY = 141x122
+  2. desktop opened      PTY =  59x202   <- desktop owns the shape
+  3. phone foregrounded  PTY =  59x202   <- never re-claimed
+  ```
+
+- **Cause:** terminal N is ONE `vibetop-session` PTY owned by whichever device
+  resized last, and on touch **nothing re-claimed automatically**. The auto-refit
+  self-heal at `terminal-kbd.js:158` sits inside `if (!isTouch)`, bundled with two
+  things that are genuinely desktop-only — the `dblclick` claim gesture and the
+  Windows-Chromium refocus-after-resize fix. The heal was swept in by proximity,
+  with no stated reason. Switching tabs/apps worked only because it hides and
+  re-shows the iframe, which is a REAL size change.
+- **Fix:** claim on foreground (`visibilitychange`/`pageshow`) for touch. It must be
+  **`claimSize()`, not `reFit()`** — this device's xterm is already fitted to its own
+  container, so a re-fit computes identical cols/rows and ttyd sends nothing (same
+  "same-size is a silent no-op" wall `claimSize` documents). Only the nudge raises
+  the SIGWINCH that carries the shape to the shared PTY. Verified: step 3 above
+  returns to `141x122`.
+- **Deliberately narrow**, because this class of fix has regressed before:
+  - `clientWidth > 0` — document visibility is page-level, so EVERY loaded `/tN/`
+    iframe sees the event, not just the visible tab. Without this a background
+    terminal steals the shape for one you are not looking at. Verified: with the
+    element hidden, a foreground left the PTY at the desktop's `62x210`.
+  - Foreground events only, debounced. **No ResizeObserver on touch** — iOS
+    Safari's URL-bar collapse resizes the viewport while scrolling and would
+    reshape a shared PTY continuously.
+  - `dblclick`, the Windows focus fix and the observer are untouched.
+- **Pre-existing, found while testing, NOT fixed here:** on touch the initial fit is
+  short — xterm loads at 122 cols and the first `resize` corrects it to 136 (ttyd's
+  own FitAddon; the grid itself changes). That is the width drift the desktop
+  self-heal exists for, and on touch nothing triggers it. The claim therefore
+  asserts whatever the current grid is, which matches what the device renders.
+- **Coverage gap, stated plainly:** there is no permanent automated test. Proving it
+  needs two browser contexts sharing one terminal *and* `stty` on the host's PTY,
+  which the e2e harness (tests run outside the VM) cannot reach. It was verified by
+  hand with the sequence above; re-verify that way if this code is touched.
