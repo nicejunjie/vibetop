@@ -798,6 +798,9 @@
     <div class="tb-sep"></div>
     <div class="task-apps" id="task-apps"></div>
     <div class="tb-spacer"></div>
+    <!-- Brackets the stats block: this one belongs to it and is hidden with it
+         (applySysStats toggles #tb-stats-sep). -->
+    <div class="tb-sep" id="tb-stats-sep"></div>
     <div class="tb-stats">
       <span class="label">CPU</span>
       <span class="n"  id="cpu-n">--</span><span class="u" id="cpu-u">%</span>
@@ -811,7 +814,7 @@
       <span class="label">VRAM</span>
       <span class="n"  id="vram-ut">--</span><span class="u">G</span>
     </div>
-    <div class="tb-sep" id="tb-stats-sep"></div>
+    <div class="tb-sep" id="tb-clock-sep"></div>
     <!-- Clock: trailing edge next to ⏻, the corner Windows/ChromeOS/Linux panels
          all use. It sits in the flex-shrink:0 zone, so a long tab list scrolls
          under it instead of shoving it off (see .task-apps). Shown at every width:
@@ -2510,6 +2513,8 @@
   function applySysStats() {
     var on = sysStatsOn();
     var el = document.querySelector('.tb-stats'); if (el) el.style.display = on ? '' : 'none';
+    // Only the stats' OWN divider (the one before it) hides with it. #tb-clock-sep
+    // stays: with stats off the clock still needs separating from the app tabs.
     var sep = document.getElementById('tb-stats-sep'); if (sep) sep.style.display = on ? '' : 'none';
     var it = document.querySelector('.sm-item[data-id="sysstats"]');
     if (it) {

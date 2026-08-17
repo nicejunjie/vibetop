@@ -25,7 +25,7 @@ const clock = (page) => page.evaluate(() => {
     insideBar: r.left >= bar.left - 1 && r.right <= bar.right + 1,
     // The divider between the stats and the clock. It is the only shrinkable item
     // in an overflowing taskbar, so on phones flexbox used to collapse it to 0.
-    sepWidth: document.getElementById('tb-stats-sep').getBoundingClientRect().width,
+    sepWidth: document.getElementById('tb-clock-sep').getBoundingClientRect().width,
   };
 });
 
