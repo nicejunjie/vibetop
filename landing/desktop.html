@@ -150,7 +150,11 @@
   .tidy-btn:hover { background: rgba(255,255,255,0.12); color: #eaf1f8; }
   body.wm .tidy-btn { display: inline-flex; }
 
-  .tb-sep { width: 1px; height: 28px; background: #2a3040; margin: 0 6px; }
+  /* flex-shrink:0 is load-bearing, not tidiness: everything else in the bar is
+     already pinned, so when the taskbar overflows (any phone) these 1px rules
+     are the only shrinkable items left and flexbox collapses them to 0 — the
+     dividers silently vanished on mobile while surviving on desktop. */
+  .tb-sep { width: 1px; height: 28px; background: #2a3040; margin: 0 6px; flex-shrink: 0; }
 
   /* Open-app buttons (only present while the app is open) */
   /* The open-app buttons GROW to fill all the space between Start and the stats

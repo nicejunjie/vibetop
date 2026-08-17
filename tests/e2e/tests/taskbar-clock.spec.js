@@ -23,6 +23,9 @@ const clock = (page) => page.evaluate(() => {
     // Fits the bar's height — a two-row clock must not push the taskbar taller.
     fitsBarHeight: r.height <= bar.height + 1,
     insideBar: r.left >= bar.left - 1 && r.right <= bar.right + 1,
+    // The divider between the stats and the clock. It is the only shrinkable item
+    // in an overflowing taskbar, so on phones flexbox used to collapse it to 0.
+    sepWidth: document.getElementById('tb-stats-sep').getBoundingClientRect().width,
   };
 });
 
@@ -36,6 +39,7 @@ test('shows the time and date on every width, phones included', async ({ page })
   expect(c.date).toMatch(/\w/);
   expect(c.leftOfPower).toBe(true);                  // trailing edge, before ⏻
   expect(c.fitsBarHeight).toBe(true);
+  expect(c.sepWidth).toBeGreaterThanOrEqual(1);      // divider survives a narrow bar
 });
 
 test('a taskbar full of apps scrolls under the clock instead of pushing it off', async ({ page, viewport }) => {
