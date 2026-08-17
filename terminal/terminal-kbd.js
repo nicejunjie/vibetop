@@ -143,6 +143,45 @@
     try { t.resize(c0, r); t.resize(c, r); } catch (_) {}
   }
 
+  // Touch: re-claim the shared PTY when this device comes back to the foreground.
+  //
+  // Terminal N is ONE PTY owned by whichever device resized last, and on touch
+  // NOTHING re-claimed automatically — the self-heal below is gated to non-touch
+  // (it is bundled with the desktop dblclick gesture and the Windows-Chromium focus
+  // fix, both genuinely desktop-only; the heal was swept in by proximity). So after
+  // desktop → phone the terminal renders at the desktop's shape, and a TUI's
+  // bottom-anchored prompt lands half-cut under the taskbar until you two-finger
+  // tap. Switching tabs/apps cured it only because that hides and re-shows the
+  // iframe, which is a REAL size change.
+  //
+  // It must be claimSize(), not reFit(): this device's xterm is already fitted to
+  // its own container, so a re-fit computes the same cols/rows and ttyd sends
+  // nothing (see claimSize on why same-size is a silent no-op). Only the nudge
+  // carries this device's shape to the shared PTY.
+  //
+  // Two guards keep it from doing harm:
+  //  - clientWidth > 0 — a terminal that is merely OPEN but not the visible tab is
+  //    display:none, and must NOT steal the shape for a terminal you aren't looking
+  //    at (document visibility is page-level, so every loaded /tN/ iframe sees this
+  //    event, not just the active one).
+  //  - debounced, and foreground-only — no ResizeObserver on touch, deliberately:
+  //    iOS Safari's URL-bar collapse resizes the viewport constantly and would
+  //    reshape a shared PTY on every scroll.
+  if (isTouch) {
+    var _claimT = null;
+    function claimSoon() {
+      if (_claimT) clearTimeout(_claimT);
+      _claimT = setTimeout(function () {
+        try {
+          var t = window.term;
+          if (!document.hidden && t && t.element && t.element.clientWidth > 0) claimSize();
+        } catch (_) {}
+      }, 300);
+    }
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) claimSoon(); });
+    window.addEventListener('pageshow', claimSoon);
+  }
+
   // Brief toast (used to confirm a touch double-tap registered).
   function flash(msg) {
     if (!document.body) return;
