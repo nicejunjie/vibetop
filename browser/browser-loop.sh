@@ -51,9 +51,19 @@ while true; do
                 --use-mobile-user-agent --touch-events=enabled
                 --enable-features=OverlayScrollbar )
     fi
+    # --enable-unsafe-swiftshader: this Chromium runs on xpra's Xorg "dummy" driver,
+    # which has no GPU, and since Chrome ~136 a GPU-less browser refuses to fall back
+    # to SwiftShader for WebGL — every WebGL site then shows "This browser's WebGL
+    # feature is not available". Verified A/B on a real GPU-less X display with this
+    # exact binary (Chromium 151): without the flag getContext("webgl") returns null;
+    # with it, ANGLE/SwiftShader. "unsafe" is Google's name for software GL being a
+    # wider attack surface than the sandboxed GPU path, not a crash risk. It is
+    # CPU-rendered, so heavy WebGL will be slow and warm the box — acceptable for the
+    # occasional map or 3D page, which is what this browser is for.
     "$BROWSER_BIN" \
         --no-first-run --no-default-browser-check --restore-last-session \
         --start-maximized --disable-smooth-scrolling \
+        --enable-unsafe-swiftshader \
         "${EXTRA[@]}" \
         --user-data-dir="$PROFILE"
     sleep 2
