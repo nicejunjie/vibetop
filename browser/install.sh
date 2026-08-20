@@ -42,7 +42,6 @@ INSTALL_DEPS="${INSTALL_DEPS:-1}"
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 INSTALL_NGINX="${INSTALL_NGINX:-1}"
 DRY_RUN="${DRY_RUN:-0}"
-LOOP_SCRIPT="/usr/local/lib/vibetop-browser/browser-loop.sh"
 
 for arg in "$@"; do
     case "$arg" in

@@ -41,6 +41,11 @@ echo "== removing apps dbus config =="
 run sudo rm -f /etc/vibetop/x11-dbus.conf
 
 echo "== removing browser loop script =="
+run sudo rm -f /usr/local/lib/vibetop/browser-loop.sh
+# Pre-multi-user layout: the loop script and its shared xpra unit lived here before
+# the browser became per-user (xpra-app.sh + transient units). Nothing generates
+# either any more; removed so an old host does not keep a unit pointing at a script
+# that is no longer installed.
 run sudo rm -f /usr/local/lib/vibetop-browser/browser-loop.sh
 run sudo rmdir /usr/local/lib/vibetop-browser 2>/dev/null || true
 

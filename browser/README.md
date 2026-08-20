@@ -80,7 +80,7 @@ the snap use its default profile dir, which persists fine. Override with
 ```
 /etc/systemd/system/vibetop-browser-xpra.service    # xpra session
 /etc/nginx/snippets/vibetop-extras.d/browser.conf   # /browser/ location
-/usr/local/lib/vibetop-browser/browser-loop.sh      # chromium restart wrapper
+/usr/local/lib/vibetop/browser-loop.sh      # chromium restart wrapper
 /etc/apt/sources.list.d/xpra.sources               # xpra.org apt repo
 /usr/share/keyrings/xpra.asc                       # xpra.org GPG key
 /etc/udev/rules.d/99-uinput.rules                  # uinput access for input

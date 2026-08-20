@@ -148,7 +148,7 @@ The install also:
 - `browser/nginx/browser.conf` — location snippet template with
   sub_filter patches (`@XPRA_PORT@`)
 - `browser/browser-loop.sh` — chromium restart wrapper template
-  (`@BROWSER_CMD@`), deployed to `/usr/local/lib/vibetop-browser/`
+  (`@BROWSER_CMD@`), deployed to `/usr/local/lib/vibetop/`
 
 ## Operations
 
