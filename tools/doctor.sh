@@ -97,11 +97,24 @@ fi
 # visible); inactive on a single-user host => FAIL, which is the real defect.
 shared_unit() {
     local u="$1" glob="$2" label="$3" state n
-    if ! unit_exists "$u.service"; then adv "$u.service not installed"; return; fi
+    n="$(systemctl list-units --type=service --state=running --no-legend "$glob" 2>/dev/null | wc -l)"
+    # ABSENT is not a defect on a multi-user host — these shared units are the
+    # legacy single-user path and per-user transient units replace them, so a host
+    # that never had one (or had a pre-multi-user leftover removed) is healthy.
+    # Warning here is exactly the cries-wolf failure this file was rewritten to
+    # avoid; note smoke-test.sh cannot hit it, since is-active reports a missing
+    # unit as inactive and it takes the same branch as below.
+    if ! unit_exists "$u.service"; then
+        if [ "$MULTIUSER" = 1 ]; then
+            skip "$u not installed — multi-user host uses per-user $label ($n running)"
+        else
+            adv "$u.service not installed"
+        fi
+        return
+    fi
     state="$(systemctl is-active "$u.service" 2>/dev/null || true)"
     if [ "$state" = active ]; then ok "$u active"; return; fi
     if [ "$MULTIUSER" = 1 ]; then
-        n="$(systemctl list-units --type=service --state=running --no-legend "$glob" 2>/dev/null | wc -l)"
         skip "$u inactive — multi-user host uses per-user $label ($n running)"
     else
         bad "$u is '$state' — 'systemctl status $u' / 'journalctl -u $u'"
