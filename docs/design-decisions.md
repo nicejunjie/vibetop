@@ -3048,3 +3048,37 @@ why the feature went anyway, so the next attempt starts from the right premise.
   needs two browser contexts sharing one terminal *and* `stty` on the host's PTY,
   which the e2e harness (tests run outside the VM) cannot reach. It was verified by
   hand with the sequence above; re-verify that way if this code is touched.
+
+---
+
+## The first load after the Access login bailed out of the height fix (v1.19.29)
+
+- **Symptom:** only the FIRST session after a Cloudflare Access login is short — the
+  terminal's active prompt line is cut off at the bottom. Every later launch is fine,
+  and a manual refresh clears it.
+- **The deduction that found it,** from the on-device data already in `apph.js`'s
+  header: `visualViewport.height` and `clientHeight` stay CORRECT while `svh` is
+  frozen, and `apph.js` sizes the shell from those. So had `apph.js` run, the shell
+  would have been right *despite* the frozen `svh`. It wasn't right — therefore
+  `apph.js` never ran. The cause is its own front door: `if (!standalone && !force)
+  return;`. Coming back from the cross-origin redirect the standalone probe reports
+  **false**, the module bails, and `body` keeps the frozen `100svh`.
+- Which also explains the two things that looked mysterious: later launches are fine
+  (the probe detects standalone normally), and a refresh fixes it (the reloaded page
+  is an ordinary PWA navigation).
+- **Fix:** stop trusting the probe as the sole gate. Measure `svh` against the metrics
+  known to stay correct; if they disagree by more than a URL bar's worth (>100px),
+  the page IS in the frozen state and drives `--app-h` whatever the probe says.
+- **Why not the obvious "reload after login":** it works, and was the reported
+  instinct, but it pays a full extra page load to re-run code that could simply have
+  run the first time — and detecting "just came back from Access" is itself
+  unreliable (an installed PWA may present no referrer). Measuring the broken state
+  needs no such signal. Kept in reserve: if this does not take, a one-shot
+  sessionStorage-guarded `location.reload()` is a two-line fallback.
+- **False-positive risk, measured:** the danger is resizing the shell for everyone.
+  On five lanes (WebKit iPhone ×2, iPad, Android, desktop) the probe reads `svh`
+  EXACTLY equal to `visualViewport` — gap 0 against a 100px threshold — `--app-h`
+  stays unset and layout is untouched. In ordinary Safari the two agree at load
+  because both include the URL bar.
+- **Unverifiable here, as before:** the positive case needs an installed PWA behind
+  Access, which Playwright cannot be. This one is confirmed only by the reporter.

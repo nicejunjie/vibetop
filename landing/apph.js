@@ -30,9 +30,47 @@
     standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) ||
                  window.navigator.standalone === true;
   } catch (e) {}
-  if (!standalone && !force) return;
-
   var root = document.documentElement;
+
+  // Do NOT bail on the standalone probe alone. `svh` is the one metric iOS has been
+  // caught freezing (see the header), and on the first load back from the Cloudflare
+  // Access login the probe reports FALSE — so this module used to return here and
+  // leave body on the frozen `100svh`, which is the short shell with the prompt line
+  // cut off. Every later load detects standalone, this runs, and the shell is fine:
+  // that is exactly the "only the first session after login is wrong" report.
+  //
+  // So measure instead of trusting the probe: if `svh` disagrees with the metrics
+  // that stay correct by more than a URL bar's worth, this page IS in the frozen
+  // state and must drive --app-h whatever the probe says. In ordinary Safari at load
+  // the two agree (both include the URL bar), so this never fires there.
+  function svhFrozen() {
+    var host = document.body || root;
+    if (!host) return false;
+    try {
+      var p = document.createElement('div');
+      p.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:100svh;' +
+                        'visibility:hidden;pointer-events:none;z-index:-1';
+      host.appendChild(p);
+      var svh = Math.round(p.getBoundingClientRect().height);
+      p.remove();
+      var truth = Math.max(window.visualViewport ? window.visualViewport.height : 0,
+                           root.clientHeight || 0);
+      return svh > 0 && truth > 0 && (truth - svh) > 100;
+    } catch (e) { return false; }
+  }
+  // Needs <body>, so it cannot run at parse time (this script is in <head>).
+  // Idempotent and cheap; the frozen state persists for the page's life, so a couple
+  // of checks are enough and re-running after activation costs nothing.
+  function activateIfFrozen() {
+    if (standalone) return;
+    if (svhFrozen()) { standalone = true; apply(); }
+  }
+  if (!standalone && !force) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', activateIfFrozen);
+    } else { activateIfFrozen(); }
+    setTimeout(activateIfFrozen, 800);        // backstop for a slow first paint
+  }
 
   // Content-area height: the visual viewport and the layout viewport (clientHeight)
   // both exclude the opaque status bar and are NOT frozen (only `svh` is), so their
