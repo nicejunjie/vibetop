@@ -458,34 +458,35 @@ test.describe('window mode', () => {
       expect(seen.close).toBe('pointer');      // the × is NOT under the resize ring
     });
 
-    // The switch used to live two levels deep (Start ▸ Utilities ▸ "Window mode"),
-    // where you had to already know it existed. It is now a 🗔 taskbar button that
-    // shows whenever the screen is window-CAPABLE — on or off — with the Start row
-    // kept as the explaining surface. Both must always agree about the state.
-    test('the 🗔 taskbar toggle is visible, switches the mode, and stays in sync with the Start row', async ({ page }) => {
-      const btn = page.locator('#wm-btn');
-      await expect(btn).toBeVisible();
-      await expect(btn).toHaveAttribute('aria-pressed', 'true');       // this lane starts in window mode
-      await expect(page.locator('body')).toHaveClass(/\bwm\b/);
+    // The switch lives at the Start menu's TOP LEVEL — one click, not two. It used
+    // to sit inside the Utilities flyout among the Claude-Usage / System-Stats
+    // toggles ("hidden too deep, needs extra searching"); it then briefly also had a
+    // permanent 🗔 taskbar button, which was an overcorrection — a set-once
+    // preference does not earn permanent chrome, and two window buttons in the bar
+    // was the complaint that followed. ▦ Tidy keeps its button: repeated action, no
+    // other path to it. See docs/design-decisions.md.
+    test('the mode switch is one click from Start, and the taskbar keeps only ▦ Tidy', async ({ page }) => {
+      await expect(page.locator('#wm-btn')).toHaveCount(0);            // the second button is gone
+      await expect(page.locator('#tidy-btn')).toBeVisible();           // windows are on in this lane
 
-      await btn.click();                                               // -> off
-      await page.waitForTimeout(300);
+      await openStartMenu(page);
+      // Top level: reachable WITHOUT opening the Utilities flyout.
+      const row = page.locator('#startmenu #sm-view .sm-item[data-id="winmode"]');
+      await expect(row).toBeVisible();
+      await expect(row).toContainText('Floating windows');
+      await expect(row).toHaveClass(/cu-on/);                          // reflects the live state
+
+      await row.click();                                               // -> off
+      await page.waitForTimeout(400);
       await expect(page.locator('body')).not.toHaveClass(/\bwm\b/);
-      await expect(btn).toHaveAttribute('aria-pressed', 'false');
-      await expect(btn).toBeVisible();          // still reachable when OFF — the whole point
       await expect(page.locator('#tidy-btn')).toBeHidden();            // nothing to tile
 
-      await openStartMenu(page);                                       // the other surface agrees
-      await page.locator('#sm-util-parent').click();
-      const row = page.locator('#startmenu .sm-item[data-id="winmode"]').first();
-      await expect(row).toContainText('Floating windows');
-      await expect(row).not.toHaveClass(/cu-on/);
-      await page.keyboard.press('Escape');
-
-      await btn.click();                                               // -> back on
-      await page.waitForTimeout(300);
+      await openStartMenu(page);
+      const row2 = page.locator('#startmenu #sm-view .sm-item[data-id="winmode"]');
+      await expect(row2).not.toHaveClass(/cu-on/);
+      await row2.click();                                              // -> back on
+      await page.waitForTimeout(400);
       await expect(page.locator('body')).toHaveClass(/\bwm\b/);
-      await expect(btn).toHaveAttribute('aria-pressed', 'true');
       await expect(page.locator('#tidy-btn')).toBeVisible();
     });
 

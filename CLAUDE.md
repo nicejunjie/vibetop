@@ -51,8 +51,8 @@ Six sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.
 | Start-menu section | Apps |
 |---|---|
 | Everyday (un-sectioned) | Terminal, Browser, X11 Launcher, Files, Office, Notes, Upload |
-| **Utilities** flyout | Services (`home`), Monitor, Token Stats + the Claude-Usage / System-Stats / **Floating-windows** **toggles** (the last also has a 🗔 taskbar button — see `docs/desktop.md`) |
-| **System** | Update, Config (sudo-gated) |
+| **Utilities** flyout | Services (`home`), Monitor, Token Stats + the Claude-Usage / System-Stats **toggles** |
+| **System** | Update, **Floating windows** (toggle, `section:'view'` — top level, not the flyout), Config (sudo-gated) |
 | *(not in the menu)* | **Video player** (`video`, `hidden:true`) — opened by Files on a video double-click, registered only so the taskbar/title can render it |
 
 ## Identity model — three users, never interchangeable

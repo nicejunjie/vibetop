@@ -366,6 +366,22 @@ def test_desktop_refuses_to_be_nested():
         "desktop.html must promote itself to the top window before probing auth"
 
 
+def test_window_mode_switch_is_top_level_and_taskbar_has_one_control():
+    """The mode switch is a SET-ONCE preference: it belongs one click deep in the
+    Start menu, not in permanent taskbar chrome. It sat two levels deep in the
+    Utilities flyout (too hidden), then briefly also had a 🗔 taskbar button next to
+    ▦ Tidy (too much) — "two window control buttons in the status bar" was the
+    result. ▦ Tidy stays: repeated action, no other path to it."""
+    src = open(os.path.join(_REPO, "landing", "desktop.html")).read()
+    assert "section: 'view'" in src, \
+        "the Floating-windows row left the menu's top level"
+    assert re.search(r"winmode:.*section: 'view'", src), \
+        "winmode is no longer routed to the top-level section"
+    assert "wm-btn" not in src, \
+        "the 🗔 taskbar button is back — a set-once preference does not earn permanent chrome"
+    assert 'id="tidy-btn"' in src, "▦ Tidy lost its taskbar button"
+
+
 def test_login_location_sets_frame_ancestors():
     # `location = /login.html` has its own add_header, so nginx drops every
     # inherited one: the ONE page that takes a Linux password would otherwise be

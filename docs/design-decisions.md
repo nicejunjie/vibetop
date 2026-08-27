@@ -3509,3 +3509,47 @@ cost of the quieter chrome, and it is only paid where a distinct cursor appears 
 hover to pay it back. If macOS Safari ever gains a diagonal cursor (or an image
 cursor is proven to render there — `/rzdbg.html` has the tiles), the WebKit arm of
 this rule should go too.
+
+---
+
+## A set-once preference does not earn permanent chrome
+
+**Symptom:** *"now there are two window control buttons in the status bar, which
+is a bummer"* — followed by the sharper question, *"what is the point of having
+two buttons in the first place?"*
+
+**Cause:** mine. When the user said the window-mode toggle was buried (Start ▸
+Utilities ▸ a flyout full of other toggles), I fixed it twice over: I renamed it
+"Window mode" → **"Floating windows"** *and* gave it a permanent 🗔 taskbar
+button. The rename was the real fix — the old name told you nothing, so even
+seeing the row you would skip it. The button solved a **one-time findability**
+problem with **permanent screen real estate**, which is the wrong currency: the
+mode is set once and never touched again.
+
+Sitting next to **▦ Tidy**, it also made the taskbar look like it had two
+controls for the same thing, when only one of them is a thing you *do*.
+
+**The distinction worth keeping:**
+
+| control | kind | where it belongs |
+|---|---|---|
+| ▦ Tidy | repeated action, no other path to it | taskbar |
+| Floating windows | set-once preference | menu |
+
+**Fix:** drop the 🗔 button; promote the row from the Utilities flyout to the
+Start menu's **top level** (`section: 'view'` → `#sm-view`, rendered above the
+Utilities row so it groups with Update as a desktop-level setting). One click from
+Start, no flyout, no permanent chrome. The dead `body.wm-capable` class went with
+it; `windowModeCapable()` stays, because the row still needs it to say "On (screen
+too small — full-screen)".
+
+**Rejected:** *keeping both but grouping them as one segmented control* — cosmetic;
+it makes two controls look like one instead of removing one. *Swapping which
+button shows with the mode's state* (🗔 when off, ▦ when on) — always exactly one
+button, but a control that changes identity under you is worse than a control in a
+menu. *Moving ▦ Tidy into the menu instead* — backwards: it buries the frequent
+action and surfaces the rare one.
+
+**The general rule, for next time:** ask whether a control is something you *do*
+or something you *set*. Things you set live in menus, however hard they were to
+find — findability is fixed with naming and depth, not with a permanent button.

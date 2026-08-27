@@ -153,25 +153,21 @@
   .start-btn.open { box-shadow: 0 0 0 2px rgba(210,105,30,0.5) inset; filter: brightness(1.12); }
   .start-btn .icon { font-size: 18px; line-height: 1; }
 
-  /* The two window controls, together in the taskbar. The 🗔 toggle shows wherever
-     windows are POSSIBLE (body.wm-capable) whether they're on or off — a switch you
-     can only find once it's already on is no switch at all, and this one used to sit
-     two levels deep in Start ▸ Utilities, where you had to know it existed. ▦ Tidy
-     joins it only once windows are actually floating (there is nothing to tile
-     otherwise). Phones show neither: the mode needs a tablet-sized screen. */
-  .tidy-btn, .wm-btn {
+  /* ▦ Tidy — the ONE window control in the taskbar. It earns the space: tiling a
+     layout you have messed up is a repeated action with no other path to it. The
+     mode SWITCH is not that — you set it once and never touch it again — so it
+     lives in the Start menu (top level) rather than owning permanent chrome; a
+     second 🗔 button here was an overcorrection, removed in v1.19.42. Shown only
+     once windows are actually floating: nothing to tile otherwise. */
+  .tidy-btn {
     display: none; align-items: center; justify-content: center; flex-shrink: 0;
     width: 40px; height: 40px; margin-left: 4px;
     border-radius: 8px; cursor: pointer; font-size: 19px; line-height: 1;
     color: #b9c6d4; background: rgba(255,255,255,0.06);
     border: 1px solid rgba(255,255,255,0.10);
   }
-  .tidy-btn:hover, .wm-btn:hover { background: rgba(255,255,255,0.12); color: #eaf1f8; }
+  .tidy-btn:hover { background: rgba(255,255,255,0.12); color: #eaf1f8; }
   body.wm .tidy-btn { display: inline-flex; }
-  body.wm-capable .wm-btn { display: inline-flex; }
-  /* On-state is the same accent the Start button uses, so "lit = on" reads without
-     a label — the taskbar has no room for one and a badge would be noise. */
-  .wm-btn.on { color: #f0c9a0; background: rgba(210,105,30,0.22); border-color: rgba(210,105,30,0.55); }
 
   /* flex-shrink:0 is load-bearing, not tidiness: everything else in the bar is
      already pinned, so when the taskbar overflows (any phone) these 1px rules
@@ -892,6 +888,7 @@
     <div id="sm-apps"></div>
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
+    <div id="sm-view"></div>
     <div class="sm-parent" id="sm-util-parent">
       <div class="sm-icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></div>
       <div class="sm-parent-name">Utilities</div>
@@ -903,7 +900,6 @@
 
   <div class="taskbar" id="taskbar">
     <div class="start-btn" id="start-btn"><span class="icon">⊞</span> Start</div>
-    <button class="wm-btn" id="wm-btn" aria-pressed="false" aria-label="Floating windows" title="Floating windows">🗔</button>
     <button class="tidy-btn" id="tidy-btn" aria-label="Tidy windows" title="Tidy windows — tile them evenly (halves/grid)">▦</button>
     <div class="tb-sep"></div>
     <div class="task-apps" id="task-apps"></div>
@@ -1032,7 +1028,15 @@
     // Client-side toggle (not an app): floating resizable windows vs the classic
     // full-screen desktop. Per-device (localStorage). Only takes visible effect
     // on tablet/desktop sizes (phones stay full-screen).
-    winmode: { label: 'Floating windows', icon: '🗔', desc: 'Off — full-screen apps', section: 'utilities', toggle: true },
+    // Top level, NOT the Utilities flyout: it was buried two levels deep among the
+    // Claude-Usage / System-Stats toggles, which is what "hidden too deep, needs
+    // extra searching" was about. One click from Start now — and that is the whole
+    // fix. It briefly also had a permanent 🗔 taskbar button (v1.19.31); that was an
+    // overcorrection, giving a SET-ONCE preference permanent screen real estate to
+    // solve a one-time findability problem. Removed in v1.19.42 — see
+    // docs/design-decisions.md. ▦ Tidy keeps its button: that one is a repeated
+    // action with no other path to it.
+    winmode: { label: 'Floating windows', icon: '🗔', desc: 'Off — full-screen apps', section: 'view', toggle: true },
     // In-Files video player. `hidden` = no Start-menu tile: it's opened only by
     // double-clicking a video in Files (a `video-view` postMessage -> openVideo),
     // like the office viewer. Registered here so the taskbar/title can render it.
@@ -1045,6 +1049,7 @@
   function buildStartMenu() {
     var apps = document.getElementById('sm-apps'),
         sys  = document.getElementById('sm-system'),
+        view = document.getElementById('sm-view'),
         util = document.getElementById('sm-utilities');
     if (!apps || !sys) return;
     Object.keys(APPS).forEach(function(id) {
@@ -1066,7 +1071,8 @@
       // can reveal them without referencing APPS.
       if (a.sudo) { item.classList.add('sm-sudo'); if (!window.canSudo) item.style.display = 'none'; }
       var target = a.section === 'utilities' ? util
-                 : a.section === 'system' ? sys : apps;
+                 : a.section === 'system' ? sys
+                 : a.section === 'view' ? view : apps;
       (target || sys).appendChild(item);
     });
   }
@@ -1102,9 +1108,9 @@
   var wins = {};       // id -> {left,top,width,height,z,max,prev}
   var zTop = 10;
   function windowModeOn() { return !!WM_FLAG && windowModeCapable(); }
-  // Is this SCREEN capable of windows at all? Split out of windowModeOn() because
-  // the taskbar's 🗔 toggle must show wherever the mode is AVAILABLE — including
-  // when it's currently off, which is precisely when you need to find the switch.
+  // Is this SCREEN capable of windows at all? Split out of windowModeOn() so the
+  // Start-menu row can say "On (screen too small — full-screen)" rather than
+  // silently reading as off on a phone.
   function windowModeCapable() {
     // Windows on desktops AND tablets/iPads; phones stay full-screen. Gate by
     // SCREEN SIZE, not touch — but on BOTH sides, not just the long one.
@@ -1248,17 +1254,6 @@
     if (WM_FLAG) { var cur = active; setTimeout(function(){ maybeWinTip(); if (cur) coachForApp(cur); }, 300); }
   }
   function applyWinModeMenu() {
-    // The toggle has two surfaces now — the taskbar button (everyday) and the Start
-    // menu row (which explains what it does). Both are synced here so they can never
-    // disagree about the state.
-    var btn = document.getElementById('wm-btn');
-    if (btn) {
-      var on = windowModeOn();
-      btn.classList.toggle('on', on);
-      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      btn.title = on ? 'Floating windows — on (drag a title bar to move, an edge to resize)'
-                     : 'Floating windows — off (apps fill the screen)';
-    }
     var it = document.querySelector('.sm-item[data-id="winmode"]');
     if (!it) return;
     it.classList.toggle('cu-on', WM_FLAG);
@@ -1283,10 +1278,6 @@
   function renderWindows() {
     var wm = windowModeOn();
     document.body.classList.toggle('wm', wm);
-    // Drives the taskbar 🗔 toggle's visibility. Re-evaluated here (not once at
-    // load) because reflowWindows() calls this on every resize/rotation, so the
-    // button appears and disappears with the screen it needs.
-    document.body.classList.toggle('wm-capable', windowModeCapable());
     document.querySelectorAll('#frames .win').forEach(function(w) {
       var id = w.dataset.id, f = w.querySelector('iframe');
       if (wm) {
@@ -2255,7 +2246,7 @@
   (function(){ var tb = document.getElementById('tidy-btn'); if (tb) tb.addEventListener('click', function(e){ e.stopPropagation(); tidyWindows(); }); })();
   // stopPropagation so the click doesn't reach the document handler that closes the
   // Start menu / defocuses windows — same reason the Tidy button does it.
-  (function(){ var wb = document.getElementById('wm-btn'); if (wb) wb.addEventListener('click', function(e){ e.stopPropagation(); toggleWindowMode(); }); })();
+
 
   menuEl.addEventListener('click', function(e) {
     // Flyout title doubles as a "back"/close on the Utilities cascading panel.
