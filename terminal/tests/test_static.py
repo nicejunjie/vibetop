@@ -366,19 +366,18 @@ def test_desktop_refuses_to_be_nested():
         "desktop.html must promote itself to the top window before probing auth"
 
 
-def test_window_mode_switch_is_top_level_and_taskbar_has_one_control():
-    """The mode switch is a SET-ONCE preference: it belongs one click deep in the
-    Start menu, not in permanent taskbar chrome. It sat two levels deep in the
-    Utilities flyout (too hidden), then briefly also had a 🗔 taskbar button next to
-    ▦ Tidy (too much) — "two window control buttons in the status bar" was the
-    result. ▦ Tidy stays: repeated action, no other path to it."""
+def test_window_mode_switch_lives_only_in_the_taskbar():
+    """The Floating-windows toggle has exactly ONE surface: the 🗔 taskbar button.
+    It has been all three ways round — buried in the Utilities flyout (couldn't be
+    found), flyout + button (the same switch in two places, reported as "two window
+    control buttons"), and menu-row only (v1.19.42 removed the wrong one). Final
+    shape: one icon, one place, no Start-menu row."""
     src = open(os.path.join(_REPO, "landing", "desktop.html")).read()
-    assert "section: 'view'" in src, \
-        "the Floating-windows row left the menu's top level"
-    assert re.search(r"winmode:.*section: 'view'", src), \
-        "winmode is no longer routed to the top-level section"
-    assert "wm-btn" not in src, \
-        "the 🗔 taskbar button is back — a set-once preference does not earn permanent chrome"
+    assert 'id="wm-btn"' in src, "the 🗔 taskbar toggle is missing"
+    assert "body.wm-capable .wm-btn" in src, \
+        "the 🗔 button lost its capability-gated visibility"
+    assert "winmode" not in src, \
+        "a Start-menu row for the window toggle is back — the button is its only surface"
     assert 'id="tidy-btn"' in src, "▦ Tidy lost its taskbar button"
 
 

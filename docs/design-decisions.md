@@ -3553,3 +3553,38 @@ action and surfaces the rare one.
 **The general rule, for next time:** ask whether a control is something you *do*
 or something you *set*. Things you set live in menus, however hard they were to
 find — findability is fixed with naming and depth, not with a permanent button.
+
+---
+
+## Where the Floating-windows switch lives: three tries, and the lesson
+
+Appended to the entry above, which drew the wrong conclusion and should be read
+together with this.
+
+The switch has been arranged three ways:
+
+1. **Utilities flyout only** — two levels deep among the Claude-Usage /
+   System-Stats toggles. *"藏的太深了…需要额外寻找"* — you had to know it existed.
+2. **Flyout + 🗔 taskbar button** — findable, but the same switch now existed in
+   two places, and `applyWinModeMenu()` had to keep both in sync. Reported as
+   *"two window control buttons in the status bar, which is a bummer"*.
+3. **Menu row only** (v1.19.42) — I read (2) as "the taskbar has too many
+   buttons", removed the button, and promoted the row to the menu's top level.
+   *"hate this."*
+
+**Final: the 🗔 taskbar button, and no menu row at all.** One icon, one place.
+
+**Where I went wrong, precisely:** "two window control buttons" was about the
+toggle having **two surfaces**, not about the taskbar holding two different
+functions. I had built that duplication deliberately (a button for reach, a row
+for explanation) and then read the complaint about it as being about ▦ Tidy
+sitting next to it. Both readings fit the sentence; they lead to opposite fixes,
+and I picked one without checking. **A complaint that admits two opposite fixes is
+exactly when to ask, not to reason harder** — I did ask, got redirected, and still
+guessed on the follow-up.
+
+The v1.19.42 rationale ("a set-once preference does not earn permanent chrome")
+is not wrong as a principle, but it lost to something that matters more here: the
+mode is set once *per device*, the user switches devices constantly, and one icon
+that is always exactly where you look beats a correct taxonomy. The explanation
+the row carried now lives in the button's `title`.
