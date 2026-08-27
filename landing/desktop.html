@@ -545,7 +545,11 @@
   body.wm .win.floating.maximized { border: 0; border-radius: 0; box-shadow: none; }
   body.wm .win.floating > .win-titlebar {
     display: flex; align-items: center; gap: 8px; flex: 0 0 32px; height: 32px;
-    padding: 0 4px 0 10px; background: #171d28; color: #93a4b6;
+    /* padding-right (18) > the corner grab zone (16) so the × can never sit in the
+       resize ring: that overlap is why the NE corner was the one dead corner —
+       the × is z-index 5, the handles 3-4, so it won the 9x9 they shared. Every
+       real window frame insets its controls from the edge for exactly this. */
+    padding: 0 18px 0 10px; background: #171d28; color: #93a4b6;
     cursor: move; user-select: none; font-size: 13px;
     touch-action: none;   /* dragging the title bar moves the window, never scrolls */
   }
@@ -577,17 +581,22 @@
   /* resize handles — only interactive on a floating, non-maximized window */
   .win-rz { display: none; position: absolute; z-index: 3; touch-action: none; }
   body.wm .win.floating:not(.maximized) .win-rz { display: block; }
-  .win-rz-n { top: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
-  .win-rz-s { bottom: 0; left: 0; right: 0; height: 5px; cursor: ns-resize; }
-  .win-rz-e { right: 0; top: 0; bottom: 0; width: 5px; cursor: ew-resize; }
-  .win-rz-w { left: 0; top: 0; bottom: 0; width: 5px; cursor: ew-resize; }
-  .win-rz-ne { top: 0; right: 0; width: 13px; height: 13px; cursor: nesw-resize; z-index: 4; }
-  .win-rz-nw { top: 0; left: 0; width: 13px; height: 13px; cursor: nwse-resize; z-index: 4; }
-  .win-rz-se { bottom: 0; right: 0; width: 13px; height: 13px; cursor: nwse-resize; z-index: 4; }
-  .win-rz-sw { bottom: 0; left: 0; width: 13px; height: 13px; cursor: nesw-resize; z-index: 4; }
+  /* Grab zones are deliberately wider than they look. At 5px an edge is a
+     pixel-hunt with a mouse — you feel it as "this window only resizes from the
+     corner". Desktop OSes give you ~8px of edge and a forgiving corner square,
+     and the cursor change on approach is the affordance (the visible SE grip
+     below is for touch, which has no hover). All eight directions work. */
+  .win-rz-n { top: 0; left: 0; right: 0; height: 8px; cursor: ns-resize; }
+  .win-rz-s { bottom: 0; left: 0; right: 0; height: 8px; cursor: ns-resize; }
+  .win-rz-e { right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
+  .win-rz-w { left: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
+  .win-rz-ne { top: 0; right: 0; width: 16px; height: 16px; cursor: nesw-resize; z-index: 4; }
+  .win-rz-nw { top: 0; left: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 4; }
+  .win-rz-se { bottom: 0; right: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 4; }
+  .win-rz-sw { bottom: 0; left: 0; width: 16px; height: 16px; cursor: nesw-resize; z-index: 4; }
   /* Touch (iPad): fingers need bigger targets than a 5px edge — enlarge the
      grab zones and the title-bar buttons, and give the bar a taller drag area. */
-  body.is-touch.wm .win.floating > .win-titlebar { flex-basis: 40px; height: 40px; }
+  body.is-touch.wm .win.floating > .win-titlebar { flex-basis: 40px; height: 40px; padding-right: 28px; }
   body.is-touch .win-rz-n, body.is-touch .win-rz-s { height: 16px; }
   body.is-touch .win-rz-e, body.is-touch .win-rz-w { width: 16px; }
   body.is-touch .win-rz-ne, body.is-touch .win-rz-nw,

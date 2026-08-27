@@ -3151,3 +3151,57 @@ everyone on the desktop.
 behavior itself was checked in headless Chromium (framed login takes the top
 window; framed `/` promotes to exactly one taskbar; top-level login still renders
 and still honors `?next=`).
+
+---
+
+## The one dead resize corner (NE), and why the edges felt like they weren't there
+
+**Symptom:** "the window resize button (pattern) only exists in the right lower
+corner — I want resizing to be as natural as a regular Windows/Mac window", and
+separately, that the cursor doesn't change when you're over a resize area.
+
+**Cause — two independent things, which is why it read as one big "resizing is
+broken":**
+
+1. **7 of the 8 handles already worked.** Measured by driving a real drag from
+   each: n/s/e/w/nw/se/sw all resized correctly. But the edges were **5px** and
+   the only *visible* affordance was the SE hatch (added for touch, which has no
+   hover cursor). A 5px edge is a pixel-hunt with a mouse — you brush past it,
+   the cursor never settles, and you conclude the corner is the only grab point.
+2. **The NE corner was genuinely dead.** Measured: the `×` occupies the outer
+   5–31px of the title bar at `z-index:5`; `.win-rz-ne` was 13px at `z-index:4`.
+   They shared a 9×9 square and the button won it — so a press in the middle of
+   the NE corner hit the ×, not the resize. Only a thin outer L still resized.
+
+   The trap: that `z-index:5` is itself the fix for an earlier bug where the
+   resize handles **stole the × tap** on iPad. So the two are one constraint, and
+   whoever wins the shared pixels, the other one breaks. Trading them back and
+   forth is not a fix.
+
+**Fix:** stop sharing the pixels. **Inset the controls out of the resize ring**,
+the way every real window frame insets its buttons from the frame edge —
+`.win-titlebar { padding-right: 18px }` (28px on touch) against a 16px corner
+zone, so no control can ever sit inside a grab zone at any size. Then widen the
+ring to what desktop OSes give you: **8px** edges, **16px** corners. The cursor
+declarations were always there and correct; they simply had almost no area to
+fire in. **Invariant: `title-bar padding-right > corner grab-zone width`.**
+
+**Verified** by measuring `elementFromPoint` + computed `cursor` at all 8 zones
+plus the title bar and ×, and by driving a real drag from each of the 8 handles
+on mouse AND touch lanes, with the ×/▢/– re-checked in the same run.
+
+**Rejected:**
+
+- *Give the corner handles a higher z-index than the buttons.* This is just
+  trading the bug back — it re-creates "the × can't be tapped", which is a worse
+  failure (you can't close a window) than a hard-to-hit corner.
+- *Move the window controls to the left, macOS-style, leaving the NE corner
+  free.* Would work, and the request did say "like a Mac", but it relocates the
+  close button people already have muscle memory for, to fix a 9×9 square.
+- *Extend the grab zones OUTSIDE the window box (macOS lets you grab a few px
+  outside).* Tempting, but windows overlap and tile with an 8px gutter, so an
+  outside ring would hang over the neighbour beneath and steal clicks near its
+  edge. Inside-only keeps every zone unambiguous.
+- *Make all 8 corners/edges visible like the SE hatch.* Rejected as noise — on a
+  desktop the cursor IS the affordance, and the taskbar/window chrome is
+  deliberately quiet.

@@ -311,6 +311,70 @@ test.describe('window mode', () => {
       expect(covered).toBeLessThan(0.5);
     });
 
+    // Resizing must work from every edge and corner, like any OS window — and the
+    // pointer must SAY so on approach (the cursor is the affordance on a desktop;
+    // the visible SE grip is only for touch, which has no hover). The NE corner was
+    // the one dead direction: the × is z-index 5 and the handles 3-4, so the button
+    // won the 9x9 square they shared. Fixed by insetting the controls from the frame
+    // edge (padding-right 18 > the 16px corner zone) — which is also why the three
+    // controls are re-checked here: the previous fix for "× stole the tap" is what
+    // created the dead corner, so these two must be tested together, forever.
+    const DIRS = [
+      ['n',  0,  30], ['s',  0, 30], ['e', 40,  0], ['w', -40, 0],
+      ['ne', 40, -30], ['nw', -40, -30], ['se', 40, 30], ['sw', -40, 30],
+    ];
+    for (const [dir, dx, dy] of DIRS) {
+      test(`resizes from the ${dir} edge/corner`, async ({ page }) => {
+        const before = await geom(page, 'notes');
+        const box = await page.locator(`#win-notes .win-rz-${dir}`).boundingBox();
+        expect(box, `no .win-rz-${dir} handle`).toBeTruthy();
+        const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+        await page.mouse.move(cx, cy);
+        await page.mouse.down();
+        await page.mouse.move(cx + dx, cy + dy, { steps: 10 });
+        await page.mouse.up();
+        await page.waitForTimeout(200);
+        const after = await geom(page, 'notes');
+        // Grabbing an edge changes the size along that axis and leaves the other alone.
+        const wantW = dx !== 0 ? Math.abs(dx) : 0;
+        const wantH = dy !== 0 ? Math.abs(dy) : 0;
+        expect(Math.abs((after.width - before.width) - wantW)).toBeLessThanOrEqual(3);
+        expect(Math.abs((after.height - before.height) - wantH)).toBeLessThanOrEqual(3);
+      });
+    }
+
+    test('every edge and corner shows its resize cursor, and the controls keep theirs', async ({ page }) => {
+      const seen = await page.locator('#win-notes').evaluate((w) => {
+        const r = w.getBoundingClientRect();
+        const cur = (x, y) => {
+          const el = document.elementFromPoint(x, y);
+          return el ? getComputedStyle(el).cursor : '(none)';
+        };
+        return {
+          n:  cur(r.left + r.width / 2, r.top + 2),
+          s:  cur(r.left + r.width / 2, r.bottom - 2),
+          w:  cur(r.left + 2, r.top + r.height / 2),
+          e:  cur(r.right - 2, r.top + r.height / 2),
+          ne: cur(r.right - 6, r.top + 6),
+          nw: cur(r.left + 6, r.top + 6),
+          se: cur(r.right - 6, r.bottom - 6),
+          sw: cur(r.left + 6, r.bottom - 6),
+          titlebar: cur(r.left + r.width / 2, r.top + 16),
+          close: cur(r.right - 24, r.top + 16),
+        };
+      });
+      expect(seen.n).toBe('ns-resize');
+      expect(seen.s).toBe('ns-resize');
+      expect(seen.e).toBe('ew-resize');
+      expect(seen.w).toBe('ew-resize');
+      expect(seen.ne).toBe('nesw-resize');
+      expect(seen.sw).toBe('nesw-resize');
+      expect(seen.nw).toBe('nwse-resize');
+      expect(seen.se).toBe('nwse-resize');
+      expect(seen.titlebar).toBe('move');      // drag to move
+      expect(seen.close).toBe('pointer');      // the × is NOT under the resize ring
+    });
+
     // The switch used to live two levels deep (Start ▸ Utilities ▸ "Window mode"),
     // where you had to already know it existed. It is now a 🗔 taskbar button that
     // shows whenever the screen is window-CAPABLE — on or off — with the Start row
