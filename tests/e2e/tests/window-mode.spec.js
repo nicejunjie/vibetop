@@ -33,6 +33,15 @@ async function openUtility(page, id) {
   await expect(page.locator(`#task-apps .task-app[data-id="${id}"]`)).toBeVisible();
 }
 
+// Tidying is folded into the toggle: turning windows ON always lays them out in an
+// even split, so the reset gesture is tap-off, tap-on. There is no ▦ button.
+async function tidy(page) {
+  await page.locator('#wm-btn').click();
+  await page.waitForTimeout(250);
+  await page.locator('#wm-btn').click();
+  await page.waitForTimeout(450);
+}
+
 const geom = (page, id) => page.locator(`#win-${id}`).evaluate((el) => {
   const r = el.getBoundingClientRect();
   return { left: Math.round(r.left), top: Math.round(r.top),
@@ -90,7 +99,7 @@ test.describe('window mode', () => {
       });
       expect(warn.position).not.toBe('fixed');   // in-flow, so it resizes the frame
 
-      await page.locator('#tidy-btn').click();   // Tidy puts the top row at y=8
+      await tidy(page);                          // an even split puts the top row at y=8
       await page.waitForTimeout(400);
       const hit = await page.evaluate(() => {
         const w = document.getElementById('win-notes');
@@ -244,7 +253,7 @@ test.describe('window mode', () => {
     });
 
     test('Tidy tiles two windows into halves (side by side, or stacked in portrait)', async ({ page }) => {
-      await page.locator('#tidy-btn').click();
+      await tidy(page);
       await page.waitForTimeout(300);
       const a = await geom(page, 'notes'), b = await geom(page, 'upload');
       const box = await page.evaluate(() => {
@@ -272,7 +281,7 @@ test.describe('window mode', () => {
     test('Tidy never leaves a window control covered by another window', async ({ page }) => {
       test.slow();
       for (const id of ['monitor', 'tokenstats']) await openUtility(page, id).catch(() => {});
-      await page.locator('#tidy-btn').click();
+      await tidy(page);
       await page.waitForTimeout(500);
       const bad = await page.evaluate(() => {
         const out = [];
@@ -351,7 +360,7 @@ test.describe('window mode', () => {
     // side-by-side split only ever puts a gutter on the VERTICAL edges. The grab
     // ring now reaches outside the window so the two rings meet inside the gutter.
     test('the gutter between two tiled windows is grabbable end to end', async ({ page }) => {
-      await page.locator('#tidy-btn').click();
+      await tidy(page);
       await page.waitForTimeout(400);
       const layout = await page.evaluate(() => {
         const r = (id) => document.querySelector('#win-' + id).getBoundingClientRect();
@@ -466,7 +475,7 @@ test.describe('window mode', () => {
       const btn = page.locator('#wm-btn');
       await expect(btn).toBeVisible();
       await expect(btn).toHaveAttribute('aria-pressed', 'true');   // this lane starts on
-      await expect(page.locator('#tidy-btn')).toBeVisible();
+      await expect(page.locator('#tidy-btn')).toHaveCount(0);       // folded into the toggle
 
       await openStartMenu(page);
       await expect(page.locator('#startmenu .sm-item[data-id="winmode"]')).toHaveCount(0);
@@ -478,12 +487,10 @@ test.describe('window mode', () => {
       await expect(page.locator('body')).not.toHaveClass(/\bwm\b/);
       await expect(btn).toHaveAttribute('aria-pressed', 'false');
       await expect(btn).toBeVisible();        // still reachable when OFF — the whole point
-      await expect(page.locator('#tidy-btn')).toBeHidden();        // nothing to tile
 
       await btn.click();                                           // -> back on
       await page.waitForTimeout(400);
       await expect(page.locator('body')).toHaveClass(/\bwm\b/);
-      await expect(page.locator('#tidy-btn')).toBeVisible();
     });
 
     test('dragging a window marks it user-arranged, so opening a 3rd stops re-tiling it', async ({ page }) => {

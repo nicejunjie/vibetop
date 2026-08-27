@@ -3588,3 +3588,41 @@ is not wrong as a principle, but it lost to something that matters more here: th
 mode is set once *per device*, the user switches devices constantly, and one icon
 that is always exactly where you look beats a correct taxonomy. The explanation
 the row carried now lives in the button's `title`.
+
+---
+
+## One icon, finally: tidying folded into the toggle
+
+Third and last move in the saga above. *"still two icons in the status bar, i mean
+the functionality can totally be satisfied with one icon"* — the two being the 🗔
+on/off toggle and ▦ Tidy.
+
+The knot: while windows are **off** the only useful action is "turn on"; while
+**on**, the frequent action is "tidy" and "turn off" is rare. A single tap-only
+icon cannot serve both unless one of them moves — so this time I laid out the four
+possible shapes and asked, rather than guessing a third time.
+
+**Chosen: the icon is a plain on/off toggle, and turning ON always re-tiles.**
+Resetting a messy layout is tap-off, tap-on. Nothing hidden, nothing to learn, one
+icon.
+
+Implementation notes that matter:
+
+- `tidyWindows()` runs **after** `renderWindows()` in `toggleWindowMode()`, because
+  `VibeWin.tileGrid` measures the live `frameBox()`.
+- It deliberately **ignores the user-arranged guard** (`g.user`) that
+  `autoTileIfUntouched` respects: an explicit tap on the switch *is* the request to
+  re-tile. Verified: drag a window out of place, tap off, tap on → even split
+  restored.
+- **Accepted cost, chosen knowingly:** a hand-made layout does not survive an
+  off/on cycle. That is the same property that makes off/on the reset gesture; you
+  cannot have one without the other.
+- The first-run coach tip pointed at the ▦ button; its key is bumped to `:v5` so
+  anyone who saw the old text gets the corrected one.
+
+**Rejected:** *tap = the useful action for the state (off→on, on→tidy), long-press
+= turn off* — keeps one-tap tidy, but buries the rare action in a gesture you must
+be told about, against a standing preference for visible/familiar over learned.
+*Drop tidying altogether* — `autoTileIfUntouched` only covers layouts you have not
+touched, so the "I dragged things around and want them even again" case would have
+no answer at all.

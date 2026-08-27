@@ -378,7 +378,10 @@ def test_window_mode_switch_lives_only_in_the_taskbar():
         "the 🗔 button lost its capability-gated visibility"
     assert "winmode" not in src, \
         "a Start-menu row for the window toggle is back — the button is its only surface"
-    assert 'id="tidy-btn"' in src, "▦ Tidy lost its taskbar button"
+    assert 'id="tidy-btn"' not in src, \
+        "the ▦ Tidy button is back — tidying is folded into the toggle (on again = even split)"
+    assert re.search(r"if \(WM_FLAG\) tidyWindows\(\);", src), \
+        "turning floating windows ON no longer re-tiles, so nothing replaces ▦ Tidy"
 
 
 def test_login_location_sets_frame_ancestors():

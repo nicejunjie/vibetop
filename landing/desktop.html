@@ -153,22 +153,21 @@
   .start-btn.open { box-shadow: 0 0 0 2px rgba(210,105,30,0.5) inset; filter: brightness(1.12); }
   .start-btn .icon { font-size: 18px; line-height: 1; }
 
-  /* The window controls, both in the taskbar. 🗔 is the on/off toggle and it is the
-     toggle's ONLY surface — there is deliberately no Start-menu row for it. It has
-     been all three ways round: buried in the Utilities flyout (couldn't find it),
-     then flyout + button (the same switch in two places), then menu-row only
-     (v1.19.42 — removed the wrong one). One icon, one place. ▦ Tidy joins it only
-     once windows are actually floating: nothing to tile otherwise. Phones show
-     neither — the mode needs a tablet-sized screen. */
-  .tidy-btn, .wm-btn {
+  /* THE window control — one icon, and the only one. 🗔 is a plain on/off toggle;
+     there is no Start-menu row and no second button. Tidying is folded into it:
+     turning windows ON always lays them out in an even split, so "reset my messy
+     layout" is tap-off, tap-on. That replaced a separate ▦ Tidy button — the bar
+     having two window icons was the standing complaint, and one of them was doing
+     a job the toggle could absorb. Phones show nothing: the mode needs a
+     tablet-sized screen. */
+  .wm-btn {
     display: none; align-items: center; justify-content: center; flex-shrink: 0;
     width: 40px; height: 40px; margin-left: 4px;
     border-radius: 8px; cursor: pointer; font-size: 19px; line-height: 1;
     color: #b9c6d4; background: rgba(255,255,255,0.06);
     border: 1px solid rgba(255,255,255,0.10);
   }
-  .tidy-btn:hover, .wm-btn:hover { background: rgba(255,255,255,0.12); color: #eaf1f8; }
-  body.wm .tidy-btn { display: inline-flex; }
+  .wm-btn:hover { background: rgba(255,255,255,0.12); color: #eaf1f8; }
   body.wm-capable .wm-btn { display: inline-flex; }
   /* Lit = on, in the Start button's accent — the state has to read without a label
      now that no menu row spells it out. */
@@ -905,7 +904,6 @@
   <div class="taskbar" id="taskbar">
     <div class="start-btn" id="start-btn"><span class="icon">⊞</span> Start</div>
     <button class="wm-btn" id="wm-btn" aria-pressed="false" aria-label="Floating windows" title="Floating windows">🗔</button>
-    <button class="tidy-btn" id="tidy-btn" aria-label="Tidy windows" title="Tidy windows — tile them evenly (halves/grid)">▦</button>
     <div class="tb-sep"></div>
     <div class="task-apps" id="task-apps"></div>
     <div class="tb-spacer"></div>
@@ -1245,6 +1243,13 @@
     WM_FLAG = !WM_FLAG;
     try { localStorage.setItem('vibetop:wm', WM_FLAG ? '1' : '0'); } catch (e) {}
     renderWindows(); renderTaskbar(); applyWinModeMenu();
+    // Turning ON lays everything out evenly — this is where the ▦ Tidy button went.
+    // It runs AFTER renderWindows() because tileGrid measures the live frameBox(),
+    // and it deliberately ignores the user-arranged guard that autoTileIfUntouched
+    // respects: an explicit tap on the switch IS the request to re-tile. The cost,
+    // accepted knowingly: a hand-made layout does not survive an off/on cycle —
+    // which is exactly what makes tap-off/tap-on the way to reset one.
+    if (WM_FLAG) tidyWindows();
     if (WM_FLAG) { var cur = active; setTimeout(function(){ maybeWinTip(); if (cur) coachForApp(cur); }, 300); }
   }
   // Sync the toggle's single surface: the taskbar button. What the Start-menu row
@@ -2108,11 +2113,11 @@
   // self-caps at 3 shows + dismiss-on-tap; a no-op on touch/narrow).
   function maybeWinTip() {
     if (!window.vibeCoach || !windowModeOn()) return;
-    // :v4 — the old text said the ▦ button was "top-left"; it is in the TASKBAR,
+    // :v5 — ▦ is gone (folded into the 🗔 toggle); :v4 said the button was "top-left",
     // which is along the bottom. Bumping the key re-shows the corrected tip to
     // anyone who already saw the wrong one.
-    vibeCoach({ key: 'vibetop:tip:wm:v4',
-                text: 'Windows: drag the title bar to move · drag an edge or corner to resize · tap ▦ in the taskbar to tidy them into an even split' },
+    vibeCoach({ key: 'vibetop:tip:wm:v5',
+                text: 'Windows: drag the title bar to move · drag an edge or corner to resize · tap 🗔 off and on again to reset them to an even split' },
               { bottom: 60 });
     // Click-through comes from the `body.wm .vibe-coach` CSS rule (race-free —
     // the old one-shot querySelector here missed the banner whenever it rendered
@@ -2244,7 +2249,6 @@
 
   // --- events ---
   startBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleMenu(); });
-  (function(){ var tb = document.getElementById('tidy-btn'); if (tb) tb.addEventListener('click', function(e){ e.stopPropagation(); tidyWindows(); }); })();
   (function(){ var wb = document.getElementById('wm-btn'); if (wb) wb.addEventListener('click', function(e){ e.stopPropagation(); toggleWindowMode(); }); })();
   // stopPropagation so the click doesn't reach the document handler that closes the
   // Start menu / defocuses windows — same reason the Tidy button does it.
