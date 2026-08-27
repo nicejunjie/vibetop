@@ -3481,3 +3481,31 @@ would be maximally distinct, but it needs authored art at 1× and 2×, a keyword
 fallback per direction, and it throws away the platform's own well-understood
 resize glyphs. The one-word keyword swap gets the distinguishability that was
 actually asked for at zero risk.
+
+---
+
+## Retiring the SE grip — but only where the cursor can replace it
+
+Once the edges carried a resize cursor visibly distinct from the host window's
+(above), the obvious follow-up was: *"then we don't need the shaded area in the
+lower right corner, right?"* Mostly right — the grip is a **fallback affordance**,
+and it is only redundant where the cursor actually speaks. Two places it does not:
+
+- **Touch.** Window mode runs on tablets (the gate needs ≥600 short side), and an
+  iPad has no hover state at all. An invisible edge is unusable there.
+- **macOS Safari.** The corners still get no diagonal cursor — that is the private
+  core-cursor path failing to a plain arrow, and no public diagonal NSCursor
+  exists to map to. Drop the grip there and the SE corner has neither a cursor nor
+  a mark.
+
+So the removal is scoped rather than blanket-"desktop":
+`@supports not (background: -webkit-named-image(i))` + `@media (pointer: fine)`.
+Measured across five lanes: Chromium+mouse and Firefox+mouse lose the grip;
+WebKit+mouse, Chromium+touch and WebKit+touch keep it.
+
+**The trade-off, stated:** without the grip a mouse user must hover an edge to
+discover the window is resizable, where before it was visible at rest. That is the
+cost of the quieter chrome, and it is only paid where a distinct cursor appears on
+hover to pay it back. If macOS Safari ever gains a diagonal cursor (or an image
+cursor is proven to render there — `/rzdbg.html` has the tiles), the WebKit arm of
+this rule should go too.
