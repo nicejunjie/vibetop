@@ -10,6 +10,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Vibetop</title>
 <script>
+/* Nesting guard (runs before anything else). `/` must never render inside a frame:
+   a second desktop means two taskbars, two usage strips and two live heartbeats
+   stacked in one viewport. It happened when a session expired behind an open
+   desktop — the app iframe's 401 landed on the sign-in form INSIDE the frame, and
+   signing in there replaced that frame with `/`. login.html now hands sign-in to
+   the top window; this heals tabs that are already nested, and any other route in,
+   by promoting the desktop back to the top window. (Cross-origin top throws and is
+   ignored — nginx's `frame-ancestors 'self'` already rules that out.) */
+(function () {
+  if (window.top === window.self) return;
+  try { window.top.location.replace('/'); } catch (e) {}
+})();
+</script>
+<script>
 /* Auth guard (runs first). If Cloudflare Access — or the vibetop session — has
    expired, the service worker can serve the cached, un-authenticated shell → a
    black screen (you had to close+reopen to get the login). Probe auth on load;

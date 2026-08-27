@@ -5,6 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0e1117">
   <title>Sign in — Vibetop</title>
+  <script>
+  /* Never render this form inside a frame. When a session expires behind an OPEN
+     desktop, the 401 that nginx turns into a 302 -> /login.html is normally a
+     request an APP IFRAME made (e.g. /browser/connect.html), so this page loads
+     *inside* that iframe. Signing in there ended with location.replace('/')
+     painting a whole second desktop inside the first — two taskbars, two usage
+     strips, two live heartbeats (docs/design-decisions.md). Hand the sign-in to
+     the top window instead, and drop ?next= with it: next points at the framed
+     sub-resource, which must not become the top-level page. Landing on / is
+     right — the desktop restores whatever app was open. */
+  (function () {
+    if (window.top === window.self) return;
+    window.__vtFramed = true;
+    document.documentElement.style.visibility = 'hidden';   // no password field in a frame
+    try { window.top.location.replace('/login.html'); } catch (e) {}
+  })();
+  </script>
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -134,6 +151,21 @@
     }
     const form = document.getElementById('form');
     const err = document.getElementById('err');
+    if (window.__vtFramed) {
+      // The top-window takeover is async, and a cross-origin embedder (blocked by
+      // `frame-ancestors 'self'`, but belt-and-braces) can swallow it outright. If
+      // we're still framed a moment later, offer a link out — never the form.
+      setTimeout(function () {
+        if (window.top === window.self) return;
+        form.innerHTML =
+          '<p class="sub">Vibetop sign-in can\'t run inside another page.</p>' +
+          '<a href="/login.html" target="_top" ' +
+          'style="display:block;text-align:center;padding:13px;border-radius:10px;' +
+          'background:linear-gradient(135deg,#b3540f,#d2691e);color:#fff;' +
+          'font-weight:700;text-decoration:none">Open sign-in</a>';
+        document.documentElement.style.visibility = '';
+      }, 1500);
+    }
     const go = document.getElementById('go');
     function showErr(msg) { err.textContent = msg; err.classList.add('show'); }
     form.addEventListener('submit', async (e) => {

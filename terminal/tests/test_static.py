@@ -339,3 +339,39 @@ def test_subfilter_injected_scripts_exist():
                 "terminal/terminal-kbd.js", "landing/coach.js",
                 "terminal/lib/tab-sync.js"):
         assert os.path.isfile(os.path.join(_REPO, rel)), f"missing {rel}"
+
+
+# ---- No desktop-inside-the-desktop ----------------------------------------
+# A session expiring behind an OPEN desktop 401s whatever the app iframe asks for
+# next; nginx turns that into a 302 to /login.html, so the sign-in form renders
+# INSIDE the iframe. login.html then did location.replace('/') and painted a whole
+# second desktop inside the first (two taskbars, two usage strips, two live
+# heartbeats). Three guards, all greppable — see docs/design-decisions.md.
+
+def test_login_page_never_renders_framed():
+    src = open(os.path.join(_REPO, "landing", "login.html")).read()
+    assert "window.top === window.self" in src, \
+        "login.html lost its frame guard — a framed sign-in nests the desktop"
+    # It must hand the sign-in to the TOP window, and WITHOUT ?next= (next points
+    # at the framed sub-resource, which must never become the top-level page).
+    assert re.search(r"window\.top\.location\.replace\(\s*'/login\.html'\s*\)", src), \
+        "login.html must promote sign-in to the top window at bare /login.html"
+
+
+def test_desktop_refuses_to_be_nested():
+    src = open(os.path.join(_REPO, "landing", "desktop.html")).read()
+    guard = src.split("Auth guard", 1)[0]      # must run BEFORE the auth probe
+    assert "window.top === window.self" in guard and \
+        re.search(r"window\.top\.location\.replace\(\s*'/'\s*\)", guard), \
+        "desktop.html must promote itself to the top window before probing auth"
+
+
+def test_login_location_sets_frame_ancestors():
+    # `location = /login.html` has its own add_header, so nginx drops every
+    # inherited one: the ONE page that takes a Linux password would otherwise be
+    # framable by any origin (clickjacked credential capture).
+    src = open(os.path.join(_REPO, "terminal", "install.sh")).read()
+    block = re.search(r"location = /login\.html \{(.*?)\n    \}", src, re.S)
+    assert block, "terminal/install.sh: no `location = /login.html` block"
+    assert "frame-ancestors 'self'" in block.group(1), \
+        "the login page location must set Content-Security-Policy frame-ancestors"

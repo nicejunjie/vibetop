@@ -3082,3 +3082,72 @@ why the feature went anyway, so the next attempt starts from the right premise.
   because both include the URL bar.
 - **Unverifiable here, as before:** the positive case needs an installed PWA behind
   Access, which Playwright cannot be. This one is confirmed only by the reporter.
+
+---
+
+## The desktop rendered inside itself after a re-login
+
+**Symptom:** after signing in again on the Mac, `z20.local` showed the shell
+**twice** — two Claude-usage strips stacked at the top, two taskbars stacked at
+the bottom, one desktop wallpaper filling the middle. Not a paint artifact: the
+two taskbars showed *different* live CPU (43% vs 48%), so two independent
+desktops were polling at once.
+
+**Cause:** the sign-in form had rendered **inside an app iframe**, and signing in
+there navigated that iframe to `/`. nginx's access log has the whole chain:
+
+```
+GET  /browser/connect.html  302 →   (issued by the Browser app's iframe)
+GET  /login.html            200     ← sign-in form, INSIDE the iframe
+POST /api/login             200     Referer: /login.html
+GET  /                      200 67075  Referer: /login.html   ← desktop into the iframe
+GET  /browser/              200     Referer: /                ← the inner desktop restoring
+```
+
+The session expired behind an already-open desktop. The top-level page only
+probes auth **once, on load** (`vt:reauth`), so it never noticed; the first thing
+to actually hit the gate was a request the *iframe* made. nginx's
+`error_page 401 = @login` sent that iframe to `/login.html`, which had no idea it
+was framed — and `nextUrl()` returned `/` because `@login` dropped the original
+URI, so `location.replace('/')` painted a second whole desktop inside the first.
+
+**Fix** — three guards, each independently sufficient for its own entry point:
+
+1. `login.html` refuses to render framed: it hides itself and hands sign-in to
+   the **top** window. It drops `?next=` when it does — `next` points at the
+   framed sub-resource (`/browser/connect.html`), which must never become the
+   top-level page. Landing on `/` is right: the desktop restores its own apps.
+2. `desktop.html` refuses to be nested: framed, it promotes itself to the top
+   window before it does anything else (no auth probe, no second heartbeat). This
+   heals tabs that are *already* nested and closes every other route in.
+3. nginx `location = /login.html` now sets `frame-ancestors 'self'` (+ nosniff,
+   Referrer-Policy). That exact-match location carries its own `add_header`, so
+   nginx was dropping every header inherited from `location /` — the one page
+   that takes a **Linux password** was framable by any origin.
+
+`@login` also carries `?next=$request_uri` now, so a top-level deep link
+(`/terminals/`, `/files/`) returns there after sign-in instead of dumping
+everyone on the desktop.
+
+**Rejected:**
+
+- *Make the desktop poll auth continuously and take over the login itself.* Treats
+  the symptom's trigger, not the bug — a framed login page is wrong however it is
+  reached — and a re-auth reload driven by a periodic poll is exactly the shape
+  that reload-loops on a daily driver. The frame guard makes the expiry path end
+  in an ordinary top-level sign-in, which is the desired outcome anyway.
+- *Give `nextUrl()` a "don't return `/` when framed" special case.* Same one-line
+  effect, but it leaves the password field rendering inside a frame — the
+  clickjacking half of the problem — and depends on a redirect target we control
+  less than we think.
+- *`X-Frame-Options: DENY` on the login page.* Would break it the other way: the
+  framed load fails silently and the user is left staring at an app that stopped
+  working, with no form and no explanation. `frame-ancestors 'self'` keeps the
+  same-origin load alive precisely so guard #1 can bust out of it.
+
+**Regression tests:** `test_static.py::test_login_page_never_renders_framed`,
+`::test_desktop_refuses_to_be_nested`, `::test_login_location_sets_frame_ancestors`
+— all three verified failing against the pre-fix tree, and the framed/nested
+behavior itself was checked in headless Chromium (framed login takes the top
+window; framed `/` promotes to exactly one taskbar; top-level login still renders
+and still honors `?next=`).

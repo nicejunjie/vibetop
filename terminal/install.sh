@@ -393,12 +393,24 @@ $tls_listen    server_name _;
         proxy_set_header Content-Length \"\";
         proxy_set_header X-Original-URI \$request_uri;
     }
-    location @login { return 302 /login.html; }
+    # Carry where they were headed so a top-level deep link (/terminals/, /files/)
+    # comes back after sign-in instead of dumping everyone on the desktop. A FRAMED
+    # 401 lands here too, but login.html drops ?next= when it promotes sign-in to
+    # the top window — the framed sub-resource must never become the whole page.
+    location @login { return 302 /login.html?next=\$request_uri; }
 
     # The login page — public (no auth), but LAN clients are upgraded to https so
     # the password POST isn't sent in cleartext.
     location = /login.html {
 $tls_redirect_if        add_header Cache-Control 'no-cache, no-store' always;
+        # This exact-match location carries its own add_header, so nginx drops every
+        # header inherited from `location /` — the ONE page that takes a Linux
+        # password would otherwise be framable by any origin (clickjacked credential
+        # capture). 'self' still allows the same-origin framing that login.html's own
+        # guard busts out of.
+        add_header X-Content-Type-Options 'nosniff' always;
+        add_header Referrer-Policy 'same-origin' always;
+        add_header Content-Security-Policy \"frame-ancestors 'self'\" always;
         try_files /login.html =404;
     }
 
