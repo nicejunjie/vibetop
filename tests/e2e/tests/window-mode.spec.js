@@ -311,6 +311,37 @@ test.describe('window mode', () => {
       expect(covered).toBeLessThan(0.5);
     });
 
+    // The switch used to live two levels deep (Start ▸ Utilities ▸ "Window mode"),
+    // where you had to already know it existed. It is now a 🗔 taskbar button that
+    // shows whenever the screen is window-CAPABLE — on or off — with the Start row
+    // kept as the explaining surface. Both must always agree about the state.
+    test('the 🗔 taskbar toggle is visible, switches the mode, and stays in sync with the Start row', async ({ page }) => {
+      const btn = page.locator('#wm-btn');
+      await expect(btn).toBeVisible();
+      await expect(btn).toHaveAttribute('aria-pressed', 'true');       // this lane starts in window mode
+      await expect(page.locator('body')).toHaveClass(/\bwm\b/);
+
+      await btn.click();                                               // -> off
+      await page.waitForTimeout(300);
+      await expect(page.locator('body')).not.toHaveClass(/\bwm\b/);
+      await expect(btn).toHaveAttribute('aria-pressed', 'false');
+      await expect(btn).toBeVisible();          // still reachable when OFF — the whole point
+      await expect(page.locator('#tidy-btn')).toBeHidden();            // nothing to tile
+
+      await openStartMenu(page);                                       // the other surface agrees
+      await page.locator('#sm-util-parent').click();
+      const row = page.locator('#startmenu .sm-item[data-id="winmode"]').first();
+      await expect(row).toContainText('Floating windows');
+      await expect(row).not.toHaveClass(/cu-on/);
+      await page.keyboard.press('Escape');
+
+      await btn.click();                                               // -> back on
+      await page.waitForTimeout(300);
+      await expect(page.locator('body')).toHaveClass(/\bwm\b/);
+      await expect(btn).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('#tidy-btn')).toBeVisible();
+    });
+
     test('dragging a window marks it user-arranged, so opening a 3rd stops re-tiling it', async ({ page }) => {
       const bar = await page.locator('#win-notes .win-titlebar').boundingBox();
       await page.mouse.move(bar.x + 70, bar.y + bar.height / 2);
