@@ -404,10 +404,13 @@ $tls_listen    server_name _;
     location = /login.html {
 $tls_redirect_if        add_header Cache-Control 'no-cache, no-store' always;
         # This exact-match location carries its own add_header, so nginx drops every
-        # header inherited from `location /` — the ONE page that takes a Linux
-        # password would otherwise be framable by any origin (clickjacked credential
-        # capture). 'self' still allows the same-origin framing that login.html's own
-        # guard busts out of.
+        # header inherited from the prefix location / block — the ONE page that takes
+        # a Linux password would otherwise be framable by any origin (clickjacked
+        # credential capture). 'self' still allows the same-origin framing that
+        # login.html's own guard busts out of.
+        # (No backticks anywhere in this string: it is double-quoted shell, so a
+        # backtick is command substitution, not punctuation. That is what broke the
+        # v1.19.30 deploy — 'location: command not found', config silently truncated.)
         add_header X-Content-Type-Options 'nosniff' always;
         add_header Referrer-Policy 'same-origin' always;
         add_header Content-Security-Policy \"frame-ancestors 'self'\" always;

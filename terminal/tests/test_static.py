@@ -375,3 +375,22 @@ def test_login_location_sets_frame_ancestors():
     assert block, "terminal/install.sh: no `location = /login.html` block"
     assert "frame-ancestors 'self'" in block.group(1), \
         "the login page location must set Content-Security-Policy frame-ancestors"
+
+
+def test_nginx_conf_string_has_no_backticks():
+    """The nginx site config is built as one DOUBLE-QUOTED shell string, so a
+    backtick in it is command substitution, not punctuation. A backtick inside a
+    comment there ("header inherited from `location /`") made the shell run
+    `location /` mid-render: "location: command not found", the config silently
+    truncated, and the whole terminal/nginx deploy step failed — while `bash -n`
+    stayed happy, because it is valid syntax. That shipped in v1.19.30."""
+    src = open(os.path.join(_REPO, "terminal", "install.sh")).read()
+    start = src.index('site_config="')
+    # The string ends at the first line that is exactly a lone closing quote.
+    end = src.index('\n"\n', start)
+    body = src[start:end]
+    bad = [ln for ln in body.splitlines() if "`" in ln]
+    assert not bad, (
+        "backtick(s) inside the double-quoted nginx site_config — the shell will "
+        "run them as commands. Use plain words or escape them:\n  "
+        + "\n  ".join(bad))
