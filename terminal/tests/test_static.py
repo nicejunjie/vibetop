@@ -394,3 +394,27 @@ def test_nginx_conf_string_has_no_backticks():
         "backtick(s) inside the double-quoted nginx site_config — the shell will "
         "run them as commands. Use plain words or escape them:\n  "
         + "\n  ".join(bad))
+
+
+def test_keybar_occlusion_chain_is_intact():
+    """The fix for "the key bar covers the line you type on" spans THREE files:
+    the desktop measures the overlap (only it can — a nested iframe's
+    visualViewport never shrinks for the keyboard), terminals.html relays it, and
+    terminal-kbd.js scrolls by it. Break any link and the symptom returns
+    silently, with no error anywhere. See docs/design-decisions.md."""
+    desktop = open(os.path.join(_REPO, "landing", "desktop.html")).read()
+    relay = open(os.path.join(_REPO, "terminal", "terminals.html")).read()
+    kbd = open(os.path.join(_REPO, "terminal", "terminal-kbd.js")).read()
+
+    assert "function occlusionOver" in desktop and "postOcclusion" in desktop, \
+        "desktop.html no longer measures/posts the key-bar occlusion"
+    assert "'kbd-occlusion'" in desktop, "desktop.html posts no kbd-occlusion message"
+    assert "kbd-occlusion" in relay and "relayOcclusion" in relay, \
+        "terminals.html no longer relays kbd-occlusion down to the active /tN/"
+    assert "kbd-occlusion" in kbd and "occludedPx" in kbd, \
+        "terminal-kbd.js no longer consumes the occlusion"
+    # The open-loop constant must stay gone: it compensated a distance that is not
+    # constant (measured 53px on one iPhone) and depended on an iOS reveal-scroll
+    # that a single TUI repaint destroyed.
+    assert "KBD_BAR_RESERVE" not in kbd, \
+        "KBD_BAR_RESERVE is back — the fixed-guess design was replaced on purpose"

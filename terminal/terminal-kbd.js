@@ -270,15 +270,40 @@
     ov.setAttribute('autocorrect', 'off');
     ov.setAttribute('spellcheck', 'false');
     ov.setAttribute('aria-hidden', 'true');
-    // Transparent overlay. Its caret is parked on the actual xterm cursor row via
-    // a dynamic padding-top (positionCaret), so iOS auto-scrolls the shell to
-    // reveal the real prompt line above the keyboard. The desktop's system key
-    // bar sits in that same strip just above the keyboard, so we park the caret
-    // an extra KBD_BAR_RESERVE px BELOW the prompt — iOS then scrolls the prompt
-    // that much higher, clearing the bar so it never covers the line you type on
-    // (the textarea is taller than the terminal to make room for the offset).
-    var KBD_BAR_RESERVE = 64;   // desktop bar height (~50) + margin; keep in sync with desktop BAR_H
-    ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:calc(100% + ' + KBD_BAR_RESERVE + 'px);box-sizing:border-box;' +
+    // Transparent overlay: this is the terminal's real input on touch. It is taller
+    // than the frame on purpose — that overhang is the document's scrollable range,
+    // which positionCaret() uses to lift the active line clear of the desktop's key
+    // bar. Its caret rides the xterm cursor row via a dynamic padding-top.
+    // How many px of THIS frame are covered by the desktop's key bar. The desktop
+    // measures it and posts it (see landing/desktop.html postOcclusion) because we
+    // cannot: a nested iframe's visualViewport does NOT shrink for the soft
+    // keyboard, so from in here the frame looks fully visible down to its last row.
+    // Standalone /tN/ (no desktop) has no bar but a real shrinking viewport, so we
+    // fall back to measuring that — occludedPx() takes whichever is larger.
+    var KBD_OCCLUSION = 0;
+    window.addEventListener('message', function (e) {
+      if (!e.data || e.data.type !== 'kbd-occlusion') return;
+      var px = Math.max(0, +e.data.px || 0);
+      if (px === KBD_OCCLUSION) return;
+      KBD_OCCLUSION = px;
+      sizeOverlay();
+      positionCaret();
+    }, false);
+    function occludedPx() {
+      var local = 0;
+      try {
+        var vv = window.visualViewport;
+        if (vv && vv.height) local = Math.max(0, (window.innerHeight || 0) - vv.height);
+      } catch (_) {}
+      return Math.max(KBD_OCCLUSION, local);
+    }
+    // The document must have somewhere to scroll TO: its scrollable range is exactly
+    // this overlay's overhang past the viewport. Sized from the live occlusion (plus
+    // slack for a partial last row) rather than the old fixed 64px.
+    function sizeOverlay() {
+      ov.style.height = 'calc(100% + ' + (occludedPx() + 40) + 'px)';
+    }
+    ov.style.cssText = 'position:absolute;left:0;right:0;top:0;height:calc(100% + 40px);box-sizing:border-box;' +
       'z-index:2147482000;background:transparent;color:transparent;caret-color:transparent;' +
       'border:0;outline:0;resize:none;margin:0;padding:0 6px;font-size:16px;overflow:hidden;' +
       '-webkit-user-select:none;user-select:none;-webkit-touch-callout:none';  // stop iOS's own long-press selection/loupe
@@ -295,8 +320,26 @@
     ov.addEventListener('focus', function () { try { window.__termArmed = true; } catch (_) {} });
     window.addEventListener('blur', function () { try { window.__termArmed = false; } catch (_) {} });
 
-    // Park the textarea caret KBD_BAR_RESERVE px below the xterm cursor row, so
-    // iOS reveals the prompt line that much above the keyboard — clear of the bar.
+    // Put the active line where it can be seen — by SCROLLING THIS DOCUMENT ourselves,
+    // to a figure we measure, every time. The previous design parked the caret 64px
+    // below the cursor row and left the actual scrolling to iOS's reveal-the-focused-
+    // caret behaviour. That was open-loop and it failed two ways at once:
+    //
+    //   * The reveal never survived. positionCaret's own "undo a stale scroll" branch
+    //     (cy <= 2) fired on every TUI repaint — Claude Code parks the cursor at the
+    //     top mid-render — and zeroed the scroll. iOS only reveals on USER caret
+    //     events, never when code moves the caret, so it was never re-established.
+    //     One repaint and the prompt sat under the bar for the rest of the session.
+    //   * 64 was the wrong number anyway. What must be cleared is (frame bottom -
+    //     bar top): measured 53px on an iPhone, and it moves with --app-h, the
+    //     taskbar, BAR_H and iOS's accessory row. A constant cannot track it.
+    //
+    // Now: scroll so the terminal's last row ends exactly at the top of whatever is
+    // covering us. Stable (it does not depend on where the cursor is, so a repaint
+    // cannot make it jitter), self-correcting on every cursor move and viewport
+    // change, and it needs nothing from iOS. Both old undo branches are subsumed —
+    // with nothing covering us the answer is 0, which is what they were forcing.
+    // Full write-up: docs/design-decisions.md.
     function positionCaret() {
       var t = window.term;
       try {
@@ -313,30 +356,29 @@
         var h = t.element ? t.element.getBoundingClientRect().height : window.innerHeight;
         var rh = h / rows;
         var cy = (t.buffer && t.buffer.active) ? t.buffer.active.cursorY : rows - 1;
-        var y = Math.max(0, Math.min(h - rh, cy * rh)) + KBD_BAR_RESERVE;
-        var p = Math.round(y) + 'px';
+        // Scroll target: lift the terminal until its bottom edge meets the top of the
+        // covering chrome. `h` is the rendered height of all rows, which can slightly
+        // exceed the frame when rows*rowHeight doesn't divide evenly — that overshoot
+        // (a clipped last row) gets corrected here too.
+        var occ = occludedPx();
+        var visibleH = Math.max(0, (window.innerHeight || h) - occ);
+        var se = document.scrollingElement || document.documentElement;
+        var want = Math.max(0, Math.ceil(h - visibleH));
+        want = Math.min(want, Math.max(0, se.scrollHeight - se.clientHeight));
+        // Keep the caret inside the visible band. It is transparent, so its position
+        // is invisible — but if it sat outside, iOS WOULD try to reveal it and fight
+        // the scroll we just set (which is how the old 64px park behaved).
+        var y = Math.max(want, Math.min(cy * rh, want + Math.max(rh, visibleH - rh)));
+        var p = Math.round(Math.max(0, y)) + 'px';
         // Only write when it actually changes. cursorY changes on a newline/wrap,
         // NOT on every character, so same-row typing no longer mutates paddingTop
         // — which stops iOS reveal-scrolling on every keystroke (the typing-lag
         // cause once the overlay became taller-than-viewport / scrollable).
         if (ov.style.paddingTop !== p) ov.style.paddingTop = p;
-        // Undo a STALE document scroll — but ONLY when it's safe, never when it's
-        // iOS's live keyboard reveal. iOS scrolls the document to keep the focused
-        // caret above the keyboard, but only on user caret events, never when WE move
-        // the caret. Two cases leave a wrong scroll that we must correct:
-        //   (1) the cursor jumps to the TOP (`clear`/Ctrl-L/TUI redraw) while the doc
-        //       is still scrolled down from a deep caret → the terminal is pushed off
-        //       the top of the screen (the blank-after-clear bug), and
-        //   (2) the keyboard is DOWN, so no reveal is wanted and the scroll belongs at 0.
-        // CRUCIAL REGRESSION FIX: when the keyboard is UP and the caret is mid/deep
-        // screen, do NOT touch the scroll — that IS iOS's live reveal. The earlier
-        // `y <= visH - rh` test fired for almost any caret (the nested iframe's
-        // visualViewport doesn't shrink, so visH is the full height), so it fought
-        // the reveal for a normal TUI input a few rows from the bottom — shoving the
-        // active line behind the keyboard and making it jump on every keystroke.
-        var se = document.scrollingElement || document.documentElement;
-        var kbDown = (document.activeElement !== ov);
-        if (se && se.scrollTop !== 0 && (cy <= 2 || kbDown)) se.scrollTop = 0;
+        // `want` is 0 whenever nothing covers us (keyboard down, bar hidden, or a
+        // standalone /tN/ with a full viewport), so this also lands the blank-after-
+        // `clear` case the old cy<=2 branch existed for.
+        if (se && Math.abs(se.scrollTop - want) > 1) se.scrollTop = want;
       } catch (_) {}
     }
     // Re-anchor the caret to the cursor row ONLY when the cursor actually moves

@@ -1562,6 +1562,32 @@
     // real signal is the ABSOLUTE visible height dropping below its no-keyboard
     // baseline. We then pin the bar at the visual viewport's bottom edge (= the
     // keyboard top). One top-level signal covers the Terminal AND the Browser.
+    // How much of an app's frame this bar is sitting on top of. Only the DESKTOP can
+    // work this out: the terminal is two frames down, and a nested iframe's own
+    // visualViewport does NOT shrink for the soft keyboard, so from in there the
+    // frame looks fully visible right down to its last row. We measure it here and
+    // post it; terminal-kbd.js scrolls the prompt clear of exactly this many px.
+    //
+    // This replaces a fixed 64px pre-compensation that assumed iOS would reveal-
+    // scroll the prompt for us. It did not, and the distance was never a constant:
+    // measured on an iPhone it was 53px, and it moves with --app-h, the taskbar,
+    // BAR_H and iOS's own accessory row. See docs/design-decisions.md.
+    function occlusionOver(appId, barTop) {
+      var f = frameOf(appId);
+      if (!f) return 0;
+      var r = f.getBoundingClientRect();
+      return Math.max(0, r.bottom - barTop);
+    }
+    var lastOcc = -1;
+    function postOcclusion(px) {
+      px = Math.round(px);
+      if (px === lastOcc) return;          // syncBar fires on every vv scroll/resize
+      lastOcc = px;
+      var f = frameOf('terminal');
+      if (f && f.contentWindow) {
+        try { f.contentWindow.postMessage({ type: 'kbd-occlusion', px: px }, '*'); } catch (e) {}
+      }
+    }
     function curH() { var vv = window.visualViewport; return vv ? vv.height : window.innerHeight; }
     function vvBottom() { var vv = window.visualViewport; return vv ? (vv.offsetTop + vv.height) : window.innerHeight; }
     var baseH = curH();
@@ -1587,11 +1613,14 @@
       // own real <input> whose iOS AutoFill/^v/Done accessory would collide here.
       var suppress = (active !== 'terminal');
       if (kbUp && !suppress) {
-        bar.style.top = Math.round(vvBottom() - BAR_H) + 'px'; bar.style.display = 'flex';
+        var barTop = Math.round(vvBottom() - BAR_H);
+        bar.style.top = barTop + 'px'; bar.style.display = 'flex';
         if (!wasUp) maybeShowHint();                                   // keyboard just opened → nudge
         else if (hint.style.display !== 'none') positionHint();        // keep it pinned during URL-bar scroll
+        postOcclusion(occlusionOver('terminal', barTop));
       } else {
         bar.style.display = 'none'; dismissHint(false);                // keyboard closed / suppressed → hide
+        postOcclusion(0);
       }
       wasUp = kbUp && !suppress;
     }

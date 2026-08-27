@@ -765,18 +765,33 @@
     });
   });
 
+  var lastOcclusion = null;
+  function relayOcclusion() {
+    if (!lastOcclusion || !active) return;
+    var f = document.getElementById('frame-' + active);
+    if (f && f.contentWindow) { try { f.contentWindow.postMessage(lastOcclusion, '*'); } catch (_) {} }
+  }
   window.addEventListener('message', function(e) {
     if (e.origin !== location.origin) return;
     if (!e.data) return;
     if (e.data.type === 'focus-terminal') {
       syncStatus();                 // app just activated → reconcile the set now
       if (active) focusTerminal(active);
+      relayOcclusion();             // the newly-focused terminal needs the figure too
     }
     // Relay the desktop's system key bar (arrows/Esc/Tab/^C) DOWN to the active
     // terminal's /tN/ iframe, where terminal-kbd.js turns it into PTY bytes.
     if (e.data.type === 'kbd-key' && active) {
       var kf = document.getElementById('frame-' + active);
       if (kf && kf.contentWindow) { try { kf.contentWindow.postMessage(e.data, '*'); } catch (_) {} }
+    }
+    // Relay the desktop's measured key-bar occlusion DOWN to the active terminal,
+    // and remember it: switching tabs must hand the same figure to the terminal that
+    // just became active, or that one's prompt sits under the bar until the next
+    // viewport event happens to re-post it.
+    if (e.data.type === 'kbd-occlusion') {
+      lastOcclusion = e.data;
+      relayOcclusion();
     }
     // Relay a /tN/ keyboard show/hide request UP to the desktop (it shows the bar).
     if (e.data.type === 'kbd-bar') {

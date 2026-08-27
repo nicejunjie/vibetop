@@ -173,3 +173,20 @@ git config core.hooksPath .githooks      # then commits run ./run-tests.sh
 Bypass a single commit with `git commit --no-verify` or `SKIP_TESTS=1 git commit`;
 each runner self-skips if its tool isn't installed.
 
+## Mobile key-bar / prompt-occlusion repro (`tests/kbd/keybar-occlusion.mjs`)
+
+Not part of `./run-tests.sh` — it needs a **live host** and a session cookie. It
+rebuilds the geometry measured off a real iPhone (terminal frame `0..574`,
+`#sys-keybar` `521..571`, keyboard from `638`), drives a **throwaway** terminal
+(t41, never one of the user's) through it in Playwright WebKit, and asserts the
+active line clears the bar *and stays clear through TUI repaints* — the exact
+thing that regressed repeatedly.
+
+```bash
+VT_COOKIE=$(sudo tools/mint-session-cookie.py junjie) node tests/kbd/keybar-occlusion.mjs
+curl -X POST -H "Cookie: vt_session=$VT_COOKIE" http://127.0.0.1/api/terminals/41/stop
+```
+
+It injects `terminal/terminal-kbd.js` from the **working tree** via `page.route`,
+so you can iterate without deploying. Drop that route to watch it fail the way the
+bug did.

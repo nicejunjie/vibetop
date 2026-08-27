@@ -3205,3 +3205,101 @@ on mouse AND touch lanes, with the ×/▢/– re-checked in the same run.
 - *Make all 8 corners/edges visible like the SE hatch.* Rejected as noise — on a
   desktop the cursor IS the affordance, and the taskbar/window chrome is
   deliberately quiet.
+
+---
+
+## The mobile key bar covered the line you type on (and every fix "worked" once)
+
+**Symptom:** with the keyboard up on an iPhone, the desktop's `#sys-keybar`
+(esc/tab/^C/arrows) sat on top of Claude Code's input box. Reported repeatedly
+over months; each fix appeared to work when tested and was back within a session.
+
+**Measured** off the reported screenshot (440×956 CSS, @3x), rather than guessed:
+
+| band | CSS y |
+|---|---|
+| `#sys-keybar` | **521 → 571** (exactly `BAR_H` 50) |
+| terminal iframe bottom | **574** |
+| taskbar | 574 → 626 (under iOS's accessory bar) |
+| iOS accessory bar | ~575 → 638 |
+| iOS keyboard | 638 → 956 |
+
+Terminal row pitch 17px, so Claude Code's input box occupied **521–572** — the
+bar's span, to the pixel. The bar was NOT mispositioned: it sits exactly at
+`vvBottom − BAR_H`, flush above iOS's accessory row. The terminal's last rows
+simply ran underneath it. And the last row was flush at the frame bottom with
+real text visible in the 571–574 sliver, which means **the document was not
+scrolled at all** — `scrollTop = 0`.
+
+**Cause — the design was open-loop, and one line cancelled it.** `positionCaret()`
+parked the transparent caret `KBD_BAR_RESERVE = 64px` BELOW the cursor row and
+left the actual scrolling to iOS's reveal-the-focused-caret behaviour. Two
+independent failures, both reproduced in Playwright WebKit against a real
+terminal:
+
+1. **The reveal never survived.** The same function's "undo a stale scroll" branch
+   — `if (scrollTop !== 0 && (cy <= 2 || kbDown)) scrollTop = 0` — fires on any
+   cursor move near the top. **Claude Code is a TUI: every repaint parks the
+   cursor at the top mid-render.** Reproduced exactly:
+
+   ```
+   reveal in place                 {"scrollTop":48,"cursorY":36}
+   after TUI repaint (cursor home) {"scrollTop":0, "cursorY":0}   ← killed
+   cursor back at the prompt       {"scrollTop":0, "cursorY":29}  ← never restored
+   ```
+
+   It is never re-established, because iOS only reveals on **user** caret events,
+   never when code moves the caret. One repaint and the prompt is under the bar
+   for the rest of the session. This is why every fix "worked": at a bash prompt
+   nothing parks the cursor at the top, so the reveal survives — it only dies once
+   you run a TUI, which is minutes later.
+2. **64 was the wrong number regardless.** What must be cleared is
+   `frameBottom − barTop` = 574 − 521 = **53**, plus a row to clear it fully = 70.
+   And it is not a constant: it moves with `--app-h`, the taskbar height, `BAR_H`
+   and iOS's accessory row.
+
+**Fix — close the loop.** Nothing ever measured where the prompt actually landed;
+now something does, every time. The desktop measures the real overlap
+(`occlusionOver()` = terminal frame's `getBoundingClientRect().bottom` − the bar's
+`top`) and posts `{type:'kbd-occlusion', px}`; `terminals.html` relays it to the
+active `/tN/` (and re-sends on tab switch); `terminal-kbd.js` scrolls this
+document so the terminal's **last row ends exactly at the top of whatever is
+covering it**. Only the desktop *can* measure this — a nested iframe's
+`visualViewport` does not shrink for the keyboard, so from inside `/tN/` the frame
+looks fully visible to its last row.
+
+Why the target is the frame bottom and not the cursor row: **stability**. Deriving
+from `cursorY` would move on every repaint and visibly jitter. Deriving from the
+frame bottom is constant while the bar is up. Both old undo branches are subsumed
+— with nothing covering us the answer is 0, which is what they were forcing — and
+the rendered-rows overshoot (rows × rowHeight slightly exceeding the frame, which
+clipped the last row) is corrected by the same subtraction. The caret is parked on
+the cursor row but **clamped into the visible band**, so iOS never wants to reveal
+it and never fights the scroll.
+
+**Verified** with `tests/kbd/keybar-occlusion.mjs`, which rebuilds the measured
+geometry and drives a real terminal through it. Run against the DEPLOYED script it
+fails every assertion; against the fix:
+
+```
+2. bar shown -> prompt lifted       lastRowBottom=521  scrollTop=53  CLEAR
+3. after TUI repaint (cursor home)  lastRowBottom=521  scrollTop=53  CLEAR
+5. after 12 repaints (jitter check) lastRowBottom=521  scrollTop=53  CLEAR
+6. bar hidden -> back to normal     lastRowBottom=574  scrollTop= 0
+```
+
+**Rejected:**
+
+- *Tune `KBD_BAR_RESERVE` to 70.* The obvious next move, and it is what the last
+  several rounds amounted to. It fixes nothing: the undo branch still zeroes the
+  scroll on the first repaint, and the distance still is not a constant.
+- *Reserve the bar's height out of the shell / shrink the terminal.* Explicitly
+  reverted before (v1.19.15) — it cost an iPad in landscape almost all its rows.
+  Content behind the bar should be **scrolled, not lost**, which is what this does.
+- *Make the desktop poll auth… er, poll the geometry from inside `/tN/`.* It
+  cannot: the nested `visualViewport` does not shrink. This is precisely why the
+  measurement has to come from the top frame.
+- *Ruled out along the way, with evidence:* the `/tN/` document being unscrollable
+  (it has 62–64px of range), and xterm's focus-steal + `focus({preventScroll:true})`
+  suppressing the reveal (the bounce is synchronous — `activeElement` never leaves
+  the overlay, and a simulated reveal survived it).
