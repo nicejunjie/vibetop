@@ -343,6 +343,51 @@ test.describe('window mode', () => {
       });
     }
 
+    // THE report: "still cannot resize from left or right". All four edges worked
+    // when aimed INSIDE the border — but Tidy insets each tile by GAP=8, so two
+    // side-by-side tiles have a 16px gutter, and the obvious place to grab (the
+    // divider between them) was bare #frames: elementFromPoint returned the desktop
+    // with cursor `auto`. Left/right felt broken and top/bottom didn't, because a
+    // side-by-side split only ever puts a gutter on the VERTICAL edges. The grab
+    // ring now reaches outside the window so the two rings meet inside the gutter.
+    test('the gutter between two tiled windows is grabbable end to end', async ({ page }) => {
+      await page.locator('#tidy-btn').click();
+      await page.waitForTimeout(400);
+      const layout = await page.evaluate(() => {
+        const r = (id) => document.querySelector('#win-' + id).getBoundingClientRect();
+        const a = r('notes'), b = r('upload');
+        // Only meaningful for a side-by-side split; portrait tablets stack instead.
+        const sideBySide = Math.abs(a.top - b.top) < 4 && a.right < b.left;
+        return { sideBySide, gapL: Math.round(a.right), gapR: Math.round(b.left),
+                 y: Math.round(a.top + a.height / 2) };
+      });
+      test.skip(!layout.sideBySide, 'this lane tiles vertically — no vertical gutter');
+
+      // Every pixel across the gutter must offer a resize, with no dead seam in the
+      // middle (an 8px reach left exactly one dead pixel there — the border eats one).
+      const dead = await page.evaluate(({ gapL, gapR, y }) => {
+        const bad = [];
+        for (let x = gapL; x <= gapR; x++) {
+          const el = document.elementFromPoint(x, y);
+          const cur = el ? getComputedStyle(el).cursor : 'none';
+          if (cur !== 'ew-resize') bad.push(x + ':' + cur);
+        }
+        return bad;
+      }, layout);
+      expect(dead, `dead pixels in the gutter: ${dead.join(', ')}`).toEqual([]);
+
+      // And grabbing it actually resizes the window on that side.
+      const before = await geom(page, 'notes');
+      const x = layout.gapL + 2;                       // the left window's half of the gutter
+      await page.mouse.move(x, layout.y);
+      await page.mouse.down();
+      await page.mouse.move(x + 50, layout.y, { steps: 10 });
+      await page.mouse.up();
+      await page.waitForTimeout(250);
+      const after = await geom(page, 'notes');
+      expect(after.width).toBeGreaterThan(before.width + 40);
+    });
+
     test('every edge and corner shows its resize cursor, and the controls keep theirs', async ({ page }) => {
       const seen = await page.locator('#win-notes').evaluate((w) => {
         const r = w.getBoundingClientRect();

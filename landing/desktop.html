@@ -539,12 +539,20 @@
      accented. In default/mobile mode none of this applies (.win stays full-bleed
      chromeless above). --- */
   body.wm .win.floating {
-    border: 1px solid #2a3342; border-radius: 8px; overflow: hidden;
+    border: 1px solid #2a3342; border-radius: 8px;
     box-shadow: 0 10px 44px rgba(0,0,0,0.55);
+    /* NO overflow:hidden here. It used to clip the window's own children, which
+       silently killed any grab zone reaching outside the frame — and the gutter
+       between two tiled windows is exactly where you reach for a divider. The
+       rounded-corner clip it provided now lives on the two children that need it. */
   }
+  body.wm .win.floating > .win-body { overflow: hidden; border-radius: 0 0 7px 7px; }
+  body.wm .win.floating.maximized > .win-titlebar,
+  body.wm .win.floating.maximized > .win-body { border-radius: 0; }
   body.wm .win.floating.maximized { border: 0; border-radius: 0; box-shadow: none; }
   body.wm .win.floating > .win-titlebar {
     display: flex; align-items: center; gap: 8px; flex: 0 0 32px; height: 32px;
+    border-radius: 7px 7px 0 0;   /* was inherited from the window's overflow clip */
     /* padding-right (18) > the corner grab zone (16) so the × can never sit in the
        resize ring: that overlap is why the NE corner was the one dead corner —
        the × is z-index 5, the handles 3-4, so it won the 9x9 they shared. Every
@@ -585,22 +593,42 @@
      pixel-hunt with a mouse — you feel it as "this window only resizes from the
      corner". Desktop OSes give you ~8px of edge and a forgiving corner square,
      and the cursor change on approach is the affordance (the visible SE grip
-     below is for touch, which has no hover). All eight directions work. */
-  .win-rz-n { top: 0; left: 0; right: 0; height: 8px; cursor: ns-resize; }
-  .win-rz-s { bottom: 0; left: 0; right: 0; height: 8px; cursor: ns-resize; }
-  .win-rz-e { right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
-  .win-rz-w { left: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; }
-  .win-rz-ne { top: 0; right: 0; width: 16px; height: 16px; cursor: nesw-resize; z-index: 4; }
-  .win-rz-nw { top: 0; left: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 4; }
-  .win-rz-se { bottom: 0; right: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 4; }
-  .win-rz-sw { bottom: 0; left: 0; width: 16px; height: 16px; cursor: nesw-resize; z-index: 4; }
+     below is for touch, which has no hover). All eight directions work.
+
+     The ring reaches 10px OUTSIDE the window (12px on touch) as well as in. That
+     is what makes the DIVIDER between two tiled windows grabbable: Tidy insets
+     each tile by GAP=8, so adjacent tiles have a 16px gutter that belonged to
+     neither window — `elementFromPoint` there returned bare #frames, which is
+     why "I can't resize from the left or right" while the top/bottom edges (at
+     the frame boundary, with no neighbour) felt fine. Two 8px outside rings meet
+     in the middle of that gutter — 10 and not 8 because the window's 1px border
+     eats one on each side, and 8 left a literal ONE-PIXEL dead seam down the
+     middle of the gutter (measured; the first attempt landed a test drag exactly
+     on it). At 10 the two rings overlap and the whole gutter is live. Requires
+     .win.floating NOT to clip its children — see the overflow note above.
+
+     INVARIANT: the corner's INSIDE reach (size - outside) must stay below the
+     title bar's padding-right, or the × falls inside the corner grab zone again:
+     desktop 26-10=16 < 18, touch 38-12=26 < 28. */
+  .win-rz-n { top: -10px; left: -10px; right: -10px; height: 18px; cursor: ns-resize; }
+  .win-rz-s { bottom: -10px; left: -10px; right: -10px; height: 18px; cursor: ns-resize; }
+  .win-rz-e { right: -10px; top: -10px; bottom: -10px; width: 18px; cursor: ew-resize; }
+  .win-rz-w { left: -10px; top: -10px; bottom: -10px; width: 18px; cursor: ew-resize; }
+  .win-rz-ne { top: -10px; right: -10px; width: 26px; height: 26px; cursor: nesw-resize; z-index: 4; }
+  .win-rz-nw { top: -10px; left: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
+  .win-rz-se { bottom: -10px; right: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
+  .win-rz-sw { bottom: -10px; left: -10px; width: 26px; height: 26px; cursor: nesw-resize; z-index: 4; }
   /* Touch (iPad): fingers need bigger targets than a 5px edge — enlarge the
      grab zones and the title-bar buttons, and give the bar a taller drag area. */
   body.is-touch.wm .win.floating > .win-titlebar { flex-basis: 40px; height: 40px; padding-right: 28px; }
-  body.is-touch .win-rz-n, body.is-touch .win-rz-s { height: 16px; }
-  body.is-touch .win-rz-e, body.is-touch .win-rz-w { width: 16px; }
-  body.is-touch .win-rz-ne, body.is-touch .win-rz-nw,
-  body.is-touch .win-rz-se, body.is-touch .win-rz-sw { width: 26px; height: 26px; }
+  body.is-touch .win-rz-n { top: -12px; height: 36px; }
+  body.is-touch .win-rz-s { bottom: -12px; height: 36px; }
+  body.is-touch .win-rz-e { right: -12px; width: 36px; }
+  body.is-touch .win-rz-w { left: -12px; width: 36px; }
+  body.is-touch .win-rz-ne { top: -12px; right: -12px; width: 38px; height: 38px; }
+  body.is-touch .win-rz-nw { top: -12px; left: -12px; width: 38px; height: 38px; }
+  body.is-touch .win-rz-se { bottom: -12px; right: -12px; width: 38px; height: 38px; }
+  body.is-touch .win-rz-sw { bottom: -12px; left: -12px; width: 38px; height: 38px; }
   body.is-touch .win-titlebar .wt-min, body.is-touch .win-titlebar .wt-max,
   body.is-touch .win-titlebar .wt-close { width: 34px; height: 32px; font-size: 17px; }
   /* Visible grip in the SE corner so resizing is discoverable — touch has no

@@ -3303,3 +3303,49 @@ fails every assertion; against the fix:
   (it has 62–64px of range), and xterm's focus-steal + `focus({preventScroll:true})`
   suppressing the reveal (the bounce is synchronous — `activeElement` never leaves
   the overlay, and a simulated reveal survived it).
+
+---
+
+## "Still cannot resize from left or right" — the tile gutter belonged to nobody
+
+**Symptom:** after the 8-direction resize fix above, left/right resizing still felt
+broken while top/bottom felt fine.
+
+**Cause:** all four edges *did* work when aimed inside the border — measured, all
+four returned their handle with `ew-resize`. But `tidyWindows()` insets each tile
+by `GAP = 8`, so two side-by-side tiles sit with a **16px gutter** between them,
+and the gesture a person actually makes is *grab the divider*. Measured across
+that gutter, every pixel returned bare `#frames` with `cursor: auto` — it belonged
+to neither window. The asymmetry follows directly: a side-by-side split only ever
+puts a gutter on the **vertical** edges, so top/bottom (at the frame boundary,
+with no neighbour) felt fine.
+
+**Fix:** let the grab ring reach **outside** the window — 10px out / 8px in on
+desktop, 12/24 on touch — so the two neighbours' rings meet inside the gutter.
+Two things this needed:
+
+- `.win.floating` had `overflow: hidden`, which **clipped its own resize handles**,
+  so negative offsets were both invisible and unhittable. The rounded-corner clip
+  it provided moved to `.win-titlebar` (`7px 7px 0 0`) and `.win-body`
+  (`0 0 7px 7px`), which is where it actually belongs.
+- 8px of reach was not enough: the window's 1px border eats one on each side, so
+  the two rings left a **one-pixel dead seam** exactly mid-gutter — and the first
+  verification drag landed precisely on it and reported DEAD. 10px overlaps.
+
+Grabbing the left half of the gutter resizes the left window, the right half the
+right one — which is what a divider should do, without a real splitter widget.
+
+**Two invariants now:** `title-bar padding-right > corner inside-reach (size −
+outside)`, and `outside reach > half the tile gutter`.
+
+**Measurement note, for next time:** two runs of this investigation produced
+garbage before the real cause showed up — one because the test's own earlier
+drags had left the windows overlapping, and one because the **service worker
+served the cached deployed shell on reload**, so the edit under test was never
+loaded. Pin geometry explicitly via `localStorage['vibetop:wins']` and pass
+`serviceWorkers: 'block'` when driving the shell from a harness.
+
+**Rejected:** *dropping `GAP` to 0 so tiles touch* — one line, and the boundary
+would be grabbable, but it removes the visual separation between tiles and still
+leaves a lone window's edges unreachable from outside. The outside ring fixes both
+and is what desktop OSes actually do.
