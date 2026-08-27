@@ -53,6 +53,12 @@
   .rz-nw { top: -10px; left: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
   .rz-se { bottom: -10px; right: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
   .rz-sw { bottom: -10px; left: -10px; width: 26px; height: 26px; cursor: nesw-resize; z-index: 4; }
+  /* mirror of the shipped Safari-only fix in desktop.html: straight edges get
+     the PUBLIC-NSCursor keywords in WebKit-family browsers */
+  @supports (background: -webkit-named-image(i)) {
+    .rz-e, .rz-w { cursor: col-resize; }
+    .rz-n, .rz-s { cursor: row-resize; }
+  }
   #ro { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 9;
     background: rgba(0,0,0,.92); color: #7f7; border: 1px solid #2a3342; }
 </style>
@@ -96,7 +102,9 @@
     'maxTouchPoints  ' + mtp + '   (a real Mac reports 0; an iPad reports 5 even in desktop mode)',
     'pointer:fine    ' + mm('(pointer: fine)') + '    pointer:coarse ' + mm('(pointer: coarse)') + '    hover:hover ' + mm('(hover: hover)'),
     'standalone/PWA  ' + (navigator.standalone === true || mm('(display-mode: standalone)')),
-    'viewport        ' + window.innerWidth + 'x' + window.innerHeight + ' @' + (window.devicePixelRatio || 1) + 'x'
+    'viewport        ' + window.innerWidth + 'x' + window.innerHeight + ' @' + (window.devicePixelRatio || 1) + 'x',
+    'safari-edge-fix ' + (window.CSS && CSS.supports && CSS.supports('background', '-webkit-named-image(i)')) +
+      '   (true = this browser applies the col/row-resize override on the straight edges)'
   ];
   document.getElementById('env').textContent = env.join('\n');
   if (/Mac/.test(navigator.platform || '') && mtp > 1) {
@@ -111,13 +119,31 @@
 
   // --- cursor tiles ---
   var KINDS = ['default', 'pointer', 'text', 'move', 'grab',
-    'col-resize', 'row-resize', 'ew-resize', 'ns-resize', 'nesw-resize', 'nwse-resize'];
+    'col-resize', 'row-resize', 'ew-resize', 'ns-resize', 'nesw-resize', 'nwse-resize',
+    // legacy CSS2.1 directional family — in WebKit these route through the SAME
+    // private core-cursor path as the axis keywords, so they should fail together
+    'e-resize', 'w-resize', 'n-resize', 's-resize',
+    'ne-resize', 'nw-resize', 'se-resize', 'sw-resize'];
   var tiles = document.getElementById('tiles');
   KINDS.forEach(function (k) {
     var d = document.createElement('div');
     d.className = 'tile';
     d.style.cursor = k;
     d.textContent = k;
+    tiles.appendChild(d);
+  });
+  // image cursors (data-URI PNG, hotspot 12,12) — the only possible fix for the
+  // diagonal corners if the native keyword path is broken (no public diagonal
+  // NSCursor exists). Fallback keyword keeps them harmless where unsupported.
+  var IMG = {
+    'url(png) nwse': 'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAAmklEQVR42t1VQQ7AIAwS/v9ndtmMcdU1rW7JTHrwAi0WLOU3R5J24GJGAADLCQCU2TAp0pPErKiEdBKHO6cFZoCHVaGj83pNE7QyDDrXkgkazS1tlCboHjRN4t5iox7TgBFTWpOMfMKo87vGNVplZuLF2rZ+EmYyzGNCJnLrBm6RMQgub3wgAj6J8ppll5ewxCCbPqvXv99vzgErW2X+I2OMYwAAAABJRU5ErkJggg==") 12 12, nwse-resize',
+    'url(png) nesw': 'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAAk0lEQVR42u1VQQrAMAhrwv7/ZXfZYDjtatqdNqFQKCRRo23tjyDMzM77thrQx7YSDEDrPJdJwuMFUCEAgFGlVLOIyhGRqgQ2WnOq4FkmADBDYElL0p5wFjxTXvV5ZEndRY6kq1wiOBpns+A3gqvyxIKoWo6FYYIyMIxAVy4wFtaCxAJf/yfFw37P/oPe2L/2K307dpN4ZQBFkZiBAAAAAElFTkSuQmCC") 12 12, nesw-resize'
+  };
+  Object.keys(IMG).forEach(function (label) {
+    var d = document.createElement('div');
+    d.className = 'tile';
+    d.style.cursor = IMG[label];
+    d.textContent = label;
     tiles.appendChild(d);
   });
 

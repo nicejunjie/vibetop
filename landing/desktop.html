@@ -618,6 +618,27 @@
   .win-rz-nw { top: -10px; left: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
   .win-rz-se { bottom: -10px; right: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
   .win-rz-sw { bottom: -10px; left: -10px; width: 26px; height: 26px; cursor: nesw-resize; z-index: 4; }
+  /* macOS Safari: the straight edges get col-/row-resize instead. "Works in
+     Chrome, not in Safari" (same Mac) is a cursor-MAPPING failure, not a support
+     one: WebKit's CursorMac.mm routes every directional resize keyword — the
+     axis ones above AND the legacy e-/w-/n-/s-resize family — through a PRIVATE
+     core-cursor lookup (WebCustomCursor/_coreCursorType), which degrades to the
+     plain ARROW when that lookup fails; Chrome is immune because it ships its
+     own cursor bitmaps. Only col-resize and row-resize map to PUBLIC AppKit
+     cursors ([NSCursor resizeLeftRightCursor/resizeUpDownCursor]), so they are
+     the ONLY keywords that can still render — and they draw the same ↔ / ↕
+     double arrow, so on an unaffected Safari this is visually a no-op. No
+     public diagonal NSCursor exists, so the corners keep the axis keywords
+     (still an arrow on an affected Safari; resizing works, and the SE grip
+     stays the visible affordance — /rzdbg.html tells whether image cursors
+     could cover them). The @supports test matches only WebKit-family browsers
+     (verified: Chromium false, WebKit true), so Chrome/Firefox keep the
+     canonical keywords and the drag mask, which copies the handle's COMPUTED
+     cursor per gesture, stays consistent per engine. */
+  @supports (background: -webkit-named-image(i)) {
+    .win-rz-e, .win-rz-w { cursor: col-resize; }
+    .win-rz-n, .win-rz-s { cursor: row-resize; }
+  }
   /* Touch (iPad): fingers need bigger targets than a 5px edge — enlarge the
      grab zones and the title-bar buttons, and give the bar a taller drag area. */
   body.is-touch.wm .win.floating > .win-titlebar { flex-basis: 40px; height: 40px; padding-right: 28px; }

@@ -370,7 +370,9 @@ test.describe('window mode', () => {
         for (let x = gapL; x <= gapR; x++) {
           const el = document.elementFromPoint(x, y);
           const cur = el ? getComputedStyle(el).cursor : 'none';
-          if (cur !== 'ew-resize') bad.push(x + ':' + cur);
+          // WebKit-family engines apply the Safari-only col-resize override
+          // (desktop.html @supports -webkit-named-image) on the e/w handles.
+          if (cur !== 'ew-resize' && cur !== 'col-resize') bad.push(x + ':' + cur);
         }
         return bad;
       }, layout);
@@ -394,7 +396,9 @@ test.describe('window mode', () => {
     // pressed: the resize cursor appeared on hover and vanished the moment it
     // mattered ("works, but the cursor shape doesn't change").
     test('the resize cursor holds for the whole drag, not just on hover', async ({ page }) => {
-      for (const [dir, want] of [['e', 'ew-resize'], ['n', 'ns-resize'], ['se', 'nwse-resize']]) {
+      // e/n have two valid values: the canonical keyword (Chromium/Firefox) or the
+      // Safari-only public-NSCursor mapping (WebKit applies the @supports block).
+      for (const [dir, want] of [['e', ['ew-resize', 'col-resize']], ['n', ['ns-resize', 'row-resize']], ['se', ['nwse-resize']]]) {
         const box = await page.locator(`#win-notes .win-rz-${dir}`).boundingBox();
         const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
         await page.mouse.move(cx, cy);
@@ -407,7 +411,7 @@ test.describe('window mode', () => {
         await page.mouse.up();
         await page.waitForTimeout(150);
         expect(mask.display).toBe('block');       // it really is covering the iframes
-        expect(mask.cursor).toBe(want);
+        expect(want).toContain(mask.cursor);
       }
       // Moving by the title bar carries the move cursor the same way.
       const tb = await page.locator('#win-notes .win-titlebar').boundingBox();
@@ -440,10 +444,12 @@ test.describe('window mode', () => {
           close: cur(r.right - 24, r.top + 16),
         };
       });
-      expect(seen.n).toBe('ns-resize');
-      expect(seen.s).toBe('ns-resize');
-      expect(seen.e).toBe('ew-resize');
-      expect(seen.w).toBe('ew-resize');
+      // straight edges: canonical keyword, or the Safari-only public-NSCursor
+      // mapping in WebKit-family engines (see the @supports block in desktop.html)
+      expect(['ns-resize', 'row-resize']).toContain(seen.n);
+      expect(['ns-resize', 'row-resize']).toContain(seen.s);
+      expect(['ew-resize', 'col-resize']).toContain(seen.e);
+      expect(['ew-resize', 'col-resize']).toContain(seen.w);
       expect(seen.ne).toBe('nesw-resize');
       expect(seen.sw).toBe('nesw-resize');
       expect(seen.nw).toBe('nwse-resize');

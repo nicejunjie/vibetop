@@ -3392,3 +3392,54 @@ web-side fix — the pointer is owned by iPadOS.
 **Rule reaffirmed:** don't ship blind fixes for device-specific rendering;
 instrument first, and make the instrument's delivery path independent of the
 system under test.
+
+---
+
+## "Works in Chrome, not in Safari" — a cursor-MAPPING failure, and the two keywords that survive it
+
+**Symptom (new data point, same Mac):** the resize cursors render fine in Chrome
+and never in Safari. This killed the iPad-in-desktop-mode hypothesis (every iPadOS
+browser is WebKit; Chrome would fail identically there) and reframed the bug: not
+keyword *support*, but Safari's keyword→native-cursor *mapping*.
+
+**Cause (read from WebKit's `Source/WebCore/platform/mac/CursorMac.mm`):** every
+directional resize keyword — the modern axis four (`ew/ns/nesw/nwse-resize`) AND
+the legacy CSS2.1 family (`e-resize` … `sw-resize`), plus `move` — is built as a
+`WebCustomCursor` that resolves a PRIVATE core-cursor type
+(`kCoreCursorWindowResizeEastWest` …) via `_coreCursorType` SPI, and that path
+degrades to the plain **arrow** when the lookup fails. Chrome is immune because it
+ships its own cursor bitmaps and never asks AppKit. So a "legacy keyword
+fallback" fixes nothing — legacy and modern fail *together*. Exactly three
+relevant cursors use PUBLIC AppKit API and keep working: `col-resize`
+(`resizeLeftRightCursor`), `row-resize` (`resizeUpDownCursor`), and `pointer`
+(`pointingHandCursor`). This matches the independent report in
+react-resizable-panels#621 ("swap ew→col, ns→row for Safari").
+
+**Fix (v1.19.39):** a Safari-scoped block in `desktop.html` —
+`@supports (background: -webkit-named-image(i))` matches WebKit-family browsers
+only (measured: Chromium false, WebKit true) — maps the straight-edge handles to
+`col-resize`/`row-resize`. Visually the same ↔/↕ double arrows, so it is a no-op
+on an unaffected Safari; Chrome/Firefox keep the canonical keywords. The drag
+mask copies the handle's *computed* cursor per gesture, so it stays consistent
+per engine automatically. The e2e cursor assertions accept either mapping per
+edge (the iPad WebKit lanes run them).
+
+**Known limit:** macOS has NO public diagonal resize NSCursor, so no keyword can
+give Safari corner cursors if the private path is broken — the corners keep the
+axis keywords (arrow on an affected Safari; resizing works; the SE grip stays
+the visible affordance). `/rzdbg.html` now also renders the legacy family and
+two data-URI PNG image cursors, so one screenshot says whether image cursors
+could cover the corners (and whether the edge fix landed).
+
+**Not verified from Linux:** whether the user's actual Safari renders
+`col-resize`/`row-resize` — public-API mapping says it should, but headless
+WebKit cannot draw a cursor, so the probe screenshot remains the confirmation.
+
+**Rejected:**
+- *Legacy directional keywords (`e-resize` …) as the Safari fix* — plausible
+  from folklore, disproved by the WebKit source: same private path, same arrow.
+- *`cursor: e-resize; cursor: ew-resize;` fallback pairs* — both parse, so the
+  later declaration always wins; a no-op by construction.
+- *Data-URI image cursors on the shipped corners now* — would override the
+  native cursor in every WebKit browser including healthy ones, for a gain that
+  is still unmeasured on the affected machine. The probe measures it first.
