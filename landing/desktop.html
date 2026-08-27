@@ -631,14 +631,25 @@
      public diagonal NSCursor exists, so the corners keep the axis keywords
      (still an arrow on an affected Safari; resizing works, and the SE grip
      stays the visible affordance — /rzdbg.html tells whether image cursors
-     could cover them). The @supports test matches only WebKit-family browsers
-     (verified: Chromium false, WebKit true), so Chrome/Firefox keep the
-     canonical keywords and the drag mask, which copies the handle's COMPUTED
-     cursor per gesture, stays consistent per engine. */
-  @supports (background: -webkit-named-image(i)) {
-    .win-rz-e, .win-rz-w { cursor: col-resize; }
-    .win-rz-n, .win-rz-s { cursor: row-resize; }
-  }
+     could cover them).
+
+     It started as a Safari-only workaround (an @supports WebKit test); it is now
+     UNIVERSAL, on purpose. On the affected Safari the side effect was that
+     vibetop's edges no longer looked like the host browser window's own resize
+     cursor — so you can see at a glance WHICH window you are about to resize,
+     the vibetop one or the real one behind it. That is worth having everywhere:
+     `ew-/ns-resize` render as the same bare ↔ / ↕ the OS uses on its own window
+     edges (indistinguishable — the report was "on Windows Chrome the two are the
+     same, hard to tell"), while col-/row-resize add the bar through the arrows.
+     Same gesture, same meaning, visibly ours.
+
+     Corners still use the axis keywords: `nesw-/nwse-resize` collide with the
+     host window's diagonal cursor the same way, and no standard keyword is
+     distinct there — only an image cursor could be, which is also the only thing
+     that could give Safari a diagonal at all. The drag mask copies the handle's
+     COMPUTED cursor per gesture, so it follows whatever resolves here. */
+  .win-rz-e, .win-rz-w { cursor: col-resize; }
+  .win-rz-n, .win-rz-s { cursor: row-resize; }
   /* Touch (iPad): fingers need bigger targets than a 5px edge — enlarge the
      grab zones and the title-bar buttons, and give the bar a taller drag area. */
   body.is-touch.wm .win.floating > .win-titlebar { flex-basis: 40px; height: 40px; padding-right: 28px; }

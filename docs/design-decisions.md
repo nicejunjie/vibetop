@@ -3443,3 +3443,41 @@ WebKit cannot draw a cursor, so the probe screenshot remains the confirmation.
 - *Data-URI image cursors on the shipped corners now* — would override the
   native cursor in every WebKit browser including healthy ones, for a gain that
   is still unmeasured on the affected machine. The probe measures it first.
+
+---
+
+## Making vibetop's resize cursor deliberately UNLIKE the host window's
+
+**Symptom (a feature request born from a bug):** after the macOS-Safari cursor
+mapping fix, the user noticed something better than the fix — *"on mac safari,
+the resizing cursor is different for the vibetop window and actual browser window
+which is super great as I can distinguish what I'm resizing. But on windows chrome
+the two are the same, hard to tell."*
+
+**Cause:** `ew-resize` / `ns-resize` render as a bare ↔ / ↕ — pixel-identical to
+what the OS draws on the *host browser window's* own resize edges. A vibetop
+window sitting near the edge of the browser window gives you two resize targets a
+few px apart with the same cursor. The Safari workaround had accidentally solved
+this: `col-resize`/`row-resize` (the only keywords WebKit maps through a public
+NSCursor) draw the same arrows **with a bar through them**, so vibetop's edges
+stopped looking like the host's.
+
+**Fix:** drop the `@supports` scoping — `col-resize`/`row-resize` on the straight
+edges in **every** browser. Same gesture, same meaning, visibly ours. Verified
+computed in Chromium, WebKit and Firefox, and the `#win-dragmask` follows (it
+copies the handle's computed cursor, so the distinction holds for the whole drag,
+not just the hover).
+
+**Still open — the corners.** `nesw-/nwse-resize` collide with the host window's
+diagonal cursor exactly the same way, and there is no standard keyword that is
+both diagonal and distinct. An image cursor (`cursor: url(data:image/png;…) 12 12,
+nwse-resize`) is the only mechanism that could separate them — and the only thing
+that could give macOS Safari a diagonal at all, since no public diagonal NSCursor
+exists. `/rzdbg.html` carries two data-URI PNG diagonal tiles specifically to test
+whether that renders on the affected Safari before anyone builds it.
+
+**Rejected:** *a fully custom branded cursor set for all eight directions.* It
+would be maximally distinct, but it needs authored art at 1× and 2×, a keyword
+fallback per direction, and it throws away the platform's own well-understood
+resize glyphs. The one-word keyword swap gets the distinguishability that was
+actually asked for at zero risk.
