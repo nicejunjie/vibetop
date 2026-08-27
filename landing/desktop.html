@@ -640,6 +640,9 @@
     border-bottom-right-radius: 7px;
   }
   /* overlay shown during a move/resize so the drag doesn't die over an iframe */
+  /* Covers every iframe during a move/resize so the pointer stream survives crossing
+     one. Its `cursor` is set per-gesture in setupWM — unset, it silently replaced the
+     resize cursor with an arrow for the whole drag. */
   #win-dragmask { position: absolute; inset: 0; z-index: 99998; display: none; touch-action: none; }
   /* A coach banner sits at bottom:60 — right on top of the bottom edge and SE
      resize grip of any window reaching that far, and it stacks above the window.
@@ -2458,7 +2461,16 @@
       else if (tb) drag = { id: id, mode: 'move', sx: e.clientX, sy: e.clientY, g0: g0, snap: null, dbl: dbl, moved: 0 };
       else return;                                            // pointerdown on the body → just focus (above)
       e.preventDefault();
-      if (mask) mask.style.display = 'block';
+      if (mask) {
+        // Carry the gesture's cursor onto the mask. The mask covers every iframe for
+        // the duration of the drag, so whatever cursor it has IS the cursor for the
+        // whole gesture — and with none set it reverted to a plain arrow the instant
+        // you pressed, which reads as "the resize cursor doesn't work".
+        mask.style.cursor = drag.mode === 'resize'
+          ? (rz ? getComputedStyle(rz).cursor : 'default')
+          : (drag.mode === 'move' ? 'move' : 'default');
+        mask.style.display = 'block';
+      }
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
       window.addEventListener('pointercancel', onUp);   // iOS may fire cancel, not up — don't leave the mask stuck

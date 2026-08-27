@@ -388,6 +388,38 @@ test.describe('window mode', () => {
       expect(after.width).toBeGreaterThan(before.width + 40);
     });
 
+    // The drag mask covers every iframe for the duration of a gesture so the pointer
+    // stream survives crossing one — which means ITS cursor is the cursor for the
+    // whole drag. With none set it fell back to a plain arrow the instant you
+    // pressed: the resize cursor appeared on hover and vanished the moment it
+    // mattered ("works, but the cursor shape doesn't change").
+    test('the resize cursor holds for the whole drag, not just on hover', async ({ page }) => {
+      for (const [dir, want] of [['e', 'ew-resize'], ['n', 'ns-resize'], ['se', 'nwse-resize']]) {
+        const box = await page.locator(`#win-notes .win-rz-${dir}`).boundingBox();
+        const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+        await page.mouse.move(cx, cy);
+        await page.mouse.down();
+        await page.mouse.move(cx + 30, cy + 20, { steps: 6 });
+        const mask = await page.evaluate(() => {
+          const m = document.getElementById('win-dragmask');
+          return { display: getComputedStyle(m).display, cursor: getComputedStyle(m).cursor };
+        });
+        await page.mouse.up();
+        await page.waitForTimeout(150);
+        expect(mask.display).toBe('block');       // it really is covering the iframes
+        expect(mask.cursor).toBe(want);
+      }
+      // Moving by the title bar carries the move cursor the same way.
+      const tb = await page.locator('#win-notes .win-titlebar').boundingBox();
+      await page.mouse.move(tb.x + 60, tb.y + tb.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(tb.x + 100, tb.y + 40, { steps: 6 });
+      const moveCur = await page.evaluate(() =>
+        getComputedStyle(document.getElementById('win-dragmask')).cursor);
+      await page.mouse.up();
+      expect(moveCur).toBe('move');
+    });
+
     test('every edge and corner shows its resize cursor, and the controls keep theirs', async ({ page }) => {
       const seen = await page.locator('#win-notes').evaluate((w) => {
         const r = w.getBoundingClientRect();
