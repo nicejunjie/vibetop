@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibetop cursor probe</title>
+<!--
+  Standalone diagnostic for the "resize cursor never changes in macOS Safari"
+  report. Deliberately NOT in the service worker's SHELL_PAGES/PRECACHE, so it is
+  served network-only and can never be a stale cached copy — unlike the in-shell
+  #rzdbg readout, whose freshness depends on the very shell that is in doubt.
+  Load it as /rzdbg.html on the device that shows the bug and screenshot the page
+  after hovering the tiles. Nothing here is sensitive; safe to leave deployed.
+-->
+<style>
+  html, body { margin: 0; background: #0d1117; color: #d6dee8;
+    font: 14px/1.5 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 14px 16px 120px; }
+  h1 { font-size: 17px; margin: 4px 0 10px; }
+  h1 small { color: #7f9; font-weight: 400; }
+  h2 { font-size: 14px; margin: 22px 0 8px; color: #93a4b6; }
+  pre { background: #131a24; border: 1px solid #2a3342; border-radius: 8px;
+    padding: 8px 10px; font: 12px/1.5 ui-monospace, SFMono-Regular, monospace;
+    white-space: pre-wrap; word-break: break-all; margin: 0; }
+  #verdict { display: none; margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+    background: #3a2a12; border: 1px solid #8a6a2a; color: #f0d090; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px; }
+  .tile { height: 64px; display: flex; align-items: center; justify-content: center;
+    background: #1e2735; border: 1px solid #2a3342; border-radius: 8px;
+    font: 12px ui-monospace, monospace; color: #c0cede; text-align: center; }
+  /* --- replica of the shell's floating windows: same handle geometry --- */
+  #rep { position: relative; height: 240px; background: #0a0e14;
+    border: 1px solid #2a3342; border-radius: 8px; overflow: visible; }
+  .mw { position: absolute; top: 30px; bottom: 30px; background: #131a24;
+    border: 1px solid #2a3342; border-radius: 8px; }
+  #mw1 { left: 30px; right: calc(50% + 8px); }
+  #mw2 { left: calc(50% + 8px); right: 30px; }
+  .mw .tb { height: 28px; background: #171d28; border-radius: 7px 7px 0 0;
+    cursor: move; display: flex; align-items: center; padding: 0 10px;
+    font-size: 12px; color: #93a4b6; }
+  .mw .bd { position: absolute; inset: 28px 0 0 0; overflow: hidden;
+    border-radius: 0 0 7px 7px; display: flex; align-items: center;
+    justify-content: center; color: #5a6a7c; font-size: 12px; }
+  .mw .bd iframe { position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; }
+  .rz { position: absolute; z-index: 3; }
+  .rz-n  { top: -10px; left: -10px; right: -10px; height: 18px; cursor: ns-resize; }
+  .rz-s  { bottom: -10px; left: -10px; right: -10px; height: 18px; cursor: ns-resize; }
+  .rz-e  { right: -10px; top: -10px; bottom: -10px; width: 18px; cursor: ew-resize; }
+  .rz-w  { left: -10px; top: -10px; bottom: -10px; width: 18px; cursor: ew-resize; }
+  .rz-ne { top: -10px; right: -10px; width: 26px; height: 26px; cursor: nesw-resize; z-index: 4; }
+  .rz-nw { top: -10px; left: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
+  .rz-se { bottom: -10px; right: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
+  .rz-sw { bottom: -10px; left: -10px; width: 26px; height: 26px; cursor: nesw-resize; z-index: 4; }
+  #ro { position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 9;
+    background: rgba(0,0,0,.92); color: #7f7; border: 1px solid #2a3342; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Vibetop cursor probe · <small>build @VERSION@ (sw @SW_VERSION@)</small></h1>
+  <pre id="env">reading environment…</pre>
+  <div id="verdict"></div>
+
+  <h2>1 · Hover each tile with the mouse/trackpad — which ones change the pointer's shape?</h2>
+  <div class="tiles" id="tiles"></div>
+
+  <h2>2 · Replica of two tiled windows (same grab-ring geometry as the desktop) —
+      hover the edges, corners, and the gutter between them. Left window has an
+      iframe under the handles, right one does not.</h2>
+  <div id="rep">
+    <div class="mw" id="mw1">
+      <div class="tb">window A (iframe inside)</div>
+      <div class="bd"><iframe title="probe-frame" srcdoc="<body style='margin:0;background:#0f141c;color:#4a5a6c;font:12px system-ui;display:flex;align-items:center;justify-content:center'>iframe content</body>"></iframe></div>
+    </div>
+    <div class="mw" id="mw2">
+      <div class="tb">window B (plain)</div>
+      <div class="bd">plain body</div>
+    </div>
+  </div>
+
+  <pre id="ro">move the pointer — this readout tracks what the browser hit-tests under it</pre>
+</main>
+<script>
+(function () {
+  'use strict';
+  // --- environment ---
+  var mm = function (q) {
+    try { return window.matchMedia(q).matches; } catch (e) { return 'n/a'; }
+  };
+  var mtp = navigator.maxTouchPoints || 0;
+  var env = [
+    'userAgent       ' + navigator.userAgent,
+    'platform        ' + (navigator.platform || '-'),
+    'maxTouchPoints  ' + mtp + '   (a real Mac reports 0; an iPad reports 5 even in desktop mode)',
+    'pointer:fine    ' + mm('(pointer: fine)') + '    pointer:coarse ' + mm('(pointer: coarse)') + '    hover:hover ' + mm('(hover: hover)'),
+    'standalone/PWA  ' + (navigator.standalone === true || mm('(display-mode: standalone)')),
+    'viewport        ' + window.innerWidth + 'x' + window.innerHeight + ' @' + (window.devicePixelRatio || 1) + 'x'
+  ];
+  document.getElementById('env').textContent = env.join('\n');
+  if (/Mac/.test(navigator.platform || '') && mtp > 1) {
+    var v = document.getElementById('verdict');
+    v.style.display = 'block';
+    v.textContent = 'This browser says "Mac" but reports ' + mtp + ' touch points — it is an ' +
+      'iPad in desktop mode. iPadOS Safari does not render CSS resize cursors ' +
+      '(ew/ns/nesw/nwse-resize are unsupported in every iPadOS version); the ' +
+      'trackpad pointer keeps its shape even though resizing itself works. ' +
+      'No page-side change can alter that pointer.';
+  }
+
+  // --- cursor tiles ---
+  var KINDS = ['default', 'pointer', 'text', 'move', 'grab',
+    'col-resize', 'row-resize', 'ew-resize', 'ns-resize', 'nesw-resize', 'nwse-resize'];
+  var tiles = document.getElementById('tiles');
+  KINDS.forEach(function (k) {
+    var d = document.createElement('div');
+    d.className = 'tile';
+    d.style.cursor = k;
+    d.textContent = k;
+    tiles.appendChild(d);
+  });
+
+  // --- replica handles (same offsets/sizes/cursors as .win-rz in the shell) ---
+  ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(function (dir) {
+    ['mw1', 'mw2'].forEach(function (id) {
+      var h = document.createElement('div');
+      h.className = 'rz rz-' + dir;
+      h.dataset.h = id + '-' + dir;
+      document.getElementById(id).appendChild(h);
+    });
+  });
+
+  // --- live hit-test readout ---
+  var ro = document.getElementById('ro');
+  var name = function (n) {
+    if (!n) return 'none';
+    if (n.dataset && n.dataset.h) return 'handle ' + n.dataset.h;
+    return String(n.id ? '#' + n.id : (n.className || n.tagName)).slice(0, 44);
+  };
+  var moves = 0;
+  window.addEventListener('mousemove', function (e) {
+    moves++;
+    var hit = document.elementFromPoint(e.clientX, e.clientY);
+    var cs = hit ? getComputedStyle(hit) : null;
+    ro.textContent =
+      'pointer  ' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + '   (' + moves + ' mousemoves seen)' +
+      '\nunder    ' + name(hit) +
+      '\ncursor   ' + (cs ? cs.cursor : '-') +
+      '\ntarget   ' + name(e.target);
+  }, true);
+})();
+</script>
+</body>
+</html>

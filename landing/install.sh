@@ -47,6 +47,14 @@ else
   sed -e "s/@VERSION@/$VERSION/g" -e "s/@SW_VERSION@/$SW_VERSION/g" "$DIR/desktop.html" > "$DST_DIR/index.html"
   chmod 644 "$DST_DIR/index.html"
 fi
+if [ "$DRY_RUN" = 1 ]; then
+  printf '+ install rzdbg.html (sed @VERSION@ -> %s, @SW_VERSION@ -> %s)\n' "$VERSION" "$SW_VERSION"
+else
+  # Standalone cursor-diagnostic page — deliberately NOT in the service worker's
+  # shell set, so it is network-only and can never be served stale.
+  sed -e "s/@VERSION@/$VERSION/g" -e "s/@SW_VERSION@/$SW_VERSION/g" "$DIR/rzdbg.html" > "$DST_DIR/rzdbg.html"
+  chmod 644 "$DST_DIR/rzdbg.html"
+fi
 run install -m 644 "$DIR/index.html" "$DST_DIR/landing.html"
 if [ "$DRY_RUN" = 1 ]; then
   printf '+ install filebrowser-patches.js (sed @APP_HOME@ -> %s)\n' "$HOME"

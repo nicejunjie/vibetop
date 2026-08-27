@@ -3349,3 +3349,46 @@ loaded. Pin geometry explicitly via `localStorage['vibetop:wins']` and pass
 would be grabbable, but it removes the visual separation between tiles and still
 leaves a lone window's edges unreachable from outside. The outside ring fixes both
 and is what desktop OSes actually do.
+
+---
+
+## "No black readout" — instrumenting a device you cannot see
+
+**Symptom:** the Safari resize-cursor report (cursor never changes over any
+edge/corner, even the gutter, though resizing works) could not be reproduced from
+Linux, and the first attempt to get on-device data failed: the user loaded
+`/#rzdbg` and saw nothing.
+
+**Cause (two independent ways the readout could fail to appear):**
+
+1. Typing `#rzdbg` onto an **already-open** page is a same-document navigation —
+   no reload. The dormant diagnostic checked `location.hash` once at script load,
+   so it never re-evaluated. Fixed: it also arms on `hashchange`.
+2. The shell itself is cached by the service worker (network-first with a 2.5s
+   timeout, cached fallback), so "load the page with the diagnostic" silently
+   depends on the very freshness that is in doubt.
+
+**Fix:** a standalone **`/rzdbg.html`** probe page, deliberately **not** in the
+service worker's `SHELL_PAGES`/`PRECACHE` set — HTML outside that set is served
+network-only, so the probe can never be stale. It stamps the deployed build, dumps
+the environment (`userAgent`, `platform`, `maxTouchPoints`, pointer/hover media
+queries, PWA mode), renders one labeled tile per cursor keyword, replicates the
+real window/grab-ring/gutter geometry (with and without an iframe underneath),
+and live-prints the hit-test under the pointer. One screenshot answers build,
+device, hit-testing, and per-keyword cursor support at once.
+
+**Leading hypothesis the probe is built to confirm** (unconfirmed until the
+screenshot exists): per MDN/caniuse BCD, `ew-resize`/`ns-resize`/`nesw-resize`/
+`nwse-resize` are supported in every **desktop** Safari since 3.1 but **not
+supported in any iOS/iPadOS Safari**. An iPad with a trackpad runs desktop-mode
+Safari that reports a macOS user agent and `pointer: fine` (so the shell's
+`IS_TOUCH` check treats it as a desktop), pointer events all work (resizing
+works), yet iPadOS never renders CSS resize cursors — exactly "resize works, the
+cursor never changes anywhere". The tell that survives desktop masquerade is
+`navigator.maxTouchPoints`: 5 on an iPad, 0 on a real Mac; the probe prints a
+verdict line when it sees Mac + touch points. If that is the answer, there is no
+web-side fix — the pointer is owned by iPadOS.
+
+**Rule reaffirmed:** don't ship blind fixes for device-specific rendering;
+instrument first, and make the instrument's delivery path independent of the
+system under test.

@@ -1453,32 +1453,44 @@
   // prints what the browser itself thinks is under the pointer, so one screenshot
   // from the Mac says whether Safari hit-tests to the handle (and just refuses to
   // draw its cursor) or lands on something else entirely — and confirms the build.
+  // Arms on hashchange too: typing "#rzdbg" onto an ALREADY-OPEN page is a
+  // same-document navigation — no reload, so a load-time-only check never ran
+  // (that is why the first ask for this readout came back "no black readout").
+  // The standalone /rzdbg.html page is the service-worker-proof variant.
   (function () {
-    var on = /(^|[#&])rzdbg/.test(location.hash);
-    try { if (localStorage.getItem('rzdbg') === '1') on = true; } catch (e) {}
-    if (!on) return;
-    var box = document.createElement('div');
-    box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;' +
-      'background:rgba(0,0,0,.9);color:#7f7;font:12px ui-monospace,SFMono-Regular,monospace;' +
-      'padding:6px 8px;white-space:pre;pointer-events:none;line-height:1.45';
-    var add = function () { if (document.body) document.body.appendChild(box); };
-    if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
-    var name = function (n) {
-      if (!n) return 'none';
-      return String(n.id ? '#' + n.id : (n.className || n.tagName)).slice(0, 44);
+    var armed = false;
+    var want = function () {
+      if (/(^|[#&])rzdbg/.test(location.hash)) return true;
+      try { return localStorage.getItem('rzdbg') === '1'; } catch (e) { return false; }
     };
-    window.addEventListener('mousemove', function (e) {
-      var hit = document.elementFromPoint(e.clientX, e.clientY);
-      var cs = hit ? getComputedStyle(hit) : null;
-      box.textContent =
-        'pointer  ' + Math.round(e.clientX) + ',' + Math.round(e.clientY) +
-        '\nunder    ' + name(hit) +
-        '\ncursor   ' + (cs ? cs.cursor : '-') +
-        '\ntarget   ' + name(e.target) +
-        '\nstate    wm=' + document.body.classList.contains('wm') +
-        '  touch=' + document.body.classList.contains('is-touch') +
-        '  build=@VERSION@ sw=@SW_VERSION@';
-    }, true);
+    var arm = function () {
+      if (armed || !want()) return;
+      armed = true;
+      var box = document.createElement('div');
+      box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;' +
+        'background:rgba(0,0,0,.9);color:#7f7;font:12px ui-monospace,SFMono-Regular,monospace;' +
+        'padding:6px 8px;white-space:pre;pointer-events:none;line-height:1.45';
+      var add = function () { if (document.body) document.body.appendChild(box); };
+      if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
+      var name = function (n) {
+        if (!n) return 'none';
+        return String(n.id ? '#' + n.id : (n.className || n.tagName)).slice(0, 44);
+      };
+      window.addEventListener('mousemove', function (e) {
+        var hit = document.elementFromPoint(e.clientX, e.clientY);
+        var cs = hit ? getComputedStyle(hit) : null;
+        box.textContent =
+          'pointer  ' + Math.round(e.clientX) + ',' + Math.round(e.clientY) +
+          '\nunder    ' + name(hit) +
+          '\ncursor   ' + (cs ? cs.cursor : '-') +
+          '\ntarget   ' + name(e.target) +
+          '\nstate    wm=' + document.body.classList.contains('wm') +
+          '  touch=' + document.body.classList.contains('is-touch') +
+          '  build=@VERSION@ sw=@SW_VERSION@';
+      }, true);
+    };
+    arm();
+    window.addEventListener('hashchange', arm);
   })();
 
   // --- system-wide key bar (arrows / Esc / Tab / ^C) ------------------------
