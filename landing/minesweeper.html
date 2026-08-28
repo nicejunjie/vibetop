@@ -513,7 +513,11 @@
     if (i >= 0 && !over) chord(i);
     updateFace();
   });
-  boardEl.addEventListener('contextmenu', function(ev) {
+  // Page-wide, not board-only: right-click is a GAME control here, and the
+  // system context menu never belongs in a game window — a right-click landing
+  // on the header or the margins around the board otherwise popped the browser
+  // menu (reported). Off-board clicks just suppress; on-board ones cycle marks.
+  document.addEventListener('contextmenu', function(ev) {
     ev.preventDefault();
     if (Date.now() - suppressAt < 200 || longPressed) return;
     var i = cellIdx(ev);
