@@ -1,8 +1,10 @@
 # Files-native: replacing FileBrowser with a vibetop-owned Files app
 
-> Status: **approved direction, phase 0 shipped** (v1.19.80/81 — native image
-> viewer + `/api/file/image`). Phases 1-4 below are the plan of record; each is
-> independently shippable and FileBrowser stays alongside until the end.
+> Status: **phase 1 shipped** (v1.19.87/88 — per-user file agent + `/api/fs/*`
+> + the native listing `landing/filesx.html` behind the per-device **Native**
+> toggle in the Files tab bar; phase 0 = native image viewer, v1.19.80/81).
+> Phases 2-4 below are the plan of record; each is independently shippable and
+> FileBrowser stays alongside until the end.
 
 ## Why (the case, with receipts)
 

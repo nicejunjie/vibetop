@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Files — Vibetop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column; background: #0e1117; color: #d4d8de;
+    font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ---- toolbar: one row on desktop; ≤736px it stacks into the documented
+     mobile layout (controls grid → breadcrumb line → single-row address bar) ---- */
+  .toolbar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; flex-shrink: 0;
+    padding: 7px 10px; background: #161b22; border-bottom: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none; z-index: 3;
+  }
+  .crumbs {
+    display: flex; align-items: center; flex: 0 1 auto; min-width: 90px;
+    overflow-x: auto; white-space: nowrap; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .crumbs::-webkit-scrollbar { display: none; }
+  .crumb {
+    flex: 0 0 auto; border: 0; background: transparent; color: #aab4c5;
+    font: 13px system-ui, sans-serif; padding: 5px 6px; border-radius: 5px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .crumb:hover { background: #1f2733; color: #e6edf3; }
+  .crumb:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  .crumb.cur { color: #e6edf3; font-weight: 600; }
+  .crumb-sep { flex: 0 0 auto; color: #4a5265; font-size: 11px; padding: 0 1px; }
+  .addr { display: flex; flex: 1 1 160px; min-width: 120px; }
+  .addr input {
+    flex: 1; min-width: 0; background: #0e1117; color: #d4d8de;
+    border: 1px solid #2a3040; border-radius: 6px; padding: 6px 9px;
+    font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .addr input:focus { outline: none; border-color: #8a4adb; }
+  .tools { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+  .tools button, .tools select {
+    background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; padding: 5px 9px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  .tools button:hover, .tools select:hover { background: #253044; }
+  .tools button:focus-visible, .tools select:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  .tools button[aria-pressed="true"] { background: #241a38; border-color: #8a4adb; color: #fff; }
+  #manage { color: #b79be8; }
+
+  /* one-line notice under the toolbar (truncated listings) */
+  .notice {
+    display: none; flex-shrink: 0; padding: 5px 14px; font-size: 12px;
+    color: #aab4c5; background: #12161d; border-bottom: 1px solid #20262f;
+  }
+  .notice.on { display: block; }
+
+  /* ---- listing ---- */
+  .main { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .row {
+    display: flex; align-items: center; gap: 10px; padding: 5px 14px;
+    min-height: 36px; cursor: pointer; user-select: none; -webkit-user-select: none;
+  }
+  .row:hover { background: #161b22; }
+  .row.sel { background: #1f2937; box-shadow: inset 2px 0 0 #8a4adb; }
+  .row .ic { flex: 0 0 22px; text-align: center; font-size: 15px; }
+  .row .nm { flex: 1 1 auto; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row.dir .nm { color: #e6edf3; }
+  .row .sz {
+    flex: 0 0 76px; text-align: right; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #8a93a6; white-space: nowrap;
+  }
+  .row .mt { flex: 0 0 96px; text-align: right; font-size: 12px; color: #6b7488; white-space: nowrap; }
+
+  /* quiet centered states: loading / empty / error */
+  .state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 48px 20px; text-align: center; color: #6b7488; font-size: 13px;
+  }
+  .state .big { font-size: 15px; color: #aab4c5; }
+  .state .pth { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #4a5265; word-break: break-all; }
+  .state button {
+    background: #1f2733; color: #d4d8de; border: 1px solid #2a3040; border-radius: 6px;
+    padding: 7px 14px; font: 13px system-ui, sans-serif; cursor: pointer; min-height: 34px;
+  }
+  .state button:hover { background: #253044; }
+  .state button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+
+  /* ---- text preview overlay ---- */
+  .pv { position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; background: #0e1117; }
+  .pv.open { display: flex; }
+  .pv-head {
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-height: 40px;
+    padding: 4px 10px; background: #161b22; border-bottom: 1px solid #2a3040;
+  }
+  .pv-name { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv-info { flex-shrink: 0; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #6b7488; }
+  .pv-head button {
+    flex-shrink: 0; background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; padding: 5px 10px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  .pv-head button:hover { background: #253044; }
+  .pv-head button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  .pv-note { display: none; flex-shrink: 0; padding: 5px 14px; font-size: 12px; color: #aab4c5; background: #12161d; border-bottom: 1px solid #20262f; }
+  .pv-note.on { display: block; }
+  .pv-body {
+    flex: 1; min-height: 0; overflow: auto; padding: 14px 18px;
+    font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #d4d8de; white-space: pre; tab-size: 4;
+  }
+  .pv-body.msg { display: flex; align-items: center; justify-content: center; color: #6b7488; font-family: system-ui, sans-serif; font-size: 13px; white-space: normal; }
+
+  /* ---- mobile ≤736px: sticky controls grid → breadcrumb → address row ---- */
+  @media (max-width: 736px) {
+    .toolbar { flex-wrap: wrap; gap: 7px; padding: 7px 10px 8px; }
+    .tools { order: 1; flex: 1 0 100%; display: grid; grid-template-columns: minmax(0, 1.3fr) auto auto auto auto; gap: 6px; }
+    .tools button, .tools select { min-height: 40px; font-size: 13px; padding: 5px 10px; }
+    #sortdir, #refresh { min-width: 44px; }
+    .crumbs { order: 2; flex: 1 0 100%; min-width: 0; }
+    .crumb { font-size: 14px; padding: 6px 7px; }
+    .addr { order: 3; flex: 1 0 100%; }
+    .addr input { padding: 9px 10px; font-size: 14px; }
+    .row { min-height: 46px; padding: 5px 12px; }
+    .row .nm { font-size: 14px; }
+    .row .sz { flex-basis: 62px; }
+    .row .mt { flex-basis: 74px; }
+    .pv-head button { min-height: 38px; }
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
+    <div class="addr">
+      <input id="addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off"
+             aria-label="Path — type a folder and press Enter" title="Type any path and press Enter">
+    </div>
+    <div class="tools">
+      <select id="sortkey" aria-label="Sort by" title="Sort by">
+        <option value="name">Name</option>
+        <option value="size">Size</option>
+        <option value="mtime">Modified</option>
+      </select>
+      <button id="sortdir" title="Sort direction" aria-label="Sort direction"></button>
+      <button id="hidden" title="Show hidden files" aria-pressed="false">Hidden</button>
+      <button id="refresh" title="Refresh" aria-label="Refresh">⟳</button>
+      <button id="manage" title="Rename, move, upload… (opens the file manager here)">Manage</button>
+    </div>
+  </div>
+  <div class="notice" id="notice"></div>
+  <div class="main" id="main"></div>
+
+  <div class="pv" id="pv" role="dialog" aria-modal="true" aria-label="File preview">
+    <div class="pv-head">
+      <span class="pv-name" id="pv-name"></span>
+      <span class="pv-info" id="pv-info"></span>
+      <button id="pv-close" title="Close (Esc)">✕</button>
+    </div>
+    <div class="pv-note" id="pv-note"></div>
+    <pre class="pv-body" id="pv-body"></pre>
+  </div>
+
+<script>
+(function() {
+  // Native read-only Files listing (Files-native phase 1 — docs/files-native.md).
+  // Loaded by files.html's tab wrapper with #/abs/path; listing/stat/read come
+  // from the per-user file agent via the manager (/api/fs/*). Mutations stay in
+  // FileBrowser for now — the Manage button navigates THIS iframe there.
+  var IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
+  var VID_RE = /\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$/i;
+  var OFF_RE = /\.(docx?|xlsx?|pptx?|odt|ods|odp)$/i;
+  var AUD_RE = /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i;
+  var ARC_RE = /\.(zip|tar|gz|tgz|xz|bz2|7z|rar|zst)$/i;
+  var READ_MAX = 1048576;   // 1MB text-preview cap (server-enforced too)
+
+  var crumbsEl = document.getElementById('crumbs');
+  var addrEl = document.getElementById('addr');
+  var sortKeyEl = document.getElementById('sortkey');
+  var sortDirEl = document.getElementById('sortdir');
+  var hiddenEl = document.getElementById('hidden');
+  var noticeEl = document.getElementById('notice');
+  var mainEl = document.getElementById('main');
+  var pvEl = document.getElementById('pv');
+
+  var HOME = '';                 // resolved from /api/fs/home before first render
+  var path = null;               // current folder (abs)
+  var entries = [];              // raw entries from the server
+  var rows = [];                 // visible (filtered+sorted) entries, index-aligned with DOM rows
+  var sel = -1;                  // keyboard selection index into rows
+  var lastGood = null;           // last folder that rendered ok (error-state ← Back fallback)
+  var seq = 0;                   // stale-response guard
+
+  // persisted view prefs (per device)
+  var showHidden = false, sortKey = 'name', sortAsc = true;
+  try {
+    showHidden = localStorage.getItem('fsx.hidden') === '1';
+    var s = (localStorage.getItem('fsx.sort') || '').split(':');
+    if (s[0] === 'name' || s[0] === 'size' || s[0] === 'mtime') { sortKey = s[0]; sortAsc = s[1] !== 'desc'; }
+  } catch (e) {}
+
+  function savePrefs() {
+    try {
+      localStorage.setItem('fsx.hidden', showHidden ? '1' : '0');
+      localStorage.setItem('fsx.sort', sortKey + ':' + (sortAsc ? 'asc' : 'desc'));
+    } catch (e) {}
+  }
+  function syncControls() {
+    sortKeyEl.value = sortKey;
+    sortDirEl.textContent = sortAsc ? '↑' : '↓';
+    sortDirEl.title = sortAsc ? 'Ascending — click for descending' : 'Descending — click for ascending';
+    hiddenEl.setAttribute('aria-pressed', showHidden ? 'true' : 'false');
+    hiddenEl.title = showHidden ? 'Hide hidden files' : 'Show hidden files';
+  }
+
+  // ---- path helpers ----
+  function enc(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+  function dec(s) {
+    return s.split('/').map(function(x) { try { return decodeURIComponent(x); } catch (e) { return x; } }).join('/');
+  }
+  function baseOf(p) { return p === '/' ? '/' : (p.split('/').pop() || '/'); }
+  function joinPath(dir, name) { return (dir === '/' ? '' : dir) + '/' + name; }
+  // Light client-side normalize: ~ → home, relative → against the current
+  // folder, collapse //, resolve . and .. — so the address bar takes anything.
+  function normPath(input) {
+    var p = (input || '').trim();
+    if (!p) return null;
+    if (p === '~') p = HOME || '/';
+    else if (p.slice(0, 2) === '~/') p = (HOME || '') + p.slice(1);
+    if (p.charAt(0) !== '/') p = (path === '/' || !path ? '' : path) + '/' + p;
+    var out = [];
+    p.split('/').forEach(function(seg) {
+      if (!seg || seg === '.') return;
+      if (seg === '..') { out.pop(); return; }
+      out.push(seg);
+    });
+    return '/' + out.join('/');
+  }
+
+  // ---- formatting ----
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    var u = ['KB', 'MB', 'GB', 'TB'], i = -1;
+    do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+    return (n < 10 ? n.toFixed(1) : Math.round(n)) + ' ' + u[i];
+  }
+  function fmtRel(ts) {
+    var s = Date.now() / 1000 - ts;
+    if (s < 45) return 'just now';
+    if (s < 3600) return Math.round(s / 60) + 'm ago';
+    if (s < 86400) return Math.round(s / 3600) + 'h ago';
+    if (s < 86400 * 7) return Math.round(s / 86400) + 'd ago';
+    var d = new Date(ts * 1000), now = new Date();
+    var opt = { month: 'short', day: 'numeric' };
+    if (d.getFullYear() !== now.getFullYear()) opt.year = 'numeric';
+    return d.toLocaleDateString(undefined, opt);
+  }
+  function iconFor(name, isDir) {
+    if (isDir) return '📁';
+    if (IMG_RE.test(name)) return '🖼️';
+    if (VID_RE.test(name)) return '🎬';
+    if (AUD_RE.test(name)) return '🎵';
+    if (ARC_RE.test(name)) return '📦';
+    if (/\.pdf$/i.test(name)) return '📕';
+    if (/\.(docx?|odt)$/i.test(name)) return '📘';
+    if (/\.(xlsx?|ods|csv)$/i.test(name)) return '📗';
+    if (/\.(pptx?|odp)$/i.test(name)) return '📙';
+    return '📄';
+  }
+
+  // ---- fetch + render ----
+  function api(url) {
+    return fetch(url).then(function(r) { return r.json(); });
+  }
+  function stateEl(lines) {
+    var box = document.createElement('div'); box.className = 'state';
+    lines.forEach(function(n) { box.appendChild(n); });
+    return box;
+  }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function renderCrumbs() {
+    crumbsEl.innerHTML = '';
+    var segs = path === '/' ? [] : path.replace(/^\//, '').split('/');
+    var root = el('button', 'crumb' + (segs.length ? '' : ' cur'), '/');
+    root.title = 'Filesystem root';
+    root.addEventListener('click', function() { go('/'); });
+    crumbsEl.appendChild(root);
+    var acc = '';
+    segs.forEach(function(seg, i) {
+      acc += '/' + seg;
+      var p = acc;
+      crumbsEl.appendChild(el('span', 'crumb-sep', '▸'));
+      var b = el('button', 'crumb' + (i === segs.length - 1 ? ' cur' : ''),
+                 (HOME && p === HOME) ? 'Home' : seg);
+      b.title = p;
+      b.addEventListener('click', function() { go(p); });
+      crumbsEl.appendChild(b);
+    });
+    crumbsEl.scrollLeft = crumbsEl.scrollWidth;   // deepest folder always visible
+  }
+
+  function visibleRows() {
+    var v = entries.filter(function(e) { return showHidden || e.name.charAt(0) !== '.'; });
+    var dir = sortAsc ? 1 : -1;
+    v.sort(function(a, b) {
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;      // folders always first
+      var c = 0;
+      if (sortKey === 'size') c = a.size - b.size;
+      else if (sortKey === 'mtime') c = a.mtime - b.mtime;
+      if (c) return c * dir;
+      c = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      return sortKey === 'name' ? c * dir : c;               // ties break by name, always A→Z
+    });
+    return v;
+  }
+
+  function renderList() {
+    rows = visibleRows();
+    sel = -1;
+    mainEl.innerHTML = '';
+    if (!rows.length) {
+      var hid = entries.length - rows.length;
+      var msg = hid > 0
+        ? hid + ' hidden item' + (hid === 1 ? '' : 's') + ' — use “Hidden” to show them'
+        : 'Empty folder';
+      mainEl.appendChild(stateEl([el('div', 'big', msg)]));
+      return;
+    }
+    var frag = document.createDocumentFragment();
+    rows.forEach(function(e, i) {
+      var r = el('div', 'row' + (e.isDir ? ' dir' : ''));
+      r.dataset.i = i;
+      r.appendChild(el('span', 'ic', iconFor(e.name, e.isDir)));
+      var nm = el('span', 'nm', e.name); nm.title = e.name;
+      r.appendChild(nm);
+      r.appendChild(el('span', 'sz', e.isDir ? '—' : fmtSize(e.size)));
+      var mt = el('span', 'mt', fmtRel(e.mtime));
+      mt.title = new Date(e.mtime * 1000).toLocaleString();
+      r.appendChild(mt);
+      frag.appendChild(r);
+    });
+    mainEl.appendChild(frag);
+  }
+
+  function renderError(err) {
+    mainEl.innerHTML = '';
+    var big, ic;
+    if (err.code === 'eperm') { ic = '🔒'; big = 'You don’t have permission to view this folder'; }
+    else if (err.code === 'enoent') { ic = '❓'; big = 'Folder not found'; }
+    else if (err.code === 'enotdir') { ic = '📄'; big = 'Not a folder'; }
+    else { ic = '⚠️'; big = 'Couldn’t load this folder'; }
+    var back = el('button', null, '← Back');
+    back.addEventListener('click', function() {
+      // Never strand the user (docs/design-decisions.md): prefer real history
+      // (matches the browser Back button); with none, fall back to the last
+      // good folder or home. The toolbar above stays fully live either way.
+      if (lastGood && lastGood !== path) history.back();
+      else go(lastGood || HOME || '/');
+    });
+    mainEl.appendChild(stateEl([
+      el('div', null, ic),
+      el('div', 'big', big),
+      el('div', 'pth', path),
+      back
+    ]));
+  }
+
+  function setNotice(text) {
+    noticeEl.textContent = text || '';
+    noticeEl.classList.toggle('on', !!text);
+  }
+
+  function load(p) {
+    var my = ++seq;
+    // Quiet delayed loading state — no flash on fast responses.
+    setTimeout(function() {
+      if (seq === my && path === p && !mainEl.childNodes.length) {
+        mainEl.appendChild(stateEl([el('div', null, 'Loading…')]));
+      }
+    }, 250);
+    path = p;
+    document.title = (HOME && p === HOME ? 'Home' : baseOf(p)) + ' — Files';
+    if (document.activeElement !== addrEl) addrEl.value = p;
+    renderCrumbs();
+    mainEl.innerHTML = '';
+    setNotice('');
+    api('/api/fs/list?path=' + encodeURIComponent(p)).then(function(d) {
+      if (seq !== my) return;                       // navigated away meanwhile
+      if (!d || !d.ok) { renderError(d || {}); return; }
+      entries = d.entries || [];
+      lastGood = p;
+      renderList();
+      if (d.truncated) setNotice('Large folder — showing the first ' + entries.length + ' entries.');
+      mainEl.scrollTop = 0;
+    }).catch(function() {
+      if (seq !== my) return;
+      renderError({ code: 'net', error: 'network' });
+    });
+  }
+
+  // Navigate = update the hash (so browser back/forward walk the folder trail).
+  function go(p) {
+    var h = '#' + enc(p);
+    if (location.hash === h) { load(p); return; }   // same folder → just refresh
+    location.hash = h;                              // hashchange → load()
+  }
+  window.addEventListener('hashchange', function() {
+    var p = dec(location.hash.slice(1)) || HOME || '/';
+    if (p !== path) load(p);
+  });
+
+  // ---- opening entries ----
+  function post(type, absPath) {
+    try {
+      (window.top || window).postMessage({ type: type, path: absPath.replace(/^\//, '') }, '*');
+    } catch (e) {}
+  }
+  // Open an entry of the CURRENT folder, or any abs path (the address bar's
+  // file jump passes `abs` since its dir context differs from `path`).
+  function openEntry(e, abs) {
+    var p = abs || joinPath(path, e.name);
+    if (e.isDir) { go(p); return; }
+    if (IMG_RE.test(e.name)) { post('image-view', p); return; }
+    if (VID_RE.test(e.name)) { post('video-view', p); return; }
+    if (OFF_RE.test(e.name)) { post('office-view', p); return; }
+    openPreview(p, e.name);
+  }
+
+  mainEl.addEventListener('click', function(ev) {
+    var r = ev.target.closest('.row');
+    if (!r) return;
+    setSel(+r.dataset.i);
+    openEntry(rows[+r.dataset.i]);
+  });
+
+  // ---- keyboard: ↑/↓ move a quiet selection, Enter opens ----
+  function setSel(i) {
+    if (sel >= 0) {
+      var old = mainEl.querySelector('.row[data-i="' + sel + '"]');
+      if (old) old.classList.remove('sel');
+    }
+    sel = i;
+    if (sel >= 0) {
+      var r = mainEl.querySelector('.row[data-i="' + sel + '"]');
+      if (r) { r.classList.add('sel'); r.scrollIntoView({ block: 'nearest' }); }
+    }
+  }
+  document.addEventListener('keydown', function(ev) {
+    if (pvEl.classList.contains('open')) {
+      if (ev.key === 'Escape') { ev.preventDefault(); closePreview(); }
+      return;
+    }
+    var t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+    if (!rows.length) return;
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); setSel(Math.min(rows.length - 1, sel + 1)); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); setSel(Math.max(0, sel - 1)); }
+    else if (ev.key === 'Enter' && sel >= 0) { ev.preventDefault(); openEntry(rows[sel]); }
+  });
+
+  // ---- text preview overlay ----
+  var pvNameEl = document.getElementById('pv-name');
+  var pvInfoEl = document.getElementById('pv-info');
+  var pvNoteEl = document.getElementById('pv-note');
+  var pvBodyEl = document.getElementById('pv-body');
+  var pvReturnFocus = null;
+
+  function openPreview(absPath, name) {
+    pvReturnFocus = document.activeElement;
+    pvNameEl.textContent = name;
+    pvNameEl.title = absPath;
+    pvInfoEl.textContent = '';
+    pvNoteEl.className = 'pv-note';
+    pvBodyEl.className = 'pv-body msg';
+    pvBodyEl.textContent = 'Loading…';
+    pvEl.classList.add('open');
+    document.getElementById('pv-close').focus();
+    api('/api/fs/read?path=' + encodeURIComponent(absPath) + '&max=' + READ_MAX).then(function(d) {
+      if (!pvEl.classList.contains('open') || pvNameEl.title !== absPath) return;
+      if (!d || !d.ok) {
+        pvBodyEl.textContent = d && d.code === 'eperm'
+          ? 'You don’t have permission to read this file.'
+          : 'Couldn’t read this file.';
+        return;
+      }
+      pvInfoEl.textContent = fmtSize(d.size);
+      if (d.binary) {
+        pvBodyEl.textContent = 'Binary file — no text preview. Use Manage to download it.';
+        return;
+      }
+      if (d.truncated) {
+        pvNoteEl.textContent = 'Large file — showing the first ' + fmtSize(READ_MAX) + ' of ' + fmtSize(d.size) + '.';
+        pvNoteEl.className = 'pv-note on';
+      }
+      pvBodyEl.className = 'pv-body';
+      pvBodyEl.textContent = d.text || '';
+      pvBodyEl.scrollTop = 0;
+    }).catch(function() {
+      if (!pvEl.classList.contains('open')) return;
+      pvBodyEl.textContent = 'Couldn’t read this file.';
+    });
+  }
+  function closePreview() {
+    pvEl.classList.remove('open');
+    pvBodyEl.textContent = '';
+    if (pvReturnFocus && pvReturnFocus.focus) { try { pvReturnFocus.focus(); } catch (e) {} }
+  }
+  document.getElementById('pv-close').addEventListener('click', closePreview);
+
+  // ---- toolbar wiring ----
+  addrEl.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape') { addrEl.value = path || ''; addrEl.blur(); return; }
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    var p = normPath(addrEl.value);
+    if (!p) return;
+    addrEl.blur();
+    // Typing a FILE path is a natural ask — stat first and open it in place
+    // (folder unchanged) instead of showing "Not a folder".
+    api('/api/fs/stat?path=' + encodeURIComponent(p)).then(function(d) {
+      if (d && d.ok && d.stat && !d.stat.isDir) {
+        addrEl.value = path || '';
+        openEntry({ name: baseOf(p), isDir: false }, p);
+      } else {
+        go(p);
+      }
+    }).catch(function() { go(p); });
+  });
+  addrEl.addEventListener('blur', function() {
+    // Abandoned edits revert quietly so the bar always shows the real location.
+    if (addrEl.value !== path) addrEl.value = path || '';
+  });
+
+  sortKeyEl.addEventListener('change', function() {
+    sortKey = sortKeyEl.value; savePrefs(); syncControls(); renderList();
+  });
+  sortDirEl.addEventListener('click', function() {
+    sortAsc = !sortAsc; savePrefs(); syncControls(); renderList();
+  });
+  hiddenEl.addEventListener('click', function() {
+    showHidden = !showHidden; savePrefs(); syncControls(); renderList();
+  });
+  document.getElementById('refresh').addEventListener('click', function() { if (path) load(path); });
+  document.getElementById('manage').addEventListener('click', function() {
+    // Phase-1 escape hatch: mutations (rename/move/upload/delete/zip) still live
+    // in FileBrowser — swap THIS iframe to it at the current folder.
+    if (!path) return;
+    location.href = '/files/files' + (path === '/' ? '' : enc(path)) + '/';
+  });
+
+  // ---- init: resolve home, then honor #/abs/path (the wrapper's deep link) ----
+  syncControls();
+  api('/api/fs/home').then(function(d) {
+    HOME = (d && d.ok && d.home) || '';
+  }).catch(function() {}).then(function() {
+    var p = dec(location.hash.slice(1));
+    if (!p || p.charAt(0) !== '/') {
+      p = HOME || '/';
+      try { history.replaceState(null, '', '#' + enc(p)); } catch (e) {}
+    }
+    load(p);
+  });
+})();
+</script>
+</body>
+</html>

@@ -76,6 +76,7 @@ run install -m 644 "$DIR/token-stats.html" "$DST_DIR/token-stats.html"
 run install -m 644 "$DIR/notes.html" "$DST_DIR/notes.html"
 run install -m 644 "$DIR/upload.html" "$DST_DIR/upload.html"
 run install -m 644 "$DIR/imageview.html" "$DST_DIR/imageview.html"
+run install -m 644 "$DIR/filesx.html" "$DST_DIR/filesx.html"
 # Games (Start ▸ Games) — self-contained pages, loaded on demand (not precached).
 run install -m 644 "$DIR/minesweeper.html" "$DST_DIR/minesweeper.html"
 run install -m 644 "$DIR/solitaire.html" "$DST_DIR/solitaire.html"

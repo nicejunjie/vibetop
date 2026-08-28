@@ -40,6 +40,16 @@
     cursor: pointer; line-height: 1;
   }
   .add:hover { background: #221a30; color: #b79be8; }
+  /* Files-native phase-1 toggle (per device): swaps the tab iframes between
+     FileBrowser and the native listing (filesx.html). Quiet, right-aligned. */
+  .nativetog {
+    flex: 0 0 auto; margin-left: auto; align-self: center;
+    background: transparent; border: 1px solid #2a3040; border-radius: 6px;
+    color: #6b7488; font: 11px system-ui, sans-serif; padding: 4px 9px;
+    margin-right: 8px; cursor: pointer; white-space: nowrap;
+  }
+  .nativetog:hover { color: #aab4c5; background: #1b2330; }
+  .nativetog.on { color: #cbb0f2; border-color: #8a4adb; background: #221a30; }
   .frames { position: relative; flex: 1; min-height: 0; }
   .frames iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; }
   .frames iframe.active { display: block; }
@@ -49,6 +59,8 @@
   <div class="tabbar" id="tabbar">
     <div class="tabs" id="tabs"></div>
     <button class="add" id="add" title="New folder tab">+</button>
+    <button class="nativetog" id="nativetog"
+            title="Switch between the native listing (read-only preview) and FileBrowser">Native</button>
   </div>
   <div class="frames" id="frames"></div>
 <script>
@@ -83,11 +95,36 @@
   var _lastSaved = null;
   var _suppress = false;       // true while reconciling to the server (don't echo back)
 
-  // Current path of a tab's FileBrowser iframe (same-origin, so readable).
+  // Files-native phase-1 toggle (per device, docs/files-native.md): tabs load
+  // the native listing (filesx.html#/abs/path) instead of FileBrowser. The
+  // SERVER-SIDE tab schema stays FileBrowser-shaped either way — curPath maps a
+  // native tab's hash back to '/files/files/<enc>' so cross-device sync keeps
+  // working between a device in native mode and one that isn't.
+  function nativeOn() { try { return localStorage.getItem('vibetop:filesx') === '1'; } catch (e) { return false; } }
+  function fbToAbs(p) {   // '/files/files/home%2Dx/…' -> decoded '/home-x/…'
+    var rest = (p || '').split('/files/files')[1] || '/';
+    return '/' + rest.split('/').filter(Boolean).map(function(s) {
+      try { return decodeURIComponent(s); } catch (e) { return s; }
+    }).join('/');
+  }
+  function absToFb(abs) {
+    return '/files/files' + abs.split('/').filter(Boolean).map(encodeURIComponent)
+      .map(function(s) { return '/' + s; }).join('') + '/';
+  }
+  function tabUrl(fbPath) {   // what makeTab actually loads for a stored FB path
+    return nativeOn() ? '/filesx.html#' + fbToAbs(fbPath) : fbPath;
+  }
+
+  // Current path of a tab's iframe in the STORED (FileBrowser-URL) shape —
+  // readable same-origin for both the FileBrowser SPA and the native listing.
   function curPath(t) {
     try {
-      var p = t.frame.contentWindow.location.pathname;
-      if (/\/files\/files(\/|$)/.test(p)) return p;
+      var loc = t.frame.contentWindow.location;
+      if (loc.pathname === '/filesx.html') {
+        var abs = decodeURIComponent((loc.hash || '#').slice(1)) || '/';
+        return absToFb(abs);
+      }
+      if (/\/files\/files(\/|$)/.test(loc.pathname)) return loc.pathname;
     } catch (e) {}
     return null;
   }
@@ -142,7 +179,7 @@
     var f = document.createElement('iframe');
     f.name = 'fbtab';                          // tells filebrowser-patches.js to skip its location-memory
     f.setAttribute('allow', 'clipboard-read; clipboard-write');
-    f.src = path || HOME;
+    f.src = tabUrl(path || HOME);
     framesEl.appendChild(f);
     return { id: ++seq, frame: f, path: path || HOME };
   }
@@ -273,6 +310,21 @@
     show(t);
   });
   addBtn.addEventListener('click', function() { createTab(HOME, true); });
+
+  // Native toggle: flip the flag, reload every tab into the other engine at
+  // its CURRENT folder (curPath reads both shapes, tabUrl emits the right one).
+  var togBtn = document.getElementById('nativetog');
+  function paintTog() { togBtn.classList.toggle('on', nativeOn()); }
+  togBtn.addEventListener('click', function() {
+    try { localStorage.setItem('vibetop:filesx', nativeOn() ? '0' : '1'); } catch (e) {}
+    paintTog();
+    tabs.forEach(function(t) {
+      var p = curPath(t) || t.path;
+      t.path = p;
+      t.frame.src = tabUrl(p);
+    });
+  });
+  paintTog();
 
   // Deep-link from the desktop (Upload app's "Open in Files"): open a tab at a
   // path relative to ~. The desktop posts a few times to beat the first-load
