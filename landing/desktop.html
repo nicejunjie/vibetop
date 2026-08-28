@@ -1999,9 +1999,16 @@
     var BAR_H = 50;      // button row (40) + padding (5*2)
     var bar = document.createElement('div');
     bar.id = 'sys-keybar';
-    // position:fixed; vertical position (top) set dynamically to the visual
-    // viewport's bottom edge — i.e. right on the keyboard. See syncBar.
-    bar.style.cssText = 'position:fixed;left:0;right:0;top:0;display:none;z-index:9000;box-sizing:border-box;' +
+    // position:ABSOLUTE, not fixed (v1.19.86): in the shell-scrolled keyboard
+    // regime iOS paints fixed elements against the VISUAL viewport while
+    // reporting in-flow rects in LAYOUT coordinates — two lenses, and their
+    // offset is unobservable from JS, which is how the bar landed exactly on
+    // the typing line while the math said "nothing covered". Absolute puts the
+    // bar in the SAME layout space as the frame/content rects: whatever iOS
+    // does to the viewport warps bar and content identically, so overlap is
+    // exactly measurable (rect vs rect, below in syncBar). Vertical position
+    // (top) still set dynamically toward the keyboard top. See syncBar.
+    bar.style.cssText = 'position:absolute;left:0;right:0;top:0;display:none;z-index:9000;box-sizing:border-box;' +
       'padding:5px;gap:5px;background:rgba(20,20,22,.97);border-top:1px solid rgba(255,255,255,.14);' +
       '-webkit-user-select:none;user-select:none';
     function routeKey(keyName) {
@@ -2185,6 +2192,7 @@
         var scr = t.element.querySelector('.xterm-screen') || t.element;
         var sr = scr.getBoundingClientRect();          // /tN/-internal coords: transform-free
         var rows = t.rows || 24, rh = sr.height / rows;
+        extent.rh = rh;                                // stashed for the lift clearance
         var buf = t.buffer.active, vpY = buf.viewportY || 0;
         var last = -1;
         for (var ri = rows - 1; ri >= 0; ri--) {
@@ -2295,8 +2303,26 @@
         bar.style.top = st.barTop + 'px'; bar.style.display = 'flex';
         if (!wasUp) maybeShowHint();
         else if (hint.style.display !== 'none') positionHint();        // keep it pinned during URL-bar scroll
-        applyLift(st.lift);
-        dbgBeacon('sync', { kbUp: 1, barTop: st.barTop, lift: st.lift });
+        // The FINAL lift is rect-vs-rect, measured AFTER the bar is placed:
+        // the bar is position:absolute so its rect and the frame/content rects
+        // share one coordinate lens in every regime (see the bar's cssText
+        // comment) — "does the bar overlap the content" is now a plain
+        // subtraction that cannot be fooled. Clearance is one REAL row height
+        // (the user's own fix), so the active line keeps a full line of air
+        // above the bar. st.lift (vv-derived) remains only as the fallback
+        // when the rects are unreadable.
+        var lift = st.lift;
+        try {
+          var barR = bar.getBoundingClientRect();
+          if (r) {
+            var cb2 = termContentBottom(r);
+            var clr = (extent.rh || 20);
+            var target = Math.min(r.bottom, (cb2 != null ? cb2 : r.bottom) + clr);
+            lift = Math.max(0, Math.round(target - barR.top));
+          }
+        } catch (e) {}
+        applyLift(lift);
+        dbgBeacon('sync', { kbUp: 1, barTop: st.barTop, lift: lift });
         armTick();
       } else {
         bar.style.display = 'none'; dismissHint(false);                // keyboard closed / suppressed → hide
