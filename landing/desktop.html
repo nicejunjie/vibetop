@@ -2777,7 +2777,15 @@
         sub.classList.add('open');
         sub.style.left = left + 'px';
         sub.style.width = FLY_W + 'px';
-        sub.style.bottom = (window.innerHeight - mr.bottom) + 'px';
+        // Cascade from the PARENT ROW (align tops, like an OS submenu) — the
+        // old bottom-of-menu anchor only looked right for a parent that IS at
+        // the menu bottom (Utilities); the Games row sat mid-menu with its
+        // panel floating disconnected below. Clamp so the panel never runs
+        // past the menu's bottom edge or off the top.
+        var pr = parent.getBoundingClientRect();
+        var sh = sub.offsetHeight;
+        var top = Math.round(Math.min(pr.top, mr.bottom - sh));
+        sub.style.top = Math.max(8, top) + 'px';
       } else {                                  // narrow: drill-down page inside the menu
         sub.classList.remove('open');
         menuEl.classList.add(pageClass);
