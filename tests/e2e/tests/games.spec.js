@@ -37,11 +37,12 @@ test.describe('games', () => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     await page.goto('/solitaire.html');
-    // Klondike deal: 7 tableau piles, 28 tableau cards, 7 face-up.
-    await expect.poll(async () => page.locator('.pile.tableau, .tableau .pile').count())
-      .toBe(7);
-    const faceUp = await page.locator('.card.up, .card.face-up, .card:not(.down):not(.back)').count();
-    expect(faceUp).toBeGreaterThanOrEqual(7);
+    // Klondike deal: 7 tableau columns (#tabrow .col), 28 tableau cards (.pc),
+    // exactly one face-up (.pc.up) per column.
+    await expect.poll(async () => page.locator('#tabrow .col').count()).toBe(7);
+    await expect.poll(async () => page.locator('#tabrow .pc').count()).toBe(28);
+    const faceUp = await page.locator('#tabrow .pc.up').count();
+    expect(faceUp).toBe(7);
     expect(errors).toEqual([]);
   });
 
