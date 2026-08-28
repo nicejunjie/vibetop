@@ -656,13 +656,28 @@
     tableEl.querySelectorAll('.pc.ghosted').forEach(function(el) { el.classList.remove('ghosted'); });
     dragEls = [];
   }
-  function dropTargetAt(x, y) {
+  // Drop candidates by CARD-RECT OVERLAP, best first — not by the pointer
+  // point. Pointer-testing forced the player to carry the stack until the
+  // CURSOR entered the pile, which read as "I must overlap the cards a lot"
+  // (reported as cumbersome). Now any pile overlapping ≥15% of the dragged
+  // card's area is a candidate, sorted by overlap; the caller takes the first
+  // candidate the rules ACCEPT, so a near-miss over an illegal pile still
+  // lands on the legal neighbor underneath the overlap.
+  function dropCandidates(x, y) {
+    var cl = x - dragOff.x, ct = y - dragOff.y;          // top card rides the pointer
+    var cw = originRect.width, ch = originRect.height;
+    var minA = cw * ch * 0.15;
+    var out = [];
     for (var i = 0; i < dropRects.length; i++) {
-      var d = dropRects[i], r = d.rect;
-      var pad = d.kind === 'found' ? 6 : 4;
-      if (x >= r.left - pad && x <= r.right + pad && y >= r.top - 6 && y <= r.bottom) return d;
+      var r = dropRects[i].rect;
+      var w = Math.min(cl + cw, r.right) - Math.max(cl, r.left);
+      var h = Math.min(ct + ch, r.bottom) - Math.max(ct, r.top);
+      var inside = x >= r.left - 6 && x <= r.right + 6 && y >= r.top - 6 && y <= r.bottom;
+      var a = (w > 0 && h > 0) ? w * h : 0;
+      if (a >= minA || inside) out.push({ d: dropRects[i], a: inside ? a + 1e9 : a });
     }
-    return null;
+    out.sort(function(p, q) { return q.a - p.a; });      // pointer-inside first, then biggest overlap
+    return out.map(function(p) { return p.d; });
   }
   function animLayerTo(rect, cb) {
     dragLayer.style.transition = 'transform 140ms ease-out';
@@ -681,8 +696,11 @@
     if (dragging) {
       dragging = false;
       document.body.classList.remove('drg');
-      var tgt = dropTargetAt(ev.clientX, ev.clientY);
-      var ok = !!(tgt && tryMove(d.src, tgt.kind, tgt.pile));
+      var cands = dropCandidates(ev.clientX, ev.clientY);
+      var tgt = null, ok = false;
+      for (var ci = 0; ci < cands.length && !ok; ci++) {
+        if (tryMove(d.src, cands[ci].kind, cands[ci].pile)) { tgt = cands[ci]; ok = true; }
+      }
       if (ok) {
         var cnt = d.cards.length;
         render();                                   // commit; old ghosted els are gone
