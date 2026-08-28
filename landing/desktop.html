@@ -168,6 +168,7 @@
     border: 1px solid rgba(255,255,255,0.10);
   }
   .wm-btn:hover { background: rgba(255,255,255,0.12); color: #eaf1f8; }
+  .wm-btn svg { width: 21px; height: 21px; display: block; }
   body.wm-capable .wm-btn { display: inline-flex; }
   /* Lit = on, in the Start button's accent — the state has to read without a label
      now that no menu row spells it out. */
@@ -589,18 +590,23 @@
      one icon the taskbar already has. */
   #win-layouts {
     position: fixed; z-index: 99999; display: none; flex-direction: column;
-    align-items: center; gap: 8px; padding: 13px;
+    align-items: center; gap: 10px; padding: 17px;
     background: #1b222e; border: 1px solid #2f3a4a; border-radius: 10px;
     box-shadow: 0 12px 34px rgba(0,0,0,0.55);
   }
   #win-layouts.open { display: flex; }
-  #win-layouts .wl-row { display: flex; gap: 13px; }
+  /* wrap + cap: at most two layouts ever match a window count today, so one row
+     always fits — but the tiles are now 131px (176 on touch), and five of them
+     would be 757px, past a 656px-wide iPad frame. Wrapping costs nothing and
+     stops a future layout from pushing the palette off screen. */
+  #win-layouts .wl-row { display: flex; flex-wrap: wrap; justify-content: center;
+                         gap: 17px; max-width: min(92vw, 760px); }
   /* The drag affordance is invisible otherwise — you would have to be told the
      icons can be dragged. One quiet line, not a badge. */
-  #win-layouts .wl-hint { font-size: 11px; color: #7d8a99; letter-spacing: .2px; }
+  #win-layouts .wl-hint { font-size: 14px; color: #7d8a99; letter-spacing: .2px; }
   #win-layouts .wl-opt { display: flex; flex-direction: column; gap: 5px; align-items: center; }
   #win-layouts .wl-grid {
-    position: relative; width: 101px; height: 65px; border-radius: 5px; cursor: pointer;
+    position: relative; width: 131px; height: 85px; border-radius: 5px; cursor: pointer;
     background: #10151d; border: 1px solid #2f3a4a; transition: border-color .12s;
   }
   /* Each zone previews the window that will land in it (its app icon), so the
@@ -612,7 +618,7 @@
     position: absolute; background: #33415a; border-radius: 3px;
     transition: background .12s; cursor: pointer; user-select: none;
     display: flex; align-items: center; justify-content: center;
-    font-size: 16px; line-height: 1; overflow: hidden; color: #dfe7f0;
+    font-size: 21px; line-height: 1; overflow: hidden; color: #dfe7f0;
   }
   #win-layouts .wl-grid:hover { border-color: #d2691e; }
   #win-layouts .wl-grid:hover .wl-zone { background: #b25a1a; }
@@ -625,10 +631,10 @@
   #win-layouts .wl-zone.wl-drag-over,
   #win-layouts .wl-grid:hover .wl-zone.wl-drag-over { background: #d2691e; }
   #win-layouts .wl-grid:hover + .wl-name { color: #e8eef5; }
-  #win-layouts .wl-name { font-size: 13px; color: #8a9aaa; letter-spacing: .2px; }
+  #win-layouts .wl-name { font-size: 17px; color: #8a9aaa; letter-spacing: .2px; }
   /* Touch needs the zones big enough to hit individually. */
-  body.is-touch #win-layouts .wl-grid { width: 135px; height: 86px; }
-  body.is-touch #win-layouts .wl-zone { font-size: 20px; }
+  body.is-touch #win-layouts .wl-grid { width: 176px; height: 112px; }
+  body.is-touch #win-layouts .wl-zone { font-size: 26px; }
 
   /* snap preview — where a title-bar drag will drop the window (half / maximize) */
   #win-snap {
@@ -953,7 +959,10 @@
 
   <div class="taskbar" id="taskbar">
     <div class="start-btn" id="start-btn"><span class="icon">⊞</span> Start</div>
-    <button class="wm-btn" id="wm-btn" aria-pressed="false" aria-label="Floating windows" title="Floating windows">🗔</button>
+    <!-- Two overlapping window outlines — the universal "windows" glyph (the back
+         one is drawn as a partial path, so nothing needs an opaque fill that would
+         fight the lit state). currentColor, so `.wm-btn.on` recolors it for free. -->
+    <button class="wm-btn" id="wm-btn" aria-pressed="false" aria-label="Floating windows" title="Floating windows"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 7.5V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-1.5"/><rect x="3.5" y="8" width="13" height="12" rx="2"/><path d="M3.5 11.6h13"/></svg></button>
     <div class="tb-sep"></div>
     <div class="task-apps" id="task-apps"></div>
     <div class="tb-spacer"></div>
@@ -2412,8 +2421,8 @@
     // :v5 — ▦ is gone (folded into the 🗔 toggle); :v4 said the button was "top-left",
     // which is along the bottom. Bumping the key re-shows the corrected tip to
     // anyone who already saw the wrong one.
-    vibeCoach({ key: 'vibetop:tip:wm:v6',
-                text: 'Windows: drag the title bar to move · drag an edge or corner to resize · hover 🗔 in the taskbar to pick a layout' },
+    vibeCoach({ key: 'vibetop:tip:wm:v7',
+                text: 'Windows: drag the title bar to move · drag an edge or corner to resize · hover the windows button in the taskbar to pick a layout' },
               { bottom: 60 });
     // Click-through comes from the `body.wm .vibe-coach` CSS rule (race-free —
     // the old one-shot querySelector here missed the banner whenever it rendered
