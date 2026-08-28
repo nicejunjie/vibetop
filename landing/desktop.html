@@ -2121,6 +2121,30 @@
     var baseH = curH();
     var baseW = window.innerWidth;
     var wasUp = false;
+    // Field instrumentation for the recurring key-bar-covers-the-prompt bug:
+    // report the SHELL's measured geometry to the manager log (POST
+    // /api/client-debug) so an on-device repro can be read server-side.
+    // Throttled, tiny payloads; remove once the bug is confirmed dead.
+    var dbgLast = 0;
+    function dbgBeacon(tag, extra) {
+      var now = Date.now();
+      if (now - dbgLast < 600) return;
+      dbgLast = now;
+      var f = frameOf('terminal'), r = null;
+      try { r = f && f.getBoundingClientRect(); } catch (e) {}
+      var vv = window.visualViewport;
+      var data = { src: 'desktop', tag: tag,
+                   sw: ((document.getElementById('build-sw') || {}).textContent || ''),
+                   ih: window.innerHeight, vvH: vv ? Math.round(vv.height) : null,
+                   vvTop: vv ? Math.round(vv.offsetTop) : null,
+                   baseH: Math.round(baseH), frameB: r ? Math.round(r.bottom) : null,
+                   active: active };
+      for (var k in extra) data[k] = extra[k];
+      try {
+        fetch('/api/client-debug', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                     body: JSON.stringify(data) }).catch(function() {});
+      } catch (e) {}
+    }
     function syncBar() {
       // The keyboard shrinks HEIGHT but never WIDTH; rotation / Split View change
       // width. So a width change means a non-keyboard geometry change -> drop the
@@ -2151,7 +2175,9 @@
         // covered" report). A transition repost is cheap and always correct.
         if (!wasUp) { lastOcc = -1; maybeShowHint(); }
         else if (hint.style.display !== 'none') positionHint();        // keep it pinned during URL-bar scroll
-        postOcclusion(occlusionOver('terminal', barTop));
+        var occPx = occlusionOver('terminal', barTop);
+        dbgBeacon('sync', { kbUp: 1, barTop: barTop, occ: Math.round(occPx), lastOcc: lastOcc });
+        postOcclusion(occPx);
       } else {
         bar.style.display = 'none'; dismissHint(false);                // keyboard closed / suppressed → hide
         postOcclusion(0);
@@ -2171,7 +2197,7 @@
     // requests the figure up the chain (terminal-kbd.js → terminals.html → here).
     // Push-with-dedupe alone could never reach it — lastOcc still held the same
     // number, so nothing was re-sent after a reload.
-    window.__repostOcclusion = function() { lastOcc = -1; syncBar(); };
+    window.__repostOcclusion = function() { dbgBeacon('req-recv', {}); lastOcc = -1; syncBar(); };
   })();
 
   // --- cross-instance state -------------------------------------------------

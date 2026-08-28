@@ -281,9 +281,37 @@
     // Standalone /tN/ (no desktop) has no bar but a real shrinking viewport, so we
     // fall back to measuring that — occludedPx() takes whichever is larger.
     var KBD_OCCLUSION = 0;
+    // Field instrumentation (POST /api/client-debug -> manager log): this page's
+    // MEASURED occlusion/scroll state, so an on-device repro of the "active line
+    // covered" bug can be read server-side. Throttled; remove when confirmed dead.
+    var vtDbgLast = 0, vtOccMsgs = 0;
+    function vtDbg(tag, data) {
+      var now = Date.now();
+      if (now - vtDbgLast < 1000) return;
+      vtDbgLast = now;
+      data = data || {};
+      data.src = location.pathname; data.tag = tag;
+      data.kbdOcc = KBD_OCCLUSION; data.msgs = vtOccMsgs; data.ih = window.innerHeight;
+      try {
+        var se = document.scrollingElement || document.documentElement;
+        data.st = Math.round(se.scrollTop); data.sh = se.scrollHeight; data.ch = se.clientHeight;
+      } catch (_) {}
+      try {
+        var t = window.term, ba = t && t.buffer && t.buffer.active;
+        if (t && t.element) data.eh = Math.round(t.element.getBoundingClientRect().height);
+        if (t) data.rows = t.rows;
+        if (ba) { data.baseY = ba.baseY; data.vpY = ba.viewportY; data.cy = ba.cursorY; }
+      } catch (_) {}
+      try {
+        fetch('/api/client-debug', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                     body: JSON.stringify(data) }).catch(function () {});
+      } catch (_) {}
+    }
     window.addEventListener('message', function (e) {
       if (!e.data || e.data.type !== 'kbd-occlusion') return;
       var px = Math.max(0, +e.data.px || 0);
+      vtOccMsgs++;
+      vtDbg('occ-msg', { px: px });
       if (px === KBD_OCCLUSION) return;
       KBD_OCCLUSION = px;
       sizeOverlay();
@@ -358,7 +386,7 @@
         // mobile-only "can't scroll a live response" bug — desktop has no overlay/
         // caret/reveal, so its scroll just holds (which is why desktop was fine).
         var ba = t.buffer && t.buffer.active;
-        if (ba && (ba.baseY - ba.viewportY) > 1) return;
+        if (ba && (ba.baseY - ba.viewportY) > 1) { if (occludedPx() > 0) vtDbg('pc-skip', {}); return; }
         var rows = t.rows || 24;
         var h = t.element ? t.element.getBoundingClientRect().height : window.innerHeight;
         var rh = h / rows;
@@ -386,6 +414,8 @@
         // standalone /tN/ with a full viewport), so this also lands the blank-after-
         // `clear` case the old cy<=2 branch existed for.
         if (se && Math.abs(se.scrollTop - want) > 1) se.scrollTop = want;
+        if (occ > 0) vtDbg('pc', { occ: Math.round(occ), want: want, visH: Math.round(visibleH),
+                                   stAfter: Math.round(se.scrollTop), pad: ov.style.paddingTop });
       } catch (_) {}
     }
     // Re-anchor the caret to the cursor row ONLY when the cursor actually moves

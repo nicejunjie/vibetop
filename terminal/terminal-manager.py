@@ -3753,6 +3753,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_schedule_create()
         if self.path == "/api/terminals/schedules/cancel":
             return self._handle_schedule_cancel()
+        if self.path == "/api/client-debug":
+            return self._handle_client_debug()
         if self.path == "/api/browser/open":
             return self._handle_browser_open()
         if self.path == "/api/browser/type":
@@ -3951,6 +3953,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except OSError:
                 pass
         self._json(200, {"ok": True, "tabs": tabs, "active": active})
+
+    def _handle_client_debug(self):
+        """POST {src, tag, ...numbers}: append one client-side diagnostic
+        snapshot to the manager log.
+
+        Zero-friction field instrumentation for device-specific UI bugs (the
+        iOS keyboard/key-bar geometry class): the shell and terminal pages
+        report their MEASURED values, which are then read out of the manager
+        log server-side — no on-device tooling, no user steps beyond a repro.
+        The body is compacted and logged as opaque data, never interpreted."""
+        body = self._read_body(4096)
+        if body is None:
+            return self._json(400, {"error": "invalid or too-large body"})
+        try:
+            txt = body.decode("utf-8", "replace") if isinstance(body, (bytes, bytearray)) else str(body)
+        except Exception:
+            txt = ""
+        log.info("client-debug[%s]: %s", _ctx_user(), " ".join(txt.split())[:1500])
+        return self._json(200, {"ok": True})
 
     def _handle_tab_names_save(self):
         # POST {n, name} — upsert (name null/empty clears). Server-side so the
