@@ -631,10 +631,25 @@
   #win-layouts .wl-zone.wl-drag-over,
   #win-layouts .wl-grid:hover .wl-zone.wl-drag-over { background: #d2691e; }
   #win-layouts .wl-grid:hover + .wl-name { color: #e8eef5; }
+  /* The selected tile: what Apply will commit. Same accent as hover, but it stays. */
+  #win-layouts .wl-grid.wl-sel { border-color: #d2691e; }
+  #win-layouts .wl-opt .wl-grid.wl-sel ~ .wl-name { color: #e8eef5; }
   #win-layouts .wl-name { font-size: 17px; color: #8a9aaa; letter-spacing: .2px; }
+  /* Footer: the hint and the one commit button. The palette is a STAGING area —
+     every gesture edits only the boards; this button makes the selected board
+     real. Disabled until some tile is selected. */
+  #win-layouts .wl-foot { display: flex; align-items: center; justify-content: space-between;
+                          gap: 16px; width: 100%; }
+  #win-layouts .wl-apply {
+    font: 600 14px system-ui, sans-serif; padding: 7px 22px; border-radius: 8px;
+    border: 1px solid #2f3a4a; background: #24405e; color: #dfe9f4; cursor: pointer;
+  }
+  #win-layouts .wl-apply:enabled:hover { background: #2d5078; }
+  #win-layouts .wl-apply:disabled { opacity: 0.45; cursor: default; }
   /* Touch needs the zones big enough to hit individually. */
   body.is-touch #win-layouts .wl-grid { width: 176px; height: 112px; }
   body.is-touch #win-layouts .wl-zone { font-size: 26px; }
+  body.is-touch #win-layouts .wl-apply { font-size: 16px; padding: 10px 28px; }
 
   /* snap preview — where a title-bar drag will drop the window (half / maximize) */
   #win-snap {
@@ -1280,9 +1295,15 @@
   function hideLayouts() {
     if (layoutHideT) { clearTimeout(layoutHideT); layoutHideT = null; }
     if (layoutHoverT) { clearTimeout(layoutHoverT); layoutHoverT = null; }
+    layoutsDirty = false;
     layoutsEl.classList.remove('open');
   }
+  var layoutsDirty = false;   // a staged edit/selection: suspend the hover auto-hide
   function hideLayoutsSoon() {
+    // Once the user has selected or rearranged anything, the palette is a
+    // composition in progress — a stray mouse-leave must not discard it. It
+    // then closes only on Apply or an explicit outside click.
+    if (layoutsDirty) return;
     if (layoutHideT) clearTimeout(layoutHideT);
     layoutHideT = setTimeout(hideLayouts, 260);   // grace to travel from the icon into the palette
   }
@@ -1300,35 +1321,53 @@
     var tip = document.querySelector('.vibe-coach');
     if (tip) { try { tip.remove(); } catch (e) {} }
     layoutsEl.innerHTML = '';
-    var row = document.createElement('div'); row.className = 'wl-row';   // tiles; the hint sits under it
-    var focusedLabel = (APPS[active] && APPS[active].label) || 'the focused window';
+    layoutsDirty = false;
+    var row = document.createElement('div'); row.className = 'wl-row';   // tiles; the footer sits under it
     // Every window's CURRENT geometry, for deriving "who is where now".
     var visGeoms = {};
     vis.forEach(function (id) {
       var g = winGeom(id);
       visGeoms[id] = { left: g.left, top: g.top, width: g.width, height: g.height };
     });
+    // --- staging state: the palette is a COMPOSITION SURFACE -----------------
+    // Every gesture edits only these boards; nothing on screen moves until the
+    // Apply button commits the selected one. Dismissing discards — exploration
+    // is free. `staged[key]` is that tile's zone->window board; `selected` is
+    // what Apply will commit (preseeded with the layout the windows already
+    // occupy, when there is one, so the palette opens showing where you ARE).
+    var staged = {}, selected = null, tileEls = {}, applyBtn = null;
+    var syncSel = function () {
+      Object.keys(tileEls).forEach(function (k) {
+        tileEls[k].classList.toggle('wl-sel', k === selected);
+      });
+      if (applyBtn) applyBtn.disabled = !selected;
+    };
     opts.forEach(function (L) {
       var opt = document.createElement('div'); opt.className = 'wl-opt';
-      // Each zone PREVIEWS the window that will land in it (its app icon), so
-      // "which one gets the big zone?" is answered before any click. ONE steering
-      // concept everywhere — swap two zones' occupants:
-      //   hover a zone   = preview the focused window swapped into it;
-      //   click          = commit exactly what is shown;
-      //   drag icon A→B  = swap ANY two zones (live-previewed, drop commits);
-      //   touch          = tap steers the focused window; LONG-PRESS a zone picks
-      //                    it up, tapping another swaps them (long-press is
-      //                    already this palette's touch idiom).
-      // The base assignment is DERIVED, never stored: when the open windows
+      // Each zone shows the app icon of the window that will land in it, so
+      // "which one gets the big zone?" is answered before anything is clicked.
+      // Interaction model (staging — the user asked for compose-then-commit):
+      //   click a tile     = SELECT it (accent ring); nothing moves;
+      //   drag icon A→B    = swap those two occupants ON THE BOARD (mouse);
+      //   touch            = long-press picks a zone up, tap another swaps them;
+      //   Apply            = commit the selected board; dismiss = discard.
+      // Clicks deliberately do NOT rearrange: zones cover the whole tile, so a
+      // selection click that also staged a swap would mutate the board by
+      // accident with a commit button waiting downstream. (Zone-click steering
+      // and its hover preview existed while every gesture committed instantly;
+      // staging retires both.)
+      // The opening board is DERIVED, never stored: when the open windows
       // already sit exactly in this layout's zones the tile shows who is where
-      // NOW (zoneOccupancy) — so swaps compose across commits — otherwise the
-      // default rule (focused → zone 0, rest in taskbar order). Preview and
-      // placement share the same pure functions, so the preview cannot lie.
+      // NOW (zoneOccupancy) and opens selected — otherwise the default rule
+      // (focused → zone 0, rest in taskbar order). Apply commits exactly the
+      // painted board (one shared pure-function path), so the board cannot lie.
       var grid = document.createElement('div'); grid.className = 'wl-grid';
-      grid.title = L.name + ' — arrange every window like this';
+      grid.title = L.name + ' — select, rearrange by drag, then Apply';
       var zonesPx = VibeWin.layoutGeoms(L.key, frameBox());
-      var base = (zonesPx && VibeWin.zoneOccupancy(zonesPx, visGeoms)) ||
-                 VibeWin.zoneAssign(vis, active, L.zones.length, 0);
+      var occ = zonesPx && VibeWin.zoneOccupancy(zonesPx, visGeoms);
+      staged[L.key] = (occ || VibeWin.zoneAssign(vis, active, L.zones.length, 0)).slice();
+      if (occ) selected = L.key;               // the palette opens on where you are
+      tileEls[L.key] = grid;
       var zoneEls = [];
       L.zones.forEach(function (z, j) {
         var cell = document.createElement('div');
@@ -1360,18 +1399,21 @@
             // preferred, emoji fallback), so a zone is recognizably "that window".
             cell.innerHTML = app ? (app.svg || app.icon) : '';
           }
-          var t = (id === active)
-            ? L.name + ' with ' + focusedLabel + ' here'
-            : 'Put ' + focusedLabel + ' here instead \u00b7 drag icons to swap any two';
+          var t = app ? app.label + ' \u00b7 drag onto another zone to switch' : '';
           if (cell.title !== t) cell.title = t;
         });
       };
-      paint(base);
-      // The focused window swapped into zone j (identity when j is its own zone,
-      // or when the focused window is not on this board).
-      var focusSwap = function (j) {
-        var i = base.indexOf(active);
-        return i < 0 ? base : VibeWin.swapZones(base, i, j);
+      paint(staged[L.key]);
+      // Stage an edit: swap two zones on THIS board, select the tile, repaint.
+      // Nothing on screen moves — that is the point.
+      var stage = function (i, k) {
+        staged[L.key] = VibeWin.swapZones(staged[L.key], i, k);
+        paint(staged[L.key]);
+        choose();
+      };
+      var choose = function () {
+        selected = L.key; layoutsDirty = true; syncSel();
+        if (layoutHideT) { clearTimeout(layoutHideT); layoutHideT = null; }
       };
       var dragSrc = null;      // mouse drag-to-swap state for THIS tile
       var armed = -1;          // touch: long-pressed (picked up) zone
@@ -1383,17 +1425,16 @@
         zoneEls.forEach(function (c) { c.classList.remove('wl-drag-src', 'wl-drag-over'); });
       };
       zoneEls.forEach(function (cell, j) {
-        cell.addEventListener('mouseenter', function () { if (!dragSrc) paint(focusSwap(j)); });
         cell.addEventListener('click', function (e) {
           e.stopPropagation();
           if (swallowClick) { swallowClick = false; return; }
           if (armed >= 0) {                       // touch: drop the picked-up zone here
             if (j === armed && Date.now() - armedAt < 800) return;   // the arming press's own lift
             var a = armed; armed = -1; clearDragMarks();
-            if (a !== j) applyLayout(L.key, VibeWin.swapZones(base, a, j));
+            if (a !== j) stage(a, j);             // staged, not applied — Apply commits
             return;
           }
-          applyLayout(L.key, focusSwap(j));
+          choose();                               // a click selects; drags rearrange
         });
         // Mouse: drag an icon onto another zone to swap the two occupants.
         cell.addEventListener('pointerdown', function (e) {
@@ -1428,7 +1469,7 @@
           var el = document.elementFromPoint(e.clientX, e.clientY);
           var over = el && el.closest ? el.closest('.wl-zone') : null;
           var k = (over && over.parentNode === grid) ? +over.dataset.zone : -1;
-          paint(k >= 0 ? VibeWin.swapZones(base, j, k) : base);
+          paint(k >= 0 ? VibeWin.swapZones(staged[L.key], j, k) : staged[L.key]);
           zoneEls.forEach(function (c, m) { c.classList.toggle('wl-drag-over', m === k && k !== j); });
         });
         var endDrag = function (e) {
@@ -1436,35 +1477,50 @@
           if (!dragSrc || dragSrc.j !== j) return;
           var live = dragSrc.live; dragSrc = null; clearDragMarks();
           if (!live) return;                      // a plain click; the click event handles it
-          swallowClick = true;                    // the release also fires click — not a steer
-          if (e.type === 'pointercancel') { paint(base); return; }
+          swallowClick = true;                    // the release also fires click — not a select
+          if (e.type === 'pointercancel') { paint(staged[L.key]); return; }
           var el = document.elementFromPoint(e.clientX, e.clientY);
           var over = el && el.closest ? el.closest('.wl-zone') : null;
           if (over && over.parentNode === grid && +over.dataset.zone !== j) {
-            applyLayout(L.key, VibeWin.swapZones(base, j, +over.dataset.zone));
-          } else paint(base);
+            stage(j, +over.dataset.zone);         // staged, not applied — Apply commits
+          } else paint(staged[L.key]);
         };
         cell.addEventListener('pointerup', endDrag);
         cell.addEventListener('pointercancel', endDrag);
       });
-      grid.addEventListener('mouseleave', function () { if (!dragSrc) paint(base); });
+      grid.addEventListener('mouseleave', function () { if (!dragSrc) paint(staged[L.key]); });
       grid.addEventListener('click', function (e) {
         e.stopPropagation();
         if (swallowClick) { swallowClick = false; return; }
         if (armed >= 0) { armed = -1; clearDragMarks(); return; }   // tap off the board = cancel
-        applyLayout(L.key, base);
+        choose();
       });
       var nm = document.createElement('div'); nm.className = 'wl-name'; nm.textContent = L.name;
       opt.appendChild(grid); opt.appendChild(nm);
       row.appendChild(opt);
     });
     layoutsEl.appendChild(row);
-    // Say the icons are draggable — nothing else on screen implies it.
+    // Footer: the drag affordance in words (nothing on screen implies it), and
+    // THE commit button — the palette stages, this makes it real.
+    var foot = document.createElement('div');
+    foot.className = 'wl-foot';
     var hint = document.createElement('div');
     hint.className = 'wl-hint';
     hint.textContent = IS_TOUCH ? '(hold an icon, then tap another to switch)'
                                 : '(drag to switch)';
-    layoutsEl.appendChild(hint);
+    applyBtn = document.createElement('button');
+    applyBtn.className = 'wl-apply';
+    applyBtn.id = 'wl-apply';
+    applyBtn.type = 'button';
+    applyBtn.textContent = 'Apply';
+    applyBtn.title = 'Arrange the windows as staged';
+    applyBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (selected) applyLayout(selected, staged[selected]);
+    });
+    foot.appendChild(hint); foot.appendChild(applyBtn);
+    layoutsEl.appendChild(foot);
+    syncSel();
     layoutsEl.classList.add('open');
     // ABOVE the taskbar button (the bar is at the bottom), clamped to the viewport.
     var r = btn.getBoundingClientRect(), pr = layoutsEl.getBoundingClientRect();

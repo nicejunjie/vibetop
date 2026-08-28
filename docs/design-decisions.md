@@ -3922,3 +3922,53 @@ Also fixed: `deploy.sh` now forwards `--no-office` to `tools/smoke-test.sh`. It
 did not, so every `--no-office` deploy ended with a permanent "2 failed"
 (OnlyOffice container + healthcheck) for a component that run was told to skip —
 the false alarm at every VM boot that made the image look broken.
+
+---
+
+## The palette becomes a staging area: compose freely, one Apply commits
+
+**Ask (user's words):** *"for setting layout, how about adding a button in the
+pop up, after drag icons around, user click that button to make layout
+effective."*
+
+**What it fixes:** under commit-per-gesture, every drop applied immediately and
+closed the palette — composing a specific 3-window arrangement meant reopening
+between every swap, and any exploratory drag threw the real windows around.
+
+**Design decision — stage EVERYTHING, one button commits.** The alternative
+(only drags stage, a tile click still applies instantly) was considered and
+rejected deliberately: mixed commit semantics is the same inconsistency class
+that produced the earlier *"the control logic is not intuitive"* complaint.
+Named cost, accepted: picking a plain preset is now two clicks (tile, Apply).
+
+**The model:**
+- A tile click SELECTS (accent ring; Apply enabled). Nothing moves.
+- Dragging an icon onto another zone swaps those two occupants ON THE BOARD;
+  touch long-press-then-tap does the same. Swaps compose in one visit.
+- **Apply** (palette footer — inside the popup, so no new permanent chrome)
+  commits the selected board via the same `applyLayout(key, assign)` path the
+  board was painted from: the board cannot lie.
+- Dismissing discards with nothing moved — exploration is free, by design.
+- The tile whose zones the windows already occupy opens pre-selected
+  (`zoneOccupancy`), so the palette opens showing where you are and Apply with
+  no edits is a visible no-op. No tile matches → Apply disabled until a click.
+- **A dirty palette stops auto-hiding.** The hover-open contract (mouse-leave
+  hides after 260ms) would discard a composed arrangement on a stray
+  mouse-leave; once anything is selected or staged, only Apply or an explicit
+  outside click closes it.
+
+**Retired with reasons:** zone-click steering ("put the focused window here",
+committed instantly) and its hover swap-preview. Under staging, zones cover the
+whole tile, so a selection click that also staged a swap would mutate the board
+by accident with a commit button waiting downstream; and the hover preview
+previewed exactly that click. One gesture rearranges (drag / long-press+tap),
+one gesture selects (click), one button commits.
+
+**Held invariants:** idempotent `paint()` (the churn loop that once swallowed
+`pointerdown` stays dead — the DOM-quiet guard still asserts 0 mutations),
+tile sizes (131×85 / 176×112 touch), the SVG taskbar icon, and the
+proof-first e2e discipline: the reworked drag test fails on the pre-staging
+deployed build at its first staging assertion ("a tile click stages — the
+palette stays open"), then passes against the fix, driving the real gesture
+(press, arm, travel, drop, Apply). Touch staging verified with synthesized
+iOS-style touch events (no click after long-press).

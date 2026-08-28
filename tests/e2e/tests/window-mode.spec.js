@@ -550,7 +550,11 @@ test.describe('window mode', () => {
       expect(names).not.toContain('Halves');
       expect(names).not.toContain('Stacked');
 
+      // STAGING: a tile click only selects; the Apply button commits and closes.
       await palette.locator('.wl-opt').first().locator('.wl-grid').click();
+      await page.waitForTimeout(200);
+      await expect(palette).toHaveClass(/open/);
+      await palette.locator('#wl-apply').click();
       await page.waitForTimeout(500);
       await expect(palette).not.toHaveClass(/open/);
 
@@ -572,11 +576,11 @@ test.describe('window mode', () => {
 
     // "For 3 windows, how do I choose which one is the one in 1+2?" — the palette
     // answers it in place: each zone previews the icon of the window that will
-    // land there (focused → zone 0, rest in taskbar order), hovering a zone
-    // previews the focused window THERE instead, and clicking a zone commits
-    // exactly what is shown. Preview and placement share VibeWin.zoneAssign, so
-    // the preview cannot lie.
-    test('the palette previews who goes where, and clicking a zone steers the focused window', async ({ page }) => {
+    // land there (focused → zone 0, rest in taskbar order — or, once the windows
+    // already sit in a layout's zones, who is where NOW). The palette STAGES:
+    // a tile click selects, Apply commits, and the preview cannot lie because
+    // Apply commits exactly the painted board.
+    test('the palette previews who goes where; select + Apply commits it', async ({ page }) => {
       await openApp(page, 'files');            // notes, upload, files -> three windows
       await page.waitForTimeout(600);
       const offered = await page.evaluate(() => {
@@ -606,15 +610,16 @@ test.describe('window mode', () => {
       // Preview truth: the focused window's icon sits in the main zone, and every
       // zone carries some window's icon.
       expect(await zoneHTML(0)).toBe(notesIcon);
-      await expect(zone(0)).toHaveAttribute('title', / with Notes here$/);
       for (let j = 0; j < 3; j++) expect((await zoneHTML(j)).length).toBeGreaterThan(0);
 
-      // Hovering zone 1 previews the focused window THERE...
-      await zone(1).hover();
-      expect(await zoneHTML(1)).toBe(notesIcon);
-      await expect(zone(1)).toHaveAttribute('title', / with Notes here$/);
+      // Selecting stages; nothing moves until Apply.
+      const before = await geom(page, 'notes');
+      await grid.click();
+      await page.waitForTimeout(250);
+      await expect(grid).toHaveClass(/wl-sel/);
+      await expect(palette).toHaveClass(/open/);
+      expect(await geom(page, 'notes')).toEqual(before);   // staged only
 
-      // ...and clicking commits it: notes lands exactly in zone 1's geometry.
       const zones = await page.evaluate((key) => {
         const f = document.getElementById('frames').getBoundingClientRect();
         return window.VibeWin.layoutGeoms(key, { w: Math.round(f.width), h: Math.round(f.height) });
@@ -623,56 +628,24 @@ test.describe('window mode', () => {
         const r = document.getElementById('frames').getBoundingClientRect();
         return { left: Math.round(r.left), top: Math.round(r.top) };
       });
-      await zone(1).click();
+      await palette.locator('#wl-apply').click();
       await page.waitForTimeout(500);
       await expect(palette).not.toHaveClass(/open/);
       const g = await geom(page, 'notes');
-      expect(Math.abs(g.left - (fr.left + zones[1].left))).toBeLessThanOrEqual(2);
-      expect(Math.abs(g.top - (fr.top + zones[1].top))).toBeLessThanOrEqual(2);
-      expect(Math.abs(g.width - zones[1].width)).toBeLessThanOrEqual(2);
-      expect(Math.abs(g.height - zones[1].height)).toBeLessThanOrEqual(2);
-      expect(g.focused, 'the steered window keeps focus').toBe(true);
+      expect(Math.abs(g.left - (fr.left + zones[0].left))).toBeLessThanOrEqual(2);
+      expect(Math.abs(g.top - (fr.top + zones[0].top))).toBeLessThanOrEqual(2);
+      expect(g.focused, 'the focused window keeps focus').toBe(true);
 
-      // --- full slot assignment ------------------------------------------------
-      // Re-open the palette: the applied layout's tile must preview REALITY (who
-      // is where now — notes is in zone 1), not re-derive the focused rule.
+      // Re-open: the applied layout's tile previews REALITY and opens SELECTED,
+      // so Apply-with-no-edits is a visible no-op.
       await page.mouse.move(10, 10);
       await page.locator('#wm-btn').hover();
       await expect(palette).toHaveClass(/open/, { timeout: 3000 });
       const grid2 = palette.locator('.wl-opt').first().locator('.wl-grid');
-      const z2 = (j) => grid2.locator(`.wl-zone[data-zone="${j}"]`);
-      const html2 = (j) => z2(j).evaluate((el) => el.innerHTML);
-      expect(await html2(1)).toBe(notesIcon);
-
-      // Drag zone 0's icon onto zone 2: those two occupants swap — including
-      // windows that are NOT focused, which zone-clicking alone cannot reach.
-      const before = { z0: await html2(0), z2: await html2(2) };
-      expect(before.z0).not.toBe(notesIcon);   // notes sits in zone 1, so this
-      expect(before.z2).not.toBe(notesIcon);   // drag moves two unfocused windows
-      const b0 = await z2(0).boundingBox(), b2 = await z2(2).boundingBox();
-      await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2, { steps: 6 });
-      await page.mouse.up();
-      await page.waitForTimeout(500);
-      await expect(palette).not.toHaveClass(/open/);   // the drop committed
-
-      // The two swapped windows really traded places on the desktop.
-      const idFor = (html) => page.evaluate((h) => {
-        const btns = [...document.querySelectorAll('#task-apps .task-app')];
-        const hit = btns.find((b) => b.querySelector('.icon').innerHTML === h);
-        return hit && hit.dataset.id;
-      }, html);
-      const a = await idFor(before.z0), b = await idFor(before.z2);
-      const ga = await geom(page, a), gb = await geom(page, b);
-      expect(Math.abs(ga.left - (fr.left + zones[2].left))).toBeLessThanOrEqual(2);
-      expect(Math.abs(ga.top - (fr.top + zones[2].top))).toBeLessThanOrEqual(2);
-      expect(Math.abs(gb.left - (fr.left + zones[0].left))).toBeLessThanOrEqual(2);
-      expect(Math.abs(gb.top - (fr.top + zones[0].top))).toBeLessThanOrEqual(2);
-      // And notes never moved: full assignment means the third window stays put.
-      const gn = await geom(page, 'notes');
-      expect(Math.abs(gn.left - (fr.left + zones[1].left))).toBeLessThanOrEqual(2);
-      expect(Math.abs(gn.top - (fr.top + zones[1].top))).toBeLessThanOrEqual(2);
+      await expect(grid2).toHaveClass(/wl-sel/);
+      expect(await grid2.locator('.wl-zone[data-zone="0"]').evaluate((el) => el.innerHTML))
+        .toBe(notesIcon);
+      await expect(palette.locator('#wl-apply')).toBeEnabled();
     });
 
     test('▢ is plain maximize — it must not open the palette', async ({ page }) => {
@@ -744,17 +717,23 @@ test.describe('window mode', () => {
                key: offered[0], zones, fr };
     }
 
-    test('press, arm, travel, drop — the last zone IS swappable', async ({ page }) => {
-      // Apply the layout first so the reopened tile previews reality (occupancy),
-      // then drag zone 0's occupant onto the LAST zone — for 1 + 2 that is
-      // exactly "the bottom right one", the reported-unswappable slot.
+    test('drags stage on the board; Apply commits — the last zone IS swappable', async ({ page }) => {
+      // Select + Apply the first layout, reopen, then drag zone 0's occupant onto
+      // the LAST zone — for 1 + 2 that is exactly "the bottom right one". The
+      // drop STAGES: nothing moves until the Apply button.
       let t = await openTile(page);
       await t.grid.click();
+      await page.waitForTimeout(200);
+      // THE staging divergence, asserted first: a tile click must NOT close and
+      // apply any more (on the pre-staging build it did exactly that).
+      await expect(page.locator('#win-layouts'), 'a tile click stages — the palette stays open')
+        .toHaveClass(/open/);
+      await page.locator('#wl-apply').click();
       await page.waitForTimeout(600);
+
       t = await openTile(page);
       const last = t.zones.length - 1;
-      // Occupants by icon markup (works on any build — data-app only exists on
-      // the fixed one, and this proof must fail at the DRAG, not on an attribute).
+      // Occupants by icon markup, mapped back to app ids via the taskbar.
       const occ = (j) => t.grid.locator(`.wl-zone[data-zone="${j}"]`).evaluate((el) => {
         const btns = [...document.querySelectorAll('#task-apps .task-app')];
         const hit = btns.find((x) => x.querySelector('.icon').innerHTML === el.innerHTML);
@@ -762,14 +741,17 @@ test.describe('window mode', () => {
       });
       const a = await occ(0), b = await occ(last);
       expect(a).toBeTruthy(); expect(b).toBeTruthy(); expect(a).not.toBe(b);
+      const g = (id) => page.locator(`#win-${id}`).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { left: Math.round(r.left), top: Math.round(r.top) };
+      });
+      const beforeA = await g(a), beforeB = await g(b);
 
       const z0 = await t.grid.locator('.wl-zone[data-zone="0"]').boundingBox();
       const zl = await t.grid.locator(`.wl-zone[data-zone="${last}"]`).boundingBox();
       await page.mouse.move(z0.x + z0.width / 2, z0.y + z0.height / 2);
       await page.waitForTimeout(120);                    // a human hovers before pressing
       await page.mouse.down();
-      // Arm INSIDE the source zone (>4px threshold) — this is what dies when a
-      // repaint loop detaches the node mid-dispatch: pointerdown never lands.
       await page.mouse.move(z0.x + z0.width / 2 + 7, z0.y + z0.height / 2, { steps: 3 });
       await page.waitForTimeout(120);
       await expect(page.locator('.wl-drag-src'), 'the drag must arm').toHaveCount(1);
@@ -777,13 +759,19 @@ test.describe('window mode', () => {
       await page.waitForTimeout(150);
       await expect(page.locator('.wl-drag-over'), 'the drop target must light').toHaveCount(1);
       await page.mouse.up();
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(300);
 
-      // The two occupants really traded places on the desktop.
-      const g = (id) => page.locator(`#win-${id}`).evaluate((el) => {
-        const r = el.getBoundingClientRect();
-        return { left: Math.round(r.left), top: Math.round(r.top) };
-      });
+      // The drop STAGED the swap: board updated, palette open, windows unmoved.
+      await expect(page.locator('#win-layouts'), 'a drop stages — the palette stays open')
+        .toHaveClass(/open/);
+      expect(await occ(0)).toBe(b);
+      expect(await occ(last)).toBe(a);
+      expect(await g(a)).toEqual(beforeA);
+      expect(await g(b)).toEqual(beforeB);
+
+      // Apply commits exactly the staged board.
+      await page.locator('#wl-apply').click();
+      await page.waitForTimeout(500);
       const ga = await g(a), gb = await g(b);
       expect(Math.abs(ga.left - (t.fr.left + t.zones[last].left))).toBeLessThanOrEqual(2);
       expect(Math.abs(ga.top - (t.fr.top + t.zones[last].top))).toBeLessThanOrEqual(2);
