@@ -2184,6 +2184,29 @@
     var wasUp = false;
     var kbSamples = [];   // recent sane keyboard-up vvBottom readings (quorum buffer)
     var kbAnchor = 0;     // quorum-confirmed keyboard-top; 0 = none yet this orientation
+    var kbPrior = 0;      // last confirmed anchor from ANY session (persisted per width)
+    // PERSISTED PRIORS — the no-keyboard height AND the keyboard-top are device
+    // constants per orientation, so remember them. Without the baseH prior, a
+    // PWA resumed WITH the keyboard up measures its shrunken viewport as the
+    // baseline: the sanity floor collapses (0.4×508 instead of 0.4×894) and an
+    // animation-intermediate reading walks straight through, drawing the bar
+    // MID-SCREEN and freezing there when the resting state is gate-rejected
+    // (the reported screenshot). With priors, every session starts with last
+    // session's truth.
+    function priorsLoad() {
+      try {
+        baseH = Math.max(baseH, +localStorage.getItem('vibetop:kbBase:' + baseW) || 0);
+        kbPrior = +localStorage.getItem('vibetop:kbA:' + baseW) || 0;
+      } catch (e) {}
+    }
+    function priorsSaveBase() {
+      try { localStorage.setItem('vibetop:kbBase:' + baseW, String(Math.round(baseH))); } catch (e) {}
+    }
+    function priorsSaveAnchor(v) {
+      kbPrior = v;
+      try { localStorage.setItem('vibetop:kbA:' + baseW, String(Math.round(v))); } catch (e) {}
+    }
+    priorsLoad();
     // Field instrumentation for the recurring key-bar-covers-the-prompt bug:
     // report the SHELL's measured geometry to the manager log (POST
     // /api/client-debug) so an on-device repro can be read server-side.
@@ -2215,7 +2238,10 @@
       // Without this, baseH only ever grew, so after an iPad was ever in a TALLER
       // orientation the shorter one read as "keyboard up" forever (bar stuck on).
       var w = window.innerWidth;
-      if (w !== baseW) { baseW = w; baseH = 0; kbAnchor = 0; kbSamples.length = 0; }   // rotation: keyboard height differs
+      if (w !== baseW) {   // rotation: keyboard height differs — reload that orientation's priors
+        baseW = w; baseH = 0; kbAnchor = 0; kbPrior = 0; kbSamples.length = 0;
+        priorsLoad();
+      }
       // Geometry sanity gate — BOTH bounds. Mid-keyboard, WebKit reports
       // self-inconsistent viewports and HOLDS them for many seconds; two forms
       // measured live on the reporting iPhone: (a) overflow — vvTop 285 +
@@ -2238,7 +2264,7 @@
         }
       }
       var h = curH();
-      if (h > baseH) baseH = h;             // URL-bar collapse makes it taller -> new baseline
+      if (h > baseH) { baseH = h; priorsSaveBase(); }   // taller reading -> new baseline, remembered
       var kbUp = h < baseH - 150;           // keyboard ~300px; URL bar ~60px; 150 distinguishes them
       // Show this bar ONLY for the Terminal. It's the sole app that consumes the
       // kbd-key messages — TUIs need esc/tab/^C/arrows the soft keyboard lacks.
@@ -2267,16 +2293,18 @@
         var agree = 0;
         for (var si = 0; si < kbSamples.length; si++)
           if (nowTs - kbSamples[si].t < 4000 && Math.abs(kbSamples[si].v - vb) <= 14) agree++;
-        if (agree >= 2) kbAnchor = vb;      // confirmed (current reading counts once)
+        if (agree >= 2) { kbAnchor = vb; priorsSaveAnchor(vb); }   // confirmed + remembered
         // THE BAR ALWAYS SHOWS. v1.19.69's `if (!kbAnchor) return` held the
         // whole bar hostage to the quorum: on a device whose RESTING readings
         // mostly land in the sanity-gate-rejected states, samples stayed
         // sparse, the anchor never formed, and the esc/tab/^C/arrow bar never
-        // appeared at all ("the control bar is gone!"). A bar at the
-        // instantaneous position is strictly better than no bar — the anchor
-        // still wins when it exists, and the occlusion FIGURE (which is what
-        // the quorum protects) still posts only from anchored readings.
-        var barTop = Math.round((kbAnchor || vb) - BAR_H);
+        // appeared at all ("the control bar is gone!"). Position preference:
+        // this session's anchor, else the PERSISTED prior (the keyboard's
+        // height is a per-orientation device constant, so last session's
+        // confirmed value is right on the first frame), else — first use ever
+        // on this device — the instantaneous reading, corrected by the quorum
+        // within a beat. The occlusion FIGURE still posts only when anchored.
+        var barTop = Math.round((kbAnchor || kbPrior || vb) - BAR_H);
         bar.style.top = barTop + 'px'; bar.style.display = 'flex';
         // Keyboard just (re)opened → bust the dedupe. The PWA can be suspended
         // with the keyboard up and lastOcc holding the final figure; on resume
