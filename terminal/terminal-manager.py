@@ -1623,6 +1623,91 @@ def _stop_user_terminal(user, n):
     return True, None
 
 
+# ---- Per-user file agent (Files-native phase 1, docs/files-native.md) ------
+# A tiny read-only daemon run AS the user (files/fileagent.py), spawned on the
+# first /api/fs/* call. The manager only PROXIES the authenticated request to
+# the user's socket — it performs no file operation itself; Unix permissions
+# in the agent's process are the entire authorization fence.
+FILEAGENT_IDLE = _port_env("FILEAGENT_IDLE", 900)
+
+
+def _fileagent_sock(user):
+    return f"/tmp/vibetop-fileagent-{_sanitize_unit(user)}.sock"
+
+
+def _fileagent_unit(user):
+    return f"vibetop-fileagent-{_sanitize_unit(user)}.service"
+
+
+def _fileagent_bin():
+    return os.path.join(REPO_DIR, "files", "fileagent.py")
+
+
+def _fs_call(user, req, timeout=10.0):
+    """One request/response against `user`'s agent (injector-style short
+    connection: send, half-close, read to EOF). Returns a dict; {"ok": False}
+    with a code on transport failure."""
+    sock_path = _fileagent_sock(user)
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        s.settimeout(timeout)
+        s.connect(sock_path)
+        s.sendall((json.dumps(req) + "\n").encode("utf-8"))
+        try:
+            s.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+        buf = bytearray()
+        while len(buf) < 8 * 1024 * 1024:
+            chunk = s.recv(1 << 20)
+            if not chunk:
+                break
+            buf.extend(chunk)
+        return json.loads(bytes(buf).decode("utf-8", "replace"))
+    except (OSError, ValueError) as e:
+        return {"ok": False, "error": str(e), "code": "agent"}
+    finally:
+        try:
+            s.close()
+        except OSError:
+            pass
+
+
+def _ensure_fileagent(user):
+    """Idempotently start `user`'s agent and wait for its socket. Same
+    systemd-run pattern as the terminal session units (uid/gid + resource caps
+    + workdir + SELinux props); --collect reaps it after its idle exit."""
+    probe = _fs_call(user, {"op": "home"}, timeout=1.5)
+    if probe.get("ok"):
+        return True, None
+    try:
+        pw = pwd.getpwnam(user)
+    except KeyError:
+        return False, "no such user"
+    _provision_user(user)
+    base = (["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
+            + _resource_props() + _workdir_props(pw) + _selinux_props())
+    try:
+        r = subprocess.run(
+            base + [f"--unit={_fileagent_unit(user)}",
+                    "--setenv", f"VIBETOP_FILEAGENT_IDLE={FILEAGENT_IDLE}",
+                    "/usr/bin/python3", _fileagent_bin(),
+                    "--sock", _fileagent_sock(user)],
+            capture_output=True, text=True, timeout=30)
+        # An "already exists" unit (agent mid-shutdown race) is fine — we only
+        # care whether the socket answers below.
+        if r.returncode != 0 and "already exists" not in (r.stderr or ""):
+            return False, (r.stderr or r.stdout or "agent start failed").strip()
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if _fs_call(user, {"op": "home"}, timeout=1.0).get("ok"):
+            return True, None
+        time.sleep(0.1)
+    return False, "agent did not come up"
+
+
 # ---- Per-user Files (FileBrowser as the user, Phase 3b) --------------------
 # One FileBrowser per user, run AS them via systemd-run, rooted at "/" (whole
 # filesystem — same as the single-user Files app and consistent with the user's
@@ -5027,6 +5112,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "subs": tracks.get("subs", []),
         })
 
+    def _handle_fs(self):
+        """GET /api/fs/<op>?path=&max= — proxy the authenticated user's request
+        to THEIR file agent (Files-native phase 1). The manager adds nothing to
+        the request beyond routing: the agent runs as the user, so the OS is
+        the authorization boundary (docs/files-native.md)."""
+        u = urllib.parse.urlparse(self.path)
+        op = u.path.rsplit("/", 1)[-1]
+        if op not in ("home", "list", "stat", "read"):
+            return self._json(404, {"ok": False, "error": "unknown op", "code": "einval"})
+        q = urllib.parse.parse_qs(u.query)
+        req = {"op": op}
+        if "path" in q:
+            req["path"] = q["path"][0]
+        if "max" in q:
+            try:
+                req["max"] = int(q["max"][0])
+            except (TypeError, ValueError):
+                pass
+        user = _ctx_user()
+        ok, err = _ensure_fileagent(user)
+        if not ok:
+            return self._json(502, {"ok": False, "error": err or "agent unavailable",
+                                    "code": "agent"})
+        return self._json(200, _fs_call(user, req))
+
     def _handle_image_media(self):
         """GET /api/file/image?path=<Files-app path>[&dl=1] — stream an image's
         bytes for the native image viewer (imageview.html). Same trust model as
@@ -6176,6 +6286,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_video_subs()
         if self.path.startswith("/api/file/image"):
             return self._handle_image_media()
+        if self.path.startswith("/api/fs/"):
+            return self._handle_fs()
         if self.path == "/api/update" or self.path.startswith("/api/update?"):
             self._json(200, self._update_version_info())
             return
