@@ -95,6 +95,28 @@
   .card .ghost { display: block; margin: 10px auto 0; background: none; border: none; color: #6b7488; font-size: 12px; cursor: pointer; min-height: 0; padding: 2px 6px; }
   .card .ghost:hover { color: #aab4c5; background: none; }
   .hint { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 11px; color: #3a4050; pointer-events: none; }
+  #helpBtn { background: #1f2733; border-color: #2a3040; color: #aab4c5; min-width: 30px; font-weight: 700; padding: 5px 9px; }
+  #helpBtn:hover { background: #253044; border-color: #3a4358; }
+  .help .card {
+    text-align: left; max-width: min(340px, 90vw); max-height: 86%;
+    overflow: auto; padding: 18px 20px; position: relative;
+  }
+  .help h2 { font-size: 15px; margin-bottom: 8px; }
+  .help .x {
+    position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
+    border: none; background: none; color: #6b7488; font-size: 16px;
+    min-height: 0; padding: 0; border-radius: 6px;
+  }
+  .help .x:hover { color: #d4d8de; background: #1f2733; }
+  .help .goal { font-size: 12.5px; color: #aab4c5; line-height: 1.5; margin-bottom: 4px; }
+  .help h3 { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6b7488; margin: 12px 0 4px; }
+  .help ul { list-style: none; }
+  .help li { font-size: 12.5px; color: #aab4c5; line-height: 1.65; }
+  .help kbd {
+    background: #0e1117; border: 1px solid #2a3040; border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 5px;
+    font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de;
+  }
 </style>
 </head>
 <body>
@@ -103,6 +125,7 @@
     <span class="spacer"></span>
     <div class="stat"><span class="lbl">Score</span><span class="val" id="score">0</span></div>
     <div class="stat"><span class="lbl">Best</span><span class="val" id="best">0</span></div>
+    <button id="helpBtn" title="How to play">?</button>
     <button id="newBtn">New</button>
   </div>
   <div class="wrap" id="wrap">
@@ -114,6 +137,21 @@
         <p id="ovMsg"></p>
         <button class="primary" id="ovNew">New Game</button>
         <button class="ghost" id="ovKeep">keep going</button>
+      </div>
+    </div>
+    <div class="overlay help" id="helpOv">
+      <div class="card">
+        <button class="x" id="helpX" title="Close">✕</button>
+        <h2>How to play</h2>
+        <p class="goal">Slide the tiles — equal tiles merge into one. Reach 2048 to win; keep going for a higher score.</p>
+        <h3>Keyboard</h3>
+        <ul>
+          <li><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — slide</li>
+        </ul>
+        <h3>Touch</h3>
+        <ul>
+          <li>Swipe in any direction</li>
+        </ul>
       </div>
     </div>
     <div class="hint" id="hint">swipe or use arrow keys</div>
@@ -306,8 +344,14 @@
   }
 
   // ---- input ----
+  var helpOv = document.getElementById('helpOv');
+  document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
+  document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
+  helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
+
   document.addEventListener('keydown', function(ev) {
-    if (overlay.classList.contains('show')) return;
+    if (ev.key === 'Escape') { helpOv.classList.remove('show'); return; }
+    if (overlay.classList.contains('show') || helpOv.classList.contains('show')) return;
     var k = ev.key;
     var did = false;
     if (k === 'ArrowLeft' || k === 'a') did = move(0, -1);
@@ -327,7 +371,7 @@
   window.addEventListener('pointerup', function(ev) {
     if (!tracking) return;
     tracking = false;
-    if (overlay.classList.contains('show')) return;
+    if (overlay.classList.contains('show') || helpOv.classList.contains('show')) return;
     var dx = ev.clientX - sx, dy = ev.clientY - sy;
     var ax = Math.abs(dx), ay = Math.abs(dy);
     if (Math.max(ax, ay) < 24) return;

@@ -109,6 +109,22 @@
     padding: 7px 18px; font-size: 13px; font-weight: 600;
   }
   .modal .primary:hover { background: #9a5ceb; }
+  #helpBtn { min-width: 30px; font-weight: 700; color: #aab4c5; }
+  .help .modal {
+    text-align: left; max-width: min(340px, 90vw); max-height: 86%;
+    overflow: auto; padding: 18px 20px;
+  }
+  .help h2 { font-size: 15px; margin-bottom: 8px; }
+  .help .x {
+    position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
+    border: none; background: none; color: #6b7488; font-size: 16px;
+    min-height: 0; padding: 0; border-radius: 6px;
+  }
+  .help .x:hover { color: #d4d8de; background: #1f2733; }
+  .help .goal { font-size: 12.5px; color: #aab4c5; line-height: 1.5; margin-bottom: 4px; }
+  .help h3 { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6b7488; margin: 12px 0 4px; }
+  .help ul { list-style: none; }
+  .help li { font-size: 12.5px; color: #aab4c5; line-height: 1.65; }
   .confetti { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
   .confetti span {
     position: absolute; top: -6%; width: 8px; height: 12px; border-radius: 2px;
@@ -125,6 +141,7 @@
     <span class="title"><span class="ic">🃏</span><span class="txt">Solitaire</span></span>
     <span class="stat" id="moves">0 moves</span>
     <span class="spacer"></span>
+    <button id="helpBtn" title="How to play">?</button>
     <button id="undoBtn" title="Undo last move">↩ Undo</button>
     <button id="newBtn">New</button>
   </div>
@@ -138,6 +155,25 @@
         <h2>You won!</h2>
         <p id="ovMsg"></p>
         <button class="primary" id="ovNew">New Game</button>
+      </div>
+    </div>
+    <div class="overlay help" id="helpOv">
+      <div class="modal">
+        <button class="x" id="helpX" title="Close">✕</button>
+        <h2>How to play</h2>
+        <p class="goal">Klondike: move all 52 cards to the four foundations, A → K by suit. On the tableau, stack downward in alternating colors; only a King may fill an empty column. Face-down cards flip when uncovered.</p>
+        <h3>Mouse</h3>
+        <ul>
+          <li>Drag a card (or stack) to move it</li>
+          <li>Double-click — send a card to its foundation</li>
+          <li>Click the stock to draw · ↻ redeals the waste</li>
+          <li>↩ Undo reverses the last move</li>
+        </ul>
+        <h3>Touch</h3>
+        <ul>
+          <li>Drag, or tap a card then tap its destination</li>
+          <li>Double-tap — send a card to its foundation</li>
+        </ul>
       </div>
     </div>
   </div>
@@ -427,7 +463,7 @@
   }
 
   tableEl.addEventListener('pointerdown', function(ev) {
-    if (won || overlay.classList.contains('show')) return;
+    if (won || overlay.classList.contains('show') || helpOv.classList.contains('show')) return;
     var cardEl2 = ev.target.closest ? ev.target.closest('.pc') : null;
     var slotEl = ev.target.closest ? ev.target.closest('[data-drop]') : null;
     down = { x: ev.clientX, y: ev.clientY, el: cardEl2, slot: slotEl, src: null, cards: null };
@@ -560,6 +596,14 @@
   document.getElementById('newBtn').addEventListener('click', deal);
   document.getElementById('ovNew').addEventListener('click', deal);
   document.getElementById('undoBtn').addEventListener('click', undo);
+
+  var helpOv = document.getElementById('helpOv');
+  document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
+  document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
+  helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape') helpOv.classList.remove('show');
+  });
 
   var rsT = null;
   window.addEventListener('resize', function() {
