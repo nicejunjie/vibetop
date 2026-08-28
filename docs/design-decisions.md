@@ -3345,6 +3345,19 @@ and instrument the device (beacons) before theorizing; the two prior fixes
 were correct and still insufficient because the real fault only shows in the
 time dimension.
 
+**Regression from the quorum itself (v1.19.82):** v1.19.69 gated the ENTIRE
+key bar's visibility behind anchor confirmation (`if (!kbAnchor) return`)
+while clearing the sample buffer on every keyboard-down flap — on a device
+whose resting readings mostly land in the sanity-gate-rejected states, the
+anchor never formed and the esc/tab/^C/arrow bar simply never appeared.
+Fix: the bar ALWAYS shows (anchored position when known, instantaneous
+otherwise); the quorum gates only the occlusion figure it was built to
+protect; samples age out via their 4s window instead of being cleared.
+Lesson: a robustness gate must fail toward DEGRADED service (a bar at a
+slightly-wrong position), never toward NO service — and the field monitor
+only watched for wrong values, not for the feature's absence, which is why
+this shipped unseen.
+
 ---
 
 ## "Still cannot resize from left or right" — the tile gutter belonged to nobody
