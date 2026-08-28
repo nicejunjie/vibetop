@@ -227,7 +227,12 @@ if (( ! DRY )); then
     # Prefer the real gate: smoke-test authenticates, so it reports the actual
     # state instead of the 302s an unauthenticated probe gets on a gated host.
     if [ -x "$REPO_DIR/tools/smoke-test.sh" ]; then
-        "$REPO_DIR/tools/smoke-test.sh" || echo "  (see failures above)"
+        # Forward --no-office. Without it the smoke check tests a component this
+        # very run was told to skip, so every --no-office deploy ended with a
+        # permanent, meaningless "2 failed" (OnlyOffice container + healthcheck) —
+        # which is exactly the noise that made the e2e VM look like a broken image.
+        smoke_args=(); [ "$DO_OFFICE" = "0" ] && smoke_args+=(--no-office)
+        "$REPO_DIR/tools/smoke-test.sh" "${smoke_args[@]}" || echo "  (see failures above)"
     else
         for p in /api/ping / /t1/ /files/; do
             printf "  %-24s " "$p"

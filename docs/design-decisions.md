@@ -3868,3 +3868,57 @@ the same 400ms window, drag arms, swap lands.
 **Rule:** a DOM element that receives pointer gestures must never have its
 subtree rewritten by its own hover/enter handlers unless the write is
 conditional on actual change — hover-driven rendering must be idempotent.
+
+---
+
+## The touch resize grip ate the title bar (v1.19.35 → v1.19.56)
+
+**Found by the KVM VM suite**, after I had written the VM lane off as
+environmentally broken. It was not: 42 failures, all on the three iPad lanes, and
+a bisect inside the VM (swapping only `landing/`, specs held fixed) put the first
+bad commit at **`c7e98a9` v1.19.35 "the gutter between tiled windows is
+grabbable"** — mine.
+
+**Cause.** That commit gave the grips an outside reach so the tile gutter could be
+grabbed, and on touch it set `.win-rz-n { top: -12px; height: 36px }` — 12px
+outside, **24px inside**. The touch title bar is **40px**. So the north grip
+covered its top 60%, *including the centre*. Measured on `ipad-pro-11`:
+
+```
+title bar   y 56..96   (40px, centre y=76)
+.win-rz-n   y 44..80
+elementFromPoint(centre) -> "win-rz win-rz-n"
+```
+
+Double-tap-to-maximize, tap-to-focus through a nested iframe, and restoring a
+minimized window were all dead on tablets for 20 versions. Invisible on desktop,
+where the reach is 8px into a 32px bar.
+
+**The miss that let it through:** v1.19.35 wrote down an invariant — *title-bar
+`padding-right` must exceed the corner grab zone* — and it is the **horizontal**
+half of the rule. Nobody wrote the vertical half. **A grip's INSIDE reach must
+stay well under the title-bar height.** Touch now uses 12px inside (30% of 40),
+matching desktop's 8/32; corners keep a 30px target with the same limit.
+
+**Why it hid so long.** Three of the specs that should have caught it were
+themselves wrong, and *their* failures made the whole lane look like noise:
+
+- `DIRS` had `['n', 0, 30]` — dragging the north edge **down**, which shrinks,
+  against an asserted `+30`. Off by 60 on every lane, forever.
+- The resize tests start from **tiled** windows filling the frame, so growth along
+  a filled axis clamps to 0. This exactly predicts the per-lane pattern (portrait
+  `e`/`w` fail, landscape `n`/`s` fail) — which reads like a product bug.
+- `expect(body).not.toHaveClass(/\bwm\b/)` can never fail on a window-capable
+  screen: `body` carries `wm-capable`, and `\b` matches at the hyphen. Verified:
+  `/\bwm\b/.test("is-touch wm-capable") === true`.
+
+**And the reason I dismissed the lane.** I compared VM failures against "the same
+specs pass on the live host" — but the live host was *ahead* of the commit under
+test (another agent deployed mid-run). That is not a comparison, it is two
+different builds. **A live-host cross-check is only evidence when both sides are
+pinned to the same commit.**
+
+Also fixed: `deploy.sh` now forwards `--no-office` to `tools/smoke-test.sh`. It
+did not, so every `--no-office` deploy ended with a permanent "2 failed"
+(OnlyOffice container + healthcheck) for a component that run was told to skip —
+the false alarm at every VM boot that made the image look broken.

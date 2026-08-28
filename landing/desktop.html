@@ -708,14 +708,28 @@
   /* Touch (iPad): fingers need bigger targets than a 5px edge — enlarge the
      grab zones and the title-bar buttons, and give the bar a taller drag area. */
   body.is-touch.wm .win.floating > .win-titlebar { flex-basis: 40px; height: 40px; padding-right: 28px; }
-  body.is-touch .win-rz-n { top: -12px; height: 36px; }
-  body.is-touch .win-rz-s { bottom: -12px; height: 36px; }
-  body.is-touch .win-rz-e { right: -12px; width: 36px; }
-  body.is-touch .win-rz-w { left: -12px; width: 36px; }
-  body.is-touch .win-rz-ne { top: -12px; right: -12px; width: 38px; height: 38px; }
-  body.is-touch .win-rz-nw { top: -12px; left: -12px; width: 38px; height: 38px; }
-  body.is-touch .win-rz-se { bottom: -12px; right: -12px; width: 38px; height: 38px; }
-  body.is-touch .win-rz-sw { bottom: -12px; left: -12px; width: 38px; height: 38px; }
+  /* Touch: keep the 12px OUTSIDE reach (that is what makes the tile gutter
+     grabbable) but cut the INSIDE reach to 12px — it was 24px, and the touch title
+     bar is only 40px tall, so the north grip covered its top 60% INCLUDING THE
+     CENTRE. Measured on ipad-pro-11: title bar y 56..96, .win-rz-n y 44..80,
+     elementFromPoint at the bar's centre returned `win-rz win-rz-n`. Double-tap to
+     maximize, tap-to-focus through a nested iframe, and restoring a minimized
+     window were all dead on tablets from v1.19.35 until v1.19.56 — 18 VM failures,
+     invisible on desktop because there the reach is 8px into a 32px bar.
+
+     THE VERTICAL INVARIANT, which v1.19.35 stated only horizontally: a grip's
+     INSIDE reach must stay well under the title-bar height, or it swallows the bar.
+     Corners keep a larger target (30px) but the same 12px inside reach limit as the
+     edges once the title bar is accounted for: 18px < the 28px padding-right that
+     keeps them off the ×/▢/– as well. */
+  body.is-touch .win-rz-n { top: -12px; height: 24px; }
+  body.is-touch .win-rz-s { bottom: -12px; height: 24px; }
+  body.is-touch .win-rz-e { right: -12px; width: 24px; }
+  body.is-touch .win-rz-w { left: -12px; width: 24px; }
+  body.is-touch .win-rz-ne { top: -12px; right: -12px; width: 30px; height: 30px; }
+  body.is-touch .win-rz-nw { top: -12px; left: -12px; width: 30px; height: 30px; }
+  body.is-touch .win-rz-se { bottom: -12px; right: -12px; width: 30px; height: 30px; }
+  body.is-touch .win-rz-sw { bottom: -12px; left: -12px; width: 30px; height: 30px; }
   body.is-touch .win-titlebar .wt-min, body.is-touch .win-titlebar .wt-max,
   body.is-touch .win-titlebar .wt-close { width: 34px; height: 32px; font-size: 17px; }
   /* Visible grip in the SE corner — the fallback affordance for "this window is

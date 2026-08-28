@@ -63,7 +63,7 @@ test.describe('window mode', () => {
     await openApp(page, 'notes');
     // iPad gen 11 portrait is 656x944 — under the OLD `max>=1000 || w>=900` gate,
     // so window mode silently switched itself off when that iPad was rotated.
-    await expect(page.locator('body')).toHaveClass(/\bwm\b/);
+    expect(await page.evaluate(() => document.body.classList.contains('wm'))).toBe(true);
     await expect(page.locator('#win-notes')).toHaveClass(/floating/);
     await expect(page.locator('#win-notes .win-titlebar')).toBeVisible();
   });
@@ -73,7 +73,7 @@ test.describe('window mode', () => {
               'phone lanes only');
     await page.goto('/');
     await openApp(page, 'notes');
-    await expect(page.locator('body')).not.toHaveClass(/\bwm\b/);
+    expect(await page.evaluate(() => document.body.classList.contains('wm'))).toBe(false);
     expect((await geom(page, 'notes')).floating).toBe(false);
   });
 
@@ -328,12 +328,29 @@ test.describe('window mode', () => {
     // edge (padding-right 18 > the 16px corner zone) — which is also why the three
     // controls are re-checked here: the previous fix for "× stole the tap" is what
     // created the dead corner, so these two must be tested together, forever.
+    // Each entry drags the grip in the direction that GROWS the window, so every
+    // case asserts the same thing. `n` was ['n', 0, 30] — dragging the north edge
+    // DOWN, which shrinks: measured dH=-30 against an asserted +30, off by 60. It
+    // read as a product failure on every tablet lane for months.
     const DIRS = [
-      ['n',  0,  30], ['s',  0, 30], ['e', 40,  0], ['w', -40, 0],
+      ['n',  0, -30], ['s',  0, 30], ['e', 40,  0], ['w', -40, 0],
       ['ne', 40, -30], ['nw', -40, -30], ['se', 40, 30], ['sw', -40, 30],
     ];
     for (const [dir, dx, dy] of DIRS) {
       test(`resizes from the ${dir} edge/corner`, async ({ page }) => {
+        // Shrink first: the windows arrive TILED, filling the frame, so growing
+        // along a filled axis clamps to 0 and the assertion fails for a reason that
+        // has nothing to do with the grip. This exactly predicted the per-lane
+        // pattern the VM saw (portrait: e/w fail; landscape: n/s fail).
+        await page.evaluate(() => {
+          const f = document.getElementById('frames').getBoundingClientRect();
+          const w = document.querySelector('#win-notes');
+          w.style.left = Math.round(f.width * 0.25) + 'px';
+          w.style.top = Math.round(f.height * 0.25) + 'px';
+          w.style.width = Math.round(f.width * 0.4) + 'px';
+          w.style.height = Math.round(f.height * 0.4) + 'px';
+        });
+        await page.waitForTimeout(200);
         const before = await geom(page, 'notes');
         const box = await page.locator(`#win-notes .win-rz-${dir}`).boundingBox();
         expect(box, `no .win-rz-${dir} handle`).toBeTruthy();
@@ -484,13 +501,16 @@ test.describe('window mode', () => {
 
       await btn.click();                                           // -> off
       await page.waitForTimeout(400);
-      await expect(page.locator('body')).not.toHaveClass(/\bwm\b/);
+      // NOT toHaveClass(/\bwm\b/): body carries "wm-capable" on any screen that
+      // supports windows, and \b matches at the hyphen, so that regex is true even
+      // with window mode off. Ask the class list directly.
+      expect(await page.evaluate(() => document.body.classList.contains('wm'))).toBe(false);
       await expect(btn).toHaveAttribute('aria-pressed', 'false');
       await expect(btn).toBeVisible();        // still reachable when OFF — the whole point
 
       await btn.click();                                           // -> back on
       await page.waitForTimeout(400);
-      await expect(page.locator('body')).toHaveClass(/\bwm\b/);
+      expect(await page.evaluate(() => document.body.classList.contains('wm'))).toBe(true);
     });
 
     // Snap layouts hang off the TASKBAR icon, not off a window. They started on a
