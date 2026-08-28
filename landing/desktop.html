@@ -747,28 +747,11 @@
   body.is-touch .win-rz-sw { bottom: -12px; left: -12px; width: 30px; height: 30px; }
   body.is-touch .win-titlebar .wt-min, body.is-touch .win-titlebar .wt-max,
   body.is-touch .win-titlebar .wt-close { width: 34px; height: 32px; font-size: 17px; }
-  /* Visible grip in the SE corner — the fallback affordance for "this window is
-     resizable" wherever the CURSOR cannot say it. Diagonal lines are the universal
-     "drag to resize" mark. */
-  body.wm .win.floating:not(.maximized) .win-rz-se {
-    background: repeating-linear-gradient(-45deg, transparent 0, transparent 3px,
-                rgba(170,190,210,0.6) 3px, rgba(170,190,210,0.6) 4px);
-    border-bottom-right-radius: 7px;
-  }
-  /* …and retired where the cursor DOES say it, which is now most desktops: the
-     edges carry col-/row-resize and the corners a diagonal, all visibly distinct
-     from the host window's own. Two places it still earns its keep, so the test is
-     narrow rather than a blanket "desktop":
-       - TOUCH (pointer: coarse) — an iPad gets window mode and has no hover at all;
-       - WEBKIT — macOS Safari draws NO diagonal cursor for the corners (the private
-         core-cursor path, see the mapping note above), so with the grip gone the SE
-         corner would have neither cursor nor mark. `@supports not (…)` scopes this
-         to non-WebKit, verified false in WebKit and true in Chromium/Firefox. */
-  @supports not (background: -webkit-named-image(i)) {
-    @media (pointer: fine) {
-      body.wm .win.floating:not(.maximized) .win-rz-se { background: none; }
-    }
-  }
+  /* The SE corner used to draw a visible diagonal-lines grip as a "this window
+     is resizable" affordance where the cursor can't say it (touch, and macOS
+     Safari's missing diagonal cursor — see the mapping note above). Removed at
+     the user's request (v1.19.61): all eight grab zones and their cursors stay,
+     the corner just carries no mark. */
   /* overlay shown during a move/resize so the drag doesn't die over an iframe */
   /* Covers every iframe during a move/resize so the pointer stream survives crossing
      one. Its `cursor` is set per-gesture in setupWM — unset, it silently replaced the
