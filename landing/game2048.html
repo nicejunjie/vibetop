@@ -37,6 +37,17 @@
     cursor: pointer; min-height: 30px;
   }
   button:hover { background: #47336a; border-color: #8a4adb; }
+  button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  .stat { position: relative; }
+  .plus {
+    position: absolute; right: 4px; top: -4px; pointer-events: none;
+    font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #b78bf0;
+    animation: plusrise .6s ease-out forwards;
+  }
+  @keyframes plusrise {
+    from { opacity: .95; transform: translateY(5px); }
+    to { opacity: 0; transform: translateY(-12px); }
+  }
   .wrap {
     flex: 1; min-height: 0; display: flex;
     align-items: center; justify-content: center;
@@ -143,10 +154,10 @@
       <div class="card">
         <button class="x" id="helpX" title="Close">✕</button>
         <h2>How to play</h2>
-        <p class="goal">Slide the tiles — equal tiles merge into one. Reach 2048 to win; keep going for a higher score.</p>
+        <p class="goal">Slide tiles — equal tiles merge. Reach 2048.</p>
         <h3>Keyboard</h3>
         <ul>
-          <li><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — slide</li>
+          <li><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></li>
         </ul>
         <h3>Touch</h3>
         <ul>
@@ -246,7 +257,9 @@
   }
 
   function newGame() {
+    flushMerges();
     each(function(t) { t.el.remove(); });
+    boardEl.querySelectorAll('.tile').forEach(function(el) { el.remove(); });
     grid = new Array(N * N).fill(null);
     score = 0; won = false; over = false;
     scoreEl.textContent = '0';
@@ -261,10 +274,27 @@
     if (score > best) { best = score; bestEl.textContent = best; lsSet('vt-2048-best', String(best)); }
   }
 
+  // Pending merge DOM-finalizers: flushed synchronously at the start of the
+  // next move so a rapid input can never leave a stale "dead" tile ghosting.
+  var pendingMerges = [];
+  function flushMerges() {
+    pendingMerges.forEach(function(p) { clearTimeout(p.t); p.fn(); });
+    pendingMerges = [];
+  }
+  function showPlus(n) {
+    var el = document.createElement('span');
+    el.className = 'plus';
+    el.textContent = '+' + n;
+    scoreEl.parentNode.appendChild(el);
+    setTimeout(function() { el.remove(); }, 650);
+  }
+
   // Move all tiles in direction (dr,dc). Returns true if anything moved.
   function move(dr, dc) {
     if (over) return false;
+    flushMerges();
     moved = false;
+    var gained = 0;
     var merged = [];
     // iterate lines in the right order so tiles slide toward the edge first
     var rs = [], cs = [];
@@ -294,14 +324,22 @@
           place(t);
           target.v *= 2;
           addScore(target.v);
+          gained += target.v;
           if (target.v === 2048 && !won) { won = true; setTimeout(showWin, 300); }
           var dead = t, into = target;
-          setTimeout(function() {
-            dead.el.remove();
-            into.el.textContent = into.v;
-            into.el.className = 'tile ' + classFor(into.v) + ' pop';
-            into.el.style.fontSize = fontFor(into.v);
+          var entry = {
+            fn: function() {
+              dead.el.remove();
+              into.el.textContent = into.v;
+              into.el.className = 'tile ' + classFor(into.v) + ' pop';
+              into.el.style.fontSize = fontFor(into.v);
+            }
+          };
+          entry.t = setTimeout(function() {
+            pendingMerges = pendingMerges.filter(function(p) { return p !== entry; });
+            entry.fn();
           }, 110);
+          pendingMerges.push(entry);
         } else {
           setAt(nr, nc, t);
           place(t);
@@ -313,6 +351,7 @@
       // Spawn synchronously (the .spawn animation-delay hides it until the
       // slide finishes) so the logical grid is always current for the next move.
       spawn();
+      if (gained > 0) showPlus(gained);
       if (!canMove()) { over = true; setTimeout(showLose, 260); }
     }
     return moved;
@@ -392,6 +431,7 @@
   });
 
   newGame();
+  if (!lsGet('vt-2048-help')) { lsSet('vt-2048-help', '1'); helpOv.classList.add('show'); }
 })();
 </script>
 </body>

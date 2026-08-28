@@ -34,8 +34,10 @@
     cursor: pointer; min-height: 30px;
   }
   button:hover { background: #253044; border-color: #3a4358; }
+  button:focus-visible, select:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
   #newBtn { background: #3a2a55; border-color: #55407a; color: #d9c8f5; }
   #newBtn:hover { background: #47336a; border-color: #8a4adb; }
+  #helpBtn { min-width: 30px; font-weight: 700; color: #aab4c5; }
   /* ---- table ---- */
   .table {
     flex: 1; min-height: 0; position: relative;
@@ -46,7 +48,6 @@
   .cols { width: 100%; max-width: calc(var(--cw) * 7 + var(--gap) * 6); }
   .toprow { display: flex; gap: var(--gap); height: var(--ch); flex-shrink: 0; }
   .tabrow { display: flex; gap: var(--gap); flex: 1; min-height: 0; margin-top: var(--gap); }
-  .table .cols.tabrow { }
   .col { width: var(--cw); flex-shrink: 0; position: relative; }
   .tabrow .col { height: 100%; }
   /* ---- slots + cards ---- */
@@ -63,7 +64,13 @@
   .pc.up {
     background: #e9ecf1; border: 1px solid #a9b1bf;
     box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    cursor: grab;
+    transition: transform .1s ease, box-shadow .1s ease;
   }
+  @media (hover: hover) {
+    body:not(.drg) .pc.up:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,.5); }
+  }
+  body.drg, body.drg .pc { cursor: grabbing !important; }
   .pc.up .cor {
     position: absolute; top: 1px; left: 4px;
     font: 700 calc(var(--cw) * 0.3)/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -83,12 +90,22 @@
   }
   .pc.sel { box-shadow: 0 0 0 2px #8a4adb, 0 2px 8px rgba(138,74,219,.45); }
   .pc.ghosted { opacity: .25; }
+  .pc.hidefly { visibility: hidden !important; }
+  .pc.flip { animation: flipin .16s ease-out; }
+  @keyframes flipin { from { transform: scaleX(.15); } }
   .slot .hintA { opacity: .8; }
   #dragLayer {
     position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
+    will-change: transform;
     filter: drop-shadow(0 6px 14px rgba(0,0,0,.5));
   }
-  #dragLayer .pc { position: absolute; cursor: grabbing; }
+  #dragLayer .pc { position: absolute; }
+  .flyer {
+    position: fixed; left: 0; top: 0; z-index: 45; pointer-events: none;
+    will-change: transform; transition: transform 150ms ease-out;
+    filter: drop-shadow(0 4px 10px rgba(0,0,0,.45));
+  }
+  .flyer .pc { position: absolute; transition: none; }
   /* ---- overlay ---- */
   .overlay {
     position: absolute; inset: 0; display: none;
@@ -109,9 +126,8 @@
     padding: 7px 18px; font-size: 13px; font-weight: 600;
   }
   .modal .primary:hover { background: #9a5ceb; }
-  #helpBtn { min-width: 30px; font-weight: 700; color: #aab4c5; }
   .help .modal {
-    text-align: left; max-width: min(340px, 90vw); max-height: 86%;
+    text-align: left; max-width: min(330px, 90vw); max-height: 86%;
     overflow: auto; padding: 18px 20px;
   }
   .help h2 { font-size: 15px; margin-bottom: 8px; }
@@ -161,18 +177,17 @@
       <div class="modal">
         <button class="x" id="helpX" title="Close">✕</button>
         <h2>How to play</h2>
-        <p class="goal">Klondike: move all 52 cards to the four foundations, A → K by suit. On the tableau, stack downward in alternating colors; only a King may fill an empty column. Face-down cards flip when uncovered.</p>
+        <p class="goal">Build the four foundations A → K by suit. Stack the tableau downward in alternating colors; Kings fill empty columns.</p>
         <h3>Mouse</h3>
         <ul>
-          <li>Drag a card (or stack) to move it</li>
-          <li>Double-click — send a card to its foundation</li>
-          <li>Click the stock to draw · ↻ redeals the waste</li>
-          <li>↩ Undo reverses the last move</li>
+          <li>Drag to move · double-click — to foundation</li>
+          <li>Click the stock to draw · ↻ redeals</li>
+          <li>↩ Undo takes back a move</li>
         </ul>
         <h3>Touch</h3>
         <ul>
-          <li>Drag, or tap a card then tap its destination</li>
-          <li>Double-tap — send a card to its foundation</li>
+          <li>Drag, or tap a card then its destination</li>
+          <li>Double-tap — to foundation</li>
         </ul>
       </div>
     </div>
@@ -192,12 +207,17 @@
   var overlay = document.getElementById('overlay');
   var confettiEl = document.getElementById('confetti');
   var dragLayer = document.getElementById('dragLayer');
+  var helpOv = document.getElementById('helpOv');
 
   var stock = [], waste = [], found = [[], [], [], []], tab = [[], [], [], [], [], [], []];
   var moves = 0, undoStack = [];
   var sel = null;             // {loc:'waste'|'found'|'tab', pile, idx}
   var won = false;
+  var lastFlipped = null;     // {pile, idx} tableau card auto-flipped by the last move
   var cw = 60, ch = 84, gap = 6, offUp = 24, offDown = 10;
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
   // ---------- state ----------
   function snapshot() {
@@ -211,7 +231,7 @@
     if (!undoStack.length || won) return;
     var st = JSON.parse(undoStack.pop());
     stock = st.s; waste = st.w; found = st.f; tab = st.t; moves = st.m;
-    sel = null;
+    sel = null; lastFlipped = null;
     render();
   }
   function setMoves(m) { moves = m; movesEl.textContent = moves + (moves === 1 ? ' move' : ' moves'); }
@@ -232,11 +252,12 @@
       }
     }
     stock = deck;
-    undoStack = []; sel = null; won = false;
+    undoStack = []; sel = null; won = false; lastFlipped = null;
     setMoves(0);
     overlay.classList.remove('show');
     confettiEl.innerHTML = '';
     render();
+    dealCascade();
   }
 
   // ---------- sizing ----------
@@ -249,9 +270,11 @@
     ch = Math.round(cw * 1.4);
     offUp = Math.round(ch * 0.28);
     offDown = Math.round(ch * 0.13);
-    tableEl.style.setProperty('--cw', cw + 'px');
-    tableEl.style.setProperty('--ch', ch + 'px');
-    tableEl.style.setProperty('--gap', gap + 'px');
+    // vars live on :root so drag-layer / flyer clones outside .table size correctly
+    var rs = document.documentElement.style;
+    rs.setProperty('--cw', cw + 'px');
+    rs.setProperty('--ch', ch + 'px');
+    rs.setProperty('--gap', gap + 'px');
   }
 
   // ---------- rendering ----------
@@ -290,7 +313,6 @@
       toprowEl.appendChild(col);
       cols.push(col);
     }
-    // stock
     if (stock.length) {
       var sc = mkCard(stock[stock.length - 1], 'stock', 0, stock.length - 1);
       sc.dataset.loc = 'stock';
@@ -298,13 +320,11 @@
     } else {
       cols[0].appendChild(mkSlot('stock', waste.length ? '↻' : ''));
     }
-    // waste (draw-1: top card only)
     if (waste.length) {
       cols[1].appendChild(mkCard(waste[waste.length - 1], 'waste', 0, waste.length - 1));
     } else {
       cols[1].appendChild(mkSlot('waste', ''));
     }
-    // cols[2] intentionally empty (gap)
     for (var f = 0; f < 4; f++) {
       var fc = cols[3 + f];
       if (found[f].length) {
@@ -324,15 +344,14 @@
       if (!pile.length) {
         pcol.appendChild(mkSlot('tab-' + p, ''));
       } else {
-        // compress fan offsets if the pile would overflow the column
         var nD = 0, nU = 0;
         pile.forEach(function(c) { if (c.up) nU++; else nD++; });
         var oD = offDown, oU = offUp;
         var need = nD * oD + Math.max(0, nU - 1) * oU + ch;
         if (need > availH && (nD || nU > 1)) {
-          var k = (availH - ch) / (need - ch);
-          oD = Math.max(4, Math.floor(oD * k));
-          oU = Math.max(9, Math.floor(oU * k));
+          var k2 = (availH - ch) / (need - ch);
+          oD = Math.max(4, Math.floor(oD * k2));
+          oU = Math.max(9, Math.floor(oU * k2));
         }
         var y = 0;
         for (var ci = 0; ci < pile.length; ci++) {
@@ -345,6 +364,93 @@
       }
       tabrowEl.appendChild(pcol);
     }
+    if (lastFlipped) {
+      var flEl = cardEl('tab', lastFlipped.pile, lastFlipped.idx);
+      if (flEl) flEl.classList.add('flip');
+      lastFlipped = null;
+    }
+  }
+
+  // deal cascade: FLIP-animate every tableau card out of the stock corner
+  function dealCascade() {
+    var src = toprowEl.children[0].getBoundingClientRect();
+    var els = tabrowEl.querySelectorAll('.pc');
+    for (var k = 0; k < els.length; k++) {
+      (function(el, d) {
+        var r = el.getBoundingClientRect();
+        el.style.transition = 'none';
+        el.style.transform = 'translate(' + (src.left - r.left) + 'px,' + (src.top - r.top) + 'px)';
+        requestAnimationFrame(function() { requestAnimationFrame(function() {
+          el.style.transition = 'transform 150ms ease-out ' + d + 'ms';
+          el.style.transform = '';
+          setTimeout(function() { el.style.transition = ''; }, d + 180);
+        }); });
+      })(els[k], k * 5);
+    }
+  }
+
+  // ---------- element lookup ----------
+  function cardEl(loc, pile, idx) {
+    var list = tableEl.querySelectorAll('.pc[data-loc="' + loc + '"]');
+    for (var i = 0; i < list.length; i++) {
+      if (+list[i].dataset.pile === pile && +list[i].dataset.idx === idx) return list[i];
+    }
+    return null;
+  }
+  function stackElems(loc, pile, fromIdx) {
+    var list = tableEl.querySelectorAll('.pc[data-loc="' + loc + '"]');
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      if (+list[i].dataset.pile === pile && +list[i].dataset.idx >= fromIdx) out.push(list[i]);
+    }
+    out.sort(function(a, b) { return +a.dataset.idx - +b.dataset.idx; });
+    return out;
+  }
+  function dstStackEls(kind, pile, count) {
+    if (kind === 'found') {
+      var e = toprowEl.children[3 + pile].querySelector('.pc');
+      return e ? [e] : [];
+    }
+    var els = tabrowEl.children[pile].querySelectorAll('.pc');
+    return Array.prototype.slice.call(els, Math.max(0, els.length - count));
+  }
+
+  // ---------- fly animations (transform-only, then DOM is already committed) ----------
+  function makeFlyer(els) {
+    var base = els[0].getBoundingClientRect();
+    var fl = document.createElement('div');
+    fl.className = 'flyer';
+    els.forEach(function(el) {
+      var c = el.cloneNode(true);
+      c.classList.remove('sel', 'ghosted', 'hidefly', 'flip');
+      c.style.top = (el.getBoundingClientRect().top - base.top) + 'px';
+      c.style.zIndex = '';
+      fl.appendChild(c);
+    });
+    fl.style.transform = 'translate3d(' + base.left + 'px,' + base.top + 'px,0)';
+    document.body.appendChild(fl);
+    return fl;
+  }
+  function flyFromTo(fl, from, to, cb) {
+    if (from) fl.style.transform = 'translate3d(' + from.left + 'px,' + from.top + 'px,0)';
+    void fl.offsetWidth;                       // flush start position
+    fl.style.transform = 'translate3d(' + to.left + 'px,' + to.top + 'px,0)';
+    setTimeout(function() { fl.remove(); if (cb) cb(); }, 165);
+  }
+  // committed move with a fly from the cards' old spot to their new spot
+  function moveWithFly(src, dstKind, dstPile) {
+    var srcEls = (src.loc === 'stock') ? [] : stackElems(src.loc, src.pile, src.idx);
+    var fl = srcEls.length ? makeFlyer(srcEls) : null;
+    if (!tryMove(src, dstKind, dstPile)) { if (fl) fl.remove(); return false; }
+    render();
+    var dstEls = dstStackEls(dstKind, dstPile, srcEls.length || 1);
+    if (fl && dstEls.length) {
+      dstEls.forEach(function(e) { e.classList.add('hidefly'); });
+      flyFromTo(fl, null, dstEls[0].getBoundingClientRect(), function() {
+        dstEls.forEach(function(e) { e.classList.remove('hidefly'); });
+      });
+    } else if (fl) { fl.remove(); }
+    return true;
   }
 
   // ---------- rules ----------
@@ -360,7 +466,6 @@
     var top = pile[pile.length - 1];
     return top.up && top.r === c.r + 1 && (RED[top.s] !== RED[c.s]);
   }
-  // Cards that would move if you grab {loc,pile,idx} — null if not grabbable.
   function grabbable(loc, pile, idx) {
     if (loc === 'waste') {
       return (waste.length && idx === waste.length - 1) ? [waste[waste.length - 1]] : null;
@@ -381,10 +486,13 @@
     if (loc === 'found') return [found[pile].pop()];
     var out = tab[pile].splice(idx);
     var tp = tab[pile];
-    if (tp.length && !tp[tp.length - 1].up) tp[tp.length - 1].up = true;
+    if (tp.length && !tp[tp.length - 1].up) {
+      tp[tp.length - 1].up = true;
+      lastFlipped = { pile: pile, idx: tp.length - 1 };
+    }
     return out;
   }
-  // Try to move the stack at src onto dst ('found-N' or 'tab-N'). True on success.
+  // state-only commit; callers render/animate
   function tryMove(src, dstKind, dstPile) {
     var cards = grabbable(src.loc, src.pile, src.idx);
     if (!cards) return false;
@@ -412,24 +520,34 @@
     var cards = grabbable(src.loc, src.pile, src.idx);
     if (!cards || cards.length !== 1) return false;
     for (var f = 0; f < 4; f++) {
-      if (canToFoundation(cards[0], f)) return tryMove(src, 'found', f);
+      if (canToFoundation(cards[0], f)) return moveWithFly(src, 'found', f);
     }
     return false;
   }
   function draw() {
     if (won) return;
     if (stock.length) {
+      var sEl = toprowEl.children[0].querySelector('.pc');
+      var from = sEl ? sEl.getBoundingClientRect() : null;
       pushUndo();
       var c = stock.pop();
       c.up = true;
       waste.push(c);
       setMoves(moves + 1);
+      sel = null;
+      render();
+      var wEl = toprowEl.children[1].querySelector('.pc');
+      if (from && wEl) {
+        var fl = makeFlyer([wEl]);
+        wEl.classList.add('hidefly');
+        flyFromTo(fl, from, wEl.getBoundingClientRect(), function() { wEl.classList.remove('hidefly'); });
+      }
     } else if (waste.length) {
       pushUndo();                        // unlimited redeals
       while (waste.length) { var w = waste.pop(); w.up = false; stock.push(w); }
+      sel = null;
+      render();
     }
-    sel = null;
-    render();
   }
   function checkWin() {
     var total = found[0].length + found[1].length + found[2].length + found[3].length;
@@ -451,10 +569,15 @@
     overlay.classList.add('show');
   }
 
-  // ---------- input: drag + tap-to-select + double-tap ----------
-  var down = null;      // {x, y, src, cards, el}  pointerdown info
+  // ---------- input: rAF transform-only drag + tap-to-select + double-tap ----------
+  var down = null;             // {x, y, el, slot, src, cards}
   var dragging = false;
   var dragOff = { x: 0, y: 0 };
+  var dragEls = [];            // the real (ghosted) elements being dragged
+  var dropRects = [];          // cached hit rects for the whole drag
+  var originRect = null;       // where the stack came from (for snap-back)
+  var lastPt = { x: 0, y: 0 };
+  var rafPending = false;
   var lastTap = { key: '', t: 0 };
 
   function srcFromEl(el) {
@@ -477,64 +600,78 @@
 
   window.addEventListener('pointermove', function(ev) {
     if (!down) return;
-    var dx = ev.clientX - down.x, dy = ev.clientY - down.y;
+    lastPt.x = ev.clientX; lastPt.y = ev.clientY;
     if (!dragging) {
       if (!down.cards) return;
+      var dx = ev.clientX - down.x, dy = ev.clientY - down.y;
       if (dx * dx + dy * dy < 49) return;
-      startDrag(ev);
+      startDrag();
     }
-    if (dragging) {
-      dragLayer.style.transform = 'translate(' + (ev.clientX - dragOff.x) + 'px,' + (ev.clientY - dragOff.y) + 'px)';
+    if (dragging && !rafPending) {
+      rafPending = true;
+      requestAnimationFrame(applyDragXf);
     }
   });
+  function applyDragXf() {
+    rafPending = false;
+    if (!dragging) return;
+    dragLayer.style.transform =
+      'translate3d(' + (lastPt.x - dragOff.x) + 'px,' + (lastPt.y - dragOff.y) + 'px,0)';
+  }
 
-  function startDrag(ev) {
+  function startDrag() {
     dragging = true;
-    var rect = down.el.getBoundingClientRect();
-    dragOff.x = down.x - rect.left;
-    dragOff.y = down.y - rect.top;
+    document.body.classList.add('drg');
+    originRect = down.el.getBoundingClientRect();
+    dragOff.x = down.x - originRect.left;
+    dragOff.y = down.y - originRect.top;
+    // build the floating stack from the real elements (keeps their exact fan offsets)
+    dragEls = stackElems(down.src.loc, down.src.pile, down.src.idx);
     dragLayer.innerHTML = '';
-    var y = 0;
-    down.cards.forEach(function(c) {
-      var el = document.createElement('div');
-      el.className = 'pc up ' + (RED[c.s] ? 'red' : 'blk');
-      el.innerHTML = '<div class="cor">' + RANK[c.r] + '<br>' + SUITS[c.s] + '</div><div class="pip">' + SUITS[c.s] + '</div>';
-      el.style.top = y + 'px';
-      dragLayer.appendChild(el);
-      y += offUp;
+    var baseTop = originRect.top;
+    dragEls.forEach(function(el) {
+      var c = el.cloneNode(true);
+      c.classList.remove('sel', 'ghosted', 'flip');
+      c.style.top = (el.getBoundingClientRect().top - baseTop) + 'px';
+      c.style.zIndex = '';
+      dragLayer.appendChild(c);
+      el.classList.add('ghosted');
     });
-    dragLayer.style.transform = 'translate(' + (ev.clientX - dragOff.x) + 'px,' + (ev.clientY - dragOff.y) + 'px)';
-    // ghost the originals
-    markGhost(true);
+    dragLayer.style.transition = '';
+    dragLayer.style.transform =
+      'translate3d(' + (lastPt.x - dragOff.x) + 'px,' + (lastPt.y - dragOff.y) + 'px,0)';
+    // clear any tap-selection highlight without a re-render
+    tableEl.querySelectorAll('.pc.sel').forEach(function(el) { el.classList.remove('sel'); });
     sel = null;
-  }
-  function markGhost(on) {
-    if (!down || !down.src) return;
-    var s = down.src;
-    tableEl.querySelectorAll('.pc').forEach(function(el) {
-      if (el.dataset.loc === s.loc && +el.dataset.pile === s.pile && +el.dataset.idx >= s.idx) {
-        el.classList.toggle('ghosted', on);
-      }
-    });
-  }
-
-  function dropTargetAt(x, y) {
-    // foundations first (small fixed slots), then tableau columns
-    var els = toprowEl.children;
+    // cache drop targets ONCE — zero layout reads during pointermove
+    dropRects = [];
     for (var f = 0; f < 4; f++) {
-      var r = els[3 + f].getBoundingClientRect();
-      if (x >= r.left - 6 && x <= r.right + 6 && y >= r.top - 6 && y <= r.bottom + 6) {
-        return { kind: 'found', pile: f };
-      }
+      dropRects.push({ kind: 'found', pile: f, rect: toprowEl.children[3 + f].getBoundingClientRect() });
     }
-    var pcols = tabrowEl.children;
-    for (var p = 0; p < pcols.length; p++) {
-      var r2 = pcols[p].getBoundingClientRect();
-      if (x >= r2.left - 4 && x <= r2.right + 4 && y >= r2.top - 6 && y <= r2.bottom) {
-        return { kind: 'tab', pile: p };
-      }
+    for (var p = 0; p < 7; p++) {
+      dropRects.push({ kind: 'tab', pile: p, rect: tabrowEl.children[p].getBoundingClientRect() });
+    }
+  }
+  function unghostAll() {
+    tableEl.querySelectorAll('.pc.ghosted').forEach(function(el) { el.classList.remove('ghosted'); });
+    dragEls = [];
+  }
+  function dropTargetAt(x, y) {
+    for (var i = 0; i < dropRects.length; i++) {
+      var d = dropRects[i], r = d.rect;
+      var pad = d.kind === 'found' ? 6 : 4;
+      if (x >= r.left - pad && x <= r.right + pad && y >= r.top - 6 && y <= r.bottom) return d;
     }
     return null;
+  }
+  function animLayerTo(rect, cb) {
+    dragLayer.style.transition = 'transform 140ms ease-out';
+    dragLayer.style.transform = 'translate3d(' + rect.left + 'px,' + rect.top + 'px,0)';
+    setTimeout(function() {
+      dragLayer.style.transition = '';
+      dragLayer.innerHTML = '';
+      if (cb) cb();
+    }, 155);
   }
 
   window.addEventListener('pointerup', function(ev) {
@@ -543,17 +680,29 @@
     down = null;
     if (dragging) {
       dragging = false;
-      dragLayer.innerHTML = '';
-      markGhost(false);
+      document.body.classList.remove('drg');
       var tgt = dropTargetAt(ev.clientX, ev.clientY);
-      var okDrop = false;
-      if (tgt) okDrop = tryMove(d.src, tgt.kind, tgt.pile);
-      render();
+      var ok = !!(tgt && tryMove(d.src, tgt.kind, tgt.pile));
+      if (ok) {
+        var cnt = d.cards.length;
+        render();                                   // commit; old ghosted els are gone
+        dragEls = [];
+        var dstEls = dstStackEls(tgt.kind, tgt.pile, cnt);
+        if (dstEls.length) {
+          dstEls.forEach(function(e) { e.classList.add('hidefly'); });
+          animLayerTo(dstEls[0].getBoundingClientRect(), function() {
+            dstEls.forEach(function(e) { e.classList.remove('hidefly'); });
+          });
+        } else {
+          dragLayer.innerHTML = '';
+        }
+      } else {
+        animLayerTo(originRect, unghostAll);        // snap back — no state change, no render
+      }
       return;
     }
     // ---- tap ----
-    if (won || overlay.classList.contains('show')) return;
-    // stock: draw / recycle
+    if (won || overlay.classList.contains('show') || helpOv.classList.contains('show')) return;
     if ((d.src && d.src.loc === 'stock') || (d.slot && d.slot.dataset.drop === 'stock')) {
       draw();
       return;
@@ -562,24 +711,26 @@
     var now = Date.now();
     var isDouble = key && key === lastTap.key && (now - lastTap.t) < 400;
     lastTap = { key: key, t: now };
-    // double-tap / double-click: auto-move to a foundation
     if (isDouble && d.src) {
-      if (autoToFoundation(d.src)) { sel = null; render(); return; }
+      var keepSel = sel; sel = null;
+      if (autoToFoundation(d.src)) { render(); return; }
+      sel = keepSel;
     }
-    // move an existing selection to the tapped pile
     if (sel) {
+      var mvSel = sel;
       var moved2 = false;
+      sel = null;                                   // render inside moveWithFly draws clean
       if (d.src) {
-        if (d.src.loc === 'found') moved2 = tryMove(sel, 'found', d.src.pile);
-        else if (d.src.loc === 'tab') moved2 = tryMove(sel, 'tab', d.src.pile);
+        if (d.src.loc === 'found') moved2 = moveWithFly(mvSel, 'found', d.src.pile);
+        else if (d.src.loc === 'tab') moved2 = moveWithFly(mvSel, 'tab', d.src.pile);
       } else if (d.slot) {
         var drop = d.slot.dataset.drop;
-        if (drop.indexOf('found-') === 0) moved2 = tryMove(sel, 'found', +drop.slice(6));
-        else if (drop.indexOf('tab-') === 0) moved2 = tryMove(sel, 'tab', +drop.slice(4));
+        if (drop.indexOf('found-') === 0) moved2 = moveWithFly(mvSel, 'found', +drop.slice(6));
+        else if (drop.indexOf('tab-') === 0) moved2 = moveWithFly(mvSel, 'tab', +drop.slice(4));
       }
-      if (moved2) { sel = null; render(); return; }
+      if (moved2) return;
+      sel = mvSel;
     }
-    // otherwise (re)select the tapped stack if grabbable
     if (d.cards) {
       var same = sel && sel.loc === d.src.loc && sel.pile === d.src.pile && sel.idx === d.src.idx;
       sel = same ? null : d.src;
@@ -589,7 +740,12 @@
     render();
   });
   window.addEventListener('pointercancel', function() {
-    if (dragging) { dragging = false; dragLayer.innerHTML = ''; markGhost(false); render(); }
+    if (dragging) {
+      dragging = false;
+      document.body.classList.remove('drg');
+      dragLayer.innerHTML = '';
+      unghostAll();
+    }
     down = null;
   });
 
@@ -597,7 +753,6 @@
   document.getElementById('ovNew').addEventListener('click', deal);
   document.getElementById('undoBtn').addEventListener('click', undo);
 
-  var helpOv = document.getElementById('helpOv');
   document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
   document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
   helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
@@ -608,11 +763,22 @@
   var rsT = null;
   window.addEventListener('resize', function() {
     clearTimeout(rsT);
-    rsT = setTimeout(function() { computeSizes(); render(); }, 100);
+    rsT = setTimeout(function() {
+      if (dragging) {                     // abort a drag mid-resize: rects are stale
+        dragging = false;
+        document.body.classList.remove('drg');
+        dragLayer.innerHTML = '';
+        unghostAll();
+        down = null;
+      }
+      computeSizes();
+      render();
+    }, 100);
   });
 
   computeSizes();
   deal();
+  if (!lsGet('vt-sol-help')) { lsSet('vt-sol-help', '1'); helpOv.classList.add('show'); }
 })();
 </script>
 </body>

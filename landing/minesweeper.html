@@ -42,6 +42,7 @@
   }
   button:hover { background: #253044; border-color: #3a4358; }
   button:active { background: #1a2230; }
+  button:focus-visible, select:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
   #flagMode { min-width: 40px; font-size: 14px; padding: 3px 8px; }
   #flagMode.on { background: #3a2a55; border-color: #8a4adb; color: #cbb0f2; box-shadow: 0 0 0 1px #8a4adb inset; }
   #helpBtn { min-width: 30px; font-weight: 700; color: #aab4c5; }
@@ -101,6 +102,8 @@
   .cell.boom { background: #7a2530; }
   .cell.wrongflag { background: #3a2024; color: inherit; font-size: calc(var(--cs) * 0.55); position: relative; }
   .cell.wrongflag::after { content: '✕'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #e5646c; font-size: calc(var(--cs) * 0.6); }
+  .cell.rv { animation: rvin .1s ease-out both; }
+  @keyframes rvin { from { background: #222a38; color: transparent; } }
   .c1 { color: #5ba3f5; } .c2 { color: #52c273; } .c3 { color: #e5646c; }
   .c4 { color: #b78bf0; } .c5 { color: #d09a4a; } .c6 { color: #4ec6c6; }
   .c7 { color: #d4d8de; } .c8 { color: #aab4c5; }
@@ -181,19 +184,17 @@
       <div class="card">
         <button class="x" id="helpX" title="Close">✕</button>
         <h2>How to play</h2>
-        <p class="goal">Clear every cell that isn't a mine. A number counts the mines in the 8 cells around it.</p>
+        <p class="goal">Clear every safe cell — a number counts the mines around it.</p>
         <h3>Mouse &amp; keyboard</h3>
         <ul>
-          <li>Left-click — reveal a cell</li>
-          <li>Right-click — cycle 🚩 flag → ? → clear</li>
-          <li>Both buttons or middle-click a number — reveal its neighbors (its flags must match)</li>
-          <li>Click a satisfied number — same shortcut</li>
+          <li>Left-click — reveal · right-click — 🚩 → ? → clear</li>
+          <li>Both buttons or middle-click a number — open its neighbors</li>
           <li><kbd>F2</kbd> or 🙂 — new game</li>
         </ul>
         <h3>Touch</h3>
         <ul>
           <li>Tap — reveal · long-press — flag</li>
-          <li>🚩 button — taps place flags instead</li>
+          <li>🚩 button — taps place flags</li>
         </ul>
       </div>
     </div>
@@ -349,14 +350,19 @@
     if (!started) placeMines(i);
     if (c.mine) { lose(i); return; }
     startTimer();
-    // Iterative flood-fill for zero cells.
-    var stack = [i];
-    while (stack.length) {
-      var idx = stack.pop(), cc = grid[idx];
+    // BFS flood-fill for zero cells; ring order drives a quick reveal cascade
+    // (~12ms per cell, capped at 240ms — state commits instantly, only the
+    // paint is staggered so it can never slow play down).
+    var q = [i], qi = 0, order = 0;
+    while (qi < q.length) {
+      var idx = q[qi++], cc = grid[idx];
       if (cc.open || cc.mark === 1) continue;
       cc.open = true; cc.mark = 0; openCount++;
       paint(idx);
-      if (cc.n === 0) neighbors(idx).forEach(function(n) { if (!grid[n].open && grid[n].mark !== 1) stack.push(n); });
+      cc.el.classList.add('rv');
+      cc.el.style.animationDelay = Math.min(order * 12, 240) + 'ms';
+      order++;
+      if (cc.n === 0) neighbors(idx).forEach(function(n) { if (!grid[n].open && grid[n].mark !== 1) q.push(n); });
     }
     if (openCount === rows * cols - mineCount) win();
   }
@@ -552,6 +558,7 @@
   var saved = lsGet('vt-mine-diff');
   diff = (saved && DIFFS[saved]) ? saved : 'easy';
   newGame();
+  if (!lsGet('vt-mine-help')) { lsSet('vt-mine-help', '1'); helpOv.classList.add('show'); }
 })();
 </script>
 </body>
