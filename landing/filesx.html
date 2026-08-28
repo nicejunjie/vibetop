@@ -12,10 +12,11 @@
     font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent;
   }
 
-  /* ---- toolbar: one row on desktop; ≤736px it stacks into the documented
-     mobile layout (controls grid → breadcrumb line → single-row address bar) ---- */
+  /* ---- toolbar: one row on desktop (wraps gracefully when narrow); ≤736px it
+     stacks into the documented mobile layout (controls grid → clickable
+     breadcrumb line → single-row address bar) ---- */
   .toolbar {
-    display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; flex-shrink: 0;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
     padding: 7px 10px; background: #161b22; border-bottom: 1px solid #2a3040;
     user-select: none; -webkit-user-select: none; z-index: 3;
   }
@@ -42,22 +43,54 @@
   }
   .addr input:focus { outline: none; border-color: #8a4adb; }
   .tools { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-  .tools button, .tools select {
+  .tools button, .tools select, .actbar button {
     background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
     border-radius: 6px; padding: 5px 9px; font: 12px system-ui, sans-serif;
-    cursor: pointer; min-height: 30px;
+    cursor: pointer; min-height: 30px; white-space: nowrap;
   }
-  .tools button:hover, .tools select:hover { background: #253044; }
-  .tools button:focus-visible, .tools select:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  .tools button:hover, .tools select:hover, .actbar button:hover { background: #253044; }
+  .tools button:focus-visible, .tools select:focus-visible, .actbar button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
   .tools button[aria-pressed="true"] { background: #241a38; border-color: #8a4adb; color: #fff; }
+  .tools button:disabled { opacity: .45; cursor: default; }
   #manage { color: #b79be8; }
+  #pastebtn { display: none; color: #b79be8; }
+  #pastebtn.on { display: inline-block; }
 
-  /* one-line notice under the toolbar (truncated listings) */
+  /* one-line notice under the toolbar (truncated listings, quiet errors) */
   .notice {
     display: none; flex-shrink: 0; padding: 5px 14px; font-size: 12px;
     color: #aab4c5; background: #12161d; border-bottom: 1px solid #20262f;
   }
   .notice.on { display: block; }
+
+  /* slim upload progress (per-file bar + overall n/N) */
+  .uprog { display: none; flex-shrink: 0; padding: 5px 14px 7px; background: #12161d; border-bottom: 1px solid #20262f; }
+  .uprog.on { display: block; }
+  .uprog-txt { font-size: 12px; color: #aab4c5; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .uprog-bar { height: 3px; background: #1f2733; border-radius: 2px; overflow: hidden; }
+  .uprog-fill { height: 100%; width: 0; background: #8a4adb; transition: width .15s linear; }
+
+  /* selection action bar — appears with a selection (desktop) / select mode
+     (touch). A FLOATING bottom pill, not in-flow: appearing must never shift
+     the listing (an in-flow bar broke double-click — the first click's bar
+     pushed the rows down under the cursor) and bottom = thumb-reachable. */
+  .actbar {
+    display: none; position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: 14px; z-index: 5; align-items: center; gap: 6px;
+    padding: 6px 8px; background: #161b22; border: 1px solid #2a3040;
+    border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    max-width: min(94vw, 640px);
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    user-select: none; -webkit-user-select: none;
+  }
+  .actbar::-webkit-scrollbar { display: none; }
+  .actbar.on { display: flex; }
+  .actbar.on ~ .main { padding-bottom: 62px; }   /* last rows stay reachable under the pill */
+  .actbar .cnt { flex: 0 0 auto; font-size: 12px; color: #aab4c5; padding: 0 4px 0 6px; white-space: nowrap; }
+  .actbar .sp { flex: 0 0 2px; }
+  .actbar button:disabled { opacity: .4; cursor: default; }
+  .actbar .danger { color: #f1b3b3; }
+  .actbar .danger:hover { background: #3a2024; border-color: #5a2c33; }
 
   /* ---- listing ---- */
   .main { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
@@ -67,14 +100,37 @@
   }
   .row:hover { background: #161b22; }
   .row.sel { background: #1f2937; box-shadow: inset 2px 0 0 #8a4adb; }
+  .row.cut { opacity: .45; }
+  .row.droptgt { background: #241a38; box-shadow: inset 0 0 0 1px #8a4adb; }
+  .row .ck {
+    display: none; flex: 0 0 18px; height: 18px; border: 1.5px solid #4a5265;
+    border-radius: 50%; align-items: center; justify-content: center;
+    font-size: 11px; color: transparent;
+  }
+  .main.selmode .row .ck { display: inline-flex; }
+  .row.sel .ck { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  .row.sel .ck::after { content: "✓"; }
   .row .ic { flex: 0 0 22px; text-align: center; font-size: 15px; }
   .row .nm { flex: 1 1 auto; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row.dir .nm { color: #e6edf3; }
+  .row input.edit {
+    flex: 1 1 auto; min-width: 0; background: #0e1117; color: #e6edf3;
+    border: 1px solid #8a4adb; border-radius: 5px; padding: 4px 7px;
+    font: 13px system-ui, sans-serif;
+  }
+  .row input.edit:focus { outline: none; }
   .row .sz {
     flex: 0 0 76px; text-align: right; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
     color: #8a93a6; white-space: nowrap;
   }
   .row .mt { flex: 0 0 96px; text-align: right; font-size: 12px; color: #6b7488; white-space: nowrap; }
+
+  /* drag ghost (pointer-based drag-to-folder, desktop) */
+  .dghost {
+    position: fixed; z-index: 50; pointer-events: none; background: #241a38;
+    border: 1px solid #8a4adb; color: #e6edf3; font-size: 12px;
+    padding: 4px 10px; border-radius: 6px; opacity: .95; white-space: nowrap;
+  }
 
   /* quiet centered states: loading / empty / error */
   .state {
@@ -89,6 +145,39 @@
   }
   .state button:hover { background: #253044; }
   .state button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+
+  /* ---- confirm card (delete) — vibe-modal conventions, self-contained ---- */
+  .mov {
+    position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
+    justify-content: center; background: rgba(6,9,14,.55); padding: 20px;
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  }
+  .mcard {
+    background: #161b22; border: 1px solid #2a3040; border-radius: 12px;
+    box-shadow: 0 12px 44px rgba(0,0,0,.55); max-width: 400px; width: 100%;
+    padding: 18px 18px 14px; color: #e6edf3;
+  }
+  .mcard h3 { margin: 0 0 8px; font-size: 15px; font-weight: 650; color: #f0f4f8; }
+  .mcard ul { margin: 0 0 14px; padding: 0; list-style: none; max-height: 180px; overflow-y: auto; }
+  .mcard li { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #b9c6d4; padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mcard li.more { color: #6b7488; font-family: system-ui, sans-serif; }
+  .mbtns { display: flex; justify-content: flex-end; gap: 8px; }
+  .mbtns button { font: 600 13px system-ui, sans-serif; padding: 8px 15px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; min-height: 36px; }
+  .mbtns .mcancel { background: transparent; color: #9fb0c0; border-color: #2a3040; }
+  .mbtns .mcancel:hover { background: rgba(255,255,255,.06); color: #c8d4e0; }
+  .mbtns .mok { background: #c0392b; color: #fff; }
+  .mbtns .mok:hover { filter: brightness(1.12); }
+  .mbtns button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+
+  /* toast (bottom-center, like the Files paste toast) */
+  .toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 30;
+    max-width: min(92vw, 480px); padding: 10px 16px; border-radius: 11px;
+    background: #12161d; color: #e6edf3; border: 1px solid #2a3444;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5); font: 500 13px system-ui, sans-serif;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .toast.err { border-color: #5a2c33; color: #f1b3b3; white-space: normal; }
 
   /* ---- text preview overlay ---- */
   .pv { position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; background: #0e1117; }
@@ -117,14 +206,19 @@
 
   /* ---- mobile ≤736px: sticky controls grid → breadcrumb → address row ---- */
   @media (max-width: 736px) {
-    .toolbar { flex-wrap: wrap; gap: 7px; padding: 7px 10px 8px; }
-    .tools { order: 1; flex: 1 0 100%; display: grid; grid-template-columns: minmax(0, 1.3fr) auto auto auto auto; gap: 6px; }
-    .tools button, .tools select { min-height: 40px; font-size: 13px; padding: 5px 10px; }
-    #sortdir, #refresh { min-width: 44px; }
+    .toolbar { gap: 7px; padding: 7px 10px 8px; }
+    .tools { order: 1; flex: 1 0 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .tools button, .tools select { min-height: 40px; font-size: 13px; padding: 5px 8px; }
+    #pastebtn.on { display: block; }
     .crumbs { order: 2; flex: 1 0 100%; min-width: 0; }
     .crumb { font-size: 14px; padding: 6px 7px; }
     .addr { order: 3; flex: 1 0 100%; }
     .addr input { padding: 9px 10px; font-size: 14px; }
+    /* wrap instead of an (invisible) horizontal scroll so every action is
+       visible; disabled actions hide entirely — contextual, not greyed */
+    .actbar { padding: 6px 8px; bottom: 12px; max-width: calc(100vw - 12px); flex-wrap: wrap; justify-content: center; overflow-x: visible; }
+    .actbar button { min-height: 40px; font-size: 13px; padding: 5px 11px; }
+    .actbar button:disabled { display: none; }
     .row { min-height: 46px; padding: 5px 12px; }
     .row .nm { font-size: 14px; }
     .row .sz { flex-basis: 62px; }
@@ -141,6 +235,9 @@
              aria-label="Path — type a folder and press Enter" title="Type any path and press Enter">
     </div>
     <div class="tools">
+      <button id="newbtn" title="Create a new folder here">＋ New</button>
+      <button id="upbtn" title="Upload files to this folder">⬆ Upload</button>
+      <button id="pastebtn" title="Paste here"></button>
       <select id="sortkey" aria-label="Sort by" title="Sort by">
         <option value="name">Name</option>
         <option value="size">Size</option>
@@ -149,11 +246,26 @@
       <button id="sortdir" title="Sort direction" aria-label="Sort direction"></button>
       <button id="hidden" title="Show hidden files" aria-pressed="false">Hidden</button>
       <button id="refresh" title="Refresh" aria-label="Refresh">⟳</button>
-      <button id="manage" title="Rename, move, upload… (opens the file manager here)">Manage</button>
+      <button id="manage" title="Open the classic file manager here (editor, search…)">Manage</button>
     </div>
   </div>
   <div class="notice" id="notice"></div>
+  <div class="uprog" id="uprog">
+    <div class="uprog-txt" id="uprog-txt"></div>
+    <div class="uprog-bar"><div class="uprog-fill" id="uprog-fill"></div></div>
+  </div>
+  <div class="actbar" id="actbar">
+    <span class="cnt" id="selcnt"></span>
+    <button id="a-rename" title="Rename (F2)">Rename</button>
+    <button id="a-download" title="Download (folders and multi-selections come as a .zip)">Download</button>
+    <button id="a-copy" title="Copy (Ctrl+C)">Copy</button>
+    <button id="a-cut" title="Cut (Ctrl+X)">Cut</button>
+    <button id="a-delete" class="danger" title="Delete (Del)">Delete</button>
+    <span class="sp"></span>
+    <button id="a-clear" title="Clear selection (Esc)">✕</button>
+  </div>
   <div class="main" id="main"></div>
+  <input type="file" id="fileinput" multiple hidden>
 
   <div class="pv" id="pv" role="dialog" aria-modal="true" aria-label="File preview">
     <div class="pv-head">
@@ -167,10 +279,11 @@
 
 <script>
 (function() {
-  // Native read-only Files listing (Files-native phase 1 — docs/files-native.md).
-  // Loaded by files.html's tab wrapper with #/abs/path; listing/stat/read come
-  // from the per-user file agent via the manager (/api/fs/*). Mutations stay in
-  // FileBrowser for now — the Manage button navigates THIS iframe there.
+  // Native Files view (Files-native phases 1+2 — docs/files-native.md).
+  // Loaded by files.html's tab wrapper with #/abs/path; listing/stat/read and
+  // all mutations go through the per-user file agent via the manager
+  // (/api/fs/*). FileBrowser remains reachable via Manage for what's not
+  // native yet (editor, search).
   var IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
   var VID_RE = /\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$/i;
   var OFF_RE = /\.(docx?|xlsx?|pptx?|odt|ods|odp)$/i;
@@ -186,14 +299,24 @@
   var noticeEl = document.getElementById('notice');
   var mainEl = document.getElementById('main');
   var pvEl = document.getElementById('pv');
+  var actbarEl = document.getElementById('actbar');
+  var pasteBtn = document.getElementById('pastebtn');
+  var fileInput = document.getElementById('fileinput');
 
   var HOME = '';                 // resolved from /api/fs/home before first render
   var path = null;               // current folder (abs)
   var entries = [];              // raw entries from the server
   var rows = [];                 // visible (filtered+sorted) entries, index-aligned with DOM rows
-  var sel = -1;                  // keyboard selection index into rows
   var lastGood = null;           // last folder that rendered ok (error-state ← Back fallback)
   var seq = 0;                   // stale-response guard
+
+  // selection: names within the CURRENT folder (indices shift on re-render)
+  var selected = {};             // name -> true
+  var selCount = 0;
+  var anchor = -1;               // keyboard/shift anchor (index into rows)
+  var selectMode = false;        // touch multi-select mode (long-press)
+  var pendingFocusName = null;   // select+reveal this name after the next render
+  var modalOpen = false;
 
   // persisted view prefs (per device)
   var showHidden = false, sortKey = 'name', sortAsc = true;
@@ -276,6 +399,12 @@
   function api(url) {
     return fetch(url).then(function(r) { return r.json(); });
   }
+  function fsop(body) {
+    return fetch('/api/fs/op', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function(r) { return r.json(); });
+  }
   function stateEl(lines) {
     var box = document.createElement('div'); box.className = 'state';
     lines.forEach(function(n) { box.appendChild(n); });
@@ -286,6 +415,20 @@
     if (cls) n.className = cls;
     if (text != null) n.textContent = text;
     return n;
+  }
+
+  // ---- toast (mutation feedback; never alert()) ----
+  var toastEl = null, toastTimer = null;
+  function toast(msg, isErr) {
+    if (toastEl) toastEl.remove();
+    clearTimeout(toastTimer);
+    toastEl = el('div', 'toast' + (isErr ? ' err' : ''), msg);
+    // float above the selection pill when it's showing
+    if (actbarEl.classList.contains('on')) toastEl.style.bottom = '72px';
+    document.body.appendChild(toastEl);
+    toastTimer = setTimeout(function() {
+      if (toastEl) { toastEl.remove(); toastEl = null; }
+    }, isErr ? 6000 : 3200);
   }
 
   function renderCrumbs() {
@@ -324,9 +467,93 @@
     return v;
   }
 
+  // ---- selection ----
+  function getClip() {
+    try {
+      var c = JSON.parse(localStorage.getItem('fsx.clip') || 'null');
+      if (c && (c.mode === 'copy' || c.mode === 'cut') && Array.isArray(c.paths) && c.paths.length) return c;
+    } catch (e) {}
+    return null;
+  }
+  function selNames() { return Object.keys(selected); }
+  function selPaths() { return selNames().map(function(n) { return joinPath(path, n); }); }
+  function syncSelDom() {
+    var clip = getClip();
+    var cutSet = {};
+    if (clip && clip.mode === 'cut') clip.paths.forEach(function(p) { cutSet[p] = true; });
+    var els = mainEl.querySelectorAll('.row');
+    for (var i = 0; i < els.length; i++) {
+      var e = rows[+els[i].dataset.i];
+      if (!e) continue;
+      els[i].classList.toggle('sel', !!selected[e.name]);
+      els[i].classList.toggle('cut', !!cutSet[joinPath(path, e.name)]);
+    }
+    renderActions();
+  }
+  function renderActions() {
+    var clip = getClip();
+    pasteBtn.classList.toggle('on', !!clip);
+    if (clip) {
+      pasteBtn.textContent = 'Paste (' + clip.paths.length + ')';
+      pasteBtn.title = (clip.mode === 'cut' ? 'Move' : 'Copy') + ' ' + clip.paths.length +
+                       ' item' + (clip.paths.length === 1 ? '' : 's') + ' here (Ctrl+V)';
+    }
+    var on = selCount > 0 || selectMode;
+    actbarEl.classList.toggle('on', on);
+    if (toastEl) toastEl.style.bottom = on ? '72px' : '';   // keep a live toast clear of the pill
+    if (on) {
+      document.getElementById('selcnt').textContent = selCount + ' selected';
+      document.getElementById('a-rename').disabled = selCount !== 1;
+      var any = selCount > 0;
+      ['a-download', 'a-copy', 'a-cut', 'a-delete'].forEach(function(id) {
+        document.getElementById(id).disabled = !any;
+      });
+    }
+  }
+  function clearSel(quiet) {
+    selected = {}; selCount = 0; anchor = -1;
+    if (!quiet) syncSelDom(); else renderActions();
+  }
+  function setOnly(i) {
+    selected = {}; selCount = 0;
+    if (i >= 0 && rows[i]) { selected[rows[i].name] = true; selCount = 1; anchor = i; revealRow(i); }
+    syncSelDom();
+  }
+  function toggleSel(i) {
+    if (!rows[i]) return;
+    var n = rows[i].name;
+    if (selected[n]) { delete selected[n]; selCount--; }
+    else { selected[n] = true; selCount++; anchor = i; }
+    syncSelDom();
+  }
+  function rangeSel(a, b) {
+    selected = {}; selCount = 0;
+    var lo = Math.min(a, b), hi = Math.max(a, b);
+    for (var i = lo; i <= hi; i++) if (rows[i]) { selected[rows[i].name] = true; selCount++; }
+    syncSelDom();
+  }
+  function revealRow(i) {
+    var r = mainEl.querySelector('.row[data-i="' + i + '"]');
+    if (r) r.scrollIntoView({ block: 'nearest' });
+  }
+  function enterSelectMode(i) {
+    selectMode = true;
+    mainEl.classList.add('selmode');
+    if (i >= 0) { selected = {}; selCount = 0; toggleSel(i); }
+    else renderActions();
+  }
+  function exitSelectMode() {
+    selectMode = false;
+    mainEl.classList.remove('selmode');
+    clearSel();
+  }
+
   function renderList() {
     rows = visibleRows();
-    sel = -1;
+    // prune selection to names still visible in this folder
+    var keep = {}, kept = 0;
+    rows.forEach(function(e) { if (selected[e.name]) { keep[e.name] = true; kept++; } });
+    selected = keep; selCount = kept; anchor = -1;
     mainEl.innerHTML = '';
     if (!rows.length) {
       var hid = entries.length - rows.length;
@@ -334,12 +561,14 @@
         ? hid + ' hidden item' + (hid === 1 ? '' : 's') + ' — use “Hidden” to show them'
         : 'Empty folder';
       mainEl.appendChild(stateEl([el('div', 'big', msg)]));
+      renderActions();
       return;
     }
     var frag = document.createDocumentFragment();
     rows.forEach(function(e, i) {
       var r = el('div', 'row' + (e.isDir ? ' dir' : ''));
       r.dataset.i = i;
+      r.appendChild(el('span', 'ck', ''));
       r.appendChild(el('span', 'ic', iconFor(e.name, e.isDir)));
       var nm = el('span', 'nm', e.name); nm.title = e.name;
       r.appendChild(nm);
@@ -350,6 +579,13 @@
       frag.appendChild(r);
     });
     mainEl.appendChild(frag);
+    if (pendingFocusName) {
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].name === pendingFocusName) { setOnly(i); break; }
+      }
+      pendingFocusName = null;
+    }
+    syncSelDom();
   }
 
   function renderError(err) {
@@ -380,8 +616,10 @@
     noticeEl.classList.toggle('on', !!text);
   }
 
-  function load(p) {
+  function load(p, keepScroll) {
     var my = ++seq;
+    var st = keepScroll ? mainEl.scrollTop : 0;
+    if (p !== path) { clearSel(true); if (selectMode) { selectMode = false; mainEl.classList.remove('selmode'); } }
     // Quiet delayed loading state — no flash on fast responses.
     setTimeout(function() {
       if (seq === my && path === p && !mainEl.childNodes.length) {
@@ -415,12 +653,13 @@
       lastGood = p;
       renderList();
       if (d.truncated) setNotice('Large folder — showing the first ' + entries.length + ' entries.');
-      mainEl.scrollTop = 0;
+      mainEl.scrollTop = st;
     }).catch(function() {
       if (seq !== my) return;
       renderError({ code: 'net', error: 'network' });
     });
   }
+  function refresh() { if (path) load(path, true); }
 
   // Navigate = update the hash (so browser back/forward walk the folder trail).
   function go(p) {
@@ -450,36 +689,404 @@
     openPreview(p, e.name);
   }
 
-  mainEl.addEventListener('click', function(ev) {
+  // ---- row interaction: select on click (mouse), open on double-click;
+  // touch keeps tap-to-open and long-press (~450ms) enters select mode ----
+  var lastPtrType = 'mouse';
+  var suppressUntil = 0;         // eat the click that follows a long-press / drag
+  var lpTimer = null, lpStart = null, lpFired = false;
+  var dragCand = null, drag = null, ghostEl = null, dropRow = null;
+
+  mainEl.addEventListener('pointerdown', function(ev) {
+    lastPtrType = ev.pointerType || 'mouse';
     var r = ev.target.closest('.row');
-    if (!r) return;
-    setSel(+r.dataset.i);
-    openEntry(rows[+r.dataset.i]);
+    if (!r || r.querySelector('input.edit')) return;
+    if (ev.pointerType === 'touch') {
+      lpStart = { x: ev.clientX, y: ev.clientY };
+      clearTimeout(lpTimer);
+      lpTimer = setTimeout(function() {
+        lpTimer = null;
+        lpFired = true;          // suppression starts at finger-LIFT (endPointer)
+        enterSelectMode(+r.dataset.i);
+      }, 450);
+    } else if (ev.pointerType === 'mouse' && ev.button === 0) {
+      dragCand = { i: +r.dataset.i, x: ev.clientX, y: ev.clientY };
+    }
+  });
+  document.addEventListener('pointermove', function(ev) {
+    if (lpTimer && lpStart &&
+        (Math.abs(ev.clientX - lpStart.x) + Math.abs(ev.clientY - lpStart.y)) > 10) {
+      clearTimeout(lpTimer); lpTimer = null;        // it's a scroll, not a long-press
+    }
+    if (dragCand && !drag &&
+        (Math.abs(ev.clientX - dragCand.x) + Math.abs(ev.clientY - dragCand.y)) > 6) {
+      startDrag(dragCand.i);
+    }
+    if (drag) moveDrag(ev);
+  });
+  function endPointer(ev, cancelled) {
+    clearTimeout(lpTimer); lpTimer = null;
+    dragCand = null;
+    if (lpFired) {
+      // A long-press just completed: eat only ITS synthetic click (arrives
+      // within ms of the lift), never a following intentional tap.
+      lpFired = false;
+      suppressUntil = Date.now() + 250;
+    }
+    if (drag) { endDrag(ev, cancelled); }
+  }
+  document.addEventListener('pointerup', function(ev) { endPointer(ev, false); });
+  document.addEventListener('pointercancel', function(ev) { endPointer(ev, true); });
+  mainEl.addEventListener('contextmenu', function(ev) {
+    if (lastPtrType === 'touch') ev.preventDefault();   // long-press is select mode
   });
 
-  // ---- keyboard: ↑/↓ move a quiet selection, Enter opens ----
-  function setSel(i) {
-    if (sel >= 0) {
-      var old = mainEl.querySelector('.row[data-i="' + sel + '"]');
-      if (old) old.classList.remove('sel');
+  mainEl.addEventListener('click', function(ev) {
+    if (Date.now() < suppressUntil) return;
+    var r = ev.target.closest('.row');
+    if (!r) { if (!selectMode) clearSel(); return; }    // empty area clears (desktop)
+    if (r.querySelector('input.edit')) return;          // inline editor row
+    var i = +r.dataset.i;
+    if (!rows[i]) return;
+    if (selectMode) { toggleSel(i); return; }
+    if (lastPtrType === 'touch') { openEntry(rows[i]); return; }
+    if (ev.ctrlKey || ev.metaKey) toggleSel(i);
+    else if (ev.shiftKey && anchor >= 0) rangeSel(anchor, i);
+    else setOnly(i);
+  });
+  mainEl.addEventListener('dblclick', function(ev) {
+    if (lastPtrType === 'touch') return;
+    var r = ev.target.closest('.row');
+    if (!r || r.querySelector('input.edit')) return;
+    if (rows[+r.dataset.i]) openEntry(rows[+r.dataset.i]);
+  });
+
+  // ---- drag to folder (desktop, pointer-based — no HTML5 DnD) ----
+  function startDrag(i) {
+    if (!rows[i]) { dragCand = null; return; }
+    var names = selected[rows[i].name] ? selNames() : [rows[i].name];
+    if (!selected[rows[i].name]) setOnly(i);
+    drag = { names: names, srcDir: path };
+    ghostEl = el('div', 'dghost',
+      names.length === 1 ? names[0] : names.length + ' items');
+    document.body.appendChild(ghostEl);
+  }
+  function moveDrag(ev) {
+    ghostEl.style.left = (ev.clientX + 12) + 'px';
+    ghostEl.style.top = (ev.clientY + 14) + 'px';
+    var t = document.elementFromPoint(ev.clientX, ev.clientY);
+    var r = t && t.closest ? t.closest('.row') : null;
+    var tgt = null;
+    if (r && r.classList.contains('dir')) {
+      var e = rows[+r.dataset.i];
+      if (e && drag.names.indexOf(e.name) === -1) tgt = r;
     }
-    sel = i;
-    if (sel >= 0) {
-      var r = mainEl.querySelector('.row[data-i="' + sel + '"]');
-      if (r) { r.classList.add('sel'); r.scrollIntoView({ block: 'nearest' }); }
+    if (dropRow !== tgt) {
+      if (dropRow) dropRow.classList.remove('droptgt');
+      dropRow = tgt;
+      if (dropRow) dropRow.classList.add('droptgt');
     }
   }
+  function endDrag(ev, cancelled) {
+    var tgt = dropRow, d = drag;
+    if (dropRow) dropRow.classList.remove('droptgt');
+    if (ghostEl) ghostEl.remove();
+    ghostEl = null; dropRow = null; drag = null;
+    suppressUntil = Date.now() + 350;               // don't let the click open/select
+    if (cancelled || !tgt) return;
+    var e = rows[+tgt.dataset.i];
+    if (!e) return;
+    var dst = joinPath(d.srcDir, e.name);
+    var src = d.names.map(function(n) { return joinPath(d.srcDir, n); });
+    fsop({ op: 'move', src: src, dst: dst }).then(function(res) {
+      opResult(res, 'Moved ' + src.length + ' item' + (src.length === 1 ? '' : 's') + ' to ' + e.name);
+      refresh();
+    }).catch(function() { toast('Move failed — network error', true); });
+  }
+
+  // ---- mutation plumbing ----
+  // Per-item results → one quiet toast (successes summarized, failures first).
+  function opResult(d, okMsg) {
+    if (!d || !d.ok) { toast((d && d.error) || 'Operation failed', true); return false; }
+    var fails = (d.results || []).filter(function(x) { return !x.ok; });
+    if (fails.length) {
+      toast(fails.length + ' failed — ' + (fails[0].error || fails[0].code || 'error'), true);
+      return false;
+    }
+    if (okMsg) toast(okMsg);
+    return true;
+  }
+
+  // -- clipboard (survives navigation and tabs via localStorage) --
+  function doCopyCut(mode) {
+    if (!selCount) return;
+    try {
+      localStorage.setItem('fsx.clip', JSON.stringify({ mode: mode, paths: selPaths() }));
+    } catch (e) { toast('Clipboard unavailable', true); return; }
+    toast(selCount + ' item' + (selCount === 1 ? '' : 's') + (mode === 'copy' ? ' copied' : ' cut'));
+    if (selectMode) exitSelectMode();
+    syncSelDom();
+  }
+  function doPaste() {
+    var c = getClip();
+    if (!c || !path) return;
+    var op = c.mode === 'cut' ? 'move' : 'copy';
+    fsop({ op: op, src: c.paths, dst: path }).then(function(d) {
+      var n = c.paths.length;
+      opResult(d, (op === 'move' ? 'Moved ' : 'Pasted ') + n + ' item' + (n === 1 ? '' : 's'));
+      if (c.mode === 'cut') { try { localStorage.removeItem('fsx.clip'); } catch (e) {} }
+      renderActions();
+      refresh();
+    }).catch(function() { toast('Paste failed — network error', true); });
+  }
+
+  // -- delete (confirm card, vibe-modal style) --
+  function confirmCard(title, names, okText) {
+    return new Promise(function(resolve) {
+      modalOpen = true;
+      var ov = el('div', 'mov');
+      var card = el('div', 'mcard');
+      card.setAttribute('role', 'dialog');
+      card.appendChild(el('h3', null, title));
+      var ul = el('ul');
+      names.slice(0, 8).forEach(function(n) { ul.appendChild(el('li', null, n)); });
+      if (names.length > 8) ul.appendChild(el('li', 'more', '…and ' + (names.length - 8) + ' more'));
+      card.appendChild(ul);
+      var btns = el('div', 'mbtns');
+      var cancel = el('button', 'mcancel', 'Cancel');
+      var ok = el('button', 'mok', okText);
+      btns.appendChild(cancel); btns.appendChild(ok);
+      card.appendChild(btns);
+      ov.appendChild(card);
+      function close(val) {
+        modalOpen = false;
+        document.removeEventListener('keydown', onKey, true);
+        ov.remove();
+        resolve(val);
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(false); }
+        else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); close(true); }
+      }
+      document.addEventListener('keydown', onKey, true);
+      cancel.addEventListener('click', function() { close(false); });
+      ok.addEventListener('click', function() { close(true); });
+      ov.addEventListener('click', function(e) { if (e.target === ov) close(false); });
+      document.body.appendChild(ov);
+      ok.focus();
+    });
+  }
+  function doDelete() {
+    if (!selCount) return;
+    var names = selNames();
+    confirmCard('Delete ' + selCount + ' item' + (selCount === 1 ? '' : 's') + '? This can’t be undone.',
+                names, 'Delete').then(function(yes) {
+      if (!yes) return;
+      fsop({ op: 'delete', paths: selPaths() }).then(function(d) {
+        opResult(d, 'Deleted ' + names.length + ' item' + (names.length === 1 ? '' : 's'));
+        if (selectMode) exitSelectMode();
+        refresh();
+      }).catch(function() { toast('Delete failed — network error', true); });
+    });
+  }
+
+  // -- download: single file direct; folders / multi-selections as a zip --
+  function doDownload() {
+    if (!selCount) return;
+    var names = selNames();
+    var single = names.length === 1 ? rows.filter(function(e) { return e.name === names[0]; })[0] : null;
+    var url = (single && !single.isDir)
+      ? '/api/fs/download?path=' + encodeURIComponent(joinPath(path, single.name))
+      : '/api/fs/zip?' + selPaths().map(function(p) { return 'path=' + encodeURIComponent(p); }).join('&');
+    var a = document.createElement('a');
+    a.href = url;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // -- inline editors: new folder + rename --
+  function stopEdit(input) {
+    var r = input.closest('.row');
+    if (r) r.remove();
+  }
+  function editKeys(input, commit, cancel) {
+    var done = false;
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); if (!done) { done = true; commit(input.value); } }
+      else if (e.key === 'Escape') { e.preventDefault(); done = true; cancel(); }
+      e.stopPropagation();
+    });
+    input.addEventListener('blur', function() {
+      // OS metaphor: clicking away commits the name (Esc cancels).
+      if (!done) { done = true; commit(input.value); }
+    });
+  }
+  function newFolder() {
+    if (!path) return;
+    var existing = mainEl.querySelector('input.edit');
+    if (existing) { existing.focus(); return; }
+    if (mainEl.querySelector('.state')) mainEl.innerHTML = '';   // empty-folder message
+    var r = el('div', 'row dir');
+    r.appendChild(el('span', 'ck', ''));
+    r.appendChild(el('span', 'ic', '📁'));
+    var input = el('input', 'edit');
+    input.type = 'text'; input.value = 'New folder';
+    input.setAttribute('aria-label', 'New folder name');
+    r.appendChild(input);
+    mainEl.insertBefore(r, mainEl.firstChild);
+    mainEl.scrollTop = 0;
+    input.focus(); input.select();
+    editKeys(input, function(name) {
+      name = (name || '').trim();
+      if (!name || name.indexOf('/') !== -1) { stopEdit(input); return; }
+      fsop({ op: 'mkdir', path: joinPath(path, name) }).then(function(d) {
+        stopEdit(input);
+        if (!d || !d.ok) {
+          toast(d && d.code === 'eexist' ? '“' + name + '” already exists' : ((d && d.error) || 'Couldn’t create folder'), true);
+          return;
+        }
+        pendingFocusName = name;
+        refresh();
+      }).catch(function() { stopEdit(input); toast('Couldn’t create folder — network error', true); });
+    }, function() { stopEdit(input); refresh(); });
+  }
+  function startRename() {
+    if (selCount !== 1) return;
+    var name = selNames()[0];
+    var i = -1;
+    for (var k = 0; k < rows.length; k++) if (rows[k].name === name) { i = k; break; }
+    var r = mainEl.querySelector('.row[data-i="' + i + '"]');
+    if (i < 0 || !r || r.querySelector('input.edit')) return;
+    var nm = r.querySelector('.nm');
+    nm.style.display = 'none';
+    var input = el('input', 'edit');
+    input.type = 'text'; input.value = name;
+    input.setAttribute('aria-label', 'New name');
+    nm.parentNode.insertBefore(input, nm.nextSibling);
+    input.focus();
+    var dot = name.lastIndexOf('.');
+    input.setSelectionRange(0, (!rows[i].isDir && dot > 0) ? dot : name.length);
+    function closeEditor() {
+      input.remove();
+      nm.style.display = '';
+    }
+    editKeys(input, function(to) {
+      to = (to || '').trim();
+      if (!to || to === name || to.indexOf('/') !== -1) { closeEditor(); return; }
+      fsop({ op: 'rename', path: joinPath(path, name), to: to }).then(function(d) {
+        closeEditor();
+        if (!d || !d.ok) {
+          toast(d && d.code === 'eexist' ? '“' + to + '” already exists' : ((d && d.error) || 'Rename failed'), true);
+          return;
+        }
+        pendingFocusName = to;
+        refresh();
+      }).catch(function() { closeEditor(); toast('Rename failed — network error', true); });
+    }, closeEditor);
+  }
+
+  // -- upload (sequential XHR with real progress; names never overwrite:
+  //    collisions get the backend's own ' (2)' suffix, chosen client-side) --
+  var uprogEl = document.getElementById('uprog');
+  var uprogTxt = document.getElementById('uprog-txt');
+  var uprogFill = document.getElementById('uprog-fill');
+  var uploading = false;
+  function freeName(dir, name) {
+    // stat-probe name, then "base (2).ext", "base (3).ext"…
+    function probe(cand, n) {
+      return api('/api/fs/stat?path=' + encodeURIComponent(joinPath(dir, cand))).then(function(d) {
+        if (!d || !d.ok) return cand;               // enoent → free
+        if (n > 99) return cand;                    // give up, let the server decide
+        var dot = name.lastIndexOf('.');
+        var next = dot > 0 ? name.slice(0, dot) + ' (' + n + ')' + name.slice(dot)
+                           : name + ' (' + n + ')';
+        return probe(next, n + 1);
+      }).catch(function() { return cand; });
+    }
+    return probe(name, 2);
+  }
+  function uploadOne(dir, file, onProgress) {
+    return freeName(dir, file.name).then(function(name) {
+      return new Promise(function(resolve) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/fs/upload?path=' + encodeURIComponent(joinPath(dir, name)));
+        xhr.upload.onprogress = function(e) {
+          if (e.lengthComputable) onProgress(e.loaded / e.total);
+        };
+        xhr.onload = function() {
+          var d = null;
+          try { d = JSON.parse(xhr.responseText); } catch (e) {}
+          resolve({ ok: xhr.status >= 200 && xhr.status < 300 && d && d.ok, name: name,
+                    error: (d && d.error) || ('HTTP ' + xhr.status) });
+        };
+        xhr.onerror = function() { resolve({ ok: false, name: name, error: 'network error' }); };
+        xhr.send(file);
+      });
+    });
+  }
+  function uploadAll(files) {
+    if (uploading || !files.length || !path) return;
+    uploading = true;
+    document.getElementById('upbtn').disabled = true;
+    var dir = path, done = 0, fails = [];
+    uprogEl.classList.add('on');
+    function step() {
+      if (done >= files.length) {
+        uploading = false;
+        document.getElementById('upbtn').disabled = false;
+        uprogEl.classList.remove('on');
+        if (fails.length) toast(fails.length + ' of ' + files.length + ' failed — ' + fails[0].error, true);
+        else toast('Uploaded ' + files.length + ' file' + (files.length === 1 ? '' : 's'));
+        if (path === dir) refresh();
+        return;
+      }
+      var f = files[done];
+      uprogTxt.textContent = 'Uploading ' + (done + 1) + '/' + files.length + ' — ' + f.name;
+      uprogFill.style.width = '0%';
+      uploadOne(dir, f, function(frac) {
+        uprogFill.style.width = Math.round(frac * 100) + '%';
+      }).then(function(res) {
+        if (!res.ok) fails.push(res);
+        done++;
+        step();
+      });
+    }
+    step();
+  }
+  fileInput.addEventListener('change', function() {
+    uploadAll(Array.prototype.slice.call(fileInput.files));
+    fileInput.value = '';
+  });
+
+  // ---- keyboard ----
   document.addEventListener('keydown', function(ev) {
+    if (modalOpen) return;                          // the confirm card handles keys
     if (pvEl.classList.contains('open')) {
       if (ev.key === 'Escape') { ev.preventDefault(); closePreview(); }
       return;
     }
     var t = ev.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+    var mod = ev.ctrlKey || ev.metaKey;
+    if (mod && (ev.key === 'c' || ev.key === 'C') && selCount) { ev.preventDefault(); doCopyCut('copy'); return; }
+    if (mod && (ev.key === 'x' || ev.key === 'X') && selCount) { ev.preventDefault(); doCopyCut('cut'); return; }
+    if (mod && (ev.key === 'v' || ev.key === 'V') && getClip()) { ev.preventDefault(); doPaste(); return; }
+    if (mod && (ev.key === 'a' || ev.key === 'A') && rows.length) {
+      ev.preventDefault();
+      selected = {}; selCount = 0;
+      rows.forEach(function(e) { selected[e.name] = true; selCount++; });
+      syncSelDom();
+      return;
+    }
+    if (ev.key === 'F2') { ev.preventDefault(); startRename(); return; }
+    if (ev.key === 'Delete') { ev.preventDefault(); doDelete(); return; }
+    if (ev.key === 'Escape') {
+      if (selectMode) { ev.preventDefault(); exitSelectMode(); }
+      else if (selCount) { ev.preventDefault(); clearSel(); }
+      return;
+    }
     if (!rows.length) return;
-    if (ev.key === 'ArrowDown') { ev.preventDefault(); setSel(Math.min(rows.length - 1, sel + 1)); }
-    else if (ev.key === 'ArrowUp') { ev.preventDefault(); setSel(Math.max(0, sel - 1)); }
-    else if (ev.key === 'Enter' && sel >= 0) { ev.preventDefault(); openEntry(rows[sel]); }
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); setOnly(Math.min(rows.length - 1, anchor + 1)); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); setOnly(Math.max(0, anchor < 0 ? 0 : anchor - 1)); }
+    else if (ev.key === 'Enter' && anchor >= 0 && rows[anchor]) { ev.preventDefault(); openEntry(rows[anchor]); }
   });
 
   // ---- text preview overlay ----
@@ -509,7 +1116,7 @@
       }
       pvInfoEl.textContent = fmtSize(d.size);
       if (d.binary) {
-        pvBodyEl.textContent = 'Binary file — no text preview. Use Manage to download it.';
+        pvBodyEl.textContent = 'Binary file — no text preview. Use Download to save it.';
         return;
       }
       if (d.truncated) {
@@ -564,16 +1171,32 @@
   hiddenEl.addEventListener('click', function() {
     showHidden = !showHidden; savePrefs(); syncControls(); renderList();
   });
-  document.getElementById('refresh').addEventListener('click', function() { if (path) load(path); });
+  document.getElementById('refresh').addEventListener('click', refresh);
   document.getElementById('manage').addEventListener('click', function() {
-    // Phase-1 escape hatch: mutations (rename/move/upload/delete/zip) still live
-    // in FileBrowser — swap THIS iframe to it at the current folder.
+    // Escape hatch to FileBrowser for what's not native yet (editor, search) —
+    // swap THIS iframe to it at the current folder.
     if (!path) return;
     location.href = '/files/files' + (path === '/' ? '' : enc(path)) + '/';
+  });
+  document.getElementById('newbtn').addEventListener('click', newFolder);
+  document.getElementById('upbtn').addEventListener('click', function() { fileInput.click(); });
+  pasteBtn.addEventListener('click', doPaste);
+  document.getElementById('a-rename').addEventListener('click', startRename);
+  document.getElementById('a-download').addEventListener('click', doDownload);
+  document.getElementById('a-copy').addEventListener('click', function() { doCopyCut('copy'); });
+  document.getElementById('a-cut').addEventListener('click', function() { doCopyCut('cut'); });
+  document.getElementById('a-delete').addEventListener('click', doDelete);
+  document.getElementById('a-clear').addEventListener('click', function() {
+    if (selectMode) exitSelectMode(); else clearSel();
+  });
+  // Another tab changed the shared clipboard → update the Paste button + cut dims.
+  window.addEventListener('storage', function(ev) {
+    if (ev.key === 'fsx.clip') syncSelDom();
   });
 
   // ---- init: resolve home, then honor #/abs/path (the wrapper's deep link) ----
   syncControls();
+  renderActions();
   api('/api/fs/home').then(function(d) {
     HOME = (d && d.ok && d.home) || '';
   }).catch(function() {}).then(function() {

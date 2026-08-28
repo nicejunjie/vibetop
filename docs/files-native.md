@@ -1,10 +1,11 @@
 # Files-native: replacing FileBrowser with a vibetop-owned Files app
 
-> Status: **phase 1 shipped** (v1.19.87/88 — per-user file agent + `/api/fs/*`
-> + the native listing `landing/filesx.html` behind the per-device **Native**
-> toggle in the Files tab bar; phase 0 = native image viewer, v1.19.80/81).
-> Phases 2-4 below are the plan of record; each is independently shippable and
-> FileBrowser stays alongside until the end.
+> Status: **phase 2 shipped** (v1.19.89/90 — agent mutations + streaming
+> upload/download/zip, and the full mutation UI: selection, OS-style
+> clipboard, drag-to-folder, confirm-delete, progress uploads; phase 1 =
+> agent + native listing behind the **Native** toggle, v1.19.87/88; phase 0 =
+> native image viewer, v1.19.80/81). Phases 3-4 below are the plan of record;
+> FileBrowser stays alongside until the end (Manage = editor/search hatch).
 
 ## Why (the case, with receipts)
 
