@@ -611,7 +611,10 @@
   }
   #win-layouts .wl-grid:hover { border-color: #d2691e; }
   #win-layouts .wl-grid:hover .wl-zone { background: #b25a1a; }
-  #win-layouts .wl-zone:hover { background: #d2691e; }
+  /* Must out-rank the dim rule above it (that one is id+3 classes; a bare
+     `.wl-zone:hover` is id+2 and LOSES — measured: all three zones painted the
+     dim shade while a zone was hovered). */
+  #win-layouts .wl-grid:hover .wl-zone:hover { background: #d2691e; }
   #win-layouts .wl-grid:hover + .wl-name { color: #e8eef5; }
   #win-layouts .wl-name { font-size: 10px; color: #8a9aaa; letter-spacing: .2px; }
   /* Touch needs the zones big enough to hit individually. */
