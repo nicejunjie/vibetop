@@ -575,17 +575,22 @@ test.describe('window mode', () => {
       const grid = palette.locator('.wl-opt').first().locator('.wl-grid');
       const zone = (j) => grid.locator(`.wl-zone[data-zone="${j}"]`);
 
+      // The zone renders the same markup as the taskbar button (svg preferred,
+      // emoji fallback), so compare innerHTML — an svg icon has no textContent.
       const notesIcon = await page.evaluate(() =>
-        document.querySelector('#task-apps .task-app[data-id="notes"] .icon').textContent);
+        document.querySelector('#task-apps .task-app[data-id="notes"] .icon').innerHTML);
+      const zoneHTML = (j) => zone(j).evaluate((el) => el.innerHTML);
 
       // Preview truth: the focused window's icon sits in the main zone, and every
       // zone carries some window's icon.
-      await expect(zone(0)).toHaveText(notesIcon);
-      for (let j = 0; j < 3; j++) await expect(zone(j)).not.toHaveText('');
+      expect(await zoneHTML(0)).toBe(notesIcon);
+      await expect(zone(0)).toHaveAttribute('title', / with Notes here$/);
+      for (let j = 0; j < 3; j++) expect((await zoneHTML(j)).length).toBeGreaterThan(0);
 
       // Hovering zone 1 previews the focused window THERE...
       await zone(1).hover();
-      await expect(zone(1)).toHaveText(notesIcon);
+      expect(await zoneHTML(1)).toBe(notesIcon);
+      await expect(zone(1)).toHaveAttribute('title', / with Notes here$/);
 
       // ...and clicking commits it: notes lands exactly in zone 1's geometry.
       const zones = await page.evaluate((key) => {

@@ -1285,7 +1285,9 @@
         var assign = VibeWin.zoneAssign(vis, active, L.zones.length, main);
         zoneEls.forEach(function (cell, j) {
           var app = APPS[assign[j]];
-          cell.textContent = app ? app.icon : '';
+          // Same markup as the taskbar button and the window title bar (svg
+          // preferred, emoji fallback), so a zone is recognizably "that window".
+          cell.innerHTML = app ? (app.svg || app.icon) : '';
           cell.title = (assign[j] === active)
             ? L.name + ' with ' + focusedLabel + ' here'
             : 'Put ' + focusedLabel + ' here instead';
