@@ -820,6 +820,42 @@
   .wp-hint { margin-top: 8px; font-size: 13px; color: #46566a; }
   .wp-hint b { color: #6b7a8d; font-weight: 600; }
   .wp-hint.hidden { display: none; }
+  /* Desktop widgets — a quiet, glanceable cluster in the wallpaper's top-right
+     corner (iPadOS-style): a big clock + date, the current month, and a small
+     host/uptime line. Same muted palette as the rest of the wallpaper; today
+     carries the app accent. Inherits pointer-events:none (display only), and
+     everything ambient here is device-cheap: the clock repaints on the minute
+     boundary, the calendar only on a day change, the host line rides the
+     existing 5s heartbeat. */
+  .wp-widgets {
+    position: absolute; top: 20px; right: 26px;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+    text-align: right;
+  }
+  .wp-clock .t {
+    font-size: clamp(34px, 5vmin, 46px); font-weight: 200; letter-spacing: 1px;
+    color: #c3ccd6; line-height: 1.1; font-variant-numeric: tabular-nums;
+  }
+  .wp-clock .d { margin-top: 2px; font-size: 13px; color: #7a8696; letter-spacing: 0.3px; }
+  .wp-cal {
+    background: rgba(22,27,34,0.55); border: 1px solid rgba(58,70,90,0.45);
+    border-radius: 12px; padding: 12px 14px 10px;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    color: #8a96a6; text-align: center;
+  }
+  .wp-cal-head { font-size: 13px; font-weight: 600; letter-spacing: 0.3px; color: #aab4c5; margin-bottom: 7px; }
+  .wp-cal table { border-collapse: collapse; margin: 0 auto; }
+  .wp-cal th { font-size: 10.5px; font-weight: 600; color: #5b6879; padding: 1px 0 5px; }
+  .wp-cal td { width: 26px; height: 26px; line-height: 26px; padding: 0; font-size: 12px; }
+  .wp-cal td.today { background: #8a4adb; color: #fff; border-radius: 50%; font-weight: 600; }
+  .wp-host {
+    font: 500 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #5b6879; letter-spacing: 0.3px;
+  }
+  .wp-host:empty { display: none; }
+  /* Narrow screens: the centered brand block already fills a phone — skip the
+     widgets (the taskbar clock covers the time there). */
+  @media (max-width: 736px) { .wp-widgets { display: none; } }
 
   /* === Narrow screens: scrollable taskbar + roomy menu === */
   @media (max-width: 736px) {
@@ -929,6 +965,11 @@
       <div class="wp-desc">A mini-OS in your browser — a lighter, faster remote desktop.</div>
       <div class="wp-repo"><a href="https://github.com/nicejunjie/vibetop" target="_blank" rel="noopener">github.com/nicejunjie/vibetop</a></div>
       <div class="wp-hint" id="wp-hint">Click <b>&nbsp;⊞ Start&nbsp;</b> to open an app</div>
+      <div class="wp-widgets">
+        <div class="wp-clock"><div class="t" id="wp-clock-t"></div><div class="d" id="wp-clock-d"></div></div>
+        <div class="wp-cal" id="wp-cal"></div>
+        <div class="wp-host" id="wp-host"></div>
+      </div>
     </div>
     <div id="win-snap"></div>
     <div id="win-dragmask"></div>
@@ -3188,6 +3229,11 @@
       ? (Math.round(d.gpu_vram_used_gb) + '/' + Math.round(d.gpu_vram_total_gb)) : null;
     set('mem-ut',  mem);
     set('vram-ut', vram);
+    // Wallpaper host line — which machine this desktop IS, at a glance (this
+    // matters once you run vibetop on more than one host) + how long it's been
+    // up. Rides the heartbeat that delivered `d`; textContent, never HTML.
+    var wh = document.getElementById('wp-host');
+    if (wh) wh.textContent = (d.hostname || '') + (d.uptime ? '  ·  up ' + d.uptime : '');
   }
 
   // System-health warning banner, driven by the heartbeat's `warnings` array (see
@@ -3502,11 +3548,41 @@
   var t = document.getElementById('tb-clock-t'), d = document.getElementById('tb-clock-d');
   if (!t || !d) return;
   var timer = null;
+  // Wallpaper widgets share the same minute tick: big clock + long date, and
+  // the month calendar (rebuilt only when the DAY changes — the grid and the
+  // today-mark are date-level, so re-rendering per minute would be waste).
+  var wt = document.getElementById('wp-clock-t'), wd = document.getElementById('wp-clock-d');
+  var calEl = document.getElementById('wp-cal'), calDay = '';
+  function paintCal(now) {
+    if (!calEl) return;
+    var key = now.toDateString();
+    if (key === calDay) return;
+    calDay = key;
+    var y = now.getFullYear(), m = now.getMonth(), today = now.getDate();
+    var first = new Date(y, m, 1).getDay();              // 0 = Sunday
+    var days = new Date(y, m + 1, 0).getDate();
+    var h = '<div class="wp-cal-head">' +
+            now.toLocaleDateString([], { month: 'long', year: 'numeric' }) + '</div><table><tr>';
+    for (var i = 0; i < 7; i++)                          // 2024-09-01 was a Sunday
+      h += '<th>' + new Date(2024, 8, 1 + i).toLocaleDateString([], { weekday: 'narrow' }) + '</th>';
+    h += '</tr><tr>';
+    var cell = 0;
+    for (i = 0; i < first; i++) { h += '<td></td>'; cell++; }
+    for (var dd = 1; dd <= days; dd++) {
+      if (cell === 7) { h += '</tr><tr>'; cell = 0; }
+      h += '<td' + (dd === today ? ' class="today"' : '') + '>' + dd + '</td>'; cell++;
+    }
+    while (cell < 7) { h += '<td></td>'; cell++; }
+    calEl.innerHTML = h + '</tr></table>';
+  }
   function paint() {
     var now = new Date();
     t.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     d.textContent = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     t.parentNode.title = now.toLocaleString();          // full date/time on hover
+    if (wt) wt.textContent = t.textContent;
+    if (wd) wd.textContent = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+    paintCal(now);
   }
   // Tick on the MINUTE BOUNDARY rather than every second: nothing here shows
   // seconds, so a 1s interval would be 60x the wakeups for an identical display.

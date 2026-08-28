@@ -97,6 +97,14 @@
     "header #dropdown .action { display: inline-flex !important; flex-direction: column !important; align-items: center !important; border-radius: 4px !important; padding: 2px 6px !important; min-width: 0 !important; width: auto !important; }",
     "header #dropdown .action span:not(.counter) { display: block !important; font-size: 11px !important; line-height: 1.2 !important; text-align: center !important; padding: 0 !important; max-width: 60px !important; word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; }",
     "header #dropdown .action i { font-size: 20px !important; margin: 0 !important; padding: 2px !important; display: block !important; }",
+    // The previewer's image-quality toggle sits in the header but OUTSIDE
+    // #dropdown, where FileBrowser's stock CSS hides label spans — so the
+    // "Full res"/"Preview" label labelSizeToggle() writes stayed display:none
+    // (measured live: every #dropdown sibling block, this one none). Same
+    // icon-over-text anatomy as the rules above, keyed on our own class.
+    "header .action.vt-sizetoggle { display: inline-flex !important; flex-direction: column !important; align-items: center !important; border-radius: 4px !important; padding: 2px 6px !important; min-width: 0 !important; width: auto !important; }",
+    "header .action.vt-sizetoggle span:not(.counter) { display: block !important; font-size: 11px !important; line-height: 1.2 !important; text-align: center !important; padding: 0 !important; max-width: 60px !important; white-space: normal !important; }",
+    "header .action.vt-sizetoggle i { font-size: 20px !important; margin: 0 !important; padding: 2px !important; display: block !important; }",
     "header .fb-permanent.disabled { opacity: 0.25 !important; pointer-events: none !important; }",
     // Mobile control bar — an even GRID (5 columns): every action is a uniform
     // cell, icon OVER its text label, and ALL buttons stay visible (the ones that
