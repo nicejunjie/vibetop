@@ -396,6 +396,20 @@
     setNotice('');
     api('/api/fs/list?path=' + encodeURIComponent(p)).then(function(d) {
       if (seq !== my) return;                       // navigated away meanwhile
+      // A FILE path can arrive via the hash (a shared tab restored from a
+      // FileBrowser preview state, or the toggle flipping mid-preview): land
+      // in the parent folder and open the file once, instead of an error.
+      if (d && !d.ok && d.code === 'enotdir' && p.lastIndexOf('/') > 0) {
+        var parent = p.slice(0, p.lastIndexOf('/')) || '/';
+        var fname = baseOf(p);
+        api('/api/fs/stat?path=' + encodeURIComponent(p)).then(function(sd) {
+          go(parent);
+          if (sd && sd.ok && sd.stat && !sd.stat.isDir) {
+            setTimeout(function() { openEntry(sd.stat, p); }, 150);
+          }
+        });
+        return;
+      }
       if (!d || !d.ok) { renderError(d || {}); return; }
       entries = d.entries || [];
       lastGood = p;
