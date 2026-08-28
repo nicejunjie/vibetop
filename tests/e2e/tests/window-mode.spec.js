@@ -498,41 +498,54 @@ test.describe('window mode', () => {
     // arranges EVERY window, so a control sitting on window A silently moved B and
     // C — "all windows can be controlled from another window". Scope matches
     // location now; ▢ is plain maximize again. See docs/design-decisions.md.
-    test('hovering the taskbar 🗔 opens the layout palette and arranges every window', async ({ page }) => {
-      await openApp(page, 'files');            // three windows, so Thirds/1+2 are offered
+    test('hovering the taskbar 🗔 offers exactly the layouts that fit the open windows', async ({ page }) => {
+      await openApp(page, 'files');            // three windows
       await page.waitForTimeout(600);
+
+      // What SHOULD be offered on this lane, straight from the pure geometry: one
+      // zone per open window, and only if it fits at MINW/MINH. A narrow tablet in
+      // portrait legitimately has nothing to offer for three windows.
+      const expected = await page.evaluate(() => {
+        const f = document.getElementById('frames').getBoundingClientRect();
+        const vis = document.querySelectorAll('#frames .win.floating:not(.minimized)').length;
+        return window.VibeWin.layoutsFor({ w: Math.round(f.width), h: Math.round(f.height) }, 3)
+          .map((l) => l.name);
+      });
 
       await page.locator('#wm-btn').hover();
       const palette = page.locator('#win-layouts');
+      if (!expected.length) {                  // nothing fits here — the palette must stay shut
+        await page.waitForTimeout(900);
+        await expect(palette).not.toHaveClass(/open/);
+        return;
+      }
       await expect(palette).toHaveClass(/open/, { timeout: 3000 });
       const names = await palette.locator('.wl-name').allTextContents();
-      expect(names).toContain('Halves');
+      expect(names.sort()).toEqual(expected.sort());
 
-      // Only layouts that FIT are offered — three 320px columns need the room.
-      const wide = await page.evaluate(() => {
-        const f = document.getElementById('frames').getBoundingClientRect();
-        return f.width >= 3 * window.VibeWin.MINW && f.width > f.height;
-      });
-      expect(names.includes('Thirds')).toBe(wide);
+      // The point of the exact-count rule: a 2-zone layout would minimize the 3rd
+      // window, so with three open it must not be on offer at all.
+      expect(names).not.toContain('Halves');
+      expect(names).not.toContain('Stacked');
 
-      // The whole tile is one target: this picks a LAYOUT, not a slot for one window.
-      await palette.locator('.wl-opt').filter({ hasText: 'Halves' }).locator('.wl-grid').click();
+      await palette.locator('.wl-opt').first().locator('.wl-grid').click();
       await page.waitForTimeout(500);
-      await expect(palette).not.toHaveClass(/open/);          // closes once you choose
+      await expect(palette).not.toHaveClass(/open/);
 
-      const frame = await page.evaluate(() => {
-        const f = document.getElementById('frames').getBoundingClientRect();
-        return { w: Math.round(f.width), h: Math.round(f.height) };
-      });
-      // Two zones, three windows: two are placed and the overflow is minimized.
-      const placed = [];
+      // All three placed — none minimized, none overlapping.
+      const gs = [];
       for (const id of ['notes', 'upload', 'files']) {
         const g = await geom(page, id);
-        if (!g.min) placed.push(g);
+        expect(g.min, `${id} should not be minimized by a 3-zone layout`).toBeFalsy();
+        gs.push(g);
       }
-      expect(placed.length).toBe(2);
-      placed.forEach((g) => expect(Math.abs(g.width - Math.round(frame.w / 2))).toBeLessThanOrEqual(4));
-      expect(placed[0].left).not.toBe(placed[1].left);        // one each side
+      for (let a = 0; a < gs.length; a++) {
+        for (let b = a + 1; b < gs.length; b++) {
+          const ox = Math.min(gs[a].left + gs[a].width, gs[b].left + gs[b].width) - Math.max(gs[a].left, gs[b].left);
+          const oy = Math.min(gs[a].top + gs[a].height, gs[b].top + gs[b].height) - Math.max(gs[a].top, gs[b].top);
+          expect(Math.max(0, ox) * Math.max(0, oy)).toBeLessThanOrEqual(4);   // no real overlap
+        }
+      }
     });
 
     test('▢ is plain maximize — it must not open the palette', async ({ page }) => {

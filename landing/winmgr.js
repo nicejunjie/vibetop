@@ -133,13 +133,20 @@
     return out;
   }
 
-  // The layouts worth offering for THIS box: ones that fit, and whose zone count
-  // is useful for the windows actually open (never more zones than windows).
+  // The layouts worth offering for THIS box: one zone per open window, exactly, and
+  // only if it fits at the minimum window size.
+  //
+  // The count has to MATCH, not merely not-exceed. The first cut only excluded
+  // layouts with too MANY zones, so three open windows were still offered Halves
+  // and Stacked — and picking one silently minimized the third window. A layout
+  // that cannot hold what you have open is not a layout you meant to choose.
+  // Counts with no matching layout (1, or 5+) simply offer nothing; the even split
+  // from toggling the mode off and on still covers those.
   function layoutsFor(box, winCount) {
     var out = [];
     for (var i = 0; i < LAYOUTS.length; i++) {
       var L = LAYOUTS[i];
-      if (L.zones.length > Math.max(2, winCount)) continue;
+      if (L.zones.length !== winCount) continue;
       if (!layoutGeoms(L.key, box)) continue;
       out.push({ key: L.key, name: L.name, zones: L.zones });
     }

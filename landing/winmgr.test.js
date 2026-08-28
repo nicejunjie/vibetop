@@ -125,15 +125,35 @@ test("layoutGeoms: zone 0 is the main zone (the one you clicked from)", () => {
   assert.deepEqual(W.layoutGeoms("main2", BOX)[0], { left: 0, top: 0, width: 840, height: 800 });
 });
 
-test("layoutsFor: offers only layouts that fit AND are useful for the window count", () => {
+// The zone count must MATCH the window count exactly. Offering a 2-zone layout to
+// 3 open windows means the third is silently minimized when you pick it — reported
+// as "I have 3 windows open, it shouldn't show 2-window layouts".
+test("layoutsFor: one zone per open window, exactly", () => {
   const two = W.layoutsFor(BOX, 2).map((l) => l.key);
-  assert.ok(two.includes("halves") && two.includes("stacked"));
-  assert.ok(!two.includes("thirds"), "3 zones is pointless with 2 windows");
+  assert.deepEqual(two.sort(), ["halves", "stacked"]);
+
   const three = W.layoutsFor(BOX, 3).map((l) => l.key);
-  assert.ok(three.includes("thirds") && three.includes("main2"));
-  assert.ok(!three.includes("quads"));
-  const narrow = W.layoutsFor({ w: 800, h: 600 }, 4).map((l) => l.key);
-  assert.ok(!narrow.includes("thirds"), "thirds does not fit 800px at MINW");
+  assert.deepEqual(three.sort(), ["main2", "thirds"]);
+  assert.ok(!three.includes("halves"), "a 2-zone layout would minimize the 3rd window");
+  assert.ok(!three.includes("stacked"), "a 2-zone layout would minimize the 3rd window");
+  assert.ok(!three.includes("quads"), "a 4-zone layout would leave an empty zone");
+
+  assert.deepEqual(W.layoutsFor(BOX, 4).map((l) => l.key), ["quads"]);
+});
+
+test("layoutsFor: counts with no matching layout offer nothing at all", () => {
+  assert.deepEqual(W.layoutsFor(BOX, 1), []);      // one window has nothing to choose
+  assert.deepEqual(W.layoutsFor(BOX, 5), []);      // no 5-zone layout exists
+  assert.deepEqual(W.layoutsFor(BOX, 0), []);
+});
+
+test("layoutsFor: still drops layouts that do not FIT, even at the right count", () => {
+  // 3 windows on a frame too narrow for three 320px columns: thirds is out, and
+  // 1+2's right column (0.4 * 800 = 320) is exactly at the minimum, so it stays.
+  const narrow3 = W.layoutsFor({ w: 800, h: 600 }, 3).map((l) => l.key);
+  assert.ok(!narrow3.includes("thirds"), "thirds needs 3*MINW");
+  // A frame too short for stacked halves offers nothing for 2 windows.
+  assert.deepEqual(W.layoutsFor({ w: 700, h: 380 }, 2).map((l) => l.key), ["halves"]);
 });
 
 test("tileGrid: 1 window fills the box; 0 → empty", () => {

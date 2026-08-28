@@ -3715,3 +3715,14 @@ makes choosing a whole layout an N-step job. *Snap assist* — correct and famil
 but a 3-step flow to place 3 windows. *Keep it global and just label the zones with
 window names* — honest about the scope without fixing it; the control would still
 sit on one window while acting on all of them.
+
+**Follow-up (v1.19.47): the zone count must EQUAL the window count.** The first
+`layoutsFor` only rejected layouts with too *many* zones
+(`if (L.zones.length > Math.max(2, winCount)) continue`), so three open windows
+were still offered Halves and Stacked — and choosing one silently minimized the
+third. *"I have 3 windows open, it shouldn't show 2-window layouts."* A layout
+that cannot hold what you have open is not one you meant to pick. Now an exact
+match, which also drops 4-zone layouts for 3 windows (they would leave a hole).
+Counts with no matching layout — 1 window, or 5+ — offer nothing and the palette
+does not open; tap-off/tap-on for an even split still covers them. If that silence
+becomes a nuisance, the fix is more layouts (a 1+3, a 2×3), not a looser filter.
