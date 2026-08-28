@@ -340,16 +340,37 @@ test.describe('window mode', () => {
       test(`resizes from the ${dir} edge/corner`, async ({ page }) => {
         // Shrink first: the windows arrive TILED, filling the frame, so growing
         // along a filled axis clamps to 0 and the assertion fails for a reason that
-        // has nothing to do with the grip. This exactly predicted the per-lane
-        // pattern the VM saw (portrait: e/w fail; landscape: n/s fail).
-        await page.evaluate(() => {
-          const f = document.getElementById('frames').getBoundingClientRect();
-          const w = document.querySelector('#win-notes');
-          w.style.left = Math.round(f.width * 0.25) + 'px';
-          w.style.top = Math.round(f.height * 0.25) + 'px';
-          w.style.width = Math.round(f.width * 0.4) + 'px';
-          w.style.height = Math.round(f.height * 0.4) + 'px';
-        });
+        // has nothing to do with the grip.
+        //
+        // The shrink must go THROUGH THE APP — a real titlebar move + a real
+        // SE-corner drag. The old raw `w.style.*` writes desynced the DOM from
+        // the geometry STORE: a drag seeds its start geometry from `winGeom(id)`
+        // (the store), so the first onMove snapped the window straight back to
+        // its stored full-size tile and every direction assertion measured that
+        // snap, not the grip — 24 deterministic tablet-lane failures, misread as
+        // product bugs for months.
+        const frame = await page.locator('#frames').boundingBox();
+        // 1) real MOVE: titlebar drag so the window's top-left lands ~25%/25%
+        //    (interior — clear of the edge-snap zones), leaving growth room on
+        //    every side.
+        let wb = await page.locator('#win-notes').boundingBox();
+        const tb = await page.locator('#win-notes .win-titlebar').boundingBox();
+        const tcx = tb.x + tb.width / 2, tcy = tb.y + tb.height / 2;
+        await page.mouse.move(tcx, tcy);
+        await page.mouse.down();
+        await page.mouse.move(tcx + (frame.x + frame.width * 0.25 - wb.x),
+                              tcy + (frame.y + frame.height * 0.25 - wb.y), { steps: 10 });
+        await page.mouse.up();
+        await page.waitForTimeout(150);
+        // 2) real SHRINK: SE-corner drag down to ~40% x 40% of the frame.
+        wb = await page.locator('#win-notes').boundingBox();
+        const se = await page.locator('#win-notes .win-rz-se').boundingBox();
+        const scx = se.x + se.width / 2, scy = se.y + se.height / 2;
+        await page.mouse.move(scx, scy);
+        await page.mouse.down();
+        await page.mouse.move(scx - (wb.width - frame.width * 0.4),
+                              scy - (wb.height - frame.height * 0.4), { steps: 10 });
+        await page.mouse.up();
         await page.waitForTimeout(200);
         const before = await geom(page, 'notes');
         const box = await page.locator(`#win-notes .win-rz-${dir}`).boundingBox();
@@ -466,8 +487,19 @@ test.describe('window mode', () => {
           nw: cur(r.left + 6, r.top + 6),
           se: cur(r.right - 6, r.bottom - 6),
           sw: cur(r.left + 6, r.bottom - 6),
-          titlebar: cur(r.left + r.width / 2, r.top + 16),
-          close: cur(r.right - 24, r.top + 16),
+          // Probe the CONTROLS where they actually are — the old hardcoded
+          // (right-24, top+16) is desktop geometry; the touch titlebar is 40px
+          // tall with 28px right padding, so that point landed in the bar's
+          // padding and read 'move' on every tablet lane (3 deterministic
+          // failures misread as product bugs).
+          titlebar: (() => {
+            const b = w.querySelector('.win-titlebar').getBoundingClientRect();
+            return cur(b.left + b.width / 2, b.top + b.height / 2);
+          })(),
+          close: (() => {
+            const b = w.querySelector('.wt-close').getBoundingClientRect();
+            return cur(b.left + b.width / 2, b.top + b.height / 2);
+          })(),
         };
       });
       // straight edges: canonical keyword, or the Safari-only public-NSCursor

@@ -9,11 +9,15 @@ const { test, expect } = require('@playwright/test');
 const { openStartMenu } = require('../helpers');
 
 test.describe('games', () => {
-  test('Start menu lists the Games section with all three', async ({ page }) => {
+  test('Start menu lists the Games flyout with all three', async ({ page }) => {
     await page.goto('/');
     await openStartMenu(page);
+    // Since v1.19.72 the games live in a Games ▶ flyout (like Utilities):
+    // hidden until the parent row opens it (click = open on mouse, toggle on
+    // touch — a first click opens in both models).
+    await page.locator('#sm-games-parent').click();
     for (const id of ['minesweeper', 'solitaire', 'game2048']) {
-      await expect(page.locator(`#startmenu .sm-item[data-id="${id}"]`)).toBeVisible();
+      await expect(page.locator(`#sm-games .sm-item[data-id="${id}"]`)).toBeVisible();
     }
   });
 
