@@ -19,6 +19,7 @@ re-derive it here, and put new detail in the area doc rather than growing this f
 | Browser (xpra/Chromium) + X11 Launcher | `docs/browser.md` |
 | Files, Notes, Upload, Update, Config, Claude-usage, Token Stats, Services, Tunnel | `docs/apps.md` |
 | Multi-user / identity (`APP_USER` vs `OPERATOR` vs the request user) | `docs/multi-user.md` |
+| Files-native project (replacing FileBrowser; phases, security invariant) | `docs/files-native.md` |
 | Non-obvious traps that bite on real hosts | `docs/gotchas.md` |
 | **Why** something odd is the way it is (Symptom→Cause→Fix→Rejected) | `docs/design-decisions.md` |
 | **QA / review / e2e — binding scope** (correctness *and* experience) | `docs/qa-charter.md` |
