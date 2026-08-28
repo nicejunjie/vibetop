@@ -70,6 +70,12 @@
     // even be resized narrower. Stack them instead — full width, half height each.
     // Landscape is unchanged (that's where side-by-side halves are the point).
     if (n === 2 && box.h > box.w) cols = 1;
+    // THREE windows: ceil(sqrt(3)) = 2 columns, which lays out two on top and one
+    // spanning the full width underneath — reported as "really ugly", and it is:
+    // the odd window out is twice the area of its neighbours. Three even columns
+    // whenever they fit (landscape, >= 3*MINW); a portrait frame stacks instead,
+    // where 3 columns would be slivers.
+    if (n === 3) cols = (box.w >= 3 * MINW && box.w > box.h) ? 3 : (box.h > box.w ? 1 : cols);
     // Never ask for more columns/rows than the box can actually hold at the
     // minimum window size. A sqrt(n) grid on a narrow frame produced tiles
     // NARROWER than MINW; the caller then clamps each one up to MINW, and the
@@ -91,6 +97,55 @@
     return out;
   }
 
+  // ---- Snap layouts (the ▢ palette) ---------------------------------------
+  // Each layout is a list of zones in FRACTIONS of the frame, so they survive any
+  // resize or rotation. Order matters: zone 0 is the "main" one, and it is the
+  // zone the window you opened the palette from takes when you click it.
+  var LAYOUTS = [
+    { key: 'halves',  name: 'Halves',  zones: [[0, 0, 0.5, 1], [0.5, 0, 0.5, 1]] },
+    { key: 'thirds',  name: 'Thirds',  zones: [[0, 0, 1 / 3, 1], [1 / 3, 0, 1 / 3, 1], [2 / 3, 0, 1 / 3, 1]] },
+    { key: 'main2',   name: '1 + 2',   zones: [[0, 0, 0.6, 1], [0.6, 0, 0.4, 0.5], [0.6, 0.5, 0.4, 0.5]] },
+    { key: 'stacked', name: 'Stacked', zones: [[0, 0, 1, 0.5], [0, 0.5, 1, 0.5]] },
+    { key: 'quads',   name: 'Quarters', zones: [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5],
+                                                [0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]] },
+  ];
+
+  // Zones in PIXELS for this box, or null when the layout cannot fit at the
+  // minimum window size (thirds on a narrow iPad would be three slivers the
+  // caller then clamps into an overlapping pile — the same bug tileGrid guards).
+  function layoutGeoms(key, box) {
+    var L = null;
+    for (var i = 0; i < LAYOUTS.length; i++) if (LAYOUTS[i].key === key) L = LAYOUTS[i];
+    if (!L) return null;
+    var out = [];
+    for (var j = 0; j < L.zones.length; j++) {
+      var z = L.zones[j];
+      // Round the EDGES, then derive the size — never round width/height directly.
+      // Rounding each size independently makes neighbours disagree about the
+      // boundary: thirds of 1400 gave three 467px zones (1401 total), so zones 1
+      // and 2 overlapped by a pixel. Shared edges must round to the same integer.
+      var l = Math.round(z[0] * box.w), r = Math.round((z[0] + z[2]) * box.w);
+      var t = Math.round(z[1] * box.h), b = Math.round((z[1] + z[3]) * box.h);
+      var g = { left: l, top: t, width: r - l, height: b - t };
+      if (g.width < MINW || g.height < MINH) return null;
+      out.push(g);
+    }
+    return out;
+  }
+
+  // The layouts worth offering for THIS box: ones that fit, and whose zone count
+  // is useful for the windows actually open (never more zones than windows).
+  function layoutsFor(box, winCount) {
+    var out = [];
+    for (var i = 0; i < LAYOUTS.length; i++) {
+      var L = LAYOUTS[i];
+      if (L.zones.length > Math.max(2, winCount)) continue;
+      if (!layoutGeoms(L.key, box)) continue;
+      out.push({ key: L.key, name: L.name, zones: L.zones });
+    }
+    return out;
+  }
+
   // How many windows this box can tile at the minimum window size. Above it,
   // tiling is impossible without overlap (the minimum is a hard floor — the
   // caller clamps every tile up to it, so a grid that asks for more columns than
@@ -102,6 +157,7 @@
 
   var api = { clampGeom: clampGeom, resizeGeom: resizeGeom, defaultGeom: defaultGeom,
               snapTarget: snapTarget, tileGrid: tileGrid, tileCapacity: tileCapacity,
+              LAYOUTS: LAYOUTS, layoutGeoms: layoutGeoms, layoutsFor: layoutsFor,
               MINW: MINW, MINH: MINH };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VibeWin = api;

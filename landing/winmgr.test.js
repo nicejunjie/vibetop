@@ -72,11 +72,68 @@ test("tileGrid: 4 windows = 2×2 quadrants covering the box", () => {
   assert.deepEqual(g[3], { left: 700, top: 400, width: 700, height: 400 });
 });
 
-test("tileGrid: 3 windows = two halves over one full-width row", () => {
+// Was "two halves over one full-width row" — ceil(sqrt(3)) = 2 columns, which
+// makes the odd window out twice the area of its neighbours. Reported as "really
+// ugly"; three even columns now, wherever they fit.
+test("tileGrid: 3 windows = three even columns on a landscape frame", () => {
   const g = W.tileGrid(3, BOX);
   assert.equal(g.length, 3);
-  assert.equal(g[0].width, 700); assert.equal(g[1].left, 700);   // top row: two halves
-  assert.deepEqual(g[2], { left: 0, top: 400, width: 1400, height: 400 });  // bottom: full width
+  assert.equal(g[0].left, 0);
+  assert.equal(g[1].left, 466);
+  assert.equal(g[2].left, 932);
+  g.forEach((t) => { assert.equal(t.top, 0); assert.equal(t.height, 800); });
+  assert.equal(g[0].left + g[0].width, g[1].left);            // no gaps
+  assert.equal(g[2].left + g[2].width, BOX.w);               // last column absorbs rounding
+});
+
+test("tileGrid: 3 windows STACK on a portrait frame (3 columns would be slivers)", () => {
+  const g = W.tileGrid(3, { w: 700, h: 1200 });
+  assert.equal(g.length, 3);
+  g.forEach((t) => assert.equal(t.left, 0));                  // one column
+  assert.equal(g[0].width, 700);
+});
+
+test("tileGrid: 3 windows fall back to 2 columns when 3 will not fit at MINW", () => {
+  const g = W.tileGrid(3, { w: 800, h: 600 });                // 3*320 = 960 > 800
+  assert.ok(g[1].left > 0 && g[1].left < 800);                // still two across
+  assert.equal(g[2].left, 0);                                 // third drops to its own row
+});
+
+// ---- snap layouts (the ▢ palette) -----------------------------------------
+
+test("layoutGeoms: zones tile the box exactly, with no gaps or overlap", () => {
+  for (const key of ["halves", "thirds", "main2", "stacked", "quads"]) {
+    const zs = W.layoutGeoms(key, BOX);
+    assert.ok(zs, `${key} should fit a 1400x800 frame`);
+    const area = zs.reduce((a, z) => a + z.width * z.height, 0);
+    assert.equal(area, BOX.w * BOX.h, `${key} must cover the frame exactly`);
+    zs.forEach((z) => {
+      assert.ok(z.width >= W.MINW && z.height >= W.MINH, `${key} zone under the minimum`);
+      assert.ok(z.left >= 0 && z.top >= 0);
+      assert.ok(z.left + z.width <= BOX.w && z.top + z.height <= BOX.h);
+    });
+  }
+});
+
+test("layoutGeoms: returns null rather than slivers when a layout cannot fit", () => {
+  assert.equal(W.layoutGeoms("thirds", { w: 800, h: 600 }), null);   // 3*320 > 800
+  assert.equal(W.layoutGeoms("quads", { w: 1400, h: 300 }), null);   // half of 300 < MINH
+  assert.ok(W.layoutGeoms("halves", { w: 800, h: 600 }));            // this one still fits
+});
+
+test("layoutGeoms: zone 0 is the main zone (the one you clicked from)", () => {
+  assert.deepEqual(W.layoutGeoms("main2", BOX)[0], { left: 0, top: 0, width: 840, height: 800 });
+});
+
+test("layoutsFor: offers only layouts that fit AND are useful for the window count", () => {
+  const two = W.layoutsFor(BOX, 2).map((l) => l.key);
+  assert.ok(two.includes("halves") && two.includes("stacked"));
+  assert.ok(!two.includes("thirds"), "3 zones is pointless with 2 windows");
+  const three = W.layoutsFor(BOX, 3).map((l) => l.key);
+  assert.ok(three.includes("thirds") && three.includes("main2"));
+  assert.ok(!three.includes("quads"));
+  const narrow = W.layoutsFor({ w: 800, h: 600 }, 4).map((l) => l.key);
+  assert.ok(!narrow.includes("thirds"), "thirds does not fit 800px at MINW");
 });
 
 test("tileGrid: 1 window fills the box; 0 → empty", () => {

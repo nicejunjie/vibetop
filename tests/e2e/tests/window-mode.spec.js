@@ -493,6 +493,49 @@ test.describe('window mode', () => {
       await expect(page.locator('body')).toHaveClass(/\bwm\b/);
     });
 
+    // Snap layouts, Windows-11 style: hover (or long-press) a window's ▢ and pick a
+    // zone. This is the answer to "3 windows gets really ugly … how to choose layout
+    // in an easy way" — and it adds no permanent chrome, hanging off a button every
+    // window already has. The window you opened it from takes the zone you clicked.
+    test('the ▢ layout palette opens on hover and applies the zone you pick', async ({ page }) => {
+      await openApp(page, 'files');            // three windows, so Thirds is offered
+      await page.waitForTimeout(600);
+
+      await page.locator('#win-notes .wt-max').hover();
+      const palette = page.locator('#win-layouts');
+      await expect(palette).toHaveClass(/open/, { timeout: 3000 });
+      const names = await palette.locator('.wl-name').allTextContents();
+      expect(names).toContain('Halves');
+
+      // Only layouts that FIT are offered — a portrait/narrow tablet frame cannot
+      // show three 320px columns, so Thirds must be absent exactly there.
+      const wide = await page.evaluate(() => {
+        const f = document.getElementById('frames').getBoundingClientRect();
+        return f.width >= 3 * window.VibeWin.MINW && f.width > f.height;
+      });
+      expect(names.includes('Thirds')).toBe(wide);
+
+      const opt = palette.locator('.wl-opt').filter({ hasText: 'Halves' });
+      await opt.locator('.wl-zone').nth(1).click();     // right-hand half
+      await page.waitForTimeout(500);
+      await expect(palette).not.toHaveClass(/open/);    // closes once you choose
+
+      const g = await geom(page, 'notes');
+      const frame = await page.evaluate(() => {
+        const f = document.getElementById('frames').getBoundingClientRect();
+        return { w: Math.round(f.width), h: Math.round(f.height) };
+      });
+      // notes took the RIGHT half: starts about mid-frame, spans the rest.
+      expect(Math.abs(g.left - Math.round(frame.w / 2))).toBeLessThanOrEqual(4);
+      expect(Math.abs(g.width - Math.round(frame.w / 2))).toBeLessThanOrEqual(4);
+    });
+
+    test('a plain click on ▢ still maximizes (the palette must not swallow it)', async ({ page }) => {
+      await page.locator('#win-notes .wt-max').click();
+      await page.waitForTimeout(400);
+      await expect(page.locator('#win-notes')).toHaveClass(/maximized/);
+    });
+
     test('dragging a window marks it user-arranged, so opening a 3rd stops re-tiling it', async ({ page }) => {
       const bar = await page.locator('#win-notes .win-titlebar').boundingBox();
       await page.mouse.move(bar.x + 70, bar.y + bar.height / 2);

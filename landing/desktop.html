@@ -581,6 +581,32 @@
   .win-titlebar .wt-close:focus-visible {
     outline: 2px solid #5aa2f0; outline-offset: -2px; color: #eaf1f8;
   }
+  /* Snap-layout palette — hangs off a window's ▢ button (hover on a mouse, long
+     press on touch), the way Windows 11 does it. It is the answer to "3 windows
+     gets really ugly … how to choose layout in an easy way" WITHOUT adding any
+     permanent chrome: the trigger is a button every window already has. Click a
+     zone and the window you opened it from takes that zone, while the other open
+     windows fill the rest. */
+  #win-layouts {
+    position: fixed; z-index: 99999; display: none; gap: 10px; padding: 10px;
+    background: #1b222e; border: 1px solid #2f3a4a; border-radius: 10px;
+    box-shadow: 0 12px 34px rgba(0,0,0,0.55);
+  }
+  #win-layouts.open { display: flex; }
+  #win-layouts .wl-opt { display: flex; flex-direction: column; gap: 5px; align-items: center; }
+  #win-layouts .wl-grid {
+    position: relative; width: 78px; height: 50px; border-radius: 5px;
+    background: #10151d; border: 1px solid #2f3a4a;
+  }
+  #win-layouts .wl-zone {
+    position: absolute; background: #33415a; border-radius: 3px; cursor: pointer;
+    transition: background .12s;
+  }
+  #win-layouts .wl-zone:hover { background: #d2691e; }
+  #win-layouts .wl-name { font-size: 10px; color: #8a9aaa; letter-spacing: .2px; }
+  /* Touch needs the zones big enough to hit individually. */
+  body.is-touch #win-layouts .wl-grid { width: 104px; height: 66px; }
+
   /* snap preview — where a title-bar drag will drop the window (half / maximize) */
   #win-snap {
     position: absolute; z-index: 99997; display: none; pointer-events: none;
@@ -865,6 +891,7 @@
     </div>
     <div id="win-snap"></div>
     <div id="win-dragmask"></div>
+    <div id="win-layouts"></div>
   </div>
 
   <!-- Read-only document viewer (office files rendered to PDF by the manager) -->
@@ -1162,6 +1189,106 @@
     else { g.prev = { left: g.left, top: g.top, width: g.width, height: g.height }; g.max = true; g.z = ++zTop; }
     renderWindows(); nudgeResize(id); saveWins();
   }
+  // --- snap-layout palette (▢ hover / long-press) ---------------------------
+  // Applies a whole layout at once: the window the palette was opened from takes
+  // the zone you clicked, and the other visible windows fill the remaining zones
+  // in taskbar order. Anything that does not fit is minimized rather than left
+  // stacked under a neighbour — same rule tidyWindows() uses, for the same reason
+  // (overlapping tiles put a window's ×/▢/– on top of its neighbour's).
+  var layoutsEl = document.getElementById('win-layouts');
+  var layoutFor = null, layoutHideT = null;
+
+  function hideLayouts() {
+    if (layoutHideT) { clearTimeout(layoutHideT); layoutHideT = null; }
+    layoutsEl.classList.remove('open');
+    layoutFor = null;
+  }
+  function hideLayoutsSoon() {
+    if (layoutHideT) clearTimeout(layoutHideT);
+    // Grace period so the pointer can travel from the ▢ into the palette.
+    layoutHideT = setTimeout(hideLayouts, 260);
+  }
+
+  function showLayouts(id, btn) {
+    if (!window.VibeWin || !windowModeOn()) return;
+    var vis = openApps.filter(function (x) { return !(wins[x] && wins[x].min); });
+    var opts = VibeWin.layoutsFor(frameBox(), vis.length);
+    if (!opts.length) return;
+    layoutFor = id;
+    layoutsEl.innerHTML = '';
+    opts.forEach(function (L) {
+      var opt = document.createElement('div'); opt.className = 'wl-opt';
+      var grid = document.createElement('div'); grid.className = 'wl-grid';
+      L.zones.forEach(function (z, i) {
+        var cell = document.createElement('div');
+        cell.className = 'wl-zone';
+        // 1px inset per side so neighbouring zones read as separate tiles.
+        cell.style.left = 'calc(' + (z[0] * 100) + '% + 1px)';
+        cell.style.top = 'calc(' + (z[1] * 100) + '% + 1px)';
+        cell.style.width = 'calc(' + (z[2] * 100) + '% - 2px)';
+        cell.style.height = 'calc(' + (z[3] * 100) + '% - 2px)';
+        cell.title = L.name + ' — put this window here';
+        cell.addEventListener('click', function (e) {
+          e.stopPropagation();
+          // Rotate the layout so the CLICKED zone is the one this window takes.
+          var zs = VibeWin.layoutGeoms(L.key, frameBox());
+          if (!zs) return;
+          var picked = zs.splice(i, 1)[0];
+          zs.unshift(picked);
+          applyLayoutZones(zs, layoutFor);
+        });
+        grid.appendChild(cell);
+      });
+      var nm = document.createElement('div'); nm.className = 'wl-name'; nm.textContent = L.name;
+      opt.appendChild(grid); opt.appendChild(nm);
+      layoutsEl.appendChild(opt);
+    });
+    layoutsEl.classList.add('open');
+    // Anchor under the ▢, nudged left so it never runs off the right edge.
+    var r = btn.getBoundingClientRect(), pr = layoutsEl.getBoundingClientRect();
+    var left = Math.max(6, Math.min(r.left - pr.width / 2 + r.width / 2, window.innerWidth - pr.width - 6));
+    layoutsEl.style.left = Math.round(left) + 'px';
+    layoutsEl.style.top = Math.round(r.bottom + 6) + 'px';
+  }
+
+  // applyLayout()'s worker, taking already-ordered zones (zone 0 = the clicked one).
+  function applyLayoutZones(zones, mainId) {
+    var vis = openApps.filter(function (id) { return !(wins[id] && wins[id].min); });
+    var order = [mainId].concat(vis.filter(function (id) { return id !== mainId; }));
+    order.slice(zones.length).forEach(function (id) { winGeom(id).min = true; });
+    order.slice(0, zones.length).forEach(function (id, i) {
+      var g = winGeom(id), z = zones[i];
+      g.max = false; g.prev = null; g.min = false;
+      g.left = z.left; g.top = z.top; g.width = z.width; g.height = z.height;
+      markUserArranged(id);
+    });
+    hideLayouts();
+    renderWindows(); renderTaskbar();
+    order.slice(0, zones.length).forEach(nudgeResize);
+    saveWins();
+  }
+
+  // Mouse: hover-intent on the ▢. Delegated on #frames because title bars are
+  // built per window. 420ms so brushing past the button on the way to × never
+  // pops it open.
+  var layoutHoverT = null;
+  document.getElementById('frames').addEventListener('mouseover', function (e) {
+    var mx = e.target.closest && e.target.closest('.wt-max');
+    if (!mx) return;
+    var w = e.target.closest('.win');
+    if (!w) return;
+    if (layoutHoverT) clearTimeout(layoutHoverT);
+    layoutHoverT = setTimeout(function () { showLayouts(w.dataset.id, mx); }, 420);
+  });
+  document.getElementById('frames').addEventListener('mouseout', function (e) {
+    if (!(e.target.closest && e.target.closest('.wt-max'))) return;
+    if (layoutHoverT) { clearTimeout(layoutHoverT); layoutHoverT = null; }
+    hideLayoutsSoon();
+  });
+  layoutsEl.addEventListener('mouseenter', function () { if (layoutHideT) { clearTimeout(layoutHideT); layoutHideT = null; } });
+  layoutsEl.addEventListener('mouseleave', hideLayoutsSoon);
+  window.addEventListener('resize', hideLayouts);
+
   function minimizeWin(id) {
     var g = winGeom(id); g.min = true;
     // Move focus off the minimized window to the next open, non-minimized one.
@@ -2522,7 +2649,17 @@
       // – became dead on iPad while pointerdown/pointerup still fired normally.
       // Measured; see docs/design-decisions.md. Do not move these back to click.
       var ctlEl = e.target.closest('.wt-close') || e.target.closest('.wt-max') || e.target.closest('.wt-min');
-      if (ctlEl) { btnDown = { id: id, el: ctlEl }; return; }
+      if (ctlEl) {
+        btnDown = { id: id, el: ctlEl };
+        // Touch has no hover, so the palette's trigger there is a long press on ▢.
+        // btnDown.held marks that it fired, so the release does NOT also maximize.
+        if (ctlEl.classList.contains('wt-max')) {
+          btnDown.timer = setTimeout(function () {
+            if (btnDown) { btnDown.held = true; showLayouts(id, ctlEl); }
+          }, 500);
+        }
+        return;
+      }
       var rz = e.target.closest('.win-rz'), tb = e.target.closest('.win-titlebar');
       // Double-tap/click the title bar → maximize/restore. Detected from two
       // pointerdowns (works for mouse AND touch; iOS fires `dblclick` unreliably
@@ -2571,6 +2708,10 @@
     function runCtl(e) {
       if (!btnDown) return;
       var d = btnDown; btnDown = null;
+      if (d.timer) clearTimeout(d.timer);
+      // A long press on ▢ opened the layout palette — the release must not ALSO
+      // maximize the window out from under it.
+      if (d.held) return;
       if (!windowModeOn() || !e.target.closest) return;
       var up = e.target.closest('.wt-close') || e.target.closest('.wt-max') || e.target.closest('.wt-min');
       if (up !== d.el) return;
@@ -2579,7 +2720,10 @@
       else { markUserArranged(d.id); toggleMax(d.id); }
     }
     framesEl.addEventListener('pointerup', runCtl);
-    framesEl.addEventListener('pointercancel', function() { btnDown = null; });
+    framesEl.addEventListener('pointercancel', function() {
+      if (btnDown && btnDown.timer) clearTimeout(btnDown.timer);   // don't leak the long-press timer
+      btnDown = null;
+    });
     // Keyboard activation for the title-bar controls (they carry role=button +
     // tabindex, so they are in the tab order; Enter/Space must then work).
     framesEl.addEventListener('keydown', function(e) {

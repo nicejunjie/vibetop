@@ -3626,3 +3626,51 @@ be told about, against a standing preference for visible/familiar over learned.
 *Drop tidying altogether* — `autoTileIfUntouched` only covers layouts you have not
 touched, so the "I dragged things around and want them even again" case would have
 no answer at all.
+
+---
+
+## Choosing a window layout: snap layouts on the ▢ button
+
+**Symptom:** *"the layout isn't flexible, 3 window gets really ugly with two on
+the top, and one span the whole width in the bottom. how to choose layout in a
+easy way"*
+
+**Cause of the ugly part:** `tileGrid` used `cols = ceil(sqrt(n))`, so three
+windows became a 2×2 grid with the last row stretched — two on top, one
+double-width underneath. The odd window out ends up twice the area of its
+neighbours. Fixed independently of the chooser: **3 → three even columns**
+whenever they fit (landscape, `w >= 3*MINW`), stacked on a portrait frame,
+2 columns as the fallback on a frame too narrow for three.
+
+**Fix for the choosing part:** snap layouts hung off the ▢ maximize button —
+Windows 11's pattern, picked from four options the user was shown. Hover it
+(mouse, 420ms hover-intent so brushing past on the way to × does nothing) or
+long-press it (touch, 500ms) and a palette offers **Halves / Thirds / 1 + 2 /
+Stacked / Quarters**. Click a zone: the window you opened the palette from takes
+**that** zone, the others fill the rest in taskbar order, overflow is minimized.
+
+Why this shape: the desktop had just been argued down to **one** taskbar icon, so
+any answer that added permanent chrome was dead on arrival. The ▢ is a button
+every window already has, and hovering it is how a Windows user already expects
+to find this.
+
+Details that matter:
+
+- Layouts are **fractions** (`VibeWin.LAYOUTS`), so they survive any resize or
+  rotation, and `layoutsFor(box, n)` offers only ones that FIT at `MINW`/`MINH`
+  and whose zone count suits the open windows.
+- **`layoutGeoms` rounds EDGES, not sizes.** Rounding each zone's width
+  independently made thirds of a 1400px frame into three 467px zones — 1401px
+  total, so zones 1 and 2 overlapped by a pixel. Shared boundaries must round to
+  the same integer. Caught by a unit test asserting the zones tile the box
+  *exactly*, not by inspection.
+- A **plain click on ▢ still maximizes**: the long-press sets `btnDown.held` so
+  the release does not also toggle, and `pointercancel` clears the timer.
+- Applying a layout marks the windows user-arranged, so `autoTileIfUntouched`
+  will not quietly undo a layout you chose.
+
+**Rejected:** *drag-to-corner snapping* (quarters on corner-drag, maximize on
+top-drag) — good and familiar, but it is a way to *build* a layout one window at a
+time, not to *choose* one, which is what was asked. Worth adding later; it
+composes with this rather than competing. *Cycling layouts on each re-tile* — free
+to build, but you cycle blind and off/on stops being deterministic.
