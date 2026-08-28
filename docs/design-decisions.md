@@ -4132,3 +4132,40 @@ original exact-bytes test stayed green through the whole breakage.
   until clicked" had three causes wearing one symptom; the screenshot (which
   showed the OTHER windows black while the focused one was fine) is what
   separated them.
+
+## Scheduled messages died overnight: the ring outgrew the backpressure kill threshold
+
+- **Symptom:** Five consecutive scheduled terminal messages failed with
+  `could not reach terminal 3: [Errno 32] Broken pipe` (02:29–08:29), after the
+  same mechanism had worked hours earlier. The target terminal was essentially
+  idle (a Claude Code TUI at rest).
+- **Cause:** `vibetop-session`'s replay ring cap (`CLAUDE_SESSION_BUFSIZE`,
+  2MB) exceeds its per-client backpressure kill threshold (`MAX_OUTQ`, 1MB).
+  Every new client starts with the ENTIRE ring queued; once a terminal's ring
+  warms past 1MB, the FIRST live byte broadcast after any client connects
+  (an idle TUI's spinner frame suffices) trips `len(q) > MAX_OUTQ` and the
+  daemon drops that client — often before the client's own bytes are read.
+  The injector then hit Broken pipe on its next write (it lingered ~1s
+  draining in place). Live-verified: with a warmed 2MB ring, the old
+  protocol failed 4/4; connecting as a reader received 0 bytes (killed
+  before the adaptive drain delivered anything).
+- **Fix (three layers):**
+  1. `vibetop-session`: `MAX_OUTQ = buf_cap + 1MB` — the queue's legitimate
+     starting state IS a full ring replay; the threshold must sit above it.
+     Only NEW daemons get this (they are never restarted — that would kill
+     live shells), hence:
+  2. `_inject_terminal` rides one SHORT-LIVED connection per write (text,
+     then Enter), half-closed (`SHUT_WR`) and read to EOF — the paste-
+     detection two-chunk shape is kept, but no connection lingers through
+     the kill window; and
+  3. each connection PRE-DRAINS the replay to ~100ms of silence BEFORE
+     sending. An emptied queue is never length-checked, so the kill cannot
+     hit us at all — this is the delivery guarantee on OLD daemons, where a
+     kill-before-read is indistinguishable from success on our side (EOF
+     either way), so no retry scheme could close the hole. Live-verified on
+     a warmed old daemon: both connections drained exactly the 2MB ring and
+     the injected command executed.
+- **Rejected:** retry-only (the ambiguous kill-after-send case silently
+  double- or never-delivers); a protocol magic byte telling the daemon "no
+  replay, I'm an injector" (needs new daemon code, which old sessions never
+  get); restarting daemons on deploy (kills live shells by design).

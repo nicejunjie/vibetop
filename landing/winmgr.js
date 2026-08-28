@@ -108,6 +108,11 @@
     { key: 'stacked', name: 'Stacked', zones: [[0, 0, 1, 0.5], [0, 0.5, 1, 0.5]] },
     { key: 'quads',   name: 'Quarters', zones: [[0, 0, 0.5, 0.5], [0.5, 0, 0.5, 0.5],
                                                 [0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]] },
+    // Four side-by-side columns — the horizontal 4-split (user request). Needs
+    // 4×MINW of width, so layoutsFor offers it only on frames wide enough; on
+    // anything narrower the 4-window case keeps Quarters alone.
+    { key: 'columns', name: 'Columns', zones: [[0, 0, 0.25, 1], [0.25, 0, 0.25, 1],
+                                               [0.5, 0, 0.25, 1], [0.75, 0, 0.25, 1]] },
   ];
 
   // Zones in PIXELS for this box, or null when the layout cannot fit at the

@@ -124,6 +124,12 @@
     color: #6f7a86; font-size: 14px; line-height: 1;
   }
   .sp-list li .x:hover { color: #fff; background: #b04040; }
+  /* Edit (pending rows only): load the entry back into the compose form. */
+  .sp-list li .ed {
+    flex-shrink: 0; cursor: pointer; padding: 0 4px; border-radius: 3px;
+    color: #6f7a86; font-size: 12px; line-height: 1.2;
+  }
+  .sp-list li .ed:hover { color: #fff; background: #3a5a86; }
   .sched-panel input[type=text], .sched-panel input[type=datetime-local] {
     width: 100%; padding: 7px 8px; margin-bottom: 6px;
     font: inherit; font-size: 13px; color: #eee;
@@ -483,11 +489,16 @@
       else if (e.status === 'failed') note = e.error || 'failed';
       var tag = (+e.term === +active) ? '' :
                 '<span class="tag">' + esc(tabLabel(+e.term)) + '</span>';
+      // Pending rows get an ✎ (edit) next to the ×: it loads the entry back
+      // into the compose form (user request — before this, fixing a typo or a
+      // time meant delete + retype).
+      var ed = e.status === 'pending' ? '<span class="ed" title="Edit">✎</span>' : '';
       return '<li class="' + cls + '" data-id="' + esc(e.id) + '">' +
                '<span class="when">' + esc(when) + '</span>' +
                '<span class="what">' + tag + esc(e.text) +
                  (note ? '<span class="note">' + esc(note) + '</span>' : '') +
                '</span>' +
+               ed +
                '<span class="x" title="Cancel">×</span>' +
              '</li>';
     });
@@ -520,7 +531,10 @@
     schedBtn.classList.remove('open');
     // Drop the picked time on close (⏱ again, outside click, or Escape) so the
     // panel always reopens at now instead of wherever the last session's taps
-    // left it. openSched re-seeds from the cleared value.
+    // left it. openSched re-seeds from the cleared value. An in-progress edit
+    // is abandoned too — reopening starts from a clean compose form.
+    stopEdit();
+    spText.value = '';
     spAt.value = '';
     spErr.textContent = '';
   }
@@ -532,6 +546,29 @@
       .catch(function () {});
   }
 
+  // Edit = load the entry into the compose form; saving cancels the old entry
+  // and creates the replacement (there is no server-side edit — cancel+create
+  // through the existing validated endpoints keeps one code path). The entry's
+  // ORIGINAL terminal is kept (editing a message queued for another tab must
+  // not silently retarget it to the active one).
+  var editing = null;          // {id, term} while the form edits an entry
+  var goBtn = document.getElementById('sp-go');
+  function startEdit(e) {
+    editing = { id: e.id, term: +e.term };
+    spText.value = e.text;
+    spAt.value = toLocalInput(new Date(e.at * 1000));
+    goBtn.textContent = 'Save';
+    spErr.className = 'sp-err ok';
+    spErr.textContent = 'Editing the queued message' +
+      (+e.term === +active ? '' : ' (for ' + tabLabel(+e.term) + ')') + ' — Save replaces it.';
+    if (!isTouch) spText.focus();
+  }
+  function stopEdit() {
+    editing = null;
+    goBtn.textContent = 'Schedule';
+    spErr.className = 'sp-err'; spErr.textContent = '';
+  }
+
   function submitSchedule() {
     var text = spText.value.trim();
     if (!text) { spErr.className = 'sp-err'; spErr.textContent = 'Type a message first.'; return; }
@@ -539,11 +576,20 @@
     var at = new Date(spAt.value).getTime() / 1000;
     if (!isFinite(at)) { spErr.className = 'sp-err'; spErr.textContent = 'That time is not valid.'; return; }
     spErr.className = 'sp-err'; spErr.textContent = '';
-    api('POST', '/schedules', { term: active, text: text, at: at }).then(function (d) {
+    var ed = editing;
+    // Cancel-then-create, not create-then-cancel: the transient extra entry
+    // would collide with the per-user pending cap. If the create then fails,
+    // the form still holds the text/time — the message is never silently lost.
+    var pre = ed ? api('POST', '/schedules/cancel', { id: ed.id }) : Promise.resolve();
+    pre.then(function () {
+      return api('POST', '/schedules', { term: ed ? ed.term : active, text: text, at: at });
+    }).then(function (d) {
       if (d && d.error) { spErr.textContent = d.error; return; }
       spText.value = '';
+      var edited = !!ed;
+      stopEdit();
       spErr.className = 'sp-err ok';
-      spErr.textContent = 'Scheduled ' + fmtIn(at) + '.';
+      spErr.textContent = (edited ? 'Updated — fires ' : 'Scheduled ') + fmtIn(at) + '.';
       refreshSchedules();
     }).catch(function () { spErr.textContent = 'Could not reach the server.'; });
   }
@@ -570,7 +616,14 @@
   });
   spList.addEventListener('click', function (e) {
     var li = e.target.closest('li[data-id]');
-    if (!li || !e.target.closest('.x')) return;
+    if (!li) return;
+    if (e.target.closest('.ed')) {
+      var ent = schedules.filter(function (s) { return s.id === li.dataset.id; })[0];
+      if (ent && ent.status === 'pending') startEdit(ent);
+      return;
+    }
+    if (!e.target.closest('.x')) return;
+    if (editing && editing.id === li.dataset.id) stopEdit();   // cancelling what's being edited
     api('POST', '/schedules/cancel', { id: li.dataset.id })
       .then(refreshSchedules).catch(function () {});
   });

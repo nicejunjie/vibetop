@@ -290,27 +290,43 @@ def test_idle_pass_does_not_rewrite_when_nothing_expired(mgr, home, monkeypatch)
 
 # ---- injection (real socket) ------------------------------------------------
 
+def _accepting_server(sock_path, per_conn, conns=2):
+    """A daemon-alike accepting `conns` connections sequentially; `per_conn`
+    handles each accepted socket. Returns (thread, srv). _inject_terminal now
+    rides one connection PER WRITE (text, then Enter), so every socket test
+    serves at least two."""
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(sock_path)
+    srv.listen(4)
+
+    def run():
+        for _ in range(conns):
+            try:
+                conn, _ = srv.accept()
+            except OSError:
+                return
+            with conn:
+                per_conn(conn)
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    return t, srv
+
+
 def test_inject_writes_text_and_carriage_return_to_the_session_socket(
         mgr, tmp_path, monkeypatch):
     """The end of the whole chain: exactly what a real Enter delivers — the text
-    plus \\r (NOT \\n; the attach client clears ICRNL). Reads to EOF: the Enter
-    arrives as its own later write (see the paste-detection test below)."""
+    plus \\r (NOT \\n; the attach client clears ICRNL), across the two
+    per-write connections."""
     sock_path = str(tmp_path / "sess.sock")
-    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    srv.bind(sock_path)
-    srv.listen(1)
     got = bytearray()
 
-    def accept_once():
-        conn, _ = srv.accept()
-        with conn:
-            while True:
-                data = conn.recv(4096)
-                if not data:
-                    break
-                got.extend(data)
-    t = threading.Thread(target=accept_once, daemon=True)
-    t.start()
+    def per_conn(conn):
+        while True:
+            data = conn.recv(4096)
+            if not data:
+                break
+            got.extend(data)
+    t, srv = _accepting_server(sock_path, per_conn)
 
     monkeypatch.setattr(mgr, "_list_running_terminals", lambda user: [7])
     monkeypatch.setattr(mgr, "_term_socket", lambda user, n: sock_path)
@@ -323,30 +339,25 @@ def test_inject_writes_text_and_carriage_return_to_the_session_socket(
 
 def test_inject_survives_the_replay_the_daemon_queues_on_connect(mgr, tmp_path, monkeypatch):
     """Regression: vibetop-session pushes its whole replay ring at every new
-    client. Closing with that unread makes the daemon's OWN recv() fail
-    (ECONNRESET) and it drops the client before writing our bytes to the PTY —
-    the message is lost while the sweeper still reports "sent". _inject_terminal
-    drains first; this server reproduces the shape."""
+    client. Abandoning the connection with that unread makes the daemon's OWN
+    recv() fail (ECONNRESET) and it drops the client before writing our bytes
+    to the PTY — the message is lost while the sweeper still reports "sent".
+    The half-close + read-to-EOF keeps the stream clean; this server
+    reproduces the shape on BOTH per-write connections."""
     sock_path = str(tmp_path / "busy.sock")
-    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    srv.bind(sock_path)
-    srv.listen(1)
-    got, err = [], []
+    got, errs = [], []
 
-    def daemon_like():
-        conn, _ = srv.accept()
-        with conn:
-            try:
-                conn.sendall(b"replay" * 100000)     # ~600 KB, like a warm ring
-                while True:
-                    data = conn.recv(4096)
-                    if not data:
-                        break
-                    got.append(data)
-            except OSError as e:                     # what the real daemon hits
-                err.append(str(e))
-    t = threading.Thread(target=daemon_like, daemon=True)
-    t.start()
+    def per_conn(conn):
+        try:
+            conn.sendall(b"replay" * 100000)     # ~600 KB, like a warm ring
+            while True:
+                data = conn.recv(4096)
+                if not data:
+                    break
+                got.append(data)
+        except OSError as e:                     # what the real daemon hits
+            errs.append(str(e))
+    t, srv = _accepting_server(sock_path, per_conn)
 
     monkeypatch.setattr(mgr, "_list_running_terminals", lambda user: [1])
     monkeypatch.setattr(mgr, "_term_socket", lambda user, n: sock_path)
@@ -354,7 +365,7 @@ def test_inject_survives_the_replay_the_daemon_queues_on_connect(mgr, tmp_path, 
     t.join(timeout=10)
     srv.close()
     assert ok
-    assert b"".join(got) == b"continue\r", "bytes lost to the replay race (%s)" % err
+    assert b"".join(got) == b"continue\r", "bytes lost to the replay race (%s)" % errs
 
 
 def test_inject_sends_the_enter_as_its_own_later_keypress(mgr, tmp_path, monkeypatch):
@@ -367,26 +378,21 @@ def test_inject_sends_the_enter_as_its_own_later_keypress(mgr, tmp_path, monkeyp
     exact-bytes test stayed green while the feature was broken in the wild.)
 
     The Enter must therefore be its OWN write, a beat after the text, so the app
-    sees a distinct Enter keypress."""
+    sees a distinct Enter keypress. Timing spans the two per-write connections."""
     sock_path = str(tmp_path / "sess.sock")
-    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    srv.bind(sock_path)
-    srv.listen(1)
     chunks = []                               # [(seconds-since-first, bytes)]
+    t0 = []
 
-    def accept_and_time():
-        conn, _ = srv.accept()
-        with conn:
-            t0 = None
-            while True:
-                data = conn.recv(4096)
-                if not data:
-                    break
-                now = time.monotonic()
-                t0 = t0 if t0 is not None else now
-                chunks.append((now - t0, data))
-    t = threading.Thread(target=accept_and_time, daemon=True)
-    t.start()
+    def per_conn(conn):
+        while True:
+            data = conn.recv(4096)
+            if not data:
+                break
+            now = time.monotonic()
+            if not t0:
+                t0.append(now)
+            chunks.append((now - t0[0], data))
+    t, srv = _accepting_server(sock_path, per_conn)
 
     monkeypatch.setattr(mgr, "_list_running_terminals", lambda user: [7])
     monkeypatch.setattr(mgr, "_term_socket", lambda user, n: sock_path)
@@ -400,6 +406,43 @@ def test_inject_sends_the_enter_as_its_own_later_keypress(mgr, tmp_path, monkeyp
     gap, enter = next((g, c) for g, c in chunks if b"\r" in c)
     assert enter == b"\r", "the Enter must be a bare keypress, not glued to text"
     assert gap >= 0.1, f"Enter only {gap:.3f}s after the text — same paste burst"
+
+
+def test_inject_survives_the_daemons_backpressure_kill(mgr, tmp_path, monkeypatch):
+    """Regression for the 5/5 overnight failures ("could not reach terminal 3:
+    [Errno 32] Broken pipe"): the real daemon DROPS a connected client whose
+    output queue outgrows MAX_OUTQ (broadcast's backpressure guard). A busy
+    terminal near ring capacity kills any client that lingers — which the old
+    drain-in-place injector did for ~1s, so its Enter write always hit a dead
+    socket. This server reproduces the kill: it hangs up on every connection
+    ~0.15s after accepting (long before the old design's Enter at +0.3s).
+    Per-write short-lived connections deliver both writes before any kill."""
+    sock_path = str(tmp_path / "kill.sock")
+    got = []
+
+    def per_conn(conn):
+        end = time.monotonic() + 0.15
+        conn.settimeout(0.05)
+        while time.monotonic() < end:
+            try:
+                data = conn.recv(4096)
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            if not data:
+                return                       # client already done — clean EOF
+            got.append(data)
+        # 0.15s up: the backpressure guard fires — drop the client, hard.
+
+    t, srv = _accepting_server(sock_path, per_conn)
+    monkeypatch.setattr(mgr, "_list_running_terminals", lambda user: [3])
+    monkeypatch.setattr(mgr, "_term_socket", lambda user, n: sock_path)
+    ok, err = mgr._inject_terminal("alice", 3, "continue")
+    t.join(timeout=10)
+    srv.close()
+    assert ok, f"injection failed under the backpressure kill: {err}"
+    assert b"".join(got) == b"continue\r"
 
 
 def test_inject_refuses_when_the_terminal_is_not_running(mgr, monkeypatch):

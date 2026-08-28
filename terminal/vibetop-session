@@ -214,7 +214,17 @@ def cmd_serve(instance):
     os.set_blocking(_wake_w, False)
     signal.set_wakeup_fd(_wake_w)
     sel.register(_wake_r, selectors.EVENT_READ, 'wakeup')
-    MAX_OUTQ = 1024 * 1024
+    # Backpressure kill threshold for a client's output queue. It MUST exceed
+    # the replay ring capacity: every new client legitimately starts with the
+    # ENTIRE ring queued (buf_cap, default 2MB), so a threshold below that
+    # (the old bare 1MB) killed every fresh client of a warm (>1MB-ring)
+    # terminal the moment ANY live byte broadcast — even an idle TUI's spinner
+    # frame. That took out every scheduled-message injection overnight
+    # ("could not reach terminal N: Broken pipe", 5/5) once the target
+    # terminal's ring warmed past 1MB. Long-lived daemons keep the old value
+    # until their terminal restarts; the manager's injector additionally
+    # retries per-write to ride out old daemons' kill race.
+    MAX_OUTQ = buf_cap + 1024 * 1024
     # Resize debounce: a SIGUSR1 (an attach client's size changed) doesn't apply
     # the resize inline — it arms a deadline, and the main loop applies the LATEST
     # saved size once things go quiet. This collapses a rapid burst of resizes into

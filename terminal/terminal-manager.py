@@ -2306,7 +2306,7 @@ SCHED_LATE_GRACE = 2 * 3600         # fire up to 2h late (manager restart), else
 SCHED_TICK = 15                     # sweeper period -> ±15s accuracy
 SCHED_TEXT_MAX = 2000
 SCHED_KEEP_DONE = 24 * 3600         # keep fired/failed entries this long (UI history)
-INJECT_DRAIN = 0.75                 # hold+drain the socket this long — see _inject_terminal
+INJECT_DRAIN = 0.75                 # per-connection read-to-EOF bound — see _inject_terminal
 INJECT_ENTER_GAP = 0.3              # beat between the text and the Enter — see _inject_terminal
 _schedules_lock = threading.Lock()
 
@@ -2453,28 +2453,31 @@ def _inject_terminal(user, n, text):
     form passed live verification. Same reason driving Claude Code via tmux
     needs `send-keys <text>; sleep; send-keys Enter` rather than one call.
 
-    After each write it DRAINS AND DISCARDS from the socket (INJECT_ENTER_GAP,
-    then INJECT_DRAIN) instead of closing straight away. That is not politeness:
-    on connect the daemon queues its whole replay ring to the new client, and
-    closing with that still unread makes the daemon's own recv() fail
-    (ECONNRESET), so it drops the client at `if not data: remove_client(fd)` —
-    BEFORE writing our bytes to the PTY. The message vanishes while the sweeper
-    still reports "sent". Verified on a live terminal: close-immediately never
-    executed, a short drain always did."""
-    def _drain(s, seconds):
-        """Discard whatever the daemon pushes at us (its replay ring) for
-        `seconds`, keeping the connection healthy while time passes."""
-        deadline = time.monotonic() + seconds
-        s.settimeout(0.2)
-        while time.monotonic() < deadline:
-            try:
-                if not s.recv(65536):       # daemon hung up — nothing left to drain
-                    break
-            except socket.timeout:
-                continue                    # idle terminal: just let the window run out
-            except OSError:
-                break
+    Each write rides its OWN SHORT-LIVED connection, half-closed (SHUT_WR)
+    right after sending and then read to EOF. Two reasons, both learned from
+    real failures:
 
+    * A lingering connection gets KILLED by the daemon's backpressure guard.
+      On connect the daemon queues its whole replay ring to the new client
+      (`client_outq`); every burst of live PTY output then EXTENDS that queue,
+      and once it passes MAX_OUTQ the daemon drops the client (`broadcast`'s
+      `len(q) > MAX_OUTQ` → dead). The old drain-in-place design stayed
+      connected ~1s (gap + drain), which on a busy terminal near ring capacity
+      was killed mid-conversation every time — the Enter's sendall then raised
+      Broken pipe and the schedule failed ("could not reach terminal N:
+      [Errno 32] Broken pipe", 5/5 overnight once the target terminal's ring
+      warmed up). A connection that lives only for one write + EOF is gone in
+      milliseconds — the queue can't outgrow anything while we're attached.
+
+    * The half-close + read-to-EOF (not a bare close) preserves the original
+      ECONNRESET fix: closing with the replay unread RSTs the daemon's OWN
+      recv(), which drops the client BEFORE writing our bytes to the PTY (the
+      message vanished while the sweeper reported "sent"). SHUT_WR delivers
+      our bytes and EOF in order — the daemon writes to the PTY on the data
+      recv, removes us on the EOF recv — and we keep reading its replay until
+      it hangs up, so nothing is ever RST'd. The paste-detection guarantee is
+      unchanged: the PTY still sees text and \\r as two writes,
+      INJECT_ENTER_GAP apart."""
     try:
         running = _list_running_terminals(user)
     except Exception:
@@ -2482,24 +2485,82 @@ def _inject_terminal(user, n, text):
     sock_path = _term_socket(user, n)
     if int(n) not in running or not os.path.exists(sock_path):
         return False, f"terminal {int(n)} is not running"
-    s = None
-    try:
+
+    def _sendkeys(payload):
+        """One write on its own connection: connect → PRE-DRAIN the replay →
+        send → SHUT_WR → read to EOF (bounded by INJECT_DRAIN) → close.
+
+        The pre-drain is the delivery guarantee, not politeness. The daemon
+        queues the ENTIRE replay ring to every new client, and its backpressure
+        guard kills any client whose queue grows past MAX_OUTQ on the next
+        broadcast — on old daemons (they never restart) that threshold is BELOW
+        the ring cap, so a warm terminal kills fresh clients the moment any
+        live byte arrives, possibly BEFORE our payload is read; from our side
+        that's indistinguishable from success (EOF either way), so a retry
+        can't close the hole. Reading the replay down to ~100ms of silence
+        first empties our queue entirely — an empty queue is never
+        length-checked, so the kill cannot hit us — and only then do we send."""
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(5)
-        s.connect(sock_path)
-        s.sendall(text.encode("utf-8", "replace"))
-        _drain(s, INJECT_ENTER_GAP)         # let the text land as its own chunk
-        s.sendall(b"\r")                    # then Enter as a distinct keypress
-        _drain(s, INJECT_DRAIN)
-        return True, None
-    except (OSError, socket.timeout) as e:
-        return False, f"could not reach terminal {int(n)}: {e}"
-    finally:
-        if s is not None:
+        try:
+            s.settimeout(5)
+            s.connect(sock_path)
+            quiet_deadline = time.monotonic() + 2.0     # cap: a flooding terminal never goes quiet
+            s.settimeout(0.1)
+            while time.monotonic() < quiet_deadline:
+                try:
+                    if not s.recv(1 << 20):             # EOF mid-replay: daemon already dropped us
+                        break
+                except socket.timeout:
+                    break                               # ~100ms of silence — replay fully drained
+                except OSError:
+                    break
+            s.settimeout(5)
+            s.sendall(payload)
+            try:
+                s.shutdown(socket.SHUT_WR)
+            except OSError:
+                pass
+            deadline = time.monotonic() + INJECT_DRAIN
+            s.settimeout(0.2)
+            while time.monotonic() < deadline:
+                try:
+                    if not s.recv(65536):   # daemon removed us after the PTY write
+                        break
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
+        finally:
             try:
                 s.close()
             except OSError:
                 pass
+
+    def _sendkeys_retry(payload, attempts=3):
+        """Old daemons (they never restart) keep the buggy MAX_OUTQ < ring-cap
+        threshold, which can still kill even a short-lived client in the small
+        race window between accept and our data being read (~5% on an idle
+        terminal with a ticking TUI spinner). Retry rides it out. The rare
+        ambiguous case — killed AFTER our bytes were read — can double-deliver;
+        for this feature a doubled text/Enter is harmless while a LOST
+        "continue" wastes the whole usage-reset window, so we err on retry."""
+        last = None
+        for i in range(attempts):
+            try:
+                _sendkeys(payload)
+                return
+            except (OSError, socket.timeout) as e:
+                last = e
+                time.sleep(0.25 * (i + 1))
+        raise last
+
+    try:
+        _sendkeys_retry(text.encode("utf-8", "replace"))
+        time.sleep(INJECT_ENTER_GAP)        # a beat, so the text lands as its own chunk
+        _sendkeys_retry(b"\r")              # then Enter as a distinct keypress
+        return True, None
+    except (OSError, socket.timeout) as e:
+        return False, f"could not reach terminal {int(n)}: {e}"
 
 
 def _due_schedules(reg, now=None):

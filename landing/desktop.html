@@ -635,11 +635,14 @@
   #win-layouts .wl-grid.wl-sel { border-color: #d2691e; }
   #win-layouts .wl-opt .wl-grid.wl-sel ~ .wl-name { color: #e8eef5; }
   #win-layouts .wl-name { font-size: 17px; color: #8a9aaa; letter-spacing: .2px; }
-  /* Footer: the hint and the one commit button. The palette is a STAGING area —
-     every gesture edits only the boards; this button makes the selected board
-     real. Disabled until some tile is selected. */
-  #win-layouts .wl-foot { display: flex; align-items: center; justify-content: space-between;
-                          gap: 16px; width: 100%; }
+  /* Footer: the one commit button, centered, with the gesture hint in smaller
+     type beneath it (user-requested arrangement, v1.19.70 — was hint-left /
+     button-right). The palette is a STAGING area — every gesture edits only
+     the boards; this button makes the selected board real. Disabled until
+     some tile is selected. */
+  #win-layouts .wl-foot { display: flex; flex-direction: column; align-items: center;
+                          justify-content: center; gap: 6px; width: 100%; }
+  #win-layouts .wl-foot .wl-hint { font-size: 12px; }
   #win-layouts .wl-apply {
     font: 600 14px system-ui, sans-serif; padding: 7px 22px; border-radius: 8px;
     border: 1px solid #2f3a4a; background: #24405e; color: #dfe9f4; cursor: pointer;
@@ -999,6 +1002,8 @@
     </div>
     <div class="sm-title">Applications</div>
     <div id="sm-apps"></div>
+    <div class="sm-title">Games</div>
+    <div id="sm-games"></div>
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
     <div class="sm-parent" id="sm-util-parent">
@@ -1146,7 +1151,12 @@
     // In-Files video player. `hidden` = no Start-menu tile: it's opened only by
     // double-clicking a video in Files (a `video-view` postMessage -> openVideo),
     // like the office viewer. Registered here so the taskbar/title can render it.
-    video:    { label: 'Video player', icon: '🎬', src: '/video.html', desc: 'Play video files', hidden: true }
+    video:    { label: 'Video player', icon: '🎬', src: '/video.html', desc: 'Play video files', hidden: true },
+    // Games — a small classic set (user request), each a self-contained page.
+    // They ride every normal app behavior for free (windows, taskbar, dots).
+    minesweeper: { label: 'Minesweeper', icon: '💣', src: '/minesweeper.html', desc: 'Classic mine hunt', section: 'games' },
+    solitaire:   { label: 'Solitaire',   icon: '🃏', src: '/solitaire.html',   desc: 'Klondike patience',  section: 'games' },
+    game2048:    { label: '2048',        icon: '🔢', src: '/game2048.html',    desc: 'Slide & merge tiles', section: 'games' }
   };
   // Attach the matching SVG icon to each app (fallback stays the `icon` emoji).
   Object.keys(APPS).forEach(function(id) { if (ICON[id]) APPS[id].svg = ICON[id]; });
@@ -1176,7 +1186,8 @@
       // can reveal them without referencing APPS.
       if (a.sudo) { item.classList.add('sm-sudo'); if (!window.canSudo) item.style.display = 'none'; }
       var target = a.section === 'utilities' ? util
-                 : a.section === 'system' ? sys : apps;
+                 : a.section === 'system' ? sys
+                 : a.section === 'games' ? document.getElementById('sm-games') : apps;
       (target || sys).appendChild(item);
     });
   }
@@ -1542,7 +1553,7 @@
       e.stopPropagation();
       if (selected) applyLayout(selected, staged[selected]);
     });
-    foot.appendChild(hint); foot.appendChild(applyBtn);
+    foot.appendChild(applyBtn); foot.appendChild(hint);   // button centered, hint beneath
     layoutsEl.appendChild(foot);
     syncSel();
     layoutsEl.classList.add('open');
@@ -3772,12 +3783,24 @@
     if (h > 0) return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
     return m + 'm';
   }
+  // The exact wall-clock of the reset, next to the countdown ("4h 20m (2:30
+  // PM)") — user request: the countdown alone made scheduling a command for
+  // the reset a mental-arithmetic exercise. Adds the weekday once it's a day+
+  // out ("6d 23h (Thu 9:00 AM)") since the bare clock would be ambiguous.
+  function fmtResetAt(ts) {
+    if (!ts) return '';
+    var dt = new Date(ts * 1000);
+    var days = (ts - Math.floor(Date.now() / 1000)) / 86400;
+    var t = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return days >= 1 ? dt.toLocaleDateString([], { weekday: 'short' }) + ' ' + t : t;
+  }
   function seg(label, pct, reset) {
     var p = Math.round((pct || 0) * 100);
     var cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
     var rtxt = reset ? fmtReset(reset) : '';
-    var r = rtxt ? '<span class="cu-dim">· resets ' + rtxt + '</span>' : '';
-    var title = rtxt ? ' title="resets in ' + rtxt + '"' : '';
+    var rat = reset ? fmtResetAt(reset) : '';
+    var r = rtxt ? '<span class="cu-dim">· resets ' + rtxt + (rat ? ' (' + rat + ')' : '') + '</span>' : '';
+    var title = rtxt ? ' title="resets in ' + rtxt + (rat ? ' — at ' + rat : '') + '"' : '';
     return '<span class="cu-seg"' + title + '><span class="cu-lbl">' + label + '</span>' +
       '<span class="cu-bar"><span class="cu-fill ' + cls + '" style="width:' + p + '%"></span></span>' +
       '<span class="cu-pct">' + p + '%</span>' + r + '</span>';

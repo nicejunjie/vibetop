@@ -46,3 +46,27 @@ test("patch bundles are wrapped for graceful degradation", () => {
       `${rel} should keep its try/catch degradation guard`);
   }
 });
+
+// Inline <script> blocks of every deployed PAGE — the same parse-only guard one
+// level up. Auto-discovered (readdirSync), so a new page (a game, a new app) is
+// covered the day it lands with no registration step. A syntax error in a
+// page's inline script previously shipped silently and broke that app at
+// runtime; every ad-hoc pre-release `new Function()` check this repo's history
+// shows is this test, made permanent.
+const PAGE_DIRS = [
+  ["landing", /\.html$/],
+  ["terminal", /^terminals\.html$/],
+];
+for (const [dir, pat] of PAGE_DIRS) {
+  const files = fs.readdirSync(path.join(REPO, dir)).filter((f) => pat.test(f)).sort();
+  for (const f of files) {
+    const rel = `${dir}/${f}`;
+    test(`inline scripts parse: ${rel}`, () => {
+      const src = fs.readFileSync(path.join(REPO, rel), "utf8");
+      const blocks = [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+      blocks.forEach((m, i) => {
+        assert.doesNotThrow(() => new vm.Script(m[1], { filename: `${rel}#${i}` }));
+      });
+    });
+  }
+}

@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>2048 — Vibetop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column;
+    background: #0e1117; color: #d4d8de;
+    font-family: system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  .bar {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    min-height: 40px; padding: 4px 10px;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none;
+  }
+  .bar .title { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .bar .title .ic { margin-right: 5px; }
+  @media (max-width: 380px) { .bar .title .txt { display: none; } }
+  .stat {
+    display: flex; flex-direction: column; align-items: center;
+    background: #0e1117; border: 1px solid #2a3040; border-radius: 6px;
+    padding: 2px 10px; min-width: 58px;
+  }
+  .stat .lbl { font-size: 9px; letter-spacing: .08em; color: #6b7488; text-transform: uppercase; }
+  .stat .val { font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de; }
+  .spacer { flex: 1; }
+  button {
+    background: #3a2a55; color: #d9c8f5; border: 1px solid #55407a;
+    border-radius: 6px; padding: 5px 12px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  button:hover { background: #47336a; border-color: #8a4adb; }
+  .wrap {
+    flex: 1; min-height: 0; display: flex;
+    align-items: center; justify-content: center;
+    padding: 12px; position: relative;
+  }
+  #board {
+    position: relative; background: #161b22;
+    border: 1px solid #2a3040; border-radius: 10px;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .bg-cell { position: absolute; background: #1d2430; border-radius: 6px; }
+  .tile {
+    position: absolute; display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    transition: transform .12s ease-out;
+    will-change: transform;
+  }
+  .tile.spawn { animation: spawn .16s ease-out .1s backwards; }
+  .tile.pop { animation: pop .18s ease-out; }
+  @keyframes spawn { from { scale: .35; opacity: 0; } to { scale: 1; opacity: 1; } }
+  @keyframes pop { 0% { scale: 1; } 50% { scale: 1.16; } 100% { scale: 1; } }
+  /* tile palette — dark-theme take on the classic ramp, warming into the accent */
+  .v2    { background: #2a3040; color: #d4d8de; }
+  .v4    { background: #37405a; color: #d4d8de; }
+  .v8    { background: #4a4178; color: #e6e0f5; }
+  .v16   { background: #5c4796; color: #efe8fb; }
+  .v32   { background: #7048b8; color: #f5eefd; }
+  .v64   { background: #8a4adb; color: #fff; }
+  .v128  { background: #a05ce0; color: #fff; box-shadow: 0 0 12px rgba(138,74,219,.35); }
+  .v256  { background: #b56ee0; color: #fff; box-shadow: 0 0 14px rgba(181,110,224,.4); }
+  .v512  { background: #c9822f; color: #fff; box-shadow: 0 0 14px rgba(201,130,47,.4); }
+  .v1024 { background: #d99a2b; color: #fff; box-shadow: 0 0 16px rgba(217,154,43,.45); }
+  .v2048 { background: #e8b428; color: #3a2c00; box-shadow: 0 0 20px rgba(232,180,40,.55); }
+  .vbig  { background: #0e1117; color: #e8b428; border: 1px solid #e8b428; box-shadow: 0 0 20px rgba(232,180,40,.4); }
+  .overlay {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(14,17,23,.55); z-index: 5;
+  }
+  .overlay.show { display: flex; }
+  .card {
+    background: #161b22; border: 1px solid #2a3040; border-radius: 12px;
+    padding: 22px 28px; text-align: center; min-width: 200px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .card .big { font-size: 30px; margin-bottom: 6px; }
+  .card h2 { font-size: 17px; margin-bottom: 4px; color: #e6edf3; }
+  .card p { font-size: 13px; color: #aab4c5; margin-bottom: 14px; }
+  .card .primary {
+    background: #8a4adb; border-color: #8a4adb; color: #fff;
+    padding: 7px 18px; font-size: 13px; font-weight: 600;
+  }
+  .card .primary:hover { background: #9a5ceb; }
+  .card .ghost { display: block; margin: 10px auto 0; background: none; border: none; color: #6b7488; font-size: 12px; cursor: pointer; min-height: 0; padding: 2px 6px; }
+  .card .ghost:hover { color: #aab4c5; background: none; }
+  .hint { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 11px; color: #3a4050; pointer-events: none; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="title"><span class="ic">🔢</span><span class="txt">2048</span></span>
+    <span class="spacer"></span>
+    <div class="stat"><span class="lbl">Score</span><span class="val" id="score">0</span></div>
+    <div class="stat"><span class="lbl">Best</span><span class="val" id="best">0</span></div>
+    <button id="newBtn">New</button>
+  </div>
+  <div class="wrap" id="wrap">
+    <div id="board"></div>
+    <div class="overlay" id="overlay">
+      <div class="card">
+        <div class="big" id="ovIcon">🏆</div>
+        <h2 id="ovTitle">You made 2048!</h2>
+        <p id="ovMsg"></p>
+        <button class="primary" id="ovNew">New Game</button>
+        <button class="ghost" id="ovKeep">keep going</button>
+      </div>
+    </div>
+    <div class="hint" id="hint">swipe or use arrow keys</div>
+  </div>
+<script>
+(function() {
+  'use strict';
+  var N = 4;
+  var boardEl = document.getElementById('board');
+  var wrapEl = document.getElementById('wrap');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var overlay = document.getElementById('overlay');
+  var ovIcon = document.getElementById('ovIcon');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovMsg = document.getElementById('ovMsg');
+  var ovNew = document.getElementById('ovNew');
+  var ovKeep = document.getElementById('ovKeep');
+  var hintEl = document.getElementById('hint');
+
+  var grid = [];          // N*N array of tile objects or null: {v, el, r, c}
+  var score = 0, best = 0, won = false, over = false, moved = false, hintDone = false;
+  var cell = 0, gap = 0;  // px, computed on resize
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  best = parseInt(lsGet('vt-2048-best'), 10) || 0;
+  bestEl.textContent = best;
+
+  function layout() {
+    var pad = 24;
+    var size = Math.min(wrapEl.clientWidth, wrapEl.clientHeight) - pad;
+    size = Math.max(200, Math.min(520, size));
+    gap = Math.max(6, Math.round(size * 0.025));
+    cell = Math.floor((size - gap * (N + 1)) / N);
+    var real = cell * N + gap * (N + 1);
+    boardEl.style.width = real + 'px';
+    boardEl.style.height = real + 'px';
+    // the "swipe or arrows" hint only fits when there's clearance below the board
+    hintEl.style.display = (!hintDone && wrapEl.clientHeight - real >= 56) ? '' : 'none';
+    // background cells
+    var bgs = boardEl.querySelectorAll('.bg-cell');
+    var i = 0;
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+      var b = bgs[i++];
+      if (!b) { b = document.createElement('div'); b.className = 'bg-cell'; boardEl.insertBefore(b, boardEl.firstChild); }
+      b.style.width = cell + 'px'; b.style.height = cell + 'px';
+      b.style.left = px(c); b.style.top = px(r);
+    }
+    // reposition live tiles
+    each(function(t) { place(t); });
+  }
+  function px(rc) { return (gap + rc * (cell + gap)) + 'px'; }
+
+  function each(fn) {
+    for (var i = 0; i < N * N; i++) if (grid[i]) fn(grid[i], i);
+  }
+  function at(r, c) { return grid[r * N + c]; }
+  function setAt(r, c, t) { grid[r * N + c] = t; if (t) { t.r = r; t.c = c; } }
+
+  function fontFor(v) {
+    var digits = String(v).length;
+    return Math.floor(cell * (digits <= 2 ? 0.46 : digits === 3 ? 0.38 : digits === 4 ? 0.3 : 0.24)) + 'px';
+  }
+  function classFor(v) { return v <= 2048 ? 'v' + v : 'vbig'; }
+
+  function place(t) {
+    t.el.style.width = cell + 'px';
+    t.el.style.height = cell + 'px';
+    t.el.style.fontSize = fontFor(t.v);
+    t.el.style.transform = 'translate(' + px(t.c) + ',' + px(t.r) + ')';
+  }
+
+  function makeTile(r, c, v, isSpawn) {
+    var el = document.createElement('div');
+    el.className = 'tile ' + classFor(v) + (isSpawn ? ' spawn' : '');
+    el.textContent = v;
+    boardEl.appendChild(el);
+    var t = { v: v, el: el, r: r, c: c };
+    place(t);
+    setAt(r, c, t);
+    return t;
+  }
+
+  function spawn() {
+    var empty = [];
+    for (var i = 0; i < N * N; i++) if (!grid[i]) empty.push(i);
+    if (!empty.length) return;
+    var i2 = empty[Math.floor(Math.random() * empty.length)];
+    makeTile(Math.floor(i2 / N), i2 % N, Math.random() < 0.9 ? 2 : 4, true);
+  }
+
+  function newGame() {
+    each(function(t) { t.el.remove(); });
+    grid = new Array(N * N).fill(null);
+    score = 0; won = false; over = false;
+    scoreEl.textContent = '0';
+    overlay.classList.remove('show');
+    layout();
+    spawn(); spawn();
+  }
+
+  function addScore(v) {
+    score += v;
+    scoreEl.textContent = score;
+    if (score > best) { best = score; bestEl.textContent = best; lsSet('vt-2048-best', String(best)); }
+  }
+
+  // Move all tiles in direction (dr,dc). Returns true if anything moved.
+  function move(dr, dc) {
+    if (over) return false;
+    moved = false;
+    var merged = [];
+    // iterate lines in the right order so tiles slide toward the edge first
+    var rs = [], cs = [];
+    for (var i = 0; i < N; i++) { rs.push(dr > 0 ? N - 1 - i : i); cs.push(dc > 0 ? N - 1 - i : i); }
+    rs.forEach(function(r) {
+      cs.forEach(function(c) {
+        var t = at(r, c);
+        if (!t) return;
+        var nr = r, nc = c;
+        while (true) {
+          var tr = nr + dr, tc = nc + dc;
+          if (tr < 0 || tr >= N || tc < 0 || tc >= N) break;
+          var occ = at(tr, tc);
+          if (!occ) { nr = tr; nc = tc; continue; }
+          if (occ.v === t.v && merged.indexOf(occ) < 0) { nr = tr; nc = tc; }  // merge target
+          break;
+        }
+        if (nr === r && nc === c) return;
+        var target = at(nr, nc);
+        setAt(r, c, null);
+        if (target) {
+          // Merge: game state updates synchronously (so rapid moves never see
+          // stale values); only the DOM upgrade is deferred to let the slide land.
+          merged.push(target);
+          moved = true;
+          t.r = nr; t.c = nc;
+          place(t);
+          target.v *= 2;
+          addScore(target.v);
+          if (target.v === 2048 && !won) { won = true; setTimeout(showWin, 300); }
+          var dead = t, into = target;
+          setTimeout(function() {
+            dead.el.remove();
+            into.el.textContent = into.v;
+            into.el.className = 'tile ' + classFor(into.v) + ' pop';
+            into.el.style.fontSize = fontFor(into.v);
+          }, 110);
+        } else {
+          setAt(nr, nc, t);
+          place(t);
+          moved = true;
+        }
+      });
+    });
+    if (moved) {
+      // Spawn synchronously (the .spawn animation-delay hides it until the
+      // slide finishes) so the logical grid is always current for the next move.
+      spawn();
+      if (!canMove()) { over = true; setTimeout(showLose, 260); }
+    }
+    return moved;
+  }
+
+  function canMove() {
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+      var t = at(r, c);
+      if (!t) return true;
+      if (c + 1 < N) { var rt = at(r, c + 1); if (!rt || rt.v === t.v) return true; }
+      if (r + 1 < N) { var dt = at(r + 1, c); if (!dt || dt.v === t.v) return true; }
+    }
+    return false;
+  }
+
+  function showWin() {
+    ovIcon.textContent = '🏆';
+    ovTitle.textContent = 'You made 2048!';
+    ovMsg.textContent = 'Score ' + score + '.';
+    ovKeep.style.display = 'block';
+    overlay.classList.add('show');
+  }
+  function showLose() {
+    ovIcon.textContent = '🧱';
+    ovTitle.textContent = 'No moves left';
+    ovMsg.textContent = 'Final score ' + score + (score >= best && score > 0 ? ' — new best!' : '.');
+    ovKeep.style.display = 'none';
+    overlay.classList.add('show');
+  }
+
+  // ---- input ----
+  document.addEventListener('keydown', function(ev) {
+    if (overlay.classList.contains('show')) return;
+    var k = ev.key;
+    var did = false;
+    if (k === 'ArrowLeft' || k === 'a') did = move(0, -1);
+    else if (k === 'ArrowRight' || k === 'd') did = move(0, 1);
+    else if (k === 'ArrowUp' || k === 'w') did = move(-1, 0);
+    else if (k === 'ArrowDown' || k === 's') did = move(1, 0);
+    else return;
+    ev.preventDefault();
+    if (did) { hintDone = true; hintEl.style.display = 'none'; }
+  });
+
+  var sx = 0, sy = 0, tracking = false;
+  boardEl.addEventListener('pointerdown', function(ev) {
+    sx = ev.clientX; sy = ev.clientY; tracking = true;
+    if (ev.pointerType !== 'mouse') ev.preventDefault();
+  });
+  window.addEventListener('pointerup', function(ev) {
+    if (!tracking) return;
+    tracking = false;
+    if (overlay.classList.contains('show')) return;
+    var dx = ev.clientX - sx, dy = ev.clientY - sy;
+    var ax = Math.abs(dx), ay = Math.abs(dy);
+    if (Math.max(ax, ay) < 24) return;
+    var did;
+    if (ax > ay) did = move(0, dx > 0 ? 1 : -1);
+    else did = move(dy > 0 ? 1 : -1, 0);
+    if (did) { hintDone = true; hintEl.style.display = 'none'; }
+  });
+
+  document.getElementById('newBtn').addEventListener('click', newGame);
+  ovNew.addEventListener('click', newGame);
+  ovKeep.addEventListener('click', function() { overlay.classList.remove('show'); });
+
+  var rsT = null;
+  window.addEventListener('resize', function() {
+    clearTimeout(rsT);
+    rsT = setTimeout(layout, 100);
+  });
+
+  newGame();
+})();
+</script>
+</body>
+</html>
