@@ -3774,3 +3774,53 @@ preview + zone-click are exactly the legibility that was missing.
   legible before it.
 - *A "main window" picker control* — new permanent chrome; dead on arrival after
   the one-icon fight.
+
+---
+
+## Full slot assignment: every steering gesture is a swap, and the preview shows reality
+
+**Symptom:** the palette preview + zone-click shipped in v1.19.48 was loved ("it
+is great, love the new UI and interactions") but could not fully assign slots:
+*"in 1+2 … the bottom right one can never be swapped."* True by construction —
+zone-click steered only the FOCUSED window, the rest were positionally determined
+by taskbar order. Worked through, only 5 of 6 three-window arrangements were
+reachable at all (never `C B A`), and only by knowing to change focus first.
+
+**Fix (v1.19.51):** three moves that stay inside the praised interaction:
+
+1. **One steering concept — swap two zones' occupants.** Hovering a zone now
+   previews the focused window *swapped* into it (exactly one other window
+   moves), instead of the old shift-and-refill (which reshuffled everyone —
+   visible only when hovering the last zone, but the swap is the model the user
+   already described: "switch … replacing"). Click commits what is shown,
+   unchanged.
+2. **Drag an icon from one zone onto another to swap ANY two** — live-previewed
+   during the drag (the preview cannot lie extends to mid-gesture), the drop
+   commits, exactly like a zone-click commits. Touch: **long-press a zone picks
+   it up** (long-press is already this palette's touch idiom), tapping another
+   zone swaps and commits; a moving finger cancels; the arming press's own
+   lift-click is recognized by time+zone rather than a swallowed-flag (iOS may
+   or may not fire it — a blind swallow ate the NEXT tap).
+3. **The base assignment is derived, never stored.** When the open windows
+   already sit exactly in a layout's zones, that tile previews who is where NOW
+   (`zoneOccupancy`: an exact zone↔window bijection within 4px — tidy's GAP=8
+   insets deliberately do NOT match); otherwise the focused rule. So the applied
+   layout's tile is a live board of the current arrangement, clicking it is a
+   visible no-op, swaps compose across commits, and "does a custom assignment
+   survive reopening?" answers itself: yes, because the windows ARE the state.
+
+Any permutation is now reachable (each drag is an arbitrary transposition, and
+they compose). Pure parts: `swapZones`, `zoneOccupancy` join `zoneAssign` in
+`winmgr.js` (unit-tested); `applyLayout(key, assign)` takes the exact assignment
+the tile painted. The new e2e case was **proven against the deployed
+pre-fix build first** (fails at the reopened-tile-shows-reality assertion) and
+passes against the fix; touch pick-up/drop verified with synthesized
+`pointerType:'touch'` events, iOS-style (no click after long-press).
+
+**Rejected:**
+- *Tap-tap to swap (click zone A, then B)* — overloads the single most-used
+  click gesture with a mode; a mis-tap commits a layout instead of arming.
+- *Storing the custom assignment* — a second source of truth that goes stale the
+  moment windows move by other means; deriving from geometry keeps one truth.
+- *Drag a taskbar button onto a zone* — still collides with taskbar
+  drag-to-reorder (rejected last round, unchanged).

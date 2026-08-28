@@ -615,6 +615,10 @@
      `.wl-zone:hover` is id+2 and LOSES — measured: all three zones painted the
      dim shade while a zone was hovered). */
   #win-layouts .wl-grid:hover .wl-zone:hover { background: #d2691e; }
+  /* drag-to-swap: the picked-up zone dims, the drop target takes the accent */
+  #win-layouts .wl-zone.wl-drag-src { opacity: 0.55; box-shadow: inset 0 0 0 2px #e8862f; }
+  #win-layouts .wl-zone.wl-drag-over,
+  #win-layouts .wl-grid:hover .wl-zone.wl-drag-over { background: #d2691e; }
   #win-layouts .wl-grid:hover + .wl-name { color: #e8eef5; }
   #win-layouts .wl-name { font-size: 10px; color: #8a9aaa; letter-spacing: .2px; }
   /* Touch needs the zones big enough to hit individually. */
@@ -1218,12 +1222,20 @@
   // tidyWindows(), because overlapping tiles put one window's ×/▢/– on top of its
   // neighbour's). The assignment comes from VibeWin.zoneAssign, the same pure
   // function the palette preview paints from, so what you saw IS what you get.
-  function applyLayout(key, mainZone) {
+  function applyLayout(key, arg) {
     var zones = window.VibeWin && VibeWin.layoutGeoms(key, frameBox());
     if (!zones) return;
     var vis = openApps.filter(function (id) { return !(wins[id] && wins[id].min); });
     if (!vis.length) return;
-    var assign = VibeWin.zoneAssign(vis, active, zones.length, mainZone || 0);
+    // `arg` is either an explicit zone->window assignment (from the palette's
+    // swap gestures) or a main-zone index (legacy default rule). A stale or
+    // short array falls back to the default rule rather than placing holes.
+    var assign = Array.isArray(arg)
+      ? arg.filter(function (id) { return vis.indexOf(id) !== -1; })
+      : VibeWin.zoneAssign(vis, active, zones.length, arg || 0);
+    if (assign.length !== Math.min(zones.length, vis.length)) {
+      assign = VibeWin.zoneAssign(vis, active, zones.length, 0);
+    }
     vis.forEach(function (id) { if (assign.indexOf(id) === -1) winGeom(id).min = true; });
     assign.forEach(function (id, i) {
       var g = winGeom(id), z = zones[i];
@@ -1261,18 +1273,33 @@
     if (tip) { try { tip.remove(); } catch (e) {} }
     layoutsEl.innerHTML = '';
     var focusedLabel = (APPS[active] && APPS[active].label) || 'the focused window';
+    // Every window's CURRENT geometry, for deriving "who is where now".
+    var visGeoms = {};
+    vis.forEach(function (id) {
+      var g = winGeom(id);
+      visGeoms[id] = { left: g.left, top: g.top, width: g.width, height: g.height };
+    });
     opts.forEach(function (L) {
       var opt = document.createElement('div'); opt.className = 'wl-opt';
       // Each zone PREVIEWS the window that will land in it (its app icon), so
-      // "which one gets the big zone?" is answered before any click. Pointing at
-      // a zone steers: hover previews the focused window THERE (the rest refill
-      // in taskbar order — VibeWin.zoneAssign, the same function applyLayout
-      // uses, so the preview cannot lie), and the click commits exactly what is
-      // shown. A click on the tile's border pixels keeps the default (focused →
-      // zone 0). Touch has no hover: the tile shows the default assignment and
-      // tapping a zone steers the same way.
+      // "which one gets the big zone?" is answered before any click. ONE steering
+      // concept everywhere — swap two zones' occupants:
+      //   hover a zone   = preview the focused window swapped into it;
+      //   click          = commit exactly what is shown;
+      //   drag icon A→B  = swap ANY two zones (live-previewed, drop commits);
+      //   touch          = tap steers the focused window; LONG-PRESS a zone picks
+      //                    it up, tapping another swaps them (long-press is
+      //                    already this palette's touch idiom).
+      // The base assignment is DERIVED, never stored: when the open windows
+      // already sit exactly in this layout's zones the tile shows who is where
+      // NOW (zoneOccupancy) — so swaps compose across commits — otherwise the
+      // default rule (focused → zone 0, rest in taskbar order). Preview and
+      // placement share the same pure functions, so the preview cannot lie.
       var grid = document.createElement('div'); grid.className = 'wl-grid';
       grid.title = L.name + ' — arrange every window like this';
+      var zonesPx = VibeWin.layoutGeoms(L.key, frameBox());
+      var base = (zonesPx && VibeWin.zoneOccupancy(zonesPx, visGeoms)) ||
+                 VibeWin.zoneAssign(vis, active, L.zones.length, 0);
       var zoneEls = [];
       L.zones.forEach(function (z, j) {
         var cell = document.createElement('div');
@@ -1284,8 +1311,7 @@
         cell.style.height = 'calc(' + (z[3] * 100) + '% - 2px)';
         grid.appendChild(cell); zoneEls.push(cell);
       });
-      var paint = function (main) {
-        var assign = VibeWin.zoneAssign(vis, active, L.zones.length, main);
+      var paint = function (assign) {
         zoneEls.forEach(function (cell, j) {
           var app = APPS[assign[j]];
           // Same markup as the taskbar button and the window title bar (svg
@@ -1293,16 +1319,97 @@
           cell.innerHTML = app ? (app.svg || app.icon) : '';
           cell.title = (assign[j] === active)
             ? L.name + ' with ' + focusedLabel + ' here'
-            : 'Put ' + focusedLabel + ' here instead';
+            : 'Put ' + focusedLabel + ' here instead \u00b7 drag icons to swap any two';
         });
       };
-      paint(0);
+      paint(base);
+      // The focused window swapped into zone j (identity when j is its own zone,
+      // or when the focused window is not on this board).
+      var focusSwap = function (j) {
+        var i = base.indexOf(active);
+        return i < 0 ? base : VibeWin.swapZones(base, i, j);
+      };
+      var dragSrc = null;      // mouse drag-to-swap state for THIS tile
+      var armed = -1;          // touch: long-pressed (picked up) zone
+      var armedAt = 0;         // when it was picked up (the press's own lift-click
+                               // may or may not fire, so it is recognized by time
+                               // + same-zone rather than swallowed blindly)
+      var armT = null, swallowClick = false;
+      var clearDragMarks = function () {
+        zoneEls.forEach(function (c) { c.classList.remove('wl-drag-src', 'wl-drag-over'); });
+      };
       zoneEls.forEach(function (cell, j) {
-        cell.addEventListener('mouseenter', function () { paint(j); });
-        cell.addEventListener('click', function (e) { e.stopPropagation(); applyLayout(L.key, j); });
+        cell.addEventListener('mouseenter', function () { if (!dragSrc) paint(focusSwap(j)); });
+        cell.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (swallowClick) { swallowClick = false; return; }
+          if (armed >= 0) {                       // touch: drop the picked-up zone here
+            if (j === armed && Date.now() - armedAt < 800) return;   // the arming press's own lift
+            var a = armed; armed = -1; clearDragMarks();
+            if (a !== j) applyLayout(L.key, VibeWin.swapZones(base, a, j));
+            return;
+          }
+          applyLayout(L.key, focusSwap(j));
+        });
+        // Mouse: drag an icon onto another zone to swap the two occupants.
+        cell.addEventListener('pointerdown', function (e) {
+          if (e.pointerType === 'mouse') {
+            if (e.button !== 0) return;
+            dragSrc = { j: j, x: e.clientX, y: e.clientY, live: false };
+            try { cell.setPointerCapture(e.pointerId); } catch (err) {}
+          } else {
+            // Touch: long-press picks the zone up for a swap.
+            if (armT) clearTimeout(armT);
+            var tx = e.clientX, ty = e.clientY;
+            cell.dataset.tx = tx; cell.dataset.ty = ty;
+            armT = setTimeout(function () {
+              armed = j; armedAt = Date.now();
+              cell.classList.add('wl-drag-src');
+            }, 500);
+          }
+        });
+        cell.addEventListener('pointermove', function (e) {
+          if (e.pointerType !== 'mouse') {
+            // A moving finger is not a long-press — cancel the pick-up timer.
+            if (armT && Math.hypot(e.clientX - (+cell.dataset.tx || 0),
+                                   e.clientY - (+cell.dataset.ty || 0)) > 10) {
+              clearTimeout(armT); armT = null;
+            }
+            return;
+          }
+          if (!dragSrc || dragSrc.j !== j) return;
+          if (!dragSrc.live && Math.hypot(e.clientX - dragSrc.x, e.clientY - dragSrc.y) < 4) return;
+          dragSrc.live = true;
+          cell.classList.add('wl-drag-src');
+          var el = document.elementFromPoint(e.clientX, e.clientY);
+          var over = el && el.closest ? el.closest('.wl-zone') : null;
+          var k = (over && over.parentNode === grid) ? +over.dataset.zone : -1;
+          paint(k >= 0 ? VibeWin.swapZones(base, j, k) : base);
+          zoneEls.forEach(function (c, m) { c.classList.toggle('wl-drag-over', m === k && k !== j); });
+        });
+        var endDrag = function (e) {
+          if (e.pointerType !== 'mouse') { if (armT) { clearTimeout(armT); armT = null; } return; }
+          if (!dragSrc || dragSrc.j !== j) return;
+          var live = dragSrc.live; dragSrc = null; clearDragMarks();
+          if (!live) return;                      // a plain click; the click event handles it
+          swallowClick = true;                    // the release also fires click — not a steer
+          if (e.type === 'pointercancel') { paint(base); return; }
+          var el = document.elementFromPoint(e.clientX, e.clientY);
+          var over = el && el.closest ? el.closest('.wl-zone') : null;
+          if (over && over.parentNode === grid && +over.dataset.zone !== j) {
+            applyLayout(L.key, VibeWin.swapZones(base, j, +over.dataset.zone));
+          } else paint(base);
+        };
+        cell.addEventListener('pointerup', endDrag);
+        cell.addEventListener('pointercancel', endDrag);
       });
-      grid.addEventListener('mouseleave', function () { paint(0); });
-      grid.addEventListener('click', function (e) { e.stopPropagation(); applyLayout(L.key, 0); });
+      grid.addEventListener('mouseleave', function () { if (!dragSrc) paint(base); });
+      grid.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (swallowClick) { swallowClick = false; return; }
+        if (armed >= 0) { armed = -1; clearDragMarks(); return; }   // tap off the board = cancel
+        applyLayout(L.key, base);
+      });
       var nm = document.createElement('div'); nm.className = 'wl-name'; nm.textContent = L.name;
       opt.appendChild(grid); opt.appendChild(nm);
       layoutsEl.appendChild(opt);

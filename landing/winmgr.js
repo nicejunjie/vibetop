@@ -172,6 +172,44 @@
     return out;
   }
 
+  // Swap two zones' occupants — THE steering primitive of the layout palette:
+  // hovering previews the focused window swapped into the hovered zone, and a
+  // drag (or long-press + tap on touch) swaps any two. Returns a new array;
+  // out-of-range or same-index swaps return the input unchanged.
+  function swapZones(assign, i, j) {
+    if (i === j || i < 0 || j < 0 || i >= assign.length || j >= assign.length) return assign;
+    var out = assign.slice(); out[i] = assign[j]; out[j] = assign[i];
+    return out;
+  }
+
+  // Which window currently occupies which zone: an exact bijection between the
+  // visible windows and this layout's zones (each zone geometry claimed by
+  // exactly one window within `tol` px), or null when the current arrangement
+  // is not this layout. This is what lets the palette preview REALITY — after a
+  // layout is applied, its tile shows who is where NOW, so swaps compose across
+  // commits and nothing needs to be stored.
+  function zoneOccupancy(zones, geoms, tol) {
+    tol = tol || 4;
+    var ids = Object.keys(geoms);
+    if (ids.length !== zones.length) return null;
+    var out = new Array(zones.length), used = {};
+    for (var z = 0; z < zones.length; z++) {
+      var hit = null;
+      for (var k = 0; k < ids.length; k++) {
+        var id = ids[k], g = geoms[id];
+        if (used[id]) continue;
+        if (Math.abs(g.left - zones[z].left) <= tol && Math.abs(g.top - zones[z].top) <= tol &&
+            Math.abs(g.width - zones[z].width) <= tol && Math.abs(g.height - zones[z].height) <= tol) {
+          if (hit) return null;               // two windows on one zone
+          hit = id;
+        }
+      }
+      if (!hit) return null;                  // an unclaimed zone
+      used[hit] = true; out[z] = hit;
+    }
+    return out;
+  }
+
   // How many windows this box can tile at the minimum window size. Above it,
   // tiling is impossible without overlap (the minimum is a hard floor — the
   // caller clamps every tile up to it, so a grid that asks for more columns than
@@ -184,7 +222,7 @@
   var api = { clampGeom: clampGeom, resizeGeom: resizeGeom, defaultGeom: defaultGeom,
               snapTarget: snapTarget, tileGrid: tileGrid, tileCapacity: tileCapacity,
               LAYOUTS: LAYOUTS, layoutGeoms: layoutGeoms, layoutsFor: layoutsFor,
-              zoneAssign: zoneAssign,
+              zoneAssign: zoneAssign, swapZones: swapZones, zoneOccupancy: zoneOccupancy,
               MINW: MINW, MINH: MINH };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VibeWin = api;

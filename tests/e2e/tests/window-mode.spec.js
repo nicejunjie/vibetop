@@ -610,6 +610,47 @@ test.describe('window mode', () => {
       expect(Math.abs(g.width - zones[1].width)).toBeLessThanOrEqual(2);
       expect(Math.abs(g.height - zones[1].height)).toBeLessThanOrEqual(2);
       expect(g.focused, 'the steered window keeps focus').toBe(true);
+
+      // --- full slot assignment ------------------------------------------------
+      // Re-open the palette: the applied layout's tile must preview REALITY (who
+      // is where now — notes is in zone 1), not re-derive the focused rule.
+      await page.mouse.move(10, 10);
+      await page.locator('#wm-btn').hover();
+      await expect(palette).toHaveClass(/open/, { timeout: 3000 });
+      const grid2 = palette.locator('.wl-opt').first().locator('.wl-grid');
+      const z2 = (j) => grid2.locator(`.wl-zone[data-zone="${j}"]`);
+      const html2 = (j) => z2(j).evaluate((el) => el.innerHTML);
+      expect(await html2(1)).toBe(notesIcon);
+
+      // Drag zone 0's icon onto zone 2: those two occupants swap — including
+      // windows that are NOT focused, which zone-clicking alone cannot reach.
+      const before = { z0: await html2(0), z2: await html2(2) };
+      expect(before.z0).not.toBe(notesIcon);   // notes sits in zone 1, so this
+      expect(before.z2).not.toBe(notesIcon);   // drag moves two unfocused windows
+      const b0 = await z2(0).boundingBox(), b2 = await z2(2).boundingBox();
+      await page.mouse.move(b0.x + b0.width / 2, b0.y + b0.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2, { steps: 6 });
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+      await expect(palette).not.toHaveClass(/open/);   // the drop committed
+
+      // The two swapped windows really traded places on the desktop.
+      const idFor = (html) => page.evaluate((h) => {
+        const btns = [...document.querySelectorAll('#task-apps .task-app')];
+        const hit = btns.find((b) => b.querySelector('.icon').innerHTML === h);
+        return hit && hit.dataset.id;
+      }, html);
+      const a = await idFor(before.z0), b = await idFor(before.z2);
+      const ga = await geom(page, a), gb = await geom(page, b);
+      expect(Math.abs(ga.left - (fr.left + zones[2].left))).toBeLessThanOrEqual(2);
+      expect(Math.abs(ga.top - (fr.top + zones[2].top))).toBeLessThanOrEqual(2);
+      expect(Math.abs(gb.left - (fr.left + zones[0].left))).toBeLessThanOrEqual(2);
+      expect(Math.abs(gb.top - (fr.top + zones[0].top))).toBeLessThanOrEqual(2);
+      // And notes never moved: full assignment means the third window stays put.
+      const gn = await geom(page, 'notes');
+      expect(Math.abs(gn.left - (fr.left + zones[1].left))).toBeLessThanOrEqual(2);
+      expect(Math.abs(gn.top - (fr.top + zones[1].top))).toBeLessThanOrEqual(2);
     });
 
     test('▢ is plain maximize — it must not open the palette', async ({ page }) => {

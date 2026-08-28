@@ -222,3 +222,40 @@ test("zoneAssign: clamps the zone index and leaves overflow out", () => {
   // fewer windows than zones never assigns undefined slots
   assert.deepEqual(W.zoneAssign(["a", "b"], "b", 3, 0), ["b", "a"]);
 });
+
+test("swapZones: swaps two occupants, guards bad indices", () => {
+  assert.deepEqual(W.swapZones(["a", "b", "c"], 0, 2), ["c", "b", "a"]);
+  assert.deepEqual(W.swapZones(["a", "b", "c"], 1, 1), ["a", "b", "c"]);
+  assert.deepEqual(W.swapZones(["a", "b", "c"], -1, 2), ["a", "b", "c"]);
+  assert.deepEqual(W.swapZones(["a", "b", "c"], 0, 3), ["a", "b", "c"]);
+  const inp = ["a", "b"];
+  W.swapZones(inp, 0, 1);
+  assert.deepEqual(inp, ["a", "b"], "input is not mutated");
+});
+
+test("zoneOccupancy: maps windows to the zones they exactly occupy", () => {
+  const zones = W.layoutGeoms("main2", BOX);
+  const geoms = { big: { ...zones[0] }, tr: { ...zones[1] }, br: { ...zones[2] } };
+  assert.deepEqual(W.zoneOccupancy(zones, geoms), ["big", "tr", "br"]);
+  // a few px off is still the same arrangement (nudge/rounding tolerance)
+  geoms.tr = { left: zones[1].left + 2, top: zones[1].top - 2,
+               width: zones[1].width + 1, height: zones[1].height - 1 };
+  assert.deepEqual(W.zoneOccupancy(zones, geoms), ["big", "tr", "br"]);
+});
+
+test("zoneOccupancy: null when the arrangement is NOT this layout", () => {
+  const zones = W.layoutGeoms("main2", BOX);
+  // wrong count
+  assert.equal(W.zoneOccupancy(zones, { a: { ...zones[0] }, b: { ...zones[1] } }), null);
+  // a free-floating window claims no zone
+  assert.equal(W.zoneOccupancy(zones, {
+    a: { ...zones[0] }, b: { ...zones[1] },
+    c: { left: 40, top: 40, width: 500, height: 400 } }), null);
+  // two windows piled on one zone, none on another
+  assert.equal(W.zoneOccupancy(zones, {
+    a: { ...zones[0] }, b: { ...zones[1] }, c: { ...zones[1] } }), null);
+  // beyond tolerance (tidy's GAP=8 insets must NOT read as the gapless layout)
+  const off = { left: zones[2].left + 8, top: zones[2].top + 8,
+                width: zones[2].width - 16, height: zones[2].height - 16 };
+  assert.equal(W.zoneOccupancy(zones, { a: { ...zones[0] }, b: { ...zones[1] }, c: off }), null);
+});
