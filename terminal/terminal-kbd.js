@@ -289,6 +289,13 @@
       sizeOverlay();
       positionCaret();
     }, false);
+    // This page just (re)loaded, so our figure is 0 — but the keyboard may
+    // already be up (iOS kills the WS in the background; the reconnect guard
+    // reloads us on resume). PULL the current figure from the parent chain
+    // (terminals.html → desktop, which re-measures with its dedupe bypassed);
+    // the push-only flow never re-sent after a reload, which is why the active
+    // line kept ending up under the key bar. No-op standalone (no parent).
+    try { if (window.parent !== window) window.parent.postMessage({ type: 'kbd-occlusion-req' }, '*'); } catch (_) {}
     function occludedPx() {
       var local = 0;
       try {

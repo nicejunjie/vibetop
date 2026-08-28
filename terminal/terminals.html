@@ -793,6 +793,14 @@
       lastOcclusion = e.data;
       relayOcclusion();
     }
+    // A freshly (re)loaded /tN/ asks for the occlusion figure (its own copy reset
+    // to 0 on reload — the recurring "active line covered after the app came back"
+    // bug). Answer from the stored figure AND forward the request up so the
+    // desktop re-measures fresh (covers THIS page having reloaded too).
+    if (e.data.type === 'kbd-occlusion-req') {
+      relayOcclusion();
+      try { if (window.parent !== window) window.parent.postMessage({ type: 'kbd-occlusion-req' }, '*'); } catch (_) {}
+    }
     // Relay a /tN/ keyboard show/hide request UP to the desktop (it shows the bar).
     if (e.data.type === 'kbd-bar') {
       try { window.parent.postMessage(e.data, '*'); } catch (_) {}

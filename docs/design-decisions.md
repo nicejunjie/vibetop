@@ -3306,6 +3306,26 @@ fails every assertion; against the fix:
   suppressing the reveal (the bounce is synchronous — `activeElement` never leaves
   the overlay, and a simulated reveal survived it).
 
+**Recurrence (v1.19.63): the figure was push-only, and a reload zeroed the
+receiver while the dedupe muted the sender.** The measured-occlusion design
+above is correct, but its delivery was one one-way push with a dedupe at every
+hop (`lastOcc` in the desktop, `lastOcclusion` relayed only on tab focus). The
+daily iOS path breaks that: backgrounding the PWA kills the WS → the reconnect
+guard **reloads `/tN/`** → the fresh page's `KBD_OCCLUSION` is 0 — and when the
+keyboard comes back up, the desktop computes the SAME figure as before, which
+its dedupe swallows. Nothing ever re-sends; the active line sits under the bar
+for the rest of the session ("active line covered", reported ~10 times).
+Screenshot geometry confirmed: the bar itself was correctly pinned at the
+visual-viewport bottom; the terminal simply had `scrollTop 0`. Fix: the flow is
+now **pull-capable** — a (re)loaded `/tN/` posts `kbd-occlusion-req` up the
+chain (`terminal-kbd.js` → `terminals.html`, which answers from its stored
+figure AND forwards the request → the desktop, which re-measures with the
+dedupe bypassed via `__repostOcclusion`); additionally `syncBar` busts `lastOcc`
+on every keyboard-closed→open transition, so a same-value reopen can never be
+deduped into silence again. Lesson: a push-with-dedupe protocol must always
+pair with a receiver-initiated pull, or any receiver restart desynchronizes it
+permanently.
+
 ---
 
 ## "Still cannot resize from left or right" — the tile gutter belonged to nobody

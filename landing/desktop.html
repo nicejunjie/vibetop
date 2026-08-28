@@ -2143,7 +2143,13 @@
       if (kbUp && !suppress) {
         var barTop = Math.round(vvBottom() - BAR_H);
         bar.style.top = barTop + 'px'; bar.style.display = 'flex';
-        if (!wasUp) maybeShowHint();                                   // keyboard just opened → nudge
+        // Keyboard just (re)opened → bust the dedupe. The PWA can be suspended
+        // with the keyboard up and lastOcc holding the final figure; on resume
+        // the /tN/ page has RELOADED (fresh KBD_OCCLUSION=0) and the reopened
+        // keyboard computes the SAME figure — which the dedupe then swallowed,
+        // leaving the active line under the bar (the recurring "active line
+        // covered" report). A transition repost is cheap and always correct.
+        if (!wasUp) { lastOcc = -1; maybeShowHint(); }
         else if (hint.style.display !== 'none') positionHint();        // keep it pinned during URL-bar scroll
         postOcclusion(occlusionOver('terminal', barTop));
       } else {
@@ -2161,6 +2167,11 @@
     // Let setActive() re-evaluate visibility the moment the active app changes
     // (e.g. switching into the Browser while the keyboard is already up).
     window.__syncKeybar = syncBar;
+    // Pull-based re-sync: a freshly (re)loaded /tN/ page has KBD_OCCLUSION=0 and
+    // requests the figure up the chain (terminal-kbd.js → terminals.html → here).
+    // Push-with-dedupe alone could never reach it — lastOcc still held the same
+    // number, so nothing was re-sent after a reload.
+    window.__repostOcclusion = function() { lastOcc = -1; syncBar(); };
   })();
 
   // --- cross-instance state -------------------------------------------------
@@ -3050,6 +3061,9 @@
     if (e.origin !== location.origin) return;
     if (!e.data) return;
     if (e.data.type === 'switch-to-browser') { launch('browser'); }
+    // A reloaded terminal page asking for the current key-bar occlusion figure
+    // (see __repostOcclusion above) — re-measure and re-post, dedupe bypassed.
+    if (e.data.type === 'kbd-occlusion-req') { if (window.__repostOcclusion) window.__repostOcclusion(); }
     // The Browser renders into a GPU-composited canvas, so a click there reaches
     // xpra instead of the #menu-scrim (normal-HTML apps are caught by the scrim).
     // xpra-patches posts this from inside the iframe so the menu still closes.
