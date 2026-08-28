@@ -493,44 +493,52 @@ test.describe('window mode', () => {
       await expect(page.locator('body')).toHaveClass(/\bwm\b/);
     });
 
-    // Snap layouts, Windows-11 style: hover (or long-press) a window's ▢ and pick a
-    // zone. This is the answer to "3 windows gets really ugly … how to choose layout
-    // in an easy way" — and it adds no permanent chrome, hanging off a button every
-    // window already has. The window you opened it from takes the zone you clicked.
-    test('the ▢ layout palette opens on hover and applies the zone you pick', async ({ page }) => {
-      await openApp(page, 'files');            // three windows, so Thirds is offered
+    // Snap layouts hang off the TASKBAR icon, not off a window. They started on a
+    // window's ▢ (Windows 11 style) and that was the wrong home: the palette
+    // arranges EVERY window, so a control sitting on window A silently moved B and
+    // C — "all windows can be controlled from another window". Scope matches
+    // location now; ▢ is plain maximize again. See docs/design-decisions.md.
+    test('hovering the taskbar 🗔 opens the layout palette and arranges every window', async ({ page }) => {
+      await openApp(page, 'files');            // three windows, so Thirds/1+2 are offered
       await page.waitForTimeout(600);
 
-      await page.locator('#win-notes .wt-max').hover();
+      await page.locator('#wm-btn').hover();
       const palette = page.locator('#win-layouts');
       await expect(palette).toHaveClass(/open/, { timeout: 3000 });
       const names = await palette.locator('.wl-name').allTextContents();
       expect(names).toContain('Halves');
 
-      // Only layouts that FIT are offered — a portrait/narrow tablet frame cannot
-      // show three 320px columns, so Thirds must be absent exactly there.
+      // Only layouts that FIT are offered — three 320px columns need the room.
       const wide = await page.evaluate(() => {
         const f = document.getElementById('frames').getBoundingClientRect();
         return f.width >= 3 * window.VibeWin.MINW && f.width > f.height;
       });
       expect(names.includes('Thirds')).toBe(wide);
 
-      const opt = palette.locator('.wl-opt').filter({ hasText: 'Halves' });
-      await opt.locator('.wl-zone').nth(1).click();     // right-hand half
+      // The whole tile is one target: this picks a LAYOUT, not a slot for one window.
+      await palette.locator('.wl-opt').filter({ hasText: 'Halves' }).locator('.wl-grid').click();
       await page.waitForTimeout(500);
-      await expect(palette).not.toHaveClass(/open/);    // closes once you choose
+      await expect(palette).not.toHaveClass(/open/);          // closes once you choose
 
-      const g = await geom(page, 'notes');
       const frame = await page.evaluate(() => {
         const f = document.getElementById('frames').getBoundingClientRect();
         return { w: Math.round(f.width), h: Math.round(f.height) };
       });
-      // notes took the RIGHT half: starts about mid-frame, spans the rest.
-      expect(Math.abs(g.left - Math.round(frame.w / 2))).toBeLessThanOrEqual(4);
-      expect(Math.abs(g.width - Math.round(frame.w / 2))).toBeLessThanOrEqual(4);
+      // Two zones, three windows: two are placed and the overflow is minimized.
+      const placed = [];
+      for (const id of ['notes', 'upload', 'files']) {
+        const g = await geom(page, id);
+        if (!g.min) placed.push(g);
+      }
+      expect(placed.length).toBe(2);
+      placed.forEach((g) => expect(Math.abs(g.width - Math.round(frame.w / 2))).toBeLessThanOrEqual(4));
+      expect(placed[0].left).not.toBe(placed[1].left);        // one each side
     });
 
-    test('a plain click on ▢ still maximizes (the palette must not swallow it)', async ({ page }) => {
+    test('▢ is plain maximize — it must not open the palette', async ({ page }) => {
+      await page.locator('#win-notes .wt-max').hover();
+      await page.waitForTimeout(800);
+      await expect(page.locator('#win-layouts')).not.toHaveClass(/open/);
       await page.locator('#win-notes .wt-max').click();
       await page.waitForTimeout(400);
       await expect(page.locator('#win-notes')).toHaveClass(/maximized/);

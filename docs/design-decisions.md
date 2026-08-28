@@ -3674,3 +3674,44 @@ top-drag) — good and familiar, but it is a way to *build* a layout one window 
 time, not to *choose* one, which is what was asked. Worth adding later; it
 composes with this rather than competing. *Cycling layouts on each re-tile* — free
 to build, but you cycle blind and off/on stops being deterministic.
+
+---
+
+## The layout palette belongs to the desktop, not to a window
+
+**Symptom:** *"the control logic is not intuitive, basically all windows can be
+controlled from another window, see the issue?"*
+
+**Cause:** yes — a scope mismatch I introduced one version earlier. The palette
+hung off a **window's** ▢ button (Windows 11's placement), but clicking a zone
+arranged **every** window: the others were auto-assigned to the remaining zones in
+taskbar order. So a control sitting on window A silently moved B and C. Windows 11
+does not do this — it snaps only the window you picked from, then *asks* (snap
+assist) what should fill the other zones. I copied the trigger and skipped the
+asking, which left the action global while its home stayed local.
+
+**Fix:** move the control to match its scope. The palette now hangs off the
+**taskbar 🗔** — hover (420ms intent) or long-press on touch — and **▢ is plain
+maximize again**. A desktop-level action now lives on the desktop-level control.
+
+Consequences of the move, all deliberate:
+
+- The whole layout tile is **one click target**. Per-zone clicking only made sense
+  when the palette belonged to a particular window ("put *this* one here"); a
+  global palette picks a *layout*.
+- The **focused** window takes zone 0 (the main/largest zone), the rest follow in
+  taskbar order, overflow minimized.
+- Tapping 🗔 still toggles: a `held` flag set by the long-press stops the release
+  from also firing the toggle, and `pointercancel` clears it.
+- **Coach banners are removed when the palette opens.** They render at `bottom:60`
+  with `z-index 2147483000` — directly over where the palette appears, and far
+  above it. They are click-through in window mode so they never ate the
+  interaction, but they hid it. A deliberate action beats a passive tip; retiring
+  the banner is better than racing its z-index.
+
+**Rejected** (offered to the user, not chosen): *▢ places only its own window* —
+the most faithful reading of "a control on a window acts on that window", but it
+makes choosing a whole layout an N-step job. *Snap assist* — correct and familiar,
+but a 3-step flow to place 3 windows. *Keep it global and just label the zones with
+window names* — honest about the scope without fixing it; the control would still
+sit on one window while acting on all of them.
