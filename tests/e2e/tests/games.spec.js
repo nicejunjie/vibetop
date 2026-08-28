@@ -8,6 +8,16 @@
 const { test, expect } = require('@playwright/test');
 const { openStartMenu } = require('../helpers');
 
+// v1.19.78: each game auto-opens its How-to-play card on FIRST launch (and a
+// fresh test context is always a first launch) — input is blocked while it
+// shows, so dismiss it before playing.
+async function dismissFirstLaunchHelp(page) {
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+}
+
+
 test.describe('games', () => {
   test('Start menu lists the Games flyout with all three', async ({ page }) => {
     await page.goto('/');
@@ -25,6 +35,7 @@ test.describe('games', () => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     await page.goto('/minesweeper.html');
+    await dismissFirstLaunchHelp(page);
     const cells = page.locator('[data-r][data-c], .cell');
     await expect(cells.first()).toBeVisible();
     const before = await cells.count();
@@ -41,6 +52,7 @@ test.describe('games', () => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     await page.goto('/solitaire.html');
+    await dismissFirstLaunchHelp(page);
     // Klondike deal: 7 tableau columns (#tabrow .col), 28 tableau cards (.pc),
     // exactly one face-up (.pc.up) per column.
     await expect.poll(async () => page.locator('#tabrow .col').count()).toBe(7);
@@ -54,6 +66,7 @@ test.describe('games', () => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     await page.goto('/game2048.html');
+    await dismissFirstLaunchHelp(page);
     await expect(page.locator('.tile').first()).toBeVisible();
     const tilesBefore = await page.locator('.tile').count();
     for (const key of ['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp']) {
