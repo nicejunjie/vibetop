@@ -199,3 +199,26 @@ test("tileCapacity: how many windows a frame can hold at the minimum size", () =
   assert.equal(W.tileCapacity({ w: 1920, h: 987 }), 6 * 4);
   assert.ok(W.tileCapacity({ w: 100, h: 100 }) >= 1);   // never zero
 });
+
+test("zoneAssign: focused takes the main zone, the rest keep taskbar order", () => {
+  assert.deepEqual(W.zoneAssign(["a", "b", "c"], "b", 3, 0), ["b", "a", "c"]);
+  assert.deepEqual(W.zoneAssign(["a", "b", "c"], "a", 3, 0), ["a", "b", "c"]);
+  // steered: a per-zone click sends the focused window to THAT zone
+  assert.deepEqual(W.zoneAssign(["a", "b", "c"], "b", 3, 2), ["a", "c", "b"]);
+  assert.deepEqual(W.zoneAssign(["a", "b", "c"], "a", 3, 1), ["b", "a", "c"]);
+});
+
+test("zoneAssign: no visible focused window -> plain taskbar order", () => {
+  assert.deepEqual(W.zoneAssign(["a", "b", "c"], null, 3, 2), ["a", "b", "c"]);
+  assert.deepEqual(W.zoneAssign(["a", "b", "c"], "ghost", 3, 1), ["a", "b", "c"]);
+});
+
+test("zoneAssign: clamps the zone index and leaves overflow out", () => {
+  // out-of-range main zone clamps to the last zone
+  assert.deepEqual(W.zoneAssign(["a", "b"], "a", 2, 99), ["b", "a"]);
+  assert.deepEqual(W.zoneAssign(["a", "b"], "a", 2, -5), ["a", "b"]);
+  // more windows than zones: the extras are simply not assigned (caller minimizes)
+  assert.deepEqual(W.zoneAssign(["a", "b", "c", "d"], "c", 3, 0), ["c", "a", "b"]);
+  // fewer windows than zones never assigns undefined slots
+  assert.deepEqual(W.zoneAssign(["a", "b"], "b", 3, 0), ["b", "a"]);
+});

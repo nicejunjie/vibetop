@@ -598,19 +598,25 @@
     position: relative; width: 78px; height: 50px; border-radius: 5px; cursor: pointer;
     background: #10151d; border: 1px solid #2f3a4a; transition: border-color .12s;
   }
-  /* The whole tile is one target — this palette picks a LAYOUT, not a slot for a
-     particular window, so every zone lights together and the zones themselves are
-     inert to the pointer. */
+  /* Each zone previews the window that will land in it (its app icon), so the
+     "who gets the big zone?" rule is visible before the click. Zones take the
+     pointer: hovering one previews the focused window THERE (the icons repaint),
+     and clicking commits what is shown — the tile as a whole still applies the
+     default (focused → zone 0), so the one-click behavior is unchanged. */
   #win-layouts .wl-zone {
     position: absolute; background: #33415a; border-radius: 3px;
-    pointer-events: none; transition: background .12s;
+    transition: background .12s; cursor: pointer; user-select: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; line-height: 1; overflow: hidden; color: #dfe7f0;
   }
   #win-layouts .wl-grid:hover { border-color: #d2691e; }
-  #win-layouts .wl-grid:hover .wl-zone { background: #d2691e; }
+  #win-layouts .wl-grid:hover .wl-zone { background: #b25a1a; }
+  #win-layouts .wl-zone:hover { background: #d2691e; }
   #win-layouts .wl-grid:hover + .wl-name { color: #e8eef5; }
   #win-layouts .wl-name { font-size: 10px; color: #8a9aaa; letter-spacing: .2px; }
   /* Touch needs the zones big enough to hit individually. */
   body.is-touch #win-layouts .wl-grid { width: 104px; height: 66px; }
+  body.is-touch #win-layouts .wl-zone { font-size: 15px; }
 
   /* snap preview — where a title-bar drag will drop the window (half / maximize) */
   #win-snap {
@@ -1203,20 +1209,20 @@
   var layoutsEl = document.getElementById('win-layouts');
   var layoutHideT = null, layoutHoverT = null;
 
-  // Apply a whole layout: the FOCUSED window takes zone 0 (the main one), the rest
-  // follow in taskbar order, and anything past the last zone is minimized — the
-  // same rule tidyWindows() uses, because overlapping tiles put one window's
-  // ×/▢/– on top of its neighbour's.
-  function applyLayout(key) {
+  // Apply a whole layout: the FOCUSED window takes `mainZone` — zone 0, the main
+  // one, unless a per-zone click in the palette said otherwise — the rest follow
+  // in taskbar order, and anything past the last zone is minimized (same rule as
+  // tidyWindows(), because overlapping tiles put one window's ×/▢/– on top of its
+  // neighbour's). The assignment comes from VibeWin.zoneAssign, the same pure
+  // function the palette preview paints from, so what you saw IS what you get.
+  function applyLayout(key, mainZone) {
     var zones = window.VibeWin && VibeWin.layoutGeoms(key, frameBox());
     if (!zones) return;
     var vis = openApps.filter(function (id) { return !(wins[id] && wins[id].min); });
     if (!vis.length) return;
-    var order = (active && vis.indexOf(active) !== -1)
-      ? [active].concat(vis.filter(function (id) { return id !== active; }))
-      : vis.slice();
-    order.slice(zones.length).forEach(function (id) { winGeom(id).min = true; });
-    order.slice(0, zones.length).forEach(function (id, i) {
+    var assign = VibeWin.zoneAssign(vis, active, zones.length, mainZone || 0);
+    vis.forEach(function (id) { if (assign.indexOf(id) === -1) winGeom(id).min = true; });
+    assign.forEach(function (id, i) {
       var g = winGeom(id), z = zones[i];
       g.max = false; g.prev = null; g.min = false;
       g.left = z.left; g.top = z.top; g.width = z.width; g.height = z.height;
@@ -1224,7 +1230,7 @@
     });
     hideLayouts();
     renderWindows(); renderTaskbar();
-    order.slice(0, zones.length).forEach(nudgeResize);
+    assign.forEach(nudgeResize);
     saveWins();
   }
 
@@ -1251,23 +1257,47 @@
     var tip = document.querySelector('.vibe-coach');
     if (tip) { try { tip.remove(); } catch (e) {} }
     layoutsEl.innerHTML = '';
+    var focusedLabel = (APPS[active] && APPS[active].label) || 'the focused window';
     opts.forEach(function (L) {
       var opt = document.createElement('div'); opt.className = 'wl-opt';
-      // The whole tile is ONE click target: this palette picks a LAYOUT, not a slot
-      // for a particular window. (Per-zone clicking only made sense back when it
-      // hung off one window's title bar.)
+      // Each zone PREVIEWS the window that will land in it (its app icon), so
+      // "which one gets the big zone?" is answered before any click. Pointing at
+      // a zone steers: hover previews the focused window THERE (the rest refill
+      // in taskbar order — VibeWin.zoneAssign, the same function applyLayout
+      // uses, so the preview cannot lie), and the click commits exactly what is
+      // shown. A click on the tile's border pixels keeps the default (focused →
+      // zone 0). Touch has no hover: the tile shows the default assignment and
+      // tapping a zone steers the same way.
       var grid = document.createElement('div'); grid.className = 'wl-grid';
       grid.title = L.name + ' — arrange every window like this';
-      L.zones.forEach(function (z) {
+      var zoneEls = [];
+      L.zones.forEach(function (z, j) {
         var cell = document.createElement('div');
         cell.className = 'wl-zone';
+        cell.dataset.zone = j;
         cell.style.left = 'calc(' + (z[0] * 100) + '% + 1px)';
         cell.style.top = 'calc(' + (z[1] * 100) + '% + 1px)';
         cell.style.width = 'calc(' + (z[2] * 100) + '% - 2px)';
         cell.style.height = 'calc(' + (z[3] * 100) + '% - 2px)';
-        grid.appendChild(cell);
+        grid.appendChild(cell); zoneEls.push(cell);
       });
-      grid.addEventListener('click', function (e) { e.stopPropagation(); applyLayout(L.key); });
+      var paint = function (main) {
+        var assign = VibeWin.zoneAssign(vis, active, L.zones.length, main);
+        zoneEls.forEach(function (cell, j) {
+          var app = APPS[assign[j]];
+          cell.textContent = app ? app.icon : '';
+          cell.title = (assign[j] === active)
+            ? L.name + ' with ' + focusedLabel + ' here'
+            : 'Put ' + focusedLabel + ' here instead';
+        });
+      };
+      paint(0);
+      zoneEls.forEach(function (cell, j) {
+        cell.addEventListener('mouseenter', function () { paint(j); });
+        cell.addEventListener('click', function (e) { e.stopPropagation(); applyLayout(L.key, j); });
+      });
+      grid.addEventListener('mouseleave', function () { paint(0); });
+      grid.addEventListener('click', function (e) { e.stopPropagation(); applyLayout(L.key, 0); });
       var nm = document.createElement('div'); nm.className = 'wl-name'; nm.textContent = L.name;
       opt.appendChild(grid); opt.appendChild(nm);
       layoutsEl.appendChild(opt);

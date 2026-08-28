@@ -3726,3 +3726,51 @@ match, which also drops 4-zone layouts for 3 windows (they would leave a hole).
 Counts with no matching layout — 1 window, or 5+ — offer nothing and the palette
 does not open; tap-off/tap-on for an even split still covers them. If that silence
 becomes a nuisance, the fix is more layouts (a 1+3, a 2×3), not a looser filter.
+
+---
+
+## "Which one is the one in 1 + 2?" — the palette previews, pointing steers
+
+**Symptom:** *"for 3 windows, how do I choose which one is the one in 1+2?"* The
+rule existed — the focused window takes zone 0, the main zone — but it was
+invisible: nothing in the palette said what would happen, and there was no way to
+see or steer the assignment before committing. Same question for Thirds
+(who ends up left/middle/right) and any future asymmetric layout.
+
+**Fix (v1.19.48):** one rule, made visible and steerable in place.
+
+- **Every zone in a palette tile previews the app icon of the window that will
+  land there** (focused → zone 0, rest in taskbar order). The moment the palette
+  opens, "who gets the big zone" is answered — before any click.
+- **Pointing steers.** Hovering a zone previews the focused window *there*
+  instead (the icons repaint, the rest refill in taskbar order); clicking a zone
+  commits exactly what is shown. Windows-11 users already know zone-clicking
+  from Snap Layouts. A click on the tile's border pixels keeps the default, so
+  the pre-existing one-click behavior is the degenerate case, unchanged.
+- **Touch** (no hover): the tile shows the default assignment; tapping a zone
+  steers the same way. No new gesture — long-press already opens the palette.
+- To make a *different* window the big one, focus it first (its taskbar button)
+  — the preview then shows it in zone 0. That is the old rule made legible, not
+  a new concept.
+
+**Mechanism:** preview and placement share one pure function,
+`VibeWin.zoneAssign(ids, focusedId, zoneCount, mainZone)` (unit-tested), called
+by both the tile painter and `applyLayout(key, mainZone)` — so the preview
+cannot lie. Zones went from `pointer-events: none` decorations to the actual
+click targets; the hovered zone gets the full accent while its siblings dim to a
+darker shade of it.
+
+**Why the two old objections don't apply:** "label the zones with window names"
+and per-zone clicking were both rejected while the palette hung off ONE window's
+▢ — the objection was the scope lie (a control on window A silently moving B and
+C), not the interaction. On the desktop-level 🗔 the scope is honest, and the
+preview + zone-click are exactly the legibility that was missing.
+
+**Rejected now:**
+- *Drag a taskbar app button onto a zone* — direct, but collides with the
+  taskbar's existing drag-to-reorder and is fiddly on touch.
+- *Post-hoc swap (drag one title bar onto another)* — a second concept to learn,
+  and it fixes the arrangement after the fact instead of making the choice
+  legible before it.
+- *A "main window" picker control* — new permanent chrome; dead on arrival after
+  the one-icon fight.

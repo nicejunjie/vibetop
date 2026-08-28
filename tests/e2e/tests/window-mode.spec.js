@@ -548,6 +548,65 @@ test.describe('window mode', () => {
       }
     });
 
+    // "For 3 windows, how do I choose which one is the one in 1+2?" — the palette
+    // answers it in place: each zone previews the icon of the window that will
+    // land there (focused → zone 0, rest in taskbar order), hovering a zone
+    // previews the focused window THERE instead, and clicking a zone commits
+    // exactly what is shown. Preview and placement share VibeWin.zoneAssign, so
+    // the preview cannot lie.
+    test('the palette previews who goes where, and clicking a zone steers the focused window', async ({ page }) => {
+      await openApp(page, 'files');            // notes, upload, files -> three windows
+      await page.waitForTimeout(600);
+      const offered = await page.evaluate(() => {
+        const f = document.getElementById('frames').getBoundingClientRect();
+        return window.VibeWin.layoutsFor({ w: Math.round(f.width), h: Math.round(f.height) }, 3)
+          .map((l) => l.key);
+      });
+      test.skip(!offered.length, 'no 3-window layout fits this lane');
+
+      // Focus notes (it is not focused — files was opened last), so the expected
+      // assignment is deterministic: notes must preview in zone 0.
+      await page.locator('#task-apps .task-app[data-id="notes"]').click();
+      await page.waitForTimeout(300);
+
+      await page.locator('#wm-btn').hover();
+      const palette = page.locator('#win-layouts');
+      await expect(palette).toHaveClass(/open/, { timeout: 3000 });
+      const grid = palette.locator('.wl-opt').first().locator('.wl-grid');
+      const zone = (j) => grid.locator(`.wl-zone[data-zone="${j}"]`);
+
+      const notesIcon = await page.evaluate(() =>
+        document.querySelector('#task-apps .task-app[data-id="notes"] .icon').textContent);
+
+      // Preview truth: the focused window's icon sits in the main zone, and every
+      // zone carries some window's icon.
+      await expect(zone(0)).toHaveText(notesIcon);
+      for (let j = 0; j < 3; j++) await expect(zone(j)).not.toHaveText('');
+
+      // Hovering zone 1 previews the focused window THERE...
+      await zone(1).hover();
+      await expect(zone(1)).toHaveText(notesIcon);
+
+      // ...and clicking commits it: notes lands exactly in zone 1's geometry.
+      const zones = await page.evaluate((key) => {
+        const f = document.getElementById('frames').getBoundingClientRect();
+        return window.VibeWin.layoutGeoms(key, { w: Math.round(f.width), h: Math.round(f.height) });
+      }, offered[0]);
+      const fr = await page.evaluate(() => {
+        const r = document.getElementById('frames').getBoundingClientRect();
+        return { left: Math.round(r.left), top: Math.round(r.top) };
+      });
+      await zone(1).click();
+      await page.waitForTimeout(500);
+      await expect(palette).not.toHaveClass(/open/);
+      const g = await geom(page, 'notes');
+      expect(Math.abs(g.left - (fr.left + zones[1].left))).toBeLessThanOrEqual(2);
+      expect(Math.abs(g.top - (fr.top + zones[1].top))).toBeLessThanOrEqual(2);
+      expect(Math.abs(g.width - zones[1].width)).toBeLessThanOrEqual(2);
+      expect(Math.abs(g.height - zones[1].height)).toBeLessThanOrEqual(2);
+      expect(g.focused, 'the steered window keeps focus').toBe(true);
+    });
+
     test('▢ is plain maximize — it must not open the palette', async ({ page }) => {
       await page.locator('#win-notes .wt-max').hover();
       await page.waitForTimeout(800);

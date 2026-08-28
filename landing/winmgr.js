@@ -153,6 +153,25 @@
     return out;
   }
 
+  // ---- Zone assignment ------------------------------------------------------
+  // Which window lands in which zone: `ids` are the visible windows in taskbar
+  // order, and the focused one (when present) takes `mainZone` — zone 0, the
+  // main zone, unless a per-zone click said otherwise — with the rest filling
+  // the remaining zones in taskbar order. Windows past the zone count are left
+  // out; the caller minimizes them (layoutsFor makes the counts match, this
+  // merely stays robust). Pure, so the palette PREVIEW and the actual placement
+  // share one truth and cannot drift apart.
+  function zoneAssign(ids, focusedId, zoneCount, mainZone) {
+    var n = Math.min(zoneCount, ids.length);
+    var focused = ids.indexOf(focusedId) !== -1 ? focusedId : null;
+    var main = focused === null ? 0 : Math.max(0, Math.min(n - 1, mainZone || 0));
+    var rest = [], out = new Array(n), i, z, k = 0;
+    for (i = 0; i < ids.length; i++) if (ids[i] !== focused) rest.push(ids[i]);
+    if (focused !== null) out[main] = focused;
+    for (z = 0; z < n; z++) if (out[z] === undefined) out[z] = rest[k++];
+    return out;
+  }
+
   // How many windows this box can tile at the minimum window size. Above it,
   // tiling is impossible without overlap (the minimum is a hard floor — the
   // caller clamps every tile up to it, so a grid that asks for more columns than
@@ -165,6 +184,7 @@
   var api = { clampGeom: clampGeom, resizeGeom: resizeGeom, defaultGeom: defaultGeom,
               snapTarget: snapTarget, tileGrid: tileGrid, tileCapacity: tileCapacity,
               LAYOUTS: LAYOUTS, layoutGeoms: layoutGeoms, layoutsFor: layoutsFor,
+              zoneAssign: zoneAssign,
               MINW: MINW, MINH: MINH };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VibeWin = api;
