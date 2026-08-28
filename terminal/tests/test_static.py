@@ -414,23 +414,39 @@ def test_nginx_conf_string_has_no_backticks():
         + "\n  ".join(bad))
 
 
-def test_keybar_occlusion_chain_is_intact():
-    """The fix for "the key bar covers the line you type on" spans THREE files:
-    the desktop measures the overlap (only it can — a nested iframe's
-    visualViewport never shrinks for the keyboard), terminals.html relays it, and
-    terminal-kbd.js scrolls by it. Break any link and the symptom returns
-    silently, with no error anywhere. See docs/design-decisions.md."""
+def test_keybar_lift_chain_is_intact():
+    """The fix for "the key bar covers the line you type on" is now ONE writer:
+    the desktop computes bar top AND lift from a single instantaneous viewport
+    reading (VibeKeybar.compute, landing/keybar.js) and applies the lift itself
+    as a translateY on terminals.html's .frames — reached same-origin through
+    __activeTermFrame. Nothing is relayed to /tN/ and /tN/ never scrolls; every
+    relayed-figure design desynced when iOS flipped viewport regimes (the
+    per-tab under/over-scroll bug). Break any link and the symptom returns
+    silently. See docs/design-decisions.md, the key-bar saga."""
     desktop = open(os.path.join(_REPO, "landing", "desktop.html")).read()
     relay = open(os.path.join(_REPO, "terminal", "terminals.html")).read()
     kbd = open(os.path.join(_REPO, "terminal", "terminal-kbd.js")).read()
+    keybar = open(os.path.join(_REPO, "landing", "keybar.js")).read()
 
-    assert "function occlusionOver" in desktop and "postOcclusion" in desktop, \
-        "desktop.html no longer measures/posts the key-bar occlusion"
-    assert "'kbd-occlusion'" in desktop, "desktop.html posts no kbd-occlusion message"
-    assert "kbd-occlusion" in relay and "relayOcclusion" in relay, \
-        "terminals.html no longer relays kbd-occlusion down to the active /tN/"
-    assert "kbd-occlusion" in kbd and "occludedPx" in kbd, \
-        "terminal-kbd.js no longer consumes the occlusion"
+    assert "VibeKeybar" in keybar and "function compute" in keybar, \
+        "keybar.js no longer provides VibeKeybar.compute (the pure bar+lift math)"
+    assert 'src="/keybar.js"' in desktop and "VibeKeybar.compute" in desktop, \
+        "desktop.html no longer loads/uses the keybar math"
+    assert "applyLift" in desktop and "translateY" in desktop, \
+        "desktop.html no longer applies the keyboard lift itself"
+    assert "__activeTermFrame" in desktop and "__activeTermFrame" in relay, \
+        "the same-origin active-terminal accessor is broken on one side"
+    assert "__syncKeybar" in relay, \
+        "terminals.html no longer nudges the desktop on a tab switch"
+    # The relayed-occlusion protocol must STAY deleted: a figure relayed across
+    # frames goes stale the moment iOS flips viewport regimes, which is exactly
+    # the divergent per-tab scroll bug (v1.19.63-.84).
+    for name, src in (("desktop.html", desktop), ("terminals.html", relay),
+                      ("terminal-kbd.js", kbd)):
+        assert "kbd-occlusion" not in src, \
+            f"{name} resurrects the relayed kbd-occlusion protocol"
+    assert "scrollTop = want" not in kbd and "se.scrollTop =" not in kbd, \
+        "terminal-kbd.js scrolls its document again — the lift owns that now"
     # The open-loop constant must stay gone: it compensated a distance that is not
     # constant (measured 53px on one iPhone) and depended on an iOS reveal-scroll
     # that a single TUI repaint destroyed.

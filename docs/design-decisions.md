@@ -3358,6 +3358,89 @@ slightly-wrong position), never toward NO service — and the field monitor
 only watched for wrong values, not for the feature's absence, which is why
 this shipped unseen.
 
+**FINAL (v1.19.85): the whole tower is replaced — one reading, one writer.**
+Eight fixes (v1.19.63–.84) each patched the delivery of a measured occlusion
+figure; the beacons finally showed the figure itself could never be delivered
+correctly, because of one fact every heuristic contradicted:
+
+*With the keyboard up, iOS dwells — seconds at a time, flipping indefinitely —
+in TWO legitimate coordinate regimes* (all numbers from the manager log):
+
+| | big-window | shell-scrolled |
+|---|---|---|
+| innerHeight / vvTop / vvH | 894 / 0 / ~480 | 655 / 239 / ~508 (ih+vvTop == 894) |
+| terminal frame rect.bottom | 806 | 567 (in-flow rects shift up by vvTop) |
+| true occlusion | ~376 | ≤ 0 — the frame sits above the keyboard |
+| correct bar top | 430 | 697 (`vvTop+vvH−BAR_H` in BOTH — fixed elements shift with the scroll, so both paint flush above the keyboard) |
+
+Every instantaneous reading is CORRECT *in its regime*. Two consequences
+killed every prior design:
+
+1. **A figure relayed across frames is stale the moment the regime flips.**
+   `/tN/` scroll applied under big-window (376) persisted into shell-scrolled →
+   the active line sat ~370px above the bar (IMG_9292); the reverse parked it
+   under the keyboard (IMG_9293). Per-tab copies diverged further. Settling,
+   dedupe-busting, pulls, asymmetric holds — all fought the staleness; none
+   could remove it.
+2. **Any value learned in one regime and applied in the other is garbage.**
+   vvBottom is 480 in one regime and ~750 in the other — *not* a device
+   constant. v347's "anchor ±60px clamp" learned 753 while shell-scrolled,
+   then clamped a correct big-window 480 to 693 → bar mid-screen at 643,
+   occlusion 163 (both in the log).
+
+*Fix — `landing/keybar.js` + one writer:* the desktop computes bar top AND a
+**lift** from ONE instantaneous reading (`VibeKeybar.compute`, pure,
+unit-tested in `keybar.test.js` against the recorded regimes) and applies both
+itself in the same turn — the lift as `translateY` on `terminals.html`'s
+`.frames`, reached same-origin. `lift = clamp0(min(frameBottom,
+lastNonBlankRowBottom + 4) − barTop)`; the last-non-blank row is read
+synchronously through the frame chain (desktop → `__activeTermFrame()` →
+`window.term`) — stable across TUI repaints (a full screen stays full while
+Claude Code parks the cursor at the top), unlike cursorY; a 1.2s decaying max
+(kept frame-relative, so it cannot mix regimes) bridges transient blanks; a
+failed read falls back to the frame bottom (over-lift = degraded, never
+hidden). Refresh: vv events + a 300ms tick while the bar shows + a direct
+`parent.__syncKeybar()` nudge from `terminals.html`'s `activate()`.
+
+Why each invariant now holds: the bar shows whenever the height check says
+keyboard-up — no gate can reject an event, and both regimes agree on
+`vvTop+vvH−BAR_H`. The lift and bar come from the same subtraction, so they
+cannot disagree; regime flips recompute both coherently (big-window → 376,
+shell-scrolled → 0 with the content fully visible anyway). There is NO
+per-tab state (one transform on the shared container), nothing for a `/tN/`
+reload to reset, nothing for a PWA resume to poison except the no-keyboard
+baseline — which IS a device constant and stays persisted per orientation.
+The jump-to-top transient is gone at both sources: `/tN/` documents are now
+exactly frame-height (no scroll range at all — `positionCaret` only parks the
+caret, clamped inside the box), and the lift lands synchronously on the first
+keyboard-animation event, so iOS's reveal-scroll finds the caret already
+visible and has nothing to fight (a 120ms transform ease glides the rest).
+Bonus fix: a fresh terminal with one prompt line at the TOP is no longer
+lifted off-screen (content bottom governs, not frame bottom — a latent bug in
+every scroll-based revision).
+
+**Deleted:** postOcclusion/postSettled/ZERO_HOLD/dedupe, quorum samples +
+anchor + persisted anchor prior + ±60 clamp, `__repostOcclusion`, the
+`kbd-occlusion`/`kbd-occlusion-req`/`kbd-bar` relay protocol, `/tN/`'s
+KBD_OCCLUSION/occludedPx/overlay overhang/document scrolling.
+`test_keybar_lift_chain_is_intact` pins the new chain AND that the relay
+protocol stays deleted; `tests/kbd/keybar-occlusion.mjs` (rewritten) proves
+the lift against a real terminal: content clear of the bar through repaint
+storms, `/tN/` scrollTop pinned 0, fresh terminals unlifted.
+
+**Accepted degradations, chosen:** a standalone `/tN/` opened outside the
+desktop shell loses the lift (unsupported surface; iOS's native caret reveal
+still helps until the first TUI repaint); during iOS's own regime-flip
+animation the bar/content ride the intermediates for a few hundred ms
+(converging — never frozen, never hidden).
+
+*Lesson, and the reason the tower had to die whole:* when a platform reports
+multiple self-consistent realities in alternation, the only stable design is
+to make every output a pure function of one instantaneous reading and apply
+it atomically — any state carried across readings (relayed figures, learned
+anchors, settle timers, per-receiver copies) eventually pairs one regime's
+number with the other regime's screen.
+
 ---
 
 ## "Still cannot resize from left or right" — the tile gutter belonged to nobody

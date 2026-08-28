@@ -956,6 +956,7 @@
   <script src="/vibe-modal.js"></script>
   <script src="/coach.js"></script>
   <script src="/winmgr.js"></script>
+  <script src="/keybar.js"></script>
   <script src="/apph.js"></script>
 </head>
 <body>
@@ -2115,98 +2116,116 @@
     }
     hint.addEventListener('click', function () { dismissHint(true); });
 
-    // iOS keyboard detection. CONFIRMED ON-DEVICE: when the keyboard opens, BOTH
-    // window.innerHeight AND visualViewport.height shrink to the visible area
-    // (796 -> 476), so `innerHeight - vv.height` is ALWAYS ~0 and useless. The
-    // real signal is the ABSOLUTE visible height dropping below its no-keyboard
-    // baseline. We then pin the bar at the visual viewport's bottom edge (= the
-    // keyboard top). One top-level signal covers the Terminal AND the Browser.
-    // How much of an app's frame this bar is sitting on top of. Only the DESKTOP can
-    // work this out: the terminal is two frames down, and a nested iframe's own
-    // visualViewport does NOT shrink for the soft keyboard, so from in there the
-    // frame looks fully visible right down to its last row. We measure it here and
-    // post it; terminal-kbd.js scrolls the prompt clear of exactly this many px.
+    // iOS keyboard detection + the keyboard LIFT. CONFIRMED ON-DEVICE via the
+    // /api/client-debug field beacons (docs/design-decisions.md, key-bar saga):
+    // with the keyboard up iOS dwells in TWO legitimate coordinate regimes and
+    // flips between them for the whole session —
+    //   big-window     (ih 894, vvTop 0,  vvH ~480): frame runs under the
+    //                  keyboard; occlusion real (~376).
+    //   shell-scrolled (ih 655, vvTop 239, vvH ~508; ih+vvTop == baseline):
+    //                  iOS reveal-scrolled the page; every in-flow rect shifts
+    //                  up by vvTop; the frame sits fully above the keyboard.
+    // In BOTH, the bar belongs at vvTop+vvH-BAR_H (fixed elements shift with
+    // the shell scroll, so that paints flush above the keyboard either way),
+    // and the lift falls out of the same subtraction against the frame's LIVE
+    // rect. So: ONE instantaneous reading -> VibeKeybar.compute -> bar AND lift
+    // applied in the SAME turn, by THIS frame. Nothing is relayed to /tN/ and
+    // nothing is learned across regimes — every previous failure here was one
+    // of those two (a relayed figure goes stale the moment iOS flips regimes;
+    // a learned "keyboard top" mixes regimes, since vvBottom is 480 in one and
+    // ~750 in the other).
     //
-    // This replaces a fixed 64px pre-compensation that assumed iOS would reveal-
-    // scroll the prompt for us. It did not, and the distance was never a constant:
-    // measured on an iPhone it was 53px, and it moves with --app-h, the taskbar,
-    // BAR_H and iOS's own accessory row. See docs/design-decisions.md.
-    function occlusionOver(appId, barTop) {
-      var f = frameOf(appId);
-      if (!f) return 0;
-      var r = f.getBoundingClientRect();
-      return Math.max(0, r.bottom - barTop);
-    }
-    var lastOcc = -1;
-    function postOcclusion(px) {
-      px = Math.round(px);
-      if (px === lastOcc) return;          // syncBar fires on every vv scroll/resize
-      lastOcc = px;
-      var f = frameOf('terminal');
-      if (f && f.contentWindow) {
-        try { f.contentWindow.postMessage({ type: 'kbd-occlusion', px: px }, '*'); } catch (e) {}
-      }
-    }
-    // ASYMMETRIC posting. With the keyboard up, iOS flaps between viewport
-    // states for the whole session (measured live via /api/client-debug on the
-    // reporting iPhone): keyboard-shrunk readings (vvH 480, occlusion 348-376)
-    // interleaved with full-height and scrolled/resized readings (vvH 894, or
-    // ih 609/vvTop 285 — occlusion 0). Posting every flip made /tN/'s scroll
-    // follow the race; a SYMMETRIC 260ms settle then failed the other way —
-    // the 0-states held longer than the shrunk states, so the nonzero figure
-    // NEVER settled and only 0s were ever delivered (the "active line covered"
-    // bug, ~10 reports). The two directions are not symmetric in harm: an
-    // over-applied NONZERO merely scrolls the prompt higher than needed (still
-    // visible, self-correcting on the next post), while an over-applied ZERO
-    // parks the active line under the bar/keyboard. So: nonzero posts
-    // IMMEDIATELY; zero must HOLD for ZERO_HOLD_MS (a genuine keyboard close
-    // easily does; a flap never does) before it is sent.
-    var ZERO_HOLD_MS = 1200;
-    var zeroTimer = null;
-    function postSettled(px) {
-      px = Math.round(px);
-      if (px > 0) {
-        if (zeroTimer) { clearTimeout(zeroTimer); zeroTimer = null; }
-        dbgBeacon('post', { px: px });
-        postOcclusion(px);
-      } else if (!zeroTimer) {
-        zeroTimer = setTimeout(function() {
-          zeroTimer = null;
-          dbgBeacon('post', { px: 0 });
-          postOcclusion(0);
-        }, ZERO_HOLD_MS);
-      }
-    }
-    function curH() { var vv = window.visualViewport; return vv ? vv.height : window.innerHeight; }
+    // The lift itself is a translateY on terminals.html's `.frames` container
+    // (same-origin reach-in). That placement is the point: ALL /tN/ tabs sit in
+    // the one lifted container, so per-tab scroll divergence cannot exist; a
+    // /tN/ reload changes nothing (the lift lives outside it); the tab bar
+    // stays visible; and the /tN/ documents never scroll at all.
+    var curH = function () { var vv = window.visualViewport; return vv ? vv.height : window.innerHeight; };
     function vvBottom() { var vv = window.visualViewport; return vv ? (vv.offsetTop + vv.height) : window.innerHeight; }
     var baseH = curH();
     var baseW = window.innerWidth;
     var wasUp = false;
-    var kbSamples = [];   // recent sane keyboard-up vvBottom readings (quorum buffer)
-    var kbAnchor = 0;     // quorum-confirmed keyboard-top; 0 = none yet this orientation
-    var kbPrior = 0;      // last confirmed anchor from ANY session (persisted per width)
-    // PERSISTED PRIORS — the no-keyboard height AND the keyboard-top are device
-    // constants per orientation, so remember them. Without the baseH prior, a
-    // PWA resumed WITH the keyboard up measures its shrunken viewport as the
-    // baseline: the sanity floor collapses (0.4×508 instead of 0.4×894) and an
-    // animation-intermediate reading walks straight through, drawing the bar
-    // MID-SCREEN and freezing there when the resting state is gate-rejected
-    // (the reported screenshot). With priors, every session starts with last
-    // session's truth.
+    // PERSISTED BASELINE — the no-keyboard height IS a device constant per
+    // orientation, so remember it. Without it, a PWA resumed WITH the keyboard
+    // up measures its shrunken viewport as the baseline and the bar can't show
+    // until the keyboard is closed once. (The keyboard-top anchor prior that
+    // used to sit beside this is gone on purpose: vvBottom is per-REGIME, not
+    // a device constant — clamping one regime's reading to the other's learned
+    // value is what drew the bar mid-screen in v347.)
     function priorsLoad() {
-      try {
-        baseH = Math.max(baseH, +localStorage.getItem('vibetop:kbBase:' + baseW) || 0);
-        kbPrior = +localStorage.getItem('vibetop:kbA:' + baseW) || 0;
-      } catch (e) {}
+      try { baseH = Math.max(baseH, +localStorage.getItem('vibetop:kbBase:' + baseW) || 0); } catch (e) {}
     }
     function priorsSaveBase() {
       try { localStorage.setItem('vibetop:kbBase:' + baseW, String(Math.round(baseH))); } catch (e) {}
     }
-    function priorsSaveAnchor(v) {
-      kbPrior = v;
-      try { localStorage.setItem('vibetop:kbA:' + baseW, String(Math.round(v))); } catch (e) {}
-    }
     priorsLoad();
+    // --- the lift ---------------------------------------------------------
+    // Bottom of the active terminal's last NON-BLANK row, as a top-frame
+    // client Y — read synchronously through the same-origin frame chain
+    // (desktop -> terminals.html __activeTermFrame() -> /tN/ window.term).
+    // Last-non-blank is stable across TUI repaints (a full screen stays full
+    // even while Claude Code parks the cursor at the top mid-render), unlike
+    // cursorY — deriving from the cursor was rejected for exactly that jitter.
+    // A short decaying MAX (per tab, in frame-RELATIVE coords so it can never
+    // mix iOS regimes) bridges a transient blank frame; null (chain not ready)
+    // makes compute() fall back to the frame bottom — over-lift, the safe
+    // direction. This is also what keeps a FRESH terminal sane: one prompt
+    // line at the top -> contentBottom tiny -> lift 0 -> the prompt stays
+    // where you can see it (the frame-bottom-only rule would shove it
+    // off-screen).
+    var extent = { v: 0, t: 0, src: null };
+    function termContentBottom(appRect) {
+      try {
+        var f = frameOf('terminal');
+        var tw = f.contentWindow;
+        var af = tw.__activeTermFrame && tw.__activeTermFrame();
+        if (!af) return null;
+        var t = af.contentWindow && af.contentWindow.term;
+        if (!t || !t.element || !t.buffer) return null;
+        var scr = t.element.querySelector('.xterm-screen') || t.element;
+        var sr = scr.getBoundingClientRect();          // /tN/-internal coords: transform-free
+        var rows = t.rows || 24, rh = sr.height / rows;
+        var buf = t.buffer.active, vpY = buf.viewportY || 0;
+        var last = -1;
+        for (var ri = rows - 1; ri >= 0; ri--) {
+          var ln = buf.getLine(vpY + ri);
+          if (ln && ln.translateToString(true) !== '') { last = ri; break; }
+        }
+        // .frames' layout offset (offsetTop ignores the transform on purpose —
+        // measuring through the live transform would feed the current output
+        // into the next input, the v1.19.14 ratchet class of bug).
+        var framesTop = (af.parentElement && af.parentElement.offsetTop) || 0;
+        var rel = framesTop + sr.top + (last + 1) * rh;   // frame-RELATIVE: regime-proof
+        var now = Date.now();
+        if (af !== extent.src) { extent.src = af; extent.v = 0; extent.t = 0; }
+        if (rel >= extent.v || now - extent.t > 1200) { extent.v = rel; extent.t = now; }
+        return appRect.top + extent.v;
+      } catch (e) { return null; }
+    }
+    // Apply the lift. Reads NOTHING back from the transform (see above); the
+    // style-diff check makes it idempotent, and a terminals.html reload resets
+    // the transform with the element, which the next write restores.
+    function applyLift(px) {
+      px = Math.max(0, Math.round(px));
+      var el = null;
+      try {
+        var f = frameOf('terminal');
+        el = f && f.contentWindow && f.contentWindow.document &&
+             f.contentWindow.document.querySelector('.frames');
+      } catch (e) {}
+      if (!el) return;
+      var want = px ? 'translateY(-' + px + 'px)' : '';
+      if (el.style.transform !== want) {
+        if (!el.style.transition) el.style.transition = 'transform .12s ease-out';
+        el.style.transform = want;
+      }
+    }
+    // Recompute while the bar is up (the TUI keeps printing, so the content
+    // bottom moves; also self-heals a write that landed before terminals.html
+    // was ready). Idempotent — applyLift/bar writes no-op when nothing changed.
+    var tickT = null;
+    function armTick() { if (!tickT) tickT = setInterval(syncBar, 300); }
+    function disarmTick() { if (tickT) { clearInterval(tickT); tickT = null; } }
     // Field instrumentation for the recurring key-bar-covers-the-prompt bug:
     // report the SHELL's measured geometry to the manager log (POST
     // /api/client-debug) so an on-device repro can be read server-side.
@@ -2238,13 +2257,32 @@
       // Without this, baseH only ever grew, so after an iPad was ever in a TALLER
       // orientation the shorter one read as "keyboard up" forever (bar stuck on).
       var w = window.innerWidth;
-      if (w !== baseW) {   // rotation: keyboard height differs — reload that orientation's priors
-        baseW = w; baseH = 0; kbAnchor = 0; kbPrior = 0; kbSamples.length = 0;
-        priorsLoad();
-      }
+      if (w !== baseW) { baseW = w; baseH = 0; priorsLoad(); }
       var h = curH();
       if (h > baseH) { baseH = h; priorsSaveBase(); }   // taller reading -> new baseline, remembered
-      var kbUp = h < baseH - 150;           // keyboard ~300px; URL bar ~60px; 150 distinguishes them
+      var f = frameOf('terminal');
+      var r = null;
+      try { r = f && f.getBoundingClientRect(); } catch (e) {}
+      // ONE reading -> bar top AND lift, from the pure math in keybar.js
+      // (unit-tested against every viewport state the field beacons recorded).
+      // No event is ever rejected, nothing is learned across regimes, nothing
+      // is relayed: the bar can neither vanish, nor freeze, nor disagree with
+      // the content — they come from the same subtraction in the same turn.
+      var st;
+      if (window.VibeKeybar) {
+        st = VibeKeybar.compute({
+          vvTop: window.visualViewport ? window.visualViewport.offsetTop : 0,
+          vvH: h, innerH: window.innerHeight, baseH: baseH, barH: BAR_H,
+          frameBottom: r ? r.bottom : null,
+          contentBottom: r ? termContentBottom(r) : null
+        });
+      } else {
+        // keybar.js failed to load: degrade to bar-at-the-reading + full-frame
+        // lift, NEVER to no bar (a robustness gate must fail toward DEGRADED
+        // service — the v1.19.82 lesson).
+        var bt = Math.round(vvBottom() - BAR_H);
+        st = { kbUp: h < baseH - 150, barTop: bt, lift: r ? Math.max(0, Math.round(r.bottom - bt)) : 0 };
+      }
       // Show this bar ONLY for the Terminal. It's the sole app that consumes the
       // kbd-key messages — TUIs need esc/tab/^C/arrows the soft keyboard lacks.
       // Every OTHER app (Files, Notes, Upload, …) is a normal HTML input where
@@ -2253,49 +2291,19 @@
       // the Files address bar" report). The Browser is also excluded — it has its
       // own real <input> whose iOS AutoFill/^v/Done accessory would collide here.
       var suppress = (active !== 'terminal');
-      if (kbUp && !suppress) {
-        // ONE positioning rule, after three failed heuristic towers (quorum
-        // gating visibility, sanity gates freezing everything, priors mixing
-        // with raw readings — each broke this bar in a new way, see
-        // design-decisions): the bar RIDES the instantaneous reading, but once
-        // a keyboard-top has ever been CONFIRMED (seen twice within ±14px in
-        // 4s; persisted per orientation), the reading is CLAMPED to ±60px of
-        // that learned value. Legitimate shifts stay inside ±60 (the pinyin
-        // candidates row is ~45px); WebKit's mid-animation/mid-screen garbage
-        // is hundreds of px away and gets pulled back. No event is ever
-        // rejected, so the bar can neither vanish nor freeze.
-        var vb = Math.round(vvBottom());
-        var nowTs = Date.now();
-        kbSamples.push({ v: vb, t: nowTs });
-        if (kbSamples.length > 6) kbSamples.shift();
-        var agree = 0;
-        for (var si = 0; si < kbSamples.length; si++)
-          if (nowTs - kbSamples[si].t < 4000 && Math.abs(kbSamples[si].v - vb) <= 14) agree++;
-        if (agree >= 2 && vb > baseH * 0.35) { kbAnchor = vb; priorsSaveAnchor(vb); }
-        var learned = kbAnchor || kbPrior;
-        var pos = learned ? Math.max(learned - 60, Math.min(learned + 60, vb)) : vb;
-        var barTop = Math.round(pos - BAR_H);
-        bar.style.top = barTop + 'px'; bar.style.display = 'flex';
-        // Keyboard just (re)opened → bust the dedupe. The PWA can be suspended
-        // with the keyboard up and lastOcc holding the final figure; on resume
-        // the /tN/ page has RELOADED (fresh KBD_OCCLUSION=0) and the reopened
-        // keyboard computes the SAME figure — which the dedupe then swallowed,
-        // leaving the active line under the bar (the recurring "active line
-        // covered" report). A transition repost is cheap and always correct.
-        if (!wasUp) { lastOcc = -1; maybeShowHint(); }
+      if (st.kbUp && !suppress) {
+        bar.style.top = st.barTop + 'px'; bar.style.display = 'flex';
+        if (!wasUp) maybeShowHint();
         else if (hint.style.display !== 'none') positionHint();        // keep it pinned during URL-bar scroll
-        var occPx = occlusionOver('terminal', barTop);
-        dbgBeacon('sync', { kbUp: 1, barTop: barTop, occ: Math.round(occPx), lastOcc: lastOcc, anchor: kbAnchor || 0 });
-        postSettled(occPx);
+        applyLift(st.lift);
+        dbgBeacon('sync', { kbUp: 1, barTop: st.barTop, lift: st.lift });
+        armTick();
       } else {
-        // Samples deliberately KEPT across the close: the 4s freshness window
-        // ages them out on its own, and clearing them on every keyboard-down
-        // flap starved the quorum on flappy devices (part of the missing-bar
-        // failure above).
         bar.style.display = 'none'; dismissHint(false);                // keyboard closed / suppressed → hide
-        postSettled(0);
+        applyLift(0);
+        disarmTick();
       }
-      wasUp = kbUp && !suppress;
+      wasUp = st.kbUp && !suppress;
     }
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', syncBar);
@@ -2304,13 +2312,10 @@
     window.addEventListener('resize', syncBar);
     window.addEventListener('orientationchange', syncBar);
     // Let setActive() re-evaluate visibility the moment the active app changes
-    // (e.g. switching into the Browser while the keyboard is already up).
+    // (e.g. switching into the Browser while the keyboard is already up), and
+    // let terminals.html nudge us on a TAB switch (the new tab's content bottom
+    // decides the lift — same-origin direct call from its activate()).
     window.__syncKeybar = syncBar;
-    // Pull-based re-sync: a freshly (re)loaded /tN/ page has KBD_OCCLUSION=0 and
-    // requests the figure up the chain (terminal-kbd.js → terminals.html → here).
-    // Push-with-dedupe alone could never reach it — lastOcc still held the same
-    // number, so nothing was re-sent after a reload.
-    window.__repostOcclusion = function() { dbgBeacon('req-recv', {}); lastOcc = -1; syncBar(); };
   })();
 
   // --- cross-instance state -------------------------------------------------
@@ -3225,9 +3230,6 @@
     if (e.origin !== location.origin) return;
     if (!e.data) return;
     if (e.data.type === 'switch-to-browser') { launch('browser'); }
-    // A reloaded terminal page asking for the current key-bar occlusion figure
-    // (see __repostOcclusion above) — re-measure and re-post, dedupe bypassed.
-    if (e.data.type === 'kbd-occlusion-req') { if (window.__repostOcclusion) window.__repostOcclusion(); }
     // The Browser renders into a GPU-composited canvas, so a click there reaches
     // xpra instead of the #menu-scrim (normal-HTML apps are caught by the scrim).
     // xpra-patches posts this from inside the iframe so the menu still closes.

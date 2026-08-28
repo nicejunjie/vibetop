@@ -23,6 +23,7 @@ const SCRIPTS = [
   "landing/coach.js",
   "landing/vibe-modal.js",
   "landing/winmgr.js",
+  "landing/keybar.js",
   "landing/apph.js",
   "landing/filebrowser-patches.js",
   "landing/sw.js",

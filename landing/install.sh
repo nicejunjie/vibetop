@@ -69,6 +69,7 @@ fi
 run install -m 644 "$DIR/vibe-modal.js" "$DST_DIR/vibe-modal.js"
 run install -m 644 "$DIR/coach.js" "$DST_DIR/coach.js"
 run install -m 644 "$DIR/winmgr.js" "$DST_DIR/winmgr.js"
+run install -m 644 "$DIR/keybar.js" "$DST_DIR/keybar.js"
 run install -m 644 "$DIR/apph.js" "$DST_DIR/apph.js"
 run install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
 run install -m 644 "$DIR/token-stats.html" "$DST_DIR/token-stats.html"

@@ -146,12 +146,17 @@ Ctrl/Esc aren't on the iOS keyboard, so they come from the desktop shell's syste
 key bar instead. xterm's own helper textarea is blocked from taking focus on touch
 (the `focusin` guard in the sub_filter) so only this input raises the keyboard.
 
-**Caret parking — two rules that look redundant and are not.** The textarea's
-caret is parked on the real xterm cursor row via a dynamic `padding-top` =
-`buffer.active.cursorY` × row-height, so iOS's "reveal the caret" scroll lands on
-wherever the prompt actually is — the *top* of a freshly-opened terminal, the
-*bottom* of a full one. (An earlier fixed `bottom:0` strip only ever revealed the
-bottom, pushing a fresh terminal's prompt off-screen.) Then:
+**Caret parking — and what it deliberately does NOT do.** The textarea's caret
+is parked on the real xterm cursor row via a dynamic `padding-top` =
+`buffer.active.cursorY` × row-height (clamped a row inside the box, so iOS never
+sees the focused caret as clipped and never fires its reveal-scroll against us).
+The `/tN/` document is **exactly frame-height and never scrolls** — keeping the
+active line clear of the soft keyboard / key bar is the **desktop's** job: it
+computes a lift from its own `visualViewport` (the only one that shrinks for the
+keyboard) and applies it as a `translateY` on `terminals.html`'s `.frames`
+(see `docs/desktop.md` §Mobile and the key-bar saga in `design-decisions.md` —
+every design that relayed a measured figure down here for this page to scroll
+went stale when iOS flipped viewport regimes). Two parking rules remain:
 
 1. Re-anchor **only on `onCursorMove`**, never on `onRender`. Render also fires on
    scroll, so re-anchoring there made iOS yank the view back to the prompt the
@@ -163,8 +168,8 @@ bottom, pushing a fresh terminal's prompt off-screen.) Then:
    each repaint, making a *live* response unscrollable. Desktop has no overlay or
    reveal, which is why the bug was mobile-only.
 
-Net: typing always keeps the line you're typing visible; manual scrollback stays
-where you left it.
+Net: typing always keeps the line you're typing visible (the desktop's lift);
+manual scrollback stays where you left it.
 
 **Gesture routing.** The overlay covers xterm and would otherwise eat every touch,
 so gestures are dispatched explicitly:
