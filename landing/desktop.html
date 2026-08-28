@@ -2116,6 +2116,31 @@
         try { f.contentWindow.postMessage({ type: 'kbd-occlusion', px: px }, '*'); } catch (e) {}
       }
     }
+    // SETTLED posting. With the keyboard up, iOS flips between two viewport
+    // modes mid-session (measured live via /api/client-debug on the reporting
+    // iPhone): big-window mode — ih 894 / vvTop 0, the frame runs under the
+    // keyboard, occlusion 348 — and scrolled/resized mode — ih 609 / vvTop 285,
+    // the frame sits fully above the keyboard, occlusion legitimately 0. Both
+    // measurements are correct for their instant, but posting each flip
+    // immediately made /tN/'s scroll follow the RACE: whichever state's post
+    // landed last won, often a transient — and a final 0 parks the active line
+    // under the bar (the recurring "active line covered" bug, ~10 reports).
+    // Post a figure only once it has HELD for SETTLE_MS; transients never send.
+    var SETTLE_MS = 260;
+    var pendPx = null, pendTimer = null;
+    function postSettled(px) {
+      px = Math.round(px);
+      if (pendTimer) {
+        if (px === pendPx) return;         // already settling on this figure
+        clearTimeout(pendTimer);
+      }
+      pendPx = px;
+      pendTimer = setTimeout(function() {
+        pendTimer = null;
+        dbgBeacon('post', { px: pendPx });
+        postOcclusion(pendPx);
+      }, SETTLE_MS);
+    }
     function curH() { var vv = window.visualViewport; return vv ? vv.height : window.innerHeight; }
     function vvBottom() { var vv = window.visualViewport; return vv ? (vv.offsetTop + vv.height) : window.innerHeight; }
     var baseH = curH();
@@ -2177,10 +2202,10 @@
         else if (hint.style.display !== 'none') positionHint();        // keep it pinned during URL-bar scroll
         var occPx = occlusionOver('terminal', barTop);
         dbgBeacon('sync', { kbUp: 1, barTop: barTop, occ: Math.round(occPx), lastOcc: lastOcc });
-        postOcclusion(occPx);
+        postSettled(occPx);
       } else {
         bar.style.display = 'none'; dismissHint(false);                // keyboard closed / suppressed → hide
-        postOcclusion(0);
+        postSettled(0);
       }
       wasUp = kbUp && !suppress;
     }

@@ -3326,6 +3326,25 @@ deduped into silence again. Lesson: a push-with-dedupe protocol must always
 pair with a receiver-initiated pull, or any receiver restart desynchronizes it
 permanently.
 
+**The pull fix was necessary but not sufficient (v1.19.65).** Field beacons
+(`POST /api/client-debug` → manager log, added v1.19.64 so an on-device repro
+reads out server-side with zero user tooling) showed the delivered figure
+ALTERNATING 348 → 0 → 348 → … while the keyboard stayed up. Cause: with the
+keyboard open, **iOS flips between two viewport modes** — big-window mode
+(`innerHeight 894 / vv.offsetTop 0`: the frame runs under the keyboard,
+occlusion 348) and scrolled/resized mode (`innerHeight 609 / vv.offsetTop
+285`: the frame sits fully above the keyboard, occlusion legitimately 0).
+Each instantaneous measurement is CORRECT; posting every flip made `/tN/`'s
+scroll follow the race, and whichever state's post landed last won — a final
+transient 0 parks the active line under the bar. Fix: **settled posting** —
+`postSettled` only forwards a figure after it has held for 260ms, so
+transients are never sent and the system converges on whichever state the
+device actually settles in. Lesson: on iOS keyboard geometry, a single
+instantaneous read is not a state — require readings to HOLD before acting,
+and instrument the device (beacons) before theorizing; the two prior fixes
+were correct and still insufficient because the real fault only shows in the
+time dimension.
+
 ---
 
 ## "Still cannot resize from left or right" — the tile gutter belonged to nobody
