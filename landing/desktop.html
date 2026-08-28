@@ -1169,6 +1169,9 @@
     // double-clicking a video in Files (a `video-view` postMessage -> openVideo),
     // like the office viewer. Registered here so the taskbar/title can render it.
     video:    { label: 'Video player', icon: '🎬', src: '/video.html', desc: 'Play video files', hidden: true },
+    // Native image viewer — opened by Files on an image click (image-view
+    // postMessage), replacing FileBrowser's previewer. Hidden like video.
+    imageview: { label: 'Images', icon: '🖼', src: '/imageview.html', desc: 'View images', hidden: true },
     // Games — a small classic set (user request), each a self-contained page.
     // They ride every normal app behavior for free (windows, taskbar, dots).
     minesweeper: { label: 'Minesweeper', icon: '💣', src: '/minesweeper.html', desc: 'Classic mine hunt', section: 'games' },
@@ -3239,6 +3242,9 @@
     if (e.data.type === 'video-view' && e.data.path) {
       openVideo(e.data.path);
     }
+    if (e.data.type === 'image-view' && e.data.path) {
+      openImage(e.data.path);
+    }
     if (e.data.type === 'close-app' && e.data.app) {
       closeApp(e.data.app);
     }
@@ -3301,6 +3307,14 @@
     var url = '/video.html?path=' + encodeURIComponent(path);
     if (f) { f.src = url; f.dataset.src = url; }   // replace whatever was loaded
     setActive('video');
+  }
+  // Same shape for the native image viewer (Files' image-view message).
+  function openImage(path) {
+    if (openApps.indexOf('imageview') === -1) { openApps.push('imageview'); ensureFrame('imageview'); }
+    var f = frameOf('imageview');
+    var url = '/imageview.html?path=' + encodeURIComponent(path);
+    if (f) { f.src = url; f.dataset.src = url; }
+    setActive('imageview');
   }
   document.getElementById('dv-close').addEventListener('click', closeDoc);
   document.getElementById('dv-edit').addEventListener('click', function() {

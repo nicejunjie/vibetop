@@ -1042,6 +1042,26 @@
     _autoOpenedVideo = rel;
     try { window.top.postMessage({ type: "video-view", path: rel }, "*"); } catch (e) {}
   }
+  // Images go to the NATIVE viewer too (imageview.html): FileBrowser's patched
+  // previewer on mobile rendered an unthemed white toolbar block over the dark
+  // shell (reported with a screenshot; first concrete casus belli for the
+  // Files-native project, docs/files-native.md). Same interception pattern as
+  // video/office: navigating to an image file pops our viewer on top.
+  var IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
+  var _autoOpenedImage = null;
+  function currentImageFile() {
+    var p = location.pathname.replace(/.*\/files\/?/, "");
+    if (!p || /\/$/.test(p)) return null;                // a folder listing, not a file
+    if (!IMG_RE.test(p)) return null;                    // not an image file
+    try { return decodeURIComponent(p); } catch (e) { return p; }
+  }
+  function maybeAutoOpenImage() {
+    var rel = currentImageFile();
+    if (!rel) { _autoOpenedImage = null; return; }       // reset when back on a listing
+    if (rel === _autoOpenedImage) return;                // already opened this one
+    _autoOpenedImage = rel;
+    try { window.top.postMessage({ type: "image-view", path: rel }, "*"); } catch (e) {}
+  }
 
   function updateOfficeButtons() {
     var fp = getFilePath();
@@ -1244,6 +1264,7 @@
     rememberLocation();
     maybeAutoOpenOffice();
     maybeAutoOpenVideo();
+    maybeAutoOpenImage();
     // These two live in views the listing-only gate below rejects (the
     // previewer/editor) — run them before it.
     labelSizeToggle();
