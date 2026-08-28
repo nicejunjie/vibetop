@@ -102,7 +102,7 @@ test("tileGrid: 3 windows fall back to 2 columns when 3 will not fit at MINW", (
 // ---- snap layouts (the ▢ palette) -----------------------------------------
 
 test("layoutGeoms: zones tile the box exactly, with no gaps or overlap", () => {
-  for (const key of ["halves", "thirds", "main2", "stacked", "quads", "columns"]) {
+  for (const key of ["halves", "thirds", "main2", "stacked", "quads", "columns", "split21"]) {
     const zs = W.layoutGeoms(key, BOX);
     assert.ok(zs, `${key} should fit a 1400x800 frame`);
     const area = zs.reduce((a, z) => a + z.width * z.height, 0);
@@ -130,7 +130,10 @@ test("layoutGeoms: zone 0 is the main zone (the one you clicked from)", () => {
 // as "I have 3 windows open, it shouldn't show 2-window layouts".
 test("layoutsFor: one zone per open window, exactly", () => {
   const two = W.layoutsFor(BOX, 2).map((l) => l.key);
-  assert.deepEqual(two.sort(), ["halves", "stacked"]);
+  assert.deepEqual(two.sort(), ["halves", "split21", "stacked"]);
+  // 2:1 needs a third of the width to still be >= MINW — gone on narrow frames.
+  assert.deepEqual(W.layoutsFor({ w: 900, h: 800 }, 2).map((l) => l.key).sort(),
+    ["halves", "stacked"]);
 
   const three = W.layoutsFor(BOX, 3).map((l) => l.key);
   assert.deepEqual(three.sort(), ["main2", "thirds"]);

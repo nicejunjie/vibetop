@@ -103,6 +103,10 @@
   // zone the window you opened the palette from takes when you click it.
   var LAYOUTS = [
     { key: 'halves',  name: 'Halves',  zones: [[0, 0, 0.5, 1], [0.5, 0, 0.5, 1]] },
+    // Two windows, unequal: the focused one takes two thirds (user request —
+    // a main work window beside a narrower reference one). Needs 3×MINW of
+    // width for the small column, so layoutsFor hides it on narrow frames.
+    { key: 'split21', name: '2 : 1',   zones: [[0, 0, 2 / 3, 1], [2 / 3, 0, 1 / 3, 1]] },
     { key: 'thirds',  name: 'Thirds',  zones: [[0, 0, 1 / 3, 1], [1 / 3, 0, 1 / 3, 1], [2 / 3, 0, 1 / 3, 1]] },
     { key: 'main2',   name: '1 + 2',   zones: [[0, 0, 0.6, 1], [0.6, 0, 0.4, 0.5], [0.6, 0.5, 0.4, 0.5]] },
     { key: 'stacked', name: 'Stacked', zones: [[0, 0, 1, 0.5], [0, 0.5, 1, 0.5]] },
