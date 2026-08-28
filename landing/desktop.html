@@ -1683,6 +1683,13 @@
             g.left = c.left; g.top = c.top; g.width = c.width; g.height = c.height;
           }
           applyWinGeom(w, g);
+          // A VISIBLE window must have a loaded iframe. loadIfNeeded otherwise
+          // only fires from setActive, so on a reload (manual refresh, the SSE
+          // deploy push, a discarded background tab) every restored window
+          // EXCEPT the focused one was a visible src-less iframe — solid black
+          // until clicked. The display:none deferral it implements doesn't
+          // apply here: this window is shown with real dimensions right now.
+          loadIfNeeded(f);
         }
         pumpActive(f, vis ? id : active);            // visible → own id (never pause); minimized → paused
       } else {

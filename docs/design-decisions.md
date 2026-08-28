@@ -4075,3 +4075,21 @@ original exact-bytes test stayed green through the whole breakage.
   idle desktop is genuinely unchanged; the *client-side* backing store is what
   died); fixing only `visibilitychange` (misses monitor-off and display:none
   switches, the two paths users actually idle through).
+- **The DOMINANT mechanism turned out to be a third one (v1.19.59)** — found
+  from an on-device screenshot after v1.19.58 shipped the two above and the
+  user could still reproduce with a plain **refresh**: in **window mode**,
+  restored windows were never loaded at all. `loadIfNeeded` (which defers an
+  iframe's `src` until the app is shown, so a display:none load can't measure
+  a 0×0 viewport) only fired from `setActive` — so after ANY page reload
+  (manual refresh, the SSE deploy push, a browser discarding an idle tab —
+  which is why it presented as "after long idle") every restored window
+  EXCEPT the focused one was a **visible src-less iframe**: solid black, and
+  "click to show content" was really "click to activate → first load". Not
+  the usual windows behavior — a visible window must render without being
+  focused first. Fix: `renderWindows()` now calls `loadIfNeeded` for every
+  window it actually shows (window mode, non-minimized). The deferral's
+  reason doesn't apply there — a shown window has real dimensions — and the
+  full-screen mode keeps deferring hidden apps as before. Lesson: "black
+  until clicked" had three causes wearing one symptom; the screenshot (which
+  showed the OTHER windows black while the focused one was fine) is what
+  separated them.
