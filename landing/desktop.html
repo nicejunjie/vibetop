@@ -2116,30 +2116,35 @@
         try { f.contentWindow.postMessage({ type: 'kbd-occlusion', px: px }, '*'); } catch (e) {}
       }
     }
-    // SETTLED posting. With the keyboard up, iOS flips between two viewport
-    // modes mid-session (measured live via /api/client-debug on the reporting
-    // iPhone): big-window mode — ih 894 / vvTop 0, the frame runs under the
-    // keyboard, occlusion 348 — and scrolled/resized mode — ih 609 / vvTop 285,
-    // the frame sits fully above the keyboard, occlusion legitimately 0. Both
-    // measurements are correct for their instant, but posting each flip
-    // immediately made /tN/'s scroll follow the RACE: whichever state's post
-    // landed last won, often a transient — and a final 0 parks the active line
-    // under the bar (the recurring "active line covered" bug, ~10 reports).
-    // Post a figure only once it has HELD for SETTLE_MS; transients never send.
-    var SETTLE_MS = 260;
-    var pendPx = null, pendTimer = null;
+    // ASYMMETRIC posting. With the keyboard up, iOS flaps between viewport
+    // states for the whole session (measured live via /api/client-debug on the
+    // reporting iPhone): keyboard-shrunk readings (vvH 480, occlusion 348-376)
+    // interleaved with full-height and scrolled/resized readings (vvH 894, or
+    // ih 609/vvTop 285 — occlusion 0). Posting every flip made /tN/'s scroll
+    // follow the race; a SYMMETRIC 260ms settle then failed the other way —
+    // the 0-states held longer than the shrunk states, so the nonzero figure
+    // NEVER settled and only 0s were ever delivered (the "active line covered"
+    // bug, ~10 reports). The two directions are not symmetric in harm: an
+    // over-applied NONZERO merely scrolls the prompt higher than needed (still
+    // visible, self-correcting on the next post), while an over-applied ZERO
+    // parks the active line under the bar/keyboard. So: nonzero posts
+    // IMMEDIATELY; zero must HOLD for ZERO_HOLD_MS (a genuine keyboard close
+    // easily does; a flap never does) before it is sent.
+    var ZERO_HOLD_MS = 1200;
+    var zeroTimer = null;
     function postSettled(px) {
       px = Math.round(px);
-      if (pendTimer) {
-        if (px === pendPx) return;         // already settling on this figure
-        clearTimeout(pendTimer);
+      if (px > 0) {
+        if (zeroTimer) { clearTimeout(zeroTimer); zeroTimer = null; }
+        dbgBeacon('post', { px: px });
+        postOcclusion(px);
+      } else if (!zeroTimer) {
+        zeroTimer = setTimeout(function() {
+          zeroTimer = null;
+          dbgBeacon('post', { px: 0 });
+          postOcclusion(0);
+        }, ZERO_HOLD_MS);
       }
-      pendPx = px;
-      pendTimer = setTimeout(function() {
-        pendTimer = null;
-        dbgBeacon('post', { px: pendPx });
-        postOcclusion(pendPx);
-      }, SETTLE_MS);
     }
     function curH() { var vv = window.visualViewport; return vv ? vv.height : window.innerHeight; }
     function vvBottom() { var vv = window.visualViewport; return vv ? (vv.offsetTop + vv.height) : window.innerHeight; }
