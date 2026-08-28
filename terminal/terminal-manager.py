@@ -1708,6 +1708,40 @@ def _ensure_fileagent(user):
     return False, "agent did not come up"
 
 
+def _fs_connect(user, header):
+    """Open a connection to `user`'s agent and send the JSON header line.
+    Returns the socket (caller owns it) or None."""
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        s.settimeout(30)
+        s.connect(_fileagent_sock(user))
+        s.sendall((json.dumps(header) + "\n").encode("utf-8"))
+        return s
+    except OSError:
+        try:
+            s.close()
+        except OSError:
+            pass
+        return None
+
+
+def _fs_read_header(s):
+    """Read the agent's one-line JSON header off a streaming connection."""
+    buf = bytearray()
+    while b"\n" not in buf and len(buf) < 65536:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        buf.extend(chunk)
+    nl = buf.find(b"\n")
+    head = bytes(buf if nl < 0 else buf[:nl])
+    rest = b"" if nl < 0 else bytes(buf[nl + 1:])
+    try:
+        return json.loads(head.decode("utf-8", "replace")), rest
+    except ValueError:
+        return {"ok": False, "error": "bad agent header", "code": "agent"}, b""
+
+
 # ---- Per-user Files (FileBrowser as the user, Phase 3b) --------------------
 # One FileBrowser per user, run AS them via systemd-run, rooted at "/" (whole
 # filesystem — same as the single-user Files app and consistent with the user's
@@ -3907,6 +3941,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_schedule_cancel()
         if self.path == "/api/client-debug":
             return self._handle_client_debug()
+        if self.path == "/api/fs/op":
+            return self._handle_fs_op()
+        if self.path.startswith("/api/fs/upload"):
+            return self._handle_fs_upload()
         if self.path == "/api/browser/open":
             return self._handle_browser_open()
         if self.path == "/api/browser/type":
@@ -5112,6 +5150,100 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "subs": tracks.get("subs", []),
         })
 
+    def _handle_fs_op(self):
+        """POST /api/fs/op — one JSON mutation (mkdir/rename/move/copy/delete)
+        forwarded verbatim to the request user's agent. The manager validates
+        only the op whitelist; the agent (as the user) is the authority."""
+        body = self._read_body(262144)
+        if body is None:
+            return self._json(400, {"ok": False, "error": "invalid body", "code": "einval"})
+        try:
+            req = json.loads(body or "{}")
+        except json.JSONDecodeError:
+            return self._json(400, {"ok": False, "error": "invalid json", "code": "einval"})
+        if req.get("op") not in ("mkdir", "rename", "move", "copy", "delete"):
+            return self._json(400, {"ok": False, "error": "unknown op", "code": "einval"})
+        user = _ctx_user()
+        ok, err = _ensure_fileagent(user)
+        if not ok:
+            return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
+        return self._json(200, _fs_call(user, req, timeout=120))
+
+    def _handle_fs_upload(self):
+        """POST /api/fs/upload?path=/abs/dst — stream the request body through
+        to the agent, which writes it AS THE USER (temp file + atomic rename).
+        The manager never touches the filesystem."""
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        dst = q.get("path", [""])[0]
+        try:
+            length = int(self.headers.get("Content-Length", -1))
+        except (TypeError, ValueError):
+            length = -1
+        if not dst.startswith("/") or length < 0:
+            return self._json(400, {"ok": False, "error": "path and Content-Length required",
+                                    "code": "einval"})
+        user = _ctx_user()
+        ok, err = _ensure_fileagent(user)
+        if not ok:
+            return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
+        s = _fs_connect(user, {"op": "upload", "path": dst, "size": length})
+        if not s:
+            return self._json(502, {"ok": False, "error": "agent connect failed", "code": "agent"})
+        try:
+            self.connection.settimeout(600)
+            remaining = length
+            while remaining > 0:
+                chunk = self.rfile.read(min(1 << 20, remaining))
+                if not chunk:
+                    break
+                s.sendall(chunk)
+                remaining -= len(chunk)
+            resp, _rest = _fs_read_header(s)
+            return self._json(200 if resp.get("ok") else 500, resp)
+        except OSError as e:
+            return self._json(502, {"ok": False, "error": str(e), "code": "agent"})
+        finally:
+            try:
+                s.close()
+            except OSError:
+                pass
+
+    def _fs_stream_out(self, header_req, attach_name=None):
+        """GET download/zip: forward the agent's byte stream to the client."""
+        user = _ctx_user()
+        ok, err = _ensure_fileagent(user)
+        if not ok:
+            return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
+        s = _fs_connect(user, header_req)
+        if not s:
+            return self._json(502, {"ok": False, "error": "agent connect failed", "code": "agent"})
+        try:
+            head, rest = _fs_read_header(s)
+            if not head.get("ok"):
+                return self._json(404 if head.get("code") == "enoent" else 500, head)
+            name = attach_name or head.get("name") or "download"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            if head.get("size") is not None and header_req["op"] == "download":
+                self.send_header("Content-Length", str(head["size"]))
+            self.send_header("Content-Disposition",
+                             "attachment; filename*=UTF-8''" + urllib.parse.quote(name))
+            self.end_headers()
+            if rest:
+                self.wfile.write(rest)
+            while True:
+                chunk = s.recv(1 << 20)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+        except (OSError, BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            try:
+                s.close()
+            except OSError:
+                pass
+
     def _handle_fs(self):
         """GET /api/fs/<op>?path=&max= — proxy the authenticated user's request
         to THEIR file agent (Files-native phase 1). The manager adds nothing to
@@ -6286,6 +6418,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_video_subs()
         if self.path.startswith("/api/file/image"):
             return self._handle_image_media()
+        if self.path.startswith("/api/fs/download"):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            return self._fs_stream_out({"op": "download", "path": q.get("path", [""])[0]})
+        if self.path.startswith("/api/fs/zip"):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            paths = [p for p in q.get("paths", [""])[0].split("\x00") if p] or q.get("path", [])
+            return self._fs_stream_out({"op": "zip", "paths": paths})
         if self.path.startswith("/api/fs/"):
             return self._handle_fs()
         if self.path == "/api/update" or self.path.startswith("/api/update?"):

@@ -19,7 +19,27 @@ Ops (phase 1 — read-only):
   {"op":"stat","path":"/abs/x"}          -> {"ok":true, "stat":{...entry, "path"}}
   {"op":"read","path":"/abs/f","max":N}  -> {"ok":true, "size":total,
         "truncated":bool, "binary":bool, "text":"..."}   (utf-8, replace)
-Errors: {"ok":false, "error": str, "code": "enoent|eperm|eisdir|einval|..."}
+
+Ops (phase 2 — mutations; the request is JSON like above):
+  {"op":"mkdir","path":"/abs/new"}       -> {"ok":true}
+  {"op":"rename","path":"/abs/x","to":"newname"}       (same-directory)
+  {"op":"move","src":["/abs/a",...],"dst":"/abs/dir"}  -> per-item results
+  {"op":"copy","src":[...],"dst":"/abs/dir"}           -> per-item results
+        (move/copy auto-suffix " (2)" on a name collision, macOS-style)
+  {"op":"delete","paths":["/abs/a",...]}               -> per-item results
+        (recursive; refuses "/" and the home root itself)
+
+Streaming ops (a JSON HEADER LINE, then raw bytes on the same connection):
+  upload:   client sends {"op":"upload","path":"/abs/dst","size":N}\n followed
+            by exactly N raw bytes; agent writes to a same-directory temp file
+            and renames into place on completion, then answers one JSON.
+  download: client sends {"op":"download","path":"/abs/f"}\n; agent answers
+            one JSON header line ({"ok":true,"size":N,"name":...}\n) followed
+            by the raw bytes (nothing after a not-ok header).
+  zip:      {"op":"zip","paths":[...]} -> same shape as download; the zip is
+            built with `zip -r -` when available, else python zipfile, streamed.
+
+Errors: {"ok":false, "error": str, "code": "enoent|eperm|eisdir|eexist|einval|..."}
 
 The socket lives at the path given by --sock, owned by the user, mode 0600
 (the root manager connects regardless; other users cannot). Exits after
@@ -29,15 +49,20 @@ the idle-reaper story stays trivial.
 import errno
 import json
 import os
+import shutil
 import socket
 import stat as statmod
+import subprocess
 import sys
+import tempfile
 import time
+import zipfile
 
 IDLE_EXIT = int(os.environ.get("VIBETOP_FILEAGENT_IDLE", 900))
 MAX_ENTRIES = 5000
 MAX_READ = 1024 * 1024
-MAX_REQ = 64 * 1024
+MAX_REQ = 256 * 1024
+MAX_UPLOAD = int(os.environ.get("VIBETOP_FILEAGENT_MAXUP", 4 * 1024 * 1024 * 1024))
 
 
 def _errcode(e):
@@ -123,13 +148,255 @@ def op_read(req):
             "text": "" if binary else data.decode("utf-8", "replace")}
 
 
-OPS = {"home": op_home, "list": op_list, "stat": op_stat, "read": op_read}
+# ---- phase 2: mutations -----------------------------------------------------
+
+def _abs_or_err(path):
+    if not path or not path.startswith("/"):
+        return None, {"ok": False, "error": "path must be absolute", "code": "einval"}
+    return path, None
+
+
+def _collide_free(dst):
+    """macOS-style ' (2)' suffixing when the destination name is taken."""
+    if not os.path.lexists(dst):
+        return dst
+    d, base = os.path.split(dst)
+    stem, ext = os.path.splitext(base)
+    if os.path.isdir(dst):
+        stem, ext = base, ""
+    n = 2
+    while True:
+        cand = os.path.join(d, f"{stem} ({n}){ext}")
+        if not os.path.lexists(cand):
+            return cand
+        n += 1
+
+
+def op_mkdir(req):
+    path, err = _abs_or_err(req.get("path"))
+    if err:
+        return err
+    try:
+        os.makedirs(path, exist_ok=False)
+    except OSError as e:
+        return {"ok": False, "error": str(e),
+                "code": "eexist" if getattr(e, "errno", None) == errno.EEXIST else _errcode(e)}
+    return {"ok": True}
+
+
+def op_rename(req):
+    path, err = _abs_or_err(req.get("path"))
+    if err:
+        return err
+    to = req.get("to") or ""
+    if not to or "/" in to or to in (".", ".."):
+        return {"ok": False, "error": "invalid new name", "code": "einval"}
+    dst = os.path.join(os.path.dirname(path.rstrip("/")), to)
+    if os.path.lexists(dst):
+        return {"ok": False, "error": "name already exists", "code": "eexist"}
+    try:
+        os.rename(path, dst)
+    except OSError as e:
+        return {"ok": False, "error": str(e), "code": _errcode(e)}
+    return {"ok": True, "path": dst}
+
+
+def _bulk(req, one):
+    """Run `one(src)` per item; report per-item results, ok iff all succeeded."""
+    srcs = req.get("src") or req.get("paths") or []
+    if not isinstance(srcs, list) or not srcs:
+        return {"ok": False, "error": "no items", "code": "einval"}
+    results, all_ok = [], True
+    for s in srcs[:500]:
+        p, err = _abs_or_err(s)
+        if err:
+            results.append({"path": s, "ok": False, "code": "einval"})
+            all_ok = False
+            continue
+        r = one(p)
+        results.append(r)
+        all_ok = all_ok and r.get("ok", False)
+    return {"ok": all_ok, "results": results}
+
+
+def op_move(req):
+    dst, err = _abs_or_err(req.get("dst"))
+    if err:
+        return err
+
+    def one(p):
+        target = _collide_free(os.path.join(dst, os.path.basename(p.rstrip("/"))))
+        try:
+            shutil.move(p, target)
+            return {"path": p, "ok": True, "to": target}
+        except (OSError, shutil.Error) as e:
+            return {"path": p, "ok": False, "error": str(e), "code": _errcode(e)}
+    return _bulk(req, one)
+
+
+def op_copy(req):
+    dst, err = _abs_or_err(req.get("dst"))
+    if err:
+        return err
+
+    def one(p):
+        target = _collide_free(os.path.join(dst, os.path.basename(p.rstrip("/"))))
+        try:
+            if os.path.isdir(p) and not os.path.islink(p):
+                shutil.copytree(p, target, symlinks=True)
+            else:
+                shutil.copy2(p, target, follow_symlinks=False)
+            return {"path": p, "ok": True, "to": target}
+        except (OSError, shutil.Error) as e:
+            return {"path": p, "ok": False, "error": str(e), "code": _errcode(e)}
+    return _bulk(req, one)
+
+
+def op_delete(req):
+    home = os.path.realpath(os.path.expanduser("~"))
+
+    def one(p):
+        # A shell could rm -rf anything the user owns, but a UI mis-click must
+        # not vaporize "/" or the home root itself.
+        rp = os.path.realpath(p)
+        if rp in ("/", home):
+            return {"path": p, "ok": False, "error": "refusing to delete this directory",
+                    "code": "einval"}
+        try:
+            if os.path.isdir(p) and not os.path.islink(p):
+                shutil.rmtree(p)
+            else:
+                os.unlink(p)
+            return {"path": p, "ok": True}
+        except OSError as e:
+            return {"path": p, "ok": False, "error": str(e), "code": _errcode(e)}
+    return _bulk(req, one)
+
+
+OPS = {"home": op_home, "list": op_list, "stat": op_stat, "read": op_read,
+       "mkdir": op_mkdir, "rename": op_rename, "move": op_move,
+       "copy": op_copy, "delete": op_delete}
+
+
+# ---- phase 2: streaming (upload / download / zip) ---------------------------
+
+def _send_json(conn, obj):
+    try:
+        conn.sendall((json.dumps(obj) + "\n").encode("utf-8"))
+    except OSError:
+        pass
+
+
+def stream_upload(conn, req, rest):
+    """`rest` = bytes already read past the header line. Write to a temp file
+    in the destination directory (same filesystem -> atomic rename)."""
+    path, err = _abs_or_err(req.get("path"))
+    if err:
+        return _send_json(conn, err)
+    try:
+        size = int(req.get("size"))
+    except (TypeError, ValueError):
+        return _send_json(conn, {"ok": False, "error": "size required", "code": "einval"})
+    if size < 0 or size > MAX_UPLOAD:
+        return _send_json(conn, {"ok": False, "error": "size out of range", "code": "einval"})
+    d = os.path.dirname(path)
+    tmp = None
+    got = 0
+    try:
+        fd, tmp = tempfile.mkstemp(prefix=".vtup-", dir=d)
+        with os.fdopen(fd, "wb") as f:
+            if rest:
+                chunk = rest[:size]
+                f.write(chunk)
+                got = len(chunk)
+            conn.settimeout(30)
+            while got < size:
+                data = conn.recv(min(1 << 20, size - got))
+                if not data:
+                    break
+                f.write(data)
+                got += len(data)
+        if got != size:
+            os.unlink(tmp)
+            return _send_json(conn, {"ok": False, "error": f"short upload ({got}/{size})",
+                                     "code": "eio"})
+        os.replace(tmp, path)
+        tmp = None
+        return _send_json(conn, {"ok": True, "size": got})
+    except OSError as e:
+        if tmp:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+        return _send_json(conn, {"ok": False, "error": str(e), "code": _errcode(e)})
+
+
+def stream_download(conn, req):
+    path, err = _abs_or_err(req.get("path"))
+    if err:
+        return _send_json(conn, err)
+    try:
+        size = os.path.getsize(path)
+        f = open(path, "rb")
+    except OSError as e:
+        return _send_json(conn, {"ok": False, "error": str(e), "code": _errcode(e)})
+    with f:
+        _send_json(conn, {"ok": True, "size": size, "name": os.path.basename(path)})
+        try:
+            while True:
+                chunk = f.read(1 << 20)
+                if not chunk:
+                    break
+                conn.sendall(chunk)
+        except OSError:
+            pass
+
+
+def stream_zip(conn, req):
+    paths = req.get("paths") or []
+    if not isinstance(paths, list) or not paths:
+        return _send_json(conn, {"ok": False, "error": "no items", "code": "einval"})
+    for p in paths:
+        if not p.startswith("/") or not os.path.lexists(p):
+            return _send_json(conn, {"ok": False, "error": f"missing: {p}", "code": "enoent"})
+    base = os.path.basename(paths[0].rstrip("/")) if len(paths) == 1 else "files"
+    _send_json(conn, {"ok": True, "name": base + ".zip"})
+    # Stream python-zipfile straight onto the socket (size unknown up front).
+    sock_file = conn.makefile("wb")
+    try:
+        with zipfile.ZipFile(sock_file, "w", zipfile.ZIP_DEFLATED) as zf:
+            for p in paths:
+                root = os.path.dirname(p.rstrip("/"))
+                if os.path.isdir(p):
+                    for dirpath, _dirs, files in os.walk(p):
+                        for fn in files:
+                            full = os.path.join(dirpath, fn)
+                            try:
+                                zf.write(full, os.path.relpath(full, root))
+                            except OSError:
+                                pass       # unreadable entry: skip, keep the archive
+                else:
+                    try:
+                        zf.write(p, os.path.relpath(p, root))
+                    except OSError:
+                        pass
+        sock_file.flush()
+    except (OSError, ValueError):
+        pass
+    finally:
+        try:
+            sock_file.close()
+        except OSError:
+            pass
+
 
 
 def handle(conn):
     conn.settimeout(10)
     buf = bytearray()
-    # Request ends at EOF (client half-closes) or a complete JSON line.
+    # Header ends at the first newline (streaming ops carry raw bytes after
+    # it) or EOF (plain JSON ops, client half-closes).
     while len(buf) <= MAX_REQ:
         try:
             chunk = conn.recv(65536)
@@ -138,11 +405,21 @@ def handle(conn):
         if not chunk:
             break
         buf.extend(chunk)
-        if b"\n" in chunk:
+        if b"\n" in buf:
             break
+    nl = buf.find(b"\n")
+    header = bytes(buf if nl < 0 else buf[:nl])
+    rest = b"" if nl < 0 else bytes(buf[nl + 1:])
     try:
-        req = json.loads(bytes(buf).decode("utf-8", "replace"))
-        fn = OPS.get(req.get("op"))
+        req = json.loads(header.decode("utf-8", "replace"))
+        op = req.get("op")
+        if op == "upload":
+            return stream_upload(conn, req, rest)
+        if op == "download":
+            return stream_download(conn, req)
+        if op == "zip":
+            return stream_zip(conn, req)
+        fn = OPS.get(op)
         resp = fn(req) if fn else {"ok": False, "error": "unknown op", "code": "einval"}
     except Exception as e:  # never die on a bad request
         resp = {"ok": False, "error": str(e), "code": "einval"}
