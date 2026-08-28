@@ -2268,8 +2268,15 @@
         for (var si = 0; si < kbSamples.length; si++)
           if (nowTs - kbSamples[si].t < 4000 && Math.abs(kbSamples[si].v - vb) <= 14) agree++;
         if (agree >= 2) kbAnchor = vb;      // confirmed (current reading counts once)
-        if (!kbAnchor) return;              // nothing confirmed yet — wait for the next event
-        var barTop = Math.round(kbAnchor - BAR_H);
+        // THE BAR ALWAYS SHOWS. v1.19.69's `if (!kbAnchor) return` held the
+        // whole bar hostage to the quorum: on a device whose RESTING readings
+        // mostly land in the sanity-gate-rejected states, samples stayed
+        // sparse, the anchor never formed, and the esc/tab/^C/arrow bar never
+        // appeared at all ("the control bar is gone!"). A bar at the
+        // instantaneous position is strictly better than no bar — the anchor
+        // still wins when it exists, and the occlusion FIGURE (which is what
+        // the quorum protects) still posts only from anchored readings.
+        var barTop = Math.round((kbAnchor || vb) - BAR_H);
         bar.style.top = barTop + 'px'; bar.style.display = 'flex';
         // Keyboard just (re)opened → bust the dedupe. The PWA can be suspended
         // with the keyboard up and lastOcc holding the final figure; on resume
@@ -2279,11 +2286,16 @@
         // covered" report). A transition repost is cheap and always correct.
         if (!wasUp) { lastOcc = -1; maybeShowHint(); }
         else if (hint.style.display !== 'none') positionHint();        // keep it pinned during URL-bar scroll
-        var occPx = occlusionOver('terminal', barTop);
-        dbgBeacon('sync', { kbUp: 1, barTop: barTop, occ: Math.round(occPx), lastOcc: lastOcc, anchor: kbAnchor });
-        postSettled(occPx);
+        if (kbAnchor) {
+          var occPx = occlusionOver('terminal', Math.round(kbAnchor - BAR_H));
+          dbgBeacon('sync', { kbUp: 1, barTop: barTop, occ: Math.round(occPx), lastOcc: lastOcc, anchor: kbAnchor });
+          postSettled(occPx);
+        }
       } else {
-        kbSamples.length = 0;              // a new keyboard session samples afresh (anchor kept)
+        // Samples deliberately KEPT across the close: the 4s freshness window
+        // ages them out on its own, and clearing them on every keyboard-down
+        // flap starved the quorum on flappy devices (part of the missing-bar
+        // failure above).
         bar.style.display = 'none'; dismissHint(false);                // keyboard closed / suppressed → hide
         postSettled(0);
       }
