@@ -2307,6 +2307,7 @@ SCHED_TICK = 15                     # sweeper period -> ±15s accuracy
 SCHED_TEXT_MAX = 2000
 SCHED_KEEP_DONE = 24 * 3600         # keep fired/failed entries this long (UI history)
 INJECT_DRAIN = 0.75                 # hold+drain the socket this long — see _inject_terminal
+INJECT_ENTER_GAP = 0.3              # beat between the text and the Enter — see _inject_terminal
 _schedules_lock = threading.Lock()
 
 
@@ -2443,13 +2444,37 @@ def _inject_terminal(user, n, text):
     Sends \\r, not \\n — the attach client clears ICRNL, so \\r is what a real
     Enter delivers.
 
-    After sending it DRAINS AND DISCARDS for INJECT_DRAIN seconds instead of
-    closing straight away. That is not politeness: on connect the daemon queues
-    its whole replay ring to the new client, and closing with that still unread
-    makes the daemon's own recv() fail (ECONNRESET), so it drops the client at
-    `if not data: remove_client(fd)` — BEFORE writing our bytes to the PTY. The
-    message vanishes while the sweeper still reports "sent". Verified on a live
-    terminal: close-immediately never executed, a short drain always did."""
+    The Enter is a SEPARATE write, INJECT_ENTER_GAP after the text — never glued
+    onto it. Text+\\r in one write reaches the foreground app as ONE stdin read,
+    and a paste-detecting TUI (Claude Code — the flagship target of this feature)
+    treats a rapid multi-char chunk as a paste: the \\r becomes a newline in its
+    composer instead of a submit, so the message sits at the prompt unexecuted.
+    bash survives either shape (readline is per-byte), which is how the glued
+    form passed live verification. Same reason driving Claude Code via tmux
+    needs `send-keys <text>; sleep; send-keys Enter` rather than one call.
+
+    After each write it DRAINS AND DISCARDS from the socket (INJECT_ENTER_GAP,
+    then INJECT_DRAIN) instead of closing straight away. That is not politeness:
+    on connect the daemon queues its whole replay ring to the new client, and
+    closing with that still unread makes the daemon's own recv() fail
+    (ECONNRESET), so it drops the client at `if not data: remove_client(fd)` —
+    BEFORE writing our bytes to the PTY. The message vanishes while the sweeper
+    still reports "sent". Verified on a live terminal: close-immediately never
+    executed, a short drain always did."""
+    def _drain(s, seconds):
+        """Discard whatever the daemon pushes at us (its replay ring) for
+        `seconds`, keeping the connection healthy while time passes."""
+        deadline = time.monotonic() + seconds
+        s.settimeout(0.2)
+        while time.monotonic() < deadline:
+            try:
+                if not s.recv(65536):       # daemon hung up — nothing left to drain
+                    break
+            except socket.timeout:
+                continue                    # idle terminal: just let the window run out
+            except OSError:
+                break
+
     try:
         running = _list_running_terminals(user)
     except Exception:
@@ -2462,17 +2487,10 @@ def _inject_terminal(user, n, text):
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.settimeout(5)
         s.connect(sock_path)
-        s.sendall(text.encode("utf-8", "replace") + b"\r")
-        deadline = time.monotonic() + INJECT_DRAIN
-        s.settimeout(0.2)
-        while time.monotonic() < deadline:
-            try:
-                if not s.recv(65536):       # daemon hung up — nothing left to drain
-                    break
-            except socket.timeout:
-                continue                    # idle terminal: just let the window run out
-            except OSError:
-                break
+        s.sendall(text.encode("utf-8", "replace"))
+        _drain(s, INJECT_ENTER_GAP)         # let the text land as its own chunk
+        s.sendall(b"\r")                    # then Enter as a distinct keypress
+        _drain(s, INJECT_DRAIN)
         return True, None
     except (OSError, socket.timeout) as e:
         return False, f"could not reach terminal {int(n)}: {e}"

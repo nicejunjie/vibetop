@@ -163,8 +163,10 @@ at `/var/lib/vibetop/schedules.json`, plus a `⏱` control on the Terminal tab b
 list rides the existing 2.5s `/api/terminals/status` poll rather than adding a
 second loop). Firing needed **no new mechanism**: `vibetop-session`'s Unix socket
 is a raw bidirectional byte stream, and every byte a client sends is written
-straight into the PTY master, so `_inject_terminal` connects, `sendall(text + b"\r")`,
-and closes. Three details are load-bearing:
+straight into the PTY master, so `_inject_terminal` connects, sends the text and
+the `\r`, and closes. (Originally one `sendall(text + b"\r")`; the Enter is now a
+separate delayed write — see *The Enter a paste-detecting TUI swallows* below.)
+Three details are load-bearing:
 - **`\r`, not `\n`** — the attach client clears `ICRNL`, so `\r` is what a real
   Enter delivers.
 - **Drain and discard for 0.75s before closing** (`INJECT_DRAIN`). The first cut
@@ -3972,3 +3974,104 @@ deployed build at its first staging assertion ("a tile click stages — the
 palette stays open"), then passes against the fix, driving the real gesture
 (press, arm, travel, drop, Apply). Touch staging verified with synthesized
 iOS-style touch events (no click after long-press).
+
+## The Enter a paste-detecting TUI swallows: scheduled messages typed but never ran
+
+**Symptom:** a scheduled terminal message fires on time and is visibly *typed* into
+the terminal, but the Enter never happens — the command sits at the prompt
+unexecuted. Worst on the feature's flagship use ("type `continue` into Claude Code
+at the usage reset"): the text lands in Claude Code's composer and just sits there.
+Meanwhile the sweeper reports `sent`, every unit test is green, and the original
+live verification (against bash) passed.
+
+**Cause:** delivery *shape*, not delivery. `_inject_terminal` sent
+`sendall(text + b"\r")` — one write, so the foreground app receives the text and
+the `\r` as **one stdin read** (verified with a raw-mode reader in the real
+daemon's PTY: a single `b"continue\r"` chunk). bash doesn't care — readline
+processes byte-by-byte, so `\r` still accepts the line — but a paste-detecting
+TUI (Claude Code, and Ink-style input handlers generally) treats a rapid
+multi-char chunk as a *paste*: the `\r` becomes a newline inside the pasted text
+instead of a submit keypress. Nothing in this repo regressed — the trigger is the
+target app's input heuristics — which is why `git log` over the delivery path
+shows no culprit. It's the same reason driving Claude Code from tmux needs
+`send-keys "text"; sleep; send-keys Enter` rather than one call.
+
+**Fix:** send the Enter as **its own write, a beat later** —
+`sendall(text)` → drain `INJECT_ENTER_GAP` (0.3s) → `sendall(b"\r")` → drain
+`INJECT_DRAIN` as before. Two PTY writes ⇒ two stdin reads ⇒ the app sees a
+distinct Enter keypress after the text has settled; bash behaves identically.
+The gap doubles as drain time, so the ECONNRESET/replay-ring guard (previous
+entry) is preserved. Guarded by
+`test_inject_sends_the_enter_as_its_own_later_keypress`, which asserts the wire
+shape (first chunk has no `\r`; the `\r` arrives alone, ≥0.1s later) and was
+proven to fail against the glued-write code before the fix.
+
+**Rejected:**
+- **Bigger hammer: bracketed-paste wrap or per-byte trickle of the whole text.**
+  The text *should* land as a paste (fast, atomic in the composer); only the
+  Enter needs to be a keypress. Splitting just the `\r` is the minimal shape
+  that satisfies both bash and TUIs.
+- **Blaming the transport / re-verifying the drain race.** The e2e reproduction
+  showed every byte reaching the PTY — the bytes were never lost, only
+  misinterpreted. Chasing the transport again would have re-litigated the
+  previous entry.
+
+**Lesson:** "the exact bytes reached the socket" is not "the app saw an Enter
+keypress". When injecting input for interactive programs, assert the *chunk
+shape* (what each `read()` returns, and when), not just the byte total — the
+original exact-bytes test stayed green through the whole breakage.
+
+## Files "flashes a few times" on an image — the empty-folder self-heal misread previews
+
+- **Symptom:** Opening an image (or a text file) in Files often makes the view
+  reload/"flash" — roughly every 6 seconds, up to three times — before settling.
+- **Cause:** The always-on "NFS folder shows empty until you refresh" self-heal
+  in `landing/files.html` (v1.16.19–21) declares the active tab *stuck* when its
+  document has **no `#listing` items and no `.message`** for ~6s, then reloads it
+  (capped at 3 tries per tab until a listing renders). FileBrowser's file
+  **preview** (`#previewer` — images/PDF/media) and text **editor**
+  (`#editor-container`) share the `/files/files/...` path with listings (the
+  path guard assumed they didn't) and contain *neither* marker — so every
+  preview older than ~6s was "healed": reloaded up to three times while the
+  user was looking at it.
+- **Fix:** Bail (and reset the stuck counter) when `#previewer` or
+  `#editor-container` is present — those views are rendered, not stuck. The
+  heal keeps working on real listings.
+- **Rejected:** keying off the URL (file vs folder paths are indistinguishable
+  without a stat — FileBrowser uses one route for both); disabling the heal
+  (the NFS empty-listing bug it cures is real and recurring).
+
+## Files/Browser come back BLACK after a long idle until clicked
+
+- **Symptom:** After the machine/tab sat idle a long time (screen off, PWA
+  backgrounded, system sleep), the Files or Browser window shows black; the
+  content only appears once you click inside it. The shell (taskbar/clock)
+  looks fine.
+- **Cause:** Two stacking mechanisms, neither self-healing. (1) **Browser**: the
+  xpra app is a `<canvas>` painted only when the server sends damage. Browsers
+  evict the canvas/GPU backing store of long-hidden or occluded pages — DOM
+  re-rasterizes on wake, canvas content is *lost* — and an idle remote desktop
+  produces no damage, so nothing repaints until the first click reaches the
+  server and generates some. Stock xpra does refresh on `visibilitychange`
+  (`client.resume()`), but the idle paths vibetop actually goes through miss
+  it: monitor sleep usually keeps `visibilityState === 'visible'`, and the
+  shell's app switching toggles the iframe `display:none` with **no**
+  visibility event. (2) **Files** (plain DOM): WebKit (iOS PWA) can resume a
+  long-backgrounded page with a stale/blank *compositing layer* for iframes —
+  black until user input forces a recomposite. Both read as "black" because
+  the app/shell backgrounds are near-black `#0e1117`.
+- **Fix:** Repaint on every wake-ish signal, in three layers. `xpra-patches.js`
+  patch 12 calls `client.resume()` (full `buffer-refresh` q100 + redraw) on
+  visibility-restore, window `focus`, `pageshow`, the shell's `vibetop:active`
+  activation, and a **timer-gap watchdog** (a `setInterval` that notices it
+  stalled >30s — system sleep fires no browser event at all, but it always
+  stalls timers, so the gap on resume is the wake signal; throttled, a refresh
+  is a full-screen encode). `desktop.html` and `files.html` use the same
+  visibility + timer-gap triggers to toggle a `transform` nudge on their app
+  iframes (forces a recomposite of a stale layer) and re-dispatch `resize` to
+  the active frame.
+- **Rejected:** reloading frames on wake (destroys app state; reconnects cost
+  seconds); polling the server for damage (the server has none to report — an
+  idle desktop is genuinely unchanged; the *client-side* backing store is what
+  died); fixing only `visibilitychange` (misses monitor-off and display:none
+  switches, the two paths users actually idle through).

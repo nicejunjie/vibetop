@@ -165,7 +165,12 @@
     var f = t.frame, win, d, path;
     if (!f.classList.contains('active')) { _healStuck = 0; return; }
     try { win = f.contentWindow; d = win.document; path = win.location.pathname; } catch (e) { _healStuck = 0; return; }
-    if (path.indexOf('/files/files') !== 0) { _healStuck = 0; return; }   // editor/preview, not a listing
+    if (path.indexOf('/files/files') !== 0) { _healStuck = 0; return; }   // login/settings, not a browse view
+    // A file PREVIEW (#previewer — images/PDF/media) or the text EDITOR shares the
+    // /files/files/... path but has neither #listing items nor a .message, so the
+    // "stuck listing" test below misread it as stuck and reloaded it every ~6s (the
+    // image-preview "flashes a few times" bug). Those views are rendered — bail.
+    if (d.getElementById('previewer') || d.getElementById('editor-container')) { _healStuck = 0; return; }
     var listing = d.getElementById('listing');
     if ((listing && listing.querySelector('.item')) || d.querySelector('.message')) {
       _healStuck = 0; _healCount[t.id] = 0; return;                        // rendered (items) or empty-state
@@ -175,6 +180,27 @@
       if ((_healCount[t.id] || 0) < 3) { _healCount[t.id] = (_healCount[t.id] || 0) + 1; try { win.location.reload(); } catch (e) {} }
     }
   }, 2000);
+
+  // Wake repaint nudge: after a long background/sleep, WebKit (iOS PWA) can bring
+  // the nested FileBrowser iframe back with a stale/blank compositing layer — the
+  // window shows the dark page background ("black") until a tap forces a repaint.
+  // On visibility-restore (and after a detected sleep gap — monitor-off/system
+  // sleep often ends with NO visibility event, but our interval stalls through
+  // it), toggle a transform on the active frame to force a recomposite.
+  function wakeNudge() {
+    var t = active;
+    if (!t || !t.frame) return;
+    var f = t.frame;
+    f.style.transform = 'translateZ(0)';
+    requestAnimationFrame(function() { f.style.transform = ''; });
+  }
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) wakeNudge(); });
+  var _wakeTick = Date.now();
+  setInterval(function() {
+    var now = Date.now();
+    if (now - _wakeTick > 30000 && !document.hidden) wakeNudge();   // timers stalled → we just woke
+    _wakeTick = now;
+  }, 5000);
 
   function show(t) {
     if (!t) return;

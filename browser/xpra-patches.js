@@ -689,4 +689,47 @@
   } catch(e) {
     console.warn('[xpra-patches] shape patch failed:', e.message);
   }
+
+  // 12. Repaint on wake/activate — fixes "Browser stays black after long idle
+  //     until you click it". The app is a <canvas> painted ONLY when the server
+  //     sends damage; a long-idle page loses its canvas backing store (GPU
+  //     eviction while hidden/occluded/screen-off) and an idle remote desktop
+  //     produces no damage, so the canvas stays black until the first click
+  //     reaches the server and generates some. Stock xpra only refreshes on
+  //     visibilitychange (client.resume()), which misses the paths we actually
+  //     idle through: monitor sleep usually keeps visibilityState 'visible',
+  //     and the shell switching apps toggles the iframe display:none with no
+  //     visibility event at all. Ask the server for a full buffer refresh on
+  //     every wake-ish signal: visibility-restore, window focus, pageshow, the
+  //     shell's vibetop:active activation, and a timer-gap watchdog (system
+  //     sleep stalls our interval; the gap on resume is the wake signal the
+  //     browser never gives us). Throttled — a refresh is a full-screen encode.
+  try {
+    var lastRefresh = 0;
+    var forceRepaint = function() {
+      var c = window.client;
+      if (!c || !c.connected) return;
+      var now = Date.now();
+      if (now - lastRefresh < 3000) return;
+      lastRefresh = now;
+      try { c.resume(); } catch (e) {}   // per-window resume + buffer-refresh(q100) + redraw
+    };
+    document.addEventListener('visibilitychange', function() { if (!document.hidden) forceRepaint(); });
+    window.addEventListener('focus', forceRepaint);
+    window.addEventListener('pageshow', forceRepaint);
+    // Shell activation (Browser AND /x11-display/, which this file is also
+    // injected into — any vibetop:active posted to THIS frame means it was
+    // just un-hidden). Deferred a tick: the iframe was display:none until now.
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'vibetop:active') setTimeout(forceRepaint, 50);
+    });
+    var lastTick = Date.now();
+    setInterval(function() {
+      var now = Date.now();
+      if (now - lastTick > 30000 && !document.hidden) forceRepaint();
+      lastTick = now;
+    }, 5000);
+  } catch(e) {
+    console.warn('[xpra-patches] wake-repaint patch failed:', e.message);
+  }
 })();

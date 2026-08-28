@@ -293,17 +293,22 @@ def test_idle_pass_does_not_rewrite_when_nothing_expired(mgr, home, monkeypatch)
 def test_inject_writes_text_and_carriage_return_to_the_session_socket(
         mgr, tmp_path, monkeypatch):
     """The end of the whole chain: exactly what a real Enter delivers — the text
-    plus \\r (NOT \\n; the attach client clears ICRNL)."""
+    plus \\r (NOT \\n; the attach client clears ICRNL). Reads to EOF: the Enter
+    arrives as its own later write (see the paste-detection test below)."""
     sock_path = str(tmp_path / "sess.sock")
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(sock_path)
     srv.listen(1)
-    got = []
+    got = bytearray()
 
     def accept_once():
         conn, _ = srv.accept()
         with conn:
-            got.append(conn.recv(4096))
+            while True:
+                data = conn.recv(4096)
+                if not data:
+                    break
+                got.extend(data)
     t = threading.Thread(target=accept_once, daemon=True)
     t.start()
 
@@ -313,7 +318,7 @@ def test_inject_writes_text_and_carriage_return_to_the_session_socket(
     t.join(timeout=5)
     srv.close()
     assert ok and err is None
-    assert got == [b"continue\r"]
+    assert bytes(got) == b"continue\r"
 
 
 def test_inject_survives_the_replay_the_daemon_queues_on_connect(mgr, tmp_path, monkeypatch):
@@ -333,7 +338,11 @@ def test_inject_survives_the_replay_the_daemon_queues_on_connect(mgr, tmp_path, 
         with conn:
             try:
                 conn.sendall(b"replay" * 100000)     # ~600 KB, like a warm ring
-                got.append(conn.recv(4096))
+                while True:
+                    data = conn.recv(4096)
+                    if not data:
+                        break
+                    got.append(data)
             except OSError as e:                     # what the real daemon hits
                 err.append(str(e))
     t = threading.Thread(target=daemon_like, daemon=True)
@@ -345,7 +354,52 @@ def test_inject_survives_the_replay_the_daemon_queues_on_connect(mgr, tmp_path, 
     t.join(timeout=10)
     srv.close()
     assert ok
-    assert got == [b"continue\r"], "bytes lost to the replay race (%s)" % err
+    assert b"".join(got) == b"continue\r", "bytes lost to the replay race (%s)" % err
+
+
+def test_inject_sends_the_enter_as_its_own_later_keypress(mgr, tmp_path, monkeypatch):
+    """Regression: text and \\r written in ONE chunk reach the foreground app as
+    ONE stdin read, and a paste-detecting TUI (Claude Code — the feature's
+    flagship target, "type `continue` at the usage reset") treats a rapid
+    multi-char chunk as a PASTE: the \\r lands as a newline in its composer
+    instead of a submit, so the message sits at the prompt and never executes.
+    (bash happens to survive — readline is per-byte — which is why the original
+    exact-bytes test stayed green while the feature was broken in the wild.)
+
+    The Enter must therefore be its OWN write, a beat after the text, so the app
+    sees a distinct Enter keypress."""
+    sock_path = str(tmp_path / "sess.sock")
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(sock_path)
+    srv.listen(1)
+    chunks = []                               # [(seconds-since-first, bytes)]
+
+    def accept_and_time():
+        conn, _ = srv.accept()
+        with conn:
+            t0 = None
+            while True:
+                data = conn.recv(4096)
+                if not data:
+                    break
+                now = time.monotonic()
+                t0 = t0 if t0 is not None else now
+                chunks.append((now - t0, data))
+    t = threading.Thread(target=accept_and_time, daemon=True)
+    t.start()
+
+    monkeypatch.setattr(mgr, "_list_running_terminals", lambda user: [7])
+    monkeypatch.setattr(mgr, "_term_socket", lambda user, n: sock_path)
+    ok, err = mgr._inject_terminal("alice", 7, "continue")
+    t.join(timeout=10)
+    srv.close()
+    assert ok and err is None
+    assert b"".join(c for _, c in chunks) == b"continue\r"
+    assert b"\r" not in chunks[0][1], \
+        "text and Enter arrived in one chunk — a paste-detecting TUI won't submit"
+    gap, enter = next((g, c) for g, c in chunks if b"\r" in c)
+    assert enter == b"\r", "the Enter must be a bare keypress, not glued to text"
+    assert gap >= 0.1, f"Enter only {gap:.3f}s after the text — same paste burst"
 
 
 def test_inject_refuses_when_the_terminal_is_not_running(mgr, monkeypatch):

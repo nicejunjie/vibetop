@@ -3348,6 +3348,38 @@
   // timers throttled (so the 5s heartbeat stalls), and this also refreshes the
   // "running" dots immediately when you return to or switch to this machine.
   document.addEventListener('visibilitychange', function() { if (!document.hidden) pushDesktop(); });
+
+  // Wake repaint nudge — fixes app windows (Files, Browser) coming back BLACK
+  // after a long idle until clicked. After a long background/sleep the browser
+  // can bring an iframe back with a stale/blank compositing layer (WebKit PWA
+  // resume) or an evicted canvas backing store; nothing repaints until user
+  // input forces it. On visibility-restore AND after a detected sleep gap
+  // (monitor-off/system sleep often fires NO visibility event, but it stalls
+  // our interval — the gap on resume is the only wake signal we get), toggle a
+  // transform on every open app frame to force a recomposite, and forward a
+  // resize to the active one so it re-measures (same nudge notifyActiveFrame
+  // uses on app switch). App-internal repaints ride the same signals in-frame
+  // (xpra-patches.js asks the server for a buffer refresh; files.html nudges
+  // its nested FileBrowser iframe).
+  function wakeNudgeFrames() {
+    openApps.forEach(function(id) {
+      var f = frameOf(id);
+      if (!f || !f.src) return;
+      f.style.transform = 'translateZ(0)';
+      requestAnimationFrame(function() { f.style.transform = ''; });
+    });
+    var af = active && frameOf(active);
+    if (af && af.contentWindow) {
+      try { af.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {}
+    }
+  }
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) wakeNudgeFrames(); });
+  var _wakeTick = Date.now();
+  setInterval(function() {
+    var now = Date.now();
+    if (now - _wakeTick > 30000 && !document.hidden) wakeNudgeFrames();
+    _wakeTick = now;
+  }, 5000);
 })();
 
 // PWA service worker — caches the shell for instant cold loads. Registered
