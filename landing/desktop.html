@@ -588,14 +588,19 @@
      Scope matches location now, and no new chrome either way: the trigger is the
      one icon the taskbar already has. */
   #win-layouts {
-    position: fixed; z-index: 99999; display: none; gap: 10px; padding: 10px;
+    position: fixed; z-index: 99999; display: none; flex-direction: column;
+    align-items: center; gap: 8px; padding: 13px;
     background: #1b222e; border: 1px solid #2f3a4a; border-radius: 10px;
     box-shadow: 0 12px 34px rgba(0,0,0,0.55);
   }
   #win-layouts.open { display: flex; }
+  #win-layouts .wl-row { display: flex; gap: 13px; }
+  /* The drag affordance is invisible otherwise — you would have to be told the
+     icons can be dragged. One quiet line, not a badge. */
+  #win-layouts .wl-hint { font-size: 11px; color: #7d8a99; letter-spacing: .2px; }
   #win-layouts .wl-opt { display: flex; flex-direction: column; gap: 5px; align-items: center; }
   #win-layouts .wl-grid {
-    position: relative; width: 78px; height: 50px; border-radius: 5px; cursor: pointer;
+    position: relative; width: 101px; height: 65px; border-radius: 5px; cursor: pointer;
     background: #10151d; border: 1px solid #2f3a4a; transition: border-color .12s;
   }
   /* Each zone previews the window that will land in it (its app icon), so the
@@ -607,7 +612,7 @@
     position: absolute; background: #33415a; border-radius: 3px;
     transition: background .12s; cursor: pointer; user-select: none;
     display: flex; align-items: center; justify-content: center;
-    font-size: 12px; line-height: 1; overflow: hidden; color: #dfe7f0;
+    font-size: 16px; line-height: 1; overflow: hidden; color: #dfe7f0;
   }
   #win-layouts .wl-grid:hover { border-color: #d2691e; }
   #win-layouts .wl-grid:hover .wl-zone { background: #b25a1a; }
@@ -620,10 +625,10 @@
   #win-layouts .wl-zone.wl-drag-over,
   #win-layouts .wl-grid:hover .wl-zone.wl-drag-over { background: #d2691e; }
   #win-layouts .wl-grid:hover + .wl-name { color: #e8eef5; }
-  #win-layouts .wl-name { font-size: 10px; color: #8a9aaa; letter-spacing: .2px; }
+  #win-layouts .wl-name { font-size: 13px; color: #8a9aaa; letter-spacing: .2px; }
   /* Touch needs the zones big enough to hit individually. */
-  body.is-touch #win-layouts .wl-grid { width: 104px; height: 66px; }
-  body.is-touch #win-layouts .wl-zone { font-size: 15px; }
+  body.is-touch #win-layouts .wl-grid { width: 135px; height: 86px; }
+  body.is-touch #win-layouts .wl-zone { font-size: 20px; }
 
   /* snap preview — where a title-bar drag will drop the window (half / maximize) */
   #win-snap {
@@ -1272,6 +1277,7 @@
     var tip = document.querySelector('.vibe-coach');
     if (tip) { try { tip.remove(); } catch (e) {} }
     layoutsEl.innerHTML = '';
+    var row = document.createElement('div'); row.className = 'wl-row';   // tiles; the hint sits under it
     var focusedLabel = (APPS[active] && APPS[active].label) || 'the focused window';
     // Every window's CURRENT geometry, for deriving "who is where now".
     var visGeoms = {};
@@ -1427,8 +1433,15 @@
       });
       var nm = document.createElement('div'); nm.className = 'wl-name'; nm.textContent = L.name;
       opt.appendChild(grid); opt.appendChild(nm);
-      layoutsEl.appendChild(opt);
+      row.appendChild(opt);
     });
+    layoutsEl.appendChild(row);
+    // Say the icons are draggable — nothing else on screen implies it.
+    var hint = document.createElement('div');
+    hint.className = 'wl-hint';
+    hint.textContent = IS_TOUCH ? '(hold an icon, then tap another to switch)'
+                                : '(drag to switch)';
+    layoutsEl.appendChild(hint);
     layoutsEl.classList.add('open');
     // ABOVE the taskbar button (the bar is at the bottom), clamped to the viewport.
     var r = btn.getBoundingClientRect(), pr = layoutsEl.getBoundingClientRect();

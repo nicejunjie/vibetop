@@ -520,6 +520,8 @@ test.describe('window mode', () => {
         return;
       }
       await expect(palette).toHaveClass(/open/, { timeout: 3000 });
+      // The drag affordance is invisible without a label, so the palette says so.
+      await expect(palette.locator('.wl-hint')).toBeVisible();
       const names = await palette.locator('.wl-name').allTextContents();
       expect(names.sort()).toEqual(expected.sort());
 
