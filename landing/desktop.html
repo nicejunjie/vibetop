@@ -2183,6 +2183,19 @@
       // orientation the shorter one read as "keyboard up" forever (bar stuck on).
       var w = window.innerWidth;
       if (w !== baseW) { baseW = w; baseH = 0; }
+      // Geometry sanity gate. Mid-keyboard, WebKit can report a SELF-
+      // INCONSISTENT viewport (measured live: vvTop 285 + vvH 480 = 765 with
+      // innerHeight 609 — the visual viewport "extends past" the layout
+      // viewport, which is impossible) and hold it for many seconds. Every
+      // number derived in that state (barTop, frame rects, occlusion 0) is in
+      // a coordinate frame that doesn't match the screen, so act on NOTHING:
+      // keep the bar and the last delivered figure until the readings become
+      // consistent again.
+      var vvv = window.visualViewport;
+      if (vvv && (vvv.offsetTop + vvv.height) > window.innerHeight + 1) {
+        dbgBeacon('skew', { vvH: Math.round(vvv.height), vvTop: Math.round(vvv.offsetTop) });
+        return;
+      }
       var h = curH();
       if (h > baseH) baseH = h;             // URL-bar collapse makes it taller -> new baseline
       var kbUp = h < baseH - 150;           // keyboard ~300px; URL bar ~60px; 150 distinguishes them
