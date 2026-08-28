@@ -1235,7 +1235,9 @@
                 row("Dimensions", img.naturalWidth + " × " + img.naturalHeight);
             };
             var tok = fbToken();
-            img.src = "/files/api/raw" + encFbPath(abs) + "?inline=true" + (tok ? "&auth=" + encodeURIComponent(tok) : "");
+            // The manager's native image endpoint — FileBrowser's /api/raw was
+            // removed upstream in v2.63 (this fallback 404'd silently).
+            img.src = "/api/file/image?path=" + encodeURIComponent(abs);
           }
         }
         // Rewrite the relative "Last Modified: a day ago" to the exact local

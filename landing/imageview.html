@@ -85,11 +85,21 @@
   var img = null;
 
   function enc(p) { return p.split('/').map(encodeURIComponent).join('/'); }
-  // Same-origin as FileBrowser (proxied under /files/), so its localStorage JWT
-  // is readable here; harmless when absent (noauth deployments).
+  // Image BYTES come from the manager's native endpoint (session-authed, same
+  // trust model as the video player) — no FileBrowser API involved. Only the
+  // folder listing (prev/next) still asks FileBrowser, with its same-origin
+  // localStorage JWT + a no-credential login fallback (noauth deployments).
   var TOK = '';
   try { TOK = localStorage.getItem('jwt') || ''; } catch (e) {}
-  function rawUrl(p) { return '/files/api/raw/' + enc(p) + '?inline=true' + (TOK ? '&auth=' + encodeURIComponent(TOK) : ''); }
+  function ensureTok(cb) {
+    if (TOK) { cb(); return; }
+    fetch('/files/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then(function(r) { return r.ok ? r.text() : ''; })
+      .then(function(t) {
+        if (t) { TOK = t; try { localStorage.setItem('jwt', t); } catch (e) {} }
+      }).catch(function() {}).then(cb);
+  }
+  function rawUrl(p) { return '/api/file/image?path=' + encodeURIComponent(p); }
   function dirOf(p) { var i = p.lastIndexOf('/'); return i > 0 ? p.slice(0, i) : ''; }
   function baseOf(p) { return p.split('/').pop(); }
 
@@ -191,7 +201,7 @@
   document.getElementById('close').addEventListener('click', closeSelf);
   document.getElementById('dl').addEventListener('click', function() {
     var a = document.createElement('a');
-    a.href = '/files/api/raw/' + enc(path) + (TOK ? '?auth=' + encodeURIComponent(TOK) : '');
+    a.href = rawUrl(path) + '&dl=1';
     a.download = baseOf(path);
     document.body.appendChild(a); a.click(); a.remove();
   });
@@ -199,17 +209,19 @@
   if (!path) { showMsg('No image selected. Open one from Files.'); return; }
   render();
   // Folder siblings for prev/next: FileBrowser's own listing API (same-origin).
-  fetch('/files/api/resources/' + enc(dirOf(path)), TOK ? { headers: { 'X-Auth': TOK } } : undefined)
-    .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(j) {
-      if (!j || !Array.isArray(j.items)) return;
-      list = j.items.filter(function(it) { return !it.isDir && IMAGE_RE.test(it.name); })
-                    .map(function(it) { return it.name; })
-                    .sort(function(a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
-      idx = list.indexOf(baseOf(path));
-      if (idx === -1) { list = null; return; }
-      render();
-    }).catch(function() {});
+  ensureTok(function() {
+    fetch('/files/api/resources/' + enc(dirOf(path)), TOK ? { headers: { 'X-Auth': TOK } } : undefined)
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(j) {
+        if (!j || !Array.isArray(j.items)) return;
+        list = j.items.filter(function(it) { return !it.isDir && IMAGE_RE.test(it.name); })
+                      .map(function(it) { return it.name; })
+                      .sort(function(a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
+        idx = list.indexOf(baseOf(path));
+        if (idx === -1) { list = null; return; }
+        render();
+      }).catch(function() {});
+  });
 })();
 </script>
 </body>

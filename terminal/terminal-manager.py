@@ -656,6 +656,12 @@ _office_convert_lock = threading.Lock()
 # same scheme as the office PDF cache.
 VIDEO_RE = re.compile(
     r"\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$", re.I)
+# Images the native viewer serves (/api/file/image). SVG stays safe here: it is
+# only ever rendered via <img>, where scripts don't execute.
+_IMAGE_RE = re.compile(r"\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$", re.I)
+_IMAGE_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+               ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp",
+               ".svg": "image/svg+xml", ".avif": "image/avif", ".ico": "image/x-icon"}
 # Codecs a browser <video> can play directly (so we can `-c copy` remux, not
 # transcode). Anything else -> transcode to H.264/AAC (slow, cached once).
 _VIDEO_OK_VCODECS = {"h264", "vp8", "vp9", "av1"}
@@ -5021,6 +5027,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "subs": tracks.get("subs", []),
         })
 
+    def _handle_image_media(self):
+        """GET /api/file/image?path=<Files-app path>[&dl=1] — stream an image's
+        bytes for the native image viewer (imageview.html). Same trust model as
+        the video/office viewers: `_resolve_user_file` accepts FileBrowser's
+        absolute paths and fences with an as-the-user read check, so this can
+        serve exactly what the user's Unix permissions allow, no more. Exists so
+        the viewer needs nothing from FileBrowser's (version-drifting) API for
+        the bytes — first plumbing of the Files-native direction."""
+        q = urllib.parse.urlparse(self.path).query
+        params = urllib.parse.parse_qs(q)
+        rel = params.get("path", [""])[0]
+        if not rel or not _IMAGE_RE.search(rel):
+            return self._json(400, {"error": "not an image file"})
+        src = _resolve_user_file(rel)
+        if not src:
+            return self._json(404, {"error": "file not found"})
+        ext = os.path.splitext(src)[1].lower()
+        try:
+            size = os.path.getsize(src)
+            self.send_response(200)
+            self.send_header("Content-Type", _IMAGE_MIME.get(ext, "application/octet-stream"))
+            self.send_header("Content-Length", str(size))
+            self.send_header("Cache-Control", "private, max-age=300")
+            if params.get("dl"):
+                self.send_header("Content-Disposition",
+                                 "attachment; filename*=UTF-8''" +
+                                 urllib.parse.quote(os.path.basename(src)))
+            self.end_headers()
+            if self.command != "HEAD":
+                with open(src, "rb") as f:
+                    shutil.copyfileobj(f, self.wfile)
+        except (OSError, BrokenPipeError, ConnectionResetError):
+            pass
+
     def _handle_video_media(self):
         # GET/HEAD /api/video/media?path=<rel>&audio=<per-type audio index>
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
@@ -6061,6 +6101,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_share_serve()
         if self.path.startswith("/api/video/media"):
             return self._handle_video_media()
+        if self.path.startswith("/api/file/image"):
+            return self._handle_image_media()
         self.send_error(404)
 
     def do_GET(self):
@@ -6132,6 +6174,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_video_media()
         if self.path.startswith("/api/video/subs"):
             return self._handle_video_subs()
+        if self.path.startswith("/api/file/image"):
+            return self._handle_image_media()
         if self.path == "/api/update" or self.path.startswith("/api/update?"):
             self._json(200, self._update_version_info())
             return
