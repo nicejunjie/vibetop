@@ -445,19 +445,21 @@
      that partially overlaps it, the menu shows ONLY the Utilities "page" (other
      sections hidden) with #sm-utilities filling it in-flow. */
   .startmenu.util-page > :not(#sm-utilities) { display: none; }
-  .startmenu.util-page #sm-utilities {
+  .startmenu.games-page > :not(#sm-games) { display: none; }
+  .startmenu.util-page #sm-utilities,
+  .startmenu.games-page #sm-games {
     display: block; position: static; width: auto;
     max-height: none; overflow: visible;
     background: none; border: none; box-shadow: none; padding: 0;
   }
   /* The header becomes an obvious, button-like BACK bar: "‹ Back ....... Utilities". */
-  .startmenu.util-page .sm-fly-head {
+  .startmenu.util-page .sm-fly-head, .startmenu.games-page .sm-fly-head {
     background: rgba(45,108,192,0.16); border: 1px solid rgba(80,140,220,0.4);
     border-radius: 8px; padding: 11px 12px; margin-bottom: 6px;
   }
-  .startmenu.util-page .sm-fly-head:active { background: rgba(45,108,192,0.30); }
-  .startmenu.util-page .fh-back { display: inline; color: #6cf; font-size: 15px; font-weight: 700; }
-  .startmenu.util-page .fh-name { margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 13px; color: #8a9aaa; }
+  .startmenu.util-page .sm-fly-head:active, .startmenu.games-page .sm-fly-head:active { background: rgba(45,108,192,0.30); }
+  .startmenu.util-page .fh-back, .startmenu.games-page .fh-back { display: inline; color: #6cf; font-size: 15px; font-weight: 700; }
+  .startmenu.util-page .fh-name, .startmenu.games-page .fh-name { margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 13px; color: #8a9aaa; }
   .sm-parent.has-active .sm-parent-name::after {
     content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px; vertical-align: middle;
   }
@@ -1002,8 +1004,6 @@
     </div>
     <div class="sm-title">Applications</div>
     <div id="sm-apps"></div>
-    <div class="sm-title">Games</div>
-    <div id="sm-games"></div>
     <div class="sm-title sm-title-system">System</div>
     <div id="sm-system"></div>
     <div class="sm-parent" id="sm-util-parent">
@@ -1012,6 +1012,12 @@
       <div class="sm-caret">▶</div>
     </div>
     <div class="sm-sub" id="sm-utilities"><div class="sm-fly-head"><span class="fh-back">‹ Back</span><span class="fh-name">Utilities</span></div></div>
+    <div class="sm-parent" id="sm-games-parent">
+      <div class="sm-icon"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M21.58 16.09l-1.09-7.66C20.21 6.46 18.52 5 16.53 5H7.47C5.48 5 3.79 6.46 3.51 8.43l-1.09 7.66C2.2 17.63 3.39 19 4.94 19c.68 0 1.32-.27 1.8-.75L9 16h6l2.25 2.25c.48.48 1.13.75 1.8.75 1.56 0 2.75-1.37 2.53-2.91zM11 11H9v2H8v-2H6v-1h2V8h1v2h2v1zm4-1c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm2 3c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg></div>
+      <div class="sm-parent-name">Games</div>
+      <div class="sm-caret">▶</div>
+    </div>
+    <div class="sm-sub" id="sm-games"><div class="sm-fly-head"><span class="fh-back">‹ Back</span><span class="fh-name">Games</span></div></div>
     <div class="sm-build"><span class="build-tag">Vibetop · v<span id="build-ver">@VERSION@</span> (build <span id="build-sw">@SW_VERSION@</span>)</span></div>
   </div>
 
@@ -2726,54 +2732,67 @@
       }
     } catch (e) {}
   }
-  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; closeUtilFlyout(); notifyBrowserMenu(false); }
+  function closeMenu() { menuEl.classList.remove('open'); startBtn.classList.remove('open'); scrimEl.style.display = 'none'; closeAllFlyouts(); notifyBrowserMenu(false); }
   function toggleMenu() { menuEl.classList.contains('open') ? closeMenu() : openMenu(); }
 
-  // --- Utilities submenu: side flyout on desktop, in-menu drill-down on narrow --
-  var utilParent = document.getElementById('sm-util-parent');
-  var utilSub = document.getElementById('sm-utilities');
-  var UTIL_W = 240;
-  // Where (if anywhere) a fixed side panel fits: its left px, or null = no side room.
-  function utilSideLeft() {
-    var mr = menuEl.getBoundingClientRect();
-    if (mr.right + 6 + UTIL_W <= window.innerWidth - 6) return mr.right + 6;   // right
-    if (mr.left - 6 - UTIL_W >= 6) return mr.left - 6 - UTIL_W;                // left
-    return null;                                                              // none
-  }
-  function utilFlyoutOpen() { return utilSub.classList.contains('open') || menuEl.classList.contains('util-page'); }
-  function openUtilFlyout() {
-    utilParent.classList.add('open');
-    var mr = menuEl.getBoundingClientRect(), left = utilSideLeft();
-    utilSub.style.cssText = '';                 // clear any prior inline positioning
-    if (left != null) {                         // desktop: fixed panel beside the menu
-      menuEl.classList.remove('util-page');
-      utilSub.classList.add('open');
-      utilSub.style.left = left + 'px';
-      utilSub.style.width = UTIL_W + 'px';
-      utilSub.style.bottom = (window.innerHeight - mr.bottom) + 'px';
-    } else {                                    // narrow: drill-down page inside the menu
-      utilSub.classList.remove('open');
-      menuEl.classList.add('util-page');
+  // --- Submenu flyouts (Utilities, Games): side flyout on desktop, in-menu
+  // drill-down on narrow. One factory, N instances — opening one closes the
+  // others (two fixed side panels would overlap in the same spot).
+  var FLY_W = 240;
+  var FLYOUTS = [];
+  function makeFlyout(parentId, subId, pageClass) {
+    var parent = document.getElementById(parentId);
+    var sub = document.getElementById(subId);
+    // Where (if anywhere) a fixed side panel fits: its left px, or null = no side room.
+    function sideLeft() {
+      var mr = menuEl.getBoundingClientRect();
+      if (mr.right + 6 + FLY_W <= window.innerWidth - 6) return mr.right + 6;   // right
+      if (mr.left - 6 - FLY_W >= 6) return mr.left - 6 - FLY_W;                 // left
+      return null;                                                              // none
     }
+    function isOpen() { return sub.classList.contains('open') || menuEl.classList.contains(pageClass); }
+    function close() {
+      parent.classList.remove('open');
+      sub.classList.remove('open');
+      menuEl.classList.remove(pageClass);
+    }
+    function open() {
+      FLYOUTS.forEach(function (f) { if (f.sub !== sub) f.close(); });
+      parent.classList.add('open');
+      var mr = menuEl.getBoundingClientRect(), left = sideLeft();
+      sub.style.cssText = '';                   // clear any prior inline positioning
+      if (left != null) {                       // desktop: fixed panel beside the menu
+        menuEl.classList.remove(pageClass);
+        sub.classList.add('open');
+        sub.style.left = left + 'px';
+        sub.style.width = FLY_W + 'px';
+        sub.style.bottom = (window.innerHeight - mr.bottom) + 'px';
+      } else {                                  // narrow: drill-down page inside the menu
+        sub.classList.remove('open');
+        menuEl.classList.add(pageClass);
+      }
+    }
+    // Desktop convenience: hover opens the SIDE flyout (never the drill-down,
+    // which hides the parent row and would flicker); leaving either side closes.
+    if (!IS_TOUCH) {
+      var flyCloseT;
+      var arm = function () { if (sub.classList.contains('open')) flyCloseT = setTimeout(close, 220); };
+      var cancel = function () { clearTimeout(flyCloseT); };
+      parent.addEventListener('mouseenter', function () { cancel(); if (sideLeft() != null) open(); });
+      parent.addEventListener('mouseleave', arm);
+      sub.addEventListener('mouseenter', cancel);
+      sub.addEventListener('mouseleave', arm);
+    }
+    var fly = { parent: parent, sub: sub, isOpen: isOpen, open: open, close: close };
+    FLYOUTS.push(fly);
+    return fly;
   }
-  function closeUtilFlyout() {
-    utilParent.classList.remove('open');
-    utilSub.classList.remove('open');
-    menuEl.classList.remove('util-page');
-  }
-  function toggleUtilFlyout() { utilFlyoutOpen() ? closeUtilFlyout() : openUtilFlyout(); }
-  // Desktop convenience: hover opens the SIDE flyout (never the drill-down, which
-  // hides the parent row and would flicker); leaving either side closes it.
-  if (!IS_TOUCH) {
-    var flyCloseT;
-    var arm = function () { if (utilSub.classList.contains('open')) flyCloseT = setTimeout(closeUtilFlyout, 220); };
-    var cancel = function () { clearTimeout(flyCloseT); };
-    utilParent.addEventListener('mouseenter', function () { cancel(); if (utilSideLeft() != null) openUtilFlyout(); });
-    utilParent.addEventListener('mouseleave', arm);
-    utilSub.addEventListener('mouseenter', cancel);
-    utilSub.addEventListener('mouseleave', arm);
-  }
-  window.addEventListener('resize', function () { if (utilFlyoutOpen()) openUtilFlyout(); });
+  makeFlyout('sm-util-parent', 'sm-utilities', 'util-page');
+  makeFlyout('sm-games-parent', 'sm-games', 'games-page');
+  function closeAllFlyouts() { FLYOUTS.forEach(function (f) { f.close(); }); }
+  window.addEventListener('resize', function () {
+    FLYOUTS.forEach(function (f) { if (f.isOpen()) f.open(); });
+  });
 
   // --- events ---
   startBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleMenu(); });
@@ -2811,20 +2830,24 @@
 
 
   menuEl.addEventListener('click', function(e) {
-    // Flyout title doubles as a "back"/close on the Utilities cascading panel.
-    if (e.target.closest('.sm-fly-head')) { closeUtilFlyout(); return; }
-    // The "Utilities" parent OPENS its flyout (positioned beside/over the menu so
-    // it never grows the menu vertically). Open (idempotent), NOT toggle: on a
-    // non-coarse pointer (iPad + trackpad/keyboard) a tap fires mouseenter — which
-    // hover-opens it — then click, which used to toggle it right back closed, so
-    // the flyout never appeared. Closing is via ‹ Back, an outside tap, or (mouse)
-    // hovering away.
-    if (e.target.closest('.sm-parent')) {
-      // Pure touch (no hover bound): tap toggles. Mouse/trackpad (hover already
-      // opened it on mouseenter): just ENSURE open — never close here, or the
-      // hover-open→click-close race hides the flyout. Close via ‹ Back / outside.
-      if (IS_TOUCH) { utilFlyoutOpen() ? closeUtilFlyout() : openUtilFlyout(); }
-      else { openUtilFlyout(); }
+    // Flyout title doubles as a "back"/close on a cascading panel.
+    if (e.target.closest('.sm-fly-head')) { closeAllFlyouts(); return; }
+    // A flyout parent (Utilities, Games) OPENS its panel (positioned beside/over
+    // the menu so it never grows the menu vertically). Open (idempotent), NOT
+    // toggle: on a non-coarse pointer (iPad + trackpad/keyboard) a tap fires
+    // mouseenter — which hover-opens it — then click, which used to toggle it
+    // right back closed, so the flyout never appeared. Closing is via ‹ Back,
+    // an outside tap, or (mouse) hovering away.
+    var par = e.target.closest('.sm-parent');
+    if (par) {
+      var fly = FLYOUTS.filter(function (f) { return f.parent === par; })[0];
+      if (fly) {
+        // Pure touch (no hover bound): tap toggles. Mouse/trackpad (hover already
+        // opened it on mouseenter): just ENSURE open — never close here, or the
+        // hover-open→click-close race hides the flyout.
+        if (IS_TOUCH) { fly.isOpen() ? fly.close() : fly.open(); }
+        else { fly.open(); }
+      }
       return;
     }
     var item = e.target.closest('.sm-item');
