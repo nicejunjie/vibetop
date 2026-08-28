@@ -847,8 +847,17 @@
     border-radius: 12px; padding: 12px 14px 10px;
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     color: #8a96a6; text-align: center;
+    pointer-events: auto;   /* the wallpaper is pointer-events:none; re-enable for the ‹ › nav */
   }
-  .wp-cal-head { font-size: 13px; font-weight: 600; letter-spacing: 0.3px; color: #aab4c5; margin-bottom: 7px; }
+  .wp-cal-head { display: flex; align-items: center; justify-content: space-between;
+                 gap: 6px; margin-bottom: 7px; }
+  .wp-cal-head .lbl { font-size: 13px; font-weight: 600; letter-spacing: 0.3px; color: #aab4c5; cursor: pointer; }
+  .wp-cal-head .lbl:hover { color: #dfe7f0; }
+  .wp-cal-nav {
+    cursor: pointer; color: #5b6879; font-size: 15px; line-height: 1;
+    padding: 2px 8px; border-radius: 6px; user-select: none;
+  }
+  .wp-cal-nav:hover { color: #dfe7f0; background: rgba(58,70,90,0.4); }
   .wp-cal table { border-collapse: collapse; margin: 0 auto; }
   .wp-cal th { font-size: 10.5px; font-weight: 600; color: #5b6879; padding: 1px 0 5px; }
   .wp-cal td { width: 26px; height: 26px; line-height: 26px; padding: 0; font-size: 12px; }
@@ -3703,16 +3712,26 @@
   // today-mark are date-level, so re-rendering per minute would be waste).
   var wt = document.getElementById('wp-clock-t'), wd = document.getElementById('wp-clock-d');
   var calEl = document.getElementById('wp-cal'), calDay = '';
+  // ‹ › browse other months (user request); the month-year label jumps back to
+  // the current month. calOff = months away from now; the today accent renders
+  // only on the real current month.
+  var calOff = 0;
   function paintCal(now) {
     if (!calEl) return;
-    var key = now.toDateString();
+    var key = now.toDateString() + '#' + calOff;
     if (key === calDay) return;
     calDay = key;
-    var y = now.getFullYear(), m = now.getMonth(), today = now.getDate();
+    var view = new Date(now.getFullYear(), now.getMonth() + calOff, 1);
+    var y = view.getFullYear(), m = view.getMonth();
+    var today = (calOff === 0) ? now.getDate() : 0;      // accent only in the real month
     var first = new Date(y, m, 1).getDay();              // 0 = Sunday
     var days = new Date(y, m + 1, 0).getDate();
     var h = '<div class="wp-cal-head">' +
-            now.toLocaleDateString([], { month: 'long', year: 'numeric' }) + '</div><table><tr>';
+            '<span class="wp-cal-nav" data-nav="-1" title="Previous month">‹</span>' +
+            '<span class="lbl" title="Back to this month">' +
+            view.toLocaleDateString([], { month: 'long', year: 'numeric' }) + '</span>' +
+            '<span class="wp-cal-nav" data-nav="1" title="Next month">›</span>' +
+            '</div><table><tr>';
     for (var i = 0; i < 7; i++)                          // 2024-09-01 was a Sunday
       h += '<th>' + new Date(2024, 8, 1 + i).toLocaleDateString([], { weekday: 'narrow' }) + '</th>';
     h += '</tr><tr>';
@@ -3725,6 +3744,14 @@
     while (cell < 7) { h += '<td></td>'; cell++; }
     calEl.innerHTML = h + '</tr></table>';
   }
+  if (calEl) calEl.addEventListener('click', function (e) {
+    var nav = e.target.closest('.wp-cal-nav');
+    if (nav) calOff += +nav.dataset.nav;
+    else if (e.target.closest('.lbl')) calOff = 0;
+    else return;
+    calDay = '';                       // force the re-render
+    paintCal(new Date());
+  });
   function paint() {
     var now = new Date();
     t.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
