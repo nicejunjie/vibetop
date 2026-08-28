@@ -2242,27 +2242,6 @@
         baseW = w; baseH = 0; kbAnchor = 0; kbPrior = 0; kbSamples.length = 0;
         priorsLoad();
       }
-      // Geometry sanity gate — BOTH bounds. Mid-keyboard, WebKit reports
-      // self-inconsistent viewports and HOLDS them for many seconds; two forms
-      // measured live on the reporting iPhone: (a) overflow — vvTop 285 +
-      // vvH 480 = 765 with innerHeight 609 (visual viewport "extends past" the
-      // layout viewport); (b) collapse — vvBottom ≈ 268 on an 894 screen,
-      // which drew the key bar MID-SCREEN with a dead band under it (the
-      // "bar floats in the middle" screenshot; the first guard only checked
-      // (a), so (b) slipped through and the instant nonzero post locked it
-      // in). Physics bound for (b): no iOS keyboard eats more than ~60% of
-      // the screen, so a visual-viewport bottom under 40% of the no-keyboard
-      // height is a lie regardless of which field lied. In any bogus state
-      // act on NOTHING — keep the bar and the last delivered figure until the
-      // readings become consistent again.
-      var vvv = window.visualViewport;
-      if (vvv) {
-        var vvB = vvv.offsetTop + vvv.height;
-        if (vvv.offsetTop < -2 || vvB > window.innerHeight + 1 || (baseH > 300 && vvB < baseH * 0.4)) {
-          dbgBeacon('skew', { vvH: Math.round(vvv.height), vvTop: Math.round(vvv.offsetTop) });
-          return;
-        }
-      }
       var h = curH();
       if (h > baseH) { baseH = h; priorsSaveBase(); }   // taller reading -> new baseline, remembered
       var kbUp = h < baseH - 150;           // keyboard ~300px; URL bar ~60px; 150 distinguishes them
@@ -2275,17 +2254,16 @@
       // own real <input> whose iOS AutoFill/^v/Done accessory would collide here.
       var suppress = (active !== 'terminal');
       if (kbUp && !suppress) {
-        // QUORUM ANCHOR — never act on a single reading. The keyboard-open
-        // ANIMATION emits plausible-looking intermediate vvBottom values
-        // (600, 550, …) that pass every sanity bound; acting on one instantly
-        // and then having the RESTING state rejected by the sanity gate froze
-        // the bar and the scroll at animation garbage ("big gap most of the
-        // time"). A keyboard-top figure only takes effect once it has been
-        // seen at least TWICE within ±14px in the last 4s — each intermediate
-        // value appears once and can never win, while the true resting value
-        // repeats on every event. The anchor persists across close/reopen
-        // (the keyboard's height is stable per orientation, so the bar is
-        // right instantly on reopen; a width change resets it).
+        // ONE positioning rule, after three failed heuristic towers (quorum
+        // gating visibility, sanity gates freezing everything, priors mixing
+        // with raw readings — each broke this bar in a new way, see
+        // design-decisions): the bar RIDES the instantaneous reading, but once
+        // a keyboard-top has ever been CONFIRMED (seen twice within ±14px in
+        // 4s; persisted per orientation), the reading is CLAMPED to ±60px of
+        // that learned value. Legitimate shifts stay inside ±60 (the pinyin
+        // candidates row is ~45px); WebKit's mid-animation/mid-screen garbage
+        // is hundreds of px away and gets pulled back. No event is ever
+        // rejected, so the bar can neither vanish nor freeze.
         var vb = Math.round(vvBottom());
         var nowTs = Date.now();
         kbSamples.push({ v: vb, t: nowTs });
@@ -2293,18 +2271,10 @@
         var agree = 0;
         for (var si = 0; si < kbSamples.length; si++)
           if (nowTs - kbSamples[si].t < 4000 && Math.abs(kbSamples[si].v - vb) <= 14) agree++;
-        if (agree >= 2) { kbAnchor = vb; priorsSaveAnchor(vb); }   // confirmed + remembered
-        // THE BAR ALWAYS SHOWS. v1.19.69's `if (!kbAnchor) return` held the
-        // whole bar hostage to the quorum: on a device whose RESTING readings
-        // mostly land in the sanity-gate-rejected states, samples stayed
-        // sparse, the anchor never formed, and the esc/tab/^C/arrow bar never
-        // appeared at all ("the control bar is gone!"). Position preference:
-        // this session's anchor, else the PERSISTED prior (the keyboard's
-        // height is a per-orientation device constant, so last session's
-        // confirmed value is right on the first frame), else — first use ever
-        // on this device — the instantaneous reading, corrected by the quorum
-        // within a beat. The occlusion FIGURE still posts only when anchored.
-        var barTop = Math.round((kbAnchor || kbPrior || vb) - BAR_H);
+        if (agree >= 2 && vb > baseH * 0.35) { kbAnchor = vb; priorsSaveAnchor(vb); }
+        var learned = kbAnchor || kbPrior;
+        var pos = learned ? Math.max(learned - 60, Math.min(learned + 60, vb)) : vb;
+        var barTop = Math.round(pos - BAR_H);
         bar.style.top = barTop + 'px'; bar.style.display = 'flex';
         // Keyboard just (re)opened → bust the dedupe. The PWA can be suspended
         // with the keyboard up and lastOcc holding the final figure; on resume
@@ -2314,11 +2284,9 @@
         // covered" report). A transition repost is cheap and always correct.
         if (!wasUp) { lastOcc = -1; maybeShowHint(); }
         else if (hint.style.display !== 'none') positionHint();        // keep it pinned during URL-bar scroll
-        if (kbAnchor) {
-          var occPx = occlusionOver('terminal', Math.round(kbAnchor - BAR_H));
-          dbgBeacon('sync', { kbUp: 1, barTop: barTop, occ: Math.round(occPx), lastOcc: lastOcc, anchor: kbAnchor });
-          postSettled(occPx);
-        }
+        var occPx = occlusionOver('terminal', barTop);
+        dbgBeacon('sync', { kbUp: 1, barTop: barTop, occ: Math.round(occPx), lastOcc: lastOcc, anchor: kbAnchor || 0 });
+        postSettled(occPx);
       } else {
         // Samples deliberately KEPT across the close: the 4s freshness window
         // ages them out on its own, and clearing them on every keyboard-down
