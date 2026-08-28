@@ -1082,6 +1082,153 @@
     });
   }
 
+  // The previewer's image-quality toggle ships icon-only upstream: Preview.vue
+  // passes no :label to the action component while every sibling (Download,
+  // Delete, Info, …) has one — so it renders as a bare "HD" glyph with no text
+  // and no tooltip. Give it the same icon+label anatomy as the rest. The label
+  // states what CLICKING does (like Download/Delete): "Full res" loads the
+  // original file; once at full size the icon flips and "Preview" returns to
+  // the fast server-resized preview.
+  function labelSizeToggle() {
+    document.querySelectorAll("#previewer button.action i.material-icons").forEach(function(ic) {
+      var glyph = (ic.textContent || "").trim();
+      if (glyph !== "hd" && glyph !== "photo_size_select_large") return;
+      var btn = ic.closest("button.action");
+      if (!btn) return;
+      btn.classList.add("vt-sizetoggle");
+      var label = glyph === "hd" ? "Full res" : "Preview";
+      var span = btn.querySelector("span:not(.counter)");
+      if (!span) { span = document.createElement("span"); btn.appendChild(span); }
+      if (span.textContent !== label) span.textContent = label;
+      btn.setAttribute("title", label);
+      btn.setAttribute("aria-label", label);
+    });
+  }
+  // The icon ligature flips via a text-node mutation our observer doesn't watch
+  // (childList only) — refresh the label right after a toggle click.
+  document.addEventListener("click", function(e) {
+    if (e.target.closest && e.target.closest(".vt-sizetoggle")) setTimeout(schedulePatch, 80);
+  }, true);
+
+  // Make the file-info dialog useful, like a real OS file manager (macOS Get
+  // Info / Windows Properties): Kind, Dimensions, Where, Permissions, and the
+  // EXACT modified date-time instead of "a day ago". Stock FileBrowser shows
+  // name / size / relative time / checksums-behind-links only. We resolve the
+  // target file (previewer URL, else the single selected listing item), fetch
+  // its resource JSON from FileBrowser's own API (which computes image
+  // resolution for a single file — the folder listing the dialog reads from
+  // doesn't), and insert rows above the checksum block.
+  var KIND_MAP = {
+    png: "PNG image", jpg: "JPEG image", jpeg: "JPEG image", gif: "GIF image",
+    webp: "WebP image", svg: "SVG image", heic: "HEIC image", bmp: "Bitmap image",
+    tif: "TIFF image", tiff: "TIFF image", ico: "Icon image",
+    mp4: "MPEG-4 video", mkv: "Matroska video", mov: "QuickTime video",
+    avi: "AVI video", webm: "WebM video",
+    mp3: "MP3 audio", flac: "FLAC audio", wav: "WAV audio", m4a: "M4A audio", ogg: "Ogg audio",
+    pdf: "PDF document", doc: "Word document", docx: "Word document",
+    xls: "Excel spreadsheet", xlsx: "Excel spreadsheet",
+    ppt: "PowerPoint presentation", pptx: "PowerPoint presentation",
+    txt: "Plain text", md: "Markdown text", csv: "CSV text", json: "JSON file",
+    yaml: "YAML file", yml: "YAML file", log: "Log file", ipynb: "Jupyter notebook",
+    zip: "ZIP archive", tar: "tar archive", gz: "gzip archive", tgz: "gzip archive",
+    xz: "xz archive", bz2: "bzip2 archive", "7z": "7-Zip archive", rar: "RAR archive",
+    py: "Python script", sh: "Shell script", js: "JavaScript file", ts: "TypeScript file",
+    c: "C source", h: "C header", cpp: "C++ source", go: "Go source", rs: "Rust source",
+    java: "Java source", html: "HTML file", css: "CSS file",
+    iso: "Disk image", deb: "Debian package", rpm: "RPM package",
+    exe: "Windows program", dmg: "macOS disk image"
+  };
+  function kindOf(name, type, isDir) {
+    if (isDir) return "Folder";
+    var dot = (name || "").lastIndexOf(".");
+    var ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+    if (KIND_MAP[ext]) return KIND_MAP[ext];
+    if (ext) return ext.toUpperCase() + " file";
+    return type === "text" ? "Plain text" : "File";
+  }
+  function fmtMode(mode) {   // Go os.FileMode → "rwxr-xr-x" (permissions are the low 9 bits)
+    var s = "", ch = "rwx";
+    for (var i = 8; i >= 0; i--) s += ((mode >> i) & 1) ? ch[(8 - i) % 3] : "-";
+    return s;
+  }
+  function infoTarget() {
+    // Previewer / editor: the URL IS the file.
+    if (document.getElementById("previewer") || document.getElementById("editor-container"))
+      return currentFullPath();
+    var sel = selectedItemsAll();
+    return sel.length === 1 ? sel[0].abs : null;   // listing: exactly one selected
+  }
+  function enhanceInfoCard() {
+    var card = document.querySelector(".card.floating");
+    if (!card || card.classList.contains("vt-info-plus")) return;
+    var content = card.querySelector(".card-content");
+    // Only the FILE info dialog carries the checksum <code> links — leave every
+    // other prompt (delete, rename, share, …) alone.
+    if (!content || !content.querySelector("code")) return;
+    var abs = infoTarget();
+    if (!abs) return;
+    card.classList.add("vt-info-plus");
+    fetch("/files/api/resources" + encFbPath(abs), { headers: { "X-Auth": fbToken() } })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(j) {
+        if (!j || !card.isConnected) return;
+        // Insert above the first checksum row so the hashes stay last.
+        var firstSum = null;
+        content.querySelectorAll("p").forEach(function(p) {
+          if (!firstSum && p.querySelector("code")) firstSum = p;
+        });
+        function row(label, value) {
+          var p = document.createElement("p");
+          p.className = "vt-inforow";
+          var b = document.createElement("strong");
+          b.textContent = label + ": ";
+          p.appendChild(b);
+          p.appendChild(document.createTextNode(value));
+          content.insertBefore(p, firstSum);
+        }
+        row("Kind", kindOf(j.name, j.type, j.isDir));
+        var slash = abs.lastIndexOf("/");
+        row("Where", slash > 0 ? abs.slice(0, slash) : "/");
+        if (typeof j.mode === "number")
+          row("Permissions", fmtMode(j.mode) + " (" + (j.mode & 511).toString(8) + ")");
+        // Dimensions: the single-file resource carries them; FB's own Resolution
+        // row only appears when the (listing-fed) store had them, so skip if so.
+        var hasRes = false;
+        content.querySelectorAll("p:not(.vt-inforow)").forEach(function(p) {
+          if (/\d+\s*x\s*\d+/i.test(p.textContent || "")) hasRes = true;
+        });
+        if (!hasRes && j.type === "image") {
+          if (j.resolution && j.resolution.width) {
+            row("Dimensions", j.resolution.width + " × " + j.resolution.height);
+          } else {
+            var img = new Image();
+            img.onload = function() {
+              if (card.isConnected && img.naturalWidth)
+                row("Dimensions", img.naturalWidth + " × " + img.naturalHeight);
+            };
+            var tok = fbToken();
+            img.src = "/files/api/raw" + encFbPath(abs) + "?inline=true" + (tok ? "&auth=" + encodeURIComponent(tok) : "");
+          }
+        }
+        // Rewrite the relative "Last Modified: a day ago" to the exact local
+        // date-time (what Finder/Explorer show), keeping the relative in parens.
+        var d = j.modified ? new Date(j.modified) : null;
+        if (d && !isNaN(d)) {
+          var exact = d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+          var modP = content.querySelector("p[title]");
+          if (modP) {
+            var strong = modP.querySelector("strong");
+            var rel = strong ? (modP.textContent || "").slice(strong.textContent.length).trim() : "";
+            while (strong && strong.nextSibling) modP.removeChild(strong.nextSibling);
+            if (strong) modP.appendChild(document.createTextNode(" " + exact + (rel ? " (" + rel + ")" : "")));
+          } else {
+            row("Modified", exact);
+          }
+        }
+      })
+      .catch(function() {});
+  }
+
   var patching = false;
   function patchAll() {
     if (patching) return;
@@ -1089,6 +1236,10 @@
     rememberLocation();
     maybeAutoOpenOffice();
     maybeAutoOpenVideo();
+    // These two live in views the listing-only gate below rejects (the
+    // previewer/editor) — run them before it.
+    labelSizeToggle();
+    enhanceInfoCard();
     // Outside the listing (text editor, media previewer, error/loading views)
     // the action toolbar doesn't belong — strip any leftover buttons and stop,
     // so they don't overlap the editor's own toolbar/breadcrumb.
