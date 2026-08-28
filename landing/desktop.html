@@ -1311,15 +1311,30 @@
         cell.style.height = 'calc(' + (z[3] * 100) + '% - 2px)';
         grid.appendChild(cell); zoneEls.push(cell);
       });
+      // IDEMPOTENT repaint — only touch the DOM when a zone's occupant actually
+      // changed. paint() runs on mouseenter, and an unconditional innerHTML
+      // write DETACHES the icon under the cursor; the browser then re-evaluates
+      // hover, mouseenter fires again, paint() again — a churn loop (measured:
+      // 33 DOM mutations in 400ms while hovering ONE zone) in which a
+      // pointerdown dies inside a detached subtree, so a drag could never arm.
+      // That was v1.19.51's "the bottom right one can never be swapped", round
+      // two: click sneaks through when the churn is momentarily quiet, a press
+      // never does. Skipping the write when nothing changed terminates the
+      // loop after at most one legitimate repaint.
       var paint = function (assign) {
         zoneEls.forEach(function (cell, j) {
-          var app = APPS[assign[j]];
-          // Same markup as the taskbar button and the window title bar (svg
-          // preferred, emoji fallback), so a zone is recognizably "that window".
-          cell.innerHTML = app ? (app.svg || app.icon) : '';
-          cell.title = (assign[j] === active)
+          var id = assign[j] || '';
+          var app = APPS[id];
+          if (cell.dataset.app !== id) {
+            cell.dataset.app = id;
+            // Same markup as the taskbar button and the window title bar (svg
+            // preferred, emoji fallback), so a zone is recognizably "that window".
+            cell.innerHTML = app ? (app.svg || app.icon) : '';
+          }
+          var t = (id === active)
             ? L.name + ' with ' + focusedLabel + ' here'
             : 'Put ' + focusedLabel + ' here instead \u00b7 drag icons to swap any two';
+          if (cell.title !== t) cell.title = t;
         });
       };
       paint(base);

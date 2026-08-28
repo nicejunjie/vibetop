@@ -677,4 +677,113 @@ test.describe('window mode', () => {
       expect(Math.abs(after.top - placed.top)).toBeLessThanOrEqual(2);
     });
   });
+
+  // The v1.19.51 lesson: the palette drag was completely broken on the deployed
+  // build while the then-existing "drag" e2e passed — its synthetic burst
+  // slipped through a momentarily quiet churn window that a human hand never
+  // does. These two tests drive the REAL gesture shape (press, arm inside the
+  // source zone, travel, drop) and pin the root cause class itself (a repaint
+  // feedback loop: mouseenter -> unconditional innerHTML -> node under the
+  // cursor detached -> hover re-evaluated -> mouseenter again), on the engine
+  // where it manifests. Chromium only: the churn loop is a Chromium hover
+  // re-evaluation behavior; WebKit lanes passed even while it was broken.
+  test.describe('palette drag, for real', () => {
+    test.beforeEach(async ({ page }, info) => {
+      test.skip(info.project.name !== 'desktop-chromium', 'chromium-only: see above');
+      await useWindowMode(page);
+      await page.goto('/');
+      await openApp(page, 'notes');
+      await openApp(page, 'upload');
+      await openApp(page, 'files');
+      await page.waitForTimeout(600);
+    });
+
+    // Open the palette and return the tile locator for the first offered layout,
+    // plus its px zones and the frame offset.
+    async function openTile(page) {
+      const offered = await page.evaluate(() => {
+        const f = document.getElementById('frames').getBoundingClientRect();
+        return window.VibeWin.layoutsFor({ w: Math.round(f.width), h: Math.round(f.height) }, 3)
+          .map((l) => l.key);
+      });
+      test.skip(!offered.length, 'no 3-window layout fits this lane');
+      await page.mouse.move(10, 10);
+      await page.locator('#wm-btn').hover();
+      await expect(page.locator('#win-layouts')).toHaveClass(/open/, { timeout: 3000 });
+      const zones = await page.evaluate((key) => {
+        const f = document.getElementById('frames').getBoundingClientRect();
+        return window.VibeWin.layoutGeoms(key, { w: Math.round(f.width), h: Math.round(f.height) });
+      }, offered[0]);
+      const fr = await page.evaluate(() => {
+        const r = document.getElementById('frames').getBoundingClientRect();
+        return { left: Math.round(r.left), top: Math.round(r.top) };
+      });
+      return { grid: page.locator('#win-layouts .wl-opt').first().locator('.wl-grid'),
+               key: offered[0], zones, fr };
+    }
+
+    test('press, arm, travel, drop — the last zone IS swappable', async ({ page }) => {
+      // Apply the layout first so the reopened tile previews reality (occupancy),
+      // then drag zone 0's occupant onto the LAST zone — for 1 + 2 that is
+      // exactly "the bottom right one", the reported-unswappable slot.
+      let t = await openTile(page);
+      await t.grid.click();
+      await page.waitForTimeout(600);
+      t = await openTile(page);
+      const last = t.zones.length - 1;
+      // Occupants by icon markup (works on any build — data-app only exists on
+      // the fixed one, and this proof must fail at the DRAG, not on an attribute).
+      const occ = (j) => t.grid.locator(`.wl-zone[data-zone="${j}"]`).evaluate((el) => {
+        const btns = [...document.querySelectorAll('#task-apps .task-app')];
+        const hit = btns.find((x) => x.querySelector('.icon').innerHTML === el.innerHTML);
+        return hit && hit.dataset.id;
+      });
+      const a = await occ(0), b = await occ(last);
+      expect(a).toBeTruthy(); expect(b).toBeTruthy(); expect(a).not.toBe(b);
+
+      const z0 = await t.grid.locator('.wl-zone[data-zone="0"]').boundingBox();
+      const zl = await t.grid.locator(`.wl-zone[data-zone="${last}"]`).boundingBox();
+      await page.mouse.move(z0.x + z0.width / 2, z0.y + z0.height / 2);
+      await page.waitForTimeout(120);                    // a human hovers before pressing
+      await page.mouse.down();
+      // Arm INSIDE the source zone (>4px threshold) — this is what dies when a
+      // repaint loop detaches the node mid-dispatch: pointerdown never lands.
+      await page.mouse.move(z0.x + z0.width / 2 + 7, z0.y + z0.height / 2, { steps: 3 });
+      await page.waitForTimeout(120);
+      await expect(page.locator('.wl-drag-src'), 'the drag must arm').toHaveCount(1);
+      await page.mouse.move(zl.x + zl.width / 2, zl.y + zl.height / 2, { steps: 12 });
+      await page.waitForTimeout(150);
+      await expect(page.locator('.wl-drag-over'), 'the drop target must light').toHaveCount(1);
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+
+      // The two occupants really traded places on the desktop.
+      const g = (id) => page.locator(`#win-${id}`).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { left: Math.round(r.left), top: Math.round(r.top) };
+      });
+      const ga = await g(a), gb = await g(b);
+      expect(Math.abs(ga.left - (t.fr.left + t.zones[last].left))).toBeLessThanOrEqual(2);
+      expect(Math.abs(ga.top - (t.fr.top + t.zones[last].top))).toBeLessThanOrEqual(2);
+      expect(Math.abs(gb.left - (t.fr.left + t.zones[0].left))).toBeLessThanOrEqual(2);
+      expect(Math.abs(gb.top - (t.fr.top + t.zones[0].top))).toBeLessThanOrEqual(2);
+    });
+
+    test('hovering a zone leaves the palette DOM quiet (no repaint loop)', async ({ page }) => {
+      const t = await openTile(page);
+      const zl = await t.grid.locator(`.wl-zone[data-zone="${t.zones.length - 1}"]`).boundingBox();
+      await page.mouse.move(zl.x + zl.width / 2, zl.y + zl.height / 2);
+      await page.waitForTimeout(250);                    // the one legitimate repaint settles
+      const churn = await page.evaluate(() => new Promise((resolve) => {
+        let n = 0;
+        const mo = new MutationObserver((muts) => { n += muts.length; });
+        mo.observe(document.getElementById('win-layouts'),
+                   { childList: true, subtree: true, characterData: true });
+        setTimeout(() => { mo.disconnect(); resolve(n); }, 400);
+      }));
+      // Broken build measured 33 mutations in this window; idempotent paint = 0.
+      expect(churn, 'palette DOM must be quiet under a stationary pointer').toBe(0);
+    });
+  });
+
 });

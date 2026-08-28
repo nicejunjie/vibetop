@@ -3824,3 +3824,47 @@ passes against the fix; touch pick-up/drop verified with synthesized
   moment windows move by other means; deriving from geometry keeps one truth.
 - *Drag a taskbar button onto a zone* — still collides with taskbar
   drag-to-reorder (rejected last round, unchanged).
+
+---
+
+## The drag that tested green and shipped broken: repaint churn eats pointerdown
+
+**Symptom:** v1.19.51's drag-to-swap did not work on the deployed build — the
+user re-reported the original complaint verbatim ("the bottom right one can
+never be swapped") — while the e2e drag test that shipped with it passed against
+that same deployment.
+
+**Cause (measured, not inferred):** `paint()` rewrote every zone's `innerHTML`
+on every call, and it runs on `mouseenter`. An innerHTML write DETACHES the icon
+under the cursor; the browser re-evaluates hover, `mouseenter` fires again,
+`paint()` again — a repaint feedback loop (33 DOM mutations in 400ms hovering
+ONE stationary zone, Chromium). A `pointerdown` dispatched into that churn dies
+in a detached subtree: no handler runs, `setPointerCapture` never happens, the
+drag never arms. The asymmetry that made it look "half working": a *click* can
+land in a momentarily quiet gap, a *press-and-move* never can.
+
+**Why the shipped e2e lied:** its synthetic burst (move once onto the zone
+center, press in the same event stream) threaded the quiet gap that a human
+hand — hover, settle, press — never finds. And it ran on the WebKit tablet
+lanes, where the hover re-evaluation loop does not manifest; the bug is
+Chromium-side. A gesture test must (1) drive the real gesture shape with settle
+pauses, on (2) the engine where the failure mode lives.
+
+**Fix (v1.19.52):** idempotent repaint — `paint()` tracks each cell's occupant
+in `data-app` and skips the `innerHTML` write when unchanged (titles compared
+before assignment too). Any re-fired `mouseenter` then paints nothing, and the
+loop terminates after at most one legitimate repaint. Verified: 0 mutations in
+the same 400ms window, drag arms, swap lands.
+
+**Guards added, both proven failing against the broken deployed build first:**
+- an e2e that drives the REAL gesture — hover, settle, press, arm inside the
+  source zone (asserted), travel, drop-target lit (asserted), drop, geometry
+  swapped — failing at "the drag must arm" on the broken build;
+- a churn guard — hover a zone, let the legitimate repaint settle, then assert
+  **zero** MutationObserver records in the palette's subtree over 400ms under a
+  stationary pointer. The loop was invisible to every existing assertion; this
+  pins the failure class, not just the symptom.
+
+**Rule:** a DOM element that receives pointer gestures must never have its
+subtree rewritten by its own hover/enter handlers unless the write is
+conditional on actual change — hover-driven rendering must be idempotent.
