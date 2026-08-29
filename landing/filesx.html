@@ -55,6 +55,21 @@
   #manage { color: #b79be8; }
   #pastebtn { display: none; color: #b79be8; }
   #pastebtn.on { display: inline-block; }
+  .m-only { display: none; }        /* mobile-only controls (compact sort, ⋯) */
+  #hidden .bi { display: none; }    /* desktop keeps the text label */
+
+  /* ⋯ overflow popover (mobile) */
+  .morepop {
+    position: fixed; z-index: 6; background: #161b22; border: 1px solid #2a3040;
+    border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.5); padding: 4px;
+    min-width: 150px;
+  }
+  .morepop button {
+    display: block; width: 100%; text-align: left; background: transparent;
+    border: 0; color: #d4d8de; font: 13px system-ui, sans-serif;
+    padding: 10px 12px; border-radius: 6px; cursor: pointer; min-height: 40px;
+  }
+  .morepop button:active { background: #253044; }
 
   /* one-line notice under the toolbar (truncated listings, quiet errors) */
   .notice {
@@ -150,8 +165,10 @@
   }
   .row input.edit:focus { outline: none; }
   .row .sz {
-    flex: 0 0 76px; text-align: right; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: #8a93a6; white-space: nowrap;
+    /* system font + tabular digits: aligned numbers WITHOUT the wide monospace
+       gap between number and unit ("79  KB" report) */
+    flex: 0 0 76px; text-align: right; font: 12px system-ui, sans-serif;
+    font-variant-numeric: tabular-nums; color: #8a93a6; white-space: nowrap;
   }
   .row .mt { flex: 0 0 96px; text-align: right; font-size: 12px; color: #6b7488; white-space: nowrap; }
 
@@ -313,25 +330,58 @@
   }
   .pdf-fb button:hover { background: #253044; }
 
-  /* ---- mobile ≤736px: sticky controls grid → breadcrumb → address row ---- */
+  /* Touch devices: neutralize sticky :hover — iOS keeps :hover applied after a
+     tap, which left the last-tapped toolbar button (the ⟳ report) a different
+     shade, looking stuck-pressed. Everything returns to its rest style. */
+  @media (hover: none) {
+    .tools button:hover, .tools select:hover, .sbar .sx:hover, .actbar button:hover,
+    .state button:hover, .pv-head button:hover, .shr-sm:hover { background: #1f2733; }
+    .tools button[aria-pressed="true"]:hover { background: #241a38; }
+    .crumb:hover { background: transparent; color: #aab4c5; }
+    .crumb.cur:hover { color: #e6edf3; }
+    .row:hover { background: transparent; }
+    .row.sel:hover { background: #1f2937; }
+    .seg button:hover { background: transparent; }
+    .seg button.on:hover { background: #241a38; }
+    .shr-sm.danger:hover, .actbar .danger:hover { background: #1f2733; border-color: #2a3040; }
+    .mbtns .mok:hover { filter: none; }
+    .mbtns .mcancel:hover { background: transparent; color: #9fb0c0; }
+    #ed-save:hover:not(:disabled) { background: #8a4adb; }
+    .pdf-fb button:hover { background: #1f2733; }
+  }
+
+  /* ---- mobile ≤736px: one compact icon toolbar row → breadcrumb (tap the
+     current crumb to edit the path — the address input is collapsed) ---- */
   @media (max-width: 736px) {
-    .toolbar { gap: 7px; padding: 7px 10px 8px; }
-    .tools { order: 1; flex: 1 0 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-    .tools button, .tools select { min-height: 40px; font-size: 13px; padding: 5px 8px; }
-    #pastebtn.on { display: block; }
+    .toolbar { gap: 5px 6px; padding: 6px 8px; }
+    .tools { order: 1; flex: 1 0 100%; display: flex; flex-wrap: nowrap; gap: 5px; }
+    .tools button, .tools select { min-height: 38px; font-size: 13px; }
+    #newbtn, #upbtn, #hidden, #searchbtn, #refresh, #morebtn {
+      flex: 0 0 38px; width: 38px; padding: 0; font-size: 16px;
+    }
+    .tools .bl { display: none; }                 /* icons only, titles kept */
+    .tools .bi { display: inline; }
+    #hidden .bi { display: inline; }
+    #sortkey, #sortdir, #manage { display: none; }
+    select#sortsel2 { display: block; flex: 1 1 auto; min-width: 0; max-width: 140px; padding: 0 6px; }
+    #morebtn { display: inline-block; margin-left: auto; }   /* pinned to the edge */
+    #pastebtn { color: #b79be8; }
+    #pastebtn.on { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 9px; }
     .crumbs { order: 2; flex: 1 0 100%; min-width: 0; }
-    .crumb { font-size: 14px; padding: 6px 7px; }
-    .addr { order: 3; flex: 1 0 100%; }
-    .addr input { padding: 9px 10px; font-size: 14px; }
+    .crumb { font-size: 14px; padding: 6px 6px; }
+    .addr { order: 3; display: none; }            /* path lives in the crumbs; */
+    .addr.editing { display: flex; flex: 1 0 100%; }   /* tap the last crumb to edit */
+    .addr input { padding: 8px 10px; font-size: 14px; }
     /* wrap instead of an (invisible) horizontal scroll so every action is
        visible; disabled actions hide entirely — contextual, not greyed */
     .actbar { padding: 6px 8px; bottom: 12px; max-width: calc(100vw - 12px); flex-wrap: wrap; justify-content: center; overflow-x: visible; }
     .actbar button { min-height: 40px; font-size: 13px; padding: 5px 11px; }
     .actbar button:disabled { display: none; }
-    .row { min-height: 46px; padding: 5px 12px; }
-    .row .nm { font-size: 14px; }
-    .row .sz { flex-basis: 62px; }
-    .row .mt { flex-basis: 74px; }
+    .row { min-height: 40px; padding: 2px 10px; gap: 8px; }
+    .row .ic { flex: 0 0 20px; font-size: 14px; }
+    .row .nm { font-size: 13.5px; }
+    .row .sz { flex-basis: 52px; font-size: 11.5px; }
+    .row .mt { flex-basis: 54px; font-size: 11.5px; }
     .pv-head button { min-height: 38px; }
     /* search bar stacks: query row, then mode + scope + close */
     .sbar { flex-wrap: wrap; gap: 7px; }
@@ -354,8 +404,8 @@
              aria-label="Path — type a folder and press Enter" title="Type any path and press Enter">
     </div>
     <div class="tools">
-      <button id="newbtn" title="Create a new folder here">＋ New</button>
-      <button id="upbtn" title="Upload files to this folder">⬆ Upload</button>
+      <button id="newbtn" title="Create a new folder here"><span class="bi">＋</span><span class="bl"> New</span></button>
+      <button id="upbtn" title="Upload files to this folder"><span class="bi">⬆</span><span class="bl"> Upload</span></button>
       <button id="pastebtn" title="Paste here"></button>
       <select id="sortkey" aria-label="Sort by" title="Sort by">
         <option value="name">Name</option>
@@ -363,10 +413,19 @@
         <option value="mtime">Modified</option>
       </select>
       <button id="sortdir" title="Sort direction" aria-label="Sort direction"></button>
-      <button id="hidden" title="Show hidden files" aria-pressed="false">Hidden</button>
+      <select id="sortsel2" class="m-only" aria-label="Sort" title="Sort">
+        <option value="name:asc">Name ↑</option>
+        <option value="name:desc">Name ↓</option>
+        <option value="size:asc">Size ↑</option>
+        <option value="size:desc">Size ↓</option>
+        <option value="mtime:asc">Date ↑</option>
+        <option value="mtime:desc">Date ↓</option>
+      </select>
+      <button id="hidden" title="Show hidden files" aria-pressed="false"><span class="bi">👁</span><span class="bl">Hidden</span></button>
       <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search">🔍</button>
       <button id="refresh" title="Refresh" aria-label="Refresh">⟳</button>
       <button id="manage" title="Open the classic file manager here (editor, search…)">Manage</button>
+      <button id="morebtn" class="m-only" title="More" aria-label="More" aria-haspopup="menu">⋯</button>
     </div>
   </div>
   <div class="sbar" id="sbar">
@@ -487,6 +546,7 @@
     sortKeyEl.value = sortKey;
     sortDirEl.textContent = sortAsc ? '↑' : '↓';
     sortDirEl.title = sortAsc ? 'Ascending — click for descending' : 'Descending — click for ascending';
+    document.getElementById('sortsel2').value = sortKey + ':' + (sortAsc ? 'asc' : 'desc');
     hiddenEl.setAttribute('aria-pressed', showHidden ? 'true' : 'false');
     hiddenEl.title = showHidden ? 'Hide hidden files' : 'Show hidden files';
   }
@@ -522,16 +582,19 @@
     do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
     return (n < 10 ? n.toFixed(1) : Math.round(n)) + ' ' + u[i];
   }
-  function fmtRel(ts) {
+  function fmtRel(ts, short) {
+    // short (mobile): "2d" not "2d ago", compact old dates — the name column
+    // gets the room.
     var s = Date.now() / 1000 - ts;
-    if (s < 45) return 'just now';
-    if (s < 3600) return Math.round(s / 60) + 'm ago';
-    if (s < 86400) return Math.round(s / 3600) + 'h ago';
-    if (s < 86400 * 7) return Math.round(s / 86400) + 'd ago';
+    if (s < 45) return short ? 'now' : 'just now';
+    if (s < 3600) return Math.round(s / 60) + 'm' + (short ? '' : ' ago');
+    if (s < 86400) return Math.round(s / 3600) + 'h' + (short ? '' : ' ago');
+    if (s < 86400 * 7) return Math.round(s / 86400) + 'd' + (short ? '' : ' ago');
     var d = new Date(ts * 1000), now = new Date();
-    var opt = { month: 'short', day: 'numeric' };
-    if (d.getFullYear() !== now.getFullYear()) opt.year = 'numeric';
-    return d.toLocaleDateString(undefined, opt);
+    if (d.getFullYear() === now.getFullYear())
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return short ? d.toLocaleDateString(undefined, { year: '2-digit', month: 'numeric', day: 'numeric' })
+                 : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
   function iconFor(name, isDir) {
     if (isDir) return '📁';
@@ -582,25 +645,45 @@
     }, isErr ? 6000 : 3200);
   }
 
+  var MQ_MOBILE = window.matchMedia('(max-width: 736px)');
   function renderCrumbs() {
     crumbsEl.innerHTML = '';
-    var segs = path === '/' ? [] : path.replace(/^\//, '').split('/');
-    var root = el('button', 'crumb' + (segs.length ? '' : ' cur'), '/');
-    root.title = 'Filesystem root';
-    root.addEventListener('click', function() { go('/'); });
-    crumbsEl.appendChild(root);
-    var acc = '';
-    segs.forEach(function(seg, i) {
-      acc += '/' + seg;
-      var p = acc;
-      crumbsEl.appendChild(el('span', 'crumb-sep', '▸'));
-      var b = el('button', 'crumb' + (i === segs.length - 1 ? ' cur' : ''),
-                 (HOME && p === HOME) ? 'Home' : seg);
-      b.title = p;
-      b.addEventListener('click', function() { go(p); });
+    var first = true;
+    function addCrumb(label, p) {
+      if (!first) crumbsEl.appendChild(el('span', 'crumb-sep', '▸'));
+      first = false;
+      var isCur = p === path;
+      var b = el('button', 'crumb' + (isCur ? ' cur' : ''), label);
+      b.title = (isCur && MQ_MOBILE.matches) ? 'Tap to edit the path' : p;
+      b.addEventListener('click', function() {
+        // Mobile hides the always-open address input (the path showed twice);
+        // the CURRENT crumb is the way in: tap → edit the path in place.
+        if (isCur && MQ_MOBILE.matches) { openAddrEdit(); return; }
+        go(p);
+      });
       crumbsEl.appendChild(b);
-    });
+    }
+    // Under home the trail STARTS at "Home" — the literal /home/<user> segments
+    // fold away (the "home ▸ Home" duplication report). Elsewhere it starts at /.
+    var underHome = HOME && (path === HOME || path.indexOf(HOME + '/') === 0);
+    var base = underHome ? HOME : '';
+    addCrumb(underHome ? 'Home' : '/', underHome ? HOME : '/');
+    var rest = path.slice(base.length).replace(/^\/+/, '');
+    if (rest) {
+      var acc = base;
+      rest.split('/').forEach(function(seg) {
+        acc += '/' + seg;
+        addCrumb(seg, acc);
+      });
+    }
     crumbsEl.scrollLeft = crumbsEl.scrollWidth;   // deepest folder always visible
+  }
+  var addrWrapEl = document.querySelector('.addr');
+  function openAddrEdit() {
+    addrWrapEl.classList.add('editing');
+    addrEl.value = path || '';
+    addrEl.focus();
+    try { addrEl.setSelectionRange(addrEl.value.length, addrEl.value.length); } catch (e) {}
   }
 
   function visibleRows() {
@@ -725,7 +808,7 @@
       var nm = el('span', 'nm', e.name); nm.title = e.name;
       r.appendChild(nm);
       r.appendChild(el('span', 'sz', e.isDir ? '—' : fmtSize(e.size)));
-      var mt = el('span', 'mt', fmtRel(e.mtime));
+      var mt = el('span', 'mt', fmtRel(e.mtime, MQ_MOBILE.matches));
       mt.title = new Date(e.mtime * 1000).toLocaleString();
       r.appendChild(mt);
       frag.appendChild(r);
@@ -782,6 +865,7 @@
     document.title = (HOME && p === HOME ? 'Home' : baseOf(p)) + ' — Files';
     if (document.activeElement !== addrEl) addrEl.value = p;
     renderCrumbs();
+    closeMore();
     // Navigating leaves any search results behind; the bar (if open) rescopes.
     if (searchActive) { searchActive = false; searchSeq++; }
     if (searchOpen) updateScope();
@@ -1291,7 +1375,8 @@
     if (ev.key === 'F2') { ev.preventDefault(); startRename(); return; }
     if (ev.key === 'Delete') { ev.preventDefault(); doDelete(); return; }
     if (ev.key === 'Escape') {
-      if (selectMode) { ev.preventDefault(); exitSelectMode(); }
+      if (morePop) { ev.preventDefault(); closeMore(); }
+      else if (selectMode) { ev.preventDefault(); exitSelectMode(); }
       else if (selCount) { ev.preventDefault(); clearSel(); }
       else if (searchOpen || searchActive) { ev.preventDefault(); closeSearch(); }
       return;
@@ -1886,8 +1971,10 @@
     }).catch(function() { go(p); });
   });
   addrEl.addEventListener('blur', function() {
-    // Abandoned edits revert quietly so the bar always shows the real location.
+    // Abandoned edits revert quietly so the bar always shows the real location;
+    // on mobile the temporary edit row (opened from the current crumb) collapses.
     if (addrEl.value !== path) addrEl.value = path || '';
+    addrWrapEl.classList.remove('editing');
   });
 
   sortKeyEl.addEventListener('change', function() {
@@ -1896,16 +1983,53 @@
   sortDirEl.addEventListener('click', function() {
     sortAsc = !sortAsc; savePrefs(); syncControls(); renderList();
   });
+  // Mobile's single sort control: key + direction folded into one select.
+  document.getElementById('sortsel2').addEventListener('change', function() {
+    var v = this.value.split(':');
+    sortKey = v[0]; sortAsc = v[1] !== 'desc';
+    savePrefs(); syncControls(); renderList();
+  });
   hiddenEl.addEventListener('click', function() {
     showHidden = !showHidden; savePrefs(); syncControls(); renderList();
   });
   document.getElementById('refresh').addEventListener('click', refresh);
-  document.getElementById('manage').addEventListener('click', function() {
-    // Escape hatch to FileBrowser for what's not native yet (editor, search) —
-    // swap THIS iframe to it at the current folder.
+  function openManage() {
+    // Escape hatch to FileBrowser (the classic view) — swap THIS iframe to it
+    // at the current folder.
     if (!path) return;
     location.href = '/files/files' + (path === '/' ? '' : enc(path)) + '/';
+  }
+  document.getElementById('manage').addEventListener('click', openManage);
+
+  // ⋯ overflow (mobile): the demoted low-frequency actions.
+  var morePop = null;
+  function closeMore() { if (morePop) { morePop.remove(); morePop = null; } }
+  document.getElementById('morebtn').addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    if (morePop) { closeMore(); return; }
+    morePop = el('div', 'morepop');
+    var mg = el('button', null, 'Manage (classic view)');
+    mg.title = document.getElementById('manage').title;
+    mg.addEventListener('click', function() { closeMore(); openManage(); });
+    morePop.appendChild(mg);
+    document.body.appendChild(morePop);
+    var r = ev.currentTarget.getBoundingClientRect();
+    morePop.style.top = (r.bottom + 4) + 'px';
+    morePop.style.right = Math.max(6, window.innerWidth - r.right) + 'px';
   });
+  document.addEventListener('click', function(ev) {
+    if (morePop && !ev.target.closest('.morepop') && !ev.target.closest('#morebtn')) closeMore();
+  });
+
+  // Viewport class change (rotation, window resize): re-render what differs
+  // between the phone and desktop layouts (crumb tap-to-edit, short dates).
+  function onMqChange() {
+    syncControls();
+    if (path) renderCrumbs();
+    if (path && !searchActive && lastGood === path) renderList();
+  }
+  try { MQ_MOBILE.addEventListener('change', onMqChange); }
+  catch (e) { try { MQ_MOBILE.addListener(onMqChange); } catch (e2) {} }
   document.getElementById('newbtn').addEventListener('click', newFolder);
   document.getElementById('upbtn').addEventListener('click', function() { fileInput.click(); });
   pasteBtn.addEventListener('click', doPaste);
