@@ -79,14 +79,26 @@ def _errcode(e):
     }.get(getattr(e, "errno", None), "eio")
 
 
-def _entry(name, st):
-    return {
+def _entry(name, st, path=None):
+    """One listing row. `path` (when known) lets us mark symlinks: they rendered
+    as ordinary files, so a link and a 19-byte real file were indistinguishable
+    and a dangling one only ever said "couldn\'t read this file"."""
+    e = {
         "name": name,
         "isDir": statmod.S_ISDIR(st.st_mode),
         "size": st.st_size,
         "mtime": int(st.st_mtime),
         "mode": st.st_mode & 0o7777,
     }
+    if path:
+        try:
+            if os.path.islink(path):
+                e["isLink"] = True
+                e["target"] = os.readlink(path)
+                e["broken"] = not os.path.exists(path)
+        except OSError:
+            pass
+    return e
 
 
 def op_home(_req):
@@ -112,7 +124,7 @@ def op_list(req):
                         st = de.stat(follow_symlinks=False)
                     except OSError:
                         continue
-                entries.append(_entry(de.name, st))
+                entries.append(_entry(de.name, st, de.path))
     except OSError as e:
         return {"ok": False, "error": str(e), "code": _errcode(e)}
     # Directories first, then case-insensitive natural-ish name order; the UI
@@ -129,7 +141,7 @@ def op_stat(req):
         st = os.stat(path)
     except OSError as e:
         return {"ok": False, "error": str(e), "code": _errcode(e)}
-    out = _entry(os.path.basename(path.rstrip("/")) or "/", st)
+    out = _entry(os.path.basename(path.rstrip("/")) or "/", st, path)
     out["path"] = path
     return {"ok": True, "stat": out}
 

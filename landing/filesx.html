@@ -35,7 +35,22 @@
   .crumb:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
   .crumb.cur { color: #e6edf3; font-weight: 600; }
   .crumb-sep { flex: 0 0 auto; color: #4a5265; font-size: 11px; padding: 0 1px; }
-  .addr { display: flex; flex: 1 1 160px; min-width: 120px; }
+  .navbtns { display: flex; gap: 4px; flex: 0 0 auto; }
+  .navbtns button {
+    background: #1f2733; color: #d4d8de; border: 1px solid #2a3040; border-radius: 6px;
+    width: 30px; min-height: 30px; padding: 0; font-size: 17px; line-height: 1;
+    cursor: pointer;
+  }
+  .navbtns button:hover:not(:disabled) { background: #253044; }
+  .navbtns button:disabled { opacity: .35; cursor: default; }
+  .addr { display: flex; gap: 5px; flex: 1 1 160px; min-width: 120px; }
+  #addrcopy {
+    flex: 0 0 auto; background: #1f2733; color: #aab4c5; border: 1px solid #2a3040;
+    border-radius: 6px; width: 30px; min-height: 30px; padding: 0; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  #addrcopy:hover { background: #253044; color: #e6edf3; }
+  #addrcopy svg { width: 14px; height: 14px; }
   .addr input {
     flex: 1; min-width: 0; background: #0e1117; color: #d4d8de;
     border: 1px solid #2a3040; border-radius: 6px; padding: 6px 9px;
@@ -138,6 +153,23 @@
     .actbar.on ~ .main { padding-bottom: 0; }
   }
 
+  /* in-place audio player (a docked strip, so the listing stays usable) */
+  .aud {
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    padding: 7px 12px; background: #161b22; border-bottom: 1px solid #2a3040;
+  }
+  .aud[hidden] { display: none; }
+  .aud-name {
+    flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: #cdd5e1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .aud audio { flex: 1 1 auto; min-width: 0; height: 34px; }
+  .aud button {
+    flex: 0 0 auto; background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; min-height: 30px; padding: 4px 9px; cursor: pointer; font-size: 13px;
+  }
+  .aud button:hover { background: #253044; }
+
   /* OS drag-and-drop upload: full-listing drop highlight */
   .dropz {
     display: none; position: fixed; inset: 0; z-index: 40; pointer-events: none;
@@ -199,6 +231,7 @@
 
   /* ---- listing ---- */
   .main { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .main:focus-visible { outline: 2px solid #8a4adb; outline-offset: -2px; }
   .row {
     display: flex; align-items: center; gap: 10px; padding: 5px 14px;
     min-height: 36px; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -225,6 +258,11 @@
   .row .meta { display: none; }
   .row .nm { flex: 1 1 auto; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row.dir .nm { color: #e6edf3; }
+  /* symlinks were indistinguishable from real files (a dangling one only ever
+     said "couldn't read this file") */
+  .row.link .nm::after { content: " \2192"; color: #7d879b; }
+  .row.broken .nm { color: #d69a9a; }
+  .row.broken .nm::after { content: " \2192 (broken)"; color: #d69a9a; font-size: 11px; }
   .row input.edit {
     flex: 1 1 auto; min-width: 0; background: #0e1117; color: #e6edf3;
     border: 1px solid #8a4adb; border-radius: 5px; padding: 4px 7px;
@@ -237,6 +275,25 @@
     flex: 0 0 76px; text-align: right; font: 12px system-ui, sans-serif;
     font-variant-numeric: tabular-nums; color: #8a93a6; white-space: nowrap;
   }
+  /* column headers — same geometry as a row, so the columns line up exactly */
+  .hdr {
+    display: flex; align-items: center; gap: 10px; padding: 4px 14px;
+    flex-shrink: 0; background: #10151d; border-bottom: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none; position: sticky; top: 0; z-index: 2;
+  }
+  .main.gv .hdr, .hdr.off { display: none; }
+  .hdr .ck, .hdr .ic { flex: 0 0 22px; }
+  .hdr button {
+    background: none; border: 0; color: #8a93a6; font: 11.5px system-ui, sans-serif;
+    letter-spacing: .02em; cursor: pointer; padding: 3px 4px; border-radius: 4px;
+    display: flex; align-items: center; gap: 3px; min-height: 24px;
+  }
+  .hdr button:hover { background: #1c2431; color: #e6edf3; }
+  .hdr button[aria-sort] { color: #cdd5e1; }
+  .hdr .h-nm { flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
+  .hdr .h-sz { flex: 0 0 76px; justify-content: flex-end; }
+  .hdr .h-mt { flex: 0 0 96px; justify-content: flex-end; }
+  @media (max-width: 736px) { .hdr { display: none; } }
   .row .mt { flex: 0 0 96px; text-align: right; font-size: 12px; color: #7d879b; white-space: nowrap; }
 
   /* ---- Layout: grid / gallery views (the classic app's Layout switcher).
@@ -523,9 +580,14 @@
 <body>
   <div class="toolbar">
     <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
+    <div class="navbtns">
+      <button id="navback" title="Back" aria-label="Back">‹</button>
+      <button id="navfwd" title="Forward" aria-label="Forward">›</button>
+    </div>
     <div class="addr">
       <input id="addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off"
              aria-label="Path — type a folder and press Enter" title="Type any path and press Enter">
+      <button id="addrcopy" title="Copy this path" aria-label="Copy path"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5v-1h-8v8h1"/></svg></button>
     </div>
     <div class="tools">
       <button id="newbtn" title="Create a new folder or file here"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11"/></svg></span><span class="bl"> New</span></button>
@@ -578,7 +640,13 @@
     <button id="a-download" title="Download (folders and multi-selections come as a .zip)"><span class="abi">⭳</span><span class="abl">Download</span></button>
     <button id="a-delete" class="danger" title="Delete (Del)"><span class="abi">🗑</span><span class="abl">Delete</span></button>
   </div>
-  <div class="main" id="main"></div>
+  <div class="aud" id="aud" hidden>
+    <span class="aud-name" id="aud-name"></span>
+    <audio id="aud-el" controls preload="metadata"></audio>
+    <button id="aud-dl" title="Download">⭳</button>
+    <button id="aud-x" title="Close">✕</button>
+  </div>
+  <div class="main" id="main" tabindex="0" role="listbox" aria-label="Files"></div>
   <div class="dropz" id="dropz" aria-hidden="true">
     <div class="dropz-in">
       <div class="big2" id="dropz-big"></div>
@@ -629,7 +697,9 @@
   // browser + office-edit handoffs. FileBrowser remains reachable via Manage.
   var IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
   var VID_RE = /\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$/i;
-  var OFF_RE = /\.(docx?|xlsx?|pptx?|odt|ods|odp)$/i;
+  // Kept in step with OFFICE_RE in terminal/terminal-manager.py — a narrower
+  // list here meant .csv/.rtf/.docm/.xlsm/… had no viewer and no Edit at all.
+  var OFF_RE = /\.(docx?|docm|dotx?|dotm|xlsx?|xlsm|xlsb|xltx?|xltm|pptx?|pptm|ppsx?|ppsm|potx?|potm|odt|ods|odp|ott|ots|otp|rtf|csv|tsv)$/i;
   var AUD_RE = /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i;
   var ARC_RE = /\.(zip|tar|gz|tgz|xz|bz2|7z|rar|zst)$/i;
   var READ_MAX = 1048576;   // 1MB text-preview cap (server-enforced too)
@@ -639,6 +709,8 @@
   var sortKeyEl = document.getElementById('sortkey');
   var sortDirEl = document.getElementById('sortdir');
   var selectBtn = document.getElementById('selectbtn');
+  var navBack = document.getElementById('navback');
+  var navFwd = document.getElementById('navfwd');
   var hiddenEl = document.getElementById('hidden');
   var noticeEl = document.getElementById('notice');
   var mainEl = document.getElementById('main');
@@ -666,6 +738,7 @@
   var selCount = 0;
   var anchor = -1;               // keyboard/shift anchor (index into rows)
   var selectMode = false;        // touch multi-select mode (long-press)
+  var typeBuf = '', typeAt = 0;  // type-ahead ("jump to the name starting with…")
   var pendingFocusName = null;   // select+reveal this name after the next render
   var modalOpen = false;
 
@@ -1011,6 +1084,31 @@
     renderList();                        // re-render: thumbnail size differs
   }
 
+  // Clickable column headers: click to sort, click again to reverse — the
+  // idiom every desktop file manager has and the only one classic offered.
+  function headerEl() {
+    var h = el('div', 'hdr' + (view === 'list' ? '' : ' off'));
+    h.appendChild(el('span', 'ck', ''));
+    h.appendChild(el('span', 'ic', ''));
+    [['name', 'h-nm', 'Name'], ['size', 'h-sz', 'Size'], ['mtime', 'h-mt', 'Modified']]
+      .forEach(function(c) {
+        var b = el('button', c[1], '');
+        b.appendChild(document.createTextNode(c[2]));
+        if (sortKey === c[0]) {
+          b.setAttribute('aria-sort', sortAsc ? 'ascending' : 'descending');
+          b.appendChild(el('span', null, sortAsc ? '\u2191' : '\u2193'));
+        }
+        b.title = 'Sort by ' + c[2].toLowerCase();
+        b.addEventListener('click', function() {
+          if (sortKey === c[0]) sortAsc = !sortAsc;
+          else { sortKey = c[0]; sortAsc = c[0] !== 'mtime'; }   // dates default newest-first
+          savePrefs(); syncControls(); renderList();
+        });
+        h.appendChild(b);
+      });
+    return h;
+  }
+
   function renderList() {
     rows = visibleRows();
     // prune selection to names still visible in this folder
@@ -1029,9 +1127,11 @@
       renderActions();
       return;
     }
+    mainEl.appendChild(headerEl());
     var frag = document.createDocumentFragment();
     rows.forEach(function(e, i) {
-      var r = el('div', 'row' + (e.isDir ? ' dir' : ''));
+      var r = el('div', 'row' + (e.isDir ? ' dir' : '') +
+                (e.isLink ? ' link' : '') + (e.broken ? ' broken' : ''));
       r.dataset.i = i;
       r.appendChild(el('span', 'ck', ''));
       r.appendChild(icEl(e));
@@ -1145,13 +1245,23 @@
   function refresh() { if (path) load(path, true); }
 
   // Navigate = update the hash (so browser back/forward walk the folder trail).
+  // Back/Forward state: hash navigation gives us history entries, but nothing
+  // tells us whether a FORWARD entry exists, so track our own position.
+  var histAt = 0, histLen = 0, histNav = false;
+  function syncNav() {
+    navBack.disabled = histAt <= 0;
+    navFwd.disabled = histAt >= histLen;
+  }
   function go(p) {
     var h = '#' + enc(p);
     if (location.hash === h) { load(p); return; }   // same folder → just refresh
+    histAt++; histLen = histAt;                     // a new branch drops forward
+    syncNav();
     location.hash = h;                              // hashchange → load()
   }
   window.addEventListener('hashchange', function() {
     var p = dec(location.hash.slice(1)) || HOME || '/';
+    if (histNav) { histNav = false; syncNav(); }
     if (p !== path) load(p);
   });
 
@@ -1170,6 +1280,7 @@
     if (e.isDir) { go(p); return; }
     if (IMG_RE.test(e.name)) { post('image-view', p); return; }
     if (VID_RE.test(e.name)) { post('video-view', p); return; }
+    if (AUD_RE.test(e.name)) { playAudio(p, e.name); return; }
     if (OFF_RE.test(e.name)) { post('office-view', p); return; }
     openFile(p, e.name);
   }
@@ -1852,7 +1963,9 @@
     }
     if (ev.key === 'F2') { ev.preventDefault(); startRename(); return; }
     if (ev.key === 'Delete') { ev.preventDefault(); doDelete(); return; }
-    if ((ev.key === 'i' || ev.key === 'I') && !mod && selCount) { ev.preventDefault(); showInfo(); return; }
+    // NOTE: Info is Ctrl/⌘+I, not a bare `i` — a bare letter belongs to
+    // type-ahead (typing a name starting with "i" used to pop this dialog).
+    if ((ev.key === 'i' || ev.key === 'I') && mod) { ev.preventDefault(); showInfo(); return; }
     if (ev.key === 'Escape') {
       if (morePop) { ev.preventDefault(); closeMore(); }
       else if (selectMode) { ev.preventDefault(); exitSelectMode(); }
@@ -1860,7 +1973,43 @@
       else if (searchOpen || searchActive) { ev.preventDefault(); closeSearch(); }
       return;
     }
+    // Backspace goes up a folder — the classic idiom, and the only keyboard
+    // route upward (the breadcrumb was the sole way).
+    if (ev.key === 'Backspace' && path && path !== '/') {
+      ev.preventDefault();
+      go(path.slice(0, path.lastIndexOf('/')) || '/');
+      return;
+    }
     if (!rows.length) return;
+    if (ev.key === 'Home') { ev.preventDefault(); setOnly(0); return; }
+    if (ev.key === 'End') { ev.preventDefault(); setOnly(rows.length - 1); return; }
+    if (ev.key === 'PageDown' || ev.key === 'PageUp') {
+      ev.preventDefault();
+      var page = Math.max(1, Math.floor(mainEl.clientHeight / 40) - 1);
+      var from = anchor < 0 ? 0 : anchor;
+      setOnly(Math.max(0, Math.min(rows.length - 1, from + (ev.key === 'PageDown' ? page : -page))));
+      return;
+    }
+    // Type-ahead: the universal "jump to the file whose name starts with…".
+    // A fresh keystroke starts the scan AFTER the current row so pressing the
+    // same letter cycles through matches; extending the buffer re-scans from
+    // the current row so the refinement sticks.
+    if (!mod && ev.key.length === 1 && ev.key !== ' ') {
+      var now = Date.now(), fresh = (now - typeAt > 900);
+      typeBuf = fresh ? ev.key : typeBuf + ev.key;
+      typeAt = now;
+      var q = typeBuf.toLowerCase();
+      var from = anchor < 0 ? 0 : (fresh ? anchor + 1 : anchor);
+      for (var ti = 0; ti < rows.length; ti++) {
+        var idx = (from + ti) % rows.length;
+        if (rows[idx].name.toLowerCase().indexOf(q) === 0) {
+          ev.preventDefault();
+          setOnly(idx);
+          return;
+        }
+      }
+      return;
+    }
     if (ev.key === 'ArrowDown') { ev.preventDefault(); setOnly(Math.min(rows.length - 1, anchor + 1)); }
     else if (ev.key === 'ArrowUp') { ev.preventDefault(); setOnly(Math.max(0, anchor < 0 ? 0 : anchor - 1)); }
     else if (ev.key === 'Enter' && anchor >= 0 && rows[anchor]) { ev.preventDefault(); openEntry(rows[anchor]); }
@@ -1882,6 +2031,25 @@
       }
     });
   }
+
+  // ---- in-place audio player ----
+  var audEl = document.getElementById('aud');
+  var audio = document.getElementById('aud-el');
+  function playAudio(absPath, name) {
+    document.getElementById('aud-name').textContent = name;
+    audio.src = '/api/fs/download?inline=1&path=' + encodeURIComponent(absPath);
+    audEl.hidden = false;
+    audio.play().catch(function() {});     // autoplay may be blocked; controls remain
+    document.getElementById('aud-dl').onclick = function() {
+      nativeDownload('/api/fs/download?path=' + encodeURIComponent(absPath), name);
+    };
+  }
+  function stopAudio() {
+    try { audio.pause(); } catch (e) {}
+    audio.removeAttribute('src'); try { audio.load(); } catch (e) {}
+    audEl.hidden = true;
+  }
+  document.getElementById('aud-x').addEventListener('click', stopAudio);
 
   // ---- read-only preview overlay (binary / >1MB / unreadable) ----
   var pvNameEl = document.getElementById('pv-name');
@@ -2191,8 +2359,43 @@
   function fmtExact(ts) {
     return new Date(ts * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   }
+  // Nothing selected: describe the folder you are standing in.
+  function showFolderInfo() {
+    if (!path) return;
+    var dirs = 0, files = 0, bytes = 0;
+    entries.forEach(function(e) {
+      if (e.isDir) dirs++; else { files++; bytes += e.size || 0; }
+    });
+    var box = el('div', 'inf');
+    function row(k, v, mono) {
+      var r = el('div', 'inf-row');
+      r.appendChild(el('span', 'inf-k', k));
+      r.appendChild(el('span', 'inf-v' + (mono ? ' mono' : ''), v));
+      box.appendChild(r);
+    }
+    row('Kind', 'Folder');
+    row('Where', path);
+    row('Contains', files + ' file' + (files === 1 ? '' : 's') + ', ' +
+                    dirs + ' folder' + (dirs === 1 ? '' : 's') +
+                    (showHidden ? '' : ' (visible)'));
+    row('Size of files', fmtSize(bytes) + ' (' + bytes.toLocaleString() + ' bytes)');
+    api('/api/fs/stat?path=' + encodeURIComponent(path)).then(function(d) {
+      if (!d || !d.ok || !d.stat) return;
+      row('Modified', new Date(d.stat.mtime * 1000).toLocaleString());
+      row('Permissions', fmtMode(d.stat.mode) + ' (' + (d.stat.mode & 511).toString(8) + ')', true);
+    }).catch(function() {});
+    var m = rawCard(baseOf(path) || path);
+    m.card.appendChild(box);
+    var btns = el('div', 'mbtns');
+    var ok = el('button', 'mok', 'Close');
+    ok.addEventListener('click', m.close);
+    btns.appendChild(ok);
+    m.card.appendChild(btns);
+    ok.focus();
+  }
+
   function showInfo() {
-    if (!selCount) return;
+    if (!selCount) { showFolderInfo(); return; }
     var names = selNames();
     var box = el('div', 'inf');
     function row(label, value, mono) {
@@ -2656,6 +2859,29 @@
     if (selectMode) exitSelectMode();
     else enterSelectMode(-1);
   });
+  navBack.addEventListener('click', function() {
+    if (histAt <= 0) return;
+    histAt--; histNav = true; syncNav(); history.back();
+  });
+  navFwd.addEventListener('click', function() {
+    if (histAt >= histLen) return;
+    histAt++; histNav = true; syncNav(); history.forward();
+  });
+  // Copy the current path (classic had this next to its address bar).
+  document.getElementById('addrcopy').addEventListener('click', function() {
+    var p = path || '';
+    function ok() { toast('Path copied'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(p).then(ok, function() { toast('Copy failed', true); });
+    } else {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = p; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove(); ok();
+      } catch (e) { toast('Copy failed', true); }
+    }
+  });
   document.getElementById('refresh').addEventListener('click', refresh);
   function openManage() {
     // Escape hatch to FileBrowser (the classic view) — swap THIS iframe to it
@@ -2719,6 +2945,7 @@
       items.push({ label: 'Upload Folder…', run: function() { dirInput.click(); } });
       if (clip) items.push({ label: 'Paste (' + clip.paths.length + ')', run: doPaste });
       items.push({ sep: true });
+      items.push({ label: 'Get Info', run: showFolderInfo });
       items.push({ label: 'Refresh', run: refresh });
     }
     return items;
@@ -2811,6 +3038,7 @@
 
   // ---- init: resolve home, then honor #/abs/path (the wrapper's deep link) ----
   syncControls();
+  syncNav();
   renderActions();
   api('/api/fs/home').then(function(d) {
     HOME = (d && d.ok && d.home) || '';

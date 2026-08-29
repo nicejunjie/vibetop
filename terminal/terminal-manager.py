@@ -5349,7 +5349,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             mime = "application/octet-stream"
             if inline:
                 mime = ({"": None, ".pdf": "application/pdf",
-                         ".txt": "text/plain; charset=utf-8"}.get(ext)
+                         ".txt": "text/plain; charset=utf-8",
+                         # audio: the native listing plays these in place; without
+                         # a real mime the browser refused and the file fell
+                         # through to "binary file — no text preview"
+                         ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
+                         ".aac": "audio/aac", ".ogg": "audio/ogg",
+                         ".oga": "audio/ogg", ".opus": "audio/ogg",
+                         ".wav": "audio/wav", ".flac": "audio/flac",
+                         ".weba": "audio/webm"}.get(ext)
                         or _IMAGE_MIME.get(ext) or "application/octet-stream")
             self.send_response(200)
             self.send_header("Content-Type", mime)
