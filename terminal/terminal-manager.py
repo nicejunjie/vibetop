@@ -5214,7 +5214,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except OSError:
                 pass
 
-    def _fs_stream_out(self, header_req, attach_name=None):
+    def _fs_stream_out(self, header_req, attach_name=None, inline=False):
         """GET download/zip: forward the agent's byte stream to the client."""
         user = _ctx_user()
         ok, err = _ensure_fileagent(user)
@@ -5228,12 +5228,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not head.get("ok"):
                 return self._json(404 if head.get("code") == "enoent" else 500, head)
             name = attach_name or head.get("name") or "download"
+            ext = os.path.splitext(name)[1].lower()
+            # inline=1 renders in the browser (the native PDF/media preview
+            # path) with a real mime; downloads stay attachment/octet-stream.
+            mime = "application/octet-stream"
+            if inline:
+                mime = ({"": None, ".pdf": "application/pdf",
+                         ".txt": "text/plain; charset=utf-8"}.get(ext)
+                        or _IMAGE_MIME.get(ext) or "application/octet-stream")
             self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Type", mime)
             if head.get("size") is not None and header_req["op"] == "download":
                 self.send_header("Content-Length", str(head["size"]))
             self.send_header("Content-Disposition",
-                             "attachment; filename*=UTF-8''" + urllib.parse.quote(name))
+                             ("inline" if inline else "attachment") +
+                             "; filename*=UTF-8''" + urllib.parse.quote(name))
             self.end_headers()
             if rest:
                 self.wfile.write(rest)
@@ -6430,7 +6439,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_image_media()
         if self.path.startswith("/api/fs/download"):
             q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-            return self._fs_stream_out({"op": "download", "path": q.get("path", [""])[0]})
+            return self._fs_stream_out({"op": "download", "path": q.get("path", [""])[0]},
+                                       inline=bool(q.get("inline")))
         if self.path.startswith("/api/fs/zip"):
             q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             paths = [p for p in q.get("paths", [""])[0].split("\x00") if p] or q.get("path", [])

@@ -73,9 +73,9 @@
   // Native image viewer — replaces FileBrowser's previewer (its patched mobile
   // toolbar rendered as an unthemed white block; see the design-decisions
   // entry). Opened by the desktop on Files' `image-view` postMessage with
-  // ?path=<home-less rel path, e.g. home/you/Uploads/x.png>. Images are served
-  // through FileBrowser's raw endpoint for now; the native file agent replaces
-  // that in the Files-native project (docs/files-native.md).
+  // ?path=<home-less rel path, e.g. home/you/Uploads/x.png>. Fully native:
+  // bytes and folder listing both come from the manager/file-agent
+  // (docs/files-native.md).
   var IMAGE_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
   var path = new URLSearchParams(location.search).get('path') || '';
   var stage = document.getElementById('stage');
@@ -85,20 +85,9 @@
   var img = null;
 
   function enc(p) { return p.split('/').map(encodeURIComponent).join('/'); }
-  // Image BYTES come from the manager's native endpoint (session-authed, same
-  // trust model as the video player) — no FileBrowser API involved. Only the
-  // folder listing (prev/next) still asks FileBrowser, with its same-origin
-  // localStorage JWT + a no-credential login fallback (noauth deployments).
-  var TOK = '';
-  try { TOK = localStorage.getItem('jwt') || ''; } catch (e) {}
-  function ensureTok(cb) {
-    if (TOK) { cb(); return; }
-    fetch('/files/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-      .then(function(r) { return r.ok ? r.text() : ''; })
-      .then(function(t) {
-        if (t) { TOK = t; try { localStorage.setItem('jwt', t); } catch (e) {} }
-      }).catch(function() {}).then(cb);
-  }
+  // Fully native: bytes from /api/file/image, the prev/next folder listing
+  // from /api/fs/list (the per-user file agent) — zero FileBrowser API
+  // involvement (v1.19.93; the FB resources call + its JWT dance are gone).
   function rawUrl(p) { return '/api/file/image?path=' + encodeURIComponent(p); }
   function dirOf(p) { var i = p.lastIndexOf('/'); return i > 0 ? p.slice(0, i) : ''; }
   function baseOf(p) { return p.split('/').pop(); }
@@ -208,20 +197,18 @@
 
   if (!path) { showMsg('No image selected. Open one from Files.'); return; }
   render();
-  // Folder siblings for prev/next: FileBrowser's own listing API (same-origin).
-  ensureTok(function() {
-    fetch('/files/api/resources/' + enc(dirOf(path)), TOK ? { headers: { 'X-Auth': TOK } } : undefined)
-      .then(function(r) { return r.ok ? r.json() : null; })
-      .then(function(j) {
-        if (!j || !Array.isArray(j.items)) return;
-        list = j.items.filter(function(it) { return !it.isDir && IMAGE_RE.test(it.name); })
+  // Folder siblings for prev/next: the native file agent's listing.
+  fetch('/api/fs/list?path=' + encodeURIComponent('/' + dirOf(path)))
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(j) {
+      if (!j || !j.ok || !Array.isArray(j.entries)) return;
+      list = j.entries.filter(function(it) { return !it.isDir && IMAGE_RE.test(it.name); })
                       .map(function(it) { return it.name; })
                       .sort(function(a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
-        idx = list.indexOf(baseOf(path));
-        if (idx === -1) { list = null; return; }
-        render();
-      }).catch(function() {});
-  });
+      idx = list.indexOf(baseOf(path));
+      if (idx === -1) { list = null; return; }
+      render();
+    }).catch(function() {});
 })();
 </script>
 </body>
