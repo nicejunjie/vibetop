@@ -53,6 +53,27 @@
   .frames { position: relative; flex: 1; min-height: 0; }
   .frames iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; }
   .frames iframe.active { display: block; }
+  /* In-app viewer overlay — images/videos/office docs open INSIDE Files (user
+     request: no popping a separate app). Covers the whole Files area incl. the
+     tab bar; image/video pages bring their own chrome, office gets a slim
+     header here (the preview iframe is a bare PDF rendition). */
+  .viewer { position: absolute; inset: 0; z-index: 10; display: none; flex-direction: column; background: #0e1117; }
+  .viewer.on { display: flex; }
+  .viewer .vhead {
+    display: none; align-items: center; gap: 10px; flex-shrink: 0;
+    min-height: 40px; padding: 4px 10px;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none;
+  }
+  .viewer.office .vhead { display: flex; }
+  .viewer .vname { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .viewer .vhead button {
+    flex-shrink: 0; background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; padding: 5px 10px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  .viewer .vhead button:hover { background: #253044; }
+  .viewer iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: #0e1117; }
 </style>
 </head>
 <body>
@@ -63,6 +84,14 @@
             title="Try the new native file view (in development). Click again to return to the classic view.">Native</button>
   </div>
   <div class="frames" id="frames"></div>
+  <div class="viewer" id="viewer">
+    <div class="vhead">
+      <span class="vname" id="v-name"></span>
+      <button id="v-dl" title="Download the original file">⭳ Download</button>
+      <button id="v-close" title="Close">✕</button>
+    </div>
+    <iframe id="v-frame" title="Viewer" allow="fullscreen"></iframe>
+  </div>
 <script>
 (function() {
   // Default folder = the user's home. FileBrowser's root is "/", so "/" stays
@@ -336,6 +365,68 @@
     rel = (rel || '').replace(/^\/+/, '');
     createTab(HOME + rel.split('/').map(encodeURIComponent).join('/'), true);
   }
+  // ---- In-app viewer: images / videos / office docs open INSIDE Files ------
+  // The engines (filesx, filebrowser-patches) post the view types to THIS
+  // window (their parent); the viewer pages close by posting close-app to
+  // their parent (us). Nothing pops a separate desktop app any more.
+  var viewerEl = document.getElementById('viewer');
+  var vFrame = document.getElementById('v-frame');
+  var vName = document.getElementById('v-name');
+  var vOfficePath = null;
+  function openViewer(url, officePath, name) {
+    vOfficePath = officePath || null;
+    viewerEl.classList.toggle('office', !!officePath);
+    if (officePath) { vName.textContent = name; vName.title = officePath; }
+    vFrame.src = url;
+    viewerEl.classList.add('on');
+  }
+  function closeViewer() {
+    if (!viewerEl.classList.contains('on')) return;
+    viewerEl.classList.remove('on');
+    vFrame.src = 'about:blank';
+    vOfficePath = null;
+  }
+  document.getElementById('v-close').addEventListener('click', closeViewer);
+  // iOS-standalone-safe download for the office header (an <a download> would
+  // replace the whole PWA view with the attachment sheet — same fix as filesx).
+  var IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+               (/Mac/.test(navigator.userAgent) && 'ontouchend' in document);
+  document.getElementById('v-dl').addEventListener('click', function() {
+    if (!vOfficePath) return;
+    var url = '/api/office/download?path=' + encodeURIComponent(vOfficePath);
+    var name = vOfficePath.split('/').pop();
+    if (IS_IOS && navigator.share && navigator.canShare) {
+      fetch(url).then(function(r) { if (!r.ok) throw 0; return r.blob(); }).then(function(b) {
+        var f = new File([b], name, { type: b.type || 'application/octet-stream' });
+        if (!navigator.canShare({ files: [f] })) throw 0;
+        return navigator.share({ files: [f] });
+      }).catch(function(err) {
+        if (err && err.name === 'AbortError') return;
+        try { window.open(url); } catch (e) {}
+      });
+      return;
+    }
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+  document.addEventListener('keydown', function(e) {
+    // Esc closes the office view (the PDF plugin swallows keys inside the
+    // iframe; image/video pages handle their own Esc and post close-app).
+    if (e.key === 'Escape' && viewerEl.classList.contains('on')) closeViewer();
+  });
+  window.addEventListener('message', function(e) {
+    if (e.origin !== location.origin || !e.data) return;
+    var d = e.data;
+    if (d.type === 'image-view' && d.path) openViewer('/imageview.html?path=' + encodeURIComponent(d.path));
+    else if (d.type === 'video-view' && d.path) openViewer('/video.html?path=' + encodeURIComponent(d.path));
+    else if (d.type === 'office-view' && d.path) {
+      openViewer('/api/office/preview?path=' + encodeURIComponent(d.path) + '#toolbar=0',
+                 d.path, d.path.split('/').pop());
+    }
+    else if (d.type === 'close-app') closeViewer();
+  });
+
   var _lastOpen = { path: null, t: 0 };
   window.addEventListener('message', function(e) {
     if (e.origin !== location.origin) return;

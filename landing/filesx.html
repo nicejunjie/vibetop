@@ -913,9 +913,11 @@
 
   // ---- opening entries ----
   function post(type, absPath) {
-    try {
-      (window.top || window).postMessage({ type: type, path: absPath.replace(/^\//, '') }, '*');
-    } catch (e) {}
+    // Viewers open INSIDE the Files app: the view types go to the PARENT
+    // (files.html hosts the overlay); anything else still goes to the desktop.
+    var viewer = type === 'image-view' || type === 'video-view' || type === 'office-view';
+    var tgt = viewer ? window.parent : (window.top || window);
+    try { tgt.postMessage({ type: type, path: absPath.replace(/^\//, '') }, '*'); } catch (e) {}
   }
   // Open an entry of the CURRENT folder, or any abs path (the address bar's
   // file jump passes `abs` since its dir context differs from `path`).

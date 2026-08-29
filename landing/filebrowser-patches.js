@@ -922,7 +922,7 @@
         var fp = getFilePath();
         if (fp && OFFICE_RE.test(fp)) {
           try { fp = decodeURIComponent(fp); } catch (e) {}
-          try { window.top.postMessage({ type: def.act, path: fp }, "*"); } catch (e) {}
+          try { vtViewTarget(def.act).postMessage({ type: def.act, path: fp }, "*"); } catch (e) {}
         }
       });
       if (dropdown) header.insertBefore(btn, dropdown);
@@ -944,6 +944,13 @@
   // double-click ourselves and block only the SECOND click (so FileBrowser never
   // opens), leaving the first click to select normally. A capture-phase dblclick
   // block is a belt-and-suspenders for any build that opens on the native event.
+function vtViewTarget(t) {
+    // Viewers open INSIDE the Files app: files.html (our parent) hosts the
+    // overlay for the view types; everything else (office-edit -> the editor
+    // app, menu dismiss, browser switch) still goes to the desktop (top).
+    return (t === "image-view" || t === "video-view" || t === "office-view")
+      ? window.parent : window.top;
+  }
   function officeItem(e) {
     var item = e.target.closest("[aria-label]");
     if (!item || !item.hasAttribute("data-dir") || item.getAttribute("data-dir") === "true") return null;
@@ -968,7 +975,7 @@
     // manager's _resolve_media_path accepts this absolute form (fenced to home).
     var base = currentFullPath().replace(/\/+$/, "");
     var rel = (base + "/" + name).replace(/^\/+/, "");
-    try { window.top.postMessage({ type: "video-view", path: rel }, "*"); } catch (e) {}
+    try { vtViewTarget("video-view").postMessage({ type: "video-view", path: rel }, "*"); } catch (e) {}
   }
   // Turn a listing item name into its home-relative path and hand it to the shell.
   function postForItem(name, type) {
@@ -976,7 +983,7 @@
     if (dir && !/\/$/.test(dir)) dir = dir.replace(/[^/]*$/, "");   // keep just the folder
     var rel = dir + name;
     try { rel = decodeURIComponent(rel); } catch (e) {}
-    try { window.top.postMessage({ type: type, path: rel }, "*"); } catch (e) {}
+    try { vtViewTarget(type).postMessage({ type: type, path: rel }, "*"); } catch (e) {}
   }
   // Match an office OR video item and remember how to open it.
   function interceptItem(e) {
@@ -1025,7 +1032,7 @@
     if (!rel) { _autoOpened = null; return; }            // reset when back on a listing
     if (rel === _autoOpened) return;                     // already opened this one
     _autoOpened = rel;
-    try { window.top.postMessage({ type: "office-view", path: rel }, "*"); } catch (e) {}
+    try { vtViewTarget("office-view").postMessage({ type: "office-view", path: rel }, "*"); } catch (e) {}
   }
   // Same fallback for a video FileBrowser navigated to (its plain previewer).
   var _autoOpenedVideo = null;
@@ -1040,7 +1047,7 @@
     if (!rel) { _autoOpenedVideo = null; return; }       // reset when back on a listing
     if (rel === _autoOpenedVideo) return;                // already opened this one
     _autoOpenedVideo = rel;
-    try { window.top.postMessage({ type: "video-view", path: rel }, "*"); } catch (e) {}
+    try { vtViewTarget("video-view").postMessage({ type: "video-view", path: rel }, "*"); } catch (e) {}
   }
   // Images go to the NATIVE viewer too (imageview.html): FileBrowser's patched
   // previewer on mobile rendered an unthemed white toolbar block over the dark
@@ -1060,7 +1067,7 @@
     if (!rel) { _autoOpenedImage = null; return; }       // reset when back on a listing
     if (rel === _autoOpenedImage) return;                // already opened this one
     _autoOpenedImage = rel;
-    try { window.top.postMessage({ type: "image-view", path: rel }, "*"); } catch (e) {}
+    try { vtViewTarget("image-view").postMessage({ type: "image-view", path: rel }, "*"); } catch (e) {}
   }
 
   function updateOfficeButtons() {
