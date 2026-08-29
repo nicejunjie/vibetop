@@ -92,6 +92,36 @@
   .actbar .danger { color: #f1b3b3; }
   .actbar .danger:hover { background: #3a2024; border-color: #5a2c33; }
 
+  /* search bar (🔍 / Ctrl+F) — slim row under the toolbar */
+  .sbar {
+    display: none; align-items: center; gap: 8px; flex-shrink: 0;
+    padding: 6px 10px; background: #12161d; border-bottom: 1px solid #20262f;
+    user-select: none; -webkit-user-select: none;
+  }
+  .sbar.on { display: flex; }
+  .sbar input {
+    flex: 1 1 160px; min-width: 100px; background: #0e1117; color: #d4d8de;
+    border: 1px solid #2a3040; border-radius: 6px; padding: 6px 9px;
+    font: 13px system-ui, sans-serif;
+  }
+  .sbar input:focus { outline: none; border-color: #8a4adb; }
+  .seg { display: flex; flex: 0 0 auto; border: 1px solid #2a3040; border-radius: 6px; overflow: hidden; }
+  .seg button {
+    border: 0; background: transparent; color: #aab4c5; padding: 5px 10px;
+    font: 12px system-ui, sans-serif; cursor: pointer; min-height: 28px;
+  }
+  .seg button:hover { background: #1f2733; }
+  .seg button.on { background: #241a38; color: #fff; }
+  .seg button:focus-visible { outline: 2px solid #8a4adb; outline-offset: -2px; }
+  .scope { flex: 0 1 auto; min-width: 0; font-size: 12px; color: #6b7488; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sbar .sx {
+    flex: 0 0 auto; background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; padding: 5px 10px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  .sbar .sx:hover { background: #253044; }
+  .sbar .sx:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+
   /* ---- listing ---- */
   .main { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   .row {
@@ -124,6 +154,17 @@
     color: #8a93a6; white-space: nowrap;
   }
   .row .mt { flex: 0 0 96px; text-align: right; font-size: 12px; color: #6b7488; white-space: nowrap; }
+
+  /* search result rows: dimmed parent path; content mode adds :line + snippet */
+  .row .pp { flex: 0 1 auto; min-width: 0; font-size: 12px; color: #6b7488; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .ln { flex: 0 0 auto; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #6b7488; }
+  .row.sres { flex-wrap: wrap; row-gap: 1px; padding-top: 6px; padding-bottom: 6px; }
+  .row.sres .snip {
+    flex: 1 0 100%; min-width: 0; margin-left: 32px;
+    font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #8a93a6;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .row mark { background: rgba(138, 74, 219, .4); color: #fff; border-radius: 2px; padding: 0 1px; }
 
   /* drag ghost (pointer-based drag-to-folder, desktop) */
   .dghost {
@@ -158,14 +199,16 @@
     padding: 18px 18px 14px; color: #e6edf3;
   }
   .mcard h3 { margin: 0 0 8px; font-size: 15px; font-weight: 650; color: #f0f4f8; }
+  .mcard p { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #b9c6d4; }
   .mcard ul { margin: 0 0 14px; padding: 0; list-style: none; max-height: 180px; overflow-y: auto; }
   .mcard li { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #b9c6d4; padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mcard li.more { color: #6b7488; font-family: system-ui, sans-serif; }
-  .mbtns { display: flex; justify-content: flex-end; gap: 8px; }
+  .mbtns { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
   .mbtns button { font: 600 13px system-ui, sans-serif; padding: 8px 15px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; min-height: 36px; }
   .mbtns .mcancel { background: transparent; color: #9fb0c0; border-color: #2a3040; }
   .mbtns .mcancel:hover { background: rgba(255,255,255,.06); color: #c8d4e0; }
-  .mbtns .mok { background: #c0392b; color: #fff; }
+  .mbtns .mok { background: #2f6fd6; color: #fff; }
+  .mbtns .mok.danger { background: #c0392b; }
   .mbtns .mok:hover { filter: brightness(1.12); }
   .mbtns button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
 
@@ -204,6 +247,27 @@
   }
   .pv-body.msg { display: flex; align-items: center; justify-content: center; color: #6b7488; font-family: system-ui, sans-serif; font-size: 13px; white-space: normal; }
 
+  /* ---- editor overlay (editable text ≤1MB; header/✕ reuse .pv-head) ---- */
+  .ed { position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; background: #0e1117; }
+  .ed.open { display: flex; }
+  #ed-dirty { display: none; color: #8a4adb; margin-right: 6px; }
+  .ed.dirty #ed-dirty { display: inline; }
+  #ed-save { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  #ed-save:hover:not(:disabled) { background: #9a5ceb; }
+  #ed-save:disabled { background: #1f2733; border-color: #2a3040; color: #6b7488; cursor: default; }
+  .ed textarea {
+    flex: 1; min-height: 0; resize: none; border: 0; outline: none;
+    background: #0e1117; color: #d4d8de; padding: 14px 18px;
+    font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre; tab-size: 4; overflow: auto;
+  }
+  .ed-foot {
+    display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+    padding: 4px 14px; min-height: 26px; background: #161b22;
+    border-top: 1px solid #2a3040;
+    font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #6b7488;
+  }
+
   /* ---- mobile ≤736px: sticky controls grid → breadcrumb → address row ---- */
   @media (max-width: 736px) {
     .toolbar { gap: 7px; padding: 7px 10px 8px; }
@@ -224,6 +288,13 @@
     .row .sz { flex-basis: 62px; }
     .row .mt { flex-basis: 74px; }
     .pv-head button { min-height: 38px; }
+    /* search bar stacks: query row, then mode + scope + close */
+    .sbar { flex-wrap: wrap; gap: 7px; }
+    .sbar input { flex: 1 0 100%; padding: 9px 10px; font-size: 14px; }
+    .seg button { min-height: 38px; padding: 5px 12px; font-size: 13px; }
+    .scope { flex: 1 1 auto; }
+    .sbar .sx { min-height: 40px; min-width: 44px; }
+    .row.sres .snip { margin-left: 0; }
   }
 </style>
 </head>
@@ -245,9 +316,20 @@
       </select>
       <button id="sortdir" title="Sort direction" aria-label="Sort direction"></button>
       <button id="hidden" title="Show hidden files" aria-pressed="false">Hidden</button>
+      <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search">🔍</button>
       <button id="refresh" title="Refresh" aria-label="Refresh">⟳</button>
       <button id="manage" title="Open the classic file manager here (editor, search…)">Manage</button>
     </div>
+  </div>
+  <div class="sbar" id="sbar">
+    <input id="sq" type="text" placeholder="Search…" spellcheck="false" autocomplete="off"
+           autocapitalize="off" aria-label="Search query">
+    <div class="seg" role="group" aria-label="Search mode">
+      <button id="sm-names" class="on">Names</button>
+      <button id="sm-content">Contents</button>
+    </div>
+    <span class="scope" id="scope"></span>
+    <button class="sx" id="s-close" title="Close search (Esc)">✕</button>
   </div>
   <div class="notice" id="notice"></div>
   <div class="uprog" id="uprog">
@@ -266,6 +348,17 @@
   </div>
   <div class="main" id="main"></div>
   <input type="file" id="fileinput" multiple hidden>
+
+  <div class="ed" id="ed" role="dialog" aria-modal="true" aria-label="Editor">
+    <div class="pv-head">
+      <span class="pv-name" id="ed-title"><span id="ed-dirty" title="Unsaved changes">●</span><span id="ed-name"></span></span>
+      <button id="ed-save" title="Save (Ctrl+S)">Save</button>
+      <button id="ed-close" title="Close (Esc)">✕</button>
+    </div>
+    <textarea id="ed-ta" spellcheck="false" autocomplete="off" autocorrect="off"
+              autocapitalize="off" wrap="off" aria-label="File content"></textarea>
+    <div class="ed-foot"><span id="ed-size"></span><span id="ed-pos"></span></div>
+  </div>
 
   <div class="pv" id="pv" role="dialog" aria-modal="true" aria-label="File preview">
     <div class="pv-head">
@@ -630,6 +723,9 @@
     document.title = (HOME && p === HOME ? 'Home' : baseOf(p)) + ' — Files';
     if (document.activeElement !== addrEl) addrEl.value = p;
     renderCrumbs();
+    // Navigating leaves any search results behind; the bar (if open) rescopes.
+    if (searchActive) { searchActive = false; searchSeq++; }
+    if (searchOpen) updateScope();
     mainEl.innerHTML = '';
     setNotice('');
     api('/api/fs/list?path=' + encodeURIComponent(p)).then(function(d) {
@@ -686,7 +782,7 @@
     if (IMG_RE.test(e.name)) { post('image-view', p); return; }
     if (VID_RE.test(e.name)) { post('video-view', p); return; }
     if (OFF_RE.test(e.name)) { post('office-view', p); return; }
-    openPreview(p, e.name);
+    openFile(p, e.name);
   }
 
   // ---- row interaction: select on click (mouse), open on double-click;
@@ -699,7 +795,8 @@
   mainEl.addEventListener('pointerdown', function(ev) {
     lastPtrType = ev.pointerType || 'mouse';
     var r = ev.target.closest('.row');
-    if (!r || r.querySelector('input.edit')) return;
+    // only LISTING rows (data-i) long-press/drag — search results have their own click open
+    if (!r || r.querySelector('input.edit') || r.dataset.i === undefined) return;
     if (ev.pointerType === 'touch') {
       lpStart = { x: ev.clientX, y: ev.clientY };
       clearTimeout(lpTimer);
@@ -839,24 +936,25 @@
     }).catch(function() { toast('Paste failed — network error', true); });
   }
 
-  // -- delete (confirm card, vibe-modal style) --
-  function confirmCard(title, names, okText) {
+  // -- choice card (vibe-modal style): delete confirm, dirty-close, econflict --
+  // opts: { title, msg?, names?, buttons: [{label, value, cancel?, danger?}],
+  //         defaultValue? (Enter; omitted = Enter inert), escValue (Esc/backdrop),
+  //         focusValue? (button to focus; omitted = last) }
+  function cardChoice(opts) {
     return new Promise(function(resolve) {
       modalOpen = true;
       var ov = el('div', 'mov');
       var card = el('div', 'mcard');
       card.setAttribute('role', 'dialog');
-      card.appendChild(el('h3', null, title));
-      var ul = el('ul');
-      names.slice(0, 8).forEach(function(n) { ul.appendChild(el('li', null, n)); });
-      if (names.length > 8) ul.appendChild(el('li', 'more', '…and ' + (names.length - 8) + ' more'));
-      card.appendChild(ul);
+      card.appendChild(el('h3', null, opts.title));
+      if (opts.msg) card.appendChild(el('p', null, opts.msg));
+      if (opts.names && opts.names.length) {
+        var ul = el('ul');
+        opts.names.slice(0, 8).forEach(function(n) { ul.appendChild(el('li', null, n)); });
+        if (opts.names.length > 8) ul.appendChild(el('li', 'more', '…and ' + (opts.names.length - 8) + ' more'));
+        card.appendChild(ul);
+      }
       var btns = el('div', 'mbtns');
-      var cancel = el('button', 'mcancel', 'Cancel');
-      var ok = el('button', 'mok', okText);
-      btns.appendChild(cancel); btns.appendChild(ok);
-      card.appendChild(btns);
-      ov.appendChild(card);
       function close(val) {
         modalOpen = false;
         document.removeEventListener('keydown', onKey, true);
@@ -864,22 +962,36 @@
         resolve(val);
       }
       function onKey(e) {
-        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(false); }
-        else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); close(true); }
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(opts.escValue); }
+        else if (e.key === 'Enter' && opts.defaultValue !== undefined) { e.preventDefault(); e.stopPropagation(); close(opts.defaultValue); }
       }
       document.addEventListener('keydown', onKey, true);
-      cancel.addEventListener('click', function() { close(false); });
-      ok.addEventListener('click', function() { close(true); });
-      ov.addEventListener('click', function(e) { if (e.target === ov) close(false); });
+      var focusBtn = null;
+      opts.buttons.forEach(function(b) {
+        var bt = el('button', b.cancel ? 'mcancel' : 'mok' + (b.danger ? ' danger' : ''), b.label);
+        bt.addEventListener('click', function() { close(b.value); });
+        btns.appendChild(bt);
+        if ('focusValue' in opts ? b.value === opts.focusValue : true) focusBtn = bt;
+      });
+      card.appendChild(btns);
+      ov.appendChild(card);
+      ov.addEventListener('click', function(e) { if (e.target === ov) close(opts.escValue); });
       document.body.appendChild(ov);
-      ok.focus();
+      if (focusBtn) focusBtn.focus();
     });
   }
   function doDelete() {
     if (!selCount) return;
     var names = selNames();
-    confirmCard('Delete ' + selCount + ' item' + (selCount === 1 ? '' : 's') + '? This can’t be undone.',
-                names, 'Delete').then(function(yes) {
+    cardChoice({
+      title: 'Delete ' + selCount + ' item' + (selCount === 1 ? '' : 's') + '? This can’t be undone.',
+      names: names,
+      buttons: [
+        { label: 'Cancel', value: false, cancel: true },
+        { label: 'Delete', value: true, danger: true }
+      ],
+      defaultValue: true, escValue: false, focusValue: true
+    }).then(function(yes) {
       if (!yes) return;
       fsop({ op: 'delete', paths: selPaths() }).then(function(d) {
         opResult(d, 'Deleted ' + names.length + ' item' + (names.length === 1 ? '' : 's'));
@@ -1058,14 +1170,20 @@
 
   // ---- keyboard ----
   document.addEventListener('keydown', function(ev) {
-    if (modalOpen) return;                          // the confirm card handles keys
+    if (modalOpen) return;                          // the choice card handles keys
+    var mod = ev.ctrlKey || ev.metaKey;
     if (pvEl.classList.contains('open')) {
       if (ev.key === 'Escape') { ev.preventDefault(); closePreview(); }
       return;
     }
+    if (edEl.classList.contains('open')) {
+      if (mod && (ev.key === 's' || ev.key === 'S')) { ev.preventDefault(); edSave(false); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); requestCloseEditor(); }
+      return;
+    }
+    if (mod && (ev.key === 'f' || ev.key === 'F')) { ev.preventDefault(); openSearch(); return; }
     var t = ev.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
-    var mod = ev.ctrlKey || ev.metaKey;
     if (mod && (ev.key === 'c' || ev.key === 'C') && selCount) { ev.preventDefault(); doCopyCut('copy'); return; }
     if (mod && (ev.key === 'x' || ev.key === 'X') && selCount) { ev.preventDefault(); doCopyCut('cut'); return; }
     if (mod && (ev.key === 'v' || ev.key === 'V') && getClip()) { ev.preventDefault(); doPaste(); return; }
@@ -1081,6 +1199,7 @@
     if (ev.key === 'Escape') {
       if (selectMode) { ev.preventDefault(); exitSelectMode(); }
       else if (selCount) { ev.preventDefault(); clearSel(); }
+      else if (searchOpen || searchActive) { ev.preventDefault(); closeSearch(); }
       return;
     }
     if (!rows.length) return;
@@ -1089,47 +1208,56 @@
     else if (ev.key === 'Enter' && anchor >= 0 && rows[anchor]) { ev.preventDefault(); openEntry(rows[anchor]); }
   });
 
-  // ---- text preview overlay ----
+  // ---- open a text file: EDITOR for editable text (≤1MB, non-binary),
+  //      read-only preview otherwise. One stat+read pair decides. ----
+  function openFile(absPath, name, gotoLine) {
+    Promise.all([
+      api('/api/fs/stat?path=' + encodeURIComponent(absPath)).catch(function() { return null; }),
+      api('/api/fs/read?path=' + encodeURIComponent(absPath) + '&max=' + READ_MAX).catch(function() { return null; })
+    ]).then(function(rs) {
+      var sd = rs[0], d = rs[1];
+      if (d && d.ok && !d.binary && !d.truncated) {
+        openEditor(absPath, name, d.text || '', (sd && sd.ok && sd.stat) ? sd.stat.mtime : null, gotoLine);
+      } else {
+        showPreview(absPath, name, d);
+      }
+    });
+  }
+
+  // ---- read-only preview overlay (binary / >1MB / unreadable) ----
   var pvNameEl = document.getElementById('pv-name');
   var pvInfoEl = document.getElementById('pv-info');
   var pvNoteEl = document.getElementById('pv-note');
   var pvBodyEl = document.getElementById('pv-body');
   var pvReturnFocus = null;
 
-  function openPreview(absPath, name) {
+  function showPreview(absPath, name, d) {
     pvReturnFocus = document.activeElement;
     pvNameEl.textContent = name;
     pvNameEl.title = absPath;
     pvInfoEl.textContent = '';
     pvNoteEl.className = 'pv-note';
     pvBodyEl.className = 'pv-body msg';
-    pvBodyEl.textContent = 'Loading…';
     pvEl.classList.add('open');
     document.getElementById('pv-close').focus();
-    api('/api/fs/read?path=' + encodeURIComponent(absPath) + '&max=' + READ_MAX).then(function(d) {
-      if (!pvEl.classList.contains('open') || pvNameEl.title !== absPath) return;
-      if (!d || !d.ok) {
-        pvBodyEl.textContent = d && d.code === 'eperm'
-          ? 'You don’t have permission to read this file.'
-          : 'Couldn’t read this file.';
-        return;
-      }
-      pvInfoEl.textContent = fmtSize(d.size);
-      if (d.binary) {
-        pvBodyEl.textContent = 'Binary file — no text preview. Use Download to save it.';
-        return;
-      }
-      if (d.truncated) {
-        pvNoteEl.textContent = 'Large file — showing the first ' + fmtSize(READ_MAX) + ' of ' + fmtSize(d.size) + '.';
-        pvNoteEl.className = 'pv-note on';
-      }
-      pvBodyEl.className = 'pv-body';
-      pvBodyEl.textContent = d.text || '';
-      pvBodyEl.scrollTop = 0;
-    }).catch(function() {
-      if (!pvEl.classList.contains('open')) return;
-      pvBodyEl.textContent = 'Couldn’t read this file.';
-    });
+    if (!d || !d.ok) {
+      pvBodyEl.textContent = d && d.code === 'eperm'
+        ? 'You don’t have permission to read this file.'
+        : 'Couldn’t read this file.';
+      return;
+    }
+    pvInfoEl.textContent = fmtSize(d.size) + ' · read-only';
+    if (d.binary) {
+      pvBodyEl.textContent = 'Binary file — no text preview. Use Download to save it.';
+      return;
+    }
+    if (d.truncated) {
+      pvNoteEl.textContent = 'Large file — read-only preview of the first ' + fmtSize(READ_MAX) + ' of ' + fmtSize(d.size) + '.';
+      pvNoteEl.className = 'pv-note on';
+    }
+    pvBodyEl.className = 'pv-body';
+    pvBodyEl.textContent = d.text || '';
+    pvBodyEl.scrollTop = 0;
   }
   function closePreview() {
     pvEl.classList.remove('open');
@@ -1137,6 +1265,284 @@
     if (pvReturnFocus && pvReturnFocus.focus) { try { pvReturnFocus.focus(); } catch (e) {} }
   }
   document.getElementById('pv-close').addEventListener('click', closePreview);
+
+  // ---- editor overlay ----
+  var edEl = document.getElementById('ed');
+  var edTa = document.getElementById('ed-ta');
+  var edNameEl = document.getElementById('ed-name');
+  var edTitleEl = document.getElementById('ed-title');
+  var edSizeEl = document.getElementById('ed-size');
+  var edPosEl = document.getElementById('ed-pos');
+  var edSaveBtn = document.getElementById('ed-save');
+  var edPath = null, edMtime = null, edSavedText = '', edSaving = false, edReturnFocus = null;
+
+  function edOpen() { return edEl.classList.contains('open'); }
+  function edDirty() { return edOpen() && edTa.value !== edSavedText; }
+  function edSyncState() {
+    var dirty = edTa.value !== edSavedText;
+    edEl.classList.toggle('dirty', dirty);
+    edSaveBtn.disabled = !dirty || edSaving;
+    edSizeEl.textContent = fmtSize(new Blob([edTa.value]).size);
+  }
+  function edUpdatePos() {
+    var s = edTa.selectionStart || 0;
+    var before = edTa.value.slice(0, s);
+    edPosEl.textContent = 'Ln ' + before.split('\n').length + ', Col ' + (s - before.lastIndexOf('\n'));
+  }
+  function openEditor(absPath, name, text, mtime, gotoLine) {
+    edReturnFocus = document.activeElement;
+    edPath = absPath; edMtime = mtime;
+    edNameEl.textContent = name;
+    edTitleEl.title = absPath;
+    edSavedText = text;
+    edTa.value = text;
+    edEl.classList.add('open');
+    edSyncState();
+    edTa.focus();
+    if (gotoLine && gotoLine > 1) {
+      var idx = 0, l = 1;
+      while (l < gotoLine) { var j = text.indexOf('\n', idx); if (j === -1) break; idx = j + 1; l++; }
+      try { edTa.setSelectionRange(idx, idx); } catch (e) {}
+      var lh = parseFloat(getComputedStyle(edTa).lineHeight) || 19;
+      edTa.scrollTop = Math.max(0, (gotoLine - 1) * lh - edTa.clientHeight / 3);
+    } else {
+      try { edTa.setSelectionRange(0, 0); } catch (e) {}
+      edTa.scrollTop = 0;
+    }
+    edUpdatePos();
+  }
+  function closeEditorNow() {
+    edEl.classList.remove('open');
+    // Blur NOW: the hidden textarea otherwise keeps focus until the next render
+    // flush, and a fast next keypress (double-Esc) would be swallowed by the
+    // global handler's input guard instead of e.g. closing the search.
+    try { edTa.blur(); } catch (e) {}
+    edTa.value = ''; edSavedText = ''; edPath = null;
+    if (edReturnFocus && edReturnFocus.focus) { try { edReturnFocus.focus(); } catch (e) {} }
+  }
+  function requestCloseEditor() {
+    if (!edDirty()) { closeEditorNow(); return; }
+    cardChoice({
+      title: 'Discard unsaved changes?',
+      msg: 'Your edits to ' + (edNameEl.textContent || 'this file') + ' aren’t saved.',
+      buttons: [
+        { label: 'Keep editing', value: false, cancel: true },
+        { label: 'Discard', value: true, danger: true }
+      ],
+      defaultValue: true, escValue: false, focusValue: false
+    }).then(function(discard) { if (discard) closeEditorNow(); });
+  }
+  function edSave(overwrite) {
+    if (!edPath || edSaving) return;
+    if (!overwrite && edTa.value === edSavedText) return;    // nothing to save
+    var val = edTa.value, p = edPath;
+    edSaving = true; edSyncState();
+    var url = '/api/fs/upload?path=' + encodeURIComponent(p) +
+              (!overwrite && edMtime != null ? '&ifMtime=' + edMtime : '');
+    fetch(url, { method: 'POST', body: val })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        edSaving = false;
+        if (edPath !== p) return;                            // closed meanwhile
+        if (d && d.ok) {
+          edSavedText = val;
+          edSyncState();
+          api('/api/fs/stat?path=' + encodeURIComponent(p)).then(function(sd) {
+            if (edPath === p && sd && sd.ok && sd.stat) edMtime = sd.stat.mtime;
+          }).catch(function() {});
+          toast('Saved');
+          if (!searchActive) refresh();                      // update the row's size/mtime
+          return;
+        }
+        edSyncState();
+        if (d && d.code === 'econflict') {
+          cardChoice({
+            title: 'File changed on disk',
+            msg: 'Another device or program modified this file after you opened it.',
+            buttons: [
+              { label: 'Keep editing', value: null, cancel: true },
+              { label: 'Reload', value: 'reload' },
+              { label: 'Overwrite', value: 'overwrite', danger: true }
+            ],
+            escValue: null, focusValue: null
+          }).then(function(v) {
+            if (v === 'overwrite') edSave(true);             // discard THEIR version
+            else if (v === 'reload') edReload();             // discard MY edits
+          });
+          return;
+        }
+        toast((d && d.error) || 'Save failed', true);
+      })
+      .catch(function() {
+        edSaving = false; edSyncState();
+        toast('Save failed — network error', true);
+      });
+  }
+  function edReload() {
+    var p = edPath;
+    Promise.all([
+      api('/api/fs/stat?path=' + encodeURIComponent(p)).catch(function() { return null; }),
+      api('/api/fs/read?path=' + encodeURIComponent(p) + '&max=' + READ_MAX).catch(function() { return null; })
+    ]).then(function(rs) {
+      if (edPath !== p) return;
+      var sd = rs[0], d = rs[1];
+      if (!d || !d.ok) { toast('Couldn’t reload the file', true); return; }
+      edMtime = (sd && sd.ok && sd.stat) ? sd.stat.mtime : null;
+      edSavedText = d.text || '';
+      edTa.value = edSavedText;
+      edSyncState(); edUpdatePos();
+      toast('Reloaded');
+    });
+  }
+  edTa.addEventListener('input', function() { edSyncState(); edUpdatePos(); });
+  edTa.addEventListener('keydown', function(e) {
+    if (e.key === 'Tab') {                                    // insert two spaces
+      e.preventDefault();
+      var s = edTa.selectionStart, en = edTa.selectionEnd;
+      edTa.value = edTa.value.slice(0, s) + '  ' + edTa.value.slice(en);
+      edTa.selectionStart = edTa.selectionEnd = s + 2;
+      edSyncState(); edUpdatePos();
+    }
+  });
+  document.addEventListener('selectionchange', function() {
+    if (edOpen() && document.activeElement === edTa) edUpdatePos();
+  });
+  edSaveBtn.addEventListener('click', function() { edSave(false); });
+  document.getElementById('ed-close').addEventListener('click', requestCloseEditor);
+
+  // ---- search (🔍 / Ctrl+F): current folder, recursive, runs on Enter ----
+  var sbarEl = document.getElementById('sbar');
+  var sqEl = document.getElementById('sq');
+  var scopeEl = document.getElementById('scope');
+  var searchBtn = document.getElementById('searchbtn');
+  var searchOpen = false, searchActive = false, searchMode = 'names', searchSeq = 0;
+
+  function updateScope() {
+    var label = path ? ((HOME && path === HOME) ? 'Home' : baseOf(path)) : '';
+    scopeEl.textContent = 'in ' + label;
+    scopeEl.title = path || '';
+  }
+  function openSearch() {
+    searchOpen = true;
+    sbarEl.classList.add('on');
+    searchBtn.setAttribute('aria-pressed', 'true');
+    updateScope();
+    sqEl.focus(); sqEl.select();
+  }
+  function closeSearch() {
+    var wasActive = searchActive;
+    searchOpen = false; searchActive = false;
+    searchSeq++;                                             // drop in-flight results
+    sbarEl.classList.remove('on');
+    searchBtn.setAttribute('aria-pressed', 'false');
+    setNotice('');
+    if (wasActive) refresh();                                // restore the folder listing
+  }
+  function setSearchMode(m) {
+    searchMode = m;
+    document.getElementById('sm-names').classList.toggle('on', m === 'names');
+    document.getElementById('sm-content').classList.toggle('on', m === 'content');
+    if (searchActive) runSearch();                           // re-run an active search
+  }
+  function relParent(abs) {
+    var dir = abs.slice(0, abs.lastIndexOf('/')) || '/';
+    if (dir === path) return '';
+    var root = path === '/' ? '/' : path + '/';
+    return dir.indexOf(root) === 0 ? dir.slice(root.length) : dir;
+  }
+  // Highlight q inside text with <mark> — DOM-built, never innerHTML.
+  function markify(parent, text, q) {
+    var lower = text.toLowerCase(), lq = (q || '').toLowerCase(), i = 0;
+    if (!lq) { parent.appendChild(document.createTextNode(text)); return; }
+    for (;;) {
+      var j = lower.indexOf(lq, i);
+      if (j === -1) { parent.appendChild(document.createTextNode(text.slice(i))); return; }
+      if (j > i) parent.appendChild(document.createTextNode(text.slice(i, j)));
+      parent.appendChild(el('mark', null, text.slice(j, j + q.length)));
+      i = j + q.length;
+    }
+  }
+  function runSearch() {
+    var q = sqEl.value.trim();
+    if (!q || !path) return;
+    var my = ++searchSeq;
+    searchActive = true;
+    if (selectMode) exitSelectMode(); else clearSel(true);
+    rows = [];                                               // list keyboard/selection off
+    mainEl.innerHTML = '';
+    mainEl.appendChild(stateEl([el('div', null, 'Searching…')]));
+    setNotice('');
+    api('/api/fs/search?path=' + encodeURIComponent(path) + '&q=' + encodeURIComponent(q) + '&mode=' + searchMode)
+      .then(function(d) {
+        if (my !== searchSeq || !searchActive) return;
+        if (!d || !d.ok) {
+          mainEl.innerHTML = '';
+          mainEl.appendChild(stateEl([el('div', 'big', 'Search failed'), el('div', 'pth', (d && d.error) || 'error')]));
+          return;
+        }
+        renderResults(d, q);
+      })
+      .catch(function() {
+        if (my !== searchSeq || !searchActive) return;
+        mainEl.innerHTML = '';
+        mainEl.appendChild(stateEl([el('div', 'big', 'Search failed'), el('div', 'pth', 'network error')]));
+      });
+  }
+  function renderResults(d, q) {
+    rows = [];
+    mainEl.innerHTML = '';
+    var res = d.results || [];
+    if (!res.length) {
+      mainEl.appendChild(stateEl([el('div', 'big', 'No matches')]));
+      return;
+    }
+    var frag = document.createDocumentFragment();
+    res.forEach(function(it) {
+      var name = baseOf(it.path);
+      var r = el('div', 'row' + (it.isDir ? ' dir' : '') + (d.mode === 'content' ? ' sres' : ''));
+      r.appendChild(el('span', 'ic', iconFor(name, !!it.isDir)));
+      var nm = el('span', 'nm');
+      markify(nm, name, d.mode === 'names' ? q : '');
+      nm.title = it.path;
+      r.appendChild(nm);
+      var pp = relParent(it.path);
+      if (pp) { var ppe = el('span', 'pp', pp); ppe.title = it.path; r.appendChild(ppe); }
+      if (d.mode === 'content') {
+        r.appendChild(el('span', 'ln', ':' + it.line));
+        var sn = el('div', 'snip');
+        markify(sn, it.text || '', q);
+        sn.title = it.text || '';
+        r.appendChild(sn);
+        r.addEventListener('click', function() { openFile(it.path, name, it.line); });
+      } else {
+        r.addEventListener('click', function() { openNameResult(it); });
+      }
+      frag.appendChild(r);
+    });
+    mainEl.appendChild(frag);
+    mainEl.scrollTop = 0;
+    if (d.truncated) setNotice('Showing the first ' + res.length + ' matches.');
+  }
+  // Names result: jump to its folder with the item selected; files also open.
+  function openNameResult(it) {
+    var dir = it.path.slice(0, it.path.lastIndexOf('/')) || '/';
+    var name = baseOf(it.path);
+    searchActive = false; searchSeq++;
+    searchOpen = false;
+    sbarEl.classList.remove('on');
+    searchBtn.setAttribute('aria-pressed', 'false');
+    pendingFocusName = name;
+    if (dir === path) load(path, true); else go(dir);
+    if (!it.isDir) setTimeout(function() { openFile(it.path, name); }, 200);
+  }
+  searchBtn.addEventListener('click', function() { if (searchOpen) closeSearch(); else openSearch(); });
+  document.getElementById('s-close').addEventListener('click', closeSearch);
+  document.getElementById('sm-names').addEventListener('click', function() { setSearchMode('names'); });
+  document.getElementById('sm-content').addEventListener('click', function() { setSearchMode('content'); });
+  sqEl.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); runSearch(); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); closeSearch(); }
+  });
 
   // ---- toolbar wiring ----
   addrEl.addEventListener('keydown', function(ev) {
