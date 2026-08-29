@@ -1,6 +1,9 @@
 # Files-native: replacing FileBrowser with a vibetop-owned Files app
 
-> Status: **phase 4a shipped** (v1.19.93/94 — Native is the DEFAULT; Share
+> Status: **phase 4a shipped, default REVERTED to Classic** (v1.19.96 — the
+> user judged the native view not yet as useful day-to-day; both engines stay
+> offered via the toggle, Native opt-in, until the polish gap closes. Feature
+> work from 4a stands: Share
 > card + PDF preview + imageview listing all native; FileBrowser is now only
 > the Classic fallback behind the toggle. Phase 4b — physical removal of the
 > FB units/ports/patch layer — awaits a soak period on the default).
