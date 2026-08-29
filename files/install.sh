@@ -159,3 +159,12 @@ fi
 
 echo
 echo "done. open http://<host>/files/"
+
+# Files-native: restart any running per-user file agents so a deploy takes
+# effect immediately (they respawn on demand with the new code; without this
+# an old agent lingers up to its 15-min idle exit and answers with the old
+# op set — bit v1.19.100's hash op on deploy day).
+if [ "${INSTALL_SYSTEMD:-1}" != "-1" ]; then
+  systemctl list-units --plain --no-legend 'vibetop-fileagent-*.service' 2>/dev/null \
+    | awk '{print $1}' | xargs -r systemctl stop 2>/dev/null || true
+fi
