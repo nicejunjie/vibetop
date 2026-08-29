@@ -1060,6 +1060,38 @@
     });
   }
 
+
+  // iOS-standalone-safe download. In an installed PWA, an <a download> (or a
+  // bare attachment navigation) replaces the WHOLE app view with iOS's white
+  // "Open in Preview" sheet (reported with a screenshot). The iOS-correct path
+  // is the SYSTEM SHARE SHEET with a real File (save to Files/Photos, AirDrop)
+  // — in-app, no navigation. Anchor download stays for every normal browser;
+  // window.open (Safari handles it) is the last-resort fallback. Share must
+  // run inside the click's transient activation, so the fetch races it — a
+  // too-slow fetch falls back rather than throwing at the user.
+  var IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+               (/Mac/.test(navigator.userAgent) && 'ontouchend' in document);
+  function nativeDownload(url, name) {
+    if (!(IS_IOS && navigator.share && navigator.canShare)) {
+      var a = document.createElement('a');
+      a.href = url;
+      if (name) a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      return;
+    }
+    fetch(url).then(function(r) {
+      if (!r.ok) throw 0;
+      return r.blob();
+    }).then(function(b) {
+      var f = new File([b], name || 'download', { type: b.type || 'application/octet-stream' });
+      if (!navigator.canShare({ files: [f] })) throw 0;
+      return navigator.share({ files: [f] });
+    }).catch(function(e) {
+      if (e && e.name === 'AbortError') return;   // user closed the sheet
+      try { window.open(url); } catch (_) {}
+    });
+  }
+
   // -- download: single file direct; folders / multi-selections as a zip --
   function doDownload() {
     if (!selCount) return;
@@ -1068,9 +1100,8 @@
     var url = (single && !single.isDir)
       ? '/api/fs/download?path=' + encodeURIComponent(joinPath(path, single.name))
       : '/api/fs/zip?' + selPaths().map(function(p) { return 'path=' + encodeURIComponent(p); }).join('&');
-    var a = document.createElement('a');
-    a.href = url;
-    document.body.appendChild(a); a.click(); a.remove();
+    nativeDownload(url, (single && !single.isDir) ? single.name
+                        : (names.length === 1 ? names[0] : 'files') + '.zip');
   }
 
   // -- inline editors: new folder + rename --
@@ -1349,10 +1380,7 @@
     pdfBodyEl.appendChild(fb);
   }
   function pdfDownload(absPath, name) {
-    var a = document.createElement('a');
-    a.href = pdfUrl(absPath, false);
-    a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
+    nativeDownload(pdfUrl(absPath, false), name);
   }
   function openPdf(absPath, name) {
     pdfReturnFocus = document.activeElement;

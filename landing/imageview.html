@@ -188,11 +188,39 @@
     try { (window.top || window.parent).postMessage({ type: 'close-app', app: 'imageview' }, '*'); } catch (e) {}
   }
   document.getElementById('close').addEventListener('click', closeSelf);
+
+  // iOS-standalone-safe download. In an installed PWA, an <a download> (or a
+  // bare attachment navigation) replaces the WHOLE app view with iOS's white
+  // "Open in Preview" sheet (reported with a screenshot). The iOS-correct path
+  // is the SYSTEM SHARE SHEET with a real File (save to Files/Photos, AirDrop)
+  // — in-app, no navigation. Anchor download stays for every normal browser;
+  // window.open (Safari handles it) is the last-resort fallback. Share must
+  // run inside the click's transient activation, so the fetch races it — a
+  // too-slow fetch falls back rather than throwing at the user.
+  var IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+               (/Mac/.test(navigator.userAgent) && 'ontouchend' in document);
+  function nativeDownload(url, name) {
+    if (!(IS_IOS && navigator.share && navigator.canShare)) {
+      var a = document.createElement('a');
+      a.href = url;
+      if (name) a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      return;
+    }
+    fetch(url).then(function(r) {
+      if (!r.ok) throw 0;
+      return r.blob();
+    }).then(function(b) {
+      var f = new File([b], name || 'download', { type: b.type || 'application/octet-stream' });
+      if (!navigator.canShare({ files: [f] })) throw 0;
+      return navigator.share({ files: [f] });
+    }).catch(function(e) {
+      if (e && e.name === 'AbortError') return;   // user closed the sheet
+      try { window.open(url); } catch (_) {}
+    });
+  }
   document.getElementById('dl').addEventListener('click', function() {
-    var a = document.createElement('a');
-    a.href = rawUrl(path) + '&dl=1';
-    a.download = baseOf(path);
-    document.body.appendChild(a); a.click(); a.remove();
+    nativeDownload(rawUrl(path) + '&dl=1', baseOf(path));
   });
 
   if (!path) { showMsg('No image selected. Open one from Files.'); return; }
