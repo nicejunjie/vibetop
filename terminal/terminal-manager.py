@@ -5187,6 +5187,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
         up = {"op": "upload", "path": dst, "size": length}
+        if q.get("mkdirs"):
+            up["mkdirs"] = True
         if q.get("ifMtime"):
             try:
                 up["ifMtime"] = int(q["ifMtime"][0])
@@ -5266,7 +5268,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         the authorization boundary (docs/files-native.md)."""
         u = urllib.parse.urlparse(self.path)
         op = u.path.rsplit("/", 1)[-1]
-        if op not in ("home", "list", "stat", "read", "search"):
+        if op not in ("home", "list", "stat", "read", "search", "hash"):
             return self._json(404, {"ok": False, "error": "unknown op", "code": "einval"})
         q = urllib.parse.parse_qs(u.query)
         req = {"op": op}
@@ -5281,6 +5283,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             req["q"] = q["q"][0]
         if "mode" in q:
             req["mode"] = q["mode"][0]
+        if "algo" in q:
+            req["algo"] = q["algo"][0]
         user = _ctx_user()
         ok, err = _ensure_fileagent(user)
         if not ok:

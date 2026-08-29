@@ -303,3 +303,27 @@ def test_upload_ifmtime_conflict_refused(mgr, agent, tmp_path):
                              "ifMtime": int(os.stat(f).st_mtime)}, b"v2")
     assert json.loads(ok_out.decode().strip())["ok"]
     assert f.read_text() == "v2"
+
+
+# ---- parity: hash + mkdirs upload -------------------------------------------
+
+def test_hash_matches_hashlib(mgr, agent, tmp_path):
+    import hashlib
+    f = tmp_path / "h.bin"
+    f.write_bytes(b"vibetop hash me" * 1000)
+    for algo in ("md5", "sha256"):
+        r = call(mgr, agent, {"op": "hash", "path": str(f), "algo": algo})
+        assert r["ok"] and r["hex"] == hashlib.new(algo, f.read_bytes()).hexdigest()
+    bad = call(mgr, agent, {"op": "hash", "path": str(f), "algo": "crc32"})
+    assert bad["ok"] is False and bad["code"] == "einval"
+
+
+def test_upload_mkdirs_creates_the_chain(mgr, agent, tmp_path):
+    dst = str(tmp_path / "a" / "b" / "c.txt")
+    out = _stream(agent, {"op": "upload", "path": dst, "size": 5, "mkdirs": True}, b"hello")
+    assert json.loads(out.decode().strip())["ok"]
+    assert open(dst).read() == "hello"
+    # without the flag, a missing chain still fails cleanly
+    dst2 = str(tmp_path / "x" / "y.txt")
+    out2 = _stream(agent, {"op": "upload", "path": dst2, "size": 2}, b"no")
+    assert json.loads(out2.decode().strip())["ok"] is False

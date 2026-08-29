@@ -326,9 +326,37 @@ def op_search(req):
     return {"ok": True, "results": results, "truncated": truncated, "mode": mode}
 
 
+HASH_ALGOS = {"md5", "sha1", "sha256", "sha512"}
+
+
+def op_hash(req):
+    """Checksums for the info dialog (parity with the classic app's rows).
+    Streams the file — any size — but one algo per call keeps each request
+    snappy and lets the UI fill rows lazily like the classic Show links."""
+    import hashlib
+    path, err = _abs_or_err(req.get("path"))
+    if err:
+        return err
+    algo = req.get("algo") or "sha256"
+    if algo not in HASH_ALGOS:
+        return {"ok": False, "error": "unknown algo", "code": "einval"}
+    h = hashlib.new(algo)
+    try:
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(1 << 20)
+                if not chunk:
+                    break
+                h.update(chunk)
+    except OSError as e:
+        return {"ok": False, "error": str(e), "code": _errcode(e)}
+    return {"ok": True, "algo": algo, "hex": h.hexdigest()}
+
+
 OPS = {"home": op_home, "list": op_list, "stat": op_stat, "read": op_read,
        "mkdir": op_mkdir, "rename": op_rename, "move": op_move,
-       "copy": op_copy, "delete": op_delete, "search": op_search}
+       "copy": op_copy, "delete": op_delete, "search": op_search,
+       "hash": op_hash}
 
 
 # ---- phase 2: streaming (upload / download / zip) ---------------------------
@@ -366,6 +394,11 @@ def stream_upload(conn, req, rest):
             return _send_json(conn, {"ok": False, "error": "file changed on disk",
                                      "code": "econflict", "mtime": cur})
     d = os.path.dirname(path)
+    if req.get("mkdirs"):
+        try:
+            os.makedirs(d, exist_ok=True)     # folder upload: create the chain
+        except OSError as e:
+            return _send_json(conn, {"ok": False, "error": str(e), "code": _errcode(e)})
     tmp = None
     got = 0
     try:
