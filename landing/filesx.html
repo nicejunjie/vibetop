@@ -94,7 +94,7 @@
     bottom: 14px; z-index: 5; align-items: center; gap: 6px;
     padding: 6px 8px; background: #161b22; border: 1px solid #2a3040;
     border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
-    max-width: min(94vw, 640px);
+    max-width: min(96vw, 900px);   /* the full 10-verb office set fits unscrolled on desktop */
     overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
     user-select: none; -webkit-user-select: none;
   }
@@ -104,8 +104,40 @@
   .actbar .cnt { flex: 0 0 auto; font-size: 12px; color: #aab4c5; padding: 0 4px 0 6px; white-space: nowrap; }
   .actbar .sp { flex: 0 0 2px; }
   .actbar button:disabled { opacity: .4; cursor: default; }
+  .actbar [hidden] { display: none !important; }   /* inapplicable verbs hide, never grey */
   .actbar .danger { color: #f1b3b3; }
   .actbar .danger:hover { background: #3a2024; border-color: #5a2c33; }
+  .actbar .dv { flex: 0 0 1px; align-self: stretch; margin: 3px 3px; background: #2a3040; }
+  .actbar .abi { display: none; }                  /* icons appear on mobile only */
+
+  /* OS drag-and-drop upload: full-listing drop highlight */
+  .dropz {
+    display: none; position: fixed; inset: 0; z-index: 40; pointer-events: none;
+    align-items: center; justify-content: center; background: rgba(14,17,23,.82);
+    padding: 26px;
+  }
+  .dropz.on { display: flex; }
+  .dropz-in {
+    border: 2px dashed #8a4adb; border-radius: 14px; padding: 30px 44px;
+    text-align: center; background: rgba(36,26,56,.5); max-width: 90%;
+  }
+  .dropz-in .big2 { font-size: 15px; font-weight: 650; color: #e6edf3; margin-bottom: 6px; }
+  .dropz-in .sub2 { font-size: 12.5px; color: #aab4c5; }
+
+  /* info dialog rows (inside .mcard) */
+  .inf { margin: 0 0 14px; }
+  .inf-row { display: flex; gap: 10px; padding: 3px 0; font-size: 13px; line-height: 1.45; }
+  .inf-k { flex: 0 0 88px; color: #6b7488; }
+  .inf-v { flex: 1; min-width: 0; color: #d4d8de; word-break: break-word; }
+  .inf-v.mono { font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  .inf-v.mono.hash { cursor: pointer; }
+  .inf-v.mono.hash:hover { color: #fff; }
+  button.inf-show {
+    background: transparent; border: 0; padding: 0; color: #b79be8;
+    font: 12.5px system-ui, sans-serif; cursor: pointer; text-decoration: underline;
+  }
+  button.inf-show:hover { color: #d4c1f5; }
+  button.inf-show:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
 
   /* search bar (🔍 / Ctrl+F) — slim row under the toolbar */
   .sbar {
@@ -375,8 +407,12 @@
     /* wrap instead of an (invisible) horizontal scroll so every action is
        visible; disabled actions hide entirely — contextual, not greyed */
     .actbar { padding: 6px 8px; bottom: 12px; max-width: calc(100vw - 12px); flex-wrap: wrap; justify-content: center; overflow-x: visible; }
-    .actbar button { min-height: 40px; font-size: 13px; padding: 5px 11px; }
+    .actbar button { min-height: 40px; font-size: 13px; padding: 5px 9px; }
     .actbar button:disabled { display: none; }
+    .actbar .abi { display: inline; margin-right: 4px; }   /* icons + short labels */
+    .actbar .dv { display: none; }                         /* wrapped rows: no stretch dividers */
+    /* the wrapped pill is several rows tall — keep the last rows reachable */
+    .actbar.on ~ .main { padding-bottom: 300px; }
     .row { min-height: 40px; padding: 2px 10px; gap: 8px; }
     .row .ic { flex: 0 0 20px; font-size: 14px; }
     .row .nm { font-size: 13.5px; }
@@ -404,8 +440,8 @@
              aria-label="Path — type a folder and press Enter" title="Type any path and press Enter">
     </div>
     <div class="tools">
-      <button id="newbtn" title="Create a new folder here"><span class="bi">＋</span><span class="bl"> New</span></button>
-      <button id="upbtn" title="Upload files to this folder"><span class="bi">⬆</span><span class="bl"> Upload</span></button>
+      <button id="newbtn" title="Create a new folder or file here"><span class="bi">＋</span><span class="bl"> New</span></button>
+      <button id="upbtn" title="Upload files or a folder here (or drag &amp; drop from your computer)"><span class="bi">⬆</span><span class="bl"> Upload</span></button>
       <button id="pastebtn" title="Paste here"></button>
       <select id="sortkey" aria-label="Sort by" title="Sort by">
         <option value="name">Name</option>
@@ -445,17 +481,30 @@
   </div>
   <div class="actbar" id="actbar">
     <span class="cnt" id="selcnt"></span>
-    <button id="a-rename" title="Rename (F2)">Rename</button>
-    <button id="a-download" title="Download (folders and multi-selections come as a .zip)">Download</button>
-    <button id="a-share" title="Create a public link (folders download as a zip)">Share</button>
-    <button id="a-copy" title="Copy (Ctrl+C)">Copy</button>
-    <button id="a-cut" title="Cut (Ctrl+X)">Cut</button>
-    <button id="a-delete" class="danger" title="Delete (Del)">Delete</button>
+    <button id="a-open" title="Open (Enter)"><span class="abi">▶</span><span class="abl">Open</span></button>
+    <button id="a-info" title="Info (I)"><span class="abi">ℹ️</span><span class="abl">Info</span></button>
+    <button id="a-share" title="Create a public link (folders download as a zip)"><span class="abi">🔗</span><span class="abl">Share</span></button>
+    <button id="a-browser" title="Open this file in the Browser app"><span class="abi">🌐</span><span class="abl">Open in Browser</span></button>
+    <button id="a-office" title="Edit in the Office app"><span class="abi">📝</span><span class="abl">Edit</span></button>
+    <span class="dv" id="a-dv1"></span>
+    <button id="a-rename" title="Rename (F2)"><span class="abi">✎</span><span class="abl">Rename</span></button>
+    <button id="a-copy" title="Copy (Ctrl+C)"><span class="abi">⧉</span><span class="abl">Copy</span></button>
+    <button id="a-cut" title="Cut (Ctrl+X)"><span class="abi">✂</span><span class="abl">Cut</span></button>
+    <span class="dv" id="a-dv2"></span>
+    <button id="a-download" title="Download (folders and multi-selections come as a .zip)"><span class="abi">⭳</span><span class="abl">Download</span></button>
+    <button id="a-delete" class="danger" title="Delete (Del)"><span class="abi">🗑</span><span class="abl">Delete</span></button>
     <span class="sp"></span>
     <button id="a-clear" title="Clear selection (Esc)">✕</button>
   </div>
   <div class="main" id="main"></div>
+  <div class="dropz" id="dropz" aria-hidden="true">
+    <div class="dropz-in">
+      <div class="big2" id="dropz-big"></div>
+      <div class="sub2">Folders upload with their structure preserved</div>
+    </div>
+  </div>
   <input type="file" id="fileinput" multiple hidden>
+  <input type="file" id="dirinput" webkitdirectory hidden>
 
   <div class="ed" id="ed" role="dialog" aria-modal="true" aria-label="Editor">
     <div class="pv-head">
@@ -489,11 +538,13 @@
 
 <script>
 (function() {
-  // Native Files view (Files-native phases 1+2 — docs/files-native.md).
+  // Native Files view (Files-native phases 1-4a — docs/files-native.md).
   // Loaded by files.html's tab wrapper with #/abs/path; listing/stat/read and
   // all mutations go through the per-user file agent via the manager
-  // (/api/fs/*). FileBrowser remains reachable via Manage for what's not
-  // native yet (editor, search).
+  // (/api/fs/*). Feature-complete vs classic FileBrowser: listing, mutations,
+  // clipboard, uploads (files + folders + OS drag-and-drop), new file/folder,
+  // editor, search, share, info (kind/perms/dimensions/checksums), open-in-
+  // browser + office-edit handoffs. FileBrowser remains reachable via Manage.
   var IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
   var VID_RE = /\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$/i;
   var OFF_RE = /\.(docx?|xlsx?|pptx?|odt|ods|odp)$/i;
@@ -711,6 +762,13 @@
   }
   function selNames() { return Object.keys(selected); }
   function selPaths() { return selNames().map(function(n) { return joinPath(path, n); }); }
+  // The single selected entry (null unless exactly one is selected).
+  function selEntry() {
+    if (selCount !== 1) return null;
+    var n = selNames()[0];
+    for (var i = 0; i < rows.length; i++) if (rows[i].name === n) return rows[i];
+    return null;
+  }
   function syncSelDom() {
     var clip = getClip();
     var cutSet = {};
@@ -737,12 +795,26 @@
     if (toastEl) toastEl.style.bottom = on ? '72px' : '';   // keep a live toast clear of the pill
     if (on) {
       document.getElementById('selcnt').textContent = selCount + ' selected';
-      document.getElementById('a-rename').disabled = selCount !== 1;
-      document.getElementById('a-share').disabled = selCount !== 1;
-      var any = selCount > 0;
-      ['a-download', 'a-copy', 'a-cut', 'a-delete'].forEach(function(id) {
-        document.getElementById(id).disabled = !any;
-      });
+      // Inapplicable verbs HIDE (never grey): the pill stays contextual and
+      // uncluttered while every verb that CAN apply is a visible labeled button.
+      var any = selCount > 0, oneSel = selCount === 1;
+      var e1 = selEntry();
+      function show(id, vis) {
+        var b = document.getElementById(id);
+        b.hidden = !vis; b.disabled = !vis;
+      }
+      show('a-open', oneSel);
+      show('a-info', any);
+      show('a-share', oneSel);
+      show('a-browser', !!(e1 && !e1.isDir));
+      show('a-office', !!(e1 && OFF_RE.test(e1.name)));
+      show('a-rename', oneSel);
+      ['a-copy', 'a-cut', 'a-download', 'a-delete'].forEach(function(id) { show(id, any); });
+      document.getElementById('a-dv1').hidden = !any;
+      document.getElementById('a-dv2').hidden = !any;
+      // Mobile: icons + short labels — "Open in Browser" is the one long verb.
+      document.querySelector('#a-browser .abl').textContent =
+        MQ_MOBILE.matches ? 'Browser' : 'Open in Browser';
     }
   }
   function clearSel(quiet) {
@@ -1236,6 +1308,46 @@
       }).catch(function() { stopEdit(input); toast('Couldn’t create folder — network error', true); });
     }, function() { stopEdit(input); refresh(); });
   }
+  function newFile() {
+    // ＋New → File: name it inline (like New folder), then a 0-byte atomic
+    // upload creates it and the editor opens on it straight away.
+    if (!path) return;
+    var existing = mainEl.querySelector('input.edit');
+    if (existing) { existing.focus(); return; }
+    if (mainEl.querySelector('.state')) mainEl.innerHTML = '';   // empty-folder message
+    var r = el('div', 'row');
+    r.appendChild(el('span', 'ck', ''));
+    r.appendChild(el('span', 'ic', '📄'));
+    var input = el('input', 'edit');
+    input.type = 'text'; input.value = 'New file.txt';
+    input.setAttribute('aria-label', 'New file name');
+    r.appendChild(input);
+    mainEl.insertBefore(r, mainEl.firstChild);
+    mainEl.scrollTop = 0;
+    input.focus();
+    try { input.setSelectionRange(0, 8); } catch (e) {}          // select "New file", keep .txt
+    editKeys(input, function(name) {
+      name = (name || '').trim();
+      if (!name || name.indexOf('/') !== -1) { stopEdit(input); return; }
+      var abs = joinPath(path, name);
+      api('/api/fs/stat?path=' + encodeURIComponent(abs)).then(function(sd) {
+        if (sd && sd.ok) {
+          stopEdit(input);
+          toast('“' + name + '” already exists', true);
+          return;
+        }
+        return fetch('/api/fs/upload?path=' + encodeURIComponent(abs), { method: 'POST', body: '' })
+          .then(function(res) { return res.json(); })
+          .then(function(d) {
+            stopEdit(input);
+            if (!d || !d.ok) { toast((d && d.error) || 'Couldn’t create file', true); return; }
+            pendingFocusName = name;
+            refresh();
+            openFile(abs, name);                                 // 0 bytes → straight into the editor
+          });
+      }).catch(function() { stopEdit(input); toast('Couldn’t create file — network error', true); });
+    }, function() { stopEdit(input); refresh(); });
+  }
   function startRename() {
     if (selCount !== 1) return;
     var name = selNames()[0];
@@ -1291,11 +1403,15 @@
     }
     return probe(name, 2);
   }
-  function uploadOne(dir, file, onProgress) {
-    return freeName(dir, file.name).then(function(name) {
+  function uploadOne(dir, file, reldir, onProgress) {
+    // reldir ('' for plain files) preserves a dropped/picked FOLDER's structure:
+    // the file lands in dir/reldir/ and mkdirs=1 creates the chain server-side.
+    var tdir = reldir ? joinPath(dir, reldir) : dir;
+    return freeName(tdir, file.name).then(function(name) {
       return new Promise(function(resolve) {
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/fs/upload?path=' + encodeURIComponent(joinPath(dir, name)));
+        xhr.open('POST', '/api/fs/upload?path=' + encodeURIComponent(joinPath(tdir, name)) +
+                         (reldir ? '&mkdirs=1' : ''));
         xhr.upload.onprogress = function(e) {
           if (e.lengthComputable) onProgress(e.loaded / e.total);
         };
@@ -1310,26 +1426,28 @@
       });
     });
   }
-  function uploadAll(files) {
-    if (uploading || !files.length || !path) return;
+  // items: [{file, reldir}] — sequential, per-file progress + overall n/N.
+  function uploadItems(items) {
+    if (uploading || !items.length || !path) return;
     uploading = true;
     document.getElementById('upbtn').disabled = true;
     var dir = path, done = 0, fails = [];
     uprogEl.classList.add('on');
     function step() {
-      if (done >= files.length) {
+      if (done >= items.length) {
         uploading = false;
         document.getElementById('upbtn').disabled = false;
         uprogEl.classList.remove('on');
-        if (fails.length) toast(fails.length + ' of ' + files.length + ' failed — ' + fails[0].error, true);
-        else toast('Uploaded ' + files.length + ' file' + (files.length === 1 ? '' : 's'));
+        if (fails.length) toast(fails.length + ' of ' + items.length + ' failed — ' + fails[0].error, true);
+        else toast('Uploaded ' + items.length + ' file' + (items.length === 1 ? '' : 's'));
         if (path === dir) refresh();
         return;
       }
-      var f = files[done];
-      uprogTxt.textContent = 'Uploading ' + (done + 1) + '/' + files.length + ' — ' + f.name;
+      var it = items[done];
+      uprogTxt.textContent = 'Uploading ' + (done + 1) + '/' + items.length + ' — ' +
+                             (it.reldir ? it.reldir + '/' : '') + it.file.name;
       uprogFill.style.width = '0%';
-      uploadOne(dir, f, function(frac) {
+      uploadOne(dir, it.file, it.reldir, function(frac) {
         uprogFill.style.width = Math.round(frac * 100) + '%';
       }).then(function(res) {
         if (!res.ok) fails.push(res);
@@ -1339,10 +1457,123 @@
     }
     step();
   }
+  function uploadAll(files) {
+    uploadItems(Array.prototype.map.call(files, function(f) { return { file: f, reldir: '' }; }));
+  }
   fileInput.addEventListener('change', function() {
-    uploadAll(Array.prototype.slice.call(fileInput.files));
+    uploadAll(fileInput.files);
     fileInput.value = '';
   });
+  var dirInput = document.getElementById('dirinput');
+  dirInput.addEventListener('change', function() {
+    // webkitdirectory picker: each file carries webkitRelativePath
+    // ("top/sub/f.txt") — keep the structure under the current folder.
+    var items = Array.prototype.map.call(dirInput.files, function(f) {
+      var rp = f.webkitRelativePath || f.name;
+      var i = rp.lastIndexOf('/');
+      return { file: f, reldir: i > 0 ? rp.slice(0, i) : '' };
+    });
+    uploadItems(items);
+    dirInput.value = '';
+  });
+
+  // ---- OS drag-and-drop upload: files AND folders from the computer ----
+  // The internal row drag is pointer-based (no HTML5 DnD), so it never raises
+  // these events — and the `drag` guard makes that explicit.
+  var dropzEl = document.getElementById('dropz');
+  var DROP_MAX = 2000;
+  var dragDepth = 0;
+  function extDrag(ev) {
+    if (drag || dragCand) return false;             // internal pointer-drag active
+    var dt = ev.dataTransfer;
+    if (!dt || !dt.types) return false;
+    for (var i = 0; i < dt.types.length; i++) if (dt.types[i] === 'Files') return true;
+    return false;
+  }
+  function dropAllowed() {
+    return !!path && !uploading && !modalOpen && !searchActive &&
+           !edEl.classList.contains('open') && !pvEl.classList.contains('open') &&
+           !pdfovEl.classList.contains('open');
+  }
+  function hideDropz() { dragDepth = 0; dropzEl.classList.remove('on'); }
+  document.addEventListener('dragenter', function(ev) {
+    if (!extDrag(ev)) return;
+    ev.preventDefault();
+    dragDepth++;
+    if (dropAllowed()) {
+      document.getElementById('dropz-big').textContent =
+        'Drop to upload to ' + ((HOME && path === HOME) ? 'Home' : baseOf(path));
+      dropzEl.classList.add('on');
+    }
+  });
+  document.addEventListener('dragover', function(ev) {
+    if (!extDrag(ev)) return;
+    ev.preventDefault();
+    try { ev.dataTransfer.dropEffect = dropAllowed() ? 'copy' : 'none'; } catch (e) {}
+  });
+  document.addEventListener('dragleave', function(ev) {
+    if (!extDrag(ev)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) dropzEl.classList.remove('on');
+  });
+  document.addEventListener('drop', function(ev) {
+    if (!extDrag(ev)) return;
+    ev.preventDefault();
+    hideDropz();
+    if (!dropAllowed()) return;
+    collectDropped(ev.dataTransfer).then(function(items) {
+      if (items.length) uploadItems(items);
+    });
+  });
+  // DataTransfer → [{file, reldir}]; folders traversed via webkitGetAsEntry
+  // (readEntries returns ≤100 per call — loop until empty). Entries must be
+  // grabbed synchronously during the drop event; the async walk after is fine.
+  function collectDropped(dt) {
+    var out = [], over = false;
+    function addFile(f, reldir) {
+      if (out.length >= DROP_MAX) { over = true; return; }
+      out.push({ file: f, reldir: reldir });
+    }
+    function walkEntry(entry, reldir) {
+      return new Promise(function(resolve) {
+        if (out.length >= DROP_MAX) { over = true; resolve(); return; }
+        if (entry.isFile) {
+          entry.file(function(f) { addFile(f, reldir); resolve(); }, function() { resolve(); });
+        } else if (entry.isDirectory) {
+          var rd = entry.createReader();
+          var sub = reldir ? reldir + '/' + entry.name : entry.name;
+          (function readMore() {
+            rd.readEntries(function(ents) {
+              if (!ents.length || over) { resolve(); return; }
+              var p = Promise.resolve();
+              ents.forEach(function(en) { p = p.then(function() { return walkEntry(en, sub); }); });
+              p.then(readMore);
+            }, function() { resolve(); });
+          })();
+        } else resolve();
+      });
+    }
+    var chain = Promise.resolve(), got = false;
+    if (dt.items) {
+      for (var i = 0; i < dt.items.length; i++) {
+        var it = dt.items[i];
+        if (it.kind !== 'file') continue;
+        var entry = it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
+        if (entry) {
+          got = true;
+          (function(en) { chain = chain.then(function() { return walkEntry(en, ''); }); })(entry);
+        } else {
+          var f = it.getAsFile();
+          if (f) { got = true; addFile(f, ''); }
+        }
+      }
+    }
+    if (!got && dt.files) for (var j = 0; j < dt.files.length; j++) addFile(dt.files[j], '');
+    return chain.then(function() {
+      if (over) toast('Too many files — uploading the first ' + DROP_MAX, true);
+      return out;
+    });
+  }
 
   // ---- keyboard ----
   document.addEventListener('keydown', function(ev) {
@@ -1376,6 +1607,7 @@
     }
     if (ev.key === 'F2') { ev.preventDefault(); startRename(); return; }
     if (ev.key === 'Delete') { ev.preventDefault(); doDelete(); return; }
+    if ((ev.key === 'i' || ev.key === 'I') && !mod && selCount) { ev.preventDefault(); showInfo(); return; }
     if (ev.key === 'Escape') {
       if (morePop) { ev.preventDefault(); closeMore(); }
       else if (selectMode) { ev.preventDefault(); exitSelectMode(); }
@@ -1674,6 +1906,148 @@
     });
   }
   document.getElementById('a-share').addEventListener('click', shareStart);
+
+  // ---- Info dialog (per-selection action / 'i') — a real OS Get Info card:
+  //      Kind, Where, exact size, exact modified time, permissions, image
+  //      dimensions, and lazy click-to-copy checksums via /api/fs/hash. ----
+  var KIND_MAP = {
+    png: 'PNG image', jpg: 'JPEG image', jpeg: 'JPEG image', gif: 'GIF image',
+    webp: 'WebP image', svg: 'SVG image', heic: 'HEIC image', bmp: 'Bitmap image',
+    tif: 'TIFF image', tiff: 'TIFF image', ico: 'Icon image', avif: 'AVIF image',
+    mp4: 'MPEG-4 video', mkv: 'Matroska video', mov: 'QuickTime video',
+    avi: 'AVI video', webm: 'WebM video',
+    mp3: 'MP3 audio', flac: 'FLAC audio', wav: 'WAV audio', m4a: 'M4A audio', ogg: 'Ogg audio',
+    pdf: 'PDF document', doc: 'Word document', docx: 'Word document',
+    xls: 'Excel spreadsheet', xlsx: 'Excel spreadsheet',
+    ppt: 'PowerPoint presentation', pptx: 'PowerPoint presentation',
+    odt: 'OpenDocument text', ods: 'OpenDocument spreadsheet', odp: 'OpenDocument presentation',
+    txt: 'Plain text', md: 'Markdown text', csv: 'CSV text', json: 'JSON file',
+    yaml: 'YAML file', yml: 'YAML file', log: 'Log file', ipynb: 'Jupyter notebook',
+    zip: 'ZIP archive', tar: 'tar archive', gz: 'gzip archive', tgz: 'gzip archive',
+    xz: 'xz archive', bz2: 'bzip2 archive', '7z': '7-Zip archive', rar: 'RAR archive',
+    py: 'Python script', sh: 'Shell script', js: 'JavaScript file', ts: 'TypeScript file',
+    c: 'C source', h: 'C header', cpp: 'C++ source', go: 'Go source', rs: 'Rust source',
+    java: 'Java source', html: 'HTML file', css: 'CSS file',
+    iso: 'Disk image', deb: 'Debian package', rpm: 'RPM package',
+    exe: 'Windows program', dmg: 'macOS disk image'
+  };
+  function kindOf(name, isDir) {
+    if (isDir) return 'Folder';
+    var dot = (name || '').lastIndexOf('.');
+    var ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
+    if (KIND_MAP[ext]) return KIND_MAP[ext];
+    return ext ? ext.toUpperCase() + ' file' : 'File';
+  }
+  function fmtMode(mode) {                          // low 9 bits → "rwxr-xr-x"
+    var s = '', ch = 'rwx';
+    for (var i = 8; i >= 0; i--) s += ((mode >> i) & 1) ? ch[(8 - i) % 3] : '-';
+    return s;
+  }
+  function fmtExact(ts) {
+    return new Date(ts * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
+  function showInfo() {
+    if (!selCount) return;
+    var names = selNames();
+    var box = el('div', 'inf');
+    function row(label, value, mono) {
+      var r = el('div', 'inf-row');
+      r.appendChild(el('span', 'inf-k', label));
+      var v = el('span', 'inf-v' + (mono ? ' mono' : ''), value);
+      r.appendChild(v);
+      box.appendChild(r);
+      return v;
+    }
+    var m;
+    if (names.length > 1) {                         // multi-select: count + total size
+      m = rawCard(names.length + ' items');
+      var nd = 0, nf = 0, total = 0;
+      rows.forEach(function(e) {
+        if (!selected[e.name]) return;
+        if (e.isDir) nd++; else { nf++; total += e.size; }
+      });
+      row('Items', names.length + ' selected' +
+          (nd ? ' — ' + nd + ' folder' + (nd === 1 ? '' : 's') + ', ' + nf + ' file' + (nf === 1 ? '' : 's') : ''));
+      row('Total size', fmtSize(total) + ' (' + total.toLocaleString() + ' bytes' +
+          (nd ? ', files only' : '') + ')');
+      row('Where', path, true);
+    } else {
+      var e = selEntry();
+      if (!e) return;
+      var abs = joinPath(path, e.name);
+      m = rawCard(e.name);
+      row('Kind', kindOf(e.name, e.isDir));
+      row('Where', path, true);
+      if (!e.isDir) row('Size', fmtSize(e.size) + ' (' + e.size.toLocaleString() + ' bytes)');
+      row('Modified', fmtExact(e.mtime));
+      if (typeof e.mode === 'number')
+        row('Permissions', fmtMode(e.mode) + ' (' + (e.mode & 511).toString(8) + ')', true);
+      if (e.isDir) {                                // folders: live item count
+        var cv = row('Contents', '…');
+        api('/api/fs/list?path=' + encodeURIComponent(abs)).then(function(d) {
+          if (!d || !d.ok || !cv.isConnected) { cv.textContent = '—'; return; }
+          cv.textContent = d.entries.length + (d.truncated ? '+' : '') +
+                           ' item' + (d.entries.length === 1 && !d.truncated ? '' : 's');
+        }).catch(function() { cv.textContent = '—'; });
+      }
+      if (!e.isDir && IMG_RE.test(e.name)) {        // image dimensions, measured live
+        var dv = row('Dimensions', '…');
+        var img = new Image();
+        img.onload = function() {
+          if (dv.isConnected) dv.textContent = img.naturalWidth + ' × ' + img.naturalHeight;
+        };
+        img.onerror = function() { if (dv.isConnected) dv.textContent = '—'; };
+        img.src = '/api/file/image?path=' + encodeURIComponent(abs);
+      }
+      if (!e.isDir) {                               // lazy checksums: Show → hex → click copies
+        [['MD5', 'md5'], ['SHA1', 'sha1'], ['SHA256', 'sha256'], ['SHA512', 'sha512']].forEach(function(a) {
+          var v = row(a[0], '');
+          var show = el('button', 'inf-show', 'Show');
+          show.title = 'Compute the ' + a[0] + ' checksum';
+          show.addEventListener('click', function() {
+            show.disabled = true; show.textContent = 'Computing…';
+            api('/api/fs/hash?path=' + encodeURIComponent(abs) + '&algo=' + a[1]).then(function(d) {
+              if (!v.isConnected) return;
+              if (!d || !d.ok) { v.textContent = (d && d.error) || 'failed'; return; }
+              v.textContent = d.hex;
+              v.className = 'inf-v mono hash';
+              v.title = 'Click to copy';
+              v.addEventListener('click', function() {
+                var fake = el('button');            // copyText flashes a button label
+                copyText(d.hex, fake);
+                toast(a[0] + ' copied');
+              });
+            }).catch(function() { if (v.isConnected) v.textContent = 'failed'; });
+          });
+          v.appendChild(show);
+        });
+      }
+    }
+    m.card.appendChild(box);
+    var btns = el('div', 'mbtns');
+    var ok = el('button', 'mok', 'Close');
+    ok.addEventListener('click', m.close);
+    btns.appendChild(ok);
+    m.card.appendChild(btns);
+    ok.focus();
+  }
+
+  // ---- Open in Browser (single file) — same URL contract as the classic
+  //      Files app's Browser button: the desktop POSTs /api/browser/open with
+  //      a loopback /fileview/ URL and switches to the Browser app. ----
+  function openInBrowserAct() {
+    var e = selEntry();
+    if (!e || e.isDir) return;
+    var url = 'http://127.0.0.1/fileview/' + enc(joinPath(path, e.name)).replace(/^\//, '');
+    try { (window.top || window).postMessage({ type: 'open-in-browser', url: url }, '*'); } catch (err) {}
+  }
+  // ---- Office Edit — the desktop opens the OnlyOffice editor app (same
+  //      message the classic Edit button posts). ----
+  function officeEditAct() {
+    var e = selEntry();
+    if (!e || !OFF_RE.test(e.name)) return;
+    post('office-edit', joinPath(path, e.name));
+  }
 
   // ---- editor overlay ----
   var edEl = document.getElementById('ed');
@@ -2003,24 +2377,37 @@
   }
   document.getElementById('manage').addEventListener('click', openManage);
 
+  // Small anchored popovers: the New / Upload submenus and the mobile ⋯
+  // overflow all share one instance (opening one closes another).
+  var morePop = null, popAnchor = null;
+  function closeMore() { if (morePop) { morePop.remove(); morePop = null; popAnchor = null; } }
+  function openPop(btn, items, alignRight) {
+    if (popAnchor === btn) { closeMore(); return; }   // second click toggles shut
+    closeMore();
+    morePop = el('div', 'morepop');
+    items.forEach(function(it) {
+      var b = el('button', null, it.label);
+      if (it.title) b.title = it.title;
+      b.addEventListener('click', function() { closeMore(); it.run(); });
+      morePop.appendChild(b);
+    });
+    document.body.appendChild(morePop);
+    popAnchor = btn;
+    var r = btn.getBoundingClientRect();
+    morePop.style.top = (r.bottom + 4) + 'px';
+    if (alignRight) morePop.style.right = Math.max(6, window.innerWidth - r.right) + 'px';
+    else morePop.style.left = Math.max(6, Math.min(r.left, window.innerWidth - morePop.offsetWidth - 6)) + 'px';
+  }
   // ⋯ overflow (mobile): the demoted low-frequency actions.
-  var morePop = null;
-  function closeMore() { if (morePop) { morePop.remove(); morePop = null; } }
   document.getElementById('morebtn').addEventListener('click', function(ev) {
     ev.stopPropagation();
-    if (morePop) { closeMore(); return; }
-    morePop = el('div', 'morepop');
-    var mg = el('button', null, 'Manage (classic view)');
-    mg.title = document.getElementById('manage').title;
-    mg.addEventListener('click', function() { closeMore(); openManage(); });
-    morePop.appendChild(mg);
-    document.body.appendChild(morePop);
-    var r = ev.currentTarget.getBoundingClientRect();
-    morePop.style.top = (r.bottom + 4) + 'px';
-    morePop.style.right = Math.max(6, window.innerWidth - r.right) + 'px';
+    openPop(ev.currentTarget, [
+      { label: 'Manage (classic view)', title: document.getElementById('manage').title, run: openManage }
+    ], true);
   });
   document.addEventListener('click', function(ev) {
-    if (morePop && !ev.target.closest('.morepop') && !ev.target.closest('#morebtn')) closeMore();
+    if (morePop && !ev.target.closest('.morepop') &&
+        !(popAnchor && popAnchor.contains(ev.target))) closeMore();
   });
 
   // Viewport class change (rotation, window resize): re-render what differs
@@ -2032,9 +2419,28 @@
   }
   try { MQ_MOBILE.addEventListener('change', onMqChange); }
   catch (e) { try { MQ_MOBILE.addListener(onMqChange); } catch (e2) {} }
-  document.getElementById('newbtn').addEventListener('click', newFolder);
-  document.getElementById('upbtn').addEventListener('click', function() { fileInput.click(); });
+  document.getElementById('newbtn').addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    openPop(ev.currentTarget, [
+      { label: '📁 Folder', title: 'Create a new folder here', run: newFolder },
+      { label: '📄 File', title: 'Create an empty file and open it in the editor', run: newFile }
+    ]);
+  });
+  document.getElementById('upbtn').addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    openPop(ev.currentTarget, [
+      { label: '📄 Files…', title: 'Pick files to upload here', run: function() { fileInput.click(); } },
+      { label: '📁 Folder…', title: 'Pick a folder to upload here (structure preserved)', run: function() { dirInput.click(); } }
+    ]);
+  });
   pasteBtn.addEventListener('click', doPaste);
+  document.getElementById('a-open').addEventListener('click', function() {
+    var e = selEntry();
+    if (e) openEntry(e);
+  });
+  document.getElementById('a-info').addEventListener('click', showInfo);
+  document.getElementById('a-browser').addEventListener('click', openInBrowserAct);
+  document.getElementById('a-office').addEventListener('click', officeEditAct);
   document.getElementById('a-rename').addEventListener('click', startRename);
   document.getElementById('a-download').addEventListener('click', doDownload);
   document.getElementById('a-copy').addEventListener('click', function() { doCopyCut('copy'); });
