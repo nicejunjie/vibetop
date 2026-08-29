@@ -48,7 +48,18 @@
     border-radius: 6px; padding: 5px 9px; font: 12px system-ui, sans-serif;
     cursor: pointer; min-height: 30px; white-space: nowrap;
   }
-  .tools button:hover, .tools select:hover, .actbar button:hover { background: #253044; }
+  /* iOS/WebKit paints a native LIGHT select on a dark toolbar (reported: the
+     sort box was a white slab among dark buttons) — force our own chrome and
+     draw the caret ourselves. */
+  .tools select {
+    appearance: none; -webkit-appearance: none;
+    padding-right: 24px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' fill='none' stroke='%23aab4c5' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M1 1.2 5 4.8 9 1.2'/></svg>");
+    background-repeat: no-repeat; background-position: right 8px center; background-size: 9px 6px;
+  }
+  .tools select option { background: #1f2733; color: #d4d8de; }
+  .tools button:hover, .actbar button:hover { background: #253044; }
+  .tools select:hover { background-color: #253044; }   /* keep the caret image */
   .tools button:focus-visible, .tools select:focus-visible, .actbar button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
   .tools button[aria-pressed="true"] { background: #241a38; border-color: #8a4adb; color: #fff; }
   .tools button:disabled { opacity: .45; cursor: default; }
