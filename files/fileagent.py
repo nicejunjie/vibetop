@@ -65,6 +65,13 @@ MAX_REQ = 256 * 1024
 MAX_UPLOAD = int(os.environ.get("VIBETOP_FILEAGENT_MAXUP", 4 * 1024 * 1024 * 1024))
 
 
+def _umask():
+    """Read the process umask without permanently changing it."""
+    m = os.umask(0o022)
+    os.umask(m)
+    return m
+
+
 def _errcode(e):
     return {
         errno.ENOENT: "enoent", errno.EACCES: "eperm", errno.EPERM: "eperm",
@@ -419,6 +426,14 @@ def stream_upload(conn, req, rest):
             os.unlink(tmp)
             return _send_json(conn, {"ok": False, "error": f"short upload ({got}/{size})",
                                      "code": "eio"})
+        # Overwriting keeps the ORIGINAL file's mode. mkstemp creates 0600, and
+        # os.replace carries the temp file's bits onto the destination — so
+        # saving an existing 0755 script in the editor silently un-executed it
+        # and dropped group/other access. New files get the umask default.
+        try:
+            os.chmod(tmp, statmod.S_IMODE(os.stat(path).st_mode))
+        except OSError:
+            os.chmod(tmp, 0o666 & ~_umask())
         os.replace(tmp, path)
         tmp = None
         return _send_json(conn, {"ok": True, "size": got})

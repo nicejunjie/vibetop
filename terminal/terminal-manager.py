@@ -32,7 +32,9 @@ import secrets
 import signal
 import shlex
 import shutil
+import stat
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -1631,8 +1633,81 @@ def _stop_user_terminal(user, n):
 FILEAGENT_IDLE = _port_env("FILEAGENT_IDLE", 900)
 
 
+# The agent socket must live where NOBODY ELSE CAN BIND IT. It used to sit
+# directly in /tmp as vibetop-fileagent-<user>.sock: when an agent idle-exits it
+# unlinks its socket, and in sticky /tmp any other real user could then bind that
+# exact path. The manager connected by path with no owner check, so the squatter
+# served a FORGED listing to its victim and captured the bytes of their uploads —
+# a total break of the "Unix permissions are the whole fence" invariant
+# (reproduced between two real accounts; see docs/design-decisions.md).
+#
+# Now: a root-owned base dir holding one 0700 dir per user, owned BY that user —
+# only they (and root) can create the socket inside — plus an SO_PEERCRED check
+# on every connection, so even a mis-provisioned directory cannot be exploited.
+FILEAGENT_RUN_DIR = os.environ.get("VIBETOP_FILEAGENT_DIR", "/run/vibetop/fileagent")
+
+
+def _fileagent_dir(user):
+    return os.path.join(FILEAGENT_RUN_DIR, _sanitize_unit(user))
+
+
 def _fileagent_sock(user):
-    return f"/tmp/vibetop-fileagent-{_sanitize_unit(user)}.sock"
+    return os.path.join(_fileagent_dir(user), "sock")
+
+
+def _prepare_fileagent_dir(user):
+    """Create (or repair) the user's private socket directory. Returns an error
+    string, or None on success. Must run before the agent is started; the agent
+    itself only needs to bind inside a directory it already owns."""
+    try:
+        pw = pwd.getpwnam(user)
+    except KeyError:
+        return "no such user"
+    d = _fileagent_dir(user)
+    try:
+        os.makedirs(FILEAGENT_RUN_DIR, mode=0o755, exist_ok=True)
+        os.chmod(FILEAGENT_RUN_DIR, 0o755)
+        if os.path.isdir(d):
+            st = os.lstat(d)
+            # Anything not exactly "owned by this user, 0700, a real dir" is
+            # untrusted — replace it rather than reuse it.
+            if (not stat.S_ISDIR(st.st_mode) or st.st_uid != pw.pw_uid
+                    or (st.st_mode & 0o077)):
+                log.warning("fileagent dir %s is not a private dir owned by %s — recreating", d, user)
+                shutil.rmtree(d, ignore_errors=True)
+        if not os.path.isdir(d):
+            os.mkdir(d, 0o700)
+        os.chmod(d, 0o700)
+        os.chown(d, pw.pw_uid, pw.pw_gid)
+    except OSError as e:
+        return f"cannot prepare {d}: {e}"
+    return None
+
+
+def _fs_peer_is(user, s):
+    """True when the process on the other end of `s` really runs as `user`.
+    SO_PEERCRED is kernel-supplied and unforgeable, so this holds even if the
+    socket path itself were somehow hijacked."""
+    try:
+        raw = s.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
+        _pid, uid, _gid = struct.unpack("3i", raw)
+        return uid == pwd.getpwnam(user).pw_uid
+    except (OSError, KeyError, struct.error):
+        return False
+
+
+def _fs_reject_impostor(user, s):
+    """Close a connection whose peer is not `user`, and get the bad socket out of
+    the way so the next _ensure_fileagent can start a real agent."""
+    log.error("SECURITY: file-agent socket for %s answered by another uid — dropping", user)
+    try:
+        s.close()
+    except OSError:
+        pass
+    try:
+        os.unlink(_fileagent_sock(user))
+    except OSError:
+        pass
 
 
 def _fileagent_unit(user):
@@ -1652,6 +1727,9 @@ def _fs_call(user, req, timeout=10.0):
     try:
         s.settimeout(timeout)
         s.connect(sock_path)
+        if not _fs_peer_is(user, s):
+            _fs_reject_impostor(user, s)
+            return {"ok": False, "error": "agent identity check failed", "code": "agent"}
         s.sendall((json.dumps(req) + "\n").encode("utf-8"))
         try:
             s.shutdown(socket.SHUT_WR)
@@ -1685,6 +1763,9 @@ def _ensure_fileagent(user):
     except KeyError:
         return False, "no such user"
     _provision_user(user)
+    err = _prepare_fileagent_dir(user)
+    if err:
+        return False, err
     base = (["systemd-run", "--collect", f"--uid={user}", f"--gid={pw.pw_gid}"]
             + _resource_props() + _workdir_props(pw) + _selinux_props())
     try:
@@ -1705,6 +1786,29 @@ def _ensure_fileagent(user):
         if _fs_call(user, {"op": "home"}, timeout=1.0).get("ok"):
             return True, None
         time.sleep(0.1)
+    # A unit that "already exists" but whose socket never answers is an agent
+    # from an older build (its socket path or op set has since changed). The
+    # transient unit re-runs its ORIGINAL argv on restart, so it has to be
+    # stopped and recreated — the same stale-unit trap as the per-user ports.
+    try:
+        subprocess.run(["systemctl", "stop", _fileagent_unit(user)],
+                       capture_output=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return False, "agent did not come up"
+    try:
+        subprocess.run(
+            base + [f"--unit={_fileagent_unit(user)}",
+                    "--setenv", f"VIBETOP_FILEAGENT_IDLE={FILEAGENT_IDLE}",
+                    "/usr/bin/python3", _fileagent_bin(),
+                    "--sock", _fileagent_sock(user)],
+            capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if _fs_call(user, {"op": "home"}, timeout=1.0).get("ok"):
+            return True, None
+        time.sleep(0.1)
     return False, "agent did not come up"
 
 
@@ -1715,6 +1819,9 @@ def _fs_connect(user, header):
     try:
         s.settimeout(30)
         s.connect(_fileagent_sock(user))
+        if not _fs_peer_is(user, s):
+            _fs_reject_impostor(user, s)
+            return None
         s.sendall((json.dumps(header) + "\n").encode("utf-8"))
         return s
     except OSError:
@@ -5163,7 +5270,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(400, {"ok": False, "error": "invalid json", "code": "einval"})
         if req.get("op") not in ("mkdir", "rename", "move", "copy", "delete"):
             return self._json(400, {"ok": False, "error": "unknown op", "code": "einval"})
-        user = _ctx_user()
+        user = self._require_authed()
+        if not user:
+            return
         ok, err = _ensure_fileagent(user)
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
@@ -5182,7 +5291,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not dst.startswith("/") or length < 0:
             return self._json(400, {"ok": False, "error": "path and Content-Length required",
                                     "code": "einval"})
-        user = _ctx_user()
+        user = self._require_authed()
+        if not user:
+            return
         ok, err = _ensure_fileagent(user)
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
@@ -5218,7 +5329,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def _fs_stream_out(self, header_req, attach_name=None, inline=False):
         """GET download/zip: forward the agent's byte stream to the client."""
-        user = _ctx_user()
+        user = self._require_authed()
+        if not user:
+            return
         ok, err = _ensure_fileagent(user)
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
@@ -5285,7 +5398,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             req["mode"] = q["mode"][0]
         if "algo" in q:
             req["algo"] = q["algo"][0]
-        user = _ctx_user()
+        user = self._require_authed()
+        if not user:
+            return
         ok, err = _ensure_fileagent(user)
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable",

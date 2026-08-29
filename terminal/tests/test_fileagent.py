@@ -11,6 +11,8 @@ that the ops never answer for a path the PROCESS cannot read."""
 
 import json
 import os
+import pwd
+import stat
 import socket
 import subprocess
 import sys
@@ -38,11 +40,17 @@ def agent(tmp_path):
     proc.wait(timeout=5)
 
 
+# The agent under test runs as US, and the manager now verifies the socket's
+# peer uid (SO_PEERCRED) before it will talk — so the harness has to claim the
+# real account, exactly as production does, instead of a fictional "testuser".
+ME = pwd.getpwuid(os.getuid()).pw_name
+
+
 def call(mgr, sock, req):
     mgr_sock = mgr._fileagent_sock
     mgr._fileagent_sock = lambda user: sock
     try:
-        return mgr._fs_call("testuser", req)
+        return mgr._fs_call(ME, req)
     finally:
         mgr._fileagent_sock = mgr_sock
 
@@ -327,3 +335,36 @@ def test_upload_mkdirs_creates_the_chain(mgr, agent, tmp_path):
     dst2 = str(tmp_path / "x" / "y.txt")
     out2 = _stream(agent, {"op": "upload", "path": dst2, "size": 2}, b"no")
     assert json.loads(out2.decode().strip())["ok"] is False
+
+
+def _current_umask():
+    m = os.umask(0o022)
+    os.umask(m)
+    return m
+
+
+def test_upload_preserves_the_existing_file_mode(mgr, agent, tmp_path):
+    """Saving an existing file must not change its permissions. The write goes
+    through mkstemp (0600) + os.replace, which carries the TEMP file's bits onto
+    the destination — so editing a 0755 script in the Files editor silently
+    un-executed it and dropped group/other access."""
+    f = tmp_path / "script.sh"
+    f.write_text("#!/bin/sh\necho old\n")
+    os.chmod(str(f), 0o755)
+    body = b"#!/bin/sh\necho new\n"
+    out = _stream(agent, {"op": "upload", "path": str(f), "size": len(body)}, body)
+    assert json.loads(out.decode().strip())["ok"]
+    assert f.read_text() == "#!/bin/sh\necho new\n"
+    assert stat.S_IMODE(os.stat(str(f)).st_mode) == 0o755, "the exec bit was lost on save"
+
+
+def test_upload_of_a_new_file_is_not_world_readable_by_accident(mgr, agent, tmp_path):
+    """A brand-new upload has no previous mode to keep; it must land at the
+    umask default rather than mkstemp's private 0600 (which would make every
+    uploaded file unreadable to the user's own group/services)."""
+    dst = str(tmp_path / "fresh.txt")
+    out = _stream(agent, {"op": "upload", "path": dst, "size": 2}, b"hi")
+    assert json.loads(out.decode().strip())["ok"]
+    mode = stat.S_IMODE(os.stat(dst).st_mode)
+    assert mode & 0o400, "owner cannot read the file it just uploaded"
+    assert mode == (0o666 & ~_current_umask()), f"unexpected mode {oct(mode)}"

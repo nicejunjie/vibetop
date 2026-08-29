@@ -4279,3 +4279,61 @@ original exact-bytes test stayed green through the whole breakage.
   double- or never-delivers); a protocol magic byte telling the daemon "no
   replay, I'm an injector" (needs new daemon code, which old sessions never
   get); restarting daemons on deploy (kills live shells by design).
+
+## `/api/fs/*` shipped with no authentication (local root escalation)
+
+- **Symptom:** an audit reproduced, from an unprivileged local account with
+  **no session cookie**, `POST /api/fs/upload` writing a file into the
+  deployed code tree (`/opt/vibetop/app/terminal/`, group-writable by the
+  `vibetop` service account) and `POST /api/fs/op {"op":"delete"}` removing
+  it again. Overwriting `terminal-manager.py` that way turns the next
+  root-run `systemctl restart vibetop-manager` into code execution as root.
+- **Cause:** every fs handler resolved its user with `_ctx_user()`, whose
+  documented fallback is `APP_USER` for a cookieless loopback request. That
+  fallback exists for *trusted local tooling*, but the manager binds
+  127.0.0.1, which on a multi-user host EVERY local tenant can reach —
+  nginx + Cloudflare Access only front the public path. `_require_authed()`
+  already spelled this out for the Browser/X11 command endpoints ("a
+  cookieless request reaching this loopback server came directly from a
+  local tenant"); the fs family, added later, simply never adopted it.
+- **Fix:** `_handle_fs`, `_handle_fs_op`, `_handle_fs_upload` and
+  `_fs_stream_out` all gate on `_require_authed()` and use ITS return value
+  as the agent user. No APP_USER fallback anywhere in the family.
+- **Why it was not caught:** the endpoints had zero HTTP-level tests — all
+  the Files-native coverage sat below them, against the agent protocol.
+  `terminal/tests/test_api_fs.py` now pins 401-without-a-session for every
+  verb, and that the authenticated user (not APP_USER) is the one proxied.
+- **Rule this generalizes:** on this host, "loopback" is not a trust
+  boundary. Any endpoint that acts on files or runs a command must take its
+  user from the session, never from `_ctx_user()`'s fallback.
+
+## The file agent's socket could be squatted by another user
+
+- **Symptom:** reproduced between two real accounts — as `jing`, binding
+  `/tmp/vibetop-fileagent-junjie.sock` made the manager (serving junjie's
+  authenticated request) connect to *jing's* socket: it returned a forged
+  directory listing into junjie's Files app and captured the bytes of
+  junjie's next upload.
+- **Cause:** the socket lived directly in world-writable, sticky `/tmp`, and
+  the manager connected **by path with no identity check**. The window is
+  routine rather than exotic: on its 15-minute idle exit the agent unlinks
+  its own socket, freeing the exact path for anyone to bind. (A *stale*
+  socket file is not the risk — it blocks re-bind; the clean exit is.)
+- **Fix, two independent layers:**
+  1. Structural: sockets moved to `/run/vibetop/fileagent/<user>/sock`, in a
+     root-created directory that is `0700` **owned by that user**, so no
+     other tenant can create the path at all. `_prepare_fileagent_dir()`
+     re-creates any directory that is not exactly that.
+  2. Cryptographic-strength identity: `_fs_peer_is()` checks `SO_PEERCRED`
+     (kernel-supplied, unforgeable) immediately after `connect()` and
+     **before a single byte is sent** — so a request, and in particular an
+     upload body, can never reach an impostor. A mismatch unlinks the bad
+     socket and logs `SECURITY:`.
+- **Migration:** `files/install.sh` already stops running agent units on
+  deploy, and `_ensure_fileagent` now stops-and-recreates a unit that
+  "already exists" but whose socket never answers — a transient unit re-runs
+  its ORIGINAL argv, so an old agent would otherwise keep serving the old
+  path (the same stale-unit trap as the per-user ports).
+- **Invariant restated:** "Unix permissions are the entire fence" only holds
+  if the channel to the agent is itself authenticated. Path-based IPC in a
+  shared directory is not.
