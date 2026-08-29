@@ -129,7 +129,6 @@
   .actbar .danger:hover { background: #3a2024; border-color: #5a2c33; }
   .actbar .dv { flex: 0 0 1px; align-self: stretch; margin: 3px 3px; background: #2a3040; }
   .actbar .abi { display: none; }                  /* icons appear on mobile only */
-  #a-more { display: none; }                       /* the ⋯ overflow is mobile-only */
   /* With a real mouse the bottom pill is the WRONG surface: a left click is a
      selection, and the actions belong in the right-click menu where every
      desktop file manager puts them. Touch keeps the pill (no right-click, and
@@ -239,6 +238,33 @@
     font-variant-numeric: tabular-nums; color: #8a93a6; white-space: nowrap;
   }
   .row .mt { flex: 0 0 96px; text-align: right; font-size: 12px; color: #6b7488; white-space: nowrap; }
+
+  /* ---- Layout: grid / gallery views (the classic app's Layout switcher).
+     Same .row elements — so selection, drag, double-click and the context
+     menu all keep working — re-flowed as tiles. ---- */
+  .main.gv { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; padding: 10px; }
+  .main.gv .row {
+    position: relative; flex: 0 0 auto; width: 108px; min-height: 0;
+    flex-direction: column; align-items: stretch; gap: 4px;
+    padding: 8px 6px; border-radius: 8px; text-align: center;
+  }
+  .main.gv.gallery .row { width: 168px; }
+  .main.gv .row.sel { box-shadow: inset 0 0 0 2px #8a4adb; }
+  .main.gv .row .ic {
+    flex: 0 0 auto; height: 70px; font-size: 34px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .main.gv.gallery .row .ic { height: 120px; font-size: 46px; }
+  .main.gv .row .ic img.th { width: 100%; height: 100%; border-radius: 6px; }
+  .main.gv .row .mid { flex: 0 0 auto; flex-direction: column; align-items: stretch; gap: 1px; }
+  .main.gv .row .nm {
+    font-size: 12.5px; white-space: normal; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .main.gv .row .meta { display: block; font-size: 11px; }
+  .main.gv .row .sz, .main.gv .row .mt { display: none; }
+  .main.gv .row .ck { position: absolute; top: 6px; left: 6px; background: #0e1117cc; }
+  .main.gv .row input.edit { text-align: center; }
 
   /* search result rows: dimmed parent path; content mode adds :line + snippet */
   .row .pp { flex: 0 1 auto; min-width: 0; font-size: 12px; color: #6b7488; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -424,15 +450,18 @@
     .toolbar { gap: 5px 6px; padding: 6px 8px; }
     .tools { order: 1; flex: 1 0 100%; display: flex; flex-wrap: nowrap; gap: 5px; }
     .tools button, .tools select { min-height: 38px; font-size: 13px; }
-    #newbtn, #upbtn, #hidden, #searchbtn, #refresh, #morebtn {
+    #newbtn, #upbtn, #hidden, #searchbtn, #refresh, #morebtn, #layoutbtn, #selectbtn {
       flex: 0 0 38px; width: 38px; padding: 0; font-size: 16px;
     }
+    #layoutbtn .bl { display: none; }
     .tools .bl { display: none; }                 /* icons only, titles kept */
     .tools .bi { display: inline-flex; }
     #hidden .bi { display: inline-flex; }
     .tools svg { width: 17px; height: 17px; }
     #sortkey, #sortdir, #manage { display: none; }
-    select#sortsel2 { display: block; flex: 1 1 auto; min-width: 0; max-width: 140px; padding: 0 6px; }
+    /* right padding keeps the label clear of the drawn caret */
+    select#sortsel2 { display: block; flex: 1 1 auto; min-width: 0; max-width: 140px; padding: 0 24px 0 8px; }
+    #selectbtn { display: inline-block; }
     #morebtn { display: inline-block; margin-left: auto; }   /* pinned to the edge */
     #pastebtn { color: #b79be8; }
     #pastebtn.on { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 9px; }
@@ -441,18 +470,22 @@
     .addr { order: 3; display: none; }            /* path lives in the crumbs; */
     .addr.editing { display: flex; flex: 1 0 100%; }   /* tap the last crumb to edit */
     .addr input { padding: 8px 10px; font-size: 14px; }
-    /* ONE row of the verbs a thumb actually reaches for; the rest live behind
-       the ⋯ button (a visible control, not a gesture). Wrapping all 11 verbs
-       made the pill six rows tall and ate half the screen. */
-    .actbar { padding: 6px 8px; bottom: 12px; max-width: calc(100vw - 12px); justify-content: center; overflow-x: visible; }
+    /* Every verb visible, wrapped over two rows — no ⋯ to expand and no ✕ to
+       dismiss (tapping anywhere else in the listing clears the selection).
+       Text-only labels: the emoji glyphs were the widest part of each button
+       AND the toy-looking part, and dropping them is what makes two rows fit. */
+    /* Span both edges instead of shrink-to-fitting from left:50% — a fixed box
+       anchored at 50% may only use the RIGHT HALF of the viewport, which is
+       what folded these ten verbs into a four-row wall. */
+    .actbar {
+      left: 6px; right: 6px; transform: none; max-width: none;
+      padding: 6px 8px; bottom: 12px;
+      flex-wrap: wrap; justify-content: center; row-gap: 6px; overflow-x: visible;
+    }
     .actbar button { min-height: 40px; font-size: 13px; padding: 5px 9px; }
     .actbar button:disabled { display: none; }
-    /* text-only: the emoji glyphs were both the widest part of each button
-       (the row overflowed and got clipped at the screen edges) and the
-       toy-looking part; labels alone match the ⋯ / right-click menus */
     .actbar .dv { display: none; }
-    .actbar .sec { display: none !important; }             /* demoted into ⋯ */
-    .actbar.on ~ .main { padding-bottom: 74px; }
+    .actbar.on ~ .main { padding-bottom: 132px; }
     /* two-line rows: the full name on top (up to 2 lines — never mid-truncated
        while the right side sits empty), a muted "date · size" subtitle under
        it; the desktop size/date columns disappear (they were what squeezed
@@ -506,6 +539,8 @@
         <option value="mtime:asc">Date ↑</option>
         <option value="mtime:desc">Date ↓</option>
       </select>
+      <button id="layoutbtn" title="Layout — list, grid or gallery view" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></span><span class="bl"> Layout</span></button>
+      <button id="selectbtn" class="m-only" title="Select several items" aria-pressed="false" aria-label="Select"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.6 6 12l7.5-8"/></svg></span></button>
       <button id="hidden" title="Show hidden files" aria-pressed="false"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8c1.6-2.9 3.9-4.4 6.5-4.4S13 5.1 14.5 8c-1.6 2.9-3.9 4.4-6.5 4.4S3 10.9 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></span><span class="bl">Hidden</span></button>
       <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></svg></span></button>
       <button id="refresh" title="Refresh" aria-label="Refresh"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.7 8a5.3 5.3 0 1 0 1.5-3.7"/><path d="M4.2 1.3v3h3"/></svg></span></button>
@@ -542,9 +577,6 @@
     <span class="dv" id="a-dv2"></span>
     <button id="a-download" title="Download (folders and multi-selections come as a .zip)"><span class="abi">⭳</span><span class="abl">Download</span></button>
     <button id="a-delete" class="danger" title="Delete (Del)"><span class="abi">🗑</span><span class="abl">Delete</span></button>
-    <button id="a-more" title="More actions" aria-haspopup="menu">⋯</button>
-    <span class="sp"></span>
-    <button id="a-clear" title="Clear selection (Esc)">✕</button>
   </div>
   <div class="main" id="main"></div>
   <div class="dropz" id="dropz" aria-hidden="true">
@@ -606,6 +638,7 @@
   var addrEl = document.getElementById('addr');
   var sortKeyEl = document.getElementById('sortkey');
   var sortDirEl = document.getElementById('sortdir');
+  var selectBtn = document.getElementById('selectbtn');
   var hiddenEl = document.getElementById('hidden');
   var noticeEl = document.getElementById('notice');
   var mainEl = document.getElementById('main');
@@ -705,7 +738,8 @@
     if (!e.isDir && IMG_RE.test(e.name)) {
       var im = document.createElement('img');
       im.className = 'th'; im.alt = ''; im.loading = 'lazy'; im.decoding = 'async';
-      im.src = '/api/file/image?path=' + encodeURIComponent(joinPath(path, e.name)) + '&thumb=96';
+      im.src = '/api/file/image?path=' + encodeURIComponent(joinPath(path, e.name)) +
+               '&thumb=' + (view === 'list' ? 96 : 320);
       im.onerror = function() { ic.textContent = iconFor(e.name, false); };
       ic.appendChild(im);
     } else {
@@ -761,6 +795,17 @@
       if (toastEl) { toastEl.remove(); toastEl = null; }
     }, isErr ? 6000 : 3200);
   }
+
+  // Layout (the classic app's view switcher): list | grid | gallery, remembered
+  // across sessions and folders like every file manager does.
+  var VIEWS = [
+    { id: 'list', label: 'List' },
+    { id: 'grid', label: 'Grid' },
+    { id: 'gallery', label: 'Gallery' }
+  ];
+  var view = 'list';
+  try { view = localStorage.getItem('fsx.view') || 'list'; } catch (e) {}
+  if (!VIEWS.some(function(v) { return v.id === view; })) view = 'list';
 
   var MQ_MOBILE = window.matchMedia('(max-width: 736px)');
   // A real mouse: the bottom action pill is hidden (CSS) and its verbs live in
@@ -851,22 +896,6 @@
     }
     renderActions();
   }
-  // Verbs demoted into the mobile ⋯ menu (they stay inline on desktop, where
-  // the right-click menu is the real surface and the pill is hidden anyway).
-  var SECONDARY = ['a-info', 'a-browser', 'a-office', 'a-copy', 'a-cut', 'a-download'];
-  function moreItems() {
-    var e1 = selEntry(), any = selCount > 0, items = [];
-    if (any) items.push({ label: 'Get Info', run: showInfo });
-    if (e1 && !e1.isDir) items.push({ label: 'Open in Browser', run: openInBrowserAct });
-    if (e1 && OFF_RE.test(e1.name)) items.push({ label: 'Edit in Office', run: officeEditAct });
-    if (any) {
-      items.push({ label: 'Copy', run: function() { doCopyCut('copy'); } });
-      items.push({ label: 'Cut', run: function() { doCopyCut('cut'); } });
-      items.push({ label: 'Download', run: doDownload });
-    }
-    return items;
-  }
-
   function renderActions() {
     var clip = getClip();
     pasteBtn.classList.toggle('on', !!clip);
@@ -876,6 +905,7 @@
                        ' item' + (clip.paths.length === 1 ? '' : 's') + ' here (Ctrl+V)';
     }
     var on = selCount > 0 || selectMode;
+    selectBtn.setAttribute('aria-pressed', selectMode ? 'true' : 'false');
     actbarEl.classList.toggle('on', on);
     // Keep a live toast clear of the pill — but the pill only exists on touch;
     // with a mouse the actions live in the right-click menu, so don't shift.
@@ -899,15 +929,9 @@
       ['a-copy', 'a-cut', 'a-download', 'a-delete'].forEach(function(id) { show(id, any); });
       document.getElementById('a-dv1').hidden = !any;
       document.getElementById('a-dv2').hidden = !any;
-      // Mobile: one row only — Open/Share/Rename/Delete stay, the rest are
-      // marked .sec (CSS hides them) and reappear in the ⋯ menu, so the pill
-      // never grows into a multi-row wall over the listing.
+      // Mobile keeps every verb visible (wrapped over two rows); only the one
+      // long label shortens so the rows stay tight.
       var small = MQ_MOBILE.matches;
-      SECONDARY.forEach(function(id) {
-        document.getElementById(id).classList.toggle('sec', small);
-      });
-      var more = document.getElementById('a-more');
-      more.style.display = (small && moreItems().length) ? 'inline-block' : 'none';
       document.querySelector('#a-browser .abl').textContent = small ? 'Browser' : 'Open in Browser';
       document.getElementById('selcnt').style.display = (small && oneSel) ? 'none' : '';
     }
@@ -950,6 +974,20 @@
     clearSel();
   }
 
+  // Grid/gallery is a listing-only mode: search results (parent path, :line,
+  // snippet) are inherently a list, so they always render flat.
+  function applyView(force) {
+    var v = force || view;
+    mainEl.classList.toggle('gv', v !== 'list');
+    mainEl.classList.toggle('gallery', v === 'gallery');
+  }
+  function setView(v) {
+    view = v;
+    try { localStorage.setItem('fsx.view', v); } catch (e) {}
+    if (searchActive) return;            // applied when the listing comes back
+    renderList();                        // re-render: thumbnail size differs
+  }
+
   function renderList() {
     rows = visibleRows();
     // prune selection to names still visible in this folder
@@ -957,6 +995,7 @@
     rows.forEach(function(e) { if (selected[e.name]) { keep[e.name] = true; kept++; } });
     selected = keep; selCount = kept; anchor = -1;
     mainEl.innerHTML = '';
+    applyView();
     if (!rows.length) {
       var hid = entries.length - rows.length;
       var msg = hid > 0
@@ -1168,7 +1207,9 @@
   mainEl.addEventListener('click', function(ev) {
     if (Date.now() < suppressUntil) return;
     var r = ev.target.closest('.row');
-    if (!r) { if (!selectMode) clearSel(); return; }    // empty area clears (desktop)
+    // Empty area dismisses: with no ✕ on the pill this is how a selection is
+    // cleared by touch, so it must exit select mode too.
+    if (!r) { if (selectMode) exitSelectMode(); else clearSel(); return; }
     if (r.querySelector('input.edit')) return;          // inline editor row
     var i = +r.dataset.i;
     if (!rows[i]) return;
@@ -2396,6 +2437,7 @@
   function renderResults(d, q) {
     rows = [];
     mainEl.innerHTML = '';
+    applyView('list');            // results carry a parent path / snippet: always flat
     var res = d.results || [];
     if (!res.length) {
       mainEl.appendChild(stateEl([el('div', 'big', 'No matches')]));
@@ -2489,6 +2531,23 @@
   });
   hiddenEl.addEventListener('click', function() {
     showHidden = !showHidden; savePrefs(); syncControls(); renderList();
+  });
+  document.getElementById('layoutbtn').addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    openPop(ev.currentTarget, VIEWS.map(function(v) {
+      return {
+        label: (v.id === view ? '✓ ' : ' ') + v.label,
+        title: v.label + ' view',
+        run: function() { setView(v.id); }
+      };
+    }));
+  });
+  // A VISIBLE way into multi-select (the classic app's Select button):
+  // long-press works but nothing advertises it. Its pressed state is synced
+  // in renderActions, so Escape / navigation / the pill's ✕ un-press it too.
+  selectBtn.addEventListener('click', function() {
+    if (selectMode) exitSelectMode();
+    else enterSelectMode(-1);
   });
   document.getElementById('refresh').addEventListener('click', refresh);
   function openManage() {
@@ -2628,13 +2687,6 @@
   document.getElementById('a-copy').addEventListener('click', function() { doCopyCut('copy'); });
   document.getElementById('a-cut').addEventListener('click', function() { doCopyCut('cut'); });
   document.getElementById('a-delete').addEventListener('click', doDelete);
-  document.getElementById('a-more').addEventListener('click', function(ev) {
-    ev.stopPropagation();
-    openPop(ev.currentTarget, moreItems(), true);
-  });
-  document.getElementById('a-clear').addEventListener('click', function() {
-    if (selectMode) exitSelectMode(); else clearSel();
-  });
   // Another tab changed the shared clipboard → update the Paste button + cut dims.
   window.addEventListener('storage', function(ev) {
     if (ev.key === 'fsx.clip') syncSelDom();
