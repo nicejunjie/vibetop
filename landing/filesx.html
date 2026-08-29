@@ -85,6 +85,11 @@
     padding: 10px 12px; border-radius: 6px; cursor: pointer; min-height: 40px;
   }
   .morepop button:active { background: #253044; }
+  /* right-click context menu (desktop) — the same verbs the touch pill carries */
+  .morepop.ctx { min-width: 186px; }
+  .morepop.ctx .sep { height: 1px; margin: 4px 6px; background: #2a3040; }
+  .morepop.ctx button.danger { color: #f1b3b3; }
+  .morepop.ctx button.danger:hover { background: #3a2024; }
 
   /* one-line notice under the toolbar (truncated listings, quiet errors) */
   .notice {
@@ -124,6 +129,15 @@
   .actbar .danger:hover { background: #3a2024; border-color: #5a2c33; }
   .actbar .dv { flex: 0 0 1px; align-self: stretch; margin: 3px 3px; background: #2a3040; }
   .actbar .abi { display: none; }                  /* icons appear on mobile only */
+  #a-more { display: none; }                       /* the ⋯ overflow is mobile-only */
+  /* With a real mouse the bottom pill is the WRONG surface: a left click is a
+     selection, and the actions belong in the right-click menu where every
+     desktop file manager puts them. Touch keeps the pill (no right-click, and
+     the thumb-reachable bottom bar is the only always-visible way to act). */
+  @media (hover: hover) and (pointer: fine) {
+    .actbar.on { display: none; }
+    .actbar.on ~ .main { padding-bottom: 0; }
+  }
 
   /* OS drag-and-drop upload: full-listing drop highlight */
   .dropz {
@@ -427,15 +441,18 @@
     .addr { order: 3; display: none; }            /* path lives in the crumbs; */
     .addr.editing { display: flex; flex: 1 0 100%; }   /* tap the last crumb to edit */
     .addr input { padding: 8px 10px; font-size: 14px; }
-    /* wrap instead of an (invisible) horizontal scroll so every action is
-       visible; disabled actions hide entirely — contextual, not greyed */
-    .actbar { padding: 6px 8px; bottom: 12px; max-width: calc(100vw - 12px); flex-wrap: wrap; justify-content: center; overflow-x: visible; }
+    /* ONE row of the verbs a thumb actually reaches for; the rest live behind
+       the ⋯ button (a visible control, not a gesture). Wrapping all 11 verbs
+       made the pill six rows tall and ate half the screen. */
+    .actbar { padding: 6px 8px; bottom: 12px; max-width: calc(100vw - 12px); justify-content: center; overflow-x: visible; }
     .actbar button { min-height: 40px; font-size: 13px; padding: 5px 9px; }
     .actbar button:disabled { display: none; }
-    .actbar .abi { display: inline; margin-right: 4px; }   /* icons + short labels */
-    .actbar .dv { display: none; }                         /* wrapped rows: no stretch dividers */
-    /* the wrapped pill is several rows tall — keep the last rows reachable */
-    .actbar.on ~ .main { padding-bottom: 300px; }
+    /* text-only: the emoji glyphs were both the widest part of each button
+       (the row overflowed and got clipped at the screen edges) and the
+       toy-looking part; labels alone match the ⋯ / right-click menus */
+    .actbar .dv { display: none; }
+    .actbar .sec { display: none !important; }             /* demoted into ⋯ */
+    .actbar.on ~ .main { padding-bottom: 74px; }
     /* two-line rows: the full name on top (up to 2 lines — never mid-truncated
        while the right side sits empty), a muted "date · size" subtitle under
        it; the desktop size/date columns disappear (they were what squeezed
@@ -525,6 +542,7 @@
     <span class="dv" id="a-dv2"></span>
     <button id="a-download" title="Download (folders and multi-selections come as a .zip)"><span class="abi">⭳</span><span class="abl">Download</span></button>
     <button id="a-delete" class="danger" title="Delete (Del)"><span class="abi">🗑</span><span class="abl">Delete</span></button>
+    <button id="a-more" title="More actions" aria-haspopup="menu">⋯</button>
     <span class="sp"></span>
     <button id="a-clear" title="Clear selection (Esc)">✕</button>
   </div>
@@ -745,6 +763,9 @@
   }
 
   var MQ_MOBILE = window.matchMedia('(max-width: 736px)');
+  // A real mouse: the bottom action pill is hidden (CSS) and its verbs live in
+  // the right-click menu instead — kept in sync with that media query.
+  var MQ_FINE = window.matchMedia('(hover: hover) and (pointer: fine)');
   function renderCrumbs() {
     crumbsEl.innerHTML = '';
     var first = true;
@@ -830,6 +851,22 @@
     }
     renderActions();
   }
+  // Verbs demoted into the mobile ⋯ menu (they stay inline on desktop, where
+  // the right-click menu is the real surface and the pill is hidden anyway).
+  var SECONDARY = ['a-info', 'a-browser', 'a-office', 'a-copy', 'a-cut', 'a-download'];
+  function moreItems() {
+    var e1 = selEntry(), any = selCount > 0, items = [];
+    if (any) items.push({ label: 'Get Info', run: showInfo });
+    if (e1 && !e1.isDir) items.push({ label: 'Open in Browser', run: openInBrowserAct });
+    if (e1 && OFF_RE.test(e1.name)) items.push({ label: 'Edit in Office', run: officeEditAct });
+    if (any) {
+      items.push({ label: 'Copy', run: function() { doCopyCut('copy'); } });
+      items.push({ label: 'Cut', run: function() { doCopyCut('cut'); } });
+      items.push({ label: 'Download', run: doDownload });
+    }
+    return items;
+  }
+
   function renderActions() {
     var clip = getClip();
     pasteBtn.classList.toggle('on', !!clip);
@@ -840,7 +877,9 @@
     }
     var on = selCount > 0 || selectMode;
     actbarEl.classList.toggle('on', on);
-    if (toastEl) toastEl.style.bottom = on ? '72px' : '';   // keep a live toast clear of the pill
+    // Keep a live toast clear of the pill — but the pill only exists on touch;
+    // with a mouse the actions live in the right-click menu, so don't shift.
+    if (toastEl) toastEl.style.bottom = (on && !MQ_FINE.matches) ? '72px' : '';
     if (on) {
       document.getElementById('selcnt').textContent = selCount + ' selected';
       // Inapplicable verbs HIDE (never grey): the pill stays contextual and
@@ -860,9 +899,17 @@
       ['a-copy', 'a-cut', 'a-download', 'a-delete'].forEach(function(id) { show(id, any); });
       document.getElementById('a-dv1').hidden = !any;
       document.getElementById('a-dv2').hidden = !any;
-      // Mobile: icons + short labels — "Open in Browser" is the one long verb.
-      document.querySelector('#a-browser .abl').textContent =
-        MQ_MOBILE.matches ? 'Browser' : 'Open in Browser';
+      // Mobile: one row only — Open/Share/Rename/Delete stay, the rest are
+      // marked .sec (CSS hides them) and reappear in the ⋯ menu, so the pill
+      // never grows into a multi-row wall over the listing.
+      var small = MQ_MOBILE.matches;
+      SECONDARY.forEach(function(id) {
+        document.getElementById(id).classList.toggle('sec', small);
+      });
+      var more = document.getElementById('a-more');
+      more.style.display = (small && moreItems().length) ? 'inline-block' : 'none';
+      document.querySelector('#a-browser .abl').textContent = small ? 'Browser' : 'Open in Browser';
+      document.getElementById('selcnt').style.display = (small && oneSel) ? 'none' : '';
     }
   }
   function clearSel(quiet) {
@@ -1104,7 +1151,18 @@
   document.addEventListener('pointerup', function(ev) { endPointer(ev, false); });
   document.addEventListener('pointercancel', function(ev) { endPointer(ev, true); });
   mainEl.addEventListener('contextmenu', function(ev) {
-    if (lastPtrType === 'touch') ev.preventDefault();   // long-press is select mode
+    if (lastPtrType === 'touch') { ev.preventDefault(); return; }   // long-press is select mode
+    ev.preventDefault();
+    var r = ev.target.closest('.row');
+    if (r && !r.querySelector('input.edit') && r.dataset.i !== undefined && rows[+r.dataset.i]) {
+      var i = +r.dataset.i;
+      // Right-clicking OUTSIDE the current selection retargets it (Explorer /
+      // Finder behavior); inside it, the whole selection stays the subject.
+      if (!selected[rows[i].name]) setOnly(i);
+    } else {
+      clearSel();
+    }
+    openCtxMenu(ev.clientX, ev.clientY);
   });
 
   mainEl.addEventListener('click', function(ev) {
@@ -1115,7 +1173,18 @@
     var i = +r.dataset.i;
     if (!rows[i]) return;
     if (selectMode) { toggleSel(i); return; }
-    if (lastPtrType === 'touch') { openEntry(rows[i]); return; }
+    if (lastPtrType === 'touch') {
+      // A tap SELECTS (it used to open): the action bar is the only surface a
+      // finger has for Rename/Share/Info/Delete, and opening on the first tap
+      // left every one of them behind an undiscoverable 450ms long-press.
+      // Folders still enter on the first tap — browsing is their whole point —
+      // and a second tap on an already-selected row opens it, the touch
+      // equivalent of the desktop double-click.
+      if (selected[rows[i].name] && selCount === 1) { openEntry(rows[i]); return; }
+      if (rows[i].isDir) { openEntry(rows[i]); return; }
+      setOnly(i);
+      return;
+    }
     if (ev.ctrlKey || ev.metaKey) toggleSel(i);
     else if (ev.shiftKey && anchor >= 0) rangeSel(anchor, i);
     else setOnly(i);
@@ -2447,10 +2516,69 @@
     document.body.appendChild(morePop);
     popAnchor = btn;
     var r = btn.getBoundingClientRect();
-    morePop.style.top = (r.bottom + 4) + 'px';
+    // Below the button, or above it when there is no room (the action pill
+    // sits at the bottom of the screen — its ⋯ menu must open upward).
+    var h = morePop.offsetHeight;
+    morePop.style.top = (r.bottom + 4 + h > window.innerHeight ? Math.max(6, r.top - h - 4) : r.bottom + 4) + 'px';
     if (alignRight) morePop.style.right = Math.max(6, window.innerWidth - r.right) + 'px';
     else morePop.style.left = Math.max(6, Math.min(r.left, window.innerWidth - morePop.offsetWidth - 6)) + 'px';
   }
+  // ---- right-click context menu (desktop) ----
+  // Same verbs as the touch pill, driven by the same functions — this is the
+  // desktop surface for them, so the pill hides when a real mouse is present.
+  function ctxItems() {
+    var any = selCount > 0, one = selCount === 1, e1 = selEntry(), clip = getClip();
+    var items = [];
+    if (any) {
+      if (one) items.push({ label: e1 && e1.isDir ? 'Open' : 'Open', run: function() { if (e1) openEntry(e1); } });
+      if (e1 && !e1.isDir) items.push({ label: 'Open in Browser', run: openInBrowserAct });
+      if (e1 && OFF_RE.test(e1.name)) items.push({ label: 'Edit in Office', run: officeEditAct });
+      items.push({ sep: true });
+      items.push({ label: 'Get Info', run: showInfo });
+      if (one) items.push({ label: 'Share…', run: shareStart });
+      items.push({ label: 'Download', run: doDownload });
+      items.push({ sep: true });
+      if (one) items.push({ label: 'Rename', run: startRename });
+      items.push({ label: 'Copy', run: function() { doCopyCut('copy'); } });
+      items.push({ label: 'Cut', run: function() { doCopyCut('cut'); } });
+      if (clip) items.push({ label: 'Paste (' + clip.paths.length + ')', run: doPaste });
+      items.push({ sep: true });
+      items.push({ label: 'Delete', danger: true, run: doDelete });
+    } else {
+      // Empty area: the folder's own verbs, like Explorer's background menu.
+      items.push({ label: 'New Folder', run: newFolder });
+      items.push({ label: 'New File', run: newFile });
+      items.push({ sep: true });
+      items.push({ label: 'Upload Files…', run: function() { fileInput.click(); } });
+      items.push({ label: 'Upload Folder…', run: function() { dirInput.click(); } });
+      if (clip) items.push({ label: 'Paste (' + clip.paths.length + ')', run: doPaste });
+      items.push({ sep: true });
+      items.push({ label: 'Refresh', run: refresh });
+    }
+    return items;
+  }
+  function openCtxMenu(x, y) {
+    closeMore();
+    morePop = el('div', 'morepop ctx');
+    ctxItems().forEach(function(it) {
+      if (it.sep) { morePop.appendChild(el('div', 'sep')); return; }
+      var b = el('button', it.danger ? 'danger' : null, it.label);
+      b.addEventListener('click', function() { closeMore(); it.run(); });
+      morePop.appendChild(b);
+    });
+    document.body.appendChild(morePop);
+    popAnchor = null;
+    // Flip/clamp so the menu is always fully on screen.
+    var w = morePop.offsetWidth, h = morePop.offsetHeight;
+    morePop.style.left = Math.max(6, Math.min(x, window.innerWidth - w - 6)) + 'px';
+    morePop.style.top = Math.max(6, y + h + 6 > window.innerHeight ? y - h : y) + 'px';
+  }
+  // Any scroll or Escape dismisses it, like a native menu.
+  mainEl.addEventListener('scroll', function() { if (morePop) closeMore(); }, { passive: true });
+  document.addEventListener('contextmenu', function(ev) {
+    if (morePop && !ev.target.closest('.morepop') && !ev.target.closest('.main')) closeMore();
+  });
+
   // ⋯ overflow (mobile): the demoted low-frequency actions.
   document.getElementById('morebtn').addEventListener('click', function(ev) {
     ev.stopPropagation();
@@ -2467,6 +2595,7 @@
   // between the phone and desktop layouts (crumb tap-to-edit, short dates).
   function onMqChange() {
     syncControls();
+    renderActions();          // the pill's mobile/desktop verb split changes
     if (path) renderCrumbs();
     if (path && !searchActive && lastGood === path) renderList();
   }
@@ -2499,6 +2628,10 @@
   document.getElementById('a-copy').addEventListener('click', function() { doCopyCut('copy'); });
   document.getElementById('a-cut').addEventListener('click', function() { doCopyCut('cut'); });
   document.getElementById('a-delete').addEventListener('click', doDelete);
+  document.getElementById('a-more').addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    openPop(ev.currentTarget, moreItems(), true);
+  });
   document.getElementById('a-clear').addEventListener('click', function() {
     if (selectMode) exitSelectMode(); else clearSel();
   });
