@@ -60,7 +60,7 @@
     <div class="tabs" id="tabs"></div>
     <button class="add" id="add" title="New folder tab">+</button>
     <button class="nativetog" id="nativetog"
-            title="Switch between the native listing (read-only preview) and FileBrowser">Native</button>
+            title="Native file view (the default). Click to switch to the classic FileBrowser fallback.">Native</button>
   </div>
   <div class="frames" id="frames"></div>
 <script>
@@ -95,12 +95,13 @@
   var _lastSaved = null;
   var _suppress = false;       // true while reconciling to the server (don't echo back)
 
-  // Files-native phase-1 toggle (per device, docs/files-native.md): tabs load
-  // the native listing (filesx.html#/abs/path) instead of FileBrowser. The
+  // Files-native toggle (per device, docs/files-native.md): tabs load the
+  // native view (filesx.html#/abs/path) — the DEFAULT since phase 4a; only an
+  // explicit '0' (the Classic/FileBrowser fallback) disables it. The
   // SERVER-SIDE tab schema stays FileBrowser-shaped either way — curPath maps a
   // native tab's hash back to '/files/files/<enc>' so cross-device sync keeps
   // working between a device in native mode and one that isn't.
-  function nativeOn() { try { return localStorage.getItem('vibetop:filesx') === '1'; } catch (e) { return false; } }
+  function nativeOn() { try { return localStorage.getItem('vibetop:filesx') !== '0'; } catch (e) { return true; } }
   function fbToAbs(p) {   // '/files/files/home%2Dx/…' -> decoded '/home-x/…'
     var rest = (p || '').split('/files/files')[1] || '/';
     return '/' + rest.split('/').filter(Boolean).map(function(s) {

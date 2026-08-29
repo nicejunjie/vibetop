@@ -212,6 +212,36 @@
   .mbtns .mok:hover { filter: brightness(1.12); }
   .mbtns button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
 
+  /* share card internals (link row / expiry row / manage list) */
+  .shr-row { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+  .shr-url {
+    flex: 1; min-width: 0; background: #0e1117; color: #d4d8de;
+    border: 1px solid #2a3040; border-radius: 6px; padding: 7px 9px;
+    font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .shr-url:focus { outline: none; border-color: #8a4adb; }
+  .shr-sm {
+    flex: 0 0 auto; background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; padding: 6px 11px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 32px; white-space: nowrap;
+  }
+  .shr-sm:hover { background: #253044; }
+  .shr-sm.danger { color: #f1b3b3; }
+  .shr-sm.danger:hover { background: #3a2024; border-color: #5a2c33; }
+  .shr-sm:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  .shr-exp { flex: 1; min-width: 0; font-size: 12px; color: #aab4c5; }
+  select.shr-sel {
+    background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; padding: 5px 8px; font: 12px system-ui, sans-serif; cursor: pointer;
+  }
+  .shr-list { max-height: 240px; overflow-y: auto; margin: 0 0 12px; }
+  .shr-list .empty { font-size: 13px; color: #6b7488; padding: 6px 0; }
+  .shr-item { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #20262f; }
+  .shr-item:last-child { border-bottom: 0; }
+  .shr-item .nm2 { flex: 1; min-width: 0; font-size: 13px; color: #d4d8de; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shr-item .dim { display: block; font-size: 11px; color: #6b7488; margin-top: 1px; }
+  .shr-tag { font-size: 10px; color: #8a93a6; border: 1px solid #2a3040; padding: 1px 5px; border-radius: 4px; margin-left: 5px; vertical-align: 1px; }
+
   /* toast (bottom-center, like the Files paste toast) */
   .toast {
     position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 30;
@@ -268,6 +298,21 @@
     font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #6b7488;
   }
 
+  /* ---- PDF overlay (native browser PDF viewer in an iframe) ---- */
+  .pdfov { position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; background: #0e1117; }
+  .pdfov.open { display: flex; }
+  .pdf-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .pdf-body iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: #161b22; }
+  .pdf-fb {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; color: #6b7488; font-size: 13px;
+  }
+  .pdf-fb button {
+    background: #1f2733; color: #d4d8de; border: 1px solid #2a3040; border-radius: 6px;
+    padding: 7px 14px; font: 13px system-ui, sans-serif; cursor: pointer; min-height: 34px;
+  }
+  .pdf-fb button:hover { background: #253044; }
+
   /* ---- mobile ≤736px: sticky controls grid → breadcrumb → address row ---- */
   @media (max-width: 736px) {
     .toolbar { gap: 7px; padding: 7px 10px 8px; }
@@ -295,6 +340,9 @@
     .scope { flex: 1 1 auto; }
     .sbar .sx { min-height: 40px; min-width: 44px; }
     .row.sres .snip { margin-left: 0; }
+    .shr-sm { min-height: 40px; }
+    select.shr-sel { min-height: 40px; }
+    .shr-row { flex-wrap: wrap; }
   }
 </style>
 </head>
@@ -340,6 +388,7 @@
     <span class="cnt" id="selcnt"></span>
     <button id="a-rename" title="Rename (F2)">Rename</button>
     <button id="a-download" title="Download (folders and multi-selections come as a .zip)">Download</button>
+    <button id="a-share" title="Create a public link (folders download as a zip)">Share</button>
     <button id="a-copy" title="Copy (Ctrl+C)">Copy</button>
     <button id="a-cut" title="Cut (Ctrl+X)">Cut</button>
     <button id="a-delete" class="danger" title="Delete (Del)">Delete</button>
@@ -358,6 +407,15 @@
     <textarea id="ed-ta" spellcheck="false" autocomplete="off" autocorrect="off"
               autocapitalize="off" wrap="off" aria-label="File content"></textarea>
     <div class="ed-foot"><span id="ed-size"></span><span id="ed-pos"></span></div>
+  </div>
+
+  <div class="pdfov" id="pdfov" role="dialog" aria-modal="true" aria-label="PDF viewer">
+    <div class="pv-head">
+      <span class="pv-name" id="pdf-name"></span>
+      <button id="pdf-dl" title="Download">⭳ Download</button>
+      <button id="pdf-close" title="Close (Esc)">✕</button>
+    </div>
+    <div class="pdf-body" id="pdf-body"></div>
   </div>
 
   <div class="pv" id="pv" role="dialog" aria-modal="true" aria-label="File preview">
@@ -597,6 +655,7 @@
     if (on) {
       document.getElementById('selcnt').textContent = selCount + ' selected';
       document.getElementById('a-rename').disabled = selCount !== 1;
+      document.getElementById('a-share').disabled = selCount !== 1;
       var any = selCount > 0;
       ['a-download', 'a-copy', 'a-cut', 'a-delete'].forEach(function(id) {
         document.getElementById(id).disabled = !any;
@@ -1176,6 +1235,10 @@
       if (ev.key === 'Escape') { ev.preventDefault(); closePreview(); }
       return;
     }
+    if (pdfovEl.classList.contains('open')) {
+      if (ev.key === 'Escape') { ev.preventDefault(); closePdf(); }
+      return;
+    }
     if (edEl.classList.contains('open')) {
       if (mod && (ev.key === 's' || ev.key === 'S')) { ev.preventDefault(); edSave(false); }
       else if (ev.key === 'Escape') { ev.preventDefault(); requestCloseEditor(); }
@@ -1209,8 +1272,9 @@
   });
 
   // ---- open a text file: EDITOR for editable text (≤1MB, non-binary),
-  //      read-only preview otherwise. One stat+read pair decides. ----
+  //      read-only preview otherwise. PDFs get the native-viewer overlay. ----
   function openFile(absPath, name, gotoLine) {
+    if (/\.pdf$/i.test(name)) { openPdf(absPath, name); return; }
     Promise.all([
       api('/api/fs/stat?path=' + encodeURIComponent(absPath)).catch(function() { return null; }),
       api('/api/fs/read?path=' + encodeURIComponent(absPath) + '&max=' + READ_MAX).catch(function() { return null; })
@@ -1265,6 +1329,236 @@
     if (pvReturnFocus && pvReturnFocus.focus) { try { pvReturnFocus.focus(); } catch (e) {} }
   }
   document.getElementById('pv-close').addEventListener('click', closePreview);
+
+  // ---- PDF overlay: the browser's own viewer on the inline download URL ----
+  var pdfovEl = document.getElementById('pdfov');
+  var pdfNameEl = document.getElementById('pdf-name');
+  var pdfBodyEl = document.getElementById('pdf-body');
+  var pdfReturnFocus = null, pdfAbs = null;
+
+  function pdfUrl(absPath, inline) {
+    return '/api/fs/download?path=' + encodeURIComponent(absPath) + (inline ? '&inline=1' : '');
+  }
+  function pdfFallback(absPath, name) {
+    pdfBodyEl.innerHTML = '';
+    var fb = el('div', 'pdf-fb');
+    fb.appendChild(el('div', null, 'Couldn’t display ' + name + ' — download to view.'));
+    var dl = el('button', null, '⭳ Download');
+    dl.addEventListener('click', function() { pdfDownload(absPath, name); });
+    fb.appendChild(dl);
+    pdfBodyEl.appendChild(fb);
+  }
+  function pdfDownload(absPath, name) {
+    var a = document.createElement('a');
+    a.href = pdfUrl(absPath, false);
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  function openPdf(absPath, name) {
+    pdfReturnFocus = document.activeElement;
+    pdfAbs = absPath;
+    pdfNameEl.textContent = name;
+    pdfNameEl.title = absPath;
+    pdfBodyEl.innerHTML = '';
+    var f = document.createElement('iframe');
+    f.title = name;
+    f.src = pdfUrl(absPath, true);
+    f.addEventListener('load', function() {
+      // A failed read comes back as a small JSON document (the PDF plugin's
+      // document is opaque) — swap in the download fallback if we can see one.
+      try {
+        var b = f.contentDocument && f.contentDocument.body;
+        if (b && b.textContent && b.textContent.indexOf('"error"') !== -1) pdfFallback(absPath, name);
+      } catch (e) {}
+    });
+    pdfBodyEl.appendChild(f);
+    pdfovEl.classList.add('open');
+    document.getElementById('pdf-close').focus();
+  }
+  function closePdf() {
+    pdfovEl.classList.remove('open');
+    pdfBodyEl.innerHTML = '';                       // stop rendering / free the PDF
+    pdfAbs = null;
+    if (pdfReturnFocus && pdfReturnFocus.focus) { try { pdfReturnFocus.focus(); } catch (e) {} }
+  }
+  document.getElementById('pdf-close').addEventListener('click', closePdf);
+  document.getElementById('pdf-dl').addEventListener('click', function() {
+    if (pdfAbs) pdfDownload(pdfAbs, pdfNameEl.textContent);
+  });
+
+  // ---- Share: passwordless public links via the manager (/api/share) ----
+  // The API takes HOME-RELATIVE paths; anything else is refused server-side
+  // ("must be a file or folder under home, and not a dotfile") and surfaced
+  // verbatim. Folders are served as a zip by the share endpoint itself.
+  function rawCard(title) {
+    modalOpen = true;
+    var ov = el('div', 'mov');
+    var card = el('div', 'mcard');
+    card.setAttribute('role', 'dialog');
+    card.appendChild(el('h3', null, title));
+    var closed = false;
+    function close() {
+      if (closed) return;
+      closed = true; modalOpen = false;
+      document.removeEventListener('keydown', onKey, true);
+      ov.remove();
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+    }
+    document.addEventListener('keydown', onKey, true);
+    ov.addEventListener('click', function(e) { if (e.target === ov) close(); });
+    ov.appendChild(card);
+    document.body.appendChild(ov);
+    return { card: card, close: close };
+  }
+  function shareApi(url, body) {
+    return fetch(url, body ? {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    } : undefined).then(function(r) { return r.json(); });
+  }
+  function copyText(text, btn) {
+    function done() {
+      var t = btn.textContent;
+      btn.textContent = 'Copied';
+      setTimeout(function() { btn.textContent = t; }, 1200);
+    }
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+        done();
+      } catch (e) {}
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else fallback();
+  }
+  function expiryText(ts) {
+    var s = ts - Date.now() / 1000;
+    if (s <= 0) return 'Expired';
+    var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), mn = Math.floor((s % 3600) / 60);
+    return 'Expires in ' + (d ? d + 'd ' + h + 'h' : (h ? h + 'h ' + mn + 'm' : mn + 'm'));
+  }
+  var TTL_OPTS = [['0.0416667', '1 hour'], ['1', '1 day'], ['7', '7 days'], ['30', '30 days']];
+
+  function shareStart() {
+    if (selCount !== 1) return;
+    var name = selNames()[0];
+    var abs = joinPath(path, name);
+    var rel = (HOME && abs.indexOf(HOME + '/') === 0) ? abs.slice(HOME.length + 1) : abs;
+    var m = rawCard('Public link');
+    var busy = el('p', null, 'Creating link…');
+    m.card.appendChild(busy);
+    shareApi('/api/share', { path: rel, ttl: 7 }).then(function(d) {
+      busy.remove();
+      if (!d || !d.url) { renderShareRefusal(m, (d && d.error) || 'Could not create the link.'); return; }
+      renderShareLink(m, d, rel);
+    }).catch(function() {
+      busy.remove();
+      renderShareRefusal(m, 'Could not create the link — network error.');
+    });
+  }
+  function renderShareRefusal(m, msg) {
+    m.card.appendChild(el('p', null, msg));
+    var btns = el('div', 'mbtns');
+    var ok = el('button', 'mok', 'Close');
+    ok.addEventListener('click', m.close);
+    btns.appendChild(ok);
+    m.card.appendChild(btns);
+    ok.focus();
+  }
+  function renderShareLink(m, d, rel) {
+    var token = d.token;
+    m.card.appendChild(el('p', null,
+      'Anyone with this link can ' +
+      (d.kind === 'dir' ? 'download “' + d.name + '” as a zip.' : 'view or download “' + d.name + '”.') +
+      ' No login needed — treat it like a password.'));
+    var urlRow = el('div', 'shr-row');
+    var input = el('input', 'shr-url');
+    input.readOnly = true; input.value = d.url;
+    input.addEventListener('focus', function() { input.select(); });
+    var copy = el('button', 'shr-sm', 'Copy');
+    copy.addEventListener('click', function() { copyText(input.value, copy); });
+    urlRow.appendChild(input); urlRow.appendChild(copy);
+    m.card.appendChild(urlRow);
+    var expRow = el('div', 'shr-row');
+    var expLbl = el('span', 'shr-exp', expiryText(d.expires));
+    var sel = el('select', 'shr-sel');
+    sel.setAttribute('aria-label', 'Link lifetime');
+    TTL_OPTS.forEach(function(o) {
+      var op = el('option', null, o[1]);
+      op.value = o[0];
+      if (o[0] === '7') op.selected = true;
+      sel.appendChild(op);
+    });
+    sel.addEventListener('change', function() {
+      // Re-mint with the new lifetime (the old link is revoked).
+      shareApi('/api/share/revoke', { token: token }).catch(function() {});
+      shareApi('/api/share', { path: rel, ttl: parseFloat(sel.value) }).then(function(r) {
+        if (r && r.url) { token = r.token; input.value = r.url; expLbl.textContent = expiryText(r.expires); }
+        else expLbl.textContent = (r && r.error) || 'Could not update the link.';
+      }).catch(function() {});
+    });
+    expRow.appendChild(expLbl); expRow.appendChild(sel);
+    m.card.appendChild(expRow);
+    var btns = el('div', 'mbtns');
+    var manage = el('button', 'mcancel', 'Manage links');
+    manage.addEventListener('click', function() { m.close(); manageShares(); });
+    var revoke = el('button', 'mok danger', 'Revoke');
+    revoke.addEventListener('click', function() {
+      shareApi('/api/share/revoke', { token: token }).catch(function() {});
+      toast('Link revoked');
+      m.close();
+    });
+    var done = el('button', 'mok', 'Done');
+    done.addEventListener('click', m.close);
+    btns.appendChild(manage); btns.appendChild(revoke); btns.appendChild(done);
+    m.card.appendChild(btns);
+    input.focus();
+  }
+  function manageShares() {
+    var m = rawCard('Shared links');
+    var list = el('div', 'shr-list');
+    list.appendChild(el('div', 'empty', 'Loading…'));
+    m.card.appendChild(list);
+    var btns = el('div', 'mbtns');
+    var close = el('button', 'mok', 'Close');
+    close.addEventListener('click', m.close);
+    btns.appendChild(close);
+    m.card.appendChild(btns);
+    shareApi('/api/share/list').then(function(d) {
+      list.innerHTML = '';
+      var shares = (d && d.shares) || [];
+      if (!shares.length) { list.appendChild(el('div', 'empty', 'No active links.')); return; }
+      shares.forEach(function(s) {
+        var row = el('div', 'shr-item');
+        var nm = el('span', 'nm2');
+        nm.appendChild(document.createTextNode(s.name));
+        if (s.kind === 'dir') nm.appendChild(el('span', 'shr-tag', 'folder'));
+        nm.appendChild(el('span', 'dim', expiryText(s.expires) + ' · ' + s.hits + ' hit' + (s.hits === 1 ? '' : 's')));
+        nm.title = s.rel || s.name;
+        var cp = el('button', 'shr-sm', 'Copy');
+        cp.addEventListener('click', function() { copyText(s.url, cp); });
+        var rv = el('button', 'shr-sm danger', 'Revoke');
+        rv.addEventListener('click', function() {
+          shareApi('/api/share/revoke', { token: s.token }).then(function() {
+            row.remove();
+            if (!list.querySelector('.shr-item')) list.appendChild(el('div', 'empty', 'No active links.'));
+          }).catch(function() {});
+        });
+        row.appendChild(nm); row.appendChild(cp); row.appendChild(rv);
+        list.appendChild(row);
+      });
+    }).catch(function() {
+      list.innerHTML = '';
+      list.appendChild(el('div', 'empty', 'Couldn’t load the link list.'));
+    });
+  }
+  document.getElementById('a-share').addEventListener('click', shareStart);
 
   // ---- editor overlay ----
   var edEl = document.getElementById('ed');

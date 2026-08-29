@@ -1,6 +1,10 @@
 # Files-native: replacing FileBrowser with a vibetop-owned Files app
 
-> Status: **phase 3 shipped** (v1.19.91/92 — bounded search [names+content]
+> Status: **phase 4a shipped** (v1.19.93/94 — Native is the DEFAULT; Share
+> card + PDF preview + imageview listing all native; FileBrowser is now only
+> the Classic fallback behind the toggle. Phase 4b — physical removal of the
+> FB units/ports/patch layer — awaits a soak period on the default).
+> Previously: phase 3 (v1.19.91/92 — bounded search [names+content]
 > and the native text editor with mtime-conditional saves + conflict card;
 > phase 2 = mutations, v1.19.89/90; phase 1 = agent + native listing behind
 > the **Native** toggle, v1.19.87/88; phase 0 = native image viewer,
