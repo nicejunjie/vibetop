@@ -4337,3 +4337,38 @@ original exact-bytes test stayed green through the whole breakage.
 - **Invariant restated:** "Unix permissions are the entire fence" only holds
   if the channel to the agent is itself authenticated. Path-based IPC in a
   shared directory is not.
+
+## A file named `constructor` joined every selection (Files-native)
+
+- **Symptom:** opening a folder that contains files named `constructor`,
+  `toString`, `valueOf`, `hasOwnProperty` or `__proto__` painted them as
+  SELECTED with nothing clicked ("5 selected" on load). Ctrl-clicking one
+  other file then reported "6 items copied", and a Cut moved four bystander
+  files with no confirmation; pressing Delete offered to remove files the
+  user had never touched.
+- **Cause:** the selection map was a plain `{}`, and membership was tested as
+  `selected[name]`. Those names resolve on `Object.prototype`, so they read
+  truthy for an empty map. `selCount` and `Object.keys` also disagreed
+  (`__proto__` inflates the count but is not an own key).
+- **Fix:** every name-keyed map (`selected`, the render `keep` map, the
+  clipboard `cutSet`) is built with `Object.create(null)` via `nameMap()`.
+- **Rule:** any map keyed by USER-SUPPLIED strings — filenames above all —
+  must be prototype-free. `{}` is only safe for developer-chosen keys.
+
+## A `position: fixed` bar anchored at `left: 50%` can only use half the screen
+
+- **Symptom:** the mobile action bar folded ten verbs into a four- to
+  six-row wall covering half the phone, and separately the toolbar's
+  Search / Refresh / ⋯ buttons sat at x=394..509 on a 390px screen —
+  unreachable, with no scroll (`body{overflow:hidden}`).
+- **Cause (bar):** shrink-to-fit width for an absolutely-positioned box is
+  bounded by the space from its anchor to the containing block's edge. At
+  `left: 50%` that is HALF the viewport (195px measured), so `flex-wrap`
+  wrapped far earlier than the visible 378px suggested. `transform:
+  translateX(-50%)` recenters the painted box but does not restore the
+  available width.
+- **Fix:** span both edges on mobile (`left: 6px; right: 6px; transform:
+  none`) instead of relying on shrink-to-fit; the same row then fits in two.
+  For the toolbar: a menu button replaced the ~140px sort `<select>`, hit
+  targets went to 36px, and `flex-wrap: wrap` is the safety net so a
+  conditional control (Paste) can never be pushed off-screen again.

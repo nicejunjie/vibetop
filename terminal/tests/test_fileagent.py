@@ -368,3 +368,33 @@ def test_upload_of_a_new_file_is_not_world_readable_by_accident(mgr, agent, tmp_
     mode = stat.S_IMODE(os.stat(dst).st_mode)
     assert mode & 0o400, "owner cannot read the file it just uploaded"
     assert mode == (0o666 & ~_current_umask()), f"unexpected mode {oct(mode)}"
+
+
+def test_move_into_the_same_folder_is_a_noop(mgr, agent, tmp_path):
+    """Cut + Paste in the same folder must do NOTHING. The collision suffixer
+    saw the file already at the destination and produced "text (2).txt" while
+    the original vanished — a rename the user never asked for."""
+    f = tmp_path / "text.txt"
+    f.write_text("keep me")
+    r = call(mgr, agent, {"op": "move", "src": [str(f)], "dst": str(tmp_path)})
+    assert r["ok"], r
+    assert f.exists() and f.read_text() == "keep me"
+    names = [n for n in os.listdir(str(tmp_path)) if not n.endswith(".sock")]
+    assert names == ["text.txt"], f"the file was renamed or duplicated: {names}"
+
+
+def test_bulk_over_the_cap_is_refused_not_silently_truncated(mgr, agent, tmp_path):
+    """A too-large batch must FAIL LOUDLY. The old srcs[:500] slice answered
+    ok:true to "delete 2000 files" with 1500 still on disk."""
+    paths = [str(tmp_path / f"f{i}.txt") for i in range(3)]
+    for p in paths:
+        open(p, "w").write("x")
+    # over BULK_MAX but comfortably under the agent's 256KB request cap, so the
+    # "too many" answer is what we actually exercise
+    huge = paths + [str(tmp_path / f"g{i}") for i in range(2100)]
+    r = call(mgr, agent, {"op": "delete", "paths": huge})
+    assert r["ok"] is False
+    assert r["code"] == "etoomany"
+    assert r["requested"] == len(huge)
+    for p in paths:
+        assert os.path.exists(p), "a refused batch must not delete anything"

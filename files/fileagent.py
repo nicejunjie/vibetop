@@ -208,13 +208,22 @@ def op_rename(req):
     return {"ok": True, "path": dst}
 
 
+BULK_MAX = 2000
+
+
 def _bulk(req, one):
-    """Run `one(src)` per item; report per-item results, ok iff all succeeded."""
+    """Run `one(src)` per item; report per-item results, ok iff all succeeded.
+    A request over the cap is REPORTED, never silently truncated: the old
+    `srcs[:500]` slice let "delete 2000 files" answer ok with 1500 still on
+    disk."""
     srcs = req.get("src") or req.get("paths") or []
     if not isinstance(srcs, list) or not srcs:
         return {"ok": False, "error": "no items", "code": "einval"}
+    if len(srcs) > BULK_MAX:
+        return {"ok": False, "code": "etoomany", "requested": len(srcs), "limit": BULK_MAX,
+                "error": f"too many items in one operation ({len(srcs)}; limit {BULK_MAX})"}
     results, all_ok = [], True
-    for s in srcs[:500]:
+    for s in srcs:
         p, err = _abs_or_err(s)
         if err:
             results.append({"path": s, "ok": False, "code": "einval"})
@@ -232,7 +241,17 @@ def op_move(req):
         return err
 
     def one(p):
-        target = _collide_free(os.path.join(dst, os.path.basename(p.rstrip("/"))))
+        target = os.path.join(dst, os.path.basename(p.rstrip("/")))
+        # Moving a file onto ITSELF is a no-op, not a rename. Without this the
+        # collision suffixer saw the file already sitting there and produced
+        # "text (2).txt" — cut-then-paste in the same folder silently renamed
+        # the file, which Explorer and Finder both treat as doing nothing.
+        try:
+            if os.path.exists(target) and os.path.samefile(p, target):
+                return {"path": p, "ok": True, "to": target, "noop": True}
+        except OSError:
+            pass
+        target = _collide_free(target)
         try:
             shutil.move(p, target)
             return {"path": p, "ok": True, "to": target}
@@ -558,6 +577,7 @@ def main():
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(sock_path)
     os.chmod(sock_path, 0o600)      # owner (the user) + root only
+    my_ino = os.stat(sock_path).st_ino      # so shutdown only unlinks OUR socket
     srv.listen(16)
     srv.settimeout(5)
     last = time.monotonic()
@@ -573,8 +593,14 @@ def main():
             with conn:
                 handle(conn)
     finally:
+        # Only remove the socket if it is still OURS. On idle exit the manager
+        # may already have started a replacement that re-bound this path; the
+        # old process then deleted the LIVE socket, leaving the unit "active"
+        # with nothing listening and every /api/fs/* at 502 until something
+        # restarted it by hand.
         try:
-            os.unlink(sock_path)
+            if os.stat(sock_path).st_ino == my_ino:
+                os.unlink(sock_path)
         except OSError:
             pass
     return 0

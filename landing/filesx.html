@@ -237,7 +237,7 @@
     flex: 0 0 76px; text-align: right; font: 12px system-ui, sans-serif;
     font-variant-numeric: tabular-nums; color: #8a93a6; white-space: nowrap;
   }
-  .row .mt { flex: 0 0 96px; text-align: right; font-size: 12px; color: #6b7488; white-space: nowrap; }
+  .row .mt { flex: 0 0 96px; text-align: right; font-size: 12px; color: #7d879b; white-space: nowrap; }
 
   /* ---- Layout: grid / gallery views (the classic app's Layout switcher).
      Same .row elements — so selection, drag, double-click and the context
@@ -290,7 +290,11 @@
     gap: 10px; padding: 48px 20px; text-align: center; color: #6b7488; font-size: 13px;
   }
   .state .big { font-size: 15px; color: #aab4c5; }
-  .state .pth { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #4a5265; word-break: break-all; }
+  .state .hint { font-size: 13px; color: #98a2b6; max-width: 34em; }
+  /* was #4a5265 — 2.4:1 on this background, i.e. the path in every error state
+     was effectively unreadable. #7d879b clears AA for this size. */
+  .state .pth { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #7d879b; word-break: break-all; }
+  .state .row-btns { display: flex; gap: 8px; }
   .state button {
     background: #1f2733; color: #d4d8de; border: 1px solid #2a3040; border-radius: 6px;
     padding: 7px 14px; font: 13px system-ui, sans-serif; cursor: pointer; min-height: 34px;
@@ -448,10 +452,14 @@
      current crumb to edit the path — the address input is collapsed) ---- */
   @media (max-width: 736px) {
     .toolbar { gap: 5px 6px; padding: 6px 8px; }
-    .tools { order: 1; flex: 1 0 100%; display: flex; flex-wrap: nowrap; gap: 5px; }
-    .tools button, .tools select { min-height: 38px; font-size: 13px; }
-    #newbtn, #upbtn, #hidden, #searchbtn, #refresh, #morebtn, #layoutbtn, #selectbtn {
-      flex: 0 0 38px; width: 38px; padding: 0; font-size: 16px;
+    /* One row that FITS: nine 36px controls + gaps = 364 of the 374 available
+       at 390px. wrap is the safety net — a conditional control (Paste) must
+       wrap, never be pushed off the screen edge where it is unreachable
+       (Search/Refresh/⋯ measured at x=394..509 on a 390px screen). */
+    .tools { order: 1; flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 5px; }
+    .tools button, .tools select { min-height: 36px; font-size: 13px; }
+    #newbtn, #upbtn, #hidden, #searchbtn, #refresh, #morebtn, #layoutbtn, #selectbtn, #sortbtn {
+      flex: 0 0 36px; width: 36px; padding: 0; font-size: 16px;
     }
     #layoutbtn .bl { display: none; }
     .tools .bl { display: none; }                 /* icons only, titles kept */
@@ -459,9 +467,7 @@
     #hidden .bi { display: inline-flex; }
     .tools svg { width: 17px; height: 17px; }
     #sortkey, #sortdir, #manage { display: none; }
-    /* right padding keeps the label clear of the drawn caret */
-    select#sortsel2 { display: block; flex: 1 1 auto; min-width: 0; max-width: 140px; padding: 0 24px 0 8px; }
-    #selectbtn { display: inline-block; }
+    #selectbtn, #sortbtn { display: inline-block; }
     #morebtn { display: inline-block; margin-left: auto; }   /* pinned to the edge */
     #pastebtn { color: #b79be8; }
     #pastebtn.on { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 9px; }
@@ -498,7 +504,7 @@
       font-size: 14px; white-space: normal; overflow-wrap: anywhere;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    .row .meta { display: block; font-size: 11.5px; color: #6b7488; }
+    .row .meta { display: block; font-size: 11.5px; color: #7d879b; }
     .row .sz, .row .mt { display: none; }
     .pv-head button { min-height: 38px; }
     /* search bar stacks: query row, then mode + scope + close */
@@ -531,14 +537,7 @@
         <option value="mtime">Modified</option>
       </select>
       <button id="sortdir" title="Sort direction" aria-label="Sort direction"></button>
-      <select id="sortsel2" class="m-only" aria-label="Sort" title="Sort">
-        <option value="name:asc">Name ↑</option>
-        <option value="name:desc">Name ↓</option>
-        <option value="size:asc">Size ↑</option>
-        <option value="size:desc">Size ↓</option>
-        <option value="mtime:asc">Date ↑</option>
-        <option value="mtime:desc">Date ↓</option>
-      </select>
+      <button id="sortbtn" class="m-only" title="Sort" aria-label="Sort" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5v11M2 5l2.5-2.5L7 5M11.5 13.5v-11M9 11l2.5 2.5L14 11"/></svg></span></button>
       <button id="layoutbtn" title="Layout — list, grid or gallery view" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></span><span class="bl"> Layout</span></button>
       <button id="selectbtn" class="m-only" title="Select several items" aria-pressed="false" aria-label="Select"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.6 6 12l7.5-8"/></svg></span></button>
       <button id="hidden" title="Show hidden files" aria-pressed="false"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8c1.6-2.9 3.9-4.4 6.5-4.4S13 5.1 14.5 8c-1.6 2.9-3.9 4.4-6.5 4.4S3 10.9 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></span><span class="bl">Hidden</span></button>
@@ -565,6 +564,7 @@
   </div>
   <div class="actbar" id="actbar">
     <span class="cnt" id="selcnt"></span>
+    <button id="a-all" title="Select every item in this folder"><span class="abl">Select all</span></button>
     <button id="a-open" title="Open (Enter)"><span class="abi">▶</span><span class="abl">Open</span></button>
     <button id="a-info" title="Info (I)"><span class="abi">ℹ️</span><span class="abl">Info</span></button>
     <button id="a-share" title="Create a public link (folders download as a zip)"><span class="abi">🔗</span><span class="abl">Share</span></button>
@@ -655,7 +655,14 @@
   var seq = 0;                   // stale-response guard
 
   // selection: names within the CURRENT folder (indices shift on re-render)
-  var selected = {};             // name -> true
+  // Object.create(null): a plain {} inherits Object.prototype, so a file named
+  // "constructor", "toString", "valueOf", "hasOwnProperty" or "__proto__" tested
+  // TRUE for membership and joined every selection invisibly — reported as
+  // phantom rows in "5 selected" with nothing clicked, and as bystander files
+  // being copied, MOVED and offered for deletion. Every selection map below is
+  // built the same way; `keep` and `cutSet` included.
+  function nameMap() { return Object.create(null); }
+  var selected = nameMap();      // name -> true
   var selCount = 0;
   var anchor = -1;               // keyboard/shift anchor (index into rows)
   var selectMode = false;        // touch multi-select mode (long-press)
@@ -680,7 +687,6 @@
     sortKeyEl.value = sortKey;
     sortDirEl.textContent = sortAsc ? '↑' : '↓';
     sortDirEl.title = sortAsc ? 'Ascending — click for descending' : 'Descending — click for ascending';
-    document.getElementById('sortsel2').value = sortKey + ':' + (sortAsc ? 'asc' : 'desc');
     hiddenEl.setAttribute('aria-pressed', showHidden ? 'true' : 'false');
     hiddenEl.title = showHidden ? 'Hide hidden files' : 'Show hidden files';
   }
@@ -885,7 +891,7 @@
   }
   function syncSelDom() {
     var clip = getClip();
-    var cutSet = {};
+    var cutSet = nameMap();
     if (clip && clip.mode === 'cut') clip.paths.forEach(function(p) { cutSet[p] = true; });
     var els = mainEl.querySelectorAll('.row');
     for (var i = 0; i < els.length; i++) {
@@ -909,9 +915,20 @@
     actbarEl.classList.toggle('on', on);
     // Keep a live toast clear of the pill — but the pill only exists on touch;
     // with a mouse the actions live in the right-click menu, so don't shift.
-    if (toastEl) toastEl.style.bottom = (on && !MQ_FINE.matches) ? '72px' : '';
+    if (toastEl) {
+      // Clear the pill's ACTUAL height (two rows on a phone = ~100px); a fixed
+      // 72px put the toast on top of the Share/Browser buttons.
+      var lift = (on && !MQ_FINE.matches)
+        ? (actbarEl.getBoundingClientRect().height || 54) + 22 : 0;
+      toastEl.style.bottom = lift ? lift + 'px' : '';
+    }
     if (on) {
-      document.getElementById('selcnt').textContent = selCount + ' selected';
+      document.getElementById('selcnt').textContent =
+        selCount ? selCount + ' selected' : 'Tap items to select';
+      // Select-all is otherwise unreachable without a keyboard (Ctrl+A).
+      var all = document.getElementById('a-all');
+      all.hidden = !(selectMode && rows.length && selCount < rows.length);
+      all.disabled = all.hidden;
       // Inapplicable verbs HIDE (never grey): the pill stays contextual and
       // uncluttered while every verb that CAN apply is a visible labeled button.
       var any = selCount > 0, oneSel = selCount === 1;
@@ -937,11 +954,11 @@
     }
   }
   function clearSel(quiet) {
-    selected = {}; selCount = 0; anchor = -1;
+    selected = nameMap(); selCount = 0; anchor = -1;
     if (!quiet) syncSelDom(); else renderActions();
   }
   function setOnly(i) {
-    selected = {}; selCount = 0;
+    selected = nameMap(); selCount = 0;
     if (i >= 0 && rows[i]) { selected[rows[i].name] = true; selCount = 1; anchor = i; revealRow(i); }
     syncSelDom();
   }
@@ -953,7 +970,7 @@
     syncSelDom();
   }
   function rangeSel(a, b) {
-    selected = {}; selCount = 0;
+    selected = nameMap(); selCount = 0;
     var lo = Math.min(a, b), hi = Math.max(a, b);
     for (var i = lo; i <= hi; i++) if (rows[i]) { selected[rows[i].name] = true; selCount++; }
     syncSelDom();
@@ -965,7 +982,7 @@
   function enterSelectMode(i) {
     selectMode = true;
     mainEl.classList.add('selmode');
-    if (i >= 0) { selected = {}; selCount = 0; toggleSel(i); }
+    if (i >= 0) { selected = nameMap(); selCount = 0; toggleSel(i); }
     else renderActions();
   }
   function exitSelectMode() {
@@ -984,19 +1001,26 @@
   function setView(v) {
     view = v;
     try { localStorage.setItem('fsx.view', v); } catch (e) {}
-    if (searchActive) return;            // applied when the listing comes back
+    if (searchActive) {
+      // Results are always a flat list; say so, instead of the menu appearing
+      // to do nothing and the view silently changing later.
+      var v0 = VIEWS.filter(function(x) { return x.id === v; })[0];
+      toast((v0 ? v0.label : 'That') + ' view — applies when you close search');
+      return;
+    }
     renderList();                        // re-render: thumbnail size differs
   }
 
   function renderList() {
     rows = visibleRows();
     // prune selection to names still visible in this folder
-    var keep = {}, kept = 0;
+    var keep = nameMap(), kept = 0;
     rows.forEach(function(e) { if (selected[e.name]) { keep[e.name] = true; kept++; } });
     selected = keep; selCount = kept; anchor = -1;
     mainEl.innerHTML = '';
     applyView();
     if (!rows.length) {
+      applyView('list');        // a state card is not a grid tile
       var hid = entries.length - rows.length;
       var msg = hid > 0
         ? hid + ' hidden item' + (hid === 1 ? '' : 's') + ' — use “Hidden” to show them'
@@ -1036,11 +1060,19 @@
 
   function renderError(err) {
     mainEl.innerHTML = '';
-    var big, ic;
+    applyView('list');             // a state card is not a grid tile
+    var big, ic, hint = '';
     if (err.code === 'eperm') { ic = '🔒'; big = 'You don’t have permission to view this folder'; }
     else if (err.code === 'enoent') { ic = '❓'; big = 'Folder not found'; }
     else if (err.code === 'enotdir') { ic = '📄'; big = 'Not a folder'; }
-    else { ic = '⚠️'; big = 'Couldn’t load this folder'; }
+    else if (err.code === 'agent' || err.code === 'net') {
+      ic = '⚠️'; big = 'Couldn’t reach the file service';
+      hint = 'It may be restarting. Try again in a moment.';
+    } else { ic = '⚠️'; big = 'Couldn’t load this folder'; }
+    // Every error state used to be a dead end offering only "← Back" — which,
+    // on a transient backend failure, led to a folder that failed too.
+    var retry = el('button', null, '↻ Try again');
+    retry.addEventListener('click', function() { load(path); });
     var back = el('button', null, '← Back');
     back.addEventListener('click', function() {
       // Never strand the user (docs/design-decisions.md): prefer real history
@@ -1049,12 +1081,12 @@
       if (lastGood && lastGood !== path) history.back();
       else go(lastGood || HOME || '/');
     });
-    mainEl.appendChild(stateEl([
-      el('div', null, ic),
-      el('div', 'big', big),
-      el('div', 'pth', path),
-      back
-    ]));
+    var parts = [el('div', null, ic), el('div', 'big', big)];
+    if (hint) parts.push(el('div', 'hint', hint));
+    parts.push(el('div', 'pth', path));
+    parts.push(retry);
+    parts.push(back);
+    mainEl.appendChild(stateEl(parts));
   }
 
   function setNotice(text) {
@@ -1069,6 +1101,7 @@
     // Quiet delayed loading state — no flash on fast responses.
     setTimeout(function() {
       if (seq === my && path === p && !mainEl.childNodes.length) {
+        applyView('list');
         mainEl.appendChild(stateEl([el('div', null, 'Loading…')]));
       }
     }, 250);
@@ -1193,6 +1226,19 @@
     if (lastPtrType === 'touch') { ev.preventDefault(); return; }   // long-press is select mode
     ev.preventDefault();
     var r = ev.target.closest('.row');
+    if (searchActive) {
+      // A result row is not a listing row (it lives in another folder and has
+      // no data-i), so the listing verbs cannot act on it. Offer the two that
+      // make sense instead of the folder-background menu, whose Refresh threw
+      // the results away.
+      if (!r || !r.__hit) return;
+      var hit = r.__hit;
+      openCtxMenu(ev.clientX, ev.clientY, [
+        { label: hit.isDir ? 'Open folder' : 'Open', run: function() { openNameResult(hit); } },
+        { label: 'Reveal in folder', run: function() { revealHit(hit); } }
+      ]);
+      return;
+    }
     if (r && !r.querySelector('input.edit') && r.dataset.i !== undefined && rows[+r.dataset.i]) {
       var i = +r.dataset.i;
       // Right-clicking OUTSIDE the current selection retargets it (Explorer /
@@ -1283,14 +1329,37 @@
   // ---- mutation plumbing ----
   // Per-item results → one quiet toast (successes summarized, failures first).
   function opResult(d, okMsg) {
-    if (!d || !d.ok) { toast((d && d.error) || 'Operation failed', true); return false; }
-    var fails = (d.results || []).filter(function(x) { return !x.ok; });
+    if (!d) { toast('Operation failed', true); return false; }
+    // Check per-item results FIRST: _bulk reports ok:false when ANY item fails,
+    // so testing d.ok first made the branch that names the actual reason
+    // unreachable and every partial failure read "Operation failed".
+    var results = d.results || [];
+    var fails = results.filter(function(x) { return !x.ok; });
     if (fails.length) {
-      toast(fails.length + ' failed — ' + (fails[0].error || fails[0].code || 'error'), true);
+      var done = results.length - fails.length;
+      toast(fails.length + ' of ' + results.length + ' failed — ' + friendlyErr(fails[0]) +
+            (done ? ' (' + done + ' succeeded)' : ''), true);
       return false;
     }
+    if (!d.ok) { toast(friendlyErr(d), true); return false; }
     if (okMsg) toast(okMsg);
     return true;
+  }
+  // Server/agent errors are for the USER: never surface systemd or Python
+  // internals ("Unit ... was already loaded or has a fragment file" reached the
+  // search box verbatim).
+  function friendlyErr(d) {
+    var code = d && d.code, raw = (d && d.error) || '';
+    if (code === 'eperm') return 'permission denied';
+    if (code === 'enoent') return 'no longer exists';
+    if (code === 'eexist') return 'a file with that name already exists';
+    if (code === 'eisdir') return 'that is a folder';
+    if (code === 'enotdir') return 'that is not a folder';
+    if (code === 'etoomany') return raw || 'too many items in one operation';
+    if (code === 'agent' || /systemd|fragment file|Traceback|transient service/i.test(raw))
+      return 'the file service is restarting — try again in a moment';
+    if (!raw) return 'operation failed';
+    return raw.length > 120 ? raw.slice(0, 117) + '…' : raw;
   }
 
   // -- clipboard (survives navigation and tabs via localStorage) --
@@ -1309,8 +1378,11 @@
     var op = c.mode === 'cut' ? 'move' : 'copy';
     fsop({ op: op, src: c.paths, dst: path }).then(function(d) {
       var n = c.paths.length;
-      opResult(d, (op === 'move' ? 'Moved ' : 'Pasted ') + n + ' item' + (n === 1 ? '' : 's'));
-      if (c.mode === 'cut') { try { localStorage.removeItem('fsx.clip'); } catch (e) {} }
+      var ok = opResult(d, (op === 'move' ? 'Moved ' : 'Pasted ') + n + ' item' + (n === 1 ? '' : 's'));
+      // Only a SUCCESSFUL cut consumes the clipboard. Clearing it on failure
+      // stranded the user: the Paste button vanished and the files had to be
+      // found and cut again.
+      if (ok && c.mode === 'cut') { try { localStorage.removeItem('fsx.clip'); } catch (e) {} }
       renderActions();
       refresh();
     }).catch(function() { toast('Paste failed — network error', true); });
@@ -1459,7 +1531,10 @@
     input.focus(); input.select();
     editKeys(input, function(name) {
       name = (name || '').trim();
-      if (!name || name.indexOf('/') !== -1) { stopEdit(input); return; }
+      if (name && name.indexOf('/') !== -1) {
+        toast('A name can’t contain “/”', true); return;      // keep editing
+      }
+      if (!name) { stopEdit(input); return; }
       fsop({ op: 'mkdir', path: joinPath(path, name) }).then(function(d) {
         stopEdit(input);
         if (!d || !d.ok) {
@@ -1491,7 +1566,10 @@
     try { input.setSelectionRange(0, 8); } catch (e) {}          // select "New file", keep .txt
     editKeys(input, function(name) {
       name = (name || '').trim();
-      if (!name || name.indexOf('/') !== -1) { stopEdit(input); return; }
+      if (name && name.indexOf('/') !== -1) {
+        toast('A name can’t contain “/”', true); return;      // keep editing
+      }
+      if (!name) { stopEdit(input); return; }
       var abs = joinPath(path, name);
       api('/api/fs/stat?path=' + encodeURIComponent(abs)).then(function(sd) {
         if (sd && sd.ok) {
@@ -1533,7 +1611,10 @@
     }
     editKeys(input, function(to) {
       to = (to || '').trim();
-      if (!to || to === name || to.indexOf('/') !== -1) { closeEditor(); return; }
+      if (to && to.indexOf('/') !== -1) {
+        toast('A name can’t contain “/”', true); return;      // keep editing
+      }
+      if (!to || to === name) { closeEditor(); return; }
       fsop({ op: 'rename', path: joinPath(path, name), to: to }).then(function(d) {
         closeEditor();
         if (!d || !d.ok) {
@@ -1757,13 +1838,14 @@
     }
     if (mod && (ev.key === 'f' || ev.key === 'F')) { ev.preventDefault(); openSearch(); return; }
     var t = ev.target;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' ||
+              t.tagName === 'BUTTON' || t.tagName === 'A' || t.isContentEditable)) return;
     if (mod && (ev.key === 'c' || ev.key === 'C') && selCount) { ev.preventDefault(); doCopyCut('copy'); return; }
     if (mod && (ev.key === 'x' || ev.key === 'X') && selCount) { ev.preventDefault(); doCopyCut('cut'); return; }
     if (mod && (ev.key === 'v' || ev.key === 'V') && getClip()) { ev.preventDefault(); doPaste(); return; }
     if (mod && (ev.key === 'a' || ev.key === 'A') && rows.length) {
       ev.preventDefault();
-      selected = {}; selCount = 0;
+      selected = nameMap(); selCount = 0;
       rows.forEach(function(e) { selected[e.name] = true; selCount++; });
       syncSelDom();
       return;
@@ -2423,7 +2505,8 @@
         if (my !== searchSeq || !searchActive) return;
         if (!d || !d.ok) {
           mainEl.innerHTML = '';
-          mainEl.appendChild(stateEl([el('div', 'big', 'Search failed'), el('div', 'pth', (d && d.error) || 'error')]));
+          mainEl.appendChild(stateEl([el('div', 'big', 'Search failed'),
+                                      el('div', 'hint', friendlyErr(d || {}))]));
           return;
         }
         renderResults(d, q);
@@ -2431,7 +2514,8 @@
       .catch(function() {
         if (my !== searchSeq || !searchActive) return;
         mainEl.innerHTML = '';
-        mainEl.appendChild(stateEl([el('div', 'big', 'Search failed'), el('div', 'pth', 'network error')]));
+        mainEl.appendChild(stateEl([el('div', 'big', 'Search failed'),
+                                    el('div', 'hint', 'network error — try again')]));
       });
   }
   function renderResults(d, q) {
@@ -2464,6 +2548,7 @@
       } else {
         r.addEventListener('click', function() { openNameResult(it); });
       }
+      r.__hit = it;
       frag.appendChild(r);
     });
     mainEl.appendChild(frag);
@@ -2471,6 +2556,13 @@
     if (d.truncated) setNotice('Showing the first ' + res.length + ' matches.');
   }
   // Names result: jump to its folder with the item selected; files also open.
+  // Jump to the containing folder with the item selected, WITHOUT opening it.
+  function revealHit(it) {
+    var dir = it.path.slice(0, it.path.lastIndexOf('/')) || '/';
+    closeSearch();
+    pendingFocusName = baseOf(it.path);
+    if (dir === path) load(path, true); else go(dir);
+  }
   function openNameResult(it) {
     var dir = it.path.slice(0, it.path.lastIndexOf('/')) || '/';
     var name = baseOf(it.path);
@@ -2523,11 +2615,26 @@
   sortDirEl.addEventListener('click', function() {
     sortAsc = !sortAsc; savePrefs(); syncControls(); renderList();
   });
-  // Mobile's single sort control: key + direction folded into one select.
-  document.getElementById('sortsel2').addEventListener('change', function() {
-    var v = this.value.split(':');
-    sortKey = v[0]; sortAsc = v[1] !== 'desc';
-    savePrefs(); syncControls(); renderList();
+  // Mobile's sort control is a MENU, not a <select>: the select needed ~140px
+  // of a 374px-wide toolbar, which is what pushed Search/Refresh/⋯ off the
+  // screen entirely. Same shape as the Layout menu, with a checkmark.
+  document.getElementById('sortbtn').addEventListener('click', function(ev) {
+    ev.stopPropagation();
+    var opts = [
+      ['name', true, 'Name (A→Z)'], ['name', false, 'Name (Z→A)'],
+      ['size', true, 'Size (small→large)'], ['size', false, 'Size (large→small)'],
+      ['mtime', false, 'Date (newest first)'], ['mtime', true, 'Date (oldest first)']
+    ];
+    openPop(ev.currentTarget, opts.map(function(o) {
+      var cur = (sortKey === o[0] && sortAsc === o[1]);
+      return {
+        label: (cur ? '\u2713 ' : '\u2007 ') + o[2],
+        run: function() {
+          sortKey = o[0]; sortAsc = o[1];
+          savePrefs(); syncControls(); renderList();
+        }
+      };
+    }));
   });
   hiddenEl.addEventListener('click', function() {
     showHidden = !showHidden; savePrefs(); syncControls(); renderList();
@@ -2560,7 +2667,7 @@
 
   // Small anchored popovers: the New / Upload submenus and the mobile ⋯
   // overflow all share one instance (opening one closes another).
-  var morePop = null, popAnchor = null;
+  var morePop = null, popAnchor = null, popOpenedAt = 0;
   function closeMore() { if (morePop) { morePop.remove(); morePop = null; popAnchor = null; } }
   function openPop(btn, items, alignRight) {
     if (popAnchor === btn) { closeMore(); return; }   // second click toggles shut
@@ -2616,10 +2723,11 @@
     }
     return items;
   }
-  function openCtxMenu(x, y) {
+  function openCtxMenu(x, y, items) {
     closeMore();
+    popOpenedAt = Date.now();
     morePop = el('div', 'morepop ctx');
-    ctxItems().forEach(function(it) {
+    (items || ctxItems()).forEach(function(it) {
       if (it.sep) { morePop.appendChild(el('div', 'sep')); return; }
       var b = el('button', it.danger ? 'danger' : null, it.label);
       b.addEventListener('click', function() { closeMore(); it.run(); });
@@ -2633,7 +2741,11 @@
     morePop.style.top = Math.max(6, y + h + 6 > window.innerHeight ? y - h : y) + 'px';
   }
   // Any scroll or Escape dismisses it, like a native menu.
-  mainEl.addEventListener('scroll', function() { if (morePop) closeMore(); }, { passive: true });
+  mainEl.addEventListener('scroll', function() {
+    // Not the scroll our own scrollIntoView caused while opening this menu:
+    // that one closed the menu instantly for every partially-visible row.
+    if (morePop && Date.now() > popOpenedAt + 350) closeMore();
+  }, { passive: true });
   document.addEventListener('contextmenu', function(ev) {
     if (morePop && !ev.target.closest('.morepop') && !ev.target.closest('.main')) closeMore();
   });
@@ -2686,6 +2798,11 @@
   document.getElementById('a-download').addEventListener('click', doDownload);
   document.getElementById('a-copy').addEventListener('click', function() { doCopyCut('copy'); });
   document.getElementById('a-cut').addEventListener('click', function() { doCopyCut('cut'); });
+  document.getElementById('a-all').addEventListener('click', function() {
+    selected = nameMap(); selCount = 0;
+    rows.forEach(function(e) { selected[e.name] = true; selCount++; });
+    syncSelDom();
+  });
   document.getElementById('a-delete').addEventListener('click', doDelete);
   // Another tab changed the shared clipboard → update the Paste button + cut dims.
   window.addEventListener('storage', function(ev) {
