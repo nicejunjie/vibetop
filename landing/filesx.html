@@ -56,6 +56,10 @@
   #pastebtn { display: none; color: #b79be8; }
   #pastebtn.on { display: inline-block; }
   .m-only { display: none; }        /* mobile-only controls (compact sort, ⋯) */
+  /* inline SVG icons (not emoji — 👁/🔍/⬆ rendered as mismatched color glyphs
+     on iOS, reported as toy-like): monochrome, inherit the button color */
+  .tools .bi { display: inline-flex; align-items: center; vertical-align: -3px; }
+  .tools svg { width: 15px; height: 15px; flex: 0 0 auto; }
   #hidden .bi { display: none; }    /* desktop keeps the text label */
 
   /* ⋯ overflow popover (mobile) */
@@ -188,6 +192,13 @@
   .row.sel .ck { background: #8a4adb; border-color: #8a4adb; color: #fff; }
   .row.sel .ck::after { content: "✓"; }
   .row .ic { flex: 0 0 22px; text-align: center; font-size: 15px; }
+  .row .ic img.th {
+    width: 22px; height: 22px; object-fit: cover; border-radius: 4px;
+    display: block; margin: 0 auto; background: #10141b;
+  }
+  /* .mid wraps name (+ mobile meta subtitle); a plain flex row on desktop */
+  .row .mid { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; }
+  .row .meta { display: none; }
   .row .nm { flex: 1 1 auto; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row.dir .nm { color: #e6edf3; }
   .row input.edit {
@@ -392,8 +403,9 @@
       flex: 0 0 38px; width: 38px; padding: 0; font-size: 16px;
     }
     .tools .bl { display: none; }                 /* icons only, titles kept */
-    .tools .bi { display: inline; }
-    #hidden .bi { display: inline; }
+    .tools .bi { display: inline-flex; }
+    #hidden .bi { display: inline-flex; }
+    .tools svg { width: 17px; height: 17px; }
     #sortkey, #sortdir, #manage { display: none; }
     select#sortsel2 { display: block; flex: 1 1 auto; min-width: 0; max-width: 140px; padding: 0 6px; }
     #morebtn { display: inline-block; margin-left: auto; }   /* pinned to the edge */
@@ -413,11 +425,20 @@
     .actbar .dv { display: none; }                         /* wrapped rows: no stretch dividers */
     /* the wrapped pill is several rows tall — keep the last rows reachable */
     .actbar.on ~ .main { padding-bottom: 300px; }
-    .row { min-height: 40px; padding: 2px 10px; gap: 8px; }
-    .row .ic { flex: 0 0 20px; font-size: 14px; }
-    .row .nm { font-size: 13.5px; }
-    .row .sz { flex-basis: 52px; font-size: 11.5px; }
-    .row .mt { flex-basis: 54px; font-size: 11.5px; }
+    /* two-line rows: the full name on top (up to 2 lines — never mid-truncated
+       while the right side sits empty), a muted "date · size" subtitle under
+       it; the desktop size/date columns disappear (they were what squeezed
+       the name — reported with screenshots vs the classic app) */
+    .row { min-height: 48px; padding: 4px 10px; gap: 10px; }
+    .row .ic { flex: 0 0 32px; font-size: 21px; }
+    .row .ic img.th { width: 32px; height: 32px; border-radius: 6px; }
+    .row .mid { flex-direction: column; align-items: stretch; gap: 1px; }
+    .row .nm {
+      font-size: 14px; white-space: normal; overflow-wrap: anywhere;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .row .meta { display: block; font-size: 11.5px; color: #6b7488; }
+    .row .sz, .row .mt { display: none; }
     .pv-head button { min-height: 38px; }
     /* search bar stacks: query row, then mode + scope + close */
     .sbar { flex-wrap: wrap; gap: 7px; }
@@ -440,8 +461,8 @@
              aria-label="Path — type a folder and press Enter" title="Type any path and press Enter">
     </div>
     <div class="tools">
-      <button id="newbtn" title="Create a new folder or file here"><span class="bi">＋</span><span class="bl"> New</span></button>
-      <button id="upbtn" title="Upload files or a folder here (or drag &amp; drop from your computer)"><span class="bi">⬆</span><span class="bl"> Upload</span></button>
+      <button id="newbtn" title="Create a new folder or file here"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11"/></svg></span><span class="bl"> New</span></button>
+      <button id="upbtn" title="Upload files or a folder here (or drag &amp; drop from your computer)"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10.5v-8M4.8 5.7 8 2.5l3.2 3.2M2.5 13.5h11"/></svg></span><span class="bl"> Upload</span></button>
       <button id="pastebtn" title="Paste here"></button>
       <select id="sortkey" aria-label="Sort by" title="Sort by">
         <option value="name">Name</option>
@@ -457,9 +478,9 @@
         <option value="mtime:asc">Date ↑</option>
         <option value="mtime:desc">Date ↓</option>
       </select>
-      <button id="hidden" title="Show hidden files" aria-pressed="false"><span class="bi">👁</span><span class="bl">Hidden</span></button>
-      <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search">🔍</button>
-      <button id="refresh" title="Refresh" aria-label="Refresh">⟳</button>
+      <button id="hidden" title="Show hidden files" aria-pressed="false"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8c1.6-2.9 3.9-4.4 6.5-4.4S13 5.1 14.5 8c-1.6 2.9-3.9 4.4-6.5 4.4S3 10.9 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></span><span class="bl">Hidden</span></button>
+      <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></svg></span></button>
+      <button id="refresh" title="Refresh" aria-label="Refresh"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.7 8a5.3 5.3 0 1 0 1.5-3.7"/><path d="M4.2 1.3v3h3"/></svg></span></button>
       <button id="manage" title="Open the classic file manager here (editor, search…)">Manage</button>
       <button id="morebtn" class="m-only" title="More" aria-label="More" aria-haspopup="menu">⋯</button>
     </div>
@@ -646,6 +667,22 @@
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     return short ? d.toLocaleDateString(undefined, { year: '2-digit', month: 'numeric', day: 'numeric' })
                  : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  // Listing icon: images get a REAL thumbnail (lazy server-side downscale via
+  // /api/file/image&thumb= — the emoji placeholder looked like a toy next to
+  // the classic app's previews), everything else the type emoji.
+  function icEl(e) {
+    var ic = el('span', 'ic', '');
+    if (!e.isDir && IMG_RE.test(e.name)) {
+      var im = document.createElement('img');
+      im.className = 'th'; im.alt = ''; im.loading = 'lazy'; im.decoding = 'async';
+      im.src = '/api/file/image?path=' + encodeURIComponent(joinPath(path, e.name)) + '&thumb=96';
+      im.onerror = function() { ic.textContent = iconFor(e.name, false); };
+      ic.appendChild(im);
+    } else {
+      ic.textContent = iconFor(e.name, e.isDir);
+    }
+    return ic;
   }
   function iconFor(name, isDir) {
     if (isDir) return '📁';
@@ -876,11 +913,16 @@
       var r = el('div', 'row' + (e.isDir ? ' dir' : ''));
       r.dataset.i = i;
       r.appendChild(el('span', 'ck', ''));
-      r.appendChild(el('span', 'ic', iconFor(e.name, e.isDir)));
+      r.appendChild(icEl(e));
+      var mid = el('span', 'mid');
       var nm = el('span', 'nm', e.name); nm.title = e.name;
-      r.appendChild(nm);
+      mid.appendChild(nm);
+      // mobile subtitle (hidden on desktop, where the columns show instead)
+      mid.appendChild(el('span', 'meta',
+        fmtRel(e.mtime, true) + (e.isDir ? '' : ' · ' + fmtSize(e.size))));
+      r.appendChild(mid);
       r.appendChild(el('span', 'sz', e.isDir ? '—' : fmtSize(e.size)));
-      var mt = el('span', 'mt', fmtRel(e.mtime, MQ_MOBILE.matches));
+      var mt = el('span', 'mt', fmtRel(e.mtime, false));
       mt.title = new Date(e.mtime * 1000).toLocaleString();
       r.appendChild(mt);
       frag.appendChild(r);

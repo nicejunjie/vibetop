@@ -5310,6 +5310,51 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(404, {"error": "file not found"})
         ext = os.path.splitext(src)[1].lower()
         try:
+            thumb = max(0, min(512, int(params.get("thumb", ["0"])[0])))
+        except ValueError:
+            thumb = 0
+        if thumb and ext != ".svg":
+            # &thumb=N — server-side downscale for listing thumbnails (the Files
+            # app shows real previews, not emoji). Generated on the fly with PIL
+            # and cached in the BROWSER via a strong mtime ETag — no disk cache
+            # to manage, and a re-render only costs a 304. Any failure (PIL
+            # missing, corrupt/huge image) falls through to the original bytes:
+            # the <img> is CSS-sized anyway, a thumbnail is only an optimization.
+            try:
+                st = os.stat(src)
+                etag = '"%d-%d-%d"' % (st.st_mtime_ns, st.st_size, thumb)
+                if self.headers.get("If-None-Match") == etag:
+                    self.send_response(304)
+                    self.send_header("ETag", etag)
+                    self.end_headers()
+                    return
+                import io
+                from PIL import Image
+                with Image.open(src) as im:
+                    im.thumbnail((thumb, thumb))
+                    buf = io.BytesIO()
+                    if im.mode in ("RGBA", "LA", "PA") or (
+                            im.mode == "P" and "transparency" in im.info):
+                        im.convert("RGBA").save(buf, "PNG")
+                        ctype = "image/png"
+                    else:
+                        im.convert("RGB").save(buf, "JPEG", quality=80)
+                        ctype = "image/jpeg"
+                data = buf.getvalue()
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "private, max-age=86400")
+                self.end_headers()
+                if self.command != "HEAD":
+                    self.wfile.write(data)
+                return
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            except Exception:
+                pass          # fall through: serve the original bytes below
+        try:
             size = os.path.getsize(src)
             self.send_response(200)
             self.send_header("Content-Type", _IMAGE_MIME.get(ext, "application/octet-stream"))
