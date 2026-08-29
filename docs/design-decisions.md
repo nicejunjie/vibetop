@@ -3441,6 +3441,20 @@ it atomically — any state carried across readings (relayed figures, learned
 anchors, settle timers, per-receiver copies) eventually pairs one regime's
 number with the other regime's screen.
 
+
+**One more lens (v1.19.86), then it held.** Build 348 still put the bar on
+the typing line in the shell-scrolled regime, and the beacons showed why: iOS
+paints `position:fixed` elements against the VISUAL viewport there while
+reporting in-flow rects in LAYOUT coordinates — two lenses whose offset is
+unobservable from JS, so the math said "nothing covered" (lift 0) while the
+painted bar covered the line. Fix: the bar became `position:absolute` (same
+layout space as the content rects — whatever iOS warps, it warps both
+identically), and the final lift is a plain rect-vs-rect subtraction measured
+AFTER the bar is placed, with one measured ROW HEIGHT of clearance (the
+user's own suggestion). vv-derived numbers position the bar; only same-space
+rects decide the lift. Confirmed working on-device; the field beacons were
+then gated behind `localStorage['vibetop:kbdbg']` (v1.19.97) — off by
+default, one flag away when this class of bug returns.
 ---
 
 ## "Still cannot resize from left or right" — the tile gutter belonged to nobody

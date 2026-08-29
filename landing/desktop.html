@@ -2234,12 +2234,16 @@
     var tickT = null;
     function armTick() { if (!tickT) tickT = setInterval(syncBar, 300); }
     function disarmTick() { if (tickT) { clearInterval(tickT); tickT = null; } }
-    // Field instrumentation for the recurring key-bar-covers-the-prompt bug:
-    // report the SHELL's measured geometry to the manager log (POST
-    // /api/client-debug) so an on-device repro can be read server-side.
-    // Throttled, tiny payloads; remove once the bug is confirmed dead.
+    // Field instrumentation for the key-bar geometry class of bug: report the
+    // SHELL's measured numbers to the manager log (POST /api/client-debug) so
+    // an on-device repro reads out server-side. The bug class is fixed
+    // (v1.19.85/86 — see design-decisions), so this is now OFF by default:
+    // set localStorage['vibetop:kbdbg']='1' on the device to re-arm it.
+    var KBDBG = false;
+    try { KBDBG = localStorage.getItem('vibetop:kbdbg') === '1'; } catch (e) {}
     var dbgLast = 0;
     function dbgBeacon(tag, extra) {
+      if (!KBDBG) return;
       var now = Date.now();
       if (now - dbgLast < 600) return;
       dbgLast = now;
