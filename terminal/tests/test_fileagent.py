@@ -259,3 +259,47 @@ def test_zip_streams_a_valid_archive(mgr, agent, tmp_path):
     names = sorted(z.namelist())
     assert names == ["z/sub/one.txt", "z/two.txt"]
     assert z.read("z/sub/one.txt") == b"uno"
+
+
+# ---- phase 3: search + conditional save -------------------------------------
+
+def test_search_names(mgr, agent, tmp_path):
+    d = tmp_path / "sr"
+    (d / "deep").mkdir(parents=True)
+    (d / "deep" / "report-final.txt").write_text("x")
+    (d / "other.log").write_text("y")
+    r = call(mgr, agent, {"op": "search", "path": str(d), "q": "REPORT"})
+    assert r["ok"] and len(r["results"]) == 1
+    assert r["results"][0]["path"].endswith("deep/report-final.txt")
+    assert r["results"][0]["isDir"] is False
+
+
+def test_search_content_with_line_numbers(mgr, agent, tmp_path):
+    d = tmp_path / "sc"
+    d.mkdir()
+    (d / "a.txt").write_text("one\nneedle here\nthree")
+    (d / "b.txt").write_text("no match")
+    r = call(mgr, agent, {"op": "search", "path": str(d), "q": "needle", "mode": "content"})
+    assert r["ok"] and len(r["results"]) == 1
+    hit = r["results"][0]
+    assert hit["path"].endswith("a.txt") and hit["line"] == 2 and "needle" in hit["text"]
+
+
+def test_search_requires_query(mgr, agent, tmp_path):
+    r = call(mgr, agent, {"op": "search", "path": str(tmp_path), "q": "  "})
+    assert r["ok"] is False and r["code"] == "einval"
+
+
+def test_upload_ifmtime_conflict_refused(mgr, agent, tmp_path):
+    f = tmp_path / "doc.txt"
+    f.write_text("v1")
+    stale = int(os.stat(f).st_mtime) - 100
+    out = _stream(agent, {"op": "upload", "path": str(f), "size": 2,
+                          "ifMtime": stale}, b"v2")
+    resp = json.loads(out.decode().strip())
+    assert resp["ok"] is False and resp["code"] == "econflict"
+    assert f.read_text() == "v1"                       # untouched
+    ok_out = _stream(agent, {"op": "upload", "path": str(f), "size": 2,
+                             "ifMtime": int(os.stat(f).st_mtime)}, b"v2")
+    assert json.loads(ok_out.decode().strip())["ok"]
+    assert f.read_text() == "v2"

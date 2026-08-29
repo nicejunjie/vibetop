@@ -273,9 +273,62 @@ def op_delete(req):
     return _bulk(req, one)
 
 
+SEARCH_MAX = 200
+SEARCH_TIMEOUT = 10
+
+
+def op_search(req):
+    """Bounded search under a directory. mode "names" (default): case-
+    insensitive filename substring via `find`. mode "content": line matches
+    via `rg` when available (fast, .gitignore-aware, 2MB file cap), else
+    `grep -rnI`. Both capped at SEARCH_MAX results / SEARCH_TIMEOUT seconds —
+    a search must never hang the agent or ship an unbounded payload."""
+    root, err = _abs_or_err(req.get("path"))
+    if err:
+        return err
+    q = (req.get("q") or "").strip()
+    if not q or len(q) > 256:
+        return {"ok": False, "error": "query required", "code": "einval"}
+    mode = req.get("mode") or "names"
+    results, truncated = [], False
+    try:
+        if mode == "content":
+            if shutil.which("rg"):
+                cmd = ["rg", "-n", "-S", "--no-heading", "--max-filesize", "2M",
+                       "--max-count", "5", "-g", "!.git", "--fixed-strings", q, root]
+            else:
+                cmd = ["grep", "-rnI", "--exclude-dir=.git", "-F", q, root]
+            r = subprocess.run(cmd, capture_output=True, text=True,
+                               timeout=SEARCH_TIMEOUT, errors="replace")
+            for line in r.stdout.splitlines():
+                if len(results) >= SEARCH_MAX:
+                    truncated = True
+                    break
+                parts = line.split(":", 2)
+                if len(parts) == 3 and parts[1].isdigit():
+                    results.append({"path": parts[0], "line": int(parts[1]),
+                                    "text": parts[2].strip()[:300]})
+        else:
+            r = subprocess.run(["find", root, "-iname", f"*{q}*",
+                               "-not", "-path", "*/.git/*"],
+                              capture_output=True, text=True,
+                              timeout=SEARCH_TIMEOUT, errors="replace")
+            for line in r.stdout.splitlines():
+                if len(results) >= SEARCH_MAX:
+                    truncated = True
+                    break
+                if line and line != root:
+                    results.append({"path": line, "isDir": os.path.isdir(line)})
+    except subprocess.TimeoutExpired:
+        truncated = True
+    except (OSError, subprocess.SubprocessError) as e:
+        return {"ok": False, "error": str(e), "code": "eio"}
+    return {"ok": True, "results": results, "truncated": truncated, "mode": mode}
+
+
 OPS = {"home": op_home, "list": op_list, "stat": op_stat, "read": op_read,
        "mkdir": op_mkdir, "rename": op_rename, "move": op_move,
-       "copy": op_copy, "delete": op_delete}
+       "copy": op_copy, "delete": op_delete, "search": op_search}
 
 
 # ---- phase 2: streaming (upload / download / zip) ---------------------------
@@ -299,6 +352,19 @@ def stream_upload(conn, req, rest):
         return _send_json(conn, {"ok": False, "error": "size required", "code": "einval"})
     if size < 0 or size > MAX_UPLOAD:
         return _send_json(conn, {"ok": False, "error": "size out of range", "code": "einval"})
+    # Editor saves send the mtime they loaded; a mismatch means the file
+    # changed underneath (another device, a shell) -> refuse, let the UI offer
+    # reload-or-overwrite instead of silently clobbering.
+    if req.get("ifMtime") is not None:
+        try:
+            cur = int(os.stat(path).st_mtime)
+        except FileNotFoundError:
+            cur = None
+        except OSError as e:
+            return _send_json(conn, {"ok": False, "error": str(e), "code": _errcode(e)})
+        if cur is not None and cur != int(req["ifMtime"]):
+            return _send_json(conn, {"ok": False, "error": "file changed on disk",
+                                     "code": "econflict", "mtime": cur})
     d = os.path.dirname(path)
     tmp = None
     got = 0

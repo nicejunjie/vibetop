@@ -5186,7 +5186,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ok, err = _ensure_fileagent(user)
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
-        s = _fs_connect(user, {"op": "upload", "path": dst, "size": length})
+        up = {"op": "upload", "path": dst, "size": length}
+        if q.get("ifMtime"):
+            try:
+                up["ifMtime"] = int(q["ifMtime"][0])
+            except (TypeError, ValueError):
+                pass
+        s = _fs_connect(user, up)
         if not s:
             return self._json(502, {"ok": False, "error": "agent connect failed", "code": "agent"})
         try:
@@ -5251,7 +5257,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         the authorization boundary (docs/files-native.md)."""
         u = urllib.parse.urlparse(self.path)
         op = u.path.rsplit("/", 1)[-1]
-        if op not in ("home", "list", "stat", "read"):
+        if op not in ("home", "list", "stat", "read", "search"):
             return self._json(404, {"ok": False, "error": "unknown op", "code": "einval"})
         q = urllib.parse.parse_qs(u.query)
         req = {"op": op}
@@ -5262,6 +5268,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 req["max"] = int(q["max"][0])
             except (TypeError, ValueError):
                 pass
+        if "q" in q:
+            req["q"] = q["q"][0]
+        if "mode" in q:
+            req["mode"] = q["mode"][0]
         user = _ctx_user()
         ok, err = _ensure_fileagent(user)
         if not ok:
