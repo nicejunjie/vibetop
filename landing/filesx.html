@@ -631,13 +631,12 @@
        (Search/Refresh/⋯ measured at x=394..509 on a 390px screen). */
     .tools { order: 1; flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 5px; }
     .tools button, .tools select { min-height: 36px; font-size: 13px; }
-    #newbtn, #upbtn, #sortbtn, #layoutbtn, #selectbtn, #hidden, #searchbtn, #refresh, #manage {
+    #newbtn, #upbtn, #sortbtn, #layoutbtn, #selectbtn, #searchbtn, #refresh, #manage {
       flex: 0 0 36px; width: 36px; padding: 0; font-size: 16px;
     }
     #layoutbtn .bl { display: none; }
     .tools .bl { display: none; }                 /* icons only, titles kept */
     .tools .bi { display: inline-flex; }
-    #hidden .bi { display: inline-flex; }
     .tools svg { width: 17px; height: 17px; }
     #pastebtn { color: #b79be8; }
     #pasteclear.on { display: inline-block; flex: 0 0 32px; width: 32px; padding: 0; }
@@ -709,7 +708,6 @@
       <button id="sortbtn" title="Sort" aria-label="Sort" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5v11M2 5l2.5-2.5L7 5M11.5 13.5v-11M9 11l2.5 2.5L14 11"/></svg></span><span class="bl"> Sort</span></button>
       <button id="layoutbtn" title="Layout — list, grid or gallery view" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></span><span class="bl"> Layout</span></button>
       <button id="selectbtn" title="Select several items" aria-pressed="false" aria-label="Select"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.6 6 12l7.5-8"/></svg></span><span class="bl"> Select</span></button>
-      <button id="hidden" title="Show hidden files" aria-pressed="false"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8c1.6-2.9 3.9-4.4 6.5-4.4S13 5.1 14.5 8c-1.6 2.9-3.9 4.4-6.5 4.4S3 10.9 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></span><span class="bl">Hidden</span></button>
       <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></svg></span><span class="bl"> Search</span></button>
       <button id="refresh" title="Refresh" aria-label="Refresh"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.7 8a5.3 5.3 0 1 0 1.5-3.7"/><path d="M4.2 1.3v3h3"/></svg></span><span class="bl"> Refresh</span></button>
       <button id="manage" title="Settings — how this app behaves, share links, the classic app" aria-label="Settings"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="2.4"/><path d="M8 1.6v1.7M8 12.7v1.7M14.4 8h-1.7M3.3 8H1.6M12.5 3.5l-1.2 1.2M4.7 11.3l-1.2 1.2M12.5 12.5l-1.2-1.2M4.7 4.7 3.5 3.5"/></svg></span><span class="bl"> Settings</span></button>
@@ -836,7 +834,6 @@
   var sortBtn = document.getElementById('sortbtn');
   var navBack = document.getElementById('navback');
   var navFwd = document.getElementById('navfwd');
-  var hiddenEl = document.getElementById('hidden');
   var noticeEl = document.getElementById('notice');
   var mainEl = document.getElementById('main');
   var pvEl = document.getElementById('pv');
@@ -869,6 +866,9 @@
   var modalOpen = false;
 
   // persisted view prefs (per device)
+  // showHidden has no toolbar control: it is a persisted preference, and it
+  // lives in Settings. No keyboard shortcut either — Ctrl+H is the browser's
+  // History, and a shortcut the browser eats is worse than none.
   var showHidden = false, sortKey = 'name', sortAsc = true;
   // Settings (the classic app's Menu → Settings, which this app simply did not
   // have): single-click-to-open and exact dates are the two FileBrowser
@@ -895,8 +895,6 @@
   function syncControls() {
     var sk = { name: 'Name', size: 'Size', mtime: 'Date' }[sortKey] || sortKey;
     sortBtn.title = 'Sort — ' + sk + (sortAsc ? ' ascending' : ' descending');
-    hiddenEl.setAttribute('aria-pressed', showHidden ? 'true' : 'false');
-    hiddenEl.title = showHidden ? 'Hide hidden files' : 'Show hidden files';
   }
 
   // ---- path helpers ----
@@ -2359,12 +2357,10 @@
       if (qe) openEntry(qe);
       return;
     }
-    if (mod && ev.shiftKey && (ev.key === 'N' || ev.key === 'n')) { ev.preventDefault(); newFolder(); return; }
-    if (mod && ev.shiftKey && (ev.key === 'C' || ev.key === 'c')) {
-      ev.preventDefault();
-      document.getElementById('addrcopy').click();
-      return;
-    }
+    // No Ctrl+Shift+N / Ctrl+Shift+C here: the browser owns both (incognito
+    // window, inspect element) and never delivers them to a page — and a
+    // shortcut nobody can press is worse than none. Same reason there is no
+    // Ctrl+H for hidden files: that is the browser's History.
     if (ev.key === 'F5') { ev.preventDefault(); refresh(); return; }
     if (ev.key === 'F2') { ev.preventDefault(); startRename(); return; }
     if (ev.key === 'Delete') { ev.preventDefault(); doDelete(); return; }
@@ -3339,9 +3335,6 @@
         }
       };
     }));
-  });
-  hiddenEl.addEventListener('click', function() {
-    showHidden = !showHidden; savePrefs(); syncControls(); renderList();
   });
   document.getElementById('layoutbtn').addEventListener('click', function(ev) {
     ev.stopPropagation();
