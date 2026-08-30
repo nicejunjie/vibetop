@@ -97,6 +97,14 @@ test.describe('mario', () => {
       expect(bad, `world ${L.name} has a jump nobody can make`).toEqual([]);
       expect(enter[L.flagX], `world ${L.name} flagpole has no ground`).not.toBeNull();
       expect(enter[L.start], `world ${L.name} start has no ground`).not.toBeNull();
+      if (L.checkpoint) {
+        // STATIC ground, not a moving platform that happens to pass overhead:
+        // every respawn past the checkpoint starts here, and 1-3's sat over a
+        // chasm — you lost the rest of your lives without touching a key.
+        let solidUnder = false;
+        for (let y = 2; y < L.h; y++) if (SOLID.has(at(L.checkpoint, y))) { solidUnder = true; break; }
+        expect(solidUnder, `world ${L.name} checkpoint x=${L.checkpoint} has no ground`).toBe(true);
+      }
 
       // every warp lands on real ground (a room built past the level width is
       // silently dropped by the builder — the pipe then leads nowhere)
@@ -158,6 +166,7 @@ test.describe('mario', () => {
 
   test('blocks pay out and a mushroom makes you big', async ({ page }) => {
     await boot(page);
+    await page.evaluate(() => window.__marioTest.clear());
     await place(page, 16, 13);
     const before = (await snap(page)).coins;
     await page.keyboard.down('Space');
@@ -215,6 +224,140 @@ test.describe('mario', () => {
     await expect(page.locator('#overlay.show')).toBeVisible({ timeout: 15000 });
     await page.locator('#ovGo').click();
     await expect.poll(async () => (await snap(page)).level, { timeout: 12000 }).toBe('1-2');
+  });
+
+  test('lava kills outright, whatever size you are', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.level(3));       // the castle
+    await expect.poll(async () => (await snap(page)).state, { timeout: 10000 }).toBe('play');
+    await page.evaluate(() => window.__marioTest.give('fire'));
+    expect((await snap(page)).big).toBe(true);
+    await place(page, 22, 13);                                    // into the first pool
+    // A mushroom buys you one enemy hit; it does not buy you a swim in lava.
+    // Timing matters: the old behaviour SHRANK you and gave 110 frames of
+    // invulnerability, so "you die eventually" passed either way. Death has to
+    // be immediate.
+    await page.waitForTimeout(400);
+    expect((await snap(page)).state).toBe('dead');
+  });
+
+  test('finishing drains the clock into the score, visibly', async ({ page }) => {
+    test.slow();
+    await boot(page);
+    await place(page, 198, 13);
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(1200);
+    await page.keyboard.up('ArrowRight');
+
+    // The drain is fast; two samples a second apart can straddle it entirely,
+    // so watch the whole sequence and require an intermediate reading.
+    const seen = [];
+    for (let i = 0; i < 120; i++) {
+      seen.push(await snap(page));
+      if (await page.locator('#overlay.show').isVisible()) break;
+      await page.waitForTimeout(120);
+    }
+    const draining = seen.filter((s) => s.state === 'clearing');
+    expect(draining.length, 'the clear sequence runs').toBeGreaterThan(0);
+    expect(draining.filter((s) => s.time > 0 && s.time < 400).length,
+           'the clock is seen counting down').toBeGreaterThan(0);
+    expect(draining[draining.length - 1].score).toBeGreaterThan(draining[0].score);
+    expect((await snap(page)).time).toBe(0);
+  });
+
+  test('running out of lives offers a continue at the world you died in', async ({ page }) => {
+    test.slow();
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.level(2));       // world 1-3
+    await expect.poll(async () => (await snap(page)).state, { timeout: 10000 }).toBe('play');
+
+    // x=58 is real void in 1-3 — the mushroom trees end at 55 and the ground
+    // resumes at 60. Dropping at 40 lands ON a tree, which is not a death.
+    for (let i = 0; i < 5; i++) {
+      await place(page, 58, 4);
+      for (let j = 0; j < 60; j++) {
+        await page.waitForTimeout(150);
+        if (await page.locator('#overlay.show').isVisible()) break;
+        if ((await snap(page)).state === 'intro') break;
+      }
+      if (await page.locator('#overlay.show').isVisible()) break;
+      await page.waitForTimeout(2000);
+    }
+    await expect(page.locator('#overlay.show')).toBeVisible();
+    await expect(page.locator('#ovTitle')).toHaveText(/Game over/);
+    await expect(page.locator('#ovAlt')).toHaveText(/1-3/);
+    await page.locator('#ovAlt').click();
+    await expect.poll(async () => (await snap(page)).level, { timeout: 10000 }).toBe('1-3');
+    const s = await snap(page);
+    expect(s.lives).toBe(3);
+    expect(s.score).toBe(0);
+  });
+
+  test('one flagpole advances exactly one world', async ({ page }) => {
+    test.slow();
+    await boot(page);
+    await place(page, 198, 13);
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(1200);
+    await page.keyboard.up('ArrowRight');
+    await expect(page.locator('#overlay.show')).toBeVisible({ timeout: 25000 });
+    // 'clearing' was not a terminal state, so its final branch re-ran every
+    // frame: one flagpole advanced the world four times in 66ms and dumped you
+    // straight on the victory card with 1-2..1-4 never loaded.
+    await expect(page.locator('#ovTitle')).toHaveText(/1-1 cleared/);
+    await page.waitForTimeout(1500);
+    await expect(page.locator('#ovTitle')).toHaveText(/1-1 cleared/);
+  });
+
+  test('the castle hazards actually exist', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.level(3));
+    await expect.poll(async () => (await snap(page)).state, { timeout: 10000 }).toBe('play');
+    // The firebars were positioned in pixels and then drawn as tiles, putting
+    // every one of them thousands of pixels off screen; the cannons' countdown
+    // was cancelled out by the entity loop's shared tick, so none ever fired.
+    await place(page, 11, 13);
+    await page.waitForTimeout(600);
+    const bar = (await ents(page)).filter((e) => e.type === 'firebar')[0];
+    const s = await snap(page);
+    expect(bar, 'a firebar near the start of the castle').toBeTruthy();
+    expect(bar.x - s.camx).toBeGreaterThan(-40);
+    expect(bar.x - s.camx).toBeLessThan(s.vw + 40);
+
+    await place(page, 46, 13);
+    await expect
+      .poll(async () => (await ents(page)).some((e) => e.type === 'bill'), { timeout: 8000 })
+      .toBe(true);
+  });
+
+  test('a bumped block bounces the item on it instead of eating it', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.clear());
+    await place(page, 21, 13);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(500);
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(900);
+    expect((await ents(page)).some((e) => e.type === 'mushroom')).toBe(true);
+    // The mushroom walks onto the bricks either side; bumping one from below —
+    // the natural thing to do — used to delete it for 200 points.
+    await place(page, 22, 13);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(500);
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(700);
+    expect((await ents(page)).some((e) => e.type === 'mushroom')).toBe(true);
+  });
+
+  test('New closes whatever card is open', async ({ page }) => {
+    await page.goto('/mario.html');
+    await page.waitForFunction(() => !!window.__mario, null, { timeout: 15000 });
+    await expect(page.locator('#overlay.show')).toBeVisible();
+    await page.locator('#newBtn').click();
+    // It used to start the level BEHIND the card — and the touch pad is hidden
+    // while a card is up, so on a phone the game ran and could not be played.
+    await expect(page.locator('#overlay.show')).toBeHidden();
+    expect(await page.evaluate(() => document.body.classList.contains('carded'))).toBe(false);
   });
 
   test('every world boots and plays', async ({ page }) => {

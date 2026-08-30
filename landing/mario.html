@@ -74,6 +74,15 @@
   body.touch .pad { display: flex; }
   body.touch.paused .pad, body.touch.carded .pad { display: none; }
   .pad .grp { display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; }
+  .pad .dpad { flex-direction: column; align-items: center; gap: 8px; }
+  .pad .dpad .row { display: flex; gap: 10px; }
+  /* B above A rather than beside it: one button wide (62px) fits entirely in
+     the letterbox gutter of a landscape phone, so the thumb you hold down for
+     the whole level stops covering the edge of the screen new enemies walk in
+     from. Your thumb rests on A and reaches up for B. */
+  .pad .ab { flex-direction: column; align-items: center; gap: 10px; }
+  /* and see-through enough to read the ground underneath either way */
+  .pad .btn { background: rgba(24,31,44,.5); }
   .pad .btn {
     width: 62px; height: 62px; border-radius: 50%;
     background: rgba(30,38,52,.62); border: 2px solid rgba(150,170,200,.42);
@@ -159,12 +168,14 @@
     <canvas id="cv"></canvas>
 
     <div class="pad" id="pad">
-      <div class="grp">
-        <div class="btn" data-k="left">◀</div>
+      <div class="grp dpad">
         <div class="btn sm" data-k="down">▼</div>
-        <div class="btn" data-k="right">▶</div>
+        <div class="row">
+          <div class="btn" data-k="left">◀</div>
+          <div class="btn" data-k="right">▶</div>
+        </div>
       </div>
-      <div class="grp">
+      <div class="grp ab">
         <div class="btn b" data-k="run">B</div>
         <div class="btn a" data-k="jump">A</div>
       </div>
@@ -233,7 +244,7 @@
 
   var TS = 16;                       // tile size, px (world units == px)
   var VH = 240;                      // virtual viewport height, px
-  var VW_MIN = 256, VW_MAX = 448;    // clamp so ultra-wide doesn't reveal the level
+  var VW_MIN = 288, VW_MAX = 448;    // clamp so ultra-wide doesn't reveal the level
   var STEP = 1000 / 60;
 
   // --- physics (per 60Hz frame) ---------------------------------------- //
@@ -1051,12 +1062,17 @@
   ];
   var STARS = STAR_MAPS.map(function (m) {
     var o = {};
-    ['pS_idle', 'pS_walk1', 'pS_walk2', 'pS_walk3', 'pS_jump', 'pS_skid',
+    ['pS_idle', 'pS_walk1', 'pS_walk2', 'pS_walk3', 'pS_jump', 'pS_skid', 'pS_dead',
      'pB_up', 'pB_stand', 'pB_walk1', 'pB_walk2', 'pB_walk3', 'pB_jump', 'pB_crouch']
       .forEach(function (k) { o[k] = recolor(ART[k], SPRW[k], m); });
     return o;
   });
   // Red koopas (the ones that refuse to walk off a ledge) and their shells.
+  var UNDER_MAP = { N: '#9ab4d8', n: '#4a6a92' };
+  var UNDERG = {};
+  ['goomba1', 'goomba2', 'goombaFlat'].forEach(function (k) {
+    UNDERG[k] = recolor(ART[k], SPRW[k], UNDER_MAP);
+  });
   var RED_MAP = { G: '#e03a20', g: '#9c1c08' };
   var REDK = {};
   ['koopa1', 'koopa2', 'shell', 'shell2'].forEach(function (k) {
@@ -1147,6 +1163,9 @@
     hurt:   function () { seq([[440, 0.1], [330, 0.1], [262, 0.2]], 'square', 0.24, 0); },
     die:    function () { seq([[494, 0.12], [370, 0.1], [330, 0.1], [262, 0.12],
                               [196, 0.3, 90]], 'square', 0.26, 0.02); },
+    tick:   function () { tone(1200, 0.03, 'square', 0.1); },
+    warn:   function () { tone(880, 0.07, 'square', 0.16); tone(660, 0.07, 'square', 0.16, 0,
+                          (AC ? AC.currentTime + 0.09 : 0)); },
     flag:   function () { seq([[262, 0.07], [330, 0.07], [392, 0.07], [523, 0.07],
                               [659, 0.07], [784, 0.07], [1047, 0.18]], 'square', 0.2, 0); },
     clear:  function () { seq([[392, 0.14], [523, 0.14], [659, 0.14], [784, 0.28],
@@ -1216,8 +1235,6 @@
   // ===================================================================== //
   var K = { left: 0, right: 0, up: 0, down: 0, jump: 0, run: 0 };
   var jumpBuffer = 0;         // frames since jump was pressed (for the buffer)
-  var jumpWasDown = false;
-  var anyInputYet = false;
 
   var KEYMAP = {
     ArrowLeft: 'left', KeyA: 'left',
@@ -1232,7 +1249,7 @@
     if (!name) return;
     K[name] = down ? 1 : 0;
     if ((name === 'jump' || name === 'up') && down) pressJump();
-    if (down) { anyInputYet = true; resumeAudio(); }
+    if (down) resumeAudio();
   }
   function pressJump() { jumpBuffer = JUMP_BUF; }
   function jumpHeld() { return K.jump || K.up; }
@@ -1324,7 +1341,7 @@
     GP.down = btn(13) || (ay > 0.4 ? 1 : 0);
     var a = btn(0) || btn(1) || btn(12) || (ay < -0.5 ? 1 : 0);
     GP.run = btn(2) || btn(3) || btn(5) || btn(7);
-    if (a && !GP.jump) { pressJump(); anyInputYet = true; resumeAudio(); }
+    if (a && !GP.jump) { pressJump(); resumeAudio(); }
     GP.jump = a;
   }
 
@@ -1566,7 +1583,7 @@
   // ---- world 1-3: the athletic level, mostly air ------------------------ //
   function build13() {
     var L = new Level('1-3', 196, 'overworld');
-    L.time = 300; L.startX = 3; L.checkpoint = 92;
+    L.time = 300; L.startX = 3; L.checkpoint = 114;   // inside ground(112,126)
     L.ground(0, 26); L.ground(60, 74); L.ground(112, 126); L.ground(160, 195);
 
     L.dec('hill3', 2, GY - 3); L.dec('bush1', 14, GY - 1); L.dec('hill1', 62, GY - 1);
@@ -1692,6 +1709,7 @@
   var ents = [], parts = [], texts = [], bumps = [];
   var P = null;
   var flagPoints = 0, bridgeStep = 0;
+  var clearT = 0, drainEnd = 0, bonusPaid = 0, clearedName = '';
   var shakeT = 0;
 
   try { best = parseInt(localStorage.getItem('vibetop:mario:best') || '0', 10) || 0; } catch (e) {}
@@ -1745,11 +1763,30 @@
     p.h = p.big ? (p.crouch ? 16 : 30) : 15;
     p.w = p.big ? 12 : 11;
     p.y = oldBottom - p.h;
+    // Growing under a low ceiling would leave the head inside a solid tile,
+    // and collideX scans the head row — the player would be wedged in place.
+    for (var i = 0; i < TS * 2 && headBlocked(p); i++) p.y += 1;
+  }
+  function headBlocked(p) {
+    if (!L) return false;
+    var y0 = Math.floor(p.y / TS);
+    for (var x = Math.floor(p.x / TS); x <= Math.floor((p.x + p.w - 1) / TS); x++) {
+      if (SOLID[L.get(x, y0)]) return true;
+    }
+    return false;
   }
 
   // ===================================================================== //
   //  Entities
   // ===================================================================== //
+  // What each entity type is, in one place. These used to be re-derived as an
+  // inline list at every call site — stomp, shell, star, block-bump — and the
+  // four lists had drifted apart, which is how a kicked shell ended up
+  // deleting a lava bubble and a bumped brick ate your mushroom.
+  var STOMPABLE = { goomba: 1, koopa: 1, koopaRed: 1, para: 1, bill: 1 };
+  var CORPSE    = { goomba: 1, koopa: 1, koopaRed: 1, para: 1 };
+  var ITEM      = { mushroom: 1, oneup: 1, flower: 1, star: 1 };
+
   function makeEnt(s) {
     var e = { type: s.type, x: s.x * TS, y: s.y * TS, vx: 0, vy: 0, w: 14, h: 14,
               dir: -1, dead: false, anim: 0, gone: false, t: 0, spawn: s };
@@ -1766,7 +1803,8 @@
         e.w = 14; e.h = 24; e.px = s.x * TS; e.baseY = s.y * TS;
         e.y = s.y * TS; e.up = 0; e.phase = Math.random() * 120; break;
       case 'bullet':
-        e.cannon = true; e.w = 0; e.h = 0; e.rate = s.rate || 140; e.t = 40; break;
+        // its own counter: the loop's shared e.t++ cancelled a --e.t here
+        e.cannon = true; e.w = 0; e.h = 0; e.rate = s.rate || 140; e.cool = 40; break;
       case 'podoboo':
         e.w = 12; e.h = 14; e.baseY = s.y * TS; e.power = s.power || 6;
         e.t = Math.random() * 120; break;
@@ -1777,8 +1815,8 @@
         e.w = (s.w || 3) * TS; e.h = 8; e.dx = s.dx || 0; e.dy = s.dy || 0;
         e.min = s.min; e.max = s.max; e.plat = true; break;
       case 'boss':
-        e.w = 30; e.h = 26; e.y = s.y * TS; e.hp = 5; e.boss = true;
-        e.vx = -0.45; e.fireT = 90; e.jumpT = 160; break;
+        e.w = 30; e.h = 26; e.y = s.y * TS; e.hp = 8; e.boss = true;
+        e.vx = -0.55; e.fireT = 80; e.jumpT = 140; break;
     }
     return e;
   }
@@ -1808,14 +1846,14 @@
 
   function award(x, y, n) {
     score += n;
-    floatText(x, y, n >= 1000 ? String(n) : String(n));
+    floatText(x, y, String(n));
     updateHud();
   }
 
   // ===================================================================== //
   //  Tile collision — one axis at a time, resolve, then the other.
   // ===================================================================== //
-  function collideX(e, isPlayer) {
+  function collideX(e) {
     var y0 = Math.floor(e.y / TS), y1 = Math.floor((e.y + e.h - 1) / TS), y;
     if (e.vx > 0) {
       var xr = Math.floor((e.x + e.w - 1) / TS);
@@ -1865,7 +1903,7 @@
       var bottom = p.y + p.h;
       if (p.vy >= 0 && bottom >= e.y && bottom - p.vy - e.vy <= e.y + 2) {
         p.y = e.y - p.h; p.vy = 0; p.onGround = true;
-        p.x += e.vx; p.rideY = e.vy;
+        p.x += e.vx;
       }
     }
   }
@@ -1915,17 +1953,22 @@
     var bx = tx * TS, by = ty * TS;
     ents.forEach(function (e) {
       if (e.gone || e.plat || e.cannon || e.boss) return;
-      if (e.y + e.h > by - 2 && e.y + e.h < by + 6 && e.x + e.w > bx && e.x < bx + TS) {
-        killEnemy(e, 'flip');
-      }
+      if (!(e.y + e.h > by - 2 && e.y + e.h < by + 6 && e.x + e.w > bx && e.x < bx + TS)) return;
+      // Items BOUNCE. Killing them meant the natural move — bumping the brick
+      // your new mushroom is standing on — deleted it for 200 points.
+      if (ITEM[e.type]) { e.vy = -3.2; e.onGround = false; return; }
+      if (STOMPABLE[e.type]) killEnemy(e, 'flip');
     });
   }
 
   function killEnemy(e, how) {
     if (e.gone || e.boss || e.plat || e.cannon) return;
+    if (e.type === 'podoboo' || e.type === 'hammer' || e.type === 'firebar') return;
     if (e.type === 'piranha' && how === 'flip') return;   // plants ignore bumps
     e.gone = true;
-    if (how === 'flip' || how === 'fire' || how === 'shell') {
+    // Only things with a shell-up sprite leave a tumbling corpse; everything
+    // else just vanishes, rather than becoming an upside-down green koopa.
+    if ((how === 'flip' || how === 'fire' || how === 'shell') && CORPSE[e.type]) {
       e.flipped = true; e.vy = -3.4; e.vx = how === 'shell' ? (e.x < P.x ? -1 : 1) : e.dir * 0.6;
       ents.push({ type: 'corpse', x: e.x, y: e.y, vx: e.vx, vy: e.vy, w: 0, h: 0,
                   src: e, t: 0, corpse: true });
@@ -1956,7 +1999,7 @@
     if (p.invuln > 0) p.invuln--;
     if (p.star > 0) {
       p.star--;
-      if (p.star === 0 && state === 'play') startMusic(themeMusic(), timeLeft <= 100 ? 1.35 : 1);
+      if (p.star === 0 && state === 'play') resumeMusic();
     }
     if (p.fireCool > 0) p.fireCool--;
 
@@ -2024,8 +2067,7 @@
     if (p.vy > MAX_FALL) p.vy = MAX_FALL;
 
     p.hitWall = 0;
-    p.x += p.vx; collideX(p, true);
-    p.rideY = 0;
+    p.x += p.vx; collideX(p);
     p.y += p.vy; collideY(p, true);
     platformCollide(p);
     if (p.onGround) p.jumping = p.jumping && p.vy < 0;
@@ -2109,13 +2151,19 @@
       cam.x = Math.max(0, Math.min(p.x - VW * 0.4, L.w * TS - VW));
       p.mode = 'normal'; p.vy = 0; p.vx = 0;
       SFX.warp();
-      startMusic(themeMusic(), timeLeft <= 100 ? 1.35 : 1);
+      resumeMusic();
     }
   }
 
-  function hurt(force) {
+  // `fatal` = a hazard nothing saves you from. A mushroom buys you one enemy
+  // hit; it does not buy you a swim in lava, and neither does a star. The flag
+  // was accepted and then ignored, so big players walked out of the castle's
+  // lava one size smaller.
+  function hurt(fatal) {
     var p = P;
-    if (p.mode !== 'normal' || p.invuln > 0 || p.star > 0) return;
+    if (p.mode !== 'normal') return;
+    if (fatal) { die(); return; }
+    if (p.invuln > 0 || p.star > 0) return;
     if (p.big) {
       p.big = false; p.fire = false; p.crouch = false;
       p.mode = 'shrink'; p.modeT = 40; p.invuln = 110;
@@ -2126,8 +2174,13 @@
   function die() {
     var p = P;
     if (p.mode === 'dead') return;
+    // Fell down a pit? Bring the body back to the bottom edge so the death
+    // pop-and-fall is actually on screen. Otherwise it plays 600px below the
+    // canvas and you watch a dimmed still frame for two and a half seconds.
+    if (p.y > VHR - 24) p.y = VHR - 24;
     p.mode = 'dead'; p.modeT = 0; p.vy = -5.0; p.vx = 0;
     state = 'dead'; stateT = 0;
+    lives--; updateHud();
     stopMusic(); SFX.die();
   }
   function deadStep() {
@@ -2175,29 +2228,47 @@
     SFX.bosshit();
   }
 
+  // Clearing a level DRAINS the clock into the score, 50 a tick, with the
+  // counter visibly running down — the payoff for finishing fast. Adding the
+  // number silently and showing it on a card threw away the one moment the
+  // whole level was building to.
   function finishLevel() {
     if (state === 'clearing') return;
     state = 'clearing';
-    // the clock is worth 50 a tick, counted down in the card
-    var bonus = timeLeft * 50;
-    score += bonus; saveBest(); updateHud();
+    clearT = 0; drainEnd = 0; bonusPaid = 0;
+    clearedName = L.name;
     SFX.clear();
-    var cleared = L.name;
-    setTimeout(function () {
-      if (levelIdx + 1 < LEVELS.length) {
-        fromCheckpoint = false;
-        levelIdx++;
-        showCard('🚩', 'World ' + cleared + ' cleared',
-                 'Time bonus ' + bonus + '. Next: world ' + WORLD_NAMES[levelIdx] + '.',
-                 'Continue', null, function () { beginLevel(levelIdx, true); });
-      } else {
-        state = 'win'; saveBest();
-        showCard('👑', 'You saved the kingdom',
-                 'Final score ' + score + (score >= best ? ' — a new best.' : '') +
-                 ' Time bonus ' + bonus + '.',
-                 'Play again', null, function () { newGame(); });
-      }
-    }, 1500);
+  }
+  function stepClear() {
+    clearT++;
+    if (clearT < 40) return;                  // let the fanfare land first
+    if (timeLeft > 0) {
+      var n = Math.min(timeLeft, 4);
+      timeLeft -= n; score += n * 50; bonusPaid += n * 50;
+      if (clearT % 3 === 0) SFX.tick();
+      drainEnd = clearT;
+      updateHud();
+      return;
+    }
+    if (clearT - Math.max(drainEnd, 40) < 45) return;
+    saveBest();
+    // 'cleared' is TERMINAL. Leaving the state on 'clearing' re-ran this
+    // branch every frame: one flagpole advanced levelIdx four times in 66ms
+    // and the run ended at the victory card without 1-2..1-4 ever loading.
+    state = 'cleared';
+    if (levelIdx + 1 < LEVELS.length) {
+      fromCheckpoint = false;
+      levelIdx++;
+      showCard('🚩', 'World ' + clearedName + ' cleared',
+               'Time bonus ' + bonusPaid + '. Next: world ' + WORLD_NAMES[levelIdx] + '.',
+               'Continue', null, function () { beginLevel(levelIdx, true); });
+    } else {
+      state = 'win';
+      showCard('👑', 'You saved the kingdom',
+               'Final score ' + score + (score >= best ? ' — a new best.' : '') +
+               '  Time bonus ' + bonusPaid + '.',
+               'Play again', null, function () { newGame(); });
+    }
   }
 
   // ===================================================================== //
@@ -2291,8 +2362,8 @@
         }
         case 'bullet':
           if (!nearPlayer(e, 40)) break;
-          if (--e.t <= 0) {
-            e.t = e.rate;
+          if (--e.cool <= 0) {
+            e.cool = e.rate;
             var dir = P.x < e.x ? -1 : 1;
             if (Math.abs(P.x - e.x) > 40) {
               ents.push({ type: 'bill', x: e.x + (dir > 0 ? 8 : -8), y: e.y - 2,
@@ -2306,7 +2377,6 @@
           if (e.x < cam.x - 80 || e.x > cam.x + VW + 80) e.remove = true;
           break;
         case 'podoboo':
-          e.t++;
           if (e.launched) {
             e.vy += 0.24; e.y += e.vy;
             if (e.y > e.baseY) { e.launched = false; e.y = e.baseY; e.t = 0; }
@@ -2363,9 +2433,9 @@
     for (var i = 0; i < ents.length; i++) {
       var e = ents[i];
       if (e === sh || e.gone || e.plat || e.cannon || e.corpse) continue;
-      if (e.type === 'fireball' || e.type === 'mushroom' || e.type === 'flower' ||
-          e.type === 'star' || e.type === 'oneup' || e.type === 'firebar') continue;
-      if (e.type === 'boss') continue;
+      // A shell bowls over walking enemies. It does not delete a lava bubble,
+      // a plant inside its pipe, a thrown hammer or a power-up.
+      if (!STOMPABLE[e.type] || e.flat) continue;
       if (overlap(sh, e)) {
         killEnemy(e, 'shell');
       }
@@ -2385,8 +2455,7 @@
     for (var i = 0; i < ents.length; i++) {
       var o = ents[i];
       if (o === e || o.gone || o.corpse) continue;
-      if (o.type === 'goomba' || o.type === 'koopa' || o.type === 'koopaRed' ||
-          o.type === 'para' || o.type === 'bill') {
+      if (STOMPABLE[o.type]) {
         if (overlap(e, o)) { killEnemy(o, 'fire'); poof(e); return; }
       } else if (o.type === 'piranha' && o.up > 4) {
         if (overlap(e, { x: o.x, y: o.y, w: o.w, h: o.h })) {
@@ -2409,14 +2478,19 @@
       return;
     }
     e.t++;
-    // paces the bridge, hops now and then, spits fire at you
+    // It COMES AT YOU inside its half of the bridge, instead of pacing a fixed
+    // beat you can stand nine tiles away from and plink to death.
+    var reach = P.x < e.x ? -1 : 1;
+    if (Math.abs(P.x - e.x) > 24) e.vx = reach * Math.abs(e.vx);
     e.x += e.vx;
     if (e.x < (L.flagX - 26) * TS) e.vx = Math.abs(e.vx);
     if (e.x > (L.flagX - 12) * TS) e.vx = -Math.abs(e.vx);
     e.vy += 0.4; e.y += e.vy; collideY(e);
     if (--e.jumpT <= 0) { e.jumpT = 150 + ((Math.random() * 90) | 0); if (e.onGround) e.vy = -4.6; }
     if (--e.fireT <= 0) {
-      e.fireT = 100 + ((Math.random() * 60) | 0);
+      // closer = angrier
+      var near = Math.abs(P.x - e.x) < 90;
+      e.fireT = (near ? 45 : 95) + ((Math.random() * 50) | 0);
       if (nearPlayer(e, 0)) {
         ents.push({ type: 'hammer', x: e.x - 4, y: e.y + 4, vx: -2.2, vy: -3.2,
                     w: 8, h: 8, t: 0, awake: true });
@@ -2424,22 +2498,27 @@
     }
   }
   function bossHit(e) {
+    if (e.falling || e.hp <= 0) return;
     e.hp--; e.flash = 14; SFX.bosshit();
     if (e.hp <= 0) bossDown(e);
   }
   function bossDown(e) {
-    e.falling = true; e.vy = -3; score += 5000; updateHud();
+    // Re-entrant before this guard: every further fireball paid another 5000,
+    // re-fired the death sting and shook the screen again. One boss paid out
+    // 20000 and died four times.
+    if (e.falling) return;
+    e.falling = true; e.hp = 0; e.vy = -3; score += 5000; updateHud();
     SFX.bossdie(); shakeT = 30;
   }
 
   // --- player vs one entity --------------------------------------------- //
   function hitPlayer(e) {
     var p = P;
-    if (e.gone || e.corpse || e.remove) return;
+    if (e.gone || e.corpse || e.remove || e.flat) return;
     if (e.type === 'firebar') {
       for (var i = 1; i <= e.len; i++) {
-        var bx = e.x * TS + TS / 2 + Math.cos(e.ang) * i * 8 - 4;
-        var by = e.y * TS + TS / 2 + Math.sin(e.ang) * i * 8 - 4;
+        var bx = e.x + TS / 2 + Math.cos(e.ang) * i * 8 - 4;
+        var by = e.y + TS / 2 + Math.sin(e.ang) * i * 8 - 4;
         if (p.x < bx + 8 && p.x + p.w > bx && p.y < by + 8 && p.y + p.h > by) hurt();
       }
       return;
@@ -2469,12 +2548,13 @@
 
     if (p.star > 0) {
       if (e.type === 'boss') { bossDown(e); return; }
-      killEnemy(e, 'fire'); return;
+      if (STOMPABLE[e.type]) { killEnemy(e, 'fire'); return; }
+      if (e.type === 'piranha') { e.gone = true; award(e.x, e.y, 200); return; }
+      return;                            // podoboos and hammers pass through
     }
 
     var falling = p.vy > 0 && (p.y + p.h - p.vy) <= e.y + 8;
-    var stompable = e.type === 'goomba' || e.type === 'koopa' || e.type === 'koopaRed' ||
-                    e.type === 'para' || e.type === 'bill';
+    var stompable = !!STOMPABLE[e.type];
 
     if (e.type === 'boss') { hurt(); return; }
     if (e.type === 'podoboo' || e.type === 'piranha') { hurt(); return; }
@@ -2483,8 +2563,10 @@
       p.vy = IN.jump ? BOUNCE_HELD : BOUNCE_V;
       p.jumping = true;
       SFX.stomp();
-      p.stomps = Math.min(7, p.stomps + 1);
+      p.stomps = Math.min(9, p.stomps + 1);
+      // Eight enemies without touching the ground is a life, not 8000 points.
       var chain = [100, 200, 400, 800, 1000, 2000, 4000, 8000][p.stomps - 1];
+      if (p.stomps >= 9) { chain = 0; addLife(); floatText(e.x, e.y, '1UP'); }
       if (e.type === 'goomba') {
         e.flat = 30; e.vx = 0; e.h = 6; e.y += 8;
         award(e.x, e.y, chain);
@@ -2520,7 +2602,7 @@
   // ===================================================================== //
   var THEME = {
     overworld: { sky: '#6b8cff', ground: '#c9560f', groundHi: '#e8801f', groundLo: '#7d3208',
-                 brick: '#c9560f', brickHi: '#e8801f', stone: '#9aa4b4', hill: '#3fae3f' },
+                 brick: '#c9560f', brickHi: '#e8801f', stone: '#9aa4b4', hill: '#2e8036' },
     underground:{ sky: '#0a0d1a', ground: '#1f6fa8', groundHi: '#3fa0d8', groundLo: '#123f63',
                  brick: '#1f6fa8', brickHi: '#3fa0d8', stone: '#7f8ba0', hill: '#1d6b1d' },
     castle:     { sky: '#0d0d12', ground: '#7c7c88', groundHi: '#a8a8b4', groundLo: '#4a4a54',
@@ -2528,6 +2610,13 @@
   };
   function th() { return THEME[L.theme] || THEME.overworld; }
   function themeMusic() { return L.theme === 'castle' ? 'castle' : (L.theme === 'underground' ? 'underground' : 'overworld'); }
+  // Resume whatever SHOULD be playing right now — the star theme if the star is
+  // still up, otherwise the level's, sped up when the clock is low. Pause used
+  // to resume the level theme unconditionally and eat the rest of your star.
+  function resumeMusic() {
+    if (P && P.star > 0) startMusic('overworld', 1.7);
+    else startMusic(themeMusic(), timeLeft <= 100 ? 1.35 : 1);
+  }
 
   function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
 
@@ -2680,7 +2769,7 @@
     var p = P, set = SPR;
     if (p.star > 0) set = STARS[((frame / 4) | 0) % 3];
     else if (p.fire) set = FIRE;
-    if (p.mode === 'dead') return { up: set.pS_dead, legs: null };
+    if (p.mode === 'dead') return { up: set.pS_dead || SPR.pS_dead, legs: null };
     if (!p.big) {
       var k = 'pS_idle';
       if (!p.onGround) k = 'pS_jump';
@@ -2703,12 +2792,12 @@
   function drawPlayer() {
     var p = P;
     if (p.mode === 'grow' || p.mode === 'shrink') {
-      // flicker between the two sizes while the world is frozen
-      if (((p.modeT / 4) | 0) % 2 === 0) {
-        var alt = p.mode === 'grow' ? false : true;
-        drawBody(p, alt);
-        return;
-      }
+      // Flicker between the two SIZES while the world is frozen. Driving this
+      // off p.big drew the same sprite twice for a shrink, because hurt()
+      // clears p.big before these frames ever play.
+      if (((p.modeT / 4) | 0) % 2 === 0) { drawBody(p, p.mode === 'grow'); return; }
+      drawBody(p, !(p.mode === 'grow'));
+      return;
     }
     if (p.invuln > 0 && ((frame / 3) | 0) % 2 === 0) return;
     drawBody(p, p.big);
@@ -2716,26 +2805,33 @@
   function drawBody(p, big) {
     var s = playerSprite();
     var sx = p.x - cam.x + (p.w - 16) / 2;
-    if (!big && p.big) {
-      // mid-transition: draw the small suit at the big hitbox's feet
+    if (!big) {
+      // the small suit, drawn at the feet of whatever hitbox is current
       draw(ctx, (p.fire ? FIRE : SPR).pS_idle, sx, p.y + p.h - 16, !p.faceR);
+      return;
+    }
+    if (big && !p.big) {
+      draw(ctx, (p.fire ? FIRE : SPR).pB_up, sx, p.y + p.h - 32, !p.faceR);
+      draw(ctx, (p.fire ? FIRE : SPR).pB_stand, sx, p.y + p.h - 16, !p.faceR);
       return;
     }
     if (s.legs) {
       draw(ctx, s.up, sx, p.y, !p.faceR);
       draw(ctx, s.legs, sx, p.y + 14, !p.faceR);
     } else {
-      draw(ctx, s.up, sx, p.y + (p.big && p.crouch ? 0 : 0), !p.faceR);
+      draw(ctx, s.up, sx, p.y, !p.faceR);
     }
   }
 
   function drawEnt(e) {
     var x = e.x - cam.x, y = e.y, f2 = ((frame / 8) | 0) % 2;
     switch (e.type) {
-      case 'goomba':
-        if (e.flat) { draw(ctx, SPR.goombaFlat, x - 1, y - 8); break; }
-        draw(ctx, f2 ? SPR.goomba2 : SPR.goomba1, x - 1, y - 2, false);
+      case 'goomba': {
+        var gs = L.theme === 'underground' ? UNDERG : SPR;
+        if (e.flat) { draw(ctx, gs.goombaFlat, x - 1, y - 8); break; }
+        draw(ctx, f2 ? gs.goomba2 : gs.goomba1, x - 1, y - 2, false);
         break;
+      }
       case 'koopa': case 'koopaRed': case 'para': {
         var set = e.red ? REDK : SPR;
         if (e.shell) {
@@ -2763,7 +2859,7 @@
       case 'bill': draw(ctx, SPR.bullet, x - 1, y - 2, e.dir > 0); break;
       case 'podoboo': draw(ctx, SPR.podoboo, x - 2, y - 1, false); break;
       case 'firebar': {
-        var cx = e.x * TS + 8 - cam.x, cy = e.y * TS + 8;
+        var cx = e.x + 8 - cam.x, cy = e.y + 8;
         for (var i = 1; i <= e.len; i++) {
           draw(ctx, ((frame / 4) | 0) % 2 ? SPR.fireball2 : SPR.fireball,
                cx + Math.cos(e.ang) * i * 8 - 4, cy + Math.sin(e.ang) * i * 8 - 4);
@@ -2866,8 +2962,8 @@
   function updateCamera() {
     var target = cam.x;
     var px = P.x;
-    if (px - cam.x > VW * 0.55) target = px - VW * 0.55;
-    else if (px - cam.x < VW * 0.28) target = px - VW * 0.28;
+    if (px - cam.x > VW * 0.42) target = px - VW * 0.42;
+    else if (px - cam.x < VW * 0.20) target = px - VW * 0.20;
     cam.x = Math.max(0, Math.min(target, L.w * TS - VW));
   }
 
@@ -2958,13 +3054,26 @@
     for (var q = 0; q < texts.length; q++) {
       var tt = texts[q];
       ctx.globalAlpha = Math.max(0, 1 - tt.t / 60);
+      // White 8px on a bright sky is a 3:1 contrast that vanishes as it fades.
+      ctx.fillStyle = 'rgba(0,0,0,.75)';
+      ctx.fillText(tt.txt, tt.x - cam.x + 9, tt.y + 1);
+      ctx.fillStyle = '#fff';
       ctx.fillText(tt.txt, tt.x - cam.x + 8, tt.y);
     }
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
 
     if (state === 'dead') {
-      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, VW, VHR);
+      ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fillRect(0, 0, VW, VHR);
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 12px ui-monospace, monospace';
+      ctx.fillStyle = '#fff';
+      var msg = lives > 0 ? lives + (lives === 1 ? ' life left' : ' lives left') : 'no lives left';
+      ctx.fillStyle = 'rgba(0,0,0,.75)';
+      ctx.fillText(msg, VW / 2 + 1, 35);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(msg, VW / 2, 34);
+      ctx.textAlign = 'left';
     }
     ctx.restore();
   }
@@ -3038,13 +3147,21 @@
   }
 
   function afterDeath() {
-    lives--;
-    updateHud();
     if (lives <= 0) {
       state = 'over'; saveBest();
+      // A continue, like the classic: same world, three fresh lives, score
+      // back to zero. Without it, dying in world 1-4 sends you back to 1-1,
+      // which is a punishment nobody asked for and the reason people stop.
+      var world = WORLD_NAMES[levelIdx];
       showCard('💀', 'Game over',
                'Score ' + score + (best > 0 ? '   ·   best ' + best : '') + '.',
-               'New game', null, function () { newGame(); });
+               'New game', levelIdx > 0 ? 'Continue at ' + world : null,
+               function () { newGame(); },
+               function () {
+                 lives = 3; score = 0; coins = 0; fromCheckpoint = false;
+                 P = newPlayer();
+                 beginLevel(levelIdx, false);
+               });
       SFX.gameover();
       return;
     }
@@ -3056,11 +3173,11 @@
     if (state === 'play') {
       state = 'paused'; stopMusic();
       showCard('⏸', 'Paused', '', 'Resume', 'Restart world', function () {
-        state = 'play'; startMusic(themeMusic(), timeLeft <= 100 ? 1.35 : 1);
+        state = 'play'; resumeMusic();
       }, function () { beginLevel(levelIdx, true); });
     } else if (state === 'paused' && !force) {
       hideCard();
-      state = 'play'; startMusic(themeMusic(), timeLeft <= 100 ? 1.35 : 1);
+      state = 'play'; resumeMusic();
     }
   }
 
@@ -3091,13 +3208,17 @@
       }
       return;
     }
-    if (state === 'title' || state === 'paused' || state === 'over' || state === 'win') return;
+    if (state === 'title' || state === 'paused' || state === 'over' ||
+        state === 'win' || state === 'cleared') return;
 
     if (state === 'play') {
       if (++timeSub >= 24) {
         timeSub = 0;
         timeLeft--;
-        if (timeLeft === 100) startMusic(themeMusic(), 1.35);
+        // The clock has to be audible or it is just a number nobody watches:
+        // a hurry-up at 100, then a tick a second through the last twenty.
+        if (timeLeft === 100) { startMusic(themeMusic(), 1.35); SFX.warn(); }
+        else if (timeLeft > 0 && timeLeft <= 20) SFX.tick();
         if (timeLeft <= 0) { timeLeft = 0; die(); }
         updateHud();
       }
@@ -3109,11 +3230,12 @@
     } else if (state === 'dead') {
       updatePlayer();
       stateT++;
-      if (stateT > 150) afterDeath();
+      if (stateT > 108) afterDeath();
     } else if (state === 'clear' || state === 'clearing') {
       stateT++;
       updatePlayer();
       updateEnts();
+      if (state === 'clearing') stepClear();
     }
 
     updateParts();
@@ -3154,7 +3276,7 @@
     // as a dead black slab. Render TALLER instead and fill the extra with solid
     // earth under the level — the window fills, and a pit still reads as a pit
     // because the columns with no ground stay black.
-    VHR = Math.max(VH, Math.min(VH * 2, Math.floor(ch / scale)));
+    VHR = Math.max(VH, Math.min(VH * 1.35, Math.floor(ch / scale)));
     cv.width = VW; cv.height = VHR;
     cv.style.width = Math.floor(VW * scale) + 'px';
     cv.style.height = Math.floor(VHR * scale) + 'px';
@@ -3181,7 +3303,7 @@
   }
 
   document.getElementById('newBtn').addEventListener('click', function () {
-    resumeAudio(); newGame();
+    hideCard(); closeHelp(); resumeAudio(); newGame();
   });
   document.getElementById('helpBtn').addEventListener('click', openHelp);
   document.getElementById('helpX').addEventListener('click', closeHelp);
@@ -3198,7 +3320,7 @@
     try { localStorage.setItem('vibetop:mario:sound', soundOn ? '1' : '0'); } catch (e) {}
     paintSnd();
     if (!soundOn) stopMusic();
-    else if (state === 'play') { resumeAudio(); startMusic(themeMusic(), timeLeft <= 100 ? 1.35 : 1); }
+    else if (state === 'play') { resumeAudio(); resumeMusic(); }
   });
   paintSnd();
 
@@ -3248,7 +3370,13 @@
       return ents.map(function (e) { return { type: e.type, x: e.x, y: e.y, gone: !!e.gone,
                                               shell: !!e.shell, awake: !!e.awake }; });
     },
-    tile: function (tx, ty) { return L.get(tx, ty); }
+    tile: function (tx, ty) { return L.get(tx, ty); },
+    // Clear the enemies so a test about BLOCKS is about blocks. Without it,
+    // "stand under the power block and jump" is a coin flip against whichever
+    // goomba has wandered into that column by then.
+    clear: function () {
+      ents = ents.filter(function (e) { return e.plat || e.cannon; });
+    }
   };
 
   // A read-only snapshot for the test suite. A platformer cannot be checked

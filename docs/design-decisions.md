@@ -4433,3 +4433,41 @@ original exact-bytes test stayed green through the whole breakage.
   covers an endpoint added tomorrow.
 - **Rule:** when a fix is structural, put the check where the structure is. A
   rule enforced N times will be enforced N-1 times before long.
+
+## A level a player cannot finish looks exactly like a level that works
+
+- **Symptom:** world 1-3 of Super Vibe Bros (v1.19.127) shipped, in
+  development, with a **9-tile gap** between the last mushroom tree and the
+  ground beyond it. A running jump clears about 7. Every behavioural test
+  passed — the game booted, the physics were right, the enemies worked, the
+  flagpole ended the level. The level was simply impossible past tile 50.
+  In the same build, world 1-1's bonus room was built at x=218..236 of a level
+  **216 tiles wide**: `Level.set()` silently drops anything past the width, so
+  the warp pipe led into unwritten grid, and arriving there instantly triggered
+  the flagpole (the check was `x >= flagX`, unbounded, and the room sat past
+  the castle).
+- **Cause:** a level is data, and data has no assertions. Reading the builder
+  (`L.ground(60, 74); tree(46, 9, 5); L.ground(112, 126)`) tells you nothing
+  about whether the distance between two footholds is jumpable — you have to
+  *compute* it against the jump arc, which nobody does by eye. Every one of
+  these is invisible in a diff and obvious within ten seconds of play.
+- **Fix:** a **solvability audit** in `tests/e2e/tests/mario.spec.js`. It reads
+  each level's tile grid out of the page (`window.__marioBuild(i)`), derives
+  the topmost foothold per column, walks them from the start column to the
+  flagpole, and fails if any hop exceeds a running jump (budget: 5 tiles across
+  / 3 up, deliberately tighter than the real ~7/~4 so a level is never merely
+  *barely* possible). It also checks the flag and start columns have ground,
+  that no spawn is buried in a wall, and that every warp target is inside the
+  level and lands on something. All four findings above came from its first
+  run.
+- **Moving platforms needed two numbers, not one.** Modelling a platform by a
+  single row made every one either unreachable (if you used its highest
+  position) or a dead end (its lowest). The audit records `enter` (lowest — the
+  easiest place to board) and `exit` (highest — it carries you up) per column,
+  and checks hops from the previous column's `exit` to this column's `enter`.
+- **Rule this generalizes:** when correctness is a property of *content* rather
+  than of code, the test has to read the content and do the arithmetic. "It
+  renders and nothing throws" is not coverage of a level, a layout, or a
+  schedule — it is coverage of the renderer. Same lesson as the Files geometry
+  audit (`files-native-layout.spec.js`): behavioural tests asserted what the
+  controls *did* and never *where they were*.
