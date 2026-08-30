@@ -2915,6 +2915,10 @@
   // --- events ---
   startBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleMenu(); });
   (function () {
+    var sd = document.getElementById('sd-btn');
+    if (sd) sd.addEventListener('click', function (e) { e.stopPropagation(); showDesktop(); });
+  })();
+  (function () {
     var wb = document.getElementById('wm-btn');
     if (!wb) return;
     var held = false, pressT = null;
