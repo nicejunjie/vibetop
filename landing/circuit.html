@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Super Vibe Bros — Vibetop</title>
+<title>Circuit Runner — Vibetop</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; }
@@ -26,7 +26,9 @@
   }
   .bar {
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
-    min-height: 40px; padding: 4px 8px;
+    min-height: 40px;
+    padding: 4px calc(8px + env(safe-area-inset-right, 0px))
+             4px calc(8px + env(safe-area-inset-left, 0px));
     background: #161b22; border-bottom: 1px solid #2a3040;
     user-select: none; -webkit-user-select: none;
   }
@@ -47,7 +49,9 @@
   @media (max-width: 420px) { #stScore { display: none; } }
   /* Five buttons and three chips overflowed a 375px phone outright. */
   @media (max-width: 448px) {
-    .bar { gap: 4px; padding: 4px 5px; }
+    .bar { gap: 4px;
+           padding: 4px calc(5px + env(safe-area-inset-right, 0px))
+                    4px calc(5px + env(safe-area-inset-left, 0px)); }
     .stat { padding: 2px 5px; min-width: 36px; }
     .stat .val { font-size: 12px; }
     #helpBtn, #sndBtn, #fsBtn, #pauseBtn { min-width: 26px; padding: 5px 5px; }
@@ -78,6 +82,8 @@
     flex: 1; min-height: 0; position: relative;
     display: flex; align-items: center; justify-content: center;
     background: #000; overflow: hidden;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
   /* A 4:3 picture in a tall phone window leaves a band of black. Centred, it
      splits above and below and reads as a mistake; pinned to the top, the
@@ -92,9 +98,14 @@
   /* ---- touch controls -------------------------------------------------- */
   /* Only on touch devices, and laid over the canvas rather than stealing
      height from it — a platformer needs every pixel of the play area. */
+  /* A notched phone in LANDSCAPE puts ~44px of the screen under the notch on
+     one side and the home indicator on the other. The padding was a flat
+     12px, so the ◀ button sat under the notch and read as cut off. */
   .pad { position: absolute; inset: auto 0 0 0; display: none;
          justify-content: space-between; align-items: flex-end;
-         padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+         padding: 10px calc(12px + env(safe-area-inset-right, 0px))
+                  calc(10px + env(safe-area-inset-bottom, 0px))
+                  calc(12px + env(safe-area-inset-left, 0px));
          pointer-events: none; z-index: 4; }
   body.touch .pad { display: flex; }
   body.touch.paused .pad, body.touch.carded .pad { display: none; }
@@ -193,13 +204,13 @@
 <body>
   <div id="app">
   <div class="bar">
-    <span class="title"><span class="ic">🍄</span><span class="txt">Super Vibe Bros</span></span>
+    <span class="title"><span class="ic">🤖</span><span class="txt">Circuit Runner</span></span>
     <span class="spacer"></span>
     <div class="stat" id="stScore"><span class="lbl">Score</span><span class="val" id="score">0</span></div>
     <div class="stat"><span class="lbl">Coins</span><span class="val" id="coins">0</span></div>
-    <div class="stat" id="stWorld"><span class="lbl">World</span><span class="val" id="world">1-1</span></div>
+    <div class="stat" id="stWorld"><span class="lbl">Sector</span><span class="val" id="world">01</span></div>
     <div class="stat" id="stTime"><span class="lbl">Time</span><span class="val" id="time">400</span></div>
-    <div class="stat"><span class="lbl">Lives</span><span class="val" id="lives">3</span></div>
+    <div class="stat"><span class="lbl">Units</span><span class="val" id="lives">3</span></div>
     <button id="fsBtn" title="Fullscreen / landscape" aria-label="Fullscreen"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M1 5V1h4M13 5V1H9M1 9v4h4M13 9v4H9"/></svg></button>
     <button id="pauseBtn" title="Pause" aria-label="Pause"><svg width="11" height="12" viewBox="0 0 11 12" aria-hidden="true"><rect x="0" y="0" width="4" height="12" rx="1" fill="currentColor"/><rect x="7" y="0" width="4" height="12" rx="1" fill="currentColor"/></svg></button>
     <button id="sndBtn" title="Sound on/off">🔊</button>
@@ -227,8 +238,8 @@
 
     <div class="overlay" id="overlay">
       <div class="card">
-        <div class="big" id="ovIcon">🍄</div>
-        <h2 id="ovTitle">Super Vibe Bros</h2>
+        <div class="big" id="ovIcon">🤖</div>
+        <h2 id="ovTitle">Circuit Runner</h2>
         <p id="ovMsg"></p>
         <div class="btns" id="ovBtns">
           <button class="primary" id="ovGo">Start</button>
@@ -241,17 +252,17 @@
       <div class="card">
         <button class="x" id="helpX" title="Close">✕</button>
         <h2>How to play</h2>
-        <p class="goal">Run right, stomp what moves, reach the flagpole before the
-          clock runs out. Mushrooms make you big, flowers let you throw fire, stars
-          make you untouchable. Five worlds, including one underwater, and a boss
-          at the end of 1-5.</p>
+        <p class="goal">Run right, crush what moves, reach the uplink mast before
+          the clock runs out. A power cell armours you up, a plasma core lets you
+          shoot, an overclock makes you untouchable. Five sectors, one flooded
+          with coolant, and the Mainframe waiting in sector 05.</p>
         <h3 class="kb">Keyboard</h3>
         <ul class="kb">
           <li><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> — walk</li>
           <li><kbd>Space</kbd> / <kbd>↑</kbd> / <kbd>Z</kbd> — jump <span class="em">(hold for higher)</span></li>
           <li><kbd>Shift</kbd> / <kbd>X</kbd> — run, and throw fire</li>
           <li><kbd>↓</kbd> — crouch, and enter a green pipe</li>
-          <li><kbd>↑</kbd> — climb a vine</li>
+          <li><kbd>↑</kbd> — climb a cable</li>
           <li><kbd>P</kbd> or <kbd>Esc</kbd> — pause</li>
         </ul>
         <h3 class="tc">Touch</h3>
@@ -263,12 +274,12 @@
         <h3>Worth knowing</h3>
         <ul>
           <li>Jumping while running goes further — momentum carries</li>
-          <li>Stomp a shell to stop it, kick it to bowl over a row of enemies</li>
-          <li>A block bumped from below flips anything standing on it</li>
-          <li>Underwater, each press of jump is one stroke — hold does nothing</li>
-          <li>You can't stomp a fish. Burn it, or swim around it</li>
-          <li>A beanstalk grows out of one block in 1-1, and leads somewhere</li>
-          <li>Hidden 1-ups, a springboard and a warp pipe are in there too</li>
+          <li>Crush a glitch to leave its core; kick the core to bowl over a row</li>
+          <li>A block struck from below flips anything standing on it</li>
+          <li>In coolant, each press of jump is one thruster pulse — holding does nothing</li>
+          <li>You can't crush a coolant jelly. Shoot it, or swim around it</li>
+          <li>A cable unspools from one block in sector 01, and leads somewhere</li>
+          <li>Hidden spare units, a launch pad and a conduit are in there too</li>
         </ul>
       </div>
     </div>
@@ -279,7 +290,7 @@
   'use strict';
 
   // ===================================================================== //
-  //  Super Vibe Bros — a side-scrolling platformer in the SMB tradition.
+  //  Circuit Runner — a side-scrolling platformer in the SMB tradition.
   //
   //  Everything is self-contained: no images, no audio files, no libraries.
   //  Sprites are pixel arrays baked into offscreen canvases at load; the
@@ -322,24 +333,24 @@
   // ===================================================================== //
   var PAL = {
     '.': null,
-    R: '#e03a20', r: '#9c1c08',        // red   (cap / shirt)
-    B: '#2c4ad0', b: '#16276f',        // blue  (overalls)
-    S: '#f6b083', s: '#c06a38',        // skin
-    N: '#6d3a10', n: '#43220a',        // brown (hair / boots / goomba)
-    K: '#141414', W: '#ffffff', L: '#c8d0dc',
-    Y: '#f7d02c', y: '#b8880c',        // yellow
-    G: '#3fae3f', g: '#1d6b1d',        // green
-    O: '#ef8b28', o: '#a5560c',        // orange
+    R: '#8a4adb', r: '#4a2378',        // accent purple (chassis trim)
+    B: '#3a4358', b: '#232a38',        // slate body
+    S: '#8fa0bb', s: '#5a6880',        // panel grey
+    N: '#4ec9e0', n: '#1f7d92',        // cyan (visor, glow)
+    K: '#12151d', W: '#eef4ff', L: '#c8d0dc',
+    Y: '#f7d02c', y: '#b8880c',        // token gold
+    G: '#3fae3f', g: '#1d6b1d',
+    O: '#ef8b28', o: '#a5560c',        // heat
     P: '#f088c0', C: '#4ec9e0', M: '#8a4adb',
-    T: '#f2e9c8',                      // bone / teeth / eye white
-    a: '#a8720a', A: '#ffefa8', h: '#d19a10'   // coin: outline, shine, shade
+    T: '#f2e9c8',
+    a: '#7a5a10', A: '#fff0b0', h: '#c99a18'   // token: outline, shine, shade
   };
 
   // A row that is one character short or long silently shifts every pixel to
   // its right — invisible in a diff, obvious on screen. Record the mismatch
   // instead of trusting the eye; the test suite asserts this list is empty.
   var SPRITE_WARN = [];
-  window.__marioSpriteWarnings = SPRITE_WARN;
+  window.__crSpriteWarnings = SPRITE_WARN;
 
   function bake(w, rows, pal) {
     var h = rows.length;
@@ -375,409 +386,408 @@
   var ART = {};      // name -> rows
   var SPR = {};      // name -> baked {c,f,w,h}
 
-  // ---- player, small (16x16) ------------------------------------------ //
+  // ---- the unit, small (16x16) ----------------------------------------- //
+  // A boxy service robot: antenna, a wide cyan visor, a chest light, treads.
+  // Nothing about the silhouette is a person.
   ART.pS_idle = [
-    '.....RRRRRR.....',
-    '...RRRRRRRRRRR..',
-    '...NNNSSSSKSS...',
-    '..NNSNSSSSSKSS..',
-    '..NSNNSSSSSSSS..',
-    '..NNSSKKKSSSSS..',
-    '....SSSSSSSS....',
-    '...RRBRRRR......',
-    '..RRRBRRBRRR....',
-    '.SSRBBRRBBRSS...',
-    '.SSSBBBBBBSSS...',
-    '.SSBBYBBYBBSS...',
-    '...BBBBBBBB.....',
-    '..BBB....BBB....',
-    '.nnn......nnn...',
-    'nnnn......nnnn..'
+    '.......K........',
+    '.......N........',
+    '..KKKKKKKKKK....',
+    '..KBBBBBBBBK....',
+    '..KBNNNNNNBK....',
+    '..KBNWWNNWNBK...',
+    '..KBNNNNNNBK....',
+    '..KKKKKKKKKK....',
+    '...KRRRRRRK.....',
+    '..KBBBRRBBBK....',
+    '..KBBRNNRBBK....',
+    '..KBBBRRBBBK....',
+    '...KBBBBBBK.....',
+    '...KKKKKKKK.....',
+    '..KSSKKKKSSK....',
+    '..KKKKKKKKKK....'
   ];
   ART.pS_walk1 = [
-    '.....RRRRRR.....',
-    '...RRRRRRRRRRR..',
-    '...NNNSSSSKSS...',
-    '..NNSNSSSSSKSS..',
-    '..NSNNSSSSSSSS..',
-    '..NNSSKKKSSSSS..',
-    '....SSSSSSSS....',
-    '...RRRBBRRR.....',
-    '..RRRRBBRRRR....',
-    '.SSRRBBBBRRSS...',
-    '.SSSBBBBBBSSS...',
-    '..SBBYBBYBBS....',
-    '...BBBBBBBB.....',
-    '..BBBB..BBB.....',
-    '.nnnn....nnn....',
-    'nnnn......nnnn..'
+    '.......K........',
+    '.......N........',
+    '..KKKKKKKKKK....',
+    '..KBBBBBBBBK....',
+    '..KBNNNNNNBK....',
+    '..KBNWWNNWNBK...',
+    '..KBNNNNNNBK....',
+    '..KKKKKKKKKK....',
+    '.KKRRRRRRK......',
+    '.KBBBRRBBBK.....',
+    '.KBBRNNRBBK.....',
+    '..KBBBRRBBBK....',
+    '...KBBBBBBK.....',
+    '...KKKKKKKK.....',
+    '..KKSSKKSSKK....',
+    '..KKKKKKKKKK....'
   ];
   ART.pS_walk2 = [
-    '.....RRRRRR.....',
-    '...RRRRRRRRRRR..',
-    '...NNNSSSSKSS...',
-    '..NNSNSSSSSKSS..',
-    '..NSNNSSSSSSSS..',
-    '..NNSSKKKSSSSS..',
-    '....SSSSSSSS....',
-    '....RRBBRR......',
-    '...RRRBBRRR.....',
-    '..SSRBBBBRSS....',
-    '..SSBBBBBBSS....',
-    '...BBYBBYBB.....',
-    '...BBBBBBBB.....',
-    '....BBBBBB......',
-    '...nnnnnnn......',
-    '..nnn...nnnn....'
+    '.......K........',
+    '.......N........',
+    '..KKKKKKKKKK....',
+    '..KBBBBBBBBK....',
+    '..KBNNNNNNBK....',
+    '..KBNWWNNWNBK...',
+    '..KBNNNNNNBK....',
+    '..KKKKKKKKKK....',
+    '...KRRRRRRK.....',
+    '...KBBRRBBK.....',
+    '...KBRNNRBK.....',
+    '...KBBBRRBBK....',
+    '....KBBBBBK.....',
+    '....KKKKKKK.....',
+    '...KKSSSSKK.....',
+    '...KKKKKKKK.....'
   ];
   ART.pS_walk3 = [
-    '.....RRRRRR.....',
-    '...RRRRRRRRRRR..',
-    '...NNNSSSSKSS...',
-    '..NNSNSSSSSKSS..',
-    '..NSNNSSSSSSSS..',
-    '..NNSSKKKSSSSS..',
-    '....SSSSSSSS....',
-    '...RRRBBRRR.....',
-    '..RRRRBBRRRR....',
-    '.SSRRBBBBRRSS...',
-    '.SSSBBBBBBSSS...',
-    '....BBYBBYBBS...',
-    '.....BBBBBBBB...',
-    '.....BBB..BBBB..',
-    '....nnn....nnnn.',
-    '..nnnn......nnnn'
+    '.......K........',
+    '.......N........',
+    '..KKKKKKKKKK....',
+    '..KBBBBBBBBK....',
+    '..KBNNNNNNBK....',
+    '..KBNWWNNWNBK...',
+    '..KBNNNNNNBK....',
+    '..KKKKKKKKKK....',
+    '......KRRRRRRKK.',
+    '.....KBBBRRBBBK.',
+    '.....KBBRNNRBBK.',
+    '....KBBBRRBBBK..',
+    '....KBBBBBBK....',
+    '....KKKKKKKK....',
+    '...KKSSKKSSKK...',
+    '...KKKKKKKKKK...'
   ];
   ART.pS_jump = [
-    '.....RRRRRR.....',
-    '...RRRRRRRRRRR..',
-    '...NNNSSSSKSS...',
-    '..NNSNSSSSSKSS..',
-    '..NSNNSSSSSSSS..',
-    '..NNSSKKKSSSSS..',
-    '....SSSSSSSS....',
-    'S..RRBBBBRR..S..',
-    'SS.RRBBBBRR.SS..',
-    'SSRRBBBBBBRRSS..',
-    '.SRBBYBBYBBRS...',
-    '..BBBBBBBBBB....',
-    '..BBB....BBB....',
-    '.nnnn....BBBB...',
-    'nnnn......nnnn..',
-    '..........nnnn..'
+    '.......K........',
+    '.N.....N.....N..',
+    'NNKKKKKKKKKKNN..',
+    '.NKBBBBBBBBKN...',
+    '..KBNNNNNNBK....',
+    '..KBNWWNNWNBK...',
+    '..KBNNNNNNBK....',
+    '.NKKKKKKKKKKN...',
+    'NN.KRRRRRRK.NN..',
+    '...KBBRRBBK.....',
+    '...KBRNNRBK.....',
+    '...KBBBRRBBK....',
+    '..KKBBBBBBKK....',
+    '..KKKKKKKKKK....',
+    '..KS......SK....',
+    '..KK......KK....'
   ];
   ART.pS_skid = [
-    '.....RRRRRR.....',
-    '..RRRRRRRRRRR...',
-    '...SSKSSSSNNN...',
-    '..SSKSSSSSNSNN..',
-    '..SSSSSSSSNNSN..',
-    '..SSSSKKKSSNN...',
-    '....SSSSSSSS....',
-    '...RRRRBBRR.....',
-    '..RRRRRBBRRR....',
-    '.SSRRBBBBRRSS...',
-    '.SSSBBBBBBSSS...',
-    '..SBBYBBYBBS....',
-    '...BBBBBBBB.....',
-    '...BBB..BBBB....',
-    '..nnn....nnnn...',
-    '.nnnn.....nnnn..'
+    '........K.......',
+    '........N.......',
+    '....KKKKKKKKKK..',
+    '....KBBBBBBBBK..',
+    '....KBNNNNNNBK..',
+    '...KBNWNNWWNBK..',
+    '....KBNNNNNNBK..',
+    '....KKKKKKKKKK..',
+    '.....KRRRRRRK...',
+    '....KBBBRRBBBK..',
+    '....KBBRNNRBBK..',
+    '....KBBBRRBBBK..',
+    '.....KBBBBBBK...',
+    '.....KKKKKKKK...',
+    '..KKSSKKKKSSK...',
+    '..KKKKKKKKKKK...'
   ];
   ART.pS_dead = [
-    '....RRRRRR......',
-    '...RRRRRRRRRR...',
-    '...NNNSSSSS.....',
-    '..NSNSSKSSKS....',
-    '..NSNNSSSSSSS...',
-    '..NNSSSKKKKSS...',
-    '....SSSSSSSS....',
-    'SS.RRRRRRRR..SS.',
-    'SSSRRBBBBRRSSSS.',
-    '.SSRBBBBBBRSS...',
-    '..RBBYBBYBBR....',
-    '..BBBBBBBBBB....',
-    '..BBB....BBB....',
-    '..nnn....nnn....',
-    '.nnnn....nnnn...',
-    '................'
+    '.......K........',
+    '.......K........',
+    '..KKKKKKKKKK....',
+    '..KBBBBBBBBK....',
+    '..KBssssssBK....',
+    '..KBsKssKsBK....',
+    '..KBssssssBK....',
+    '..KKKKKKKKKK....',
+    '...KsssssSK.....',
+    '..KBBBssBBBK....',
+    '..KBBsssSBBK....',
+    '..KBBBssBBBK....',
+    '...KBBBBBBK.....',
+    '...KKKKKKKK.....',
+    '..KSSKKKKSSK....',
+    '..KKKKKKKKKK....'
   ];
-
-  // Swimming and climbing are two of the five worlds' core activities, and
-  // both were drawn with the jump pose.
   ART.pS_swim1 = [
-    '.S..RRRRRR....S.',
-    '.SS.RRRRRRRRR.SS',
-    '..S.NNNSSSKS..S.',
-    '...NSNSSSSKSSS..',
-    '...NSNNSSSSKSSS.',
-    '...NNSSSSSKKKK..',
-    '.....SSSSSSSS...',
-    '....RRRBBRRR....',
-    '...RRRRBBRRRR...',
-    '...RRRBBBBRRR...',
-    '....BBBBBBBB....',
-    '....BBBBBBBB....',
-    '.....BBBBBB.....',
-    '.....BB..BB.....',
-    '....nnn..nnn....',
-    '...nnnn..nnnn...'
+    '.......K........',
+    'N......N......N.',
+    '.NKKKKKKKKKKN...',
+    '..KBBBBBBBBK....',
+    '..KBNNNNNNBK....',
+    '..KBNWWNNWNBK...',
+    '..KBNNNNNNBK....',
+    '..KKKKKKKKKK....',
+    '...KRRRRRRK.....',
+    '...KBBRRBBK.....',
+    '...KBRNNRBK.....',
+    '...KBBBRRBBK....',
+    '....KBBBBBK.....',
+    '....KKKKKKK.....',
+    '....KnnnnK......',
+    '.....nnnn.......'
   ];
   ART.pS_swim2 = [
-    '.....RRRRRR.....',
-    '...RRRRRRRRRRR..',
-    '...NNNSSSSKSS...',
-    '..NNSNSSSSSKSS..',
-    '..NSNNSSSSSSSS..',
-    '..NNSSKKKSSSSS..',
-    '....SSSSSSSS....',
-    '...RRRBBRRR.....',
-    '..RRRRBBRRRR....',
-    '.SRRRBBBBRRRS...',
-    '.SSBBBBBBBBSS...',
-    '..SBBBBBBBBS....',
-    '....BBBBBB......',
-    '....BB..BB......',
-    '...nnn..nnn.....',
-    '..nnnn..nnnn....'
+    '.......K........',
+    '.......N........',
+    '..KKKKKKKKKK....',
+    '..KBBBBBBBBK....',
+    '..KBNNNNNNBK....',
+    '..KBNWWNNWNBK...',
+    '..KBNNNNNNBK....',
+    '..KKKKKKKKKK....',
+    'N..KRRRRRRK...N.',
+    '.N.KBBRRBBK..N..',
+    '...KBRNNRBK.....',
+    '...KBBBRRBBK....',
+    '....KBBBBBK.....',
+    '....KKKKKKK.....',
+    '.....KnnK.......',
+    '......nn........'
   ];
   ART.pS_climb1 = [
-    '....RRRRRR......',
-    '...RRRRRRRRRR...',
-    '...RRRRRRRRRR...',
-    '...NNNNNNNN.....',
-    '.SS.NNNNNN..SS..',
-    '.SS.NNNNNN..SS..',
-    '..S.RRRRRR.SS...',
-    '....RRRRRR......',
-    '...BBBBBBBB.....',
-    '...BBYBBYBB.....',
-    '...BBBBBBBB.....',
-    '...BBB..BBB.....',
-    '...BBB..BBB.....',
-    '..nnn....nnn....',
-    '..nnn....nnn....',
-    '................'
+    '.......K........',
+    '.......N........',
+    '..KKKKKKKKKK....',
+    '..KBBBBBBBBK....',
+    'SSKBBBBBBBBKSS..',
+    'SSKBBBNNBBBKSS..',
+    '..KBBBBBBBBK....',
+    '..KKKKKKKKKK....',
+    '...KRRRRRRK.....',
+    '...KBBRRBBK.....',
+    '...KBRNNRBK.....',
+    '...KBBBRRBBK....',
+    '...KBBBBBBBK....',
+    '...KKKKKKKKK....',
+    '..KSSK..KSSK....',
+    '..KKKK..KKKK....'
   ];
   ART.pS_climb2 = [
-    '....RRRRRR......',
-    '...RRRRRRRRRR...',
-    '...RRRRRRRRRR...',
-    '...NNNNNNNN.....',
-    '.SS.NNNNNN......',
-    '.SS.NNNNNN..SS..',
-    '....RRRRRR..SS..',
-    '....RRRRRR.S....',
-    '...BBBBBBBB.....',
-    '...BBYBBYBB.....',
-    '...BBBBBBBB.....',
-    '....BBBBBB......',
-    '...BBB..BBB.....',
-    '...nnn...nnn....',
-    '..nnn.....nnn...',
-    '................'
+    '.......K........',
+    '.......N........',
+    '..KKKKKKKKKK....',
+    '..KBBBBBBBBK....',
+    'SSKBBBBBBBBK....',
+    'SSKBBBNNBBBKSS..',
+    '..KBBBBBBBBKSS..',
+    '..KKKKKKKKKK....',
+    '...KRRRRRRK.....',
+    '...KBBRRBBK.....',
+    '...KBRNNRBK.....',
+    '...KBBBRRBBK....',
+    '...KBBBBBBBK....',
+    '...KKKKKKKKK....',
+    '..KSSK..KSSK....',
+    '..KKKK..KKKK....'
   ];
 
-  // ---- player, big: a shared upper body + swappable legs (16x16 each) --- //
+  // ---- the unit, armoured: a shared upper body + swappable legs -------- //
   ART.pB_up = [
-    '.....RRRRRR.....',
-    '...RRRRRRRRRRR..',
-    '...RRRRRRRRRRR..',
-    '...NNNSSSSKSS...',
-    '..NNSNSSSSSKSS..',
-    '..NSNNNSSSSSSS..',
-    '..NSNNSSKKKSSS..',
-    '..NNNSSSSSSSSS..',
-    '....SSSSSSSSS...',
-    '.....SSSSSS.....',
-    '...RRRRRRRRR....',
-    '..RRRRRRRRRRR...',
-    '.RRRBBBBBBRRR...',
-    'SRRBBYBBYBBRRS..',
-    'SSRBBBBBBBBRSS..',
-    'SSRBBBBBBBBRSS..'
+    '.......K........',
+    '.......N........',
+    '..KKKKKKKKKKK...',
+    '..KBBBBBBBBBK...',
+    '..KBNNNNNNNBK...',
+    '..KBNWWNNNWNBK..',
+    '..KBNNNNNNNBK...',
+    '..KKKKKKKKKKK...',
+    '.KKRRRRRRRRKK...',
+    '.KRRRRRRRRRRK...',
+    'KKRRRBBBBRRRKK..',
+    'KRRRBBNNBBRRRK..',
+    'KRRRBBNNBBRRRK..',
+    'KKRRRBBBBRRRKK..',
+    '.KRRRRRRRRRRK...',
+    '.KKRRRRRRRRKK...'
   ];
   ART.pB_stand = [
-    'SSBBBBBBBBBBSS..',
-    'SSBBBBBBBBBBSS..',
-    '.SBBBBBBBBBBS...',
-    '..BBBBBBBBBB....',
-    '..BBBBBBBBBB....',
-    '..BBBB..BBBB....',
-    '..BBBB..BBBB....',
-    '..BBBB..BBBB....',
-    '..BBBB..BBBB....',
-    '..SSSS..SSSS....',
-    '..SSSS..SSSS....',
-    '..nnnn..nnnn....',
-    '.nnnnnn.nnnnnn..',
-    'nnnnnnn.nnnnnnn.',
-    'nnnnnnn.nnnnnnn.',
-    '.nnnnn...nnnnn..'
+    'SKKBBBBBBBBKKS..',
+    'SKKBBBBBBBBKKS..',
+    '.KKBBBBBBBBKK...',
+    '..KBBBBBBBBK....',
+    '..KBBBBBBBBK....',
+    '..KBBK..KBBK....',
+    '..KBBK..KBBK....',
+    '..KBBK..KBBK....',
+    '..KBBK..KBBK....',
+    '..KSSK..KSSK....',
+    '..KSSK..KSSK....',
+    '..KKKK..KKKK....',
+    '.KKSSKK.KKSSKK..',
+    'KKSSSSK.KSSSSKK.',
+    'KKKKKKK.KKKKKKK.',
+    '.KKKKK...KKKKK..'
   ];
   ART.pB_walk1 = [
-    'SSBBBBBBBBBBSS..',
-    'SSBBBBBBBBBBSS..',
-    '.SBBBBBBBBBBS...',
-    '..BBBBBBBBBB....',
-    '..BBBBBBBBBBB...',
-    '..BBBBB.BBBBB...',
-    '..BBBB...BBBB...',
-    '.BBBBB....BBB...',
-    '.BBBB.....BBBB..',
-    '.BBBB.....BBBB..',
-    '.BBB.......BBB..',
-    '.nnn.......nnn..',
-    'nnnnn.....nnnnn.',
-    'nnnnn.....nnnnn.',
-    '.nnn.......nnn..',
-    '................'
+    'SKKBBBBBBBBKKS..',
+    'SKKBBBBBBBBKKS..',
+    '.KKBBBBBBBBKK...',
+    '..KBBBBBBBBK....',
+    '..KBBBBBBBBBK...',
+    '..KBBBK.KBBBK...',
+    '..KBBK...KBBK...',
+    '.KKBBK....KBK...',
+    '.KBBK.....KBBK..',
+    '.KSSK.....KSSK..',
+    '.KSSK......KSK..',
+    '.KKKK......KKK..',
+    'KKSSKK....KKSSK.',
+    'KSSSSK....KSSSK.',
+    'KKKKKK....KKKKK.',
+    '.KKKK......KKK..'
   ];
   ART.pB_walk2 = [
-    'SSBBBBBBBBBBSS..',
-    'SSBBBBBBBBBBSS..',
-    '.SBBBBBBBBBBS...',
-    '..BBBBBBBBBB....',
-    '..BBBBBBBBBB....',
-    '...BBBBBBBB.....',
-    '...BBBBBBBB.....',
-    '...BBBBBBBB.....',
-    '...BBBB.BBB.....',
-    '...BBBB.BBB.....',
-    '...BBBB.BBB.....',
-    '...nnnn.nnn.....',
-    '..nnnnn.nnnn....',
-    '.nnnnnn.nnnnn...',
-    '.nnnnn...nnnn...',
-    '................'
+    'SKKBBBBBBBBKKS..',
+    'SKKBBBBBBBBKKS..',
+    '.KKBBBBBBBBKK...',
+    '..KBBBBBBBBK....',
+    '..KBBBBBBBBK....',
+    '...KBBBBBBK.....',
+    '...KBBBBBBK.....',
+    '...KBBKKBBK.....',
+    '...KBBK.KBK.....',
+    '...KSSK.KSK.....',
+    '...KSSK.KSK.....',
+    '...KKKK.KKK.....',
+    '..KKSSKKKSSKK...',
+    '.KKSSSK.KSSSKK..',
+    '.KKKKKK.KKKKKK..',
+    '..KKKK...KKKK...'
   ];
   ART.pB_walk3 = [
-    'SSBBBBBBBBBBSS..',
-    'SSBBBBBBBBBBSS..',
-    '.SBBBBBBBBBBS...',
-    '..BBBBBBBBBB....',
-    '..BBBBBBBBBBB...',
-    '..BBBB..BBBBB...',
-    '..BBB....BBBB...',
-    '..BBB.....BBB...',
-    '.BBBB.....BBBB..',
-    '.BBB.......BBB..',
-    '.BBB.......BBB..',
-    'nnnn.......nnn..',
-    'nnnnn.....nnnnn.',
-    'nnnnn.....nnnnn.',
-    '.nnn.......nnn..',
-    '................'
+    'SKKBBBBBBBBKKS..',
+    'SKKBBBBBBBBKKS..',
+    '.KKBBBBBBBBKK...',
+    '..KBBBBBBBBK....',
+    '..KBBBBBBBBBK...',
+    '..KBBK..KBBBK...',
+    '..KBK....KBBK...',
+    '..KBK.....KBK...',
+    '.KBBK.....KBBK..',
+    '.KSSK.....KSSK..',
+    '.KSK.......KSK..',
+    'KKKK.......KKK..',
+    'KSSKK.....KKSSK.',
+    'KSSSK.....KSSSK.',
+    'KKKKK.....KKKKK.',
+    '.KKK.......KKK..'
   ];
   ART.pB_jump = [
-    'SSBBBBBBBBBBSS..',
-    'SSBBBBBBBBBBSS..',
-    'S.BBBBBBBBBB.S..',
-    '..BBBBBBBBBB....',
-    '..BBBBBBBBBB....',
-    '..BBBB..BBBB....',
-    '.BBBB....BBBB...',
-    '.BBB......BBB...',
-    'BBBB......BBBB..',
-    'BBB........BBB..',
-    'nnn........BBB..',
-    'nnnn.......nnn..',
-    'nnnn......nnnnn.',
-    '..........nnnnn.',
-    '...........nnn..',
-    '................'
+    'SKKBBBBBBBBKKS..',
+    'SKKBBBBBBBBKKS..',
+    'S.KBBBBBBBBK.S..',
+    '..KBBBBBBBBK....',
+    '..KBBBBBBBBK....',
+    '..KBBK..KBBK....',
+    '.KBBK....KBBK...',
+    '.KBK......KBK...',
+    'KBBK......KBBK..',
+    'KSSK......KSSK..',
+    'KSK........KSK..',
+    'KKK........KKK..',
+    'KKSK......KKSKK.',
+    'KSSK......KSSSK.',
+    'KKKK......KKKKK.',
+    '.KK........KKK..'
   ];
   ART.pB_swim = [
-    'SSBBBBBBBBBBSS..',
-    'SSBBBBBBBBBBSS..',
-    '.SBBBBBBBBBBS...',
-    '..BBBBBBBBBB....',
-    '..BBBBBBBBBB....',
-    '...BBBBBBBB.....',
-    '...BBBBBBBB.....',
-    '...BBBBBBBB.....',
-    '...BBBBBBBB.....',
-    '....BBBBBB......',
-    '....BBBBBB......',
+    'SKKBBBBBBBBKKS..',
+    'SKKBBBBBBBBKKS..',
+    '.KKBBBBBBBBKK...',
+    '..KBBBBBBBBK....',
+    '..KBBBBBBBBK....',
+    '...KBBBBBBK.....',
+    '...KBBBBBBK.....',
+    '...KBBBBBBK.....',
+    '...KBBBBBBK.....',
+    '....KSSSSK......',
+    '....KSSSSK......',
+    '....KKKKKK......',
+    '....KnnnnK......',
+    '...KnnnnnnK.....',
     '....nnnnnn......',
-    '...nnnnnnnn.....',
-    '..nnnnnnnnnn....',
-    '..nnnn..nnnn....',
-    '................'
+    '.....nnnn.......'
   ];
   ART.pB_climb = [
-    'SSBBBBBBBBBBSS..',
-    'SSBBBBBBBBBBSS..',
-    '.SBBBBBBBBBBS...',
-    '..BBBBBBBBBB....',
-    '..BBBBBBBBBB....',
-    '..BBBB..BBBB....',
-    '..BBBB..BBBB....',
-    '..BBBB..BBBB....',
-    '..BBBB..BBBB....',
-    '..BBBB..BBBB....',
-    '..nnnn..nnnn....',
-    '..nnnn..nnnn....',
-    '.nnnnn..nnnnn...',
-    '.nnnnn..nnnnn...',
-    '................',
+    'SKKBBBBBBBBKKS..',
+    'SKKBBBBBBBBKKS..',
+    '.KKBBBBBBBBKK...',
+    '..KBBBBBBBBK....',
+    '..KBBBBBBBBK....',
+    '..KBBK..KBBK....',
+    '..KBBK..KBBK....',
+    '..KBBK..KBBK....',
+    '..KBBK..KBBK....',
+    '..KSSK..KSSK....',
+    '..KKKK..KKKK....',
+    '..KSSK..KSSK....',
+    '.KKSSKK.KKSSKK..',
+    '.KSSSSK.KSSSSK..',
+    '.KKKKKK.KKKKKK..',
     '................'
   ];
   ART.pB_crouch = [
     '................',
-    '.....RRRRRR.....',
-    '....RRRRRRRRRR..',
-    '....NNNNNNNN....',
-    '...NNNSSSKSS....',
-    '..NNSNSSSSKSSS..',
-    '..NSNNNSSSSKSSS.',
-    '..NNNSSSSSSKKKK.',
-    '.RRRSSSSSSSSS...',
-    'SRRRRRRRRRRRRS..',
-    'SSRBBBBBBBBRSS..',
-    'SSBBYBBYBBBBSS..',
-    '.BBBBBBBBBBBB...',
-    '.BBBBBBBBBBBB...',
-    '.nnnn....nnnn...',
-    'nnnnn....nnnnn..'
+    '.......K........',
+    '..KKKKKKKKKKK...',
+    '..KBBBBBBBBBK...',
+    '..KBNNNNNNNBK...',
+    '..KBNWWNNNWNBK..',
+    '..KBNNNNNNNBK...',
+    '..KKKKKKKKKKK...',
+    '.KKRRRRRRRRKK...',
+    'KKRRRBBBBRRRKK..',
+    'KRRRBBNNBBRRRK..',
+    'KKRRRBBBBRRRKK..',
+    '.KKRRRRRRRRKK...',
+    '..KKKKKKKKKK....',
+    '..KSSK..KSSK....',
+    '.KKKKK..KKKKK...'
   ];
 
-  // ---- enemies --------------------------------------------------------- //
-  ART.goomba1 = [
+  // ---- hostiles -------------------------------------------------------- //
+  ART.goomba1 = [                       // crawler: a low, wide beetle
     '................',
-    '.....NNNNNN.....',
-    '...NNNNNNNNNN...',
-    '..NNNNNNNNNNNN..',
-    '..NKKNNNNNNKKN..',
-    '.NNKWKNNNNKWKNN.',
-    '.NNKWWKNNKWWKNN.',
-    '.NNKKWKNNKWKKNN.',
-    '.NNNKKNNNNKKNNN.',
-    '.NNNNNNNNNNNNNN.',
-    '..NNNNNNNNNNNN..',
-    '..TTTTTTTTTTTT..',
-    '.TTTTTTTTTTTTTT.',
-    '.nnnn......nnnn.',
-    'nnnn........nnnn',
-    'nnn..........nnn'
+    '................',
+    '.....KKKKKK.....',
+    '...KKBBBBBBKK...',
+    '..KBBBBBBBBBBK..',
+    '.KBBNNBBBBNNBBK.',
+    '.KBBNWBBBBWNBBK.',
+    '.KBBBBBBBBBBBBK.',
+    '.KBrrBBBBBBrrBK.',
+    '.KBBBBBBBBBBBBK.',
+    '..KKBBBBBBBBKK..',
+    '...KKKKKKKKKK...',
+    '..KK.KK..KK.KK..',
+    '.KK..KK..KK..KK.',
+    'KK...K....K...KK',
+    '................'
   ];
   ART.goomba2 = [
     '................',
-    '.....NNNNNN.....',
-    '...NNNNNNNNNN...',
-    '..NNNNNNNNNNNN..',
-    '..NKKNNNNNNKKN..',
-    '.NNKWKNNNNKWKNN.',
-    '.NNKWWKNNKWWKNN.',
-    '.NNKKWKNNKWKKNN.',
-    '.NNNKKNNNNKKNNN.',
-    '.NNNNNNNNNNNNNN.',
-    '..NNNNNNNNNNNN..',
-    '..TTTTTTTTTTTT..',
-    '.TTTTTTTTTTTTTT.',
-    '.nnnn......nnnn.',
-    '..nnnn....nnnn..',
-    '...nnn....nnn...'
+    '................',
+    '.....KKKKKK.....',
+    '...KKBBBBBBKK...',
+    '..KBBBBBBBBBBK..',
+    '.KBBNNBBBBNNBBK.',
+    '.KBBNWBBBBWNBBK.',
+    '.KBBBBBBBBBBBBK.',
+    '.KBrrBBBBBBrrBK.',
+    '.KBBBBBBBBBBBBK.',
+    '..KKBBBBBBBBKK..',
+    '...KKKKKKKKKK...',
+    '.KK..KK..KK..KK.',
+    'KK...KK..KK...KK',
+    '.K...K....K...K.',
+    '................'
   ];
   ART.goombaFlat = [
     '................',
@@ -790,282 +800,174 @@
     '................',
     '................',
     '................',
-    '...NNNNNNNNNN...',
-    '..NNKKNNNNKKNN..',
-    '.NNNKKNNNNKKNNN.',
-    '.NTTTTTTTTTTTTN.',
-    '.nnnnnnnnnnnnnn.',
-    '..nnnnnnnnnnnn..'
+    '...KKKKKKKKKK...',
+    '..KBBNNBBNNBBK..',
+    '.KBBBBBBBBBBBBK.',
+    '.KBrrBBBBBBrrBK.',
+    '.KKKKKKKKKKKKKK.',
+    '..KK..KK..KK....'
   ];
-  // Koopa: 16 wide, 24 tall.
+  // glitch: a tall angular hostile with an exposed core
   ART.koopa1 = [
-    '......GGGG......',
-    '.....GGGGGG.....',
-    '....GGGGGGGG....',
-    '....GGKKGGGG....',
-    '....GGKKGGGGG...',
-    '....GGGGGGGGY...',
-    '.....GGGGGGYY...',
-    '....GGGGGGGYY...',
-    '....GGGGGG......',
-    '...GGGGGG.......',
-    '..GggggggG......',
-    '.GgYYYYYYgG.....',
-    'GgYYWWWWYYgG....',
-    'GgYWWGGWWYgG....',
-    'GgYWGGGGWYgG....',
-    'GgYWWGGWWYgG....',
-    'GgYYWWWWYYgG....',
-    'GgYYYYYYYYgG....',
-    '.GggggggggG.....',
-    '..GGGGGGGG......',
-    '...GGGGGG.......',
-    '...GG..GG.......',
-    '..TTT..TTT......',
-    '..TTT..TTT......'
+    '.....KKKKKK.....',
+    '....KRRRRRRK....',
+    '...KRRRRRRRRK...',
+    '...KRNNRRNNRK...',
+    '...KRNWRRWNRK...',
+    '...KRRRRRRRRK...',
+    '...KRRKKKKRRK...',
+    '....KRRRRRRK....',
+    '.....KKKKKK.....',
+    '...KKKKKKKKKK...',
+    '..KRRRRRRRRRRK..',
+    '..KRKKKKKKKKRK..',
+    '..KRKNNNNNNKRK..',
+    '..KRKNWWWWNKRK..',
+    '..KRKNWKKWNKRK..',
+    '..KRKNWWWWNKRK..',
+    '..KRKNNNNNNKRK..',
+    '..KRKKKKKKKKRK..',
+    '..KRRRRRRRRRRK..',
+    '...KKKKKKKKKK...',
+    '....KRRRRRRK....',
+    '....KRK..KRK....',
+    '...KKKK..KKKK...',
+    '...KSSK..KSSK...'
   ];
   ART.koopa2 = [
-    '......GGGG......',
-    '.....GGGGGG.....',
-    '....GGGGGGGG....',
-    '....GGKKGGGG....',
-    '....GGKKGGGGG...',
-    '....GGGGGGGGY...',
-    '.....GGGGGGYY...',
-    '....GGGGGGGYY...',
-    '....GGGGGG......',
-    '...GGGGGG.......',
-    '..GggggggG......',
-    '.GgYYYYYYgG.....',
-    'GgYYWWWWYYgG....',
-    'GgYWWGGWWYgG....',
-    'GgYWGGGGWYgG....',
-    'GgYWWGGWWYgG....',
-    'GgYYWWWWYYgG....',
-    'GgYYYYYYYYgG....',
-    '.GggggggggG.....',
-    '..GGGGGGGG......',
-    '...GGGGGG.......',
-    '...GGGGG........',
-    '..TTTTT.........',
-    '..TTTT..........'
+    '.....KKKKKK.....',
+    '....KRRRRRRK....',
+    '...KRRRRRRRRK...',
+    '...KRNNRRNNRK...',
+    '...KRNWRRWNRK...',
+    '...KRRRRRRRRK...',
+    '...KRRKKKKRRK...',
+    '....KRRRRRRK....',
+    '.....KKKKKK.....',
+    '...KKKKKKKKKK...',
+    '..KRRRRRRRRRRK..',
+    '..KRKKKKKKKKRK..',
+    '..KRKNNNNNNKRK..',
+    '..KRKNWWWWNKRK..',
+    '..KRKNWKKWNKRK..',
+    '..KRKNWWWWNKRK..',
+    '..KRKNNNNNNKRK..',
+    '..KRKKKKKKKKRK..',
+    '..KRRRRRRRRRRK..',
+    '...KKKKKKKKKK...',
+    '....KRRRRRRK....',
+    '....KRRRRK......',
+    '...KKKKKK.......',
+    '...KSSSK........'
   ];
-  ART.shell = [
+  ART.shell = [                          // the core it leaves behind
     '................',
     '................',
-    '....GGGGGGGG....',
-    '..GGggggggggGG..',
-    '.GgYYYYYYYYYYgG.',
-    'GgYYWWWWWWWWYYgG',
-    'GgYWWGGGGGGWWYgG',
-    'GgYWGGGGGGGGWYgG',
-    'GgYWGGGGGGGGWYgG',
-    'GgYWWGGGGGGWWYgG',
-    'GgYYWWWWWWWWYYgG',
-    'GgYYYYYYYYYYYYgG',
-    '.GggggggggggggG.',
-    '..GGGGGGGGGGGG..',
-    '....GGGGGGGG....',
+    '....KKKKKKKK....',
+    '..KKRRRRRRRRKK..',
+    '.KRRRRRRRRRRRRK.',
+    'KRRKKKKKKKKKKRRK',
+    'KRRKNNNNNNNNKRRK',
+    'KRRKNWWWWWWNKRRK',
+    'KRRKNWWWWWWNKRRK',
+    'KRRKNNNNNNNNKRRK',
+    'KRRKKKKKKKKKKRRK',
+    '.KRRRRRRRRRRRRK.',
+    '..KKRRRRRRRRKK..',
+    '....KKKKKKKK....',
+    '................',
     '................'
   ];
   ART.shell2 = [
     '................',
     '................',
-    '....GGGGGGGG....',
-    '..GGggggggggGG..',
-    '.GgWWYYYYYYWWgG.',
-    'GgWWYYWWWWYYWWgG',
-    'GgWYYWGGGGWYYWgG',
-    'GgYWWGGGGGGWWYgG',
-    'GgYWWGGGGGGWWYgG',
-    'GgWYYWGGGGWYYWgG',
-    'GgWWYYWWWWYYWWgG',
-    'GgYYWWYYYYWWYYgG',
-    '.GggggggggggggG.',
-    '..GGGGGGGGGGGG..',
-    '....GGGGGGGG....',
+    '....KKKKKKKK....',
+    '..KKRRRRRRRRKK..',
+    '.KRRWWRRRRWWRRK.',
+    'KRRKKKKKKKKKKRRK',
+    'KRRKWWNNNNWWKRRK',
+    'KRRKWNWWWWNWKRRK',
+    'KRRKWNWWWWNWKRRK',
+    'KRRKWWNNNNWWKRRK',
+    'KRRKKKKKKKKKKRRK',
+    '.KRRWWRRRRWWRRK.',
+    '..KKRRRRRRRRKK..',
+    '....KKKKKKKK....',
+    '................',
     '................'
   ];
-  // Piranha plant: 16 wide, 24 tall (head + stem).
+  // vent spike: a spiked piston that punches up out of a conduit
   ART.piranha = [
-    '...WW......WW...',
-    '..WRRW....WRRW..',
-    '.WRRRRWWWWRRRRW.',
-    'WRRRRRRRRRRRRRRW',
-    'WRRRRRRRRRRRRRRW',
-    'WRRRWWWWWWWWRRRW',
-    'WRRWWTTTTTTWWRRW',
-    'WRRWTTTTTTTTWRRW',
-    '.WRWTTTTTTTTWRW.',
-    '.WRRWTTTTTTWRRW.',
-    '..WRRRWWWWRRRW..',
-    '...WRRRRRRRRW...',
-    '....WRRRRRRW....',
-    '.....WWWWWW.....',
-    '......GggG......',
-    '.....GGggGG.....',
-    '.....GggggG.....',
-    '....GGgggGG.....',
-    '....GgggggG.....',
-    '.....GgggG......',
-    '.....GgggG......',
-    '....GGgggGG.....',
-    '....GgggggG.....',
-    '.....GgggG......'
+    '......KKKK......',
+    '.....KSSSSK.....',
+    '....KSWWWWSK....',
+    '...KSWWWWWWSK...',
+    '...KSWWNNWWSK...',
+    '...KSWWNNWWSK...',
+    '...KSWWWWWWSK...',
+    '....KSWWWWSK....',
+    '.....KSSSSK.....',
+    '......KSSK......',
+    '.....KKSSKK.....',
+    '.....KSSSSK.....',
+    '.....KSSSSK.....',
+    '.....KKKKKK.....',
+    '.....KSSSSK.....',
+    '.....KSSSSK.....',
+    '.....KKKKKK.....',
+    '.....KSSSSK.....',
+    '.....KSSSSK.....',
+    '.....KKKKKK.....',
+    '.....KSSSSK.....',
+    '.....KSSSSK.....',
+    '.....KKKKKK.....',
+    '.....KSSSSK.....'
   ];
   ART.piranha2 = [
-    '...WW......WW...',
-    '..WRRW....WRRW..',
-    '.WRRRRWWWWRRRRW.',
-    'WRRRRRRRRRRRRRRW',
-    'WRRRRRRRRRRRRRRW',
-    'WRRRRRRRRRRRRRRW',
-    'WRRRWWWWWWWWRRRW',
-    'WRRWTTTTTTTTWRRW',
-    '.WRWTTTTTTTTWRW.',
-    '.WRRWWWWWWWWRRW.',
-    '..WRRRRRRRRRRW..',
-    '...WRRRRRRRRW...',
-    '....WRRRRRRW....',
-    '.....WWWWWW.....',
-    '......GggG......',
-    '.....GGggGG.....',
-    '.....GggggG.....',
-    '....GGgggGG.....',
-    '....GgggggG.....',
-    '.....GgggG......',
-    '.....GgggG......',
-    '....GGgggGG.....',
-    '....GgggggG.....',
-    '.....GgggG......'
+    '......KKKK......',
+    '.....KSSSSK.....',
+    '....KSWWWWSK....',
+    '...KSWWWWWWSK...',
+    '...KSWNNNNWSK...',
+    '...KSWNNNNWSK...',
+    '...KSWWWWWWSK...',
+    '....KSWWWWSK....',
+    '.....KSSSSK.....',
+    '......KSSK......',
+    '.....KKSSKK.....',
+    '.....KSSSSK.....',
+    '.....KSSSSK.....',
+    '.....KKKKKK.....',
+    '.....KSSSSK.....',
+    '.....KSSSSK.....',
+    '.....KKKKKK.....',
+    '.....KSSSSK.....',
+    '.....KSSSSK.....',
+    '.....KKKKKK.....',
+    '.....KSSSSK.....',
+    '.....KSSSSK.....',
+    '.....KKKKKK.....',
+    '.....KSSSSK.....'
   ];
-  ART.cheep = [
+  ART.bullet = [                        // packet: a payload in flight
     '................',
-    '................',
-    '.R..............',
-    '.RR......RRRR...',
-    '.RRR...RRRRRRRR.',
-    '.RRRRRRRRRRRRRRR',
-    '.RRRRRRRRRWWKRRR',
-    '.RRRRRRRRRWWKRRR',
-    '.RWWWWWWWWWWWRRR',
-    '.RRWWWWWWWWWWRR.',
-    '.RRR...RRRRRRR..',
-    '.RR......RRRR...',
-    '.R..............',
-    '................',
-    '................',
-    '................'
-  ];
-  ART.cheep2 = [
-    '................',
-    '.R..............',
-    '.RR.............',
-    '.RRR.....RRRR...',
-    '.RRRR..RRRRRRRR.',
-    '.RRRRRRRRRRRRRRR',
-    '.RRRRRRRRRWWKRRR',
-    '.RRRRRRRRRWWKRRR',
-    '.RWWWWWWWWWWWRRR',
-    '.RRWWWWWWWWWWRR.',
-    '.RRRR..RRRRRRR..',
-    '.RRR.....RRRR...',
-    '.RR.............',
-    '.R..............',
-    '................',
-    '................'
-  ];
-  ART.blooper = [
-    '.....WWWWWW.....',
-    '....WWWWWWWW....',
-    '...WWWWWWWWWW...',
-    '...WWWWWWWWWW...',
-    '...WWKKWWKKWW...',
-    '...WWKKWWKKWW...',
-    '...WWWWWWWWWW...',
-    '....WWWWWWWW....',
-    '....WWWWWWWW....',
-    '...WW.WWWW.WW...',
-    '..WW..WWWW..WW..',
-    '..W...WW.WW..W..',
-    '.W....W...W..W..',
-    '.W....W...W.....',
-    '......W...W.....',
-    '......W....W....'
-  ];
-  ART.blooper2 = [
-    '.....WWWWWW.....',
-    '....WWWWWWWW....',
-    '...WWWWWWWWWW...',
-    '...WWWWWWWWWW...',
-    '...WWKKWWKKWW...',
-    '...WWKKWWKKWW...',
-    '...WWWWWWWWWW...',
-    '....WWWWWWWW....',
-    '....WWWWWWWW....',
-    '...WWWWWWWWWW...',
-    '..WWWWWWWWWWWW..',
-    '..WW.WW..WW.WW..',
-    '..W..WW..WW..W..',
-    '.....WW..WW.....',
-    '.....W....W.....',
-    '................'
-  ];
-  ART.spring = [
-    'RRRRRRRRRRRRRRRR',
-    'RWWWWWWWWWWWWWWR',
-    'RRRRRRRRRRRRRRRR',
-    '..LLLLLLLLLLLL..',
-    '.LL..........LL.',
-    'LL............LL',
-    '.LL..........LL.',
-    '..LLLLLLLLLLLL..',
-    '.LL..........LL.',
-    'LL............LL',
-    '.LL..........LL.',
-    '..LLLLLLLLLLLL..',
-    '................',
-    'RRRRRRRRRRRRRRRR',
-    'RWWWWWWWWWWWWWWR',
-    'RRRRRRRRRRRRRRRR'
-  ];
-  ART.springUp = [
-    '................',
-    '................',
-    '................',
-    '................',
-    '................',
-    '................',
-    'RRRRRRRRRRRRRRRR',
-    'RWWWWWWWWWWWWWWR',
-    'RRRRRRRRRRRRRRRR',
-    '..LLLLLLLLLLLL..',
-    '.LLLLLLLLLLLLLL.',
-    '..LLLLLLLLLLLL..',
-    '................',
-    'RRRRRRRRRRRRRRRR',
-    'RWWWWWWWWWWWWWWR',
-    'RRRRRRRRRRRRRRRR'
-  ];
-  ART.bullet = [
-    '................',
-    '....KKKKKKKK....',
     '..KKKKKKKKKKKK..',
-    '.KKKKKKKKKKKKKK.',
-    'KKKKKKKKKKKKKKKK',
-    'KKKWWKKKKKKKKKKK',
-    'KKWWWWKKKKKKKKKK',
-    'KKWWWWKKKKKKKKKK',
-    'KKWWWWKKKKKKKKKK',
-    'KKWWWWKKKKKKKKKK',
-    'KKKWWKKKKKKKKKKK',
-    'KKKKKKKKKKKKKKKK',
-    '.KKKKKKKKKKKKKK.',
+    '.KWWKKKKKKKKKKK.',
+    'KWWKNNNNNNNNKKKK',
+    'KWKNNKKKKKKNNKKK',
+    'KWKNKWWWWWWKNKKK',
+    'KWKNKWKKKKWKNKKK',
+    'KWKNKWKRRKWKNKKK',
+    'KWKNKWKRRKWKNKKK',
+    'KWKNKWKKKKWKNKKK',
+    'KWKNKWWWWWWKNKKK',
+    'KWKNNKKKKKKNNKKK',
+    'KWWKNNNNNNNNKKKK',
+    '.KWWKKKKKKKKKKK.',
     '..KKKKKKKKKKKK..',
-    '....KKKKKKKK....',
     '................'
   ];
-  ART.podoboo = [
+  ART.podoboo = [                       // heat surge
     '.......OO.......',
     '......OYYO......',
     '.....OYYYYO.....',
@@ -1083,113 +985,219 @@
     '......OOOO......',
     '.......OO.......'
   ];
-
-  // ---- items ----------------------------------------------------------- //
-  ART.mushroom = [
+  ART.cheep = [                         // sub-drone
+    '................',
+    '................',
+    '..KK............',
+    '..KNK....KKKK...',
+    '..KNNK.KKBBBBKK.',
+    '..KNNNKKBBBBBBBK',
+    'KKKNNNBBBNNWKBBK',
+    'KBBBBBBBBNNWKBBK',
+    'KBBBBBBBBBBBKBBK',
+    'KKKBBBBBBBBBBBBK',
+    '..KNNNKKBBBBBBK.',
+    '..KNNK.KKKBBKK..',
+    '..KNK....KKKK...',
+    '..KK............',
+    '................',
+    '................'
+  ];
+  ART.cheep2 = [
+    '................',
+    '..KK............',
+    '..KNK...........',
+    '..KNNK...KKKK...',
+    '..KNNNKKKBBBBKK.',
+    '.KKNNNKKBBBBBBBK',
+    'KBBBBBBBBBNNWKBK',
+    'KBBBBBBBBBNNWKBK',
+    'KBBBBBBBBBBBBKBK',
+    'KKKBBBBBBBBBBBBK',
+    '.KKNNNKKBBBBBBK.',
+    '..KNNNKKKKBBKK..',
+    '..KNNK...KKKK...',
+    '..KNK...........',
+    '..KK............',
+    '................'
+  ];
+  ART.blooper = [                       // coolant jelly
+    '.....KKKKKK.....',
+    '...KKNNNNNNKK...',
+    '..KNNNNNNNNNNK..',
+    '..KNNWWNNWWNNK..',
+    '..KNWWKNNKWWNK..',
+    '..KNNWWNNWWNNK..',
+    '..KNNNNNNNNNNK..',
+    '...KNNNNNNNNK...',
+    '...KNNNNNNNNK...',
+    '..KKNNKKKKNNKK..',
+    '.KNNK.KNNK.KNNK.',
+    '.KNK..KNNK..KNK.',
+    'KNK...KNK....KNK',
+    'KNK...KNK....KK.',
+    '.K....KNK.......',
+    '......KK........'
+  ];
+  ART.blooper2 = [
+    '.....KKKKKK.....',
+    '...KKNNNNNNKK...',
+    '..KNNNNNNNNNNK..',
+    '..KNNWWNNWWNNK..',
+    '..KNWWKNNKWWNK..',
+    '..KNNWWNNWWNNK..',
+    '..KNNNNNNNNNNK..',
+    '...KNNNNNNNNK...',
+    '...KNNNNNNNNK...',
+    '...KNNNNNNNNK...',
+    '..KKNNNNNNNNKK..',
+    '..KNK.KNNK.KNK..',
+    '..KK..KNNK..KK..',
+    '......KNNK......',
+    '......KNK.......',
+    '................'
+  ];
+  ART.spring = [                        // launch pad
+    'KKKKKKKKKKKKKKKK',
+    'KSSSSSSSSSSSSSSK',
+    'KKKKKKKKKKKKKKKK',
+    '..KNNNNNNNNNNK..',
+    '.KK..........KK.',
+    'KK............KK',
+    '.KK..........KK.',
+    '..KNNNNNNNNNNK..',
+    '.KK..........KK.',
+    'KK............KK',
+    '.KK..........KK.',
+    '..KNNNNNNNNNNK..',
+    '................',
+    'KKKKKKKKKKKKKKKK',
+    'KSSSSSSSSSSSSSSK',
+    'KKKKKKKKKKKKKKKK'
+  ];
+  ART.springUp = [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    'KKKKKKKKKKKKKKKK',
+    'KSSSSSSSSSSSSSSK',
+    'KKKKKKKKKKKKKKKK',
+    '..KNNNNNNNNNNK..',
+    '.KNNNNNNNNNNNNK.',
+    '..KNNNNNNNNNNK..',
+    '................',
+    'KKKKKKKKKKKKKKKK',
+    'KSSSSSSSSSSSSSSK',
+    'KKKKKKKKKKKKKKKK'
+  ];
+  ART.mushroom = [                      // power cell
     '................',
     '.....KKKKKK.....',
-    '...KKRRRRRRKK...',
-    '..KRRRWWWRRRRK..',
-    '.KRRRWWWWWRRRRK.',
-    '.KRWWRWWWRRWWRK.',
-    'KRWWWWRRRRWWWWRK',
-    'KRWWWWRRRRWWWWRK',
-    'KRRWWRRRRRRWWRRK',
-    'KRRRRRRRRRRRRRRK',
+    '....KWWWWWWK....',
+    '...KKKKKKKKKK...',
+    '..KRRRRRRRRRRK..',
+    '..KRWWWWWWWWRK..',
+    '..KRWKKKKKKWRK..',
+    '..KRWKNNNNKWRK..',
+    '..KRWKNNNNKWRK..',
+    '..KRWKNNNNKWRK..',
+    '..KRWKKKKKKWRK..',
+    '..KRWWWWWWWWRK..',
+    '..KRRRRRRRRRRK..',
+    '..KSSSSSSSSSSK..',
+    '..KKKKKKKKKKKK..',
+    '................'
+  ];
+  ART.flower = [                        // plasma core
+    '................',
+    '....KKKKKKKK....',
+    '..KKSSSSSSSSKK..',
+    '.KSSKKKKKKKKSSK.',
+    '.KSKNNNNNNNNKSK.',
+    'KSKNNWWWWWWNNKSK',
+    'KSKNWWWRRWWWNKSK',
+    'KSKNWWRRRRWWNKSK',
+    'KSKNWWRRRRWWNKSK',
+    'KSKNWWWRRWWWNKSK',
+    'KSKNNWWWWWWNNKSK',
+    '.KSKNNNNNNNNKSK.',
+    '.KSSKKKKKKKKSSK.',
+    '..KKSSSSSSSSKK..',
+    '....KKKKKKKK....',
+    '................'
+  ];
+  ART.star = [                          // overclock chip
+    '................',
+    '..K..KKKKKK..K..',
+    '..KKKRRRRRRKKK..',
     '.KKRRRRRRRRRRKK.',
-    '..KTTTTTTTTTTK..',
-    '..KTKTTTTTTKTK..',
-    '..KTKTTTTTTKTK..',
-    '..KTTTTTTTTTTK..',
-    '...KKKKKKKKKK...'
+    'KKRRRRWWWWRRRRKK',
+    '.KRRRRWWWWRRRRK.',
+    '.KRRRWWWWRRRRRK.',
+    '.KRRRRWWWWRRRRK.',
+    '.KRRRRRWWWWRRRK.',
+    '.KRRRRWWWWRRRRK.',
+    '.KRRRRWWWWRRRRK.',
+    'KKRRRRRRRRRRRRKK',
+    '.KKRRRRRRRRRRKK.',
+    '..KKKRRRRRRKKK..',
+    '..K..KKKKKK..K..',
+    '................'
   ];
-  ART.flower = [
+  ART.coin = [                          // token: a hex chip on edge
     '................',
     '.....KKKKKK.....',
-    '...KKWWWWWWKK...',
-    '..KWWRRRRRRWWK..',
-    '..KWRRKRRKRRWK..',
-    '..KWRRKRRKRRWK..',
-    '..KWWRRRRRRWWK..',
-    '...KKWWWWWWKK...',
-    '.....KGGGGK.....',
-    '..GGK.GggG.KGG..',
-    '.GggGKGggGKGggG.',
-    'GggggGGggGGggggG',
-    '.GggggGggGggggG.',
-    '..GGGGGggGGGGG..',
-    '......GggG......',
-    '......GggG......'
-  ];
-  ART.star = [
-    '.......YY.......',
-    '......YYYY......',
-    '......YYYY......',
-    '.....YYYYYY.....',
-    'YYYYYYYYYYYYYYYY',
-    '.YYYYYYYYYYYYYY.',
-    '..YYYYKYYKYYYY..',
-    '...YYYKYYKYYY...',
-    '...YYYYYYYYYY...',
-    '...YYYYYYYYYY...',
-    '...YYYYYYYYYY...',
-    '..YYYYYYYYYYYY..',
-    '..YYYYY..YYYYY..',
-    '.YYYYY....YYYYY.',
-    '.YYY........YYY.',
-    'YY............YY'
-  ];
-  ART.coin = [
-    '................',
-    '......aaaa......',
-    '.....aAAYYa.....',
-    '....aAAYYhha....',
-    '...aAAYYYhhha...',
-    '...aAYYYYhhha...',
-    '...aAYYYYhhha...',
-    '...aAYYYYhhha...',
-    '...aAYYYYhhha...',
-    '...aAYYYYhhha...',
-    '...aAYYYYhhha...',
-    '...aAAYYYhhha...',
-    '....aAYYYhha....',
-    '.....aAYYha.....',
-    '......aaaa......',
+    '....KAAYYYYK....',
+    '...KAAYYYYhhK...',
+    '..KAAYYWWYYhhK..',
+    '..KAYYWWWWYhhK..',
+    '..KAYYWKKWYhhK..',
+    '..KAYYWKKWYhhK..',
+    '..KAYYWKKWYhhK..',
+    '..KAYYWKKWYhhK..',
+    '..KAYYWWWWYhhK..',
+    '..KAAYYWWYYhhK..',
+    '...KAAYYYYhhK...',
+    '....KAYYYYhK....',
+    '.....KKKKKK.....',
     '................'
   ];
   ART.coin2 = [
     '................',
-    '.......aa.......',
-    '......aAYa......',
-    '.....aAYYha.....',
-    '.....aAYYha.....',
-    '.....aAYYha.....',
-    '.....aAYYha.....',
-    '.....aAYYha.....',
-    '.....aAYYha.....',
-    '.....aAYYha.....',
-    '.....aAYYha.....',
-    '.....aAYYha.....',
-    '.....aAYYha.....',
-    '......aYha......',
-    '.......aa.......',
+    '......KKKK......',
+    '.....KAYYhK.....',
+    '.....KAYYhK.....',
+    '....KAYWWYhK....',
+    '....KAYWWYhK....',
+    '....KAYWKYhK....',
+    '....KAYWKYhK....',
+    '....KAYWKYhK....',
+    '....KAYWKYhK....',
+    '....KAYWWYhK....',
+    '.....KAYYhK.....',
+    '.....KAYYhK.....',
+    '......KKKK......',
+    '................',
     '................'
   ];
   ART.coin3 = [
     '................',
     '................',
-    '.......aa.......',
-    '.......aa.......',
-    '.......Aa.......',
-    '.......Aa.......',
-    '.......Aa.......',
-    '.......Aa.......',
-    '.......Aa.......',
-    '.......Aa.......',
-    '.......Aa.......',
-    '.......Aa.......',
-    '.......aa.......',
-    '.......aa.......',
+    '.......KK.......',
+    '.......KK.......',
+    '......KAhK......',
+    '......KAhK......',
+    '......KAhK......',
+    '......KAhK......',
+    '......KAhK......',
+    '......KAhK......',
+    '......KAhK......',
+    '......KAhK......',
+    '.......KK.......',
+    '.......KK.......',
     '................',
     '................'
   ];
@@ -1224,71 +1232,71 @@
     '..W..W..'
   ];
   // Bowser-alike: 24 wide, 26 tall.
-  ART.boss1 = [
-    '.....GG........GG.......',
-    '....GggG......GggG......',
-    '...GgTTgG....GgTTgG.....',
-    '...GgTTgGGGGGGgTTgG.....',
-    '...GggggGGGGGGggggG.....',
-    '....GGGGGGGGGGGGGG......',
-    '...GGGKKGGGGGGKKGGG.....',
-    '..GGGGKKGGGGGGKKGGGG....',
-    '..GGGGGGGGGGGGGGGGGG....',
-    '..GGGTTTTTTTTTTTTGGG....',
-    '..GGGTKTKTKTKTKTTGGG....',
-    '...GGGTTTTTTTTTTGGG.....',
-    '....GGGGGGGGGGGGGG......',
-    '...OOOOOOOOOOOOOOOO.....',
-    '..OOTTOOOOOOOOOOTTOO....',
-    '..OOTTOOnnnnOOOOTTOO....',
-    '..OOOOOnnnnnnOOOOOOO....',
-    '..OOOOnnTTTTnnOOOOOO....',
-    '..OOOOnnTTTTnnOOOOOO....',
-    '..OOOOOnnnnnnOOOOOOO....',
-    '..OOOOOOnnnnOOOOOOOO....',
-    '...OOOOOOOOOOOOOOOO.....',
-    '....OOOOOOOOOOOOOO......',
-    '...TTTT........TTTT.....',
-    '..TTTTTT......TTTTTT....',
-    '..TTTT..........TTTT....'
+  ART.boss1 = [                         // THE MAINFRAME
+    'KKKKKKKKKKKKKKKKKKKKKKKK',
+    'KSSSSSSSSSSSSSSSSSSSSSSK',
+    'KSKKKKKKKKKKKKKKKKKKKKSK',
+    'KSKNNNNNNNNNNNNNNNNNNKSK',
+    'KSKNWWWWNNNNNNNNWWWWNKSK',
+    'KSKNWWKWNNNNNNNNWKWWNKSK',
+    'KSKNWWWWNNNNNNNNWWWWNKSK',
+    'KSKNNNNNNNNNNNNNNNNNNKSK',
+    'KSKNNNKKKKKKKKKKKKNNNKSK',
+    'KSKNNNKWWWWWWWWWWKNNNKSK',
+    'KSKNNNKKKKKKKKKKKKNNNKSK',
+    'KSKNNNNNNNNNNNNNNNNNNKSK',
+    'KSKKKKKKKKKKKKKKKKKKKKSK',
+    'KSSSSSSSSSSSSSSSSSSSSSSK',
+    'KKRRKKRRKKRRKKRRKKRRKKKK',
+    'KKRRKKRRKKRRKKRRKKRRKKKK',
+    'KSSSSSSSSSSSSSSSSSSSSSSK',
+    'KSKKKKKKKKKKKKKKKKKKKKSK',
+    'KSKRRRKRRRKRRRKRRRKRRKSK',
+    'KSKKKKKKKKKKKKKKKKKKKKSK',
+    'KSSSSSSSSSSSSSSSSSSSSSSK',
+    'KKKKKKKKKKKKKKKKKKKKKKKK',
+    '.KSSK..KSSK..KSSK..KSSK.',
+    '.KSSK..KSSK..KSSK..KSSK.',
+    'KKKKKK KKKKKKKKKKK KKKKK',
+    '.KKKK...KKKK..KKKK..KKK.'
   ];
   ART.boss2 = [
-    '.....GG........GG.......',
-    '....GggG......GggG......',
-    '...GgTTgG....GgTTgG.....',
-    '...GgTTgGGGGGGgTTgG.....',
-    '...GggggGGGGGGggggG.....',
-    '....GGGGGGGGGGGGGG......',
-    '...GGGKKGGGGGGKKGGG.....',
-    '..GGGGKKGGGGGGKKGGGG....',
-    '..GGGGGGGGGGGGGGGGGG....',
-    '..GGGTTTTTTTTTTTTGGG....',
-    '..GGGTKTKTKTKTKTTGGG....',
-    '...GGGTTTTTTTTTTGGG.....',
-    '....GGGGGGGGGGGGGG......',
-    '...OOOOOOOOOOOOOOOO.....',
-    '..OOTTOOOOOOOOOOTTOO....',
-    '..OOTTOOnnnnOOOOTTOO....',
-    '..OOOOOnnnnnnOOOOOOO....',
-    '..OOOOnnTTTTnnOOOOOO....',
-    '..OOOOnnTTTTnnOOOOOO....',
-    '..OOOOOnnnnnnOOOOOOO....',
-    '..OOOOOOnnnnOOOOOOOO....',
-    '...OOOOOOOOOOOOOOOO.....',
-    '.....OOOOOOOOOOOO.......',
-    '.....TTTT....TTTT.......',
-    '....TTTTTT..TTTTTT......',
-    '....TTTT......TTTT......'
+    'KKKKKKKKKKKKKKKKKKKKKKKK',
+    'KSSSSSSSSSSSSSSSSSSSSSSK',
+    'KSKKKKKKKKKKKKKKKKKKKKSK',
+    'KSKNNNNNNNNNNNNNNNNNNKSK',
+    'KSKNWWWWNNNNNNNNWWWWNKSK',
+    'KSKNWKWWNNNNNNNNWWKWNKSK',
+    'KSKNWWWWNNNNNNNNWWWWNKSK',
+    'KSKNNNNNNNNNNNNNNNNNNKSK',
+    'KSKNNKKKKKKKKKKKKKKNNKSK',
+    'KSKNNKWKWKWKWKWKWKWKNKSK',
+    'KSKNNKKKKKKKKKKKKKKNNKSK',
+    'KSKNNNNNNNNNNNNNNNNNNKSK',
+    'KSKKKKKKKKKKKKKKKKKKKKSK',
+    'KSSSSSSSSSSSSSSSSSSSSSSK',
+    'KKRRKKRRKKRRKKRRKKRRKKKK',
+    'KKRRKKRRKKRRKKRRKKRRKKKK',
+    'KSSSSSSSSSSSSSSSSSSSSSSK',
+    'KSKKKKKKKKKKKKKKKKKKKKSK',
+    'KSKRRKRRRKRRRKRRRKRRRKSK',
+    'KSKKKKKKKKKKKKKKKKKKKKSK',
+    'KSSSSSSSSSSSSSSSSSSSSSSK',
+    'KKKKKKKKKKKKKKKKKKKKKKKK',
+    '..KSSK..KSSK..KSSK..KSSK',
+    '..KSSK..KSSK..KSSK..KSSK',
+    'KKKKKKK KKKKKKKKKK KKKKK',
+    '..KKKK...KKKK..KKKK..KKK'
   ];
-  ART.hammer = [
-    '..NNNN..',
-    '.NWWWWN.',
-    'NWWWWWWN',
-    'NWWWWWWN',
-    '.NWWWWN.',
-    '...NN...',
-    '...NN...',
-    '...NN...'
+  ART.hammer = [                        // data shard
+    '...KK...',
+    '..KRRK..',
+    '.KRWWRK.',
+    'KRWWWWRK',
+    'KRWWWWRK',
+    '.KRWWRK.',
+    '..KRRK..',
+    '...KK...'
   ];
 
   var SPRW = {           // declared width per sprite (the bake pads/truncates)
@@ -1357,7 +1365,7 @@
   // ===================================================================== //
   var AC = null, master = null, musicGain = null, sfxGain = null;
   var soundOn = true;
-  try { soundOn = localStorage.getItem('vibetop:mario:sound') !== '0'; } catch (e) {}
+  try { soundOn = localStorage.getItem('vibetop:circuit:sound') !== '0'; } catch (e) {}
 
   function audio() {
     if (AC) return AC;
@@ -1736,7 +1744,7 @@
     // 240 wide, not 216: the last 24 columns are the bonus room, and Level.set
     // silently drops anything past the width — a room built out of bounds is a
     // warp pipe into nothing.
-    var L = new Level('1-1', 288, 'overworld');
+    var L = new Level('01', 288, 'overworld');
     L.ground(0, 68); L.ground(71, 85); L.ground(89, 152); L.ground(155, 215);
     L.startX = 3; L.time = 400; L.checkpoint = 100;
 
@@ -1843,7 +1851,7 @@
 
   // ---- world 1-2: underground ------------------------------------------ //
   function build12() {
-    var L = new Level('1-2', 200, 'underground');
+    var L = new Level('02', 200, 'underground');
     L.time = 400; L.startX = 3; L.checkpoint = 96;
     L.ground(0, 88); L.ground(92, 140); L.ground(144, 199);
     L.rect(0, 0, 199, 1, T_CBRICK);              // ceiling, the whole way
@@ -1901,7 +1909,7 @@
 
   // ---- world 1-4: the athletic level, mostly air ------------------------ //
   function build13() {
-    var L = new Level('1-4', 196, 'overworld');
+    var L = new Level('04', 196, 'overworld');
     L.time = 300; L.startX = 3; L.checkpoint = 114;   // inside ground(112,126)
     L.ground(0, 26); L.ground(60, 74); L.ground(112, 126); L.ground(160, 195);
 
@@ -1949,7 +1957,7 @@
 
   // ---- world 1-5: the castle -------------------------------------------- //
   function build14() {
-    var L = new Level('1-5', 172, 'castle');
+    var L = new Level('05', 172, 'castle');
     L.time = 300; L.startX = 3; L.checkpoint = 84; L.boss = true;
     L.ground(0, 171, T_CBRICK);
     L.rect(0, 0, 171, 0, T_CBRICK);
@@ -2012,7 +2020,7 @@
   // Water is per-TILE, not per-level: the flag at the end sits on dry seabed
   // you walk out onto, and any later level can flood a section the same way.
   function buildWater() {
-    var L = new Level('1-3', 192, 'water');
+    var L = new Level('03', 192, 'water');
     L.time = 400; L.startX = 3; L.startY = 8; L.checkpoint = 96;
     L.ground(0, 191);                                  // seabed, all the way
     L.shore = 167;                                     // where the water ends
@@ -2075,7 +2083,7 @@
   }
 
   var LEVELS = [build11, build12, buildWater, build13, build14];
-  var WORLD_NAMES = ['1-1', '1-2', '1-3', '1-4', '1-5'];
+  var WORLD_NAMES = ['01', '02', '03', '04', '05'];
 
   // ===================================================================== //
   //  Game state
@@ -2103,12 +2111,12 @@
   var fireworks = 0, fwT = 0;
   var shakeT = 0;
 
-  try { best = parseInt(localStorage.getItem('vibetop:mario:best') || '0', 10) || 0; } catch (e) {}
+  try { best = parseInt(localStorage.getItem('vibetop:circuit:best') || '0', 10) || 0; } catch (e) {}
 
   function saveBest() {
     if (score <= best) return;
     best = score;
-    try { localStorage.setItem('vibetop:mario:best', String(best)); } catch (e) {}
+    try { localStorage.setItem('vibetop:circuit:best', String(best)); } catch (e) {}
   }
 
   function newPlayer() {
@@ -2810,12 +2818,12 @@
     if (levelIdx + 1 < LEVELS.length) {
       fromCheckpoint = false;
       levelIdx++;
-      showCard('🚩', 'World ' + clearedName + ' cleared',
-               'Time bonus ' + bonusPaid + '. Next: world ' + WORLD_NAMES[levelIdx] + '.',
+      showCard('🚩', 'Sector ' + clearedName + ' clear',
+               'Time bonus ' + bonusPaid + '. Next: sector ' + WORLD_NAMES[levelIdx] + '.',
                'Continue', null, function () { beginLevel(levelIdx, true); });
     } else {
       state = 'win';
-      showCard('👑', 'You saved the kingdom',
+      showCard('👑', 'The network is clean',
                'Final score ' + score + (score >= best ? ' — a new best.' : '') +
                '  Time bonus ' + bonusPaid + '.',
                'Play again', null, function () { newGame(); });
@@ -3147,7 +3155,7 @@
         if (!p.big) { p.big = true; p.mode = 'grow'; p.modeT = 34; setSize(p); }
         SFX.power(); return;
       case 'oneup':
-        e.remove = true; floatText(e.x, e.y, '1UP'); addLife(); return;
+        e.remove = true; floatText(e.x, e.y, '+1'); addLife(); return;
       case 'flower':
         e.remove = true; award(e.x, e.y, 1000);
         if (!p.big) { p.big = true; p.mode = 'grow'; p.modeT = 34; setSize(p); }
@@ -3217,14 +3225,18 @@
   //  Rendering
   // ===================================================================== //
   var THEME = {
-    overworld: { sky: '#6b8cff', ground: '#c9560f', groundHi: '#e8801f', groundLo: '#7d3208',
-                 brick: '#c9560f', brickHi: '#e8801f', stone: '#9aa4b4', hill: '#2e8036' },
-    underground:{ sky: '#0a0d1a', ground: '#1f6fa8', groundHi: '#3fa0d8', groundLo: '#123f63',
-                 brick: '#1f6fa8', brickHi: '#3fa0d8', stone: '#7f8ba0', hill: '#1d6b1d' },
-    castle:     { sky: '#0d0d12', ground: '#7c7c88', groundHi: '#a8a8b4', groundLo: '#4a4a54',
-                 brick: '#7c7c88', brickHi: '#a8a8b4', stone: '#5c5c66', hill: '#333' },
-    water:      { sky: '#0a2f6b', ground: '#c9560f', groundHi: '#e8801f', groundLo: '#7d3208',
-                 brick: '#1f7fa8', brickHi: '#3fb0d8', stone: '#1a8f7a', hill: '#2e8036' }
+    // sector 01 — the surface: dusk sky over deck plating
+    overworld:  { sky: '#2b3f6b', ground: '#3d4a63', groundHi: '#6a7ea3', groundLo: '#1b2436',
+                  brick: '#3d4a63', brickHi: '#6a7ea3', stone: '#8fa0bb', hill: '#22304d' },
+    // sector 02 — the tunnels
+    underground:{ sky: '#07090f', ground: '#1f3a52', groundHi: '#3f6f96', groundLo: '#0d1b28',
+                  brick: '#1f3a52', brickHi: '#3f6f96', stone: '#6b7a92', hill: '#101a2a' },
+    // sector 05 — the core
+    castle:     { sky: '#0b0710', ground: '#4a3a5c', groundHi: '#7a6394', groundLo: '#241a30',
+                  brick: '#4a3a5c', brickHi: '#7a6394', stone: '#5c5c66', hill: '#1a1420' },
+    // sector 03 — flooded with coolant
+    water:      { sky: '#052a33', ground: '#3d4a63', groundHi: '#6a7ea3', groundLo: '#1b2436',
+                  brick: '#1f6f7a', brickHi: '#3fb0b8', stone: '#2a7f78', hill: '#22304d' }
   };
   function th() { return THEME[L.theme] || THEME.overworld; }
   function themeMusic() {
@@ -3247,7 +3259,7 @@
     if (L.theme === 'water' && !WET[t] && t !== T_GROUND && t !== T_STONE &&
         (WET[L.get(tx, ty - 1)] || WET[L.get(tx, ty + 1)] ||
          WET[L.get(tx - 1, ty)] || WET[L.get(tx + 1, ty)])) {
-      rect(x, y, 16, 16, 'rgba(58,140,220,.34)');
+      rect(x, y, 16, 16, 'rgba(40,200,190,.30)');
     }
     switch (t) {
       case T_GROUND:
@@ -3279,40 +3291,18 @@
         rect(x + 3, y + 8, 1, 8, THEME.castle.groundLo);
         rect(x + 11, y + 8, 1, 8, THEME.castle.groundLo);
         break;
-      case T_BRICK: {
+      case T_BRICK: {                     // server rack: shelves of blades
         rect(x, y, 16, 16, T.brick);
-        var jt = [0, 4, 8, 12];
+        rect(x, y, 16, 1, T.brickHi);
+        rect(x, y + 15, 16, 1, T.groundLo);
         for (var bi = 0; bi < 4; bi++) {
-          var by = y + jt[bi];
-          rect(x, by, 16, 1, T.brickHi);          // lit top of each course
-          rect(x, by + 3, 16, 1, T.groundLo);     // mortar under it
-          var off = bi % 2 ? 3 : 7;
-          rect(x + off, by, 1, 3, T.groundLo);
-          rect(x + off + 8, by, 1, 3, T.groundLo);
+          var by = y + 1 + bi * 4;
+          rect(x + 1, by, 14, 2, T.groundLo);
+          rect(x + 2, by, 3, 1, '#4ec9e0');
+          rect(x + 12, by, 2, 1, T.brickHi);
         }
         break;
       }
-      case T_Q: {
-        var f = ((frame / 12) | 0) % 6;
-        var glow = f === 0 ? '#fff2a8' : (f === 1 || f === 5 ? '#f7d02c' : '#e0a81c');
-        rect(x, y, 16, 16, glow);
-        rect(x + 1, y + 1, 14, 14, f === 0 ? '#f7d02c' : '#e0a81c');
-        rect(x, y, 16, 1, '#fff2a8'); rect(x, y + 15, 16, 1, '#9c6a06');
-        rect(x + 1, y + 1, 1, 1, '#fff'); rect(x + 14, y + 1, 1, 1, '#fff');
-        rect(x + 1, y + 14, 1, 1, '#9c6a06'); rect(x + 14, y + 14, 1, 1, '#9c6a06');
-        ctx.fillStyle = '#7a4a02';
-        ctx.fillRect(x + 6, y + 4, 4, 2); ctx.fillRect(x + 5, y + 5, 2, 2);
-        ctx.fillRect(x + 9, y + 5, 2, 3); ctx.fillRect(x + 7, y + 8, 3, 2);
-        ctx.fillRect(x + 7, y + 11, 2, 2);
-        break;
-      }
-      case T_USED:
-        rect(x, y, 16, 16, '#9c6a06');
-        rect(x + 1, y + 1, 14, 14, '#7a4a02');
-        rect(x, y, 16, 1, '#c98f18');
-        rect(x + 2, y + 2, 2, 2, '#c98f18'); rect(x + 12, y + 2, 2, 2, '#c98f18');
-        rect(x + 2, y + 12, 2, 2, '#c98f18'); rect(x + 12, y + 12, 2, 2, '#c98f18');
-        break;
       case T_STONE:
         rect(x, y, 16, 16, T.stone);
         rect(x, y, 16, 2, '#e2e8f0');
@@ -3323,45 +3313,49 @@
         rect(x + 9, y + 6, 4, 2, '#7f8896');
         rect(x + 4, y + 10, 5, 2, '#7f8896');
         break;
-      // Pipes are shaded like a cylinder — dark rim, light stripe, dark far
-      // side — instead of a flat green rectangle with one hard edge.
+      // Conduits: dark casing, a lit data band down the middle, ribbed collar.
       case T_PIPE_TL:
-        rect(x, y, 16, 16, '#3fae3f');
-        rect(x + 1, y, 2, 16, '#0e4f0e');
-        rect(x + 3, y, 3, 16, '#9bf09b');
-        rect(x + 6, y, 3, 16, '#4cc04c');
-        rect(x, y, 16, 2, '#0e4f0e');
-        rect(x, y + 2, 16, 1, '#9bf09b');
-        rect(x, y + 13, 16, 1, '#2c8c2c');
-        rect(x, y + 14, 16, 2, '#0e4f0e');
+        rect(x, y, 16, 16, '#2a3140');
+        rect(x + 1, y, 2, 16, '#0d1017');
+        rect(x + 3, y, 3, 16, '#4a5568');
+        rect(x + 6, y, 3, 16, '#1f7d92');
+        rect(x, y, 16, 2, '#0d1017');
+        rect(x, y + 2, 16, 1, '#6a7a95');
+        rect(x, y + 13, 16, 1, '#1a2030');
+        rect(x, y + 14, 16, 2, '#0d1017');
         break;
       case T_PIPE_TR:
-        rect(x, y, 16, 16, '#3fae3f');
-        rect(x + 13, y, 2, 16, '#0e4f0e');
-        rect(x + 9, y, 4, 16, '#2c8c2c');
-        rect(x, y, 16, 2, '#0e4f0e');
-        rect(x, y + 2, 16, 1, '#9bf09b');
-        rect(x, y + 13, 16, 1, '#2c8c2c');
-        rect(x, y + 14, 16, 2, '#0e4f0e');
+        rect(x, y, 16, 16, '#2a3140');
+        rect(x + 13, y, 2, 16, '#0d1017');
+        rect(x + 9, y, 4, 16, '#1a2030');
+        rect(x, y, 3, 16, '#1f7d92');
+        rect(x, y, 16, 2, '#0d1017');
+        rect(x, y + 2, 16, 1, '#6a7a95');
+        rect(x, y + 13, 16, 1, '#1a2030');
+        rect(x, y + 14, 16, 2, '#0d1017');
         break;
       case T_PIPE_L:
-        rect(x, y, 16, 16, '#3fae3f');
-        rect(x + 2, y, 2, 16, '#0e4f0e');
-        rect(x + 4, y, 3, 16, '#9bf09b');
-        rect(x + 7, y, 2, 16, '#4cc04c');
+        rect(x, y, 16, 16, '#2a3140');
+        rect(x + 2, y, 2, 16, '#0d1017');
+        rect(x + 4, y, 3, 16, '#4a5568');
+        rect(x + 7, y, 2, 16, '#1f7d92');
+        if ((y >> 4 & 1) === 0) rect(x + 7, y + 4, 2, 8, '#4ec9e0');
         break;
       case T_PIPE_R:
-        rect(x, y, 16, 16, '#3fae3f');
-        rect(x + 8, y, 4, 16, '#2c8c2c');
-        rect(x + 12, y, 2, 16, '#0e4f0e');
+        rect(x, y, 16, 16, '#2a3140');
+        rect(x, y, 2, 16, '#1f7d92');
+        rect(x + 8, y, 4, 16, '#1a2030');
+        rect(x + 12, y, 2, 16, '#0d1017');
+        if ((y >> 4 & 1) === 0) rect(x, y + 4, 2, 8, '#4ec9e0');
         break;
       case T_COIN:
         draw(ctx, SPR[['coin', 'coin2', 'coin3', 'coin2'][((frame / 8) | 0) % 4]], x, y);
         break;
-      case T_BRIDGE:
-        rect(x, y, 16, 6, '#b06a2a'); rect(x, y, 16, 1, '#e0a05a');
-        rect(x, y + 5, 16, 1, '#6a3a10');
-        rect(x + 4, y + 6, 2, 4, '#6a3a10'); rect(x + 10, y + 6, 2, 4, '#6a3a10');
+      case T_BRIDGE:                      // a service gantry
+        rect(x, y, 16, 6, '#3d4a63');
+        rect(x, y, 16, 1, '#8fa0bb');
+        rect(x, y + 5, 16, 1, '#0d1017');
+        rect(x + 3, y + 6, 2, 5, '#1a2030'); rect(x + 11, y + 6, 2, 5, '#1a2030');
         break;
       case T_LAVA: {
         var w = Math.sin((frame + x) / 14) * 2;
@@ -3370,9 +3364,11 @@
         rect(x, y, 16, 2, '#ffd020');
         break;
       }
-      case T_PLAT:
-        rect(x, y, 16, 5, '#c9560f'); rect(x, y, 16, 2, '#f0a050');
-        rect(x, y + 4, 16, 1, '#7d3208');
+      case T_PLAT:                        // a catwalk grating
+        rect(x, y, 16, 5, '#2a3140');
+        rect(x, y, 16, 1, '#6a7a95');
+        rect(x, y + 4, 16, 1, '#0d1017');
+        for (var gi = 1; gi < 16; gi += 4) rect(x + gi, y + 1, 1, 3, '#151b26');
         break;
       case T_CLOUD:
         rect(x, y, 16, 7, '#ffffff');
@@ -3381,15 +3377,17 @@
         rect(x + 3, y + 9, 4, 2, '#c4d8f0');
         rect(x + 10, y + 9, 4, 2, '#c4d8f0');
         break;
-      case T_TREE_TOP:
-        rect(x, y, 16, 11, '#e04a8a');
-        rect(x, y, 16, 2, '#ff9ec8');
-        rect(x + 2, y + 2, 5, 2, '#ffc4dd');       // a shine on the cap
-        rect(x, y + 8, 16, 1, '#c03070');
-        rect(x, y + 9, 16, 2, '#8f1a4c');
+      case T_TREE_TOP:                    // hover platform
+        rect(x, y, 16, 9, '#2a3140');
+        rect(x, y, 16, 2, '#6a7a95');
+        rect(x, y + 7, 16, 2, '#0d1017');
+        rect(x + 2, y + 9, 12, 2, '#1f7d92');
+        rect(x + 5, y + 11, 6, 2, '#4ec9e0');
         break;
-      case T_TREE:
-        rect(x + 4, y, 8, 16, '#b06a2a'); rect(x + 4, y, 3, 16, '#e0a05a');
+      case T_TREE:                        // its support column
+        rect(x + 5, y, 6, 16, '#1a2030');
+        rect(x + 6, y, 2, 16, '#4a5568');
+        rect(x + 5, y + 6, 6, 2, '#1f7d92');
         break;
       case T_CANNON:
         rect(x, y, 16, 16, '#2a2a30'); rect(x, y + 2, 16, 3, '#5a5a66');
@@ -3399,21 +3397,22 @@
         rect(x, y, 16, 16, '#3a3a44'); rect(x + 1, y, 14, 2, '#6a6a78');
         break;
       case T_WATER:
-        rect(x, y, 16, 16, 'rgba(58,140,220,.34)');
+        rect(x, y, 16, 16, 'rgba(40,200,190,.30)');
         if (((x + y + frame) >> 3) % 11 === 0) rect(x + 4, y + 6, 5, 1, 'rgba(200,235,255,.30)');
         break;
       case T_SURF: {
         var wob = Math.round(Math.sin((frame + x * 3) / 18) * 2);
-        rect(x, y, 16, 16, 'rgba(58,140,220,.34)');
-        rect(x, y + 4 + wob, 16, 12 - wob, 'rgba(120,195,245,.34)');
-        rect(x, y + 4 + wob, 16, 2, '#bfe6ff');
+        rect(x, y, 16, 16, 'rgba(40,200,190,.30)');
+        rect(x, y + 4 + wob, 16, 12 - wob, 'rgba(90,235,220,.30)');
+        rect(x, y + 4 + wob, 16, 2, '#9ff0e4');
         break;
       }
-      case T_VINE:
-        rect(x + 5, y, 6, 16, '#2c8c2c');
-        rect(x + 6, y, 2, 16, '#7fe07f');
-        rect(x + 1, y + 3, 4, 3, '#3fae3f');
-        rect(x + 11, y + 10, 4, 3, '#3fae3f');
+      case T_VINE:                        // a hanging cable
+        rect(x + 6, y, 4, 16, '#1a2030');
+        rect(x + 7, y, 1, 16, '#6a7a95');
+        rect(x + 4, y + 2, 8, 2, '#2a3140');
+        rect(x + 4, y + 10, 8, 2, '#2a3140');
+        rect(x + 7, y + 5, 2, 2, '#4ec9e0');
         break;
       case T_AXE:
         rect(x + 6, y + 4, 3, 11, '#8a5a20');
@@ -3636,31 +3635,39 @@
   function drawFlag() {
     if (!L.flagX) return;
     var x = L.flagX * TS - cam.x;
-    var top = (GY - 10) * TS;
-    rect(x + 6, top, 4, (GY) * TS - top, '#2c8c2c');
-    rect(x + 6, top, 2, (GY) * TS - top, '#7fe07f');
-    rect(x + 4, top - 8, 8, 8, '#f7d02c');
-    rect(x + 5, top - 7, 6, 6, '#fff2a8');
-    // the flag itself slides down as the level ends
+    var top = (GY - 10) * TS, foot = GY * TS;
+    // the uplink mast: a lattice tower with a dish on top
+    rect(x + 5, top, 6, foot - top, '#1a2030');
+    rect(x + 6, top, 2, foot - top, '#6a7a95');
+    for (var rung = top + 6; rung < foot; rung += 10) rect(x + 2, rung, 12, 2, '#2a3140');
+    rect(x + 2, top - 9, 12, 3, '#4a5568');
+    rect(x + 4, top - 12, 8, 3, '#8fa0bb');
+    rect(x + 6, top - 15, 4, 3, '#4ec9e0');
+    // the carrier signal slides down the mast as the sector closes
     var fy = top + 6 + (state === 'clear' || state === 'clearing' ? Math.min(120, stateT * 1.6) : 0);
-    ctx.fillStyle = '#e8f0ff';
-    ctx.beginPath();
-    ctx.moveTo(x + 6, fy); ctx.lineTo(x - 12, fy + 7); ctx.lineTo(x + 6, fy + 14);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#8a4adb';
-    ctx.fillRect(x - 2, fy + 4, 5, 5);
-    // castle
+    rect(x - 10, fy, 15, 3, '#4ec9e0');
+    rect(x - 12, fy + 4, 17, 6, '#8a4adb');
+    rect(x - 10, fy + 6, 13, 2, '#d9c8f5');
+    rect(x - 10, fy + 11, 15, 3, '#4ec9e0');
+    // the hub: a bank of server towers
     var cx = L.castleX * TS - cam.x, base = GY * TS;
-    ctx.fillStyle = '#b04a10';
-    ctx.fillRect(cx, base - 40, 80, 40);
-    ctx.fillRect(cx + 8, base - 56, 12, 16);
-    ctx.fillRect(cx + 34, base - 62, 12, 22);
-    ctx.fillRect(cx + 60, base - 56, 12, 16);
-    ctx.fillStyle = '#6a2a06';
-    ctx.fillRect(cx + 32, base - 20, 16, 20);
-    ctx.fillRect(cx + 4, base - 34, 8, 8); ctx.fillRect(cx + 68, base - 34, 8, 8);
-    ctx.fillStyle = '#e0a05a';
-    for (var i = 0; i < 5; i++) ctx.fillRect(cx + 2 + i * 16, base - 44, 8, 4);
+    ctx.fillStyle = '#232a38';
+    ctx.fillRect(cx, base - 44, 80, 44);
+    ctx.fillStyle = '#141a24';
+    for (var t = 0; t < 4; t++) ctx.fillRect(cx + 4 + t * 20, base - 40, 14, 40);
+    ctx.fillStyle = '#4ec9e0';
+    for (var t2 = 0; t2 < 4; t2++) {
+      for (var row = 0; row < 5; row++) {
+        if ((t2 + row + ((frame / 30) | 0)) % 3 === 0) continue;
+        ctx.fillRect(cx + 6 + t2 * 20, base - 36 + row * 7, 10, 2);
+      }
+    }
+    ctx.fillStyle = '#3d4a63';
+    ctx.fillRect(cx, base - 48, 80, 5);
+    ctx.fillStyle = '#8fa0bb';
+    ctx.fillRect(cx + 34, base - 58, 12, 11);
+    ctx.fillStyle = '#8a4adb';
+    ctx.fillRect(cx + 36, base - 56, 8, 4);
   }
 
   // ===================================================================== //
@@ -3795,7 +3802,7 @@
       } else if (pa.kind === 'puff') {
         draw(ctx, SPR.puff, px, pa.y);
       } else if (pa.kind === 'drop') {
-        rect(px, pa.y, 2, 3, '#bfe6ff');
+        rect(px, pa.y, 2, 3, '#9ff0e4');
       } else if (pa.kind === 'fw') {
         var fade = pa.t > 20 ? 2 : 3;
         rect(px, pa.y, fade - 1, fade - 1,
@@ -3825,7 +3832,7 @@
       ctx.textAlign = 'center';
       ctx.font = 'bold 12px ui-monospace, monospace';
       ctx.fillStyle = '#fff';
-      var msg = lives > 0 ? lives + (lives === 1 ? ' life left' : ' lives left') : 'no lives left';
+      var msg = lives > 0 ? lives + (lives === 1 ? ' unit left' : ' units left') : 'no units left';
       ctx.fillStyle = 'rgba(0,0,0,.75)';
       ctx.fillText(msg, VW / 2 + 1, 35);
       ctx.fillStyle = '#fff';
@@ -3840,7 +3847,7 @@
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 16px ui-monospace, monospace';
-    ctx.fillText('WORLD ' + L.name, VW / 2, VHR / 2 - 26);
+    ctx.fillText('SECTOR ' + L.name, VW / 2, VHR / 2 - 26);
     draw(ctx, SPR.pS_idle, VW / 2 - 26, VHR / 2 - 4);
     ctx.font = 'bold 14px ui-monospace, monospace';
     ctx.fillText('×  ' + lives, VW / 2 + 8, VHR / 2 + 9);
@@ -3855,7 +3862,7 @@
   function updateHud() {
     document.getElementById('score').textContent = score;
     document.getElementById('coins').textContent = coins;
-    document.getElementById('world').textContent = L ? L.name : '1-1';
+    document.getElementById('world').textContent = L ? L.name : '01';
     document.getElementById('time').textContent = Math.max(0, timeLeft);
     document.getElementById('lives').textContent = lives;
     document.getElementById('stTime').classList.toggle('warn', timeLeft <= 100);
@@ -3912,7 +3919,7 @@
       var world = WORLD_NAMES[levelIdx];
       showCard('💀', 'Game over',
                'Score ' + score + (best > 0 ? '   ·   best ' + best : '') + '.',
-               'New game', levelIdx > 0 ? 'Continue at ' + world : null,
+               'New game', levelIdx > 0 ? 'Continue at sector ' + world : null,
                function () { newGame(); },
                function () {
                  lives = 3; score = 0; coins = 0; fromCheckpoint = false;
@@ -4081,7 +4088,7 @@
   // anything but a <video> and no orientation lock at all.
   var fsBtn = document.getElementById('fsBtn');
   var rotated = false;
-  try { rotated = localStorage.getItem('vibetop:mario:rotate') === '1'; } catch (e) {}
+  try { rotated = localStorage.getItem('vibetop:circuit:rotate') === '1'; } catch (e) {}
   if (rotated) document.body.classList.add('rotated');
 
   function fsOn() {
@@ -4090,7 +4097,7 @@
   function setRotate(on) {
     rotated = on;
     document.body.classList.toggle('rotated', on);
-    try { localStorage.setItem('vibetop:mario:rotate', on ? '1' : '0'); } catch (e) {}
+    try { localStorage.setItem('vibetop:circuit:rotate', on ? '1' : '0'); } catch (e) {}
     setTimeout(resize, 30);
     setTimeout(resize, 260);
   }
@@ -4148,7 +4155,7 @@
   }
   sndBtn.addEventListener('click', function () {
     soundOn = !soundOn;
-    try { localStorage.setItem('vibetop:mario:sound', soundOn ? '1' : '0'); } catch (e) {}
+    try { localStorage.setItem('vibetop:circuit:sound', soundOn ? '1' : '0'); } catch (e) {}
     paintSnd();
     if (!soundOn) stopMusic();
     else if (state === 'play') { resumeAudio(); resumeMusic(); }
@@ -4170,7 +4177,7 @@
   // Level geometry, for the solvability audit in the test suite. A level whose
   // next foothold is further than a running jump is unfinishable, and there is
   // no way to see that by reading the builder — it has to be measured.
-  window.__marioBuild = function (i) {
+  window.__crBuild = function (i) {
     var lv = LEVELS[i]();
     return {
       name: lv.name, w: lv.w, h: ROWS, gy: GY, tiles: Array.prototype.slice.call(lv.t),
@@ -4181,11 +4188,11 @@
            COIN: T_COIN, TREE_TOP: T_TREE_TOP, EMPTY: T_EMPTY, Q: T_Q, HIDDEN: T_HIDDEN }
     };
   };
-  window.__marioLevelCount = LEVELS.length;
+  window.__crLevelCount = LEVELS.length;
   // one sprite's baked canvas, for eyeballing the art at magnification
-  window.__marioArt = function (n) { return SPR[n] ? SPR[n].c : null; };
+  window.__crArt = function (n) { return SPR[n] ? SPR[n].c : null; };
   // a tile drawn to its own 16x16 canvas, for judging the scenery at 6x
-  window.__marioTile = function (t) {
+  window.__crTile = function (t) {
     var c = document.createElement('canvas'); c.width = 16; c.height = 16;
     var save = ctx;
     ctx = c.getContext('2d');
@@ -4196,7 +4203,7 @@
   // Test-only nudges: place the player, or hand them a power-up. Nothing in
   // the game calls these; they exist so a test can set up a situation (a
   // stomp, a flagpole, a lava tile) instead of trying to play its way there.
-  window.__marioTest = {
+  window.__crTest = {
     place: function (tx, ty) {
       P.x = tx * TS; P.y = ty * TS - P.h; P.vx = 0; P.vy = 0;
       cam.x = Math.max(0, Math.min(P.x - VW * 0.4, L.w * TS - VW));
@@ -4237,7 +4244,7 @@
   // A read-only snapshot for the test suite. A platformer cannot be checked
   // from the DOM — everything that matters lives in a canvas — so the tests
   // assert on this instead of on pixels.
-  window.__mario = function () {
+  window.__cr = function () {
     return {
       state: state, level: L && L.name, px: P && P.x, py: P && P.y,
       vx: P && P.vx, vy: P && P.vy, big: P && P.big, fire: P && P.fire,
@@ -4253,8 +4260,8 @@
   resize();
   requestAnimationFrame(tick);
 
-  showCard('🍄', 'Super Vibe Bros',
-           best > 0 ? 'Best score so far: ' + best + '.' : 'Five worlds. Three lives. Good luck.',
+  showCard('🍄', 'Circuit Runner',
+           best > 0 ? 'Best score so far: ' + best + '.' : 'Five sectors. Three units. Good luck.',
            'Start', 'How to play', function () { newGame(); }, openHelp, true);
 })();
 </script>

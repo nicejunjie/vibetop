@@ -16,9 +16,9 @@
 
 const BOT = function (arg) {
   const levelIdx = arg.levelIdx, seed = arg.seed;
-  const T = window.__marioBuild(levelIdx);
+  const T = window.__crBuild(levelIdx);
   const SOLID = new Set(T.T.SOLID);
-  const at = (x, y) => (x < 0 || x >= T.w || y < 0 || y >= T.h) ? 0 : window.__marioTest.tile(x, y);
+  const at = (x, y) => (x < 0 || x >= T.w || y < 0 || y >= T.h) ? 0 : window.__crTest.tile(x, y);
   const solid = (x, y) => SOLID.has(at(x, y));
   const stand = (x, y) => solid(x, y) || at(x, y) === T.T.PLAT;
 
@@ -31,7 +31,7 @@ const BOT = function (arg) {
   const MAX = 60 * 240;                       // four minutes of game time
 
   for (let i = 0; i < MAX; i++) {
-    const s = window.__mario();
+    const s = window.__cr();
     if (s.state === 'clear' || s.state === 'clearing' || s.state === 'cleared') {
       return { ok: true, reachedX: s.px / 16, flagX: T.flagX, deaths, deathAt, steps: i };
     }
@@ -39,8 +39,8 @@ const BOT = function (arg) {
       if (s.state === 'dead' && !dying) { deaths++; deathAt.push(Math.round(s.px / 16)); }
       if (s.state === 'intro' && dying) { best = 0; bestAt = i; }   // fresh life
       dying = s.state === 'dead';
-      window.__marioTest.input({});
-      window.__marioTest.step(1);
+      window.__crTest.input({});
+      window.__crTest.step(1);
       continue;
     }
     const fx = Math.floor(s.px / 16), fy = Math.floor((s.py + (s.big ? 30 : 15) - 2) / 16);
@@ -50,7 +50,7 @@ const BOT = function (arg) {
       break;
     }
 
-    if (i % 240 === 0) window.__marioTest.give('star');
+    if (i % 240 === 0) window.__crTest.give('star');
     const inp = { right: true, run: true };
 
     if (water) {
@@ -92,7 +92,7 @@ const BOT = function (arg) {
       }
       // the nearest thing ahead that can hurt us
       let foeD = 999;
-      for (const e of window.__marioTest.ents()) {
+      for (const e of window.__crTest.ents()) {
         if (e.gone) continue;
         if (['goomba', 'koopa', 'koopaRed', 'para', 'bill', 'piranha', 'podoboo',
              'cheep', 'blooper'].indexOf(e.type) < 0) continue;
@@ -122,10 +122,10 @@ const BOT = function (arg) {
         if (waitFrames <= 0) jumpHold = 28;
       }
     }
-    window.__marioTest.input(inp);
-    window.__marioTest.step(1);
+    window.__crTest.input(inp);
+    window.__crTest.step(1);
   }
-  const s = window.__mario();
+  const s = window.__cr();
   return { ok: false, reachedX: best / 16, flagX: T.flagX, deaths, deathAt,
            stuck: stuckAt, state: s.state };
 };
