@@ -92,6 +92,10 @@
   #manage { color: #b79be8; }
   #pastebtn { display: none; color: #b79be8; }
   #pastebtn.on { display: inline-block; }
+  /* the clipboard's dismiss, present only while there is one to dismiss */
+  #pasteclear { display: none; color: #8a93a6; padding: 5px 8px; }
+  #pasteclear.on { display: inline-block; }
+  #pasteclear:hover { color: #e6edf3; }
   /* inline SVG icons (not emoji — 👁/🔍/⬆ rendered as mismatched color glyphs
      on iOS, reported as toy-like): monochrome, inherit the button color */
   .tools .bi { display: inline-flex; align-items: center; vertical-align: -3px; }
@@ -636,6 +640,7 @@
     #hidden .bi { display: inline-flex; }
     .tools svg { width: 17px; height: 17px; }
     #pastebtn { color: #b79be8; }
+    #pasteclear.on { display: inline-block; flex: 0 0 32px; width: 32px; padding: 0; }
     #pastebtn.on { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 9px; }
     .crumbs { min-width: 0; }
     .crumb { font-size: 14px; padding: 6px 6px; }
@@ -700,6 +705,7 @@
       <button id="newbtn" title="Create a new folder or file here"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11"/></svg></span><span class="bl"> New</span></button>
       <button id="upbtn" title="Upload files or a folder here (or drag &amp; drop from your computer)"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10.5v-8M4.8 5.7 8 2.5l3.2 3.2M2.5 13.5h11"/></svg></span><span class="bl"> Upload</span></button>
       <button id="pastebtn" title="Paste here"></button>
+      <button id="pasteclear" title="Clear the clipboard" aria-label="Clear the clipboard">✕</button>
       <button id="sortbtn" title="Sort" aria-label="Sort" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5v11M2 5l2.5-2.5L7 5M11.5 13.5v-11M9 11l2.5 2.5L14 11"/></svg></span><span class="bl"> Sort</span></button>
       <button id="layoutbtn" title="Layout — list, grid or gallery view" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></span><span class="bl"> Layout</span></button>
       <button id="selectbtn" title="Select several items" aria-pressed="false" aria-label="Select"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.6 6 12l7.5-8"/></svg></span><span class="bl"> Select</span></button>
@@ -836,6 +842,7 @@
   var pvEl = document.getElementById('pv');
   var actbarEl = document.getElementById('actbar');
   var pasteBtn = document.getElementById('pastebtn');
+  var pasteClearBtn = document.getElementById('pasteclear');
   var fileInput = document.getElementById('fileinput');
 
   var HOME = '';                 // resolved from /api/fs/home before first render
@@ -1073,12 +1080,32 @@
   }
 
   // ---- selection ----
+  // The clipboard lives in localStorage so it survives navigation and works
+  // across tabs — but it used to survive FOREVER: the Paste button stayed in
+  // the toolbar for days, advertising files copied in a session the user had
+  // long forgotten, and cut rows stayed dimmed just as long. It now ages out,
+  // and the age is refreshed every time it is actually used.
+  var CLIP_TTL = 30 * 60 * 1000;          // 30 minutes idle
   function getClip() {
     try {
       var c = JSON.parse(localStorage.getItem('fsx.clip') || 'null');
-      if (c && (c.mode === 'copy' || c.mode === 'cut') && Array.isArray(c.paths) && c.paths.length) return c;
+      if (!c || (c.mode !== 'copy' && c.mode !== 'cut')) return null;
+      if (!Array.isArray(c.paths) || !c.paths.length) return null;
+      if (c.at && Date.now() - c.at > CLIP_TTL) { clearClip(); return null; }
+      return c;
     } catch (e) {}
     return null;
+  }
+  function clearClip(announce) {
+    try { localStorage.removeItem('fsx.clip'); } catch (e) {}
+    if (announce) toast('Clipboard cleared');
+    syncSelDom();                          // drops the "cut" dimming too
+  }
+  function touchClip(c) {                  // keep an in-use clipboard alive
+    try {
+      c.at = Date.now();
+      localStorage.setItem('fsx.clip', JSON.stringify(c));
+    } catch (e) {}
   }
   function selNames() { return Object.keys(selected); }
   function selPaths() { return selNames().map(function(n) { return joinPath(path, n); }); }
@@ -1148,6 +1175,7 @@
   function renderActions() {
     var clip = getClip();
     pasteBtn.classList.toggle('on', !!clip);
+    pasteClearBtn.classList.toggle('on', !!clip);
     if (clip) {
       pasteBtn.textContent = 'Paste (' + clip.paths.length + ')';
       pasteBtn.title = (clip.mode === 'cut' ? 'Move' : 'Copy') + ' ' + clip.paths.length +
@@ -1736,7 +1764,7 @@
   function doCopyCut(mode) {
     if (!selCount) return;
     try {
-      localStorage.setItem('fsx.clip', JSON.stringify({ mode: mode, paths: selPaths() }));
+      localStorage.setItem('fsx.clip', JSON.stringify({ mode: mode, paths: selPaths(), at: Date.now() }));
     } catch (e) { toast('Clipboard unavailable', true); return; }
     toast(selCount + ' item' + (selCount === 1 ? '' : 's') + (mode === 'copy' ? ' copied' : ' cut'));
     if (selectMode) exitSelectMode();
@@ -1774,7 +1802,10 @@
       // Only a SUCCESSFUL cut consumes the clipboard. Clearing it on failure
       // stranded the user: the Paste button vanished and the files had to be
       // found and cut again.
-      if (ok && c.mode === 'cut') { try { localStorage.removeItem('fsx.clip'); } catch (e) {} }
+      // A cut is consumed by its paste; a copy stays (pasting into a second
+      // folder is legitimate) but its clock restarts.
+      if (ok && c.mode === 'cut') clearClip();
+      else if (ok) touchClip(c);
       renderActions();
       refresh();
     }).catch(function() { donePaste(); toast('Paste failed — network error', true); });
@@ -2345,6 +2376,7 @@
       else if (selectMode) { ev.preventDefault(); exitSelectMode(); }
       else if (selCount) { ev.preventDefault(); clearSel(); }
       else if (searchOpen || searchActive) { ev.preventDefault(); closeSearch(); }
+      else if (getClip()) { ev.preventDefault(); clearClip(true); }
       return;
     }
     // Backspace goes up a folder — the classic idiom, and the only keyboard
@@ -3540,6 +3572,7 @@
     if (upXhr) { try { upXhr.abort(); } catch (e) {} }
   });
   pasteBtn.addEventListener('click', doPaste);
+  pasteClearBtn.addEventListener('click', function() { clearClip(true); });
   document.getElementById('a-open').addEventListener('click', function() {
     var e = selEntry();
     if (e) openEntry(e);
