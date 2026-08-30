@@ -334,14 +334,15 @@
   var PAL = {
     '.': null,
     R: '#8a4adb', r: '#4a2378',        // accent purple (chassis trim)
-    B: '#3a4358', b: '#232a38',        // slate body
-    S: '#8fa0bb', s: '#5a6880',        // panel grey
-    N: '#4ec9e0', n: '#1f7d92',        // cyan (visor, glow)
-    K: '#12151d', W: '#eef4ff', L: '#c8d0dc',
+    B: '#dfe9fa', b: '#93a8cc',        // light chassis
+    E: '#e8434f', e: '#8f1c28',        // hostile red
+    S: '#b9c7de', s: '#6b7c99',        // panel grey
+    N: '#5fe8ff', n: '#2fc9e0',        // cyan (visor, glow)
+    K: '#3a2f6b', W: '#eef4ff', L: '#c8d0dc',
     Y: '#f7d02c', y: '#b8880c',        // token gold
     G: '#3fae3f', g: '#1d6b1d',
     O: '#ef8b28', o: '#a5560c',        // heat
-    P: '#f088c0', C: '#4ec9e0', M: '#8a4adb',
+    P: '#f088c0', C: '#5fe8ff', M: '#8a4adb',
     T: '#f2e9c8',
     a: '#7a5a10', A: '#fff0b0', h: '#c99a18'   // token: outline, shine, shade
   };
@@ -757,14 +758,14 @@
     '................',
     '................',
     '.....KKKKKK.....',
-    '...KKBBBBBBKK...',
-    '..KBBBBBBBBBBK..',
-    '.KBBNNBBBBNNBBK.',
-    '.KBBNWBBBBWNBBK.',
-    '.KBBBBBBBBBBBBK.',
-    '.KBrrBBBBBBrrBK.',
-    '.KBBBBBBBBBBBBK.',
-    '..KKBBBBBBBBKK..',
+    '...KKEEEEEEKK...',
+    '..KEEEEEEEEEEK..',
+    '.KEENNEEEENNEEK.',
+    '.KEENWEEEEWNEEK.',
+    '.KEEEEEEEEEEEEK.',
+    '.KEWWEEEEEEWWEK.',
+    '.KEEEEEEEEEEEEK.',
+    '..KKEEEEEEEEKK..',
     '...KKKKKKKKKK...',
     '..KK.KK..KK.KK..',
     '.KK..KK..KK..KK.',
@@ -775,14 +776,14 @@
     '................',
     '................',
     '.....KKKKKK.....',
-    '...KKBBBBBBKK...',
-    '..KBBBBBBBBBBK..',
-    '.KBBNNBBBBNNBBK.',
-    '.KBBNWBBBBWNBBK.',
-    '.KBBBBBBBBBBBBK.',
-    '.KBrrBBBBBBrrBK.',
-    '.KBBBBBBBBBBBBK.',
-    '..KKBBBBBBBBKK..',
+    '...KKEEEEEEKK...',
+    '..KEEEEEEEEEEK..',
+    '.KEENNEEEENNEEK.',
+    '.KEENWEEEEWNEEK.',
+    '.KEEEEEEEEEEEEK.',
+    '.KEWWEEEEEEWWEK.',
+    '.KEEEEEEEEEEEEK.',
+    '..KKEEEEEEEEKK..',
     '...KKKKKKKKKK...',
     '.KK..KK..KK..KK.',
     'KK...KK..KK...KK',
@@ -801,9 +802,9 @@
     '................',
     '................',
     '...KKKKKKKKKK...',
-    '..KBBNNBBNNBBK..',
-    '.KBBBBBBBBBBBBK.',
-    '.KBrrBBBBBBrrBK.',
+    '..KEENNEENNEEK..',
+    '.KEEEEEEEEEEEEK.',
+    '.KEWWEEEEEEWWEK.',
     '.KKKKKKKKKKKKKK.',
     '..KK..KK..KK....'
   ];
@@ -990,14 +991,14 @@
     '................',
     '..KK............',
     '..KNK....KKKK...',
-    '..KNNK.KKBBBBKK.',
-    '..KNNNKKBBBBBBBK',
-    'KKKNNNBBBNNWKBBK',
-    'KBBBBBBBBNNWKBBK',
-    'KBBBBBBBBBBBKBBK',
-    'KKKBBBBBBBBBBBBK',
-    '..KNNNKKBBBBBBK.',
-    '..KNNK.KKKBBKK..',
+    '..KNNK.KKEEEEKK.',
+    '..KNNNKKEEEEEEEK',
+    'KKKNNNEEENNWKEEK',
+    'KEEEEEEEENNWKEEK',
+    'KEEEEEEEEEEEKEEK',
+    'KKKEEEEEEEEEEEEK',
+    '..KNNNKKEEEEEEK.',
+    '..KNNK.KKKEEKK..',
     '..KNK....KKKK...',
     '..KK............',
     '................',
@@ -1008,14 +1009,14 @@
     '..KK............',
     '..KNK...........',
     '..KNNK...KKKK...',
-    '..KNNNKKKBBBBKK.',
-    '.KKNNNKKBBBBBBBK',
-    'KBBBBBBBBBNNWKBK',
-    'KBBBBBBBBBNNWKBK',
-    'KBBBBBBBBBBBBKBK',
-    'KKKBBBBBBBBBBBBK',
-    '.KKNNNKKBBBBBBK.',
-    '..KNNNKKKKBBKK..',
+    '..KNNNKKKEEEEKK.',
+    '.KKNNNKKEEEEEEEK',
+    'KEEEEEEEEENNWKEK',
+    'KEEEEEEEEENNWKEK',
+    'KEEEEEEEEEEEEKEK',
+    'KKKEEEEEEEEEEEEK',
+    '.KKNNNKKEEEEEEK.',
+    '..KNNNKKKKEEKK..',
     '..KNNK...KKKK...',
     '..KNK...........',
     '..KK............',
@@ -1329,7 +1330,7 @@
   // Star power cycles three loud palettes over the normal suit.
   var STAR_MAPS = [
     { R: '#f7d02c', r: '#b8880c', B: '#f7d02c', b: '#b8880c' },
-    { R: '#4ec9e0', r: '#1d6b8b', B: '#ffffff', b: '#9aa6b8' },
+    { R: '#5fe8ff', r: '#1d6b8b', B: '#ffffff', b: '#9aa6b8' },
     { R: '#3fae3f', r: '#1d6b1d', B: '#e03a20', b: '#9c1c08' }
   ];
   var STARS = STAR_MAPS.map(function (m) {
@@ -3225,18 +3226,20 @@
   //  Rendering
   // ===================================================================== //
   var THEME = {
-    // sector 01 — the surface: dusk sky over deck plating
-    overworld:  { sky: '#2b3f6b', ground: '#3d4a63', groundHi: '#6a7ea3', groundLo: '#1b2436',
-                  brick: '#3d4a63', brickHi: '#6a7ea3', stone: '#8fa0bb', hill: '#22304d' },
-    // sector 02 — the tunnels
-    underground:{ sky: '#07090f', ground: '#1f3a52', groundHi: '#3f6f96', groundLo: '#0d1b28',
-                  brick: '#1f3a52', brickHi: '#3f6f96', stone: '#6b7a92', hill: '#101a2a' },
-    // sector 05 — the core
-    castle:     { sky: '#0b0710', ground: '#4a3a5c', groundHi: '#7a6394', groundLo: '#241a30',
-                  brick: '#4a3a5c', brickHi: '#7a6394', stone: '#5c5c66', hill: '#1a1420' },
+    // Bright, not grim. The first cut of this palette was near-black slate on
+    // navy and read as a dungeon; a platformer wants daylight.
+    // sector 01 — the surface, in daylight
+    overworld:  { sky: '#5ec8f2', ground: '#e8a13c', groundHi: '#ffd47a', groundLo: '#a35f14',
+                  brick: '#7a6bd8', brickHi: '#b3a6ff', stone: '#dbe4f2', hill: '#46c98a' },
+    // sector 02 — the tunnels: lit, not pitch dark
+    underground:{ sky: '#173a5e', ground: '#2fa8c9', groundHi: '#7fe4f5', groundLo: '#125b73',
+                  brick: '#2fa8c9', brickHi: '#7fe4f5', stone: '#b9cbe0', hill: '#1d5a80' },
+    // sector 05 — the core: warm and hot, not a crypt
+    castle:     { sky: '#3a1d4a', ground: '#9a72c9', groundHi: '#d5b6f5', groundLo: '#4b2a6b',
+                  brick: '#9a72c9', brickHi: '#d5b6f5', stone: '#c6b0e0', hill: '#2a1636' },
     // sector 03 — flooded with coolant
-    water:      { sky: '#052a33', ground: '#3d4a63', groundHi: '#6a7ea3', groundLo: '#1b2436',
-                  brick: '#1f6f7a', brickHi: '#3fb0b8', stone: '#2a7f78', hill: '#22304d' }
+    water:      { sky: '#39c6d8', ground: '#e8a13c', groundHi: '#ffd47a', groundLo: '#a35f14',
+                  brick: '#2fbfae', brickHi: '#8df0e2', stone: '#3fd6b8', hill: '#46c98a' }
   };
   function th() { return THEME[L.theme] || THEME.overworld; }
   function themeMusic() {
@@ -3259,7 +3262,7 @@
     if (L.theme === 'water' && !WET[t] && t !== T_GROUND && t !== T_STONE &&
         (WET[L.get(tx, ty - 1)] || WET[L.get(tx, ty + 1)] ||
          WET[L.get(tx - 1, ty)] || WET[L.get(tx + 1, ty)])) {
-      rect(x, y, 16, 16, 'rgba(40,200,190,.30)');
+      rect(x, y, 16, 16, 'rgba(60,220,205,.32)');
     }
     switch (t) {
       case T_GROUND:
@@ -3298,7 +3301,7 @@
         for (var bi = 0; bi < 4; bi++) {
           var by = y + 1 + bi * 4;
           rect(x + 1, by, 14, 2, T.groundLo);
-          rect(x + 2, by, 3, 1, '#4ec9e0');
+          rect(x + 2, by, 3, 1, '#5fe8ff');
           rect(x + 12, by, 2, 1, T.brickHi);
         }
         break;
@@ -3315,47 +3318,47 @@
         break;
       // Conduits: dark casing, a lit data band down the middle, ribbed collar.
       case T_PIPE_TL:
-        rect(x, y, 16, 16, '#2a3140');
-        rect(x + 1, y, 2, 16, '#0d1017');
-        rect(x + 3, y, 3, 16, '#4a5568');
-        rect(x + 6, y, 3, 16, '#1f7d92');
-        rect(x, y, 16, 2, '#0d1017');
-        rect(x, y + 2, 16, 1, '#6a7a95');
-        rect(x, y + 13, 16, 1, '#1a2030');
-        rect(x, y + 14, 16, 2, '#0d1017');
+        rect(x, y, 16, 16, '#5a72a8');
+        rect(x + 1, y, 2, 16, '#2a3a66');
+        rect(x + 3, y, 3, 16, '#9fb4de');
+        rect(x + 6, y, 3, 16, '#2fc9e0');
+        rect(x, y, 16, 2, '#2a3a66');
+        rect(x, y + 2, 16, 1, '#cfe0ff');
+        rect(x, y + 13, 16, 1, '#3f558c');
+        rect(x, y + 14, 16, 2, '#2a3a66');
         break;
       case T_PIPE_TR:
-        rect(x, y, 16, 16, '#2a3140');
-        rect(x + 13, y, 2, 16, '#0d1017');
-        rect(x + 9, y, 4, 16, '#1a2030');
-        rect(x, y, 3, 16, '#1f7d92');
-        rect(x, y, 16, 2, '#0d1017');
-        rect(x, y + 2, 16, 1, '#6a7a95');
-        rect(x, y + 13, 16, 1, '#1a2030');
-        rect(x, y + 14, 16, 2, '#0d1017');
+        rect(x, y, 16, 16, '#5a72a8');
+        rect(x + 13, y, 2, 16, '#2a3a66');
+        rect(x + 9, y, 4, 16, '#3f558c');
+        rect(x, y, 3, 16, '#2fc9e0');
+        rect(x, y, 16, 2, '#2a3a66');
+        rect(x, y + 2, 16, 1, '#cfe0ff');
+        rect(x, y + 13, 16, 1, '#3f558c');
+        rect(x, y + 14, 16, 2, '#2a3a66');
         break;
       case T_PIPE_L:
-        rect(x, y, 16, 16, '#2a3140');
-        rect(x + 2, y, 2, 16, '#0d1017');
-        rect(x + 4, y, 3, 16, '#4a5568');
-        rect(x + 7, y, 2, 16, '#1f7d92');
-        if ((y >> 4 & 1) === 0) rect(x + 7, y + 4, 2, 8, '#4ec9e0');
+        rect(x, y, 16, 16, '#5a72a8');
+        rect(x + 2, y, 2, 16, '#2a3a66');
+        rect(x + 4, y, 3, 16, '#9fb4de');
+        rect(x + 7, y, 2, 16, '#2fc9e0');
+        if ((y >> 4 & 1) === 0) rect(x + 7, y + 4, 2, 8, '#5fe8ff');
         break;
       case T_PIPE_R:
-        rect(x, y, 16, 16, '#2a3140');
-        rect(x, y, 2, 16, '#1f7d92');
-        rect(x + 8, y, 4, 16, '#1a2030');
-        rect(x + 12, y, 2, 16, '#0d1017');
-        if ((y >> 4 & 1) === 0) rect(x, y + 4, 2, 8, '#4ec9e0');
+        rect(x, y, 16, 16, '#5a72a8');
+        rect(x, y, 2, 16, '#2fc9e0');
+        rect(x + 8, y, 4, 16, '#3f558c');
+        rect(x + 12, y, 2, 16, '#2a3a66');
+        if ((y >> 4 & 1) === 0) rect(x, y + 4, 2, 8, '#5fe8ff');
         break;
       case T_COIN:
         draw(ctx, SPR[['coin', 'coin2', 'coin3', 'coin2'][((frame / 8) | 0) % 4]], x, y);
         break;
       case T_BRIDGE:                      // a service gantry
         rect(x, y, 16, 6, '#3d4a63');
-        rect(x, y, 16, 1, '#8fa0bb');
-        rect(x, y + 5, 16, 1, '#0d1017');
-        rect(x + 3, y + 6, 2, 5, '#1a2030'); rect(x + 11, y + 6, 2, 5, '#1a2030');
+        rect(x, y, 16, 1, '#dbe4f2');
+        rect(x, y + 5, 16, 1, '#2a3a66');
+        rect(x + 3, y + 6, 2, 5, '#3f558c'); rect(x + 11, y + 6, 2, 5, '#3f558c');
         break;
       case T_LAVA: {
         var w = Math.sin((frame + x) / 14) * 2;
@@ -3365,10 +3368,10 @@
         break;
       }
       case T_PLAT:                        // a catwalk grating
-        rect(x, y, 16, 5, '#2a3140');
-        rect(x, y, 16, 1, '#6a7a95');
-        rect(x, y + 4, 16, 1, '#0d1017');
-        for (var gi = 1; gi < 16; gi += 4) rect(x + gi, y + 1, 1, 3, '#151b26');
+        rect(x, y, 16, 5, '#5a72a8');
+        rect(x, y, 16, 1, '#cfe0ff');
+        rect(x, y + 4, 16, 1, '#2a3a66');
+        for (var gi = 1; gi < 16; gi += 4) rect(x + gi, y + 1, 1, 3, '#3f558c');
         break;
       case T_CLOUD:
         rect(x, y, 16, 7, '#ffffff');
@@ -3378,16 +3381,16 @@
         rect(x + 10, y + 9, 4, 2, '#c4d8f0');
         break;
       case T_TREE_TOP:                    // hover platform
-        rect(x, y, 16, 9, '#2a3140');
-        rect(x, y, 16, 2, '#6a7a95');
-        rect(x, y + 7, 16, 2, '#0d1017');
-        rect(x + 2, y + 9, 12, 2, '#1f7d92');
-        rect(x + 5, y + 11, 6, 2, '#4ec9e0');
+        rect(x, y, 16, 9, '#5a72a8');
+        rect(x, y, 16, 2, '#cfe0ff');
+        rect(x, y + 7, 16, 2, '#2a3a66');
+        rect(x + 2, y + 9, 12, 2, '#2fc9e0');
+        rect(x + 5, y + 11, 6, 2, '#5fe8ff');
         break;
       case T_TREE:                        // its support column
-        rect(x + 5, y, 6, 16, '#1a2030');
-        rect(x + 6, y, 2, 16, '#4a5568');
-        rect(x + 5, y + 6, 6, 2, '#1f7d92');
+        rect(x + 5, y, 6, 16, '#3f558c');
+        rect(x + 6, y, 2, 16, '#9fb4de');
+        rect(x + 5, y + 6, 6, 2, '#2fc9e0');
         break;
       case T_CANNON:
         rect(x, y, 16, 16, '#2a2a30'); rect(x, y + 2, 16, 3, '#5a5a66');
@@ -3397,22 +3400,22 @@
         rect(x, y, 16, 16, '#3a3a44'); rect(x + 1, y, 14, 2, '#6a6a78');
         break;
       case T_WATER:
-        rect(x, y, 16, 16, 'rgba(40,200,190,.30)');
+        rect(x, y, 16, 16, 'rgba(60,220,205,.32)');
         if (((x + y + frame) >> 3) % 11 === 0) rect(x + 4, y + 6, 5, 1, 'rgba(200,235,255,.30)');
         break;
       case T_SURF: {
         var wob = Math.round(Math.sin((frame + x * 3) / 18) * 2);
-        rect(x, y, 16, 16, 'rgba(40,200,190,.30)');
-        rect(x, y + 4 + wob, 16, 12 - wob, 'rgba(90,235,220,.30)');
+        rect(x, y, 16, 16, 'rgba(60,220,205,.32)');
+        rect(x, y + 4 + wob, 16, 12 - wob, 'rgba(150,245,235,.34)');
         rect(x, y + 4 + wob, 16, 2, '#9ff0e4');
         break;
       }
       case T_VINE:                        // a hanging cable
-        rect(x + 6, y, 4, 16, '#1a2030');
-        rect(x + 7, y, 1, 16, '#6a7a95');
-        rect(x + 4, y + 2, 8, 2, '#2a3140');
-        rect(x + 4, y + 10, 8, 2, '#2a3140');
-        rect(x + 7, y + 5, 2, 2, '#4ec9e0');
+        rect(x + 6, y, 4, 16, '#3f558c');
+        rect(x + 7, y, 1, 16, '#cfe0ff');
+        rect(x + 4, y + 2, 8, 2, '#5a72a8');
+        rect(x + 4, y + 10, 8, 2, '#5a72a8');
+        rect(x + 7, y + 5, 2, 2, '#5fe8ff');
         break;
       case T_AXE:
         rect(x + 6, y + 4, 3, 11, '#8a5a20');
@@ -3637,25 +3640,25 @@
     var x = L.flagX * TS - cam.x;
     var top = (GY - 10) * TS, foot = GY * TS;
     // the uplink mast: a lattice tower with a dish on top
-    rect(x + 5, top, 6, foot - top, '#1a2030');
-    rect(x + 6, top, 2, foot - top, '#6a7a95');
-    for (var rung = top + 6; rung < foot; rung += 10) rect(x + 2, rung, 12, 2, '#2a3140');
-    rect(x + 2, top - 9, 12, 3, '#4a5568');
-    rect(x + 4, top - 12, 8, 3, '#8fa0bb');
-    rect(x + 6, top - 15, 4, 3, '#4ec9e0');
+    rect(x + 5, top, 6, foot - top, '#3f558c');
+    rect(x + 6, top, 2, foot - top, '#cfe0ff');
+    for (var rung = top + 6; rung < foot; rung += 10) rect(x + 2, rung, 12, 2, '#5a72a8');
+    rect(x + 2, top - 9, 12, 3, '#9fb4de');
+    rect(x + 4, top - 12, 8, 3, '#dbe4f2');
+    rect(x + 6, top - 15, 4, 3, '#5fe8ff');
     // the carrier signal slides down the mast as the sector closes
     var fy = top + 6 + (state === 'clear' || state === 'clearing' ? Math.min(120, stateT * 1.6) : 0);
-    rect(x - 10, fy, 15, 3, '#4ec9e0');
+    rect(x - 10, fy, 15, 3, '#5fe8ff');
     rect(x - 12, fy + 4, 17, 6, '#8a4adb');
     rect(x - 10, fy + 6, 13, 2, '#d9c8f5');
-    rect(x - 10, fy + 11, 15, 3, '#4ec9e0');
+    rect(x - 10, fy + 11, 15, 3, '#5fe8ff');
     // the hub: a bank of server towers
     var cx = L.castleX * TS - cam.x, base = GY * TS;
-    ctx.fillStyle = '#232a38';
+    ctx.fillStyle = '#5a72a8';
     ctx.fillRect(cx, base - 44, 80, 44);
-    ctx.fillStyle = '#141a24';
+    ctx.fillStyle = '#2a3a66';
     for (var t = 0; t < 4; t++) ctx.fillRect(cx + 4 + t * 20, base - 40, 14, 40);
-    ctx.fillStyle = '#4ec9e0';
+    ctx.fillStyle = '#5fe8ff';
     for (var t2 = 0; t2 < 4; t2++) {
       for (var row = 0; row < 5; row++) {
         if ((t2 + row + ((frame / 30) | 0)) % 3 === 0) continue;
@@ -3664,7 +3667,7 @@
     }
     ctx.fillStyle = '#3d4a63';
     ctx.fillRect(cx, base - 48, 80, 5);
-    ctx.fillStyle = '#8fa0bb';
+    ctx.fillStyle = '#dbe4f2';
     ctx.fillRect(cx + 34, base - 58, 12, 11);
     ctx.fillStyle = '#8a4adb';
     ctx.fillRect(cx + 36, base - 56, 8, 4);
