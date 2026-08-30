@@ -215,13 +215,20 @@ def stubs(mgr, monkeypatch):
     return rec
 
 
+#: sentinel for "send NO cookie" — the endpoints are authenticated, so an
+#: anonymous request is a deliberate act, not the default.
+ANON = object()
+
+
 class _Client:
     """Minimal HTTP client for the harness. GET/POST return (status, parsed-json).
     POSTs default to a same-origin Origin so the CSRF gate passes; pass
-    origin=<other> to exercise the cross-origin rejection."""
-    def __init__(self, base):
+    origin=<other> to exercise the cross-origin rejection. Requests carry a
+    valid APP_USER session unless a test passes cookie=ANON."""
+    def __init__(self, base, mgr):
         self.base = base
         self.host = base.split("://", 1)[1]
+        self.mgr = mgr
 
     def _do(self, req):
         try:
@@ -235,15 +242,24 @@ class _Client:
             except ValueError:
                 return e.code, raw
 
+    def _cookie(self, cookie):
+        """Default to a valid session for APP_USER. Pass cookie=ANON for the
+        deliberately-unauthenticated cases."""
+        if cookie is ANON:
+            return None
+        return cookie or ("vt_session=" + self.mgr._sign_session(self.mgr.APP_USER))
+
     def get(self, path, cookie=None):
-        h = {"Cookie": cookie} if cookie else {}
+        c = self._cookie(cookie)
+        h = {"Cookie": c} if c else {}
         return self._do(urllib.request.Request(self.base + path, headers=h))
 
     def get_full(self, path, cookie=None, headers=None):
         """GET returning (status, headers-dict, parsed-json-or-None)."""
         h = dict(headers or {})
-        if cookie:
-            h["Cookie"] = cookie
+        c = self._cookie(cookie)
+        if c:
+            h["Cookie"] = c
         req = urllib.request.Request(self.base + path, headers=h)
         try:
             with urllib.request.urlopen(req, timeout=10) as r:
@@ -256,12 +272,14 @@ class _Client:
             except ValueError:
                 return e.code, dict(e.headers), raw
 
-    def get_raw(self, path):
+    def get_raw(self, path, cookie=None):
         """GET returning (status, headers, raw-bytes) for non-JSON endpoints
         (office doc/download/preview)."""
+        c = self._cookie(cookie)
         try:
             with urllib.request.urlopen(
-                    urllib.request.Request(self.base + path), timeout=10) as r:
+                    urllib.request.Request(self.base + path,
+                                           headers={"Cookie": c} if c else {}), timeout=10) as r:
                 return r.status, dict(r.headers), r.read()
         except urllib.error.HTTPError as e:
             return e.code, dict(e.headers), e.read()
@@ -274,8 +292,9 @@ class _Client:
             h["Origin"] = "http://" + self.host
         elif origin is not None:
             h["Origin"] = origin
-        if cookie:
-            h["Cookie"] = cookie
+        c = self._cookie(cookie)
+        if c:
+            h["Cookie"] = c
         if headers:
             h.update(headers)
         return self._do(urllib.request.Request(self.base + path, data=data,
@@ -332,6 +351,6 @@ def client(mgr, home, stubs):
                          daemon=True)
     t.start()
     try:
-        yield _Client(f"http://127.0.0.1:{srv.server_address[1]}")
+        yield _Client(f"http://127.0.0.1:{srv.server_address[1]}", mgr)
     finally:
         srv.shutdown()

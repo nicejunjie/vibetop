@@ -1,3 +1,4 @@
+from conftest import ANON
 """Endpoint contracts for the Claude plan-usage strip:
 GET/POST /api/claude/usage (settings.json surgery + toggle) and
 GET /api/claude/stats. systemctl is stubbed; settings live in the tmp HOME."""
@@ -13,8 +14,8 @@ def test_usage_disabled_by_default(client, op_cookie):
 def test_usage_requires_admin_session(client):
     # Operator-only surface: a cookieless direct-to-loopback call must not read or
     # toggle the operator's Claude proxy routing.
-    assert client.get("/api/claude/usage")[0] == 403
-    assert client.post("/api/claude/usage", {"enabled": True})[0] == 403
+    assert client.get("/api/claude/usage", cookie=ANON)[0] == 403
+    assert client.post("/api/claude/usage", {"enabled": True}, cookie=ANON)[0] == 403
 
 
 def test_enable_wires_base_url_into_settings(client, mgr, stubs, op_cookie):

@@ -13,10 +13,15 @@ import urllib.error
 import urllib.request
 
 
-def _raw(client, path, headers=None, method="GET"):
+def _raw(client, path, headers=None, method="GET", anon=False):
     """GET/HEAD returning (status, headers-dict, body-bytes), with optional request
-    headers — the shared `client.get_raw` can't send request headers (needed for Range)."""
-    req = urllib.request.Request(client.base + path, headers=headers or {}, method=method)
+    headers — the shared `client.get_raw` can't send request headers (needed for Range).
+    Authenticated by default: /api/video/* rejects a cookieless caller (on this
+    loopback socket that is a local tenant, not the service account)."""
+    h = dict(headers or {})
+    if not anon:
+        h.setdefault("Cookie", "vt_session=" + client.mgr._sign_session(client.mgr.APP_USER))
+    req = urllib.request.Request(client.base + path, headers=h, method=method)
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read()

@@ -4183,6 +4183,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"ok": True})
 
     def _handle_files_tabs_save(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # POST {paths:[<FileBrowser URL>], active} — the Files app's shared tab set.
         body = self._read_body(65536)
         if body is None:
@@ -5183,6 +5188,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200 if ok else 500, {"ok": ok})
 
     def _handle_office_preview(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # GET /api/office/preview?path=<rel-to-home> — convert to PDF (cached)
         # and serve it inline so the shell can show it in a read-only viewer.
         q = urllib.parse.urlparse(self.path).query
@@ -5217,6 +5227,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # ---- Video player (in-Files) --------------------------------------------
 
     def _handle_video_info(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # GET /api/video/info?path=<rel-to-home> — probe audio/subtitle tracks.
         q = urllib.parse.urlparse(self.path).query
         rel = urllib.parse.parse_qs(q).get("path", [""])[0]
@@ -5261,6 +5276,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         """POST /api/fs/op — one JSON mutation (mkdir/rename/move/copy/delete)
         forwarded verbatim to the request user's agent. The manager validates
         only the op whitelist; the agent (as the user) is the authority."""
+        user = self._require_authed()
+        if not user:
+            return
         body = self._read_body(262144)
         if body is None:
             return self._json(400, {"ok": False, "error": "invalid body", "code": "einval"})
@@ -5270,9 +5288,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(400, {"ok": False, "error": "invalid json", "code": "einval"})
         if req.get("op") not in ("mkdir", "rename", "move", "copy", "delete"):
             return self._json(400, {"ok": False, "error": "unknown op", "code": "einval"})
-        user = self._require_authed()
-        if not user:
-            return
         ok, err = _ensure_fileagent(user)
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
@@ -5282,6 +5297,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         """POST /api/fs/upload?path=/abs/dst — stream the request body through
         to the agent, which writes it AS THE USER (temp file + atomic rename).
         The manager never touches the filesystem."""
+        user = self._require_authed()
+        if not user:
+            return
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         dst = q.get("path", [""])[0]
         try:
@@ -5291,9 +5309,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not dst.startswith("/") or length < 0:
             return self._json(400, {"ok": False, "error": "path and Content-Length required",
                                     "code": "einval"})
-        user = self._require_authed()
-        if not user:
-            return
         ok, err = _ensure_fileagent(user)
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable", "code": "agent"})
@@ -5387,6 +5402,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         to THEIR file agent (Files-native phase 1). The manager adds nothing to
         the request beyond routing: the agent runs as the user, so the OS is
         the authorization boundary (docs/files-native.md)."""
+        user = self._require_authed()
+        if not user:
+            return
         u = urllib.parse.urlparse(self.path)
         op = u.path.rsplit("/", 1)[-1]
         if op not in ("home", "list", "stat", "read", "search", "hash", "usage"):
@@ -5406,9 +5424,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             req["mode"] = q["mode"][0]
         if "algo" in q:
             req["algo"] = q["algo"][0]
-        user = self._require_authed()
-        if not user:
-            return
         ok, err = _ensure_fileagent(user)
         if not ok:
             return self._json(502, {"ok": False, "error": err or "agent unavailable",
@@ -5423,11 +5438,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         serve exactly what the user's Unix permissions allow, no more. Exists so
         the viewer needs nothing from FileBrowser's (version-drifting) API for
         the bytes — first plumbing of the Files-native direction."""
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         q = urllib.parse.urlparse(self.path).query
         params = urllib.parse.parse_qs(q)
         rel = params.get("path", [""])[0]
         if not rel or not _IMAGE_RE.search(rel):
             return self._json(400, {"error": "not an image file"})
+
         src = _resolve_user_file(rel)
         if not src:
             return self._json(404, {"error": "file not found"})
@@ -5495,6 +5516,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pass
 
     def _handle_video_media(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # GET/HEAD /api/video/media?path=<rel>&audio=<per-type audio index>
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         rel = q.get("path", [""])[0]
@@ -5530,6 +5556,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                self.headers.get("Range"), ctype="video/mp4")
 
     def _handle_video_subs(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # GET /api/video/subs?path=<rel>&sub=<per-type subtitle index> — WebVTT.
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         rel = q.get("path", [""])[0]
@@ -5641,6 +5672,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._json(200, {"ok": True, "path": os.path.relpath(dst, _office_home())})
 
     def _handle_office_config(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # GET ?path= -> the signed DocEditor config the editor page mounts. The
         # doc/callback URLs carry the owning user (u=) so the container's cookieless
         # callbacks resolve under the right home; the HMAC binds (user, path).
@@ -5714,6 +5750,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pass
 
     def _handle_office_download(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # GET ?path= -> the ORIGINAL office file as an attachment (the viewer
         # shows a PDF rendition, but Download should give the real .docx/.xlsx/…).
         # User-facing (behind Access), so no HMAC; just gated under ~ + OFFICE_RE.
@@ -6282,7 +6323,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return "%s://%s/s/%s" % (proto, host, token)
 
     def _handle_share_create(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # POST /api/share {path, ttl(days)} -> mint a public read-only link.
+
         raw = self._read_body(64 * 1024)
         if raw is None:
             return self._json(400, {"error": "invalid or too-large body"})
@@ -6320,6 +6367,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                 "name": name, "kind": kind, "expires": int(expires)})
 
     def _handle_share_list(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # GET /api/share/list -> active shares (authed; for the manage UI).
         now = time.time()
         with _shares_lock:
@@ -6342,6 +6394,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self._json(200, {"shares": items})
 
     def _handle_share_revoke(self):
+        # Loopback is NOT a trust boundary here: nginx's auth_request gates the
+        # public path, but every local tenant can reach 127.0.0.1 directly, where
+        # _ctx_user() answers APP_USER. Same rule /api/fs/* adopted in v1.19.106.
+        if not self._require_authed():
+            return
         # POST /api/share/revoke {token}
         raw = self._read_body(64 * 1024)
         if raw is None:
@@ -6548,6 +6605,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json(200, {"ok": True})
             return
         if self.path == "/api/me":
+            # Never answer a cookieless caller with the service account's
+            # identity — see the /api/fs/* rule (v1.19.106).
+            if not self._require_authed():
+                return
             # The authenticated principal for this request + their real home and
             # display (GECOS) name. Front-ends that are static files (can't be
             # stamped per-user) use this: files.html anchors the Files app at ~
@@ -6640,6 +6701,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/api/share/list":
             return self._handle_share_list()
         if self.path == "/api/files/tabs":
+            # Per-user state under _ctx_home() — a cookieless caller must not
+            # read (or, via the POST twin, write) the service account's tabs.
+            if not self._require_authed():
+                return
             try:
                 with open(_files_tabs_file()) as f:
                     data = json.load(f)

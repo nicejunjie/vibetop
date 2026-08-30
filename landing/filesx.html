@@ -350,6 +350,28 @@
     padding: 4px 10px; border-radius: 6px; opacity: .95; white-space: nowrap;
   }
 
+  .uprog-row { display: flex; align-items: center; gap: 10px; }
+  .uprog-row .uprog-txt { flex: 1 1 auto; min-width: 0; }
+  #uprog-x {
+    flex: 0 0 auto; background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; padding: 3px 10px; font: 11.5px system-ui, sans-serif;
+    cursor: pointer; min-height: 26px;
+  }
+  #uprog-x:hover { background: #3a2024; border-color: #5a2c33; color: #f1b3b3; }
+
+  /* status bar: the count of what is here and what is selected. With a mouse
+     the action pill is hidden (verbs live in the right-click menu), which left
+     the desktop with no selection feedback anywhere. */
+  .statusbar {
+    display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+    padding: 3px 12px; min-height: 24px; background: #10151d;
+    border-top: 1px solid #1e2632; color: #8a93a6;
+    font-size: 11.5px; white-space: nowrap; overflow: hidden;
+  }
+  .statusbar .sb-sel { color: #cdd5e1; }
+  .statusbar .sb-free { margin-left: auto; }
+  @media (max-width: 736px) { .statusbar { display: none; } }
+
   /* quiet centered states: loading / empty / error */
   .state {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -699,7 +721,10 @@
   </div>
   <div class="notice" id="notice"></div>
   <div class="uprog" id="uprog">
-    <div class="uprog-txt" id="uprog-txt"></div>
+    <div class="uprog-row">
+      <div class="uprog-txt" id="uprog-txt"></div>
+      <button id="uprog-x" title="Stop uploading">Cancel</button>
+    </div>
     <div class="uprog-bar"><div class="uprog-fill" id="uprog-fill"></div></div>
   </div>
   <div class="actbar" id="actbar">
@@ -725,7 +750,8 @@
     <button id="aud-dl" title="Download">⭳</button>
     <button id="aud-x" title="Close">✕</button>
   </div>
-  <div class="main" id="main" tabindex="0" role="listbox" aria-label="Files"></div>
+  <div class="main" id="main" tabindex="0" role="listbox" aria-label="Files" aria-multiselectable="true"></div>
+  <div class="statusbar" id="statusbar" aria-live="polite"></div>
   <div class="dropz" id="dropz" aria-hidden="true">
     <div class="dropz-in">
       <div class="big2" id="dropz-big"></div>
@@ -789,7 +815,7 @@
   // clipboard, uploads (files + folders + OS drag-and-drop), new file/folder,
   // editor, search, share, info (kind/perms/dimensions/checksums), open-in-
   // browser + office-edit handoffs. FileBrowser remains reachable via Manage.
-  var IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico)$/i;
+  var IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico|heic|heif|tiff?)$/i;
   var VID_RE = /\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$/i;
   // Kept in step with OFFICE_RE in terminal/terminal-manager.py — a narrower
   // list here meant .csv/.rtf/.docm/.xlsm/… had no viewer and no Edit at all.
@@ -970,6 +996,8 @@
     if (toastEl) toastEl.remove();
     clearTimeout(toastTimer);
     toastEl = el('div', 'toast' + (isErr ? ' err' : ''), msg);
+    toastEl.setAttribute('role', isErr ? 'alert' : 'status');
+    toastEl.setAttribute('aria-live', isErr ? 'assertive' : 'polite');
     // float above the selection pill when it's showing
     if (actbarEl.classList.contains('on')) toastEl.style.bottom = '72px';
     document.body.appendChild(toastEl);
@@ -1054,6 +1082,10 @@
   }
   function selNames() { return Object.keys(selected); }
   function selPaths() { return selNames().map(function(n) { return joinPath(path, n); }); }
+  function entryByName(n) {
+    for (var i = 0; i < rows.length; i++) if (rows[i].name === n) return rows[i];
+    return null;
+  }
   // The single selected entry (null unless exactly one is selected).
   function selEntry() {
     if (selCount !== 1) return null;
@@ -1069,11 +1101,50 @@
     for (var i = 0; i < els.length; i++) {
       var e = rows[+els[i].dataset.i];
       if (!e) continue;
-      els[i].classList.toggle('sel', !!selected[e.name]);
+      var on = !!selected[e.name];
+      els[i].classList.toggle('sel', on);
+      els[i].setAttribute('aria-selected', on ? 'true' : 'false');
       els[i].classList.toggle('cut', !!cutSet[joinPath(path, e.name)]);
     }
     renderActions();
   }
+  var statusEl = document.getElementById('statusbar');
+  var freeCache = { path: null, text: '' };
+  function renderStatus() {
+    if (!statusEl) return;
+    statusEl.innerHTML = '';
+    if (!path) return;
+    var shown = rows.length;
+    var hid = entries.length - shown;
+    var bytes = 0;
+    rows.forEach(function(e) { if (!e.isDir) bytes += e.size || 0; });
+    var parts = [shown + ' item' + (shown === 1 ? '' : 's')];
+    if (hid > 0) parts.push(hid + ' hidden');
+    if (bytes) parts.push(fmtSize(bytes));
+    statusEl.appendChild(el('span', null, parts.join(' · ')));
+    if (selCount) {
+      var selBytes = 0;
+      selNames().forEach(function(n) {
+        var e = entryByName(n);
+        if (e && !e.isDir) selBytes += e.size || 0;
+      });
+      statusEl.appendChild(el('span', 'sb-sel',
+        selCount + ' selected' + (selBytes ? ' · ' + fmtSize(selBytes) : '')));
+    }
+    // free space, fetched once per folder
+    if (freeCache.path === path && freeCache.text) {
+      statusEl.appendChild(el('span', 'sb-free', freeCache.text));
+    } else if (freeCache.path !== path) {
+      freeCache = { path: path, text: '' };
+      var forPath = path;
+      api('/api/fs/usage?path=' + encodeURIComponent(path)).then(function(d) {
+        if (!d || !d.ok || forPath !== path) return;
+        freeCache = { path: forPath, text: fmtSize(d.free) + ' free' };
+        renderStatus();
+      }).catch(function() {});
+    }
+  }
+
   function renderActions() {
     var clip = getClip();
     pasteBtn.classList.toggle('on', !!clip);
@@ -1082,6 +1153,7 @@
       pasteBtn.title = (clip.mode === 'cut' ? 'Move' : 'Copy') + ' ' + clip.paths.length +
                        ' item' + (clip.paths.length === 1 ? '' : 's') + ' here (Ctrl+V)';
     }
+    renderStatus();
     var on = selCount > 0 || selectMode;
     selectBtn.setAttribute('aria-pressed', selectMode ? 'true' : 'false');
     actbarEl.classList.toggle('on', on);
@@ -1232,6 +1304,10 @@
       var r = el('div', 'row' + (e.isDir ? ' dir' : '') +
                 (e.isLink ? ' link' : '') + (e.broken ? ' broken' : ''));
       r.dataset.i = i;
+      // .main is role="listbox"; without these its children are not options and
+      // a screen reader can say nothing about what is selected.
+      r.setAttribute('role', 'option');
+      r.setAttribute('aria-selected', 'false');
       r.appendChild(el('span', 'ck', ''));
       r.appendChild(icEl(e));
       var mid = el('span', 'mid');
@@ -1334,7 +1410,10 @@
       entries = d.entries || [];
       lastGood = p;
       renderList();
-      if (d.truncated) setNotice('Large folder — showing the first ' + entries.length + ' entries.');
+      if (d.truncated) {
+        setNotice('Large folder — showing the first ' + entries.length +
+                  (d.total ? ' of ' + d.total : '') + ' items, sorted by name.');
+      }
       mainEl.scrollTop = st;
     }).catch(function() {
       if (seq !== my) return;
@@ -1435,6 +1514,9 @@
   mainEl.addEventListener('contextmenu', function(ev) {
     if (lastPtrType === 'touch') { ev.preventDefault(); return; }   // long-press is select mode
     ev.preventDefault();
+    // A real right-click always reports button 2; the ContextMenu key reports
+    // -1 (Chromium) or 0 (Firefox).
+    var fromKey = ev.button !== 2;
     var r = ev.target.closest('.row');
     if (searchActive) {
       // A result row is not a listing row (it lives in another folder and has
@@ -1454,10 +1536,21 @@
       // Right-clicking OUTSIDE the current selection retargets it (Explorer /
       // Finder behavior); inside it, the whole selection stays the subject.
       if (!selected[rows[i].name]) setOnly(i);
+    } else if (fromKey && selCount) {
+      // The ContextMenu KEY targets the focused container, not a row, and
+      // carries that container's centre as its coordinates. Menu the current
+      // SELECTION — clearing it left a keyboard user with no route to any verb
+      // at all, since the action pill is hidden whenever there is a mouse.
     } else {
       clearSel();
     }
-    openCtxMenu(ev.clientX, ev.clientY);
+    // Anchor a key-triggered menu to the selected row rather than mid-screen.
+    var x = ev.clientX, y = ev.clientY;
+    if (fromKey) {
+      var fr = mainEl.querySelector('.row.sel') || mainEl.querySelector('.row');
+      if (fr) { var fb = fr.getBoundingClientRect(); x = fb.left + 24; y = fb.bottom; }
+    }
+    openCtxMenu(x, y);
   });
 
   mainEl.addEventListener('click', function(ev) {
@@ -1691,6 +1784,23 @@
   // opts: { title, msg?, names?, buttons: [{label, value, cancel?, danger?}],
   //         defaultValue? (Enter; omitted = Enter inert), escValue (Esc/backdrop),
   //         focusValue? (button to focus; omitted = last) }
+  // Keep Tab inside a modal. Without this, tabbing out of a dialog lands on the
+  // toolbar behind the overlay — the dialog is aria-modal, so that is a lie.
+  function trapFocus(card, onKey) {
+    function keys(e) {
+      if (e.key !== 'Tab') { if (onKey) onKey(e); return; }
+      var f = card.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      var list = [];
+      for (var i = 0; i < f.length; i++) if (f[i].offsetParent !== null && !f[i].disabled) list.push(f[i]);
+      if (!list.length) return;
+      var first = list[0], last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    document.addEventListener('keydown', keys, true);
+    return function () { document.removeEventListener('keydown', keys, true); };
+  }
+
   function cardChoice(opts) {
     return new Promise(function(resolve) {
       modalOpen = true;
@@ -1726,6 +1836,9 @@
         else if (e.key === 'Enter' && opts.defaultValue !== undefined) { e.preventDefault(); e.stopPropagation(); close(opts.defaultValue); }
       }
       document.addEventListener('keydown', onKey, true);
+      var untrap = trapFocus(card);
+      var closeInner = close;
+      close = function (v) { untrap(); closeInner(v); };
       var focusBtn = null;
       opts.buttons.forEach(function(b) {
         var bt = el('button', b.cancel ? 'mcancel' : 'mok' + (b.danger ? ' danger' : ''), b.label);
@@ -1959,6 +2072,7 @@
   // "file (2).txt" surprised people who meant to replace — classic asked.
   // Remembered for the rest of the batch when the user picks an "all" answer.
   var upPolicy = null;          // null | 'replace' | 'skip' | 'rename'
+  var upCancel = false, upXhr = null;   // so a running batch can be stopped
   function resolveConflict(tdir, name, more) {
     return api('/api/fs/stat?path=' + encodeURIComponent(joinPath(tdir, name)))
       .then(function(d) {
@@ -1994,6 +2108,7 @@
       var name = r.name;
       return new Promise(function(resolve) {
         var xhr = new XMLHttpRequest();
+        upXhr = xhr;
         xhr.open('POST', '/api/fs/upload?path=' + encodeURIComponent(joinPath(tdir, name)) +
                          (reldir ? '&mkdirs=1' : ''));
         xhr.upload.onprogress = function(e) {
@@ -2006,6 +2121,7 @@
                     error: (d && d.error) || ('HTTP ' + xhr.status) });
         };
         xhr.onerror = function() { resolve({ ok: false, name: name, error: 'network error' }); };
+        xhr.onabort = function() { resolve({ ok: false, name: name, aborted: true, error: 'cancelled' }); };
         xhr.send(file);
       });
     });
@@ -2017,15 +2133,17 @@
     document.getElementById('upbtn').disabled = true;
     var dir = path, done = 0, fails = [], skipped = 0;
     upPolicy = null;                       // each batch asks afresh
+    upCancel = false; upXhr = null;
     uprogEl.classList.add('on');
     function step() {
-      if (done >= items.length) {
+      if (upCancel || done >= items.length) {
         uploading = false;
         document.getElementById('upbtn').disabled = false;
         uprogEl.classList.remove('on');
-        var sent = items.length - fails.length - skipped;
+        var sent = done - fails.length - skipped;
         var tail = skipped ? ' (' + skipped + ' skipped)' : '';
-        if (fails.length) toast(fails.length + ' of ' + items.length + ' failed — ' + fails[0].error + tail, true);
+        if (upCancel) toast('Upload cancelled after ' + sent + ' of ' + items.length + ' file' + (items.length === 1 ? '' : 's'), true);
+        else if (fails.length) toast(fails.length + ' of ' + items.length + ' failed — ' + fails[0].error + tail, true);
         else if (!sent && skipped) toast('Nothing uploaded — ' + skipped + ' skipped');
         else toast('Uploaded ' + sent + ' file' + (sent === 1 ? '' : 's') + tail);
         if (path === dir) refresh();
@@ -2038,6 +2156,8 @@
       uploadOne(dir, it.file, it.reldir, function(frac) {
         uprogFill.style.width = Math.round(frac * 100) + '%';
       }, items.length - done - 1).then(function(res) {
+        upXhr = null;
+        if (res.aborted) { upCancel = true; done++; step(); return; }
         if (res.skipped) skipped++;
         else if (!res.ok) fails.push(res);
         done++;
@@ -2202,6 +2322,19 @@
       syncSelDom();
       return;
     }
+    if (ev.key === ' ' && selCount === 1) {          // Quick Look
+      ev.preventDefault();
+      var qe = selEntry();
+      if (qe) openEntry(qe);
+      return;
+    }
+    if (mod && ev.shiftKey && (ev.key === 'N' || ev.key === 'n')) { ev.preventDefault(); newFolder(); return; }
+    if (mod && ev.shiftKey && (ev.key === 'C' || ev.key === 'c')) {
+      ev.preventDefault();
+      document.getElementById('addrcopy').click();
+      return;
+    }
+    if (ev.key === 'F5') { ev.preventDefault(); refresh(); return; }
     if (ev.key === 'F2') { ev.preventDefault(); startRename(); return; }
     if (ev.key === 'Delete') { ev.preventDefault(); doDelete(); return; }
     // NOTE: Info is Ctrl/⌘+I, not a bare `i` — a bare letter belongs to
@@ -2408,10 +2541,13 @@
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
     }
     document.addEventListener('keydown', onKey, true);
+    var untrap = trapFocus(card);
+    var closeInner = close;
+    close = function () { untrap(); closeInner(); };
     ov.addEventListener('click', function(e) { if (e.target === ov) close(); });
     ov.appendChild(card);
     document.body.appendChild(ov);
-    return { card: card, close: close };
+    return { card: card, close: function () { close(); } };
   }
   function shareApi(url, body) {
     return fetch(url, body ? {
@@ -3398,6 +3534,10 @@
       { label: '📄 Files…', title: 'Pick files to upload here', run: function() { fileInput.click(); } },
       { label: '📁 Folder…', title: 'Pick a folder to upload here (structure preserved)', run: function() { dirInput.click(); } }
     ]);
+  });
+  document.getElementById('uprog-x').addEventListener('click', function() {
+    upCancel = true;
+    if (upXhr) { try { upXhr.abort(); } catch (e) {} }
   });
   pasteBtn.addEventListener('click', doPaste);
   document.getElementById('a-open').addEventListener('click', function() {

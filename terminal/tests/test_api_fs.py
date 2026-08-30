@@ -196,3 +196,68 @@ def test_peer_check_reads_real_credentials(mgr, tmp_path):
     finally:
         a.close()
         b.close()
+
+
+# ---- the rest of the Files surface -----------------------------------------
+# v1.19.106 gated /api/fs/* and stopped there. An audit then reproduced, with no
+# cookie, an arbitrary image read AND the minting of a public /s/ share link —
+# and /s/ is an nginx location with NO auth_request, i.e. a local tenant could
+# publish a service-account file to the internet. Everything the Files app calls
+# is gated now; these pin it. (/api/office/doc and /api/office/callback are NOT
+# here on purpose: the OnlyOffice container calls them server-to-server with no
+# browser cookie, authorized by their own path HMAC.)
+
+SIBLING_GET = [
+    "/api/me",
+    "/api/files/tabs",
+    "/api/file/image?path=x.png",
+    "/api/share/list",
+    "/api/office/config?path=x.docx",
+    "/api/office/download?path=x.docx",
+    "/api/office/preview?path=x.docx",
+    "/api/video/info?path=x.mp4",
+    "/api/video/media?path=x.mp4",
+    "/api/video/subs?path=x.mp4&sub=0",
+]
+
+
+@pytest.mark.parametrize("path", SIBLING_GET)
+def test_files_surface_get_requires_a_session(client, path):
+    status, _ = _raw(client, path)
+    assert status == 401, f"{path} served an unauthenticated request"
+
+
+def test_share_mint_requires_a_session(client, home):
+    """The sharpest one: /s/<token> bypasses Cloudflare Access by design, so an
+    unauthenticated mint is a way to publish a file to the public internet."""
+    (home / "secret.txt").write_text("not for the world")
+    body = json.dumps({"path": "secret.txt", "ttl": 1}).encode()
+    status, out = _raw(client, "/api/share", "POST", body)
+    assert status == 401
+    assert b"token" not in out
+
+
+def test_share_revoke_requires_a_session(client):
+    status, _ = _raw(client, "/api/share/revoke", "POST", json.dumps({"token": "x"}).encode())
+    assert status == 401
+
+
+def test_files_tabs_write_requires_a_session(client):
+    status, _ = _raw(client, "/api/files/tabs", "POST", json.dumps({"tabs": []}).encode())
+    assert status == 401
+
+
+def test_unknown_fs_op_is_401_before_404_without_a_session(client):
+    """Auth comes FIRST: a cookieless caller must not be able to probe which
+    ops exist."""
+    status, _ = _raw(client, "/api/fs/bogus")
+    assert status == 401
+
+
+def test_office_container_endpoints_stay_reachable(client):
+    """The OnlyOffice CONTAINER has no cookie; its two endpoints carry their own
+    HMAC instead. They must NOT have been swept up in the gate — a 401 here
+    would break Office editing entirely."""
+    for p in ("/api/office/doc?path=x.docx", "/api/office/callback?path=x.docx"):
+        status, _ = _raw(client, p)
+        assert status != 401, f"{p} must stay reachable for the document server"

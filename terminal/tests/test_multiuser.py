@@ -10,6 +10,8 @@ import os
 
 import pytest
 
+from conftest import ANON
+
 
 # The `users` fixture (alice/bob → distinct tmp homes + session cookies) lives in
 # conftest.py so test_user_home.py can share it.
@@ -347,7 +349,8 @@ def test_fileview_authcheck_admin_only(client, mgr, users):
     # unauthenticated -> 401. (The nginx location gates on this.)
     (_, ck) = users["alice"]
     s_noauth, _, _ = client.get_full(
-        "/api/authcheck", headers={"X-Original-URI": "/fileview/etc/passwd"})
+        "/api/authcheck", headers={"X-Original-URI": "/fileview/etc/passwd"},
+        cookie=ANON)
     s_alice, _, _ = client.get_full(
         "/api/authcheck", cookie=ck,
         headers={"X-Original-URI": "/fileview/etc/passwd"})

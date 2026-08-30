@@ -4372,3 +4372,35 @@ original exact-bytes test stayed green through the whole breakage.
   For the toolbar: a menu button replaced the ~140px sort `<select>`, hit
   targets went to 36px, and `flex-wrap: wrap` is the safety net so a
   conditional control (Paste) can never be pushed off-screen again.
+
+## The auth fix that stopped one endpoint short
+
+- **Symptom:** a follow-up audit reproduced, with **no cookie**, an arbitrary
+  image read as the service account (`/api/file/image`) and — worse — the
+  minting of a public share link: `POST /api/share` returned a token whose
+  `/s/<token>` URL is served from an nginx location with **no
+  `auth_request`**, i.e. a Cloudflare-Access bypass by design. Any local
+  process could publish a file under `/opt/vibetop` to the open internet.
+- **Cause:** v1.19.106 fixed `/api/fs/*` and only `/api/fs/*`. Every sibling
+  the same app calls — image bytes, share create/list/revoke, files-tabs,
+  office config/download/preview, video info/media/subs, `/api/me` — still
+  resolved its user through `_ctx_user()`, whose cookieless fallback is
+  `APP_USER`. The rule was understood; it was applied to the endpoint that
+  happened to be under review rather than to the class.
+- **Fix:** `_require_authed()` as the FIRST statement of every one of those
+  handlers, and moved above the input validation in the three fs handlers so a
+  cookieless caller cannot even probe which ops exist. `/api/office/doc` and
+  `/api/office/callback` are deliberately excluded: the OnlyOffice container
+  calls them server-to-server with no browser cookie and they carry their own
+  path HMAC — a test now pins that they must NOT return 401.
+- **Why the tests did not catch it — and were part of the problem:** the whole
+  endpoint suite called these APIs *without a cookie*, so 45 tests encoded the
+  vulnerable behaviour as expected. `terminal/tests/test_api_image.py`, which I
+  had written days earlier for the thumbnail work, asserted a cookieless 200
+  outright. The harness now sends a valid session by DEFAULT and a test that
+  means to be anonymous says `cookie=ANON` — the safe thing is the default and
+  the dangerous thing is explicit.
+- **Rule this generalizes:** when a security fix names a class of endpoint
+  ("everything that acts on a user's files"), fix the class. Grep for the
+  vulnerable *pattern* (`_ctx_user()` in a handler), not for the endpoint in
+  the ticket.

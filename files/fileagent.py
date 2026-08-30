@@ -59,7 +59,8 @@ import time
 import zipfile
 
 IDLE_EXIT = int(os.environ.get("VIBETOP_FILEAGENT_IDLE", 900))
-MAX_ENTRIES = 5000
+MAX_ENTRIES = 5000          # rows returned to the UI
+SCAN_MAX = 100000           # hard OOM guard on the directory scan itself
 MAX_READ = 1024 * 1024
 MAX_REQ = 256 * 1024
 MAX_UPLOAD = int(os.environ.get("VIBETOP_FILEAGENT_MAXUP", 4 * 1024 * 1024 * 1024))
@@ -111,10 +112,19 @@ def op_list(req):
         return {"ok": False, "error": "path must be absolute", "code": "einval"}
     entries = []
     truncated = False
+    total = 0
     try:
         with os.scandir(path) as it:
             for de in it:
-                if len(entries) >= MAX_ENTRIES:
+                # Read the WHOLE directory, then sort, THEN truncate. Truncating
+                # inside the scan cut in filesystem (hash) order, so a 6000-file
+                # folder returned an arbitrary 5000 — measured: f0003, f0009,
+                # f0018 … missing from a list that still looked contiguous — and
+                # the UI's "showing the first 5000" was simply false. SCAN_MAX is
+                # only an out-of-memory guard, an order of magnitude above the
+                # display cap.
+                total += 1
+                if len(entries) >= SCAN_MAX:
                     truncated = True
                     break
                 try:
@@ -127,10 +137,12 @@ def op_list(req):
                 entries.append(_entry(de.name, st, de.path))
     except OSError as e:
         return {"ok": False, "error": str(e), "code": _errcode(e)}
-    # Directories first, then case-insensitive natural-ish name order; the UI
-    # re-sorts for other columns, but the default answer arrives ready to paint.
     entries.sort(key=lambda x: (not x["isDir"], x["name"].lower()))
-    return {"ok": True, "path": path, "entries": entries, "truncated": truncated}
+    if len(entries) > MAX_ENTRIES:
+        truncated = True
+        entries = entries[:MAX_ENTRIES]
+    return {"ok": True, "path": path, "entries": entries,
+            "truncated": truncated, "total": total}
 
 
 def op_usage(req):

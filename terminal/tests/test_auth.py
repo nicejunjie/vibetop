@@ -1,3 +1,4 @@
+from conftest import ANON
 """Auth foundation (Phase 1) — PAM login + signed session cookie.
 
 Covers the pure session-token helpers and the /api/login, /api/logout, and
@@ -200,7 +201,7 @@ def test_login_lockout_after_repeated_failures(mgr, client, monkeypatch):
 # --- /api/authcheck (nginx auth_request target) -----------------------------
 
 def test_authcheck_no_cookie_401(mgr, client):
-    assert client.get("/api/authcheck")[0] == 401
+    assert client.get("/api/authcheck", cookie=ANON)[0] == 401
 
 
 def test_authcheck_valid_cookie_200_with_user_header(mgr, client, monkeypatch):
@@ -244,7 +245,7 @@ def test_authcheck_allows_public_path_without_cookie(mgr, client):
 
 def test_authcheck_gated_path_needs_cookie(mgr, client):
     status, _hdrs, _ = client.get_full(
-        "/api/authcheck", headers={"X-Original-URI": "/api/notes"})
+        "/api/authcheck", headers={"X-Original-URI": "/api/notes"}, cookie=ANON)
     assert status == 401
 
 
@@ -285,7 +286,7 @@ def test_logout_all_revokes_every_session(mgr, client, monkeypatch):
 
 def test_logout_all_requires_session(mgr, client):
     # An anonymous request must not be able to invalidate anyone (esp. the operator)
-    assert client.post("/api/logout/all")[0] == 401
+    assert client.post("/api/logout/all", cookie=ANON)[0] == 401
 
 
 # --- end-to-end -------------------------------------------------------------

@@ -12,8 +12,14 @@ PIL = pytest.importorskip("PIL")
 from PIL import Image
 
 
-def _raw(client, path, headers=None, method="GET"):
-    req = urllib.request.Request(client.base + path, headers=headers or {}, method=method)
+def _raw(client, path, headers=None, method="GET", anon=False):
+    """Authenticated by default: these endpoints reject a cookieless caller
+    (it is a local tenant, not the service account). anon=True is the
+    deliberate no-session case."""
+    h = dict(headers or {})
+    if not anon:
+        h.setdefault("Cookie", "vt_session=" + client.mgr._sign_session(client.mgr.APP_USER))
+    req = urllib.request.Request(client.base + path, headers=h, method=method)
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, {k.lower(): v for k, v in r.headers.items()}, r.read()

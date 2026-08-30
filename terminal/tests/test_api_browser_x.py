@@ -1,3 +1,4 @@
+from conftest import ANON
 """Endpoint contracts for the Browser open + X11 Launcher endpoints:
 POST /api/browser/open, /api/x/launch, /api/x/activate, /api/x/close,
 GET /api/x/windows. su/chromium/wmctrl are stubbed."""
@@ -20,7 +21,7 @@ def test_browser_open_valid_url(client, stubs, op_cookie):
 def test_browser_open_requires_session(client, stubs):
     # Cookieless (a local tenant hitting the loopback port directly) must NOT act
     # as APP_USER — command execution requires a valid login session.
-    status, _ = client.post("/api/browser/open", {"url": "https://example.com/x"})
+    status, _ = client.post("/api/browser/open", {"url": "https://example.com/x"}, cookie=ANON)
     assert status == 401
     assert not stubs["popen"]                  # nothing launched
 
@@ -144,7 +145,7 @@ def test_x_launch_snap_app_keeps_the_real_session_bus(client, stubs, op_cookie, 
 
 def test_x_launch_requires_session(client, stubs):
     # Cookieless direct-to-loopback call must not run a command as APP_USER.
-    status, _ = client.post("/api/x/launch", {"cmd": "xterm"})
+    status, _ = client.post("/api/x/launch", {"cmd": "xterm"}, cookie=ANON)
     assert status == 401
     assert not stubs["popen"]
 
