@@ -201,11 +201,21 @@ test.describe('mario', () => {
     await expect.poll(async () => (await snap(page)).score, { timeout: 5000 })
       .toBeGreaterThan(before);
 
-    await page.evaluate(() => { window.__marioTest.give('big'); });
-    await place(page, 40, 13);
+    // Fresh level, then walk into a LIVE goomba from three tiles away. Walking
+    // right for a fixed time from a fixed tile and hoping to meet one is a
+    // race against wherever the enemies happen to have got to.
+    await page.evaluate(() => window.__marioTest.level(0));
+    await expect.poll(async () => (await snap(page)).state, { timeout: 10000 }).toBe('play');
+    await page.evaluate(() => window.__marioTest.give('big'));
+    await page.waitForTimeout(500);
+    // the FIRST goomba: open ground either side of it, so three tiles to its
+    // left is three tiles of walking and not a pipe in the way
+    const live = (await ents(page)).filter((e) => e.type === 'goomba' && !e.gone && e.x < 560)[0];
+    expect(live, 'a goomba to walk into').toBeTruthy();
+    await place(page, live.x / 16 - 3, 13);
     const lives = (await snap(page)).lives;
     await page.keyboard.down('ArrowRight');
-    await page.waitForTimeout(1800);
+    await page.waitForTimeout(1500);
     await page.keyboard.up('ArrowRight');
     const s = await snap(page);
     expect(s.big).toBe(false);
@@ -358,6 +368,21 @@ test.describe('mario', () => {
     // while a card is up, so on a phone the game ran and could not be played.
     await expect(page.locator('#overlay.show')).toBeHidden();
     expect(await page.evaluate(() => document.body.classList.contains('carded'))).toBe(false);
+  });
+
+  test('an enemy that hits a wall turns around', async ({ page }) => {
+    await boot(page);
+    // collideX zeroes vx on contact, so the `vx = -vx` that follows negated
+    // zero: every enemy and item that touched a wall stopped there for good.
+    // The goomba beside the second pipe in 1-1 stood still for its whole life.
+    await place(page, 36, 13);
+    await page.waitForTimeout(400);
+    const before = (await ents(page)).filter((e) => e.type === 'goomba' && e.x > 560)[0];
+    expect(before, 'the goomba by the pipe').toBeTruthy();
+    await page.waitForTimeout(2500);
+    const after = (await ents(page)).filter((e) => e.type === 'goomba' && e.x > 560)[0];
+    expect(after).toBeTruthy();
+    expect(after.x).toBeGreaterThan(before.x + 30);
   });
 
   test('every world boots and plays', async ({ page }) => {

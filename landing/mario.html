@@ -2284,8 +2284,9 @@
   function enemyPhysics(e, turnAtLedge) {
     e.vy += 0.42; if (e.vy > MAX_FALL) e.vy = MAX_FALL;
     e.hitWall = 0;
+    var was = e.vx;                    // collideX zeroes vx — keep the sign
     e.x += e.vx; collideX(e);
-    if (e.hitWall) e.vx = -e.vx;
+    if (e.hitWall) e.vx = -was;
     e.y += e.vy; collideY(e);
     // ride moving platforms
     for (var i = 0; i < ents.length; i++) {
@@ -2412,7 +2413,8 @@
           if (e.rise > 0) { e.rise -= 0.5; e.y -= 0.5; break; }
           e.vy += 0.35; if (e.vy > 5) e.vy = 5;
           e.hitWall = 0;
-          e.x += e.vx; collideX(e); if (e.hitWall) e.vx = -e.vx;
+          var sw = e.vx;
+          e.x += e.vx; collideX(e); if (e.hitWall) e.vx = -sw;
           e.y += e.vy; collideY(e);
           if (e.onGround) e.vy = -3.6;
           if (e.y > ROWS * TS + 32) e.remove = true;
