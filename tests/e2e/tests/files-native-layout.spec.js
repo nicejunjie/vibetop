@@ -92,11 +92,10 @@ test.describe('native Files — layout', () => {
   onLanes(test);
 
   test('no surface overflows its container or the viewport', async ({ page }, info) => {
-    // Two independent axes: POINTER decides tap-vs-click and whether the action
-    // pill exists (it hides under hover+fine); WIDTH decides whether Settings is
-    // on the toolbar or inside ⋯ (≤736px). A tablet is touch AND wide.
+    // The toolbar carries the same nine controls at every width, so only the
+    // POINTER matters here: tap vs click, and whether the action pill exists
+    // (it hides under hover+fine).
     const touch = info.project.name !== 'desktop-chromium';
-    const narrow = (page.viewportSize()?.width || 1280) <= 736;
     await openFiles(page);
     const found = [];
     const check = async (label) => { found.push(...await overflows(page, label)); };
@@ -124,15 +123,8 @@ test.describe('native Files — layout', () => {
     await check('selection');
 
     // Settings — the card that shipped broken
-    if (narrow) {
-      await page.locator('#morebtn').tap();
-      await page.waitForTimeout(250);
-      await page.locator('.morepop button', { hasText: 'Settings' }).tap();
-    } else if (touch) {
-      await page.locator('#manage').tap();
-    } else {
-      await page.locator('#manage').click();
-    }
+    if (touch) await page.locator('#manage').tap();
+    else await page.locator('#manage').click();
     await page.waitForTimeout(500);
     await expect(page.locator('.sett')).toBeVisible();
     await check('settings');

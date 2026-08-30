@@ -92,12 +92,10 @@
   #manage { color: #b79be8; }
   #pastebtn { display: none; color: #b79be8; }
   #pastebtn.on { display: inline-block; }
-  .m-only { display: none; }        /* mobile-only controls (compact sort, ⋯) */
   /* inline SVG icons (not emoji — 👁/🔍/⬆ rendered as mismatched color glyphs
      on iOS, reported as toy-like): monochrome, inherit the button color */
   .tools .bi { display: inline-flex; align-items: center; vertical-align: -3px; }
   .tools svg { width: 15px; height: 15px; flex: 0 0 auto; }
-  #hidden .bi { display: none; }    /* desktop keeps the text label */
 
   /* ⋯ overflow popover (mobile) */
   .morepop {
@@ -607,7 +605,7 @@
        (Search/Refresh/⋯ measured at x=394..509 on a 390px screen). */
     .tools { order: 1; flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 5px; }
     .tools button, .tools select { min-height: 36px; font-size: 13px; }
-    #newbtn, #upbtn, #hidden, #searchbtn, #refresh, #morebtn, #layoutbtn, #selectbtn, #sortbtn {
+    #newbtn, #upbtn, #sortbtn, #layoutbtn, #selectbtn, #hidden, #searchbtn, #refresh, #manage {
       flex: 0 0 36px; width: 36px; padding: 0; font-size: 16px;
     }
     #layoutbtn .bl { display: none; }
@@ -615,9 +613,6 @@
     .tools .bi { display: inline-flex; }
     #hidden .bi { display: inline-flex; }
     .tools svg { width: 17px; height: 17px; }
-    #sortkey, #sortdir, #manage { display: none; }
-    #selectbtn, #sortbtn { display: inline-block; }
-    #morebtn { display: inline-block; margin-left: auto; }   /* pinned to the edge */
     #pastebtn { color: #b79be8; }
     #pastebtn.on { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 9px; }
     .crumbs { min-width: 0; }
@@ -683,20 +678,13 @@
       <button id="newbtn" title="Create a new folder or file here"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11"/></svg></span><span class="bl"> New</span></button>
       <button id="upbtn" title="Upload files or a folder here (or drag &amp; drop from your computer)"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10.5v-8M4.8 5.7 8 2.5l3.2 3.2M2.5 13.5h11"/></svg></span><span class="bl"> Upload</span></button>
       <button id="pastebtn" title="Paste here"></button>
-      <select id="sortkey" aria-label="Sort by" title="Sort by">
-        <option value="name">Name</option>
-        <option value="size">Size</option>
-        <option value="mtime">Modified</option>
-      </select>
-      <button id="sortdir" title="Sort direction" aria-label="Sort direction"></button>
-      <button id="sortbtn" class="m-only" title="Sort" aria-label="Sort" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5v11M2 5l2.5-2.5L7 5M11.5 13.5v-11M9 11l2.5 2.5L14 11"/></svg></span></button>
+      <button id="sortbtn" title="Sort" aria-label="Sort" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5v11M2 5l2.5-2.5L7 5M11.5 13.5v-11M9 11l2.5 2.5L14 11"/></svg></span><span class="bl"> Sort</span></button>
       <button id="layoutbtn" title="Layout — list, grid or gallery view" aria-haspopup="menu"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></span><span class="bl"> Layout</span></button>
-      <button id="selectbtn" class="m-only" title="Select several items" aria-pressed="false" aria-label="Select"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.6 6 12l7.5-8"/></svg></span></button>
+      <button id="selectbtn" title="Select several items" aria-pressed="false" aria-label="Select"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.6 6 12l7.5-8"/></svg></span><span class="bl"> Select</span></button>
       <button id="hidden" title="Show hidden files" aria-pressed="false"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8c1.6-2.9 3.9-4.4 6.5-4.4S13 5.1 14.5 8c-1.6 2.9-3.9 4.4-6.5 4.4S3 10.9 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></span><span class="bl">Hidden</span></button>
-      <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></svg></span></button>
-      <button id="refresh" title="Refresh" aria-label="Refresh"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.7 8a5.3 5.3 0 1 0 1.5-3.7"/><path d="M4.2 1.3v3h3"/></svg></span></button>
-      <button id="manage" title="Settings — how this app behaves, share links, the classic app">Settings</button>
-      <button id="morebtn" class="m-only" title="More" aria-label="More" aria-haspopup="menu">⋯</button>
+      <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></svg></span><span class="bl"> Search</span></button>
+      <button id="refresh" title="Refresh" aria-label="Refresh"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.7 8a5.3 5.3 0 1 0 1.5-3.7"/><path d="M4.2 1.3v3h3"/></svg></span><span class="bl"> Refresh</span></button>
+      <button id="manage" title="Settings — how this app behaves, share links, the classic app" aria-label="Settings"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="2.4"/><path d="M8 1.6v1.7M8 12.7v1.7M14.4 8h-1.7M3.3 8H1.6M12.5 3.5l-1.2 1.2M4.7 11.3l-1.2 1.2M12.5 12.5l-1.2-1.2M4.7 4.7 3.5 3.5"/></svg></span><span class="bl"> Settings</span></button>
     </div>
   </div>
   <div class="sbar" id="sbar">
@@ -812,9 +800,8 @@
 
   var crumbsEl = document.getElementById('crumbs');
   var addrEl = document.getElementById('addr');
-  var sortKeyEl = document.getElementById('sortkey');
-  var sortDirEl = document.getElementById('sortdir');
   var selectBtn = document.getElementById('selectbtn');
+  var sortBtn = document.getElementById('sortbtn');
   var navBack = document.getElementById('navback');
   var navFwd = document.getElementById('navfwd');
   var hiddenEl = document.getElementById('hidden');
@@ -873,9 +860,8 @@
     } catch (e) {}
   }
   function syncControls() {
-    sortKeyEl.value = sortKey;
-    sortDirEl.textContent = sortAsc ? '↑' : '↓';
-    sortDirEl.title = sortAsc ? 'Ascending — click for descending' : 'Descending — click for ascending';
+    var sk = { name: 'Name', size: 'Size', mtime: 'Date' }[sortKey] || sortKey;
+    sortBtn.title = 'Sort — ' + sk + (sortAsc ? ' ascending' : ' descending');
     hiddenEl.setAttribute('aria-pressed', showHidden ? 'true' : 'false');
     hiddenEl.title = showHidden ? 'Hide hidden files' : 'Show hidden files';
   }
@@ -3165,16 +3151,10 @@
     if (addrEl.value !== path) addrEl.value = path || '';
   });
 
-  sortKeyEl.addEventListener('change', function() {
-    sortKey = sortKeyEl.value; savePrefs(); syncControls(); renderList();
-  });
-  sortDirEl.addEventListener('click', function() {
-    sortAsc = !sortAsc; savePrefs(); syncControls(); renderList();
-  });
   // Mobile's sort control is a MENU, not a <select>: the select needed ~140px
   // of a 374px-wide toolbar, which is what pushed Search/Refresh/⋯ off the
   // screen entirely. Same shape as the Layout menu, with a checkmark.
-  document.getElementById('sortbtn').addEventListener('click', function(ev) {
+  sortBtn.addEventListener('click', function(ev) {
     ev.stopPropagation();
     var opts = [
       ['name', true, 'Name (A→Z)'], ['name', false, 'Name (Z→A)'],
@@ -3390,13 +3370,6 @@
     if (morePop && !ev.target.closest('.morepop') && !ev.target.closest('.main')) closeMore();
   });
 
-  // ⋯ overflow (mobile): the demoted low-frequency actions.
-  document.getElementById('morebtn').addEventListener('click', function(ev) {
-    ev.stopPropagation();
-    openPop(ev.currentTarget, [
-      { label: 'Settings…', title: 'How this app behaves, share links, the classic app', run: openSettings }
-    ], true);
-  });
   document.addEventListener('click', function(ev) {
     if (morePop && !ev.target.closest('.morepop') &&
         !(popAnchor && popAnchor.contains(ev.target))) closeMore();
