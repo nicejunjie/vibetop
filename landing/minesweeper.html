@@ -127,8 +127,15 @@
     padding: 7px 18px; font-size: 13px; font-weight: 600;
   }
   .card .primary:hover { background: #9a5ceb; }
-  .card .ghost { display: block; margin: 10px auto 0; background: none; border: none; color: #6b7488; font-size: 12px; cursor: pointer; min-height: 0; padding: 2px 6px; }
-  .card .ghost:hover { color: #aab4c5; background: none; }
+  /* A real control, not a caption. At 12px grey with 2px of padding this was a
+     74x21 tap target — half the 44px minimum — and a near-miss landed on the
+     backdrop, which did nothing at all, so it read as broken. */
+  .card .ghost {
+    display: block; margin: 12px auto 0; background: none;
+    border: 1px solid #2a3040; border-radius: 8px; color: #aab4c5;
+    font-size: 13px; cursor: pointer; min-height: 40px; padding: 8px 18px;
+  }
+  .card .ghost:hover { color: #e6edf3; background: #1f2733; }
   /* ---- help card ---- */
   .help .card {
     text-align: left; max-width: min(340px, 90vw); max-height: 86%;
@@ -542,6 +549,11 @@
   document.getElementById('newBtn').addEventListener('click', function() { newGame(); });
   document.getElementById('ovNew').addEventListener('click', function() { newGame(); });
   document.getElementById('ovClose').addEventListener('click', function() { overlay.classList.remove('show'); });
+  // A tap that lands beside the button used to do nothing at all — which is
+  // what made "view board" feel broken on a phone.
+  overlay.addEventListener('click', function(ev) {
+    if (ev.target === overlay) overlay.classList.remove('show');
+  });
   diffEl.addEventListener('change', function() { newGame(diffEl.value); });
 
   document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
@@ -550,7 +562,11 @@
 
   document.addEventListener('keydown', function(ev) {
     if (ev.key === 'F2') { ev.preventDefault(); newGame(); }
-    else if (ev.key === 'Escape') helpOv.classList.remove('show');
+    else if (ev.key === 'Escape') {
+      // the help card first, then the game-over card
+      if (helpOv.classList.contains('show')) helpOv.classList.remove('show');
+      else overlay.classList.remove('show');
+    }
   });
 
   var rsT = null;
