@@ -44,7 +44,9 @@
   button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
   /* Keyboard has P and Esc; a phone has neither, and the only pause was
      hidden behind the help card. */
+  /* Drawn, not an emoji: ⏸ renders as a tofu box on iOS WebKit. */
   #pauseBtn { display: none; }
+  #pauseBtn svg { display: block; }
   body.touch #pauseBtn { display: block; }
   #helpBtn, #sndBtn, #fsBtn, #pauseBtn {
     background: #1f2733; border-color: #2a3040; color: #aab4c5;
@@ -163,7 +165,7 @@
     <div class="stat" id="stWorld"><span class="lbl">World</span><span class="val" id="world">1-1</span></div>
     <div class="stat" id="stTime"><span class="lbl">Time</span><span class="val" id="time">400</span></div>
     <div class="stat"><span class="lbl">Lives</span><span class="val" id="lives">3</span></div>
-    <button id="pauseBtn" title="Pause">⏸</button>
+    <button id="pauseBtn" title="Pause" aria-label="Pause"><svg width="11" height="12" viewBox="0 0 11 12" aria-hidden="true"><rect x="0" y="0" width="4" height="12" rx="1" fill="currentColor"/><rect x="7" y="0" width="4" height="12" rx="1" fill="currentColor"/></svg></button>
     <button id="sndBtn" title="Sound on/off">🔊</button>
     <button id="helpBtn" title="How to play">?</button>
     <button id="newBtn">New</button>
