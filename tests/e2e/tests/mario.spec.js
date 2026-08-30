@@ -12,11 +12,14 @@
 
 const { test, expect } = require('@playwright/test');
 const { openStartMenu } = require('../helpers');
+const { BOT } = require('../mario-bot');
 
 // A full-speed jump clears roughly 7 tiles level and 6 while climbing 3. The
 // audit budget is deliberately tighter, so a level is never merely *barely*
 // possible.
-const MAX_DX = 5, MAX_UP = 3;
+// A standing jump measures 4.63 tiles, so a four-tile step — every pipe
+// in the game — is legal; five is not.
+const MAX_DX = 5, MAX_UP = 4;
 
 async function boot(page) {
   await page.goto('/mario.html');
@@ -99,7 +102,11 @@ test.describe('mario', () => {
         if (enter[x] === null) continue;
         if (last !== null) {
           const dx = x - last.x, up = last.y - enter[x];
-          if (dx > 1 && (dx > MAX_DX || up > MAX_UP)) {
+          // `dx > 1` used to gate this whole check, on the assumption that the
+          // NEXT column is always walkable. A pillar rising seven tiles in the
+          // very next column is exactly the case that assumption misses — and
+          // it made world 1-2 unfinishable while the audit passed.
+          if (up > MAX_UP || (dx > 1 && dx > MAX_DX)) {
             bad.push(`${L.name}: x${last.x} -> x${x} is ${dx} across, ${up} up`);
           }
         }
@@ -743,6 +750,69 @@ test.describe('mario', () => {
       return worst;
     });
     expect(worst, 'longest clear run along the surface').toBeLessThanOrEqual(30);
+  });
+
+  test('a bot can play every world from start to flag', async ({ page }) => {
+    test.slow();
+    test.setTimeout(240_000);
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.silence());
+
+    const report = [];
+    for (let lv = 0; lv < 5; lv++) {
+      let best = null;
+      for (let attempt = 1; attempt <= 3 && (!best || !best.ok); attempt++) {
+        await page.evaluate((k) => window.__marioTest.level(k), lv);
+        await page.waitForTimeout(250);
+        await page.evaluate(() => {
+          window.__marioTest.setLives(99);
+          window.__marioTest.step(120);
+        });
+        const r = await page.evaluate(BOT, { levelIdx: lv, seed: attempt * 7919 });
+        if (!best || r.reachedX > best.reachedX) best = r;
+      }
+      report.push(`world ${lv + 1}: ` + (best.ok
+        ? 'reached the flag'
+        : `only tile ${Math.round(best.reachedX)} of ${best.flagX}` +
+          (best.stuck ? ` (stuck at ${Math.round(best.stuck.x)})` : '') +
+          (best.deathAt.length ? ` deaths at ${best.deathAt.slice(0, 6).join(',')}` : '')));
+      expect(best.ok, report[report.length - 1]).toBe(true);
+    }
+    expect(errors, 'errors during the playthrough').toEqual([]);
+  });
+
+  test('the water world has an open channel end to end', async ({ page }) => {
+    await page.goto('/mario.html');
+    await page.waitForFunction(() => !!window.__marioBuild, null, { timeout: 15000 });
+    // A swimming level is not walked, so footholds mean nothing there. Flood
+    // fill the passable cells from the start and require the flag to be in
+    // the same region — with two clear rows, so a BIG player also fits.
+    const r = await page.evaluate(() => {
+      const L = window.__marioBuild(2);
+      const SOLID = new Set(L.T.SOLID);
+      const at = (x, y) => (x < 0 || x >= L.w || y < 0 || y >= L.h) ? 1 : L.tiles[y * L.w + x];
+      const open = (x, y) => !SOLID.has(at(x, y)) && !SOLID.has(at(x, y + 1));
+      const seen = new Set(); const q = []; let maxX = L.start;
+      for (let y = 0; y < L.h - 1; y++) {
+        if (open(L.start, y)) { q.push([L.start, y]); seen.add(L.start * 100 + y); }
+      }
+      while (q.length) {
+        const [x, y] = q.pop();
+        if (x > maxX) maxX = x;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || nx >= L.w || ny < 0 || ny >= L.h - 1) continue;
+          const k = nx * 100 + ny;
+          if (seen.has(k) || !open(nx, ny)) continue;
+          seen.add(k); q.push([nx, ny]);
+        }
+      }
+      return { maxX, flagX: L.flagX };
+    });
+    expect(r.maxX, `the channel stops at tile ${r.maxX} of ${r.flagX}`)
+      .toBeGreaterThanOrEqual(r.flagX);
   });
 
   test('every world boots and plays', async ({ page }) => {

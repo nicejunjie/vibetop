@@ -1856,8 +1856,13 @@
     L.spawn('goomba', 18, 12); L.spawn('goomba', 20, 12);
 
     // pillars you have to weave through
-    L.rect(24, 6, 24, 12, T_CBRICK); L.rect(28, 2, 28, 8, T_CBRICK);
-    L.rect(33, 6, 33, 12, T_CBRICK); L.rect(37, 2, 37, 9, T_CBRICK);
+    // Floor pillars are THREE tall, not seven. At seven they rise from the
+    // floor to well above a jump with a solid ceiling overhead — world 1-2
+    // could not be finished at all, and both of my checks had the same blind
+    // spot: the foothold audit only compared columns more than one apart, and
+    // the completion test teleports to each flag.
+    L.rect(24, 10, 24, 12, T_CBRICK); L.rect(28, 2, 28, 8, T_CBRICK);
+    L.rect(33, 10, 33, 12, T_CBRICK); L.rect(37, 2, 37, 9, T_CBRICK);
     L.spawn('koopa', 30, 12);
     L.rect(42, 9, 46, 9, T_BRICK); L.q(44, 9, 'coin');
     L.spawn('goomba', 44, 12); L.spawn('goomba', 46, 12);
@@ -4207,6 +4212,20 @@
                                               shell: !!e.shell, awake: !!e.awake }; });
     },
     tile: function (tx, ty) { return L.get(tx, ty); },
+    // Drive the physics directly, with no rendering and no waiting on frames.
+    // A level that takes three minutes to walk takes a couple of seconds to
+    // step, which is what makes an automated playthrough affordable at all.
+    silence: function () { soundOn = false; stopMusic(); },
+    input: function (o) {
+      K.left = o.left ? 1 : 0; K.right = o.right ? 1 : 0;
+      K.up = o.up ? 1 : 0; K.down = o.down ? 1 : 0;
+      K.run = o.run ? 1 : 0;
+      if (o.jump && !K.jump) pressJump();
+      if (o.run && !K.run) pressFire();
+      K.jump = o.jump ? 1 : 0;
+    },
+    step: function (n) { for (var i = 0; i < (n || 1); i++) step(); },
+    setLives: function (n) { lives = n; updateHud(); },
     // Clear the enemies so a test about BLOCKS is about blocks. Without it,
     // "stand under the power block and jump" is a coin flip against whichever
     // goomba has wandered into that column by then.
