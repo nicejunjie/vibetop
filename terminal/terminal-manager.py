@@ -5389,7 +5389,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         the authorization boundary (docs/files-native.md)."""
         u = urllib.parse.urlparse(self.path)
         op = u.path.rsplit("/", 1)[-1]
-        if op not in ("home", "list", "stat", "read", "search", "hash"):
+        if op not in ("home", "list", "stat", "read", "search", "hash", "usage"):
             return self._json(404, {"ok": False, "error": "unknown op", "code": "einval"})
         q = urllib.parse.parse_qs(u.query)
         req = {"op": op}

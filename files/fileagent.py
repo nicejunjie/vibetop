@@ -133,6 +133,19 @@ def op_list(req):
     return {"ok": True, "path": path, "entries": entries, "truncated": truncated}
 
 
+def op_usage(req):
+    """Filesystem capacity for the volume holding `path` — the classic app's
+    "x of y used" readout, which had no equivalent op here."""
+    path = req.get("path") or os.path.expanduser("~")
+    try:
+        v = os.statvfs(path)
+    except OSError as e:
+        return {"ok": False, "error": str(e), "code": _errcode(e)}
+    total = v.f_frsize * v.f_blocks
+    free = v.f_frsize * v.f_bavail          # what THIS user may actually use
+    return {"ok": True, "total": total, "free": free, "used": total - free}
+
+
 def op_stat(req):
     path = req.get("path") or ""
     if not path.startswith("/"):
@@ -391,8 +404,8 @@ def op_hash(req):
     return {"ok": True, "algo": algo, "hex": h.hexdigest()}
 
 
-OPS = {"home": op_home, "list": op_list, "stat": op_stat, "read": op_read,
-       "mkdir": op_mkdir, "rename": op_rename, "move": op_move,
+OPS = {"home": op_home, "list": op_list, "stat": op_stat, "usage": op_usage,
+       "read": op_read, "mkdir": op_mkdir, "rename": op_rename, "move": op_move,
        "copy": op_copy, "delete": op_delete, "search": op_search,
        "hash": op_hash}
 

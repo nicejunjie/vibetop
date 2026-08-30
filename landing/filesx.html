@@ -376,6 +376,32 @@
   .mcard li { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #b9c6d4; padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mcard li.more { color: #6b7488; font-family: system-ui, sans-serif; }
   .mbtns { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+  /* Move to… destination picker */
+  .pick { display: flex; flex-direction: column; gap: 8px; min-width: min(420px, 78vw); }
+  .pick-path {
+    font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #aab4c5;
+    word-break: break-all; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .pick-home {
+    background: #1f2733; color: #b79be8; border: 1px solid #2a3040; border-radius: 5px;
+    padding: 2px 8px; font: 11.5px system-ui, sans-serif; cursor: pointer; min-height: 24px;
+  }
+  .pick-list {
+    max-height: min(46vh, 320px); overflow-y: auto; display: flex; flex-direction: column;
+    border: 1px solid #2a3040; border-radius: 8px; background: #0e1117; padding: 4px;
+  }
+  .pick-row {
+    text-align: left; background: none; border: 0; color: #d4d8de; cursor: pointer;
+    padding: 7px 9px; border-radius: 6px; font: 13px system-ui, sans-serif; min-height: 34px;
+  }
+  .pick-row:hover { background: #1c2431; }
+  .pick-empty { padding: 10px; color: #7d879b; font-size: 12.5px; }
+
+  .mcheck {
+    display: flex; align-items: center; gap: 7px; margin: 4px 0 2px;
+    font-size: 12.5px; color: #aab4c5; cursor: pointer; user-select: none;
+  }
+  .mcheck input { accent-color: #8a4adb; width: 15px; height: 15px; }
   .mbtns button { font: 600 13px system-ui, sans-serif; padding: 8px 15px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; min-height: 36px; }
   .mbtns .mcancel { background: transparent; color: #9fb0c0; border-color: #2a3040; }
   .mbtns .mcancel:hover { background: rgba(255,255,255,.06); color: #c8d4e0; }
@@ -457,11 +483,46 @@
   #ed-save { background: #8a4adb; border-color: #8a4adb; color: #fff; }
   #ed-save:hover:not(:disabled) { background: #9a5ceb; }
   #ed-save:disabled { background: #1f2733; border-color: #2a3040; color: #6b7488; cursor: default; }
+  /* body = line-number gutter + textarea, sharing one font metric so the
+     numbers line up; the gutter scrolls with the text. */
+  .ed-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+  .ed-gutter {
+    flex: 0 0 auto; overflow: hidden; padding: 14px 8px 14px 12px;
+    background: #10151d; border-right: 1px solid #1e2632; color: #5b6577;
+    font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: right; white-space: pre; user-select: none; -webkit-user-select: none;
+  }
   .ed textarea {
-    flex: 1; min-height: 0; resize: none; border: 0; outline: none;
+    flex: 1; min-width: 0; min-height: 0; resize: none; border: 0; outline: none;
     background: #0e1117; color: #d4d8de; padding: 14px 18px;
     font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
     white-space: pre; tab-size: 4; overflow: auto;
+  }
+  /* find / replace (Ctrl+F inside the editor) */
+  .ed-find {
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    padding: 6px 10px; background: #161b22; border-bottom: 1px solid #2a3040;
+  }
+  .ed-find[hidden] { display: none; }
+  .ed-find input {
+    min-width: 0; background: #0e1117; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; padding: 5px 8px; font: 12.5px system-ui, sans-serif; min-height: 30px;
+  }
+  #ed-q { flex: 1 1 40%; }
+  #ed-r { flex: 1 1 40%; }
+  .ed-find input:focus { outline: none; border-color: #8a4adb; }
+  .ed-find button {
+    flex: 0 0 auto; background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; padding: 4px 9px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  .ed-find button:hover { background: #253044; }
+  .ed-fcount { flex: 0 0 auto; font: 11.5px ui-monospace, Menlo, monospace; color: #8a93a6; min-width: 52px; text-align: center; }
+  @media (max-width: 736px) {
+    .ed-find { flex-wrap: wrap; row-gap: 6px; }
+    #ed-q, #ed-r { flex: 1 0 100%; }
+    .ed-find button { min-height: 36px; }
+    .ed-gutter { padding-left: 8px; padding-right: 6px; }
   }
   .ed-foot {
     display: flex; align-items: center; gap: 14px; flex-shrink: 0;
@@ -605,7 +666,7 @@
       <button id="hidden" title="Show hidden files" aria-pressed="false"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8c1.6-2.9 3.9-4.4 6.5-4.4S13 5.1 14.5 8c-1.6 2.9-3.9 4.4-6.5 4.4S3 10.9 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></span><span class="bl">Hidden</span></button>
       <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></svg></span></button>
       <button id="refresh" title="Refresh" aria-label="Refresh"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.7 8a5.3 5.3 0 1 0 1.5-3.7"/><path d="M4.2 1.3v3h3"/></svg></span></button>
-      <button id="manage" title="Open the classic file manager here (editor, search…)">Manage</button>
+      <button id="manage" title="Open this folder in the old FileBrowser-based Files app">Classic view</button>
       <button id="morebtn" class="m-only" title="More" aria-label="More" aria-haspopup="menu">⋯</button>
     </div>
   </div>
@@ -634,6 +695,7 @@
     <button id="a-office" title="Edit in the Office app"><span class="abi">📝</span><span class="abl">Edit</span></button>
     <span class="dv" id="a-dv1"></span>
     <button id="a-rename" title="Rename (F2)"><span class="abi">✎</span><span class="abl">Rename</span></button>
+    <button id="a-move" title="Move to another folder"><span class="abl">Move</span></button>
     <button id="a-copy" title="Copy (Ctrl+C)"><span class="abi">⧉</span><span class="abl">Copy</span></button>
     <button id="a-cut" title="Cut (Ctrl+X)"><span class="abi">✂</span><span class="abl">Cut</span></button>
     <span class="dv" id="a-dv2"></span>
@@ -662,8 +724,23 @@
       <button id="ed-save" title="Save (Ctrl+S)">Save</button>
       <button id="ed-close" title="Close (Esc)">✕</button>
     </div>
-    <textarea id="ed-ta" spellcheck="false" autocomplete="off" autocorrect="off"
-              autocapitalize="off" wrap="off" aria-label="File content"></textarea>
+    <div class="ed-find" id="ed-find" hidden>
+      <input id="ed-q" type="text" placeholder="Find" spellcheck="false" autocomplete="off"
+             autocapitalize="off" aria-label="Find">
+      <input id="ed-r" type="text" placeholder="Replace with" spellcheck="false" autocomplete="off"
+             autocapitalize="off" aria-label="Replace with">
+      <span class="ed-fcount" id="ed-fcount"></span>
+      <button id="ed-prev" title="Previous match (Shift+Enter)">‹</button>
+      <button id="ed-next" title="Next match (Enter)">›</button>
+      <button id="ed-rep" title="Replace this match">Replace</button>
+      <button id="ed-repall" title="Replace every match">All</button>
+      <button id="ed-fx" title="Close find (Esc)">✕</button>
+    </div>
+    <div class="ed-body">
+      <div class="ed-gutter" id="ed-gutter" aria-hidden="true"></div>
+      <textarea id="ed-ta" spellcheck="false" autocomplete="off" autocorrect="off"
+                autocapitalize="off" wrap="off" aria-label="File content"></textarea>
+    </div>
     <div class="ed-foot"><span id="ed-size"></span><span id="ed-pos"></span></div>
   </div>
 
@@ -1016,7 +1093,7 @@
       show('a-browser', !!(e1 && !e1.isDir));
       show('a-office', !!(e1 && OFF_RE.test(e1.name)));
       show('a-rename', oneSel);
-      ['a-copy', 'a-cut', 'a-download', 'a-delete'].forEach(function(id) { show(id, any); });
+      ['a-copy', 'a-cut', 'a-download', 'a-delete', 'a-move'].forEach(function(id) { show(id, any); });
       document.getElementById('a-dv1').hidden = !any;
       document.getElementById('a-dv2').hidden = !any;
       // Mobile keeps every verb visible (wrapped over two rows); only the one
@@ -1473,6 +1550,72 @@
     return raw.length > 120 ? raw.slice(0, 117) + '…' : raw;
   }
 
+  // -- Move to… : a real destination picker. Cut+Paste and drag-to-folder both
+  //    work, but neither can reach a folder you are not already looking at. --
+  function moveToPicker() {
+    if (!selCount) return;
+    var names = selNames(), srcs = selPaths();
+    var here = path;
+    var m = rawCard('Move ' + names.length + ' item' + (names.length === 1 ? '' : 's') + ' to…');
+    var box = el('div', 'pick');
+    var crumb = el('div', 'pick-path');
+    var listEl = el('div', 'pick-list');
+    var cur = here;
+    box.appendChild(crumb);
+    box.appendChild(listEl);
+    m.card.appendChild(box);
+
+    var btns = el('div', 'mbtns');
+    var cancel = el('button', 'mcancel', 'Cancel');
+    var okBtn = el('button', 'mok', 'Move here');
+    cancel.addEventListener('click', m.close);
+    okBtn.addEventListener('click', function() {
+      if (cur === here) { toast('That is where they already are'); return; }
+      m.close();
+      fsop({ op: 'move', src: srcs, dst: cur }).then(function(d) {
+        opResult(d, 'Moved ' + srcs.length + ' item' + (srcs.length === 1 ? '' : 's') +
+                    ' to ' + (baseOf(cur) || cur));
+        refresh();
+      }).catch(function() { toast('Move failed — network error', true); });
+    });
+    btns.appendChild(cancel); btns.appendChild(okBtn);
+    m.card.appendChild(btns);
+
+    function draw(p) {
+      cur = p;
+      crumb.textContent = p;
+      okBtn.disabled = false;
+      listEl.textContent = 'Loading…';
+      api('/api/fs/list?path=' + encodeURIComponent(p)).then(function(d) {
+        listEl.textContent = '';
+        if (p !== '/') {
+          var up = el('button', 'pick-row', '⤴  ..');
+          up.addEventListener('click', function() { draw(p.slice(0, p.lastIndexOf('/')) || '/'); });
+          listEl.appendChild(up);
+        }
+        if (!d || !d.ok) {
+          listEl.appendChild(el('div', 'pick-empty', friendlyErr(d || {})));
+          okBtn.disabled = true;
+          return;
+        }
+        var dirs = d.entries.filter(function(e) {
+          return e.isDir && (showHidden || e.name.charAt(0) !== '.');
+        });
+        if (!dirs.length) listEl.appendChild(el('div', 'pick-empty', 'No subfolders'));
+        dirs.forEach(function(e) {
+          var b = el('button', 'pick-row', '📁  ' + e.name);
+          b.addEventListener('click', function() { draw(joinPath(p, e.name)); });
+          listEl.appendChild(b);
+        });
+      }).catch(function() { listEl.textContent = 'Could not read that folder'; });
+    }
+    var home = el('button', 'pick-home', 'Home');
+    home.addEventListener('click', function() { draw(HOME || '/'); });
+    crumb.appendChild(home);
+    draw(here);
+    okBtn.focus();
+  }
+
   // -- clipboard (survives navigation and tabs via localStorage) --
   function doCopyCut(mode) {
     if (!selCount) return;
@@ -1487,7 +1630,29 @@
     var c = getClip();
     if (!c || !path) return;
     var op = c.mode === 'cut' ? 'move' : 'copy';
+    var dst = path, n = c.paths.length, pasteTimer = null, before = entries.length;
+    var verb = op === 'move' ? 'Moving' : 'Copying';
+    uprogTxt.textContent = verb + ' ' + n + ' item' + (n === 1 ? '' : 's') + '…';
+    uprogFill.style.width = '0%';
+    uprogEl.classList.add('on');
+    // No byte-level progress exists for a server-side copy, so show honest
+    // arrival progress: how many of the N items have appeared at the target.
+    pasteTimer = setInterval(function() {
+      api('/api/fs/list?path=' + encodeURIComponent(dst)).then(function(d) {
+        if (!d || !d.ok || !d.entries) return;
+        var arrived = Math.max(0, Math.min(n, d.entries.length - before));
+        uprogTxt.textContent = verb + ' ' + n + ' item' + (n === 1 ? '' : 's') +
+                               ' — ' + arrived + '/' + n;
+        uprogFill.style.width = Math.round((arrived / n) * 100) + '%';
+      }).catch(function() {});
+    }, 700);
+    function donePaste() {
+      clearInterval(pasteTimer);
+      uprogEl.classList.remove('on');
+      uprogFill.style.width = '0%';
+    }
     fsop({ op: op, src: c.paths, dst: path }).then(function(d) {
+      donePaste();
       var n = c.paths.length;
       var ok = opResult(d, (op === 'move' ? 'Moved ' : 'Pasted ') + n + ' item' + (n === 1 ? '' : 's'));
       // Only a SUCCESSFUL cut consumes the clipboard. Clearing it on failure
@@ -1496,7 +1661,7 @@
       if (ok && c.mode === 'cut') { try { localStorage.removeItem('fsx.clip'); } catch (e) {} }
       renderActions();
       refresh();
-    }).catch(function() { toast('Paste failed — network error', true); });
+    }).catch(function() { donePaste(); toast('Paste failed — network error', true); });
   }
 
   // -- choice card (vibe-modal style): delete confirm, dirty-close, econflict --
@@ -1517,12 +1682,21 @@
         if (opts.names.length > 8) ul.appendChild(el('li', 'more', '…and ' + (opts.names.length - 8) + ' more'));
         card.appendChild(ul);
       }
+      var applyAll = null;
+      if (opts.checkbox) {
+        var lab = el('label', 'mcheck');
+        applyAll = document.createElement('input');
+        applyAll.type = 'checkbox';
+        lab.appendChild(applyAll);
+        lab.appendChild(document.createTextNode(' ' + opts.checkbox));
+        card.appendChild(lab);
+      }
       var btns = el('div', 'mbtns');
       function close(val) {
         modalOpen = false;
         document.removeEventListener('keydown', onKey, true);
         ov.remove();
-        resolve(val);
+        resolve(opts.checkbox ? { value: val, all: !!(applyAll && applyAll.checked) } : val);
       }
       function onKey(e) {
         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(opts.escValue); }
@@ -1758,11 +1932,43 @@
     }
     return probe(name, 2);
   }
-  function uploadOne(dir, file, reldir, onProgress) {
+  // What to do when an upload's name is taken. Silently auto-renaming to
+  // "file (2).txt" surprised people who meant to replace — classic asked.
+  // Remembered for the rest of the batch when the user picks an "all" answer.
+  var upPolicy = null;          // null | 'replace' | 'skip' | 'rename'
+  function resolveConflict(tdir, name, more) {
+    return api('/api/fs/stat?path=' + encodeURIComponent(joinPath(tdir, name)))
+      .then(function(d) {
+        if (!d || !d.ok) return { name: name };                // free
+        if (upPolicy === 'replace') return { name: name };
+        if (upPolicy === 'skip') return { skip: true };
+        if (upPolicy === 'rename') return freeName(tdir, name).then(function(n) { return { name: n }; });
+        return cardChoice({
+          title: '“' + name + '” already exists',
+          msg: 'What should happen to the file already in ' + (baseOf(tdir) || tdir) + '?',
+          checkbox: more > 0 ? ('Do this for the other ' + more + ' file' + (more === 1 ? '' : 's')) : null,
+          buttons: [
+            { label: 'Skip', value: 'skip', cancel: true },
+            { label: 'Keep both', value: 'rename' },
+            { label: 'Replace', value: 'replace', danger: true }
+          ],
+          defaultValue: 'rename', escValue: 'skip', focusValue: 'rename'
+        }).then(function(res) {
+          var choice = (res && typeof res === 'object') ? res.value : res;
+          if (res && typeof res === 'object' && res.all) upPolicy = choice;
+          if (choice === 'skip') return { skip: true };
+          if (choice === 'replace') return { name: name };
+          return freeName(tdir, name).then(function(n) { return { name: n }; });
+        });
+      }).catch(function() { return { name: name }; });
+  }
+  function uploadOne(dir, file, reldir, onProgress, more) {
     // reldir ('' for plain files) preserves a dropped/picked FOLDER's structure:
     // the file lands in dir/reldir/ and mkdirs=1 creates the chain server-side.
     var tdir = reldir ? joinPath(dir, reldir) : dir;
-    return freeName(tdir, file.name).then(function(name) {
+    return resolveConflict(tdir, file.name, more).then(function(r) {
+      if (r.skip) return { ok: true, skipped: true, name: file.name };
+      var name = r.name;
       return new Promise(function(resolve) {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/fs/upload?path=' + encodeURIComponent(joinPath(tdir, name)) +
@@ -1786,15 +1992,19 @@
     if (uploading || !items.length || !path) return;
     uploading = true;
     document.getElementById('upbtn').disabled = true;
-    var dir = path, done = 0, fails = [];
+    var dir = path, done = 0, fails = [], skipped = 0;
+    upPolicy = null;                       // each batch asks afresh
     uprogEl.classList.add('on');
     function step() {
       if (done >= items.length) {
         uploading = false;
         document.getElementById('upbtn').disabled = false;
         uprogEl.classList.remove('on');
-        if (fails.length) toast(fails.length + ' of ' + items.length + ' failed — ' + fails[0].error, true);
-        else toast('Uploaded ' + items.length + ' file' + (items.length === 1 ? '' : 's'));
+        var sent = items.length - fails.length - skipped;
+        var tail = skipped ? ' (' + skipped + ' skipped)' : '';
+        if (fails.length) toast(fails.length + ' of ' + items.length + ' failed — ' + fails[0].error + tail, true);
+        else if (!sent && skipped) toast('Nothing uploaded — ' + skipped + ' skipped');
+        else toast('Uploaded ' + sent + ' file' + (sent === 1 ? '' : 's') + tail);
         if (path === dir) refresh();
         return;
       }
@@ -1804,8 +2014,9 @@
       uprogFill.style.width = '0%';
       uploadOne(dir, it.file, it.reldir, function(frac) {
         uprogFill.style.width = Math.round(frac * 100) + '%';
-      }).then(function(res) {
-        if (!res.ok) fails.push(res);
+      }, items.length - done - 1).then(function(res) {
+        if (res.skipped) skipped++;
+        else if (!res.ok) fails.push(res);
         done++;
         step();
       });
@@ -1944,7 +2155,14 @@
     }
     if (edEl.classList.contains('open')) {
       if (mod && (ev.key === 's' || ev.key === 'S')) { ev.preventDefault(); edSave(false); }
-      else if (ev.key === 'Escape') { ev.preventDefault(); requestCloseEditor(); }
+      else if (mod && (ev.key === 'f' || ev.key === 'F')) { ev.preventDefault(); edOpenFind(); }
+      else if (mod && (ev.key === 'h' || ev.key === 'H')) { ev.preventDefault(); edOpenFind(); edR.focus(); }
+      else if (mod && (ev.key === 'g' || ev.key === 'G')) { ev.preventDefault(); edGo(ev.shiftKey ? -1 : 1); }
+      else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        // Esc closes the find bar first, the editor second.
+        if (!edFind.hidden) edCloseFind(); else requestCloseEditor();
+      }
       return;
     }
     if (mod && (ev.key === 'f' || ev.key === 'F')) { ev.preventDefault(); openSearch(); return; }
@@ -2384,6 +2602,11 @@
       row('Modified', new Date(d.stat.mtime * 1000).toLocaleString());
       row('Permissions', fmtMode(d.stat.mode) + ' (' + (d.stat.mode & 511).toString(8) + ')', true);
     }).catch(function() {});
+    api('/api/fs/usage?path=' + encodeURIComponent(path)).then(function(d) {
+      if (!d || !d.ok) return;
+      row('Volume', fmtSize(d.used) + ' of ' + fmtSize(d.total) + ' used · ' +
+                    fmtSize(d.free) + ' free');
+    }).catch(function() {});
     var m = rawCard(baseOf(path) || path);
     m.card.appendChild(box);
     var btns = el('div', 'mbtns');
@@ -2510,6 +2733,7 @@
   function edOpen() { return edEl.classList.contains('open'); }
   function edDirty() { return edOpen() && edTa.value !== edSavedText; }
   function edSyncState() {
+    edSyncGutter();
     var dirty = edTa.value !== edSavedText;
     edEl.classList.toggle('dirty', dirty);
     edSaveBtn.disabled = !dirty || edSaving;
@@ -2520,6 +2744,90 @@
     var before = edTa.value.slice(0, s);
     edPosEl.textContent = 'Ln ' + before.split('\n').length + ', Col ' + (s - before.lastIndexOf('\n'));
   }
+  // ---- line-number gutter ----
+  var edGutter = document.getElementById('ed-gutter');
+  function edSyncGutter() {
+    var n = edTa.value.split('\n').length;
+    if (edGutter.dataset.n !== String(n)) {
+      var out = [];
+      for (var i = 1; i <= n; i++) out.push(i);
+      edGutter.textContent = out.join('\n');
+      edGutter.dataset.n = String(n);
+    }
+    edGutter.scrollTop = edTa.scrollTop;
+  }
+  edTa.addEventListener('scroll', function() { edGutter.scrollTop = edTa.scrollTop; });
+
+  // ---- find / replace ----
+  var edFind = document.getElementById('ed-find');
+  var edQ = document.getElementById('ed-q'), edR = document.getElementById('ed-r');
+  var edCount = document.getElementById('ed-fcount');
+  var edHits = [], edHit = -1;
+  function edScan() {
+    var q = edQ.value;
+    edHits = []; edHit = -1;
+    if (q) {
+      var hay = edTa.value.toLowerCase(), needle = q.toLowerCase(), at = 0, i;
+      while ((i = hay.indexOf(needle, at)) !== -1) { edHits.push(i); at = i + Math.max(1, needle.length); }
+    }
+    edCount.textContent = edHits.length ? ('0/' + edHits.length) : (edQ.value ? 'none' : '');
+  }
+  function edGo(dir) {
+    if (!edHits.length) return;
+    edHit = (edHit + dir + edHits.length) % edHits.length;
+    var at = edHits[edHit], len = edQ.value.length;
+    edTa.focus();
+    try { edTa.setSelectionRange(at, at + len); } catch (e) {}
+    // scroll the match into view (a textarea will not do it for a programmatic
+    // selection)
+    var lh = parseFloat(getComputedStyle(edTa).lineHeight) || 19;
+    var line = edTa.value.slice(0, at).split('\n').length;
+    edTa.scrollTop = Math.max(0, (line - 1) * lh - edTa.clientHeight / 2);
+    edSyncGutter();
+    edCount.textContent = (edHit + 1) + '/' + edHits.length;
+  }
+  function edOpenFind() {
+    edFind.hidden = false;
+    var sel = edTa.value.slice(edTa.selectionStart, edTa.selectionEnd);
+    if (sel && sel.indexOf('\n') === -1) edQ.value = sel;
+    edScan();
+    edQ.focus(); edQ.select();
+  }
+  function edCloseFind() { edFind.hidden = true; edTa.focus(); }
+  function edReplaceOne() {
+    if (edHit < 0 || !edHits.length) { edGo(1); return; }
+    var at = edHits[edHit], len = edQ.value.length;
+    edTa.value = edTa.value.slice(0, at) + edR.value + edTa.value.slice(at + len);
+    edSyncState(); edSyncGutter(); edScan();
+    edHit = -1; edGo(1);
+  }
+  function edReplaceAll() {
+    if (!edQ.value || !edHits.length) return;
+    var n = edHits.length, out = '', at = 0;
+    edHits.forEach(function(i) {
+      out += edTa.value.slice(at, i) + edR.value;
+      at = i + edQ.value.length;
+    });
+    out += edTa.value.slice(at);
+    edTa.value = out;
+    edSyncState(); edSyncGutter(); edScan();
+    toast('Replaced ' + n + ' occurrence' + (n === 1 ? '' : 's'));
+  }
+  edQ.addEventListener('input', edScan);
+  edQ.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); edGo(e.shiftKey ? -1 : 1); }
+    else if (e.key === 'Escape') { e.preventDefault(); edCloseFind(); }
+  });
+  edR.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); edReplaceOne(); }
+    else if (e.key === 'Escape') { e.preventDefault(); edCloseFind(); }
+  });
+  document.getElementById('ed-next').addEventListener('click', function() { edGo(1); });
+  document.getElementById('ed-prev').addEventListener('click', function() { edGo(-1); });
+  document.getElementById('ed-rep').addEventListener('click', edReplaceOne);
+  document.getElementById('ed-repall').addEventListener('click', edReplaceAll);
+  document.getElementById('ed-fx').addEventListener('click', edCloseFind);
+
   function openEditor(absPath, name, text, mtime, gotoLine) {
     edReturnFocus = document.activeElement;
     edPath = absPath; edMtime = mtime;
@@ -2528,7 +2836,9 @@
     edSavedText = text;
     edTa.value = text;
     edEl.classList.add('open');
+    edFind.hidden = true; edQ.value = ''; edR.value = ''; edScan();
     edSyncState();
+    edSyncGutter();
     edTa.focus();
     if (gotoLine && gotoLine > 1) {
       var idx = 0, l = 1;
@@ -2557,15 +2867,22 @@
       title: 'Discard unsaved changes?',
       msg: 'Your edits to ' + (edNameEl.textContent || 'this file') + ' aren’t saved.',
       buttons: [
-        { label: 'Keep editing', value: false, cancel: true },
-        { label: 'Discard', value: true, danger: true }
+        { label: 'Keep editing', value: 'keep', cancel: true },
+        { label: 'Discard', value: 'discard', danger: true },
+        { label: 'Save', value: 'save' }
       ],
-      defaultValue: true, escValue: false, focusValue: false
-    }).then(function(discard) { if (discard) closeEditorNow(); });
+      defaultValue: 'save', escValue: 'keep', focusValue: 'save'
+    }).then(function(what) {
+      if (what === 'discard') closeEditorNow();
+      else if (what === 'save') edSave(false, true);      // close once saved
+    });
   }
-  function edSave(overwrite) {
+  function edSave(overwrite, closeAfter) {
     if (!edPath || edSaving) return;
-    if (!overwrite && edTa.value === edSavedText) return;    // nothing to save
+    if (!overwrite && edTa.value === edSavedText) {          // nothing to save
+      if (closeAfter) closeEditorNow();
+      return;
+    }
     var val = edTa.value, p = edPath;
     edSaving = true; edSyncState();
     var url = '/api/fs/upload?path=' + encodeURIComponent(p) +
@@ -2583,6 +2900,7 @@
           }).catch(function() {});
           toast('Saved');
           if (!searchActive) refresh();                      // update the row's size/mtime
+          if (closeAfter) closeEditorNow();
           return;
         }
         edSyncState();
@@ -2931,6 +3249,7 @@
       items.push({ label: 'Download', run: doDownload });
       items.push({ sep: true });
       if (one) items.push({ label: 'Rename', run: startRename });
+      items.push({ label: 'Move to…', run: moveToPicker });
       items.push({ label: 'Copy', run: function() { doCopyCut('copy'); } });
       items.push({ label: 'Cut', run: function() { doCopyCut('cut'); } });
       if (clip) items.push({ label: 'Paste (' + clip.paths.length + ')', run: doPaste });
@@ -3030,6 +3349,7 @@
     rows.forEach(function(e) { selected[e.name] = true; selCount++; });
     syncSelDom();
   });
+  document.getElementById('a-move').addEventListener('click', moveToPicker);
   document.getElementById('a-delete').addEventListener('click', doDelete);
   // Another tab changed the shared clipboard → update the Paste button + cut dims.
   window.addEventListener('storage', function(ev) {
