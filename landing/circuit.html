@@ -321,7 +321,12 @@
   var JUMP_V     = -4.95, JUMP_BONUS = -0.45; // + a slice of it for running jumps
   var BOUNCE_V   = -3.3,  BOUNCE_HELD = -4.4; // stomping an enemy
   var ENEMY_V    = 0.42,  SHELL_V   = 3.1;
-  var COYOTE     = 4, JUMP_BUF = 6;           // frames of forgiveness (touch needs it)
+  var COYOTE     = 6, JUMP_BUF = 12;          // frames of forgiveness (touch needs it)
+  // The shortest possible hop. Without a floor, a 1-frame tap cleared 1.08
+  // tiles and a held press 4.63 — a 4x spread off the same button, so a
+  // quick tap barely left the ground and nothing about the control read as
+  // proportional. These frames float regardless of when you let go.
+  var JUMP_MIN   = 7;
   // Water: gravity most of the way off, a stroke per press instead of a held
   // jump, and enough drag that you glide rather than skid.
   var SWIM_GRAV  = 0.115, SWIM_MAXFALL = 1.9;
@@ -1579,9 +1584,27 @@
   (function bindPad() {
     var pad = document.getElementById('pad');
     var held = {};            // pointerId -> key, so a slide off a button releases it
+    // The buttons are circles with gaps between them, and elementFromPoint
+    // honours border-radius — so a thumb landing on a corner of the box, or in
+    // the gap between A and B, hit NOTHING and the press was silently dropped.
+    // A press that misses by a few px was still aimed at something: snap to the
+    // nearest button in the same group. Scoped to the group the finger is
+    // already inside (.pad is pointer-events:none), so this can never steal a
+    // tap meant for the game.
     function hit(x, y) {
       var el = document.elementFromPoint(x, y);
-      return el && el.closest ? el.closest('.pad .btn') : null;
+      var b = el && el.closest ? el.closest('.pad .btn') : null;
+      if (b) return b;
+      var g = el && el.closest ? el.closest('.pad .grp') : null;
+      if (!g) return null;
+      var list = g.querySelectorAll('.btn'), best = null, bd = Infinity;
+      for (var i = 0; i < list.length; i++) {
+        var r = list[i].getBoundingClientRect();
+        var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+        var d = dx * dx + dy * dy, lim = r.width * 0.5 + 24;
+        if (d < bd && d < lim * lim) { bd = d; best = list[i]; }
+      }
+      return best;
     }
     function set(btn, on) {
       if (!btn) return;
@@ -1589,7 +1612,12 @@
       setKey(btn.dataset.k, on);
     }
     pad.addEventListener('pointerdown', function (e) {
-      var b = e.target.closest('.btn'); if (!b) return;
+      // The element under the finger first, then the near-miss snap. Straight to
+      // hit() would depend on clientX/clientY alone, which a synthetic press
+      // dispatched at the button itself does not carry.
+      var b = (e.target.closest && e.target.closest('.btn')) ||
+              hit(e.clientX, e.clientY);
+      if (!b) return;
       e.preventDefault();
       held[e.pointerId] = b; set(b, true);
       try { pad.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1764,6 +1792,11 @@
     L.q(16, 9, 'coin');
     L.brick(20, 9); L.q(21, 9, 'power'); L.brick(22, 9); L.q(23, 9, 'coin'); L.brick(24, 9);
     L.q(22, 5, 'coin');
+    // A brick that keeps paying. It looks EXACTLY like the four beside it —
+    // that is the whole trick, and the reason the original is worth hitting
+    // every brick you pass.
+    L.brick(24, 5, 'coins');
+    L.brick(20, 5); L.brick(21, 5); L.brick(23, 5);
     L.spawn('goomba', 22, 12); L.spawn('goomba', 40, 12);
 
     // pipe row, each taller than the last; the third has a plant
@@ -1785,6 +1818,12 @@
     L.brick(101, 9); L.brick(102, 9);
     for (var i = 0; i < 6; i++) L.set(104 + i, 6, T_COIN);
     L.spawn('goomba', 106, 12); L.spawn('goomba', 108, 12);
+
+    // Invisible blocks: a staircase to a coin shelf you cannot otherwise
+    // reach. You find the first one by jumping at nothing, which is exactly
+    // how you find them in the original.
+    L.hidden(74, 8, 'coin'); L.hidden(76, 6, 'coin'); L.hidden(78, 4, 'power');
+    for (var sh = 0; sh < 6; sh++) L.set(80 + sh, 3, T_COIN);
 
     // the double row + a hidden 1-up under the left end
     L.rect(114, 9, 118, 9, T_BRICK); L.rect(114, 5, 118, 5, T_BRICK);
@@ -1810,6 +1849,7 @@
     L.spawn('spring', 155, 12);
     for (var sc = 0; sc < 6; sc++) L.set(153 + sc, 3, T_COIN);
     L.hidden(156, 2, '1up');
+    L.hidden(166, 8, 'coin'); L.hidden(167, 8, 'coin'); L.hidden(168, 8, 'coin');
 
     // the final staircase and the flag
     L.stair(188, 8, 1);
@@ -1845,6 +1885,7 @@
       if (k % 6 === 3) L.set(245 + k, 3, T_COIN);
     }
     L.hidden(258, 3, '1up');
+    L.hidden(266, 3, 'power');
     L.pipe(274, 5, 2);
     L.exitPipes['274,5'] = { x: 150, y: 13 };    // drops you back before the stairs
     L.rect(279, 0, 279, ROWS - 1, T_STONE);
@@ -1853,10 +1894,13 @@
 
   // ---- world 1-2: underground ------------------------------------------ //
   function build12() {
-    var L = new Level('02', 200, 'underground');
+    // 252 wide: the last 44 columns are the Warp Zone, reached along the
+    // ceiling. Level.set drops anything past the width, so a room built out of
+    // bounds is a pipe into nothing.
+    var L = new Level('02', 252, 'underground');
     L.time = 400; L.startX = 3; L.checkpoint = 96;
-    L.ground(0, 88); L.ground(92, 140); L.ground(144, 199);
-    L.rect(0, 0, 199, 1, T_CBRICK);              // ceiling, the whole way
+    L.ground(0, 88); L.ground(92, 140); L.ground(144, 251);
+    L.rect(0, 0, 168, 1, T_CBRICK);              // ceiling, most of the way
     L.rect(0, 2, 5, 2, T_CBRICK);
 
     // an opening coin cellar
@@ -1881,7 +1925,10 @@
     for (var s = 0; s < 5; s++) L.rect(52 + s, 11 - s, 52 + s, 12, T_BRICK);
     L.hidden(58, 6, '1up');
     L.spawn('koopaRed', 62, 12);
-    L.rect(64, 9, 70, 9, T_BRICK); L.contents['67,9'] = 'coins'; L.set(67, 9, T_Q);
+    // A plain brick, not a ? block: a multi-coin block you can SEE is not a
+    // secret. Hitting it the first time is an accident; the sixth is a choice.
+    L.rect(64, 9, 70, 9, T_BRICK); L.brick(67, 9, 'coins');
+    L.hidden(48, 6, 'coin'); L.hidden(50, 6, 'coin');
     for (var c = 0; c < 5; c++) L.set(65 + c, 5, T_COIN);
 
     // the pinch: low ceiling, then a gap
@@ -1900,18 +1947,43 @@
     for (var k = 0; k < 6; k++) L.set(134 + k, 6, T_COIN);
     L.spawn('goomba', 146, 12); L.spawn('goomba', 148, 12);
     L.rect(152, 9, 156, 9, T_BRICK); L.q(154, 9, 'coin');
+    L.brick(153, 9, 'coins');
     L.spawn('koopaRed', 160, 12);
     L.stair(168, 6, 1, T_CBRICK);
     L.rect(174, GY - 6, 176, GY - 1, T_CBRICK);
     L.flagX = 186; L.castleX = 192;
-    L.rect(180, 0, 199, 1, T_EMPTY);             // open the sky over the flag
-    L.rect(180, 2, 199, 2, T_EMPTY);
+
+    // --- the Warp Zone ------------------------------------------------- //
+    // An invisible block just short of the exit grows a beanstalk, and the top
+    // of it is a room with three pipes and no way back.
+    //
+    // The first cut reached it along a road of brick above the flagpole, which
+    // the playthrough bot walked on its FIRST attempt: the bot jumps constantly,
+    // so it bumps every invisible block on its path by accident, and there is no
+    // height a random jumper cannot reach. A vine cannot be taken by accident —
+    // climbing one means holding UP against it — so the secret stays secret and
+    // the bot walks under it to the flag, which is what it did.
+    // Row 10, the height every other block in the game sits at. At row 8 the
+    // spent block's top was 5 tiles up and a jump from the ground reaches 4.63,
+    // so you could bump it, watch the beanstalk grow, and never be able to
+    // touch it.
+    L.hidden(178, 10, 'vine');
+    L.vineWarps[178] = { x: 214, y: GY };
+    L.rect(202, 0, 202, GY - 1, T_STONE);        // nothing walks into the room
+
+    L.rect(208, 0, 251, 1, T_CBRICK);            // the room has a roof of its own
+    L.pipe(212, GY - 3, 3, { level: 2 });        // three pipes, three sectors
+    L.pipe(224, GY - 3, 3, { level: 3 });
+    L.pipe(236, GY - 3, 3, { level: 4 });
+    L.set(214, 8, T_COIN); L.set(226, 8, T_COIN); L.set(238, 8, T_COIN);
+    L.rect(251, 0, 251, ROWS - 1, T_STONE);
     return L;
   }
 
   // ---- world 1-4: the athletic level, mostly air ------------------------ //
   function build13() {
-    var L = new Level('04', 196, 'overworld');
+    // 244 wide: the tail is the sky bonus at the top of the vine.
+    var L = new Level('04', 244, 'overworld');
     L.time = 300; L.startX = 3; L.checkpoint = 114;   // inside ground(112,126)
     L.ground(0, 26); L.ground(60, 74); L.ground(112, 126); L.ground(160, 195);
 
@@ -1927,7 +1999,7 @@
       L.rect(x, y, x + w - 1, y, T_TREE_TOP);
       L.rect(x + ((w / 2) | 0), y + 1, x + ((w / 2) | 0), GY - 1, T_TREE);
     }
-    L.q(10, 9, 'power'); L.brick(9, 9); L.brick(11, 9);
+    L.q(10, 9, 'power'); L.brick(9, 9); L.brick(11, 9); L.brick(12, 9, 'coins');
     L.spawn('goomba', 16, 12); L.spawn('koopa', 22, 12);
     tree(30, 11, 4); tree(38, 9, 4); tree(45, 11, 5); tree(53, 10, 3);
     L.spawn('goomba', 31, 10); L.spawn('goomba', 46, 10);
@@ -1947,6 +2019,11 @@
     L.spawn('goomba', 132, 9); L.spawn('koopaRed', 148, 9);
     for (var c = 0; c < 4; c++) L.set(139 + c, 5, T_COIN);
     L.hidden(150, 6, '1up');
+    L.hidden(144, 6, 'coin'); L.hidden(120, 8, 'power');
+
+    // A vine over the last stretch of solid ground, and the sky it grows into.
+    L.q(170, 9, 'vine');
+    L.vineWarps[170] = { x: 206, y: 5 };
 
     L.spawn('plat', 154, 11, { dx: 0, dy: 1.1, min: 5, max: 11, w: 3 });
     L.spawn('goomba', 166, 12); L.spawn('goomba', 168, 12);
@@ -1954,6 +2031,18 @@
     L.stair(178, 7, 1);
     L.rect(185, GY - 7, 185, GY - 1, T_STONE);
     L.flagX = 189; L.castleX = 193;
+
+    // --- the sky at the top of the vine -------------------------------- //
+    L.row(200, 240, 6, T_CLOUD);
+    L.rect(200, 7, 240, ROWS - 1, T_EMPTY);
+    for (var sk = 0; sk < 32; sk++) {
+      L.set(204 + sk, 5, T_COIN);
+      if (sk % 4 === 2) L.set(204 + sk, 4, T_COIN);
+    }
+    L.hidden(220, 3, '1up');
+    L.pipe(236, 5, 2);
+    L.exitPipes['236,5'] = { x: 160, y: 12 };    // drops you back before the stairs
+    L.rect(243, 0, 243, ROWS - 1, T_STONE);
     return L;
   }
 
@@ -1979,6 +2068,8 @@
     L.spawn('firebar', 30, 5, { len: 5, speed: -0.03 });
     L.spawn('podoboo', 41, 14, { power: 6.2 });
     L.rect(46, 9, 50, 9, T_CBRICK); L.q(48, 9, 'power');
+    L.brick(49, 9, 'coins');
+    L.hidden(35, 8, 'coin'); L.hidden(37, 6, 'coin'); L.hidden(39, 4, '1up');
     for (var cc = 0; cc < 5; cc++) L.set(46 + cc, 8, T_COIN);
     for (var cd = 0; cd < 4; cd++) L.set(59 + cd, 7, T_COIN);
     for (var ce = 0; ce < 5; ce++) L.set(104 + ce, 5, T_COIN);
@@ -2000,6 +2091,7 @@
     L.rect(104, 6, 110, 6, T_CBRICK);
     L.spawn('firebar', 107, 5, { len: 6, speed: 0.03 });
     L.rect(114, 9, 118, 9, T_CBRICK); L.q(116, 9, 'power');
+    L.hidden(112, 6, 'power'); L.hidden(135, 8, 'coin');
     L.spawn('bullet', 122, 11, { rate: 110 });
     L.rect(122, 11, 122, 12, T_CANNON_BASE); L.set(122, 11, T_CANNON);
     L.rect(126, 4, 132, 4, T_CBRICK);
@@ -2069,6 +2161,8 @@
     L.spawn('blooper', 150, 5);
     L.q(120, 9, 'power');
     L.hidden(110, 4, '1up');
+    L.hidden(64, 4, 'power');
+    L.hidden(136, 8, 'coin'); L.hidden(138, 8, 'coin');
 
     for (var i = 0; i < 20; i++) {                      // coin trails
       var cx = 8 + i * 7, cy = 5 + ((i * 3) % 6);
@@ -2125,7 +2219,7 @@
     return {
       x: 0, y: 0, vx: 0, vy: 0, w: 11, h: 15,
       big: false, fire: false, star: 0, onGround: false, faceR: true, crouch: false,
-      invuln: 0, anim: 0, jumping: false, coyote: 0, stomps: 0,
+      invuln: 0, anim: 0, jumping: false, coyote: 0, stomps: 0, jumpMin: 0,
       mode: 'normal', modeT: 0, pipeDir: 0, warpTo: null, fireCool: 0,
       wet: false, swimCool: 0, boost: 0, climbCol: -1
     };
@@ -2546,15 +2640,18 @@
     if (jumpBuffer > 0 && p.coyote > 0 && !p.jumping) {
       p.vy = JUMP_V + Math.min(1, Math.abs(p.vx) / MAX_RUN) * JUMP_BONUS;
       p.jumping = true; p.onGround = false; p.coyote = 0; jumpBuffer = 0;
+      p.jumpMin = JUMP_MIN;
       (p.big ? SFX.bigjump : SFX.jump)();
     }
     if (!IN.jump) p.jumping = false;
+    if (p.jumpMin > 0) p.jumpMin--;
 
     // gravity — light while the jump is held and still rising
     // A springboard's launch keeps the light rising gravity whether or not the
     // button is held — otherwise letting go turns a 7-tile launch into 3.
     if (p.vy >= 0) p.boost = 0;
-    var g = (p.vy < 0 && (p.boost || (IN.jump && p.jumping))) ? GRAV_HOLD : GRAV_FALL;
+    var g = (p.vy < 0 && (p.boost || p.jumpMin > 0 || (IN.jump && p.jumping)))
+            ? GRAV_HOLD : GRAV_FALL;
     p.vy += g;
     if (p.vy > MAX_FALL) p.vy = MAX_FALL;
 
@@ -2661,6 +2758,12 @@
     p.modeT--;
     if (p.pipeDir === 1) p.y += 0.6; else p.x += 0.7;
     if (p.modeT <= 0) {
+      if (p.warpTo.level !== undefined) {   // a Warp Zone pipe: skip sectors
+        var lv = p.warpTo.level;
+        p.mode = 'normal';
+        beginLevel(lv, false);
+        return;
+      }
       p.x = p.warpTo.x * TS; p.y = p.warpTo.y * TS - p.h;
       cam.x = Math.max(0, Math.min(p.x - VW * 0.4, L.w * TS - VW));
       p.mode = 'normal'; p.vy = 0; p.vx = 0;
@@ -3130,6 +3233,13 @@
     // a vine matched no case below, so standing beside a beanstalk and
     // hopping cost you a power-up to nothing at all.
     if (e.gone || e.corpse || e.remove || e.flat || e.type === 'vine') return;
+    // You landed on this thing a moment ago. Every other stomp outcome moves
+    // the enemy's box out from under you — a goomba flattens to 6px, a koopa
+    // drops into a 14px shell — but a winged koopa just loses the wings and
+    // keeps the same 22px box in the same place. So you bounced UP still inside
+    // it, and on the very next frame "rising" read as "not stomping" and the
+    // enemy you had just beaten took a life. It stomped, it sounded, you died.
+    if (e.stompGrace > 0) { e.stompGrace--; return; }
     if (e.type === 'firebar') {
       for (var i = 1; i <= e.len; i++) {
         var bx = e.x + TS / 2 + Math.cos(e.ang) * i * 8 - 4;
@@ -3178,7 +3288,18 @@
     }
 
     // Underwater you cannot stomp anything — there is no falling to land with.
-    var falling = p.vy > 0 && (p.y + p.h - p.vy) <= e.y + 8 && !p.wet;
+    //
+    // Both sides of this comparison must be from the SAME instant. `e.y` is
+    // where the enemy is AFTER it moved this frame, while `p.y + p.h - p.vy`
+    // is where the player's feet were BEFORE they moved — so against anything
+    // travelling upward (a winged koopa bounces the whole time) the bar was
+    // being raised out from under the player mid-frame, and a clean landing on
+    // its head registered as walking into it. Every failure in a 396-drop
+    // sweep was a para; not one was a goomba or a plain koopa.
+    var eVy = e.vy || 0;
+    var eTopWas = e.y - eVy;                   // its head when the frame began
+    var feetWere = p.y + p.h - p.vy;
+    var falling = !p.wet && (p.vy - eVy) > 0 && feetWere <= eTopWas + 8;
     var stompable = !!STOMPABLE[e.type];
 
     if (e.type === 'boss') { hurt(); return; }
@@ -3186,6 +3307,8 @@
         e.type === 'cheep' || e.type === 'blooper') { hurt(); return; }
 
     if (stompable && falling) {
+      if (p.y + p.h > e.y) p.y = e.y - p.h;    // sit on its head, not inside it
+      e.stompGrace = 10;
       p.vy = IN.jump ? BOUNCE_HELD : BOUNCE_V;
       p.jumping = true;
       SFX.stomp();
@@ -4121,8 +4244,17 @@
   function fsOn() {
     return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
+  // Ask the desktop shell for the whole screen. Native fullscreen on an iframe
+  // is refused on iOS, and even where it works the shell should not keep a
+  // taskbar's worth of pixels once you have asked for fullscreen.
+  function tellShell(on) {
+    if (window.parent === window) return;
+    try { window.parent.postMessage({ type: 'vibetop:immersive', on: !!on }, location.origin); }
+    catch (e) {}
+  }
   function setRotate(on) {
     rotated = on;
+    tellShell(on);
     document.body.classList.toggle('rotated', on);
     try { localStorage.setItem('vibetop:circuit:rotate', on ? '1' : '0'); } catch (e) {}
     setTimeout(resize, 30);
@@ -4143,6 +4275,7 @@
         if (ex) { try { ex.call(document); } catch (e) {} }
       }
       setRotate(false);
+      tellShell(false);
       return;
     }
     var el = document.documentElement;
@@ -4151,18 +4284,24 @@
       var pr;
       try { pr = req.call(el); } catch (e) { pr = null; }
       if (pr && pr.then) {
-        pr.then(function () { lockLandscape(); setTimeout(resize, 120); })
+        pr.then(function () { tellShell(true); lockLandscape(); setTimeout(resize, 120); })
           .catch(function () { setRotate(true); });
         return;
       }
       setTimeout(function () {
-        if (fsOn()) { lockLandscape(); resize(); } else setRotate(true);
+        if (fsOn()) { tellShell(true); lockLandscape(); resize(); } else setRotate(true);
       }, 150);
       return;
     }
     setRotate(true);                    // iOS Safari: rotate instead
   });
-  document.addEventListener('fullscreenchange', function () { setTimeout(resize, 60); });
+  document.addEventListener('fullscreenchange', function () {
+    // Escape / the system gesture leaves fullscreen without touching our button.
+    if (!fsOn() && !rotated) tellShell(false);
+    setTimeout(resize, 60);
+  });
+  // Leaving the game while immersive must give the taskbar back.
+  window.addEventListener('pagehide', function () { tellShell(false); });
   window.addEventListener('orientationchange', function () { setTimeout(resize, 250); });
 
   document.getElementById('pauseBtn').addEventListener('click', function () {
@@ -4247,6 +4386,20 @@
                                               shell: !!e.shell, awake: !!e.awake }; });
     },
     tile: function (tx, ty) { return L.get(tx, ty); },
+    // Drop one enemy at a known tile. A stomp test has to control exactly where
+    // the thing is; waiting for the level's own goomba to wander into frame
+    // makes the result depend on the level, not on the collision rule.
+    spawn: function (type, tx, ty, o) {
+      var s = { type: type, x: tx, y: ty };
+      if (o) for (var k in o) s[k] = o[k];
+      var e = makeEnt(s); e.awake = true; ents.push(e); return e;
+    },
+    entsFull: function () {
+      return ents.map(function (e) {
+        return { type: e.type, x: e.x, y: e.y, w: e.w, h: e.h, vy: e.vy,
+                 gone: !!e.gone, shell: !!e.shell, flat: !!e.flat };
+      });
+    },
     // Drive the physics directly, with no rendering and no waiting on frames.
     // A level that takes three minutes to walk takes a couple of seconds to
     // step, which is what makes an automated playthrough affordable at all.
@@ -4261,6 +4414,7 @@
     },
     step: function (n) { for (var i = 0; i < (n || 1); i++) step(); },
     setLives: function (n) { lives = n; updateHud(); },
+    nudge: function (dx) { P.x += dx; },
     // Clear the enemies so a test about BLOCKS is about blocks. Without it,
     // "stand under the power block and jump" is a coin flip against whichever
     // goomba has wandered into that column by then.

@@ -130,6 +130,14 @@
     content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px;
   }
 
+  /* An app that has gone fullscreen inside its frame asks for the screen with a
+     `vibetop:immersive` message. Inside an iframe, requestFullscreen is refused
+     outright on iOS, so the app falls back to its own CSS rotation and the
+     shell's chrome stayed put — the game ended up with the taskbar still eating
+     the bottom of the screen, which is the opposite of what fullscreen is for. */
+  body.immersive .taskbar { display: none; }
+  body.immersive .frames { position: fixed; inset: 0; z-index: 200; }
+
   /* === Taskbar === */
   .taskbar {
     flex: 0 0 auto; height: var(--tb);
@@ -3318,6 +3326,9 @@
     if (e.origin !== location.origin) return;
     if (!e.data) return;
     if (e.data.type === 'switch-to-browser') { launch('browser'); }
+    if (e.data.type === 'vibetop:immersive') {
+      document.body.classList.toggle('immersive', !!e.data.on);
+    }
     // Files asks for a terminal already sitting in the folder you are looking
     // at (the manager started it and typed the cd).
     if (e.data.type === 'open-terminal') { launch('terminal'); }

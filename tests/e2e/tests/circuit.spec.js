@@ -995,4 +995,167 @@ test.describe('circuit on touch', () => {
                              { pointerId: 2, isPrimary: true, bubbles: true });
     expect(mode).toBe('climb');
   });
+
+  // ---- the feel of the controls --------------------------------------- //
+
+  test('a tap is a real hop, and holding is a much bigger one', async ({ page }) => {
+    // There was no floor under the jump at all: a one-frame tap cleared 1.08
+    // tiles and a held press 4.63, a 4x spread off the same button. A quick tap
+    // barely left the ground, which is why nothing about the control read as
+    // proportional.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest;
+      function hop(hold) {
+        T.clear(); T.input({});
+        for (let i = 0; i < 6; i++) T.step();
+        const y0 = window.__cr().py;
+        let peak = 0;
+        for (let f = 0; f < 80; f++) {
+          T.input(f < hold ? { jump: 1 } : {});
+          T.step();
+          const s = window.__cr();
+          peak = Math.max(peak, y0 - s.py);
+          if (s.onGround && f > 4 && peak > 0) break;
+        }
+        return peak / 16;
+      }
+      return { tap: hop(1), hold: hop(60) };
+    });
+    expect(r.tap, 'the shortest possible hop, in tiles').toBeGreaterThan(2.2);
+    expect(r.hold, 'a fully held jump, in tiles').toBeGreaterThan(4.4);
+    expect(r.hold - r.tap, 'holding must still buy real height').toBeGreaterThan(1.5);
+  });
+
+  test('a near-miss on the pad still presses the button', async ({ page }) => {
+    // The buttons are circles with gaps, and elementFromPoint honours
+    // border-radius — so a thumb on the corner of A's box, or in the gap
+    // between A and B, hit nothing at all and the press vanished.
+    await boot(page);
+    const landed = await page.evaluate(() => {
+      const rc = (n) => document.querySelector('.pad .btn[data-k="' + n + '"]')
+                                .getBoundingClientRect();
+      const A = rc('jump'), B = rc('run');
+      const pts = [[A.left + 5, A.top + 5], [A.left + A.width / 2, (B.bottom + A.top) / 2]];
+      return pts.map(([x, y]) => {
+        const el = document.elementFromPoint(x, y);
+        const ev = new PointerEvent('pointerdown',
+          { clientX: x, clientY: y, pointerId: 91, bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'target', { value: el || document.body });
+        document.getElementById('pad').dispatchEvent(ev);
+        const act = document.querySelector('.pad .btn.act');
+        const k = act ? act.dataset.k : null;
+        document.querySelectorAll('.pad .btn.act').forEach(b => b.classList.remove('act'));
+        return k;
+      });
+    });
+    for (const k of landed) expect(k, 'a near-miss must land on a button').toBeTruthy();
+  });
+
+  test('landing on an enemy never costs a life', async ({ page }) => {
+    // A stomp landed, sounded, awarded — and then the SAME enemy hurt you on
+    // the next frame. Every other stomp outcome moves the enemy's box away (a
+    // goomba flattens to 6px, a koopa drops into a shell) but a winged koopa
+    // only loses the wings, so you bounced up still inside it and "rising" read
+    // as "not stomping". 19 of 396 drops ended in damage, every one a para.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest;
+      function drop(kind, dx, up, push) {
+        T.clear(); T.give('big'); T.setLives(9);
+        T.spawn(kind, 45, 12);
+        T.place(45, 13 - up); T.input({}); T.step(1); T.nudge(dx);
+        for (let f = 0; f < 80; f++) {
+          T.input(push > 0 ? { right: 1 } : (push < 0 ? { left: 1 } : {}));
+          T.step();
+          const s = window.__cr();
+          const e = T.entsFull().find(x => x.type === kind);
+          if (!e || e.gone || e.shell || e.flat) return 'stomp';
+          if (!s.big) return 'HURT';
+          if (s.onGround && f > 6) return 'beside';
+        }
+        return 'timeout';
+      }
+      const out = { stomp: 0, hurt: 0, bad: [] };
+      for (const kind of ['goomba', 'koopa', 'koopaRed', 'para'])
+        for (let dx = -10; dx <= 10; dx += 2)
+          for (const push of [0, -1, 1])
+            for (const up of [3, 5, 7]) {
+              const res = drop(kind, dx, up, push);
+              if (res === 'stomp') out.stomp++;
+              else if (res === 'HURT') {
+                out.hurt++;
+                if (out.bad.length < 6) out.bad.push(kind + ' dx=' + dx + ' push=' + push);
+              }
+            }
+      return out;
+    });
+    expect(r.hurt, 'hurt while dropping onto an enemy: ' + r.bad.join(', ')).toBe(0);
+    expect(r.stomp, 'the sweep must actually connect').toBeGreaterThan(150);
+  });
+
+  // ---- the hidden treasure -------------------------------------------- //
+
+  test('the Warp Zone: an invisible block, a beanstalk, three pipes', async ({ page }) => {
+    // Reached along a road of brick in the first cut, which the playthrough bot
+    // walked immediately: it jumps constantly, so it bumps every invisible
+    // block on its path by accident. A vine cannot be taken by accident.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest, out = {};
+      T.level(1); T.input({}); T.step(140); T.clear();
+      out.before = T.tile(178, 10);
+      T.place(178, 13); T.input({}); T.step(6);
+      for (let i = 0; i < 40; i++) { T.input({ jump: i < 30 }); T.step(); }
+      out.after = T.tile(178, 10);
+      T.step(200);
+      out.vine = 0;
+      for (let y = 1; y <= 9; y++) if (T.tile(178, y) === 25) out.vine++;
+      T.place(180, 13); T.input({}); T.step(4);
+      out.climbed = false;
+      for (let i = 0; i < 500; i++) {
+        T.input({ up: 1, left: i < 26, jump: i < 30 });
+        T.step();
+        if (window.__cr().mode === 'climb') out.climbed = true;
+        if (window.__cr().px > 3000) break;
+      }
+      out.arrived = Math.round(window.__cr().px / 16);
+      T.input({}); T.step(20);
+      T.place(225, 10); T.input({}); T.step(6);
+      out.sectorBefore = window.__cr().level;
+      for (let i = 0; i < 120; i++) { T.input({ down: 1 }); T.step(); }
+      out.sectorAfter = window.__cr().level;
+      return out;
+    });
+    expect(r.before, 'the warp block is invisible until struck').toBe(18);
+    expect(r.after, 'striking it spends the block').not.toBe(18);
+    expect(r.vine, 'the beanstalk must be climbable height').toBeGreaterThanOrEqual(5);
+    expect(r.climbed, 'you can climb it').toBe(true);
+    expect(r.arrived, 'the top puts you in the Warp Zone').toBeGreaterThan(205);
+    expect(r.sectorBefore).toBe('02');
+    expect(r.sectorAfter, 'the middle pipe skips ahead a sector').toBe('04');
+  });
+
+  test('every sector hides something', async ({ page }) => {
+    // Six invisible blocks in the whole game, all 1-ups, and sectors 2-5 had
+    // one apiece and nothing else — no multi-coin brick, no beanstalk, no warp.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const out = [];
+      for (let i = 0; i < window.__crLevelCount; i++) {
+        const L = window.__crBuild(i);
+        let hidden = 0;
+        for (let k = 0; k < L.tiles.length; k++) if (L.tiles[k] === L.T.HIDDEN) hidden++;
+        const kinds = {};
+        for (const k in L.contents) kinds[L.contents[k]] = (kinds[L.contents[k]] || 0) + 1;
+        out.push({ name: L.name, hidden, coins: kinds.coins || 0 });
+      }
+      return out;
+    });
+    for (const s of r) {
+      expect(s.hidden, 'sector ' + s.name + ' has no invisible blocks').toBeGreaterThanOrEqual(2);
+    }
+    expect(r.filter(s => s.coins > 0).length,
+           'multi-coin bricks should appear in most sectors').toBeGreaterThanOrEqual(4);
+  });
 });
