@@ -1810,7 +1810,14 @@
     L.rect(217, 0, 217, ROWS - 1, T_STONE);
     L.ground(218, 236, T_CBRICK);
     L.rect(218, 0, 236, 8, T_CBRICK);            // a low, closed ceiling
-    L.rect(237, 0, 237, ROWS - 1, T_STONE);
+    // …but not directly over the power block: an item that rises into a
+    // one-tile slot is jammed against the roof, and a big player cannot even
+    // stand where it is.
+    L.rect(224, 6, 228, 8, T_EMPTY);
+    // Solid all the way between the rooms. Two empty columns here showed sky
+    // and the far room's boundary pillar through the wall, with a black pit
+    // under them.
+    L.rect(237, 0, 240, ROWS - 1, T_STONE);
     for (var c = 0; c < 14; c++) {
       L.set(220 + c, 11, T_COIN);
       if (c % 2 === 0) L.set(220 + c, 10, T_COIN);
@@ -1820,8 +1827,8 @@
     L.exitPipes['234,11'] = { x: 62, y: 13 };    // …lands you past the plants
 
     // --- coin heaven, at the top of the beanstalk ----------------------- //
-    L.rect(240, 0, 240, ROWS - 1, T_STONE);
     L.row(241, 278, 6, T_CLOUD);                 // a floor of actual cloud
+    L.rect(241, 7, 278, ROWS - 1, T_EMPTY);      // nothing but sky beneath it
     for (var k = 0; k < 30; k++) {
       L.set(245 + k, 5, T_COIN);
       if (k % 3 === 1) L.set(245 + k, 4, T_COIN);

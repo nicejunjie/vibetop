@@ -117,6 +117,19 @@ test.describe('mario', () => {
         expect(solidUnder, `world ${L.name} checkpoint x=${L.checkpoint} has no ground`).toBe(true);
       }
 
+      // Every block that pops a RISING item needs room above it. One in the
+      // 1-1 bonus room had a single tile: the item came out jammed against
+      // the ceiling, where a big player cannot even stand.
+      const jammed = [];
+      for (const key of Object.keys(L.contents)) {
+        const what = L.contents[key];
+        if (what !== 'power' && what !== 'star' && what !== '1up') continue;
+        const [bx, by] = key.split(',').map(Number);
+        if (SOLID.has(at(bx, by - 1))) jammed.push(`${what} at ${bx},${by}: solid above`);
+        else if (SOLID.has(at(bx, by - 2))) jammed.push(`${what} at ${bx},${by}: 1 tile of room`);
+      }
+      expect(jammed, `world ${L.name} has an unreachable power-up`).toEqual([]);
+
       // every warp lands on real ground (a room built past the level width is
       // silently dropped by the builder — the pipe then leads nowhere)
       for (const k of Object.keys(L.warps)) {
