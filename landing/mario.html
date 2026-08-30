@@ -331,7 +331,8 @@
     G: '#3fae3f', g: '#1d6b1d',        // green
     O: '#ef8b28', o: '#a5560c',        // orange
     P: '#f088c0', C: '#4ec9e0', M: '#8a4adb',
-    T: '#f2e9c8'                       // bone / teeth / eye white
+    T: '#f2e9c8',                      // bone / teeth / eye white
+    a: '#a8720a', A: '#ffefa8', h: '#d19a10'   // coin: outline, shine, shade
   };
 
   // A row that is one character short or long silently shifts every pixel to
@@ -376,12 +377,12 @@
 
   // ---- player, small (16x16) ------------------------------------------ //
   ART.pS_idle = [
-    '....RRRRRR......',
-    '...RRRRRRRRRR...',
-    '...NNNSSSKS.....',
-    '..NSNSSSSKSSS...',
-    '..NSNNSSSSKSSS..',
-    '..NNSSSSSKKKK...',
+    '.....RRRRRR.....',
+    '...RRRRRRRRRRR..',
+    '...NNNSSSSKSS...',
+    '..NNSNSSSSSKSS..',
+    '..NSNNSSSSSSSS..',
+    '..NNSSKKKSSSSS..',
     '....SSSSSSSS....',
     '...RRBRRRR......',
     '..RRRBRRBRRR....',
@@ -394,12 +395,12 @@
     'nnnn......nnnn..'
   ];
   ART.pS_walk1 = [
-    '....RRRRRR......',
-    '...RRRRRRRRRR...',
-    '...NNNSSSKS.....',
-    '..NSNSSSSKSSS...',
-    '..NSNNSSSSKSSS..',
-    '..NNSSSSSKKKK...',
+    '.....RRRRRR.....',
+    '...RRRRRRRRRRR..',
+    '...NNNSSSSKSS...',
+    '..NNSNSSSSSKSS..',
+    '..NSNNSSSSSSSS..',
+    '..NNSSKKKSSSSS..',
     '....SSSSSSSS....',
     '...RRRBBRRR.....',
     '..RRRRBBRRRR....',
@@ -412,12 +413,12 @@
     'nnnn......nnnn..'
   ];
   ART.pS_walk2 = [
-    '....RRRRRR......',
-    '...RRRRRRRRRR...',
-    '...NNNSSSKS.....',
-    '..NSNSSSSKSSS...',
-    '..NSNNSSSSKSSS..',
-    '..NNSSSSSKKKK...',
+    '.....RRRRRR.....',
+    '...RRRRRRRRRRR..',
+    '...NNNSSSSKSS...',
+    '..NNSNSSSSSKSS..',
+    '..NSNNSSSSSSSS..',
+    '..NNSSKKKSSSSS..',
     '....SSSSSSSS....',
     '....RRBBRR......',
     '...RRRBBRRR.....',
@@ -430,12 +431,12 @@
     '..nnn...nnnn....'
   ];
   ART.pS_walk3 = [
-    '....RRRRRR......',
-    '...RRRRRRRRRR...',
-    '...NNNSSSKS.....',
-    '..NSNSSSSKSSS...',
-    '..NSNNSSSSKSSS..',
-    '..NNSSSSSKKKK...',
+    '.....RRRRRR.....',
+    '...RRRRRRRRRRR..',
+    '...NNNSSSSKSS...',
+    '..NNSNSSSSSKSS..',
+    '..NSNNSSSSSSSS..',
+    '..NNSSKKKSSSSS..',
     '....SSSSSSSS....',
     '...RRRBBRRR.....',
     '..RRRRBBRRRR....',
@@ -448,12 +449,12 @@
     '..nnnn......nnnn'
   ];
   ART.pS_jump = [
-    '....RRRRRR......',
-    '...RRRRRRRRRR...',
-    '...NNNSSSKS.....',
-    '..NSNSSSSKSSS...',
-    '..NSNNSSSSKSSS..',
-    '..NNSSSSSKKKK...',
+    '.....RRRRRR.....',
+    '...RRRRRRRRRRR..',
+    '...NNNSSSSKSS...',
+    '..NNSNSSSSSKSS..',
+    '..NSNNSSSSSSSS..',
+    '..NNSSKKKSSSSS..',
     '....SSSSSSSS....',
     'S..RRBBBBRR..S..',
     'SS.RRBBBBRR.SS..',
@@ -467,11 +468,11 @@
   ];
   ART.pS_skid = [
     '.....RRRRRR.....',
-    '....RRRRRRRRRR..',
-    '....SSSKSSSNNN..',
-    '...SSSKSSSSNSN..',
-    '..SSSSKSSSSNNSN.',
-    '...KKKKSSSSSNN..',
+    '..RRRRRRRRRRR...',
+    '...SSKSSSSNNN...',
+    '..SSKSSSSSNSNN..',
+    '..SSSSSSSSNNSN..',
+    '..SSSSKKKSSNN...',
     '....SSSSSSSS....',
     '...RRRRBBRR.....',
     '..RRRRRBBRRR....',
@@ -523,12 +524,12 @@
     '...nnnn..nnnn...'
   ];
   ART.pS_swim2 = [
-    '....RRRRRR......',
-    '...RRRRRRRRRR...',
-    '...NNNSSSKS.....',
-    '..NSNSSSSKSSS...',
-    '..NSNNSSSSKSSS..',
-    '..NNSSSSSKKKK...',
+    '.....RRRRRR.....',
+    '...RRRRRRRRRRR..',
+    '...NNNSSSSKSS...',
+    '..NNSNSSSSSKSS..',
+    '..NSNNSSSSSSSS..',
+    '..NNSSKKKSSSSS..',
     '....SSSSSSSS....',
     '...RRRBBRRR.....',
     '..RRRRBBRRRR....',
@@ -580,12 +581,12 @@
   // ---- player, big: a shared upper body + swappable legs (16x16 each) --- //
   ART.pB_up = [
     '.....RRRRRR.....',
-    '....RRRRRRRRRR..',
-    '....NNNNNNNN....',
-    '...NNNSSSKSS....',
-    '..NNSNSSSSKSSS..',
-    '..NSNNNSSSSKSSS.',
-    '..NSNNSSSSSKKKK.',
+    '...RRRRRRRRRRR..',
+    '...RRRRRRRRRRR..',
+    '...NNNSSSSKSS...',
+    '..NNSNSSSSSKSS..',
+    '..NSNNNSSSSSSS..',
+    '..NSNNSSKKKSSS..',
     '..NNNSSSSSSSSS..',
     '....SSSSSSSSS...',
     '.....SSSSSS.....',
@@ -606,13 +607,13 @@
     '..BBBB..BBBB....',
     '..BBBB..BBBB....',
     '..BBBB..BBBB....',
-    '..BBBB..BBBB....',
-    '..BBBB..BBBB....',
+    '..SSSS..SSSS....',
+    '..SSSS..SSSS....',
     '..nnnn..nnnn....',
-    '.nnnnn..nnnnn...',
-    'nnnnnn..nnnnnn..',
-    'nnnnnn..nnnnnn..',
-    '.nnnn....nnnn...'
+    '.nnnnnn.nnnnnn..',
+    'nnnnnnn.nnnnnnn.',
+    'nnnnnnn.nnnnnnn.',
+    '.nnnnn...nnnnn..'
   ];
   ART.pB_walk1 = [
     'SSBBBBBBBBBBSS..',
@@ -747,12 +748,12 @@
     '.....NNNNNN.....',
     '...NNNNNNNNNN...',
     '..NNNNNNNNNNNN..',
-    '..NNKKNNNNKKNN..',
-    '.NNNKKNNNNKKNNN.',
+    '..NKKNNNNNNKKN..',
+    '.NNKWKNNNNKWKNN.',
+    '.NNKWWKNNKWWKNN.',
+    '.NNKKWKNNKWKKNN.',
     '.NNNKKNNNNKKNNN.',
     '.NNNNNNNNNNNNNN.',
-    '.NNNKKKKKKKKNNN.',
-    '.NNNKKKKKKKKNNN.',
     '..NNNNNNNNNNNN..',
     '..TTTTTTTTTTTT..',
     '.TTTTTTTTTTTTTT.',
@@ -765,17 +766,17 @@
     '.....NNNNNN.....',
     '...NNNNNNNNNN...',
     '..NNNNNNNNNNNN..',
-    '..NNKKNNNNKKNN..',
-    '.NNNKKNNNNKKNNN.',
+    '..NKKNNNNNNKKN..',
+    '.NNKWKNNNNKWKNN.',
+    '.NNKWWKNNKWWKNN.',
+    '.NNKKWKNNKWKKNN.',
     '.NNNKKNNNNKKNNN.',
     '.NNNNNNNNNNNNNN.',
-    '.NNNKKKKKKKKNNN.',
-    '.NNNKKKKKKKKNNN.',
     '..NNNNNNNNNNNN..',
     '..TTTTTTTTTTTT..',
     '.TTTTTTTTTTTTTT.',
     '.nnnn......nnnn.',
-    '..nnn......nnn..',
+    '..nnnn....nnnn..',
     '...nnn....nnn...'
   ];
   ART.goombaFlat = [
@@ -789,10 +790,10 @@
     '................',
     '................',
     '................',
-    '....NNNNNNNN....',
-    '..NNNNNNNNNNNN..',
+    '...NNNNNNNNNN...',
+    '..NNKKNNNNKKNN..',
     '.NNNKKNNNNKKNNN.',
-    '.NNNNNNNNNNNNNN.',
+    '.NTTTTTTTTTTTTN.',
     '.nnnnnnnnnnnnnn.',
     '..nnnnnnnnnnnn..'
   ];
@@ -1086,57 +1087,39 @@
   // ---- items ----------------------------------------------------------- //
   ART.mushroom = [
     '................',
-    '.....RRRRRR.....',
-    '...RRWWWWRRRR...',
-    '..RWWWWWWRRRRR..',
-    '.RWWWWWWWWRRRRR.',
-    '.RWWWWWWWWWRRRR.',
-    'RWWRRWWWWRRWWRRR',
-    'RWRRRRWWRRRRRWRR',
-    'RWRRRRWWRRRRRWRR',
-    'RWWRRWWWWRRWWRRR',
-    '.RWWWWWWWWWWRRR.',
-    '..TTTTTTTTTTTT..',
-    '.TTKTTTTTTTTKTT.',
-    '.TTKTTTTTTTTKTT.',
-    '..TTTTTTTTTTTT..',
-    '...TTTTTTTTTT...'
-  ];
-  ART.oneup = [
-    '................',
-    '.....GGGGGG.....',
-    '...GGWWWWGGGG...',
-    '..GWWWWWWGGGGG..',
-    '.GWWWWWWWWGGGGG.',
-    '.GWWWWWWWWWGGGG.',
-    'GWWGGWWWWGGWWGGG',
-    'GWGGGGWWGGGGGWGG',
-    'GWGGGGWWGGGGGWGG',
-    'GWWGGWWWWGGWWGGG',
-    '.GWWWWWWWWWWGGG.',
-    '..TTTTTTTTTTTT..',
-    '.TTKTTTTTTTTKTT.',
-    '.TTKTTTTTTTTKTT.',
-    '..TTTTTTTTTTTT..',
-    '...TTTTTTTTTT...'
+    '.....KKKKKK.....',
+    '...KKRRRRRRKK...',
+    '..KRRRWWWRRRRK..',
+    '.KRRRWWWWWRRRRK.',
+    '.KRWWRWWWRRWWRK.',
+    'KRWWWWRRRRWWWWRK',
+    'KRWWWWRRRRWWWWRK',
+    'KRRWWRRRRRRWWRRK',
+    'KRRRRRRRRRRRRRRK',
+    '.KKRRRRRRRRRRKK.',
+    '..KTTTTTTTTTTK..',
+    '..KTKTTTTTTKTK..',
+    '..KTKTTTTTTKTK..',
+    '..KTTTTTTTTTTK..',
+    '...KKKKKKKKKK...'
   ];
   ART.flower = [
     '................',
-    '.....WWWW.......',
-    '....WRRRRW......',
-    '...WRRRRRRW.....',
-    '...WRRWWRRW.....',
-    '...WRRWWRRW.....',
-    '...WRRRRRRW.....',
-    '....WRRRRW......',
-    '..GG.WWWW.GG....',
-    '.GggG....GggG...',
-    'GggggG..GggggG..',
-    '.GgggGGGGgggG...',
-    '..GGgggggggG....',
-    '....GgggggG.....',
-    '.....GgggG......',
-    '.....GGGG.......'
+    '.....KKKKKK.....',
+    '...KKWWWWWWKK...',
+    '..KWWRRRRRRWWK..',
+    '..KWRRKRRKRRWK..',
+    '..KWRRKRRKRRWK..',
+    '..KWWRRRRRRWWK..',
+    '...KKWWWWWWKK...',
+    '.....KGGGGK.....',
+    '..GGK.GggG.KGG..',
+    '.GggGKGggGKGggG.',
+    'GggggGGggGGggggG',
+    '.GggggGggGggggG.',
+    '..GGGGGggGGGGG..',
+    '......GggG......',
+    '......GggG......'
   ];
   ART.star = [
     '.......YY.......',
@@ -1157,58 +1140,58 @@
     'YY............YY'
   ];
   ART.coin = [
-    '.....yYYYYy.....',
-    '....yYYYYYYy....',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '...yYYWWWWYYy...',
-    '....yYYYYYYy....',
-    '.....yYYYYy.....'
+    '................',
+    '......aaaa......',
+    '.....aAAYYa.....',
+    '....aAAYYhha....',
+    '...aAAYYYhhha...',
+    '...aAYYYYhhha...',
+    '...aAYYYYhhha...',
+    '...aAYYYYhhha...',
+    '...aAYYYYhhha...',
+    '...aAYYYYhhha...',
+    '...aAYYYYhhha...',
+    '...aAAYYYhhha...',
+    '....aAYYYhha....',
+    '.....aAYYha.....',
+    '......aaaa......',
+    '................'
   ];
   ART.coin2 = [
-    '......yYYy......',
-    '......yYYy......',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '.....yYWWYy.....',
-    '......yYYy......',
-    '......yYYy......'
+    '................',
+    '.......aa.......',
+    '......aAYa......',
+    '.....aAYYha.....',
+    '.....aAYYha.....',
+    '.....aAYYha.....',
+    '.....aAYYha.....',
+    '.....aAYYha.....',
+    '.....aAYYha.....',
+    '.....aAYYha.....',
+    '.....aAYYha.....',
+    '.....aAYYha.....',
+    '.....aAYYha.....',
+    '......aYha......',
+    '.......aa.......',
+    '................'
   ];
   ART.coin3 = [
-    '.......yy.......',
-    '.......yy.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yY.......',
-    '.......yy.......',
-    '.......yy.......'
+    '................',
+    '................',
+    '.......aa.......',
+    '.......aa.......',
+    '.......Aa.......',
+    '.......Aa.......',
+    '.......Aa.......',
+    '.......Aa.......',
+    '.......Aa.......',
+    '.......Aa.......',
+    '.......Aa.......',
+    '.......Aa.......',
+    '.......aa.......',
+    '.......aa.......',
+    '................',
+    '................'
   ];
   ART.fireball = [
     '..OOOO..',
@@ -1317,7 +1300,7 @@
     koopa1: 16, koopa2: 16, shell: 16, shell2: 16,
     piranha: 16, piranha2: 16, bullet: 16, podoboo: 16,
     cheep: 16, cheep2: 16, blooper: 16, blooper2: 16, spring: 16, springUp: 16,
-    mushroom: 16, oneup: 16, flower: 16, star: 16,
+    mushroom: 16, flower: 16, star: 16,
     coin: 16, coin2: 16, coin3: 16,
     fireball: 8, fireball2: 8, puff: 8, hammer: 8,
     boss1: 24, boss2: 24
@@ -1356,6 +1339,8 @@
   ['goomba1', 'goomba2', 'goombaFlat'].forEach(function (k) {
     UNDERG[k] = recolor(ART[k], SPRW[k], UNDER_MAP);
   });
+  // the 1-up is the mushroom in green — same drawing, so they cannot drift
+  SPR.oneup = recolor(ART.mushroom, 16, { R: '#3fae3f', W: '#dfffdf' });
   var RED_MAP = { G: '#e03a20', g: '#9c1c08' };
   var REDK = {};
   ['koopa1', 'koopa2', 'shell', 'shell2'].forEach(function (k) {
@@ -1522,6 +1507,11 @@
   // ===================================================================== //
   var K = { left: 0, right: 0, up: 0, down: 0, jump: 0, run: 0 };
   var jumpBuffer = 0;         // frames since jump was pressed (for the buffer)
+  // Fire is its own press, not "the run flag went from 0 to 1". Shift and X are
+  // BOTH run keys, so holding Shift to run and tapping X to throw produced no
+  // rising edge at all — you got a fireball only when you released and pressed
+  // again, which in practice is the moment you land.
+  var fireBuf = 0;
 
   var KEYMAP = {
     ArrowLeft: 'left', KeyA: 'left',
@@ -1536,9 +1526,11 @@
     if (!name) return;
     K[name] = down ? 1 : 0;
     if ((name === 'jump' || name === 'up') && down) pressJump();
+    if (name === 'run' && down) pressFire();
     if (down) resumeAudio();
   }
   function pressJump() { jumpBuffer = JUMP_BUF; }
+  function pressFire() { fireBuf = 8; }
   function jumpHeld() { return K.jump || K.up; }
 
   document.addEventListener('keydown', function (e) {
@@ -1628,7 +1620,9 @@
     GP.down = btn(13) || (ay > 0.4 ? 1 : 0);
     GP.up = btn(12) || (ay < -0.4 ? 1 : 0);
     var a = btn(0) || btn(1) || btn(12) || (ay < -0.5 ? 1 : 0);
-    GP.run = btn(2) || btn(3) || btn(5) || btn(7);
+    var gpRun = btn(2) || btn(3) || btn(5) || btn(7);
+    if (gpRun && !GP.run) pressFire();
+    GP.run = gpRun;
     if (a && !GP.jump) { pressJump(); resumeAudio(); }
     GP.jump = a;
   }
@@ -2346,9 +2340,13 @@
     delete L.contents[key];
     if (!what || what === 'coin') { spawnCoinPop(tx, ty); return; }
     if (what === 'vine') { growVine(tx, ty - 1); return; }
-    if (what === 'power') spawnItem(P.big ? 'flower' : 'mushroom', tx, ty - 1);
-    else if (what === 'star') spawnItem('star', tx, ty - 1);
-    else if (what === '1up') spawnItem('oneup', tx, ty - 1);
+    // ty, not ty-1: the item starts INSIDE the block and the rise animation
+    // lifts it exactly one tile, so it ends up standing ON the block. Handing
+    // it ty-1 lifted it a second tile — and the flower, which has no gravity
+    // to bring it back, simply hung there in the air.
+    if (what === 'power') spawnItem(P.big ? 'flower' : 'mushroom', tx, ty);
+    else if (what === 'star') spawnItem('star', tx, ty);
+    else if (what === '1up') spawnItem('oneup', tx, ty);
   }
 
   // A vine grows a tile at a time out of the block, the way it should — you
@@ -2476,16 +2474,16 @@
     }
 
     // fire
-    if (run && !p.runWas && p.fire && p.fireCool <= 0 && !p.crouch) {
+    if (fireBuf > 0) fireBuf--;
+    if (fireBuf > 0 && p.fire && p.fireCool <= 0 && !p.crouch) {
       var live = 0;
       ents.forEach(function (e) { if (e.type === 'fireball') live++; });
       if (live < 2) {
         ents.push({ type: 'fireball', x: p.x + (p.faceR ? p.w : -8), y: p.y + (p.big ? 12 : 4),
                     vx: p.faceR ? 3.6 : -3.6, vy: 1, w: 8, h: 8, t: 0, dir: p.faceR ? 1 : -1 });
-        p.fireCool = 12; SFX.fire();
+        p.fireCool = 12; fireBuf = 0; SFX.fire();
       }
     }
-    p.runWas = run;
 
     // jump: a buffered press plus a few frames of coyote time. SMB has
     // neither; on a touch screen, without them, half your jumps are eaten.
@@ -3241,11 +3239,24 @@
     }
     switch (t) {
       case T_GROUND:
+        // Two offset courses with mortar and a lit top edge per brick. It was
+        // a flat square with a dark plus sign through it.
         rect(x, y, 16, 16, T.ground);
-        rect(x, y, 16, 2, T.groundHi);
-        rect(x, y + 14, 16, 2, T.groundLo);
-        rect(x + 7, y, 2, 16, T.groundLo);
-        rect(x, y + 7, 16, 2, T.groundLo);
+        rect(x, y + 7, 16, 1, T.groundLo);
+        rect(x, y + 15, 16, 1, T.groundLo);
+        rect(x + 7, y, 1, 7, T.groundLo);
+        rect(x + 3, y + 8, 1, 7, T.groundLo);
+        rect(x + 11, y + 8, 1, 7, T.groundLo);
+        rect(x, y, 7, 1, T.groundHi);
+        rect(x + 8, y, 8, 1, T.groundHi);
+        rect(x, y + 8, 3, 1, T.groundHi);
+        rect(x + 4, y + 8, 7, 1, T.groundHi);
+        rect(x + 12, y + 8, 4, 1, T.groundHi);
+        rect(x, y, 1, 7, T.groundHi);
+        rect(x + 8, y, 1, 7, T.groundHi);
+        rect(x, y + 8, 1, 7, T.groundHi);
+        rect(x + 4, y + 8, 1, 7, T.groundHi);
+        rect(x + 12, y + 8, 1, 7, T.groundHi);
         break;
       case T_CBRICK:
         rect(x, y, 16, 16, THEME.castle.ground);
@@ -3256,19 +3267,19 @@
         rect(x + 3, y + 8, 1, 8, THEME.castle.groundLo);
         rect(x + 11, y + 8, 1, 8, THEME.castle.groundLo);
         break;
-      case T_BRICK:
+      case T_BRICK: {
         rect(x, y, 16, 16, T.brick);
-        rect(x, y, 16, 1, T.brickHi);
-        rect(x, y + 3, 16, 1, T.groundLo);
-        rect(x, y + 7, 16, 1, T.groundLo);
-        rect(x, y + 11, 16, 1, T.groundLo);
-        rect(x + 7, y, 1, 4, T.groundLo);
-        rect(x + 3, y + 4, 1, 4, T.groundLo);
-        rect(x + 11, y + 4, 1, 4, T.groundLo);
-        rect(x + 7, y + 8, 1, 4, T.groundLo);
-        rect(x + 3, y + 12, 1, 4, T.groundLo);
-        rect(x + 11, y + 12, 1, 4, T.groundLo);
+        var jt = [0, 4, 8, 12];
+        for (var bi = 0; bi < 4; bi++) {
+          var by = y + jt[bi];
+          rect(x, by, 16, 1, T.brickHi);          // lit top of each course
+          rect(x, by + 3, 16, 1, T.groundLo);     // mortar under it
+          var off = bi % 2 ? 3 : 7;
+          rect(x + off, by, 1, 3, T.groundLo);
+          rect(x + off + 8, by, 1, 3, T.groundLo);
+        }
         break;
+      }
       case T_Q: {
         var f = ((frame / 12) | 0) % 6;
         var glow = f === 0 ? '#fff2a8' : (f === 1 || f === 5 ? '#f7d02c' : '#e0a81c');
@@ -3293,21 +3304,45 @@
       case T_STONE:
         rect(x, y, 16, 16, T.stone);
         rect(x, y, 16, 2, '#e2e8f0');
+        rect(x, y, 2, 16, '#d2dae6');
         rect(x, y + 14, 16, 2, '#5c6470');
         rect(x + 14, y, 2, 16, '#5c6470');
+        rect(x + 3, y + 4, 3, 2, '#d2dae6');       // a little relief
+        rect(x + 9, y + 6, 4, 2, '#7f8896');
+        rect(x + 4, y + 10, 5, 2, '#7f8896');
         break;
-      case T_PIPE_TL: case T_PIPE_TR: {
-        var top = t === T_PIPE_TL;
+      // Pipes are shaded like a cylinder — dark rim, light stripe, dark far
+      // side — instead of a flat green rectangle with one hard edge.
+      case T_PIPE_TL:
         rect(x, y, 16, 16, '#3fae3f');
-        if (top) { rect(x, y, 3, 16, '#7fe07f'); rect(x, y, 16, 2, '#7fe07f'); }
-        else { rect(x + 12, y, 4, 16, '#1d6b1d'); rect(x, y, 16, 2, '#7fe07f'); }
-        rect(x, y + 14, 16, 2, '#1d6b1d');
+        rect(x + 1, y, 2, 16, '#0e4f0e');
+        rect(x + 3, y, 3, 16, '#9bf09b');
+        rect(x + 6, y, 3, 16, '#4cc04c');
+        rect(x, y, 16, 2, '#0e4f0e');
+        rect(x, y + 2, 16, 1, '#9bf09b');
+        rect(x, y + 13, 16, 1, '#2c8c2c');
+        rect(x, y + 14, 16, 2, '#0e4f0e');
         break;
-      }
-      case T_PIPE_L: rect(x, y, 16, 16, '#3fae3f'); rect(x + 2, y, 3, 16, '#7fe07f');
-                     rect(x + 13, y, 3, 16, '#2c8c2c'); break;
-      case T_PIPE_R: rect(x, y, 16, 16, '#3fae3f'); rect(x, y, 2, 16, '#2c8c2c');
-                     rect(x + 11, y, 5, 16, '#1d6b1d'); break;
+      case T_PIPE_TR:
+        rect(x, y, 16, 16, '#3fae3f');
+        rect(x + 13, y, 2, 16, '#0e4f0e');
+        rect(x + 9, y, 4, 16, '#2c8c2c');
+        rect(x, y, 16, 2, '#0e4f0e');
+        rect(x, y + 2, 16, 1, '#9bf09b');
+        rect(x, y + 13, 16, 1, '#2c8c2c');
+        rect(x, y + 14, 16, 2, '#0e4f0e');
+        break;
+      case T_PIPE_L:
+        rect(x, y, 16, 16, '#3fae3f');
+        rect(x + 2, y, 2, 16, '#0e4f0e');
+        rect(x + 4, y, 3, 16, '#9bf09b');
+        rect(x + 7, y, 2, 16, '#4cc04c');
+        break;
+      case T_PIPE_R:
+        rect(x, y, 16, 16, '#3fae3f');
+        rect(x + 8, y, 4, 16, '#2c8c2c');
+        rect(x + 12, y, 2, 16, '#0e4f0e');
+        break;
       case T_COIN:
         draw(ctx, SPR[['coin', 'coin2', 'coin3', 'coin2'][((frame / 8) | 0) % 4]], x, y);
         break;
@@ -3335,8 +3370,11 @@
         rect(x + 10, y + 9, 4, 2, '#c4d8f0');
         break;
       case T_TREE_TOP:
-        rect(x, y, 16, 10, '#e04a8a'); rect(x, y, 16, 3, '#ff88bb');
-        rect(x, y + 8, 16, 2, '#a02058');
+        rect(x, y, 16, 11, '#e04a8a');
+        rect(x, y, 16, 2, '#ff9ec8');
+        rect(x + 2, y + 2, 5, 2, '#ffc4dd');       // a shine on the cap
+        rect(x, y + 8, 16, 1, '#c03070');
+        rect(x, y + 9, 16, 2, '#8f1a4c');
         break;
       case T_TREE:
         rect(x + 4, y, 8, 16, '#b06a2a'); rect(x + 4, y, 3, 16, '#e0a05a');
@@ -4132,6 +4170,16 @@
     };
   };
   window.__marioLevelCount = LEVELS.length;
+  // one sprite's baked canvas, for eyeballing the art at magnification
+  window.__marioArt = function (n) { return SPR[n] ? SPR[n].c : null; };
+  // a tile drawn to its own 16x16 canvas, for judging the scenery at 6x
+  window.__marioTile = function (t) {
+    var c = document.createElement('canvas'); c.width = 16; c.height = 16;
+    var save = ctx;
+    ctx = c.getContext('2d');
+    try { drawTile(t, 0, 0, -99, -99); } finally { ctx = save; }
+    return c;
+  };
 
   // Test-only nudges: place the player, or hand them a power-up. Nothing in
   // the game calls these; they exist so a test can set up a situation (a

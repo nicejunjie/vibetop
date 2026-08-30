@@ -520,6 +520,53 @@ test.describe('mario', () => {
     expect(top).toBeLessThan(130);                           // the ground is 208
   });
 
+  test('fire throws on the press, even while already holding run', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.clear());
+    await page.evaluate(() => { window.__marioTest.give('fire'); window.__marioTest.place(6, 13); });
+    await page.waitForTimeout(400);
+    const balls = () => page.evaluate(() =>
+      window.__marioTest.ents().filter((e) => e.type === 'fireball').length);
+
+    // Shift and X are BOTH run keys, and firing was a rising edge on the run
+    // FLAG — so running with Shift held and tapping X to throw did nothing.
+    // You got a fireball when you released and pressed again, which in
+    // practice is the moment you land.
+    await page.keyboard.down('ShiftLeft');
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(400);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(200);
+    const before = await balls();
+    await page.keyboard.down('KeyX');
+    await page.waitForTimeout(120);
+    await page.keyboard.up('KeyX');
+    await page.waitForTimeout(120);
+    const after = await balls();
+    const s = await snap(page);
+    await page.keyboard.up('Space');
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.up('ShiftLeft');
+    expect(after).toBeGreaterThan(before);
+    expect(s.onGround, 'it should fire in mid-air, not on landing').toBe(false);
+  });
+
+  test('a power-up rests on the block it came out of', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => { window.__marioTest.clear(); window.__marioTest.give('big'); });
+    await place(page, 21, 13);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(500);
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(1600);
+    const fl = (await ents(page)).find((e) => e.type === 'flower');
+    expect(fl, 'a big player gets a flower').toBeTruthy();
+    // spawnItem was handed ty-1 and then lifted the item another whole tile;
+    // the flower has no gravity to fall back, so it hung in the air.
+    // The block is row 9 (y=144), so resting on it is y=128.
+    expect(Math.abs(fl.y - 128), `flower y=${fl.y}, on-block is 128`).toBeLessThan(3);
+  });
+
   test('a beanstalk is scenery, not a hazard, and gives no free jump', async ({ page }) => {
     await boot(page);
     await page.evaluate(() => window.__marioTest.clear());
