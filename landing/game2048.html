@@ -88,7 +88,9 @@
     position: absolute; inset: 0; display: none;
     align-items: center; justify-content: center;
     background: rgba(14,17,23,.55); z-index: 5;
+    align-items: safe center; overflow: auto;   /* never clip the buttons away */
   }
+  .overlay.help { z-index: 6; }
   .overlay.show { display: flex; }
   .card {
     background: #161b22; border: 1px solid #2a3040; border-radius: 12px;

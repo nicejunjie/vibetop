@@ -112,6 +112,21 @@
     position: absolute; inset: 0; display: none;
     align-items: center; justify-content: center;
     background: rgba(14,17,23,.55); z-index: 5;
+    /* `safe center` degrades to flex-start instead of overflowing both ways, and
+       the scroll is the backstop when even that is not enough — otherwise a
+       short floating window clips the card's buttons out of existence. */
+    align-items: safe center; overflow: auto;
+  }
+  /* The help card is a later sibling at the same z-index, so it painted over the
+     game-over card and swallowed its taps. */
+  .overlay.help { z-index: 6; }
+  /* A window barely taller than the card: shed the decoration, keep the controls. */
+  @media (max-height: 300px) {
+    .card { padding: 10px 16px; }
+    .card .big { display: none; }
+    .card h2 { font-size: 15px; }
+    .card p { margin-bottom: 8px; font-size: 12px; }
+    .card .ghost { margin-top: 8px; min-height: 36px; padding: 6px 14px; }
   }
   .overlay.show { display: flex; }
   .card {
@@ -310,6 +325,9 @@
   }
 
   function newGame(d) {
+    // "?" then "New" used to leave the help card up over a fresh board with
+    // nothing to dismiss it — both overlays go away when a game starts.
+    helpOv.classList.remove('show');
     stopTimer();
     updateHardOption();
     if (d) diff = d;
