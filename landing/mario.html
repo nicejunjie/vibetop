@@ -82,6 +82,10 @@
   .pad .grp { display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; }
   .pad .dpad { flex-direction: column; align-items: center; gap: 8px; }
   .pad .dpad .row { display: flex; gap: 10px; }
+  /* A letterboxed landscape phone has ~99px of gutter; the d-pad row is 134.
+     Trim it to fit rather than parking ▶ on the playfield. */
+  body.tightpad .pad .dpad .btn { width: 46px; height: 46px; font-size: 17px; }
+  body.tightpad .pad .dpad .row { gap: 6px; }
   /* B above A rather than beside it: one button wide (62px) fits entirely in
      the letterbox gutter of a landscape phone, so the thumb you hold down for
      the whole level stops covering the edge of the screen new enemies walk in
@@ -125,6 +129,8 @@
     display: block; width: 100%; min-height: 44px; padding: 10px 18px;
     font-size: 14px; font-weight: 600; border-radius: 9px; cursor: pointer;
   }
+  /* display:block above out-specifies the user-agent's [hidden] rule. */
+  .card .btns button[hidden] { display: none; }
   .card .primary { background: #8a4adb; border-color: #8a4adb; color: #fff; }
   .card .primary:hover { background: #9a5ceb; }
   .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
@@ -154,6 +160,13 @@
     font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de;
   }
   .help .em { color: #d9c8f5; }
+  /* Lead with the controls you actually have. */
+  .help .card { display: flex; flex-direction: column; }
+  .help .card > * { order: 2; }
+  .help .card > h2, .help .card > .goal, .help .card > .x { order: 1; }
+  body.touch .help .kb { order: 4; }
+  body.touch .help .tc { order: 3; }
+  body:not(.touch) .help .tc { order: 4; }
 </style>
 </head>
 <body>
@@ -209,8 +222,8 @@
           clock runs out. Mushrooms make you big, flowers let you throw fire, stars
           make you untouchable. Five worlds, including one underwater, and a boss
           at the end of 1-5.</p>
-        <h3>Keyboard</h3>
-        <ul>
+        <h3 class="kb">Keyboard</h3>
+        <ul class="kb">
           <li><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> — walk</li>
           <li><kbd>Space</kbd> / <kbd>↑</kbd> / <kbd>Z</kbd> — jump <span class="em">(hold for higher)</span></li>
           <li><kbd>Shift</kbd> / <kbd>X</kbd> — run, and throw fire</li>
@@ -218,8 +231,8 @@
           <li><kbd>↑</kbd> — climb a vine</li>
           <li><kbd>P</kbd> or <kbd>Esc</kbd> — pause</li>
         </ul>
-        <h3>Touch</h3>
-        <ul>
+        <h3 class="tc">Touch</h3>
+        <ul class="tc">
           <li>◀ ▶ to walk, <span class="em">A</span> to jump, <span class="em">B</span> to run / throw fire</li>
           <li>Hold <span class="em">A</span> longer for a higher jump</li>
           <li>▲ climbs a vine, ▼ crouches and enters a green pipe</li>
@@ -462,6 +475,81 @@
     '................'
   ];
 
+  // Swimming and climbing are two of the five worlds' core activities, and
+  // both were drawn with the jump pose.
+  ART.pS_swim1 = [
+    '.S..RRRRRR....S.',
+    '.SS.RRRRRRRRR.SS',
+    '..S.NNNSSSKS..S.',
+    '...NSNSSSSKSSS..',
+    '...NSNNSSSSKSSS.',
+    '...NNSSSSSKKKK..',
+    '.....SSSSSSSS...',
+    '....RRRBBRRR....',
+    '...RRRRBBRRRR...',
+    '...RRRBBBBRRR...',
+    '....BBBBBBBB....',
+    '....BBBBBBBB....',
+    '.....BBBBBB.....',
+    '.....BB..BB.....',
+    '....nnn..nnn....',
+    '...nnnn..nnnn...'
+  ];
+  ART.pS_swim2 = [
+    '....RRRRRR......',
+    '...RRRRRRRRRR...',
+    '...NNNSSSKS.....',
+    '..NSNSSSSKSSS...',
+    '..NSNNSSSSKSSS..',
+    '..NNSSSSSKKKK...',
+    '....SSSSSSSS....',
+    '...RRRBBRRR.....',
+    '..RRRRBBRRRR....',
+    '.SRRRBBBBRRRS...',
+    '.SSBBBBBBBBSS...',
+    '..SBBBBBBBBS....',
+    '....BBBBBB......',
+    '....BB..BB......',
+    '...nnn..nnn.....',
+    '..nnnn..nnnn....'
+  ];
+  ART.pS_climb1 = [
+    '....RRRRRR......',
+    '...RRRRRRRRRR...',
+    '...RRRRRRRRRR...',
+    '...NNNNNNNN.....',
+    '.SS.NNNNNN..SS..',
+    '.SS.NNNNNN..SS..',
+    '..S.RRRRRR.SS...',
+    '....RRRRRR......',
+    '...BBBBBBBB.....',
+    '...BBYBBYBB.....',
+    '...BBBBBBBB.....',
+    '...BBB..BBB.....',
+    '...BBB..BBB.....',
+    '..nnn....nnn....',
+    '..nnn....nnn....',
+    '................'
+  ];
+  ART.pS_climb2 = [
+    '....RRRRRR......',
+    '...RRRRRRRRRR...',
+    '...RRRRRRRRRR...',
+    '...NNNNNNNN.....',
+    '.SS.NNNNNN......',
+    '.SS.NNNNNN..SS..',
+    '....RRRRRR..SS..',
+    '....RRRRRR.S....',
+    '...BBBBBBBB.....',
+    '...BBYBBYBB.....',
+    '...BBBBBBBB.....',
+    '....BBBBBB......',
+    '...BBB..BBB.....',
+    '...nnn...nnn....',
+    '..nnn.....nnn...',
+    '................'
+  ];
+
   // ---- player, big: a shared upper body + swappable legs (16x16 each) --- //
   ART.pB_up = [
     '.....RRRRRR.....',
@@ -569,6 +657,42 @@
     'nnnn......nnnnn.',
     '..........nnnnn.',
     '...........nnn..',
+    '................'
+  ];
+  ART.pB_swim = [
+    'SSBBBBBBBBBBSS..',
+    'SSBBBBBBBBBBSS..',
+    '.SBBBBBBBBBBS...',
+    '..BBBBBBBBBB....',
+    '..BBBBBBBBBB....',
+    '...BBBBBBBB.....',
+    '...BBBBBBBB.....',
+    '...BBBBBBBB.....',
+    '...BBBBBBBB.....',
+    '....BBBBBB......',
+    '....BBBBBB......',
+    '....nnnnnn......',
+    '...nnnnnnnn.....',
+    '..nnnnnnnnnn....',
+    '..nnnn..nnnn....',
+    '................'
+  ];
+  ART.pB_climb = [
+    'SSBBBBBBBBBBSS..',
+    'SSBBBBBBBBBBSS..',
+    '.SBBBBBBBBBBS...',
+    '..BBBBBBBBBB....',
+    '..BBBBBBBBBB....',
+    '..BBBB..BBBB....',
+    '..BBBB..BBBB....',
+    '..BBBB..BBBB....',
+    '..BBBB..BBBB....',
+    '..BBBB..BBBB....',
+    '..nnnn..nnnn....',
+    '..nnnn..nnnn....',
+    '.nnnnn..nnnnn...',
+    '.nnnnn..nnnnn...',
+    '................',
     '................'
   ];
   ART.pB_crouch = [
@@ -860,22 +984,22 @@
     '................'
   ];
   ART.spring = [
+    'RRRRRRRRRRRRRRRR',
+    'RWWWWWWWWWWWWWWR',
+    'RRRRRRRRRRRRRRRR',
     '..LLLLLLLLLLLL..',
-    '..LWWWWWWWWWWL..',
+    '.LL..........LL.',
+    'LL............LL',
+    '.LL..........LL.',
+    '..LLLLLLLLLLLL..',
+    '.LL..........LL.',
+    'LL............LL',
+    '.LL..........LL.',
     '..LLLLLLLLLLLL..',
     '................',
-    '...LLLLLLLLLL...',
-    '..LLLLLLLLLLLL..',
-    '...LLLLLLLLLL...',
-    '................',
-    '...LLLLLLLLLL...',
-    '..LLLLLLLLLLLL..',
-    '...LLLLLLLLLL...',
-    '................',
-    '..LLLLLLLLLLLL..',
-    '..LWWWWWWWWWWL..',
-    '..LLLLLLLLLLLL..',
-    '................'
+    'RRRRRRRRRRRRRRRR',
+    'RWWWWWWWWWWWWWWR',
+    'RRRRRRRRRRRRRRRR'
   ];
   ART.springUp = [
     '................',
@@ -884,16 +1008,16 @@
     '................',
     '................',
     '................',
+    'RRRRRRRRRRRRRRRR',
+    'RWWWWWWWWWWWWWWR',
+    'RRRRRRRRRRRRRRRR',
     '..LLLLLLLLLLLL..',
-    '..LWWWWWWWWWWL..',
+    '.LLLLLLLLLLLLLL.',
     '..LLLLLLLLLLLL..',
-    '...LLLLLLLLLL...',
-    '..LLLLLLLLLLLL..',
-    '...LLLLLLLLLL...',
-    '..LLLLLLLLLLLL..',
-    '..LWWWWWWWWWWL..',
-    '..LLLLLLLLLLLL..',
-    '................'
+    '................',
+    'RRRRRRRRRRRRRRRR',
+    'RWWWWWWWWWWWWWWR',
+    'RRRRRRRRRRRRRRRR'
   ];
   ART.bullet = [
     '................',
@@ -1159,9 +1283,9 @@
 
   var SPRW = {           // declared width per sprite (the bake pads/truncates)
     pS_idle: 16, pS_walk1: 16, pS_walk2: 16, pS_walk3: 16, pS_jump: 16,
-    pS_skid: 16, pS_dead: 16,
+    pS_skid: 16, pS_dead: 16, pS_swim1: 16, pS_swim2: 16, pS_climb1: 16, pS_climb2: 16,
     pB_up: 16, pB_stand: 16, pB_walk1: 16, pB_walk2: 16, pB_walk3: 16,
-    pB_jump: 16, pB_crouch: 16,
+    pB_jump: 16, pB_crouch: 16, pB_swim: 16, pB_climb: 16,
     goomba1: 16, goomba2: 16, goombaFlat: 16,
     koopa1: 16, koopa2: 16, shell: 16, shell2: 16,
     piranha: 16, piranha2: 16, bullet: 16, podoboo: 16,
@@ -1179,7 +1303,9 @@
   var FIRE_MAP = { R: '#f4f4f4', r: '#b9bcc6', B: '#e03a20', b: '#9c1c08' };
   var FIRE = {};
   ['pS_idle', 'pS_walk1', 'pS_walk2', 'pS_walk3', 'pS_jump', 'pS_skid', 'pS_dead',
-   'pB_up', 'pB_stand', 'pB_walk1', 'pB_walk2', 'pB_walk3', 'pB_jump', 'pB_crouch']
+   'pS_swim1', 'pS_swim2', 'pS_climb1', 'pS_climb2',
+   'pB_up', 'pB_stand', 'pB_walk1', 'pB_walk2', 'pB_walk3', 'pB_jump', 'pB_crouch',
+   'pB_swim', 'pB_climb']
     .forEach(function (k) { FIRE[k] = recolor(ART[k], SPRW[k], FIRE_MAP); });
 
   // Star power cycles three loud palettes over the normal suit.
@@ -1191,7 +1317,9 @@
   var STARS = STAR_MAPS.map(function (m) {
     var o = {};
     ['pS_idle', 'pS_walk1', 'pS_walk2', 'pS_walk3', 'pS_jump', 'pS_skid', 'pS_dead',
-     'pB_up', 'pB_stand', 'pB_walk1', 'pB_walk2', 'pB_walk3', 'pB_jump', 'pB_crouch']
+     'pS_swim1', 'pS_swim2', 'pS_climb1', 'pS_climb2',
+     'pB_up', 'pB_stand', 'pB_walk1', 'pB_walk2', 'pB_walk3', 'pB_jump', 'pB_crouch',
+     'pB_swim', 'pB_climb']
       .forEach(function (k) { o[k] = recolor(ART[k], SPRW[k], m); });
     return o;
   });
@@ -1766,6 +1894,7 @@
     // moving platforms across the second chasm
     L.spawn('plat', 78, 11, { dx: 0, dy: 0.9, min: 5, max: 11, w: 3 });
     L.spawn('plat', 84, 7, { dx: 0.9, dy: 0, min: 84, max: 104, w: 3 });
+    L.row(93, 97, 10, T_PLAT);                   // a landmark mid-chasm
     L.spawn('plat', 106, 11, { dx: 0, dy: -1.1, min: 5, max: 11, w: 3 });
     for (var j = 0; j < 5; j++) L.set(92 + j, 5, T_COIN);
     L.spawn('para', 98, 5);
@@ -1807,6 +1936,10 @@
     L.spawn('firebar', 30, 5, { len: 5, speed: -0.03 });
     L.spawn('podoboo', 41, 14, { power: 6.2 });
     L.rect(46, 9, 50, 9, T_CBRICK); L.q(48, 9, 'power');
+    for (var cc = 0; cc < 5; cc++) L.set(46 + cc, 8, T_COIN);
+    for (var cd = 0; cd < 4; cd++) L.set(59 + cd, 7, T_COIN);
+    for (var ce = 0; ce < 5; ce++) L.set(104 + ce, 5, T_COIN);
+    for (var cf = 0; cf < 4; cf++) L.set(127 + cf, 3, T_COIN);
     L.spawn('bullet', 54, 11, { rate: 150 });
     L.rect(54, 11, 54, 12, T_CANNON_BASE); L.set(54, 11, T_CANNON);
 
@@ -1847,41 +1980,63 @@
   // you walk out onto, and any later level can flood a section the same way.
   function buildWater() {
     var L = new Level('1-3', 192, 'water');
-    L.time = 400; L.startX = 3; L.startY = 10; L.checkpoint = 96;
+    L.time = 400; L.startX = 3; L.startY = 8; L.checkpoint = 96;
     L.ground(0, 191);                                  // seabed, all the way
-    L.rect(0, 0, 191, 1, T_STONE);                     // the world above the surface
-    L.rect(0, 2, 166, 2, T_SURF);
-    L.rect(0, 3, 166, 12, T_WATER);
+    L.shore = 167;                                     // where the water ends
+    L.rect(0, 0, L.shore, 1, T_STONE);                 // the world above the surface
+    L.rect(0, 2, 158, 2, T_SURF);
+    L.rect(0, 3, 158, 12, T_WATER);
+    // The water SHELVES OUT to a shore rather than ending in a vertical wall
+    // of blue hanging in mid-air.
+    for (var sx = 0; sx < 8; sx++) {
+      L.set(159 + sx, 3 + sx, T_SURF);
+      L.rect(159 + sx, 4 + sx, 159 + sx, 12, T_WATER);
+    }
 
-    // coral: pillars off the floor and stalactites off the ceiling, never
-    // leaving less than four tiles of channel to swim through
+    // Coral. `drop` starts at row 2, ON the surface: every stalactite used to
+    // begin at row 3, which left the surface row clear for all 167 columns —
+    // a free express lane that skipped every pillar, coin and power block in
+    // the level. A bot crossed the whole thing in 39s without touching coral.
     function pillar(x, top) { L.rect(x, top, x, GY - 1, T_STONE); }
-    function drop(x, bottom) { L.rect(x, 3, x, bottom, T_STONE); }
-    pillar(14, 8); drop(20, 7); pillar(26, 7); drop(33, 6);
-    pillar(40, 9); pillar(41, 9); drop(47, 6); drop(48, 6);
-    pillar(56, 8); drop(63, 7); pillar(70, 6); drop(77, 5);
-    pillar(84, 9); pillar(85, 9); drop(92, 6);
-    pillar(100, 7); drop(107, 6); pillar(114, 8); drop(121, 5);
-    pillar(128, 9); drop(135, 7); pillar(142, 7); drop(149, 6);
-    pillar(156, 8);
+    function drop(x, bottom) { L.rect(x, 2, x, bottom, T_STONE); }
 
-    for (var i = 0; i < 22; i++) {                      // coin trails
+    // --- room one: open water, learn to stroke ------------------------- //
+    pillar(14, 8); drop(20, 6); pillar(26, 7); drop(33, 5);
+    L.spawn('cheep', 10, 8); L.spawn('cheep', 18, 5); L.spawn('cheep', 24, 10);
+    L.spawn('cheep', 31, 6);
+    L.q(30, 9, 'power');
+
+    // --- room two: the coral maze, tight channels both ways ------------ //
+    pillar(40, 9); pillar(41, 9); drop(46, 6); drop(47, 6);
+    pillar(53, 7); drop(59, 5); pillar(65, 9); pillar(66, 9); drop(72, 6);
+    pillar(78, 6); drop(84, 4); pillar(90, 8); drop(96, 6);
+    L.spawn('cheep', 44, 11); L.spawn('cheep', 50, 4);
+    L.spawn('cheep', 62, 10); L.spawn('cheep', 69, 5);
+    L.spawn('cheep', 81, 11, { home: 1 });             // this one follows you
+    L.spawn('cheep', 93, 5, { home: 1 });
+    L.q(75, 6, 'coins');
+    L.spawn('blooper', 57, 4); L.spawn('blooper', 87, 4);
+
+    // --- room three: open again, a school, and the shore --------------- //
+    pillar(104, 8); drop(112, 5); pillar(122, 7); drop(132, 6); pillar(142, 9);
+    for (var f = 0; f < 3; f++) L.spawn('cheep', 116 + f * 2, 6 + f);   // a school
+    L.spawn('cheep', 128, 10); L.spawn('cheep', 137, 4, { home: 1 });
+    L.spawn('cheep', 148, 8); L.spawn('cheep', 154, 6);
+    L.spawn('blooper', 108, 4); L.spawn('blooper', 126, 4);
+    L.spawn('blooper', 150, 5);
+    L.q(120, 9, 'power');
+    L.hidden(110, 4, '1up');
+
+    for (var i = 0; i < 20; i++) {                      // coin trails
       var cx = 8 + i * 7, cy = 5 + ((i * 3) % 6);
       if (L.get(cx, cy) === T_WATER) L.set(cx, cy, T_COIN);
       if (L.get(cx + 1, cy) === T_WATER) L.set(cx + 1, cy, T_COIN);
     }
-    L.q(30, 9, 'power'); L.q(75, 6, 'coins'); L.q(120, 9, 'power');
-    L.hidden(110, 4, '1up');
-
-    var fish = [10, 8, 18, 5, 24, 10, 31, 4, 38, 9, 45, 6, 53, 10, 61, 5,
-                68, 8, 76, 4, 83, 10, 90, 6, 98, 9, 105, 5, 112, 8, 119, 10,
-                126, 6, 133, 9, 140, 5, 147, 8, 153, 10, 160, 7];
-    for (var f = 0; f < fish.length; f += 2) L.spawn('cheep', fish[f], fish[f + 1]);
-    [29, 58, 88, 117, 145].forEach(function (x) { L.spawn('blooper', x, 4); });
 
     // dry land at the end: swim out, shake off, take the flag
     L.dec('bush2', 172, GY - 1); L.dec('hill1', 180, GY - 1);
     L.clouds([170, 3, 1, 182, 2, 2]);
+    L.spawn('goomba', 175, 12);
     L.flagX = 178; L.castleX = 183;
     return L;
   }
@@ -2026,14 +2181,15 @@
         e.min = s.min; e.max = s.max; e.plat = true; break;
       case 'cheep':
         e.w = 14; e.h = 10; e.y = s.y * TS + 3; e.vx = -0.72;
-        e.base = e.y; e.phase = Math.random() * 6.28; e.amp = 8 + Math.random() * 10; break;
+        e.base = e.y; e.phase = Math.random() * 6.28; e.amp = 8 + Math.random() * 10;
+        e.home = !!s.home; break;
       case 'blooper':
         e.w = 12; e.h = 15; e.pulse = 0; e.vy = 0; e.vx = 0; break;
       case 'spring':
         e.w = 14; e.h = 16; e.y = s.y * TS; e.spring = true; e.press = 0; break;
       case 'boss':
-        e.w = 20; e.h = 26; e.y = s.y * TS; e.hp = 8; e.boss = true;
-        e.vx = -0.55; e.fireT = 80; e.jumpT = 140; break;
+        e.w = 20; e.h = 26; e.y = s.y * TS; e.hp = 10; e.hpMax = 10; e.boss = true;
+        e.stagger = 0; e.vx = -0.55; e.fireT = 80; e.jumpT = 140; break;
     }
     return e;
   }
@@ -2236,6 +2392,7 @@
       if (p.modeT <= 0) { p.mode = 'normal'; setSize(p); }
       return;                                   // the world holds its breath
     }
+    if (p.mode === 'done') return;         // walked into the castle; stay there
     if (p.mode === 'dead') { deadStep(); return; }
     if (p.mode === 'climb') { climbStep(); return; }
     if (p.mode === 'pipe') { pipeStep(); return; }
@@ -2558,7 +2715,10 @@
     p.vx = 1.4; p.x += p.vx;
     p.vy += GRAV_FALL; if (p.vy > MAX_FALL) p.vy = MAX_FALL;
     p.y += p.vy; collideY(p, false);
-    if (p.x > (L.castleX + 2) * TS || p.modeT > 300) finishLevel();
+    if (p.x > (L.castleX + 2) * TS || p.modeT > 300) {
+      p.mode = 'done'; p.vx = 0; p.vy = 0;
+      finishLevel();
+    }
   }
 
   function hitAxe() {
@@ -2594,11 +2754,12 @@
     if (fireworks > 0) {
       if (clearT - fwT > 22) {
         fwT = clearT; fireworks--;
-        var bx = 40 + Math.random() * (VW - 80), by = 30 + Math.random() * 90;
-        for (var i = 0; i < 16; i++) {
-          var a = (i / 16) * 6.283;
+        var bx = 40 + Math.random() * (VW - 80), by = 26 + Math.random() * 80;
+        for (var i = 0; i < 26; i++) {
+          var a = (i / 13) * 6.283 + Math.random() * 0.2;
+          var sp = i < 13 ? 2.2 : 1.15;
           parts.push({ kind: 'fw', x: cam.x + bx, y: by, t: 0,
-                       vx: Math.cos(a) * 1.7, vy: Math.sin(a) * 1.7 });
+                       hue: i % 3, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp });
         }
         score += 500; updateHud(); SFX.firework();
       }
@@ -2756,6 +2917,12 @@
           // straight line with a lazy bob; it never falls and never lands
           e.x += e.vx;
           e.phase += 0.045;
+          if (e.home) {
+            // drifts toward your depth instead of patrolling a fixed line
+            var want = P.y + P.h / 2 - e.h / 2;
+            e.base += Math.max(-0.35, Math.min(0.35, (want - e.base) * 0.02));
+            e.base = Math.max(TS * 3, Math.min((GY - 1) * TS - e.h, e.base));
+          }
           e.y = e.base + Math.sin(e.phase) * e.amp * 0.25;
           e.hitWall = 0;
           var cw = e.vx;
@@ -2868,6 +3035,11 @@
       return;
     }
     e.t++;
+    if (e.stagger > 0) {                 // reeling from a hit: a beat of nothing
+      e.stagger--;
+      e.vy += 0.4; e.y += e.vy; collideY(e);
+      return;
+    }
     // It COMES AT YOU inside its half of the bridge, instead of pacing a fixed
     // beat you can stand nine tiles away from and plink to death.
     var reach = P.x < e.x ? -1 : 1;
@@ -2888,8 +3060,11 @@
     }
   }
   function bossHit(e) {
-    if (e.falling || e.hp <= 0) return;
-    e.hp--; e.flash = 14; SFX.bosshit();
+    if (e.falling || e.hp <= 0 || e.stagger > 0) return;
+    e.hp--; e.flash = 14; e.stagger = 22; SFX.bosshit();
+    // knocked back, and angrier below half
+    e.x += (P.x < e.x ? 6 : -6);
+    if (e.hp === 5) { e.vx = e.vx > 0 ? 0.85 : -0.85; e.fireT = 20; shakeT = 12; }
     if (e.hp <= 0) bossDown(e);
   }
   function bossDown(e) {
@@ -3209,6 +3384,17 @@
     if (p.star > 0) set = STARS[((frame / 4) | 0) % 3];
     else if (p.fire) set = FIRE;
     if (p.mode === 'dead') return { up: set.pS_dead || SPR.pS_dead, legs: null };
+    if (p.mode === 'climb') {
+      var cf = ((p.y / 7) | 0) % 2;
+      if (!p.big) return { up: cf ? set.pS_climb2 : set.pS_climb1, legs: null };
+      return { up: set.pB_up, legs: cf ? set.pB_climb : set.pB_swim };
+    }
+    if (p.wet && !p.onGround) {
+      // arms up on the stroke, trailing between strokes
+      var pulling = p.swimCool > SWIM_COOL / 2;
+      if (!p.big) return { up: pulling ? set.pS_swim1 : set.pS_swim2, legs: null };
+      return { up: set.pB_up, legs: set.pB_swim };
+    }
     if (!p.big) {
       var k = 'pS_idle';
       if (!p.onGround) k = 'pS_jump';
@@ -3278,11 +3464,15 @@
         } else {
           draw(ctx, f2 ? set.koopa2 : set.koopa1, x - 2, y - 2, e.vx > 0);
           if (e.para) {
-            ctx.fillStyle = '#fff';
-            var wy = y + 4 + (f2 ? -2 : 2);
-            ctx.fillRect(x + (e.vx > 0 ? 12 : -6), wy, 8, 8);
+            var wx = x + (e.vx > 0 ? 11 : -5), wy = y + 3 + (f2 ? -2 : 2);
+            ctx.fillStyle = '#ffffff';                 // a wing, not a white box
+            ctx.fillRect(wx + 2, wy, 6, 2);
+            ctx.fillRect(wx + 1, wy + 2, 8, 2);
+            ctx.fillRect(wx, wy + 4, 9, 2);
+            ctx.fillRect(wx + 1, wy + 6, 7, 2);
             ctx.fillStyle = '#c8d0dc';
-            ctx.fillRect(x + (e.vx > 0 ? 14 : -4), wy + 2, 4, 6);
+            ctx.fillRect(wx + 2, wy + 2, 2, 5);
+            ctx.fillRect(wx + 5, wy + 3, 2, 4);
           }
         }
         break;
@@ -3339,6 +3529,13 @@
         break;
       }
       case 'boss': {
+        // health pips: without them a boss fight is a mystery you either win
+        // or lose with no idea how close you were
+        if (!e.falling) {
+          for (var hp = 0; hp < e.hpMax; hp++) {
+            rect(x - 2 + hp * 3, y - 7, 2, 4, hp < e.hp ? '#f0503a' : '#3a2020');
+          }
+        }
         if (e.flash > 0) { e.flash--; if (((frame / 2) | 0) % 2) break; }
         draw(ctx, ((frame / 10) | 0) % 2 ? SPR.boss2 : SPR.boss1, x - 2, y, e.vx > 0);
         break;
@@ -3415,7 +3612,13 @@
     var px = P.x;
     if (px - cam.x > VW * 0.42) target = px - VW * 0.42;
     else if (px - cam.x < VW * 0.20) target = px - VW * 0.20;
-    cam.x = Math.max(0, Math.min(target, L.w * TS - VW));
+    var maxX = L.w * TS - VW;
+    // Once the level is over, stop the camera at the castle. It used to follow
+    // the walk-off past the end wall and show the bonus room behind it.
+    if (state === 'clear' || state === 'clearing' || state === 'cleared') {
+      maxX = Math.min(maxX, Math.max(0, (L.castleX + 6) * TS - VW));
+    }
+    cam.x = Math.max(0, Math.min(target, maxX));
   }
 
   function bumpOffset(x, y) {
@@ -3438,6 +3641,21 @@
     if (shakeT > 0) { shakeT--; ctx.translate(((Math.random() * 4) | 0) - 2, ((Math.random() * 3) | 0) - 1); }
 
     if (state === 'intro') { drawIntro(); ctx.restore(); return; }
+
+    // Sky above the waterline, column by column — otherwise the shore and the
+    // whole dry ending sit under the deep-water backdrop, which reads as night.
+    if (L.theme === 'water') {
+      var wx0 = Math.max(0, Math.floor(cam.x / TS)),
+          wx1 = Math.min(L.w - 1, Math.ceil((cam.x + VW) / TS));
+      ctx.fillStyle = THEME.overworld.sky;
+      for (var wx = wx0; wx <= wx1; wx++) {
+        var wtop = ROWS;
+        for (var wy = 0; wy < ROWS; wy++) {
+          if (WET[L.t[wy * L.w + wx]]) { wtop = wy; break; }
+        }
+        if (wtop > 0) ctx.fillRect(wx * TS - (cam.x | 0), 0, TS, wtop * TS);
+      }
+    }
 
     for (var d = 0; d < L.deco.length; d++) {
       var dd = L.deco[d];
@@ -3500,7 +3718,9 @@
       } else if (pa.kind === 'drop') {
         rect(px, pa.y, 2, 3, '#bfe6ff');
       } else if (pa.kind === 'fw') {
-        rect(px, pa.y, 2, 2, ['#fff2a8', '#ff9a5a', '#8ad8ff'][pa.t % 3]);
+        var fade = pa.t > 20 ? 2 : 3;
+        rect(px, pa.y, fade - 1, fade - 1,
+             ['#fff2a8', '#ff9a5a', '#8ad8ff'][pa.hue || 0]);
       }
     }
 
@@ -3739,6 +3959,8 @@
     cv.style.width = Math.floor(VW * scale) + 'px';
     cv.style.height = Math.floor(VHR * scale) + 'px';
     ctx.imageSmoothingEnabled = false;
+    var gutter = (cw - Math.floor(VW * scale)) / 2;
+    document.body.classList.toggle('tightpad', gutter > 24 && gutter < 130);
     if (L) cam.x = Math.max(0, Math.min(cam.x, L.w * TS - VW));
   }
   window.addEventListener('resize', resize);
@@ -3838,7 +4060,7 @@
     // "stand under the power block and jump" is a coin flip against whichever
     // goomba has wandered into that column by then.
     clear: function () {
-      ents = ents.filter(function (e) { return e.plat || e.cannon; });
+      ents = ents.filter(function (e) { return e.plat || e.cannon || e.spring; });
     }
   };
 

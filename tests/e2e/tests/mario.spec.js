@@ -582,6 +582,57 @@ test.describe('mario', () => {
     }
   });
 
+  test('a level clear stays on stage', async ({ page }) => {
+    test.slow();
+    await boot(page);
+    // Pause first, so the pause card leaves a second button behind.
+    await page.keyboard.press('KeyP');
+    await expect(page.locator('#overlay.show')).toBeVisible();
+    await expect(page.locator('#ovAlt')).toBeVisible();
+    await page.locator('#ovGo').click();
+    await expect.poll(async () => (await snap(page)).state, { timeout: 8000 }).toBe('play');
+
+    await page.evaluate(() => window.__marioTest.clear());
+    await place(page, 198, 13);
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(1400);
+    await page.keyboard.up('ArrowRight');
+    await expect(page.locator('#overlay.show')).toBeVisible({ timeout: 30000 });
+
+    // `.card .btns button { display: block }` out-specified the UA's [hidden]
+    // rule, so this card inherited the PAUSE card's "Restart world" button —
+    // still wired to the pause handler.
+    await expect(page.locator('#ovTitle')).toHaveText(/cleared/);
+    await expect(page.locator('#ovAlt')).toBeHidden();
+
+    // walkoffStep had no collideX and kept running through 'clearing', so the
+    // player walked through the end wall — in 1-1, seven tiles into the sealed
+    // bonus room, with the camera following and the secret on screen.
+    const L = await page.evaluate(() => window.__marioBuild(0));
+    const s = await snap(page);
+    expect(s.px / 16, 'the player walked past the castle').toBeLessThan(L.castleX + 4);
+    expect(s.camx / 16, 'the camera followed past the castle').toBeLessThan(L.castleX + 7);
+  });
+
+  test('the water level cannot be skimmed along the surface', async ({ page }) => {
+    await page.goto('/mario.html');
+    await page.waitForFunction(() => !!window.__marioBuild, null, { timeout: 15000 });
+    // Every stalactite used to start at row 3, leaving row 2 clear for all 167
+    // water columns: a bot holding right and tapping jump crossed the whole
+    // level in 39s without touching one piece of coral.
+    const worst = await page.evaluate(() => {
+      const L = window.__marioBuild(2);
+      const SOLID = new Set(L.T.SOLID);
+      let run = 0, worst = 0;
+      for (let x = 0; x < 160; x++) {
+        if (SOLID.has(L.tiles[2 * L.w + x])) run = 0;
+        else { run++; if (run > worst) worst = run; }
+      }
+      return worst;
+    });
+    expect(worst, 'longest clear run along the surface').toBeLessThanOrEqual(30);
+  });
+
   test('every world boots and plays', async ({ page }) => {
     await boot(page);
     for (const i of [1, 2, 3, 4]) {
