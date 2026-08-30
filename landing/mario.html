@@ -8,11 +8,21 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; }
   body {
-    display: flex; flex-direction: column;
     background: #0e1117; color: #d4d8de;
     font-family: system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none; touch-action: none;
+  }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  /* Landscape lock for a phone held in portrait: rotate the whole app rather
+     than asking iOS for an orientation lock it does not implement. */
+  @media (orientation: portrait) {
+    body.rotated #app {
+      position: fixed; top: 0; left: 0;
+      width: 100vh; height: 100vw;
+      transform-origin: 0 0;
+      transform: translateX(100vw) rotate(90deg);
+    }
   }
   .bar {
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
@@ -35,6 +45,14 @@
      three that survive to the end are the ones you actually play by. */
   @media (max-width: 520px) { .bar .title .txt { display: none; } #stWorld { display: none; } }
   @media (max-width: 420px) { #stScore { display: none; } }
+  /* Five buttons and three chips overflowed a 375px phone outright. */
+  @media (max-width: 448px) {
+    .bar { gap: 4px; padding: 4px 5px; }
+    .stat { padding: 2px 5px; min-width: 36px; }
+    .stat .val { font-size: 12px; }
+    #helpBtn, #sndBtn, #fsBtn, #pauseBtn { min-width: 26px; padding: 5px 5px; }
+    #newBtn { padding: 5px 8px; }
+  }
   button {
     background: #3a2a55; color: #d9c8f5; border: 1px solid #55407a;
     border-radius: 6px; padding: 5px 10px; font: 12px system-ui, sans-serif;
@@ -45,8 +63,9 @@
   /* Keyboard has P and Esc; a phone has neither, and the only pause was
      hidden behind the help card. */
   /* Drawn, not an emoji: ⏸ renders as a tofu box on iOS WebKit. */
-  #pauseBtn { display: none; }
-  #pauseBtn svg { display: block; }
+  #pauseBtn, #fsBtn { display: none; }
+  body.touch #fsBtn { display: block; }
+  #pauseBtn svg, #fsBtn svg { display: block; }
   body.touch #pauseBtn { display: block; }
   #helpBtn, #sndBtn, #fsBtn, #pauseBtn {
     background: #1f2733; border-color: #2a3040; color: #aab4c5;
@@ -79,13 +98,11 @@
          pointer-events: none; z-index: 4; }
   body.touch .pad { display: flex; }
   body.touch.paused .pad, body.touch.carded .pad { display: none; }
-  .pad .grp { display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; }
-  .pad .dpad { flex-direction: column; align-items: center; gap: 8px; }
-  .pad .dpad .row { display: flex; gap: 10px; }
-  /* A letterboxed landscape phone has ~99px of gutter; the d-pad row is 134.
-     Trim it to fit rather than parking ▶ on the playfield. */
-  body.tightpad .pad .dpad .btn { width: 46px; height: 46px; font-size: 17px; }
-  body.tightpad .pad .dpad .row { gap: 6px; }
+  .pad .grp { display: flex; gap: calc(10px * var(--pad-s, 1)); align-items: flex-end;
+              pointer-events: auto; }
+  .pad .dpad { flex-direction: column; align-items: center; gap: calc(8px * var(--pad-s, 1)); }
+  .pad .dpad .row { display: flex; gap: calc(10px * var(--pad-s, 1)); }
+  .pad .btn { font-size: calc(22px * var(--pad-s, 1)); }
   /* B above A rather than beside it: one button wide (62px) fits entirely in
      the letterbox gutter of a landscape phone, so the thumb you hold down for
      the whole level stops covering the edge of the screen new enemies walk in
@@ -94,7 +111,8 @@
   /* and see-through enough to read the ground underneath either way */
   .pad .btn { background: rgba(24,31,44,.5); }
   .pad .btn {
-    width: 62px; height: 62px; border-radius: 50%;
+    width: calc(62px * var(--pad-s, 1)); height: calc(62px * var(--pad-s, 1));
+    border-radius: 50%;
     background: rgba(30,38,52,.62); border: 2px solid rgba(150,170,200,.42);
     color: #eaf0f8; font-size: 22px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
@@ -102,7 +120,10 @@
     text-shadow: 0 1px 2px rgba(0,0,0,.6);
   }
   .pad .btn.act { background: rgba(138,74,219,.72); border-color: #b98bf0; }
-  .pad .btn.sm { width: 54px; height: 54px; font-size: 18px; }
+  .pad .btn.sm {
+    width: calc(54px * var(--pad-s, 1)); height: calc(54px * var(--pad-s, 1));
+    font-size: calc(18px * var(--pad-s, 1));
+  }
   .pad .btn.a { background: rgba(60,140,80,.6); border-color: rgba(150,230,170,.5); }
   .pad .btn.a.act { background: rgba(78,195,106,.85); border-color: #bff5cd; }
   .pad .btn.b { background: rgba(150,60,60,.55); border-color: rgba(240,160,160,.45); }
@@ -170,6 +191,7 @@
 </style>
 </head>
 <body>
+  <div id="app">
   <div class="bar">
     <span class="title"><span class="ic">🍄</span><span class="txt">Super Vibe Bros</span></span>
     <span class="spacer"></span>
@@ -178,6 +200,7 @@
     <div class="stat" id="stWorld"><span class="lbl">World</span><span class="val" id="world">1-1</span></div>
     <div class="stat" id="stTime"><span class="lbl">Time</span><span class="val" id="time">400</span></div>
     <div class="stat"><span class="lbl">Lives</span><span class="val" id="lives">3</span></div>
+    <button id="fsBtn" title="Fullscreen / landscape" aria-label="Fullscreen"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M1 5V1h4M13 5V1H9M1 9v4h4M13 9v4H9"/></svg></button>
     <button id="pauseBtn" title="Pause" aria-label="Pause"><svg width="11" height="12" viewBox="0 0 11 12" aria-hidden="true"><rect x="0" y="0" width="4" height="12" rx="1" fill="currentColor"/><rect x="7" y="0" width="4" height="12" rx="1" fill="currentColor"/></svg></button>
     <button id="sndBtn" title="Sound on/off">🔊</button>
     <button id="helpBtn" title="How to play">?</button>
@@ -250,6 +273,7 @@
       </div>
     </div>
   </div>
+  </div>
 <script>
 (function () {
   'use strict';
@@ -280,7 +304,10 @@
   var FRICTION   = 0.11,  SKID      = 0.24;
   var GRAV_HOLD  = 0.16,  GRAV_FALL = 0.62;   // low gravity while the jump is held
   var MAX_FALL   = 4.6;
-  var JUMP_V     = -4.55, JUMP_BONUS = -0.55; // + a slice of it for running jumps
+  // A standing jump measured 3.90 tiles, and the pipes in 1-1 are 4 tiles
+  // tall: every normal obstacle in the game was JUST out of reach. 4.6 now,
+  // so four tiles clears with margin, and ~5.7 with a run-up.
+  var JUMP_V     = -4.95, JUMP_BONUS = -0.45; // + a slice of it for running jumps
   var BOUNCE_V   = -3.3,  BOUNCE_HELD = -4.4; // stomping an enemy
   var ENEMY_V    = 0.42,  SHELL_V   = 3.1;
   var COYOTE     = 4, JUMP_BUF = 6;           // frames of forgiveness (touch needs it)
@@ -3379,19 +3406,22 @@
     }
   }
 
+  function poseKey() { return P ? P.poseKey : ''; }
   function playerSprite() {
     var p = P, set = SPR;
     if (p.star > 0) set = STARS[((frame / 4) | 0) % 3];
     else if (p.fire) set = FIRE;
-    if (p.mode === 'dead') return { up: set.pS_dead || SPR.pS_dead, legs: null };
+    if (p.mode === 'dead') { p.poseKey = 'dead'; return { up: set.pS_dead || SPR.pS_dead, legs: null }; }
     if (p.mode === 'climb') {
       var cf = ((p.y / 7) | 0) % 2;
+      p.poseKey = 'climb' + (cf ? 2 : 1);
       if (!p.big) return { up: cf ? set.pS_climb2 : set.pS_climb1, legs: null };
       return { up: set.pB_up, legs: cf ? set.pB_climb : set.pB_swim };
     }
     if (p.wet && !p.onGround) {
       // arms up on the stroke, trailing between strokes
       var pulling = p.swimCool > SWIM_COOL / 2;
+      p.poseKey = 'swim' + (pulling ? 1 : 2);
       if (!p.big) return { up: pulling ? set.pS_swim1 : set.pS_swim2, legs: null };
       return { up: set.pB_up, legs: set.pB_swim };
     }
@@ -3400,13 +3430,15 @@
       if (!p.onGround) k = 'pS_jump';
       else if (p.vx !== 0 && ((p.vx > 0) !== p.faceR) && (IN.left || IN.right)) k = 'pS_skid';
       else if (Math.abs(p.vx) > 0.1) k = ['pS_walk1', 'pS_walk2', 'pS_walk3'][animIdx(p)];
+      p.poseKey = k;
       return { up: set[k], legs: null };
     }
-    if (p.crouch) return { up: set.pB_crouch, legs: null };
+    if (p.crouch) { p.poseKey = 'crouch'; return { up: set.pB_crouch, legs: null }; }
     var lk = 'pB_stand';
     if (!p.onGround) lk = 'pB_jump';
     else if (p.vx !== 0 && ((p.vx > 0) !== p.faceR) && (IN.left || IN.right)) lk = 'pB_jump';
     else if (Math.abs(p.vx) > 0.1) lk = ['pB_walk1', 'pB_walk2', 'pB_walk3'][animIdx(p)];
+    p.poseKey = lk;
     return { up: set.pB_up, legs: set[lk] };
   }
   function animIdx(p) {
@@ -3430,22 +3462,19 @@
   function drawBody(p, big) {
     var s = playerSprite();
     var sx = p.x - cam.x + (p.w - 16) / 2;
-    if (!big) {
-      // the small suit, drawn at the feet of whatever hitbox is current
-      draw(ctx, (p.fire ? FIRE : SPR).pS_idle, sx, p.y + p.h - 16, !p.faceR);
+    var set = p.fire ? FIRE : SPR;
+    // `big` differs from p.big ONLY during the grow/shrink flicker. This used
+    // to read `if (!big)`, which is true for every frame a SMALL player is
+    // ever drawn — so small Mario drew pS_idle and nothing else: no walk
+    // cycle, no jump, no skid, no swim, no climb. He slid.
+    if (big !== p.big) {
+      if (!big) { draw(ctx, set.pS_idle, sx, p.y + p.h - 16, !p.faceR); return; }
+      draw(ctx, set.pB_up, sx, p.y + p.h - 32, !p.faceR);
+      draw(ctx, set.pB_stand, sx, p.y + p.h - 16, !p.faceR);
       return;
     }
-    if (big && !p.big) {
-      draw(ctx, (p.fire ? FIRE : SPR).pB_up, sx, p.y + p.h - 32, !p.faceR);
-      draw(ctx, (p.fire ? FIRE : SPR).pB_stand, sx, p.y + p.h - 16, !p.faceR);
-      return;
-    }
-    if (s.legs) {
-      draw(ctx, s.up, sx, p.y, !p.faceR);
-      draw(ctx, s.legs, sx, p.y + 14, !p.faceR);
-    } else {
-      draw(ctx, s.up, sx, p.y, !p.faceR);
-    }
+    draw(ctx, s.up, sx, p.y, !p.faceR);
+    if (s.legs) draw(ctx, s.legs, sx, p.y + 14, !p.faceR);
   }
 
   function drawEnt(e) {
@@ -3959,8 +3988,15 @@
     cv.style.width = Math.floor(VW * scale) + 'px';
     cv.style.height = Math.floor(VHR * scale) + 'px';
     ctx.imageSmoothingEnabled = false;
-    var gutter = (cw - Math.floor(VW * scale)) / 2;
-    document.body.classList.toggle('tightpad', gutter > 24 && gutter < 130);
+    // Scale the touch pad to the room that actually exists. Inside the desktop
+    // shell on a landscape phone the play area can be 228px tall — the full
+    // 190px d-pad cross ran off the bottom — and the letterbox gutter can be
+    // narrower than the 134px left/right row.
+    var need = 190, gutter = (cw - Math.floor(VW * scale)) / 2;
+    var fitH = (ch - 26) / need;
+    var fitW = (gutter > 44 && gutter < 132) ? (gutter - 6) / 134 : 1;
+    var padS = Math.max(0.68, Math.min(1, fitH, fitW));
+    document.body.style.setProperty('--pad-s', padS.toFixed(3));
     if (L) cam.x = Math.max(0, Math.min(cam.x, L.w * TS - VW));
   }
   window.addEventListener('resize', resize);
@@ -3985,6 +4021,66 @@
   document.getElementById('newBtn').addEventListener('click', function () {
     hideCard(); closeHelp(); resumeAudio(); newGame();
   });
+  // --- fullscreen / landscape lock --------------------------------------- //
+  // Two problems, one button. Inside the shell on a phone the game gets a
+  // sliver of the screen (a 667x375 landscape device leaves 228px of play
+  // area once the usage strip, the taskbar and the game's own bar are gone),
+  // and a phone held in portrait cannot show a 4:3 platformer usefully at all.
+  // Fullscreen fixes the first where it exists; rotating the whole app fixes
+  // the second everywhere, including iOS, which has no Fullscreen API for
+  // anything but a <video> and no orientation lock at all.
+  var fsBtn = document.getElementById('fsBtn');
+  var rotated = false;
+  try { rotated = localStorage.getItem('vibetop:mario:rotate') === '1'; } catch (e) {}
+  if (rotated) document.body.classList.add('rotated');
+
+  function fsOn() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+  function setRotate(on) {
+    rotated = on;
+    document.body.classList.toggle('rotated', on);
+    try { localStorage.setItem('vibetop:mario:rotate', on ? '1' : '0'); } catch (e) {}
+    setTimeout(resize, 30);
+    setTimeout(resize, 260);
+  }
+  function lockLandscape() {
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(function () {});
+      }
+    } catch (e) {}
+  }
+  fsBtn.addEventListener('click', function () {
+    resumeAudio();
+    if (fsOn() || rotated) {
+      if (fsOn()) {
+        var ex = document.exitFullscreen || document.webkitExitFullscreen;
+        if (ex) { try { ex.call(document); } catch (e) {} }
+      }
+      setRotate(false);
+      return;
+    }
+    var el = document.documentElement;
+    var req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) {
+      var pr;
+      try { pr = req.call(el); } catch (e) { pr = null; }
+      if (pr && pr.then) {
+        pr.then(function () { lockLandscape(); setTimeout(resize, 120); })
+          .catch(function () { setRotate(true); });
+        return;
+      }
+      setTimeout(function () {
+        if (fsOn()) { lockLandscape(); resize(); } else setRotate(true);
+      }, 150);
+      return;
+    }
+    setRotate(true);                    // iOS Safari: rotate instead
+  });
+  document.addEventListener('fullscreenchange', function () { setTimeout(resize, 60); });
+  window.addEventListener('orientationchange', function () { setTimeout(resize, 250); });
+
   document.getElementById('pauseBtn').addEventListener('click', function () {
     resumeAudio();
     if (state === 'play') togglePause();
@@ -4072,6 +4168,7 @@
       state: state, level: L && L.name, px: P && P.x, py: P && P.y,
       vx: P && P.vx, vy: P && P.vy, big: P && P.big, fire: P && P.fire,
       star: P && P.star, onGround: P && P.onGround, mode: P && P.mode,
+      pose: poseKey(),
       camx: cam.x, score: score, coins: coins, lives: lives, time: timeLeft,
       ents: ents.length, vw: VW, warnings: SPRITE_WARN.length
     };

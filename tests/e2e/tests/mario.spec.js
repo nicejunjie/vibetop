@@ -127,6 +127,52 @@ test.describe('mario', () => {
     }
   });
 
+  test('the walk cycle actually animates, and small poses exist', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.clear());
+    await place(page, 3, 13);
+    await page.waitForTimeout(200);
+    await page.keyboard.down('ArrowRight');
+    // drawBody's transition branch read `if (!big)`, which is true for every
+    // frame a SMALL player is ever drawn: he rendered pS_idle and nothing else
+    // — no walk cycle, no jump, no skid, no swim, no climb. He slid.
+    const poses = await page.evaluate(() => new Promise((res) => {
+      const seen = {}; let n = 0;
+      const t = () => { seen[window.__mario().pose] = 1;
+        if (++n < 120) requestAnimationFrame(t); else res(Object.keys(seen)); };
+      requestAnimationFrame(t);
+    }));
+    await page.keyboard.up('ArrowRight');
+    expect(poses.filter((k) => /walk/.test(k)).length,
+           `poses seen while walking: ${poses.join(',')}`).toBeGreaterThanOrEqual(3);
+
+    await place(page, 3, 13);
+    await page.waitForTimeout(200);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(200);
+    expect((await snap(page)).pose).toBe('pS_jump');
+    await page.keyboard.up('Space');
+  });
+
+  test('a jump clears a four-tile obstacle', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.clear());
+    // A standing jump measured 3.90 tiles and 1-1's pipes are 4 tiles tall:
+    // every ordinary obstacle in the game was JUST out of reach.
+    await place(page, 45, 13);
+    await page.waitForTimeout(300);
+    await page.keyboard.down('Space');
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(450);
+    await page.keyboard.up('ArrowRight');
+    await page.waitForTimeout(400);
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(900);
+    const s = await snap(page);
+    expect(s.onGround, 'landed').toBe(true);
+    expect(s.py, 'standing on the pipe is y=129, the ground is y=193').toBeLessThan(150);
+  });
+
   test('it walks, runs and jumps', async ({ page }) => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
@@ -171,7 +217,8 @@ test.describe('mario', () => {
     };
     const tap = await apex(60), hold = await apex(600);
     expect(hold).toBeGreaterThan(tap + 15);
-    expect(hold).toBeGreaterThan(55);            // a full jump clears four tiles
+    expect(hold, 'four tiles is 64px — clear it with margin').toBeGreaterThan(70);
+    expect(hold, 'but not a moon jump').toBeLessThan(96);
     expect(errors).toEqual([]);
   });
 
@@ -684,6 +731,60 @@ test.describe('mario on touch', () => {
     await page.dispatchEvent('.pad .btn[data-k="jump"]', 'pointerup',
                              { pointerId: 2, isPrimary: true, bubbles: true });
     expect(y1).toBeLessThan(y0 - 15);
+  });
+
+  test('the controls fit whatever room there is, and landscape mode works', async ({ page }) => {
+    await page.goto('/mario.html');
+    await page.waitForFunction(() => !!window.__mario, null, { timeout: 15000 });
+    if (await page.locator('#helpOv.show').isVisible()) await page.locator('#helpX').click();
+    await page.locator('#ovGo').click();
+    await expect.poll(async () => (await snap(page)).state, { timeout: 12000 }).toBe('play');
+
+    // Inside the desktop shell a landscape phone leaves ~228px of play area
+    // once the usage strip, the taskbar and the game's own bar are gone; the
+    // fixed 190px d-pad cross ran off the bottom.
+    for (const h of [Math.min(260, page.viewportSize().height), page.viewportSize().height]) {
+      await page.setViewportSize({ width: page.viewportSize().width, height: h });
+      await page.waitForTimeout(400);
+      const r = await page.evaluate(() => {
+        const out = { inner: window.innerHeight, bad: [], small: [] };
+        document.querySelectorAll('.pad .btn').forEach((b) => {
+          const x = b.getBoundingClientRect();
+          if (x.y < 0 || x.y + x.height > out.inner + 1) out.bad.push(b.dataset.k);
+          if (x.width < 34) out.small.push(b.dataset.k + ':' + Math.round(x.width));
+        });
+        return out;
+      });
+      expect(r.bad, `controls cut off at height ${h}`).toEqual([]);
+      expect(r.small, `controls too small at height ${h}`).toEqual([]);
+    }
+
+    // and the toolbar itself must not overflow a narrow phone
+    const over = await page.evaluate(() => {
+      let max = 0;
+      document.querySelectorAll('.bar > *').forEach((e) => {
+        const b = e.getBoundingClientRect();
+        if (b.width && b.x + b.width > max) max = b.x + b.width;
+      });
+      return Math.round(max) - window.innerWidth;
+    });
+    expect(over, 'the toolbar overflows the window by this many px').toBeLessThanOrEqual(1);
+
+    // the landscape button: on a device with no Fullscreen API it rotates the
+    // whole app instead, which is the only thing that works on iOS.
+    await expect(page.locator('#fsBtn')).toBeVisible();
+    const before = (await snap(page)).vw;
+    await page.locator('#fsBtn').click();
+    await page.waitForTimeout(900);
+    const rotated = await page.evaluate(() => document.body.classList.contains('rotated'));
+    const full = await page.evaluate(() => !!(document.fullscreenElement ||
+                                              document.webkitFullscreenElement));
+    expect(rotated || full, 'neither rotated nor fullscreen').toBe(true);
+    if (rotated && page.viewportSize().height > page.viewportSize().width) {
+      expect((await snap(page)).vw, 'the view should widen in landscape').toBeGreaterThan(before);
+    }
+    await page.locator('#fsBtn').click();
+    await page.waitForTimeout(600);
   });
 
   test('▲ on the pad climbs a vine', async ({ page }) => {
