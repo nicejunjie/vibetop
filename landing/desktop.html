@@ -170,10 +170,11 @@
   .wm-btn:hover { background: rgba(255,255,255,0.12); color: #eaf1f8; }
   .wm-btn svg { width: 21px; height: 21px; display: block; }
   body.wm-capable .wm-btn { display: inline-flex; }
-  /* Show desktop only makes sense once there ARE floating windows: the same
-     space gate as the 🗔 toggle, plus window mode actually being on. */
-  #sd-btn { display: none !important; }
-  body.wm-capable.wm #sd-btn { display: inline-flex !important; }
+  /* Same space gate as the 🗔 toggle (body.wm-capable), in BOTH modes: with
+     floating windows it minimizes them all, full-screen it steps the active app
+     aside so the wallpaper is what you see. The window CONTROLS are one group —
+     the separator divides them from the open windows, so these two sit tight. */
+  #sd-btn { margin-left: 2px; }
   /* Lit = on, in the Start button's accent — the state has to read without a label
      now that no menu row spells it out. */
   .wm-btn.on { color: #f0c9a0; background: rgba(210,105,30,0.22); border-color: rgba(210,105,30,0.55); }
@@ -1043,9 +1044,9 @@
          one is drawn as a partial path, so nothing needs an opaque fill that would
          fight the lit state). currentColor, so `.wm-btn.on` recolors it for free. -->
     <button class="wm-btn" id="wm-btn" aria-pressed="false" aria-label="Floating windows" title="Floating windows"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 7.5V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-1.5"/><rect x="3.5" y="8" width="13" height="12" rx="2"/><path d="M3.5 11.6h13"/></svg></button>
-    <div class="tb-sep"></div>
     <button class="wm-btn" id="sd-btn" aria-pressed="false" aria-label="Show desktop"
             title="Show desktop — minimize every window (again to restore)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></button>
+    <div class="tb-sep"></div>
     <div class="task-apps" id="task-apps"></div>
     <div class="tb-spacer"></div>
     <!-- Brackets the stats block: this one belongs to it and is hidden with it
@@ -1606,15 +1607,24 @@
   var sdRestore = null;
   function showDesktop() {
     var btn = document.getElementById('sd-btn');
+    var wm = windowModeOn();
     if (sdRestore) {
-      sdRestore.forEach(function(id) { if (wins[id]) wins[id].min = false; });
-      if (sdRestore.length) active = sdRestore[sdRestore.length - 1];
+      // Put back exactly what was on screen.
+      if (wm) sdRestore.forEach(function(id) { if (wins[id]) wins[id].min = false; });
+      active = sdRestore.length ? sdRestore[sdRestore.length - 1] : null;
       sdRestore = null;
-    } else {
+    } else if (wm) {
       var toHide = openApps.filter(function(id) { return !(wins[id] && wins[id].min); });
       if (!toHide.length) return;                 // nothing on screen: no-op
       sdRestore = toHide;
       toHide.forEach(function(id) { winGeom(id).min = true; });
+      active = null;
+    } else {
+      // Full-screen mode: one app covers the wallpaper. Step it aside — the
+      // apps stay open, the taskbar still lists them, and the desktop (clock,
+      // calendar) is what you are looking at.
+      if (!active) return;
+      sdRestore = [active];
       active = null;
     }
     if (btn) btn.setAttribute('aria-pressed', sdRestore ? 'true' : 'false');
