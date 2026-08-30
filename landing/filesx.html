@@ -15,11 +15,18 @@
   /* ---- toolbar: one row on desktop (wraps gracefully when narrow); ≤736px it
      stacks into the documented mobile layout (controls grid → clickable
      breadcrumb line → single-row address bar) ---- */
+  /* Three rows, in the classic app's order: controls, then the clickable
+     breadcrumb, then Back/Forward + the editable path. They used to share one
+     line, which is why the breadcrumb had to fold /home/<user> into "Home" and
+     the address bar had to hide on a phone. */
   .toolbar {
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+    display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; flex-shrink: 0;
     padding: 7px 10px; background: #161b22; border-bottom: 1px solid #2a3040;
     user-select: none; -webkit-user-select: none; z-index: 3;
   }
+  .toolbar .tools { order: 1; flex: 1 0 100%; justify-content: flex-end; }
+  .toolbar .crumbs { order: 2; flex: 1 0 100%; }
+  .toolbar .addr { order: 3; flex: 1 0 100%; }
   .crumbs {
     display: flex; align-items: center; flex: 0 1 auto; min-width: 90px;
     overflow-x: auto; white-space: nowrap; scrollbar-width: none;
@@ -34,16 +41,17 @@
   .crumb:hover { background: #1f2733; color: #e6edf3; }
   .crumb:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
   .crumb.cur { color: #e6edf3; font-weight: 600; }
+  .crumb.home { display: inline-flex; align-items: center; padding: 5px 7px; }
+  .crumb.home svg { width: 15px; height: 15px; }
   .crumb-sep { flex: 0 0 auto; color: #4a5265; font-size: 11px; padding: 0 1px; }
-  .navbtns { display: flex; gap: 4px; flex: 0 0 auto; }
-  .navbtns button {
-    background: #1f2733; color: #d4d8de; border: 1px solid #2a3040; border-radius: 6px;
-    width: 30px; min-height: 30px; padding: 0; font-size: 17px; line-height: 1;
-    cursor: pointer;
+  #navback, #navfwd {
+    flex: 0 0 auto; background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
+    border-radius: 6px; width: 34px; min-height: 32px; padding: 0; font-size: 15px;
+    line-height: 1; cursor: pointer;
   }
-  .navbtns button:hover:not(:disabled) { background: #253044; }
-  .navbtns button:disabled { opacity: .35; cursor: default; }
-  .addr { display: flex; gap: 5px; flex: 1 1 160px; min-width: 120px; }
+  #navback:hover:not(:disabled), #navfwd:hover:not(:disabled) { background: #253044; }
+  #navback:disabled, #navfwd:disabled { opacity: .35; cursor: default; }
+  .addr { display: flex; align-items: center; gap: 6px; min-width: 0; }
   #addrcopy {
     flex: 0 0 auto; background: #1f2733; color: #aab4c5; border: 1px solid #2a3040;
     border-radius: 6px; width: 30px; min-height: 30px; padding: 0; cursor: pointer;
@@ -367,7 +375,8 @@
   }
   .mcard {
     background: #161b22; border: 1px solid #2a3040; border-radius: 12px;
-    box-shadow: 0 12px 44px rgba(0,0,0,.55); max-width: 400px; width: 100%;
+    box-shadow: 0 12px 44px rgba(0,0,0,.55);
+    max-width: min(440px, calc(100vw - 32px)); width: 100%;
     padding: 18px 18px 14px; color: #e6edf3;
   }
   .mcard h3 { margin: 0 0 8px; font-size: 15px; font-weight: 650; color: #f0f4f8; }
@@ -377,7 +386,7 @@
   .mcard li.more { color: #6b7488; font-family: system-ui, sans-serif; }
   .mbtns { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
   /* Move to… destination picker */
-  .pick { display: flex; flex-direction: column; gap: 8px; min-width: min(420px, 78vw); }
+  .pick { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
   .pick-path {
     font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #aab4c5;
     word-break: break-all; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -398,7 +407,7 @@
   .pick-empty { padding: 10px; color: #7d879b; font-size: 12.5px; }
 
   /* Settings card */
-  .sett { display: flex; flex-direction: column; gap: 2px; min-width: min(430px, 78vw); }
+  .sett { display: flex; flex-direction: column; gap: 2px; width: 100%; min-width: 0; }
   .sett-head {
     font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
     color: #7d879b; margin: 10px 0 4px;
@@ -411,7 +420,7 @@
   }
   .sett-row:hover, .sett-act:hover { background: #1c2431; }
   .sett-row input { margin-top: 2px; accent-color: #8a4adb; width: 16px; height: 16px; flex: 0 0 auto; }
-  .sett-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .sett-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
   .sett-lab { font-size: 13px; color: #e6edf3; }
   .sett-hint { font-size: 12px; color: #98a2b6; }
   .sett-act .sett-lab { color: #b79be8; }
@@ -608,11 +617,11 @@
     #morebtn { display: inline-block; margin-left: auto; }   /* pinned to the edge */
     #pastebtn { color: #b79be8; }
     #pastebtn.on { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 9px; }
-    .crumbs { order: 2; flex: 1 0 100%; min-width: 0; }
+    .crumbs { min-width: 0; }
     .crumb { font-size: 14px; padding: 6px 6px; }
-    .addr { order: 3; display: none; }            /* path lives in the crumbs; */
-    .addr.editing { display: flex; flex: 1 0 100%; }   /* tap the last crumb to edit */
     .addr input { padding: 8px 10px; font-size: 14px; }
+    #navback, #navfwd { width: 38px; min-height: 38px; font-size: 16px; }
+    #addrcopy { width: 38px; min-height: 38px; }
     /* Every verb visible, wrapped over two rows — no ⋯ to expand and no ✕ to
        dismiss (tapping anywhere else in the listing clears the selection).
        Text-only labels: the emoji glyphs were the widest part of each button
@@ -660,11 +669,9 @@
 <body>
   <div class="toolbar">
     <nav class="crumbs" id="crumbs" aria-label="Folder path"></nav>
-    <div class="navbtns">
-      <button id="navback" title="Back" aria-label="Back">‹</button>
-      <button id="navfwd" title="Forward" aria-label="Forward">›</button>
-    </div>
     <div class="addr">
+      <button id="navback" title="Back" aria-label="Back">←</button>
+      <button id="navfwd" title="Forward" aria-label="Forward">→</button>
       <input id="addr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off"
              aria-label="Path — type a folder and press Enter" title="Type any path and press Enter">
       <button id="addrcopy" title="Copy this path" aria-label="Copy path"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5v-1h-8v8h1"/></svg></button>
@@ -1005,23 +1012,27 @@
       first = false;
       var isCur = p === path;
       var b = el('button', 'crumb' + (isCur ? ' cur' : ''), label);
-      b.title = (isCur && MQ_MOBILE.matches) ? 'Tap to edit the path' : p;
-      b.addEventListener('click', function() {
-        // Mobile hides the always-open address input (the path showed twice);
-        // the CURRENT crumb is the way in: tap → edit the path in place.
-        if (isCur && MQ_MOBILE.matches) { openAddrEdit(); return; }
-        go(p);
-      });
+      b.title = p;
+      b.addEventListener('click', function() { go(p); });
       crumbsEl.appendChild(b);
     }
-    // Under home the trail STARTS at "Home" — the literal /home/<user> segments
-    // fold away (the "home ▸ Home" duplication report). Elsewhere it starts at /.
-    var underHome = HOME && (path === HOME || path.indexOf(HOME + '/') === 0);
-    var base = underHome ? HOME : '';
-    addCrumb(underHome ? 'Home' : '/', underHome ? HOME : '/');
-    var rest = path.slice(base.length).replace(/^\/+/, '');
+    // A home button, then the REAL path segments — the same trail the classic
+    // app shows. (Folding /home/<user> into a single "Home" crumb meant you
+    // could not click back to /home, and the path read differently from the
+    // address bar right below it.)
+    var homeBtn = el('button', 'crumb home');
+    homeBtn.title = 'Go to your home folder' + (HOME ? ' (' + HOME + ')' : '');
+    homeBtn.setAttribute('aria-label', 'Home folder');
+    homeBtn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M2 7.2 8 2.2l6 5M3.5 6.4v7h9v-7"/><path d="M6.6 13.4V9.6h2.8v3.8"/></svg>';
+    homeBtn.addEventListener('click', function() { go(HOME || '/'); });
+    crumbsEl.appendChild(homeBtn);
+    first = false;
+    addCrumb('/', '/');
+    var rest = path.replace(/^\/+/, '');
     if (rest) {
-      var acc = base;
+      var acc = '';
       rest.split('/').forEach(function(seg) {
         acc += '/' + seg;
         addCrumb(seg, acc);
@@ -1029,14 +1040,6 @@
     }
     crumbsEl.scrollLeft = crumbsEl.scrollWidth;   // deepest folder always visible
   }
-  var addrWrapEl = document.querySelector('.addr');
-  function openAddrEdit() {
-    addrWrapEl.classList.add('editing');
-    addrEl.value = path || '';
-    addrEl.focus();
-    try { addrEl.setSelectionRange(addrEl.value.length, addrEl.value.length); } catch (e) {}
-  }
-
   function visibleRows() {
     var v = entries.filter(function(e) { return showHidden || e.name.charAt(0) !== '.'; });
     var dir = sortAsc ? 1 : -1;
@@ -3155,10 +3158,8 @@
     }).catch(function() { go(p); });
   });
   addrEl.addEventListener('blur', function() {
-    // Abandoned edits revert quietly so the bar always shows the real location;
-    // on mobile the temporary edit row (opened from the current crumb) collapses.
+    // Abandoned edits revert quietly, so the bar always shows the real location.
     if (addrEl.value !== path) addrEl.value = path || '';
-    addrWrapEl.classList.remove('editing');
   });
 
   sortKeyEl.addEventListener('change', function() {
