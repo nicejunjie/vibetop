@@ -174,11 +174,12 @@
 
     <div class="pad" id="pad">
       <div class="grp dpad">
-        <div class="btn sm" data-k="down">▼</div>
+        <div class="btn sm" data-k="up">▲</div>
         <div class="row">
           <div class="btn" data-k="left">◀</div>
           <div class="btn" data-k="right">▶</div>
         </div>
+        <div class="btn sm" data-k="down">▼</div>
       </div>
       <div class="grp ab">
         <div class="btn b" data-k="run">B</div>
@@ -219,6 +220,7 @@
         <ul>
           <li>◀ ▶ to walk, <span class="em">A</span> to jump, <span class="em">B</span> to run / throw fire</li>
           <li>Hold <span class="em">A</span> longer for a higher jump</li>
+          <li>▲ climbs a vine, ▼ crouches and enters a green pipe</li>
         </ul>
         <h3>Worth knowing</h3>
         <ul>
@@ -1641,7 +1643,7 @@
     L.spawn('goomba', 172, 12); L.spawn('goomba', 174, 12);
     L.pipe(179, 10, 3); L.spawn('piranha', 179, 10);
 
-    // a beanstalk, and a springboard to reach the block that holds it
+    // a beanstalk out of an ordinary block, and a springboard to the roof
     L.q(128, 9, 'vine');
     L.vineWarps[128] = { x: 246, y: 5 };
     L.spawn('spring', 155, 12);
@@ -1734,7 +1736,7 @@
     return L;
   }
 
-  // ---- world 1-3: the athletic level, mostly air ------------------------ //
+  // ---- world 1-4: the athletic level, mostly air ------------------------ //
   function build13() {
     var L = new Level('1-4', 196, 'overworld');
     L.time = 300; L.startX = 3; L.checkpoint = 114;   // inside ground(112,126)
@@ -1781,7 +1783,7 @@
     return L;
   }
 
-  // ---- world 1-4: the castle -------------------------------------------- //
+  // ---- world 1-5: the castle -------------------------------------------- //
   function build14() {
     var L = new Level('1-5', 172, 'castle');
     L.time = 300; L.startX = 3; L.checkpoint = 84; L.boss = true;
@@ -1925,7 +1927,7 @@
       big: false, fire: false, star: 0, onGround: false, faceR: true, crouch: false,
       invuln: 0, anim: 0, jumping: false, coyote: 0, stomps: 0,
       mode: 'normal', modeT: 0, pipeDir: 0, warpTo: null, fireCool: 0,
-      wet: false, swimCool: 0, stroke: 0, boost: 0, climbCol: -1
+      wet: false, swimCool: 0, boost: 0, climbCol: -1
     };
   }
 
@@ -1943,8 +1945,11 @@
     if (resume) { P.big = big; P.fire = fire; }
     setSize(P);
     P.x = startX * TS; P.y = (L.startY || 12) * TS - (P.h - TS);
-    // drop the player onto whatever is under the start column
-    while (P.y < (ROWS - 1) * TS && !solidBelow(P)) P.y += 1;
+    // Drop onto whatever is under the start column — unless the start is in
+    // water, where "fall until you hit something" means starting every life
+    // sitting on the sea floor.
+    if (!inWater(P)) while (P.y < (ROWS - 1) * TS && !solidBelow(P)) P.y += 1;
+    P.wet = inWater(P);
     L.spawns.forEach(function (s) { ents.push(makeEnt(s)); });
     cam.x = Math.max(0, Math.min(P.x - VW * 0.4, L.w * TS - VW));
     updateHud();
@@ -1992,7 +1997,7 @@
 
   function makeEnt(s) {
     var e = { type: s.type, x: s.x * TS, y: s.y * TS, vx: 0, vy: 0, w: 14, h: 14,
-              dir: -1, dead: false, anim: 0, gone: false, t: 0, spawn: s };
+              dir: -1, gone: false, t: 0, spawn: s };
     switch (s.type) {
       case 'goomba':
         e.w = 14; e.h = 14; e.y = s.y * TS + 2; e.vx = -ENEMY_V; break;
@@ -2025,7 +2030,7 @@
       case 'spring':
         e.w = 14; e.h = 16; e.y = s.y * TS; e.spring = true; e.press = 0; break;
       case 'boss':
-        e.w = 30; e.h = 26; e.y = s.y * TS; e.hp = 8; e.boss = true;
+        e.w = 20; e.h = 26; e.y = s.y * TS; e.hp = 8; e.boss = true;
         e.vx = -0.55; e.fireT = 80; e.jumpT = 140; break;
     }
     return e;
@@ -2055,6 +2060,7 @@
   function floatText(x, y, txt) { texts.push({ x: x, y: y, txt: txt, t: 0 }); }
 
   function award(x, y, n) {
+    if (!n) return;                       // a 1-UP is not worth "0" points
     score += n;
     floatText(x, y, String(n));
     updateHud();
@@ -2234,17 +2240,16 @@
     if (p.mode === 'flag') { flagStep(); return; }
     if (p.mode === 'walkoff') { walkoffStep(); return; }
 
-    // grab a vine by holding up against it
-    if (IN.up && p.mode === 'normal') {
+    // grab a vine by holding up against it (every other mode has returned)
+    if (IN.up) {
       var vc = Math.floor((p.x + p.w / 2) / TS), vr = Math.floor((p.y + p.h * 0.4) / TS);
       if (L.get(vc, vr) === T_VINE) {
         p.mode = 'climb'; p.vx = 0; p.vy = 0; p.climbCol = vc;
         p.x = vc * TS + (TS - p.w) / 2;
+        p.onGround = false; p.coyote = 0;   // no free jump on stepping off
         jumpBuffer = 0;
       }
     }
-    if (p.mode === 'climb') { climbStep(); return; }
-
     var wet = inWater(p);
     if (wet !== p.wet) {                     // crossing the surface
       p.wet = wet;
@@ -2311,18 +2316,17 @@
                               Math.floor((p.y + 2) / TS)) === T_SURF;
         p.vy = atSurface ? SWIM_SURF : SWIM_STROKE;
         p.swimCool = SWIM_COOL; jumpBuffer = 0;
-        p.stroke = 12;
         SFX.swim();
       }
       p.vy += SWIM_GRAV;
       if (p.vy > SWIM_MAXFALL) p.vy = SWIM_MAXFALL;
       if (p.vy < -3.2) p.vy = -3.2;
-      if (p.stroke > 0) p.stroke--;
       p.hitWall = 0;
       p.x += p.vx; collideX(p);
       p.y += p.vy; collideY(p, true);
       platformCollide(p);
-      if (p.y < TS) { p.y = TS; if (p.vy < 0) p.vy = 0; }   // can't leave the water up top
+      // can't rise out of the top of the world (a level may flood row 0)
+      if (p.y < 0) { p.y = 0; if (p.vy < 0) p.vy = 0; }
       if (p.x < cam.x) { p.x = cam.x; p.vx = Math.max(0, p.vx); }
       if (p.x + p.w > L.w * TS) p.x = L.w * TS - p.w;
       collectTiles(p);
@@ -2393,8 +2397,16 @@
   // The player is IN water when the tile at their chest is water. Chest, not
   // feet: wading through the shallow surface row should not start swimming.
   function inWater(p) {
-    var t = L.get(Math.floor((p.x + p.w / 2) / TS), Math.floor((p.y + p.h * 0.45) / TS));
-    return !!WET[t];
+    var cx = Math.floor((p.x + p.w / 2) / TS), cy = Math.floor((p.y + p.h * 0.45) / TS);
+    var t = L.get(cx, cy);
+    if (WET[t]) return true;
+    // A coin, a hidden block or a collected coin's empty cell is a HOLE in the
+    // sea: it is not a water tile, so the swim branch switched off inside it —
+    // splash, fall two tiles at land gravity, splash again, forever, at every
+    // coin in the level. Treat a passable cell surrounded by water as water.
+    if (t !== T_EMPTY && t !== T_COIN && t !== T_HIDDEN) return false;
+    return !!(WET[L.get(cx, cy - 1)] || WET[L.get(cx, cy + 1)] ||
+              WET[L.get(cx - 1, cy)] || WET[L.get(cx + 1, cy)]);
   }
   function splash(p) {
     SFX.splash();
@@ -2561,7 +2573,7 @@
   function finishLevel() {
     if (state === 'clearing') return;
     state = 'clearing';
-    clearT = 0; drainEnd = 0; bonusPaid = 0;
+    clearT = 0; drainEnd = 0; bonusPaid = 0; fwT = 0;
     clearedName = L.name;
     SFX.clear();
   }
@@ -2657,7 +2669,9 @@
         if (e.x < cam.x + VW + 24 && e.x + 32 > cam.x - 200) e.awake = true;
         else continue;
       }
-      if (e.x + 64 < cam.x - 96 && !e.plat && !e.cannon) { e.remove = true; continue; }
+      if (e.x + 64 < cam.x - 96 && !e.plat && !e.cannon && e.type !== 'vine') {
+        e.remove = true; continue;
+      }
 
       switch (e.type) {
         case 'goomba':
@@ -2672,12 +2686,11 @@
           } else if (e.shell) {
             enemyPhysics(e, false);
             if (e.vx !== 0) {
-              e.spin = 1;
               shellHits(e);
             } else {
               e.reviveT = (e.reviveT || 0) + 1;
               if (e.reviveT > 380) {          // it wakes back up
-                e.shell = false; e.spin = 0; e.reviveT = 0;
+                e.shell = false; e.reviveT = 0;
                 e.h = 22; e.y -= 8; e.vx = -ENEMY_V;
               }
             }
@@ -2754,7 +2767,9 @@
           var pd = e.pulse % 110;
           if (pd < 34) { e.vy = 1.05; e.vx = (P.x < e.x ? -0.55 : 0.55); }
           else { e.vy = -0.42; e.vx *= 0.86; }
-          e.x += e.vx; e.y += e.vy;
+          e.hitWall = 0;
+          e.x += e.vx; collideX(e);
+          e.y += e.vy; collideY(e);        // squid do not swim through coral
           if (e.y < TS * 2) { e.y = TS * 2; }
           if (e.y > (GY - 1) * TS - e.h) e.y = (GY - 1) * TS - e.h;
           break;
@@ -2831,7 +2846,7 @@
       if (KILLABLE[o.type]) {
         if (overlap(e, o)) { killEnemy(o, 'fire'); poof(e); return; }
       } else if (o.type === 'piranha' && o.up > 4) {
-        if (overlap(e, { x: o.x, y: o.y, w: o.w, h: o.h })) {
+        if (overlap(e, o)) {
           o.gone = true; award(o.x, o.y, 200); poof(e); return;
         }
       } else if (o.type === 'boss') {
@@ -2887,7 +2902,10 @@
   // --- player vs one entity --------------------------------------------- //
   function hitPlayer(e) {
     var p = P;
-    if (e.gone || e.corpse || e.remove || e.flat) return;
+    // A zero-size box makes overlap() 'is this point inside the player?', and
+    // a vine matched no case below, so standing beside a beanstalk and
+    // hopping cost you a power-up to nothing at all.
+    if (e.gone || e.corpse || e.remove || e.flat || e.type === 'vine') return;
     if (e.type === 'firebar') {
       for (var i = 1; i <= e.len; i++) {
         var bx = e.x + TS / 2 + Math.cos(e.ang) * i * 8 - 4;
@@ -3320,12 +3338,13 @@
       }
       case 'boss': {
         if (e.flash > 0) { e.flash--; if (((frame / 2) | 0) % 2) break; }
-        draw(ctx, ((frame / 10) | 0) % 2 ? SPR.boss2 : SPR.boss1, x - 3, y, e.vx > 0);
+        draw(ctx, ((frame / 10) | 0) % 2 ? SPR.boss2 : SPR.boss1, x - 2, y, e.vx > 0);
         break;
       }
       case 'corpse': {
         var src = e.src;
-        var spr2 = src.type === 'goomba' ? SPR.goomba1 :
+        var cs = L.theme === 'underground' ? UNDERG : SPR;
+        var spr2 = src.type === 'goomba' ? cs.goomba1 :
                    (src.red ? REDK.koopa1 : SPR.koopa1);
         ctx.save();
         ctx.translate(x + 8, y + 8); ctx.scale(1, -1);

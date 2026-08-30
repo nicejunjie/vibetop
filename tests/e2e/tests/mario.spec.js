@@ -468,6 +468,78 @@ test.describe('mario', () => {
     expect(top).toBeLessThan(130);                           // the ground is 208
   });
 
+  test('a beanstalk is scenery, not a hazard, and gives no free jump', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.clear());
+    await place(page, 128, 13);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(500);
+    await page.keyboard.up('Space');
+    await page.waitForTimeout(2000);
+    await page.evaluate(() => window.__marioTest.give('big'));
+
+    // The vine entity is a ZERO-SIZE box, so overlap() reduced to "is this
+    // point inside the player" and hitPlayer fell through to hurt(): hopping
+    // beside your own beanstalk cost a power-up to nothing on screen.
+    await place(page, 127.6, 9);
+    await page.waitForTimeout(200);
+    const lives = (await snap(page)).lives;
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.down('Space');
+      await page.waitForTimeout(220);
+      await page.keyboard.up('Space');
+      await page.waitForTimeout(400);
+    }
+    const s = await snap(page);
+    expect(s.big).toBe(true);
+    expect(s.lives).toBe(lives);
+
+    // climbing left onGround stale-true, so stepping off granted a free jump
+    await place(page, 128, 9);
+    await page.waitForTimeout(200);
+    await page.keyboard.down('ArrowUp');
+    await page.waitForTimeout(900);
+    await page.keyboard.up('ArrowUp');
+    expect((await snap(page)).mode).toBe('climb');
+    await page.keyboard.down('ArrowRight');
+    await page.waitForTimeout(120);
+    const off = (await snap(page)).py;
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(260);
+    const after = (await snap(page)).py;
+    await page.keyboard.up('Space');
+    await page.keyboard.up('ArrowRight');
+    expect(after).toBeGreaterThan(off - 10);
+  });
+
+  test('a coin in the sea is still the sea', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.level(2));
+    // read the spawn at the FIRST play frame — you sink from there
+    let start = null;
+    for (let i = 0; i < 80; i++) {
+      const q = await snap(page);
+      if (q.state === 'play') { start = q; break; }
+      await page.waitForTimeout(60);
+    }
+    expect(start.py, 'world 1-3 starts you swimming, not on the sea floor').toBeLessThan(190);
+
+    await page.evaluate(() => window.__marioTest.clear());
+    await place(page, 28, 8);
+    await page.waitForTimeout(300);
+    // A coin overwrites its water tile, and collecting it leaves T_EMPTY —
+    // neither is a water tile, so the swim branch switched OFF inside every
+    // coin cell: splash, drop two tiles at land gravity, splash again, at
+    // every coin in the level, forever.
+    const trace = await page.evaluate(() => new Promise((res) => {
+      const a = []; let n = 0;
+      const t = () => { a.push(+window.__mario().vy.toFixed(2));
+        if (++n < 150) requestAnimationFrame(t); else res(a); };
+      requestAnimationFrame(t);
+    }));
+    expect(Math.max.apply(null, trace), 'land gravity would reach 4.6').toBeLessThanOrEqual(2.0);
+  });
+
   test('an enemy that hits a wall turns around', async ({ page }) => {
     await boot(page);
     // collideX zeroes vx on contact, so the `vx = -vx` that follows negated
@@ -536,7 +608,7 @@ test.describe('mario on touch', () => {
     await expect.poll(async () => (await snap(page)).state, { timeout: 12000 }).toBe('play');
     await expect(page.locator('#pad')).toBeVisible();
 
-    for (const k of ['left', 'right', 'jump', 'run', 'down']) {
+    for (const k of ['left', 'right', 'up', 'down', 'jump', 'run']) {
       const box = await page.locator(`.pad .btn[data-k="${k}"]`).boundingBox();
       expect(box, `${k} button`).toBeTruthy();
       expect(box.width, `${k} button width`).toBeGreaterThanOrEqual(50);
@@ -561,5 +633,35 @@ test.describe('mario on touch', () => {
     await page.dispatchEvent('.pad .btn[data-k="jump"]', 'pointerup',
                              { pointerId: 2, isPrimary: true, bubbles: true });
     expect(y1).toBeLessThan(y0 - 15);
+  });
+
+  test('▲ on the pad climbs a vine', async ({ page }) => {
+    // The pad had no UP at all, and the vine grab reads IN.up only — so the
+    // beanstalk, coin heaven and its 1-up were unreachable on a phone while
+    // the help card advertised them to everyone.
+    await page.goto('/mario.html');
+    await page.waitForFunction(() => !!window.__mario, null, { timeout: 15000 });
+    if (await page.locator('#helpOv.show').isVisible()) await page.locator('#helpX').click();
+    await page.locator('#ovGo').click();
+    await expect.poll(async () => (await snap(page)).state, { timeout: 12000 }).toBe('play');
+    await expect(page.locator('.pad .btn[data-k="up"]')).toBeVisible();
+
+    await page.evaluate(() => window.__marioTest.clear());
+    await page.evaluate(() => window.__marioTest.place(128, 13));
+    await page.dispatchEvent('.pad .btn[data-k="jump"]', 'pointerdown',
+                             { pointerId: 1, isPrimary: true, bubbles: true });
+    await page.waitForTimeout(500);
+    await page.dispatchEvent('.pad .btn[data-k="jump"]', 'pointerup',
+                             { pointerId: 1, isPrimary: true, bubbles: true });
+    await page.waitForTimeout(2000);
+    await page.evaluate(() => window.__marioTest.place(128, 9));
+    await page.waitForTimeout(300);
+    await page.dispatchEvent('.pad .btn[data-k="up"]', 'pointerdown',
+                             { pointerId: 2, isPrimary: true, bubbles: true });
+    await page.waitForTimeout(600);
+    const mode = (await snap(page)).mode;
+    await page.dispatchEvent('.pad .btn[data-k="up"]', 'pointerup',
+                             { pointerId: 2, isPrimary: true, bubbles: true });
+    expect(mode).toBe('climb');
   });
 });
