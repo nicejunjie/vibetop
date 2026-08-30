@@ -175,14 +175,22 @@ test.describe('native Files — layout', () => {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
 
-    // delete confirmation
+    // Delete does NOT raise a confirm dialog — it moves the item to Trash and
+    // offers Undo in a toast. This step asserted the old dialog, so it had been
+    // failing (and silently trashing its own fixture) ever since Trash landed.
+    // Check the toast's geometry instead, then Undo, so the run leaves nothing
+    // behind and the undo path gets exercised too.
     await select();
     if (touch) await page.locator('#a-delete').tap();
     else await page.keyboard.press('Delete');
-    await page.waitForTimeout(500);
-    await check('delete-confirm');
-    await page.locator('.mbtns button', { hasText: /Cancel|Keep/ }).first().click();
+    await page.waitForSelector('.toast', { timeout: 8000 });
     await page.waitForTimeout(300);
+    await check('delete-toast');
+    const undo = page.locator('.toast .toast-act', { hasText: /Undo/ }).first();
+    if (await undo.count()) {
+      if (touch) await undo.tap(); else await undo.click();
+      await page.waitForTimeout(600);
+    }
 
     expect(found, '\n' + found.join('\n')).toEqual([]);
   });
