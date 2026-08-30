@@ -344,7 +344,7 @@
     O: '#ef8b28', o: '#a5560c',        // heat
     P: '#f088c0', C: '#5fe8ff', M: '#8a4adb',
     T: '#f2e9c8',
-    a: '#7a5a10', A: '#fff0b0', h: '#c99a18'   // token: outline, shine, shade
+    a: '#17203d', A: '#fff3b0', h: '#c8901a'   // token: dark rim, shine, shade
   };
 
   // A row that is one character short or long silently shifts every pixel to
@@ -3226,20 +3226,28 @@
   //  Rendering
   // ===================================================================== //
   var THEME = {
-    // Bright, not grim. The first cut of this palette was near-black slate on
-    // navy and read as a dungeon; a platformer wants daylight.
-    // sector 01 — the surface, in daylight
-    overworld:  { sky: '#5ec8f2', ground: '#e8a13c', groundHi: '#ffd47a', groundLo: '#a35f14',
-                  brick: '#7a6bd8', brickHi: '#b3a6ff', stone: '#dbe4f2', hill: '#46c98a' },
-    // sector 02 — the tunnels: lit, not pitch dark
-    underground:{ sky: '#173a5e', ground: '#2fa8c9', groundHi: '#7fe4f5', groundLo: '#125b73',
-                  brick: '#2fa8c9', brickHi: '#7fe4f5', stone: '#b9cbe0', hill: '#1d5a80' },
-    // sector 05 — the core: warm and hot, not a crypt
-    castle:     { sky: '#3a1d4a', ground: '#9a72c9', groundHi: '#d5b6f5', groundLo: '#4b2a6b',
-                  brick: '#9a72c9', brickHi: '#d5b6f5', stone: '#c6b0e0', hill: '#2a1636' },
-    // sector 03 — flooded with coolant
-    water:      { sky: '#39c6d8', ground: '#e8a13c', groundHi: '#ffd47a', groundLo: '#a35f14',
-                  brick: '#2fbfae', brickHi: '#8df0e2', stone: '#3fd6b8', hill: '#46c98a' }
+    // Every solid must READ against its own sky, and one fixed colour cannot:
+    // a dark block vanishes on a dark sky and a light one vanishes on a bright
+    // sky. So the hardware colours come from the THEME — dark hardware under a
+    // bright sky, light hardware under a dark one. tests/e2e measures the
+    // contrast of every tile against the sky it is drawn over and fails below
+    // 2.2:1, because the first bright cut shipped a staircase at 1.02:1.
+    overworld:  { sky: '#4fb4e6', ground: '#a85f1a', groundHi: '#e0913a', groundLo: '#5e3208',
+                  brick: '#5c3fb0', brickHi: '#9b86f0', stone: '#3a4870', hill: '#2f9e64',
+                  hw: '#2e3c66', hwHi: '#7f96cc', hwLo: '#141d3a', glow: '#2fc9e0',
+                  qFrame: '#101a3a', qFace: '#2b3f8c', qGlyph: '#8ff4ff', uFace: '#2b3350' },
+    underground:{ sky: '#132f52', ground: '#2fa8c9', groundHi: '#7fe4f5', groundLo: '#125b73',
+                  brick: '#2fa8c9', brickHi: '#7fe4f5', stone: '#c3d4e8', hill: '#1d5a80',
+                  hw: '#8fa8d8', hwHi: '#dbe9ff', hwLo: '#46598a', glow: '#7fe4f5',
+                  qFrame: '#dfe9fa', qFace: '#9fb6e8', qGlyph: '#12305c', uFace: '#8d97b5' },
+    castle:     { sky: '#2c1338', ground: '#9a72c9', groundHi: '#d5b6f5', groundLo: '#4b2a6b',
+                  brick: '#9a72c9', brickHi: '#d5b6f5', stone: '#c6b0e0', hill: '#22102c',
+                  hw: '#9a86c8', hwHi: '#e6dcf8', hwLo: '#4b3a6b', glow: '#d5b6f5',
+                  qFrame: '#e6dcf8', qFace: '#b39ae0', qGlyph: '#2c1338', uFace: '#8f82ad' },
+    water:      { sky: '#0d6072', ground: '#dcbb84', groundHi: '#fbe6bb', groundLo: '#8a6b34',
+                  brick: '#3fd6c2', brickHi: '#a6fff2', stone: '#a9ece2', hill: '#2f9e64',
+                  hw: '#7fd8cc', hwHi: '#d9fff8', hwLo: '#2b7a72', glow: '#8ff4e6',
+                  qFrame: '#dffaf4', qFace: '#8fe0d4', qGlyph: '#0d4a58', uFace: '#84b0ad' }
   };
   function th() { return THEME[L.theme] || THEME.overworld; }
   function themeMusic() {
@@ -3285,14 +3293,14 @@
         rect(x + 4, y + 8, 1, 7, T.groundHi);
         rect(x + 12, y + 8, 1, 7, T.groundHi);
         break;
-      case T_CBRICK:
-        rect(x, y, 16, 16, THEME.castle.ground);
-        rect(x, y, 16, 1, THEME.castle.groundHi);
-        rect(x, y + 15, 16, 1, THEME.castle.groundLo);
-        rect(x + 7, y, 1, 8, THEME.castle.groundLo);
-        rect(x, y + 7, 16, 1, THEME.castle.groundLo);
-        rect(x + 3, y + 8, 1, 8, THEME.castle.groundLo);
-        rect(x + 11, y + 8, 1, 8, THEME.castle.groundLo);
+      case T_CBRICK:                      // structural block, per sector
+        rect(x, y, 16, 16, T.stone);
+        rect(x, y, 16, 1, T.hwHi);
+        rect(x, y + 15, 16, 1, T.hwLo);
+        rect(x + 7, y, 1, 8, T.hwLo);
+        rect(x, y + 7, 16, 1, T.hwLo);
+        rect(x + 3, y + 8, 1, 8, T.hwLo);
+        rect(x + 11, y + 8, 1, 8, T.hwLo);
         break;
       case T_BRICK: {                     // server rack: shelves of blades
         rect(x, y, 16, 16, T.brick);
@@ -3306,50 +3314,65 @@
         }
         break;
       }
+      case T_Q: {                         // cache block — the one you strike
+        var qf = ((frame / 10) | 0) % 4;
+        var lit = qf === 0 ? T.qGlyph : (qf === 1 || qf === 3 ? T.glow : T.qFace);
+        rect(x, y, 16, 16, T.qFrame);
+        rect(x + 1, y + 1, 14, 14, T.qFace);
+        rect(x + 2, y + 2, 12, 12, T.qFrame);
+        rect(x + 1, y + 1, 14, 1, T.glow);
+        rect(x + 4, y + 4, 2, 2, lit); rect(x + 6, y + 6, 2, 2, lit);
+        rect(x + 4, y + 8, 2, 2, lit);
+        rect(x + 9, y + 4, 2, 2, lit); rect(x + 11, y + 6, 2, 2, lit);
+        rect(x + 9, y + 8, 2, 2, lit);
+        rect(x + 4, y + 11, 8, 1, lit);
+        break;
+      }
+      case T_USED:                        // spent: same block, light out
+        rect(x, y, 16, 16, T.qFrame);
+        rect(x + 1, y + 1, 14, 14, T.uFace);
+        rect(x + 2, y + 2, 12, 12, T.qFrame);
+        rect(x + 3, y + 3, 2, 2, T.uFace); rect(x + 11, y + 3, 2, 2, T.uFace);
+        rect(x + 3, y + 11, 2, 2, T.uFace); rect(x + 11, y + 11, 2, 2, T.uFace);
+        break;
       case T_STONE:
         rect(x, y, 16, 16, T.stone);
-        rect(x, y, 16, 2, '#e2e8f0');
-        rect(x, y, 2, 16, '#d2dae6');
-        rect(x, y + 14, 16, 2, '#5c6470');
-        rect(x + 14, y, 2, 16, '#5c6470');
-        rect(x + 3, y + 4, 3, 2, '#d2dae6');       // a little relief
-        rect(x + 9, y + 6, 4, 2, '#7f8896');
-        rect(x + 4, y + 10, 5, 2, '#7f8896');
+        rect(x, y, 16, 2, T.hwHi);
+        rect(x, y, 2, 16, T.hwHi);
+        rect(x, y + 14, 16, 2, T.hwLo);
+        rect(x + 14, y, 2, 16, T.hwLo);
+        rect(x + 4, y + 5, 4, 2, T.hwLo);
+        rect(x + 9, y + 9, 4, 2, T.hwLo);
         break;
-      // Conduits: dark casing, a lit data band down the middle, ribbed collar.
+      // Conduits: dark casing, a lit data band, ribbed collar — coloured from
+      // the theme so they never sink into the sky.
       case T_PIPE_TL:
-        rect(x, y, 16, 16, '#5a72a8');
-        rect(x + 1, y, 2, 16, '#2a3a66');
-        rect(x + 3, y, 3, 16, '#9fb4de');
-        rect(x + 6, y, 3, 16, '#2fc9e0');
-        rect(x, y, 16, 2, '#2a3a66');
-        rect(x, y + 2, 16, 1, '#cfe0ff');
-        rect(x, y + 13, 16, 1, '#3f558c');
-        rect(x, y + 14, 16, 2, '#2a3a66');
+        rect(x, y, 16, 16, T.hw);
+        rect(x + 1, y, 2, 16, T.hwLo);
+        rect(x + 3, y, 3, 16, T.hwHi);
+        rect(x + 6, y, 3, 16, T.glow);
+        rect(x, y, 16, 2, T.hwLo);
+        rect(x, y + 2, 16, 1, T.hwHi);
+        rect(x, y + 14, 16, 2, T.hwLo);
         break;
       case T_PIPE_TR:
-        rect(x, y, 16, 16, '#5a72a8');
-        rect(x + 13, y, 2, 16, '#2a3a66');
-        rect(x + 9, y, 4, 16, '#3f558c');
-        rect(x, y, 3, 16, '#2fc9e0');
-        rect(x, y, 16, 2, '#2a3a66');
-        rect(x, y + 2, 16, 1, '#cfe0ff');
-        rect(x, y + 13, 16, 1, '#3f558c');
-        rect(x, y + 14, 16, 2, '#2a3a66');
+        rect(x, y, 16, 16, T.hw);
+        rect(x + 13, y, 2, 16, T.hwLo);
+        rect(x, y, 3, 16, T.glow);
+        rect(x, y, 16, 2, T.hwLo);
+        rect(x, y + 2, 16, 1, T.hwHi);
+        rect(x, y + 14, 16, 2, T.hwLo);
         break;
       case T_PIPE_L:
-        rect(x, y, 16, 16, '#5a72a8');
-        rect(x + 2, y, 2, 16, '#2a3a66');
-        rect(x + 4, y, 3, 16, '#9fb4de');
-        rect(x + 7, y, 2, 16, '#2fc9e0');
-        if ((y >> 4 & 1) === 0) rect(x + 7, y + 4, 2, 8, '#5fe8ff');
+        rect(x, y, 16, 16, T.hw);
+        rect(x + 2, y, 2, 16, T.hwLo);
+        rect(x + 4, y, 3, 16, T.hwHi);
+        rect(x + 7, y, 2, 16, T.glow);
         break;
       case T_PIPE_R:
-        rect(x, y, 16, 16, '#5a72a8');
-        rect(x, y, 2, 16, '#2fc9e0');
-        rect(x + 8, y, 4, 16, '#3f558c');
-        rect(x + 12, y, 2, 16, '#2a3a66');
-        if ((y >> 4 & 1) === 0) rect(x, y + 4, 2, 8, '#5fe8ff');
+        rect(x, y, 16, 16, T.hw);
+        rect(x, y, 2, 16, T.glow);
+        rect(x + 12, y, 2, 16, T.hwLo);
         break;
       case T_COIN:
         draw(ctx, SPR[['coin', 'coin2', 'coin3', 'coin2'][((frame / 8) | 0) % 4]], x, y);
@@ -3368,10 +3391,10 @@
         break;
       }
       case T_PLAT:                        // a catwalk grating
-        rect(x, y, 16, 5, '#5a72a8');
-        rect(x, y, 16, 1, '#cfe0ff');
-        rect(x, y + 4, 16, 1, '#2a3a66');
-        for (var gi = 1; gi < 16; gi += 4) rect(x + gi, y + 1, 1, 3, '#3f558c');
+        rect(x, y, 16, 5, T.hw);
+        rect(x, y, 16, 1, T.hwHi);
+        rect(x, y + 4, 16, 1, T.hwLo);
+        for (var gi = 1; gi < 16; gi += 4) rect(x + gi, y + 1, 1, 3, T.hwLo);
         break;
       case T_CLOUD:
         rect(x, y, 16, 7, '#ffffff');
@@ -3381,16 +3404,16 @@
         rect(x + 10, y + 9, 4, 2, '#c4d8f0');
         break;
       case T_TREE_TOP:                    // hover platform
-        rect(x, y, 16, 9, '#5a72a8');
-        rect(x, y, 16, 2, '#cfe0ff');
-        rect(x, y + 7, 16, 2, '#2a3a66');
-        rect(x + 2, y + 9, 12, 2, '#2fc9e0');
-        rect(x + 5, y + 11, 6, 2, '#5fe8ff');
+        rect(x, y, 16, 9, T.hw);
+        rect(x, y, 16, 2, T.hwHi);
+        rect(x, y + 7, 16, 2, T.hwLo);
+        rect(x + 2, y + 9, 12, 2, T.glow);
+        rect(x + 5, y + 11, 6, 2, T.hwHi);
         break;
       case T_TREE:                        // its support column
-        rect(x + 5, y, 6, 16, '#3f558c');
-        rect(x + 6, y, 2, 16, '#9fb4de');
-        rect(x + 5, y + 6, 6, 2, '#2fc9e0');
+        rect(x + 5, y, 6, 16, T.hw);
+        rect(x + 6, y, 2, 16, T.hwHi);
+        rect(x + 5, y + 6, 6, 2, T.glow);
         break;
       case T_CANNON:
         rect(x, y, 16, 16, '#2a2a30'); rect(x, y + 2, 16, 3, '#5a5a66');
@@ -3411,11 +3434,11 @@
         break;
       }
       case T_VINE:                        // a hanging cable
-        rect(x + 6, y, 4, 16, '#3f558c');
-        rect(x + 7, y, 1, 16, '#cfe0ff');
-        rect(x + 4, y + 2, 8, 2, '#5a72a8');
-        rect(x + 4, y + 10, 8, 2, '#5a72a8');
-        rect(x + 7, y + 5, 2, 2, '#5fe8ff');
+        rect(x + 6, y, 4, 16, T.hwLo);
+        rect(x + 7, y, 1, 16, T.hwHi);
+        rect(x + 4, y + 2, 8, 2, T.hw);
+        rect(x + 4, y + 10, 8, 2, T.hw);
+        rect(x + 7, y + 5, 2, 2, T.glow);
         break;
       case T_AXE:
         rect(x + 6, y + 4, 3, 11, '#8a5a20');
@@ -4195,6 +4218,7 @@
   // one sprite's baked canvas, for eyeballing the art at magnification
   window.__crArt = function (n) { return SPR[n] ? SPR[n].c : null; };
   // a tile drawn to its own 16x16 canvas, for judging the scenery at 6x
+  window.__crThemeSky = function (name) { return THEME[name].sky; };
   window.__crTile = function (t) {
     var c = document.createElement('canvas'); c.width = 16; c.height = 16;
     var save = ctx;

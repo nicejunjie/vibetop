@@ -42,6 +42,50 @@ test.describe('circuit', () => {
     await expect(page.locator('#sm-games .sm-item[data-id="circuit"]')).toBeVisible();
   });
 
+  test('every tile READS against the sky it is drawn over', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__crTest.silence());
+    // Eyeballing a palette is how a staircase shipped at 1.02:1 against the sky
+    // and how the block you strike ended up invisible. Measure it: average the
+    // tile's opaque pixels and compare luminance with its own sector's sky.
+    const TILES = { ground: 1, brick: 2, cache: 3, used: 4, stone: 5, pipe: 6,
+                    coin: 10, structural: 13, catwalk: 16, hover: 22 };
+    const rows = await page.evaluate((TILES) => {
+      const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+      const lum = (r, g, b) => 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+      const out = [];
+      const levels = { overworld: 0, underground: 1, water: 2, castle: 4 };
+      for (const theme of Object.keys(levels)) {
+        window.__crTest.level(levels[theme]);
+        window.__crTest.step(120);
+        for (const name of Object.keys(TILES)) {
+          const c = window.__crTile(TILES[name]);
+          const d = c.getContext('2d').getImageData(0, 0, 16, 16).data;
+          const ls = [];
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] < 40) continue;
+            ls.push(lum(d[i], d[i + 1], d[i + 2]));
+          }
+          const n = ls.length;
+          if (!n) { out.push({ theme, name, ratio: 0, note: 'nothing drawn at all' }); continue; }
+          const s = hex(window.__crThemeSky(theme));
+          const sl = lum(s[0], s[1], s[2]) + 0.05;
+          ls.sort((a, b) => a - b);
+          const dark = ls[Math.floor(ls.length * 0.15)] + 0.05;
+          const light = ls[Math.floor(ls.length * 0.85)] + 0.05;
+          const cr = (a, b) => Math.max(a, b) / Math.min(a, b);
+          out.push({ theme, name, ratio: +Math.max(cr(dark, sl), cr(light, sl)).toFixed(2) });
+        }
+      }
+      return out;
+    }, TILES);
+
+    const bad = rows.filter((r) => r.ratio < 2.2)
+      .map((r) => `${r.theme}/${r.name} = ${r.ratio}:1${r.note ? ' (' + r.note + ')' : ''}`);
+    expect(bad, 'tiles that do not read against their own sky').toEqual([]);
+  });
+
   test('every sprite row is its declared width', async ({ page }) => {
     await page.goto('/circuit.html');
     await page.waitForFunction(() => !!window.__crSpriteWarnings);
