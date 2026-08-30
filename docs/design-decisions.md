@@ -4404,3 +4404,32 @@ original exact-bytes test stayed green through the whole breakage.
   ("everything that acts on a user's files"), fix the class. Grep for the
   vulnerable *pattern* (`_ctx_user()` in a handler), not for the endpoint in
   the ticket.
+
+## Stop fixing authentication one endpoint at a time
+
+- **Symptom:** three consecutive releases each fixed "the" missing auth gate
+  and each was followed by a sweep that found another. v1.19.106 gated
+  `/api/fs/*`; v1.19.114 gated its siblings (image bytes, share, tabs, office,
+  video, `/api/me`) after an audit minted a public share link with no cookie;
+  a sweep immediately after that found `POST /api/terminals/{n}/start`
+  **starting a shell as the service account** and `/api/notes` reading and
+  writing its home — both unauthenticated, both live.
+- **Cause:** the vulnerability is a property of the SOCKET, not of any
+  endpoint. `_ctx_user()` falls back to `APP_USER`, and the manager binds
+  127.0.0.1 where nginx's `auth_request` never runs. Every handler that took
+  its user from `_ctx_user()` inherited it. Fixing them individually meant the
+  next handler someone wrote inherited it too.
+- **Fix:** ONE gate in the `do_GET`/`do_POST` prologue (`_api_gate`): anything
+  under `/api/` requires a session unless it is on `_PUBLIC_EXACT` — the same
+  allowlist nginx uses, so the two cannot drift. The per-handler gates stay as
+  defence in depth. Auth now also runs BEFORE routing, so an unknown `/api`
+  path answers 401 rather than 404 and a cookieless caller cannot map the API.
+- **The tests were part of the problem, twice.** The endpoint suite called
+  everything cookielessly, so 45 tests encoded the vulnerable behaviour as
+  expected; the harness now sends a session by default and `cookie=ANON` is the
+  explicit, rare case. And the per-endpoint tests could only ever cover
+  endpoints someone thought of — so the new ones assert the STRUCTURE (every
+  path in two lists, plus "the public allowlist is exactly these"), which
+  covers an endpoint added tomorrow.
+- **Rule:** when a fix is structural, put the check where the structure is. A
+  rule enforced N times will be enforced N-1 times before long.

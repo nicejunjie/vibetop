@@ -111,8 +111,11 @@ def test_events_stream_opens_with_retry_and_hello(client):
     host, port = client.host.split(":")
     s = socket.create_connection((host, int(port)), timeout=5)
     try:
-        s.sendall(b"GET /api/events HTTP/1.1\r\nHost: %s\r\n\r\n"
-                  % client.host.encode())
+        # EventSource sends the session cookie; the raw socket must too, now
+        # that every /api path is gated centrally.
+        s.sendall(b"GET /api/events HTTP/1.1\r\nHost: %s\r\nCookie: %s\r\n\r\n"
+                  % (client.host.encode(),
+                     ("vt_session=" + client.mgr._sign_session(client.mgr.APP_USER)).encode()))
         s.settimeout(5)
         buf = b""
         while b"hello" not in buf and len(buf) < 4096:

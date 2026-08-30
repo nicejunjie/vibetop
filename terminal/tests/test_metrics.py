@@ -38,6 +38,11 @@ def server(mgr, monkeypatch):
         srv.shutdown()
 
 
+def _sess(mgr):
+    """A valid session for APP_USER — every /api path is gated centrally now."""
+    return "vt_session=" + mgr._sign_session(mgr.APP_USER)
+
+
 def _get(base, path):
     with urllib.request.urlopen(base + path, timeout=5) as r:
         return r.status, json.load(r)
@@ -52,16 +57,18 @@ def test_ping_is_trivially_ok(server):
 def test_metrics_counts_requests_and_statuses(server):
     for _ in range(3):
         _get(server, "/api/ping")
-    # A 404 to prove non-200s are tallied (and that 404 is NOT an error/5xx).
+    # A non-200 to prove they are tallied (and are NOT counted as 5xx errors).
+    # An unknown /api path answers 401 rather than 404 now: the gate runs before
+    # routing, so a cookieless caller cannot map the API surface.
     with pytest.raises(urllib.error.HTTPError) as ei:
         urllib.request.urlopen(server + "/api/nope", timeout=5)
-    assert ei.value.code == 404
+    assert ei.value.code == 401
 
     status, m = _get(server, "/api/metrics")
     assert status == 200
     assert m["requests_total"] >= 5                 # 3 pings + 404 + this metrics call
     assert m["responses"].get("200", 0) >= 3
-    assert m["responses"].get("404", 0) >= 1
+    assert m["responses"].get("401", 0) >= 1         # the unknown path, gated first
     assert m["errors_total"] == 0                   # a 404 is not a 5xx
     assert m["requests_in_flight"] >= 1             # this very request is in flight
     assert m["request_avg_seconds"] >= 0
@@ -77,7 +84,9 @@ def test_events_rejects_past_sse_cap(server, mgr):
         mgr._METRICS["sse_clients"] = mgr._SSE_MAX_CLIENTS
     try:
         with pytest.raises(urllib.error.HTTPError) as ei:
-            urllib.request.urlopen(server + "/api/events", timeout=5)
+            urllib.request.urlopen(
+                urllib.request.Request(server + "/api/events",
+                                       headers={"Cookie": _sess(mgr)}), timeout=5)
         assert ei.value.code == 503
     finally:
         with mgr._metrics_lock:

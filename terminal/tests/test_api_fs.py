@@ -261,3 +261,74 @@ def test_office_container_endpoints_stay_reachable(client):
     for p in ("/api/office/doc?path=x.docx", "/api/office/callback?path=x.docx"):
         status, _ = _raw(client, p)
         assert status != 401, f"{p} must stay reachable for the document server"
+
+
+# ---- the whole /api surface, not one endpoint at a time ---------------------
+# Three consecutive releases fixed this class one handler at a time and each
+# time a later sweep found another: /api/fs/* (v1.19.106), its siblings
+# (v1.19.114), then `POST /api/terminals/{n}/start` starting a shell as the
+# service account and /api/notes reading its home. The gate is structural now —
+# do_GET/do_POST refuse anything under /api that is not on nginx's own public
+# allowlist — and this test asserts the STRUCTURE, so a new endpoint is covered
+# the day it is added rather than the day someone remembers it.
+
+ALL_API_GET = [
+    "/api/me", "/api/notes", "/api/desktop", "/api/files/tabs",
+    "/api/terminals/status", "/api/terminals/names", "/api/terminals/schedules",
+    "/api/system/status", "/api/services/discover", "/api/events",
+    "/api/fs/home", "/api/file/image?path=x.png", "/api/share/list",
+    "/api/claude/usage", "/api/update", "/api/x/windows",
+    "/api/office/config?path=x.docx", "/api/video/info?path=x.mp4",
+    "/api/nope-does-not-exist",
+]
+
+ALL_API_POST = [
+    "/api/terminals/1/start", "/api/terminals/1/stop", "/api/terminals/names",
+    "/api/terminals/schedules", "/api/terminals/schedules/cancel",
+    "/api/notes", "/api/desktop", "/api/files/tabs", "/api/fs/op",
+    "/api/share", "/api/share/revoke", "/api/browser/open", "/api/browser/type",
+    "/api/upload", "/api/client-debug", "/api/x/launch", "/api/update",
+]
+
+
+@pytest.mark.parametrize("path", ALL_API_GET)
+def test_every_api_get_requires_a_session(client, path):
+    status, _ = _raw(client, path)
+    assert status == 401, f"GET {path} served an unauthenticated caller"
+
+
+@pytest.mark.parametrize("path", ALL_API_POST)
+def test_every_api_post_requires_a_session(client, path):
+    status, _ = _raw(client, path, "POST", b"{}")
+    assert status == 401, f"POST {path} served an unauthenticated caller"
+
+
+@pytest.mark.parametrize("path", [
+    "/api/ping", "/api/health", "/api/metrics", "/api/login", "/api/logout",
+    "/api/office/doc?path=x.docx", "/api/office/callback?path=x.docx",
+])
+def test_the_public_allowlist_stays_reachable(client, path):
+    """The gate must not swallow the paths that are public ON PURPOSE: the
+    liveness/metrics probes, the login flow, and the two endpoints the
+    OnlyOffice container calls with its own HMAC. (/api/authcheck is public too
+    but ANSWERS 401 by design — it is nginx's auth_request target — so its
+    reachability is asserted below instead of by status code.)"""
+    status, _ = _raw(client, path)
+    assert status != 401, f"{path} is on the public allowlist but answered 401"
+
+
+def test_authcheck_still_reaches_its_handler(client, mgr):
+    """It is on the allowlist, and a 401 from it is the handler doing its job.
+    Prove the GATE is not what answered: with a session it says 200."""
+    cookie = "vt_session=" + mgr._sign_session(mgr.APP_USER)
+    status, _ = _raw(client, "/api/authcheck", headers={"Cookie": cookie})
+    assert status == 200
+
+
+def test_the_gate_uses_the_same_allowlist_as_nginx(mgr):
+    """One list, so the manager and nginx cannot drift apart."""
+    for p in ("/api/ping", "/api/office/doc", "/api/authcheck"):
+        assert mgr._is_public_path(p)
+    for p in ("/api/notes", "/api/fs/list", "/api/terminals/1/start",
+              "/api/office/download", "/api/office/doc-anything"):
+        assert not mgr._is_public_path(p)

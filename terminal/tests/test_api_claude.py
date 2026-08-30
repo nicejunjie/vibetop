@@ -14,8 +14,10 @@ def test_usage_disabled_by_default(client, op_cookie):
 def test_usage_requires_admin_session(client):
     # Operator-only surface: a cookieless direct-to-loopback call must not read or
     # toggle the operator's Claude proxy routing.
-    assert client.get("/api/claude/usage", cookie=ANON)[0] == 403
-    assert client.post("/api/claude/usage", {"enabled": True}, cookie=ANON)[0] == 403
+    # 401, not 403: with no session the caller is not "the wrong user", it is
+    # nobody. The admin check still applies once a session exists.
+    assert client.get("/api/claude/usage", cookie=ANON)[0] == 401
+    assert client.post("/api/claude/usage", {"enabled": True}, cookie=ANON)[0] == 401
 
 
 def test_enable_wires_base_url_into_settings(client, mgr, stubs, op_cookie):

@@ -4020,8 +4020,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+
+    def _api_gate(self):
+        """ONE authentication gate for the whole /api surface.
+
+        Fixing these endpoint by endpoint kept missing one: v1.19.106 did
+        /api/fs/*, v1.19.114 did its siblings, and a sweep right after that
+        still found `POST /api/terminals/{n}/start` starting a shell as the
+        service account and /api/notes reading and writing its home. The rule
+        is structural, so the check is too: on THIS socket a cookieless caller
+        is a local tenant (nginx's auth_request would have 401'd a proxied
+        request first), so everything under /api requires a session except the
+        paths nginx itself lets through — the same `_PUBLIC_EXACT` allowlist,
+        so the two can never drift apart.
+
+        Returns True when the request may proceed; otherwise it has already
+        answered 401."""
+        p = self.path.split("?", 1)[0]
+        if not p.startswith("/api/"):
+            return True
+        if _is_public_path(p):
+            return True
+        return bool(self._require_authed())
+
     def do_POST(self):
         self._bind_request_user()
+        if not self._api_gate():
+            return
         # The OnlyOffice container's save callback is a server-to-server POST
         # authenticated by its own path HMAC (t=) + a required JWT, not a browser
         # request — exempt it from the Origin/CSRF gate so a proxy that injected
@@ -6597,6 +6622,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         self._bind_request_user()
+        if not self._api_gate():
+            return
         if self.path == "/api/authcheck":
             return self._handle_authcheck()
         if self.path == "/api/ping":

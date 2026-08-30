@@ -138,17 +138,26 @@
      the listing (an in-flow bar broke double-click — the first click's bar
      pushed the rows down under the cursor) and bottom = thumb-reachable. */
   .actbar {
-    display: none; position: fixed; left: 50%; transform: translateX(-50%);
-    bottom: 14px; z-index: 5; align-items: center; gap: 6px;
+    display: none; position: fixed; left: 6px; right: 6px;
+    bottom: 14px; z-index: 5; align-items: center; justify-content: center;
+    gap: 6px; row-gap: 6px;
+    /* WRAP at every width. A fixed box anchored at left:50% can only shrink-to-
+       fit into the half-viewport to its right, and the wrap rule used to live
+       in the phone media query — so on a touch tablet the verbs simply ran off
+       the right edge (measured: Delete clipped at 834px, Download and Delete
+       gone at 760px) with the scrollbar hidden and nothing to hint at it. */
+    flex-wrap: wrap;
     padding: 6px 8px; background: #161b22; border: 1px solid #2a3040;
     border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
-    max-width: min(96vw, 900px);   /* the full 10-verb office set fits unscrolled on desktop */
-    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    margin: 0 auto; max-width: 900px;
     user-select: none; -webkit-user-select: none;
   }
-  .actbar::-webkit-scrollbar { display: none; }
   .actbar.on { display: flex; }
-  .actbar.on ~ .main { padding-bottom: 62px; }   /* last rows stay reachable under the pill */
+  /* Room BELOW the last row for the pill, plus a band that is still empty —
+     tapping empty space is the documented way to clear a selection on touch,
+     and in a folder taller than the screen there was none. Kept in step with
+     the pill's real height by syncPillGap(). */
+  .actbar.on ~ .main { padding-bottom: var(--pill-gap, 92px); }
   .actbar .cnt { flex: 0 0 auto; font-size: 12px; color: #aab4c5; padding: 0 4px 0 6px; white-space: nowrap; }
   .actbar .sp { flex: 0 0 2px; }
   .actbar button:disabled { opacity: .4; cursor: default; }
@@ -163,7 +172,7 @@
      the thumb-reachable bottom bar is the only always-visible way to act). */
   @media (hover: hover) and (pointer: fine) {
     .actbar.on { display: none; }
-    .actbar.on ~ .main { padding-bottom: 0; }
+    .actbar.on ~ .main { padding-bottom: 0; }   /* no pill with a mouse */
   }
 
   /* in-place audio player (a docked strip, so the listing stays usable) */
@@ -374,7 +383,14 @@
   }
   .statusbar .sb-sel { color: #cdd5e1; }
   .statusbar .sb-free { margin-left: auto; }
-  @media (max-width: 736px) { .statusbar { display: none; } }
+  /* The phone keeps the status bar — it was the only place a selection count
+     lived there, and hiding it left "3 selected" visible on no surface at all.
+     It drops the free-space segment, which is the least useful part on a
+     phone and the widest. */
+  @media (max-width: 736px) {
+    .statusbar { font-size: 11px; gap: 10px; padding: 3px 10px; }
+    .statusbar .sb-free { display: none; }
+  }
 
   /* quiet centered states: loading / empty / error */
   .state {
@@ -653,15 +669,10 @@
     /* Span both edges instead of shrink-to-fitting from left:50% — a fixed box
        anchored at 50% may only use the RIGHT HALF of the viewport, which is
        what folded these ten verbs into a four-row wall. */
-    .actbar {
-      left: 6px; right: 6px; transform: none; max-width: none;
-      padding: 6px 8px; bottom: 12px;
-      flex-wrap: wrap; justify-content: center; row-gap: 6px; overflow-x: visible;
-    }
+    .actbar { bottom: 12px; }
     .actbar button { min-height: 40px; font-size: 13px; padding: 5px 9px; }
     .actbar button:disabled { display: none; }
     .actbar .dv { display: none; }
-    .actbar.on ~ .main { padding-bottom: 132px; }
     /* two-line rows: the full name on top (up to 2 lines — never mid-truncated
        while the right side sits empty), a muted "date · size" subtitle under
        it; the desktop size/date columns disappear (they were what squeezed
@@ -768,6 +779,7 @@
   <div class="ed" id="ed" role="dialog" aria-modal="true" aria-label="Editor">
     <div class="pv-head">
       <span class="pv-name" id="ed-title"><span id="ed-dirty" title="Unsaved changes">●</span><span id="ed-name"></span></span>
+      <button id="ed-find-btn" title="Find and replace (Ctrl+F)" aria-label="Find and replace"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></svg></button>
       <button id="ed-save" title="Save (Ctrl+S)">Save</button>
       <button id="ed-close" title="Close (Esc)">✕</button>
     </div>
@@ -1022,6 +1034,7 @@
     { id: 'grid', label: 'Grid' },
     { id: 'gallery', label: 'Gallery' }
   ];
+  var filterText = '';           // live narrowing of the CURRENT folder
   var view = 'list';
   try { view = localStorage.getItem('fsx.view') || 'list'; } catch (e) {}
   if (!VIEWS.some(function(v) { return v.id === view; })) view = 'list';
@@ -1067,7 +1080,11 @@
     crumbsEl.scrollLeft = crumbsEl.scrollWidth;   // deepest folder always visible
   }
   function visibleRows() {
-    var v = entries.filter(function(e) { return showHidden || e.name.charAt(0) !== '.'; });
+    var q = filterText.toLowerCase();
+    var v = entries.filter(function(e) {
+      if (!showHidden && e.name.charAt(0) === '.') return false;
+      return !q || e.name.toLowerCase().indexOf(q) !== -1;
+    });
     var dir = sortAsc ? 1 : -1;
     v.sort(function(a, b) {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;      // folders always first
@@ -1137,6 +1154,16 @@
     }
     renderActions();
   }
+  // The listing reserves the pill's REAL height plus a 56px band that stays
+  // empty, so "tap empty space to clear the selection" is true even in a folder
+  // taller than the screen — where previously there was no empty pixel at all.
+  function syncPillGap() {
+    var on = actbarEl.classList.contains('on');
+    var h = on ? Math.ceil(actbarEl.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty('--pill-gap', (h ? h + 56 : 0) + 'px');
+  }
+  window.addEventListener('resize', syncPillGap);
+
   var statusEl = document.getElementById('statusbar');
   var freeCache = { path: null, text: '' };
   function renderStatus() {
@@ -1185,6 +1212,7 @@
     }
     renderStatus();
     var on = selCount > 0 || selectMode;
+    setTimeout(syncPillGap, 0);          // after the pill has laid out
     selectBtn.setAttribute('aria-pressed', selectMode ? 'true' : 'false');
     actbarEl.classList.toggle('on', on);
     // Keep a live toast clear of the pill — but the pill only exists on touch;
@@ -1225,6 +1253,8 @@
       var small = MQ_MOBILE.matches;
       document.querySelector('#a-browser .abl').textContent = small ? 'Browser' : 'Open in Browser';
       document.getElementById('selcnt').style.display = (small && oneSel) ? 'none' : '';
+      // (a single selection hides the pill's own count because the status bar
+      // below already says "1 selected" — but the bar must therefore exist)
     }
   }
   function clearSel(quiet) {
@@ -1321,9 +1351,10 @@
     if (!rows.length) {
       applyView('list');        // a state card is not a grid tile
       var hid = entries.length - rows.length;
-      var msg = hid > 0
-        ? hid + ' hidden item' + (hid === 1 ? '' : 's') + ' — use “Hidden” to show them'
-        : 'Empty folder';
+      var msg;
+      if (filterText) msg = 'No name in this folder contains “' + filterText + '” — press Enter to search subfolders';
+      else if (hid > 0) msg = hid + ' hidden item' + (hid === 1 ? '' : 's') + ' — turn on “Show hidden files” in Settings';
+      else msg = 'Empty folder';
       mainEl.appendChild(stateEl([el('div', 'big', msg)]));
       renderActions();
       return;
@@ -1354,6 +1385,7 @@
       frag.appendChild(r);
     });
     mainEl.appendChild(frag);
+    if (searchOpen) updateScope();
     if (pendingFocusName) {
       for (var i = 0; i < rows.length; i++) {
         if (rows[i].name === pendingFocusName) { setOnly(i); break; }
@@ -1402,7 +1434,12 @@
   function load(p, keepScroll) {
     var my = ++seq;
     var st = keepScroll ? mainEl.scrollTop : 0;
-    if (p !== path) { clearSel(true); if (selectMode) { selectMode = false; mainEl.classList.remove('selmode'); } }
+    if (p !== path) {
+      clearSel(true);
+      filterText = '';                      // a filter belongs to one folder
+      if (searchOpen && !searchActive) sqEl.value = '';
+      if (selectMode) { selectMode = false; mainEl.classList.remove('selmode'); }
+    }
     // Quiet delayed loading state — no flash on fast responses.
     setTimeout(function() {
       if (seq === my && path === p && !mainEl.childNodes.length) {
@@ -3017,6 +3054,9 @@
   document.getElementById('ed-rep').addEventListener('click', edReplaceOne);
   document.getElementById('ed-repall').addEventListener('click', edReplaceAll);
   document.getElementById('ed-fx').addEventListener('click', edCloseFind);
+  document.getElementById('ed-find-btn').addEventListener('click', function() {
+    if (edFind.hidden) edOpenFind(); else edCloseFind();
+  });
 
   function openEditor(absPath, name, text, mtime, gotoLine) {
     edReturnFocus = document.activeElement;
@@ -3158,19 +3198,27 @@
 
   function updateScope() {
     var label = path ? ((HOME && path === HOME) ? 'Home' : baseOf(path)) : '';
-    scopeEl.textContent = 'in ' + label;
+    if (filterText && !searchActive && searchMode === 'names') {
+      // Say what typing is already doing, and what Enter would do instead.
+      scopeEl.textContent = rows.length + ' in ' + label + ' · Enter to search subfolders';
+    } else {
+      scopeEl.textContent = 'in ' + label;
+    }
     scopeEl.title = path || '';
   }
   function openSearch() {
     searchOpen = true;
+    filterText = '';
     sbarEl.classList.add('on');
     searchBtn.setAttribute('aria-pressed', 'true');
     updateScope();
     sqEl.focus(); sqEl.select();
   }
   function closeSearch() {
-    var wasActive = searchActive;
+    var wasActive = searchActive || !!filterText;
     searchOpen = false; searchActive = false;
+    filterText = '';
+    sqEl.value = '';
     searchSeq++;                                             // drop in-flight results
     sbarEl.classList.remove('on');
     searchBtn.setAttribute('aria-pressed', 'false');
@@ -3292,6 +3340,14 @@
   sqEl.addEventListener('keydown', function(ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); runSearch(); }
     else if (ev.key === 'Escape') { ev.preventDefault(); closeSearch(); }
+  });
+  // Filter as you type, in this folder only. Enter still runs the recursive
+  // search (and content mode has nothing to filter locally, so it just waits).
+  sqEl.addEventListener('input', function() {
+    if (searchActive || searchMode !== 'names') return;
+    filterText = sqEl.value.trim();
+    updateScope();
+    renderList();
   });
 
   // ---- toolbar wiring ----
@@ -3493,6 +3549,17 @@
       // Empty area: the folder's own verbs, like Explorer's background menu.
       items.push({ label: 'New Folder', run: newFolder });
       items.push({ label: 'New File', run: newFile });
+      if (rows.length) {
+        items.push({ sep: true });
+        items.push({
+          label: 'Select All',
+          run: function() {
+            selected = nameMap(); selCount = 0;
+            rows.forEach(function(e) { selected[e.name] = true; selCount++; });
+            syncSelDom();
+          }
+        });
+      }
       items.push({ sep: true });
       items.push({ label: 'Upload Files…', run: function() { fileInput.click(); } });
       items.push({ label: 'Upload Folder…', run: function() { dirInput.click(); } });
