@@ -4471,3 +4471,50 @@ original exact-bytes test stayed green through the whole breakage.
   schedule — it is coverage of the renderer. Same lesson as the Files geometry
   audit (`files-native-layout.spec.js`): behavioural tests asserted what the
   controls *did* and never *where they were*.
+
+## `undefined <= 0` is false, and it has now cost two features
+
+- **Symptom:** in Super Vibe Bros, swimming UP never worked — not once, in any
+  build, on any platform. Separately, holding Up against a beanstalk never
+  grabbed it.
+- **Cause, both times, the same shape:** a field read before it was ever
+  assigned.
+  - `if (jumpBuffer > 0 && p.swimCool <= 0)` — `p.swimCool` was initialised
+    only *inside* that branch, so on a fresh player it was `undefined`,
+    `undefined <= 0` evaluated to **false**, and the branch that would have set
+    it could never run. A self-sealing bug: the gate is the only writer.
+  - `IN.up` was read by the vine grab and the climb loop, but the `IN` object
+    literal never had an `up` field and `readInput()` never set one.
+- **Why nothing caught it:** both features "worked" in the sense that nothing
+  threw and the surrounding code ran. The water level rendered, the player
+  floated, the vine grew — only the one behaviour that mattered was silently
+  absent. A smoke test that asserts "the level loads and no errors appear"
+  passes with full marks.
+- **Fix:** every field the player object uses is now declared in
+  `newPlayer()` (`wet, swimCool, stroke, boost, climbCol`), and `IN`/`GP`
+  declare every key they carry. The tests assert the BEHAVIOUR — "one stroke
+  lifts you two tiles", "holding Up puts you in climb mode" — not the absence
+  of errors.
+- **Rule:** in a codebase without types, an object literal IS the type
+  declaration. A field that some code path reads must appear in the literal
+  that creates the object, even when its initial value is falsy — otherwise
+  the first comparison against it is a coin flip whose result is usually
+  "quietly do nothing".
+
+## Water is a property of the TILE, not of the level
+
+- **Decision:** swimming is decided by `WET[tileAtChest]`, not by a
+  `level.water` flag.
+- **Why it mattered immediately:** world 1-3's flagpole. Every other level ends
+  by walking into a pole, and a pole underwater looks absurd; with a level-wide
+  flag the options were a bespoke "exit pipe finishes the level" path or an odd
+  ending. Per-tile water made the answer trivial — the last twenty columns are
+  simply not flooded, so you swim to the end, walk out onto the seabed and take
+  the flag exactly like every other world.
+- **What it costs:** two things had to learn that empty is not nothing. The
+  render loop used to `continue` on an empty tile, which left a collected coin
+  as an untinted navy hole in the sea; and any tile placed in the water region
+  (coins, ? blocks) drew on the raw sky unless the cell was tinted first.
+- **Rejected:** a level-wide flag plus a separate "water level" code path. It
+  is less code on day one and it forecloses every mixed level afterwards —
+  a flooded basement, a lake in the middle of an overworld — for no benefit.

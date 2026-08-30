@@ -483,6 +483,33 @@ test.describe('mario', () => {
     expect(after.x).toBeGreaterThan(before.x + 30);
   });
 
+  test('the whole game can be finished', async ({ page }) => {
+    test.slow();
+    await boot(page);
+    // Five flagpoles, five cards, then the victory screen. Every other test
+    // checks a piece; nobody had ever run the arc end to end.
+    const flags = { '1-1': 200, '1-2': 186, '1-3': 178, '1-4': 189, '1-5': 166 };
+    for (let w = 0; w < 5; w++) {
+      const here = (await snap(page)).level;
+      expect(flags[here], `unexpected world ${here}`).toBeDefined();
+      await page.evaluate(() => window.__marioTest.clear());
+      await page.evaluate((x) => window.__marioTest.place(x - 2, 13), flags[here]);
+      await page.waitForTimeout(300);
+      await page.keyboard.down('ArrowRight');
+      await page.waitForTimeout(1400);
+      await page.keyboard.up('ArrowRight');
+      await expect(page.locator('#overlay.show')).toBeVisible({ timeout: 30000 });
+      if (w < 4) {
+        await expect(page.locator('#ovTitle')).toHaveText(/cleared/);
+        await page.locator('#ovGo').click();
+        await expect.poll(async () => (await snap(page)).state, { timeout: 12000 }).toBe('play');
+      } else {
+        await expect(page.locator('#ovTitle')).toHaveText(/kingdom/i);
+        expect((await snap(page)).state).toBe('win');
+      }
+    }
+  });
+
   test('every world boots and plays', async ({ page }) => {
     await boot(page);
     for (const i of [1, 2, 3, 4]) {
