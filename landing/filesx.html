@@ -448,6 +448,14 @@
   }
   .pick-row:hover { background: #1c2431; }
   .pick-empty { padding: 10px; color: #7d879b; font-size: 12.5px; }
+  .pick-row.on { background: #241a38; box-shadow: inset 0 0 0 1px #8a4adb; }
+  .pick-row .tr-name { display: block; }
+  .pick-row .tr-from {
+    display: block; font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #7d879b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mbtns .danger { color: #f1b3b3; }
+  .mbtns .danger:disabled { opacity: .4; cursor: default; }
 
   /* Settings card */
   .sett { display: flex; flex-direction: column; gap: 2px; width: 100%; min-width: 0; }
@@ -520,6 +528,13 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .toast.err { border-color: #5a2c33; color: #f1b3b3; white-space: normal; }
+  /* an action ON the toast — the undo belongs where the thing just happened,
+     not behind a shortcut nobody knows about */
+  .toast-act {
+    margin-left: 14px; background: none; border: 0; color: #b79be8; cursor: pointer;
+    font: 600 13px system-ui, sans-serif; padding: 2px 4px; border-radius: 5px;
+  }
+  .toast-act:hover { color: #d4c1f5; text-decoration: underline; }
 
   /* ---- text preview overlay ---- */
   .pv { position: fixed; inset: 0; z-index: 10; display: none; flex-direction: column; background: #0e1117; }
@@ -1013,10 +1028,19 @@
 
   // ---- toast (mutation feedback; never alert()) ----
   var toastEl = null, toastTimer = null;
-  function toast(msg, isErr) {
+  function toast(msg, isErr, action) {
     if (toastEl) toastEl.remove();
     clearTimeout(toastTimer);
     toastEl = el('div', 'toast' + (isErr ? ' err' : ''), msg);
+    if (action) {
+      var ab = el('button', 'toast-act', action.label);
+      ab.addEventListener('click', function() {
+        if (toastEl) { toastEl.remove(); toastEl = null; }
+        clearTimeout(toastTimer);
+        action.run();
+      });
+      toastEl.appendChild(ab);
+    }
     toastEl.setAttribute('role', isErr ? 'alert' : 'status');
     toastEl.setAttribute('aria-live', isErr ? 'assertive' : 'polite');
     // float above the selection pill when it's showing
@@ -1024,7 +1048,7 @@
     document.body.appendChild(toastEl);
     toastTimer = setTimeout(function() {
       if (toastEl) { toastEl.remove(); toastEl = null; }
-    }, isErr ? 6000 : 3200);
+    }, isErr ? 6000 : (action ? 8000 : 3200));    // an offer needs time to take
   }
 
   // Layout (the classic app's view switcher): list | grid | gallery, remembered
@@ -1732,6 +1756,96 @@
     return raw.length > 120 ? raw.slice(0, 117) + '…' : raw;
   }
 
+  // -- Trash: what "Delete" now means, and the way back ---------------------
+  function openTrash() {
+    var m = rawCard('Trash');
+    var box = el('div', 'pick');
+    var listEl = el('div', 'pick-list');
+    var note = el('div', 'sett-hint', '');
+    box.appendChild(note);
+    box.appendChild(listEl);
+    m.card.appendChild(box);
+    var btns = el('div', 'mbtns');
+    var empty = el('button', 'mcancel danger', 'Empty Trash');
+    var done = el('button', 'mok', 'Done');
+    done.addEventListener('click', m.close);
+    btns.appendChild(empty); btns.appendChild(done);
+    m.card.appendChild(btns);
+
+    var picked = nameMap(), pickedN = 0;
+    function draw() {
+      listEl.textContent = 'Loading…';
+      api('/api/fs/trashList').then(function(d) {
+        listEl.textContent = '';
+        var items = (d && d.entries) || [];
+        note.textContent = items.length
+          ? 'Select items to put back where they came from.'
+          : 'The Trash is empty.';
+        empty.disabled = !items.length;
+        done.textContent = pickedN ? 'Put back ' + pickedN : 'Done';
+        items.forEach(function(e) {
+          var b = el('button', 'pick-row' + (picked[e.trashName] ? ' on' : ''));
+          b.appendChild(el('span', 'tr-name', (e.isDir ? '📁  ' : '📄  ') + e.name));
+          b.appendChild(el('span', 'tr-from', e.origin || 'unknown origin'));
+          b.title = e.origin || '';
+          b.addEventListener('click', function() {
+            if (picked[e.trashName]) { delete picked[e.trashName]; pickedN--; }
+            else { picked[e.trashName] = true; pickedN++; }
+            draw();
+          });
+          listEl.appendChild(b);
+        });
+      }).catch(function() { listEl.textContent = 'Could not read the Trash'; });
+    }
+    done.addEventListener('click', function() {
+      if (!pickedN) return;                       // plain Done
+      var names = Object.keys(picked);
+      m.close();
+      fsop({ op: 'untrash', names: names }).then(function(d) {
+        opResult(d, 'Put back ' + names.length + ' item' + (names.length === 1 ? '' : 's'));
+        refresh();
+      }).catch(function() { toast('Could not put those back', true); });
+    });
+    empty.addEventListener('click', function() {
+      cardChoice({
+        title: 'Empty the Trash?',
+        msg: 'Everything in it is deleted permanently. This cannot be undone.',
+        buttons: [
+          { label: 'Cancel', value: false, cancel: true },
+          { label: 'Empty Trash', value: true, danger: true }
+        ],
+        escValue: false, focusValue: false
+      }).then(function(yes) {
+        if (!yes) return;
+        fsop({ op: 'trashEmpty' }).then(function(d) {
+          if (d && d.ok) toast('Trash emptied — ' + (d.removed || 0) + ' item' + (d.removed === 1 ? '' : 's'));
+          else toast(friendlyErr(d || {}), true);
+          draw();
+        }).catch(function() { toast('Could not empty the Trash', true); });
+      });
+    });
+    draw();
+  }
+
+  // -- Open Terminal here --------------------------------------------------
+  function openTerminalHere() {
+    if (!path) return;
+    var target = path;
+    // A folder is selected: that is the one you mean.
+    var e1 = selEntry();
+    if (e1 && e1.isDir) target = joinPath(path, e1.name);
+    toast('Opening a terminal…');
+    fetch('/api/terminals/open-at', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: target })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d || !d.ok) { toast(friendlyErr(d || {}), true); return; }
+      toast('Terminal ' + d.instance + ' — ' + baseOf(target) +
+            (d.cd ? '' : ' (could not change directory)'));
+      try { (window.top || window).postMessage({ type: 'open-terminal', term: d.instance }, '*'); } catch (err) {}
+    }).catch(function() { toast('Could not open a terminal', true); });
+  }
+
   // -- Move to… : a real destination picker. Cut+Paste and drag-to-folder both
   //    work, but neither can reach a folder you are not already looking at. --
   function moveToPicker() {
@@ -1922,21 +2036,45 @@
       if (focusBtn) focusBtn.focus();
     });
   }
+  // Delete moves to the desktop trash (~/.local/share/Trash — the same bin
+  // GNOME Files uses), so the app's most dangerous verb stops being its only
+  // irreversible one. No confirmation: it is recoverable, and the toast offers
+  // Undo. Permanent deletion is a separate, explicit verb that still asks.
   function doDelete() {
+    if (!selCount) return;
+    var names = selNames(), paths = selPaths(), n = names.length;
+    fsop({ op: 'trash', paths: paths }).then(function(d) {
+      var trashed = (d.results || []).filter(function(r) { return r.ok && r.trashName; });
+      if (!opResult(d, null)) { refresh(); return; }
+      if (selectMode) exitSelectMode();
+      toast('Moved ' + n + ' item' + (n === 1 ? '' : 's') + ' to Trash', false, {
+        label: 'Undo',
+        run: function() {
+          fsop({ op: 'untrash', names: trashed.map(function(r) { return r.trashName; }) })
+            .then(function(u) { opResult(u, 'Put back'); refresh(); })
+            .catch(function() { toast('Could not put those back', true); });
+        }
+      });
+      refresh();
+    }).catch(function() { toast('Delete failed — network error', true); });
+  }
+
+  function doDeleteForever() {
     if (!selCount) return;
     var names = selNames();
     cardChoice({
-      title: 'Delete ' + selCount + ' item' + (selCount === 1 ? '' : 's') + '? This can’t be undone.',
+      title: 'Delete ' + selCount + ' item' + (selCount === 1 ? '' : 's') + ' permanently?',
+      msg: 'This does NOT go to the Trash and cannot be undone.',
       names: names,
       buttons: [
         { label: 'Cancel', value: false, cancel: true },
-        { label: 'Delete', value: true, danger: true }
+        { label: 'Delete permanently', value: true, danger: true }
       ],
-      defaultValue: true, escValue: false, focusValue: true
+      escValue: false, focusValue: false
     }).then(function(yes) {
       if (!yes) return;
       fsop({ op: 'delete', paths: selPaths() }).then(function(d) {
-        opResult(d, 'Deleted ' + names.length + ' item' + (names.length === 1 ? '' : 's'));
+        opResult(d, 'Deleted ' + names.length + ' item' + (names.length === 1 ? '' : 's') + ' permanently');
         if (selectMode) exitSelectMode();
         refresh();
       }).catch(function() { toast('Delete failed — network error', true); });
@@ -3487,6 +3625,7 @@
            function(v) { showThumbs = v; renderList(); });
 
     box.appendChild(el('div', 'sett-head', 'Manage'));
+    action('Trash…', 'Files you deleted — put them back, or empty the bin.', openTrash);
     action('Share links…', 'See, copy and revoke the public links you created.', manageShares);
     action('Open the classic Files app', 'The old FileBrowser-based view, at this same folder.', openManage);
 
@@ -3545,8 +3684,11 @@
       if (clip) items.push({ label: 'Paste (' + clip.paths.length + ')', run: doPaste });
       items.push({ sep: true });
       items.push({ label: 'Delete', danger: true, run: doDelete });
+      items.push({ label: 'Delete permanently…', danger: true, run: doDeleteForever });
     } else {
       // Empty area: the folder's own verbs, like Explorer's background menu.
+      items.push({ label: 'Open Terminal here', run: openTerminalHere });
+      items.push({ sep: true });
       items.push({ label: 'New Folder', run: newFolder });
       items.push({ label: 'New File', run: newFile });
       if (rows.length) {

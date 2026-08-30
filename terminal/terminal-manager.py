@@ -4062,6 +4062,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._handle_logout()
         if self.path == "/api/logout/all":
             return self._handle_logout_all()
+        if self.path == "/api/terminals/open-at":
+            return self._handle_terminal_open_at()
         m = re.match(r"/api/terminals/(\d+)/(start|stop)$", self.path)
         if m:
             return self._handle_terminal(m)
@@ -5311,7 +5313,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             req = json.loads(body or "{}")
         except json.JSONDecodeError:
             return self._json(400, {"ok": False, "error": "invalid json", "code": "einval"})
-        if req.get("op") not in ("mkdir", "rename", "move", "copy", "delete"):
+        if req.get("op") not in ("mkdir", "rename", "move", "copy", "delete",
+                                 "trash", "untrash", "trashEmpty"):
             return self._json(400, {"ok": False, "error": "unknown op", "code": "einval"})
         ok, err = _ensure_fileagent(user)
         if not ok:
@@ -5432,7 +5435,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         u = urllib.parse.urlparse(self.path)
         op = u.path.rsplit("/", 1)[-1]
-        if op not in ("home", "list", "stat", "read", "search", "hash", "usage"):
+        if op not in ("home", "list", "stat", "read", "search", "hash", "usage",
+                      "trashList"):
             return self._json(404, {"ok": False, "error": "unknown op", "code": "einval"})
         q = urllib.parse.parse_qs(u.query)
         req = {"op": op}
@@ -5910,6 +5914,60 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _chown_app(dst, user)
         except Exception as e:
             log.warning("office: save-back failed from %s: %s", local, e)
+
+
+    def _handle_terminal_open_at(self):
+        """POST /api/terminals/open-at {path} — start a terminal for THIS user
+        and drop it in `path`.
+
+        The scheduler could already inject text, but it ticks every 15s, so
+        "open a terminal here" would sit there doing nothing for up to a
+        quarter of a minute. This injects immediately. It is strictly less
+        powerful than the schedule API it borrows from: the only thing it can
+        ever type is a `cd` to one directory, and it types it into a shell the
+        caller owns and could open by hand."""
+        user = self._require_authed()
+        if not user:
+            return
+        raw = self._read_body(64 * 1024)
+        if raw is None:
+            return self._json(400, {"error": "invalid body"})
+        try:
+            data = json.loads(raw or b"{}")
+        except ValueError:
+            return self._json(400, {"error": "invalid json"})
+        path = (data.get("path") or "").strip()
+        if not path.startswith("/") or "\n" in path or "\r" in path or "\x00" in path:
+            return self._json(400, {"error": "path must be one absolute line"})
+        # Reuse a terminal the caller asked for, else the lowest free slot.
+        running = _cached("running_terminals:" + user, 2.0,
+                          lambda: _list_running_terminals(user))
+        n = data.get("term")
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            n = None
+        if not n or n < 1 or n > MAX_INSTANCE:
+            n = next((i for i in range(1, MAX_INSTANCE + 1) if i not in running), None)
+            if n is None:
+                return self._json(409, {"error": "all terminals are in use"})
+        if n not in running:
+            ok, res = _start_user_terminal(user, n)
+            _cache.pop("running_terminals:" + user, None)
+            if not ok:
+                log.warning("terminal %s-%d start (open-at) failed: %s", user, n, res)
+                return self._json(500, {"error": str(res)})
+            _metric_inc("terminals_started_total")
+        # POSIX single-quoting: the only unsafe character inside '' is ' itself.
+        quoted = "'" + path.replace("'", "'\\''") + "'"
+        ok, err = _inject_terminal(user, n, "cd -- " + quoted)
+        if not ok:
+            # The terminal is up either way — say so, and let the UI still switch
+            # to it rather than pretending nothing happened.
+            log.warning("open-at cd injection failed for %s-%d: %s", user, n, err)
+            return self._json(200, {"ok": True, "instance": n, "cd": False, "error": str(err)})
+        log.info("terminal %s-%d opened at %s", user, n, path)
+        return self._json(200, {"ok": True, "instance": n, "cd": True})
 
     def _handle_terminal(self, m):
         n, action = int(m.group(1)), m.group(2)

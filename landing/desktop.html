@@ -3260,6 +3260,9 @@
     if (e.origin !== location.origin) return;
     if (!e.data) return;
     if (e.data.type === 'switch-to-browser') { launch('browser'); }
+    // Files asks for a terminal already sitting in the folder you are looking
+    // at (the manager started it and typed the cd).
+    if (e.data.type === 'open-terminal') { launch('terminal'); }
     // The Browser renders into a GPU-composited canvas, so a click there reaches
     // xpra instead of the #menu-scrim (normal-HTML apps are caught by the scrim).
     // xpra-patches posts this from inside the iframe so the menu still closes.

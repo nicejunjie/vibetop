@@ -163,6 +163,7 @@
     <span class="spacer"></span>
     <button id="flagMode" title="Flag mode: taps place flags (long-press also flags)">🚩</button>
     <button id="helpBtn" title="How to play">?</button>
+    <button id="newBtn" title="Start a new game (F2)">New</button>
   </div>
   <div class="wrap" id="wrap">
     <div class="status" id="status">
@@ -536,6 +537,9 @@
     flagBtn.classList.toggle('on', flagMode);
   });
   faceEl.addEventListener('click', function() { newGame(); });
+  // The smiley is the classic new-game control, but it does not say so — the
+  // other two games carry a labelled New in the same place.
+  document.getElementById('newBtn').addEventListener('click', function() { newGame(); });
   document.getElementById('ovNew').addEventListener('click', function() { newGame(); });
   document.getElementById('ovClose').addEventListener('click', function() { overlay.classList.remove('show'); });
   diffEl.addEventListener('change', function() { newGame(diffEl.value); });

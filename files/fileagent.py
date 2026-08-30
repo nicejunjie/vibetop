@@ -416,10 +416,186 @@ def op_hash(req):
     return {"ok": True, "algo": algo, "hex": h.hexdigest()}
 
 
+
+# ---- trash (freedesktop.org spec) -------------------------------------------
+# Delete used to be the one unrecoverable thing this app could do, and it sat on
+# the Delete key with Enter as the confirm dialog's default. It now moves to the
+# user's real desktop trash — ~/.local/share/Trash/{files,info} — so GNOME Files
+# and every other spec-compliant tool sees the same bin, and "Put back" knows
+# where each item came from.
+
+def _trash_dirs():
+    base = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
+    root = os.path.join(base, "Trash")
+    return root, os.path.join(root, "files"), os.path.join(root, "info")
+
+
+def _trash_name(files_dir, info_dir, base):
+    """A name free in BOTH files/ and info/ — the spec pairs them by name."""
+    cand, n = base, 1
+    stem, ext = os.path.splitext(base)
+    while (os.path.lexists(os.path.join(files_dir, cand))
+           or os.path.lexists(os.path.join(info_dir, cand + ".trashinfo"))):
+        n += 1
+        cand = f"{stem}.{n}{ext}"
+    return cand
+
+
+def op_trash(req):
+    root, files_dir, info_dir = _trash_dirs()
+    try:
+        os.makedirs(files_dir, exist_ok=True)
+        os.makedirs(info_dir, exist_ok=True)
+    except OSError as e:
+        return {"ok": False, "error": str(e), "code": _errcode(e)}
+    home = os.path.expanduser("~")
+
+    def one(p):
+        p = p.rstrip("/") or "/"
+        if p == "/" or os.path.realpath(p) == os.path.realpath(home):
+            return {"path": p, "ok": False, "error": "refusing to trash that",
+                    "code": "einval"}
+        if os.path.realpath(p).startswith(os.path.realpath(root) + os.sep):
+            return {"path": p, "ok": False, "error": "already in the trash",
+                    "code": "einval"}
+        name = _trash_name(files_dir, info_dir, os.path.basename(p))
+        info = os.path.join(info_dir, name + ".trashinfo")
+        try:
+            # Write the info stub FIRST: an orphaned stub is harmless, an
+            # orphaned file in the bin can never be put back.
+            with open(info, "w") as f:
+                f.write("[Trash Info]\nPath=%s\nDeletionDate=%s\n"
+                        % (_url_quote(p), time.strftime("%Y-%m-%dT%H:%M:%S")))
+            shutil.move(p, os.path.join(files_dir, name))
+            return {"path": p, "ok": True, "trashName": name}
+        except (OSError, shutil.Error) as e:
+            try:
+                os.unlink(info)
+            except OSError:
+                pass
+            return {"path": p, "ok": False, "error": str(e), "code": _errcode(e)}
+    return _bulk(req, one)
+
+
+def _url_quote(p):
+    safe = "/-_.!~*'()"
+    out = []
+    for ch in p:
+        if ch.isalnum() or ch in safe:
+            out.append(ch)
+        else:
+            out.extend("%%%02X" % b for b in ch.encode("utf-8"))
+    return "".join(out)
+
+
+def _url_unquote(s):
+    out, i = bytearray(), 0
+    while i < len(s):
+        if s[i] == "%" and i + 2 < len(s):
+            try:
+                out.append(int(s[i + 1:i + 3], 16)); i += 3; continue
+            except ValueError:
+                pass
+        out.extend(s[i].encode("utf-8")); i += 1
+    return out.decode("utf-8", "replace")
+
+
+def op_trash_list(_req):
+    root, files_dir, info_dir = _trash_dirs()
+    items = []
+    try:
+        names = sorted(os.listdir(files_dir))
+    except OSError:
+        return {"ok": True, "entries": [], "path": files_dir}
+    for name in names[:MAX_ENTRIES]:
+        full = os.path.join(files_dir, name)
+        try:
+            st = os.lstat(full)
+        except OSError:
+            continue
+        e = _entry(name, st, full)
+        e["trashName"] = name
+        try:
+            with open(os.path.join(info_dir, name + ".trashinfo")) as f:
+                for line in f:
+                    if line.startswith("Path="):
+                        e["origin"] = _url_unquote(line[5:].strip())
+                    elif line.startswith("DeletionDate="):
+                        e["deleted"] = line[13:].strip()
+        except OSError:
+            pass
+        items.append(e)
+    return {"ok": True, "entries": items, "path": files_dir}
+
+
+def op_untrash(req):
+    root, files_dir, info_dir = _trash_dirs()
+    names = req.get("names") or []
+    if not isinstance(names, list) or not names:
+        return {"ok": False, "error": "no items", "code": "einval"}
+    results, all_ok = [], True
+    for name in names[:BULK_MAX]:
+        if "/" in name or name in (".", ".."):
+            results.append({"path": name, "ok": False, "code": "einval"})
+            all_ok = False
+            continue
+        src = os.path.join(files_dir, name)
+        info = os.path.join(info_dir, name + ".trashinfo")
+        dst = None
+        try:
+            with open(info) as f:
+                for line in f:
+                    if line.startswith("Path="):
+                        dst = _url_unquote(line[5:].strip())
+        except OSError:
+            pass
+        if not dst:
+            results.append({"path": name, "ok": False, "code": "enoent",
+                            "error": "no record of where this came from"})
+            all_ok = False
+            continue
+        try:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            target = _collide_free(dst)
+            shutil.move(src, target)
+            try:
+                os.unlink(info)
+            except OSError:
+                pass
+            results.append({"path": name, "ok": True, "to": target})
+        except (OSError, shutil.Error) as e:
+            results.append({"path": name, "ok": False, "error": str(e), "code": _errcode(e)})
+            all_ok = False
+    return {"ok": all_ok, "results": results}
+
+
+def op_trash_empty(_req):
+    root, files_dir, info_dir = _trash_dirs()
+    n, errs = 0, []
+    for d in (files_dir, info_dir):
+        try:
+            entries = os.listdir(d)
+        except OSError:
+            continue
+        for name in entries:
+            full = os.path.join(d, name)
+            try:
+                if os.path.isdir(full) and not os.path.islink(full):
+                    shutil.rmtree(full)
+                else:
+                    os.unlink(full)
+                if d == files_dir:
+                    n += 1
+            except OSError as e:
+                errs.append(str(e))
+    return {"ok": not errs, "removed": n, "error": errs[0] if errs else None}
+
+
 OPS = {"home": op_home, "list": op_list, "stat": op_stat, "usage": op_usage,
        "read": op_read, "mkdir": op_mkdir, "rename": op_rename, "move": op_move,
        "copy": op_copy, "delete": op_delete, "search": op_search,
-       "hash": op_hash}
+       "hash": op_hash, "trash": op_trash, "trashList": op_trash_list,
+       "untrash": op_untrash, "trashEmpty": op_trash_empty}
 
 
 # ---- phase 2: streaming (upload / download / zip) ---------------------------

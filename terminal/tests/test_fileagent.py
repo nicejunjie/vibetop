@@ -12,6 +12,7 @@ that the ops never answer for a path the PROCESS cannot read."""
 import json
 import os
 import pwd
+import shutil
 import stat
 import socket
 import subprocess
@@ -29,7 +30,11 @@ AGENT = os.path.join(REPO, "files", "fileagent.py")
 @pytest.fixture()
 def agent(tmp_path):
     sock = str(tmp_path / "agent.sock")
-    proc = subprocess.Popen([sys.executable, AGENT, "--sock", sock],
+    # The agent is a SEPARATE process, so an env var monkeypatched in the test
+    # process would not reach it. Point its XDG_DATA_HOME at the tmp dir so the
+    # trash tests never touch the developer's real ~/.local/share/Trash.
+    env = dict(os.environ, XDG_DATA_HOME=str(tmp_path / "share"))
+    proc = subprocess.Popen([sys.executable, AGENT, "--sock", sock], env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline and not os.path.exists(sock):
@@ -398,3 +403,85 @@ def test_bulk_over_the_cap_is_refused_not_silently_truncated(mgr, agent, tmp_pat
     assert r["requested"] == len(huge)
     for p in paths:
         assert os.path.exists(p), "a refused batch must not delete anything"
+
+
+# ---- trash ------------------------------------------------------------------
+
+def test_trash_moves_to_the_freedesktop_bin_and_records_the_origin(mgr, agent, tmp_path):
+    """Delete was the only unrecoverable action in the app. Trash must land in
+    the REAL desktop bin — ~/.local/share/Trash/{files,info} — so GNOME Files
+    and friends see the same items, and must record where each came from."""
+    f = tmp_path / "doomed.txt"
+    f.write_text("keep me somewhere")
+    r = call(mgr, agent, {"op": "trash", "paths": [str(f)]})
+    assert r["ok"], r
+    assert not f.exists()
+    files_dir = tmp_path / "share" / "Trash" / "files"
+    info_dir = tmp_path / "share" / "Trash" / "info"
+    assert (files_dir / "doomed.txt").read_text() == "keep me somewhere"
+    info = (info_dir / "doomed.txt.trashinfo").read_text()
+    assert "[Trash Info]" in info and str(f) in info and "DeletionDate=" in info
+
+
+def test_untrash_puts_it_back_where_it_came_from(mgr, agent, tmp_path):
+    sub = tmp_path / "deep" / "nest"
+    sub.mkdir(parents=True)
+    f = sub / "note.txt"
+    f.write_text("hi")
+    assert call(mgr, agent, {"op": "trash", "paths": [str(f)]})["ok"]
+    assert not f.exists()
+    listing = call(mgr, agent, {"op": "trashList"})
+    assert listing["ok"] and len(listing["entries"]) == 1
+    e = listing["entries"][0]
+    assert e["trashName"] == "note.txt" and e["origin"] == str(f)
+    r = call(mgr, agent, {"op": "untrash", "names": ["note.txt"]})
+    assert r["ok"], r
+    assert f.read_text() == "hi"
+
+
+def test_untrash_recreates_a_deleted_parent(mgr, agent, tmp_path):
+    sub = tmp_path / "gone"
+    sub.mkdir()
+    f = sub / "x.txt"
+    f.write_text("x")
+    call(mgr, agent, {"op": "trash", "paths": [str(f)]})
+    shutil.rmtree(str(sub))
+    assert call(mgr, agent, {"op": "untrash", "names": ["x.txt"]})["ok"]
+    assert f.read_text() == "x"
+
+
+def test_trash_name_collisions_keep_both(mgr, agent, tmp_path):
+    for d in ("a", "b"):
+        (tmp_path / d).mkdir()
+        (tmp_path / d / "same.txt").write_text(d)
+    call(mgr, agent, {"op": "trash", "paths": [str(tmp_path / "a" / "same.txt")]})
+    call(mgr, agent, {"op": "trash", "paths": [str(tmp_path / "b" / "same.txt")]})
+    files_dir = tmp_path / "share" / "Trash" / "files"
+    assert sorted(os.listdir(files_dir)) == ["same.2.txt", "same.txt"]
+    # and each still knows its own origin
+    listing = call(mgr, agent, {"op": "trashList"})
+    origins = sorted(e["origin"] for e in listing["entries"])
+    assert origins == [str(tmp_path / "a" / "same.txt"), str(tmp_path / "b" / "same.txt")]
+
+
+def test_trash_refuses_home_and_root_and_itself(mgr, agent, tmp_path):
+    r = call(mgr, agent, {"op": "trash", "paths": ["/"]})
+    assert r["ok"] is False
+    r = call(mgr, agent, {"op": "trash", "paths": [os.path.expanduser("~")]})
+    assert r["ok"] is False
+    f = tmp_path / "t.txt"; f.write_text("t")
+    call(mgr, agent, {"op": "trash", "paths": [str(f)]})
+    again = call(mgr, agent, {"op": "trash",
+                              "paths": [str(tmp_path / "share" / "Trash" / "files" / "t.txt")]})
+    assert again["ok"] is False, "must not trash something already in the bin"
+
+
+def test_trash_empty_clears_files_and_info(mgr, agent, tmp_path):
+    for n in ("one.txt", "two.txt"):
+        p = tmp_path / n
+        p.write_text(n)
+        call(mgr, agent, {"op": "trash", "paths": [str(p)]})
+    r = call(mgr, agent, {"op": "trashEmpty"})
+    assert r["ok"] and r["removed"] == 2
+    assert os.listdir(tmp_path / "share" / "Trash" / "files") == []
+    assert os.listdir(tmp_path / "share" / "Trash" / "info") == []
