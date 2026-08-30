@@ -1131,13 +1131,24 @@ test.describe('circuit on touch', () => {
         for (let d = 2; d < 100; d += 2) {
           if (press(A.left - d, A.top + A.height / 2)) slack = d; else break;
         }
-        return { size: A.width, slack,
-                 middle: press(window.innerWidth / 2, window.innerHeight - 30) };
+        // .pad is pointer-events:auto so a near-miss can reach the handler at
+        // all; it must not therefore swallow the picture. Two probes: the middle
+        // of the screen, and — when the two clusters are far enough apart to
+        // leave real space between them — the point halfway between.
+        const D = document.querySelector('.pad .dpad').getBoundingClientRect();
+        const AB = document.querySelector('.pad .ab').getBoundingClientRect();
+        const gap = AB.left - D.right;
+        return { size: A.width, slack, gap,
+                 centre: press(window.innerWidth / 2, window.innerHeight / 2),
+                 between: gap > A.width * 2
+                   ? press((D.right + AB.left) / 2, A.top + A.height / 2) : null };
       });
       const at = vp.width + 'x' + vp.height;
       expect(r.size, 'button diameter at ' + at).toBeGreaterThanOrEqual(56);
       expect(r.slack, 'slack outside the button at ' + at).toBeGreaterThanOrEqual(24);
-      expect(r.middle, 'the middle of the strip must press nothing at ' + at).toBe(null);
+      expect(r.centre, 'the pad must not swallow the picture at ' + at).toBe(null);
+      expect(r.between, 'a tap between the clusters presses nothing at ' + at +
+                        ' (gap ' + Math.round(r.gap) + 'px)').toBe(null);
     }
   });
 
@@ -1225,26 +1236,82 @@ test.describe('circuit on touch', () => {
     expect(r.sectorAfter, 'the middle pipe skips ahead a sector').toBe('04');
   });
 
-  test('every sector hides something', async ({ page }) => {
-    // Six invisible blocks in the whole game, all 1-ups, and sectors 2-5 had
-    // one apiece and nothing else — no multi-coin brick, no beanstalk, no warp.
+  test('every hidden block can actually be struck', async ({ page }) => {
+    // The first version of this test counted hidden blocks and multi-coin
+    // bricks in the built map. It was satisfied by construction by the same
+    // commit that added them, and it was green on a build where three of them
+    // could never be hit at all. What matters is reachability, so measure that.
+    //
+    // A hidden block is only solid to a RISING player (collideY), so the ONLY
+    // way to spend one is a head-bump from underneath: there has to be
+    // somewhere to stand 2-5 rows below it (a full jump lifts a small player's
+    // head 4.63 tiles) with a clear column between. A struck block becomes
+    // solid, so a chain of them is a staircase you build as you climb; water
+    // and a springboard also put you places the terrain alone cannot.
     await boot(page);
-    const r = await page.evaluate(() => {
+    const bad = await page.evaluate(() => {
       const out = [];
       for (let i = 0; i < window.__crLevelCount; i++) {
-        const L = window.__crBuild(i);
-        let hidden = 0;
-        for (let k = 0; k < L.tiles.length; k++) if (L.tiles[k] === L.T.HIDDEN) hidden++;
-        const kinds = {};
-        for (const k in L.contents) kinds[L.contents[k]] = (kinds[L.contents[k]] || 0) + 1;
-        out.push({ name: L.name, hidden, coins: kinds.coins || 0 });
+        const L = window.__crBuild(i), S = new Set(L.T.SOLID);
+        const at = (x, y) => (x < 0 || y < 0 || x >= L.w || y >= L.h) ? 0 : L.tiles[y * L.w + x];
+        const solid = (x, y) => S.has(at(x, y));
+        const stand = (x, y) => solid(x, y) || at(x, y) === L.T.PLAT ||
+                                at(x, y) === L.T.CLOUD || at(x, y) === L.T.HIDDEN;
+        const springs = L.spawns.filter(s => s.type === 'spring');
+        const sprung = (x, y) => springs.some(s => Math.abs(s.x - x) <= 2 && y >= 4 && y <= 11);
+        const wet = (x, y) => {
+          for (let yy = y; yy < L.h; yy++) {
+            const t = at(x, yy);
+            if (t === L.T.WATER || t === L.T.SURF) return true;
+            if (solid(x, yy)) return false;
+          }
+          return false;
+        };
+        for (let x = 0; x < L.w; x++) for (let y = 0; y < L.h; y++) {
+          if (at(x, y) !== L.T.HIDDEN) continue;
+          let ok = wet(x, y) || sprung(x, y);
+          for (let R = y + 2; R <= y + 5 && !ok; R++)
+            for (let dx = -2; dx <= 2 && !ok; dx++) {
+              const sx = x + dx;
+              if (!stand(sx, R) || solid(sx, R - 1) || solid(sx, R - 2)) continue;
+              let clear = true;
+              for (let yy = y + 1; yy < R; yy++) if (solid(x, yy)) { clear = false; break; }
+              if (clear) ok = true;
+            }
+          if (!ok) out.push(L.name + ' (' + x + ',' + y + ') ' + (L.contents[x + ',' + y] || '?'));
+        }
       }
       return out;
     });
-    for (const s of r) {
-      expect(s.hidden, 'sector ' + s.name + ' has no invisible blocks').toBeGreaterThanOrEqual(2);
-    }
-    expect(r.filter(s => s.coins > 0).length,
-           'multi-coin bricks should appear in most sectors').toBeGreaterThanOrEqual(4);
+    expect(bad, 'invisible blocks nothing can get underneath: ' + bad.join(', ')).toEqual([]);
+  });
+
+  test('the Warp Zone keeps what you are carrying', async ({ page }) => {
+    // Every other pipe in the game is a same-level warp and preserves your
+    // power-up. The cross-sector pipes went through beginLevel(i, false), which
+    // only restores big/fire on a resume — so you walked in as Fire and arrived
+    // small, which made taking the secret strictly worse than not. And you must
+    // pass sector 02's checkpoint to reach the vine, so fromCheckpoint was
+    // always set and your first death landed mid-way through a sector you had
+    // never seen.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest;
+      T.level(1); T.input({}); T.step(140); T.clear();
+      T.give('fire'); T.setLives(4);
+      const before = window.__cr();
+      T.place(225, 10); T.input({}); T.step(6);
+      for (let i = 0; i < 140; i++) { T.input({ down: 1 }); T.step(); }
+      const after = window.__cr();
+      return { before, after, startTile: Math.round(after.px / 16),
+               dest: window.__crBuild(3) };
+    });
+    expect(r.before.fire).toBe(true);
+    expect(r.after.level, 'the pipe skips a sector').toBe('04');
+    expect(r.after.fire, 'a warp must not strip your power-up').toBe(true);
+    expect(r.after.big).toBe(true);
+    expect(r.after.lives, 'and must not cost a life').toBe(r.before.lives);
+    expect(r.startTile, 'you arrive at the sector start, not at its checkpoint')
+      .toBeLessThan(r.dest.checkpoint);
   });
 });

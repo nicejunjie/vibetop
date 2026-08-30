@@ -1607,17 +1607,25 @@
       // Inside a group, be generous. Landing on the bare strip between the two
       // groups still snaps, but only from much closer, so a tap at the dead
       // centre of the screen presses nothing.
-      // Nearest button wins, out to a bit more than one button-width from its
-      // centre. Distance alone keeps the middle of the strip dead — the two
-      // groups sit a couple of hundred px apart — so there is no need to also
-      // require the finger to be inside a group's box, which was cutting the
-      // forgiveness off at the padding edge.
-      var list = pad.querySelectorAll('.btn'), best = null, bd = Infinity;
-      for (var i = 0; i < list.length; i++) {
-        var r = list[i].getBoundingClientRect();
-        var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
-        var d = dx * dx + dy * dy, lim = r.width * 1.15;
-        if (d < bd && d < lim * lim) { bd = d; best = list[i]; }
+      // Snap to the nearest button in whichever CLUSTER the finger is near —
+      // the d-pad or A/B — where "near" is the group's own box grown by about
+      // half a button. Measuring distance to button centres alone was not
+      // enough: once the buttons got bigger the radius reached the middle of
+      // the strip and a tap at the centre of the screen pressed ▼.
+      var grps = pad.querySelectorAll('.grp'), best = null, bd = Infinity;
+      for (var g = 0; g < grps.length; g++) {
+        var list = grps[g].querySelectorAll('.btn');
+        if (!list.length) continue;
+        var gr = grps[g].getBoundingClientRect();
+        var slack = list[0].getBoundingClientRect().width * 0.55;
+        if (x < gr.left - slack || x > gr.right + slack ||
+            y < gr.top - slack || y > gr.bottom + slack) continue;
+        for (var i = 0; i < list.length; i++) {
+          var r = list[i].getBoundingClientRect();
+          var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+          var d = dx * dx + dy * dy;
+          if (d < bd) { bd = d; best = list[i]; }
+        }
       }
       return best;
     }
@@ -1863,8 +1871,12 @@
     L.vineWarps[128] = { x: 246, y: 5 };
     L.spawn('spring', 155, 12);
     for (var sc = 0; sc < 6; sc++) L.set(153 + sc, 3, T_COIN);
-    L.hidden(156, 2, '1up');
-    L.hidden(166, 8, 'coin'); L.hidden(167, 8, 'coin'); L.hidden(168, 8, 'coin');
+    L.hidden(156, 5, '1up');        // row 2 was above even the springboard's apex
+    // 168/169/170, not 166/167: a hidden block is only solid to a RISING
+    // player, so it can only be struck from underneath — and 166/167 sat
+    // directly on top of the visible block row at 165-167, which meant nothing
+    // could ever get under them.
+    L.hidden(168, 8, 'coin'); L.hidden(169, 8, 'coin'); L.hidden(170, 8, 'coin');
 
     // the final staircase and the flag
     L.stair(188, 8, 1);
@@ -1938,7 +1950,7 @@
 
     // a staircase of bricks with a 1-up buried in it
     for (var s = 0; s < 5; s++) L.rect(52 + s, 11 - s, 52 + s, 12, T_BRICK);
-    L.hidden(58, 6, '1up');
+    L.hidden(58, 8, '1up');         // row 6 is over open ground with no floor under it
     L.spawn('koopaRed', 62, 12);
     // A plain brick, not a ? block: a multi-coin block you can SEE is not a
     // secret. Hitting it the first time is an accident; the sixth is a choice.
@@ -2048,7 +2060,7 @@
     L.flagX = 189; L.castleX = 193;
 
     // --- the sky at the top of the vine -------------------------------- //
-    L.row(200, 240, 6, T_CLOUD);
+    L.row(200, 242, 6, T_CLOUD);   // right up to the wall: 241-242 was an unmarked hole
     L.rect(200, 7, 240, ROWS - 1, T_EMPTY);
     for (var sk = 0; sk < 32; sk++) {
       L.set(204 + sk, 5, T_COIN);
@@ -2084,7 +2096,11 @@
     L.spawn('podoboo', 41, 14, { power: 6.2 });
     L.rect(46, 9, 50, 9, T_CBRICK); L.q(48, 9, 'power');
     L.brick(49, 9, 'coins');
-    L.hidden(35, 8, 'coin'); L.hidden(37, 6, 'coin'); L.hidden(39, 4, '1up');
+    // A staircase you build by striking it: each block becomes the floor for
+    // the next. Moved two columns left of where it was — the top step stood
+    // over the lava pool at 39-42, so the 1-up it paid out walked off its own
+    // block and drowned, and going back for it was a death.
+    L.hidden(33, 8, 'coin'); L.hidden(35, 6, 'coin'); L.hidden(37, 4, '1up');
     for (var cc = 0; cc < 5; cc++) L.set(46 + cc, 8, T_COIN);
     for (var cd = 0; cd < 4; cd++) L.set(59 + cd, 7, T_COIN);
     for (var ce = 0; ce < 5; ce++) L.set(104 + ce, 5, T_COIN);
@@ -2247,11 +2263,17 @@
     flagPoints = 0; bridgeStep = 0; shakeT = 0;
     timeLeft = L.time; timeSub = 0;
     var startX = L.startX;
-    if (resume && fromCheckpoint && L.checkpoint) startX = L.checkpoint;
+    if (resume === true && fromCheckpoint && L.checkpoint) startX = L.checkpoint;
     P = P || newPlayer();
     var big = P.big, fire = P.fire;
     P = newPlayer();
-    if (resume) { P.big = big; P.fire = fire; }
+    // 'warp' keeps the power-up but NOT the checkpoint: every other pipe in the
+    // game is a same-level warp and preserves what you are carrying, so walking
+    // into the Warp Zone as Fire and arriving small was both a surprise and a
+    // reason never to take it. And you must pass sector 02's checkpoint to
+    // reach the vine at all, so a plain restart left fromCheckpoint set and
+    // respawned your first death in the middle of a sector you had never seen.
+    if (resume === true || resume === 'warp') { P.big = big; P.fire = fire; }
     setSize(P);
     P.x = startX * TS; P.y = (L.startY || 12) * TS - (P.h - TS);
     // Drop onto whatever is under the start column — unless the start is in
@@ -2781,8 +2803,9 @@
     if (p.modeT <= 0) {
       if (p.warpTo.level !== undefined) {   // a Warp Zone pipe: skip sectors
         var lv = p.warpTo.level;
-        p.mode = 'normal';
-        beginLevel(lv, false);
+        if (lv < 0 || lv >= LEVELS.length) lv = LEVELS.length - 1;
+        fromCheckpoint = false;            // you have never played the arrival
+        beginLevel(lv, 'warp');
         return;
       }
       p.x = p.warpTo.x * TS; p.y = p.warpTo.y * TS - p.h;
@@ -3317,10 +3340,13 @@
     // being raised out from under the player mid-frame, and a clean landing on
     // its head registered as walking into it. Every failure in a 396-drop
     // sweep was a para; not one was a goomba or a plain koopa.
-    var eVy = e.vy || 0;
-    var eTopWas = e.y - eVy;                   // its head when the frame began
+    // Only ever count the enemy's RISE. Using its raw vy also made the test
+    // stricter against an enemy that is falling — a goomba that has just walked
+    // off a ledge — which is the opposite of the correction this is for.
+    var eUp = Math.min(0, e.vy || 0);
+    var eTopWas = e.y - eUp;                   // its head when the frame began
     var feetWere = p.y + p.h - p.vy;
-    var falling = !p.wet && (p.vy - eVy) > 0 && feetWere <= eTopWas + 8;
+    var falling = !p.wet && p.vy > 0 && feetWere <= eTopWas + 8;
     var stompable = !!STOMPABLE[e.type];
 
     if (e.type === 'boss') { hurt(); return; }
@@ -4224,12 +4250,16 @@
     // tall and its left/right row is 76 + 10 + 76 wide.
     var need = 224, rowW = 162, gutter = (cw - Math.floor(VW * scale)) / 2;
     var fitH = (ch - 26) / need;
-    var fitW = (gutter > 44 && gutter < 168) ? (gutter - 6) / rowW : 1;
+    // (gutter - 6) / rowW is at most 1.0 inside that window, and the else
+    // branch pinned it to 1 — so the 1.25 ceiling was unreachable and a roomy
+    // screen never actually got a bigger button. Off in the gutter case, let
+    // the height be the only limit.
+    var fitW = (gutter > 44 && gutter < 168) ? (gutter - 6) / rowW : 99;
     // The floor was 0.68, which on a landscape phone with a narrow gutter drove
     // a 62px button down to 42 — under the 44px that is the smallest thing a
     // thumb reliably hits, and you are not looking at your thumbs while you
     // play. The ceiling was 1, so a roomy screen never got bigger buttons.
-    var padS = Math.max(0.8, Math.min(1.25, fitH, fitW));
+    var padS = Math.max(0.8, Math.min(1.15, fitH, fitW));
     document.body.style.setProperty('--pad-s', padS.toFixed(3));
     if (L) cam.x = Math.max(0, Math.min(cam.x, L.w * TS - VW));
   }
@@ -4386,7 +4416,8 @@
       checkpoint: lv.checkpoint, warps: lv.warps, exits: lv.exitPipes,
       contents: lv.contents, theme: lv.theme,
       T: { SOLID: Object.keys(SOLID).map(Number), PLAT: T_PLAT, LAVA: T_LAVA,
-           COIN: T_COIN, TREE_TOP: T_TREE_TOP, EMPTY: T_EMPTY, Q: T_Q, HIDDEN: T_HIDDEN }
+           COIN: T_COIN, TREE_TOP: T_TREE_TOP, EMPTY: T_EMPTY, Q: T_Q, HIDDEN: T_HIDDEN,
+           CLOUD: T_CLOUD, WATER: T_WATER, SURF: T_SURF, VINE: T_VINE, BRICK: T_BRICK }
     };
   };
   window.__crLevelCount = LEVELS.length;
@@ -4442,9 +4473,12 @@
     input: function (o) {
       K.left = o.left ? 1 : 0; K.right = o.right ? 1 : 0;
       K.up = o.up ? 1 : 0; K.down = o.down ? 1 : 0;
-      K.run = o.run ? 1 : 0;
+      // Order matters: K.run was assigned BEFORE the rising-edge test below,
+      // so `o.run && !K.run` was never true and no test could ever throw a
+      // fireball through this hook.
       if (o.jump && !K.jump) pressJump();
       if (o.run && !K.run) pressFire();
+      K.run = o.run ? 1 : 0;
       K.jump = o.jump ? 1 : 0;
     },
     step: function (n) { for (var i = 0; i < (n || 1); i++) step(); },
