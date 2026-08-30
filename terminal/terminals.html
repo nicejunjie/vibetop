@@ -586,6 +586,11 @@
     }).then(function (d) {
       if (d && d.error) { spErr.textContent = d.error; return; }
       spText.value = '';
+      // Re-seed the time to NOW, exactly as openSched does. Without this the
+      // field keeps the time just scheduled, so the next message silently
+      // inherits it and the additive +N buttons count up from there — schedule
+      // "+5h", then tap "+1m" for the next one and you get 5h1m out.
+      spAt.value = toLocalInput(new Date());
       var edited = !!ed;
       stopEdit();
       spErr.className = 'sp-err ok';
