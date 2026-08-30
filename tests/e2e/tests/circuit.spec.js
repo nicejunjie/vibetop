@@ -1286,6 +1286,72 @@ test.describe('circuit on touch', () => {
     expect(bad, 'invisible blocks nothing can get underneath: ' + bad.join(', ')).toEqual([]);
   });
 
+  test('you can ride a moving platform at any speed', async ({ page }) => {
+    // Both vertical platforms in sector 04 are dy 1.1 and both sit over a
+    // bottomless pit, and both dropped the player through: platformCollide
+    // compared the player's PREVIOUS bottom against the platform's CURRENT
+    // top, and the error grew with the platform's speed until it beat the
+    // 2px tolerance. Verified failing on the pre-fix build first.
+    //
+    // Note the relevel inside the loop: __crTest.clear() deliberately KEEPS
+    // platforms, so a loop that only calls clear() stacks a new platform each
+    // pass and measures against the first one. That harness bug made the same
+    // sweep read as an unstable size threshold three times before I spotted it.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest, out = {};
+      [-1.3, -1.1, -1.0, -0.9, -0.5, 0.5, 0.9, 1.0, 1.1, 1.3].forEach(D => {
+        T.level(0); T.input({}); T.step(140);
+        T.clear(); T.place(60, 8);
+        T.spawn('plat', 60, 10, { dx: 0, dy: D, min: 2, max: 12, w: 3 });
+        let landed = false, worst = 0;
+        for (let f = 0; f < 600; f++) {
+          T.input({}); T.step();
+          const s = window.__cr();
+          const pl = T.entsFull().find(x => x.type === 'plat');
+          if (!pl) break;
+          if (s.onGround) landed = true;
+          if (landed) worst = Math.max(worst, (s.py + 16) - pl.y);
+        }
+        out['dy ' + D] = Math.round(worst * 10) / 10;
+      });
+      return out;
+    });
+    for (const [k, gap] of Object.entries(r)) {
+      expect(gap, 'gap between the player and the platform at ' + k).toBeLessThan(4);
+    }
+  });
+
+  test('the axe cannot be jumped over, and the castle 1-up survives', async ({ page }) => {
+    // The axe was tested at the player's CENTRE tile, so any ordinary jump from
+    // the end of the bridge carried you straight over it: the sector cleared
+    // with the boss still pacing, no collapse and no 5000 points, off the
+    // commonest input in the game. And an item rolls right by default, which
+    // posted the castle's hidden 1-up into the lava pool two tiles away — it
+    // lived 50 frames, most of them above the player's own head.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest, out = {};
+      T.level(4); T.input({}); T.step(140);
+      T.place(156, 12); T.input({}); T.step(12);
+      for (let f = 0; f < 120; f++) { T.input({ right: 1, run: 1, jump: f < 30 }); T.step(); }
+      out.axeTile = T.tile(159, 12);
+      out.bossAlive = T.ents().some(e => e.type === 'boss' && !e.gone);
+      T.level(4); T.input({}); T.step(140); T.clear();
+      T.place(37, 12); T.step(10); T.place(37, 8); T.input({});
+      for (let f = 0; f < 50; f++) { T.input({ jump: f < 40 }); T.step(); }
+      let life = 0;
+      for (let f = 0; f < 500; f++) {
+        T.input({}); T.step();
+        if (T.ents().some(e => e.type === 'oneup')) life = f; else if (life) break;
+      }
+      out.oneupLife = life;
+      return out;
+    });
+    expect(r.axeTile, 'running and jumping off the bridge must take the axe').not.toBe(17);
+    expect(r.oneupLife, 'frames the castle 1-up survives').toBeGreaterThan(150);
+  });
+
   test('the Warp Zone keeps what you are carrying', async ({ page }) => {
     // Every other pipe in the game is a same-level warp and preserves your
     // power-up. The cross-sector pipes went through beginLevel(i, false), which

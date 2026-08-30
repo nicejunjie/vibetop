@@ -27,7 +27,8 @@
   .bar {
     display: flex; align-items: center; gap: 6px; flex-shrink: 0;
     min-height: 40px;
-    padding: 4px calc(8px + env(safe-area-inset-right, 0px))
+    padding: calc(4px + env(safe-area-inset-top, 0px))
+             calc(8px + env(safe-area-inset-right, 0px))
              4px calc(8px + env(safe-area-inset-left, 0px));
     background: #161b22; border-bottom: 1px solid #2a3040;
     user-select: none; -webkit-user-select: none;
@@ -55,6 +56,10 @@
     .stat { padding: 2px 5px; min-width: 36px; }
     .stat .val { font-size: 12px; }
     #helpBtn, #sndBtn, #fsBtn, #pauseBtn { min-width: 26px; padding: 5px 5px; }
+  /* 32x30 shoulder-to-shoulder is under every touch-target guideline, and the
+     one that wipes your run sat 4px from the one you tap to read the help. */
+  body.touch .bar button { min-height: 38px; min-width: 38px; }
+  body.touch #newBtn { margin-left: 10px; }
     #newBtn { padding: 5px 8px; }
   }
   button {
@@ -140,6 +145,11 @@
     text-shadow: 0 1px 2px rgba(0,0,0,.6);
   }
   .pad .btn.act { background: rgba(138,74,219,.72); border-color: #b98bf0; }
+  /* Nowhere to put the pad but on the picture: let more of the game through it.
+     A player still has to see the castle they finish the sector by walking into. */
+  body.pad-over .pad .btn { background: rgba(30,38,52,.34); border-color: rgba(150,170,200,.34); }
+  body.pad-over .pad .btn.a { background: rgba(60,140,80,.34); }
+  body.pad-over .pad .btn.b { background: rgba(150,60,60,.32); }
   .pad .btn.sm {
     width: calc(66px * var(--pad-s, 1)); height: calc(66px * var(--pad-s, 1));
     font-size: calc(20px * var(--pad-s, 1));
@@ -203,11 +213,16 @@
   .help .em { color: #d9c8f5; }
   /* Lead with the controls you actually have. */
   .help .card { display: flex; flex-direction: column; }
-  .help .card > * { order: 2; }
+  /* Everything unclassed (the "Worth knowing" tips) is LAST, not middle. It
+     had order 2 against .tc's 3, so a phone player tapping ? for "what do
+     these buttons do" got the goal, then seven advanced tips, and found TOUCH
+     at 67% of the scroll height — off-screen on every phone but one. */
+  .help .card > * { order: 4; }
   .help .card > h2, .help .card > .goal, .help .card > .x { order: 1; }
-  body.touch .help .kb { order: 4; }
-  body.touch .help .tc { order: 3; }
-  body:not(.touch) .help .tc { order: 4; }
+  body.touch .help .tc { order: 2; }
+  body.touch .help .kb { order: 3; }
+  body:not(.touch) .help .kb { order: 2; }
+  body:not(.touch) .help .tc { order: 3; }
 </style>
 </head>
 <body>
@@ -278,7 +293,8 @@
         <ul class="tc">
           <li>◀ ▶ to walk, <span class="em">A</span> to jump, <span class="em">B</span> to run / throw fire</li>
           <li>Hold <span class="em">A</span> longer for a higher jump</li>
-          <li>▲ climbs a vine, ▼ crouches and enters a green pipe</li>
+          <li>▲ climbs a cable, ▼ crouches and enters a green pipe</li>
+          <li>⛶ locks landscape / fullscreen, ⏸ pauses</li>
         </ul>
         <h3>Worth knowing</h3>
         <ul>
@@ -2372,7 +2388,13 @@
     var e = { type: kind, x: tx * TS + 2, y: ty * TS, vx: 0, vy: 0, w: 12, h: 14,
               dir: 1, rise: kind === 'flower' || kind === 'mushroom' ||
                             kind === 'oneup' || kind === 'star' ? TS : 0, t: 0 };
-    if (kind === 'mushroom' || kind === 'oneup') e.vx = 0.9;
+    if (kind === 'mushroom' || kind === 'oneup') {
+      // Rolling right is the classic default, but a block placed a couple of
+      // tiles from a lava pool or a pit posts its prize straight into it: the
+      // castle's hidden 1-up lived 50 frames, most of them out of reach above
+      // the player's own head. Roll toward whichever side has more floor.
+      e.vx = safeSide(tx, ty) * 0.9;
+    }
     if (kind === 'star') { e.vx = 1.1; e.vy = -2; }
     ents.push(e);
     SFX.sprout();
@@ -2449,7 +2471,14 @@
       if (!e.plat || e.gone) continue;
       if (p.x + p.w <= e.x || p.x >= e.x + e.w) continue;
       var bottom = p.y + p.h;
-      if (p.vy >= 0 && bottom >= e.y && bottom - p.vy - e.vy <= e.y + 2) {
+      // +e.vy, not -e.vy. Both sides of this must be from the SAME instant:
+      // the player's bottom BEFORE it moved is `bottom - p.vy`, and the
+      // platform's top before IT moved is `e.y - e.vy` (updateEnts runs after
+      // updatePlayer, so e.y is already this frame's). The flipped sign doubled
+      // the error to 2*|e.vy|, which beats the +2 tolerance from |dy| >= 1.0 —
+      // so you landed for exactly one frame and fell through. BOTH vertical
+      // platforms in sector 04 are dy 1.1, and both sat over a bottomless pit.
+      if (p.vy >= 0 && bottom >= e.y && bottom - p.vy + e.vy <= e.y + 2) {
         p.y = e.y - p.h; p.vy = 0; p.onGround = true;
         p.x += e.vx;
       }
@@ -2500,6 +2529,24 @@
     if (what === 'power') spawnItem(P.big ? 'flower' : 'mushroom', tx, ty);
     else if (what === 'star') spawnItem('star', tx, ty);
     else if (what === '1up') spawnItem('oneup', tx, ty);
+  }
+
+  // Which way is there more ground? Counts walkable columns either side of a
+  // block, out to six tiles, stopping at lava or at a hole. Ties roll right.
+  function safeSide(tx, ty) {
+    function room(dir) {
+      for (var i = 1; i <= 6; i++) {
+        var x = tx + dir * i, floor = 0;
+        for (var y = ty; y < ROWS; y++) {
+          var t = L.get(x, y);
+          if (t === T_LAVA) return i - 1;
+          if (SOLID[t]) { floor = 1; break; }
+        }
+        if (!floor) return i - 1;
+      }
+      return 6;
+    }
+    return room(1) >= room(-1) ? 1 : -1;
   }
 
   // A vine grows a tile at a time out of the block, the way it should — you
@@ -2721,7 +2768,15 @@
     // unbounded "x >= flagX" made warping into it finish the level instantly.
     if (L.flagX && p.mode === 'normal' &&
         p.x + p.w >= L.flagX * TS + 6 && p.x < (L.flagX + 8) * TS) startFlag();
-    if (L.get(Math.floor((p.x + p.w / 2) / TS), Math.floor((p.y + p.h / 2) / TS)) === T_AXE) hitAxe();
+    // The whole box, not the centre tile: the axe is one tile at the end of
+    // the bridge, and any ordinary jump from the bridge carried the player's
+    // centre straight over it — the sector cleared with the boss still pacing,
+    // no collapse and no 5000 points, off the commonest input in the game.
+    var ax0 = Math.floor(p.x / TS), ax1 = Math.floor((p.x + p.w - 1) / TS);
+    var ay0 = Math.floor(p.y / TS), ay1 = Math.floor((p.y + p.h - 1) / TS);
+    for (var axx = ax0; axx <= ax1; axx++)
+      for (var ayy = ay0; ayy <= ay1; ayy++)
+        if (L.get(axx, ayy) === T_AXE) { hitAxe(); return; }
   }
 
   function collectTiles(p) {
@@ -2751,6 +2806,11 @@
     // splash, fall two tiles at land gravity, splash again, forever, at every
     // coin in the level. Treat a passable cell surrounded by water as water.
     if (t !== T_EMPTY && t !== T_COIN && t !== T_HIDDEN) return false;
+    // …but only for a cell actually IN the sea. Where the water shelves out to
+    // a beach, the first dry column still has water beside it, so one tile of
+    // visible sand made you swim: reduced speed, a stroke instead of a jump,
+    // no crouch, and a splash at each edge of the strip.
+    if (SOLID[L.get(cx, cy + 1)] && !WET[L.get(cx, cy - 1)]) return false;
     return !!(WET[L.get(cx, cy - 1)] || WET[L.get(cx, cy + 1)] ||
               WET[L.get(cx - 1, cy)] || WET[L.get(cx + 1, cy)]);
   }
@@ -3001,7 +3061,7 @@
       var pl = ents[i];
       if (!pl.plat || pl.gone) continue;
       if (e.x + e.w > pl.x && e.x < pl.x + pl.w && e.vy >= 0 &&
-          e.y + e.h >= pl.y && e.y + e.h - e.vy <= pl.y + 3) {
+          e.y + e.h >= pl.y && e.y + e.h - e.vy + pl.vy <= pl.y + 3) {
         e.y = pl.y - e.h; e.vy = 0; e.onGround = true; e.x += pl.vx;
       }
     }
@@ -3095,18 +3155,29 @@
         case 'firebar':
           e.ang += e.speed;
           break;
-        case 'plat':
+        case 'plat': {
+          // e.vx/e.vy must be what the platform ACTUALLY moved, clamp included.
+          // Setting them to e.dx/e.dy up front left them holding the OLD
+          // direction on the frame the platform hit a bound and turned around,
+          // and both the rider's landing test and the "carry the rider" step
+          // read them — so a rider was dropped at every turn. It only bit at
+          // speeds where the travel does not divide evenly, which is why it
+          // looked like a size threshold: 0.9 and 1.1 failed, 0.5 and 1.0 did
+          // not, and sector 04's two vertical platforms are 1.1.
+          var px0 = e.x, py0 = e.y;
           if (e.dx) {
-            e.vx = e.dx; e.x += e.vx;
+            e.x += e.dx;
             if (e.x < e.min * TS) { e.x = e.min * TS; e.dx = -e.dx; }
             if (e.x + e.w > e.max * TS) { e.x = e.max * TS - e.w; e.dx = -e.dx; }
           }
           if (e.dy) {
-            e.vy = e.dy; e.y += e.vy;
+            e.y += e.dy;
             if (e.y < e.min * TS) { e.y = e.min * TS; e.dy = -e.dy; }
             if (e.y > e.max * TS) { e.y = e.max * TS; e.dy = -e.dy; }
           }
+          e.vx = e.x - px0; e.vy = e.y - py0;
           break;
+        }
         case 'cheep':
           // straight line with a lazy bob; it never falls and never lands
           e.x += e.vx;
@@ -4108,34 +4179,44 @@
   }
 
   function afterDeath() {
-    if (lives <= 0) {
-      state = 'over'; saveBest();
-      // A continue, like the classic: same world, three fresh lives, score
-      // back to zero. Without it, dying in world 1-4 sends you back to 1-1,
-      // which is a punishment nobody asked for and the reason people stop.
-      var world = WORLD_NAMES[levelIdx];
-      showCard('💀', 'Game over',
-               'Score ' + score + (best > 0 ? '   ·   best ' + best : '') + '.',
-               'New game', levelIdx > 0 ? 'Continue at sector ' + world : null,
-               function () { newGame(); },
-               function () {
-                 lives = 3; score = 0; coins = 0; fromCheckpoint = false;
-                 P = newPlayer();
-                 beginLevel(levelIdx, false);
-               });
-      SFX.gameover();
-      return;
-    }
+    if (lives <= 0) { gameOver(); return; }
     P.big = false; P.fire = false;
     beginLevel(levelIdx, true);
+  }
+
+  function gameOver() {
+    state = 'over'; saveBest();
+    // A continue, like the classic: same world, three fresh lives, score
+    // back to zero. Without it, dying in world 1-4 sends you back to 1-1,
+    // which is a punishment nobody asked for and the reason people stop.
+    var world = WORLD_NAMES[levelIdx];
+    showCard('💀', 'Game over',
+             'Score ' + score + (best > 0 ? '   ·   best ' + best : '') + '.',
+             'New game', levelIdx > 0 ? 'Continue at sector ' + world : null,
+             function () { newGame(); },
+             function () {
+               lives = 3; score = 0; coins = 0; fromCheckpoint = false;
+               P = newPlayer();
+               beginLevel(levelIdx, false);
+             });
+    SFX.gameover();
   }
 
   function togglePause(force) {
     if (state === 'play') {
       state = 'paused'; stopMusic();
-      showCard('⏸', 'Paused', '', 'Resume', 'Restart world', function () {
+      // Restarting costs a life, like dying does. It restored every coin,
+      // every block, the checkpoint, your score AND a full clock for nothing —
+      // so you could farm one coin row forever, mint a 1-up every 100 coins,
+      // and reset the timer any time it got tight. The clock was decorative.
+      showCard('⏸', 'Paused', '', 'Resume', 'Restart world (−1 life)', function () {
         state = 'play'; resumeMusic();
-      }, function () { beginLevel(levelIdx, true); });
+      }, function () {
+        lives--;
+        updateHud();
+        if (lives <= 0) { gameOver(); return; }
+        beginLevel(levelIdx, true);
+      });
     } else if (state === 'paused' && !force) {
       hideCard();
       state = 'play'; resumeMusic();
@@ -4250,11 +4331,25 @@
     // tall and its left/right row is 76 + 10 + 76 wide.
     var need = 224, rowW = 162, gutter = (cw - Math.floor(VW * scale)) / 2;
     var fitH = (ch - 26) / need;
-    // (gutter - 6) / rowW is at most 1.0 inside that window, and the else
-    // branch pinned it to 1 — so the 1.25 ceiling was unreachable and a roomy
-    // screen never actually got a bigger button. Off in the gutter case, let
-    // the height be the only limit.
-    var fitW = (gutter > 44 && gutter < 168) ? (gutter - 6) / rowW : 99;
+    // Three cases, and the old code conflated the outer two. A WIDE gutter
+    // (a 4:3 picture on a very wide screen) has room to spare, so only height
+    // limits the pad. A medium gutter sizes the pad to fit it. A TINY gutter —
+    // a 16:9 phone in landscape, where the picture nearly fills the window —
+    // means the buttons sit ON the play field, so they must be smaller, not
+    // bigger: at full size they covered 19% of the picture, including the
+    // castle you finish the sector by walking into.
+    // Size the pad to the room that actually exists, which is the gutter
+    // beside the picture OR the band below it — a tall phone in portrait has
+    // 200-360px of dead space under the picture and the buttons cover 0% of
+    // it, while a 16:9 phone in landscape has neither and they sit ON the play
+    // field. Measured coverage of the picture: 0-1.7% portrait, 5-10% on the
+    // wider landscape phones, 20% on 667x375, which is the only case that has
+    // to give ground.
+    var band = ch - Math.floor(VHR * scale);
+    var fitW = gutter >= 168 ? 99
+             : gutter > 44   ? (gutter - 6) / rowW
+             : Math.max(0.78, band / need);
+    document.body.classList.toggle('pad-over', gutter <= 44 && band < need * 0.7);
     // The floor was 0.68, which on a landscape phone with a narrow gutter drove
     // a 62px button down to 42 — under the 44px that is the smallest thing a
     // thumb reliably hits, and you are not looking at your thumbs while you
@@ -4283,7 +4378,20 @@
   }
 
   document.getElementById('newBtn').addEventListener('click', function () {
-    hideCard(); closeHelp(); resumeAudio(); newGame();
+    resumeAudio();
+    // It used to wipe the run on one tap, sitting a few px from ? — miss the
+    // help button to the right mid-game and your score, sector and lives were
+    // gone with nothing to undo it. Mid-run it asks; from a card it does not.
+    if (state === 'play' || state === 'paused') {
+      if (state === 'play') togglePause(true);
+      showCard('🔄', 'Start over?',
+               'Sector ' + (L ? L.name : '') + ', score ' + score + ' — this ends the run.',
+               'Start over', 'Keep playing',
+               function () { hideCard(); closeHelp(); newGame(); },
+               function () { hideCard(); state = 'play'; resumeMusic(); });
+      return;
+    }
+    hideCard(); closeHelp(); newGame();
   });
   // --- fullscreen / landscape lock --------------------------------------- //
   // Two problems, one button. Inside the shell on a phone the game gets a
@@ -4350,7 +4458,13 @@
       }, 150);
       return;
     }
-    setRotate(true);                    // iOS Safari: rotate instead
+    // …but only when the picture would actually gain from it. The rotate rule
+    // is inside @media (orientation: portrait), so in landscape setRotate did
+    // nothing visible while still persisting the flag — the button looked
+    // broken, and the app then spun 90 degrees on its own the next time the
+    // phone was held upright.
+    if (window.innerHeight > window.innerWidth) setRotate(true);
+    else tellShell(true);               // already landscape: just take the room
   });
   document.addEventListener('fullscreenchange', function () {
     // Escape / the system gesture leaves fullscreen without touching our button.
@@ -4363,6 +4477,16 @@
   // without the re-announce a reload restored a sideways game under full chrome.
   window.addEventListener('pagehide', function () { tellShell(false); });
   window.addEventListener('pageshow', function () { if (rotated || fsOn()) tellShell(true); });
+  // Switching apps in the desktop shell hides the frame with display:none and
+  // posts vibetop:active. `document.hidden` stays FALSE for a hidden iframe, so
+  // the visibilitychange guard never fired: the clock kept draining and the
+  // music kept playing while you were looking at Notes, and you could lose the
+  // run without seeing it.
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data) return;
+    if (e.data.type === 'vibetop:active' && e.data.active !== 'circuit' &&
+        state === 'play') togglePause(true);
+  });
   window.addEventListener('orientationchange', function () { setTimeout(resize, 250); });
 
   // Restored from localStorage: say so, or the shell shows its chrome over a
