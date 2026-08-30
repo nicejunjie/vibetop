@@ -106,11 +106,20 @@
          padding: 10px calc(12px + env(safe-area-inset-right, 0px))
                   calc(10px + env(safe-area-inset-bottom, 0px))
                   calc(12px + env(safe-area-inset-left, 0px));
-         pointer-events: none; z-index: 4; }
+         /* auto, not none: a miss has to REACH the handler before it can be
+            snapped to a button. Nothing else lives in this strip — the top-bar
+            buttons are in .bar and the pad hides itself behind a card — and a
+            tap too far from every button is still rejected by distance. */
+         pointer-events: auto; z-index: 4; }
   body.touch .pad { display: flex; }
   body.touch.paused .pad, body.touch.carded .pad { display: none; }
+  /* padding + equal negative margin: the group CATCHES presses well outside
+     the buttons without moving a pixel of the layout. .pad itself is
+     pointer-events:none, so a thumb landing past the group's box never reached
+     the handler at all and the near-miss snap never got a chance to run. */
   .pad .grp { display: flex; gap: calc(10px * var(--pad-s, 1)); align-items: flex-end;
-              pointer-events: auto; }
+              pointer-events: auto;
+              padding: calc(18px * var(--pad-s, 1)); margin: calc(-18px * var(--pad-s, 1)); }
   .pad .dpad { flex-direction: column; align-items: center; gap: calc(8px * var(--pad-s, 1)); }
   .pad .dpad .row { display: flex; gap: calc(10px * var(--pad-s, 1)); }
   .pad .btn { font-size: calc(22px * var(--pad-s, 1)); }
@@ -122,7 +131,7 @@
   /* and see-through enough to read the ground underneath either way */
   .pad .btn { background: rgba(24,31,44,.5); }
   .pad .btn {
-    width: calc(62px * var(--pad-s, 1)); height: calc(62px * var(--pad-s, 1));
+    width: calc(76px * var(--pad-s, 1)); height: calc(76px * var(--pad-s, 1));
     border-radius: 50%;
     background: rgba(30,38,52,.62); border: 2px solid rgba(150,170,200,.42);
     color: #eaf0f8; font-size: 22px; font-weight: 700;
@@ -132,8 +141,8 @@
   }
   .pad .btn.act { background: rgba(138,74,219,.72); border-color: #b98bf0; }
   .pad .btn.sm {
-    width: calc(54px * var(--pad-s, 1)); height: calc(54px * var(--pad-s, 1));
-    font-size: calc(18px * var(--pad-s, 1));
+    width: calc(66px * var(--pad-s, 1)); height: calc(66px * var(--pad-s, 1));
+    font-size: calc(20px * var(--pad-s, 1));
   }
   .pad .btn.a { background: rgba(60,140,80,.6); border-color: rgba(150,230,170,.5); }
   .pad .btn.a.act { background: rgba(78,195,106,.85); border-color: #bff5cd; }
@@ -1595,13 +1604,19 @@
       var el = document.elementFromPoint(x, y);
       var b = el && el.closest ? el.closest('.pad .btn') : null;
       if (b) return b;
-      var g = el && el.closest ? el.closest('.pad .grp') : null;
-      if (!g) return null;
-      var list = g.querySelectorAll('.btn'), best = null, bd = Infinity;
+      // Inside a group, be generous. Landing on the bare strip between the two
+      // groups still snaps, but only from much closer, so a tap at the dead
+      // centre of the screen presses nothing.
+      // Nearest button wins, out to a bit more than one button-width from its
+      // centre. Distance alone keeps the middle of the strip dead — the two
+      // groups sit a couple of hundred px apart — so there is no need to also
+      // require the finger to be inside a group's box, which was cutting the
+      // forgiveness off at the padding edge.
+      var list = pad.querySelectorAll('.btn'), best = null, bd = Infinity;
       for (var i = 0; i < list.length; i++) {
         var r = list[i].getBoundingClientRect();
         var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
-        var d = dx * dx + dy * dy, lim = r.width * 0.5 + 24;
+        var d = dx * dx + dy * dy, lim = r.width * 1.15;
         if (d < bd && d < lim * lim) { bd = d; best = list[i]; }
       }
       return best;
@@ -4199,10 +4214,16 @@
     // shell on a landscape phone the play area can be 228px tall — the full
     // 190px d-pad cross ran off the bottom — and the letterbox gutter can be
     // narrower than the 134px left/right row.
-    var need = 190, gutter = (cw - Math.floor(VW * scale)) / 2;
+    // These two must track the CSS: the d-pad cross is 66 + 8 + 76 + 8 + 66
+    // tall and its left/right row is 76 + 10 + 76 wide.
+    var need = 224, rowW = 162, gutter = (cw - Math.floor(VW * scale)) / 2;
     var fitH = (ch - 26) / need;
-    var fitW = (gutter > 44 && gutter < 132) ? (gutter - 6) / 134 : 1;
-    var padS = Math.max(0.68, Math.min(1, fitH, fitW));
+    var fitW = (gutter > 44 && gutter < 168) ? (gutter - 6) / rowW : 1;
+    // The floor was 0.68, which on a landscape phone with a narrow gutter drove
+    // a 62px button down to 42 — under the 44px that is the smallest thing a
+    // thumb reliably hits, and you are not looking at your thumbs while you
+    // play. The ceiling was 1, so a roomy screen never got bigger buttons.
+    var padS = Math.max(0.8, Math.min(1.25, fitH, fitW));
     document.body.style.setProperty('--pad-s', padS.toFixed(3));
     if (L) cam.x = Math.max(0, Math.min(cam.x, L.w * TS - VW));
   }

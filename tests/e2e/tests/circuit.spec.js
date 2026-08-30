@@ -1052,6 +1052,44 @@ test.describe('circuit on touch', () => {
     for (const k of landed) expect(k, 'a near-miss must land on a button').toBeTruthy();
   });
 
+  test('the pad buttons are big enough to hit without looking', async ({ page }) => {
+    // 62px shrank to 42 on a landscape phone with a narrow gutter — under the
+    // 44px that is the smallest thing a thumb reliably finds, and you are not
+    // looking at your thumbs while you play.
+    await boot(page);
+    for (const vp of [{ width: 667, height: 375 }, { width: 844, height: 390 },
+                      { width: 390, height: 844 }]) {
+      await page.setViewportSize(vp);
+      await page.waitForTimeout(250);
+      const r = await page.evaluate(() => {
+        const pad = document.getElementById('pad');
+        const A = document.querySelector('.pad .btn[data-k="jump"]').getBoundingClientRect();
+        const press = (x, y) => {
+          const el = document.elementFromPoint(x, y);
+          if (!el) return null;
+          const ev = new PointerEvent('pointerdown',
+            { clientX: x, clientY: y, pointerId: 77, bubbles: true, cancelable: true });
+          Object.defineProperty(ev, 'target', { value: el });
+          pad.dispatchEvent(ev);
+          const act = document.querySelector('.pad .btn.act');
+          const k = act ? act.dataset.k : null;
+          document.querySelectorAll('.pad .btn.act').forEach(b => b.classList.remove('act'));
+          return k;
+        };
+        let slack = 0;
+        for (let d = 2; d < 100; d += 2) {
+          if (press(A.left - d, A.top + A.height / 2)) slack = d; else break;
+        }
+        return { size: A.width, slack,
+                 middle: press(window.innerWidth / 2, window.innerHeight - 30) };
+      });
+      const at = vp.width + 'x' + vp.height;
+      expect(r.size, 'button diameter at ' + at).toBeGreaterThanOrEqual(56);
+      expect(r.slack, 'slack outside the button at ' + at).toBeGreaterThanOrEqual(24);
+      expect(r.middle, 'the middle of the strip must press nothing at ' + at).toBe(null);
+    }
+  });
+
   test('landing on an enemy never costs a life', async ({ page }) => {
     // A stomp landed, sounded, awarded — and then the SAME enemy hurt you on
     // the next frame. Every other stomp outcome moves the enemy's box away (a
