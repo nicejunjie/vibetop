@@ -1236,6 +1236,116 @@ test.describe('circuit on touch', () => {
     expect(r.sectorAfter, 'the middle pipe skips ahead a sector').toBe('04');
   });
 
+  test('nothing you can reach with your head is dead masonry', async ({ page }) => {
+    // "In the original there are no hard rocks, but I have seen many hard rocks
+    // that I can't jump to hit." The underground and the castle were built out
+    // of a castle-brick tile that DRAWS as a masonry wall and answers nothing:
+    // 206 of them overhead in sector 02 and 212 in sector 05, the stage-2
+    // ceiling among them. In the original that ceiling is ordinary brick — you
+    // bump it, and as a big player you break it.
+    //
+    // The rule: anything brick-looking overhead must be hittable, and anything
+    // that is genuinely indestructible must not wear a brick's face. The hard
+    // block (a plain slab) is allowed to be solid; it reads as solid.
+    await boot(page);
+    const bad = await page.evaluate(() => {
+      const HARD = 5, CASTLE_BRICK = 13;
+      const out = [];
+      for (let i = 0; i < window.__crLevelCount; i++) {
+        const L = window.__crBuild(i), S = new Set(L.T.SOLID);
+        const at = (x, y) => (x < 0 || y < 0 || x >= L.w || y >= L.h) ? 0 : L.tiles[y * L.w + x];
+        const solid = (x, y) => S.has(at(x, y));
+        const BUMP = new Set([L.T.BRICK, L.T.Q, L.T.HIDDEN, 4]);
+        for (let x = 0; x < L.w; x++) for (let y = 0; y < L.h; y++) {
+          const t = at(x, y);
+          if (!S.has(t) || BUMP.has(t) || t === HARD) continue;
+          if (t !== CASTLE_BRICK) continue;      // only the brick-faced tiles
+          if (solid(x, y + 1)) continue;         // not the underside of anything
+          let reach = false;                     // can a head actually get here?
+          for (let R = y + 2; R <= y + 5 && !reach; R++)
+            for (let dx = -2; dx <= 2 && !reach; dx++) {
+              if (!solid(x + dx, R) || solid(x + dx, R - 1) || solid(x + dx, R - 2)) continue;
+              let clear = true;
+              for (let yy = y + 1; yy < R; yy++) if (solid(x, yy)) { clear = false; break; }
+              if (clear) reach = true;
+            }
+          if (reach) out.push(L.name + ' (' + x + ',' + y + ')');
+        }
+      }
+      return out;
+    });
+    expect(bad.slice(0, 12), 'brick-faced blocks overhead that ignore a bump (' +
+           bad.length + ' total)').toEqual([]);
+  });
+
+  test('the floor never looks like the brick you can hit', async ({ page }) => {
+    // In the underground theme `ground` and `brick` were literally the same
+    // hex, which did not matter while the structure was a separate masonry
+    // tile — but once the ceiling and the pillars became brick, the whole
+    // sector read as one wall of cyan and you could not tell what to hit.
+    await boot(page);
+    const rows = [];
+    for (let lv = 0; lv < 5; lv++) {
+      await page.evaluate(l => { window.__crTest.level(l); window.__crTest.step(150); }, lv);
+      rows.push(await page.evaluate(() => {
+        const px = (t) => {
+          const c = window.__crTile(t);
+          if (!c) return null;
+          const d = c.getContext('2d').getImageData(0, 0, 16, 16).data, out = [];
+          for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 8) out.push([d[i], d[i+1], d[i+2]]);
+          return out;
+        };
+        const lum = (c) => {
+          const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+          return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+        };
+        const sig = (t) => {
+          const a = px(t);
+          if (!a || !a.length) return null;
+          const L = a.map(lum).sort((x, y) => x - y);
+          const m = [0, 0, 0];
+          a.forEach(c => { m[0] += c[0]; m[1] += c[1]; m[2] += c[2]; });
+          return { lo: L[Math.floor(L.length * 0.15)], hi: L[Math.floor(L.length * 0.85)],
+                   rgb: m.map(v => v / a.length) };
+        };
+        const g = sig(1), br = sig(2);
+        if (!g || !br) return null;
+        return { name: window.__cr().level,
+                 dl: Math.abs(g.hi - br.hi) + Math.abs(g.lo - br.lo),
+                 dc: Math.sqrt(g.rgb.reduce((s, v, i) => s + (v - br.rgb[i]) ** 2, 0)) };
+      }));
+    }
+    for (const r of rows) {
+      if (!r) continue;
+      expect(r.dl > 0.04 || r.dc > 28,
+        'sector ' + r.name + ': floor vs brick — luminance gap ' + r.dl.toFixed(3) +
+        ', colour distance ' + r.dc.toFixed(1)).toBe(true);
+    }
+  });
+
+  test('the stage-2 ceiling and its pillars are brick you can break', async ({ page }) => {
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest, out = {};
+      T.level(1); T.input({}); T.step(140); T.clear();
+      out.ceiling = T.tile(20, 1);
+      // a pillar hangs down to head height; small bumps it, big breaks it
+      T.place(28, 13); T.input({}); T.step(6);
+      for (let f = 0; f < 60; f++) { T.input({ jump: f < 40 }); T.step(); }
+      out.smallPillar = T.tile(28, 8);
+      T.level(1); T.input({}); T.step(140); T.clear(); T.give('big');
+      T.place(28, 13); T.input({}); T.step(6);
+      for (let f = 0; f < 60; f++) { T.input({ jump: f < 40 }); T.step(); }
+      out.bigPillar = T.tile(28, 8);
+      out.state = window.__cr().state;
+      return out;
+    });
+    expect(r.ceiling, 'the ceiling should be brick, not dead masonry').toBe(2);
+    expect(r.smallPillar, 'a small player bumps a pillar without breaking it').toBe(2);
+    expect(r.bigPillar, 'a big player breaks it').not.toBe(2);
+    expect(r.state).toBe('play');
+  });
+
   test('every hidden block can actually be struck', async ({ page }) => {
     // The first version of this test counted hidden blocks and multi-coin
     // bricks in the built map. It was satisfied by construction by the same

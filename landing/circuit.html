@@ -1902,7 +1902,7 @@
     // --- the bonus room, parked past the castle behind a wall ----------- //
     L.rect(217, 0, 217, ROWS - 1, T_STONE);
     L.ground(218, 236, T_CBRICK);
-    L.rect(218, 0, 236, 8, T_CBRICK);            // a low, closed ceiling
+    L.rect(218, 0, 236, 8, T_STONE);             // a low, closed ceiling
     // …but not directly over the power block: an item that rises into a
     // one-tile slot is jammed against the roof, and a big player cannot even
     // stand where it is.
@@ -1943,8 +1943,14 @@
     var L = new Level('02', 252, 'underground');
     L.time = 400; L.startX = 3; L.checkpoint = 96;
     L.ground(0, 88); L.ground(92, 140); L.ground(144, 251);
-    L.rect(0, 0, 168, 1, T_CBRICK);              // ceiling, most of the way
-    L.rect(0, 2, 5, 2, T_CBRICK);
+    // Brick, not the castle block. In the original the underground ceiling and
+    // its pillars are ordinary bricks — you bump them, and as a big player you
+    // break them; breaking through the ceiling is how the original's own warp
+    // zone is reached. Here they were solid masonry that LOOKED like brick and
+    // answered nothing: 206 of them hanging over your head in this sector
+    // alone, which is what "hard rocks I can't jump to hit" is.
+    L.rect(0, 0, 168, 1, T_BRICK);               // ceiling, most of the way
+    L.rect(0, 2, 5, 2, T_BRICK);
 
     // an opening coin cellar
     L.rect(8, 9, 14, 9, T_BRICK);
@@ -1958,8 +1964,8 @@
     // could not be finished at all, and both of my checks had the same blind
     // spot: the foothold audit only compared columns more than one apart, and
     // the completion test teleports to each flag.
-    L.rect(24, 10, 24, 12, T_CBRICK); L.rect(28, 2, 28, 8, T_CBRICK);
-    L.rect(33, 10, 33, 12, T_CBRICK); L.rect(37, 2, 37, 9, T_CBRICK);
+    L.rect(24, 10, 24, 12, T_BRICK); L.rect(28, 2, 28, 8, T_BRICK);
+    L.rect(33, 10, 33, 12, T_BRICK); L.rect(37, 2, 37, 9, T_BRICK);
     L.spawn('koopa', 30, 12);
     L.rect(42, 9, 46, 9, T_BRICK); L.q(44, 9, 'coin');
     L.spawn('goomba', 44, 12); L.spawn('goomba', 46, 12);
@@ -1975,7 +1981,7 @@
     for (var c = 0; c < 5; c++) L.set(65 + c, 5, T_COIN);
 
     // the pinch: low ceiling, then a gap
-    L.rect(74, 0, 82, 7, T_CBRICK);
+    L.rect(74, 0, 82, 7, T_BRICK);
     L.spawn('goomba', 76, 12); L.spawn('goomba', 78, 12); L.spawn('goomba', 80, 12);
     L.spawn('para', 96, 8);
 
@@ -1992,8 +1998,8 @@
     L.rect(152, 9, 156, 9, T_BRICK); L.q(154, 9, 'coin');
     L.brick(153, 9, 'coins');
     L.spawn('koopaRed', 160, 12);
-    L.stair(168, 6, 1, T_CBRICK);
-    L.rect(174, GY - 6, 176, GY - 1, T_CBRICK);
+    L.stair(168, 6, 1);                          // the hard block, as in the original
+    L.rect(174, GY - 6, 176, GY - 1, T_STONE);
     L.flagX = 186; L.castleX = 192;
 
     // --- the Warp Zone ------------------------------------------------- //
@@ -2014,7 +2020,7 @@
     L.vineWarps[178] = { x: 214, y: GY };
     L.rect(202, 0, 202, GY - 1, T_STONE);        // nothing walks into the room
 
-    L.rect(208, 0, 251, 1, T_CBRICK);            // the room has a roof of its own
+    L.rect(208, 0, 251, 1, T_STONE);             // the room has a roof of its own
     L.pipe(212, GY - 3, 3, { level: 2 });        // three pipes, three sectors
     L.pipe(224, GY - 3, 3, { level: 3 });
     L.pipe(236, GY - 3, 3, { level: 4 });
@@ -2094,7 +2100,10 @@
     var L = new Level('05', 172, 'castle');
     L.time = 300; L.startX = 3; L.checkpoint = 84; L.boss = true;
     L.ground(0, 171, T_CBRICK);
-    L.rect(0, 0, 171, 0, T_CBRICK);
+    // Every ledge in here is the hard block. They are genuinely indestructible
+    // — a firebar platform you could smash is not a platform — so they must not
+    // wear the brick's face. Only the floor stays castle masonry.
+    L.rect(0, 0, 171, 0, T_STONE);
 
     // lava pools
     function lava(x0, x1) {
@@ -2104,13 +2113,13 @@
     // to jump while dodging a podoboo, so the pools leave real margin.
     lava(21, 24); lava(39, 42); lava(67, 70); lava(97, 100);
 
-    L.rect(10, 8, 14, 8, T_CBRICK);
+    L.rect(10, 8, 14, 8, T_STONE);
     L.spawn('firebar', 12, 7, { len: 4, speed: 0.035 });
     L.spawn('podoboo', 22, 14, { power: 5.6 });
-    L.rect(28, 6, 32, 6, T_CBRICK);
+    L.rect(28, 6, 32, 6, T_STONE);
     L.spawn('firebar', 30, 5, { len: 5, speed: -0.03 });
     L.spawn('podoboo', 41, 14, { power: 6.2 });
-    L.rect(46, 9, 50, 9, T_CBRICK); L.q(48, 9, 'power');
+    L.rect(46, 9, 50, 9, T_STONE); L.q(48, 9, 'power');
     L.brick(49, 9, 'coins');
     // A staircase you build by striking it: each block becomes the floor for
     // the next. Moved two columns left of where it was — the top step stood
@@ -2124,24 +2133,24 @@
     L.spawn('bullet', 54, 11, { rate: 150 });
     L.rect(54, 11, 54, 12, T_CANNON_BASE); L.set(54, 11, T_CANNON);
 
-    L.rect(58, 4, 62, 4, T_CBRICK); L.rect(58, 10, 62, 10, T_CBRICK);
+    L.rect(58, 4, 62, 4, T_STONE); L.rect(58, 10, 62, 10, T_STONE);
     L.spawn('firebar', 60, 9, { len: 6, speed: 0.028 });
     L.spawn('podoboo', 69, 14, { power: 6.4 });
     L.spawn('bullet', 78, 11, { rate: 120 });
     L.rect(78, 11, 78, 12, T_CANNON_BASE); L.set(78, 11, T_CANNON);
-    L.rect(82, 8, 86, 8, T_CBRICK);
+    L.rect(82, 8, 86, 8, T_STONE);
     L.spawn('firebar', 84, 7, { len: 5, speed: -0.032 });
 
     // the maze-ish stretch: two ceilings, pick the right gap
-    L.rect(90, 5, 94, 5, T_CBRICK); L.rect(90, 9, 94, 9, T_CBRICK);
+    L.rect(90, 5, 94, 5, T_STONE); L.rect(90, 9, 94, 9, T_STONE);
     L.spawn('podoboo', 99, 14, { power: 6.0 });
-    L.rect(104, 6, 110, 6, T_CBRICK);
+    L.rect(104, 6, 110, 6, T_STONE);
     L.spawn('firebar', 107, 5, { len: 6, speed: 0.03 });
-    L.rect(114, 9, 118, 9, T_CBRICK); L.q(116, 9, 'power');
+    L.rect(114, 9, 118, 9, T_STONE); L.q(116, 9, 'power');
     L.hidden(112, 6, 'power'); L.hidden(135, 8, 'coin');
     L.spawn('bullet', 122, 11, { rate: 110 });
     L.rect(122, 11, 122, 12, T_CANNON_BASE); L.set(122, 11, T_CANNON);
-    L.rect(126, 4, 132, 4, T_CBRICK);
+    L.rect(126, 4, 132, 4, T_STONE);
     L.spawn('firebar', 129, 3, { len: 7, speed: -0.026 });
 
     // The bridge, the boss, and the axe on the far side. The bridge sits one
@@ -3489,7 +3498,11 @@
                   brick: '#5c3fb0', brickHi: '#9b86f0', stone: '#3a4870', hill: '#2f9e64',
                   hw: '#2e3c66', hwHi: '#7f96cc', hwLo: '#141d3a', glow: '#2fc9e0',
                   qFrame: '#101a3a', qFace: '#2b3f8c', qGlyph: '#8ff4ff', uFace: '#2b3350' },
-    underground:{ sky: '#132f52', ground: '#2fa8c9', groundHi: '#7fe4f5', groundLo: '#125b73',
+    // ground and brick were the SAME hex here, so once the ceiling and the
+    // pillars became brick the whole sector read as one wall of cyan. The floor
+    // recedes and the brick stays bright: the thing you can hit is the thing
+    // that stands out.
+    underground:{ sky: '#132f52', ground: '#1d7392', groundHi: '#49b3cf', groundLo: '#0e4257',
                   brick: '#2fa8c9', brickHi: '#7fe4f5', stone: '#c3d4e8', hill: '#1d5a80',
                   hw: '#8fa8d8', hwHi: '#dbe9ff', hwLo: '#46598a', glow: '#7fe4f5',
                   qFrame: '#dfe9fa', qFace: '#9fb6e8', qGlyph: '#12305c', uFace: '#8d97b5' },
