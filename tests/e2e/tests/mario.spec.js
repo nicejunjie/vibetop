@@ -51,7 +51,7 @@ test.describe('mario', () => {
     await page.goto('/mario.html');
     await page.waitForFunction(() => !!window.__marioBuild, null, { timeout: 15000 });
     const count = await page.evaluate(() => window.__marioLevelCount);
-    expect(count).toBe(4);
+    expect(count).toBe(5);
 
     for (let i = 0; i < count; i++) {
       const L = await page.evaluate((k) => window.__marioBuild(k), i);
@@ -66,8 +66,10 @@ test.describe('mario', () => {
       // lowest) and where you can LEAVE from (the same platform at its highest).
       const enter = new Array(L.w).fill(null), exit = new Array(L.w).fill(null);
       for (let x = 0; x < L.w; x++) {
-        for (let y = 0; y < L.h; y++) {
-          if (at(x, y) === L.T.LAVA) break;
+        // bottom-up: the walking surface is the LOWEST foothold in a column,
+        // not the first brick or cloud you meet coming down from the sky.
+        for (let y = L.h - 1; y >= 0; y--) {
+          if (at(x, y) === L.T.LAVA) continue;
           if (standable(x, y)) { enter[x] = y; exit[x] = y; break; }
         }
       }
@@ -82,8 +84,17 @@ test.describe('mario', () => {
         }
       });
 
+      // A water level is swum, not walked: footholds do not gate progress
+      // there, and its coral pillars would read as unjumpable steps.
+      // A water level is swum, not walked: footholds gate nothing there, and
+      // its coral pillars would read as unjumpable steps.
+      if (L.theme === 'water') {
+        expect(enter[L.flagX], `world ${L.name} flagpole has no ground`).not.toBeNull();
+        continue;
+      }
       const bad = [];
       let last = null;
+      if (L.theme === 'water') { expect(enter[L.flagX]).not.toBeNull(); continue; }
       for (let x = L.start; x <= Math.min(L.w - 1, L.flagX); x++) {
         if (enter[x] === null) continue;
         if (last !== null) {
@@ -238,7 +249,7 @@ test.describe('mario', () => {
 
   test('lava kills outright, whatever size you are', async ({ page }) => {
     await boot(page);
-    await page.evaluate(() => window.__marioTest.level(3));       // the castle
+    await page.evaluate(() => window.__marioTest.level(4));       // the castle
     await expect.poll(async () => (await snap(page)).state, { timeout: 10000 }).toBe('play');
     await page.evaluate(() => window.__marioTest.give('fire'));
     expect((await snap(page)).big).toBe(true);
@@ -278,10 +289,10 @@ test.describe('mario', () => {
   test('running out of lives offers a continue at the world you died in', async ({ page }) => {
     test.slow();
     await boot(page);
-    await page.evaluate(() => window.__marioTest.level(2));       // world 1-3
+    await page.evaluate(() => window.__marioTest.level(3));       // world 1-4
     await expect.poll(async () => (await snap(page)).state, { timeout: 10000 }).toBe('play');
 
-    // x=58 is real void in 1-3 — the mushroom trees end at 55 and the ground
+    // x=58 is real void in 1-4 — the mushroom trees end at 55 and the ground
     // resumes at 60. Dropping at 40 lands ON a tree, which is not a death.
     for (let i = 0; i < 5; i++) {
       await place(page, 58, 4);
@@ -295,9 +306,9 @@ test.describe('mario', () => {
     }
     await expect(page.locator('#overlay.show')).toBeVisible();
     await expect(page.locator('#ovTitle')).toHaveText(/Game over/);
-    await expect(page.locator('#ovAlt')).toHaveText(/1-3/);
+    await expect(page.locator('#ovAlt')).toHaveText(/1-4/);
     await page.locator('#ovAlt').click();
-    await expect.poll(async () => (await snap(page)).level, { timeout: 10000 }).toBe('1-3');
+    await expect.poll(async () => (await snap(page)).level, { timeout: 10000 }).toBe('1-4');
     const s = await snap(page);
     expect(s.lives).toBe(3);
     expect(s.score).toBe(0);
@@ -321,7 +332,7 @@ test.describe('mario', () => {
 
   test('the castle hazards actually exist', async ({ page }) => {
     await boot(page);
-    await page.evaluate(() => window.__marioTest.level(3));
+    await page.evaluate(() => window.__marioTest.level(4));
     await expect.poll(async () => (await snap(page)).state, { timeout: 10000 }).toBe('play');
     // The firebars were positioned in pixels and then drawn as tiles, putting
     // every one of them thousands of pixels off screen; the cannons' countdown
@@ -370,6 +381,93 @@ test.describe('mario', () => {
     expect(await page.evaluate(() => document.body.classList.contains('carded'))).toBe(false);
   });
 
+  test('the water world swims', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.level(2));
+    await expect.poll(async () => (await snap(page)).state, { timeout: 10000 }).toBe('play');
+    expect((await snap(page)).level).toBe('1-3');
+    expect((await ents(page)).some((e) => e.type === 'cheep')).toBe(true);
+    await page.evaluate(() => window.__marioTest.clear());   // physics, not fish
+
+    // you sink, but slowly — swimming is not falling
+    await place(page, 6, 8);
+    await page.waitForTimeout(400);
+    const a = (await snap(page)).py;
+    await page.waitForTimeout(1200);
+    const b = (await snap(page)).py;
+    expect(b).toBeGreaterThan(a + 8);
+    expect(b - a).toBeLessThan(130);
+
+    // one stroke per PRESS: `undefined <= 0` is false, and swimCool was only
+    // ever assigned inside the branch it gated — so swimming up never worked
+    // at all until it was initialised.
+    await place(page, 6, 8);
+    await page.waitForTimeout(300);
+    const c = (await snap(page)).py;
+    const apexP = page.evaluate(() => new Promise((res) => {
+      let best = 1e9, i = 0;
+      const t = () => { const y = window.__mario().py; if (y < best) best = y;
+        if (++i < 45) requestAnimationFrame(t); else res(best); };
+      requestAnimationFrame(t);
+    }));
+    await page.waitForTimeout(60);
+    await page.keyboard.press('Space');
+    expect(await apexP).toBeLessThan(c - 18);
+
+    // holding it does not fly you upward
+    await place(page, 6, 8);
+    await page.waitForTimeout(300);
+    const d = (await snap(page)).py;
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(1500);
+    await page.keyboard.up('Space');
+    expect((await snap(page)).py).toBeGreaterThan(d - 45);
+
+    // and the flag is on dry land you walk out onto
+    await page.evaluate(() => window.__marioTest.clear());
+    await place(page, 172, 12);
+    await expect.poll(async () => (await snap(page)).onGround, { timeout: 5000 }).toBe(true);
+  });
+
+  test('the beanstalk grows, climbs and leads somewhere', async ({ page }) => {
+    test.slow();
+    await boot(page);
+    await page.evaluate(() => window.__marioTest.clear());
+    await place(page, 128, 13);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(500);
+    await page.keyboard.up('Space');
+    await expect
+      .poll(async () => page.evaluate(() => window.__marioTest.tile(128, 4)), { timeout: 8000 })
+      .toBe(25);                                             // T_VINE
+
+    await place(page, 128, 9);                               // on the used block
+    await page.waitForTimeout(300);
+    await page.keyboard.down('ArrowUp');
+    await page.waitForTimeout(500);
+    expect((await snap(page)).mode).toBe('climb');
+    await page.waitForTimeout(4000);
+    await page.keyboard.up('ArrowUp');
+    await page.waitForTimeout(1200);
+    expect((await snap(page)).px).toBeGreaterThan(3800);      // coin heaven
+  });
+
+  test('the springboard beats a jump', async ({ page }) => {
+    await boot(page);
+    expect((await ents(page)).some((e) => e.type === 'spring')).toBe(true);
+    await page.evaluate(() => window.__marioTest.clear());
+    await place(page, 155, 5);
+    // Full gravity used to eat the launch the moment you let go of the button,
+    // making the springboard weaker than an ordinary jump.
+    const top = await page.evaluate(() => new Promise((res) => {
+      let best = 1e9, i = 0;
+      const t = () => { const y = window.__mario().py; if (y < best) best = y;
+        if (++i < 160) requestAnimationFrame(t); else res(best); };
+      requestAnimationFrame(t);
+    }));
+    expect(top).toBeLessThan(130);                           // the ground is 208
+  });
+
   test('an enemy that hits a wall turns around', async ({ page }) => {
     await boot(page);
     // collideX zeroes vx on contact, so the `vx = -vx` that follows negated
@@ -387,7 +485,7 @@ test.describe('mario', () => {
 
   test('every world boots and plays', async ({ page }) => {
     await boot(page);
-    for (const i of [1, 2, 3]) {
+    for (const i of [1, 2, 3, 4]) {
       await page.evaluate((k) => window.__marioTest.level(k), i);
       await expect.poll(async () => (await snap(page)).state, { timeout: 10000 }).toBe('play');
       await page.keyboard.down('ArrowRight');

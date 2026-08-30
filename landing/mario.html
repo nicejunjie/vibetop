@@ -42,11 +42,15 @@
   }
   button:hover { background: #47336a; border-color: #8a4adb; }
   button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
-  #helpBtn, #sndBtn, #fsBtn {
+  /* Keyboard has P and Esc; a phone has neither, and the only pause was
+     hidden behind the help card. */
+  #pauseBtn { display: none; }
+  body.touch #pauseBtn { display: block; }
+  #helpBtn, #sndBtn, #fsBtn, #pauseBtn {
     background: #1f2733; border-color: #2a3040; color: #aab4c5;
     min-width: 32px; font-weight: 700; padding: 5px 8px;
   }
-  #helpBtn:hover, #sndBtn:hover, #fsBtn:hover { background: #253044; border-color: #3a4358; }
+  #helpBtn:hover, #sndBtn:hover, #fsBtn:hover, #pauseBtn:hover { background: #253044; border-color: #3a4358; }
   #sndBtn.off { color: #5a6274; }
 
   .wrap {
@@ -159,6 +163,7 @@
     <div class="stat" id="stWorld"><span class="lbl">World</span><span class="val" id="world">1-1</span></div>
     <div class="stat" id="stTime"><span class="lbl">Time</span><span class="val" id="time">400</span></div>
     <div class="stat"><span class="lbl">Lives</span><span class="val" id="lives">3</span></div>
+    <button id="pauseBtn" title="Pause">⏸</button>
     <button id="sndBtn" title="Sound on/off">🔊</button>
     <button id="helpBtn" title="How to play">?</button>
     <button id="newBtn">New</button>
@@ -199,13 +204,15 @@
         <h2>How to play</h2>
         <p class="goal">Run right, stomp what moves, reach the flagpole before the
           clock runs out. Mushrooms make you big, flowers let you throw fire, stars
-          make you untouchable. Four worlds, and a boss at the end of 1-4.</p>
+          make you untouchable. Five worlds, including one underwater, and a boss
+          at the end of 1-5.</p>
         <h3>Keyboard</h3>
         <ul>
           <li><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> — walk</li>
           <li><kbd>Space</kbd> / <kbd>↑</kbd> / <kbd>Z</kbd> — jump <span class="em">(hold for higher)</span></li>
           <li><kbd>Shift</kbd> / <kbd>X</kbd> — run, and throw fire</li>
           <li><kbd>↓</kbd> — crouch, and enter a green pipe</li>
+          <li><kbd>↑</kbd> — climb a vine</li>
           <li><kbd>P</kbd> or <kbd>Esc</kbd> — pause</li>
         </ul>
         <h3>Touch</h3>
@@ -218,7 +225,10 @@
           <li>Jumping while running goes further — momentum carries</li>
           <li>Stomp a shell to stop it, kick it to bowl over a row of enemies</li>
           <li>A block bumped from below flips anything standing on it</li>
-          <li>Hidden 1-ups and a warp pipe are in there somewhere</li>
+          <li>Underwater, each press of jump is one stroke — hold does nothing</li>
+          <li>You can't stomp a fish. Burn it, or swim around it</li>
+          <li>A beanstalk grows out of one block in 1-1, and leads somewhere</li>
+          <li>Hidden 1-ups, a springboard and a warp pipe are in there too</li>
         </ul>
       </div>
     </div>
@@ -257,6 +267,11 @@
   var BOUNCE_V   = -3.3,  BOUNCE_HELD = -4.4; // stomping an enemy
   var ENEMY_V    = 0.42,  SHELL_V   = 3.1;
   var COYOTE     = 4, JUMP_BUF = 6;           // frames of forgiveness (touch needs it)
+  // Water: gravity most of the way off, a stroke per press instead of a held
+  // jump, and enough drag that you glide rather than skid.
+  var SWIM_GRAV  = 0.115, SWIM_MAXFALL = 1.9;
+  var SWIM_STROKE = -2.6, SWIM_SURF = -1.8, SWIM_COOL = 9;
+  var SWIM_ACC   = 0.055, SWIM_MAX = 1.35, SWIM_DRAG = 0.035;
 
   // ===================================================================== //
   //  Sprites: pixel arrays -> offscreen canvases (plus a flipped copy).
@@ -768,6 +783,114 @@
     '....GgggggG.....',
     '.....GgggG......'
   ];
+  ART.cheep = [
+    '................',
+    '................',
+    '.R..............',
+    '.RR......RRRR...',
+    '.RRR...RRRRRRRR.',
+    '.RRRRRRRRRRRRRRR',
+    '.RRRRRRRRRWWKRRR',
+    '.RRRRRRRRRWWKRRR',
+    '.RWWWWWWWWWWWRRR',
+    '.RRWWWWWWWWWWRR.',
+    '.RRR...RRRRRRR..',
+    '.RR......RRRR...',
+    '.R..............',
+    '................',
+    '................',
+    '................'
+  ];
+  ART.cheep2 = [
+    '................',
+    '.R..............',
+    '.RR.............',
+    '.RRR.....RRRR...',
+    '.RRRR..RRRRRRRR.',
+    '.RRRRRRRRRRRRRRR',
+    '.RRRRRRRRRWWKRRR',
+    '.RRRRRRRRRWWKRRR',
+    '.RWWWWWWWWWWWRRR',
+    '.RRWWWWWWWWWWRR.',
+    '.RRRR..RRRRRRR..',
+    '.RRR.....RRRR...',
+    '.RR.............',
+    '.R..............',
+    '................',
+    '................'
+  ];
+  ART.blooper = [
+    '.....WWWWWW.....',
+    '....WWWWWWWW....',
+    '...WWWWWWWWWW...',
+    '...WWWWWWWWWW...',
+    '...WWKKWWKKWW...',
+    '...WWKKWWKKWW...',
+    '...WWWWWWWWWW...',
+    '....WWWWWWWW....',
+    '....WWWWWWWW....',
+    '...WW.WWWW.WW...',
+    '..WW..WWWW..WW..',
+    '..W...WW.WW..W..',
+    '.W....W...W..W..',
+    '.W....W...W.....',
+    '......W...W.....',
+    '......W....W....'
+  ];
+  ART.blooper2 = [
+    '.....WWWWWW.....',
+    '....WWWWWWWW....',
+    '...WWWWWWWWWW...',
+    '...WWWWWWWWWW...',
+    '...WWKKWWKKWW...',
+    '...WWKKWWKKWW...',
+    '...WWWWWWWWWW...',
+    '....WWWWWWWW....',
+    '....WWWWWWWW....',
+    '...WWWWWWWWWW...',
+    '..WWWWWWWWWWWW..',
+    '..WW.WW..WW.WW..',
+    '..W..WW..WW..W..',
+    '.....WW..WW.....',
+    '.....W....W.....',
+    '................'
+  ];
+  ART.spring = [
+    '..LLLLLLLLLLLL..',
+    '..LWWWWWWWWWWL..',
+    '..LLLLLLLLLLLL..',
+    '................',
+    '...LLLLLLLLLL...',
+    '..LLLLLLLLLLLL..',
+    '...LLLLLLLLLL...',
+    '................',
+    '...LLLLLLLLLL...',
+    '..LLLLLLLLLLLL..',
+    '...LLLLLLLLLL...',
+    '................',
+    '..LLLLLLLLLLLL..',
+    '..LWWWWWWWWWWL..',
+    '..LLLLLLLLLLLL..',
+    '................'
+  ];
+  ART.springUp = [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '..LLLLLLLLLLLL..',
+    '..LWWWWWWWWWWL..',
+    '..LLLLLLLLLLLL..',
+    '...LLLLLLLLLL...',
+    '..LLLLLLLLLLLL..',
+    '...LLLLLLLLLL...',
+    '..LLLLLLLLLLLL..',
+    '..LWWWWWWWWWWL..',
+    '..LLLLLLLLLLLL..',
+    '................'
+  ];
   ART.bullet = [
     '................',
     '....KKKKKKKK....',
@@ -1038,6 +1161,7 @@
     goomba1: 16, goomba2: 16, goombaFlat: 16,
     koopa1: 16, koopa2: 16, shell: 16, shell2: 16,
     piranha: 16, piranha2: 16, bullet: 16, podoboo: 16,
+    cheep: 16, cheep2: 16, blooper: 16, blooper2: 16, spring: 16, springUp: 16,
     mushroom: 16, oneup: 16, flower: 16, star: 16,
     coin: 16, coin2: 16, coin3: 16,
     fireball: 8, fireball2: 8, puff: 8, hammer: 8,
@@ -1164,6 +1288,10 @@
     die:    function () { seq([[494, 0.12], [370, 0.1], [330, 0.1], [262, 0.12],
                               [196, 0.3, 90]], 'square', 0.26, 0.02); },
     tick:   function () { tone(1200, 0.03, 'square', 0.1); },
+    swim:   function () { tone(300, 0.1, 'sine', 0.16, 620); },
+    splash: function () { noise(0.16, 0.16); tone(500, 0.12, 'sine', 0.12, 180); },
+    spring: function () { tone(240, 0.14, 'square', 0.24, 900); },
+    firework: function () { noise(0.35, 0.22); tone(900, 0.25, 'square', 0.16, 120); },
     warn:   function () { tone(880, 0.07, 'square', 0.16); tone(660, 0.07, 'square', 0.16, 0,
                           (AC ? AC.currentTime + 0.09 : 0)); },
     flag:   function () { seq([[262, 0.07], [330, 0.07], [392, 0.07], [523, 0.07],
@@ -1326,7 +1454,7 @@
   // A gamepad is polled into its OWN state and merged with the keyboard by
   // readInput(). Writing it straight into K would leave keys stuck down (the
   // pad reports "not pressed" every frame and would clear a real key press).
-  var GP = { on: false, left: 0, right: 0, down: 0, jump: 0, run: 0 };
+  var GP = { on: false, left: 0, right: 0, up: 0, down: 0, jump: 0, run: 0 };
   function pollGamepad() {
     if (!navigator.getGamepads) return;
     var gp = null, all;
@@ -1339,6 +1467,7 @@
     GP.left = btn(14) || (ax < -0.4 ? 1 : 0);
     GP.right = btn(15) || (ax > 0.4 ? 1 : 0);
     GP.down = btn(13) || (ay > 0.4 ? 1 : 0);
+    GP.up = btn(12) || (ay < -0.4 ? 1 : 0);
     var a = btn(0) || btn(1) || btn(12) || (ay < -0.5 ? 1 : 0);
     GP.run = btn(2) || btn(3) || btn(5) || btn(7);
     if (a && !GP.jump) { pressJump(); resumeAudio(); }
@@ -1352,13 +1481,17 @@
       T_PIPE_TL = 6, T_PIPE_TR = 7, T_PIPE_L = 8, T_PIPE_R = 9,
       T_COIN = 10, T_POLE = 11, T_POLE_TOP = 12, T_CBRICK = 13, T_BRIDGE = 14,
       T_LAVA = 15, T_PLAT = 16, T_AXE = 17, T_HIDDEN = 18, T_CANNON = 19,
-      T_CANNON_BASE = 20, T_TREE = 21, T_TREE_TOP = 22;
+      T_CANNON_BASE = 20, T_TREE = 21, T_TREE_TOP = 22,
+      T_WATER = 23, T_SURF = 24, T_VINE = 25, T_CLOUD = 26;
 
   var SOLID = {};
   [T_GROUND, T_BRICK, T_Q, T_USED, T_STONE, T_PIPE_TL, T_PIPE_TR, T_PIPE_L,
    T_PIPE_R, T_CBRICK, T_BRIDGE, T_CANNON, T_CANNON_BASE, T_TREE, T_TREE_TOP]
     .forEach(function (t) { SOLID[t] = 1; });
   var BUMPABLE = {}; [T_BRICK, T_Q, T_HIDDEN].forEach(function (t) { BUMPABLE[t] = 1; });
+  var WET = {}; [T_WATER, T_SURF].forEach(function (t) { WET[t] = 1; });
+  // stand on it from above, jump up through it from below
+  var SEMI = {}; [T_PLAT, T_CLOUD].forEach(function (t) { SEMI[t] = 1; });
 
   // ===================================================================== //
   //  Level builder — levels are BUILT, not drawn as ASCII. A 200-tile map
@@ -1379,6 +1512,7 @@
     this.time = 400;
     this.flagX = w - 12; this.castleX = w - 8;
     this.warps = {};           // "x,y" of a pipe top -> {x,y} to arrive at
+    this.vineWarps = {};       // vine column -> where the top of it leads
     this.exitPipes = {};       // "x,y" -> {x,y} for the sideways way back
     this.boss = false;
   }
@@ -1449,7 +1583,7 @@
     // 240 wide, not 216: the last 24 columns are the bonus room, and Level.set
     // silently drops anything past the width — a room built out of bounds is a
     // warp pipe into nothing.
-    var L = new Level('1-1', 240, 'overworld');
+    var L = new Level('1-1', 288, 'overworld');
     L.ground(0, 68); L.ground(71, 85); L.ground(89, 152); L.ground(155, 215);
     L.startX = 3; L.time = 400; L.checkpoint = 100;
 
@@ -1507,6 +1641,13 @@
     L.spawn('goomba', 172, 12); L.spawn('goomba', 174, 12);
     L.pipe(179, 10, 3); L.spawn('piranha', 179, 10);
 
+    // a beanstalk, and a springboard to reach the block that holds it
+    L.q(128, 9, 'vine');
+    L.vineWarps[128] = { x: 246, y: 5 };
+    L.spawn('spring', 155, 12);
+    for (var sc = 0; sc < 6; sc++) L.set(153 + sc, 3, T_COIN);
+    L.hidden(156, 2, '1up');
+
     // the final staircase and the flag
     L.stair(188, 8, 1);
     L.rect(196, GY - 8, 196, GY - 1, T_STONE);
@@ -1524,6 +1665,19 @@
     L.q(226, 10, 'power');
     L.pipe(234, 11, 2);                          // the way out…
     L.exitPipes['234,11'] = { x: 62, y: 13 };    // …lands you past the plants
+
+    // --- coin heaven, at the top of the beanstalk ----------------------- //
+    L.rect(240, 0, 240, ROWS - 1, T_STONE);
+    L.row(241, 278, 6, T_CLOUD);                 // a floor of actual cloud
+    for (var k = 0; k < 30; k++) {
+      L.set(245 + k, 5, T_COIN);
+      if (k % 3 === 1) L.set(245 + k, 4, T_COIN);
+      if (k % 6 === 3) L.set(245 + k, 3, T_COIN);
+    }
+    L.hidden(258, 3, '1up');
+    L.pipe(274, 5, 2);
+    L.exitPipes['274,5'] = { x: 150, y: 13 };    // drops you back before the stairs
+    L.rect(279, 0, 279, ROWS - 1, T_STONE);
     return L;
   }
 
@@ -1582,7 +1736,7 @@
 
   // ---- world 1-3: the athletic level, mostly air ------------------------ //
   function build13() {
-    var L = new Level('1-3', 196, 'overworld');
+    var L = new Level('1-4', 196, 'overworld');
     L.time = 300; L.startX = 3; L.checkpoint = 114;   // inside ground(112,126)
     L.ground(0, 26); L.ground(60, 74); L.ground(112, 126); L.ground(160, 195);
 
@@ -1629,7 +1783,7 @@
 
   // ---- world 1-4: the castle -------------------------------------------- //
   function build14() {
-    var L = new Level('1-4', 172, 'castle');
+    var L = new Level('1-5', 172, 'castle');
     L.time = 300; L.startX = 3; L.checkpoint = 84; L.boss = true;
     L.ground(0, 171, T_CBRICK);
     L.rect(0, 0, 171, 0, T_CBRICK);
@@ -1684,8 +1838,52 @@
     return L;
   }
 
-  var LEVELS = [build11, build12, build13, build14];
-  var WORLD_NAMES = ['1-1', '1-2', '1-3', '1-4'];
+  // ---- world 1-3: the water level ------------------------------------- //
+  // Water is per-TILE, not per-level: the flag at the end sits on dry seabed
+  // you walk out onto, and any later level can flood a section the same way.
+  function buildWater() {
+    var L = new Level('1-3', 192, 'water');
+    L.time = 400; L.startX = 3; L.startY = 10; L.checkpoint = 96;
+    L.ground(0, 191);                                  // seabed, all the way
+    L.rect(0, 0, 191, 1, T_STONE);                     // the world above the surface
+    L.rect(0, 2, 166, 2, T_SURF);
+    L.rect(0, 3, 166, 12, T_WATER);
+
+    // coral: pillars off the floor and stalactites off the ceiling, never
+    // leaving less than four tiles of channel to swim through
+    function pillar(x, top) { L.rect(x, top, x, GY - 1, T_STONE); }
+    function drop(x, bottom) { L.rect(x, 3, x, bottom, T_STONE); }
+    pillar(14, 8); drop(20, 7); pillar(26, 7); drop(33, 6);
+    pillar(40, 9); pillar(41, 9); drop(47, 6); drop(48, 6);
+    pillar(56, 8); drop(63, 7); pillar(70, 6); drop(77, 5);
+    pillar(84, 9); pillar(85, 9); drop(92, 6);
+    pillar(100, 7); drop(107, 6); pillar(114, 8); drop(121, 5);
+    pillar(128, 9); drop(135, 7); pillar(142, 7); drop(149, 6);
+    pillar(156, 8);
+
+    for (var i = 0; i < 22; i++) {                      // coin trails
+      var cx = 8 + i * 7, cy = 5 + ((i * 3) % 6);
+      if (L.get(cx, cy) === T_WATER) L.set(cx, cy, T_COIN);
+      if (L.get(cx + 1, cy) === T_WATER) L.set(cx + 1, cy, T_COIN);
+    }
+    L.q(30, 9, 'power'); L.q(75, 6, 'coins'); L.q(120, 9, 'power');
+    L.hidden(110, 4, '1up');
+
+    var fish = [10, 8, 18, 5, 24, 10, 31, 4, 38, 9, 45, 6, 53, 10, 61, 5,
+                68, 8, 76, 4, 83, 10, 90, 6, 98, 9, 105, 5, 112, 8, 119, 10,
+                126, 6, 133, 9, 140, 5, 147, 8, 153, 10, 160, 7];
+    for (var f = 0; f < fish.length; f += 2) L.spawn('cheep', fish[f], fish[f + 1]);
+    [29, 58, 88, 117, 145].forEach(function (x) { L.spawn('blooper', x, 4); });
+
+    // dry land at the end: swim out, shake off, take the flag
+    L.dec('bush2', 172, GY - 1); L.dec('hill1', 180, GY - 1);
+    L.clouds([170, 3, 1, 182, 2, 2]);
+    L.flagX = 178; L.castleX = 183;
+    return L;
+  }
+
+  var LEVELS = [build11, build12, buildWater, build13, build14];
+  var WORLD_NAMES = ['1-1', '1-2', '1-3', '1-4', '1-5'];
 
   // ===================================================================== //
   //  Game state
@@ -1710,6 +1908,7 @@
   var P = null;
   var flagPoints = 0, bridgeStep = 0;
   var clearT = 0, drainEnd = 0, bonusPaid = 0, clearedName = '';
+  var fireworks = 0, fwT = 0;
   var shakeT = 0;
 
   try { best = parseInt(localStorage.getItem('vibetop:mario:best') || '0', 10) || 0; } catch (e) {}
@@ -1725,7 +1924,8 @@
       x: 0, y: 0, vx: 0, vy: 0, w: 11, h: 15,
       big: false, fire: false, star: 0, onGround: false, faceR: true, crouch: false,
       invuln: 0, anim: 0, jumping: false, coyote: 0, stomps: 0,
-      mode: 'normal', modeT: 0, pipeDir: 0, warpTo: null, fireCool: 0
+      mode: 'normal', modeT: 0, pipeDir: 0, warpTo: null, fireCool: 0,
+      wet: false, swimCool: 0, stroke: 0, boost: 0, climbCol: -1
     };
   }
 
@@ -1784,6 +1984,9 @@
   // four lists had drifted apart, which is how a kicked shell ended up
   // deleting a lava bubble and a bumped brick ate your mushroom.
   var STOMPABLE = { goomba: 1, koopa: 1, koopaRed: 1, para: 1, bill: 1 };
+  // Fire, a star and a rolling shell destroy more than a stomp can reach —
+  // you cannot stomp a fish, but you can certainly burn one.
+  var KILLABLE  = { goomba: 1, koopa: 1, koopaRed: 1, para: 1, bill: 1, cheep: 1, blooper: 1 };
   var CORPSE    = { goomba: 1, koopa: 1, koopaRed: 1, para: 1 };
   var ITEM      = { mushroom: 1, oneup: 1, flower: 1, star: 1 };
 
@@ -1814,6 +2017,13 @@
       case 'plat':
         e.w = (s.w || 3) * TS; e.h = 8; e.dx = s.dx || 0; e.dy = s.dy || 0;
         e.min = s.min; e.max = s.max; e.plat = true; break;
+      case 'cheep':
+        e.w = 14; e.h = 10; e.y = s.y * TS + 3; e.vx = -0.72;
+        e.base = e.y; e.phase = Math.random() * 6.28; e.amp = 8 + Math.random() * 10; break;
+      case 'blooper':
+        e.w = 12; e.h = 15; e.pulse = 0; e.vy = 0; e.vx = 0; break;
+      case 'spring':
+        e.w = 14; e.h = 16; e.y = s.y * TS; e.spring = true; e.press = 0; break;
       case 'boss':
         e.w = 30; e.h = 26; e.y = s.y * TS; e.hp = 8; e.boss = true;
         e.vx = -0.55; e.fireT = 80; e.jumpT = 140; break;
@@ -1875,7 +2085,7 @@
       var yb = Math.floor((e.y + e.h) / TS);
       for (x = x0; x <= x1; x++) {
         var t = L.get(x, yb);
-        var semi = t === T_PLAT && (e.y + e.h) - e.vy <= yb * TS + 1;
+        var semi = SEMI[t] && (e.y + e.h) - e.vy <= yb * TS + 1;
         if (SOLID[t] || semi) {
           e.y = yb * TS - e.h; e.vy = 0; e.onGround = true; return;
         }
@@ -1944,9 +2154,18 @@
     L.set(tx, ty, T_USED);
     delete L.contents[key];
     if (!what || what === 'coin') { spawnCoinPop(tx, ty); return; }
+    if (what === 'vine') { growVine(tx, ty - 1); return; }
     if (what === 'power') spawnItem(P.big ? 'flower' : 'mushroom', tx, ty - 1);
     else if (what === 'star') spawnItem('star', tx, ty - 1);
     else if (what === '1up') spawnItem('oneup', tx, ty - 1);
+  }
+
+  // A vine grows a tile at a time out of the block, the way it should — you
+  // watch it climb before you can.
+  function growVine(tx, ty) {
+    ents.push({ type: 'vine', x: tx * TS, y: ty * TS, w: 0, h: 0, col: tx,
+                top: ty, grown: 0, t: 0, awake: true });
+    SFX.sprout();
   }
 
   function flipEnemiesOn(tx, ty) {
@@ -1981,15 +2200,16 @@
   // ===================================================================== //
   //  The player
   // ===================================================================== //
-  var IN = { left: 0, right: 0, down: 0, jump: 0, run: 0 };
+  var IN = { left: 0, right: 0, up: 0, down: 0, jump: 0, run: 0 };
 
   function readInput() {
-    IN.left = K.left; IN.right = K.right; IN.down = K.down;
+    IN.left = K.left; IN.right = K.right; IN.down = K.down; IN.up = K.up;
     IN.jump = jumpHeld(); IN.run = K.run;
     var gp = GP;
     if (gp.on) {
       IN.left = IN.left || gp.left; IN.right = IN.right || gp.right;
-      IN.down = IN.down || gp.down; IN.jump = IN.jump || gp.jump; IN.run = IN.run || gp.run;
+      IN.down = IN.down || gp.down; IN.up = IN.up || gp.up;
+      IN.jump = IN.jump || gp.jump; IN.run = IN.run || gp.run;
     }
   }
 
@@ -2009,22 +2229,50 @@
       return;                                   // the world holds its breath
     }
     if (p.mode === 'dead') { deadStep(); return; }
+    if (p.mode === 'climb') { climbStep(); return; }
     if (p.mode === 'pipe') { pipeStep(); return; }
     if (p.mode === 'flag') { flagStep(); return; }
     if (p.mode === 'walkoff') { walkoffStep(); return; }
 
+    // grab a vine by holding up against it
+    if (IN.up && p.mode === 'normal') {
+      var vc = Math.floor((p.x + p.w / 2) / TS), vr = Math.floor((p.y + p.h * 0.4) / TS);
+      if (L.get(vc, vr) === T_VINE) {
+        p.mode = 'climb'; p.vx = 0; p.vy = 0; p.climbCol = vc;
+        p.x = vc * TS + (TS - p.w) / 2;
+        jumpBuffer = 0;
+      }
+    }
+    if (p.mode === 'climb') { climbStep(); return; }
+
+    var wet = inWater(p);
+    if (wet !== p.wet) {                     // crossing the surface
+      p.wet = wet;
+      splash(p);
+      if (!wet && p.vy < 0) p.vy = Math.max(p.vy, -3.4);   // a leap out, not a rocket
+    }
+
     var run = IN.run;
-    var acc = run ? ACC_RUN : ACC_WALK;
-    var max = run ? MAX_RUN : MAX_WALK;
+    var acc = wet ? SWIM_ACC : (run ? ACC_RUN : ACC_WALK);
+    var max = wet ? SWIM_MAX : (run ? MAX_RUN : MAX_WALK);
 
     // crouching (big only) locks you in place but lets you slide
-    p.crouch = !!(p.big && IN.down && p.onGround);
+    p.crouch = !!(p.big && IN.down && p.onGround && !wet);
     if (p.crouch !== p.crouchWas) { p.crouchWas = p.crouch; setSize(p); }
 
     var dir = (IN.right ? 1 : 0) - (IN.left ? 1 : 0);
     if (p.crouch) dir = 0;
 
-    if (dir !== 0) {
+    if (wet) {
+      // Water has drag in both directions, so you glide to a stop instead of
+      // stopping dead, and you never get the ground's snappy turn.
+      if (dir !== 0) {
+        p.faceR = dir > 0;
+        p.vx += dir * acc;
+        if (Math.abs(p.vx) > max) p.vx = dir * max;
+      } else if (Math.abs(p.vx) <= SWIM_DRAG) p.vx = 0;
+      else p.vx -= Math.sign(p.vx) * SWIM_DRAG;
+    } else if (dir !== 0) {
       p.faceR = dir > 0;
       // Turning around at speed SKIDS — the puff of dust and the long stop is
       // most of what makes the movement feel like this genre and not like a
@@ -2032,7 +2280,7 @@
       if (p.vx !== 0 && Math.sign(p.vx) !== dir) p.vx += dir * SKID;
       else p.vx += dir * acc;
       if (Math.abs(p.vx) > max) p.vx = dir * max;
-    } else if (p.onGround) {
+    } else if (p.onGround && !wet) {
       if (Math.abs(p.vx) <= FRICTION) p.vx = 0; else p.vx -= Math.sign(p.vx) * FRICTION;
     }
 
@@ -2054,6 +2302,37 @@
     else if (p.coyote > 0) p.coyote--;
     if (jumpBuffer > 0) jumpBuffer--;
 
+    if (wet) {
+      // One stroke per press — holding the button does nothing, which is what
+      // makes swimming feel like swimming and not like a low-gravity jump.
+      if (p.swimCool > 0) p.swimCool--;
+      if (jumpBuffer > 0 && p.swimCool <= 0) {
+        var atSurface = L.get(Math.floor((p.x + p.w / 2) / TS),
+                              Math.floor((p.y + 2) / TS)) === T_SURF;
+        p.vy = atSurface ? SWIM_SURF : SWIM_STROKE;
+        p.swimCool = SWIM_COOL; jumpBuffer = 0;
+        p.stroke = 12;
+        SFX.swim();
+      }
+      p.vy += SWIM_GRAV;
+      if (p.vy > SWIM_MAXFALL) p.vy = SWIM_MAXFALL;
+      if (p.vy < -3.2) p.vy = -3.2;
+      if (p.stroke > 0) p.stroke--;
+      p.hitWall = 0;
+      p.x += p.vx; collideX(p);
+      p.y += p.vy; collideY(p, true);
+      platformCollide(p);
+      if (p.y < TS) { p.y = TS; if (p.vy < 0) p.vy = 0; }   // can't leave the water up top
+      if (p.x < cam.x) { p.x = cam.x; p.vx = Math.max(0, p.vx); }
+      if (p.x + p.w > L.w * TS) p.x = L.w * TS - p.w;
+      collectTiles(p);
+      if (hazardAt(p)) hurt(true);
+      if (p.y > ROWS * TS + 16) die();
+      if (L.flagX && p.mode === 'normal' &&
+          p.x + p.w >= L.flagX * TS + 6 && p.x < (L.flagX + 8) * TS) startFlag();
+      return;
+    }
+
     if (jumpBuffer > 0 && p.coyote > 0 && !p.jumping) {
       p.vy = JUMP_V + Math.min(1, Math.abs(p.vx) / MAX_RUN) * JUMP_BONUS;
       p.jumping = true; p.onGround = false; p.coyote = 0; jumpBuffer = 0;
@@ -2062,7 +2341,10 @@
     if (!IN.jump) p.jumping = false;
 
     // gravity — light while the jump is held and still rising
-    var g = (p.vy < 0 && IN.jump && p.jumping) ? GRAV_HOLD : GRAV_FALL;
+    // A springboard's launch keeps the light rising gravity whether or not the
+    // button is held — otherwise letting go turns a 7-tile launch into 3.
+    if (p.vy >= 0) p.boost = 0;
+    var g = (p.vy < 0 && (p.boost || (IN.jump && p.jumping))) ? GRAV_HOLD : GRAV_FALL;
     p.vy += g;
     if (p.vy > MAX_FALL) p.vy = MAX_FALL;
 
@@ -2105,6 +2387,20 @@
           parts.push({ kind: 'spark', x: x * TS, y: y * TS, vy: -1.4, t: 0 });
         }
       }
+    }
+  }
+
+  // The player is IN water when the tile at their chest is water. Chest, not
+  // feet: wading through the shallow surface row should not start swimming.
+  function inWater(p) {
+    var t = L.get(Math.floor((p.x + p.w / 2) / TS), Math.floor((p.y + p.h * 0.45) / TS));
+    return !!WET[t];
+  }
+  function splash(p) {
+    SFX.splash();
+    for (var i = 0; i < 6; i++) {
+      parts.push({ kind: 'drop', x: p.x + (i - 3) * 2 + 6, y: p.y + p.h - 6,
+                   vx: (i - 3) * 0.5, vy: -1.6 - Math.random(), t: 0 });
     }
   }
 
@@ -2159,6 +2455,34 @@
   // hit; it does not buy you a swim in lava, and neither does a star. The flag
   // was accepted and then ignored, so big players walked out of the castle's
   // lava one size smaller.
+  function climbStep() {
+    var p = P;
+    p.anim++;
+    p.vy = IN.up ? -1.15 : (IN.down ? 1.15 : 0);
+    p.y += p.vy;
+    // step off sideways, or jump off
+    if (IN.left || IN.right || jumpBuffer > 0) {
+      var jumped = jumpBuffer > 0;
+      p.mode = 'normal'; p.climbCol = -1;
+      if (jumped) { p.vy = JUMP_V * 0.85; p.jumping = true; jumpBuffer = 0; SFX.jump(); }
+      else p.vy = 0;
+      p.faceR = !!IN.right;
+      return;
+    }
+    var r = Math.floor((p.y + p.h * 0.4) / TS);
+    // reached the top of the beanstalk
+    var w = L.vineWarps && L.vineWarps[p.climbCol];
+    if (w && p.y <= 2.6 * TS) {
+      p.mode = 'pipe'; p.modeT = 24; p.pipeDir = 1; p.warpTo = w;
+      SFX.pipe(); stopMusic();
+      return;
+    }
+    if (p.y <= TS) { p.y = TS; }
+    if (L.get(p.climbCol, r) !== T_VINE) {          // climbed off the bottom
+      p.mode = 'normal'; p.vy = 0;
+    }
+  }
+
   function hurt(fatal) {
     var p = P;
     if (p.mode !== 'normal') return;
@@ -2198,6 +2522,8 @@
     var poleTop = (GY - 10) * TS, poleBottom = (GY - 1) * TS;
     var frac = 1 - Math.min(1, Math.max(0, (p.y - poleTop) / (poleBottom - poleTop)));
     flagPoints = [100, 400, 800, 2000, 5000][Math.min(4, Math.floor(frac * 5))];
+    // the classic reward for arriving on the right second
+    fireworks = ({ 1: 1, 3: 3, 6: 6 })[timeLeft % 10] || 0;
     state = 'clear'; stateT = 0;
     stopMusic(); SFX.flag();
     award(p.x, p.y, flagPoints);
@@ -2251,6 +2577,19 @@
       return;
     }
     if (clearT - Math.max(drainEnd, 40) < 45) return;
+    if (fireworks > 0) {
+      if (clearT - fwT > 22) {
+        fwT = clearT; fireworks--;
+        var bx = 40 + Math.random() * (VW - 80), by = 30 + Math.random() * 90;
+        for (var i = 0; i < 16; i++) {
+          var a = (i / 16) * 6.283;
+          parts.push({ kind: 'fw', x: cam.x + bx, y: by, t: 0,
+                       vx: Math.cos(a) * 1.7, vy: Math.sin(a) * 1.7 });
+        }
+        score += 500; updateHud(); SFX.firework();
+      }
+      return;
+    }
     saveBest();
     // 'cleared' is TERMINAL. Leaving the state on 'clearing' re-ran this
     // branch every frame: one flagpole advanced levelIdx four times in 66ms
@@ -2300,7 +2639,7 @@
     if (turnAtLedge && e.onGround) {
       var ahead = Math.floor((e.vx > 0 ? e.x + e.w + 2 : e.x - 2) / TS);
       var below = Math.floor((e.y + e.h + 2) / TS);
-      if (!SOLID[L.get(ahead, below)] && L.get(ahead, below) !== T_PLAT) e.vx = -e.vx;
+      if (!SOLID[L.get(ahead, below)] && !SEMI[L.get(ahead, below)]) e.vx = -e.vx;
     }
   }
 
@@ -2398,6 +2737,38 @@
             if (e.y > e.max * TS) { e.y = e.max * TS; e.dy = -e.dy; }
           }
           break;
+        case 'cheep':
+          // straight line with a lazy bob; it never falls and never lands
+          e.x += e.vx;
+          e.phase += 0.045;
+          e.y = e.base + Math.sin(e.phase) * e.amp * 0.25;
+          e.hitWall = 0;
+          var cw = e.vx;
+          collideX(e);
+          if (e.hitWall) e.vx = -cw;
+          if (e.x < -40 || e.x > L.w * TS + 40) e.remove = true;
+          break;
+        case 'blooper': {
+          // hangs above you, then pulses down at you and drifts back up
+          e.pulse++;
+          var pd = e.pulse % 110;
+          if (pd < 34) { e.vy = 1.05; e.vx = (P.x < e.x ? -0.55 : 0.55); }
+          else { e.vy = -0.42; e.vx *= 0.86; }
+          e.x += e.vx; e.y += e.vy;
+          if (e.y < TS * 2) { e.y = TS * 2; }
+          if (e.y > (GY - 1) * TS - e.h) e.y = (GY - 1) * TS - e.h;
+          break;
+        }
+        case 'spring':
+          if (e.press > 0) e.press--;
+          break;
+        case 'vine':
+          if (e.grown < 40 && e.t % 3 === 0) {
+            var ny = e.top - ((e.grown / 4) | 0);
+            e.grown++;
+            if (ny >= 1 && L.get(e.col, ny) === T_EMPTY) L.set(e.col, ny, T_VINE);
+          }
+          break;
         case 'boss': updateBoss(e); break;
         case 'fireball': updateFireball(e); break;
         case 'hammer':
@@ -2437,7 +2808,7 @@
       if (e === sh || e.gone || e.plat || e.cannon || e.corpse) continue;
       // A shell bowls over walking enemies. It does not delete a lava bubble,
       // a plant inside its pipe, a thrown hammer or a power-up.
-      if (!STOMPABLE[e.type] || e.flat) continue;
+      if (!KILLABLE[e.type] || e.flat) continue;
       if (overlap(sh, e)) {
         killEnemy(e, 'shell');
       }
@@ -2457,7 +2828,7 @@
     for (var i = 0; i < ents.length; i++) {
       var o = ents[i];
       if (o === e || o.gone || o.corpse) continue;
-      if (STOMPABLE[o.type]) {
+      if (KILLABLE[o.type]) {
         if (overlap(e, o)) { killEnemy(o, 'fire'); poof(e); return; }
       } else if (o.type === 'piranha' && o.up > 4) {
         if (overlap(e, { x: o.x, y: o.y, w: o.w, h: o.h })) {
@@ -2527,6 +2898,15 @@
     }
     if (e.plat || e.cannon) return;
     if (e.type === 'piranha' && e.up < 4) return;
+    if (e.spring) {
+      // a landing, not a touch: walking into the side of it does nothing
+      if (p.vy > 0 && p.y + p.h - p.vy <= e.y + 6 && overlap(p, e)) {
+        p.y = e.y - p.h;
+        p.vy = IN.jump ? -6.2 : -4.9;
+        p.jumping = true; p.boost = 1; e.press = 14; SFX.spring();
+      }
+      return;
+    }
     if (!overlap(p, e)) return;
 
     switch (e.type) {
@@ -2550,16 +2930,18 @@
 
     if (p.star > 0) {
       if (e.type === 'boss') { bossDown(e); return; }
-      if (STOMPABLE[e.type]) { killEnemy(e, 'fire'); return; }
+      if (KILLABLE[e.type]) { killEnemy(e, 'fire'); return; }
       if (e.type === 'piranha') { e.gone = true; award(e.x, e.y, 200); return; }
       return;                            // podoboos and hammers pass through
     }
 
-    var falling = p.vy > 0 && (p.y + p.h - p.vy) <= e.y + 8;
+    // Underwater you cannot stomp anything — there is no falling to land with.
+    var falling = p.vy > 0 && (p.y + p.h - p.vy) <= e.y + 8 && !p.wet;
     var stompable = !!STOMPABLE[e.type];
 
     if (e.type === 'boss') { hurt(); return; }
-    if (e.type === 'podoboo' || e.type === 'piranha') { hurt(); return; }
+    if (e.type === 'podoboo' || e.type === 'piranha' ||
+        e.type === 'cheep' || e.type === 'blooper') { hurt(); return; }
 
     if (stompable && falling) {
       p.vy = IN.jump ? BOUNCE_HELD : BOUNCE_V;
@@ -2608,10 +2990,16 @@
     underground:{ sky: '#0a0d1a', ground: '#1f6fa8', groundHi: '#3fa0d8', groundLo: '#123f63',
                  brick: '#1f6fa8', brickHi: '#3fa0d8', stone: '#7f8ba0', hill: '#1d6b1d' },
     castle:     { sky: '#0d0d12', ground: '#7c7c88', groundHi: '#a8a8b4', groundLo: '#4a4a54',
-                 brick: '#7c7c88', brickHi: '#a8a8b4', stone: '#5c5c66', hill: '#333' }
+                 brick: '#7c7c88', brickHi: '#a8a8b4', stone: '#5c5c66', hill: '#333' },
+    water:      { sky: '#0a2f6b', ground: '#c9560f', groundHi: '#e8801f', groundLo: '#7d3208',
+                 brick: '#1f7fa8', brickHi: '#3fb0d8', stone: '#1a8f7a', hill: '#2e8036' }
   };
   function th() { return THEME[L.theme] || THEME.overworld; }
-  function themeMusic() { return L.theme === 'castle' ? 'castle' : (L.theme === 'underground' ? 'underground' : 'overworld'); }
+  function themeMusic() {
+    if (L.theme === 'castle') return 'castle';
+    if (L.theme === 'underground' || L.theme === 'water') return 'underground';
+    return 'overworld';
+  }
   // Resume whatever SHOULD be playing right now — the star theme if the star is
   // still up, otherwise the level's, sped up when the clock is low. Pause used
   // to resume the level theme unconditionally and eat the rest of your star.
@@ -2622,8 +3010,13 @@
 
   function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
 
-  function drawTile(t, x, y) {
+  function drawTile(t, x, y, tx, ty) {
     var T = th();
+    if (L.theme === 'water' && !WET[t] && t !== T_GROUND && t !== T_STONE &&
+        (WET[L.get(tx, ty - 1)] || WET[L.get(tx, ty + 1)] ||
+         WET[L.get(tx - 1, ty)] || WET[L.get(tx + 1, ty)])) {
+      rect(x, y, 16, 16, 'rgba(58,140,220,.34)');
+    }
     switch (t) {
       case T_GROUND:
         rect(x, y, 16, 16, T.ground);
@@ -2712,6 +3105,13 @@
         rect(x, y, 16, 5, '#c9560f'); rect(x, y, 16, 2, '#f0a050');
         rect(x, y + 4, 16, 1, '#7d3208');
         break;
+      case T_CLOUD:
+        rect(x, y, 16, 7, '#ffffff');
+        rect(x + 2, y - 3, 12, 4, '#ffffff');
+        rect(x, y + 7, 16, 2, '#c4d8f0');
+        rect(x + 3, y + 9, 4, 2, '#c4d8f0');
+        rect(x + 10, y + 9, 4, 2, '#c4d8f0');
+        break;
       case T_TREE_TOP:
         rect(x, y, 16, 10, '#e04a8a'); rect(x, y, 16, 3, '#ff88bb');
         rect(x, y + 8, 16, 2, '#a02058');
@@ -2725,6 +3125,23 @@
         break;
       case T_CANNON_BASE:
         rect(x, y, 16, 16, '#3a3a44'); rect(x + 1, y, 14, 2, '#6a6a78');
+        break;
+      case T_WATER:
+        rect(x, y, 16, 16, 'rgba(58,140,220,.34)');
+        if (((x + y + frame) >> 3) % 11 === 0) rect(x + 4, y + 6, 5, 1, 'rgba(200,235,255,.30)');
+        break;
+      case T_SURF: {
+        var wob = Math.round(Math.sin((frame + x * 3) / 18) * 2);
+        rect(x, y, 16, 16, 'rgba(58,140,220,.34)');
+        rect(x, y + 4 + wob, 16, 12 - wob, 'rgba(120,195,245,.34)');
+        rect(x, y + 4 + wob, 16, 2, '#bfe6ff');
+        break;
+      }
+      case T_VINE:
+        rect(x + 5, y, 6, 16, '#2c8c2c');
+        rect(x + 6, y, 2, 16, '#7fe07f');
+        rect(x + 1, y + 3, 4, 3, '#3fae3f');
+        rect(x + 11, y + 10, 4, 3, '#3fae3f');
         break;
       case T_AXE:
         rect(x + 6, y + 4, 3, 11, '#8a5a20');
@@ -2870,6 +3287,15 @@
         rect(cx - 8, cy - 8, 16, 2, '#6a6a78');
         break;
       }
+      case 'cheep':
+        draw(ctx, f2 ? SPR.cheep2 : SPR.cheep, x - 1, y - 3, e.vx > 0);
+        break;
+      case 'blooper':
+        draw(ctx, ((frame / 14) | 0) % 2 ? SPR.blooper2 : SPR.blooper, x - 2, y - 1);
+        break;
+      case 'spring':
+        draw(ctx, e.press > 0 ? SPR.springUp : SPR.spring, x - 1, y);
+        break;
       case 'plat':
         rect(x, y, e.w, 8, '#d8a020');
         rect(x, y, e.w, 2, '#ffd860');
@@ -2953,6 +3379,8 @@
       else if (p.kind === 'brick') { p.vy += 0.32; p.x += p.vx; p.y += p.vy; if (p.t > 80) p.remove = true; }
       else if (p.kind === 'spark') { p.y += p.vy; if (p.t > 12) p.remove = true; }
       else if (p.kind === 'puff') { if (p.t > 14) p.remove = true; }
+      else if (p.kind === 'drop') { p.vy += 0.22; p.x += p.vx; p.y += p.vy; if (p.t > 26) p.remove = true; }
+      else if (p.kind === 'fw') { p.x += p.vx; p.y += p.vy; p.vy += 0.04; if (p.t > 30) p.remove = true; }
     }
     parts = parts.filter(function (p) { return !p.remove; });
     for (var j = 0; j < texts.length; j++) { texts[j].t++; texts[j].y -= 0.5; }
@@ -2999,8 +3427,11 @@
     for (var tx = x0; tx <= x1; tx++) {
       for (var ty = 0; ty < ROWS; ty++) {
         var t = L.t[ty * L.w + tx];
-        if (!t || t === T_HIDDEN) continue;
-        drawTile(t, tx * TS - (cam.x | 0), ty * TS + bumpOffset(tx, ty));
+        if (t === T_HIDDEN) continue;
+        // In water an EMPTY cell still needs painting — a collected coin or a
+        // smashed brick otherwise leaves an untinted hole in the sea.
+        if (!t && L.theme !== 'water') continue;
+        drawTile(t, tx * TS - (cam.x | 0), ty * TS + bumpOffset(tx, ty), tx, ty);
       }
     }
     drawFlag();
@@ -3045,6 +3476,10 @@
         rect(px + 6, pa.y + 4, 4, 4, '#fff2a8');
       } else if (pa.kind === 'puff') {
         draw(ctx, SPR.puff, px, pa.y);
+      } else if (pa.kind === 'drop') {
+        rect(px, pa.y, 2, 3, '#bfe6ff');
+      } else if (pa.kind === 'fw') {
+        rect(px, pa.y, 2, 2, ['#fff2a8', '#ff9a5a', '#8ad8ff'][pa.t % 3]);
       }
     }
 
@@ -3306,6 +3741,11 @@
 
   document.getElementById('newBtn').addEventListener('click', function () {
     hideCard(); closeHelp(); resumeAudio(); newGame();
+  });
+  document.getElementById('pauseBtn').addEventListener('click', function () {
+    resumeAudio();
+    if (state === 'play') togglePause();
+    else if (state === 'paused') { hideCard(); togglePause(); }
   });
   document.getElementById('helpBtn').addEventListener('click', openHelp);
   document.getElementById('helpX').addEventListener('click', closeHelp);
