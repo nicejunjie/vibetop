@@ -871,14 +871,19 @@
   // History, and a shortcut the browser eats is worse than none.
   var showHidden = false, sortKey = 'name', sortAsc = true;
   // Settings (the classic app's Menu → Settings, which this app simply did not
-  // have): single-click-to-open and exact dates are the two FileBrowser
-  // preferences with real daily value; thumbnails matter on a slow link.
-  var singleClick = false, exactDates = false, showThumbs = true;
+  // have). Deliberately NOT carried over from FileBrowser's list:
+  // "open with a single click" — it reinstates open-on-first-interaction, the
+  // very thing a click must not do here (you click to select, to rename, to
+  // read the info; opening a 2GB file by accident is the cost). It was also
+  // inert on touch, where that branch returns first, so on a phone it was a
+  // switch that did nothing. Anyone who finds double-click hard already has
+  // Enter, Space and the context menu's Open.
+  var exactDates = false, showThumbs = true;
   try {
     showHidden = localStorage.getItem('fsx.hidden') === '1';
     var s = (localStorage.getItem('fsx.sort') || '').split(':');
     if (s[0] === 'name' || s[0] === 'size' || s[0] === 'mtime') { sortKey = s[0]; sortAsc = s[1] !== 'desc'; }
-    singleClick = localStorage.getItem('fsx.singleclick') === '1';
+    localStorage.removeItem('fsx.singleclick');   // retired in v1.19.117
     exactDates = localStorage.getItem('fsx.exactdates') === '1';
     showThumbs = localStorage.getItem('fsx.thumbs') !== '0';
   } catch (e) {}
@@ -887,7 +892,6 @@
     try {
       localStorage.setItem('fsx.hidden', showHidden ? '1' : '0');
       localStorage.setItem('fsx.sort', sortKey + ':' + (sortAsc ? 'asc' : 'desc'));
-      localStorage.setItem('fsx.singleclick', singleClick ? '1' : '0');
       localStorage.setItem('fsx.exactdates', exactDates ? '1' : '0');
       localStorage.setItem('fsx.thumbs', showThumbs ? '1' : '0');
     } catch (e) {}
@@ -1603,7 +1607,6 @@
     }
     if (ev.ctrlKey || ev.metaKey) toggleSel(i);
     else if (ev.shiftKey && anchor >= 0) rangeSel(anchor, i);
-    else if (singleClick) { setOnly(i); openEntry(rows[i]); }   // Settings → open on a single click
     else setOnly(i);
   });
   mainEl.addEventListener('dblclick', function(ev) {
@@ -3417,10 +3420,6 @@
     }
 
     box.appendChild(el('div', 'sett-head', 'Browsing'));
-    toggle('Open with a single click',
-           'Off: one click selects, double-click opens. Touch always taps to select.',
-           function() { return singleClick; },
-           function(v) { singleClick = v; });
     toggle('Show hidden files', 'Names beginning with a dot.',
            function() { return showHidden; },
            function(v) { showHidden = v; syncControls(); renderList(); });
