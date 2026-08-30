@@ -43,7 +43,10 @@
   .crumb.cur { color: #e6edf3; font-weight: 600; }
   .crumb.home { display: inline-flex; align-items: center; padding: 5px 7px; }
   .crumb.home svg { width: 15px; height: 15px; }
-  .crumb-sep { flex: 0 0 auto; color: #4a5265; font-size: 11px; padding: 0 1px; }
+  .crumb-sep {
+    flex: 0 0 auto; color: #7d879b; font-size: 14px; line-height: 1;
+    padding: 0 2px; font-family: system-ui, sans-serif;
+  }
   #navback, #navfwd {
     flex: 0 0 auto; background: #1f2733; color: #d4d8de; border: 1px solid #2a3040;
     border-radius: 6px; width: 34px; min-height: 32px; padding: 0; font-size: 15px;
@@ -1008,7 +1011,7 @@
     crumbsEl.innerHTML = '';
     var first = true;
     function addCrumb(label, p) {
-      if (!first) crumbsEl.appendChild(el('span', 'crumb-sep', '▸'));
+      if (!first) crumbsEl.appendChild(el('span', 'crumb-sep', '\u203A'));   // › chevron, as in the classic app
       first = false;
       var isCur = p === path;
       var b = el('button', 'crumb' + (isCur ? ' cur' : ''), label);
