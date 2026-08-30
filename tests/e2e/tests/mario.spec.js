@@ -21,7 +21,7 @@ const MAX_DX = 5, MAX_UP = 3;
 async function boot(page) {
   await page.goto('/mario.html');
   await page.waitForFunction(() => !!window.__mario, null, { timeout: 15000 });
-  await page.locator('#helpX').click();               // first-launch how-to card
+  if (await page.locator('#helpOv.show').isVisible()) await page.locator('#helpX').click();
   await page.locator('#ovGo').click();                // the title card
   await expect
     .poll(async () => page.evaluate(() => window.__mario().state), { timeout: 12000 })
@@ -238,7 +238,7 @@ test.describe('mario on touch', () => {
   test('the pad shows, its buttons are real targets, and holding one walks', async ({ page }) => {
     await page.goto('/mario.html');
     await page.waitForFunction(() => !!window.__mario, null, { timeout: 15000 });
-    await page.locator('#helpX').click();
+    if (await page.locator('#helpOv.show').isVisible()) await page.locator('#helpX').click();
     await page.locator('#ovGo').click();
     await expect.poll(async () => (await snap(page)).state, { timeout: 12000 }).toBe('play');
     await expect(page.locator('#pad')).toBeVisible();

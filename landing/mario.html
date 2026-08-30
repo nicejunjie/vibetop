@@ -1241,10 +1241,10 @@
     var n = KEYMAP[e.code];
     if (e.code === 'KeyP' || e.code === 'Escape') {
       e.preventDefault();
-      if (!helpOv.classList.contains('show')) togglePause(); else closeHelp();
+      if (helpIsOpen()) closeHelp(); else togglePause();
       return;
     }
-    if (e.code === 'Enter' && overlay.classList.contains('show')) {
+    if (e.code === 'Enter' && overlay.classList.contains('show') && !helpIsOpen()) {
       e.preventDefault(); ovGo.click(); return;
     }
     if (!n) return;
@@ -2998,7 +2998,10 @@
   // ===================================================================== //
   //  Flow
   // ===================================================================== //
-  function showCard(icon, title, msg, goLabel, altLabel, onGo, onAlt) {
+  // keepAlt: the alt button acts WITHOUT dismissing the card — used by the
+  // title card's "How to play", which should leave you back on Start when the
+  // instructions close, not drop you into a game you have not started.
+  function showCard(icon, title, msg, goLabel, altLabel, onGo, onAlt, keepAlt) {
     ovIcon.textContent = icon; ovIcon.hidden = !icon;
     ovTitle.textContent = title;
     ovMsg.textContent = msg || '';
@@ -3006,7 +3009,11 @@
     ovGo.onclick = function () { hideCard(); resumeAudio(); if (onGo) onGo(); };
     if (altLabel) {
       ovAlt.hidden = false; ovAlt.textContent = altLabel;
-      ovAlt.onclick = function () { hideCard(); resumeAudio(); if (onAlt) onAlt(); };
+      ovAlt.onclick = function () {
+        if (!keepAlt) hideCard();
+        resumeAudio();
+        if (onAlt) onAlt();
+      };
     } else ovAlt.hidden = true;
     overlay.classList.add('show');
     document.body.classList.add('carded');
@@ -3066,6 +3073,7 @@
     document.body.classList.add('carded');
     if (state === 'play') togglePause(true);
   }
+  function helpIsOpen() { return helpOv.classList.contains('show'); }
 
   // ===================================================================== //
   //  Step
@@ -3261,15 +3269,9 @@
   resize();
   requestAnimationFrame(tick);
 
-  var seen = false;
-  try { seen = localStorage.getItem('vibetop:mario:seen') === '1'; } catch (e) {}
-  if (!seen) {
-    try { localStorage.setItem('vibetop:mario:seen', '1'); } catch (e) {}
-    helpOv.classList.add('show');
-  }
   showCard('🍄', 'Super Vibe Bros',
            best > 0 ? 'Best score so far: ' + best + '.' : 'Four worlds. Three lives. Good luck.',
-           'Start', null, function () { newGame(); });
+           'Start', 'How to play', function () { newGame(); }, openHelp, true);
 })();
 </script>
 </body>
