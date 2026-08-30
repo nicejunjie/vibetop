@@ -1386,6 +1386,38 @@ test.describe('circuit on touch', () => {
     expect(dead, 'pipes that ignore ▼ from on top: ' + dead.join(', ')).toEqual([]);
   });
 
+  test('and no pipe swallows you when you merely walk into it', async ({ page }) => {
+    // Making ▼-on-top work was not enough on its own: a bonus room's exit pipe
+    // grabbed you the instant you touched its side, so you were pulled through
+    // before you ever got the chance to jump on it, and the game still played
+    // as "walk into the pipe". Entering is one gesture now, the one the game
+    // teaches at its first warp pipe.
+    await boot(page);
+    const swallowed = await page.evaluate(() => {
+      const T = window.__crTest, out = [];
+      for (let i = 0; i < window.__crLevelCount; i++) {
+        const L = window.__crBuild(i);
+        const all = [];
+        for (const k in L.warps) all.push([k, 'warp']);
+        for (const k in (L.exits || {})) all.push([k, 'exit']);
+        all.forEach(([k, kind]) => {
+          const [cx, cy] = k.split(',').map(Number);
+          T.level(i); T.input({}); T.step(140); T.clear();
+          T.place(cx - 3, cy + 2);
+          T.input({}); T.step(8);
+          const before = window.__cr();
+          for (let f = 0; f < 120; f++) { T.input({ right: 1 }); T.step(); }
+          const after = window.__cr();
+          if (Math.abs(after.px - before.px) > 200 || after.level !== before.level)
+            out.push(L.name + ' ' + kind + ' (' + k + ')');
+        });
+      }
+      return out;
+    });
+    expect(swallowed, 'pipes that swallow you from the side: ' + swallowed.join(', '))
+      .toEqual([]);
+  });
+
   test('the Warp Zone keeps what you are carrying', async ({ page }) => {
     // Every other pipe in the game is a same-level warp and preserves your
     // power-up. The cross-sector pipes went through beginLevel(i, false), which

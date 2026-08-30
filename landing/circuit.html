@@ -2756,7 +2756,11 @@
 
     // pipes: stand on an enterable one and press down
     if (IN.down && p.onGround) tryPipeDown(p);
-    if (IN.right && p.hitWall > 0) tryPipeSide(p);
+    // No auto-entry from the side. Making ▼-on-top ALSO work was not enough:
+    // walking up to a bonus-room pipe swallowed you the instant you touched
+    // it, so you never got the chance to jump on it, and the game still played
+    // as "walk into the pipe". Every pipe in the game is now entered the one
+    // way the game teaches — stand on top, press ▼.
 
     // coins and hazards under foot
     collectTiles(p);
