@@ -120,13 +120,19 @@
   /* The help card is a later sibling at the same z-index, so it painted over the
      game-over card and swallowed its taps. */
   .overlay.help { z-index: 6; }
-  /* A window barely taller than the card: shed the decoration, keep the controls. */
-  @media (max-height: 300px) {
-    .card { padding: 10px 16px; }
-    .card .big { display: none; }
-    .card h2 { font-size: 15px; }
-    .card p { margin-bottom: 8px; font-size: 12px; }
-    .card .ghost { margin-top: 8px; min-height: 36px; padding: 6px 14px; }
+  /* A window barely taller than the card: shed the decoration and put the two
+     controls side by side. Below ~200px of usable height nothing else fits, and
+     an unreachable button is worse than a plain one. */
+  @media (max-height: 340px) {
+    .card { padding: 10px 12px; min-width: 0; }
+    .card .big, .card p { display: none; }
+    .card h2 { font-size: 13px; margin-bottom: 8px; }
+    .card .btns { flex-direction: row; gap: 6px; }
+    .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; }
+  }
+  @media (max-height: 220px) {
+    .card h2 { display: none; }
+    .card { padding: 8px; }
   }
   .overlay.show { display: flex; }
   .card {
@@ -137,20 +143,20 @@
   .card .big { font-size: 30px; margin-bottom: 6px; }
   .card h2 { font-size: 17px; margin-bottom: 4px; color: #e6edf3; }
   .card p { font-size: 13px; color: #aab4c5; margin-bottom: 14px; }
+  .card .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .card .btns button {
+    display: block; width: 100%; min-height: 44px; padding: 10px 18px;
+    font-size: 14px; font-weight: 600; border-radius: 9px; cursor: pointer;
+  }
   .card .primary {
     background: #8a4adb; border-color: #8a4adb; color: #fff;
-    padding: 7px 18px; font-size: 13px; font-weight: 600;
   }
   .card .primary:hover { background: #9a5ceb; }
   /* A real control, not a caption. At 12px grey with 2px of padding this was a
      74x21 tap target — half the 44px minimum — and a near-miss landed on the
      backdrop, which did nothing at all, so it read as broken. */
-  .card .ghost {
-    display: block; margin: 12px auto 0; background: none;
-    border: 1px solid #2a3040; border-radius: 8px; color: #aab4c5;
-    font-size: 13px; cursor: pointer; min-height: 40px; padding: 8px 18px;
-  }
-  .card .ghost:hover { color: #e6edf3; background: #1f2733; }
+  .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
+  .card .ghost:hover { color: #e6edf3; background: #253044; }
   /* ---- help card ---- */
   .help .card {
     text-align: left; max-width: min(340px, 90vw); max-height: 86%;
@@ -199,8 +205,10 @@
         <div class="big" id="ovIcon">🎉</div>
         <h2 id="ovTitle">You win!</h2>
         <p id="ovMsg"></p>
-        <button class="primary" id="ovNew">New Game</button>
-        <button class="ghost" id="ovClose">view board</button>
+        <div class="btns">
+          <button class="primary" id="ovNew">New Game</button>
+          <button class="ghost" id="ovClose">View board</button>
+        </div>
       </div>
     </div>
     <div class="overlay help" id="helpOv">
@@ -569,8 +577,12 @@
   document.getElementById('ovClose').addEventListener('click', function() { overlay.classList.remove('show'); });
   // A tap that lands beside the button used to do nothing at all — which is
   // what made "view board" feel broken on a phone.
+  // Anywhere on the backdrop OR on the card's own chrome dismisses. The only
+  // tap that does something else is one that lands on New Game — so "I want to
+  // look at the board" cannot miss.
   overlay.addEventListener('click', function(ev) {
-    if (ev.target === overlay) overlay.classList.remove('show');
+    if (ev.target.closest('#ovNew')) return;
+    overlay.classList.remove('show');
   });
   diffEl.addEventListener('change', function() { newGame(diffEl.value); });
 
