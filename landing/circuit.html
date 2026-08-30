@@ -2836,7 +2836,14 @@
     var t = L.get(cx, cy);
     if (t !== T_PIPE_TL && t !== T_PIPE_TR) return;
     var kx = t === T_PIPE_TL ? cx : cx - 1;
-    var to = L.warps[kx + ',' + cy];
+    // Both registers. `warps` is a pipe you drop INTO and `exitPipes` is one
+    // you walk out of sideways, but that was an implementation split showing
+    // through: standing on top of a bonus room's exit pipe and pressing down —
+    // the gesture the whole genre teaches, and the one this game teaches at
+    // the very first warp pipe — did nothing at all, and the only way out was
+    // to walk into its side.
+    var key = kx + ',' + cy;
+    var to = L.warps[key] || (L.exitPipes && L.exitPipes[key]);
     if (!to) return;
     p.mode = 'pipe'; p.modeT = 44; p.pipeDir = 1; p.warpTo = to; p.vx = 0; p.vy = 0;
     p.x = kx * TS + TS - p.w / 2;

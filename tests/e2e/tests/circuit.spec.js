@@ -1352,6 +1352,40 @@ test.describe('circuit on touch', () => {
     expect(r.oneupLife, 'frames the castle 1-up survives').toBeGreaterThan(150);
   });
 
+  test('every pipe that leads somewhere is entered from on top', async ({ page }) => {
+    // `warps` was a pipe you drop into and `exitPipes` one you walk out of
+    // sideways — an implementation split showing through to the player. In
+    // every bonus room the only way out was to walk into the side of the pipe;
+    // standing on it and pressing down, the gesture the genre teaches and the
+    // one this game itself teaches at its very first warp pipe, did nothing.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest, out = [];
+      for (let i = 0; i < window.__crLevelCount; i++) {
+        const L = window.__crBuild(i);
+        const all = [];
+        for (const k in L.warps) all.push([k, 'warp']);
+        for (const k in (L.exits || {})) all.push([k, 'exit']);
+        all.forEach(([k, kind]) => {
+          const [cx, cy] = k.split(',').map(Number);
+          T.level(i); T.input({}); T.step(140); T.clear();
+          T.place(cx + 1, cy);
+          T.input({}); T.step(8);
+          const before = window.__cr();
+          for (let f = 0; f < 160; f++) { T.input({ down: 1 }); T.step(); }
+          const after = window.__cr();
+          out.push({ where: L.name + ' ' + kind + ' (' + k + ')',
+                     moved: Math.abs(after.px - before.px) > 32 ||
+                            after.level !== before.level });
+        });
+      }
+      return out;
+    });
+    expect(r.length, 'the game should have pipes that lead somewhere').toBeGreaterThan(5);
+    const dead = r.filter(x => !x.moved).map(x => x.where);
+    expect(dead, 'pipes that ignore ▼ from on top: ' + dead.join(', ')).toEqual([]);
+  });
+
   test('the Warp Zone keeps what you are carrying', async ({ page }) => {
     // Every other pipe in the game is a same-level warp and preserves your
     // power-up. The cross-sector pipes went through beginLevel(i, false), which
