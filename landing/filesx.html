@@ -397,6 +397,25 @@
   .pick-row:hover { background: #1c2431; }
   .pick-empty { padding: 10px; color: #7d879b; font-size: 12.5px; }
 
+  /* Settings card */
+  .sett { display: flex; flex-direction: column; gap: 2px; min-width: min(430px, 78vw); }
+  .sett-head {
+    font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: #7d879b; margin: 10px 0 4px;
+  }
+  .sett-head:first-child { margin-top: 2px; }
+  .sett-row, .sett-act {
+    display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
+    padding: 8px 9px; border-radius: 8px; cursor: pointer;
+    background: none; border: 0; color: inherit; font: inherit;
+  }
+  .sett-row:hover, .sett-act:hover { background: #1c2431; }
+  .sett-row input { margin-top: 2px; accent-color: #8a4adb; width: 16px; height: 16px; flex: 0 0 auto; }
+  .sett-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .sett-lab { font-size: 13px; color: #e6edf3; }
+  .sett-hint { font-size: 12px; color: #98a2b6; }
+  .sett-act .sett-lab { color: #b79be8; }
+
   .mcheck {
     display: flex; align-items: center; gap: 7px; margin: 4px 0 2px;
     font-size: 12.5px; color: #aab4c5; cursor: pointer; user-select: none;
@@ -666,7 +685,7 @@
       <button id="hidden" title="Show hidden files" aria-pressed="false"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8c1.6-2.9 3.9-4.4 6.5-4.4S13 5.1 14.5 8c-1.6 2.9-3.9 4.4-6.5 4.4S3 10.9 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></span><span class="bl">Hidden</span></button>
       <button id="searchbtn" title="Search this folder (Ctrl+F)" aria-pressed="false" aria-label="Search"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.4 10.4 3.1 3.1"/></svg></span></button>
       <button id="refresh" title="Refresh" aria-label="Refresh"><span class="bi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.7 8a5.3 5.3 0 1 0 1.5-3.7"/><path d="M4.2 1.3v3h3"/></svg></span></button>
-      <button id="manage" title="Open this folder in the old FileBrowser-based Files app">Classic view</button>
+      <button id="manage" title="Settings — how this app behaves, share links, the classic app">Settings</button>
       <button id="morebtn" class="m-only" title="More" aria-label="More" aria-haspopup="menu">⋯</button>
     </div>
   </div>
@@ -821,16 +840,26 @@
 
   // persisted view prefs (per device)
   var showHidden = false, sortKey = 'name', sortAsc = true;
+  // Settings (the classic app's Menu → Settings, which this app simply did not
+  // have): single-click-to-open and exact dates are the two FileBrowser
+  // preferences with real daily value; thumbnails matter on a slow link.
+  var singleClick = false, exactDates = false, showThumbs = true;
   try {
     showHidden = localStorage.getItem('fsx.hidden') === '1';
     var s = (localStorage.getItem('fsx.sort') || '').split(':');
     if (s[0] === 'name' || s[0] === 'size' || s[0] === 'mtime') { sortKey = s[0]; sortAsc = s[1] !== 'desc'; }
+    singleClick = localStorage.getItem('fsx.singleclick') === '1';
+    exactDates = localStorage.getItem('fsx.exactdates') === '1';
+    showThumbs = localStorage.getItem('fsx.thumbs') !== '0';
   } catch (e) {}
 
   function savePrefs() {
     try {
       localStorage.setItem('fsx.hidden', showHidden ? '1' : '0');
       localStorage.setItem('fsx.sort', sortKey + ':' + (sortAsc ? 'asc' : 'desc'));
+      localStorage.setItem('fsx.singleclick', singleClick ? '1' : '0');
+      localStorage.setItem('fsx.exactdates', exactDates ? '1' : '0');
+      localStorage.setItem('fsx.thumbs', showThumbs ? '1' : '0');
     } catch (e) {}
   }
   function syncControls() {
@@ -873,6 +902,7 @@
     return (n < 10 ? n.toFixed(1) : Math.round(n)) + ' ' + u[i];
   }
   function fmtRel(ts, short) {
+    if (exactDates) return new Date(ts * 1000).toLocaleString();
     // short (mobile): "2d" not "2d ago", compact old dates — the name column
     // gets the room.
     var s = Date.now() / 1000 - ts;
@@ -891,7 +921,7 @@
   // the classic app's previews), everything else the type emoji.
   function icEl(e) {
     var ic = el('span', 'ic', '');
-    if (!e.isDir && IMG_RE.test(e.name)) {
+    if (!e.isDir && IMG_RE.test(e.name) && showThumbs) {
       var im = document.createElement('img');
       im.className = 'th'; im.alt = ''; im.loading = 'lazy'; im.decoding = 'async';
       im.src = '/api/file/image?path=' + encodeURIComponent(joinPath(path, e.name)) +
@@ -1462,6 +1492,7 @@
     }
     if (ev.ctrlKey || ev.metaKey) toggleSel(i);
     else if (ev.shiftKey && anchor >= 0) rangeSel(anchor, i);
+    else if (singleClick) { setOnly(i); openEntry(rows[i]); }   // Settings → open on a single click
     else setOnly(i);
   });
   mainEl.addEventListener('dblclick', function(ev) {
@@ -3207,7 +3238,66 @@
     if (!path) return;
     location.href = '/files/files' + (path === '/' ? '' : enc(path)) + '/';
   }
-  document.getElementById('manage').addEventListener('click', openManage);
+  document.getElementById('manage').addEventListener('click', openSettings);
+
+  // ---- Settings: what the classic app put under Menu → Settings, kept to the
+  //      preferences that actually change daily use, plus the two management
+  //      surfaces (share links, and the classic app as an escape hatch). ----
+  function openSettings() {
+    var m = rawCard('Settings');
+    var box = el('div', 'sett');
+
+    function toggle(label, hint, get, set) {
+      var lab = el('label', 'sett-row');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = get();
+      cb.addEventListener('change', function() { set(cb.checked); savePrefs(); });
+      var txt = el('span', 'sett-txt');
+      txt.appendChild(el('span', 'sett-lab', label));
+      if (hint) txt.appendChild(el('span', 'sett-hint', hint));
+      lab.appendChild(cb);
+      lab.appendChild(txt);
+      box.appendChild(lab);
+      return cb;
+    }
+    function action(label, hint, run) {
+      var b = el('button', 'sett-act');
+      var txt = el('span', 'sett-txt');
+      txt.appendChild(el('span', 'sett-lab', label));
+      if (hint) txt.appendChild(el('span', 'sett-hint', hint));
+      b.appendChild(txt);
+      b.addEventListener('click', function() { m.close(); run(); });
+      box.appendChild(b);
+      return b;
+    }
+
+    box.appendChild(el('div', 'sett-head', 'Browsing'));
+    toggle('Open with a single click',
+           'Off: one click selects, double-click opens. Touch always taps to select.',
+           function() { return singleClick; },
+           function(v) { singleClick = v; });
+    toggle('Show hidden files', 'Names beginning with a dot.',
+           function() { return showHidden; },
+           function(v) { showHidden = v; syncControls(); renderList(); });
+    toggle('Exact dates', 'Off: “2d ago”. On: the full date and time.',
+           function() { return exactDates; },
+           function(v) { exactDates = v; renderList(); });
+    toggle('Image thumbnails', 'Turn off on a slow connection.',
+           function() { return showThumbs; },
+           function(v) { showThumbs = v; renderList(); });
+
+    box.appendChild(el('div', 'sett-head', 'Manage'));
+    action('Share links…', 'See, copy and revoke the public links you created.', manageShares);
+    action('Open the classic Files app', 'The old FileBrowser-based view, at this same folder.', openManage);
+
+    m.card.appendChild(box);
+    var btns = el('div', 'mbtns');
+    var ok = el('button', 'mok', 'Done');
+    ok.addEventListener('click', m.close);
+    btns.appendChild(ok);
+    m.card.appendChild(btns);
+    ok.focus();
+  }
 
   // Small anchored popovers: the New / Upload submenus and the mobile ⋯
   // overflow all share one instance (opening one closes another).
@@ -3300,7 +3390,7 @@
   document.getElementById('morebtn').addEventListener('click', function(ev) {
     ev.stopPropagation();
     openPop(ev.currentTarget, [
-      { label: 'Manage (classic view)', title: document.getElementById('manage').title, run: openManage }
+      { label: 'Settings…', title: 'How this app behaves, share links, the classic app', run: openSettings }
     ], true);
   });
   document.addEventListener('click', function(ev) {
