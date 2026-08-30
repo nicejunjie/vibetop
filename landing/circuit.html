@@ -2606,6 +2606,7 @@
 
     // fire
     if (fireBuf > 0) fireBuf--;
+    if (IN.run) fireBuf = Math.max(fireBuf, 1);      // held B keeps throwing
     if (fireBuf > 0 && p.fire && p.fireCool <= 0 && !p.crouch) {
       var live = 0;
       ents.forEach(function (e) { if (e.type === 'fireball') live++; });
@@ -2621,6 +2622,11 @@
     if (p.onGround) p.coyote = COYOTE;
     else if (p.coyote > 0) p.coyote--;
     if (jumpBuffer > 0) jumpBuffer--;
+    // Holding A keeps you going, on land and in water. One action per press is
+    // right for a keyboard, where releasing and pressing again costs nothing;
+    // on a touch screen it means lifting your thumb off a button you cannot
+    // see and finding it again for every single hop.
+    if (IN.jump && !p.jumping && (p.onGround || p.wet)) jumpBuffer = JUMP_BUF;
 
     if (wet) {
       // One stroke per press — holding the button does nothing, which is what
@@ -4321,9 +4327,17 @@
     if (!fsOn() && !rotated) tellShell(false);
     setTimeout(resize, 60);
   });
-  // Leaving the game while immersive must give the taskbar back.
+  // Leaving the game while immersive must give the taskbar back — but pagehide
+  // also fires when iOS merely backgrounds the tab, so pageshow re-announces
+  // whatever state the game is actually in. Rotation is persisted across loads;
+  // without the re-announce a reload restored a sideways game under full chrome.
   window.addEventListener('pagehide', function () { tellShell(false); });
+  window.addEventListener('pageshow', function () { if (rotated || fsOn()) tellShell(true); });
   window.addEventListener('orientationchange', function () { setTimeout(resize, 250); });
+
+  // Restored from localStorage: say so, or the shell shows its chrome over a
+  // game that is already sideways.
+  if (rotated) setTimeout(function () { tellShell(true); }, 0);
 
   document.getElementById('pauseBtn').addEventListener('click', function () {
     resumeAudio();

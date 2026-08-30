@@ -135,8 +135,14 @@
      outright on iOS, so the app falls back to its own CSS rotation and the
      shell's chrome stayed put — the game ended up with the taskbar still eating
      the bottom of the screen, which is the opposite of what fullscreen is for. */
-  body.immersive .taskbar { display: none; }
-  body.immersive .frames { position: fixed; inset: 0; z-index: 200; }
+  body.immersive .taskbar,
+  body.immersive .cu-strip,
+  body.immersive #kbd-btn { display: none !important; }
+  /* No position:fixed and no z-index here on purpose. body is a flex column and
+     .frames is flex:1 1 auto, so hiding the chrome already gives the frame the
+     whole viewport — while lifting .frames to z-index 200 put it OVER the Start
+     menu (110) and the scrim, so the one escape hatch left after hiding the
+     taskbar rendered underneath the app and could not be clicked. */
 
   /* === Taskbar === */
   .taskbar {
@@ -1652,6 +1658,7 @@
   }
 
   function minimizeWin(id) {
+    if (immersiveApp === id) dropImmersive(id);
     forgetShowDesktop();
     var g = winGeom(id); g.min = true;
     // Move focus off the minimized window to the next open, non-minimized one.
@@ -2701,7 +2708,29 @@
   // Refresh the live terminal-backend count so Terminal's dot reflects a running
   // session even when no Terminal window is open on any device.
 
+  // Immersive is owned by exactly one app. Its only clearer used to be an
+  // `on:false` from that app, so minimizing its window, switching to another
+  // app, or a background `xdg-open` firing switch-to-browser left the desktop
+  // with no taskbar and a 0x0 Start button, unrecoverable without a reload.
+  var immersiveApp = null;
+  function setImmersive(id, on) {
+    if (on) {
+      if (immersiveApp && immersiveApp !== id) return;   // only the owner may ask
+      immersiveApp = id;
+    } else if (id && immersiveApp !== id) {
+      return;
+    } else {
+      immersiveApp = null;
+    }
+    document.body.classList.toggle('immersive', !!immersiveApp);
+    if (window.VibeWin) nudgeResize(id);
+  }
+  function dropImmersive(id) {
+    if (immersiveApp && (!id || immersiveApp === id)) setImmersive(immersiveApp, false);
+  }
+
   function setActive(id) {
+    if (immersiveApp && id !== immersiveApp) dropImmersive(null);
     active = id;
     if (id && wins[id]) wins[id].min = false;   // focusing a window un-minimizes it
     forgetShowDesktop();                       // the user is choosing what is on screen now
@@ -2778,6 +2807,7 @@
   }
 
   function closeApp(id) {
+    if (immersiveApp === id) dropImmersive(id);
     forgetShowDesktop();
     var i = openApps.indexOf(id);
     if (i === -1) return;
@@ -3327,7 +3357,22 @@
     if (!e.data) return;
     if (e.data.type === 'switch-to-browser') { launch('browser'); }
     if (e.data.type === 'vibetop:immersive') {
-      document.body.classList.toggle('immersive', !!e.data.on);
+      var who = null;
+      for (var ii = 0; ii < openApps.length; ii++) {
+        var ff = document.getElementById('frame-' + openApps[ii]);
+        if (ff && ff.contentWindow === e.source) { who = openApps[ii]; break; }
+      }
+      if (!who) who = active;
+      if (e.data.on && windowModeOn()) {
+        // In window mode the app is a small floating box. Handing it the
+        // viewport means maximizing its window; without this the game only
+        // rotated itself inside the same little window (its own portrait media
+        // query resolves against the IFRAME, not the screen) and the user lost
+        // the chrome for nothing.
+        var wg = winGeom(who);
+        if (!wg.max) { markUserArranged(who); toggleMax(who); }
+      }
+      setImmersive(who, !!e.data.on);
     }
     // Files asks for a terminal already sitting in the folder you are looking
     // at (the manager started it and typed the cd).

@@ -1052,6 +1052,57 @@ test.describe('circuit on touch', () => {
     for (const k of landed) expect(k, 'a near-miss must land on a button').toBeTruthy();
   });
 
+  test('holding A repeats — and gets no more than fast tapping would', async ({ page }) => {
+    // One action per press is right for a keyboard, where releasing and pressing
+    // again costs nothing. On a touch screen it means lifting your thumb off a
+    // button you cannot see and finding it again for every hop. Holding now
+    // repeats — but it must not become free flight: a held button may only earn
+    // what a player tapping at the cadence limit already earns.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest;
+      function hops(input, frames) {
+        T.clear(); T.input({}); T.step(8);
+        let n = 0, wasG = window.__cr().onGround;
+        for (let f = 0; f < frames; f++) {
+          T.input(typeof input === 'function' ? input(f) : input);
+          T.step();
+          const g = window.__cr().onGround;
+          if (wasG && !g) n++;
+          wasG = g;
+        }
+        return n;
+      }
+      const out = {};
+      out.held = hops({ jump: 1 }, 300);
+      out.once = hops(f => (f < 5 ? { jump: 1 } : {}), 300);
+      out.idle = hops({}, 300);
+      // water: a held button must not beat a perfect tapper by much
+      T.level(2); T.input({}); T.step(140); T.clear();
+      function rise(input) {
+        T.place(20, 10); T.input({}); T.step(6);
+        const y0 = window.__cr().py;
+        let best = 0;
+        for (let f = 0; f < 240; f++) {
+          T.input(typeof input === 'function' ? input(f) : input);
+          T.step();
+          best = Math.max(best, y0 - window.__cr().py);
+        }
+        return best;
+      }
+      out.swimHeld = rise({ jump: 1 });
+      out.swimTap = rise(f => ({ jump: f % 10 < 2 }));
+      out.swimIdle = rise({});
+      return out;
+    });
+    expect(r.held, 'holding A should keep hopping').toBeGreaterThanOrEqual(4);
+    expect(r.once, 'one press is still exactly one jump').toBe(1);
+    expect(r.idle, 'no input, no jumping').toBe(0);
+    expect(r.swimHeld, 'holding A should swim up').toBeGreaterThan(r.swimIdle + 10);
+    expect(r.swimHeld, 'held must not beat a fast tapper by more than a stroke')
+      .toBeLessThan(r.swimTap * 1.6 + 8);
+  });
+
   test('the pad buttons are big enough to hit without looking', async ({ page }) => {
     // 62px shrank to 42 on a landscape phone with a narrow gutter — under the
     // 44px that is the smallest thing a thumb reliably finds, and you are not
