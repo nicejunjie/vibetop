@@ -31,6 +31,15 @@
   .stat .lbl { font-size: 9px; letter-spacing: .08em; color: #6b7488; text-transform: uppercase; }
   .stat .val { font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de; }
   .stat.low .val { color: #e8b428; }
+  .plus {
+    position: absolute; right: 4px; top: -4px; pointer-events: none;
+    font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #b78bf0;
+    animation: plusrise .62s ease-out forwards;
+  }
+  @keyframes plusrise {
+    from { opacity: .95; transform: translateY(5px); }
+    to { opacity: 0; transform: translateY(-12px); }
+  }
   .stat.bad .val { color: #e5646c; }
   .spacer { flex: 1; }
   button {
@@ -1986,7 +1995,11 @@
     var r = stage.getBoundingClientRect();
     cvW = Math.max(200, Math.floor(r.width));
     cvH = Math.max(160, Math.floor(r.height));
-    cv.width = Math.floor(cvW * DPR); cv.height = Math.floor(cvH * DPR);
+    var w = Math.floor(cvW * DPR), h = Math.floor(cvH * DPR);
+    // Writing canvas.width CLEARS the canvas even when the value is identical,
+    // so a no-op resize costs a blank frame. Only touch it on a real change.
+    if (cv.width === w && cv.height === h) return;
+    cv.width = w; cv.height = h;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
 

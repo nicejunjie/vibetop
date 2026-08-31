@@ -400,6 +400,43 @@ test.describe('rts', () => {
     expect((await snapshot()).state, 'clicking the panel resumes').toBe('play');
   });
 
+  test('the HUD never changes the layout — the canvas size must hold still', async ({ page }) => {
+    await boot(page);
+
+    // Anything appended to the top bar that is not absolutely positioned grows
+    // it, which shrinks the stage, which resizes the canvas — and assigning
+    // canvas.width CLEARS it. That is a full-screen flash, once per event.
+    // It shipped exactly that way: the credit "+500" popup was copied from
+    // 2048 without its CSS, so every ore delivery flashed the whole game.
+    await page.evaluate(() => {
+      const H = window.__rtsTest, T = window.__rtsTables, g = H.get(), s = g.start[0];
+      H.give(0, 20000);
+      const ore = H.findOre(s.x, s.y);
+      for (let r = 2; r < 12; r++) {
+        for (let oy = -r; oy <= r; oy++) {
+          for (let ox = -r; ox <= r; ox++) {
+            const bx = ore.x + ox, by = ore.y + oy;
+            if (bx > 1 && by > 1 && bx < T.MAP - 4 && by < T.MAP - 4 &&
+                H.api.canPlace(g, 0, 'refinery', bx, by)) { H.build('refinery', 0, bx, by); return; }
+          }
+        }
+      }
+    });
+
+    const seen = await page.evaluate(() => new Promise((res) => {
+      const cv = document.getElementById('cv');
+      const bar = document.querySelector('.bar');
+      const keys = new Set();
+      let n = 0;
+      (function f() {
+        keys.add(cv.width + 'x' + cv.height + '/' + Math.round(bar.getBoundingClientRect().height));
+        if (++n < 900) requestAnimationFrame(f); else res([...keys]);
+      })();
+    }));
+    expect(seen, `layout must not move while playing (saw ${seen.join(' ')})`)
+      .toHaveLength(1);
+  });
+
   test('a pan eases in instead of snapping to full speed', async ({ page }) => {
     await boot(page);
     await page.mouse.move(640, 400);
