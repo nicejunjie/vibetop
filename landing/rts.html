@@ -2293,7 +2293,14 @@
   cv.addEventListener('pointerup', endDrag);
   cv.addEventListener('pointercancel', endDrag);
   cv.addEventListener('lostpointercapture', endDrag);
-  cv.addEventListener('pointerleave', function () { mouse.in = false; });
+  cv.addEventListener('pointerleave', function (e) {
+    mouse.in = false;
+    var r = cv.getBoundingClientRect();
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    var ox = px <= 1 ? -1 : (px >= cvW - 1 ? 1 : 0);
+    var oy = py <= 1 ? -1 : (py >= cvH - 1 ? 1 : 0);
+    outPush = (ox || oy) ? { x: ox, y: oy } : null;
+  });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // The game is an iframe inside the desktop shell: a pointer released over
@@ -2467,6 +2474,33 @@
     cv.classList.remove('placing');
   }
 
+  // Hovering the command bar or the top bar means you are operating the UI,
+  // not navigating — so the map stops immediately. This is what makes a
+  // right-hand panel coexist with edge scrolling (C&C does the same); the
+  // few pixels the pointer earns crossing the slow inner lip never land.
+  document.getElementById('side').addEventListener('pointerenter', function () {
+    outPush = null; mouse.in = false;          // on the panel: hold still
+  });
+  document.querySelector('.bar').addEventListener('pointerenter', function () {
+    outPush = null; mouse.in = false;
+  });
+
+  // Past the window entirely, though, IS the pinned-cursor case every RTS
+  // treats as full speed — including straight out through the right-hand side,
+  // beyond the command bar. Which edge it left by decides the direction.
+  document.addEventListener('pointerleave', function (e) {
+    if (state !== 'play' && state !== 'paused') return;
+    var w = window.innerWidth, h = window.innerHeight, m = 2;
+    if (e.clientX >= w - m) outPush = { x: 1, y: 0 };
+    else if (e.clientX <= m) outPush = { x: -1, y: 0 };
+    else if (e.clientY <= m) outPush = { x: 0, y: -1 };
+    else if (e.clientY >= h - m) outPush = { x: 0, y: 1 };
+    else outPush = null;
+    mouse.in = false;
+  });
+  document.addEventListener('pointerenter', function () { outPush = null; });
+  window.addEventListener('blur', function () { outPush = null; });
+
   // Minimap click jumps the camera.
   mini.addEventListener('pointerdown', function (e) {
     if (!G) return;
@@ -2488,11 +2522,22 @@
   //     build item — with an instant band, every click yanked the map sideways
   //     first. A pointer merely passing through must scroll nothing.
   var camVel = { x: 0, y: 0 };
-  var edgeDwell = 0;
-  var KEY_SPEED = 760;          // px/s
-  var EDGE_SPEED = 430;         // px/s at the very edge, ramped from 0
-  var EDGE_BAND = 28;           // px
-  var EDGE_DWELL = 130;         // ms the pointer must linger before it scrolls
+  var outPush = null;           // direction held while the pointer is off-canvas
+  var KEY_SPEED = 900;          // px/s
+
+  // Edge scrolling is a ZONE with a speed curve, not a trigger with a timer.
+  // A dwell delay was tried and is wrong: RA2 has none, and waiting for the
+  // map to start moving is worse than the problem it solves. What makes a
+  // zone work is that its inner lip is nearly stationary — sweeping across it
+  // on the way to the build panel costs a couple of pixels, while parking in
+  // it scrolls fast. Squared falloff, so the slow part is genuinely slow.
+  var EDGE_BAND = 96;           // px — a band you can aim in, not a hairline
+  var EDGE_MIN = 90;            // px/s at the inner lip
+  var EDGE_MAX = 1500;          // px/s at the outer edge and beyond
+
+  function edgeSpeed(t) {                    // t: 0 at the lip, 1 at the edge
+    return EDGE_MIN + (EDGE_MAX - EDGE_MIN) * t * t;
+  }
 
   function camScroll(dtms) {
     var dt = dtms / 1000;
@@ -2509,37 +2554,32 @@
         wx += kx / kl * KEY_SPEED; wy += ky / kl * KEY_SPEED;
       }
 
-      // Middle-drag pans directly and outranks everything else.
-      if (pan) {
+      if (pan) {                              // middle-drag beats everything
         cam.x -= (mouse.x - pan.x); cam.y -= (mouse.y - pan.y);
         pan.x = mouse.x; pan.y = mouse.y;
         camVel.x = camVel.y = 0;
-        edgeDwell = 0;
         clampCam();
         return;
       }
 
       if (mouse.in && !drag) {
-        var ex = 0, ey = 0;
-        if (mouse.x < EDGE_BAND) ex = -(1 - mouse.x / EDGE_BAND);
-        else if (mouse.x > cvW - EDGE_BAND) ex = 1 - (cvW - mouse.x) / EDGE_BAND;
-        if (mouse.y < EDGE_BAND) ey = -(1 - mouse.y / EDGE_BAND);
-        else if (mouse.y > cvH - EDGE_BAND) ey = 1 - (cvH - mouse.y) / EDGE_BAND;
-        if (ex || ey) {
-          edgeDwell += dtms;
-          if (edgeDwell >= EDGE_DWELL) {
-            // ease in over the first 250ms so it never starts at full tilt
-            var ramp = Math.min(1, (edgeDwell - EDGE_DWELL) / 250);
-            wx += ex * EDGE_SPEED * ramp;
-            wy += ey * EDGE_SPEED * ramp;
-          }
-        } else edgeDwell = 0;
-      } else edgeDwell = 0;
-    } else {
-      edgeDwell = 0;
+        var tx = 0, ty = 0;
+        if (mouse.x < EDGE_BAND) tx = -(1 - mouse.x / EDGE_BAND);
+        else if (mouse.x > cvW - EDGE_BAND) tx = 1 - (cvW - mouse.x) / EDGE_BAND;
+        if (mouse.y < EDGE_BAND) ty = -(1 - mouse.y / EDGE_BAND);
+        else if (mouse.y > cvH - EDGE_BAND) ty = 1 - (cvH - mouse.y) / EDGE_BAND;
+        if (tx) wx += Math.sign(tx) * edgeSpeed(Math.abs(tx));
+        if (ty) wy += Math.sign(ty) * edgeSpeed(Math.abs(ty));
+      } else if (outPush && !drag) {
+        // Off the canvas entirely and NOT over the UI: the pointer is pinned
+        // past the edge, which is the full-speed case in every RTS that locks
+        // the cursor to the screen.
+        wx += outPush.x * EDGE_MAX;
+        wy += outPush.y * EDGE_MAX;
+      }
     }
 
-    var k = Math.min(1, dt * 14);            // velocity easing
+    var k = Math.min(1, dt * 16);             // velocity easing
     camVel.x += (wx - camVel.x) * k;
     camVel.y += (wy - camVel.y) * k;
     if (Math.abs(camVel.x) < 1) camVel.x = 0;

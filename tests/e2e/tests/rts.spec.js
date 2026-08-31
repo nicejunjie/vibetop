@@ -213,49 +213,108 @@ test.describe('rts', () => {
   });
 
   // --- camera feel ------------------------------------------------------
-  // Both of these shipped broken and were reported by hand: edge scrolling
-  // crossed a quarter of the map per second, and because the build panel sits
-  // on the right, the pointer swept the right-hand edge band on its way to
-  // every single build click — so clicking a build item yanked the view
-  // sideways first. Numbers, not vibes, so they cannot quietly come back.
-  test('edge scrolling is calm, and crossing the edge on the way to the panel moves nothing', async ({ page }) => {
+  // Edge scrolling is a ZONE with a speed curve and NO delay. A dwell timer
+  // was tried and rejected: RA2 has none, and waiting for the map to start
+  // moving is worse than the problem it solves. What makes a right-hand build
+  // panel coexist with an edge band is (a) the inner lip is nearly stationary,
+  // so sweeping across it on the way to the panel costs a handful of pixels,
+  // and (b) entering the panel stops the map dead.
+  test('the edge zone responds immediately — no dwell delay', async ({ page }) => {
     await boot(page);
     const cam = () => page.evaluate(() => window.__rtsCam());
-
-    // Park in the middle so nothing is scrolling, then dwell on the left edge.
     await page.mouse.move(640, 400);
-    await page.waitForTimeout(250);
-    const a0 = await cam();
-    await page.mouse.move(6, 400);
-    await page.waitForTimeout(1000);
-    const a1 = await cam();
-    const dwelled = Math.abs(a1.x - a0.x);
-    expect(dwelled, 'a second on the edge should pan, but gently').toBeGreaterThan(60);
-    expect(dwelled, 'edge scrolling must not bolt across the map').toBeLessThan(520);
-
-    // Sweep out to the build panel: the pointer crosses the edge band, but
-    // never lingers, so the camera must not move at all.
-    await page.mouse.move(640, 400);
-    await page.waitForTimeout(400);
-    const b0 = await cam();
-    for (let x = 640; x <= 1180; x += 30) {
-      await page.mouse.move(x, 300);
-      await page.waitForTimeout(8);
-    }
     await page.waitForTimeout(300);
-    const b1 = await cam();
-    expect(Math.abs(b1.x - b0.x), 'a pointer passing through the edge must not scroll')
-      .toBeLessThanOrEqual(4);
 
-    // And clicking build items leaves the view exactly where it was.
-    const c0 = await cam();
+    const before = await cam();
+    const t0 = Date.now();
+    await page.mouse.move(4, 400);                 // deep in the zone
+    let elapsed = -1;
+    for (let i = 0; i < 120; i++) {
+      if (Math.abs((await cam()).x - before.x) >= 60) { elapsed = Date.now() - t0; break; }
+      await page.waitForTimeout(10);
+    }
+    expect(elapsed, 'the map must start moving at once, not after a timer')
+      .toBeGreaterThan(-1);
+    expect(elapsed, 'no perceptible hang before the map moves').toBeLessThan(300);
+  });
+
+  test('edge speed ramps with depth: the lip is slow, the edge is fast', async ({ page }) => {
+    await boot(page);
+    const cam = () => page.evaluate(() => window.__rtsCam());
+    async function travel(x) {
+      await page.mouse.move(640, 400);
+      await page.waitForTimeout(320);
+      const a = await cam();
+      await page.mouse.move(x, 400);
+      await page.waitForTimeout(600);
+      return Math.abs((await cam()).x - a.x);
+    }
+    const lip = await travel(92);
+    const mid = await travel(45);
+    const edge = await travel(2);
+    // A flat band (one speed everywhere) is the failure this guards against:
+    // it makes the lip unusable for fine positioning and the edge too slow.
+    expect(mid, 'mid-zone must clearly outrun the lip').toBeGreaterThan(lip * 2);
+    expect(edge, 'the outer edge must clearly outrun mid-zone').toBeGreaterThan(mid * 1.6);
+    expect(lip, 'the inner lip must stay gentle enough to aim in').toBeLessThan(160);
+  });
+
+  test('going to the build panel does not drag the map with you', async ({ page }) => {
+    await boot(page);
+    const cam = () => page.evaluate(() => window.__rtsCam());
+    await page.mouse.move(640, 400);
+    await page.waitForTimeout(350);
+
+    // The pointer has to cross the right-hand edge zone to reach the panel —
+    // that is unavoidable geometry, so the cost of crossing must be tiny and
+    // it must stop the moment the pointer is over the panel.
+    const a = await cam();
+    for (let x = 640; x <= 1180; x += 40) {
+      await page.mouse.move(x, 300);
+      await page.waitForTimeout(6);
+    }
+    await page.waitForTimeout(600);                // parked on the panel
+    const drift = Math.abs((await cam()).x - a.x);
+    expect(drift, 'crossing to the panel and resting there must barely move the map')
+      .toBeLessThan(60);
+
+    // And once you are on it, clicking must not move the map at all.
+    const b = await cam();
     for (let i = 1; i <= 3; i++) {
       await page.locator(`#plist .pit:nth-child(${i})`).click();
       await page.waitForTimeout(200);
     }
-    const c1 = await cam();
-    expect(Math.abs(c1.x - c0.x), 'clicking the build panel must not pan the map')
+    expect(Math.abs((await cam()).x - b.x), 'clicking build items must not pan')
       .toBeLessThanOrEqual(4);
+  });
+
+  test('the command bar holds the map still, but past the window is full speed', async ({ page }) => {
+    await boot(page);
+    const cam = () => page.evaluate(() => window.__rtsCam());
+
+    // Resting on the build panel is USING THE UI: the map must not drift.
+    await page.mouse.move(640, 400);
+    await page.waitForTimeout(320);
+    await page.mouse.move(1190, 400);
+    await page.waitForTimeout(220);
+    const a = await cam();
+    await page.waitForTimeout(700);
+    expect(Math.abs((await cam()).x - a.x), 'the panel is UI, not an edge')
+      .toBeLessThan(12);
+
+    // Off the window entirely — including out through the right-hand side,
+    // past the command bar — is the pinned-cursor case: full speed.
+    await page.mouse.move(640, 400);
+    await page.waitForTimeout(320);
+    const b = await cam();
+    await page.evaluate(() => {
+      document.dispatchEvent(new PointerEvent('pointerleave', {
+        clientX: window.innerWidth, clientY: 400, bubbles: false,
+      }));
+    });
+    await page.waitForTimeout(700);
+    expect(Math.abs((await cam()).x - b.x), 'pushed off the window should race')
+      .toBeGreaterThan(400);
   });
 
   test('a pan eases in instead of snapping to full speed', async ({ page }) => {
@@ -277,16 +336,10 @@ test.describe('rts', () => {
       for (let i = 1; i < xs.length; i++) d.push(xs[i] - xs[i - 1]);
       const mid = d.slice(Math.floor(d.length * 0.5), Math.floor(d.length * 0.9));
       const cruise = mid.reduce((a, b) => a + b, 0) / mid.length;
-      // The first SAMPLES sit before the keydown takes effect, so d[0] is 0
-      // and proves nothing — take the first frame that actually moved.
       const first = d.find((v) => Math.abs(v) > 0.5) || 0;
       return { first, cruise, jitter: Math.max(...mid.map((v) => Math.abs(v - cruise))) };
     });
     expect(r.cruise, 'keyboard pan should actually move').toBeGreaterThan(4);
-    // Velocity is eased toward its target, so the first frame of a pan covers
-    // far less ground than cruising does. Assigning the speed directly (the
-    // original per-frame code) makes frame one already full speed, which is
-    // what made starting and stopping a pan feel like a jerk.
     expect(r.first, 'a pan must accelerate, not snap to full speed')
       .toBeLessThan(r.cruise * 0.5);
     expect(r.jitter, 'steady-state pan must not stutter').toBeLessThan(r.cruise * 0.6);

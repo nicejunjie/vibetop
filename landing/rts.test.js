@@ -73,8 +73,10 @@ function load() {
   const doc = {
     getElementById: () => stubEl(),
     createElement: () => stubEl(),
+    querySelector: () => stubEl(),
     querySelectorAll: () => [],
     addEventListener: () => {},
+    removeEventListener: () => {},
   };
   win.window = win;
   win.document = doc;
