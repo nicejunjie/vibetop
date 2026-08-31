@@ -4862,3 +4862,39 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** a config field is a claim about behaviour. Assert the behaviour, not
   the field — the test that read `easy.focus === false` passed happily for a
   week while nothing on earth consulted `focus`.
+
+## A screenshot cannot show you that the camera is fighting the player
+
+- **Symptom:** Iron Frontier shipped with four hand-reported complaints —
+  panning felt janky, edge scrolling moved far too fast, clicking a build item
+  made the view jump, and the units were ugly and hard to tell apart. Every
+  automated check had passed: 61fps measured, no page errors, four green e2e
+  tests, and screenshots that looked fine.
+- **Why the checks missed all four.** They tested *state*, not *feel*.
+  `__rts()` says the tick advanced and the building got placed; it says nothing
+  about how the map behaved on the way there. A still frame cannot show motion
+  at all.
+  - **Panning** was `cam.x -= 13 * 1.6` per FRAME. At a steady 60fps that looks
+    perfect and stutters the instant anything drops a frame.
+  - **Edge scrolling** ran at ~1110 px/s across a 4096px map — a quarter of the
+    world per second of hover.
+  - **The build-panel jump** was the same bug in disguise: the panel is on the
+    RIGHT, so the pointer crosses the canvas's right-hand edge band on the way
+    to every build click. With no dwell requirement, every trip to the panel
+    scrolled the map. No click-the-button test would ever find this — a test
+    moves the mouse instantly and never lingers in the band.
+  - **Readability** failed because sprites had ONE colour axis (faction) and
+    fixed-pixel roof detail: everything was a blue box, and a 3x3 plot was a
+    blank expanse with a toy sitting on it.
+- **Fix:** speed in px/**second**, eased toward a target velocity; a 130ms
+  dwell before the edge band engages, ramped by depth into it; a second colour
+  axis on every sprite (faction = whose, accent = what); roof structures sized
+  *from* the roof.
+- **The tests that would have caught it** are numeric and now exist: dwell a
+  second on the edge and assert the pan lands between 60 and 520px; sweep out
+  to the panel and assert the camera moved ≤4px; assert the first moving frame
+  of a pan covers under half the cruise distance. All three were run against a
+  deliberately re-broken build first and observed to fail.
+- **Rule:** for anything the player *feels* — camera, drag, inertia, input
+  latency — assert the NUMBER, not the end state. "It ended up in the right
+  place" is perfectly compatible with a terrible journey.
