@@ -12,7 +12,7 @@ first, so the nginx site exists and includes
 `/etc/nginx/snippets/vibetop-extras.d/*.conf`.
 
 ```bash
-cd ~/vibe-coding/service-in-browser/browser
+cd ~/vibe-coding/vibetop/browser
 sudo ./install.sh
 ```
 

@@ -42,7 +42,7 @@ sudo install -m 0600 ~/.cloudflared/<UUID>.json /etc/cloudflared/
 # render config.yml from the template (replace UUID)
 UUID=<paste UUID here>
 sudo sed "s|@TUNNEL_UUID@|$UUID|g" \
-    ~/vibe-coding/service-in-browser/tunnel/config.yml.template \
+    ~/vibe-coding/vibetop/tunnel/config.yml.template \
     > /tmp/cloudflared-config.yml
 sudo install -m 0644 /tmp/cloudflared-config.yml /etc/cloudflared/config.yml
 rm /tmp/cloudflared-config.yml

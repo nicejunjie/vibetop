@@ -8,7 +8,7 @@ behind nginx. Close the tab, reopen from any device, same shell still there.
 Prerequisite: run on a Debian/Ubuntu host.
 
 ```bash
-cd ~/vibe-coding/service-in-browser/terminal
+cd ~/vibe-coding/vibetop/terminal
 sudo ./install.sh
 ```
 
