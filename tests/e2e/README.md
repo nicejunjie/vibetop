@@ -116,6 +116,7 @@ Or point the suite at any full-stack instance (e.g. the real host) via
 | `global-setup.js` | obtains the cookie, writes `storageState` |
 | `tests/smoke.spec.js` | first suite (shell UI, desktop + mobile) |
 | `tests/surface-health.spec.js` | every per-user app serves 200 (the 502 class) |
+| `tests/layout.spec.js` | nothing is stranded outside the viewport, at 320/390/430 and in a squat window (one Chromium + one WebKit lane) |
 | `tests/x11-lifecycle.spec.js` | X11 launch speed + close-launcher-closes-apps (needs full stack) |
 | `run.sh` | build container → deploy → mint cookie → run → teardown |
 | `run-vm.sh` | host-safe KVM VM (default); `VIBETOP_E2E_FULL=1` for the browser/X11 stack |

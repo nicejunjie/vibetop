@@ -113,8 +113,11 @@ and the private-bus template renders to valid dbus XML with `<listen>`/`<type>` 
 `<servicedir>` — the two bugs that once made the private bus silently dead). Prefer
 adding a test here when touching any. **Real-stack regression guards** (browser/X11,
 run in the host-safe VM — `tests/e2e/`): `surface-health.spec.js` (every per-user app
-serves 200, the 502 class) and `x11-lifecycle.spec.js` (GUI-app launch is fast; closing
-the launcher closes its apps).
+serves 200, the 502 class), `x11-lifecycle.spec.js` (GUI-app launch is fast; closing
+the launcher closes its apps), and `layout.spec.js` (every static page at 320/390/430
+and in a squat window: nothing outside the viewport whose nearest scrollable ancestor
+is *nothing* — the class that produced the Token Stats label running off the page and
+Upload's invisible file input dragging a scrollbar behind it).
 
 **JavaScript** — the fragile front-end logic that kept regressing is now DOM-free
 and unit-tested with node's built-in runner (no deps):

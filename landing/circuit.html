@@ -48,6 +48,13 @@
      three that survive to the end are the ones you actually play by. */
   @media (max-width: 520px) { .bar .title .txt { display: none; } #stWorld { display: none; } }
   @media (max-width: 420px) { #stScore { display: none; } }
+  /* The 🏆 button (v1.19.159) is a sixth control in this bar, and on WebKit —
+     which sizes these chips wider than Chromium does — it pushed `New` off the
+     right edge at 375px, an iPhone 13 mini. Shed a chip per step, cheapest
+     first: coins are a score you can check later, the clock and your remaining
+     units are what you are playing against right now. */
+  @media (max-width: 400px) { #stCoins { display: none; } }
+  @media (max-width: 344px) { #stTime { display: none; } }
   /* …but inside the shell the bar no longer repeats the app name, and the room
      that frees is exactly enough for the number you are actually playing for.
      Measured with a seven-digit score: 0px of overflow at 375 and up, so the
@@ -291,7 +298,7 @@
     <span class="title"><span class="ic">🤖</span><span class="txt">Circuit Runner</span></span>
     <span class="spacer"></span>
     <div class="stat" id="stScore"><span class="lbl">Score</span><span class="val" id="score">0</span></div>
-    <div class="stat"><span class="lbl">Coins</span><span class="val" id="coins">0</span></div>
+    <div class="stat" id="stCoins"><span class="lbl">Coins</span><span class="val" id="coins">0</span></div>
     <div class="stat" id="stWorld"><span class="lbl">Sector</span><span class="val" id="world">01</span></div>
     <div class="stat" id="stTime"><span class="lbl">Time</span><span class="val" id="time">400</span></div>
     <div class="stat"><span class="lbl">Units</span><span class="val" id="lives">3</span></div>

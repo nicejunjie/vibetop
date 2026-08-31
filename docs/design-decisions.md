@@ -4703,3 +4703,28 @@ original exact-bytes test stayed green through the whole breakage.
   offers none.
 - **Rule:** a modal that asks a question gets its answer from its buttons. If a
   reasonable answer is "put this away", that has to BE a button.
+
+## The scanner became a test, and it immediately found what Chromium had hidden
+
+- **Why:** the two layout bugs above were both found by an ad-hoc fifteen-line
+  scanner, after they had shipped. `tests/e2e/tests/layout.spec.js` is that
+  scanner made permanent: every static page at 320/390/430 plus a squat window,
+  flagging only elements whose nearest scrollable ancestor is *nothing*.
+- **It paid for itself on the first run.** Circuit Runner's toolbar overflowed on
+  WebKit at 375px — an iPhone 13 mini — hiding `?` and `New` off the right edge.
+  Chromium measured the same bar at 315px of 320 and reported it fine, which is
+  exactly why my own manual sweep missed it: **I had only ever scanned in
+  Chromium.** WebKit sizes those stat chips wider. The bar sheds `Coins` below
+  400px and `Time` below 344px now, and fits at every width in both engines,
+  standalone and embedded.
+- **Two things the spec had to get right, both learned by getting them wrong:**
+  - `test.skip()`'s condition callback receives fixtures only, no `testInfo`, so
+    the "run in one Chromium and one WebKit lane" gate lives in a `beforeEach`.
+    Written the obvious way it throws inside every project and reports as a
+    failure of the page under test.
+  - Layout is sampled twice, 400ms apart, and only what survives both counts. A
+    page that fetches and re-renders passes through states where a strip has not
+    become scrollable yet; a real strand is still there a moment later.
+- **Deliberately not asserted:** page errors. The first draft did, and WebKit's
+  `/api/notes` fetch failing under the ad-hoc base URL failed a *layout* test.
+  Runtime errors belong to `games.spec.js` and `surface-health.spec.js`.
