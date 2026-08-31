@@ -2278,7 +2278,16 @@
   });
   cv.addEventListener('pointermove', function (e) {
     var r = cv.getBoundingClientRect();
-    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; mouse.in = true;
+    var nx = e.clientX - r.left, ny = e.clientY - r.top;
+    var now = performance.now(), dtm = now - lastMoveT;
+    if (dtm > 0 && dtm < 120) {
+      var dpx = Math.sqrt((nx - lastMoveX) * (nx - lastMoveX) + (ny - lastMoveY) * (ny - lastMoveY));
+      moveSpeed = moveSpeed * 0.45 + (dpx / dtm * 1000) * 0.55;
+    } else {
+      moveSpeed = 0;
+    }
+    lastMoveT = now; lastMoveX = nx; lastMoveY = ny;
+    mouse.x = nx; mouse.y = ny; mouse.in = true;
     var gp = screenToGrid(mouse.x, mouse.y);
     hoverTile.x = Math.round(gp.x); hoverTile.y = Math.round(gp.y);
     if (drag) {
@@ -2531,9 +2540,23 @@
   // zone work is that its inner lip is nearly stationary — sweeping across it
   // on the way to the build panel costs a couple of pixels, while parking in
   // it scrolls fast. Squared falloff, so the slow part is genuinely slow.
-  var EDGE_BAND = 96;           // px — a band you can aim in, not a hairline
-  var EDGE_MIN = 90;            // px/s at the inner lip
+  var EDGE_BAND = 44;           // px — narrow enough to stay out of the way
+  var EDGE_MIN = 80;            // px/s at the inner lip
   var EDGE_MAX = 1500;          // px/s at the outer edge and beyond
+
+  // A pointer FLYING across the band is on its way somewhere — usually the
+  // command bar — and must not drag the map with it. A pointer that arrives
+  // and stops is asking to scroll. This is the distinction a dwell timer was
+  // reaching for and got wrong: there is no waiting here, because shoving the
+  // cursor at the edge ends with it stationary, and stationary starts at once.
+  var MOVE_FAST = 700;          // px/s above which the band is ignored
+  var MOVE_IDLE = 45;           // ms of stillness that counts as "arrived"
+  var lastMoveT = -1e9, lastMoveX = 0, lastMoveY = 0, moveSpeed = 0;
+
+  function pointerFlying() {
+    if (performance.now() - lastMoveT > MOVE_IDLE) return false;   // stopped
+    return moveSpeed > MOVE_FAST;
+  }
 
   function edgeSpeed(t) {                    // t: 0 at the lip, 1 at the edge
     return EDGE_MIN + (EDGE_MAX - EDGE_MIN) * t * t;
@@ -2562,7 +2585,7 @@
         return;
       }
 
-      if (mouse.in && !drag) {
+      if (mouse.in && !drag && !pointerFlying()) {
         var tx = 0, ty = 0;
         if (mouse.x < EDGE_BAND) tx = -(1 - mouse.x / EDGE_BAND);
         else if (mouse.x > cvW - EDGE_BAND) tx = 1 - (cvW - mouse.x) / EDGE_BAND;

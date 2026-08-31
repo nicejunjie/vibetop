@@ -249,8 +249,8 @@ test.describe('rts', () => {
       await page.waitForTimeout(600);
       return Math.abs((await cam()).x - a.x);
     }
-    const lip = await travel(92);
-    const mid = await travel(45);
+    const lip = await travel(40);
+    const mid = await travel(20);
     const edge = await travel(2);
     // A flat band (one speed everywhere) is the failure this guards against:
     // it makes the lip unusable for fine positioning and the edge too slow.
@@ -262,21 +262,25 @@ test.describe('rts', () => {
   test('going to the build panel does not drag the map with you', async ({ page }) => {
     await boot(page);
     const cam = () => page.evaluate(() => window.__rtsCam());
-    await page.mouse.move(640, 400);
-    await page.waitForTimeout(350);
 
-    // The pointer has to cross the right-hand edge zone to reach the panel —
-    // that is unavoidable geometry, so the cost of crossing must be tiny and
-    // it must stop the moment the pointer is over the panel.
-    const a = await cam();
-    for (let x = 640; x <= 1180; x += 40) {
-      await page.mouse.move(x, 300);
-      await page.waitForTimeout(6);
+    // Crossing the right-hand band to reach the panel is unavoidable geometry.
+    // A pointer travelling across it is on its way somewhere and must not move
+    // the map — at either speed a real hand uses.
+    async function tripToPanel(step, wait) {
+      await page.mouse.move(640, 400);
+      await page.waitForTimeout(340);
+      const a = await cam();
+      for (let x = 640; x <= 1190; x += step) {
+        await page.mouse.move(x, 300);
+        await page.waitForTimeout(wait);
+      }
+      await page.waitForTimeout(500);              // and resting on the panel
+      return Math.abs((await cam()).x - a.x);
     }
-    await page.waitForTimeout(600);                // parked on the panel
-    const drift = Math.abs((await cam()).x - a.x);
-    expect(drift, 'crossing to the panel and resting there must barely move the map')
-      .toBeLessThan(60);
+    expect(await tripToPanel(55, 5), 'a quick trip to the panel must not pan')
+      .toBeLessThan(12);
+    expect(await tripToPanel(22, 9), 'a slower trip must not pan either')
+      .toBeLessThan(12);
 
     // And once you are on it, clicking must not move the map at all.
     const b = await cam();
