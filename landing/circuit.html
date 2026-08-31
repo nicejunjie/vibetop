@@ -190,6 +190,21 @@
   }
   /* display:block above out-specifies the user-agent's [hidden] rule. */
   .card .btns button[hidden] { display: none; }
+  /* One quiet row rather than a menu: the sectors are right there, and if you
+     do not want them your eye passes straight over them to Start. */
+  .card .pick { margin-top: 14px; display: flex; flex-wrap: wrap;
+                align-items: center; justify-content: center; gap: 6px; }
+  .card .pick[hidden] { display: none; }
+  .card .pick .pl { color: #8b93a6; font-size: 12px; margin-right: 2px; }
+  .card .pick .pb {
+    min-width: 38px; min-height: 34px; padding: 7px 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; cursor: pointer; user-select: none;
+    font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #cbd4e4; background: #232a38; border: 1px solid #38415a;
+  }
+  .card .pick .pb:hover { background: #2d3648; border-color: #4a5570; color: #eaf0f8; }
+  .card .pick .pb:active { background: #8a4adb; border-color: #b98bf0; color: #fff; }
   .card .primary { background: #8a4adb; border-color: #8a4adb; color: #fff; }
   .card .primary:hover { background: #9a5ceb; }
   .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
@@ -276,6 +291,12 @@
         <div class="btns" id="ovBtns">
           <button class="primary" id="ovGo">Start</button>
           <button class="ghost" id="ovAlt" hidden>Restart world</button>
+        </div>
+        <div class="pick" id="ovPick" hidden>
+          <span class="pl">or start at</span>
+          <span class="pb" data-lv="0">01</span><span class="pb" data-lv="1">02</span>
+          <span class="pb" data-lv="2">03</span><span class="pb" data-lv="3">04</span>
+          <span class="pb" data-lv="4">05</span>
         </div>
       </div>
     </div>
@@ -2273,6 +2294,21 @@
   var ovIcon = document.getElementById('ovIcon'), ovTitle = document.getElementById('ovTitle');
   var ovMsg = document.getElementById('ovMsg'), ovGo = document.getElementById('ovGo');
   var ovAlt = document.getElementById('ovAlt');
+  var ovPick = document.getElementById('ovPick');
+  // Start a fresh run at the chosen sector: lives, score and coins reset, so
+  // picking sector 05 is a new game that begins there, not a cheat into the
+  // middle of the one you were playing.
+  ovPick.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.pb') : null;
+    if (!b) return;
+    haptic(9);
+    resumeAudio();
+    hideCard(); closeHelp();
+    score = 0; coins = 0; lives = 3; fromCheckpoint = false;
+    levelIdx = Math.max(0, Math.min(LEVELS.length - 1, +b.dataset.lv || 0));
+    P = newPlayer();
+    beginLevel(levelIdx, false);
+  });
   var helpOv = document.getElementById('helpOv');
   var VW = 320, VHR = VH;   // VHR = rendered height; >= VH on a tall window
 
@@ -4201,8 +4237,14 @@
     if (document.hidden) releaseControls();
   });
 
+  // The sector row is offered only where starting somewhere else makes sense —
+  // the title card and the game-over card — not over a paused run, where it
+  // would read as "abandon this one" sitting next to Resume.
+  function showPick(on) { ovPick.hidden = !on; }
+
   function showCard(icon, title, msg, goLabel, altLabel, onGo, onAlt, keepAlt) {
     releaseControls();          // the pad is about to vanish under this card
+    showPick(false);
     ovIcon.textContent = icon; ovIcon.hidden = !icon;
     ovTitle.textContent = title;
     ovMsg.textContent = msg || '';
@@ -4259,6 +4301,7 @@
                P = newPlayer();
                beginLevel(levelIdx, false);
              });
+    showPick(true);
     SFX.gameover();
   }
 
@@ -4700,9 +4743,10 @@
   resize();
   requestAnimationFrame(tick);
 
-  showCard('🍄', 'Circuit Runner',
+  showCard('🤖', 'Circuit Runner',
            best > 0 ? 'Best score so far: ' + best + '.' : 'Five sectors. Three units. Good luck.',
            'Start', 'How to play', function () { newGame(); }, openHelp, true);
+  showPick(true);
 })();
 </script>
 </body>

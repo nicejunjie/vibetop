@@ -1,5 +1,5 @@
 // @ts-check
-// Circuit Runner (Start ▸ Games ▸ 🍄) — a side-scrolling platformer, one
+// Circuit Runner (Start ▸ Games ▸ 🤖) — a side-scrolling platformer, one
 // self-contained page. A canvas game cannot be asserted from the DOM, so the
 // page exposes read-only hooks the tests drive instead:
 //   __cr()            a state snapshot (position, velocity, score, mode…)
@@ -1025,6 +1025,30 @@ test.describe('circuit on touch', () => {
     expect(r.tap, 'the shortest possible hop, in tiles').toBeGreaterThan(2.2);
     expect(r.hold, 'a fully held jump, in tiles').toBeGreaterThan(4.4);
     expect(r.hold - r.tap, 'holding must still buy real height').toBeGreaterThan(1.5);
+  });
+
+  test('you can start at any sector from the title card', async ({ page }) => {
+    await page.goto('/circuit.html');
+    await page.waitForFunction(() => !!window.__cr, null, { timeout: 15000 });
+    await expect(page.locator('#ovPick')).toBeVisible();
+    expect(await page.locator('#ovPick .pb').count(), 'one chip per sector').toBe(5);
+
+    await page.locator('#ovPick .pb[data-lv="3"]').click();
+    await page.waitForTimeout(400);
+    await page.evaluate(() => { window.__crTest.silence(); window.__crTest.step(160); });
+    const s = await snap(page);
+    expect(s.level, 'picking 04 starts sector 04').toBe('04');
+    expect(s.state, 'and it is playable').toBe('play');
+    // a fresh run that begins there, not a cheat into the middle of another one
+    expect(s.lives).toBe(3);
+    expect(s.score).toBe(0);
+    expect(s.coins).toBe(0);
+
+    // and it must not sit next to Resume on a paused run, where it would read
+    // as "abandon this"
+    await page.keyboard.press('KeyP');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#ovPick')).toBeHidden();
   });
 
   test('a direction never stays down after you let go', async ({ page }) => {
