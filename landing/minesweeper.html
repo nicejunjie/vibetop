@@ -161,6 +161,27 @@
     .card h2 { display: none; }
     .card { padding: 8px; }
   }
+  /* ---- leaderboard card (this game's own, over its own board) ---- */
+  .lb { z-index: 7; }                 /* above the help card, whichever opens second */
+  /* An explicit width, not just a max: the card sizes to its content and the
+     stat grid sizes to the card, so without one they lock each other into a
+     single narrow column. */
+  .lb .card { width: min(340px, 92vw); }
+  .lb h2 { font-size: 15px; margin-bottom: 10px; }
+  .seg { display: flex; border: 1px solid #2a3040; border-radius: 7px; overflow: hidden; margin-bottom: 12px; }
+  .seg button {
+    flex: 1; border: 0; border-radius: 0; background: transparent; color: #aab4c5;
+    padding: 6px 8px; min-height: 32px; font-size: 12px;
+  }
+  .seg button.on { background: #241a38; color: #fff; }
+  .lbfoot { margin-top: 14px; text-align: center; }
+  /* explicit, not inherited: 2048 and Circuit style their base button purple,
+     and a destructive action must not look like the primary one */
+  .lbfoot button {
+    background: #1f2733; border: 1px solid #2a3040; color: #8a94a6;
+    font-size: 11.5px; min-height: 30px;
+  }
+  .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
   /* ---- help card ---- */
   .help .card {
     text-align: left; max-width: min(340px, 90vw); max-height: 86%;
@@ -227,6 +248,19 @@
         </div>
       </div>
     </div>
+    <div class="overlay help lb" id="lbOv">
+      <div class="card">
+        <button class="x" id="lbX" title="Close">✕</button>
+        <h2>🏆 Leaderboard</h2>
+        <div class="seg" id="lbSeg" role="group" aria-label="Difficulty">
+          <button data-b="easy">Easy</button>
+          <button data-b="medium">Medium</button>
+          <button data-b="hard">Hard</button>
+        </div>
+        <div id="lbBody"></div>
+        <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+      </div>
+    </div>
     <div class="overlay help" id="helpOv">
       <div class="card">
         <button class="x" id="helpX" title="Close">✕</button>
@@ -247,6 +281,7 @@
     </div>
   </div>
 <script src="gamescore.js"></script>
+<script src="vibe-modal.js"></script>
 <script>
 (function() {
   'use strict';
@@ -620,22 +655,43 @@
   });
   diffEl.addEventListener('change', function() { newGame(diffEl.value); });
 
-  // Hand off to the Leaderboard app on THIS game's tab. In the shell that is a
-  // message to the desktop; opened standalone there is no shell to ask.
-  function openLeaderboard() {
-    lsSet('vibetop:lb:tab', 'mine');
-    try {
-      if (window.parent !== window) {
-        window.top.postMessage({ type: 'open-app', app: 'leaderboard' }, '*');
-        return;
-      }
-    } catch (e) {}
-    location.href = 'leaderboard.html';
+  // ---- this game's leaderboard ----
+  // It belongs to Minesweeper and opens over Minesweeper's own board, like the
+  // How-to-play card. Defaults to the difficulty you are playing.
+  var lbOv = document.getElementById('lbOv');
+  var lbSeg = document.getElementById('lbSeg');
+  var lbBoard = diff;
+  function paintLb() {
+    lbSeg.querySelectorAll('button').forEach(function(b) {
+      b.classList.toggle('on', b.getAttribute('data-b') === lbBoard);
+    });
+    vibeScores.panel(document.getElementById('lbBody'), 'mine', lbBoard);
   }
+  function openLeaderboard() {
+    helpOv.classList.remove('show');
+    lbBoard = diff;
+    paintLb();
+    lbOv.classList.add('show');
+  }
+  function closeLb() { lbOv.classList.remove('show'); }
   document.getElementById('lbBtn').addEventListener('click', openLeaderboard);
   document.getElementById('ovLb').addEventListener('click', openLeaderboard);
+  document.getElementById('lbX').addEventListener('click', closeLb);
+  lbOv.addEventListener('click', function(ev) { if (ev.target === lbOv) closeLb(); });
+  lbSeg.addEventListener('click', function(ev) {
+    var b = ev.target.closest ? ev.target.closest('button') : null;
+    if (!b) return;
+    lbBoard = b.getAttribute('data-b');
+    paintLb();
+  });
+  document.getElementById('lbReset').addEventListener('click', function() {
+    vibeConfirm('Erase every Minesweeper time and stat on this browser?\n\nThis cannot be undone.',
+                { title: 'Reset Minesweeper', okText: 'Erase', danger: true }).then(function(ok) {
+      if (ok) { vibeScores.reset('mine', vibeScores.seedOf('mine')); paintLb(); }
+    });
+  });
 
-  document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
+  document.getElementById('helpBtn').addEventListener('click', function() { closeLb(); helpOv.classList.add('show'); });
   document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
   helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
 
@@ -643,7 +699,8 @@
     if (ev.key === 'F2') { ev.preventDefault(); newGame(); }
     else if (ev.key === 'Escape') {
       // the help card first, then the game-over card
-      if (helpOv.classList.contains('show')) helpOv.classList.remove('show');
+      if (lbOv.classList.contains('show')) closeLb();
+      else if (helpOv.classList.contains('show')) helpOv.classList.remove('show');
       else overlay.classList.remove('show');
     }
   });

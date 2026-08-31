@@ -268,6 +268,68 @@ test("an empty table still says something (the bug that started this)", () => {
   assert.match(el.text, /No cleared game yet on hard\./);
 });
 
+// ---- the in-game leaderboard panel ---------------------------------------
+
+test("panel draws each game's own stats and its own ranking", () => {
+  const { S, doc } = sandbox();
+  S.record({ game: "mine", board: "easy", value: 31, lower: true });
+  S.record({ game: "mine", board: "easy", value: 44, lower: true });
+  S.finish("mine", "easy", true);
+  S.finish("mine", "easy", false);
+  const el = doc.createElement("div");
+  const n = S.panel(el, "mine", "easy");
+  assert.equal(n, 2);
+  assert.match(el.text, /PLAYED|Played/i);
+  assert.match(el.text, /WIN RATE|Win rate/i);
+  assert.match(el.text, /31s/, "times carry the game's own unit");
+  assert.match(el.text, /Fastest times · Easy/);
+});
+
+test("panel is per board: another difficulty is another leaderboard", () => {
+  const { S, doc } = sandbox();
+  S.record({ game: "mine", board: "easy", value: 31, lower: true });
+  const el = doc.createElement("div");
+  assert.equal(S.panel(el, "mine", "hard"), 0);
+  assert.match(el.text, /No cleared game yet on hard\./);
+});
+
+test("panel labels differ per game — this is not one shared board", () => {
+  const { S, doc } = sandbox();
+  S.record({ game: "sol", value: 104, lower: true });
+  S.record({ game: "2048", value: 8800 });
+  const sol = doc.createElement("div"); S.panel(sol, "sol", "");
+  const g = doc.createElement("div"); S.panel(g, "2048", "");
+  assert.match(sol.text, /Fewest moves/);
+  assert.match(sol.text, /104 moves/);
+  assert.match(g.text, /Highest scores/);
+  assert.match(g.text, /8800/);
+  assert.doesNotMatch(g.text, /moves/);
+});
+
+test("panel reports 2048's best tile and Circuit's furthest sector", () => {
+  const { S, doc } = sandbox();
+  S.finish("2048", "", false, { tile: 512 });
+  S.finish("circuit", "", false, { sector: 3 });
+  const a = doc.createElement("div"); S.panel(a, "2048", "");
+  const c = doc.createElement("div"); S.panel(c, "circuit", "");
+  assert.match(a.text, /512/);
+  assert.match(c.text, /03/, "sector is zero-padded like the game's own HUD");
+});
+
+test("panel on an unknown game renders nothing rather than throwing", () => {
+  const { S, doc } = sandbox();
+  const el = doc.createElement("div");
+  assert.equal(S.panel(el, "pinball", ""), 0);
+  assert.equal(S.panel(null, "mine", ""), 0);
+});
+
+test("seedOf hands a game's Reset the legacy key it must also erase", () => {
+  const { S } = sandbox();
+  assert.deepEqual(Array.from(S.seedOf("2048")), ["vt-2048-best"]);
+  assert.deepEqual(Array.from(S.seedOf("circuit")), ["vibetop:circuit:best"]);
+  assert.equal(S.seedOf("mine").length, 0);
+});
+
 test("render injects its stylesheet exactly once", () => {
   const { S, doc } = sandbox();
   S.render(doc.createElement("div"), { game: "sol" });

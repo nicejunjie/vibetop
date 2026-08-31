@@ -233,6 +233,18 @@
   }
 
   .help .card { text-align: left; max-height: 90%; overflow: auto; padding: 16px 18px; position: relative; }
+  /* ---- leaderboard card (Circuit Runner's own, over its own canvas) ---- */
+  .lb { z-index: 7; }
+  .lb .card { width: min(340px, 92vw); }        /* see minesweeper: content <-> grid deadlock */
+  .lb h2 { font-size: 15px; margin-bottom: 10px; }
+  .lbfoot { margin-top: 14px; text-align: center; }
+  /* explicit, not inherited: 2048 and Circuit style their base button purple,
+     and a destructive action must not look like the primary one */
+  .lbfoot button {
+    background: #1f2733; border: 1px solid #2a3040; color: #8a94a6;
+    font-size: 11.5px; min-height: 30px;
+  }
+  .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
   .help h2 { font-size: 15px; margin-bottom: 8px; }
   .help .x {
     position: absolute; top: 6px; right: 6px; width: 30px; height: 30px;
@@ -329,6 +341,14 @@
       </div>
     </div>
 
+    <div class="overlay help lb" id="lbOv">
+      <div class="card">
+        <button class="x" id="lbX" title="Close">✕</button>
+        <h2>🏆 Leaderboard</h2>
+        <div id="lbBody"></div>
+        <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+      </div>
+    </div>
     <div class="overlay help" id="helpOv">
       <div class="card">
         <button class="x" id="helpX" title="Close">✕</button>
@@ -368,6 +388,7 @@
   </div>
   </div>
 <script src="gamescore.js"></script>
+<script src="vibe-modal.js"></script>
 <script>
 (function () {
   'use strict';
@@ -1641,10 +1662,10 @@
     var n = KEYMAP[e.code];
     if (e.code === 'KeyP' || e.code === 'Escape') {
       e.preventDefault();
-      if (helpIsOpen()) closeHelp(); else togglePause();
+      if (lbIsOpen()) closeLb(); else if (helpIsOpen()) closeHelp(); else togglePause();
       return;
     }
-    if (e.code === 'Enter' && overlay.classList.contains('show') && !helpIsOpen()) {
+    if (e.code === 'Enter' && overlay.classList.contains('show') && !helpIsOpen() && !lbIsOpen()) {
       e.preventDefault(); ovGo.click(); return;
     }
     if (!n) return;
@@ -2377,18 +2398,23 @@
       ? vibeScores.record({ game: 'circuit', value: score, session: sess, seed: 'vibetop:circuit:best' })
       : { entry: null };
   }
-  // Hand off to the Leaderboard app on THIS game's tab. In the shell that is a
-  // message to the desktop; opened standalone there is no shell to ask.
+  // ---- this game's leaderboard ----
+  // It belongs to Circuit Runner and opens over its own canvas, like the
+  // How-to-play card — and pauses the run for the same reason.
+  var lbOv = document.getElementById('lbOv');
+  function paintLb() { vibeScores.panel(document.getElementById('lbBody'), 'circuit', ''); }
   function openLeaderboard() {
-    try { localStorage.setItem('vibetop:lb:tab', 'circuit'); } catch (e) {}
-    try {
-      if (window.parent !== window) {
-        window.top.postMessage({ type: 'open-app', app: 'leaderboard' }, '*');
-        return;
-      }
-    } catch (e) {}
-    location.href = 'leaderboard.html';
+    helpOv.classList.remove('show');
+    paintLb();
+    lbOv.classList.add('show');
+    document.body.classList.add('carded');
+    if (state === 'play') togglePause(true);
   }
+  function closeLb() {
+    lbOv.classList.remove('show');
+    if (!overlay.classList.contains('show')) document.body.classList.remove('carded');
+  }
+  function lbIsOpen() { return lbOv.classList.contains('show'); }
   function showScores(entry) {
     ovLb.hidden = false;
     vibeScores.render(ovScores, {
@@ -4680,9 +4706,17 @@
     if (state === 'play') togglePause();
     else if (state === 'paused') { hideCard(); togglePause(); }
   });
-  document.getElementById('helpBtn').addEventListener('click', openHelp);
+  document.getElementById('helpBtn').addEventListener('click', function () { closeLb(); openHelp(); });
   document.getElementById('lbBtn').addEventListener('click', openLeaderboard);
   ovLb.addEventListener('click', openLeaderboard);
+  document.getElementById('lbX').addEventListener('click', closeLb);
+  lbOv.addEventListener('click', function (ev) { if (ev.target === lbOv) closeLb(); });
+  document.getElementById('lbReset').addEventListener('click', function () {
+    vibeConfirm('Erase every Circuit Runner score and stat on this browser?\n\nThis cannot be undone.',
+                { title: 'Reset Circuit Runner', okText: 'Erase', danger: true }).then(function (ok) {
+      if (ok) { vibeScores.reset('circuit', vibeScores.seedOf('circuit')); paintLb(); }
+    });
+  });
   document.getElementById('helpX').addEventListener('click', closeHelp);
   helpOv.addEventListener('click', function (e) {
     if (e.target === helpOv) closeHelp();

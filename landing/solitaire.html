@@ -132,6 +132,18 @@
   }
   .modal .ghost:hover { color: #e6edf3; background: #253044; }
   .modal .btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  /* ---- leaderboard card (this game's own, over its own table) ---- */
+  .lb { z-index: 7; }
+  .lb .modal { width: min(340px, 92vw); }       /* see minesweeper: content <-> grid deadlock */
+  .lb h2 { font-size: 15px; margin-bottom: 10px; }
+  .lbfoot { margin-top: 14px; text-align: center; }
+  /* explicit, not inherited: 2048 and Circuit style their base button purple,
+     and a destructive action must not look like the primary one */
+  .lbfoot button {
+    background: #1f2733; border: 1px solid #2a3040; color: #8a94a6;
+    font-size: 11.5px; min-height: 30px;
+  }
+  .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
   .help .modal {
     text-align: left; max-width: min(330px, 90vw); max-height: 86%;
     overflow: auto; padding: 18px 20px;
@@ -193,6 +205,14 @@
         </div>
       </div>
     </div>
+    <div class="overlay help lb" id="lbOv">
+      <div class="modal">
+        <button class="x" id="lbX" title="Close">✕</button>
+        <h2>🏆 Leaderboard</h2>
+        <div id="lbBody"></div>
+        <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+      </div>
+    </div>
     <div class="overlay help" id="helpOv">
       <div class="modal">
         <button class="x" id="helpX" title="Close">✕</button>
@@ -214,6 +234,7 @@
   </div>
   <div id="dragLayer"></div>
 <script src="gamescore.js"></script>
+<script src="vibe-modal.js"></script>
 <script>
 (function() {
   'use strict';
@@ -805,26 +826,32 @@
   document.getElementById('ovNew').addEventListener('click', deal);
   document.getElementById('undoBtn').addEventListener('click', undo);
 
-  // Hand off to the Leaderboard app on THIS game's tab. In the shell that is a
-  // message to the desktop; opened standalone there is no shell to ask.
+  // ---- this game's leaderboard ----
+  // It belongs to Solitaire and opens over Solitaire, like the How-to-play card.
+  var lbOv = document.getElementById('lbOv');
+  function paintLb() { vibeScores.panel(document.getElementById('lbBody'), 'sol', ''); }
   function openLeaderboard() {
-    lsSet('vibetop:lb:tab', 'sol');
-    try {
-      if (window.parent !== window) {
-        window.top.postMessage({ type: 'open-app', app: 'leaderboard' }, '*');
-        return;
-      }
-    } catch (e) {}
-    location.href = 'leaderboard.html';
+    helpOv.classList.remove('show');
+    paintLb();
+    lbOv.classList.add('show');
   }
+  function closeLb() { lbOv.classList.remove('show'); }
   document.getElementById('lbBtn').addEventListener('click', openLeaderboard);
   document.getElementById('ovLb').addEventListener('click', openLeaderboard);
+  document.getElementById('lbX').addEventListener('click', closeLb);
+  lbOv.addEventListener('click', function(ev) { if (ev.target === lbOv) closeLb(); });
+  document.getElementById('lbReset').addEventListener('click', function() {
+    vibeConfirm('Erase every Solitaire score and stat on this browser?\n\nThis cannot be undone.',
+                { title: 'Reset Solitaire', okText: 'Erase', danger: true }).then(function(ok) {
+      if (ok) { vibeScores.reset('sol', vibeScores.seedOf('sol')); paintLb(); }
+    });
+  });
 
-  document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
+  document.getElementById('helpBtn').addEventListener('click', function() { closeLb(); helpOv.classList.add('show'); });
   document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
   helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
   document.addEventListener('keydown', function(ev) {
-    if (ev.key === 'Escape') helpOv.classList.remove('show');
+    if (ev.key === 'Escape') { if (lbOv.classList.contains('show')) closeLb(); else helpOv.classList.remove('show'); }
   });
 
   var rsT = null;

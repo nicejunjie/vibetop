@@ -134,6 +134,18 @@
   #helpBtn, #lbBtn { background: #1f2733; border-color: #2a3040; color: #aab4c5; min-width: 30px; font-weight: 700; padding: 5px 9px; }
   #helpBtn:hover, #lbBtn:hover { background: #253044; border-color: #3a4358; }
   #lbBtn { font-size: 14px; }
+  /* ---- leaderboard card (this game's own, over its own table) ---- */
+  .lb { z-index: 7; }
+  .lb .card { width: min(340px, 92vw); }        /* see minesweeper: content <-> grid deadlock */
+  .lb h2 { font-size: 15px; margin-bottom: 10px; }
+  .lbfoot { margin-top: 14px; text-align: center; }
+  /* explicit, not inherited: 2048 and Circuit style their base button purple,
+     and a destructive action must not look like the primary one */
+  .lbfoot button {
+    background: #1f2733; border: 1px solid #2a3040; color: #8a94a6;
+    font-size: 11.5px; min-height: 30px;
+  }
+  .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
   .help .card {
     text-align: left; max-width: min(340px, 90vw); max-height: 86%;
     overflow: auto; padding: 18px 20px; position: relative;
@@ -190,6 +202,14 @@
         </div>
       </div>
     </div>
+    <div class="overlay help lb" id="lbOv">
+      <div class="card">
+        <button class="x" id="lbX" title="Close">✕</button>
+        <h2>🏆 Leaderboard</h2>
+        <div id="lbBody"></div>
+        <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+      </div>
+    </div>
     <div class="overlay help" id="helpOv">
       <div class="card">
         <button class="x" id="helpX" title="Close">✕</button>
@@ -208,6 +228,7 @@
     <div class="hint" id="hint">swipe or use arrow keys</div>
   </div>
 <script src="gamescore.js"></script>
+<script src="vibe-modal.js"></script>
 <script>
 (function() {
   'use strict';
@@ -449,33 +470,41 @@
 
   // ---- input ----
   var helpOv = document.getElementById('helpOv');
-  // Hand off to the Leaderboard app on THIS game's tab. In the shell that is a
-  // message to the desktop; opened standalone there is no shell to ask.
+  // ---- this game's leaderboard ----
+  // It belongs to 2048 and opens over 2048, like the How-to-play card.
+  var lbOv = document.getElementById('lbOv');
+  function paintLb() { vibeScores.panel(document.getElementById('lbBody'), '2048', ''); }
   function openLeaderboard() {
-    lsSet('vibetop:lb:tab', '2048');
-    try {
-      if (window.parent !== window) {
-        window.top.postMessage({ type: 'open-app', app: 'leaderboard' }, '*');
-        return;
-      }
-    } catch (e) {}
-    location.href = 'leaderboard.html';
+    helpOv.classList.remove('show');
+    paintLb();
+    lbOv.classList.add('show');
   }
+  function closeLb() { lbOv.classList.remove('show'); }
   document.getElementById('lbBtn').addEventListener('click', openLeaderboard);
   document.getElementById('ovLb').addEventListener('click', openLeaderboard);
+  document.getElementById('lbX').addEventListener('click', closeLb);
+  lbOv.addEventListener('click', function(ev) { if (ev.target === lbOv) closeLb(); });
+  document.getElementById('lbReset').addEventListener('click', function() {
+    vibeConfirm('Erase every 2048 score and stat on this browser?\n\nThis cannot be undone.',
+                { title: 'Reset 2048', okText: 'Erase', danger: true }).then(function(ok) {
+      if (ok) { vibeScores.reset('2048', vibeScores.seedOf('2048')); paintLb(); }
+    });
+  });
 
-  document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
+  document.getElementById('helpBtn').addEventListener('click', function() { closeLb(); helpOv.classList.add('show'); });
   document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
   helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
 
   document.addEventListener('keydown', function(ev) {
     if (ev.key === 'Escape') {
-      // the help card first, then the game-over card
-      if (helpOv.classList.contains('show')) helpOv.classList.remove('show');
+      // the leaderboard first, then the help card, then the game-over card
+      if (lbOv.classList.contains('show')) closeLb();
+      else if (helpOv.classList.contains('show')) helpOv.classList.remove('show');
       else overlay.classList.remove('show');
       return;
     }
-    if (overlay.classList.contains('show') || helpOv.classList.contains('show')) return;
+    if (overlay.classList.contains('show') || helpOv.classList.contains('show') ||
+        lbOv.classList.contains('show')) return;
     var k = ev.key;
     var did = false;
     if (k === 'ArrowLeft' || k === 'a') did = move(0, -1);
@@ -495,7 +524,8 @@
   window.addEventListener('pointerup', function(ev) {
     if (!tracking) return;
     tracking = false;
-    if (overlay.classList.contains('show') || helpOv.classList.contains('show')) return;
+    if (overlay.classList.contains('show') || helpOv.classList.contains('show') ||
+        lbOv.classList.contains('show')) return;
     var dx = ev.clientX - sx, dy = ev.clientY - sy;
     var ax = Math.abs(dx), ay = Math.abs(dy);
     if (Math.max(ax, ay) < 24) return;

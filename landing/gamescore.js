@@ -144,11 +144,79 @@
        taller than the card, the buttons matter and the table does not. */
     '@media (max-height:340px){.vtsc{display:none}}';
 
+  // ---- the in-game leaderboard panel ------------------------------------
+  // Each game owns its own leaderboard — it opens inside the game, over the
+  // board, exactly like that game's How-to-play card. What lives here is only
+  // the part that would otherwise be copy-pasted four times: the stat chips and
+  // the ranked list. Everything a leaderboard says that is SPECIFIC to a game
+  // is one row of this table.
+  var SPEC = {
+    mine: {
+      lower: true, boards: ['easy', 'medium', 'hard'],
+      fmt: function (v) { return v + 's'; },
+      head: function (b) { return 'Fastest times · ' + b.charAt(0).toUpperCase() + b.slice(1); },
+      empty: function (b) { return 'No cleared game yet on ' + b + '.'; },
+      stats: function (s) {
+        return [['Played', s.n], ['Won', s.w], ['Win rate', pct(s.w, s.n)],
+                ['Streak', s.cur], ['Best streak', s.best]];
+      }
+    },
+    sol: {
+      lower: true,
+      fmt: function (v) { return v + ' moves'; },
+      head: function () { return 'Fewest moves'; },
+      empty: function () { return 'No solved deal yet.'; },
+      stats: function (s) {
+        return [['Deals', s.n], ['Solved', s.w], ['Win rate', pct(s.w, s.n)], ['Best streak', s.best]];
+      }
+    },
+    '2048': {
+      seed: 'vt-2048-best',
+      head: function () { return 'Highest scores'; },
+      empty: function () { return 'No score yet.'; },
+      stats: function (s) {
+        return [['Games', s.n], ['Best tile', s.x.tile || '—'], ['Reached 2048', s.w]];
+      }
+    },
+    circuit: {
+      seed: 'vibetop:circuit:best',
+      head: function () { return 'Highest scores'; },
+      empty: function () { return 'No score yet.'; },
+      stats: function (s) {
+        return [['Runs', s.n], ['Furthest sector', s.x.sector ? pad2(s.x.sector) : '—'], ['Cleared', s.w]];
+      }
+    }
+  };
+  function pct(w, n) { return n ? Math.round(w * 100 / n) + '%' : '—'; }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  var LBCSS = '.vtlb{text-align:left}' +
+    '.vtlb-s{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:6px;margin-bottom:14px}' +
+    '.vtlb-c{background:#0e1117;border:1px solid #2a3040;border-radius:8px;padding:6px 8px;text-align:center}' +
+    '.vtlb-c b{display:block;font:600 9px system-ui,sans-serif;letter-spacing:.08em;' +
+      'text-transform:uppercase;color:#6b7488;margin-bottom:2px;white-space:nowrap}' +
+    '.vtlb-c i{display:block;font:600 15px ui-monospace,SFMono-Regular,Menlo,monospace;' +
+      'font-style:normal;color:#e6edf3;font-variant-numeric:tabular-nums}' +
+    '.vtlb-h{font:600 10px system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;' +
+      'color:#6b7488;margin:0 2px 6px}' +
+    '.vtlb-l{list-style:none;margin:0;padding:0}' +
+    '.vtlb-l li{display:flex;align-items:baseline;gap:9px;padding:7px 10px;border-radius:8px;' +
+      'background:#0e1117;border:1px solid #2a3040;font-size:13.5px;color:#cdd5e1}' +
+    '.vtlb-l li+li{margin-top:4px}' +
+    '.vtlb-l .r{width:1.5em;flex:none;text-align:right;color:#6b7488;' +
+      'font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace}' +
+    '.vtlb-l .v{font-weight:650;color:#e6edf3;font-variant-numeric:tabular-nums}' +
+    '.vtlb-l .d{margin-left:auto;flex:none;font-size:11px;color:#6b7488}' +
+    '.vtlb-l li.p1{border-color:#8a4adb;background:#1c1430}' +
+    '.vtlb-l li.p1 .r,.vtlb-l li.p2 .r,.vtlb-l li.p3 .r{color:#b78bf0}' +
+    '.vtlb-e{font-size:12.5px;color:#8a94a6;text-align:center;padding:14px 8px;' +
+      'border:1px dashed #2a3040;border-radius:9px;margin:0}';
+
   function injectCSS(doc) {
     if (doc.getElementById('vtsc-css')) return;
     var st = doc.createElement('style');
     st.id = 'vtsc-css';
-    st.textContent = CSS;
+    st.textContent = CSS + LBCSS;
     (doc.head || doc.documentElement).appendChild(st);
   }
 
@@ -228,6 +296,60 @@
         (seeds || []).forEach(function (k) { localStorage.removeItem(k); });
       } catch (_) {}
     },
+
+    // The game's own leaderboard: stat chips + the full ranked list, drawn into
+    // an element the GAME owns (its leaderboard card). Returns the row count.
+    panel: function (el, game, board) {
+      if (!el) return 0;
+      var g = SPEC[game];
+      if (!g) return 0;
+      var doc = el.ownerDocument || document;
+      injectCSS(doc);
+      board = board || '';
+      el.className = 'vtlb';
+      el.textContent = '';
+
+      var sw = doc.createElement('div');
+      sw.className = 'vtlb-s';
+      g.stats(statsOf(game, board)).forEach(function (r) {
+        var c = doc.createElement('div'); c.className = 'vtlb-c';
+        var b = doc.createElement('b'); b.textContent = r[0];
+        var i = doc.createElement('i'); i.textContent = String(r[1]);
+        c.appendChild(b); c.appendChild(i); sw.appendChild(c);
+      });
+      el.appendChild(sw);
+
+      var h = doc.createElement('div');
+      h.className = 'vtlb-h';
+      h.textContent = g.head(board);
+      el.appendChild(h);
+
+      var list = listOf({ game: game, board: board, lower: g.lower, seed: g.seed });
+      if (!list.length) {
+        var p = doc.createElement('p');
+        p.className = 'vtlb-e';
+        p.textContent = g.empty(board);
+        el.appendChild(p);
+        return 0;
+      }
+      var ol = doc.createElement('ol');
+      ol.className = 'vtlb-l';
+      list.forEach(function (e, i) {
+        var li = doc.createElement('li');
+        if (i < 3) li.className = 'p' + (i + 1);
+        var r = doc.createElement('span'); r.className = 'r'; r.textContent = String(i + 1);
+        var v = doc.createElement('span'); v.className = 'v';
+        v.textContent = g.fmt ? g.fmt(e.v) : String(e.v);
+        var d = doc.createElement('span'); d.className = 'd'; d.textContent = fmtDate(e.t);
+        li.appendChild(r); li.appendChild(v); li.appendChild(d);
+        ol.appendChild(li);
+      });
+      el.appendChild(ol);
+      return list.length;
+    },
+
+    // The legacy key a game seeded from, so its Reset can take that with it.
+    seedOf: function (game) { return SPEC[game] && SPEC[game].seed ? [SPEC[game].seed] : []; },
 
     // Renders into `el` (replacing its content). Returns the number of rows.
     // With no scores at all it prints one muted line rather than an empty box —

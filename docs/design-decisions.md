@@ -4553,13 +4553,19 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** when a user reports "I clicked and nothing happened", check what the
   label PROMISED before checking whether the handler fired. A working control
   with a misread label is a UX bug, not a phantom.
-- **Resolution (v1.19.159):** a top-3 teaser on the card was still not what was
-  asked for — *"我是让你给每个游戏专门的加一个 leaderboard，而不是像现在这样草草的"*,
-  then *"我只需要一个 leaderboard 页面"*. Both at once: **one** page,
-  `landing/leaderboard.html`, with a tab per game carrying a top-10 and stats
-  tailored to that game. The teaser stays on the cards; a 🏆 button on each card
-  and each game toolbar opens the page, through a new generic `open-app` shell
-  verb whose whitelist is the `APPS` map itself.
+- **Resolution, in two steps.** A top-3 teaser on the card was still not it —
+  *"我是让你给每个游戏专门的加一个 leaderboard，而不是像现在这样草草的"*. v1.19.159
+  read the follow-up *"我只需要一个 leaderboard 页面"* as one shared page
+  (`landing/leaderboard.html`, a tab per game, registered as its own app). Wrong
+  reading: *"each game has separate leaderboard, and it is part of the game, not
+  a separate app for all"*. **v1.19.160 is the shipped shape** — each game owns
+  its leaderboard and opens it over its own board, styled as that game's
+  How-to-play card. The separate page, its `APPS` entry and the generic
+  `open-app` shell verb added for it were all removed.
+- **Rule that survives it:** "one page" was about not wanting four *places* to
+  visit, not about wanting a shared surface. When a correction is ambiguous
+  between *fewer artifacts* and *closer to the thing it belongs to*, ask which —
+  the two answers build completely different features.
 - **Three more traps, all found by running it rather than reading it:**
   - The legacy-best import ran on every read, but 2048 **rewrites**
     `vt-2048-best` on every merge — so at the first game over it imported the
