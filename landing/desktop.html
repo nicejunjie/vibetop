@@ -92,8 +92,8 @@
      inline (desktop, one 26px line) or wrapped onto its own line (narrow phone),
      so there are no dangling separators or misaligned columns. */
   .cu-strip .cu-seg {
-    display: inline-flex; align-items: center; gap: 2px 6px; white-space: nowrap;
-    flex-wrap: wrap; min-width: 0;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    min-width: 0;
     background: rgba(255,255,255,0.04); border: 1px solid #222c3a;
     border-radius: 6px; padding: 1px 8px;
   }
@@ -106,9 +106,10 @@
   .cu-strip .cu-fill.warn { background: #d2902a; }
   .cu-strip .cu-fill.crit { background: #d24b3a; }
   .cu-strip .cu-dim { color: #6a7a8a; font-variant-numeric: tabular-nums; }
-  /* On the narrowest phones even the wrapped chip cannot hold the absolute
-     time; the relative one says the same thing in a third of the width. */
-  @media (max-width: 360px) { .cu-strip .cu-at { display: none; } }
+  /* Dropped by fitSegs() when the chip they are in would not fit on one line.
+     A width breakpoint cannot decide this: "resets 5m (2:00 PM)" and "resets
+     2d 20h (Thu 10:00 AM)" differ by 60px on the same screen. */
+  .cu-strip .cu-at[hidden], .cu-strip .cu-dim[hidden] { display: none; }
   /* ✕ pinned to the top-right corner (out of flow) so it never orphans onto its
      own wrapped line. */
   .cu-strip .cu-x { position: absolute; top: 3px; right: 5px; cursor: pointer; color: #6a7a8a; padding: 1px 7px; border-radius: 4px; line-height: 1.3; }
@@ -4078,7 +4079,32 @@
     strip.innerHTML = html;
     var x = document.getElementById('cu-x');
     if (x) x.onclick = function() { window.toggleClaudeUsage(); };   // ✕ = turn the feature off everywhere
+    fitSegs();
   }
+
+  // Each chip is one line, always. When the line does not fit, shed the least
+  // useful part of it and measure again: first the absolute time in brackets
+  // (the relative "· resets 2d 20h" beside it already says when), then the reset
+  // text entirely, leaving the label, the bar and the percentage — which is the
+  // part anyone actually reads. The full text stays in the chip's title.
+  function fitSegs() {
+    var segs = strip.querySelectorAll('.cu-seg');
+    for (var i = 0; i < segs.length; i++) {
+      var seg = segs[i];
+      var at = seg.querySelector('.cu-at'), dim = seg.querySelector('.cu-dim');
+      if (at) at.hidden = false;
+      if (dim) dim.hidden = false;
+      if (at && seg.scrollWidth > seg.clientWidth + 1) at.hidden = true;
+      if (dim && seg.scrollWidth > seg.clientWidth + 1) dim.hidden = true;
+    }
+  }
+  // The available width changes without the numbers changing: rotation, window
+  // mode, the shell's own chrome appearing.
+  var cuFitT = null;
+  window.addEventListener('resize', function() {
+    clearTimeout(cuFitT);
+    cuFitT = setTimeout(fitSegs, 120);
+  });
   // Both the enabled flag AND the numbers now ride the 5s desktop heartbeat
   // (onDesktopResp → here): the manager folds `claude` (the /api/claude/usage
   // payload) onto every heartbeat when the feature is on, so this feature has NO

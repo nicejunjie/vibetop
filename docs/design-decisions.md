@@ -4728,3 +4728,27 @@ original exact-bytes test stayed green through the whole breakage.
 - **Deliberately not asserted:** page errors. The first draft did, and WebKit's
   `/api/notes` fetch failing under the ad-hoc base URL failed a *layout* test.
   Runtime errors belong to `games.spec.js` and `surface-health.spec.js`.
+
+## A chip is one line; what gives is the text inside it, measured
+
+- **Symptom (reported, with a screenshot):** on a 440px iPhone the Claude usage
+  strip's `week` chip broke across two lines — "76%" on one, "· resets 2d 20h
+  (Thu 10:00 AM)" on the next — while `session` stayed on one. Two chips of
+  different heights, stacked: ragged and ugly.
+- **Cause: my own previous fix.** v1.19.163 gave `.cu-seg` `flex-wrap: wrap` so
+  the chip would "grow a line instead of growing wider" and stop running off a
+  320px screen. That traded one ugly for another — it never asked whether the
+  text FIT, it just gave it somewhere to go.
+- **Fix:** the chip is `nowrap` again, and `fitSegs()` measures each one after
+  render (and on resize) and sheds the least useful part until it fits: first the
+  absolute time in brackets — the relative "· resets 2d 20h" beside it already
+  says when — then the reset text entirely, leaving label, bar and percentage.
+  The full text stays in the chip's `title`.
+- **Why a breakpoint could not do this:** "resets 5m (2:00 PM)" and "resets 2d
+  20h (Thu 10:00 AM)" differ by ~60px on the same screen. The `max-width: 360px`
+  rule v1.19.163 added was a guess about content it could not see. Measured, the
+  degradation lands where it should: at 320 both chips drop the absolute time, at
+  360 only the longer one does, at 375 and up neither does — identical in WebKit
+  and Chromium.
+- **Rule (the third time this week):** derive it from the measured box. Same
+  lesson as the chart tick count and the leaderboard card's width.
