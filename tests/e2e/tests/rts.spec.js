@@ -292,6 +292,40 @@ test.describe('rts', () => {
       .toBeLessThanOrEqual(4);
   });
 
+  test('coming back from the build menu does not move the map either', async ({ page }) => {
+    await boot(page);
+    const cam = () => page.evaluate(() => window.__rtsCam());
+    async function toPanel() {
+      for (let x = 640; x <= 1190; x += 55) {
+        await page.mouse.move(x, 300);
+        await page.waitForTimeout(5);
+      }
+      await page.waitForTimeout(300);
+    }
+    async function backToMap(step, wait) {
+      const a = await cam();
+      for (let x = 1190; x >= 640; x -= step) {
+        await page.mouse.move(x, 320);
+        await page.waitForTimeout(wait);
+      }
+      await page.waitForTimeout(450);
+      return Math.abs((await cam()).x - a.x);
+    }
+
+    await page.mouse.move(640, 400);
+    await page.waitForTimeout(340);
+    await toPanel();
+    await page.locator('#plist .pit:nth-child(1)').click();
+    await page.waitForTimeout(250);
+    // Returning from the menu re-enters the canvas through the right-hand
+    // band. With no previous sample to measure, "unknown" must mean
+    // travelling — reading it as stationary lurched the map on every return.
+    expect(await backToMap(55, 5), 'a quick return must not pan').toBeLessThan(12);
+
+    await toPanel();
+    expect(await backToMap(20, 10), 'a slow return must not pan either').toBeLessThan(12);
+  });
+
   test('the command bar holds the map still, but past the window is full speed', async ({ page }) => {
     await boot(page);
     const cam = () => page.evaluate(() => window.__rtsCam());

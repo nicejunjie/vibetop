@@ -2284,7 +2284,12 @@
       var dpx = Math.sqrt((nx - lastMoveX) * (nx - lastMoveX) + (ny - lastMoveY) * (ny - lastMoveY));
       moveSpeed = moveSpeed * 0.45 + (dpx / dtm * 1000) * 0.55;
     } else {
-      moveSpeed = 0;
+      // No usable previous sample — the pointer has just (re-)entered the
+      // canvas, typically coming BACK from the command bar and therefore
+      // crossing the right-hand band on the way in. Treating unknown as
+      // stationary made the map lurch the instant you returned from the menu.
+      // Unknown means travelling until a real measurement says otherwise.
+      moveSpeed = MOVE_FAST + 1;
     }
     lastMoveT = now; lastMoveX = nx; lastMoveY = ny;
     mouse.x = nx; mouse.y = ny; mouse.in = true;
@@ -2542,7 +2547,7 @@
   // it scrolls fast. Squared falloff, so the slow part is genuinely slow.
   var EDGE_BAND = 44;           // px — narrow enough to stay out of the way
   var EDGE_MIN = 80;            // px/s at the inner lip
-  var EDGE_MAX = 1500;          // px/s at the outer edge and beyond
+  var EDGE_MAX = 900;           // px/s at the outer edge and beyond
 
   // A pointer FLYING across the band is on its way somewhere — usually the
   // command bar — and must not drag the map with it. A pointer that arrives
