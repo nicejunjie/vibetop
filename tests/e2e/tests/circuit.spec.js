@@ -1027,6 +1027,34 @@ test.describe('circuit on touch', () => {
     expect(r.hold - r.tap, 'holding must still buy real height').toBeGreaterThan(1.5);
   });
 
+  test('every button gives a haptic tick where the browser has one', async ({ page }) => {
+    // navigator.vibrate is the only web API for this. iOS Safari does not
+    // implement it, so on an iPhone this is a no-op and there is no web way to
+    // reach the Taptic Engine — the test asserts we ASK, not that it buzzes.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      let buzz = 0;
+      navigator.vibrate = () => { buzz++; return true; };
+      const pad = document.getElementById('pad');
+      ['jump', 'run', 'left', 'right', 'up', 'down'].forEach(k => {
+        const el = document.querySelector('.pad .btn[data-k="' + k + '"]');
+        const b = el.getBoundingClientRect();
+        const ev = new PointerEvent('pointerdown',
+          { clientX: b.left + b.width / 2, clientY: b.top + b.height / 2,
+            pointerId: 5, bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'target', { value: el });
+        pad.dispatchEvent(ev);
+        document.querySelectorAll('.pad .btn.act').forEach(x => x.classList.remove('act'));
+      });
+      const padOnly = buzz;
+      document.getElementById('pauseBtn')
+        .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      return { padOnly, total: buzz };
+    });
+    expect(r.padOnly, 'all six pad buttons should tick').toBe(6);
+    expect(r.total, 'and the top-bar buttons too').toBeGreaterThan(6);
+  });
+
   test('a near-miss on the pad still presses the button', async ({ page }) => {
     // The buttons are circles with gaps, and elementFromPoint honours
     // border-radius — so a thumb on the corner of A's box, or in the gap
@@ -1138,13 +1166,16 @@ test.describe('circuit on touch', () => {
         const D = document.querySelector('.pad .dpad').getBoundingClientRect();
         const AB = document.querySelector('.pad .ab').getBoundingClientRect();
         const gap = AB.left - D.right;
+        const Bb = document.querySelector('.pad .btn[data-k="run"]').getBoundingClientRect();
         return { size: A.width, slack, gap,
+                 abTall: A.height > A.width * 1.2 && Bb.height > Bb.width * 1.2,
                  centre: press(window.innerWidth / 2, window.innerHeight / 2),
                  between: gap > A.width * 2
                    ? press((D.right + AB.left) / 2, A.top + A.height / 2) : null };
       });
       const at = vp.width + 'x' + vp.height;
-      expect(r.size, 'button diameter at ' + at).toBeGreaterThanOrEqual(56);
+      expect(r.size, 'button width at ' + at).toBeGreaterThanOrEqual(56);
+      expect(r.abTall, 'A and B are pills, taller than they are wide, at ' + at).toBe(true);
       expect(r.slack, 'slack outside the button at ' + at).toBeGreaterThanOrEqual(24);
       expect(r.centre, 'the pad must not swallow the picture at ' + at).toBe(null);
       expect(r.between, 'a tap between the clusters presses nothing at ' + at +

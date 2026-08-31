@@ -154,6 +154,14 @@
     width: calc(66px * var(--pad-s, 1)); height: calc(66px * var(--pad-s, 1));
     font-size: calc(20px * var(--pad-s, 1));
   }
+  /* A and B are pills, not circles. They live stacked in the right-hand gutter,
+     which is narrow across and full height down — so height is the room that
+     actually exists, and an elongated button gives the thumb a whole stripe to
+     land on instead of one point. */
+  .pad .ab .btn {
+    height: calc(104px * var(--pad-s, 1));
+    border-radius: calc(38px * var(--pad-s, 1));
+  }
   .pad .btn.a { background: rgba(60,140,80,.6); border-color: rgba(150,230,170,.5); }
   .pad .btn.a.act { background: rgba(78,195,106,.85); border-color: #bff5cd; }
   .pad .btn.b { background: rgba(150,60,60,.55); border-color: rgba(240,160,160,.45); }
@@ -1569,6 +1577,12 @@
     if (name === 'run' && down) pressFire();
     if (down) resumeAudio();
   }
+  // A tick of vibration on every press. navigator.vibrate is the only web API
+  // for this and iOS Safari does not implement it, so this fires on Android and
+  // is a no-op on an iPhone — there is no web way to reach the Taptic Engine.
+  function haptic(ms) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {}
+  }
   function pressJump() { jumpBuffer = JUMP_BUF; }
   function pressFire() { fireBuf = 8; }
   function jumpHeld() { return K.jump || K.up; }
@@ -1647,6 +1661,8 @@
     }
     function set(btn, on) {
       if (!btn) return;
+      if (on && !btn.classList.contains('act')) haptic(btn.classList.contains('a') ||
+                                                       btn.classList.contains('b') ? 14 : 9);
       btn.classList.toggle('act', !!on);
       setKey(btn.dataset.k, on);
     }
@@ -4351,9 +4367,10 @@
     // shell on a landscape phone the play area can be 228px tall — the full
     // 190px d-pad cross ran off the bottom — and the letterbox gutter can be
     // narrower than the 134px left/right row.
-    // These two must track the CSS: the d-pad cross is 66 + 8 + 76 + 8 + 66
-    // tall and its left/right row is 76 + 10 + 76 wide.
-    var need = 224, rowW = 162, gutter = (cw - Math.floor(VW * scale)) / 2;
+    // These must track the CSS: the d-pad cross is 66 + 8 + 76 + 8 + 66 tall
+    // and its left/right row is 76 + 10 + 76 wide; the A/B column is two 104px
+    // pills with a 10px gap, so it is the taller of the two clusters.
+    var need = 218, rowW = 162, gutter = (cw - Math.floor(VW * scale)) / 2;
     var fitH = (ch - 26) / need;
     // Three cases, and the old code conflated the outer two. A WIDE gutter
     // (a 4:3 picture on a very wide screen) has room to spare, so only height
@@ -4400,6 +4417,10 @@
     if (acc > STEP * 5) acc = 0;
     render();
   }
+
+  document.querySelectorAll('.bar button').forEach(function (el) {
+    el.addEventListener('pointerdown', function () { haptic(9); });
+  });
 
   document.getElementById('newBtn').addEventListener('click', function () {
     resumeAudio();
