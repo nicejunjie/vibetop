@@ -1,0 +1,2917 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Iron Frontier — Vibetop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column;
+    background: #0e1117; color: #d4d8de;
+    font-family: system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  .bar {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    min-height: 40px; padding: 4px 10px;
+    background: #161b22; border-bottom: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none;
+  }
+  .bar .title { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .bar .title .ic { margin-right: 5px; }
+  @media (max-width: 560px) { .bar .title .txt { display: none; } }
+  .stat {
+    display: flex; flex-direction: column; align-items: center;
+    background: #0e1117; border: 1px solid #2a3040; border-radius: 6px;
+    padding: 2px 10px; min-width: 62px; position: relative;
+  }
+  .stat .lbl { font-size: 9px; letter-spacing: .08em; color: #6b7488; text-transform: uppercase; }
+  .stat .val { font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de; }
+  .stat.low .val { color: #e8b428; }
+  .stat.bad .val { color: #e5646c; }
+  .spacer { flex: 1; }
+  button {
+    background: #3a2a55; color: #d9c8f5; border: 1px solid #55407a;
+    border-radius: 6px; padding: 5px 12px; font: 12px system-ui, sans-serif;
+    cursor: pointer; min-height: 30px;
+  }
+  button:hover { background: #47336a; border-color: #8a4adb; }
+  button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
+  #helpBtn, #lbBtn, #pauseBtn, #sndBtn {
+    background: #1f2733; border-color: #2a3040; color: #aab4c5;
+    min-width: 32px; font-weight: 700; padding: 5px 9px;
+  }
+  #helpBtn:hover, #lbBtn:hover, #pauseBtn:hover, #sndBtn:hover { background: #253044; border-color: #3a4358; }
+  #lbBtn, #sndBtn { font-size: 14px; }
+
+  .wrap { flex: 1; min-height: 0; display: flex; position: relative; }
+  #stage { flex: 1; min-width: 0; position: relative; overflow: hidden; }
+  #cv { display: block; width: 100%; height: 100%; cursor: default; }
+  #cv.placing { cursor: crosshair; }
+
+  /* ---- right-hand command bar (build panel + minimap) ---- */
+  #side {
+    width: 186px; flex-shrink: 0; display: flex; flex-direction: column;
+    background: #161b22; border-left: 1px solid #2a3040;
+    user-select: none; -webkit-user-select: none;
+  }
+  #mini { display: block; width: 184px; height: 184px; background: #0b0e14; border-bottom: 1px solid #2a3040; cursor: pointer; }
+  .ptab { display: flex; border-bottom: 1px solid #2a3040; flex-shrink: 0; }
+  .ptab div {
+    flex: 1; text-align: center; padding: 7px 2px; font-size: 11px; cursor: pointer;
+    color: #8a94a6; border-bottom: 2px solid transparent;
+  }
+  .ptab div:hover { color: #d4d8de; background: #1c2430; }
+  .ptab div.on { color: #d9c8f5; border-bottom-color: #8a4adb; background: #1c2430; }
+  #plist { flex: 1; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 5px; }
+  .pit {
+    position: relative; overflow: hidden; text-align: left;
+    background: #1f2733; border: 1px solid #2a3040; border-radius: 7px;
+    padding: 6px 8px; cursor: pointer; color: #cdd5e1; min-height: 44px;
+    display: flex; align-items: center; gap: 7px; width: 100%;
+  }
+  .pit:hover:not(.dis) { background: #253044; border-color: #3a4358; }
+  .pit.dis { opacity: .42; cursor: not-allowed; }
+  .pit .em { font-size: 17px; flex-shrink: 0; width: 20px; text-align: center; }
+  .pit .nm { font-size: 11.5px; font-weight: 600; line-height: 1.25; }
+  .pit .ct { font-size: 10px; color: #7f8a9d; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .pit .fill {
+    position: absolute; inset: 0 auto 0 0; width: 0;
+    background: rgba(138,74,219,.30); pointer-events: none;
+  }
+  .pit.rdy { border-color: #8a4adb; background: #2b2044; }
+  .pit.rdy .ct { color: #c3a4f0; }
+  .pit .qn {
+    position: absolute; top: 3px; right: 5px; font: 700 10px ui-monospace, monospace;
+    color: #c3a4f0; pointer-events: none;
+  }
+  .phead { font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: #5d6678; padding: 3px 2px 0; }
+  .pnote { font-size: 10.5px; color: #6b7488; padding: 6px 4px; line-height: 1.4; }
+
+  /* ---- selection marquee + floating hints ---- */
+  #marq { position: absolute; border: 1px solid #8ad0ff; background: rgba(138,208,255,.12); pointer-events: none; display: none; }
+  #tip {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px;
+    background: rgba(14,17,23,.86); border: 1px solid #2a3040; border-radius: 7px;
+    padding: 5px 12px; font-size: 12px; color: #aab4c5; pointer-events: none;
+    white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis;
+  }
+  #tip.warn { color: #e8b428; border-color: #5a4a20; }
+
+  /* ---- cards (shared house style: 44px targets, short-window collapse) ---- */
+  .overlay {
+    position: absolute; inset: 0; display: none;
+    align-items: safe center; justify-content: center; overflow: auto;
+    background: rgba(14,17,23,.62); z-index: 5;
+  }
+  .overlay.help { z-index: 6; }
+  .overlay.lb { z-index: 7; }
+  .overlay.show { display: flex; }
+  .card {
+    background: #161b22; border: 1px solid #2a3040; border-radius: 12px;
+    padding: 22px 28px; text-align: center; min-width: 210px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .card .big { font-size: 30px; margin-bottom: 6px; }
+  .card h2 { font-size: 17px; margin-bottom: 4px; color: #e6edf3; }
+  .card p { font-size: 13px; color: #aab4c5; margin-bottom: 14px; line-height: 1.5; }
+  .card .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .card .btns button, .card .primary, .card .ghost {
+    display: block; width: 100%; min-height: 44px; padding: 10px 18px;
+    font-size: 14px; font-weight: 600; border-radius: 9px; cursor: pointer;
+  }
+  .card .primary { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  .card .primary:hover { background: #9a5ceb; }
+  .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
+  .card .ghost:hover { color: #e6edf3; background: #253044; }
+  .help .card { text-align: left; max-width: min(400px, 92vw); max-height: 86%; overflow: auto; }
+  .help .card h2 { text-align: center; }
+  .help dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 12.5px; margin-bottom: 12px; }
+  .help dt { color: #c3a4f0; font-weight: 600; white-space: nowrap; }
+  .help dd { color: #aab4c5; line-height: 1.45; }
+  .lb .card { width: min(340px, 92vw); }
+  .lb h2 { font-size: 15px; margin-bottom: 10px; }
+  .lbfoot { margin-top: 14px; text-align: center; }
+  .lbfoot button {
+    background: #1f2733; border: 1px solid #2a3040; color: #8a94a6;
+    font-size: 11.5px; min-height: 30px; width: auto; display: inline-block; padding: 6px 14px;
+  }
+  .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
+  .diffrow { display: flex; gap: 7px; margin-bottom: 12px; }
+  .diffrow button { flex: 1; min-height: 44px; font-size: 12.5px; }
+  .diffrow button.on { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  @media (max-height: 340px) {
+    .card { padding: 10px 12px; min-width: 0; }
+    .card .big, .card p { display: none; }
+    .card h2 { font-size: 13px; margin-bottom: 8px; }
+    .card .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; width: auto; flex: 1 1 auto; }
+  }
+
+  /* ---- desktop-only notice (see plan: no dead-end on a phone) ---- */
+  #nomob { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    #nomob {
+      display: flex; position: fixed; inset: 0; z-index: 40;
+      align-items: center; justify-content: center; padding: 24px;
+      background: #0e1117; text-align: center;
+    }
+    #nomob .card p { margin-bottom: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="title"><span class="ic">⚔️</span><span class="txt">Iron Frontier</span></span>
+  <div class="stat" id="stCred"><span class="lbl">Credits</span><span class="val" id="vCred">0</span></div>
+  <div class="stat" id="stPow"><span class="lbl">Power</span><span class="val" id="vPow">0</span></div>
+  <div class="stat"><span class="lbl">Army</span><span class="val" id="vArmy">0</span></div>
+  <div class="stat"><span class="lbl">Time</span><span class="val" id="vTime">0:00</span></div>
+  <span class="spacer"></span>
+  <button id="helpBtn" title="How to play">?</button>
+  <button id="lbBtn" title="Best results">🏆</button>
+  <button id="sndBtn" title="Sound">🔊</button>
+  <button id="pauseBtn" title="Pause (Space)">⏸</button>
+  <button id="newBtn">New</button>
+</div>
+
+<div class="wrap">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="marq"></div>
+    <div id="tip">Left-drag to select · Right-click to move or attack</div>
+
+    <div class="overlay" id="ov"><div class="card">
+      <div class="big" id="ovIc">⚔️</div>
+      <h2 id="ovT">Iron Frontier</h2>
+      <p id="ovP">Build a base, mine ore, crush the enemy.</p>
+      <div class="diffrow" id="diffRow"></div>
+      <div class="btns">
+        <button class="primary" id="ovA">Start</button>
+        <button class="ghost" id="ovB" style="display:none">Cancel</button>
+      </div>
+      <div id="scores"></div>
+    </div></div>
+
+    <div class="overlay help" id="hv"><div class="card">
+      <h2>How to play</h2>
+      <dl>
+        <dt>Select</dt><dd>Left-click a unit, or left-drag a box. Double-click selects every visible unit of that type.</dd>
+        <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch.</dd>
+        <dt>Camera</dt><dd>WASD / arrow keys, or push the mouse to a screen edge. Click the minimap to jump.</dd>
+        <dt>Groups</dt><dd><b>Ctrl+1…5</b> stores the selection, <b>1…5</b> recalls it.</dd>
+        <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
+        <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
+        <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
+        <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over.</dd>
+        <dt>Also</dt><dd><b>Space</b> pauses · <b>H</b> jumps to your base · <b>Esc</b> cancels placing.</dd>
+      </dl>
+      <div class="btns"><button class="ghost" id="hvClose">Got it</button></div>
+    </div></div>
+
+    <div class="overlay lb" id="lv"><div class="card">
+      <h2>🏆 Best results</h2>
+      <div id="lbBody"></div>
+      <div class="btns" style="margin-top:14px"><button class="ghost" id="lvClose">Close</button></div>
+      <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+    </div></div>
+  </div>
+
+  <div id="side">
+    <canvas id="mini" width="184" height="184"></canvas>
+    <div class="ptab">
+      <div data-tab="b" class="on">Build</div>
+      <div data-tab="i">Infantry</div>
+      <div data-tab="v">Vehicles</div>
+    </div>
+    <div id="plist"></div>
+  </div>
+</div>
+
+<div id="nomob"><div class="card">
+  <div class="big">🖱️</div>
+  <h2>Desktop only</h2>
+  <p>Iron Frontier needs a mouse and keyboard — box-select, right-click orders and edge scrolling have no touch equivalent yet.<br><br>Open it on a computer.</p>
+</div></div>
+
+<script src="gamescore.js"></script>
+<script src="vibe-modal.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ===================================================================== //
+  //  Iron Frontier — an isometric skirmish RTS.
+  //
+  //  Everything below runs on a FIXED 60Hz step with a seeded PRNG and no
+  //  Math.random anywhere, so a given seed replays identically. That is not
+  //  neatness for its own sake: the AI balance harness (__rtsSim) runs whole
+  //  matches headless and asserts on the outcome, which is only meaningful
+  //  if the same seed produces the same match every time.
+  // ===================================================================== //
+
+  var STEP = 1000 / 60;          // ms per simulation tick
+  var TW = 64, TH = 32;          // isometric tile: 64 wide, 32 tall (2:1 diamond)
+  var MAP = 64;                  // map is MAP x MAP tiles
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  // Terrain codes
+  var T_GROUND = 0, T_ROCK = 1, T_ORE = 2;
+
+  var P_HUMAN = 0, P_AI = 1;
+
+  // --------------------------------------------------------------------- //
+  //  Deterministic PRNG (mulberry32). Every random draw in the game goes
+  //  through rnd() so a seed fully determines the match.
+  // --------------------------------------------------------------------- //
+  var _seed = 1;
+  function srand(s) { _seed = (s >>> 0) || 1; }
+  function rnd() {
+    _seed |= 0; _seed = (_seed + 0x6D2B79F5) | 0;
+    var t = Math.imul(_seed ^ (_seed >>> 15), 1 | _seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  function rint(n) { return Math.floor(rnd() * n); }
+
+  // --------------------------------------------------------------------- //
+  //  Unit + structure tables.
+  //
+  //  Every field a unit/structure reads at runtime is declared in the
+  //  factory literals further down — this repo has been bitten twice by a
+  //  field read before it was ever assigned (`undefined <= 0` is false, so
+  //  the branch that would initialise it can never run).
+  // --------------------------------------------------------------------- //
+
+  // armour classes drive the counter triangle
+  var A_INF = 'inf', A_VEH = 'veh', A_BLD = 'bld';
+
+  var UNITS = {
+    harvester: {
+      name: 'Harvester', em: '🚛', cost: 700, build: 14, cls: 'v',
+      hp: 260, spd: 0.042, sight: 5, armour: A_VEH,
+      dmg: 0, rate: 0, rng: 0, splash: 0, vs: null,
+      cap: 500, mine: 1.7, w: 15, h: 12, desc: 'Mines ore'
+    },
+    rifle: {
+      name: 'Rifleman', em: '🔫', cost: 100, build: 4, cls: 'i',
+      hp: 70, spd: 0.052, sight: 6, armour: A_INF,
+      dmg: 7, rate: 26, rng: 3.4, splash: 0,
+      vs: { inf: 1.0, veh: 0.35, bld: 0.45 },
+      cap: 0, mine: 0, w: 9, h: 14, desc: 'Cheap, anti-infantry'
+    },
+    rocket: {
+      name: 'Rocketeer', em: '🚀', cost: 300, build: 7, cls: 'i',
+      hp: 65, spd: 0.044, sight: 7, armour: A_INF,
+      dmg: 26, rate: 62, rng: 4.6, splash: 0,
+      vs: { inf: 0.45, veh: 1.35, bld: 1.1 },
+      cap: 0, mine: 0, w: 10, h: 14, desc: 'Anti-tank, fragile'
+    },
+    tank: {
+      name: 'Tank', em: '🛡️', cost: 600, build: 13, cls: 'v',
+      hp: 320, spd: 0.038, sight: 7, armour: A_VEH,
+      dmg: 30, rate: 55, rng: 4.3, splash: 0.75,
+      vs: { inf: 0.85, veh: 1.0, bld: 0.9 },
+      cap: 0, mine: 0, w: 19, h: 15, desc: 'Splash, crushes lines'
+    }
+  };
+
+  var BLDS = {
+    base: {
+      name: 'Construction Yard', em: '🏛️', cost: 0, build: 0,
+      gw: 3, gh: 3, hp: 1400, power: 0, sight: 7, makes: 'b', desc: 'Builds structures'
+    },
+    power: {
+      name: 'Power Plant', em: '⚡', cost: 300, build: 7,
+      gw: 2, gh: 2, hp: 420, power: 100, sight: 4, makes: null, desc: '+100 power'
+    },
+    refinery: {
+      name: 'Refinery', em: '🏭', cost: 1400, build: 18,
+      gw: 3, gh: 2, hp: 700, power: -35, sight: 5, makes: null, desc: 'Ore drop-off, +1 harvester'
+    },
+    barracks: {
+      name: 'Barracks', em: '⛺', cost: 400, build: 9,
+      gw: 2, gh: 2, hp: 520, power: -25, sight: 5, makes: 'i', desc: 'Trains infantry'
+    },
+    factory: {
+      name: 'War Factory', em: '🏗️', cost: 1500, build: 20,
+      gw: 3, gh: 3, hp: 820, power: -50, sight: 5, makes: 'v', desc: 'Builds vehicles'
+    },
+    turret: {
+      name: 'Gun Turret', em: '🗼', cost: 500, build: 9,
+      gw: 1, gh: 1, hp: 480, power: -30, sight: 7, makes: null,
+      dmg: 22, rate: 40, rng: 5.0, splash: 0.4,
+      vs: { inf: 1.0, veh: 1.0, bld: 0.3 }, desc: 'Base defence'
+    }
+  };
+
+  var BUILD_ORDER = ['power', 'refinery', 'barracks', 'factory', 'turret'];
+
+  // --------------------------------------------------------------------- //
+  //  Game state
+  // --------------------------------------------------------------------- //
+  var G = null;            // the whole mutable match state
+  var state = 'menu';      // menu | play | paused | over
+  var difficulty = 'normal';
+  var headless = false;    // true inside __rtsSim (skips all rendering)
+
+  function newState(seed, diff) {
+    srand(seed);
+    var g = {
+      seed: seed, diff: diff, tick: 0, over: 0,   // over: 0 running, 1 won, -1 lost
+      terrain: new Uint8Array(MAP * MAP),
+      ore: new Float32Array(MAP * MAP),
+      occ: new Int32Array(MAP * MAP),             // entity id occupying a tile, 0 = free
+      units: [], blds: [], shots: [], fx: [], byId: {},
+      nextId: 1,
+      side: [ newSide(P_HUMAN), newSide(P_AI) ],
+      focusFor: [true, true],
+      ai: null, ai2: null
+    };
+    genMap(g);
+    return g;
+  }
+
+  function newSide(p) {
+    return {
+      p: p, credits: 5000, made: 0, lost: 0, killed: 0, deadFor: 0,
+      powerMade: 0, powerUse: 0,
+      queues: { b: newQueue(), i: newQueue(), v: newQueue() },
+      pending: null                                // a finished structure awaiting placement
+    };
+  }
+  function newQueue() { return { list: [], prog: 0, ready: null }; }
+
+  function idx(x, y) { return y * MAP + x; }
+  function inMap(x, y) { return x >= 0 && y >= 0 && x < MAP && y < MAP; }
+
+  // --------------------------------------------------------------------- //
+  //  Map generation — mirrored, so neither side gets a better start.
+  //  The unit test asserts both starts reach ore and each other, and that
+  //  the two halves carry the same ore total.
+  // --------------------------------------------------------------------- //
+  function genMap(g) {
+    var i, x, y;
+    for (i = 0; i < MAP * MAP; i++) { g.terrain[i] = T_GROUND; g.ore[i] = 0; }
+
+    // Rock clusters in one half, mirrored into the other (180° rotation).
+    var rocks = 26;
+    for (i = 0; i < rocks; i++) {
+      var cx = 4 + rint(MAP - 8), cy = 4 + rint((MAP >> 1) - 6);
+      var r = 1 + rint(3);
+      for (y = cy - r; y <= cy + r; y++) for (x = cx - r; x <= cx + r; x++) {
+        if (!inMap(x, y)) continue;
+        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > r * r) continue;
+        g.terrain[idx(x, y)] = T_ROCK;
+        var mx = MAP - 1 - x, my = MAP - 1 - y;
+        if (inMap(mx, my)) g.terrain[idx(mx, my)] = T_ROCK;
+      }
+    }
+
+    // Ore patches: two close to each start (the economy opener) plus
+    // contested ones near the middle.
+    // r is fractional, so the loop bounds MUST be snapped to integers: a
+    // half-tile start makes idx() return a fractional index, which a typed
+    // array truncates to an entirely different tile — ore ends up scattered
+    // across a band nowhere near the patch, and the two halves stop matching.
+    function patch(cx, cy, r, amount) {
+      var y0 = Math.ceil(cy - r), y1 = Math.floor(cy + r);
+      var x0 = Math.ceil(cx - r), x1 = Math.floor(cx + r);
+      for (var yy = y0; yy <= y1; yy++) for (var xx = x0; xx <= x1; xx++) {
+        if (!inMap(xx, yy)) continue;
+        var d = Math.sqrt((xx - cx) * (xx - cx) + (yy - cy) * (yy - cy));
+        if (d > r) continue;
+        var j = idx(xx, yy);
+        if (g.terrain[j] === T_ROCK) continue;
+        g.terrain[j] = T_ORE;
+        g.ore[j] = amount * (1 - d / (r + 1));
+      }
+    }
+    function mirrorPatch(cx, cy, r, amount) {
+      patch(cx, cy, r, amount);
+      patch(MAP - 1 - cx, MAP - 1 - cy, r, amount);
+    }
+
+    g.start = [ { x: 9, y: 9 }, { x: MAP - 10, y: MAP - 10 } ];
+
+    mirrorPatch(15, 8, 3.4, 900);
+    mirrorPatch(7, 17, 3.0, 780);
+    mirrorPatch(27, 20, 3.6, 1000);
+    // The contested middle. A single patch at MAP>>1 cannot be self-mirroring
+    // (the mirror centre of a 64-tile map is 31.5, not 32), so it is a mirrored
+    // PAIR that overlaps into one central field — symmetric by construction.
+    mirrorPatch(30, 30, 3.8, 1150);
+
+    // Clear a build pad around each start so the yard always fits.
+    for (i = 0; i < 2; i++) {
+      var s = g.start[i];
+      for (y = s.y - 4; y <= s.y + 4; y++) for (x = s.x - 4; x <= s.x + 4; x++) {
+        if (!inMap(x, y)) continue;
+        g.terrain[idx(x, y)] = T_GROUND; g.ore[idx(x, y)] = 0;
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Isometric projection
+  // --------------------------------------------------------------------- //
+  function worldX(gx, gy) { return (gx - gy) * (TW / 2); }
+  function worldY(gx, gy) { return (gx + gy) * (TH / 2); }
+  function gridAt(wx, wy) {
+    var a = wx / (TW / 2), b = wy / (TH / 2);
+    return { x: (b + a) / 2, y: (b - a) / 2 };
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Sprite baking — drawn once into offscreen canvases, then the main loop
+  //  only ever calls drawImage. Baked at DPR so they stay crisp.
+  // --------------------------------------------------------------------- //
+  var SPR = {};
+
+  function mkCanvas(w, h) {
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(w * DPR));
+    c.height = Math.max(1, Math.ceil(h * DPR));
+    var g = c.getContext('2d');
+    g.scale(DPR, DPR);
+    return { c: c, g: g, w: w, h: h };
+  }
+
+  // Must accept its OWN output: sprites shade an already-shaded colour (a
+  // turret on a hull, a roof box on a roof). Parsing only '#rrggbb' made
+  // parseInt('gb(88,...') return NaN, canvas rejected the colour, and the
+  // part silently kept whatever fillStyle was set last — black turrets.
+  function shade(c, f) {
+    var r, g, b;
+    if (c.charAt(0) === '#') {
+      var n = parseInt(c.slice(1), 16);
+      r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255;
+    } else {
+      var m = c.match(/[\d.]+/g);
+      r = +m[0]; g = +m[1]; b = +m[2];
+    }
+    return 'rgb(' + Math.min(255, Math.max(0, Math.round(r * f))) + ',' +
+                    Math.min(255, Math.max(0, Math.round(g * f))) + ',' +
+                    Math.min(255, Math.max(0, Math.round(b * f))) + ')';
+  }
+
+  function diamond(g, cx, cy, w, h) {
+    g.beginPath();
+    g.moveTo(cx, cy - h / 2); g.lineTo(cx + w / 2, cy);
+    g.lineTo(cx, cy + h / 2); g.lineTo(cx - w / 2, cy);
+    g.closePath();
+  }
+
+  function bakeTile(fill, edge) {
+    var s = mkCanvas(TW + 2, TH + 2), g = s.g;
+    diamond(g, (TW + 2) / 2, (TH + 2) / 2, TW, TH);
+    g.fillStyle = fill; g.fill();
+    g.strokeStyle = edge; g.lineWidth = 1; g.stroke();
+    return s;
+  }
+
+  // Ore is drawn as speckles on top of the ground diamond so a depleting
+  // patch visibly thins out rather than vanishing in one step.
+  function bakeOre(level) {
+    var s = mkCanvas(TW + 2, TH + 2), g = s.g;
+    var n = 6 + level * 7;
+    srand(1234 + level);
+    for (var i = 0; i < n; i++) {
+      var a = rnd() * Math.PI * 2, r = Math.sqrt(rnd());
+      var px = (TW + 2) / 2 + Math.cos(a) * r * (TW / 2 - 6);
+      var py = (TH + 2) / 2 + Math.sin(a) * r * (TH / 2 - 3);
+      var sz = 1.6 + rnd() * 1.8;
+      g.fillStyle = ['#c9822f', '#e8b428', '#a8641f'][rint(3)];
+      g.beginPath(); g.ellipse(px, py, sz, sz * 0.6, 0, 0, 6.29); g.fill();
+    }
+    return s;
+  }
+
+  // --- isometric solids -------------------------------------------------
+  // Everything with volume is drawn as a box in the same projection as the
+  // ground: a top face, two lit side faces and a dark outline. An earlier
+  // pass drew a flat quad plus a bright ellipse, which at unit scale read as
+  // a glowing bead rather than a tank.
+  // dir is an angle in GRID space. It has to be rotated there and only then
+  // projected, or a box at dir=0 comes out as a screen-aligned rectangle
+  // instead of a diamond — which is why the first pass looked like furniture
+  // and tank barrels pointed straight down the screen.
+  var ISO_X = TW / 2 / Math.hypot(TW / 2, TH / 2);   // unit grid +X in screen px
+  var ISO_Y = TH / 2 / Math.hypot(TW / 2, TH / 2);
+  function isoBox(g, cx, cy, len, wid, hgt, dir, col, outline) {
+    var cd = Math.cos(dir), sd = Math.sin(dir);
+    var fx = ISO_X * (cd - sd), fy = ISO_Y * (cd + sd);          // forward
+    var sxv = ISO_X * (-sd - cd), syv = ISO_Y * (-sd + cd);      // sideways
+    var hl = len / 2, hw = wid / 2;
+    // four ground corners, clockwise
+    var g0 = [cx + fx * hl + sxv * hw, cy + fy * hl + syv * hw];
+    var g1 = [cx + fx * hl - sxv * hw, cy + fy * hl - syv * hw];
+    var g2 = [cx - fx * hl - sxv * hw, cy - fy * hl - syv * hw];
+    var g3 = [cx - fx * hl + sxv * hw, cy - fy * hl + syv * hw];
+    var pts = [g0, g1, g2, g3];
+
+    function face(p, q, fill) {
+      g.beginPath();
+      g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]);
+      g.lineTo(q[0], q[1] - hgt); g.lineTo(p[0], p[1] - hgt);
+      g.closePath();
+      g.fillStyle = fill; g.fill();
+      if (outline) { g.strokeStyle = outline; g.lineWidth = 0.7; g.stroke(); }
+    }
+    // Draw the far walls first, then the near ones, so the near faces win.
+    var order = [0, 1, 2, 3].sort(function (i, j) {
+      return ((pts[i][1] + pts[(i + 1) % 4][1]) - (pts[j][1] + pts[(j + 1) % 4][1]));
+    });
+    for (var k = 0; k < 4; k++) {
+      var i = order[k], q = (i + 1) % 4;
+      var mid = (pts[i][1] + pts[q][1]) / 2 - cy;
+      face(pts[i], pts[q], shade(col, mid > 0 ? 0.80 : 0.58));
+    }
+    g.beginPath();
+    g.moveTo(g0[0], g0[1] - hgt); g.lineTo(g1[0], g1[1] - hgt);
+    g.lineTo(g2[0], g2[1] - hgt); g.lineTo(g3[0], g3[1] - hgt);
+    g.closePath();
+    g.fillStyle = shade(col, 1.12); g.fill();
+    if (outline) { g.strokeStyle = outline; g.lineWidth = 0.7; g.stroke(); }
+    return { f: [fx, fy], top: hgt };
+  }
+
+  function shadowBlob(g, cx, cy, rx, ry) {
+    g.fillStyle = 'rgba(0,0,0,.38)';
+    g.beginPath(); g.ellipse(cx, cy, rx, ry, 0, 0, 6.29); g.fill();
+  }
+
+  // Sprites share one canvas size and one anchor rule: the unit's ground
+  // point sits at (w/2, h - PAD), so drawing is always the same expression.
+  var UPAD = 8;
+  function unitCanvas() { return mkCanvas(44, 38); }
+
+  function bakeInfantry(col, gunCol) {
+    var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
+    var dark = shade(col, 0.28);
+    shadowBlob(g, cx, by, 6, 2.6);
+    g.fillStyle = shade(col, 0.6);                       // legs
+    g.fillRect(cx - 3.4, by - 7, 2.8, 7); g.fillRect(cx + 0.6, by - 7, 2.8, 7);
+    g.fillStyle = col;                                   // torso
+    g.beginPath(); g.roundRect(cx - 4.4, by - 15, 8.8, 8.5, 2.4); g.fill();
+    g.strokeStyle = dark; g.lineWidth = 0.9; g.stroke();
+    g.fillStyle = shade(col, 1.3);                       // helmet
+    g.beginPath(); g.arc(cx, by - 17, 3.4, 0, 6.29); g.fill();
+    g.strokeStyle = dark; g.stroke();
+    g.strokeStyle = gunCol; g.lineWidth = 2;             // weapon
+    g.beginPath(); g.moveTo(cx + 2, by - 12); g.lineTo(cx + 9, by - 14.5); g.stroke();
+    return s;
+  }
+
+  function bakeVehicle(col, kind) {
+    var out = [];
+    for (var d = 0; d < 8; d++) {
+      var a = d * Math.PI / 4;
+      var s = unitCanvas(), g = s.g;
+      var cx = s.w / 2, by = s.h - UPAD;
+      var dark = shade(col, 0.26);
+      var len = kind === 'harv' ? 21 : 26, wid = kind === 'harv' ? 15 : 14;
+      shadowBlob(g, cx, by, len * 0.5, wid * 0.30);
+
+      var body = isoBox(g, cx, by - 2, len, wid, kind === 'harv' ? 10 : 6, a, col, dark);
+      var fx = body.f[0], fy = body.f[1];
+      if (kind === 'tank') {
+        // barrel first so the turret sits on top of its root
+        var bx0 = cx + fx * 2, by0 = by - 13;
+        g.lineCap = 'round';
+        g.strokeStyle = dark; g.lineWidth = 4.6;
+        g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx0 + fx * 17, by0 + fy * 17); g.stroke();
+        g.strokeStyle = shade(col, 1.05); g.lineWidth = 2.6;
+        g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx0 + fx * 16, by0 + fy * 16); g.stroke();
+        isoBox(g, cx - fx * 2, by - 9, 13, 12, 6, a, shade(col, 1.22), dark);   // turret
+      } else {
+        isoBox(g, cx - fx * 2, by - 11, 13, 13, 8, a, shade(col, 1.28), dark);  // hopper
+      }
+      out.push(s);
+    }
+    return out;
+  }
+
+  function bakeBuilding(key, col) {
+    var b = BLDS[key];
+    // Footprint in screen space, then a real extrusion on top of it.
+    var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
+    // A building is a SLAB on the ground with a narrower body standing on it.
+    // Extruding the whole footprint made every structure read as a low table:
+    // the roof filled the entire plot and the walls were a thin skirt.
+    var lift = key === 'turret' ? 26 : (key === 'base' ? 52 : (key === 'factory' ? 46 : 40));
+    var pad = 14;
+    var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + lift + pad * 2), g = s.g;
+    var cx = s.w / 2, baseY = s.h - pad - fh;      // centre of the footprint diamond
+    var dark = shade(col, 0.22);
+    var inset = key === 'turret' ? 0.60 : 0.74;    // body is narrower than the plot
+    var bw = fw * inset, bh = fh * inset;
+
+    // ground shadow, offset toward the light
+    g.fillStyle = 'rgba(0,0,0,.34)';
+    diamond(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
+
+    // concrete pad covering the whole footprint
+    diamond(g, cx, baseY, fw * 2, fh * 2);
+    g.fillStyle = shade(col, 0.32); g.fill();
+    g.strokeStyle = shade(col, 0.48); g.lineWidth = 1; g.stroke();
+
+    // body walls (left lit, right in shade) then the roof
+    g.fillStyle = shade(col, 0.60);
+    g.beginPath();
+    g.moveTo(cx - bw, baseY); g.lineTo(cx - bw, baseY - lift);
+    g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
+    g.closePath(); g.fill();
+    g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
+
+    g.fillStyle = shade(col, 0.40);
+    g.beginPath();
+    g.moveTo(cx + bw, baseY); g.lineTo(cx + bw, baseY - lift);
+    g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
+    g.closePath(); g.fill();
+    g.strokeStyle = dark; g.stroke();
+
+    // a lit band along the top of each wall reads as a storey line
+    g.fillStyle = shade(col, 0.78);
+    g.beginPath();
+    g.moveTo(cx - bw, baseY - lift + 5); g.lineTo(cx, baseY + bh - lift + 5);
+    g.lineTo(cx, baseY + bh - lift); g.lineTo(cx - bw, baseY - lift);
+    g.closePath(); g.fill();
+
+    var ry = baseY - lift;                          // roof centre
+    diamond(g, cx, ry, bw * 2, bh * 2);
+    g.fillStyle = shade(col, 1.08); g.fill();
+    g.strokeStyle = shade(col, 1.5); g.lineWidth = 1.2; g.stroke();
+
+    // roof structures — each building must be identifiable at a glance
+    if (key === 'power') {
+      isoBox(g, cx - 9, ry + 3, 11, 11, 17, 0.6, shade(col, 0.9), dark);
+      isoBox(g, cx + 8, ry + 6, 9, 9, 12, 0.6, shade(col, 0.8), dark);
+      g.fillStyle = '#ffd76a';
+      g.beginPath();
+      g.moveTo(cx - 1, ry - 4); g.lineTo(cx + 5, ry - 4);
+      g.lineTo(cx + 1, ry + 3); g.lineTo(cx + 6, ry + 3);
+      g.lineTo(cx - 2, ry + 13); g.lineTo(cx + 2, ry + 4);
+      g.lineTo(cx - 3, ry + 4); g.closePath(); g.fill();
+    } else if (key === 'refinery') {
+      isoBox(g, cx - 16, ry + 2, 13, 13, 20, 0.6, shade(col, 0.92), dark);
+      g.fillStyle = shade(col, 1.25);                 // silo
+      g.beginPath(); g.ellipse(cx + 12, ry + 2, 12, 7, 0, 0, 6.29); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
+      g.fillStyle = '#e8b428';
+      g.beginPath(); g.ellipse(cx + 12, ry + 1, 6.5, 3.6, 0, 0, 6.29); g.fill();
+      g.fillStyle = shade(col, 0.5);                  // loading ramp
+      g.fillRect(cx - 4, ry + 10, 16, 4);
+    } else if (key === 'barracks') {
+      g.fillStyle = shade(col, 1.3);                  // pitched roof
+      g.beginPath();
+      g.moveTo(cx - fw * 0.55, ry + 3); g.lineTo(cx, ry - 13);
+      g.lineTo(cx + fw * 0.55, ry + 3); g.lineTo(cx, ry + 12);
+      g.closePath(); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
+      g.fillStyle = '#cfd6e2';
+      g.fillRect(cx - 2, ry - 9, 4, 9);
+    } else if (key === 'factory') {
+      for (var i = 0; i < 3; i++) {                   // saw-tooth roof
+        var ox = cx - 20 + i * 15;
+        g.fillStyle = shade(col, 1.2 - i * 0.06);
+        g.beginPath();
+        g.moveTo(ox, ry + 6); g.lineTo(ox + 7, ry - 8);
+        g.lineTo(ox + 14, ry + 6); g.closePath(); g.fill();
+        g.strokeStyle = dark; g.lineWidth = 0.8; g.stroke();
+      }
+      g.fillStyle = '#e8b428';
+      g.fillRect(cx - 16, ry + 8, 32, 3);
+    } else if (key === 'base') {
+      isoBox(g, cx, ry - 2, 30, 26, 15, 0, shade(col, 1.02), dark);
+      g.fillStyle = '#8ad0ff';                        // control room glass
+      g.beginPath(); g.roundRect(cx - 9, ry - 18, 18, 7, 2); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 0.9; g.stroke();
+      g.strokeStyle = shade(col, 1.5); g.lineWidth = 2;   // mast
+      g.beginPath(); g.moveTo(cx + 16, ry - 12); g.lineTo(cx + 16, ry - 26); g.stroke();
+      g.fillStyle = '#e5646c';
+      g.beginPath(); g.arc(cx + 16, ry - 27, 2.4, 0, 6.29); g.fill();
+    } else if (key === 'turret') {
+      isoBox(g, cx, ry + 1, 16, 16, 9, 0, shade(col, 1.1), dark);
+      g.fillStyle = shade(col, 1.35);
+      g.beginPath(); g.ellipse(cx, ry - 8, 8, 5, 0, 0, 6.29); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
+      g.strokeStyle = dark; g.lineWidth = 4;
+      g.beginPath(); g.moveTo(cx, ry - 9); g.lineTo(cx + 17, ry - 14); g.stroke();
+      g.strokeStyle = shade(col, 0.85); g.lineWidth = 2.2;
+      g.beginPath(); g.moveTo(cx, ry - 9); g.lineTo(cx + 16, ry - 14); g.stroke();
+    }
+    return { s: s, ax: cx, ay: baseY };   // anchor = footprint centre
+  }
+
+  var COL = ['#4aa3db', '#e5646c'];            // player 0 blue, player 1 red
+
+  function bakeAll() {
+    SPR.ground = [ bakeTile('#232a36', '#1b212b'), bakeTile('#252d3a', '#1b212b'), bakeTile('#212834', '#1b212b') ];
+    SPR.rock = bakeTile('#39414f', '#495366');
+    SPR.oreLv = [ bakeOre(0), bakeOre(1), bakeOre(2) ];
+    SPR.unit = [{}, {}];
+    for (var p = 0; p < 2; p++) {
+      SPR.unit[p].rifle = bakeInfantry(COL[p], '#cfd6e2');
+      SPR.unit[p].rocket = bakeInfantry(shade(COL[p], 1.2), '#e8b428');
+      SPR.unit[p].tank = bakeVehicle(COL[p], 'tank');
+      SPR.unit[p].harvester = bakeVehicle(shade(COL[p], 0.82), 'harv');
+    }
+    SPR.bld = [{}, {}];
+    for (var q = 0; q < 2; q++) for (var k in BLDS) SPR.bld[q][k] = bakeBuilding(k, COL[q]);
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Entity factories. Every field read anywhere is declared here.
+  // --------------------------------------------------------------------- //
+  function spawnUnit(g, type, p, gx, gy) {
+    var d = UNITS[type];
+    var u = {
+      id: g.nextId++, kind: 'u', type: type, p: p,
+      x: gx, y: gy, hp: d.hp, maxhp: d.hp, dead: false,
+      face: (gx + gy) & 7, cool: 0, target: null, order: null,     // order: {t:'move'|'attack'|'harvest', x,y,id}
+      path: null, pi: 0, repath: 0, repathAt: -999, stuck: 0, lastx: gx, lasty: gy,
+      cargo: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999,
+      sel: false, aggro: null, guardX: gx, guardY: gy
+    };
+    g.units.push(u);
+    g.byId[u.id] = u;
+    g.side[p].made++;
+    return u;
+  }
+
+  function placeBld(g, key, p, gx, gy) {
+    var d = BLDS[key];
+    var b = {
+      id: g.nextId++, kind: 'b', type: key, p: p,
+      x: gx, y: gy, gw: d.gw, gh: d.gh,
+      hp: d.hp, maxhp: d.hp, dead: false,
+      cool: 0, target: null, sel: false,
+      cx: gx + (d.gw - 1) / 2, cy: gy + (d.gh - 1) / 2, rally: null
+    };
+    g.blds.push(b);
+    g.byId[b.id] = b;
+    for (var yy = gy; yy < gy + d.gh; yy++) for (var xx = gx; xx < gx + d.gw; xx++) {
+      if (inMap(xx, yy)) g.occ[idx(xx, yy)] = b.id;
+    }
+    recalcPower(g, p);
+    return b;
+  }
+
+  function killBld(g, b) {
+    b.dead = true;
+    for (var yy = b.y; yy < b.y + b.gh; yy++) for (var xx = b.x; xx < b.x + b.gw; xx++) {
+      if (inMap(xx, yy) && g.occ[idx(xx, yy)] === b.id) g.occ[idx(xx, yy)] = 0;
+    }
+    recalcPower(g, b.p);
+  }
+
+  function recalcPower(g, p) {
+    var made = 0, use = 0;
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (b.dead || b.p !== p) continue;
+      var pw = BLDS[b.type].power;
+      if (pw > 0) made += pw; else use += -pw;
+    }
+    g.side[p].powerMade = made;
+    g.side[p].powerUse = use;
+  }
+  function powered(g, p) {
+    var s = g.side[p];
+    return s.powerUse === 0 || s.powerMade >= s.powerUse;
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Passability + pathfinding (A* on the tile grid, with a per-frame
+  //  budget so a mass move order can never stall the frame).
+  // --------------------------------------------------------------------- //
+  function blocked(g, x, y) {
+    if (!inMap(x, y)) return true;
+    var i = idx(x, y);
+    return g.terrain[i] === T_ROCK || g.occ[i] !== 0;
+  }
+
+  var pathQ = [];
+  // Do NOT drop the current path here. Clearing it on request meant a unit
+  // stopped dead until the queue reached it, so an AI that re-tasked often
+  // (a FAST one) had an army that stood still — reaction speed became a
+  // handicap. The old path stays valid until the new one replaces it.
+  function requestPath(g, u, tx, ty) {
+    for (var i = 0; i < pathQ.length; i++) {
+      if (pathQ[i].u === u) { pathQ[i].tx = tx; pathQ[i].ty = ty; return; }
+    }
+    pathQ.push({ u: u, tx: tx, ty: ty });
+  }
+
+  function runPathQueue(g, budget) {
+    var n = 0;
+    while (pathQ.length && n < budget) {
+      var r = pathQ.shift(); n++;
+      if (r.u.dead) continue;
+      r.u.path = astar(g, Math.round(r.u.x), Math.round(r.u.y), r.tx, r.ty);
+      r.u.pi = 0;
+    }
+  }
+
+  // Binary-heap A*. Returns an array of {x,y} or null when unreachable.
+  function astar(g, sx, sy, tx, ty) {
+    sx = Math.max(0, Math.min(MAP - 1, sx)); sy = Math.max(0, Math.min(MAP - 1, sy));
+    if (!inMap(tx, ty)) return null;
+    if (sx === tx && sy === ty) return [];
+
+    // If the goal is blocked, walk out to the nearest free tile near it.
+    if (blocked(g, tx, ty)) {
+      var best = null, bd = 1e9;
+      for (var r = 1; r <= 4 && !best; r++) {
+        for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
+          if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+          var nx = tx + ox, ny = ty + oy;
+          if (blocked(g, nx, ny)) continue;
+          var dd = (nx - sx) * (nx - sx) + (ny - sy) * (ny - sy);
+          if (dd < bd) { bd = dd; best = { x: nx, y: ny }; }
+        }
+        if (best) break;
+      }
+      if (!best) return null;
+      tx = best.x; ty = best.y;
+      if (sx === tx && sy === ty) return [];
+    }
+
+    var N = MAP * MAP;
+    var came = new Int32Array(N).fill(-1);
+    var gs = new Float32Array(N).fill(Infinity);
+    var closed = new Uint8Array(N);
+    var heap = [], hn = 0;
+
+    function h(x, y) {
+      var dx = Math.abs(x - tx), dy = Math.abs(y - ty);
+      return (dx + dy) + (1.4142 - 2) * Math.min(dx, dy);
+    }
+    function push(node, f) {
+      heap[hn] = { i: node, f: f }; var c = hn++;
+      while (c > 0) {
+        var par = (c - 1) >> 1;
+        if (heap[par].f <= heap[c].f) break;
+        var t = heap[par]; heap[par] = heap[c]; heap[c] = t; c = par;
+      }
+    }
+    function pop() {
+      var top = heap[0]; heap[0] = heap[--hn]; heap.length = hn;
+      var c = 0;
+      for (;;) {
+        var l = c * 2 + 1, r = l + 1, m = c;
+        if (l < hn && heap[l].f < heap[m].f) m = l;
+        if (r < hn && heap[r].f < heap[m].f) m = r;
+        if (m === c) break;
+        var t = heap[m]; heap[m] = heap[c]; heap[c] = t; c = m;
+      }
+      return top;
+    }
+
+    var si = idx(sx, sy), ti = idx(tx, ty);
+    gs[si] = 0; push(si, h(sx, sy));
+    var guard = 0;
+    while (hn > 0 && guard++ < 9000) {
+      var cur = pop().i;
+      if (cur === ti) break;
+      if (closed[cur]) continue;
+      closed[cur] = 1;
+      var cxx = cur % MAP, cyy = (cur / MAP) | 0;
+      for (var d = 0; d < 8; d++) {
+        var ax = [1, -1, 0, 0, 1, 1, -1, -1][d], ay = [0, 0, 1, -1, 1, -1, 1, -1][d];
+        var nx2 = cxx + ax, ny2 = cyy + ay;
+        if (!inMap(nx2, ny2)) continue;
+        var ni = idx(nx2, ny2);
+        if (closed[ni]) continue;
+        if (blocked(g, nx2, ny2) && ni !== ti) continue;
+        // no corner-cutting through two blocked orthogonals
+        if (ax && ay && blocked(g, cxx + ax, cyy) && blocked(g, cxx, cyy + ay)) continue;
+        var step = (ax && ay) ? 1.4142 : 1;
+        var ng = gs[cur] + step;
+        if (ng < gs[ni]) { gs[ni] = ng; came[ni] = cur; push(ni, ng + h(nx2, ny2)); }
+      }
+    }
+    if (came[ti] === -1 && ti !== si) return null;
+
+    var out = [], node = ti;
+    while (node !== si && node !== -1) {
+      out.push({ x: node % MAP, y: (node / MAP) | 0 });
+      node = came[node];
+    }
+    out.reverse();
+    return out;
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Spatial hash — keeps target search O(neighbourhood) instead of O(n²).
+  // --------------------------------------------------------------------- //
+  var CELL = 6;
+  var hash = {};
+  function rebuildHash(g) {
+    for (var k in hash) hash[k].length = 0;     // keep the arrays, drop contents
+    function add(e) {
+      var ex = e.kind === 'b' ? e.cx : e.x, ey = e.kind === 'b' ? e.cy : e.y;
+      var key = ((ex / CELL) | 0) + ',' + ((ey / CELL) | 0);
+      (hash[key] || (hash[key] = [])).push(e);
+    }
+    for (var i = 0; i < g.units.length; i++) if (!g.units[i].dead) add(g.units[i]);
+    for (var j = 0; j < g.blds.length; j++) {
+      var b = g.blds[j];
+      if (!b.dead) add(b);                      // b.cx/cy are its centre
+    }
+  }
+  function near(x, y, r, fn) {
+    var c0 = ((x - r) / CELL) | 0, c1 = ((x + r) / CELL) | 0;
+    var d0 = ((y - r) / CELL) | 0, d1 = ((y + r) / CELL) | 0;
+    for (var cx = c0; cx <= c1; cx++) for (var cy = d0; cy <= d1; cy++) {
+      var arr = hash[cx + ',' + cy];
+      if (!arr) continue;
+      for (var i = 0; i < arr.length; i++) fn(arr[i]);
+    }
+  }
+
+  function dist(a, b) {
+    var ax = a.kind === 'b' ? a.cx : a.x, ay = a.kind === 'b' ? a.cy : a.y;
+    var bx = b.kind === 'b' ? b.cx : b.x, by = b.kind === 'b' ? b.cy : b.y;
+    return Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
+  }
+  function armourOf(e) { return e.kind === 'b' ? A_BLD : UNITS[e.type].armour; }
+
+  function findTarget(g, e, rng) {
+    var best = null, bs = -1;
+    var ex = e.kind === 'b' ? e.cx : e.x, ey = e.kind === 'b' ? e.cy : e.y;
+    near(ex, ey, rng + 1, function (o) {
+      if (o.dead || o.p === e.p) return;
+      var d = dist(e, o);
+      if (d > rng) return;
+      var spec = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
+      var mult = spec.vs ? (spec.vs[armourOf(o)] || 1) : 1;
+      var score;
+      if (g.focusFor[e.p]) {
+        // Prefer what we hurt most, then what is closest to dying: focus fire
+        // falls out of the scoring rather than needing a separate pass.
+        score = mult * 100 - d * 6 - (o.hp / o.maxhp) * 40;
+        if (o.kind === 'u' && UNITS[o.type].dmg > 0) score += 25;   // shooters first
+        if (o.kind === 'u' && o.type === 'harvester') score += 12;  // then economy
+      } else {
+        score = -d;                       // unfocused: just shoot the nearest
+      }
+      if (score > bs) { bs = score; best = o; }
+    });
+    return best;
+  }
+
+  function damage(g, src, tgt, amount) {
+    var spec = src.kind === 'b' ? BLDS[src.type] : UNITS[src.type];
+    var mult = spec.vs ? (spec.vs[armourOf(tgt)] || 1) : 1;
+    tgt.hp -= amount * mult;
+    if (tgt.kind === 'u' && tgt.type === 'harvester') tgt.fleeAt = g.tick;
+    if (tgt.hp <= 0 && !tgt.dead) {
+      g.side[src.p].killed++;
+      g.side[tgt.p].lost++;
+      if (tgt.kind === 'b') { killBld(g, tgt); boom(g, tgt.cx, tgt.cy, 26); sfx('boom'); }
+      else { tgt.dead = true; boom(g, tgt.x, tgt.y, 12); sfx('die'); }
+    }
+  }
+
+  function boom(g, x, y, size) {
+    if (headless) return;
+    g.fx.push({ x: x, y: y, t: 0, life: size > 20 ? 34 : 20, size: size });
+  }
+
+  function fire(g, src, tgt) {
+    var spec = src.kind === 'b' ? BLDS[src.type] : UNITS[src.type];
+    src.cool = spec.rate;
+    if (!headless) {
+      g.shots.push({
+        x: src.kind === 'b' ? src.cx : src.x, y: src.kind === 'b' ? src.cy : src.y,
+        tx: tgt.kind === 'b' ? tgt.cx : tgt.x, ty: tgt.kind === 'b' ? tgt.cy : tgt.y,
+        t: 0, life: 7, rocket: src.type === 'rocket' || src.type === 'tank'
+      });
+    }
+    sfx(src.type === 'rifle' ? 'shot' : 'cannon');
+    damage(g, src, tgt, spec.dmg);
+    if (spec.splash > 0) {
+      var tx = tgt.kind === 'b' ? tgt.cx : tgt.x, ty = tgt.kind === 'b' ? tgt.cy : tgt.y;
+      near(tx, ty, spec.splash + 1, function (o) {
+        if (o.dead || o.p === src.p || o === tgt) return;
+        var d = Math.sqrt((o.x - tx) * (o.x - tx) + (o.y - ty) * (o.y - ty));
+        if (d <= spec.splash) damage(g, src, o, spec.dmg * 0.45 * (1 - d / (spec.splash + 0.4)));
+      });
+    }
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Ore + harvesting
+  // --------------------------------------------------------------------- //
+  function findOre(g, fromX, fromY, maxR) {
+    var best = null, bd = 1e9;
+    var r = maxR || 30;
+    for (var y = Math.max(0, (fromY - r) | 0); y < Math.min(MAP, fromY + r); y++) {
+      for (var x = Math.max(0, (fromX - r) | 0); x < Math.min(MAP, fromX + r); x++) {
+        var i = idx(x, y);
+        if (g.terrain[i] !== T_ORE || g.ore[i] <= 1) continue;
+        var d = (x - fromX) * (x - fromX) + (y - fromY) * (y - fromY);
+        if (d < bd) { bd = d; best = { x: x, y: y }; }
+      }
+    }
+    return best;
+  }
+
+  function findRefinery(g, p, fromX, fromY) {
+    var best = null, bd = 1e9;
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (b.dead || b.p !== p || b.type !== 'refinery') continue;
+      var d = (b.cx - fromX) * (b.cx - fromX) + (b.cy - fromY) * (b.cy - fromY);
+      if (d < bd) { bd = d; best = b; }
+    }
+    return best;
+  }
+
+  function stepHarvester(g, u) {
+    var d = UNITS.harvester;
+
+    if (u.state === 'idle' || (u.state === 'tomine' && !u.mineAt)) {
+      var patch = u.order && u.order.t === 'harvest'
+        ? { x: u.order.x, y: u.order.y } : findOre(g, u.x, u.y);
+      if (!patch) { u.state = 'idle'; return; }
+      u.mineAt = patch; u.state = 'tomine';
+      requestPath(g, u, patch.x, patch.y);
+      return;
+    }
+
+    if (u.state === 'tomine') {
+      var m = u.mineAt;
+      if (g.terrain[idx(m.x, m.y)] !== T_ORE || g.ore[idx(m.x, m.y)] <= 1) {
+        u.mineAt = null; u.state = 'idle'; u.order = null; return;
+      }
+      if (Math.abs(u.x - m.x) < 0.8 && Math.abs(u.y - m.y) < 0.8) { u.state = 'mining'; u.path = null; }
+      else advance(g, u, m.x, m.y, d.spd, 240);
+      return;
+    }
+
+    // Under fire, a harvester runs for the refinery instead of standing in
+    // the open being farmed. It banks whatever it is carrying on the way,
+    // which is also what makes harassing one worth the attacker's time.
+    if (g.tick - u.fleeAt < 240 && (u.state === 'mining' || u.state === 'tomine')) {
+      var safe = findRefinery(g, u.p, u.x, u.y);
+      if (safe) {
+        u.homeRef = safe; u.state = 'toref'; u.path = null; u.repathAt = -999;
+        return;
+      }
+    }
+
+    if (u.state === 'mining') {
+      var mi = idx(u.mineAt.x, u.mineAt.y);
+      var take = Math.min(d.mine, g.ore[mi], d.cap - u.cargo);
+      g.ore[mi] -= take; u.cargo += take;
+      if (g.ore[mi] <= 0.5) { g.terrain[mi] = T_GROUND; g.ore[mi] = 0; u.mineAt = null; }
+      if (u.cargo >= d.cap - 0.01 || !u.mineAt) {
+        if (u.cargo > 20) {
+          var ref = findRefinery(g, u.p, u.x, u.y);
+          if (ref) {
+            u.homeRef = ref; u.state = 'toref';
+            requestPath(g, u, Math.round(ref.cx), Math.round(ref.cy + ref.gh / 2 + 1));
+          } else u.state = 'idle';
+        } else u.state = 'idle';
+      }
+      return;
+    }
+
+    if (u.state === 'toref') {
+      var ref2 = u.homeRef;
+      if (!ref2 || ref2.dead) {
+        var alt = findRefinery(g, u.p, u.x, u.y);
+        if (!alt) { u.state = 'idle'; return; }
+        u.homeRef = alt; requestPath(g, u, Math.round(alt.cx), Math.round(alt.cy));
+        return;
+      }
+      if (dist(u, ref2) < 2.2) {
+        g.side[u.p].credits += Math.round(u.cargo);
+        if (u.p === P_HUMAN && !headless) creditPop(Math.round(u.cargo));
+        u.cargo = 0; u.state = 'idle'; u.path = null;
+        sfx('cash');
+      } else advance(g, u, Math.round(ref2.cx), Math.round(ref2.cy), d.spd, 240);
+      return;
+    }
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Movement
+  // --------------------------------------------------------------------- //
+  function moveAlong(g, u, spd) {
+    if (!u.path || u.pi >= u.path.length) return false;
+    var wp = u.path[u.pi];
+    var dx = wp.x - u.x, dy = wp.y - u.y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 0.16) {
+      u.pi++;
+      if (u.pi >= u.path.length) { u.path = null; return false; }
+      return true;
+    }
+    // Separation: nudge apart from neighbours so a group spreads instead of
+    // stacking into one tile (also keeps splash from one-shotting a blob).
+    var sx = 0, sy = 0;
+    near(u.x, u.y, 1.1, function (o) {
+      if (o === u || o.dead || o.kind !== 'u') return;
+      var ox = u.x - o.x, oy = u.y - o.y;
+      var od = Math.sqrt(ox * ox + oy * oy);
+      if (od > 0.001 && od < 0.85) { sx += ox / od * (0.85 - od); sy += oy / od * (0.85 - od); }
+    });
+
+    var vx = dx / d * spd + sx * spd * 0.9;
+    var vy = dy / d * spd + sy * spd * 0.9;
+    var nx = u.x + vx, ny = u.y + vy;
+
+    // Don't walk into rock or a building; slide along instead.
+    if (!tilePassable(g, nx, u.y)) nx = u.x;
+    if (!tilePassable(g, u.x, ny)) ny = u.y;
+    u.x = nx; u.y = ny;
+
+    var ang = Math.atan2(dy, dx);
+    u.face = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8;
+    return true;
+  }
+
+  // refresh = ticks between re-plans while a path is already being followed.
+  function advance(g, u, tx, ty, spd, refresh) {
+    if (!u.path) {
+      if (g.tick - u.repathAt > 8) { requestPath(g, u, tx, ty); u.repathAt = g.tick; }
+    } else if (refresh && g.tick - u.repathAt > refresh) {
+      requestPath(g, u, tx, ty); u.repathAt = g.tick;
+    }
+    return moveAlong(g, u, spd);
+  }
+
+  function tilePassable(g, fx, fy) {
+    var x = Math.round(fx), y = Math.round(fy);
+    if (!inMap(x, y)) return false;
+    var i = idx(x, y);
+    return g.terrain[i] !== T_ROCK && g.occ[i] === 0;
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Per-unit tick
+  // --------------------------------------------------------------------- //
+  function stepUnit(g, u) {
+    var d = UNITS[u.type];
+    if (u.cool > 0) u.cool--;
+
+    if (u.type === 'harvester') {
+      // Harvesters flee toward the nearest refinery when shot at rather than
+      // standing in the open being farmed.
+      stepHarvester(g, u);
+      return;
+    }
+
+    // An attack order says where to GO, not what to ignore on the way. The
+    // ordered target is engaged when it is in range; anything else in range
+    // is engaged too. Letting the order win outright marched whole waves
+    // past live gun turrets without a shot fired.
+    var tgt = null, ordered = null;
+    if (u.order && u.order.t === 'attack') {
+      ordered = entById(g, u.order.id);
+      if (!ordered) u.order = null;
+      else if (dist(u, ordered) <= d.rng) tgt = ordered;
+    }
+    if (!tgt) tgt = findTarget(g, u, d.rng);
+
+    if (tgt) {
+      var dd = dist(u, tgt);
+      if (dd <= d.rng) {
+        u.path = null;
+        var ax = (tgt.kind === 'b' ? tgt.cx : tgt.x) - u.x;
+        var ay = (tgt.kind === 'b' ? tgt.cy : tgt.y) - u.y;
+        u.face = ((Math.round(Math.atan2(ay, ax) / (Math.PI / 4)) % 8) + 8) % 8;
+        if (u.cool <= 0) fire(g, u, tgt);
+        return;
+      }
+      // Chase only what we were told to chase, or what is close to our post.
+      var chase = (ordered && tgt === ordered) ||
+                  Math.sqrt((u.guardX - u.x) * (u.guardX - u.x) + (u.guardY - u.y) * (u.guardY - u.y)) < 7;
+      if (chase) {
+        advance(g, u, Math.round(tgt.kind === 'b' ? tgt.cx : tgt.x),
+                      Math.round(tgt.kind === 'b' ? tgt.cy : tgt.y), d.spd, 45);
+        return;
+      }
+    }
+
+    if (u.order && u.order.t === 'attack' && ordered) {
+      advance(g, u, Math.round(ordered.kind === 'b' ? ordered.cx : ordered.x),
+                    Math.round(ordered.kind === 'b' ? ordered.cy : ordered.y), d.spd, 60);
+      return;
+    }
+
+    if (u.order && u.order.t === 'move') {
+      var dx = u.order.x - u.x, dy = u.order.y - u.y;
+      if (dx * dx + dy * dy < 1.4) {                 // arrived
+        u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
+      } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
+                 g.tick - u.repathAt > 90) {
+        // Path ran out well short of the goal and a fresh one changed
+        // nothing: the target is unreachable, so stop rather than jitter.
+        u.order = null; u.guardX = u.x; u.guardY = u.y;
+      }
+    }
+  }
+
+  function entById(g, id) {
+    var e = g.byId[id];
+    return e && !e.dead ? e : null;
+  }
+
+  function stepBld(g, b) {
+    var d = BLDS[b.type];
+    if (b.cool > 0) b.cool--;
+    if (!d.dmg) return;
+    if (!powered(g, b.p)) return;              // unpowered defences go dark
+    var t = findTarget(g, b, d.rng);
+    if (t && b.cool <= 0) fire(g, b, t);
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Production queues
+  // --------------------------------------------------------------------- //
+  function canBuild(g, p, key, isBld) {
+    var s = g.side[p];
+    var spec = isBld ? BLDS[key] : UNITS[key];
+    if (s.credits < spec.cost) return false;
+    if (isBld) return hasBld(g, p, 'base');
+    if (UNITS[key].cls === 'i') return hasBld(g, p, 'barracks');
+    return hasBld(g, p, 'factory');
+  }
+
+  function hasBld(g, p, type) {
+    for (var i = 0; i < g.blds.length; i++) {
+      if (!g.blds[i].dead && g.blds[i].p === p && g.blds[i].type === type) return true;
+    }
+    return false;
+  }
+  function countBld(g, p, type) {
+    var n = 0;
+    for (var i = 0; i < g.blds.length; i++) {
+      if (!g.blds[i].dead && g.blds[i].p === p && g.blds[i].type === type) n++;
+    }
+    return n;
+  }
+  function countUnit(g, p, type) {
+    var n = 0;
+    for (var i = 0; i < g.units.length; i++) {
+      if (!g.units[i].dead && g.units[i].p === p && (!type || g.units[i].type === type)) n++;
+    }
+    return n;
+  }
+
+  function enqueue(g, p, key, lane) {
+    var s = g.side[p];
+    var q = s.queues[lane];
+    if (q.list.length >= 6) return false;
+    var spec = lane === 'b' ? BLDS[key] : UNITS[key];
+    if (s.credits < spec.cost) return false;
+    s.credits -= spec.cost;                     // charged on queue, refunded on cancel
+    q.list.push(key);
+    return true;
+  }
+
+  function cancelLast(g, p, lane, key) {
+    var q = g.side[p].queues[lane];
+    for (var i = q.list.length - 1; i >= 0; i--) {
+      if (q.list[i] === key) {
+        g.side[p].credits += (lane === 'b' ? BLDS[key] : UNITS[key]).cost;
+        q.list.splice(i, 1);
+        if (i === 0) q.prog = 0;
+        return true;
+      }
+    }
+    if (lane === 'b' && q.ready === key) {
+      g.side[p].credits += BLDS[key].cost; q.ready = null; return true;
+    }
+    return false;
+  }
+
+  function stepQueues(g, p) {
+    var s = g.side[p];
+    var slow = powered(g, p) ? 1 : 0.4;          // low power = crawling production
+    for (var lane in s.queues) {
+      var q = s.queues[lane];
+      if (!q.list.length) continue;
+      if (lane === 'b' && q.ready) continue;     // one finished structure waits for placement
+      var key = q.list[0];
+      var spec = lane === 'b' ? BLDS[key] : UNITS[key];
+      // A lane with no producing structure left stalls (and refunds nothing —
+      // same as RA2: rebuild the factory and it resumes).
+      if (lane === 'i' && !hasBld(g, p, 'barracks')) continue;
+      if (lane === 'v' && !hasBld(g, p, 'factory')) continue;
+      if (lane === 'b' && !hasBld(g, p, 'base')) continue;
+
+      q.prog += slow / (spec.build * 60);
+      if (q.prog >= 1) {
+        q.prog = 0; q.list.shift();
+        if (lane === 'b') { q.ready = key; if (p === P_HUMAN) sfx('ready'); }
+        else {
+          var src = producerFor(g, p, lane);
+          if (src) {
+            var sp = freeTileNear(g, Math.round(src.cx), Math.round(src.cy + src.gh / 2 + 1));
+            if (sp) {
+              var nu = spawnUnit(g, key, p, sp.x, sp.y);
+              if (src.rally) { nu.order = { t: 'move', x: src.rally.x, y: src.rally.y, id: 0 };
+                               requestPath(g, nu, src.rally.x, src.rally.y);
+                               nu.guardX = src.rally.x; nu.guardY = src.rally.y; }
+              if (p === P_HUMAN) sfx('ready');
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function producerFor(g, p, lane) {
+    var want = lane === 'i' ? 'barracks' : 'factory';
+    for (var i = 0; i < g.blds.length; i++) {
+      if (!g.blds[i].dead && g.blds[i].p === p && g.blds[i].type === want) return g.blds[i];
+    }
+    return null;
+  }
+
+  function freeTileNear(g, x, y) {
+    for (var r = 0; r < 8; r++) {
+      for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+        var nx = x + ox, ny = y + oy;
+        if (inMap(nx, ny) && !blocked(g, nx, ny)) return { x: nx, y: ny };
+      }
+    }
+    return null;
+  }
+
+  // Structures must touch the existing base footprint (RA2's build radius).
+  function canPlace(g, p, key, gx, gy) {
+    var d = BLDS[key];
+    var touch = false;
+    for (var y = gy - 1; y <= gy + d.gh; y++) {
+      for (var x = gx - 1; x <= gx + d.gw; x++) {
+        if (!inMap(x, y)) continue;
+        var inside = (x >= gx && x < gx + d.gw && y >= gy && y < gy + d.gh);
+        var i = idx(x, y);
+        if (inside) {
+          if (g.terrain[i] === T_ROCK || g.terrain[i] === T_ORE) return false;
+          if (g.occ[i] !== 0) return false;
+          // no placing on top of a unit
+          var hit = false;
+          for (var k = 0; k < g.units.length; k++) {
+            var u = g.units[k];
+            if (!u.dead && Math.round(u.x) === x && Math.round(u.y) === y) { hit = true; break; }
+          }
+          if (hit) return false;
+        } else if (g.occ[i] !== 0) {
+          var ob = entById(g, g.occ[i]);
+          if (ob && ob.p === p) touch = true;
+        }
+      }
+    }
+    return touch;
+  }
+
+  // --------------------------------------------------------------------- //
+  //  AI opponent
+  //
+  //  Layered on purpose: a strategy pass sets a posture, a production pass
+  //  turns that posture (plus what it has SEEN of our army) into build
+  //  orders, and a tactical pass moves the army. It reads the same world
+  //  every player does — no free credits, no map knowledge it did not scout.
+  // --------------------------------------------------------------------- //
+  var DIFF = {
+    // group = how many fighters it masses before committing. A LOW number is
+    // a weakness, not a strength: it feeds units piecemeal into defences.
+    // give = the fraction of a wave that must survive before it presses on.
+    // Every knob here is a HANDICAP on the AI's own play, never a bonus to
+    // its economy or vision. focus: does it concentrate fire or just shoot
+    // the nearest thing. apm: how many orders it can issue per tactical pass
+    // (a big army it cannot command is a real weakness). group: how many it
+    // masses before committing — low dribbles units in, high is slow to start.
+    // opening: ticks of grace before it will commit an attack at all. A human
+    // needs time to read the panel before the first wave arrives; an AI that
+    // rushes a beginner at three minutes is not "hard", it is unplayable.
+    easy:   { react: 72, apm: 22,  focus: false, harass: false, group: 6,  expand: 1, scoutEvery: 0,    give: 0.30, opening: 60 * 420 },
+    normal: { react: 36, apm: 55,  focus: true,  harass: false, group: 9,  expand: 2, scoutEvery: 1800, give: 0.40, opening: 60 * 300 },
+    hard:   { react: 12, apm: 999, focus: true,  harass: true,  group: 10, expand: 3, scoutEvery: 1000, give: 0.45, opening: 60 * 165 }
+  };
+
+  function newAI(diff) {
+    return {
+      cfg: DIFF[diff] || DIFF.normal,
+      posture: 'build', t: 0, lastStrat: 0, lastTac: 0, lastScout: 0,
+      seen: { inf: 0, veh: 0, bld: 0 }, seenAt: 0,
+      army: [], attacking: false, rally: null, scout: null,
+      wave: [], waveN: 0, waveTarget: 0, scoutSent: 0
+    };
+  }
+
+  // What the AI can see: only tiles within sight of something it owns.
+  function scoutEnemy(g, ai, me, foe) {
+    var seen = { inf: 0, veh: 0, bld: 0 };
+    var eyes = [];
+    var i;
+    for (i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      if (!u.dead && u.p === me) eyes.push({ x: u.x, y: u.y, r: UNITS[u.type].sight });
+    }
+    for (i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (!b.dead && b.p === me) eyes.push({ x: b.cx, y: b.cy, r: BLDS[b.type].sight });
+    }
+    function visible(x, y) {
+      for (var k = 0; k < eyes.length; k++) {
+        var dx = eyes[k].x - x, dy = eyes[k].y - y;
+        if (dx * dx + dy * dy <= eyes[k].r * eyes[k].r) return true;
+      }
+      return false;
+    }
+    for (i = 0; i < g.units.length; i++) {
+      var e = g.units[i];
+      if (e.dead || e.p !== foe) continue;
+      if (!visible(e.x, e.y)) continue;
+      if (UNITS[e.type].armour === A_INF) seen.inf++; else seen.veh++;
+    }
+    for (i = 0; i < g.blds.length; i++) {
+      var eb = g.blds[i];
+      if (eb.dead || eb.p !== foe) continue;
+      if (visible(eb.cx, eb.cy)) seen.bld++;
+    }
+    if (seen.inf + seen.veh + seen.bld > 0) { ai.seen = seen; ai.seenAt = g.tick; }
+  }
+
+  function aiArmy(g, me) {
+    var a = [];
+    for (var i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      if (!u.dead && u.p === me && UNITS[u.type].dmg > 0) a.push(u);
+    }
+    return a;
+  }
+
+  function armyValue(g, p) {
+    var v = 0;
+    for (var i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      if (!u.dead && u.p === p && UNITS[u.type].dmg > 0) v += UNITS[u.type].cost * (u.hp / u.maxhp);
+    }
+    return v;
+  }
+
+  function stepAI(g, ai, me, foe) {
+    var s = g.side[me], cfg = ai.cfg;
+    ai.t++;
+
+    // ---- scouting: send one cheap unit to look, on a timer ----
+    if (ai.scout && ai.scout.dead) ai.scout = null;
+    if (ai.scout) {
+      var sv = g.start[foe];
+      var sd = Math.sqrt((ai.scout.x - sv.x) * (ai.scout.x - sv.x) +
+                         (ai.scout.y - sv.y) * (ai.scout.y - sv.y));
+      if (sd < 9 || ai.t - ai.scoutSent > 2400) {
+        // seen enough (or given up): walk home and rejoin the next wave
+        var back = aiStaging(g, me, foe);
+        ai.scout.order = { t: 'move', x: back.x, y: back.y, id: 0 };
+        ai.scout.guardX = back.x; ai.scout.guardY = back.y;
+        ai.scout.repathAt = -999;
+        ai.scout = null;
+      }
+    }
+    if (cfg.scoutEvery && !ai.scout && ai.t - ai.lastScout > cfg.scoutEvery) {
+      ai.lastScout = ai.t;
+      var pool = aiArmy(g, me);
+      if (pool.length > 3) {
+        ai.scout = pool[0];
+        ai.scoutSent = ai.t;
+        var tgt = g.start[foe];
+        ai.scout.order = { t: 'move', x: tgt.x, y: tgt.y, id: 0 };
+        ai.scout.guardX = tgt.x; ai.scout.guardY = tgt.y;
+        ai.scout.repathAt = -999;
+        requestPath(g, ai.scout, tgt.x, tgt.y);
+      }
+    }
+    scoutEnemy(g, ai, me, foe);
+
+    // ---- strategy, every 2s ----
+    if (ai.t - ai.lastStrat > 120) {
+      ai.lastStrat = ai.t;
+      var myArmy = armyValue(g, me), theirArmy = armyValue(g, foe);
+      var harv = countUnit(g, me, 'harvester');
+      ai.army = aiArmy(g, me);
+
+      var mayAttack = ai.t > cfg.opening;
+      if (harv < 2 || !hasBld(g, me, 'refinery')) ai.posture = 'eco';
+      else if (mayAttack && ai.army.length >= cfg.group && myArmy > theirArmy * 0.95) ai.posture = 'attack';
+      else if (theirArmy > myArmy * 1.5) ai.posture = 'defend';
+      else ai.posture = 'build';
+
+      aiProduce(g, ai, me, foe);
+    }
+
+    // ---- placement: the AI places its finished structures ----
+    if (s.queues.b.ready) aiPlace(g, ai, me, foe);
+
+    // ---- tactics ----
+    if (ai.t - ai.lastTac > cfg.react) {
+      ai.lastTac = ai.t;
+      aiTactics(g, ai, me, foe);
+    }
+  }
+
+  function aiProduce(g, ai, me, foe) {
+    var s = g.side[me], cfg = ai.cfg;
+    var nRef = countBld(g, me, 'refinery');
+    var harv = countUnit(g, me, 'harvester');
+    var net = s.powerMade - s.powerUse;
+    var hasFac = hasBld(g, me, 'factory'), hasBar = hasBld(g, me, 'barracks');
+
+    // ---- structures -----------------------------------------------------
+    // Order matters more than it looks. Harvesters come out of the factory,
+    // and income comes out of harvesters, so a destroyed factory with a thin
+    // harvester count is a DEATH SPIRAL: no factory, no harvesters, no
+    // income, never enough to rebuild the factory. It is rebuilt first, and
+    // power is only ever built when the grid is actually short — an earlier
+    // "rich? build a power plant" rule had the AI sitting on twelve of them
+    // while its barracks lay in rubble.
+    if (!s.queues.b.list.length && !s.queues.b.ready && hasBld(g, me, 'base')) {
+      var want = null;
+      if (!nRef) want = 'refinery';                       // no income at all
+      else if (net < 20) want = 'power';                  // grid is short
+      else if (!hasFac && harv < 2) want = 'factory';     // break the spiral
+      else if (!hasBar) want = 'barracks';
+      else if (!hasFac) want = 'factory';
+      else if (nRef < cfg.expand && s.credits > 2000) want = 'refinery';
+      else if (countBld(g, me, 'turret') < (ai.posture === 'defend' ? 4 : 2) &&
+               s.credits > (ai.posture === 'defend' ? 700 : 1600)) want = 'turret';
+      if (want && canBuild(g, me, want, true)) enqueue(g, me, want, 'b');
+    }
+
+    // ---- harvesters before soldiers -------------------------------------
+    var wantHarv = Math.min(2 + cfg.expand, nRef * 2 + 1);
+    if (harv < wantHarv && hasFac && !s.queues.v.list.length) {
+      if (canBuild(g, me, 'harvester', false)) { enqueue(g, me, 'harvester', 'v'); return; }
+    }
+    // Below two harvesters the economy is dying: hold the credits for one.
+    if (harv < 2 && hasFac) return;
+
+    // ---- army: answer what has actually been SEEN -----------------------
+    var seen = ai.seen, stale = g.tick - ai.seenAt > 3600;
+    var infHeavy = !stale && seen.inf > seen.veh * 1.4;
+    var vehHeavy = !stale && seen.veh > seen.inf * 0.8;
+
+    if (s.queues.i.list.length < 2 && hasBar) {
+      var pick = vehHeavy ? 'rocket' : (infHeavy ? 'rifle' : (rnd() < 0.6 ? 'rifle' : 'rocket'));
+      if (canBuild(g, me, pick, false)) enqueue(g, me, pick, 'i');
+    }
+    if (s.queues.v.list.length < 2 && hasFac && s.credits > 1200) {
+      if (canBuild(g, me, 'tank', false)) enqueue(g, me, 'tank', 'v');
+    }
+  }
+
+  function aiPlace(g, ai, me, foe) {
+    var s = g.side[me];
+    var key = s.queues.b.ready;
+    var d = BLDS[key];
+    var home = g.start[me];
+
+    // Turrets go toward the enemy; everything else hugs the base.
+    var aim = key === 'turret'
+      ? { x: (home.x * 0.62 + g.start[foe].x * 0.38), y: (home.y * 0.62 + g.start[foe].y * 0.38) }
+      : home;
+
+    var best = null, bd = 1e9;
+    for (var r = 1; r < 14; r++) {
+      for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+        var gx = Math.round(home.x + ox), gy = Math.round(home.y + oy);
+        if (!canPlace(g, me, key, gx, gy)) continue;
+        var dd = (gx - aim.x) * (gx - aim.x) + (gy - aim.y) * (gy - aim.y);
+        // Refineries want to be near ore, not near the middle of the base.
+        if (key === 'refinery') {
+          var ore = findOre(g, gx, gy, 16);
+          dd = ore ? (gx - ore.x) * (gx - ore.x) + (gy - ore.y) * (gy - ore.y) : dd + 400;
+        }
+        if (dd < bd) { bd = dd; best = { x: gx, y: gy }; }
+      }
+      if (best && r > 3) break;
+    }
+    if (best) {
+      placeBld(g, key, me, best.x, best.y);
+      s.queues.b.ready = null;
+      if (key === 'refinery') {
+        var sp = freeTileNear(g, best.x, best.y + d.gh + 1);
+        if (sp) spawnUnit(g, 'harvester', me, sp.x, sp.y);
+      }
+    }
+  }
+
+  // Pick what the next push aims at: production first, then economy, then
+  // whatever is left. A harassing AI prefers a harvester.
+  function aiPickTarget(g, ai, me, foe) {
+    var i;
+    if (ai.cfg.harass && rnd() < 0.35) {
+      for (i = 0; i < g.units.length; i++) {
+        var h = g.units[i];
+        if (!h.dead && h.p === foe && h.type === 'harvester') return h;
+      }
+    }
+    var pref = ['factory', 'barracks', 'refinery', 'power', 'base', 'turret'];
+    for (var pi = 0; pi < pref.length; pi++) {
+      for (i = 0; i < g.blds.length; i++) {
+        var b = g.blds[i];
+        if (!b.dead && b.p === foe && b.type === pref[pi]) return b;
+      }
+    }
+    return null;
+  }
+
+  function aiStaging(g, me, foe) {
+    var home = g.start[me], ft = g.start[foe];
+    return { x: Math.round(home.x * 0.78 + ft.x * 0.22), y: Math.round(home.y * 0.78 + ft.y * 0.22) };
+  }
+
+  // Orders are rationed by difficulty. A low-APM AI cannot re-task every unit
+  // every pass, so its big armies drift — a genuine command weakness rather
+  // than an invented stat penalty.
+  function aiBudget(cfg) { return Math.max(3, Math.round(cfg.apm * cfg.react / 60)); }
+
+  function aiOrderAttack(g, u, tgt) {
+    var tx = tgt.kind === 'b' ? tgt.cx : tgt.x, ty = tgt.kind === 'b' ? tgt.cy : tgt.y;
+    u.order = { t: 'attack', x: tx, y: ty, id: tgt.id };
+    u.guardX = tx; u.guardY = ty;
+  }
+
+  function aiTactics(g, ai, me, foe) {
+    var cfg = ai.cfg;
+    ai.army = aiArmy(g, me);
+    var i, u, budget = aiBudget(cfg);
+
+    ai.wave = ai.wave.filter(function (w) { return !w.dead; });
+
+    // ---- defending our own base outranks any push
+    var threat = null;
+    for (i = 0; i < g.units.length && !threat; i++) {
+      var e = g.units[i];
+      if (e.dead || e.p !== foe || UNITS[e.type].dmg <= 0) continue;
+      for (var j = 0; j < g.blds.length; j++) {
+        var b = g.blds[j];
+        if (b.dead || b.p !== me) continue;
+        if (dist(e, b) < 11) { threat = e; break; }
+      }
+    }
+    if (threat && !ai.wave.length) {
+      for (i = 0; i < ai.army.length && budget > 0; i++, budget--) aiOrderAttack(g, ai.army[i], threat);
+      ai.attacking = false;
+      return;
+    }
+
+    // ---- a push already underway
+    if (ai.wave.length) {
+      // Losing most of a wave means the push failed. Pull the survivors back
+      // and rebuild rather than feeding replacements in one at a time: with
+      // no wave concept at all, this AI lost 129 units without taking a
+      // single building, because every new unit walked into the guns alone.
+      if (ai.wave.length < ai.waveN * cfg.give) {
+        var st = aiStaging(g, me, foe);
+        for (i = 0; i < ai.wave.length; i++) {
+          u = ai.wave[i];
+          u.order = { t: 'move', x: st.x, y: st.y, id: 0 };
+          u.guardX = st.x; u.guardY = st.y; u.repathAt = -999;
+          requestPath(g, u, st.x, st.y);
+        }
+        ai.wave = []; ai.waveN = 0; ai.waveTarget = 0; ai.attacking = false;
+        return;
+      }
+      var cur = entById(g, ai.waveTarget) || aiPickTarget(g, ai, me, foe);
+      if (!cur) { ai.wave = []; ai.attacking = false; return; }
+      ai.waveTarget = cur.id;
+      for (i = 0; i < ai.wave.length && budget > 0; i++, budget--) aiOrderAttack(g, ai.wave[i], cur);
+      return;
+    }
+
+    // ---- commit a new wave once enough have massed
+    var stage = aiStaging(g, me, foe);
+    if (ai.posture === 'attack' && ai.army.length >= cfg.group) {
+      var tgt = aiPickTarget(g, ai, me, foe);
+      if (tgt) {
+        ai.wave = ai.army.filter(function (w) { return w !== ai.scout; });
+        ai.waveN = ai.wave.length;
+        ai.waveTarget = tgt.id;
+        ai.attacking = true;
+        for (i = 0; i < ai.wave.length && budget > 0; i++, budget--) aiOrderAttack(g, ai.wave[i], tgt);
+      }
+      return;
+    }
+
+    // ---- otherwise gather; new units join the NEXT wave, not the last one
+    for (i = 0; i < ai.army.length; i++) {
+      u = ai.army[i];
+      if (u === ai.scout || u.order) continue;
+      var dd = Math.sqrt((u.x - stage.x) * (u.x - stage.x) + (u.y - stage.y) * (u.y - stage.y));
+      if (dd > 4) {
+        u.order = { t: 'move', x: stage.x, y: stage.y, id: 0 };
+        u.guardX = stage.x; u.guardY = stage.y;
+        requestPath(g, u, stage.x, stage.y);
+      }
+    }
+  }
+
+
+  // --------------------------------------------------------------------- //
+  //  Simulation step
+  // --------------------------------------------------------------------- //
+  var hashAt = -1;
+  function simStep(g) {
+    g.tick++;
+    if (g.tick - hashAt >= 3 || hashAt > g.tick) { rebuildHash(g); hashAt = g.tick; }
+    runPathQueue(g, Math.min(40, 8 + (pathQ.length >> 2)));
+
+    var i;
+    for (i = 0; i < g.units.length; i++) if (!g.units[i].dead) stepUnit(g, g.units[i]);
+    for (i = 0; i < g.blds.length; i++) if (!g.blds[i].dead) stepBld(g, g.blds[i]);
+    stepQueues(g, P_HUMAN);
+    stepQueues(g, P_AI);
+    if (g.ai) stepAI(g, g.ai, P_AI, P_HUMAN);
+    if (g.ai2) stepAI(g, g.ai2, P_HUMAN, P_AI);
+
+    // effects
+    for (i = g.shots.length - 1; i >= 0; i--) if (++g.shots[i].t > g.shots[i].life) g.shots.splice(i, 1);
+    for (i = g.fx.length - 1; i >= 0; i--) if (++g.fx[i].t > g.fx[i].life) g.fx.splice(i, 1);
+
+    // reap
+    if ((g.tick & 31) === 0) {
+      for (i = g.units.length - 1; i >= 0; i--) {
+        if (g.units[i].dead) { delete g.byId[g.units[i].id]; g.units.splice(i, 1); }
+      }
+      for (i = g.blds.length - 1; i >= 0; i--) {
+        if (g.blds[i].dead) { delete g.byId[g.blds[i].id]; g.blds.splice(i, 1); }
+      }
+    }
+
+    // A side with no harvester, no way to buy one, and no way to rebuild the
+    // factory that makes one has already lost — it just cannot be finished
+    // off quickly through a wall of turrets. Without this a decided match can
+    // run forever, which is worse for everyone than calling it.
+    for (i = 0; i < 2; i++) {
+      if (economyDead(g, i)) g.side[i].deadFor++; else g.side[i].deadFor = 0;
+    }
+    if (!g.over) {
+      if (g.side[P_AI].deadFor > 60 * 75) g.over = 1;
+      else if (g.side[P_HUMAN].deadFor > 60 * 75) g.over = -1;
+    }
+
+    // win / lose — losing every structure ends it
+    if (!g.over) {
+      var mine = 0, theirs = 0;
+      for (i = 0; i < g.blds.length; i++) {
+        if (g.blds[i].dead) continue;
+        if (g.blds[i].p === P_HUMAN) mine++; else theirs++;
+      }
+      if (theirs === 0) g.over = 1;
+      else if (mine === 0) g.over = -1;
+    }
+  }
+
+  function economyDead(g, p) {
+    if (countUnit(g, p, 'harvester') > 0) return false;
+    var c = g.side[p].credits;
+    if (c >= UNITS.harvester.cost && hasBld(g, p, 'factory')) return false;
+    if (c >= BLDS.factory.cost + UNITS.harvester.cost && hasBld(g, p, 'base')) return false;
+    return true;
+  }
+
+  // ===================================================================== //
+  //  Everything below is presentation — skipped entirely when headless.
+  // ===================================================================== //
+
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var mini = document.getElementById('mini');
+  var mctx = mini.getContext('2d');
+  var stage = document.getElementById('stage');
+  var cvW = 800, cvH = 600;
+  var cam = { x: 0, y: 0 };
+  var sel = [];                       // selected entities (units and/or one building)
+  var groups = {};                    // ctrl+N control groups
+  var placing = null;                 // structure key awaiting a click
+  var hoverTile = { x: 0, y: 0 };
+  var panel = 'b';
+
+  function resize() {
+    var r = stage.getBoundingClientRect();
+    cvW = Math.max(200, Math.floor(r.width));
+    cvH = Math.max(160, Math.floor(r.height));
+    cv.width = Math.floor(cvW * DPR); cv.height = Math.floor(cvH * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  function centerOn(gx, gy) {
+    cam.x = worldX(gx, gy);
+    cam.y = worldY(gx, gy);
+  }
+  function clampCam() {
+    var margin = 260;
+    cam.x = Math.max(-(MAP * TW / 2) - margin, Math.min((MAP * TW / 2) + margin, cam.x));
+    cam.y = Math.max(-margin, Math.min(MAP * TH + margin, cam.y));
+  }
+  function sx(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
+  function sy(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2; }
+  function screenToGrid(px, py) {
+    return gridAt(px - cvW / 2 + cam.x, py - cvH / 2 + cam.y);
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Audio — synthesised, no files. Mirrors circuit.html's mute convention.
+  // --------------------------------------------------------------------- //
+  var AC = null, master = null, soundOn = lsGet('vibetop:rts:sound') !== '0';
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  function resumeAudio() {
+    if (headless || !soundOn) return;
+    try {
+      if (!AC) {
+        AC = new (window.AudioContext || window.webkitAudioContext)();
+        master = AC.createGain(); master.gain.value = 0.32; master.connect(AC.destination);
+      }
+      if (AC.state === 'suspended') AC.resume();
+    } catch (e) { AC = null; }
+  }
+  function tone(freq, dur, type, vol, to) {
+    if (!soundOn || !AC || headless) return;
+    try {
+      var o = AC.createOscillator(), g = AC.createGain();
+      o.type = type || 'square'; o.frequency.value = freq;
+      if (to) o.frequency.exponentialRampToValueAtTime(Math.max(20, to), AC.currentTime + dur);
+      g.gain.value = vol == null ? 0.2 : vol;
+      g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
+      o.connect(g); g.connect(master);
+      o.start(); o.stop(AC.currentTime + dur + 0.02);
+    } catch (e) {}
+  }
+  function noiseBurst(dur, vol) {
+    if (!soundOn || !AC || headless) return;
+    try {
+      var n = Math.floor(AC.sampleRate * dur);
+      var buf = AC.createBuffer(1, n, AC.sampleRate), ch = buf.getChannelData(0);
+      for (var i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      var src = AC.createBufferSource(), g = AC.createGain();
+      src.buffer = buf; g.gain.value = vol == null ? 0.18 : vol;
+      src.connect(g); g.connect(master); src.start();
+    } catch (e) {}
+  }
+  // Rate-limited: a 40-tank battle would otherwise fire hundreds of oscillators.
+  var sfxAt = {};
+  function sfx(kind) {
+    if (headless || !soundOn || !AC) return;
+    var now = performance.now();
+    if (sfxAt[kind] && now - sfxAt[kind] < 70) return;
+    sfxAt[kind] = now;
+    if (kind === 'shot') noiseBurst(0.04, 0.07);
+    else if (kind === 'cannon') { tone(150, 0.1, 'square', 0.12, 60); noiseBurst(0.07, 0.1); }
+    else if (kind === 'die') noiseBurst(0.14, 0.13);
+    else if (kind === 'boom') { noiseBurst(0.36, 0.26); tone(90, 0.3, 'sawtooth', 0.16, 30); }
+    else if (kind === 'cash') tone(880, 0.07, 'sine', 0.13, 1320);
+    else if (kind === 'ready') { tone(660, 0.07, 'square', 0.1); setTimeout(function () { tone(990, 0.09, 'square', 0.1); }, 80); }
+    else if (kind === 'click') tone(420, 0.03, 'square', 0.07);
+    else if (kind === 'place') { tone(220, 0.12, 'square', 0.13, 160); noiseBurst(0.12, 0.1); }
+    else if (kind === 'no') tone(180, 0.09, 'sawtooth', 0.1, 120);
+  }
+
+  // --------------------------------------------------------------------- //
+  //  HUD
+  // --------------------------------------------------------------------- //
+  var vCred = document.getElementById('vCred'), vPow = document.getElementById('vPow');
+  var vArmy = document.getElementById('vArmy'), vTime = document.getElementById('vTime');
+  var stCred = document.getElementById('stCred'), stPow = document.getElementById('stPow');
+  var tipEl = document.getElementById('tip');
+  var shownCred = 0;
+
+  function creditPop(n) {
+    var el = document.createElement('span');
+    el.className = 'plus'; el.textContent = '+' + n;
+    stCred.appendChild(el);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 640);
+  }
+
+  var tipT = 0;
+  function say(msg, warn, hold) {
+    tipEl.textContent = msg;
+    tipEl.className = warn ? 'warn' : '';
+    tipT = hold || 150;
+  }
+
+  function updateHUD() {
+    if (!G) return;
+    var s = G.side[P_HUMAN];
+    // Ease the credit counter so income reads as a flow, not a jump.
+    shownCred += (s.credits - shownCred) * 0.25;
+    if (Math.abs(s.credits - shownCred) < 1) shownCred = s.credits;
+    vCred.textContent = Math.round(shownCred);
+    var net = s.powerMade - s.powerUse;
+    vPow.textContent = (net >= 0 ? '+' : '') + net;
+    stPow.className = 'stat' + (net < 0 ? ' bad' : (net < 25 ? ' low' : ''));
+    stCred.className = 'stat' + (s.credits < 150 ? ' low' : '');
+    vArmy.textContent = countUnit(G, P_HUMAN, null);
+    var secs = Math.floor(G.tick / 60);
+    vTime.textContent = Math.floor(secs / 60) + ':' + ('0' + (secs % 60)).slice(-2);
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Build panel
+  // --------------------------------------------------------------------- //
+  var plist = document.getElementById('plist');
+  var panelRows = {};
+
+  function buildPanel() {
+    plist.innerHTML = '';
+    panelRows = {};
+    var items = [];
+    if (panel === 'b') {
+      items = BUILD_ORDER.map(function (k) { return { k: k, lane: 'b', spec: BLDS[k] }; });
+    } else {
+      for (var k in UNITS) {
+        if (UNITS[k].cls === panel) items.push({ k: k, lane: panel, spec: UNITS[k] });
+      }
+    }
+    items.forEach(function (it) {
+      var b = document.createElement('button');
+      b.className = 'pit';
+      b.innerHTML = '<span class="fill"></span><span class="em">' + it.spec.em + '</span>' +
+        '<span><span class="nm">' + it.spec.name + '</span><br>' +
+        '<span class="ct">$' + it.spec.cost + ' · ' + it.spec.desc + '</span></span>' +
+        '<span class="qn"></span>';
+      b.title = it.spec.name + ' — $' + it.spec.cost;
+      b.addEventListener('click', function (ev) { onPanelClick(it, ev); });
+      b.addEventListener('contextmenu', function (ev) {
+        ev.preventDefault();
+        if (cancelLast(G, P_HUMAN, it.lane, it.k)) { sfx('click'); say('Cancelled ' + it.spec.name + ' — refunded'); }
+      });
+      plist.appendChild(b);
+      panelRows[it.k] = { el: b, it: it };
+    });
+    var note = document.createElement('div');
+    note.className = 'pnote';
+    note.textContent = panel === 'b'
+      ? 'Right-click an item to cancel and refund.'
+      : 'Right-click the map with a factory selected to set a rally point.';
+    plist.appendChild(note);
+    refreshPanel();
+  }
+
+  function onPanelClick(it, ev) {
+    resumeAudio();
+    if (!G || state !== 'play') return;
+    var s = G.side[P_HUMAN];
+    if (it.lane === 'b' && s.queues.b.ready === it.k) {
+      placing = it.k; cv.classList.add('placing');
+      say('Click the map to place the ' + it.spec.name + ' — it must touch your base. Esc cancels.');
+      sfx('click');
+      return;
+    }
+    if (!canBuild(G, P_HUMAN, it.k, it.lane === 'b')) {
+      if (s.credits < it.spec.cost) say('Not enough credits for ' + it.spec.name + ' ($' + it.spec.cost + ')', true);
+      else if (it.lane === 'i') say('Build a Barracks first', true);
+      else if (it.lane === 'v') say('Build a War Factory first', true);
+      else say('You need a Construction Yard', true);
+      sfx('no');
+      return;
+    }
+    if (enqueue(G, P_HUMAN, it.k, it.lane)) sfx('click');
+  }
+
+  var lastReady = null, toldRefinery = false, lastPowerWarn = 0;
+  function refreshPanel() {
+    if (!G) return;
+    var s = G.side[P_HUMAN];
+
+    // A structure that has finished building is the single most common place
+    // to stall: nothing on screen changes, and the panel row alone does not
+    // say "now put it somewhere".
+    if (s.queues.b.ready !== lastReady) {
+      lastReady = s.queues.b.ready;
+      if (lastReady) {
+        say(BLDS[lastReady].name + ' ready — click it in the panel, then click the map to place it', false, 420);
+      }
+    }
+    if (!toldRefinery && hasBld(G, P_HUMAN, 'refinery')) {
+      toldRefinery = true;
+      say('Refinery online — your harvesters will mine and deliver on their own', false, 360);
+    }
+    // Power going negative stops turrets and crawls production; say so once
+    // rather than letting the build bar mysteriously slow down.
+    if (s.powerMade - s.powerUse < 0 && G.tick - lastPowerWarn > 60 * 45) {
+      lastPowerWarn = G.tick;
+      say('Low power — production is slowed and defences are offline. Build a Power Plant.', true, 300);
+    }
+    for (var k in panelRows) {
+      var row = panelRows[k], it = row.it, el = row.el;
+      var q = s.queues[it.lane];
+      var n = 0;
+      for (var i = 0; i < q.list.length; i++) if (q.list[i] === k) n++;
+      var isReady = it.lane === 'b' && q.ready === k;
+      var first = q.list[0] === k && !(it.lane === 'b' && q.ready);
+      el.querySelector('.fill').style.width = first ? (q.prog * 100) + '%' : '0';
+      el.querySelector('.qn').textContent = isReady ? 'READY' : (n > 1 ? '×' + n : (n === 1 ? '•' : ''));
+      el.classList.toggle('rdy', isReady);
+      var ok = isReady || canBuild(G, P_HUMAN, k, it.lane === 'b');
+      el.classList.toggle('dis', !ok);
+    }
+  }
+
+  document.querySelectorAll('.ptab div').forEach(function (t) {
+    t.addEventListener('click', function () {
+      document.querySelectorAll('.ptab div').forEach(function (o) { o.classList.remove('on'); });
+      t.classList.add('on');
+      panel = t.getAttribute('data-tab');
+      buildPanel();
+    });
+  });
+
+  // --------------------------------------------------------------------- //
+  //  Input
+  // --------------------------------------------------------------------- //
+  var keys = {};
+  var drag = null, marq = document.getElementById('marq');
+  var mouse = { x: -1, y: -1, in: false };
+  var lastClickT = 0, lastClickType = null;
+
+  window.addEventListener('keydown', function (e) {
+    if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    keys[e.key.toLowerCase()] = true;
+
+    if (e.key === 'Escape') {
+      if (placing) { placing = null; cv.classList.remove('placing'); say('Placement cancelled'); }
+      else if (sel.length) { clearSel(); }
+      return;
+    }
+    if (e.key === ' ') { e.preventDefault(); if (state === 'play' || state === 'paused') togglePause(); return; }
+    if (e.key.toLowerCase() === 'h' && G) { centerOn(G.start[P_HUMAN].x, G.start[P_HUMAN].y); return; }
+
+    if (/^[1-5]$/.test(e.key)) {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        groups[e.key] = sel.filter(function (u) { return !u.dead && u.kind === 'u'; });
+        say('Group ' + e.key + ': ' + groups[e.key].length + ' unit' + (groups[e.key].length === 1 ? '' : 's'));
+      } else if (groups[e.key]) {
+        clearSel();
+        groups[e.key] = groups[e.key].filter(function (u) { return !u.dead; });
+        groups[e.key].forEach(function (u) { u.sel = true; sel.push(u); });
+        if (sel.length) { centerSelIfOffscreen(); say(sel.length + ' selected'); }
+      }
+    }
+  });
+  window.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; });
+
+  // A pointer that starts a marquee must survive leaving the canvas, and any
+  // lost pointer has to clear it — pointerup alone is not enough (house rule).
+  function endDrag() {
+    if (!drag) return;
+    var d = drag; drag = null;
+    marq.style.display = 'none';
+    if (!G || state !== 'play') return;
+    var w = Math.abs(d.x2 - d.x1), h = Math.abs(d.y2 - d.y1);
+    if (w < 5 && h < 5) { clickSelect(d.x2, d.y2, d.shift); return; }
+    boxSelect(Math.min(d.x1, d.x2), Math.min(d.y1, d.y2), w, h, d.shift);
+  }
+
+  cv.addEventListener('pointerdown', function (e) {
+    resumeAudio();
+    if (!G || (state !== 'play' && state !== 'paused')) return;
+    var r = cv.getBoundingClientRect();
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    if (e.button === 0) {
+      if (placing) { tryPlace(px, py); return; }
+      drag = { x1: px, y1: py, x2: px, y2: py, shift: e.shiftKey };
+      try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    } else if (e.button === 2) {
+      e.preventDefault();
+      if (placing) { placing = null; cv.classList.remove('placing'); say('Placement cancelled'); return; }
+      rightOrder(px, py);
+    }
+  });
+  cv.addEventListener('pointermove', function (e) {
+    var r = cv.getBoundingClientRect();
+    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; mouse.in = true;
+    var gp = screenToGrid(mouse.x, mouse.y);
+    hoverTile.x = Math.round(gp.x); hoverTile.y = Math.round(gp.y);
+    if (drag) {
+      drag.x2 = mouse.x; drag.y2 = mouse.y;
+      marq.style.display = 'block';
+      marq.style.left = Math.min(drag.x1, drag.x2) + 'px';
+      marq.style.top = Math.min(drag.y1, drag.y2) + 'px';
+      marq.style.width = Math.abs(drag.x2 - drag.x1) + 'px';
+      marq.style.height = Math.abs(drag.y2 - drag.y1) + 'px';
+    }
+  });
+  cv.addEventListener('pointerup', endDrag);
+  cv.addEventListener('pointercancel', endDrag);
+  cv.addEventListener('lostpointercapture', endDrag);
+  cv.addEventListener('pointerleave', function () { mouse.in = false; });
+  cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  // The game is an iframe inside the desktop shell: a pointer released over
+  // the parent's taskbar never reaches us, and a tab switch must not leave
+  // the camera scrolling forever.
+  window.addEventListener('blur', function () {
+    keys = {}; endDrag(); mouse.in = false;
+    if (state === 'play') togglePause(true);
+  });
+
+  function clearSel() { sel.forEach(function (u) { u.sel = false; }); sel = []; }
+
+  function pickAt(px, py) {
+    var best = null, bd = 1e9;
+    var i, e, ex, ey, d;
+    for (i = 0; i < G.units.length; i++) {
+      e = G.units[i];
+      if (e.dead) continue;
+      ex = sx(e.x, e.y); ey = sy(e.x, e.y);
+      d = (ex - px) * (ex - px) + (ey - py) * (ey - py);
+      if (d < 22 * 22 && d < bd) { bd = d; best = e; }
+    }
+    if (best) return best;
+    for (i = 0; i < G.blds.length; i++) {
+      e = G.blds[i];
+      if (e.dead) continue;
+      ex = sx(e.cx, e.cy); ey = sy(e.cx, e.cy);
+      d = (ex - px) * (ex - px) + (ey - py) * (ey - py);
+      var rad = Math.max(e.gw, e.gh) * 22;
+      if (d < rad * rad && d < bd) { bd = d; best = e; }
+    }
+    return best;
+  }
+
+  function clickSelect(px, py, shift) {
+    var e = pickAt(px, py);
+    if (!e) { if (!shift) clearSel(); return; }
+    if (e.p !== P_HUMAN) { say(describe(e) + ' — enemy'); return; }
+
+    // Double-click on a unit selects every visible one of that type.
+    var now = performance.now();
+    if (e.kind === 'u' && lastClickType === e.type && now - lastClickT < 380) {
+      clearSel();
+      G.units.forEach(function (u) {
+        if (u.dead || u.p !== P_HUMAN || u.type !== e.type) return;
+        var ux = sx(u.x, u.y), uy = sy(u.x, u.y);
+        if (ux < 0 || uy < 0 || ux > cvW || uy > cvH) return;
+        u.sel = true; sel.push(u);
+      });
+      say('All visible ' + UNITS[e.type].name + 's: ' + sel.length);
+      lastClickT = 0; lastClickType = null;
+      return;
+    }
+    lastClickT = now; lastClickType = e.kind === 'u' ? e.type : null;
+
+    if (!shift) clearSel();
+    if (!e.sel) { e.sel = true; sel.push(e); }
+    say(describe(e));
+  }
+
+  function describe(e) {
+    if (e.kind === 'b') {
+      var d = BLDS[e.type];
+      return d.em + ' ' + d.name + ' — ' + Math.ceil(e.hp) + '/' + d.hp + ' hp';
+    }
+    var u = UNITS[e.type];
+    var extra = e.type === 'harvester' ? ' — ' + Math.round(e.cargo) + '/' + u.cap + ' ore' : '';
+    return u.em + ' ' + u.name + ' — ' + Math.ceil(e.hp) + '/' + u.hp + ' hp' + extra;
+  }
+
+  function boxSelect(x, y, w, h, shift) {
+    if (!shift) clearSel();
+    var got = 0;
+    G.units.forEach(function (u) {
+      if (u.dead || u.p !== P_HUMAN || u.sel) return;
+      var ux = sx(u.x, u.y), uy = sy(u.x, u.y);
+      if (ux >= x && ux <= x + w && uy >= y && uy <= y + h) { u.sel = true; sel.push(u); got++; }
+    });
+    // Prefer combat units: a box over the base shouldn't hand you harvesters.
+    var fighters = sel.filter(function (u) { return u.kind === 'u' && UNITS[u.type].dmg > 0; });
+    if (fighters.length && fighters.length < sel.length) {
+      sel.forEach(function (u) { if (fighters.indexOf(u) < 0) u.sel = false; });
+      sel = fighters;
+    }
+    if (sel.length) say(sel.length + ' selected'); else if (got === 0) say('Nothing selected');
+  }
+
+  function centerSelIfOffscreen() {
+    if (!sel.length) return;
+    var u = sel[0];
+    var ux = sx(u.x, u.y), uy = sy(u.x, u.y);
+    if (ux < 40 || uy < 40 || ux > cvW - 40 || uy > cvH - 40) centerOn(u.x, u.y);
+  }
+
+  function rightOrder(px, py) {
+    if (!sel.length) { say('Select something first — left-drag a box over your units'); return; }
+    var gp = screenToGrid(px, py);
+    var gx = Math.round(gp.x), gy = Math.round(gp.y);
+    if (!inMap(gx, gy)) return;
+
+    // A selected production building takes a rally point instead.
+    var bsel = sel.filter(function (e) { return e.kind === 'b'; });
+    if (bsel.length && sel.length === bsel.length) {
+      bsel.forEach(function (b) { b.rally = { x: gx, y: gy }; });
+      say('Rally point set');
+      sfx('click');
+      return;
+    }
+
+    var tgt = pickAt(px, py);
+    var units = sel.filter(function (u) { return u.kind === 'u'; });
+    if (!units.length) return;
+
+    if (tgt && tgt.p !== P_HUMAN && !tgt.dead) {
+      units.forEach(function (u) {
+        if (UNITS[u.type].dmg <= 0) return;
+        u.order = { t: 'attack', x: 0, y: 0, id: tgt.id };
+        u.guardX = tgt.kind === 'b' ? tgt.cx : tgt.x;
+        u.guardY = tgt.kind === 'b' ? tgt.cy : tgt.y;
+        u.repathAt = -999;
+        requestPath(G, u, Math.round(u.guardX), Math.round(u.guardY));
+      });
+      say('Attacking ' + describe(tgt).replace(/ —.*$/, ''));
+      sfx('click');
+      return;
+    }
+
+    var onOre = G.terrain[idx(gx, gy)] === T_ORE;
+    var n = 0;
+    units.forEach(function (u, i) {
+      if (onOre && u.type === 'harvester') {
+        u.order = { t: 'harvest', x: gx, y: gy, id: 0 };
+        u.mineAt = { x: gx, y: gy }; u.state = 'tomine';
+        requestPath(G, u, gx, gy);
+        n++;
+        return;
+      }
+      // Spread a group over a small ring so they don't fight for one tile.
+      var ring = Math.floor(i / 6), slot = i % 6;
+      var a = slot / 6 * Math.PI * 2;
+      var tx = Math.max(0, Math.min(MAP - 1, gx + Math.round(Math.cos(a) * ring)));
+      var ty = Math.max(0, Math.min(MAP - 1, gy + Math.round(Math.sin(a) * ring)));
+      u.order = { t: 'move', x: tx, y: ty, id: 0 };
+      u.guardX = tx; u.guardY = ty; u.repathAt = -999;
+      if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; }
+      requestPath(G, u, tx, ty);
+      n++;
+    });
+    if (n) { say(onOre ? 'Harvesting' : 'Moving'); sfx('click'); }
+    if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 18, size: 0, ping: true });
+  }
+
+  function tryPlace(px, py) {
+    var gp = screenToGrid(px, py);
+    var d = BLDS[placing];
+    var gx = Math.round(gp.x - (d.gw - 1) / 2), gy = Math.round(gp.y - (d.gh - 1) / 2);
+    if (!canPlace(G, P_HUMAN, placing, gx, gy)) {
+      say('Can’t build there — clear ground, touching your base', true);
+      sfx('no');
+      return;
+    }
+    var b = placeBld(G, placing, P_HUMAN, gx, gy);
+    G.side[P_HUMAN].queues.b.ready = null;
+    sfx('place');
+    say(d.name + ' online');
+    if (placing === 'refinery') {
+      var sp = freeTileNear(G, gx, gy + d.gh + 1);
+      if (sp) spawnUnit(G, 'harvester', P_HUMAN, sp.x, sp.y);
+    }
+    placing = null;
+    cv.classList.remove('placing');
+  }
+
+  // Minimap click jumps the camera.
+  mini.addEventListener('pointerdown', function (e) {
+    if (!G) return;
+    var r = mini.getBoundingClientRect();
+    var fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    centerOn(fx * MAP, fy * MAP);
+    clampCam();
+  });
+
+  function camScroll() {
+    if (state !== 'play' && state !== 'paused') return;
+    var sp = 13;
+    if (keys.a || keys.arrowleft) { cam.x -= sp * 1.6; }
+    if (keys.d || keys.arrowright) { cam.x += sp * 1.6; }
+    if (keys.w || keys.arrowup) { cam.y -= sp; }
+    if (keys.s || keys.arrowdown) { cam.y += sp; }
+    if (mouse.in && !drag) {
+      var edge = 22;
+      if (mouse.x < edge) cam.x -= sp * 1.4;
+      else if (mouse.x > cvW - edge) cam.x += sp * 1.4;
+      if (mouse.y < edge) cam.y -= sp;
+      else if (mouse.y > cvH - edge) cam.y += sp;
+    }
+    clampCam();
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Rendering
+  // --------------------------------------------------------------------- //
+  function render() {
+    ctx.fillStyle = '#0b0e14';
+    ctx.fillRect(0, 0, cvW, cvH);
+    if (!G) return;
+
+    // Visible tile window, derived by projecting the screen corners back.
+    var c0 = screenToGrid(0, 0), c1 = screenToGrid(cvW, 0);
+    var c2 = screenToGrid(0, cvH), c3 = screenToGrid(cvW, cvH);
+    var minX = Math.floor(Math.min(c0.x, c1.x, c2.x, c3.x)) - 1;
+    var maxX = Math.ceil(Math.max(c0.x, c1.x, c2.x, c3.x)) + 1;
+    var minY = Math.floor(Math.min(c0.y, c1.y, c2.y, c3.y)) - 1;
+    var maxY = Math.ceil(Math.max(c0.y, c1.y, c2.y, c3.y)) + 2;
+    minX = Math.max(0, minX); minY = Math.max(0, minY);
+    maxX = Math.min(MAP - 1, maxX); maxY = Math.min(MAP - 1, maxY);
+
+    var x, y, i, px, py;
+    for (y = minY; y <= maxY; y++) {
+      for (x = minX; x <= maxX; x++) {
+        i = idx(x, y);
+        px = sx(x, y); py = sy(x, y);
+        var t = G.terrain[i];
+        var tile = t === T_ROCK ? SPR.rock : SPR.ground[(x * 7 + y * 3) % 3];
+        ctx.drawImage(tile.c, px - tile.w / 2, py - tile.h / 2, tile.w, tile.h);
+        if (t === T_ORE) {
+          var lv = G.ore[i] > 600 ? 2 : (G.ore[i] > 250 ? 1 : 0);
+          var os = SPR.oreLv[lv];
+          ctx.drawImage(os.c, px - os.w / 2, py - os.h / 2, os.w, os.h);
+        }
+      }
+    }
+
+    // Placement ghost
+    if (placing) {
+      var d = BLDS[placing];
+      var ggx = hoverTile.x - Math.floor((d.gw - 1) / 2), ggy = hoverTile.y - Math.floor((d.gh - 1) / 2);
+      var ok = canPlace(G, P_HUMAN, placing, ggx, ggy);
+      ctx.globalAlpha = 0.5;
+      for (y = ggy; y < ggy + d.gh; y++) for (x = ggx; x < ggx + d.gw; x++) {
+        if (!inMap(x, y)) continue;
+        diamond(ctx, sx(x, y), sy(x, y), TW - 4, TH - 2);
+        ctx.fillStyle = ok ? 'rgba(90,220,140,.45)' : 'rgba(229,100,108,.45)';
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Depth-sorted entity pass
+    var draw = [];
+    for (i = 0; i < G.blds.length; i++) {
+      var b = G.blds[i];
+      if (b.dead) continue;
+      draw.push({ d: b.cx + b.cy, e: b, b: true });
+    }
+    for (i = 0; i < G.units.length; i++) {
+      var u = G.units[i];
+      if (u.dead) continue;
+      draw.push({ d: u.x + u.y, e: u, b: false });
+    }
+    draw.sort(function (a, c) { return a.d - c.d; });
+
+    for (i = 0; i < draw.length; i++) {
+      if (draw[i].b) drawBld(draw[i].e); else drawUnit(draw[i].e);
+    }
+
+    // Shots
+    for (i = 0; i < G.shots.length; i++) {
+      var s = G.shots[i];
+      var f = s.t / s.life;
+      var ax = sx(s.x, s.y), ay = sy(s.x, s.y) - 10;
+      var bx = sx(s.tx, s.ty), by = sy(s.tx, s.ty) - 8;
+      ctx.strokeStyle = s.rocket ? 'rgba(232,180,40,' + (1 - f) + ')' : 'rgba(220,240,255,' + (1 - f) + ')';
+      ctx.lineWidth = s.rocket ? 2.4 : 1.3;
+      ctx.beginPath();
+      ctx.moveTo(ax + (bx - ax) * Math.max(0, f - 0.25), ay + (by - ay) * Math.max(0, f - 0.25));
+      ctx.lineTo(ax + (bx - ax) * f, ay + (by - ay) * f);
+      ctx.stroke();
+    }
+
+    // Explosions + move pings (additive, so overlapping blasts read as heat)
+    ctx.globalCompositeOperation = 'lighter';
+    for (i = 0; i < G.fx.length; i++) {
+      var fx = G.fx[i], ff = fx.t / fx.life;
+      var fxx = sx(fx.x, fx.y), fyy = sy(fx.x, fx.y);
+      if (fx.ping) {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = 'rgba(138,208,255,' + (1 - ff) + ')';
+        ctx.lineWidth = 2;
+        diamond(ctx, fxx, fyy, (TW - 8) * (0.3 + ff), (TH - 4) * (0.3 + ff));
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter';
+        continue;
+      }
+      var rr = fx.size * (0.4 + ff * 1.5);
+      var grd = ctx.createRadialGradient(fxx, fyy - 6, 0, fxx, fyy - 6, rr);
+      grd.addColorStop(0, 'rgba(255,214,120,' + (0.75 * (1 - ff)) + ')');
+      grd.addColorStop(0.5, 'rgba(232,120,40,' + (0.42 * (1 - ff)) + ')');
+      grd.addColorStop(1, 'rgba(120,30,10,0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(fxx, fyy - 6, rr, 0, 6.29); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    drawMini();
+  }
+
+  function drawUnit(u) {
+    var px = sx(u.x, u.y), py = sy(u.x, u.y);
+    if (px < -60 || py < -60 || px > cvW + 60 || py > cvH + 60) return;
+    var d = UNITS[u.type];
+    var art = SPR.unit[u.p][u.type];
+    var s = Array.isArray(art) ? art[u.face] : art;
+
+    if (u.sel) {
+      ctx.strokeStyle = '#8ad0ff'; ctx.lineWidth = 1.7;
+      diamond(ctx, px, py + 1, d.w + 14, (d.w + 14) / 2);
+      ctx.stroke();
+    }
+    ctx.drawImage(s.c, px - s.w / 2, py - (s.h - UPAD), s.w, s.h);
+
+    // Cargo pip on a loaded harvester — you can see who is worth killing.
+    if (u.type === 'harvester' && u.cargo > 30) {
+      ctx.fillStyle = '#e8b428';
+      ctx.fillRect(px - 7, py - 26, 14 * (u.cargo / d.cap), 2.6);
+    }
+    if (u.hp < u.maxhp) hpBar(px, py - 30, 20, u.hp / u.maxhp);
+  }
+
+  function drawBld(b) {
+    var art = SPR.bld[b.p][b.type];
+    var px = sx(b.cx, b.cy), py = sy(b.cx, b.cy);
+    if (px < -260 || py < -260 || px > cvW + 260 || py > cvH + 260) return;
+
+    if (b.sel) {
+      ctx.strokeStyle = '#8ad0ff'; ctx.lineWidth = 1.6;
+      diamond(ctx, px, py, (b.gw + b.gh) * TW / 4, (b.gw + b.gh) * TH / 4);
+      ctx.stroke();
+    }
+    ctx.drawImage(art.s.c, px - art.ax, py - art.ay, art.s.w, art.s.h);
+    if (b.hp < b.maxhp) hpBar(px, py - (b.gw + b.gh) * 8 - 22, 30, b.hp / b.maxhp);
+
+    // Unpowered structures read as dead metal, not "maybe fine".
+    if (BLDS[b.type].power < 0 && !powered(G, b.p)) {
+      ctx.fillStyle = 'rgba(229,100,108,.85)';
+      ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('⚡', px, py - (b.gw + b.gh) * 8 - 26);
+      ctx.textAlign = 'left';
+    }
+  }
+
+  function hpBar(x, y, w, f) {
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.fillRect(x - w / 2 - 1, y - 1, w + 2, 5);
+    ctx.fillStyle = f > 0.6 ? '#5ad07a' : (f > 0.3 ? '#e8b428' : '#e5646c');
+    ctx.fillRect(x - w / 2, y, w * f, 3);
+  }
+
+  var miniDirty = 0;
+  function drawMini() {
+    var sc = 184 / MAP;
+    // Terrain is only redrawn a few times a second — it barely changes.
+    if (--miniDirty <= 0) {
+      miniDirty = 20;
+      mctx.fillStyle = '#0b0e14'; mctx.fillRect(0, 0, 184, 184);
+      for (var y = 0; y < MAP; y++) for (var x = 0; x < MAP; x++) {
+        var t = G.terrain[idx(x, y)];
+        if (t === T_GROUND) continue;
+        mctx.fillStyle = t === T_ROCK ? '#39414f' : '#c9822f';
+        mctx.fillRect(x * sc, y * sc, sc + 0.5, sc + 0.5);
+      }
+      mini._terr = mctx.getImageData(0, 0, 184, 184);
+    } else if (mini._terr) {
+      mctx.putImageData(mini._terr, 0, 0);
+    }
+
+    var i;
+    for (i = 0; i < G.blds.length; i++) {
+      var b = G.blds[i];
+      if (b.dead) continue;
+      mctx.fillStyle = COL[b.p];
+      mctx.fillRect(b.x * sc, b.y * sc, b.gw * sc, b.gh * sc);
+    }
+    for (i = 0; i < G.units.length; i++) {
+      var u = G.units[i];
+      if (u.dead) continue;
+      mctx.fillStyle = u.p === P_HUMAN ? '#8ad0ff' : '#ff9098';
+      mctx.fillRect(u.x * sc - 1, u.y * sc - 1, 2.4, 2.4);
+    }
+    // viewport box
+    var tl = screenToGrid(0, 0), br = screenToGrid(cvW, cvH);
+    var tr = screenToGrid(cvW, 0), bl = screenToGrid(0, cvH);
+    mctx.strokeStyle = 'rgba(255,255,255,.5)'; mctx.lineWidth = 1;
+    mctx.beginPath();
+    mctx.moveTo(tl.x * sc, tl.y * sc); mctx.lineTo(tr.x * sc, tr.y * sc);
+    mctx.lineTo(br.x * sc, br.y * sc); mctx.lineTo(bl.x * sc, bl.y * sc);
+    mctx.closePath(); mctx.stroke();
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Cards / flow
+  // --------------------------------------------------------------------- //
+  var ov = document.getElementById('ov'), ovIc = document.getElementById('ovIc');
+  var ovT = document.getElementById('ovT'), ovP = document.getElementById('ovP');
+  var ovA = document.getElementById('ovA'), ovB = document.getElementById('ovB');
+  var diffRow = document.getElementById('diffRow'), scoresEl = document.getElementById('scores');
+  var hv = document.getElementById('hv'), lv = document.getElementById('lv');
+  var sess = null;
+  var onA = null, onB = null;
+
+  function showCard(ic, title, msg, aLabel, bLabel, showDiff, showScores) {
+    ovIc.textContent = ic; ovT.textContent = title; ovP.textContent = msg;
+    ovA.textContent = aLabel;
+    ovB.style.display = bLabel ? 'block' : 'none';
+    if (bLabel) ovB.textContent = bLabel;
+    diffRow.style.display = showDiff ? 'flex' : 'none';
+    scoresEl.style.display = showScores ? 'block' : 'none';
+    ov.classList.add('show');
+  }
+  function hideCard() { ov.classList.remove('show'); }
+
+  function buildDiffRow() {
+    diffRow.innerHTML = '';
+    [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']].forEach(function (d) {
+      var b = document.createElement('button');
+      b.textContent = d[1];
+      b.className = difficulty === d[0] ? 'on' : '';
+      b.addEventListener('click', function () {
+        difficulty = d[0];
+        lsSet('vibetop:rts:diff', difficulty);
+        buildDiffRow();
+      });
+      diffRow.appendChild(b);
+    });
+  }
+
+  ovA.addEventListener('click', function () { resumeAudio(); if (onA) onA(); });
+  ovB.addEventListener('click', function () { if (onB) onB(); });
+
+  document.getElementById('helpBtn').addEventListener('click', function () { hv.classList.add('show'); });
+  document.getElementById('hvClose').addEventListener('click', function () { hv.classList.remove('show'); });
+  document.getElementById('lbBtn').addEventListener('click', function () { openBoard(); });
+  document.getElementById('lvClose').addEventListener('click', function () { lv.classList.remove('show'); });
+  document.getElementById('lbReset').addEventListener('click', function () {
+    var ask = window.vibeConfirm
+      ? window.vibeConfirm('Reset all Iron Frontier results?', { danger: true, ok: 'Reset' })
+      : Promise.resolve(true);
+    ask.then(function (yes) {
+      if (!yes) return;
+      if (window.vibeScores) window.vibeScores.reset('rts', []);
+      openBoard();
+    });
+  });
+
+  function openBoard() {
+    if (window.vibeScores) window.vibeScores.panel(document.getElementById('lbBody'), 'rts', difficulty);
+    lv.classList.add('show');
+  }
+
+  var sndBtn = document.getElementById('sndBtn');
+  function paintSnd() { sndBtn.textContent = soundOn ? '🔊' : '🔇'; }
+  sndBtn.addEventListener('click', function () {
+    soundOn = !soundOn;
+    lsSet('vibetop:rts:sound', soundOn ? '1' : '0');
+    paintSnd();
+    if (soundOn) resumeAudio();
+  });
+  paintSnd();
+
+  var pauseBtn = document.getElementById('pauseBtn');
+  function togglePause(force) {
+    if (state === 'play' && (force === undefined || force === true)) {
+      state = 'paused'; pauseBtn.textContent = '▶'; say('Paused — Space resumes');
+    } else if (state === 'paused' && force !== true) {
+      state = 'play'; pauseBtn.textContent = '⏸'; say('Resumed');
+    }
+  }
+  pauseBtn.addEventListener('click', function () { resumeAudio(); togglePause(); });
+
+  document.getElementById('newBtn').addEventListener('click', function () {
+    resumeAudio();
+    if (state === 'play' || state === 'paused') {
+      if (state === 'play') togglePause(true);
+      onA = function () { hideCard(); startMatch(); };
+      onB = function () { hideCard(); if (state === 'paused') togglePause(); };
+      showCard('🔄', 'Start over?', 'This abandons the current match.', 'Start over', 'Keep playing', false, false);
+      return;
+    }
+    menu();
+  });
+
+  function menu() {
+    state = 'menu';
+    buildDiffRow();
+    onA = function () { hideCard(); startMatch(); };
+    onB = null;
+    showCard('⚔️', 'Iron Frontier',
+      'Mine ore, raise a base, and destroy every enemy structure. Pick a difficulty:',
+      'Start', null, true, false);
+  }
+
+  function startMatch() {
+    var seed = (Date.now() ^ (performance.now() * 1000)) >>> 0;
+    G = newState(seed, difficulty);
+    G.ai = newAI(difficulty);
+    G.focusFor[P_AI] = G.ai.cfg.focus;
+    state = 'play';
+    pauseBtn.textContent = '⏸';
+    sel = []; groups = {}; placing = null; pathQ = [];
+    cv.classList.remove('placing');
+    shownCred = 0;
+    lastReady = null; toldRefinery = false; lastPowerWarn = 0;
+    sess = window.vibeScores ? window.vibeScores.session() : null;
+
+    // Opening position: a yard, two harvesters, a small guard — enough to do
+    // something in the first ten seconds instead of watching a build bar.
+    [P_HUMAN, P_AI].forEach(function (p) {
+      var s = G.start[p];
+      placeBld(G, 'base', p, s.x - 1, s.y - 1);
+      var sp;
+      for (var i = 0; i < 2; i++) {
+        sp = freeTileNear(G, s.x + (p ? -3 : 3), s.y + (p ? -3 : 3) + i);
+        if (sp) spawnUnit(G, 'harvester', p, sp.x, sp.y);
+      }
+      for (var j = 0; j < 3; j++) {
+        sp = freeTileNear(G, s.x + (p ? -4 : 4) + j, s.y + (p ? -1 : 1));
+        if (sp) spawnUnit(G, 'rifle', p, sp.x, sp.y);
+      }
+    });
+
+    centerOn(G.start[P_HUMAN].x, G.start[P_HUMAN].y);
+    panel = 'b';
+    document.querySelectorAll('.ptab div').forEach(function (o, i) { o.classList.toggle('on', i === 0); });
+    buildPanel();
+    say('Build a Power Plant, then a Refinery. Harvesters mine on their own.');
+  }
+
+  function mmss(v) { return Math.floor(v / 60) + ':' + ('0' + (v % 60)).slice(-2); }
+
+  function finish(won) {
+    state = 'over';
+    var secs = Math.floor(G.tick / 60);
+    if (window.vibeScores) {
+      window.vibeScores.finish('rts', difficulty, won, {});
+      if (won) {
+        window.vibeScores.record({
+          game: 'rts', board: difficulty, value: secs, lower: true, session: sess
+        });
+      }
+      window.vibeScores.render(scoresEl, {
+        game: 'rts', board: difficulty, lower: true,
+        // render() formats with the fmt IT is handed (only panel() reads the
+        // shared SPEC table), so a raw second count would show as "384".
+        fmt: mmss,
+        title: 'Fastest wins — ' + difficulty,
+        empty: 'No win on ' + difficulty + ' yet.',
+        highlight: { s: sess }
+      });
+    }
+    var mm = mmss(secs);
+    var s = G.side[P_HUMAN];
+    onA = function () { hideCard(); menu(); };
+    onB = null;
+    showCard(won ? '🏆' : '💥',
+      won ? 'Victory' : 'Defeated',
+      won ? 'Enemy base levelled in ' + mm + '. Units built: ' + s.made + ', lost: ' + s.lost + '.'
+          : 'Your base is gone at ' + mm + '. Units built: ' + s.made + ', killed: ' + s.killed + '.',
+      'Menu', null, false, true);
+    sfx(won ? 'ready' : 'boom');
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Main loop
+  // --------------------------------------------------------------------- //
+  var last = 0, acc = 0, hudT = 0;
+  function tick(ts) {
+    requestAnimationFrame(tick);
+    if (!last) last = ts;
+    var dt = Math.min(120, ts - last);
+    last = ts;
+
+    camScroll();
+
+    if (state === 'play' && G) {
+      acc += dt;
+      var n = 0;
+      while (acc >= STEP && n < 5) { acc -= STEP; simStep(G); n++; }
+      if (acc > STEP * 5) acc = 0;
+      if (G.over) finish(G.over === 1);
+    } else {
+      acc = 0;
+    }
+
+    if (--hudT <= 0) { hudT = 6; updateHUD(); refreshPanel(); }
+    if (tipT > 0 && --tipT === 0) {
+      tipEl.className = '';
+      tipEl.textContent = state === 'play'
+        ? 'Left-drag to select · Right-click to move or attack'
+        : '';
+    }
+    render();
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Test hooks — a canvas game cannot be asserted from the DOM, so the
+  //  tests read these instead of pixels.
+  // --------------------------------------------------------------------- //
+  window.__rts = function () {
+    if (!G) return null;
+    return {
+      tick: G.tick, state: state, over: G.over, diff: G.diff, seed: G.seed,
+      credits: G.side[P_HUMAN].credits,
+      power: G.side[P_HUMAN].powerMade - G.side[P_HUMAN].powerUse,
+      units: countUnit(G, P_HUMAN, null), enemyUnits: countUnit(G, P_AI, null),
+      blds: G.blds.filter(function (b) { return !b.dead && b.p === P_HUMAN; }).length,
+      enemyBlds: G.blds.filter(function (b) { return !b.dead && b.p === P_AI; }).length,
+      sel: sel.length, placing: placing, queue: G.side[P_HUMAN].queues.b.list.slice(),
+      ready: G.side[P_HUMAN].queues.b.ready, ai: G.ai ? G.ai.posture : null
+    };
+  };
+
+  window.__rtsTest = {
+    // Drop entities into a specific situation instead of playing into it.
+    spawn: function (type, p, x, y) { return G ? spawnUnit(G, type, p, x, y) : null; },
+    build: function (key, p, x, y) { return G ? placeBld(G, key, p, x, y) : null; },
+    give: function (p, n) { if (G) G.side[p].credits += n; },
+    step: function (n) { for (var i = 0; i < (n || 1); i++) simStep(G); },
+    kill: function (p) {
+      if (!G) return;
+      G.blds.forEach(function (b) { if (b.p === p && !b.dead) killBld(G, b); });
+    },
+    api: { astar: astar, canPlace: canPlace, genMap: genMap, newState: newState, findOre: findOre },
+    // Start a bare match (no opening units) that the other hooks act on.
+    begin: function (seed, diff) {
+      headless = true;
+      G = newState((seed >>> 0) || 1, diff || 'normal');
+      state = 'play';
+      return G;
+    },
+    get: function () { return G; },
+    // Attach an AI to one side only, so a test can play the other side by
+    // hand (or not at all — "how long does a beginner who only builds
+    // economy survive?" is a real question about the opening grace).
+    attachAI: function (p, diff) {
+      if (!G) return null;
+      var a = newAI(diff || 'normal');
+      if (p === P_AI) { G.ai = a; } else { G.ai2 = a; }
+      G.focusFor[p] = a.cfg.focus;
+      return a;
+    },
+    credits: function (p) { return G ? G.side[p].credits : 0; },
+    ore: function (x, y) { return G ? G.ore[y * MAP + x] : 0; },
+    findOre: function (x, y) { return G ? findOre(G, x, y) : null; }
+  };
+
+  // Headless match runner used by the balance tests: no rendering, no audio.
+  // Both sides are driven by the same AI code (stepAI is side-agnostic), so
+  // "hard beats easy" measures the decision layers and nothing else.
+  window.__rtsSim = function (seed, diffA, diffB, maxTicks) {
+    var prevG = G, prevHeadless = headless, prevState = state;
+    headless = true;
+    try {
+      var g = newState(seed >>> 0, diffB || 'normal');
+      g.ai = newAI(diffB || 'normal');      // player 1
+      g.ai2 = newAI(diffA || 'normal');     // player 0
+      g.focusFor[P_AI] = g.ai.cfg.focus;
+      g.focusFor[P_HUMAN] = g.ai2.cfg.focus;
+      [P_HUMAN, P_AI].forEach(function (p) {
+        var s = g.start[p], i, sp;
+        placeBld(g, 'base', p, s.x - 1, s.y - 1);
+        for (i = 0; i < 2; i++) {
+          sp = freeTileNear(g, s.x + (p ? -3 : 3), s.y + (p ? -3 : 3) + i);
+          if (sp) spawnUnit(g, 'harvester', p, sp.x, sp.y);
+        }
+        for (i = 0; i < 3; i++) {
+          sp = freeTileNear(g, s.x + (p ? -4 : 4) + i, s.y + (p ? -1 : 1));
+          if (sp) spawnUnit(g, 'rifle', p, sp.x, sp.y);
+        }
+      });
+
+      G = g;
+      var cap = maxTicks || 60 * 60 * 25;
+      while (g.tick < cap && !g.over) {
+        simStep(g);
+        if ((g.tick % 120) === 0) sampleStuck(g);
+      }
+      return {
+        ticks: g.tick, over: g.over,
+        p0blds: g.blds.filter(function (b) { return !b.dead && b.p === P_HUMAN; }).length,
+        p1blds: g.blds.filter(function (b) { return !b.dead && b.p === P_AI; }).length,
+        p0units: countUnit(g, P_HUMAN, null), p1units: countUnit(g, P_AI, null),
+        p0credits: Math.round(g.side[P_HUMAN].credits),
+        p1credits: Math.round(g.side[P_AI].credits),
+        p0made: g.side[P_HUMAN].made, p1made: g.side[P_AI].made,
+        p0mix: bldMix(g, P_HUMAN), p1mix: bldMix(g, P_AI),
+        p0q: queueState(g, P_HUMAN), p1q: queueState(g, P_AI),
+        stuck: countStuck(g)
+      };
+    } finally {
+      G = prevG; headless = prevHeadless; state = prevState;
+    }
+  };
+
+  // Stuck detection has to be sampled over TIME. Checking "did it move on the
+  // final frame" flags a unit that merely paused to fire, and misses one that
+  // has been wedged against a rock for four minutes.
+  function sampleStuck(g) {
+    for (var i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      if (u.dead) continue;
+      var moved = Math.abs(u.x - u.lastx) > 0.02 || Math.abs(u.y - u.lasty) > 0.02;
+      var wants = (!!u.order || u.state === 'tomine' || u.state === 'toref') &&
+                  u.state !== 'mining';
+      if (wants && !moved) u.stuck++; else u.stuck = 0;
+      u.lastx = u.x; u.lasty = u.y;
+    }
+  }
+  function bldMix(g, p) {
+    var m = {};
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (!b.dead && b.p === p) m[b.type] = (m[b.type] || 0) + 1;
+    }
+    return m;
+  }
+  function queueState(g, p) {
+    var q = g.side[p].queues;
+    return { b: q.b.list.slice(), ready: q.b.ready, i: q.i.list.slice(), v: q.v.list.slice() };
+  }
+
+  function countStuck(g) {
+    var n = 0;
+    for (var i = 0; i < g.units.length; i++) {
+      if (!g.units[i].dead && g.units[i].stuck >= 3) n++;
+    }
+    return n;
+  }
+
+  window.__rtsScreen = function (gx, gy) { return { x: sx(gx, gy), y: sy(gx, gy) }; };
+
+  window.__rtsTables = { UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP };
+
+  // --------------------------------------------------------------------- //
+  //  Boot
+  // --------------------------------------------------------------------- //
+  difficulty = lsGet('vibetop:rts:diff') || 'normal';
+  if (!DIFF[difficulty]) difficulty = 'normal';
+
+  bakeAll();
+  resize();
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  else window.addEventListener('resize', resize);
+
+  buildPanel();
+  menu();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

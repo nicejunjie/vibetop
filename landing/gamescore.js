@@ -185,6 +185,18 @@
       stats: function (s) {
         return [['Runs', s.n], ['Furthest sector', s.x.sector ? pad2(s.x.sector) : '—'], ['Cleared', s.w]];
       }
+    },
+    rts: {
+      // A skirmish is timed, so faster is better, and each difficulty is its
+      // own board — a 12-minute win on Easy is not the same result as on Hard.
+      lower: true, boards: ['easy', 'normal', 'hard'],
+      fmt: function (v) { return Math.floor(v / 60) + ':' + (v % 60 < 10 ? '0' : '') + (v % 60); },
+      head: function (b) { return 'Fastest wins · ' + b.charAt(0).toUpperCase() + b.slice(1); },
+      empty: function (b) { return 'No win on ' + b + ' yet.'; },
+      stats: function (s) {
+        return [['Matches', s.n], ['Won', s.w], ['Win rate', pct(s.w, s.n)],
+                ['Streak', s.cur], ['Best streak', s.best]];
+      }
     }
   };
   function pct(w, n) { return n ? Math.round(w * 100 / n) + '%' : '—'; }

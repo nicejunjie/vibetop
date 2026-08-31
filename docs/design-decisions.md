@@ -4804,3 +4804,61 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** when space runs out, rank what to drop by what the reader came for —
   not by what is easiest to remove. Twice now the shortest form was also the most
   useful one, and I dropped it first.
+
+## A fractional tile index does not throw — it writes somewhere else entirely
+
+- **Symptom:** Iron Frontier's mirrored map generator produced wildly unfair
+  starts — one side could reach 60–88% more ore than the other, and a band of
+  ore appeared along a row no patch was anywhere near. The rock layer, built by
+  the same mirroring code, was pixel-perfect symmetric.
+- **Cause:** ore patches take a *fractional* radius (`patch(15, 8, 3.4, 900)`),
+  and the loop was written `for (yy = cy - r; yy <= cy + r; yy++)`. That starts
+  at **4.6**, so every index went through `idx(x, y) = y * MAP + x` as a
+  fraction — `306.0`, `306.6`, … A typed array truncates that to a single
+  integer index, so writes landed on tiles with no relationship to the patch,
+  scattered along a wholly different row. Nothing threw; the map just quietly
+  became a different map. Rock was symmetric only because its radius was an
+  integer.
+- **Fix:** snap the loop bounds — `Math.ceil(cy - r)` … `Math.floor(cy + r)`.
+- **What actually caught it** was not reading the code. It was a test that
+  flood-fills the map from each start and compares reachable ore, plus one that
+  asserts `ore[x][y] === ore[MAP-1-x][MAP-1-y]`. The generator *looked* correct
+  in review, and a screenshot of a scattered ore field looks like a design
+  choice.
+- **Rule:** any index arithmetic fed by a float is a silent-corruption bug, not
+  a crash. And when correctness is a property of generated *content*, only a
+  test that reads the content back and does the arithmetic will find it — the
+  same lesson as the unfinishable Mario level, in a different costume.
+
+## An AI difficulty knob that nothing reads is not a difficulty
+
+- **Symptom:** three difficulty tiers that played identically, and worse: the
+  "hard" AI lost to "normal" 2 games out of 10. Every tier *looked* configured —
+  `{ react, apm, focus, harass, group, expand }` per tier, right there in the
+  table.
+- **Causes, four of them, each invisible in review:**
+  - **`focus` and `apm` were never read anywhere.** They were written into the
+    table, asserted in a test, and consulted by no code. The only knobs with
+    any effect were `react` and `group`, so "easy" and "hard" differed by
+    almost nothing.
+  - **Faster reaction was a *handicap*.** `requestPath()` cleared the unit's
+    current path before queueing the new request, so a unit stopped dead until
+    the pathfinder reached it. The AI that re-tasked its army three times more
+    often therefore stood still three times more often.
+  - **No wave concept.** Any unit that finished production walked at the enemy
+    alone. One measured match: **129 units built, 12 alive, zero buildings
+    taken** — an AI feeding itself into two gun turrets one soldier at a time.
+  - **An ordered target suppressed all other targets.** A unit told to attack a
+    building walked past live turrets shooting it and never fired back.
+- **Fix:** implement the knobs (`focus` picks nearest-vs-highest-threat in
+  `findTarget`; `apm` rations orders per tactical pass), keep the old path until
+  the new one arrives, add wave commit/retreat with a per-tier survival
+  threshold, and engage anything in range while advancing on the ordered target.
+  Result: hard 12–0 over easy, 8–3–1 over normal, with strict transitivity.
+- **Rejected:** giving the harder AI more credits or vision. A tier that cheats
+  is not a harder opponent, it is a worse game — every knob here is a handicap
+  on the AI's *own play*, and a test asserts no tier carries an
+  income/vision-shaped field name.
+- **Rule:** a config field is a claim about behaviour. Assert the behaviour, not
+  the field — the test that read `easy.focus === false` passed happily for a
+  week while nothing on earth consulted `focus`.

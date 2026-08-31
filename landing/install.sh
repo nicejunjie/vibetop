@@ -83,6 +83,7 @@ run install -m 644 "$DIR/minesweeper.html" "$DST_DIR/minesweeper.html"
 run install -m 644 "$DIR/solitaire.html" "$DST_DIR/solitaire.html"
 run install -m 644 "$DIR/game2048.html" "$DST_DIR/game2048.html"
 run install -m 644 "$DIR/circuit.html" "$DST_DIR/circuit.html"
+run install -m 644 "$DIR/rts.html" "$DST_DIR/rts.html"
 if [ "$DRY_RUN" = 1 ]; then
   printf '+ install files.html (sed @APP_HOME@ -> %s)\n' "$HOME"
 else
