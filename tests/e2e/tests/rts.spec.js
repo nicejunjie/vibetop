@@ -326,33 +326,78 @@ test.describe('rts', () => {
     expect(await backToMap(20, 10), 'a slow return must not pan either').toBeLessThan(12);
   });
 
-  test('the command bar holds the map still, but past the window is full speed', async ({ page }) => {
+  test('leaving the game stops navigation — on every edge', async ({ page }) => {
     await boot(page);
     const cam = () => page.evaluate(() => window.__rtsCam());
-
-    // Resting on the build panel is USING THE UI: the map must not drift.
-    await page.mouse.move(640, 400);
-    await page.waitForTimeout(320);
-    await page.mouse.move(1190, 400);
-    await page.waitForTimeout(220);
-    const a = await cam();
-    await page.waitForTimeout(700);
-    expect(Math.abs((await cam()).x - a.x), 'the panel is UI, not an edge')
-      .toBeLessThan(12);
-
-    // Off the window entirely — including out through the right-hand side,
-    // past the command bar — is the pinned-cursor case: full speed.
-    await page.mouse.move(640, 400);
-    await page.waitForTimeout(320);
-    const b = await cam();
-    await page.evaluate(() => {
-      document.dispatchEvent(new PointerEvent('pointerleave', {
-        clientX: window.innerWidth, clientY: 400, bubbles: false,
-      }));
+    const box = await page.evaluate(() => {
+      const r = document.getElementById('cv').getBoundingClientRect();
+      return { l: r.left, t: r.top, w: r.width, h: r.height };
     });
+
+    // Parked just inside each edge, the map scrolls — all four the same.
+    const inside = [
+      ['left', 3, 400], ['right', box.w - 3, 400],
+      ['top', 500, 3], ['bottom', 500, box.h - 3],
+    ];
+    for (const [name, x, y] of inside) {
+      await page.mouse.move(600, 400);
+      await page.waitForTimeout(320);
+      const a2 = await cam();
+      await page.mouse.move(box.l + x, box.t + y);
+      await page.waitForTimeout(600);
+      const c = await cam();
+      expect(Math.hypot(c.x - a2.x, c.y - a2.y), `${name} edge should scroll`)
+        .toBeGreaterThan(150);
+    }
+
+    // Off the canvas, it stops. Off-window acceleration was tried and is wrong
+    // in a browser: the cursor is not locked to the viewport, so wandering out
+    // of the game left the map running away by itself.
+    await page.mouse.move(600, 400);
+    await page.waitForTimeout(320);
+    await page.mouse.move(box.l + 3, box.t + 400);
+    await page.waitForTimeout(150);
+    await page.evaluate(() =>
+      document.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false })));
+    const a3 = await cam();
     await page.waitForTimeout(700);
-    expect(Math.abs((await cam()).x - b.x), 'pushed off the window should race')
-      .toBeGreaterThan(400);
+    const c3 = await cam();
+    expect(Math.hypot(c3.x - a3.x, c3.y - a3.y), 'leaving the game must stop the map')
+      .toBeLessThan(60);
+  });
+
+  test('losing focus does not pause, and any click resumes', async ({ page }) => {
+    await boot(page);
+    const snapshot = () => page.evaluate(() => window.__rts());
+
+    // A real-time match must not stop because focus wandered off.
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await page.waitForTimeout(250);
+    const blurred = await snapshot();
+    expect(blurred.state, 'blur must not pause a real-time match').toBe('play');
+    await page.waitForTimeout(350);
+    expect((await snapshot()).tick, 'the match must keep running')
+      .toBeGreaterThan(blurred.tick);
+
+    // The pause button pauses, and says so.
+    await page.locator('#pauseBtn').click();
+    await page.waitForTimeout(200);
+    const paused = await snapshot();
+    expect(paused.state).toBe('paused');
+    await expect(page.locator('#paused')).toBeVisible();
+    await page.waitForTimeout(350);
+    expect((await snapshot()).tick, 'paused means paused').toBe(paused.tick);
+
+    // A click anywhere gets you out — the map, or the command bar.
+    await page.mouse.click(500, 400);
+    await page.waitForTimeout(200);
+    expect((await snapshot()).state, 'clicking the map resumes').toBe('play');
+
+    await page.locator('#pauseBtn').click();
+    await page.waitForTimeout(200);
+    await page.locator('#plist .pit:nth-child(1)').click();
+    await page.waitForTimeout(200);
+    expect((await snapshot()).state, 'clicking the panel resumes').toBe('play');
   });
 
   test('a pan eases in instead of snapping to full speed', async ({ page }) => {

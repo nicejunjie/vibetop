@@ -100,6 +100,16 @@
     white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis;
   }
   #tip.warn { color: #e8b428; border-color: #5a4a20; }
+  #paused {
+    position: absolute; inset: 0; display: none; z-index: 4;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; pointer-events: none;                 /* clicks fall through */
+    background: rgba(14,17,23,.34);
+    text-shadow: 0 2px 10px rgba(0,0,0,.7);
+  }
+  #paused.show { display: flex; }
+  #paused b { font-size: 30px; letter-spacing: .14em; color: #e6edf3; }
+  #paused span { font-size: 13px; color: #aab4c5; }
 
   /* ---- cards (shared house style: 44px targets, short-window collapse) ---- */
   .overlay {
@@ -184,6 +194,7 @@
     <canvas id="cv"></canvas>
     <div id="marq"></div>
     <div id="tip">Left-drag to select · Right-click to move or attack</div>
+    <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
 
     <div class="overlay" id="ov"><div class="card">
       <div class="big" id="ovIc">⚔️</div>
@@ -2307,22 +2318,17 @@
   cv.addEventListener('pointerup', endDrag);
   cv.addEventListener('pointercancel', endDrag);
   cv.addEventListener('lostpointercapture', endDrag);
-  cv.addEventListener('pointerleave', function (e) {
-    mouse.in = false;
-    var r = cv.getBoundingClientRect();
-    var px = e.clientX - r.left, py = e.clientY - r.top;
-    var ox = px <= 1 ? -1 : (px >= cvW - 1 ? 1 : 0);
-    var oy = py <= 1 ? -1 : (py >= cvH - 1 ? 1 : 0);
-    outPush = (ox || oy) ? { x: ox, y: oy } : null;
-  });
+  cv.addEventListener('pointerleave', function () { mouse.in = false; });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // The game is an iframe inside the desktop shell: a pointer released over
   // the parent's taskbar never reaches us, and a tab switch must not leave
   // the camera scrolling forever.
   window.addEventListener('blur', function () {
+    // Drop held input so nothing is stuck down, but do NOT pause: a real-time
+    // match that stops because the cursor wandered off is worse than one that
+    // keeps running, and pausing is what the pause button is for.
     keys = {}; endDrag(); mouse.in = false;
-    if (state === 'play') togglePause(true);
   });
 
   function clearSel() { sel.forEach(function (u) { u.sel = false; }); sel = []; }
@@ -2492,28 +2498,11 @@
   // not navigating — so the map stops immediately. This is what makes a
   // right-hand panel coexist with edge scrolling (C&C does the same); the
   // few pixels the pointer earns crossing the slow inner lip never land.
-  document.getElementById('side').addEventListener('pointerenter', function () {
-    outPush = null; mouse.in = false;          // on the panel: hold still
-  });
-  document.querySelector('.bar').addEventListener('pointerenter', function () {
-    outPush = null; mouse.in = false;
-  });
-
-  // Past the window entirely, though, IS the pinned-cursor case every RTS
-  // treats as full speed — including straight out through the right-hand side,
-  // beyond the command bar. Which edge it left by decides the direction.
-  document.addEventListener('pointerleave', function (e) {
-    if (state !== 'play' && state !== 'paused') return;
-    var w = window.innerWidth, h = window.innerHeight, m = 2;
-    if (e.clientX >= w - m) outPush = { x: 1, y: 0 };
-    else if (e.clientX <= m) outPush = { x: -1, y: 0 };
-    else if (e.clientY <= m) outPush = { x: 0, y: -1 };
-    else if (e.clientY >= h - m) outPush = { x: 0, y: 1 };
-    else outPush = null;
-    mouse.in = false;
-  });
-  document.addEventListener('pointerenter', function () { outPush = null; });
-  window.addEventListener('blur', function () { outPush = null; });
+  // Anything that is not the map holds the map still: the command bar, the top
+  // bar, and leaving the window altogether.
+  document.getElementById('side').addEventListener('pointerenter', function () { mouse.in = false; });
+  document.querySelector('.bar').addEventListener('pointerenter', function () { mouse.in = false; });
+  document.addEventListener('pointerleave', function () { mouse.in = false; });
 
   // Minimap click jumps the camera.
   mini.addEventListener('pointerdown', function (e) {
@@ -2536,7 +2525,6 @@
   //     build item — with an instant band, every click yanked the map sideways
   //     first. A pointer merely passing through must scroll nothing.
   var camVel = { x: 0, y: 0 };
-  var outPush = null;           // direction held while the pointer is off-canvas
   var KEY_SPEED = 900;          // px/s
 
   // Edge scrolling is a ZONE with a speed curve, not a trigger with a timer.
@@ -2598,13 +2586,11 @@
         else if (mouse.y > cvH - EDGE_BAND) ty = 1 - (cvH - mouse.y) / EDGE_BAND;
         if (tx) wx += Math.sign(tx) * edgeSpeed(Math.abs(tx));
         if (ty) wy += Math.sign(ty) * edgeSpeed(Math.abs(ty));
-      } else if (outPush && !drag) {
-        // Off the canvas entirely and NOT over the UI: the pointer is pinned
-        // past the edge, which is the full-speed case in every RTS that locks
-        // the cursor to the screen.
-        wx += outPush.x * EDGE_MAX;
-        wy += outPush.y * EDGE_MAX;
       }
+      // Leaving the canvas — any edge, panel or window — stops navigation.
+      // Off-window acceleration was tried and is wrong here: a browser cursor
+      // is not locked to the viewport, so wandering out of the game left the
+      // map running away on its own.
     }
 
     var k = Math.min(1, dt * 16);             // velocity easing
@@ -2890,14 +2876,29 @@
   paintSnd();
 
   var pauseBtn = document.getElementById('pauseBtn');
+  var pausedEl = document.getElementById('paused');
   function togglePause(force) {
     if (state === 'play' && (force === undefined || force === true)) {
-      state = 'paused'; pauseBtn.textContent = '▶'; say('Paused — Space resumes');
+      state = 'paused'; pauseBtn.textContent = '▶';
+      pausedEl.classList.add('show');
     } else if (state === 'paused' && force !== true) {
-      state = 'play'; pauseBtn.textContent = '⏸'; say('Resumed');
+      state = 'play'; pauseBtn.textContent = '⏸';
+      pausedEl.classList.remove('show');
+      say('Resumed');
     }
   }
   pauseBtn.addEventListener('click', function () { resumeAudio(); togglePause(); });
+
+  // Paused is a state you should be able to leave without aiming at anything:
+  // a click anywhere in the window resumes. The pause button is excluded so
+  // its own toggle isn't run twice, and the cards keep their own buttons.
+  document.addEventListener('pointerdown', function (e) {
+    if (state !== 'paused') return;
+    var t = e.target;
+    if (t && t.closest && (t.closest('#pauseBtn') || t.closest('.overlay'))) return;
+    resumeAudio();
+    togglePause();
+  }, true);
 
   document.getElementById('newBtn').addEventListener('click', function () {
     resumeAudio();
@@ -2928,6 +2929,7 @@
     G.focusFor[P_AI] = G.ai.cfg.focus;
     state = 'play';
     pauseBtn.textContent = '⏸';
+    pausedEl.classList.remove('show');
     sel = []; groups = {}; placing = null; pathQ = [];
     cv.classList.remove('placing');
     shownCred = 0;
