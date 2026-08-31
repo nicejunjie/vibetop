@@ -812,7 +812,12 @@
     }
     render();
   });
-  window.addEventListener('pointercancel', function() {
+  // A drag that never gets its pointerup back. Two ways that happens, and both
+  // left the card glued to the cursor for the rest of the deal: the system
+  // cancels the touch (iOS gesture, notification), or the finger lifts OUTSIDE
+  // this iframe — over the shell's taskbar — where the release belongs to the
+  // parent document and no listener in here can see it.
+  function abortDrag() {
     if (dragging) {
       dragging = false;
       document.body.classList.remove('drg');
@@ -820,7 +825,9 @@
       unghostAll();
     }
     down = null;
-  });
+  }
+  window.addEventListener('pointercancel', abortDrag);
+  window.addEventListener('blur', abortDrag);
 
   document.getElementById('newBtn').addEventListener('click', deal);
   document.getElementById('ovNew').addEventListener('click', deal);

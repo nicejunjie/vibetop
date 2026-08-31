@@ -92,7 +92,8 @@
      inline (desktop, one 26px line) or wrapped onto its own line (narrow phone),
      so there are no dangling separators or misaligned columns. */
   .cu-strip .cu-seg {
-    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 2px 6px; white-space: nowrap;
+    flex-wrap: wrap; min-width: 0;
     background: rgba(255,255,255,0.04); border: 1px solid #222c3a;
     border-radius: 6px; padding: 1px 8px;
   }
@@ -105,6 +106,9 @@
   .cu-strip .cu-fill.warn { background: #d2902a; }
   .cu-strip .cu-fill.crit { background: #d24b3a; }
   .cu-strip .cu-dim { color: #6a7a8a; font-variant-numeric: tabular-nums; }
+  /* On the narrowest phones even the wrapped chip cannot hold the absolute
+     time; the relative one says the same thing in a third of the width. */
+  @media (max-width: 360px) { .cu-strip .cu-at { display: none; } }
   /* ✕ pinned to the top-right corner (out of flow) so it never orphans onto its
      own wrapped line. */
   .cu-strip .cu-x { position: absolute; top: 3px; right: 5px; cursor: pointer; color: #6a7a8a; padding: 1px 7px; border-radius: 4px; line-height: 1.3; }
@@ -4030,7 +4034,8 @@
     var cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
     var rtxt = reset ? fmtReset(reset) : '';
     var rat = reset ? fmtResetAt(reset) : '';
-    var r = rtxt ? '<span class="cu-dim">· resets ' + rtxt + (rat ? ' (' + rat + ')' : '') + '</span>' : '';
+    var r = rtxt ? '<span class="cu-dim">· resets ' + rtxt +
+                   (rat ? '<span class="cu-at"> (' + rat + ')</span>' : '') + '</span>' : '';
     var title = rtxt ? ' title="resets in ' + rtxt + (rat ? ' — at ' + rat : '') + '"' : '';
     return '<span class="cu-seg"' + title + '><span class="cu-lbl">' + label + '</span>' +
       '<span class="cu-bar"><span class="cu-fill ' + cls + '" style="width:' + p + '%"></span></span>' +

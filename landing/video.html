@@ -250,6 +250,14 @@
   });
   seek.addEventListener("pointermove", function (e) { if (scrubbing) seekTo(e.clientX); });
   seek.addEventListener("pointerup", function () { scrubbing = false; });
+  // Cleared on pointerup ALONE, `scrubbing` outlived any pointer that ended some
+  // other way — a cancelled touch, or capture lost when the bar is hidden with
+  // the control overlay. The video then seeked to wherever the pointer moved
+  // next, with nothing held down.
+  function stopScrub() { scrubbing = false; }
+  seek.addEventListener("pointercancel", stopScrub);
+  seek.addEventListener("lostpointercapture", stopScrub);
+  window.addEventListener("blur", stopScrub);
 
   // Click the video toggles play; DOUBLE-click toggles fullscreen. The single-click
   // action is deferred briefly so a double-click doesn't also fire play/pause (the

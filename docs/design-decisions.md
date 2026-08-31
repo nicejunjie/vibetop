@@ -4637,3 +4637,42 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** a map keyed by an id the platform is free to reuse must clear the old
   entry on write, not just on delete. `held[id] = x` is a leak wherever the
   matching release is not guaranteed.
+
+## Sweep: every place a pointer could go missing, and every place text could leave the box
+
+- **Why:** the stuck ▶ key and the token-stats label that ran off the page were
+  not one-offs — both are shapes that repeat. This is the audit of every other
+  instance, run as reproductions rather than readings.
+- **Pointer state that outlived its pointer** (same shape as the d-pad: state set
+  on `pointerdown`, released only on `pointerup`, with no `pointercancel` and no
+  `blur` — and every game is an iframe, so a thumb that lifts over the shell's
+  taskbar releases into the PARENT document where no in-frame listener sees it):
+  - `game2048.html` — a cancelled touch left the swipe armed with a stale start
+    point, and the next unrelated tap anywhere was measured against it. Verified:
+    the board made a move nobody swiped. The swipe now belongs to one pointerId.
+  - `solitaire.html` — a drag that lost its pointer left `body.drg`, the drag
+    layer and the ghosted card in place: the card followed the cursor for the
+    rest of the deal. It already had a full `pointercancel` cleanup; it just was
+    not wired to `blur` too.
+  - `imageview.html` — `drag` survived, so the image kept panning under a pointer
+    that was not down, and could still fire a prev/next step.
+  - `video.html` — `scrubbing` was cleared on `pointerup` alone, so a pointer
+    that ended any other way left the seek bar seeking on every later move.
+  - Clean, checked and left alone: `minesweeper.html` (has cancel; its press is
+    visual only), `desktop.html` (window drag already binds `pointercancel`),
+    `files.html` / `terminals.html` (pointerdown does an immediate action, no
+    per-pointer state), `filesx.html`, `xpra-patches.js`.
+- **Layout that left the viewport** (scanned every page at 320/390/430/768 with
+  real data, separating "reachable by scrolling an ancestor" from stranded — the
+  taskbar, tab strips and the model table are all deliberately scrollable):
+  - `upload.html` — a file input is ~253px wide by default; `position: absolute`
+    with no box kept that width, hung it off the right edge of the drop zone and
+    gave the whole page a horizontal scroll at EVERY phone width. An invisible
+    control dragging a scrollbar behind it.
+  - `desktop.html` — the Claude usage chip is `white-space: nowrap` and could not
+    wrap, so at 320px "· resets 2d 22h (Thu 10:00 AM)" ran off the screen with no
+    scroll container to bring it back. The chip now wraps a line instead of
+    growing wider, and the absolute time drops below 360px.
+- **Rule:** treat `pointerup` as the happy path only. Any state a pointer starts
+  needs `pointercancel` AND a frame-level `blur` release, and any absolutely
+  positioned control needs a box — a default intrinsic width is not one.

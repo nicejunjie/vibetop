@@ -516,14 +516,21 @@
     if (did) { hintDone = true; hintEl.style.display = 'none'; }
   });
 
-  var sx = 0, sy = 0, tracking = false;
+  // The swipe belongs to ONE pointer. Without the id check, a cancelled touch
+  // (iOS gesture, notification) left `tracking` armed with a stale start point
+  // and the next unrelated tap anywhere was measured against it — the board
+  // made a move nobody swiped. Cancel and losing the frame both disarm it.
+  var sx = 0, sy = 0, tracking = false, sid = null;
   boardEl.addEventListener('pointerdown', function(ev) {
-    sx = ev.clientX; sy = ev.clientY; tracking = true;
+    sx = ev.clientX; sy = ev.clientY; tracking = true; sid = ev.pointerId;
     if (ev.pointerType !== 'mouse') ev.preventDefault();
   });
+  function disarmSwipe() { tracking = false; sid = null; }
+  window.addEventListener('pointercancel', disarmSwipe);
+  window.addEventListener('blur', disarmSwipe);
   window.addEventListener('pointerup', function(ev) {
-    if (!tracking) return;
-    tracking = false;
+    if (!tracking || ev.pointerId !== sid) return;
+    disarmSwipe();
     if (overlay.classList.contains('show') || helpOv.classList.contains('show') ||
         lbOv.classList.contains('show')) return;
     var dx = ev.clientX - sx, dy = ev.clientY - sy;

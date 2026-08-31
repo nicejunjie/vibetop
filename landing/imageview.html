@@ -136,6 +136,16 @@
     if (Math.abs(dx) + Math.abs(dy) > 8) drag.moved = true;
     if (zoom > 1) { panX = drag.px + dx; panY = drag.py + dy; applyZoom(); }
   });
+  // A cancelled touch, or a finger that lifts outside this frame, used to leave
+  // `drag` set: the image then kept panning under a pointer that was not down,
+  // and could still fire a prev/next step. Same shape as the stuck d-pad key.
+  function abortPan() {
+    if (!drag) return;
+    drag = null;
+    if (img) img.classList.remove('dragging');
+  }
+  window.addEventListener('pointercancel', abortPan);
+  window.addEventListener('blur', abortPan);
   window.addEventListener('pointerup', function(e) {
     if (!drag) return;
     var d = drag; drag = null;
