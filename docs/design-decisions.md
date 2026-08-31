@@ -4607,3 +4607,33 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** a hardcoded tick/label count is a bug waiting for a narrow screen.
   Derive it from the measured container, and remember that overflow direction
   is a property of the writing mode, not of `text-align`.
+
+## A recycled pointerId orphaned a d-pad button, and the player walked forever
+
+- **Symptom (reported from an iPhone, with a screenshot):** in Circuit Runner
+  the ▶ button stayed lit and the player kept walking forward for the rest of
+  the run with nothing pressed. No card on screen — plain gameplay.
+- **Cause:** the pad's `pointerdown` did `held[e.pointerId] = b; set(b, true)` —
+  a plain overwrite. iOS recycles pointerIds, so one missed `pointerup` (a
+  system gesture, a notification, the finger leaving the frame) left a stale
+  entry in `held`, and the very next touch replaced it **without releasing the
+  button it replaced**. The orphaned button kept its `act` class and its key
+  stayed `1` forever. Nothing could clear it: `up()` only releases what is
+  currently in `held`, and `releaseControls()` iterates the same map.
+- **Why the earlier fixes did not cover it:** v1.19.155 added a window-level
+  capture `pointerup` for releases that never reach the pad, and `showCard()`
+  calls `releaseControls()` because the pad vanishes under a card. Both assume
+  the pointer's entry is still *findable*. This bug is the entry being silently
+  overwritten, so every existing release path looked at the wrong button.
+- **Fix:** release the previous button for that pointerId before overwriting.
+  Plus two cheap belts: `lostpointercapture` also releases (capture is what
+  keeps a press alive while the finger slides, so losing it means the pointer is
+  no longer ours), and `window.blur` releases everything (the game is an iframe
+  in the shell — a thumb that lifts over the taskbar releases into the PARENT
+  document, where none of the in-frame listeners can see it).
+- **Regression test:** `tests/e2e/tests/games.spec.js`, "a d-pad button can never
+  be orphaned with its key down" — verified to FAIL on the pre-fix build and
+  pass on all ten device profiles after.
+- **Rule:** a map keyed by an id the platform is free to reuse must clear the old
+  entry on write, not just on delete. `held[id] = x` is a leak wherever the
+  matching release is not guaranteed.

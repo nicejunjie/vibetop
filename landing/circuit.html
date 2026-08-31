@@ -1746,6 +1746,14 @@
               hit(e.clientX, e.clientY);
       if (!b) return;
       e.preventDefault();
+      // Release whatever this pointer was already holding FIRST. iOS recycles
+      // pointerIds, so one missed pointerup — a system gesture, a notification,
+      // the finger leaving the frame — left an entry in `held`, and the next
+      // touch overwrote it. The orphaned button kept its `act` class and its
+      // key stayed down for the rest of the run: ▶ lit up and the player walked
+      // forward forever with nothing pressed. Reported from an iPhone.
+      var prev = held[e.pointerId];
+      if (prev && prev !== b) set(prev, false);
       held[e.pointerId] = b; set(b, true);
       try { pad.setPointerCapture(e.pointerId); } catch (_) {}
     });
@@ -1764,12 +1772,20 @@
     }
     pad.addEventListener('pointerup', up);
     pad.addEventListener('pointercancel', up);
+    // Capture is how a press survives the finger sliding off the button; losing
+    // it means the pointer is no longer ours, so the key must not stay down.
+    pad.addEventListener('lostpointercapture', up);
     // A release that never reaches the pad still has to release the key. The
     // pad is display:none behind any card, so lifting your finger during a
     // death, a pause or an app switch delivered the pointerup somewhere else
     // entirely — and the direction stayed down. You let go and kept walking.
     window.addEventListener('pointerup', up, true);
     window.addEventListener('pointercancel', up, true);
+    // The game is an iframe inside the shell. A thumb that slides off the pad
+    // and lifts over the taskbar releases into the PARENT document, where none
+    // of the listeners above can see it — so treat losing the frame as letting
+    // go of everything.
+    window.addEventListener('blur', function () { releaseAllTouch(); });
     releaseAllTouch = function () {
       for (var id in held) { set(held[id], false); delete held[id]; }
     };

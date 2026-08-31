@@ -80,4 +80,52 @@ test.describe('games', () => {
     expect(tilesAfter !== tilesBefore || parseInt(score || '0', 10) > 0).toBeTruthy();
     expect(errors).toEqual([]);
   });
+
+  // v1.19.162. Reported from an iPhone with a screenshot: ▶ stuck lit and the
+  // player walked forward for the rest of the run with nothing pressed. iOS
+  // recycles pointerIds, so one missed pointerup left an entry in the pad's
+  // `held` map and the NEXT touch overwrote it — the orphaned button kept its
+  // key down forever. Asserted on the two ways a pointer can go missing.
+  test('circuit: a d-pad button can never be orphaned with its key down', async ({ browser }) => {
+    const ctx = await browser.newContext({ hasTouch: true, isMobile: true,
+                                           viewport: { width: 400, height: 800 } });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await page.goto('/circuit.html');
+    await page.waitForTimeout(600);
+    await page.locator('#ovGo').click();
+    await page.waitForTimeout(300);
+    await page.evaluate(() => window.__crTest.silence());
+
+    const press = (k, id) => page.evaluate(([k, id]) => {
+      const btn = document.querySelector('.pad .btn[data-k="' + k + '"]');
+      const r = btn.getBoundingClientRect();
+      btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: id,
+        pointerType: 'touch', isPrimary: true, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }));
+    }, [k, id]);
+    const lit = () => page.evaluate(() => [...document.querySelectorAll('.pad .btn')]
+      .filter((b) => b.classList.contains('act')).map((b) => b.dataset.k));
+
+    // A missed pointerup, then the same recycled id lands on another button.
+    await press('right', 5);
+    await page.waitForTimeout(80);
+    await press('left', 5);
+    await page.waitForTimeout(80);
+    expect(await lit()).toEqual(['left']);
+
+    // The thumb slides off the pad and lifts over the shell's taskbar, i.e.
+    // outside this iframe: the release never reaches this document at all.
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await page.waitForTimeout(120);
+    expect(await lit()).toEqual([]);
+
+    // ...and the player is genuinely standing still, not merely un-lit.
+    const x0 = await page.evaluate(() => window.__cr().px);
+    await page.evaluate(() => window.__crTest.step(60));
+    expect(await page.evaluate(() => window.__cr().px)).toBe(x0);
+
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
 });
