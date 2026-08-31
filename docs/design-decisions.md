@@ -4778,3 +4778,29 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** "am I current?" needs a fact the artifact carries, not a fact the
   server reports. Anything cacheable that asks the server what version is current
   will always be told it is.
+
+## Shed the duration, keep the clock time — I had it backwards
+
+- **Symptom (reported):** "I'm on v430. All I can see is that you deleted the
+  week reset's specific time."
+- **Cause, and it was mine.** v1.19.167 widened the identity column (adding
+  "as of Nm ago" under Claude) and pinned the chip to a fixed grid template.
+  Both cost the reset column ~50px, and `fitSegs()` then shed in the wrong order:
+  it dropped the ABSOLUTE time and kept the relative duration. The one piece the
+  user reads is the clock time, and it is also the SHORTER of the two —
+  "· resets Thu 11 AM" is 70px narrower than "· resets 2d 20h (Thu 11 AM)".
+- **Fix — four forms, longest first, clock time last to go:**
+  `· resets 2d 20h (Thu 11 AM)` → `· resets Thu 11 AM` → `· Thu 11 AM` → hidden.
+  Plus a reset a day or more out prints the day and the HOUR only (minutes matter
+  when it is minutes away), the fixed columns give up a few px, and a ≤340px tier
+  tightens them again. Measured in both engines: at 440 both chips are full, at
+  402/375 both keep the clock, at 320 both still keep the clock.
+- **Also here:** the reading's age appears once the numbers are a minute old
+  rather than only when the server flags them stale, so the space under "Claude"
+  says something instead of usually being empty — and it reads just "3m ago".
+  "as of" was three words of scaffolding holding up one number, and every px it
+  took in the identity column came straight out of the reset time beside it;
+  dropping it is what lets a 320px phone keep "· resets Thu 11 AM" in full.
+- **Rule:** when space runs out, rank what to drop by what the reader came for —
+  not by what is easiest to remove. Twice now the shortest form was also the most
+  useful one, and I dropped it first.

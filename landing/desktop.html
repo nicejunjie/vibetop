@@ -88,7 +88,7 @@
   .cu-strip[hidden] { display: none; }
   .cu-strip .cu-who { display: flex; align-items: baseline; gap: 6px; flex: 0 0 auto; min-width: 0; }
   .cu-strip .cu-brand { font-weight: 600; color: #c8d4e0; }
-  .cu-strip .cu-asof { color: #6a7a8a; font-size: 11px; white-space: nowrap; }
+  .cu-strip .cu-asof { color: #6a7a8a; font-size: 10px; white-space: nowrap; }
   .cu-strip .cu-metrics { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
   /* Each metric is a self-contained chip — reads cleanly on its own whether it's
      inline (desktop, one 26px line) or wrapped onto its own line (narrow phone),
@@ -133,11 +133,21 @@
        reset texts begin at one x. Min-widths only approximated that, and drifted
        apart the moment "week" and "session" measured differently. */
     .cu-strip .cu-seg {
-      display: grid; grid-template-columns: 4.1em 52px 2.8em 1fr;
-      align-items: center; gap: 6px; width: 100%; box-sizing: border-box;
+      display: grid; grid-template-columns: 3.6em 44px 2.5em 1fr;
+      align-items: center; gap: 5px; width: 100%; box-sizing: border-box;
     }
+    .cu-strip .cu-bar { width: 44px; }
+    .cu-strip .cu-dim { font-size: 11.5px; }
     .cu-strip .cu-pct { text-align: right; }
     .cu-strip .cu-dim { text-align: left; }
+  }
+  /* The narrowest phones still in use. Every fixed column gives up a few px so
+     the reset time — the part worth keeping — still has somewhere to sit. */
+  @media (max-width: 340px) {
+    .cu-strip .cu-seg { grid-template-columns: 3.2em 34px 2.3em 1fr; gap: 4px; }
+    .cu-strip .cu-bar { width: 34px; }
+    .cu-strip .cu-who { margin-right: 6px; }
+    .cu-strip { padding-left: 6px; }
   }
   /* toggle row's On state gets a green dot, like a running app */
   .sm-item[data-id="claudeusage"].cu-on .sm-name::after {
@@ -4056,16 +4066,30 @@
     if (!ts) return '';
     var dt = new Date(ts * 1000);
     var days = (ts - Math.floor(Date.now() / 1000)) / 86400;
-    var t = dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    return days >= 1 ? dt.toLocaleDateString([], { weekday: 'short' }) + ' ' + t : t;
+    // A reset a day or more out only needs the day and the hour — "Thu 10 AM".
+    // Minutes matter when it is minutes away, not when it is two days away, and
+    // dropping them buys ~30px in a strip that is fighting for every one.
+    if (days >= 1) {
+      return dt.toLocaleDateString([], { weekday: 'short' }) + ' ' +
+             dt.toLocaleTimeString([], { hour: 'numeric' });
+    }
+    return dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
   function seg(label, pct, reset) {
     var p = Math.round((pct || 0) * 100);
     var cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
     var rtxt = reset ? fmtReset(reset) : '';
     var rat = reset ? fmtResetAt(reset) : '';
-    var r = rtxt ? '<span class="cu-dim">· resets ' + rtxt +
-                   (rat ? '<span class="cu-at"> (' + rat + ')</span>' : '') + '</span>' : '';
+    // Three forms, longest first, so fitSegs() can step down instead of deleting.
+    // The step that matters: the CLOCK TIME survives and the duration goes, not
+    // the other way round — "resets Thu 10:00 AM" is both shorter and the thing
+    // worth keeping. (Reported, bluntly and correctly, when the first version
+    // shed the time and kept "2d 20h".)
+    var full = '· resets ' + rtxt + (rat ? ' (' + rat + ')' : '');
+    var mid  = rat ? '· resets ' + rat : full;
+    var min  = rat ? '· ' + rat : ('· ' + rtxt);     // the word "resets" is the last thing to go
+    var r = rtxt ? '<span class="cu-dim" data-full="' + full + '" data-mid="' + mid +
+                   '" data-min="' + min + '">' + full + '</span>' : '';
     var title = rtxt ? ' title="resets in ' + rtxt + (rat ? ' — at ' + rat : '') + '"' : '';
     return '<span class="cu-seg"' + title + '><span class="cu-lbl">' + label + '</span>' +
       '<span class="cu-bar"><span class="cu-fill ' + cls + '" style="width:' + p + '%"></span></span>' +
@@ -4099,7 +4123,16 @@
     // metrics column it was a third stacked row, which is what made the strip
     // three lines tall on a phone. It is never shed: how old the number is is
     // part of reading the number.
-    var asof = (d.stale) ? '<span class="cu-asof">as of ' + Math.round((d.ageSec || 0) / 60) + 'm ago</span>' : '';
+    // Shown once the numbers are a minute old, not only once the server calls
+    // them stale — the space under "Claude" is where the reading's age lives, and
+    // it was empty most of the time. Fresh data still says nothing.
+    var ageMin = Math.round((d.ageSec || 0) / 60);
+    // Just "3m ago". Sitting under "Claude" in the identity column, "as of" was
+    // three words of scaffolding holding up one number — and every px it took
+    // came straight out of the reset time on the row beside it.
+    var asof = (d.stale || ageMin >= 1)
+      ? '<span class="cu-asof" title="usage data was read ' + ageMin + ' minutes ago">' +
+        ageMin + 'm ago</span>' : '';
     var html = '<span class="cu-who"><span class="cu-brand">Claude</span>' + asof + '</span>' +
                '<span class="cu-metrics">';
     if (d.session && d.session.pct != null) {
@@ -4124,12 +4157,14 @@
   function fitSegs() {
     var segs = strip.querySelectorAll('.cu-seg');
     for (var i = 0; i < segs.length; i++) {
-      var seg = segs[i];
-      var at = seg.querySelector('.cu-at'), dim = seg.querySelector('.cu-dim');
-      if (at) at.hidden = false;
-      if (dim) dim.hidden = false;
-      if (at && seg.scrollWidth > seg.clientWidth + 1) at.hidden = true;
-      if (dim && seg.scrollWidth > seg.clientWidth + 1) dim.hidden = true;
+      var seg = segs[i], dim = seg.querySelector('.cu-dim');
+      if (!dim) continue;
+      var over = function() { return seg.scrollWidth > seg.clientWidth + 1; };
+      dim.hidden = false;
+      dim.textContent = dim.dataset.full;             // "· resets 2d 20h (Thu 10:00 AM)"
+      if (over()) dim.textContent = dim.dataset.mid;  // "· resets Thu 10:00 AM"
+      if (over()) dim.textContent = dim.dataset.min;  // "· Thu 10:00 AM"
+      if (over()) dim.hidden = true;                  // label · bar · % only
     }
   }
   // The available width changes without the numbers changing: rotation, window
