@@ -1223,7 +1223,8 @@
     minesweeper: { label: 'Minesweeper', icon: '💣', src: '/minesweeper.html', desc: 'Classic mine hunt', section: 'games' },
     solitaire:   { label: 'Solitaire',   icon: '🃏', src: '/solitaire.html',   desc: 'Klondike patience',  section: 'games' },
     game2048:    { label: '2048',        icon: '🔢', src: '/game2048.html',    desc: 'Slide & merge tiles', section: 'games' },
-    circuit:     { label: 'Circuit Runner', icon: '🤖', src: '/circuit.html', desc: 'Side-scrolling platformer', section: 'games' }
+    circuit:     { label: 'Circuit Runner', icon: '🤖', src: '/circuit.html', desc: 'Side-scrolling platformer', section: 'games' },
+    rts:         { label: 'Iron Frontier', icon: '⚔️', src: '/rts.html', desc: 'Isometric real-time strategy', section: 'games' }
   };
   // Attach the matching SVG icon to each app (fallback stays the `icon` emoji).
   Object.keys(APPS).forEach(function(id) { if (ICON[id]) APPS[id].svg = ICON[id]; });

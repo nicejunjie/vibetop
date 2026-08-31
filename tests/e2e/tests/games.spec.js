@@ -26,7 +26,7 @@ test.describe('games', () => {
     // hidden until the parent row opens it (click = open on mouse, toggle on
     // touch — a first click opens in both models).
     await page.locator('#sm-games-parent').click();
-    for (const id of ['minesweeper', 'solitaire', 'game2048', 'circuit']) {
+    for (const id of ['minesweeper', 'solitaire', 'game2048', 'circuit', 'rts']) {
       await expect(page.locator(`#sm-games .sm-item[data-id="${id}"]`)).toBeVisible();
     }
   });
