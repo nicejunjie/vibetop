@@ -126,6 +126,12 @@
     padding: 7px 18px; font-size: 13px; font-weight: 600;
   }
   .modal .primary:hover { background: #9a5ceb; }
+  .modal .ghost {
+    background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1;
+    padding: 7px 18px; font-size: 13px; font-weight: 600;
+  }
+  .modal .ghost:hover { color: #e6edf3; background: #253044; }
+  .modal .btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
   .help .modal {
     text-align: left; max-width: min(330px, 90vw); max-height: 86%;
     overflow: auto; padding: 18px 20px;
@@ -166,6 +172,7 @@
     <span class="title"><span class="ic">🃏</span><span class="txt">Solitaire</span></span>
     <span class="stat" id="moves">0 moves</span>
     <span class="spacer"></span>
+    <button id="lbBtn" title="Leaderboard — best deals and stats">🏆</button>
     <button id="helpBtn" title="How to play">?</button>
     <button id="undoBtn" title="Undo last move">↩ Undo</button>
     <button id="newBtn">New</button>
@@ -180,7 +187,10 @@
         <h2>You won!</h2>
         <p id="ovMsg"></p>
         <div id="scores"></div>
-        <button class="primary" id="ovNew">New Game</button>
+        <div class="btns">
+          <button class="primary" id="ovNew">New Game</button>
+          <button class="ghost" id="ovLb">🏆 Leaderboard</button>
+        </div>
       </div>
     </div>
     <div class="overlay help" id="helpOv">
@@ -223,6 +233,7 @@
   var stock = [], waste = [], found = [[], [], [], []], tab = [[], [], [], [], [], [], []];
   var moves = 0, undoStack = [];
   var sess = '';              // one id per dealt game — see gamescore.js
+  var dealt = false;          // a deal has been played (so the next one can score it)
   var sel = null;            // {loc:'waste'|'found'|'tab', pile, idx}
   var won = false;
   var lastFlipped = null;     // {pile, idx} tableau card auto-flipped by the last move
@@ -249,6 +260,8 @@
   function setMoves(m) { moves = m; movesEl.textContent = moves + (moves === 1 ? ' move' : ' moves'); }
 
   function deal() {
+    if (dealt && !won) vibeScores.finish('sol', '', false);
+    dealt = true;
     sess = vibeScores.session();      // one id per dealt game — see gamescore.js
     var deck = [];
     for (var s = 0; s < 4; s++) for (var r = 1; r <= 13; r++) deck.push({ r: r, s: s, up: false });
@@ -568,6 +581,7 @@
     won = true;
     // Only a solved deal is a result worth ranking, and fewer moves is better.
     var r = vibeScores.record({ game: 'sol', value: moves, lower: true, session: sess });
+    vibeScores.finish('sol', '', true);
     document.getElementById('ovMsg').textContent =
       'Solved in ' + moves + ' moves.' + (r.rank === 1 ? ' A new best!' : '');
     vibeScores.render(document.getElementById('scores'), {
@@ -790,6 +804,21 @@
   document.getElementById('newBtn').addEventListener('click', deal);
   document.getElementById('ovNew').addEventListener('click', deal);
   document.getElementById('undoBtn').addEventListener('click', undo);
+
+  // Hand off to the Leaderboard app on THIS game's tab. In the shell that is a
+  // message to the desktop; opened standalone there is no shell to ask.
+  function openLeaderboard() {
+    lsSet('vibetop:lb:tab', 'sol');
+    try {
+      if (window.parent !== window) {
+        window.top.postMessage({ type: 'open-app', app: 'leaderboard' }, '*');
+        return;
+      }
+    } catch (e) {}
+    location.href = 'leaderboard.html';
+  }
+  document.getElementById('lbBtn').addEventListener('click', openLeaderboard);
+  document.getElementById('ovLb').addEventListener('click', openLeaderboard);
 
   document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
   document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });

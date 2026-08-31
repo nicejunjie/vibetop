@@ -46,6 +46,7 @@
   #flagMode { min-width: 40px; font-size: 14px; padding: 3px 8px; }
   #flagMode.on { background: #3a2a55; border-color: #8a4adb; color: #cbb0f2; box-shadow: 0 0 0 1px #8a4adb inset; }
   #helpBtn { min-width: 30px; font-weight: 700; color: #aab4c5; }
+  #lbBtn { min-width: 34px; font-size: 14px; padding: 3px 7px; }
   /* ---- classic status bar: LED counters + smiley ---- */
   .status {
     display: flex; align-items: center; justify-content: space-between;
@@ -120,20 +121,6 @@
   /* The help card is a later sibling at the same z-index, so it painted over the
      game-over card and swallowed its taps. */
   .overlay.help { z-index: 6; }
-  /* A window barely taller than the card: shed the decoration and put the two
-     controls side by side. Below ~200px of usable height nothing else fits, and
-     an unreachable button is worse than a plain one. */
-  @media (max-height: 340px) {
-    .card { padding: 10px 12px; min-width: 0; }
-    .card .big, .card p { display: none; }
-    .card h2 { font-size: 13px; margin-bottom: 8px; }
-    .card .btns { flex-direction: row; gap: 6px; }
-    .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; }
-  }
-  @media (max-height: 220px) {
-    .card h2 { display: none; }
-    .card { padding: 8px; }
-  }
   .overlay.show { display: flex; }
   .card {
     background: #161b22; border: 1px solid #2a3040; border-radius: 12px;
@@ -157,6 +144,23 @@
      backdrop, which did nothing at all, so it read as broken. */
   .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
   .card .ghost:hover { color: #e6edf3; background: #253044; }
+  /* A window barely taller than the card: shed the decoration and put the
+     controls side by side. Below ~200px of usable height nothing else fits, and
+     an unreachable button is worse than a plain one.
+     THIS MUST STAY BELOW the base .card rules: same specificity, so when it sat
+     above them `flex-direction: column` won and the row layout never applied —
+     invisible while the card had two buttons, a clipped third one after that. */
+  @media (max-height: 340px) {
+    .card { padding: 10px 12px; min-width: 0; }
+    .card .big, .card p { display: none; }
+    .card h2 { font-size: 13px; margin-bottom: 8px; }
+    .card .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; width: auto; flex: 1 1 auto; }
+  }
+  @media (max-height: 220px) {
+    .card h2 { display: none; }
+    .card { padding: 8px; }
+  }
   /* ---- help card ---- */
   .help .card {
     text-align: left; max-width: min(340px, 90vw); max-height: 86%;
@@ -199,6 +203,7 @@
     </select>
     <span class="spacer"></span>
     <button id="flagMode" title="Flag mode: taps place flags (long-press also flags)">🚩</button>
+    <button id="lbBtn" title="Leaderboard — best times and stats">🏆</button>
     <button id="helpBtn" title="How to play">?</button>
     <button id="newBtn" title="Start a new game (F2)">New</button>
   </div>
@@ -217,6 +222,7 @@
         <div id="scores"></div>
         <div class="btns">
           <button class="primary" id="ovNew">New Game</button>
+          <button class="ghost" id="ovLb">🏆 Leaderboard</button>
           <button class="ghost" id="ovClose" title="Hide this card and look at the finished board">Close</button>
         </div>
       </div>
@@ -451,6 +457,7 @@
     ovIcon.textContent = '💥';
     ovTitle.textContent = 'Boom!';
     ovMsg.textContent = 'Hit a mine after ' + elapsed + 's.';
+    vibeScores.finish('mine', diff, false);
     showScores(null);          // a loss sets no record, but still shows the table
     overlay.classList.add('show');
   }
@@ -472,6 +479,7 @@
     ovIcon.textContent = '🎉';
     ovTitle.textContent = 'Cleared!';
     var r = vibeScores.record({ game: 'mine', board: diff, value: elapsed, lower: true, session: sess });
+    vibeScores.finish('mine', diff, true);
     ovMsg.textContent = 'All safe cells in ' + elapsed + 's.' + (r.rank === 1 ? ' A new best!' : '');
     showScores(r.entry);
     overlay.classList.add('show');
@@ -607,10 +615,25 @@
   // tap that does something else is one that lands on New Game — so "I want to
   // look at the board" cannot miss.
   overlay.addEventListener('click', function(ev) {
-    if (ev.target.closest('#ovNew')) return;
+    if (ev.target.closest('#ovNew') || ev.target.closest('#ovLb')) return;
     overlay.classList.remove('show');
   });
   diffEl.addEventListener('change', function() { newGame(diffEl.value); });
+
+  // Hand off to the Leaderboard app on THIS game's tab. In the shell that is a
+  // message to the desktop; opened standalone there is no shell to ask.
+  function openLeaderboard() {
+    lsSet('vibetop:lb:tab', 'mine');
+    try {
+      if (window.parent !== window) {
+        window.top.postMessage({ type: 'open-app', app: 'leaderboard' }, '*');
+        return;
+      }
+    } catch (e) {}
+    location.href = 'leaderboard.html';
+  }
+  document.getElementById('lbBtn').addEventListener('click', openLeaderboard);
+  document.getElementById('ovLb').addEventListener('click', openLeaderboard);
 
   document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
   document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });

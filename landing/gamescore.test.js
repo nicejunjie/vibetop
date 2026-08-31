@@ -48,6 +48,7 @@ function sandbox() {
     localStorage: {
       getItem: (k) => (store.has(k) ? store.get(k) : null),
       setItem: (k, v) => store.set(k, String(v)),
+      removeItem: (k) => store.delete(k),
     },
   };
   win.window = win;
@@ -82,15 +83,16 @@ test("boards are independent lists inside one game", () => {
   assert.deepEqual(Array.from(S.list({ game: "mine", board: "hard", lower: true }), (e) => e.v), [300]);
 });
 
-test("the table keeps at most 5 rows, dropping the worst", () => {
+test("the table keeps at most 10 rows, dropping the worst", () => {
   const { S } = sandbox();
-  [5, 1, 4, 2, 6, 3].forEach((v) => S.record({ game: "sol", value: v, lower: true }));
-  assert.deepEqual(Array.from(S.list({ game: "sol", lower: true }), (e) => e.v), [1, 2, 3, 4, 5]);
+  for (let v = 14; v >= 1; v--) S.record({ game: "sol", value: v, lower: true });
+  assert.deepEqual(Array.from(S.list({ game: "sol", lower: true }), (e) => e.v),
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 });
 
 test("a run that misses the table reports rank 0 and no entry", () => {
   const { S } = sandbox();
-  [1, 2, 3, 4, 5].forEach((v) => S.record({ game: "sol", value: v, lower: true }));
+  for (let v = 1; v <= 10; v++) S.record({ game: "sol", value: v, lower: true });
   const r = S.record({ game: "sol", value: 99, lower: true });
   assert.equal(r.rank, 0);
   assert.equal(r.entry, null);
@@ -132,6 +134,29 @@ test("an existing single best is imported once, undated, and not duplicated", ()
   assert.deepEqual(Array.from(list, (e) => e.v), [8888, 100], "imported once, not on every call");
 });
 
+test("a legacy key the game keeps rewriting is not re-imported (the 1376-twice bug)", () => {
+  const { S, store } = sandbox();
+  // 2048 writes vt-2048-best on every move, so by the time the run ends the
+  // "legacy" key holds THIS run's score. Importing it then listed the same
+  // number twice — once undated from the import, once dated from the record.
+  store.set("vt-2048-best", "1376");
+  S.record({ game: "2048", value: 1376, seed: "vt-2048-best" });
+  assert.deepEqual(Array.from(S.list({ game: "2048", seed: "vt-2048-best" }), (e) => e.v), [1376]);
+
+  store.set("vt-2048-best", "2500");
+  S.record({ game: "2048", value: 2500, seed: "vt-2048-best" });
+  assert.deepEqual(Array.from(S.list({ game: "2048", seed: "vt-2048-best" }), (e) => e.v), [2500, 1376]);
+});
+
+test("the legacy import survives a read that happens before any record", () => {
+  const { S, store } = sandbox();
+  store.set("vibetop:circuit:best", "4200");
+  S.list({ game: "circuit", seed: "vibetop:circuit:best" });      // page just looks
+  store.delete("vibetop:circuit:best");                            // legacy key gone
+  assert.deepEqual(Array.from(S.list({ game: "circuit", seed: "vibetop:circuit:best" }), (e) => e.v),
+    [4200], "the imported row was persisted, not recomputed on every read");
+});
+
 test("a missing or junk legacy key imports nothing", () => {
   const { S, store } = sandbox();
   store.set("vibetop:circuit:best", "0");
@@ -145,6 +170,78 @@ test("corrupt stored JSON degrades to an empty table instead of throwing", () =>
   store.set("vibetop:scores:mine", "{not json");
   assert.equal(S.list({ game: "mine", board: "easy" }).length, 0);
   assert.doesNotThrow(() => S.record({ game: "mine", board: "easy", value: 10, lower: true }));
+});
+
+// ---- stats layer ---------------------------------------------------------
+
+test("stats start zero-filled, so callers never guard", () => {
+  const { S } = sandbox();
+  const s = S.stats("mine", "easy");
+  assert.deepEqual({ n: s.n, w: s.w, cur: s.cur, best: s.best }, { n: 0, w: 0, cur: 0, best: 0 });
+  assert.equal(Object.keys(s.x).length, 0);
+});
+
+test("finish counts games, wins, and the current streak", () => {
+  const { S } = sandbox();
+  S.finish("mine", "easy", true);
+  S.finish("mine", "easy", true);
+  S.finish("mine", "easy", false);
+  const s = S.stats("mine", "easy");
+  assert.deepEqual({ n: s.n, w: s.w, cur: s.cur, best: s.best }, { n: 3, w: 2, cur: 0, best: 2 });
+});
+
+test("a loss breaks the streak but never the record", () => {
+  const { S } = sandbox();
+  [true, true, true, false, true].forEach((won) => S.finish("sol", "", won));
+  const s = S.stats("sol", "");
+  assert.equal(s.best, 3, "longest streak survives the loss");
+  assert.equal(s.cur, 1, "current streak restarted");
+});
+
+test("stats are per board, like the score lists", () => {
+  const { S } = sandbox();
+  S.finish("mine", "easy", true);
+  S.finish("mine", "hard", false);
+  assert.equal(S.stats("mine", "easy").n, 1);
+  assert.equal(S.stats("mine", "easy").w, 1);
+  assert.equal(S.stats("mine", "hard").w, 0);
+});
+
+test("extras keep a high-water mark: a worse run cannot walk it back", () => {
+  const { S } = sandbox();
+  S.finish("2048", "", false, { tile: 1024 });
+  S.finish("2048", "", false, { tile: 256 });
+  assert.equal(S.stats("2048", "").x.tile, 1024);
+  S.finish("2048", "", true, { tile: 2048 });
+  assert.equal(S.stats("2048", "").x.tile, 2048);
+});
+
+test("non-numeric extras are ignored rather than stored", () => {
+  const { S } = sandbox();
+  S.finish("circuit", "", false, { sector: 3, junk: "nope", nan: NaN });
+  const x = S.stats("circuit", "").x;
+  assert.equal(x.sector, 3);
+  assert.equal("junk" in x, false);
+  assert.equal("nan" in x, false);
+});
+
+test("reset clears scores, stats AND the legacy seed", () => {
+  const { S, store } = sandbox();
+  store.set("vt-2048-best", "9999");
+  S.record({ game: "2048", value: 500 });
+  S.finish("2048", "", true, { tile: 512 });
+  S.reset("2048", ["vt-2048-best"]);
+  assert.equal(S.list({ game: "2048", seed: "vt-2048-best" }).length, 0,
+    "the seed must go too, or the wiped best comes straight back");
+  assert.equal(S.stats("2048", "").n, 0);
+});
+
+test("corrupt stats JSON degrades to zeros instead of throwing", () => {
+  const { S, store } = sandbox();
+  store.set("vibetop:stats:mine", "{not json");
+  assert.equal(S.stats("mine", "easy").n, 0);
+  assert.doesNotThrow(() => S.finish("mine", "easy", true));
+  assert.equal(S.stats("mine", "easy").n, 1);
 });
 
 // ---- rendering -----------------------------------------------------------

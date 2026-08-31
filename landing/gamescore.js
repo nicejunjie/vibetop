@@ -28,21 +28,41 @@
 //            entry, so one played game can only ever occupy one row
 //   seed     legacy single-best key to import once (e.g. 'vt-2048-best')
 //   unit     suffix for the number ('s', ' moves'); or fmt(v) for full control
+//
+// The stats layer (`vibetop:stats:<game>`) feeds the Leaderboard page, which is
+// the full view of all of this — the cards only ever show a top-3 teaser:
+//   vibeScores.finish('mine', 'easy', true)            // once per FINISHED game
+//   vibeScores.finish('2048', '', reached2048, { tile: 2048 })
+//   vibeScores.stats('mine', 'easy')  -> { n, w, cur, best, x }
+//   vibeScores.reset('mine', ['vt-2048-best'])         // scores + stats + seeds
 (function () {
-  var KEEP = 5;      // rows kept per board
-  var SHOW = 3;      // rows displayed — a top-3 is a leaderboard; a top-10 is a spreadsheet
+  var KEEP = 10;     // rows kept per board — the Leaderboard page shows all of them
+  var SHOW = 3;      // rows a game-over CARD shows — a top-3 teaser, not a spreadsheet
   var PFX = 'vibetop:scores:';
+  var SPFX = 'vibetop:stats:';
   var seq = 0;
 
-  function read(game) {
+  function readKey(prefix, game) {
     try {
-      var raw = localStorage.getItem(PFX + game);
+      var raw = localStorage.getItem(prefix + game);
       var o = raw ? JSON.parse(raw) : null;
       return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
     } catch (_) { return {}; }
   }
-  function write(game, all) {
-    try { localStorage.setItem(PFX + game, JSON.stringify(all)); } catch (_) {}
+  function writeKey(prefix, game, all) {
+    try { localStorage.setItem(prefix + game, JSON.stringify(all)); } catch (_) {}
+  }
+  function read(game) { return readKey(PFX, game); }
+  function write(game, all) { writeKey(PFX, game, all); }
+
+  function num(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? v : 0; }
+  // Zero-filled so every caller can read .n/.w/.cur/.best/.x without guarding.
+  function statsOf(game, board) {
+    var s = readKey(SPFX, game)[board || ''] || {};
+    return {
+      n: num(s.n), w: num(s.w), cur: num(s.cur), best: num(s.best),
+      x: (s.x && typeof s.x === 'object' && !Array.isArray(s.x)) ? s.x : {}
+    };
   }
   function sorter(lower) {
     return function (a, b) {
@@ -53,19 +73,29 @@
   // A pre-existing single "best" (2048 and Circuit Runner each shipped one long
   // before this table) becomes row 1 instead of being thrown away. t:0 marks it
   // as undated so the row shows no date rather than a wrong one.
-  function seedFrom(list, key) {
-    if (!key || list.length) return list;
-    var v;
-    try { v = parseInt(localStorage.getItem(key) || '', 10); } catch (_) { return list; }
-    if (v > 0) list.push({ v: v, t: 0 });
-    return list;
+  //
+  // It runs ONCE per browser and WRITES the imported row, both deliberately.
+  // 2048 still rewrites vt-2048-best on every move for its own header chip, so
+  // an import that merely returned the value on each read would re-import the
+  // score the player had just set — the table listed the same 1376 twice, once
+  // dated and once not. The marker key is what makes "legacy" mean "from before
+  // this table existed" instead of "whatever that key says right now".
+  function migrate(o) {
+    if (!o.seed) return;
+    var mark = PFX + o.game + ':seeded';
+    try { if (localStorage.getItem(mark)) return; } catch (_) { return; }
+    var all = read(o.game), key = o.board || '', list = all[key] || [];
+    var v = 0;
+    try { v = parseInt(localStorage.getItem(o.seed) || '', 10) || 0; } catch (_) {}
+    if (!list.length && v > 0) { all[key] = [{ v: v, t: 0 }]; write(o.game, all); }
+    try { localStorage.setItem(mark, '1'); } catch (_) {}
   }
 
   function listOf(o) {
+    migrate(o);
     var all = read(o.game);
     var list = all[o.board || ''] || [];
     list = list.filter(function (e) { return e && typeof e.v === 'number' && isFinite(e.v); });
-    list = seedFrom(list, o.seed);
     list.sort(sorter(!!o.lower));
     return list;
   }
@@ -130,15 +160,25 @@
 
     list: listOf,
 
+    // Import a pre-table single best, once. Games call this at STARTUP, while
+    // the legacy key still holds a score from before this table existed — 2048
+    // and Circuit rewrite that key as you play, so importing it later would
+    // import the run in progress.
+    migrate: function (o) { migrate(o); },
+
     record: function (o) {
+      migrate(o);
       var all = read(o.game);
       var key = o.board || '';
-      var list = seedFrom((all[key] || []).filter(function (e) {
+      var list = (all[key] || []).filter(function (e) {
         return e && typeof e.v === 'number' && isFinite(e.v);
-      }), o.seed);
+      });
       if (o.session) {
         list = list.filter(function (e) { return e.s !== o.session; });
       }
+      // An undated row is the legacy import; if this run matches it exactly,
+      // they are the same achievement counted twice — keep the dated one.
+      list = list.filter(function (e) { return !(!e.t && e.v === o.value); });
       var entry = { v: o.value, t: Date.now() };
       if (o.session) entry.s = o.session;
       list.push(entry);
@@ -148,6 +188,45 @@
       write(o.game, all);
       var rank = list.indexOf(entry) + 1;      // 0 = did not make the table
       return { rank: rank, entry: rank ? entry : null, list: list };
+    },
+
+    // Call once per FINISHED game — not per new game. Counting at the start
+    // inflates the total with every app open; counting at the end means "games
+    // played" is games you actually saw through. `extra` fields are merged with
+    // a max rule (best 2048 tile, furthest Circuit sector), so a worse run
+    // never walks a high-water mark back.
+    finish: function (game, board, won, extra) {
+      var all = readKey(SPFX, game);
+      var key = board || '';
+      var s = statsOf(game, key);
+      s.n += 1;
+      if (won) { s.w += 1; s.cur += 1; if (s.cur > s.best) s.best = s.cur; }
+      else s.cur = 0;
+      if (extra) {
+        for (var k in extra) {
+          if (!Object.prototype.hasOwnProperty.call(extra, k)) continue;
+          var v = extra[k];
+          if (typeof v !== 'number' || !isFinite(v)) continue;
+          if (!(num(s.x[k]) > v)) s.x[k] = v;
+        }
+      }
+      all[key] = s;
+      writeKey(SPFX, game, all);
+      return s;
+    },
+
+    stats: statsOf,
+
+    // Wipes one game completely: every board's scores AND its stats. The legacy
+    // single-best keys go too, or the next list() would re-import the score the
+    // user just asked to forget.
+    reset: function (game, seeds) {
+      try {
+        localStorage.removeItem(PFX + game);
+        localStorage.removeItem(PFX + game + ':seeded');
+        localStorage.removeItem(SPFX + game);
+        (seeds || []).forEach(function (k) { localStorage.removeItem(k); });
+      } catch (_) {}
     },
 
     // Renders into `el` (replacing its content). Returns the number of rows.

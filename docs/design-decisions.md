@@ -4553,3 +4553,26 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** when a user reports "I clicked and nothing happened", check what the
   label PROMISED before checking whether the handler fired. A working control
   with a misread label is a UX bug, not a phantom.
+- **Resolution (v1.19.159):** a top-3 teaser on the card was still not what was
+  asked for — *"我是让你给每个游戏专门的加一个 leaderboard，而不是像现在这样草草的"*,
+  then *"我只需要一个 leaderboard 页面"*. Both at once: **one** page,
+  `landing/leaderboard.html`, with a tab per game carrying a top-10 and stats
+  tailored to that game. The teaser stays on the cards; a 🏆 button on each card
+  and each game toolbar opens the page, through a new generic `open-app` shell
+  verb whose whitelist is the `APPS` map itself.
+- **Three more traps, all found by running it rather than reading it:**
+  - The legacy-best import ran on every read, but 2048 **rewrites**
+    `vt-2048-best` on every merge — so at the first game over it imported the
+    run in progress and the table listed the same 1376 twice, once dated and
+    once not. Invisible while only 3 rows showed. The import is now one-shot,
+    persisted, marked with `vibetop:scores:<game>:seeded`, and the games run it
+    at STARTUP while the key still means "from before this table existed".
+  - `@media (max-height: 340px)` in `minesweeper.html` sat ABOVE the base
+    `.card` rules. Equal specificity, so `flex-direction: column` won and the
+    short-window row layout had **never** applied — harmless with two buttons,
+    a button below the viewport edge with three. `game2048.html` had no such
+    rule at all. Both fixed, both now below the base rules with a comment
+    saying why.
+  - A run that ends counts once, at the END. Counting at game start inflates
+    "games played" every time the app is opened; Solitaire has no loss event at
+    all, so an unsolved deal is scored when the NEXT one is dealt.

@@ -62,7 +62,7 @@
                     4px calc(5px + env(safe-area-inset-left, 0px)); }
     .stat { padding: 2px 5px; min-width: 36px; }
     .stat .val { font-size: 12px; }
-    #helpBtn, #sndBtn, #fsBtn, #pauseBtn { min-width: 26px; padding: 5px 5px; }
+    #helpBtn, #sndBtn, #fsBtn, #pauseBtn, #lbBtn { min-width: 26px; padding: 5px 5px; }
   /* 32x30 shoulder-to-shoulder is under every touch-target guideline, and the
      one that wipes your run sat 4px from the one you tap to read the help. */
   body.touch .bar button { min-height: 38px; min-width: 38px; }
@@ -83,11 +83,11 @@
   body.touch #fsBtn { display: block; }
   #pauseBtn svg, #fsBtn svg { display: block; }
   body.touch #pauseBtn { display: block; }
-  #helpBtn, #sndBtn, #fsBtn, #pauseBtn {
+  #helpBtn, #sndBtn, #fsBtn, #pauseBtn, #lbBtn {
     background: #1f2733; border-color: #2a3040; color: #aab4c5;
     min-width: 32px; font-weight: 700; padding: 5px 8px;
   }
-  #helpBtn:hover, #sndBtn:hover, #fsBtn:hover, #pauseBtn:hover { background: #253044; border-color: #3a4358; }
+  #helpBtn:hover, #sndBtn:hover, #fsBtn:hover, #pauseBtn:hover, #lbBtn:hover { background: #253044; border-color: #3a4358; }
   #sndBtn.off { color: #5a6274; }
 
   .wrap {
@@ -220,7 +220,16 @@
     .card { padding: 12px 16px; }
     .card .big { display: none; }
     .card p { margin-bottom: 8px; }
-    .card .btns { flex-direction: row; }
+    .card .btns { flex-direction: row; flex-wrap: wrap; }
+  }
+  /* Squatter still: the three buttons are the card. "or start at" is a
+     convenience and the title is decoration — both go before a button is
+     allowed to fall past the bottom edge. */
+  @media (max-height: 250px) {
+    .card { padding: 8px 12px; }
+    .card h2 { font-size: 13px; margin-bottom: 4px; }
+    .card p { font-size: 11.5px; margin-bottom: 6px; }
+    .card .pick { display: none; }
   }
 
   .help .card { text-align: left; max-height: 90%; overflow: auto; padding: 16px 18px; position: relative; }
@@ -277,6 +286,7 @@
     <button id="fsBtn" title="Fullscreen / landscape" aria-label="Fullscreen"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M1 5V1h4M13 5V1H9M1 9v4h4M13 9v4H9"/></svg></button>
     <button id="pauseBtn" title="Pause" aria-label="Pause"><svg width="11" height="12" viewBox="0 0 11 12" aria-hidden="true"><rect x="0" y="0" width="4" height="12" rx="1" fill="currentColor"/><rect x="7" y="0" width="4" height="12" rx="1" fill="currentColor"/></svg></button>
     <button id="sndBtn" title="Sound on/off">🔊</button>
+    <button id="lbBtn" title="Leaderboard — best scores and stats">🏆</button>
     <button id="helpBtn" title="How to play">?</button>
     <button id="newBtn">New</button>
   </div>
@@ -308,6 +318,7 @@
         <div class="btns" id="ovBtns">
           <button class="primary" id="ovGo">Start</button>
           <button class="ghost" id="ovAlt" hidden>Restart world</button>
+          <button class="ghost" id="ovLb" hidden>🏆 Leaderboard</button>
         </div>
         <div class="pick" id="ovPick" hidden>
           <span class="pl">or start at</span>
@@ -2314,6 +2325,7 @@
   var ovAlt = document.getElementById('ovAlt');
   var ovPick = document.getElementById('ovPick');
   var ovScores = document.getElementById('ovScores');
+  var ovLb = document.getElementById('ovLb');
   // Start a fresh run at the chosen sector: lives, score and coins reset, so
   // picking sector 05 is a new game that begins there, not a cheat into the
   // middle of the one you were playing.
@@ -2345,6 +2357,7 @@
   var fireworks = 0, fwT = 0;
   var shakeT = 0;
 
+  vibeScores.migrate({ game: 'circuit', seed: 'vibetop:circuit:best' });
   try { best = parseInt(localStorage.getItem('vibetop:circuit:best') || '0', 10) || 0; } catch (e) {}
 
   function saveBest() {
@@ -2364,7 +2377,20 @@
       ? vibeScores.record({ game: 'circuit', value: score, session: sess, seed: 'vibetop:circuit:best' })
       : { entry: null };
   }
+  // Hand off to the Leaderboard app on THIS game's tab. In the shell that is a
+  // message to the desktop; opened standalone there is no shell to ask.
+  function openLeaderboard() {
+    try { localStorage.setItem('vibetop:lb:tab', 'circuit'); } catch (e) {}
+    try {
+      if (window.parent !== window) {
+        window.top.postMessage({ type: 'open-app', app: 'leaderboard' }, '*');
+        return;
+      }
+    } catch (e) {}
+    location.href = 'leaderboard.html';
+  }
   function showScores(entry) {
+    ovLb.hidden = false;
     vibeScores.render(ovScores, {
       game: 'circuit', title: 'Best scores', seed: 'vibetop:circuit:best',
       highlight: entry, empty: 'No score yet.'
@@ -3153,6 +3179,7 @@
     } else {
       state = 'win';
       var rw = recordScore();
+      vibeScores.finish('circuit', '', true, { sector: LEVELS.length });
       showCard('👑', 'The network is clean',
                'Final score ' + score + (rw.rank === 1 ? ' — a new best.' : '') +
                '  Time bonus ' + bonusPaid + '.',
@@ -4286,6 +4313,7 @@
     releaseControls();          // the pad is about to vanish under this card
     showPick(false);
     ovScores.hidden = true;                  // only the end-of-run cards show it
+    ovLb.hidden = true;                      // ...and the button that opens the full one
     ovIcon.textContent = icon; ovIcon.hidden = !icon;
     ovTitle.textContent = title;
     ovMsg.textContent = msg || '';
@@ -4335,6 +4363,7 @@
     // which is a punishment nobody asked for and the reason people stop.
     var world = WORLD_NAMES[levelIdx];
     var rg = recordScore();
+    vibeScores.finish('circuit', '', false, { sector: levelIdx + 1 });
     showCard('💀', 'Game over',
              'Score ' + score + '.',
              'New game', levelIdx > 0 ? 'Continue at sector ' + world : null,
@@ -4652,6 +4681,8 @@
     else if (state === 'paused') { hideCard(); togglePause(); }
   });
   document.getElementById('helpBtn').addEventListener('click', openHelp);
+  document.getElementById('lbBtn').addEventListener('click', openLeaderboard);
+  ovLb.addEventListener('click', openLeaderboard);
   document.getElementById('helpX').addEventListener('click', closeHelp);
   helpOv.addEventListener('click', function (e) {
     if (e.target === helpOv) closeHelp();
@@ -4791,6 +4822,7 @@
   showCard('🤖', 'Circuit Runner',
            best > 0 ? 'Best score so far: ' + best + '.' : 'Five sectors. Three units. Good luck.',
            'Start', 'How to play', function () { newGame(); }, openHelp, true);
+  ovLb.hidden = false;
   showPick(true);
 })();
 </script>

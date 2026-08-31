@@ -115,9 +115,25 @@
   }
   .card .ghost { background: #1f2733; border: 1px solid #2a3040; color: #cdd5e1; }
   .card .ghost:hover { color: #e6edf3; background: #253044; }
+  /* The same short-window rule Minesweeper carries, and for the same reason: a
+     card with three buttons stacked runs past the bottom of a squat window, and
+     an unreachable button is worse than a plain one. Must stay BELOW the base
+     .card rules — equal specificity, so above them it would never apply. */
+  @media (max-height: 340px) {
+    .card { padding: 10px 12px; min-width: 0; }
+    .card .big, .card p { display: none; }
+    .card h2 { font-size: 13px; margin-bottom: 8px; }
+    .card .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; width: auto; flex: 1 1 auto; }
+  }
+  @media (max-height: 220px) {
+    .card h2 { display: none; }
+    .card { padding: 8px; }
+  }
   .hint { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 11px; color: #3a4050; pointer-events: none; }
-  #helpBtn { background: #1f2733; border-color: #2a3040; color: #aab4c5; min-width: 30px; font-weight: 700; padding: 5px 9px; }
-  #helpBtn:hover { background: #253044; border-color: #3a4358; }
+  #helpBtn, #lbBtn { background: #1f2733; border-color: #2a3040; color: #aab4c5; min-width: 30px; font-weight: 700; padding: 5px 9px; }
+  #helpBtn:hover, #lbBtn:hover { background: #253044; border-color: #3a4358; }
+  #lbBtn { font-size: 14px; }
   .help .card {
     text-align: left; max-width: min(340px, 90vw); max-height: 86%;
     overflow: auto; padding: 18px 20px; position: relative;
@@ -155,6 +171,7 @@
     <span class="spacer"></span>
     <div class="stat"><span class="lbl">Score</span><span class="val" id="score">0</span></div>
     <div class="stat"><span class="lbl">Best</span><span class="val" id="best">0</span></div>
+    <button id="lbBtn" title="Leaderboard — best scores and stats">🏆</button>
     <button id="helpBtn" title="How to play">?</button>
     <button id="newBtn">New</button>
   </div>
@@ -168,6 +185,7 @@
         <div id="scores"></div>
         <div class="btns">
           <button class="primary" id="ovNew">New Game</button>
+          <button class="ghost" id="ovLb">🏆 Leaderboard</button>
           <button class="ghost" id="ovKeep">Keep going</button>
         </div>
       </div>
@@ -214,6 +232,9 @@
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
+  // Fold any pre-table best into the leaderboard NOW, before play rewrites the
+  // key below on the first merge.
+  vibeScores.migrate({ game: '2048', seed: 'vt-2048-best' });
   best = parseInt(lsGet('vt-2048-best'), 10) || 0;
   bestEl.textContent = best;
 
@@ -404,6 +425,9 @@
     ovIcon.textContent = '🧱';
     ovTitle.textContent = 'No moves left';
     ovMsg.textContent = 'Final score ' + score + (score >= best && score > 0 ? ' — new best!' : '.');
+    var tile = 0;
+    each(function(t) { if (t.v > tile) tile = t.v; });
+    vibeScores.finish('2048', '', won, { tile: tile });
     showScores();
     ovKeep.style.display = 'none';
     overlay.classList.add('show');
@@ -425,6 +449,21 @@
 
   // ---- input ----
   var helpOv = document.getElementById('helpOv');
+  // Hand off to the Leaderboard app on THIS game's tab. In the shell that is a
+  // message to the desktop; opened standalone there is no shell to ask.
+  function openLeaderboard() {
+    lsSet('vibetop:lb:tab', '2048');
+    try {
+      if (window.parent !== window) {
+        window.top.postMessage({ type: 'open-app', app: 'leaderboard' }, '*');
+        return;
+      }
+    } catch (e) {}
+    location.href = 'leaderboard.html';
+  }
+  document.getElementById('lbBtn').addEventListener('click', openLeaderboard);
+  document.getElementById('ovLb').addEventListener('click', openLeaderboard);
+
   document.getElementById('helpBtn').addEventListener('click', function() { helpOv.classList.add('show'); });
   document.getElementById('helpX').addEventListener('click', function() { helpOv.classList.remove('show'); });
   helpOv.addEventListener('click', function(ev) { if (ev.target === helpOv) helpOv.classList.remove('show'); });
@@ -470,7 +509,7 @@
   ovNew.addEventListener('click', newGame);
   ovKeep.addEventListener('click', function() { overlay.classList.remove('show'); });
   overlay.addEventListener('click', function(ev) {
-    if (ev.target.closest('#ovNew')) return;
+    if (ev.target.closest('#ovNew') || ev.target.closest('#ovLb')) return;
     overlay.classList.remove('show');
   });
 
