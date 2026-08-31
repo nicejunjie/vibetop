@@ -4898,3 +4898,32 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** for anything the player *feels* — camera, drag, inertia, input
   latency — assert the NUMBER, not the end state. "It ended up in the right
   place" is perfectly compatible with a terrible journey.
+
+## Copying a behaviour without its stylesheet flashed the whole game
+
+- **Symptom:** Iron Frontier flashed the entire screen, roughly once every
+  couple of seconds, but only after a refinery existed — and it kept flashing
+  with the player doing nothing at all, while harvesters ran their route.
+- **Cause:** `creditPop()` — the little "+500" that rises out of the Credits
+  chip when ore is delivered — was copied from `game2048.html`. The FUNCTION
+  was copied. Its CSS was not. Without `.plus { position: absolute }` the span
+  is an ordinary inline child appended to a `flex-direction: column` `.stat`,
+  so every delivery added a real line: the top bar grew 44 → 66 → 88px (two
+  harvesters unloading overlap), the stage shrank to match, `ResizeObserver`
+  fired, and `resize()` assigned `canvas.width` — **which clears the canvas**.
+  A full-screen repaint, once per ore delivery, forever.
+- **How it was found:** measurement, in three steps, after two wrong guesses
+  (sprite facing churn and draw-order flipping, both measured and cleared).
+  Sampling the canvas every frame showed a median per-frame delta of **1** with
+  isolated spikes of **45,000**; a 4×4 region map showed 14 of 16 regions
+  changing at once, which is a full repaint, not an animation; and dumping the
+  canvas dimensions on the spike frame showed `712` where `756` was expected —
+  exactly one bar-height short.
+- **Fix:** the missing `.plus` rule, plus a structural guard — `resize()` now
+  returns early when the pixel size is unchanged, because assigning
+  `canvas.width` clears the canvas even when you assign the same number. Any
+  future stray resize notification is now free instead of a blank frame.
+- **Rule:** when you lift a behaviour out of a sibling file, lift its CSS too —
+  a function that manipulates the DOM is only half the feature. And a canvas
+  app should never resize itself on a no-op: make the guard structural so the
+  next layout wobble cannot repaint the world.
