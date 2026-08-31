@@ -1027,6 +1027,38 @@ test.describe('circuit on touch', () => {
     expect(r.hold - r.tap, 'holding must still buy real height').toBeGreaterThan(1.5);
   });
 
+  test('the page does not repeat the name the shell already shows', async ({ page }) => {
+    // The desktop shell puts the app's icon and name on the window titlebar,
+    // and the page's own bar said it again — the same words twice in the
+    // top-left corner, on every game and on Config and Update. Standalone it
+    // still names itself, because then nothing else does.
+    await page.goto('/circuit.html');
+    await page.waitForFunction(() => !!window.__cr, null, { timeout: 15000 });
+    await expect(page.locator('.bar .title')).toBeVisible();
+
+    // …and embedded, it steps aside. Same origin, so the frame is readable.
+    await page.setContent('<iframe id="f" src="/circuit.html" ' +
+                          'style="width:390px;height:700px;border:0"></iframe>');
+    await page.waitForTimeout(900);
+    const r = await page.evaluate(() => {
+      const d = document.getElementById('f').contentDocument;
+      d.getElementById('score').textContent = '1234500';   // a long, real score
+      const bar = d.querySelector('.bar');
+      const shown = (id) => {
+        const e = d.getElementById(id);
+        return !!e && d.defaultView.getComputedStyle(e).display !== 'none';
+      };
+      return {
+        title: d.defaultView.getComputedStyle(d.querySelector('.bar .title')).display !== 'none',
+        score: shown('stScore'),
+        overflow: bar.scrollWidth - bar.clientWidth
+      };
+    });
+    expect(r.title, 'embedded, the page must not repeat the name').toBe(false);
+    expect(r.score, 'the room that frees gives the score back on a phone').toBe(true);
+    expect(r.overflow, 'and the bar still must not overflow').toBeLessThanOrEqual(0);
+  });
+
   test('you can start at any sector from the title card', async ({ page }) => {
     await page.goto('/circuit.html');
     await page.waitForFunction(() => !!window.__cr, null, { timeout: 15000 });

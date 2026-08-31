@@ -48,6 +48,13 @@
      three that survive to the end are the ones you actually play by. */
   @media (max-width: 520px) { .bar .title .txt { display: none; } #stWorld { display: none; } }
   @media (max-width: 420px) { #stScore { display: none; } }
+  /* …but inside the shell the bar no longer repeats the app name, and the room
+     that frees is exactly enough for the number you are actually playing for.
+     Measured with a seven-digit score: 0px of overflow at 375 and up, so the
+     floor is 370. SECTOR stays hidden — putting both back overflows. */
+  @media (min-width: 370px) and (max-width: 420px) {
+    html.embedded #stScore { display: flex; }
+  }
   /* Five buttons and three chips overflowed a 375px phone outright. */
   @media (max-width: 448px) {
     .bar { gap: 4px;
@@ -246,7 +253,16 @@
   body.touch .help .kb { order: 3; }
   body:not(.touch) .help .kb { order: 2; }
   body:not(.touch) .help .tc { order: 3; }
+
+  /* The desktop shell already puts this app's icon and name on the window
+     titlebar, so the page's own bar was saying it a second time — the same
+     words twice in the top-left corner. On a narrow phone it also cost the
+     width the score needs. Standalone (opened directly, not in the shell) it
+     still shows, because then nothing else is naming the page. */
+  html.embedded .bar .title { display: none; }
 </style>
+<script>try{if(window.parent!==window)document.documentElement.classList.add('embedded');}catch(e){}</script>
+
 </head>
 <body>
   <div id="app">

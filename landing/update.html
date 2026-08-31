@@ -108,7 +108,16 @@
   .hist-sub { margin-top: 3px; }
   .hist-sub.err { color: #d99; }
   .hist-empty { padding: 12px 14px; font-size: 13px; color: #5a6a7a; }
+
+  /* The desktop shell already puts this app's icon and name on the window
+     titlebar, so the page's own bar was saying it a second time — the same
+     words twice in the top-left corner. On a narrow phone it also cost the
+     width the score needs. Standalone (opened directly, not in the shell) it
+     still shows, because then nothing else is naming the page. */
+  html.embedded .bar .title { display: none; }
 </style>
+<script>try{if(window.parent!==window)document.documentElement.classList.add('embedded');}catch(e){}</script>
+
   <script src="/vibe-modal.js"></script>
 </head>
 <body>
