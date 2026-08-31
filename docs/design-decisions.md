@@ -4676,3 +4676,30 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** treat `pointerup` as the happy path only. Any state a pointer starts
   needs `pointercancel` AND a frame-level `blur` release, and any absolutely
   positioned control needs a box — a default intrinsic width is not one.
+
+## The game-over card is a menu, so a stray tap must not answer it
+
+- **Symptom (reported):** *"after play finished, a menu pops up selecting 'new,
+  leaderboard, etc', it should be required to select from that menu. While right
+  now, clicking anywhere would dismiss that menu."*
+- **What it was:** v1.19.120/125 deliberately made the whole backdrop dismiss the
+  card, because a tap that landed *beside* the ghost button did nothing at all
+  and read as broken. That fixed the near-miss, but it also meant any stray
+  touch anywhere on the screen silently answered "none of these" and took the
+  card away before it could be read. Circuit Runner was worse still: a backdrop
+  tap fired the PRIMARY button, so a stray touch started a new game and threw
+  away the "Continue at sector" offered right beside it.
+- **Fix:** the card is answered only by its own buttons. The near-miss problem is
+  solved the other way now — every card carries the dismissal as a real menu
+  item, so "I just want to look at the board" is a 44px button rather than a
+  gesture: Minesweeper `Close`, 2048 `Keep going` on the win card and a new
+  `Close` on the loss, Solitaire and Circuit Runner already offered only actions
+  that resolve the card.
+- **Rejected:** keeping the backdrop dismissal for "just the corners". A rule
+  that depends on where you tapped is exactly the ambiguity that made this feel
+  broken in both directions.
+- **Escape still closes** Minesweeper's and 2048's card, because both menus now
+  contain that choice explicitly; it does not invent a dismissal where the menu
+  offers none.
+- **Rule:** a modal that asks a question gets its answer from its buttons. If a
+  reasonable answer is "put this away", that has to BE a button.

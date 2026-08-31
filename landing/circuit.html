@@ -4760,9 +4760,10 @@
 
   // Tapping the play area with a card up is the same as pressing its button —
   // on a phone, the button is the only target and it is easy to miss.
-  overlay.addEventListener('click', function (e) {
-    if (e.target === overlay) ovGo.click();
-  });
+  // This used to fire the primary button on a backdrop tap — a stray touch
+  // started a new game, throwing away the "Continue at sector" the card was
+  // offering right next to it. The card is a menu; you answer it by choosing.
+  overlay.addEventListener('click', function (e) { e.stopPropagation(); });
 
   // Pause when the page is hidden (a shell tab switch, a phone lock): a
   // platformer left running while you cannot see it is a lost life.

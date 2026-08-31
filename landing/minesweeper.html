@@ -644,15 +644,12 @@
   document.getElementById('newBtn').addEventListener('click', function() { newGame(); });
   document.getElementById('ovNew').addEventListener('click', function() { newGame(); });
   document.getElementById('ovClose').addEventListener('click', function() { overlay.classList.remove('show'); });
-  // A tap that lands beside the button used to do nothing at all — which is
-  // what made "view board" feel broken on a phone.
-  // Anywhere on the backdrop OR on the card's own chrome dismisses. The only
-  // tap that does something else is one that lands on New Game — so "I want to
-  // look at the board" cannot miss.
-  overlay.addEventListener('click', function(ev) {
-    if (ev.target.closest('#ovNew') || ev.target.closest('#ovLb')) return;
-    overlay.classList.remove('show');
-  });
+  // The game-over card is a MENU: it asks a question and the answer has to be
+  // one of its buttons. Dismissing on a backdrop tap (v1.19.120/125) meant a
+  // stray touch anywhere on the screen silently answered "none of these", and
+  // the card people wanted to read was gone. `Close` is the menu's own way of
+  // saying "just let me look at the board" — the backdrop no longer is.
+  overlay.addEventListener('click', function(ev) { ev.stopPropagation(); });
   diffEl.addEventListener('change', function() { newGame(diffEl.value); });
 
   // ---- this game's leaderboard ----

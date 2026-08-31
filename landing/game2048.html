@@ -199,6 +199,7 @@
           <button class="primary" id="ovNew">New Game</button>
           <button class="ghost" id="ovLb">🏆 Leaderboard</button>
           <button class="ghost" id="ovKeep">Keep going</button>
+          <button class="ghost" id="ovClose" title="Hide this card and look at the final board">Close</button>
         </div>
       </div>
     </div>
@@ -243,6 +244,7 @@
   var ovMsg = document.getElementById('ovMsg');
   var ovNew = document.getElementById('ovNew');
   var ovKeep = document.getElementById('ovKeep');
+  var ovClose = document.getElementById('ovClose');
   var hintEl = document.getElementById('hint');
 
   var grid = [];          // N*N array of tile objects or null: {v, el, r, c}
@@ -440,6 +442,7 @@
     ovMsg.textContent = 'Score ' + score + '.';
     showScores();
     ovKeep.style.display = 'block';
+    ovClose.style.display = 'none';
     overlay.classList.add('show');
   }
   function showLose() {
@@ -451,6 +454,7 @@
     vibeScores.finish('2048', '', won, { tile: tile });
     showScores();
     ovKeep.style.display = 'none';
+    ovClose.style.display = 'block';
     overlay.classList.add('show');
   }
 
@@ -545,10 +549,9 @@
   document.getElementById('newBtn').addEventListener('click', newGame);
   ovNew.addEventListener('click', newGame);
   ovKeep.addEventListener('click', function() { overlay.classList.remove('show'); });
-  overlay.addEventListener('click', function(ev) {
-    if (ev.target.closest('#ovNew') || ev.target.closest('#ovLb')) return;
-    overlay.classList.remove('show');
-  });
+  // See minesweeper: the card is a menu, and a backdrop tap is not an answer.
+  overlay.addEventListener('click', function(ev) { ev.stopPropagation(); });
+  ovClose.addEventListener('click', function() { overlay.classList.remove('show'); });
 
   var rsT = null;
   window.addEventListener('resize', function() {
