@@ -214,9 +214,10 @@
         <div class="big" id="ovIcon">🎉</div>
         <h2 id="ovTitle">You win!</h2>
         <p id="ovMsg"></p>
+        <div id="scores"></div>
         <div class="btns">
           <button class="primary" id="ovNew">New Game</button>
-          <button class="ghost" id="ovClose">View board</button>
+          <button class="ghost" id="ovClose" title="Hide this card and look at the finished board">Close</button>
         </div>
       </div>
     </div>
@@ -239,6 +240,7 @@
       </div>
     </div>
   </div>
+<script src="gamescore.js"></script>
 <script>
 (function() {
   'use strict';
@@ -271,6 +273,7 @@
   var openCount = 0;
   var flagMode = false;
   var timer = null, t0 = 0, elapsed = 0;
+  var sess = '';          // one id per played game — see gamescore.js
 
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -355,6 +358,7 @@
     cols = cfg.cols; rows = cfg.rows; mineCount = cfg.mines;
     grid = []; started = false; over = false; winState = false; openCount = 0;
     flagCount = 0; elapsed = 0;
+    sess = vibeScores.session();
     fmtMines(); fmtTime(); setFace('🙂');
     overlay.classList.remove('show');
     boardEl.innerHTML = '';
@@ -447,7 +451,18 @@
     ovIcon.textContent = '💥';
     ovTitle.textContent = 'Boom!';
     ovMsg.textContent = 'Hit a mine after ' + elapsed + 's.';
+    showScores(null);          // a loss sets no record, but still shows the table
     overlay.classList.add('show');
+  }
+
+  // The best-times table on the game-over card. Only a WIN is a time worth
+  // ranking — a loss ranks nothing, it just gets to see the board to beat.
+  function showScores(entry) {
+    vibeScores.render(document.getElementById('scores'), {
+      game: 'mine', board: diff, lower: true, unit: 's',
+      title: 'Best times · ' + diff.charAt(0).toUpperCase() + diff.slice(1),
+      highlight: entry, empty: 'No cleared game yet on ' + diff + '.'
+    });
   }
 
   function win() {
@@ -456,7 +471,9 @@
     flagCount = mineCount; fmtMines();
     ovIcon.textContent = '🎉';
     ovTitle.textContent = 'Cleared!';
-    ovMsg.textContent = 'All safe cells in ' + elapsed + 's.';
+    var r = vibeScores.record({ game: 'mine', board: diff, value: elapsed, lower: true, session: sess });
+    ovMsg.textContent = 'All safe cells in ' + elapsed + 's.' + (r.rank === 1 ? ' A new best!' : '');
+    showScores(r.entry);
     overlay.classList.add('show');
   }
 

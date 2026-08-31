@@ -304,6 +304,7 @@
         <div class="big" id="ovIcon">🤖</div>
         <h2 id="ovTitle">Circuit Runner</h2>
         <p id="ovMsg"></p>
+        <div id="ovScores"></div>
         <div class="btns" id="ovBtns">
           <button class="primary" id="ovGo">Start</button>
           <button class="ghost" id="ovAlt" hidden>Restart world</button>
@@ -355,6 +356,7 @@
     </div>
   </div>
   </div>
+<script src="gamescore.js"></script>
 <script>
 (function () {
   'use strict';
@@ -2311,6 +2313,7 @@
   var ovMsg = document.getElementById('ovMsg'), ovGo = document.getElementById('ovGo');
   var ovAlt = document.getElementById('ovAlt');
   var ovPick = document.getElementById('ovPick');
+  var ovScores = document.getElementById('ovScores');
   // Start a fresh run at the chosen sector: lives, score and coins reset, so
   // picking sector 05 is a new game that begins there, not a cheat into the
   // middle of the one you were playing.
@@ -2320,6 +2323,7 @@
     haptic(9);
     resumeAudio();
     hideCard(); closeHelp();
+    newRun();                 // starting at a sector is a new run, not a continue
     score = 0; coins = 0; lives = 3; fromCheckpoint = false;
     levelIdx = Math.max(0, Math.min(LEVELS.length - 1, +b.dataset.lv || 0));
     P = newPlayer();
@@ -2347,6 +2351,24 @@
     if (score <= best) return;
     best = score;
     try { localStorage.setItem('vibetop:circuit:best', String(best)); } catch (e) {}
+  }
+
+  // Best-scores table (gamescore.js). `sess` is one id per RUN — a run ends when
+  // the score goes back to zero, which is both New game and Continue, so a
+  // continue can never overwrite the run it followed. `seed` imports the old
+  // single-best that shipped before the table existed.
+  var sess = '';
+  function newRun() { sess = vibeScores.session(); }
+  function recordScore() {
+    return score > 0
+      ? vibeScores.record({ game: 'circuit', value: score, session: sess, seed: 'vibetop:circuit:best' })
+      : { entry: null };
+  }
+  function showScores(entry) {
+    vibeScores.render(ovScores, {
+      game: 'circuit', title: 'Best scores', seed: 'vibetop:circuit:best',
+      highlight: entry, empty: 'No score yet.'
+    });
   }
 
   function newPlayer() {
@@ -3130,10 +3152,12 @@
                'Continue', null, function () { beginLevel(levelIdx, true); });
     } else {
       state = 'win';
+      var rw = recordScore();
       showCard('👑', 'The network is clean',
-               'Final score ' + score + (score >= best ? ' — a new best.' : '') +
+               'Final score ' + score + (rw.rank === 1 ? ' — a new best.' : '') +
                '  Time bonus ' + bonusPaid + '.',
                'Play again', null, function () { newGame(); });
+      showScores(rw.entry); ovScores.hidden = false;
     }
   }
 
@@ -4261,6 +4285,7 @@
   function showCard(icon, title, msg, goLabel, altLabel, onGo, onAlt, keepAlt) {
     releaseControls();          // the pad is about to vanish under this card
     showPick(false);
+    ovScores.hidden = true;                  // only the end-of-run cards show it
     ovIcon.textContent = icon; ovIcon.hidden = !icon;
     ovTitle.textContent = title;
     ovMsg.textContent = msg || '';
@@ -4291,6 +4316,7 @@
   }
 
   function newGame() {
+    newRun();
     score = 0; coins = 0; lives = 3; levelIdx = 0; fromCheckpoint = false;
     P = newPlayer();
     beginLevel(0, false);
@@ -4308,15 +4334,18 @@
     // back to zero. Without it, dying in world 1-4 sends you back to 1-1,
     // which is a punishment nobody asked for and the reason people stop.
     var world = WORLD_NAMES[levelIdx];
+    var rg = recordScore();
     showCard('💀', 'Game over',
-             'Score ' + score + (best > 0 ? '   ·   best ' + best : '') + '.',
+             'Score ' + score + '.',
              'New game', levelIdx > 0 ? 'Continue at sector ' + world : null,
              function () { newGame(); },
              function () {
+               newRun();          // a continue zeroes the score: that is a new run
                lives = 3; score = 0; coins = 0; fromCheckpoint = false;
                P = newPlayer();
                beginLevel(levelIdx, false);
              });
+    showScores(rg.entry); ovScores.hidden = false;
     showPick(true);
     SFX.gameover();
   }

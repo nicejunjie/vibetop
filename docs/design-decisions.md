@@ -4518,3 +4518,38 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rejected:** a level-wide flag plus a separate "water level" code path. It
   is less code on day one and it forecloses every mixed level afterwards —
   a flooded basement, a lake in the middle of an overworld — for no benefit.
+
+## A dismiss button read as a leaderboard, so dismissing read as "nothing happened"
+
+- **Symptom (reported):** *"minesweeper 里 leaderboard 点了啥也没有,根本没点一样"* —
+  the game-over card offers two buttons, `New Game` works, the other one
+  appears to do nothing at all.
+- **Cause:** the second button was labelled **"View board"**. Minesweeper never
+  had a leaderboard; `board` was read as *榜* (ranking), so the button promised
+  a ranking and delivered a dismiss. Playwright confirmed the handler was
+  fine — `#overlay.show` went 1 → 0 on click, no JS errors — which is exactly
+  the trap: the control did its job, and its job was invisible to someone
+  expecting a table. **A correct action nobody can see is indistinguishable
+  from a dead button.**
+- **Fix:** stop implying a leaderboard and show one. `landing/gamescore.js` is a
+  shared top-3 table (`window.vibeScores`) on the game-over card of all four
+  games — Minesweeper (fastest time, per difficulty), Solitaire (fewest moves),
+  2048 and Circuit Runner (highest score). The ghost button is now plainly
+  `Close`. Scores are per-browser `localStorage`; the pre-existing single bests
+  (`vt-2048-best`, `vibetop:circuit:best`) are imported as row 1 rather than
+  discarded.
+- **Two traps the implementation hit, both caught by tests, not by review:**
+  - `record()` returns the entry it stored, but `render()` re-reads the list
+    from `localStorage` — **different objects**, so the `e === highlight`
+    identity check could never match and the "just now" highlight would never
+    have appeared in any of the four games. Rows are matched by session id now.
+  - One played game must own exactly one row. `session()` ids give that: 2048
+    reports twice (at the 2048 tile, then at game over) and Circuit Runner's
+    *Continue* zeroes the score mid-card — without the id, one run either
+    filled the table or overwrote the run it followed.
+- **Empty state is mandatory here:** with no scores the table prints
+  *"No cleared game yet on easy."* rather than rendering nothing. An empty box
+  is the original bug again.
+- **Rule:** when a user reports "I clicked and nothing happened", check what the
+  label PROMISED before checking whether the handler fired. A working control
+  with a misread label is a UX bug, not a phantom.

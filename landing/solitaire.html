@@ -179,6 +179,7 @@
         <div class="big">🎉</div>
         <h2>You won!</h2>
         <p id="ovMsg"></p>
+        <div id="scores"></div>
         <button class="primary" id="ovNew">New Game</button>
       </div>
     </div>
@@ -202,6 +203,7 @@
     </div>
   </div>
   <div id="dragLayer"></div>
+<script src="gamescore.js"></script>
 <script>
 (function() {
   'use strict';
@@ -220,7 +222,8 @@
 
   var stock = [], waste = [], found = [[], [], [], []], tab = [[], [], [], [], [], [], []];
   var moves = 0, undoStack = [];
-  var sel = null;             // {loc:'waste'|'found'|'tab', pile, idx}
+  var sess = '';              // one id per dealt game — see gamescore.js
+  var sel = null;            // {loc:'waste'|'found'|'tab', pile, idx}
   var won = false;
   var lastFlipped = null;     // {pile, idx} tableau card auto-flipped by the last move
   var cw = 60, ch = 84, gap = 6, offUp = 24, offDown = 10;
@@ -246,6 +249,7 @@
   function setMoves(m) { moves = m; movesEl.textContent = moves + (moves === 1 ? ' move' : ' moves'); }
 
   function deal() {
+    sess = vibeScores.session();      // one id per dealt game — see gamescore.js
     var deck = [];
     for (var s = 0; s < 4; s++) for (var r = 1; r <= 13; r++) deck.push({ r: r, s: s, up: false });
     for (var i = deck.length - 1; i > 0; i--) {
@@ -562,7 +566,14 @@
     var total = found[0].length + found[1].length + found[2].length + found[3].length;
     if (total !== 52) return;
     won = true;
-    document.getElementById('ovMsg').textContent = 'Solved in ' + moves + ' moves.';
+    // Only a solved deal is a result worth ranking, and fewer moves is better.
+    var r = vibeScores.record({ game: 'sol', value: moves, lower: true, session: sess });
+    document.getElementById('ovMsg').textContent =
+      'Solved in ' + moves + ' moves.' + (r.rank === 1 ? ' A new best!' : '');
+    vibeScores.render(document.getElementById('scores'), {
+      game: 'sol', lower: true, unit: ' moves', title: 'Fewest moves',
+      highlight: r.entry, empty: 'No solved deal yet.'
+    });
     var colors = ['#8a4adb', '#e8b428', '#52c273', '#5ba3f5', '#e5646c', '#e9ecf1'];
     var frag = document.createDocumentFragment();
     for (var i = 0; i < 44; i++) {

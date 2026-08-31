@@ -25,6 +25,7 @@ const SCRIPTS = [
   "landing/winmgr.js",
   "landing/keybar.js",
   "landing/apph.js",
+  "landing/gamescore.js",
   "landing/filebrowser-patches.js",
   "landing/sw.js",
   "browser/xpra-patches.js",

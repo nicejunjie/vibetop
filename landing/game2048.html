@@ -165,6 +165,7 @@
         <div class="big" id="ovIcon">🏆</div>
         <h2 id="ovTitle">You made 2048!</h2>
         <p id="ovMsg"></p>
+        <div id="scores"></div>
         <div class="btns">
           <button class="primary" id="ovNew">New Game</button>
           <button class="ghost" id="ovKeep">Keep going</button>
@@ -188,6 +189,7 @@
     </div>
     <div class="hint" id="hint">swipe or use arrow keys</div>
   </div>
+<script src="gamescore.js"></script>
 <script>
 (function() {
   'use strict';
@@ -205,6 +207,7 @@
   var hintEl = document.getElementById('hint');
 
   var grid = [];          // N*N array of tile objects or null: {v, el, r, c}
+  var sess = '';
   var score = 0, best = 0, won = false, over = false, moved = false, hintDone = false;
   var cell = 0, gap = 0;  // px, computed on resize
 
@@ -283,6 +286,7 @@
     boardEl.querySelectorAll('.tile').forEach(function(el) { el.remove(); });
     grid = new Array(N * N).fill(null);
     score = 0; won = false; over = false;
+    sess = vibeScores.session();      // one id per played game — see gamescore.js
     scoreEl.textContent = '0';
     overlay.classList.remove('show');
     layout();
@@ -392,6 +396,7 @@
     ovIcon.textContent = '🏆';
     ovTitle.textContent = 'You made 2048!';
     ovMsg.textContent = 'Score ' + score + '.';
+    showScores();
     ovKeep.style.display = 'block';
     overlay.classList.add('show');
   }
@@ -399,8 +404,23 @@
     ovIcon.textContent = '🧱';
     ovTitle.textContent = 'No moves left';
     ovMsg.textContent = 'Final score ' + score + (score >= best && score > 0 ? ' — new best!' : '.');
+    showScores();
     ovKeep.style.display = 'none';
     overlay.classList.add('show');
+  }
+
+  // Records THIS run and shows the table. Both cards call it, and both pass the
+  // same session id, so hitting 2048 and then playing on to game over updates
+  // one row instead of listing the same run twice. `seed` imports the old
+  // single-best (vt-2048-best) that shipped before this table existed.
+  function showScores() {
+    var r = score > 0
+      ? vibeScores.record({ game: '2048', value: score, session: sess, seed: 'vt-2048-best' })
+      : { entry: null };
+    vibeScores.render(document.getElementById('scores'), {
+      game: '2048', title: 'Best scores', seed: 'vt-2048-best',
+      highlight: r.entry, empty: 'No score yet.'
+    });
   }
 
   // ---- input ----
