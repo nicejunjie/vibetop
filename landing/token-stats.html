@@ -65,7 +65,18 @@
   /* One cell per bar (matching .bars gap) so tick labels align under bars. */
   .axis { display: flex; gap: 3px; color: #6a7a8a; font-size: 10px; margin-top: 6px; }
   .axis.hourly { gap: 2px; }
-  .axis span { flex: 1 1 0; min-width: 0; white-space: nowrap; text-align: center; overflow: visible; }
+  /* One slot per bar, so a label sits under the bar it names. The label itself
+     is positioned, NOT text-aligned: a slot is ~6px wide on a phone and a date
+     is ~26px, and in LTR an overflowing line always starts at the content-box
+     left edge and spills RIGHT — `text-align: right` only moves lines that FIT.
+     So the last label began at the right edge of the axis and ran out past the
+     panel border, dragging a horizontal scrollbar onto the whole page. Anchored
+     ends can't leave the axis. */
+  .axis span { flex: 1 1 0; min-width: 0; position: relative; height: 12px; }
+  .axis i { position: absolute; top: 0; white-space: nowrap; font-style: normal; }
+  .axis i.l { left: 0; }
+  .axis i.c { left: 50%; transform: translateX(-50%); }
+  .axis i.r { right: 0; }
 
   /* Model table */
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -179,18 +190,23 @@ function niceScale(rawMax){
 
 // X-axis: one cell per bar (aligns with .bars), labelled at `tickCount` evenly
 // spaced positions incl. both ends. `labelFor(i)` returns the tick's text.
-function buildXAxis(axisId, n, tickCount, labelFor, hourly){
+// `minPx` is how much room one label needs. The tick count has to come from the
+// MEASURED axis, not a constant: seven hour labels ("Sat 11 AM" … "10 AM (now)")
+// need ~500px and a phone gives the axis ~270, so they printed straight through
+// each other. Fewer ticks on a narrow screen, up to `tickCount` on a wide one.
+function buildXAxis(axisId, n, tickCount, labelFor, hourly, minPx){
   var el = document.getElementById(axisId);
   el.className = 'axis' + (hourly ? ' hourly' : '');
   if (n <= 0){ el.innerHTML = ''; return; }
   var mark = {};
-  var t = Math.max(2, Math.min(tickCount, n));
+  var fits = Math.floor((el.clientWidth || 300) / (minPx || 48));
+  var t = Math.max(2, Math.min(tickCount, n, fits));
   for (var k = 0; k < t; k++) mark[Math.round(k * (n - 1) / (t - 1))] = true;
   var cells = [];
   for (var i = 0; i < n; i++){
     if (mark[i]){
-      var al = i === 0 ? 'left' : (i === n - 1 ? 'right' : 'center');
-      cells.push('<span style="text-align:' + al + '">' + labelFor(i) + '</span>');
+      var al = i === 0 ? 'l' : (i === n - 1 ? 'r' : 'c');
+      cells.push('<span><i class="' + al + '">' + labelFor(i) + '</i></span>');
     } else {
       cells.push('<span></span>');
     }
@@ -256,7 +272,7 @@ function renderDayBars(days){
     return '<div class="bar'+dim+'"><span class="tip">'+d.date+'<br>'+lbl+'</span>'
          + '<i style="height:'+h+'%"></i></div>';
   }).join('');
-  buildXAxis('dayAxis', days.length, 7, function(i){ return days[i].date.slice(5); }, false);
+  buildXAxis('dayAxis', days.length, 7, function(i){ return days[i].date.slice(5); }, false, 52);
 }
 
 function renderHourBars(hours){
@@ -277,7 +293,7 @@ function renderHourBars(hours){
     if (i === last) return d.toLocaleString(undefined,{hour:'numeric'}) + ' (now)';
     if (i === 0)    return d.toLocaleString(undefined,{weekday:'short',hour:'numeric'});
     return d.toLocaleString(undefined,{hour:'numeric'});
-  }, true);
+  }, true, 78);
 }
 
 function renderModels(models){
@@ -318,6 +334,13 @@ function render(d){
     'Reconstructed from local Claude Code transcripts; cost is an <b>estimate</b> at public per-token rates.'
     + retain + ' Updated ' + (ago<60? ago+'s' : Math.round(ago/60)+'m') + ' ago.';
 }
+
+// The tick count is measured, so a rotation or a resized window has to re-measure.
+var reT = null;
+window.addEventListener('resize', function(){
+  clearTimeout(reT);
+  reT = setTimeout(function(){ if (lastData) render(lastData); }, 150);
+});
 
 function load(){
   document.getElementById('refresh').textContent = '↻ …';

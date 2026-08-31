@@ -2408,6 +2408,12 @@
     paintLb();
     lbOv.classList.add('show');
     document.body.classList.add('carded');
+    // Same precaution showCard() takes: the pad is about to vanish under this
+    // card, and a direction still held when it goes is a direction still held
+    // when it comes back. togglePause() reaches showCard and would do this for
+    // us, but only from 'play' — opening this from the intro or a pause would
+    // not.
+    releaseControls();
     if (state === 'play') togglePause(true);
   }
   function closeLb() {
@@ -4433,6 +4439,7 @@
   function openHelp() {
     helpOv.classList.add('show');
     document.body.classList.add('carded');
+    releaseControls();          // see openLeaderboard: the pad is about to vanish
     if (state === 'play') togglePause(true);
   }
   function helpIsOpen() { return helpOv.classList.contains('show'); }

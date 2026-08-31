@@ -4582,3 +4582,28 @@ original exact-bytes test stayed green through the whole breakage.
   - A run that ends counts once, at the END. Counting at game start inflates
     "games played" every time the app is opened; Solitaire has no loss event at
     all, so an unsolved deal is scored when the NEXT one is dealt.
+
+## An overflowing line ignores `text-align`, and it dragged a scrollbar onto the page
+
+- **Symptom (reported, Token Stats):** text out of bounds — the last x-axis
+  label on the charts printed past the panel's right border, and the whole page
+  gained a horizontal scrollbar (`html.scrollWidth` 413 in a 390px viewport).
+- **Cause:** each axis label is a flex slot, one per bar, so a label sits under
+  the bar it names. On a phone a slot is ~6px and a date is ~26px. The edge
+  labels were positioned with `text-align: left/right` — but **in LTR an
+  overflowing line always starts at the content-box left edge and spills
+  right**; `text-align` only places lines that FIT. So the *last* label began at
+  the right end of the axis and ran outward, past `.chart-main`, `.panel`,
+  `.wrap`, and finally the viewport.
+- **Fix:** the label is a positioned child (`position: absolute` in a
+  `position: relative` slot), anchored `left: 0` on the first, `right: 0` on the
+  last, `left: 50%; translateX(-50%)` in between. An anchored end cannot leave
+  the axis no matter how much wider the text is than its slot.
+- **Second bug the fix exposed:** with the labels no longer escaping, they
+  simply overprinted each other — seven hour labels ("Sat 11 AM" … "10 AM
+  (now)") need ~500px and a phone axis is ~270. The tick count is now derived
+  from the MEASURED axis width and a per-axis `minPx`, recomputed on resize,
+  instead of being the constant 7.
+- **Rule:** a hardcoded tick/label count is a bug waiting for a narrow screen.
+  Derive it from the measured container, and remember that overflow direction
+  is a property of the writing mode, not of `text-align`.
