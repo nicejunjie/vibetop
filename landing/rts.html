@@ -586,166 +586,293 @@
   }
 
   // Sprites share one canvas size and one anchor rule: the unit's ground
-  // point sits at (w/2, h - PAD), so drawing is always the same expression.
-  var UPAD = 8;
-  function unitCanvas() { return mkCanvas(44, 38); }
+  // point sits at (w/2, h - UPAD), so drawing is always the same expression.
+  //
+  // Readability rule for the whole sprite set: the FACTION colour says whose
+  // it is, a fixed ACCENT colour says what it is. Without that second axis
+  // every unit was a blue box and players could not tell a harvester from a
+  // tank — which is the difference between reading a battle and guessing.
+  var UPAD = 9;
+  function unitCanvas() { return mkCanvas(52, 46); }
 
-  function bakeInfantry(col, gunCol) {
+  var ACCENT = {
+    rifle:     '#e6ecf5',   // pale helmet
+    rocket:    '#ff9d3c',   // orange warhead
+    tank:      '#39415a',   // gunmetal barrel
+    harv:      '#f2b529'    // yellow ore hopper
+  };
+
+  function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
+
+  // A soldier, drawn front-on and small. Silhouette is what separates the two
+  // infantry types: the rifleman holds his weapon level, the rocketeer has a
+  // fat tube on his shoulder with a bright warhead.
+  function bakeInfantry(col, kind) {
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
-    var dark = shade(col, 0.28);
-    shadowBlob(g, cx, by, 6, 2.6);
-    g.fillStyle = shade(col, 0.6);                       // legs
-    g.fillRect(cx - 3.4, by - 7, 2.8, 7); g.fillRect(cx + 0.6, by - 7, 2.8, 7);
-    g.fillStyle = col;                                   // torso
-    g.beginPath(); g.roundRect(cx - 4.4, by - 15, 8.8, 8.5, 2.4); g.fill();
-    g.strokeStyle = dark; g.lineWidth = 0.9; g.stroke();
-    g.fillStyle = shade(col, 1.3);                       // helmet
-    g.beginPath(); g.arc(cx, by - 17, 3.4, 0, 6.29); g.fill();
-    g.strokeStyle = dark; g.stroke();
-    g.strokeStyle = gunCol; g.lineWidth = 2;             // weapon
-    g.beginPath(); g.moveTo(cx + 2, by - 12); g.lineTo(cx + 9, by - 14.5); g.stroke();
+    var dark = shade(col, 0.30), acc = ACCENT[kind] || '#ff00ff';
+    shadowBlob(g, cx, by, 7, 3);
+
+    g.fillStyle = shade(col, 0.55);                          // legs
+    g.beginPath(); g.roundRect(cx - 4.2, by - 8, 3.4, 8, 1.4); g.fill();
+    g.beginPath(); g.roundRect(cx + 0.8, by - 8, 3.4, 8, 1.4); g.fill();
+    outline(g, dark);
+
+    g.fillStyle = col;                                       // torso
+    g.beginPath(); g.roundRect(cx - 5.4, by - 18, 10.8, 10.5, 3); g.fill();
+    outline(g, dark);
+    g.fillStyle = shade(col, 1.25);                          // webbing highlight
+    g.fillRect(cx - 5.4, by - 14.5, 10.8, 1.6);
+
+    if (kind === 'rocket') {
+      g.strokeStyle = shade(col, 0.45); g.lineWidth = 4.6;   // launcher tube
+      g.lineCap = 'round';
+      g.beginPath(); g.moveTo(cx - 7, by - 12); g.lineTo(cx + 9, by - 19); g.stroke();
+      g.strokeStyle = shade(col, 0.8); g.lineWidth = 2.6;
+      g.beginPath(); g.moveTo(cx - 6, by - 12.4); g.lineTo(cx + 8, by - 18.6); g.stroke();
+      g.fillStyle = acc;                                     // warhead
+      g.beginPath(); g.arc(cx + 10, by - 19.4, 2.9, 0, 6.29); g.fill();
+      outline(g, dark);
+    } else {
+      g.strokeStyle = shade(col, 0.4); g.lineWidth = 2.4;    // levelled rifle
+      g.lineCap = 'round';
+      g.beginPath(); g.moveTo(cx - 4, by - 13.5); g.lineTo(cx + 10, by - 15.5); g.stroke();
+    }
+
+    g.fillStyle = '#caa88a';                                 // face
+    g.beginPath(); g.arc(cx, by - 21, 3.4, 0, 6.29); g.fill();
+    g.fillStyle = acc;                                       // helmet
+    g.beginPath(); g.arc(cx, by - 22, 4, Math.PI, 0); g.fill();
+    g.fillRect(cx - 4, by - 22, 8, 1.6);
+    outline(g, dark);
     return s;
   }
 
+  // Vehicles get 8 baked facings. Tracks are drawn as separate dark slabs
+  // either side of the hull so the thing reads as tracked, not as a crate.
   function bakeVehicle(col, kind) {
     var out = [];
     for (var d = 0; d < 8; d++) {
       var a = d * Math.PI / 4;
       var s = unitCanvas(), g = s.g;
       var cx = s.w / 2, by = s.h - UPAD;
-      var dark = shade(col, 0.26);
-      var len = kind === 'harv' ? 21 : 26, wid = kind === 'harv' ? 15 : 14;
-      shadowBlob(g, cx, by, len * 0.5, wid * 0.30);
+      var dark = shade(col, 0.24), acc = ACCENT[kind] || '#ff00ff';
+      var cd = Math.cos(a), sd = Math.sin(a);
+      var fx = ISO_X * (cd - sd), fy = ISO_Y * (cd + sd);       // forward
+      var px = ISO_X * (-sd - cd), py = ISO_Y * (-sd + cd);     // sideways
 
-      var body = isoBox(g, cx, by - 2, len, wid, kind === 'harv' ? 10 : 6, a, col, dark);
-      var fx = body.f[0], fy = body.f[1];
+      var len = kind === 'harv' ? 32 : 30, wid = kind === 'harv' ? 19 : 17;
+      shadowBlob(g, cx, by, len * 0.46, wid * 0.30);
+
+      // tracks: two dark boxes flanking the hull
+      isoBox(g, cx + px * wid * 0.40, by - 1, len * 0.92, wid * 0.26, 5, a, shade(col, 0.34), dark);
+      isoBox(g, cx - px * wid * 0.40, by - 1, len * 0.92, wid * 0.26, 5, a, shade(col, 0.34), dark);
+
       if (kind === 'tank') {
-        // barrel first so the turret sits on top of its root
-        var bx0 = cx + fx * 2, by0 = by - 13;
+        isoBox(g, cx, by - 4, len * 0.86, wid * 0.72, 7, a, col, dark);          // hull
+        // barrel under the turret so the turret caps its root
+        var bx0 = cx + fx * 3, by0 = by - 15;
         g.lineCap = 'round';
-        g.strokeStyle = dark; g.lineWidth = 4.6;
-        g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx0 + fx * 17, by0 + fy * 17); g.stroke();
-        g.strokeStyle = shade(col, 1.05); g.lineWidth = 2.6;
-        g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx0 + fx * 16, by0 + fy * 16); g.stroke();
-        isoBox(g, cx - fx * 2, by - 9, 13, 12, 6, a, shade(col, 1.22), dark);   // turret
+        g.strokeStyle = dark; g.lineWidth = 6;
+        g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx0 + fx * 30, by0 + fy * 30); g.stroke();
+        g.strokeStyle = acc; g.lineWidth = 3.6;
+        g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx0 + fx * 29, by0 + fy * 29); g.stroke();
+        g.fillStyle = shade(acc, 1.5);                                          // muzzle
+        g.beginPath(); g.arc(bx0 + fx * 30, by0 + fy * 30, 2.6, 0, 6.29); g.fill();
+        isoBox(g, cx - fx * 2, by - 11, 15, 14, 7, a, shade(col, 1.22), dark);   // turret
+        g.fillStyle = shade(col, 1.5);                                          // hatch
+        g.beginPath(); g.ellipse(cx - fx * 2, by - 18.5, 3.6, 2.1, 0, 0, 6.29); g.fill();
       } else {
-        isoBox(g, cx - fx * 2, by - 11, 13, 13, 8, a, shade(col, 1.28), dark);  // hopper
+        isoBox(g, cx, by - 4, len * 0.9, wid * 0.74, 8, a, shade(col, 0.9), dark); // chassis
+        // ore hopper: the single loudest identifier on the field
+        isoBox(g, cx - fx * 5, by - 12, 17, 15, 11, a, acc, '#6b4a00');
+        g.fillStyle = shade(acc, 1.25);
+        g.beginPath();
+        g.ellipse(cx - fx * 5, by - 23, 7.5, 4.2, 0, 0, 6.29); g.fill();
+        outline(g, '#6b4a00');
+        isoBox(g, cx + fx * 9, by - 10, 10, 12, 9, a, shade(col, 1.15), dark);   // cab
+        g.fillStyle = '#8ad0ff';                                                // windscreen
+        g.beginPath(); g.ellipse(cx + fx * 10, by - 18, 3.4, 2.4, 0, 0, 6.29); g.fill();
       }
       out.push(s);
     }
     return out;
   }
 
+  // Each structure needs a silhouette you can NAME at a glance — cooling
+  // towers, an ore dome, a pitched roof, a saw-tooth works, a control tower,
+  // a gun. Faction colour is the shell; the identifying part carries its own
+  // fixed colour so a red base and a blue base still read the same way.
+  function cylinder(g, cx, cy, rx, h, body, top, edge) {
+    g.fillStyle = body;
+    g.beginPath();
+    g.moveTo(cx - rx, cy); g.lineTo(cx - rx, cy - h);
+    g.lineTo(cx + rx, cy - h); g.lineTo(cx + rx, cy);
+    g.closePath(); g.fill();
+    g.beginPath(); g.ellipse(cx, cy, rx, rx * 0.42, 0, 0, Math.PI); g.fill();
+    outline(g, edge);
+    g.fillStyle = top;
+    g.beginPath(); g.ellipse(cx, cy - h, rx, rx * 0.42, 0, 0, 6.29); g.fill();
+    outline(g, edge);
+  }
+
   function bakeBuilding(key, col) {
     var b = BLDS[key];
-    // Footprint in screen space, then a real extrusion on top of it.
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
-    // A building is a SLAB on the ground with a narrower body standing on it.
-    // Extruding the whole footprint made every structure read as a low table:
-    // the roof filled the entire plot and the walls were a thin skirt.
-    var lift = key === 'turret' ? 26 : (key === 'base' ? 52 : (key === 'factory' ? 46 : 40));
-    var pad = 14;
-    var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + lift + pad * 2), g = s.g;
-    var cx = s.w / 2, baseY = s.h - pad - fh;      // centre of the footprint diamond
-    var dark = shade(col, 0.22);
-    var inset = key === 'turret' ? 0.60 : 0.74;    // body is narrower than the plot
+    var lift = key === 'turret' ? 24 : (key === 'base' ? 46 : (key === 'factory' ? 42 : 36));
+    var pad = 16;
+    var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + lift + pad * 2 + 22), g = s.g;
+    var cx = s.w / 2, baseY = s.h - pad - fh;
+    var dark = shade(col, 0.20);
+    var inset = key === 'turret' ? 0.58 : 0.76;
     var bw = fw * inset, bh = fh * inset;
 
-    // ground shadow, offset toward the light
-    g.fillStyle = 'rgba(0,0,0,.34)';
+    g.fillStyle = 'rgba(0,0,0,.36)';
     diamond(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
 
-    // concrete pad covering the whole footprint
-    diamond(g, cx, baseY, fw * 2, fh * 2);
-    g.fillStyle = shade(col, 0.32); g.fill();
-    g.strokeStyle = shade(col, 0.48); g.lineWidth = 1; g.stroke();
+    diamond(g, cx, baseY, fw * 2, fh * 2);                 // concrete pad
+    g.fillStyle = shade(col, 0.30); g.fill();
+    outline(g, shade(col, 0.46));
 
-    // body walls (left lit, right in shade) then the roof
-    g.fillStyle = shade(col, 0.60);
+    g.fillStyle = shade(col, 0.62);                        // left wall (lit)
     g.beginPath();
     g.moveTo(cx - bw, baseY); g.lineTo(cx - bw, baseY - lift);
     g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
-    g.closePath(); g.fill();
-    g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
+    g.closePath(); g.fill(); outline(g, dark);
 
-    g.fillStyle = shade(col, 0.40);
+    g.fillStyle = shade(col, 0.40);                        // right wall (shade)
     g.beginPath();
     g.moveTo(cx + bw, baseY); g.lineTo(cx + bw, baseY - lift);
     g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
-    g.closePath(); g.fill();
-    g.strokeStyle = dark; g.stroke();
+    g.closePath(); g.fill(); outline(g, dark);
 
-    // a lit band along the top of each wall reads as a storey line
-    g.fillStyle = shade(col, 0.78);
-    g.beginPath();
-    g.moveTo(cx - bw, baseY - lift + 5); g.lineTo(cx, baseY + bh - lift + 5);
-    g.lineTo(cx, baseY + bh - lift); g.lineTo(cx - bw, baseY - lift);
-    g.closePath(); g.fill();
-
-    var ry = baseY - lift;                          // roof centre
-    diamond(g, cx, ry, bw * 2, bh * 2);
-    g.fillStyle = shade(col, 1.08); g.fill();
-    g.strokeStyle = shade(col, 1.5); g.lineWidth = 1.2; g.stroke();
-
-    // roof structures — each building must be identifiable at a glance
-    if (key === 'power') {
-      isoBox(g, cx - 9, ry + 3, 11, 11, 17, 0.6, shade(col, 0.9), dark);
-      isoBox(g, cx + 8, ry + 6, 9, 9, 12, 0.6, shade(col, 0.8), dark);
-      g.fillStyle = '#ffd76a';
+    // Window bands. A blank wall the size of a 3x3 plot reads as a crate;
+    // two storey lines give it scale and tell you it is a building.
+    var storeys = key === 'turret' ? 1 : (lift > 40 ? 3 : 2);
+    for (var sI = 1; sI <= storeys; sI++) {
+      var t = sI / (storeys + 1), wy = -lift * t;
+      g.fillStyle = 'rgba(150,205,255,.20)';
       g.beginPath();
-      g.moveTo(cx - 1, ry - 4); g.lineTo(cx + 5, ry - 4);
-      g.lineTo(cx + 1, ry + 3); g.lineTo(cx + 6, ry + 3);
-      g.lineTo(cx - 2, ry + 13); g.lineTo(cx + 2, ry + 4);
-      g.lineTo(cx - 3, ry + 4); g.closePath(); g.fill();
-    } else if (key === 'refinery') {
-      isoBox(g, cx - 16, ry + 2, 13, 13, 20, 0.6, shade(col, 0.92), dark);
-      g.fillStyle = shade(col, 1.25);                 // silo
-      g.beginPath(); g.ellipse(cx + 12, ry + 2, 12, 7, 0, 0, 6.29); g.fill();
-      g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
-      g.fillStyle = '#e8b428';
-      g.beginPath(); g.ellipse(cx + 12, ry + 1, 6.5, 3.6, 0, 0, 6.29); g.fill();
-      g.fillStyle = shade(col, 0.5);                  // loading ramp
-      g.fillRect(cx - 4, ry + 10, 16, 4);
-    } else if (key === 'barracks') {
-      g.fillStyle = shade(col, 1.3);                  // pitched roof
-      g.beginPath();
-      g.moveTo(cx - fw * 0.55, ry + 3); g.lineTo(cx, ry - 13);
-      g.lineTo(cx + fw * 0.55, ry + 3); g.lineTo(cx, ry + 12);
+      g.moveTo(cx - bw, baseY + wy); g.lineTo(cx, baseY + bh + wy);
+      g.lineTo(cx, baseY + bh + wy + 3.5); g.lineTo(cx - bw, baseY + wy + 3.5);
       g.closePath(); g.fill();
-      g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
-      g.fillStyle = '#cfd6e2';
-      g.fillRect(cx - 2, ry - 9, 4, 9);
-    } else if (key === 'factory') {
-      for (var i = 0; i < 3; i++) {                   // saw-tooth roof
-        var ox = cx - 20 + i * 15;
-        g.fillStyle = shade(col, 1.2 - i * 0.06);
-        g.beginPath();
-        g.moveTo(ox, ry + 6); g.lineTo(ox + 7, ry - 8);
-        g.lineTo(ox + 14, ry + 6); g.closePath(); g.fill();
-        g.strokeStyle = dark; g.lineWidth = 0.8; g.stroke();
-      }
-      g.fillStyle = '#e8b428';
-      g.fillRect(cx - 16, ry + 8, 32, 3);
-    } else if (key === 'base') {
-      isoBox(g, cx, ry - 2, 30, 26, 15, 0, shade(col, 1.02), dark);
-      g.fillStyle = '#8ad0ff';                        // control room glass
-      g.beginPath(); g.roundRect(cx - 9, ry - 18, 18, 7, 2); g.fill();
-      g.strokeStyle = dark; g.lineWidth = 0.9; g.stroke();
-      g.strokeStyle = shade(col, 1.5); g.lineWidth = 2;   // mast
-      g.beginPath(); g.moveTo(cx + 16, ry - 12); g.lineTo(cx + 16, ry - 26); g.stroke();
-      g.fillStyle = '#e5646c';
-      g.beginPath(); g.arc(cx + 16, ry - 27, 2.4, 0, 6.29); g.fill();
-    } else if (key === 'turret') {
-      isoBox(g, cx, ry + 1, 16, 16, 9, 0, shade(col, 1.1), dark);
-      g.fillStyle = shade(col, 1.35);
-      g.beginPath(); g.ellipse(cx, ry - 8, 8, 5, 0, 0, 6.29); g.fill();
-      g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
-      g.strokeStyle = dark; g.lineWidth = 4;
-      g.beginPath(); g.moveTo(cx, ry - 9); g.lineTo(cx + 17, ry - 14); g.stroke();
-      g.strokeStyle = shade(col, 0.85); g.lineWidth = 2.2;
-      g.beginPath(); g.moveTo(cx, ry - 9); g.lineTo(cx + 16, ry - 14); g.stroke();
+      g.fillStyle = 'rgba(150,205,255,.11)';
+      g.beginPath();
+      g.moveTo(cx + bw, baseY + wy); g.lineTo(cx, baseY + bh + wy);
+      g.lineTo(cx, baseY + bh + wy + 3.5); g.lineTo(cx + bw, baseY + wy + 3.5);
+      g.closePath(); g.fill();
     }
-    return { s: s, ax: cx, ay: baseY };   // anchor = footprint centre
+
+    var ry = baseY - lift;
+    diamond(g, cx, ry, bw * 2, bh * 2);                    // roof
+    g.fillStyle = shade(col, 1.06); g.fill();
+    outline(g, shade(col, 1.5));
+
+    // Roof structures are sized FROM the roof (u = one quarter of its width).
+    // Fixed pixel sizes left a 3x3 roof looking like an empty car park with a
+    // toy on it.
+    var u = bw / 2;
+
+    if (key === 'power') {
+      cylinder(g, cx - u * 0.75, ry + u * 0.30, u * 0.52, u * 1.5,
+               shade(col, 0.86), shade(col, 1.3), dark);
+      cylinder(g, cx + u * 0.62, ry + u * 0.46, u * 0.44, u * 1.1,
+               shade(col, 0.78), shade(col, 1.2), dark);
+      g.fillStyle = 'rgba(200,220,255,.30)';               // vented steam
+      g.beginPath(); g.ellipse(cx - u * 0.75, ry - u * 1.3, u * 0.55, u * 0.26, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx - u * 0.5, ry - u * 1.75, u * 0.36, u * 0.18, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#ffd23f';                             // bolt plate
+      var bs = u * 0.5;
+      g.beginPath();
+      g.moveTo(cx + bs * 0.1, ry + bs * 1.2); g.lineTo(cx + bs * 1.3, ry + bs * 1.2);
+      g.lineTo(cx + bs * 0.5, ry + bs * 2.0); g.lineTo(cx + bs * 1.5, ry + bs * 2.0);
+      g.lineTo(cx - bs * 0.3, ry + bs * 3.2); g.lineTo(cx + bs * 0.3, ry + bs * 2.1);
+      g.lineTo(cx - bs * 0.6, ry + bs * 2.1); g.closePath(); g.fill();
+      outline(g, '#7a5c00');
+    } else if (key === 'refinery') {
+      g.fillStyle = shade(col, 1.16);                      // storage dome
+      g.beginPath(); g.ellipse(cx + u * 0.7, ry + u * 0.1, u * 0.85, u * 0.62, 0, Math.PI, 0); g.fill();
+      outline(g, dark);
+      g.fillStyle = shade(col, 0.7);                       // conveyor
+      g.fillRect(cx - u * 0.1, ry + u * 0.05, u * 1.6, u * 0.28);
+      cylinder(g, cx - u * 0.95, ry + u * 0.18, u * 0.4, u * 1.15,
+               shade(col, 0.9), shade(col, 1.25), dark);
+      var pile = [[-0.35, 0.7, 0.30], [0.05, 0.86, 0.38], [0.45, 0.7, 0.26], [-0.05, 0.52, 0.23]];
+      for (var i = 0; i < pile.length; i++) {
+        g.fillStyle = i % 2 ? '#e8a92b' : '#c9822f';
+        g.beginPath();
+        g.arc(cx + pile[i][0] * u * 2, ry + pile[i][1] * u, pile[i][2] * u, 0, 6.29); g.fill();
+      }
+      outline(g, '#6b4a00');
+    } else if (key === 'barracks') {
+      // Slate roof, not red: a red roof on the red faction disappears.
+      var rh = u * 0.95;
+      g.fillStyle = '#5b6577';
+      g.beginPath();
+      g.moveTo(cx - bw * 0.94, ry + u * 0.12); g.lineTo(cx, ry - rh);
+      g.lineTo(cx + bw * 0.94, ry + u * 0.12); g.lineTo(cx, ry + u * 0.95);
+      g.closePath(); g.fill(); outline(g, '#2b3240');
+      g.fillStyle = '#434c5c';
+      g.beginPath();
+      g.moveTo(cx, ry - rh); g.lineTo(cx + bw * 0.94, ry + u * 0.12);
+      g.lineTo(cx, ry + u * 0.95); g.closePath(); g.fill();
+      g.fillStyle = col;                                   // faction ridge stripe
+      g.beginPath();
+      g.moveTo(cx, ry - rh); g.lineTo(cx + bw * 0.2, ry + u * 0.5);
+      g.lineTo(cx, ry + u * 0.95); g.lineTo(cx - bw * 0.2, ry + u * 0.5);
+      g.closePath(); g.fill();
+      g.fillStyle = '#e6ecf5';                             // doorway
+      g.beginPath(); g.roundRect(cx - u * 0.2, ry + u * 0.1, u * 0.4, u * 0.6, 1.5); g.fill();
+      outline(g, '#2b3240');
+    } else if (key === 'factory') {
+      var tw = u * 0.78;                                   // saw-tooth works
+      for (var k = 0; k < 3; k++) {
+        var ox = cx - tw * 1.5 + k * tw;
+        g.fillStyle = shade(col, 1.18 - k * 0.05);
+        g.beginPath();
+        g.moveTo(ox, ry + u * 0.45); g.lineTo(ox + tw * 0.5, ry - u * 0.6);
+        g.lineTo(ox + tw, ry + u * 0.45); g.closePath(); g.fill();
+        outline(g, dark);
+      }
+      var dw = u * 1.5, dh = u * 0.6;                      // roller door
+      g.fillStyle = '#1b2029';
+      g.beginPath(); g.roundRect(cx - dw / 2, ry + u * 0.4, dw, dh, 2); g.fill();
+      for (var z = 0; z < 6; z++) {                        // hazard stripes
+        g.fillStyle = z % 2 ? '#f2b529' : '#2a2f3a';
+        g.fillRect(cx - dw / 2 + z * dw / 6, ry + u * 0.4, dw / 6, dh * 0.42);
+      }
+      outline(g, dark);
+    } else if (key === 'base') {
+      isoBox(g, cx, ry - u * 0.05, u * 1.5, u * 1.3, u * 0.85, 0, shade(col, 1.0), dark);
+      var gw2 = u * 0.5, gy2 = ry - u * 1.05;              // control glass
+      g.fillStyle = '#7fd4ff';
+      g.beginPath(); g.roundRect(cx - gw2, gy2, gw2 * 2, u * 0.36, 2.5); g.fill();
+      outline(g, dark);
+      g.fillStyle = 'rgba(255,255,255,.35)';
+      g.fillRect(cx - gw2, gy2, gw2 * 2, u * 0.12);
+      g.strokeStyle = shade(col, 1.5); g.lineWidth = 2.2;  // mast
+      var mx = cx + u * 0.85, mt = ry - u * 1.75;
+      g.beginPath(); g.moveTo(mx, ry - u * 0.7); g.lineTo(mx, mt); g.stroke();
+      g.strokeStyle = shade(col, 1.2); g.lineWidth = 1.4;
+      g.beginPath(); g.moveTo(mx - u * 0.28, mt + u * 0.25);
+      g.lineTo(mx + u * 0.28, mt + u * 0.25); g.stroke();
+      g.fillStyle = '#ff5b63';                             // beacon
+      g.beginPath(); g.arc(mx, mt - u * 0.12, u * 0.15, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,91,99,.28)';
+      g.beginPath(); g.arc(mx, mt - u * 0.12, u * 0.34, 0, 6.29); g.fill();
+    } else if (key === 'turret') {
+      isoBox(g, cx, ry + u * 0.1, u * 1.15, u * 1.15, u * 0.6, 0, shade(col, 1.05), dark);
+      g.fillStyle = shade(col, 1.3);                                // housing
+      g.beginPath(); g.ellipse(cx, ry - u * 0.55, u * 0.6, u * 0.4, 0, 0, 6.29); g.fill();
+      outline(g, dark);
+      g.lineCap = 'round';                                          // gun
+      g.strokeStyle = dark; g.lineWidth = 6.5;
+      g.beginPath(); g.moveTo(cx, ry - u * 0.6); g.lineTo(cx + u * 1.7, ry - u * 1.15); g.stroke();
+      g.strokeStyle = '#39415a'; g.lineWidth = 3.8;
+      g.beginPath(); g.moveTo(cx, ry - u * 0.6); g.lineTo(cx + u * 1.65, ry - u * 1.12); g.stroke();
+      g.fillStyle = shade(col, 1.5);
+      g.beginPath(); g.arc(cx, ry - u * 0.6, u * 0.22, 0, 6.29); g.fill();
+    }
+    return { s: s, ax: cx, ay: baseY };
   }
 
   var COL = ['#4aa3db', '#e5646c'];            // player 0 blue, player 1 red
@@ -756,10 +883,10 @@
     SPR.oreLv = [ bakeOre(0), bakeOre(1), bakeOre(2) ];
     SPR.unit = [{}, {}];
     for (var p = 0; p < 2; p++) {
-      SPR.unit[p].rifle = bakeInfantry(COL[p], '#cfd6e2');
-      SPR.unit[p].rocket = bakeInfantry(shade(COL[p], 1.2), '#e8b428');
+      SPR.unit[p].rifle = bakeInfantry(COL[p], 'rifle');
+      SPR.unit[p].rocket = bakeInfantry(COL[p], 'rocket');
       SPR.unit[p].tank = bakeVehicle(COL[p], 'tank');
-      SPR.unit[p].harvester = bakeVehicle(shade(COL[p], 0.82), 'harv');
+      SPR.unit[p].harvester = bakeVehicle(COL[p], 'harv');
     }
     SPR.bld = [{}, {}];
     for (var q = 0; q < 2; q++) for (var k in BLDS) SPR.bld[q][k] = bakeBuilding(k, COL[q]);
@@ -2079,7 +2206,7 @@
   //  Input
   // --------------------------------------------------------------------- //
   var keys = {};
-  var drag = null, marq = document.getElementById('marq');
+  var drag = null, pan = null, marq = document.getElementById('marq');
   var mouse = { x: -1, y: -1, in: false };
   var lastClickT = 0, lastClickType = null;
 
@@ -2112,7 +2239,14 @@
 
   // A pointer that starts a marquee must survive leaving the canvas, and any
   // lost pointer has to clear it — pointerup alone is not enough (house rule).
+  function endPan() {
+    if (!pan) return;
+    pan = null;
+    cv.style.cursor = '';
+  }
+
   function endDrag() {
+    endPan();
     if (!drag) return;
     var d = drag; drag = null;
     marq.style.display = 'none';
@@ -2130,6 +2264,11 @@
     if (e.button === 0) {
       if (placing) { tryPlace(px, py); return; }
       drag = { x1: px, y1: py, x2: px, y2: py, shift: e.shiftKey };
+      try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    } else if (e.button === 1) {
+      e.preventDefault();                       // middle-drag pans the map
+      pan = { x: px, y: py };
+      cv.style.cursor = 'grabbing';
       try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     } else if (e.button === 2) {
       e.preventDefault();
@@ -2337,21 +2476,79 @@
     clampCam();
   });
 
-  function camScroll() {
-    if (state !== 'play' && state !== 'paused') return;
-    var sp = 13;
-    if (keys.a || keys.arrowleft) { cam.x -= sp * 1.6; }
-    if (keys.d || keys.arrowright) { cam.x += sp * 1.6; }
-    if (keys.w || keys.arrowup) { cam.y -= sp; }
-    if (keys.s || keys.arrowdown) { cam.y += sp; }
-    if (mouse.in && !drag) {
-      var edge = 22;
-      if (mouse.x < edge) cam.x -= sp * 1.4;
-      else if (mouse.x > cvW - edge) cam.x += sp * 1.4;
-      if (mouse.y < edge) cam.y -= sp;
-      else if (mouse.y > cvH - edge) cam.y += sp;
+  // --- camera ------------------------------------------------------------
+  // Three rules learned the hard way:
+  //  1. Speed is per SECOND, not per frame. Per-frame movement stutters the
+  //     moment anything drops a frame, which reads as the whole game being
+  //     janky even at a solid 60fps.
+  //  2. Velocity is eased toward a target instead of snapped, so starting and
+  //     stopping a pan has weight rather than teleporting.
+  //  3. The edge band needs a DWELL. The build panel is on the right, so the
+  //     pointer crosses the right-hand band every single time you go click a
+  //     build item — with an instant band, every click yanked the map sideways
+  //     first. A pointer merely passing through must scroll nothing.
+  var camVel = { x: 0, y: 0 };
+  var edgeDwell = 0;
+  var KEY_SPEED = 760;          // px/s
+  var EDGE_SPEED = 430;         // px/s at the very edge, ramped from 0
+  var EDGE_BAND = 28;           // px
+  var EDGE_DWELL = 130;         // ms the pointer must linger before it scrolls
+
+  function camScroll(dtms) {
+    var dt = dtms / 1000;
+    var wx = 0, wy = 0;
+
+    if (state === 'play' || state === 'paused') {
+      var kx = 0, ky = 0;
+      if (keys.a || keys.arrowleft) kx -= 1;
+      if (keys.d || keys.arrowright) kx += 1;
+      if (keys.w || keys.arrowup) ky -= 1;
+      if (keys.s || keys.arrowdown) ky += 1;
+      if (kx || ky) {
+        var kl = Math.sqrt(kx * kx + ky * ky);
+        wx += kx / kl * KEY_SPEED; wy += ky / kl * KEY_SPEED;
+      }
+
+      // Middle-drag pans directly and outranks everything else.
+      if (pan) {
+        cam.x -= (mouse.x - pan.x); cam.y -= (mouse.y - pan.y);
+        pan.x = mouse.x; pan.y = mouse.y;
+        camVel.x = camVel.y = 0;
+        edgeDwell = 0;
+        clampCam();
+        return;
+      }
+
+      if (mouse.in && !drag) {
+        var ex = 0, ey = 0;
+        if (mouse.x < EDGE_BAND) ex = -(1 - mouse.x / EDGE_BAND);
+        else if (mouse.x > cvW - EDGE_BAND) ex = 1 - (cvW - mouse.x) / EDGE_BAND;
+        if (mouse.y < EDGE_BAND) ey = -(1 - mouse.y / EDGE_BAND);
+        else if (mouse.y > cvH - EDGE_BAND) ey = 1 - (cvH - mouse.y) / EDGE_BAND;
+        if (ex || ey) {
+          edgeDwell += dtms;
+          if (edgeDwell >= EDGE_DWELL) {
+            // ease in over the first 250ms so it never starts at full tilt
+            var ramp = Math.min(1, (edgeDwell - EDGE_DWELL) / 250);
+            wx += ex * EDGE_SPEED * ramp;
+            wy += ey * EDGE_SPEED * ramp;
+          }
+        } else edgeDwell = 0;
+      } else edgeDwell = 0;
+    } else {
+      edgeDwell = 0;
     }
-    clampCam();
+
+    var k = Math.min(1, dt * 14);            // velocity easing
+    camVel.x += (wx - camVel.x) * k;
+    camVel.y += (wy - camVel.y) * k;
+    if (Math.abs(camVel.x) < 1) camVel.x = 0;
+    if (Math.abs(camVel.y) < 1) camVel.y = 0;
+    if (camVel.x || camVel.y) {
+      cam.x += camVel.x * dt;
+      cam.y += camVel.y * dt;
+      clampCam();
+    }
   }
 
   // --------------------------------------------------------------------- //
@@ -2736,7 +2933,7 @@
     var dt = Math.min(120, ts - last);
     last = ts;
 
-    camScroll();
+    camScroll(dt);
 
     if (state === 'play' && G) {
       acc += dt;
@@ -2892,6 +3089,10 @@
     }
     return n;
   }
+
+  window.__rtsFocus = function (gx, gy) { centerOn(gx, gy); clampCam(); };
+
+  window.__rtsCam = function () { return { x: Math.round(cam.x), y: Math.round(cam.y) }; };
 
   window.__rtsScreen = function (gx, gy) { return { x: sx(gx, gy), y: sy(gx, gy) }; };
 
