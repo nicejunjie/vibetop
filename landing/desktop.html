@@ -86,7 +86,9 @@
     font-family: system-ui, sans-serif; user-select: none;
   }
   .cu-strip[hidden] { display: none; }
-  .cu-strip .cu-brand { font-weight: 600; color: #c8d4e0; margin-right: 2px; }
+  .cu-strip .cu-who { display: flex; align-items: baseline; gap: 6px; flex: 0 0 auto; min-width: 0; }
+  .cu-strip .cu-brand { font-weight: 600; color: #c8d4e0; }
+  .cu-strip .cu-asof { color: #6a7a8a; font-size: 11px; white-space: nowrap; }
   .cu-strip .cu-metrics { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
   /* Each metric is a self-contained chip — reads cleanly on its own whether it's
      inline (desktop, one 26px line) or wrapped onto its own line (narrow phone),
@@ -123,12 +125,19 @@
        whole strip is 2 lines (not 3), and the chip boxes still share a left edge
        with their label/bar/% columns aligned. */
     .cu-strip { flex-wrap: nowrap; align-items: flex-start; }
-    .cu-strip .cu-brand { margin: 2px 8px 0 0; flex: 0 0 auto; }
+    /* Claude over "as of …" — one identity column, two lines, beside the chips. */
+    .cu-strip .cu-who { flex-direction: column; align-items: flex-start; gap: 1px; margin: 2px 8px 0 0; }
     .cu-strip .cu-metrics { flex-direction: column; align-items: stretch; gap: 4px; flex: 1 1 auto; }
-    .cu-strip .cu-seg { width: 100%; box-sizing: border-box; justify-content: flex-start; }
-    .cu-strip .cu-lbl { min-width: 3.6em; }
-    .cu-strip .cu-pct { min-width: 2.6em; text-align: right; }
-    .cu-strip .cu-asof { font-size: 11px; }
+    /* A grid, not a flex row: an explicit template is what makes the two chips
+       agree, so the bars start at one x, the percentages end at one x and the
+       reset texts begin at one x. Min-widths only approximated that, and drifted
+       apart the moment "week" and "session" measured differently. */
+    .cu-strip .cu-seg {
+      display: grid; grid-template-columns: 4.1em 52px 2.8em 1fr;
+      align-items: center; gap: 6px; width: 100%; box-sizing: border-box;
+    }
+    .cu-strip .cu-pct { text-align: right; }
+    .cu-strip .cu-dim { text-align: left; }
   }
   /* toggle row's On state gets a green dot, like a running app */
   .sm-item[data-id="claudeusage"].cu-on .sm-name::after {
@@ -3775,7 +3784,22 @@
 (function autoRefresh() {
   var hasSW = ('serviceWorker' in navigator);
   var swRefreshing = false;
-  var loadedShellVer = null;   // shell version this page is running (from the first hello)
+  // The shell version THIS DOCUMENT was built as — read from the tag install.sh
+  // stamps into it, not from whatever the server reports when we connect.
+  //
+  // Baselining from the first `hello` had a hole exactly the shape of an iOS
+  // PWA: resumed hours later it serves the shell from the service-worker cache
+  // (old HTML), the SSE then connects and truthfully says "the deployed version
+  // is v429" — and because this was the FIRST hello, the page recorded v429 as
+  // its own and concluded it was current. The stale shell then never refreshed,
+  // for as long as the app stayed installed.
+  // install.sh substitutes this token; a dev checkout keeps the literal, which
+  // the guard turns back into the old baseline-from-the-server behaviour. Read
+  // from a stamped CONSTANT, not from the build-tag element — that element is
+  // rewritten at runtime (it prints "429", not "v429") and a DOM-shaped check
+  // silently matched nothing.
+  var STAMPED_SHELL_VER = '@SW_VERSION@';
+  var loadedShellVer = /^v\d+$/.test(STAMPED_SHELL_VER) ? STAMPED_SHELL_VER : null;
   // A new shell was deployed → full refresh of the WHOLE vibetop desktop. One
   // reload pulls in every app iframe too, so a deploy reaches all of vibetop with
   // no per-app update logic. A brief notice so the reload reads as intentional.
@@ -3793,7 +3817,12 @@
   function updateSW() {   // no-op without a SW (insecure origin) — guarded
     try { if (hasSW) navigator.serviceWorker.getRegistration().then(function(r) { if (r) r.update().catch(function() {}); }).catch(function() {}); } catch (e) {}
   }
-  function triggerRefresh() { updateSW(); doReload(); }
+  var refreshing = false;
+  function triggerRefresh() {
+    if (refreshing) return;      // one reload per page load, never a loop
+    refreshing = true;
+    updateSW(); doReload();
+  }
   function subscribeUpdates() {
     try {
       var es = new EventSource('/api/events');
@@ -4066,12 +4095,17 @@
     // per-tab hide, so every client is consistent: on = shown everywhere.
     if (!enabled) { strip.hidden = true; return; }
     strip.hidden = false;
-    var html = '<span class="cu-brand">Claude</span><span class="cu-metrics">';
+    // "as of Nm ago" sits UNDER "Claude", in the identity column — inside the
+    // metrics column it was a third stacked row, which is what made the strip
+    // three lines tall on a phone. It is never shed: how old the number is is
+    // part of reading the number.
+    var asof = (d.stale) ? '<span class="cu-asof">as of ' + Math.round((d.ageSec || 0) / 60) + 'm ago</span>' : '';
+    var html = '<span class="cu-who"><span class="cu-brand">Claude</span>' + asof + '</span>' +
+               '<span class="cu-metrics">';
     if (d.session && d.session.pct != null) {
       html += seg('session', d.session.pct, d.session.reset);
       if (d.weekly && d.weekly.pct != null)
         html += seg('week', d.weekly.pct, d.weekly.reset);
-      if (d.stale) html += '<span class="cu-dim cu-asof">as of ' + Math.round((d.ageSec || 0) / 60) + 'm ago</span>';
     } else {
       html += '<span class="cu-dim">waiting for first API call…</span>';
     }

@@ -4752,3 +4752,29 @@ original exact-bytes test stayed green through the whole breakage.
   and Chromium.
 - **Rule (the third time this week):** derive it from the measured box. Same
   lesson as the chart tick count and the leaderboard card's width.
+
+## A stale PWA baselined its version from the server, so it could never notice it was stale
+
+- **Symptom (reported):** "the Claude usage bar is still 3 lines on cellphone",
+  hours after the fix for that had deployed. The strip on the live host measured
+  two lines in both engines; the phone was simply running an old shell and never
+  refreshed itself.
+- **Cause:** `/api/events` pushes a `reload` when the deployed `sw.js` VERSION
+  changes, and the shell also self-heals on reconnect — but it took its own
+  baseline from the FIRST `hello`. That is the version the SERVER has, not the
+  version this document was built as. An iOS PWA resumed after hours serves the
+  shell from the service-worker cache (old HTML), the SSE reconnects and
+  truthfully reports the current version, and because that was the first hello
+  the page recorded it as its own and concluded it was up to date. The stale
+  shell then never refreshed, for as long as the app stayed installed.
+- **Fix:** baseline from `@SW_VERSION@`, the token `landing/install.sh` already
+  substitutes into the document — so the page knows what IT is, and the first
+  hello is a comparison instead of an initialisation. `triggerRefresh()` is
+  one-shot per page load so a persistent mismatch can never become a loop.
+- **Read the stamp from a CONSTANT, not from the build-tag element.** The first
+  attempt used `#build-sw`, which is rewritten at runtime and renders `429`, not
+  `v429`; the guard regex quietly matched nothing and the fix did exactly
+  nothing while looking correct.
+- **Rule:** "am I current?" needs a fact the artifact carries, not a fact the
+  server reports. Anything cacheable that asks the server what version is current
+  will always be told it is.
