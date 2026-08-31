@@ -1620,6 +1620,7 @@
                   ('ontouchstart' in window && navigator.maxTouchPoints > 0); } catch (e) {}
   if (isTouch) document.body.classList.add('touch');
 
+  var releaseAllTouch = function () {};
   (function bindPad() {
     var pad = document.getElementById('pad');
     var held = {};            // pointerId -> key, so a slide off a button releases it
@@ -1692,6 +1693,15 @@
     }
     pad.addEventListener('pointerup', up);
     pad.addEventListener('pointercancel', up);
+    // A release that never reaches the pad still has to release the key. The
+    // pad is display:none behind any card, so lifting your finger during a
+    // death, a pause or an app switch delivered the pointerup somewhere else
+    // entirely — and the direction stayed down. You let go and kept walking.
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+    releaseAllTouch = function () {
+      for (var id in held) { set(held[id], false); delete held[id]; }
+    };
     pad.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   })();
 
@@ -4182,7 +4192,17 @@
   // keepAlt: the alt button acts WITHOUT dismissing the card — used by the
   // title card's "How to play", which should leave you back on Start when the
   // instructions close, not drop you into a game you have not started.
+  function releaseControls() {
+    releaseAllTouch();
+    K.left = K.right = K.up = K.down = K.jump = K.run = 0;
+    jumpBuffer = 0; fireBuf = 0;
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) releaseControls();
+  });
+
   function showCard(icon, title, msg, goLabel, altLabel, onGo, onAlt, keepAlt) {
+    releaseControls();          // the pad is about to vanish under this card
     ovIcon.textContent = icon; ovIcon.hidden = !icon;
     ovTitle.textContent = title;
     ovMsg.textContent = msg || '';

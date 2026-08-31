@@ -1027,6 +1027,52 @@ test.describe('circuit on touch', () => {
     expect(r.hold - r.tap, 'holding must still buy real height').toBeGreaterThan(1.5);
   });
 
+  test('a direction never stays down after you let go', async ({ page }) => {
+    // "Sometimes a direction gets stuck — I've taken my finger off and it keeps
+    // walking." The release handlers were on the pad, and the pad is
+    // display:none behind any card, so lifting your finger during a death, a
+    // pause or an app switch delivered the pointerup somewhere else entirely
+    // and the key stayed down. Proven against the pre-fix build: a released key
+    // coasts ~11px while friction bleeds the speed off and ends at 0, a stuck
+    // one runs 59px and is still moving — so this judges the SPEED, not the
+    // distance.
+    await boot(page);
+    const r = await page.evaluate(() => {
+      const T = window.__crTest; T.silence();
+      const pad = document.getElementById('pad');
+      const down = (k, id) => {
+        const el = document.querySelector('.pad .btn[data-k="' + k + '"]');
+        const b = el.getBoundingClientRect();
+        const ev = new PointerEvent('pointerdown',
+          { clientX: b.left + b.width / 2, clientY: b.top + b.height / 2,
+            pointerId: id, bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'target', { value: el });
+        pad.dispatchEvent(ev);
+      };
+      const up = (t, id) => t.dispatchEvent(
+        new PointerEvent('pointerup', { pointerId: id, bubbles: true, cancelable: true }));
+      function trial(release) {
+        T.level(0); T.input({}); T.step(150); T.clear(); T.place(40, 13); T.step(6);
+        down('right', 31); T.step(25);
+        const moving = Math.abs(window.__cr().vx) > 0.5;
+        release();
+        T.step(60);
+        return { moving, vx: Math.abs(window.__cr().vx) };
+      }
+      return {
+        onPad:  trial(() => up(pad, 31)),
+        offPad: trial(() => up(document.body, 31)),
+        card:   trial(() => { document.body.classList.add('carded');
+                              up(document.body, 31);
+                              document.body.classList.remove('carded'); })
+      };
+    });
+    for (const k of ['onPad', 'offPad', 'card']) {
+      expect(r[k].moving, k + ': holding ▶ should walk').toBe(true);
+      expect(r[k].vx, k + ': speed after releasing').toBeLessThan(0.05);
+    }
+  });
+
   test('every button gives a haptic tick where the browser has one', async ({ page }) => {
     // navigator.vibrate is the only web API for this. iOS Safari does not
     // implement it, so on an iPhone this is a no-op and there is no web way to
