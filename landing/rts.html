@@ -194,7 +194,7 @@
   <button id="helpBtn" title="How to play">?</button>
   <button id="lbBtn" title="Best results">🏆</button>
   <button id="sndBtn" title="Sound">🔊</button>
-  <button id="pauseBtn" title="Pause (Space)">⏸</button>
+  <button id="pauseBtn" title="Pause (P)">⏸</button>
   <button id="newBtn">New</button>
 </div>
 
@@ -228,7 +228,7 @@
         <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
         <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
         <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over.</dd>
-        <dt>Also</dt><dd><b>Space</b> pauses · <b>H</b> jumps to your base · <b>Esc</b> cancels placing.</dd>
+        <dt>Also</dt><dd><b>Space</b> (or <b>H</b>) jumps back to your base · <b>P</b> pauses · <b>Esc</b> cancels placing.</dd>
       </dl>
       <div class="btns"><button class="ghost" id="hvClose">Got it</button></div>
     </div></div>
@@ -2262,8 +2262,11 @@
       else if (sel.length) { clearSel(); }
       return;
     }
-    if (e.key === ' ') { e.preventDefault(); if (state === 'play' || state === 'paused') togglePause(); return; }
-    if (e.key.toLowerCase() === 'h' && G) { centerOn(G.start[P_HUMAN].x, G.start[P_HUMAN].y); return; }
+    // Space jumps home — the thing you reach for most in a match. Pause moved
+    // to P; it also exits on a click anywhere, so it needs the key least.
+    if (e.key === ' ') { e.preventDefault(); goHome(); return; }
+    if (e.key.toLowerCase() === 'h') { goHome(); return; }
+    if (e.key.toLowerCase() === 'p') { if (state === 'play' || state === 'paused') togglePause(); return; }
 
     if (/^[1-5]$/.test(e.key)) {
       if (e.ctrlKey || e.metaKey) {
@@ -2364,6 +2367,30 @@
   });
 
   function clearSel() { sel.forEach(function (u) { u.sel = false; }); sel = []; }
+
+  // Centre on the construction yard; if it is gone, on anything else still
+  // standing, then on any surviving unit. Losing your yard should not also
+  // lose you the ability to find what is left of your army.
+  function goHome() {
+    if (!G) return;
+    var i, best = null;
+    for (i = 0; i < G.blds.length; i++) {
+      var b = G.blds[i];
+      if (b.dead || b.p !== P_HUMAN) continue;
+      if (b.type === 'base') { best = { x: b.cx, y: b.cy }; break; }
+      if (!best) best = { x: b.cx, y: b.cy };
+    }
+    if (!best) {
+      for (i = 0; i < G.units.length; i++) {
+        var u = G.units[i];
+        if (!u.dead && u.p === P_HUMAN) { best = { x: u.x, y: u.y }; break; }
+      }
+    }
+    if (!best) return;
+    centerOn(best.x, best.y);
+    clampCam();
+    camVel.x = camVel.y = 0;
+  }
 
   function pickAt(px, py) {
     var best = null, bd = 1e9;

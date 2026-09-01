@@ -522,6 +522,39 @@ test.describe('rts', () => {
     expect(walked, 'a newly produced unit should be sent to the rally point').toBe(true);
   });
 
+  test('Space jumps back to base, P pauses', async ({ page }) => {
+    await boot(page);
+    const cam = () => page.evaluate(() => window.__rtsCam());
+    const home = await cam();
+
+    // Wander off with the edge, then come back to a neutral pointer position
+    // (an edge that is still under the cursor is *supposed* to keep scrolling).
+    await page.mouse.move(640, 400);
+    await page.waitForTimeout(250);
+    await page.mouse.move(2, 400);
+    await page.waitForTimeout(1100);
+    const away = await cam();
+    expect(Math.abs(away.x - home.x), 'should have travelled away first')
+      .toBeGreaterThan(200);
+
+    await page.mouse.move(640, 400);
+    await page.waitForTimeout(320);
+    await page.keyboard.press(' ');
+    await page.waitForTimeout(250);
+    const back = await cam();
+    expect(Math.abs(back.x - home.x), 'Space returns to base').toBeLessThan(14);
+    expect(Math.abs(back.y - home.y), 'Space returns to base').toBeLessThan(14);
+    expect((await page.evaluate(() => window.__rts())).state, 'Space must not pause any more')
+      .toBe('play');
+
+    await page.keyboard.press('p');
+    await page.waitForTimeout(200);
+    expect((await page.evaluate(() => window.__rts())).state, 'P pauses').toBe('paused');
+    await page.mouse.click(500, 400);      // and a click still resumes
+    await page.waitForTimeout(200);
+    expect((await page.evaluate(() => window.__rts())).state).toBe('play');
+  });
+
   test('a pan eases in instead of snapping to full speed', async ({ page }) => {
     await boot(page);
     await page.mouse.move(640, 400);
