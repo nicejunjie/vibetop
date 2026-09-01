@@ -99,7 +99,7 @@
   .sched-panel[hidden] { display: none; }
   .sched-panel h3 { flex-shrink: 0; font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 2px; }
   .sched-panel .hint { flex-shrink: 0; color: #8b93a6; font-size: 11.5px; line-height: 1.45; margin-bottom: 10px; }
-  .sched-panel > input, .sp-quick, .sp-actions { flex-shrink: 0; }
+  .sched-panel > input, .sched-panel > textarea, .sp-quick, .sp-actions { flex-shrink: 0; }
   .sp-list { list-style: none; margin-bottom: 10px; flex: 0 1 auto; overflow-y: auto; }
   .sp-list:empty { display: none; }
   .sp-list li {
@@ -130,12 +130,19 @@
     color: #6f7a86; font-size: 12px; line-height: 1.2;
   }
   .sp-list li .ed:hover { color: #fff; background: #3a5a86; }
-  .sched-panel input[type=text], .sched-panel input[type=datetime-local] {
+  .sched-panel input[type=datetime-local], .sched-panel textarea {
     width: 100%; padding: 7px 8px; margin-bottom: 6px;
     font: inherit; font-size: 13px; color: #eee;
     background: #17172c; border: 1px solid #3a3a5a; border-radius: 5px;
   }
-  .sched-panel input:focus { outline: none; border-color: #4ec36a; }
+  /* The message box starts as a single line and grows with its content (JS sets
+     the height); once it wraps past one line Enter inserts a newline instead of
+     scheduling, so multi-line messages are typed and sent with the button. */
+  .sched-panel textarea {
+    display: block; resize: none; overflow-y: hidden;
+    line-height: 1.4; max-height: 40vh;
+  }
+  .sched-panel input:focus, .sched-panel textarea:focus { outline: none; border-color: #4ec36a; }
   .sp-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
   .sp-quick button, .sp-go {
     font: inherit; font-size: 12px; cursor: pointer; border-radius: 5px;
@@ -183,7 +190,7 @@
     <div class="hint">Typed into the terminal and submitted at the time you pick —
       whether or not this page is open. Handy when a session stops at its token limit.</div>
     <ul class="sp-list" id="sp-list"></ul>
-    <input type="text" id="sp-text" maxlength="2000" placeholder="Message to send, e.g. continue">
+    <textarea id="sp-text" rows="1" maxlength="2000" placeholder="Message to send, e.g. continue"></textarea>
     <input type="datetime-local" id="sp-at">
     <div class="sp-quick">
       <div class="sp-sign" role="group" aria-label="Adjust direction">
@@ -538,6 +545,7 @@
       spAt.value = toLocalInput(new Date());
     }
     setQuickSign(1);   // always reopen adding, never a stale "-" from last visit
+    autoGrowText();    // reset the box to one line (and seed spTextBase)
     renderSchedules();
     if (!isTouch) setTimeout(function () { spText.focus(); }, 20);
   }
@@ -571,6 +579,7 @@
   function startEdit(e) {
     editing = { id: e.id, term: +e.term };
     spText.value = e.text;
+    autoGrowText();                 // a saved multi-line message opens grown
     spAt.value = toLocalInput(new Date(e.at * 1000));
     goBtn.textContent = 'Save';
     spErr.className = 'sp-err ok';
@@ -601,6 +610,7 @@
     }).then(function (d) {
       if (d && d.error) { spErr.textContent = d.error; return; }
       spText.value = '';
+      autoGrowText();                // collapse the box back to one line
       // Re-seed the time to NOW, exactly as openSched does. Without this the
       // field keeps the time just scheduled, so the next message silently
       // inherits it and the additive +N buttons count up from there — schedule
@@ -619,8 +629,33 @@
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSched(); }
   });
   document.getElementById('sp-go').addEventListener('click', submitSchedule);
+  // The message box is a textarea that starts one line tall and grows to fit
+  // what's typed (up to the CSS max-height, then it scrolls). spTextBase is the
+  // single-line height, captured live whenever the box is empty, so "grown past
+  // one line" is a reliable test regardless of font/zoom.
+  var spTextBase = 0;
+  function autoGrowText() {
+    spText.style.height = 'auto';
+    var sh = spText.scrollHeight;
+    if (!spTextBase || !spText.value) spTextBase = sh;
+    spText.style.height = sh + 'px';
+    spText.style.overflowY = (sh > spText.clientHeight + 1) ? 'auto' : 'hidden';
+  }
+  function textExpanded() {
+    // More than one line — an explicit newline, or wrapped past the single-line
+    // base. In that state Enter must add a newline, not submit.
+    return spText.value.indexOf('\n') >= 0 ||
+           (spTextBase && spText.scrollHeight > spTextBase + 4);
+  }
+  spText.addEventListener('input', autoGrowText);
   spText.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { e.preventDefault(); submitSchedule(); }
+    if (e.key !== 'Enter' || e.isComposing) return;
+    // Shift+Enter is always a newline (and grows the box). A plain Enter submits
+    // only while the box is still a single line; once it has grown to a big box,
+    // Enter inserts a newline and the Schedule button is how you send.
+    if (e.shiftKey || textExpanded()) return;   // let the newline through
+    e.preventDefault();
+    submitSchedule();
   });
   // Direction the magnitude taps below move the time. A single +/- toggle so the
   // number of "time" tags never doubles — +30m then flip to - and 5m walks it
