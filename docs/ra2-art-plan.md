@@ -77,9 +77,13 @@ and upscale with PIL (`Image.NEAREST`) to study it.
   description — a tall building whose top looks like a soldier — and flag in
   the commit that it is unverified.
 - **`soviet-tesla-coil.jpg` is a photograph of a real-world Tesla coil, not the
-  game sprite.** It corroborates only the general form (thin column, bulbous
-  discharge head, arcs). That spec is likewise "from knowledge". If a real
-  sprite turns up later, redo that item first.
+  game sprite.** The real sprites were obtained later (2026-09-01) and are
+  `soviet-tesla-coil-sprite.png` (idle) and `soviet-tesla-coil-firing.png`,
+  from the C&C wiki files `C&C-RA2-ngtsladm.gif` / `RA2_Tesla_Coil.gif`. The
+  real coil has NO collar rings or prongs: a silver sphere head over a helical
+  winding on a black core, standing between four chunky player-coloured
+  buttress pylons that span ~90% of the sprite width (w/h 0.52). The tesla
+  section of §6 below is superseded by those images.
 - **`soviet-ore-refinery.gif` opens on an empty construction pad.** Step to the
   final frame of the build-up animation to see the finished building.
 
