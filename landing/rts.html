@@ -1489,9 +1489,22 @@
       g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 0.7; g.stroke();   // corrugation
     }
     for (var i = 0; i < N; i++)                            // far slope, in shade
-      band(-1, i / N, (i + 1) / N, shade(col, 0.50 + 0.22 * (i / N)));
+      band(-1, i / N, (i + 1) / N, shade(col, 0.42 + 0.26 * (i / N)));
     for (i = N - 1; i >= 0; i--)                           // near slope, lit toward the ridge
-      band(1, i / N, (i + 1) / N, shade(col, 0.74 + 0.40 * (i / N)));
+      band(1, i / N, (i + 1) / N, shade(col, 0.66 + 0.52 * (i / N)));
+    // Rib rings across the barrel. RA2's cylinders read as a stack of hoops,
+    // not as a smooth tube, and that banding is most of the silhouette.
+    for (i = 1; i < 7; i++) {
+      var rt = -1 + 2 * i / 7;
+      var a2 = pt(rt, Math.cos(0.02) * 1, 0), b2 = pt(rt, 0, rise);
+      var c2 = pt(rt, -1, 0);
+      g.strokeStyle = 'rgba(20,24,30,.34)'; g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(a2[0], a2[1]);
+      g.quadraticCurveTo(b2[0], b2[1] - 1.5, c2[0], c2[1]); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.26)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(a2[0] + 1.6, a2[1]);
+      g.quadraticCurveTo(b2[0] + 1.6, b2[1] - 1.5, c2[0] + 1.6, c2[1]); g.stroke();
+    }
     // near end cap: a semicircular gable wall between the S and E corners
     var s0 = pt(1, 1, 0), s1 = pt(1, -1, 0), apex = pt(1, 0, rise);
     g.beginPath();
@@ -1612,8 +1625,9 @@
   // structure renders from geometry below. bakePix stays for later.
   var PIXBLD = {};
 
-  function bakeBuilding(key, col) {
+  function bakeBuilding(key, col, fac) {
     if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
+    var sov = fac === 'col';                    // Collective reads as RA2's Soviets
     var b = BLDS[key];
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
     var pad = 18;
@@ -1686,9 +1700,13 @@
 
     // Power-plant pylon: grey column, broad blue band, purple capsule, glowing rod.
     function pylon(px2, py2, r2, h2) {
-      cylinder(g, px2, py2, r2, h2 * 0.62, shade(BODY, 0.92), shade(BODY, 1.12), PLAT_E);
+      cylinder(g, px2, py2, r2 * 1.55, h2 * 0.30, '#25417a', '#37589c', PLAT_E);   // drum base
+      g.fillStyle = '#5e83c8';
+      g.beginPath(); g.ellipse(px2, py2 - h2 * 0.30, r2 * 1.55, r2 * 0.62, 0, 0, 6.29); g.fill();
+      outline(g, PLAT_E);
+      cylinder(g, px2, py2 - h2 * 0.30, r2, h2 * 0.42, shade(BODY, 0.92), shade(BODY, 1.12), PLAT_E);
       g.fillStyle = BLU;
-      g.fillRect(px2 - r2, py2 - h2 * 0.50, r2 * 2, h2 * 0.24);
+      g.fillRect(px2 - r2, py2 - h2 * 0.62, r2 * 2, h2 * 0.16);
       g.fillStyle = '#3b3f7a';                               // capsule
       g.beginPath();
       g.moveTo(px2 - r2 * 0.86, py2 - h2 * 0.60); g.lineTo(px2 + r2 * 0.86, py2 - h2 * 0.60);
@@ -1722,40 +1740,129 @@
     }
 
     if (key === 'base') {
-      // Construction Yard: ribbed hall, plus a red-and-white striped crane
-      // tower carrying a yellow articulated arm with a grabber claw. The
-      // crane is the whole silhouette.
-      var hw = fw * 0.86, hh = fh * 0.86;
-      var r0 = prism(g, cx + fw * 0.10, baseY - fh * 0.06, hw * 0.78, hh * 0.78, 14, BODY, null, PLAT_E);
-      vault(g, cx + fw * 0.10, r0, hw * 0.78, hh * 0.78, hh * 0.86, RIB, PLAT_E);
-      for (var vp = -2; vp <= 2; vp++) {                     // lavender panels
-        g.fillStyle = RIBP; g.globalAlpha = 0.42;
+      if (sov) {
+        // Soviet yard: a heavy rust-and-olive works with a girder gantry
+        // straddling it, not the Allied machine hall.
+        var shw = fw * 0.80, shh = fh * 0.80;
+        var sr0 = prism(g, cx, baseY - fh * 0.04, shw, shh, 22, '#6b6a52', '#43442f', PLAT_E);
+        facePatch(g, faceL, cx, baseY - fh * 0.04, shw, shh, 22, 0.22, 0.78, 0.00, 0.62, '#23241c', PLAT_E);
+        chevrons(g, faceL, cx, baseY - fh * 0.04, shw, shh, 22, 0.22, 0.78, 0.00, 0.12, 7, HAZ, '#23241c');
+        facePatch(g, faceR, cx, baseY - fh * 0.04, shw, shh, 22, 0.10, 0.90, 0.70, 0.86, '#8a3a24', null);
+        lattice(g, cx - shw * 0.9, sr0 + shh * 0.30, cx + shw * 0.9, sr0 - shh * 0.30, 8, '#8a8a6a');
+        lattice(g, cx - shw * 0.9, sr0 + shh * 0.30, cx - shw * 0.9, sr0 + shh * 0.30 + 16, 5, '#6f6f55');
+        isoBox(g, cx - shw * 0.30, sr0 - shh * 0.20, 16, 13, 12, 0, '#57573f', PLAT_E);
+        g.fillStyle = '#b03a2a';                            // red star plate
+        var stx = cx + shw * 0.30, sty = sr0 + shh * 0.10;
         g.beginPath();
-        g.ellipse(cx + fw * 0.10 + vp * 10, r0 - hh * 0.58 + vp * 1.8, 2.4, hh * 0.26, 0.62, 0, 6.29);
-        g.fill();
-        g.globalAlpha = 1;
+        for (var stp = 0; stp < 10; stp++) {
+          var ra2 = stp % 2 ? 3.4 : 8, an3 = -Math.PI / 2 + stp * Math.PI / 5;
+          g[stp ? 'lineTo' : 'moveTo'](stx + Math.cos(an3) * ra2, sty + Math.sin(an3) * ra2 * 0.55);
+        }
+        g.closePath(); g.fill(); outline(g, '#5a1a12');
+        drums(g, cx - fw * 0.60, baseY + fh * 0.50, 4, '#6b5a2a');
+        apron(cx + fw * 0.36, baseY + fh * 0.52, fw * 0.38, fh * 0.38);
+      } else {
+      // Allied Construction Yard: a DENSE dark machine block - red angled
+      // fins, turbine discs, a white roller shutter and orange pipework, with
+      // the red-and-white crane tower and yellow claw arm off the front-left.
+      // It is not a barrel-vault hall; that was the wrong building.
+      var hw = fw * 0.84, hh = fh * 0.84;
+      var r0 = prism(g, cx + fw * 0.06, baseY - fh * 0.08, hw * 0.86, hh * 0.86, 24,
+                     '#4b5563', '#333c48', PLAT_E);
+      var mbx = cx + fw * 0.06, mby = baseY - fh * 0.08;
+      var mw = hw * 0.86, mh = hh * 0.86;
+      facePatch(g, faceR, mbx, mby, mw, mh, 24, 0.20, 0.78, 0.04, 0.66, '#d5dae2', '#2a3038');
+      g.strokeStyle = 'rgba(40,48,58,.55)'; g.lineWidth = 1;   // shutter slats
+      for (var shI = 1; shI < 7; shI++) {
+        var q1 = faceR(mbx, mby, mw, mh, 24, 0.20, 0.04 + shI * 0.089),
+            q2 = faceR(mbx, mby, mw, mh, 24, 0.78, 0.04 + shI * 0.089);
+        g.beginPath(); g.moveTo(q1[0], q1[1]); g.lineTo(q2[0], q2[1]); g.stroke();
       }
-      isoBox(g, cx - fw * 0.52, baseY + fh * 0.06, 16, 14, 22, 0, BODY_D, PLAT_E);   // gear house
-      var tx2 = cx - fw * 0.30, ty2 = baseY - fh * 0.24;     // striped crane tower
-      cylinder(g, tx2, ty2, 6.5, 44, '#c9302c', '#e8e8e8', PLAT_E);
+      facePatch(g, faceL, mbx, mby, mw, mh, 24, 0.10, 0.90, 0.72, 0.88, shade(col, 0.85), null);
+      for (var fnI = -1; fnI <= 1; fnI++) {                   // dark red angled fins
+        var fnx = mbx - mw * 0.30 + fnI * 13, fny = r0 - mh * 0.20 + fnI * 6;
+        g.fillStyle = '#8e2b24';
+        g.beginPath();
+        g.moveTo(fnx, fny); g.lineTo(fnx + 6, fny - 22); g.lineTo(fnx + 12, fny - 19);
+        g.lineTo(fnx + 6, fny + 3); g.closePath(); g.fill(); outline(g, '#4a1512');
+        g.fillStyle = '#c9503f';
+        g.beginPath();
+        g.moveTo(fnx + 1, fny - 1); g.lineTo(fnx + 5, fny - 20); g.lineTo(fnx + 7, fny - 19.5);
+        g.lineTo(fnx + 3, fny - 1); g.closePath(); g.fill();
+      }
+      for (var tbI = 0; tbI < 2; tbI++) {                     // roof turbines
+        var tbx = mbx + mw * 0.34 - tbI * 17, tby = r0 - mh * 0.02 + tbI * 9;
+        g.fillStyle = '#20242a';
+        g.beginPath(); g.ellipse(tbx, tby, 9, 5, 0, 0, 6.29); g.fill(); outline(g, PLAT_E);
+        g.strokeStyle = '#79808a'; g.lineWidth = 1.3;
+        for (var bl = 0; bl < 5; bl++) {
+          var ang2 = bl * Math.PI / 2.5 + 0.4;
+          g.beginPath(); g.moveTo(tbx, tby);
+          g.lineTo(tbx + Math.cos(ang2) * 8.4, tby + Math.sin(ang2) * 4.6); g.stroke();
+        }
+        g.fillStyle = '#39404a';
+        g.beginPath(); g.ellipse(tbx, tby, 2.4, 1.4, 0, 0, 6.29); g.fill();
+      }
+      var tx2 = cx - fw * 0.52, ty2 = baseY + fh * 0.02;      // striped crane tower
+      cylinder(g, tx2, ty2, 7, 50, '#c9302c', '#e8e8e8', PLAT_E);
       g.fillStyle = '#f2f2f2';
-      for (var sI = 0; sI < 4; sI++) g.fillRect(tx2 - 6.5, ty2 - 10 - sI * 11, 13, 5);
-      g.strokeStyle = '#e8a317'; g.lineWidth = 5; g.lineCap = 'round';   // articulated arm
+      for (var sI = 0; sI < 4; sI++) g.fillRect(tx2 - 7, ty2 - 11 - sI * 12, 14, 5.5);
+      g.strokeStyle = '#d8862a'; g.lineWidth = 5.5; g.lineCap = 'round';   // claw arm
       g.beginPath();
-      g.moveTo(tx2, ty2 - 40); g.lineTo(tx2 + 26, ty2 - 30); g.lineTo(tx2 + 40, ty2 - 12); g.stroke();
-      g.strokeStyle = '#ffc94d'; g.lineWidth = 2.4;
+      g.moveTo(tx2, ty2 - 46); g.lineTo(tx2 + 28, ty2 - 34); g.lineTo(tx2 + 44, ty2 - 14); g.stroke();
+      g.strokeStyle = '#f5bd63'; g.lineWidth = 2.4;
       g.beginPath();
-      g.moveTo(tx2, ty2 - 40); g.lineTo(tx2 + 26, ty2 - 30); g.lineTo(tx2 + 40, ty2 - 12); g.stroke();
-      g.strokeStyle = '#e8a317'; g.lineWidth = 3; g.lineCap = 'round';   // grabber claw
-      g.beginPath(); g.moveTo(tx2 + 40, ty2 - 12); g.lineTo(tx2 + 36, ty2 - 2); g.stroke();
-      g.beginPath(); g.moveTo(tx2 + 40, ty2 - 12); g.lineTo(tx2 + 46, ty2 - 3); g.stroke();
-      g.fillStyle = shade(col, 1.0);
-      g.beginPath(); g.arc(tx2, ty2 - 44, 3.4, 0, 6.29); g.fill(); outline(g, PLAT_E);
-      apron(cx + fw * 0.30, baseY + fh * 0.56, fw * 0.40, fh * 0.40);
-      drums(g, cx - fw * 0.10, baseY + fh * 0.60, 4, '#3f443c');
-      crates(g, cx - fw * 0.56, baseY + fh * 0.40, 3, '#8d9288');
+      g.moveTo(tx2, ty2 - 46); g.lineTo(tx2 + 28, ty2 - 34); g.lineTo(tx2 + 44, ty2 - 14); g.stroke();
+      g.strokeStyle = '#d8862a'; g.lineWidth = 3.2;
+      g.beginPath(); g.moveTo(tx2 + 44, ty2 - 14); g.lineTo(tx2 + 39, ty2 - 3); g.stroke();
+      g.beginPath(); g.moveTo(tx2 + 44, ty2 - 14); g.lineTo(tx2 + 51, ty2 - 4); g.stroke();
+      g.fillStyle = shade(col, 1.05);
+      g.beginPath(); g.arc(tx2, ty2 - 50, 3.6, 0, 6.29); g.fill(); outline(g, PLAT_E);
+      g.strokeStyle = '#d8862a'; g.lineWidth = 3.4; g.lineCap = 'round';   // orange pipework
+      g.beginPath();
+      g.moveTo(cx - fw * 0.74, baseY + fh * 0.40); g.lineTo(cx + fw * 0.20, baseY + fh * 0.80); g.stroke();
+      g.strokeStyle = '#f5bd63'; g.lineWidth = 1.3;
+      g.beginPath();
+      g.moveTo(cx - fw * 0.74, baseY + fh * 0.39); g.lineTo(cx + fw * 0.20, baseY + fh * 0.79); g.stroke();
+      apron(cx + fw * 0.40, baseY + fh * 0.54, fw * 0.36, fh * 0.36);
+      crates(g, cx - fw * 0.20, baseY + fh * 0.62, 3, '#8d9288');
+      }
 
     } else if (key === 'power') {
+      if (sov) {
+        // Tesla Reactor: a squat armoured drum with copper coil windings and
+        // a sparking emitter on the crown - overtly electrical where the
+        // Allied plant is mundane.
+        diamond(g, cx, baseY - 3, fw * 1.6, fh * 1.6);
+        g.fillStyle = '#4d4a3c'; g.fill(); outline(g, PLAT_E);
+        var tdr = isoBox(g, cx, baseY - 4, fw * 1.10, fh * 1.10, 22, 0, '#5f5c4a', PLAT_E);
+        g.fillStyle = '#8a3a24';
+        g.fillRect(cx - fw * 0.52, baseY - 22, fw * 1.04, 4);
+        for (var cw = 0; cw < 5; cw++) {                    // copper windings
+          var cwy = baseY - 28 - cw * 5.2, cwr = fw * (0.40 - cw * 0.045);
+          g.fillStyle = shade('#b87333', 0.92 + cw * 0.06);
+          g.beginPath(); g.ellipse(cx, cwy, cwr, cwr * 0.40, 0, 0, 6.29); g.fill();
+          outline(g, '#4a2d13');
+          g.strokeStyle = 'rgba(255,222,168,.45)'; g.lineWidth = 0.9;
+          g.beginPath(); g.ellipse(cx, cwy - 1, cwr * 0.82, cwr * 0.30, 0, 0, 6.29); g.stroke();
+        }
+        var orb2 = baseY - 58;
+        g.fillStyle = 'rgba(190,230,255,.28)';
+        g.beginPath(); g.arc(cx, orb2, 13, 0, 6.29); g.fill();
+        g.fillStyle = '#dff4ff';
+        g.beginPath(); g.arc(cx, orb2, 6, 0, 6.29); g.fill(); outline(g, '#4d86a0');
+        g.strokeStyle = '#e6f7ff'; g.lineWidth = 1.2; g.lineCap = 'round';
+        var arcs2 = [[10, -4, 5, -12, 13, -16], [-11, 4, -6, 11, -14, 12], [2, 12, 6, 8, 9, 15]];
+        for (var ar2 = 0; ar2 < arcs2.length; ar2++) {
+          var v2 = arcs2[ar2];
+          g.beginPath(); g.moveTo(cx, orb2);
+          g.lineTo(cx + v2[0], orb2 + v2[1]); g.lineTo(cx + v2[2], orb2 + v2[3]);
+          g.lineTo(cx + v2[4], orb2 + v2[5]); g.stroke();
+        }
+        g.fillStyle = shade(col, 0.95);
+        g.fillRect(cx - fw * 0.52, baseY - 10, fw * 1.04, 3);
+        drums(g, cx - fw * 0.72, baseY + fh * 0.44, 4, '#6b5a2a');
+      } else {
       // Power Plant: three glowing pylons around a molten core on a round
       // platform. Not a shed with chimneys - that was a different building.
       diamond(g, cx, baseY - 4, fw * 1.7, fh * 1.7);
@@ -1776,13 +1883,14 @@
       g.beginPath(); g.ellipse(cx, coreY - 20, fw * 0.13, fh * 0.13, 0, 0, 6.29); g.fill();
       g.fillStyle = 'rgba(255,170,60,.22)';
       g.beginPath(); g.ellipse(cx, coreY - 22, fw * 0.62, fh * 0.62, 0, 0, 6.29); g.fill();
-      pylon(cx - fw * 0.52, baseY + fh * 0.16, 7.5, 36);
-      pylon(cx + fw * 0.52, baseY + fh * 0.16, 7.5, 36);
-      pylon(cx + fw * 0.00, baseY - fh * 0.46, 7.5, 42);
-      g.fillStyle = shade(col, 0.95);                                          // house trim on the deck
-      diamond(g, cx, baseY + fh * 0.30, fw * 0.72, fh * 0.72); g.fill();
-      g.fillStyle = shade(col, 1.20);
-      diamond(g, cx, baseY + fh * 0.30, fw * 0.46, fh * 0.46); g.fill();
+      pylon(cx - fw * 0.54, baseY + fh * 0.20, 8, 46);
+      pylon(cx + fw * 0.54, baseY + fh * 0.20, 8, 46);
+      pylon(cx + fw * 0.00, baseY - fh * 0.50, 8, 52);
+      g.fillStyle = shade(col, 0.95);                                          // house ring on the deck
+      diamond(g, cx, baseY + fh * 0.46, fw * 0.60, fh * 0.60); g.fill();
+      g.fillStyle = shade(PLAT, 1.10);
+      diamond(g, cx, baseY + fh * 0.46, fw * 0.44, fh * 0.44); g.fill();
+      }
 
     } else if (key === 'refinery') {
       // Refinery: domed drum body with two thick stacks, a ribbed vault
@@ -1791,12 +1899,12 @@
       var dx1 = cx - fw * 0.42, dy1 = baseY - fh * 0.18;
       isoBox(g, dx1, dy1, fw * 0.70, fh * 1.20, 18, 0, BODY, PLAT_E);          // drum body
       g.fillStyle = shade(BODY, 1.20);                                         // domed top
-      g.beginPath(); g.ellipse(dx1, dy1 - 18, fw * 0.36, fh * 0.46, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(dx1, dy1 - 22, fw * 0.38, fh * 0.54, 0, 0, 6.29); g.fill();
       outline(g, PLAT_E);
       g.fillStyle = BLU;
-      g.beginPath(); g.ellipse(dx1, dy1 - 18, fw * 0.36, fh * 0.46, 0, 0.6, 2.5); g.fill();
-      stackR(dx1 - fw * 0.14, dy1 - 24, 6.5, 40);
-      stackR(dx1 + fw * 0.20, dy1 - 30, 7.5, 48);
+      g.beginPath(); g.ellipse(dx1, dy1 - 22, fw * 0.38, fh * 0.54, 0, 0.6, 2.5); g.fill();
+      stackR(dx1 - fw * 0.16, dy1 - 26, 9.5, 32);
+      stackR(dx1 + fw * 0.20, dy1 - 32, 10.5, 38);
       var vx1 = cx + fw * 0.24, vy1 = baseY - fh * 0.10;                       // ribbed vault
       var vr0 = prism(g, vx1, vy1, fw * 0.44, fh * 0.44, 12, BODY_D, null, PLAT_E);
       vault(g, vx1, vr0, fw * 0.44, fh * 0.44, fh * 0.62, RIB, PLAT_E);
@@ -1823,13 +1931,62 @@
       g.fillRect(vx1 - fw * 0.30, vr0 + fh * 0.14, fw * 0.60, 3);
 
     } else if (key === 'barracks') {
-      // Barracks: two ribbed cylinders side by side with a hazard apron in
-      // front and a comms mast - that pair of barrels is the whole read.
+      if (sov) {
+        // Soviet Barracks: a tall concrete block topped by a stone statue of
+        // a saluting conscript. The statue roughly doubles the height and is
+        // the entire silhouette - you name this building from across the map.
+        var sbw = fw * 0.62, sbh = fh * 0.62;
+        var sbr = prism(g, cx, baseY - fh * 0.10, sbw, sbh, 40, '#7b7566', '#585245', PLAT_E);
+        for (var wq = 0; wq < 3; wq++) {                    // window columns
+          facePatch(g, faceL, cx, baseY - fh * 0.10, sbw, sbh, 40,
+                    0.16 + wq * 0.26, 0.32 + wq * 0.26, 0.18, 0.74, '#2b2f34', PLAT_E);
+          facePatch(g, faceR, cx, baseY - fh * 0.10, sbw, sbh, 40,
+                    0.16 + wq * 0.26, 0.32 + wq * 0.26, 0.18, 0.74, '#23272c', PLAT_E);
+        }
+        facePatch(g, faceL, cx, baseY - fh * 0.10, sbw, sbh, 40, 0.38, 0.62, 0.00, 0.20, '#23241c', PLAT_E);
+        facePatch(g, faceL, cx, baseY - fh * 0.10, sbw, sbh, 40, 0.08, 0.92, 0.80, 0.90, '#8a3a24', null);
+        // plinth + statue
+        var pw2 = sbw * 0.52, py3 = sbr;
+        isoBox(g, cx, py3 + sbh * 0.10, pw2 * 1.6, pw2 * 1.2, 8, 0, '#6d6759', PLAT_E);
+        var sy4 = py3 - 6, ST = '#9a9484', STD = '#6e6a5c';
+        g.fillStyle = ST;                                   // legs / greatcoat
+        g.beginPath();
+        g.moveTo(cx - 4.4, sy4); g.lineTo(cx + 4.4, sy4);
+        g.lineTo(cx + 3.2, sy4 - 13); g.lineTo(cx - 3.2, sy4 - 13);
+        g.closePath(); g.fill(); outline(g, STD);
+        g.fillStyle = ST;                                   // torso
+        g.beginPath(); g.roundRect(cx - 3.8, sy4 - 22, 7.6, 10, 1.6); g.fill(); outline(g, STD);
+        g.fillStyle = STD;
+        g.fillRect(cx + 1.4, sy4 - 22, 2.4, 10);            // shaded side
+        g.strokeStyle = ST; g.lineWidth = 2.6; g.lineCap = 'round';
+        g.beginPath();                                      // raised saluting arm
+        g.moveTo(cx + 2.6, sy4 - 21); g.lineTo(cx + 7.5, sy4 - 30); g.stroke();
+        g.strokeStyle = STD; g.lineWidth = 2.2;
+        g.beginPath();                                      // rifle held across
+        g.moveTo(cx - 4.2, sy4 - 14); g.lineTo(cx - 1.2, sy4 - 26); g.stroke();
+        g.fillStyle = ST;                                   // head
+        g.beginPath(); g.arc(cx, sy4 - 25.5, 3.1, 0, 6.29); g.fill(); outline(g, STD);
+        g.fillStyle = STD;
+        g.beginPath(); g.arc(cx, sy4 - 26.6, 3.1, Math.PI, 0); g.fill();
+        g.fillStyle = '#b03a2a';                            // red star on the plinth
+        var stx2 = cx, sty2 = py3 + sbh * 0.10 - 5;
+        g.beginPath();
+        for (var sp2 = 0; sp2 < 10; sp2++) {
+          var rr3 = sp2 % 2 ? 2.4 : 5.6, aa3 = -Math.PI / 2 + sp2 * Math.PI / 5;
+          g[sp2 ? 'lineTo' : 'moveTo'](stx2 + Math.cos(aa3) * rr3, sty2 + Math.sin(aa3) * rr3 * 0.6);
+        }
+        g.closePath(); g.fill(); outline(g, '#5a1a12');
+        g.fillStyle = shade(CONC, 0.70);                    // entry stair
+        diamond(g, cx - sbw * 0.10, baseY + fh * 0.42, 20, 10); g.fill(); outline(g, PLAT_E);
+        crates(g, cx + fw * 0.42, baseY + fh * 0.30, 2, '#6b5a2a');
+      } else {
+      // Allied Barracks: two ribbed cylinders side by side with a hazard
+      // apron in front - that pair of barrels is the whole read.
       var b1x = cx - fw * 0.30, b2x = cx + fw * 0.24;
       var br1 = prism(g, b1x, baseY - fh * 0.22, fw * 0.40, fh * 0.40, 10, BODY_D, null, PLAT_E);
-      vault(g, b1x, br1, fw * 0.40, fh * 0.40, fh * 0.66, RIB, PLAT_E);
+      vault(g, b1x, br1, fw * 0.40, fh * 0.40, fh * 0.66, '#5c7480', PLAT_E);
       var br2 = prism(g, b2x, baseY - fh * 0.02, fw * 0.40, fh * 0.40, 10, BODY_D, null, PLAT_E);
-      vault(g, b2x, br2, fw * 0.40, fh * 0.40, fh * 0.66, RIB, PLAT_E);
+      vault(g, b2x, br2, fw * 0.40, fh * 0.40, fh * 0.66, '#5c7480', PLAT_E);
       g.fillStyle = BLU;
       g.fillRect(b1x - fw * 0.24, br1 + fh * 0.16, fw * 0.48, 3);
       g.fillRect(b2x - fw * 0.24, br2 + fh * 0.16, fw * 0.48, 3);
@@ -1839,6 +1996,7 @@
       g.beginPath(); g.arc(b1x - fw * 0.26, br1 - fh * 0.30 - 24, 3, 0, 6.29); g.fill();
       apron(cx - fw * 0.04, baseY + fh * 0.52, fw * 0.46, fh * 0.46);
       crates(g, cx + fw * 0.40, baseY + fh * 0.18, 2, '#8d9288');
+      }
 
     } else if (key === 'factory') {
       // War Factory: one big pale ribbed hall, a domed tower with a flag at
@@ -1878,12 +2036,12 @@
       // Pillbox: a low saucer dome with a glowing blue eye and a gun slit.
       diamond(g, cx, baseY - 2, fw * 1.5, fh * 1.5);
       g.fillStyle = shade(BODY, 0.86); g.fill(); outline(g, PLAT_E);
-      g.fillStyle = BODY;
-      g.beginPath(); g.ellipse(cx, baseY - 4, fw * 0.86, fh * 0.86, 0, 0, 6.29); g.fill();
-      outline(g, PLAT_E);
-      g.fillStyle = shade(BODY, 1.16);
-      g.beginPath(); g.ellipse(cx, baseY - 9, fw * 0.60, fh * 0.62, 0, 0, 6.29); g.fill();
-      outline(g, PLAT_E);
+      for (var st = 0; st < 3; st++) {                     // stepped saucer rings
+        g.fillStyle = shade(BODY, 0.88 + st * 0.14);
+        g.beginPath();
+        g.ellipse(cx, baseY - 3 - st * 4, fw * (0.90 - st * 0.16), fh * (0.90 - st * 0.16), 0, 0, 6.29);
+        g.fill(); outline(g, PLAT_E);
+      }
       g.fillStyle = BLU;
       g.beginPath(); g.ellipse(cx, baseY - 13, fw * 0.34, fh * 0.36, 0, 0, 6.29); g.fill();
       g.fillStyle = BLUL;
@@ -2007,8 +2165,12 @@
         else SPR.unit[p][uk] = bakeVehicle(COL[p], uk === 'harvester' ? 'harv' : uk);
       }
     }
-    SPR.bld = [{}, {}];
-    for (var q = 0; q < 2; q++) for (var k in BLDS) SPR.bld[q][k] = bakeBuilding(k, COL[q]);
+    // Two players x two factions: a Soviet barracks is a different structure
+    // from an Allied one, not the same shape in another colour.
+    SPR.bld = [{ dir: {}, col: {} }, { dir: {}, col: {} }];
+    for (var q = 0; q < 2; q++)
+      for (var fk in FACTIONS)
+        for (var k in BLDS) SPR.bld[q][fk][k] = bakeBuilding(k, COL[q], fk);
   }
 
   // --------------------------------------------------------------------- //
@@ -4219,7 +4381,7 @@
   }
 
   function drawBld(b) {
-    var art = SPR.bld[b.p][b.type];
+    var art = SPR.bld[b.p][facOf(G, b.p) || 'dir'][b.type];
     var px = sx(b.cx, b.cy), py = sy(b.cx, b.cy);
     if (px < -260 || py < -260 || px > cvW + 260 || py > cvH + 260) return;
 
