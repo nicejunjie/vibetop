@@ -1064,10 +1064,16 @@
   // parked next to a finished structure.
   function bakeVehicle(col, kind) {
     var out = [];
-    var hull = mixc(shade(col, 0.74), '#5c6154', 0.30);
-    var deck = shade(hull, 1.20), turr = mixc(shade(col, 0.90), '#5c6154', 0.20);
-    var trim = shade(col, 1.15);
-    var TRACK = '#2e3135', TRK_D = '#15171a', GUN = '#2c313a', GUN_L = '#454c58';
+    // Read off the real sprites: RA2 armour is DARK and drab, the house colour
+    // appears as side panels and a turret band rather than covering the hull,
+    // and every vehicle carries a pale bumper strip along the lower front.
+    // Saturating the whole hull - what we did - is the same mistake the
+    // buildings had.
+    var hull = mixc(shade(col, 0.52), '#4a5058', 0.46);
+    var deck = shade(hull, 1.26), turr = mixc(shade(col, 0.62), '#4a5058', 0.36);
+    var panel = shade(col, 0.86), trim = shade(col, 1.10);
+    var BAND = '#cfd6de';
+    var TRACK = '#23262b', TRK_D = '#101215', GUN = '#23272e', GUN_L = '#3c424c';
     for (var d = 0; d < 8; d++) {
       var a = d * Math.PI / 4;
       var s = unitCanvas(), g = s.g;
@@ -1116,6 +1122,28 @@
         }
         return [mx, my];
       }
+      // Pale bumper strip along the lower front — present on every RA2 chassis
+      // and one of the strongest cues that a thing is one of their vehicles.
+      function bumper(bl, bw2, by5) {
+        var fxp = cx + fx * bl, fyp = by5 + fy * bl;
+        g.strokeStyle = BAND; g.lineWidth = 2.6; g.lineCap = 'butt';
+        g.beginPath();
+        g.moveTo(fxp + px * bw2, fyp + py * bw2);
+        g.lineTo(fxp - px * bw2, fyp - py * bw2);
+        g.stroke();
+        g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(fxp + px * bw2, fyp + py * bw2 + 1.6);
+        g.lineTo(fxp - px * bw2, fyp - py * bw2 + 1.6);
+        g.stroke();
+      }
+      // House-colour skirt panels down each flank.
+      function skirt(bl, bw2, by5, ln) {
+        for (var sg = -1; sg <= 1; sg += 2) {
+          var scx = cx + px * bw2 * sg, scy = by5 + py * bw2 * sg;
+          isoBox(g, scx, scy, ln, 1.8, 4.6, a, panel, dark);
+        }
+      }
       function barrel(x0, y0, L, w0, w1, muzzle) {
         g.lineCap = 'round';
         g.strokeStyle = GUN; g.lineWidth = w0;
@@ -1142,9 +1170,11 @@
           g.lineTo(mfx + px * wid * 0.32 * tk + fx * 3.5, mfy - 4.5 + py * wid * 0.32 * tk + fy * 3.5);
           g.stroke();
         }
+        skirt(0, wid * 0.40, by - 6, len * 0.62);
+        bumper(len * 0.40, wid * 0.26, by - 3);
         var mz = turret(cx - fx * 2, by - 13, 17, 16, 8.5, true);
         for (var bs = -1; bs <= 1; bs += 2)
-          barrel(mz[0] + px * 3.2 * bs, mz[1] - 4 + py * 3.2 * bs, 24, 5, 2.8, true);
+          barrel(mz[0] + px * 3.0 * bs, mz[1] - 4 + py * 3.0 * bs, 30, 3.6, 2.0, false);
         for (var mp = -1; mp <= 1; mp += 2) {                   // rear missile pods
           var mpx = cx - fx * 11 + px * wid * 0.34 * mp, mpy = by - 10 + py * wid * 0.34 * mp;
           isoBox(g, mpx, mpy, 8.5, 7, 6, a, shade(hull, 1.10), dark);
@@ -1162,8 +1192,10 @@
         // Low, slim, long-barrelled: reach and speed, not mass.
         isoBox(g, cx, by - 4, len * 0.84, wid * 0.64, 6, a, hull, dark);
         isoBox(g, cx + fx * 6, by - 9.6, len * 0.34, wid * 0.50, 2.6, a, deck, dark);   // sloped glacis
+        skirt(0, wid * 0.34, by - 5, len * 0.58);
+        bumper(len * 0.38, wid * 0.23, by - 2.4);
         var lz = turret(cx - fx * 1.5, by - 10.5, 13, 11.5, 6.5, true);
-        barrel(lz[0], lz[1] - 3, 32, 4.4, 2.4, true);
+        barrel(lz[0], lz[1] - 3, 36, 3.4, 1.9, false);
         g.fillStyle = acc;                                      // rangefinder blip
         g.beginPath(); g.arc(cx - fx * 1.5 - px * 4.6, by - 14.5, 1.2, 0, 6.29); g.fill();
         g.fillStyle = shade(hull, 0.55);                        // stowage bin on the rear
@@ -1171,9 +1203,14 @@
       } else if (kind === 'spectre') {
         // No barrel anywhere: a faceted crystal emitter where the turret would
         // be, so the silhouette says "not a gun tank" before colour does.
-        isoBox(g, cx, by - 4.5, len * 0.76, wid * 0.62, 5.5, a, hull, dark);
-        isoBox(g, cx, by - 10, len * 0.34, wid * 0.44, 3.4, a, shade(turr, 0.9), dark);  // emitter mount
-        var gy3 = by - 13.5, gr = 6.8;
+        // Wedge chassis: RA2's prism armour is a wide arrowhead that flares
+        // toward the front, with a pale emitter block standing on the centre.
+        isoBox(g, cx - fx * 3, by - 4.5, len * 0.52, wid * 0.86, 5.5, a, hull, dark);
+        isoBox(g, cx + fx * 7, by - 4.5, len * 0.34, wid * 0.50, 5.5, a, hull, dark);
+        bumper(len * 0.40, wid * 0.30, by - 2.6);
+        skirt(-len * 0.10, wid * 0.44, by - 5, len * 0.34);
+        isoBox(g, cx, by - 10, len * 0.30, wid * 0.40, 4.2, a, shade(turr, 1.05), dark);
+        var gy3 = by - 14, gr = 5.6;
         g.fillStyle = shade(acc, 0.62);                         // shaded facets
         g.beginPath();
         g.moveTo(cx, gy3 - gr * 1.55); g.lineTo(cx + gr, gy3 - gr * 0.35);
@@ -1194,25 +1231,32 @@
         // back with ore visibly heaped in it — the loudest identifier on the
         // field, and the reason it never gets mistaken for a tank.
         isoBox(g, cx, by - 4, len * 0.92, wid * 0.76, 7, a, hull, dark);
+        bumper(len * 0.42, wid * 0.26, by - 2.6);
         var bx2 = cx - fx * 5, by3 = by - 11;
-        isoBox(g, bx2, by3, 17, 15, 10, a, shade(acc, 0.70), '#5a3d00');   // bucket shell
-        g.fillStyle = shade(acc, 0.42);                                     // bucket interior
-        diamond(g, bx2, by3 - 10, 15.5, 8.4); g.fill();
+        isoBox(g, bx2, by3, 18, 16, 11, a, '#8a7c4a', '#3d3620');           // tan ore bays
+        for (var rb = -1; rb <= 1; rb++) {                                  // bay ribs
+          g.strokeStyle = 'rgba(30,26,12,.45)'; g.lineWidth = 1.4;
+          g.beginPath();
+          g.moveTo(bx2 - 7 + px * rb * 4, by3 - 4 + py * rb * 4);
+          g.lineTo(bx2 + 7 + px * rb * 4, by3 - 2 + py * rb * 4); g.stroke();
+        }
+        g.fillStyle = '#564c2c';                                            // open bay, in shadow
+        diamond(g, bx2, by3 - 11, 16, 8.6); g.fill();
         var ore = [[-4, -1.2], [0, 0.6], [4.2, -0.8], [-1.6, -2.6], [2.2, 2.0]];
         for (var oI = 0; oI < ore.length; oI++) {                           // heaped ore
           g.fillStyle = oI % 2 ? '#e8b428' : '#c9822f';
           g.beginPath();
           g.ellipse(bx2 + ore[oI][0], by3 - 11 + ore[oI][1], 3.2, 2.0, 0, 0, 6.29); g.fill();
         }
-        g.strokeStyle = '#5a3d00'; g.lineWidth = 1;
-        diamond(g, bx2, by3 - 10, 15.5, 8.4); g.stroke();
+        g.strokeStyle = '#3d3620'; g.lineWidth = 1;
+        diamond(g, bx2, by3 - 11, 16, 8.6); g.stroke();
         g.strokeStyle = 'rgba(30,20,0,.5)'; g.lineWidth = 1.5;              // hazard bands
         for (var hz = -1; hz <= 1; hz++) {
           g.beginPath();
           g.moveTo(bx2 - 6.5, by3 - 5.5 + hz * 2.8); g.lineTo(bx2 + 6.5, by3 - 3 + hz * 2.8);
           g.stroke();
         }
-        isoBox(g, cx + fx * 9.5, by - 9, 10, 12, 10, a, deck, dark);        // cab
+        isoBox(g, cx + fx * 9.5, by - 9, 10, 12, 10, a, shade(hull, 1.05), dark);  // cab
         g.fillStyle = '#8ad0ff';                                            // windscreen
         g.beginPath(); g.ellipse(cx + fx * 10.5, by - 18.5, 3.6, 2.5, 0, 0, 6.29); g.fill();
         outline(g, dark);
