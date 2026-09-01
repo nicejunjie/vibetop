@@ -156,39 +156,38 @@ stackR(x, y, r, h)   pylon(x, y, r, h)   apron(x, y, hw, hh)      (local to bake
 ## 4. Verification harness
 
 A local static server plus Playwright. **Always look at a render — never judge
-sprite work by reading code.**
+sprite work by reading code.** Scripts live in `tools/rts-art/` (see its
+README); they take `RTS_PORT` / `RTS_URL` for the server and `RTS_OUT` for the
+output directory (default `tools/rts-art/out/`, gitignored).
 
 ```bash
-# once per session
 cd landing && python3 -m http.server 8099 --bind 127.0.0.1 &
-
-# contact sheet of every structure, both factions
-node tools/rts-art/fsheet.js       # writes fsheet.png
-
-# one structure, zoomed (args: key, zoom)
-node tools/rts-art/one.js power 4  # writes one.png
-
-# all 8 facings of each vehicle
-node tools/rts-art/vsheet.js       # writes vsheet.png
-
-# infantry
-node tools/rts-art/usheet.js       # writes usheet.png
-
-# in-game scene
-node tools/rts-art/shot.js         # writes art.png
+node tools/rts-art/one.js power 4   # one structure: rows = faction, cols = player colour; canvas bound drawn
+node tools/rts-art/fsheet.js        # every structure, both factions
+node tools/rts-art/vsheet.js        # 8 facings of each vehicle, both harvesters
+node tools/rts-art/usheet.js        # every unit, both factions x both player colours
+node tools/rts-art/shot.js          # in-game 1:1 scene as Directorate (art.png) and Collective (art_col.png)
+node tools/rts-art/cmp.js           # each structure to its own PNG, for side-by-sides
 ```
 
-Those scripts are committed in **`tools/rts-art/`**. Each launches chromium,
-loads `http://127.0.0.1:8099/rts.html`, waits for `window.__rts`, reads
-`window.__rtsTest.spr()`, blits sprites onto a canvas and saves a PNG.
-`cmp.js` dumps each structure to `mine_<key>.png` so you can build the
-side-by-side against `docs/ra2-ref/`. They hardcode an output path in the
-job tmp dir — repoint that to somewhere you can Read.
+Each launches chromium, loads `rts.html`, waits for `window.__rts`, reads
+`window.__rtsTest.spr()` and blits sprites onto a canvas. Sprites are keyed
+`spr().bld[player][faction][key]` and `spr().unit[player][faction][type]`.
 
 **The single most useful tool is a side-by-side sheet**: reference image on the
 left, our render on the right, one row per item. Build it and Read it.
 
----
+### How the 2026-09-01 build actually ran
+
+Seven builders in parallel, each in its own `git worktree` under the session
+scratchpad with its own static server (ports 8101-8107), each editing only its
+`bakeBuilding` branch (or the unit region); a main-session splice tool lifted
+each branch back by its `} else if (key === '<key>') {` anchor and carried the
+`head` value. Two QA agents (fidelity; coherence + correctness) then drove a
+second fix pass. Unit sprites became faction-keyed in that build so the
+harvester could differ (Chrono Miner vs War Miner). Lessons are in
+`docs/design-decisions.md` (overlay placement, refinery dock face, shared
+scratch-path collision).
 
 ## 5. Build procedure
 
