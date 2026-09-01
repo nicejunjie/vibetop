@@ -142,6 +142,16 @@
     padding: 5px 9px; color: #cfe; background: #2c2c4a; border: 1px solid #3f3f63;
   }
   .sp-quick button:hover { background: #3a3a5e; }
+  /* Segmented +/- direction toggle: one control that flips every magnitude
+     button below it, so the number of "time" tags never has to double. */
+  .sp-sign { display: inline-flex; border-radius: 5px; overflow: hidden; border: 1px solid #3f3f63; }
+  .sp-sign button {
+    border: none; border-radius: 0; padding: 5px 10px; min-width: 26px;
+    font-weight: 700; line-height: 1; color: #9aa; background: #24243c;
+  }
+  .sp-sign button + button { border-left: 1px solid #3f3f63; }
+  .sp-sign button:hover { background: #33334f; }
+  .sp-sign button.on { color: #10240f; background: #4ec36a; }
   .sp-go {
     font-size: 13px; padding: 6px 14px; font-weight: 600;
     color: #10240f; background: #4ec36a; border-color: #4ec36a;
@@ -176,11 +186,15 @@
     <input type="text" id="sp-text" maxlength="2000" placeholder="Message to send, e.g. continue">
     <input type="datetime-local" id="sp-at">
     <div class="sp-quick">
-      <button type="button" data-min="1">+1m</button>
-      <button type="button" data-min="5">+5m</button>
-      <button type="button" data-min="30">+30m</button>
-      <button type="button" data-min="60">+1h</button>
-      <button type="button" data-min="300">+5h</button>
+      <div class="sp-sign" role="group" aria-label="Adjust direction">
+        <button type="button" data-sign="1" class="on" aria-pressed="true" title="Add time">+</button>
+        <button type="button" data-sign="-1" aria-pressed="false" title="Subtract time">&minus;</button>
+      </div>
+      <button type="button" data-min="1">1m</button>
+      <button type="button" data-min="5">5m</button>
+      <button type="button" data-min="30">30m</button>
+      <button type="button" data-min="60">1h</button>
+      <button type="button" data-min="300">5h</button>
     </div>
     <div class="sp-actions">
       <span class="sp-err" id="sp-err"></span>
@@ -523,6 +537,7 @@
     if (!spAt.value || new Date(spAt.value).getTime() <= Date.now()) {
       spAt.value = toLocalInput(new Date());
     }
+    setQuickSign(1);   // always reopen adding, never a stale "-" from last visit
     renderSchedules();
     if (!isTouch) setTimeout(function () { spText.focus(); }, 20);
   }
@@ -607,17 +622,33 @@
   spText.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); submitSchedule(); }
   });
+  // Direction the magnitude taps below move the time. A single +/- toggle so the
+  // number of "time" tags never doubles — +30m then flip to - and 5m walks it
+  // back to +25m, rather than needing a -5m tag of its own.
+  var quickSign = 1;
+  function setQuickSign(sign) {
+    quickSign = sign;
+    Array.prototype.forEach.call(schedPanel.querySelectorAll('.sp-sign button'), function (btn) {
+      var on = +btn.dataset.sign === quickSign;
+      btn.classList.toggle('on', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
   schedPanel.querySelector('.sp-quick').addEventListener('click', function (e) {
+    var s = e.target.closest('button[data-sign]');
+    if (s) { setQuickSign(+s.dataset.sign); return; }
     var b = e.target.closest('button[data-min]');
     if (!b) return;
-    // Additive: each tap adds to the time already in the field, so +1h then +30m
+    // Additive: each tap moves the time already in the field, so +1h then +30m
     // is 1h30m out, not 30m. openSched seeds the field to now, so the first tap
     // still lands on now + N; an empty or stale (past) value falls back to now.
     // The minute of slack absorbs that seed's truncation to whole minutes, which
     // reads as up to 59s in the past.
     var base = spAt.value ? new Date(spAt.value).getTime() : NaN;
     if (!isFinite(base) || base < Date.now() - 60000) base = Date.now();
-    spAt.value = toLocalInput(new Date(base + (+b.dataset.min) * 60000));
+    // Subtracting can't push the time into the past — a scheduled-for-then message
+    // would be rejected — so clamp the floor to now.
+    spAt.value = toLocalInput(new Date(Math.max(Date.now(), base + quickSign * (+b.dataset.min) * 60000)));
   });
   spList.addEventListener('click', function (e) {
     var li = e.target.closest('li[data-id]');
