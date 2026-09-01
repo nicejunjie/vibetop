@@ -224,6 +224,7 @@
         <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch.</dd>
         <dt>Camera</dt><dd>WASD / arrow keys, or push the mouse to a screen edge. Click the minimap to jump.</dd>
         <dt>Groups</dt><dd><b>Ctrl+1…5</b> stores the selection, <b>1…5</b> recalls it.</dd>
+        <dt>Faster</dt><dd>A second Barracks or War Factory speeds that queue up (20% off each, up to six — as in RA2) and gives units another exit.</dd>
         <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
         <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
         <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
@@ -398,7 +399,7 @@
 
   function newSide(p) {
     return {
-      p: p, credits: 5000, made: 0, lost: 0, killed: 0, deadFor: 0,
+      p: p, credits: 5000, made: 0, lost: 0, killed: 0, deadFor: 0, exitTurn: 0,
       powerMade: 0, powerUse: 0,
       queues: { b: newQueue(), i: newQueue(), v: newQueue() },
       pending: null                                // a finished structure awaiting placement
@@ -1455,10 +1456,12 @@
     return n;
   }
 
+  var QUEUE_MAX = 30;
+
   function enqueue(g, p, key, lane) {
     var s = g.side[p];
     var q = s.queues[lane];
-    if (q.list.length >= 6) return false;
+    if (q.list.length >= QUEUE_MAX) return false;
     var spec = lane === 'b' ? BLDS[key] : UNITS[key];
     if (s.credits < spec.cost) return false;
     s.credits -= spec.cost;                     // charged on queue, refunded on cancel
@@ -1497,7 +1500,7 @@
       if (lane === 'v' && !hasBld(g, p, 'factory')) continue;
       if (lane === 'b' && !hasBld(g, p, 'base')) continue;
 
-      q.prog += slow / (spec.build * 60);
+      q.prog += slow / (spec.build * 60 * buildFactor(g, p, lane));
       if (q.prog >= 1) {
         q.prog = 0; q.list.shift();
         if (lane === 'b') { q.ready = key; if (p === P_HUMAN) sfx('ready'); }
@@ -1518,12 +1521,37 @@
     }
   }
 
+  function producerType(lane) {
+    return lane === 'i' ? 'barracks' : (lane === 'v' ? 'factory' : 'base');
+  }
+
+  // Extra production buildings shorten build time. The DISCOUNT matches RA2's
+  // MultipleFactory=0.8 — cumulative, capped at six buildings — but the
+  // BEHAVIOUR deliberately does not: RA2's actual implementation is, per
+  // ModEnc, "rather irrational", and at values between 0.5 and 1.0 a second
+  // factory makes you SLOWER, needing three before you gain anything. Here
+  // every additional building of a type always speeds up what it makes.
+  //   1x  2x    3x    4x    5x    6x+
+  //   1  0.80  0.64  0.51  0.41  0.33
+  var FACTORY_STEP = 0.8, FACTORY_CAP = 6;
+  function buildFactor(g, p, lane) {
+    var n = Math.min(FACTORY_CAP, countBld(g, p, producerType(lane)));
+    return n <= 1 ? 1 : Math.pow(FACTORY_STEP, n - 1);
+  }
+
+  // Round-robin across the buildings that can make this, so a second factory
+  // is also a second exit — units from one queue no longer all pile out of
+  // the same door.
   function producerFor(g, p, lane) {
-    var want = lane === 'i' ? 'barracks' : 'factory';
+    var want = producerType(lane), list = [];
     for (var i = 0; i < g.blds.length; i++) {
-      if (!g.blds[i].dead && g.blds[i].p === p && g.blds[i].type === want) return g.blds[i];
+      var b = g.blds[i];
+      if (!b.dead && b.p === p && b.type === want) list.push(b);
     }
-    return null;
+    if (!list.length) return null;
+    var s = g.side[p];
+    s.exitTurn = (s.exitTurn + 1) % list.length;
+    return list[s.exitTurn];
   }
 
   function freeTileNear(g, x, y) {
@@ -3236,7 +3264,8 @@
     },
     credits: function (p) { return G ? G.side[p].credits : 0; },
     ore: function (x, y) { return G ? G.ore[y * MAP + x] : 0; },
-    findOre: function (x, y) { return G ? findOre(G, x, y) : null; }
+    findOre: function (x, y) { return G ? findOre(G, x, y) : null; },
+    buildFactor: function (p, lane) { return G ? buildFactor(G, p, lane) : 1; }
   };
 
   // Headless match runner used by the balance tests: no rendering, no audio.
@@ -3327,6 +3356,8 @@
   window.__rtsCam = function () { return { x: Math.round(cam.x), y: Math.round(cam.y) }; };
 
   window.__rtsScreen = function (gx, gy) { return { x: sx(gx, gy), y: sy(gx, gy) }; };
+
+  window.__rtsBuildFactor = function (lane) { return G ? buildFactor(G, P_HUMAN, lane) : 1; };
 
   window.__rtsTables = { UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP };
 

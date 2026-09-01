@@ -317,6 +317,53 @@ test("a harvester actually converts ore into credits", () => {
 
 // ---------------------------------------------------- determinism + balance //
 
+test("extra production buildings always speed up what they make", () => {
+  // The discount matches RA2's MultipleFactory=0.8, cumulative, capped at six.
+  // The BEHAVIOUR deliberately does not match RA2, whose real implementation
+  // makes a *second* factory slower at these values — every extra building
+  // here must strictly help, or the whole reason to build one is gone.
+  const H = W.__rtsTest;
+  const g = H.begin(31337, "normal");
+  const s = g.start[0];
+
+  function place(type) {
+    for (let r = 3; r < 16; r++) {
+      for (let oy = -r; oy <= r; oy++) {
+        for (let ox = -r; ox <= r; ox++) {
+          if (H.api.canPlace(g, 0, type, s.x + ox, s.y + oy)) {
+            H.build(type, 0, s.x + ox, s.y + oy);
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  H.build("base", 0, s.x - 1, s.y - 1);
+  const seen = [];
+  for (let n = 1; n <= 8; n++) {
+    if (!place("factory")) break;
+    seen.push(H.buildFactor(0, "v"));
+  }
+  assert.ok(seen.length >= 7, `needed room for 7 factories, placed ${seen.length}`);
+
+  assert.equal(seen[0], 1, "one factory is the baseline");
+  for (let i = 1; i < 6; i++) {
+    assert.ok(seen[i] < seen[i - 1],
+      `factory ${i + 1} must be faster than ${i} (${seen[i]} vs ${seen[i - 1]})`);
+  }
+  // RA2's numbers, to two decimals.
+  assert.ok(Math.abs(seen[1] - 0.8) < 0.001, `two factories should be 0.80, got ${seen[1]}`);
+  assert.ok(Math.abs(seen[2] - 0.64) < 0.001, `three should be 0.64, got ${seen[2]}`);
+  assert.ok(Math.abs(seen[5] - 0.32768) < 0.001, `six should be 0.328, got ${seen[5]}`);
+  // capped at six, like the original
+  assert.equal(seen[6], seen[5], "the seventh factory adds nothing (cap of six)");
+
+  // and the barracks lane is independent of the factory lane
+  assert.equal(H.buildFactor(0, "i"), 1, "factories must not speed up infantry");
+});
+
 test("the same seed replays identically", () => {
   const a = W.__rtsSim(20260831, "normal", "normal", 60 * 60);
   const b = W.__rtsSim(20260831, "normal", "normal", 60 * 60);
