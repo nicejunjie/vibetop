@@ -5078,3 +5078,49 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** movement speed relative to the rest of your own army is a
   different quantity from movement speed. Below it, a unit stops being slow
   and starts being late. Balance the ratio, not the number.
+
+## Overlays positioned off the footprint drift into taller art
+
+- **Symptom:** after the RA2 art rebuild, the HP bar and the unpowered ⚡ glyph
+  sat *inside* 12 of the 14 structure sprites — painted across a refinery stack
+  or the barracks statue.
+- **Cause:** `drawBld` placed both at `py - (gw+gh)*8 - 22`, a height derived
+  from the footprint that had been tuned for the old squat boxes. The rebuilt
+  sprites rise up to ~120px above their anchor; a 2x2 Tesla Reactor is taller
+  than a 3x3 factory used to be, so no footprint formula fits.
+- **Fix:** `bakeAll` scans each baked canvas once (`artTop`) and stores
+  `rise = ay - firstOpaqueRow`; overlays sit at `max(rise, footprint) + margin`.
+  The headless test stub returns empty image data, so `artTop` falls back to 0
+  and the footprint term keeps the old behaviour there.
+- **Rule:** anything drawn *relative to a sprite* must be measured from the
+  sprite, not from the grid cell it occupies. The same bug family produced the
+  half-size selection ring (`diamond()` takes a full width; the caller passed a
+  half).
+
+## The refinery's dock is on the +gy face, which is screen down-LEFT
+
+- **Symptom:** both rebuilt refineries drew their unload dock / pit on the
+  down-right face; the sim parks harvesters down-left, so a harvester would
+  have unloaded into the flank of a stack.
+- **Cause:** a source comment described the dock as "front / front-right" and
+  the builder trusted it. `refDock`'s first ring candidate is
+  `[cx, cy + gh/2 + 1]` (grid +gy), and in this projection +gx → down-right,
+  +gy → down-left. The factory branch had the same derivation written out
+  correctly two hundred lines later.
+- **Fix:** the refinery branch was mirrored and the comment corrected.
+- **Rule:** when art has a functional side (exit, dock), derive the side from
+  the spawn/dock code and write the grid axis *and* the screen direction in
+  the comment. "Front" is not a direction.
+
+## Parallel agents must not share a scratch path
+
+- **Symptom:** during the parallel art build, the main session's `splice.py`
+  in the session scratchpad was silently overwritten by a builder agent's tool
+  of the same name; running it injected the whole main file into that agent's
+  worktree.
+- **Cause:** the scratchpad root is shared by every agent in the session, and
+  two agents picked the obvious name for the same job.
+- **Fix:** main-session tools carry a distinct suffix (`splice_main.py`) and
+  each builder is told to keep its helpers inside its own worktree.
+- **Rule:** in a fan-out, every writer gets a private directory; the shared
+  root is read-only by convention. Say so in the brief.
