@@ -1523,7 +1523,104 @@
     }
   }
 
+  // --- hand-authored pixel sprites --------------------------------------
+  // RA2's look is not geometry, it is hand-painted SHP art: integer pixels on
+  // a locked palette, with dithering and hand-placed highlights. Generated
+  // vector shapes cannot reach that no matter how good the massing gets, so
+  // structures are authored as pixel grids and blitted a cell at a time.
+  // One character per cell; ' ' is transparent; H/h are remapped to the
+  // owning player's colour, everything else is fixed so a red base and a blue
+  // base read as the same building.
+  var PIXCELL = 2;                                   // css px per authored cell
+  var PIXPAL = {
+    'k': '#23231d', 'd': '#6f6857', 'm': '#8f866f', 'c': '#b6ab92', 'w': '#d3c9b0',
+    'r': '#33392b', 'R': '#454b39', 'g': '#5a6049',
+    's': '#6e7470', 'S': '#9a9f99',
+    'v': '#7fb8d8', 'y': '#e0a726', 'o': '#8a5a2a',
+    '.': 'rgba(0,0,0,.34)'
+  };
+
+  function bakePix(art, col) {
+    var rows = art.rows, cols = 0, i;
+    for (i = 0; i < rows.length; i++) cols = Math.max(cols, rows[i].length);
+    var s = mkCanvas(cols * PIXCELL, rows.length * PIXCELL), g = s.g;
+    var house = col, houseDark = shade(col, 0.58);
+    for (var y = 0; y < rows.length; y++) {
+      var line = rows[y];
+      for (var x = 0; x < line.length; x++) {
+        var ch = line.charAt(x);
+        if (ch === ' ') continue;
+        var fill = ch === 'H' ? house : (ch === 'h' ? houseDark : PIXPAL[ch]);
+        if (!fill) continue;
+        g.fillStyle = fill;
+        g.fillRect(x * PIXCELL, y * PIXCELL, PIXCELL, PIXCELL);
+      }
+    }
+    return { s: s, ax: art.ax * PIXCELL, ay: art.ay * PIXCELL };
+  }
+
+  var PIXBLD = {
+    power: {
+      ax: 37, ay: 34,
+      rows: [
+      '                ddkkkkkkkdd',
+      '              kdddddddddddddk',
+      '              kkkkkkkkkkkkkkk',
+      '               kwwmccmccdddk',
+      '               kwwcmccmcdddk',
+      '               kwwccmccmdddk',
+      '               kdddddddddddk',
+      '               kwwcmccmcdddk',
+      '               kwwccmccmdddk         k',
+      '               kwwmccmccdddk       kgggk',
+      '              kwwccmccmccdddk    kggRrgggk',
+      '              kdddddddddddddk  kgRggRRRrgRgk',
+      '              kwwcmccmccmdddkkggggRRRRRRRrRggk',
+      '              kwwccmccmccdddkgggRRRRRRRRRRRrgddkkkkkdd',
+      '              kwwmccmccmcdddkgRRRRRRRRRRRRRkdddddddddddk',
+      '              kwwcmccmccmdddkRRRRRRRRRRRRRRkkkkkkkkkkkkk',
+      '              kdddddddddddddkRRRRRRRRRRRRkSSSkwccmcdddk',
+      '              kwwmccmccmcdddkRRRRRRRRRRkSSSSSSSkccmdddkk',
+      '              kwwcmccmccmdddkRRRRRRRRRRSSkSSSkssddddddkggk',
+      '              kwwccmccmccdddkRRRRRRRRRRSSSRkkssscmcdddkRrRgk',
+      '             kkwwmccmccmcdddkRRRRRRRRRRSSSSSssssccmcdddkRRrggk',
+      '           kggkdddddddddddddkRRRRRRRRRRRRSSSssccmccmdddkRRRRrggk',
+      '         kgggRRRRRRRRRRRRRSRRRRRRRRRRRRRRRSSswmccmccdddkRRRRRRrggk',
+      '       kgRgRRRRRRRRRRRRRRRRRSRRRRRRRRRRRRRRkdddddddddddkRRRRRRRRrRgk',
+      '       HHkgggRRRRRRRRRRRRRRRRRSRRRRRRRRRRRRkwwccmccmdddkRRRRRRrggkhh',
+      '       ccHckgggRRRRRRRRRRRRRRRRRSRRRRRRRRRRkwwmccmccdddkRRRRrggkmhmm',
+      '       cccHHHkgggRRRRRRRRRRRRRRRRkSRRRRRRRRkwwcmccmcdddkRRrggkhhhmmm',
+      '       ccccccHckgRgRRRRRRRRRRRRkSSSkSRRRRRRkwwccmccmdyykrRgkmhmmmmmm',
+      '       ddcccccHHHkgggRRRRRRRRRkSSSSSkRSRRRRkddddddddyydkgkhhhmmmmmkk',
+      '       mmdwccccccHckgggRRRRRkSSSSSSSSSkRRRRRRRRRRRRyyyykmhmmmmmmmkdd',
+      '       mmmdddcccccHHHkggRgRRSRkSSSSSkRsRRRRRRRRRRrggyyhhhmmmmmkkkddd',
+      '       mmmmmmdcksccccHckgRggSSSkSSSksssRRRRRRRRrgRgyyhmmmmmmmkdddddd',
+      '       mmmmmmmdskkccccHHHkggSSSSSksssssRRRRRRrRggkhyhmmmmmkkkddddddd',
+      '     ddmmmmmmmmksssksccccHckgSSSSSssssRRRRRrgggkmhmmmmmmmkdddddddddddd',
+      '   dmddddmmmmmmskkkskkccccHHHkgSSSssRRRRRrgggkhhhmmmmmkkkdddddddddkkmddd',
+      '     dddddmmmmmksssksssksccccHckgSggRRRrgRgkmhmmmmmmmkdddddddddddkdddd',
+      '      .ddddddmmomkkskkkskcccccHHHkgggrRggkhhhmmmmmkkkdddddddddkkkdmd...',
+      '        .ddmddmomosksssksdccwccccHckgggkmhmmmmmmmkdddddddddddkdmdd...',
+      '          .dmddddoomokkskmdddcccccHHHkhhhmmmmmkkkdddddddddkkkddd...',
+      '            .dddddomoosksmmmmdccccccchmmmmmmmkdddddddddddkdddd...',
+      '              .ddddddomoommmmmdddccccmmmmmkkkdddddddddkkkdmd...',
+      '                .ddmddmoommmmmmmmdwccmmmmkdddddddddddkdmdd...',
+      '                  .ddddddmmmmmmmmmdddmkkkdddddddddkkkddd...',
+      '                    .dddddmmmmmmmmmmmkdddddddddddkdddd...',
+      '                      .ddddddmmmmmmmmdddddddddkkkddd...',
+      '                        .ddmddmmmmmmmddddddddkdmdd...',
+      '                          .ddddddmmmmdddddkkkddd...',
+      '                            .dddddmmmddddkdddd...',
+      '                              .dddddddkkkddd...',
+      '                                .ddmdkdmdd...',
+      '                                  .ddddd...',
+      '                                    .d...',
+      ]
+    }
+  };
+
   function bakeBuilding(key, col) {
+    if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
     var b = BLDS[key];
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
     var pad = 18;
