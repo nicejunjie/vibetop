@@ -938,7 +938,8 @@
     conscript: { coat: '#7b5c43', boot: '#2e2823', skin: null }     // gas mask, no face
   };
 
-  function bakeInfantry(col, kind) {
+  function bakeInfantry(col, kind, fac) {
+    var sov = fac === 'col';
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
     var T = TROOP[kind] || TROOP.rifle;
@@ -1062,7 +1063,8 @@
   // colour is a TINT over olive-drab steel, not a bright plastic shell. Ours
   // were mid-cyan at full saturation, which is most of why they read as toys
   // parked next to a finished structure.
-  function bakeVehicle(col, kind) {
+  function bakeVehicle(col, kind, fac) {
+    var sov = fac === 'col';
     var out = [];
     // Read off the real sprites: RA2 armour is DARK and drab, the house colour
     // appears as side panels and a turret band rather than covering the hull,
@@ -2158,11 +2160,16 @@
     }
     SPR.boom = bakeExplosionSprite();
     SPR.flash = bakeMuzzleFlash();
-    SPR.unit = [{}, {}];
+    // Units are keyed like structures: [player][faction][type]. Only the
+    // harvester actually differs by faction (Chrono Miner vs War Miner), but
+    // baking the whole set per faction keeps every lookup uniform.
+    SPR.unit = [{ dir: {}, col: {} }, { dir: {}, col: {} }];
     for (var p = 0; p < 2; p++) {
-      for (var uk in UNITS) {
-        if (UNITS[uk].cls === 'i') SPR.unit[p][uk] = bakeInfantry(COL[p], uk);
-        else SPR.unit[p][uk] = bakeVehicle(COL[p], uk === 'harvester' ? 'harv' : uk);
+      for (var ufk in FACTIONS) {
+        for (var uk in UNITS) {
+          if (UNITS[uk].cls === 'i') SPR.unit[p][ufk][uk] = bakeInfantry(COL[p], uk, ufk);
+          else SPR.unit[p][ufk][uk] = bakeVehicle(COL[p], uk === 'harvester' ? 'harv' : uk, ufk);
+        }
       }
     }
     // Two players x two factions: a Soviet barracks is a different structure
@@ -4362,7 +4369,7 @@
     var px = sx(u.x, u.y), py = sy(u.x, u.y);
     if (px < -60 || py < -60 || px > cvW + 60 || py > cvH + 60) return;
     var d = UNITS[u.type];
-    var art = SPR.unit[u.p][u.type];
+    var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
     var s = Array.isArray(art) ? art[u.face] : art;
 
     if (u.sel) {

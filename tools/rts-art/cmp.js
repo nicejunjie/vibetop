@@ -1,19 +1,17 @@
-const { chromium } = require('/home/junjie/vibe-coding/vibetop/tests/e2e/node_modules/playwright');
+// Dump every structure (both factions, player 0) to out/mine_<fac>_<key>.png for side-by-sides.
+const { open, save } = require('./_pw');
 (async () => {
-  const b = await chromium.launch(); const p = await b.newPage();
-  await p.goto('http://127.0.0.1:8099/rts.html');
-  await p.waitForFunction(() => !!window.__rts);
+  const { b, p } = await open({ width: 800, height: 600 });
   const out = await p.evaluate(() => {
     const S = window.__rtsTest.spr(); const r = {};
-    for (const k of ['base','power','refinery','barracks','factory','sentry']) {
-      const A = S.bld[0].dir[k];
-      const c = document.createElement('canvas'); c.width=A.s.w; c.height=A.s.h;
-      const g=c.getContext('2d'); g.drawImage(A.s.c,0,0,A.s.w,A.s.h);
-      r[k] = c.toDataURL('image/png').slice(22);
+    for (const fk of ['dir', 'col']) for (const k of Object.keys(S.bld[0][fk])) {
+      const A = S.bld[0][fk][k];
+      const c = document.createElement('canvas'); c.width = A.s.w; c.height = A.s.h;
+      c.getContext('2d').drawImage(A.s.c, 0, 0);
+      r[`${fk}_${k}`] = c.toDataURL('image/png').slice(22);
     }
     return r;
   });
-  const fs=require('fs');
-  for (const k in out) fs.writeFileSync(`/home/junjie/.claude/jobs/927560e4/tmp/mine_${k}.png`, Buffer.from(out[k],'base64'));
-  console.log('ok'); await b.close();
+  for (const k in out) save(`mine_${k}.png`, out[k]);
+  console.log('ok', Object.keys(out).length); await b.close();
 })();
