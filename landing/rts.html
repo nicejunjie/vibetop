@@ -411,7 +411,7 @@
       cap: 0, mine: 0, w: 10, h: 14, desc: 'Anti-tank, fragile'
     },
     lancer: {
-      name: 'Lancer', em: '🛡️', cost: 650, build: 12, cls: 'v', fac: 'dir',
+      name: 'Lancer', em: '🛡️', cost: 650, build: 12, cls: 'v', fac: 'dir', turret: true,
       hp: 235, spd: 0.049, sight: 8, armour: A_VEH,
       dmg: 25, rate: 42, rng: 5.4, splash: 0.4,
       vs: { inf: 0.8, veh: 1.0, bld: 0.85 },
@@ -423,7 +423,7 @@
       // that gap instead of closing it (hard went 73% -> 90% Directorate).
       // 880/15 evens throughput per factory: measured 56% / 56% across
       // normal and hard, from 90% / 73%.
-      name: 'Mammoth', em: '⚙️', cost: 880, build: 15, cls: 'v', fac: 'col',
+      name: 'Mammoth', em: '⚙️', cost: 880, build: 15, cls: 'v', fac: 'col', turret: true,
       // 0.028 read fine on paper ("slow, heavy") and lost the faction the
       // game: below infantry speed (0.050) a Collective army arrives strung
       // out, fights piecemeal and can never disengage — measured 88% losses
@@ -437,7 +437,7 @@
       cap: 0, mine: 0, w: 22, h: 17, desc: 'Slow, heavy, wide splash'
     },
     spectre: {
-      name: 'Spectre', em: '👁️', cost: 450, build: 9, cls: 'v', fac: 'dir',
+      name: 'Spectre', em: '👁️', cost: 450, build: 9, cls: 'v', fac: 'dir', turret: true,
       hp: 95, spd: 0.078, sight: 12, armour: A_VEH,
       dmg: 9, rate: 30, rng: 3.6, splash: 0,
       vs: { inf: 1.15, veh: 0.3, bld: 0.25 },
@@ -5077,12 +5077,28 @@
     for (var p = 0; p < 2; p++) {
       for (var ufk in FACTIONS) {
         for (var uk in UNITS) {
-          var U = UNITS[uk].cls === 'i' ? bakeInfantry(COL[p], uk, ufk)
-                                         : bakeVehicle(COL[p], uk === 'harvester' ? 'harv' : uk, ufk);
+          var U;
+          if (UNITS[uk].cls === 'i') {
+            // Three walk phases (0 = standing, 1/2 = stride); drawUnit cycles
+            // them while the figure moves, like an RA2 infantry SHP.
+            U = bakeInfantry(COL[p], uk, ufk, 0);
+            U.walk = [U, bakeInfantry(COL[p], uk, ufk, 1), bakeInfantry(COL[p], uk, ufk, 2)];
+          } else {
+            var vk = uk === 'harvester' ? 'harv' : uk;
+            U = bakeVehicle(COL[p], vk, ufk);
+            // Harvesters get a second 8-facing set with the scoop working;
+            // drawUnit alternates the two while mining.
+            if (vk === 'harv') U.mine = bakeVehicle(COL[p], vk, ufk, 'mine');
+          }
           // Selection brackets and the HP bar are placed off the art's real
           // bounds, not off the stat-table width: a ground ring sized from
           // UNITS[].w vanished under the wider rebuilt hulls.
-          (Array.isArray(U) ? U : [U]).forEach(function (sc) { sc.bb = artBox(sc); });
+          var frames = Array.isArray(U) ? U.slice() : [U];
+          if (U.walk) frames = frames.concat(U.walk);
+          if (U.mine) frames = frames.concat(U.mine);
+          if (U.hull) frames = frames.concat(U.hull);
+          if (U.turret) frames = frames.concat(U.turret);
+          frames.forEach(function (sc) { if (sc && !sc.bb) sc.bb = artBox(sc); });
           SPR.unit[p][ufk][uk] = U;
         }
       }
@@ -5115,7 +5131,7 @@
       face: (gx + gy) & 7, cool: 0, target: null, order: null,     // order: {t:'move'|'attack'|'harvest', x,y,id}
       path: null, pi: 0, repath: 0, repathAt: -999, stuck: 0, lastx: gx, lasty: gy,
       cargo: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
-      bestD: 1e9, stallAt: 0, holdUntil: 0,
+      bestD: 1e9, stallAt: 0, holdUntil: 0, movedAt: -99, tface: null, aimAt: 0,
       sel: false, aggro: null, guardX: gx, guardY: gy
     };
     g.units.push(u);
@@ -5643,6 +5659,7 @@
 
     var ang = Math.atan2(dy, dx);
     u.face = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8;
+    u.movedAt = g.tick;
     return true;
   }
 
@@ -5676,6 +5693,8 @@
   function stepUnit(g, u) {
     var d = UNITS[u.type];
     if (u.cool > 0) u.cool--;
+    // A turret swings back to the hull's line 1.5 s after it last aimed.
+    if (u.tface != null && g.tick - (u.aimAt || 0) > 90) u.tface = null;
 
     if (u.type === 'harvester') {
       // Harvesters flee toward the nearest refinery when shot at rather than
@@ -5722,7 +5741,8 @@
         u.path = null;
         var ax = (tgt.kind === 'b' ? tgt.cx : tgt.x) - u.x;
         var ay = (tgt.kind === 'b' ? tgt.cy : tgt.y) - u.y;
-        u.face = ((Math.round(Math.atan2(ay, ax) / (Math.PI / 4)) % 8) + 8) % 8;
+        var af = ((Math.round(Math.atan2(ay, ax) / (Math.PI / 4)) % 8) + 8) % 8;
+        if (d.turret) { u.tface = af; u.aimAt = g.tick; } else u.face = af;
         if (u.cool <= 0) fire(g, u, tgt);
         return;
       }
@@ -7459,12 +7479,26 @@
     if (px < VX0 - 60 || py < VY0 - 60 || px > VX1 + 60 || py > VY1 + 60) return;
     var d = UNITS[u.type];
     var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
-    var s = Array.isArray(art) ? art[u.face] : art;
+    var moving = G.tick - (u.movedAt || -99) < 3;
+    var s, turretS = null;
+    if (Array.isArray(art)) {
+      // Vehicles: 8 facings; a mining harvester alternates its two sets; a
+      // turreted tank draws hull by travel facing and turret by aim facing.
+      var set = art;
+      if (u.state === 'mining' && art.mine && ((G.tick >> 3) & 1)) set = art.mine;
+      if (art.hull && art.turret) {
+        s = art.hull[u.face];
+        turretS = art.turret[u.tface == null ? u.face : u.tface];
+      } else s = set[u.face];
+    } else {
+      s = (moving && art.walk) ? art.walk[((G.tick >> 3) % 3)] : art;
+    }
 
     var ox = px - s.w / 2, oy = py - (s.h - UPAD);
     // A working harvester rocks on its tracks instead of sitting parked.
     if (u.state === 'mining') oy += ((G.tick >> 3) & 1) ? 1 : 0;
     ctx.drawImage(s.c, ox, oy, s.w, s.h);
+    if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w, turretS.h);
     var bb = s.bb || { x0: 0, y0: 0, x1: s.w, y1: s.h };
     var top = oy + bb.y0;
 
