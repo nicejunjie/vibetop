@@ -650,6 +650,22 @@
                     Math.min(255, Math.max(0, Math.round(b * f))) + ')';
   }
 
+  // Blend two colours. RA2 keeps house colour as a TINT on grey machinery
+  // rather than painting the machine; `mixc(col, STEEL, 0.5)` is that tint.
+  function mixc(a, b, t) {
+    function rgb(c) {
+      if (c.charAt(0) === '#') {
+        var n = parseInt(c.slice(1), 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      }
+      var m = c.match(/[\d.]+/g); return [+m[0], +m[1], +m[2]];
+    }
+    var x = rgb(a), y = rgb(b);
+    return 'rgb(' + Math.round(x[0] + (y[0] - x[0]) * t) + ',' +
+                    Math.round(x[1] + (y[1] - x[1]) * t) + ',' +
+                    Math.round(x[2] + (y[2] - x[2]) * t) + ')';
+  }
+
   function diamond(g, cx, cy, w, h) {
     g.beginPath();
     g.moveTo(cx, cy - h / 2); g.lineTo(cx + w / 2, cy);
@@ -1117,7 +1133,18 @@
     var pad = 16;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + lift + pad * 2 + 22), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
-    var dark = shade(col, 0.20);
+    // RA2 structures are poured concrete and painted steel; the HOUSE colour
+    // is trim — a roof, a stripe, a door — not the whole building. Painting
+    // every surface in the faction colour is what made these read as coloured
+    // toy blocks. Body is neutral now; `col` marks ownership on the roof, the
+    // trim band and the doors, which is plenty in an isometric view where the
+    // roof is the largest visible face.
+    var STEEL = '#7d8288', CONC = '#8f8a7e';
+    // Rooftop plant is machinery: mostly steel, tinted just enough that a
+    // glance still tells you whose base you are looking at.
+    var col0 = col;
+    col = mixc(col, STEEL, 0.62);
+    var dark = shade(STEEL, 0.30);
     var inset = isDef ? 0.58 : 0.76;
     var bw = fw * inset, bh = fh * inset;
 
@@ -1125,8 +1152,8 @@
     diamond(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
 
     diamond(g, cx, baseY, fw * 2, fh * 2);                 // concrete pad
-    g.fillStyle = shade(col, 0.30); g.fill();
-    outline(g, shade(col, 0.46));
+    g.fillStyle = shade(CONC, 0.44); g.fill();
+    outline(g, shade(CONC, 0.62));
     // pad texture: a few stains/cracks so the apron reads as poured concrete
     g.save();
     diamond(g, cx, baseY, fw * 2, fh * 2); g.clip();
@@ -1134,21 +1161,21 @@
     for (var pI = 0; pI < 5; pI++) {
       var pa = rnd() * Math.PI * 2, pr = Math.sqrt(rnd());
       var pxx = cx + Math.cos(pa) * pr * fw, pyy = baseY + Math.sin(pa) * pr * fh * 0.9;
-      g.fillStyle = rnd() < 0.5 ? shade(col, 0.20) : shade(col, 0.42);
+      g.fillStyle = rnd() < 0.5 ? shade(CONC, 0.32) : shade(CONC, 0.58);
       g.globalAlpha = 0.28;
       g.beginPath(); g.ellipse(pxx, pyy, 4 + rnd() * 5, 2 + rnd() * 2.4, 0, 0, 6.29); g.fill();
     }
     g.globalAlpha = 1;
     g.restore();
 
-    g.fillStyle = shade(col, 0.62);                        // left wall (lit)
+    g.fillStyle = shade(STEEL, 0.92);                      // left wall (lit)
     g.beginPath();
     g.moveTo(cx - bw, baseY); g.lineTo(cx - bw, baseY - lift);
     g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
     g.closePath(); g.fill(); outline(g, dark);
-    wallDetail(g, cx - bw, baseY, cx, baseY + bh, lift, shade(col, 0.42), isDef ? null : 0.28);
+    wallDetail(g, cx - bw, baseY, cx, baseY + bh, lift, shade(STEEL, 0.60), isDef ? null : 0.28);
 
-    g.fillStyle = shade(col, 0.40);                        // right wall (shade)
+    g.fillStyle = shade(STEEL, 0.62);                      // right wall (shade)
     g.beginPath();
     g.moveTo(cx + bw, baseY); g.lineTo(cx + bw, baseY - lift);
     g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
@@ -1172,10 +1199,24 @@
       g.closePath(); g.fill();
     }
 
+    // A painted band under the eaves: the ownership read from ground level,
+    // where the roof is foreshortened.
+    var tb = Math.max(3, lift * 0.13), tyy = -lift + tb * 0.6;
+    g.fillStyle = shade(col0, 0.95);
+    g.beginPath();
+    g.moveTo(cx - bw, baseY + tyy); g.lineTo(cx, baseY + bh + tyy);
+    g.lineTo(cx, baseY + bh + tyy + tb); g.lineTo(cx - bw, baseY + tyy + tb);
+    g.closePath(); g.fill();
+    g.fillStyle = shade(col0, 0.66);
+    g.beginPath();
+    g.moveTo(cx + bw, baseY + tyy); g.lineTo(cx, baseY + bh + tyy);
+    g.lineTo(cx, baseY + bh + tyy + tb); g.lineTo(cx + bw, baseY + tyy + tb);
+    g.closePath(); g.fill();
+
     var ry = baseY - lift;
-    diamond(g, cx, ry, bw * 2, bh * 2);                    // roof
-    g.fillStyle = shade(col, 1.06); g.fill();
-    outline(g, shade(col, 1.5));
+    diamond(g, cx, ry, bw * 2, bh * 2);                    // roof — house colour
+    g.fillStyle = shade(col, 0.92); g.fill();
+    outline(g, shade(col0, 1.15));
 
     // Roof structures are sized FROM the roof (u = one quarter of its width).
     // Fixed pixel sizes left a 3x3 roof looking like an empty car park with a
