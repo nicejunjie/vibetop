@@ -590,27 +590,131 @@
     g.closePath();
   }
 
-  function bakeTile(fill, edge) {
+  // Ground tiles are baked once, so the noise/tone variation below is free at
+  // runtime — only the per-variant bake cost goes up. Flat fill + hairline
+  // edge reads as graph paper at a field scale; a scatter of soft tonal
+  // patches plus fine grain breaks that up the way a dirt/grass texture would.
+  function bakeTile(fill, edge, seed) {
     var s = mkCanvas(TW + 2, TH + 2), g = s.g;
-    diamond(g, (TW + 2) / 2, (TH + 2) / 2, TW, TH);
+    var cx = (TW + 2) / 2, cy = (TH + 2) / 2;
+    diamond(g, cx, cy, TW, TH);
     g.fillStyle = fill; g.fill();
+    g.save();
+    diamond(g, cx, cy, TW, TH); g.clip();
+    srand(seed || 1);
+    // large soft tonal patches — the big-scale variation that sells "field"
+    for (var j = 0; j < 4; j++) {
+      var a2 = rnd() * Math.PI * 2, r2 = Math.sqrt(rnd());
+      var px2 = cx + Math.cos(a2) * r2 * (TW / 2 - 6), py2 = cy + Math.sin(a2) * r2 * (TH / 2 - 3);
+      g.fillStyle = rnd() < 0.5 ? shade(fill, 1.16) : shade(fill, 0.82);
+      g.globalAlpha = 0.16;
+      g.beginPath(); g.ellipse(px2, py2, 9 + rnd() * 7, 5 + rnd() * 3.5, 0, 0, 6.29); g.fill();
+    }
+    // fine grain speckle
+    g.globalAlpha = 0.30;
+    for (var i = 0; i < 30; i++) {
+      var a = rnd() * Math.PI * 2, r = Math.sqrt(rnd());
+      var px = cx + Math.cos(a) * r * (TW / 2 - 2), py = cy + Math.sin(a) * r * (TH / 2 - 1);
+      g.fillStyle = shade(fill, 0.75 + rnd() * 0.55);
+      var sz = 0.7 + rnd() * 1.3;
+      g.beginPath(); g.ellipse(px, py, sz, sz * 0.55, 0, 0, 6.29); g.fill();
+    }
+    g.globalAlpha = 1;
+    g.restore();
+    diamond(g, cx, cy, TW, TH);
     g.strokeStyle = edge; g.lineWidth = 1; g.stroke();
     return s;
   }
 
-  // Ore is drawn as speckles on top of the ground diamond so a depleting
-  // patch visibly thins out rather than vanishing in one step.
-  function bakeOre(level) {
+  // Rock: angular slab facets + cracks, not a recoloured ground diamond —
+  // that flat fill read as an odd-coloured floor tile, not an obstacle.
+  function bakeRock() {
     var s = mkCanvas(TW + 2, TH + 2), g = s.g;
-    var n = 6 + level * 7;
-    srand(1234 + level);
+    var cx = (TW + 2) / 2, cy = (TH + 2) / 2;
+    diamond(g, cx, cy, TW, TH);
+    g.fillStyle = '#2c323e'; g.fill();
+    g.save();
+    diamond(g, cx, cy, TW, TH); g.clip();
+    srand(777);
+    // a scatter of jagged, lit-from-upper-left boulder facets
+    var n = 6;
     for (var i = 0; i < n; i++) {
       var a = rnd() * Math.PI * 2, r = Math.sqrt(rnd());
-      var px = (TW + 2) / 2 + Math.cos(a) * r * (TW / 2 - 6);
-      var py = (TH + 2) / 2 + Math.sin(a) * r * (TH / 2 - 3);
-      var sz = 1.6 + rnd() * 1.8;
-      g.fillStyle = ['#c9822f', '#e8b428', '#a8641f'][rint(3)];
-      g.beginPath(); g.ellipse(px, py, sz, sz * 0.6, 0, 0, 6.29); g.fill();
+      var px = cx + Math.cos(a) * r * (TW / 2 - 8), py = cy + Math.sin(a) * r * (TH / 2 - 5);
+      var rad = 4 + rnd() * 6;
+      var pts = [];
+      var sides = 5 + rint(2);
+      for (var k = 0; k < sides; k++) {
+        var ang = (k / sides) * Math.PI * 2 + rnd() * 0.5;
+        var rr = rad * (0.7 + rnd() * 0.5);
+        pts.push([px + Math.cos(ang) * rr, py + Math.sin(ang) * rr * 0.62]);
+      }
+      g.beginPath();
+      g.moveTo(pts[0][0], pts[0][1]);
+      for (k = 1; k < pts.length; k++) g.lineTo(pts[k][0], pts[k][1]);
+      g.closePath();
+      g.fillStyle = shade('#39414f', 0.75 + rnd() * 0.7);
+      g.fill();
+      g.strokeStyle = '#1c212a'; g.lineWidth = 0.8; g.stroke();
+      // a bright top-left facet edge on some, so it reads as catching light
+      if (rnd() < 0.6) {
+        g.strokeStyle = 'rgba(200,210,225,.35)'; g.lineWidth = 0.9;
+        g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); g.lineTo(pts[1][0], pts[1][1]); g.stroke();
+      }
+    }
+    // fine crack lines across the plate
+    g.strokeStyle = 'rgba(10,12,16,.5)'; g.lineWidth = 0.7;
+    for (i = 0; i < 3; i++) {
+      var sxp = cx + (rnd() - 0.5) * TW * 0.7, syp = cy + (rnd() - 0.5) * TH * 0.7;
+      g.beginPath(); g.moveTo(sxp, syp);
+      for (k = 0; k < 3; k++) { sxp += (rnd() - 0.5) * 9; syp += (rnd() - 0.5) * 5; g.lineTo(sxp, syp); }
+      g.stroke();
+    }
+    g.restore();
+    diamond(g, cx, cy, TW, TH);
+    g.strokeStyle = '#495366'; g.lineWidth = 1; g.stroke();
+    return s;
+  }
+
+  // Ore reads as a crystal cluster: angular gem shards with a lit facet and a
+  // shadow facet each, clustered tighter as the patch is richer, so depletion
+  // visibly thins the cluster rather than just fading dots.
+  function bakeOre(level) {
+    var s = mkCanvas(TW + 2, TH + 2), g = s.g;
+    var cx = (TW + 2) / 2, cy = (TH + 2) / 2;
+    var n = 4 + level * 4;
+    srand(1234 + level);
+    // sort back-to-front by py so nearer shards overlap farther ones
+    var shards = [];
+    for (var i = 0; i < n; i++) {
+      var a = rnd() * Math.PI * 2, r = Math.sqrt(rnd());
+      shards.push({
+        x: cx + Math.cos(a) * r * (TW / 2 - 7),
+        y: cy + Math.sin(a) * r * (TH / 2 - 4),
+        h: 3.2 + rnd() * 3.6 + level * 1.2,
+        w: 1.6 + rnd() * 1.4,
+        lean: (rnd() - 0.5) * 0.5
+      });
+    }
+    shards.sort(function (a, b) { return a.y - b.y; });
+    for (i = 0; i < shards.length; i++) {
+      var sh = shards[i];
+      var baseC = ['#e8b428', '#f2c94c', '#c9822f'][i % 3];
+      var top = [sh.x + sh.lean * sh.h, sh.y - sh.h];
+      var lft = [sh.x - sh.w, sh.y + 1];
+      var rgt = [sh.x + sh.w, sh.y + 1];
+      var mid = [sh.x + sh.lean * sh.h * 0.4, sh.y - sh.h * 0.42];
+      // lit facet (left) and shadow facet (right) of a faceted crystal
+      g.fillStyle = shade(baseC, 1.35);
+      g.beginPath(); g.moveTo(top[0], top[1]); g.lineTo(mid[0], mid[1]); g.lineTo(lft[0], lft[1]); g.closePath(); g.fill();
+      g.fillStyle = shade(baseC, 0.72);
+      g.beginPath(); g.moveTo(top[0], top[1]); g.lineTo(mid[0], mid[1]); g.lineTo(rgt[0], rgt[1]); g.closePath(); g.fill();
+      g.strokeStyle = '#6b4a00'; g.lineWidth = 0.6;
+      g.beginPath();
+      g.moveTo(top[0], top[1]); g.lineTo(lft[0], lft[1]); g.lineTo(rgt[0], rgt[1]); g.closePath(); g.stroke();
+      // a small glint on the lit facet
+      g.fillStyle = 'rgba(255,255,255,.55)';
+      g.beginPath(); g.ellipse((top[0] + mid[0]) / 2, (top[1] + mid[1]) / 2, 0.7, 1.1, sh.lean, 0, 6.29); g.fill();
     }
     return s;
   }
@@ -810,6 +914,30 @@
     outline(g, edge);
   }
 
+  // Vertical seam lines across a wall parallelogram (bottom edge ax,ay -> bx,by,
+  // extruded straight up by `lift`) plus one flush vent panel with grille
+  // lines. Cheap (a handful of strokes) and it is the difference between a
+  // "box" and a "wall panel assembly" at a glance.
+  function wallDetail(g, ax, ay, bx, by, lift, dark, ventAt) {
+    g.save();
+    g.strokeStyle = dark; g.lineWidth = 0.7; g.globalAlpha = 0.55;
+    for (var i = 1; i <= 3; i++) {
+      var t = i / 4;
+      var px = ax + (bx - ax) * t, py = ay + (by - ay) * t;
+      g.beginPath(); g.moveTo(px, py); g.lineTo(px, py - lift); g.stroke();
+    }
+    g.restore();
+    if (ventAt != null) {
+      var vx = ax + (bx - ax) * ventAt, vy = ay + (by - ay) * ventAt - lift * 0.34;
+      g.fillStyle = 'rgba(10,12,18,.55)';
+      g.beginPath(); g.roundRect(vx - 4, vy - 3, 8, 6, 1); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = 0.6;
+      for (var k = 0; k < 3; k++) {
+        g.beginPath(); g.moveTo(vx - 3.2, vy - 1.6 + k * 1.6); g.lineTo(vx + 3.2, vy - 1.6 + k * 1.6); g.stroke();
+      }
+    }
+  }
+
   function bakeBuilding(key, col) {
     var b = BLDS[key];
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
@@ -828,18 +956,33 @@
     diamond(g, cx, baseY, fw * 2, fh * 2);                 // concrete pad
     g.fillStyle = shade(col, 0.30); g.fill();
     outline(g, shade(col, 0.46));
+    // pad texture: a few stains/cracks so the apron reads as poured concrete
+    g.save();
+    diamond(g, cx, baseY, fw * 2, fh * 2); g.clip();
+    srand(key.charCodeAt(0) * 13 + key.length);
+    for (var pI = 0; pI < 5; pI++) {
+      var pa = rnd() * Math.PI * 2, pr = Math.sqrt(rnd());
+      var pxx = cx + Math.cos(pa) * pr * fw, pyy = baseY + Math.sin(pa) * pr * fh * 0.9;
+      g.fillStyle = rnd() < 0.5 ? shade(col, 0.20) : shade(col, 0.42);
+      g.globalAlpha = 0.28;
+      g.beginPath(); g.ellipse(pxx, pyy, 4 + rnd() * 5, 2 + rnd() * 2.4, 0, 0, 6.29); g.fill();
+    }
+    g.globalAlpha = 1;
+    g.restore();
 
     g.fillStyle = shade(col, 0.62);                        // left wall (lit)
     g.beginPath();
     g.moveTo(cx - bw, baseY); g.lineTo(cx - bw, baseY - lift);
     g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
     g.closePath(); g.fill(); outline(g, dark);
+    wallDetail(g, cx - bw, baseY, cx, baseY + bh, lift, shade(col, 0.42), isDef ? null : 0.28);
 
     g.fillStyle = shade(col, 0.40);                        // right wall (shade)
     g.beginPath();
     g.moveTo(cx + bw, baseY); g.lineTo(cx + bw, baseY - lift);
     g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
     g.closePath(); g.fill(); outline(g, dark);
+    wallDetail(g, cx + bw, baseY, cx, baseY + bh, lift, dark, isDef ? null : 0.62);
 
     // Window bands. A blank wall the size of a 3x3 plot reads as a crate;
     // two storey lines give it scale and tell you it is a building.
@@ -974,8 +1117,8 @@
   var COL = ['#4aa3db', '#e5646c'];            // player 0 blue, player 1 red
 
   function bakeAll() {
-    SPR.ground = [ bakeTile('#232a36', '#1b212b'), bakeTile('#252d3a', '#1b212b'), bakeTile('#212834', '#1b212b') ];
-    SPR.rock = bakeTile('#39414f', '#495366');
+    SPR.ground = [ bakeTile('#232a36', '#1b212b', 41), bakeTile('#252d3a', '#1b212b', 42), bakeTile('#212834', '#1b212b', 43) ];
+    SPR.rock = bakeRock();
     SPR.oreLv = [ bakeOre(0), bakeOre(1), bakeOre(2) ];
     SPR.unit = [{}, {}];
     for (var p = 0; p < 2; p++) {

@@ -4927,3 +4927,35 @@ original exact-bytes test stayed green through the whole breakage.
   a function that manipulates the DOM is only half the feature. And a canvas
   app should never resize itself on a no-op: make the guard structural so the
   next layout wobble cannot repaint the world.
+
+## An asymmetric faction still has to be able to answer everything
+
+- **Context:** Iron Frontier gained two asymmetric factions — Directorate
+  (reach, speed, vision) and Collective (mass, armour, cheap bodies). The
+  temptation with asymmetry is to give each side only what expresses its
+  identity, which is exactly how you ship a matchup that cannot be played.
+- **The rule that keeps it playable:** every armour class must have an answer
+  *within* each faction. If the Collective had no way to deal with vehicles
+  because anti-armour is "the Directorate's thing", then a Directorate player
+  who masses Lancers has not out-played anyone — they have found a hole in the
+  design. The shared Rocketeer exists for exactly this reason, and a unit test
+  asserts the property per faction rather than globally, because a global check
+  passes happily while one side is helpless.
+- **Identity has to be visible in the numbers, not just the flavour text.** The
+  test asserts Lancer outranges and outruns Mammoth, Mammoth outlasts and
+  outsplashes Lancer, and Conscript costs less than Rifleman. A faction whose
+  "identity" does not survive contact with its own stat block is decoration.
+- **Rosters are data, not branches.** Each `UNITS`/`BLDS` entry carries a `fac`
+  (null = shared); `canBuild()` enforces it, the panel filters on it, sprite
+  baking iterates the table, and the AI reads `FACTIONS[fac].{inf,tank,defence}`
+  instead of naming units. Adding a third faction is a table edit. The one
+  place that resisted this — a hard-coded four-sprite bake list — was the only
+  thing that broke when the roster grew, which is the argument for the pattern.
+- **Faction colour is not player colour.** Blue/red follows the PLAYER, so a red
+  Directorate reads identically to a blue one; what says *what a thing is* is
+  the fixed per-type accent (pale-blue long gun, black twin barrels, violet
+  sensor dome). Two independent colour axes, because one axis cannot carry both
+  "whose is it" and "what is it" at 20 pixels.
+- **Rejected:** giving each faction its own harvester and its own core
+  structures. It doubles the art and the balance surface to express nothing —
+  the asymmetry that matters is what you fight with, not what you mine with.
