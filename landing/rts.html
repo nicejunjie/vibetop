@@ -1604,342 +1604,250 @@
     }
     g.globalAlpha = 1; g.restore();
 
-    if (key === 'base') {
-      // Construction Yard, as RA2 builds it: a LOW WIDE platform with the
-      // crane arm folded flat ACROSS the deck and a roll-up bay door in the
-      // front wall. The previous version stood a tall control tower on it,
-      // which made it read as an office block - the yard's whole silhouette is
-      // horizontal, with the crane truss as the only thing rising off it.
-      var hw = fw * 1.00, hh = fh * 1.00, bl = 16;
-      var r0 = prism(g, cx, baseY, hw, hh, bl, CONC, TAR, dark);
+    // --- RA2 Allied structures ------------------------------------------
+    // Rebuilt against the actual game sprites rather than written
+    // descriptions of them. The whole art direction was wrong before: I was
+    // drawing beige industrial concrete sheds, and RA2's Allied buildings are
+    // steel blue-grey SCI-FI TECH - pale ribbed barrel-vault cylinders with
+    // lavender panels, deep-blue spines with round ports, thick dark stacks
+    // with open tops and blue collars, glowing amber cores, and yellow hazard
+    // aprons, all sitting on a dark olive platform. No amount of detail on a
+    // concrete shed was ever going to converge on that.
+    var PLAT = '#4e5348', PLAT_E = '#2f332c';
+    var BODY = '#7f8478', BODY_D = '#565b52';
+    var RIBL = '#dfe2ea', RIB = '#b7bccc', RIBP = '#8b92b0';
+    var BLU = '#2f5aa0', BLUL = '#4f86d6';
+    var STK = '#6d726d', STK_T = '#23262a';
+    var AMB = '#ffb347', AMBH = '#ffe7a8', HAZ = '#e0b028';
 
-      // roll-up bay door dominating the lit wall
-      facePatch(g, faceL, cx, baseY, hw, hh, bl, 0.24, 0.76, 0.00, 0.66, '#1d2126', dark);
-      chevrons(g, faceL, cx, baseY, hw, hh, bl, 0.24, 0.76, 0.00, 0.14, 7, '#e0a726', '#2a2f36');
-      g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
-      for (var dI = 1; dI < 5; dI++) {
-        var p1 = faceL(cx, baseY, hw, hh, bl, 0.24, 0.14 + dI * 0.10),
-            p2 = faceL(cx, baseY, hw, hh, bl, 0.76, 0.14 + dI * 0.10);
-        g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.stroke();
-      }
-      facePatch(g, faceL, cx, baseY, hw, hh, bl, 0.22, 0.78, 0.66, 0.78, hi, dark);   // lintel
-      facePatch(g, faceR, cx, baseY, hw, hh, bl, 0.08, 0.92, 0.74, 0.90, shade(col, 0.60), null);
-      for (var wI = 0; wI < 3; wI++)
-        facePatch(g, faceR, cx, baseY, hw, hh, bl, 0.12 + wI * 0.27, 0.30 + wI * 0.27, 0.22, 0.60, '#2b2f34', dark);
+    // Dark bevelled platform every structure stands on.
+    g.fillStyle = 'rgba(0,0,0,.34)';
+    diamond(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
+    diamond(g, cx, baseY, fw * 2, fh * 2);
+    g.fillStyle = PLAT; g.fill(); outline(g, PLAT_E);
+    diamond(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
+    g.fillStyle = shade(PLAT, 1.16); g.fill(); outline(g, PLAT_E);
 
-      // low control cabin tucked at the back corner - a nub, not a tower
-      var tx = cx - hw * 0.46, ty = r0 - hh * 0.40;
-      var thw = hw * 0.26, thh = hh * 0.26, tl = 12;
-      prism(g, tx, ty, thw, thh, tl, STEEL, shade(STEEL, 1.12), dark);
-      facePatch(g, faceL, tx, ty, thw, thh, tl, 0.10, 0.90, 0.40, 0.78, '#8fd8ff', dark);
-      facePatch(g, faceR, tx, ty, thw, thh, tl, 0.10, 0.90, 0.40, 0.78, '#5aa8d8', dark);
+    // A thick stack: dark barrel, lighter bands, open mouth, blue collar.
+    function stackR(sx2, sy2, r2, h2) {
+      cylinder(g, sx2, sy2, r2, h2, shade(STK, 0.86), shade(STK, 1.1), PLAT_E);
+      g.fillStyle = BLU;                                     // collar at the base
+      g.fillRect(sx2 - r2 - 1, sy2 - 4, (r2 + 1) * 2, 4);
+      g.fillStyle = shade(STK, 1.22);                        // banded upper section
+      g.fillRect(sx2 - r2, sy2 - h2 + 3, r2 * 2, 5);
+      g.fillStyle = STK_T;                                   // open mouth
+      g.beginPath(); g.ellipse(sx2, sy2 - h2, r2 * 0.72, r2 * 0.30, 0, 0, 6.29); g.fill();
+      steam(g, sx2, sy2 - h2 - 5, r2 * 0.8, 3);
+    }
 
-      // the crane: a truss lying almost flat across the deck on two short
-      // legs, with the hoist hanging off the outboard end.
-      var ax0 = cx - hw * 0.66, ay0 = r0 + hh * 0.22;
-      var bx0 = cx + hw * 0.70, by0 = r0 - hh * 0.28;
-      lattice(g, ax0, ay0 - 13, bx0, by0 - 19, 7, shade(col, 1.05));
-      lattice(g, ax0, ay0, ax0, ay0 - 13, 5, shade(STEEL, 0.88));
-      lattice(g, bx0, by0, bx0, by0 - 19, 5, shade(STEEL, 0.74));
-      g.strokeStyle = '#22262b'; g.lineWidth = 1.2;         // hoist cable + hook
-      var hx = bx0 - (bx0 - ax0) * 0.26, hy = by0 - 19 + (ay0 - by0) * 0.26;
-      g.beginPath(); g.moveTo(hx, hy + 1); g.lineTo(hx, hy + 15); g.stroke();
-      g.fillStyle = '#c9cdd4';
-      g.beginPath(); g.roundRect(hx - 3.5, hy + 15, 7, 5, 1.5); g.fill(); outline(g, dark);
-
-      // deck furniture: vents, a hatch, and a beacon on the parapet
-      isoBox(g, cx + hw * 0.16, r0 + hh * 0.30, 14, 11, 5, 0, shade(STEEL, 0.92), dark);
-      isoBox(g, cx - hw * 0.10, r0 - hh * 0.14, 10, 8, 4, 0, shade(STEEL, 0.80), dark);
-      g.fillStyle = 'rgba(255,91,99,.30)';
-      g.beginPath(); g.arc(cx + hw * 0.74, r0 + hh * 0.06, 5.5, 0, 6.29); g.fill();
-      g.fillStyle = '#ff5b63';
-      g.beginPath(); g.arc(cx + hw * 0.74, r0 + hh * 0.06, 2.4, 0, 6.29); g.fill();
-
-      railing(g, cx - hw + 3, r0 + 2, cx - hw * 0.20, r0 + hh * 0.80, 5, 'rgba(198,206,214,.50)');
-      floodlight(g, cx - hw * 0.90, r0 + hh * 0.12, -1, col);
-      crates(g, cx - hw * 0.40, baseY + fh * 0.66, 3, '#7d6a44');
-      drums(g, cx + hw * 0.56, baseY + fh * 0.56, 4, '#5f6a4a');
-      streak(g, faceR, cx, baseY, hw, hh, bl, 0.30, 0.72, 0.60, 4);
-
-    } else if (key === 'power') {
-      // Power Plant: turbine hall + two waisted cooling towers + steam.
-      var hw = fw * 1.00, hh = fh * 1.00;
-      var r0 = prism(g, cx, baseY, hw, hh, 17, CONC, TAR, dark);
-      facePatch(g, faceL, cx, baseY, hw, hh, 17, 0.06, 0.94, 0.82, 0.95, shade(col, 0.86), null);
-      facePatch(g, faceR, cx, baseY, hw, hh, 17, 0.06, 0.94, 0.82, 0.95, shade(col, 0.60), null);
-      facePatch(g, faceL, cx, baseY, hw, hh, 17, 0.14, 0.42, 0.10, 0.62, '#2b2f34', dark);  // vent grille
-      g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 0.8;
-      for (var vI = 1; vI < 4; vI++) {
-        var a1 = faceL(cx, baseY, hw, hh, 22, 0.14, 0.10 + vI * 0.13),
-            b1 = faceL(cx, baseY, hw, hh, 22, 0.42, 0.10 + vI * 0.13);
-        g.beginPath(); g.moveTo(a1[0], a1[1]); g.lineTo(b1[0], b1[1]); g.stroke();
-      }
-      // Two square exhaust stacks, back-left tall and front-right shorter.
-      // Blocky, not waisted: a waisted cooling tower is a nuclear plant, and
-      // that silhouette reads as a completely different building.
-      function exhaust(sxp, syp, w2, h2) {
-        var top = isoBox(g, sxp, syp, w2, w2, h2, 0, CONC, dark);
-        isoBox(g, sxp, syp - h2 + 2, w2 * 1.24, w2 * 1.24, 3.5, 0, shade(CONC, 0.72), dark);
-        g.fillStyle = '#1e2228';                           // dark flue mouth
-        diamond(g, sxp, syp - h2 - 1.5, w2 * 0.66, w2 * 0.33); g.fill();
-        g.strokeStyle = 'rgba(0,0,0,.20)'; g.lineWidth = 1;   // banding
-        for (var bI = 1; bI < 4; bI++) {
-          var byb = syp - h2 * bI / 4;
-          g.beginPath(); g.moveTo(sxp - w2 * 0.5, byb); g.lineTo(sxp + w2 * 0.5, byb); g.stroke();
-        }
-        g.fillStyle = shade(col, 0.95);                    // house-colour collar
-        g.fillRect(sxp - w2 * 0.5, syp - h2 + 6, w2, 3);
-        return top;
-      }
-      exhaust(cx - hw * 0.40, r0 - hh * 0.30, 15, 38);
-      steam(g, cx - hw * 0.40, r0 - hh * 0.30 - 42, 7, 4);
-      exhaust(cx + hw * 0.30, r0 + hh * 0.26, 12, 27);
-      steam(g, cx + hw * 0.30, r0 + hh * 0.26 - 31, 6, 3);
-      g.fillStyle = '#ffd23f';                             // bolt plate on the hall roof
-      var bs = u * 0.34, bx0 = cx + hw * 0.12, by0 = r0 - hh * 0.18;
+    // Power-plant pylon: grey column, broad blue band, purple capsule, glowing rod.
+    function pylon(px2, py2, r2, h2) {
+      cylinder(g, px2, py2, r2, h2 * 0.62, shade(BODY, 0.92), shade(BODY, 1.12), PLAT_E);
+      g.fillStyle = BLU;
+      g.fillRect(px2 - r2, py2 - h2 * 0.50, r2 * 2, h2 * 0.24);
+      g.fillStyle = '#3b3f7a';                               // capsule
       g.beginPath();
-      g.moveTo(bx0 + bs * 0.1, by0); g.lineTo(bx0 + bs * 1.2, by0);
-      g.lineTo(bx0 + bs * 0.45, by0 + bs * 0.8); g.lineTo(bx0 + bs * 1.35, by0 + bs * 0.8);
-      g.lineTo(bx0 - bs * 0.35, by0 + bs * 2.0); g.lineTo(bx0 + bs * 0.25, by0 + bs * 0.9);
-      g.lineTo(bx0 - bs * 0.55, by0 + bs * 0.9); g.closePath(); g.fill();
-      outline(g, '#7a5c00');
+      g.moveTo(px2 - r2 * 0.86, py2 - h2 * 0.60); g.lineTo(px2 + r2 * 0.86, py2 - h2 * 0.60);
+      g.lineTo(px2 + r2 * 0.70, py2 - h2 * 1.06); g.lineTo(px2 - r2 * 0.70, py2 - h2 * 1.06);
+      g.closePath(); g.fill(); outline(g, '#1d1f3c');
+      g.fillStyle = '#5b60b8';
+      g.fillRect(px2 - r2 * 0.70, py2 - h2 * 0.98, r2 * 1.4, h2 * 0.10);
+      g.fillStyle = AMB;                                     // glowing rod
+      g.fillRect(px2 - r2 * 0.28, py2 - h2 * 1.34, r2 * 0.56, h2 * 0.76);
+      g.fillStyle = AMBH;
+      g.fillRect(px2 - r2 * 0.12, py2 - h2 * 1.34, r2 * 0.24, h2 * 0.76);
+      g.fillStyle = 'rgba(255,190,90,.22)';
+      g.beginPath(); g.ellipse(px2, py2 - h2 * 1.05, r2 * 1.5, h2 * 0.5, 0, 0, 6.29); g.fill();
+    }
 
-      pipeRun(g, faceR, cx, baseY, hw, hh, 17, 0.24, 0.02, 0.86, 3.2, '#7e8a6a');
-      pipeRun(g, faceR, cx, baseY, hw, hh, 17, 0.34, 0.02, 0.86, 2.4, '#8a7a5e');
-      streak(g, faceL, cx, baseY, hw, hh, 17, 0.28, 0.62, 0.55, 5);
-      railing(g, cx - hw + 3, r0 + 2, cx - hw * 0.10, r0 + hh * 0.90, 4.5, 'rgba(198,206,214,.45)');
-      isoBox(g, cx - hw * 0.06, r0 + hh * 0.52, 12, 9, 6, 0, shade(STEEL, 0.85), dark);   // transformer
-      g.strokeStyle = '#3d424a'; g.lineWidth = 1;
-      for (var ti = -1; ti <= 1; ti++) {                   // insulators
+    // Hazard-striped apron: where vehicles come and go.
+    function apron(axp, ayp, aw, ah) {
+      diamond(g, axp, ayp, aw * 2, ah * 2);
+      g.fillStyle = '#8d9288'; g.fill(); outline(g, PLAT_E);
+      g.save(); diamond(g, axp, ayp, aw * 2, ah * 2); g.clip();
+      for (var i = -5; i <= 5; i++) {
+        g.fillStyle = i % 2 ? HAZ : '#2f332c';
         g.beginPath();
-        g.moveTo(cx - hw * 0.06 + ti * 3.4, r0 + hh * 0.52 - 6);
-        g.lineTo(cx - hw * 0.06 + ti * 3.4, r0 + hh * 0.52 - 10); g.stroke();
-        g.fillStyle = '#b8a67e';
-        g.beginPath(); g.ellipse(cx - hw * 0.06 + ti * 3.4, r0 + hh * 0.52 - 10.5, 1.5, 1.0, 0, 0, 6.29); g.fill();
-      }
-      drums(g, cx - hw * 0.60, baseY + fh * 0.58, 4, '#6a6350');
-
-    } else if (key === 'refinery') {
-      // Refinery: a tall boxy processing block plus a low hazard-striped
-      // loading apron. The apron is the read — it is visibly a place a
-      // vehicle backs into, which is exactly what the building is for.
-      var hw = fw * 0.70, hh = fh * 0.70;
-      var sx = cx - fw * 0.30, sy = baseY - fh * 0.26;
-      var r0 = prism(g, sx, sy, hw, hh, 34, CONC, TAR, dark);
-      facePatch(g, faceL, sx, sy, hw, hh, 34, 0.08, 0.92, 0.86, 0.97, shade(col, 0.86), null);
-      facePatch(g, faceR, sx, sy, hw, hh, 34, 0.08, 0.92, 0.86, 0.97, shade(col, 0.60), null);
-      for (var wI3 = 0; wI3 < 3; wI3++)                    // window columns
-        facePatch(g, faceL, sx, sy, hw, hh, 34, 0.16 + wI3 * 0.26, 0.34 + wI3 * 0.26, 0.22, 0.76, '#2b2f34', dark);
-      // ore hopper + stack on the tower roof
-      cylinder(g, sx - hw * 0.34, r0 + hh * 0.10, 9, 22, shade(STEEL, 0.80), shade(STEEL, 1.05), dark);
-      g.fillStyle = shade(col, 1.0); g.fillRect(sx - hw * 0.34 - 9, r0 + hh * 0.10 - 20, 18, 3);
-      steam(g, sx - hw * 0.34, r0 + hh * 0.10 - 24, 6, 3);
-      g.fillStyle = '#e8a92b';                             // ore hopper, brim full
-      g.beginPath(); g.ellipse(sx + hw * 0.34, r0 - hh * 0.06, 13, 7, 0, 0, 6.29); g.fill();
-      outline(g, '#6b4a00');
-      g.fillStyle = shade(STEEL, 0.9);
-      g.beginPath(); g.roundRect(sx + hw * 0.34 - 14, r0 - hh * 0.06 - 2, 28, 5, 2); g.fill();
-      outline(g, dark);
-      // loading apron, abutting the tower on the near-right
-      var dx0 = cx + fw * 0.34, dy0 = baseY + fh * 0.24;
-      var dw = fw * 0.58, dh = fh * 0.58;
-      diamond(g, dx0, dy0, dw * 2, dh * 2);
-      g.fillStyle = '#3d424a'; g.fill(); outline(g, dark);
-      g.save(); diamond(g, dx0, dy0, dw * 2, dh * 2); g.clip();
-      for (var hI = -5; hI <= 5; hI++) {                   // hazard lip
-        g.fillStyle = hI % 2 ? '#f2b529' : '#2c3138';
-        g.beginPath();
-        g.moveTo(dx0 + hI * 11, dy0 - dh); g.lineTo(dx0 + hI * 11 + 5.5, dy0 - dh);
-        g.lineTo(dx0 + hI * 11 + 16.5, dy0 + dh); g.lineTo(dx0 + hI * 11 + 11, dy0 + dh);
+        g.moveTo(axp + i * 9, ayp - ah); g.lineTo(axp + i * 9 + 4.5, ayp - ah);
+        g.lineTo(axp + i * 9 + 13.5, ayp + ah); g.lineTo(axp + i * 9 + 9, ayp + ah);
         g.closePath(); g.fill();
       }
-      g.fillStyle = 'rgba(20,23,27,.55)';                  // worn centre where wheels run
-      diamond(g, dx0, dy0, dw * 1.5, dh * 1.5); g.fill();
+      g.fillStyle = 'rgba(140,148,140,.55)';
+      diamond(g, axp, ayp, aw * 1.4, ah * 1.4); g.fill();
       g.restore();
-      // conveyor from the apron up into the tower
-      // Covered intake chute from the bay into the tower: a boxed housing with
-      // support legs, not a bare bar laid across the apron.
-      var kx0 = sx + hw * 0.70, ky0 = baseY - fh * 0.16;
-      var kx1 = dx0 - dw * 0.70, ky1 = dy0 - dh * 0.62;
-      g.strokeStyle = shade(STEEL, 0.42); g.lineWidth = 11; g.lineCap = 'butt';
-      g.beginPath(); g.moveTo(kx0, ky0); g.lineTo(kx1, ky1); g.stroke();
-      g.strokeStyle = shade(STEEL, 0.98); g.lineWidth = 7;
-      g.beginPath(); g.moveTo(kx0, ky0); g.lineTo(kx1, ky1); g.stroke();
-      g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 2;
-      g.beginPath(); g.moveTo(kx0, ky0 - 2.6); g.lineTo(kx1, ky1 - 2.6); g.stroke();
-      g.strokeStyle = 'rgba(0,0,0,.30)'; g.lineWidth = 1;   // ribs
-      for (var kI = 1; kI < 5; kI++) {
-        var kt = kI / 5;
+    }
+
+    if (key === 'base') {
+      // Construction Yard: ribbed hall, plus a red-and-white striped crane
+      // tower carrying a yellow articulated arm with a grabber claw. The
+      // crane is the whole silhouette.
+      var hw = fw * 0.86, hh = fh * 0.86;
+      var r0 = prism(g, cx + fw * 0.10, baseY - fh * 0.06, hw * 0.78, hh * 0.78, 14, BODY, null, PLAT_E);
+      vault(g, cx + fw * 0.10, r0, hw * 0.78, hh * 0.78, hh * 0.86, RIB, PLAT_E);
+      for (var vp = -2; vp <= 2; vp++) {                     // lavender panels
+        g.fillStyle = RIBP; g.globalAlpha = 0.42;
         g.beginPath();
-        g.moveTo(kx0 + (kx1 - kx0) * kt, ky0 + (ky1 - ky0) * kt - 5);
-        g.lineTo(kx0 + (kx1 - kx0) * kt, ky0 + (ky1 - ky0) * kt + 5); g.stroke();
+        g.ellipse(cx + fw * 0.10 + vp * 10, r0 - hh * 0.58 + vp * 1.8, 2.4, hh * 0.26, 0.62, 0, 6.29);
+        g.fill();
+        g.globalAlpha = 1;
       }
-      g.strokeStyle = shade(STEEL, 0.50); g.lineWidth = 2;  // support legs
-      for (var kJ = 1; kJ < 3; kJ++) {
-        var kt2 = kJ / 3, lx = kx0 + (kx1 - kx0) * kt2, ly = ky0 + (ky1 - ky0) * kt2;
-        g.beginPath(); g.moveTo(lx, ly + 4); g.lineTo(lx, ly + 13); g.stroke();
-      }
-      var pile = [[0.10, 0.60, 5], [0.30, 0.68, 6], [0.50, 0.58, 4.5]];
-      for (var i = 0; i < pile.length; i++) {              // spilled ore
-        g.fillStyle = i % 2 ? '#e8a92b' : '#c9822f';
+      isoBox(g, cx - fw * 0.52, baseY + fh * 0.06, 16, 14, 22, 0, BODY_D, PLAT_E);   // gear house
+      var tx2 = cx - fw * 0.30, ty2 = baseY - fh * 0.24;     // striped crane tower
+      cylinder(g, tx2, ty2, 6.5, 44, '#c9302c', '#e8e8e8', PLAT_E);
+      g.fillStyle = '#f2f2f2';
+      for (var sI = 0; sI < 4; sI++) g.fillRect(tx2 - 6.5, ty2 - 10 - sI * 11, 13, 5);
+      g.strokeStyle = '#e8a317'; g.lineWidth = 5; g.lineCap = 'round';   // articulated arm
+      g.beginPath();
+      g.moveTo(tx2, ty2 - 40); g.lineTo(tx2 + 26, ty2 - 30); g.lineTo(tx2 + 40, ty2 - 12); g.stroke();
+      g.strokeStyle = '#ffc94d'; g.lineWidth = 2.4;
+      g.beginPath();
+      g.moveTo(tx2, ty2 - 40); g.lineTo(tx2 + 26, ty2 - 30); g.lineTo(tx2 + 40, ty2 - 12); g.stroke();
+      g.strokeStyle = '#e8a317'; g.lineWidth = 3; g.lineCap = 'round';   // grabber claw
+      g.beginPath(); g.moveTo(tx2 + 40, ty2 - 12); g.lineTo(tx2 + 36, ty2 - 2); g.stroke();
+      g.beginPath(); g.moveTo(tx2 + 40, ty2 - 12); g.lineTo(tx2 + 46, ty2 - 3); g.stroke();
+      g.fillStyle = shade(col, 1.0);
+      g.beginPath(); g.arc(tx2, ty2 - 44, 3.4, 0, 6.29); g.fill(); outline(g, PLAT_E);
+      apron(cx + fw * 0.30, baseY + fh * 0.56, fw * 0.40, fh * 0.40);
+      drums(g, cx - fw * 0.10, baseY + fh * 0.60, 4, '#3f443c');
+      crates(g, cx - fw * 0.56, baseY + fh * 0.40, 3, '#8d9288');
+
+    } else if (key === 'power') {
+      // Power Plant: three glowing pylons around a molten core on a round
+      // platform. Not a shed with chimneys - that was a different building.
+      diamond(g, cx, baseY - 4, fw * 1.7, fh * 1.7);
+      g.fillStyle = shade(BODY, 0.82); g.fill(); outline(g, PLAT_E);
+      var coreY = baseY - 12;
+      isoBox(g, cx, coreY + 6, fw * 0.62, fh * 1.24, 14, 0, BODY_D, PLAT_E);   // core housing
+      g.strokeStyle = '#b87333'; g.lineWidth = 2;                              // copper coils
+      for (var cI = 0; cI < 4; cI++) {
         g.beginPath();
-        g.ellipse(cx + pile[i][0] * fw, baseY + pile[i][1] * fh, pile[i][2], pile[i][2] * 0.6, 0, 0, 6.29);
+        g.ellipse(cx, coreY - 2 - cI * 4, fw * 0.26, fh * 0.20, 0, 0, Math.PI); g.stroke();
+      }
+      g.fillStyle = '#8a5a2a';                                                 // crucible
+      g.beginPath(); g.ellipse(cx, coreY - 18, fw * 0.30, fh * 0.30, 0, 0, 6.29); g.fill();
+      outline(g, PLAT_E);
+      g.fillStyle = AMB;
+      g.beginPath(); g.ellipse(cx, coreY - 19, fw * 0.24, fh * 0.24, 0, 0, 6.29); g.fill();
+      g.fillStyle = AMBH;
+      g.beginPath(); g.ellipse(cx, coreY - 20, fw * 0.13, fh * 0.13, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,170,60,.22)';
+      g.beginPath(); g.ellipse(cx, coreY - 22, fw * 0.62, fh * 0.62, 0, 0, 6.29); g.fill();
+      pylon(cx - fw * 0.52, baseY + fh * 0.16, 7.5, 36);
+      pylon(cx + fw * 0.52, baseY + fh * 0.16, 7.5, 36);
+      pylon(cx + fw * 0.00, baseY - fh * 0.46, 7.5, 42);
+      g.fillStyle = shade(col, 0.95);                                          // house trim on the deck
+      diamond(g, cx, baseY + fh * 0.30, fw * 0.72, fh * 0.72); g.fill();
+      g.fillStyle = shade(col, 1.20);
+      diamond(g, cx, baseY + fh * 0.30, fw * 0.46, fh * 0.46); g.fill();
+
+    } else if (key === 'refinery') {
+      // Refinery: domed drum body with two thick stacks, a ribbed vault
+      // alongside it under a blue ported spine, and a hazard apron the miner
+      // backs onto with a glowing pour point beside it.
+      var dx1 = cx - fw * 0.42, dy1 = baseY - fh * 0.18;
+      isoBox(g, dx1, dy1, fw * 0.70, fh * 1.20, 18, 0, BODY, PLAT_E);          // drum body
+      g.fillStyle = shade(BODY, 1.20);                                         // domed top
+      g.beginPath(); g.ellipse(dx1, dy1 - 18, fw * 0.36, fh * 0.46, 0, 0, 6.29); g.fill();
+      outline(g, PLAT_E);
+      g.fillStyle = BLU;
+      g.beginPath(); g.ellipse(dx1, dy1 - 18, fw * 0.36, fh * 0.46, 0, 0.6, 2.5); g.fill();
+      stackR(dx1 - fw * 0.14, dy1 - 24, 6.5, 40);
+      stackR(dx1 + fw * 0.20, dy1 - 30, 7.5, 48);
+      var vx1 = cx + fw * 0.24, vy1 = baseY - fh * 0.10;                       // ribbed vault
+      var vr0 = prism(g, vx1, vy1, fw * 0.44, fh * 0.44, 12, BODY_D, null, PLAT_E);
+      vault(g, vx1, vr0, fw * 0.44, fh * 0.44, fh * 0.62, RIB, PLAT_E);
+      g.save();                                                                // blue ported spine
+      g.strokeStyle = BLU; g.lineWidth = 7; g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(vx1 - fw * 0.20, vr0 - fh * 0.40); g.lineTo(vx1 + fw * 0.22, vr0 - fh * 0.62); g.stroke();
+      g.strokeStyle = BLUL; g.lineWidth = 2.4;
+      g.beginPath();
+      g.moveTo(vx1 - fw * 0.20, vr0 - fh * 0.42); g.lineTo(vx1 + fw * 0.22, vr0 - fh * 0.64); g.stroke();
+      g.restore();
+      for (var pI2 = 0; pI2 < 3; pI2++) {
+        g.fillStyle = '#16305c';
+        g.beginPath();
+        g.ellipse(vx1 - fw * 0.12 + pI2 * fw * 0.14, vr0 - fh * 0.46 - pI2 * fh * 0.07, 2.2, 1.5, 0, 0, 6.29);
         g.fill();
       }
-
-      pipeRun(g, faceR, sx, sy, hw, hh, 34, 0.26, 0.02, 0.90, 3.4, '#7e8a6a');
-      pipeRun(g, faceR, sx, sy, hw, hh, 34, 0.38, 0.02, 0.78, 2.6, '#9a6f4a');
-      pipeRun(g, faceL, sx, sy, hw, hh, 34, 0.88, 0.02, 0.84, 3.0, '#7a8390');
-      streak(g, faceL, sx, sy, hw, hh, 34, 0.50, 0.80, 0.72, 6);
-      railing(g, sx - hw + 2, r0 + 1, sx - hw * 0.08, r0 + hh * 0.90, 4.5, 'rgba(198,206,214,.45)');
-      isoBox(g, sx + hw * 0.10, r0 + hh * 0.46, 10, 8, 4, 0, shade(STEEL, 0.88), dark);   // roof hatch
+      apron(cx + fw * 0.44, baseY + fh * 0.44, fw * 0.44, fh * 0.44);
+      g.fillStyle = 'rgba(255,170,60,.30)';                                    // pour glow
+      g.beginPath(); g.ellipse(cx + fw * 0.10, baseY + fh * 0.24, 10, 6, 0, 0, 6.29); g.fill();
+      g.fillStyle = AMB;
+      g.beginPath(); g.ellipse(cx + fw * 0.10, baseY + fh * 0.24, 4.5, 2.6, 0, 0, 6.29); g.fill();
       g.fillStyle = shade(col, 0.95);
-      g.beginPath(); g.ellipse(sx + hw * 0.10, r0 + hh * 0.46 - 4.4, 3.2, 1.9, 0, 0, 6.29); g.fill();
-      g.strokeStyle = 'rgba(210,218,226,.45)'; g.lineWidth = 1;   // access ladder
-      for (var li = 0; li < 9; li++) {
-        var ly = sy + hh * 0.30 - li * 4.4;
-        g.beginPath(); g.moveTo(sx + hw * 0.52, ly); g.lineTo(sx + hw * 0.62, ly); g.stroke();
-      }
-      g.beginPath(); g.moveTo(sx + hw * 0.52, sy + hh * 0.30); g.lineTo(sx + hw * 0.52, sy + hh * 0.30 - 36); g.stroke();
-      g.beginPath(); g.moveTo(sx + hw * 0.62, sy + hh * 0.30); g.lineTo(sx + hw * 0.62, sy + hh * 0.30 - 36); g.stroke();
-      drums(g, cx - fw * 0.66, baseY + fh * 0.34, 4, '#8a6a34');
+      g.fillRect(vx1 - fw * 0.30, vr0 + fh * 0.14, fw * 0.60, 3);
 
     } else if (key === 'barracks') {
-      // Barracks: corrugated Nissen hut on a low base, with a lit doorway in
-      // the end wall, sandbags and a flag. The flag is the fastest ownership
-      // read on the whole map.
-      var hw = fw * 1.00, hh = fh * 1.00, bl = 11;
-      var r0 = prism(g, cx, baseY - fh * 0.02, hw, hh, bl, CONC, null, dark);
-      var by2 = baseY - fh * 0.02;
-      var apex = vault(g, cx, r0, hw, hh, hh * 1.02, '#9a9482', dark);
-      // doorway punched into the curved end wall
-      g.fillStyle = shade(col, 0.90);
-      g.beginPath(); g.roundRect(cx + hw * 0.36, r0 - hh * 0.06, 17, 15, 2); g.fill();
-      g.fillStyle = '#23272d';
-      g.beginPath(); g.roundRect(cx + hw * 0.36 + 2.5, r0 - hh * 0.06 + 2, 12, 13, 1.5); g.fill();
-      g.fillStyle = 'rgba(255,214,120,.30)';
-      g.beginPath(); g.roundRect(cx + hw * 0.36 + 2.5, r0 - hh * 0.06 + 9, 12, 6, 1.5); g.fill();
-      facePatch(g, faceL, cx, by2, hw, hh, bl, 0.20, 0.46, 0.20, 0.72, '#2b2f34', dark);   // vents
-      facePatch(g, faceL, cx, by2, hw, hh, bl, 0.56, 0.82, 0.20, 0.72, '#2b2f34', dark);
-      facePatch(g, faceR, cx, by2, hw, hh, bl, 0.10, 0.90, 0.74, 0.94, shade(col, 0.60), null);
-      for (var sI = 0; sI < 7; sI++) {                     // sandbag skirt
-        var q = faceR(cx, by2 + fh * 0.20, hw * 1.04, hh * 1.04, 0, 0.10 + sI * 0.13, 0);
-        g.fillStyle = sI % 2 ? '#a3966f' : '#8f8360';
-        g.beginPath(); g.ellipse(q[0], q[1], 4.6, 2.7, 0, 0, 6.29); g.fill();
-        outline(g, '#5c5238');
-      }
-      var fxp = cx - hw * 0.86, fyp = by2 + hh * 0.14;     // flagpole
-      g.strokeStyle = '#c9cdd4'; g.lineWidth = 1.6;
-      g.beginPath(); g.moveTo(fxp, fyp); g.lineTo(fxp, fyp - 44); g.stroke();
-      g.fillStyle = col;
-      g.beginPath();
-      g.moveTo(fxp, fyp - 44); g.lineTo(fxp + 18, fyp - 39.5); g.lineTo(fxp + 14.5, fyp - 35.5);
-      g.lineTo(fxp + 18, fyp - 31.5); g.lineTo(fxp, fyp - 29.5); g.closePath(); g.fill();
-      outline(g, shade(col, 0.5));
-
-      cylinder(g, cx - hw * 0.30, r0 - hh * 0.86, 3.4, 11, '#5d626a', '#767c85', dark);   // stove flue
-      steam(g, cx - hw * 0.30, r0 - hh * 0.86 - 12, 4.5, 2);
-      g.fillStyle = shade(CONC, 0.70);                     // entry step
-      diamond(g, cx + hw * 0.52, r0 + hh * 0.34, 15, 8); g.fill(); outline(g, dark);
-      crates(g, cx - hw * 0.10, baseY + fh * 0.66, 2, '#6e6448');
-      floodlight(g, cx + hw * 0.74, r0 + hh * 0.14, 1, col);
+      // Barracks: two ribbed cylinders side by side with a hazard apron in
+      // front and a comms mast - that pair of barrels is the whole read.
+      var b1x = cx - fw * 0.30, b2x = cx + fw * 0.24;
+      var br1 = prism(g, b1x, baseY - fh * 0.22, fw * 0.40, fh * 0.40, 10, BODY_D, null, PLAT_E);
+      vault(g, b1x, br1, fw * 0.40, fh * 0.40, fh * 0.66, RIB, PLAT_E);
+      var br2 = prism(g, b2x, baseY - fh * 0.02, fw * 0.40, fh * 0.40, 10, BODY_D, null, PLAT_E);
+      vault(g, b2x, br2, fw * 0.40, fh * 0.40, fh * 0.66, RIB, PLAT_E);
+      g.fillStyle = BLU;
+      g.fillRect(b1x - fw * 0.24, br1 + fh * 0.16, fw * 0.48, 3);
+      g.fillRect(b2x - fw * 0.24, br2 + fh * 0.16, fw * 0.48, 3);
+      g.strokeStyle = '#9aa0a8'; g.lineWidth = 1.6;                            // comms mast
+      g.beginPath(); g.moveTo(b1x - fw * 0.26, br1 - fh * 0.30); g.lineTo(b1x - fw * 0.26, br1 - fh * 0.30 - 22); g.stroke();
+      g.fillStyle = shade(col, 1.0);
+      g.beginPath(); g.arc(b1x - fw * 0.26, br1 - fh * 0.30 - 24, 3, 0, 6.29); g.fill();
+      apron(cx - fw * 0.04, baseY + fh * 0.52, fw * 0.46, fh * 0.46);
+      crates(g, cx + fw * 0.40, baseY + fh * 0.18, 2, '#8d9288');
 
     } else if (key === 'factory') {
-      // War Factory: a long hangar, a huge chevroned roller door, a rooftop
-      // gantry rail and stacks. Wide and industrial, never tower-like.
-      var hw = fw * 1.00, hh = fh * 0.98, fl = 24;
-      var r0 = prism(g, cx, baseY - fh * 0.06, hw, hh, fl, CONC, TAR, dark);
-      var fy2 = baseY - fh * 0.06;
-      // roller door dominating the lit wall
-      facePatch(g, faceL, cx, fy2, hw, hh, fl, 0.16, 0.84, 0.00, 0.60, '#1d2126', dark);
-      chevrons(g, faceL, cx, fy2, hw, hh, fl, 0.16, 0.84, 0.00, 0.13, 8, '#f2b529', '#2a2f36');
-      facePatch(g, faceL, cx, fy2, hw, hh, fl, 0.16, 0.84, 0.60, 0.72, hi, dark);          // lintel
-      g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;                            // slat lines
-      for (var dI = 1; dI < 6; dI++) {
-        var p1 = faceL(cx, fy2, hw, hh, fl, 0.16, 0.13 + dI * 0.079),
-            p2 = faceL(cx, fy2, hw, hh, fl, 0.84, 0.13 + dI * 0.079);
-        g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.stroke();
-      }
-      facePatch(g, faceR, cx, fy2, hw, hh, fl, 0.10, 0.90, 0.80, 0.92, shade(col, 0.60), null);          // trim band
-      for (var wI2 = 0; wI2 < 3; wI2++)                                                     // wall vents
-        facePatch(g, faceR, cx, fy2, hw, hh, fl, 0.14 + wI2 * 0.26, 0.32 + wI2 * 0.26, 0.24, 0.58, '#2b2f34', dark);
-      // roof: skylight strips, gantry rail, stacks
-      for (var kI = -1; kI <= 1; kI++) {
-        g.fillStyle = 'rgba(150,205,255,.35)';
+      // War Factory: one big pale ribbed hall, a domed tower with a flag at
+      // the far end, and an arched bay opening onto a hazard ramp.
+      var hw2 = fw * 0.66, hh2 = fh * 0.66;
+      var fr = prism(g, cx - fw * 0.04, baseY - fh * 0.14, hw2, hh2, 14, BODY_D, null, PLAT_E);
+      vault(g, cx - fw * 0.04, fr, hw2, hh2, hh2 * 1.30, RIB, PLAT_E);
+      g.save();                                                                // lavender panelling
+      g.globalAlpha = 0.42; g.fillStyle = RIBP;
+      for (var lp = -3; lp <= 3; lp++) {
         g.beginPath();
-        g.moveTo(cx - hw * 0.72 + kI * 6, r0 + hh * 0.36 + kI * hh * 0.30);
-        g.lineTo(cx + hw * 0.10 + kI * 6, r0 - hh * 0.14 + kI * hh * 0.30);
-        g.lineTo(cx + hw * 0.10 + kI * 6, r0 - hh * 0.02 + kI * hh * 0.30);
-        g.lineTo(cx - hw * 0.72 + kI * 6, r0 + hh * 0.48 + kI * hh * 0.30);
-        g.closePath(); g.fill(); outline(g, dark);
-      }
-      lattice(g, cx - hw * 0.55, r0 + hh * 0.10, cx + hw * 0.62, r0 - hh * 0.40, 7, shade(STEEL, 0.9));
-      g.fillStyle = shade(col, 1.0);                                                        // travelling hoist
-      g.beginPath(); g.roundRect(cx + hw * 0.02, r0 - hh * 0.30, 12, 7, 2); g.fill(); outline(g, dark);
-      for (var stI = 0; stI < 2; stI++) {
-        var stx = cx + hw * (0.30 + stI * 0.28), sty = r0 + hh * (0.30 - stI * 0.22);
-        cylinder(g, stx, sty, 4.6, 20 + stI * 5, shade(STEEL, 0.75), shade(STEEL, 1.0), dark);
-        g.fillStyle = hi; g.fillRect(stx - 4.6, sty - 18 - stI * 5, 9.2, 3);
-        steam(g, stx, sty - 22 - stI * 5, 5, 2);
-      }
-
-      var dl = faceL(cx, fy2, hw, hh, fl, 0.12, 0.72), dr = faceL(cx, fy2, hw, hh, fl, 0.88, 0.72);
-      floodlight(g, dl[0], dl[1], -1, col);                // lamps flanking the bay door
-      floodlight(g, dr[0], dr[1], 1, col);
-      pipeRun(g, faceR, cx, fy2, hw, hh, fl, 0.06, 0.02, 0.74, 3.4, '#7e8a6a');
-      streak(g, faceR, cx, fy2, hw, hh, fl, 0.22, 0.24, 0.22, 5);
-      streak(g, faceR, cx, fy2, hw, hh, fl, 0.48, 0.24, 0.22, 5);
-      railing(g, cx + hw * 0.10, r0 - hh * 0.44, cx + hw, r0 - 2, 4.5, 'rgba(198,206,214,.42)');
-      drums(g, cx - hw * 0.86, baseY + fh * 0.44, 4, '#6a6350');
-      crates(g, cx + hw * 0.30, baseY + fh * 0.72, 3, '#7d6a44');
-      g.save();
-      diamond(g, cx, baseY, fw * 2, fh * 2); g.clip();      // stay on the apron
-      g.strokeStyle = 'rgba(30,34,38,.26)'; g.lineWidth = 3.5;   // tyre tracks out of the bay
-      for (var tt2 = -1; tt2 <= 1; tt2 += 2) {
-        g.beginPath();
-        g.moveTo(cx - hw * 0.34 + tt2 * 5, fy2 + hh * 0.52);
-        g.lineTo(cx - fw * 0.70 + tt2 * 5, baseY + fh * 0.80); g.stroke();
+        g.ellipse(cx - fw * 0.04 + lp * 13, fr - hh2 * 0.86 + lp * 2.2, 2.6, hh2 * 0.30, 0.62, 0, 6.29);
+        g.fill();
       }
       g.restore();
+      var wx = cx - fw * 0.60, wy = baseY - fh * 0.44;                          // domed end tower
+      isoBox(g, wx, wy, 17, 15, 26, 0, BODY_D, PLAT_E);
+      g.fillStyle = shade(BODY, 1.10);
+      g.beginPath(); g.ellipse(wx, wy - 26, 9, 6, 0, Math.PI, 0); g.fill(); outline(g, PLAT_E);
+      g.strokeStyle = '#9aa0a8'; g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(wx + 4, wy - 30); g.lineTo(wx + 4, wy - 52); g.stroke();
+      g.fillStyle = col;
+      g.beginPath();
+      g.moveTo(wx + 4, wy - 52); g.lineTo(wx + 21, wy - 48); g.lineTo(wx + 17, wy - 44.5);
+      g.lineTo(wx + 21, wy - 41); g.lineTo(wx + 4, wy - 39); g.closePath(); g.fill();
+      outline(g, shade(col, 0.5));
+      var bx3 = cx + fw * 0.44, by4 = baseY + fh * 0.12;                        // arched bay
+      g.fillStyle = '#1e2228';
+      g.beginPath(); g.ellipse(bx3, by4, 15, 13, 0, Math.PI, 0); g.fill();
+      g.fillRect(bx3 - 15, by4 - 1, 30, 8);
+      outline(g, PLAT_E);
+      apron(cx + fw * 0.52, baseY + fh * 0.50, fw * 0.40, fh * 0.40);
+      drums(g, cx - fw * 0.34, baseY + fh * 0.56, 4, '#3f443c');
+      crates(g, cx + fw * 0.02, baseY + fh * 0.66, 3, '#8d9288');
 
     } else if (key === 'sentry') {
-      // Sentry Gun: a squat bunker with a sandbag skirt and twin cannon.
-      var hw = fw * 0.86, hh = fh * 0.86;
-      var r0 = prism(g, cx, baseY, hw, hh, 11, CONC, shade(CONC, 1.06), dark);
-      facePatch(g, faceL, cx, baseY, hw, hh, 11, 0.10, 0.90, 0.74, 0.92, shade(col, 0.86), null);
-      facePatch(g, faceR, cx, baseY, hw, hh, 11, 0.10, 0.90, 0.74, 0.92, shade(col, 0.60), null);
-      for (var sb = 0; sb < 5; sb++) {
-        var q2 = faceR(cx, baseY + fh * 0.20, hw * 1.1, hh * 1.1, 0, 0.12 + sb * 0.19, 0);
-        g.fillStyle = sb % 2 ? '#9c8f6c' : '#8a7e5d';
-        g.beginPath(); g.ellipse(q2[0], q2[1], 3.6, 2.2, 0, 0, 6.29); g.fill(); outline(g, '#5c5238');
-      }
-      g.fillStyle = '#4d525a';                             // mounting pole
-      g.beginPath(); g.roundRect(cx - 3, r0 - 16, 6, 17, 2); g.fill(); outline(g, dark);
-      var ty2 = r0 - 17;
-      g.fillStyle = shade(STEEL, 1.05);                    // turret housing
-      g.beginPath(); g.ellipse(cx, ty2, hw * 0.52, hw * 0.30, 0, 0, 6.29); g.fill(); outline(g, dark);
+      // Pillbox: a low saucer dome with a glowing blue eye and a gun slit.
+      diamond(g, cx, baseY - 2, fw * 1.5, fh * 1.5);
+      g.fillStyle = shade(BODY, 0.86); g.fill(); outline(g, PLAT_E);
+      g.fillStyle = BODY;
+      g.beginPath(); g.ellipse(cx, baseY - 4, fw * 0.86, fh * 0.86, 0, 0, 6.29); g.fill();
+      outline(g, PLAT_E);
+      g.fillStyle = shade(BODY, 1.16);
+      g.beginPath(); g.ellipse(cx, baseY - 9, fw * 0.60, fh * 0.62, 0, 0, 6.29); g.fill();
+      outline(g, PLAT_E);
+      g.fillStyle = BLU;
+      g.beginPath(); g.ellipse(cx, baseY - 13, fw * 0.34, fh * 0.36, 0, 0, 6.29); g.fill();
+      g.fillStyle = BLUL;
+      g.beginPath(); g.ellipse(cx - fw * 0.08, baseY - 14.5, fw * 0.16, fh * 0.16, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#1a1d22';                                                  // gun slit
+      g.beginPath(); g.ellipse(cx + fw * 0.42, baseY - 7, fw * 0.20, 2.6, -0.25, 0, 6.29); g.fill();
       g.fillStyle = shade(col, 1.0);
-      g.beginPath(); g.ellipse(cx, ty2 - 3.2, hw * 0.36, hw * 0.21, 0, 0, 6.29); g.fill(); outline(g, dark);
-      g.lineCap = 'round';
-      for (var gb = -1; gb <= 1; gb += 2) {                // twin barrels
-        g.strokeStyle = dark; g.lineWidth = 3.4;
-        g.beginPath(); g.moveTo(cx, ty2 - 3 + gb * 2.4); g.lineTo(cx + hw * 1.24, ty2 - 12 + gb * 2.4); g.stroke();
-        g.strokeStyle = '#4b5466'; g.lineWidth = 1.9;
-        g.beginPath(); g.moveTo(cx, ty2 - 3 + gb * 2.4); g.lineTo(cx + hw * 1.20, ty2 - 11.7 + gb * 2.4); g.stroke();
-      }
-      g.fillStyle = '#ff5b63';                             // targeting light
-      g.beginPath(); g.arc(cx - hw * 0.34, ty2 - 5, 2, 0, 6.29); g.fill();
-      g.fillStyle = '#c9cdd4';                             // ammo drum
-      g.beginPath(); g.roundRect(cx - hw * 0.66, ty2 - 4, 7.5, 6.5, 2); g.fill(); outline(g, dark);
-
-      g.fillStyle = '#4a4f57';                             // ammo locker + power feed
-      g.beginPath(); g.roundRect(cx - hw * 0.86, baseY + fh * 0.30, 9, 6, 1.5); g.fill();
-      outline(g, dark);
-      g.strokeStyle = 'rgba(20,24,28,.55)'; g.lineWidth = 1.4;
-      g.beginPath();
-      g.moveTo(cx - hw * 0.80, baseY + fh * 0.30);
-      g.quadraticCurveTo(cx - hw * 0.40, baseY + fh * 0.44, cx - hw * 0.10, baseY + fh * 0.18);
-      g.stroke();
+      g.fillRect(cx - fw * 0.62, baseY - 4, fw * 1.24, 2.4);
 
     } else if (key === 'tesla') {
       // Tesla Coil: shrinking coil rings on a plinth under a charged orb. No
