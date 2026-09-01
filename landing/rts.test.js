@@ -137,6 +137,53 @@ test("the counter triangle closes — nothing is unanswerable", () => {
   }
 });
 
+test("both factions are complete and genuinely different", () => {
+  const F = W.__rtsTables.FACTIONS;
+  assert.ok(F && F.dir && F.col, "two factions must exist");
+
+  for (const [key, f] of Object.entries(F)) {
+    // Each side must be able to field a full game on its own.
+    assert.ok(T.UNITS[f.inf], `${key} names a missing infantry unit`);
+    assert.ok(T.UNITS[f.tank], `${key} names a missing tank`);
+    assert.ok(T.BLDS[f.defence], `${key} names a missing defence`);
+    assert.equal(T.UNITS[f.inf].fac, key, `${key}'s infantry must belong to it`);
+    assert.equal(T.UNITS[f.tank].fac, key, `${key}'s tank must belong to it`);
+    assert.equal(T.BLDS[f.defence].fac, key, `${key}'s defence must belong to it`);
+
+    const units = Object.entries(T.UNITS).filter(([, u]) => !u.fac || u.fac === key);
+    const blds = Object.entries(T.BLDS).filter(([, b]) => !b.fac || b.fac === key);
+    assert.ok(units.some(([, u]) => u.cap > 0), `${key} has no harvester`);
+    assert.ok(units.some(([, u]) => u.cls === "i" && u.dmg > 0), `${key} has no infantry`);
+    assert.ok(units.some(([, u]) => u.cls === "v" && u.dmg > 0), `${key} has no combat vehicle`);
+    for (const need of ["base", "power", "refinery", "barracks", "factory"]) {
+      assert.ok(blds.some(([k]) => k === need), `${key} cannot build a ${need}`);
+    }
+    // Every armour class must still have an answer WITHIN this faction —
+    // an asymmetry that leaves one side unable to deal with vehicles is a
+    // broken matchup, not flavour.
+    for (const cls of ["inf", "veh"]) {
+      assert.ok(units.some(([, u]) => u.dmg > 0 && u.vs && u.vs[cls] >= 1.0),
+        `${key} has nothing that counters ${cls}`);
+    }
+  }
+
+  // They must actually differ, or the choice is cosmetic.
+  const dirOnly = Object.values(T.UNITS).filter((u) => u.fac === "dir").length;
+  const colOnly = Object.values(T.UNITS).filter((u) => u.fac === "col").length;
+  assert.ok(dirOnly >= 2 && colOnly >= 2, "each side needs its own units");
+  assert.notEqual(F.dir.defence, F.col.defence, "the defences must differ");
+
+  // The stated identities should be visible in the numbers: Directorate
+  // reaches further, Collective survives longer.
+  const lancer = T.UNITS[F.dir.tank], mammoth = T.UNITS[F.col.tank];
+  assert.ok(lancer.rng > mammoth.rng, "the Directorate tank should outrange");
+  assert.ok(lancer.spd > mammoth.spd, "the Directorate tank should be faster");
+  assert.ok(mammoth.hp > lancer.hp, "the Collective tank should be tougher");
+  assert.ok(mammoth.splash > lancer.splash, "the Collective tank should splash harder");
+  assert.ok(T.UNITS[F.col.inf].cost < T.UNITS[F.dir.inf].cost,
+    "Collective infantry should be the cheaper body");
+});
+
 test("difficulty tiers are ordered, and none of them cheat", () => {
   const { easy, normal, hard } = T.DIFF;
   assert.ok(easy.react > normal.react && normal.react > hard.react,
