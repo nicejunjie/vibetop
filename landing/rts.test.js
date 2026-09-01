@@ -840,3 +840,47 @@ test("defence builds in its own lane — a turret never delays the economy", () 
   assert.ok(s.queues.d.prog > before || s.queues.d.ready,
     "a structure waiting for placement froze the defence lane too");
 });
+
+test("primary building: units come out of the primary producer and fall back when it dies", () => {
+  const W = load();
+  const H = W.__rtsTest;
+  const g = H.begin(4242, "normal");
+  const s = g.start[0];
+  const place = (type, dx, dy) => {
+    for (let r = 0; r < 8; r++) for (let ox = -r; ox <= r; ox++) for (let oy = -r; oy <= r; oy++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      const x = s.x + dx + ox, y = s.y + dy + oy;
+      if (H.api.canPlace(g, 0, type, x, y)) return H.build(type, 0, x, y);
+    }
+    return null;
+  };
+  H.build("base", 0, s.x - 1, s.y - 1);
+  H.build("power", 0, s.x + 4, s.y - 4) || place("power", 4, -4);
+  const fA = place("factory", -8, 4), fB = place("factory", 8, 4);
+  assert.ok(fA && fB, "two factories must fit near the start");
+  const near = (u, f) => Math.hypot(u.x - f.cx, u.y - f.cy);
+  const produce = () => {
+    const before = g.units.length;
+    g.side[0].queues.v.list.push("lancer");
+    for (let i = 0; i < 60 * 60 && g.units.length === before; i++) H.step(1);
+    assert.ok(g.units.length > before, "a queued lancer never appeared");
+    return g.units[g.units.length - 1];
+  };
+
+  // The first factory built is primary by default.
+  assert.ok(H.isPrimary(fA) && !H.isPrimary(fB), "oldest producer should be the default primary");
+  let u = produce();
+  assert.ok(near(u, fA) < near(u, fB), "unit should exit the primary (first) factory");
+
+  // Choosing the other one moves every subsequent exit there.
+  H.setPrimary(fB);
+  assert.ok(H.isPrimary(fB) && !H.isPrimary(fA));
+  u = produce();
+  assert.ok(near(u, fB) < near(u, fA), "unit should exit the newly chosen primary");
+
+  // A dead primary hands over instead of stalling the lane.
+  H.killBld(fB);
+  u = produce();
+  assert.ok(near(u, fA) < 4, `after the primary died the survivor must produce (dist ${near(u, fA).toFixed(1)})`);
+  assert.ok(H.isPrimary(fA), "survivor becomes primary");
+});

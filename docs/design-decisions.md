@@ -5095,7 +5095,9 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** anything drawn *relative to a sprite* must be measured from the
   sprite, not from the grid cell it occupies. The same bug family produced the
   half-size selection ring (`diamond()` takes a full width; the caller passed a
-  half).
+  half) — and, once the sprites grew, the ring drawn *under* a unit or under a
+  building's own platform vanished entirely. Selection is now RA2-style corner
+  brackets around the sprite's opaque bounding box, drawn over it.
 
 ## The refinery's dock is on the +gy face, which is screen down-LEFT
 

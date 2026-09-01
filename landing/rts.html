@@ -154,6 +154,15 @@
     white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis;
   }
   #tip.warn { color: #e8b428; border-color: #5a4a20; }
+  /* Hover card: what is that building / unit (yours or the enemy's). */
+  #hov {
+    position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5;
+    background: rgba(14,17,23,.9); border: 1px solid #2a3040; border-radius: 6px;
+    padding: 4px 8px; font-size: 12px; color: #cdd5e1; white-space: nowrap;
+  }
+  #hov b { display: block; font-size: 12px; color: #e6edf3; }
+  #hov span { font-size: 11px; color: #8f9bae; }
+  #hov.enemy { border-color: #5a2a30; } #hov.enemy b { color: #f0a0a8; }
   #paused {
     position: absolute; inset: 0; display: none; z-index: 4;
     flex-direction: column; align-items: center; justify-content: center;
@@ -256,6 +265,7 @@
     <canvas id="cv"></canvas>
     <div id="marq"></div>
     <div id="tip">Left-drag to select · Right-click to move or attack</div>
+    <div id="hov" hidden><b id="hovName"></b><span id="hovSub"></span></div>
     <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
 
     <div class="overlay" id="ov"><div class="card">
@@ -532,7 +542,8 @@
       p: p, fac: 'dir', credits: 5000, made: 0, lost: 0, killed: 0, deadFor: 0, exitTurn: 0,
       powerMade: 0, powerUse: 0,
       queues: { b: newQueue(), d: newQueue(), i: newQueue(), v: newQueue() },
-      pending: null                                // a finished structure awaiting placement
+      pending: null,                               // a finished structure awaiting placement
+      primary: { i: 0, v: 0 }                      // building id that produces each lane (RA2 "primary")
     };
   }
   function newQueue() { return { list: [], prog: 0, ready: null }; }
@@ -4594,6 +4605,24 @@
     return 0;
   }
 
+  // Opaque bounding box of a baked canvas (whole canvas if unreadable).
+  function artBox(s) {
+    var bb = { x0: 0, y0: 0, x1: s.w, y1: s.h };
+    try {
+      var d = s.g.getImageData(0, 0, s.w, s.h).data;
+      if (!d || d.length < s.w * s.h * 4) return bb;
+      var x0 = s.w, y0 = s.h, x1 = -1, y1 = -1;
+      for (var y = 0; y < s.h; y++)
+        for (var x = 0; x < s.w; x++)
+          if (d[(y * s.w + x) * 4 + 3] > 24) {
+            if (x < x0) x0 = x; if (x > x1) x1 = x;
+            if (y < y0) y0 = y; if (y > y1) y1 = y;
+          }
+      if (x1 >= 0) bb = { x0: x0, y0: y0, x1: x1 + 1, y1: y1 + 1 };
+    } catch (e) {}
+    return bb;
+  }
+
   function bakeAll() {
     // Ground was three near-identical near-black slates separated by a DARKER
     // grid line, which is what made a battlefield read as a board game: the
@@ -4623,8 +4652,13 @@
     for (var p = 0; p < 2; p++) {
       for (var ufk in FACTIONS) {
         for (var uk in UNITS) {
-          if (UNITS[uk].cls === 'i') SPR.unit[p][ufk][uk] = bakeInfantry(COL[p], uk, ufk);
-          else SPR.unit[p][ufk][uk] = bakeVehicle(COL[p], uk === 'harvester' ? 'harv' : uk, ufk);
+          var U = UNITS[uk].cls === 'i' ? bakeInfantry(COL[p], uk, ufk)
+                                         : bakeVehicle(COL[p], uk === 'harvester' ? 'harv' : uk, ufk);
+          // Selection brackets and the HP bar are placed off the art's real
+          // bounds, not off the stat-table width: a ground ring sized from
+          // UNITS[].w vanished under the wider rebuilt hulls.
+          (Array.isArray(U) ? U : [U]).forEach(function (sc) { sc.bb = artBox(sc); });
+          SPR.unit[p][ufk][uk] = U;
         }
       }
     }
@@ -4640,6 +4674,7 @@
           // painted across a stack or a statue (they used to be placed off the
           // footprint size alone, which the taller RA2 shapes outgrew).
           A.rise = A.ay - artTop(A.s);
+          A.s.bb = artBox(A.s);
           SPR.bld[q][fk][k] = A;
         }
   }
@@ -5410,16 +5445,40 @@
   // Round-robin across the buildings that can make this, so a second factory
   // is also a second exit — units from one queue no longer all pile out of
   // the same door.
-  function producerFor(g, p, lane) {
+  function producersOf(g, p, lane) {
     var want = producerType(lane), list = [];
     for (var i = 0; i < g.blds.length; i++) {
       var b = g.blds[i];
       if (!b.dead && b.p === p && b.type === want) list.push(b);
     }
+    return list;
+  }
+
+  // RA2 primary building: every unit of a lane comes out of ONE chosen
+  // producer (so a rally point and a defended exit mean something), not a
+  // round-robin over all of them. The first producer built is primary until
+  // the player picks another; a dead primary hands over to the oldest survivor.
+  function producerFor(g, p, lane) {
+    var list = producersOf(g, p, lane);
     if (!list.length) return null;
-    var s = g.side[p];
-    s.exitTurn = (s.exitTurn + 1) % list.length;
-    return list[s.exitTurn];
+    var s = g.side[p], id = s.primary && s.primary[lane];
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    if (!s.primary) s.primary = { i: 0, v: 0 };
+    s.primary[lane] = list[0].id;
+    return list[0];
+  }
+  function isPrimary(g, b) {
+    var m = BLDS[b.type].makes;
+    if (m !== 'i' && m !== 'v') return false;
+    return producerFor(g, b.p, m) === b;
+  }
+  function setPrimary(g, b) {
+    var m = BLDS[b.type].makes;
+    if (m !== 'i' && m !== 'v') return false;
+    var s = g.side[b.p];
+    if (!s.primary) s.primary = { i: 0, v: 0 };
+    s.primary[m] = b.id;
+    return true;
   }
 
   function freeTileNear(g, x, y) {
@@ -6083,6 +6142,27 @@
   }
 
   var tipT = 0;
+  // Hover card for whatever is under the pointer. RA2 answers "what is that?"
+  // with a name on hover; without it the enemy base is a guessing game.
+  var hovEl = document.getElementById('hov');
+  var hovName = document.getElementById('hovName'), hovSub = document.getElementById('hovSub');
+  function updateHover(e, nx, ny) {
+    if (!e || state !== 'play') { hovEl.hidden = true; return; }
+    var d = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
+    var mine = e.p === P_HUMAN;
+    var who = mine ? 'Yours' : 'Enemy (' + FACTIONS[facOf(G, e.p)].name + ')';
+    hovName.textContent = d.em + ' ' + d.name;
+    hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + d.hp + ' hp';
+    hovEl.className = mine ? '' : 'enemy';
+    hovEl.hidden = false;
+    // Sit to the lower-right of the cursor, flipping to stay on the canvas.
+    var w = hovEl.offsetWidth, h = hovEl.offsetHeight;
+    var x = nx + 14, y = ny + 16;
+    if (x + w > cvW - 4) x = nx - w - 10;
+    if (y + h > cvH - 4) y = ny - h - 8;
+    hovEl.style.left = x + 'px'; hovEl.style.top = y + 'px';
+  }
+
   function say(msg, warn, hold) {
     tipEl.textContent = msg;
     tipEl.className = warn ? 'warn' : '';
@@ -6148,7 +6228,7 @@
       ? (panel === 'd'
           ? 'Defences share the Construction Yard queue. Right-click to cancel.'
           : 'Right-click an item to cancel and refund.')
-      : 'Right-click the map with a factory selected to set a rally point.';
+      : 'Right-click the map with a factory selected to set a rally point. Click a selected factory again to make it primary.';
     plist.appendChild(note);
     refreshPanel();
   }
@@ -6330,6 +6410,7 @@
     }
     lastMoveT = now; lastMoveX = nx; lastMoveY = ny;
     mouse.x = nx; mouse.y = ny; mouse.in = true;
+    updateHover(drag ? null : pickAt(nx, ny), nx, ny);
     var gp = screenToGrid(mouse.x, mouse.y);
     hoverTile.x = Math.round(gp.x); hoverTile.y = Math.round(gp.y);
     if (drag) {
@@ -6344,7 +6425,7 @@
   cv.addEventListener('pointerup', endDrag);
   cv.addEventListener('pointercancel', endDrag);
   cv.addEventListener('lostpointercapture', endDrag);
-  cv.addEventListener('pointerleave', function () { mouse.in = false; });
+  cv.addEventListener('pointerleave', function () { mouse.in = false; updateHover(null); });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // The game is an iframe inside the desktop shell: a pointer released over
@@ -6426,6 +6507,18 @@
     }
     lastClickT = now; lastClickType = e.kind === 'u' ? e.type : null;
 
+    // RA2: clicking the production building you already have selected makes
+    // it the primary one for its lane.
+    if (e.kind === 'b' && e.sel && !shift && sel.length === 1) {
+      var mk = BLDS[e.type].makes;
+      if (mk === 'i' || mk === 'v') {
+        if (isPrimary(G, e)) { say(describe(e)); return; }
+        setPrimary(G, e); sfx('click');
+        say(BLDS[e.type].name + ' is now primary — new ' + (mk === 'i' ? 'infantry' : 'vehicles') + ' come out here');
+        return;
+      }
+    }
+
     if (!shift) clearSel();
     if (!e.sel) { e.sel = true; sel.push(e); }
     say(describe(e));
@@ -6436,6 +6529,8 @@
       var d = BLDS[e.type];
       var t = d.em + ' ' + d.name + ' — ' + Math.ceil(e.hp) + '/' + d.hp + ' hp';
       if (d.makes === 'i' || d.makes === 'v') {
+        if (producersOf(G, e.p, d.makes).length > 1)
+          t += isPrimary(G, e) ? ' · PRIMARY' : ' · click again to make it primary';
         t += e.rally ? ' · rally set (right-click to move it)'
                      : ' · right-click the map to set a rally point';
       }
@@ -6829,6 +6924,18 @@
     drawMini();
   }
 
+  // Selection brackets: four corners of a screen-space box.
+  function brackets(bx0, by0, bx1, by1) {
+    var L = Math.max(4, Math.min(9, (bx1 - bx0) * 0.22));
+    ctx.strokeStyle = '#8ad0ff'; ctx.lineWidth = 1.5; ctx.lineCap = 'square';
+    ctx.beginPath();
+    ctx.moveTo(bx0, by0 + L); ctx.lineTo(bx0, by0); ctx.lineTo(bx0 + L, by0);
+    ctx.moveTo(bx1 - L, by0); ctx.lineTo(bx1, by0); ctx.lineTo(bx1, by0 + L);
+    ctx.moveTo(bx0, by1 - L); ctx.lineTo(bx0, by1); ctx.lineTo(bx0 + L, by1);
+    ctx.moveTo(bx1 - L, by1); ctx.lineTo(bx1, by1); ctx.lineTo(bx1, by1 - L);
+    ctx.stroke(); ctx.lineCap = 'butt';
+  }
+
   function drawUnit(u) {
     var px = sx(u.x, u.y), py = sy(u.x, u.y);
     if (px < -60 || py < -60 || px > cvW + 60 || py > cvH + 60) return;
@@ -6836,19 +6943,21 @@
     var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
     var s = Array.isArray(art) ? art[u.face] : art;
 
-    if (u.sel) {
-      ctx.strokeStyle = '#8ad0ff'; ctx.lineWidth = 1.7;
-      diamond(ctx, px, py + 1, d.w + 14, (d.w + 14) / 2);
-      ctx.stroke();
-    }
-    ctx.drawImage(s.c, px - s.w / 2, py - (s.h - UPAD), s.w, s.h);
+    var ox = px - s.w / 2, oy = py - (s.h - UPAD);
+    ctx.drawImage(s.c, ox, oy, s.w, s.h);
+    var bb = s.bb || { x0: 0, y0: 0, x1: s.w, y1: s.h };
+    var top = oy + bb.y0;
+
+    // RA2-style corner brackets around the sprite, drawn over it so a wide
+    // hull cannot hide them (the old ground ring sat under the tank).
+    if (u.sel) brackets(ox + bb.x0 - 3, top - 3, ox + bb.x1 + 3, oy + bb.y1 + 1);
 
     // Cargo pip on a loaded harvester — you can see who is worth killing.
     if (u.type === 'harvester' && u.cargo > 30) {
       ctx.fillStyle = '#e8b428';
       ctx.fillRect(px - 7, py - 26, 14 * (u.cargo / d.cap), 2.6);
     }
-    if (u.hp < u.maxhp) hpBar(px, py - 30, 20, u.hp / u.maxhp);
+    if (u.hp < u.maxhp) hpBar(px, Math.min(top - 8, py - 30), 20, u.hp / u.maxhp);
   }
 
   function drawBld(b) {
@@ -6856,13 +6965,14 @@
     var px = sx(b.cx, b.cy), py = sy(b.cx, b.cy);
     if (px < -260 || py < -260 || px > cvW + 260 || py > cvH + 260) return;
 
-    if (b.sel) {
-      ctx.strokeStyle = '#8ad0ff'; ctx.lineWidth = 1.6;
-      // diamond() takes the FULL width; the iso footprint is (gw+gh)*TW/2.
-      diamond(ctx, px, py, (b.gw + b.gh) * TW / 2, (b.gw + b.gh) * TH / 2);
-      ctx.stroke();
-    }
     ctx.drawImage(art.s.c, px - art.ax, py - art.ay, art.s.w, art.s.h);
+    if (b.sel) {
+      // Brackets around the art, over it: a footprint ring drawn under the
+      // sprite was hidden by the building's own platform.
+      var bb = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
+      var ox = px - art.ax, oy = py - art.ay;
+      brackets(ox + bb.x0 - 3, oy + bb.y0 - 3, ox + bb.x1 + 3, oy + bb.y1 + 2);
+    }
     var topY = py - Math.max(art.rise || 0, (b.gw + b.gh) * 8) - 6;
     if (b.hp < b.maxhp) hpBar(px, topY - 4, 30, b.hp / b.maxhp);
 
@@ -6871,6 +6981,17 @@
       ctx.fillStyle = 'rgba(229,100,108,.85)';
       ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
       ctx.fillText('⚡', px, topY - 8);
+      ctx.textAlign = 'left';
+    }
+
+    // "PRIMARY" tag, only when the choice exists (one factory is trivially it).
+    var mk = BLDS[b.type].makes;
+    if (b.p === P_HUMAN && (mk === 'i' || mk === 'v') && isPrimary(G, b) && producersOf(G, b.p, mk).length > 1) {
+      var ty = py + (b.gw + b.gh) * TH / 4 + 4;
+      ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(18,22,30,.78)';
+      ctx.beginPath(); ctx.roundRect(px - 26, ty, 52, 13, 3); ctx.fill();
+      ctx.fillStyle = '#e8edf5'; ctx.fillText('PRIMARY', px, ty + 10);
       ctx.textAlign = 'left';
     }
   }
@@ -7243,6 +7364,9 @@
     spawn: function (type, p, x, y) { return G ? spawnUnit(G, type, p, x, y) : null; },
     build: function (key, p, x, y) { return G ? placeBld(G, key, p, x, y) : null; },
     give: function (p, n) { if (G) G.side[p].credits += n; },
+    setPrimary: function (b) { return G ? setPrimary(G, b) : false; },
+    isPrimary: function (b) { return G ? isPrimary(G, b) : false; },
+    killBld: function (b) { if (G) killBld(G, b); },
     step: function (n) { for (var i = 0; i < (n || 1); i++) simStep(G); },
     kill: function (p) {
       if (!G) return;
