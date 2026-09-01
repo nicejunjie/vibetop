@@ -1564,66 +1564,9 @@
     return { s: s, ax: art.ax * PIXCELL, ay: art.ay * PIXCELL };
   }
 
-  var PIXBLD = {
-    power: {
-      ax: 37, ay: 35,
-      rows: [
-      '               11kkkkkkkkk11',
-      '             k222222222222222k',
-      '             kkkkkkkkkkkkkkkkk',
-      '              k6666555544433k',
-      '              k6666555544433k',
-      '              k6666555544433k',
-      '              k6666555544433k',
-      '              k6666555544433k',
-      '              k2222222222222k        q',
-      '              k6666555544433k      qrrrq',
-      '              k6666555544433k    qrrrrrrrq',
-      '              k6666555544433k  qrrrrrrrrrrrq',
-      '              k6666555544433kqrrrrrrrrrrrrrrrq',
-      '              k6666555544433krrrrrrrrrrrrrrr11kkkkkkk11',
-      '              k6666555544433krrrrrrrrrrrrra2222222222222k',
-      '              k6666555544433krrrrrrrrrrrafffakkkkkkkkkkkk',
-      '              k6666555544433krrrrrrrrrafffffffa55544433k',
-      '              k2222222222222krrrrrrrrrddafffass55544433k',
-      '              k6666555544433krrrrrrrrrdddraksss55544433krq',
-      '              k6666555544433krrrrrrrrrdddddssss55544433krrrq',
-      '             qk6666555544433krrrrrrrrrrrdddss6655544433krrrrrq',
-      '           qrrk6666555544433krrrrrrrrqrrrdds66655544433krrrrrrrq',
-      '         qrrrrrrrrrrrrrrrrrrrrrrrrrqqqqqrrrk66655544433krrrrrrrrrq',
-      '       uurrrrrrrrrrrrrrrrrrrrrrrrqqqqqqqqqrk66655544433krrrrrrrrrrtt',
-      '       55uurrrrrrrrrrrrrrrrrrrrqqqqqqqqqqqqk22222222222krrrrrrrrtt33',
-      '       HH56uurrrrrrrrrrrrrrrqqqqqqqqqqqqqqqk66655544433krrrrrrtt43hh',
-      '       HHH555uurrrrrrrrrrrqqqqqqqaqqqqqqqqqk66655544433krrrrtt333hhh',
-      '       55HHHH56uurrrrrrrqqqqqqqafffaqqqqqqqk666555444yykrrtt43hhhh33',
-      '       225HHHH555uurrrqqqqqqqqafffffaqqqqqqk66655544yy3ktt333hhhh311',
-      '       442555HHHH56uurrrqqqqafffffffffaqqqqqqqqqqqqyyyyt43hhhh333133',
-      '       4442225HH1H555uurrrqqdqafffffaqsqqqqqqqqqqrrryy333hhhh3111322',
-      '       444444255s1HHH56uurrrdddafffasssqqqqqqqqrrrtyy3hhhh3331333222',
-      '       334444422as111H555uurdddddasssssqqqqqrrrrtt3y3hhhh31113222222',
-      '       333444444sasss1HHH56uudddddssssqqqqrrrrtt43hhhh33313332222222',
-      '     as333333444asaaas111H555uudddssqqqqrrrrtt333hhhh311132222222222sa',
-      '   asss333333344sasssasss1HHH56uudrrrqrrrrtt43hhhh333133322222222222sssa',
-      '     as1133333333saaasaaasHHHH555uurrrrrtt333hhhh3111322222222222211sa',
-      '      .as13333333osssasssa555HHHH56uurtt43hhhh33313332222222222221sa...',
-      '        .a1113333oo3osaaas2225HHHH55ttu33hhhh31113222222222222111a...',
-      '          .as1333oo3oosssa4442555HHHH3hhhh33313332222222222221sa...',
-      '            .a1113o3oo3oos44442225HHHhhhh31113222222222222111a...',
-      '              .as1333o3oo344444442555h33313332222222222221sa...',
-      '                .a11133oo33334444422231113222222222222111a...',
-      '                  .as133333333444444413332222222222221sa...',
-      '                    .a1113333333344443222222222222111a...',
-      '                      .as1333333334442222222222221sa...',
-      '                        .a11133333333222222222111a...',
-      '                          .as13333333222222221sa...',
-      '                            .a111333322222111a...',
-      '                              .as133322221sa...',
-      '                                .a1112111a...',
-      '                                  .as1sa...',
-      '                                    .a...',
-      ]
-    }
-  };
+  // No grids authored: shape is what was wrong, not the medium, so every
+  // structure renders from geometry below. bakePix stays for later.
+  var PIXBLD = {};
 
   function bakeBuilding(key, col) {
     if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
@@ -1662,84 +1605,61 @@
     g.globalAlpha = 1; g.restore();
 
     if (key === 'base') {
-      // Construction Yard: a low works with a control tower at the back and a
-      // gantry crane straddling an open build pad. The crane is the read.
-      var hw = fw * 1.00, hh = fh * 1.00;
-      var r0 = prism(g, cx, baseY, hw, hh, 15, CONC, TAR, dark);
-      facePatch(g, faceL, cx, baseY, hw, hh, 15, 0.06, 0.94, 0.80, 0.94, shade(col, 0.86), null);
-      facePatch(g, faceR, cx, baseY, hw, hh, 15, 0.06, 0.94, 0.80, 0.94, shade(col, 0.60), null);
-      // open build pad, front-right on the works roof
-      var px0 = cx + hw * 0.30, py0 = r0 + hh * 0.26;
-      var pw = hw * 0.54, ph = hh * 0.54;
-      diamond(g, px0, py0, pw * 2, ph * 2);                // tarmac build bay
-      g.fillStyle = '#33383f'; g.fill();
-      g.strokeStyle = 'rgba(20,23,27,.8)'; g.lineWidth = 1.4; g.stroke();
-      g.strokeStyle = '#e0a726'; g.lineWidth = 2.6;         // corner paint only
-      for (var qc = 0; qc < 4; qc++) {
-        var qa = [[-pw, 0], [0, -ph], [pw, 0], [0, ph]][qc];
-        var qb = [[0, -ph], [pw, 0], [0, ph], [-pw, 0]][qc];
-        g.beginPath();
-        g.moveTo(px0 + qa[0] * 0.72 + qb[0] * 0.28, py0 + qa[1] * 0.72 + qb[1] * 0.28);
-        g.lineTo(px0 + qa[0], py0 + qa[1]);
-        g.lineTo(px0 + qa[0] * 0.28 + qb[0] * 0.72, py0 + qa[1] * 0.28 + qb[1] * 0.72);
-        g.stroke();
-      }
-      g.save(); diamond(g, px0, py0, pw * 2, ph * 2); g.clip();
-      g.strokeStyle = 'rgba(255,255,255,.09)'; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(px0 - pw, py0); g.lineTo(px0 + pw, py0); g.stroke();
-      g.beginPath(); g.moveTo(px0, py0 - ph); g.lineTo(px0, py0 + ph); g.stroke();
-      g.restore();
-      // a half-built frame standing on the bay: girders up, no walls yet
-      var bxx = px0 - pw * 0.10, byy = py0 + ph * 0.12;
-      var bhw = pw * 0.60, bhh = ph * 0.60;
-      g.fillStyle = 'rgba(190,196,204,.20)';
-      diamond(g, bxx, byy, bhw * 2, bhh * 2); g.fill();
-      g.strokeStyle = 'rgba(206,212,220,.55)'; g.lineWidth = 1.3;
-      diamond(g, bxx, byy, bhw * 2, bhh * 2); g.stroke();
-      var gir = [[-bhw, 0], [0, -bhh], [bhw, 0], [0, bhh]];
-      for (var gI = 0; gI < 4; gI++) {                      // corner columns
-        g.beginPath();
-        g.moveTo(bxx + gir[gI][0], byy + gir[gI][1]);
-        g.lineTo(bxx + gir[gI][0], byy + gir[gI][1] - 15); g.stroke();
-      }
-      g.strokeStyle = 'rgba(206,212,220,.40)';              // top ring
-      diamond(g, bxx, byy - 15, bhw * 2, bhh * 2); g.stroke();
-      // control tower, back-left
-      var tx = cx - hw * 0.40, ty = r0 - hh * 0.32;
-      var thw = hw * 0.40, thh = hh * 0.40, tl = 34;
-      var r1 = prism(g, tx, ty, thw, thh, tl, STEEL, shade(STEEL, 1.1), dark);
-      facePatch(g, faceL, tx, ty, thw, thh, tl, 0.05, 0.95, 0.56, 0.80, '#8fd8ff', dark);
-      facePatch(g, faceR, tx, ty, thw, thh, tl, 0.05, 0.95, 0.56, 0.80, '#5aa8d8', dark);
-      facePatch(g, faceL, tx, ty, thw, thh, tl, 0.05, 0.95, 0.84, 0.99, hi, null);
-      facePatch(g, faceR, tx, ty, thw, thh, tl, 0.05, 0.95, 0.84, 0.99, lo, null);
-      // gantry crane over the pad
-      var gy = r0 - 6, gh2 = 40;
-      g.strokeStyle = shade(STEEL, 0.8);
-      lattice(g, px0 - hw * 0.72, gy + hh * 0.34, px0 - hw * 0.72, gy - gh2, 5, shade(STEEL, 0.85));
-      lattice(g, px0 + hw * 0.72, gy - hh * 0.34, px0 + hw * 0.72, gy - gh2 - 4, 5, shade(STEEL, 0.7));
-      lattice(g, px0 - hw * 0.72, gy - gh2, px0 + hw * 0.72, gy - gh2 - 4, 6, shade(col, 1.05));
-      g.strokeStyle = '#22262b'; g.lineWidth = 1.2;        // hoist cable + hook
-      g.beginPath(); g.moveTo(px0 + hw * 0.05, gy - gh2 - 1); g.lineTo(px0 + hw * 0.05, gy - 16); g.stroke();
-      g.fillStyle = '#c9cdd4';
-      g.beginPath(); g.roundRect(px0 + hw * 0.05 - 3, gy - 16, 6, 5, 1.5); g.fill(); outline(g, dark);
-      // beacon on the tower
-      g.strokeStyle = shade(STEEL, 1.2); g.lineWidth = 1.8;
-      g.beginPath(); g.moveTo(tx + thw * 0.5, r1 + 2); g.lineTo(tx + thw * 0.5, r1 - 16); g.stroke();
-      g.fillStyle = 'rgba(255,91,99,.30)';
-      g.beginPath(); g.arc(tx + thw * 0.5, r1 - 18, 5.5, 0, 6.29); g.fill();
-      g.fillStyle = '#ff5b63';
-      g.beginPath(); g.arc(tx + thw * 0.5, r1 - 18, 2.4, 0, 6.29); g.fill();
+      // Construction Yard, as RA2 builds it: a LOW WIDE platform with the
+      // crane arm folded flat ACROSS the deck and a roll-up bay door in the
+      // front wall. The previous version stood a tall control tower on it,
+      // which made it read as an office block - the yard's whole silhouette is
+      // horizontal, with the crane truss as the only thing rising off it.
+      var hw = fw * 1.00, hh = fh * 1.00, bl = 16;
+      var r0 = prism(g, cx, baseY, hw, hh, bl, CONC, TAR, dark);
 
-      railing(g, cx - hw + 3, r0 + 2, cx - hw * 0.16, r0 + hh * 0.84, 5, 'rgba(198,206,214,.50)');
-      isoBox(g, cx - hw * 0.52, r0 - hh * 0.30, 13, 10, 5, 0, shade(STEEL, 0.92), dark);   // roof plant
-      g.fillStyle = 'rgba(20,24,28,.55)';
-      g.beginPath(); g.ellipse(cx - hw * 0.52, r0 - hh * 0.30 - 5.5, 4.4, 2.4, 0, 0, 6.29); g.fill();
-      isoBox(g, cx - hw * 0.14, r0 - hh * 0.62, 9, 7, 3.5, 0, shade(STEEL, 0.80), dark);
-      floodlight(g, cx - hw * 0.92, r0 + hh * 0.10, -1, col);
-      floodlight(g, cx + hw * 0.24, r0 + hh * 0.90, 1, col);
-      crates(g, cx - hw * 0.52, baseY + fh * 0.62, 3, '#7d6a44');
-      drums(g, cx + hw * 0.62, baseY + fh * 0.52, 4, '#5f6a4a');
-      streak(g, faceR, cx, baseY, hw, hh, 15, 0.30, 0.80, 0.70, 4);
+      // roll-up bay door dominating the lit wall
+      facePatch(g, faceL, cx, baseY, hw, hh, bl, 0.24, 0.76, 0.00, 0.66, '#1d2126', dark);
+      chevrons(g, faceL, cx, baseY, hw, hh, bl, 0.24, 0.76, 0.00, 0.14, 7, '#e0a726', '#2a2f36');
+      g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
+      for (var dI = 1; dI < 5; dI++) {
+        var p1 = faceL(cx, baseY, hw, hh, bl, 0.24, 0.14 + dI * 0.10),
+            p2 = faceL(cx, baseY, hw, hh, bl, 0.76, 0.14 + dI * 0.10);
+        g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.stroke();
+      }
+      facePatch(g, faceL, cx, baseY, hw, hh, bl, 0.22, 0.78, 0.66, 0.78, hi, dark);   // lintel
+      facePatch(g, faceR, cx, baseY, hw, hh, bl, 0.08, 0.92, 0.74, 0.90, shade(col, 0.60), null);
+      for (var wI = 0; wI < 3; wI++)
+        facePatch(g, faceR, cx, baseY, hw, hh, bl, 0.12 + wI * 0.27, 0.30 + wI * 0.27, 0.22, 0.60, '#2b2f34', dark);
+
+      // low control cabin tucked at the back corner - a nub, not a tower
+      var tx = cx - hw * 0.46, ty = r0 - hh * 0.40;
+      var thw = hw * 0.26, thh = hh * 0.26, tl = 12;
+      prism(g, tx, ty, thw, thh, tl, STEEL, shade(STEEL, 1.12), dark);
+      facePatch(g, faceL, tx, ty, thw, thh, tl, 0.10, 0.90, 0.40, 0.78, '#8fd8ff', dark);
+      facePatch(g, faceR, tx, ty, thw, thh, tl, 0.10, 0.90, 0.40, 0.78, '#5aa8d8', dark);
+
+      // the crane: a truss lying almost flat across the deck on two short
+      // legs, with the hoist hanging off the outboard end.
+      var ax0 = cx - hw * 0.66, ay0 = r0 + hh * 0.22;
+      var bx0 = cx + hw * 0.70, by0 = r0 - hh * 0.28;
+      lattice(g, ax0, ay0 - 13, bx0, by0 - 19, 7, shade(col, 1.05));
+      lattice(g, ax0, ay0, ax0, ay0 - 13, 5, shade(STEEL, 0.88));
+      lattice(g, bx0, by0, bx0, by0 - 19, 5, shade(STEEL, 0.74));
+      g.strokeStyle = '#22262b'; g.lineWidth = 1.2;         // hoist cable + hook
+      var hx = bx0 - (bx0 - ax0) * 0.26, hy = by0 - 19 + (ay0 - by0) * 0.26;
+      g.beginPath(); g.moveTo(hx, hy + 1); g.lineTo(hx, hy + 15); g.stroke();
+      g.fillStyle = '#c9cdd4';
+      g.beginPath(); g.roundRect(hx - 3.5, hy + 15, 7, 5, 1.5); g.fill(); outline(g, dark);
+
+      // deck furniture: vents, a hatch, and a beacon on the parapet
+      isoBox(g, cx + hw * 0.16, r0 + hh * 0.30, 14, 11, 5, 0, shade(STEEL, 0.92), dark);
+      isoBox(g, cx - hw * 0.10, r0 - hh * 0.14, 10, 8, 4, 0, shade(STEEL, 0.80), dark);
+      g.fillStyle = 'rgba(255,91,99,.30)';
+      g.beginPath(); g.arc(cx + hw * 0.74, r0 + hh * 0.06, 5.5, 0, 6.29); g.fill();
+      g.fillStyle = '#ff5b63';
+      g.beginPath(); g.arc(cx + hw * 0.74, r0 + hh * 0.06, 2.4, 0, 6.29); g.fill();
+
+      railing(g, cx - hw + 3, r0 + 2, cx - hw * 0.20, r0 + hh * 0.80, 5, 'rgba(198,206,214,.50)');
+      floodlight(g, cx - hw * 0.90, r0 + hh * 0.12, -1, col);
+      crates(g, cx - hw * 0.40, baseY + fh * 0.66, 3, '#7d6a44');
+      drums(g, cx + hw * 0.56, baseY + fh * 0.56, 4, '#5f6a4a');
+      streak(g, faceR, cx, baseY, hw, hh, bl, 0.30, 0.72, 0.60, 4);
 
     } else if (key === 'power') {
       // Power Plant: turbine hall + two waisted cooling towers + steam.
@@ -1754,11 +1674,27 @@
             b1 = faceL(cx, baseY, hw, hh, 22, 0.42, 0.10 + vI * 0.13);
         g.beginPath(); g.moveTo(a1[0], a1[1]); g.lineTo(b1[0], b1[1]); g.stroke();
       }
-      // towers: back-left tall, front-right shorter (depth read)
-      coolTower(g, cx - hw * 0.40, r0 - hh * 0.34, u * 0.52, u * 0.40, 40, CONC, dark);
-      steam(g, cx - hw * 0.40, r0 - hh * 0.34 - 42, u * 0.46, 4);
-      coolTower(g, cx + hw * 0.34, r0 + hh * 0.28, u * 0.44, u * 0.34, 31, CONC, dark);
-      steam(g, cx + hw * 0.34, r0 + hh * 0.28 - 33, u * 0.38, 3);
+      // Two square exhaust stacks, back-left tall and front-right shorter.
+      // Blocky, not waisted: a waisted cooling tower is a nuclear plant, and
+      // that silhouette reads as a completely different building.
+      function exhaust(sxp, syp, w2, h2) {
+        var top = isoBox(g, sxp, syp, w2, w2, h2, 0, CONC, dark);
+        isoBox(g, sxp, syp - h2 + 2, w2 * 1.24, w2 * 1.24, 3.5, 0, shade(CONC, 0.72), dark);
+        g.fillStyle = '#1e2228';                           // dark flue mouth
+        diamond(g, sxp, syp - h2 - 1.5, w2 * 0.66, w2 * 0.33); g.fill();
+        g.strokeStyle = 'rgba(0,0,0,.20)'; g.lineWidth = 1;   // banding
+        for (var bI = 1; bI < 4; bI++) {
+          var byb = syp - h2 * bI / 4;
+          g.beginPath(); g.moveTo(sxp - w2 * 0.5, byb); g.lineTo(sxp + w2 * 0.5, byb); g.stroke();
+        }
+        g.fillStyle = shade(col, 0.95);                    // house-colour collar
+        g.fillRect(sxp - w2 * 0.5, syp - h2 + 6, w2, 3);
+        return top;
+      }
+      exhaust(cx - hw * 0.40, r0 - hh * 0.30, 15, 38);
+      steam(g, cx - hw * 0.40, r0 - hh * 0.30 - 42, 7, 4);
+      exhaust(cx + hw * 0.30, r0 + hh * 0.26, 12, 27);
+      steam(g, cx + hw * 0.30, r0 + hh * 0.26 - 31, 6, 3);
       g.fillStyle = '#ffd23f';                             // bolt plate on the hall roof
       var bs = u * 0.34, bx0 = cx + hw * 0.12, by0 = r0 - hh * 0.18;
       g.beginPath();
