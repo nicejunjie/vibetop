@@ -70,7 +70,7 @@
   #mini { display: block; width: 184px; height: 184px; background: #0b0e14; border-bottom: 1px solid #2a3040; cursor: pointer; }
   .ptab { display: flex; border-bottom: 1px solid #2a3040; flex-shrink: 0; }
   .ptab div {
-    flex: 1; text-align: center; padding: 7px 2px; font-size: 11px; cursor: pointer;
+    flex: 1; text-align: center; padding: 7px 1px; font-size: 10.5px; cursor: pointer;
     color: #8a94a6; border-bottom: 2px solid transparent;
   }
   .ptab div:hover { color: #d4d8de; background: #1c2430; }
@@ -91,8 +91,40 @@
     position: absolute; inset: 0 auto 0 0; width: 0;
     background: rgba(138,74,219,.30); pointer-events: none;
   }
-  .pit.rdy { border-color: #8a4adb; background: #2b2044; }
-  .pit.rdy .ct { color: #c3a4f0; }
+  .pit.rdy {
+    border-color: #ffe14d; background: #2b2415;
+    box-shadow: inset 0 0 0 1px rgba(255,225,77,.55), 0 0 14px rgba(255,225,77,.28);
+  }
+  .pit.rdy .ct { color: #e8cf8a; }
+  /* Stamped across the whole row, translucent so you can still read what it
+     is, and pulsing so it catches the eye you have on the battlefield. */
+  .pit.rdy::after {
+    content: 'READY';
+    position: absolute; inset: 0; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(12,9,3,.76);
+    color: #ffe14d; font: 800 16px/1 system-ui, sans-serif;
+    letter-spacing: .22em; text-shadow: 0 1px 3px rgba(0,0,0,.85);
+    animation: rdypulse 1.05s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes rdypulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .48; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pit.rdy::after { animation: none; }
+    .ptab div.hasready::after { animation: none; }
+  }
+  /* And mark the tab it is on — with four categories the ready item is often
+     not on the tab you are looking at. */
+  .ptab div { position: relative; }
+  .ptab div.hasready::after {
+    content: ''; position: absolute; top: 4px; right: 6px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #ffe14d; box-shadow: 0 0 6px rgba(255,225,77,.9);
+    animation: rdypulse 1.05s ease-in-out infinite;
+  }
   .pit .qn {
     position: absolute; top: 3px; right: 5px; font: 700 10px ui-monospace, monospace;
     color: #c3a4f0; pointer-events: none;
@@ -255,6 +287,7 @@
     <canvas id="mini" width="184" height="184"></canvas>
     <div class="ptab">
       <div data-tab="b" class="on">Build</div>
+      <div data-tab="d">Defence</div>
       <div data-tab="i">Infantry</div>
       <div data-tab="v">Vehicles</div>
     </div>
@@ -378,37 +411,39 @@
 
   var BLDS = {
     base: {
-      fac: null,
+      fac: null, cat: 'str',
       name: 'Construction Yard', em: '🏛️', cost: 0, build: 0,
       gw: 3, gh: 3, hp: 1400, power: 0, sight: 7, makes: 'b', desc: 'Builds structures'
     },
     power: {
-      fac: null,
+      fac: null, cat: 'str',
       name: 'Power Plant', em: '⚡', cost: 300, build: 7,
       gw: 2, gh: 2, hp: 420, power: 100, sight: 4, makes: null, desc: '+100 power'
     },
     refinery: {
-      fac: null,
+      fac: null, cat: 'str',
       name: 'Refinery', em: '🏭', cost: 1400, build: 18,
       gw: 3, gh: 2, hp: 700, power: -35, sight: 5, makes: null, desc: 'Ore drop-off, +1 harvester'
     },
     barracks: {
-      fac: null,
+      fac: null, cat: 'str',
       name: 'Barracks', em: '⛺', cost: 400, build: 9,
       gw: 2, gh: 2, hp: 520, power: -25, sight: 5, makes: 'i', desc: 'Trains infantry'
     },
     factory: {
-      fac: null,
+      fac: null, cat: 'str',
       name: 'War Factory', em: '🏗️', cost: 1500, build: 20,
       gw: 3, gh: 3, hp: 820, power: -50, sight: 5, makes: 'v', desc: 'Builds vehicles'
     },
     sentry: {
+      cat: 'def',
       name: 'Sentry Gun', em: '🗼', cost: 450, build: 8, fac: 'dir',
       gw: 1, gh: 1, hp: 430, power: -25, sight: 7, makes: null,
       dmg: 13, rate: 17, rng: 5.2, splash: 0.2,
       vs: { inf: 1.25, veh: 0.7, bld: 0.3 }, desc: 'Rapid fire, shreds infantry'
     },
     tesla: {
+      cat: 'def',
       name: 'Tesla Coil', em: '⚡', cost: 700, build: 11, fac: 'col',
       gw: 1, gh: 1, hp: 500, power: -70, sight: 7, makes: null,
       dmg: 58, rate: 78, rng: 4.6, splash: 0.5,
@@ -430,8 +465,14 @@
   function facOf(g, p) { return g.side[p].fac; }
   function ownedBy(spec, fac) { return !spec.fac || spec.fac === fac; }
 
+  // Structures and defences share ONE construction queue (as in RA2 — the
+  // yard builds one thing at a time); they are only listed separately, so the
+  // list you are scanning is the list you meant to scan.
   function buildOrderFor(fac) {
-    return ['power', 'refinery', 'barracks', 'factory', FACTIONS[fac].defence];
+    return ['power', 'refinery', 'barracks', 'factory'];
+  }
+  function defenceOrderFor(fac) {
+    return [FACTIONS[fac].defence];
   }
 
   // --------------------------------------------------------------------- //
@@ -679,43 +720,65 @@
   // Ore reads as a crystal cluster: angular gem shards with a lit facet and a
   // shadow facet each, clustered tighter as the patch is richer, so depletion
   // visibly thins the cluster rather than just fading dots.
-  function bakeOre(level) {
+  // `variant` exists because one sprite per depletion level turns a dense ore
+  // field into a visible printed grid — every tile pixel-identical. Four
+  // variants per level costs 12 small canvases at load and breaks the repeat.
+  function bakeOre(level, variant) {
     var s = mkCanvas(TW + 2, TH + 2), g = s.g;
     var cx = (TW + 2) / 2, cy = (TH + 2) / 2;
-    var n = 4 + level * 4;
-    srand(1234 + level);
-    // sort back-to-front by py so nearer shards overlap farther ones
-    var shards = [];
+    srand(1234 + level * 97 + variant * 7919);
+
+    // Ore is a SEAM in the ground, not a plant. The first pass drew tall thin
+    // shards, which at this size read unmistakably as grass. Real ore reads
+    // squat and dense: a stained patch of earth with low mineral chunks
+    // clustered on it, wider than they are tall.
+    g.save();
+    diamond(g, cx, cy, TW, TH); g.clip();
+
+    // stained ground under the seam
+    g.fillStyle = 'rgba(150,105,20,' + (0.20 + level * 0.12) + ')';
+    diamond(g, cx, cy, TW - 6, TH - 3); g.fill();
+
+    var n = 7 + level * 5;
+    var chunks = [];
     for (var i = 0; i < n; i++) {
-      var a = rnd() * Math.PI * 2, r = Math.sqrt(rnd());
-      shards.push({
-        x: cx + Math.cos(a) * r * (TW / 2 - 7),
-        y: cy + Math.sin(a) * r * (TH / 2 - 4),
-        h: 3.2 + rnd() * 3.6 + level * 1.2,
-        w: 1.6 + rnd() * 1.4,
-        lean: (rnd() - 0.5) * 0.5
+      var a2 = rnd() * Math.PI * 2, r = Math.sqrt(rnd());
+      chunks.push({
+        x: cx + Math.cos(a2) * r * (TW / 2 - 5),
+        y: cy + Math.sin(a2) * r * (TH / 2 - 3),
+        w: 2.6 + rnd() * 2.6 + level * 0.5,     // wider than tall
+        h: 1.5 + rnd() * 1.5 + level * 0.5
       });
     }
-    shards.sort(function (a, b) { return a.y - b.y; });
-    for (i = 0; i < shards.length; i++) {
-      var sh = shards[i];
-      var baseC = ['#e8b428', '#f2c94c', '#c9822f'][i % 3];
-      var top = [sh.x + sh.lean * sh.h, sh.y - sh.h];
-      var lft = [sh.x - sh.w, sh.y + 1];
-      var rgt = [sh.x + sh.w, sh.y + 1];
-      var mid = [sh.x + sh.lean * sh.h * 0.4, sh.y - sh.h * 0.42];
-      // lit facet (left) and shadow facet (right) of a faceted crystal
-      g.fillStyle = shade(baseC, 1.35);
-      g.beginPath(); g.moveTo(top[0], top[1]); g.lineTo(mid[0], mid[1]); g.lineTo(lft[0], lft[1]); g.closePath(); g.fill();
-      g.fillStyle = shade(baseC, 0.72);
-      g.beginPath(); g.moveTo(top[0], top[1]); g.lineTo(mid[0], mid[1]); g.lineTo(rgt[0], rgt[1]); g.closePath(); g.fill();
-      g.strokeStyle = '#6b4a00'; g.lineWidth = 0.6;
+    chunks.sort(function (p1, p2) { return p1.y - p2.y; });
+
+    for (i = 0; i < chunks.length; i++) {
+      var c = chunks[i];
+      var base = ['#c9822f', '#e8b428', '#a8641f', '#f2c94c'][i & 3];
+      // squat faceted lump: lit top plane, darker front face, thin outline
+      g.fillStyle = shade(base, 1.28);
       g.beginPath();
-      g.moveTo(top[0], top[1]); g.lineTo(lft[0], lft[1]); g.lineTo(rgt[0], rgt[1]); g.closePath(); g.stroke();
-      // a small glint on the lit facet
-      g.fillStyle = 'rgba(255,255,255,.55)';
-      g.beginPath(); g.ellipse((top[0] + mid[0]) / 2, (top[1] + mid[1]) / 2, 0.7, 1.1, sh.lean, 0, 6.29); g.fill();
+      g.moveTo(c.x, c.y - c.h);
+      g.lineTo(c.x + c.w, c.y - c.h * 0.25);
+      g.lineTo(c.x, c.y + c.h * 0.25);
+      g.lineTo(c.x - c.w, c.y - c.h * 0.25);
+      g.closePath(); g.fill();
+      g.fillStyle = shade(base, 0.66);
+      g.beginPath();
+      g.moveTo(c.x - c.w, c.y - c.h * 0.25);
+      g.lineTo(c.x, c.y + c.h * 0.25);
+      g.lineTo(c.x + c.w, c.y - c.h * 0.25);
+      g.lineTo(c.x + c.w * 0.6, c.y + c.h * 0.5);
+      g.lineTo(c.x - c.w * 0.6, c.y + c.h * 0.5);
+      g.closePath(); g.fill();
+      if ((i & 3) === 1) {                      // a few catch the light
+        g.fillStyle = 'rgba(255,240,190,.75)';
+        g.beginPath();
+        g.ellipse(c.x - c.w * 0.25, c.y - c.h * 0.55, c.w * 0.28, c.h * 0.22, 0, 0, 6.29);
+        g.fill();
+      }
     }
+    g.restore();
     return s;
   }
 
@@ -730,6 +793,7 @@
   // and tank barrels pointed straight down the screen.
   var ISO_X = TW / 2 / Math.hypot(TW / 2, TH / 2);   // unit grid +X in screen px
   var ISO_Y = TH / 2 / Math.hypot(TW / 2, TH / 2);
+
   function isoBox(g, cx, cy, len, wid, hgt, dir, col, outline) {
     var cd = Math.cos(dir), sd = Math.sin(dir);
     var fx = ISO_X * (cd - sd), fy = ISO_Y * (cd + sd);          // forward
@@ -804,37 +868,64 @@
     var dark = shade(col, 0.30), acc = ACCENT[kind] || '#ff00ff';
     shadowBlob(g, cx, by, 7, 3);
 
-    g.fillStyle = shade(col, 0.55);                          // legs
-    g.beginPath(); g.roundRect(cx - 4.2, by - 8, 3.4, 8, 1.4); g.fill();
-    g.beginPath(); g.roundRect(cx + 0.8, by - 8, 3.4, 8, 1.4); g.fill();
+    g.fillStyle = '#1b1f27';                                  // boots
+    g.beginPath(); g.roundRect(cx - 4.5, by - 3, 3.6, 3.2, 1); g.fill();
+    g.beginPath(); g.roundRect(cx + 0.9, by - 3, 3.6, 3.2, 1); g.fill();
+
+    g.fillStyle = shade(col, 0.55);                           // legs
+    g.beginPath(); g.roundRect(cx - 4.2, by - 8.8, 3.4, 6.4, 1.3); g.fill();
+    g.beginPath(); g.roundRect(cx + 0.8, by - 8.8, 3.4, 6.4, 1.3); g.fill();
     outline(g, dark);
 
-    g.fillStyle = col;                                       // torso
-    g.beginPath(); g.roundRect(cx - 5.4, by - 18, 10.8, 10.5, 3); g.fill();
+    g.fillStyle = shade(col, 0.5);                            // belt
+    g.fillRect(cx - 5.6, by - 9.8, 11.2, 1.7);
+
+    g.fillStyle = col;                                        // torso, tapered at the waist
+    g.beginPath();
+    g.moveTo(cx - 5.8, by - 18.3); g.lineTo(cx + 5.8, by - 18.3);
+    g.lineTo(cx + 4.5, by - 9.5); g.lineTo(cx - 4.5, by - 9.5);
+    g.closePath(); g.fill(); outline(g, dark);
+    g.fillStyle = shade(col, 1.3);                            // right-edge rim light — sells volume
+    g.fillRect(cx + 3.9, by - 18, 1.5, 8.3);
+    g.fillStyle = shade(col, 1.25);                           // chest webbing
+    g.fillRect(cx - 5.8, by - 14.6, 11.6, 1.6);
+
+    g.fillStyle = shade(col, 0.6);                            // shoulder pads (implied arms)
+    g.beginPath(); g.ellipse(cx - 6.3, by - 16.8, 2.0, 2.6, 0, 0, 6.29); g.fill();
+    g.beginPath(); g.ellipse(cx + 6.3, by - 16.8, 2.0, 2.6, 0, 0, 6.29); g.fill();
     outline(g, dark);
-    g.fillStyle = shade(col, 1.25);                          // webbing highlight
-    g.fillRect(cx - 5.4, by - 14.5, 10.8, 1.6);
 
     if (kind === 'rocket') {
-      g.strokeStyle = shade(col, 0.45); g.lineWidth = 4.6;   // launcher tube
+      g.fillStyle = shade(col, 0.45);                         // fuel pack on the back
+      g.beginPath(); g.roundRect(cx - 3.4, by - 19, 6.8, 6, 1.6); g.fill();
+      outline(g, dark);
+      g.strokeStyle = shade(col, 0.45); g.lineWidth = 4.6;    // launcher tube
       g.lineCap = 'round';
       g.beginPath(); g.moveTo(cx - 7, by - 12); g.lineTo(cx + 9, by - 19); g.stroke();
       g.strokeStyle = shade(col, 0.8); g.lineWidth = 2.6;
       g.beginPath(); g.moveTo(cx - 6, by - 12.4); g.lineTo(cx + 8, by - 18.6); g.stroke();
-      g.fillStyle = acc;                                     // warhead
+      g.fillStyle = acc;                                      // warhead
       g.beginPath(); g.arc(cx + 10, by - 19.4, 2.9, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.5)';
+      g.beginPath(); g.arc(cx + 9.1, by - 20.1, 0.9, 0, 6.29); g.fill();
       outline(g, dark);
     } else {
-      g.strokeStyle = shade(col, 0.4); g.lineWidth = 2.4;    // levelled rifle
+      g.strokeStyle = shade(col, 0.4); g.lineWidth = 2.4;     // levelled rifle
       g.lineCap = 'round';
-      g.beginPath(); g.moveTo(cx - 4, by - 13.5); g.lineTo(cx + 10, by - 15.5); g.stroke();
+      g.beginPath(); g.moveTo(cx - 4, by - 13.5); g.lineTo(cx + 10.5, by - 15.5); g.stroke();
+      g.strokeStyle = shade(col, 0.75); g.lineWidth = 1.1;    // stock, angled back to the shoulder
+      g.beginPath(); g.moveTo(cx - 4, by - 13.5); g.lineTo(cx - 1.2, by - 12.2); g.stroke();
     }
 
-    g.fillStyle = '#caa88a';                                 // face
-    g.beginPath(); g.arc(cx, by - 21, 3.4, 0, 6.29); g.fill();
-    g.fillStyle = acc;                                       // helmet
+    g.fillStyle = '#caa88a';                                  // face
+    g.beginPath(); g.arc(cx, by - 21, 3.3, 0, 6.29); g.fill();
+    g.fillStyle = acc;                                        // helmet dome
     g.beginPath(); g.arc(cx, by - 22, 4, Math.PI, 0); g.fill();
     g.fillRect(cx - 4, by - 22, 8, 1.6);
+    g.fillStyle = shade(acc, 0.6);                            // helmet brim
+    g.beginPath(); g.ellipse(cx + 1, by - 20.5, 3.4, 1, -0.15, 0, 3.3); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.4)';                     // helmet sheen
+    g.beginPath(); g.ellipse(cx - 1.4, by - 23.3, 1.5, 0.8, -0.4, 0, 6.29); g.fill();
     outline(g, dark);
     return s;
   }
@@ -852,34 +943,80 @@
       var fx = ISO_X * (cd - sd), fy = ISO_Y * (cd + sd);       // forward
       var px = ISO_X * (-sd - cd), py = ISO_Y * (-sd + cd);     // sideways
 
-      var len = kind === 'harv' ? 32 : 30, wid = kind === 'harv' ? 19 : 17;
+      var len = kind === 'harv' ? 32 : (kind === 'mammoth' ? 31 : 30);
+      var wid = kind === 'harv' ? 19 : (kind === 'mammoth' ? 20 : 17);
       shadowBlob(g, cx, by, len * 0.46, wid * 0.30);
 
-      // tracks: two dark boxes flanking the hull
-      isoBox(g, cx + px * wid * 0.40, by - 1, len * 0.92, wid * 0.26, 5, a, shade(col, 0.34), dark);
-      isoBox(g, cx - px * wid * 0.40, by - 1, len * 0.92, wid * 0.26, 5, a, shade(col, 0.34), dark);
+      // tracks: two dark boxes flanking the hull, with a row of road-wheel
+      // notches so the flank reads as tracked, not as a slab of rubber.
+      var trackOff = wid * 0.40;
+      isoBox(g, cx + px * trackOff, by - 1, len * 0.92, wid * 0.26, 5, a, shade(col, 0.34), dark);
+      isoBox(g, cx - px * trackOff, by - 1, len * 0.92, wid * 0.26, 5, a, shade(col, 0.34), dark);
+      g.fillStyle = 'rgba(0,0,0,.4)';
+      for (var side = -1; side <= 1; side += 2) {
+        var tcx = cx + px * trackOff * side, tcy = by - 1;
+        for (var wI = -1; wI <= 1; wI++) {
+          var wt = wI * len * 0.30;
+          g.beginPath(); g.ellipse(tcx + fx * wt, tcy + fy * wt - 2.2, 1.7, 1.0, 0, 0, 6.29); g.fill();
+        }
+      }
 
-      if (kind === 'tank' || kind === 'lancer' || kind === 'mammoth') {
-        isoBox(g, cx, by - 4, len * 0.86, wid * 0.72, 7, a, col, dark);          // hull
-        // barrel under the turret so the turret caps its root
-        var bx0 = cx + fx * 3, by0 = by - 15;
-        g.lineCap = 'round';
-        g.strokeStyle = dark; g.lineWidth = 6;
-        g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx0 + fx * 30, by0 + fy * 30); g.stroke();
-        g.strokeStyle = acc; g.lineWidth = 3.6;
-        g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx0 + fx * 29, by0 + fy * 29); g.stroke();
-        g.fillStyle = shade(acc, 1.5);                                          // muzzle
-        g.beginPath(); g.arc(bx0 + fx * 30, by0 + fy * 30, 2.6, 0, 6.29); g.fill();
-        isoBox(g, cx - fx * 2, by - 11, 15, 14, 7, a, shade(col, 1.22), dark);   // turret
-        g.fillStyle = shade(col, 1.5);                                          // hatch
-        g.beginPath(); g.ellipse(cx - fx * 2, by - 18.5, 3.6, 2.1, 0, 0, 6.29); g.fill();
-      } else if (kind === 'spectre') {
-        isoBox(g, cx, by - 5, len * 0.8, wid * 0.7, 6, a, shade(col, 1.05), dark);
-        g.fillStyle = acc;                                          // sensor dome
-        g.beginPath(); g.ellipse(cx, by - 14, 6.5, 4.4, 0, 0, 6.29); g.fill();
+      if (kind === 'mammoth') {
+        // heavy, wide hull with front tusks — it should look like it absorbs
+        // hits, not like a scaled-up Lancer.
+        isoBox(g, cx, by - 5, len * 0.9, wid * 0.8, 8, a, col, dark);
+        var mfx = cx + fx * len * 0.46, mfy = by - 5 + fy * len * 0.46;
+        g.strokeStyle = shade(col, 0.55); g.lineWidth = 2.3; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(mfx + px * wid * 0.22, mfy - 1); g.lineTo(mfx + px * wid * 0.32 + fx * 3, mfy - 4); g.stroke();
+        g.beginPath(); g.moveTo(mfx - px * wid * 0.22, mfy - 1); g.lineTo(mfx - px * wid * 0.32 + fx * 3, mfy - 4); g.stroke();
+        // twin cannon, side by side
+        var mbx = cx + fx * 3, mby = by - 16;
+        for (var bs = -1; bs <= 1; bs += 2) {
+          var box = px * 3 * bs, boy = py * 3 * bs;
+          g.lineCap = 'round';
+          g.strokeStyle = dark; g.lineWidth = 5;
+          g.beginPath(); g.moveTo(mbx + box, mby + boy); g.lineTo(mbx + box + fx * 26, mby + boy + fy * 26); g.stroke();
+          g.strokeStyle = acc; g.lineWidth = 3;
+          g.beginPath(); g.moveTo(mbx + box, mby + boy); g.lineTo(mbx + box + fx * 25, mby + boy + fy * 25); g.stroke();
+          g.fillStyle = shade(acc, 1.5);
+          g.beginPath(); g.arc(mbx + box + fx * 26, mby + boy + fy * 26, 2.1, 0, 6.29); g.fill();
+        }
+        isoBox(g, cx - fx * 2, by - 12, 17, 16, 8, a, shade(col, 1.2), dark);   // heavy turret
+        g.fillStyle = shade(col, 1.5);                                         // hatch
+        g.beginPath(); g.ellipse(cx - fx * 2, by - 20, 3.9, 2.3, 0, 0, 6.29); g.fill();
         outline(g, dark);
-        g.strokeStyle = acc; g.lineWidth = 1.4;                     // antenna
-        g.beginPath(); g.moveTo(cx, by - 17); g.lineTo(cx + fx * 8, by - 24); g.stroke();
+        // side ammo pods — mass, not speed
+        isoBox(g, cx - fx * 8 + px * wid * 0.42, by - 6, 8, 6, 4, a, shade(col, 0.8), dark);
+        isoBox(g, cx - fx * 8 - px * wid * 0.42, by - 6, 8, 6, 4, a, shade(col, 0.8), dark);
+      } else if (kind === 'lancer') {
+        // low, slim hull and a single long thin gun — reach and speed, not mass.
+        isoBox(g, cx, by - 4, len * 0.82, wid * 0.6, 6, a, col, dark);
+        var lbx = cx + fx * 3, lby = by - 14;
+        g.lineCap = 'round';
+        g.strokeStyle = dark; g.lineWidth = 4.2;
+        g.beginPath(); g.moveTo(lbx, lby); g.lineTo(lbx + fx * 37, lby + fy * 37); g.stroke();
+        g.strokeStyle = acc; g.lineWidth = 2.2;
+        g.beginPath(); g.moveTo(lbx, lby); g.lineTo(lbx + fx * 36, lby + fy * 36); g.stroke();
+        g.fillStyle = shade(acc, 1.6);                                         // muzzle brake
+        g.beginPath(); g.arc(lbx + fx * 37, lby + fy * 37, 1.7, 0, 6.29); g.fill();
+        isoBox(g, cx - fx * 1.5, by - 10, 12, 11, 6, a, shade(col, 1.24), dark); // low turret
+        g.fillStyle = shade(col, 1.5);
+        g.beginPath(); g.ellipse(cx - fx * 1.5, by - 15.6, 2.7, 1.6, 0, 0, 6.29); g.fill();
+        outline(g, dark);
+        g.fillStyle = acc;                                                     // rangefinder blip
+        g.beginPath(); g.arc(cx - fx * 1.5 - px * 4.2, by - 14, 1.1, 0, 6.29); g.fill();
+      } else if (kind === 'spectre') {
+        isoBox(g, cx, by - 4.5, len * 0.74, wid * 0.6, 5, a, shade(col, 1.05), dark);  // light, thin hull
+        g.fillStyle = acc;                                          // sensor dome
+        g.beginPath(); g.ellipse(cx, by - 13, 6, 4.1, 0, 0, 6.29); g.fill();
+        outline(g, dark);
+        g.fillStyle = 'rgba(255,255,255,.35)';                      // dome sheen
+        g.beginPath(); g.ellipse(cx - 1.6, by - 14.2, 1.8, 0.9, -0.3, 0, 6.29); g.fill();
+        g.strokeStyle = acc; g.lineWidth = 1.3;                     // twin antennae — "sees everything"
+        g.beginPath(); g.moveTo(cx, by - 16.5); g.lineTo(cx + fx * 8, by - 23.5); g.stroke();
+        g.beginPath(); g.moveTo(cx, by - 16.5); g.lineTo(cx - px * 6, by - 20.5); g.stroke();
+        g.fillStyle = shade(acc, 1.4);
+        g.beginPath(); g.arc(cx + fx * 8, by - 23.5, 1, 0, 6.29); g.fill();
       } else {
         isoBox(g, cx, by - 4, len * 0.9, wid * 0.74, 8, a, shade(col, 0.9), dark); // chassis
         // ore hopper: the single loudest identifier on the field
@@ -888,9 +1025,17 @@
         g.beginPath();
         g.ellipse(cx - fx * 5, by - 23, 7.5, 4.2, 0, 0, 6.29); g.fill();
         outline(g, '#6b4a00');
+        g.strokeStyle = 'rgba(30,20,0,.55)'; g.lineWidth = 1.4;     // hazard bands on the hopper
+        for (var hz = -1; hz <= 1; hz++) {
+          g.beginPath();
+          g.moveTo(cx - fx * 5 - 6, by - 18 + hz * 2.6); g.lineTo(cx - fx * 5 + 6, by - 15.5 + hz * 2.6);
+          g.stroke();
+        }
         isoBox(g, cx + fx * 9, by - 10, 10, 12, 9, a, shade(col, 1.15), dark);   // cab
         g.fillStyle = '#8ad0ff';                                                // windscreen
         g.beginPath(); g.ellipse(cx + fx * 10, by - 18, 3.4, 2.4, 0, 0, 6.29); g.fill();
+        g.fillStyle = dark;                                                     // exhaust stack
+        g.beginPath(); g.roundRect(cx + fx * 6 - px * 5, by - 20, 1.8, 5.2, 0.7); g.fill();
       }
       out.push(s);
     }
@@ -1116,10 +1261,47 @@
 
   var COL = ['#4aa3db', '#e5646c'];            // player 0 blue, player 1 red
 
+  // Weapon-effect sprites, baked once. render() only ever scales/alphas and
+  // drawImage()s these — no gradient is ever constructed per shot or per
+  // explosion, which is what keeps a screen full of firefights cheap.
+  function bakeExplosionSprite() {
+    var d = 128, r = d / 2;
+    var s = mkCanvas(d, d), g = s.g;
+    var grd = g.createRadialGradient(r, r, 0, r, r, r);
+    grd.addColorStop(0, 'rgba(255,214,120,0.75)');
+    grd.addColorStop(0.5, 'rgba(232,120,40,0.42)');
+    grd.addColorStop(1, 'rgba(120,30,10,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(r, r, r, 0, 6.29); g.fill();
+    return s;
+  }
+  function bakeMuzzleFlash() {
+    var d = 40, r = d / 2;
+    var s = mkCanvas(d, d), g = s.g;
+    g.translate(r, r);
+    var grd = g.createRadialGradient(0, 0, 0, 0, 0, r * 0.9);
+    grd.addColorStop(0, 'rgba(255,255,235,.95)');
+    grd.addColorStop(0.35, 'rgba(255,214,120,.75)');
+    grd.addColorStop(1, 'rgba(255,140,40,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(0, 0, r * 0.9, 0, 6.29); g.fill();
+    g.strokeStyle = 'rgba(255,230,180,.85)'; g.lineWidth = 1.6; g.lineCap = 'round';
+    for (var i = 0; i < 5; i++) {
+      var ang = i * (Math.PI * 2 / 5) + 0.3;
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(ang) * r * 0.85, Math.sin(ang) * r * 0.85); g.stroke();
+    }
+    return s;
+  }
+
   function bakeAll() {
     SPR.ground = [ bakeTile('#232a36', '#1b212b', 41), bakeTile('#252d3a', '#1b212b', 42), bakeTile('#212834', '#1b212b', 43) ];
     SPR.rock = bakeRock();
-    SPR.oreLv = [ bakeOre(0), bakeOre(1), bakeOre(2) ];
+    SPR.oreLv = [];
+    for (var lv = 0; lv < 3; lv++) {
+      SPR.oreLv.push([bakeOre(lv, 0), bakeOre(lv, 1), bakeOre(lv, 2), bakeOre(lv, 3)]);
+    }
+    SPR.boom = bakeExplosionSprite();
+    SPR.flash = bakeMuzzleFlash();
     SPR.unit = [{}, {}];
     for (var p = 0; p < 2; p++) {
       for (var uk in UNITS) {
@@ -1578,6 +1760,26 @@
       return;
     }
 
+    // A MOVE order is an explicit instruction and outranks opportunistic
+    // fire: the unit goes where it was sent. It shoots on the way — standing
+    // still to do that is what made ordered troops refuse to disengage — and
+    // resumes normal engagement once it arrives and the order clears.
+    if (u.order && u.order.t === 'move') {
+      if (d.dmg > 0 && u.cool <= 0) {
+        var passing = findTarget(g, u, d.rng);
+        if (passing) fire(g, u, passing);
+      }
+      var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
+      if (mdx * mdx + mdy * mdy < 1.4) {                 // arrived
+        u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
+      } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
+                 g.tick - u.repathAt > 90) {
+        // Path ran out short and a fresh one changed nothing: unreachable.
+        u.order = null; u.guardX = u.x; u.guardY = u.y;
+      }
+      return;
+    }
+
     // An attack order says where to GO, not what to ignore on the way. The
     // ordered target is engaged when it is in range; anything else in range
     // is engaged too. Letting the order win outright marched whole waves
@@ -1616,17 +1818,7 @@
       return;
     }
 
-    if (u.order && u.order.t === 'move') {
-      var dx = u.order.x - u.x, dy = u.order.y - u.y;
-      if (dx * dx + dy * dy < 1.4) {                 // arrived
-        u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
-      } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
-                 g.tick - u.repathAt > 90) {
-        // Path ran out well short of the goal and a fresh one changed
-        // nothing: the target is unreachable, so stop rather than jitter.
-        u.order = null; u.guardX = u.x; u.guardY = u.y;
-      }
-    }
+
   }
 
   function entById(g, id) {
@@ -1864,7 +2056,7 @@
       posture: 'build', t: 0, lastStrat: 0, lastTac: 0, lastScout: 0,
       seen: { inf: 0, veh: 0, bld: 0 }, seenAt: 0,
       army: [], attacking: false, rally: null, scout: null,
-      wave: [], waveN: 0, waveTarget: 0, scoutSent: 0
+      wave: [], waveN: 0, waveTarget: 0, scoutSent: 0, garrison: []
     };
   }
 
@@ -2093,7 +2285,7 @@
 
   function aiStaging(g, me, foe) {
     var home = g.start[me], ft = g.start[foe];
-    return { x: Math.round(home.x * 0.78 + ft.x * 0.22), y: Math.round(home.y * 0.78 + ft.y * 0.22) };
+    return { x: Math.round(home.x * 0.88 + ft.x * 0.12), y: Math.round(home.y * 0.88 + ft.y * 0.12) };
   }
 
   // Orders are rationed by difficulty. A low-APM AI cannot re-task every unit
@@ -2122,7 +2314,7 @@
       for (var j = 0; j < g.blds.length; j++) {
         var b = g.blds[j];
         if (b.dead || b.p !== me) continue;
-        if (dist(e, b) < 11) { threat = e; break; }
+        if (dist(e, b) < 16) { threat = e; break; }
       }
     }
     if (threat && !ai.wave.length) {
@@ -2160,7 +2352,14 @@
     if (ai.posture === 'attack' && ai.army.length >= cfg.group) {
       var tgt = aiPickTarget(g, ai, me, foe);
       if (tgt) {
-        ai.wave = ai.army.filter(function (w) { return w !== ai.scout; });
+        // Never commit the whole army. A base with nothing standing in it is
+        // free to raid, and an attack that empties home is how you lose the
+        // game you were winning.
+        var pool = ai.army.filter(function (w) { return w !== ai.scout; });
+        var keep = Math.max(2, Math.round(pool.length * 0.25));
+        ai.wave = pool.slice(keep);
+        ai.garrison = pool.slice(0, keep);
+        if (!ai.wave.length) { ai.wave = pool; ai.garrison = []; }
         ai.waveN = ai.wave.length;
         ai.waveTarget = tgt.id;
         ai.attacking = true;
@@ -2170,9 +2369,22 @@
     }
 
     // ---- otherwise gather; new units join the NEXT wave, not the last one
+    var home = g.start[me];
+    ai.garrison = (ai.garrison || []).filter(function (w) { return !w.dead; });
+    for (i = 0; i < ai.garrison.length && budget > 0; i++) {
+      u = ai.garrison[i];
+      var hd = Math.sqrt((u.x - home.x) * (u.x - home.x) + (u.y - home.y) * (u.y - home.y));
+      if (hd > 7 && !u.order) {
+        u.order = { t: 'move', x: home.x, y: home.y, id: 0 };
+        u.guardX = home.x; u.guardY = home.y;
+        requestPath(g, u, home.x, home.y);
+        budget--;
+      }
+    }
     for (i = 0; i < ai.army.length; i++) {
       u = ai.army[i];
       if (u === ai.scout || u.order) continue;
+      if (ai.garrison.indexOf(u) >= 0) continue;
       var dd = Math.sqrt((u.x - stage.x) * (u.x - stage.x) + (u.y - stage.y) * (u.y - stage.y));
       if (dd > 4) {
         u.order = { t: 'move', x: stage.x, y: stage.y, id: 0 };
@@ -2398,8 +2610,9 @@
     panelRows = {};
     var items = [];
     var myFac = G ? G.side[P_HUMAN].fac : 'dir';
-    if (panel === 'b') {
-      items = buildOrderFor(myFac).map(function (k) { return { k: k, lane: 'b', spec: BLDS[k] }; });
+    if (panel === 'b' || panel === 'd') {
+      var order = panel === 'b' ? buildOrderFor(myFac) : defenceOrderFor(myFac);
+      items = order.map(function (k) { return { k: k, lane: 'b', spec: BLDS[k] }; });
     } else {
       for (var k in UNITS) {
         if (UNITS[k].cls === panel && ownedBy(UNITS[k], myFac)) {
@@ -2425,8 +2638,10 @@
     });
     var note = document.createElement('div');
     note.className = 'pnote';
-    note.textContent = panel === 'b'
-      ? 'Right-click an item to cancel and refund.'
+    note.textContent = panel === 'b' || panel === 'd'
+      ? (panel === 'd'
+          ? 'Defences share the Construction Yard queue. Right-click to cancel.'
+          : 'Right-click an item to cancel and refund.')
       : 'Right-click the map with a factory selected to set a rally point.';
     plist.appendChild(note);
     refreshPanel();
@@ -2461,10 +2676,21 @@
     // A structure that has finished building is the single most common place
     // to stall: nothing on screen changes, and the panel row alone does not
     // say "now put it somewhere".
+    // Which tab is the finished structure on?
+    var rdyTab = null;
+    if (s.queues.b.ready) {
+      rdyTab = BLDS[s.queues.b.ready] && BLDS[s.queues.b.ready].cat === 'def' ? 'd' : 'b';
+    }
+    document.querySelectorAll('.ptab div').forEach(function (t) {
+      t.classList.toggle('hasready', !!rdyTab && t.getAttribute('data-tab') === rdyTab);
+    });
+
     if (s.queues.b.ready !== lastReady) {
       lastReady = s.queues.b.ready;
       if (lastReady) {
-        say(BLDS[lastReady].name + ' ready — click it in the panel, then click the map to place it', false, 420);
+        say(BLDS[lastReady].name + ' ready — click it under ' +
+            (rdyTab === 'd' ? 'Defence' : 'Build') +
+            ', then click the map to place it', false, 420);
       }
     }
     if (!toldRefinery && hasBld(G, P_HUMAN, 'refinery')) {
@@ -2485,7 +2711,8 @@
       var isReady = it.lane === 'b' && q.ready === k;
       var first = q.list[0] === k && !(it.lane === 'b' && q.ready);
       el.querySelector('.fill').style.width = first ? (q.prog * 100) + '%' : '0';
-      el.querySelector('.qn').textContent = isReady ? 'READY' : (n > 1 ? '×' + n : (n === 1 ? '•' : ''));
+      // The ::after stamp says READY now; the corner only carries queue depth.
+      el.querySelector('.qn').textContent = isReady ? '' : (n > 1 ? '×' + n : (n === 1 ? '•' : ''));
       el.classList.toggle('rdy', isReady);
       var ok = isReady || canBuild(G, P_HUMAN, k, it.lane === 'b');
       el.classList.toggle('dis', !ok);
@@ -2975,7 +3202,7 @@
         ctx.drawImage(tile.c, px - tile.w / 2, py - tile.h / 2, tile.w, tile.h);
         if (t === T_ORE) {
           var lv = G.ore[i] > 600 ? 2 : (G.ore[i] > 250 ? 1 : 0);
-          var os = SPR.oreLv[lv];
+          var os = SPR.oreLv[lv][(x * 5 + y * 11) & 3];
           ctx.drawImage(os.c, px - os.w / 2, py - os.h / 2, os.w, os.h);
         }
       }
@@ -3038,21 +3265,38 @@
       if (!G.blds[i].dead && G.blds[i].sel && G.blds[i].rally) drawRally(G.blds[i]);
     }
 
-    // Shots
+    // Shots: a bright core over a soft glow, plus a baked muzzle-flash sprite
+    // on the first tick or two. Both glow and flash are drawImage/stroke —
+    // no gradient is ever built per shot, so this stays cheap at any unit
+    // count.
     for (i = 0; i < G.shots.length; i++) {
       var s = G.shots[i];
       var f = s.t / s.life;
       var ax = sx(s.x, s.y), ay = sy(s.x, s.y) - 10;
       var bx = sx(s.tx, s.ty), by = sy(s.tx, s.ty) - 8;
-      ctx.strokeStyle = s.rocket ? 'rgba(232,180,40,' + (1 - f) + ')' : 'rgba(220,240,255,' + (1 - f) + ')';
-      ctx.lineWidth = s.rocket ? 2.4 : 1.3;
-      ctx.beginPath();
-      ctx.moveTo(ax + (bx - ax) * Math.max(0, f - 0.25), ay + (by - ay) * Math.max(0, f - 0.25));
-      ctx.lineTo(ax + (bx - ax) * f, ay + (by - ay) * f);
-      ctx.stroke();
+      var hx = ax + (bx - ax) * Math.max(0, f - 0.25), hy = ay + (by - ay) * Math.max(0, f - 0.25);
+      var tx2 = ax + (bx - ax) * f, ty2 = ay + (by - ay) * f;
+      var glow = s.rocket ? 'rgba(232,140,40,' : 'rgba(150,200,255,';
+      var core = s.rocket ? 'rgba(255,225,150,' : 'rgba(230,245,255,';
+      ctx.strokeStyle = glow + (0.35 * (1 - f)) + ')';
+      ctx.lineWidth = s.rocket ? 5 : 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx2, ty2); ctx.stroke();
+      ctx.strokeStyle = core + (1 - f) + ')';
+      ctx.lineWidth = s.rocket ? 2 : 1.1;
+      ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx2, ty2); ctx.stroke();
+      if (s.t <= 1) {
+        var fsz = (s.rocket ? 30 : 20) * (1 - s.t * 0.35);
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.drawImage(SPR.flash.c, ax - fsz / 2, ay - fsz / 2, fsz, fsz);
+        ctx.globalCompositeOperation = 'source-over';
+      }
     }
 
-    // Explosions + move pings (additive, so overlapping blasts read as heat)
+    // Explosions + move pings (additive, so overlapping blasts read as heat).
+    // The blast is one baked radial-gradient sprite scaled per fx — no
+    // per-shot createRadialGradient, which is the expensive part of the old
+    // version once a lot of things are dying on screen at once.
     ctx.globalCompositeOperation = 'lighter';
     for (i = 0; i < G.fx.length; i++) {
       var fx = G.fx[i], ff = fx.t / fx.life;
@@ -3066,13 +3310,10 @@
         ctx.globalCompositeOperation = 'lighter';
         continue;
       }
-      var rr = fx.size * (0.4 + ff * 1.5);
-      var grd = ctx.createRadialGradient(fxx, fyy - 6, 0, fxx, fyy - 6, rr);
-      grd.addColorStop(0, 'rgba(255,214,120,' + (0.75 * (1 - ff)) + ')');
-      grd.addColorStop(0.5, 'rgba(232,120,40,' + (0.42 * (1 - ff)) + ')');
-      grd.addColorStop(1, 'rgba(120,30,10,0)');
-      ctx.fillStyle = grd;
-      ctx.beginPath(); ctx.arc(fxx, fyy - 6, rr, 0, 6.29); ctx.fill();
+      var rr = fx.size * (0.4 + ff * 1.5) * 2;
+      ctx.globalAlpha = 1 - ff;
+      ctx.drawImage(SPR.boom.c, fxx - rr / 2, fyy - 6 - rr / 2, rr, rr);
+      ctx.globalAlpha = 1;
     }
     ctx.globalCompositeOperation = 'source-over';
 

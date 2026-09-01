@@ -4959,3 +4959,49 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rejected:** giving each faction its own harvester and its own core
   structures. It doubles the art and the balance surface to express nothing —
   the asymmetry that matters is what you fight with, not what you mine with.
+
+## A preference score is not an eligibility threshold
+
+- **Symptom:** a Gun Turret would sit and watch an enemy structure it was
+  perfectly capable of damaging, and never fire. Units showed a milder version
+  of the same thing against targets they were weak against.
+- **Cause:** `findTarget()` picks the best candidate with
+  `var best = null, bs = -1;` and keeps whatever scores highest. The score is
+  a *preference* — how much do I want to shoot this rather than that — built
+  from damage multiplier, distance and remaining health:
+  `mult * 100 - dist * 6 - (hp/maxhp) * 40`. But the initial `-1` silently
+  turned it into an *eligibility floor*. A Sentry Gun's `vs.bld` is 0.3, so
+  against a full-health building it scores `30 - dist*6 - 40`, which is
+  negative at every distance in range. No candidate ever beat -1, so `best`
+  stayed null and the gun held fire against a target it could hurt.
+- **Fix:** `bs = -Infinity`. Anything in range is eligible; the score only
+  decides which one.
+- **How it surfaced:** not from the bug report, but from a test that *avoided*
+  it. A delegated agent writing coverage picked a mobile unit as its target
+  instead of a building, with a comment calling the building case "a separate,
+  real quirk". It had walked around a bug without recognising it as one — and
+  because the brief said find bugs but do not fix them, the workaround was
+  still there in the diff to be noticed.
+- **Rule:** when a "best of" loop seeds its accumulator with a concrete number
+  rather than an infinity, that number is a hidden threshold. Ask what it
+  excludes. And when someone routes around a case while writing a test, treat
+  the detour as evidence, not as tidiness.
+
+## Ore is walkable, the ground around it need not be
+
+- **Symptom:** a harvester whose patch ran dry would re-target correctly and
+  then freeze in place for the rest of the match.
+- **Cause:** ore tiles are passable, so `findOre()` happily returns a seam
+  whose surrounding tiles are all rock. A* is then correct to return null —
+  there is no route — but `stepHarvester()`'s `tomine` branch called
+  `advance()` and ignored its return value, so the harvester kept re-issuing a
+  path request that could never succeed. Being visible and being reachable are
+  different properties, and only one of them was checked.
+- **Fix:** when `advance()` reports no progress and no path for 45 ticks, the
+  harvester blacklists that seam in its own `noGo` set and goes idle, which
+  sends it back through `findOre()` — now told to skip what it has already
+  failed to reach.
+- **Rule:** any "go to X" that can be handed an unreachable X needs a giving-up
+  branch, or the unit is lost for the match. This is the same shape as the
+  `move` order fix (a path that runs out short must eventually abandon the
+  order) — a pattern worth checking wherever pathing is requested.
