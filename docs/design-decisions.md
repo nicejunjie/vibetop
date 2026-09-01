@@ -5126,3 +5126,30 @@ original exact-bytes test stayed green through the whole breakage.
   each builder is told to keep its helpers inside its own worktree.
 - **Rule:** in a fan-out, every writer gets a private directory; the shared
   root is read-only by convention. Say so in the brief.
+
+## A harvester that re-acquires ore every tick cannot be given an order
+
+- **Symptom:** right-clicking a mining harvester to move it did nothing
+  visible; sometimes it "only drove forward". The user reported it as stuck.
+- **Cause:** `orderUnitsTo` set the move order and put the harvester in
+  `idle`, but `stepHarvester`'s idle branch ran first on the next tick and,
+  seeing no *harvest* order, picked a seam and went `tomine` — overwriting the
+  player's order before a single step was taken. Harvesters never reached the
+  generic move handling at all (they return early from `stepUnit`).
+- **Fix:** `stepHarvester` now handles a `move` order itself, then HOLDS for
+  20 s at the destination (`holdUntil`) before auto-mining resumes, matching
+  how an RA2 miner parked by hand behaves. Regression test proves the old
+  build fails (8.5 tiles off target, back on the ore).
+- **Rule:** any unit with autonomous behaviour needs an explicit "the player
+  spoke" branch that runs *before* the autonomy, and a hold so the autonomy
+  does not undo the order the moment it completes.
+
+## The AI packed its base because "not too crowded" was the only rule
+
+- **Symptom:** the AI's structures stood shoulder to shoulder in a clump.
+- **Cause:** `aiPlace` took the nearest legal spot to home whose neighbour
+  ring was under half blocked; the nearest spot is always adjacent to the
+  last building.
+- **Fix:** two passes — first only spots with a clear one-tile gap all round
+  (`crowding == 0`), then the old tolerance if the base has grown into its
+  walls; plus a distance penalty per blocked neighbour tile.
