@@ -188,7 +188,8 @@
   <div class="sched-panel" id="sched-panel" hidden>
     <h3>Scheduled for <span id="sp-term">this terminal</span></h3>
     <div class="hint">Typed into the terminal and submitted at the time you pick —
-      whether or not this page is open. Handy when a session stops at its token limit.</div>
+      whether or not this page is open. Handy when a session stops at its token limit.
+      Line breaks are for readability — they’re sent as “;”, so it stays one command.</div>
     <ul class="sp-list" id="sp-list"></ul>
     <textarea id="sp-text" rows="1" maxlength="2000" placeholder="Message to send, e.g. continue"></textarea>
     <input type="datetime-local" id="sp-at">
@@ -594,7 +595,17 @@
   }
 
   function submitSchedule() {
-    var text = spText.value.trim();
+    // The box accepts line breaks so a long command can be typed for clarity, but
+    // a scheduled message is TYPED INTO THE TERMINAL as one line — a raw newline
+    // would submit early and chain past what was reviewed (the server rejects
+    // control chars for exactly that reason). Join the lines with "; " so the
+    // stored/queued text is the single runnable command line that will be sent.
+    // Blank lines are dropped (no ";; "); stray control chars collapse to spaces.
+    var text = spText.value.replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map(function (s) { return s.replace(/[\x00-\x1f\x7f]/g, ' ').trim(); })
+      .filter(function (s) { return s; })
+      .join('; ');
     if (!text) { spErr.className = 'sp-err'; spErr.textContent = 'Type a message first.'; return; }
     if (!spAt.value) { spErr.className = 'sp-err'; spErr.textContent = 'Pick a time.'; return; }
     var at = new Date(spAt.value).getTime() / 1000;
