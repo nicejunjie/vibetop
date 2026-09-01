@@ -5005,3 +5005,76 @@ original exact-bytes test stayed green through the whole breakage.
   branch, or the unit is lost for the match. This is the same shape as the
   `move` order fix (a path that runs out short must eventually abandon the
   order) — a pattern worth checking wherever pathing is requested.
+
+## A test suite in the pre-commit hook is a shared budget, not a private one
+
+- **Symptom:** `landing/rts.test.js` grew a set of genuinely good tests and
+  the whole file went from milliseconds to **4m40s** — long enough that
+  `node --test` cancelled it mid-run and reported `'Promise resolution is
+  still pending but the event loop has already resolved'`, which reads like a
+  bug in the tests rather than what it was: a timeout.
+- **Cause:** the expensive tests each play a full headless AI-vs-AI match via
+  `__rtsSim` — real pathfinding, AI planning and combat for tens of thousands
+  of ticks, multiplied by the seeds each test sweeps. Individually every one
+  of them was worth having. Collectively they landed in a file that
+  `./run-tests.sh` runs, which `.githooks` runs on **every commit in the
+  repository** — so an RTS balance sweep was being charged to someone fixing a
+  typo in the terminal manager.
+- **Fix:** an opt-in tier. `const slow = { skip: !process.env.RTS_SLOW && 'set
+  RTS_SLOW=1' };` passed as the options argument to the five match-playing
+  tests. Nothing deleted and no assertion weakened — the default run is back to
+  ~0.1s (repo-wide `./run-tests.sh`: 15s) and the full tier runs on demand with
+  `RTS_SLOW=1 node --test landing/rts.test.js`.
+- **Rejected:** shortening the matches until they fit. A 4-game-minute match
+  does not reach the phase these tests are about (waves, expansion, decisive
+  attacks), so the cheap version would have kept the cost and lost the signal.
+- **Rule:** cost belongs where the value is. A test that answers a question
+  only this game asks does not belong in the budget every commit pays. When
+  delegating test-writing, state the wall-clock budget in the brief — it is
+  not inferable from "write good tests", and the agent will optimise for the
+  goal it was given.
+
+## A faction that cannot spend its money loses a game it is winning
+
+- **Symptom:** headless AI-vs-AI, mirrored so map position cannot flatter
+  either side, gave the Directorate **90% of decided games on normal and 73%
+  on hard**. Reading the unit tables suggested the Collective should be *ahead*
+  on paper (more HP and more damage per credit at equal spend).
+- **Cause:** found by cutting the same matches at 3/6/9/12/16 minutes and
+  printing both sides' army, buildings, units built and **bank**. At three
+  minutes the two sides were level on every measure except one — the
+  Collective was sitting on **8132 credits to the Directorate's 4846**. Its
+  units build slower (Mammoth 18 vs Lancer 12), so its production lane hit
+  `queues.v.list.length < 2` and stalled while income kept arriving. The AI's
+  build ladder had no rule for "rich and saturated", and never built a second
+  factory — so it could not convert money into army, and the multi-building
+  speed-up the player gets was a feature the AI never used.
+- **Fix:** two rules in `aiProduce()`'s ladder — a full vehicle lane plus
+  >2200 credits builds another War Factory (up to 3), the same for Barracks at
+  >1800. Banks at six minutes went from 1122 v 4974 to 361 v 36: both sides now
+  spend what they earn.
+- **Rule:** when two sides look even but one loses, diff the *state* over time
+  before touching the stat tables. A resource that accumulates is a mechanism
+  that is not running.
+
+## Slower than your own infantry is a different unit than "slow"
+
+- **Symptom:** with the money bug fixed the Collective still lost, and the
+  trajectory dump showed the tell: at six minutes it had **built more units
+  than its opponent (81 v 76) and had a third as many alive (15 v 49)**.
+  Building fine, dying fast.
+- **Cause:** the Mammoth moved at `spd 0.028` — *slower than infantry at
+  0.050*. Every mixed Collective army therefore arrived strung out, fed itself
+  into fights piecemeal, and could never disengage once committed. None of
+  that is visible in a stat table, where 540 HP and 44 damage look dominant.
+- **Fix:** `0.028 → 0.036`. Measured one axis at a time, each candidate run as
+  its own mirrored 10-match duel against an unmodified build (a patchable
+  loader applies the candidate to the source in memory, so the shipped file is
+  never edited to test a number). Directorate win rate by axis, against an 88%
+  control: **mammoth speed 50%**, mammoth range 63%, lancer range 75%, tesla
+  power 75%, mammoth build time 80%. One axis carried nearly the whole gap.
+- **Rejected:** buffing the Mammoth's damage or HP. It was already ahead on
+  both per credit; more of what it had would not have made it *arrive*.
+- **Rule:** movement speed relative to the rest of your own army is a
+  different quantity from movement speed. Below it, a unit stops being slow
+  and starts being late. Balance the ratio, not the number.

@@ -40,8 +40,20 @@ The tiers (each independently runnable, ~5s total):
 - **JavaScript** (`node --test`) — service-worker routing (`sw.test.js`), tab-set
   reconcile (`tab-sync.test.js`), coach-tip state machine (`coach.test.js`), the
   terminal-kbd key-byte map (`terminal-kbd.test.js`), window-mode geometry
-  (`winmgr.test.js` — clamp/resize/cascade/snap/`tileGrid`), and a syntax guard
-  that `vm.Script`-compiles every injected/deployed script (`js-syntax.test.js`).
+  (`winmgr.test.js` — clamp/resize/cascade/snap/`tileGrid`), the Iron Frontier
+  rules + balance audit (`rts.test.js`), and a syntax guard that
+  `vm.Script`-compiles every injected/deployed script (`js-syntax.test.js`).
+
+  **`rts.test.js` has an opt-in slow tier.** Its five match-playing tests (seed
+  determinism, economy growth, decisiveness, the difficulty ladder, stuck-unit
+  sampling) each run a full headless AI-vs-AI game and are skipped unless
+  `RTS_SLOW=1` is set — they took the default run to 4m40s, which every commit
+  in the repo would have paid for (see `docs/design-decisions.md`). Run them
+  before shipping a change to the AI, the pathing or the unit tables:
+
+  ```bash
+  RTS_SLOW=1 node --test landing/rts.test.js       # the full tier, minutes
+  ```
 
 **Live-host smoke test** — `tools/smoke-test.sh` is the ONE tier needing the
 running stack; it turns the Health-check curls below into asserting checks with a

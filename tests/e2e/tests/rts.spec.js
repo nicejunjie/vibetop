@@ -555,6 +555,103 @@ test.describe('rts', () => {
     expect((await page.evaluate(() => window.__rts())).state).toBe('play');
   });
 
+  test('picking a faction changes the roster you can actually build', async ({ page }) => {
+    await page.goto('/rts.html');
+    await page.waitForFunction(() => !!window.__rts, null, { timeout: 15000 });
+
+    await expect(page.locator('#facRow button'), 'the menu card offers a side to pick')
+      .toHaveCount(2);
+
+    async function rosterAfterPicking(index) {
+      await page.locator('#facRow button').nth(index).click();
+      await page.locator('#ovA').click();
+      await expect
+        .poll(async () => page.evaluate(() => window.__rts().state), { timeout: 12000 })
+        .toBe('play');
+      const build = await page.locator('#plist .pit .nm').allTextContents();
+      await page.locator('.ptab div[data-tab="d"]').click();
+      const def = await page.locator('#plist .pit .nm').allTextContents();
+      await page.locator('.ptab div[data-tab="i"]').click();
+      const inf = await page.locator('#plist .pit .nm').allTextContents();
+      await page.locator('.ptab div[data-tab="v"]').click();
+      const veh = await page.locator('#plist .pit .nm').allTextContents();
+      const sides = await page.evaluate(() => {
+        const g = window.__rtsTest.get();
+        return [g.side[0].fac, g.side[1].fac];
+      });
+      return { build, def, inf, veh, sides };
+    }
+
+    const dir = await rosterAfterPicking(0);
+    expect(dir.sides[0], 'first option is the Directorate').toBe('dir');
+    expect(dir.sides[1], 'the AI always takes the other side').toBe('col');
+    expect(dir.def.join(), 'Directorate defence is the Sentry Gun').toMatch(/Sentry/);
+    expect(dir.def.join(), 'and NOT the Collective one').not.toMatch(/Tesla/);
+    expect(dir.build.join(), 'defence has its own tab, as in RA2')
+      .not.toMatch(/Sentry|Tesla/);
+    expect(dir.veh.join()).toMatch(/Lancer/);
+    expect(dir.veh.join()).toMatch(/Spectre/);
+    expect(dir.veh.join(), 'Mammoth belongs to the other side').not.toMatch(/Mammoth/);
+    expect(dir.inf.join()).toMatch(/Rifleman/);
+
+    // "Start over" restarts with the side you already picked — as in RA2,
+    // changing faction means going back to the menu, and mid-match there is
+    // no route there. So take the other side from a fresh load.
+    await page.goto('/rts.html');
+    await page.waitForFunction(() => !!window.__rts, null, { timeout: 15000 });
+    const col = await rosterAfterPicking(1);
+    expect(col.sides[0], 'second option is the Collective').toBe('col');
+    expect(col.sides[1], 'the AI always takes the other side').toBe('dir');
+    expect(col.def.join(), 'Collective defence is the Tesla Coil').toMatch(/Tesla/);
+    expect(col.def.join(), 'and NOT the Directorate one').not.toMatch(/Sentry/);
+    expect(col.build.join(), 'the shared structures are the same for both sides')
+      .toBe(dir.build.join());
+    expect(col.veh.join()).toMatch(/Mammoth/);
+    expect(col.veh.join(), 'Lancer belongs to the other side').not.toMatch(/Lancer/);
+    expect(col.inf.join()).toMatch(/Conscript/);
+
+    // Shared kit stays available to both.
+    for (const r of [dir, col]) {
+      expect(r.build.join(), 'core structures are shared').toMatch(/Power Plant/);
+      expect(r.veh.join(), 'the Harvester is shared').toMatch(/Harvester/);
+      expect(r.inf.join(), 'the Rocketeer is shared').toMatch(/Rocketeer/);
+    }
+  });
+
+  test('winning ends the match and records a time on the board', async ({ page }) => {
+    await page.goto('/rts.html');
+    await page.waitForFunction(() => !!window.__rts, null, { timeout: 15000 });
+    await page.evaluate(() => localStorage.clear());   // a clean board to assert against
+    await page.reload();
+    await page.waitForFunction(() => !!window.__rts, null, { timeout: 15000 });
+
+    await page.locator('#facRow button').first().click();
+    await page.locator('#ovA').click();
+    await expect.poll(async () => page.evaluate(() => window.__rts().state), { timeout: 12000 })
+      .toBe('play');
+
+    // Level the AI. The match is only lost after a grace period, so step past it.
+    await page.evaluate(() => {
+      window.__rtsTest.kill(1);
+      for (let i = 0; i < 60 * 80; i++) window.__rtsTest.step(1);
+    });
+    await expect.poll(async () => page.evaluate(() => window.__rts().state), { timeout: 15000 })
+      .toBe('over');
+
+    await expect(page.locator('#ovT'), 'the card announces a win').toHaveText(/Victory/);
+    await expect(page.locator('#ovP'), 'and says how long it took')
+      .toHaveText(/levelled in \d+:\d\d/);
+
+    const board = await page.evaluate(() => window.vibeScores.stats('rts', 'normal'));
+    expect(board.n, 'the finished game is counted').toBeGreaterThan(0);
+    expect(board.w, 'and counted as a WIN').toBe(1);
+    expect(board.best, 'a best time is on the board').toBeGreaterThan(0);
+
+    // The time on the board must be the match length, not a raw tick count.
+    const shown = await page.locator('#scores').textContent();
+    expect(shown, 'the board formats m:ss, not a bare number').toMatch(/\d+:\d\d/);
+  });
+
   test('a pan eases in instead of snapping to full speed', async ({ page }) => {
     await boot(page);
     await page.mouse.move(640, 400);
@@ -581,5 +678,33 @@ test.describe('rts', () => {
     expect(r.first, 'a pan must accelerate, not snap to full speed')
       .toBeLessThan(r.cruise * 0.5);
     expect(r.jitter, 'steady-state pan must not stutter').toBeLessThan(r.cruise * 0.6);
+  });
+});
+
+// The suite above is skipped wholesale on touch devices — the game needs a
+// mouse. That is exactly why the phone case needs its OWN block: without it,
+// nothing anywhere checks that a phone user gets told so instead of being
+// dropped into a game they cannot play.
+test.describe('rts on a touch device', () => {
+  test.skip(({ hasTouch }) => !hasTouch, 'this is the touch-device dead-end check');
+
+  test('a phone gets a plain notice, not a game it cannot play', async ({ page }) => {
+    await page.goto('/rts.html');
+    await page.waitForFunction(() => !!window.__rts, null, { timeout: 15000 });
+
+    const notice = page.locator('#nomob');
+    await expect(notice, 'the desktop-only notice is shown').toBeVisible();
+    await expect(notice).toContainText(/Desktop only/i);
+
+    // It has to actually COVER the game — a notice you can tap past is a
+    // dead end with extra steps.
+    const box = await notice.boundingBox();
+    const vp = page.viewportSize();
+    expect(box.width, 'it spans the viewport').toBeGreaterThanOrEqual(vp.width - 1);
+    expect(box.height).toBeGreaterThanOrEqual(vp.height - 1);
+
+    // And no match is running behind it — __rts() is null until one starts,
+    // so the phone never pays for a simulation it cannot play.
+    expect(await page.evaluate(() => window.__rts())).toBeNull();
   });
 });

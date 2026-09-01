@@ -23,6 +23,19 @@
   .bar .title { font-size: 13px; font-weight: 600; white-space: nowrap; }
   .bar .title .ic { margin-right: 5px; }
   @media (max-width: 560px) { .bar .title .txt { display: none; } }
+  /* Below ~560px the bar's four stat tiles plus five buttons are wider than
+     the window, and a non-wrapping flex row does not clip them — it strands
+     them off the right edge, unreachable, with nothing to scroll. Let the row
+     wrap (the spacer becomes a full-width break, so the buttons take their own
+     line) and let the tiles shrink. The game still wants a real desktop
+     window, but no control is ever placed where it cannot be clicked. */
+  @media (max-width: 560px) {
+    .bar { flex-wrap: wrap; row-gap: 4px; }
+    .bar .spacer { flex-basis: 100%; height: 0; }
+    .stat { min-width: 0; padding: 2px 6px; }
+    .stat .lbl { font-size: 8px; }
+    .stat .val { font-size: 13px; }
+  }
   .stat {
     display: flex; flex-direction: column; align-items: center;
     background: #0e1117; border: 1px solid #2a3040; border-radius: 6px;
@@ -267,6 +280,7 @@
         <dt>Groups</dt><dd><b>Ctrl+1…5</b> stores the selection, <b>1…5</b> recalls it.</dd>
         <dt>Faster</dt><dd>A second Barracks or War Factory speeds that queue up (20% off each, up to six — as in RA2) and gives units another exit.</dd>
         <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
+        <dt>Rally</dt><dd>Select a Barracks or War Factory, then right-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected.</dd>
         <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
         <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
         <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over.</dd>
@@ -394,8 +408,20 @@
       cap: 0, mine: 0, w: 19, h: 15, desc: 'Fast, long reach, thin skin'
     },
     mammoth: {
-      name: 'Mammoth', em: '⚙️', cost: 950, build: 18, cls: 'v', fac: 'col',
-      hp: 540, spd: 0.028, sight: 6, armour: A_VEH,
+      // 950/18 made the Collective's one factory a bottleneck a Lancer's
+      // 650/12 never hit, and the extra factory the AI now builds multiplied
+      // that gap instead of closing it (hard went 73% -> 90% Directorate).
+      // 880/15 evens throughput per factory: measured 56% / 56% across
+      // normal and hard, from 90% / 73%.
+      name: 'Mammoth', em: '⚙️', cost: 880, build: 15, cls: 'v', fac: 'col',
+      // 0.028 read fine on paper ("slow, heavy") and lost the faction the
+      // game: below infantry speed (0.050) a Collective army arrives strung
+      // out, fights piecemeal and can never disengage — measured 88% losses
+      // for the side fielding it. 0.036 is still the slowest thing on the
+      // field and still 0.73x a Lancer (about the RA2 Apocalypse/Grizzly
+      // ratio); it just lets the army arrive together. Single biggest lever
+      // in the whole table — see docs/design-decisions.md.
+      hp: 540, spd: 0.036, sight: 6, armour: A_VEH,
       dmg: 44, rate: 72, rng: 4.0, splash: 1.1,
       vs: { inf: 0.9, veh: 1.05, bld: 1.0 },
       cap: 0, mine: 0, w: 22, h: 17, desc: 'Slow, heavy, wide splash'
@@ -1323,7 +1349,7 @@
       x: gx, y: gy, hp: d.hp, maxhp: d.hp, dead: false,
       face: (gx + gy) & 7, cool: 0, target: null, order: null,     // order: {t:'move'|'attack'|'harvest', x,y,id}
       path: null, pi: 0, repath: 0, repathAt: -999, stuck: 0, lastx: gx, lasty: gy,
-      cargo: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999,
+      cargo: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
       sel: false, aggro: null, guardX: gx, guardY: gy
     };
     g.units.push(u);
@@ -1531,7 +1557,12 @@
   function armourOf(e) { return e.kind === 'b' ? A_BLD : UNITS[e.type].armour; }
 
   function findTarget(g, e, rng) {
-    var best = null, bs = -1;
+    // -Infinity, not -1: the score is a PREFERENCE between candidates, never a
+    // threshold for engaging at all. With a -1 floor, a target this weapon is
+    // merely bad against scored negative and was ignored entirely — a Sentry
+    // Gun (vs.bld 0.3) would sit and watch an enemy structure it could damage,
+    // because 0.3*100 - dist*6 - 40 is negative at every distance.
+    var best = null, bs = -Infinity;
     var ex = e.kind === 'b' ? e.cx : e.x, ey = e.kind === 'b' ? e.cy : e.y;
     near(ex, ey, rng + 1, function (o) {
       if (o.dead || o.p === e.p) return;
@@ -1599,13 +1630,14 @@
   // --------------------------------------------------------------------- //
   //  Ore + harvesting
   // --------------------------------------------------------------------- //
-  function findOre(g, fromX, fromY, maxR) {
+  function findOre(g, fromX, fromY, maxR, skip) {
     var best = null, bd = 1e9;
     var r = maxR || 30;
     for (var y = Math.max(0, (fromY - r) | 0); y < Math.min(MAP, fromY + r); y++) {
       for (var x = Math.max(0, (fromX - r) | 0); x < Math.min(MAP, fromX + r); x++) {
         var i = idx(x, y);
         if (g.terrain[i] !== T_ORE || g.ore[i] <= 1) continue;
+        if (skip && skip[x + ',' + y]) continue;
         var d = (x - fromX) * (x - fromX) + (y - fromY) * (y - fromY);
         if (d < bd) { bd = d; best = { x: x, y: y }; }
       }
@@ -1629,7 +1661,7 @@
 
     if (u.state === 'idle' || (u.state === 'tomine' && !u.mineAt)) {
       var patch = u.order && u.order.t === 'harvest'
-        ? { x: u.order.x, y: u.order.y } : findOre(g, u.x, u.y);
+        ? { x: u.order.x, y: u.order.y } : findOre(g, u.x, u.y, 0, u.noGo);
       if (!patch) { u.state = 'idle'; return; }
       u.mineAt = patch; u.state = 'tomine';
       requestPath(g, u, patch.x, patch.y);
@@ -1642,7 +1674,15 @@
         u.mineAt = null; u.state = 'idle'; u.order = null; return;
       }
       if (Math.abs(u.x - m.x) < 0.8 && Math.abs(u.y - m.y) < 0.8) { u.state = 'mining'; u.path = null; }
-      else advance(g, u, m.x, m.y, d.spd, 240);
+      else if (!advance(g, u, m.x, m.y, d.spd, 240) && u.noProg > 45) {
+        // No route to this seam — ore is walkable but the ground around it
+        // may not be, so a patch can be visible and still unreachable. Without
+        // this the harvester locks onto it and freezes for the rest of the
+        // match: it re-targeted correctly, then never arrived and never
+        // reconsidered. Blacklist it for THIS harvester and look elsewhere.
+        (u.noGo || (u.noGo = {}))[m.x + ',' + m.y] = 1;
+        u.mineAt = null; u.state = 'idle'; u.order = null; u.noProg = 0;
+      }
       return;
     }
 
@@ -1736,7 +1776,14 @@
     } else if (refresh && g.tick - u.repathAt > refresh) {
       requestPath(g, u, tx, ty); u.repathAt = g.tick;
     }
-    return moveAlong(g, u, spd);
+    // Track failure to make progress HERE. Callers used to test
+    // `g.tick - u.repathAt > N`, which can never become true: the lines above
+    // reset repathAt every 8 ticks precisely while a unit has no path, so the
+    // give-up branches that depended on it were dead code. noProg counts
+    // consecutive ticks of getting nowhere and is the honest signal.
+    var ok = moveAlong(g, u, spd);
+    if (ok) u.noProg = 0; else u.noProg = (u.noProg || 0) + 1;
+    return ok;
   }
 
   function tilePassable(g, fx, fy) {
@@ -1813,8 +1860,18 @@
     }
 
     if (u.order && u.order.t === 'attack' && ordered) {
-      advance(g, u, Math.round(ordered.kind === 'b' ? ordered.cx : ordered.x),
-                    Math.round(ordered.kind === 'b' ? ordered.cy : ordered.y), d.spd, 60);
+      if (!advance(g, u, Math.round(ordered.kind === 'b' ? ordered.cx : ordered.x),
+                         Math.round(ordered.kind === 'b' ? ordered.cy : ordered.y), d.spd, 60) &&
+          u.noProg > 90) {
+        // No route to the thing we were told to kill. Holding the order here
+        // is not patience, it is paralysis — the unit stands still for the
+        // rest of the match while its side wonders why the attack never
+        // landed. Measured: 33 of one side's infantry frozen inside its own
+        // base behind its own buildings, and the match a 16-minute stalemate
+        // because of it. Drop the order; findTarget() still lets it shoot
+        // whatever it can reach, and the AI hands it a new one next pass.
+        u.order = null; u.noProg = 0;
+      }
       return;
     }
 
@@ -2055,7 +2112,7 @@
       cfg: DIFF[diff] || DIFF.normal,
       posture: 'build', t: 0, lastStrat: 0, lastTac: 0, lastScout: 0,
       seen: { inf: 0, veh: 0, bld: 0 }, seenAt: 0,
-      army: [], attacking: false, rally: null, scout: null,
+      army: [], attacking: false, rally: null, scout: null, placeFail: 0,
       wave: [], waveN: 0, waveTarget: 0, scoutSent: 0, garrison: []
     };
   }
@@ -2196,6 +2253,22 @@
       else if (!hasBar) want = 'barracks';
       else if (!hasFac) want = 'factory';
       else if (nRef < cfg.expand && s.credits > 2000) want = 'refinery';
+      // A full lane and a fat bank is the AI saying "I have money I cannot
+      // spend". The answer a human reaches for is a SECOND factory, and the
+      // multi-building speed-up makes it pay twice. Without this the whole
+      // side is throughput-capped at one building's rate, and the side whose
+      // units build slower simply loses to arithmetic: measured mid-match,
+      // the Collective sat on 8000 credits at three minutes with the armies
+      // still level, and was a building down and half an army behind by six.
+      // ONE extra factory, and none for infantry. The saturating lane was
+      // always the vehicle one (a Mammoth is 18 build-units to a Conscript's
+      // 3), and each extra production building doubles army growth on a
+      // 64-tile map: measured across capped variants, 3 factories tripled the
+      // fielded army and the matches stopped resolving — 1 of 6 decided, with
+      // a quarter of both armies jammed in their own bases. Two is the point
+      // where the money gets spent and the map still has room to walk.
+      else if (s.queues.v.list.length >= 2 && s.credits > 2200 &&
+               countBld(g, me, 'factory') < 2) want = 'factory';
       else if (countBld(g, me, def) < (ai.posture === 'defend' ? 4 : 2) &&
                s.credits > (ai.posture === 'defend' ? 700 : 1600)) want = def;
       if (want && canBuild(g, me, want, true)) enqueue(g, me, want, 'b');
@@ -2226,6 +2299,18 @@
     }
   }
 
+  // How boxed-in a footprint would be: blocked tiles in the ring around it.
+  function crowding(g, gx, gy, d) {
+    var n = 0;
+    for (var y = gy - 1; y <= gy + d.gh; y++) {
+      for (var x = gx - 1; x <= gx + d.gw; x++) {
+        if (x >= gx && x < gx + d.gw && y >= gy && y < gy + d.gh) continue;
+        if (x < 0 || y < 0 || x >= MAP || y >= MAP || blocked(g, x, y)) n++;
+      }
+    }
+    return n;
+  }
+
   function aiPlace(g, ai, me, foe) {
     var s = g.side[me];
     var key = s.queues.b.ready;
@@ -2243,6 +2328,14 @@
         if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
         var gx = Math.round(home.x + ox), gy = Math.round(home.y + oy);
         if (!canPlace(g, me, key, gx, gy)) continue;
+        // Packing structures shoulder to shoulder walls the AI's own army
+        // inside its own base — measured: 33 of one side's infantry frozen
+        // behind its own buildings, and the match a stalemate because the
+        // attack could never leave home. Half the ring around a footprint
+        // must stay open. This is a hard rule, not a preference: a preference
+        // still seals the base once the good tiles are gone.
+        var ring = 2 * (d.gw + 2) + 2 * d.gh;
+        if (crowding(g, gx, gy, d) > ring * 0.5) continue;
         var dd = (gx - aim.x) * (gx - aim.x) + (gy - aim.y) * (gy - aim.y);
         // Refineries want to be near ore, not near the middle of the base.
         if (key === 'refinery') {
@@ -2260,6 +2353,15 @@
         var sp = freeTileNear(g, best.x, best.y + d.gh + 1);
         if (sp) spawnUnit(g, 'harvester', me, sp.x, sp.y);
       }
+      ai.placeFail = 0;
+    } else if (++ai.placeFail > 8) {
+      // Nowhere to put it. A ready building blocks the WHOLE structure lane
+      // (`aiProduce` only queues when `!queues.b.ready`), so a base that has
+      // run out of room would stop building anything at all — for the rest of
+      // the match. Give the credits back and let the ladder pick again; by
+      // then something may have died, or it will choose a smaller footprint.
+      cancelLast(g, me, 'b', key);
+      ai.placeFail = 0;
     }
   }
 
