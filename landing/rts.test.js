@@ -33,6 +33,7 @@ function stubCtx() {
     drawImage: noop, putImageData: noop,
     getImageData: () => ({ data: [] }),
     createRadialGradient: () => ({ addColorStop: noop }),
+    createLinearGradient: () => ({ addColorStop: noop }),
     measureText: () => ({ width: 10 }),
   };
 }
@@ -553,6 +554,13 @@ test("splash damage falls on neighbours but never on the attacker's own side", (
   // All three targets are Harvesters (dmg 0, armour veh) so none of them can
   // independently trade fire with each other — only the Lancer's splash can
   // move their hp, which isolates the one mechanic under test.
+  // Harvesters chase ore, and a target that drifts changes the separation the
+  // numeric falloff check below depends on. Strip the ore so all three stand
+  // still: the only thing that may move their hp is the Lancer.
+  for (let i = 0; i < g.terrain.length; i++) {
+    if (g.terrain[i] === 2) { g.terrain[i] = 0; g.ore[i] = 0; }
+  }
+
   const attacker = H.spawn("lancer", 0, 20, 20);
   const primary = H.spawn("harvester", 1, 21, 20);          // direct hit
   const bystander = H.spawn("harvester", 1, 21, 20.3);      // 0.3 tiles off — inside splash (0.4)
@@ -700,6 +708,60 @@ test("a production lane with no producing structure stalls instead of crashing o
 });
 
 // ----------------------------------------------------------------- ore //
+
+test("a loaded harvester always finds a way in to unload", () => {
+  // A refinery's centre tile is INSIDE the building, so it is impassable and
+  // A* returns nothing for it. The mining->toref hand-off aimed at a tile
+  // below the footprint, but advance()'s 240-tick path refresh re-aimed at the
+  // centre — so a harvester more than four seconds from home lost its good
+  // path on the first refresh and parked against the wall, full, for the rest
+  // of the match. From the outside that is "it mines for a few rounds and then
+  // just stops". Spawn it far enough out that the refresh must happen.
+  const H = W.__rtsTest;
+  const g = H.begin(4242, "normal");
+  const start = g.start[0];
+  const ore = H.findOre(start.x, start.y);
+  assert.ok(ore, "no ore near the start");
+
+  let ref = null;
+  for (let r = 2; r < 10 && !ref; r++) {
+    for (let oy = -r; oy <= r && !ref; oy++) {
+      for (let ox = -r; ox <= r && !ref; ox++) {
+        const bx = ore.x + ox, by = ore.y + oy;
+        if (bx < 1 || by < 1 || bx > T.MAP - 4 || by > T.MAP - 4) continue;
+        let clear = true;
+        for (let y = by; y < by + 2 && clear; y++) {
+          for (let x = bx; x < bx + 3; x++) {
+            if (g.terrain[y * T.MAP + x] !== 0) { clear = false; break; }
+          }
+        }
+        if (clear) ref = H.build("refinery", 0, bx, by);
+      }
+    }
+  }
+  assert.ok(ref, "could not seat a refinery near the ore");
+
+  // Far enough that the run home outlasts one path refresh.
+  let spot = null;
+  for (let r = 14; r < 26 && !spot; r++) {
+    for (const [dx, dy] of [[r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, -r]]) {
+      const x = Math.round(ref.cx) + dx, y = Math.round(ref.cy) + dy;
+      if (x > 1 && y > 1 && x < T.MAP - 2 && y < T.MAP - 2 &&
+          g.terrain[y * T.MAP + x] !== 1) { spot = { x, y }; break; }
+    }
+  }
+  assert.ok(spot, "nowhere far from the refinery to start from");
+
+  const h = H.spawn("harvester", 0, spot.x, spot.y);
+  h.cargo = 400; h.state = "toref"; h.homeRef = ref;
+  const before = H.credits(0);
+  H.step(3000);
+
+  assert.ok(H.credits(0) > before,
+    `a full harvester ${Math.round(h.cargo)}/500 never unloaded (state ${h.state}, ` +
+    `${h.path ? h.path.length - h.pi + " waypoints" : "no path"}, ` +
+    `${h.noProg} ticks without progress)`);
+});
 
 test("a harvester whose patch runs dry re-targets to another patch instead of idling forever", () => {
   // stepHarvester()'s idle branch always calls findOre() again — the only

@@ -1254,23 +1254,142 @@
     if (edge) outline(g, edge);
   }
 
-  // A box in the ground projection. Returns the roof's y so callers can stack.
-  function prism(g, cx, cy, hw, hh, lift, wall, roof, edge) {
-    g.fillStyle = shade(wall, 0.92);                       // lower-left (lit)
-    g.beginPath();
-    g.moveTo(cx - hw, cy); g.lineTo(cx - hw, cy - lift);
-    g.lineTo(cx, cy + hh - lift); g.lineTo(cx, cy + hh);
-    g.closePath(); g.fill(); if (edge) outline(g, edge);
-    g.fillStyle = shade(wall, 0.62);                       // lower-right (shade)
-    g.beginPath();
-    g.moveTo(cx + hw, cy); g.lineTo(cx + hw, cy - lift);
-    g.lineTo(cx, cy + hh - lift); g.lineTo(cx, cy + hh);
-    g.closePath(); g.fill(); if (edge) outline(g, edge);
-    if (roof) {
-      diamond(g, cx, cy - lift, hw * 2, hh * 2);
-      g.fillStyle = roof; g.fill(); if (edge) outline(g, edge);
+  function pathOf(g, pts) {
+    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+    g.closePath();
+  }
+
+  // A hand-painted RA2 surface is never one flat fill. A wall catches sky
+  // light along the parapet and darkens into the ground, carries horizontal
+  // panel seams with rivets on them, and picks up grime where it meets the
+  // apron. Flat fills were most of what still read as vector art once the
+  // massing was right.
+  function drawWall(g, F, cx, cy, hw, hh, lift, col, lf, edge, seams) {
+    var pts = [F(cx, cy, hw, hh, lift, 0, 0), F(cx, cy, hw, hh, lift, 1, 0),
+               F(cx, cy, hw, hh, lift, 1, 1), F(cx, cy, hw, hh, lift, 0, 1)];
+    var y0 = pts[0][1], y1 = pts[0][1];
+    for (var i = 1; i < 4; i++) { if (pts[i][1] < y0) y0 = pts[i][1]; if (pts[i][1] > y1) y1 = pts[i][1]; }
+    g.save(); pathOf(g, pts); g.clip();
+    var grd = g.createLinearGradient(0, y0, 0, y1 + 1);
+    grd.addColorStop(0, shade(col, lf * 1.16));
+    grd.addColorStop(0.50, shade(col, lf));
+    grd.addColorStop(1, shade(col, lf * 0.68));            // ambient occlusion at grade
+    g.fillStyle = grd; pathOf(g, pts); g.fill();
+    var sv = seams || [0.34, 0.68];
+    for (var k = 0; k < sv.length; k++) {                  // panel seams + rivets
+      var a = F(cx, cy, hw, hh, lift, 0, sv[k]), b = F(cx, cy, hw, hh, lift, 1, sv[k]);
+      g.strokeStyle = 'rgba(0,0,0,.26)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.10)';
+      g.beginPath(); g.moveTo(a[0], a[1] + 1); g.lineTo(b[0], b[1] + 1); g.stroke();
+      for (var r = 0.08; r < 0.99; r += 0.14) {
+        var q = F(cx, cy, hw, hh, lift, r, sv[k]);
+        g.fillStyle = 'rgba(255,255,255,.16)';
+        g.beginPath(); g.arc(q[0], q[1] - 1.4, 0.6, 0, 6.29); g.fill();
+      }
     }
-    return cy - lift;
+    g.restore();
+    pathOf(g, pts); if (edge) outline(g, edge);
+    return pts;
+  }
+
+  // A box in the ground projection. Returns the roof's y so callers can stack.
+  function prism(g, cx, cy, hw, hh, lift, wall, roof, edge, seams) {
+    drawWall(g, faceL, cx, cy, hw, hh, lift, wall, 0.94, edge, seams);
+    drawWall(g, faceR, cx, cy, hw, hh, lift, wall, 0.62, edge, seams);
+    var ry = cy - lift;
+    if (roof) {
+      diamond(g, cx, ry, hw * 2, hh * 2);
+      g.fillStyle = roof; g.fill(); if (edge) outline(g, edge);
+      g.save(); diamond(g, cx, ry, hw * 2, hh * 2); g.clip();
+      g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1;   // roof panel grid
+      for (var t = -0.7; t <= 0.71; t += 0.35) {
+        g.beginPath();
+        g.moveTo(cx + t * hw - hw, ry + t * hh); g.lineTo(cx + t * hw + hw, ry + t * hh); g.stroke();
+        g.beginPath();
+        g.moveTo(cx - t * hw - hw, ry - t * hh); g.lineTo(cx - t * hw + hw, ry - t * hh); g.stroke();
+      }
+      g.restore();
+      diamond(g, cx, ry, hw * 1.86, hh * 1.86);            // parapet lip
+      g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 1.4; g.stroke();
+      g.strokeStyle = 'rgba(0,0,0,.22)'; g.lineWidth = 1;
+      diamond(g, cx, ry + 1.6, hw * 1.86, hh * 1.86); g.stroke();
+    }
+    return ry;
+  }
+
+  // --- greebles: the small ironmongery that makes a volume read as a working
+  // --- installation instead of a shape. Cheap, and it is the whole difference.
+  function railing(g, ax, ay, bx, by, h, col) {
+    g.strokeStyle = col; g.lineWidth = 1;
+    var n = Math.max(2, Math.round(Math.hypot(bx - ax, by - ay) / 8));
+    for (var i = 0; i <= n; i++) {
+      var t = i / n, x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - h); g.stroke();
+    }
+    g.beginPath(); g.moveTo(ax, ay - h); g.lineTo(bx, by - h); g.stroke();
+    g.beginPath(); g.moveTo(ax, ay - h * 0.5); g.lineTo(bx, by - h * 0.5); g.stroke();
+  }
+
+  // Pipe run down a wall face, in that wall's own skew.
+  function pipeRun(g, F, cx, cy, hw, hh, lift, t, v0, v1, w, col) {
+    var a = F(cx, cy, hw, hh, lift, t, v0), b = F(cx, cy, hw, hh, lift, t, v1);
+    g.lineCap = 'round';
+    g.strokeStyle = shade(col, 0.55); g.lineWidth = w + 1.4;
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+    g.strokeStyle = shade(col, 1.05); g.lineWidth = w;
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = w * 0.30;
+    g.beginPath(); g.moveTo(a[0] - w * 0.28, a[1]); g.lineTo(b[0] - w * 0.28, b[1]); g.stroke();
+    for (var i = 1; i < 4; i++) {                          // pipe clamps
+      var q = F(cx, cy, hw, hh, lift, t, v0 + (v1 - v0) * i / 4);
+      g.strokeStyle = 'rgba(0,0,0,.42)'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(q[0] - w * 0.8, q[1]); g.lineTo(q[0] + w * 0.8, q[1]); g.stroke();
+    }
+  }
+
+  // Rust/grime streaking down from a vent or a seam — RA2 structures are
+  // filthy, and clean surfaces are a big part of what read as "toy".
+  function streak(g, F, cx, cy, hw, hh, lift, t, vTop, len, n) {
+    for (var i = 0; i < n; i++) {
+      var tt = t + (i - (n - 1) / 2) * 0.028;
+      var a = F(cx, cy, hw, hh, lift, tt, vTop), b = F(cx, cy, hw, hh, lift, tt, Math.max(0, vTop - len));
+      g.strokeStyle = 'rgba(60,44,26,' + (0.10 + 0.10 * (i % 2)) + ')';
+      g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+    }
+  }
+
+  function floodlight(g, x, y, dx, col) {
+    g.strokeStyle = '#5a6068'; g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - 9); g.stroke();
+    g.fillStyle = '#464c55';
+    g.beginPath(); g.roundRect(x - 2.6 + dx * 1.2, y - 12.5, 5.2, 4, 1.2); g.fill();
+    outline(g, '#23272c');
+    g.fillStyle = '#ffe9a8';
+    g.beginPath(); g.ellipse(x + dx * 2.6, y - 10.6, 1.5, 1.6, 0, 0, 6.29); g.fill();
+    g.fillStyle = 'rgba(255,233,168,.16)';
+    g.beginPath(); g.ellipse(x + dx * 5, y - 9.5, 6, 3.4, 0, 0, 6.29); g.fill();
+  }
+
+  function drums(g, x, y, n, col) {                        // fuel drums on the apron
+    for (var i = 0; i < n; i++) {
+      var dx2 = x + (i % 2) * 7 - i * 1.6, dy2 = y + Math.floor(i / 2) * 4;
+      cylinder(g, dx2, dy2, 3.2, 7, shade(col, 0.86), shade(col, 1.12), '#2f2a1e');
+      g.strokeStyle = 'rgba(0,0,0,.30)'; g.lineWidth = 0.8;
+      g.beginPath(); g.moveTo(dx2 - 3.2, dy2 - 4.6); g.lineTo(dx2 + 3.2, dy2 - 4.6); g.stroke();
+      g.beginPath(); g.moveTo(dx2 - 3.2, dy2 - 2.4); g.lineTo(dx2 + 3.2, dy2 - 2.4); g.stroke();
+    }
+  }
+
+  function crates(g, x, y, n, col) {
+    for (var i = 0; i < n; i++) {
+      var cxx = x + i * 9 - i * i * 0.5, cyy = y - (i % 2) * 3;
+      isoBox(g, cxx, cyy, 8, 8, 6, 0, col, '#3a3226');
+      g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 0.8;
+      g.beginPath(); g.moveTo(cxx - 3.4, cyy - 5.5); g.lineTo(cxx + 3.4, cyy - 3.5); g.stroke();
+    }
   }
 
   // Pitched roof over a footprint diamond. The ridge runs left-corner to
@@ -1472,6 +1591,13 @@
       g.fillStyle = '#ff5b63';
       g.beginPath(); g.arc(tx + thw * 0.5, r1 - 18, 2.4, 0, 6.29); g.fill();
 
+      railing(g, cx - hw + 3, r0 + 2, cx - hw * 0.16, r0 + hh * 0.84, 5, 'rgba(198,206,214,.50)');
+      floodlight(g, cx - hw * 0.92, r0 + hh * 0.10, -1, col);
+      floodlight(g, cx + hw * 0.24, r0 + hh * 0.90, 1, col);
+      crates(g, cx - hw * 0.52, baseY + fh * 0.62, 3, '#7d6a44');
+      drums(g, cx + hw * 0.62, baseY + fh * 0.52, 4, '#5f6a4a');
+      streak(g, faceR, cx, baseY, hw, hh, 20, 0.30, 0.80, 0.70, 4);
+
     } else if (key === 'power') {
       // Power Plant: turbine hall + two waisted cooling towers + steam.
       var hw = fw * 0.95, hh = fh * 0.95;
@@ -1498,6 +1624,21 @@
       g.lineTo(bx0 - bs * 0.35, by0 + bs * 2.0); g.lineTo(bx0 + bs * 0.25, by0 + bs * 0.9);
       g.lineTo(bx0 - bs * 0.55, by0 + bs * 0.9); g.closePath(); g.fill();
       outline(g, '#7a5c00');
+
+      pipeRun(g, faceR, cx, baseY, hw, hh, 22, 0.24, 0.02, 0.86, 3.2, '#7e8a6a');
+      pipeRun(g, faceR, cx, baseY, hw, hh, 22, 0.34, 0.02, 0.86, 2.4, '#8a7a5e');
+      streak(g, faceL, cx, baseY, hw, hh, 22, 0.28, 0.62, 0.55, 5);
+      railing(g, cx - hw + 3, r0 + 2, cx - hw * 0.10, r0 + hh * 0.90, 4.5, 'rgba(198,206,214,.45)');
+      isoBox(g, cx - hw * 0.06, r0 + hh * 0.52, 12, 9, 6, 0, shade(STEEL, 0.85), dark);   // transformer
+      g.strokeStyle = '#3d424a'; g.lineWidth = 1;
+      for (var ti = -1; ti <= 1; ti++) {                   // insulators
+        g.beginPath();
+        g.moveTo(cx - hw * 0.06 + ti * 3.4, r0 + hh * 0.52 - 6);
+        g.lineTo(cx - hw * 0.06 + ti * 3.4, r0 + hh * 0.52 - 10); g.stroke();
+        g.fillStyle = '#b8a67e';
+        g.beginPath(); g.ellipse(cx - hw * 0.06 + ti * 3.4, r0 + hh * 0.52 - 10.5, 1.5, 1.0, 0, 0, 6.29); g.fill();
+      }
+      drums(g, cx - hw * 0.60, baseY + fh * 0.58, 4, '#6a6350');
 
     } else if (key === 'refinery') {
       // Refinery: a tall boxy processing block plus a low hazard-striped
@@ -1549,6 +1690,20 @@
         g.fill();
       }
 
+      pipeRun(g, faceR, sx, sy, hw, hh, 44, 0.26, 0.02, 0.90, 3.4, '#7e8a6a');
+      pipeRun(g, faceR, sx, sy, hw, hh, 44, 0.38, 0.02, 0.78, 2.6, '#9a6f4a');
+      pipeRun(g, faceL, sx, sy, hw, hh, 44, 0.88, 0.02, 0.84, 3.0, '#7a8390');
+      streak(g, faceL, sx, sy, hw, hh, 44, 0.50, 0.80, 0.72, 6);
+      railing(g, sx - hw + 2, r0 + 1, sx - hw * 0.08, r0 + hh * 0.90, 4.5, 'rgba(198,206,214,.45)');
+      g.strokeStyle = 'rgba(210,218,226,.45)'; g.lineWidth = 1;   // access ladder
+      for (var li = 0; li < 9; li++) {
+        var ly = sy + hh * 0.30 - li * 4.4;
+        g.beginPath(); g.moveTo(sx + hw * 0.52, ly); g.lineTo(sx + hw * 0.62, ly); g.stroke();
+      }
+      g.beginPath(); g.moveTo(sx + hw * 0.52, sy + hh * 0.30); g.lineTo(sx + hw * 0.52, sy + hh * 0.30 - 36); g.stroke();
+      g.beginPath(); g.moveTo(sx + hw * 0.62, sy + hh * 0.30); g.lineTo(sx + hw * 0.62, sy + hh * 0.30 - 36); g.stroke();
+      drums(g, cx - fw * 0.66, baseY + fh * 0.34, 4, '#8a6a34');
+
     } else if (key === 'barracks') {
       // Barracks: corrugated Nissen hut on a low base, with a lit doorway in
       // the end wall, sandbags and a flag. The flag is the fastest ownership
@@ -1581,6 +1736,13 @@
       g.moveTo(fxp, fyp - 44); g.lineTo(fxp + 18, fyp - 39.5); g.lineTo(fxp + 14.5, fyp - 35.5);
       g.lineTo(fxp + 18, fyp - 31.5); g.lineTo(fxp, fyp - 29.5); g.closePath(); g.fill();
       outline(g, shade(col, 0.5));
+
+      cylinder(g, cx - hw * 0.30, r0 - hh * 0.86, 3.4, 11, '#5d626a', '#767c85', dark);   // stove flue
+      steam(g, cx - hw * 0.30, r0 - hh * 0.86 - 12, 4.5, 2);
+      g.fillStyle = shade(CONC, 0.70);                     // entry step
+      diamond(g, cx + hw * 0.52, r0 + hh * 0.34, 15, 8); g.fill(); outline(g, dark);
+      crates(g, cx - hw * 0.10, baseY + fh * 0.66, 2, '#6e6448');
+      floodlight(g, cx + hw * 0.74, r0 + hh * 0.14, 1, col);
 
     } else if (key === 'factory') {
       // War Factory: a long hangar, a huge chevroned roller door, a rooftop
@@ -1621,6 +1783,22 @@
         steam(g, stx, sty - 22 - stI * 5, 5, 2);
       }
 
+      var dl = faceL(cx, fy2, hw, hh, fl, 0.12, 0.72), dr = faceL(cx, fy2, hw, hh, fl, 0.88, 0.72);
+      floodlight(g, dl[0], dl[1], -1, col);                // lamps flanking the bay door
+      floodlight(g, dr[0], dr[1], 1, col);
+      pipeRun(g, faceR, cx, fy2, hw, hh, fl, 0.06, 0.02, 0.74, 3.4, '#7e8a6a');
+      streak(g, faceR, cx, fy2, hw, hh, fl, 0.22, 0.24, 0.22, 5);
+      streak(g, faceR, cx, fy2, hw, hh, fl, 0.48, 0.24, 0.22, 5);
+      railing(g, cx + hw * 0.10, r0 - hh * 0.44, cx + hw, r0 - 2, 4.5, 'rgba(198,206,214,.42)');
+      drums(g, cx - hw * 0.86, baseY + fh * 0.44, 4, '#6a6350');
+      crates(g, cx + hw * 0.30, baseY + fh * 0.72, 3, '#7d6a44');
+      g.strokeStyle = 'rgba(30,34,38,.28)'; g.lineWidth = 3.5;   // tyre tracks out of the bay
+      for (var tt2 = -1; tt2 <= 1; tt2 += 2) {
+        g.beginPath();
+        g.moveTo(cx - hw * 0.34 + tt2 * 5, fy2 + hh * 0.52);
+        g.lineTo(cx - fw * 0.62 + tt2 * 5, baseY + fh * 0.86); g.stroke();
+      }
+
     } else if (key === 'sentry') {
       // Sentry Gun: a squat bunker with a sandbag skirt and twin cannon.
       var hw = fw * 0.74, hh = fh * 0.74;
@@ -1650,6 +1828,15 @@
       g.beginPath(); g.arc(cx - hw * 0.34, ty2 - 5, 2, 0, 6.29); g.fill();
       g.fillStyle = '#c9cdd4';                             // ammo drum
       g.beginPath(); g.roundRect(cx - hw * 0.66, ty2 - 4, 7.5, 6.5, 2); g.fill(); outline(g, dark);
+
+      g.fillStyle = '#4a4f57';                             // ammo locker + power feed
+      g.beginPath(); g.roundRect(cx - hw * 0.86, baseY + fh * 0.30, 9, 6, 1.5); g.fill();
+      outline(g, dark);
+      g.strokeStyle = 'rgba(20,24,28,.55)'; g.lineWidth = 1.4;
+      g.beginPath();
+      g.moveTo(cx - hw * 0.80, baseY + fh * 0.30);
+      g.quadraticCurveTo(cx - hw * 0.40, baseY + fh * 0.44, cx - hw * 0.10, baseY + fh * 0.18);
+      g.stroke();
 
     } else if (key === 'tesla') {
       // Tesla Coil: shrinking coil rings on a plinth under a charged orb. No
@@ -1685,6 +1872,19 @@
         g.lineTo(cx + a2[0], orbY + a2[1]); g.lineTo(cx + a2[2], orbY + a2[3]);
         g.lineTo(cx + a2[4], orbY + a2[5]); g.stroke();
       }
+      g.fillStyle = '#4a4f57';                             // capacitor bank + cable
+      g.beginPath(); g.roundRect(cx + hw * 0.62, baseY + fh * 0.30, 10, 7, 1.5); g.fill();
+      outline(g, dark);
+      g.fillStyle = '#b8a67e';
+      for (var ci = -1; ci <= 1; ci++) {
+        g.beginPath(); g.ellipse(cx + hw * 0.62 + 5 + ci * 3, baseY + fh * 0.30 - 1, 1.4, 0.9, 0, 0, 6.29); g.fill();
+      }
+      g.strokeStyle = 'rgba(20,24,28,.55)'; g.lineWidth = 1.4;
+      g.beginPath();
+      g.moveTo(cx + hw * 0.68, baseY + fh * 0.30);
+      g.quadraticCurveTo(cx + hw * 0.30, baseY + fh * 0.46, cx + hw * 0.06, baseY + fh * 0.20);
+      g.stroke();
+
     }
     return { s: s, ax: cx, ay: baseY };
   }
@@ -1767,6 +1967,7 @@
       face: (gx + gy) & 7, cool: 0, target: null, order: null,     // order: {t:'move'|'attack'|'harvest', x,y,id}
       path: null, pi: 0, repath: 0, repathAt: -999, stuck: 0, lastx: gx, lasty: gy,
       cargo: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
+      bestD: 1e9, stallAt: 0,
       sel: false, aggro: null, guardX: gx, guardY: gy
     };
     g.units.push(u);
@@ -2047,14 +2248,21 @@
   // --------------------------------------------------------------------- //
   //  Ore + harvesting
   // --------------------------------------------------------------------- //
-  function findOre(g, fromX, fromY, maxR, skip) {
+  // `skip` maps "x,y" to the tick it was skipped at, so an entry expires
+  // instead of being a life sentence. A harvester that permanently blacklists
+  // its own map ends up idle with ore all around it.
+  var NOGO_TTL = 60 * 25;
+  function findOre(g, fromX, fromY, maxR, skip, now) {
     var best = null, bd = 1e9;
     var r = maxR || 30;
     for (var y = Math.max(0, (fromY - r) | 0); y < Math.min(MAP, fromY + r); y++) {
       for (var x = Math.max(0, (fromX - r) | 0); x < Math.min(MAP, fromX + r); x++) {
         var i = idx(x, y);
         if (g.terrain[i] !== T_ORE || g.ore[i] <= 1) continue;
-        if (skip && skip[x + ',' + y]) continue;
+        if (skip) {
+          var sk = skip[x + ',' + y];
+          if (sk != null && (now == null || now - sk < NOGO_TTL)) continue;
+        }
         var d = (x - fromX) * (x - fromX) + (y - fromY) * (y - fromY);
         if (d < bd) { bd = d; best = { x: x, y: y }; }
       }
@@ -2073,14 +2281,62 @@
     return best;
   }
 
+  // A refinery's centre tile is INSIDE the building, so it is impassable and
+  // a path aimed there comes back empty. The mining->toref hand-off already
+  // aimed at a tile below the footprint, but advance()'s 240-tick refresh
+  // re-aimed at the centre — so the first delivery or two worked off the good
+  // path and then the harvester wedged against the wall, full, for the rest of
+  // the match. That is the "mines for a few rounds then just stops" bug.
+  function refDock(g, b) {
+    var cx = Math.round(b.cx), cy = Math.round(b.cy);
+    var ring = [
+      [cx, Math.round(b.cy + b.gh / 2 + 1)], [cx, Math.round(b.cy - b.gh / 2 - 1)],
+      [Math.round(b.cx + b.gw / 2 + 1), cy], [Math.round(b.cx - b.gw / 2 - 1), cy],
+      [cx + 1, Math.round(b.cy + b.gh / 2 + 1)], [cx - 1, Math.round(b.cy + b.gh / 2 + 1)]
+    ];
+    for (var i = 0; i < ring.length; i++) {
+      var x = ring[i][0], y = ring[i][1];
+      if (inMap(x, y) && !blocked(g, x, y)) return { x: x, y: y };
+    }
+    return { x: cx, y: Math.round(b.cy + b.gh / 2 + 1) };
+  }
+
+  // Unloading happens at the dock, not at the centre pixel: reach has to
+  // clear the footprint or a harvester parked against the wall never counts
+  // as having arrived.
+  function atRefinery(u, b) { return dist(u, b) < Math.max(b.gw, b.gh) / 2 + 1.9; }
+
   function stepHarvester(g, u) {
     var d = UNITS.harvester;
 
     if (u.state === 'idle' || (u.state === 'tomine' && !u.mineAt)) {
-      var patch = u.order && u.order.t === 'harvest'
-        ? { x: u.order.x, y: u.order.y } : findOre(g, u.x, u.y, 0, u.noGo);
-      if (!patch) { u.state = 'idle'; return; }
+      var patch;
+      if (u.order && u.order.t === 'harvest') patch = { x: u.order.x, y: u.order.y };
+      else {
+        // Every harvester used to take the NEAREST seam, so a whole fleet
+        // converged on one tile. Separation then pushed them apart faster
+        // than they could close the last tile: all of them sat beside the ore
+        // in 'tomine' forever, never arriving, and never giving up either —
+        // moveAlong still reports progress while a path exists, so noProg
+        // stays 0 and the unreachable-seam escape never fires. Income simply
+        // stopped. Claiming a seam is what stops the pile-up.
+        var taken = {};
+        for (var ti = 0; ti < g.units.length; ti++) {
+          var o = g.units[ti];
+          if (o !== u && !o.dead && o.p === u.p && o.type === 'harvester' && o.mineAt)
+            taken[o.mineAt.x + ',' + o.mineAt.y] = g.tick;
+        }
+        if (u.noGo) for (var nk in u.noGo) if (taken[nk] == null) taken[nk] = u.noGo[nk];
+        patch = findOre(g, u.x, u.y, 0, taken, g.tick)
+             || findOre(g, u.x, u.y, 0, u.noGo, g.tick);
+      }
+      if (!patch) {
+        // Nothing left even ignoring our own blacklist: forget it and retry
+        // next tick rather than sitting idle beside a field of ore.
+        u.noGo = null; u.state = 'idle'; return;
+      }
       u.mineAt = patch; u.state = 'tomine';
+      u.noProg = 0; u.bestD = 1e9; u.stallAt = g.tick;
       requestPath(g, u, patch.x, patch.y);
       return;
     }
@@ -2090,15 +2346,28 @@
       if (g.terrain[idx(m.x, m.y)] !== T_ORE || g.ore[idx(m.x, m.y)] <= 1) {
         u.mineAt = null; u.state = 'idle'; u.order = null; return;
       }
-      if (Math.abs(u.x - m.x) < 0.8 && Math.abs(u.y - m.y) < 0.8) { u.state = 'mining'; u.path = null; }
-      else if (!advance(g, u, m.x, m.y, d.spd, 240) && u.noProg > 45) {
+      var ddx = u.x - m.x, ddy = u.y - m.y, d2 = ddx * ddx + ddy * ddy;
+      // Radial, not per-axis: separation can hold a harvester 0.85 off the
+      // seam on one axis indefinitely, and a per-axis test never passes.
+      if (d2 < 1.44) { u.state = 'mining'; u.path = null; u.noProg = 0; }
+      else if (d2 < (u.bestD == null ? 1e9 : u.bestD) - 0.01) {
+        u.bestD = d2; u.stallAt = g.tick;                // still closing
+        advance(g, u, m.x, m.y, d.spd, 240);
+      } else if (g.tick - (u.stallAt == null ? g.tick : u.stallAt) > 420) {
+        // Has a route and is walking it, but has not got any closer for seven
+        // seconds — contested seam. Step off it for a while and take another.
+        (u.noGo || (u.noGo = {}))[m.x + ',' + m.y] = g.tick;
+        u.mineAt = null; u.state = 'idle'; u.order = null;
+        u.noProg = 0; u.bestD = 1e9; u.stallAt = g.tick;
+      } else if (!advance(g, u, m.x, m.y, d.spd, 240) && u.noProg > 45) {
         // No route to this seam — ore is walkable but the ground around it
         // may not be, so a patch can be visible and still unreachable. Without
         // this the harvester locks onto it and freezes for the rest of the
         // match: it re-targeted correctly, then never arrived and never
         // reconsidered. Blacklist it for THIS harvester and look elsewhere.
-        (u.noGo || (u.noGo = {}))[m.x + ',' + m.y] = 1;
-        u.mineAt = null; u.state = 'idle'; u.order = null; u.noProg = 0;
+        (u.noGo || (u.noGo = {}))[m.x + ',' + m.y] = g.tick;
+        u.mineAt = null; u.state = 'idle'; u.order = null;
+        u.noProg = 0; u.bestD = 1e9; u.stallAt = g.tick;
       }
       return;
     }
@@ -2109,7 +2378,7 @@
     if (g.tick - u.fleeAt < 240 && (u.state === 'mining' || u.state === 'tomine')) {
       var safe = findRefinery(g, u.p, u.x, u.y);
       if (safe) {
-        u.homeRef = safe; u.state = 'toref'; u.path = null; u.repathAt = -999;
+        u.homeRef = safe; u.state = 'toref'; u.path = null; u.repathAt = -999; u.noProg = 0;
         return;
       }
     }
@@ -2123,8 +2392,9 @@
         if (u.cargo > 20) {
           var ref = findRefinery(g, u.p, u.x, u.y);
           if (ref) {
-            u.homeRef = ref; u.state = 'toref';
-            requestPath(g, u, Math.round(ref.cx), Math.round(ref.cy + ref.gh / 2 + 1));
+            var dock = refDock(g, ref);
+            u.homeRef = ref; u.state = 'toref'; u.noProg = 0; u.stallAt = g.tick;
+            requestPath(g, u, dock.x, dock.y);
           } else u.state = 'idle';
         } else u.state = 'idle';
       }
@@ -2136,15 +2406,30 @@
       if (!ref2 || ref2.dead) {
         var alt = findRefinery(g, u.p, u.x, u.y);
         if (!alt) { u.state = 'idle'; return; }
-        u.homeRef = alt; requestPath(g, u, Math.round(alt.cx), Math.round(alt.cy));
+        var ad = refDock(g, alt);
+        u.homeRef = alt; u.path = null; u.repathAt = -999;
+        u.noProg = 0; u.stallAt = g.tick;
+        requestPath(g, u, ad.x, ad.y);
         return;
       }
-      if (dist(u, ref2) < 2.2) {
+      if (atRefinery(u, ref2)) {
         g.side[u.p].credits += Math.round(u.cargo);
         if (u.p === P_HUMAN && !headless) creditPop(Math.round(u.cargo));
-        u.cargo = 0; u.state = 'idle'; u.path = null;
+        u.cargo = 0; u.state = 'idle'; u.path = null; u.noProg = 0; u.stallAt = g.tick;
         sfx('cash');
-      } else advance(g, u, Math.round(ref2.cx), Math.round(ref2.cy), d.spd, 240);
+        return;
+      }
+      var dk = refDock(g, ref2);
+      advance(g, u, dk.x, dk.y, d.spd, 240);
+      // Nothing in this branch used to be able to give up, so a harvester
+      // that could not reach its dock simply stopped being part of the game.
+      // Re-choosing the refinery re-runs the dock search against current
+      // ground, which is what clears a blocked approach.
+      if (u.noProg > 180 || g.tick - (u.stallAt || 0) > 900) {
+        var re = findRefinery(g, u.p, u.x, u.y);
+        u.homeRef = re || ref2; u.path = null; u.repathAt = -999;
+        u.noProg = 0; u.stallAt = g.tick;
+      }
       return;
     }
   }
