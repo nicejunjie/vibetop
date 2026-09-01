@@ -4095,6 +4095,19 @@
     return s;
   }
 
+  // First row of a baked canvas with any opaque pixel (0 if unreadable, e.g.
+  // the headless test stub).
+  function artTop(s) {
+    try {
+      var d = s.g.getImageData(0, 0, s.w, s.h).data;
+      if (!d || d.length < s.w * s.h * 4) return 0;
+      for (var y = 0; y < s.h; y++)
+        for (var x = 3; x < s.w * 4; x += 4)
+          if (d[y * s.w * 4 + x] > 24) return y;
+    } catch (e) {}
+    return 0;
+  }
+
   function bakeAll() {
     // Ground was three near-identical near-black slates separated by a DARKER
     // grid line, which is what made a battlefield read as a board game: the
@@ -4134,7 +4147,15 @@
     SPR.bld = [{ dir: {}, col: {} }, { dir: {}, col: {} }];
     for (var q = 0; q < 2; q++)
       for (var fk in FACTIONS)
-        for (var k in BLDS) SPR.bld[q][fk][k] = bakeBuilding(k, COL[q], fk);
+        for (var k in BLDS) {
+          var A = bakeBuilding(k, COL[q], fk);
+          // Rows above the footprint that the art actually reaches, so the HP
+          // bar and the unpowered glyph sit above the sprite rather than being
+          // painted across a stack or a statue (they used to be placed off the
+          // footprint size alone, which the taller RA2 shapes outgrew).
+          A.rise = A.ay - artTop(A.s);
+          SPR.bld[q][fk][k] = A;
+        }
   }
 
   // --------------------------------------------------------------------- //
@@ -6351,17 +6372,19 @@
 
     if (b.sel) {
       ctx.strokeStyle = '#8ad0ff'; ctx.lineWidth = 1.6;
-      diamond(ctx, px, py, (b.gw + b.gh) * TW / 4, (b.gw + b.gh) * TH / 4);
+      // diamond() takes the FULL width; the iso footprint is (gw+gh)*TW/2.
+      diamond(ctx, px, py, (b.gw + b.gh) * TW / 2, (b.gw + b.gh) * TH / 2);
       ctx.stroke();
     }
     ctx.drawImage(art.s.c, px - art.ax, py - art.ay, art.s.w, art.s.h);
-    if (b.hp < b.maxhp) hpBar(px, py - (b.gw + b.gh) * 8 - 22, 30, b.hp / b.maxhp);
+    var topY = py - Math.max(art.rise || 0, (b.gw + b.gh) * 8) - 6;
+    if (b.hp < b.maxhp) hpBar(px, topY - 4, 30, b.hp / b.maxhp);
 
     // Unpowered structures read as dead metal, not "maybe fine".
     if (BLDS[b.type].power < 0 && !powered(G, b.p)) {
       ctx.fillStyle = 'rgba(229,100,108,.85)';
       ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText('⚡', px, py - (b.gw + b.gh) * 8 - 26);
+      ctx.fillText('⚡', px, topY - 8);
       ctx.textAlign = 'left';
     }
   }
