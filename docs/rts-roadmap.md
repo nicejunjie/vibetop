@@ -60,18 +60,18 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 - ☑ v1.19.198 Mouse-wheel zoom about the cursor
 - ☑ v1.19.199 Touch: tap selects own / orders at, drag pans, pinch zooms; desktop-only gate removed
 - ☐ RA2 sidebar behaviour: build queue tabs per structure type with icons, repeat/hold, "cannot build" reasons
-- ☐ Unit veterancy chevrons; kill counter on hover
+- ☑ v1.19.199 Veterancy: 3 kills veteran (+25% damage, -15% damage taken), 6 elite (+50%/-30%, self-heal); gold chevrons; kills and rank on the hover card
 - ☐ Sell / repair modes on the sidebar
-- ☐ Waypoint queueing (shift-click)
+- ☑ v1.19.199 Waypoints: shift-right-click queues stops; dashed numbered route shown on the selected unit
 - ☑ v1.19.199 S stop, G guard, X scatter (deploy: no deployable unit yet)
 
 ### Simulation and AI
 - ☑ v1.19.198 Harvester obeys move orders and holds; AI spaces its base
 - ☑ v1.19.199 Shroud: map starts black, stays revealed once seen; hidden enemies neither drawn nor hoverable (RA2 without fog)
-- ☐ Ore regrowth from gems/drills? (RA2: ore grows slowly; gems don't)
+- ☑ v1.19.199 Ore regrows slowly on existing seams (2/s per tile, never spreads)
 - ☐ Superweapons / tech buildings — decide the scope against RA2's tech tree
 - ☐ AI: attacks harvesters, builds defences toward the enemy, rebuilds destroyed structures
 
 ### Audio
 - ☑ v1.19.199 EVA via speech synthesis: unit ready, construction complete, low power, base/miner under attack, unit/structure lost, insufficient funds, primary building selected
-- ☐ Per-unit acknowledgement voices on order (RA2 units talk back)
+- ☑ v1.19.199 Units acknowledge orders with per-type lines in a faction voice (speech synthesis, throttled)

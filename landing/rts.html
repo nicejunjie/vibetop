@@ -5125,6 +5125,7 @@
       path: null, pi: 0, repath: 0, repathAt: -999, stuck: 0, lastx: gx, lasty: gy,
       cargo: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
       bestD: 1e9, stallAt: 0, holdUntil: 0, movedAt: -99, tface: null, aimAt: 0,
+      kills: 0, rank: 0, wp: null,                                   // veterancy: 3 kills veteran, 6 elite
       sel: false, aggro: null, guardX: gx, guardY: gy
     };
     g.units.push(u);
@@ -5364,6 +5365,7 @@
   function damage(g, src, tgt, amount) {
     var spec = src.kind === 'b' ? BLDS[src.type] : UNITS[src.type];
     var mult = spec.vs ? (spec.vs[armourOf(tgt)] || 1) : 1;
+    if (tgt.kind === 'u' && tgt.rank) mult *= 1 - 0.15 * tgt.rank;   // veterans are tougher
     tgt.hp -= amount * mult;
     if (tgt.kind === 'u' && tgt.type === 'harvester') tgt.fleeAt = g.tick;
     if (tgt.p === P_HUMAN && src.p !== P_HUMAN) {
@@ -5373,6 +5375,11 @@
     if (tgt.hp <= 0 && !tgt.dead) {
       g.side[src.p].killed++;
       g.side[tgt.p].lost++;
+      if (src.kind === 'u') {
+        src.kills = (src.kills || 0) + 1;
+        var nr = src.kills >= 6 ? 2 : (src.kills >= 3 ? 1 : 0);
+        if (nr > (src.rank || 0)) { src.rank = nr; if (src.p === P_HUMAN) { sfx('promote'); eva(nr === 2 ? 'Unit promoted to elite' : 'Unit promoted', 3000); } }
+      }
       if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
       if (tgt.kind === 'b') { killBld(g, tgt); boom(g, tgt.cx, tgt.cy, 26); sfx('boom'); }
       else { tgt.dead = true; boom(g, tgt.x, tgt.y, 12); sfx('die'); }
@@ -5398,7 +5405,7 @@
       });
     }
     sfx(src.type === 'rifle' ? 'shot' : 'cannon');
-    damage(g, src, tgt, spec.dmg);
+    damage(g, src, tgt, spec.dmg * (1 + 0.25 * (src.rank || 0)));
     if (spec.splash > 0) {
       var tx = tgt.kind === 'b' ? tgt.cx : tgt.x, ty = tgt.kind === 'b' ? tgt.cy : tgt.y;
       near(tx, ty, spec.splash + 1, function (o) {
@@ -5483,6 +5490,7 @@
       if (mdx * mdx + mdy * mdy < 1.4) {
         u.order = null; u.path = null; u.state = 'idle'; u.mineAt = null;
         u.guardX = u.x; u.guardY = u.y; u.holdUntil = g.tick + 60 * 20;
+        nextWaypoint(g, u);
       } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
                  g.tick - u.repathAt > 90) {
         u.order = null; u.state = 'idle'; u.holdUntil = g.tick + 60 * 20;   // unreachable: stop here
@@ -5693,6 +5701,7 @@
   function stepUnit(g, u) {
     var d = UNITS[u.type];
     if (u.cool > 0) u.cool--;
+    if (u.rank === 2 && u.hp < u.maxhp && (g.tick % 30) === 0) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * 0.005);   // elite self-heal
     // A turret swings back to the hull's line 1.5 s after it last aimed.
     if (u.tface != null && g.tick - (u.aimAt || 0) > 90) u.tface = null;
 
@@ -5715,6 +5724,7 @@
       var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
       if (mdx * mdx + mdy * mdy < 1.4) {                 // arrived
         u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
+        nextWaypoint(g, u);
       } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
                  g.tick - u.repathAt > 90) {
         // Path ran out short and a fresh one changed nothing: unreachable.
@@ -6484,6 +6494,11 @@
     if (g.ai) stepAI(g, g.ai, P_AI, P_HUMAN);
     if (g.ai2) stepAI(g, g.ai2, P_HUMAN, P_AI);
     if ((g.tick % 6) === 1 || g.tick <= 2) revealFor(g, P_HUMAN);
+    if ((g.tick % 60) === 30) {
+      // Ore regrows slowly on existing seams (RA2's "ore grows"), never spreads.
+      var ore = g.ore, ter = g.terrain;
+      for (var oi = 0; oi < ore.length; oi++) if (ter[oi] === T_ORE && ore[oi] < 900) ore[oi] = Math.min(900, ore[oi] + 2);
+    }
 
     // effects
     for (i = g.shots.length - 1; i >= 0; i--) if (++g.shots[i].t > g.shots[i].life) g.shots.splice(i, 1);
@@ -6656,6 +6671,37 @@
     } catch (e) {}
   }
 
+  // Units talk back when ordered, like RA2's acknowledgement lines. One line
+  // per order, throttled, in a faction voice (Collective lower and slower).
+  var ACK = {
+    rifle:     { move: ['Yes sir', 'Moving out', 'On my way'], attack: ['Engaging', 'Weapons hot'], harvest: [] },
+    rocket:    { move: ['Affirmative', 'Moving'], attack: ['Target acquired', 'Firing rockets'], harvest: [] },
+    lancer:    { move: ['Grizzly rolling', 'Copy that'], attack: ['Engaging target', 'Fire at will'], harvest: [] },
+    spectre:   { move: ['Prism tank moving', 'Acknowledged'], attack: ['Illuminating target', 'Charging prism'], harvest: [] },
+    conscript: { move: ['Da', 'For the Union', 'Moving comrade'], attack: ['Attack', 'For the motherland'], harvest: [] },
+    mammoth:   { move: ['Apocalypse rolling out', 'Understood'], attack: ['Crushing them', 'Target sighted'], harvest: [] },
+    harvester: { move: ['Miner moving', 'On it'], attack: [], harvest: ['Mining', 'Collecting ore'] }
+  };
+  var ackAt = 0;
+  function unitAck(units, kind) {
+    if (headless || !soundOn || typeof speechSynthesis === 'undefined' || !G) return;
+    var now = performance.now(); if (now - ackAt < 2500) return;
+    var u = null; for (var i = 0; i < units.length; i++) if (units[i].p === P_HUMAN && !units[i].dead) { u = units[i]; break; }
+    if (!u) return;
+    var lines = (ACK[u.type] || ACK.rifle)[kind] || []; if (!lines.length) return;
+    ackAt = now;
+    try {
+      var sp = new SpeechSynthesisUtterance(lines[(G.tick >> 4) % lines.length]);
+      var sov = facOf(G, u.p) === 'col';
+      sp.rate = sov ? 0.9 : 1.05; sp.pitch = sov ? 0.6 : 1.0; sp.volume = 0.7;
+      var vs = speechSynthesis.getVoices();
+      var v = vs.filter(function (x) { return /^en/i.test(x.lang) && /male|daniel|david|alex|google uk english male/i.test(x.name) && !/female/i.test(x.name); })[0]
+           || vs.filter(function (x) { return /^en/i.test(x.lang); })[0];
+      if (v) sp.voice = v;
+      speechSynthesis.speak(sp);
+    } catch (e) {}
+  }
+
   function sfx(kind) {
     if (headless || !soundOn || !AC) return;
     var now = performance.now();
@@ -6670,6 +6716,7 @@
     else if (kind === 'click') tone(420, 0.03, 'square', 0.07);
     else if (kind === 'place') { tone(220, 0.12, 'square', 0.13, 160); noiseBurst(0.12, 0.1); }
     else if (kind === 'no') tone(180, 0.09, 'sawtooth', 0.1, 120);
+    else if (kind === 'promote') { tone(523, 0.08, 'square', 0.1); setTimeout(function () { tone(659, 0.08, 'square', 0.1); }, 90); setTimeout(function () { tone(784, 0.12, 'square', 0.1); }, 180); }
   }
 
   // --------------------------------------------------------------------- //
@@ -6699,7 +6746,8 @@
     var mine = e.p === P_HUMAN;
     var who = mine ? 'Yours' : 'Enemy (' + FACTIONS[facOf(G, e.p)].name + ')';
     hovName.textContent = d.em + ' ' + d.name;
-    hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + d.hp + ' hp';
+    var vet = e.kind === 'u' ? (e.rank === 2 ? ' · Elite' : (e.rank === 1 ? ' · Veteran' : '')) + (e.kills ? ' · ' + e.kills + ' kill' + (e.kills === 1 ? '' : 's') : '') : '';
+    hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + d.hp + ' hp' + vet;
     hovEl.className = mine ? '' : 'enemy';
     hovEl.hidden = false;
     // Sit to the lower-right of the cursor, flipping to stay on the canvas.
@@ -7022,7 +7070,7 @@
     } else if (e.button === 2) {
       e.preventDefault();
       if (placing) { placing = null; cv.classList.remove('placing'); say('Placement cancelled'); return; }
-      rightOrder(px, py);
+      rightOrder(px, py, e.shiftKey);
     }
   });
   cv.addEventListener('pointermove', function (e) {
@@ -7207,9 +7255,14 @@
 
   // Move / harvest order for a group. Harvesters sent onto ore mine that
   // seam; sent anywhere else they go there and HOLD (see stepHarvester).
-  function orderUnitsTo(g, units, gx, gy) {
+  function orderUnitsTo(g, units, gx, gy, opts) {
+    opts = opts || {};
     var onOre = g.terrain[idx(gx, gy)] === T_ORE, n = 0;
     units.forEach(function (u, i) {
+      // Shift-click queues a waypoint behind the current order (RA2 waypoint
+      // mode); a plain order replaces the whole queue.
+      if (opts.queue && u.order) { (u.wp || (u.wp = [])).push({ x: gx, y: gy }); n++; return; }
+      u.wp = null;
       if (onOre && u.type === 'harvester') {
         u.order = { t: 'harvest', x: gx, y: gy, id: 0 };
         u.mineAt = { x: gx, y: gy }; u.state = 'tomine'; u.path = null;
@@ -7229,10 +7282,19 @@
       requestPath(g, u, tx, ty);
       n++;
     });
+    if (opts.voice && n) unitAck(units, onOre ? 'harvest' : 'move');
     return n;
   }
+  // Next queued waypoint, if any, becomes the order when one completes.
+  function nextWaypoint(g, u) {
+    if (!u.wp || !u.wp.length) return false;
+    var w = u.wp.shift();
+    u.order = { t: 'move', x: w.x, y: w.y, id: 0 }; u.guardX = w.x; u.guardY = w.y;
+    u.path = null; u.repathAt = -999; requestPath(g, u, w.x, w.y);
+    return true;
+  }
 
-  function rightOrder(px, py) {
+  function rightOrder(px, py, shift) {
     if (!sel.length) { say('Select something first — left-drag a box over your units'); return; }
     var gp = screenToGrid(px, py);
     var gx = Math.round(gp.x), gy = Math.round(gp.y);
@@ -7273,13 +7335,13 @@
         requestPath(G, u, Math.round(u.guardX), Math.round(u.guardY));
       });
       say('Attacking ' + describe(tgt).replace(/ —.*$/, ''));
-      sfx('click');
+      sfx('click'); unitAck(units, 'attack');
       return;
     }
 
     var onOre = G.terrain[idx(gx, gy)] === T_ORE;
-    var n = orderUnitsTo(G, units, gx, gy);
-    if (n) { say(onOre ? 'Harvesting' : 'Moving'); sfx('click'); }
+    var n = orderUnitsTo(G, units, gx, gy, { queue: !!shift, voice: true });
+    if (n) { say(shift ? 'Waypoint added' : (onOre ? 'Harvesting' : 'Moving')); sfx('click'); }
     if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 18, size: 0, ping: true });
   }
 
@@ -7696,6 +7758,31 @@
       ctx.fillRect(px - 7, py - 26, 14 * (u.cargo / d.cap), 2.6);
     }
     if (u.hp < u.maxhp) hpBar(px, Math.min(top - 8, py - 30), 20, u.hp / u.maxhp);
+    if (u.rank) {
+      // Veterancy chevrons at the sprite's lower right, gold like RA2's.
+      var cxr = ox + bb.x1 + 1, cyr = oy + bb.y1 - 2;
+      ctx.strokeStyle = '#f2c94c'; ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (var rk = 0; rk < u.rank; rk++) {
+        var yy = cyr - rk * 4;
+        ctx.beginPath(); ctx.moveTo(cxr - 3, yy - 3); ctx.lineTo(cxr, yy); ctx.lineTo(cxr + 3, yy - 3); ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+    }
+    if (u.sel && u.wp && u.wp.length) {
+      // Queued waypoints for a selected unit: a dashed route with numbered stops.
+      var fx0 = u.order ? sx(u.order.x, u.order.y) : px, fy0 = u.order ? sy(u.order.x, u.order.y) : py;
+      ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(138,208,255,.8)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(fx0, fy0);
+      for (var wi = 0; wi < u.wp.length; wi++) ctx.lineTo(sx(u.wp[wi].x, u.wp[wi].y), sy(u.wp[wi].x, u.wp[wi].y));
+      ctx.stroke(); ctx.restore();
+      ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+      for (wi = 0; wi < u.wp.length; wi++) {
+        var wx = sx(u.wp[wi].x, u.wp[wi].y), wy = sy(u.wp[wi].x, u.wp[wi].y);
+        ctx.fillStyle = 'rgba(14,17,23,.85)'; ctx.beginPath(); ctx.arc(wx, wy, 6, 0, 6.29); ctx.fill();
+        ctx.fillStyle = '#8ad0ff'; ctx.fillText(String(wi + 1), wx, wy + 3);
+      }
+      ctx.textAlign = 'left';
+    }
   }
 
   function drawBld(b) {
