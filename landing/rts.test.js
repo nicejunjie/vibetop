@@ -28,6 +28,7 @@ function stubCtx() {
     fillRect: noop, strokeRect: noop, clearRect: noop, fillText: noop,
     beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
     fill: noop, stroke: noop, arc: noop, ellipse: noop, roundRect: noop, clip: noop,
+    quadraticCurveTo: noop, bezierCurveTo: noop, arcTo: noop, rect: noop,
     save: noop, restore: noop, scale: noop, translate: noop, setTransform: noop,
     drawImage: noop, putImageData: noop,
     getImageData: () => ({ data: [] }),

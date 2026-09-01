@@ -711,14 +711,14 @@
 
   // Rock: angular slab facets + cracks, not a recoloured ground diamond —
   // that flat fill read as an odd-coloured floor tile, not an obstacle.
-  function bakeRock() {
+  function bakeRock(variant) {
     var s = mkCanvas(TW + 2, TH + 2), g = s.g;
     var cx = (TW + 2) / 2, cy = (TH + 2) / 2;
     diamond(g, cx, cy, TW, TH);
-    g.fillStyle = '#3b3a35'; g.fill();
+    g.fillStyle = ['#6b6455', '#6f6857', '#675f51', '#726a58'][variant & 3]; g.fill();
     g.save();
     diamond(g, cx, cy, TW, TH); g.clip();
-    srand(777);
+    srand(777 + variant * 3607);
     // a scatter of jagged, lit-from-upper-left boulder facets
     var n = 6;
     for (var i = 0; i < n; i++) {
@@ -736,17 +736,17 @@
       g.moveTo(pts[0][0], pts[0][1]);
       for (k = 1; k < pts.length; k++) g.lineTo(pts[k][0], pts[k][1]);
       g.closePath();
-      g.fillStyle = shade('#4b4941', 0.75 + rnd() * 0.7);
+      g.fillStyle = shade('#8a8271', 0.78 + rnd() * 0.5);
       g.fill();
-      g.strokeStyle = '#2a2924'; g.lineWidth = 0.8; g.stroke();
+      g.strokeStyle = '#453f34'; g.lineWidth = 0.8; g.stroke();
       // a bright top-left facet edge on some, so it reads as catching light
       if (rnd() < 0.6) {
-        g.strokeStyle = 'rgba(200,210,225,.35)'; g.lineWidth = 0.9;
+        g.strokeStyle = 'rgba(255,248,225,.45)'; g.lineWidth = 0.9;
         g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); g.lineTo(pts[1][0], pts[1][1]); g.stroke();
       }
     }
     // fine crack lines across the plate
-    g.strokeStyle = 'rgba(10,12,16,.5)'; g.lineWidth = 0.7;
+    g.strokeStyle = 'rgba(40,34,24,.45)'; g.lineWidth = 0.7;
     for (i = 0; i < 3; i++) {
       var sxp = cx + (rnd() - 0.5) * TW * 0.7, syp = cy + (rnd() - 0.5) * TH * 0.7;
       g.beginPath(); g.moveTo(sxp, syp);
@@ -755,7 +755,8 @@
     }
     g.restore();
     diamond(g, cx, cy, TW, TH);
-    g.strokeStyle = '#514f45'; g.lineWidth = 1; g.stroke();
+    g.strokeStyle = ['#6b6455', '#6f6857', '#675f51', '#726a58'][variant & 3];
+    g.lineWidth = 1; g.stroke();
     return s;
   }
 
@@ -778,7 +779,7 @@
     diamond(g, cx, cy, TW, TH); g.clip();
 
     // stained ground under the seam
-    g.fillStyle = 'rgba(150,105,20,' + (0.20 + level * 0.12) + ')';
+    g.fillStyle = 'rgba(122,88,26,' + (0.26 + level * 0.14) + ')';
     diamond(g, cx, cy, TW - 6, TH - 3); g.fill();
 
     var n = 7 + level * 5;
@@ -796,7 +797,7 @@
 
     for (i = 0; i < chunks.length; i++) {
       var c = chunks[i];
-      var base = ['#c9822f', '#e8b428', '#a8641f', '#f2c94c'][i & 3];
+      var base = ['#bd7a2b', '#d6a129', '#96591b', '#e2b53c'][i & 3];
       // squat faceted lump: lit top plane, darker front face, thin outline
       g.fillStyle = shade(base, 1.28);
       g.beginPath();
@@ -814,7 +815,7 @@
       g.lineTo(c.x - c.w * 0.6, c.y + c.h * 0.5);
       g.closePath(); g.fill();
       if ((i & 3) === 1) {                      // a few catch the light
-        g.fillStyle = 'rgba(255,240,190,.75)';
+        g.fillStyle = 'rgba(255,240,190,.45)';
         g.beginPath();
         g.ellipse(c.x - c.w * 0.25, c.y - c.h * 0.55, c.w * 0.28, c.h * 0.22, 0, 0, 6.29);
         g.fill();
@@ -886,17 +887,22 @@
   // it is, a fixed ACCENT colour says what it is. Without that second axis
   // every unit was a blue box and players could not tell a harvester from a
   // tank — which is the difference between reading a battle and guessing.
-  var UPAD = 9;
-  function unitCanvas() { return mkCanvas(52, 46); }
+  // Units were drawn about a third too small for the tile they stand on: next
+  // to a finished structure they read as toys. RA2 sits a tank at roughly
+  // two-thirds of a tile across. The bakes below draw at the old coordinates
+  // and scale about the ground anchor, so nothing else has to move.
+  var UPAD = 13;
+  var USC_I = 1.30, USC_V = 1.46;
+  function unitCanvas() { return mkCanvas(84, 68); }
 
   var ACCENT = {
     rifle:     '#e6ecf5',   // pale helmet
     conscript: '#b9c2d0',   // drab helmet — cheaper troops, duller kit
     rocket:    '#ff9d3c',   // orange warhead
     tank:      '#39415a',   // gunmetal barrel
-    lancer:    '#7fd4ff',   // pale blue long gun
+    lancer:    '#8fb4d8',   // pale sighting blip
     mammoth:   '#2b3040',   // black twin barrels
-    spectre:   '#c9a6ff',   // violet sensor dome
+    spectre:   '#9fe8ff',   // cyan prism crystal
     harv:      '#f2b529'    // yellow ore hopper
   };
 
@@ -905,82 +911,153 @@
   // A soldier, drawn front-on and small. Silhouette is what separates the two
   // infantry types: the rifleman holds his weapon level, the rocketeer has a
   // fat tube on his shoulder with a bright warhead.
+  // RA2 puts infantry in a DRAB uniform and remaps only the helmet, shoulders
+  // and a trim band to the house colour: a GI is olive with blue kit, a
+  // Conscript a brown greatcoat with red. Painting the whole soldier in the
+  // faction colour — what we did before — is why these read as toy figures
+  // rather than troops, exactly the same mistake the buildings had.
+  var TROOP = {
+    rifle:     { coat: '#7d7a5c', boot: '#33302a', skin: '#c99f78' },
+    rocket:    { coat: '#71754f', boot: '#33302a', skin: '#c99f78' },
+    conscript: { coat: '#7b5c43', boot: '#2e2823', skin: null }     // gas mask, no face
+  };
+
   function bakeInfantry(col, kind) {
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
-    var dark = shade(col, 0.30), acc = ACCENT[kind] || '#ff00ff';
+    g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
+    var T = TROOP[kind] || TROOP.rifle;
+    var coat = T.coat, dark = shade(coat, 0.42), acc = ACCENT[kind] || '#ff00ff';
+    var greatcoat = kind === 'conscript';
     shadowBlob(g, cx, by, 7, 3);
 
-    g.fillStyle = '#1b1f27';                                  // boots
+    g.fillStyle = T.boot;                                     // boots
     g.beginPath(); g.roundRect(cx - 4.5, by - 3, 3.6, 3.2, 1); g.fill();
     g.beginPath(); g.roundRect(cx + 0.9, by - 3, 3.6, 3.2, 1); g.fill();
 
-    g.fillStyle = shade(col, 0.55);                           // legs
-    g.beginPath(); g.roundRect(cx - 4.2, by - 8.8, 3.4, 6.4, 1.3); g.fill();
-    g.beginPath(); g.roundRect(cx + 0.8, by - 8.8, 3.4, 6.4, 1.3); g.fill();
-    outline(g, dark);
+    if (greatcoat) {                                          // flared coat hem
+      g.fillStyle = shade(coat, 0.80);
+      g.beginPath();
+      g.moveTo(cx - 5.0, by - 10.5); g.lineTo(cx + 5.0, by - 10.5);
+      g.lineTo(cx + 6.2, by - 2.2); g.lineTo(cx - 6.2, by - 2.2);
+      g.closePath(); g.fill(); outline(g, dark);
+      g.strokeStyle = dark; g.lineWidth = 0.8;                // centre seam
+      g.beginPath(); g.moveTo(cx, by - 10.5); g.lineTo(cx, by - 2.4); g.stroke();
+    } else {
+      g.fillStyle = shade(coat, 0.78);                        // trousers
+      g.beginPath(); g.roundRect(cx - 4.2, by - 8.8, 3.4, 6.4, 1.3); g.fill();
+      g.beginPath(); g.roundRect(cx + 0.8, by - 8.8, 3.4, 6.4, 1.3); g.fill();
+      outline(g, dark);
+    }
 
-    g.fillStyle = shade(col, 0.5);                            // belt
-    g.fillRect(cx - 5.6, by - 9.8, 11.2, 1.7);
-
-    g.fillStyle = col;                                        // torso, tapered at the waist
+    g.fillStyle = shade(coat, 1.05);                          // torso
     g.beginPath();
-    g.moveTo(cx - 5.8, by - 18.3); g.lineTo(cx + 5.8, by - 18.3);
-    g.lineTo(cx + 4.5, by - 9.5); g.lineTo(cx - 4.5, by - 9.5);
+    g.moveTo(cx - 5.6, by - 18.3); g.lineTo(cx + 5.6, by - 18.3);
+    g.lineTo(cx + 4.6, by - 9.8); g.lineTo(cx - 4.6, by - 9.8);
     g.closePath(); g.fill(); outline(g, dark);
-    g.fillStyle = shade(col, 1.3);                            // right-edge rim light — sells volume
-    g.fillRect(cx + 3.9, by - 18, 1.5, 8.3);
-    g.fillStyle = shade(col, 1.25);                           // chest webbing
-    g.fillRect(cx - 5.8, by - 14.6, 11.6, 1.6);
+    g.fillStyle = shade(coat, 1.3);                           // rim light
+    g.fillRect(cx + 3.9, by - 18, 1.4, 8.2);
 
-    g.fillStyle = shade(col, 0.6);                            // shoulder pads (implied arms)
-    g.beginPath(); g.ellipse(cx - 6.3, by - 16.8, 2.0, 2.6, 0, 0, 6.29); g.fill();
-    g.beginPath(); g.ellipse(cx + 6.3, by - 16.8, 2.0, 2.6, 0, 0, 6.29); g.fill();
-    outline(g, dark);
+    if (greatcoat) {
+      g.fillStyle = '#8d939b';                                // steel breastplate
+      g.beginPath(); g.roundRect(cx - 4.4, by - 17.4, 8.8, 6.4, 1.6); g.fill();
+      outline(g, '#3d4249');
+      g.fillStyle = 'rgba(255,255,255,.22)';
+      g.fillRect(cx - 4.4, by - 17.4, 8.8, 1.5);
+    }
+    g.fillStyle = col;                                        // house-colour trim band
+    g.fillRect(cx - 5.6, by - 11.6, 11.2, 1.9);
+    g.fillStyle = shade(col, 0.72);
+    g.fillRect(cx - 5.6, by - 9.9, 11.2, 0.9);
+
+    for (var arm = -1; arm <= 1; arm += 2) {                  // arms, house-colour pauldron
+      g.fillStyle = shade(coat, 0.88);
+      g.beginPath(); g.roundRect(cx + arm * 5.2 - 1.5, by - 17.2, 3.0, 7.2, 1.4); g.fill();
+      outline(g, dark);
+      g.fillStyle = col;
+      g.beginPath(); g.ellipse(cx + arm * 5.8, by - 17.4, 1.7, 2.1, 0, 0, 6.29); g.fill();
+      outline(g, shade(col, 0.45));
+    }
 
     if (kind === 'rocket') {
-      g.fillStyle = shade(col, 0.45);                         // fuel pack on the back
-      g.beginPath(); g.roundRect(cx - 3.4, by - 19, 6.8, 6, 1.6); g.fill();
-      outline(g, dark);
-      g.strokeStyle = shade(col, 0.45); g.lineWidth = 4.6;    // launcher tube
+      g.fillStyle = shade(coat, 0.62);                        // fuel pack
+      g.beginPath(); g.roundRect(cx - 3.4, by - 19, 6.8, 6, 1.6); g.fill(); outline(g, dark);
+      g.strokeStyle = '#3d4249'; g.lineWidth = 4.8;           // launcher tube
       g.lineCap = 'round';
       g.beginPath(); g.moveTo(cx - 7, by - 12); g.lineTo(cx + 9, by - 19); g.stroke();
-      g.strokeStyle = shade(col, 0.8); g.lineWidth = 2.6;
+      g.strokeStyle = '#6c7480'; g.lineWidth = 2.6;
       g.beginPath(); g.moveTo(cx - 6, by - 12.4); g.lineTo(cx + 8, by - 18.6); g.stroke();
       g.fillStyle = acc;                                      // warhead
       g.beginPath(); g.arc(cx + 10, by - 19.4, 2.9, 0, 6.29); g.fill();
       g.fillStyle = 'rgba(255,255,255,.5)';
       g.beginPath(); g.arc(cx + 9.1, by - 20.1, 0.9, 0, 6.29); g.fill();
-      outline(g, dark);
-    } else {
-      g.strokeStyle = shade(col, 0.4); g.lineWidth = 2.4;     // levelled rifle
+      outline(g, '#4a2b0c');
+    } else if (greatcoat) {
+      g.strokeStyle = '#3a342c'; g.lineWidth = 2.6;           // PPSh, held across
       g.lineCap = 'round';
-      g.beginPath(); g.moveTo(cx - 4, by - 13.5); g.lineTo(cx + 10.5, by - 15.5); g.stroke();
-      g.strokeStyle = shade(col, 0.75); g.lineWidth = 1.1;    // stock, angled back to the shoulder
+      g.beginPath(); g.moveTo(cx - 5, by - 13.4); g.lineTo(cx + 9.5, by - 15.2); g.stroke();
+      g.fillStyle = '#4a423a';                                // drum magazine
+      g.beginPath(); g.arc(cx + 1.6, by - 12.4, 2.6, 0, 6.29); g.fill();
+      outline(g, '#241f19');
+    } else {
+      g.strokeStyle = '#33383f'; g.lineWidth = 2.4;           // compact SMG
+      g.lineCap = 'round';
+      g.beginPath(); g.moveTo(cx - 4, by - 13.5); g.lineTo(cx + 10, by - 15.4); g.stroke();
+      g.strokeStyle = '#5a6068'; g.lineWidth = 1.1;
       g.beginPath(); g.moveTo(cx - 4, by - 13.5); g.lineTo(cx - 1.2, by - 12.2); g.stroke();
     }
 
-    g.fillStyle = '#caa88a';                                  // face
-    g.beginPath(); g.arc(cx, by - 21, 3.3, 0, 6.29); g.fill();
-    g.fillStyle = acc;                                        // helmet dome
-    g.beginPath(); g.arc(cx, by - 22, 4, Math.PI, 0); g.fill();
-    g.fillRect(cx - 4, by - 22, 8, 1.6);
-    g.fillStyle = shade(acc, 0.6);                            // helmet brim
-    g.beginPath(); g.ellipse(cx + 1, by - 20.5, 3.4, 1, -0.15, 0, 3.3); g.fill();
-    g.fillStyle = 'rgba(255,255,255,.4)';                     // helmet sheen
-    g.beginPath(); g.ellipse(cx - 1.4, by - 23.3, 1.5, 0.8, -0.4, 0, 6.29); g.fill();
-    outline(g, dark);
+    if (greatcoat) {
+      // Full-face gas mask: a smooth dark oval with two lenses and a filter.
+      // No skin anywhere — that blank mask IS the Conscript's silhouette.
+      g.fillStyle = '#2f3237';
+      g.beginPath(); g.ellipse(cx, by - 21.4, 4.0, 4.4, 0, 0, 6.29); g.fill();
+      outline(g, '#17191c');
+      g.fillStyle = '#b9c6cf';
+      g.beginPath(); g.ellipse(cx - 1.7, by - 22.2, 1.25, 1.05, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx + 1.7, by - 22.2, 1.25, 1.05, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#4b5057';                                // filter canister
+      g.beginPath(); g.ellipse(cx, by - 18.6, 1.7, 1.3, 0, 0, 6.29); g.fill();
+      g.fillStyle = col;                                      // house band on the helmet
+      g.beginPath(); g.arc(cx, by - 23.2, 4.3, Math.PI, 0); g.fill();
+      g.fillRect(cx - 4.3, by - 23.2, 8.6, 1.5);
+      outline(g, shade(col, 0.45));
+    } else {
+      g.fillStyle = T.skin;                                   // face
+      g.beginPath(); g.arc(cx, by - 21, 3.3, 0, 6.29); g.fill();
+      g.fillStyle = col;                                      // boxy helmet
+      g.beginPath(); g.moveTo(cx - 4.3, by - 21.6); g.lineTo(cx - 3.7, by - 25.2);
+      g.lineTo(cx + 3.7, by - 25.2); g.lineTo(cx + 4.3, by - 21.6);
+      g.closePath(); g.fill();
+      g.fillStyle = shade(col, 0.65);                         // brim
+      g.fillRect(cx - 4.8, by - 21.9, 9.6, 1.5);
+      outline(g, shade(col, 0.42));
+      g.fillStyle = '#1f2429';                                // goggles across the brow
+      g.beginPath(); g.roundRect(cx - 3.9, by - 21.4, 7.8, 2.4, 1); g.fill();
+      g.fillStyle = acc;
+      g.beginPath(); g.ellipse(cx - 1.9, by - 20.3, 1.15, 0.85, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx + 1.9, by - 20.3, 1.15, 0.85, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.4)';                   // helmet sheen
+      g.beginPath(); g.ellipse(cx - 1.4, by - 24.2, 1.5, 0.7, -0.3, 0, 6.29); g.fill();
+    }
     return s;
   }
 
-  // Vehicles get 8 baked facings. Tracks are drawn as separate dark slabs
-  // either side of the hull so the thing reads as tracked, not as a crate.
+  // Vehicles get 8 baked facings. RA2's armour is dark and matte: the house
+  // colour is a TINT over olive-drab steel, not a bright plastic shell. Ours
+  // were mid-cyan at full saturation, which is most of why they read as toys
+  // parked next to a finished structure.
   function bakeVehicle(col, kind) {
     var out = [];
+    var hull = mixc(shade(col, 0.74), '#5c6154', 0.30);
+    var deck = shade(hull, 1.20), turr = mixc(shade(col, 0.90), '#5c6154', 0.20);
+    var trim = shade(col, 1.15);
+    var TRACK = '#2e3135', TRK_D = '#15171a', GUN = '#2c313a', GUN_L = '#454c58';
     for (var d = 0; d < 8; d++) {
       var a = d * Math.PI / 4;
       var s = unitCanvas(), g = s.g;
       var cx = s.w / 2, by = s.h - UPAD;
-      var dark = shade(col, 0.24), acc = ACCENT[kind] || '#ff00ff';
+      g.translate(cx, by); g.scale(USC_V, USC_V); g.translate(-cx, -by);
+      var dark = shade(hull, 0.34), acc = ACCENT[kind] || '#ff00ff';
       var cd = Math.cos(a), sd = Math.sin(a);
       var fx = ISO_X * (cd - sd), fy = ISO_Y * (cd + sd);       // forward
       var px = ISO_X * (-sd - cd), py = ISO_Y * (-sd + cd);     // sideways
@@ -989,105 +1066,160 @@
       var wid = kind === 'harv' ? 19 : (kind === 'mammoth' ? 20 : 17);
       shadowBlob(g, cx, by, len * 0.46, wid * 0.30);
 
-      // tracks: two dark boxes flanking the hull, with a row of road-wheel
-      // notches so the flank reads as tracked, not as a slab of rubber.
-      var trackOff = wid * 0.40;
-      isoBox(g, cx + px * trackOff, by - 1, len * 0.92, wid * 0.26, 5, a, shade(col, 0.34), dark);
-      isoBox(g, cx - px * trackOff, by - 1, len * 0.92, wid * 0.26, 5, a, shade(col, 0.34), dark);
-      g.fillStyle = 'rgba(0,0,0,.4)';
+      // Drive train sits OUTSIDE the hull line — that overhang is most of what
+      // makes a tank read as tracked rather than as a crate on the ground.
+      var trackOff = wid * 0.42;
       for (var side = -1; side <= 1; side += 2) {
-        var tcx = cx + px * trackOff * side, tcy = by - 1;
-        for (var wI = -1; wI <= 1; wI++) {
-          var wt = wI * len * 0.30;
-          g.beginPath(); g.ellipse(tcx + fx * wt, tcy + fy * wt - 2.2, 1.7, 1.0, 0, 0, 6.29); g.fill();
+        var tcx = cx + px * trackOff * side, tcy = by - 1 + py * trackOff * side;
+        isoBox(g, tcx, tcy, len * 0.96, wid * 0.30, 5.5, a, TRACK, TRK_D);
+        for (var wI = -2; wI <= 2; wI++) {                      // road wheels
+          var wt = wI * len * 0.19;
+          g.fillStyle = 'rgba(0,0,0,.45)';
+          g.beginPath(); g.ellipse(tcx + fx * wt, tcy + fy * wt - 2.4, 1.9, 1.1, 0, 0, 6.29); g.fill();
+          g.fillStyle = 'rgba(255,255,255,.10)';
+          g.beginPath(); g.ellipse(tcx + fx * wt, tcy + fy * wt - 3.4, 1.5, 0.8, 0, 0, 6.29); g.fill();
+        }
+      }
+
+      // A turret is a box, a sloped mantlet the gun comes out of, and a
+      // commander's cupola. The flat box with an oval painted on it read as a
+      // lunchbox from any angle.
+      function turret(tcx0, tcy0, tl, tw, th, cupola) {
+        isoBox(g, tcx0, tcy0, tl, tw, th, a, turr, dark);
+        var mx = tcx0 + fx * tl * 0.46, my = tcy0 + fy * tl * 0.46;
+        isoBox(g, mx, my + th * 0.28, tl * 0.30, tw * 0.86, th * 0.72, a, shade(turr, 0.86), dark);
+        g.fillStyle = trim;                                     // turret stripe
+        g.beginPath();
+        g.ellipse(tcx0 - fx * tl * 0.30, tcy0 - th + fy * tl * 0.30, tw * 0.34, tw * 0.20, 0, 0, 6.29);
+        g.fill();
+        if (cupola) {
+          isoBox(g, tcx0 - fx * tl * 0.16, tcy0 - th + 1, tl * 0.26, tw * 0.34, 3.2, a, shade(turr, 1.18), dark);
+          g.fillStyle = 'rgba(255,255,255,.22)';
+          g.beginPath();
+          g.ellipse(tcx0 - fx * tl * 0.16, tcy0 - th - 2.6, tw * 0.15, tw * 0.09, 0, 0, 6.29); g.fill();
+        }
+        return [mx, my];
+      }
+      function barrel(x0, y0, L, w0, w1, muzzle) {
+        g.lineCap = 'round';
+        g.strokeStyle = GUN; g.lineWidth = w0;
+        g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + fx * L, y0 + fy * L); g.stroke();
+        g.strokeStyle = GUN_L; g.lineWidth = w1;
+        g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + fx * (L - 2), y0 + fy * (L - 2)); g.stroke();
+        if (muzzle) {                                           // muzzle brake
+          g.strokeStyle = GUN; g.lineWidth = w0 + 1.6;
+          g.beginPath();
+          g.moveTo(x0 + fx * (L - 4), y0 + fy * (L - 4)); g.lineTo(x0 + fx * L, y0 + fy * L); g.stroke();
         }
       }
 
       if (kind === 'mammoth') {
-        // heavy, wide hull with front tusks — it should look like it absorbs
-        // hits, not like a scaled-up Lancer.
-        isoBox(g, cx, by - 5, len * 0.9, wid * 0.8, 8, a, col, dark);
+        // Heavy, wide, low: twin cannon plus rear missile pods. Those pods are
+        // the tell that stops it reading as a scaled-up medium tank.
+        isoBox(g, cx, by - 5, len * 0.9, wid * 0.82, 8, a, hull, dark);
+        isoBox(g, cx - fx * 3, by - 12.5, len * 0.44, wid * 0.62, 3.4, a, deck, dark);  // glacis deck
         var mfx = cx + fx * len * 0.46, mfy = by - 5 + fy * len * 0.46;
-        g.strokeStyle = shade(col, 0.55); g.lineWidth = 2.3; g.lineCap = 'round';
-        g.beginPath(); g.moveTo(mfx + px * wid * 0.22, mfy - 1); g.lineTo(mfx + px * wid * 0.32 + fx * 3, mfy - 4); g.stroke();
-        g.beginPath(); g.moveTo(mfx - px * wid * 0.22, mfy - 1); g.lineTo(mfx - px * wid * 0.32 + fx * 3, mfy - 4); g.stroke();
-        // twin cannon, side by side
-        var mbx = cx + fx * 3, mby = by - 16;
-        for (var bs = -1; bs <= 1; bs += 2) {
-          var box = px * 3 * bs, boy = py * 3 * bs;
-          g.lineCap = 'round';
-          g.strokeStyle = dark; g.lineWidth = 5;
-          g.beginPath(); g.moveTo(mbx + box, mby + boy); g.lineTo(mbx + box + fx * 26, mby + boy + fy * 26); g.stroke();
-          g.strokeStyle = acc; g.lineWidth = 3;
-          g.beginPath(); g.moveTo(mbx + box, mby + boy); g.lineTo(mbx + box + fx * 25, mby + boy + fy * 25); g.stroke();
-          g.fillStyle = shade(acc, 1.5);
-          g.beginPath(); g.arc(mbx + box + fx * 26, mby + boy + fy * 26, 2.1, 0, 6.29); g.fill();
-        }
-        isoBox(g, cx - fx * 2, by - 12, 17, 16, 8, a, shade(col, 1.2), dark);   // heavy turret
-        g.fillStyle = shade(col, 1.5);                                         // hatch
-        g.beginPath(); g.ellipse(cx - fx * 2, by - 20, 3.9, 2.3, 0, 0, 6.29); g.fill();
-        outline(g, dark);
-        // side ammo pods — mass, not speed
-        isoBox(g, cx - fx * 8 + px * wid * 0.42, by - 6, 8, 6, 4, a, shade(col, 0.8), dark);
-        isoBox(g, cx - fx * 8 - px * wid * 0.42, by - 6, 8, 6, 4, a, shade(col, 0.8), dark);
-      } else if (kind === 'lancer') {
-        // low, slim hull and a single long thin gun — reach and speed, not mass.
-        isoBox(g, cx, by - 4, len * 0.82, wid * 0.6, 6, a, col, dark);
-        var lbx = cx + fx * 3, lby = by - 14;
-        g.lineCap = 'round';
-        g.strokeStyle = dark; g.lineWidth = 4.2;
-        g.beginPath(); g.moveTo(lbx, lby); g.lineTo(lbx + fx * 37, lby + fy * 37); g.stroke();
-        g.strokeStyle = acc; g.lineWidth = 2.2;
-        g.beginPath(); g.moveTo(lbx, lby); g.lineTo(lbx + fx * 36, lby + fy * 36); g.stroke();
-        g.fillStyle = shade(acc, 1.6);                                         // muzzle brake
-        g.beginPath(); g.arc(lbx + fx * 37, lby + fy * 37, 1.7, 0, 6.29); g.fill();
-        isoBox(g, cx - fx * 1.5, by - 10, 12, 11, 6, a, shade(col, 1.24), dark); // low turret
-        g.fillStyle = shade(col, 1.5);
-        g.beginPath(); g.ellipse(cx - fx * 1.5, by - 15.6, 2.7, 1.6, 0, 0, 6.29); g.fill();
-        outline(g, dark);
-        g.fillStyle = acc;                                                     // rangefinder blip
-        g.beginPath(); g.arc(cx - fx * 1.5 - px * 4.2, by - 14, 1.1, 0, 6.29); g.fill();
-      } else if (kind === 'spectre') {
-        isoBox(g, cx, by - 4.5, len * 0.74, wid * 0.6, 5, a, shade(col, 1.05), dark);  // light, thin hull
-        g.fillStyle = acc;                                          // sensor dome
-        g.beginPath(); g.ellipse(cx, by - 13, 6, 4.1, 0, 0, 6.29); g.fill();
-        outline(g, dark);
-        g.fillStyle = 'rgba(255,255,255,.35)';                      // dome sheen
-        g.beginPath(); g.ellipse(cx - 1.6, by - 14.2, 1.8, 0.9, -0.3, 0, 6.29); g.fill();
-        g.strokeStyle = acc; g.lineWidth = 1.3;                     // twin antennae — "sees everything"
-        g.beginPath(); g.moveTo(cx, by - 16.5); g.lineTo(cx + fx * 8, by - 23.5); g.stroke();
-        g.beginPath(); g.moveTo(cx, by - 16.5); g.lineTo(cx - px * 6, by - 20.5); g.stroke();
-        g.fillStyle = shade(acc, 1.4);
-        g.beginPath(); g.arc(cx + fx * 8, by - 23.5, 1, 0, 6.29); g.fill();
-      } else {
-        isoBox(g, cx, by - 4, len * 0.9, wid * 0.74, 8, a, shade(col, 0.9), dark); // chassis
-        // ore hopper: the single loudest identifier on the field
-        isoBox(g, cx - fx * 5, by - 12, 17, 15, 11, a, acc, '#6b4a00');
-        g.fillStyle = shade(acc, 1.25);
-        g.beginPath();
-        g.ellipse(cx - fx * 5, by - 23, 7.5, 4.2, 0, 0, 6.29); g.fill();
-        outline(g, '#6b4a00');
-        g.strokeStyle = 'rgba(30,20,0,.55)'; g.lineWidth = 1.4;     // hazard bands on the hopper
-        for (var hz = -1; hz <= 1; hz++) {
+        g.strokeStyle = shade(hull, 0.62); g.lineWidth = 2.4; g.lineCap = 'round';
+        for (var tk = -1; tk <= 1; tk += 2) {                   // front tusks
           g.beginPath();
-          g.moveTo(cx - fx * 5 - 6, by - 18 + hz * 2.6); g.lineTo(cx - fx * 5 + 6, by - 15.5 + hz * 2.6);
+          g.moveTo(mfx + px * wid * 0.22 * tk, mfy - 1 + py * wid * 0.22 * tk);
+          g.lineTo(mfx + px * wid * 0.32 * tk + fx * 3.5, mfy - 4.5 + py * wid * 0.32 * tk + fy * 3.5);
           g.stroke();
         }
-        isoBox(g, cx + fx * 9, by - 10, 10, 12, 9, a, shade(col, 1.15), dark);   // cab
-        g.fillStyle = '#8ad0ff';                                                // windscreen
-        g.beginPath(); g.ellipse(cx + fx * 10, by - 18, 3.4, 2.4, 0, 0, 6.29); g.fill();
-        g.fillStyle = dark;                                                     // exhaust stack
-        g.beginPath(); g.roundRect(cx + fx * 6 - px * 5, by - 20, 1.8, 5.2, 0.7); g.fill();
+        var mz = turret(cx - fx * 2, by - 13, 17, 16, 8.5, true);
+        for (var bs = -1; bs <= 1; bs += 2)
+          barrel(mz[0] + px * 3.2 * bs, mz[1] - 4 + py * 3.2 * bs, 24, 5, 2.8, true);
+        for (var mp = -1; mp <= 1; mp += 2) {                   // rear missile pods
+          var mpx = cx - fx * 11 + px * wid * 0.34 * mp, mpy = by - 10 + py * wid * 0.34 * mp;
+          isoBox(g, mpx, mpy, 8.5, 7, 6, a, shade(hull, 1.10), dark);
+          g.fillStyle = '#1a1d22';
+          for (var mr = 0; mr < 2; mr++) for (var mc = 0; mc < 2; mc++) {
+            g.beginPath();
+            g.ellipse(mpx + fx * 3.6 + px * (mr ? 1.9 : -1.9), mpy - 8.4 + mc * 2.8 + fy * 3.6 + py * (mr ? 1.9 : -1.9),
+                      1.15, 0.8, 0, 0, 6.29);
+            g.fill();
+          }
+          g.fillStyle = acc;
+          g.beginPath(); g.ellipse(mpx, mpy - 7.2, 1.4, 0.9, 0, 0, 6.29); g.fill();
+        }
+      } else if (kind === 'lancer') {
+        // Low, slim, long-barrelled: reach and speed, not mass.
+        isoBox(g, cx, by - 4, len * 0.84, wid * 0.64, 6, a, hull, dark);
+        isoBox(g, cx + fx * 6, by - 9.6, len * 0.34, wid * 0.50, 2.6, a, deck, dark);   // sloped glacis
+        var lz = turret(cx - fx * 1.5, by - 10.5, 13, 11.5, 6.5, true);
+        barrel(lz[0], lz[1] - 3, 32, 4.4, 2.4, true);
+        g.fillStyle = acc;                                      // rangefinder blip
+        g.beginPath(); g.arc(cx - fx * 1.5 - px * 4.6, by - 14.5, 1.2, 0, 6.29); g.fill();
+        g.fillStyle = shade(hull, 0.55);                        // stowage bin on the rear
+        g.beginPath(); g.ellipse(cx - fx * 12, by - 6.5, 3.4, 2.2, 0, 0, 6.29); g.fill();
+      } else if (kind === 'spectre') {
+        // No barrel anywhere: a faceted crystal emitter where the turret would
+        // be, so the silhouette says "not a gun tank" before colour does.
+        isoBox(g, cx, by - 4.5, len * 0.76, wid * 0.62, 5.5, a, hull, dark);
+        isoBox(g, cx, by - 10, len * 0.34, wid * 0.44, 3.4, a, shade(turr, 0.9), dark);  // emitter mount
+        var gy3 = by - 13.5, gr = 6.8;
+        g.fillStyle = shade(acc, 0.62);                         // shaded facets
+        g.beginPath();
+        g.moveTo(cx, gy3 - gr * 1.55); g.lineTo(cx + gr, gy3 - gr * 0.35);
+        g.lineTo(cx, gy3 + gr * 0.72); g.lineTo(cx - gr, gy3 - gr * 0.35);
+        g.closePath(); g.fill(); outline(g, '#2b4a58');
+        g.fillStyle = shade(acc, 1.15);                         // lit facet
+        g.beginPath();
+        g.moveTo(cx, gy3 - gr * 1.55); g.lineTo(cx, gy3 + gr * 0.72);
+        g.lineTo(cx - gr, gy3 - gr * 0.35); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.80)';                  // glint
+        g.beginPath();
+        g.moveTo(cx - gr * 0.30, gy3 - gr * 1.08); g.lineTo(cx - gr * 0.06, gy3 - gr * 0.28);
+        g.lineTo(cx - gr * 0.54, gy3 - gr * 0.44); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(150,230,255,.14)';                  // faint charge halo
+        g.beginPath(); g.arc(cx, gy3 - gr * 0.60, gr * 0.95, 0, 6.29); g.fill();
+      } else {
+        // Ore miner: dump-truck chassis, front cab, and an open bucket at the
+        // back with ore visibly heaped in it — the loudest identifier on the
+        // field, and the reason it never gets mistaken for a tank.
+        isoBox(g, cx, by - 4, len * 0.92, wid * 0.76, 7, a, hull, dark);
+        var bx2 = cx - fx * 5, by3 = by - 11;
+        isoBox(g, bx2, by3, 17, 15, 10, a, shade(acc, 0.70), '#5a3d00');   // bucket shell
+        g.fillStyle = shade(acc, 0.42);                                     // bucket interior
+        diamond(g, bx2, by3 - 10, 15.5, 8.4); g.fill();
+        var ore = [[-4, -1.2], [0, 0.6], [4.2, -0.8], [-1.6, -2.6], [2.2, 2.0]];
+        for (var oI = 0; oI < ore.length; oI++) {                           // heaped ore
+          g.fillStyle = oI % 2 ? '#e8b428' : '#c9822f';
+          g.beginPath();
+          g.ellipse(bx2 + ore[oI][0], by3 - 11 + ore[oI][1], 3.2, 2.0, 0, 0, 6.29); g.fill();
+        }
+        g.strokeStyle = '#5a3d00'; g.lineWidth = 1;
+        diamond(g, bx2, by3 - 10, 15.5, 8.4); g.stroke();
+        g.strokeStyle = 'rgba(30,20,0,.5)'; g.lineWidth = 1.5;              // hazard bands
+        for (var hz = -1; hz <= 1; hz++) {
+          g.beginPath();
+          g.moveTo(bx2 - 6.5, by3 - 5.5 + hz * 2.8); g.lineTo(bx2 + 6.5, by3 - 3 + hz * 2.8);
+          g.stroke();
+        }
+        isoBox(g, cx + fx * 9.5, by - 9, 10, 12, 10, a, deck, dark);        // cab
+        g.fillStyle = '#8ad0ff';                                            // windscreen
+        g.beginPath(); g.ellipse(cx + fx * 10.5, by - 18.5, 3.6, 2.5, 0, 0, 6.29); g.fill();
+        outline(g, dark);
+        g.fillStyle = trim;
+        g.beginPath(); g.ellipse(cx + fx * 9.5, by - 20.5, 3.0, 1.7, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#22262b';                                            // exhaust stack
+        g.beginPath(); g.roundRect(cx + fx * 6 - px * 5.5, by - 21, 2.0, 5.6, 0.8); g.fill();
       }
       out.push(s);
     }
     return out;
   }
 
-  // Each structure needs a silhouette you can NAME at a glance — cooling
-  // towers, an ore dome, a pitched roof, a saw-tooth works, a control tower,
-  // a gun. Faction colour is the shell; the identifying part carries its own
-  // fixed colour so a red base and a blue base still read the same way.
+  // --- structure assembly ------------------------------------------------
+  // RA2's buildings are told apart by MASSING, not by a badge on a shared
+  // box: a refinery is a shed plus a silo plus a dock ramp, and you know it
+  // from the outline alone with the colour turned off. The previous pass gave
+  // every structure the same prism and varied only a rooftop ornament, which
+  // is exactly why they all read as the same office block. Each key below now
+  // assembles its own volumes out of these primitives.
+  //
+  // (hw,hh) are the half-extents of a footprint diamond centred at (cx,cy),
+  // in the same 2:1 projection as the ground. `lift` extrudes it upward.
   function cylinder(g, cx, cy, rx, h, body, top, edge) {
     g.fillStyle = body;
     g.beginPath();
@@ -1096,268 +1228,462 @@
     g.closePath(); g.fill();
     g.beginPath(); g.ellipse(cx, cy, rx, rx * 0.42, 0, 0, Math.PI); g.fill();
     outline(g, edge);
+    g.fillStyle = 'rgba(255,255,255,.13)';                 // lit left third
+    g.fillRect(cx - rx, cy - h, rx * 0.55, h);
+    g.fillStyle = 'rgba(0,0,0,.18)';                       // shaded right third
+    g.fillRect(cx + rx * 0.42, cy - h, rx * 0.58, h);
     g.fillStyle = top;
     g.beginPath(); g.ellipse(cx, cy - h, rx, rx * 0.42, 0, 0, 6.29); g.fill();
     outline(g, edge);
   }
 
-  // Vertical seam lines across a wall parallelogram (bottom edge ax,ay -> bx,by,
-  // extruded straight up by `lift`) plus one flush vent panel with grille
-  // lines. Cheap (a handful of strokes) and it is the difference between a
-  // "box" and a "wall panel assembly" at a glance.
-  function wallDetail(g, ax, ay, bx, by, lift, dark, ventAt) {
-    g.save();
-    g.strokeStyle = dark; g.lineWidth = 0.7; g.globalAlpha = 0.55;
-    for (var i = 1; i <= 3; i++) {
-      var t = i / 4;
-      var px = ax + (bx - ax) * t, py = ay + (by - ay) * t;
-      g.beginPath(); g.moveTo(px, py); g.lineTo(px, py - lift); g.stroke();
+  // Points on the two visible walls of a prism, in face coordinates: t runs
+  // 0..1 along the wall from its outer corner to the near corner, v runs 0..1
+  // bottom to top. Doors, bands and chevrons are all placed with these, so
+  // they skew with the wall instead of sitting on it like a sticker.
+  function faceL(cx, cy, hw, hh, lift, t, v) { return [cx - hw + hw * t, cy + hh * t - lift * v]; }
+  function faceR(cx, cy, hw, hh, lift, t, v) { return [cx + hw - hw * t, cy + hh * t - lift * v]; }
+
+  function facePatch(g, F, cx, cy, hw, hh, lift, t0, t1, v0, v1, fill, edge) {
+    var a = F(cx, cy, hw, hh, lift, t0, v0), b = F(cx, cy, hw, hh, lift, t1, v0),
+        c = F(cx, cy, hw, hh, lift, t1, v1), d = F(cx, cy, hw, hh, lift, t0, v1);
+    g.beginPath();
+    g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.lineTo(d[0], d[1]);
+    g.closePath();
+    if (fill) { g.fillStyle = fill; g.fill(); }
+    if (edge) outline(g, edge);
+  }
+
+  // A box in the ground projection. Returns the roof's y so callers can stack.
+  function prism(g, cx, cy, hw, hh, lift, wall, roof, edge) {
+    g.fillStyle = shade(wall, 0.92);                       // lower-left (lit)
+    g.beginPath();
+    g.moveTo(cx - hw, cy); g.lineTo(cx - hw, cy - lift);
+    g.lineTo(cx, cy + hh - lift); g.lineTo(cx, cy + hh);
+    g.closePath(); g.fill(); if (edge) outline(g, edge);
+    g.fillStyle = shade(wall, 0.62);                       // lower-right (shade)
+    g.beginPath();
+    g.moveTo(cx + hw, cy); g.lineTo(cx + hw, cy - lift);
+    g.lineTo(cx, cy + hh - lift); g.lineTo(cx, cy + hh);
+    g.closePath(); g.fill(); if (edge) outline(g, edge);
+    if (roof) {
+      diamond(g, cx, cy - lift, hw * 2, hh * 2);
+      g.fillStyle = roof; g.fill(); if (edge) outline(g, edge);
+    }
+    return cy - lift;
+  }
+
+  // Pitched roof over a footprint diamond. The ridge runs left-corner to
+  // right-corner so BOTH slopes stay facing the camera.
+  // Pitched roof over a footprint diamond. The ridge runs between the
+  // MIDPOINTS of opposite eaves — i.e. along a grid axis, the way a real roof
+  // sits on a rectangular building. Running it corner-to-corner instead (the
+  // obvious-looking construction) splits the diamond into two triangles, and
+  // the near one becomes a huge downward cone: the "funnel roof" bug.
+  function gable(g, cx, cy, hw, hh, rise, cA, cB, edge) {
+    var ax = cx - hw / 2, ay = cy - hh / 2 - rise;         // ridge, far end
+    var bx = cx + hw / 2, by = cy + hh / 2 - rise;         // ridge, near end
+    g.beginPath();                                          // far slope (N + E corners)
+    g.moveTo(ax, ay); g.lineTo(cx, cy - hh); g.lineTo(cx + hw, cy); g.lineTo(bx, by);
+    g.closePath(); g.fillStyle = cA; g.fill(); if (edge) outline(g, edge);
+    g.beginPath();                                          // near slope (W + S corners)
+    g.moveTo(ax, ay); g.lineTo(cx - hw, cy); g.lineTo(cx, cy + hh); g.lineTo(bx, by);
+    g.closePath(); g.fillStyle = cB; g.fill(); if (edge) outline(g, edge);
+    return [ax, ay, bx, by];
+  }
+
+  // Corrugated half-cylinder roof (a Nissen hut). This is the Allied
+  // barracks' whole identity in RA2 — a metal tube cut lengthwise dropped on
+  // a low base — and no amount of detail on a pitched roof substitutes for it.
+  // Built as bands across a circular cross-section: offset from the ridge line
+  // follows cos, height follows sin, so the silhouette is a true arc.
+  function vault(g, cx, cy, hw, hh, rise, col, edge) {
+    var N = 8;
+    function pt(sv, w, z) { return [cx + sv * hw / 2 - w * hw / 2, cy + sv * hh / 2 + w * hh / 2 - z]; }
+    function band(sign, u0, u1, fill) {
+      var w0 = sign * Math.cos(u0 * Math.PI / 2), w1 = sign * Math.cos(u1 * Math.PI / 2);
+      var z0 = rise * Math.sin(u0 * Math.PI / 2), z1 = rise * Math.sin(u1 * Math.PI / 2);
+      var a = pt(-1, w0, z0), b = pt(1, w0, z0), c = pt(1, w1, z1), d = pt(-1, w1, z1);
+      g.beginPath();
+      g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); g.lineTo(d[0], d[1]);
+      g.closePath(); g.fillStyle = fill; g.fill();
+      g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 0.7; g.stroke();   // corrugation
+    }
+    for (var i = 0; i < N; i++)                            // far slope, in shade
+      band(-1, i / N, (i + 1) / N, shade(col, 0.50 + 0.22 * (i / N)));
+    for (i = N - 1; i >= 0; i--)                           // near slope, lit toward the ridge
+      band(1, i / N, (i + 1) / N, shade(col, 0.74 + 0.40 * (i / N)));
+    // near end cap: a semicircular gable wall between the S and E corners
+    var s0 = pt(1, 1, 0), s1 = pt(1, -1, 0), apex = pt(1, 0, rise);
+    g.beginPath();
+    g.moveTo(s0[0], s0[1]);
+    g.quadraticCurveTo(s0[0] + (apex[0] - s0[0]) * 0.35, apex[1] + 2, apex[0], apex[1]);
+    g.quadraticCurveTo(s1[0] + (apex[0] - s1[0]) * 0.35, apex[1] + 2, s1[0], s1[1]);
+    g.closePath();
+    g.fillStyle = shade(col, 1.02); g.fill(); if (edge) outline(g, edge);
+    return apex;
+  }
+
+  // Waisted cooling tower — the one silhouette that says "power" with no
+  // label on it at all.
+  function coolTower(g, cx, cy, rb, rt, h, col, edge) {
+    function silh() {
+      g.beginPath();
+      g.moveTo(cx - rb, cy);
+      g.quadraticCurveTo(cx - rt * 1.30, cy - h * 0.66, cx - rt, cy - h);
+      g.lineTo(cx + rt, cy - h);
+      g.quadraticCurveTo(cx + rt * 1.30, cy - h * 0.66, cx + rb, cy);
+      g.closePath();
+    }
+    silh(); g.fillStyle = shade(col, 0.66); g.fill();
+    g.save(); silh(); g.clip();
+    g.fillStyle = shade(col, 0.98); g.fillRect(cx - rb - 2, cy - h - 2, rb * 0.85, h + 4);
+    g.strokeStyle = 'rgba(0,0,0,.16)'; g.lineWidth = 1;    // concrete lift-bands
+    for (var i = 1; i < 5; i++) {
+      var yy = cy - h * i / 5;
+      g.beginPath(); g.moveTo(cx - rb - 2, yy); g.lineTo(cx + rb + 2, yy); g.stroke();
     }
     g.restore();
-    if (ventAt != null) {
-      var vx = ax + (bx - ax) * ventAt, vy = ay + (by - ay) * ventAt - lift * 0.34;
-      g.fillStyle = 'rgba(10,12,18,.55)';
-      g.beginPath(); g.roundRect(vx - 4, vy - 3, 8, 6, 1); g.fill();
-      g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = 0.6;
-      for (var k = 0; k < 3; k++) {
-        g.beginPath(); g.moveTo(vx - 3.2, vy - 1.6 + k * 1.6); g.lineTo(vx + 3.2, vy - 1.6 + k * 1.6); g.stroke();
-      }
+    silh(); outline(g, edge);
+    g.fillStyle = shade(col, 1.12);                        // rim
+    g.beginPath(); g.ellipse(cx, cy - h, rt, rt * 0.40, 0, 0, 6.29); g.fill(); outline(g, edge);
+    g.fillStyle = 'rgba(20,24,20,.55)';                    // dark mouth
+    g.beginPath(); g.ellipse(cx, cy - h + 0.6, rt * 0.74, rt * 0.30, 0, 0, 6.29); g.fill();
+  }
+
+  function steam(g, cx, cy, r, n) {
+    for (var i = 0; i < n; i++) {
+      g.fillStyle = 'rgba(226,236,244,' + (0.30 - i * 0.055) + ')';
+      g.beginPath();
+      g.ellipse(cx + (i % 2 ? 1 : -1) * r * 0.32 * i, cy - r * 0.85 * i,
+                r * (1 - i * 0.13), r * (0.5 - i * 0.06), 0, 0, 6.29);
+      g.fill();
+    }
+  }
+
+  // Hazard chevrons across a wall patch — the loudest "vehicles come out
+  // here" cue RA2 uses, and it costs four quads.
+  function chevrons(g, F, cx, cy, hw, hh, lift, t0, t1, v0, v1, n, cA, cB) {
+    for (var i = 0; i < n; i++) {
+      var a = t0 + (t1 - t0) * i / n, b2 = t0 + (t1 - t0) * (i + 1) / n;
+      facePatch(g, F, cx, cy, hw, hh, lift, a, b2, v0, v1, i % 2 ? cA : cB, null);
+    }
+  }
+
+  function lattice(g, x0, y0, x1, y1, w, col) {
+    var dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1;
+    var nx = -dy / L * w / 2, ny = dx / L * w / 2;
+    g.strokeStyle = col; g.lineWidth = 1.6; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x0 + nx, y0 + ny); g.lineTo(x1 + nx, y1 + ny); g.stroke();
+    g.beginPath(); g.moveTo(x0 - nx, y0 - ny); g.lineTo(x1 - nx, y1 - ny); g.stroke();
+    g.lineWidth = 1;
+    var seg = Math.max(2, Math.round(L / 7));
+    for (var i = 0; i < seg; i++) {
+      var u0 = i / seg, u1 = (i + 1) / seg;
+      var ax = x0 + dx * u0, ay = y0 + dy * u0, bx = x0 + dx * u1, by = y0 + dy * u1;
+      g.beginPath();
+      g.moveTo(ax + nx * (i % 2 ? 1 : -1), ay + ny * (i % 2 ? 1 : -1));
+      g.lineTo(bx - nx * (i % 2 ? 1 : -1), by - ny * (i % 2 ? 1 : -1));
+      g.stroke();
     }
   }
 
   function bakeBuilding(key, col) {
     var b = BLDS[key];
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
-    var isDef = key === 'sentry' || key === 'tesla';
-    var lift = isDef ? 24 : (key === 'base' ? 46 : (key === 'factory' ? 42 : 36));
-    var pad = 16;
-    var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + lift + pad * 2 + 22), g = s.g;
+    var pad = 18;
+    var head = { base: 108, power: 90, refinery: 92, factory: 84, barracks: 66, sentry: 56, tesla: 86 }[key] || 70;
+    var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
+
     // RA2 structures are poured concrete and painted steel; the HOUSE colour
-    // is trim — a roof, a stripe, a door — not the whole building. Painting
-    // every surface in the faction colour is what made these read as coloured
-    // toy blocks. Body is neutral now; `col` marks ownership on the roof, the
-    // trim band and the doors, which is plenty in an isometric view where the
-    // roof is the largest visible face.
-    var STEEL = '#7d8288', CONC = '#8f8a7e';
-    // Rooftop plant is machinery: mostly steel, tinted just enough that a
-    // glance still tells you whose base you are looking at.
-    var col0 = col;
-    col = mixc(col, STEEL, 0.62);
-    var dark = shade(STEEL, 0.30);
-    var inset = isDef ? 0.58 : 0.76;
-    var bw = fw * inset, bh = fh * inset;
+    // is trim — a door, a ridge, a flag, a chevron — never the whole shell.
+    var CONC = '#a9a394', STEEL = '#8b9096', ROOF = '#5d626a';
+    var dark = '#3a3d42', TAR = '#4a4f56';
+    var hi = shade(col, 1.15), lo = shade(col, 0.72);
+    var u = fw / 3;                                        // one scale unit
 
-    g.fillStyle = 'rgba(0,0,0,.36)';
-    diamond(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
-
-    diamond(g, cx, baseY, fw * 2, fh * 2);                 // concrete pad
-    g.fillStyle = shade(CONC, 0.44); g.fill();
-    outline(g, shade(CONC, 0.62));
-    // pad texture: a few stains/cracks so the apron reads as poured concrete
+    // ground shadow + concrete apron
+    g.fillStyle = 'rgba(0,0,0,.30)';
+    diamond(g, cx + 4, baseY + 5, fw * 2, fh * 2); g.fill();
+    diamond(g, cx, baseY, fw * 2, fh * 2);
+    g.fillStyle = shade(CONC, 0.66); g.fill();
+    outline(g, shade(CONC, 0.50));
     g.save();
     diamond(g, cx, baseY, fw * 2, fh * 2); g.clip();
     srand(key.charCodeAt(0) * 13 + key.length);
-    for (var pI = 0; pI < 5; pI++) {
+    for (var pI = 0; pI < 7; pI++) {                       // oil stains / patches
       var pa = rnd() * Math.PI * 2, pr = Math.sqrt(rnd());
-      var pxx = cx + Math.cos(pa) * pr * fw, pyy = baseY + Math.sin(pa) * pr * fh * 0.9;
-      g.fillStyle = rnd() < 0.5 ? shade(CONC, 0.32) : shade(CONC, 0.58);
-      g.globalAlpha = 0.28;
-      g.beginPath(); g.ellipse(pxx, pyy, 4 + rnd() * 5, 2 + rnd() * 2.4, 0, 0, 6.29); g.fill();
+      g.fillStyle = rnd() < 0.5 ? shade(CONC, 0.56) : shade(CONC, 0.90);
+      g.globalAlpha = 0.30;
+      g.beginPath();
+      g.ellipse(cx + Math.cos(pa) * pr * fw, baseY + Math.sin(pa) * pr * fh * 0.9,
+                4 + rnd() * 6, 2 + rnd() * 3, 0, 0, 6.29);
+      g.fill();
     }
-    g.globalAlpha = 1;
-    g.restore();
+    g.globalAlpha = 1; g.restore();
 
-    g.fillStyle = shade(STEEL, 0.92);                      // left wall (lit)
-    g.beginPath();
-    g.moveTo(cx - bw, baseY); g.lineTo(cx - bw, baseY - lift);
-    g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
-    g.closePath(); g.fill(); outline(g, dark);
-    wallDetail(g, cx - bw, baseY, cx, baseY + bh, lift, shade(STEEL, 0.60), isDef ? null : 0.28);
+    if (key === 'base') {
+      // Construction Yard: a low works with a control tower at the back and a
+      // gantry crane straddling an open build pad. The crane is the read.
+      var hw = fw * 0.94, hh = fh * 0.94;
+      var r0 = prism(g, cx, baseY, hw, hh, 20, CONC, TAR, dark);
+      facePatch(g, faceL, cx, baseY, hw, hh, 20, 0.06, 0.94, 0.80, 0.94, shade(col, 0.86), null);
+      facePatch(g, faceR, cx, baseY, hw, hh, 20, 0.06, 0.94, 0.80, 0.94, shade(col, 0.60), null);
+      // open build pad, front-right on the works roof
+      var px0 = cx + hw * 0.26, py0 = r0 + hh * 0.22;
+      var pw = hw * 0.66, ph = hh * 0.66;
+      diamond(g, px0, py0, pw * 2, ph * 2);                // tarmac build bay
+      g.fillStyle = '#33383f'; g.fill();
+      g.strokeStyle = '#f2b529'; g.lineWidth = 2.4; g.stroke();
+      g.save(); diamond(g, px0, py0, pw * 2, ph * 2); g.clip();
+      g.strokeStyle = 'rgba(255,255,255,.09)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(px0 - pw, py0); g.lineTo(px0 + pw, py0); g.stroke();
+      g.beginPath(); g.moveTo(px0, py0 - ph); g.lineTo(px0, py0 + ph); g.stroke();
+      // a half-poured foundation waiting on the next order
+      g.fillStyle = 'rgba(200,205,212,.16)';
+      diamond(g, px0 - pw * 0.24, py0 + ph * 0.20, pw * 0.9, ph * 0.9); g.fill();
+      g.strokeStyle = 'rgba(200,205,212,.30)'; g.lineWidth = 1;
+      diamond(g, px0 - pw * 0.24, py0 + ph * 0.20, pw * 0.9, ph * 0.9); g.stroke();
+      g.restore();
+      // control tower, back-left
+      var tx = cx - hw * 0.40, ty = r0 - hh * 0.32;
+      var thw = hw * 0.42, thh = hh * 0.42, tl = 42;
+      var r1 = prism(g, tx, ty, thw, thh, tl, STEEL, shade(STEEL, 1.1), dark);
+      facePatch(g, faceL, tx, ty, thw, thh, tl, 0.05, 0.95, 0.56, 0.80, '#8fd8ff', dark);
+      facePatch(g, faceR, tx, ty, thw, thh, tl, 0.05, 0.95, 0.56, 0.80, '#5aa8d8', dark);
+      facePatch(g, faceL, tx, ty, thw, thh, tl, 0.05, 0.95, 0.84, 0.99, hi, null);
+      facePatch(g, faceR, tx, ty, thw, thh, tl, 0.05, 0.95, 0.84, 0.99, lo, null);
+      // gantry crane over the pad
+      var gy = r0 - 6, gh2 = 40;
+      g.strokeStyle = shade(STEEL, 0.8);
+      lattice(g, px0 - hw * 0.72, gy + hh * 0.34, px0 - hw * 0.72, gy - gh2, 5, shade(STEEL, 0.85));
+      lattice(g, px0 + hw * 0.72, gy - hh * 0.34, px0 + hw * 0.72, gy - gh2 - 4, 5, shade(STEEL, 0.7));
+      lattice(g, px0 - hw * 0.72, gy - gh2, px0 + hw * 0.72, gy - gh2 - 4, 6, shade(col, 1.05));
+      g.strokeStyle = '#22262b'; g.lineWidth = 1.2;        // hoist cable + hook
+      g.beginPath(); g.moveTo(px0 + hw * 0.05, gy - gh2 - 1); g.lineTo(px0 + hw * 0.05, gy - 16); g.stroke();
+      g.fillStyle = '#c9cdd4';
+      g.beginPath(); g.roundRect(px0 + hw * 0.05 - 3, gy - 16, 6, 5, 1.5); g.fill(); outline(g, dark);
+      // beacon on the tower
+      g.strokeStyle = shade(STEEL, 1.2); g.lineWidth = 1.8;
+      g.beginPath(); g.moveTo(tx + thw * 0.5, r1 + 2); g.lineTo(tx + thw * 0.5, r1 - 16); g.stroke();
+      g.fillStyle = 'rgba(255,91,99,.30)';
+      g.beginPath(); g.arc(tx + thw * 0.5, r1 - 18, 5.5, 0, 6.29); g.fill();
+      g.fillStyle = '#ff5b63';
+      g.beginPath(); g.arc(tx + thw * 0.5, r1 - 18, 2.4, 0, 6.29); g.fill();
 
-    g.fillStyle = shade(STEEL, 0.62);                      // right wall (shade)
-    g.beginPath();
-    g.moveTo(cx + bw, baseY); g.lineTo(cx + bw, baseY - lift);
-    g.lineTo(cx, baseY + bh - lift); g.lineTo(cx, baseY + bh);
-    g.closePath(); g.fill(); outline(g, dark);
-    wallDetail(g, cx + bw, baseY, cx, baseY + bh, lift, dark, isDef ? null : 0.62);
-
-    // Window bands. A blank wall the size of a 3x3 plot reads as a crate;
-    // two storey lines give it scale and tell you it is a building.
-    var storeys = isDef ? 1 : (lift > 40 ? 3 : 2);
-    for (var sI = 1; sI <= storeys; sI++) {
-      var t = sI / (storeys + 1), wy = -lift * t;
-      g.fillStyle = 'rgba(150,205,255,.20)';
+    } else if (key === 'power') {
+      // Power Plant: turbine hall + two waisted cooling towers + steam.
+      var hw = fw * 0.95, hh = fh * 0.95;
+      var r0 = prism(g, cx, baseY, hw, hh, 22, CONC, TAR, dark);
+      facePatch(g, faceL, cx, baseY, hw, hh, 22, 0.06, 0.94, 0.82, 0.95, shade(col, 0.86), null);
+      facePatch(g, faceR, cx, baseY, hw, hh, 22, 0.06, 0.94, 0.82, 0.95, shade(col, 0.60), null);
+      facePatch(g, faceL, cx, baseY, hw, hh, 22, 0.14, 0.42, 0.10, 0.62, '#2b2f34', dark);  // vent grille
+      g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 0.8;
+      for (var vI = 1; vI < 4; vI++) {
+        var a1 = faceL(cx, baseY, hw, hh, 22, 0.14, 0.10 + vI * 0.13),
+            b1 = faceL(cx, baseY, hw, hh, 22, 0.42, 0.10 + vI * 0.13);
+        g.beginPath(); g.moveTo(a1[0], a1[1]); g.lineTo(b1[0], b1[1]); g.stroke();
+      }
+      // towers: back-left tall, front-right shorter (depth read)
+      coolTower(g, cx - hw * 0.40, r0 - hh * 0.34, u * 0.52, u * 0.40, 40, CONC, dark);
+      steam(g, cx - hw * 0.40, r0 - hh * 0.34 - 42, u * 0.46, 4);
+      coolTower(g, cx + hw * 0.34, r0 + hh * 0.28, u * 0.44, u * 0.34, 31, CONC, dark);
+      steam(g, cx + hw * 0.34, r0 + hh * 0.28 - 33, u * 0.38, 3);
+      g.fillStyle = '#ffd23f';                             // bolt plate on the hall roof
+      var bs = u * 0.34, bx0 = cx + hw * 0.12, by0 = r0 - hh * 0.18;
       g.beginPath();
-      g.moveTo(cx - bw, baseY + wy); g.lineTo(cx, baseY + bh + wy);
-      g.lineTo(cx, baseY + bh + wy + 3.5); g.lineTo(cx - bw, baseY + wy + 3.5);
-      g.closePath(); g.fill();
-      g.fillStyle = 'rgba(150,205,255,.11)';
-      g.beginPath();
-      g.moveTo(cx + bw, baseY + wy); g.lineTo(cx, baseY + bh + wy);
-      g.lineTo(cx, baseY + bh + wy + 3.5); g.lineTo(cx + bw, baseY + wy + 3.5);
-      g.closePath(); g.fill();
-    }
-
-    // A painted band under the eaves: the ownership read from ground level,
-    // where the roof is foreshortened.
-    var tb = Math.max(3, lift * 0.13), tyy = -lift + tb * 0.6;
-    g.fillStyle = shade(col0, 0.95);
-    g.beginPath();
-    g.moveTo(cx - bw, baseY + tyy); g.lineTo(cx, baseY + bh + tyy);
-    g.lineTo(cx, baseY + bh + tyy + tb); g.lineTo(cx - bw, baseY + tyy + tb);
-    g.closePath(); g.fill();
-    g.fillStyle = shade(col0, 0.66);
-    g.beginPath();
-    g.moveTo(cx + bw, baseY + tyy); g.lineTo(cx, baseY + bh + tyy);
-    g.lineTo(cx, baseY + bh + tyy + tb); g.lineTo(cx + bw, baseY + tyy + tb);
-    g.closePath(); g.fill();
-
-    var ry = baseY - lift;
-    diamond(g, cx, ry, bw * 2, bh * 2);                    // roof — house colour
-    g.fillStyle = shade(col, 0.92); g.fill();
-    outline(g, shade(col0, 1.15));
-
-    // Roof structures are sized FROM the roof (u = one quarter of its width).
-    // Fixed pixel sizes left a 3x3 roof looking like an empty car park with a
-    // toy on it.
-    var u = bw / 2;
-
-    if (key === 'power') {
-      cylinder(g, cx - u * 0.75, ry + u * 0.30, u * 0.52, u * 1.5,
-               shade(col, 0.86), shade(col, 1.3), dark);
-      cylinder(g, cx + u * 0.62, ry + u * 0.46, u * 0.44, u * 1.1,
-               shade(col, 0.78), shade(col, 1.2), dark);
-      g.fillStyle = 'rgba(200,220,255,.30)';               // vented steam
-      g.beginPath(); g.ellipse(cx - u * 0.75, ry - u * 1.3, u * 0.55, u * 0.26, 0, 0, 6.29); g.fill();
-      g.beginPath(); g.ellipse(cx - u * 0.5, ry - u * 1.75, u * 0.36, u * 0.18, 0, 0, 6.29); g.fill();
-      g.fillStyle = '#ffd23f';                             // bolt plate
-      var bs = u * 0.5;
-      g.beginPath();
-      g.moveTo(cx + bs * 0.1, ry + bs * 1.2); g.lineTo(cx + bs * 1.3, ry + bs * 1.2);
-      g.lineTo(cx + bs * 0.5, ry + bs * 2.0); g.lineTo(cx + bs * 1.5, ry + bs * 2.0);
-      g.lineTo(cx - bs * 0.3, ry + bs * 3.2); g.lineTo(cx + bs * 0.3, ry + bs * 2.1);
-      g.lineTo(cx - bs * 0.6, ry + bs * 2.1); g.closePath(); g.fill();
+      g.moveTo(bx0 + bs * 0.1, by0); g.lineTo(bx0 + bs * 1.2, by0);
+      g.lineTo(bx0 + bs * 0.45, by0 + bs * 0.8); g.lineTo(bx0 + bs * 1.35, by0 + bs * 0.8);
+      g.lineTo(bx0 - bs * 0.35, by0 + bs * 2.0); g.lineTo(bx0 + bs * 0.25, by0 + bs * 0.9);
+      g.lineTo(bx0 - bs * 0.55, by0 + bs * 0.9); g.closePath(); g.fill();
       outline(g, '#7a5c00');
+
     } else if (key === 'refinery') {
-      g.fillStyle = shade(col, 1.16);                      // storage dome
-      g.beginPath(); g.ellipse(cx + u * 0.7, ry + u * 0.1, u * 0.85, u * 0.62, 0, Math.PI, 0); g.fill();
+      // Refinery: a tall boxy processing block plus a low hazard-striped
+      // loading apron. The apron is the read — it is visibly a place a
+      // vehicle backs into, which is exactly what the building is for.
+      var hw = fw * 0.60, hh = fh * 0.60;
+      var sx = cx - fw * 0.30, sy = baseY - fh * 0.26;
+      var r0 = prism(g, sx, sy, hw, hh, 44, CONC, TAR, dark);
+      facePatch(g, faceL, sx, sy, hw, hh, 44, 0.08, 0.92, 0.86, 0.97, shade(col, 0.86), null);
+      facePatch(g, faceR, sx, sy, hw, hh, 44, 0.08, 0.92, 0.86, 0.97, shade(col, 0.60), null);
+      for (var wI3 = 0; wI3 < 3; wI3++)                    // window columns
+        facePatch(g, faceL, sx, sy, hw, hh, 44, 0.16 + wI3 * 0.26, 0.34 + wI3 * 0.26, 0.22, 0.76, '#2b2f34', dark);
+      // ore hopper + stack on the tower roof
+      cylinder(g, sx - hw * 0.34, r0 + hh * 0.10, 9, 22, shade(STEEL, 0.80), shade(STEEL, 1.05), dark);
+      g.fillStyle = shade(col, 1.0); g.fillRect(sx - hw * 0.34 - 9, r0 + hh * 0.10 - 20, 18, 3);
+      steam(g, sx - hw * 0.34, r0 + hh * 0.10 - 24, 6, 3);
+      g.fillStyle = '#e8a92b';                             // ore hopper, brim full
+      g.beginPath(); g.ellipse(sx + hw * 0.34, r0 - hh * 0.06, 13, 7, 0, 0, 6.29); g.fill();
+      outline(g, '#6b4a00');
+      g.fillStyle = shade(STEEL, 0.9);
+      g.beginPath(); g.roundRect(sx + hw * 0.34 - 14, r0 - hh * 0.06 - 2, 28, 5, 2); g.fill();
       outline(g, dark);
-      g.fillStyle = shade(col, 0.7);                       // conveyor
-      g.fillRect(cx - u * 0.1, ry + u * 0.05, u * 1.6, u * 0.28);
-      cylinder(g, cx - u * 0.95, ry + u * 0.18, u * 0.4, u * 1.15,
-               shade(col, 0.9), shade(col, 1.25), dark);
-      var pile = [[-0.35, 0.7, 0.30], [0.05, 0.86, 0.38], [0.45, 0.7, 0.26], [-0.05, 0.52, 0.23]];
-      for (var i = 0; i < pile.length; i++) {
+      // loading apron, abutting the tower on the near-right
+      var dx0 = cx + fw * 0.34, dy0 = baseY + fh * 0.24;
+      var dw = fw * 0.58, dh = fh * 0.58;
+      diamond(g, dx0, dy0, dw * 2, dh * 2);
+      g.fillStyle = '#3d424a'; g.fill(); outline(g, dark);
+      g.save(); diamond(g, dx0, dy0, dw * 2, dh * 2); g.clip();
+      for (var hI = -5; hI <= 5; hI++) {                   // hazard lip
+        g.fillStyle = hI % 2 ? '#f2b529' : '#2c3138';
+        g.beginPath();
+        g.moveTo(dx0 + hI * 11, dy0 - dh); g.lineTo(dx0 + hI * 11 + 5.5, dy0 - dh);
+        g.lineTo(dx0 + hI * 11 + 16.5, dy0 + dh); g.lineTo(dx0 + hI * 11 + 11, dy0 + dh);
+        g.closePath(); g.fill();
+      }
+      g.fillStyle = 'rgba(20,23,27,.55)';                  // worn centre where wheels run
+      diamond(g, dx0, dy0, dw * 1.5, dh * 1.5); g.fill();
+      g.restore();
+      // conveyor from the apron up into the tower
+      g.strokeStyle = shade(STEEL, 0.55); g.lineWidth = 7; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(dx0 - dw * 0.62, dy0 - dh * 0.32); g.lineTo(sx + hw * 0.86, baseY - fh * 0.02); g.stroke();
+      g.strokeStyle = shade(STEEL, 0.95); g.lineWidth = 4;
+      g.beginPath(); g.moveTo(dx0 - dw * 0.62, dy0 - dh * 0.32); g.lineTo(sx + hw * 0.86, baseY - fh * 0.02); g.stroke();
+      var pile = [[0.10, 0.60, 5], [0.30, 0.68, 6], [0.50, 0.58, 4.5]];
+      for (var i = 0; i < pile.length; i++) {              // spilled ore
         g.fillStyle = i % 2 ? '#e8a92b' : '#c9822f';
         g.beginPath();
-        g.arc(cx + pile[i][0] * u * 2, ry + pile[i][1] * u, pile[i][2] * u, 0, 6.29); g.fill();
+        g.ellipse(cx + pile[i][0] * fw, baseY + pile[i][1] * fh, pile[i][2], pile[i][2] * 0.6, 0, 0, 6.29);
+        g.fill();
       }
-      outline(g, '#6b4a00');
+
     } else if (key === 'barracks') {
-      // Slate roof, not red: a red roof on the red faction disappears.
-      var rh = u * 0.95;
-      g.fillStyle = '#5b6577';
+      // Barracks: corrugated Nissen hut on a low base, with a lit doorway in
+      // the end wall, sandbags and a flag. The flag is the fastest ownership
+      // read on the whole map.
+      var hw = fw * 0.92, hh = fh * 0.92, bl = 13;
+      var r0 = prism(g, cx, baseY - fh * 0.04, hw, hh, bl, CONC, null, dark);
+      var by2 = baseY - fh * 0.04;
+      var apex = vault(g, cx, r0, hw, hh, hh * 1.02, '#9a9482', dark);
+      // doorway punched into the curved end wall
+      g.fillStyle = shade(col, 0.90);
+      g.beginPath(); g.roundRect(cx + hw * 0.36, r0 - hh * 0.06, 17, 15, 2); g.fill();
+      g.fillStyle = '#23272d';
+      g.beginPath(); g.roundRect(cx + hw * 0.36 + 2.5, r0 - hh * 0.06 + 2, 12, 13, 1.5); g.fill();
+      g.fillStyle = 'rgba(255,214,120,.30)';
+      g.beginPath(); g.roundRect(cx + hw * 0.36 + 2.5, r0 - hh * 0.06 + 9, 12, 6, 1.5); g.fill();
+      facePatch(g, faceL, cx, by2, hw, hh, bl, 0.20, 0.46, 0.20, 0.72, '#2b2f34', dark);   // vents
+      facePatch(g, faceL, cx, by2, hw, hh, bl, 0.56, 0.82, 0.20, 0.72, '#2b2f34', dark);
+      facePatch(g, faceR, cx, by2, hw, hh, bl, 0.10, 0.90, 0.74, 0.94, shade(col, 0.60), null);
+      for (var sI = 0; sI < 7; sI++) {                     // sandbag skirt
+        var q = faceR(cx, by2 + fh * 0.20, hw * 1.04, hh * 1.04, 0, 0.10 + sI * 0.13, 0);
+        g.fillStyle = sI % 2 ? '#a3966f' : '#8f8360';
+        g.beginPath(); g.ellipse(q[0], q[1], 4.6, 2.7, 0, 0, 6.29); g.fill();
+        outline(g, '#5c5238');
+      }
+      var fxp = cx - hw * 0.86, fyp = by2 + hh * 0.14;     // flagpole
+      g.strokeStyle = '#c9cdd4'; g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(fxp, fyp); g.lineTo(fxp, fyp - 44); g.stroke();
+      g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - bw * 0.94, ry + u * 0.12); g.lineTo(cx, ry - rh);
-      g.lineTo(cx + bw * 0.94, ry + u * 0.12); g.lineTo(cx, ry + u * 0.95);
-      g.closePath(); g.fill(); outline(g, '#2b3240');
-      g.fillStyle = '#434c5c';
-      g.beginPath();
-      g.moveTo(cx, ry - rh); g.lineTo(cx + bw * 0.94, ry + u * 0.12);
-      g.lineTo(cx, ry + u * 0.95); g.closePath(); g.fill();
-      g.fillStyle = col;                                   // faction ridge stripe
-      g.beginPath();
-      g.moveTo(cx, ry - rh); g.lineTo(cx + bw * 0.2, ry + u * 0.5);
-      g.lineTo(cx, ry + u * 0.95); g.lineTo(cx - bw * 0.2, ry + u * 0.5);
-      g.closePath(); g.fill();
-      g.fillStyle = '#e6ecf5';                             // doorway
-      g.beginPath(); g.roundRect(cx - u * 0.2, ry + u * 0.1, u * 0.4, u * 0.6, 1.5); g.fill();
-      outline(g, '#2b3240');
+      g.moveTo(fxp, fyp - 44); g.lineTo(fxp + 18, fyp - 39.5); g.lineTo(fxp + 14.5, fyp - 35.5);
+      g.lineTo(fxp + 18, fyp - 31.5); g.lineTo(fxp, fyp - 29.5); g.closePath(); g.fill();
+      outline(g, shade(col, 0.5));
+
     } else if (key === 'factory') {
-      var tw = u * 0.78;                                   // saw-tooth works
-      for (var k = 0; k < 3; k++) {
-        var ox = cx - tw * 1.5 + k * tw;
-        g.fillStyle = shade(col, 1.18 - k * 0.05);
+      // War Factory: a long hangar, a huge chevroned roller door, a rooftop
+      // gantry rail and stacks. Wide and industrial, never tower-like.
+      var hw = fw * 0.96, hh = fh * 0.90, fl = 30;
+      var r0 = prism(g, cx, baseY - fh * 0.06, hw, hh, fl, CONC, TAR, dark);
+      var fy2 = baseY - fh * 0.06;
+      // roller door dominating the lit wall
+      facePatch(g, faceL, cx, fy2, hw, hh, fl, 0.16, 0.84, 0.00, 0.60, '#1d2126', dark);
+      chevrons(g, faceL, cx, fy2, hw, hh, fl, 0.16, 0.84, 0.00, 0.13, 8, '#f2b529', '#2a2f36');
+      facePatch(g, faceL, cx, fy2, hw, hh, fl, 0.16, 0.84, 0.60, 0.72, hi, dark);          // lintel
+      g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;                            // slat lines
+      for (var dI = 1; dI < 6; dI++) {
+        var p1 = faceL(cx, fy2, hw, hh, fl, 0.16, 0.13 + dI * 0.079),
+            p2 = faceL(cx, fy2, hw, hh, fl, 0.84, 0.13 + dI * 0.079);
+        g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.stroke();
+      }
+      facePatch(g, faceR, cx, fy2, hw, hh, fl, 0.10, 0.90, 0.80, 0.92, shade(col, 0.60), null);          // trim band
+      for (var wI2 = 0; wI2 < 3; wI2++)                                                     // wall vents
+        facePatch(g, faceR, cx, fy2, hw, hh, fl, 0.14 + wI2 * 0.26, 0.32 + wI2 * 0.26, 0.24, 0.58, '#2b2f34', dark);
+      // roof: skylight strips, gantry rail, stacks
+      for (var kI = -1; kI <= 1; kI++) {
+        g.fillStyle = 'rgba(150,205,255,.35)';
         g.beginPath();
-        g.moveTo(ox, ry + u * 0.45); g.lineTo(ox + tw * 0.5, ry - u * 0.6);
-        g.lineTo(ox + tw, ry + u * 0.45); g.closePath(); g.fill();
-        outline(g, dark);
+        g.moveTo(cx - hw * 0.72 + kI * 6, r0 + hh * 0.36 + kI * hh * 0.30);
+        g.lineTo(cx + hw * 0.10 + kI * 6, r0 - hh * 0.14 + kI * hh * 0.30);
+        g.lineTo(cx + hw * 0.10 + kI * 6, r0 - hh * 0.02 + kI * hh * 0.30);
+        g.lineTo(cx - hw * 0.72 + kI * 6, r0 + hh * 0.48 + kI * hh * 0.30);
+        g.closePath(); g.fill(); outline(g, dark);
       }
-      var dw = u * 1.5, dh = u * 0.6;                      // roller door
-      g.fillStyle = '#1b2029';
-      g.beginPath(); g.roundRect(cx - dw / 2, ry + u * 0.4, dw, dh, 2); g.fill();
-      for (var z = 0; z < 6; z++) {                        // hazard stripes
-        g.fillStyle = z % 2 ? '#f2b529' : '#2a2f3a';
-        g.fillRect(cx - dw / 2 + z * dw / 6, ry + u * 0.4, dw / 6, dh * 0.42);
+      lattice(g, cx - hw * 0.55, r0 + hh * 0.10, cx + hw * 0.62, r0 - hh * 0.40, 7, shade(STEEL, 0.9));
+      g.fillStyle = shade(col, 1.0);                                                        // travelling hoist
+      g.beginPath(); g.roundRect(cx + hw * 0.02, r0 - hh * 0.30, 12, 7, 2); g.fill(); outline(g, dark);
+      for (var stI = 0; stI < 2; stI++) {
+        var stx = cx + hw * (0.30 + stI * 0.28), sty = r0 + hh * (0.30 - stI * 0.22);
+        cylinder(g, stx, sty, 4.6, 20 + stI * 5, shade(STEEL, 0.75), shade(STEEL, 1.0), dark);
+        g.fillStyle = hi; g.fillRect(stx - 4.6, sty - 18 - stI * 5, 9.2, 3);
+        steam(g, stx, sty - 22 - stI * 5, 5, 2);
       }
-      outline(g, dark);
-    } else if (key === 'base') {
-      isoBox(g, cx, ry - u * 0.05, u * 1.5, u * 1.3, u * 0.85, 0, shade(col, 1.0), dark);
-      var gw2 = u * 0.5, gy2 = ry - u * 1.05;              // control glass
-      g.fillStyle = '#7fd4ff';
-      g.beginPath(); g.roundRect(cx - gw2, gy2, gw2 * 2, u * 0.36, 2.5); g.fill();
-      outline(g, dark);
-      g.fillStyle = 'rgba(255,255,255,.35)';
-      g.fillRect(cx - gw2, gy2, gw2 * 2, u * 0.12);
-      g.strokeStyle = shade(col, 1.5); g.lineWidth = 2.2;  // mast
-      var mx = cx + u * 0.85, mt = ry - u * 1.75;
-      g.beginPath(); g.moveTo(mx, ry - u * 0.7); g.lineTo(mx, mt); g.stroke();
-      g.strokeStyle = shade(col, 1.2); g.lineWidth = 1.4;
-      g.beginPath(); g.moveTo(mx - u * 0.28, mt + u * 0.25);
-      g.lineTo(mx + u * 0.28, mt + u * 0.25); g.stroke();
-      g.fillStyle = '#ff5b63';                             // beacon
-      g.beginPath(); g.arc(mx, mt - u * 0.12, u * 0.15, 0, 6.29); g.fill();
-      g.fillStyle = 'rgba(255,91,99,.28)';
-      g.beginPath(); g.arc(mx, mt - u * 0.12, u * 0.34, 0, 6.29); g.fill();
+
     } else if (key === 'sentry') {
-      // Sentry Gun: a turret housing with twin cannon barrels — reads as a
-      // rapid-fire gun, not a tower.
-      isoBox(g, cx, ry + u * 0.1, u * 1.15, u * 1.15, u * 0.6, 0, shade(col, 1.05), dark);
-      g.fillStyle = shade(col, 1.3);                                // housing
-      g.beginPath(); g.ellipse(cx, ry - u * 0.55, u * 0.6, u * 0.4, 0, 0, 6.29); g.fill();
-      outline(g, dark);
+      // Sentry Gun: a squat bunker with a sandbag skirt and twin cannon.
+      var hw = fw * 0.74, hh = fh * 0.74;
+      var r0 = prism(g, cx, baseY, hw, hh, 11, CONC, shade(CONC, 1.06), dark);
+      facePatch(g, faceL, cx, baseY, hw, hh, 11, 0.10, 0.90, 0.74, 0.92, shade(col, 0.86), null);
+      facePatch(g, faceR, cx, baseY, hw, hh, 11, 0.10, 0.90, 0.74, 0.92, shade(col, 0.60), null);
+      for (var sb = 0; sb < 5; sb++) {
+        var q2 = faceR(cx, baseY + fh * 0.20, hw * 1.1, hh * 1.1, 0, 0.12 + sb * 0.19, 0);
+        g.fillStyle = sb % 2 ? '#9c8f6c' : '#8a7e5d';
+        g.beginPath(); g.ellipse(q2[0], q2[1], 3.6, 2.2, 0, 0, 6.29); g.fill(); outline(g, '#5c5238');
+      }
+      g.fillStyle = '#4d525a';                             // mounting pole
+      g.beginPath(); g.roundRect(cx - 3, r0 - 16, 6, 17, 2); g.fill(); outline(g, dark);
+      var ty2 = r0 - 17;
+      g.fillStyle = shade(STEEL, 1.05);                    // turret housing
+      g.beginPath(); g.ellipse(cx, ty2, hw * 0.52, hw * 0.30, 0, 0, 6.29); g.fill(); outline(g, dark);
+      g.fillStyle = shade(col, 1.0);
+      g.beginPath(); g.ellipse(cx, ty2 - 3.2, hw * 0.36, hw * 0.21, 0, 0, 6.29); g.fill(); outline(g, dark);
       g.lineCap = 'round';
-      for (var gb = -1; gb <= 1; gb += 2) {                         // twin barrels
-        g.strokeStyle = dark; g.lineWidth = 3.2;
-        g.beginPath(); g.moveTo(cx, ry - u * 0.6 + gb * u * 0.13); g.lineTo(cx + u * 1.62, ry - u * 1.12 + gb * u * 0.13); g.stroke();
-        g.strokeStyle = '#39415a'; g.lineWidth = 1.9;
-        g.beginPath(); g.moveTo(cx, ry - u * 0.6 + gb * u * 0.13); g.lineTo(cx + u * 1.58, ry - u * 1.10 + gb * u * 0.13); g.stroke();
+      for (var gb = -1; gb <= 1; gb += 2) {                // twin barrels
+        g.strokeStyle = dark; g.lineWidth = 3.4;
+        g.beginPath(); g.moveTo(cx, ty2 - 3 + gb * 2.4); g.lineTo(cx + hw * 1.24, ty2 - 12 + gb * 2.4); g.stroke();
+        g.strokeStyle = '#4b5466'; g.lineWidth = 1.9;
+        g.beginPath(); g.moveTo(cx, ty2 - 3 + gb * 2.4); g.lineTo(cx + hw * 1.20, ty2 - 11.7 + gb * 2.4); g.stroke();
       }
-      g.fillStyle = shade(col, 1.5);
-      g.beginPath(); g.arc(cx, ry - u * 0.6, u * 0.22, 0, 6.29); g.fill();
-      outline(g, dark);
+      g.fillStyle = '#ff5b63';                             // targeting light
+      g.beginPath(); g.arc(cx - hw * 0.34, ty2 - 5, 2, 0, 6.29); g.fill();
+      g.fillStyle = '#c9cdd4';                             // ammo drum
+      g.beginPath(); g.roundRect(cx - hw * 0.66, ty2 - 4, 7.5, 6.5, 2); g.fill(); outline(g, dark);
+
     } else if (key === 'tesla') {
-      // Tesla Coil: a tapering tower of shrinking rings topped by a charged
-      // orb with fixed (non-random) lightning arcs — no barrel, so the
-      // silhouette itself reads "not a gun" even before the colour does.
-      isoBox(g, cx, ry + u * 0.12, u * 1.0, u * 1.0, u * 0.42, 0, shade(col, 0.95), dark); // pedestal
-      var ringN = 3, orbY = ry;
-      for (var rI = 0; rI < ringN; rI++) {
-        var rr = u * (0.62 - rI * 0.14), rh = u * 0.34;
-        var rcy = ry - u * 0.1 - rI * u * 0.42;
-        g.fillStyle = shade(col, 1.15 + rI * 0.08);
-        g.beginPath(); g.ellipse(cx, rcy, rr, rr * 0.42, 0, 0, Math.PI); g.fill();
-        g.fillStyle = shade(col, 0.68);
-        g.beginPath(); g.ellipse(cx, rcy - rh, rr, rr * 0.42, 0, Math.PI, Math.PI * 2); g.fill();
-        outline(g, dark);
-        orbY = rcy - rh;
+      // Tesla Coil: shrinking coil rings on a plinth under a charged orb. No
+      // barrel anywhere, so the silhouette says "not a gun" before colour does.
+      var hw = fw * 0.70, hh = fh * 0.70;
+      var r0 = prism(g, cx, baseY, hw, hh, 13, CONC, shade(CONC, 1.06), dark);
+      facePatch(g, faceL, cx, baseY, hw, hh, 13, 0.10, 0.90, 0.72, 0.92, shade(col, 0.86), null);
+      facePatch(g, faceR, cx, baseY, hw, hh, 13, 0.10, 0.90, 0.72, 0.92, shade(col, 0.60), null);
+      var mastH = 34;
+      g.fillStyle = '#4d525a';                             // iron insulator mast
+      g.beginPath(); g.roundRect(cx - 3.4, r0 - mastH, 6.8, mastH, 2); g.fill(); outline(g, dark);
+      var orbY = r0 - mastH;
+      for (var rI2 = 0; rI2 < 3; rI2++) {                  // stacked coil rings
+        var rr = hw * (0.86 - rI2 * 0.20), rcy = r0 - 8 - rI2 * 11;
+        g.fillStyle = shade('#b87333', 0.92 + rI2 * 0.10);    // copper winding
+        g.beginPath(); g.ellipse(cx, rcy, rr, rr * 0.40, 0, 0, 6.29); g.fill(); outline(g, '#4a2d13');
+        g.strokeStyle = 'rgba(255,214,150,.55)'; g.lineWidth = 1.1;
+        g.beginPath(); g.ellipse(cx, rcy - 1.4, rr * 0.84, rr * 0.32, 0, 0, 6.29); g.stroke();
+        g.fillStyle = 'rgba(0,0,0,.22)';
+        g.beginPath(); g.ellipse(cx, rcy + 2.4, rr, rr * 0.40, 0, 0, Math.PI); g.fill();
       }
-      orbY -= u * 0.14;
-      g.fillStyle = 'rgba(190,230,255,.32)';                        // charge halo, drawn under the orb
-      g.beginPath(); g.arc(cx, orbY, u * 0.5, 0, 6.29); g.fill();
-      g.fillStyle = '#bfe8ff';                                      // charged orb
-      g.beginPath(); g.arc(cx, orbY, u * 0.26, 0, 6.29); g.fill();
-      outline(g, '#3a6b82');
-      g.strokeStyle = '#e6f7ff'; g.lineWidth = 1.1; g.lineCap = 'round';
-      var arcs = [[0.9, -0.25, 0.5, -0.55, 0.95, -0.65], [-0.85, 0.3, -0.45, 0.55, -1.0, 0.55], [0.15, 0.9, 0.4, 0.55, 0.55, 1.0]];
-      for (var arI = 0; arI < arcs.length; arI++) {                  // fixed jagged bolts — deterministic
+      g.fillStyle = 'rgba(190,230,255,.30)';
+      g.beginPath(); g.arc(cx, orbY, 12, 0, 6.29); g.fill();
+      g.fillStyle = '#dff4ff';
+      g.beginPath(); g.arc(cx, orbY, 6, 0, 6.29); g.fill(); outline(g, '#4d86a0');
+      g.fillStyle = 'rgba(255,255,255,.8)';
+      g.beginPath(); g.arc(cx - 1.8, orbY - 2, 2, 0, 6.29); g.fill();
+      g.strokeStyle = '#e6f7ff'; g.lineWidth = 1.2; g.lineCap = 'round';
+      var arcs = [[10, -4, 5, -12, 13, -16], [-11, 4, -6, 11, -14, 12], [2, 12, 6, 8, 8, 15]];
+      for (var arI = 0; arI < arcs.length; arI++) {        // fixed bolts — deterministic
         var a2 = arcs[arI];
         g.beginPath(); g.moveTo(cx, orbY);
-        g.lineTo(cx + a2[0] * u * 0.5, orbY + a2[1] * u * 0.5);
-        g.lineTo(cx + a2[2] * u * 0.7, orbY + a2[3] * u * 0.7);
-        g.lineTo(cx + a2[4] * u * 0.9, orbY + a2[5] * u * 0.9);
-        g.stroke();
+        g.lineTo(cx + a2[0], orbY + a2[1]); g.lineTo(cx + a2[2], orbY + a2[3]);
+        g.lineTo(cx + a2[4], orbY + a2[5]); g.stroke();
       }
     }
     return { s: s, ax: cx, ay: baseY };
@@ -1404,12 +1730,15 @@
     // variants across a warmer, lifted earth range, with the seam drawn a
     // touch LIGHTER than the fill so tiles meet instead of being ruled apart.
     // Six also breaks the visible repeat of the (x*7+y*3) pick.
+    // Sunlit olive field. `edge` matches `fill` on purpose: RA2 has no tile
+    // grid at all, and a seam even one shade off turns a battlefield into
+    // graph paper. Definition comes from the baked tonal patches instead.
     SPR.ground = [
-      bakeTile('#343b34', '#3a4139', 41), bakeTile('#363d33', '#3c4338', 42),
-      bakeTile('#323932', '#384038', 43), bakeTile('#373d36', '#3d433b', 44),
-      bakeTile('#333a31', '#394037', 45), bakeTile('#353c35', '#3b423a', 46)
+      bakeTile('#6e7a48', '#6e7a48', 41), bakeTile('#74804e', '#74804e', 42),
+      bakeTile('#69753f', '#69753f', 43), bakeTile('#717d4b', '#717d4b', 44),
+      bakeTile('#6b7743', '#6b7743', 45), bakeTile('#767f52', '#767f52', 46)
     ];
-    SPR.rock = bakeRock();
+    SPR.rock = [bakeRock(0), bakeRock(1), bakeRock(2), bakeRock(3)];
     SPR.oreLv = [];
     for (var lv = 0; lv < 3; lv++) {
       SPR.oreLv.push([bakeOre(lv, 0), bakeOre(lv, 1), bakeOre(lv, 2), bakeOre(lv, 3)]);
@@ -3404,7 +3733,8 @@
         i = idx(x, y);
         px = sx(x, y); py = sy(x, y);
         var t = G.terrain[i];
-        var tile = t === T_ROCK ? SPR.rock : SPR.ground[(((x * 73856093) ^ (y * 19349663)) >>> 0) % 6];
+        var h6 = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+        var tile = t === T_ROCK ? SPR.rock[h6 & 3] : SPR.ground[h6 % 6];
         ctx.drawImage(tile.c, px - tile.w / 2, py - tile.h / 2, tile.w, tile.h);
         if (t === T_ORE) {
           var lv = G.ore[i] > 600 ? 2 : (G.ore[i] > 250 ? 1 : 0);
@@ -3944,6 +4274,9 @@
       G.blds.forEach(function (b) { if (b.p === p && !b.dead) killBld(G, b); });
     },
     api: { astar: astar, canPlace: canPlace, genMap: genMap, newState: newState, findOre: findOre },
+    // Baked sprite atlas, so art work can be reviewed as a contact sheet
+    // instead of by hunting for one building in a live match.
+    spr: function () { return SPR; },
     // Start a bare match (no opening units) that the other hooks act on.
     begin: function (seed, diff) {
       headless = true;
