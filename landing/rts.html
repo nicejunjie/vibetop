@@ -71,7 +71,7 @@
 
   .wrap { flex: 1; min-height: 0; display: flex; position: relative; }
   #stage { flex: 1; min-width: 0; position: relative; overflow: hidden; }
-  #cv { display: block; width: 100%; height: 100%; cursor: default; }
+  #cv { display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
   #cv.placing { cursor: crosshair; }
 
   /* ---- right-hand command bar (build panel + minimap) ---- */
@@ -232,16 +232,8 @@
     .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; width: auto; flex: 1 1 auto; }
   }
 
-  /* ---- desktop-only notice (see plan: no dead-end on a phone) ---- */
+  /* Touch is supported (tap / drag-pan / pinch); the old desktop-only gate is gone. */
   #nomob { display: none; }
-  @media (hover: none) and (pointer: coarse) {
-    #nomob {
-      display: flex; position: fixed; inset: 0; z-index: 40;
-      align-items: center; justify-content: center; padding: 24px;
-      background: #0e1117; text-align: center;
-    }
-    #nomob .card p { margin-bottom: 0; }
-  }
 </style>
 </head>
 <body>
@@ -5147,7 +5139,8 @@
       x: gx, y: gy, gw: d.gw, gh: d.gh,
       hp: d.hp, maxhp: d.hp, dead: false,
       cool: 0, target: null, sel: false,
-      cx: gx + (d.gw - 1) / 2, cy: gy + (d.gh - 1) / 2, rally: null
+      cx: gx + (d.gw - 1) / 2, cy: gy + (d.gh - 1) / 2, rally: null,
+      builtAt: g.tick > 0 ? g.tick : -9999                 // starting base is already up
     };
     g.blds.push(b);
     g.byId[b.id] = b;
@@ -6661,6 +6654,11 @@
     hovEl.style.left = x + 'px'; hovEl.style.top = y + 'px';
   }
 
+  var IS_TOUCH = (function () { try { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch (e) { return false; } })();
+  function touchHint() {
+    if (IS_TOUCH) say('Touch: tap a unit to select, tap the ground to move, drag to pan, pinch to zoom', false, 600);
+  }
+
   function say(msg, warn, hold) {
     tipEl.textContent = msg;
     tipEl.className = warn ? 'warn' : '';
@@ -6871,11 +6869,70 @@
     boxSelect(Math.min(d.x1, d.x2), Math.min(d.y1, d.y2), w, h, d.shift);
   }
 
+  // ---- Touch: one finger taps (select own / order at) or drags to pan; two
+  // fingers pinch-zoom about their midpoint. No box-select on touch; RA2 was
+  // never a touch game, but the shell is used on phones and tablets.
+  var touches = {}, touchN = 0, tg = null;
+  function touchPts() { var a = []; for (var k in touches) a.push(touches[k]); return a; }
+  function touchTap(px, py) {
+    if (placing) { tryPlace(px, py); return; }
+    var e = pickAt(px, py);
+    if (e && e.p === P_HUMAN) { clickSelect(px, py, false); return; }
+    if (sel.length) { rightOrder(px, py); return; }
+    clearSel();
+  }
+  function touchDown(e, px, py) {
+    touches[e.pointerId] = { x: px, y: py }; touchN++;
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    var pts = touchPts();
+    if (touchN === 1) tg = { mode: 'tap', x0: px, y0: py, t0: performance.now(), lx: px, ly: py };
+    else if (touchN === 2) {
+      var dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+      tg = { mode: 'pinch', d0: Math.sqrt(dx * dx + dy * dy) || 1, z0: zoom,
+             mx: (pts[0].x + pts[1].x) / 2, my: (pts[0].y + pts[1].y) / 2 };
+    } else tg = null;
+  }
+  function touchMove(e, px, py) {
+    if (!touches[e.pointerId]) return;
+    touches[e.pointerId].x = px; touches[e.pointerId].y = py;
+    if (!tg) return;
+    if (tg.mode === 'pinch') {
+      var pts = touchPts(); if (pts.length < 2) return;
+      var dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+      var mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+      setZoom(tg.z0 * d / tg.d0, mx, my);
+      cam.x -= (mx - tg.mx) / zoom; cam.y -= (my - tg.my) / zoom; clampCam();
+      tg.mx = mx; tg.my = my;
+      return;
+    }
+    if (tg.mode === 'tap' && Math.abs(px - tg.x0) + Math.abs(py - tg.y0) > 9) tg.mode = 'pan';
+    if (tg.mode === 'pan') {
+      cam.x -= (px - tg.lx) / zoom; cam.y -= (py - tg.ly) / zoom; clampCam();
+      camVel.x = camVel.y = 0;
+    }
+    tg.lx = px; tg.ly = py;
+  }
+  function touchUp(e, px, py) {
+    if (!touches[e.pointerId]) return;
+    delete touches[e.pointerId]; touchN = Math.max(0, touchN - 1);
+    if (tg && tg.mode === 'tap' && performance.now() - tg.t0 < 400 && G && state === 'play') touchTap(px, py);
+    tg = touchN === 1 ? { mode: 'pan', lx: touchPts()[0].x, ly: touchPts()[0].y, x0: -99, y0: -99, t0: 0 } : null;
+  }
+  cv.addEventListener('pointerup', function (e) {
+    if (e.pointerType !== 'touch') return;
+    var r = cv.getBoundingClientRect(); touchUp(e, e.clientX - r.left, e.clientY - r.top);
+  });
+  cv.addEventListener('pointercancel', function (e) {
+    if (e.pointerType !== 'touch') return;
+    delete touches[e.pointerId]; touchN = Math.max(0, touchN - 1); tg = null;
+  });
+
   cv.addEventListener('pointerdown', function (e) {
     resumeAudio();
     if (!G || (state !== 'play' && state !== 'paused')) return;
     var r = cv.getBoundingClientRect();
     var px = e.clientX - r.left, py = e.clientY - r.top;
+    if (e.pointerType === 'touch') { e.preventDefault(); touchDown(e, px, py); return; }
     if (e.button === 0) {
       if (placing) { tryPlace(px, py); return; }
       drag = { x1: px, y1: py, x2: px, y2: py, shift: e.shiftKey };
@@ -6894,6 +6951,7 @@
   cv.addEventListener('pointermove', function (e) {
     var r = cv.getBoundingClientRect();
     var nx = e.clientX - r.left, ny = e.clientY - r.top;
+    if (e.pointerType === 'touch') { touchMove(e, nx, ny); return; }
     var now = performance.now(), dtm = now - lastMoveT;
     if (dtm > 0 && dtm < 120) {
       var dpx = Math.sqrt((nx - lastMoveX) * (nx - lastMoveX) + (ny - lastMoveY) * (ny - lastMoveY));
@@ -7256,7 +7314,7 @@
       }
 
       if (pan) {                              // middle-drag beats everything
-        cam.x -= (mouse.x - pan.x); cam.y -= (mouse.y - pan.y);
+        cam.x -= (mouse.x - pan.x) / zoom; cam.y -= (mouse.y - pan.y) / zoom;
         pan.x = mouse.x; pan.y = mouse.y;
         camVel.x = camVel.y = 0;
         clampCam();
@@ -7425,6 +7483,28 @@
     for (i = 0; i < G.fx.length; i++) {
       var fx = G.fx[i], ff = fx.t / fx.life;
       var fxx = sx(fx.x, fx.y), fyy = sy(fx.x, fx.y);
+      if (fx.smoke) {
+        ctx.globalCompositeOperation = 'source-over';
+        var sr = 3 + ff * 8, sy0 = fyy - fx.lift - ff * 22 + Math.sin(fx.t * 0.15) * 1.5;
+        ctx.globalAlpha = 0.38 * (1 - ff);
+        ctx.fillStyle = '#3a3c40';
+        ctx.beginPath(); ctx.arc(fxx + Math.sin(fx.t * 0.11) * 3, sy0, sr, 0, 6.29); ctx.fill();
+        ctx.fillStyle = '#6a6c72';
+        ctx.beginPath(); ctx.arc(fxx - 2 + Math.cos(fx.t * 0.13) * 2, sy0 - 2, sr * 0.7, 0, 6.29); ctx.fill();
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      if (fx.fire) {
+        ctx.globalCompositeOperation = 'lighter';
+        var fl = 1 + ((fx.t * 7) % 5) * 0.12, fy0 = fyy - fx.lift;
+        ctx.globalAlpha = 0.85 * (1 - ff);
+        ctx.fillStyle = '#e8641e';
+        ctx.beginPath(); ctx.ellipse(fxx, fy0 - 3 * fl, 4 * fl, 6 * fl, 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = '#ffd24a';
+        ctx.beginPath(); ctx.ellipse(fxx + 0.5, fy0 - 2 * fl, 2 * fl, 3.5 * fl, 0, 0, 6.29); ctx.fill();
+        ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+        continue;
+      }
       if (fx.dust) {
         // Three ochre grains lifting and fading off the ore seam.
         ctx.globalCompositeOperation = 'source-over';
@@ -7519,12 +7599,40 @@
     var px = sx(b.cx, b.cy), py = sy(b.cx, b.cy);
     if (px < VX0 - 260 || py < VY0 - 260 || px > VX1 + 260 || py > VY1 + 260) return;
 
-    ctx.drawImage(art.s.c, px - art.ax, py - art.ay, art.s.w, art.s.h);
+    var bb = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
+    var ox = px - art.ax, oy = py - art.ay;
+    var age = G.tick - (b.builtAt == null ? -9999 : b.builtAt), BUILD_T = 80;
+    if (age < BUILD_T) {
+      // Build-up: the structure rises out of its pad behind a scaffold, as in
+      // RA2, instead of popping into existence.
+      var t = Math.max(0, age) / BUILD_T, ah = bb.y1 - bb.y0, topY = oy + bb.y1 - t * ah;
+      ctx.save(); ctx.beginPath(); ctx.rect(ox, topY, art.s.w, t * ah + 3); ctx.clip();
+      ctx.drawImage(art.s.c, ox, oy, art.s.w, art.s.h);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(205,210,222,' + (0.75 * (1 - t)).toFixed(2) + ')'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (var gxs = ox + bb.x0 + 6; gxs < ox + bb.x1 - 2; gxs += 11) { ctx.moveTo(gxs, oy + bb.y0); ctx.lineTo(gxs, topY); }
+      for (var gys = oy + bb.y0 + 8; gys < topY; gys += 10) { ctx.moveTo(ox + bb.x0 + 2, gys); ctx.lineTo(ox + bb.x1 - 2, gys); }
+      ctx.moveTo(ox + bb.x0, topY); ctx.lineTo(ox + bb.x1, topY);
+      ctx.stroke();
+    } else {
+      ctx.drawImage(art.s.c, ox, oy, art.s.w, art.s.h);
+    }
+    // Damage states: smoke from a hurt structure, fire once it is critical.
+    var frac = b.hp / b.maxhp;
+    if (frac < 0.5 && age >= BUILD_T) {
+      var ph = (G.tick + b.id * 7) % 18;
+      if (ph === 0 || (frac < 0.25 && ph === 9)) {
+        var k = ((G.tick / 18 + b.id) | 0) % 3, sxo = [-0.3, 0.25, 0.05][k], syo = [0.1, -0.25, 0.3][k];
+        G.fx.push({ x: b.cx + sxo * b.gw, y: b.cy + syo * b.gh, t: 0, life: 70, smoke: true,
+                    lift: (art.rise || 40) * 0.45 });
+        if (frac < 0.25) G.fx.push({ x: b.cx + sxo * b.gw, y: b.cy + syo * b.gh, t: 0, life: 26, fire: true,
+                                     lift: (art.rise || 40) * 0.35 });
+      }
+    }
     if (b.sel) {
       // Brackets around the art, over it: a footprint ring drawn under the
       // sprite was hidden by the building's own platform.
-      var bb = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
-      var ox = px - art.ax, oy = py - art.ay;
       brackets(ox + bb.x0 - 3, oy + bb.y0 - 3, ox + bb.x1 + 3, oy + bb.y1 + 2);
     }
     var topY = py - Math.max(art.rise || 0, (b.gw + b.gh) * 8) - 6;
@@ -7798,6 +7906,7 @@
     pauseBtn.textContent = '⏸';
     pausedEl.classList.remove('show');
     sel = []; groups = {}; placing = null; pathQ = [];
+    setTimeout(touchHint, 4000);                 // after the opening tip has had its say
     cv.classList.remove('placing');
     shownCred = 0;
     lastReady = null; toldRefinery = false; lastPowerWarn = 0;
