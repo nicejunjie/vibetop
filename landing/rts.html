@@ -699,7 +699,7 @@
     var s = mkCanvas(TW + 2, TH + 2), g = s.g;
     var cx = (TW + 2) / 2, cy = (TH + 2) / 2;
     diamond(g, cx, cy, TW, TH);
-    g.fillStyle = '#2c323e'; g.fill();
+    g.fillStyle = '#3b3a35'; g.fill();
     g.save();
     diamond(g, cx, cy, TW, TH); g.clip();
     srand(777);
@@ -720,9 +720,9 @@
       g.moveTo(pts[0][0], pts[0][1]);
       for (k = 1; k < pts.length; k++) g.lineTo(pts[k][0], pts[k][1]);
       g.closePath();
-      g.fillStyle = shade('#39414f', 0.75 + rnd() * 0.7);
+      g.fillStyle = shade('#4b4941', 0.75 + rnd() * 0.7);
       g.fill();
-      g.strokeStyle = '#1c212a'; g.lineWidth = 0.8; g.stroke();
+      g.strokeStyle = '#2a2924'; g.lineWidth = 0.8; g.stroke();
       // a bright top-left facet edge on some, so it reads as catching light
       if (rnd() < 0.6) {
         g.strokeStyle = 'rgba(200,210,225,.35)'; g.lineWidth = 0.9;
@@ -739,7 +739,7 @@
     }
     g.restore();
     diamond(g, cx, cy, TW, TH);
-    g.strokeStyle = '#495366'; g.lineWidth = 1; g.stroke();
+    g.strokeStyle = '#514f45'; g.lineWidth = 1; g.stroke();
     return s;
   }
 
@@ -1269,18 +1269,55 @@
       g.beginPath(); g.arc(mx, mt - u * 0.12, u * 0.15, 0, 6.29); g.fill();
       g.fillStyle = 'rgba(255,91,99,.28)';
       g.beginPath(); g.arc(mx, mt - u * 0.12, u * 0.34, 0, 6.29); g.fill();
-    } else if (key === 'sentry' || key === 'tesla') {
+    } else if (key === 'sentry') {
+      // Sentry Gun: a turret housing with twin cannon barrels — reads as a
+      // rapid-fire gun, not a tower.
       isoBox(g, cx, ry + u * 0.1, u * 1.15, u * 1.15, u * 0.6, 0, shade(col, 1.05), dark);
       g.fillStyle = shade(col, 1.3);                                // housing
       g.beginPath(); g.ellipse(cx, ry - u * 0.55, u * 0.6, u * 0.4, 0, 0, 6.29); g.fill();
       outline(g, dark);
-      g.lineCap = 'round';                                          // gun
-      g.strokeStyle = dark; g.lineWidth = 6.5;
-      g.beginPath(); g.moveTo(cx, ry - u * 0.6); g.lineTo(cx + u * 1.7, ry - u * 1.15); g.stroke();
-      g.strokeStyle = '#39415a'; g.lineWidth = 3.8;
-      g.beginPath(); g.moveTo(cx, ry - u * 0.6); g.lineTo(cx + u * 1.65, ry - u * 1.12); g.stroke();
+      g.lineCap = 'round';
+      for (var gb = -1; gb <= 1; gb += 2) {                         // twin barrels
+        g.strokeStyle = dark; g.lineWidth = 3.2;
+        g.beginPath(); g.moveTo(cx, ry - u * 0.6 + gb * u * 0.13); g.lineTo(cx + u * 1.62, ry - u * 1.12 + gb * u * 0.13); g.stroke();
+        g.strokeStyle = '#39415a'; g.lineWidth = 1.9;
+        g.beginPath(); g.moveTo(cx, ry - u * 0.6 + gb * u * 0.13); g.lineTo(cx + u * 1.58, ry - u * 1.10 + gb * u * 0.13); g.stroke();
+      }
       g.fillStyle = shade(col, 1.5);
       g.beginPath(); g.arc(cx, ry - u * 0.6, u * 0.22, 0, 6.29); g.fill();
+      outline(g, dark);
+    } else if (key === 'tesla') {
+      // Tesla Coil: a tapering tower of shrinking rings topped by a charged
+      // orb with fixed (non-random) lightning arcs — no barrel, so the
+      // silhouette itself reads "not a gun" even before the colour does.
+      isoBox(g, cx, ry + u * 0.12, u * 1.0, u * 1.0, u * 0.42, 0, shade(col, 0.95), dark); // pedestal
+      var ringN = 3, orbY = ry;
+      for (var rI = 0; rI < ringN; rI++) {
+        var rr = u * (0.62 - rI * 0.14), rh = u * 0.34;
+        var rcy = ry - u * 0.1 - rI * u * 0.42;
+        g.fillStyle = shade(col, 1.15 + rI * 0.08);
+        g.beginPath(); g.ellipse(cx, rcy, rr, rr * 0.42, 0, 0, Math.PI); g.fill();
+        g.fillStyle = shade(col, 0.68);
+        g.beginPath(); g.ellipse(cx, rcy - rh, rr, rr * 0.42, 0, Math.PI, Math.PI * 2); g.fill();
+        outline(g, dark);
+        orbY = rcy - rh;
+      }
+      orbY -= u * 0.14;
+      g.fillStyle = 'rgba(190,230,255,.32)';                        // charge halo, drawn under the orb
+      g.beginPath(); g.arc(cx, orbY, u * 0.5, 0, 6.29); g.fill();
+      g.fillStyle = '#bfe8ff';                                      // charged orb
+      g.beginPath(); g.arc(cx, orbY, u * 0.26, 0, 6.29); g.fill();
+      outline(g, '#3a6b82');
+      g.strokeStyle = '#e6f7ff'; g.lineWidth = 1.1; g.lineCap = 'round';
+      var arcs = [[0.9, -0.25, 0.5, -0.55, 0.95, -0.65], [-0.85, 0.3, -0.45, 0.55, -1.0, 0.55], [0.15, 0.9, 0.4, 0.55, 0.55, 1.0]];
+      for (var arI = 0; arI < arcs.length; arI++) {                  // fixed jagged bolts — deterministic
+        var a2 = arcs[arI];
+        g.beginPath(); g.moveTo(cx, orbY);
+        g.lineTo(cx + a2[0] * u * 0.5, orbY + a2[1] * u * 0.5);
+        g.lineTo(cx + a2[2] * u * 0.7, orbY + a2[3] * u * 0.7);
+        g.lineTo(cx + a2[4] * u * 0.9, orbY + a2[5] * u * 0.9);
+        g.stroke();
+      }
     }
     return { s: s, ax: cx, ay: baseY };
   }
@@ -1320,7 +1357,17 @@
   }
 
   function bakeAll() {
-    SPR.ground = [ bakeTile('#232a36', '#1b212b', 41), bakeTile('#252d3a', '#1b212b', 42), bakeTile('#212834', '#1b212b', 43) ];
+    // Ground was three near-identical near-black slates separated by a DARKER
+    // grid line, which is what made a battlefield read as a board game: the
+    // strongest thing on most of the screen was the tile outline. Now six
+    // variants across a warmer, lifted earth range, with the seam drawn a
+    // touch LIGHTER than the fill so tiles meet instead of being ruled apart.
+    // Six also breaks the visible repeat of the (x*7+y*3) pick.
+    SPR.ground = [
+      bakeTile('#343b34', '#3a4139', 41), bakeTile('#363d33', '#3c4338', 42),
+      bakeTile('#323932', '#384038', 43), bakeTile('#373d36', '#3d433b', 44),
+      bakeTile('#333a31', '#394037', 45), bakeTile('#353c35', '#3b423a', 46)
+    ];
     SPR.rock = bakeRock();
     SPR.oreLv = [];
     for (var lv = 0; lv < 3; lv++) {
@@ -3300,7 +3347,7 @@
         i = idx(x, y);
         px = sx(x, y); py = sy(x, y);
         var t = G.terrain[i];
-        var tile = t === T_ROCK ? SPR.rock : SPR.ground[(x * 7 + y * 3) % 3];
+        var tile = t === T_ROCK ? SPR.rock : SPR.ground[(((x * 73856093) ^ (y * 19349663)) >>> 0) % 6];
         ctx.drawImage(tile.c, px - tile.w / 2, py - tile.h / 2, tile.w, tile.h);
         if (t === T_ORE) {
           var lv = G.ore[i] > 600 ? 2 : (G.ore[i] > 250 ? 1 : 0);
