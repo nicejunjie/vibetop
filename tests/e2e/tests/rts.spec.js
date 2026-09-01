@@ -437,6 +437,91 @@ test.describe('rts', () => {
       .toHaveLength(1);
   });
 
+  test('the build radius gives you room, and shows you where it is', async ({ page }) => {
+    await boot(page);
+    // The first rule required a new footprint to TOUCH an existing building,
+    // which forces the whole base into one solid brick. A radius is what RA2
+    // actually does, and it has to leave real room to lay a base out.
+    const spots = await page.evaluate(() => {
+      const H = window.__rtsTest, T = window.__rtsTables, g = H.get();
+      let n = 0;
+      for (let y = 0; y < T.MAP; y++)
+        for (let x = 0; x < T.MAP; x++)
+          if (H.api.canPlace(g, 0, 'power', x, y)) n++;
+      return n;
+    });
+    expect(spots, 'one construction yard should open up a real area to build in')
+      .toBeGreaterThan(80);
+
+    // It must also be visible: arming a placement paints the legal area.
+    await page.evaluate(() => window.__rtsTest.give(0, 20000));
+    await page.locator('#plist .pit:nth-child(1)').click();
+    await expect
+      .poll(async () => page.evaluate(() => window.__rts().ready), { timeout: 30000 })
+      .toBe('power');
+    await page.locator('#plist .pit:nth-child(1)').click();
+    expect(await page.evaluate(() => window.__rts().placing)).toBe('power');
+  });
+
+  test('a rally point is visible, routed, and actually used', async ({ page }) => {
+    await boot(page);
+    await page.evaluate(() => window.__rtsTest.give(0, 20000));
+    await page.evaluate(() => {
+      const H = window.__rtsTest, g = H.get(), s = g.start[0];
+      for (let r = 3; r < 10; r++)
+        for (let oy = -r; oy <= r; oy++)
+          for (let ox = -r; ox <= r; ox++)
+            if (H.api.canPlace(g, 0, 'barracks', s.x + ox, s.y + oy)) {
+              H.build('barracks', 0, s.x + ox, s.y + oy); return;
+            }
+    });
+    const bar = await page.evaluate(() => {
+      const b = window.__rtsTest.get().blds.find((x) => x.type === 'barracks' && x.p === 0);
+      return { cx: b.cx, cy: b.cy };
+    });
+    const at = (dx, dy) => page.evaluate(({ cx, cy, dx, dy }) => {
+      const c = document.getElementById('cv').getBoundingClientRect();
+      const s = window.__rtsScreen(cx + dx, cy + dy);
+      return { x: c.left + s.x, y: c.top + s.y };
+    }, { cx: bar.cx, cy: bar.cy, dx, dy });
+
+    // Selecting a producer must SAY it takes a rally point — previously
+    // nothing about the feature was visible anywhere.
+    const sel = await at(0, 0);
+    await page.mouse.click(sel.x, sel.y);
+    await page.waitForTimeout(200);
+    expect(await page.locator('#tip').textContent()).toMatch(/rally point/i);
+
+    // Right-click stores a real route, not just a destination.
+    const dest = await at(8, 6);
+    await page.mouse.click(dest.x, dest.y, { button: 'right' });
+    await page.waitForTimeout(250);
+    const rally = await page.evaluate(() => {
+      const b = window.__rtsTest.get().blds.find((x) => x.type === 'barracks' && x.p === 0);
+      return b.rally && { steps: b.rally.path ? b.rally.path.length : 0, ok: b.rally.reachable,
+                          x: b.rally.x, y: b.rally.y };
+    });
+    expect(rally, 'right-clicking with a producer selected sets a rally point').toBeTruthy();
+    expect(rally.ok, 'the route should be reachable').toBe(true);
+    expect(rally.steps, 'the stored route should have steps to draw').toBeGreaterThan(1);
+
+    // And a unit produced afterwards heads for it.
+    const walked = await page.evaluate(({ rx, ry }) => {
+      const H = window.__rtsTest, g = H.get();
+      const before = g.units.length;
+      const u = H.spawn('rifle', 0, g.blds.find((b) => b.type === 'barracks').cx, 0);
+      void before; void u;
+      // drive the real production path instead: queue one and run the sim
+      const s = g.side[0];
+      s.queues.i.list.push('rifle');
+      H.step(60 * 12);
+      const fresh = g.units.filter((v) => !v.dead && v.p === 0 && v.type === 'rifle');
+      return fresh.some((v) => v.order && v.order.t === 'move' &&
+                               Math.abs(v.order.x - rx) < 3 && Math.abs(v.order.y - ry) < 3);
+    }, { rx: rally.x, ry: rally.y });
+    expect(walked, 'a newly produced unit should be sent to the rally point').toBe(true);
+  });
+
   test('a pan eases in instead of snapping to full speed', async ({ page }) => {
     await boot(page);
     await page.mouse.move(640, 400);

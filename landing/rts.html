@@ -1537,32 +1537,51 @@
     return null;
   }
 
-  // Structures must touch the existing base footprint (RA2's build radius).
+  // Build radius, RA2-style: anywhere within BUILD_RADIUS tiles of one of your
+  // own structures. Requiring the new footprint to TOUCH an existing one (the
+  // first attempt) forces every base into a solid brick with no room to lay
+  // out defences, leave lanes, or space things apart — "all items squeezed
+  // together, terrible".
+  var BUILD_RADIUS = 6;
+
+  // Cached buildable mask, rebuilt when the structure set changes.
+  var maskCache = [null, null], maskKey = ['', ''];
+  function buildMask(g, p) {
+    var key = '';
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (!b.dead && b.p === p) key += b.id + ',' + b.x + ',' + b.y + ';';
+    }
+    if (maskKey[p] === key && maskCache[p]) return maskCache[p];
+    var m = new Uint8Array(MAP * MAP);
+    for (var j = 0; j < g.blds.length; j++) {
+      var bb = g.blds[j];
+      if (bb.dead || bb.p !== p) continue;
+      var x0 = Math.max(0, bb.x - BUILD_RADIUS), x1 = Math.min(MAP - 1, bb.x + bb.gw - 1 + BUILD_RADIUS);
+      var y0 = Math.max(0, bb.y - BUILD_RADIUS), y1 = Math.min(MAP - 1, bb.y + bb.gh - 1 + BUILD_RADIUS);
+      for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) m[y * MAP + x] = 1;
+    }
+    maskKey[p] = key; maskCache[p] = m;
+    return m;
+  }
+
   function canPlace(g, p, key, gx, gy) {
     var d = BLDS[key];
-    var touch = false;
-    for (var y = gy - 1; y <= gy + d.gh; y++) {
-      for (var x = gx - 1; x <= gx + d.gw; x++) {
-        if (!inMap(x, y)) continue;
-        var inside = (x >= gx && x < gx + d.gw && y >= gy && y < gy + d.gh);
+    var mask = buildMask(g, p), inRange = false;
+    for (var y = gy; y < gy + d.gh; y++) {
+      for (var x = gx; x < gx + d.gw; x++) {
+        if (!inMap(x, y)) return false;
         var i = idx(x, y);
-        if (inside) {
-          if (g.terrain[i] === T_ROCK || g.terrain[i] === T_ORE) return false;
-          if (g.occ[i] !== 0) return false;
-          // no placing on top of a unit
-          var hit = false;
-          for (var k = 0; k < g.units.length; k++) {
-            var u = g.units[k];
-            if (!u.dead && Math.round(u.x) === x && Math.round(u.y) === y) { hit = true; break; }
-          }
-          if (hit) return false;
-        } else if (g.occ[i] !== 0) {
-          var ob = entById(g, g.occ[i]);
-          if (ob && ob.p === p) touch = true;
+        if (g.terrain[i] === T_ROCK || g.terrain[i] === T_ORE) return false;
+        if (g.occ[i] !== 0) return false;
+        for (var k = 0; k < g.units.length; k++) {          // not on top of a unit
+          var u = g.units[k];
+          if (!u.dead && Math.round(u.x) === x && Math.round(u.y) === y) return false;
         }
+        if (mask[i]) inRange = true;
       }
     }
-    return touch;
+    return inRange;
   }
 
   // --------------------------------------------------------------------- //
@@ -2163,7 +2182,7 @@
     var s = G.side[P_HUMAN];
     if (it.lane === 'b' && s.queues.b.ready === it.k) {
       placing = it.k; cv.classList.add('placing');
-      say('Click the map to place the ' + it.spec.name + ' — it must touch your base. Esc cancels.');
+      say('Click anywhere in the green area to place the ' + it.spec.name + '. Esc cancels.');
       sfx('click');
       return;
     }
@@ -2397,7 +2416,12 @@
   function describe(e) {
     if (e.kind === 'b') {
       var d = BLDS[e.type];
-      return d.em + ' ' + d.name + ' — ' + Math.ceil(e.hp) + '/' + d.hp + ' hp';
+      var t = d.em + ' ' + d.name + ' — ' + Math.ceil(e.hp) + '/' + d.hp + ' hp';
+      if (d.makes === 'i' || d.makes === 'v') {
+        t += e.rally ? ' · rally set (right-click to move it)'
+                     : ' · right-click the map to set a rally point';
+      }
+      return t;
     }
     var u = UNITS[e.type];
     var extra = e.type === 'harvester' ? ' — ' + Math.round(e.cargo) + '/' + u.cap + ' ore' : '';
@@ -2437,9 +2461,21 @@
     // A selected production building takes a rally point instead.
     var bsel = sel.filter(function (e) { return e.kind === 'b'; });
     if (bsel.length && sel.length === bsel.length) {
-      bsel.forEach(function (b) { b.rally = { x: gx, y: gy }; });
-      say('Rally point set');
+      // Only the two production buildings actually use a rally point; setting
+      // one on a power plant would be a click that silently does nothing.
+      var prod = bsel.filter(function (b) {
+        var m = BLDS[b.type].makes; return m === 'i' || m === 'v';
+      });
+      if (!prod.length) {
+        say('Only the Barracks and War Factory take a rally point', true);
+        sfx('no');
+        return;
+      }
+      prod.forEach(function (b) { b.rally = makeRally(b, gx, gy); });
+      say(prod.length > 1 ? 'Rally point set for ' + prod.length + ' buildings'
+                          : 'Rally point set — new units will head there');
       sfx('click');
+      if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 22, size: 0, ping: true });
       return;
     }
 
@@ -2486,12 +2522,22 @@
     if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 18, size: 0, ping: true });
   }
 
+  // A rally point stores the ROUTE, not just the destination: seeing the line
+  // bend around a cliff is the difference between "units gather there" and
+  // "units gather there, the long way round". Computed once, on set.
+  function makeRally(b, gx, gy) {
+    var from = freeTileNear(G, Math.round(b.cx), Math.round(b.cy + b.gh / 2 + 1)) ||
+               { x: Math.round(b.cx), y: Math.round(b.cy) };
+    var path = astar(G, from.x, from.y, gx, gy);
+    return { x: gx, y: gy, from: from, path: path, reachable: !!path };
+  }
+
   function tryPlace(px, py) {
     var gp = screenToGrid(px, py);
     var d = BLDS[placing];
     var gx = Math.round(gp.x - (d.gw - 1) / 2), gy = Math.round(gp.y - (d.gh - 1) / 2);
     if (!canPlace(G, P_HUMAN, placing, gx, gy)) {
-      say('Can’t build there — clear ground, touching your base', true);
+      say('Can’t build there — needs clear ground inside the green area', true);
       sfx('no');
       return;
     }
@@ -2652,6 +2698,24 @@
       }
     }
 
+    // Placement ghost, over a wash showing WHERE you may build at all. Without
+    // it the radius is invisible and you find its edge by trial and error.
+    if (placing) {
+      var mask = buildMask(G, P_HUMAN);
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = '#6ee7a8';
+      for (y = minY; y <= maxY; y++) {
+        for (x = minX; x <= maxX; x++) {
+          if (!mask[idx(x, y)]) continue;
+          var ti = idx(x, y);
+          if (G.terrain[ti] === T_ROCK || G.terrain[ti] === T_ORE || G.occ[ti] !== 0) continue;
+          diamond(ctx, sx(x, y), sy(x, y), TW - 3, TH - 1.5);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // Placement ghost
     if (placing) {
       var d = BLDS[placing];
@@ -2683,6 +2747,12 @@
 
     for (i = 0; i < draw.length; i++) {
       if (draw[i].b) drawBld(draw[i].e); else drawUnit(draw[i].e);
+    }
+
+    // Rally lines for any selected production building, over the world so the
+    // route is readable across terrain, under the effects layer.
+    for (i = 0; i < G.blds.length; i++) {
+      if (!G.blds[i].dead && G.blds[i].sel && G.blds[i].rally) drawRally(G.blds[i]);
     }
 
     // Shots
@@ -2768,6 +2838,58 @@
       ctx.fillText('⚡', px, py - (b.gw + b.gh) * 8 - 26);
       ctx.textAlign = 'left';
     }
+  }
+
+  function drawRally(b) {
+    var r = b.rally;
+    var ok = r.reachable;
+    var col = ok ? '138,208,255' : '229,100,108';
+    var ex = sx(r.x, r.y), ey = sy(r.x, r.y);
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(' + col + ',.85)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 6]);
+    ctx.lineDashOffset = -(performance.now() / 55) % 13;    // marching ants
+    ctx.beginPath();
+    var f = r.from || { x: Math.round(b.cx), y: Math.round(b.cy) };
+    ctx.moveTo(sx(f.x, f.y), sy(f.x, f.y));
+    if (ok && r.path.length) {
+      for (var i = 0; i < r.path.length; i++) {
+        ctx.lineTo(sx(r.path[i].x, r.path[i].y), sy(r.path[i].x, r.path[i].y));
+      }
+    } else {
+      ctx.lineTo(ex, ey);                                   // no route: straight
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Destination marker: a flag on a post, with a footprint diamond so it
+    // reads as a place on the ground rather than an icon floating over it.
+    ctx.strokeStyle = 'rgba(' + col + ',.55)';
+    ctx.lineWidth = 1.4;
+    diamond(ctx, ex, ey, 26, 13);
+    ctx.stroke();
+
+    var pulse = 1 + Math.sin(performance.now() / 260) * 0.12;
+    ctx.strokeStyle = 'rgba(' + col + ',.95)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex, ey - 26 * pulse); ctx.stroke();
+    ctx.fillStyle = 'rgba(' + col + ',.92)';
+    ctx.beginPath();
+    ctx.moveTo(ex, ey - 26 * pulse);
+    ctx.lineTo(ex + 15, ey - 21 * pulse);
+    ctx.lineTo(ex, ey - 16 * pulse);
+    ctx.closePath(); ctx.fill();
+
+    if (!ok) {                                              // say why it is red
+      ctx.fillStyle = 'rgba(229,100,108,.95)';
+      ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('no route', ex, ey + 18);
+      ctx.textAlign = 'left';
+    }
+    ctx.restore();
   }
 
   function hpBar(x, y, w, f) {
