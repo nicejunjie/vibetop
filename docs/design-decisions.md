@@ -5153,3 +5153,37 @@ original exact-bytes test stayed green through the whole breakage.
 - **Fix:** two passes — first only spots with a clear one-tile gap all round
   (`crowding == 0`), then the old tolerance if the base has grown into its
   walls; plus a distance penalty per blocked neighbour tile.
+
+## The only saturated red or blue on a sprite is the owner's colour
+
+- **Symptom:** the user could not tell friend from foe: "the Allied base has
+  both red and blue on it… many buildings carry both my colour and the
+  opponent's". Hue audits confirmed it — a red-owner Allied factory carried 7%
+  blue and 3% red; a blue-owner Soviet factory 12% red and 8% blue.
+- **Cause:** the art spec kept RA2's *faction* colours as fixed paint (Allied
+  blue trim, Soviet red grilles and stars) and added the *player* colour on
+  top. With players coloured blue and red, every Soviet building looked
+  half-enemy to a blue player and vice versa. RA2 itself has no fixed faction
+  paint: those surfaces are the remap.
+- **Fix:** policy for every branch — the only saturated blue/red pixels are
+  `col`/`shade(col)`; former fixed accents become `col` if trim-sized (fins,
+  bands, frames, pylons, grilles, flags) or a neutral (rust, brass, amber,
+  gunmetal, khaki) if body-sized; glass shifted to violet (~270°) so it is
+  not mistaken for the blue player. Target 12-18% of opaque pixels in `col`.
+  Verified per sprite by a hue census: 0.0% of the opposing hue on every item.
+- **Rule:** in a two-colour game the identity axis ("whose") owns the
+  saturated hues outright; the type axis ("what") must live in shape and in
+  desaturated materials.
+
+## "Stretched" buildings: measure the aspect ratio, don't eyeball it
+
+- **Symptom:** "many proportions are off — some flattened, some stretched".
+- **Cause:** every rebuilt structure was 10-20% too tall for its width
+  (barracks 0.99 vs reference 1.21, refinery 1.09 vs 1.28, yard 1.35 vs
+  1.63); tall masts, flags and stacks set the bounding box, and nobody had a
+  number to check against.
+- **Fix:** opaque-bbox w/h of the reference sprite is the target; each builder
+  reports before/after and lands within ±8%. Helper: `aspect.py` (bbox and
+  ratio of a PNG, with a background-colour key for the prepared refs).
+- **Rule:** proportion feedback is a measurement, not an opinion. Compute the
+  reference ratio first; then argue about shape.
