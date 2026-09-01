@@ -519,6 +519,7 @@
       terrain: new Uint8Array(MAP * MAP),
       ore: new Float32Array(MAP * MAP),
       occ: new Int32Array(MAP * MAP),             // entity id occupying a tile, 0 = free
+      seen: new Uint8Array(MAP * MAP),            // shroud: tiles the human has ever had in sight
       units: [], blds: [], shots: [], fx: [], byId: {},
       nextId: 1,
       side: [ newSide(P_HUMAN), newSide(P_AI) ],
@@ -5365,9 +5366,14 @@
     var mult = spec.vs ? (spec.vs[armourOf(tgt)] || 1) : 1;
     tgt.hp -= amount * mult;
     if (tgt.kind === 'u' && tgt.type === 'harvester') tgt.fleeAt = g.tick;
+    if (tgt.p === P_HUMAN && src.p !== P_HUMAN) {
+      if (tgt.kind === 'b') eva('Our base is under attack', 20000);
+      else if (tgt.type === 'harvester') eva('Ore miner under attack', 20000);
+    }
     if (tgt.hp <= 0 && !tgt.dead) {
       g.side[src.p].killed++;
       g.side[tgt.p].lost++;
+      if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
       if (tgt.kind === 'b') { killBld(g, tgt); boom(g, tgt.cx, tgt.cy, 26); sfx('boom'); }
       else { tgt.dead = true; boom(g, tgt.x, tgt.y, 12); sfx('die'); }
     }
@@ -5385,9 +5391,10 @@
       g.shots.push({
         x: src.kind === 'b' ? src.cx : src.x, y: src.kind === 'b' ? src.cy : src.y,
         tx: tgt.kind === 'b' ? tgt.cx : tgt.x, ty: tgt.kind === 'b' ? tgt.cy : tgt.y,
-        t: 0, life: 7,
+        t: 0, life: src.type === 'tesla' ? 12 : 7, id: g.nextId++,
+        tesla: src.type === 'tesla',
         rocket: src.kind === 'u' && UNITS[src.type] && UNITS[src.type].splash > 0.2 ||
-                src.type === 'rocket' || src.type === 'tesla'
+                src.type === 'rocket'
       });
     }
     sfx(src.type === 'rifle' ? 'shot' : 'cannon');
@@ -5871,7 +5878,7 @@
       q.prog += slow / (spec.build * 60 * buildFactor(g, p, lane));
       if (q.prog >= 1) {
         q.prog = 0; q.list.shift();
-        if (isBldLane(lane)) { q.ready = key; if (p === P_HUMAN) sfx('ready'); }
+        if (isBldLane(lane)) { q.ready = key; if (p === P_HUMAN) { sfx('ready'); eva('Construction complete', 3000); } }
         else {
           var src = producerFor(g, p, lane);
           if (src) {
@@ -5881,7 +5888,7 @@
               if (src.rally) { nu.order = { t: 'move', x: src.rally.x, y: src.rally.y, id: 0 };
                                requestPath(g, nu, src.rally.x, src.rally.y);
                                nu.guardX = src.rally.x; nu.guardY = src.rally.y; }
-              if (p === P_HUMAN) sfx('ready');
+              if (p === P_HUMAN) { sfx('ready'); eva('Unit ready', 3000); }
             }
           }
         }
@@ -6437,6 +6444,33 @@
   //  Simulation step
   // --------------------------------------------------------------------- //
   var hashAt = -1;
+  // Shroud (RA2 without fog of war): the map starts black and stays revealed
+  // once any of the player's units or structures has had it in sight. Enemy
+  // entities on unrevealed tiles are neither drawn nor hoverable. The AI is
+  // not shrouded — RA2's AI is not either.
+  function revealFor(g, p) {
+    var seen = g.seen, i, e, r, cx, cy, x, y, r2;
+    function disc(cx, cy, r) {
+      var x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(MAP - 1, Math.ceil(cx + r));
+      var y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(MAP - 1, Math.ceil(cy + r));
+      r2 = (r + 0.5) * (r + 0.5);
+      for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++)
+        if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= r2) seen[y * MAP + x] = 1;
+    }
+    for (i = 0; i < g.units.length; i++) { e = g.units[i]; if (!e.dead && e.p === p) disc(e.x, e.y, UNITS[e.type].sight); }
+    for (i = 0; i < g.blds.length; i++) { e = g.blds[i]; if (!e.dead && e.p === p) disc(e.cx, e.cy, BLDS[e.type].sight + Math.max(e.gw, e.gh) / 2); }
+  }
+  function tileSeen(g, x, y) {
+    x = Math.round(x); y = Math.round(y);
+    return !inMap(x, y) || g.seen[y * MAP + x] === 1;
+  }
+  function entSeen(g, e) {
+    if (e.p === P_HUMAN) return true;
+    if (e.kind === 'u') return tileSeen(g, e.x, e.y);
+    for (var yy = e.y; yy < e.y + e.gh; yy++) for (var xx = e.x; xx < e.x + e.gw; xx++) if (tileSeen(g, xx, yy)) return true;
+    return false;
+  }
+
   function simStep(g) {
     g.tick++;
     if (g.tick - hashAt >= 3 || hashAt > g.tick) { rebuildHash(g); hashAt = g.tick; }
@@ -6449,6 +6483,7 @@
     stepQueues(g, P_AI);
     if (g.ai) stepAI(g, g.ai, P_AI, P_HUMAN);
     if (g.ai2) stepAI(g, g.ai2, P_HUMAN, P_AI);
+    if ((g.tick % 6) === 1 || g.tick <= 2) revealFor(g, P_HUMAN);
 
     // effects
     for (i = g.shots.length - 1; i >= 0; i--) if (++g.shots[i].t > g.shots[i].life) g.shots.splice(i, 1);
@@ -6600,6 +6635,27 @@
   }
   // Rate-limited: a 40-tank battle would otherwise fire hundreds of oscillators.
   var sfxAt = {};
+  // EVA: spoken announcements like RA2's advisor, via the browser's speech
+  // synthesis. Throttled per line so a hot fight does not chant.
+  var evaAt = {}, evaVoice = null;
+  function eva(line, gap) {
+    if (headless || !soundOn || typeof speechSynthesis === 'undefined') return;
+    var now = performance.now();
+    if (evaAt[line] && now - evaAt[line] < (gap || 6000)) return;
+    evaAt[line] = now;
+    try {
+      if (!evaVoice) {
+        var vs = speechSynthesis.getVoices();
+        evaVoice = vs.filter(function (v) { return /^en/i.test(v.lang) && /female|samantha|zira|google us english|karen|moira/i.test(v.name); })[0]
+                || vs.filter(function (v) { return /^en/i.test(v.lang); })[0] || null;
+      }
+      var u = new SpeechSynthesisUtterance(line);
+      u.rate = 1.0; u.pitch = 0.85; u.volume = 0.9;
+      if (evaVoice) u.voice = evaVoice;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
   function sfx(kind) {
     if (headless || !soundOn || !AC) return;
     var now = performance.now();
@@ -6740,7 +6796,7 @@
       return;
     }
     if (!canBuild(G, P_HUMAN, it.k, isBldLane(it.lane))) {
-      if (s.credits < it.spec.cost) say('Not enough credits for ' + it.spec.name + ' ($' + it.spec.cost + ')', true);
+      if (s.credits < it.spec.cost) { say('Not enough credits for ' + it.spec.name + ' ($' + it.spec.cost + ')', true); eva('Insufficient funds', 4000); }
       else if (it.lane === 'i') say('Build a Barracks first', true);
       else if (it.lane === 'v') say('Build a War Factory first', true);
       else say('You need a Construction Yard', true);
@@ -6785,7 +6841,7 @@
     // rather than letting the build bar mysteriously slow down.
     if (s.powerMade - s.powerUse < 0 && G.tick - lastPowerWarn > 60 * 45) {
       lastPowerWarn = G.tick;
-      say('Low power — production is slowed and defences are offline. Build a Power Plant.', true, 300);
+      say('Low power — production is slowed and defences are offline. Build a Power Plant.', true, 300); eva('Low power', 30000);
     }
     for (var k in panelRows) {
       var row = panelRows[k], it = row.it, el = row.el;
@@ -6833,6 +6889,27 @@
     // to P; it also exits on a click anywhere, so it needs the key least.
     if (e.key === ' ') { e.preventDefault(); goHome(); return; }
     if (e.key.toLowerCase() === 'h') { goHome(); return; }
+    var units0 = sel.filter(function (u) { return u.kind === 'u' && !u.dead; });
+    if (units0.length && (e.key === 's' || e.key === 'S' || e.key === 'g' || e.key === 'G')) {
+      // Stop / guard: drop orders and hold this ground (RA2 S and G).
+      units0.forEach(function (u) {
+        u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
+        if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
+      });
+      say((e.key.toLowerCase() === 'g' ? 'Guarding' : 'Stopped') + ' — ' + units0.length + ' unit' + (units0.length === 1 ? '' : 's'));
+      return;
+    }
+    if (units0.length && (e.key === 'x' || e.key === 'X')) {
+      // Scatter: each unit steps one or two tiles away from the group centre.
+      var mx = 0, my = 0; units0.forEach(function (u) { mx += u.x; my += u.y; }); mx /= units0.length; my /= units0.length;
+      units0.forEach(function (u, i) {
+        var a = Math.atan2(u.y - my, u.x - mx); if (!isFinite(a) || (u.x === mx && u.y === my)) a = i * 2.4;
+        var tx = Math.max(0, Math.min(MAP - 1, Math.round(u.x + Math.cos(a) * 2))), ty = Math.max(0, Math.min(MAP - 1, Math.round(u.y + Math.sin(a) * 2)));
+        orderUnitsTo(G, [u], tx, ty);
+      });
+      say('Scatter'); sfx('click');
+      return;
+    }
     if (e.key.toLowerCase() === 'p') { if (state === 'play' || state === 'paused') togglePause(); return; }
 
     if (/^[1-5]$/.test(e.key)) {
@@ -7031,7 +7108,7 @@
     var i, e, ex, ey, d;
     for (i = 0; i < G.units.length; i++) {
       e = G.units[i];
-      if (e.dead) continue;
+      if (e.dead || !entSeen(G, e)) continue;
       ex = sx(e.x, e.y); ey = sy(e.x, e.y);
       d = (ex - px) * (ex - px) + (ey - py) * (ey - py);
       if (d < 22 * 22 && d < bd) { bd = d; best = e; }
@@ -7039,7 +7116,7 @@
     if (best) return best;
     for (i = 0; i < G.blds.length; i++) {
       e = G.blds[i];
-      if (e.dead) continue;
+      if (e.dead || !entSeen(G, e)) continue;
       ex = sx(e.cx, e.cy); ey = sy(e.cx, e.cy);
       d = (ex - px) * (ex - px) + (ey - py) * (ey - py);
       var rad = Math.max(e.gw, e.gh) * 22;
@@ -7075,7 +7152,7 @@
       var mk = BLDS[e.type].makes;
       if (mk === 'i' || mk === 'v') {
         if (isPrimary(G, e)) { say(describe(e)); return; }
-        setPrimary(G, e); sfx('click');
+        setPrimary(G, e); sfx('click'); eva('Primary building selected', 2000);
         say(BLDS[e.type].name + ' is now primary — new ' + (mk === 'i' ? 'infantry' : 'vehicles') + ' come out here');
         return;
       }
@@ -7380,6 +7457,13 @@
         px = sx(x, y); py = sy(x, y);
         var t = G.terrain[i];
         var h6 = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+        if (!G.seen[i]) {
+          // Shroud: unexplored ground is black, drawn as the tile diamond so
+          // the edge follows the isometric grid like RA2's.
+          ctx.fillStyle = '#05070b';
+          diamond(ctx, px, py, TW + 1, TH + 1); ctx.fill();
+          continue;
+        }
         var tile = t === T_ROCK ? SPR.rock[h6 & 3] : SPR.ground[h6 % 6];
         ctx.drawImage(tile.c, px - tile.w / 2, py - tile.h / 2, tile.w, tile.h);
         if (t === T_ORE) {
@@ -7427,12 +7511,12 @@
     var draw = [];
     for (i = 0; i < G.blds.length; i++) {
       var b = G.blds[i];
-      if (b.dead) continue;
+      if (b.dead || !entSeen(G, b)) continue;
       draw.push({ d: b.cx + b.cy, e: b, b: true });
     }
     for (i = 0; i < G.units.length; i++) {
       var u = G.units[i];
-      if (u.dead) continue;
+      if (u.dead || !entSeen(G, u)) continue;
       draw.push({ d: u.x + u.y, e: u, b: false });
     }
     draw.sort(function (a, c) { return a.d - c.d; });
@@ -7456,8 +7540,28 @@
       var f = s.t / s.life;
       var ax = sx(s.x, s.y), ay = sy(s.x, s.y) - 10;
       var bx = sx(s.tx, s.ty), by = sy(s.tx, s.ty) - 8;
-      var hx = ax + (bx - ax) * Math.max(0, f - 0.25), hy = ay + (by - ay) * Math.max(0, f - 0.25);
-      var tx2 = ax + (bx - ax) * f, ty2 = ay + (by - ay) * f;
+      if (s.tesla) {
+        // Tesla bolt: a jagged arc from the coil's head to the target, redrawn
+        // with a different jitter each tick so it crawls, over a soft glow.
+        ax = sx(s.x, s.y); ay = sy(s.x, s.y) - 62;
+        var segs = 9, k;
+        for (var pass2 = 0; pass2 < 2; pass2++) {
+          ctx.strokeStyle = pass2 ? 'rgba(235,240,255,' + (0.95 * (1 - f)) + ')' : 'rgba(150,180,255,' + (0.45 * (1 - f)) + ')';
+          ctx.lineWidth = pass2 ? 1.4 : 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.beginPath(); ctx.moveTo(ax, ay);
+          for (k = 1; k < segs; k++) {
+            var q = k / segs, jit = Math.sin((s.t * 3.1 + k * 7.3 + s.id) * 1.7) * 7 * (1 - Math.abs(q - 0.5) * 1.2);
+            ctx.lineTo(ax + (bx - ax) * q + jit, ay + (by - ay) * q + jit * 0.6);
+          }
+          ctx.lineTo(bx, by); ctx.stroke();
+        }
+        continue;
+      }
+      // Muzzle flash sits at the end of the barrel, not on the hull centre.
+      var dlen = Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay)) || 1;
+      var mfx = ax + (bx - ax) / dlen * 11, mfy = ay + (by - ay) / dlen * 11;
+      var hx = mfx + (bx - mfx) * Math.max(0, f - 0.25), hy = mfy + (by - mfy) * Math.max(0, f - 0.25);
+      var tx2 = mfx + (bx - mfx) * f, ty2 = mfy + (by - mfy) * f;
       var glow = s.rocket ? 'rgba(232,140,40,' : 'rgba(150,200,255,';
       var core = s.rocket ? 'rgba(255,225,150,' : 'rgba(230,245,255,';
       ctx.strokeStyle = glow + (0.35 * (1 - f)) + ')';
@@ -7470,7 +7574,7 @@
       if (s.t <= 1) {
         var fsz = (s.rocket ? 30 : 20) * (1 - s.t * 0.35);
         ctx.globalCompositeOperation = 'lighter';
-        ctx.drawImage(SPR.flash.c, ax - fsz / 2, ay - fsz / 2, fsz, fsz);
+        ctx.drawImage(SPR.flash.c, mfx - fsz / 2, mfy - fsz / 2, fsz, fsz);
         ctx.globalCompositeOperation = 'source-over';
       }
     }
@@ -7722,12 +7826,12 @@
     var sc = 184 / MAP;
     // Terrain is only redrawn a few times a second — it barely changes.
     if (--miniDirty <= 0) {
-      miniDirty = 20;
+      miniDirty = 12;
       mctx.fillStyle = '#0b0e14'; mctx.fillRect(0, 0, 184, 184);
       for (var y = 0; y < MAP; y++) for (var x = 0; x < MAP; x++) {
         var t = G.terrain[idx(x, y)];
-        if (t === T_GROUND) continue;
-        mctx.fillStyle = t === T_ROCK ? '#39414f' : '#c9822f';
+        if (!G.seen[idx(x, y)]) { mctx.fillStyle = '#000'; mctx.fillRect(x * sc, y * sc, sc + 0.5, sc + 0.5); continue; }
+        mctx.fillStyle = t === T_GROUND ? '#2e3a24' : (t === T_ROCK ? '#39414f' : '#c9822f');
         mctx.fillRect(x * sc, y * sc, sc + 0.5, sc + 0.5);
       }
       mini._terr = mctx.getImageData(0, 0, 184, 184);
@@ -7738,13 +7842,13 @@
     var i;
     for (i = 0; i < G.blds.length; i++) {
       var b = G.blds[i];
-      if (b.dead) continue;
+      if (b.dead || !entSeen(G, b)) continue;
       mctx.fillStyle = COL[b.p];
       mctx.fillRect(b.x * sc, b.y * sc, b.gw * sc, b.gh * sc);
     }
     for (i = 0; i < G.units.length; i++) {
       var u = G.units[i];
-      if (u.dead) continue;
+      if (u.dead || !entSeen(G, u)) continue;
       mctx.fillStyle = u.p === P_HUMAN ? '#8ad0ff' : '#ff9098';
       mctx.fillRect(u.x * sc - 1, u.y * sc - 1, 2.4, 2.4);
     }

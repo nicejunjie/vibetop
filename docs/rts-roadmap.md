@@ -48,30 +48,30 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 - ☐ Apocalypse: individually visible missile canisters (2 rows of stubby tubes)
 - ☐ Chrono Miner: ribbed, scoop-like chrome machinery cluster on the nose
 - ☐ `rocket` → faction-specific anti-tank infantry: Guardian GI (Directorate) / Flak Trooper (Collective), from real sprites
-- ☐ Damaged-state look for structures (RA2: darker/damaged frame + smoke + fire)
-- ☐ Build-up animation when a structure is placed (RA2 rises from its pad)
+- ☑ v1.19.199 Damaged structures smoke below half health and burn below a quarter
+- ☑ v1.19.199 Build-up animation: a placed structure rises out of its pad behind a scaffold
 - ☐ Harvester mining animation frames (RA2 miner's scoop/drill works while loading)
 - ☐ Infantry walk cycle (RA2 infantry animate; ours slide)
 - ☐ Vehicle turret rotates independently toward the target
-- ☐ Muzzle flash / recoil per facing; tesla arc as a drawn bolt to the target
+- ☑ v1.19.199 Muzzle flash at the barrel tip; Tesla shots are a crawling jagged bolt from coil head to target
 
 ### Controls and UX
 - ☑ v1.19.194 Selection brackets, primary building, hover name card
 - ☑ v1.19.198 Mouse-wheel zoom about the cursor
-- ☐ Touch: pinch zoom, drag pan, tap select, long-press order (the shell is used on phones/tablets)
+- ☑ v1.19.199 Touch: tap selects own / orders at, drag pans, pinch zooms; desktop-only gate removed
 - ☐ RA2 sidebar behaviour: build queue tabs per structure type with icons, repeat/hold, "cannot build" reasons
 - ☐ Unit veterancy chevrons; kill counter on hover
 - ☐ Sell / repair modes on the sidebar
 - ☐ Waypoint queueing (shift-click)
-- ☐ Guard / scatter / stop / deploy hotkeys as in RA2
+- ☑ v1.19.199 S stop, G guard, X scatter (deploy: no deployable unit yet)
 
 ### Simulation and AI
 - ☑ v1.19.198 Harvester obeys move orders and holds; AI spaces its base
-- ☐ Fog of war / shroud with radar reveal, as RA2
+- ☑ v1.19.199 Shroud: map starts black, stays revealed once seen; hidden enemies neither drawn nor hoverable (RA2 without fog)
 - ☐ Ore regrowth from gems/drills? (RA2: ore grows slowly; gems don't)
 - ☐ Superweapons / tech buildings — decide the scope against RA2's tech tree
 - ☐ AI: attacks harvesters, builds defences toward the enemy, rebuilds destroyed structures
 
 ### Audio
-- ☐ EVA-style announcements (unit ready, construction complete, low power, base under attack)
+- ☑ v1.19.199 EVA via speech synthesis: unit ready, construction complete, low power, base/miner under attack, unit/structure lost, insufficient funds, primary building selected
 - ☐ Per-unit acknowledgement voices on order (RA2 units talk back)
