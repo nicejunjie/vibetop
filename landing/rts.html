@@ -531,7 +531,7 @@
     return {
       p: p, fac: 'dir', credits: 5000, made: 0, lost: 0, killed: 0, deadFor: 0, exitTurn: 0,
       powerMade: 0, powerUse: 0,
-      queues: { b: newQueue(), i: newQueue(), v: newQueue() },
+      queues: { b: newQueue(), d: newQueue(), i: newQueue(), v: newQueue() },
       pending: null                                // a finished structure awaiting placement
     };
   }
@@ -1975,11 +1975,19 @@
 
   var QUEUE_MAX = 30;
 
+  // Defence has its OWN construction lane. Sharing one structure queue meant
+  // a Sentry Gun held up the Refinery behind it — you paid for a turret with
+  // your economy. Both still need the Construction Yard, and each holds its
+  // own finished building waiting to be placed.
+  function isBldLane(l) { return l === 'b' || l === 'd'; }
+  function laneOfBld(key) { return BLDS[key] && BLDS[key].cat === 'def' ? 'd' : 'b'; }
+  function readyLane(s) { return s.queues.b.ready ? 'b' : (s.queues.d.ready ? 'd' : null); }
+
   function enqueue(g, p, key, lane) {
     var s = g.side[p];
     var q = s.queues[lane];
     if (q.list.length >= QUEUE_MAX) return false;
-    var spec = lane === 'b' ? BLDS[key] : UNITS[key];
+    var spec = isBldLane(lane) ? BLDS[key] : UNITS[key];
     if (s.credits < spec.cost) return false;
     s.credits -= spec.cost;                     // charged on queue, refunded on cancel
     q.list.push(key);
@@ -1990,13 +1998,13 @@
     var q = g.side[p].queues[lane];
     for (var i = q.list.length - 1; i >= 0; i--) {
       if (q.list[i] === key) {
-        g.side[p].credits += (lane === 'b' ? BLDS[key] : UNITS[key]).cost;
+        g.side[p].credits += (isBldLane(lane) ? BLDS[key] : UNITS[key]).cost;
         q.list.splice(i, 1);
         if (i === 0) q.prog = 0;
         return true;
       }
     }
-    if (lane === 'b' && q.ready === key) {
+    if (isBldLane(lane) && q.ready === key) {
       g.side[p].credits += BLDS[key].cost; q.ready = null; return true;
     }
     return false;
@@ -2008,19 +2016,19 @@
     for (var lane in s.queues) {
       var q = s.queues[lane];
       if (!q.list.length) continue;
-      if (lane === 'b' && q.ready) continue;     // one finished structure waits for placement
+      if (isBldLane(lane) && q.ready) continue;  // one finished structure waits for placement
       var key = q.list[0];
-      var spec = lane === 'b' ? BLDS[key] : UNITS[key];
+      var spec = isBldLane(lane) ? BLDS[key] : UNITS[key];
       // A lane with no producing structure left stalls (and refunds nothing —
       // same as RA2: rebuild the factory and it resumes).
       if (lane === 'i' && !hasBld(g, p, 'barracks')) continue;
       if (lane === 'v' && !hasBld(g, p, 'factory')) continue;
-      if (lane === 'b' && !hasBld(g, p, 'base')) continue;
+      if (isBldLane(lane) && !hasBld(g, p, 'base')) continue;
 
       q.prog += slow / (spec.build * 60 * buildFactor(g, p, lane));
       if (q.prog >= 1) {
         q.prog = 0; q.list.shift();
-        if (lane === 'b') { q.ready = key; if (p === P_HUMAN) sfx('ready'); }
+        if (isBldLane(lane)) { q.ready = key; if (p === P_HUMAN) sfx('ready'); }
         else {
           var src = producerFor(g, p, lane);
           if (src) {
@@ -2267,7 +2275,7 @@
     }
 
     // ---- placement: the AI places its finished structures ----
-    if (s.queues.b.ready) aiPlace(g, ai, me, foe);
+    if (readyLane(s)) aiPlace(g, ai, me, foe);
 
     // ---- tactics ----
     if (ai.t - ai.lastTac > cfg.react) {
@@ -2316,9 +2324,15 @@
       // where the money gets spent and the map still has room to walk.
       else if (s.queues.v.list.length >= 2 && s.credits > 2200 &&
                countBld(g, me, 'factory') < 2) want = 'factory';
-      else if (countBld(g, me, def) < (ai.posture === 'defend' ? 4 : 2) &&
-               s.credits > (ai.posture === 'defend' ? 700 : 1600)) want = def;
-      if (want && canBuild(g, me, want, true)) enqueue(g, me, want, 'b');
+      if (want && canBuild(g, me, want, true)) enqueue(g, me, want, laneOfBld(want));
+    }
+
+    // Defence builds in its own lane now, so a turret never delays a refinery
+    // for the AI either — it is a separate decision, not a queue position.
+    if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
+        countBld(g, me, def) < (ai.posture === 'defend' ? 4 : 2) &&
+        s.credits > (ai.posture === 'defend' ? 700 : 1600)) {
+      if (canBuild(g, me, def, true)) enqueue(g, me, def, 'd');
     }
 
     // ---- harvesters before soldiers -------------------------------------
@@ -2360,7 +2374,7 @@
 
   function aiPlace(g, ai, me, foe) {
     var s = g.side[me];
-    var key = s.queues.b.ready;
+    var rl = readyLane(s), key = s.queues[rl].ready;
     var d = BLDS[key];
     var home = g.start[me];
 
@@ -2395,7 +2409,7 @@
     }
     if (best) {
       placeBld(g, key, me, best.x, best.y);
-      s.queues.b.ready = null;
+      s.queues[rl].ready = null;
       if (key === 'refinery') {
         var sp = freeTileNear(g, best.x, best.y + d.gh + 1);
         if (sp) spawnUnit(g, 'harvester', me, sp.x, sp.y);
@@ -2403,11 +2417,11 @@
       ai.placeFail = 0;
     } else if (++ai.placeFail > 8) {
       // Nowhere to put it. A ready building blocks the WHOLE structure lane
-      // (`aiProduce` only queues when `!queues.b.ready`), so a base that has
+      // (`aiProduce` only queues when that lane's `ready` is clear), so a base that has
       // run out of room would stop building anything at all — for the rest of
       // the match. Give the credits back and let the ladder pick again; by
       // then something may have died, or it will choose a smaller footprint.
-      cancelLast(g, me, 'b', key);
+      cancelLast(g, me, rl, key);
       ai.placeFail = 0;
     }
   }
@@ -2761,7 +2775,7 @@
     var myFac = G ? G.side[P_HUMAN].fac : 'dir';
     if (panel === 'b' || panel === 'd') {
       var order = panel === 'b' ? buildOrderFor(myFac) : defenceOrderFor(myFac);
-      items = order.map(function (k) { return { k: k, lane: 'b', spec: BLDS[k] }; });
+      items = order.map(function (k) { return { k: k, lane: laneOfBld(k), spec: BLDS[k] }; });
     } else {
       for (var k in UNITS) {
         if (UNITS[k].cls === panel && ownedBy(UNITS[k], myFac)) {
@@ -2800,13 +2814,13 @@
     resumeAudio();
     if (!G || state !== 'play') return;
     var s = G.side[P_HUMAN];
-    if (it.lane === 'b' && s.queues.b.ready === it.k) {
+    if (isBldLane(it.lane) && s.queues[it.lane].ready === it.k) {
       placing = it.k; cv.classList.add('placing');
       say('Click anywhere in the green area to place the ' + it.spec.name + '. Esc cancels.');
       sfx('click');
       return;
     }
-    if (!canBuild(G, P_HUMAN, it.k, it.lane === 'b')) {
+    if (!canBuild(G, P_HUMAN, it.k, isBldLane(it.lane))) {
       if (s.credits < it.spec.cost) say('Not enough credits for ' + it.spec.name + ' ($' + it.spec.cost + ')', true);
       else if (it.lane === 'i') say('Build a Barracks first', true);
       else if (it.lane === 'v') say('Build a War Factory first', true);
@@ -2826,19 +2840,21 @@
     // to stall: nothing on screen changes, and the panel row alone does not
     // say "now put it somewhere".
     // Which tab is the finished structure on?
-    var rdyTab = null;
-    if (s.queues.b.ready) {
-      rdyTab = BLDS[s.queues.b.ready] && BLDS[s.queues.b.ready].cat === 'def' ? 'd' : 'b';
-    }
+    // Build and Defence each hold their own finished structure, so BOTH tabs
+    // can be flagged at once.
     document.querySelectorAll('.ptab div').forEach(function (t) {
-      t.classList.toggle('hasready', !!rdyTab && t.getAttribute('data-tab') === rdyTab);
+      var tab = t.getAttribute('data-tab');
+      t.classList.toggle('hasready', isBldLane(tab) && !!s.queues[tab].ready);
     });
 
-    if (s.queues.b.ready !== lastReady) {
-      lastReady = s.queues.b.ready;
-      if (lastReady) {
-        say(BLDS[lastReady].name + ' ready — click it under ' +
-            (rdyTab === 'd' ? 'Defence' : 'Build') +
+    var rdyNow = (s.queues.b.ready || '') + '|' + (s.queues.d.ready || '');
+    if (rdyNow !== lastReady) {
+      var fresh = s.queues.b.ready !== (lastReady || '').split('|')[0]
+                    ? s.queues.b.ready : s.queues.d.ready;
+      lastReady = rdyNow;
+      if (fresh) {
+        say(BLDS[fresh].name + ' ready — click it under ' +
+            (laneOfBld(fresh) === 'd' ? 'Defence' : 'Build') +
             ', then click the map to place it', false, 420);
       }
     }
@@ -2857,13 +2873,13 @@
       var q = s.queues[it.lane];
       var n = 0;
       for (var i = 0; i < q.list.length; i++) if (q.list[i] === k) n++;
-      var isReady = it.lane === 'b' && q.ready === k;
-      var first = q.list[0] === k && !(it.lane === 'b' && q.ready);
+      var isReady = isBldLane(it.lane) && q.ready === k;
+      var first = q.list[0] === k && !(isBldLane(it.lane) && q.ready);
       el.querySelector('.fill').style.width = first ? (q.prog * 100) + '%' : '0';
       // The ::after stamp says READY now; the corner only carries queue depth.
       el.querySelector('.qn').textContent = isReady ? '' : (n > 1 ? '×' + n : (n === 1 ? '•' : ''));
       el.classList.toggle('rdy', isReady);
-      var ok = isReady || canBuild(G, P_HUMAN, k, it.lane === 'b');
+      var ok = isReady || canBuild(G, P_HUMAN, k, isBldLane(it.lane));
       el.classList.toggle('dis', !ok);
     }
   }
@@ -3201,7 +3217,7 @@
       return;
     }
     var b = placeBld(G, placing, P_HUMAN, gx, gy);
-    G.side[P_HUMAN].queues.b.ready = null;
+    G.side[P_HUMAN].queues[laneOfBld(placing)].ready = null;
     sfx('place');
     say(d.name + ' online');
     if (placing === 'refinery') {
@@ -3871,7 +3887,8 @@
       blds: G.blds.filter(function (b) { return !b.dead && b.p === P_HUMAN; }).length,
       enemyBlds: G.blds.filter(function (b) { return !b.dead && b.p === P_AI; }).length,
       sel: sel.length, placing: placing, queue: G.side[P_HUMAN].queues.b.list.slice(),
-      ready: G.side[P_HUMAN].queues.b.ready, ai: G.ai ? G.ai.posture : null
+      ready: G.side[P_HUMAN].queues.b.ready,
+      defQueue: G.side[P_HUMAN].queues.d.list.slice(), defReady: G.side[P_HUMAN].queues.d.ready, ai: G.ai ? G.ai.posture : null
     };
   };
 

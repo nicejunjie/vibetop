@@ -748,3 +748,32 @@ test("a harvester whose patch runs dry re-targets to another patch instead of id
   assert.ok(g.ore[richIdx] < 60,
     `the harvester never touched the second patch (still ${g.ore[richIdx]} ore) — it idled instead of re-targeting`);
 });
+
+test("defence builds in its own lane — a turret never delays the economy", () => {
+  // Sharing one structure queue meant a Sentry Gun in front of a Refinery
+  // paid for a turret with your economy. The two lanes are independent: each
+  // advances on its own, and a finished building parked in one waiting to be
+  // placed does not stop the other.
+  const H = W.__rtsTest;
+  const g = H.begin(55041, "normal");
+  H.build("base", 0, g.start[0].x - 1, g.start[0].y - 1);
+  const s = g.side[0];
+  s.credits = 20000;
+  assert.ok(s.queues.d, "there is a defence lane at all");
+
+  s.queues.d.list.push("sentry");     // turret first...
+  s.queues.b.list.push("refinery");   // ...economy behind it
+  H.step(120);
+
+  assert.ok(s.queues.b.prog > 0,
+    "the refinery made no progress — defence is still blocking the build lane");
+  assert.ok(s.queues.d.prog > 0,
+    "the turret made no progress — the defence lane is not running");
+
+  // A structure waiting to be placed holds up only its OWN lane.
+  s.queues.b.ready = "refinery";
+  const before = s.queues.d.prog;
+  H.step(60);
+  assert.ok(s.queues.d.prog > before || s.queues.d.ready,
+    "a structure waiting for placement froze the defence lane too");
+});
