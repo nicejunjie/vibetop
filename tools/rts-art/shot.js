@@ -15,9 +15,18 @@ const path = require('path');
       [...F[mine], 'harvester', 'rocket'].forEach((t, i) => H.spawn(t, 0, s.x - 4 + i * 2, s.y + 4));
       [...F[theirs], 'harvester'].forEach((t, i) => H.spawn(t, 1, s.x - 4 + i * 2, s.y + 7));
       const def = mine === 'dir' ? 'sentry' : 'tesla', edef = theirs === 'dir' ? 'sentry' : 'tesla';
-      for (const [k, dx, dy] of [['power', 5, -2], ['refinery', 5, 2], ['barracks', -6, -2], ['factory', -6, 2], [def, 2, -5]])
-        if (H.api.canPlace(g, 0, k, s.x + dx, s.y + dy)) H.build(k, 0, s.x + dx, s.y + dy);
-      if (H.api.canPlace(g, 1, edef, s.x + 4, s.y - 5)) H.build(edef, 1, s.x + 4, s.y - 5);
+      // Preferred spot per structure, then spiral outward until it fits.
+      const place = (k, pl, dx, dy) => {
+        for (let r = 0; r < 6; r++) for (let ox = -r; ox <= r; ox++) for (let oy = -r; oy <= r; oy++) {
+          if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+          const x = s.x + dx + ox, y = s.y + dy + oy;
+          if (H.api.canPlace(g, pl, k, x, y)) { H.build(k, pl, x, y); return true; }
+        }
+        return false;
+      };
+      for (const [k, dx, dy] of [['power', 6, -3], ['refinery', 6, 3], ['barracks', -7, -3], ['factory', -7, 3], [def, 2, -6]])
+        if (!place(k, 0, dx, dy)) console.log('could not place', k);
+      if (!place(edef, 1, 5, -6)) console.log('could not place enemy', edef);
       H.step(30);
       window.__rtsFocus && window.__rtsFocus(s.x, s.y + 2);
     });
