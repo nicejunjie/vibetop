@@ -884,3 +884,34 @@ test("primary building: units come out of the primary producer and fall back whe
   assert.ok(near(u, fA) < 4, `after the primary died the survivor must produce (dist ${near(u, fA).toFixed(1)})`);
   assert.ok(H.isPrimary(fA), "survivor becomes primary");
 });
+
+test("a mining harvester obeys a move order and holds there instead of driving back to the ore", () => {
+  const W = load();
+  const H = W.__rtsTest;
+  const g = H.begin(9090, "normal");
+  const s = g.start[0];
+  const ore = H.findOre(s.x, s.y);
+  assert.ok(ore, "start has ore nearby");
+  // Get it mining: a harvester dropped on the seam settles into 'mining'.
+  const u = H.spawn("harvester", 0, ore.x, ore.y);
+  for (let i = 0; i < 600 && u.state !== "mining"; i++) H.step(1);
+  assert.equal(u.state, "mining", `harvester never started mining (state ${u.state})`);
+  // Order it somewhere flat, well away from the ore.
+  let tx = null, ty = null;
+  for (let r = 6; r < 14 && tx === null; r++) for (let dx = -r; dx <= r && tx === null; dx++) for (let dy = -r; dy <= r; dy++) {
+    const x = ore.x + dx, y = ore.y + dy;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    if (x < 2 || y < 2 || x > 60 || y > 60) continue;
+    if (g.terrain[y * 64 + x] === 0 && !H.findOre(x, y) ) { tx = x; ty = y; break; }
+    if (g.terrain[y * 64 + x] === 0 && Math.hypot(H.findOre(x, y).x - x, H.findOre(x, y).y - y) > 4) { tx = x; ty = y; break; }
+  }
+  assert.ok(tx !== null, "found a flat tile away from ore");
+  assert.equal(H.orderMove([u], tx, ty), 1);
+  for (let i = 0; i < 60 * 12; i++) H.step(1);
+  const dist = Math.hypot(u.x - tx, u.y - ty);
+  assert.ok(dist < 2.5, `harvester ignored the move order: ${dist.toFixed(1)} tiles from target, state ${u.state}`);
+  assert.equal(u.state, "idle", "it holds where it was sent instead of driving back to the ore");
+  // ...but not forever: after the hold it goes back to work on its own.
+  for (let i = 0; i < 60 * 30 && u.state === "idle"; i++) H.step(1);
+  assert.ok(u.state === "tomine" || u.state === "mining", `expected it to resume mining after the hold, state ${u.state}`);
+});

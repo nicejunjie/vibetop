@@ -4690,7 +4690,7 @@
       face: (gx + gy) & 7, cool: 0, target: null, order: null,     // order: {t:'move'|'attack'|'harvest', x,y,id}
       path: null, pi: 0, repath: 0, repathAt: -999, stuck: 0, lastx: gx, lasty: gy,
       cargo: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
-      bestD: 1e9, stallAt: 0,
+      bestD: 1e9, stallAt: 0, holdUntil: 0,
       sel: false, aggro: null, guardX: gx, guardY: gy
     };
     g.units.push(u);
@@ -5032,6 +5032,24 @@
   function stepHarvester(g, u) {
     var d = UNITS.harvester;
 
+    // A move order is the player talking; it beats auto-mining. The idle
+    // branch below used to re-acquire a seam on the very next tick, so a
+    // right-click on a mining harvester was silently ignored (it drove on to
+    // the ore instead). On arrival it HOLDS for a while, like an RA2 miner
+    // parked by hand, then goes back to work on its own.
+    if (u.order && u.order.t === 'move') {
+      var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
+      if (mdx * mdx + mdy * mdy < 1.4) {
+        u.order = null; u.path = null; u.state = 'idle'; u.mineAt = null;
+        u.guardX = u.x; u.guardY = u.y; u.holdUntil = g.tick + 60 * 20;
+      } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
+                 g.tick - u.repathAt > 90) {
+        u.order = null; u.state = 'idle'; u.holdUntil = g.tick + 60 * 20;   // unreachable: stop here
+      }
+      return;
+    }
+    if (u.state === 'idle' && u.holdUntil > g.tick) return;
+
     if (u.state === 'idle' || (u.state === 'tomine' && !u.mineAt)) {
       var patch;
       if (u.order && u.order.t === 'harvest') patch = { x: u.order.x, y: u.order.y };
@@ -5072,7 +5090,10 @@
       var ddx = u.x - m.x, ddy = u.y - m.y, d2 = ddx * ddx + ddy * ddy;
       // Radial, not per-axis: separation can hold a harvester 0.85 off the
       // seam on one axis indefinitely, and a per-axis test never passes.
-      if (d2 < 1.44) { u.state = 'mining'; u.path = null; u.noProg = 0; }
+      if (d2 < 1.44) {
+        u.state = 'mining'; u.path = null; u.noProg = 0;
+        u.face = ((Math.round(Math.atan2(m.y - u.y, m.x - u.x) / (Math.PI / 4)) % 8) + 8) % 8;
+      }
       else if (d2 < (u.bestD == null ? 1e9 : u.bestD) - 0.01) {
         u.bestD = d2; u.stallAt = g.tick;                // still closing
         advance(g, u, m.x, m.y, d.spd, 240);
@@ -5110,6 +5131,12 @@
       var mi = idx(u.mineAt.x, u.mineAt.y);
       var take = Math.min(d.mine, g.ore[mi], d.cap - u.cargo);
       g.ore[mi] -= take; u.cargo += take;
+      // Visible work: a puff of ore dust off the seam every third of a
+      // second (render-only; skipped headless so balance runs stay identical).
+      if (!headless && (g.tick % 12) === 0) {
+        var jx = ((g.tick / 12) % 3) - 1;
+        g.fx.push({ x: u.mineAt.x + jx * 0.22, y: u.mineAt.y - jx * 0.18, t: 0, life: 30, size: 0, dust: true });
+      }
       if (g.ore[mi] <= 0.5) { g.terrain[mi] = T_GROUND; g.ore[mi] = 0; u.mineAt = null; }
       if (u.cargo >= d.cap - 0.01 || !u.mineAt) {
         if (u.cargo > 20) {
@@ -5786,6 +5813,10 @@
       : home;
 
     var best = null, bd = 1e9;
+    // Two passes: first only spots with a clear one-tile gap all round (how a
+    // human lays out an RA2 base — roads between buildings, units can leave),
+    // then, if the base has grown into its walls, anything not too crowded.
+    for (var pass = 0; pass < 2 && !best; pass++)
     for (var r = 1; r < 14; r++) {
       for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
         if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
@@ -5798,8 +5829,12 @@
         // must stay open. This is a hard rule, not a preference: a preference
         // still seals the base once the good tiles are gone.
         var ring = 2 * (d.gw + 2) + 2 * d.gh;
-        if (crowding(g, gx, gy, d) > ring * 0.5) continue;
+        var crowd = crowding(g, gx, gy, d);
+        if (pass === 0 ? crowd > 0 : crowd > ring * 0.35) continue;
         var dd = (gx - aim.x) * (gx - aim.x) + (gy - aim.y) * (gy - aim.y);
+        // Breathing room reads as a base, not a pile: every blocked tile
+        // touching the footprint costs as much as being ~2.5 tiles further out.
+        dd += crowd * 6;
         // Refineries want to be near ore, not near the middle of the base.
         if (key === 'refinery') {
           var ore = findOre(g, gx, gy, 16);
@@ -5807,7 +5842,7 @@
         }
         if (dd < bd) { bd = dd; best = { x: gx, y: gy }; }
       }
-      if (best && r > 3) break;
+      if (best && r > 5) break;
     }
     if (best) {
       placeBld(g, key, me, best.x, best.y);
@@ -6034,6 +6069,23 @@
   var stage = document.getElementById('stage');
   var cvW = 800, cvH = 600;
   var cam = { x: 0, y: 0 };
+  var zoom = 1;                       // mouse-wheel zoom, about the cursor
+  var ZMIN = 0.55, ZMAX = 2.0;
+  // Screen px -> the unzoomed screen space that sx()/sy() work in.
+  function unzoom(px, py) {
+    return { x: (px - cvW / 2) / zoom + cvW / 2, y: (py - cvH / 2) / zoom + cvH / 2 };
+  }
+  function setZoom(z, px, py) {
+    z = Math.max(ZMIN, Math.min(ZMAX, z));
+    if (z === zoom) return;
+    var before = screenToGrid(px, py);
+    zoom = z;
+    var after = screenToGrid(px, py);
+    // Keep the tile under the cursor under the cursor.
+    cam.x += worldX(before.x, before.y) - worldX(after.x, after.y);
+    cam.y += worldY(before.x, before.y) - worldY(after.x, after.y);
+    clampCam();
+  }
   var sel = [];                       // selected entities (units and/or one building)
   var groups = {};                    // ctrl+N control groups
   var placing = null;                 // structure key awaiting a click
@@ -6064,7 +6116,8 @@
   function sx(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
   function sy(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2; }
   function screenToGrid(px, py) {
-    return gridAt(px - cvW / 2 + cam.x, py - cvH / 2 + cam.y);
+    var u = unzoom(px, py);
+    return gridAt(u.x - cvW / 2 + cam.x, u.y - cvH / 2 + cam.y);
   }
 
   // --------------------------------------------------------------------- //
@@ -6427,6 +6480,11 @@
   cv.addEventListener('lostpointercapture', endDrag);
   cv.addEventListener('pointerleave', function () { mouse.in = false; updateHover(null); });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  cv.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var r = cv.getBoundingClientRect();
+    setZoom(zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
 
   // The game is an iframe inside the desktop shell: a pointer released over
   // the parent's taskbar never reaches us, and a tab switch must not leave
@@ -6465,6 +6523,7 @@
   }
 
   function pickAt(px, py) {
+    var uz = unzoom(px, py); px = uz.x; py = uz.y;
     var best = null, bd = 1e9;
     var i, e, ex, ey, d;
     for (i = 0; i < G.units.length; i++) {
@@ -6498,7 +6557,7 @@
       G.units.forEach(function (u) {
         if (u.dead || u.p !== P_HUMAN || u.type !== e.type) return;
         var ux = sx(u.x, u.y), uy = sy(u.x, u.y);
-        if (ux < 0 || uy < 0 || ux > cvW || uy > cvH) return;
+        if (ux < VX0 || uy < VY0 || ux > VX1 || uy > VY1) return;
         u.sel = true; sel.push(u);
       });
       say('All visible ' + UNITS[e.type].name + 's: ' + sel.length);
@@ -6547,6 +6606,7 @@
     G.units.forEach(function (u) {
       if (u.dead || u.p !== P_HUMAN || u.sel) return;
       var ux = sx(u.x, u.y), uy = sy(u.x, u.y);
+      ux = (ux - cvW / 2) * zoom + cvW / 2; uy = (uy - cvH / 2) * zoom + cvH / 2;   // to screen px
       if (ux >= x && ux <= x + w && uy >= y && uy <= y + h) { u.sel = true; sel.push(u); got++; }
     });
     // Prefer combat units: a box over the base shouldn't hand you harvesters.
@@ -6562,7 +6622,34 @@
     if (!sel.length) return;
     var u = sel[0];
     var ux = sx(u.x, u.y), uy = sy(u.x, u.y);
-    if (ux < 40 || uy < 40 || ux > cvW - 40 || uy > cvH - 40) centerOn(u.x, u.y);
+    if (ux < VX0 + 40 || uy < VY0 + 40 || ux > VX1 - 40 || uy > VY1 - 40) centerOn(u.x, u.y);
+  }
+
+  // Move / harvest order for a group. Harvesters sent onto ore mine that
+  // seam; sent anywhere else they go there and HOLD (see stepHarvester).
+  function orderUnitsTo(g, units, gx, gy) {
+    var onOre = g.terrain[idx(gx, gy)] === T_ORE, n = 0;
+    units.forEach(function (u, i) {
+      if (onOre && u.type === 'harvester') {
+        u.order = { t: 'harvest', x: gx, y: gy, id: 0 };
+        u.mineAt = { x: gx, y: gy }; u.state = 'tomine'; u.path = null;
+        u.noProg = 0; u.bestD = 1e9; u.stallAt = g.tick;
+        requestPath(g, u, gx, gy);
+        n++;
+        return;
+      }
+      // Spread a group over a small ring so they don't fight for one tile.
+      var ring = Math.floor(i / 6), slot = i % 6;
+      var a = slot / 6 * Math.PI * 2;
+      var tx = Math.max(0, Math.min(MAP - 1, gx + Math.round(Math.cos(a) * ring)));
+      var ty = Math.max(0, Math.min(MAP - 1, gy + Math.round(Math.sin(a) * ring)));
+      u.order = { t: 'move', x: tx, y: ty, id: 0 };
+      u.guardX = tx; u.guardY = ty; u.repathAt = -999; u.path = null;
+      if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.noProg = 0; }
+      requestPath(g, u, tx, ty);
+      n++;
+    });
+    return n;
   }
 
   function rightOrder(px, py) {
@@ -6611,26 +6698,7 @@
     }
 
     var onOre = G.terrain[idx(gx, gy)] === T_ORE;
-    var n = 0;
-    units.forEach(function (u, i) {
-      if (onOre && u.type === 'harvester') {
-        u.order = { t: 'harvest', x: gx, y: gy, id: 0 };
-        u.mineAt = { x: gx, y: gy }; u.state = 'tomine';
-        requestPath(G, u, gx, gy);
-        n++;
-        return;
-      }
-      // Spread a group over a small ring so they don't fight for one tile.
-      var ring = Math.floor(i / 6), slot = i % 6;
-      var a = slot / 6 * Math.PI * 2;
-      var tx = Math.max(0, Math.min(MAP - 1, gx + Math.round(Math.cos(a) * ring)));
-      var ty = Math.max(0, Math.min(MAP - 1, gy + Math.round(Math.sin(a) * ring)));
-      u.order = { t: 'move', x: tx, y: ty, id: 0 };
-      u.guardX = tx; u.guardY = ty; u.repathAt = -999;
-      if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; }
-      requestPath(G, u, tx, ty);
-      n++;
-    });
+    var n = orderUnitsTo(G, units, gx, gy);
     if (n) { say(onOre ? 'Harvesting' : 'Moving'); sfx('click'); }
     if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 18, size: 0, ping: true });
   }
@@ -6780,10 +6848,17 @@
   // --------------------------------------------------------------------- //
   //  Rendering
   // --------------------------------------------------------------------- //
+  var VX0 = 0, VY0 = 0, VX1 = 800, VY1 = 600;   // visible window in unzoomed screen space
   function render() {
     ctx.fillStyle = '#0b0e14';
     ctx.fillRect(0, 0, cvW, cvH);
     if (!G) return;
+    // Everything in the world is drawn in unzoomed screen space and scaled
+    // about the canvas centre; sprites stay baked once.
+    ctx.save();
+    ctx.translate(cvW / 2, cvH / 2); ctx.scale(zoom, zoom); ctx.translate(-cvW / 2, -cvH / 2);
+    var hz = cvW / (2 * zoom), vz = cvH / (2 * zoom);
+    VX0 = cvW / 2 - hz; VX1 = cvW / 2 + hz; VY0 = cvH / 2 - vz; VY1 = cvH / 2 + vz;
 
     // Visible tile window, derived by projecting the screen corners back.
     var c0 = screenToGrid(0, 0), c1 = screenToGrid(cvW, 0);
@@ -6905,6 +6980,23 @@
     for (i = 0; i < G.fx.length; i++) {
       var fx = G.fx[i], ff = fx.t / fx.life;
       var fxx = sx(fx.x, fx.y), fyy = sy(fx.x, fx.y);
+      if (fx.dust) {
+        // Three ochre grains lifting and fading off the ore seam.
+        ctx.globalCompositeOperation = 'source-over';
+        // A soft ochre cloud that swells and thins, with grains lifting out of it.
+        ctx.globalAlpha = 0.28 * (1 - ff);
+        ctx.fillStyle = '#c8a050';
+        ctx.beginPath(); ctx.ellipse(fxx, fyy - 4 - ff * 5, 6 + ff * 9, 3 + ff * 4, 0, 0, 6.29); ctx.fill();
+        ctx.globalAlpha = 1 - ff;
+        for (var dk = 0; dk < 5; dk++) {
+          var da = (dk - 2) * 4 + Math.sin(fx.t * 0.4 + dk) * 2.5;
+          var lift = ff * (12 + (dk % 3) * 4);
+          ctx.fillStyle = (dk & 1) ? '#f0c060' : '#c8983a';
+          ctx.fillRect(fxx + da - 1.5, fyy - 6 - lift, 3, 3);
+        }
+        ctx.globalAlpha = 1;
+        continue;
+      }
       if (fx.ping) {
         ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = 'rgba(138,208,255,' + (1 - ff) + ')';
@@ -6920,6 +7012,7 @@
       ctx.globalAlpha = 1;
     }
     ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
 
     drawMini();
   }
@@ -6938,12 +7031,14 @@
 
   function drawUnit(u) {
     var px = sx(u.x, u.y), py = sy(u.x, u.y);
-    if (px < -60 || py < -60 || px > cvW + 60 || py > cvH + 60) return;
+    if (px < VX0 - 60 || py < VY0 - 60 || px > VX1 + 60 || py > VY1 + 60) return;
     var d = UNITS[u.type];
     var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
     var s = Array.isArray(art) ? art[u.face] : art;
 
     var ox = px - s.w / 2, oy = py - (s.h - UPAD);
+    // A working harvester rocks on its tracks instead of sitting parked.
+    if (u.state === 'mining') oy += ((G.tick >> 3) & 1) ? 1 : 0;
     ctx.drawImage(s.c, ox, oy, s.w, s.h);
     var bb = s.bb || { x0: 0, y0: 0, x1: s.w, y1: s.h };
     var top = oy + bb.y0;
@@ -6963,7 +7058,7 @@
   function drawBld(b) {
     var art = SPR.bld[b.p][facOf(G, b.p) || 'dir'][b.type];
     var px = sx(b.cx, b.cy), py = sy(b.cx, b.cy);
-    if (px < -260 || py < -260 || px > cvW + 260 || py > cvH + 260) return;
+    if (px < VX0 - 260 || py < VY0 - 260 || px > VX1 + 260 || py > VY1 + 260) return;
 
     ctx.drawImage(art.s.c, px - art.ax, py - art.ay, art.s.w, art.s.h);
     if (b.sel) {
@@ -7365,6 +7460,8 @@
     build: function (key, p, x, y) { return G ? placeBld(G, key, p, x, y) : null; },
     give: function (p, n) { if (G) G.side[p].credits += n; },
     setPrimary: function (b) { return G ? setPrimary(G, b) : false; },
+    orderMove: function (units, gx, gy) { return G ? orderUnitsTo(G, units, gx, gy) : 0; },
+    zoom: function (z) { if (z) setZoom(z, cvW / 2, cvH / 2); return zoom; },
     isPrimary: function (b) { return G ? isPrimary(G, b) : false; },
     killBld: function (b) { if (G) killBld(G, b); },
     step: function (n) { for (var i = 0; i < (n || 1); i++) simStep(G); },
