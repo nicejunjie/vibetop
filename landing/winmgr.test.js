@@ -21,6 +21,49 @@ test("clampGeom enforces the minimum size and caps at the box", () => {
   assert.equal(g.width, BOX.w); assert.equal(g.height, BOX.h);
 });
 
+test("clampGeom margin keeps a gap at every frame edge", () => {
+  // A window shoved past the top-left corner lands at (margin, margin), not (0,0).
+  assert.deepEqual(W.clampGeom({ left: -50, top: -20, width: 400, height: 300 }, BOX, W.MINW, W.MINH, 8),
+                   { left: 8, top: 8, width: 400, height: 300 });
+  // Shoved past the bottom-right: its far edges stop one margin short of the frame.
+  const g = W.clampGeom({ left: 9999, top: 9999, width: 400, height: 300 }, BOX, W.MINW, W.MINH, 8);
+  assert.equal(g.left + g.width, BOX.w - 8);
+  assert.equal(g.top + g.height, BOX.h - 8);
+  // "Fill the frame" now fills frame-minus-gap on all four sides.
+  const full = W.clampGeom({ left: 0, top: 0, width: 9999, height: 9999 }, BOX, W.MINW, W.MINH, 8);
+  assert.deepEqual(full, { left: 8, top: 8, width: BOX.w - 16, height: BOX.h - 16 });
+  // Default (no margin) is unchanged — flush to the edge, as tiling/layout want.
+  assert.deepEqual(W.clampGeom({ left: -50, top: -20, width: 400, height: 300 }, BOX),
+                   { left: 0, top: 0, width: 400, height: 300 });
+});
+
+test("resizeGeom margin: a drag past the frame stops a gap short", () => {
+  const base = { left: 100, top: 100, width: 400, height: 300 };
+  // Grow the SE corner far past the frame: it never reaches the edge.
+  const r = W.resizeGeom(base, "se", 5000, 5000, BOX, W.MINW, W.MINH, 8);
+  assert.ok(r.left >= 8 && r.top >= 8);
+  assert.ok(r.left + r.width <= BOX.w - 8 && r.top + r.height <= BOX.h - 8);
+  // A modest in-bounds resize is untouched by the margin.
+  assert.deepEqual(W.resizeGeom(base, "se", 50, 40, BOX, W.MINW, W.MINH, 8),
+                   { left: 100, top: 100, width: 450, height: 340 });
+});
+
+test("snapTarget margin: outer edges inset, halves still meet in the middle", () => {
+  const l = W.snapTarget(5, 400, BOX, 18, 8);
+  assert.deepEqual(l, { left: 8, top: 8, width: 692, height: 784 });      // left half
+  const r = W.snapTarget(1398, 400, BOX, 18, 8);
+  assert.deepEqual(r, { left: 700, top: 8, width: 692, height: 784 });    // right half
+  assert.equal(l.left + l.width, r.left);   // flush down the centre, gap only outside
+});
+
+test("defaultGeom margin: a new window opens inside the gap", () => {
+  for (const i of [0, 1, 5]) {
+    const g = W.defaultGeom(BOX, i, 8);
+    assert.ok(g.left >= 8 && g.top >= 8, "left/top respect the gap");
+    assert.ok(g.left + g.width <= BOX.w - 8 && g.top + g.height <= BOX.h - 8, "far edges respect the gap");
+  }
+});
+
 test("resizeGeom: east/south grow width/height, left/top fixed", () => {
   const g = { left: 100, top: 100, width: 400, height: 300 };
   assert.deepEqual(W.resizeGeom(g, "se", 50, 40, BOX),

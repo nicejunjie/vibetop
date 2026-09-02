@@ -11,19 +11,25 @@
 (function (root) {
   'use strict';
   var MINW = 320, MINH = 200;
+  // Default gap (px) kept between a FREE-FLOATING window and the frame edge, so a
+  // window can never sit flush against — or hidden behind — vibetop's own border,
+  // where its resize grip would be impossible to grab. The pure math takes it as
+  // an optional `m` argument defaulting to 0 (edge-to-edge, which is what the
+  // full-frame tiling/layout helpers want); the free-window glue passes MARGIN.
+  var MARGIN = 8;
 
-  function clampGeom(g, box, minw, minh) {
-    minw = minw || MINW; minh = minh || MINH;
-    var w = Math.max(minw, Math.min(Math.round(g.width), box.w));
-    var h = Math.max(minh, Math.min(Math.round(g.height), box.h));
-    var left = Math.max(0, Math.min(Math.round(g.left), box.w - w));
-    var top = Math.max(0, Math.min(Math.round(g.top), box.h - h));
+  function clampGeom(g, box, minw, minh, m) {
+    minw = minw || MINW; minh = minh || MINH; m = m || 0;
+    var w = Math.max(minw, Math.min(Math.round(g.width), box.w - 2 * m));
+    var h = Math.max(minh, Math.min(Math.round(g.height), box.h - 2 * m));
+    var left = Math.max(m, Math.min(Math.round(g.left), box.w - m - w));
+    var top = Math.max(m, Math.min(Math.round(g.top), box.h - m - h));
     return { left: left, top: top, width: w, height: h };
   }
 
   // Resize `g` by dragging edge/corner `dir` (n/s/e/w/ne/nw/se/sw) by (dx,dy) px.
   // The dragged edge moves; the opposite edge stays put; min size pins the moving edge.
-  function resizeGeom(g, dir, dx, dy, box, minw, minh) {
+  function resizeGeom(g, dir, dx, dy, box, minw, minh, m) {
     minw = minw || MINW; minh = minh || MINH;
     var left = g.left, top = g.top, w = g.width, h = g.height;
     if (dir.indexOf('e') !== -1) w = g.width + dx;
@@ -32,11 +38,11 @@
     if (dir.indexOf('n') !== -1) { h = g.height - dy; top = g.top + dy; }
     if (w < minw) { if (dir.indexOf('w') !== -1) left -= (minw - w); w = minw; }
     if (h < minh) { if (dir.indexOf('n') !== -1) top -= (minh - h); h = minh; }
-    return clampGeom({ left: left, top: top, width: w, height: h }, box, minw, minh);
+    return clampGeom({ left: left, top: top, width: w, height: h }, box, minw, minh, m);
   }
 
   // Default cascade placement + size for the index-th window opened.
-  function defaultGeom(box, index) {
+  function defaultGeom(box, index, m) {
     var w = Math.round(Math.min(920, box.w * 0.62));
     var h = Math.round(Math.min(680, box.h * 0.72));
     var off = ((index || 0) % 6) * 32;
@@ -44,17 +50,19 @@
       left: Math.round(box.w * 0.10) + off,
       top: Math.round(box.h * 0.07) + off,
       width: w, height: h,
-    }, box);
+    }, box, MINW, MINH, m);
   }
 
   // Snap target when a window is dragged within `edge` px of a LEFT/RIGHT screen
   // edge → that half. Else null. (No top→maximize: full-screen is the ▢ button;
-  // snapping is only for the hard-to-hit precise HALF.)
-  function snapTarget(px, py, box, edge) {
-    edge = edge || 18;
+  // snapping is only for the hard-to-hit precise HALF.) `m` insets the OUTER frame
+  // edges (top/bottom + the outer side) so a snapped half keeps the same gap as a
+  // free window; the two halves still meet flush down the middle.
+  function snapTarget(px, py, box, edge, m) {
+    edge = edge || 18; m = m || 0;
     var half = Math.round(box.w / 2);
-    if (px <= edge) return { left: 0, top: 0, width: half, height: box.h };
-    if (px >= box.w - edge) return { left: box.w - half, top: 0, width: half, height: box.h };
+    if (px <= edge) return { left: m, top: m, width: half - m, height: box.h - 2 * m };
+    if (px >= box.w - edge) return { left: half, top: m, width: box.w - half - m, height: box.h - 2 * m };
     return null;
   }
 
@@ -232,7 +240,7 @@
               snapTarget: snapTarget, tileGrid: tileGrid, tileCapacity: tileCapacity,
               LAYOUTS: LAYOUTS, layoutGeoms: layoutGeoms, layoutsFor: layoutsFor,
               zoneAssign: zoneAssign, swapZones: swapZones, zoneOccupancy: zoneOccupancy,
-              MINW: MINW, MINH: MINH };
+              MINW: MINW, MINH: MINH, MARGIN: MARGIN };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VibeWin = api;
 })(typeof self !== 'undefined' ? self : this);
