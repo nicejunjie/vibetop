@@ -4526,6 +4526,12 @@
         }
         qpoly([IP(-1.42, 0.14, 0), IP(-0.54, 0.14, 0),
                IP(-0.54, 0.14, 2.4), IP(-1.42, 0.14, 2.4)], shade(POD, 0.62), null);
+        var arI;                                        // PLAYER: end-wall trim ribs
+        for (arI = 0; arI < 3; arI++)
+          qline([IP(-1.42, -1.26 + arI * 0.30, 3), IP(-1.42, -1.26 + arI * 0.30, 15)],
+                arI === 1 ? col : shade(col, 0.74), 2.4);
+        qline([IP(-1.30, 0.14, 12.4), IP(-0.96, 0.14, 14.2), IP(-0.64, 0.14, 12.0)],
+              shade(HAZ, 0.92), 1.8);                    // slack yellow hose
 
         var pd = IP(-0.98, -0.96, 16);                  // domed machinery pod
         cylinder(g, pd[0], pd[1], 11, 15, shade(POD, 0.90), shade(POD, 1.14), PLAT_E);
@@ -4561,17 +4567,22 @@
                 shade(FRM, 0.60 + 0.46 * Math.sin(thm) - 0.12 * Math.cos(thm)), null);
         }
         // glass bays: three rows of pale lavender skylight strips per bay
-        var NBAY = 6, kB, gb0, gb1, rw = 0.20, rows = [0.80, 1.34, 1.88], rI;
+        // glass: not continuous stripes - the sprite is a brick-staggered
+        // grid of short lavender panes, two per half-bay, offset bay to bay
+        var NBAY = 7, kB, gb0, gb1, rw = 0.185, rows = [0.70, 1.09, 1.48, 1.87], rI, pk;
         for (kB = 0; kB < NBAY; kB++) {
-          gb0 = vb0 + (vb1 - vb0) * (kB + 0.14) / NBAY;
-          gb1 = vb0 + (vb1 - vb0) * (kB + 0.86) / NBAY;
-          for (rI = 0; rI < 3; rI++) {
-            qpoly([C(rows[rI] - rw, gb0), C(rows[rI] + rw, gb0),
-                   C(rows[rI] + rw, gb1), C(rows[rI] - rw, gb1)],
-                  rI === 2 ? shade(GLS, 0.88) : GLS, null);
-            qpoly([C(rows[rI] - rw, gb0), C(rows[rI] - rw * 0.5, gb0),
-                   C(rows[rI] - rw * 0.5, gb1), C(rows[rI] - rw, gb1)], GLSH, null);
-            qline([C(rows[rI] + rw, gb0), C(rows[rI] + rw, gb1)], 'rgba(60,62,86,.45)', 1);
+          for (pk = 0; pk < 2; pk++) {
+            gb0 = vb0 + (vb1 - vb0) * (kB + 0.12 + pk * 0.44) / NBAY;
+            gb1 = vb0 + (vb1 - vb0) * (kB + 0.50 + pk * 0.44) / NBAY;
+            for (rI = 0; rI < 4; rI++) {
+              if ((rI + pk + kB) % 5 === 3) continue;      // staggered gaps
+              qpoly([C(rows[rI] - rw, gb0), C(rows[rI] + rw, gb0),
+                     C(rows[rI] + rw, gb1), C(rows[rI] - rw, gb1)],
+                    rI === 3 ? shade(GLS, 0.86) : (rI === 0 ? shade(GLS, 1.06) : GLS), null);
+              qpoly([C(rows[rI] - rw, gb0), C(rows[rI] - rw * 0.44, gb0),
+                     C(rows[rI] - rw * 0.44, gb1), C(rows[rI] - rw, gb1)], GLSH, null);
+              qline([C(rows[rI] + rw, gb0), C(rows[rI] + rw, gb1)], 'rgba(60,62,86,.42)', 1);
+            }
           }
         }
         // rib hoops across the barrel, framing every bay
@@ -4664,202 +4675,287 @@
 
       } else {
         // ---- Collective = RA2 Soviet War Factory -------------------------
-        // The anti-Allied-factory: low masonry hall, black boiler pots
-        // chained along the flank, red radiator fins standing on the roof,
-        // a tiny gold onion dome at the back corner, and a gaping garage
-        // door under a striped lintel. No glass, no vault.
-        var STONE = '#8a8064', MORT = '#5c5544', RIDGE = '#d9d6ca';
+        // Read straight off the sprite: a LOW khaki-masonry hall whose slate
+        // roof carries one row of white panel blocks along the ridge, with
+        // red slotted radiator plates standing in TWO rows either side of it;
+        // brass bell-boilers on stepped red plinths ranked down the long
+        // flank; a squat black cauldron with two bent grey exhaust elbows at
+        // the back corner; and, dominating the silhouette, a tall dark tower
+        // capped by a pointed gold onion. The garage is a dark maw in the
+        // brick end wall with its leaf swung open beside it, sickle painted
+        // on, over a pale ramp edged in red and brass.
+        var STONE = '#8a8064', MORT = '#544c3c', RIDGE = '#e4e0d2';
         var RUST = '#6b4a3a', IRON = '#22232a', GOLD = '#c8973a';
-        var UMB = '#4a4236', BRASS = '#b8933f';
-        diamond(g, cx, baseY, fw * 2, fh * 2);           // umber pad, not olive
-        g.fillStyle = UMB; g.fill(); outline(g, shade(UMB, 0.56));
+        var PADC = '#8e8a76', BRASS = '#b8933f', SILV = '#9d9c92';
+        var BRICK = '#9a7f60', SLATE = '#3c3c39';
+        diamond(g, cx, baseY, fw * 2, fh * 2);           // pale concrete pad
+        g.fillStyle = shade(PADC, 0.66); g.fill(); outline(g, shade(PADC, 0.46));
         diamond(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
-        g.fillStyle = shade(UMB, 1.18); g.fill(); outline(g, shade(UMB, 0.56));
+        g.fillStyle = PADC; g.fill(); outline(g, shade(PADC, 0.60));
 
-        var ha0 = -0.95, ha1 = 0.95, hb0 = -1.34, hb1 = 1.00;
-        var wallH = 32, ridgeH = 50;
+        var ha0 = -0.95, ha1 = 0.95, hb0 = -1.28, hb1 = 1.02;
+        var wallH = 30, ridgeH = 44;
         var rz = function (a) { return ridgeH - Math.abs(a) / ha1 * (ridgeH - wallH); };
 
-        // -- back-of-plot ironmongery, drawn before the hall ---------------
-        var ci, cp2;
-        for (ci = 0; ci < 2; ci++) {                     // rear chimneys
-          cp2 = IP(-1.34 + ci * 0.06, -0.52 + ci * 0.52, 0);
-          cylinder(g, cp2[0], cp2[1], 5, 42 - ci * 8, shade(IRON, 1.25), shade(IRON, 1.55), PLAT_E);
-          g.fillStyle = col;
-          g.fillRect(cp2[0] - 5, cp2[1] - 37 + ci * 8, 10, 3.4);
-          steam(g, cp2[0], cp2[1] - 46 + ci * 8, 4, 3);
-        }
-        var bp = IP(-1.24, 0.52, 0);                     // big flank boiler
-        cylinder(g, bp[0], bp[1], 12, 21, shade(IRON, 1.10), shade(IRON, 1.42), '#0e0f13');
-        g.fillStyle = col; g.fillRect(bp[0] - 12, bp[1] - 13, 24, 4);
-        g.strokeStyle = '#3a3b42'; g.lineWidth = 5; g.lineCap = 'round';
-        g.beginPath();
-        g.moveTo(bp[0], bp[1] - 23); g.lineTo(bp[0], bp[1] - 34);
-        g.lineTo(bp[0] + 16, bp[1] - 39); g.stroke();
-        g.lineCap = 'butt';
+        // -- back corner: black cauldron under two bent exhaust elbows -----
+        var slab = IP(-1.38, 0.86, 0);                   // pink stone footing
+        qpoly([IP(-1.58, 0.62, 0), IP(-1.16, 0.62, 0), IP(-1.16, 1.10, 0), IP(-1.58, 1.10, 0)],
+              '#a3968c', shade('#a3968c', 0.62));
+        cylinder(g, slab[0], slab[1] - 2, 11, 13, shade(IRON, 1.06), shade(IRON, 1.30), '#0c0d10');
+        g.fillStyle = shade(SILV, 0.86);                 // rim ring on the cauldron
+        g.beginPath(); g.ellipse(slab[0], slab[1] - 15, 11, 5.2, 0, 0, 6.29); g.fill();
+        outline(g, '#0c0d10');
+        g.fillStyle = shade(IRON, 1.5);
+        g.beginPath(); g.ellipse(slab[0], slab[1] - 15, 7.4, 3.4, 0, 0, 6.29); g.fill();
+        var elbow = function (ex, ey, len, wdt, lift) {  // one bent grey stack
+          g.lineCap = 'round'; g.lineJoin = 'round';
+          g.strokeStyle = '#2c2e34'; g.lineWidth = wdt + 2;
+          g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex, ey - lift);
+          g.quadraticCurveTo(ex - 2, ey - lift - 9, ex - len, ey - lift - 11); g.stroke();
+          g.strokeStyle = '#565a63'; g.lineWidth = wdt;
+          g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex, ey - lift);
+          g.quadraticCurveTo(ex - 2, ey - lift - 9, ex - len, ey - lift - 11); g.stroke();
+          g.strokeStyle = '#7d828c'; g.lineWidth = Math.max(1, wdt * 0.28);
+          g.beginPath(); g.moveTo(ex - wdt * 0.28, ey - 2); g.lineTo(ex - wdt * 0.28, ey - lift);
+          g.quadraticCurveTo(ex - 3, ey - lift - 7.4, ex - len * 0.9, ey - lift - 9.2); g.stroke();
+          g.lineCap = 'butt'; g.lineJoin = 'miter';
+          g.fillStyle = '#41444c';                       // flared nozzle
+          g.beginPath(); g.ellipse(ex - len, ey - lift - 11, wdt * 0.44, wdt * 0.62, 0.5, 0, 6.29);
+          g.fill(); outline(g, '#1a1c21');
+        };
+        elbow(slab[0] + 1, slab[1] - 17, 17, 8, 10);
+        elbow(slab[0] - 7, slab[1] - 20, 13, 5, 16);
 
-        // back-corner tower + gold onion dome
-        qbox(-1.38, -0.96, -1.46, -1.04, 0, 21, '#332f2a', '#4b463e', '#575146', PLAT_E);
-        var twm = IP(-1.17, -1.25, 0);
-        cylinder(g, twm[0], twm[1] - 21, 7, 7, '#3c3833', '#4f4a41', PLAT_E);
-        var oy = twm[1] - 21 - 7, ox = twm[0];
-        qline([[ox, oy], [ox, oy - 2]], '#5a5248', 3);
-        g.fillStyle = GOLD;                              // onion bulb
+        // -- the tower: brick podium, black shaft, gold onion --------------
+        var tA0 = -1.52, tA1 = -0.94, tB0 = -0.94, tB1 = -0.36;
+        qbox(tA0 - 0.02, tA1 + 0.02, tB0 - 0.02, tB1 + 0.02, 0, 17,
+             shade(BRICK, 0.66), shade(BRICK, 0.98), shade('#c8b4a4', 1.0), MORT);
+        var vw, vv;
+        for (vw = 0; vw < 3; vw++) {                     // slit windows in the podium
+          vv = tB0 + 0.05 + vw * 0.13;
+          qpoly([IP(tA1 + 0.02, vv, 8), IP(tA1 + 0.02, vv + 0.08, 8),
+                 IP(tA1 + 0.02, vv + 0.08, 13), IP(tA1 + 0.02, vv, 13)], '#1b1a18', null);
+        }
+        qbox(tA0 + 0.02, tA1 - 0.02, tB0 + 0.02, tB1 - 0.02, 17, 21,
+             '#2a2823', '#3b382f', '#46433a', '#141310');
+        qbox(tA0 + 0.07, tA1 - 0.07, tB0 + 0.07, tB1 - 0.07, 21, 36,
+             '#232119', '#33302a', null, '#100f0c');
+        qbox(tA0 + 0.02, tA1 - 0.02, tB0 + 0.02, tB1 - 0.02, 36, 40,
+             shade(SILV, 0.62), shade(SILV, 0.86), shade(SILV, 1.0), '#17161a');
+        var twm = IP((tA0 + tA1) / 2, (tB0 + tB1) / 2, 0);
+        cylinder(g, twm[0], twm[1] - 40, 6.2, 8, '#2f2c27', '#46423a', '#131210');
+        g.fillStyle = shade(SILV, 0.92);                 // collar under the bulb
+        g.fillRect(twm[0] - 6.2, twm[1] - 49, 12.4, 2.2);
+        var oy = twm[1] - 49, ox = twm[0];
+        g.fillStyle = GOLD;                              // tall pointed onion
         g.beginPath();
-        g.moveTo(ox - 2.4, oy - 2);
-        g.quadraticCurveTo(ox - 8.2, oy - 5, ox - 5.4, oy - 9.4);
-        g.quadraticCurveTo(ox - 3.2, oy - 13.4, ox, oy - 15.4);
-        g.quadraticCurveTo(ox + 3.2, oy - 13.4, ox + 5.4, oy - 9.4);
-        g.quadraticCurveTo(ox + 8.2, oy - 5, ox + 2.4, oy - 2);
+        g.moveTo(ox - 2.6, oy);
+        g.quadraticCurveTo(ox - 8.6, oy - 3.0, ox - 7.6, oy - 9.0);
+        g.quadraticCurveTo(ox - 6.1, oy - 17.4, ox, oy - 25);
+        g.quadraticCurveTo(ox + 6.1, oy - 17.4, ox + 7.6, oy - 9.0);
+        g.quadraticCurveTo(ox + 8.6, oy - 3.0, ox + 2.6, oy);
         g.closePath(); g.fill(); outline(g, '#6d4d16');
-        g.fillStyle = shade(GOLD, 1.4);
+        g.fillStyle = shade(GOLD, 1.42);                 // lit flank of the bulb
         g.beginPath();
-        g.moveTo(ox - 1.2, oy - 3.5);
-        g.quadraticCurveTo(ox - 4.4, oy - 6, ox - 2.8, oy - 9.4);
-        g.quadraticCurveTo(ox - 1.6, oy - 12.6, ox - 0.4, oy - 14.2);
-        g.quadraticCurveTo(ox - 0.9, oy - 10.2, ox + 0.4, oy - 3.5);
+        g.moveTo(ox - 1.4, oy - 1.6);
+        g.quadraticCurveTo(ox - 5.1, oy - 4.2, ox - 4.2, oy - 9.4);
+        g.quadraticCurveTo(ox - 3.1, oy - 16.0, ox - 0.5, oy - 22.0);
+        g.quadraticCurveTo(ox - 1.2, oy - 12.6, ox + 0.9, oy - 1.4);
         g.closePath(); g.fill();
-        qline([[ox, oy - 15.4], [ox, oy - 21]], '#e0c165', 1.6);
-        g.fillStyle = col;                               // PLAYER: pennant
+        g.fillStyle = shade(GOLD, 0.60);
         g.beginPath();
-        g.moveTo(ox, oy - 21); g.lineTo(ox + 12, oy - 19);
-        g.lineTo(ox + 12, oy - 14.5); g.lineTo(ox, oy - 16); g.closePath(); g.fill();
+        g.moveTo(ox + 2.6, oy); g.quadraticCurveTo(ox + 7.1, oy - 3.4, ox + 6.3, oy - 10.2);
+        g.quadraticCurveTo(ox + 4.6, oy - 16.8, ox + 1.2, oy - 21.8);
+        g.quadraticCurveTo(ox + 3.4, oy - 11.8, ox + 1.2, oy - 1.2);
+        g.closePath(); g.fill();
+        qline([[ox, oy - 25], [ox, oy - 30]], '#e0c165', 1.6);
+        qline([[ox - 2.4, oy - 28.2], [ox + 2.4, oy - 28.2]], '#e0c165', 1.4);
 
         // -- the hall ------------------------------------------------------
         qpoly([IP(ha1, hb0, 0), IP(ha1, hb1, 0), IP(ha1, hb1, wallH), IP(ha1, hb0, wallH)],
-              shade(STONE, 0.64), MORT);
+              shade(STONE, 0.62), MORT);
         qpoly([IP(ha0, hb1, 0), IP(ha1, hb1, 0), IP(ha1, hb1, wallH), IP(ha0, hb1, wallH)],
-              shade(STONE, 0.96), MORT);
-        var mz;
-        for (mz = 5; mz < wallH; mz += 5.5) {            // masonry courses
-          qline([IP(ha1, hb0, mz), IP(ha1, hb1, mz)], 'rgba(58,50,36,.38)', 1);
-          qline([IP(ha0, hb1, mz), IP(ha1, hb1, mz)], 'rgba(58,50,36,.30)', 1);
+              BRICK, MORT);
+        var mz, mv;
+        for (mz = 4; mz < wallH; mz += 5.0) {            // masonry courses
+          qline([IP(ha1, hb0, mz), IP(ha1, hb1, mz)], 'rgba(50,42,30,.40)', 1);
+          qline([IP(ha0, hb1, mz), IP(ha1, hb1, mz)], 'rgba(66,50,34,.42)', 1);
         }
-        for (mz = -1.0; mz < hb1; mz += 0.30)            // vertical joints
-          qline([IP(ha1, mz, 3), IP(ha1, mz, wallH - 2)], 'rgba(58,50,36,.22)', 1);
+        for (mz = 0, mv = -0.86; mv < ha1; mv += 0.24, mz++)   // staggered brick joints
+          for (vw = 0; vw < 6; vw++)
+            qline([IP(mv + (vw % 2 ? 0.12 : 0), hb1, 4 + vw * 5),
+                   IP(mv + (vw % 2 ? 0.12 : 0), hb1, 9 + vw * 5)], 'rgba(66,50,34,.34)', 1);
+        for (mv = -1.16; mv < hb1; mv += 0.28)
+          qline([IP(ha1, mv, 3), IP(ha1, mv, wallH - 2)], 'rgba(50,42,30,.24)', 1);
+        // brick parapet band across the end wall, roof rising behind it
+        qpoly([IP(ha0 - 0.05, hb1 + 0.03, wallH), IP(ha1 + 0.05, hb1 + 0.03, wallH),
+               IP(ha1 + 0.05, hb1 + 0.03, wallH + 5), IP(ha0 - 0.05, hb1 + 0.03, wallH + 5)],
+              shade(BRICK, 1.12), MORT);
         qpoly([IP(ha0, hb1, wallH), IP(ha1, hb1, wallH), IP(0, hb1, ridgeH)],
-              shade(STONE, 1.06), MORT);
-        qpoly([IP(ha0, hb1, wallH - 5), IP(ha1, hb1, wallH - 5),
-               IP(ha1, hb1, wallH - 1), IP(ha0, hb1, wallH - 1)], col, null);
-        // roof: far sliver in shade, near slope with a white panel band
-        qpoly([IP(0, hb0, ridgeH), IP(0, hb1, ridgeH), IP(ha0, hb1, wallH), IP(ha0, hb0, wallH)],
-              '#3d3d3a', PLAT_E);
-        qpoly([IP(0, hb0, ridgeH), IP(0, hb1, ridgeH), IP(ha1, hb1, wallH), IP(ha1, hb0, wallH)],
-              '#54544e', PLAT_E);
-        var np = 8, pI, pb0, pb1;
-        for (pI = 0; pI < np; pI++) {
-          pb0 = hb0 + (hb1 - hb0) * (pI + 0.07) / np;
-          pb1 = hb0 + (hb1 - hb0) * (pI + 0.93) / np;
-          qpoly([IP(-0.18, pb0, rz(0.18)), IP(0.58, pb0, rz(0.58)),
-                 IP(0.58, pb1, rz(0.58)), IP(-0.18, pb1, rz(0.18))],
-                pI % 2 ? RIDGE : shade(RIDGE, 0.94), 'rgba(60,58,50,.5)');
-        }
-        qline([IP(0, hb0, ridgeH), IP(0, hb1, ridgeH)], '#8d8b80', 2);
+              shade(STONE, 1.02), MORT);
 
-        // PLAYER: red radiator fins. In the sprite these do NOT lie flat on
-        // the ridge like solar panels - they are separate slotted plates
-        // STANDING upright off the roof, each a different height, each leaning
-        // outward over the near slope. So: thin along the ridge, broad across
-        // it, sheared at the top, and deliberately uneven.
-        var FIN = [[0.06, 0.08, 0.23, 21, 0.05],
-                   [0.02, 0.28, 0.20, 15, 0.07],
-                   [0.10, 0.48, 0.24, 19, 0.04],
-                   [0.03, 0.68, 0.19, 14, 0.07],
-                   [0.08, 0.88, 0.22, 17, 0.05]];
-        var fn, fa, fb, fw2, fh2, fln, fz, ft = 0.085, sl, sy;
+        // roof: far slope in shade, near slope lighter, one row of white
+        // panel blocks riding the ridge with a silver gutter below them
+        qpoly([IP(0, hb0, ridgeH), IP(0, hb1, ridgeH), IP(ha0, hb1, wallH), IP(ha0, hb0, wallH)],
+              SLATE, '#26261f');
+        qpoly([IP(0, hb0, ridgeH), IP(0, hb1, ridgeH), IP(ha1, hb1, wallH), IP(ha1, hb0, wallH)],
+              shade(SLATE, 1.16), '#26261f');
+        var np = 9, pI, pb0, pb1, pa0 = -0.04, pa1 = 0.28;
+        for (pI = 0; pI < np; pI++) {
+          pb0 = hb0 + (hb1 - hb0) * (pI + 0.09) / np;
+          pb1 = hb0 + (hb1 - hb0) * (pI + 0.91) / np;
+          qpoly([IP(pa0, pb0, rz(pa0) + 2), IP(pa1, pb0, rz(pa1) + 2),
+                 IP(pa1, pb1, rz(pa1) + 2), IP(pa0, pb1, rz(pa0) + 2)],
+                pI % 2 ? RIDGE : shade(RIDGE, 0.93), 'rgba(56,54,46,.6)');
+          qpoly([IP(pa1, pb0, rz(pa1) + 2), IP(pa1, pb1, rz(pa1) + 2),
+                 IP(pa1, pb1, rz(pa1) - 1), IP(pa1, pb0, rz(pa1) - 1)],
+                shade(RIDGE, 0.70), 'rgba(56,54,46,.6)');
+        }
+        qpoly([IP(pa1, hb0, rz(pa1) - 1), IP(0.40, hb0, rz(0.40) - 1),
+               IP(0.40, hb1, rz(0.40) - 1), IP(pa1, hb1, rz(pa1) - 1)],
+              shade(SILV, 0.78), 'rgba(40,40,36,.6)');
+        qline([IP(0, hb0, ridgeH + 2), IP(0, hb1, ridgeH + 2)], '#8d8b80', 1.6);
+
+        // PLAYER: red radiator plates. In the sprite they stand in TWO rows
+        // flanking the white ridge band - a short far row peeking over the
+        // ridge and a taller near row hanging over the eaves - each a thick
+        // slab, slotted black, its broad face turned to the boiler flank.
+        var FIN = [[-0.34, 0.21, 0.20, 12], [-0.34, 0.53, 0.20, 12], [-0.34, 0.85, 0.20, 12],
+                   [0.64, 0.15, 0.24, 17], [0.64, 0.47, 0.24, 17], [0.64, 0.79, 0.24, 17]];
+        var fn, fa, fb, fl2, fh2, fz, ft = 0.09, sl, sy;
         for (fn = 0; fn < FIN.length; fn++) {
           fa = FIN[fn][0];
           fb = hb0 + (hb1 - hb0) * FIN[fn][1];
-          fw2 = FIN[fn][2]; fh2 = FIN[fn][3]; fln = FIN[fn][4];
-          fz = rz(fa + fw2) - 5;
-          qpoly([IP(fa + fw2, fb - ft, fz), IP(fa + fw2, fb + ft, fz),          // thin edge
-                 IP(fa + fw2 + fln, fb + ft, fz + fh2), IP(fa + fw2 + fln, fb - ft, fz + fh2)],
-                shade(col, 0.66), '#1d1a18');
-          qpoly([IP(fa - fw2, fb + ft, fz), IP(fa + fw2, fb + ft, fz),          // slotted face
-                 IP(fa + fw2 + fln, fb + ft, fz + fh2), IP(fa - fw2 + fln, fb + ft, fz + fh2)],
+          fl2 = FIN[fn][2]; fh2 = FIN[fn][3];
+          fz = rz(fa) - (fa > 0 ? 7 : 1);
+          qpoly([IP(fa - ft, fb + fl2, fz), IP(fa + ft, fb + fl2, fz),      // thin end
+                 IP(fa + ft, fb + fl2, fz + fh2), IP(fa - ft, fb + fl2, fz + fh2)],
+                shade(col, 0.64), '#1d1a18');
+          qpoly([IP(fa + ft, fb - fl2, fz), IP(fa + ft, fb + fl2, fz),      // slotted face
+                 IP(fa + ft, fb + fl2, fz + fh2), IP(fa + ft, fb - fl2, fz + fh2)],
                 shade(col, 1.02), '#1d1a18');
-          for (sl = 1; sl < 6; sl++) {
-            sy = sl / 6;
-            qpoly([IP(fa - fw2 * 0.84 + fln * sy, fb + ft, fz + fh2 * sy - 1.5),
-                   IP(fa + fw2 * 0.84 + fln * sy, fb + ft, fz + fh2 * sy - 1.5),
-                   IP(fa + fw2 * 0.84 + fln * sy, fb + ft, fz + fh2 * sy + 1.5),
-                   IP(fa - fw2 * 0.84 + fln * sy, fb + ft, fz + fh2 * sy + 1.5)],
-                  '#1b1519', null);
+          for (sl = 1; sl < 5; sl++) {
+            sy = fz + fh2 * (0.14 + sl * 0.19);
+            qpoly([IP(fa + ft, fb - fl2 * 0.80, sy - 1.5), IP(fa + ft, fb + fl2 * 0.80, sy - 1.5),
+                   IP(fa + ft, fb + fl2 * 0.80, sy + 1.5), IP(fa + ft, fb - fl2 * 0.80, sy + 1.5)],
+                  '#171318', null);
           }
-          qpoly([IP(fa - fw2 + fln, fb - ft, fz + fh2), IP(fa + fw2 + fln, fb - ft, fz + fh2),
-                 IP(fa + fw2 + fln, fb + ft, fz + fh2), IP(fa - fw2 + fln, fb + ft, fz + fh2)],
-                shade(col, 1.26), '#1d1a18');
+          qpoly([IP(fa - ft, fb - fl2, fz + fh2), IP(fa + ft, fb - fl2, fz + fh2),
+                 IP(fa + ft, fb + fl2, fz + fh2), IP(fa - ft, fb + fl2, fz + fh2)],
+                shade(col, 1.28), '#1d1a18');            // cap
+          qpoly([IP(fa - ft, fb - fl2 * 0.62, fz + fh2), IP(fa + ft, fb - fl2 * 0.62, fz + fh2),
+                 IP(fa + ft, fb + fl2 * 0.62, fz + fh2 + 4), IP(fa - ft, fb + fl2 * 0.62, fz + fh2 + 4)],
+                shade(col, 1.14), '#1d1a18');            // stepped upper block
         }
 
-        // -- boiler-pot rank down the +gx flank ----------------------------
-        var pn, pb, pp;
+        // -- boiler rank down the +gx flank: black slotted column against
+        //    the wall, stepped red plinth, brass bell standing on it -------
+        var pn, pb, pp, sp2;
         for (pn = 0; pn < 4; pn++) {
-          pb = hb0 + (hb1 - hb0) * (0.13 + pn * 0.25);
-          qpoly([IP(ha1, pb - 0.15, 6), IP(ha1, pb + 0.15, 6),
-                 IP(ha1, pb + 0.15, 29), IP(ha1, pb - 0.15, 29)], '#33353d', '#17181d');
-          var sp2;
+          pb = hb0 + (hb1 - hb0) * (0.12 + pn * 0.245);
+          qpoly([IP(ha1, pb - 0.155, 5), IP(ha1, pb + 0.155, 5),
+                 IP(ha1, pb + 0.155, 30), IP(ha1, pb - 0.155, 30)], '#2c2e35', '#141519');
           for (sp2 = 0; sp2 < 5; sp2++)
-            qline([IP(ha1, pb - 0.13, 8.5 + sp2 * 4.4), IP(ha1, pb + 0.13, 8.5 + sp2 * 4.4)],
-                  'rgba(20,10,12,.62)', 1.8);
-          qbox(ha1 - 0.02, ha1 + 0.32, pb - 0.18, pb + 0.18, 0, 8,
-               shade(RUST, 0.74), RUST, shade(RUST, 1.20), '#33231b');
-          pp = IP(ha1 + 0.18, pb, 8);
-          cylinder(g, pp[0], pp[1], 7, 19, shade(IRON, 1.16), shade(IRON, 1.5), '#0e0f13');
-          g.fillStyle = BRASS;
-          g.beginPath(); g.ellipse(pp[0], pp[1] - 19, 6.6, 5.4, 0, Math.PI, 0); g.fill();
-          outline(g, '#65491c');
-          g.fillStyle = shade(BRASS, 1.34);
-          g.beginPath(); g.ellipse(pp[0] - 2.2, pp[1] - 22, 2.1, 1.6, 0, 0, 6.29); g.fill();
-          qline([[pp[0] + 4.5, pp[1] - 22], [pp[0] + 4.5, pp[1] - 35]], '#2a2b30', 1.8);
+            qline([IP(ha1, pb - 0.135, 8 + sp2 * 4.6), IP(ha1, pb + 0.135, 8 + sp2 * 4.6)],
+                  'rgba(150,156,166,.26)', 1.6);
+          qbox(ha1 - 0.02, ha1 + 0.40, pb - 0.23, pb + 0.23, 0, 4.5,
+               shade(col, 0.60), shade(col, 0.86), shade(col, 1.02), '#2a1416');
+          qbox(ha1 + 0.03, ha1 + 0.33, pb - 0.17, pb + 0.17, 4.5, 8.5,
+               shade(col, 0.72), col, shade(col, 1.16), '#2a1416');
+          qline([IP(ha1 + 0.40, pb - 0.23, 2.2), IP(ha1 + 0.40, pb + 0.23, 2.2)],
+                'rgba(40,10,14,.5)', 1.4);
+          qline([IP(ha1 + 0.33, pb - 0.17, 6.5), IP(ha1 + 0.33, pb + 0.17, 6.5)],
+                'rgba(40,10,14,.5)', 1.4);
+          pp = IP(ha1 + 0.18, pb, 8.5);                  // the brass bell
+          cylinder(g, pp[0], pp[1], 6, 8, shade(BRASS, 0.56), shade(BRASS, 0.84), '#3d2c10');
+          g.fillStyle = shade(BRASS, 0.94);
+          g.beginPath(); g.ellipse(pp[0], pp[1] - 8, 6, 4.0, 0, Math.PI, 0); g.fill();
+          g.fillStyle = shade(BRASS, 1.22);
+          g.beginPath(); g.ellipse(pp[0], pp[1] - 10.4, 4.4, 3.0, 0, Math.PI, 0); g.fill();
+          outline(g, '#3d2c10');
+          g.fillStyle = shade(BRASS, 1.5);
+          g.beginPath(); g.ellipse(pp[0] - 2.0, pp[1] - 6.6, 1.5, 2.6, -0.4, 0, 6.29); g.fill();
+          cylinder(g, pp[0], pp[1] - 12.2, 2.6, 4, '#33353c', '#4d5058', '#14151a');
+          g.fillStyle = '#5b5f68';
+          g.beginPath(); g.ellipse(pp[0], pp[1] - 16.6, 3.4, 1.7, 0, 0, 6.29); g.fill();
+          outline(g, '#14151a');
         }
 
-        // -- the garage: dark maw, striped lintel, emblem, striped ramp ----
-        var dA = 0.42, dz = 25;
-        qpoly([IP(-dA - 0.04, hb1, 0), IP(dA + 0.04, hb1, 0),
-               IP(dA + 0.04, hb1, dz + 2), IP(-dA - 0.04, hb1, dz + 2)], '#4d4636', MORT);
+        // -- the garage: dark maw, vent band, swung-open leaf, ramp --------
+        var dA = 0.44, dz = 19;
+        qpoly([IP(-dA - 0.05, hb1, 0), IP(dA + 0.05, hb1, 0),
+               IP(dA + 0.05, hb1, dz + 2), IP(-dA - 0.05, hb1, dz + 2)], shade(BRICK, 0.72), MORT);
         qpoly([IP(-dA, hb1, 0), IP(dA, hb1, 0), IP(dA, hb1, dz), IP(-dA, hb1, dz)],
-              '#131418', '#0b0c0f');
-        var dr;
-        for (dr = 1; dr < 4; dr++)                       // door ribs
-          qline([IP(-dA + 2 * dA * dr / 4, hb1, 1), IP(-dA + 2 * dA * dr / 4, hb1, dz - 1)],
-                'rgba(126,132,140,.30)', 1.6);
-        for (dr = 1; dr < 3; dr++)
-          qline([IP(-dA, hb1, dz * dr / 3), IP(dA, hb1, dz * dr / 3)], 'rgba(126,132,140,.24)', 1.4);
-        g.save();                                        // PLAYER: hammer emblem
-        var em = IP(0, hb1, 13);
-        g.strokeStyle = col; g.lineWidth = 2.6; g.lineCap = 'round';
-        g.beginPath(); g.arc(em[0] + 1, em[1] - 1, 8, 1.9, 3.6); g.stroke();   // sickle blade
+              '#111216', '#0a0b0e');
+        qpoly([IP(-dA + 0.03, hb1, 0), IP(dA - 0.03, hb1, 0),
+               IP(dA - 0.03, hb1, 2.6), IP(-dA + 0.03, hb1, 2.6)], '#5a5347', null);
+        g.globalAlpha = 0.45;
+        qpoly([IP(-dA + 0.06, hb1, 2.6), IP(dA - 0.06, hb1, 2.6),
+               IP(dA - 0.14, hb1, 7.5), IP(-dA + 0.14, hb1, 7.5)], '#3a342a', null);
+        g.globalAlpha = 1;
+        var vt;
+        for (vt = 0; vt < 4; vt++) {                     // vent openings above the lintel
+          qpoly([IP(-0.62 + vt * 0.36, hb1, dz + 5.5), IP(-0.42 + vt * 0.36, hb1, dz + 5.5),
+                 IP(-0.42 + vt * 0.36, hb1, dz + 9.5), IP(-0.62 + vt * 0.36, hb1, dz + 9.5)],
+                '#1a1917', 'rgba(60,44,30,.7)');
+        }
+        var li, x0, x1;
+        for (li = 0; li < 7; li++) {                     // hazard lintel over the maw
+          x0 = -dA - 0.05 + (2 * dA + 0.10) * li / 7; x1 = -dA - 0.05 + (2 * dA + 0.10) * (li + 1) / 7;
+          qpoly([IP(x0, hb1, dz + 0.6), IP(x1, hb1, dz + 0.6),
+                 IP(x1, hb1, dz + 4.4), IP(x0, hb1, dz + 4.4)], li % 2 ? col : '#1d1a18', null);
+        }
+        // the leaf, swung out past the +gx jamb and standing over the apron
+        var lp0 = [-dA + 0.02, hb1], lp1 = [-0.88, hb1 + 0.20];
+        g.fillStyle = 'rgba(0,0,0,.30)';                 // the leaf's own contact shadow
+        qpoly([IP(lp0[0] + 0.04, lp0[1] + 0.05, 0), IP(lp1[0] + 0.04, lp1[1] + 0.05, 0),
+               IP(lp1[0] - 0.02, lp1[1] + 0.16, 0), IP(lp0[0] - 0.02, lp0[1] + 0.16, 0)],
+              'rgba(0,0,0,.30)', null);
+        qpoly([IP(lp0[0], lp0[1], 0), IP(lp1[0], lp1[1], 0),
+               IP(lp1[0], lp1[1], dz + 1), IP(lp0[0], lp0[1], dz + 1)], '#5a5e67', '#111216');
+        qpoly([IP(lp1[0], lp1[1], 0), IP(lp1[0] - 0.04, lp1[1] + 0.07, 0),
+               IP(lp1[0] - 0.04, lp1[1] + 0.07, dz + 1), IP(lp1[0], lp1[1], dz + 1)],
+              '#3c3f47', '#111216');                     // the leaf's thickness
+        qpoly([IP(lp0[0] - 0.05, lp0[1] + 0.02, 2.5), IP(lp1[0] + 0.05, lp1[1] - 0.02, 2.5),
+               IP(lp1[0] + 0.05, lp1[1] - 0.02, dz - 2), IP(lp0[0] - 0.05, lp0[1] + 0.02, dz - 2)],
+              '#1b1d22', '#0c0d10');
+        var lf, la, lb;
+        for (lf = 1; lf < 3; lf++) {                     // the leaf's panel frame
+          la = lp0[0] + (lp1[0] - lp0[0]) * lf / 3; lb = lp0[1] + (lp1[1] - lp0[1]) * lf / 3;
+          qline([IP(la, lb, 2), IP(la, lb, dz - 1)], '#4a4d55', 1.8);
+        }
+        qline([IP(lp0[0] + 0.06, lp0[1] + 0.03, dz * 0.5), IP(lp1[0] - 0.06, lp1[1] - 0.03, dz * 0.5)],
+              '#4a4d55', 1.8);
+        g.save();                                        // PLAYER: hammer + sickle
+        var em = IP((lp0[0] + lp1[0]) / 2, (lp0[1] + lp1[1]) / 2, dz * 0.52);
+        g.strokeStyle = col; g.lineCap = 'round';
+        g.lineWidth = 2.8;
+        g.beginPath(); g.arc(em[0] + 1.5, em[1] - 1.5, 8.5, 1.85, 3.55); g.stroke();
         g.lineWidth = 2.4;
-        g.beginPath(); g.moveTo(em[0] - 7, em[1] - 3); g.lineTo(em[0] + 4, em[1] + 8); g.stroke();
-        g.lineWidth = 3.0;                                                     // hammer haft + head
-        g.beginPath(); g.moveTo(em[0] - 6, em[1] + 8); g.lineTo(em[0] + 5, em[1] - 3); g.stroke();
-        g.lineWidth = 3.6;
-        g.beginPath(); g.moveTo(em[0] + 1, em[1] - 6); g.lineTo(em[0] + 8, em[1] + 1); g.stroke();
+        g.beginPath(); g.moveTo(em[0] - 7.4, em[1] - 3.4); g.lineTo(em[0] + 4.4, em[1] + 8.6); g.stroke();
+        g.lineWidth = 3.0;
+        g.beginPath(); g.moveTo(em[0] - 6.4, em[1] + 8.4); g.lineTo(em[0] + 5.4, em[1] - 3.4); g.stroke();
+        g.lineWidth = 3.8;
+        g.beginPath(); g.moveTo(em[0] + 1.4, em[1] - 6.4); g.lineTo(em[0] + 8.4, em[1] + 0.6); g.stroke();
         g.lineCap = 'butt'; g.restore();
-        var li;
-        for (li = 0; li < 8; li++) {                     // hazard lintel
-          var x0 = -dA - 0.06 + (2 * dA + 0.12) * li / 8, x1 = -dA - 0.06 + (2 * dA + 0.12) * (li + 1) / 8;
-          qpoly([IP(x0, hb1, dz + 2), IP(x1, hb1, dz + 2),
-                 IP(x1 + 0.06, hb1, dz + 11), IP(x0 + 0.06, hb1, dz + 11)],
-                li % 2 ? col : '#1d1a18', null);
-        }
-        qline([IP(-dA - 0.06, hb1, dz + 11), IP(dA + 0.06, hb1, dz + 11)], MORT, 1.4);
 
-        var rb0 = hb1 + 0.02, rb1 = 1.44, st;
-        qpoly([IP(-0.48, rb0, 0), IP(0.48, rb0, 0), IP(0.62, rb1, 0), IP(-0.62, rb1, 0)],
-              '#a49c88', shade(UMB, 0.62));
-        for (st = 0; st < 4; st++) {                     // hazard bands across the ramp
-          var s0 = (st + 0.18) / 4, s1 = (st + 0.62) / 4;
-          var w0 = 0.48 + 0.14 * s0, w1 = 0.48 + 0.14 * s1;
-          qpoly([IP(-w0, rb0 + (rb1 - rb0) * s0, 0), IP(w0, rb0 + (rb1 - rb0) * s0, 0),
-                 IP(w1, rb0 + (rb1 - rb0) * s1, 0), IP(-w1, rb0 + (rb1 - rb0) * s1, 0)],
-                col, null);
-        }
-        qline([IP(-0.36, hb1, 6), IP(-0.74, 1.50, 0)], col, 2.2);
-        qline([IP(0.36, hb1, 6), IP(0.74, 1.50, 0)], col, 2.2);
+        // pale ramp, red kerb one side, brass rail the other, rails beyond
+        var rb0 = hb1 + 0.02, rb1 = 1.46;
+        qpoly([IP(-0.52, rb0, 0), IP(0.52, rb0, 0), IP(0.70, rb1, 0), IP(-0.70, rb1, 0)],
+              '#c6c3b2', shade(PADC, 0.50));
+        var st;
+        for (st = 1; st < 5; st++)
+          qline([IP(-0.52 - 0.14 * st / 5, rb0 + (rb1 - rb0) * st / 5, 0),
+                 IP(0.52 + 0.14 * st / 5, rb0 + (rb1 - rb0) * st / 5, 0)], 'rgba(60,60,52,.34)', 1);
+        qpoly([IP(-0.52, rb0, 0), IP(-0.60, rb0, 0), IP(-0.74, rb1, 0), IP(-0.66, rb1, 0)],
+              col, shade(col, 0.5));
+        qline([IP(0.52, rb0, 0), IP(0.66, rb1, 0)], BRASS, 2.2);
+        qline([IP(-0.60, rb0 + 0.10, 0), IP(-0.92, 1.62, 0)], shade(col, 0.86), 2.4);
+        qline([IP(0.60, rb0 + 0.10, 0), IP(0.94, 1.62, 0)], shade(BRASS, 0.86), 2.2);
 
-        var cq = IP(1.16, 0.72, 0); crates(g, cq[0], cq[1], 2, '#6d6552');
-        var dq = IP(1.30, -0.62, 0); drums(g, dq[0], dq[1], 4, '#3a3428');
+        var cq = IP(1.18, 0.80, 0); crates(g, cq[0], cq[1], 2, '#6d6552');
+        var dq = IP(1.26, -0.66, 0); drums(g, dq[0], dq[1], 3, '#7a4a24');
+        var dr2 = IP(1.34, 1.16, 0); drums(g, dr2[0], dr2[1], 2, RUST);
       }
     } else if (key === 'sentry') {
       // RA2 Allied Pillbox (ref: allied-pillbox.png). A lumpy grey-green
