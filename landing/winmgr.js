@@ -108,6 +108,27 @@
     return out;
   }
 
+  // Insert gaps into an edge-to-edge tiling: `margin` px at the frame perimeter,
+  // `gap` px between adjacent tiles (so a window in a layout keeps the SAME visible
+  // gap from the frame as a free one, with a thinner seam between neighbours). The
+  // input zones must tile `box` exactly with shared integer edges and outer edges
+  // at 0 / box.w / box.h — which is exactly what tileGrid and layoutGeoms return.
+  // An interior edge pulls back gap/2 on each side, so the seam between two tiles
+  // is `gap`; an outer edge sits `margin` in from the frame. Used for BOTH placing
+  // a layout and recognising one (zoneOccupancy), so the two never drift.
+  function gapZones(zones, box, margin, gap) {
+    margin = margin || 0; var h = (gap || 0) / 2;
+    return zones.map(function (z) {
+      var r = z.left + z.width, b = z.top + z.height;
+      var l = (z.left <= 0) ? margin : z.left + h;
+      var t = (z.top <= 0) ? margin : z.top + h;
+      var rr = (r >= box.w) ? box.w - margin : r - h;
+      var bb = (b >= box.h) ? box.h - margin : b - h;
+      return { left: Math.round(l), top: Math.round(t),
+               width: Math.round(rr - l), height: Math.round(bb - t) };
+    });
+  }
+
   // ---- Snap layouts (the ▢ palette) ---------------------------------------
   // Each layout is a list of zones in FRACTIONS of the frame, so they survive any
   // resize or rotation. Order matters: zone 0 is the "main" one, and it is the
@@ -241,6 +262,7 @@
 
   var api = { clampGeom: clampGeom, resizeGeom: resizeGeom, defaultGeom: defaultGeom,
               snapTarget: snapTarget, tileGrid: tileGrid, tileCapacity: tileCapacity,
+              gapZones: gapZones,
               LAYOUTS: LAYOUTS, layoutGeoms: layoutGeoms, layoutsFor: layoutsFor,
               zoneAssign: zoneAssign, swapZones: swapZones, zoneOccupancy: zoneOccupancy,
               MINW: MINW, MINH: MINH, MARGIN: MARGIN };
