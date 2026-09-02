@@ -3211,6 +3211,12 @@
         d.__vtWinFocus = true;
         d.addEventListener('pointerdown', function() {
           if (windowModeOn() && id !== active) setActive(id);
+          // A click INSIDE a window's iframe is "outside" the layout palette, but
+          // those events never bubble to the top document, so the top-level
+          // outside-click handler never sees them. Close the palette here too —
+          // this is the case a staged/dirty palette needs, since its mouseleave
+          // auto-close is deliberately suppressed once you've rearranged it.
+          if (layoutsEl.classList.contains('open')) hideLayouts();
         }, true);
       }
       // ALWAYS re-walk the nested frames, even for an already-wired document: a
