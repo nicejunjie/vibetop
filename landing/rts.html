@@ -74,6 +74,12 @@
   #cv { display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
   #cv.placing { cursor: crosshair; }
   .pit.locked { opacity: .45; }
+  /* RA2-style command bar at the foot of the sidebar: visible buttons, hotkey in the tooltip. */
+  #cmdbar { flex-shrink: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px; border-top: 1px solid #2a3040; background: #12161d; }
+  #cmdbar button { min-height: 30px; font-size: 11px; font-weight: 600; color: #cdd5e1; background: #1f2733; border: 1px solid #2a3040; border-radius: 5px; cursor: pointer; padding: 0 2px; }
+  #cmdbar button:hover { background: #253044; color: #e6edf3; }
+  #cmdbar button.on { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  #cmdbar button.has { border-color: #4a86e8; }
 
   /* ---- right-hand command bar (build panel + minimap) ---- */
   #side {
@@ -309,6 +315,18 @@
       <div data-tab="v">Vehicles</div>
     </div>
     <div id="plist"></div>
+    <div id="cmdbar">
+      <button data-cmd="same" title="Select all units of the same type on screen">Same</button>
+      <button data-cmd="path" title="Waypoint mode: right-clicks queue stops (or hold Shift)">Path</button>
+      <button data-cmd="t1" title="Team 1 — click to select, Shift-click to assign (Ctrl+1)">T1</button>
+      <button data-cmd="t2" title="Team 2 — click to select, Shift-click to assign (Ctrl+2)">T2</button>
+      <button data-cmd="t3" title="Team 3 — click to select, Shift-click to assign (Ctrl+3)">T3</button>
+      <button data-cmd="guard" title="Guard: hold position and engage (G)">Guard</button>
+      <button data-cmd="stop" title="Stop (S)">Stop</button>
+      <button data-cmd="scatter" title="Scatter (X)">Scatter</button>
+      <button data-cmd="sell" title="Sell mode: click one of your structures to sell it for half">Sell</button>
+      <button data-cmd="repair" title="Repair mode: click one of your structures to repair it (costs credits)">Repair</button>
+    </div>
   </div>
 </div>
 
@@ -8220,6 +8238,13 @@
   function stepBld(g, b) {
     var d = BLDS[b.type];
     if (b.cool > 0) b.cool--;
+    if (b.repair) {
+      if (b.hp >= b.maxhp) b.repair = false;
+      else if ((g.tick % 6) === 0) {
+        var step = b.maxhp * 0.005, price = d.cost * 0.3 * (step / b.maxhp);
+        if (g.side[b.p].credits >= price) { g.side[b.p].credits -= price; b.hp = Math.min(b.maxhp, b.hp + step); }
+      }
+    }
     if (b.type === 'depot' && (g.tick % 30) === 0 && powered(g, b.p)) {
       // Service Depot: vehicles parked on the pad (or touching it) are repaired.
       for (var di = 0; di < g.units.length; di++) {
@@ -9393,6 +9418,8 @@
     keys[e.key.toLowerCase()] = true;
 
     if (e.key === 'Escape') {
+      if (cmdMode) { cmdMode = null; cv.style.cursor = 'default'; refreshCmdbar(); say('Mode cancelled'); return; }
+      if (pathMode) { pathMode = false; refreshCmdbar(); say('Waypoint mode off'); return; }
       if (placing) { placing = null; cv.classList.remove('placing'); say('Placement cancelled'); }
       else if (sel.length) { clearSel(); }
       return;
@@ -9428,7 +9455,7 @@
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         groups[e.key] = sel.filter(function (u) { return !u.dead && u.kind === 'u'; });
-        say('Group ' + e.key + ': ' + groups[e.key].length + ' unit' + (groups[e.key].length === 1 ? '' : 's'));
+        say('Group ' + e.key + ': ' + groups[e.key].length + ' unit' + (groups[e.key].length === 1 ? '' : 's')); refreshCmdbar();
       } else if (groups[e.key]) {
         clearSel();
         groups[e.key] = groups[e.key].filter(function (u) { return !u.dead; });
@@ -9590,6 +9617,85 @@
 
   function clearSel() { sel.forEach(function (u) { u.sel = false; }); sel = []; }
 
+  // ---- RA2 bottom command bar ------------------------------------------
+  var cmdMode = null;          // 'sell' | 'repair' | null
+  var pathMode = false;        // waypoint mode: right-clicks queue
+  var cmdbar = document.getElementById('cmdbar');
+  function setCmdMode(m) {
+    cmdMode = cmdMode === m ? null : m;
+    cv.style.cursor = cmdMode ? 'pointer' : 'default';
+    say(cmdMode === 'sell' ? 'Sell: click one of your structures (Esc cancels)'
+      : cmdMode === 'repair' ? 'Repair: click one of your structures to start or stop repairs (Esc cancels)' : 'Mode cancelled');
+    refreshCmdbar();
+  }
+  function selectSameType() {
+    var first = sel.filter(function (e) { return e.kind === 'u'; })[0];
+    if (!first) { say('Select a unit first', true); return; }
+    clearSel();
+    G.units.forEach(function (u) {
+      if (u.dead || u.p !== P_HUMAN || u.type !== first.type) return;
+      var ux = sx(u.x, u.y), uy = sy(u.x, u.y);
+      if (ux < VX0 || uy < VY0 || ux > VX1 || uy > VY1) return;
+      u.sel = true; sel.push(u);
+    });
+    say('All visible ' + UNITS[first.type].name + 's: ' + sel.length); sfx('click');
+  }
+  function teamCmd(n, assign) {
+    if (assign) {
+      groups[n] = sel.filter(function (u) { return !u.dead && u.kind === 'u'; });
+      say('Team ' + n + ' set: ' + groups[n].length + ' unit' + (groups[n].length === 1 ? '' : 's')); sfx('click');
+    } else if (groups[n] && groups[n].length) {
+      clearSel();
+      groups[n] = groups[n].filter(function (u) { return !u.dead; });
+      groups[n].forEach(function (u) { u.sel = true; sel.push(u); });
+      if (sel.length) { centerSelIfOffscreen(); say('Team ' + n + ': ' + sel.length + ' selected'); }
+    } else say('Team ' + n + ' is empty — select units and Shift-click T' + n + ' to assign', true);
+    refreshCmdbar();
+  }
+  function unitsCmd(kind) {
+    var us = sel.filter(function (u) { return u.kind === 'u' && !u.dead; });
+    if (!us.length) { say('Select some units first', true); return; }
+    if (kind === 'scatter') {
+      var mx = 0, my = 0; us.forEach(function (u) { mx += u.x; my += u.y; }); mx /= us.length; my /= us.length;
+      us.forEach(function (u, i) {
+        var a = Math.atan2(u.y - my, u.x - mx); if (!isFinite(a) || (u.x === mx && u.y === my)) a = i * 2.4;
+        orderUnitsTo(G, [u], Math.max(0, Math.min(MAP - 1, Math.round(u.x + Math.cos(a) * 2))), Math.max(0, Math.min(MAP - 1, Math.round(u.y + Math.sin(a) * 2))));
+      });
+      say('Scatter');
+    } else {
+      us.forEach(function (u) {
+        u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y;
+        if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
+      });
+      say((kind === 'guard' ? 'Guarding' : 'Stopped') + ' — ' + us.length + ' unit' + (us.length === 1 ? '' : 's'));
+    }
+    sfx('click');
+  }
+  function sellBld(b) {
+    var refund = Math.round(BLDS[b.type].cost * 0.5);
+    G.side[b.p].credits += refund; killBld(G, b); b.sel = false;
+    say('Sold ' + BLDS[b.type].name + ' for $' + refund); sfx('cash'); eva('Structure sold', 2000);
+  }
+  function refreshCmdbar() {
+    if (!cmdbar) return;
+    var bs = cmdbar.querySelectorAll('button');
+    for (var i = 0; i < bs.length; i++) {
+      var c = bs[i].getAttribute('data-cmd');
+      bs[i].classList.toggle('on', c === cmdMode || (c === 'path' && pathMode));
+      if (c[0] === 't') bs[i].classList.toggle('has', !!(groups[c[1]] && groups[c[1]].length));
+    }
+  }
+  if (cmdbar) cmdbar.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || !G || state !== 'play') return;
+    resumeAudio();
+    var c = b.getAttribute('data-cmd');
+    if (c === 'same') selectSameType();
+    else if (c === 'path') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: right-clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); }
+    else if (c[0] === 't') teamCmd(c[1], e.shiftKey || e.ctrlKey);
+    else if (c === 'guard' || c === 'stop' || c === 'scatter') unitsCmd(c);
+    else if (c === 'sell' || c === 'repair') setCmdMode(c);
+  });
+
   // Centre on the construction yard; if it is gone, on anything else still
   // standing, then on any surviving unit. Losing your yard should not also
   // lose you the ability to find what is left of your army.
@@ -9639,6 +9745,13 @@
 
   function clickSelect(px, py, shift) {
     var e = pickAt(px, py);
+    if (cmdMode) {
+      if (e && e.kind === 'b' && e.p === P_HUMAN) {
+        if (cmdMode === 'sell') { if (e.type === 'base' && countBld(G, P_HUMAN, 'base') < 2) say('Cannot sell your only Construction Yard', true); else sellBld(e); }
+        else { e.repair = !e.repair; say(e.repair ? 'Repairing ' + BLDS[e.type].name : 'Repair stopped'); sfx('click'); }
+      } else say('Click one of your structures', true);
+      return;
+    }
     if (!e) { if (!shift) clearSel(); return; }
     if (e.p !== P_HUMAN) { say(describe(e) + ' — enemy'); return; }
 
@@ -9808,7 +9921,7 @@
     }
 
     var onOre = G.terrain[idx(gx, gy)] === T_ORE;
-    var n = orderUnitsTo(G, units, gx, gy, { queue: !!shift, voice: true });
+    var n = orderUnitsTo(G, units, gx, gy, { queue: !!shift || pathMode, voice: true });
     if (n) { say(shift ? 'Waypoint added' : (onOre ? 'Harvesting' : 'Moving')); sfx('click'); }
     if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 18, size: 0, ping: true });
   }
@@ -10314,6 +10427,10 @@
       ctx.textAlign = 'left';
     }
 
+    if (b.repair) {   // wrench glyph while repairing, like RA2's spinning wrench
+      ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffd24a';
+      ctx.fillText('🔧', px, topY - 22); ctx.textAlign = 'left';
+    }
     // "PRIMARY" tag, only when the choice exists (one factory is trivially it).
     var mk = BLDS[b.type].makes;
     if (b.p === P_HUMAN && (mk === 'i' || mk === 'v') && isPrimary(G, b) && producersOf(G, b.p, mk).length > 1) {

@@ -60,9 +60,9 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 - ☑ v1.19.198 Mouse-wheel zoom about the cursor
 - ☑ v1.19.199 Touch: tap selects own / orders at, drag pans, pinch zooms; desktop-only gate removed
 - ☐ RA2 sidebar behaviour: build queue tabs per structure type with icons, repeat/hold, "cannot build" reasons
-- ☐ RA2 bottom command bar (user, 2026-09-02): Select-same-type, Waypoint/path mode, Team 1/2/3 assign and recall, Guard, Deploy, Sell, Repair, Beacon — visible buttons with the hotkey in the tooltip; works with touch
+- ☑ v1.19.209 RA2 bottom command bar: Same, Path (waypoint mode), T1/T2/T3 (click recalls, Shift-click assigns), Guard, Stop, Scatter, Sell (half refund), Repair (0.5%/s at 30% of cost, wrench glyph); Deploy/Beacon pending a deployable unit and multiplayer
 - ☑ v1.19.199 Veterancy: 3 kills veteran (+25% damage, -15% damage taken), 6 elite (+50%/-30%, self-heal); gold chevrons; kills and rank on the hover card
-- ☐ Sell / repair modes on the sidebar
+- ☑ v1.19.209 Sell / repair via the command bar
 - ☑ v1.19.199 Waypoints: shift-right-click queues stops; dashed numbered route shown on the selected unit
 - ☑ v1.19.199 S stop, G guard, X scatter (deploy: no deployable unit yet)
 
