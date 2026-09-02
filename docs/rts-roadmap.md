@@ -54,6 +54,7 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 - ☑ v1.19.200 Infantry three-frame walk cycle (scissor stride, counter-swinging arms, bobbing rifle)
 - ☑ v1.19.200 Tank turrets aim independently of the hull (hull/turret split, 1.5 s return)
 - ☑ v1.19.199 Muzzle flash at the barrel tip; Tesla shots are a crawling jagged bolt from coil head to target
+- ☑ Aircraft: separate air draw pass over the depth-sorted ground list; baked soft drop shadow offset down-left of the airframe; flak bursts hang in the air, Kirov bombs fall for their whole flight before the blast (queued fx)
 
 ### Controls and UX
 - ☑ v1.19.194 Selection brackets, primary building, hover name card
@@ -80,7 +81,9 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 ### Roster expansion (user, 2026-09-01: "implement more buildings and other combat items matching real RA2, right now there are too few")
 Every new item is built to the same bar as wave 4: real sprite fetched from the C&C wiki `File:` namespace, aspect within ±8%, owner-only colour 12-18% with 0% opposing hue, checked at 1:1 in the scene, sim stats scaled from RA2 rules.ini, AI taught to use it.
 - ☑ Phase A — tech structures from real sprites: Allied Airforce Command, Service Depot, Battle Lab, Ore Purifier, Prism Tower; Soviet Radar Tower, Service Depot, Battle Lab, Nuclear Reactor, Sentry Gun (Patriot/Flak Cannon/Gap Generator wait for air units and fog)
-- ☑ Phase B — all 11 ground units from real sprites: Engineer (both), Tanya, IFV, Mirage; Rhino, Flak Track, V3, Tesla Trooper, Crazy Ivan, Terror Drone, Tesla Tank; engineer capture, hero cap, tiers, AI use (Rocketeer, Harrier, Kirov, Chrono Legionnaire wait for the air layer)
+- ☑ Phase B — all 11 ground units from real sprites: Engineer (both), Tanya, IFV, Mirage; Rhino, Flak Track, V3, Tesla Trooper, Crazy Ivan, Terror Drone, Tesla Tank; engineer capture, hero cap, tiers, AI use (Chrono Legionnaire still open)
+- ☑ Air layer (art7/air): Rocketeer (JUMPJET), Harrier (ORCA, Aircraft lane, 4 pads per Airforce Command, 2 missiles per sortie, returns to reload), Kirov Airship (ZEP, bombs what is under it); Flak Trooper (FLAKT) as its own key, Guardian GI made Allied-only and AA; Patriot Missile (NASAM) and Flak Cannon (NAFLAK) in the Defence lane; per-weapon `aa`/`ag` flags so only AA touches aircraft and AA sites never fire at the ground; aircraft ignore terrain, draw above every ground entity with a ground shadow, altitude bob, propeller / missile-rack / jet-flame frames; "cannot" cursor and refused orders for non-AA units; AI builds AA when bombed or after radar, fills its pads and strikes harvesters/refineries, sends Kirovs with waves; hover card shows missiles/on-pad; voices for all five
+- ☐ Air layer follow-ups: aircraft crash-and-burn on death (they pop now), Harrier hover-circle animation while idle in the air, Rocketeer take-off from the Barracks door, IFV turret swap on a Rocketeer passenger (no transports yet), Chrono Legionnaire
 - ☐ Phase C — superweapons: Chronosphere / Weather Control Device vs Iron Curtain / Nuclear Missile Silo
 - ☑ Tech-tree gating as RA2 (Radar/Airforce → tier 2, Battle Lab → tier 3), sidebar shows prerequisites (v1.19.209)
 

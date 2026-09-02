@@ -12,3 +12,4 @@ Then, from anywhere (`RTS_PORT` / `RTS_URL` pick the server, `RTS_OUT` the outpu
     node tools/rts-art/usheet.js        # every unit
     node tools/rts-art/shot.js          # in-game 1:1 scene, as Directorate and as Collective
     node tools/rts-art/cmp.js           # each structure to its own PNG
+    node tools/rts-art/airsheet.js      # air layer: Harrier/Kirov facings, Rocketeer, AA infantry (prints bbox aspects)

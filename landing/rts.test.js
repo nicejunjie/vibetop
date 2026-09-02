@@ -944,3 +944,139 @@ test("every map is playable from both starts and mirror-fair", () => {
     }
   }
 });
+
+// ------------------------------------------------------------- air layer //
+
+function bareMatch(seed) {
+  const H = W.__rtsTest;
+  const g = H.begin(seed || 7, "normal");
+  H.give(0, 99999); H.give(1, 99999);
+  return { H, g, s0: g.start[0], s1: g.start[1] };
+}
+
+test("a Harrier strike kills a lone harvester and returns to its pad to reload", () => {
+  const { H, g, s0 } = bareMatch(11);
+  const afc = H.build("airforce", 0, s0.x + 2, s0.y + 2);
+  assert.ok(afc, "airforce command placed");
+  const h = H.spawn("harrier", 0, s0.x, s0.y);
+  assert.equal(h.pad, afc.id, "a new Harrier lands on a pad of the Airforce Command");
+  assert.ok(h.landed && h.ammo === T.UNITS.harrier.ammo, "it starts parked and armed");
+  const slot = H.padSlot(afc, h.slot);
+  const harv = H.spawn("harvester", 1, s0.x + 9, s0.y + 9);
+  assert.equal(H.orderAttack([h], harv), 1);
+  let ticks = 0, sorties = 0, wasOut = false;
+  while (!harv.dead && ticks < 6000) {
+    H.step(1); ticks++;
+    if (!h.landed) wasOut = true;
+    if (wasOut && h.landed) { sorties++; wasOut = false; }
+  }
+  assert.ok(harv.dead, `the harvester should die (hp ${harv.hp} after ${ticks} ticks)`);
+  assert.ok(sorties >= 1, "it went home to reload between strikes");
+  // Target gone: it comes home, lands on ITS slot, and rearms fully.
+  for (let i = 0; i < 1500 && !(h.landed && h.ammo === T.UNITS.harrier.ammo); i++) H.step(1);
+  assert.ok(h.landed, "back on the pad");
+  assert.equal(h.ammo, T.UNITS.harrier.ammo, "rearmed");
+  assert.ok(Math.abs(h.x - slot.x) < 0.05 && Math.abs(h.y - slot.y) < 0.05, "parked on its own slot");
+  assert.equal(h.order, null, "no order left");
+});
+
+test("one pad per aircraft: four Harriers per Airforce Command, the fifth is refused", () => {
+  const { H, g, s0 } = bareMatch(12);
+  H.build("airforce", 0, s0.x + 2, s0.y + 2);
+  const slots = new Set();
+  for (let i = 0; i < 4; i++) { const h = H.spawn("harrier", 0, s0.x, s0.y); assert.ok(h.landed, `harrier ${i} parked`); slots.add(h.slot); }
+  assert.equal(slots.size, 4, "four different pads");
+  const fifth = H.spawn("harrier", 0, s0.x, s0.y);
+  assert.equal(fifth.pad, 0, "no pad left for a fifth");
+  assert.equal(fifth.landed, false);
+});
+
+test("a GI cannot damage a Kirov, a Flak Trooper can, and the order is refused for the GI", () => {
+  const { H, g, s0 } = bareMatch(13);
+  const k = H.spawn("kirov", 1, s0.x + 3, s0.y + 3);
+  assert.ok(API.isAir(k) && API.altOf(k) > 0, "a Kirov is airborne");
+  const gi = H.spawn("rifle", 0, s0.x + 3, s0.y + 4);
+  assert.equal(H.orderAttack([gi], k), 0, "a rifleman cannot be ordered at an aircraft");
+  assert.equal(API.canHit(T.UNITS.rifle, k), false);
+  assert.equal(API.canHit(T.UNITS.lancer, k), false, "tanks cannot shoot up either");
+  H.step(300);
+  assert.equal(k.hp, k.maxhp, "the GI standing under it never scratched it");
+  const ft = H.spawn("flak", 0, s0.x + 3, s0.y + 5);
+  assert.equal(API.canHit(T.UNITS.flak, k), true);
+  assert.equal(H.orderAttack([ft], k), 1);
+  H.step(300);
+  assert.ok(k.hp < k.maxhp, "flak hurts an airship");
+});
+
+test("a Patriot shoots down a Rocketeer but never fires at a ground unit", () => {
+  const { H, g, s0 } = bareMatch(14);
+  H.build("power", 0, s0.x + 3, s0.y - 1);
+  const pt = H.build("patriot", 0, s0.x + 3, s0.y + 2);
+  assert.ok(pt);
+  const tank = H.spawn("rhino", 1, s0.x + 5, s0.y + 4);
+  H.step(240);
+  assert.equal(tank.hp, tank.maxhp, "an AA site ignores a tank parked beside it");
+  assert.equal(API.canHit(T.BLDS.patriot, tank), false);
+  const r = H.spawn("rocketeer", 1, s0.x + 6, s0.y + 5);
+  let n = 0;
+  while (!r.dead && n++ < 1500) H.step(1);
+  assert.ok(r.dead, `the Rocketeer should be shot down (hp ${r.hp})`);
+});
+
+test("aircraft fly straight over water and cliffs where a tank must path around", () => {
+  const { H, g } = bareMatch(15);
+  // Find a solid tile with open ground either side of it.
+  const N = T.MAP, solid = (t) => t === 1 || t === 3 || t === 4 || t === 5;   // rock/water/cliff/tree
+  let spot = null;
+  for (let y = 4; y < N - 4 && !spot; y++) for (let x = 4; x < N - 4 && !spot; x++) {
+    if (solid(g.terrain[y * N + x]) && !solid(g.terrain[y * N + x - 3]) && !solid(g.terrain[y * N + x + 3])) spot = { x, y };
+  }
+  assert.ok(spot, "the map has a blocker with room around it");
+  const h = H.spawn("rocketeer", 0, spot.x - 3, spot.y);
+  H.orderMove([h], spot.x + 3, spot.y);
+  let crossed = false;
+  for (let i = 0; i < 400; i++) { H.step(1); if (Math.abs(h.x - spot.x) < 0.3 && Math.abs(h.y - spot.y) < 0.3) crossed = true; }
+  assert.ok(crossed, "the flyer passed directly over the blocked tile");
+  assert.ok(Math.abs(h.x - (spot.x + 3)) < 0.6 && Math.abs(h.y - spot.y) < 0.6, "and arrived");
+});
+
+test("the AI answers an air attack by building anti-air", () => {
+  const { H, g, s1 } = bareMatch(16);
+  H.attachAI(1, "normal");
+  H.build("base", 1, s1.x - 1, s1.y - 1);
+  // A working Soviet base with the radar the Flak Cannon needs, and money.
+  const place = (k, dx, dy) => {
+    for (let r = 0; r < 8; r++) for (let ox = -r; ox <= r; ox++) for (let oy = -r; oy <= r; oy++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      const x = s1.x + dx + ox, y = s1.y + dy + oy;
+      if (API.canPlace(g, 1, k, x, y)) return H.build(k, 1, x, y);
+    }
+    return null;
+  };
+  g.side[1].fac = "col";
+  for (const [k, dx, dy] of [["power", 4, -2], ["power", 4, 2], ["refinery", -5, 2], ["barracks", -4, -4], ["factory", 4, 5], ["radar", -6, -1]])
+    assert.ok(place(k, dx, dy), `placed ${k}`);
+  for (let i = 0; i < 3; i++) H.spawn("harvester", 1, s1.x + 3, s1.y + 8 + i);
+  H.spawn("kirov", 0, s1.x - 2, s1.y - 2);              // a Kirov arrives over their base
+  let built = false;
+  for (let i = 0; i < 60 * 90 && !built; i++) {
+    H.step(1);
+    built = API.countBld(g, 1, "flakcannon") > 0 || g.side[1].queues.d.list.indexOf("flakcannon") >= 0 || g.side[1].queues.d.ready === "flakcannon";
+  }
+  assert.ok(built, "the AI queued or placed a Flak Cannon once bombed");
+});
+
+test("air units count in the army and never block building placement", () => {
+  const { H, g, s0 } = bareMatch(17);
+  const before = W.__rts().units;
+  H.build("base", 0, s0.x - 1, s0.y - 1);
+  let spot = null;
+  for (let dy = -6; dy <= 6 && !spot; dy++) for (let dx = -6; dx <= 6 && !spot; dx++)
+    if (Math.abs(dx) > 2 && API.canPlace(g, 0, "power", s0.x + dx, s0.y + dy)) spot = { x: s0.x + dx, y: s0.y + dy };
+  assert.ok(spot, "somewhere to build");
+  const r = H.spawn("rocketeer", 0, spot.x, spot.y);
+  assert.equal(W.__rts().units, before + 1, "the Army counter includes aircraft");
+  assert.ok(API.canPlace(g, 0, "power", spot.x, spot.y), "a hovering unit does not occupy the tile under it");
+  const gi = H.spawn("rifle", 0, spot.x, spot.y);
+  assert.equal(API.canPlace(g, 0, "power", spot.x, spot.y), false, "a soldier standing there does");
+});

@@ -5221,3 +5221,54 @@ original exact-bytes test stayed green through the whole breakage.
   tests now assert RA2 truths (small arms ≤25% vs heavy, AP ≤25% vs
   infantry, Electric 100% vs both) and that every armour class on the field
   has a full-strength answer (structures: 65%+, RA2 makes them tough).
+## Harrier pads and reloads are a state machine on the unit, not a queue on the building
+
+- **Symptom:** RA2 Harriers live on the Airforce Command's four pads, fly out
+  with two missiles, fire both, come home, rearm, and go again while the
+  target stands. Modelling "the building holds aircraft" as a building-side
+  list would have meant a second ownership system beside `g.units`.
+- **Fix:** the aircraft owns its pad (`u.pad` = structure id, `u.slot` 0-3)
+  and its own cycle flags (`landed`, `rtb`, `ammo`); `stepAircraft` runs it:
+  attack order → fly, fire until `ammo` is 0 → `rtb` → land on `padSlot` →
+  rearm one missile per `reload` ticks → if the attack order is still set
+  and the target alive, take off again. `spawnUnit` lands a new Harrier on
+  the first free slot; `findPad` re-homes one whose HQ died. `canBuild` for
+  the `a` lane counts `4 × Airforce Commands` against Harriers alive + queued.
+- **Trap found on the way:** a landed, empty Harrier with a standing order
+  bounced between `rtb` and `landed` every tick and never reached the reload
+  branch (the harvester in the test sat at 120 hp forever). The attack branch
+  now only engages or sets `rtb` when the aircraft is *not* landed.
+- **Rejected:** a rally/return point per HQ; RA2 aircraft take no rally point
+  (the Airforce Command tells you so if you try).
+
+## `aa` / `ag` weapon flags instead of an "air" armour class
+
+- **Symptom:** GIs, tanks, Sentry Guns and Pillboxes must never engage a
+  Kirov; a Patriot must never engage a tank. Doing that through the `vs`
+  table (a 0× multiplier) would still let units *acquire* the target, walk
+  under it and stand there "firing" for nothing.
+- **Fix:** `canHit(spec, tgt)` gates every acquisition path — `findTarget`
+  (guard/idle), the ordered target in `stepUnit`, `orderAttack` (the UI
+  refuses the order and shows a `not-allowed` cursor over an enemy aircraft
+  when nothing selected can shoot up), AI threat answers and splash. AA
+  weapons carry an `aaRng` because RA2's AA reach is longer than its ground
+  reach. Splash stays in the target's domain (air or ground), so flak over a
+  Rocketeer does not rake the squad below.
+- **Rule:** a target you cannot hurt is a target you cannot select; the sim
+  and the cursor agree.
+
+## Aircraft are drawn in a second pass, sorted by ground position
+
+- **Symptom:** a Kirov depth-sorted with the ground list slid behind any
+  tall structure whose centre was "nearer", and its shadow had nowhere to
+  fall.
+- **Fix:** `render` pulls flying units out of the depth sort into an
+  `airborne` list; after the ground pass it draws every shadow (one baked
+  soft ellipse, offset `-0.42·alt, +0.06·alt` so it falls down-left as RA2's
+  light does), then every airframe at `altOf(u)` (cruise height plus a slow
+  bob). A Harrier parked on its pad is ground-level and sorts with the pad,
+  1.2 tiles behind its structure so it is never painted under the HQ.
+  `pickAt`/`boxSelect` subtract the same altitude so clicking the sprite
+  selects it.
+- **Rejected:** giving the Kirov a real 3D-ish y-sort key: RA2 simply draws
+  aircraft last.

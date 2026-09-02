@@ -73,6 +73,7 @@
   #stage { flex: 1; min-width: 0; position: relative; overflow: hidden; }
   #cv { display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
   #cv.placing { cursor: crosshair; }
+  #cv.noair { cursor: not-allowed; }
   .pit.locked { opacity: .45; }
   /* RA2-style command bar at the foot of the sidebar: visible buttons, hotkey in the tooltip. */
   #cmdbar { flex-shrink: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px; border-top: 1px solid #2a3040; background: #12161d; }
@@ -90,7 +91,7 @@
   #mini { display: block; width: 184px; height: 184px; background: #0b0e14; border-bottom: 1px solid #2a3040; cursor: pointer; }
   .ptab { display: flex; border-bottom: 1px solid #2a3040; flex-shrink: 0; }
   .ptab div {
-    flex: 1; text-align: center; padding: 7px 1px; font-size: 10.5px; cursor: pointer;
+    flex: 1; text-align: center; padding: 7px 0; font-size: 10px; letter-spacing: -0.2px; cursor: pointer; white-space: nowrap; overflow: hidden;
     color: #8a94a6; border-bottom: 2px solid transparent;
   }
   .ptab div:hover { color: #d4d8de; background: #1c2430; }
@@ -318,6 +319,7 @@
       <div data-tab="d">Defence</div>
       <div data-tab="i">Infantry</div>
       <div data-tab="v">Vehicles</div>
+      <div data-tab="a">Aircraft</div>
     </div>
     <div id="plist"></div>
     <div id="cmdbar">
@@ -472,10 +474,46 @@
     },
     rocket: {
       name: 'Guardian GI', em: '🚀', cost: 400, build: 17, cls: 'i', fac: 'dir',
-      hp: 100, spd: 0.039, sight: 6, armour: 'none',
+      hp: 100, spd: 0.039, sight: 6, armour: 'none', aa: true, aaRng: 6,   // RA2 GGI: the missile is dual-purpose
       dmg: 15, rate: 80, rng: 4, splash: 0,
       wh: 'SA', w2: { dmg: 40, rate: 200, rng: 6, wh: 'GUARDWH', splash: 0, use: 'veh' },
-      cap: 0, mine: 0, w: 10, h: 14, desc: 'Rifle vs infantry, missile vs armour'
+      cap: 0, mine: 0, w: 10, h: 14, desc: 'Rifle vs infantry, missile vs armour and aircraft'
+    },
+    flak: {
+      // RA2 FLAKT. Flak bursts: strong on infantry and aircraft, weak on armour.
+      name: 'Flak Trooper', em: '💥', cost: 300, build: 13, cls: 'i', fac: 'col',
+      hp: 100, spd: 0.052, sight: 5, armour: 'none', aa: true, aaRng: 6, flak: true,
+      dmg: 20, rate: 80, rng: 5, splash: 1,
+      wh: 'FlakTWH',
+      cap: 0, mine: 0, w: 10, h: 14, desc: 'Flak gun, anti-infantry and anti-air'
+    },
+    rocketeer: {
+      // RA2 JUMPJET. Flying infantry: air:true ignores terrain, only AA can hit it.
+      name: 'Rocketeer', em: '🪂', cost: 600, build: 25, cls: 'i', fac: 'dir', req: 'airforce',
+      hp: 125, spd: 0.117, sight: 8, armour: 'none', air: true, alt: 36, aa: true, aaRng: 5,
+      shadow: [9, 4],
+      dmg: 25, rate: 120, rng: 5, splash: 0,
+      wh: 'SSA',
+      cap: 0, mine: 0, w: 10, h: 16, desc: 'Jetpack trooper, machine gun; hovers, needs Airforce Command'
+    },
+    harrier: {
+      // RA2 ORCA. Aircraft lane: lives on an Airforce Command pad (4 per HQ),
+      // flies out with `ammo` missiles, fires them all, returns to reload.
+      name: 'Harrier', em: '✈️', cost: 1200, build: 50, cls: 'a', fac: 'dir', req: 'airforce',
+      hp: 150, spd: 0.182, sight: 8, armour: 'light', air: true, alt: 46, ammo: 2, reload: 150,
+      shadow: [17, 7],
+      dmg: 150, rate: 40, rng: 3.2, splash: 0.4,
+      wh: 'ORCAAP',
+      cap: 0, mine: 0, w: 26, h: 16, desc: 'Jet, two Maverick missiles per sortie; ground only'
+    },
+    kirov: {
+      // RA2 ZEP. Slow, enormous, drops bombs on whatever is under it. No AA.
+      name: 'Kirov Airship', em: '🎈', cost: 2000, build: 84, cls: 'v', fac: 'col', req: 'lab',
+      hp: 2000, spd: 0.045, sight: 8, armour: 'light', air: true, alt: 60, bomb: true,
+      shadow: [30, 12],
+      dmg: 250, rate: 200, rng: 1.0, splash: 2,
+      wh: 'BlimpHE',
+      cap: 0, mine: 0, w: 46, h: 22, desc: 'Bomber airship, huge and slow; needs a Battle Lab'
     },
     lancer: {
       name: 'Grizzly Tank', em: '🛡️', cost: 700, build: 29, cls: 'v', fac: 'dir', turret: true,
@@ -513,7 +551,7 @@
     },
     ifv: {
       name: 'IFV', em: '🚙', cost: 600, build: 25, cls: 'v', fac: 'dir', turret: true,
-      hp: 200, spd: 0.130, sight: 8, armour: 'light',
+      hp: 200, spd: 0.130, sight: 8, armour: 'light', aa: true, aaRng: 6,
       dmg: 50, rate: 200, rng: 6, splash: 0.5,
       wh: 'HE',
       cap: 0, mine: 0, w: 15, h: 12, desc: 'Fast rocket buggy'
@@ -541,7 +579,7 @@
     },
     flaktrack: {
       name: 'Flak Track', em: '🛻', cost: 500, build: 21, cls: 'v', fac: 'col', turret: true,
-      hp: 180, spd: 0.104, sight: 8, armour: 'heavy',
+      hp: 180, spd: 0.104, sight: 8, armour: 'heavy', aa: true, aaRng: 6.5, flak: true,
       dmg: 25, rate: 160, rng: 5, splash: 1,
       wh: 'FlakTWH',
       cap: 0, mine: 0, w: 16, h: 12, desc: 'Fast flak halftrack, anti-infantry'
@@ -634,7 +672,7 @@
     airforce: {
       fac: 'dir', cat: 'str', req: 'refinery',
       name: 'Airforce Command', em: '📡', cost: 1000, build: 42,
-      armour: 'steel', gw: 2, gh: 2, hp: 600, power: -50, sight: 5, makes: null, desc: 'Radar; unlocks tier 2'
+      armour: 'steel', gw: 2, gh: 2, hp: 600, power: -50, sight: 9, makes: 'a', desc: 'Radar; unlocks tier 2; four Harrier pads'
     },
     radar: {
       fac: 'col', cat: 'str', req: 'refinery',
@@ -674,8 +712,49 @@
       armour: 'steel', gw: 1, gh: 1, hp: 400, power: 0, sight: 7, makes: null,
       dmg: 50, rate: 104, rng: 5.5, splash: 0,
       wh: 'SA', desc: 'Cheap anti-infantry gun, no power'
+    },
+    // ---- AA defences (air layer). ag:false = cannot engage anything on the ground.
+    patriot: {
+      // RA2 NASAM.
+      cat: 'def', req: 'airforce',
+      name: 'Patriot Missile', em: '🎯', cost: 1000, build: 42, fac: 'dir',
+      armour: 'steel', gw: 1, gh: 1, hp: 900, power: -50, sight: 10, makes: null, aa: true, ag: false, launch: 34,
+      dmg: 75, rate: 220, rng: 12, splash: 0.3,
+      wh: 'SAMWH', desc: 'Anti-air missiles; cannot hit ground'
+    },
+    flakcannon: {
+      // RA2 NAFLAK.
+      cat: 'def', req: 'radar',
+      name: 'Flak Cannon', em: '🎇', cost: 1000, build: 42, fac: 'col',
+      armour: 'steel', gw: 1, gh: 1, hp: 900, power: -50, sight: 10, makes: null, aa: true, ag: false, flak: true, launch: 40,
+      dmg: 40, rate: 80, rng: 12, splash: 1,
+      wh: 'FlakWH', desc: 'Anti-air flak bursts; cannot hit ground'
     }
   };
+
+  // Air layer: a unit with `air` flies over every kind of terrain and can only
+  // be shot by a weapon flagged `aa`; a weapon flagged `ag:false` (the AA
+  // sites) cannot fire at the ground. Buildings are never airborne.
+  function isAir(e) { return e.kind === 'u' && !!UNITS[e.type].air; }
+  function canHit(spec, tgt) {
+    if (!spec || !spec.dmg) return false;
+    return isAir(tgt) ? !!spec.aa : spec.ag !== false;
+  }
+  // Range against a given target: AA weapons reach further into the sky (RA2
+  // gives most AA guns a longer air range than their ground range).
+  function rngVs(spec, tgt) { return isAir(tgt) && spec.aaRng ? spec.aaRng : spec.rng; }
+  // Screen-pixel altitude of a unit right now: 0 on the ground or on a pad,
+  // else the type's cruise height plus a slow bob (a Kirov wallows, a
+  // Rocketeer bounces on his jets).
+  function altOf(u) {
+    if (!u.air || u.landed) return 0;
+    var d = UNITS[u.type], t = (G ? G.tick : 0) + u.id * 7;
+    return d.alt + (d.bomb ? Math.sin(t * 0.035) * 3 : Math.sin(t * 0.09) * 1.6);
+  }
+  // Where Harriers park: four pads on each Airforce Command, in grid offsets
+  // from the structure's centre (the helipad is the near-right half of the art).
+  var PAD_SLOTS = [[0.09, -0.59], [0.99, -0.59], [0.09, 0.31], [0.99, 0.31]];   // the four quadrants of the pad's cross
+  function padSlot(b, i) { return { x: b.cx + PAD_SLOTS[i][0], y: b.cy + PAD_SLOTS[i][1] }; }
 
   // Faction identity. Colour still follows the PLAYER, not the faction, so a
   // red Directorate reads the same as a blue one.
@@ -699,7 +778,7 @@
                          : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'depot', 'lab', 'purifier'];
   }
   function defenceOrderFor(fac) {
-    return fac === 'col' ? ['sentrygun', 'tesla'] : ['sentry', 'prism'];
+    return fac === 'col' ? ['sentrygun', 'tesla', 'flakcannon'] : ['sentry', 'prism', 'patriot'];
   }
   // Prerequisite check (RA2 tech tree): spec.req is one key or a list, any of.
   function reqMet(g, p, spec) {
@@ -742,9 +821,9 @@
     return {
       p: p, fac: 'dir', credits: 10000, made: 0, lost: 0, killed: 0, deadFor: 0, exitTurn: 0,
       powerMade: 0, powerUse: 0,
-      queues: { b: newQueue(), d: newQueue(), i: newQueue(), v: newQueue() },
+      queues: { b: newQueue(), d: newQueue(), i: newQueue(), v: newQueue(), a: newQueue() },
       pending: null,                               // a finished structure awaiting placement
-      primary: { i: 0, v: 0 }                      // building id that produces each lane (RA2 "primary")
+      primary: { i: 0, v: 0, a: 0 }                // building id that produces each lane (RA2 "primary")
     };
   }
   function newQueue() { return { list: [], prog: 0, ready: null }; }
@@ -1706,7 +1785,9 @@
     drone:     '#a9b0bb',   // bare metal carapace
     teslatank: '#dfe6ee',   // pale coil windings
     teslatrooper: '#c3cbd6',// steel helmet bowl and gauntlet
-    ivan:      '#6f4c2c'    // his beard — the only bare face under a fur hat
+    ivan:      '#6f4c2c',   // his beard — the only bare face under a fur hat
+    flak:      '#ffbe45',   // amber shell drum, as the Flak Trooper art under `rocket`
+    rocketeer: '#9aa3ae'    // steel flight suit; the jets are the loud part
   };
 
   function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
@@ -1733,7 +1814,8 @@
     engineer:  { coat: '#8a7c4c', boot: '#26282e', skin: '#d8a878' },  // khaki work trousers
     tanya:     { coat: '#666a44', boot: '#1c1e24', skin: '#e6b98f' },  // olive combat trousers
     teslatrooper: { coat: '#1e2338', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
-    ivan:      { coat: '#232a44', boot: '#4a4e57', skin: '#dfae82' }    // navy trousers, grey boots
+    ivan:      { coat: '#232a44', boot: '#4a4e57', skin: '#dfae82' },   // navy trousers, grey boots
+    rocketeer: { coat: '#6f7782', boot: '#2a2e35', skin: '#d8a878' }    // grey pressure suit
   };
 
   // THE WALK. bakeInfantry is baked three times per unit and drawUnit cycles
@@ -1758,6 +1840,10 @@
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
     var sov = fac === 'col';
+    // The Flak Trooper's art was built under `rocket` for the Collective; the
+    // unit now has its own key, the art path is the same.
+    var isFlak = kind === 'flak';
+    if (isFlak) { kind = 'rocket'; sov = true; }
     var tkey = (kind === 'rocket' && sov) ? 'rocketS' : kind;
     var T = TROOP[tkey] || TROOP.rifle;
     var GUN = '#22242a';
@@ -1766,7 +1852,7 @@
     var POUCH = '#b58a52';         // his tan ammo pouch
     var gt = gait(phase);
     var ar;
-    shadowBlob(g, cx, by, gt.ph ? 7.5 : 6.6, 2.8);
+    if (kind !== 'rocketeer') shadowBlob(g, cx, by, gt.ph ? 7.5 : 6.6, 2.8);   // an airborne figure's shadow is drawn on the ground by the renderer
 
     // Two legs that SCISSOR — the one thing that separates a walk from a
     // wider stance. `i` is the screen side (-1 left, +1 right). In a stride
@@ -1909,6 +1995,82 @@
       carbine(cx - 2.6, by - 13.4 + gt.sw * 0.5, cx - 8.0, by - 24.8 + gt.sw * 0.5, 1.8);
       face(by - 21.9);
       helmet(by - 23.2, 4.0, ACCENT.conscript, 1.3);                // STEEL, not house colour
+      g.restore();
+
+    } else if (kind === 'rocketeer') {
+      // ROCKETEER (Directorate). From the RA2 sprite and render: a grey
+      // pressure suit with a domed helmet and dark visor, a squat jet PACK
+      // on the back with a nozzle each side of the hips, legs hanging
+      // straight down together, and a compact machine gun across the chest.
+      // The house colour is the pack's twin tanks, the chest plate and the
+      // shin guards — as the sprite remaps them. The three "walk" frames are
+      // the jet flame: it flickers instead of striding, and drawUnit runs the
+      // cycle for as long as he is airborne.
+      var RS = '#8d959f', RSD = shade(RS, 0.64), RSL = shade(RS, 1.22);
+      var fl = [5.2, 7.4, 6.2][gt.ph], fw2 = [2.2, 2.8, 2.5][gt.ph];
+      // jet flames first, behind the legs: white-blue core in an orange sheath
+      for (ar = -1; ar <= 1; ar += 2) {
+        var jx = cx + ar * 4.6, jy = by - 8.4;
+        g.fillStyle = 'rgba(255,140,40,.75)';
+        g.beginPath(); g.moveTo(jx - fw2, jy); g.lineTo(jx + fw2, jy); g.lineTo(jx, jy + fl + 1.5); g.closePath(); g.fill();
+        g.fillStyle = '#dff2ff';
+        g.beginPath(); g.moveTo(jx - fw2 * 0.5, jy); g.lineTo(jx + fw2 * 0.5, jy); g.lineTo(jx, jy + fl * 0.72); g.closePath(); g.fill();
+      }
+      // legs hang together: two narrow trouser columns, boots toe-down
+      for (ar = -1; ar <= 1; ar += 2) {
+        var lx = cx + ar * 1.7;
+        g.fillStyle = shade(T.coat, ar < 0 ? 1.08 : 0.86);
+        g.beginPath(); g.roundRect(lx - 1.6, by - 11.4, 3.2, 8.2, 1.0); g.fill(); outline(g, shade(T.coat, 0.46));
+        g.fillStyle = col;                                          // house shin guard
+        g.beginPath(); g.roundRect(lx - 1.4, by - 8.0, 2.8, 3.0, 0.6); g.fill();
+        g.fillStyle = T.boot;
+        g.beginPath(); g.roundRect(lx - 1.7, by - 3.6, 3.4, 3.6, 1.0); g.fill();
+      }
+      // jet nozzles at the hips
+      for (ar = -1; ar <= 1; ar += 2) {
+        g.fillStyle = '#2b2f36';
+        g.beginPath(); g.ellipse(cx + ar * 4.6, by - 8.6, 2.2, 1.3, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#6a717c';
+        g.beginPath(); g.ellipse(cx + ar * 4.6, by - 9.0, 1.4, 0.7, 0, 0, 6.29); g.fill();
+      }
+      g.save(); g.translate(gt.lean * 0.4, 0);
+      // pack tanks behind the shoulders — the house-colour mass of the figure
+      for (ar = -1; ar <= 1; ar += 2) {
+        var tx = cx + ar * 5.6;
+        g.fillStyle = shade(col, 0.82);
+        g.beginPath(); g.roundRect(tx - 2.2, by - 21.0, 4.4, 9.6, 1.6); g.fill(); outline(g, shade(col, 0.38));
+        g.fillStyle = shade(col, 1.26);
+        g.fillRect(tx - 1.6, by - 20.4, 1.4, 8.4);
+        g.fillStyle = '#3a3f47';                                   // steel cap
+        g.beginPath(); g.ellipse(tx, by - 21.0, 2.2, 1.1, 0, 0, 6.29); g.fill();
+      }
+      g.fillStyle = RS;                                             // suit torso
+      g.beginPath();
+      g.moveTo(cx - 5.2, by - 19.6); g.lineTo(cx + 5.2, by - 19.6);
+      g.lineTo(cx + 4.6, by - 11.0); g.lineTo(cx - 4.6, by - 11.0);
+      g.closePath(); g.fill(); outline(g, RSD);
+      g.fillStyle = RSL; g.fillRect(cx - 5.0, by - 19.4, 1.4, 8.0);  // lit edge
+      g.fillStyle = shade(RS, 0.6); g.fillRect(cx - 4.7, by - 12.6, 9.4, 1.4);   // harness belt
+      g.fillStyle = col;                                            // house chest plate
+      g.beginPath();
+      g.moveTo(cx - 3.8, by - 19.0); g.lineTo(cx + 3.8, by - 19.0);
+      g.lineTo(cx + 3.0, by - 14.0); g.lineTo(cx - 3.0, by - 14.0);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.4));
+      g.fillStyle = shade(col, 1.24); g.fillRect(cx - 3.6, by - 18.8, 7.2, 1.2);
+      arms(5.6, by - 18.2, 3.0, 6.2, RS, function (i, x, y) {
+        g.fillStyle = shade(RS, 1.12);                              // rounded pauldron
+        g.beginPath(); g.ellipse(x, y + 0.4, 2.0, 1.4, 0, 0, 6.29); g.fill(); outline(g, RSD);
+      });
+      g.fillStyle = '#3a3f47';                                      // gloves
+      g.beginPath(); g.roundRect(cx - 7.6, by - 12.6, 2.6, 2.2, 0.8); g.fill();
+      g.beginPath(); g.roundRect(cx + 5.0, by - 13.0, 2.6, 2.2, 0.8); g.fill();
+      carbine(cx - 5.2, by - 12.2, cx + 6.4, by - 15.6, 1.9);         // machine gun across the chest
+      face(by - 22.6);
+      helmet(by - 23.8, 4.4, '#aeb5bf', 1.2);                        // steel dome, not house colour
+      g.fillStyle = '#1e232a';                                      // wide dark visor
+      g.beginPath(); g.roundRect(cx - 3.9, by - 23.2, 7.8, 2.6, 1.1); g.fill();
+      g.fillStyle = 'rgba(170,215,255,.42)';
+      g.fillRect(cx - 3.2, by - 22.9, 3.2, 0.9);
       g.restore();
 
     } else if (kind === 'rocket' && !sov) {
@@ -2580,7 +2742,9 @@
     function frame(d, part) {
       var wantH = part !== 't', wantT = part !== 'h';
       var a = d * Math.PI / 4;
-      var s = unitCanvas(), g = s.g;
+      // The Kirov is 137px broadside in RA2 against a Rhino's ~60: it gets a
+      // sheet of its own, with the same ground-anchor rule (w/2, h - UPAD).
+      var s = kind === 'kirov' ? mkCanvas(176, 132) : unitCanvas(), g = s.g;
       var cx = s.w / 2, by = s.h - UPAD;
       g.translate(cx, by); g.scale(USC_V, USC_V); g.translate(-cx, -by);
       var cd = Math.cos(a), sd = Math.sin(a);
@@ -2614,7 +2778,8 @@
       // tank's footprint, and at 14x12 the shared blob was wider than the
       // body it belonged to.
       var shR = kind === 'drone' ? 0.44 : 0.46, shRy = kind === 'drone' ? 0.30 : 0.31;
-      if (wantH) shadowBlob(g, cx, by, len * shR, wid * shRy);
+      var isAirKind = kind === 'harrier' || kind === 'kirov';
+      if (wantH && !isAirKind) shadowBlob(g, cx, by, len * shR, wid * shRy);   // aircraft: the renderer drops the shadow on the ground
 
       // --- primitives -----------------------------------------------------
       // A circle of radius r in the GROUND plane projects to an AXIS-ALIGNED
@@ -2957,6 +3122,210 @@
                     1.9, 1.05, 0, 0, 6.29);
           g.fill();
         }
+      }
+
+      if (isAirKind) {
+        // ---- AIRCRAFT: bodies of revolution about an axis in the ground
+        // plane, drawn in screen space. A cross-section circle of radius r
+        // projects to an ellipse with semi-axes r*(px,py) (the ground
+        // perpendicular) and r*(0,-1) (up), so the silhouette's half-extent
+        // in the screen-perpendicular direction n is r*sqrt((n.P)^2+(n.U)^2)
+        // — that is what makes a Kirov 2.3x as wide as tall broadside and
+        // barely wider than tall nose-on, as the RA2 sheet measures.
+        var AL = Math.sqrt(fx * fx + fy * fy), ux2 = fx / AL, uy2 = fy / AL;
+        var nx2 = -uy2, ny2 = ux2;
+        if (ny2 > 0) { nx2 = -nx2; ny2 = -ny2; }               // n points UP the screen
+        var secK = Math.sqrt((nx2 * px + ny2 * py) * (nx2 * px + ny2 * py) + ny2 * ny2);
+        var bodyL = kind === 'kirov' ? 64 : 24, bodyR = kind === 'kirov' ? 11.5 : 2.6;
+        var C0y = by - (kind === 'kirov' ? 28 : 3);   // a parked Harrier sits on its gear at the anchor; altitude is added by the renderer
+        function pt(t) { return [cx + fx * t * bodyL / 2, C0y + fy * t * bodyL / 2]; }
+        // r(t): blunt nose (t=+1), tapering tail (t=-1)
+        function rad(t) {
+          var q = Math.max(0, 1 - t * t);
+          return bodyR * (t >= 0 ? Math.pow(q, kind === 'kirov' ? 0.40 : 0.55) : Math.pow(q, kind === 'kirov' ? 0.70 : 0.5));
+        }
+        function bodyPath() {
+          var i3, t3, p3, e3;
+          g.beginPath();
+          for (i3 = 0; i3 <= 24; i3++) {
+            t3 = -1 + i3 / 12; p3 = pt(t3); e3 = rad(t3) * secK;
+            if (i3 === 0) g.moveTo(p3[0] + nx2 * e3, p3[1] + ny2 * e3); else g.lineTo(p3[0] + nx2 * e3, p3[1] + ny2 * e3);
+          }
+          for (i3 = 24; i3 >= 0; i3--) {
+            t3 = -1 + i3 / 12; p3 = pt(t3); e3 = rad(t3) * secK;
+            g.lineTo(p3[0] - nx2 * e3, p3[1] - ny2 * e3);
+          }
+          g.closePath();
+        }
+        // a quad hung off the axis: from t0 to t1, offset o0..o1 along a screen dir (dx,dy)
+        function finQuad(t0, t1, dx, dy, o0, o1, fill, edge) {
+          var a0 = pt(t0), a1 = pt(t1);
+          // swept: the trailing root sits further aft than the leading root
+          g.beginPath();
+          g.moveTo(a0[0] + dx * o0, a0[1] + dy * o0); g.lineTo(a1[0] + dx * o0, a1[1] + dy * o0);
+          g.lineTo(a1[0] + dx * o1 * 0.92 + (a1[0] - a0[0]) * 0.15, a1[1] + dy * o1 * 0.92 + (a1[1] - a0[1]) * 0.15);
+          g.lineTo(a0[0] + dx * o1 + (a1[0] - a0[0]) * 0.55, a0[1] + dy * o1 + (a1[1] - a0[1]) * 0.55);
+          g.closePath(); g.fillStyle = fill; g.fill();
+          if (edge) { g.strokeStyle = edge; g.lineWidth = 0.7; g.stroke(); }
+        }
+        var bodyTop = [nx2, ny2], gradA, gradB;
+
+        if (kind === 'kirov') {
+          // KIROV AIRSHIP. Measured off soviet-kirov.png: broadside 137x61
+          // (w/h 2.25), nose-on 61x86 (0.71). A golden-tan ribbed envelope,
+          // blunt nose, tapered tail; four house-colour tail fins and two
+          // house-colour engine pods; a grey gondola slung under the belly;
+          // a propeller on the tail cone (the two-frame `prop` set spins it).
+          var ENV = '#c9a95a', ENVL = '#eddc9a', ENVD = '#6e5320', ENVE = '#3a2c12';
+          var far = py < 0 ? 1 : -1;                              // which P side is behind the body
+          var tailAway = fy > 0;                                  // nose toward the viewer: the tail is behind
+          var tailCone = function () {
+            var tp = pt(-1.0);
+            g.fillStyle = '#4a4e56'; g.beginPath(); g.ellipse(tp[0], tp[1], 2.6, 2.2, 0, 0, 6.29); g.fill();
+            outline(g, '#1e2126');
+            g.strokeStyle = '#d8dce2'; g.lineWidth = 1.1; g.lineCap = 'round';
+            var pa = anim === 'prop' ? Math.PI / 4 : 0;
+            for (var pi2 = 0; pi2 < 2; pi2++) {
+              var pang = pa + pi2 * Math.PI / 2;
+              g.beginPath();
+              g.moveTo(tp[0] + Math.cos(pang) * 4.5 * px, tp[1] + Math.cos(pang) * 4.5 * py - Math.sin(pang) * 4.5);
+              g.lineTo(tp[0] - Math.cos(pang) * 4.5 * px, tp[1] - Math.cos(pang) * 4.5 * py + Math.sin(pang) * 4.5);
+              g.stroke();
+            }
+          };
+          var lowerFin = function () { finQuad(-0.70, -0.92, 0, 1, bodyR * 0.85, bodyR + 4.5, shade(col, 0.66), shade(col, 0.36)); };
+          if (tailAway) { tailCone(); lowerFin(); }
+          // far side fin (behind the envelope)
+          finQuad(-0.70, -0.92, px * far, py * far, bodyR * 0.85, bodyR + 6.5, shade(col, 0.72), shade(col, 0.36));
+          // engine pod, far side
+          var epF = pt(-0.5);
+          puck(epF[0] + px * far * bodyR * 0.85, epF[1] + py * far * bodyR * 0.85 + 2.5, 2.4, 4.2, shade(col, 0.7), shade(col, 0.95), shade(col, 0.36));
+          // envelope
+          bodyPath();
+          var q0 = pt(0);
+          gradA = g.createLinearGradient(q0[0] + nx2 * bodyR * secK, q0[1] + ny2 * bodyR * secK, q0[0] - nx2 * bodyR * secK, q0[1] - ny2 * bodyR * secK);
+          gradA.addColorStop(0, ENVL); gradA.addColorStop(0.42, ENV); gradA.addColorStop(1, ENVD);
+          g.fillStyle = gradA; g.fill();
+          g.strokeStyle = ENVE; g.lineWidth = 0.9; g.stroke();
+          // ribs: cross-section ellipses, clipped to the envelope
+          g.save(); bodyPath(); g.clip();
+          var rt, rp, rr2, ph2;
+          for (rt = -0.78; rt <= 0.79; rt += 0.195) {
+            rp = pt(rt); rr2 = rad(rt);
+            g.strokeStyle = 'rgba(58,44,18,.55)'; g.lineWidth = 0.9;
+            g.beginPath();
+            for (ph2 = 0; ph2 <= 20; ph2++) {
+              var a3 = ph2 / 20 * 6.2832;
+              var qx = rp[0] + rr2 * (Math.cos(a3) * px), qy = rp[1] + rr2 * (Math.cos(a3) * py - Math.sin(a3));
+              if (ph2 === 0) g.moveTo(qx, qy); else g.lineTo(qx, qy);
+            }
+            g.stroke();
+          }
+          // house-colour nose band
+          rp = pt(0.58); rr2 = rad(0.58);
+          g.strokeStyle = col; g.lineWidth = 2.4; g.beginPath();
+          for (ph2 = 0; ph2 <= 20; ph2++) { var a4 = ph2 / 20 * 6.2832; var qx2 = rp[0] + rr2 * Math.cos(a4) * px, qy2 = rp[1] + rr2 * (Math.cos(a4) * py - Math.sin(a4)); if (ph2 === 0) g.moveTo(qx2, qy2); else g.lineTo(qx2, qy2); }
+          g.stroke();
+          // top seam and a lit ridge
+          g.strokeStyle = 'rgba(255,245,200,.55)'; g.lineWidth = 1.1; g.beginPath();
+          for (rt = -0.92; rt <= 0.92; rt += 0.08) { rp = pt(rt); if (rt < -0.9) g.moveTo(rp[0], rp[1] - rad(rt)); else g.lineTo(rp[0], rp[1] - rad(rt) * 0.96); }
+          g.stroke();
+          g.restore();
+          // gondola under the belly: dark grey box with a window strip
+          var gp = pt(0.08), gpy = gp[1] + rad(0.08) * 0.82;
+          isoBox(g, gp[0], gpy + 3.4, 12, 5.5, 5.5, a, '#5a5f68', '#23262c');
+          g.fillStyle = '#c9dce8'; g.fillRect(gp[0] - 4.2, gpy - 0.8, 8.4, 1.4);
+          g.fillStyle = '#2a2d33';                                 // bomb bay doors
+          g.beginPath(); g.ellipse(gp[0], gpy + 4.0, 4.0, 1.5, 0, 0, 6.29); g.fill();
+          // engine pod, near side
+          var epN = pt(-0.5);
+          puck(epN[0] - px * far * bodyR * 0.85, epN[1] - py * far * bodyR * 0.85 + 2.5, 2.2, 4.0, shade(col, 0.74), col, shade(col, 0.36));
+          // fins: near side, top; bottom and the tail cone if the tail is toward us
+          finQuad(-0.70, -0.92, -px * far, -py * far, bodyR * 0.85, bodyR + 6.5, col, shade(col, 0.36));
+          if (!tailAway) { lowerFin(); tailCone(); }
+          finQuad(-0.70, -0.92, 0, -1, bodyR * 0.85, bodyR + 8, shade(col, 1.1), shade(col, 0.36));
+        } else {
+          // HARRIER. From allied-harriers.png: a dark blue-grey jet with a
+          // white belly and nose, swept wings, a tall house-colour fin and
+          // house wingtips, a bubble canopy. Two Maverick missiles ride under
+          // the wings until fired (`empty` set).
+          var JET = '#3f4653', JETL = '#6d7583', JETD = '#22272f', BELLY = '#cfd4dc', NOSE = '#eef1f5';
+          var farH = py < 0 ? 1 : -1;
+          var wingTop = shade(JET, 1.08), wingEdge = JETD;
+          // A swept wing: root from t0 to t1, tip from tt0 to tt1 at `span`
+          // out along the ground perpendicular; s0 picks an inner start so the
+          // same shape can be overdrawn as a house-colour tip.
+          function wing(side, t0, t1, tt0, tt1, span, fill, s0, edge) {
+            s0 = s0 || 0;
+            var r0 = pt(t0 + (tt0 - t0) * s0), r1 = pt(t1 + (tt1 - t1) * s0), w0 = pt(tt0), w1 = pt(tt1);
+            g.beginPath();
+            g.moveTo(r0[0] + px * side * span * s0, r0[1] + py * side * span * s0);
+            g.lineTo(r1[0] + px * side * span * s0, r1[1] + py * side * span * s0);
+            g.lineTo(w1[0] + px * side * span, w1[1] + py * side * span);
+            g.lineTo(w0[0] + px * side * span, w0[1] + py * side * span);
+            g.closePath(); g.fillStyle = fill; g.fill();
+            if (edge !== false) { g.strokeStyle = wingEdge; g.lineWidth = 0.7; g.stroke(); }
+          }
+          function missile(side) {
+            var m0 = pt(-0.02), m1 = pt(-0.48);
+            var ox2 = px * side * 5.6, oy2 = py * side * 5.6 + 2.2;
+            g.strokeStyle = '#e8ecf2'; g.lineWidth = 1.7; g.lineCap = 'round';
+            g.beginPath(); g.moveTo(m0[0] + ox2, m0[1] + oy2); g.lineTo(m1[0] + ox2, m1[1] + oy2); g.stroke();
+            g.strokeStyle = col; g.lineWidth = 1.8;
+            g.beginPath(); g.moveTo(m0[0] + ox2, m0[1] + oy2); g.lineTo(m0[0] + ox2 + (m1[0] - m0[0]) * 0.22, m0[1] + oy2 + (m1[1] - m0[1]) * 0.22); g.stroke();
+          }
+          // far wing + tailplane + missile first
+          wing(farH, 0.2, -0.36, -0.66, -0.5, 10.5, wingTop);
+          wing(farH, 0.2, -0.36, -0.66, -0.5, 10.5, col, 0.68, false);   // house wingtip
+          wing(farH, -0.74, -0.94, -1.0, -0.88, 4.6, wingTop);
+          if (anim !== 'empty') missile(farH);
+          // fuselage
+          bodyPath();
+          var f0 = pt(0);
+          gradB = g.createLinearGradient(f0[0] + nx2 * bodyR * secK * 1.2, f0[1] + ny2 * bodyR * secK * 1.2, f0[0] - nx2 * bodyR * secK * 1.2, f0[1] - ny2 * bodyR * secK * 1.2);
+          gradB.addColorStop(0, JETL); gradB.addColorStop(0.5, JET); gradB.addColorStop(1, BELLY);
+          g.fillStyle = gradB; g.fill(); g.strokeStyle = JETD; g.lineWidth = 0.8; g.stroke();
+          // nose cone: white, from t=0.7 out
+          g.save(); bodyPath(); g.clip();
+          var n0 = pt(0.66), n1 = pt(1.1);
+          g.fillStyle = NOSE;
+          g.beginPath();
+          g.moveTo(n0[0] + nx2 * 6, n0[1] + ny2 * 6); g.lineTo(n1[0] + nx2 * 6, n1[1] + ny2 * 6);
+          g.lineTo(n1[0] - nx2 * 6, n1[1] - ny2 * 6); g.lineTo(n0[0] - nx2 * 6, n0[1] - ny2 * 6);
+          g.closePath(); g.fill();
+          g.fillStyle = 'rgba(0,0,0,.28)';                          // radome seam
+          g.fillRect(n0[0] - 6, n0[1] - 6, 0.9, 12);
+          g.restore();
+          // canopy: a dark bubble with a pale glint, t 0.3..0.62
+          var cpa = pt(0.46), cpr = rad(0.46);
+          g.fillStyle = '#1c2230';
+          g.beginPath(); g.ellipse(cpa[0], cpa[1] - cpr * 0.55, Math.max(2.4, 4.6 * AL / 1.264), 1.9, Math.atan2(uy2, ux2), 0, 6.29); g.fill();
+          g.fillStyle = 'rgba(235,240,245,.6)';                     // neutral glint: no blue on a red player's jet
+          g.beginPath(); g.ellipse(cpa[0] - 0.6, cpa[1] - cpr * 0.55 - 0.8, 1.6, 0.7, Math.atan2(uy2, ux2), 0, 6.29); g.fill();
+          // intakes either side of the canopy
+          for (i2 = -1; i2 <= 1; i2 += 2) {
+            var ip = pt(0.2);
+            g.fillStyle = JETD;
+            g.beginPath(); g.ellipse(ip[0] + px * i2 * bodyR * 1.15, ip[1] + py * i2 * bodyR * 1.15 + 0.6, 1.6, 1.1, 0, 0, 6.29); g.fill();
+          }
+          // near wing, tailplane, missile; then the fin on top
+          wing(-farH, 0.2, -0.36, -0.66, -0.5, 10.5, wingTop);
+          wing(-farH, 0.2, -0.36, -0.66, -0.5, 10.5, col, 0.68, false);
+          wing(-farH, -0.74, -0.94, -1.0, -0.88, 4.6, wingTop);
+          if (anim !== 'empty') missile(-farH);
+          // swept fin: leading edge rakes back from t=-0.55 at the spine to t=-0.98 at the tip
+          var fA = pt(-0.55), fB = pt(-0.98), fC = pt(-0.86);
+          g.beginPath();
+          g.moveTo(fA[0], fA[1] - bodyR * 0.7); g.lineTo(fB[0], fB[1] - bodyR * 0.7);
+          g.lineTo(fB[0], fB[1] - bodyR - 6.5); g.lineTo(fC[0], fC[1] - bodyR - 6.5);
+          g.closePath(); g.fillStyle = col; g.fill(); g.strokeStyle = shade(col, 0.36); g.lineWidth = 0.7; g.stroke();
+          g.fillStyle = shade(col, 1.3); g.fillRect(fB[0] - 0.4, fB[1] - bodyR - 5.5, 1.0, 4);
+          // exhaust nozzles at the tail, under the fin
+          var ex2 = pt(-0.98);
+          g.fillStyle = '#15181d';
+          g.beginPath(); g.ellipse(ex2[0], ex2[1] + 0.6, 2.2 * Math.max(0.5, 1 - AL / 1.4), 1.6, 0, 0, 6.29); g.fill();
+        }
+        return s;
       }
 
       if (kind === 'lancer') {
@@ -3902,6 +4271,12 @@
   //
   // (hw,hh) are the half-extents of a footprint diamond centred at (cx,cy),
   // in the same 2:1 projection as the ground. `lift` extrudes it upward.
+  // A short drum standing on its end: cylinder() with a flatter lid.
+  function puckDrum(g, cx, cy, r, h, body, top, edge) {
+    cylinder(g, cx, cy, r, h, body, top, edge);
+    g.fillStyle = shade(top, 1.18);
+    g.beginPath(); g.ellipse(cx, cy - h, r * 0.55, r * 0.26, 0, 0, 6.29); g.fill();
+  }
   function cylinder(g, cx, cy, rx, h, body, top, edge) {
     g.fillStyle = body;
     g.beginPath();
@@ -4254,7 +4629,8 @@
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
     var pad = 18;
     var head = { base: 108, power: 90, refinery: 64, factory: 84, barracks: 190, sentry: 56, tesla: 106,
-                 airforce: 96, radar: 110, depot: 70, lab: 100, purifier: 96, reactor: 100, prism: 110, sentrygun: 56 }[key] || 70;
+                 airforce: 96, radar: 110, depot: 70, lab: 100, purifier: 96, reactor: 100, prism: 110, sentrygun: 56,
+                 patriot: 64, flakcannon: 84 }[key] || 70;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
 
@@ -9046,6 +9422,132 @@
         prism(g, cx, baseY, fw * 0.8, fh * 0.8, 16, '#6a6f78', '#8a9099', '#2a2e36');
         g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 18, fw, 4);
       }
+    } else if (key === 'patriot') {
+      // --- RA2 Patriot Missile System ----------------------------------------
+      // From allied-patriot-anim-last.png (66x55, w/h 1.20): a dark ground
+      // disc rimmed in the house colour, a low silver dome, and on it a
+      // dark-navy FOUR-TUBE launcher box tilted at the sky, banded twice in
+      // the house colour. Nothing else is chromatic.
+      var PT_BOX = '#2c3242', PT_BOXL = '#4a5268', PT_BOXD = '#151923';
+      var PT_SIL = '#c3c7cf', PT_SILL = '#eef0f4', PT_SILD = '#7c818b';
+      diamond(g, cx, baseY, fw * 2, fh * 2);
+      g.fillStyle = 'rgba(30,34,26,.6)'; g.fill();
+      g.fillStyle = 'rgba(0,0,0,.34)';
+      g.beginPath(); g.ellipse(cx + 2, baseY + 5, 30, 13, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#2f3236';                                     // disc
+      g.beginPath(); g.ellipse(cx, baseY + 3, 30, 13, 0, 0, 6.29); g.fill();
+      outline(g, '#141618');
+      g.strokeStyle = col; g.lineWidth = 2.4;                      // house rim
+      g.beginPath(); g.ellipse(cx, baseY + 1.5, 27, 11.5, 0, 0, 6.29); g.stroke();
+      g.strokeStyle = shade(col, 1.3); g.lineWidth = 1;
+      g.beginPath(); g.ellipse(cx, baseY + 0.4, 27, 11.5, 0, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+      g.fillStyle = '#44484f';                                     // inner deck
+      g.beginPath(); g.ellipse(cx, baseY, 22, 9.4, 0, 0, 6.29); g.fill();
+      outline(g, '#1c1f24');
+      // silver dome
+      g.fillStyle = PT_SIL;
+      g.beginPath(); g.ellipse(cx, baseY - 1, 19, 8.2, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx, baseY - 1, 19, 12, 0, Math.PI, 0); g.fill();
+      outline(g, PT_SILD);
+      g.fillStyle = PT_SILL;
+      g.beginPath(); g.ellipse(cx - 6, baseY - 8, 7, 3.2, -0.3, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(0,0,0,.22)';
+      g.beginPath(); g.ellipse(cx + 9, baseY - 4, 7, 4.5, 0.4, 0, 6.29); g.fill();
+      // pedestal collar
+      cylinder(g, cx, baseY - 10, 7, 5, '#3c414c', '#5c6371', PT_BOXD);
+      // the launcher box: a footprint-aligned block, raised, tilted by drawing
+      // its top face pushed back (the tubes point up and away)
+      var bx0 = cx, by0 = baseY - 13;
+      // rear (far) face
+      g.fillStyle = PT_BOXD;
+      g.beginPath(); g.moveTo(bx0 - 15, by0 - 4); g.lineTo(bx0 + 16, by0 - 4); g.lineTo(bx0 + 13, by0 - 22); g.lineTo(bx0 - 18, by0 - 22); g.closePath(); g.fill();
+      // left face
+      g.fillStyle = PT_BOX;
+      g.beginPath(); g.moveTo(bx0 - 20, by0); g.lineTo(bx0 - 3, by0 + 5); g.lineTo(bx0 - 3, by0 - 14); g.lineTo(bx0 - 20, by0 - 18); g.closePath(); g.fill();
+      outline(g, PT_BOXD);
+      // right face
+      g.fillStyle = shade(PT_BOX, 0.78);
+      g.beginPath(); g.moveTo(bx0 - 3, by0 + 5); g.lineTo(bx0 + 19, by0 - 1); g.lineTo(bx0 + 19, by0 - 15); g.lineTo(bx0 - 3, by0 - 14); g.closePath(); g.fill();
+      outline(g, PT_BOXD);
+      // top face, tilted: four tube mouths look out of it
+      g.fillStyle = PT_BOXL;
+      g.beginPath(); g.moveTo(bx0 - 20, by0 - 18); g.lineTo(bx0 - 3, by0 - 14); g.lineTo(bx0 + 19, by0 - 15); g.lineTo(bx0 + 3, by0 - 26); g.closePath(); g.fill();
+      outline(g, PT_BOXD);
+      var tubes = [[-12, -18.6], [-5, -16.6], [3, -21.4], [10, -19.4]];
+      for (var pti = 0; pti < 4; pti++) {
+        g.fillStyle = '#0d1016';
+        g.beginPath(); g.ellipse(bx0 + tubes[pti][0], by0 + tubes[pti][1], 3.2, 1.9, -0.2, 0, 6.29); g.fill();
+        g.strokeStyle = '#8c94a6'; g.lineWidth = 0.9; g.stroke();
+        g.fillStyle = '#e6e9ee';
+        g.beginPath(); g.ellipse(bx0 + tubes[pti][0] - 0.8, by0 + tubes[pti][1] - 0.5, 1.0, 0.6, 0, 0, 6.29); g.fill();
+      }
+      // two house-colour bands round the box
+      for (var pbi = 0; pbi < 2; pbi++) {
+        var bxo = pbi ? 10 : -12;
+        g.fillStyle = col;
+        g.beginPath(); g.moveTo(bx0 + bxo - 2.4, by0 + (pbi ? 2 : 4.4) - 3.4); g.lineTo(bx0 + bxo + 2.4, by0 + (pbi ? 0.4 : 3.6) - 3.4);
+        g.lineTo(bx0 + bxo + 2.4, by0 - (pbi ? 15 : 13.6) - 1.4); g.lineTo(bx0 + bxo - 2.4, by0 - (pbi ? 15 : 14.6) - 1.4); g.closePath(); g.fill();
+        outline(g, shade(col, 0.4));
+        g.fillStyle = shade(col, 1.28); g.fillRect(bx0 + bxo - 2.0, by0 - (pbi ? 15 : 14.6) - 0.8, 1.4, 11);
+      }
+      g.fillStyle = '#9aa1ae';                                     // radar cap on the near corner
+      g.beginPath(); g.ellipse(bx0 - 9, by0 - 2, 2.2, 1.2, 0, 0, 6.29); g.fill();
+    } else if (key === 'flakcannon') {
+      // --- RA2 Flak Cannon ----------------------------------------------------
+      // From soviet-flak-cannon-anim-last.png (79x68, w/h 1.16): a four-legged
+      // cross base, a dark gearbox mount in the middle, and one long thin
+      // barrel leaning up and to the right. House colour: the feet pads, the
+      // recoil collar and the crew shield. The barrel overflows the tile
+      // upward like the Tesla coil's tower does.
+      var FK_GUN = '#3b4049', FK_GUNL = '#6a707b', FK_GUND = '#15181d', FK_STEEL = '#b4b9c1';
+      diamond(g, cx, baseY, fw * 2, fh * 2);
+      g.fillStyle = 'rgba(30,34,26,.6)'; g.fill();
+      g.fillStyle = 'rgba(0,0,0,.30)';
+      g.beginPath(); g.ellipse(cx + 3, baseY + 4, 26, 11, 0, 0, 6.29); g.fill();
+      // legs to the four diamond points, far ones first
+      var legs4 = [[0, -13], [-36, 0], [36, 0], [0, 13]];
+      for (var fli = 0; fli < 4; fli++) {
+        var lx2 = cx + legs4[fli][0], ly2 = baseY + legs4[fli][1];
+        g.strokeStyle = FK_GUND; g.lineWidth = 6.5; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(cx, baseY - 1); g.lineTo(lx2, ly2); g.stroke();
+        g.strokeStyle = FK_GUN; g.lineWidth = 4;
+        g.beginPath(); g.moveTo(cx, baseY - 2); g.lineTo(lx2, ly2 - 1); g.stroke();
+        g.strokeStyle = FK_GUNL; g.lineWidth = 1.2;
+        g.beginPath(); g.moveTo(cx, baseY - 3.2); g.lineTo(lx2, ly2 - 2.2); g.stroke();
+        g.fillStyle = col;                                        // house foot pad
+        g.beginPath(); g.ellipse(lx2, ly2 + 0.5, 4.4, 2.3, 0, 0, 6.29); g.fill();
+        outline(g, shade(col, 0.4));
+        g.fillStyle = shade(col, 1.3);
+        g.beginPath(); g.ellipse(lx2 - 1, ly2 - 0.3, 1.8, 0.8, 0, 0, 6.29); g.fill();
+      }
+      // gearbox mount: dark drum with a lit ring and a house recoil collar
+      cylinder(g, cx, baseY - 1, 9.5, 11, FK_GUN, FK_GUNL, FK_GUND);
+      g.strokeStyle = FK_STEEL; g.lineWidth = 1.2;
+      g.beginPath(); g.ellipse(cx, baseY - 12, 9.5, 4, 0, 0, 6.29); g.stroke();
+      // crew shield (left) in house colour
+      g.fillStyle = shade(col, 0.9);
+      g.beginPath(); g.moveTo(cx - 14, baseY - 8); g.lineTo(cx - 5, baseY - 11); g.lineTo(cx - 5, baseY - 27); g.lineTo(cx - 14, baseY - 24); g.closePath(); g.fill();
+      outline(g, shade(col, 0.38));
+      g.fillStyle = shade(col, 1.3); g.fillRect(cx - 13, baseY - 23.5, 1.6, 14);
+      // trunnion block
+      isoBox(g, cx + 1, baseY - 12, 6, 5, 6, 0, '#4a4f58', FK_GUND);
+      // the barrel: dark sleeve, steel core, lit edge, flared muzzle
+      var mx0 = cx + 1, my0 = baseY - 19, mx1 = cx + 31, my1 = baseY - 49;
+      g.strokeStyle = FK_GUND; g.lineWidth = 6; g.lineCap = 'butt';
+      g.beginPath(); g.moveTo(mx0, my0); g.lineTo(mx0 + (mx1 - mx0) * 0.42, my0 + (my1 - my0) * 0.42); g.stroke();
+      g.strokeStyle = FK_GUN; g.lineWidth = 4.2;
+      g.beginPath(); g.moveTo(mx0, my0); g.lineTo(mx1, my1); g.stroke();
+      g.strokeStyle = FK_STEEL; g.lineWidth = 1.3;
+      g.beginPath(); g.moveTo(mx0 - 1, my0 - 1); g.lineTo(mx1 - 1, my1 - 1); g.stroke();
+      g.strokeStyle = col; g.lineWidth = 5;                        // house recoil collar
+      g.beginPath(); g.moveTo(mx0 + (mx1 - mx0) * 0.14, my0 + (my1 - my0) * 0.14); g.lineTo(mx0 + (mx1 - mx0) * 0.24, my0 + (my1 - my0) * 0.24); g.stroke();
+      g.strokeStyle = FK_GUND; g.lineWidth = 5.6;                  // muzzle brake
+      g.beginPath(); g.moveTo(mx0 + (mx1 - mx0) * 0.9, my0 + (my1 - my0) * 0.9); g.lineTo(mx1, my1); g.stroke();
+      g.fillStyle = '#0d1014';
+      g.beginPath(); g.ellipse(mx1 + 0.4, my1 - 0.6, 2.6, 1.6, -1.0, 0, 6.29); g.fill();
+      g.strokeStyle = '#d9dde3'; g.lineWidth = 0.8; g.stroke();
+      // ammo drum on the right of the mount
+      puckDrum(g, cx + 12, baseY - 6, 3.6, 5, '#7a7040', '#a89a58', FK_GUND);
     } else {
       // Placeholder until the item's real-sprite branch lands: a drab block
       // the size of the footprint with a house-colour band, never shipped as
@@ -9071,6 +9573,18 @@
     grd.addColorStop(1, 'rgba(120,30,10,0)');
     g.fillStyle = grd;
     g.beginPath(); g.arc(r, r, r, 0, 6.29); g.fill();
+    return s;
+  }
+  // Aircraft drop shadow: one soft ellipse, scaled per type by the renderer.
+  function bakeAirShadow() {
+    var w = 64, h = 32, s = mkCanvas(w, h), g = s.g;
+    var grd = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    grd.addColorStop(0, 'rgba(0,0,0,.9)');
+    grd.addColorStop(0.7, 'rgba(0,0,0,.75)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.save(); g.translate(w / 2, h / 2); g.scale(1, h / w); g.translate(-w / 2, -h / 2);
+    g.fillStyle = grd; g.beginPath(); g.arc(w / 2, h / 2, w / 2, 0, 6.29); g.fill();
+    g.restore();
     return s;
   }
   function bakeMuzzleFlash() {
@@ -9164,6 +9678,7 @@
     }
     SPR.boom = bakeExplosionSprite();
     SPR.flash = bakeMuzzleFlash();
+    SPR.shadow = bakeAirShadow();
     // Units are keyed like structures: [player][faction][type]. Only the
     // harvester actually differs by faction (Chrono Miner vs War Miner), but
     // baking the whole set per faction keeps every lookup uniform.
@@ -9183,6 +9698,8 @@
             // Harvesters get a second 8-facing set with the scoop working;
             // drawUnit alternates the two while mining.
             if (vk === 'harv') U.mine = bakeVehicle(COL[p], vk, ufk, 'mine');
+            if (vk === 'kirov') U.anim = bakeVehicle(COL[p], vk, ufk, 'prop');      // propeller turned 45 degrees
+            if (vk === 'harrier') U.empty = bakeVehicle(COL[p], vk, ufk, 'empty');  // missile racks fired
           }
           // Selection brackets and the HP bar are placed off the art's real
           // bounds, not off the stat-table width: a ground ring sized from
@@ -9192,6 +9709,8 @@
           if (U.mine) frames = frames.concat(U.mine);
           if (U.hull) frames = frames.concat(U.hull);
           if (U.turret) frames = frames.concat(U.turret);
+          if (U.anim) frames = frames.concat(U.anim);
+          if (U.empty) frames = frames.concat(U.empty);
           frames.forEach(function (sc) { if (sc && !sc.bb) sc.bb = artBox(sc); });
           SPR.unit[p][ufk][uk] = U;
         }
@@ -9227,11 +9746,17 @@
       cargo: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
       bestD: 1e9, stallAt: 0, holdUntil: 0, movedAt: -99, tface: null, aimAt: 0,
       kills: 0, rank: 0, wp: null,                                   // veterancy: 3 kills veteran, 6 elite
-      sel: false, aggro: null, guardX: gx, guardY: gy
+      sel: false, aggro: null, guardX: gx, guardY: gy,
+      // air layer: air = flies; landed/rtb/pad/slot/ammo are the Harrier's pad cycle
+      air: !!d.air, landed: false, rtb: false, pad: 0, slot: 0, ammo: d.ammo || 0
     };
     g.units.push(u);
     g.byId[u.id] = u;
     g.side[p].made++;
+    if (d.ammo) {
+      var fp = findPad(g, u);
+      if (fp) { u.pad = fp.b.id; u.slot = fp.slot; var sl = padSlot(fp.b, fp.slot); u.x = sl.x; u.y = sl.y; u.landed = true; u.face = 0; }
+    }
     return u;
   }
 
@@ -9294,6 +9819,7 @@
   // (a FAST one) had an army that stood still — reaction speed became a
   // handicap. The old path stays valid until the new one replaces it.
   function requestPath(g, u, tx, ty) {
+    if (u.air) return;                          // aircraft do not path
     for (var i = 0; i < pathQ.length; i++) {
       if (pathQ[i].u === u) { pathQ[i].tx = tx; pathQ[i].ty = ty; return; }
     }
@@ -9442,14 +9968,15 @@
     // because 0.3*100 - dist*6 - 40 is negative at every distance.
     var best = null, bs = -Infinity;
     var ex = e.kind === 'b' ? e.cx : e.x, ey = e.kind === 'b' ? e.cy : e.y;
-    near(ex, ey, rng + 1, function (o) {
+    var spec = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
+    var reach = Math.max(rng, spec.aa && spec.aaRng ? spec.aaRng : 0);
+    near(ex, ey, reach + 1, function (o) {
       if (o.dead || o.p === e.p) return;
+      if (!canHit(spec, o)) return;          // a GI cannot shoot a Kirov; a Patriot cannot shoot a tank
       var d = dist(e, o);
-      if (d > rng) return;
-      var spec = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
       var w = weaponFor(spec, o);
       var mult = w.wh ? verses(w.wh, armourOf(o)) : 1;
-      if (mult <= 0 || d > w.rng) return;                       // this weapon cannot hurt / reach it
+      if (mult <= 0 || d > rngVs(w, o)) return;   // this weapon cannot hurt / reach it
       var score;
       if (g.focusFor[e.p]) {
         // Prefer what we hurt most, then what is closest to dying: focus fire
@@ -9472,6 +9999,7 @@
     if (tgt.kind === 'u' && tgt.rank) mult /= vetArmour(tgt.rank);   // veterans are tougher (VeteranArmor)
     tgt.hp -= amount * mult;
     if (tgt.kind === 'u' && tgt.type === 'harvester') tgt.fleeAt = g.tick;
+    if (isAir(src)) { var hitAI = tgt.p === P_AI ? g.ai : g.ai2; if (hitAI) hitAI.airAt = g.tick; }
     if (tgt.p === P_HUMAN && src.p !== P_HUMAN) {
       if (tgt.kind === 'b') eva('Our base is under attack', 20000);
       else if (tgt.type === 'harvester') eva('Ore miner under attack', 20000);
@@ -9486,7 +10014,7 @@
       }
       if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
       if (tgt.kind === 'b') { killBld(g, tgt); boom(g, tgt.cx, tgt.cy, 26); sfx('boom'); }
-      else { tgt.dead = true; boom(g, tgt.x, tgt.y, 12); sfx('die'); }
+      else { tgt.dead = true; boom(g, tgt.x, tgt.y, isAir(tgt) ? 18 : 12); sfx(isAir(tgt) ? 'boom' : 'die'); }
     }
   }
 
@@ -9498,22 +10026,35 @@
   function fire(g, src, tgt) {
     var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt);
     src.cool = spec.rate;
+    if (src.kind === 'u' && spec.ammo) src.ammo = Math.max(0, (src.ammo || 0) - 1);
     if (!headless) {
+      var tx0 = tgt.kind === 'b' ? tgt.cx : tgt.x, ty0 = tgt.kind === 'b' ? tgt.cy : tgt.y;
       g.shots.push({
         x: src.kind === 'b' ? src.cx : src.x, y: src.kind === 'b' ? src.cy : src.y,
-        tx: tgt.kind === 'b' ? tgt.cx : tgt.x, ty: tgt.kind === 'b' ? tgt.cy : tgt.y,
-        t: 0, life: src.type === 'tesla' ? 12 : 7, id: g.nextId++,
+        tx: tx0, ty: ty0,
+        t: 0, life: src.type === 'tesla' ? 12 : (spec.bomb ? 14 : (isAir(tgt) ? 9 : 7)), id: g.nextId++,
         tesla: src.type === 'tesla', beam: src.type === 'prism',
         rocket: src.kind === 'u' && UNITS[src.type] && UNITS[src.type].splash > 0.2 ||
-                src.type === 'rocket'
+                src.type === 'rocket' || src.type === 'patriot' || src.type === 'harrier',
+        bomb: !!spec.bomb, flak: !!spec.flak && isAir(tgt),
+        // launch heights: an aircraft fires from its altitude, an AA site from its mount
+        alt: src.kind === 'u' ? altOf(src) : (spec.launch || 0),
+        talt: tgt.kind === 'u' ? altOf(tgt) : 0
       });
+      // A Kirov bomb takes its whole flight to land: the blast is queued with
+      // a negative age so it appears when the bomb does, not when it is dropped.
+      if (spec.bomb) g.fx.push({ x: tx0, y: ty0, t: -13, life: 22, size: 15 });
     }
     sfx(src.type === 'rifle' ? 'shot' : 'cannon');
     damage(g, src, tgt, spec.dmg * vetFire(src.rank), spec.wh);
     if (spec.splash > 0) {
       var tx = tgt.kind === 'b' ? tgt.cx : tgt.x, ty = tgt.kind === 'b' ? tgt.cy : tgt.y;
+      var tAir = isAir(tgt);
       near(tx, ty, spec.splash + 1, function (o) {
         if (o.dead || o.p === src.p || o === tgt) return;
+        // Splash stays in the domain it burst in: flak over a Rocketeer does not
+        // rake the infantry below, and a bomb does not clip a passing Harrier.
+        if (isAir(o) !== tAir || !canHit(spec, o)) return;
         var d = Math.sqrt((o.x - tx) * (o.x - tx) + (o.y - ty) * (o.y - ty));
         if (d <= spec.splash) damage(g, src, o, spec.dmg * vetFire(src.rank) * 0.45 * (1 - d / (spec.splash + 0.4)), spec.wh);
       });
@@ -9754,7 +10295,7 @@
     // stacking into one tile (also keeps splash from one-shotting a blob).
     var sx = 0, sy = 0;
     near(u.x, u.y, 1.1, function (o) {
-      if (o === u || o.dead || o.kind !== 'u') return;
+      if (o === u || o.dead || o.kind !== 'u' || o.air) return;
       var ox = u.x - o.x, oy = u.y - o.y;
       var od = Math.sqrt(ox * ox + oy * oy);
       if (od > 0.001 && od < 0.85) { sx += ox / od * (0.85 - od); sy += oy / od * (0.85 - od); }
@@ -9775,8 +10316,28 @@
     return true;
   }
 
+  // Aircraft: no path, no terrain, no occupancy — a straight line at altitude,
+  // with a light separation from other aircraft so a flight does not stack.
+  function flyToward(g, u, tx, ty, spd) {
+    var dx = tx - u.x, dy = ty - u.y, d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 0.12) return false;
+    var sx = 0, sy = 0;
+    near(u.x, u.y, 1.0, function (o) {
+      if (o === u || o.dead || !o.air || o.landed) return;
+      var ox = u.x - o.x, oy = u.y - o.y, od = Math.sqrt(ox * ox + oy * oy);
+      if (od > 0.001 && od < 0.7) { sx += ox / od * (0.7 - od); sy += oy / od * (0.7 - od); }
+    });
+    var step = Math.min(spd, d);
+    u.x = Math.max(0, Math.min(MAP - 1, u.x + dx / d * step + sx * spd * 0.5));
+    u.y = Math.max(0, Math.min(MAP - 1, u.y + dy / d * step + sy * spd * 0.5));
+    u.face = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+    u.movedAt = g.tick; u.noProg = 0; u.path = null;
+    return true;
+  }
+
   // refresh = ticks between re-plans while a path is already being followed.
   function advance(g, u, tx, ty, spd, refresh) {
+    if (u.air) return flyToward(g, u, tx, ty, spd);
     if (!u.path) {
       if (g.tick - u.repathAt > 8) { requestPath(g, u, tx, ty); u.repathAt = g.tick; }
     } else if (refresh && g.tick - u.repathAt > refresh) {
@@ -9815,6 +10376,7 @@
       stepHarvester(g, u);
       return;
     }
+    if (d.ammo) { stepAircraft(g, u); return; }
 
     // A MOVE order is an explicit instruction and outranks opportunistic
     // fire: the unit goes where it was sent. It shoots on the way — standing
@@ -9842,7 +10404,7 @@
         if (passing) fire(g, u, passing);
       }
       var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
-      if (mdx * mdx + mdy * mdy < 1.4) {                 // arrived
+      if (mdx * mdx + mdy * mdy < (u.air ? 0.3 : 1.4)) {  // arrived (a flyer lands its spot exactly)
         u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
         nextWaypoint(g, u);
       } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
@@ -9860,19 +10422,20 @@
     var tgt = null, ordered = null;
     if (u.order && u.order.t === 'attack') {
       ordered = entById(g, u.order.id);
-      if (!ordered) u.order = null;
-      else if (dist(u, ordered) <= weaponFor(d, ordered).rng) tgt = ordered;
+      if (!ordered || !canHit(d, ordered)) { u.order = null; ordered = null; }
+      else if (dist(u, ordered) <= rngVs(weaponFor(d, ordered), ordered)) tgt = ordered;
     }
     if (!tgt) tgt = findTarget(g, u, reachOf(d));
 
     if (tgt) {
       var dd = dist(u, tgt);
-      if (dd <= weaponFor(d, tgt).rng) {
+      if (dd <= rngVs(weaponFor(d, tgt), tgt)) {
         u.path = null;
         var ax = (tgt.kind === 'b' ? tgt.cx : tgt.x) - u.x;
         var ay = (tgt.kind === 'b' ? tgt.cy : tgt.y) - u.y;
         var af = ((Math.round(Math.atan2(ay, ax) / (Math.PI / 4)) % 8) + 8) % 8;
-        if (d.turret) { u.tface = af; u.aimAt = g.tick; } else u.face = af;
+        // A Kirov does not pivot to face what is directly beneath it.
+        if (d.turret) { u.tface = af; u.aimAt = g.tick; } else if (!(d.bomb && dd < 0.6)) u.face = af;
         if (u.cool <= 0) fire(g, u, tgt);
         return;
       }
@@ -9910,6 +10473,84 @@
     return e && !e.dead ? e : null;
   }
 
+  // Pad-based aircraft (RA2 Harrier). It lives on one of the four pads of an
+  // Airforce Command, flies out with `ammo` missiles, fires them all at the
+  // ordered target, returns to the pad, reloads, and goes again while the
+  // target still stands. With no order it sits on the pad (or hovers where a
+  // move order left it); it never auto-acquires — RA2 aircraft do not either.
+  function findPad(g, u) {
+    var used = {};
+    for (var i = 0; i < g.units.length; i++) {
+      var o = g.units[i];
+      if (!o.dead && o !== u && o.p === u.p && o.pad) used[o.pad + ':' + o.slot] = 1;
+    }
+    var best = null, bd = 1e9;
+    for (var j = 0; j < g.blds.length; j++) {
+      var b = g.blds[j];
+      if (b.dead || b.p !== u.p || b.type !== 'airforce') continue;
+      for (var k = 0; k < PAD_SLOTS.length; k++) {
+        if (used[b.id + ':' + k]) continue;
+        var dd = dist(u, b);
+        if (dd < bd) { bd = dd; best = { b: b, slot: k }; }
+        break;
+      }
+    }
+    return best;
+  }
+  function padCapacity(g, p) { return PAD_SLOTS.length * countBld(g, p, 'airforce'); }
+
+  function stepAircraft(g, u) {
+    var d = UNITS[u.type];
+    var pad = u.pad ? entById(g, u.pad) : null;
+    if (pad && pad.p !== u.p) pad = null;
+    if (!pad) {
+      u.pad = 0; u.landed = false;
+      var fp = findPad(g, u);
+      if (fp) { u.pad = fp.b.id; u.slot = fp.slot; pad = fp.b; }
+    }
+
+    if (u.order && u.order.t === 'move') {
+      u.landed = false; u.rtb = false;
+      var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
+      if (mdx * mdx + mdy * mdy < 0.3) { u.order = null; u.guardX = u.x; u.guardY = u.y; nextWaypoint(g, u); }
+      else flyToward(g, u, u.order.x, u.order.y, d.spd);
+      return;
+    }
+    if (u.order && u.order.t === 'attack') {
+      var t = entById(g, u.order.id);
+      if (!t || !canHit(d, t)) { u.order = null; if (!u.landed) u.rtb = true; }
+      else if (!u.landed && !u.rtb && u.ammo > 0) {
+        var dd = dist(u, t);
+        if (dd <= d.rng) {
+          var ax = (t.kind === 'b' ? t.cx : t.x) - u.x, ay = (t.kind === 'b' ? t.cy : t.y) - u.y;
+          u.face = ((Math.round(Math.atan2(ay, ax) / (Math.PI / 4)) % 8) + 8) % 8;
+          if (u.cool <= 0) fire(g, u, t);
+        } else flyToward(g, u, t.kind === 'b' ? t.cx : t.x, t.kind === 'b' ? t.cy : t.y, d.spd);
+        return;
+      } else if (!u.landed) u.rtb = true;            // out of missiles: home to reload, order kept
+    }
+
+    if (u.rtb) {
+      if (!pad) { u.rtb = false; return; }           // nowhere to land: hover here
+      var sl = padSlot(pad, u.slot);
+      u.landed = false;
+      if (!flyToward(g, u, sl.x, sl.y, d.spd)) {
+        u.x = sl.x; u.y = sl.y; u.landed = true; u.rtb = false; u.face = 0;
+        u.guardX = u.x; u.guardY = u.y;
+      }
+      return;
+    }
+    if (u.landed) {
+      // On the pad: rearm one missile per `reload` ticks, patch the airframe.
+      if (u.ammo < d.ammo && (g.tick % d.reload) === 0) u.ammo++;
+      if (u.hp < u.maxhp && (g.tick % 30) === 0) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * 0.02);
+      if (u.ammo >= d.ammo && u.order && u.order.t === 'attack') u.landed = false;   // sortie again
+      return;
+    }
+    // Hovering with nothing to do and no ammo: go home.
+    if (u.ammo <= 0 && pad) u.rtb = true;
+  }
+
   function stepBld(g, b) {
     var d = BLDS[b.type];
     if (b.cool > 0) b.cool--;
@@ -9924,7 +10565,7 @@
       // Service Depot: vehicles parked on the pad (or touching it) are repaired.
       for (var di = 0; di < g.units.length; di++) {
         var v = g.units[di];
-        if (v.dead || v.p !== b.p || UNITS[v.type].cls !== 'v' || v.hp >= v.maxhp) continue;
+        if (v.dead || v.p !== b.p || UNITS[v.type].cls !== 'v' || v.air || v.hp >= v.maxhp) continue;
         if (Math.abs(v.x - b.cx) <= b.gw / 2 + 0.6 && Math.abs(v.y - b.cy) <= b.gh / 2 + 0.6) v.hp = Math.min(v.maxhp, v.hp + v.maxhp * 0.02);
       }
     }
@@ -9946,6 +10587,10 @@
     if (!isBld && spec.max && countUnit(g, p, key) + queuedCount(s, key) >= spec.max) return false;
     if (isBld) return hasBld(g, p, 'base');
     if (UNITS[key].cls === 'i') return hasBld(g, p, 'barracks');
+    if (UNITS[key].cls === 'a') {
+      // One aircraft per pad: four Harriers per Airforce Command, as in RA2.
+      return hasBld(g, p, 'airforce') && countUnit(g, p, key) + queuedCount(s, key) < padCapacity(g, p);
+    }
     return hasBld(g, p, 'factory');
   }
 
@@ -10023,6 +10668,7 @@
       // same as RA2: rebuild the factory and it resumes).
       if (lane === 'i' && !hasBld(g, p, 'barracks')) continue;
       if (lane === 'v' && !hasBld(g, p, 'factory')) continue;
+      if (lane === 'a' && !hasBld(g, p, 'airforce')) continue;
       if (isBldLane(lane) && !hasBld(g, p, 'base')) continue;
 
       q.prog += slow / (spec.build * 60 * buildFactor(g, p, lane));
@@ -10032,9 +10678,10 @@
         else {
           var src = producerFor(g, p, lane);
           if (src) {
-            var sp = freeTileNear(g, Math.round(src.cx), Math.round(src.cy + src.gh / 2 + 1));
+            var sp = lane === 'a' ? { x: Math.round(src.cx), y: Math.round(src.cy) }
+                                  : freeTileNear(g, Math.round(src.cx), Math.round(src.cy + src.gh / 2 + 1));
             if (sp) {
-              var nu = spawnUnit(g, key, p, sp.x, sp.y);
+              var nu = spawnUnit(g, key, p, sp.x, sp.y);   // an aircraft lands on its pad in spawnUnit
               if (src.rally) { nu.order = { t: 'move', x: src.rally.x, y: src.rally.y, id: 0 };
                                requestPath(g, nu, src.rally.x, src.rally.y);
                                nu.guardX = src.rally.x; nu.guardY = src.rally.y; }
@@ -10047,7 +10694,7 @@
   }
 
   function producerType(lane) {
-    return lane === 'i' ? 'barracks' : (lane === 'v' ? 'factory' : 'base');
+    return lane === 'i' ? 'barracks' : (lane === 'v' ? 'factory' : (lane === 'a' ? 'airforce' : 'base'));
   }
 
   // Extra production buildings shorten build time. The DISCOUNT matches RA2's
@@ -10085,20 +10732,20 @@
     if (!list.length) return null;
     var s = g.side[p], id = s.primary && s.primary[lane];
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
-    if (!s.primary) s.primary = { i: 0, v: 0 };
+    if (!s.primary) s.primary = { i: 0, v: 0, a: 0 };
     s.primary[lane] = list[0].id;
     return list[0];
   }
   function isPrimary(g, b) {
     var m = BLDS[b.type].makes;
-    if (m !== 'i' && m !== 'v') return false;
+    if (m !== 'i' && m !== 'v' && m !== 'a') return false;
     return producerFor(g, b.p, m) === b;
   }
   function setPrimary(g, b) {
     var m = BLDS[b.type].makes;
-    if (m !== 'i' && m !== 'v') return false;
+    if (m !== 'i' && m !== 'v' && m !== 'a') return false;
     var s = g.side[b.p];
-    if (!s.primary) s.primary = { i: 0, v: 0 };
+    if (!s.primary) s.primary = { i: 0, v: 0, a: 0 };
     s.primary[m] = b.id;
     return true;
   }
@@ -10153,7 +10800,7 @@
         if (g.occ[i] !== 0) return false;
         for (var k = 0; k < g.units.length; k++) {          // not on top of a unit
           var u = g.units[k];
-          if (!u.dead && Math.round(u.x) === x && Math.round(u.y) === y) return false;
+          if (!u.dead && !u.air && Math.round(u.x) === x && Math.round(u.y) === y) return false;
         }
         if (mask[i]) inRange = true;
       }
@@ -10190,7 +10837,7 @@
     return {
       cfg: DIFF[diff] || DIFF.normal,
       posture: 'build', t: 0, lastStrat: 0, lastTac: 0, lastScout: 0,
-      seen: { inf: 0, veh: 0, bld: 0 }, seenAt: 0,
+      seen: { inf: 0, veh: 0, bld: 0, air: 0 }, seenAt: 0, airAt: -1e9,
       army: [], attacking: false, rally: null, scout: null, placeFail: 0,
       wave: [], waveN: 0, waveTarget: 0, scoutSent: 0, garrison: []
     };
@@ -10198,7 +10845,7 @@
 
   // What the AI can see: only tiles within sight of something it owns.
   function scoutEnemy(g, ai, me, foe) {
-    var seen = { inf: 0, veh: 0, bld: 0 };
+    var seen = { inf: 0, veh: 0, bld: 0, air: 0 };
     var eyes = [];
     var i;
     for (i = 0; i < g.units.length; i++) {
@@ -10220,7 +10867,8 @@
       var e = g.units[i];
       if (e.dead || e.p !== foe) continue;
       if (!visible(e.x, e.y)) continue;
-      if (isInfArmour(UNITS[e.type].armour)) seen.inf++; else seen.veh++;
+      if (UNITS[e.type].air) { seen.air++; ai.airAt = g.tick; }
+      else if (isInfArmour(UNITS[e.type].armour)) seen.inf++; else seen.veh++;
     }
     for (i = 0; i < g.blds.length; i++) {
       var eb = g.blds[i];
@@ -10234,7 +10882,7 @@
     var a = [];
     for (var i = 0; i < g.units.length; i++) {
       var u = g.units[i];
-      if (!u.dead && u.p === me && UNITS[u.type].dmg > 0) a.push(u);
+      if (!u.dead && u.p === me && UNITS[u.type].dmg > 0 && !UNITS[u.type].ammo) a.push(u);
     }
     return a;
   }
@@ -10374,6 +11022,18 @@
 
     // Defence builds in its own lane now, so a turret never delays a refinery
     // for the AI either — it is a separate decision, not a queue position.
+    // Anti-air goes up as soon as the enemy has fielded an aircraft (seen, or
+    // felt: being bombed counts), and once anyway after the radar as part of
+    // the defence order — a base with a lab and no AA is a Kirov's lunch.
+    var aaKey = s.fac === 'col' ? 'flakcannon' : 'patriot';
+    var airThreat = g.tick - ai.airAt < 60 * 90;
+    var nAA = countBld(g, me, aaKey);
+    if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
+        canBuild(g, me, aaKey, true) &&
+        ((airThreat && nAA < 3 && s.credits > 1100) ||
+         (!airThreat && nAA < 1 && hasBld(g, me, radarKey) && countBld(g, me, def) + countBld(g, me, def2) >= 2 && s.credits > 2400))) {
+      enqueue(g, me, aaKey, 'd');
+    }
     if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
         countBld(g, me, def) + countBld(g, me, def2) < (ai.posture === 'defend' ? 5 : 3) &&
         s.credits > (ai.posture === 'defend' ? 1800 : 3000)) {   // RA2 defences cost $500-1500; never starve the army for them
@@ -10381,6 +11041,9 @@
       var pick = (countBld(g, me, def) > countBld(g, me, def2) && canBuild(g, me, def2, true)) ? def2 : def;
       if (canBuild(g, me, pick, true)) enqueue(g, me, pick, 'd');
     }
+    // Aircraft lane: fill every Harrier pad while the money is there.
+    if (s.fac === 'dir' && !s.queues.a.list.length && s.credits > 1800 && canBuild(g, me, 'harrier', false))
+      enqueue(g, me, 'harrier', 'a');
 
     // ---- harvesters before soldiers -------------------------------------
     var wantHarv = Math.min(1 + cfg.expand, nRef + 1);          // RA2: one or two miners per refinery, not a fleet before an army
@@ -10399,15 +11062,20 @@
 
     var depth = s.credits > 6000 ? 4 : s.credits > 3000 ? 3 : 2;   // spend the bank
     if (s.queues.i.list.length < depth && hasBar) {
-      var pick = vehHeavy ? (s.fac === 'col' && rnd() < 0.5 ? 'teslatrooper' : 'rocket')
-               : (infHeavy ? F.inf : (rnd() < 0.6 ? F.inf : 'rocket'));
+      var atInf = s.fac === 'col' ? 'flak' : 'rocket';        // the faction's AA-capable trooper
+      var pick = (airThreat && rnd() < 0.6) ? atInf
+               : vehHeavy ? (s.fac === 'col' && rnd() < 0.5 ? 'teslatrooper' : atInf)
+               : (infHeavy ? F.inf : (rnd() < 0.6 ? F.inf : atInf));
+      if (s.fac === 'dir' && hasBld(g, me, 'airforce') && rnd() < 0.2 && canBuild(g, me, 'rocketeer', false)) pick = 'rocketeer';
       if (canBuild(g, me, pick, false)) enqueue(g, me, pick, 'i');
     }
     if (s.queues.v.list.length < depth && hasFac && s.credits > 1200) {
       // Tier-3 armour when the lab is up, fast anti-infantry when the enemy
       // masses infantry, else the line tank; eyes for the Directorate.
       var heavy = s.fac === 'col' ? 'mammoth' : 'mirage', light = s.fac === 'col' ? 'flaktrack' : 'ifv';
-      var vpick = (hasBld(g, me, 'lab') && rnd() < 0.4 && canBuild(g, me, heavy, false)) ? heavy
+      var vpick = (s.fac === 'col' && hasBld(g, me, 'lab') && s.credits > 3200 && countUnit(g, me, 'kirov') < 2 &&
+                   rnd() < 0.35 && canBuild(g, me, 'kirov', false)) ? 'kirov'
+                : (hasBld(g, me, 'lab') && rnd() < 0.4 && canBuild(g, me, heavy, false)) ? heavy
                 : (infHeavy && rnd() < 0.55 && canBuild(g, me, light, false)) ? light
                 : (s.fac === 'col' && hasBld(g, me, 'radar') && rnd() < 0.25 && canBuild(g, me, 'v3', false)) ? 'v3'
                 : F.tank;
@@ -10436,7 +11104,7 @@
     var home = g.start[me];
 
     // Turrets go toward the enemy; everything else hugs the base.
-    var aim = (key === 'sentry' || key === 'tesla')
+    var aim = (key === 'sentry' || key === 'tesla' || key === 'sentrygun' || key === 'prism')
       ? { x: (home.x * 0.62 + g.start[foe].x * 0.38), y: (home.y * 0.62 + g.start[foe].y * 0.38) }
       : home;
 
@@ -10501,7 +11169,7 @@
         if (!h.dead && h.p === foe && h.type === 'harvester') return h;
       }
     }
-    var pref = ['factory', 'barracks', 'refinery', 'power', 'reactor', 'base', 'lab', 'airforce', 'radar', 'purifier', 'depot', 'sentry', 'sentrygun', 'prism', 'tesla'];
+    var pref = ['factory', 'barracks', 'refinery', 'power', 'reactor', 'base', 'lab', 'airforce', 'radar', 'purifier', 'depot', 'sentry', 'sentrygun', 'prism', 'tesla', 'patriot', 'flakcannon'];
     for (var pi = 0; pi < pref.length; pi++) {
       for (i = 0; i < g.blds.length; i++) {
         var b = g.blds[i];
@@ -10548,9 +11216,31 @@
       }
     }
     if (threat && !ai.wave.length) {
-      for (i = 0; i < ai.army.length && budget > 0; i++, budget--) aiOrderAttack(g, ai.army[i], threat);
+      var answered = 0;
+      for (i = 0; i < ai.army.length && budget > 0; i++) {
+        if (!canHit(UNITS[ai.army[i].type], threat)) continue;   // a tank cannot answer a Kirov
+        aiOrderAttack(g, ai.army[i], threat); budget--; answered++;
+      }
       ai.attacking = false;
-      return;
+      if (answered || !isAir(threat)) return;
+      // Nothing that can shoot up: carry on with the ground plan below.
+    }
+
+    // ---- Harrier strikes: every pad full and rearmed launches at the
+    // enemy's economy (a harvester, then a refinery), RA2-AI style.
+    var ready = [], planes = 0;
+    for (i = 0; i < g.units.length; i++) {
+      u = g.units[i];
+      if (u.dead || u.p !== me || !UNITS[u.type].ammo) continue;
+      planes++;
+      if (u.landed && u.ammo >= UNITS[u.type].ammo && !u.order) ready.push(u);
+    }
+    if (ready.length && ready.length >= Math.min(planes, cfg.harass ? 2 : 4)) {
+      var st = null;
+      for (i = 0; i < g.units.length && !st; i++) { var hv = g.units[i]; if (!hv.dead && hv.p === foe && hv.type === 'harvester') st = hv; }
+      for (i = 0; i < g.blds.length && !st; i++) { var rb = g.blds[i]; if (!rb.dead && rb.p === foe && rb.type === 'refinery') st = rb; }
+      if (!st) st = aiPickTarget(g, ai, me, foe);
+      if (st) for (i = 0; i < ready.length && budget > 0; i++, budget--) aiOrderAttack(g, ready[i], st);
     }
 
     // ---- a push already underway
@@ -10851,6 +11541,10 @@
   var ACK = {
     rifle:     { move: ['Yes sir', 'Moving out', 'On my way'], attack: ['Engaging', 'Weapons hot'], harvest: [] },
     rocket:    { move: ['Affirmative', 'Moving'], attack: ['Target acquired', 'Firing rockets'], harvest: [] },
+    flak:      { move: ['Da comrade', 'Flak trooper moving'], attack: ['Guns up', 'Take them down'], harvest: [] },
+    rocketeer: { move: ['Rocketeer reporting', 'Up, up and away', 'Airborne'], attack: ['Going in', 'Target in sight'], harvest: [] },
+    harrier:   { move: ['Harrier ready', 'Vector locked'], attack: ['On approach', 'Missiles armed', 'Locked on'], harvest: [] },
+    kirov:     { move: ['Kirov reporting', 'Helium mix optimal', 'Airship ready'], attack: ['Bombardiers to your stations', 'Bombs away'], harvest: [] },
     lancer:    { move: ['Grizzly rolling', 'Copy that'], attack: ['Engaging target', 'Fire at will'], harvest: [] },
     spectre:   { move: ['Prism tank moving', 'Acknowledged'], attack: ['Illuminating target', 'Charging prism'], harvest: [] },
     conscript: { move: ['Da', 'For the Union', 'Moving comrade'], attack: ['Attack', 'For the motherland'], harvest: [] },
@@ -10922,7 +11616,8 @@
     var who = mine ? 'Yours' : 'Enemy (' + FACTIONS[facOf(G, e.p)].name + ')';
     hovName.textContent = d.em + ' ' + d.name;
     var vet = e.kind === 'u' ? (e.rank === 2 ? ' · Elite' : (e.rank === 1 ? ' · Veteran' : '')) + (e.kills ? ' · ' + e.kills + ' kill' + (e.kills === 1 ? '' : 's') : '') : '';
-    hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + d.hp + ' hp' + vet;
+    var ammoTxt = e.kind === 'u' && d.ammo ? ' · ' + e.ammo + '/' + d.ammo + ' missiles' + (e.landed ? ' (on pad)' : '') : '';
+    hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + d.hp + ' hp' + ammoTxt + vet;
     hovEl.className = mine ? '' : 'enemy';
     hovEl.hidden = false;
     // Sit to the lower-right of the cursor, flipping to stay on the canvas.
@@ -11006,6 +11701,9 @@
       ? (panel === 'd'
           ? 'Defences share the Construction Yard queue. Right-click to cancel.'
           : 'Right-click an item to cancel and refund.')
+      : panel === 'a'
+      ? (items.length ? 'Each Airforce Command holds four aircraft. They fly out, fire, and return to reload.'
+                      : 'The Collective has no aircraft lane — the Kirov Airship is built at the War Factory.')
       : 'Right-click the map with a factory selected to set a rally point. Click a selected factory again to make it primary.';
     plist.appendChild(note);
     refreshPanel();
@@ -11056,6 +11754,7 @@
       else if (it.spec.max) say('Only ' + it.spec.max + ' ' + it.spec.name + ' at a time', true);
       else if (it.lane === 'i') say('Build a Barracks first', true);
       else if (it.lane === 'v') say('Build a War Factory first', true);
+      else if (it.lane === 'a') say(hasBld(G, P_HUMAN, 'airforce') ? 'Every Harrier pad is taken — build another Airforce Command' : 'Build an Airforce Command first', true);
       else say('You need a Construction Yard', true);
       sfx('no');
       return;
@@ -11162,6 +11861,7 @@
       units0.forEach(function (u) {
         u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
         if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
+        if (UNITS[u.type].ammo) u.rtb = true;           // RA2: a stopped aircraft returns to its pad
       });
       say((e.key.toLowerCase() === 'g' ? 'Guarding' : 'Stopped') + ' — ' + units0.length + ' unit' + (units0.length === 1 ? '' : 's'));
       return;
@@ -11310,7 +12010,12 @@
     }
     lastMoveT = now; lastMoveX = nx; lastMoveY = ny;
     mouse.x = nx; mouse.y = ny; mouse.in = true;
-    updateHover(drag ? null : pickAt(nx, ny), nx, ny);
+    var hovE = drag ? null : pickAt(nx, ny);
+    updateHover(hovE, nx, ny);
+    // Right-click would do nothing: an enemy aircraft with no AA in the selection.
+    var noAir = !!(hovE && hovE.p !== P_HUMAN && isAir(hovE) && sel.length &&
+                   !sel.some(function (u) { return u.kind === 'u' && canHit(UNITS[u.type], hovE); }));
+    if (cv.classList.contains('noair') !== noAir) cv.classList.toggle('noair', noAir);
     var gp = screenToGrid(mouse.x, mouse.y);
     hoverTile.x = Math.round(gp.x); hoverTile.y = Math.round(gp.y);
     if (drag) {
@@ -11394,6 +12099,7 @@
       us.forEach(function (u) {
         u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y;
         if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
+        if (UNITS[u.type].ammo) u.rtb = true;
       });
       say((kind === 'guard' ? 'Guarding' : 'Stopped') + ' — ' + us.length + ' unit' + (us.length === 1 ? '' : 's'));
     }
@@ -11455,7 +12161,7 @@
     for (i = 0; i < G.units.length; i++) {
       e = G.units[i];
       if (e.dead || !entSeen(G, e)) continue;
-      ex = sx(e.x, e.y); ey = sy(e.x, e.y);
+      ex = sx(e.x, e.y); ey = sy(e.x, e.y) - altOf(e) - (e.air ? 6 : 0);
       d = (ex - px) * (ex - px) + (ey - py) * (ey - py);
       if (d < 22 * 22 && d < bd) { bd = d; best = e; }
     }
@@ -11529,7 +12235,8 @@
       return t;
     }
     var u = UNITS[e.type];
-    var extra = e.type === 'harvester' ? ' — ' + Math.round(e.cargo) + '/' + ucap(G, e) + ' ore' : '';
+    var extra = e.type === 'harvester' ? ' — ' + Math.round(e.cargo) + '/' + ucap(G, e) + ' ore'
+              : u.ammo ? ' — ' + e.ammo + '/' + u.ammo + ' missiles' + (e.landed ? ', on pad' : '') : '';
     return u.em + ' ' + u.name + ' — ' + Math.ceil(e.hp) + '/' + u.hp + ' hp' + extra;
   }
 
@@ -11538,7 +12245,7 @@
     var got = 0;
     G.units.forEach(function (u) {
       if (u.dead || u.p !== P_HUMAN || u.sel) return;
-      var ux = sx(u.x, u.y), uy = sy(u.x, u.y);
+      var ux = sx(u.x, u.y), uy = sy(u.x, u.y) - altOf(u);
       ux = (ux - cvW / 2) * zoom + cvW / 2; uy = (uy - cvH / 2) * zoom + cvH / 2;   // to screen px
       if (ux >= x && ux <= x + w && uy >= y && uy <= y + h) { u.sel = true; sel.push(u); got++; }
     });
@@ -11614,7 +12321,9 @@
         var m = BLDS[b.type].makes; return m === 'i' || m === 'v';
       });
       if (!prod.length) {
-        say('Only the Barracks and War Factory take a rally point', true);
+        say(bsel.some(function (b) { return b.type === 'airforce'; })
+            ? 'Aircraft return to their pads — an Airforce Command takes no rally point'
+            : 'Only the Barracks and War Factory take a rally point', true);
         sfx('no');
         return;
       }
@@ -11631,18 +12340,8 @@
     if (!units.length) return;
 
     if (tgt && tgt.p !== P_HUMAN && !tgt.dead) {
-      units.forEach(function (u) {
-        if (UNITS[u.type].capture && tgt.kind === 'b') {
-          u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
-          requestPath(G, u, Math.round(tgt.cx), Math.round(tgt.cy)); return;
-        }
-        if (UNITS[u.type].dmg <= 0) return;
-        u.order = { t: 'attack', x: 0, y: 0, id: tgt.id };
-        u.guardX = tgt.kind === 'b' ? tgt.cx : tgt.x;
-        u.guardY = tgt.kind === 'b' ? tgt.cy : tgt.y;
-        u.repathAt = -999;
-        requestPath(G, u, Math.round(u.guardX), Math.round(u.guardY));
-      });
+      var na = orderAttack(G, units, tgt);
+      if (!na) { say(isAir(tgt) ? 'Nothing selected can shoot aircraft' : 'Nothing selected can attack that', true); sfx('no'); return; }
       say('Attacking ' + describe(tgt).replace(/ —.*$/, ''));
       sfx('click'); unitAck(units, 'attack');
       return;
@@ -11652,6 +12351,27 @@
     var n = orderUnitsTo(G, units, gx, gy, { queue: !!shift || pathMode, voice: true });
     if (n) { say(shift ? 'Waypoint added' : (onOre ? 'Harvesting' : 'Moving')); sfx('click'); }
     if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 18, size: 0, ping: true });
+  }
+
+  // Attack (or capture) order for a group. Units whose weapon cannot reach
+  // the target — a rifleman told to shoot a Kirov — are left alone rather
+  // than marched under it. Returns how many took the order.
+  function orderAttack(g, units, tgt) {
+    var n = 0;
+    units.forEach(function (u) {
+      if (UNITS[u.type].capture && tgt.kind === 'b') {
+        u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
+        requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
+      }
+      if (!canHit(UNITS[u.type], tgt)) return;
+      u.order = { t: 'attack', x: 0, y: 0, id: tgt.id };
+      u.guardX = tgt.kind === 'b' ? tgt.cx : tgt.x;
+      u.guardY = tgt.kind === 'b' ? tgt.cy : tgt.y;
+      u.repathAt = -999; u.rtb = false;
+      requestPath(g, u, Math.round(u.guardX), Math.round(u.guardY));
+      n++;
+    });
+    return n;
   }
 
   // A rally point stores the ROUTE, not just the destination: seeing the line
@@ -11916,10 +12636,16 @@
       if (b.dead || !entSeen(G, b)) continue;
       draw.push({ d: b.cx + b.cy, e: b, b: true });
     }
+    var airborne = [];
     for (i = 0; i < G.units.length; i++) {
       var u = G.units[i];
       if (u.dead || !entSeen(G, u)) continue;
-      draw.push({ d: u.x + u.y, e: u, b: false });
+      // Flying units leave the depth sort: they are drawn after every ground
+      // entity and tree, as RA2 does, with their shadow on the ground first.
+      // A Harrier parked on its pad is ground-level and sorts with the pad.
+      // A parked aircraft sorts just behind its pad's structure (the slots
+      // are on the structure's near half), never under it.
+      if (u.air && !u.landed) airborne.push(u); else draw.push({ d: u.x + u.y + (u.landed ? 1.2 : 0), e: u, b: false });
     }
     for (y = minY; y <= maxY; y++) for (x = minX; x <= maxX; x++) {
       i = idx(x, y);
@@ -11930,6 +12656,13 @@
     for (i = 0; i < draw.length; i++) {
       if (draw[i].t) { var tr = draw[i].t, tpx = sx(draw[i].x, draw[i].y), tpy = sy(draw[i].x, draw[i].y); ctx.drawImage(tr.c, tpx - tr.ax, tpy - tr.ay, tr.w, tr.h); }
       else if (draw[i].b) drawBld(draw[i].e); else drawUnit(draw[i].e);
+    }
+    // Air pass: shadows first (they fall on buildings and trees alike), then
+    // the aircraft, low to high on screen so an overlap resolves like depth.
+    if (airborne.length) {
+      airborne.sort(function (a, c) { return (a.x + a.y) - (c.x + c.y); });
+      for (i = 0; i < airborne.length; i++) drawAirShadow(airborne[i]);
+      for (i = 0; i < airborne.length; i++) drawUnit(airborne[i]);
     }
 
     // Rally lines for any selected production building, over the world so the
@@ -11945,8 +12678,37 @@
     for (i = 0; i < G.shots.length; i++) {
       var s = G.shots[i];
       var f = s.t / s.life;
-      var ax = sx(s.x, s.y), ay = sy(s.x, s.y) - 10;
-      var bx = sx(s.tx, s.ty), by = sy(s.tx, s.ty) - 8;
+      var ax = sx(s.x, s.y), ay = sy(s.x, s.y) - 10 - (s.alt || 0);
+      var bx = sx(s.tx, s.ty), by = sy(s.tx, s.ty) - 8 - (s.talt || 0);
+      if (s.bomb) {
+        // Kirov bomb: a dark drop falling from the gondola, drifting with the
+        // airship's lean, and a growing blast queued in fx for when it lands.
+        var bfy = ay + 6 + (by + 8 - ay - 6) * f * f, bfx = ax + (bx - ax) * f;
+        ctx.fillStyle = '#2a2d33';
+        ctx.beginPath(); ctx.ellipse(bfx, bfy, 2.2, 3.2, 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.35)';
+        ctx.beginPath(); ctx.ellipse(bfx - 0.6, bfy - 1, 0.8, 1.2, 0, 0, 6.29); ctx.fill();
+        continue;
+      }
+      if (s.flak) {
+        // Flak: a short dark tracer up, then a grey burst that hangs at the target.
+        if (f < 0.45) {
+          var q2 = f / 0.45;
+          ctx.strokeStyle = 'rgba(255,220,160,' + (0.9 - q2 * 0.5) + ')'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(ax + (bx - ax) * Math.max(0, q2 - 0.3), ay + (by - ay) * Math.max(0, q2 - 0.3));
+          ctx.lineTo(ax + (bx - ax) * q2, ay + (by - ay) * q2); ctx.stroke();
+        } else {
+          var q3 = (f - 0.45) / 0.55, br = 3 + q3 * 7;
+          ctx.globalAlpha = 0.55 * (1 - q3);
+          ctx.fillStyle = '#3c3f45';
+          ctx.beginPath(); ctx.arc(bx + Math.sin(s.id) * 3, by - 2 - q3 * 3, br, 0, 6.29); ctx.fill();
+          ctx.fillStyle = '#7a7e86';
+          ctx.beginPath(); ctx.arc(bx + Math.sin(s.id) * 3 - 1.5, by - 3.5 - q3 * 3, br * 0.6, 0, 6.29); ctx.fill();
+          if (q3 < 0.25) { ctx.globalAlpha = 1 - q3 * 4; ctx.fillStyle = '#ffd77a'; ctx.beginPath(); ctx.arc(bx, by - 2, 2.5, 0, 6.29); ctx.fill(); }
+          ctx.globalAlpha = 1;
+        }
+        continue;
+      }
       if (s.beam) {
         // Prism beam: an instant white-cyan lance from the tower head.
         ax = sx(s.x, s.y); ay = sy(s.x, s.y) - 58;
@@ -12002,6 +12764,7 @@
     ctx.globalCompositeOperation = 'lighter';
     for (i = 0; i < G.fx.length; i++) {
       var fx = G.fx[i], ff = fx.t / fx.life;
+      if (fx.t < 0) continue;                       // queued (a bomb still falling)
       var fxx = sx(fx.x, fx.y), fyy = sy(fx.x, fx.y);
       if (fx.smoke) {
         ctx.globalCompositeOperation = 'source-over';
@@ -12080,23 +12843,29 @@
     var d = UNITS[u.type];
     var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
     var moving = G.tick - (u.movedAt || -99) < 3;
+    var alt = altOf(u);
     var s, turretS = null;
     if (Array.isArray(art)) {
       // Vehicles: 8 facings; a mining harvester alternates its two sets; a
       // turreted tank draws hull by travel facing and turret by aim facing.
       var set = art;
       if (u.state === 'mining' && art.mine && ((G.tick >> 3) & 1)) set = art.mine;
+      if (art.anim && alt > 0 && ((G.tick >> 2) & 1)) set = art.anim;     // Kirov propeller
+      if (art.empty && u.ammo <= 0) set = art.empty;                       // Harrier racks fired
       if (art.hull && art.turret) {
         s = art.hull[u.face];
         turretS = art.turret[u.tface == null ? u.face : u.tface];
       } else s = set[u.face];
     } else {
-      s = (moving && art.walk) ? art.walk[((G.tick >> 3) % 3)] : art;
+      // Infantry cycle their walk while moving; a Rocketeer's frames are his
+      // jet flame, which never stops while he is airborne.
+      s = ((moving || alt > 0) && art.walk) ? art.walk[((G.tick >> 3) % 3)] : art;
     }
 
-    var ox = px - s.w / 2, oy = py - (s.h - UPAD);
+    var ox = px - s.w / 2, oy = py - (s.h - UPAD) - alt;
     // A working harvester rocks on its tracks instead of sitting parked.
     if (u.state === 'mining') oy += ((G.tick >> 3) & 1) ? 1 : 0;
+    if (u.air && !alt) drawAirShadow(u);                                   // parked: shadow under it
     ctx.drawImage(s.c, ox, oy, s.w, s.h);
     if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w, turretS.h);
     var bb = s.bb || { x0: 0, y0: 0, x1: s.w, y1: s.h };
@@ -12111,7 +12880,7 @@
       ctx.fillStyle = '#e8b428';
       ctx.fillRect(px - 7, py - 26, 14 * (u.cargo / ucap(G, u)), 2.6);
     }
-    if (u.hp < u.maxhp) hpBar(px, Math.min(top - 8, py - 30), 20, u.hp / u.maxhp);
+    if (u.hp < u.maxhp) hpBar(px, Math.min(top - 8, py - 30 - alt), 20, u.hp / u.maxhp);
     if (u.rank) {
       // Veterancy chevrons at the sprite's lower right, gold like RA2's.
       var cxr = ox + bb.x1 + 1, cyr = oy + bb.y1 - 2;
@@ -12137,6 +12906,20 @@
       }
       ctx.textAlign = 'left';
     }
+  }
+
+  // Drop shadow of an aircraft on the ground: one baked soft ellipse scaled
+  // to the type, offset down-left of the airframe the way RA2's light falls.
+  function drawAirShadow(u) {
+    var d = UNITS[u.type], alt = altOf(u);
+    var sh = d.shadow || [12, 5];
+    var px = sx(u.x, u.y) - alt * 0.42, py = sy(u.x, u.y) + alt * 0.06;
+    if (px < VX0 - 80 || py < VY0 - 80 || px > VX1 + 80 || py > VY1 + 80) return;
+    var w = sh[0] * 2, h = sh[1] * 2;
+    if (!alt) { w *= 0.8; h *= 0.8; px = sx(u.x, u.y); py = sy(u.x, u.y) + 1; }
+    ctx.globalAlpha = alt ? 0.5 : 0.38;
+    ctx.drawImage(SPR.shadow.c, px - w / 2, py - h / 2, w, h);
+    ctx.globalAlpha = 1;
   }
 
   function drawBld(b) {
@@ -12593,6 +13376,8 @@
     give: function (p, n) { if (G) G.side[p].credits += n; },
     setPrimary: function (b) { return G ? setPrimary(G, b) : false; },
     orderMove: function (units, gx, gy) { return G ? orderUnitsTo(G, units, gx, gy) : 0; },
+    orderAttack: function (units, tgt) { return G ? orderAttack(G, units, tgt) : 0; },
+    padSlot: padSlot,
     zoom: function (z) { if (z) setZoom(z, cvW / 2, cvH / 2); return zoom; },
     isPrimary: function (b) { return G ? isPrimary(G, b) : false; },
     killBld: function (b) { if (G) killBld(G, b); },
@@ -12601,7 +13386,7 @@
       if (!G) return;
       G.blds.forEach(function (b) { if (b.p === p && !b.dead) killBld(G, b); });
     },
-    api: { astar: astar, canPlace: canPlace, genMap: genMap, newState: newState, findOre: findOre },
+    api: { astar: astar, canPlace: canPlace, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld },
     // Baked sprite atlas, so art work can be reviewed as a contact sheet
     // instead of by hunting for one building in a live match.
     spr: function () { return SPR; },
@@ -12711,7 +13496,7 @@
   }
   function queueState(g, p) {
     var q = g.side[p].queues;
-    return { b: q.b.list.slice(), ready: q.b.ready, i: q.i.list.slice(), v: q.v.list.slice() };
+    return { b: q.b.list.slice(), ready: q.b.ready, i: q.i.list.slice(), v: q.v.list.slice(), a: q.a.list.slice() };
   }
 
   function countStuck(g) {
