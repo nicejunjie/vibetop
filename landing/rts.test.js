@@ -1146,3 +1146,21 @@ test("debug mode: instant build, bottomless credits, full map, and 10x damage bo
   assert.ok(g2.side[0].credits < 20000, "a normal game must not get debug credits");
   assert.ok(Array.from(g2.seen).some((v) => v !== 1), "a normal game keeps its shroud");
 });
+
+test("a tank crushes enemy infantry it drives over; a Tesla Trooper survives", () => {
+  // RA2 Crusher/Crushable. The GI stands in the Rhino's path; separation must
+  // not steer the tank around it, and rolling over it kills it outright.
+  const H = W.__rtsTest;
+  const g = H.begin(55040, "normal");
+  const rhino = H.spawn("rhino", 0, 40, 40);
+  const gi = H.spawn("rifle", 1, 43, 40);
+  const shk = H.spawn("teslatrooper", 1, 43, 50);
+  gi.guardX = gi.x; gi.guardY = gi.y; shk.guardX = shk.x; shk.guardY = shk.y;
+  H.orderMove([rhino], 47, 40);
+  H.step(240);
+  assert.ok(gi.dead, `the GI in the Rhino's path should have been crushed (rhino at ${rhino.x.toFixed(1)},${rhino.y.toFixed(1)})`);
+  const rhino2 = H.spawn("rhino", 0, 40, 50);
+  H.orderMove([rhino2], 47, 50);
+  H.step(240);
+  assert.ok(!shk.dead, "a Tesla Trooper cannot be crushed");
+});

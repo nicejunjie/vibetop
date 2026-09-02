@@ -10457,6 +10457,12 @@
   // --------------------------------------------------------------------- //
   //  Movement
   // --------------------------------------------------------------------- //
+  // RA2 Crusher=yes / Crushable=yes: a ground vehicle (not the Terror Drone)
+  // drives straight through enemy infantry and kills what it rolls over; the
+  // Tesla Trooper's suit is the one uncrushable body.
+  function crusher(u) { var d = UNITS[u.type]; return d.cls === 'v' && !d.air && !u.air; }
+  function crushable(o) { return o.kind === 'u' && !o.air && isInfArmour(UNITS[o.type].armour) && o.type !== 'teslatrooper' && o.type !== 'drone'; }
+  function crush(g, u, o) { damage(g, u, o, o.maxhp * 20, 'Super'); if (!headless && u.p === P_HUMAN) sfx('die'); }
   function moveAlong(g, u, spd) {
     if (!u.path || u.pi >= u.path.length) return false;
     var wp = u.path[u.pi];
@@ -10470,8 +10476,10 @@
     // Separation: nudge apart from neighbours so a group spreads instead of
     // stacking into one tile (also keeps splash from one-shotting a blob).
     var sx = 0, sy = 0;
+    var cr = crusher(u) && u.type !== 'drone';
     near(u.x, u.y, 1.1, function (o) {
       if (o === u || o.dead || o.kind !== 'u' || o.air) return;
+      if (cr && o.p !== u.p && crushable(o)) return;        // a tank does not step around enemy infantry
       var ox = u.x - o.x, oy = u.y - o.y;
       var od = Math.sqrt(ox * ox + oy * oy);
       if (od > 0.001 && od < 0.85) { sx += ox / od * (0.85 - od); sy += oy / od * (0.85 - od); }
@@ -10485,6 +10493,11 @@
     if (!tilePassable(g, nx, u.y)) nx = u.x;
     if (!tilePassable(g, u.x, ny)) ny = u.y;
     u.x = nx; u.y = ny;
+    if (cr) near(u.x, u.y, 0.7, function (o) {
+      if (o.dead || o.p === u.p || !crushable(o)) return;
+      var cx = u.x - o.x, cy = u.y - o.y;
+      if (cx * cx + cy * cy < 0.2) crush(g, u, o);           // within ~0.45 of a tile: under the tracks
+    });
 
     var ang = Math.atan2(dy, dx);
     u.face = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8;

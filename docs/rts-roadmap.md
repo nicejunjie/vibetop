@@ -100,7 +100,7 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 - ☐ MCV / deployable Construction Yard; Ore Purifier +25% and Service Depot repair already follow rules.ini
 - ☐ RA2 build-time discount for extra factories (MultipleFactory=0.8) and low-power production penalty curve (currently a flat 0.4×)
 - ☑ GI deploy (RA2 E1 Para weapon: range 6, double fire rate behind sandbags; a move order packs up; the AI deploys holding GIs, a human uses D) (v1.19.212) — ☐ deployed-GI art is a placeholder sandbag ring, needs the real RA2 sandbag sprite
-- ☐ Vehicles crush infantry (RA2 Crusher=yes) — under RA2 verses infantry masses beat tank lines, and crushing is RA2's main answer; the AI's unit mix and the balance tests both depend on it
+- ☑ Vehicles crush infantry (RA2 Crusher=yes / Crushable=yes): a ground vehicle other than the Terror Drone ignores enemy infantry in its separation nudge and kills any trooper under its tracks; the Tesla Trooper is uncrushable (v1.19.218)
 - ◐ AI re-tuned for RA2 pacing: spends its bank on more factories/barracks and deeper queues, weighs enemy defences before attacking, no tech before an army, one or two miners per refinery, assumes infantry until scouted; hard-vs-easy self-play is still being measured across both factions
 
 ### Debug mode (user, 2026-09-02: "add a debug mode, for instant build, no resource limit and all map vision open, player unit has 10x more durance and 10x more attack than AI opponent")
