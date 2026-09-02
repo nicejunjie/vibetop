@@ -392,7 +392,57 @@
   // --------------------------------------------------------------------- //
 
   // armour classes drive the counter triangle
-  var A_INF = 'inf', A_VEH = 'veh', A_BLD = 'bld';
+  // RA2 armour classes and warhead Verses (rules.ini): a hit deals
+  // damage * VERSES[warhead][target armour] / 100. Infantry are none/flak/plate,
+  // vehicles light/medium/heavy, structures wood/steel/concrete.
+  var ARMOURS = ['none', 'flak', 'plate', 'light', 'medium', 'heavy', 'wood', 'steel', 'concrete'];
+  var VERSES = {
+    SA:           [100,  80,  70,  50,  25,  25,  75,  50,  25],
+    SSA:          [100, 100,  70,  60,  40,  40,  75,  50,  25],
+    AP:           [ 25,  25,  25,  75, 100, 100,  65,  45,  60],
+    ApocAP:       [ 25,  25,  25,  75, 100, 100, 100, 100,  70],
+    HE:           [100,  90,  80,  70,  35,  35,  75,  40,  20],
+    Shock:        [100, 100, 100,  85, 100, 100,  50,  50,  50],
+    Electric:     [100, 100, 100,  85, 100, 100,  50,  50,  50],
+    HollowPoint:  [200, 100, 100,   1,   1,   1,   1,   1,   1],
+    Super:        [100, 100, 100, 100, 100, 100, 100, 100, 100],
+    IvanBomb:     [100, 100, 100, 100, 100, 100, 100, 100, 100],
+    Parasite:     [100, 100, 100, 100, 100, 100,   0,   0,   0],
+    MirageWH:     [100, 100,  80, 100, 100, 100,  30,  20,  20],
+    PrismWarhead: [200, 100, 100, 100, 100, 100,  50,  50,  50],
+    GUARDWH:      [ 20,  20,  20, 100,  50, 100,  10,  10,  10],
+    FlakTWH:      [150, 100,  50,  60,  10,  10,  30,  20,  10],
+    FlakWH:       [150,  80,  50, 100,  20,  20,   0,   0,   0],
+    FlakGuyWH:    [150, 100,  50,  80,  80,  20,   0,   0,   0],
+    SAMWH:        [100, 100, 100, 100, 100, 100,   0,   0,   0],
+    ORCAAP:       [100, 100, 100, 100, 100, 100, 100, 100,  75],
+    BlimpHE:      [100, 100, 100,  70,  35,  35,  85,  75,  50]
+  };
+  function verses(wh, armour) { var v = VERSES[wh]; var i = ARMOURS.indexOf(armour); return v && i >= 0 ? v[i] / 100 : 1; }
+  function isVehArmour(a) { return a === 'light' || a === 'medium' || a === 'heavy'; }
+  function isBldArmour(a) { return a === 'wood' || a === 'steel' || a === 'concrete'; }
+  function isInfArmour(a) { return a === 'none' || a === 'flak' || a === 'plate'; }
+  // RA2 primary/secondary weapons: the secondary is picked by what it is for
+  // (Guardian GI missile vs armour, Tanya C4 vs structures).
+  function weaponFor(spec, tgt) {
+    var w2 = spec.w2;
+    if (w2) { var a = armourOf(tgt); if ((w2.use === 'veh' && isVehArmour(a)) || (w2.use === 'bld' && isBldArmour(a)) || (w2.use === 'inf' && isInfArmour(a))) return w2; }
+    return spec;
+  }
+  function reachOf(spec) { return spec.w2 && spec.w2.rng > spec.rng ? spec.w2.rng : spec.rng; }
+  // RA2 veterancy ([General]): VeteranCombat=1.1 firepower and VeteranArmor=1.5 per rank.
+  function vetFire(rank) { return Math.pow(1.1, rank || 0); }
+  function vetArmour(rank) { return Math.pow(1.5, rank || 0); }
+  // Structures that differ per faction (Allied Power Plant $800/+200 vs Tesla Reactor $600/+150).
+  var _bspec = {};
+  function bspecFor(key, fac) {
+    var b = BLDS[key]; if (!b.byFac || !b.byFac[fac]) return b;
+    var ck = key + '|' + fac; if (_bspec[ck]) return _bspec[ck];
+    var o = {}; for (var k in b) o[k] = b[k]; for (k in b.byFac[fac]) o[k] = b.byFac[fac][k];
+    return (_bspec[ck] = o);
+  }
+  function bspecOf(g, key, p) { return bspecFor(key, g.side[p].fac); }
+  function ucap(g, u) { var d = UNITS[u.type]; return g.side[u.p].fac === 'col' && d.capCol ? d.capCol : d.cap; }
 
   // fac: null = both sides can build it. Otherwise the faction that owns it.
   //
@@ -400,38 +450,38 @@
   // in a fight rather than just a stat sheet: the Directorate outranges and
   // outruns you, the Collective outlasts and out-masses you.
   var UNITS = {
-    harvester: {
-      name: 'Harvester', em: '🚛', cost: 700, build: 14, cls: 'v', fac: null,
-      hp: 260, spd: 0.042, sight: 5, armour: A_VEH,
-      dmg: 0, rate: 0, rng: 0, splash: 0, vs: null,
-      cap: 500, mine: 1.7, w: 15, h: 12, desc: 'Mines ore'
+    harvester: { capCol: 1000,
+      name: 'Harvester', em: '🚛', cost: 1400, build: 59, cls: 'v', fac: null,
+      hp: 1000, spd: 0.052, sight: 5, armour: 'medium',
+      dmg: 0, rate: 0, rng: 0, splash: 0, wh: null,
+      cap: 500, mine: 0.42, w: 15, h: 12, desc: 'Mines ore'   // RA2: ~1 bail/s, 20 bails (Chrono Miner) or 40 (War Miner) at $25
     },
     rifle: {
-      name: 'Rifleman', em: '🔫', cost: 100, build: 4, cls: 'i', fac: 'dir',
-      hp: 70, spd: 0.052, sight: 6, armour: A_INF,
-      dmg: 7, rate: 26, rng: 3.4, splash: 0,
-      vs: { inf: 1.0, veh: 0.35, bld: 0.45 },
+      name: 'GI', em: '🔫', cost: 200, build: 8, cls: 'i', fac: 'dir',
+      hp: 125, spd: 0.052, sight: 5, armour: 'none',
+      dmg: 15, rate: 80, rng: 4, splash: 0,
+      wh: 'SA',
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Cheap, anti-infantry'
     },
     conscript: {
-      name: 'Conscript', em: '🎖️', cost: 65, build: 3, cls: 'i', fac: 'col',
-      hp: 62, spd: 0.050, sight: 5, armour: A_INF,
-      dmg: 5.4, rate: 26, rng: 3.1, splash: 0,
-      vs: { inf: 1.0, veh: 0.32, bld: 0.5 },
+      name: 'Conscript', em: '🎖️', cost: 100, build: 4, cls: 'i', fac: 'col',
+      hp: 125, spd: 0.052, sight: 5, armour: 'flak',
+      dmg: 15, rate: 100, rng: 4, splash: 0,
+      wh: 'SA',
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Cheapest body on the field'
     },
     rocket: {
-      name: 'Rocketeer', em: '🚀', cost: 300, build: 7, cls: 'i', fac: null,
-      hp: 65, spd: 0.044, sight: 7, armour: A_INF,
-      dmg: 26, rate: 62, rng: 4.6, splash: 0,
-      vs: { inf: 0.45, veh: 1.35, bld: 1.1 },
-      cap: 0, mine: 0, w: 10, h: 14, desc: 'Anti-tank, fragile'
+      name: 'Guardian GI', em: '🚀', cost: 400, build: 17, cls: 'i', fac: 'dir',
+      hp: 100, spd: 0.039, sight: 6, armour: 'none',
+      dmg: 15, rate: 80, rng: 4, splash: 0,
+      wh: 'SA', w2: { dmg: 40, rate: 200, rng: 6, wh: 'GUARDWH', splash: 0, use: 'veh' },
+      cap: 0, mine: 0, w: 10, h: 14, desc: 'Rifle vs infantry, missile vs armour'
     },
     lancer: {
-      name: 'Lancer', em: '🛡️', cost: 650, build: 12, cls: 'v', fac: 'dir', turret: true,
-      hp: 235, spd: 0.049, sight: 8, armour: A_VEH,
-      dmg: 25, rate: 42, rng: 5.4, splash: 0.4,
-      vs: { inf: 0.8, veh: 1.0, bld: 0.85 },
+      name: 'Grizzly Tank', em: '🛡️', cost: 700, build: 29, cls: 'v', fac: 'dir', turret: true,
+      hp: 300, spd: 0.091, sight: 8, armour: 'heavy',
+      dmg: 65, rate: 240, rng: 5, splash: 0.3,
+      wh: 'AP',
       cap: 0, mine: 0, w: 19, h: 15, desc: 'Fast, long reach, thin skin'
     },
     mammoth: {
@@ -440,7 +490,7 @@
       // that gap instead of closing it (hard went 73% -> 90% Directorate).
       // 880/15 evens throughput per factory: measured 56% / 56% across
       // normal and hard, from 90% / 73%.
-      name: 'Apocalypse', em: '⚙️', cost: 880, build: 15, cls: 'v', fac: 'col', req: 'lab', turret: true,
+      name: 'Apocalypse', em: '⚙️', cost: 1750, build: 74, cls: 'v', fac: 'col', req: 'lab', turret: true,
       // 0.028 read fine on paper ("slow, heavy") and lost the faction the
       // game: below infantry speed (0.050) a Collective army arrives strung
       // out, fights piecemeal and can never disengage — measured 88% losses
@@ -448,94 +498,94 @@
       // field and still 0.73x a Lancer (about the RA2 Apocalypse/Grizzly
       // ratio); it just lets the army arrive together. Single biggest lever
       // in the whole table — see docs/design-decisions.md.
-      hp: 540, spd: 0.036, sight: 6, armour: A_VEH,
-      dmg: 44, rate: 72, rng: 4.0, splash: 1.1,
-      vs: { inf: 0.9, veh: 1.05, bld: 1.0 },
+      hp: 800, spd: 0.052, sight: 6, armour: 'heavy',
+      dmg: 200, rate: 320, rng: 5.75, splash: 0.3,
+      wh: 'ApocAP',
       cap: 0, mine: 0, w: 22, h: 17, desc: 'Slow, heavy, wide splash'
     },
     // ---- RA2 roster, phase B. Tier gating via `req` (any of), like structures.
     engineer: {
-      name: 'Engineer', em: '🔧', cost: 250, build: 6, cls: 'i', fac: null, capture: true,
-      hp: 50, spd: 0.050, sight: 5, armour: A_INF,
+      name: 'Engineer', em: '🔧', cost: 500, build: 21, cls: 'i', fac: null, capture: true,
+      hp: 75, spd: 0.052, sight: 4, armour: 'none',
       dmg: 0, rate: 0, rng: 0, splash: 0,
-      vs: { inf: 0, veh: 0, bld: 0 },
+      wh: null,
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Captures an enemy structure (consumed)'
     },
     ifv: {
-      name: 'IFV', em: '🚙', cost: 350, build: 8, cls: 'v', fac: 'dir', turret: true,
-      hp: 130, spd: 0.070, sight: 7, armour: A_VEH,
-      dmg: 18, rate: 30, rng: 5.0, splash: 0.3,
-      vs: { inf: 0.9, veh: 1.1, bld: 0.6 },
+      name: 'IFV', em: '🚙', cost: 600, build: 25, cls: 'v', fac: 'dir', turret: true,
+      hp: 200, spd: 0.130, sight: 8, armour: 'light',
+      dmg: 50, rate: 200, rng: 6, splash: 0.5,
+      wh: 'HE',
       cap: 0, mine: 0, w: 15, h: 12, desc: 'Fast rocket buggy'
     },
     mirage: {
-      name: 'Mirage Tank', em: '🌳', cost: 500, build: 11, cls: 'v', fac: 'dir', req: 'lab',
-      hp: 220, spd: 0.052, sight: 7, armour: A_VEH,
-      dmg: 40, rate: 55, rng: 5.0, splash: 0.4,
-      vs: { inf: 1.3, veh: 0.9, bld: 0.5 },
+      name: 'Mirage Tank', em: '🌳', cost: 1000, build: 42, cls: 'v', fac: 'dir', req: 'lab',
+      hp: 200, spd: 0.091, sight: 9, armour: 'light',
+      dmg: 100, rate: 280, rng: 7, splash: 0,
+      wh: 'MirageWH',
       cap: 0, mine: 0, w: 18, h: 14, desc: 'Ambusher, shreds infantry; needs a Battle Lab'
     },
     tanya: {
-      name: 'Tanya', em: '💃', cost: 450, build: 12, cls: 'i', fac: 'dir', req: 'lab', max: 1,
-      hp: 120, spd: 0.062, sight: 8, armour: A_INF,
-      dmg: 60, rate: 20, rng: 4.0, splash: 0,
-      vs: { inf: 3.0, veh: 0.1, bld: 2.5 },
+      name: 'Tanya', em: '💃', cost: 1000, build: 42, cls: 'i', fac: 'dir', req: 'lab', max: 1,
+      hp: 125, spd: 0.065, sight: 8, armour: 'flak',
+      dmg: 125, rate: 40, rng: 6, splash: 0,
+      wh: 'HollowPoint', w2: { dmg: 2500, rate: 200, rng: 1.2, wh: 'Super', splash: 0, use: 'bld' },
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Hero: kills infantry outright, C4s buildings; one only'
     },
     rhino: {
-      name: 'Rhino Tank', em: '🦏', cost: 500, build: 11, cls: 'v', fac: 'col', turret: true,
-      hp: 300, spd: 0.040, sight: 6, armour: A_VEH,
-      dmg: 34, rate: 48, rng: 5.2, splash: 0.6,
-      vs: { inf: 0.85, veh: 1.05, bld: 0.9 },
+      name: 'Rhino Tank', em: '🦏', cost: 900, build: 38, cls: 'v', fac: 'col', turret: true,
+      hp: 400, spd: 0.078, sight: 8, armour: 'heavy',
+      dmg: 90, rate: 260, rng: 5.75, splash: 0.3,
+      wh: 'AP',
       cap: 0, mine: 0, w: 20, h: 15, desc: 'Heavy main battle tank'
     },
     flaktrack: {
-      name: 'Flak Track', em: '🛻', cost: 350, build: 8, cls: 'v', fac: 'col', turret: true,
-      hp: 150, spd: 0.075, sight: 7, armour: A_VEH,
-      dmg: 14, rate: 22, rng: 5.5, splash: 0.5,
-      vs: { inf: 1.4, veh: 0.5, bld: 0.3 },
+      name: 'Flak Track', em: '🛻', cost: 500, build: 21, cls: 'v', fac: 'col', turret: true,
+      hp: 180, spd: 0.104, sight: 8, armour: 'heavy',
+      dmg: 25, rate: 160, rng: 5, splash: 1,
+      wh: 'FlakTWH',
       cap: 0, mine: 0, w: 16, h: 12, desc: 'Fast flak halftrack, anti-infantry'
     },
     v3: {
-      name: 'V3 Launcher', em: '🚀', cost: 450, build: 12, cls: 'v', fac: 'col', req: 'radar',
-      hp: 120, spd: 0.036, sight: 7, armour: A_VEH,
-      dmg: 90, rate: 150, rng: 9.0, splash: 1.2,
-      vs: { inf: 1.0, veh: 0.8, bld: 1.6 },
+      name: 'V3 Launcher', em: '🚀', cost: 800, build: 34, cls: 'v', fac: 'col', req: 'radar',
+      hp: 150, spd: 0.052, sight: 7, armour: 'light',
+      dmg: 200, rate: 600, rng: 18, splash: 1,
+      wh: 'HE',
       cap: 0, mine: 0, w: 18, h: 14, desc: 'Long-range rocket artillery; needs Radar'
     },
     teslatrooper: {
-      name: 'Tesla Trooper', em: '⚡', cost: 300, build: 8, cls: 'i', fac: 'col',
-      hp: 110, spd: 0.040, sight: 6, armour: A_INF,
-      dmg: 30, rate: 50, rng: 3.5, splash: 0.2,
-      vs: { inf: 1.0, veh: 1.3, bld: 0.6 },
+      name: 'Tesla Trooper', em: '⚡', cost: 500, build: 21, cls: 'i', fac: 'col',
+      hp: 130, spd: 0.052, sight: 6, armour: 'plate',
+      dmg: 50, rate: 240, rng: 3, splash: 0,
+      wh: 'Shock',
       cap: 0, mine: 0, w: 10, h: 15, desc: 'Armoured, zaps tanks'
     },
     ivan: {
-      name: 'Crazy Ivan', em: '🧨', cost: 300, build: 8, cls: 'i', fac: 'col', req: 'radar',
-      hp: 60, spd: 0.052, sight: 6, armour: A_INF,
-      dmg: 120, rate: 200, rng: 1.2, splash: 1.5,
-      vs: { inf: 1.5, veh: 1.0, bld: 2.0 },
+      name: 'Crazy Ivan', em: '🧨', cost: 600, build: 25, cls: 'i', fac: 'col', req: 'radar',
+      hp: 125, spd: 0.052, sight: 6, armour: 'none',
+      dmg: 400, rate: 200, rng: 1.5, splash: 1,
+      wh: 'IvanBomb',
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Plants bombs point-blank; needs Radar'
     },
     drone: {
-      name: 'Terror Drone', em: '🕷️', cost: 250, build: 6, cls: 'v', fac: 'col',
-      hp: 80, spd: 0.095, sight: 6, armour: A_VEH,
-      dmg: 22, rate: 25, rng: 1.0, splash: 0,
-      vs: { inf: 0.6, veh: 1.6, bld: 0.2 },
+      name: 'Terror Drone', em: '🕷️', cost: 500, build: 21, cls: 'v', fac: 'col',
+      hp: 100, spd: 0.130, sight: 4, armour: 'light',
+      dmg: 50, rate: 240, rng: 1.5, splash: 0,
+      wh: 'Parasite',
       cap: 0, mine: 0, w: 10, h: 9, desc: 'Fast, tears vehicles apart up close'
     },
     teslatank: {
-      name: 'Tesla Tank', em: '🔋', cost: 650, build: 13, cls: 'v', fac: 'col', req: 'lab',
-      hp: 240, spd: 0.046, sight: 7, armour: A_VEH,
-      dmg: 55, rate: 70, rng: 5.0, splash: 0.6,
-      vs: { inf: 1.0, veh: 1.3, bld: 0.7 },
+      name: 'Tesla Tank', em: '🔋', cost: 1200, build: 50, cls: 'v', fac: 'col', req: 'lab',
+      hp: 300, spd: 0.078, sight: 8, armour: 'heavy',
+      dmg: 135, rate: 300, rng: 4, splash: 0,
+      wh: 'Electric',
       cap: 0, mine: 0, w: 18, h: 14, desc: 'Tesla cannon on tracks; needs a Battle Lab'
     },
     spectre: {
-      name: 'Spectre', em: '👁️', cost: 450, build: 9, cls: 'v', fac: 'dir', req: 'lab', turret: true,
-      hp: 95, spd: 0.078, sight: 12, armour: A_VEH,
-      dmg: 9, rate: 30, rng: 3.6, splash: 0,
-      vs: { inf: 1.15, veh: 0.3, bld: 0.25 },
+      name: 'Spectre', em: '👁️', cost: 450, build: 19, cls: 'v', fac: 'dir', req: 'lab', turret: true,
+      hp: 95, spd: 0.104, sight: 8, armour: 'light',
+      dmg: 15, rate: 120, rng: 4, splash: 0,
+      wh: 'SA',
       cap: 0, mine: 0, w: 15, h: 12, desc: 'Fast eyes, harasses workers'
     }
   };
@@ -543,87 +593,87 @@
   var BLDS = {
     base: {
       fac: null, cat: 'str',
-      name: 'Construction Yard', em: '🏛️', cost: 0, build: 0,
-      gw: 3, gh: 3, hp: 1400, power: 0, sight: 7, makes: 'b', desc: 'Builds structures'
+      name: 'Construction Yard', em: '🏛️', cost: 3000, build: 126,
+      armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: 0, sight: 6, makes: 'b', desc: 'Builds structures'
     },
     power: {
-      fac: null, cat: 'str',
-      name: 'Power Plant', em: '⚡', cost: 300, build: 7,
-      gw: 2, gh: 2, hp: 420, power: 100, sight: 4, makes: null, desc: '+100 power'
+      fac: null, cat: 'str', byFac: { col: { name: 'Tesla Reactor', cost: 600, power: 150, build: 25, desc: '+150 power' } },   // Tesla Reactor (NAPOWR)
+      name: 'Power Plant', em: '⚡', cost: 800, build: 34,
+      armour: 'wood', gw: 2, gh: 2, hp: 750, power: 200, sight: 4, makes: null, desc: '+200 power'
     },
     refinery: {
       fac: null, cat: 'str',
-      name: 'Refinery', em: '🏭', cost: 1400, build: 18,
-      gw: 3, gh: 2, hp: 700, power: -35, sight: 5, makes: null, desc: 'Ore drop-off, +1 harvester'
+      name: 'Refinery', em: '🏭', cost: 2000, build: 84,
+      armour: 'wood', gw: 3, gh: 2, hp: 1000, power: -50, sight: 5, makes: null, desc: 'Ore drop-off, +1 harvester'
     },
     barracks: {
       fac: null, cat: 'str',
-      name: 'Barracks', em: '⛺', cost: 400, build: 9,
-      gw: 2, gh: 2, hp: 520, power: -25, sight: 5, makes: 'i', desc: 'Trains infantry'
+      name: 'Barracks', em: '⛺', cost: 500, build: 21,
+      armour: 'wood', gw: 2, gh: 2, hp: 500, power: -10, sight: 5, makes: 'i', desc: 'Trains infantry'
     },
     factory: {
       fac: null, cat: 'str',
-      name: 'War Factory', em: '🏗️', cost: 1500, build: 20,
-      gw: 3, gh: 3, hp: 820, power: -50, sight: 5, makes: 'v', desc: 'Builds vehicles'
+      name: 'War Factory', em: '🏗️', cost: 2000, build: 84,
+      armour: 'wood', gw: 3, gh: 3, hp: 1000, power: -50, sight: 5, makes: 'v', desc: 'Builds vehicles'
     },
     sentry: {
       cat: 'def',
-      name: 'Pillbox', em: '🗼', cost: 450, build: 8, fac: 'dir',
-      gw: 1, gh: 1, hp: 430, power: -25, sight: 7, makes: null,
-      dmg: 13, rate: 17, rng: 5.2, splash: 0.2,
-      vs: { inf: 1.25, veh: 0.7, bld: 0.3 }, desc: 'Rapid fire, shreds infantry'
+      name: 'Pillbox', em: '🗼', cost: 500, build: 21, fac: 'dir',
+      armour: 'steel', gw: 1, gh: 1, hp: 400, power: 0, sight: 7, makes: null,
+      dmg: 50, rate: 104, rng: 5.5, splash: 0,
+      wh: 'SA', desc: 'Rapid fire, shreds infantry'
     },
     tesla: {
       cat: 'def',
-      name: 'Tesla Coil', em: '⚡', cost: 700, build: 11, fac: 'col',
-      gw: 1, gh: 1, hp: 500, power: -70, sight: 7, makes: null,
-      dmg: 58, rate: 78, rng: 4.6, splash: 0.5,
-      vs: { inf: 1.0, veh: 1.45, bld: 0.3 }, desc: 'Heavy jolt, hungry for power'
+      name: 'Tesla Coil', em: '⚡', cost: 1500, build: 63, fac: 'col',
+      armour: 'steel', gw: 1, gh: 1, hp: 600, power: -75, sight: 8, makes: null,
+      dmg: 200, rate: 480, rng: 7, splash: 0,
+      wh: 'Electric', desc: 'Heavy jolt, hungry for power'
     },
     // ---- RA2 tech tree, phase A. `req` = prerequisite structure(s), any of.
     airforce: {
       fac: 'dir', cat: 'str', req: 'refinery',
-      name: 'Airforce Command', em: '📡', cost: 600, build: 12,
-      gw: 2, gh: 2, hp: 600, power: -50, sight: 9, makes: null, desc: 'Radar; unlocks tier 2'
+      name: 'Airforce Command', em: '📡', cost: 1000, build: 42,
+      armour: 'steel', gw: 2, gh: 2, hp: 600, power: -50, sight: 5, makes: null, desc: 'Radar; unlocks tier 2'
     },
     radar: {
       fac: 'col', cat: 'str', req: 'refinery',
-      name: 'Radar Tower', em: '📡', cost: 600, build: 12,
-      gw: 2, gh: 2, hp: 600, power: -50, sight: 9, makes: null, desc: 'Radar; unlocks tier 2'
+      name: 'Radar Tower', em: '📡', cost: 1000, build: 42,
+      armour: 'wood', gw: 2, gh: 2, hp: 1000, power: -50, sight: 10, makes: null, desc: 'Radar; unlocks tier 2'
     },
     depot: {
       fac: null, cat: 'str', req: 'factory',
-      name: 'Service Depot', em: '🔧', cost: 500, build: 9,
-      gw: 3, gh: 3, hp: 600, power: -30, sight: 5, makes: null, desc: 'Repairs vehicles parked on it'
+      name: 'Service Depot', em: '🔧', cost: 800, build: 34,
+      armour: 'wood', gw: 3, gh: 3, hp: 1200, power: -50, sight: 5, makes: null, desc: 'Repairs vehicles parked on it'
     },
     lab: {
       fac: null, cat: 'str', req: ['airforce', 'radar'],
-      name: 'Battle Lab', em: '🔬', cost: 900, build: 16,
-      gw: 2, gh: 2, hp: 700, power: -100, sight: 6, makes: null, desc: 'Unlocks tier 3'
+      name: 'Battle Lab', em: '🔬', cost: 2000, build: 84,
+      armour: 'wood', gw: 2, gh: 2, hp: 500, power: -200, sight: 5, makes: null, desc: 'Unlocks tier 3'
     },
     purifier: {
       fac: 'dir', cat: 'str', req: 'lab',
-      name: 'Ore Purifier', em: '💎', cost: 900, build: 15,
-      gw: 2, gh: 2, hp: 650, power: -100, sight: 5, makes: null, desc: '+25% ore income'
+      name: 'Ore Purifier', em: '💎', cost: 2500, build: 105,
+      armour: 'wood', gw: 2, gh: 2, hp: 900, power: -200, sight: 5, makes: null, desc: '+25% ore income'
     },
     reactor: {
       fac: 'col', cat: 'str', req: 'lab',
-      name: 'Nuclear Reactor', em: '☢️', cost: 700, build: 14,
-      gw: 2, gh: 2, hp: 700, power: 500, sight: 5, makes: null, desc: '+500 power'
+      name: 'Nuclear Reactor', em: '☢️', cost: 1000, build: 42,
+      armour: 'concrete', gw: 2, gh: 2, hp: 1000, power: 2000, sight: 5, makes: null, desc: '+500 power'
     },
     prism: {
       cat: 'def', req: 'airforce',
-      name: 'Prism Tower', em: '🔆', cost: 600, build: 10, fac: 'dir',
-      gw: 1, gh: 1, hp: 600, power: -75, sight: 8, makes: null,
-      dmg: 70, rate: 60, rng: 6.0, splash: 0.3,
-      vs: { inf: 1.1, veh: 1.2, bld: 0.4 }, desc: 'Long-range light beam'
+      name: 'Prism Tower', em: '🔆', cost: 1500, build: 63, fac: 'dir',
+      armour: 'steel', gw: 1, gh: 1, hp: 600, power: -75, sight: 8, makes: null,
+      dmg: 120, rate: 240, rng: 8, splash: 0,
+      wh: 'PrismWarhead', desc: 'Long-range light beam'
     },
     sentrygun: {
       cat: 'def',
-      name: 'Sentry Gun', em: '🔫', cost: 300, build: 6, fac: 'col',
-      gw: 1, gh: 1, hp: 400, power: 0, sight: 6, makes: null,
-      dmg: 12, rate: 15, rng: 5.0, splash: 0.15,
-      vs: { inf: 1.3, veh: 0.5, bld: 0.25 }, desc: 'Cheap anti-infantry gun, no power'
+      name: 'Sentry Gun', em: '🔫', cost: 500, build: 21, fac: 'col',
+      armour: 'steel', gw: 1, gh: 1, hp: 400, power: 0, sight: 7, makes: null,
+      dmg: 50, rate: 104, rng: 5.5, splash: 0,
+      wh: 'SA', desc: 'Cheap anti-infantry gun, no power'
     }
   };
 
@@ -690,7 +740,7 @@
 
   function newSide(p) {
     return {
-      p: p, fac: 'dir', credits: 5000, made: 0, lost: 0, killed: 0, deadFor: 0, exitTurn: 0,
+      p: p, fac: 'dir', credits: 10000, made: 0, lost: 0, killed: 0, deadFor: 0, exitTurn: 0,
       powerMade: 0, powerUse: 0,
       queues: { b: newQueue(), d: newQueue(), i: newQueue(), v: newQueue() },
       pending: null,                               // a finished structure awaiting placement
@@ -9217,7 +9267,7 @@
     for (var i = 0; i < g.blds.length; i++) {
       var b = g.blds[i];
       if (b.dead || b.p !== p) continue;
-      var pw = BLDS[b.type].power;
+      var pw = bspecOf(g, b.type, b.p).power;
       if (pw > 0) made += pw; else use += -pw;
     }
     g.side[p].powerMade = made;
@@ -9382,7 +9432,7 @@
     var bx = b.kind === 'b' ? b.cx : b.x, by = b.kind === 'b' ? b.cy : b.y;
     return Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
   }
-  function armourOf(e) { return e.kind === 'b' ? A_BLD : UNITS[e.type].armour; }
+  function armourOf(e) { return (e.kind === 'b' ? BLDS[e.type] : UNITS[e.type]).armour; }
 
   function findTarget(g, e, rng) {
     // -Infinity, not -1: the score is a PREFERENCE between candidates, never a
@@ -9397,7 +9447,9 @@
       var d = dist(e, o);
       if (d > rng) return;
       var spec = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
-      var mult = spec.vs ? (spec.vs[armourOf(o)] || 1) : 1;
+      var w = weaponFor(spec, o);
+      var mult = w.wh ? verses(w.wh, armourOf(o)) : 1;
+      if (mult <= 0 || d > w.rng) return;                       // this weapon cannot hurt / reach it
       var score;
       if (g.focusFor[e.p]) {
         // Prefer what we hurt most, then what is closest to dying: focus fire
@@ -9413,10 +9465,11 @@
     return best;
   }
 
-  function damage(g, src, tgt, amount) {
+  function damage(g, src, tgt, amount, wh) {
     var spec = src.kind === 'b' ? BLDS[src.type] : UNITS[src.type];
-    var mult = spec.vs ? (spec.vs[armourOf(tgt)] || 1) : 1;
-    if (tgt.kind === 'u' && tgt.rank) mult *= 1 - 0.15 * tgt.rank;   // veterans are tougher
+    if (wh === undefined) wh = spec.wh;
+    var mult = wh ? verses(wh, armourOf(tgt)) : 1;
+    if (tgt.kind === 'u' && tgt.rank) mult /= vetArmour(tgt.rank);   // veterans are tougher (VeteranArmor)
     tgt.hp -= amount * mult;
     if (tgt.kind === 'u' && tgt.type === 'harvester') tgt.fleeAt = g.tick;
     if (tgt.p === P_HUMAN && src.p !== P_HUMAN) {
@@ -9443,7 +9496,7 @@
   }
 
   function fire(g, src, tgt) {
-    var spec = src.kind === 'b' ? BLDS[src.type] : UNITS[src.type];
+    var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt);
     src.cool = spec.rate;
     if (!headless) {
       g.shots.push({
@@ -9456,13 +9509,13 @@
       });
     }
     sfx(src.type === 'rifle' ? 'shot' : 'cannon');
-    damage(g, src, tgt, spec.dmg * (1 + 0.25 * (src.rank || 0)));
+    damage(g, src, tgt, spec.dmg * vetFire(src.rank), spec.wh);
     if (spec.splash > 0) {
       var tx = tgt.kind === 'b' ? tgt.cx : tgt.x, ty = tgt.kind === 'b' ? tgt.cy : tgt.y;
       near(tx, ty, spec.splash + 1, function (o) {
         if (o.dead || o.p === src.p || o === tgt) return;
         var d = Math.sqrt((o.x - tx) * (o.x - tx) + (o.y - ty) * (o.y - ty));
-        if (d <= spec.splash) damage(g, src, o, spec.dmg * 0.45 * (1 - d / (spec.splash + 0.4)));
+        if (d <= spec.splash) damage(g, src, o, spec.dmg * vetFire(src.rank) * 0.45 * (1 - d / (spec.splash + 0.4)), spec.wh);
       });
     }
   }
@@ -9629,7 +9682,7 @@
 
     if (u.state === 'mining') {
       var mi = idx(u.mineAt.x, u.mineAt.y);
-      var take = Math.min(d.mine, g.ore[mi], d.cap - u.cargo);
+      var take = Math.min(d.mine, g.ore[mi], ucap(g, u) - u.cargo);
       g.ore[mi] -= take; u.cargo += take;
       // Visible work: a puff of ore dust off the seam every third of a
       // second (render-only; skipped headless so balance runs stay identical).
@@ -9638,7 +9691,7 @@
         g.fx.push({ x: u.mineAt.x + jx * 0.22, y: u.mineAt.y - jx * 0.18, t: 0, life: 30, size: 0, dust: true });
       }
       if (g.ore[mi] <= 0.5) { g.terrain[mi] = T_GROUND; g.ore[mi] = 0; u.mineAt = null; }
-      if (u.cargo >= d.cap - 0.01 || !u.mineAt) {
+      if (u.cargo >= ucap(g, u) - 0.01 || !u.mineAt) {
         if (u.cargo > 20) {
           var ref = findRefinery(g, u.p, u.x, u.y);
           if (ref) {
@@ -9785,7 +9838,7 @@
     }
     if (u.order && u.order.t === 'move') {
       if (d.dmg > 0 && u.cool <= 0) {
-        var passing = findTarget(g, u, d.rng);
+        var passing = findTarget(g, u, reachOf(d));
         if (passing) fire(g, u, passing);
       }
       var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
@@ -9808,13 +9861,13 @@
     if (u.order && u.order.t === 'attack') {
       ordered = entById(g, u.order.id);
       if (!ordered) u.order = null;
-      else if (dist(u, ordered) <= d.rng) tgt = ordered;
+      else if (dist(u, ordered) <= weaponFor(d, ordered).rng) tgt = ordered;
     }
-    if (!tgt) tgt = findTarget(g, u, d.rng);
+    if (!tgt) tgt = findTarget(g, u, reachOf(d));
 
     if (tgt) {
       var dd = dist(u, tgt);
-      if (dd <= d.rng) {
+      if (dd <= weaponFor(d, tgt).rng) {
         u.path = null;
         var ax = (tgt.kind === 'b' ? tgt.cx : tgt.x) - u.x;
         var ay = (tgt.kind === 'b' ? tgt.cy : tgt.y) - u.y;
@@ -9934,7 +9987,7 @@
     var s = g.side[p];
     var q = s.queues[lane];
     if (q.list.length >= QUEUE_MAX) return false;
-    var spec = isBldLane(lane) ? BLDS[key] : UNITS[key];
+    var spec = isBldLane(lane) ? bspecOf(g, key, p) : UNITS[key];
     if (s.credits < spec.cost) return false;
     s.credits -= spec.cost;                     // charged on queue, refunded on cancel
     q.list.push(key);
@@ -9952,7 +10005,7 @@
       }
     }
     if (isBldLane(lane) && q.ready === key) {
-      g.side[p].credits += BLDS[key].cost; q.ready = null; return true;
+      g.side[p].credits += bspecOf(g, key, p).cost; q.ready = null; return true;
     }
     return false;
   }
@@ -10167,7 +10220,7 @@
       var e = g.units[i];
       if (e.dead || e.p !== foe) continue;
       if (!visible(e.x, e.y)) continue;
-      if (UNITS[e.type].armour === A_INF) seen.inf++; else seen.veh++;
+      if (isInfArmour(UNITS[e.type].armour)) seen.inf++; else seen.veh++;
     }
     for (i = 0; i < g.blds.length; i++) {
       var eb = g.blds[i];
@@ -10186,6 +10239,17 @@
     return a;
   }
 
+  // What a wave walks into: the enemy's live defences, valued like units.
+  // Under RA2 numbers a Tesla Coil or Prism Tower shreds a small wave, so
+  // committing on army value alone feeds units into it piecemeal.
+  function defenceValue(g, p) {
+    var v = 0;
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (!b.dead && b.p === p && BLDS[b.type].dmg > 0 && powered(g, p)) v += BLDS[b.type].cost * (b.hp / b.maxhp);
+    }
+    return v;
+  }
   function armyValue(g, p) {
     var v = 0;
     for (var i = 0; i < g.units.length; i++) {
@@ -10238,8 +10302,8 @@
 
       var mayAttack = ai.t > cfg.opening;
       if (harv < 2 || !hasBld(g, me, 'refinery')) ai.posture = 'eco';
-      else if (mayAttack && ai.army.length >= cfg.group && myArmy > theirArmy * 0.95) ai.posture = 'attack';
-      else if (theirArmy > myArmy * 1.5) ai.posture = 'defend';
+      else if (mayAttack && ai.army.length >= cfg.group && myArmy > theirArmy * 0.95 + defenceValue(g, foe) * 0.6) ai.posture = 'attack';
+      else if (theirArmy > myArmy * 1.5 && theirArmy > 2500) ai.posture = 'defend';   // three GIs are not a threat worth a $1500 coil
       else ai.posture = 'build';
 
       aiProduce(g, ai, me, foe);
@@ -10280,7 +10344,7 @@
       else if (!hasFac && harv < 2) want = 'factory';     // break the spiral
       else if (!hasBar) want = 'barracks';
       else if (!hasFac) want = 'factory';
-      else if (nRef < cfg.expand && s.credits > 2000) want = 'refinery';
+      else if (nRef < cfg.expand && s.credits > 2000 && (nRef < 2 || ai.army.length >= 6)) want = 'refinery';
       // A full lane and a fat bank is the AI saying "I have money I cannot
       // spend". The answer a human reaches for is a SECOND factory, and the
       // multi-building speed-up makes it pay twice. Without this the whole
@@ -10295,8 +10359,11 @@
       // fielded army and the matches stopped resolving — 1 of 6 decided, with
       // a quarter of both armies jammed in their own bases. Two is the point
       // where the money gets spent and the map still has room to walk.
+      // RA2 pacing: a factory turns out ~1.5 tanks a minute, so a bank that
+      // keeps growing means more factories/barracks, not a bigger queue.
       else if (s.queues.v.list.length >= 2 && s.credits > 2200 &&
-               countBld(g, me, 'factory') < 2) want = 'factory';
+               countBld(g, me, 'factory') < Math.min(4, 2 + Math.floor(s.credits / 4000))) want = 'factory';
+      else if (s.queues.i.list.length >= 2 && s.credits > 3000 && countBld(g, me, 'barracks') < 2) want = 'barracks';
       else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200) want = radarKey;
       else if (hasBld(g, me, radarKey) && !hasBld(g, me, 'lab') && s.credits > 2200) want = 'lab';
       else if (hasBld(g, me, 'lab') && !hasBld(g, me, ecoKey) && s.credits > 2600) want = ecoKey;
@@ -10307,14 +10374,14 @@
     // for the AI either — it is a separate decision, not a queue position.
     if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
         countBld(g, me, def) + countBld(g, me, def2) < (ai.posture === 'defend' ? 5 : 3) &&
-        s.credits > (ai.posture === 'defend' ? 700 : 1600)) {
+        s.credits > (ai.posture === 'defend' ? 1800 : 3000)) {   // RA2 defences cost $500-1500; never starve the army for them
       // Alternate the faction's two defences once the heavier one is unlocked.
       var pick = (countBld(g, me, def) > countBld(g, me, def2) && canBuild(g, me, def2, true)) ? def2 : def;
       if (canBuild(g, me, pick, true)) enqueue(g, me, pick, 'd');
     }
 
     // ---- harvesters before soldiers -------------------------------------
-    var wantHarv = Math.min(2 + cfg.expand, nRef * 2 + 1);
+    var wantHarv = Math.min(1 + cfg.expand, nRef + 1);          // RA2: one or two miners per refinery, not a fleet before an army
     if (harv < wantHarv && hasFac && !s.queues.v.list.length) {
       if (canBuild(g, me, 'harvester', false)) { enqueue(g, me, 'harvester', 'v'); return; }
     }
@@ -10326,12 +10393,13 @@
     var infHeavy = !stale && seen.inf > seen.veh * 1.4;
     var vehHeavy = !stale && seen.veh > seen.inf * 0.8;
 
-    if (s.queues.i.list.length < 2 && hasBar) {
+    var depth = s.credits > 6000 ? 4 : s.credits > 3000 ? 3 : 2;   // spend the bank
+    if (s.queues.i.list.length < depth && hasBar) {
       var pick = vehHeavy ? (s.fac === 'col' && rnd() < 0.5 ? 'teslatrooper' : 'rocket')
                : (infHeavy ? F.inf : (rnd() < 0.6 ? F.inf : 'rocket'));
       if (canBuild(g, me, pick, false)) enqueue(g, me, pick, 'i');
     }
-    if (s.queues.v.list.length < 2 && hasFac && s.credits > 1200) {
+    if (s.queues.v.list.length < depth && hasFac && s.credits > 1200) {
       // Tier-3 armour when the lab is up, fast anti-infantry when the enemy
       // masses infantry, else the line tank; eyes for the Directorate.
       var heavy = s.fac === 'col' ? 'mammoth' : 'mirage', light = s.fac === 'col' ? 'flaktrack' : 'ifv';
@@ -10901,7 +10969,7 @@
     var myFac = G ? G.side[P_HUMAN].fac : 'dir';
     if (panel === 'b' || panel === 'd') {
       var order = panel === 'b' ? buildOrderFor(myFac) : defenceOrderFor(myFac);
-      items = order.map(function (k) { return { k: k, lane: laneOfBld(k), spec: BLDS[k] }; });
+      items = order.map(function (k) { return { k: k, lane: laneOfBld(k), spec: bspecFor(k, myFac) }; });
     } else {
       for (var k in UNITS) {
         if (UNITS[k].cls === panel && ownedBy(UNITS[k], myFac)) {
@@ -11328,9 +11396,9 @@
     sfx('click');
   }
   function sellBld(b) {
-    var refund = Math.round(BLDS[b.type].cost * 0.5);
+    var refund = Math.round(bspecOf(G, b.type, b.p).cost * 0.5);
     G.side[b.p].credits += refund; killBld(G, b); b.sel = false;
-    say('Sold ' + BLDS[b.type].name + ' for $' + refund); sfx('cash'); eva('Structure sold', 2000);
+    say('Sold ' + bspecOf(G, b.type, b.p).name + ' for $' + refund); sfx('cash'); eva('Structure sold', 2000);
   }
   function refreshCmdbar() {
     if (!cmdbar) return;
@@ -11457,7 +11525,7 @@
       return t;
     }
     var u = UNITS[e.type];
-    var extra = e.type === 'harvester' ? ' — ' + Math.round(e.cargo) + '/' + u.cap + ' ore' : '';
+    var extra = e.type === 'harvester' ? ' — ' + Math.round(e.cargo) + '/' + ucap(G, e) + ' ore' : '';
     return u.em + ' ' + u.name + ' — ' + Math.ceil(e.hp) + '/' + u.hp + ' hp' + extra;
   }
 
@@ -12037,7 +12105,7 @@
     // Cargo pip on a loaded harvester — you can see who is worth killing.
     if (u.type === 'harvester' && u.cargo > 30) {
       ctx.fillStyle = '#e8b428';
-      ctx.fillRect(px - 7, py - 26, 14 * (u.cargo / d.cap), 2.6);
+      ctx.fillRect(px - 7, py - 26, 14 * (u.cargo / ucap(G, u)), 2.6);
     }
     if (u.hp < u.maxhp) hpBar(px, Math.min(top - 8, py - 30), 20, u.hp / u.maxhp);
     if (u.rank) {
@@ -12560,7 +12628,7 @@
   // Headless match runner used by the balance tests: no rendering, no audio.
   // Both sides are driven by the same AI code (stepAI is side-agnostic), so
   // "hard beats easy" measures the decision layers and nothing else.
-  window.__rtsSim = function (seed, diffA, diffB, maxTicks, facA, facB) {
+  window.__rtsSim = function (seed, diffA, diffB, maxTicks, facA, facB, everyMinute) {
     var prevG = G, prevHeadless = headless, prevState = state;
     headless = true;
     try {
@@ -12590,6 +12658,7 @@
       while (g.tick < cap && !g.over) {
         simStep(g);
         if ((g.tick % 120) === 0) sampleStuck(g);
+        if (everyMinute && (g.tick % 3600) === 0) everyMinute(g);
       }
       return {
         ticks: g.tick, over: g.over,
@@ -12657,7 +12726,7 @@
 
   window.__rtsBuildFactor = function (lane) { return G ? buildFactor(G, P_HUMAN, lane) : 1; };
 
-  window.__rtsTables = { UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS };
+  window.__rtsTables = { UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS, VERSES: VERSES, ARMOURS: ARMOURS, verses: verses, weaponFor: weaponFor, bspecFor: bspecFor };
 
   // --------------------------------------------------------------------- //
   //  Boot

@@ -99,14 +99,14 @@ test("every unit and structure declares the fields the sim reads", () => {
   // a field some path reads but the literal never sets reads as undefined,
   // and `undefined <= 0` is false — a branch that can never run.
   const unitFields = ["name", "em", "cost", "build", "cls", "hp", "spd", "sight",
-    "armour", "dmg", "rate", "rng", "splash", "vs", "cap", "mine", "w", "h", "desc"];
+    "armour", "dmg", "rate", "rng", "splash", "wh", "cap", "mine", "w", "h", "desc"];
   for (const [k, u] of Object.entries(T.UNITS)) {
     for (const f of unitFields) {
       assert.ok(f in u, `UNITS.${k} is missing "${f}"`);
     }
     assert.ok(u.cost > 0 && u.hp > 0 && u.spd > 0, `UNITS.${k} has a nonsense stat`);
   }
-  const bldFields = ["name", "em", "cost", "build", "gw", "gh", "hp", "power", "sight", "makes", "desc"];
+  const bldFields = ["name", "em", "cost", "build", "gw", "gh", "hp", "power", "sight", "makes", "desc", "armour"];
   for (const [k, b] of Object.entries(T.BLDS)) {
     for (const f of bldFields) {
       assert.ok(f in b, `BLDS.${k} is missing "${f}"`);
@@ -116,24 +116,32 @@ test("every unit and structure declares the fields the sim reads", () => {
 });
 
 test("the counter triangle closes — nothing is unanswerable", () => {
+  // RA2 model: damage * VERSES[warhead][armour]. Every warhead a shooter uses
+  // must exist in the table, every armour class on the field must have a
+  // weapon that hits it at full strength (structures: 65%+, RA2 deliberately
+  // makes buildings tough), and no unit may be the best answer to everything.
   const armed = Object.entries(T.UNITS).filter(([, u]) => u.dmg > 0);
   assert.ok(armed.length >= 3, "need a real roster to have counters at all");
+  const group = (cls) => ["none", "flak", "plate"].includes(cls) ? "inf" : ["light", "medium", "heavy"].includes(cls) ? "veh" : "bld";
+  const best = (u, cls) => Math.max(T.verses(u.wh, cls), u.w2 && u.w2.use === group(cls) ? T.verses(u.w2.wh, cls) : 0);
   for (const [name, u] of armed) {
-    assert.ok(u.vs, `${name} deals damage but has no vs table`);
-    for (const cls of ["inf", "veh", "bld"]) {
-      assert.ok(typeof u.vs[cls] === "number", `${name}.vs is missing ${cls}`);
-    }
+    assert.ok(u.wh && T.VERSES[u.wh], `${name} deals damage but its warhead ${u.wh} is not in VERSES`);
+    if (u.w2) assert.ok(T.VERSES[u.w2.wh], `${name}.w2 warhead ${u.w2.wh} is not in VERSES`);
+    assert.ok(T.ARMOURS.includes(u.armour), `${name} has a non-RA2 armour class ${u.armour}`);
   }
-  // Every armour class must have something that beats it, or one build wins
-  // the game outright.
-  for (const cls of ["inf", "veh"]) {
-    const counters = armed.filter(([, u]) => u.vs[cls] >= 1.0);
+  for (const [name, b] of Object.entries(T.BLDS)) {
+    assert.ok(T.ARMOURS.includes(b.armour), `${name} has a non-RA2 armour class ${b.armour}`);
+    if (b.dmg > 0) assert.ok(T.VERSES[b.wh], `${name} fires an unknown warhead ${b.wh}`);
+  }
+  const onField = new Set([...Object.values(T.UNITS).map((u) => u.armour), ...Object.values(T.BLDS).map((b) => b.armour)]);
+  for (const cls of onField) {
+    const need = ["wood", "steel", "concrete"].includes(cls) ? 0.65 : 1.0;
+    const counters = armed.filter(([, u]) => best(u, cls) >= need);
     assert.ok(counters.length > 0, `nothing counters armour class "${cls}"`);
   }
-  // And no unit may be best against everything.
   for (const [name, u] of armed) {
-    const bestAtAll = ["inf", "veh"].every(
-      (cls) => armed.every(([n2, u2]) => n2 === name || u.vs[cls] >= u2.vs[cls])
+    const bestAtAll = ["none", "heavy"].every(
+      (cls) => armed.every(([n2, u2]) => n2 === name || best(u, cls) >= best(u2, cls))
     );
     assert.ok(!bestAtAll, `${name} is the best answer to everything — no counter play`);
   }
@@ -163,8 +171,8 @@ test("both factions are complete and genuinely different", () => {
     // Every armour class must still have an answer WITHIN this faction —
     // an asymmetry that leaves one side unable to deal with vehicles is a
     // broken matchup, not flavour.
-    for (const cls of ["inf", "veh"]) {
-      assert.ok(units.some(([, u]) => u.dmg > 0 && u.vs && u.vs[cls] >= 1.0),
+    for (const cls of ["none", "heavy"]) {
+      assert.ok(units.some(([, u]) => u.dmg > 0 && (T.verses(u.wh, cls) >= 1.0 || (u.w2 && T.verses(u.w2.wh, cls) >= 1.0))),
         `${key} has nothing that counters ${cls}`);
     }
   }
@@ -175,13 +183,13 @@ test("both factions are complete and genuinely different", () => {
   assert.ok(dirOnly >= 2 && colOnly >= 2, "each side needs its own units");
   assert.notEqual(F.dir.defence, F.col.defence, "the defences must differ");
 
-  // The stated identities should be visible in the numbers: Directorate
-  // reaches further, Collective survives longer.
+  // The RA2 identities should be visible in the numbers: the Grizzly is the
+  // fast cheap tank, the Rhino the tougher harder-hitting one (rules.ini).
   const lancer = T.UNITS[F.dir.tank], mammoth = T.UNITS[F.col.tank];
-  assert.ok(lancer.rng > mammoth.rng, "the Directorate tank should outrange");
   assert.ok(lancer.spd > mammoth.spd, "the Directorate tank should be faster");
+  assert.ok(lancer.cost < mammoth.cost, "the Directorate tank should be cheaper");
   assert.ok(mammoth.hp > lancer.hp, "the Collective tank should be tougher");
-  assert.ok(mammoth.splash > lancer.splash, "the Collective tank should splash harder");
+  assert.ok(mammoth.dmg > lancer.dmg, "the Collective tank should hit harder");
   assert.ok(T.UNITS[F.col.inf].cost < T.UNITS[F.dir.inf].cost,
     "Collective infantry should be the cheaper body");
 });
@@ -503,42 +511,40 @@ test("the AI gives up on a building it can never place instead of jamming its la
 
 // ---------------------------------------------------------------- combat //
 
-test("vs-armour multipliers actually change how much damage a hit deals", () => {
-  // fire() -> damage() multiplies UNITS[src].dmg by UNITS[src].vs[armourOf(target)].
-  // If that lookup were ever dropped (or swapped to the ATTACKER's own
-  // armour instead of the target's), a Rocketeer would deal identical damage
-  // to a tank and to a rifleman — the entire point of the vs table.
+test("warhead verses actually change how much damage a hit deals", () => {
+  // fire() -> damage() multiplies the chosen weapon's dmg by
+  // VERSES[warhead][armourOf(target)]. A Guardian GI uses its missile
+  // (GUARDWH) against a vehicle and its rifle (SA) against infantry — if the
+  // lookup or the weapon choice were ever dropped, both would take the same.
   const H = W.__rtsTest;
   const g = H.begin(55011, "normal");
-  const rocket = T.UNITS.rocket;
+  const ggi = T.UNITS.rocket;
 
-  // Pair A: rocket vs. a "veh"-armoured, harmless target — a Harvester has
-  // dmg 0, so it can never fire back and muddy the hp delta.
   const attackerA = H.spawn("rocket", 0, 10, 10);
-  const vehTarget = H.spawn("harvester", 1, 11, 10);
+  const vehTarget = H.spawn("harvester", 1, 11, 10);       // medium armour, cannot shoot back
   attackerA.order = { t: "attack", id: vehTarget.id, x: vehTarget.x, y: vehTarget.y };
 
-  // Pair B: the same attacker type vs. an "inf"-armoured target, far enough
-  // away that findTarget()/near() for pair A never sees it (and vice versa).
   const attackerB = H.spawn("rocket", 0, 60, 60);
-  const infTarget = H.spawn("rifle", 1, 61, 60);
+  const infTarget = H.spawn("rifle", 1, 61, 60);           // armour none
   attackerB.order = { t: "attack", id: infTarget.id, x: infTarget.x, y: infTarget.y };
 
-  H.step(2);   // one shot each: cool starts at 0, rate (62) blocks a second this soon
+  H.step(2);   // one shot each: cool starts at 0, the rate blocks a second this soon
 
   const vehLoss = vehTarget.maxhp - vehTarget.hp;
   const infLoss = infTarget.maxhp - infTarget.hp;
-  assert.ok(vehLoss > 0, "the rocket never hit the vehicle-armour target");
-  assert.ok(infLoss > 0, "the rocket never hit the infantry-armour target");
+  assert.ok(vehLoss > 0, "the missile never hit the vehicle");
+  assert.ok(infLoss > 0, "the rifle never hit the infantry");
+  const expVeh = ggi.w2.dmg * T.verses(ggi.w2.wh, T.UNITS.harvester.armour);
+  const expInf = ggi.dmg * T.verses(ggi.wh, T.UNITS.rifle.armour);
+  assert.ok(Math.abs(vehLoss - expVeh) < 0.5, `expected ${expVeh} damage to a ${T.UNITS.harvester.armour} vehicle, got ${vehLoss}`);
+  assert.ok(Math.abs(infLoss - expInf) < 0.5, `expected ${expInf} damage to unarmoured infantry, got ${infLoss}`);
 
-  assert.ok(Math.abs(vehLoss - rocket.dmg * rocket.vs.veh) < 0.5,
-    `expected ${rocket.dmg * rocket.vs.veh} damage to veh armour, got ${vehLoss}`);
-  assert.ok(Math.abs(infLoss - rocket.dmg * rocket.vs.inf) < 0.5,
-    `expected ${rocket.dmg * rocket.vs.inf} damage to inf armour, got ${infLoss}`);
-
-  const ratio = vehLoss / infLoss, expected = rocket.vs.veh / rocket.vs.inf;
-  assert.ok(Math.abs(ratio - expected) < 0.05,
-    `a Rocketeer should hit vehicles ${expected.toFixed(2)}x harder than infantry, measured ${ratio.toFixed(2)}x`);
+  // And the RA2 truths the table encodes: a GI's rifle barely scratches a
+  // Rhino, a Rhino shell barely scratches a GI, Tesla ignores armour.
+  assert.ok(T.verses("SA", "heavy") <= 0.25, "small arms must be near-useless against heavy armour");
+  assert.ok(T.verses("AP", "none") <= 0.25, "AP shells must be near-useless against infantry");
+  assert.equal(T.verses("Electric", "heavy"), 1.0, "Tesla should ignore heavy armour");
+  assert.equal(T.verses("Electric", "none"), 1.0, "Tesla should ignore infantry armour");
 });
 
 test("splash damage falls on neighbours but never on the attacker's own side", () => {
@@ -563,7 +569,7 @@ test("splash damage falls on neighbours but never on the attacker's own side", (
 
   const attacker = H.spawn("lancer", 0, 20, 20);
   const primary = H.spawn("harvester", 1, 21, 20);          // direct hit
-  const bystander = H.spawn("harvester", 1, 21, 20.3);      // 0.3 tiles off — inside splash (0.4)
+  const bystander = H.spawn("harvester", 1, 21, 20.25);     // 0.25 tiles off — inside splash (0.3)
   const friendly = H.spawn("harvester", 0, 21, 19.7);       // same distance, attacker's own side
 
   // The spatial hash the splash loop queries is built lazily (every few
@@ -585,8 +591,8 @@ test("splash damage falls on neighbours but never on the attacker's own side", (
   // Match the falloff formula itself (dmg * 0.45 * (1 - d/(splash+0.4)),
   // then the target's own vs-multiplier) — a numeric check catches a
   // rewritten formula, not just a dropped sign.
-  const d = 0.3;
-  const expectedSplash = lancer.dmg * 0.45 * (1 - d / (lancer.splash + 0.4)) * lancer.vs.veh;
+  const d = 0.25;
+  const expectedSplash = lancer.dmg * 0.45 * (1 - d / (lancer.splash + 0.4)) * T.verses(lancer.wh, T.UNITS.harvester.armour);
   assert.ok(Math.abs(bystanderLoss - expectedSplash) < 0.5,
     `expected ~${expectedSplash.toFixed(1)} splash damage, got ${bystanderLoss.toFixed(1)}`);
 });
@@ -623,7 +629,7 @@ test("production crawls when unpowered and runs at full speed once power is rest
   assert.ok(barracks, "could not seat a barracks to drive the infantry lane");
   // A lone Barracks (power: -25) with no plant is already running a
   // deficit — exactly the "went negative" case this test guards.
-  assert.ok(g.side[0].powerMade < g.side[0].powerUse, "test setup expects a power deficit");
+  assert.ok(g.side[0].powerMade < g.side[0].powerUse, `test setup expects a power deficit (made ${g.side[0].powerMade}, use ${g.side[0].powerUse})`);
 
   g.side[0].queues.i.list.push("rifle");
   H.step(60);
@@ -649,8 +655,9 @@ test("a defensive structure goes dark on negative power and re-arms once power i
   const s = g.start[0];
 
   H.build("base", 0, s.x - 1, s.y - 1);
-  const sentry = placeNear(H, g, 0, s, "sentry");
-  assert.ok(sentry, "could not seat a Sentry Gun");
+  // RA2's Pillbox draws no power at all, so this uses the Prism Tower (-75).
+  const sentry = placeNear(H, g, 0, s, "prism");
+  assert.ok(sentry, "could not seat a Prism Tower");
   assert.ok(g.side[0].powerMade < g.side[0].powerUse, "test setup expects a power deficit");
 
   // An inert enemy unit (Harvester, dmg 0) close in — it cannot shoot back,
@@ -703,7 +710,7 @@ test("a production lane with no producing structure stalls instead of crashing o
 
   const rebuilt = placeNear(H, g, 0, s, "barracks");
   assert.ok(rebuilt, "could not rebuild a barracks");
-  H.step(600);
+  H.step(60 * 8 * 3);                                   // a GI is 8 s at full power, 2.5x that unpowered
   assert.ok(g.side[0].queues.i.list.length < 2, "rebuilding the producer never resumed the lane");
 });
 

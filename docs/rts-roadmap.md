@@ -84,6 +84,13 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 - ☐ Phase C — superweapons: Chronosphere / Weather Control Device vs Iron Curtain / Nuclear Missile Silo
 - ☑ Tech-tree gating as RA2 (Radar/Airforce → tier 2, Battle Lab → tier 3), sidebar shows prerequisites (v1.19.209)
 
+### Combat model (user, 2026-09-02: "攻击力和血量、装甲等等因素也要全都符合ra2")
+- ☑ RA2 armour classes + warhead Verses table, secondary weapons (Guardian GI missile, Tanya C4), rules.ini strength/cost/speed/sight/ROF/range for every unit and structure, RA2 veterancy multipliers, $10000 start, Chrono/War Miner capacities, Allied Power Plant vs Tesla Reactor (v1.19.212)
+- ☐ Air-layer items (Rocketeer, Harrier, Kirov, Patriot, Flak Cannon, Flak Trooper) get their rules.ini numbers on merge; AA secondaries for IFV / Flak Track / Apocalypse
+- ☐ `spectre` is not an RA2 unit — replace it with the Prism Tank (art + stats)
+- ☐ MCV / deployable Construction Yard; Ore Purifier +25% and Service Depot repair already follow rules.ini
+- ☐ RA2 build-time discount for extra factories (MultipleFactory=0.8) and low-power production penalty curve (currently a flat 0.4×)
+
 ### Terrain and maps (user, 2026-09-02: "build real terrains like RA2, instead of the current plain surface with blocked areas; support multiple maps")
 - ☑ Terrain step 1: water with shimmer, shorelines, cliffs (raised, block movement), roads, trees as occluding objects, snow theatre (v1.19.210)
 - ☑ Terrain art pass against RA2 tileset references (`docs/ra2-ref/terr-*.png`): seamless 256×128 ground sheets cut into 64 position-indexed tiles, 32 px cliff faces with 16 edge masks, animated water + shallows, shore/road overlays, rock sheets with scree, 4 tree variants per theatre; rocks/trees never land on water or against a cliff, ridges are 3-wide plateaus (v1.19.211)

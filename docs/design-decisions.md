@@ -5187,3 +5187,37 @@ original exact-bytes test stayed green through the whole breakage.
   ratio of a PNG, with a background-colour key for the prepared refs).
 - **Rule:** proportion feedback is a measurement, not an opinion. Compute the
   reference ratio first; then argue about shape.
+
+## RTS combat is RA2's rules.ini, not a three-class multiplier table
+
+- **Symptom:** (user, 2026-09-02) "攻击力和血量、装甲等等因素也要全都符合ra2" —
+  every unit's strength, armour, damage, rate of fire, range, speed and cost
+  must be Red Alert 2's. The sim had hand-tuned numbers and a `vs:
+  {inf, veh, bld}` multiplier per shooter, which cannot express RA2 (a GI's
+  rifle does 25% to a Rhino but 50% to an IFV; Tesla ignores armour; Tanya's
+  pistols do 200% to unarmoured infantry and 1% to everything else).
+- **Fix:** the RA2 model verbatim. Nine armour classes (`none/flak/plate`
+  infantry, `light/medium/heavy` vehicles, `wood/steel/concrete` structures)
+  on every spec, a `VERSES` table keyed by warhead, and
+  `damage = dmg × VERSES[wh][armourOf(target)] / 100`. Units with an RA2
+  secondary weapon carry `w2: {…, use: 'veh'|'bld'|'inf'}` and `weaponFor()`
+  picks it by the target's armour group (Guardian GI missile vs armour, Tanya
+  C4 vs structures). Numbers come straight from rules.ini (compiled into a
+  JSON by a research pass; the values not in the wiki — Conyard, Refinery,
+  Barracks, War Factory, Depot, Lab, miners — are the well-known ones).
+  Conversions: ROF frames ×4 (15 fps → 60 ticks/s), range cells = tiles,
+  `spd = 0.013 × Speed` (keeps a GI at the pace the game already had), build
+  time = cost × 0.042 s (BuildSpeed=.7 min per $1000). Veterancy is
+  VeteranCombat 1.1 / VeteranArmor 1.5 per rank. Start credits 10000, miners
+  carry 500 (Chrono) / 1000 (War Miner) at ~1 bail/s.
+- **Per-faction structure specs:** RA2's Allied Power Plant ($800, +200) and
+  Tesla Reactor ($600, +150) are one key (`power`) with a `byFac` override;
+  everything that reads cost/power/name for a *placed* building goes through
+  `bspecOf(g, key, p)`, and the sidebar through `bspecFor(key, fac)`. Do not
+  read `BLDS[key].cost` for a Soviet building directly.
+- **Rejected:** keeping `vs` and tuning it toward RA2 — it is not expressive
+  enough (see the examples above), and the tests that asserted a "counter
+  triangle" on three classes were encoding a design RA2 does not have. The
+  tests now assert RA2 truths (small arms ≤25% vs heavy, AP ≤25% vs
+  infantry, Electric 100% vs both) and that every armour class on the field
+  has a full-strength answer (structures: 65%+, RA2 makes them tough).
