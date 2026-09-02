@@ -379,9 +379,16 @@ def test_window_mode_switch_lives_only_in_the_taskbar():
     assert "winmode" not in src, \
         "a Start-menu row for the window toggle is back — the button is its only surface"
     assert 'id="tidy-btn"' not in src, \
-        "the ▦ Tidy button is back — tidying is folded into the toggle (on again = even split)"
-    assert re.search(r"if \(WM_FLAG\) tidyWindows\(\);", src), \
-        "turning floating windows ON no longer re-tiles, so nothing replaces ▦ Tidy"
+        "the ▦ Tidy button is back — tiling lives in the right-click layout palette, not a button"
+    # Turning floating windows ON floats the CURRENT app at max size; it does NOT
+    # auto-tile everything (that used to be `if (WM_FLAG) tidyWindows();`).
+    # Arranging is explicit, via the RIGHT-CLICK layout palette on the 🗔 button.
+    assert "if (WM_FLAG) tidyWindows();" not in src, \
+        "turn-on should no longer auto-tile — it maximizes the current window instead"
+    assert re.search(r"if \(WM_FLAG && active\)", src), \
+        "turn-on must float the current app (maximize the active window)"
+    assert re.search(r"addEventListener\('contextmenu'", src), \
+        "the layout palette must open on right-click of the 🗔 button"
 
 
 def test_login_location_sets_frame_ancestors():

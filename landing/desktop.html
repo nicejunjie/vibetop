@@ -191,12 +191,11 @@
   .start-btn.open { box-shadow: 0 0 0 2px rgba(210,105,30,0.5) inset; filter: brightness(1.12); }
   .start-btn .icon { font-size: 18px; line-height: 1; }
 
-  /* THE window control — one icon, and the only one. 🗔 is a plain on/off toggle;
-     there is no Start-menu row and no second button. Tidying is folded into it:
-     turning windows ON always lays them out in an even split, so "reset my messy
-     layout" is tap-off, tap-on. That replaced a separate ▦ Tidy button — the bar
-     having two window icons was the standing complaint, and one of them was doing
-     a job the toggle could absorb. Phones show nothing: the mode needs a
+  /* THE window control — one icon, and the only one. Left-click 🗔 = plain on/off
+     toggle; turning ON just floats the CURRENT app at max size (it does NOT auto-
+     tile everything — arranging is explicit). Right-click 🗔 opens the layout
+     palette (Halves, Thirds, Quarters…), which is where tiling lives now. There is
+     no Start-menu row and no second button. Phones show nothing: the mode needs a
      tablet-sized screen. */
   .wm-btn {
     display: none; align-items: center; justify-content: center; flex-shrink: 0;
@@ -1376,8 +1375,12 @@
   // function the palette preview paints from, so what you saw IS what you get.
   function applyLayout(key, arg) {
     forgetShowDesktop();
-    var zones = window.VibeWin && VibeWin.layoutGeoms(key, frameBox());
+    var lbox = frameBox();
+    var zones = window.VibeWin && VibeWin.layoutGeoms(key, lbox);
     if (!zones) return;
+    // Gap the zones: MARGIN at the frame, MARGIN/2 between windows (kept identical
+    // to the recognition path in showLayouts so a placed layout reads back as itself).
+    zones = VibeWin.gapZones(zones, lbox, VibeWin.MARGIN, VibeWin.MARGIN / 2);
     var vis = openApps.filter(function (id) { return !(wins[id] && wins[id].min); });
     if (!vis.length) return;
     // `arg` is either an explicit zone->window assignment (from the palette's
@@ -1473,7 +1476,12 @@
       // painted board (one shared pure-function path), so the board cannot lie.
       var grid = document.createElement('div'); grid.className = 'wl-grid';
       grid.title = L.name + ' — select, rearrange by drag, then Apply';
-      var zonesPx = VibeWin.layoutGeoms(L.key, frameBox());
+      // Gap the zones the SAME way applyLayout places them, so a layout that was
+      // applied reads back as itself (the windows sit on the gapped zones, not the
+      // flush ones).
+      var obox = frameBox();
+      var zonesPx = VibeWin.layoutGeoms(L.key, obox);
+      if (zonesPx) zonesPx = VibeWin.gapZones(zonesPx, obox, VibeWin.MARGIN, VibeWin.MARGIN / 2);
       var occ = zonesPx && VibeWin.zoneOccupancy(zonesPx, visGeoms);
       staged[L.key] = (occ || VibeWin.zoneAssign(vis, active, L.zones.length, 0)).slice();
       if (occ) selected = L.key;               // the palette opens on where you are
@@ -1749,14 +1757,18 @@
       vis = openApps.filter(function(id) { return keep.indexOf(id) !== -1; });   // keep taskbar order
       renderTaskbar();
     }
-    var geoms = VibeWin.tileGrid(vis.length, frameBox());
-    var GAP = 8;   // inset each tile so its resize grips never sit at the extreme frame edge
+    // Frame-edge gap = MARGIN; seam between tiles = MARGIN/2 (half the margin),
+    // via gapZones — the same gapping the ▢ palette uses, so tiled and snapped
+    // layouts look identical.
+    var box = frameBox();
+    var geoms = VibeWin.gapZones(VibeWin.tileGrid(vis.length, box), box,
+                                 VibeWin.MARGIN, VibeWin.MARGIN / 2);
     vis.forEach(function(id, i){
       var g = winGeom(id), t = geoms[i];
       g.max = false; g.prev = null;
-      g.left = t.left + GAP; g.top = t.top + GAP;
-      g.width = Math.max(VibeWin.MINW, t.width - 2 * GAP);
-      g.height = Math.max(VibeWin.MINH, t.height - 2 * GAP);
+      g.left = t.left; g.top = t.top;
+      g.width = Math.max(VibeWin.MINW, t.width);
+      g.height = Math.max(VibeWin.MINH, t.height);
     });
     renderWindows();
     vis.forEach(nudgeResize);
@@ -1771,14 +1783,16 @@
   function toggleWindowMode() {
     WM_FLAG = !WM_FLAG;
     try { localStorage.setItem('vibetop:wm', WM_FLAG ? '1' : '0'); } catch (e) {}
+    // Turning ON no longer auto-tiles everything. Just float the CURRENT app at
+    // max size (filling the frame minus the edge gap) and leave the rest where
+    // they are — arranging is now an explicit choice (right-click the 🗔 for a
+    // layout). markUserArranged so the auto-tiler doesn't undo this on the next
+    // app open.
+    if (WM_FLAG && active) {
+      var g = winGeom(active); g.min = false; g.max = true; g.z = ++zTop;
+      markUserArranged(active);
+    }
     renderWindows(); renderTaskbar(); applyWinModeMenu();
-    // Turning ON lays everything out evenly — this is where the ▦ Tidy button went.
-    // It runs AFTER renderWindows() because tileGrid measures the live frameBox(),
-    // and it deliberately ignores the user-arranged guard that autoTileIfUntouched
-    // respects: an explicit tap on the switch IS the request to re-tile. The cost,
-    // accepted knowingly: a hand-made layout does not survive an off/on cycle —
-    // which is exactly what makes tap-off/tap-on the way to reset one.
-    if (WM_FLAG) tidyWindows();
     if (WM_FLAG) { var cur = active; setTimeout(function(){ maybeWinTip(); if (cur) coachForApp(cur); }, 300); }
   }
   // Sync the toggle's single surface: the taskbar button. What the Start-menu row

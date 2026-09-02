@@ -142,6 +142,28 @@ test("tileGrid: 3 windows fall back to 2 columns when 3 will not fit at MINW", (
   assert.equal(g[2].left, 0);                                 // third drops to its own row
 });
 
+test("gapZones: margin at the frame, half-margin seam between windows", () => {
+  // Two halves of a 1400x800 frame, margin 12 / seam 6 (= 50% of the margin).
+  const g = W.gapZones(W.tileGrid(2, BOX), BOX, 12, 6);
+  assert.deepEqual(g[0], { left: 12, top: 12, width: 685, height: 776 });  // 700-12-3
+  assert.deepEqual(g[1], { left: 703, top: 12, width: 685, height: 776 }); // 700+3 .. 1400-12
+  assert.equal(g[1].left - (g[0].left + g[0].width), 6);  // seam between = 6
+  assert.equal(g[0].left, 12);                             // left frame gap = margin
+  assert.equal(BOX.w - (g[1].left + g[1].width), 12);     // right frame gap = margin
+  assert.equal(g[0].top, 12);
+  assert.equal(BOX.h - (g[0].top + g[0].height), 12);
+});
+
+test("gapZones: one tile becomes maximize-with-margin; interior seams are exactly gap", () => {
+  const one = W.gapZones(W.tileGrid(1, BOX), BOX, 12, 6)[0];
+  assert.deepEqual(one, { left: 12, top: 12, width: 1376, height: 776 });  // frame minus margin
+  // 2x2 quads: the shared vertical and horizontal seams are both `gap`.
+  const q = W.gapZones(W.tileGrid(4, BOX), BOX, 12, 6);
+  assert.equal(q[1].left - (q[0].left + q[0].width), 6);   // vertical seam
+  assert.equal(q[2].top - (q[0].top + q[0].height), 6);    // horizontal seam
+  q.forEach((z) => { assert.ok(z.left >= 12 && z.top >= 12); });
+});
+
 // ---- snap layouts (the ▢ palette) -----------------------------------------
 
 test("layoutGeoms: zones tile the box exactly, with no gaps or overlap", () => {
