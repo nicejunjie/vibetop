@@ -1215,7 +1215,11 @@
     lancer:    '#3a3f4c',   // neutral grey deck insets on a pale hull
     mammoth:   '#17181c',   // gun-black twin barrels
     spectre:   '#dfe9f5',   // small mirror face on a grey head
-    harv:      '#b0955a'    // tan slatted ore bin
+    harv:      '#b0955a',   // tan slatted ore bin
+    engineer:  '#e8c33c',   // amber hard hat — the engineer's one loud surface
+    tanya:     '#2c1e16',   // near-black hair, the only bare head on the field
+    ifv:       '#e6eaf0',   // white lower body under the blue flank stripe
+    mirage:    '#e9edf2'    // the ribbed white emitter stack on the deck
   };
 
   function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
@@ -1238,7 +1242,9 @@
     rifle:     { coat: '#4f6136', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
     conscript: { coat: '#7d5148', boot: '#1e2026', skin: '#d8a878' },  // brown-maroon trousers
     rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
-    rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' }   // Flak Trooper: grey-brown
+    rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
+    engineer:  { coat: '#8a7c4c', boot: '#26282e', skin: '#d8a878' },  // khaki work trousers
+    tanya:     { coat: '#666a44', boot: '#1c1e24', skin: '#e6b98f' }   // olive combat trousers
   };
 
   // THE WALK. bakeInfantry is baked three times per unit and drawUnit cycles
@@ -1558,6 +1564,182 @@
       g.fillRect(cx - 3.4, by - 19.9, 6.8, 0.9);
       g.restore();
 
+    } else if (kind === 'engineer') {
+      // ENGINEER, read off the RA2 walk frames (engineer-frames.png): a hi-vis
+      // house-colour WAISTCOAT over a light work shirt, khaki trousers on a
+      // brown tool belt, and the tell no other infantryman has — a
+      // house-colour TOOLBOX swinging from one hand at hip height. RA2 shares
+      // one Engineer sprite between the armies, so only the headgear splits:
+      // the Directorate's amber hard hat (with the moulded crest ridge that
+      // names it at 1:1), the Collective's soft grey field cap.
+      var SHIRT = '#d8d4c6';
+      legs(2.8, by - 11.0, 3.9, T.coat, 4.3);
+
+      g.save(); g.translate(gt.lean, gt.bob);
+      g.fillStyle = SHIRT;                                          // light work shirt
+      g.beginPath();
+      g.moveTo(cx - 5.0, by - 19.4); g.lineTo(cx + 5.0, by - 19.4);
+      g.lineTo(cx + 4.6, by - 10.6); g.lineTo(cx - 4.6, by - 10.6);
+      g.closePath(); g.fill(); outline(g, shade(SHIRT, 0.52));
+      g.fillStyle = '#6d5230';                                      // brown tool belt
+      g.fillRect(cx - 4.8, by - 12.6, 9.6, 1.7);
+      g.fillStyle = '#c9a94a';                                      // brass buckle
+      g.fillRect(cx - 0.9, by - 12.4, 1.9, 1.3);
+      g.fillStyle = '#8d9099';                                      // spanner on the belt
+      g.fillRect(cx + 2.6, by - 12.4, 2.4, 1.3);
+
+      // The waistcoat is TWO front panels with the shirt showing between them
+      // and over both shoulders. Painting the whole torso ran him to a third
+      // solid house-colour mass and buried the shirt that dates him as a
+      // workman rather than a soldier.
+      for (var ev = -1; ev <= 1; ev += 2) {
+        g.fillStyle = col;
+        g.beginPath();
+        g.moveTo(cx + ev * 0.45, by - 19.6); g.lineTo(cx + ev * 5.2, by - 19.6);
+        g.lineTo(cx + ev * 4.7, by - 12.4); g.lineTo(cx + ev * 0.7, by - 12.4);
+        g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+        g.fillStyle = shade(col, ev < 0 ? 1.22 : 0.76);             // lit / shaded panel
+        g.fillRect(cx + (ev < 0 ? -4.9 : 2.2), by - 19.4, 2.6, 6.6);
+      }
+      g.fillStyle = SHIRT;                                          // shirt at the left collar
+      g.beginPath();
+      g.moveTo(cx - 5.1, by - 19.7); g.lineTo(cx - 2.6, by - 19.7);
+      g.lineTo(cx - 3.9, by - 17.4); g.lineTo(cx - 5.1, by - 17.6);
+      g.closePath(); g.fill();
+
+      arms(5.3, by - 18.4, 2.8, 6.4, SHIRT, function (i, x, y) {
+        g.fillStyle = '#b58a52';                                    // tan work glove
+        g.beginPath(); g.roundRect(x - 1.5, y + 5.6, 3.0, 2.2, 0.8); g.fill();
+        outline(g, '#6d5027');
+        if (i > 0) {                                                // the toolbox, hand-carried
+          var tbx = x + 0.1, tby = y + 7.2;
+          g.strokeStyle = '#2a2d33'; g.lineWidth = 1.1; g.lineCap = 'round';
+          g.beginPath(); g.arc(tbx, tby + 0.9, 2.3, Math.PI, 0.05); g.stroke();
+          g.fillStyle = col;
+          g.beginPath(); g.roundRect(tbx - 3.5, tby, 7.0, 4.9, 0.8); g.fill();
+          outline(g, shade(col, 0.38));
+          g.fillStyle = shade(col, 1.22);                           // lit lid
+          g.fillRect(tbx - 3.2, tby + 0.3, 6.4, 1.1);
+          g.fillStyle = shade(col, 0.74);                           // latch band
+          g.fillRect(tbx - 3.3, tby + 2.7, 6.6, 1.0);
+          g.fillStyle = '#8d9099';                                  // steel catch
+          g.fillRect(tbx - 0.7, tby + 2.5, 1.4, 1.5);
+        }
+      });
+
+      face(by - 22.2);
+      if (sov) {
+        // soft field cap: a low crown and a long forward peak, so the
+        // silhouette is flat where every other Collective head is a dome
+        var CAP = '#7d838d';
+        g.fillStyle = CAP;
+        g.beginPath(); g.ellipse(cx, by - 22.6, 4.0, 2.2, 0, Math.PI, 0); g.fill();
+        g.fillRect(cx - 4.0, by - 22.6, 8.0, 1.0);
+        outline(g, shade(CAP, 0.42));
+        g.fillStyle = shade(CAP, 0.46);                             // forward peak
+        g.beginPath();
+        g.moveTo(cx - 4.1, by - 22.3); g.lineTo(cx + 4.1, by - 22.3);
+        g.lineTo(cx + 3.3, by - 21.1); g.lineTo(cx - 3.3, by - 21.1);
+        g.closePath(); g.fill(); outline(g, shade(CAP, 0.30));
+        g.fillStyle = shade(CAP, 0.80);
+        g.fillRect(cx - 3.9, by - 22.2, 7.8, 0.6);
+        // A brass cap badge, not a red one: on a BLUE-owned Collective
+        // engineer a red star is a saturated opposing hue on the figure's
+        // most-read surface, and friend-or-foe is worth more than the badge.
+        g.fillStyle = '#b8912e';
+        g.beginPath(); g.ellipse(cx, by - 23.4, 1.0, 0.9, 0, 0, 6.29); g.fill();
+        g.fillStyle = shade(CAP, 1.34);                             // lit crown
+        g.beginPath();
+        g.ellipse(cx - 1.3, by - 23.6, 1.7, 0.8, -0.35, 0, 6.29); g.fill();
+      } else {
+        helmet(by - 23.0, 4.0, ACCENT.engineer, 1.5);               // amber hard hat
+        g.fillStyle = shade(ACCENT.engineer, 0.72);                 // moulded crest ridge
+        g.fillRect(cx - 0.8, by - 27.1, 1.6, 3.9);
+        g.fillStyle = shade(ACCENT.engineer, 0.56);                 // brim shadow line
+        g.fillRect(cx - 4.6, by - 22.5, 9.2, 0.8);
+      }
+      g.restore();
+
+    } else if (kind === 'tanya') {
+      // TANYA, read off Tanya_animation.gif: shoulder-length BLACK hair on a
+      // bare head — the only unhelmeted figure on the field — bare arms, a
+      // house-colour top across the chest, olive combat trousers with pale
+      // thigh pouches, and a pistol in each hand held low. Twin pistols plus
+      // the bare dark head is the whole read at 1:1: hers is the only
+      // infantry silhouette with no helmet dome and nothing slung over a
+      // shoulder to break the outline.
+      legs(2.6, by - 10.6, 3.4, T.coat, 3.9);
+
+      g.save(); g.translate(gt.lean, gt.bob);
+      g.fillStyle = T.skin;                                         // bare shoulders + midriff
+      g.beginPath();
+      g.moveTo(cx - 4.4, by - 19.4); g.lineTo(cx + 4.4, by - 19.4);
+      g.lineTo(cx + 3.9, by - 11.0); g.lineTo(cx - 3.9, by - 11.0);
+      g.closePath(); g.fill(); outline(g, '#9a6f47');
+      g.fillStyle = shade(T.coat, 1.06);                            // trouser waistband
+      g.fillRect(cx - 4.1, by - 12.8, 8.2, 2.2);
+      g.fillStyle = '#2a2c32';                                      // belt
+      g.fillRect(cx - 4.2, by - 13.4, 8.4, 1.2);
+      g.fillStyle = '#c9a94a';
+      g.fillRect(cx - 0.8, by - 13.3, 1.7, 1.1);
+      for (var tp = -1; tp <= 1; tp += 2) {                         // pale thigh pouches
+        g.fillStyle = '#9aa07a';
+        g.beginPath(); g.roundRect(cx + tp * 3.1 - 1.4, by - 12.4, 2.8, 3.4, 0.9); g.fill();
+        outline(g, '#4d5236');
+        g.fillStyle = '#bcc19c';
+        g.fillRect(cx + tp * 3.1 - 1.1, by - 12.2, 2.2, 0.9);
+      }
+
+      g.fillStyle = col;                                            // fitted house-colour top
+      g.beginPath();
+      g.moveTo(cx - 5.0, by - 20.8); g.lineTo(cx + 5.0, by - 20.8);
+      g.lineTo(cx + 3.9, by - 12.9); g.lineTo(cx - 3.9, by - 12.9);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      g.fillStyle = shade(col, 1.22);                               // lit left panel
+      g.fillRect(cx - 4.8, by - 20.6, 3.4, 7.2);
+      g.fillStyle = shade(col, 0.76);                               // shaded right fold
+      g.fillRect(cx + 1.7, by - 20.2, 2.7, 6.6);
+      g.fillStyle = shade(col, 0.66);                               // collar shadow
+      g.fillRect(cx - 4.9, by - 20.7, 9.8, 0.8);
+      g.strokeStyle = '#2f3138'; g.lineWidth = 1.0; g.lineCap = 'butt';
+      g.beginPath();                                                // thin holster sling
+      g.moveTo(cx - 2.4, by - 20.6); g.lineTo(cx + 1.4, by - 15.4); g.stroke();
+
+      arms(5.1, by - 18.8, 2.2, 6.2, T.skin, function (i, x, y) {
+        g.fillStyle = '#3a3d45';                                    // fingerless glove
+        g.beginPath(); g.roundRect(x - 1.2, y + 5.5, 2.4, 2.0, 0.7); g.fill();
+        // The pistol hangs MUZZLE-DOWN at her side, canted out from the
+        // thigh. Held level it merged with the other hand into one dark bar
+        // straight across the hips and read as a belt, not as two guns.
+        var gxp = x + i * 0.7, gyp = y + 7.2;
+        g.strokeStyle = '#1b1d22'; g.lineWidth = 1.8; g.lineCap = 'butt';
+        g.beginPath();
+        g.moveTo(gxp, gyp); g.lineTo(gxp + i * 1.3, gyp + 4.2); g.stroke();
+        g.fillStyle = '#2b2e35';                                    // grip, canted back
+        g.beginPath();
+        g.moveTo(gxp - i * 1.3, gyp - 0.4); g.lineTo(gxp + i * 0.5, gyp - 0.4);
+        g.lineTo(gxp + i * 0.9, gyp + 1.6); g.lineTo(gxp - i * 0.7, gyp + 1.6);
+        g.closePath(); g.fill();
+        g.fillStyle = '#a7afba';                                    // slide glint
+        g.fillRect(gxp + i * 0.5 - 0.5, gyp + 1.0, 1.0, 2.6);
+      });
+
+      face(by - 22.8);
+      g.fillStyle = ACCENT.tanya;                                   // black hair, shoulder length
+      g.beginPath(); g.arc(cx, by - 23.4, 3.9, Math.PI, 0); g.fill();
+      g.fillRect(cx - 3.9, by - 23.6, 7.8, 1.7);
+      for (var hl = -1; hl <= 1; hl += 2) {                         // side locks to the collar
+        g.beginPath();
+        g.moveTo(cx + hl * 3.8, by - 23.8); g.lineTo(cx + hl * 4.1, by - 19.6);
+        g.lineTo(cx + hl * 2.4, by - 20.0); g.lineTo(cx + hl * 2.6, by - 23.5);
+        g.closePath(); g.fill();
+      }
+      outline(g, '#140d09');
+      g.fillStyle = shade(ACCENT.tanya, 1.95);                      // crown highlight
+      g.beginPath();
+      g.ellipse(cx - 1.3, by - 24.6, 1.8, 0.9, -0.35, 0, 6.29); g.fill();
+      g.restore();
+
     } else {
       // GI: an OLIVE soldier wearing a house-colour helmet and a narrow chest
       // plate — colour on the two smallest surfaces, everything else
@@ -1648,11 +1830,15 @@
     if (kind === 'lancer')       { hull = '#acb2bc'; deck = '#3a3f4c'; }   // pale silver-grey
     else if (kind === 'spectre') { hull = '#565c66'; deck = '#33373f'; }   // neutral grey
     else if (kind === 'mammoth') { hull = '#767963'; deck = '#4a4c3b'; }   // olive
+    else if (kind === 'ifv')     { hull = '#c4cad4'; deck = '#5d646f'; }   // white body, grey cab
+    else if (kind === 'mirage')  { hull = '#4a505b'; deck = '#2b2f37'; }   // dark neutral slate
     else                         { hull = sov ? '#4c515a' : '#40454e'; deck = '#2a2e35'; }
     var dark = shade(hull, 0.40);
-    var turreted = kind === 'lancer' || kind === 'spectre' || kind === 'mammoth';
+    var turreted = kind === 'lancer' || kind === 'spectre' || kind === 'mammoth' ||
+                   kind === 'ifv';
     // Deck height the turret ring stands on — per kind, facing-independent.
-    var RING = kind === 'mammoth' ? 12.6 : (kind === 'spectre' ? 7.4 : 8.4);
+    var RING = kind === 'mammoth' ? 12.6 : (kind === 'spectre' ? 7.4 :
+               (kind === 'ifv' ? 8.0 : 8.4));
 
     // part: 'a' = hull+turret in one canvas (the fallback strip), 'h' = hull
     // only, 't' = turret only on a transparent sheet. Same canvas, same
@@ -1673,9 +1859,14 @@
       // The Grizzly is narrowed (not shortened): at 17 wide against 30 long it
       // was almost square in plan and read as a Rhino. The War Miner is a size
       // class up on the Chrono Miner, which is half of telling them apart.
-      var len = kind === 'mammoth' ? 33 : (kind === 'harv' ? (sov ? 36 : 33) : 30);
+      // The IFV is a size class DOWN on every tank: 26x15 against the
+      // Grizzly's 30x15 is the RA2 ratio, and it is half of telling a rocket
+      // buggy from a light tank at 1:1.
+      var len = kind === 'mammoth' ? 33 : (kind === 'harv' ? (sov ? 36 : 33) :
+                (kind === 'ifv' ? 26 : 30));
       var wid = kind === 'mammoth' ? 22 : (kind === 'harv' ? (sov ? 22 : 18) :
-                (kind === 'lancer' ? 15 : 17));
+                (kind === 'lancer' ? 15 : (kind === 'ifv' ? 15 :
+                (kind === 'mirage' ? 19 : 17))));
       if (wantH) shadowBlob(g, cx, by, len * 0.46, wid * 0.31);
 
       // --- primitives -----------------------------------------------------
@@ -1821,6 +2012,51 @@
         var off = wid * 0.40;
         for (var side = -1; side <= 1; side += 2)
           trackRun(cx + px * off * side, by - 1 + py * off * side, tl, tw, th2, wheelCol);
+      }
+      // WHEELS, for the one wheeled vehicle in the fleet. A road wheel is a
+      // disc standing VERTICALLY in the plane that contains the forward axis,
+      // so its outline is the ellipse swept by (forward * cos t, -up * sin t)
+      // — which collapses to a circle broadside and to a thin edge-on sliver
+      // head-on, exactly as it should. Reusing trackRun's ground-plane
+      // ellipse instead drew six pancakes lying in the mud.
+      // A tyre is not a flat disc: swept sideways by its own width, so that
+      // HEAD-ON, where the disc collapses to a line, the tread band still
+      // reads. The first pass drew the bare disc and the two head-on facings
+      // came back with six black hairlines poking below the hull.
+      function wheelDisc(wx, wy, r, hw, tyre, rim) {
+        var i3, t3, k3;
+        function ring(ox, oy, rr) {
+          g.beginPath();
+          for (i3 = 0; i3 <= 16; i3++) {
+            t3 = i3 / 16 * 6.2832;
+            var qx = ox + fx * rr * Math.cos(t3);
+            var qy = oy + fy * rr * Math.cos(t3) - rr * Math.sin(t3);
+            if (i3 === 0) g.moveTo(qx, qy); else g.lineTo(qx, qy);
+          }
+          g.closePath();
+        }
+        for (k3 = -1; k3 <= 1; k3++) {                               // tread band
+          ring(wx + px * hw * k3, wy + py * hw * k3, r);
+          g.fillStyle = k3 < 0 ? shade(tyre, 0.7) : tyre; g.fill();
+        }
+        ring(wx + px * hw * nearS, wy + py * hw * nearS, r);          // near sidewall
+        g.fillStyle = tyre; g.fill();
+        g.strokeStyle = '#07080a'; g.lineWidth = 0.7; g.stroke();
+        ring(wx + px * hw * nearS, wy + py * hw * nearS, r * 0.44);   // pale hub
+        g.fillStyle = rim; g.fill();
+      }
+      // Three tyres a side, near side drawn last so it caps the far row.
+      function wheels(wb, r, n) {
+        var off = wid * 0.40, i3, side, ws = [];
+        for (side = -1; side <= 1; side += 2)
+          for (i3 = 0; i3 < n; i3++) {
+            var u3 = (i3 - (n - 1) / 2) * (wb / (n - 1));
+            ws.push([cx + fx * u3 + px * off * side,
+                     by - r * 0.84 + fy * u3 + py * off * side]);
+          }
+        ws.sort(function (m, n2) { return m[1] - n2[1]; });
+        for (i3 = 0; i3 < ws.length; i3++)
+          wheelDisc(ws[i3][0], ws[i3][1], r, 0.62, '#14161a', '#8b929d');
       }
       // Hull: dark underbody, body box, raked glacis, lit contour.
       function chassis(hx, hy, hl2, hw2, h, body, edge, rake) {
@@ -2161,6 +2397,160 @@
             barrel(mz[0] + px * 3.9 * bs, mz[1] + py * 3.9 * bs, 17.0, 1.75, 1.0, '#15161a');
           }
         }
+
+      } else if (kind === 'ifv') {
+        // IFV — the only WHEELED thing in the fleet: three rubber tyres a
+        // side under a short PALE body, a dark raked windscreen filling the
+        // nose, one house-colour stripe running the full length of the
+        // flank, and a boxy grey mount on the back deck carrying a BUNDLE of
+        // six rocket tubes angled up and forward. Six wheels plus that tube
+        // bundle is the whole read at 1:1, and both survive at 15 px.
+        if (wantH) {
+          wheels(len * 0.72, 2.6, 3);
+          chassis(cx, by - 1.0, len * 0.84, wid * 0.66, 3.6, hull, dark, 2.8);
+          // the cab: set back off the nose, one value darker than the body
+          isoBox(g, cx - fx * 2.0, by - 4.6 - fy * 2.0, len * 0.60, wid * 0.60, 4.6, a,
+                 deck, dark);
+          isoBox(g, cx - fx * 2.0, by - 9.2 - fy * 2.0, len * 0.52, wid * 0.52, 1.2, a,
+                 shade(deck, 1.16), dark);                    // cab roof
+          // windscreen: a dark slab across the cab's front face. Tinting it
+          // pale blue (the first attempt) put an opposing hue on the RED
+          // player's buggy, so the glass is neutral graphite with a grey glint.
+          var wsx = cx + fx * 4.2, wsy = by - 5.2 + fy * 4.2;
+          isoBox(g, wsx, wsy, 1.4, wid * 0.56, 3.8, a, '#242a32', '#0f1216');
+          g.fillStyle = 'rgba(214,220,228,.34)';
+          g.beginPath();
+          g.ellipse(wsx + fx * 0.5, wsy - 2.6 + fy * 0.5, 3.0, 1.2, 0, 0, 6.29); g.fill();
+          for (sg = -1; sg <= 1; sg += 2)                     // full-length flank stripe
+            isoBox(g, cx + px * wid * 0.36 * sg, by - 2.6 + py * wid * 0.36 * sg,
+                   len * 0.82, 1.5, 2.7, a, panel, PEDGE);
+          for (sg = -1; sg <= 1; sg += 2)                     // colour panel on the cab side
+            isoBox(g, cx - fx * 2.4 + px * wid * 0.31 * sg,
+                   by - 7.4 - fy * 2.4 + py * wid * 0.31 * sg,
+                   len * 0.44, 1.3, 2.8, a, panel, PEDGE);
+          bumper(len * 0.41, wid * 0.22, by - 1.4);
+          for (i2 = -1; i2 <= 1; i2 += 2)
+            lamp(cx + fx * len * 0.39 + px * wid * 0.24 * i2,
+                 by - 3.6 + fy * len * 0.39 + py * wid * 0.24 * i2);
+          exhaust(cx - fx * len * 0.40, by - 4.2 - fy * len * 0.40);
+        }
+        if (wantT) {
+          var ivx = cx - fx * 1.6, ivy = by - RING - fy * 1.6;
+          prism(ivx, ivy, [[3.0, -3.2], [3.0, 3.2], [-3.4, 2.7], [-3.4, -2.7]],
+                2.8, shade(deck, 1.08), dark);                // launcher mount
+          for (sg = -1; sg <= 1; sg += 2)                     // colour cheeks on the mount
+            prism(ivx, ivy - 0.4,
+                  [[2.6, 2.4 * sg], [-3.0, 2.0 * sg], [-3.0, 3.3 * sg], [2.6, 3.7 * sg]],
+                  2.0, panel, PEDGE);
+          // the bundle: two rows of three tubes, sorted far-to-near so the
+          // near tube caps the one behind it. Drawn as one block with two
+          // holes punched in it (the first attempt) it read as a toolbox.
+          var tub = [];
+          for (i2 = 0; i2 < 2; i2++)
+            for (sg = -1; sg <= 1; sg++) {
+              var tb = ivy - 3.0 - i2 * 2.0;
+              tub.push([[ivx + fx * -1.6 + px * sg * 2.4, tb + fy * -1.6 + py * sg * 2.4],
+                        [ivx + fx * 4.8 + px * sg * 2.4, tb - 3.6 + fy * 4.8 + py * sg * 2.4]]);
+            }
+          tub.sort(function (m, n) { return m[1][1] - n[1][1]; });
+          for (i2 = 0; i2 < tub.length; i2++) {
+            var t0 = tub[i2][0], t1 = tub[i2][1];
+            g.strokeStyle = '#22262c'; g.lineWidth = 2.7; g.lineCap = 'round';
+            g.beginPath(); g.moveTo(t0[0], t0[1]); g.lineTo(t1[0], t1[1]); g.stroke();
+            g.strokeStyle = '#767e8a'; g.lineWidth = 1.2;     // lit upper edge
+            g.beginPath();
+            g.moveTo(t0[0] - 0.5, t0[1] - 0.8); g.lineTo(t1[0] - 0.5, t1[1] - 0.8); g.stroke();
+            g.fillStyle = '#0e1014';                          // muzzle
+            g.beginPath(); g.ellipse(t1[0], t1[1], 1.15, 1.0, 0, 0, 6.29); g.fill();
+            g.strokeStyle = '#aab2bd'; g.lineWidth = 0.7;
+            g.beginPath(); g.ellipse(t1[0], t1[1], 1.15, 1.0, 0, 0, 6.29); g.stroke();
+          }
+          puck(ivx - fx * 3.2 - 0, ivy - 2.8 - fy * 3.2, 1.3, 1.8,   // rear sight box
+               shade(deck, 0.82), shade(deck, 1.20), dark);
+        }
+
+      } else if (kind === 'mirage') {
+        // MIRAGE TANK — a LOW WIDE tracked hull in neutral slate with one
+        // CONTINUOUS house-colour band sweeping the whole flank (the segmented
+        // skirt every other tank wears is wrong here: the reference shows an
+        // unbroken curve), and standing on the deck the thing that names it —
+        // a RIBBED WHITE EMITTER STACK of four pale plates with dark grooves
+        // between them, flanked by two dark swept wings and closed at the
+        // rear by a black vented cowl. No turret, and almost no gun: just a
+        // stubby muzzle under the stack's chin.
+        tracks(len * 1.00, 3.8, wid * 0.30);
+        chassis(cx, by - 1.4, len * 0.84, wid * 0.74, 4.0, hull, dark, 3.4);
+        deckPlate(-0.8, len * 0.56, wid * 0.46, 6.2, shade(hull, 1.26));
+        // ONE unbroken band, held INBOARD of the track runs. Sat directly on
+        // top of them (the first attempt) it hid the tracks completely and
+        // the tank read as a coloured box hovering over its own shadow.
+        for (sg = -1; sg <= 1; sg += 2) {
+          isoBox(g, cx + px * wid * 0.36 * sg, by - 2.6 + py * wid * 0.36 * sg,
+                 len * 0.84, 1.8, 4.4, a, panel, PEDGE);
+          isoBox(g, cx + px * wid * 0.35 * sg + fx * 3.4,
+                 by - 6.5 + py * wid * 0.35 * sg + fy * 3.4,
+                 len * 0.34, 1.5, 1.2, a, plit, PEDGE);      // lit lip, forward half only
+        }
+        // the band climbs the glacis at the nose, the way the reference's
+        // blue curve wraps around the front of the hull
+        isoBox(g, cx + fx * len * 0.36, by - 3.0 + fy * len * 0.36,
+               1.8, wid * 0.66, 3.4, a, panel, PEDGE);
+        fenders(len * 0.42, 3.2);
+        bumper(len * 0.41, wid * 0.24, by - 1.6);
+        var drawCowl = function () {
+          // Mid-value and narrow. At 11 units wide in near-black it was the
+          // biggest single mass on the tank and read as a crate, not a cowl.
+          isoBox(g, cx - fx * 9.2, by - 5.6 - fy * 9.2, len * 0.20, wid * 0.46, 4.2, a,
+                 '#4c525d', '#14171c');
+          for (i2 = -1; i2 <= 1; i2++)                        // louvres
+            isoBox(g, cx - fx * (9.2 + i2 * 1.8), by - 9.8 - fy * (9.2 + i2 * 1.8),
+                   0.8, wid * 0.36, 0.9, a, '#868e9a', '#15181c');
+          g.strokeStyle = 'rgba(226,233,242,.42)'; g.lineWidth = 1.1;   // lit rear rim
+          g.lineCap = 'round';
+          g.beginPath();
+          g.moveTo(cx - fx * 11.8 + px * wid * 0.22, by - 9.8 - fy * 11.8 + py * wid * 0.22);
+          g.lineTo(cx - fx * 11.8 - px * wid * 0.22, by - 9.8 - fy * 11.8 - py * wid * 0.22);
+          g.stroke();
+          exhaust(cx - fx * len * 0.42 + px * wid * 0.22, by - 8.0 - fy * len * 0.42 + py * wid * 0.22);
+        };
+        var drawStack = function () {
+          var sx2 = cx - fx * 0.4, sy2 = by - 6.2 - fy * 0.4;
+          // The house colour climbs the assembly at its base, the way the
+          // reference's band curves up and around the front of the emitter.
+          puck(sx2, sy2 + 0.6, 4.9, 2.6, pdark, panel, PEDGE);
+          isoBox(g, sx2, sy2 - 1.4, len * 0.32, wid * 0.34, 7.0, a, '#2b2f37', '#12141a');
+          // The fins are SLIM and mid-value. Built deep and dark (the first
+          // attempt) prism's far-face shading took them to near-black and
+          // each one read as a packing crate bolted to the deck.
+          for (sg = -1; sg <= 1; sg += 2)
+            prism(sx2 - fx * 1.4, sy2 - 3.2 - fy * 1.4,
+                  [[4.4, 3.1 * sg], [-3.6, 3.6 * sg], [-4.4, 4.9 * sg], [3.4, 4.3 * sg]],
+                  2.0, '#6b7280', '#1b1f26');
+          // four pale plates, each overhanging the dark core so the gap
+          // between them reads as a groove instead of a hole
+          for (i2 = 0; i2 < 4; i2++)
+            isoBox(g, sx2, sy2 - 1.4 - i2 * 1.85, len * 0.44 * (1 - i2 * 0.05),
+                   wid * 0.44 * (1 - i2 * 0.05), 1.4, a, ACCENT.mirage, '#5a6069');
+          g.strokeStyle = 'rgba(236,242,250,.60)'; g.lineWidth = 1.5;   // light-catch streak
+          g.lineCap = 'round';
+          g.beginPath();
+          g.moveTo(sx2 + fx * 3.0 + px * 1.4, sy2 - 8.4 + fy * 3.0 + py * 1.4);
+          g.lineTo(sx2 - fx * 2.8 + px * 2.1, sy2 - 8.4 - fy * 2.8 + py * 2.1);
+          g.stroke();
+          puck(sx2 - fx * 3.2, sy2 - 8.4 - fy * 3.2, 1.3, 1.5,          // cupola
+               shade(hull, 0.86), shade(hull, 1.20), dark);
+        };
+        var drawNose = function () {
+          var mzx = cx + fx * len * 0.24, mzy = by - 6.8 + fy * len * 0.24;
+          puck(mzx - fx * 1.4, mzy + 1.4 - fy * 1.4, 1.9, 3.4,
+               shade(hull, 0.80), shade(hull, 1.10), dark);             // mantlet
+          barrel(mzx, mzy, 9.0, 1.6, 1.0);
+          for (i2 = -1; i2 <= 1; i2 += 2)
+            lamp(cx + fx * len * 0.38 + px * wid * 0.26 * i2,
+                 by - 4.4 + fy * len * 0.38 + py * wid * 0.26 * i2);
+        };
+        if (fy > 0) { drawCowl(); drawStack(); drawNose(); }
+        else { drawNose(); drawStack(); drawCowl(); }
 
       } else if (!sov) {
         // CHRONO MINER — a LOW TRUCK, nose down. Rear to front: a tan slatted
