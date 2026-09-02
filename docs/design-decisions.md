@@ -5349,3 +5349,23 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** before drawing a structure with a functional opening, make the
   gridded mirrored crop and find where the vehicle physically goes; the
   greebles are painted around that hole, never the other way round.
+
+## The wiki's "animation" gifs are build-ups: the sprite is the LAST frame
+
+- **Symptom:** the first pass at the war factories saved frame 0 of
+  `File:Allied War factory animation.gif` as `allied-war-factory-idle.png`
+  and its alpha bbox came out as a 135x68 sliver - an empty pad. Read as an
+  "idle" sequence the same way the refinery/yard gifs were, the diffs would
+  have been drawn against nothing.
+- **Cause:** those C&C-wiki `*animation.gif` files are RA2's MAKE (build-up)
+  sequences: 24 frames from bare pad to finished structure, with the
+  scaffolding, flukes and crane arriving one at a time. Only the final frame
+  is the standing building; every earlier frame is missing parts.
+- **Fix:** decode the whole gif with PIL, save the full 24-frame contact
+  sheet as `*-war-factory-buildup.png` and the LAST frame as `*-idle.png`;
+  diff the frames (`np.abs(A-B)`) before trusting any of them as an idle
+  cycle - a build-up shows ~5k changed pixels per frame all the way through,
+  an idle loop changes a few hundred in one spot.
+- **Rule:** look at the contact sheet of every fetched gif before choosing a
+  reference frame; frame 0 is the reference only when the frames differ in a
+  small moving region.
