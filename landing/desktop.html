@@ -1316,7 +1316,7 @@
   function frameBox() { var r = framesEl.getBoundingClientRect(); return { w: r.width, h: r.height }; }
   function winGeom(id) {
     if (!wins[id]) {
-      var g = window.VibeWin ? VibeWin.defaultGeom(frameBox(), openApps.indexOf(id))
+      var g = window.VibeWin ? VibeWin.defaultGeom(frameBox(), openApps.indexOf(id), VibeWin.MARGIN)
                              : { left: 40, top: 30, width: 900, height: 640 };
       g.z = ++zTop; wins[id] = g;
     }
@@ -1827,6 +1827,11 @@
           // the frame was taller — e.g. before the Claude-usage strip appeared —
           // which pushed its bottom over the taskbar).
           if (!g.max && window.VibeWin) {
+            // Margin-free on purpose: this only pulls a window back INSIDE a frame
+            // that shrank. Adding the gap here would nudge palette-tiled / Tidy'd
+            // windows off their flush zones on every reflow (breaking the layout
+            // and the palette's zoneOccupancy match). The gap is enforced on the
+            // interactive paths — drag, resize, new-window placement, half-snap.
             var c = VibeWin.clampGeom(g, frameBox());
             g.left = c.left; g.top = c.top; g.width = c.width; g.height = c.height;
           }
@@ -1861,6 +1866,8 @@
       Object.keys(wins).forEach(function(id) {
         var g = wins[id];
         if (winOf(id) && g && !g.max) {
+          // Margin-free (see renderWindows): keep-in-bounds only, so a reflow
+          // never shifts palette-tiled / Tidy'd windows off their flush zones.
           var c = VibeWin.clampGeom(g, box);
           g.left = c.left; g.top = c.top; g.width = c.width; g.height = c.height;
         }
@@ -3204,7 +3211,7 @@
       // between "flush left" and "snapped to a half" was 6px of travel. Give
       // touch a fat zone and the mouse a slightly generous one.
       var edge = document.body.classList.contains('is-touch') ? 48 : 28;
-      return VibeWin.snapTarget(e.clientX - r.left, e.clientY - r.top, { w: r.width, h: r.height }, edge);
+      return VibeWin.snapTarget(e.clientX - r.left, e.clientY - r.top, { w: r.width, h: r.height }, edge, VibeWin.MARGIN);
     }
     function onMove(e) {
       if (!drag || !window.VibeWin) return;
@@ -3212,8 +3219,8 @@
       drag.moved = Math.max(drag.moved || 0, Math.abs(dx), Math.abs(dy));
       // A maximized window tracked only to decide double-tap-vs-drag: never moves.
       if (drag.mode === 'tap') return;
-      if (drag.mode === 'move') ng = VibeWin.clampGeom({ left: drag.g0.left + dx, top: drag.g0.top + dy, width: drag.g0.width, height: drag.g0.height }, frameBox());
-      else ng = VibeWin.resizeGeom(drag.g0, drag.dir, dx, dy, frameBox());
+      if (drag.mode === 'move') ng = VibeWin.clampGeom({ left: drag.g0.left + dx, top: drag.g0.top + dy, width: drag.g0.width, height: drag.g0.height }, frameBox(), VibeWin.MINW, VibeWin.MINH, VibeWin.MARGIN);
+      else ng = VibeWin.resizeGeom(drag.g0, drag.dir, dx, dy, frameBox(), VibeWin.MINW, VibeWin.MINH, VibeWin.MARGIN);
       g.left = ng.left; g.top = ng.top; g.width = ng.width; g.height = ng.height;
       var w = winOf(drag.id); if (w) applyWinGeom(w, g);
       // Live snap preview: highlight where a drop near an edge would place it.
