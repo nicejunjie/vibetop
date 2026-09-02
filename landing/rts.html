@@ -4636,7 +4636,7 @@
     var sov = fac === 'col';                    // Collective reads as RA2's Soviets
     var b = BLDS[key];
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
-    var pad = key === 'factory' ? 24 : 18;    // the factories' rails and flank kit overhang the plot
+    var pad = (key === 'factory' || key === 'airforce' || key === 'radar') ? 24 : 18;   // factory rails, the Airforce helipad and the Radar's front wedge overhang the plot
     var head = { base: 108, power: 90, refinery: 72, factory: 104, barracks: 190, sentry: 56, tesla: 106,
                  airforce: 96, radar: 110, depot: 70, lab: 100, purifier: 96, reactor: 100, prism: 110, sentrygun: 56,
                  patriot: 64, flakcannon: 84 }[key] || 70;
@@ -8282,24 +8282,36 @@
       }
       g.lineWidth = 1;
     } else if (key === 'airforce') {
-      // --- RA2 Airforce Command HQ ---------------------------------------
-      // Built from the real sprite: the in-game snow-theatre shot for the
-      // massing and the rotating-dish animation frame on disk for the dish
-      // itself. Reading it: a squat cluster of dark drums wearing silver rib
-      // bands stands on a ringed concrete plinth at the BACK-LEFT, carrying a
-      // flat panelled radar dish on a short mast and a thicket of thin whip
-      // antennas; the near-right half of the foundation is a flat HELIPAD - a
-      // dark deck quartered by a bright yellow cross, each quadrant painted
-      // with a black-and-white diamond.
-      // COLOUR: the cross is fixed aviation yellow and the diamonds are fixed
-      // black/white (RA2 does not remap either). `col` is the pad kerb, the
-      // band round each drum and the dish's back plate - nothing else.
-      var AFC_DK = '#3a4150', AFC_DKD = '#191d25', AFC_DKL = '#69717f';
-      var AFC_SIL = '#b4b9c3', AFC_SILL = '#e9edf3', AFC_SILD = '#787e89';
-      var AFC_CON = '#8e9086', AFC_COND = '#494b44';
-      var AFC_YEL = '#e3c033', AFC_YELD = '#8a7014';
+      // --- RA2 Airforce Command HQ ----------------------------------------
+      // Rebuilt at 1:1 against the RED-owner MAKE rip
+      // (docs/ra2-ref/allied-airforce-command-idle.png, last of 24 frames,
+      // 137x149, w/h 0.919 — only a red owner shows where the remap lives).
+      // Reading it: the BACK-LEFT half is ONE dark-navy block on a pale
+      // concrete apron — a wide silver-ribbed drum at its left shoulder, a
+      // face-up dished radar lying on the roof, a short drum with a house
+      // stripe at the front, two stout whip masts on the right shoulder, and
+      // rising out of the middle a control tower: a FAT HOUSE-COLOURED TORUS
+      // at its root, a lit lavender glass cab, and a silver scanner coil
+      // above it. The FRONT-RIGHT half is the helipad — pale concrete
+      // quartered by a broad aviation-yellow cross, each quadrant carrying a
+      // house-coloured double diamond over an olive field with dark blades
+      // and a tan centre. The four quadrant centres ARE the Harrier pad slots
+      // (PAD_SLOTS), so the markings are laid out from them, not eyeballed.
+      // COLOUR: cross yellow and concrete grey are fixed; `col` is the torus,
+      // the two drum bands, the front stripe and the four pad diamonds.
+      // Six idle phases (`bph`): the scanner coil turns, the roof dish sweeps,
+      // the cab windows light in turn and the pad corner lamps blink.
+      var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
+      var AFC_DK = '#2c313e', AFC_DKD = '#0c0f16', AFC_DKL = '#4c5261';
+      var AFC_SIL = '#a9afb9', AFC_SILL = '#e7ebf1', AFC_SILD = '#646a75';
+      var AFC_CON = '#a4a392', AFC_COND = '#5b5a4e', AFC_CONL = '#c4c3b1';
+      var AFC_YEL = '#f6d63f', AFC_YELL = '#fef6b6', AFC_YELD = '#8d7211';
+      var AFC_OLV = '#9d9e66', AFC_OLVD = '#6b4526', AFC_TAN = '#d0ae7e';
+      var AFC_GLS_OFF = '#9095b4';
 
       // ---- helipad: the near-right half of the foundation ----------------
+      // hpw/hph are fixed by PAD_SLOTS: a slot sits at u,v = (+-0.363, -+0.363)
+      // in this frame, which is where each quadrant diamond is centred.
       var hpx = cx + fw * 0.34, hpy = baseY + fh * 0.20;
       var hpw = fw * 0.62, hph = fh * 0.62;
       var hp = function (hu, hv) {
@@ -8313,149 +8325,245 @@
         if (fill) { g.fillStyle = fill; g.fill(); }
         if (edge) outline(g, edge);
       };
+      var hdia = function (mu, mv, r, fill, edge) { hquad(mu - r, mu + r, mv - r, mv + r, fill, edge); };
+      var HPO = 0.685;                                     // pad rim, kept inside the canvas
       g.fillStyle = 'rgba(0,0,0,.30)';                     // deck riser
-      diamond(g, hpx, hpy + 3.5, hpw * 2, hph * 2); g.fill();
-      hquad(-1, 1, -1, 1, shade(col, 0.60), shade(col, 0.34));   // kerb, owner colour
-      hquad(-0.90, 0.90, -0.90, 0.90, '#33373f', AFC_DKD);       // deck
-      g.save(); hquad(-0.90, 0.90, -0.90, 0.90, null, null); g.clip();
+      hquad(-HPO, HPO, -HPO, HPO, null, null);
+      g.save(); g.beginPath();
+      var hs0 = hp(-HPO, -HPO), hs1 = hp(HPO, -HPO), hs2 = hp(HPO, HPO), hs3 = hp(-HPO, HPO);
+      g.moveTo(hs0[0], hs0[1] + 3.5); g.lineTo(hs1[0], hs1[1] + 3.5);
+      g.lineTo(hs2[0], hs2[1] + 3.5); g.lineTo(hs3[0], hs3[1] + 3.5);
+      g.closePath(); g.fillStyle = 'rgba(0,0,0,.30)'; g.fill(); g.restore();
+      hquad(-HPO, HPO, -HPO, HPO, AFC_COND, shade(AFC_COND, 0.62));     // kerb: plain concrete
+      hquad(-HPO + 0.035, HPO - 0.035, -HPO + 0.035, HPO - 0.035, AFC_CONL, null);
+      hquad(-HPO + 0.06, HPO - 0.06, -HPO + 0.06, HPO - 0.06, AFC_CON, null);   // deck
+      g.save(); hquad(-HPO + 0.06, HPO - 0.06, -HPO + 0.06, HPO - 0.06, null, null); g.clip();
       srand(311);
-      g.fillStyle = 'rgba(0,0,0,.20)';                     // worn tarmac blotches
-      for (var afB = 0; afB < 6; afB++) {
-        var ab = hp(rnd() * 1.6 - 0.8, rnd() * 1.6 - 0.8);
-        g.beginPath(); g.ellipse(ab[0], ab[1], 5 + rnd() * 5, 2.4 + rnd() * 2, 0, 0, 6.29); g.fill();
+      for (var afB = 0; afB < 9; afB++) {                  // worn concrete blotches
+        g.fillStyle = rnd() < 0.5 ? 'rgba(0,0,0,.13)' : 'rgba(214,212,190,.20)';
+        var ab = hp(rnd() * 1.3 - 0.65, rnd() * 1.3 - 0.65);
+        g.beginPath(); g.ellipse(ab[0], ab[1], 5 + rnd() * 6, 2.4 + rnd() * 2.4, 0, 0, 6.29); g.fill();
       }
       g.restore();
-      // the four quadrants, each with its black-and-white diamond
-      var afQ = [[-0.84, -0.10, -0.84, -0.10], [0.10, 0.84, -0.84, -0.10],
-                 [-0.84, -0.10, 0.10, 0.84], [0.10, 0.84, 0.10, 0.84]];
+      // the four quadrant markings, each centred on its Harrier pad slot
+      var afSlot = [[-0.363, -0.363], [0.363, -0.363], [-0.363, 0.363], [0.363, 0.363]];
       for (var afI = 0; afI < 4; afI++) {
-        var q = afQ[afI];
-        hquad(q[0], q[1], q[2], q[3], '#3d434c', null);
-        var mu = (q[0] + q[1]) / 2, mv = (q[2] + q[3]) / 2, mr = 0.30;
-        hquad(mu - mr, mu + mr, mv - mr, mv + mr, '#15171b', null);
-        hquad(mu - mr * 0.52, mu + mr * 0.52, mv - mr * 0.52, mv + mr * 0.52, '#d8dce2', null);
-        hquad(mu - mr * 0.20, mu + mr * 0.20, mv - mr * 0.20, mv + mr * 0.20, '#15171b', null);
+        var mu = afSlot[afI][0], mv = afSlot[afI][1], mr = 0.252;
+        hdia(mu, mv, mr, shade(col, 0.42), null);          // the diamond's shadowed outer line
+        hdia(mu, mv, mr - 0.012, col, null);               // bright house line
+        hdia(mu, mv, mr - 0.048, AFC_OLV, null);           // olive field inside it
+        hdia(mu, mv, mr - 0.062, null, shade(col, 0.50));  // dark inner hairline
+        var bl = mr * 0.50;                                // four dark blades off the rim
+        hdia(mu - bl, mv, mr * 0.30, AFC_OLVD, null);
+        hdia(mu + bl, mv, mr * 0.30, AFC_OLVD, null);
+        hdia(mu, mv - bl, mr * 0.30, AFC_OLVD, null);
+        hdia(mu, mv + bl, mr * 0.30, AFC_OLVD, null);
+        hdia(mu, mv, mr * 0.30, AFC_TAN, null);            // scorched tan centre
+        hdia(mu, mv, mr * 0.13, '#8d6b45', null);
+        var lamp = afI === ph6 % 4;                        // corner lamp, blinking in turn
+        var lp = hp(mu - mr * 1.06, mv - mr * 1.06);
+        g.fillStyle = lamp ? '#fff3b0' : '#6b6a58';
+        g.beginPath(); g.ellipse(lp[0], lp[1] - 1, 2.1, 1.5, 0, 0, 6.29); g.fill();
       }
-      hquad(-0.90, 0.90, -0.09, 0.09, AFC_YEL, null);      // the yellow cross
-      hquad(-0.09, 0.09, -0.90, 0.90, AFC_YEL, null);
-      hquad(-0.90, 0.90, 0.03, 0.09, AFC_YELD, null);      // its shaded lower lip
-      hquad(0.03, 0.09, -0.90, 0.90, AFC_YELD, null);
-      g.fillStyle = '#20242a';                             // corner tie-down blocks
-      for (var afC = 0; afC < 4; afC++) {
-        var cu = afC < 2 ? -0.86 : 0.86, cv = afC % 2 ? -0.86 : 0.86;
-        var cp = hp(cu, cv);
-        g.beginPath(); g.ellipse(cp[0], cp[1], 3.2, 1.8, 0, 0, 6.29); g.fill();
+      hquad(-HPO + 0.06, HPO - 0.06, -0.075, 0.075, AFC_YELD, null);    // the yellow cross
+      hquad(-0.075, 0.075, -HPO + 0.06, HPO - 0.06, AFC_YELD, null);
+      hquad(-HPO + 0.06, HPO - 0.06, -0.062, 0.052, AFC_YEL, null);
+      hquad(-0.062, 0.052, -HPO + 0.06, HPO - 0.06, AFC_YEL, null);
+      hquad(-HPO + 0.06, HPO - 0.06, -0.050, -0.012, AFC_YELL, null);   // its lit upper edge
+      hquad(-0.050, -0.012, -HPO + 0.06, HPO - 0.06, AFC_YELL, null);
+      g.fillStyle = '#1b1e24';                             // tie-down bollards round the rim
+      for (var afC = 0; afC < 8; afC++) {
+        var bu = [-1, 0, 1, 1, 1, 0, -1, -1][afC] * (HPO - 0.02);
+        var bv = [-1, -1, -1, 0, 1, 1, 1, 0][afC] * (HPO - 0.02);
+        var bp = hp(bu, bv);
+        g.fillRect(bp[0] - 1.1, bp[1] - 4.4, 2.2, 4.4);
+        g.beginPath(); g.ellipse(bp[0], bp[1] - 4.6, 2.2, 1.4, 0, 0, 6.29); g.fill();
       }
 
-      // ---- ringed concrete plinth under the tower cluster ----------------
-      var tcx = cx - fw * 0.40, tcy = baseY - fh * 0.14;
-      g.fillStyle = 'rgba(0,0,0,.34)';
-      g.beginPath(); g.ellipse(tcx + 3, tcy + 5, fw * 0.56, fh * 0.56, 0, 0, 6.29); g.fill();
+      // ---- pale concrete apron under the block ---------------------------
+      var tcx = cx - fw * 0.42, tcy = baseY + fh * 0.06;
+      g.fillStyle = 'rgba(0,0,0,.32)';
+      g.beginPath(); g.ellipse(tcx + 3, tcy + 6, fw * 0.60, fh * 0.60, 0, 0, 6.29); g.fill();
       g.fillStyle = AFC_COND;
-      g.beginPath(); g.ellipse(tcx, tcy + 2, fw * 0.56, fh * 0.56, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(tcx, tcy + 3, fw * 0.60, fh * 0.60, 0, 0, 6.29); g.fill();
       g.fillStyle = AFC_CON;
-      g.beginPath(); g.ellipse(tcx, tcy, fw * 0.54, fh * 0.54, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(tcx, tcy, fw * 0.585, fh * 0.585, 0, 0, 6.29); g.fill();
       outline(g, AFC_COND);
-      g.fillStyle = shade(AFC_CON, 1.14);
-      g.beginPath(); g.ellipse(tcx, tcy - 3, fw * 0.44, fh * 0.44, 0, 0, 6.29); g.fill();
-      outline(g, AFC_COND);
-      g.strokeStyle = 'rgba(30,32,28,.36)'; g.lineWidth = 1;
-      g.beginPath(); g.ellipse(tcx, tcy - 4, fw * 0.34, fh * 0.34, 0, 0, 6.29); g.stroke();
+      g.fillStyle = AFC_CONL;
+      g.beginPath(); g.ellipse(tcx - fw * 0.10, tcy - 3.4, fw * 0.40, fh * 0.40, 0, 0, 6.29); g.fill();
+      g.strokeStyle = 'rgba(40,42,34,.28)'; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(tcx, tcy - 2, fw * 0.44, fh * 0.44, 0, 0, 6.29); g.stroke();
 
-      // ---- drums: gunmetal barrels with silver rib bands and a house band -
-      var afDrum = function (dx, dy, dr, dh, band) {
-        cylinder(g, dx, dy, dr, dh, AFC_DK, AFC_DKL, AFC_DKD);
-        g.save();
-        g.beginPath(); g.rect(dx - dr, dy - dh, dr * 2, dh); g.clip();
-        for (var rI = 0; rI < 2; rI++) {                   // silver rib bands
-          var ry2 = dy - dh * (0.22 + rI * 0.40);
-          g.fillStyle = AFC_SILD; g.fillRect(dx - dr, ry2, dr * 2, 4.2);
-          g.fillStyle = AFC_SIL; g.fillRect(dx - dr, ry2, dr * 2, 2.6);
-          g.fillStyle = AFC_SILL; g.fillRect(dx - dr, ry2, dr * 0.5, 2.6);
-        }
-        g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(dx - dr, dy - dh, dr * 0.44, dh);
-        g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(dx + dr * 0.46, dy - dh, dr * 0.54, dh);
-        g.restore();
-        if (band) {                                        // OWNER band under the lip
-          g.fillStyle = shade(col, 0.82); g.fillRect(dx - dr, dy - dh + 2.4, dr * 2, 5.2);
-          g.fillStyle = col; g.fillRect(dx - dr, dy - dh + 2.4, dr * 2, 3.2);
-          g.fillStyle = shade(col, 1.30); g.fillRect(dx - dr, dy - dh + 2.4, dr * 0.46, 3.2);
-        }
-        g.fillStyle = AFC_SIL;                             // lid
-        g.beginPath(); g.ellipse(dx, dy - dh, dr, dr * 0.42, 0, 0, 6.29); g.fill();
-        outline(g, AFC_DKD);
-        g.fillStyle = shade(AFC_SIL, 0.74);
-        g.beginPath(); g.ellipse(dx, dy - dh, dr * 0.62, dr * 0.26, 0, 0, 6.29); g.fill();
-      };
-      afDrum(tcx - fw * 0.30, tcy + fh * 0.30, 13, 26, true);       // front-left drum
-      afDrum(tcx + fw * 0.34, tcy + fh * 0.36, 11, 21, true);       // front-right drum
-      afDrum(tcx + fw * 0.04, tcy - fh * 0.22, 15, 48, true);       // tall centre drum
-
-      // ---- whip antennas -------------------------------------------------
-      var afWhip = function (wx, wy, wh2) {
-        g.strokeStyle = '#15181c'; g.lineWidth = 1.5;
-        g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + wh2 * 0.05, wy - wh2); g.stroke();
-        g.fillStyle = '#cfd4dc';
-        g.beginPath(); g.arc(wx + wh2 * 0.05, wy - wh2, 1.5, 0, 6.29); g.fill();
-      };
-      afWhip(tcx + fw * 0.34, tcy + fh * 0.06, 46);
-      afWhip(tcx + fw * 0.44, tcy + fh * 0.16, 34);
-      afWhip(tcx - fw * 0.36, tcy - fh * 0.02, 30);
-      afWhip(tcx + fw * 0.22, tcy - fh * 0.36, 62);
-
-      // ---- radar mast and the panelled dish ------------------------------
-      var afMx = tcx + fw * 0.04, afMy = tcy - fh * 0.22 - 48;
-      cylinder(g, afMx, afMy + 2, 6.5, 16, shade(AFC_DK, 1.20), AFC_DKL, AFC_DKD);
-      g.fillStyle = AFC_SILD;                              // yoke
+      // ---- the dark navy block -------------------------------------------
+      var afBy = tcy - 3, afLift = 40;
+      var afRy = prism(g, tcx + fw * 0.04, afBy, fw * 0.44, fh * 0.44, afLift,
+                       AFC_DK, shade(AFC_DK, 1.22), AFC_DKD, [0.30, 0.70]);
+      var abx = tcx + fw * 0.04, abH = fw * 0.44, abV = fh * 0.44;
+      g.fillStyle = AFC_SILD;                              // silver sill along the near-left eave
       g.beginPath();
-      g.moveTo(afMx - 8, afMy - 14); g.lineTo(afMx + 8, afMy - 14);
-      g.lineTo(afMx + 5, afMy - 20); g.lineTo(afMx - 5, afMy - 20);
+      g.moveTo(abx - abH, afRy); g.lineTo(abx, afRy + abV);
+      g.lineTo(abx, afRy + abV + 3.4); g.lineTo(abx - abH, afRy + 3.4);
+      g.closePath(); g.fill();
+      g.fillStyle = AFC_DKL;
+      g.beginPath();
+      g.moveTo(abx, afRy + abV); g.lineTo(abx + abH, afRy);
+      g.lineTo(abx + abH, afRy + 3.4); g.lineTo(abx, afRy + abV + 3.4);
+      g.closePath(); g.fill();
+      g.fillStyle = 'rgba(0,0,0,.30)';                     // dark hangar mouth, near-left face
+      g.beginPath();
+      g.moveTo(abx - fw * 0.34, afRy + fh * 0.34 + 6); g.lineTo(abx - fw * 0.12, afRy + fh * 0.45 + 6);
+      g.lineTo(abx - fw * 0.12, afRy + fh * 0.45 + 22); g.lineTo(abx - fw * 0.34, afRy + fh * 0.34 + 22);
       g.closePath(); g.fill(); outline(g, AFC_DKD);
-      var afDx = afMx - 2, afDy = afMy - 27;
-      // The dish is tilted, and the test harness's canvas stub has no
-      // rotate(), so the tilt is applied by hand: afR maps dish-local
-      // coordinates onto the canvas through one fixed rotation.
-      var afCa = Math.cos(-0.60), afSa = Math.sin(-0.60);
-      var afR = function (lx, ly) {
-        return [afDx + lx * afCa - ly * afSa, afDy + lx * afSa + ly * afCa];
-      };
-      var afRect = function (rx, ry2, rw, rh, fill, edge) {
-        var k0 = afR(rx, ry2), k1 = afR(rx + rw, ry2),
-            k2 = afR(rx + rw, ry2 + rh), k3 = afR(rx, ry2 + rh);
+      g.fillStyle = AFC_SILD;
+      for (var afSh = 0; afSh < 3; afSh++) {               // its shutter slats
+        var shy = afRy + fh * 0.34 + 9 + afSh * 4.4;
         g.beginPath();
-        g.moveTo(k0[0], k0[1]); g.lineTo(k1[0], k1[1]);
-        g.lineTo(k2[0], k2[1]); g.lineTo(k3[0], k3[1]); g.closePath();
-        if (fill) { g.fillStyle = fill; g.fill(); }
-        if (edge) outline(g, edge);
-      };
-      afRect(-20, -12, 40, 28, shade(col, 0.56), shade(col, 0.30));     // OWNER back plate
-      afRect(-20, 12, 40, 4, shade(col, 0.94), null);                   // its lit lower lip
-      afRect(-20, -12, 3, 28, shade(col, 1.16), null);                  // and lit left edge
-      afRect(-17.5, -12, 35, 24, AFC_SILD, null);                       // dish frame
-      for (var pxI = 0; pxI < 3; pxI++) {
-        for (var pyI = 0; pyI < 2; pyI++) {                // white panel array
-          var pxx = -16.6 + pxI * 11.4, pyy = -11.2 + pyI * 11.4;
-          afRect(pxx, pyy, 10.2, 10.2, '#e7eaee', null);
-          afRect(pxx, pyy, 10.2, 2.4, '#ffffff', null);
-          afRect(pxx, pyy + 8.2, 10.2, 2, 'rgba(80,88,100,.24)', null);
-        }
+        g.moveTo(abx - fw * 0.33, shy); g.lineTo(abx - fw * 0.13, shy + fh * 0.10);
+        g.lineTo(abx - fw * 0.13, shy + fh * 0.10 + 1.4); g.lineTo(abx - fw * 0.33, shy + 1.4);
+        g.closePath(); g.fill();
       }
-      afRect(-17.5, -12, 35, 24, null, AFC_DKD);
-      var afF0 = afR(0, 0), afF1 = afR(-1, -22);           // feed arm off the face
-      g.strokeStyle = '#3f454e'; g.lineWidth = 2.2;
-      g.beginPath(); g.moveTo(afF0[0], afF0[1]); g.lineTo(afF1[0], afF1[1]); g.stroke();
-      g.fillStyle = '#5a616c';
-      g.beginPath(); g.ellipse(afF1[0], afF1[1] - 1, 3.4, 2.4, 0, 0, 6.29); g.fill();
-      g.fillStyle = AFC_DK;                                // counterweight box
-      g.fillRect(afMx + 6, afMy - 20, 9, 7); outline(g, AFC_DKD);
-      g.fillStyle = AFC_DKL; g.fillRect(afMx + 6, afMy - 20, 9, 2);
 
-      // ---- ground clutter between the plinth and the pad -----------------
-      crates(g, cx - fw * 0.10, baseY + fh * 0.62, 2, '#7a6a45');
-      drums(g, cx - fw * 0.60, baseY + fh * 0.36, 2, '#4d5763');
-      floodlight(g, cx + fw * 0.88, baseY + fh * 0.10, 1, null);
-      floodlight(g, cx - fw * 0.86, baseY - fh * 0.32, -1, null);
+      // ---- wide silver drum at the left shoulder -------------------------
+      var ldx = tcx - fw * 0.37, ldy = tcy + fh * 0.36;
+      cylinder(g, ldx, ldy, 14.5, 27, AFC_SIL, AFC_SILL, AFC_DKD);
+      g.save(); g.beginPath(); g.rect(ldx - 14.5, ldy - 27, 29, 27); g.clip();
+      g.fillStyle = 'rgba(24,28,36,.42)';                  // rib grooves
+      for (var ldI = 0; ldI < 4; ldI++) g.fillRect(ldx - 14.5, ldy - 4 - ldI * 5.6, 29, 1.8);
+      g.fillStyle = shade(col, 0.66); g.fillRect(ldx - 14.5, ldy - 8.4, 29, 5.4);   // house band, low
+      g.fillStyle = col; g.fillRect(ldx - 14.5, ldy - 8.4, 29, 3.4);
+      g.fillStyle = shade(col, 1.28); g.fillRect(ldx - 14.5, ldy - 8.4, 6.4, 3.4);
+      g.restore();
+      g.fillStyle = AFC_DK;                                // navy collar dish on the lid
+      g.beginPath(); g.ellipse(ldx, ldy - 27, 14.5, 6.1, 0, 0, 6.29); g.fill();
+      outline(g, AFC_DKD);
+      g.fillStyle = shade(col, 0.86);
+      g.beginPath(); g.ellipse(ldx, ldy - 28.6, 14.5, 6.1, 0, 3.35, 6.08); g.fill();
+      g.fillStyle = '#161a22';
+      g.beginPath(); g.ellipse(ldx, ldy - 28, 9.2, 3.8, 0, 0, 6.29); g.fill();
+      g.strokeStyle = '#2a303c'; g.lineWidth = 1.4;        // instrument rods on the collar
+      for (var ldR = 0; ldR < 5; ldR++) {
+        var lra = ldR / 5 * 6.283 + 0.5;
+        var lrx = ldx + Math.cos(lra) * 10.4, lry = ldy - 28 + Math.sin(lra) * 4.2;
+        g.beginPath(); g.moveTo(lrx, lry); g.lineTo(lrx + 0.6, lry - 7 - (ldR % 2) * 4); g.stroke();
+        g.fillStyle = ldR % 2 ? '#c8d0aa' : '#9aa2ae';
+        g.beginPath(); g.arc(lrx + 0.6, lry - 7 - (ldR % 2) * 4, 1.2, 0, 6.29); g.fill();
+      }
 
+      // ---- short front drum with the house stripe ------------------------
+      var fdx = tcx + fw * 0.20, fdy = tcy + fh * 0.48;
+      cylinder(g, fdx, fdy, 10.5, 23, AFC_DK, AFC_DKL, AFC_DKD);
+      g.fillStyle = shade(col, 0.62); g.fillRect(fdx - 3.6, fdy - 21, 7.2, 21);   // vertical stripe
+      g.fillStyle = col; g.fillRect(fdx - 3.6, fdy - 21, 4.6, 21);
+      g.fillStyle = shade(col, 1.24); g.fillRect(fdx - 3.6, fdy - 21, 1.6, 21);
+      g.fillStyle = AFC_SIL;
+      g.beginPath(); g.ellipse(fdx, fdy - 23, 10.5, 4.4, 0, 0, 6.29); g.fill(); outline(g, AFC_DKD);
+      g.fillStyle = AFC_SILD;
+      g.beginPath(); g.ellipse(fdx, fdy - 23, 6.4, 2.6, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(24,28,36,.40)'; g.fillRect(fdx - 10.5, fdy - 25.4, 21, 2.6);
+
+      // ---- right shoulder block and its two whip masts -------------------
+      var swx = tcx + fw * 0.56, swy = tcy + fh * 0.06;
+      var swRy = prism(g, swx, swy, fw * 0.15, fh * 0.15, 26, shade(AFC_DK, 0.86),
+                       shade(AFC_DK, 1.10), AFC_DKD);
+      g.fillStyle = AFC_SILD; g.fillRect(swx - fw * 0.15, swRy - 1.6, fw * 0.30, 2.2);
+      var afWhip = function (wx, wy, wh2) {
+        g.strokeStyle = '#12151b'; g.lineWidth = 2.2;
+        g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + wh2 * 0.03, wy - wh2); g.stroke();
+        g.strokeStyle = '#5a626e'; g.lineWidth = 1;
+        g.beginPath(); g.moveTo(wx - 0.7, wy); g.lineTo(wx + wh2 * 0.03 - 0.7, wy - wh2); g.stroke();
+        g.fillStyle = '#dfe3ea';
+        g.beginPath(); g.ellipse(wx + wh2 * 0.03, wy - wh2 - 1.2, 1.4, 2, 0, 0, 6.29); g.fill();
+      };
+      afWhip(swx - 5, swRy, 42);
+      afWhip(swx + 6, swRy + 2, 30);
+
+      // ---- face-up dished radar lying on the roof ------------------------
+      var afFx = abx + fw * 0.28, afFy = afRy + 6;
+      g.fillStyle = 'rgba(0,0,0,.30)';
+      g.beginPath(); g.ellipse(afFx + 1.5, afFy + 2.5, 18.5, 8.4, 0, 0, 6.29); g.fill();
+      g.fillStyle = AFC_SILD;
+      g.beginPath(); g.ellipse(afFx, afFy, 18.5, 8.4, 0, 0, 6.29); g.fill(); outline(g, AFC_DKD);
+      g.fillStyle = AFC_SIL;
+      g.beginPath(); g.ellipse(afFx, afFy - 2.4, 18.5, 8.4, 0, 3.25, 6.18); g.fill();
+      g.fillStyle = '#6f7681';
+      g.beginPath(); g.ellipse(afFx, afFy - 1.4, 14.4, 6.4, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#9aa1ab';
+      g.beginPath(); g.ellipse(afFx, afFy - 2.4, 9.6, 4.2, 0, 0, 6.29); g.fill();
+      g.strokeStyle = 'rgba(30,34,42,.42)'; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(afFx, afFy - 2, 12.2, 5.4, 0, 0, 6.29); g.stroke();
+      g.strokeStyle = 'rgba(230,238,250,.60)'; g.lineWidth = 1.6;   // the sweep, turning
+      g.beginPath(); g.moveTo(afFx, afFy - 2.2);
+      g.lineTo(afFx + Math.cos(anP) * 16.6, afFy - 2.2 + Math.sin(anP) * 7.4); g.stroke();
+      g.fillStyle = '#d6dbe3';
+      g.beginPath(); g.ellipse(afFx, afFy - 3.2, 3, 1.8, 0, 0, 6.29); g.fill();
+
+      // ---- roof kit: vents, a rail along the near eave, two crated boxes --
+      for (var afV = 0; afV < 4; afV++) {
+        var vx = abx + abH * (0.04 + afV * 0.22), vy = afRy - abV * (0.50 - afV * 0.20);
+        g.fillStyle = shade(AFC_DK, 0.80);
+        g.fillRect(vx - 4, vy - 7, 8, 7); outline(g, AFC_DKD);
+        g.fillStyle = AFC_SILD; g.fillRect(vx - 4, vy - 8.6, 8, 2);
+      }
+      g.fillStyle = AFC_DKL;                               // two kit boxes with house lids
+      g.fillRect(abx - abH * 0.62, afRy + abV * 0.16, 9, 6); outline(g, AFC_DKD);
+      g.fillStyle = shade(col, 0.90); g.fillRect(abx - abH * 0.62, afRy + abV * 0.16 - 1.8, 9, 2);
+      g.fillStyle = AFC_DKL;
+      g.fillRect(abx - abH * 0.40, afRy + abV * 0.44, 7, 5); outline(g, AFC_DKD);
+      g.fillStyle = shade(col, 0.90); g.fillRect(abx - abH * 0.40, afRy + abV * 0.44 - 1.6, 7, 1.8);
+      railing(g, abx - abH * 0.86, afRy + abV * 0.86, abx - abH * 0.14, afRy + abV * 0.14,
+              5, 'rgba(176,184,196,.55)');
+
+      // ---- control tower: house torus, glass cab, scanner coil -----------
+      var ctx2 = abx - fw * 0.12, cty = afRy + 5, ctR = 13, ctH = 42;
+      g.fillStyle = 'rgba(0,0,0,.28)';                     // the torus, seated on the roof
+      g.beginPath(); g.ellipse(ctx2 + 1.5, cty + 3.5, 20.5, 9.2, 0, 0, 6.29); g.fill();
+      g.fillStyle = shade(col, 0.52);
+      g.beginPath(); g.ellipse(ctx2, cty + 1.6, 20.5, 9.2, 0, 0, 6.29); g.fill();
+      g.fillStyle = col;
+      g.beginPath(); g.ellipse(ctx2, cty - 1.8, 20.5, 9.2, 0, 0, 6.29); g.fill();
+      outline(g, shade(col, 0.34));
+      g.fillStyle = shade(col, 1.26);                      // lit crown of the ring
+      g.beginPath(); g.ellipse(ctx2 - 2, cty - 4, 17, 6.8, 0, 3.5, 6.05); g.fill();
+      g.fillStyle = AFC_DKD;                               // the hole the tower rises through
+      g.beginPath(); g.ellipse(ctx2, cty - 2.6, ctR, ctR * 0.44, 0, 0, 6.29); g.fill();
+      g.fillStyle = AFC_DK; g.fillRect(ctx2 - ctR, cty - ctH, ctR * 2, ctH - 2);
+      g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(ctx2 - ctR, cty - ctH, ctR * 0.44, ctH - 2);
+      g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(ctx2 + ctR * 0.44, cty - ctH, ctR * 0.56, ctH - 2);
+      g.fillStyle = AFC_SILD;                              // sill under the cab
+      g.fillRect(ctx2 - ctR - 1, cty - ctH + 15, ctR * 2 + 2, 3.2);
+      g.beginPath(); g.ellipse(ctx2, cty - ctH + 15, ctR + 1, (ctR + 1) * 0.40, 0, 0, 3.15); g.fill();
+      g.fillStyle = '#3c414c';                             // the glass cab
+      g.fillRect(ctx2 - ctR, cty - ctH + 3.6, ctR * 2, 11.6);
+      for (var cbI = 0; cbI < 5; cbI++) {                  // panes, lighting in turn
+        g.fillStyle = (cbI + ph6) % 5 < 2 ? '#dcdeee' : AFC_GLS_OFF;
+        g.fillRect(ctx2 - ctR + 1.4 + cbI * 4.9, cty - ctH + 5, 3.6, 9);
+      }
+      g.fillStyle = 'rgba(255,255,255,.20)'; g.fillRect(ctx2 - ctR + 1.4, cty - ctH + 5, 23, 2.4);
+      g.fillStyle = AFC_SIL;                               // cab roof lip
+      g.fillRect(ctx2 - ctR - 2, cty - ctH, ctR * 2 + 4, 4);
+      g.beginPath(); g.ellipse(ctx2, cty - ctH, ctR + 2, (ctR + 2) * 0.40, 0, 3.15, 6.29); g.fill();
+      outline(g, AFC_DKD);
+      g.fillStyle = shade(col, 0.94); g.fillRect(ctx2 - ctR - 2, cty - ctH + 3.2, ctR * 2 + 4, 1.8);
+      // the scanner coil: five curved slats climbing and turning with the phase
+      var scTop = cty - ctH - 4;
+      g.strokeStyle = '#20252f'; g.lineWidth = 2.2;        // the coil's spindle, behind it
+      g.beginPath(); g.moveTo(ctx2 - 1, cty - ctH); g.lineTo(ctx2 - 1, scTop - 22); g.stroke();
+      for (var scI = 0; scI < 6; scI++) {
+        var sr = 14.8 - scI * 0.95, sy = scTop - scI * 4.9;
+        var sa = anP + scI * 0.86;
+        g.strokeStyle = AFC_SILD; g.lineWidth = 4.6;
+        g.beginPath(); g.ellipse(ctx2 - 1, sy + 1.3, sr, sr * 0.44, 0, sa, sa + 2.9); g.stroke();
+        g.strokeStyle = AFC_SIL; g.lineWidth = 3.4;
+        g.beginPath(); g.ellipse(ctx2 - 1, sy, sr, sr * 0.44, 0, sa, sa + 2.9); g.stroke();
+        g.strokeStyle = AFC_SILL; g.lineWidth = 1.3;
+        g.beginPath(); g.ellipse(ctx2 - 1, sy - 1.3, sr, sr * 0.44, 0, sa + 0.16, sa + 2.7); g.stroke();
+        g.strokeStyle = scI % 3 === 1 ? 'rgba(96,116,72,.50)' : 'rgba(44,50,58,.46)'; g.lineWidth = 1.1;
+        g.beginPath(); g.ellipse(ctx2 - 1, sy + 2.2, sr, sr * 0.44, 0, sa + 0.3, sa + 2.6); g.stroke();
+      }
+      g.fillStyle = '#141820';
+      g.beginPath(); g.ellipse(ctx2 - 1, scTop - 23, 3.2, 2.8, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#5b6270';
+      g.beginPath(); g.ellipse(ctx2 - 1, scTop - 24.6, 1.6, 1.4, 0, 0, 6.29); g.fill();
     } else if (key === 'depot') {
       // --- RA2 Service Depot ----------------------------------------------
       // From the real sprite: a big DARK GRATED CIRCLE - the repair pad -
@@ -9378,202 +9486,318 @@
       g.beginPath(); g.ellipse(cx, przHub - 12, 15, 12, 0, 0, 6.29); g.fill();
     } else if (key === 'radar') {
       // --- RA2 Soviet Radar Tower -------------------------------------------
-      // Built from the real sprite (File:Radar Tower animation.gif, final
-      // frame, keyed 90x125, w/h 0.72 — fetched from the C&C wiki). Bottom to
-      // top: a squat mottled-khaki blockhouse; four house-coloured buttress
-      // fins splayed flat off its corners; a banded house/white collar ring
-      // round the mast root; a short dark iron mast; and over all of it the
-      // big pale parabolic DISH with radial ribs, concentric arcs, a dark
-      // back-shell peeking out behind and a feed horn on a tripod. The dish
-      // is most of the silhouette and the whole identity of the building.
-      var RDR_MAS = '#7d7659', RDR_MASD = '#373426', RDR_ROOF = '#8d8768';
-      var RDR_IRN = '#2b3038', RDR_IRND = '#12151a', RDR_IRNL = '#5a616d';
-      var RDR_DSH = '#c6cad1', RDR_DSHL = '#eff1f5', RDR_DSHD = '#767c86';
+      // Rebuilt at 1:1 against the RED-owner MAKE rip
+      // (docs/ra2-ref/soviet-radar-tower-idle.png, last of 29 frames, 90x125,
+      // w/h 0.720). Reading it: the DISH is the building — a pale silver face
+      // 0.69 of the sprite's width, dark navy across its top-left sector, with
+      // heavy navy ribs (one strong VERTICAL bar running through the hub and
+      // out past the bottom rim, plus upper-left, upper-right and lower-right
+      // arms), a concentric arc low in the bowl and a domed hub carrying a
+      // small house-coloured crescent. It sits almost ON the base: a darker
+      // back-shell disc peeks out below-right, navy legs drop through it to a
+      // fat red-and-white LIFE-RING collar half-buried in an irregular
+      // MOTTLED CAMO MOUND, and three chunky house-coloured WEDGE BLOCKS with
+      // silver grate strips splay off the mound's front and flanks beside a
+      // pale concrete ramp.
+      // COLOUR: `col` is the ring's alternating segments, the three wedges and
+      // the hub crescent. The mound is camouflage, the dish is bare metal —
+      // neither carries any house paint.
+      // Six idle phases (`bph`): the dish face turns (ribs, arc and specular
+      // sweep together) and the mast beacon blinks.
+      var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
+      var RDR_CAM = '#5e5c3e', RDR_CAMD = '#23241a', RDR_CAML = '#8e8a60';
+      var RDR_IRN = '#2a303c', RDR_IRND = '#0d1016', RDR_IRNL = '#4e5563';
+      var RDR_DSH = '#c9ccd2', RDR_DSHL = '#f0f2f6', RDR_DSHD = '#7d838d';
       if (sov) {
-        // ---- mottled concrete raft under the block -------------------------
-        g.fillStyle = 'rgba(0,0,0,.26)';
-        diamond(g, cx + 2, baseY + 4, fw * 1.42, fh * 1.42); g.fill();
-        diamond(g, cx, baseY + 1, fw * 1.42, fh * 1.42);
-        g.fillStyle = '#95998a'; g.fill(); outline(g, '#4b4f45');
+        // ---- ground: only a thin hardstanding, the sprite has no raft ------
+        g.fillStyle = 'rgba(0,0,0,.22)';                     // just a scuffed dirt patch
+        diamond(g, cx + 1, baseY + 4, fw * 0.74, fh * 0.74); g.fill();
+        diamond(g, cx, baseY + 2, fw * 0.70, fh * 0.70);
+        g.fillStyle = 'rgba(96,94,72,.55)'; g.fill();
 
-        // ---- four house-coloured buttress fins, flat on the raft ----------
-        // The sprite's loudest remap surface: red wedge plates lying out from
-        // the block's corners, ribbed with dark grates.
-        var rdFin = function (fx, fy, dx, dy) {
-          g.fillStyle = 'rgba(0,0,0,.30)';
-          g.beginPath();
-          g.moveTo(fx, fy - 11); g.lineTo(fx + dx, fy + dy + 3);
-          g.lineTo(fx + dx * 0.42, fy + dy + 7); g.lineTo(fx, fy - 2);
-          g.closePath(); g.fill();
-          g.fillStyle = shade(col, 0.54);                    // shaded flank
-          g.beginPath();
-          g.moveTo(fx, fy - 12); g.lineTo(fx + dx, fy + dy);
-          g.lineTo(fx + dx * 0.42, fy + dy + 4); g.lineTo(fx, fy - 3);
-          g.closePath(); g.fill(); outline(g, shade(col, 0.30));
-          g.fillStyle = col;                                 // lit upper facet
-          g.beginPath();
-          g.moveTo(fx, fy - 12); g.lineTo(fx + dx, fy + dy);
-          g.lineTo(fx + dx * 0.94, fy + dy - 4); g.lineTo(fx, fy - 17);
-          g.closePath(); g.fill();
-          g.fillStyle = shade(col, 1.34);
-          g.beginPath();
-          g.moveTo(fx, fy - 17); g.lineTo(fx + dx * 0.94, fy + dy - 4);
-          g.lineTo(fx + dx * 0.86, fy + dy - 6); g.lineTo(fx, fy - 19);
-          g.closePath(); g.fill();
-          g.strokeStyle = 'rgba(20,18,12,.52)'; g.lineWidth = 1.1;   // grate ribs
-          for (var rfI = 1; rfI < 5; rfI++) {
-            var rft = rfI / 5;
-            g.beginPath();
-            g.moveTo(fx + dx * rft, fy - 12 + (dy + 12) * rft);
-            g.lineTo(fx + dx * rft * 0.96, fy - 17 + (dy - 4 + 17) * rft);
-            g.stroke();
-          }
-        };
-        rdFin(cx - fw * 0.40, baseY + fh * 0.08, -fw * 0.34, fh * 0.26);
-        rdFin(cx + fw * 0.40, baseY + fh * 0.08, fw * 0.34, fh * 0.26);
-        rdFin(cx - fw * 0.16, baseY + fh * 0.34, -fw * 0.20, fh * 0.30);
-        rdFin(cx + fw * 0.16, baseY + fh * 0.34, fw * 0.20, fh * 0.30);
-
-        // ---- the blockhouse ------------------------------------------------
-        var rdBy = baseY + fh * 0.06, rdLift = 20;
-        prism(g, cx, rdBy, fw * 0.46, fh * 0.46, rdLift, RDR_MAS, RDR_ROOF, RDR_MASD, [0.42]);
-        var rdRy = rdBy - rdLift;
-        g.save();                                            // camouflage mottle
-        diamond(g, cx, rdRy, fw * 0.92, fh * 0.92); g.clip();
-        srand(4127);
-        for (var rdMI = 0; rdMI < 14; rdMI++) {
-          g.fillStyle = rnd() < 0.5 ? 'rgba(58,62,38,.34)' : 'rgba(150,142,104,.30)';
-          g.beginPath();
-          g.ellipse(cx + (rnd() - 0.5) * fw * 0.82, rdRy + (rnd() - 0.5) * fh * 0.82,
-                    3 + rnd() * 5, 1.6 + rnd() * 2.4, 0, 0, 6.29);
-          g.fill();
-        }
-        g.restore();
-        g.fillStyle = RDR_IRN;                               // service hatch, front-left
+        // ---- pale concrete ramp off the front-left ------------------------
+        g.fillStyle = '#b6a099';
         g.beginPath();
-        g.moveTo(cx - fw * 0.30, rdBy + fh * 0.12); g.lineTo(cx - fw * 0.14, rdBy + fh * 0.20);
-        g.lineTo(cx - fw * 0.14, rdBy + fh * 0.20 - 11); g.lineTo(cx - fw * 0.30, rdBy + fh * 0.12 - 11);
-        g.closePath(); g.fill(); outline(g, RDR_IRND);
-        g.fillStyle = shade(col, 1.10);                      // house stripe over it
-        g.fillRect(cx - fw * 0.30, rdBy + fh * 0.12 - 13, fw * 0.16, 2.4);
-        g.strokeStyle = shade(col, 0.54); g.lineWidth = 4.6;  // painted cornice band
-        diamond(g, cx, rdRy + 3.2, fw * 0.92, fh * 0.92); g.stroke();
-        g.strokeStyle = col; g.lineWidth = 2.6;
-        diamond(g, cx, rdRy + 2.6, fw * 0.92, fh * 0.92); g.stroke();
-
-        // ---- banded collar ring round the mast root ------------------------
-        var rdCy = rdRy - 3, rdCr = fw * 0.31;
-        g.fillStyle = 'rgba(0,0,0,.30)';
-        g.beginPath(); g.ellipse(cx + 1, rdCy + 3, rdCr + 3, (rdCr + 3) * 0.44, 0, 0, 6.29); g.fill();
-        g.lineCap = 'butt';
-        for (var rdBI = 0; rdBI < 14; rdBI++) {
-          g.strokeStyle = rdBI % 2 ? '#e8eae4' : col;
-          g.lineWidth = 8;
+        g.moveTo(cx - fw * 0.56, baseY + fh * 0.86); g.lineTo(cx - fw * 0.18, baseY + fh * 0.46);
+        g.lineTo(cx - fw * 0.02, baseY + fh * 0.72); g.lineTo(cx - fw * 0.40, baseY + fh * 1.12);
+        g.closePath(); g.fill(); outline(g, '#4f423c');
+        g.strokeStyle = 'rgba(74,60,54,.46)'; g.lineWidth = 1.2;    // tread courses
+        for (var rpI = 1; rpI < 7; rpI++) {
+          var rpt = rpI / 7;
           g.beginPath();
-          g.ellipse(cx, rdCy, rdCr, rdCr * 0.44, 0,
-                    rdBI / 14 * 6.283, (rdBI + 1) / 14 * 6.283);
+          g.moveTo(cx - fw * 0.56 + fw * 0.38 * rpt, baseY + fh * 0.86 - fh * 0.40 * rpt);
+          g.lineTo(cx - fw * 0.40 + fw * 0.38 * rpt, baseY + fh * 1.12 - fh * 0.40 * rpt);
           g.stroke();
         }
-        g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1.4;
-        g.beginPath(); g.ellipse(cx, rdCy - 3.4, rdCr, rdCr * 0.44, 0, 0, 6.29); g.stroke();
-        g.strokeStyle = RDR_IRND; g.lineWidth = 1.2;
-        g.beginPath(); g.ellipse(cx, rdCy + 3.8, rdCr, rdCr * 0.44, 0, 0, 6.29); g.stroke();
-
-        // ---- iron mast and its yoke ---------------------------------------
-        cylinder(g, cx, rdCy + 1, 8, 58, RDR_IRN, RDR_IRNL, RDR_IRND);
-        g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(cx - 8, rdCy - 57, 3, 58);
-        g.strokeStyle = RDR_IRND; g.lineWidth = 1.2;         // a few plate seams
-        for (var rdLI = 1; rdLI < 5; rdLI++) {
-          var rly = rdCy - 11 * rdLI;
-          g.beginPath(); g.moveTo(cx - 7.4, rly); g.lineTo(cx + 7.4, rly); g.stroke();
-        }
-        g.fillStyle = 'rgba(214,222,232,.16)'; g.fillRect(cx - 7, rdCy - 56, 2.4, 56);
-        var rdDx = cx, rdDy = baseY - 114;                   // dish centre
-        g.fillStyle = RDR_IRN;                               // yoke arms up to the dish
+        g.fillStyle = 'rgba(246,234,226,.40)';
         g.beginPath();
-        g.moveTo(cx - 9, rdCy - 52); g.lineTo(cx + 9, rdCy - 52);
-        g.lineTo(rdDx + 5, rdDy + 14); g.lineTo(rdDx - 5, rdDy + 14);
-        g.closePath(); g.fill(); outline(g, RDR_IRND);
+        g.moveTo(cx - fw * 0.56, baseY + fh * 0.86); g.lineTo(cx - fw * 0.18, baseY + fh * 0.46);
+        g.lineTo(cx - fw * 0.14, baseY + fh * 0.52); g.lineTo(cx - fw * 0.52, baseY + fh * 0.92);
+        g.closePath(); g.fill();
 
-        // ---- dark back-shell, peeking out below-right of the face ----------
-        g.fillStyle = '#525a63';
-        g.beginPath(); g.ellipse(rdDx + 15, rdDy + 13, 27, 25, 0, 0, 6.29); g.fill();
-        outline(g, RDR_IRND);
+        // ---- the mottled camo mound ---------------------------------------
+        var rdBy = baseY + fh * 0.34, rdLift = 32, rdHW = fw * 0.48, rdHH = fh * 0.48;
+        prism(g, cx, rdBy, rdHW, rdHH, rdLift, RDR_CAM, shade(RDR_CAM, 1.02), RDR_CAMD);
+        var rdRy = rdBy - rdLift;
+        g.save();                                            // clip to the whole solid
+        g.beginPath();
+        g.moveTo(cx - rdHW, rdRy); g.lineTo(cx, rdRy - rdHH); g.lineTo(cx + rdHW, rdRy);
+        g.lineTo(cx + rdHW, rdBy); g.lineTo(cx, rdBy + rdHH); g.lineTo(cx - rdHW, rdBy);
+        g.closePath(); g.clip();
+        srand(4127);
+        for (var rdMI = 0; rdMI < 90; rdMI++) {              // camouflage: dense, dirty, irregular
+          var mk = rnd();
+          g.fillStyle = mk < 0.36 ? 'rgba(12,14,8,.72)' : mk < 0.60 ? 'rgba(118,110,66,.60)'
+                      : mk < 0.82 ? 'rgba(46,58,32,.62)' : 'rgba(168,154,112,.42)';
+          g.beginPath();
+          g.ellipse(cx + (rnd() - 0.5) * rdHW * 2.1,
+                    rdRy - rdHH * 0.9 + rnd() * (rdLift + rdHH * 2.1),
+                    2.4 + rnd() * 6, 1.6 + rnd() * 3.4, 0, 0, 6.29);
+          g.fill();
+        }
+        g.fillStyle = 'rgba(0,0,0,.30)';                     // the near-right wall stays in shade
+        g.fillRect(cx, rdRy - 6, rdHW + 2, rdLift + rdHH + 8);
+        g.fillStyle = 'rgba(255,246,214,.08)';
+        g.fillRect(cx - rdHW - 2, rdRy - 6, rdHW, rdLift + rdHH + 8);
+        g.restore();
+        srand(577);                                          // lumps that break the box outline
+        for (var rdEI = 0; rdEI < 22; rdEI++) {
+          var et = rnd(), ed = rnd() < 0.5 ? -1 : 1;
+          var ex = cx + ed * rdHW * (0.30 + rnd() * 0.74);
+          var ey = rdRy - rdHH * 0.5 + et * (rdLift + rdHH * 1.4);
+          g.fillStyle = rnd() < 0.55 ? 'rgba(20,24,14,.60)' : 'rgba(120,112,70,.52)';
+          g.beginPath(); g.ellipse(ex, ey, 3 + rnd() * 4.4, 2 + rnd() * 2.6, 0, 0, 6.29); g.fill();
+        }
+        g.fillStyle = '#101218';                             // service hatch, front-left
+        g.beginPath();
+        g.moveTo(cx - fw * 0.32, rdBy + fh * 0.10); g.lineTo(cx - fw * 0.16, rdBy + fh * 0.18);
+        g.lineTo(cx - fw * 0.16, rdBy + fh * 0.18 - 13); g.lineTo(cx - fw * 0.32, rdBy + fh * 0.10 - 13);
+        g.closePath(); g.fill(); outline(g, '#000');
+        g.fillStyle = '#5c6270';
+        g.fillRect(cx - fw * 0.31, rdBy + fh * 0.10 - 12, fw * 0.13, 1.6);
+
+        // ---- three house-coloured wedge blocks off the mound ---------------
+        // The sprite's loudest remap: solid slabs with a lit top facet, a
+        // shaded downhill face and a silver grate strip along the low edge.
+        var rdWedge = function (fx, fy, dx, dy, wd) {
+          g.fillStyle = 'rgba(0,0,0,.34)';
+          g.beginPath();
+          g.moveTo(fx, fy + 5); g.lineTo(fx + dx, fy + dy + 8);
+          g.lineTo(fx + dx + wd * 0.34, fy + dy + wd * 0.46 + 8);
+          g.lineTo(fx + wd * 0.34, fy + wd * 0.46 + 5);
+          g.closePath(); g.fill();
+          g.fillStyle = shade(col, 0.44);                    // downhill face
+          g.beginPath();
+          g.moveTo(fx + dx, fy + dy); g.lineTo(fx + dx + wd * 0.34, fy + dy + wd * 0.46);
+          g.lineTo(fx + dx + wd * 0.34, fy + dy + wd * 0.46 + 8); g.lineTo(fx + dx, fy + dy + 8);
+          g.closePath(); g.fill(); outline(g, shade(col, 0.26));
+          g.fillStyle = col;                                 // the lit top plate
+          g.beginPath();
+          g.moveTo(fx, fy); g.lineTo(fx + dx, fy + dy);
+          g.lineTo(fx + dx + wd * 0.34, fy + dy + wd * 0.46); g.lineTo(fx + wd * 0.34, fy + wd * 0.46);
+          g.closePath(); g.fill(); outline(g, shade(col, 0.30));
+          g.fillStyle = shade(col, 1.28);                    // lit uphill lip
+          g.beginPath();
+          g.moveTo(fx, fy); g.lineTo(fx + dx, fy + dy);
+          g.lineTo(fx + dx * 0.97, fy + dy + 3); g.lineTo(fx - dx * 0.03, fy + 3);
+          g.closePath(); g.fill();
+          g.fillStyle = 'rgba(0,0,0,.20)';                   // the far half falls away
+          g.beginPath();
+          g.moveTo(fx + dx * 0.62, fy + dy * 0.62); g.lineTo(fx + dx, fy + dy);
+          g.lineTo(fx + dx + wd * 0.34, fy + dy + wd * 0.46);
+          g.lineTo(fx + dx * 0.62 + wd * 0.34, fy + dy * 0.62 + wd * 0.46);
+          g.closePath(); g.fill();
+          g.strokeStyle = 'rgba(22,14,10,.34)'; g.lineWidth = 1;      // one plate seam
+          for (var wI = 1; wI < 2; wI++) {
+            var wt = wI / 2;
+            g.beginPath();
+            g.moveTo(fx + dx * wt, fy + dy * wt);
+            g.lineTo(fx + dx * wt + wd * 0.34, fy + dy * wt + wd * 0.46); g.stroke();
+          }
+          g.fillStyle = '#565c64';                           // grate strip, downhill edge
+          g.beginPath();
+          g.moveTo(fx + wd * 0.34, fy + wd * 0.46); g.lineTo(fx + dx + wd * 0.34, fy + dy + wd * 0.46);
+          g.lineTo(fx + dx + wd * 0.34, fy + dy + wd * 0.46 + 3.2);
+          g.lineTo(fx + wd * 0.34, fy + wd * 0.46 + 3.2);
+          g.closePath(); g.fill(); outline(g, '#1e2227');
+          g.strokeStyle = 'rgba(16,20,24,.80)'; g.lineWidth = 1.3;
+          for (var wG = 1; wG < 6; wG++) {
+            var wgt = wG / 6;
+            g.beginPath();
+            g.moveTo(fx + wd * 0.34 + dx * wgt, fy + wd * 0.46 + dy * wgt);
+            g.lineTo(fx + wd * 0.34 + dx * wgt, fy + wd * 0.46 + dy * wgt + 3.2); g.stroke();
+          }
+        };
+        rdWedge(cx - fw * 0.28, baseY + fh * 0.26, -fw * 0.46, fh * 0.26, 32);   // left
+        rdWedge(cx + fw * 0.26, baseY + fh * 0.30, fw * 0.48, fh * 0.30, 34);    // right
+        rdWedge(cx - fw * 0.13, baseY + fh * 0.56, fw * 0.22, fh * 0.34, 32);    // front
+
+        // ---- the fat red-and-white life-ring collar, sunk into the roof -----
+        var rdCy = rdRy + 11, rdCr = fw * 0.34;
         g.fillStyle = 'rgba(0,0,0,.34)';
-        g.beginPath(); g.ellipse(rdDx + 22, rdDy + 18, 17, 15, 0, 0, 6.29); g.fill();
-        g.strokeStyle = 'rgba(24,28,34,.55)'; g.lineWidth = 1.4;    // shell ribs
+        g.beginPath(); g.ellipse(cx + 1, rdCy + 6, rdCr + 2, (rdCr + 2) * 0.46, 0, 0, 6.29); g.fill();
+        for (var rdBI = 0; rdBI < 8; rdBI++) {               // segments, dark-edged
+          var a0 = rdBI / 8 * 6.283, a1 = (rdBI + 1) / 8 * 6.283;
+          g.strokeStyle = rdBI % 2 ? '#2a2a26' : shade(col, 0.40);
+          g.lineWidth = 15.2;
+          g.beginPath(); g.ellipse(cx, rdCy + 1.6, rdCr, rdCr * 0.46, 0, a0, a1); g.stroke();
+          g.strokeStyle = rdBI % 2 ? '#d8dace' : col;
+          g.lineWidth = 12.6;
+          g.beginPath(); g.ellipse(cx, rdCy, rdCr, rdCr * 0.46, 0, a0, a1); g.stroke();
+          g.strokeStyle = rdBI % 2 ? '#f2f3ea' : shade(col, 1.22);
+          g.lineWidth = 3.2;
+          g.beginPath(); g.ellipse(cx, rdCy - 3.6, rdCr, rdCr * 0.46, 0, a0 + 0.06, a1 - 0.06); g.stroke();
+        }
+        g.strokeStyle = 'rgba(20,22,20,.46)'; g.lineWidth = 1.4;
+        g.beginPath(); g.ellipse(cx, rdCy + 6.4, rdCr, rdCr * 0.46, 0, 0, 3.15); g.stroke();
+        g.fillStyle = 'rgba(46,50,32,.42)';                  // grime where it meets the mound
+        g.beginPath(); g.ellipse(cx, rdCy + 7.5, rdCr * 0.96, rdCr * 0.30, 0, 0, 3.15); g.fill();
+
+        // ---- iron machinery on the mound roof, round the mast root ---------
+        g.fillStyle = RDR_IRN;
+        g.beginPath();
+        g.moveTo(cx - 17, rdCy - 5); g.lineTo(cx - 8, rdCy - 10);
+        g.lineTo(cx + 8, rdCy - 10); g.lineTo(cx + 17, rdCy - 5);
+        g.lineTo(cx + 17, rdCy - 1); g.lineTo(cx - 17, rdCy - 1);
+        g.closePath(); g.fill(); outline(g, RDR_IRND);
+        g.fillStyle = RDR_IRNL; g.fillRect(cx - 15, rdCy - 9, 5.4, 5);
+        g.fillStyle = '#8d9152'; g.fillRect(cx + 9, rdCy - 9, 4.4, 4.4);
+
+        // ---- the trunnion lattice, the back-shell and the dish -------------
+        var rdR = 45, rdRv = 44, rdDx = cx + 2, rdDy = baseY - 96;
+        g.fillStyle = RDR_IRN;                               // tapering trunnion
+        g.beginPath();
+        g.moveTo(cx - 15, rdCy - 8); g.lineTo(cx + 15, rdCy - 8);
+        g.lineTo(rdDx + 8, rdDy + 34); g.lineTo(rdDx - 8, rdDy + 34);
+        g.closePath(); g.fill(); outline(g, RDR_IRND);
+        g.fillStyle = 'rgba(255,255,255,.11)';
+        g.beginPath();
+        g.moveTo(cx - 15, rdCy - 8); g.lineTo(cx - 9, rdCy - 8);
+        g.lineTo(rdDx - 3, rdDy + 34); g.lineTo(rdDx - 8, rdDy + 34);
+        g.closePath(); g.fill();
+        g.strokeStyle = RDR_IRND; g.lineWidth = 1.2;         // two stringers and one brace
+        for (var rdXI = 0; rdXI < 2; rdXI++) {
+          var xk = rdXI ? 5 : -5;
+          g.beginPath();
+          g.moveTo(cx + xk * 1.9, rdCy - 8); g.lineTo(rdDx + xk, rdDy + 34); g.stroke();
+        }
+        g.beginPath();
+        g.moveTo(cx - 12, rdCy - 9); g.lineTo(rdDx + 7, rdDy + 33); g.stroke();
+        g.beginPath();
+        g.moveTo(cx + 12, rdCy - 9); g.lineTo(rdDx - 7, rdDy + 33); g.stroke();
+        g.fillStyle = '#3f444c';                             // back-shell, offset down-right
+        g.beginPath(); g.ellipse(rdDx + 20, rdDy + 30, 26, 25, 0, 0, 6.29); g.fill();
+        outline(g, RDR_IRND);
+        g.fillStyle = 'rgba(0,0,0,.36)';
+        g.beginPath(); g.ellipse(rdDx + 27, rdDy + 35, 17, 15, 0, 0, 6.29); g.fill();
+        g.strokeStyle = 'rgba(20,24,30,.55)'; g.lineWidth = 1.4;
         for (var rdBkI = 0; rdBkI < 4; rdBkI++) {
           var rba = rdBkI / 4 * 3.14 + 0.4;
           g.beginPath();
-          g.moveTo(rdDx + 15 - Math.cos(rba) * 26, rdDy + 13 - Math.sin(rba) * 24);
-          g.lineTo(rdDx + 15 + Math.cos(rba) * 26, rdDy + 13 + Math.sin(rba) * 24);
+          g.moveTo(rdDx + 20 - Math.cos(rba) * 25, rdDy + 30 - Math.sin(rba) * 24);
+          g.lineTo(rdDx + 20 + Math.cos(rba) * 25, rdDy + 30 + Math.sin(rba) * 24);
           g.stroke();
         }
-
-        // ---- the dish ------------------------------------------------------
-        var rdR = 34, rdRv = 30;
-        var rgrd = g.createRadialGradient(rdDx - rdR * 0.34, rdDy - rdRv * 0.40, 2,
-                                          rdDx, rdDy, rdR * 1.22);
+        // the face: pale panelled silver, dark navy over the upper-left sector
+        var rgrd = g.createRadialGradient(rdDx - rdR * 0.24, rdDy + rdRv * 0.30, 3,
+                                          rdDx, rdDy, rdR * 1.24);
         rgrd.addColorStop(0, RDR_DSHL);
-        rgrd.addColorStop(0.58, RDR_DSH);
+        rgrd.addColorStop(0.62, RDR_DSH);
         rgrd.addColorStop(1, RDR_DSHD);
         g.fillStyle = rgrd;
         g.beginPath(); g.ellipse(rdDx, rdDy, rdR, rdRv, 0, 0, 6.29); g.fill();
-        g.strokeStyle = '#20242a'; g.lineWidth = 2.2;        // dark rim
-        g.beginPath(); g.ellipse(rdDx, rdDy, rdR, rdRv, 0, 0, 6.29); g.stroke();
-        g.strokeStyle = '#f2f4f8'; g.lineWidth = 1.1;
-        g.beginPath(); g.ellipse(rdDx, rdDy, rdR - 2.2, rdRv - 2.2, 0, 3.5, 5.9); g.stroke();
         g.save();
-        g.beginPath(); g.ellipse(rdDx, rdDy, rdR - 1.4, rdRv - 1.4, 0, 0, 6.29); g.clip();
-        g.fillStyle = 'rgba(28,34,42,.26)';                  // the bowl's shaded half
+        g.beginPath(); g.ellipse(rdDx, rdDy, rdR - 1.2, rdRv - 1.2, 0, 0, 6.29); g.clip();
+        var rdA = function (k) { return [-1.571, -2.72, -0.42, 0.66, 2.34][k] + Math.sin(anP) * 0.20; };
+        g.fillStyle = '#242833';                             // dark band across the top
         g.beginPath();
-        g.moveTo(rdDx - rdR, rdDy + rdRv * 0.34);
-        g.lineTo(rdDx + rdR, rdDy - rdRv * 0.16);
-        g.lineTo(rdDx + rdR, rdDy + rdRv); g.lineTo(rdDx - rdR, rdDy + rdRv);
+        g.moveTo(rdDx - rdR, rdDy - rdRv); g.lineTo(rdDx + rdR, rdDy - rdRv);
+        g.lineTo(rdDx + rdR, rdDy - rdRv * 0.22);
+        g.quadraticCurveTo(rdDx + rdR * 0.12, rdDy + rdRv * 0.04,
+                           rdDx - rdR, rdDy - rdRv * 0.46);
         g.closePath(); g.fill();
-        g.strokeStyle = 'rgba(48,54,62,.46)'; g.lineWidth = 2.2;   // one panel ring
-        g.beginPath(); g.ellipse(rdDx, rdDy, rdR * 0.60, rdRv * 0.60, 0, 0, 6.29); g.stroke();
-        g.strokeStyle = 'rgba(40,46,54,.62)'; g.lineWidth = 2.6;   // the four-arm cross
-        for (var rdSI = 0; rdSI < 4; rdSI++) {
-          var rsa = rdSI / 4 * 6.283 + 0.62;
-          g.beginPath(); g.moveTo(rdDx, rdDy);
-          g.lineTo(rdDx + Math.cos(rsa) * rdR, rdDy + Math.sin(rsa) * rdRv); g.stroke();
-        }
-        g.strokeStyle = 'rgba(246,248,252,.40)'; g.lineWidth = 1;
-        for (rdSI = 0; rdSI < 4; rdSI++) {
-          var rsb = rdSI / 4 * 6.283 + 0.62;
+        g.fillStyle = 'rgba(38,42,54,.50)';                  // its soft lower fringe
+        g.beginPath();
+        g.moveTo(rdDx - rdR, rdDy - rdRv * 0.46); g.lineTo(rdDx + rdR, rdDy - rdRv * 0.22);
+        g.lineTo(rdDx + rdR, rdDy + rdRv * 0.02); g.lineTo(rdDx - rdR, rdDy - rdRv * 0.22);
+        g.closePath(); g.fill();
+        g.fillStyle = 'rgba(88,96,108,.30)';                 // one dimmer panel, lower right
+        g.beginPath(); g.moveTo(rdDx, rdDy);
+        g.ellipse(rdDx, rdDy, rdR, rdRv, 0, rdA(3), rdA(4)); g.closePath(); g.fill();
+        srand(913);
+        for (var rdPI = 0; rdPI < 130; rdPI++) {             // panel grain, so it is not glass
+          var pk = rnd();
+          g.fillStyle = pk < 0.46 ? 'rgba(108,114,124,.20)' : pk < 0.86 ? 'rgba(246,248,252,.18)'
+                     : 'rgba(40,46,56,.16)';
           g.beginPath();
-          g.moveTo(rdDx + Math.cos(rsb) * 3, rdDy + Math.sin(rsb) * 3 - 2);
-          g.lineTo(rdDx + Math.cos(rsb) * rdR, rdDy + Math.sin(rsb) * rdRv - 2); g.stroke();
+          g.ellipse(rdDx + (rnd() - 0.5) * rdR * 1.95, rdDy + (rnd() - 0.5) * rdRv * 1.95,
+                    1.1 + rnd() * 2.4, 0.9 + rnd() * 1.7, 0, 0, 6.29);
+          g.fill();
         }
-        g.fillStyle = 'rgba(255,255,255,.26)';               // sky catch, upper-left
-        g.beginPath(); g.ellipse(rdDx - rdR * 0.40, rdDy - rdRv * 0.44, rdR * 0.40, rdRv * 0.30, -0.5, 0, 6.29);
+        g.strokeStyle = 'rgba(58,66,78,.52)'; g.lineWidth = 2.6;    // concentric arcs
+        g.beginPath(); g.ellipse(rdDx, rdDy + rdRv * 0.16, rdR * 0.60, rdRv * 0.52, 0,
+                                 0.34 + anP * 0.09, 2.86 + anP * 0.09); g.stroke();
+        g.strokeStyle = 'rgba(96,104,118,.32)'; g.lineWidth = 1.4;
+        g.beginPath(); g.ellipse(rdDx, rdDy + rdRv * 0.10, rdR * 0.86, rdRv * 0.80, 0,
+                                 0.58 + anP * 0.09, 2.62 + anP * 0.09); g.stroke();
+        g.strokeStyle = '#232733'; g.lineWidth = 3.4;        // the navy ribs, turning
+        for (var rdSI = 0; rdSI < 5; rdSI++) {
+          var rsa = rdA(rdSI);
+          g.beginPath(); g.moveTo(rdDx, rdDy);
+          g.lineTo(rdDx + Math.cos(rsa) * rdR * 1.05, rdDy + Math.sin(rsa) * rdRv * 1.05); g.stroke();
+        }
+        g.strokeStyle = 'rgba(158,164,174,.42)'; g.lineWidth = 1.1;
+        for (rdSI = 0; rdSI < 5; rdSI++) {
+          var rsb = rdA(rdSI);
+          g.beginPath();
+          g.moveTo(rdDx - 1.6 + Math.cos(rsb) * 8, rdDy + Math.sin(rsb) * 8);
+          g.lineTo(rdDx - 1.6 + Math.cos(rsb) * rdR, rdDy + Math.sin(rsb) * rdRv); g.stroke();
+        }
+        g.fillStyle = 'rgba(255,255,255,.17)';               // specular, sweeping with the face
+        g.beginPath();
+        g.ellipse(rdDx + Math.cos(anP + 2.4) * rdR * 0.32, rdDy + Math.sin(anP + 2.4) * rdRv * 0.32,
+                  rdR * 0.30, rdRv * 0.20, -0.5, 0, 6.29);
         g.fill();
         g.restore();
-
-        // ---- feed horn on its tripod, with the house pip ------------------
-        g.strokeStyle = '#3b4149'; g.lineWidth = 1.6;
-        for (var rdTI = 0; rdTI < 3; rdTI++) {
-          var rta = rdTI / 3 * 6.283 + 1.1;
-          g.beginPath();
-          g.moveTo(rdDx + Math.cos(rta) * rdR * 0.80, rdDy + Math.sin(rta) * rdRv * 0.80);
-          g.lineTo(rdDx - 1, rdDy - 3); g.stroke();
+        g.strokeStyle = '#8f959e'; g.lineWidth = 1.8;        // the rim
+        g.beginPath(); g.ellipse(rdDx, rdDy, rdR, rdRv, 0, 0, 6.29); g.stroke();
+        g.strokeStyle = '#222731'; g.lineWidth = 2;
+        g.beginPath(); g.ellipse(rdDx, rdDy, rdR, rdRv, 0, 3.30, 6.12); g.stroke();
+        g.strokeStyle = 'rgba(238,240,244,.72)'; g.lineWidth = 1;
+        g.beginPath(); g.ellipse(rdDx, rdDy, rdR - 2.6, rdRv - 2.6, 0, 0.50, 2.70); g.stroke();
+        // the feed mast: one thin bar through the hub and out past the rim
+        g.strokeStyle = '#181c24'; g.lineWidth = 2.6;
+        g.beginPath(); g.moveTo(rdDx - 1, rdDy - rdRv * 0.24);
+        g.lineTo(rdDx - 1, rdDy + rdRv * 1.14); g.stroke();
+        g.strokeStyle = '#484f5c'; g.lineWidth = 1.1;
+        g.beginPath(); g.moveTo(rdDx - 2.2, rdDy - rdRv * 0.22);
+        g.lineTo(rdDx - 2.2, rdDy + rdRv * 1.10); g.stroke();
+        // the domed hub, with the house crescent on its left flank
+        g.fillStyle = '#3c424c';
+        g.beginPath(); g.ellipse(rdDx + 1, rdDy - rdRv * 0.30, 10.4, 9.8, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#828992';
+        g.beginPath(); g.ellipse(rdDx, rdDy - rdRv * 0.32, 9.2, 8.6, 0, 0, 6.29); g.fill();
+        outline(g, '#161b24');
+        g.fillStyle = '#a9b0b8';
+        g.beginPath(); g.ellipse(rdDx - 2, rdDy - rdRv * 0.32 - 2.4, 5.4, 4.6, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.34)';
+        g.beginPath(); g.ellipse(rdDx - 3.4, rdDy - rdRv * 0.32 - 3.6, 2.4, 1.8, 0, 0, 6.29); g.fill();
+        g.strokeStyle = shade(col, 0.58); g.lineWidth = 3.4;   // the crescent
+        g.beginPath(); g.ellipse(rdDx, rdDy - rdRv * 0.32, 9.7, 9.1, 0, 2.22, 4.02); g.stroke();
+        g.strokeStyle = col; g.lineWidth = 2.1;
+        g.beginPath(); g.ellipse(rdDx, rdDy - rdRv * 0.32, 9.5, 8.9, 0, 2.30, 3.95); g.stroke();
+        // the aviation beacon on the roof machinery, blinking
+        g.fillStyle = ph6 % 3 === 0 ? '#ffe9a2' : '#443f34';
+        g.beginPath(); g.ellipse(cx + 13, rdCy - 16, 2.4, 2, 0, 0, 6.29); g.fill();
+        if (ph6 % 3 === 0) {
+          g.fillStyle = 'rgba(255,236,170,.20)';
+          g.beginPath(); g.ellipse(cx + 13, rdCy - 16, 6, 5, 0, 0, 6.29); g.fill();
         }
-        g.fillStyle = '#8b929c';
-        g.beginPath(); g.ellipse(rdDx - 1, rdDy - 2, 7, 6.4, 0, 0, 6.29); g.fill();
-        outline(g, '#1d2126');
-        g.fillStyle = '#d2d7de';
-        g.beginPath(); g.ellipse(rdDx - 3, rdDy - 4, 3.2, 2.8, 0, 0, 6.29); g.fill();
-        g.fillStyle = col;                                   // the house pip
-        g.beginPath(); g.ellipse(rdDx + 4.6, rdDy - 4.4, 2.6, 2.4, 0, 0, 6.29); g.fill();
-        g.fillStyle = shade(col, 1.40);
-        g.beginPath(); g.ellipse(rdDx + 4, rdDy - 5.2, 1.2, 1, 0, 0, 6.29); g.fill();
       } else {
         // Directorate never builds this (Soviet-only in RA2): plain block.
         prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6a6f78', '#8a9099', '#2a2e36');
         g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 32, fw, 4);
       }
-
     } else if (key === 'reactor') {
       // --- RA2 Nuclear Reactor ----------------------------------------------
       // From the clean sprite (519x408, keyed 504x384, w/h 1.31) plus the
@@ -10118,7 +10342,8 @@
           // footprint size alone, which the taller RA2 shapes outgrew).
           A.rise = A.ay - artTop(A.s);
           A.s.bb = artBox(A.s);
-          if (k === 'base' || k === 'power' || k === 'refinery' || k === 'factory' || k === 'barracks') {
+          if (k === 'base' || k === 'power' || k === 'refinery' || k === 'factory' || k === 'barracks'
+              || k === 'airforce' || k === 'radar') {
             // The yard's crane works: six phases, cycled by drawBld like the
             // RA2 idle animation. The bbox is the union so the brackets and
             // the build-up clip cover every phase.
