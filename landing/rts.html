@@ -936,9 +936,9 @@
   function unitCanvas() { return mkCanvas(104, 90); }
 
   var ACCENT = {
-    rifle:     '#4f6136',   // olive uniform under a narrow chest plate
-    conscript: '#6e747c',   // dull steel helmet over the tan greatcoat
-    rocket:    '#ffbe45',   // amber warhead
+    rifle:     '#4f6136',   // olive fatigues under the house-colour helmet
+    conscript: '#8b929b',   // bare steel helmet — the Conscript's remap is his SCARF
+    rocket:    '#ffbe45',   // amber warhead (Guardian) / amber shell drum (Flak)
     tank:      '#39415a',   // gunmetal barrel
     lancer:    '#3a3f4c',   // neutral grey deck insets on a pale hull
     mammoth:   '#17181c',   // gun-black twin barrels
@@ -950,33 +950,105 @@
 
   // A soldier, drawn front-on and small. Silhouette separates the types: the
   // GI keeps his elbows in and the rifle angled across his chest, the
-  // Conscript is one tapered greatcoat column, the Rocketeer has a tube on
-  // his shoulder.
+  // Conscript is a flared tunic over tan trousers with a bedroll on his back,
+  // the Rocketeer carries a shoulder weapon whose SHAPE is the faction tell —
+  // a stubby missile tube for the Directorate's Guardian GI, a long silver
+  // flak cannon at the hip for the Collective's Flak Trooper.
+  //
   // RA2 puts infantry in a DRAB uniform and remaps only the helmet and a
   // narrow chest plate to the house colour, and it inverts the layout between
   // armies: the GI is colour on the HELMET + CHEST over olive limbs, the
-  // Conscript is colour on the SHOULDERS over a tan coat. The previous pass
-  // ran the GI to about 45% house colour — vest, both pauldrons and both
-  // sleeves — which is mass, not trim, and it is what made him read as a
-  // plastic figure rather than a soldier in a uniform.
+  // Conscript is colour on the HELMET + a shoulder yoke over a tan tunic.
+  // An earlier pass ran the GI to about 45% house colour — vest, both
+  // pauldrons and both sleeves — which is mass, not trim, and it is what made
+  // him read as a plastic figure rather than a soldier in a uniform.
   var TROOP = {
     rifle:     { coat: '#4f6136', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
-    rocket:    { coat: '#5a6270', boot: '#22242a', skin: '#d8a878' },  // grey flight suit
-    conscript: { coat: '#a08258', boot: '#22242a', skin: '#d8a878' }   // tan greatcoat
+    conscript: { coat: '#7d5148', boot: '#1e2026', skin: '#d8a878' },  // brown-maroon trousers
+    rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
+    rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' }   // Flak Trooper: grey-brown
   };
 
-  function bakeInfantry(col, kind, fac) {
+  // THE WALK. bakeInfantry is baked three times per unit and drawUnit cycles
+  // 0 -> 1 -> 2 every 8 ticks while the figure moves, exactly like an RA2
+  // infantry SHP's walk sequence. Frame 0 is the PASSING pose (legs together,
+  // body at its highest point) and doubles as the standing frame; 1 and 2 are
+  // the two full strides, mirrored.
+  //
+  // The anchor rule is what makes it a walk instead of a twitch: EVERY frame
+  // puts the leading boot flat on `by`, so the figure's ground point never
+  // moves and the sprite cannot jitter between frames. What changes is which
+  // leg leads, which arm counter-swings, and a sub-pixel bob and lateral lean
+  // of everything above the hips — drawn with ONE translate so the torso,
+  // head and weapon move together like a body, not like separate parts.
+  function gait(phase) {
+    var ph = ((phase | 0) % 3 + 3) % 3;
+    var sw = ph === 0 ? 0 : (ph === 1 ? 1 : -1);   // which side leads
+    return { ph: ph, sw: sw, bob: ph ? 0.9 : 0, lean: sw * 0.55 };
+  }
+
+  function bakeInfantry(col, kind, fac, phase) {
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
-    var T = TROOP[kind] || TROOP.rifle;
+    var sov = fac === 'col';
+    var tkey = (kind === 'rocket' && sov) ? 'rocketS' : kind;
+    var T = TROOP[tkey] || TROOP.rifle;
     var GUN = '#22242a';
+    var JACKET = '#252a38';        // Conscript's near-black tunic
+    var SLEEVE = '#3b4256';        // ...his sleeves, one step lighter so they read
+    var POUCH = '#b58a52';         // his tan ammo pouch
+    var gt = gait(phase);
     var ar;
-    shadowBlob(g, cx, by, 6.6, 2.8);
+    shadowBlob(g, cx, by, gt.ph ? 7.5 : 6.6, 2.8);
 
-    function boots(sp) {
-      g.fillStyle = T.boot;
-      g.beginPath(); g.roundRect(cx - sp - 1.9, by - 3.0, 3.8, 3.0, 1); g.fill();
-      g.beginPath(); g.roundRect(cx + sp - 1.9, by - 3.0, 3.8, 3.0, 1); g.fill();
+    // Two legs that SCISSOR — the one thing that separates a walk from a
+    // wider stance. `i` is the screen side (-1 left, +1 right). In a stride
+    // frame the leg on the swing side LEADS: it swings out past the hip and
+    // plants flat and lit. The other leg is mid-swing, so its foot is pulled
+    // in UNDER the body, tilted off the vertical and lifted clear of the
+    // ground, and it is drawn narrower and darker because it is behind.
+    // Splaying BOTH feet outward (the first attempt) just made a straddle
+    // that read as standing with the feet apart in every frame.
+    function legs(sp, hipY, w, trousers, bootW) {
+      bootW = bootW || w + 0.5;
+      var order = gt.sw === 0 ? [-1, 1] : [-gt.sw, gt.sw];   // trailing leg first
+      for (var n = 0; n < 2; n++) {
+        var i = order[n];
+        var lead = gt.sw === 0 ? 0 : (i === gt.sw ? 1 : -1);
+        var fx = cx + (lead > 0 ? i * (sp + 3.0) : lead < 0 ? -i * sp * 0.30 : i * sp);
+        var lift = lead < 0 ? 2.3 : 0;                 // trailing foot swings clear
+        var lw = w * (lead < 0 ? 0.84 : 1);
+        var hx = cx + i * sp * 0.74;
+        g.fillStyle = shade(trousers, lead > 0 ? 1.14 : lead < 0 ? 0.70 : 1);
+        g.beginPath();                                 // hip -> ankle
+        g.moveTo(hx - w / 2, hipY); g.lineTo(hx + w / 2, hipY);
+        g.lineTo(fx + lw / 2 - 0.3, by - 2.6 - lift);
+        g.lineTo(fx - lw / 2 + 0.3, by - 2.6 - lift);
+        g.closePath(); g.fill(); outline(g, shade(trousers, 0.46));
+        var bw = bootW * (lead < 0 ? 0.84 : 1);
+        g.fillStyle = lead < 0 ? shade(T.boot, 0.74) : T.boot;
+        g.beginPath();
+        g.roundRect(fx - bw / 2, by - 3.1 - lift, bw, 3.1, 1.0); g.fill();
+        if (lead > 0) {                                // toe-cap glint on the lead boot
+          g.fillStyle = 'rgba(255,255,255,.16)';
+          g.fillRect(fx - bw / 2 + 0.4, by - 3.0, bw - 0.8, 0.9);
+        }
+      }
+    }
+    // Sleeves counter-swing the legs: the arm OPPOSITE the leading leg comes
+    // forward (drawn lower, wider and lit), the other pulls back and up.
+    // `cb` gets (side, x, y, forward) so each unit can hang its own cuff,
+    // pauldron or glove off the same swing.
+    function arms(sp, topY, w, h, sleeve, cb) {
+      for (var i = -1; i <= 1; i += 2) {
+        var fwd = gt.sw === 0 ? 0 : (i === gt.sw ? -1 : 1);
+        var ax = cx + i * (sp + (fwd > 0 ? 0.45 : fwd < 0 ? -0.3 : 0)) - w / 2;
+        var ay = topY + (fwd > 0 ? 0.7 : fwd < 0 ? -0.7 : 0);
+        g.fillStyle = shade(sleeve, fwd > 0 ? 1.06 : 0.84);
+        g.beginPath(); g.roundRect(ax, ay, w, h + (fwd > 0 ? 0.8 : 0), w * 0.46); g.fill();
+        outline(g, shade(sleeve, 0.48));
+        if (cb) cb(i, ax + w / 2, ay, fwd);
+      }
     }
     function face(hy) {
       g.fillStyle = T.skin;
@@ -1013,107 +1085,206 @@
     }
 
     if (kind === 'conscript') {
-      // ONE tapered greatcoat column, not two legs in a skirt: the coat is
-      // widest at the shoulders and narrows to a single dark hem, which is
-      // the whole silhouette of a Conscript at 1:1. A small DULL-steel dome
-      // sits on top — the previous helmet was a quarter of the figure's
-      // height and bright enough to be the first thing you saw.
-      g.fillStyle = T.boot;                                         // single hem / boots
-      g.beginPath(); g.roundRect(cx - 3.9, by - 3.2, 7.8, 3.2, 1.1); g.fill();
-      g.fillStyle = T.coat;                                         // coat skirt, tapered
-      g.beginPath();
-      g.moveTo(cx - 5.7, by - 15.4); g.lineTo(cx + 5.7, by - 15.4);
-      g.lineTo(cx + 4.1, by - 2.6); g.lineTo(cx - 4.1, by - 2.6);
-      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.48));
-      g.fillStyle = shade(T.coat, 0.66);                            // centre fold
-      g.beginPath();
-      g.moveTo(cx - 0.6, by - 15.0); g.lineTo(cx + 0.6, by - 15.0);
-      g.lineTo(cx + 0.5, by - 2.8); g.lineTo(cx - 0.5, by - 2.8);
-      g.closePath(); g.fill();
-      g.fillStyle = shade(T.coat, 0.72);                            // right-hand fold
-      g.beginPath();
-      g.moveTo(cx + 2.9, by - 13.8); g.lineTo(cx + 3.7, by - 13.8);
-      g.lineTo(cx + 3.0, by - 3.0); g.lineTo(cx + 2.4, by - 3.0);
-      g.closePath(); g.fill();
-      g.fillStyle = shade(T.coat, 1.24);                            // lit left edge
-      g.beginPath();
-      g.moveTo(cx - 5.5, by - 15.0); g.lineTo(cx - 4.3, by - 15.0);
-      g.lineTo(cx - 3.1, by - 2.8); g.lineTo(cx - 3.9, by - 2.8);
-      g.closePath(); g.fill();
+      // Read straight off the RA2 sprite (soviet-conscript-anim-f0): a plain
+      // STEEL helmet, a fat house-colour scarf filling the whole chest under
+      // the chin, a near-black jacket with the sleeves the same value as the
+      // jacket, and BROWN-MAROON trousers carrying a tan ammo pouch on the
+      // hip. Two earlier passes made him a house-colour helmet over a tan
+      // greatcoat, which is a different soldier: in the real sprite the
+      // helmet is grey and the SCARF is the only remapped mass.
+      legs(2.8, by - 11.6, 3.9, T.coat, 4.5);
 
-      g.fillStyle = shade(T.coat, 1.08);                            // chest of the coat
+      g.save(); g.translate(gt.lean, gt.bob);
+      g.fillStyle = POUCH;                                          // tan hip pouch
+      g.beginPath(); g.roundRect(cx - 4.6, by - 13.0, 4.4, 3.2, 0.9); g.fill();
+      outline(g, shade(POUCH, 0.44));
+      g.fillStyle = shade(POUCH, 1.22);
+      g.fillRect(cx - 4.3, by - 12.8, 3.8, 0.9);
+
+      g.fillStyle = JACKET;                                         // dark jacket
       g.beginPath();
-      g.moveTo(cx - 5.4, by - 18.8); g.lineTo(cx + 5.4, by - 18.8);
-      g.lineTo(cx + 5.6, by - 14.8); g.lineTo(cx - 5.6, by - 14.8);
-      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.48));
+      g.moveTo(cx - 5.2, by - 19.4); g.lineTo(cx + 5.2, by - 19.4);
+      g.lineTo(cx + 4.7, by - 11.6); g.lineTo(cx - 4.7, by - 11.6);
+      g.closePath(); g.fill(); outline(g, shade(JACKET, 0.52));
+      g.fillStyle = shade(JACKET, 1.34);                            // lit left edge
+      g.fillRect(cx - 5.0, by - 19.2, 1.3, 7.4);
+      g.fillStyle = shade(JACKET, 0.66);                            // belt
+      g.fillRect(cx - 4.9, by - 13.2, 9.8, 1.5);
 
-      g.fillStyle = col;                                            // house-colour chest rig
-      g.beginPath(); g.roundRect(cx - 5.6, by - 19.2, 11.2, 4.3, 1.2); g.fill();
-      outline(g, shade(col, 0.42));
-      g.fillStyle = shade(col, 1.30);
-      g.fillRect(cx - 5.3, by - 19.0, 10.6, 1.3);
-      g.fillStyle = shade(T.coat, 0.5);                             // belt below the rig
-      g.fillRect(cx - 5.2, by - 15.2, 10.4, 1.2);
+      // The sleeves are a step LIGHTER than the jacket on purpose: at the
+      // jacket's own value they merged with the torso and the scarf read as
+      // a slab floating between two black bricks with no arms swinging.
+      arms(5.5, by - 18.4, 2.9, 6.6, SLEEVE, function (i, x, y) {
+        g.fillStyle = shade(SLEEVE, 0.62);                          // cuff
+        g.beginPath(); g.roundRect(x - 1.5, y + 5.0, 3.0, 2.0, 0.8); g.fill();
+      });
 
-      for (ar = -1; ar <= 1; ar += 2) {
-        g.fillStyle = shade(T.coat, 0.94);                          // coat sleeves
-        g.beginPath(); g.roundRect(cx + ar * 5.6 - 1.5, by - 17.6, 3.0, 7.2, 1.3); g.fill();
-        outline(g, shade(T.coat, 0.48));
-        g.fillStyle = col;                                          // shoulder pad
-        g.beginPath(); g.roundRect(cx + ar * 5.9 - 1.8, by - 19.4, 3.6, 3.0, 1.1); g.fill();
-        outline(g, shade(col, 0.42));
-      }
-      carbine(cx - 4.2, by - 10.6, cx + 7.4, by - 12.8, 1.9);       // rifle, held low
-      face(by - 20.6);
-      g.fillStyle = '#6e747c';                                      // dull steel dome
-      g.beginPath(); g.arc(cx, by - 21.4, 3.6, Math.PI, 0); g.fill();
-      g.fillRect(cx - 3.6, by - 21.4, 7.2, 1.1);
-      g.fillStyle = shade('#6e747c', 0.72);                         // neck flare
-      g.fillRect(cx - 4.0, by - 20.5, 8.0, 1.0);
-      outline(g, '#3c4046');
-      g.fillStyle = 'rgba(255,255,255,.26)';
-      g.beginPath(); g.ellipse(cx - 1.2, by - 22.8, 1.3, 0.7, -0.3, 0, 6.29); g.fill();
+      // The scarf is the whole remap, so it has to be a MASS, not a collar
+      // stripe: it fills the chest from the chin to the belt and spills over
+      // both shoulders. The rifle is slung up over the LEFT shoulder (as in
+      // the sprite) precisely so it does not lie across that mass — routing
+      // it across the chest hid the only house-coloured thing on the figure.
+      g.fillStyle = col;
+      g.beginPath();
+      g.moveTo(cx - 5.0, by - 20.2); g.lineTo(cx + 5.0, by - 20.2);
+      g.lineTo(cx + 4.0, by - 13.9); g.lineTo(cx - 4.0, by - 13.9);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      // Shading a house-colour panel is a trap: the blue #4aa3db clips its
+      // blue channel above about f=1.3 and goes white-cyan, so a "lit" fold
+      // at 1.4 stops reading as the owner's colour at all. Folds stay inside
+      // 0.70..1.24 on every figure.
+      g.fillStyle = shade(col, 1.22);                               // lit fold on the scarf
+      g.fillRect(cx - 4.6, by - 20.0, 3.4, 5.6);
+      g.fillStyle = shade(col, 0.76);                               // shaded right fold
+      g.fillRect(cx + 1.7, by - 19.6, 2.6, 5.2);
+      g.fillStyle = shade(col, 0.64);                               // chin shadow
+      g.fillRect(cx - 4.8, by - 20.1, 9.6, 0.8);
+      carbine(cx - 2.6, by - 13.4 + gt.sw * 0.5, cx - 8.0, by - 24.8 + gt.sw * 0.5, 1.8);
+      face(by - 21.9);
+      helmet(by - 23.2, 4.0, ACCENT.conscript, 1.3);                // STEEL, not house colour
+      g.restore();
+
+    } else if (kind === 'rocket' && !sov) {
+      // GUARDIAN GI (Directorate). Heavier than the rifleman in every axis:
+      // a slab vest that squares the shoulders, a deep helmet with a dark
+      // visor band, and a stubby missile tube braced on the right shoulder
+      // with an AMBER warhead in the muzzle. The tube is what names him at
+      // 1:1, so it is drawn long enough to break the body outline.
+      legs(3.0, by - 11.0, 4.0, T.coat, 4.6);
+
+      g.save(); g.translate(gt.lean, gt.bob);
+      g.fillStyle = shade(T.coat, 1.04);                            // olive undersuit torso
+      g.beginPath();
+      g.moveTo(cx - 5.4, by - 19.0); g.lineTo(cx + 5.4, by - 19.0);
+      g.lineTo(cx + 4.9, by - 10.4); g.lineTo(cx - 4.9, by - 10.4);
+      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.46));
+      g.fillStyle = shade(T.coat, 0.58);                            // utility belt
+      g.fillRect(cx - 5.0, by - 12.6, 10.0, 1.7);
+      g.fillStyle = '#7d8794';                                      // thigh armour plates
+      g.beginPath(); g.roundRect(cx - 4.0, by - 11.9, 2.3, 2.3, 0.8); g.fill();
+      g.beginPath(); g.roundRect(cx + 1.7, by - 11.9, 2.3, 2.3, 0.8); g.fill();
+
+      g.fillStyle = col;                                            // heavy house-colour vest
+      g.beginPath();
+      g.moveTo(cx - 5.6, by - 19.6); g.lineTo(cx + 5.6, by - 19.6);
+      g.lineTo(cx + 5.0, by - 13.4); g.lineTo(cx - 5.0, by - 13.4);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.38));
+      g.fillStyle = shade(col, 1.22);                               // lit shoulder line
+      g.fillRect(cx - 5.6, by - 19.4, 11.2, 1.6);
+      g.fillStyle = shade(col, 0.72);                               // vest seam
+      g.fillRect(cx - 0.7, by - 18.0, 1.4, 5.2);
+      g.fillStyle = '#c7ac3e';                                      // brass clasp
+      g.beginPath(); g.roundRect(cx - 1.6, by - 15.4, 3.2, 2.0, 0.6); g.fill();
+      outline(g, '#7f6a1c');
+
+      arms(6.0, by - 18.0, 3.2, 6.4, T.coat, function (i, x, y) {
+        g.fillStyle = col;                                          // slab pauldron
+        g.beginPath(); g.roundRect(x - 1.7, y - 1.1, 3.4, 2.6, 0.9); g.fill();
+        outline(g, shade(col, 0.4));
+        g.fillStyle = shade(col, 1.22);
+        g.fillRect(x - 1.4, y - 0.9, 2.8, 0.9);
+      });
+
+      var ry = gt.bob ? 0.4 : 0;                                    // launcher rides the bob
+      g.strokeStyle = '#33383f'; g.lineWidth = 3.4; g.lineCap = 'round';
+      g.beginPath();                                                // missile tube
+      g.moveTo(cx - 5.8, by - 13.4 + ry); g.lineTo(cx + 8.2, by - 18.4 - ry); g.stroke();
+      g.strokeStyle = '#6b7480'; g.lineWidth = 1.3;                 // tube glint
+      g.beginPath();
+      g.moveTo(cx - 4.6, by - 14.2 + ry); g.lineTo(cx + 7.2, by - 18.5 - ry); g.stroke();
+      g.strokeStyle = col; g.lineWidth = 3.6; g.lineCap = 'butt';   // house-colour trim band
+      g.beginPath();
+      g.moveTo(cx + 2.4, by - 16.1); g.lineTo(cx + 3.8, by - 16.6); g.stroke();
+      g.lineCap = 'round';
+      g.fillStyle = '#2a2e34';                                      // pistol grip + rear vent
+      g.beginPath(); g.roundRect(cx - 1.6, by - 14.3 + ry, 2.1, 2.8, 0.7); g.fill();
+      g.fillStyle = ACCENT.rocket;                                  // amber warhead
+      g.beginPath();
+      g.moveTo(cx + 7.6, by - 20.2 - ry); g.lineTo(cx + 11.0, by - 19.0 - ry);
+      g.lineTo(cx + 7.6, by - 17.2 - ry); g.closePath(); g.fill();
+      outline(g, '#6a4a10');
+      g.fillStyle = shade(ACCENT.rocket, 1.28);
+      g.fillRect(cx + 8.0, by - 19.5 - ry, 1.9, 0.9);
+
+      face(by - 22.4);
+      helmet(by - 23.6, 4.3, col, 1.4);
+      g.fillStyle = '#1f2429';                                      // dark visor band
+      g.beginPath(); g.roundRect(cx - 3.8, by - 22.4, 7.6, 2.0, 0.8); g.fill();
+      g.fillStyle = 'rgba(200,225,255,.30)';
+      g.fillRect(cx - 3.2, by - 22.2, 3.0, 0.8);
+      g.restore();
 
     } else if (kind === 'rocket') {
-      // No RA2 reference for this one — kept in the new infantry language:
-      // drab suit, house colour on helmet and shoulders, tube on the shoulder.
-      boots(3.0);
-      g.fillStyle = T.coat;
-      g.beginPath(); g.roundRect(cx - 4.5, by - 10.4, 3.8, 7.8, 1.4); g.fill();
-      g.beginPath(); g.roundRect(cx + 0.7, by - 10.4, 3.8, 7.8, 1.4); g.fill();
-      outline(g, shade(T.coat, 0.48));
-      g.fillStyle = shade(T.coat, 1.05);                            // flight suit torso
+      // FLAK TROOPER (Collective), read off soviet-flak-trooper-frames: a
+      // dark tunic over BROWN trousers, a house-colour vest filling the
+      // chest, a plain steel helmet, and the silhouette that names him — a
+      // long PALE flak cannon carried muzzle-UP over the right shoulder, the
+      // barrel rising past the helmet and out of the body outline.
+      // Laying that barrel horizontally across the hip (the first attempt)
+      // turned him into a man carrying a broom and lost the tell entirely.
+      legs(2.9, by - 11.4, 3.9, '#8a5b40', 4.4);
+
+      g.save(); g.translate(gt.lean, gt.bob);
+      g.fillStyle = T.coat;                                         // dark tunic, flared
       g.beginPath();
-      g.moveTo(cx - 5.4, by - 18.4); g.lineTo(cx + 5.4, by - 18.4);
-      g.lineTo(cx + 4.8, by - 10.0); g.lineTo(cx - 4.8, by - 10.0);
+      g.moveTo(cx - 5.0, by - 19.0); g.lineTo(cx + 5.0, by - 19.0);
+      g.lineTo(cx + 5.5, by - 11.0); g.lineTo(cx - 5.5, by - 11.0);
       g.closePath(); g.fill(); outline(g, shade(T.coat, 0.45));
-      g.fillStyle = col;                                            // chest harness
-      g.beginPath(); g.roundRect(cx - 5.4, by - 17.4, 10.8, 3.6, 1.0); g.fill();
-      outline(g, shade(col, 0.42));
-      g.fillStyle = shade(T.coat, 0.58);                            // jump pack
-      g.beginPath(); g.roundRect(cx - 3.6, by - 20.4, 7.2, 5.0, 1.6); g.fill();
-      outline(g, shade(T.coat, 0.4));
-      g.fillStyle = '#8f98a6';
-      g.beginPath(); g.roundRect(cx - 3.2, by - 11.4, 2.2, 3.0, 0.8); g.fill();
-      g.beginPath(); g.roundRect(cx + 1.0, by - 11.4, 2.2, 3.0, 0.8); g.fill();
-      for (ar = -1; ar <= 1; ar += 2) {
-        g.fillStyle = shade(T.coat, 0.9);
-        g.beginPath(); g.roundRect(cx + ar * 5.7 - 1.5, by - 17.4, 3.0, 7.0, 1.3); g.fill();
-        outline(g, shade(T.coat, 0.45));
-        g.fillStyle = col;
-        g.beginPath(); g.roundRect(cx + ar * 6.0 - 1.8, by - 18.8, 3.6, 3.0, 1.1); g.fill();
-      }
-      g.strokeStyle = '#3d4249'; g.lineWidth = 4.6; g.lineCap = 'round';
-      g.beginPath(); g.moveTo(cx - 6.6, by - 12.4); g.lineTo(cx + 8.6, by - 18.4); g.stroke();
-      g.strokeStyle = '#6c7480'; g.lineWidth = 2.4;
-      g.beginPath(); g.moveTo(cx - 5.6, by - 12.8); g.lineTo(cx + 7.8, by - 18.0); g.stroke();
-      g.fillStyle = ACCENT.rocket;
-      g.beginPath(); g.arc(cx + 9.5, by - 18.7, 2.3, 0, 6.29); g.fill();
+      g.fillStyle = shade(T.coat, 1.24);                            // lit left panel
+      g.fillRect(cx - 5.3, by - 18.8, 1.4, 7.8);
+      g.fillStyle = shade(T.coat, 0.46);                            // belt
+      g.fillRect(cx - 5.3, by - 12.8, 10.6, 1.6);
+      g.fillStyle = '#b58a52';                                      // tan hip pouch
+      g.beginPath(); g.roundRect(cx + 1.4, by - 12.4, 4.0, 3.0, 0.9); g.fill();
+      outline(g, '#6d5027');
+
+      arms(5.7, by - 18.0, 3.0, 6.6, T.coat, function (i, x, y) {
+        g.fillStyle = col;                                          // house-colour shoulder pad
+        g.beginPath(); g.roundRect(x - 2.1, y - 1.4, 4.2, 3.6, 1.1); g.fill();
+        outline(g, shade(col, 0.42));
+        g.fillStyle = shade(col, 1.22);
+        g.fillRect(x - 1.8, y - 1.2, 3.6, 1.1);
+        g.fillStyle = '#2b2d33';                                    // dark glove
+        g.beginPath(); g.roundRect(x - 1.5, y + 5.0, 3.0, 2.2, 0.9); g.fill();
+      });
+
+      g.fillStyle = col;                                            // house-colour chest vest
+      g.beginPath();
+      g.moveTo(cx - 5.5, by - 20.7); g.lineTo(cx + 4.8, by - 20.7);
+      g.lineTo(cx + 3.9, by - 12.7); g.lineTo(cx - 4.7, by - 12.7);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      g.fillStyle = shade(col, 1.22);                               // lit left panel
+      g.fillRect(cx - 4.8, by - 19.8, 3.2, 6.2);
+      g.fillStyle = shade(col, 0.74);                               // shoulder-strap shadow
+      g.fillRect(cx + 1.6, by - 19.6, 2.5, 5.8);
+
+      var fy = gt.bob ? 0.5 : 0;                                    // cannon rides the bob
+      var bx0 = cx + 2.6, by0 = by - 12.6 + fy;                     // grip, at the right hip
+      var bx1 = cx + 6.8, by1 = by - 27.6 - fy;                     // muzzle, above the helmet
+      g.strokeStyle = '#23262c'; g.lineWidth = 4.0; g.lineCap = 'butt';
+      g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
+      g.strokeStyle = '#a9b2bd'; g.lineWidth = 2.6;                 // pale steel barrel
+      g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
+      g.strokeStyle = '#e2e8ef'; g.lineWidth = 1.0;                 // left-edge highlight
+      g.beginPath();
+      g.moveTo(bx0 - 0.8, by0 - 0.4); g.lineTo(bx1 - 0.8, by1 + 0.6); g.stroke();
+      g.fillStyle = '#dde3ea';                                      // muzzle brake
+      g.beginPath(); g.roundRect(bx1 - 2.1, by1 - 1.0, 4.2, 2.6, 0.8); g.fill();
+      outline(g, '#4a5058');
+      g.fillStyle = '#2c2f35';                                      // receiver box
+      g.beginPath(); g.roundRect(cx + 0.6, by - 15.4 + fy, 4.4, 4.2, 1.1); g.fill();
+      outline(g, '#15171a');
+      g.fillStyle = ACCENT.rocket;                                  // amber shell drum
+      g.beginPath(); g.ellipse(cx + 0.2, by - 14.0 + fy, 1.6, 1.9, 0.2, 0, 6.29); g.fill();
       outline(g, '#6a4a10');
-      face(by - 21.0);
-      helmet(by - 21.8, 4.3, col, 1.4);
-      g.fillStyle = '#1f2429';                                      // visor
-      g.beginPath(); g.roundRect(cx - 3.6, by - 21.4, 7.2, 2.3, 1); g.fill();
+      g.fillStyle = shade(ACCENT.rocket, 1.26);
+      g.fillRect(cx - 0.5, by - 14.9 + fy, 1.4, 0.9);
+
+      face(by - 21.8);
+      helmet(by - 23.0, 4.0, '#8b929b', 1.3);                       // plain steel helmet
+      g.fillStyle = '#2a2d33';                                      // chin strap
+      g.fillRect(cx - 3.4, by - 19.9, 6.8, 0.9);
+      g.restore();
 
     } else {
       // GI: an OLIVE soldier wearing a house-colour helmet and a narrow chest
@@ -1121,15 +1292,9 @@
       // (sleeves, belly, belt, trousers) drab. Elbows are tucked to the ribs
       // and the rifle is angled up across the body, so the outline is a
       // compact wedge instead of the symmetric T that read as a toy.
-      boots(2.8);
-      g.fillStyle = T.coat;                                         // olive trousers
-      g.beginPath(); g.roundRect(cx - 4.2, by - 10.6, 3.7, 8.2, 1.3); g.fill();
-      g.beginPath(); g.roundRect(cx + 0.5, by - 10.6, 3.7, 8.2, 1.3); g.fill();
-      outline(g, shade(T.coat, 0.5));
-      g.fillStyle = shade(T.coat, 1.26);                            // knee highlights
-      g.fillRect(cx - 3.8, by - 9.8, 1.2, 5.6);
-      g.fillRect(cx + 0.9, by - 9.8, 1.2, 5.6);
+      legs(2.8, by - 10.8, 3.8, T.coat, 4.2);
 
+      g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = shade(T.coat, 1.06);                            // olive tunic (whole torso)
       g.beginPath();
       g.moveTo(cx - 5.1, by - 18.6); g.lineTo(cx + 5.1, by - 18.6);
@@ -1142,27 +1307,25 @@
 
       g.fillStyle = col;                                            // house-colour chest plate
       g.beginPath();
-      g.moveTo(cx - 4.8, by - 19.2); g.lineTo(cx + 4.8, by - 19.2);
-      g.lineTo(cx + 4.1, by - 13.0); g.lineTo(cx - 4.1, by - 13.0);
+      g.moveTo(cx - 5.2, by - 19.4); g.lineTo(cx + 5.2, by - 19.4);
+      g.lineTo(cx + 3.4, by - 14.6); g.lineTo(cx - 3.4, by - 14.6);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
-      g.fillStyle = shade(col, 1.32);                               // lit collar edge
-      g.fillRect(cx - 4.6, by - 19.0, 9.2, 1.5);
-      g.fillStyle = '#c7ac3e';                                      // khaki collar scarf
-      g.beginPath(); g.roundRect(cx - 4.2, by - 19.6, 8.4, 2.2, 0.9); g.fill();
-      outline(g, '#7f6a1c');
+      g.fillStyle = shade(col, 1.22);                               // lit collar edge
+      g.fillRect(cx - 5.0, by - 19.2, 10.0, 1.4);
+      g.fillStyle = shade(T.coat, 0.72);                            // olive strap over the vest
+      g.fillRect(cx - 4.6, by - 17.2, 9.2, 1.1);
+      g.fillStyle = '#b09632';                                      // khaki collar scarf
+      g.beginPath(); g.roundRect(cx - 3.4, by - 20.0, 6.8, 1.3, 0.6); g.fill();
 
-      for (ar = -1; ar <= 1; ar += 2) {                             // olive sleeves, tucked in
-        g.fillStyle = shade(T.coat, 0.92);
-        g.beginPath(); g.roundRect(cx + ar * 5.0 - 1.3, by - 17.4, 2.6, 5.4, 1.1); g.fill();
-        outline(g, shade(T.coat, 0.5));
-      }
+      arms(5.0, by - 17.4, 2.6, 5.4, T.coat);                       // olive sleeves, tucked in
       g.fillStyle = shade(T.coat, 1.02);                            // forearms crossing in
-      g.beginPath(); g.roundRect(cx - 4.6, by - 13.0, 3.8, 2.3, 1.0); g.fill();
-      g.beginPath(); g.roundRect(cx + 1.0, by - 14.9, 3.5, 2.2, 1.0); g.fill();
+      g.beginPath(); g.roundRect(cx - 4.7, by - 12.6, 3.8, 2.2, 1.0); g.fill();
+      g.beginPath(); g.roundRect(cx + 1.2, by - 14.2, 3.4, 2.1, 1.0); g.fill();
       outline(g, shade(T.coat, 0.5));
-      carbine(cx - 4.3, by - 11.6, cx + 6.2, by - 16.2, 1.9);       // angled across the body
-      face(by - 21.6);
-      helmet(by - 22.2, 4.1, col, 1.3);
+      carbine(cx - 4.5, by - 11.2 + gt.sw * 0.4, cx + 6.4, by - 15.4 - gt.sw * 0.4, 1.9);
+      face(by - 22.4);
+      helmet(by - 23.4, 4.0, col, 1.2);
+      g.restore();
     }
     return s;
   }
