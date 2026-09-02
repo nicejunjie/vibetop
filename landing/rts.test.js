@@ -431,10 +431,12 @@ test("extra production buildings always speed up what they make", () => {
 const slow = { skip: !process.env.RTS_SLOW && "set RTS_SLOW=1" };
 
 test("the same seed replays identically", slow, () => {
-  const a = W.__rtsSim(20260831, "normal", "normal", 60 * 60);
-  const b = W.__rtsSim(20260831, "normal", "normal", 60 * 60);
+  // Four minutes, not one: at RA2 build times the first refinery alone takes
+  // 84 s, so two seeds are still indistinguishable after 60 s.
+  const a = W.__rtsSim(20260831, "normal", "normal", 60 * 60 * 4);
+  const b = W.__rtsSim(20260831, "normal", "normal", 60 * 60 * 4);
   assert.deepEqual(a, b, "same seed produced a different match — the sim is not deterministic");
-  const c = W.__rtsSim(20260832, "normal", "normal", 60 * 60);
+  const c = W.__rtsSim(20260832, "normal", "normal", 60 * 60 * 4);
   assert.notDeepEqual(a, c, "different seeds produced identical matches — the seed is ignored");
 });
 
