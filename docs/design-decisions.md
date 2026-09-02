@@ -5303,3 +5303,24 @@ original exact-bytes test stayed green through the whole breakage.
   GIs dig in, a charging wave keeps walking.
 - **Still open (roadmap):** vehicles crushing infantry (RA2's main answer to
   infantry masses), the low-power production curve, MultipleFactory=0.8.
+
+## Skewed art in `bakeBuilding` must be point math, not `g.transform`
+
+- **Symptom:** `node --test landing/rts.test.js` died at load with
+  `TypeError: g.transform is not a function` after the Soviet yard's
+  hammer-and-sickle was drawn with `g.translate/transform/scale` to lay it
+  into the wall plane. The browser renders were fine, so nothing in the art
+  harness caught it.
+- **Cause:** the test file runs `rts.html` under `vm` with a hand-written
+  canvas-context stub that implements only the calls the art already used
+  (paths, `ellipse`, `roundRect`, fills/strokes). Any new context method
+  silently works in Chromium and breaks the sim tests.
+- **Fix:** skew with the face helpers (`faceL`/`faceR`) or an explicit
+  `[x + ex, y + ex * hh / hw + ey]` mapping (see `emP` in the yard branch).
+  Structure idle animation (the yards' cranes) is `bakeBuilding(key, col,
+  fac, bph)` baking N phases into `A.frames`, cycled by `drawBld`; the bbox
+  is the union over phases so brackets and the build-up clip cover every
+  frame.
+- **Rejected:** extending the stub with `transform` — every future context
+  call would need the same, and the stub is there to keep the sim tests
+  hermetic, not to emulate canvas.
