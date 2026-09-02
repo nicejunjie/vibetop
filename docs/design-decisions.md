@@ -5272,3 +5272,34 @@ original exact-bytes test stayed green through the whole breakage.
   selects it.
 - **Rejected:** giving the Kirov a real 3D-ish y-sort key: RA2 simply draws
   aircraft last.
+
+## Under RA2 pacing the AI has to open Power → Refinery and spend its bank
+
+- **Symptom:** after the rules.ini port, hard-vs-easy self-play went 0/6 for
+  the hard AI, and the Soviet hard AI lost every match by minute 10-15.
+- **Cause (traced minute by minute with `__rtsSim`'s `everyMinute` hook):**
+  four separate habits tuned for the old cheap economy. (1) It queued a $1500
+  Tesla Coil before any power plant, ran unpowered at 0.4× for three minutes
+  and got its War Factory two minutes after the Allied side. (2) It banked
+  $20k while capping itself at two factories and two-deep queues — a factory
+  turns out ~1.5 tanks a minute at RA2 build times. (3) It bought a third
+  refinery, five miners, radar and a lab before it had ten fighters, while
+  the easy AI floods GIs and wins a seven-minute timing attack (under RA2
+  verses a shell does 25% to infantry, so tank-heavy armies lose to cheap
+  infantry). (4) Its Soviet anti-infantry pick resolved to the Allied-only
+  Guardian GI and silently failed, so it barely trained infantry at all.
+- **Fix:** power first; never queue a defence into a power deficit; more
+  factories/barracks and deeper queues as the bank grows; one or two miners
+  per refinery; tech only behind an army; assume infantry until scouted and
+  buy more IFVs/Flak Tracks; the attack decision weighs the enemy's live
+  defences (`defenceValue`) so a wave is not fed into a coil piecemeal.
+- **Two more, found on the next traces:** the Soviet AI still died at
+  minute 10 because its power was counted at commit time only — a radar
+  queued while a coil was building landed both and left it at −35 for three
+  minutes of 0.4× production, so every `want` now checks `netQ` (live net
+  plus everything queued in both structure lanes) and buys a plant first.
+  And GI deploy (RA2's answer to conscript floods) swung it the other way
+  until the AI stopped deploying units that carry an order: only holding
+  GIs dig in, a charging wave keeps walking.
+- **Still open (roadmap):** vehicles crushing infantry (RA2's main answer to
+  infantry masses), the low-power production curve, MultipleFactory=0.8.
