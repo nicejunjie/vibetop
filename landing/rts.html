@@ -104,7 +104,8 @@
   }
   .pit:hover:not(.dis) { background: #253044; border-color: #3a4358; }
   .pit.dis { opacity: .42; cursor: not-allowed; }
-  .pit .em { font-size: 17px; flex-shrink: 0; width: 20px; text-align: center; }
+  .pit .em { font-size: 17px; flex-shrink: 0; width: 60px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  .pit .em canvas { display: block; border-radius: 3px; }
   .pit .nm { font-size: 11.5px; font-weight: 600; line-height: 1.25; }
   .pit .ct { font-size: 10px; color: #7f8a9d; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .pit .fill {
@@ -10506,7 +10507,7 @@
     items.forEach(function (it) {
       var b = document.createElement('button');
       b.className = 'pit';
-      b.innerHTML = '<span class="fill"></span><span class="em">' + it.spec.em + '</span>' +
+      b.innerHTML = '<span class="fill"></span><span class="em"></span>' +
         '<span><span class="nm">' + it.spec.name + '</span><br>' +
         '<span class="ct">$' + it.spec.cost + ' · ' + it.spec.desc + '</span></span>' +
         '<span class="qn"></span>';
@@ -10516,6 +10517,9 @@
         ev.preventDefault();
         if (cancelLast(G, P_HUMAN, it.lane, it.k)) { sfx('click'); say('Cancelled ' + it.spec.name + ' — refunded'); }
       });
+      // RA2-style cameo: the item's own baked sprite framed in a dark bevel.
+      var cam = cameoFor(it.k, isBldLane(it.lane), myFac);
+      if (cam) b.querySelector('.em').appendChild(cam); else b.querySelector('.em').textContent = it.spec.em;
       plist.appendChild(b);
       panelRows[it.k] = { el: b, it: it };
     });
@@ -10528,6 +10532,35 @@
       : 'Right-click the map with a factory selected to set a rally point. Click a selected factory again to make it primary.';
     plist.appendChild(note);
     refreshPanel();
+  }
+
+  var cameoCache = {};
+  // A canvas cloneNode() is blank; copy the bitmap into a fresh element.
+  function cameoCopy(src) {
+    var c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    c.style.width = src.style.width; c.style.height = src.style.height;
+    c.getContext('2d').drawImage(src, 0, 0); return c;
+  }
+  function cameoFor(key, isBld, fac) {
+    var ck = (isBld ? 'b:' : 'u:') + fac + ':' + key;
+    if (cameoCache[ck]) return cameoCopy(cameoCache[ck]);
+    var src = null, sw, sh, sc;
+    try {
+      if (isBld) { var A = SPR.bld[0][fac][key]; if (!A) return null; src = A.s.c; var bb = A.s.bb || { x0: 0, y0: 0, x1: A.s.w, y1: A.s.h }; sw = bb.x1 - bb.x0; sh = bb.y1 - bb.y0; sc = { x: bb.x0, y: bb.y0 }; }
+      else { var U = SPR.unit[0][fac][key]; if (!U) return null; var f = Array.isArray(U) ? U[1] : U; src = f.c; var ub = f.bb || { x0: 0, y0: 0, x1: f.w, y1: f.h }; sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; sc = { x: ub.x0, y: ub.y0 }; }
+    } catch (e) { return null; }
+    if (!src || sw <= 0 || sh <= 0) return null;
+    var W = 60, H = 44, c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2; c.style.width = W + 'px'; c.style.height = H + 'px';
+    var g = c.getContext('2d'); g.scale(2, 2);
+    g.fillStyle = '#0d1016'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#1a2130'; g.fillRect(1, 1, W - 2, H - 2);
+    var k = Math.min((W - 8) / sw, (H - 6) / sh); if (k > 1.6) k = 1.6;
+    var dw = sw * k, dh = sh * k;
+    g.imageSmoothingEnabled = true;
+    g.drawImage(src, sc.x, sc.y, sw, sh, (W - dw) / 2, (H - dh) / 2 + 1, dw, dh);
+    g.strokeStyle = '#3a4456'; g.lineWidth = 1; g.strokeRect(0.5, 0.5, W - 1, H - 1);
+    cameoCache[ck] = c;
+    return cameoCopy(c);
   }
 
   function onPanelClick(it, ev) {
