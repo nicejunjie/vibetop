@@ -5419,3 +5419,28 @@ original exact-bytes test stayed green through the whole breakage.
   cannot reproduce that, so the columns are desaturated slate-indigo — every
   cool navy in the branch is kept under HSV s=0.45 on purpose. Nudging any of
   them "a bit bluer" silently reintroduces opposing hue on a red-owner plant.
+
+## A structure whose art is a landing pad must be laid out FROM the pad slots
+
+- **Symptom:** the Airforce Command HQ's helipad was drawn from eyeballed
+  fractions (`hquad(-0.84,-0.10, …)` per quadrant) and its outer rim ran to
+  `hpx + 2*hpw = cx + 101` on a 164-wide sprite canvas — the pad's right vertex
+  was being silently cut off by `mkCanvas`, and the four quadrant markings sat
+  ~25% off the four spots Harriers actually park on. Nothing failed: the art
+  harness draws the canvas bound, but only if you look for it, and the pad
+  tests only assert the four slots are distinct.
+- **Cause:** two independent sources of truth for the same four positions —
+  `PAD_SLOTS` (grid offsets, read by `padSlot`/`stepAircraft`) and hand-tuned
+  quadrant fractions in the `airforce` branch of `bakeBuilding`.
+- **Fix:** derive the art from the sim. With `fw = TW`, `fh = TH` for a 2x2
+  footprint, a slot at grid offset `(gx, gy)` lands at screen
+  `((gx-gy)*fw/2, (gx+gy)*fh/2)` from the footprint centre, which for the
+  current `PAD_SLOTS` is the pad frame's `(u,v) = (±0.363, ∓0.363)` — so the
+  four markings are drawn at exactly those `(u,v)` and the pad rim is set to
+  whatever still fits the canvas (`HPO = 0.685`, plus `pad = 24` for this key,
+  matching the factory). Render four parked Harriers to confirm.
+- **Rule:** whenever a structure's art marks a spot that gameplay also
+  addresses (aircraft pads, vehicle exits, dock faces), compute the art
+  positions from the gameplay constant. And check the canvas bound: a clipped
+  sprite looks fine on a contact sheet with a dark background.
+
