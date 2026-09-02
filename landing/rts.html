@@ -1772,7 +1772,7 @@
   //     height moved together (h - UPAD is unchanged at 63), so the sprites
   //     sit exactly where they always did and drawUnit needs no edit.
   var UPAD = 27;
-  var USC_I = 1.30, USC_V = 1.46;
+  var USC_I = 1.22, USC_V = 1.46;
   function unitCanvas() { return mkCanvas(104, 90); }
 
   var ACCENT = {
@@ -1848,6 +1848,17 @@
   function bakeInfantry(col, kind, fac, phase) {
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
+    // PROPORTION. An RA2 infantry walk frame is about 15x28 (w:h 0.50-0.55)
+    // with the head a SIXTH of the height and clearly narrower than the
+    // shoulders. Everything below this line was authored square: shoulders as
+    // wide as the figure is tall-over-two and a head a quarter of the height,
+    // which is why the squad read as toy soldiers rather than as men. The
+    // whole figure is squeezed on x about the ground anchor (one transform, so
+    // torso, arms, weapon and shadow narrow together and nothing drifts off
+    // the anchor); the head, the hip line and the hand props are then re-cut
+    // per branch, because a uniform squeeze cannot fix a head that is too big
+    // in BOTH axes.
+    g.translate(cx, by); g.scale(0.90, 1); g.translate(-cx, -by);
     var sov = fac === 'col';
     // The Flak Trooper's art was built under `rocket` for the Collective; the
     // unit now has its own key, the art path is the same.
@@ -1861,7 +1872,7 @@
     var POUCH = '#b58a52';         // his tan ammo pouch
     var gt = gait(phase);
     var ar;
-    if (kind !== 'rocketeer') shadowBlob(g, cx, by, gt.ph ? 7.5 : 6.6, 2.8);   // an airborne figure's shadow is drawn on the ground by the renderer
+    if (kind !== 'rocketeer') shadowBlob(g, cx, by, gt.ph ? 6.8 : 6.0, 2.5);   // an airborne figure's shadow is drawn on the ground by the renderer
 
     // Two legs that SCISSOR — the one thing that separates a walk from a
     // wider stance. `i` is the screen side (-1 left, +1 right). In a stride
@@ -1884,16 +1895,16 @@
         g.fillStyle = shade(trousers, lead > 0 ? 1.14 : lead < 0 ? 0.70 : 1);
         g.beginPath();                                 // hip -> ankle
         g.moveTo(hx - w / 2, hipY); g.lineTo(hx + w / 2, hipY);
-        g.lineTo(fx + lw / 2 - 0.3, by - 2.6 - lift);
-        g.lineTo(fx - lw / 2 + 0.3, by - 2.6 - lift);
+        g.lineTo(fx + lw / 2 - 0.3, by - 2.4 - lift);
+        g.lineTo(fx - lw / 2 + 0.3, by - 2.4 - lift);
         g.closePath(); g.fill(); outline(g, shade(trousers, 0.46));
         var bw = bootW * (lead < 0 ? 0.84 : 1);
         g.fillStyle = lead < 0 ? shade(T.boot, 0.74) : T.boot;
         g.beginPath();
-        g.roundRect(fx - bw / 2, by - 3.1 - lift, bw, 3.1, 1.0); g.fill();
+        g.roundRect(fx - bw / 2, by - 2.8 - lift, bw, 2.8, 0.9); g.fill();
         if (lead > 0) {                                // toe-cap glint on the lead boot
           g.fillStyle = 'rgba(255,255,255,.16)';
-          g.fillRect(fx - bw / 2 + 0.4, by - 3.0, bw - 0.8, 0.9);
+          g.fillRect(fx - bw / 2 + 0.4, by - 2.7, bw - 0.8, 0.8);
         }
       }
     }
@@ -1906,7 +1917,7 @@
         var fwd = gt.sw === 0 ? 0 : (i === gt.sw ? -1 : 1);
         var ax = cx + i * (sp + (fwd > 0 ? 0.45 : fwd < 0 ? -0.3 : 0)) - w / 2;
         var ay = topY + (fwd > 0 ? 0.7 : fwd < 0 ? -0.7 : 0);
-        g.fillStyle = shade(sleeve, fwd > 0 ? 1.06 : 0.84);
+        g.fillStyle = shade(sleeve, fwd > 0 ? 1.06 : 0.76);
         g.beginPath(); g.roundRect(ax, ay, w, h + (fwd > 0 ? 0.8 : 0), w * 0.46); g.fill();
         outline(g, shade(sleeve, 0.48));
         if (cb) cb(i, ax + w / 2, ay, fwd);
@@ -1914,7 +1925,7 @@
     }
     function face(hy) {
       g.fillStyle = T.skin;
-      g.beginPath(); g.ellipse(cx, hy, 2.9, 3.2, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx, hy, 2.35, 2.55, 0, 0, 6.29); g.fill();
       outline(g, '#8a6440');
     }
     // A helmet dome with a lit crown and a shaded brim. The helmet is the
@@ -1923,9 +1934,9 @@
     function helmet(hy, r, hcol, brim) {
       g.fillStyle = hcol;
       g.beginPath(); g.arc(cx, hy, r, Math.PI, 0); g.fill();
-      g.fillRect(cx - r, hy, r * 2, 1.4);
+      g.fillRect(cx - r, hy, r * 2, 1.1);
       g.fillStyle = shade(hcol, 0.62);
-      g.fillRect(cx - r - 0.5, hy + 1.0, r * 2 + 1.0, brim);
+      g.fillRect(cx - r - 0.5, hy + 0.8, r * 2 + 1.0, brim);
       outline(g, shade(hcol, 0.38));
       g.fillStyle = shade(hcol, 1.42);                              // lit crown band
       g.beginPath();
@@ -1954,7 +1965,7 @@
       // hip. Two earlier passes made him a house-colour helmet over a tan
       // greatcoat, which is a different soldier: in the real sprite the
       // helmet is grey and the SCARF is the only remapped mass.
-      legs(2.8, by - 11.6, 3.9, T.coat, 4.5);
+      legs(2.6, by - 12.6, 3.6, T.coat, 4.2);
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = POUCH;                                          // tan hip pouch
@@ -1989,7 +2000,7 @@
       g.fillStyle = col;
       g.beginPath();
       g.moveTo(cx - 5.0, by - 20.2); g.lineTo(cx + 5.0, by - 20.2);
-      g.lineTo(cx + 4.0, by - 13.9); g.lineTo(cx - 4.0, by - 13.9);
+      g.lineTo(cx + 3.6, by - 14.6); g.lineTo(cx - 3.6, by - 14.6);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       // Shading a house-colour panel is a trap: the blue #4aa3db clips its
       // blue channel above about f=1.3 and goes white-cyan, so a "lit" fold
@@ -2002,8 +2013,8 @@
       g.fillStyle = shade(col, 0.64);                               // chin shadow
       g.fillRect(cx - 4.8, by - 20.1, 9.6, 0.8);
       carbine(cx - 2.6, by - 13.4 + gt.sw * 0.5, cx - 8.0, by - 24.8 + gt.sw * 0.5, 1.8);
-      face(by - 21.9);
-      helmet(by - 23.2, 4.0, ACCENT.conscript, 1.3);                // STEEL, not house colour
+      face(by - 21.3);
+      helmet(by - 23.3, 3.15, ACCENT.conscript, 1.0);               // STEEL, not house colour
       g.restore();
 
     } else if (kind === 'rocketeer') {
@@ -2016,7 +2027,7 @@
       // the jet flame: it flickers instead of striding, and drawUnit runs the
       // cycle for as long as he is airborne.
       var RS = '#8d959f', RSD = shade(RS, 0.64), RSL = shade(RS, 1.22);
-      var fl = [5.2, 7.4, 6.2][gt.ph], fw2 = [2.2, 2.8, 2.5][gt.ph];
+      var fl = [5.2, 7.4, 6.2][gt.ph], fw2 = [2.0, 2.5, 2.2][gt.ph];
       // jet flames first, behind the legs: white-blue core in an orange sheath
       for (ar = -1; ar <= 1; ar += 2) {
         var jx = cx + ar * 4.6, jy = by - 8.4;
@@ -2045,13 +2056,13 @@
       g.save(); g.translate(gt.lean * 0.4, 0);
       // pack tanks behind the shoulders — the house-colour mass of the figure
       for (ar = -1; ar <= 1; ar += 2) {
-        var tx = cx + ar * 5.6;
+        var tx = cx + ar * 4.9;
         g.fillStyle = shade(col, 0.82);
-        g.beginPath(); g.roundRect(tx - 2.2, by - 21.0, 4.4, 9.6, 1.6); g.fill(); outline(g, shade(col, 0.38));
+        g.beginPath(); g.roundRect(tx - 1.6, by - 19.2, 3.2, 7.6, 1.2); g.fill(); outline(g, shade(col, 0.38));
         g.fillStyle = shade(col, 1.26);
-        g.fillRect(tx - 1.6, by - 20.4, 1.4, 8.4);
+        g.fillRect(tx - 1.15, by - 18.7, 1.0, 6.6);
         g.fillStyle = '#3a3f47';                                   // steel cap
-        g.beginPath(); g.ellipse(tx, by - 21.0, 2.2, 1.1, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(tx, by - 19.2, 1.6, 0.85, 0, 0, 6.29); g.fill();
       }
       g.fillStyle = RS;                                             // suit torso
       g.beginPath();
@@ -2062,10 +2073,10 @@
       g.fillStyle = shade(RS, 0.6); g.fillRect(cx - 4.7, by - 12.6, 9.4, 1.4);   // harness belt
       g.fillStyle = col;                                            // house chest plate
       g.beginPath();
-      g.moveTo(cx - 3.8, by - 19.0); g.lineTo(cx + 3.8, by - 19.0);
-      g.lineTo(cx + 3.0, by - 14.0); g.lineTo(cx - 3.0, by - 14.0);
+      g.moveTo(cx - 3.2, by - 18.8); g.lineTo(cx + 3.2, by - 18.8);
+      g.lineTo(cx + 2.5, by - 14.2); g.lineTo(cx - 2.5, by - 14.2);
       g.closePath(); g.fill(); outline(g, shade(col, 0.4));
-      g.fillStyle = shade(col, 1.24); g.fillRect(cx - 3.6, by - 18.8, 7.2, 1.2);
+      g.fillStyle = shade(col, 1.24); g.fillRect(cx - 3.0, by - 18.6, 6.0, 1.1);
       arms(5.6, by - 18.2, 3.0, 6.2, RS, function (i, x, y) {
         g.fillStyle = shade(RS, 1.12);                              // rounded pauldron
         g.beginPath(); g.ellipse(x, y + 0.4, 2.0, 1.4, 0, 0, 6.29); g.fill(); outline(g, RSD);
@@ -2074,12 +2085,12 @@
       g.beginPath(); g.roundRect(cx - 7.6, by - 12.6, 2.6, 2.2, 0.8); g.fill();
       g.beginPath(); g.roundRect(cx + 5.0, by - 13.0, 2.6, 2.2, 0.8); g.fill();
       carbine(cx - 5.2, by - 12.2, cx + 6.4, by - 15.6, 1.9);         // machine gun across the chest
-      face(by - 22.6);
-      helmet(by - 23.8, 4.4, '#aeb5bf', 1.2);                        // steel dome, not house colour
+      face(by - 21.9);
+      helmet(by - 23.7, 3.3, '#aeb5bf', 0.95);                       // steel dome, not house colour
       g.fillStyle = '#1e232a';                                      // wide dark visor
-      g.beginPath(); g.roundRect(cx - 3.9, by - 23.2, 7.8, 2.6, 1.1); g.fill();
+      g.beginPath(); g.roundRect(cx - 2.9, by - 23.1, 5.8, 2.0, 0.85); g.fill();
       g.fillStyle = 'rgba(170,215,255,.42)';
-      g.fillRect(cx - 3.2, by - 22.9, 3.2, 0.9);
+      g.fillRect(cx - 2.4, by - 22.8, 2.4, 0.75);
       g.restore();
 
     } else if (kind === 'rocket' && !sov) {
@@ -2088,7 +2099,7 @@
       // visor band, and a stubby missile tube braced on the right shoulder
       // with an AMBER warhead in the muzzle. The tube is what names him at
       // 1:1, so it is drawn long enough to break the body outline.
-      legs(3.0, by - 11.0, 4.0, T.coat, 4.6);
+      legs(2.7, by - 12.2, 3.6, T.coat, 4.2);
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = shade(T.coat, 1.04);                            // olive undersuit torso
@@ -2126,30 +2137,30 @@
       var ry = gt.bob ? 0.4 : 0;                                    // launcher rides the bob
       g.strokeStyle = '#33383f'; g.lineWidth = 3.4; g.lineCap = 'round';
       g.beginPath();                                                // missile tube
-      g.moveTo(cx - 5.8, by - 13.4 + ry); g.lineTo(cx + 8.2, by - 18.4 - ry); g.stroke();
+      g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 6.8, by - 18.2 - ry); g.stroke();
       g.strokeStyle = '#6b7480'; g.lineWidth = 1.3;                 // tube glint
       g.beginPath();
-      g.moveTo(cx - 4.6, by - 14.2 + ry); g.lineTo(cx + 7.2, by - 18.5 - ry); g.stroke();
+      g.moveTo(cx - 3.9, by - 14.5 + ry); g.lineTo(cx + 6.0, by - 18.3 - ry); g.stroke();
       g.strokeStyle = col; g.lineWidth = 3.6; g.lineCap = 'butt';   // house-colour trim band
       g.beginPath();
-      g.moveTo(cx + 2.4, by - 16.1); g.lineTo(cx + 3.8, by - 16.6); g.stroke();
+      g.moveTo(cx + 2.0, by - 16.0); g.lineTo(cx + 3.2, by - 16.4); g.stroke();
       g.lineCap = 'round';
       g.fillStyle = '#2a2e34';                                      // pistol grip + rear vent
       g.beginPath(); g.roundRect(cx - 1.6, by - 14.3 + ry, 2.1, 2.8, 0.7); g.fill();
       g.fillStyle = ACCENT.rocket;                                  // amber warhead
       g.beginPath();
-      g.moveTo(cx + 7.6, by - 20.2 - ry); g.lineTo(cx + 11.0, by - 19.0 - ry);
-      g.lineTo(cx + 7.6, by - 17.2 - ry); g.closePath(); g.fill();
+      g.moveTo(cx + 6.4, by - 19.7 - ry); g.lineTo(cx + 9.1, by - 18.8 - ry);
+      g.lineTo(cx + 6.4, by - 17.3 - ry); g.closePath(); g.fill();
       outline(g, '#6a4a10');
       g.fillStyle = shade(ACCENT.rocket, 1.28);
-      g.fillRect(cx + 8.0, by - 19.5 - ry, 1.9, 0.9);
+      g.fillRect(cx + 6.7, by - 19.2 - ry, 1.6, 0.8);
 
-      face(by - 22.4);
-      helmet(by - 23.6, 4.3, col, 1.4);
+      face(by - 21.7);
+      helmet(by - 23.6, 3.3, col, 1.0);
       g.fillStyle = '#1f2429';                                      // dark visor band
-      g.beginPath(); g.roundRect(cx - 3.8, by - 22.4, 7.6, 2.0, 0.8); g.fill();
+      g.beginPath(); g.roundRect(cx - 2.9, by - 22.5, 5.8, 1.6, 0.7); g.fill();
       g.fillStyle = 'rgba(200,225,255,.30)';
-      g.fillRect(cx - 3.2, by - 22.2, 3.0, 0.8);
+      g.fillRect(cx - 2.4, by - 22.3, 2.3, 0.65);
       g.restore();
 
     } else if (kind === 'rocket') {
@@ -2160,7 +2171,7 @@
       // barrel rising past the helmet and out of the body outline.
       // Laying that barrel horizontally across the hip (the first attempt)
       // turned him into a man carrying a broom and lost the tell entirely.
-      legs(2.9, by - 11.4, 3.9, '#8a5b40', 4.4);
+      legs(2.6, by - 12.5, 3.5, '#7a5138', 4.0);
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = T.coat;                                         // dark tunic, flared
@@ -2188,8 +2199,8 @@
 
       g.fillStyle = col;                                            // house-colour chest vest
       g.beginPath();
-      g.moveTo(cx - 5.5, by - 20.7); g.lineTo(cx + 4.8, by - 20.7);
-      g.lineTo(cx + 3.9, by - 12.7); g.lineTo(cx - 4.7, by - 12.7);
+      g.moveTo(cx - 4.9, by - 20.3); g.lineTo(cx + 4.3, by - 20.3);
+      g.lineTo(cx + 3.5, by - 13.4); g.lineTo(cx - 4.2, by - 13.4);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);                               // lit left panel
       g.fillRect(cx - 4.8, by - 19.8, 3.2, 6.2);
@@ -2197,31 +2208,31 @@
       g.fillRect(cx + 1.6, by - 19.6, 2.5, 5.8);
 
       var fy = gt.bob ? 0.5 : 0;                                    // cannon rides the bob
-      var bx0 = cx + 2.6, by0 = by - 12.6 + fy;                     // grip, at the right hip
-      var bx1 = cx + 6.8, by1 = by - 27.6 - fy;                     // muzzle, above the helmet
-      g.strokeStyle = '#23262c'; g.lineWidth = 4.0; g.lineCap = 'butt';
+      var bx0 = cx + 2.4, by0 = by - 12.8 + fy;                     // grip, at the right hip
+      var bx1 = cx + 5.6, by1 = by - 26.4 - fy;                     // muzzle, above the helmet
+      g.strokeStyle = '#23262c'; g.lineWidth = 3.4; g.lineCap = 'butt';
       g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
-      g.strokeStyle = '#a9b2bd'; g.lineWidth = 2.6;                 // pale steel barrel
+      g.strokeStyle = '#a9b2bd'; g.lineWidth = 2.1;                 // pale steel barrel
       g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
       g.strokeStyle = '#e2e8ef'; g.lineWidth = 1.0;                 // left-edge highlight
       g.beginPath();
       g.moveTo(bx0 - 0.8, by0 - 0.4); g.lineTo(bx1 - 0.8, by1 + 0.6); g.stroke();
       g.fillStyle = '#dde3ea';                                      // muzzle brake
-      g.beginPath(); g.roundRect(bx1 - 2.1, by1 - 1.0, 4.2, 2.6, 0.8); g.fill();
+      g.beginPath(); g.roundRect(bx1 - 1.7, by1 - 0.8, 3.4, 2.2, 0.7); g.fill();
       outline(g, '#4a5058');
       g.fillStyle = '#2c2f35';                                      // receiver box
-      g.beginPath(); g.roundRect(cx + 0.6, by - 15.4 + fy, 4.4, 4.2, 1.1); g.fill();
+      g.beginPath(); g.roundRect(cx + 0.5, by - 15.2 + fy, 3.7, 3.6, 1.0); g.fill();
       outline(g, '#15171a');
       g.fillStyle = ACCENT.rocket;                                  // amber shell drum
-      g.beginPath(); g.ellipse(cx + 0.2, by - 14.0 + fy, 1.6, 1.9, 0.2, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(cx + 0.2, by - 14.0 + fy, 1.2, 1.45, 0.2, 0, 6.29); g.fill();
       outline(g, '#6a4a10');
       g.fillStyle = shade(ACCENT.rocket, 1.26);
-      g.fillRect(cx - 0.5, by - 14.9 + fy, 1.4, 0.9);
+      g.fillRect(cx - 0.4, by - 14.6 + fy, 1.1, 0.75);
 
-      face(by - 21.8);
-      helmet(by - 23.0, 4.0, '#8b929b', 1.3);                       // plain steel helmet
+      face(by - 21.2);
+      helmet(by - 23.1, 3.15, '#8b929b', 1.0);                      // plain steel helmet
       g.fillStyle = '#2a2d33';                                      // chin strap
-      g.fillRect(cx - 3.4, by - 19.9, 6.8, 0.9);
+      g.fillRect(cx - 2.7, by - 19.4, 5.4, 0.8);
       g.restore();
 
     } else if (kind === 'engineer') {
@@ -2233,7 +2244,7 @@
       // the Directorate's amber hard hat (with the moulded crest ridge that
       // names it at 1:1), the Collective's soft grey field cap.
       var SHIRT = '#d8d4c6';
-      legs(2.8, by - 11.0, 3.9, T.coat, 4.3);
+      legs(2.5, by - 12.2, 3.5, T.coat, 4.0);
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = SHIRT;                                          // light work shirt
@@ -2272,51 +2283,51 @@
         g.beginPath(); g.roundRect(x - 1.5, y + 5.6, 3.0, 2.2, 0.8); g.fill();
         outline(g, '#6d5027');
         if (i > 0) {                                                // the toolbox, hand-carried
-          var tbx = x + 0.1, tby = y + 7.2;
-          g.strokeStyle = '#2a2d33'; g.lineWidth = 1.1; g.lineCap = 'round';
-          g.beginPath(); g.arc(tbx, tby + 0.9, 2.3, Math.PI, 0.05); g.stroke();
+          var tbx = x + 0.3, tby = y + 7.4;
+          g.strokeStyle = '#2a2d33'; g.lineWidth = 1.0; g.lineCap = 'round';
+          g.beginPath(); g.arc(tbx, tby + 0.7, 1.8, Math.PI, 0.05); g.stroke();
           g.fillStyle = col;
-          g.beginPath(); g.roundRect(tbx - 3.5, tby, 7.0, 4.9, 0.8); g.fill();
+          g.beginPath(); g.roundRect(tbx - 2.6, tby, 5.2, 3.8, 0.7); g.fill();
           outline(g, shade(col, 0.38));
           g.fillStyle = shade(col, 1.22);                           // lit lid
-          g.fillRect(tbx - 3.2, tby + 0.3, 6.4, 1.1);
+          g.fillRect(tbx - 2.4, tby + 0.25, 4.8, 0.9);
           g.fillStyle = shade(col, 0.74);                           // latch band
-          g.fillRect(tbx - 3.3, tby + 2.7, 6.6, 1.0);
+          g.fillRect(tbx - 2.5, tby + 2.1, 5.0, 0.8);
           g.fillStyle = '#8d9099';                                  // steel catch
-          g.fillRect(tbx - 0.7, tby + 2.5, 1.4, 1.5);
+          g.fillRect(tbx - 0.55, tby + 1.9, 1.1, 1.2);
         }
       });
 
-      face(by - 22.2);
+      face(by - 21.6);
       if (sov) {
         // soft field cap: a low crown and a long forward peak, so the
         // silhouette is flat where every other Collective head is a dome
         var CAP = '#7d838d';
         g.fillStyle = CAP;
-        g.beginPath(); g.ellipse(cx, by - 22.6, 4.0, 2.2, 0, Math.PI, 0); g.fill();
-        g.fillRect(cx - 4.0, by - 22.6, 8.0, 1.0);
+        g.beginPath(); g.ellipse(cx, by - 22.6, 3.0, 1.75, 0, Math.PI, 0); g.fill();
+        g.fillRect(cx - 3.0, by - 22.6, 6.0, 0.85);
         outline(g, shade(CAP, 0.42));
         g.fillStyle = shade(CAP, 0.46);                             // forward peak
         g.beginPath();
-        g.moveTo(cx - 4.1, by - 22.3); g.lineTo(cx + 4.1, by - 22.3);
-        g.lineTo(cx + 3.3, by - 21.1); g.lineTo(cx - 3.3, by - 21.1);
+        g.moveTo(cx - 3.1, by - 22.4); g.lineTo(cx + 3.1, by - 22.4);
+        g.lineTo(cx + 2.5, by - 21.4); g.lineTo(cx - 2.5, by - 21.4);
         g.closePath(); g.fill(); outline(g, shade(CAP, 0.30));
         g.fillStyle = shade(CAP, 0.80);
-        g.fillRect(cx - 3.9, by - 22.2, 7.8, 0.6);
+        g.fillRect(cx - 2.9, by - 22.3, 5.8, 0.55);
         // A brass cap badge, not a red one: on a BLUE-owned Collective
         // engineer a red star is a saturated opposing hue on the figure's
         // most-read surface, and friend-or-foe is worth more than the badge.
         g.fillStyle = '#b8912e';
-        g.beginPath(); g.ellipse(cx, by - 23.4, 1.0, 0.9, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(cx, by - 23.3, 0.85, 0.75, 0, 0, 6.29); g.fill();
         g.fillStyle = shade(CAP, 1.34);                             // lit crown
         g.beginPath();
-        g.ellipse(cx - 1.3, by - 23.6, 1.7, 0.8, -0.35, 0, 6.29); g.fill();
+        g.ellipse(cx - 1.05, by - 23.5, 1.35, 0.65, -0.35, 0, 6.29); g.fill();
       } else {
-        helmet(by - 23.0, 4.0, ACCENT.engineer, 1.5);               // amber hard hat
+        helmet(by - 23.3, 2.95, ACCENT.engineer, 1.05);              // amber hard hat
         g.fillStyle = shade(ACCENT.engineer, 0.72);                 // moulded crest ridge
-        g.fillRect(cx - 0.8, by - 27.1, 1.6, 3.9);
+        g.fillRect(cx - 0.7, by - 26.2, 1.4, 2.9);
         g.fillStyle = shade(ACCENT.engineer, 0.56);                 // brim shadow line
-        g.fillRect(cx - 4.6, by - 22.5, 9.2, 0.8);
+        g.fillRect(cx - 3.4, by - 22.6, 6.8, 0.65);
       }
       g.restore();
 
@@ -2328,7 +2339,7 @@
       // the bare dark head is the whole read at 1:1: hers is the only
       // infantry silhouette with no helmet dome and nothing slung over a
       // shoulder to break the outline.
-      legs(2.6, by - 10.6, 3.4, T.coat, 3.9);
+      legs(2.4, by - 11.8, 3.1, T.coat, 3.6);
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = T.skin;                                         // bare shoulders + midriff
@@ -2384,20 +2395,20 @@
         g.fillRect(gxp + i * 0.5 - 0.5, gyp + 1.0, 1.0, 2.6);
       });
 
-      face(by - 22.8);
+      face(by - 22.0);
       g.fillStyle = ACCENT.tanya;                                   // black hair, shoulder length
-      g.beginPath(); g.arc(cx, by - 23.4, 3.9, Math.PI, 0); g.fill();
-      g.fillRect(cx - 3.9, by - 23.6, 7.8, 1.7);
+      g.beginPath(); g.arc(cx, by - 23.1, 3.0, Math.PI, 0); g.fill();
+      g.fillRect(cx - 3.0, by - 23.3, 6.0, 1.2);
       for (var hl = -1; hl <= 1; hl += 2) {                         // side locks to the collar
         g.beginPath();
-        g.moveTo(cx + hl * 3.8, by - 23.8); g.lineTo(cx + hl * 4.1, by - 19.6);
-        g.lineTo(cx + hl * 2.4, by - 20.0); g.lineTo(cx + hl * 2.6, by - 23.5);
+        g.moveTo(cx + hl * 2.9, by - 23.4); g.lineTo(cx + hl * 3.2, by - 19.8);
+        g.lineTo(cx + hl * 2.0, by - 20.1); g.lineTo(cx + hl * 2.15, by - 23.1);
         g.closePath(); g.fill();
       }
       outline(g, '#140d09');
       g.fillStyle = shade(ACCENT.tanya, 1.95);                      // crown highlight
       g.beginPath();
-      g.ellipse(cx - 1.3, by - 24.6, 1.8, 0.9, -0.35, 0, 6.29); g.fill();
+      g.ellipse(cx - 1.05, by - 24.0, 1.45, 0.75, -0.35, 0, 6.29); g.fill();
       g.restore();
 
     } else if (kind === 'teslatrooper') {
@@ -2412,7 +2423,7 @@
       // Bulk is drawn into the SILHOUETTE, not into the height: he is the
       // same 20-odd px tall as the Conscript beside him but nearly half
       // again as wide, which is what stops "armoured" reading as "giant".
-      legs(3.2, by - 10.8, 5.0, T.coat, 5.8);
+      legs(3.1, by - 11.9, 4.6, T.coat, 5.4);
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = '#5d5a2e';                                      // olive hip pouches
@@ -2427,46 +2438,46 @@
       // into a rounded carapace — squared off it read as a sandwich board.
       g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 5.4, by - 22.2); g.lineTo(cx + 5.4, by - 22.2);
-      g.lineTo(cx + 6.8, by - 20.0); g.lineTo(cx + 6.2, by - 15.2);
-      g.lineTo(cx + 4.6, by - 13.8); g.lineTo(cx - 4.6, by - 13.8);
-      g.lineTo(cx - 6.2, by - 15.2); g.lineTo(cx - 6.8, by - 20.0);
+      g.moveTo(cx - 5.7, by - 21.6); g.lineTo(cx + 5.7, by - 21.6);
+      g.lineTo(cx + 7.4, by - 19.4); g.lineTo(cx + 6.8, by - 15.0);
+      g.lineTo(cx + 4.6, by - 13.6); g.lineTo(cx - 4.6, by - 13.6);
+      g.lineTo(cx - 6.8, by - 15.0); g.lineTo(cx - 7.4, by - 19.4);
       g.closePath(); g.fill(); outline(g, shade(col, 0.38));
       g.fillStyle = shade(col, 1.22);                               // lit left shoulder mass
       g.beginPath();
-      g.moveTo(cx - 5.2, by - 22.0); g.lineTo(cx - 1.2, by - 22.0);
-      g.lineTo(cx - 1.2, by - 14.2); g.lineTo(cx - 5.9, by - 14.6);
+      g.moveTo(cx - 5.2, by - 21.2); g.lineTo(cx - 1.2, by - 21.2);
+      g.lineTo(cx - 1.2, by - 14.0); g.lineTo(cx - 6.1, by - 14.4);
       g.closePath(); g.fill();
       g.fillStyle = shade(col, 0.74);                               // shaded right flank
-      g.fillRect(cx + 2.8, by - 21.2, 3.2, 6.6);
+      g.fillRect(cx + 2.8, by - 20.6, 3.3, 6.4);
       g.fillStyle = shade(col, 0.66);                               // neck shadow under the bowl
-      g.fillRect(cx - 4.2, by - 22.1, 8.4, 1.1);
+      g.fillRect(cx - 3.6, by - 21.3, 7.2, 1.0);
       g.strokeStyle = shade(col, 0.62); g.lineWidth = 0.9; g.lineCap = 'butt';
       g.beginPath();                                                // centre seam of the carapace
-      g.moveTo(cx, by - 21.6); g.lineTo(cx, by - 14.4); g.stroke();
+      g.moveTo(cx, by - 20.9); g.lineTo(cx, by - 14.2); g.stroke();
       g.strokeStyle = shade(col, 1.24); g.lineWidth = 1.0;          // rim light round the shell
       g.beginPath();
-      g.moveTo(cx - 4.6, by - 21.9); g.lineTo(cx - 6.4, by - 19.8);
-      g.lineTo(cx - 5.9, by - 15.4); g.stroke();
+      g.moveTo(cx - 4.6, by - 21.1); g.lineTo(cx - 6.6, by - 19.2);
+      g.lineTo(cx - 6.1, by - 15.2); g.stroke();
       g.strokeStyle = shade(col, 0.70); g.lineWidth = 1.2;          // shadow under the chest
       g.beginPath();
-      g.moveTo(cx - 4.4, by - 14.1); g.lineTo(cx + 4.4, by - 14.1); g.stroke();
+      g.moveTo(cx - 4.4, by - 13.9); g.lineTo(cx + 4.4, by - 13.9); g.stroke();
 
       // Steel arms. The pauldrons are STEEL, not colour: the chest is
       // already the biggest remapped mass on any figure in the game, and
       // colouring the shoulders too took him past a third of the sprite.
-      arms(6.4, by - 20.6, 3.6, 7.0, T.coat, function (i, x, y) {
+      arms(6.5, by - 19.6, 3.4, 6.8, T.coat, function (i, x, y) {
         // The cap is an ELLIPSE that hugs the shoulder, not a slab beside
         // it: as a rounded rectangle it stood clear of the torso on both
         // sides and the trooper walked around carrying two suitcases.
         g.fillStyle = ACCENT.teslatrooper;
         g.beginPath();
-        g.ellipse(x - i * 0.5, y + 0.3, 2.5, 2.3, 0, Math.PI, 0); g.fill();
-        g.fillRect(x - i * 0.5 - 2.5, y + 0.3, 5.0, 1.5);
+        g.ellipse(x - i * 0.5, y + 0.3, 2.0, 1.8, 0, Math.PI, 0); g.fill();
+        g.fillRect(x - i * 0.5 - 2.0, y + 0.3, 4.0, 1.3);
         outline(g, '#4a505a');
         g.fillStyle = '#eef2f7';
         g.beginPath();
-        g.ellipse(x - i * 0.5 - 0.7, y - 0.7, 1.4, 0.8, -0.3, 0, 6.29); g.fill();
+        g.ellipse(x - i * 0.5 - 0.6, y - 0.6, 1.15, 0.7, -0.3, 0, 6.29); g.fill();
         if (i > 0) {
           // THE GAUNTLET. Bigger than a hand, ridged, with two prongs and
           // one small arc between them. The arc is deliberately tiny: a
@@ -2501,20 +2512,20 @@
       // No face: the bowl comes down over it and the visor slot is the only
       // opening. helmet() would put a house-colour cap here, which is what
       // the chest is already doing — the head has to be the STEEL note.
-      var hby = by - 24.6;
+      var hby = by - 24.9;
       g.fillStyle = ACCENT.teslatrooper;
-      g.beginPath(); g.arc(cx, hby, 4.6, Math.PI, 0); g.fill();
-      g.fillRect(cx - 4.6, hby, 9.2, 2.4);
+      g.beginPath(); g.arc(cx, hby, 3.6, Math.PI, 0); g.fill();
+      g.fillRect(cx - 3.6, hby, 7.2, 2.0);
       outline(g, '#454b55');
       g.fillStyle = '#f2f6fb';                                      // bright crown
       g.beginPath();
-      g.ellipse(cx - 1.4, hby - 1.8, 2.2, 1.1, -0.35, 0, 6.29); g.fill();
+      g.ellipse(cx - 1.1, hby - 1.4, 1.7, 0.9, -0.35, 0, 6.29); g.fill();
       g.fillStyle = '#14171c';                                      // visor slot
-      g.beginPath(); g.roundRect(cx - 3.6, hby + 0.6, 7.2, 1.9, 0.7); g.fill();
+      g.beginPath(); g.roundRect(cx - 2.8, hby + 0.5, 5.6, 1.6, 0.6); g.fill();
       g.fillStyle = 'rgba(190,214,240,.28)';
-      g.fillRect(cx - 3.0, hby + 0.9, 2.6, 0.8);
+      g.fillRect(cx - 2.3, hby + 0.75, 2.0, 0.7);
       g.fillStyle = '#6c737d';                                      // collar ring
-      g.fillRect(cx - 4.2, hby + 2.4, 8.4, 1.2);
+      g.fillRect(cx - 3.3, hby + 2.0, 6.6, 1.4);
       g.restore();
 
     } else if (kind === 'ivan') {
@@ -2526,7 +2537,7 @@
       // reads as a civilian in a greatcoat rather than another soldier.
       // In his right hand, at hip height, a bound bundle of dynamite.
       var SHIRTI = '#cbb79a';
-      legs(2.7, by - 11.2, 3.8, T.coat, 4.3);
+      legs(2.5, by - 12.2, 3.4, T.coat, 4.0);
 
       g.save(); g.translate(gt.lean, gt.bob);
       // the coat SKIRT first, hanging below the belt over the thighs and
@@ -2582,37 +2593,37 @@
           // THE BUNDLE. Three tan sticks lashed together with two dark
           // bands and a grey fuse curling off the top — kept a neutral tan
           // so the only saturated note on him stays the hat and the lapels.
-          var dbx = x + 1.4, dby = y + 6.6;
+          var dbx = x + 1.2, dby = y + 6.8;
           for (var ds = -1; ds <= 1; ds++) {
             g.fillStyle = ds ? '#a98a58' : '#c6a76e';
-            g.beginPath(); g.roundRect(dbx + ds * 1.5 - 0.8, dby, 1.7, 5.0, 0.5); g.fill();
+            g.beginPath(); g.roundRect(dbx + ds * 1.2 - 0.65, dby, 1.35, 4.0, 0.45); g.fill();
             outline(g, '#5b4520');
           }
           g.fillStyle = '#2c2e34';                                  // lashing bands
-          g.fillRect(dbx - 2.5, dby + 1.0, 5.0, 0.9);
-          g.fillRect(dbx - 2.5, dby + 3.4, 5.0, 0.9);
+          g.fillRect(dbx - 2.0, dby + 0.8, 4.0, 0.8);
+          g.fillRect(dbx - 2.0, dby + 2.7, 4.0, 0.8);
           g.strokeStyle = '#9aa1ab'; g.lineWidth = 0.9; g.lineCap = 'round';
           g.beginPath();                                            // fuse
-          g.moveTo(dbx, dby); g.lineTo(dbx + 1.2, dby - 2.0);
-          g.lineTo(dbx + 2.6, dby - 2.6); g.stroke();
+          g.moveTo(dbx, dby); g.lineTo(dbx + 1.0, dby - 1.7);
+          g.lineTo(dbx + 2.2, dby - 2.2); g.stroke();
         }
       });
 
       // The whole head is pushed DOWN a pixel and a half and the beard cut
       // back to the chin, because at the first sizing the ushanka's brim met
       // the beard and he read as a man in a red balaclava with no face.
-      face(by - 21.6);
+      face(by - 21.0);
       g.fillStyle = ACCENT.ivan;                                    // beard, chin only
       g.beginPath();
-      g.moveTo(cx - 2.5, by - 20.8); g.lineTo(cx + 2.5, by - 20.8);
-      g.lineTo(cx + 2.1, by - 19.4); g.lineTo(cx, by - 18.4);
-      g.lineTo(cx - 2.1, by - 19.4); g.closePath(); g.fill();
+      g.moveTo(cx - 2.0, by - 20.4); g.lineTo(cx + 2.0, by - 20.4);
+      g.lineTo(cx + 1.7, by - 19.3); g.lineTo(cx, by - 18.5);
+      g.lineTo(cx - 1.7, by - 19.3); g.closePath(); g.fill();
       outline(g, '#3d2a16');
       g.fillStyle = shade(ACCENT.ivan, 1.24);
-      g.fillRect(cx - 2.1, by - 20.6, 1.8, 0.8);
+      g.fillRect(cx - 1.7, by - 20.25, 1.5, 0.7);
       g.fillStyle = '#3a2b1c';                                      // two eyes under the brim
-      g.fillRect(cx - 1.9, by - 22.3, 1.1, 0.9);
-      g.fillRect(cx + 0.8, by - 22.3, 1.1, 0.9);
+      g.fillRect(cx - 1.55, by - 21.5, 0.95, 0.8);
+      g.fillRect(cx + 0.6, by - 21.5, 0.95, 0.8);
 
       // the USHANKA: a fur crown with the two ear flaps hanging beside the
       // face. Drawn as a plain dome it was indistinguishable from a helmet,
@@ -2625,18 +2636,18 @@
       for (var uf = -1; uf <= 1; uf += 2) {
         g.fillStyle = shade(col, uf < 0 ? 1.08 : 0.78);
         g.beginPath();
-        g.roundRect(cx + uf * 3.5 - 0.9, by - 24.0, 1.8, 2.6, 0.7); g.fill();
+        g.roundRect(cx + uf * 2.8 - 0.75, by - 23.5, 1.5, 2.2, 0.6); g.fill();
         outline(g, shade(col, 0.36));
       }
       g.fillStyle = col;                                            // shallow fur crown
-      g.beginPath(); g.ellipse(cx, by - 24.4, 3.5, 2.4, 0, Math.PI, 0); g.fill();
-      g.fillRect(cx - 3.5, by - 24.4, 7.0, 1.6);
+      g.beginPath(); g.ellipse(cx, by - 23.9, 2.8, 1.9, 0, Math.PI, 0); g.fill();
+      g.fillRect(cx - 2.8, by - 23.9, 5.6, 1.2);
       outline(g, shade(col, 0.38));
       g.fillStyle = shade(col, 1.22);                               // lit fur crown
       g.beginPath();
-      g.ellipse(cx - 1.3, by - 25.6, 2.1, 1.0, -0.35, 0, 6.29); g.fill();
+      g.ellipse(cx - 1.05, by - 24.9, 1.7, 0.85, -0.35, 0, 6.29); g.fill();
       g.fillStyle = shade(col, 0.72);                               // shadowed brow band
-      g.fillRect(cx - 3.5, by - 23.3, 7.0, 0.9);
+      g.fillRect(cx - 2.8, by - 22.9, 5.6, 0.75);
       g.restore();
 
     } else {
@@ -2645,7 +2656,7 @@
       // (sleeves, belly, belt, trousers) drab. Elbows are tucked to the ribs
       // and the rifle is angled up across the body, so the outline is a
       // compact wedge instead of the symmetric T that read as a toy.
-      legs(2.8, by - 10.8, 3.8, T.coat, 4.2);
+      legs(2.5, by - 12.0, 3.4, T.coat, 3.9);
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = shade(T.coat, 1.06);                            // olive tunic (whole torso)
@@ -2661,25 +2672,71 @@
       g.fillStyle = col;                                            // house-colour chest plate
       g.beginPath();
       g.moveTo(cx - 5.2, by - 19.4); g.lineTo(cx + 5.2, by - 19.4);
-      g.lineTo(cx + 3.4, by - 14.6); g.lineTo(cx - 3.4, by - 14.6);
+      g.lineTo(cx + 3.2, by - 15.2); g.lineTo(cx - 3.2, by - 15.2);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);                               // lit collar edge
       g.fillRect(cx - 5.0, by - 19.2, 10.0, 1.4);
       g.fillStyle = shade(T.coat, 0.72);                            // olive strap over the vest
       g.fillRect(cx - 4.6, by - 17.2, 9.2, 1.1);
       g.fillStyle = '#b09632';                                      // khaki collar scarf
-      g.beginPath(); g.roundRect(cx - 3.4, by - 20.0, 6.8, 1.3, 0.6); g.fill();
+      g.beginPath(); g.roundRect(cx - 2.9, by - 20.0, 5.8, 1.2, 0.6); g.fill();
 
-      arms(5.0, by - 17.4, 2.6, 5.4, T.coat);                       // olive sleeves, tucked in
+      arms(5.4, by - 17.4, 2.7, 5.4, T.coat);                       // olive sleeves, tucked in
       g.fillStyle = shade(T.coat, 1.02);                            // forearms crossing in
       g.beginPath(); g.roundRect(cx - 4.7, by - 12.6, 3.8, 2.2, 1.0); g.fill();
       g.beginPath(); g.roundRect(cx + 1.2, by - 14.2, 3.4, 2.1, 1.0); g.fill();
       outline(g, shade(T.coat, 0.5));
-      carbine(cx - 4.5, by - 11.2 + gt.sw * 0.4, cx + 6.4, by - 15.4 - gt.sw * 0.4, 1.9);
-      face(by - 22.4);
-      helmet(by - 23.4, 4.0, col, 1.2);
+      carbine(cx - 5.2, by - 11.0 + gt.sw * 0.4, cx + 7.2, by - 15.6 - gt.sw * 0.4, 1.9);
+      face(by - 21.7);
+      helmet(by - 23.5, 3.15, col, 0.95);
       g.restore();
     }
+    return s;
+  }
+
+  // A deployed GI's SANDBAG PARAPET. RA2 drops a low arc of bags in FRONT of
+  // the man and he crouches down behind it — it is not a ring around the tile,
+  // and it is not drawn under him: the wall has to occlude his legs or the
+  // pose reads as a soldier standing in a flowerbed. Baked once per owner
+  // colour on the same 104x90 sheet and the same ground anchor as an
+  // infantryman, so drawUnit places it with the identical expression.
+  function bakeSandbags(col) {
+    var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
+    var BAG = '#9a8b62', BAGL = '#bdae81', BAGD = '#584d33';
+    function bag(x, y, rx, ry, lit) {
+      g.fillStyle = lit ? BAGL : BAG;
+      g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 6.29); g.fill();
+      outline(g, BAGD);
+      g.fillStyle = 'rgba(255,255,255,.15)';
+      g.beginPath();
+      g.ellipse(x - rx * 0.22, y - ry * 0.36, rx * 0.52, ry * 0.32, 0, 0, 6.29); g.fill();
+    }
+    var i, a, x2, y2;
+    g.fillStyle = 'rgba(0,0,0,.24)';                       // the wall's own ground shadow
+    g.beginPath(); g.ellipse(cx, by + 1.4, 15.0, 5.2, 0, 0, 6.29); g.fill();
+    for (i = 0; i < 9; i++) {                              // lower course, the FRONT arc only
+      a = -0.14 + (i / 8) * (Math.PI + 0.28);
+      bag(cx + Math.cos(a) * 14.2, by + Math.sin(a) * 6.4 - 1.2, 3.2, 2.2, false);
+    }
+    for (i = 0; i < 9; i++) {                              // middle course, staggered over the joints
+      a = 0.00 + ((i + 0.5) / 9) * Math.PI;
+      bag(cx + Math.cos(a) * 13.4, by + Math.sin(a) * 6.0 - 4.2, 3.1, 2.2, false);
+    }
+    for (i = 0; i < 8; i++) {                              // top course
+      a = 0.05 + ((i + 0.2) / 8) * (Math.PI - 0.10);
+      bag(cx + Math.cos(a) * 12.6, by + Math.sin(a) * 5.6 - 7.0, 3.0, 2.1, true);
+    }
+    // The owner's colour is a painted stripe along the CREST — the only thing
+    // that says whose foxhole this is at 1:1, and small enough that the bags
+    // still read as khaki sandbags rather than as a coloured wall.
+    g.strokeStyle = col; g.lineWidth = 1.4; g.lineCap = 'round';
+    g.beginPath();
+    for (i = 0; i <= 16; i++) {
+      a = 0.10 + (i / 16) * (Math.PI - 0.20);
+      x2 = cx + Math.cos(a) * 12.6; y2 = by + Math.sin(a) * 5.6 - 8.6;
+      if (i) g.lineTo(x2, y2); else g.moveTo(x2, y2);
+    }
+    g.stroke();
     return s;
   }
 
@@ -11009,6 +11066,7 @@
     // Units are keyed like structures: [player][faction][type]. Only the
     // harvester actually differs by faction (Chrono Miner vs War Miner), but
     // baking the whole set per faction keeps every lookup uniform.
+    SPR.bags = [bakeSandbags(COL[0]), bakeSandbags(COL[1])];   // deployed-GI parapet, one per owner
     SPR.unit = [{ dir: {}, col: {} }, { dir: {}, col: {} }];
     for (var p = 0; p < 2; p++) {
       for (var ufk in FACTIONS) {
@@ -14255,13 +14313,6 @@
     var px = sx(u.x, u.y), py = sy(u.x, u.y);
     if (px < VX0 - 60 || py < VY0 - 60 || px > VX1 + 60 || py > VY1 + 60) return;
     var d = UNITS[u.type];
-    if (u.deployed) {
-      // Sandbag ring: khaki bags around the tile, drawn under the trooper.
-      var k; ctx.fillStyle = '#8d8262';
-      for (k = 0; k < 10; k++) { var a = k / 10 * 6.283; ctx.beginPath(); ctx.ellipse(px + Math.cos(a) * 13 * zoom, py + Math.sin(a) * 6.5 * zoom + 1, 3.6 * zoom, 2.2 * zoom, a, 0, 6.29); ctx.fill(); }
-      ctx.fillStyle = '#a89a72';
-      for (k = 0; k < 10; k++) { var a2 = (k + 0.5) / 10 * 6.283; ctx.beginPath(); ctx.ellipse(px + Math.cos(a2) * 13 * zoom, py + Math.sin(a2) * 6.5 * zoom - 1, 3.4 * zoom, 2 * zoom, a2, 0, 6.29); ctx.fill(); }
-    }
     var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
     var moving = G.tick - (u.movedAt || -99) < 3;
     var alt = altOf(u);
@@ -14286,9 +14337,14 @@
     var ox = px - s.w / 2, oy = py - (s.h - UPAD) - alt;
     // A working harvester rocks on its tracks instead of sitting parked.
     if (u.state === 'mining') oy += ((G.tick >> 3) & 1) ? 1 : 0;
+    if (u.deployed) oy += 9;                                               // he drops down behind the bags
     if (u.air && !alt) drawAirShadow(u);                                   // parked: shadow under it
     ctx.drawImage(s.c, ox, oy, s.w, s.h);
     if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w, turretS.h);
+    if (u.deployed && SPR.bags) {                                          // the parapet, OVER him
+      var BG = SPR.bags[u.p];
+      ctx.drawImage(BG.c, px - BG.w / 2, py - (BG.h - UPAD), BG.w, BG.h);
+    }
     var bb = s.bb || { x0: 0, y0: 0, x1: s.w, y1: s.h };
     var top = oy + bb.y0;
 

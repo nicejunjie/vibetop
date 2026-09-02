@@ -5533,3 +5533,29 @@ original exact-bytes test stayed green through the whole breakage.
   (0.779) will not allow a shorter barrel; that is the one remaining gap.
 - **Check:** a scene render with a shot pushed into `g.shots` from the
   structure — a sprite sheet cannot show it.
+## RTS infantry: fix proportion with one transform, not 400 hand-edited numbers
+
+**Symptom.** Every infantryman read as a toy soldier: head a quarter of the
+figure's height and nearly as wide as the shoulders, bbox aspect up to 0.68
+where an RA2 walk frame is 0.50-0.55.
+
+**Cause.** The nine branches of `bakeInfantry` were authored square — shoulder
+half-widths of 5.0-5.6 against a 27px figure — and the numbers are spread over
+~500 lines of explicit point math.
+
+**Fix.** One extra `g.translate(cx,by); g.scale(0.90,1); g.translate(-cx,-by)`
+at the top of `bakeInfantry` narrows every figure about its ground anchor, so
+torso, arms, weapon and shadow move together and no sprite drifts off the
+anchor. Only the head, the hip line and the hand props were then re-cut per
+branch, because a uniform squeeze cannot fix a head that is too big in BOTH
+axes. `USC_I` 1.30 → 1.22 took the height from 36px to 32 on a 64px tile,
+matching the sprite's 28-on-60.
+
+**Rejected.** Regex-scaling the x literals: `fillRect`/`roundRect` mix
+coordinates and extents in the same argument list, so no pattern separates
+them and the first attempt silently squashed widths that were already right.
+
+**Also.** The old deployed-GI placeholder multiplied its radii by `zoom`. Unit
+sprites are drawn inside the scene's `ctx.scale(zoom, zoom)`, so that was a
+double scale — anything drawn per-frame beside a unit must use raw sprite
+units, never `* zoom`.
