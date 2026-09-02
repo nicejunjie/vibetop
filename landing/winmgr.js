@@ -16,7 +16,9 @@
   // where its resize grip would be impossible to grab. The pure math takes it as
   // an optional `m` argument defaulting to 0 (edge-to-edge, which is what the
   // full-frame tiling/layout helpers want); the free-window glue passes MARGIN.
-  var MARGIN = 8;
+  // 20, not 8: at 8 the gap hid under the window's drop-shadow/border and read as
+  // flush — the gap has to be clearly visible to serve its purpose.
+  var MARGIN = 20;
 
   function clampGeom(g, box, minw, minh, m) {
     minw = minw || MINW; minh = minh || MINH; m = m || 0;
