@@ -5443,4 +5443,26 @@ original exact-bytes test stayed green through the whole breakage.
   addresses (aircraft pads, vehicle exits, dock faces), compute the art
   positions from the gameplay constant. And check the canvas bound: a clipped
   sprite looks fine on a contact sheet with a dark background.
+## A repair pad has to be centred on the FOOTPRINT, not where the sprite puts it
+
+- **Symptom:** the rebuilt Service Depots were drawn faithfully — RA2 puts the
+  Allied depot's grating disc well right of centre and hangs the gantry over
+  the left third — and the first two scene renders showed the damaged tank
+  parked *behind the gantry*, its front half hidden by the navy hull, sitting
+  on the machinery rather than on the pad.
+- **Cause:** `stepBld` repairs vehicles inside the footprint and a parked unit
+  is drawn at the footprint centre `(cx, baseY)`, but the sprite's pad centre
+  had been placed where the reference image put it (`cx + fw*0.16,
+  baseY + fh*0.20`). The two centres were ~18 px apart, which at a 3x3 is most
+  of a tank.
+- **Fix:** pull the pad back onto the footprint centre (`cx + fw*0.04,
+  baseY + fh*0.06` Allied, `cx + fw*0.08, baseY + fh*0.10` Soviet) and move the
+  works *up-left* to compensate, raising the gantry so its hull clears the
+  parked hull rather than crossing it. The composition still reads as the
+  sprite; only the offset between pad and plot changed. The check that catches
+  this is a scene render with a damaged vehicle actually parked on it — a
+  contact sheet cannot show it.
+- **Rule:** any structure with a functional standing area (repair pad, helipad,
+  dock tile) centres that area on the footprint the sim uses, and the greebles
+  move instead.
 
