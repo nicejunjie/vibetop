@@ -73,6 +73,7 @@
   #stage { flex: 1; min-width: 0; position: relative; overflow: hidden; }
   #cv { display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
   #cv.placing { cursor: crosshair; }
+  .pit.locked { opacity: .45; }
 
   /* ---- right-hand command bar (build panel + minimap) ---- */
   #side {
@@ -465,7 +466,7 @@
     },
     sentry: {
       cat: 'def',
-      name: 'Sentry Gun', em: '🗼', cost: 450, build: 8, fac: 'dir',
+      name: 'Pillbox', em: '🗼', cost: 450, build: 8, fac: 'dir',
       gw: 1, gh: 1, hp: 430, power: -25, sight: 7, makes: null,
       dmg: 13, rate: 17, rng: 5.2, splash: 0.2,
       vs: { inf: 1.25, veh: 0.7, bld: 0.3 }, desc: 'Rapid fire, shreds infantry'
@@ -476,6 +477,51 @@
       gw: 1, gh: 1, hp: 500, power: -70, sight: 7, makes: null,
       dmg: 58, rate: 78, rng: 4.6, splash: 0.5,
       vs: { inf: 1.0, veh: 1.45, bld: 0.3 }, desc: 'Heavy jolt, hungry for power'
+    },
+    // ---- RA2 tech tree, phase A. `req` = prerequisite structure(s), any of.
+    airforce: {
+      fac: 'dir', cat: 'str', req: 'refinery',
+      name: 'Airforce Command', em: '📡', cost: 600, build: 12,
+      gw: 2, gh: 2, hp: 600, power: -50, sight: 9, makes: null, desc: 'Radar; unlocks tier 2'
+    },
+    radar: {
+      fac: 'col', cat: 'str', req: 'refinery',
+      name: 'Radar Tower', em: '📡', cost: 600, build: 12,
+      gw: 2, gh: 2, hp: 600, power: -50, sight: 9, makes: null, desc: 'Radar; unlocks tier 2'
+    },
+    depot: {
+      fac: null, cat: 'str', req: 'factory',
+      name: 'Service Depot', em: '🔧', cost: 500, build: 9,
+      gw: 3, gh: 3, hp: 600, power: -30, sight: 5, makes: null, desc: 'Repairs vehicles parked on it'
+    },
+    lab: {
+      fac: null, cat: 'str', req: ['airforce', 'radar'],
+      name: 'Battle Lab', em: '🔬', cost: 900, build: 16,
+      gw: 2, gh: 2, hp: 700, power: -100, sight: 6, makes: null, desc: 'Unlocks tier 3'
+    },
+    purifier: {
+      fac: 'dir', cat: 'str', req: 'lab',
+      name: 'Ore Purifier', em: '💎', cost: 900, build: 15,
+      gw: 2, gh: 2, hp: 650, power: -100, sight: 5, makes: null, desc: '+25% ore income'
+    },
+    reactor: {
+      fac: 'col', cat: 'str', req: 'lab',
+      name: 'Nuclear Reactor', em: '☢️', cost: 700, build: 14,
+      gw: 2, gh: 2, hp: 700, power: 500, sight: 5, makes: null, desc: '+500 power'
+    },
+    prism: {
+      cat: 'def', req: 'airforce',
+      name: 'Prism Tower', em: '🔆', cost: 600, build: 10, fac: 'dir',
+      gw: 1, gh: 1, hp: 600, power: -75, sight: 8, makes: null,
+      dmg: 70, rate: 60, rng: 6.0, splash: 0.3,
+      vs: { inf: 1.1, veh: 1.2, bld: 0.4 }, desc: 'Long-range light beam'
+    },
+    sentrygun: {
+      cat: 'def',
+      name: 'Sentry Gun', em: '🔫', cost: 300, build: 6, fac: 'col',
+      gw: 1, gh: 1, hp: 400, power: 0, sight: 6, makes: null,
+      dmg: 12, rate: 15, rng: 5.0, splash: 0.15,
+      vs: { inf: 1.3, veh: 0.5, bld: 0.25 }, desc: 'Cheap anti-infantry gun, no power'
     }
   };
 
@@ -497,11 +543,20 @@
   // yard builds one thing at a time); they are only listed separately, so the
   // list you are scanning is the list you meant to scan.
   function buildOrderFor(fac) {
-    return ['power', 'refinery', 'barracks', 'factory'];
+    return fac === 'col' ? ['power', 'refinery', 'barracks', 'factory', 'radar', 'depot', 'lab', 'reactor']
+                         : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'depot', 'lab', 'purifier'];
   }
   function defenceOrderFor(fac) {
-    return [FACTIONS[fac].defence];
+    return fac === 'col' ? ['sentrygun', 'tesla'] : ['sentry', 'prism'];
   }
+  // Prerequisite check (RA2 tech tree): spec.req is one key or a list, any of.
+  function reqMet(g, p, spec) {
+    if (!spec.req) return true;
+    var rs = [].concat(spec.req);
+    for (var i = 0; i < rs.length; i++) if (hasBld(g, p, rs[i])) return true;
+    return false;
+  }
+  function reqName(spec) { return [].concat(spec.req).map(function (k) { return BLDS[k].name; }).join(' or '); }
 
   // --------------------------------------------------------------------- //
   //  Game state
@@ -2450,7 +2505,8 @@
     var b = BLDS[key];
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
     var pad = 18;
-    var head = { base: 108, power: 90, refinery: 64, factory: 84, barracks: 190, sentry: 56, tesla: 106 }[key] || 70;
+    var head = { base: 108, power: 90, refinery: 64, factory: 84, barracks: 190, sentry: 56, tesla: 106,
+                 airforce: 96, radar: 110, depot: 70, lab: 100, purifier: 96, reactor: 100, prism: 110, sentrygun: 56 }[key] || 70;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
 
@@ -5712,6 +5768,13 @@
         }
       }
       g.lineWidth = 1;
+    } else {
+      // Placeholder until the item's real-sprite branch lands: a drab block
+      // the size of the footprint with a house-colour band, never shipped as
+      // final art (see docs/rts-roadmap.md, roster expansion).
+      var lift = Math.min(40, 14 + (fw + fh) * 0.25);
+      prism(g, cx, baseY, fw * 0.8, fh * 0.8, lift, '#6a6f78', '#8a9099', '#2a2e36');
+      g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - lift - 2, fw, 4);
     }
     return { s: s, ax: cx, ay: baseY };
   }
@@ -6139,7 +6202,7 @@
         x: src.kind === 'b' ? src.cx : src.x, y: src.kind === 'b' ? src.cy : src.y,
         tx: tgt.kind === 'b' ? tgt.cx : tgt.x, ty: tgt.kind === 'b' ? tgt.cy : tgt.y,
         t: 0, life: src.type === 'tesla' ? 12 : 7, id: g.nextId++,
-        tesla: src.type === 'tesla',
+        tesla: src.type === 'tesla', beam: src.type === 'prism',
         rocket: src.kind === 'u' && UNITS[src.type] && UNITS[src.type].splash > 0.2 ||
                 src.type === 'rocket'
       });
@@ -6352,7 +6415,7 @@
         return;
       }
       if (atRefinery(u, ref2)) {
-        g.side[u.p].credits += Math.round(u.cargo);
+        g.side[u.p].credits += Math.round(u.cargo * (hasBld(g, u.p, 'purifier') ? 1.25 : 1));   // Ore Purifier: +25%
         if (u.p === P_HUMAN && !headless) creditPop(Math.round(u.cargo));
         u.cargo = 0; u.state = 'idle'; u.path = null; u.noProg = 0; u.stallAt = g.tick;
         sfx('cash');
@@ -6533,6 +6596,14 @@
   function stepBld(g, b) {
     var d = BLDS[b.type];
     if (b.cool > 0) b.cool--;
+    if (b.type === 'depot' && (g.tick % 30) === 0 && powered(g, b.p)) {
+      // Service Depot: vehicles parked on the pad (or touching it) are repaired.
+      for (var di = 0; di < g.units.length; di++) {
+        var v = g.units[di];
+        if (v.dead || v.p !== b.p || UNITS[v.type].cls !== 'v' || v.hp >= v.maxhp) continue;
+        if (Math.abs(v.x - b.cx) <= b.gw / 2 + 0.6 && Math.abs(v.y - b.cy) <= b.gh / 2 + 0.6) v.hp = Math.min(v.maxhp, v.hp + v.maxhp * 0.02);
+      }
+    }
     if (!d.dmg) return;
     if (!powered(g, b.p)) return;              // unpowered defences go dark
     var t = findTarget(g, b, d.rng);
@@ -6547,6 +6618,7 @@
     var spec = isBld ? BLDS[key] : UNITS[key];
     if (!spec || !ownedBy(spec, s.fac)) return false;
     if (s.credits < spec.cost) return false;
+    if (!reqMet(g, p, spec)) return false;
     if (isBld) return hasBld(g, p, 'base');
     if (UNITS[key].cls === 'i') return hasBld(g, p, 'barracks');
     return hasBld(g, p, 'factory');
@@ -6911,10 +6983,12 @@
   function aiProduce(g, ai, me, foe) {
     var s = g.side[me], cfg = ai.cfg;
     var F = FACTIONS[s.fac], def = F.defence;
+    var def2 = s.fac === 'col' ? 'tesla' : 'prism';
     var nRef = countBld(g, me, 'refinery');
     var harv = countUnit(g, me, 'harvester');
     var net = s.powerMade - s.powerUse;
     var hasFac = hasBld(g, me, 'factory'), hasBar = hasBld(g, me, 'barracks');
+    var radarKey = s.fac === 'col' ? 'radar' : 'airforce', ecoKey = s.fac === 'col' ? 'reactor' : 'purifier';
 
     // ---- structures -----------------------------------------------------
     // Order matters more than it looks. Harvesters come out of the factory,
@@ -6948,15 +7022,20 @@
       // where the money gets spent and the map still has room to walk.
       else if (s.queues.v.list.length >= 2 && s.credits > 2200 &&
                countBld(g, me, 'factory') < 2) want = 'factory';
+      else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200) want = radarKey;
+      else if (hasBld(g, me, radarKey) && !hasBld(g, me, 'lab') && s.credits > 2200) want = 'lab';
+      else if (hasBld(g, me, 'lab') && !hasBld(g, me, ecoKey) && s.credits > 2600) want = ecoKey;
       if (want && canBuild(g, me, want, true)) enqueue(g, me, want, laneOfBld(want));
     }
 
     // Defence builds in its own lane now, so a turret never delays a refinery
     // for the AI either — it is a separate decision, not a queue position.
     if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
-        countBld(g, me, def) < (ai.posture === 'defend' ? 4 : 2) &&
+        countBld(g, me, def) + countBld(g, me, def2) < (ai.posture === 'defend' ? 5 : 3) &&
         s.credits > (ai.posture === 'defend' ? 700 : 1600)) {
-      if (canBuild(g, me, def, true)) enqueue(g, me, def, 'd');
+      // Alternate the faction's two defences once the heavier one is unlocked.
+      var pick = (countBld(g, me, def) > countBld(g, me, def2) && canBuild(g, me, def2, true)) ? def2 : def;
+      if (canBuild(g, me, pick, true)) enqueue(g, me, pick, 'd');
     }
 
     // ---- harvesters before soldiers -------------------------------------
@@ -7553,7 +7632,7 @@
         '<span><span class="nm">' + it.spec.name + '</span><br>' +
         '<span class="ct">$' + it.spec.cost + ' · ' + it.spec.desc + '</span></span>' +
         '<span class="qn"></span>';
-      b.title = it.spec.name + ' — $' + it.spec.cost;
+      b.title = it.spec.name + ' — $' + it.spec.cost + (it.spec.req ? ' · requires ' + reqName(it.spec) : '');
       b.addEventListener('click', function (ev) { onPanelClick(it, ev); });
       b.addEventListener('contextmenu', function (ev) {
         ev.preventDefault();
@@ -7585,6 +7664,7 @@
     }
     if (!canBuild(G, P_HUMAN, it.k, isBldLane(it.lane))) {
       if (s.credits < it.spec.cost) { say('Not enough credits for ' + it.spec.name + ' ($' + it.spec.cost + ')', true); eva('Insufficient funds', 4000); }
+      else if (!reqMet(G, P_HUMAN, it.spec)) say(it.spec.name + ' requires ' + reqName(it.spec), true);
       else if (it.lane === 'i') say('Build a Barracks first', true);
       else if (it.lane === 'v') say('Build a War Factory first', true);
       else say('You need a Construction Yard', true);
@@ -7598,6 +7678,14 @@
   function refreshPanel() {
     if (!G) return;
     var s = G.side[P_HUMAN];
+    for (var rk in panelRows) {
+      var pr = panelRows[rk], lock = !reqMet(G, P_HUMAN, pr.it.spec);
+      if (pr.el.classList.contains('locked') !== lock) {
+        pr.el.classList.toggle('locked', lock);
+        var ct = pr.el.querySelector('.ct');
+        if (ct) ct.textContent = '$' + pr.it.spec.cost + ' · ' + (lock ? 'requires ' + reqName(pr.it.spec) : pr.it.spec.desc);
+      }
+    }
 
     // A structure that has finished building is the single most common place
     // to stall: nothing on screen changes, and the panel row alone does not
@@ -8342,6 +8430,15 @@
       var f = s.t / s.life;
       var ax = sx(s.x, s.y), ay = sy(s.x, s.y) - 10;
       var bx = sx(s.tx, s.ty), by = sy(s.tx, s.ty) - 8;
+      if (s.beam) {
+        // Prism beam: an instant white-cyan lance from the tower head.
+        ax = sx(s.x, s.y); ay = sy(s.x, s.y) - 58;
+        ctx.strokeStyle = 'rgba(160,240,255,' + (0.5 * (1 - f)) + ')'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,' + (1 - f) + ')'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        continue;
+      }
       if (s.tesla) {
         // Tesla bolt: a jagged arc from the coil's head to the target, redrawn
         // with a different jitter each tick so it crawls, over a soft glow.
