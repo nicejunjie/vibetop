@@ -928,6 +928,27 @@
     diamond(g, cx, cy, TW, TH); g.strokeStyle = fill; g.stroke();
     return s;
   }
+  // Shore: a ground tile with a wet sand band along each edge that touches
+  // water. mask bits: 1 = -gy neighbour (up-right edge), 2 = +gx (down-right),
+  // 4 = +gy (down-left), 8 = -gx (up-left).
+  function bakeShore(base, sand, wet, mask) {
+    var s = mkCanvas(TW + 2, TH + 2), g = s.g, cx = (TW + 2) / 2, cy = (TH + 2) / 2;
+    g.drawImage(base.c, 0, 0);
+    g.save(); diamond(g, cx, cy, TW, TH); g.clip();
+    var R = cx + TW / 2, L = cx - TW / 2, T = cy - TH / 2, B = cy + TH / 2;
+    var edges = [[cx, T, R, cy], [R, cy, cx, B], [cx, B, L, cy], [L, cy, cx, T]];
+    for (var e = 0; e < 4; e++) {
+      if (!(mask & (1 << e))) continue;
+      var x0 = edges[e][0], y0 = edges[e][1], x1 = edges[e][2], y1 = edges[e][3];
+      g.strokeStyle = sand; g.lineWidth = 9; g.lineCap = 'butt';
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      g.strokeStyle = wet; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    }
+    g.restore();
+    return s;
+  }
+
   // Cliff: the tile diamond raised by CLIFF_H with the two visible faces
   // (down-right = +gx neighbour, down-left = +gy neighbour) drawn when that
   // neighbour is not cliff. mask bit1 = show down-right face, bit2 = down-left.
@@ -948,7 +969,13 @@
     diamond(g, cx, ty, TW, TH); g.fillStyle = top; g.fill();
     g.save(); diamond(g, cx, ty, TW, TH); g.clip(); srand(31 + mask);
     g.globalAlpha = 0.25; for (var i = 0; i < 10; i++) { g.fillStyle = rnd() < 0.5 ? shade(top, 1.15) : shade(top, 0.8); g.beginPath(); g.ellipse(cx - 22 + rnd() * 44, ty - 10 + rnd() * 20, 2 + rnd() * 4, 1 + rnd() * 2, 0, 0, 6.29); g.fill(); }
-    g.globalAlpha = 1; g.restore();
+    g.globalAlpha = 1;
+    for (var rb = 0; rb < 4; rb++) {   // loose rubble on the crown
+      var rx = cx - 16 + rnd() * 32, ry = ty - 6 + rnd() * 12, rw = 2 + rnd() * 2.5;
+      g.fillStyle = shade(side, 1.35); g.beginPath(); g.moveTo(rx - rw, ry + 1); g.lineTo(rx - rw * 0.3, ry - rw * 0.8); g.lineTo(rx + rw, ry - rw * 0.2); g.lineTo(rx + rw * 0.6, ry + 1.2); g.closePath(); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 0.8; g.stroke();
+    }
+    g.restore();
     diamond(g, cx, ty, TW, TH); g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
     s.lift = CLIFF_H;
     return s;
@@ -8007,6 +8034,11 @@
     SPR.cliff = { temperate: [], snow: [] };
     for (var cm = 0; cm < 4; cm++) { SPR.cliff.temperate[cm] = bakeCliff(cm, '#8a8062', '#5a5142', '#3e372c'); SPR.cliff.snow[cm] = bakeCliff(cm, '#dfe5e8', '#6a6f74', '#474b50'); }
     SPR.road = { temperate: [bakeRoad('#6c6a58', 71), bakeRoad('#706e5b', 72)], snow: [bakeRoad('#b3b8bc', 73), bakeRoad('#b8bdc0', 74)] };
+    SPR.shore = { temperate: [], snow: [] };
+    for (var sm = 1; sm < 16; sm++) {
+      SPR.shore.temperate[sm] = bakeShore(SPR.ground[2], '#b8a674', '#6f7f78', sm);
+      SPR.shore.snow[sm] = bakeShore(SPR.groundT.snow[2], '#e4e8ea', '#9fb6c4', sm);
+    }
     SPR.tree = { temperate: [bakeTree(0, false), bakeTree(1, false), bakeTree(2, false)], snow: [bakeTree(0, true), bakeTree(1, true), bakeTree(2, true)] };
     SPR.rock = [bakeRock(0), bakeRock(1), bakeRock(2), bakeRock(3)];
     SPR.oreLv = [];
@@ -10634,7 +10666,11 @@
         }
         var th = G.theatre || 'temperate', tile;
         if (t === T_ROCK) tile = SPR.rock[h6 & 3];
-        else if (t === T_WATER) tile = SPR.water[th][h6 & 3];
+        else if (t === T_WATER) tile = SPR.water[th][(h6 + (G.tick >> 5)) & 3];
+        else if (t === T_GROUND && ((y > 0 && G.terrain[i - MAP] === T_WATER ? 1 : 0) | (x + 1 < MAP && G.terrain[i + 1] === T_WATER ? 2 : 0) |
+                                    (y + 1 < MAP && G.terrain[i + MAP] === T_WATER ? 4 : 0) | (x > 0 && G.terrain[i - 1] === T_WATER ? 8 : 0)))
+          tile = SPR.shore[th][(y > 0 && G.terrain[i - MAP] === T_WATER ? 1 : 0) | (x + 1 < MAP && G.terrain[i + 1] === T_WATER ? 2 : 0) |
+                               (y + 1 < MAP && G.terrain[i + MAP] === T_WATER ? 4 : 0) | (x > 0 && G.terrain[i - 1] === T_WATER ? 8 : 0)];
         else if (t === T_ROAD) tile = SPR.road[th][h6 & 1];
         else if (t === T_CLIFF) {
           var cm = (x + 1 < MAP && G.terrain[idx(x + 1, y)] !== T_CLIFF ? 1 : 0) | (y + 1 < MAP && G.terrain[idx(x, y + 1)] !== T_CLIFF ? 2 : 0);
