@@ -61,7 +61,7 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 - ☑ v1.19.198 Mouse-wheel zoom about the cursor
 - ☑ v1.19.199 Touch: tap selects own / orders at, drag pans, pinch zooms; desktop-only gate removed
 - ☐ RA2 sidebar behaviour: build queue tabs per structure type with icons, repeat/hold, "cannot build" reasons
-- ☑ v1.19.209 RA2 bottom command bar: Same, Path (waypoint mode), T1/T2/T3 (click recalls, Shift-click assigns), Guard, Stop, Scatter, Sell (half refund), Repair (0.5%/s at 30% of cost, wrench glyph); Deploy/Beacon pending a deployable unit and multiplayer
+- ☑ v1.19.209 RA2 bottom command bar: Same, Path (waypoint mode), T1/T2/T3 (click recalls, Shift-click assigns), Guard, Stop, Scatter, Sell (half refund), Repair (0.5%/s at 30% of cost, wrench glyph); ☑ Deploy (v1.19.212, GI sandbags, hotkey D); Beacon pending multiplayer
 - ☑ v1.19.199 Veterancy: 3 kills veteran (+25% damage, -15% damage taken), 6 elite (+50%/-30%, self-heal); gold chevrons; kills and rank on the hover card
 - ☑ v1.19.209 Sell / repair via the command bar
 - ☑ v1.19.199 Waypoints: shift-right-click queues stops; dashed numbered route shown on the selected unit
@@ -89,10 +89,11 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 
 ### Combat model (user, 2026-09-02: "攻击力和血量、装甲等等因素也要全都符合ra2")
 - ☑ RA2 armour classes + warhead Verses table, secondary weapons (Guardian GI missile, Tanya C4), rules.ini strength/cost/speed/sight/ROF/range for every unit and structure, RA2 veterancy multipliers, $10000 start, Chrono/War Miner capacities, Allied Power Plant vs Tesla Reactor (v1.19.212)
-- ☐ Air-layer items (Rocketeer, Harrier, Kirov, Patriot, Flak Cannon, Flak Trooper) get their rules.ini numbers on merge; AA secondaries for IFV / Flak Track / Apocalypse
+- ☑ Air-layer items (Rocketeer, Harrier, Kirov, Patriot, Flak Cannon, Flak Trooper) carry their rules.ini numbers (v1.19.212); ☐ AA secondary weapons for Flak Track (FlakWH) / Apocalypse (MammothTusk) — they use their ground warhead against aircraft for now
 - ☐ `spectre` is not an RA2 unit — replace it with the Prism Tank (art + stats)
 - ☐ MCV / deployable Construction Yard; Ore Purifier +25% and Service Depot repair already follow rules.ini
 - ☐ RA2 build-time discount for extra factories (MultipleFactory=0.8) and low-power production penalty curve (currently a flat 0.4×)
+- ☑ GI deploy (RA2 E1 Para weapon: range 6, double fire rate behind sandbags; a move order packs up; the AI deploys holding GIs, a human uses D) (v1.19.212) — ☐ deployed-GI art is a placeholder sandbag ring, needs the real RA2 sandbag sprite
 - ☐ Vehicles crush infantry (RA2 Crusher=yes) — under RA2 verses infantry masses beat tank lines, and crushing is RA2's main answer; the AI's unit mix and the balance tests both depend on it
 - ◐ AI re-tuned for RA2 pacing: spends its bank on more factories/barracks and deeper queues, weighs enemy defences before attacking, no tech before an army, one or two miners per refinery, assumes infantry until scouted; hard-vs-easy self-play is still being measured across both factions
 

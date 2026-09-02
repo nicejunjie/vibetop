@@ -331,6 +331,7 @@
       <button data-cmd="guard" title="Guard: hold position and engage (G)">Guard</button>
       <button data-cmd="stop" title="Stop (S)">Stop</button>
       <button data-cmd="scatter" title="Scatter (X)">Scatter</button>
+      <button data-cmd="deploy" title="Deploy / undeploy GIs behind sandbags (D)">Deploy</button>
       <button data-cmd="sell" title="Sell mode: click one of your structures to sell it for half">Sell</button>
       <button data-cmd="repair" title="Repair mode: click one of your structures to repair it (costs credits)">Repair</button>
     </div>
@@ -426,12 +427,17 @@
   function isInfArmour(a) { return a === 'none' || a === 'flak' || a === 'plate'; }
   // RA2 primary/secondary weapons: the secondary is picked by what it is for
   // (Guardian GI missile vs armour, Tanya C4 vs structures).
-  function weaponFor(spec, tgt) {
+  function weaponFor(spec, tgt, u) {
     var w2 = spec.w2;
     if (w2) { var a = armourOf(tgt); if ((w2.use === 'veh' && isVehArmour(a)) || (w2.use === 'bld' && isBldArmour(a)) || (w2.use === 'inf' && isInfArmour(a))) return w2; }
+    if (u && u.deployed && spec.dep) return spec.dep;       // a deployed GI fires from its sandbags
     return spec;
   }
-  function reachOf(spec) { return spec.w2 && spec.w2.rng > spec.rng ? spec.w2.rng : spec.rng; }
+  function reachOf(spec, u) {
+    var r = spec.w2 && spec.w2.rng > spec.rng ? spec.w2.rng : spec.rng;
+    if (u && u.deployed && spec.dep && spec.dep.rng > r) r = spec.dep.rng;
+    return r;
+  }
   // RA2 veterancy ([General]): VeteranCombat=1.1 firepower and VeteranArmor=1.5 per rank.
   function vetFire(rank) { return Math.pow(1.1, rank || 0); }
   function vetArmour(rank) { return Math.pow(1.5, rank || 0); }
@@ -462,8 +468,8 @@
       name: 'GI', em: '🔫', cost: 200, build: 8, cls: 'i', fac: 'dir',
       hp: 125, spd: 0.052, sight: 5, armour: 'none',
       dmg: 15, rate: 80, rng: 4, splash: 0,
-      wh: 'SA',
-      cap: 0, mine: 0, w: 9, h: 14, desc: 'Cheap, anti-infantry'
+      wh: 'SA', dep: { dmg: 15, rate: 40, rng: 6, wh: 'SSA', splash: 0 },   // deployed behind sandbags (RA2 "Para")
+      cap: 0, mine: 0, w: 9, h: 14, desc: 'Deploys behind sandbags for range and fire rate (D)'
     },
     conscript: {
       name: 'Conscript', em: '🎖️', cost: 100, build: 4, cls: 'i', fac: 'col',
@@ -9974,7 +9980,7 @@
       if (o.dead || o.p === e.p) return;
       if (!canHit(spec, o)) return;          // a GI cannot shoot a Kirov; a Patriot cannot shoot a tank
       var d = dist(e, o);
-      var w = weaponFor(spec, o);
+      var w = weaponFor(spec, o, e);
       var mult = w.wh ? verses(w.wh, armourOf(o)) : 1;
       if (mult <= 0 || d > rngVs(w, o)) return;   // this weapon cannot hurt / reach it
       var score;
@@ -10024,7 +10030,7 @@
   }
 
   function fire(g, src, tgt) {
-    var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt);
+    var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt, src);
     src.cool = spec.rate;
     if (src.kind === 'u' && spec.ammo) src.ammo = Math.max(0, (src.ammo || 0) - 1);
     if (!headless) {
@@ -10131,6 +10137,7 @@
     // the ore instead). On arrival it HOLDS for a while, like an RA2 miner
     // parked by hand, then goes back to work on its own.
     if (u.order && u.order.t === 'move') {
+      if (u.deployed) u.deployed = false;                    // RA2: a move order packs the sandbags up
       var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
       if (mdx * mdx + mdy * mdy < 1.4) {
         u.order = null; u.path = null; u.state = 'idle'; u.mineAt = null;
@@ -10337,6 +10344,10 @@
 
   // refresh = ticks between re-plans while a path is already being followed.
   function advance(g, u, tx, ty, spd, refresh) {
+    if (u.deployed) {
+      // Chasing a target undeploys; a plain hold stays put.
+      if (u.order && u.order.t !== 'attack') u.deployed = false; else return false;
+    }
     if (u.air) return flyToward(g, u, tx, ty, spd);
     if (!u.path) {
       if (g.tick - u.repathAt > 8) { requestPath(g, u, tx, ty); u.repathAt = g.tick; }
@@ -10400,7 +10411,7 @@
     }
     if (u.order && u.order.t === 'move') {
       if (d.dmg > 0 && u.cool <= 0) {
-        var passing = findTarget(g, u, reachOf(d));
+        var passing = findTarget(g, u, reachOf(d, u));
         if (passing) fire(g, u, passing);
       }
       var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
@@ -10423,13 +10434,20 @@
     if (u.order && u.order.t === 'attack') {
       ordered = entById(g, u.order.id);
       if (!ordered || !canHit(d, ordered)) { u.order = null; ordered = null; }
-      else if (dist(u, ordered) <= rngVs(weaponFor(d, ordered), ordered)) tgt = ordered;
+      else if (dist(u, ordered) <= rngVs(weaponFor(d, ordered, u), ordered)) tgt = ordered;
     }
-    if (!tgt) tgt = findTarget(g, u, reachOf(d));
+    if (!tgt) tgt = findTarget(g, u, reachOf(d, u));
+    // AI-driven GIs deploy when something is in sandbag range and pack up
+    // after five quiet seconds; a human deploys with D, as in RA2.
+    if (d.dep && (u.p !== P_HUMAN || g.ai2)) {
+      if (tgt) u.tgtAt = g.tick;
+      if (!u.deployed && !(u.order && u.order.t !== 'attack') && (tgt || findTarget(g, u, d.dep.rng))) u.deployed = true;
+      else if (u.deployed && !tgt && g.tick - (u.tgtAt || 0) > 300) u.deployed = false;
+    }
 
     if (tgt) {
       var dd = dist(u, tgt);
-      if (dd <= rngVs(weaponFor(d, tgt), tgt)) {
+      if (dd <= rngVs(weaponFor(d, tgt, u), tgt)) {
         u.path = null;
         var ax = (tgt.kind === 'b' ? tgt.cx : tgt.x) - u.x;
         var ay = (tgt.kind === 'b' ? tgt.cy : tgt.y) - u.y;
@@ -10974,6 +10992,13 @@
     var nRef = countBld(g, me, 'refinery');
     var harv = countUnit(g, me, 'harvester');
     var net = s.powerMade - s.powerUse;
+    // Power the way a player counts it: what is already queued in either
+    // structure lane draws too. Committing a radar while a coil is building
+    // put the Soviet AI at -35 for three minutes of 0.4x production.
+    var draw = function (k) { return bspecOf(g, k, me).power; };
+    var netQ = net;
+    s.queues.b.list.forEach(function (k) { netQ += draw(k); }); if (s.queues.b.ready) netQ += draw(s.queues.b.ready);
+    s.queues.d.list.forEach(function (k) { netQ += draw(k); }); if (s.queues.d.ready) netQ += draw(s.queues.d.ready);
     var hasFac = hasBld(g, me, 'factory'), hasBar = hasBld(g, me, 'barracks');
     var radarKey = s.fac === 'col' ? 'radar' : 'airforce', ecoKey = s.fac === 'col' ? 'reactor' : 'purifier';
 
@@ -10987,7 +11012,10 @@
     // while its barracks lay in rubble.
     if (!s.queues.b.list.length && !s.queues.b.ready && hasBld(g, me, 'base')) {
       var want = null;
-      if (!nRef) want = 'refinery';                       // no income at all
+      // RA2 opening: Power → Refinery → Barracks. A base that starts on a
+      // $1500 coil with no plant runs unpowered at 0.4x for three minutes.
+      if (!hasBld(g, me, 'power')) want = 'power';
+      else if (!nRef) want = 'refinery';                  // no income at all
       else if (net < 20) want = 'power';                  // grid is short
       else if (!hasFac && harv < 2) want = 'factory';     // break the spiral
       else if (!hasBar) want = 'barracks';
@@ -11017,6 +11045,7 @@
       else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200 && ai.army.length >= cfg.group * 0.6) want = radarKey;
       else if (hasBld(g, me, radarKey) && !hasBld(g, me, 'lab') && s.credits > 2200 && ai.army.length >= cfg.group) want = 'lab';
       else if (hasBld(g, me, 'lab') && !hasBld(g, me, ecoKey) && s.credits > 2600) want = ecoKey;
+      if (want && want !== 'power' && netQ + draw(want) < 30 && canBuild(g, me, 'power', true)) want = 'power';   // headroom first
       if (want && canBuild(g, me, want, true)) enqueue(g, me, want, laneOfBld(want));
     }
 
@@ -11036,10 +11065,16 @@
     }
     if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
         countBld(g, me, def) + countBld(g, me, def2) < (ai.posture === 'defend' ? 5 : 3) &&
-        s.credits > (ai.posture === 'defend' ? 1800 : 3000)) {   // RA2 defences cost $500-1500; never starve the army for them
+        s.credits > 600) {
       // Alternate the faction's two defences once the heavier one is unlocked.
       var pick = (countBld(g, me, def) > countBld(g, me, def2) && canBuild(g, me, def2, true)) ? def2 : def;
-      if (canBuild(g, me, pick, true)) enqueue(g, me, pick, 'd');
+      // RA2 defences cost $500-1500: buy one when it is affordable beside the
+      // army, not at a flat bank level a $500 Sentry Gun never needed.
+      var slack = ai.posture === 'defend' ? 1.2 : 2;
+      if (s.credits < bspecOf(g, pick, me).cost * slack) pick = def;
+      if (s.credits < bspecOf(g, pick, me).cost * slack) pick = null;
+      if (pick && netQ + draw(pick) < 0) pick = def;                   // never a coil into a power deficit
+      if (pick && netQ + draw(pick) >= 0 && canBuild(g, me, pick, true)) enqueue(g, me, pick, 'd');
     }
     // Aircraft lane: fill every Harrier pad while the money is there.
     if (s.fac === 'dir' && !s.queues.a.list.length && s.credits > 1800 && canBuild(g, me, 'harrier', false))
@@ -11539,7 +11574,7 @@
   // Units talk back when ordered, like RA2's acknowledgement lines. One line
   // per order, throttled, in a faction voice (Collective lower and slower).
   var ACK = {
-    rifle:     { move: ['Yes sir', 'Moving out', 'On my way'], attack: ['Engaging', 'Weapons hot'], harvest: [] },
+    rifle:     { move: ['Yes sir', 'Moving out', 'On my way'], attack: ['Engaging', 'Weapons hot'], harvest: [], deploy: ['Deploying', 'Sandbags up', 'Holding here'] },
     rocket:    { move: ['Affirmative', 'Moving'], attack: ['Target acquired', 'Firing rockets'], harvest: [] },
     flak:      { move: ['Da comrade', 'Flak trooper moving'], attack: ['Guns up', 'Take them down'], harvest: [] },
     rocketeer: { move: ['Rocketeer reporting', 'Up, up and away', 'Airborne'], attack: ['Going in', 'Target in sight'], harvest: [] },
@@ -11866,6 +11901,7 @@
       say((e.key.toLowerCase() === 'g' ? 'Guarding' : 'Stopped') + ' — ' + units0.length + ' unit' + (units0.length === 1 ? '' : 's'));
       return;
     }
+    if (units0.length && (e.key === 'd' || e.key === 'D')) { unitsCmd('deploy'); return; }
     if (units0.length && (e.key === 'x' || e.key === 'X')) {
       // Scatter: each unit steps one or two tiles away from the group centre.
       var mx = 0, my = 0; units0.forEach(function (u) { mx += u.x; my += u.y; }); mx /= units0.length; my /= units0.length;
@@ -12088,6 +12124,15 @@
   function unitsCmd(kind) {
     var us = sel.filter(function (u) { return u.kind === 'u' && !u.dead; });
     if (!us.length) { say('Select some units first', true); return; }
+    if (kind === 'deploy') {
+      var gis = us.filter(function (u) { return UNITS[u.type].dep; });
+      if (!gis.length) { say('Only GIs can deploy', true); return; }
+      var on = gis.some(function (u) { return !u.deployed; });
+      gis.forEach(function (u) { u.deployed = on; u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y; });
+      say((on ? 'Deployed' : 'Undeployed') + ' — ' + gis.length + ' GI' + (gis.length === 1 ? '' : 's')); sfx('click');
+      if (on) unitAck(gis, 'deploy');
+      return;
+    }
     if (kind === 'scatter') {
       var mx = 0, my = 0; us.forEach(function (u) { mx += u.x; my += u.y; }); mx /= us.length; my /= us.length;
       us.forEach(function (u, i) {
@@ -12126,7 +12171,7 @@
     if (c === 'same') selectSameType();
     else if (c === 'path') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: right-clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); }
     else if (c[0] === 't') teamCmd(c[1], e.shiftKey || e.ctrlKey);
-    else if (c === 'guard' || c === 'stop' || c === 'scatter') unitsCmd(c);
+    else if (c === 'guard' || c === 'stop' || c === 'scatter' || c === 'deploy') unitsCmd(c);
     else if (c === 'sell' || c === 'repair') setCmdMode(c);
   });
 
@@ -12841,6 +12886,13 @@
     var px = sx(u.x, u.y), py = sy(u.x, u.y);
     if (px < VX0 - 60 || py < VY0 - 60 || px > VX1 + 60 || py > VY1 + 60) return;
     var d = UNITS[u.type];
+    if (u.deployed) {
+      // Sandbag ring: khaki bags around the tile, drawn under the trooper.
+      var k; ctx.fillStyle = '#8d8262';
+      for (k = 0; k < 10; k++) { var a = k / 10 * 6.283; ctx.beginPath(); ctx.ellipse(px + Math.cos(a) * 13 * zoom, py + Math.sin(a) * 6.5 * zoom + 1, 3.6 * zoom, 2.2 * zoom, a, 0, 6.29); ctx.fill(); }
+      ctx.fillStyle = '#a89a72';
+      for (k = 0; k < 10; k++) { var a2 = (k + 0.5) / 10 * 6.283; ctx.beginPath(); ctx.ellipse(px + Math.cos(a2) * 13 * zoom, py + Math.sin(a2) * 6.5 * zoom - 1, 3.4 * zoom, 2 * zoom, a2, 0, 6.29); ctx.fill(); }
+    }
     var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
     var moving = G.tick - (u.movedAt || -99) < 3;
     var alt = altOf(u);

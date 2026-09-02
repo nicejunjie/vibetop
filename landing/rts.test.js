@@ -450,24 +450,31 @@ test("AI economies actually grow", slow, () => {
 });
 
 test("matches reach a decision instead of stalemating", slow, () => {
-  const cap = 60 * 60 * 22;                       // 22 in-game minutes
+  // RA2 pacing (rules.ini build times, $10000 start) makes a real game
+  // 20-30 minutes; both faction assignments are played so a stall on one
+  // side does not hide behind a quick win on the other.
+  const cap = 60 * 60 * 30;                       // 30 in-game minutes
   let decided = 0;
-  const seeds = [101, 202, 303, 404, 505];
+  const seeds = [101, 202, 303, 404, 505, 606];
   for (const seed of seeds) {
-    const r = W.__rtsSim(seed, "hard", "easy", cap);
+    const sov = seed % 202 === 0;
+    const r = W.__rtsSim(seed, "hard", "easy", cap, sov ? "col" : "dir", sov ? "dir" : "col");
     if (r.over !== 0) decided++;
   }
-  assert.ok(decided >= 4,
-    `only ${decided}/${seeds.length} matches finished inside 22 minutes — the balance stalls`);
+  assert.ok(decided >= 5,
+    `only ${decided}/${seeds.length} matches finished inside 30 minutes — the balance stalls`);
 });
 
 test("hard beats easy — the difficulty labels mean something", slow, () => {
-  const cap = 60 * 60 * 22;
-  const seeds = [1, 2, 3, 4, 5, 6, 7];
+  const cap = 60 * 60 * 30;
+  const seeds = [1, 2, 3, 4, 5, 6, 7, 8];
   let hardWins = 0, played = 0;
   for (const seed of seeds) {
-    // player 0 = hard, player 1 = easy; over === 1 means player 0 won
-    const r = W.__rtsSim(seed, "hard", "easy", cap);
+    // player 0 = hard, player 1 = easy; over === 1 means player 0 won.
+    // Hard plays each faction half the time so a faction edge cannot pass
+    // or fail the tier check on its own.
+    const sov = seed % 2 === 0;
+    const r = W.__rtsSim(seed, "hard", "easy", cap, sov ? "col" : "dir", sov ? "dir" : "col");
     if (r.over === 0) continue;
     played++;
     if (r.over === 1) hardWins++;
@@ -1079,4 +1086,28 @@ test("air units count in the army and never block building placement", () => {
   assert.ok(API.canPlace(g, 0, "power", spot.x, spot.y), "a hovering unit does not occupy the tile under it");
   const gi = H.spawn("rifle", 0, spot.x, spot.y);
   assert.equal(API.canPlace(g, 0, "power", spot.x, spot.y), false, "a soldier standing there does");
+});
+
+test("a deployed GI fires from its sandbags: longer range, double rate, and it will not walk off", () => {
+  // RA2 E1: deploying swaps the M60 (range 4, ROF 20) for the sandbag Para
+  // weapon (range 6, ROF 10). weaponFor()/reachOf() read u.deployed; a move
+  // order packs the sandbags up again.
+  const H = W.__rtsTest;
+  const g = H.begin(55020, "normal");
+  const gi = T.UNITS.rifle;
+  assert.ok(gi.dep && gi.dep.rng > gi.rng && gi.dep.rate < gi.rate, "the GI must have a better deployed weapon");
+
+  const standing = H.spawn("rifle", 0, 10, 10);
+  const farA = H.spawn("harvester", 1, 15, 10);              // 5 tiles: beyond the rifle, inside the sandbags
+  const deployed = H.spawn("rifle", 0, 40, 40); deployed.deployed = true;
+  const farB = H.spawn("harvester", 1, 45, 40);
+  standing.guardX = standing.x; standing.guardY = standing.y;   // hold: a chasing GI would close the gap
+  H.step(120);
+  assert.equal(farA.hp, farA.maxhp, "a standing GI must not reach 5 tiles");
+  assert.ok(farB.hp < farB.maxhp, "a deployed GI must reach 5 tiles");
+  assert.ok(Math.abs(deployed.x - 40) < 0.01 && Math.abs(deployed.y - 40) < 0.01, "a deployed GI must not move");
+
+  deployed.order = { t: "move", x: 30, y: 30 };
+  H.step(30);
+  assert.equal(deployed.deployed, false, "a move order must undeploy");
 });
