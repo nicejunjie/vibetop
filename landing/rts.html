@@ -9330,13 +9330,15 @@
         if (!h.dead && h.p === foe && h.type === 'harvester') return h;
       }
     }
-    var pref = ['factory', 'barracks', 'refinery', 'power', 'base', 'sentry', 'tesla'];
+    var pref = ['factory', 'barracks', 'refinery', 'power', 'reactor', 'base', 'lab', 'airforce', 'radar', 'purifier', 'depot', 'sentry', 'sentrygun', 'prism', 'tesla'];
     for (var pi = 0; pi < pref.length; pi++) {
       for (i = 0; i < g.blds.length; i++) {
         var b = g.blds[i];
         if (!b.dead && b.p === foe && b.type === pref[pi]) return b;
       }
     }
+    // Anything else still standing (a type added later must never stall the AI).
+    for (i = 0; i < g.blds.length; i++) if (!g.blds[i].dead && g.blds[i].p === foe) return g.blds[i];
     return null;
   }
 
