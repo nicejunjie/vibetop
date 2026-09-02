@@ -416,7 +416,7 @@
       // that gap instead of closing it (hard went 73% -> 90% Directorate).
       // 880/15 evens throughput per factory: measured 56% / 56% across
       // normal and hard, from 90% / 73%.
-      name: 'Mammoth', em: '⚙️', cost: 880, build: 15, cls: 'v', fac: 'col', turret: true,
+      name: 'Apocalypse', em: '⚙️', cost: 880, build: 15, cls: 'v', fac: 'col', req: 'lab', turret: true,
       // 0.028 read fine on paper ("slow, heavy") and lost the faction the
       // game: below infantry speed (0.050) a Collective army arrives strung
       // out, fights piecemeal and can never disengage — measured 88% losses
@@ -429,8 +429,86 @@
       vs: { inf: 0.9, veh: 1.05, bld: 1.0 },
       cap: 0, mine: 0, w: 22, h: 17, desc: 'Slow, heavy, wide splash'
     },
+    // ---- RA2 roster, phase B. Tier gating via `req` (any of), like structures.
+    engineer: {
+      name: 'Engineer', em: '🔧', cost: 250, build: 6, cls: 'i', fac: null, capture: true,
+      hp: 50, spd: 0.050, sight: 5, armour: A_INF,
+      dmg: 0, rate: 0, rng: 0, splash: 0,
+      vs: { inf: 0, veh: 0, bld: 0 },
+      cap: 0, mine: 0, w: 9, h: 14, desc: 'Captures an enemy structure (consumed)'
+    },
+    ifv: {
+      name: 'IFV', em: '🚙', cost: 350, build: 8, cls: 'v', fac: 'dir', turret: true,
+      hp: 130, spd: 0.070, sight: 7, armour: A_VEH,
+      dmg: 18, rate: 30, rng: 5.0, splash: 0.3,
+      vs: { inf: 0.9, veh: 1.1, bld: 0.6 },
+      cap: 0, mine: 0, w: 15, h: 12, desc: 'Fast rocket buggy'
+    },
+    mirage: {
+      name: 'Mirage Tank', em: '🌳', cost: 500, build: 11, cls: 'v', fac: 'dir', req: 'lab',
+      hp: 220, spd: 0.052, sight: 7, armour: A_VEH,
+      dmg: 40, rate: 55, rng: 5.0, splash: 0.4,
+      vs: { inf: 1.3, veh: 0.9, bld: 0.5 },
+      cap: 0, mine: 0, w: 18, h: 14, desc: 'Ambusher, shreds infantry; needs a Battle Lab'
+    },
+    tanya: {
+      name: 'Tanya', em: '💃', cost: 450, build: 12, cls: 'i', fac: 'dir', req: 'lab', max: 1,
+      hp: 120, spd: 0.062, sight: 8, armour: A_INF,
+      dmg: 60, rate: 20, rng: 4.0, splash: 0,
+      vs: { inf: 3.0, veh: 0.1, bld: 2.5 },
+      cap: 0, mine: 0, w: 9, h: 14, desc: 'Hero: kills infantry outright, C4s buildings; one only'
+    },
+    rhino: {
+      name: 'Rhino Tank', em: '🦏', cost: 500, build: 11, cls: 'v', fac: 'col', turret: true,
+      hp: 300, spd: 0.040, sight: 6, armour: A_VEH,
+      dmg: 34, rate: 48, rng: 5.2, splash: 0.6,
+      vs: { inf: 0.85, veh: 1.05, bld: 0.9 },
+      cap: 0, mine: 0, w: 20, h: 15, desc: 'Heavy main battle tank'
+    },
+    flaktrack: {
+      name: 'Flak Track', em: '🛻', cost: 350, build: 8, cls: 'v', fac: 'col', turret: true,
+      hp: 150, spd: 0.075, sight: 7, armour: A_VEH,
+      dmg: 14, rate: 22, rng: 5.5, splash: 0.5,
+      vs: { inf: 1.4, veh: 0.5, bld: 0.3 },
+      cap: 0, mine: 0, w: 16, h: 12, desc: 'Fast flak halftrack, anti-infantry'
+    },
+    v3: {
+      name: 'V3 Launcher', em: '🚀', cost: 450, build: 12, cls: 'v', fac: 'col', req: 'radar',
+      hp: 120, spd: 0.036, sight: 7, armour: A_VEH,
+      dmg: 90, rate: 150, rng: 9.0, splash: 1.2,
+      vs: { inf: 1.0, veh: 0.8, bld: 1.6 },
+      cap: 0, mine: 0, w: 18, h: 14, desc: 'Long-range rocket artillery; needs Radar'
+    },
+    teslatrooper: {
+      name: 'Tesla Trooper', em: '⚡', cost: 300, build: 8, cls: 'i', fac: 'col',
+      hp: 110, spd: 0.040, sight: 6, armour: A_INF,
+      dmg: 30, rate: 50, rng: 3.5, splash: 0.2,
+      vs: { inf: 1.0, veh: 1.3, bld: 0.6 },
+      cap: 0, mine: 0, w: 10, h: 15, desc: 'Armoured, zaps tanks'
+    },
+    ivan: {
+      name: 'Crazy Ivan', em: '🧨', cost: 300, build: 8, cls: 'i', fac: 'col', req: 'radar',
+      hp: 60, spd: 0.052, sight: 6, armour: A_INF,
+      dmg: 120, rate: 200, rng: 1.2, splash: 1.5,
+      vs: { inf: 1.5, veh: 1.0, bld: 2.0 },
+      cap: 0, mine: 0, w: 9, h: 14, desc: 'Plants bombs point-blank; needs Radar'
+    },
+    drone: {
+      name: 'Terror Drone', em: '🕷️', cost: 250, build: 6, cls: 'v', fac: 'col',
+      hp: 80, spd: 0.095, sight: 6, armour: A_VEH,
+      dmg: 22, rate: 25, rng: 1.0, splash: 0,
+      vs: { inf: 0.6, veh: 1.6, bld: 0.2 },
+      cap: 0, mine: 0, w: 10, h: 9, desc: 'Fast, tears vehicles apart up close'
+    },
+    teslatank: {
+      name: 'Tesla Tank', em: '🔋', cost: 650, build: 13, cls: 'v', fac: 'col', req: 'lab',
+      hp: 240, spd: 0.046, sight: 7, armour: A_VEH,
+      dmg: 55, rate: 70, rng: 5.0, splash: 0.6,
+      vs: { inf: 1.0, veh: 1.3, bld: 0.7 },
+      cap: 0, mine: 0, w: 18, h: 14, desc: 'Tesla cannon on tracks; needs a Battle Lab'
+    },
     spectre: {
-      name: 'Spectre', em: '👁️', cost: 450, build: 9, cls: 'v', fac: 'dir', turret: true,
+      name: 'Spectre', em: '👁️', cost: 450, build: 9, cls: 'v', fac: 'dir', req: 'lab', turret: true,
       hp: 95, spd: 0.078, sight: 12, armour: A_VEH,
       dmg: 9, rate: 30, rng: 3.6, splash: 0,
       vs: { inf: 1.15, veh: 0.3, bld: 0.25 },
@@ -533,7 +611,7 @@
            defence: 'sentry', tank: 'lancer', inf: 'rifle' },
     col: { key: 'col', name: 'Collective', em: '🜂',
            blurb: 'Mass and armour. Mammoths absorb, Conscripts are nearly free.',
-           defence: 'tesla', tank: 'mammoth', inf: 'conscript' }
+           defence: 'tesla', tank: 'rhino', inf: 'conscript' }
   };
 
   function facOf(g, p) { return g.side[p].fac; }
@@ -7307,6 +7385,22 @@
     // fire: the unit goes where it was sent. It shoots on the way — standing
     // still to do that is what made ordered troops refuse to disengage — and
     // resumes normal engagement once it arrives and the order clears.
+    if (u.order && u.order.t === 'capture') {
+      // Engineer: walk into the enemy structure and take it over (RA2 rules:
+      // the engineer is consumed, the building keeps its damage).
+      var cb = entById(g, u.order.id);
+      if (!cb || cb.dead || cb.p === u.p) { u.order = null; return; }
+      if (dist(u, cb) <= Math.max(cb.gw, cb.gh) / 2 + 1.1) {
+        var oldP = cb.p; cb.p = u.p; cb.sel = false; cb.rally = null;
+        recalcPower(g, oldP); recalcPower(g, u.p);
+        u.dead = true; u.order = null;
+        if (u.p === P_HUMAN) eva('Structure captured', 3000);
+        else if (oldP === P_HUMAN) eva('Structure captured by the enemy', 3000);
+        return;
+      }
+      advance(g, u, Math.round(cb.cx), Math.round(cb.cy), d.spd, 60);
+      return;
+    }
     if (u.order && u.order.t === 'move') {
       if (d.dmg > 0 && u.cool <= 0) {
         var passing = findTarget(g, u, d.rng);
@@ -7407,11 +7501,15 @@
     if (!spec || !ownedBy(spec, s.fac)) return false;
     if (s.credits < spec.cost) return false;
     if (!reqMet(g, p, spec)) return false;
+    if (!isBld && spec.max && countUnit(g, p, key) + queuedCount(s, key) >= spec.max) return false;
     if (isBld) return hasBld(g, p, 'base');
     if (UNITS[key].cls === 'i') return hasBld(g, p, 'barracks');
     return hasBld(g, p, 'factory');
   }
 
+  function queuedCount(s, key) {
+    var n = 0; for (var l in s.queues) s.queues[l].list.forEach(function (k) { if (k === key) n++; }); return n;
+  }
   function hasBld(g, p, type) {
     for (var i = 0; i < g.blds.length; i++) {
       if (!g.blds[i].dead && g.blds[i].p === p && g.blds[i].type === type) return true;
@@ -7840,12 +7938,19 @@
     var vehHeavy = !stale && seen.veh > seen.inf * 0.8;
 
     if (s.queues.i.list.length < 2 && hasBar) {
-      var pick = vehHeavy ? 'rocket' : (infHeavy ? F.inf : (rnd() < 0.6 ? F.inf : 'rocket'));
+      var pick = vehHeavy ? (s.fac === 'col' && rnd() < 0.5 ? 'teslatrooper' : 'rocket')
+               : (infHeavy ? F.inf : (rnd() < 0.6 ? F.inf : 'rocket'));
       if (canBuild(g, me, pick, false)) enqueue(g, me, pick, 'i');
     }
     if (s.queues.v.list.length < 2 && hasFac && s.credits > 1200) {
-      if (canBuild(g, me, F.tank, false)) enqueue(g, me, F.tank, 'v');
-      // The Directorate can also field eyes; scouting is its whole identity.
+      // Tier-3 armour when the lab is up, fast anti-infantry when the enemy
+      // masses infantry, else the line tank; eyes for the Directorate.
+      var heavy = s.fac === 'col' ? 'mammoth' : 'mirage', light = s.fac === 'col' ? 'flaktrack' : 'ifv';
+      var vpick = (hasBld(g, me, 'lab') && rnd() < 0.5 && canBuild(g, me, heavy, false)) ? heavy
+                : (infHeavy && rnd() < 0.5 && canBuild(g, me, light, false)) ? light
+                : (s.fac === 'col' && hasBld(g, me, 'radar') && rnd() < 0.25 && canBuild(g, me, 'v3', false)) ? 'v3'
+                : F.tank;
+      if (canBuild(g, me, vpick, false)) enqueue(g, me, vpick, 'v');
       else if (s.fac === 'dir' && countUnit(g, me, 'spectre') < 1 &&
                canBuild(g, me, 'spectre', false)) enqueue(g, me, 'spectre', 'v');
     }
@@ -8453,6 +8558,7 @@
     if (!canBuild(G, P_HUMAN, it.k, isBldLane(it.lane))) {
       if (s.credits < it.spec.cost) { say('Not enough credits for ' + it.spec.name + ' ($' + it.spec.cost + ')', true); eva('Insufficient funds', 4000); }
       else if (!reqMet(G, P_HUMAN, it.spec)) say(it.spec.name + ' requires ' + reqName(it.spec), true);
+      else if (it.spec.max) say('Only ' + it.spec.max + ' ' + it.spec.name + ' at a time', true);
       else if (it.lane === 'i') say('Build a Barracks first', true);
       else if (it.lane === 'v') say('Build a War Factory first', true);
       else say('You need a Construction Yard', true);
@@ -8943,6 +9049,10 @@
 
     if (tgt && tgt.p !== P_HUMAN && !tgt.dead) {
       units.forEach(function (u) {
+        if (UNITS[u.type].capture && tgt.kind === 'b') {
+          u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
+          requestPath(G, u, Math.round(tgt.cx), Math.round(tgt.cy)); return;
+        }
         if (UNITS[u.type].dmg <= 0) return;
         u.order = { t: 'attack', x: 0, y: 0, id: tgt.id };
         u.guardX = tgt.kind === 'b' ? tgt.cx : tgt.x;
