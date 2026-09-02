@@ -83,3 +83,9 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 - ☐ Phase B — units: Allied Engineer, Rocketeer (jetpack), IFV, Mirage Tank, Harrier, Chrono Legionnaire, Tanya; Soviet Engineer, Tesla Trooper, Crazy Ivan, Rhino Tank (sprite on disk), Flak Track, V3 Launcher, Terror Drone, Kirov, Tesla Tank
 - ☐ Phase C — superweapons: Chronosphere / Weather Control Device vs Iron Curtain / Nuclear Missile Silo
 - ☐ Tech-tree gating as RA2 (Radar/Airforce → tier 2, Battle Lab → tier 3), sidebar shows prerequisites
+
+### Terrain and maps (user, 2026-09-02: "build real terrains like RA2, instead of the current plain surface with blocked areas; support multiple maps")
+- ☐ Tileset built against RA2 references: grass/dirt/sand variants, cliffs (height edges that block movement, with top/side faces), water and shoreline, roads, trees and rocks as objects with shadows, ore and gem fields
+- ☐ Map format (size, tiles, objects, ore, start positions) + several 2-player maps (temperate lake, snow, urban ruins) — hand-authored layouts, seeded variation
+- ☐ Map picker on the start screen; pathfinding aware of cliffs/water; minimap colours per terrain
+- ☐ Theatres: temperate first, then snow (RA2 has temperate/snow/urban); structures keep their art, ground changes
