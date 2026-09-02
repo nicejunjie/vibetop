@@ -1411,12 +1411,15 @@
     layoutsDirty = false;
     layoutsEl.classList.remove('open');
   }
-  var layoutsDirty = false;   // a staged edit/selection: suspend the hover auto-hide
+  var layoutsDirty = false;   // a staged edit/selection (kept for state; no longer gates the auto-hide)
   function hideLayoutsSoon() {
-    // Once the user has selected or rearranged anything, the palette is a
-    // composition in progress — a stray mouse-leave must not discard it. It
-    // then closes only on Apply or an explicit outside click.
-    if (layoutsDirty) return;
+    // Mouse-leave closes the palette whether or not the layout was rearranged —
+    // the consistency the user asked for. (It used to stay open once "dirty" to
+    // protect a staged composition, which made leaving behave differently before
+    // vs after a drag. During an active drag-to-swap the pointer is captured, so
+    // no mouse-leave fires mid-gesture; this only triggers once you actually
+    // leave the palette.) An unapplied rearrangement is discarded on close, same
+    // as leaving without touching anything.
     if (layoutHideT) clearTimeout(layoutHideT);
     layoutHideT = setTimeout(hideLayouts, 260);   // grace to travel from the icon into the palette
   }
