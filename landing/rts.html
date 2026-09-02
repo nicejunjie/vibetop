@@ -3029,17 +3029,36 @@
       // between two leaning masonry pylons. Neither has a chimney.
       if (sov) {
         // --- Tesla Reactor -------------------------------------------------
-        var MAS = '#6e6258', MAS_D = '#4a4038';
-        var ORB_C = '#a87ad4', ORB_R = '#71449e';
-        var PIPE = '#7a7f86';
+        // Read off the RA2 sprite: two BATTERED masonry pylons (olive-drab
+        // walls broken into vertical piers by deep navy recesses, pinkish
+        // stone pilasters and a projecting coping), a pale glass orb cradled
+        // in a dark pit between them, three fat pipe prongs projecting
+        // sideways off the right pylon, and exactly FOUR warning panels -
+        // one slab on each pylon roof, one pad on the deck in front of each.
+        var MAS = '#6a6136', MAS_D = '#332f18';           // olive-drab wall
+        var PIER = '#96806c', PIER_D = '#5f4c3e';         // pink-tan stonework
+        var REC = '#1c2140';                              // deep navy recess
+        var PIPE = '#6b7079', PIPE_D = '#1d2028';
+        var CONC = '#cdc6b8', CONC_D = '#585349';         // pad concrete
 
-        // Low masonry plinth filling the plot - darker than any Allied deck.
-        diamond(g, cx, baseY + 5, fw * 1.88, fh * 1.88);
-        g.fillStyle = '#23252a'; g.fill();
-        diamond(g, cx, baseY + 1, fw * 1.88, fh * 1.88);
-        g.fillStyle = '#3b3e44'; g.fill(); outline(g, '#1b1d21');
-        diamond(g, cx, baseY - 2, fw * 1.70, fh * 1.70);
-        g.fillStyle = '#4b4f56'; g.fill(); outline(g, '#26282d');
+        // Near-black deck. The sprite's pad is dark and only its near lip
+        // catches light, which is what keeps the orb reading as the brightest
+        // thing on the building.
+        diamond(g, cx, baseY + 6, fw * 1.90, fh * 1.90);
+        g.fillStyle = '#141519'; g.fill();
+        diamond(g, cx, baseY + 1, fw * 1.90, fh * 1.90);
+        g.fillStyle = '#2a2d34'; g.fill(); outline(g, '#101216');
+        diamond(g, cx, baseY - 1, fw * 1.80, fh * 1.80);
+        g.fillStyle = shade(col, 0.68); g.fill(); outline(g, shade(col, 0.36));
+        diamond(g, cx, baseY - 3, fw * 1.80, fh * 1.80);
+        g.fillStyle = col; g.fill(); outline(g, shade(col, 0.40));
+        diamond(g, cx, baseY - 4, fw * 1.82, fh * 1.82);
+        g.fillStyle = '#33373f'; g.fill(); outline(g, '#15171b');
+        g.strokeStyle = 'rgba(190,176,158,.42)'; g.lineWidth = 1.6;  // pale near lip
+        g.beginPath();
+        g.moveTo(cx - fw * 0.95, baseY + 1);
+        g.lineTo(cx, baseY + 1 + fh * 0.95);
+        g.lineTo(cx + fw * 0.95, baseY + 1); g.stroke();
 
         // Quad on a leaning wall: p runs along the wall, q runs bottom->top.
         var wq = function (a, b, at, bt, p0, p1, q0, q1, fill, edge) {
@@ -3054,188 +3073,222 @@
           g.lineTo(c2[0], c2[1]); g.lineTo(c3[0], c3[1]); g.closePath();
           if (fill) { g.fillStyle = fill; g.fill(); }
           if (edge) outline(g, edge);
-          return [c0, c1, c2, c3];
+          return P;
         };
 
-        // Tiny white stencil marks that sit on every Soviet warning panel.
-        var glyphs = function (a, b, at, bt, p0, p1, q0, q1) {
-          for (var gi = 0; gi < 3; gi++) {
-            var gp = p0 + (p1 - p0) * (0.20 + gi * 0.28);
-            wq(a, b, at, bt, gp, gp + (p1 - p0) * 0.13,
-               q0 + (q1 - q0) * 0.30, q0 + (q1 - q0) * 0.68, '#e8e6e0', null);
-          }
-        };
-
-        // A masonry pylon whose top is shifted toward the orb, so it leans in.
-        var tower = function (px, py, hw, hh, hgt, lean) {
-          var W = [px - hw, py], S = [px, py + hh], E = [px + hw, py];
-          var tx = px + lean, ty = py - hgt;
-          var Wt = [tx - hw * 0.90, ty], St = [tx, ty + hh * 0.90], Et = [tx + hw * 0.90, ty];
-          var wall = function (a, b, at, bt, c) {
-            g.beginPath();
-            g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
-            g.lineTo(bt[0], bt[1]); g.lineTo(at[0], at[1]); g.closePath();
-            g.fillStyle = c; g.fill(); outline(g, MAS_D);
-            g.save();
-            g.beginPath();
-            g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
-            g.lineTo(bt[0], bt[1]); g.lineTo(at[0], at[1]); g.closePath(); g.clip();
-            var PP = function (p, q) {
-              var x0 = a[0] + (b[0] - a[0]) * p, y0 = a[1] + (b[1] - a[1]) * p;
-              var x1 = at[0] + (bt[0] - at[0]) * p, y1 = at[1] + (bt[1] - at[1]) * p;
-              return [x0 + (x1 - x0) * q, y0 + (y1 - y0) * q];
-            };
-            g.strokeStyle = 'rgba(48,40,32,.30)'; g.lineWidth = 0.9;
-            for (var m = 1; m < 10; m++) {                 // brick courses
-              var f = m / 10, ca = PP(0, f), cbp = PP(1, f);
-              g.beginPath(); g.moveTo(ca[0], ca[1]); g.lineTo(cbp[0], cbp[1]); g.stroke();
-              for (var vs = 0; vs < 3; vs++) {             // staggered head joints
-                var vp = (m % 2 ? 0.16 : 0.34) + vs * 0.26;
-                var v0 = PP(vp, f), v1 = PP(vp, f - 0.10);
-                g.beginPath(); g.moveTo(v0[0], v0[1]); g.lineTo(v1[0], v1[1]); g.stroke();
-              }
-            }
-            g.fillStyle = 'rgba(168,158,146,.26)';          // mottled old masonry
-            for (var mm = 0; mm < 12; mm++) {
-              var mo = PP(rnd(), rnd());
-              g.fillRect(mo[0] - 2, mo[1] - 1.5, 4.5, 3);
-            }
-            g.restore();
-          };
-          wall(W, S, Wt, St, MAS);                          // lit left wall
-          wall(S, E, St, Et, shade(MAS, 0.68));             // shaded right wall
-
-          // Sloped crown: a stepped masonry collar with a red warning slab.
-          diamond(g, tx, ty, hw * 1.86, hh * 1.86);        // masonry coping
-          g.fillStyle = shade(MAS, 1.16); g.fill(); outline(g, MAS_D);
-          g.fillStyle = shade(MAS, 0.74);                   // coping riser
-          g.beginPath();
-          g.moveTo(tx - hw * 0.93, ty); g.lineTo(tx, ty + hh * 0.93);
-          g.lineTo(tx + hw * 0.93, ty); g.lineTo(tx + hw * 0.93, ty - 4);
-          g.lineTo(tx, ty + hh * 0.93 - 4); g.lineTo(tx - hw * 0.93, ty - 4);
-          g.closePath(); g.fill(); outline(g, MAS_D);
-          // The crown is a solid red warning block seated on the coping.
-          var ch = 6, cy0 = ty - 4, chw = hw * 0.68, chh = hh * 0.68;
-          g.fillStyle = shade(col, 0.62);                   // left riser
-          g.beginPath();
-          g.moveTo(tx - chw, cy0); g.lineTo(tx, cy0 + chh);
-          g.lineTo(tx, cy0 + chh - ch); g.lineTo(tx - chw, cy0 - ch);
-          g.closePath(); g.fill(); outline(g, shade(col, 0.36));
-          g.fillStyle = shade(col, 0.44);                   // right riser
-          g.beginPath();
-          g.moveTo(tx + chw, cy0); g.lineTo(tx, cy0 + chh);
-          g.lineTo(tx, cy0 + chh - ch); g.lineTo(tx + chw, cy0 - ch);
-          g.closePath(); g.fill(); outline(g, shade(col, 0.36));
-          diamond(g, tx, cy0 - ch, chw * 2, chh * 2);
-          g.fillStyle = col; g.fill(); outline(g, shade(col, 0.40));
+        // One wall of a pylon: olive body cut into piers by navy recesses,
+        // with a pale stone pilaster catching light on each pier's left edge.
+        var pface = function (a, b, at, bt, lit) {
+          var body = lit ? MAS : shade(MAS, 0.64);
+          var pil = lit ? PIER : shade(PIER, 0.62);
+          wq(a, b, at, bt, 0, 1, 0, 1, body, MAS_D);
+          var P = wq(a, b, at, bt, 0, 1, 0, 1, null, null);
           g.save();
-          diamond(g, tx, cy0 - ch, chw * 2, chh * 2); g.clip();
-          g.strokeStyle = 'rgba(24,16,14,.50)'; g.lineWidth = 1.6;
-          for (var sg = -3; sg <= 3; sg++) {                // corrugation / stencils
-            var sf = sg * 0.24;
-            g.beginPath();
-            g.moveTo(tx + sf * chw - chw, cy0 - ch + sf * chh + chh);
-            g.lineTo(tx + sf * chw + chw, cy0 - ch + sf * chh - chh);
-            g.stroke();
-          }
-          g.restore();
-          g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1;
           g.beginPath();
-          g.moveTo(tx - chw, cy0 - ch); g.lineTo(tx, cy0 - ch - chh); g.stroke();
-          return { W: W, S: S, E: E, Wt: Wt, St: St, Et: Et, tx: tx, ty: ty };
+          g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+          g.lineTo(bt[0], bt[1]); g.lineTo(at[0], at[1]); g.closePath(); g.clip();
+          if (lit) {                                      // fluted, sunlit face
+            for (var bay = 0; bay < 3; bay++) {
+              var q0 = bay * 0.30 + 0.15;
+              wq(a, b, at, bt, q0, q0 + 0.055, 0.12, 0.88, REC, null);
+              wq(a, b, at, bt, q0 + 0.055, q0 + 0.080, 0.12, 0.88, pil, null);
+            }
+            wq(a, b, at, bt, 0, 0.05, 0.02, 0.96, shade(pil, 1.10), null);
+          } else {                                        // shaded face: one channel
+            wq(a, b, at, bt, 0.68, 0.74, 0.12, 0.88, REC, null);
+            wq(a, b, at, bt, 0.74, 0.765, 0.12, 0.88, pil, null);
+            wq(a, b, at, bt, 0.95, 1, 0.02, 0.96, shade(pil, 0.70), null);
+          }
+          g.fillStyle = lit ? 'rgba(196,180,150,.22)' : 'rgba(150,138,118,.16)';
+          for (var mm = 0; mm < 14; mm++) {               // weathered mottle
+            var mo = P(rnd(), 0.06 + rnd() * 0.86);
+            g.fillRect(mo[0] - 1.6, mo[1] - 1.2, 3.4, 2.4);
+          }
+          wq(a, b, at, bt, 0, 1, 0, 0.10, 'rgba(10,12,26,.52)', null);  // dark plinth
+          wq(a, b, at, bt, 0, 1, 0.10, 0.125,
+             lit ? shade(PIER, 1.02) : shade(PIER, 0.66), null);        // plinth cap
+          wq(a, b, at, bt, 0, 1, 0.90, 1, 'rgba(14,16,30,.42)', null);  // coping shadow
+          g.restore();
+          g.strokeStyle = PIER_D; g.lineWidth = 1;
+          g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(at[0], at[1]); g.stroke();
         };
 
-        var lpx = cx - fw * 0.42, lpy = baseY - fh * 0.40;
-        var rpx = cx + fw * 0.38, rpy = baseY + fh * 0.18;
+        // A battered pylon: the walls slope OUT as they rise, and a coping
+        // slab overhangs the top - the sprite's towers all read that way.
+        var pylon = function (px, py, hw, hh, hgt) {
+          var bw = hw * 0.84, bh = hh * 0.84;
+          var W = [px - bw, py], S = [px, py + bh], E = [px + bw, py];
+          var ty = py - hgt;
+          var Wt = [px - hw, ty], St = [px, ty + hh], Et = [px + hw, ty];
+          g.fillStyle = 'rgba(0,0,0,.42)';                 // contact shadow
+          diamond(g, px + 3, py + 2, bw * 2.2, bh * 2.2); g.fill();
+          pface(W, S, Wt, St, true);                       // lit left wall
+          pface(S, E, St, Et, false);                      // shaded right wall
+
+          // Projecting coping, then the recessed roof deck inside it.
+          var cw = hw * 1.13, ch2 = hh * 1.13;
+          g.fillStyle = shade(PIER, 0.56);                 // coping riser
+          g.beginPath();
+          g.moveTo(px - cw, ty); g.lineTo(px, ty + ch2); g.lineTo(px + cw, ty);
+          g.lineTo(px + cw, ty - 5); g.lineTo(px, ty + ch2 - 5); g.lineTo(px - cw, ty - 5);
+          g.closePath(); g.fill(); outline(g, MAS_D);
+          g.fillStyle = 'rgba(232,214,190,.36)';           // lit left half of the riser
+          g.beginPath();
+          g.moveTo(px - cw, ty); g.lineTo(px, ty + ch2);
+          g.lineTo(px, ty + ch2 - 5); g.lineTo(px - cw, ty - 5);
+          g.closePath(); g.fill();
+          var ry = ty - 5;
+          diamond(g, px, ry, cw * 2, ch2 * 2);             // coping top
+          g.fillStyle = PIER; g.fill(); outline(g, PIER_D);
+          diamond(g, px, ry - 1, hw * 1.80, hh * 1.80);    // recessed roof deck
+          g.fillStyle = '#4d4a3c'; g.fill(); outline(g, '#26241c');
+
+          // Roof coordinates: u runs W->N (up-right), v runs W->S (down-right).
+          var RP = function (u, v) {
+            return [px + hw * 0.90 * (u + v - 1), ry - 1 + hh * 0.90 * (v - u)];
+          };
+          var quadR = function (u0, u1, v0, v1, fill, edge) {
+            var k0 = RP(u0, v0), k1 = RP(u1, v0), k2 = RP(u1, v1), k3 = RP(u0, v1);
+            g.beginPath();
+            g.moveTo(k0[0], k0[1]); g.lineTo(k1[0], k1[1]);
+            g.lineTo(k2[0], k2[1]); g.lineTo(k3[0], k3[1]); g.closePath();
+            if (fill) { g.fillStyle = fill; g.fill(); }
+            if (edge) outline(g, edge);
+          };
+          // WARNING SLAB #1 - a long band lying along the roof's up-right
+          // axis, offset to the back half, ribbed and seated on a pale kerb.
+          quadR(0.02, 0.98, 0.04, 0.62, shade(PIER, 1.18), PIER_D);
+          quadR(0.05, 0.95, 0.12, 0.60, shade(col, 0.30), null);   // slab shadow
+          quadR(0.05, 0.95, 0.09, 0.57, col, shade(col, 0.42));
+          quadR(0.05, 0.95, 0.09, 0.15, shade(col, 1.34), null);   // lit far edge
+          quadR(0.05, 0.95, 0.52, 0.57, shade(col, 0.56), null);   // near edge in shade
+          g.strokeStyle = 'rgba(30,14,12,.26)'; g.lineWidth = 1;   // two faint ribs
+          for (var rib = 1; rib < 3; rib++) {
+            var ra = RP(0.05 + rib * 0.30, 0.10), rb2 = RP(0.05 + rib * 0.30, 0.56);
+            g.beginPath(); g.moveTo(ra[0], ra[1]); g.lineTo(rb2[0], rb2[1]); g.stroke();
+          }
+          quadR(0.22, 0.46, 0.72, 0.93, '#6d727c', '#2c3038');     // grey roof vents
+          quadR(0.56, 0.80, 0.72, 0.93, '#565b64', '#2c3038');
+          return { px: px, py: py, ty: ry, hw: hw, hh: hh, E: E, Et: Et, S: S, St: St };
+        };
 
         srand(97);
-        var LT = tower(lpx, lpy, 21, 12.5, 44, 5);          // back-left pylon
-        // Red warning panel on the left pylon's inner (right) wall.
-        wq(LT.W, LT.S, LT.Wt, LT.St, 0.10, 0.90, 0.58, 0.88, '#d8d3c6', '#4a4038');
-        wq(LT.W, LT.S, LT.Wt, LT.St, 0.16, 0.84, 0.62, 0.84, col, shade(col, 0.45));
-        glyphs(LT.W, LT.S, LT.Wt, LT.St, 0.16, 0.84, 0.62, 0.84);
+        var lpx = cx - fw * 0.33, lpy = baseY - fh * 0.30;
+        var rpx = cx + fw * 0.33, rpy = baseY + fh * 0.22;
+        var LT = pylon(lpx, lpy, 23, 13.4, 45);            // back-left pylon
 
-        // The orb: biggest, brightest, most saturated thing on the building.
-        var oy = baseY - 36, orad = 27;
-        g.fillStyle = 'rgba(174,126,240,.10)';
-        g.beginPath(); g.arc(cx, oy, orad * 1.34, 0, 6.29); g.fill();
-        g.fillStyle = 'rgba(190,148,246,.13)';
-        g.beginPath(); g.arc(cx, oy, orad * 1.13, 0, 6.29); g.fill();
-        var og = g.createRadialGradient(cx - orad * 0.40, oy - orad * 0.50, orad * 0.06,
-                                        cx, oy, orad * 1.02);
-        og.addColorStop(0, '#e2dcfb');
-        og.addColorStop(0.30, '#cdb4ef');
-        og.addColorStop(0.62, ORB_C);
-        og.addColorStop(0.88, '#8557bc');
-        og.addColorStop(1, ORB_R);
+        // --- the orb ------------------------------------------------------
+        // Pale periwinkle glass over a steel lower third, seated in a dark
+        // cradle pit. It is DELIBERATELY smaller than a pylon is tall - in
+        // the sprite the orb's crown sits well below both roofs.
+        var oy = baseY - 29, orad = 23;
+        g.fillStyle = 'rgba(172,182,246,.07)';
+        g.beginPath(); g.arc(cx, oy, orad * 1.30, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(186,196,250,.09)';
+        g.beginPath(); g.arc(cx, oy, orad * 1.10, 0, 6.29); g.fill();
+
+        g.fillStyle = '#191c2b';                           // cradle pit behind
+        g.beginPath();
+        g.moveTo(cx - orad * 1.12, oy + orad * 0.60);
+        g.lineTo(cx + orad * 1.12, oy + orad * 0.60);
+        g.lineTo(cx + orad * 1.00, baseY + fh * 0.16);
+        g.lineTo(cx, baseY + fh * 0.30);
+        g.lineTo(cx - orad * 1.00, baseY + fh * 0.16);
+        g.closePath(); g.fill(); outline(g, '#0a0c16');
+        g.strokeStyle = '#7d838f'; g.lineWidth = 1.8;      // pale support struts
+        for (var st2 = -1; st2 <= 1; st2++) {
+          g.beginPath();
+          g.moveTo(cx + st2 * orad * 0.50, oy + orad * 0.82);
+          g.lineTo(cx + st2 * orad * 0.62, baseY + fh * 0.17); g.stroke();
+        }
+        g.strokeStyle = 'rgba(112,120,134,.50)'; g.lineWidth = 1;   // diagonal ties
+        g.beginPath();
+        g.moveTo(cx - orad * 0.56, oy + orad * 0.86);
+        g.lineTo(cx + orad * 0.62, baseY + fh * 0.16); g.stroke();
+        g.beginPath();
+        g.moveTo(cx + orad * 0.56, oy + orad * 0.86);
+        g.lineTo(cx - orad * 0.62, baseY + fh * 0.16); g.stroke();
+
+        var og = g.createRadialGradient(cx - orad * 0.38, oy - orad * 0.46, orad * 0.05,
+                                        cx, oy, orad * 1.04);
+        og.addColorStop(0, '#f4f5ff');
+        og.addColorStop(0.14, '#d3d8f7');
+        og.addColorStop(0.40, '#a6afe2');
+        og.addColorStop(0.68, '#7f88cb');
+        og.addColorStop(0.90, '#5d66a9');
+        og.addColorStop(1, '#3e4682');
         g.fillStyle = og;
         g.beginPath(); g.arc(cx, oy, orad, 0, 6.29); g.fill();
-        outline(g, '#4a256e');
-        // The one thing that makes this orb read as the Tesla Reactor's: a
-        // single fat off-centre S-swirl coiling in from the upper left, not a
-        // specular blob. Two passes - a soft bloom under a hard white core.
-        var swx = cx - orad * 0.06, swy = oy - orad * 0.14;
+        g.save();                                          // steel-shaded belly
+        g.beginPath(); g.arc(cx, oy, orad, 0, 6.29); g.clip();
+        var sg2 = g.createLinearGradient(0, oy + orad * 0.22, 0, oy + orad);
+        sg2.addColorStop(0, 'rgba(126,134,158,0)');
+        sg2.addColorStop(0.50, 'rgba(126,134,156,.52)');
+        sg2.addColorStop(1, 'rgba(84,90,112,.80)');
+        g.fillStyle = sg2;
+        g.fillRect(cx - orad, oy + orad * 0.22, orad * 2, orad);
+        g.strokeStyle = 'rgba(52,58,74,.42)'; g.lineWidth = 1.3;    // cradle band
+        g.beginPath(); g.ellipse(cx, oy + orad * 0.56, orad * 1.02, orad * 0.26, 0, 0, 6.29);
+        g.stroke();
+        g.restore();
+        g.strokeStyle = '#2b2f56'; g.lineWidth = 1.6;
+        g.beginPath(); g.arc(cx, oy, orad - 0.4, 0, 6.29); g.stroke();
+        // The swirl: one fat white comma curling in from the upper left.
+        var swx = cx - orad * 0.08, swy = oy - orad * 0.16;
         g.lineCap = 'round'; g.lineJoin = 'round';
         for (var swp = 0; swp < 2; swp++) {
-          g.strokeStyle = swp ? 'rgba(255,254,255,.95)' : 'rgba(220,192,250,.60)';
-          g.lineWidth = swp ? orad * 0.17 : orad * 0.29;
+          g.strokeStyle = swp ? 'rgba(255,255,255,.98)' : 'rgba(196,206,250,.50)';
+          g.lineWidth = swp ? orad * 0.18 : orad * 0.30;
           g.beginPath();
           for (var si = 0; si <= 34; si++) {
-            var st = si / 34, sa = -2.75 + st * 5.60, sr = orad * (0.76 - st * 0.62);
-            var sxp = swx + Math.cos(sa) * sr, syp = swy + Math.sin(sa) * sr * 0.92;
+            var stp = si / 34, sa = -2.30 + stp * 4.00, sr = orad * (0.64 - stp * 0.40);
+            var sxp = swx + Math.cos(sa) * sr, syp = swy + Math.sin(sa) * sr * 0.84;
             if (si) g.lineTo(sxp, syp); else g.moveTo(sxp, syp);
           }
           g.stroke();
         }
-        g.strokeStyle = 'rgba(255,255,255,.34)'; g.lineWidth = 1.6;   // faint outer coil
-        g.beginPath();
-        g.arc(swx, swy, orad * 0.80, 2.70, 4.70); g.stroke();
+        g.strokeStyle = 'rgba(255,255,255,.40)'; g.lineWidth = 1.5;
+        g.beginPath(); g.arc(cx, oy, orad * 0.90, 3.30, 5.35); g.stroke();
+        g.lineCap = 'butt';
 
-        // Cables and stray arcs sagging off the orb's underside.
-        g.lineCap = 'round';
-        for (var cb = 0; cb < 3; cb++) {
-          var cbx = cx - 10 + cb * 10, cbe = cx - 22 + cb * 20;
-          g.strokeStyle = '#22252a'; g.lineWidth = 1.2;
-          g.beginPath();
-          g.moveTo(cbx, oy + orad * 0.80);
-          g.quadraticCurveTo((cbx + cbe) / 2, baseY + fh * 0.40 + 8, cbe, baseY + fh * 0.24);
-          g.stroke();
-        }
-        var zag = [[-4, -12, 16, -16, 21, -10, 26], [5, 11, 15, 8, 21, 13, 27]];
-        for (var za = 0; za < zag.length; za++) {
-          var z = zag[za];
-          g.strokeStyle = 'rgba(208,176,250,.45)'; g.lineWidth = 3;
-          for (var pass = 0; pass < 2; pass++) {
-            g.beginPath(); g.moveTo(cx + z[0], oy + orad * 0.70);
-            g.lineTo(cx + z[1], oy + z[2]); g.lineTo(cx + z[3], oy + z[4]);
-            g.lineTo(cx + z[5], oy + z[6]); g.stroke();
-            g.strokeStyle = 'rgba(248,240,255,.92)'; g.lineWidth = 1.2;
-          }
-        }
+        var RT = pylon(rpx, rpy, 23, 13.4, 39);            // front-right pylon
 
-        var RT = tower(rpx, rpy, 21, 12.5, 40, -5);         // front-right pylon
-        wq(RT.W, RT.S, RT.Wt, RT.St, 0.10, 0.90, 0.60, 0.90, '#d8d3c6', '#4a4038');
-        wq(RT.W, RT.S, RT.Wt, RT.St, 0.16, 0.84, 0.64, 0.86, col, shade(col, 0.45));
-        glyphs(RT.W, RT.S, RT.Wt, RT.St, 0.16, 0.84, 0.64, 0.86);
-
-        // Fat grey pipes elbow out of the right pylon and dive into the ground.
+        // Three fat pipe prongs projecting sideways off the right pylon, and
+        // the dark valve cluster the sprite parks at its foot.
         for (var pp = 0; pp < 3; pp++) {
-          var pey = rpy - 6 - pp * 11, pex = rpx + 13;
-          var pend = baseY + fh * 0.44 + pp * 1.5;
-          var runPipe = function (w, c, dy) {
+          var pey = rpy - 20 + pp * 11, pex = rpx + 10;
+          var reach = 13 - pp * 1.0;
+          var prong = function (w, c, dy) {
             g.strokeStyle = c; g.lineWidth = w; g.lineCap = 'round';
             g.beginPath();
             g.moveTo(pex - 6, pey + dy);
-            g.quadraticCurveTo(pex + 8, pey - 3 + dy, pex + 9 - pp * 1.2, pend - 9);
-            g.quadraticCurveTo(pex + 9 - pp * 1.2, pend, pex + 1 - pp * 2.5, pend);
+            g.quadraticCurveTo(pex + reach * 0.62, pey - 3 + dy, pex + reach, pey + 2 + dy);
+            g.quadraticCurveTo(pex + reach + 4, pey + 6 + dy, pex + reach - 1, pey + 9 + dy);
             g.stroke();
           };
-          runPipe(8.4, '#2e3238', 0);
-          runPipe(5.4, shade(PIPE, 0.86), 0);
-          runPipe(1.7, shade(PIPE, 1.22), -1.5);
+          g.fillStyle = 'rgba(10,12,20,.42)';               // shadow on the wall
+          g.beginPath(); g.ellipse(pex - 5, pey + 2, 6, 4.6, 0, 0, 6.29); g.fill();
+          prong(7, PIPE_D, 1.3);
+          prong(4.4, shade(PIPE, 0.78), 0);
+          prong(1.5, shade(PIPE, 1.20), -1.3);
         }
+        g.lineCap = 'butt';
+        for (var vb = 0; vb < 2; vb++) {                   // valve drums at the foot
+          var vx = rpx + 6 + vb * 11, vy = baseY + fh * 0.42 + vb * 4;
+          g.fillStyle = 'rgba(0,0,0,.40)';
+          g.beginPath(); g.ellipse(vx + 2, vy + 2, 6.4, 3, 0, 0, 6.29); g.fill();
+          cylinder(g, vx, vy, 5.4, 11 - vb * 2, '#3b3f47', '#6e747e', '#171a1f');
+          g.fillStyle = '#5c626c';
+          g.beginPath(); g.ellipse(vx, vy - 11 + vb * 2, 5.4, 2.4, 0, 0, 6.29); g.fill();
+          outline(g, '#171a1f');
+        }
+        g.fillStyle = '#454b54';                            // low machine box
+        g.fillRect(rpx - 6, baseY + fh * 0.40, 12, 7);
+        outline(g, '#171a1f');
+        g.fillStyle = 'rgba(200,208,220,.22)';
+        g.fillRect(rpx - 6, baseY + fh * 0.40, 12, 1.6);
 
-        // Low warning ramps at the front - concrete pads under red panels.
+        // --- the two deck warning pads (panels #3 and #4) ------------------
         var ramp = function (rxc, ryc, rw, rh, dir) {
           var A = [rxc - rw, ryc + rh * dir], B = [rxc, ryc + rh],
               C = [rxc + rw, ryc - rh * dir], D = [rxc, ryc - rh];
@@ -3252,18 +3305,27 @@
             g.fillStyle = fill; g.fill(); if (edge) outline(g, edge);
             return P;
           };
-          quad(0, 0, '#7d7a6d', null);
-          var P = quad(0.02, 0.02, '#c9c4b6', '#56524a');
-          quad(0.11, 0.14, col, shade(col, 0.42));            // PLAYER warning pad
-          g.fillStyle = 'rgba(24,16,14,.46)';
-          for (var rg = 0; rg < 3; rg++) {
-            var mk = P(0.28 + rg * 0.22, 0.50);
-            g.fillRect(mk[0] - 1.6, mk[1] - 0.9, 3.2, 1.8);
+          quad(-0.06, -0.06, 'rgba(0,0,0,.45)', null);       // drop shadow
+          quad(0, 0, CONC_D, null);
+          var P = quad(0.03, 0.03, CONC, '#4a463d');
+          quad(0.055, 0.06, shade(CONC, 0.86), null);        // inner kerb shade
+          quad(0.13, 0.15, col, shade(col, 0.40));           // PLAYER warning panel
+          quad(0.13, 0.15, 'rgba(255,255,255,0)', null);
+          g.fillStyle = 'rgba(18,10,10,.60)';                // scattered dark studs
+          for (var ri = 0; ri < 4; ri++) {
+            for (var rj = 0; rj < 2; rj++) {
+              var mk = P(0.26 + ri * 0.16 + rj * 0.06, 0.38 + rj * 0.26);
+              g.fillRect(mk[0] - 1, mk[1] - 0.8, 2, 1.6);
+            }
           }
+          g.fillStyle = 'rgba(255,255,255,.30)';             // lit near kerb
+          var e0 = P(0.03, 0.03), e1 = P(0.97, 0.03);
+          g.beginPath();
+          g.moveTo(e0[0], e0[1]); g.lineTo(e1[0], e1[1]);
+          g.lineTo(e1[0], e1[1] + 2); g.lineTo(e0[0], e0[1] + 2); g.closePath(); g.fill();
         };
-        ramp(cx - fw * 0.54, baseY + fh * 0.20, 11, 6, 0.42);
-        ramp(cx + fw * 0.02, baseY + fh * 0.56, 11, 6, -0.42);
-
+        ramp(cx - fw * 0.56, baseY + fh * 0.08, 13, 7.2, 0.44);
+        ramp(cx + fw * 0.06, baseY + fh * 0.54, 13, 7.2, 0.44);
       } else {
         // --- Allied Power Plant --------------------------------------------
         // Ownership rule: the ONLY saturated hue that tracks the player is
@@ -3335,39 +3397,41 @@
           octa(px + 2, py + 3, r * 1.84, r * 0.76, 'rgba(0,0,0,.42)', null);   // contact shadow
           octa(px, py, r * 1.80, r * 0.74, '#212429', '#0e1013');              // angular plinth
           octa(px, py - 3, r * 1.66, r * 0.68, '#31353d', '#0e1013');
-          octa(px, py - 5, r * 1.52, r * 0.62, '#1c1f24', '#0e1013');          // dark reveal
+          octa(px, py - 4, r * 1.58, r * 0.65, shade(col, 0.66), shade(col, 0.40));
+          octa(px, py - 6, r * 1.58, r * 0.65, col, shade(col, 0.42));         // foot band
+          octa(px, py - 7, r * 1.46, r * 0.60, '#1c1f24', '#0e1013');          // dark reveal
           g.fillStyle = shade(GUN, 1.34);                    // greebled valve box
           g.fillRect(px - r * 0.86, py - 15, r * 1.72, 2.4);
-          frust(px, py - 6, r * 1.46, r * 1.14, 22, STL, STL_L, STL_D);
+          frust(px, py - 7, r * 1.46, r * 1.18, 17, STL, STL_L, STL_D);
           g.save();                                          // riveted drum seams
           g.beginPath();
-          g.moveTo(px - r * 1.46, py - 6); g.lineTo(px - r * 1.14, py - 28);
-          g.lineTo(px + r * 1.14, py - 28); g.lineTo(px + r * 1.46, py - 6);
+          g.moveTo(px - r * 1.46, py - 7); g.lineTo(px - r * 1.18, py - 24);
+          g.lineTo(px + r * 1.18, py - 24); g.lineTo(px + r * 1.46, py - 7);
           g.closePath(); g.clip();
           g.strokeStyle = 'rgba(14,16,20,.42)'; g.lineWidth = 1;
           for (var sm = -3; sm <= 3; sm++) {
             g.beginPath();
-            g.moveTo(px + r * 0.50 * sm, py - 6); g.lineTo(px + r * 0.40 * sm, py - 28);
+            g.moveTo(px + r * 0.50 * sm, py - 7); g.lineTo(px + r * 0.42 * sm, py - 24);
             g.stroke();
           }
           g.strokeStyle = 'rgba(206,216,230,.22)';
-          g.beginPath(); g.moveTo(px - r * 1.4, py - 18); g.lineTo(px + r * 1.4, py - 18); g.stroke();
+          g.beginPath(); g.moveTo(px - r * 1.4, py - 16); g.lineTo(px + r * 1.4, py - 16); g.stroke();
           g.restore();
 
           // PLAYER skirt band - the widest, most legible colour on the plant.
           g.fillStyle = 'rgba(0,0,0,.34)';                   // shadow under the band
           g.beginPath();
-          g.moveTo(px - r * 1.22, py - 26.6); g.lineTo(px + r * 1.22, py - 26.6);
-          g.lineTo(px + r * 1.18, py - 28.4); g.lineTo(px - r * 1.18, py - 28.4);
+          g.moveTo(px - r * 1.22, py - 22.6); g.lineTo(px + r * 1.22, py - 22.6);
+          g.lineTo(px + r * 1.18, py - 24.4); g.lineTo(px - r * 1.18, py - 24.4);
           g.closePath(); g.fill();
           g.fillStyle = shade(col, 0.80);
           g.beginPath();
-          g.moveTo(px - r * 1.18, py - 28.4); g.lineTo(px + r * 1.18, py - 28.4);
+          g.moveTo(px - r * 1.18, py - 24.4); g.lineTo(px + r * 1.18, py - 24.4);
           g.lineTo(px + r * 1.06, py - 36.4); g.lineTo(px - r * 1.06, py - 36.4);
           g.closePath(); g.fill(); outline(g, shade(col, 0.44));
-          g.fillStyle = col;                                 // lit left half
+          g.fillStyle = shade(col, 0.94);                    // lit left half
           g.beginPath();
-          g.moveTo(px - r * 1.18, py - 28.4); g.lineTo(px - r * 0.10, py - 28.4);
+          g.moveTo(px - r * 1.18, py - 24.4); g.lineTo(px - r * 0.10, py - 24.4);
           g.lineTo(px - r * 0.10, py - 36.4); g.lineTo(px - r * 1.06, py - 36.4);
           g.closePath(); g.fill();
           g.fillStyle = shade(col, 1.34);                    // lit upper edge
@@ -3427,38 +3491,41 @@
 
         var lcx = cx - fw * 0.43, lcy = baseY + fh * 0.28;
         var rcx = cx + fw * 0.43, rcy = baseY + fh * 0.28;
-        var bcx = cx + fw * 0.02, bcy = baseY - fh * 0.56;
+        var bcx = cx + fw * 0.05, bcy = baseY - fh * 0.52;
 
-        capacitor(bcx, bcy, 10, 36);                         // tall back cylinder
+        capacitor(bcx, bcy, 10, 37);                         // tall back cylinder
 
         // Central machinery column: dark gearbox with a helical copper coil.
         var stemB = baseY + 4;
         g.fillStyle = 'rgba(0,0,0,.30)';
         g.beginPath(); g.ellipse(cx, stemB + 2, 15, 6, 0, 0, 6.29); g.fill();
-        for (var vI = -1; vI <= 1; vI += 2) {                // vertical tie rods
-          g.fillStyle = '#26292f';
-          g.fillRect(cx + vI * 14 - 1.7, baseY - 44, 3.4, 48);
-          g.fillStyle = 'rgba(255,255,255,.13)';
-          g.fillRect(cx + vI * 14 - 1.7, baseY - 44, 1.2, 48);
+        for (var vI = -1; vI <= 1; vI += 2) {                // rust-brown tie rods
+          g.fillStyle = '#4a3524';
+          g.fillRect(cx + vI * 14 - 1.7, baseY - 56, 3.4, 60);
+          g.fillStyle = 'rgba(214,168,110,.22)';
+          g.fillRect(cx + vI * 14 - 1.7, baseY - 56, 1.2, 60);
+          g.fillStyle = '#5c4530';                           // cross-piece near the top
+          g.fillRect(cx + vI * 14 - 4, baseY - 50, 8, 2.6);
         }
         cylinder(g, cx, stemB, 9, 38, '#2b2f36', '#474d57', '#17191d');
-        for (var hc = 0; hc < 9; hc++) {                     // coiled spring column
-          var hy = stemB - 2 - hc * 4.5;
-          var cop = hc % 3 !== 1;
-          g.strokeStyle = cop ? shade('#8f6231', 0.72 + hc * 0.028) : '#484e58';
-          g.lineWidth = 2.2;
-          g.beginPath(); g.ellipse(cx, hy, 10.2 - (hc > 5 ? (hc - 5) * 1.1 : 0), 3.7, 0, 0, 6.29);
-          g.stroke();
-          g.strokeStyle = cop ? 'rgba(226,176,96,.42)' : 'rgba(200,208,220,.30)';
-          g.lineWidth = 1;
-          g.beginPath(); g.ellipse(cx, hy - 1, 9.1 - (hc > 5 ? (hc - 5) * 1.1 : 0), 3.1, 0, Math.PI, 6.29); g.stroke();
+        for (var hc = 0; hc < 9; hc++) {                     // stacked machine rings
+          var hy = stemB - 2 - hc * 4.0;
+          var hr = 9.4 - (hc > 5 ? (hc - 5) * 1.0 : 0);
+          var cop = hc % 3 === 1;                            // copper only every third
+          g.fillStyle = cop ? '#7d5a30' : '#4b515b';         // ring slab
+          g.beginPath(); g.ellipse(cx, hy, hr, 3.0, 0, 0, 6.29); g.fill();
+          outline(g, '#191c21');
+          g.fillStyle = cop ? '#a97f43' : '#6f7681';         // lit top of the ring
+          g.beginPath(); g.ellipse(cx, hy - 1.4, hr * 0.94, 2.7, 0, 0, 6.29); g.fill();
+          g.fillStyle = 'rgba(255,255,255,.14)';
+          g.beginPath(); g.ellipse(cx - hr * 0.30, hy - 2.2, hr * 0.34, 1.2, 0, 0, 6.29); g.fill();
         }
         g.fillStyle = '#4b515b';                             // valve blocks
         g.fillRect(cx - 15, stemB - 14, 5, 6);
         g.fillRect(cx + 10, stemB - 21, 5, 6);
 
         // The upturned copper bowl - nothing else in the game aims a dish up.
-        var bowlY = baseY - 42, bw = 21, tlt = 0.22, bry = bw * 0.40;
+        var bowlY = baseY - 40, bw = 21, tlt = 0.21, bry = bw * 0.39;
         var lrX = cx - bw * Math.cos(tlt), lrY = bowlY - bw * Math.sin(tlt);
         var rrX = cx + bw * Math.cos(tlt), rrY = bowlY + bw * Math.sin(tlt);
         cylinder(g, cx, bowlY + 16, 6, 9, '#5d626c', '#7b818c', '#1f2127');   // dish neck
@@ -3474,15 +3541,16 @@
         g.quadraticCurveTo(cx - 8, bowlY + 7, cx - 7, bowlY + 1);
         g.closePath(); g.fill();
         var bg = g.createLinearGradient(0, bowlY - bry - 2, 0, bowlY + bry + 3);
-        bg.addColorStop(0, '#5e3712');                       // far inner wall in shade
-        bg.addColorStop(0.24, '#a4611c');
-        bg.addColorStop(0.58, '#e6a13a');
-        bg.addColorStop(0.86, '#ffdf95');                    // hot pool at the bottom
-        bg.addColorStop(1, '#c98029');
+        bg.addColorStop(0, '#40230b');                       // far inner wall in shade
+        bg.addColorStop(0.18, '#6d3f11');
+        bg.addColorStop(0.46, '#b26f22');
+        bg.addColorStop(0.78, '#f0b752');
+        bg.addColorStop(0.93, '#ffdf95');                    // hot pool at the bottom
+        bg.addColorStop(1, '#b06d20');
         g.fillStyle = bg;
         g.beginPath(); g.ellipse(cx, bowlY, bw, bry, tlt, 0, 6.29); g.fill();
-        g.fillStyle = 'rgba(60,32,10,.42)';                  // near-rim cast shadow
-        g.beginPath(); g.ellipse(cx, bowlY - bry * 0.42, bw * 0.94, bry * 0.46, tlt, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(48,26,8,.52)';                   // near-rim cast shadow
+        g.beginPath(); g.ellipse(cx, bowlY - bry * 0.50, bw * 0.95, bry * 0.52, tlt, 0, 6.29); g.fill();
         g.strokeStyle = '#3d2410'; g.lineWidth = 2.6;        // rim ring
         g.beginPath(); g.ellipse(cx, bowlY, bw, bry, tlt, 0, 6.29); g.stroke();
         g.strokeStyle = '#f4c76e'; g.lineWidth = 1.5;        // rim light, upper-left
@@ -3490,8 +3558,8 @@
         g.fillStyle = 'rgba(255,196,86,.13)';                // sky-facing glow
         g.beginPath(); g.ellipse(cx, bowlY - 6, bw * 1.36, bw * 0.56, 0, 0, 6.29); g.fill();
 
-        capacitor(lcx, lcy, 10, 30);                         // front-left
-        capacitor(rcx, rcy, 10, 30);                         // front-right
+        capacitor(lcx, lcy, 10, 29);                         // front-left
+        capacitor(rcx, rcy, 10, 27);                         // front-right
 
         // Base greebles: valve pipework threaded between the three plinths.
         g.strokeStyle = '#4a4e57'; g.lineWidth = 3.4; g.lineCap = 'round';
@@ -3504,6 +3572,16 @@
         g.moveTo(lcx + 16, baseY + fh * 0.42);
         g.quadraticCurveTo(cx, baseY + fh * 0.60, rcx - 16, baseY + fh * 0.42);
         g.stroke();
+        for (var vg = 0; vg < 3; vg++) {                     // valve blocks on the run
+          var vgx = lcx + 22 + vg * 15, vgy = baseY + fh * 0.50 + (vg === 1 ? 5 : 0);
+          g.fillStyle = '#3d424b';
+          g.fillRect(vgx - 3.4, vgy - 5, 6.8, 6);
+          outline(g, '#15181d');
+          g.fillStyle = '#717782';
+          g.fillRect(vgx - 3.4, vgy - 5, 6.8, 1.5);
+          g.fillStyle = BRASS;
+          g.fillRect(vgx - 1, vgy - 8, 2, 3.2);
+        }
         drums(g, cx - fw * 0.06, baseY + fh * 0.62, 2, '#4d5763');
       }
 
