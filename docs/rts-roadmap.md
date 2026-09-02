@@ -97,6 +97,9 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 - ☐ Vehicles crush infantry (RA2 Crusher=yes) — under RA2 verses infantry masses beat tank lines, and crushing is RA2's main answer; the AI's unit mix and the balance tests both depend on it
 - ◐ AI re-tuned for RA2 pacing: spends its bank on more factories/barracks and deeper queues, weighs enemy defences before attacking, no tech before an army, one or two miners per refinery, assumes infantry until scouted; hard-vs-easy self-play is still being measured across both factions
 
+### Debug mode (user, 2026-09-02: "add a debug mode, for instant build, no resource limit and all map vision open, player unit has 10x more durance and 10x more attack than AI opponent")
+- ☑ Start-screen checkbox (remembered): instant build for the player, credits pinned at 999999, whole map revealed, the player's units and structures deal 10× and take 1/10; the game is not scored; a banner says so at start (v1.19.213)
+
 ### Terrain and maps (user, 2026-09-02: "build real terrains like RA2, instead of the current plain surface with blocked areas; support multiple maps")
 - ☑ Terrain step 1: water with shimmer, shorelines, cliffs (raised, block movement), roads, trees as occluding objects, snow theatre (v1.19.210)
 - ☑ Terrain art pass against RA2 tileset references (`docs/ra2-ref/terr-*.png`): seamless 256×128 ground sheets cut into 64 position-indexed tiles, 32 px cliff faces with 16 edge masks, animated water + shallows, shore/road overlays, rock sheets with scree, 4 tree variants per theatre; rocks/trees never land on water or against a cliff, ridges are 3-wide plateaus (v1.19.211)

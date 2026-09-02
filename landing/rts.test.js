@@ -1113,3 +1113,36 @@ test("a deployed GI fires from its sandbags: longer range, double rate, and it w
   H.step(30);
   assert.equal(deployed.deployed, false, "a move order must undeploy");
 });
+
+test("debug mode: instant build, bottomless credits, full map, and 10x damage both ways for the player only", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(55030, "normal", undefined, true);
+  const s = g.start[0];
+  H.build("base", 0, s.x - 1, s.y - 1);
+  H.step(2);
+  assert.ok(g.side[0].credits >= 999999, "debug credits should be bottomless");
+  assert.ok(Array.from(g.seen).every((v) => v === 1), "debug mode should reveal the whole map");
+  const barracks = placeNear(H, g, 0, s, "barracks");
+  g.side[0].queues.i.list.push("rifle");
+  H.step(3);
+  assert.equal(g.side[0].queues.i.list.length, 0, "a queued GI should finish instantly in debug mode");
+
+  // A GI shot on an enemy harvester does 10x; an enemy GI on the player's harvester does 1/10.
+  const gi = T.UNITS.rifle, hv = T.UNITS.harvester;
+  // Far from the base: the GI that just came out of the barracks would join in.
+  const mine = H.spawn("rifle", 0, 30, 30), theirs = H.spawn("harvester", 1, 31, 30);
+  mine.order = { t: "attack", id: theirs.id, x: theirs.x, y: theirs.y };
+  const foe = H.spawn("rifle", 1, 50, 50), ours = H.spawn("harvester", 0, 51, 50);
+  foe.order = { t: "attack", id: ours.id, x: ours.x, y: ours.y };
+  H.step(2);
+  const base = gi.dmg * T.verses(gi.wh, hv.armour);
+  assert.ok(Math.abs((theirs.maxhp - theirs.hp) - base * 10) < 0.5, `player hit should be 10x (${theirs.maxhp - theirs.hp} vs ${base * 10})`);
+  assert.ok(Math.abs((ours.maxhp - ours.hp) - base / 10) < 0.5, `player should take 1/10 (${ours.maxhp - ours.hp} vs ${base / 10})`);
+
+  // And off by default: a normal game is untouched.
+  const g2 = H.begin(55031, "normal");
+  H.build("base", 0, g2.start[0].x - 1, g2.start[0].y - 1);
+  H.step(2);
+  assert.ok(g2.side[0].credits < 20000, "a normal game must not get debug credits");
+  assert.ok(Array.from(g2.seen).some((v) => v !== 1), "a normal game keeps its shroud");
+});

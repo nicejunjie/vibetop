@@ -226,6 +226,8 @@
   }
   .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
   .facrow { display: flex; gap: 7px; margin-bottom: 9px; }
+  .dbgrow { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #9aa3b2; margin: 2px 0 10px; cursor: pointer; }
+  .dbgrow input { accent-color: #e0b040; }
   .facrow button {
     flex: 1; min-height: 62px; padding: 7px 9px; text-align: left;
     display: flex; flex-direction: column; gap: 2px; line-height: 1.25;
@@ -279,6 +281,7 @@
       <div class="facrow" id="facRow"></div>
       <div class="diffrow" id="diffRow"></div>
       <div class="facrow" id="mapRow"></div>
+      <label class="dbgrow" title="Cheats for testing: instant build, unlimited credits, the whole map revealed, your units take 1/10 damage and deal 10x. Wins are not recorded."><input type="checkbox" id="dbgChk"> Debug mode (instant build · unlimited credits · full map · 10× units)</label>
       <div class="btns">
         <button class="primary" id="ovA">Start</button>
         <button class="ghost" id="ovB" style="display:none">Cancel</button>
@@ -766,10 +769,10 @@
   // red Directorate reads the same as a blue one.
   var FACTIONS = {
     dir: { key: 'dir', name: 'Directorate', em: '🜁',
-           blurb: 'Reach and speed. Lancers outrange, Spectres see everything.',
+           blurb: 'Speed and tech. Grizzlies, GIs dug in behind sandbags, Harriers, Mirage and Prism.',
            defence: 'sentry', tank: 'lancer', inf: 'rifle' },
     col: { key: 'col', name: 'Collective', em: '🜂',
-           blurb: 'Mass and armour. Mammoths absorb, Conscripts are nearly free.',
+           blurb: 'Mass and armour. Rhinos, Tesla, Kirovs; Conscripts are nearly free.',
            defence: 'tesla', tank: 'rhino', inf: 'conscript' }
   };
 
@@ -10003,6 +10006,10 @@
     if (wh === undefined) wh = spec.wh;
     var mult = wh ? verses(wh, armourOf(tgt)) : 1;
     if (tgt.kind === 'u' && tgt.rank) mult /= vetArmour(tgt.rank);   // veterans are tougher (VeteranArmor)
+    if (g.debug) {                                                    // debug mode: the player hits 10x and takes 1/10
+      if (src.p === P_HUMAN && tgt.p !== P_HUMAN) mult *= 10;
+      else if (tgt.p === P_HUMAN && src.p !== P_HUMAN) mult /= 10;
+    }
     tgt.hp -= amount * mult;
     if (tgt.kind === 'u' && tgt.type === 'harvester') tgt.fleeAt = g.tick;
     if (isAir(src)) { var hitAI = tgt.p === P_AI ? g.ai : g.ai2; if (hitAI) hitAI.airAt = g.tick; }
@@ -10690,6 +10697,7 @@
       if (isBldLane(lane) && !hasBld(g, p, 'base')) continue;
 
       q.prog += slow / (spec.build * 60 * buildFactor(g, p, lane));
+      if (g.debug && p === P_HUMAN) q.prog = 1;                 // debug mode: instant build
       if (q.prog >= 1) {
         q.prog = 0; q.list.shift();
         if (isBldLane(lane)) { q.ready = key; if (p === P_HUMAN) { sfx('ready'); eva('Construction complete', 3000); } }
@@ -11389,6 +11397,10 @@
     var i;
     for (i = 0; i < g.units.length; i++) if (!g.units[i].dead) stepUnit(g, g.units[i]);
     for (i = 0; i < g.blds.length; i++) if (!g.blds[i].dead) stepBld(g, g.blds[i]);
+    if (g.debug) {                                   // debug mode: bottomless bank, no shroud
+      g.side[P_HUMAN].credits = 999999;
+      if (!g.debugSeen) { for (i = 0; i < g.seen.length; i++) g.seen[i] = 1; g.debugSeen = true; }
+    }
     stepQueues(g, P_HUMAN);
     stepQueues(g, P_AI);
     if (g.ai) stepAI(g, g.ai, P_AI, P_HUMAN);
@@ -13152,6 +13164,9 @@
   var ovA = document.getElementById('ovA'), ovB = document.getElementById('ovB');
   var diffRow = document.getElementById('diffRow'), facRow = document.getElementById('facRow'), mapRow = document.getElementById('mapRow');
   var mapId = MAPS[lsGet('vibetop:rts:map')] ? lsGet('vibetop:rts:map') : 'frontier';
+  var debugMode = lsGet('vibetop:rts:debug') === '1';
+  var dbgChk = document.getElementById('dbgChk');
+  if (dbgChk) { dbgChk.checked = debugMode; dbgChk.addEventListener('change', function () { debugMode = dbgChk.checked; lsSet('vibetop:rts:debug', debugMode ? '1' : '0'); }); }
   function buildMapRow() {
     mapRow.innerHTML = '';
     Object.keys(MAPS).forEach(function (k) {
@@ -13297,6 +13312,8 @@
   function startMatch() {
     var seed = (Date.now() ^ (performance.now() * 1000)) >>> 0;
     G = newState(seed, difficulty, mapId);
+    G.debug = debugMode;
+    if (debugMode) setTimeout(function () { say('Debug mode — instant build, unlimited credits, full map, 10× units; this game is not scored'); }, 400);
     G.side[P_HUMAN].fac = faction;
     G.side[P_AI].fac = faction === 'dir' ? 'col' : 'dir';   // always the other side
     G.ai = newAI(difficulty);
@@ -13341,7 +13358,7 @@
   function finish(won) {
     state = 'over';
     var secs = Math.floor(G.tick / 60);
-    if (window.vibeScores) {
+    if (window.vibeScores && !G.debug) {                 // a cheated game is not a record
       window.vibeScores.finish('rts', difficulty, won, {});
       if (won) {
         window.vibeScores.record({
@@ -13446,6 +13463,7 @@
     begin: function (seed, diff) {
       headless = true;
       G = newState((seed >>> 0) || 1, diff || 'normal', arguments[2]);
+      G.debug = !!arguments[3];
       state = 'play';
       return G;
     },
