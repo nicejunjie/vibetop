@@ -1,11 +1,11 @@
 // Contact sheet of every structure, both factions (player 0 colour).  -> out/fsheet.png
 const { open, save } = require('./_pw');
 (async () => {
-  const { b, p, errs } = await open({ width: 1500, height: 1750 });
+  const { b, p, errs } = await open({ width: 1500, height: 2600 });
   const png = await p.evaluate(() => {
     const S = window.__rtsTest.spr();
-    const c = document.createElement('canvas'); c.width = 1500; c.height = 1750;
-    const g = c.getContext('2d'); g.fillStyle = '#6e7a48'; g.fillRect(0, 0, 1500, 1750);
+    const c = document.createElement('canvas'); c.width = 1500; c.height = 2600;
+    const g = c.getContext('2d'); g.fillStyle = '#6e7a48'; g.fillRect(0, 0, 1500, 2600);
     g.font = '13px monospace'; const sc = 1.7;
     let y = 20;
     for (const [fk, pl] of [['dir', 0], ['col', 1]]) {
