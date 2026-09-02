@@ -5369,3 +5369,25 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** look at the contact sheet of every fetched gif before choosing a
   reference frame; frame 0 is the reference only when the frames differ in a
   small moving region.
+
+## A MAKE gif's last frame can still be wearing its scaffolding
+
+- **Symptom:** the fresh Allied Barracks rip (`File:Allied Barrack animation
+  1.gif`, last of 24 frames) shows the finished huts *plus* two large red
+  fan/wing shapes behind them. Taken as "the sprite" its alpha bbox is 170x123
+  and the aspect comes out 1.19; the in-game screenshot of the same building
+  has no fans anywhere and measures 118x115, aspect 1.026.
+- **Cause:** the existing rule "the wiki's animation gifs are build-ups, so the
+  sprite is the LAST frame" is true about *completeness* but not about
+  *cleanliness*. RA2's MAKE sequence retracts its crane arms over the frames
+  that follow the last one the gif was cut at, so the tail frame can still
+  carry scaffolding that never appears in game.
+- **Fix:** take the last frame for the massing, but cross-check its silhouette
+  against a screenshot of the finished building before measuring anything.
+  Mask the shadow (magenta in these rips) and any leftover scaffolding by hand
+  and measure the bbox from what remains — here 118x115, which the rebuild hits
+  at 1.031.
+- **Also:** the shared `apron()` helper paints its hazard stripes and then lays
+  a `rgba(140,148,140,.55)` veil over them, so a plate that has to read as
+  yellow at 1:1 (RA2 puts two on the Barracks pad) must be drawn locally.
+
