@@ -5324,3 +5324,28 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rejected:** extending the stub with `transform` — every future context
   call would need the same, and the stub is there to keep the sim tests
   hermetic, not to emulate canvas.
+
+## The Allied refinery's drum is an open mouth facing the dock, not a hooped end cap
+
+- **Symptom:** two successive rebuilds of the Allied Ore Refinery read the
+  big drum wrong. The first drew a barrel vault with a half-disc "wheel" on
+  its end and put the rail dock on the vault's flank; the second (this pass,
+  first attempt) drew a closed hooped disc at one end of a horizontal
+  cylinder. Both looked plausible on a contact sheet and neither matched the
+  sprite side by side: the rails never left the drum.
+- **Cause:** the reference's nested silver/ivory/lavender/blue arcs were read
+  as rings ON a face. They are rings AROUND a cylinder seen almost end-on —
+  fat on the right, thin on top, open on the left — and the "dark interior"
+  beside them is the cylinder's open mouth, with the hoist and the ore glow
+  inside and the rails coming out of it to the dock. Nothing about the shape
+  is guessable from a description; only the mirrored 6x gridded crop made it
+  obvious.
+- **Fix:** nested C hoops (`rg(t)` interpolating rim → cavity ellipse) whose
+  bands continue left as flat stripes over the opening, a navy cavity with a
+  slatted floor, the ported spine ending in a jamb block at the mouth's left,
+  rails from the cavity floor to the dock tile. Both refineries are the RA2
+  sprite mirrored left-right (the sim docks on +gy, RA2's art docks on the
+  down-right face) with the light kept upper-left.
+- **Rule:** before drawing a structure with a functional opening, make the
+  gridded mirrored crop and find where the vehicle physically goes; the
+  greebles are painted around that hole, never the other way round.
