@@ -5391,3 +5391,31 @@ original exact-bytes test stayed green through the whole breakage.
   a `rgba(140,148,140,.55)` veil over them, so a plate that has to read as
   yellow at 1:1 (RA2 puts two on the Barracks pad) must be drawn locally.
 
+
+## Only a RED-owner rip tells you where a sprite's remap actually is
+
+- **Symptom:** the Allied Power Plant had been built from
+  `allied-power-plant.png`, a blue-player in-game screenshot. Read from that
+  image the "team colour" looked like it was everywhere — the capacitor
+  cylinders, their caps, the skirt bands and five stacked rings on the pad were
+  all some shade of blue — so the rebuild spread `col` over all of them and the
+  columns were painted violet to avoid a red-owner plant carrying blue.
+- **Cause:** on a *blue* player every remap pixel AND every fixed cool-metal
+  pixel is blue. The two are indistinguishable. RA2's own palette makes this
+  worse for Allied structures, whose fixed shell is cobalt steel.
+- **Fix:** fetch the same building's SHP/MAKE rip for a **red** owner (here
+  `File:Power plant animation 1.gif` → `docs/ra2-ref/allied-power-plant-idle.png`)
+  and diff by eye: whatever is red is remap, everything else is fixed. That
+  showed the remap is exactly two surfaces — a big curved panel across the
+  front of each tower's base drum, and a hairline rim on the base octagon —
+  and that the caps and cylinders are fixed blue-slate steel, not house colour.
+  Keep the blue screenshot for *true colour* (the wiki gifs are quantised to a
+  web-safe palette and lie about hue), the red rip for *where the colour goes*.
+- **Rule:** before deciding which surfaces carry `col`, look at the item in the
+  owner colour that is NOT its faction's natural palette. For an Allied
+  structure that means the red rip; for a Soviet one, a blue rip.
+- **Corollary:** the real Allied sprite's cylinders read 8.3% saturated blue
+  even on a red owner. Our stricter house rule (owner hue only, 0% opposing)
+  cannot reproduce that, so the columns are desaturated slate-indigo — every
+  cool navy in the branch is kept under HSV s=0.45 on purpose. Nudging any of
+  them "a bit bluer" silently reintroduces opposing hue on a red-owner plant.
