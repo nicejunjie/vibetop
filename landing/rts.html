@@ -2115,7 +2115,7 @@
     var b = BLDS[key];
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
     var pad = 18;
-    var head = { base: 108, power: 90, refinery: 64, factory: 84, barracks: 86, sentry: 56, tesla: 106 }[key] || 70;
+    var head = { base: 108, power: 90, refinery: 64, factory: 84, barracks: 190, sentry: 56, tesla: 106 }[key] || 70;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
 
@@ -2224,270 +2224,284 @@
     }
 
     if (key === 'base') {
-      // PLAYER COLOUR IS THE ONLY SATURATED HUE ON THIS SPRITE. Every surface
-      // the real SHP remaps - the Allied roof fins, mast cap and gable
-      // chevron; the Soviet excavator arm, roof louvres and star - is drawn
-      // from `col`. Everything that used to be a hard-coded red or blue is
-      // now neutral rust, brass, amber or gunmetal, so a blue yard never
-      // carries red and a red yard never carries blue.
+      // Rebuilt against the CLEAN in-game SHP rips of both Construction
+      // Yards (blue key removed, 2x). Everything here is measured off those
+      // two sprites: the Soviet yard is a pale-limestone works buried under
+      // black machinery with TWO red booms over a gold-painted pad, and the
+      // Allied yard is a thin-ribbed silver barrel hall on a dark deck laced
+      // with amber rail.
+      //
+      // COLOUR POLICY: the ONLY saturated hue on either sprite is `col`.
+      // Allied - roof fins, gable chevron, crane cap and base drums, crown
+      // bars, end panel. Soviet - both crane booms, both claws, the roof
+      // louvre panel, the hammer-and-sickle, the hydrant. Everything else is
+      // limestone, gunmetal, brass, amber, rust or khaki, so a blue yard
+      // never carries a red pixel and a red yard never carries a blue one.
       var HC = shade(col, 1.06), HCL = shade(col, 1.38);
       var HCM = shade(col, 0.80), HCD = shade(col, 0.40);
       if (sov) {
         // ---- Soviet Construction Yard -------------------------------------
-        // A LOW WIDE SPRAWL, not a tower: rust-brick works with louvred roof
-        // vents on the left, a black panel stamped with the star at the
-        // front, a squat stone belfry with a BRASS onion dome behind, and one
-        // articulated excavator parked hard right, its arm arching over to
-        // drop a claw on the hazard-taped hatch. Only the arm, the louvres,
-        // the star, the dome collar and the deck band carry `col`.
-        var SBRK = '#6b5744', SBRK_D = '#3a2e22';        // brown masonry - never red
-        var SSTL = '#31363d', SSTL_D = '#14161a';        // near-black steel
-        var SGUN = '#4c525b', SGUN_L = '#7d848e';        // gunmetal machinery
-        var SGLD = '#a8823c', SGLD_L = '#e0c27a', SGLD_D = '#5a4212'; // brass dome
-        var SPAD = '#9ba08c', SPAD_D = '#5a5f50';        // concrete pad
-        var SSTN = '#7b7e82';                            // grey stone
-        var SHAZ = '#c07a2e';                            // amber hazard paint
+        // Reference reading, left to right: a PALE LIMESTONE stepped works
+        // (not brick-red - the sprite's masonry is sand-yellow), a red boom
+        // arcing off it down to a claw on the deck; a brass onion dome on a
+        // dark belfry at the very top; a pale steel loading table across the
+        // middle; a black machine bank on the right carrying pipe bundles, a
+        // red lattice boom and a red louvre panel; grey pipe elbows, a khaki
+        // spoil heap, a yellow tank, a red hydrant and drums at the front.
+        // The pad is pale concrete, half of it painted gold, with a hatch
+        // ringed by black dashes and the hammer-and-sickle stencilled beside.
+        var SLIM = '#d7c887', SLIM_L = '#ece0a8', SLIM_D = '#8a7a3e'; // limestone
+        var SSTL = '#26292f', SSTL_D = '#0d0f12';        // near-black machinery
+        var SGUN = '#575e68', SGUN_L = '#949ba6';        // gunmetal
+        var SPLT = '#b3b7bb', SPLT_L = '#dfe3e6';        // pale steel plate
+        var SGLD = '#a8823c', SGLD_L = '#e0c27a', SGLD_D = '#4d3a10'; // brass
+        var SCON = '#b8b5a3', SCON_D = '#6b6959';        // concrete pad
+        var SPNT = '#d8c359', SPNT_D = '#9c8a2c';        // gold deck paint
+        var SKHK = '#8d7a52', SRST = '#6b4a3a';          // spoil heap, rust
 
-        // pale concrete pad filling the whole plot, ringed by a painted band
-        // in the player's colour - the read from across the map.
+        // ---- pad: pale concrete, the western half painted gold ------------
+        var padPt = function (pu, pv) {
+          return [cx + (pu - pv) * fw * 0.5, baseY - 2 + (pu + pv) * fh * 0.5];
+        };
         diamond(g, cx, baseY - 2, fw * 1.96, fh * 1.96);
-        g.fillStyle = SPAD; g.fill(); outline(g, SPAD_D);
-        diamond(g, cx, baseY - 2, fw * 1.90, fh * 1.90);
-        g.fillStyle = HCM; g.fill(); outline(g, HCD);
-        diamond(g, cx, baseY - 2, fw * 1.83, fh * 1.83);
-        g.fillStyle = SPAD; g.fill(); outline(g, HCL);
-        g.save(); diamond(g, cx, baseY - 2, fw * 1.83, fh * 1.83); g.clip();
-        g.strokeStyle = 'rgba(60,64,54,.45)'; g.lineWidth = 1;
-        for (var spS = -0.5; spS < 0.6; spS += 0.5) {         // slab seams
-          g.beginPath();
-          g.moveTo(cx + spS * fw - fw, baseY - 2 + spS * fh);
-          g.lineTo(cx + spS * fw + fw, baseY - 2 + spS * fh); g.stroke();
+        g.fillStyle = SCON; g.fill(); outline(g, SCON_D);
+        g.save(); diamond(g, cx, baseY - 2, fw * 1.96, fh * 1.96); g.clip();
+        g.fillStyle = SPNT;                               // gold paint: the WEST half
+        g.fillRect(cx - fw - 4, baseY - fh - 6, fw + 14, fh * 2 + 12);
+        g.fillStyle = shade(SPNT, 0.88);                  // its worn far edge
+        g.fillRect(cx - fw - 4, baseY - fh - 6, fw + 14, 9);
+        g.strokeStyle = 'rgba(90,80,26,.34)'; g.lineWidth = 1;
+        for (var sqA = -0.6; sqA < 0.7; sqA += 0.4) {      // slab seams, both axes
+          var qa = padPt(sqA, -1.1), qb = padPt(sqA, 1.1);
+          g.beginPath(); g.moveTo(qa[0], qa[1]); g.lineTo(qb[0], qb[1]); g.stroke();
+          qa = padPt(-1.1, sqA); qb = padPt(1.1, sqA);
+          g.beginPath(); g.moveTo(qa[0], qa[1]); g.lineTo(qb[0], qb[1]); g.stroke();
         }
-        g.restore();
-
-        // hazard-taped drop hatch at the front of the pad.
-        var hxS = cx + fw * 0.30, hyS = baseY + fh * 0.58;
-        g.fillStyle = shade(SPAD, 0.78);
-        g.beginPath(); g.ellipse(hxS, hyS, 18, 9, 0, 0, 6.29); g.fill();
-        outline(g, SPAD_D);
-        for (var hkS = 0; hkS < 12; hkS++) {                  // amber dashes
-          var haS = hkS * 6.283 / 12;
-          g.fillStyle = hkS % 2 ? SHAZ : '#26261e';
-          g.beginPath();
-          g.ellipse(hxS + Math.cos(haS) * 14.6, hyS + Math.sin(haS) * 7.2, 2.3, 1.2, 0, 0, 6.29);
-          g.fill();
-        }
-        g.fillStyle = shade(SSTL, 1.10);
-        g.beginPath(); g.ellipse(hxS, hyS, 7.5, 3.8, 0, 0, 6.29); g.fill(); outline(g, SSTL_D);
-
-        // --- back centre: SQUAT stone belfry under the brass onion dome ----
-        // It was a spire before and it made the whole yard read as a tower;
-        // the reference dome barely clears the machinery around it.
-        var dxS = cx + fw * 0.04, dyS = baseY - fh * 0.44;
-        var dhwS = fw * 0.15, dhhS = fh * 0.15;
-        var dr0 = prism(g, dxS, dyS, dhwS, dhhS, 26, SSTN, shade(SSTN, 0.78), SSTL_D);
-        facePatch(g, faceL, dxS, dyS, dhwS, dhhS, 26, 0.24, 0.76, 0.24, 0.80, '#4d5054', SSTL_D);
-        facePatch(g, faceR, dxS, dyS, dhwS, dhhS, 26, 0.24, 0.76, 0.24, 0.80, '#3d4044', SSTL_D);
-        g.fillStyle = shade(SSTN, 1.16);                      // cornice slab
-        g.fillRect(dxS - dhwS - 3, dr0 - 3, (dhwS + 3) * 2, 5);
-        outline(g, SSTL_D);
-        g.fillStyle = HC;                                     // painted drum collar
-        g.fillRect(dxS - 9, dr0 - 9, 18, 7);
-        outline(g, HCD);
-        g.fillStyle = HCL;
-        g.fillRect(dxS - 9, dr0 - 9, 18, 2);
-        var domeB = dr0 - 8, domeR = 9.2, domeH = 13;         // onion bulb
-        g.beginPath();
-        g.moveTo(dxS - domeR * 0.40, domeB);
-        g.bezierCurveTo(dxS - domeR * 1.25, domeB - domeH * 0.30,
-                        dxS - domeR * 0.80, domeB - domeH * 0.88, dxS, domeB - domeH);
-        g.bezierCurveTo(dxS + domeR * 0.80, domeB - domeH * 0.88,
-                        dxS + domeR * 1.25, domeB - domeH * 0.30,
-                        dxS + domeR * 0.40, domeB);
-        g.closePath();
-        g.fillStyle = SGLD; g.fill(); outline(g, SGLD_D);
-        g.fillStyle = SGLD_L;                                 // lit left cheek
-        g.beginPath();
-        g.moveTo(dxS - domeR * 0.38, domeB);
-        g.bezierCurveTo(dxS - domeR * 1.06, domeB - domeH * 0.30,
-                        dxS - domeR * 0.68, domeB - domeH * 0.88, dxS - 1.4, domeB - domeH);
-        g.bezierCurveTo(dxS - domeR * 0.24, domeB - domeH * 0.78,
-                        dxS - domeR * 0.30, domeB - domeH * 0.26,
-                        dxS - domeR * 0.06, domeB);
-        g.closePath(); g.fill();
-        g.strokeStyle = SGLD_D; g.lineWidth = 1.4;            // short mast + finial
-        g.beginPath(); g.moveTo(dxS, domeB - domeH); g.lineTo(dxS, domeB - domeH - 5); g.stroke();
-        g.fillStyle = SGLD_L;
-        g.beginPath(); g.arc(dxS, domeB - domeH - 6, 2.3, 0, 6.29); g.fill();
-        outline(g, SGLD_D);
-
-        // --- left: rust-brick works, louvred roof vents in the player colour
-        var bxS = cx - fw * 0.48, byS = baseY - fh * 0.02;
-        var bhwS = fw * 0.38, bhhS = fh * 0.38;
-        var br0 = prism(g, bxS, byS, bhwS, bhhS, 28, SBRK, SBRK_D, SSTL_D);
-        g.save();                                             // brick coursing
-        g.strokeStyle = 'rgba(38,22,14,.45)'; g.lineWidth = 1;
-        for (var bcS = 1; bcS < 7; bcS++) {
-          var bfI, bF;
-          for (bfI = 0; bfI < 2; bfI++) {
-            bF = bfI ? faceR : faceL;
-            var pA = bF(bxS, byS, bhwS, bhhS, 28, 0, bcS / 7),
-                pB = bF(bxS, byS, bhwS, bhhS, 28, 1, bcS / 7);
+        // dashed black bay markings round the drop hatch
+        var dashRun = function (u0, v0, u1, v1, n) {
+          for (var dI = 0; dI < n; dI++) {
+            var t0 = (dI + 0.18) / n, t1 = (dI + 0.72) / n;
+            var pA = padPt(u0 + (u1 - u0) * t0, v0 + (v1 - v0) * t0);
+            var pB = padPt(u0 + (u1 - u0) * t1, v0 + (v1 - v0) * t1);
+            g.strokeStyle = '#1b1a12'; g.lineWidth = 2.4;
             g.beginPath(); g.moveTo(pA[0], pA[1]); g.lineTo(pB[0], pB[1]); g.stroke();
-            for (var bvS = 1; bvS < 7; bvS++) {               // staggered head joints
-              var bt = (bvS + (bcS % 2) * 0.5) / 7;
-              var q1 = bF(bxS, byS, bhwS, bhhS, 28, bt, (bcS - 1) / 7),
-                  q2 = bF(bxS, byS, bhwS, bhhS, 28, bt, bcS / 7);
-              g.beginPath(); g.moveTo(q1[0], q1[1]); g.lineTo(q2[0], q2[1]); g.stroke();
-            }
-          }
-        }
-        g.restore();
-        facePatch(g, faceR, bxS, byS, bhwS, bhhS, 28, 0.24, 0.64, 0.04, 0.46, '#1d1815', SSTL_D);
-        facePatch(g, faceL, bxS, byS, bhwS, bhhS, 28, 0.02, 0.98, 0.88, 0.98, shade(SBRK, 1.22), null);
-        isoBox(g, bxS + bhwS * 0.40, br0 + bhhS * 0.34, 24, 18, 12, 0, '#463c34', SSTL_D);
-        cylinder(g, bxS - bhwS * 0.66, br0 - bhhS * 0.06, 5.5, 13, SGUN, SGUN_L, SSTL_D);
-        // Slatted vent boxes lying FLAT on the roof plane, the way the
-        // sprite has them - four low crates of player-coloured louvre bars.
-        // Drawn as spikes before, which read as feathers, not machinery.
-        var svVent = function (vcx, vcy, la, lb, hgt) {
-          var tp = function (sa, sb) {
-            return [vcx + la * sa - lb * sb, vcy + la * 0.5 * sa + lb * 0.5 * sb - hgt];
-          };
-          var p0 = tp(-1, -1), p1 = tp(1, -1), p2 = tp(1, 1), p3 = tp(-1, 1);
-          g.beginPath();                                      // near-left skirt
-          g.moveTo(p3[0], p3[1]); g.lineTo(p2[0], p2[1]);
-          g.lineTo(p2[0], p2[1] + hgt); g.lineTo(p3[0], p3[1] + hgt);
-          g.closePath(); g.fillStyle = '#191512'; g.fill(); outline(g, SSTL_D);
-          g.beginPath();                                      // near-right skirt
-          g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]);
-          g.lineTo(p2[0], p2[1] + hgt); g.lineTo(p1[0], p1[1] + hgt);
-          g.closePath(); g.fillStyle = '#100e0c'; g.fill(); outline(g, SSTL_D);
-          g.beginPath();                                      // dark frame plate
-          g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]);
-          g.lineTo(p2[0], p2[1]); g.lineTo(p3[0], p3[1]);
-          g.closePath(); g.fillStyle = '#231d19'; g.fill(); outline(g, SSTL_D);
-          for (var lvS = 0; lvS < 5; lvS++) {                 // PLAYER louvre bars
-            var lvt = -0.78 + lvS * 0.39;
-            var a0 = tp(lvt, -0.80), a1 = tp(lvt, 0.80);
-            g.strokeStyle = HC; g.lineWidth = 3.0; g.lineCap = 'butt';
-            g.beginPath(); g.moveTo(a0[0], a0[1]); g.lineTo(a1[0], a1[1]); g.stroke();
-            g.strokeStyle = HCL; g.lineWidth = 1.1;
-            g.beginPath();
-            g.moveTo(a0[0], a0[1] - 1.4); g.lineTo(a1[0], a1[1] - 1.4); g.stroke();
           }
         };
-        for (var lvG = 0; lvG < 4; lvG++) {
-          svVent(bxS - bhwS * 0.46 + (lvG % 2) * 25 + Math.floor(lvG / 2) * 14,
-                 br0 + bhhS * 0.10 + (lvG % 2) * 12.5 - Math.floor(lvG / 2) * 7,
-                 9.5, 7, 4);
-        }
-        // squat mast + pennant, planted on the works roof beside the vents.
-        var pnx = bxS - bhwS * 0.72, pny = br0 + bhhS * 0.30;
-        g.strokeStyle = '#c8ccd2'; g.lineWidth = 1.3;
-        g.beginPath(); g.moveTo(pnx, pny); g.lineTo(pnx, pny - 15); g.stroke();
-        g.beginPath();
-        g.moveTo(pnx + 1, pny - 15);
-        g.lineTo(pnx + 17, pny - 11.6);
-        g.lineTo(pnx + 11, pny - 9.2);
-        g.lineTo(pnx + 17, pny - 6.6);
-        g.lineTo(pnx + 1, pny - 3.4);
-        g.closePath();
-        g.fillStyle = HCL; g.fill(); outline(g, HCD);
-        g.fillStyle = HCM;
-        g.beginPath();
-        g.moveTo(pnx + 1, pny - 9.2);
-        g.lineTo(pnx + 13.4, pny - 7.8);
-        g.lineTo(pnx + 17, pny - 6.6);
-        g.lineTo(pnx + 1, pny - 3.4);
-        g.closePath(); g.fill();
+        var hu0 = -0.34, hv0 = -0.10, hu1 = 0.52, hv1 = 0.80;
+        var hcP = padPt((hu0 + hu1) / 2, (hv0 + hv1) / 2);
+        g.beginPath();                                    // stained hatch floor
+        g.moveTo.apply(g, padPt(hu0, hv0));
+        var hqA = padPt(hu1, hv0), hqB = padPt(hu1, hv1), hqC = padPt(hu0, hv1);
+        g.lineTo(hqA[0], hqA[1]); g.lineTo(hqB[0], hqB[1]); g.lineTo(hqC[0], hqC[1]);
+        g.closePath(); g.fillStyle = 'rgba(120,106,54,.42)'; g.fill();
+        dashRun(hu0, hv0, hu1, hv0, 5); dashRun(hu1, hv0, hu1, hv1, 5);
+        dashRun(hu1, hv1, hu0, hv1, 5); dashRun(hu0, hv1, hu0, hv0, 5);
+        dashRun(hu0, (hv0 + hv1) / 2, hu1, (hv0 + hv1) / 2, 5);
+        g.fillStyle = 'rgba(70,62,30,.30)';               // oil round the hatch
+        g.beginPath(); g.ellipse(hcP[0], hcP[1], 15, 7, 0, 0, 6.29); g.fill();
+        g.restore();
+        outline(g, SCON_D);
 
-        // --- right: near-black steel machine housing the digger sits against
-        var mxS = cx + fw * 0.50, myS = baseY - fh * 0.14;
-        var mhwS = fw * 0.34, mhhS = fh * 0.34;
-        var mr0 = prism(g, mxS, myS, mhwS, mhhS, 30, SSTL, shade(SSTL, 0.80), SSTL_D);
-        facePatch(g, faceL, mxS, myS, mhwS, mhhS, 30, 0.14, 0.48, 0.08, 0.62, '#191c21', SSTL_D);
-        g.strokeStyle = SGUN_L; g.lineWidth = 1.5;            // steel ladder on the wall
-        var ldA = faceL(mxS, myS, mhwS, mhhS, 30, 0.70, 0.02),
-            ldB = faceL(mxS, myS, mhwS, mhhS, 30, 0.70, 0.98),
-            ldC = faceL(mxS, myS, mhwS, mhhS, 30, 0.84, 0.02),
-            ldD = faceL(mxS, myS, mhwS, mhhS, 30, 0.84, 0.98);
-        g.beginPath(); g.moveTo(ldA[0], ldA[1]); g.lineTo(ldB[0], ldB[1]); g.stroke();
-        g.beginPath(); g.moveTo(ldC[0], ldC[1]); g.lineTo(ldD[0], ldD[1]); g.stroke();
-        g.lineWidth = 1.1;
+        // ---- centre back: brass onion dome on a dark belfry ---------------
+        // Tallest thing on the sprite; the reference silhouette is dome-led.
+        var dxS = cx + fw * 0.06, dyS = baseY - fh * 0.50;
+        var dhwS = fw * 0.14, dhhS = fh * 0.14;
+        var dr0 = prism(g, dxS, dyS, dhwS, dhhS, 34, '#3d434b', '#2b3038', SSTL_D);
+        facePatch(g, faceL, dxS, dyS, dhwS, dhhS, 34, 0.20, 0.80, 0.20, 0.84, '#191c21', SSTL_D);
+        facePatch(g, faceR, dxS, dyS, dhwS, dhhS, 34, 0.20, 0.80, 0.20, 0.84, '#14171b', SSTL_D);
+        for (var bfA = 1; bfA < 4; bfA++) {               // machinery ribs on the belfry
+          var bp1 = faceL(dxS, dyS, dhwS, dhhS, 34, 0.06, bfA * 0.24),
+              bp2 = faceL(dxS, dyS, dhwS, dhhS, 34, 0.94, bfA * 0.24);
+          g.strokeStyle = 'rgba(150,158,170,.34)'; g.lineWidth = 1;
+          g.beginPath(); g.moveTo(bp1[0], bp1[1]); g.lineTo(bp2[0], bp2[1]); g.stroke();
+        }
+        g.fillStyle = SGUN;                               // cornice
+        g.fillRect(dxS - dhwS - 4, dr0 - 4, (dhwS + 4) * 2, 5); outline(g, SSTL_D);
+        g.fillStyle = SGLD_D;                             // dome drum
+        g.fillRect(dxS - 8, dr0 - 10, 16, 7); outline(g, SSTL_D);
+        var domeB = dr0 - 9, domeR = 10.5, domeH = 17;    // onion bulb
+        g.beginPath();
+        g.moveTo(dxS - domeR * 0.34, domeB);
+        g.bezierCurveTo(dxS - domeR * 1.30, domeB - domeH * 0.28,
+                        dxS - domeR * 0.86, domeB - domeH * 0.90, dxS, domeB - domeH);
+        g.bezierCurveTo(dxS + domeR * 0.86, domeB - domeH * 0.90,
+                        dxS + domeR * 1.30, domeB - domeH * 0.28,
+                        dxS + domeR * 0.34, domeB);
+        g.closePath();
+        g.fillStyle = SGLD; g.fill(); outline(g, SGLD_D);
+        g.fillStyle = SGLD_L;                             // lit cheek
+        g.beginPath();
+        g.moveTo(dxS - domeR * 0.32, domeB);
+        g.bezierCurveTo(dxS - domeR * 1.10, domeB - domeH * 0.28,
+                        dxS - domeR * 0.72, domeB - domeH * 0.90, dxS - 1.6, domeB - domeH);
+        g.bezierCurveTo(dxS - domeR * 0.26, domeB - domeH * 0.80,
+                        dxS - domeR * 0.30, domeB - domeH * 0.24,
+                        dxS - domeR * 0.04, domeB);
+        g.closePath(); g.fill();
+        g.fillStyle = 'rgba(30,24,6,.34)';                // tarnish down the right
+        g.beginPath();
+        g.moveTo(dxS + domeR * 0.12, domeB);
+        g.bezierCurveTo(dxS + domeR * 0.70, domeB - domeH * 0.30,
+                        dxS + domeR * 0.60, domeB - domeH * 0.84, dxS + 1.2, domeB - domeH);
+        g.bezierCurveTo(dxS + domeR * 0.80, domeB - domeH * 0.86,
+                        dxS + domeR * 1.24, domeB - domeH * 0.28,
+                        dxS + domeR * 0.34, domeB);
+        g.closePath(); g.fill();
+        g.strokeStyle = SGLD_D; g.lineWidth = 1.4;        // spire + finial
+        g.beginPath(); g.moveTo(dxS, domeB - domeH); g.lineTo(dxS, domeB - domeH - 9); g.stroke();
+        g.fillStyle = SGLD_L;
+        g.beginPath(); g.arc(dxS, domeB - domeH - 10, 2.4, 0, 6.29); g.fill();
+        outline(g, SGLD_D);
+
+        // ---- left: pale limestone works, stepped ---------------------------
+        var bxS = cx - fw * 0.50, byS = baseY - fh * 0.06;
+        var bhwS = fw * 0.36, bhhS = fh * 0.36;
+        var br0 = prism(g, bxS, byS, bhwS, bhhS, 32, SLIM, SLIM_L, SLIM_D);
+        g.save();                                         // block coursing, faint
+        g.strokeStyle = 'rgba(110,96,44,.30)'; g.lineWidth = 1;
+        for (var bcS = 1; bcS < 6; bcS++) {
+          for (var bfI = 0; bfI < 2; bfI++) {
+            var bF = bfI ? faceR : faceL;
+            var pA = bF(bxS, byS, bhwS, bhhS, 32, 0, bcS / 6),
+                pB = bF(bxS, byS, bhwS, bhhS, 32, 1, bcS / 6);
+            g.beginPath(); g.moveTo(pA[0], pA[1]); g.lineTo(pB[0], pB[1]); g.stroke();
+          }
+        }
+        g.restore();
+        // black slot vents punched through both faces
+        facePatch(g, faceL, bxS, byS, bhwS, bhhS, 32, 0.12, 0.44, 0.52, 0.66, '#16130c', SLIM_D);
+        facePatch(g, faceL, bxS, byS, bhwS, bhhS, 32, 0.56, 0.88, 0.52, 0.66, '#16130c', SLIM_D);
+        facePatch(g, faceR, bxS, byS, bhwS, bhhS, 32, 0.18, 0.52, 0.46, 0.64, '#16130c', SLIM_D);
+        facePatch(g, faceR, bxS, byS, bhwS, bhhS, 32, 0.10, 0.90, 0.86, 0.94, SLIM_D, null);
+        streak(g, faceL, bxS, byS, bhwS, bhhS, 32, 0.30, 0.50, 16, 4);
+        // lower step in front of the works
+        var b2x = bxS - bhwS * 0.30, b2y = byS + bhhS * 0.86;
+        var b2r = prism(g, b2x, b2y, bhwS * 0.60, bhhS * 0.60, 15, SLIM, SLIM_L, SLIM_D);
+        facePatch(g, faceL, b2x, b2y, bhwS * 0.60, bhhS * 0.60, 15,
+                  0.24, 0.70, 0.24, 0.62, '#16130c', SLIM_D);
+        isoBox(g, b2x + 4, b2r + 3, 20, 14, 5, 0, '#2a2519', SSTL_D);   // black kit on the step
+        isoBox(g, bxS + bhwS * 0.30, br0 + bhhS * 0.30, 26, 18, 9, 0, '#2f3239', SSTL_D);
+        cylinder(g, bxS - bhwS * 0.62, br0 + bhhS * 0.06, 5.5, 15, SGUN, SGUN_L, SSTL_D);
+        g.fillStyle = SGLD; g.fillRect(bxS - bhwS * 0.62 - 5.5, br0 + bhhS * 0.06 - 11, 11, 2.4);
+
+        // ---- right: black machine bank -------------------------------------
+        var mxS = cx + fw * 0.52, myS = baseY - fh * 0.16;
+        var mhwS = fw * 0.36, mhhS = fh * 0.36;
+        var mr0 = prism(g, mxS, myS, mhwS, mhhS, 30, SSTL, '#33373e', SSTL_D);
+        facePatch(g, faceL, mxS, myS, mhwS, mhhS, 30, 0.10, 0.52, 0.10, 0.60, '#111318', SSTL_D);
+        for (var pbA = 0; pbA < 4; pbA++)                 // horizontal pipe bundle
+          pipeRun(g, faceR, mxS, myS, mhwS, mhhS, 30, 0.10 + pbA * 0.02, 0.24, 0.86, 2.6, SGUN_L);
+        g.strokeStyle = SGUN_L; g.lineWidth = 1.2;        // wall ladder
         for (var rgS = 1; rgS < 7; rgS++) {
-          var rA = faceL(mxS, myS, mhwS, mhhS, 30, 0.70, rgS / 7),
-              rB = faceL(mxS, myS, mhwS, mhhS, 30, 0.84, rgS / 7);
+          var rA = faceL(mxS, myS, mhwS, mhhS, 30, 0.72, rgS / 7),
+              rB = faceL(mxS, myS, mhwS, mhhS, 30, 0.86, rgS / 7);
           g.beginPath(); g.moveTo(rA[0], rA[1]); g.lineTo(rB[0], rB[1]); g.stroke();
         }
-        g.fillStyle = SHAZ;                                   // amber hazard flash
-        facePatch(g, faceR, mxS, myS, mhwS, mhhS, 30, 0.16, 0.80, 0.74, 0.86, SHAZ, null);
-        isoBox(g, mxS - mhwS * 0.34, mr0 + mhhS * 0.18, 22, 16, 12, 0, '#464c55', SSTL_D);
-        cylinder(g, mxS + mhwS * 0.34, mr0 + mhhS * 0.14, 6, 14, '#3f444c', SGUN_L, SSTL_D);
-        cylinder(g, mxS + mhwS * 0.56, mr0 + mhhS * 0.30, 5, 10, '#3f444c', SGUN_L, SSTL_D);
+        isoBox(g, mxS - mhwS * 0.40, mr0 + mhhS * 0.20, 24, 17, 12, 0, '#3f444d', SSTL_D);
+        cylinder(g, mxS + mhwS * 0.30, mr0 + mhhS * 0.10, 6, 15, '#383d45', SGUN_L, SSTL_D);
+        cylinder(g, mxS + mhwS * 0.54, mr0 + mhhS * 0.28, 5, 11, '#383d45', SGUN_L, SSTL_D);
 
-        // --- centre front: black panel stamped with the star ---------------
-        var kxS = cx - fw * 0.14, kyS = baseY + fh * 0.26;
-        var khwS = fw * 0.30, khhS = fh * 0.30;
-        prism(g, kxS, kyS, khwS, khhS, 26, '#26262b', '#34343c', SSTL_D);
-        facePatch(g, faceL, kxS, kyS, khwS, khhS, 26, 0.10, 0.92, 0.06, 0.86, '#131317', SSTL_D);
-        var emC = faceL(kxS, kyS, khwS, khhS, 26, 0.48, 0.46);
-        g.fillStyle = HCL;                                    // player star plate
+        // ---- centre: pale steel loading table over the pad -----------------
+        var tbx = cx + fw * 0.06, tby = baseY + fh * 0.06;
+        var tbLift = 20;
+        g.fillStyle = '#26292f';                          // dark skirt under the plate
         g.beginPath();
-        for (var stI = 0; stI < 10; stI++) {
-          var stR = stI % 2 ? 4.6 : 11, stA2 = -Math.PI / 2 + stI * Math.PI / 5;
-          g[stI ? 'lineTo' : 'moveTo'](emC[0] + Math.cos(stA2) * stR,
-                                       emC[1] + Math.sin(stA2) * stR);
+        g.moveTo(tbx - fw * 0.27, tby - tbLift);
+        g.lineTo(tbx, tby - tbLift + fh * 0.27);
+        g.lineTo(tbx + fw * 0.27, tby - tbLift);
+        g.lineTo(tbx + fw * 0.27, tby - tbLift + 8);
+        g.lineTo(tbx, tby - tbLift + fh * 0.27 + 8);
+        g.lineTo(tbx - fw * 0.27, tby - tbLift + 8);
+        g.closePath(); g.fill(); outline(g, SSTL_D);
+        g.strokeStyle = '#161a1f'; g.lineWidth = 3.4;     // two stout legs
+        for (var lgA = -1; lgA <= 1; lgA += 2) {
+          g.beginPath();
+          g.moveTo(tbx + lgA * fw * 0.20, tby + Math.abs(lgA) * fh * 0.10);
+          g.lineTo(tbx + lgA * fw * 0.20, tby + fh * 0.10 - tbLift + 6); g.stroke();
         }
-        g.closePath(); g.fill(); outline(g, HCD);
-        g.fillStyle = HCM;                                    // shaded right half
+        diamond(g, tbx, tby - tbLift, fw * 0.54, fh * 0.54);
+        g.fillStyle = SPLT; g.fill(); outline(g, '#5a6067');
+        g.save(); diamond(g, tbx, tby - tbLift, fw * 0.54, fh * 0.54); g.clip();
+        g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.4;   // scoured white streaks
+        for (var stA = -3; stA <= 3; stA++) {
+          g.beginPath();
+          g.moveTo(tbx - fw * 0.26 + stA * 3, tby - tbLift + stA * 4 - 4);
+          g.lineTo(tbx + fw * 0.26 + stA * 3, tby - tbLift + stA * 4 + 9); g.stroke();
+        }
+        g.strokeStyle = 'rgba(40,44,50,.42)'; g.lineWidth = 1;
+        for (stA = -2; stA <= 2; stA++) {
+          g.beginPath();
+          g.moveTo(tbx + stA * 9 - fw * 0.13, tby - tbLift + stA * 4.5 - 7);
+          g.lineTo(tbx + stA * 9 + fw * 0.13, tby - tbLift + stA * 4.5 + 6); g.stroke();
+        }
+        g.restore();
+        g.fillStyle = SPLT_L;                             // lit near lip
         g.beginPath();
-        g.moveTo(emC[0], emC[1] - 11); g.lineTo(emC[0] + 2.7, emC[1] - 3.4);
-        g.lineTo(emC[0] + 10.5, emC[1] - 3.4); g.lineTo(emC[0] + 4.4, emC[1] + 1.5);
-        g.lineTo(emC[0] + 6.8, emC[1] + 9); g.lineTo(emC[0], emC[1] + 4.6);
+        g.moveTo(tbx - fw * 0.27, tby - tbLift);
+        g.lineTo(tbx, tby - tbLift + fh * 0.27);
+        g.lineTo(tbx, tby - tbLift + fh * 0.27 + 2.4);
+        g.lineTo(tbx - fw * 0.27, tby - tbLift + 2.4);
         g.closePath(); g.fill();
 
-        // --- the excavator: the single biggest player-colour surface -------
-        // Whole arm painted in `col` - boom, stick, wrist and the crab claw -
-        // with black hazard bands at the knuckles instead of the old
-        // red-body/blue-sleeve mix that made a blue yard read half red.
-        var cvx = cx + fw * 0.44, cvy = baseY + fh * 0.06;
-        g.fillStyle = 'rgba(0,0,0,.34)';                      // carriage shadow
-        g.beginPath(); g.ellipse(cvx + 3, cvy + 5, 24, 10, 0, 0, 6.29); g.fill();
-        isoBox(g, cvx, cvy, 44, 24, 10, 0, '#15181d', '#05060a');   // track pans
-        g.strokeStyle = 'rgba(160,168,180,.42)'; g.lineWidth = 1.2;
-        for (var tkS = 0; tkS < 8; tkS++) {                   // track links
-          var tkT = -0.46 + tkS * 0.13;
-          g.beginPath();
-          g.moveTo(cvx + tkT * 38 - 6, cvy + tkT * 19 + 3);
-          g.lineTo(cvx + tkT * 38 - 6, cvy + tkT * 19 - 8); g.stroke();
-        }
-        g.fillStyle = '#6f7885';                              // idler + drive sprocket
-        g.beginPath(); g.ellipse(cvx - 19, cvy + 1, 4.2, 3.4, 0, 0, 6.29); g.fill();
-        g.beginPath(); g.ellipse(cvx + 18, cvy - 7, 4.2, 3.4, 0, 0, 6.29); g.fill();
-        isoBox(g, cvx - 4, cvy - 10, 32, 22, 18, 0, '#49515e', SSTL_D);  // slew house
-        g.fillStyle = HC;                                     // painted cab band
-        g.fillRect(cvx - 21, cvy - 24, 31, 5);
-        g.fillStyle = HCL;
-        g.fillRect(cvx - 21, cvy - 24, 31, 1.6);
-        g.fillStyle = '#1b1f26';                              // cab glass
+        // ---- right front: pipe elbows, spoil heap, tank, hydrant -----------
+        g.fillStyle = SKHK;                               // khaki spoil heap
         g.beginPath();
-        g.moveTo(cvx - 21, cvy - 19); g.lineTo(cvx - 9, cvy - 13);
-        g.lineTo(cvx - 9, cvy - 7); g.lineTo(cvx - 21, cvy - 13);
-        g.closePath(); g.fill(); outline(g, SSTL_D);
-        g.fillStyle = '#3d434c';                              // slew ring
-        g.beginPath(); g.ellipse(cvx - 4, cvy - 28, 14, 6.6, 0, 0, 6.29); g.fill();
-        outline(g, SSTL_D);
-        g.fillStyle = '#666e78';
-        g.beginPath(); g.ellipse(cvx - 4, cvy - 29.6, 8.4, 4, 0, 0, 6.29); g.fill();
+        g.moveTo(cx + fw * 0.28, baseY + fh * 0.44);
+        g.bezierCurveTo(cx + fw * 0.32, baseY + fh * 0.06,
+                        cx + fw * 0.62, baseY - fh * 0.02, cx + fw * 0.70, baseY + fh * 0.30);
+        g.lineTo(cx + fw * 0.66, baseY + fh * 0.52);
+        g.closePath(); g.fill(); outline(g, '#5b4c30');
+        g.fillStyle = 'rgba(224,206,150,.34)';
+        g.beginPath();
+        g.moveTo(cx + fw * 0.34, baseY + fh * 0.36);
+        g.bezierCurveTo(cx + fw * 0.38, baseY + fh * 0.10,
+                        cx + fw * 0.54, baseY + fh * 0.06, cx + fw * 0.58, baseY + fh * 0.24);
+        g.closePath(); g.fill();
+        g.strokeStyle = '#3f444a'; g.lineWidth = 5.6;     // grey pipe elbow
+        g.lineCap = 'round'; g.lineJoin = 'round';
+        g.beginPath();
+        g.moveTo(cx + fw * 0.24, baseY - fh * 0.08);
+        g.bezierCurveTo(cx + fw * 0.48, baseY + fh * 0.06,
+                        cx + fw * 0.40, baseY + fh * 0.44, cx + fw * 0.56, baseY + fh * 0.44);
+        g.stroke();
+        g.strokeStyle = '#9aa1a9'; g.lineWidth = 3.6;
+        g.beginPath();
+        g.moveTo(cx + fw * 0.24, baseY - fh * 0.08);
+        g.bezierCurveTo(cx + fw * 0.48, baseY + fh * 0.06,
+                        cx + fw * 0.40, baseY + fh * 0.44, cx + fw * 0.56, baseY + fh * 0.44);
+        g.stroke();
+        g.strokeStyle = 'rgba(255,255,255,.40)'; g.lineWidth = 1.5;
+        g.beginPath();
+        g.moveTo(cx + fw * 0.235, baseY - fh * 0.10);
+        g.bezierCurveTo(cx + fw * 0.475, baseY + fh * 0.04,
+                        cx + fw * 0.395, baseY + fh * 0.42, cx + fw * 0.555, baseY + fh * 0.42);
+        g.stroke();
+        g.strokeStyle = '#5c636b'; g.lineWidth = 3.2;     // second, thinner run
+        g.beginPath();
+        g.moveTo(cx + fw * 0.42, baseY + fh * 0.02);
+        g.bezierCurveTo(cx + fw * 0.60, baseY + fh * 0.14,
+                        cx + fw * 0.52, baseY + fh * 0.44, cx + fw * 0.66, baseY + fh * 0.36);
+        g.stroke();
+        g.lineCap = 'butt'; g.lineJoin = 'miter';
+        cylinder(g, cx + fw * 0.20, baseY + fh * 0.20, 8.5, 13, '#c2ab4e', '#e6d47e', '#6b5a18');
+        g.strokeStyle = 'rgba(60,50,10,.40)'; g.lineWidth = 1;   // yellow tank hoops
+        for (var ykA = 1; ykA < 3; ykA++) {
+          g.beginPath();
+          g.moveTo(cx + fw * 0.20 - 8.5, baseY + fh * 0.20 - ykA * 4.4);
+          g.lineTo(cx + fw * 0.20 + 8.5, baseY + fh * 0.20 - ykA * 4.4); g.stroke();
+        }
+        cylinder(g, cx + fw * 0.80, baseY + fh * 0.40, 3.4, 11, HCM, HCL, HCD);   // hydrant
+        g.fillStyle = HC;
+        g.fillRect(cx + fw * 0.80 - 5.6, baseY + fh * 0.40 - 8.6, 11.2, 2.8);
+        g.fillStyle = HCL;
+        g.beginPath(); g.arc(cx + fw * 0.80, baseY + fh * 0.40 - 12, 2.6, 0, 6.29); g.fill();
+        outline(g, HCD);
 
-        var caP = [[cvx - 1, cvy - 31],                       // boom root, on the tracks
-                   [cx + fw * 0.60, baseY - fh * 0.50],       // the boom's outward bow
-                   [cx + fw * 0.32, baseY - fh * 1.24],       // elbow - LOW and left
-                   [cx + fw * 0.30, baseY - fh * 0.70],       // stick, near vertical
-                   [hxS, baseY - fh * 0.18]];                 // wrist over the hatch
-        var caW = caP[4];
-        var caSeg = function (a, b, w0, w1) {
+        // ---- both red booms -----------------------------------------------
+        // Reference has TWO: a heavy plated boom off the works, elbowed once,
+        // dropping a claw at the front left; and a rung LATTICE boom off the
+        // machine bank, raked back the other way under a louvre panel.
+        var sbSeg = function (a, b, w0, w1) {
           var dxA = b[0] - a[0], dyA = b[1] - a[1], LA = Math.hypot(dxA, dyA) || 1;
           var nxA = -dyA / LA, nyA = dxA / LA;
           g.beginPath();
@@ -2497,346 +2511,515 @@
           g.lineTo(a[0] - nxA * w0, a[1] - nyA * w0);
           g.closePath();
           g.fillStyle = HC; g.fill(); outline(g, HCD);
-          g.strokeStyle = HCL; g.lineWidth = 1.5;             // lit edge
+          g.strokeStyle = HCL; g.lineWidth = 1.6;
           g.beginPath();
-          g.moveTo(a[0] + nxA * w0 * 0.60, a[1] + nyA * w0 * 0.60);
-          g.lineTo(b[0] + nxA * w1 * 0.60, b[1] + nyA * w1 * 0.60); g.stroke();
-          g.strokeStyle = HCM; g.lineWidth = 1.4;             // shaded far edge
+          g.moveTo(a[0] + nxA * w0 * 0.58, a[1] + nyA * w0 * 0.58);
+          g.lineTo(b[0] + nxA * w1 * 0.58, b[1] + nyA * w1 * 0.58); g.stroke();
+          g.strokeStyle = HCM; g.lineWidth = 2.0;
           g.beginPath();
           g.moveTo(a[0] - nxA * w0 * 0.66, a[1] - nyA * w0 * 0.66);
           g.lineTo(b[0] - nxA * w1 * 0.66, b[1] - nyA * w1 * 0.66); g.stroke();
         };
-        // Black hazard bands across the boom - the reference's dark stripes.
-        var caBand = function (a, b, t0, w) {
-          var dxV = b[0] - a[0], dyV = b[1] - a[1], LV = Math.hypot(dxV, dyV) || 1;
-          var nxV = -dyV / LV, nyV = dxV / LV, ux = dxV / LV, uy = dyV / LV;
-          var mx = a[0] + dxV * t0, my = a[1] + dyV * t0;
-          g.beginPath();
-          g.moveTo(mx + nxV * w - ux * 2.2, my + nyV * w - uy * 2.2);
-          g.lineTo(mx + nxV * w + ux * 2.2, my + nyV * w + uy * 2.2);
-          g.lineTo(mx - nxV * w + ux * 2.2, my - nyV * w + uy * 2.2);
-          g.lineTo(mx - nxV * w - ux * 2.2, my - nyV * w - uy * 2.2);
-          g.closePath();
-          g.fillStyle = 'rgba(14,16,20,.82)'; g.fill();
+        var sbPin = function (p, r) {
+          g.fillStyle = '#22262c';
+          g.beginPath(); g.arc(p[0], p[1], r, 0, 6.29); g.fill(); outline(g, SSTL_D);
+          g.fillStyle = '#787f89';
+          g.beginPath(); g.arc(p[0] - 0.7, p[1] - 0.7, r * 0.40, 0, 6.29); g.fill();
         };
-        var caWd = [9.8, 8.8, 7.2, 5.0, 4.2];
-        var caT = [caP[2][0] - 11, caP[2][1] - 5];            // boom tip past the elbow
-        caSeg(caP[0], caP[1], caWd[0], caWd[1]);
-        caSeg(caP[1], caP[2], caWd[1], caWd[2]);
-        caSeg(caP[2], caT, caWd[2] * 0.78, caWd[2] * 0.52);
-        caBand(caP[0], caP[1], 0.40, caWd[0] * 0.92);
-        caBand(caP[0], caP[1], 0.62, caWd[0] * 0.90);
-        caBand(caP[1], caP[2], 0.34, caWd[1] * 0.90);
-        caBand(caP[1], caP[2], 0.54, caWd[1] * 0.86);
-        g.fillStyle = '#2b3039';                              // head sheave
-        g.beginPath(); g.arc(caT[0], caT[1], 4.2, 0, 6.29); g.fill(); outline(g, SSTL_D);
-        g.fillStyle = '#7d858f';
-        g.beginPath(); g.arc(caT[0] - 0.6, caT[1] - 0.6, 1.8, 0, 6.29); g.fill();
-        caSeg(caP[2], caP[3], caWd[3] * 1.14, caWd[3]);       // stick, over the boom
-        caSeg(caP[3], caP[4], caWd[3], caWd[4]);
-        caBand(caP[2], caP[3], 0.48, caWd[3] * 1.02);
-        for (var caI = 1; caI < 4; caI++) {                   // dark knuckle pins
-          g.fillStyle = '#2b3039';
-          g.beginPath(); g.arc(caP[caI][0], caP[caI][1], caWd[caI] * 0.48, 0, 6.29); g.fill();
+        var sbClaw = function (wx, wy, sc) {              // two-tine grab
+          g.fillStyle = 'rgba(0,0,0,.26)';
+          g.beginPath(); g.ellipse(wx + 3, wy + 20 * sc, 10 * sc, 4.4 * sc, 0, 0, 6.29); g.fill();
+          g.fillStyle = '#23272e';
+          g.beginPath(); g.roundRect(wx - 9 * sc, wy - 1, 18 * sc, 6.5 * sc, 2.2); g.fill();
           outline(g, SSTL_D);
-          g.fillStyle = '#6e7680';
-          g.beginPath(); g.arc(caP[caI][0] - 0.7, caP[caI][1] - 0.7, caWd[caI] * 0.20, 0, 6.29);
-          g.fill();
+          g.fillStyle = '#6c747e'; g.fillRect(wx - 8 * sc, wy, 16 * sc, 1.6);
+          g.strokeStyle = HC; g.lineWidth = 3.8 * sc; g.lineCap = 'round';
+          g.beginPath();
+          g.moveTo(wx - 6.5 * sc, wy + 6 * sc);
+          g.quadraticCurveTo(wx - 13 * sc, wy + 12 * sc, wx - 5 * sc, wy + 18 * sc); g.stroke();
+          g.beginPath();
+          g.moveTo(wx + 6.5 * sc, wy + 6 * sc);
+          g.quadraticCurveTo(wx + 12 * sc, wy + 12 * sc, wx + 4.5 * sc, wy + 18 * sc); g.stroke();
+          g.strokeStyle = HCL; g.lineWidth = 1.4;
+          g.beginPath();
+          g.moveTo(wx - 8 * sc, wy + 6 * sc);
+          g.quadraticCurveTo(wx - 14.4 * sc, wy + 12 * sc, wx - 6.4 * sc, wy + 17.6 * sc); g.stroke();
+          g.lineCap = 'butt';
+        };
+        // -- boom A: off the works, up and over, claw down at the front left
+        var aP0 = [bxS - bhwS * 0.30, br0 + 2];
+        var aP1 = [cx - fw * 0.24, baseY - fh * 1.66];    // high elbow, up and RIGHT
+        var aP2 = [cx - fw * 0.44, baseY - fh * 0.86];    // stick, dropping forward
+        var aP3 = [cx - fw * 0.50, baseY - fh * 0.16];    // wrist, claw hangs clear
+        g.strokeStyle = '#22262c'; g.lineWidth = 4.0;     // shadow side of the mast
+        g.beginPath(); g.moveTo(aP0[0] + 9, aP0[1]); g.lineTo(aP1[0] + 10, aP1[1] + 6); g.stroke();
+        sbSeg(aP0, aP1, 10.5, 7.4);
+        sbSeg(aP1, aP2, 7.4, 5.6);
+        sbSeg(aP2, aP3, 5.6, 4.6);
+        var aTip = [aP1[0] + 15, aP1[1] - 7];             // stub past the elbow
+        sbSeg(aP1, aTip, 5.6, 3.4);
+        sbPin(aP1, 5.2); sbPin(aP2, 4.2); sbPin(aTip, 3.0);
+        sbClaw(aP3[0], aP3[1], 0.80);
+        // -- boom B: rung lattice off the machine bank, raked back right
+        var bP0 = [mxS - mhwS * 0.10, mr0 - 4];
+        var bP1 = [cx + fw * 0.30, baseY - fh * 1.28];
+        g.strokeStyle = HC; g.lineWidth = 3.0; g.lineCap = 'round';
+        var bnx = -(bP1[1] - bP0[1]), bny = bP1[0] - bP0[0];
+        var bnL = Math.hypot(bnx, bny) || 1; bnx /= bnL; bny /= bnL;
+        for (var ldA = -1; ldA <= 1; ldA += 2) {          // the two chords
+          g.beginPath();
+          g.moveTo(bP0[0] + bnx * 5.4 * ldA, bP0[1] + bny * 5.4 * ldA);
+          g.lineTo(bP1[0] + bnx * 4.2 * ldA, bP1[1] + bny * 4.2 * ldA); g.stroke();
         }
-        g.strokeStyle = '#3a4048'; g.lineWidth = 2.2;         // ram between root and bow
-        g.beginPath();
-        g.moveTo(caP[0][0] + 9, caP[0][1] + 3);
-        g.lineTo(caP[1][0] + 7, caP[1][1] + 8); g.stroke();
-
-        g.fillStyle = 'rgba(0,0,0,.26)';                      // claw shadow on the hatch
-        g.beginPath(); g.ellipse(hxS + 3, hyS - 2, 12, 6, 0, 0, 6.29); g.fill();
-        g.fillStyle = '#23272e';                              // wrist cross-bar
-        g.beginPath(); g.roundRect(caW[0] - 9, caW[1] - 1, 18, 7, 2.4); g.fill();
-        outline(g, SSTL_D);
-        g.fillStyle = '#5e666f';
-        g.fillRect(caW[0] - 8, caW[1], 16, 1.6);
-        g.strokeStyle = HC; g.lineWidth = 4.4; g.lineCap = 'round';   // crab fingers
-        g.beginPath();
-        g.moveTo(caW[0] - 7, caW[1] + 6);
-        g.quadraticCurveTo(caW[0] - 13, caW[1] + 12, caW[0] - 6, caW[1] + 18); g.stroke();
-        g.beginPath();
-        g.moveTo(caW[0] + 7, caW[1] + 6);
-        g.quadraticCurveTo(caW[0] + 12, caW[1] + 12, caW[0] + 5, caW[1] + 18); g.stroke();
-        g.beginPath();
-        g.moveTo(caW[0], caW[1] + 6); g.lineTo(caW[0] - 1, caW[1] + 16); g.stroke();
+        g.lineWidth = 2.2;
+        for (var rnA = 1; rnA < 8; rnA++) {               // rungs
+          var rt = rnA / 8;
+          var rmx = bP0[0] + (bP1[0] - bP0[0]) * rt, rmy = bP0[1] + (bP1[1] - bP0[1]) * rt;
+          var rw = 5.4 + (4.2 - 5.4) * rt;
+          g.beginPath();
+          g.moveTo(rmx - bnx * rw, rmy - bny * rw);
+          g.lineTo(rmx + bnx * rw, rmy + bny * rw); g.stroke();
+        }
         g.strokeStyle = HCL; g.lineWidth = 1.3;
         g.beginPath();
-        g.moveTo(caW[0] - 8.4, caW[1] + 6);
-        g.quadraticCurveTo(caW[0] - 14.4, caW[1] + 12, caW[0] - 7.4, caW[1] + 17.6); g.stroke();
+        g.moveTo(bP0[0] - bnx * 6.4, bP0[1] - bny * 6.4);
+        g.lineTo(bP1[0] - bnx * 5.2, bP1[1] - bny * 5.2); g.stroke();
         g.lineCap = 'butt';
+        sbPin(bP0, 4.4);
+        // louvre panel capping the lattice - the sprite's red slatted box
+        var lvX = bP1[0] + 4, lvY = bP1[1] - 2;
+        g.fillStyle = HC;
+        g.beginPath();
+        g.moveTo(lvX - 12, lvY - 4); g.lineTo(lvX + 8, lvY - 12);
+        g.lineTo(lvX + 12, lvY + 8); g.lineTo(lvX - 8, lvY + 16);
+        g.closePath(); g.fill(); outline(g, HCD);
+        g.strokeStyle = '#15181c'; g.lineWidth = 2.0;     // dark slats across the panel
+        for (var lsA = 1; lsA < 6; lsA++) {
+          var lst = lsA / 6;
+          g.beginPath();
+          g.moveTo(lvX - 12 + 4 * lst, lvY - 4 + 20 * lst);
+          g.lineTo(lvX + 8 + 4 * lst, lvY - 12 + 20 * lst); g.stroke();
+        }
+        g.strokeStyle = HCD; g.lineWidth = 1.6;           // frame
+        g.beginPath();
+        g.moveTo(lvX - 12, lvY - 4); g.lineTo(lvX + 8, lvY - 12);
+        g.lineTo(lvX + 12, lvY + 8); g.lineTo(lvX - 8, lvY + 16);
+        g.closePath(); g.stroke();
+        g.strokeStyle = HCL; g.lineWidth = 1.4;
+        g.beginPath();
+        g.moveTo(lvX - 12, lvY - 4); g.lineTo(lvX + 8, lvY - 12); g.stroke();
 
-        // front-left clutter: duct run, a brass tank and fuel drums.
-        cylinder(g, cx - fw * 0.72, baseY + fh * 0.26, 9, 12, SGUN, SGUN_L, SSTL_D);
-        cylinder(g, cx - fw * 0.60, baseY + fh * 0.38, 7, 8, '#4e535a', SGUN_L, SSTL_D);
-        drums(g, cx - fw * 0.42, baseY + fh * 0.58, 3, '#8a6a2a');
+        // ---- front-left clutter --------------------------------------------
+        cylinder(g, cx - fw * 0.78, baseY + fh * 0.24, 8, 12, SGUN, SGUN_L, SSTL_D);
+        cylinder(g, cx - fw * 0.66, baseY + fh * 0.38, 6.4, 8, '#4e535a', SGUN_L, SSTL_D);
+        drums(g, cx - fw * 0.46, baseY + fh * 0.62, 3, '#5c5340');
+        drums(g, cx + fw * 0.02, baseY + fh * 0.78, 2, '#8a6a2a');
+        isoBox(g, cx - fw * 0.16, baseY + fh * 0.66, 16, 11, 5, 0, '#4a4436', '#241f16');
+
+        // hammer-and-sickle stencilled on the open gold pad, drawn last so
+        // none of the machinery buries it.
+        var emP = padPt(0.34, 0.92);
+        var emX = emP[0], emY = emP[1];
+        g.strokeStyle = HC; g.lineWidth = 3.4; g.lineCap = 'round';
+        g.beginPath();                                    // sickle blade
+        g.moveTo(emX - 8, emY - 7);
+        g.bezierCurveTo(emX + 5, emY - 10, emX + 9, emY + 3, emX - 1, emY + 8);
+        g.stroke();
+        g.beginPath();                                    // sickle haft
+        g.moveTo(emX - 8, emY - 7); g.lineTo(emX - 6, emY + 9); g.stroke();
+        g.beginPath();                                    // hammer shaft
+        g.moveTo(emX + 7, emY - 8); g.lineTo(emX - 1, emY + 9); g.stroke();
+        g.lineWidth = 4.0;
+        g.beginPath();                                    // hammer head
+        g.moveTo(emX + 2, emY - 10); g.lineTo(emX + 10, emY - 6); g.stroke();
+        g.strokeStyle = HCL; g.lineWidth = 1.2;
+        g.beginPath();
+        g.moveTo(emX - 8, emY - 8.4);
+        g.bezierCurveTo(emX + 5, emY - 11.4, emX + 9, emY + 1.6, emX - 1, emY + 6.6);
+        g.stroke();
+        g.lineCap = 'butt';
 
       } else {
         // ---- Allied Construction Yard -------------------------------------
-        // From the sprite: a gunmetal deck filling the plot edge to edge, a
-        // SILVER corrugated barrel hall low across the right, two big curved
-        // roof fins and a pair of spoked turbine fans on the cowl beside it,
-        // a white louvred shutter in a dark gable, and a banded mast crane at
-        // the front-left throwing a brass lattice jib out over the deck.
-        // The fins, the mast cap, the gable chevron, the wall panel and the
-        // deck band are the ONLY saturated colour, and all of them are `col`.
-        var DKB = '#343941', DKB_D = '#1c1f25';   // neutral gunmetal deck
-        var HULL = '#434952', HULL_D = '#282c33'; // hall walls
-        var SIL = '#c3c7ce', SIL_D = '#63666e';   // silver corrugation
+        // Reference reading: a DARK OLIVE deck laced with amber rail runs, a
+        // recessed black bay and bollards - no painted ring anywhere. On it,
+        // a low silver barrel hall whose skin is dozens of THIN bright ribs,
+        // its near gable a dark arch filled with a fine white louvre shutter
+        // under a chevron badge. Behind the arch, three tall curved fins and
+        // grey blades between them; two spoked fans sunk into the crown; two
+        // stacks; and at the front left a banded mast crane - cap drum, glass
+        // waist, cog ring, base drum - throwing an amber lattice jib out to a
+        // claw that HANGS over the deck.
+        var DKB = '#4a5044', DKB_D = '#23271f';   // olive deck
+        var HULL = '#3f444c', HULL_D = '#23262c'; // hall walls
+        var SIL = '#c9cdd4', SIL_D = '#5d6068';   // silver skin
+        var SILH = '#f0f2f6';                     // rib highlight
         var GUN = '#5b616a', GUN_D = '#2b2f35';   // machinery grey
-        var AYEL = '#d8a23c', AYEL_L = '#f4cf80', AYEL_D = '#6a4a12'; // brass crane
-        var AWHT = '#e8eaee', ARAIL = '#a8823c';  // shutter white, brass rail
+        var AYEL = '#d8a23c', AYEL_L = '#f4cf80', AYEL_D = '#6a4a12'; // amber
+        var AWHT = '#eef0f4', ARAIL = '#c07a2e';  // shutter white, amber rail
 
-        // gunmetal deck filling the whole plot, with a painted player band.
+        // ---- deck: mottled olive platform, no painted band -----------------
         diamond(g, cx, baseY - 3, fw * 1.96, fh * 1.96);
         g.fillStyle = DKB; g.fill(); outline(g, DKB_D);
-        diamond(g, cx, baseY - 3, fw * 1.90, fh * 1.90);
-        g.fillStyle = HCM; g.fill(); outline(g, HCD);
-        diamond(g, cx, baseY - 3, fw * 1.74, fh * 1.74);
-        g.fillStyle = DKB; g.fill(); outline(g, HCL);
-        g.save(); diamond(g, cx, baseY - 3, fw * 1.74, fh * 1.74); g.clip();
-        g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1;
-        for (var dkS = -0.5; dkS < 0.6; dkS += 0.5) {
+        g.save(); diamond(g, cx, baseY - 3, fw * 1.96, fh * 1.96); g.clip();
+        srand(917);
+        for (var mtA = 0; mtA < 22; mtA++) {              // worn plate mottling
+          var mta = rnd() * 6.283, mtr = Math.sqrt(rnd());
+          g.fillStyle = rnd() < 0.5 ? shade(DKB, 0.80) : shade(DKB, 1.18);
+          g.globalAlpha = 0.34;
           g.beginPath();
-          g.moveTo(cx + dkS * fw - fw, baseY - 3 + dkS * fh);
-          g.lineTo(cx + dkS * fw + fw, baseY - 3 + dkS * fh); g.stroke();
+          g.ellipse(cx + Math.cos(mta) * mtr * fw * 0.9,
+                    baseY - 3 + Math.sin(mta) * mtr * fh * 0.9,
+                    5 + rnd() * 9, 3 + rnd() * 4, 0, 0, 6.29);
+          g.fill();
+        }
+        g.globalAlpha = 1;
+        var dkPt = function (du, dv) {
+          return [cx + (du - dv) * fw * 0.5, baseY - 3 + (du + dv) * fh * 0.5];
+        };
+        // recessed black bay in the middle of the deck, framed in amber
+        var bq = [dkPt(-0.22, -0.06), dkPt(0.38, -0.06), dkPt(0.38, 0.54), dkPt(-0.22, 0.54)];
+        g.beginPath(); g.moveTo(bq[0][0], bq[0][1]);
+        for (var bqA = 1; bqA < 4; bqA++) g.lineTo(bq[bqA][0], bq[bqA][1]);
+        g.closePath(); g.fillStyle = '#1b1f19'; g.fill();
+        g.strokeStyle = ARAIL; g.lineWidth = 1.6; g.stroke();
+        g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 1;
+        g.beginPath(); g.moveTo(bq[0][0], bq[0][1] + 2); g.lineTo(bq[1][0], bq[1][1] + 2); g.stroke();
+        // two amber rail runs with sleepers and capped bollards
+        var railRun = function (ru, rv0, rv1) {
+          for (var rlB = -1; rlB <= 1; rlB += 2) {
+            var qa = dkPt(ru + rlB * 0.11, rv0), qb = dkPt(ru + rlB * 0.11, rv1);
+            g.strokeStyle = shade(ARAIL, 0.60); g.lineWidth = 3;
+            g.beginPath(); g.moveTo(qa[0], qa[1] + 1); g.lineTo(qb[0], qb[1] + 1); g.stroke();
+            g.strokeStyle = ARAIL; g.lineWidth = 2;
+            g.beginPath(); g.moveTo(qa[0], qa[1]); g.lineTo(qb[0], qb[1]); g.stroke();
+            g.strokeStyle = shade(ARAIL, 1.45); g.lineWidth = 0.9;
+            g.beginPath(); g.moveTo(qa[0], qa[1] - 1); g.lineTo(qb[0], qb[1] - 1); g.stroke();
+          }
+          for (var slA = 0; slA <= 5; slA++) {            // sleepers
+            var st = rv0 + (rv1 - rv0) * slA / 5;
+            var sa = dkPt(ru - 0.15, st), sb = dkPt(ru + 0.15, st);
+            g.strokeStyle = 'rgba(24,28,20,.55)'; g.lineWidth = 2;
+            g.beginPath(); g.moveTo(sa[0], sa[1]); g.lineTo(sb[0], sb[1]); g.stroke();
+          }
+          var ep = dkPt(ru, rv1);                         // capped end bollard
+          g.fillStyle = '#3a3f36';
+          g.beginPath(); g.roundRect(ep[0] - 2.4, ep[1] - 6, 4.8, 7, 1.4); g.fill();
+          g.fillStyle = '#c8ccc4';
+          g.beginPath(); g.ellipse(ep[0], ep[1] - 6, 2.8, 1.5, 0, 0, 6.29); g.fill();
+        };
+        railRun(-0.42, -0.34, 0.90);
+        railRun(0.58, -0.34, 0.90);
+        for (var xrA = 0; xrA <= 1; xrA++) {              // cross tie between the runs
+          var xa = dkPt(-0.42, 0.90 - xrA * 1.24), xb = dkPt(0.58, 0.90 - xrA * 1.24);
+          g.strokeStyle = shade(ARAIL, 0.62); g.lineWidth = 2.6;
+          g.beginPath(); g.moveTo(xa[0], xa[1] + 1); g.lineTo(xb[0], xb[1] + 1); g.stroke();
+          g.strokeStyle = ARAIL; g.lineWidth = 1.6;
+          g.beginPath(); g.moveTo(xa[0], xa[1]); g.lineTo(xb[0], xb[1]); g.stroke();
         }
         g.restore();
+        outline(g, DKB_D);
 
-        // brass-railed strip inset in the front deck (the claw's track).
-        var rlx = cx - fw * 0.22, rly = baseY + fh * 0.52;
-        diamond(g, rlx, rly, fw * 0.66, fh * 0.66);
-        g.fillStyle = shade(DKB, 1.30); g.fill(); outline(g, shade(ARAIL, 0.7));
-        g.strokeStyle = ARAIL; g.lineWidth = 1.4;
-        for (var rlI = -1; rlI <= 1; rlI += 2) {              // two rails
-          g.beginPath();
-          g.moveTo(rlx - fw * 0.31 + rlI * 4, rly + rlI * 4);
-          g.lineTo(rlx + fw * 0.31 + rlI * 4, rly + rlI * 4); g.stroke();
-        }
-        g.strokeStyle = 'rgba(168,130,60,.45)'; g.lineWidth = 1;
-        for (var slp = -2; slp <= 2; slp++) {                 // sleepers
-          var sxp = rlx + slp * 11;
-          g.beginPath(); g.moveTo(sxp - 4, rly - 4); g.lineTo(sxp + 4, rly + 4); g.stroke();
-        }
-
-        // --- main hall: LOW dark block carrying the silver barrel on top ----
-        // Spread wide and kept flat: the reference yard is 1.6 wide for every
-        // 1 tall, and the old crown/fins pushed it to 1.35.
-        var abx = cx + fw * 0.22, aby = baseY - fh * 0.06;
-        var ahw = fw * 0.66, ahh = fh * 0.66;
-        var ar0 = prism(g, abx, aby, ahw, ahh, 24, HULL, HULL_D, DKB_D);
-        facePatch(g, faceR, abx, aby, ahw, ahh, 24, 0.08, 0.92, 0.72, 0.90, HCM, null);
-        facePatch(g, faceR, abx, aby, ahw, ahh, 24, 0.08, 0.92, 0.88, 0.90, HCL, null);
-        streak(g, faceL, abx, aby, ahw, ahh, 24, 0.4, 0.9, 12, 5);
-        for (var grA = 0; grA < 3; grA++) {                   // louvred wall grilles
+        // ---- main hall: low dark block under the silver barrel -------------
+        var abx = cx + fw * 0.24, aby = baseY - fh * 0.10;
+        var ahw = fw * 0.64, ahh = fh * 0.64;
+        var ar0 = prism(g, abx, aby, ahw, ahh, 22, HULL, HULL_D, DKB_D);
+        streak(g, faceL, abx, aby, ahw, ahh, 22, 0.4, 0.9, 11, 5);
+        for (var grA = 0; grA < 3; grA++) {               // louvred wall grilles
           var gt0 = 0.16 + grA * 0.26;
-          facePatch(g, faceL, abx, aby, ahw, ahh, 24, gt0, gt0 + 0.15, 0.30, 0.66,
-                    '#22262d', DKB_D);
+          facePatch(g, faceL, abx, aby, ahw, ahh, 22, gt0, gt0 + 0.15, 0.30, 0.66,
+                    '#1e2128', DKB_D);
           for (var grB = 1; grB < 4; grB++) {
-            var ga = faceL(abx, aby, ahw, ahh, 24, gt0 + 0.01, 0.30 + grB * 0.09),
-                gb = faceL(abx, aby, ahw, ahh, 24, gt0 + 0.14, 0.30 + grB * 0.09);
+            var ga = faceL(abx, aby, ahw, ahh, 22, gt0 + 0.01, 0.30 + grB * 0.09),
+                gb = faceL(abx, aby, ahw, ahh, 22, gt0 + 0.14, 0.30 + grB * 0.09);
             g.strokeStyle = 'rgba(150,160,176,.42)'; g.lineWidth = 1.2;
             g.beginPath(); g.moveTo(ga[0], ga[1]); g.lineTo(gb[0], gb[1]); g.stroke();
           }
         }
-        pipeRun(g, faceL, abx, aby, ahw, ahh, 24, 0.94, 0.04, 0.82, 3.4, '#7d848e');
+        pipeRun(g, faceL, abx, aby, ahw, ahh, 22, 0.94, 0.04, 0.80, 3.2, '#7d848e');
 
-        // grey machinery cowl the fins and the fans stand on. The fans go on
-        // AFTER the fins so they are not buried behind them.
-        var cwx = abx - ahw * 0.50, cwy = ar0 + ahh * 0.10;
-        isoBox(g, cwx, cwy, 40, 30, 11, 0, GUN, DKB_D);
-        cylinder(g, cwx - 22, cwy - 11, 5.6, 13, '#4b525c', '#7a818c', DKB_D);   // stubby stack
-        g.fillStyle = '#12151b';
-        g.beginPath(); g.ellipse(cwx - 22, cwy - 24, 4.1, 1.8, 0, 0, 6.29); g.fill();
-        g.fillStyle = ARAIL;                                   // brass collar, was fixed blue
-        g.fillRect(cwx - 27.6, cwy - 15, 11.2, 3);
+        // grey cowl the fins, fans and stacks stand on
+        var cwx = abx - ahw * 0.44, cwy = ar0 + ahh * 0.12;
+        isoBox(g, cwx, cwy, 42, 32, 10, 0, GUN, DKB_D);
 
-        // the barrel vault itself, sitting to the right of the cowl
-        var vx = abx + ahw * 0.28, vy = ar0 + ahh * 0.16;
-        var vhw = ahw * 0.76, vhh = ahh * 0.76, vri = 27;
-        vault(g, vx, vy, vhw, vhh, vri, SIL, SIL_D);
-        g.fillStyle = shade(SIL, 0.62);                       // grey intake lips on the crown
-        for (var irA = 0; irA < 3; irA++) {
-          var irt = -0.40 + irA * 0.40;
+        // ---- the barrel: many THIN bright ribs, gable to the FRONT-LEFT ----
+        // The shared vault() bands the tube in eight fat strips; the sprite's
+        // skin is dozens of narrow ribs with a hard white highlight on each,
+        // so this hall gets its own skin, and its axis runs down-LEFT so the
+        // arch faces the camera the way the reference does.
+        var vx = abx + ahw * 0.14, vy = ar0 + ahh * 0.10;
+        var vhw = ahw * 0.86, vhh = ahh * 0.86, vri = 26;
+        var vPt = function (sv, wv, zv) {                 // sv along axis, wv across
+          return [vx - sv * vhw * 0.5 + wv * vhw * 0.5,
+                  vy + sv * vhh * 0.5 + wv * vhh * 0.5 - zv];
+        };
+        var vBand = function (sgn, u0, u1, fill) {
+          var w0 = sgn * Math.cos(u0 * Math.PI / 2), w1 = sgn * Math.cos(u1 * Math.PI / 2);
+          var z0 = vri * Math.sin(u0 * Math.PI / 2), z1 = vri * Math.sin(u1 * Math.PI / 2);
+          var pa = vPt(-1, w0, z0), pb = vPt(1, w0, z0), pc = vPt(1, w1, z1), pd = vPt(-1, w1, z1);
           g.beginPath();
-          g.ellipse(vx + irt * vhw / 2, vy + irt * vhh / 2 - vri + 1, 4.4, 2.3, 0, 0, 6.29);
-          g.fill(); outline(g, '#2a2e38');
+          g.moveTo(pa[0], pa[1]); g.lineTo(pb[0], pb[1]);
+          g.lineTo(pc[0], pc[1]); g.lineTo(pd[0], pd[1]);
+          g.closePath(); g.fillStyle = fill; g.fill();
+        };
+        for (var vbA = 0; vbA < 9; vbA++)                 // far slope, in shade
+          vBand(-1, vbA / 9, (vbA + 1) / 9, shade(SIL, 0.56 + 0.26 * (vbA / 9)));
+        for (vbA = 8; vbA >= 0; vbA--)                    // near slope, lit to the crown
+          vBand(1, vbA / 9, (vbA + 1) / 9, shade(SIL, 0.80 + 0.34 * (vbA / 9)));
+        var NRIB = 19;
+        for (var vrA = 0; vrA <= NRIB; vrA++) {           // fine ribs, hard highlights
+          var vrt = -1 + 2 * vrA / NRIB;
+          var qA = vPt(vrt, 1, 0), qB = vPt(vrt, 0, vri), qC = vPt(vrt, -1, 0);
+          g.strokeStyle = 'rgba(40,46,58,.26)'; g.lineWidth = 1;
+          g.beginPath(); g.moveTo(qA[0], qA[1]);
+          g.quadraticCurveTo(qB[0], qB[1] - 1.6, qC[0], qC[1]); g.stroke();
+          g.strokeStyle = SILH; g.lineWidth = 1.4;
+          g.beginPath(); g.moveTo(qA[0] - 1.4, qA[1] - 0.4);
+          g.quadraticCurveTo(qB[0] - 1.4, qB[1] - 2.0, qC[0] - 1.4, qC[1] - 0.4); g.stroke();
         }
+        g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2.2;   // crown gloss
+        var cgA = vPt(-1, 0.10, vri), cgB = vPt(1, 0.10, vri);
+        g.beginPath(); g.moveTo(cgA[0], cgA[1]); g.lineTo(cgB[0], cgB[1]); g.stroke();
+        // far end: a shorter second drum closing the hall to the right
+        var fdA = vPt(-1, 1, 0), fdB = vPt(-1, -1, 0), fdC = vPt(-1, 0, vri);
+        g.beginPath();
+        g.moveTo(fdA[0], fdA[1]);
+        g.quadraticCurveTo(fdA[0] + (fdC[0] - fdA[0]) * 0.35, fdC[1] + 2, fdC[0], fdC[1]);
+        g.quadraticCurveTo(fdB[0] + (fdC[0] - fdB[0]) * 0.35, fdC[1] + 2, fdB[0], fdB[1]);
+        g.closePath(); g.fillStyle = shade(SIL, 0.72); g.fill(); outline(g, SIL_D);
 
-        // dark A-frame end cap: white roller shutter under a player chevron
-        var e0 = [vx, vy + vhh], e1 = [vx + vhw, vy];
-        var eap = [vx + vhw / 2, vy + vhh / 2 - vri];
-        g.beginPath();
-        g.moveTo(e0[0], e0[1]);
-        g.quadraticCurveTo(e0[0] + (eap[0] - e0[0]) * 0.35, eap[1] + 2, eap[0], eap[1]);
-        g.quadraticCurveTo(e1[0] + (eap[0] - e1[0]) * 0.35, eap[1] + 2, e1[0], e1[1]);
-        g.closePath();
-        g.fillStyle = '#343a44'; g.fill(); outline(g, DKB_D);
-        g.save(); g.clip();
-        var eLn = Math.hypot(vhw, vhh) || 1;
-        var eux = vhw / eLn, euy = -vhh / eLn;                 // along the cap's base
-        var emx = (e0[0] + e1[0]) / 2, emy = (e0[1] + e1[1]) / 2;
-        var capPt = function (sA, up) { return [emx + eux * sA, emy + euy * sA - up]; };
-        var d0 = capPt(-13, 1), d1 = capPt(13, 1), d2 = capPt(13, 17), d3 = capPt(-13, 17);
-        g.beginPath();
-        g.moveTo(d0[0], d0[1]); g.lineTo(d1[0], d1[1]);
-        g.lineTo(d2[0], d2[1]); g.lineTo(d3[0], d3[1]);
-        g.closePath();
-        g.fillStyle = AWHT; g.fill(); outline(g, '#3a4152');
-        g.strokeStyle = 'rgba(50,58,72,.60)'; g.lineWidth = 1;   // shutter louvers
-        for (var slA = 1; slA < 7; slA++) {
-          var la = capPt(-13, 1 + slA * 2.3), lb = capPt(13, 1 + slA * 2.3);
-          g.beginPath(); g.moveTo(la[0], la[1]); g.lineTo(lb[0], lb[1]); g.stroke();
-        }
-        var cvT = capPt(0, 25), cvL = capPt(-17, 17), cvR = capPt(17, 17);  // player chevron
-        g.fillStyle = HCL;
-        g.beginPath();
-        g.moveTo(cvT[0], cvT[1]); g.lineTo(cvL[0], cvL[1]);
-        g.lineTo(cvL[0] + eux * 6.5, cvL[1] + euy * 6.5 - 6.5);
-        g.lineTo(cvT[0], cvT[1] - 6.8);
-        g.lineTo(cvR[0] - eux * 6.5, cvR[1] - euy * 6.5 - 6.5);
-        g.lineTo(cvR[0], cvR[1]);
-        g.closePath(); g.fill();
-        g.fillStyle = HCM;                                     // shadow under the band
-        g.beginPath();
-        g.moveTo(cvT[0], cvT[1]); g.lineTo(cvL[0], cvL[1]);
-        g.lineTo(cvL[0] + eux * 2.4, cvL[1] + euy * 2.4 - 2.4);
-        g.lineTo(cvT[0], cvT[1] - 2.6);
-        g.lineTo(cvR[0] - eux * 2.4, cvR[1] - euy * 2.4 - 2.4);
-        g.lineTo(cvR[0], cvR[1]);
-        g.closePath(); g.fill();
-        g.restore();
-
-        // --- the two big curved roof fins - PLAYER COLOUR, the whole read ---
-        // These are the sprite's remap panels. Shorter and raked back so the
-        // silhouette stays wide, and painted in `col` instead of a fixed red
-        // that made every Allied yard look like the same player's.
-        for (var fnA = 0; fnA < 2; fnA++) {
-          var fx0 = cwx - 13 + fnA * 16, fy0 = cwy - 11 + fnA * 8;
-          var fhg = 36 - fnA * 4;
-          g.fillStyle = '#1c2028';                             // shadowed root
+        // ---- three curved fins in `col`, grey blades between --------------
+        for (var fnA = 0; fnA < 3; fnA++) {
+          var fx0 = cwx - 8 + fnA * 15, fy0 = cwy - 12 + fnA * 7;
+          var fhg = 40 - fnA * 5;
+          g.fillStyle = '#1c2028';
           g.beginPath(); g.ellipse(fx0 + 4, fy0 + 1, 7.5, 3.4, 0, 0, 6.29); g.fill();
+          if (fnA < 2) {                                  // a grey blade behind each
+            g.fillStyle = '#585f57';
+            g.beginPath();
+            g.moveTo(fx0 + 8, fy0 - 3);
+            g.quadraticCurveTo(fx0 + 12, fy0 - fhg * 0.62, fx0 + 21, fy0 - fhg - 3);
+            g.lineTo(fx0 + 28, fy0 - fhg + 2);
+            g.quadraticCurveTo(fx0 + 20, fy0 - fhg * 0.50, fx0 + 14, fy0 - 2);
+            g.closePath(); g.fill(); outline(g, '#22262c');
+          }
           g.beginPath();
           g.moveTo(fx0, fy0);
-          g.quadraticCurveTo(fx0 + 3, fy0 - fhg * 0.60, fx0 + 15, fy0 - fhg);
-          g.lineTo(fx0 + 26, fy0 - fhg + 7);
-          g.quadraticCurveTo(fx0 + 18, fy0 - fhg * 0.46, fx0 + 9, fy0 + 1);
+          g.quadraticCurveTo(fx0 + 3, fy0 - fhg * 0.60, fx0 + 14, fy0 - fhg);
+          g.lineTo(fx0 + 24, fy0 - fhg + 7);
+          g.quadraticCurveTo(fx0 + 17, fy0 - fhg * 0.46, fx0 + 9, fy0 + 1);
           g.closePath();
           g.fillStyle = HC; g.fill(); outline(g, HCD);
-          g.fillStyle = HCL;                                   // lit leading edge
+          g.fillStyle = HCL;                              // lit leading edge
           g.beginPath();
           g.moveTo(fx0 + 1, fy0 - 1);
-          g.quadraticCurveTo(fx0 + 4.4, fy0 - fhg * 0.60, fx0 + 15, fy0 - fhg + 1);
-          g.lineTo(fx0 + 19.4, fy0 - fhg + 3.6);
-          g.quadraticCurveTo(fx0 + 8.6, fy0 - fhg * 0.58, fx0 + 5, fy0 - 1);
+          g.quadraticCurveTo(fx0 + 4.4, fy0 - fhg * 0.60, fx0 + 14, fy0 - fhg + 1);
+          g.lineTo(fx0 + 18, fy0 - fhg + 3.4);
+          g.quadraticCurveTo(fx0 + 8.4, fy0 - fhg * 0.58, fx0 + 5, fy0 - 1);
           g.closePath(); g.fill();
-          g.fillStyle = HCM;                                   // shaded trailing edge
+          g.fillStyle = HCM;                              // shaded trailing edge
           g.beginPath();
-          g.moveTo(fx0 + 26, fy0 - fhg + 7);
-          g.quadraticCurveTo(fx0 + 18, fy0 - fhg * 0.46, fx0 + 9, fy0 + 1);
+          g.moveTo(fx0 + 24, fy0 - fhg + 7);
+          g.quadraticCurveTo(fx0 + 17, fy0 - fhg * 0.46, fx0 + 9, fy0 + 1);
           g.lineTo(fx0 + 6.2, fy0 + 0.6);
-          g.quadraticCurveTo(fx0 + 15.6, fy0 - fhg * 0.48, fx0 + 23, fy0 - fhg + 6.2);
+          g.quadraticCurveTo(fx0 + 14.6, fy0 - fhg * 0.48, fx0 + 21, fy0 - fhg + 6.2);
+          g.closePath(); g.fill();
+        }
+        // short `col` bars along the crown to the right, as the sprite has
+        for (var cbA = 0; cbA < 5; cbA++) {
+          var cbP = vPt(-0.20 - cbA * 0.20, 0.56, vri * 0.84);
+          g.fillStyle = HC;
+          g.beginPath();
+          g.moveTo(cbP[0] - 5, cbP[1]); g.lineTo(cbP[0] + 3, cbP[1] - 4);
+          g.lineTo(cbP[0] + 6, cbP[1] + 1); g.lineTo(cbP[0] - 2, cbP[1] + 5);
+          g.closePath(); g.fill(); outline(g, HCD);
+          g.fillStyle = HCL;
+          g.beginPath();
+          g.moveTo(cbP[0] - 5, cbP[1]); g.lineTo(cbP[0] + 3, cbP[1] - 4);
+          g.lineTo(cbP[0] + 3.6, cbP[1] - 2.6); g.lineTo(cbP[0] - 4.2, cbP[1] + 1.4);
           g.closePath(); g.fill();
         }
 
-        // Two spoked grey turbine fans set into the roof between the fins.
+        // ---- two spoked fans sunk into the crown ---------------------------
         for (var tbA = 0; tbA < 2; tbA++) {
-          var tfx = cwx - 8 + tbA * 21, tfy = cwy + 5 + tbA * 9;
-          g.fillStyle = 'rgba(0,0,0,.32)';
-          g.beginPath(); g.ellipse(tfx + 2, tfy + 3, 11, 5.8, 0, 0, 6.29); g.fill();
-          g.fillStyle = '#7b8290';                            // housing ring
+          var tfP = vPt(0.62 - tbA * 0.44, 0.20, vri * 0.94);
+          var tfx = tfP[0], tfy = tfP[1];
+          g.fillStyle = '#2b3038';                        // recessed housing
+          g.beginPath(); g.ellipse(tfx, tfy + 1, 11.4, 6.1, 0, 0, 6.29); g.fill();
+          g.fillStyle = '#868d9a';
           g.beginPath(); g.ellipse(tfx, tfy, 10.6, 5.7, 0, 0, 6.29); g.fill();
           outline(g, DKB_D);
-          g.fillStyle = '#1a1e26';                            // dark throat
+          g.fillStyle = '#14181f';
           g.beginPath(); g.ellipse(tfx, tfy - 0.7, 8.4, 4.4, 0, 0, 6.29); g.fill();
-          g.strokeStyle = '#aeb5c1'; g.lineWidth = 1.5;       // seven blades
+          g.strokeStyle = '#b6bdc9'; g.lineWidth = 1.5;   // seven blades
           for (var blA = 0; blA < 7; blA++) {
             var anA = blA * 6.283 / 7 + 0.32;
             g.beginPath(); g.moveTo(tfx, tfy - 0.7);
             g.lineTo(tfx + Math.cos(anA) * 7.9, tfy - 0.7 + Math.sin(anA) * 4.1); g.stroke();
           }
-          g.fillStyle = '#cbd0da';                            // hub
+          g.fillStyle = '#d4d9e2';
           g.beginPath(); g.ellipse(tfx, tfy - 1, 2.7, 1.6, 0, 0, 6.29); g.fill();
           outline(g, DKB_D);
-          g.strokeStyle = 'rgba(255,255,255,.32)'; g.lineWidth = 1;
-          g.beginPath(); g.ellipse(tfx, tfy - 1.3, 10.6, 5.7, 0, 3.5, 6.0); g.stroke();
         }
 
-        // banded silver tank closing the right end of the hall (reference has
-        // one, and it is what carries the massing out to the plot edge).
-        var tkx = cx + fw * 0.56, tky = baseY + fh * 0.34;
-        cylinder(g, tkx, tky, 9.5, 16, shade(SIL, 0.62), shade(SIL, 0.86), SIL_D);
-        g.strokeStyle = 'rgba(40,44,52,.45)'; g.lineWidth = 1;
-        for (var tbB = 1; tbB < 4; tbB++) {
+        // ---- the dark gable arch: white louvre shutter + chevron badge -----
+        var e0 = vPt(1, 1, 0), e1 = vPt(1, -1, 0), eap = vPt(1, 0, vri);
+        g.beginPath();                                    // gunmetal horseshoe rim
+        g.moveTo(e0[0], e0[1]);
+        g.quadraticCurveTo(e0[0] + (eap[0] - e0[0]) * 0.34, eap[1] + 2, eap[0], eap[1]);
+        g.quadraticCurveTo(e1[0] + (eap[0] - e1[0]) * 0.34, eap[1] + 2, e1[0], e1[1]);
+        g.closePath();
+        g.fillStyle = '#3b414b'; g.fill(); outline(g, '#191d23');
+        g.save(); g.clip();
+        g.strokeStyle = '#14181e'; g.lineWidth = 5;       // dark mouth rim
+        g.beginPath();
+        g.moveTo(e0[0], e0[1]);
+        g.quadraticCurveTo(e0[0] + (eap[0] - e0[0]) * 0.34, eap[1] + 2, eap[0], eap[1]);
+        g.quadraticCurveTo(e1[0] + (eap[0] - e1[0]) * 0.34, eap[1] + 2, e1[0], e1[1]);
+        g.closePath(); g.stroke();
+        var eLn = Math.hypot(e1[0] - e0[0], e1[1] - e0[1]) || 1;
+        var eux = (e1[0] - e0[0]) / eLn, euy = (e1[1] - e0[1]) / eLn;
+        var emx = (e0[0] + e1[0]) / 2, emy = (e0[1] + e1[1]) / 2;
+        var capPt = function (sA, up) { return [emx + eux * sA, emy + euy * sA - up]; };
+        var d0 = capPt(-13, 0), d1 = capPt(13, 0), d2 = capPt(13, 19), d3 = capPt(-13, 19);
+        g.beginPath();
+        g.moveTo(d0[0], d0[1]); g.lineTo(d1[0], d1[1]);
+        g.lineTo(d2[0], d2[1]); g.lineTo(d3[0], d3[1]);
+        g.closePath(); g.fillStyle = AWHT; g.fill();
+        for (var slA = 0; slA < 9; slA++) {               // fine dark slat shadows
+          var la = capPt(-13, 0.6 + slA * 2.1), lb = capPt(13, 0.6 + slA * 2.1);
+          g.strokeStyle = 'rgba(28,32,40,.85)'; g.lineWidth = 1.1;
+          g.beginPath(); g.moveTo(la[0], la[1]); g.lineTo(lb[0], lb[1]); g.stroke();
+        }
+        g.strokeStyle = 'rgba(150,158,172,.55)'; g.lineWidth = 1;   // shutter frame
+        g.beginPath();
+        g.moveTo(d0[0], d0[1]); g.lineTo(d1[0], d1[1]);
+        g.lineTo(d2[0], d2[1]); g.lineTo(d3[0], d3[1]);
+        g.closePath(); g.stroke();
+        g.restore();
+        // badge shield + PLAYER chevron, drawn on the arch face above the shutter
+        var shL = capPt(-10, 10), shR = capPt(10, 10), shT = capPt(0, 22);
+        g.beginPath();
+        g.moveTo(shL[0], shL[1]); g.lineTo(shT[0], shT[1]); g.lineTo(shR[0], shR[1]);
+        g.lineTo(shR[0] - eux * 2.4, shR[1] - euy * 2.4 - 2.4);
+        g.lineTo(shL[0] + eux * 2.4, shL[1] + euy * 2.4 - 2.4);
+        g.closePath(); g.fillStyle = '#171b22'; g.fill(); outline(g, '#7b8492');
+        var cvL = capPt(-6.6, 19), cvR = capPt(6.6, 19), cvT = capPt(0, 12);
+        g.fillStyle = HCL;                                // chevron, pointing down
+        g.beginPath();
+        g.moveTo(cvL[0], cvL[1]); g.lineTo(cvR[0], cvR[1]); g.lineTo(cvT[0], cvT[1]);
+        g.closePath(); g.fill(); outline(g, HCD);
+        g.fillStyle = HCM;
+        g.beginPath();
+        g.moveTo(cvT[0], cvT[1]); g.lineTo(cvR[0], cvR[1]);
+        g.lineTo(cvR[0] - eux * 3.4, cvR[1] - euy * 3.4 - 1.6);
+        g.closePath(); g.fill();
+
+        // ---- stacks on the cowl: one tall, one stubby ----------------------
+        cylinder(g, cwx - 21, cwy - 10, 5.6, 22, '#4b525c', '#7a818c', DKB_D);
+        g.fillStyle = '#12151b';
+        g.beginPath(); g.ellipse(cwx - 21, cwy - 32, 4.1, 1.8, 0, 0, 6.29); g.fill();
+        g.fillStyle = ARAIL; g.fillRect(cwx - 26.6, cwy - 22, 11.2, 3);
+        cylinder(g, cwx - 8, cwy + 5, 4.6, 11, '#4b525c', '#7a818c', DKB_D);   // stubby
+        g.fillStyle = '#12151b';
+        g.beginPath(); g.ellipse(cwx - 8, cwy - 6, 3.4, 1.5, 0, 0, 6.29); g.fill();
+        g.fillStyle = ARAIL; g.fillRect(cwx - 12.6, cwy, 9.2, 2.4);
+
+        // ---- right end machinery: brackets, drums, a `col` panel -----------
+        var rgx = cx + fw * 0.72, rgy = baseY + fh * 0.18;
+        isoBox(g, rgx, rgy, 22, 18, 16, 0, '#31363e', '#171a1f');
+        isoBox(g, rgx - 12, rgy + 8, 14, 12, 9, 0, '#454b54', '#191d22');
+        g.fillStyle = HC;                                 // painted end panel
+        g.beginPath();
+        g.moveTo(rgx - 4, rgy - 16); g.lineTo(rgx + 5, rgy - 20);
+        g.lineTo(rgx + 5, rgy - 8); g.lineTo(rgx - 4, rgy - 4);
+        g.closePath(); g.fill(); outline(g, HCD);
+        g.fillStyle = HCL;
+        g.beginPath();
+        g.moveTo(rgx - 4, rgy - 16); g.lineTo(rgx + 5, rgy - 20);
+        g.lineTo(rgx + 5, rgy - 18.4); g.lineTo(rgx - 4, rgy - 14.4);
+        g.closePath(); g.fill();
+        isoBox(g, rgx + 12, rgy - 2, 12, 10, 13, 0, '#6a7280', '#232830');  // pale bracket
+        g.strokeStyle = '#4a5058'; g.lineWidth = 2.2;     // two tie rods, not scratches
+        for (var brA = 0; brA < 2; brA++) {
           g.beginPath();
-          g.moveTo(tkx - 9.5, tky - tbB * 4.2); g.lineTo(tkx + 9.5, tky - tbB * 4.2); g.stroke();
+          g.moveTo(rgx + 4, rgy - 12 + brA * 6);
+          g.lineTo(rgx + 12, rgy - 9 + brA * 6); g.stroke();
         }
-        g.fillStyle = shade(SIL, 0.94);
-        g.beginPath(); g.ellipse(tkx, tky - 16, 9.5, 4.2, 0, 0, 6.29); g.fill();
-        outline(g, SIL_D);
-        g.fillStyle = '#2b3038';                              // dark manway on the cap
-        g.beginPath(); g.ellipse(tkx + 2, tky - 17, 3.4, 1.6, 0, 0, 6.29); g.fill();
-        g.fillStyle = ARAIL;                                  // brass hoop, no fixed blue
-        g.fillRect(tkx - 9.5, tky - 13, 19, 2.4);
+        drums(g, cx + fw * 0.44, baseY + fh * 0.66, 4, '#3d4238');
+        drums(g, cx + fw * 0.62, baseY + fh * 0.54, 2, '#3d4238');
 
-        // --- banded mast crane at the front-left, brass jib, player cap -----
-        var tx3 = cx - fw * 0.60, ty3 = baseY + fh * 0.24;
-        g.fillStyle = shade(GUN, 0.72);                       // dark steel plinth
-        g.beginPath(); g.ellipse(tx3, ty3, 15, 7.5, 0, 0, 6.29); g.fill(); outline(g, GUN_D);
+        // ---- mast crane at the front left ---------------------------------
+        var tx3 = cx - fw * 0.58, ty3 = baseY + fh * 0.22;
+        g.fillStyle = 'rgba(0,0,0,.30)';
+        g.beginPath(); g.ellipse(tx3 + 3, ty3 + 4, 20, 9, 0, 0, 6.29); g.fill();
+        for (var boA = 0; boA < 9; boA++) {               // ring of deck bollards
+          var boAn = 0.10 + boA * 6.283 / 9;
+          var box2 = tx3 + Math.cos(boAn) * 17, boy2 = ty3 + Math.sin(boAn) * 8.6;
+          g.fillStyle = '#3c4139';
+          g.beginPath(); g.roundRect(box2 - 2.6, boy2 - 7, 5.2, 8, 1.5); g.fill();
+          outline(g, '#191d18');
+          g.fillStyle = '#9aa19a';
+          g.beginPath(); g.ellipse(box2, boy2 - 7, 2.8, 1.5, 0, 0, 6.29); g.fill();
+        }
+        g.fillStyle = shade(GUN, 0.66);                   // plinth
+        g.beginPath(); g.ellipse(tx3, ty3 - 2, 14.5, 7.2, 0, 0, 6.29); g.fill(); outline(g, GUN_D);
+        g.fillStyle = '#2b2f34';                          // cog-tooth slew ring
+        for (var cgC = 0; cgC < 16; cgC++) {
+          var cga = cgC * 6.283 / 16;
+          g.beginPath();
+          g.ellipse(tx3 + Math.cos(cga) * 14.6, ty3 - 3 + Math.sin(cga) * 7.3,
+                    2.0, 1.5, 0, 0, 6.29);
+          g.fill();
+        }
         g.fillStyle = GUN;
-        g.beginPath(); g.ellipse(tx3, ty3 - 3, 15, 7.5, 0, 0, 6.29); g.fill(); outline(g, GUN_D);
-        cylinder(g, tx3, ty3 - 4, 9, 20, AYEL, AYEL_L, AYEL_D);          // brass body
-        g.strokeStyle = AYEL_D; g.lineWidth = 1;
-        for (var ybA = 1; ybA < 4; ybA++) {
-          g.beginPath();
-          g.moveTo(tx3 - 9, ty3 - 4 - ybA * 5); g.lineTo(tx3 + 9, ty3 - 4 - ybA * 5); g.stroke();
-        }
-        cylinder(g, tx3, ty3 - 24, 9.5, 11, '#c9ced8', '#e6eaf0', DKB_D);  // silver mid band
-        cylinder(g, tx3, ty3 - 34, 10, 9, HC, HCL, HCD);     // PLAYER cap ring
-        g.beginPath();                                        // and its domed crown
-        g.moveTo(tx3 - 10, ty3 - 43);
-        g.bezierCurveTo(tx3 - 10, ty3 - 53, tx3 + 10, ty3 - 53, tx3 + 10, ty3 - 43);
-        g.closePath();
-        g.fillStyle = HC; g.fill(); outline(g, HCD);
+        g.beginPath(); g.ellipse(tx3, ty3 - 5, 13, 6.4, 0, 0, 6.29); g.fill(); outline(g, GUN_D);
+        cylinder(g, tx3, ty3 - 5, 10, 8, HCM, HC, HCD);            // PLAYER base drum
+        g.fillStyle = HCL; g.fillRect(tx3 - 10, ty3 - 12.4, 20, 1.6);
+        cylinder(g, tx3, ty3 - 13, 8, 5, AYEL, AYEL_L, AYEL_D);    // amber collar
+        cylinder(g, tx3, ty3 - 18, 6.2, 10, '#8e99ad', '#c3ccdd', '#3a4252');  // glass waist
+        g.strokeStyle = 'rgba(255,255,255,.42)'; g.lineWidth = 1.6;
         g.beginPath();
-        g.moveTo(tx3 - 8.4, ty3 - 43.6);
-        g.bezierCurveTo(tx3 - 8.4, ty3 - 51, tx3 - 1, ty3 - 51.6, tx3 - 0.6, ty3 - 43.6);
-        g.closePath();
-        g.fillStyle = HCL; g.fill();
-        g.fillStyle = '#ffcf72';                              // amber beacon on the crown
-        g.beginPath(); g.arc(tx3, ty3 - 54, 2.2, 0, 6.29); g.fill(); outline(g, AYEL_D);
+        g.moveTo(tx3 - 4.2, ty3 - 19); g.lineTo(tx3 - 4.2, ty3 - 27); g.stroke();
+        cylinder(g, tx3, ty3 - 28, 8.4, 4, AYEL, AYEL_L, AYEL_D);  // amber collar
+        cylinder(g, tx3, ty3 - 32, 10.5, 13, HC, HCL, HCD);        // PLAYER cap drum
+        g.fillStyle = '#20242b'; g.fillRect(tx3 - 10.5, ty3 - 41, 21, 2.4);
+        g.fillStyle = HCM; g.fillRect(tx3 - 10.5, ty3 - 38.6, 21, 2);
+        cylinder(g, tx3, ty3 - 45, 7.5, 4, '#c9ced8', '#eef1f6', DKB_D);      // silver crown
+        g.fillStyle = '#ffcf72';                          // amber beacon
+        g.beginPath(); g.arc(tx3, ty3 - 52, 2.2, 0, 6.29); g.fill(); outline(g, AYEL_D);
         g.fillStyle = 'rgba(255,214,130,.20)';
-        g.beginPath(); g.ellipse(tx3, ty3 - 54, 6.5, 3.4, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(tx3, ty3 - 52, 6.5, 3.4, 0, 0, 6.29); g.fill();
 
-        // brass lattice jib out to a dangling open claw over the rail strip
-        var jA = [tx3 + 6, ty3 - 39], jB = [tx3 + 29, ty3 - 31], jC = [tx3 + 50, ty3 - 20];
-        lattice(g, jA[0], jA[1], jB[0], jB[1], 10, AYEL);
+        // amber lattice jib out to a claw that HANGS clear of the deck
+        var jA = [tx3 + 8, ty3 - 36], jB = [tx3 + 31, ty3 - 30], jC = [tx3 + 53, ty3 - 24];
+        lattice(g, jA[0], jA[1], jB[0], jB[1], 11, AYEL);
         lattice(g, jB[0], jB[1], jC[0], jC[1], 8, AYEL);
-        g.strokeStyle = AYEL_L; g.lineWidth = 1.6;
-        g.beginPath(); g.moveTo(jA[0], jA[1] - 4); g.lineTo(jB[0], jB[1] - 4); g.stroke();
-        g.beginPath(); g.moveTo(jB[0], jB[1] - 4); g.lineTo(jC[0], jC[1] - 3); g.stroke();
-        g.strokeStyle = '#8f96a2'; g.lineWidth = 1;            // hoist cable
-        g.beginPath(); g.moveTo(jC[0], jC[1]); g.lineTo(jC[0] + 2, jC[1] + 14); g.stroke();
-        var clx = jC[0] + 2, cly = jC[1] + 14;                 // open two-prong claw
-        g.fillStyle = 'rgba(0,0,0,.28)';
-        g.beginPath(); g.ellipse(clx + 3, rly - 2, 10, 4.6, 0, 0, 6.29); g.fill();
-        g.beginPath();
+        g.strokeStyle = AYEL_L; g.lineWidth = 1.7;
+        g.beginPath(); g.moveTo(jA[0], jA[1] - 4.6); g.lineTo(jB[0], jB[1] - 4.6); g.stroke();
+        g.beginPath(); g.moveTo(jB[0], jB[1] - 4); g.lineTo(jC[0], jC[1] - 3.4); g.stroke();
+        g.strokeStyle = AYEL_D; g.lineWidth = 1.4;        // tie-back to the mast head
+        g.beginPath(); g.moveTo(tx3 + 3, ty3 - 46); g.lineTo(jC[0], jC[1] - 4); g.stroke();
+        g.strokeStyle = '#8f96a2'; g.lineWidth = 1;       // hoist rope
+        g.beginPath(); g.moveTo(jC[0], jC[1]); g.lineTo(jC[0] + 1, jC[1] + 11); g.stroke();
+        var clx = jC[0] + 1, cly = jC[1] + 11;            // open two-prong grab
+        g.fillStyle = 'rgba(0,0,0,.26)';
+        g.beginPath(); g.ellipse(clx + 4, baseY + fh * 0.18, 9, 4.2, 0, 0, 6.29); g.fill();
         g.fillStyle = AYEL;
-        g.fillRect(clx - 6, cly - 4, 12, 5);
-        g.strokeStyle = AYEL_D; g.lineWidth = 1;
-        g.strokeRect(clx - 6, cly - 4, 12, 5);
-        g.strokeStyle = AYEL; g.lineWidth = 3.4; g.lineCap = 'round';
-        g.beginPath(); g.moveTo(clx - 5, cly + 1); g.lineTo(clx - 9, cly + 11); g.stroke();
-        g.beginPath(); g.moveTo(clx + 5, cly + 1); g.lineTo(clx + 9, cly + 11); g.stroke();
-        g.strokeStyle = AYEL_L; g.lineWidth = 1.2;
-        g.beginPath(); g.moveTo(clx - 5.5, cly + 1); g.lineTo(clx - 9.5, cly + 10); g.stroke();
+        g.beginPath(); g.roundRect(clx - 6, cly - 4, 12, 5.4, 1.6); g.fill();
+        outline(g, AYEL_D);
+        g.strokeStyle = AYEL; g.lineWidth = 3.6; g.lineCap = 'round';
+        g.beginPath();
+        g.moveTo(clx - 4.6, cly + 1.4);
+        g.quadraticCurveTo(clx - 10, cly + 7, clx - 5.5, cly + 13); g.stroke();
+        g.beginPath();
+        g.moveTo(clx + 4.6, cly + 1.4);
+        g.quadraticCurveTo(clx + 10, cly + 7, clx + 5.5, cly + 13); g.stroke();
+        g.strokeStyle = AYEL_L; g.lineWidth = 1.3;
+        g.beginPath();
+        g.moveTo(clx - 6, cly + 1.4);
+        g.quadraticCurveTo(clx - 11.4, cly + 7, clx - 6.9, cly + 12.4); g.stroke();
         g.lineCap = 'butt';
-
-        crates(g, cx + fw * 0.34, baseY + fh * 0.56, 3, '#8d9288');
       }
 
     } else if (key === 'power') {
@@ -3870,7 +4053,7 @@
       //   crowned by a HUGE saluting conscript - the statue is about half the
       //   sprite and is what you name the building by.
       // Colour law: the only saturated hue on either sprite is `col`.
-      var bkPad = sov ? '#6b6248' : '#6f6b48';
+      var bkPad = sov ? '#8b8770' : '#6f6b48';
       diamond(g, cx, baseY - 2, fw * 1.92, fh * 1.92);
       g.fillStyle = bkPad; g.fill(); outline(g, shade(bkPad, 0.52));
 
@@ -3879,7 +4062,7 @@
         var vHW = fw * 0.50, vHH = fh * 0.50, vRise = 20, vLift = 7;
         var CANV = '#cfd2d8', FAB = '#9b9fae';
         // the arch frames carry the house colour - no fixed blue anywhere
-        var RIBD = shade(col, 0.32), RIBH = shade(col, 1.55);
+        var RIBD = shade(col, 0.30), RIBH = shade(col, 1.22);
         // A point on a hut's barrel: sv runs -1..1 along the axis
         // (back-left -> front-right), w across it, z up. Same parameterisation
         // as vault(), so ribs/doors/windows sit ON the surface.
@@ -3937,17 +4120,17 @@
           // proud of the canvas so they read as a frame, not a stripe. This is
           // the RA2 remap band on this building - the whole friend/foe read.
           for (var ai = 0; ai < 3; ai++) {
-            var sv = -0.98 + ai * 0.98, thick = ai === 1 ? 1.6 : 3.5;
+            var sv = -0.98 + ai * 0.98, thick = ai === 1 ? 1.4 : 3.1;
             bArch(hx, hr, sv, 1.01, RIBD, thick + 1.5);
-            bArch(hx, hr, sv, 1.01, col, thick);
-            bArch(hx, hr, sv, 1.01, RIBH, 0.9);
+            bArch(hx, hr, sv, 1.01, shade(col, 0.80), thick);
+            bArch(hx, hr, sv, 1.01, RIBH, 0.8);
             if (ai !== 1) bArch(hx, hr, sv, 0.962, 'rgba(158,131,62,.85)', 1.6);
           }
           // eaves rail along the near flank, also house colour
           var r0 = bpt(hx, hr, -1.0, 1.0, -1), r1 = bpt(hx, hr, 1.0, 1.0, -1);
-          g.strokeStyle = RIBD; g.lineWidth = 3.8;
+          g.strokeStyle = RIBD; g.lineWidth = 3.4;
           g.beginPath(); g.moveTo(r0[0], r0[1]); g.lineTo(r1[0], r1[1]); g.stroke();
-          g.strokeStyle = col; g.lineWidth = 2.2;
+          g.strokeStyle = shade(col, 0.86); g.lineWidth = 1.8;
           g.beginPath(); g.moveTo(r0[0], r0[1] - 0.5); g.lineTo(r1[0], r1[1] - 0.5); g.stroke();
           // green window slits low on the near flank
           for (var wi = 0; wi < 4; wi++) {
@@ -3983,38 +4166,38 @@
 
         // hazard plates on two pad corners, then the tower, then the huts
         // back-to-front so the echelon overlap reads.
-        apron(cx + fw * 0.44, baseY + fh * 0.26, fw * 0.20, fh * 0.20);
-        apron(cx + fw * 0.10, baseY + fh * 0.66, fw * 0.18, fh * 0.18);
+        apron(cx + fw * 0.50, baseY + fh * 0.22, fw * 0.27, fh * 0.27);
+        apron(cx + fw * 0.06, baseY + fh * 0.70, fw * 0.25, fh * 0.25);
 
         // Watch-tower: SHORT. It used to be a spire that made the whole sprite
         // 18% too tall; in the sprite it clears the hut ridges by a head, no
         // more, and the flag sits just above the dome.
         var twx = cx - fw * 0.30, twy = baseY - fh * 0.72;
         diamond(g, twx, twy + 1, 15, 8); g.fillStyle = shade(BODY, 0.62); g.fill(); outline(g, PLAT_E);
-        cylinder(g, twx, twy, 6.2, 31, shade(BODY, 0.94), shade(BODY, 1.16), PLAT_E);
+        cylinder(g, twx, twy, 5.4, 30, shade(BODY, 0.94), shade(BODY, 1.16), PLAT_E);
         g.fillStyle = col;                                     // tower band
-        g.fillRect(twx - 6.2, twy - 21, 12.4, 4);
-        g.fillStyle = shade(col, 0.55); g.fillRect(twx - 6.2, twy - 17, 12.4, 1.4);
+        g.fillRect(twx - 5.4, twy - 21, 10.8, 4.4);
+        g.fillStyle = shade(col, 0.55); g.fillRect(twx - 5.4, twy - 16.6, 10.8, 1.4);
         g.fillStyle = '#2a2e36';                               // observation collar
-        g.fillRect(twx - 7.6, twy - 31, 15.2, 5); outline(g, PLAT_E);
-        g.fillStyle = '#8fe2d6'; g.fillRect(twx - 6.2, twy - 30, 4.8, 3);   // teal glass: the
+        g.fillRect(twx - 6.8, twy - 30, 13.6, 5.4); outline(g, PLAT_E);
+        g.fillStyle = '#8fe2d6'; g.fillRect(twx - 5.6, twy - 29, 4.8, 3.2);   // teal glass: the
         //   only lit pane on the sprite, kept off the blue/red axis so a red-owner
         //   Barracks carries no blue pixel at all (and vice versa).
-        g.fillStyle = '#3c4048';                               // dark dome cap
-        g.beginPath(); g.ellipse(twx, twy - 35, 7.6, 6, 0, Math.PI, 0); g.fill(); outline(g, PLAT_E);
+        g.fillStyle = '#c8ccd2';                               // pale dome cap
+        g.beginPath(); g.ellipse(twx, twy - 34, 7.2, 6.4, 0, Math.PI, 0); g.fill(); outline(g, PLAT_E);
         g.fillStyle = 'rgba(255,255,255,.20)';
-        g.beginPath(); g.ellipse(twx - 2.2, twy - 36, 3.2, 2.6, 0, Math.PI, 0); g.fill();
+        g.beginPath(); g.ellipse(twx - 2.2, twy - 35.4, 3.0, 2.6, 0, Math.PI, 0); g.fill();
         g.strokeStyle = '#9aa0a8'; g.lineWidth = 1.5;          // short flag mast
-        g.beginPath(); g.moveTo(twx, twy - 39); g.lineTo(twx, twy - 51); g.stroke();
+        g.beginPath(); g.moveTo(twx, twy - 38); g.lineTo(twx, twy - 54); g.stroke();
         g.fillStyle = '#16181d';                               // black flag
         g.beginPath();
-        g.moveTo(twx + 1, twy - 51); g.lineTo(twx + 19, twy - 48.4);
-        g.lineTo(twx + 15, twy - 45.8); g.lineTo(twx + 19, twy - 43.2);
+        g.moveTo(twx + 1, twy - 54); g.lineTo(twx + 23, twy - 50.6);
+        g.lineTo(twx + 18, twy - 47.2); g.lineTo(twx + 23, twy - 43.8);
         g.lineTo(twx + 1, twy - 41); g.closePath(); g.fill(); outline(g, '#05060a');
         g.fillStyle = col;                                     // player field on the hoist
         g.beginPath();
-        g.moveTo(twx + 1, twy - 51); g.lineTo(twx + 7.5, twy - 50.1);
-        g.lineTo(twx + 7.5, twy - 42); g.lineTo(twx + 1, twy - 41); g.closePath(); g.fill();
+        g.moveTo(twx + 1, twy - 54); g.lineTo(twx + 9, twy - 52.8);
+        g.lineTo(twx + 9, twy - 42.3); g.lineTo(twx + 1, twy - 41); g.closePath(); g.fill();
 
         crates(g, cx - fw * 0.60, baseY - fh * 0.30, 2, '#8d9288');
         bHut(cx + fw * 0.25, baseY - fh * 0.50, true);          // back hut
@@ -4022,205 +4205,253 @@
         drums(g, cx + fw * 0.70, baseY - fh * 0.14, 3, '#4a5048');
 
       } else {
-        // ---- Soviet Barracks --------------------------------------------
-        // A LOW two-storey poured-concrete block that fills its footprint,
-        // with a HUGE saluting conscript on a squat plinth near the centre-
-        // back of the roof. The statue is ~47% of the sprite: it is the
-        // silhouette, and the block is just the pedestal it stands on.
-        // House colour lives on the roof frieze, the door frame, the two
-        // banners, the plinth star and the pennant - no fixed red anywhere.
-        var SC = '#7a7266', SCD = '#4e483e', SCT = '#26282c';
-        var bw = fw * 0.92, bh = fh * 0.92, bLift = 28, byB = baseY + fh * 0.12;
-        var tp = 0.93;                                          // wall batter
-        var Wb = [cx - bw, byB], Sb = [cx, byB + bh], Eb = [cx + bw, byB];
-        var topY = byB - bLift;
-        var Wt = [cx - bw * tp, topY], St = [cx, topY + bh * tp], Et = [cx + bw * tp, topY];
-        var lerp2 = function (a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; };
-        var bL = function (t, v) { return lerp2(lerp2(Wb, Sb, t), lerp2(Wt, St, t), v); };
-        var bR = function (t, v) { return lerp2(lerp2(Sb, Eb, t), lerp2(St, Et, t), v); };
-        var bQuad = function (F, t0, t1, v0, v1, fill, edge) {
-          var a = F(t0, v0), b2 = F(t1, v0), c2 = F(t1, v1), d2 = F(t0, v1);
-          g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b2[0], b2[1]);
-          g.lineTo(c2[0], c2[1]); g.lineTo(d2[0], d2[1]); g.closePath();
+        // ---- Soviet Barracks: THE MONUMENT ------------------------------
+        // Rebuilt against the real SHP, which is not a bunker at all: it is a
+        // giant cast-steel conscript standing at attention on a stepped
+        // plinth, rifle held vertically against his right shoulder with the
+        // bayonet clearing his head. The statue is ~60% of the sprite and the
+        // sprite is TALL (w/h ~0.57) - that silhouette IS the building. The
+        // "barracks" part is only the low doorway and machinery wrapped
+        // around the plinth's base.
+        // Colour law: the ONLY saturated hue is `col` - the cap's corner
+        // buttresses, the two hammer-and-sickle plaques and the door frame.
+        // The statue is steel, the plinth stone and rusted copper beams.
+        var SVS = '#9b9884', SVSD = '#4a473a';           // apron stone / its edge
+        var BEAM = '#7c6a4c', BEAML = '#a08b66';         // rusted copper beams
+        var PILL = '#9d8271', PILLL = '#bb9d8a';         // salmon pilasters
+        var SLAB = '#75756e', SLABD = '#33332e';         // steel cap / plaques
+
+        // Stone apron: a stepped stone raft, palest thing on the sprite, with
+        // three flush drain plates. It is what the statue's mass sits on.
+        diamond(g, cx, baseY - 4, fw * 1.86, fh * 1.86);
+        g.fillStyle = shade(SVS, 1.10); g.fill(); outline(g, SVSD);
+        g.strokeStyle = 'rgba(0,0,0,.20)'; g.lineWidth = 1;
+        diamond(g, cx, baseY - 5.5, fw * 1.62, fh * 1.62); g.stroke();
+        var grate = function (gx0, gy0, gw0) {
+          diamond(g, gx0, gy0, gw0, gw0 * 0.5);
+          g.fillStyle = shade(SLAB, 0.86); g.fill(); outline(g, SVSD);
+          diamond(g, gx0, gy0 - 0.8, gw0 * 0.62, gw0 * 0.31);
+          g.fillStyle = shade(SLAB, 1.16); g.fill();
+        };
+        grate(cx - fw * 0.76, baseY - fh * 0.06, 17);
+        grate(cx + fw * 0.78, baseY - fh * 0.10, 15);
+        grate(cx + fw * 0.20, baseY + fh * 0.76, 16);
+
+        // --- stepped plinth: a truncated pyramid ---------------------------
+        // Two visible sloped faces. Each is a frame of copper corner beams and
+        // salmon pilasters around one big plaque: the left plaque is the
+        // DOORWAY (this is still a barracks), the right one is solid.
+        var pw0 = fw * 0.78, ph0 = fh * 0.78, pw1 = fw * 0.44, ph1 = fh * 0.44;
+        var pyB = baseY + fh * 0.08, pyH = 44, pyT = pyB - pyH;
+        var Pwb = [cx - pw0, pyB], Psb = [cx, pyB + ph0], Peb = [cx + pw0, pyB];
+        var Pwt = [cx - pw1, pyT], Pst = [cx, pyT + ph1], Pet = [cx + pw1, pyT];
+        var lerpP = function (a, b2, t) { return [a[0] + (b2[0] - a[0]) * t, a[1] + (b2[1] - a[1]) * t]; };
+        var mL = function (t, v) { return lerpP(lerpP(Pwb, Psb, t), lerpP(Pwt, Pst, t), v); };
+        var mR = function (t, v) { return lerpP(lerpP(Psb, Peb, t), lerpP(Pst, Pet, t), v); };
+        var mQuad = function (F, t0, t1, v0, v1, fill, edge) {
+          var q0 = F(t0, v0), q1 = F(t1, v0), q2 = F(t1, v1), q3 = F(t0, v1);
+          g.beginPath(); g.moveTo(q0[0], q0[1]); g.lineTo(q1[0], q1[1]);
+          g.lineTo(q2[0], q2[1]); g.lineTo(q3[0], q3[1]); g.closePath();
           if (fill) { g.fillStyle = fill; g.fill(); }
           if (edge) outline(g, edge);
         };
-        // shadow the block casts on its own pad
-        g.fillStyle = 'rgba(0,0,0,.22)';
-        diamond(g, cx + 4, byB + 3, bw * 2.02, bh * 2.02); g.fill();
-        bQuad(bL, 0, 1, 0, 1, SC, SCD);                         // lit wall
-        bQuad(bR, 0, 1, 0, 1, shade(SC, 0.72), SCD);            // shaded wall
-        for (var fc = 1; fc < 3; fc++) {                        // formwork courses
-          var fv = fc / 3;
-          var la = bL(0, fv), lb = bL(1, fv), ra = bR(0, fv), rb = bR(1, fv);
-          g.strokeStyle = 'rgba(0,0,0,.24)'; g.lineWidth = 1;
-          g.beginPath(); g.moveTo(la[0], la[1]); g.lineTo(lb[0], lb[1]); g.stroke();
-          g.beginPath(); g.moveTo(ra[0], ra[1]); g.lineTo(rb[0], rb[1]); g.stroke();
-          g.strokeStyle = 'rgba(255,255,255,.10)';
-          g.beginPath(); g.moveTo(la[0], la[1] + 1.2); g.lineTo(lb[0], lb[1] + 1.2); g.stroke();
-          g.beginPath(); g.moveTo(ra[0], ra[1] + 1.2); g.lineTo(rb[0], rb[1] + 1.2); g.stroke();
-        }
-        // two storeys of slit windows - the horizontal repetition is what
-        // sells "low and wide"
-        for (var sw2 = 0; sw2 < 6; sw2++) {
-          bQuad(bL, 0.055 + sw2 * 0.118, 0.100 + sw2 * 0.118, 0.30, 0.52, '#2b2f34', SCD);
-          bQuad(bR, 0.085 + sw2 * 0.118, 0.130 + sw2 * 0.118, 0.30, 0.52, '#23272c', SCD);
-          bQuad(bL, 0.055 + sw2 * 0.118, 0.100 + sw2 * 0.118, 0.58, 0.78, '#2b2f34', SCD);
-          bQuad(bR, 0.085 + sw2 * 0.118, 0.130 + sw2 * 0.118, 0.58, 0.78, '#23272c', SCD);
-        }
-        // HOUSE-COLOUR FRIEZE right under the roofline, all the way round.
-        // This band is the friend/foe read at a glance - a lone banner was
-        // never enough to tell two players' blocks apart.
-        bQuad(bL, 0, 1, 0.790, 0.960, col, shade(col, 0.40));
-        bQuad(bR, 0, 1, 0.790, 0.960, shade(col, 0.74), shade(col, 0.40));
-        bQuad(bL, 0, 1, 0.955, 1.0, SCT, SCD);                  // dark cornice over it
-        bQuad(bR, 0, 1, 0.955, 1.0, shade(SCT, 0.8), SCD);
-        // wide low doorway with a heavy house-colour surround
-        bQuad(bL, 0.355, 0.685, 0.00, 0.36, col, shade(col, 0.42));
-        bQuad(bL, 0.390, 0.650, 0.00, 0.295, '#191b1d', '#0d0f11');
-        bQuad(bL, 0.390, 0.650, 0.240, 0.295, 'rgba(255,190,90,.26)', null);
-        bQuad(bL, 0.330, 0.710, 0.36, 0.425, SCT, SCD);         // lintel hood
-        // banners: one hung on each wall, so the colour reads from both sides
-        bQuad(bR, 0.575, 0.725, 0.06, 0.80, shade(col, 0.62), '#1c1e20');
-        bQuad(bR, 0.595, 0.705, 0.09, 0.77, col, null);
-        bQuad(bL, 0.075, 0.225, 0.06, 0.80, shade(col, 0.78), '#1c1e20');
-        bQuad(bL, 0.095, 0.205, 0.09, 0.77, col, null);
-        // roof deck + stepped parapet (deck must not be the darkest plane)
-        diamond(g, cx, topY, bw * tp * 2, bh * tp * 2);
-        g.fillStyle = '#8b8477'; g.fill(); outline(g, SCD);
-        var deckY = prism(g, cx, topY, bw * tp * 0.99, bh * tp * 0.99, 4, '#3c3f44', '#7f786b', '#171a1c');
-        var BW = bw * tp, BH = bh * tp;
-        // --- squat plinth + conscript statue: the whole identity -----------
-        var stx = cx - BW * 0.14, sty = deckY + BH * 0.10;
-        var plr = prism(g, stx, sty, fw * 0.21, fh * 0.21, 9, '#6f695b', '#8a8476', '#3a352c');
-        g.fillStyle = col;                                       // house-colour star,
-        var stpx = stx - fw * 0.105, stpy = sty - 1.0;            // on the LIT face so
-        g.beginPath();                                            // the legs never hide it
-        for (var sp3 = 0; sp3 < 10; sp3++) {
-          var rr4 = sp3 % 2 ? 2.8 : 6.4, aa4 = -Math.PI / 2 + sp3 * Math.PI / 5;
-          g[sp3 ? 'lineTo' : 'moveTo'](stpx + Math.cos(aa4) * rr4, stpy + Math.sin(aa4) * rr4 * 0.62);
-        }
-        g.closePath(); g.fill(); outline(g, shade(col, 0.42));
+        // hammer-and-sickle, drawn as strokes so it survives at 1:1
+        var sickle = function (hx3, hy3, sz, colr) {
+          g.lineCap = 'round'; g.lineJoin = 'round';
+          g.strokeStyle = colr; g.lineWidth = sz * 0.20;
+          g.beginPath();                                    // sickle blade: a U opening up
+          g.arc(hx3 - sz * 0.04, hy3 - sz * 0.02, sz * 0.46,
+                Math.PI * 0.08, Math.PI * 1.02, false);
+          g.stroke();
+          g.beginPath();                                    // its handle, down-left
+          g.moveTo(hx3 - sz * 0.49, hy3 - sz * 0.05);
+          g.lineTo(hx3 - sz * 0.62, hy3 + sz * 0.42); g.stroke();
+          g.lineWidth = sz * 0.19;                          // hammer shaft, crossing it
+          g.beginPath();
+          g.moveTo(hx3 - sz * 0.30, hy3 + sz * 0.50);
+          g.lineTo(hx3 + sz * 0.28, hy3 - sz * 0.40); g.stroke();
+          g.lineWidth = sz * 0.32;                          // hammer head
+          g.beginPath();
+          g.moveTo(hx3 + sz * 0.10, hy3 - sz * 0.60);
+          g.lineTo(hx3 + sz * 0.52, hy3 - sz * 0.24); g.stroke();
+        };
+        // shadow the plinth casts on its own raft
+        g.fillStyle = 'rgba(0,0,0,.26)';
+        diamond(g, cx + 4, pyB + 3, pw0 * 2.04, ph0 * 2.04); g.fill();
+        mQuad(mL, 0, 1, 0, 1, '#5f5a46', '#2e2b22');        // lit face, in shadow gaps
+        mQuad(mR, 0, 1, 0, 1, '#453f31', '#2e2b22');        // shaded face
+        var pFace = function (F, lit, doorway) {
+          var k2 = lit ? 1 : 0.74;
+          // corner beams, sloping with the batter
+          mQuad(F, 0.00, 0.115, 0, 1, shade(BEAM, k2), '#2e2b22');
+          mQuad(F, 0.885, 1.00, 0, 1, shade(BEAM, k2 * 0.88), '#2e2b22');
+          mQuad(F, 0.015, 0.055, 0, 1, shade(BEAML, k2), null);
+          // pilasters framing the plaque
+          mQuad(F, 0.185, 0.300, 0, 1, shade(PILL, k2), '#3a3128');
+          mQuad(F, 0.700, 0.815, 0, 1, shade(PILL, k2 * 0.92), '#3a3128');
+          mQuad(F, 0.205, 0.245, 0, 1, shade(PILLL, k2), null);
+          mQuad(F, 0.720, 0.760, 0, 1, shade(PILLL, k2 * 0.92), null);
+          // the plaque
+          mQuad(F, 0.310, 0.690, 0.04, 0.88, shade(col, k2 * 0.70), shade(col, 0.36));
+          mQuad(F, 0.345, 0.655, 0.085, 0.845, shade(SLAB, k2 * 1.30), 'rgba(0,0,0,.40)');
+          var e0 = F(0.50, doorway ? 0.56 : 0.47);
+          sickle(e0[0], e0[1], doorway ? 19 : 16, shade(col, k2 * 1.04));
+          if (doorway) {                                    // the barracks door
+            mQuad(F, 0.360, 0.640, 0.09, 0.15, shade(col, 0.86), shade(col, 0.42));
+            mQuad(F, 0.400, 0.600, 0.00, 0.115, '#15171a', '#0b0d0f');
+            mQuad(F, 0.400, 0.600, 0.075, 0.115, 'rgba(255,186,88,.30)', null);
+          }
+          // lintel course under the cap and a sill at the ground
+          mQuad(F, 0, 1, 0.885, 1.00, shade(col, k2 * 0.86), shade(col, 0.38));
+          mQuad(F, 0, 1, 0.885, 0.915, shade(col, k2 * 1.20), null);
+          mQuad(F, 0, 1, 0.00, 0.045, shade('#575040', k2), '#2c2921');
+        };
+        pFace(mL, true, true);
+        pFace(mR, false, false);
+        // machinery bundle tucked into the front corner: ribbed pipe runs
+        var mach = function (mx, my, ml, mh) {
+          g.fillStyle = shade(SLAB, 0.80);
+          g.beginPath(); g.ellipse(mx, my, ml, mh, 0, 0, 6.29); g.fill();
+          outline(g, SLABD);
+          g.strokeStyle = 'rgba(0,0,0,.34)'; g.lineWidth = 1;
+          for (var mi = -2; mi <= 2; mi++) {
+            g.beginPath();
+            g.ellipse(mx + mi * ml * 0.33, my, ml * 0.10, mh * 0.94, 0, 0, 6.29); g.stroke();
+          }
+          g.fillStyle = 'rgba(255,255,255,.18)';
+          g.beginPath(); g.ellipse(mx, my - mh * 0.42, ml * 0.86, mh * 0.28, 0, 0, 6.29); g.fill();
+        };
+        mach(cx + fw * 0.38, pyB + fh * 0.40, 13, 5.5);
+        mach(cx + fw * 0.60, pyB + fh * 0.10, 10, 4.4);
+        isoBox(g, cx - fw * 0.56, pyB + fh * 0.38, 14, 9, 6, 0, shade(SLAB, 0.88), SLABD);
 
-        var fy = plr + 1.5, SL = '#a9a69c', SM = '#8b887e', SS = '#5f5d56', SO = '#2e302b';
-        var poly = function (pts, fill, edge, lw) {
-          g.beginPath(); g.moveTo(stx + pts[0][0], fy + pts[0][1]);
-          for (var pq = 1; pq < pts.length; pq++) g.lineTo(stx + pts[pq][0], fy + pts[pq][1]);
+        // --- machined steel cap on top of the plinth -----------------------
+        var CWc = pw1 * 1.50, CHc = ph1 * 1.50, capH = 15;
+        var capT = prism(g, cx, pyT + 1, CWc, CHc, capH, SLAB, shade(SLAB, 1.14), '#2b2b27');
+        g.strokeStyle = 'rgba(0,0,0,.30)'; g.lineWidth = 1;   // machined step on the deck
+        diamond(g, cx, capT + 1.6, CWc * 1.34, CHc * 1.34); g.stroke();
+        // PLAYER-COLOUR buttresses at three corners of the cap. This is the
+        // remap band in the SHP and the whole friend/foe read at 1:1.
+        var buttress = function (bx3, by3, bw3) {
+          prism(g, bx3, by3, bw3, bw3 * 0.5, 8, col, '#b0a999', shade(col, 0.36));
+          g.fillStyle = 'rgba(0,0,0,.20)';                   // recessed inlay on the top
+          diamond(g, bx3, by3 - 8, bw3 * 0.56, bw3 * 0.28); g.fill();
+        };
+        buttress(cx - CWc * 0.74, capT + capH * 0.42, 14);
+        buttress(cx + CWc * 0.74, capT + capH * 0.38, 13);
+        buttress(cx + CWc * 0.02, capT + CHc * 0.78 + capH * 0.40, 14.5);
+        buttress(cx - CWc * 0.02, capT - CHc * 0.70 + capH * 0.20, 12);
+        // player-colour fascia round the cap rim, between the buttresses
+        g.fillStyle = shade(col, 0.80);
+        g.beginPath();
+        g.moveTo(cx - CWc, capT + capH * 0.30); g.lineTo(cx, capT + CHc + capH * 0.30);
+        g.lineTo(cx + CWc, capT + capH * 0.30); g.lineTo(cx + CWc, capT + capH * 0.66);
+        g.lineTo(cx, capT + CHc + capH * 0.66); g.lineTo(cx - CWc, capT + capH * 0.66);
+        g.closePath(); g.fill(); outline(g, shade(col, 0.38));
+        // statue footing block
+        var pedT = prism(g, cx - 2, capT + 1, 15.0, 7.4, 9, '#59564e', '#77746a', '#26241f');
+
+        // --- the conscript ------------------------------------------------
+        // Cast steel, lit from the upper left, banded with casting seams. He
+        // stands at attention: left arm folded across the chest, right hand
+        // down on the rifle, the rifle vertical against the right shoulder
+        // with the bayonet well clear of the head.
+        var FY = pedT + 1, sx3 = cx - 3;
+        var SL2 = '#b9b6a4', SM2 = '#878475', SS2 = '#5b584f',
+            SD2 = '#403e37', SO2 = '#211f1a';
+        var spoly = function (pts, fill, edge, lw) {
+          g.beginPath(); g.moveTo(sx3 + pts[0][0], FY + pts[0][1]);
+          for (var pq = 1; pq < pts.length; pq++) g.lineTo(sx3 + pts[pq][0], FY + pts[pq][1]);
           g.closePath();
           if (fill) { g.fillStyle = fill; g.fill(); }
-          if (edge) { g.strokeStyle = edge; g.lineWidth = lw || 1.2; g.stroke(); }
+          if (edge) { g.strokeStyle = edge; g.lineWidth = lw || 1.1; g.stroke(); }
         };
-        var limb = function (x0, y0, x1, y1, w, colr) {
+        var slimb = function (x0, y0, x1, y1, w, colr) {
           g.lineCap = 'round';
-          g.strokeStyle = SO; g.lineWidth = w + 2;
-          g.beginPath(); g.moveTo(stx + x0, fy + y0); g.lineTo(stx + x1, fy + y1); g.stroke();
+          g.strokeStyle = SO2; g.lineWidth = w + 1.8;
+          g.beginPath(); g.moveTo(sx3 + x0, FY + y0); g.lineTo(sx3 + x1, FY + y1); g.stroke();
           g.strokeStyle = colr; g.lineWidth = w;
-          g.beginPath(); g.moveTo(stx + x0, fy + y0); g.lineTo(stx + x1, fy + y1); g.stroke();
+          g.beginPath(); g.moveTo(sx3 + x0, FY + y0); g.lineTo(sx3 + x1, FY + y1); g.stroke();
         };
-        // Scaled about its own feet: BROAD (x1.14) and only slightly shortened
-        // (y0.93), so the figure is a heavy-shouldered monument that owns
-        // roughly half the sprite instead of a doll perched on a bunker.
-        g.save();
-        g.translate(stx, fy); g.scale(1.14, 0.90); g.translate(-stx, -fy);
-        // greatcoat / legs, flaring to the base
-        poly([[-8.4, 0], [8.4, 0], [7.0, -9], [5.6, -22], [-5.6, -22], [-7.0, -9]], SM, SO, 1.3);
-        poly([[-8.4, 0], [-7.0, -9], [-5.6, -22], [-2.4, -22], [-3.4, -9], [-4.4, 0]], SL, null);
-        poly([[8.4, 0], [7.0, -9], [5.6, -22], [3.0, -22], [4.2, -9], [5.2, 0]], SS, null);
-        g.fillStyle = SS;                                        // boots below the hem
-        g.fillRect(stx - 7.4, fy - 3.2, 5.6, 3.6);
-        g.fillRect(stx + 1.9, fy - 3.2, 5.6, 3.6);
-        g.strokeStyle = SO; g.lineWidth = 1;
-        g.strokeRect(stx - 7.4, fy - 3.2, 5.6, 3.6);
-        g.strokeRect(stx + 1.9, fy - 3.2, 5.6, 3.6);
-        g.beginPath(); g.moveTo(stx, fy - 4); g.lineTo(stx, fy - 21); g.stroke();
-        // torso, shoulders squared and wide
-        poly([[-5.6, -21], [5.6, -21], [8.0, -30], [7.8, -35.5], [-7.8, -35.5], [-8.0, -30]], SM, SO, 1.3);
-        poly([[-5.6, -21], [-8.0, -30], [-7.8, -35.5], [-3.4, -35.5], [-3.6, -30], [-2.2, -21]], SL, null);
-        poly([[5.6, -21], [8.0, -30], [7.8, -35.5], [4.2, -35.5], [4.6, -30], [3.2, -21]], SS, null);
-        g.fillStyle = SO;                                        // belt
-        g.fillRect(stx - 6.4, fy - 23.5, 12.8, 2.2);
-        limb(-6.8, -33.5, -8.8, -20, 4.4, SM);                   // arm at the side
-        limb(6.8, -34, 12.8, -40, 4.6, SM);                      // raised arm: upper
-        limb(12.8, -40, 12.4, -49.5, 4.2, SL);                   // forearm, straight up
-        // head + helmet, before the rifle so the muzzle crosses clear of it
-        g.fillStyle = SM;
-        g.beginPath(); g.arc(stx + 0.4, fy - 39.5, 4.0, 0, 6.29); g.fill();
-        g.strokeStyle = SO; g.lineWidth = 1.2; g.stroke();
-        g.fillStyle = SS; g.fillRect(stx + 2.0, fy - 42.5, 2.4, 5.5);
-        g.fillStyle = SL;
-        g.beginPath(); g.ellipse(stx + 0.4, fy - 41.6, 5.8, 4.6, 0, Math.PI, 0); g.fill();
-        g.strokeStyle = SO; g.lineWidth = 1.2; g.stroke();
-        g.fillStyle = SM;                                        // helmet brim
-        g.beginPath(); g.ellipse(stx + 0.4, fy - 41.4, 6.4, 1.6, 0, 0, 6.29); g.fill();
-        g.strokeStyle = SO; g.lineWidth = 1; g.stroke();
-        g.fillStyle = 'rgba(255,255,255,.22)';
-        g.beginPath(); g.ellipse(stx - 1.8, fy - 42.6, 2.6, 2.0, 0, Math.PI, 0); g.fill();
-        // RIFLE held aloft in the raised fist - an empty open hand reads as a
-        // wave, and the rifle is what names the building.
-        limb(5.6, -43.0, 18.4, -60.0, 2.9, '#3a352c');           // barrel + stock line
-        limb(6.6, -44.4, 11.6, -51.2, 4.2, '#6d4b2b');           // wooden fore-stock
-        poly([[8.6, -46.0], [11.0, -46.0], [11.9, -49.6], [9.5, -49.6]], '#3a352c', SO, 0.9);
-        g.strokeStyle = '#c2c7cf'; g.lineWidth = 1.4; g.lineCap = 'round';  // bayonet
+        var seam = function (y2, hw3) {                       // casting seam across the body
+          g.strokeStyle = 'rgba(0,0,0,.30)'; g.lineWidth = 1;
+          g.beginPath(); g.moveTo(sx3 - hw3, FY + y2); g.lineTo(sx3 + hw3, FY + y2 + 1.1); g.stroke();
+          g.strokeStyle = 'rgba(255,255,255,.14)';
+          g.beginPath(); g.moveTo(sx3 - hw3, FY + y2 + 1.2); g.lineTo(sx3 + hw3, FY + y2 + 2.3); g.stroke();
+        };
+        // rifle butt/stock behind the body, so the barrel reads continuous
+        slimb(12.4, -18, 18.6, -132, 4.6, SD2);
+        // boots and legs - close together, thick, mostly under the coat
+        spoly([[-8.8, 0], [8.6, 0], [7.8, -9], [-8.0, -9]], SD2, SO2, 1.3);
+        spoly([[-8.8, 0], [-8.0, -9], [-2.4, -9], [-2.8, 0]], SS2, null);
+        spoly([[-7.8, -9], [7.6, -9], [7.0, -25], [-7.2, -25]], SM2, SO2, 1.2);
+        spoly([[-7.8, -9], [-7.2, -25], [-2.2, -25], [-2.6, -9]], SL2, null);
+        spoly([[7.6, -9], [7.0, -25], [3.0, -25], [3.2, -9]], SS2, null);
+        g.strokeStyle = SO2; g.lineWidth = 1.1;                // gap between the legs
+        g.beginPath(); g.moveTo(sx3 + 0.2, FY - 2); g.lineTo(sx3 - 0.2, FY - 30); g.stroke();
+        // greatcoat skirt, flaring to the hem
+        g.fillStyle = 'rgba(0,0,0,.40)';                        // shadow the hem throws
+        spoly([[-14.6, -21], [14.4, -21], [13.6, -26], [-13.8, -26]], 'rgba(0,0,0,.40)', null);
+        spoly([[-14.6, -23], [14.4, -23], [12.4, -46], [10.6, -67], [-10.8, -67], [-12.6, -46]],
+              SM2, SO2, 1.2);
+        spoly([[-14.6, -23], [-12.6, -46], [-10.8, -67], [-3.8, -67], [-5.2, -46], [-6.2, -23]],
+              SL2, null);
+        spoly([[14.4, -23], [12.4, -46], [10.6, -67], [4.8, -67], [6.2, -46], [7.2, -23]],
+              SS2, null);
+        seam(-30, 13.4); seam(-42, 12.4); seam(-55, 11.4);
+        // torso: broad squared shoulders overhanging a narrower waist
+        spoly([[-10.0, -67], [9.8, -67], [10.8, -80], [12.2, -92], [15.0, -97],
+               [14.4, -103], [-14.6, -103], [-15.2, -97], [-12.4, -92], [-11.0, -80]],
+              SM2, SO2, 1.2);
+        spoly([[-10.0, -67], [-11.0, -80], [-12.4, -92], [-15.2, -97], [-14.6, -103],
+               [-5.6, -103], [-6.2, -90], [-5.0, -70], [-4.8, -67]], SL2, null);
+        spoly([[9.8, -67], [10.8, -80], [12.2, -92], [15.0, -97], [14.4, -103],
+               [6.4, -103], [6.0, -90], [5.4, -70], [5.2, -67]], SS2, null);
+        g.fillStyle = SO2; g.fillRect(sx3 - 10.8, FY - 71.5, 21.6, 2.6);   // belt
+        g.fillStyle = SD2; g.fillRect(sx3 - 2.4, FY - 71.5, 4.8, 2.6);     // buckle
+        seam(-84, 13.0); seam(-95, 14.0);
+        spoly([[-2.8, -100], [2.6, -100], [1.4, -72], [-1.8, -72]], SD2, null);  // coat opening
+        // RIGHT arm: straight down the flank onto the rifle
+        slimb(11.0, -99, 12.8, -66, 6.6, SS2);
+        // LEFT arm: folded across the chest - a heavy bent limb, not a stick
+        slimb(1.0, -98.5, -13.0, -92.0, 9.0, SM2);
+        slimb(-13.0, -92.0, -24.0, -85.5, 8.0, SL2);
+        spoly([[-28.6, -88.0], [-23.0, -89.6], [-21.4, -83.0], [-26.8, -81.4]],
+              SL2, SO2, 1.1);                                 // blocky fist
+        // neck + head, rounded under a domed cap
+        g.fillStyle = SS2; g.fillRect(sx3 - 3.6, FY - 107, 7.2, 5);
+        g.strokeStyle = SO2; g.lineWidth = 1; g.strokeRect(sx3 - 3.6, FY - 107, 7.2, 5);
+        spoly([[-7.4, -103], [7.0, -103], [7.8, -110], [6.6, -117], [-6.8, -117], [-8.0, -110]],
+              SM2, SO2, 1.2);
+        spoly([[-7.4, -103], [-8.0, -110], [-6.8, -117], [-2.0, -117], [-2.6, -110], [-2.2, -103]],
+              SL2, null);
+        spoly([[7.0, -103], [7.8, -110], [6.6, -117], [3.4, -117], [3.6, -110], [3.2, -103]],
+              SS2, null);
+        spoly([[-7.8, -108], [-2.2, -108], [-2.6, -113], [-7.4, -113]], SD2, null);  // brow
+        g.fillStyle = SM2;                                    // domed cap crown
+        g.beginPath(); g.ellipse(sx3 - 0.4, FY - 116.5, 7.8, 6.4, 0, Math.PI, 0); g.fill();
+        g.strokeStyle = SO2; g.lineWidth = 1.1; g.stroke();
+        g.fillStyle = SL2;
+        g.beginPath(); g.ellipse(sx3 - 2.4, FY - 118.0, 4.4, 4.0, 0, Math.PI, 0); g.fill();
+        g.fillStyle = SS2;                                    // cap band
+        g.beginPath(); g.ellipse(sx3 - 0.4, FY - 116.0, 8.4, 2.0, 0, 0, 6.29); g.fill();
+        g.strokeStyle = SO2; g.lineWidth = 1; g.stroke();
+        // rifle: wooden fore-stock, sling, barrel, bayonet - held close in
+        slimb(13.2, -30, 16.6, -96, 5.2, '#54452f');
+        slimb(16.6, -96, 18.6, -132, 3.2, '#39362f');
+        g.strokeStyle = 'rgba(26,24,20,.72)'; g.lineWidth = 1.6;   // sling
         g.beginPath();
-        g.moveTo(stx + 18.4, fy - 60.0); g.lineTo(stx + 21.4, fy - 64.4); g.stroke();
-        g.fillStyle = SL;                                        // fist on the grip
-        g.beginPath(); g.arc(stx + 12.4, fy - 50.4, 2.8, 0, 6.29); g.fill();
-        g.strokeStyle = SO; g.lineWidth = 1.1; g.stroke();
-        g.restore();
-        // Deck plant, kept LOW and pushed to the corners so nothing competes
-        // with the statue for the skyline.
-        isoBox(g, cx + BW * 0.42, deckY - BH * 0.14, 22, 11, 7, 0, shade(SC, 0.96), SCD);
-        g.strokeStyle = 'rgba(0,0,0,.34)'; g.lineWidth = 1;      // louvres on its face
-        for (var rv = 0; rv < 4; rv++) {
-          var gx2 = cx + BW * 0.42 - 9 + rv * 4.6;
-          g.beginPath();
-          g.moveTo(gx2, deckY - BH * 0.14 + 3.0 - rv * 0.4);
-          g.lineTo(gx2 + 3.2, deckY - BH * 0.14 + 4.6 - rv * 0.4); g.stroke();
-        }
-        for (rv = 0; rv < 3; rv++) {                             // vent stacks
-          var vx = cx + BW * (0.10 + rv * 0.24), vy = deckY + BH * (0.52 - rv * 0.18);
-          isoBox(g, vx, vy, 7, 6, 4, 0, shade(SC, 0.84), SCD);
-          g.fillStyle = 'rgba(0,0,0,.35)';
-          diamond(g, vx, vy - 4, 5, 2.5); g.fill();
-        }
-        diamond(g, cx - BW * 0.40, deckY + BH * 0.30, 14, 7);    // roof hatch
-        g.fillStyle = shade(SC, 0.66); g.fill(); outline(g, SCD);
-        diamond(g, cx - BW * 0.40, deckY + BH * 0.30, 9, 4.5);
-        g.fillStyle = shade(SC, 1.02); g.fill();
-        // loudspeaker horn on the back-right shoulder
-        var hx2 = cx + BW * 0.46, hy2 = deckY - BH * 0.44;
-        g.strokeStyle = '#3f443c'; g.lineWidth = 1.4;
-        g.beginPath(); g.moveTo(hx2, hy2); g.lineTo(hx2, hy2 - 6); g.stroke();
-        g.fillStyle = '#5a5f56';
+        g.moveTo(sx3 + 14.0, FY - 40); g.lineTo(sx3 + 10.0, FY - 68);
+        g.lineTo(sx3 + 17.0, FY - 100); g.stroke();
+        g.fillStyle = SS2;                                    // bolt + fore-sight
+        g.fillRect(sx3 + 14.8, FY - 82, 4.2, 3.0);
+        g.strokeStyle = SO2; g.lineWidth = 0.9; g.strokeRect(sx3 + 14.8, FY - 82, 4.2, 3.0);
+        g.fillStyle = SD2; g.fillRect(sx3 + 16.6, FY - 114, 3.4, 2.4);
+        g.strokeStyle = '#a8a99f'; g.lineWidth = 1.6; g.lineCap = 'round';  // bayonet
         g.beginPath();
-        g.moveTo(hx2 - 0.5, hy2 - 5.4); g.lineTo(hx2 + 5, hy2 - 8);
-        g.lineTo(hx2 + 5, hy2 - 3.6); g.lineTo(hx2 - 0.5, hy2 - 4.2); g.closePath();
-        g.fill(); outline(g, '#22261f');
-        // pennant on the left shoulder - short, so it stays trim beside the
-        // statue instead of adding a second mast to the skyline
-        var fpx = cx - BW * 0.70, fpy = deckY + BH * 0.14;
-        g.strokeStyle = '#2c2e2a'; g.lineWidth = 2.4; g.lineCap = 'butt';
-        g.beginPath(); g.moveTo(fpx, fpy); g.lineTo(fpx, fpy - 22); g.stroke();
-        g.strokeStyle = '#9d9a90'; g.lineWidth = 1.2;
-        g.beginPath(); g.moveTo(fpx, fpy); g.lineTo(fpx, fpy - 22); g.stroke();
-        g.fillStyle = col;
-        g.beginPath();
-        g.moveTo(fpx, fpy - 22); g.lineTo(fpx - 11, fpy - 20.2);
-        g.lineTo(fpx - 8.2, fpy - 17.2); g.lineTo(fpx - 11, fpy - 14.6);
-        g.lineTo(fpx, fpy - 13); g.closePath();
-        g.fill(); outline(g, shade(col, 0.45));
-        // wide entry steps under the doorway
-        var ds = bL(0.52, 0);
-        diamond(g, ds[0] - 3, ds[1] + 5, 28, 14);
-        g.fillStyle = shade(col, 0.66); g.fill(); outline(g, shade(col, 0.40));
-        diamond(g, ds[0] - 3, ds[1] + 3.4, 25, 12.5);
-        g.fillStyle = shade(SC, 0.78); g.fill(); outline(g, SCD);
-        diamond(g, ds[0] - 2, ds[1] + 1.6, 18, 9);
-        g.fillStyle = shade(SC, 0.92); g.fill(); outline(g, SCD);
-        // the block eats most of the pad now, so the props tuck against the
-        // two side corners rather than sitting on open apron
-        drums(g, cx - fw * 0.94, baseY - fh * 0.16, 3, '#4d4438');
-        crates(g, cx + fw * 0.84, baseY - fh * 0.16, 2, '#6b5a2a');
+        g.moveTo(sx3 + 18.6, FY - 132); g.lineTo(sx3 + 19.8, FY - 146); g.stroke();
+        g.fillStyle = SM2;                                    // right hand on the stock
+        spoly([[10.4, -68.0], [15.6, -68.0], [15.6, -61.6], [10.4, -61.6]], SM2, SO2, 1.1);
       }
     } else if (key === 'factory') {
       // War Factory - two completely different buildings that share exactly
