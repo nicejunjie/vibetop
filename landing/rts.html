@@ -5768,6 +5768,794 @@
         }
       }
       g.lineWidth = 1;
+    } else if (key === 'airforce') {
+      // --- RA2 Airforce Command HQ ---------------------------------------
+      // Built from the real sprite: the in-game snow-theatre shot for the
+      // massing and the rotating-dish animation frame on disk for the dish
+      // itself. Reading it: a squat cluster of dark drums wearing silver rib
+      // bands stands on a ringed concrete plinth at the BACK-LEFT, carrying a
+      // flat panelled radar dish on a short mast and a thicket of thin whip
+      // antennas; the near-right half of the foundation is a flat HELIPAD - a
+      // dark deck quartered by a bright yellow cross, each quadrant painted
+      // with a black-and-white diamond.
+      // COLOUR: the cross is fixed aviation yellow and the diamonds are fixed
+      // black/white (RA2 does not remap either). `col` is the pad kerb, the
+      // band round each drum and the dish's back plate - nothing else.
+      var AFC_DK = '#3a4150', AFC_DKD = '#191d25', AFC_DKL = '#69717f';
+      var AFC_SIL = '#b4b9c3', AFC_SILL = '#e9edf3', AFC_SILD = '#787e89';
+      var AFC_CON = '#8e9086', AFC_COND = '#494b44';
+      var AFC_YEL = '#e3c033', AFC_YELD = '#8a7014';
+
+      // ---- helipad: the near-right half of the foundation ----------------
+      var hpx = cx + fw * 0.34, hpy = baseY + fh * 0.20;
+      var hpw = fw * 0.62, hph = fh * 0.62;
+      var hp = function (hu, hv) {
+        return [hpx + (hu - hv) * hpw, hpy + (hu + hv) * hph];
+      };
+      var hquad = function (u0, u1, v0, v1, fill, edge) {
+        var k0 = hp(u0, v0), k1 = hp(u1, v0), k2 = hp(u1, v1), k3 = hp(u0, v1);
+        g.beginPath();
+        g.moveTo(k0[0], k0[1]); g.lineTo(k1[0], k1[1]);
+        g.lineTo(k2[0], k2[1]); g.lineTo(k3[0], k3[1]); g.closePath();
+        if (fill) { g.fillStyle = fill; g.fill(); }
+        if (edge) outline(g, edge);
+      };
+      g.fillStyle = 'rgba(0,0,0,.30)';                     // deck riser
+      diamond(g, hpx, hpy + 3.5, hpw * 2, hph * 2); g.fill();
+      hquad(-1, 1, -1, 1, shade(col, 0.60), shade(col, 0.34));   // kerb, owner colour
+      hquad(-0.90, 0.90, -0.90, 0.90, '#33373f', AFC_DKD);       // deck
+      g.save(); hquad(-0.90, 0.90, -0.90, 0.90, null, null); g.clip();
+      srand(311);
+      g.fillStyle = 'rgba(0,0,0,.20)';                     // worn tarmac blotches
+      for (var afB = 0; afB < 6; afB++) {
+        var ab = hp(rnd() * 1.6 - 0.8, rnd() * 1.6 - 0.8);
+        g.beginPath(); g.ellipse(ab[0], ab[1], 5 + rnd() * 5, 2.4 + rnd() * 2, 0, 0, 6.29); g.fill();
+      }
+      g.restore();
+      // the four quadrants, each with its black-and-white diamond
+      var afQ = [[-0.84, -0.10, -0.84, -0.10], [0.10, 0.84, -0.84, -0.10],
+                 [-0.84, -0.10, 0.10, 0.84], [0.10, 0.84, 0.10, 0.84]];
+      for (var afI = 0; afI < 4; afI++) {
+        var q = afQ[afI];
+        hquad(q[0], q[1], q[2], q[3], '#3d434c', null);
+        var mu = (q[0] + q[1]) / 2, mv = (q[2] + q[3]) / 2, mr = 0.30;
+        hquad(mu - mr, mu + mr, mv - mr, mv + mr, '#15171b', null);
+        hquad(mu - mr * 0.52, mu + mr * 0.52, mv - mr * 0.52, mv + mr * 0.52, '#d8dce2', null);
+        hquad(mu - mr * 0.20, mu + mr * 0.20, mv - mr * 0.20, mv + mr * 0.20, '#15171b', null);
+      }
+      hquad(-0.90, 0.90, -0.09, 0.09, AFC_YEL, null);      // the yellow cross
+      hquad(-0.09, 0.09, -0.90, 0.90, AFC_YEL, null);
+      hquad(-0.90, 0.90, 0.03, 0.09, AFC_YELD, null);      // its shaded lower lip
+      hquad(0.03, 0.09, -0.90, 0.90, AFC_YELD, null);
+      g.fillStyle = '#20242a';                             // corner tie-down blocks
+      for (var afC = 0; afC < 4; afC++) {
+        var cu = afC < 2 ? -0.86 : 0.86, cv = afC % 2 ? -0.86 : 0.86;
+        var cp = hp(cu, cv);
+        g.beginPath(); g.ellipse(cp[0], cp[1], 3.2, 1.8, 0, 0, 6.29); g.fill();
+      }
+
+      // ---- ringed concrete plinth under the tower cluster ----------------
+      var tcx = cx - fw * 0.40, tcy = baseY - fh * 0.14;
+      g.fillStyle = 'rgba(0,0,0,.34)';
+      g.beginPath(); g.ellipse(tcx + 3, tcy + 5, fw * 0.56, fh * 0.56, 0, 0, 6.29); g.fill();
+      g.fillStyle = AFC_COND;
+      g.beginPath(); g.ellipse(tcx, tcy + 2, fw * 0.56, fh * 0.56, 0, 0, 6.29); g.fill();
+      g.fillStyle = AFC_CON;
+      g.beginPath(); g.ellipse(tcx, tcy, fw * 0.54, fh * 0.54, 0, 0, 6.29); g.fill();
+      outline(g, AFC_COND);
+      g.fillStyle = shade(AFC_CON, 1.14);
+      g.beginPath(); g.ellipse(tcx, tcy - 3, fw * 0.44, fh * 0.44, 0, 0, 6.29); g.fill();
+      outline(g, AFC_COND);
+      g.strokeStyle = 'rgba(30,32,28,.36)'; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(tcx, tcy - 4, fw * 0.34, fh * 0.34, 0, 0, 6.29); g.stroke();
+
+      // ---- drums: gunmetal barrels with silver rib bands and a house band -
+      var afDrum = function (dx, dy, dr, dh, band) {
+        cylinder(g, dx, dy, dr, dh, AFC_DK, AFC_DKL, AFC_DKD);
+        g.save();
+        g.beginPath(); g.rect(dx - dr, dy - dh, dr * 2, dh); g.clip();
+        for (var rI = 0; rI < 2; rI++) {                   // silver rib bands
+          var ry2 = dy - dh * (0.22 + rI * 0.40);
+          g.fillStyle = AFC_SILD; g.fillRect(dx - dr, ry2, dr * 2, 4.2);
+          g.fillStyle = AFC_SIL; g.fillRect(dx - dr, ry2, dr * 2, 2.6);
+          g.fillStyle = AFC_SILL; g.fillRect(dx - dr, ry2, dr * 0.5, 2.6);
+        }
+        g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(dx - dr, dy - dh, dr * 0.44, dh);
+        g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(dx + dr * 0.46, dy - dh, dr * 0.54, dh);
+        g.restore();
+        if (band) {                                        // OWNER band under the lip
+          g.fillStyle = shade(col, 0.82); g.fillRect(dx - dr, dy - dh + 2.4, dr * 2, 5.2);
+          g.fillStyle = col; g.fillRect(dx - dr, dy - dh + 2.4, dr * 2, 3.2);
+          g.fillStyle = shade(col, 1.30); g.fillRect(dx - dr, dy - dh + 2.4, dr * 0.46, 3.2);
+        }
+        g.fillStyle = AFC_SIL;                             // lid
+        g.beginPath(); g.ellipse(dx, dy - dh, dr, dr * 0.42, 0, 0, 6.29); g.fill();
+        outline(g, AFC_DKD);
+        g.fillStyle = shade(AFC_SIL, 0.74);
+        g.beginPath(); g.ellipse(dx, dy - dh, dr * 0.62, dr * 0.26, 0, 0, 6.29); g.fill();
+      };
+      afDrum(tcx - fw * 0.30, tcy + fh * 0.30, 13, 26, true);       // front-left drum
+      afDrum(tcx + fw * 0.34, tcy + fh * 0.36, 11, 21, true);       // front-right drum
+      afDrum(tcx + fw * 0.04, tcy - fh * 0.22, 15, 48, true);       // tall centre drum
+
+      // ---- whip antennas -------------------------------------------------
+      var afWhip = function (wx, wy, wh2) {
+        g.strokeStyle = '#15181c'; g.lineWidth = 1.5;
+        g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + wh2 * 0.05, wy - wh2); g.stroke();
+        g.fillStyle = '#cfd4dc';
+        g.beginPath(); g.arc(wx + wh2 * 0.05, wy - wh2, 1.5, 0, 6.29); g.fill();
+      };
+      afWhip(tcx + fw * 0.34, tcy + fh * 0.06, 46);
+      afWhip(tcx + fw * 0.44, tcy + fh * 0.16, 34);
+      afWhip(tcx - fw * 0.36, tcy - fh * 0.02, 30);
+      afWhip(tcx + fw * 0.22, tcy - fh * 0.36, 62);
+
+      // ---- radar mast and the panelled dish ------------------------------
+      var afMx = tcx + fw * 0.04, afMy = tcy - fh * 0.22 - 48;
+      cylinder(g, afMx, afMy + 2, 6.5, 16, shade(AFC_DK, 1.20), AFC_DKL, AFC_DKD);
+      g.fillStyle = AFC_SILD;                              // yoke
+      g.beginPath();
+      g.moveTo(afMx - 8, afMy - 14); g.lineTo(afMx + 8, afMy - 14);
+      g.lineTo(afMx + 5, afMy - 20); g.lineTo(afMx - 5, afMy - 20);
+      g.closePath(); g.fill(); outline(g, AFC_DKD);
+      var afDx = afMx - 2, afDy = afMy - 27;
+      // The dish is tilted, and the test harness's canvas stub has no
+      // rotate(), so the tilt is applied by hand: afR maps dish-local
+      // coordinates onto the canvas through one fixed rotation.
+      var afCa = Math.cos(-0.60), afSa = Math.sin(-0.60);
+      var afR = function (lx, ly) {
+        return [afDx + lx * afCa - ly * afSa, afDy + lx * afSa + ly * afCa];
+      };
+      var afRect = function (rx, ry2, rw, rh, fill, edge) {
+        var k0 = afR(rx, ry2), k1 = afR(rx + rw, ry2),
+            k2 = afR(rx + rw, ry2 + rh), k3 = afR(rx, ry2 + rh);
+        g.beginPath();
+        g.moveTo(k0[0], k0[1]); g.lineTo(k1[0], k1[1]);
+        g.lineTo(k2[0], k2[1]); g.lineTo(k3[0], k3[1]); g.closePath();
+        if (fill) { g.fillStyle = fill; g.fill(); }
+        if (edge) outline(g, edge);
+      };
+      afRect(-20, -12, 40, 28, shade(col, 0.56), shade(col, 0.30));     // OWNER back plate
+      afRect(-20, 12, 40, 4, shade(col, 0.94), null);                   // its lit lower lip
+      afRect(-20, -12, 3, 28, shade(col, 1.16), null);                  // and lit left edge
+      afRect(-17.5, -12, 35, 24, AFC_SILD, null);                       // dish frame
+      for (var pxI = 0; pxI < 3; pxI++) {
+        for (var pyI = 0; pyI < 2; pyI++) {                // white panel array
+          var pxx = -16.6 + pxI * 11.4, pyy = -11.2 + pyI * 11.4;
+          afRect(pxx, pyy, 10.2, 10.2, '#e7eaee', null);
+          afRect(pxx, pyy, 10.2, 2.4, '#ffffff', null);
+          afRect(pxx, pyy + 8.2, 10.2, 2, 'rgba(80,88,100,.24)', null);
+        }
+      }
+      afRect(-17.5, -12, 35, 24, null, AFC_DKD);
+      var afF0 = afR(0, 0), afF1 = afR(-1, -22);           // feed arm off the face
+      g.strokeStyle = '#3f454e'; g.lineWidth = 2.2;
+      g.beginPath(); g.moveTo(afF0[0], afF0[1]); g.lineTo(afF1[0], afF1[1]); g.stroke();
+      g.fillStyle = '#5a616c';
+      g.beginPath(); g.ellipse(afF1[0], afF1[1] - 1, 3.4, 2.4, 0, 0, 6.29); g.fill();
+      g.fillStyle = AFC_DK;                                // counterweight box
+      g.fillRect(afMx + 6, afMy - 20, 9, 7); outline(g, AFC_DKD);
+      g.fillStyle = AFC_DKL; g.fillRect(afMx + 6, afMy - 20, 9, 2);
+
+      // ---- ground clutter between the plinth and the pad -----------------
+      crates(g, cx - fw * 0.10, baseY + fh * 0.62, 2, '#7a6a45');
+      drums(g, cx - fw * 0.60, baseY + fh * 0.36, 2, '#4d5763');
+      floodlight(g, cx + fw * 0.88, baseY + fh * 0.10, 1, null);
+      floodlight(g, cx - fw * 0.86, baseY - fh * 0.32, -1, null);
+
+    } else if (key === 'depot') {
+      // --- RA2 Service Depot ----------------------------------------------
+      // From the real sprite: a big DARK GRATED CIRCLE - the repair pad -
+      // ringed by an amber hazard kerb with four house-coloured clamp wedges
+      // at the compass points, and an orange gantry with a grey machine block
+      // and a dark crane arm standing clear of it at the back-left. The pad
+      // itself stays flat and unobstructed because vehicles park on it.
+      var DEP_PAD = '#33383e', DEP_PADD = '#15181c', DEP_PADL = '#565d66';
+      var DEP_STL = '#8c9299', DEP_STLD = '#3b4046', DEP_STLL = '#c3c9d1';
+      var DEP_ORG = '#d2871c', DEP_ORGL = '#f5b449', DEP_ORGD = '#6d430a';
+      var DEP_AMB = '#e0b028';
+      var dpx = cx + fw * 0.06, dpy = baseY + fh * 0.16;
+      var dpr = fw * 0.70, dpb = fh * 0.70;
+
+      g.fillStyle = 'rgba(0,0,0,.32)';                     // pad, sunk into the deck
+      g.beginPath(); g.ellipse(dpx, dpy + 3, dpr * 1.06, dpb * 1.06, 0, 0, 6.29); g.fill();
+      g.fillStyle = DEP_AMB;                               // amber hazard kerb
+      g.beginPath(); g.ellipse(dpx, dpy, dpr * 1.05, dpb * 1.05, 0, 0, 6.29); g.fill();
+      g.save();
+      g.beginPath(); g.ellipse(dpx, dpy, dpr * 1.05, dpb * 1.05, 0, 0, 6.29); g.clip();
+      g.fillStyle = '#2a2c22';                             // kerb dashes
+      for (var dkI = 0; dkI < 30; dkI++) {
+        var da = dkI / 30 * 6.283;
+        g.beginPath();
+        g.ellipse(dpx + Math.cos(da) * dpr * 1.02, dpy + Math.sin(da) * dpb * 1.02,
+                  2.6, 1.8, 0, 0, 6.29);
+        g.fill();
+      }
+      g.restore();
+      g.fillStyle = DEP_PAD;                               // the grated disc
+      g.beginPath(); g.ellipse(dpx, dpy, dpr, dpb, 0, 0, 6.29); g.fill();
+      outline(g, DEP_PADD);
+      g.save();
+      g.beginPath(); g.ellipse(dpx, dpy, dpr, dpb, 0, 0, 6.29); g.clip();
+      g.strokeStyle = 'rgba(150,160,172,.20)'; g.lineWidth = 1;   // grating, both axes
+      for (var dgI = -12; dgI <= 12; dgI++) {
+        g.beginPath();
+        g.moveTo(dpx + dgI * 8 - dpr, dpy + dgI * 4 + dpb);
+        g.lineTo(dpx + dgI * 8 + dpr, dpy + dgI * 4 - dpb); g.stroke();
+        g.beginPath();
+        g.moveTo(dpx + dgI * 8 - dpr, dpy - dgI * 4 - dpb);
+        g.lineTo(dpx + dgI * 8 + dpr, dpy - dgI * 4 + dpb); g.stroke();
+      }
+      g.strokeStyle = 'rgba(190,200,212,.26)'; g.lineWidth = 2;   // radial spokes
+      for (var dsI = 0; dsI < 4; dsI++) {
+        var sa = dsI / 4 * 6.283 + 0.78;
+        g.beginPath(); g.moveTo(dpx, dpy);
+        g.lineTo(dpx + Math.cos(sa) * dpr, dpy + Math.sin(sa) * dpb); g.stroke();
+      }
+      g.fillStyle = 'rgba(0,0,0,.26)';                     // oil under the axles
+      g.beginPath(); g.ellipse(dpx, dpy + dpb * 0.20, dpr * 0.44, dpb * 0.36, 0, 0, 6.29); g.fill();
+      g.restore();
+      g.strokeStyle = shade(col, 0.60); g.lineWidth = 4.4;          // painted bay ring
+      g.beginPath(); g.ellipse(dpx, dpy, dpr * 0.80, dpb * 0.80, 0, 0, 6.29); g.stroke();
+      g.strokeStyle = col; g.lineWidth = 2.6;
+      g.beginPath(); g.ellipse(dpx, dpy, dpr * 0.80, dpb * 0.80, 0, 0, 6.29); g.stroke();
+      g.strokeStyle = 'rgba(210,220,232,.30)'; g.lineWidth = 1.6;   // hub ring
+      g.beginPath(); g.ellipse(dpx, dpy, dpr * 0.28, dpb * 0.28, 0, 0, 6.29); g.stroke();
+
+      // four house-coloured clamp wedges on the rim
+      var depClamp = function (ang) {
+        var wx = dpx + Math.cos(ang) * dpr * 0.97, wy = dpy + Math.sin(ang) * dpb * 0.97;
+        g.fillStyle = 'rgba(0,0,0,.34)';
+        g.beginPath(); g.ellipse(wx + 1.5, wy + 2.5, 9, 4.6, 0, 0, 6.29); g.fill();
+        g.fillStyle = shade(col, 0.60);                    // low wheel chock
+        g.beginPath();
+        g.moveTo(wx - 9, wy + 2); g.lineTo(wx + 9, wy + 2);
+        g.lineTo(wx + 7, wy - 3.4); g.lineTo(wx - 7, wy - 3.4);
+        g.closePath(); g.fill(); outline(g, shade(col, 0.34));
+        g.fillStyle = col;
+        g.beginPath();
+        g.moveTo(wx - 9, wy + 1.4); g.lineTo(wx + 0.5, wy + 1.4);
+        g.lineTo(wx - 1.4, wy - 3.4); g.lineTo(wx - 7, wy - 3.4);
+        g.closePath(); g.fill();
+        g.fillStyle = shade(col, 1.32);
+        g.beginPath(); g.ellipse(wx, wy - 3.4, 7.4, 2.4, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(0,0,0,.26)';
+        g.beginPath(); g.ellipse(wx + 3, wy - 3.4, 3.4, 1.5, 0, 0, 6.29); g.fill();
+      };
+      depClamp(-1.571); depClamp(0); depClamp(1.571); depClamp(3.142);
+
+      if (sov) {
+        // Collective depot placeholder: the same flat pad, a plain grey
+        // lattice crane arm instead of the Directorate gantry. The real
+        // Soviet sprite lands with its own item.
+        var svgx = cx - fw * 0.56, svgy = baseY - fh * 0.16;
+        prism(g, svgx, svgy, fw * 0.20, fh * 0.20, 22, '#6f747c', '#8d939b', '#2c3038');
+        g.strokeStyle = '#7d838c'; g.lineWidth = 3.4; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(svgx, svgy - 22); g.lineTo(svgx + fw * 0.44, svgy - 46); g.stroke();
+        lattice(g, svgx, svgy - 22, svgx + fw * 0.44, svgy - 46, 7, '#9aa0a8');
+        g.strokeStyle = '#2f333a'; g.lineWidth = 1.2;
+        g.beginPath();
+        g.moveTo(svgx + fw * 0.44, svgy - 46); g.lineTo(svgx + fw * 0.44, svgy - 30); g.stroke();
+        g.fillStyle = '#5c626b';
+        g.fillRect(svgx + fw * 0.44 - 3, svgy - 30, 6, 5); outline(g, '#23262b');
+      } else {
+        // ---- the gantry: orange boom, grey machine block, crane arm -------
+        var dgx = cx - fw * 0.54, dgy = baseY - fh * 0.10;
+        prism(g, dgx, dgy, fw * 0.19, fh * 0.19, 22, DEP_STL, shade(col, 1.02), DEP_STLD);
+        g.fillStyle = '#20242a';                           // dark shutter on the hut
+        g.fillRect(dgx - 5, dgy - 16, 10, 14); outline(g, '#0e1013');
+        g.fillStyle = '#585f68'; g.fillRect(dgx - 5, dgy - 16, 10, 2.4);
+
+        // the orange boom, running back up the grid's north-east axis
+        var bA = [dgx - fw * 0.12, dgy - 24], bB = [dgx + fw * 0.62, dgy - 50];
+        g.strokeStyle = DEP_ORGD; g.lineWidth = 15; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(bA[0], bA[1]); g.lineTo(bB[0], bB[1]); g.stroke();
+        g.strokeStyle = DEP_ORG; g.lineWidth = 12;
+        g.beginPath(); g.moveTo(bA[0], bA[1]); g.lineTo(bB[0], bB[1]); g.stroke();
+        g.strokeStyle = DEP_ORGL; g.lineWidth = 3.6;
+        g.beginPath(); g.moveTo(bA[0], bA[1] - 3.4); g.lineTo(bB[0], bB[1] - 3.4); g.stroke();
+        g.strokeStyle = 'rgba(60,34,6,.34)'; g.lineWidth = 1.2;   // rib seams
+        for (var dbI = 1; dbI < 6; dbI++) {
+          var bt = dbI / 6;
+          var bxp = bA[0] + (bB[0] - bA[0]) * bt, byp = bA[1] + (bB[1] - bA[1]) * bt;
+          g.beginPath(); g.moveTo(bxp - 2, byp - 6.5); g.lineTo(bxp + 2, byp + 6.5); g.stroke();
+        }
+        g.fillStyle = '#2b2f35';                           // machine block on the boom
+        g.fillRect(dgx + fw * 0.16, dgy - 48, 20, 15); outline(g, '#14161a');
+        g.fillStyle = '#5b626c'; g.fillRect(dgx + fw * 0.16, dgy - 48, 20, 4);
+        g.fillStyle = '#8d949e'; g.fillRect(dgx + fw * 0.16 + 2, dgy - 44, 6, 6);
+        g.fillStyle = '#15181c';                           // mast above the block
+        g.fillRect(dgx + fw * 0.30, dgy - 58, 3, 11);
+        g.fillStyle = '#cfd4dc';
+        g.beginPath(); g.arc(dgx + fw * 0.315, dgy - 59, 1.7, 0, 6.29); g.fill();
+
+        // dark crane arm reaching out over the pad, cable and claw
+        g.fillStyle = '#464c55';                           // post under the boom's
+        g.fillRect(dgx + fw * 0.56, dgy - 46, 5, 26);      // outboard end
+        outline(g, '#1e2126');
+        g.fillStyle = '#787f89'; g.fillRect(dgx + fw * 0.56, dgy - 46, 1.8, 26);
+        var cA0 = [dgx + fw * 0.56, dgy - 46], cA1 = [dgx + fw * 1.16, dgy - 36];
+        g.strokeStyle = DEP_STLD; g.lineWidth = 7; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(cA0[0], cA0[1]); g.lineTo(cA1[0], cA1[1]); g.stroke();
+        g.strokeStyle = '#4e545c'; g.lineWidth = 4;
+        g.beginPath(); g.moveTo(cA0[0], cA0[1]); g.lineTo(cA1[0], cA1[1]); g.stroke();
+        lattice(g, cA0[0], cA0[1], cA1[0], cA1[1], 9, 'rgba(150,158,168,.55)');
+        g.strokeStyle = '#20242a'; g.lineWidth = 1.2;      // cable
+        g.beginPath(); g.moveTo(cA1[0], cA1[1]); g.lineTo(cA1[0] + 1, cA1[1] + 17); g.stroke();
+        g.fillStyle = '#6a717b';                           // claw block
+        g.beginPath();
+        g.moveTo(cA1[0] - 5, cA1[1] + 17); g.lineTo(cA1[0] + 7, cA1[1] + 17);
+        g.lineTo(cA1[0] + 4, cA1[1] + 23); g.lineTo(cA1[0] - 2, cA1[1] + 23);
+        g.closePath(); g.fill(); outline(g, '#23262b');
+        g.strokeStyle = '#8e959e'; g.lineWidth = 1.6;
+        g.beginPath(); g.moveTo(cA1[0] - 3, cA1[1] + 23); g.lineTo(cA1[0] - 6, cA1[1] + 28); g.stroke();
+        g.beginPath(); g.moveTo(cA1[0] + 4, cA1[1] + 23); g.lineTo(cA1[0] + 7, cA1[1] + 28); g.stroke();
+      }
+      drums(g, cx - fw * 0.78, baseY + fh * 0.30, 3, '#4d5763');
+      crates(g, cx - fw * 0.30, baseY + fh * 0.72, 2, '#7a6a45');
+
+    } else if (key === 'lab') {
+      // --- RA2 Battle Lab --------------------------------------------------
+      // From the real sprite (the in-game snow-theatre shot and the clean
+      // render on disk): TWO fat silver drums tiled in panel plate, each
+      // capped by a dark violet dome, hung off a near-black spine that runs
+      // the full height, with a thicket of whip antennas above - two of them
+      // wearing helical coils - and a house-coloured plinth carrying the
+      // Allied badge at the front. It is the tallest thing on a 2x2 in RA2,
+      // roughly two footprint-widths of antenna above the domes.
+      var LAB_PLT = '#c8ccd6', LAB_PLTL = '#f0f2f7', LAB_PLTD = '#868c98';
+      var LAB_SPN = '#232838', LAB_SPND = '#0e1018', LAB_SPNL = '#3d4457';
+      var LAB_DOM = '#38355e', LAB_DOML = '#6c68a4', LAB_DOMD = '#191830';
+      var LAB_GUN = '#585f6a', LAB_GUND = '#282c33';
+      if (sov) {
+        // Collective lab placeholder until its own sprite branch lands.
+        var slLift = 40;
+        prism(g, cx, baseY, fw * 0.66, fh * 0.66, slLift, '#6b6f78', '#878d96', '#2a2e36');
+        g.fillStyle = col;
+        g.fillRect(cx - fw * 0.40, baseY - slLift - 3, fw * 0.80, 5);
+        cylinder(g, cx, baseY - slLift, 12, 20, '#4e545e', '#767d88', '#22262c');
+      } else {
+        // ---- base pad and its apron clutter -------------------------------
+        g.fillStyle = 'rgba(0,0,0,.34)';
+        g.beginPath(); g.ellipse(cx + 3, baseY + 5, fw * 0.94, fh * 0.94, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#3c4038';
+        g.beginPath(); g.ellipse(cx, baseY + 1, fw * 0.94, fh * 0.94, 0, 0, 6.29); g.fill();
+        outline(g, '#1d2019');
+        g.fillStyle = '#4c5147';
+        g.beginPath(); g.ellipse(cx, baseY - 1, fw * 0.86, fh * 0.86, 0, 0, 6.29); g.fill();
+        outline(g, '#23261f');
+        g.strokeStyle = 'rgba(190,196,182,.20)'; g.lineWidth = 1;
+        g.beginPath(); g.ellipse(cx, baseY - 3, fw * 0.66, fh * 0.66, 0, 0, 6.29); g.stroke();
+
+        // ---- the spine: a near-black column the whole building hangs on ---
+        var lsY = baseY - 168;
+        g.fillStyle = LAB_SPN; g.fillRect(cx - 10, lsY, 20, 176);
+        outline(g, LAB_SPND);
+        g.fillStyle = LAB_SPNL; g.fillRect(cx - 10, lsY, 5, 176);
+        g.fillStyle = 'rgba(0,0,0,.34)'; g.fillRect(cx + 5, lsY, 5, 176);
+        g.fillStyle = shade(col, 0.92);                    // OWNER instrument panel
+        g.fillRect(cx - 8, baseY - 96, 16, 15); outline(g, shade(col, 0.42));
+        g.fillStyle = shade(col, 1.32); g.fillRect(cx - 8, baseY - 96, 16, 3);
+        g.fillStyle = LAB_GUN;                             // grey junction boxes
+        g.fillRect(cx - 9, baseY - 66, 18, 9); outline(g, LAB_GUND);
+        g.fillStyle = '#7d838d'; g.fillRect(cx - 9, baseY - 66, 18, 2);
+
+        // ---- a panel-plated drum with a violet dome cap -------------------
+        var labTower = function (tx, ty, tr, th, domeR) {
+          g.fillStyle = 'rgba(0,0,0,.30)';
+          g.beginPath(); g.ellipse(tx + 2, ty + 3, tr, tr * 0.42, 0, 0, 6.29); g.fill();
+          cylinder(g, tx, ty, tr, th, LAB_PLT, LAB_PLTL, LAB_PLTD);
+          g.save();
+          g.beginPath(); g.rect(tx - tr, ty - th, tr * 2, th); g.clip();
+          for (var lrI = 0; lrI < 5; lrI++) {             // courses of plate tile
+            var lry = ty - th * (lrI + 1) / 5;
+            g.fillStyle = 'rgba(70,76,90,.44)'; g.fillRect(tx - tr, lry + 1.4, tr * 2, 1.6);
+            g.fillStyle = 'rgba(255,255,255,.34)'; g.fillRect(tx - tr, lry, tr * 2, 1.4);
+            for (var lcI = -2; lcI <= 2; lcI++) {         // and the vertical joints
+              var lcxx = tx + lcI * tr * 0.42 + (lrI % 2 ? tr * 0.21 : 0);
+              g.fillStyle = 'rgba(70,76,90,.40)';
+              g.fillRect(lcxx, lry + 1.4, 1.2, th / 5);
+            }
+          }
+          g.fillStyle = 'rgba(255,255,255,.20)'; g.fillRect(tx - tr, ty - th, tr * 0.40, th);
+          g.fillStyle = 'rgba(24,28,36,.26)'; g.fillRect(tx + tr * 0.48, ty - th, tr * 0.52, th);
+          g.restore();
+          g.fillStyle = LAB_GUN;                            // gunmetal collar
+          g.beginPath(); g.ellipse(tx, ty - th, tr * 0.94, tr * 0.40, 0, 0, 6.29); g.fill();
+          outline(g, LAB_GUND);
+          cylinder(g, tx, ty - th - 1, domeR, 9, LAB_GUN, shade(LAB_GUN, 1.28), LAB_GUND);
+          var lgd = g.createRadialGradient(tx - domeR * 0.36, ty - th - domeR * 0.72, 1,
+                                           tx, ty - th - 10, domeR * 1.25);
+          lgd.addColorStop(0, LAB_DOML);
+          lgd.addColorStop(0.55, LAB_DOM);
+          lgd.addColorStop(1, LAB_DOMD);
+          g.fillStyle = lgd;                                // the violet dome
+          g.beginPath();
+          g.ellipse(tx, ty - th - 10, domeR, domeR * 0.86, 0, Math.PI, 6.29);
+          g.closePath(); g.fill(); outline(g, LAB_DOMD);
+          g.fillStyle = 'rgba(226,230,246,.34)';
+          g.beginPath();
+          g.ellipse(tx - domeR * 0.32, ty - th - 10 - domeR * 0.42, domeR * 0.26, domeR * 0.16,
+                    -0.5, 0, 6.29);
+          g.fill();
+          g.strokeStyle = LAB_PLTD; g.lineWidth = 1.6;      // dome rim
+          g.beginPath(); g.ellipse(tx, ty - th - 10, domeR, domeR * 0.34, 0, 0, 6.29); g.stroke();
+          return ty - th - 10 - domeR * 0.86;
+        };
+        var labA = labTower(cx - fw * 0.48, baseY - fh * 0.28, 18, 50, 15);   // back-left
+        var labB = labTower(cx + fw * 0.44, baseY + fh * 0.14, 23, 64, 19);   // front-right
+
+        // ---- arched service tube, crossing IN FRONT of the left drum -----
+        // The sprite's most idiosyncratic detail: a fat grey duct arcing off
+        // the spine and down the near face of the left tower.
+        g.strokeStyle = '#2f343c'; g.lineWidth = 9; g.lineCap = 'butt';
+        g.beginPath();
+        g.moveTo(cx - 11, baseY - 104);
+        g.quadraticCurveTo(cx - 40, baseY - 82, cx - 34, baseY - 22);
+        g.stroke();
+        g.strokeStyle = '#767c86'; g.lineWidth = 6;
+        g.beginPath();
+        g.moveTo(cx - 11, baseY - 104);
+        g.quadraticCurveTo(cx - 40, baseY - 82, cx - 34, baseY - 22);
+        g.stroke();
+        g.strokeStyle = 'rgba(226,232,240,.34)'; g.lineWidth = 1.8;
+        g.beginPath();
+        g.moveTo(cx - 13, baseY - 104);
+        g.quadraticCurveTo(cx - 42, baseY - 82, cx - 36, baseY - 22);
+        g.stroke();
+        g.strokeStyle = 'rgba(24,28,34,.44)'; g.lineWidth = 1.2;   // clamp bands
+        for (var laI = 1; laI < 5; laI++) {
+          var lat = laI / 5, liv = 1 - lat;
+          var lax = liv * liv * (cx - 11) + 2 * liv * lat * (cx - 40) + lat * lat * (cx - 34);
+          var lay = liv * liv * (baseY - 104) + 2 * liv * lat * (baseY - 82) + lat * lat * (baseY - 22);
+          g.beginPath(); g.moveTo(lax - 5, lay + 1); g.lineTo(lax + 5, lay - 1); g.stroke();
+        }
+
+        // ---- house-coloured badge plinth at the front ---------------------
+        var lbx = cx - fw * 0.30, lby = baseY + fh * 0.44;
+        prism(g, lbx, lby, fw * 0.22, fh * 0.22, 26, col, shade(col, 1.24), shade(col, 0.36));
+        g.fillStyle = '#11131a';                            // dark badge shield
+        g.beginPath();
+        g.moveTo(lbx - 8, lby - 36); g.lineTo(lbx + 8, lby - 32);
+        g.lineTo(lbx + 8, lby - 24); g.lineTo(lbx, lby - 18);
+        g.lineTo(lbx - 8, lby - 26); g.closePath(); g.fill();
+        outline(g, '#000');
+        g.fillStyle = '#dfe4ec';                            // pale chevron on it
+        g.beginPath();
+        g.moveTo(lbx - 5, lby - 31); g.lineTo(lbx + 5, lby - 28.5);
+        g.lineTo(lbx, lby - 24); g.closePath(); g.fill();
+
+        // ---- whip antennas, two of them coiled ----------------------------
+        var labWhip = function (wx, wy, wh2, coil) {
+          g.strokeStyle = '#111318'; g.lineWidth = 2;
+          g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx, wy - wh2); g.stroke();
+          g.strokeStyle = 'rgba(190,198,210,.30)'; g.lineWidth = 0.8;
+          g.beginPath(); g.moveTo(wx - 0.7, wy); g.lineTo(wx - 0.7, wy - wh2); g.stroke();
+          g.fillStyle = '#dfe4ec';
+          g.beginPath(); g.arc(wx, wy - wh2 - 1, 2.2, 0, 6.29); g.fill();
+          if (coil) {                                       // OWNER helical coil
+            var cy0 = wy - wh2 * 0.56;
+            g.fillStyle = shade(col, 0.62);
+            g.fillRect(wx - 6, cy0 - 1, 12, 26); outline(g, shade(col, 0.32));
+            for (var lwI = 0; lwI < 6; lwI++) {
+              g.fillStyle = lwI % 2 ? shade(col, 1.30) : col;
+              g.fillRect(wx - 6, cy0 + lwI * 4.2, 12, 2.8);
+            }
+            g.fillStyle = 'rgba(255,255,255,.26)'; g.fillRect(wx - 6, cy0 - 1, 3, 26);
+          }
+        };
+        labWhip(cx - fw * 0.30, labA + 8, 84, false);
+        labWhip(cx - fw * 0.10, labA + 4, 116, true);
+        labWhip(cx + fw * 0.12, labB + 6, 128, false);
+        labWhip(cx + fw * 0.30, labB + 12, 96, true);
+        labWhip(cx + fw * 0.46, labB + 20, 66, false);
+
+        crates(g, cx + fw * 0.10, baseY + fh * 0.74, 2, '#7a6a45');
+        drums(g, cx + fw * 0.62, baseY + fh * 0.46, 2, '#4d5763');
+      }
+
+    } else if (key === 'purifier') {
+      // --- RA2 Ore Purifier ------------------------------------------------
+      // From the real sprite: a wedding-cake of ribbed silver rings standing
+      // on a rough stone apron, a GLOWING band of molten ore between the
+      // rings, a smooth pale bulb above it, and a dark spiked chute mouth on
+      // top - all girdled by two fat house-coloured ducts with white ribbed
+      // sleeves that sweep round the base.
+      var PUR_STN = '#8b8871', PUR_STND = '#4b4a3a';
+      var PUR_SIL = '#c2c4bd', PUR_SILL = '#eef0ec', PUR_SILD = '#7e8079';
+      var PUR_GUN = '#4c5057', PUR_GUND = '#1d2024';
+      var PUR_HOT = '#ff9a1e', PUR_HOTL = '#ffe08a';
+
+      // ---- rough stone apron ---------------------------------------------
+      g.fillStyle = 'rgba(0,0,0,.32)';
+      g.beginPath(); g.ellipse(cx + 3, baseY + 5, fw * 0.90, fh * 0.90, 0, 0, 6.29); g.fill();
+      g.fillStyle = PUR_STND;
+      g.beginPath(); g.ellipse(cx, baseY + 2, fw * 0.90, fh * 0.90, 0, 0, 6.29); g.fill();
+      g.fillStyle = PUR_STN;
+      g.beginPath(); g.ellipse(cx, baseY, fw * 0.88, fh * 0.88, 0, 0, 6.29); g.fill();
+      outline(g, PUR_STND);
+      g.save();
+      g.beginPath(); g.ellipse(cx, baseY, fw * 0.88, fh * 0.88, 0, 0, 6.29); g.clip();
+      srand(521);
+      for (var puS = 0; puS < 26; puS++) {                  // broken-stone mottle
+        var pa2 = rnd() * 6.283, pr2 = Math.sqrt(rnd());
+        g.fillStyle = rnd() < 0.5 ? shade(PUR_STN, 1.16) : shade(PUR_STN, 0.78);
+        g.beginPath();
+        g.ellipse(cx + Math.cos(pa2) * pr2 * fw * 0.84, baseY + Math.sin(pa2) * pr2 * fh * 0.84,
+                  3 + rnd() * 4, 1.8 + rnd() * 2, 0, 0, 6.29);
+        g.fill();
+      }
+      g.restore();
+
+      // ---- the two house-coloured ducts, laid down BEHIND the stack -------
+      var purDuct = function (x0, y0, x1, y1, x2, y2, w2) {
+        g.strokeStyle = shade(col, 0.34); g.lineWidth = w2 + 3; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x1, y1, x2, y2); g.stroke();
+        g.strokeStyle = shade(col, 0.86); g.lineWidth = w2;
+        g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x1, y1, x2, y2); g.stroke();
+        g.strokeStyle = shade(col, 1.28); g.lineWidth = w2 * 0.30;
+        g.beginPath();
+        g.moveTo(x0, y0 - w2 * 0.28);
+        g.quadraticCurveTo(x1, y1 - w2 * 0.28, x2, y2 - w2 * 0.28); g.stroke();
+        for (var pdI = 1; pdI < 4; pdI++) {                 // white ribbed sleeves
+          var pt2 = pdI / 4, iv = 1 - pt2;
+          var sx3 = iv * iv * x0 + 2 * iv * pt2 * x1 + pt2 * pt2 * x2;
+          var sy3 = iv * iv * y0 + 2 * iv * pt2 * y1 + pt2 * pt2 * y2;
+          g.strokeStyle = PUR_SILD; g.lineWidth = w2 * 0.92;
+          g.beginPath(); g.moveTo(sx3 - 2.4, sy3 + 1.4); g.lineTo(sx3 + 2.4, sy3 - 1.4); g.stroke();
+          g.strokeStyle = PUR_SILL; g.lineWidth = w2 * 0.62;
+          g.beginPath(); g.moveTo(sx3 - 2.2, sy3 + 1.2); g.lineTo(sx3 + 2.2, sy3 - 1.2); g.stroke();
+        }
+      };
+      purDuct(cx - fw * 0.10, baseY - fh * 0.78, cx - fw * 1.14, baseY - fh * 0.66,
+              cx - fw * 0.94, baseY + fh * 0.14, 14);
+      purDuct(cx + fw * 0.20, baseY - fh * 0.26, cx + fw * 1.28, baseY - fh * 0.04,
+              cx + fw * 0.88, baseY + fh * 0.68, 15);
+
+      // ---- the ribbed ring stack -----------------------------------------
+      var purRing = function (ry3, rr, rh, ribs) {
+        cylinder(g, cx, ry3, rr, rh, PUR_SIL, PUR_SILL, PUR_SILD);
+        if (ribs) {
+          g.save();
+          g.beginPath(); g.rect(cx - rr, ry3 - rh, rr * 2, rh); g.clip();
+          for (var pvI = -9; pvI <= 9; pvI++) {             // cog-tooth flutes
+            g.fillStyle = pvI % 2 ? 'rgba(40,44,48,.30)' : 'rgba(255,255,255,.22)';
+            g.fillRect(cx + pvI * rr * 0.11, ry3 - rh, rr * 0.055, rh);
+          }
+          g.restore();
+        }
+        g.fillStyle = 'rgba(255,255,255,.16)'; g.fillRect(cx - rr, ry3 - rh, rr * 0.34, rh);
+        g.fillStyle = 'rgba(0,0,0,.20)'; g.fillRect(cx + rr * 0.52, ry3 - rh, rr * 0.48, rh);
+      };
+      purRing(baseY + 2, 31, 13, true);                     // wide fluted skirt
+      purRing(baseY - 11, 26, 10, true);
+
+      // the glowing ore band
+      g.fillStyle = 'rgba(255,150,40,.16)';
+      g.beginPath(); g.ellipse(cx, baseY - 25, 44, 20, 0, 0, 6.29); g.fill();
+      cylinder(g, cx, baseY - 21, 23, 8, '#a05512', '#d3821f', '#3d1f04');
+      g.fillStyle = PUR_HOT; g.fillRect(cx - 23, baseY - 27.5, 46, 5);
+      g.fillStyle = PUR_HOTL; g.fillRect(cx - 23, baseY - 27.5, 46, 1.8);
+      g.fillStyle = 'rgba(60,26,4,.55)';                    // dark slots in the glow
+      for (var pgI = -4; pgI <= 4; pgI++) g.fillRect(cx + pgI * 5.2 - 1, baseY - 27.5, 1.8, 5);
+
+      purRing(baseY - 29, 22, 9, false);                    // smooth shoulder
+      g.fillStyle = shade(col, 0.84);                       // OWNER band on it
+      g.fillRect(cx - 22, baseY - 37, 44, 5.4); outline(g, shade(col, 0.38));
+      g.fillStyle = col; g.fillRect(cx - 22, baseY - 37, 44, 3.2);
+      g.fillStyle = shade(col, 1.30); g.fillRect(cx - 22, baseY - 37, 12, 3.2);
+      // The bulb BULGES before it necks - the sprite's upper body is a
+      // rounded barrel, and drawing it as a plain frustum turned the whole
+      // purifier into a lampshade.
+      var purBulb = function (fill, x0f, x1f) {
+        g.beginPath();
+        g.moveTo(cx + x0f * 21, baseY - 38);
+        g.quadraticCurveTo(cx + x0f * 27, baseY - 46, cx + x0f * 11, baseY - 58);
+        g.lineTo(cx + x1f * 11, baseY - 58);
+        g.quadraticCurveTo(cx + x1f * 27, baseY - 46, cx + x1f * 21, baseY - 38);
+        g.closePath(); g.fillStyle = fill; g.fill();
+      };
+      purBulb(PUR_SIL, -1, 1); outline(g, PUR_SILD);
+      purBulb('rgba(255,255,255,.26)', -1, -0.36);
+      purBulb('rgba(0,0,0,.22)', 0.44, 1);
+      g.strokeStyle = 'rgba(80,84,80,.28)'; g.lineWidth = 1;   // two seam bands
+      for (var pbI = 1; pbI <= 2; pbI++) {
+        var pby = baseY - 38 - pbI * 6.6, pbw = 22 - pbI * 3.4;
+        g.beginPath(); g.moveTo(cx - pbw, pby); g.lineTo(cx + pbw, pby); g.stroke();
+      }
+      g.fillStyle = PUR_SILL;
+      g.beginPath(); g.ellipse(cx, baseY - 58, 11, 4.6, 0, 0, 6.29); g.fill();
+      outline(g, PUR_SILD);
+      // white ribbed hose girdling the skirt, straight off the sprite
+      g.strokeStyle = PUR_SILD; g.lineWidth = 3.8;
+      g.beginPath(); g.ellipse(cx, baseY - 4, 32.5, 11, 0, 3.46, 5.98); g.stroke();
+      g.strokeStyle = PUR_SILL; g.lineWidth = 2.2;
+      g.beginPath(); g.ellipse(cx, baseY - 4, 32.5, 11, 0, 3.46, 5.98); g.stroke();
+      g.strokeStyle = 'rgba(96,100,96,.44)'; g.lineWidth = 1;
+      for (var phI = 0; phI < 8; phI++) {
+        var pha = 3.54 + phI * 0.30;
+        g.beginPath();
+        g.moveTo(cx + Math.cos(pha) * 31, baseY - 4 + Math.sin(pha) * 10);
+        g.lineTo(cx + Math.cos(pha) * 34, baseY - 4 + Math.sin(pha) * 12); g.stroke();
+      }
+
+      // ---- dark chute with its spiked collar and glowing mouth ------------
+      cylinder(g, cx, baseY - 58, 9.5, 18, PUR_GUN, shade(PUR_GUN, 1.34), PUR_GUND);
+      g.fillStyle = shade(PUR_GUN, 1.5);
+      g.fillRect(cx - 9.5, baseY - 69, 19, 3);
+      g.fillStyle = PUR_GUND;                               // spiked collar
+      for (var psI = -4; psI <= 4; psI++) {
+        g.beginPath();
+        g.moveTo(cx + psI * 2.3 - 1, baseY - 76);
+        g.lineTo(cx + psI * 2.3 + 1, baseY - 76);
+        g.lineTo(cx + psI * 2.3, baseY - 80.5); g.closePath(); g.fill();
+      }
+      g.fillStyle = '#20242a';
+      g.beginPath(); g.ellipse(cx, baseY - 76, 9.5, 4, 0, 0, 6.29); g.fill();
+      outline(g, PUR_GUND);
+      g.fillStyle = '#0b0d10';
+      g.beginPath(); g.ellipse(cx, baseY - 76, 6.6, 2.7, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,150,40,.34)';                 // ore glow in the throat
+      g.beginPath(); g.ellipse(cx, baseY - 75, 4.6, 1.8, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,176,70,.13)';
+      g.beginPath(); g.ellipse(cx, baseY - 79, 13, 7, 0, 0, 6.29); g.fill();
+
+      // ---- ore chunks spilled at the foot ---------------------------------
+      srand(97);
+      for (var poI = 0; poI < 7; poI++) {
+        var oa = 2.2 + rnd() * 1.9, orr = 0.72 + rnd() * 0.24;
+        var oxx = cx + Math.cos(oa) * fw * 0.80 * orr, oyy = baseY + Math.abs(Math.sin(oa)) * fh * 0.74 * orr;
+        g.fillStyle = poI % 2 ? '#c8922e' : '#8f6a1d';
+        g.beginPath(); g.ellipse(oxx, oyy, 2.6 + rnd() * 1.8, 1.6 + rnd(), 0, 0, 6.29); g.fill();
+      }
+
+    } else if (key === 'prism') {
+      // --- RA2 Prism Tower --------------------------------------------------
+      // Built from the clean keyed sprite rip (114x208, w/h 0.55) plus the
+      // in-game snow shot. Bottom to top: a dark ground disc; a squat silver
+      // frustum drum wearing three house-coloured panels with three house
+      // CLAWS spread over the disc; a slim column braced by four pale struts
+      // pinned with amber bolts; a gunmetal collar, a house band and a dark
+      // knuckle; and on top the fan of faceted prism blades that gives the
+      // tower its whole silhouette. It overflows its 1x1 tile upward like the
+      // Tesla coil - the tile is a foot, not a footprint.
+      var PRZ_SIL = '#b9bcc4', PRZ_SILL = '#eceef3', PRZ_SILD = '#787c86';
+      var PRZ_GUN = '#4a4e57', PRZ_GUNL = '#767c88', PRZ_GUND = '#1a1d22';
+      var PRZ_STR = '#9aa2b2', PRZ_BLT = '#e08a1c';
+
+      // ---- ground disc -----------------------------------------------------
+      diamond(g, cx, baseY, fw * 2, fh * 2);
+      g.fillStyle = 'rgba(30,34,26,.66)'; g.fill();
+      g.fillStyle = 'rgba(0,0,0,.34)';
+      g.beginPath(); g.ellipse(cx + 2, baseY + 5, 31, 13.5, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#3b3f38';
+      g.beginPath(); g.ellipse(cx, baseY + 3, 31, 13.5, 0, 0, 6.29); g.fill();
+      outline(g, '#1b1e18');
+      g.fillStyle = '#575c50';
+      g.beginPath(); g.ellipse(cx, baseY + 1, 29, 12.4, 0, 0, 6.29); g.fill();
+      outline(g, '#23261f');
+      g.fillStyle = 'rgba(216,222,206,.20)';
+      g.beginPath(); g.ellipse(cx, baseY - 0.5, 24, 10, 0, 0, 6.29); g.fill();
+
+      // ---- three house-coloured claws spread over the disc -----------------
+      var przClaw = function (dxs, dys, sp) {
+        g.fillStyle = shade(col, 0.52);
+        g.beginPath();
+        g.moveTo(cx + dxs * 6, baseY - 9);
+        g.lineTo(cx + dxs * 24, baseY + dys - 1);
+        g.lineTo(cx + dxs * 24 - sp, baseY + dys + 4);
+        g.lineTo(cx + dxs * 5, baseY - 4);
+        g.closePath(); g.fill(); outline(g, shade(col, 0.30));
+        g.fillStyle = col;
+        g.beginPath();
+        g.moveTo(cx + dxs * 6, baseY - 9);
+        g.lineTo(cx + dxs * 24, baseY + dys - 1);
+        g.lineTo(cx + dxs * 23, baseY + dys + 1.4);
+        g.lineTo(cx + dxs * 5.6, baseY - 6.6);
+        g.closePath(); g.fill();
+        g.fillStyle = shade(col, 1.34);
+        g.beginPath();
+        g.ellipse(cx + dxs * 23.4, baseY + dys + 1.4, 3.4, 2.4, 0, 0, 6.29); g.fill();
+      };
+      przClaw(-1, 2, 3); przClaw(1, 2, -3);
+      g.fillStyle = shade(col, 0.52);                       // near claw, straight down
+      g.beginPath();
+      g.moveTo(cx - 6, baseY - 7); g.lineTo(cx + 6, baseY - 7);
+      g.lineTo(cx + 7.5, baseY + 8); g.lineTo(cx - 7.5, baseY + 8);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.30));
+      g.fillStyle = col; g.fillRect(cx - 5, baseY - 6, 10, 13);
+      g.fillStyle = shade(col, 1.30); g.fillRect(cx - 5, baseY - 6, 3, 13);
+
+      // ---- squat frustum drum with three house panels ----------------------
+      g.fillStyle = PRZ_SIL;
+      g.beginPath();
+      g.moveTo(cx - 22, baseY - 4); g.lineTo(cx - 16, baseY - 22);
+      g.lineTo(cx + 16, baseY - 22); g.lineTo(cx + 22, baseY - 4);
+      g.closePath(); g.fill(); outline(g, PRZ_SILD);
+      g.fillStyle = 'rgba(255,255,255,.24)';
+      g.beginPath();
+      g.moveTo(cx - 22, baseY - 4); g.lineTo(cx - 16, baseY - 22);
+      g.lineTo(cx - 8, baseY - 22); g.lineTo(cx - 11, baseY - 4);
+      g.closePath(); g.fill();
+      g.fillStyle = 'rgba(0,0,0,.24)';
+      g.beginPath();
+      g.moveTo(cx + 11, baseY - 4); g.lineTo(cx + 8, baseY - 22);
+      g.lineTo(cx + 16, baseY - 22); g.lineTo(cx + 22, baseY - 4);
+      g.closePath(); g.fill();
+      g.fillStyle = shade(col, 0.94);                       // OWNER panel, front face
+      g.fillRect(cx - 6, baseY - 20, 12, 14); outline(g, shade(col, 0.38));
+      g.fillStyle = shade(col, 1.30); g.fillRect(cx - 6, baseY - 20, 12, 2.6);
+      g.fillStyle = shade(col, 0.72); g.fillRect(cx - 6, baseY - 10, 12, 4);
+      g.fillStyle = PRZ_SILD;                               // drum lip
+      g.beginPath(); g.ellipse(cx, baseY - 22, 16, 6.4, 0, 0, 6.29); g.fill();
+      outline(g, PRZ_GUND);
+      g.fillStyle = PRZ_SILL;
+      g.beginPath(); g.ellipse(cx, baseY - 23, 12.6, 4.9, 0, 0, 6.29); g.fill();
+
+      // ---- column and its four braced struts -------------------------------
+      cylinder(g, cx, baseY - 20, 5.4, 40, PRZ_GUN, PRZ_GUNL, PRZ_GUND);
+      g.fillStyle = 'rgba(228,234,244,.26)'; g.fillRect(cx - 5.4, baseY - 60, 2.2, 40);
+      for (var przS = 0; przS < 4; przS++) {
+        var sxo = (przS < 2 ? -1 : 1) * (przS % 2 ? 9.5 : 14.5);
+        g.strokeStyle = 'rgba(20,23,28,.60)'; g.lineWidth = 2.6;
+        g.beginPath(); g.moveTo(cx + sxo, baseY - 22); g.lineTo(cx + sxo * 0.30, baseY - 54); g.stroke();
+        g.strokeStyle = PRZ_STR; g.lineWidth = 1.6;
+        g.beginPath(); g.moveTo(cx + sxo, baseY - 23); g.lineTo(cx + sxo * 0.30, baseY - 55); g.stroke();
+        g.fillStyle = PRZ_BLT;                              // amber bolt at the top pin
+        g.beginPath(); g.arc(cx + sxo * 0.30, baseY - 55, 1.9, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(255,226,150,.80)';
+        g.beginPath(); g.arc(cx + sxo * 0.30 - 0.5, baseY - 55.6, 0.8, 0, 6.29); g.fill();
+      }
+
+      // ---- gunmetal collar, house band, dark knuckle -----------------------
+      cylinder(g, cx, baseY - 54, 10.4, 8, PRZ_GUN, PRZ_GUNL, PRZ_GUND);
+      g.fillStyle = PRZ_SILD;
+      g.beginPath(); g.ellipse(cx, baseY - 62, 10.4, 4.1, 0, 0, 6.29); g.fill();
+      outline(g, PRZ_GUND);
+      g.fillStyle = shade(col, 0.96);                       // OWNER band
+      g.fillRect(cx - 9.6, baseY - 70, 19.2, 8); outline(g, shade(col, 0.38));
+      g.fillStyle = col; g.fillRect(cx - 9.6, baseY - 70, 19.2, 4.4);
+      g.fillStyle = shade(col, 1.34); g.fillRect(cx - 9.6, baseY - 70, 5, 4.4);
+      cylinder(g, cx, baseY - 70, 8.2, 9, '#2b2f36', '#4d535e', PRZ_GUND);
+      g.fillStyle = '#5c636e';                              // knuckle cheeks
+      g.fillRect(cx - 10.4, baseY - 77, 3.2, 6);
+      g.fillRect(cx + 7.2, baseY - 77, 3.2, 6);
+
+      // ---- the prism crown: a fan of faceted blades ------------------------
+      var przHub = baseY - 79;
+      var przBlade = function (ang, len, wid, lit) {
+        var ca = Math.cos(ang), sa2 = Math.sin(ang);
+        var nx2 = -sa2 * wid, ny2 = ca * wid;
+        var txx = cx + ca * len, tyy = przHub + sa2 * len;
+        g.beginPath();
+        g.moveTo(cx + nx2, przHub + ny2);
+        g.lineTo(cx - nx2, przHub - ny2);
+        g.lineTo(txx - nx2 * 0.44, tyy - ny2 * 0.44);
+        g.lineTo(txx + nx2 * 0.44, tyy + ny2 * 0.44);
+        g.closePath();
+        g.fillStyle = lit ? PRZ_SILL : PRZ_SILD; g.fill(); outline(g, '#33373e');
+        g.beginPath();                                      // lit facet down one edge
+        g.moveTo(cx + nx2, przHub + ny2);
+        g.lineTo(cx + nx2 * 0.18, przHub + ny2 * 0.18);
+        g.lineTo(txx + nx2 * 0.10, tyy + ny2 * 0.10);
+        g.lineTo(txx + nx2 * 0.44, tyy + ny2 * 0.44);
+        g.closePath();
+        g.fillStyle = lit ? '#ffffff' : PRZ_SIL; g.fill();
+      };
+      g.fillStyle = '#20242a';                              // dark hub the blades sit in
+      g.beginPath(); g.ellipse(cx, przHub, 9, 5, 0, 0, 6.29); g.fill();
+      var przSet = [[-2.62, 21, 3.4, false], [-2.30, 24, 3.8, true], [-1.98, 20, 3.2, false],
+                    [-1.70, 25, 4.0, true], [-1.42, 19, 3.2, false], [-1.12, 23, 3.8, true],
+                    [-0.80, 18, 3.0, false], [-0.50, 15, 2.6, true]];
+      for (var przI = 0; przI < przSet.length; przI++) {
+        var bl2 = przSet[przI];
+        przBlade(bl2[0], bl2[1], bl2[2], bl2[3]);
+      }
+      g.fillStyle = '#8d939d';                              // hub cap over the roots
+      g.beginPath(); g.ellipse(cx, przHub - 1, 6.4, 3.4, 0, 0, 6.29); g.fill();
+      outline(g, PRZ_GUND);
+      g.fillStyle = 'rgba(226,238,255,.16)';                // faint focus glow
+      g.beginPath(); g.ellipse(cx, przHub - 12, 15, 12, 0, 0, 6.29); g.fill();
     } else {
       // Placeholder until the item's real-sprite branch lands: a drab block
       // the size of the footprint with a house-colour band, never shipped as
