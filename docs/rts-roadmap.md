@@ -39,20 +39,20 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 ### Art fidelity
 - ☑ v1.19.193 Every structure and unit rebuilt against RA2 sprites, both factions
 - ☑ v1.19.198 Owner-only colour policy; proportions to reference; Tesla coil from the real sprite
-- ☐ Soviet Barracks from the real sprite (was built from description)
-- ☐ Soviet Construction Yard from the real sprite (was a screenshot)
-- ☐ Soviet War Factory from the real sprite (was a screenshot)
-- ☐ Tesla Reactor from the real sprite (was a screenshot)
-- ☐ Allied yard: finer, more silver corrugation on the vault; amber pipework deck
-- ☐ Soviet yard: pipe runs, yellow tank, hydrant — the reference's clutter
-- ☐ Apocalypse: individually visible missile canisters (2 rows of stubby tubes)
-- ☐ Chrono Miner: ribbed, scoop-like chrome machinery cluster on the nose
-- ☐ `rocket` → faction-specific anti-tank infantry: Guardian GI (Directorate) / Flak Trooper (Collective), from real sprites
+- ☑ v1.19.200 Soviet Barracks rebuilt as the RA2 monument from the real sprite
+- ☑ v1.19.200 Soviet Construction Yard from the clean sprite (limestone works, two booms, split pad, hammer-and-sickle)
+- ☑ v1.19.200 Soviet War Factory from the in-game sprite (onion tower, six fins, bells, swung door leaf)
+- ☑ v1.19.200 Tesla Reactor from the clean sprite (battered pylons, roof slabs, orb below the roofline, side prongs)
+- ☑ v1.19.200 Allied yard: 19 thin silver ribs, amber rail deck, front-left arch and shutter, hanging claw
+- ☑ v1.19.200 Soviet yard clutter: loading table, pipe elbows, spoil heap, yellow tank, hydrant, drums
+- ☑ v1.19.200 Apocalypse: eight individually visible canisters, tapered turret, twin mantlets
+- ☑ v1.19.200 Chrono Miner: ribbed chrome drum nose with pipes, violet gear and scoop fingers
+- ☑ v1.19.200 `rocket` is Guardian GI (Directorate) / Flak Trooper (Collective), from the real animation frames
 - ☑ v1.19.199 Damaged structures smoke below half health and burn below a quarter
 - ☑ v1.19.199 Build-up animation: a placed structure rises out of its pad behind a scaffold
-- ☐ Harvester mining animation frames (RA2 miner's scoop/drill works while loading)
-- ☐ Infantry walk cycle (RA2 infantry animate; ours slide)
-- ☐ Vehicle turret rotates independently toward the target
+- ☑ v1.19.200 Harvester mining frames: scoop/arm down, gear turned, spoil at the seam, alternating while loading
+- ☑ v1.19.200 Infantry three-frame walk cycle (scissor stride, counter-swinging arms, bobbing rifle)
+- ☑ v1.19.200 Tank turrets aim independently of the hull (hull/turret split, 1.5 s return)
 - ☑ v1.19.199 Muzzle flash at the barrel tip; Tesla shots are a crawling jagged bolt from coil head to target
 
 ### Controls and UX
