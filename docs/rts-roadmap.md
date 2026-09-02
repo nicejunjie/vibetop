@@ -90,6 +90,8 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 - ☐ `spectre` is not an RA2 unit — replace it with the Prism Tank (art + stats)
 - ☐ MCV / deployable Construction Yard; Ore Purifier +25% and Service Depot repair already follow rules.ini
 - ☐ RA2 build-time discount for extra factories (MultipleFactory=0.8) and low-power production penalty curve (currently a flat 0.4×)
+- ☐ Vehicles crush infantry (RA2 Crusher=yes) — under RA2 verses infantry masses beat tank lines, and crushing is RA2's main answer; the AI's unit mix and the balance tests both depend on it
+- ◐ AI re-tuned for RA2 pacing: spends its bank on more factories/barracks and deeper queues, weighs enemy defences before attacking, no tech before an army, one or two miners per refinery, assumes infantry until scouted; hard-vs-easy self-play is still being measured across both factions
 
 ### Terrain and maps (user, 2026-09-02: "build real terrains like RA2, instead of the current plain surface with blocked areas; support multiple maps")
 - ☑ Terrain step 1: water with shimmer, shorelines, cliffs (raised, block movement), roads, trees as occluding objects, snow theatre (v1.19.210)

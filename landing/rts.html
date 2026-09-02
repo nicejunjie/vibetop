@@ -10364,8 +10364,10 @@
       else if (s.queues.v.list.length >= 2 && s.credits > 2200 &&
                countBld(g, me, 'factory') < Math.min(4, 2 + Math.floor(s.credits / 4000))) want = 'factory';
       else if (s.queues.i.list.length >= 2 && s.credits > 3000 && countBld(g, me, 'barracks') < 2) want = 'barracks';
-      else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200) want = radarKey;
-      else if (hasBld(g, me, radarKey) && !hasBld(g, me, 'lab') && s.credits > 2200) want = 'lab';
+      // Tech only once an army stands: a $1000 radar and a $2000 lab before
+      // ten fighters is how the hard AI lost to a seven-minute infantry flood.
+      else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200 && ai.army.length >= cfg.group * 0.6) want = radarKey;
+      else if (hasBld(g, me, radarKey) && !hasBld(g, me, 'lab') && s.credits > 2200 && ai.army.length >= cfg.group) want = 'lab';
       else if (hasBld(g, me, 'lab') && !hasBld(g, me, ecoKey) && s.credits > 2600) want = ecoKey;
       if (want && canBuild(g, me, want, true)) enqueue(g, me, want, laneOfBld(want));
     }
@@ -10390,7 +10392,9 @@
 
     // ---- army: answer what has actually been SEEN -----------------------
     var seen = ai.seen, stale = g.tick - ai.seenAt > 3600;
-    var infHeavy = !stale && seen.inf > seen.veh * 1.4;
+    // Under RA2 verses a shell does 25% to infantry, so an unscouted enemy
+    // is assumed to be fielding infantry until proven otherwise.
+    var infHeavy = stale || seen.inf >= seen.veh;
     var vehHeavy = !stale && seen.veh > seen.inf * 0.8;
 
     var depth = s.credits > 6000 ? 4 : s.credits > 3000 ? 3 : 2;   // spend the bank
@@ -10403,8 +10407,8 @@
       // Tier-3 armour when the lab is up, fast anti-infantry when the enemy
       // masses infantry, else the line tank; eyes for the Directorate.
       var heavy = s.fac === 'col' ? 'mammoth' : 'mirage', light = s.fac === 'col' ? 'flaktrack' : 'ifv';
-      var vpick = (hasBld(g, me, 'lab') && rnd() < 0.5 && canBuild(g, me, heavy, false)) ? heavy
-                : (infHeavy && rnd() < 0.5 && canBuild(g, me, light, false)) ? light
+      var vpick = (hasBld(g, me, 'lab') && rnd() < 0.4 && canBuild(g, me, heavy, false)) ? heavy
+                : (infHeavy && rnd() < 0.55 && canBuild(g, me, light, false)) ? light
                 : (s.fac === 'col' && hasBld(g, me, 'radar') && rnd() < 0.25 && canBuild(g, me, 'v3', false)) ? 'v3'
                 : F.tank;
       if (canBuild(g, me, vpick, false)) enqueue(g, me, vpick, 'v');
