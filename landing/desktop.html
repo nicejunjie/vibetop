@@ -1593,6 +1593,9 @@
         var endDrag = function (e) {
           if (e.pointerType !== 'mouse') { if (armT) { clearTimeout(armT); armT = null; } return; }
           if (!dragSrc || dragSrc.j !== j) return;
+          // Release the capture set on pointerdown so it can't linger past the drop
+          // and retarget the next click (which would keep the palette from closing).
+          try { cell.releasePointerCapture(e.pointerId); } catch (err) {}
           var live = dragSrc.live; dragSrc = null; clearDragMarks();
           if (!live) return;                      // a plain click; the click event handles it
           swallowClick = true;                    // the release also fires click — not a select
@@ -1651,8 +1654,15 @@
   layoutsEl.addEventListener('mouseleave', hideLayoutsSoon);
   window.addEventListener('resize', hideLayouts);
   document.addEventListener('pointerdown', function (e) {          // click anywhere else closes it
-    if (layoutsEl.classList.contains('open') && !layoutsEl.contains(e.target) &&
-        !(e.target.closest && e.target.closest('#wm-btn'))) hideLayouts();
+    if (!layoutsEl.classList.contains('open')) return;
+    // Hit-test the real coordinates, NOT e.target: a just-finished drag-to-swap
+    // can leave pointer capture on a palette cell, which retargets this very
+    // pointerdown to that cell — so e.target would falsely read as "inside the
+    // palette" and the click-away would not close it (only after a drag, which is
+    // exactly the reported bug). elementFromPoint ignores pointer capture.
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    var inside = el && el.closest && (el.closest('#win-layouts') || el.closest('#wm-btn'));
+    if (!inside) hideLayouts();
   }, true);
 
   // Show desktop: minimize every open window, remembering which ones were
