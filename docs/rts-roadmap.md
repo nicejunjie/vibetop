@@ -75,3 +75,10 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 ### Audio
 - ☑ v1.19.199 EVA via speech synthesis: unit ready, construction complete, low power, base/miner under attack, unit/structure lost, insufficient funds, primary building selected
 - ☑ v1.19.199 Units acknowledge orders with per-type lines in a faction voice (speech synthesis, throttled)
+
+### Roster expansion (user, 2026-09-01: "implement more buildings and other combat items matching real RA2, right now there are too few")
+Every new item is built to the same bar as wave 4: real sprite fetched from the C&C wiki `File:` namespace, aspect within ±8%, owner-only colour 12-18% with 0% opposing hue, checked at 1:1 in the scene, sim stats scaled from RA2 rules.ini, AI taught to use it.
+- ☐ Phase A — defences and tech structures: Allied Patriot Missile, Prism Tower, Gap Generator, Battle Lab, Airforce Command; Soviet Sentry Gun (sprite on disk), Flak Cannon, Radar Tower, Battle Lab, Nuclear Reactor
+- ☐ Phase B — units: Allied Engineer, Rocketeer (jetpack), IFV, Mirage Tank, Harrier, Chrono Legionnaire, Tanya; Soviet Engineer, Tesla Trooper, Crazy Ivan, Rhino Tank (sprite on disk), Flak Track, V3 Launcher, Terror Drone, Kirov, Tesla Tank
+- ☐ Phase C — superweapons: Chronosphere / Weather Control Device vs Iron Curtain / Nuclear Missile Silo
+- ☐ Tech-tree gating as RA2 (Radar/Airforce → tier 2, Battle Lab → tier 3), sidebar shows prerequisites
