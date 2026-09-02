@@ -9595,160 +9595,270 @@
         }
       }
     } else if (key === 'purifier') {
-      // --- RA2 Ore Purifier ------------------------------------------------
-      // From the real sprite: a wedding-cake of ribbed silver rings standing
-      // on a rough stone apron, a GLOWING band of molten ore between the
-      // rings, a smooth pale bulb above it, and a dark spiked chute mouth on
-      // top - all girdled by two fat house-coloured ducts with white ribbed
-      // sleeves that sweep round the base.
-      var PUR_STN = '#8b8871', PUR_STND = '#4b4a3a';
-      var PUR_SIL = '#c2c4bd', PUR_SILL = '#eef0ec', PUR_SILD = '#7e8079';
-      var PUR_GUN = '#4c5057', PUR_GUND = '#1d2024';
-      var PUR_HOT = '#ff9a1e', PUR_HOTL = '#ffe08a';
+      // --- RA2 Ore Purifier --------------------------------------------------
+      // Rebuilt at 1:1 against the RED-owner MAKE rip
+      // (docs/ra2-ref/allied-ore-purifier-anim-last.png, last frame, 127x105
+      // once the magenta shadow index is masked, w/h 1.21). Every band below
+      // is a measured row of that sprite, scaled 1.067 (our 128px plot over
+      // RA2's 120px one) about the mound's widest row.
+      // Reading it: a WEDDING-CAKE smelter squatting on a rough olive spoil
+      // mound - a broad fluted silver drum, a recessed ring of GLOWING MOLTEN
+      // ORE with dark slots turning inside it, an ore-crusted cone with a
+      // scalloped hem, a house collar, a slim gunmetal neck carrying a black
+      // star and a scallop-rimmed chute with a black bore. TWO conduit rings
+      // lie round the mound; two house-painted elbows rear up the cone's
+      // flanks, and a fat red-white-red clamp runs down the drum's right
+      // front into the spoil.
+      // COLOUR: `col` is the two elbows, the clamp's outer bars, the neck
+      // collar and the two marker lamps. The conduit itself is slate - the
+      // sprite's fixed navy would paint the opposing hue onto a red owner, so
+      // every cool tone here is held under HSV s=0.40.
+      // Six idle phases (`bph`): the molten band's slots turn like a
+      // centrifuge, its glow breathes, the chute throat flares with it and
+      // the pad lamps blink.
+      var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
+      var PU_MND = '#75704a', PU_MNDD = '#2f2c19', PU_MNDL = '#928c5c';
+      var PU_SIL = '#90938a', PU_SILL = '#c8cbc2', PU_SILD = '#52554e';
+      var PU_CRU = '#7c7855', PU_CRUD = '#4c4a32';
+      var PU_GUN = '#1f232b', PU_GUNL = '#525a66';
+      var PU_DUC = '#232939', PU_DUCL = '#9aa3b0';
+      var PU_HOT = '#ffa424', PU_HOTL = '#ffe8ad', PU_HOTD = '#6f3005';
+      var PU_EDG = '#1a1815';
+      var puGlow = 0.82 + 0.18 * Math.sin(anP);              // the smelt breathing
 
-      // ---- rough stone apron ---------------------------------------------
-      g.fillStyle = 'rgba(0,0,0,.32)';
-      g.beginPath(); g.ellipse(cx + 3, baseY + 5, fw * 0.90, fh * 0.90, 0, 0, 6.29); g.fill();
-      g.fillStyle = PUR_STND;
-      g.beginPath(); g.ellipse(cx, baseY + 2, fw * 0.90, fh * 0.90, 0, 0, 6.29); g.fill();
-      g.fillStyle = PUR_STN;
-      g.beginPath(); g.ellipse(cx, baseY, fw * 0.88, fh * 0.88, 0, 0, 6.29); g.fill();
-      outline(g, PUR_STND);
-      g.save();
-      g.beginPath(); g.ellipse(cx, baseY, fw * 0.88, fh * 0.88, 0, 0, 6.29); g.clip();
-      srand(521);
-      for (var puS = 0; puS < 26; puS++) {                  // broken-stone mottle
-        var pa2 = rnd() * 6.283, pr2 = Math.sqrt(rnd());
-        g.fillStyle = rnd() < 0.5 ? shade(PUR_STN, 1.16) : shade(PUR_STN, 0.78);
+      // ---- the spoil mound the smelter squats on ---------------------------
+      // No parade concrete: the sprite stands on broken ore-bearing ground,
+      // so the shared hardstanding diamond is buried under it.
+      diamond(g, cx, baseY, fw * 2.04, fh * 2.10);
+      g.fillStyle = PU_MNDD; g.fill();
+      srand(613);
+      var puMP = [];
+      for (var puMI = 0; puMI < 15; puMI++) {                  // chunky broken rim, not a plate
+        var puMA = puMI / 15 * 6.283, puMR = 0.86 + rnd() * 0.22;
+        puMP.push([cx - 2 + Math.cos(puMA) * 67 * puMR, baseY + 3 + Math.sin(puMA) * 35 * puMR]);
+      }
+      var puMPath = function () {
+        g.beginPath(); g.moveTo(puMP[0][0], puMP[0][1]);
+        for (var puMJ = 1; puMJ < puMP.length; puMJ++) g.lineTo(puMP[puMJ][0], puMP[puMJ][1]);
+        g.closePath();
+      };
+      puMPath(); g.fillStyle = PU_MND; g.fill(); puMPath(); outline(g, PU_MNDD);
+      g.save(); puMPath(); g.clip();
+      for (var puMS = 0; puMS < 36; puMS++) {                 // broken spoil, in bands
+        var puSA = rnd() * 6.283, puSR = Math.sqrt(rnd());
+        g.fillStyle = rnd() < 0.46 ? PU_MNDL : PU_MNDD;
         g.beginPath();
-        g.ellipse(cx + Math.cos(pa2) * pr2 * fw * 0.84, baseY + Math.sin(pa2) * pr2 * fh * 0.84,
-                  3 + rnd() * 4, 1.8 + rnd() * 2, 0, 0, 6.29);
+        g.ellipse(cx - 2 + Math.cos(puSA) * puSR * 62, baseY + 3 + Math.sin(puSA) * puSR * 31,
+                  3.4 + rnd() * 4.6, 1.5 + rnd() * 1.8, 0, 0, 6.29);
         g.fill();
       }
+      g.fillStyle = 'rgba(28,26,14,.26)';                     // the smelter's own shadow
+      g.beginPath(); g.ellipse(cx + 8, baseY + 12, 44, 18, 0, 0, 6.29); g.fill();
       g.restore();
 
-      // ---- the two house-coloured ducts, laid down BEHIND the stack -------
-      var purDuct = function (x0, y0, x1, y1, x2, y2, w2) {
-        g.strokeStyle = shade(col, 0.34); g.lineWidth = w2 + 3; g.lineCap = 'round';
-        g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x1, y1, x2, y2); g.stroke();
-        g.strokeStyle = shade(col, 0.86); g.lineWidth = w2;
-        g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x1, y1, x2, y2); g.stroke();
-        g.strokeStyle = shade(col, 1.28); g.lineWidth = w2 * 0.30;
+      // ---- the conduit belt round the spoil, back half first ------------
+      // One fat belt, as in the sprite - two clean concentric hoops read as
+      // a ring-toss game, which is exactly what the first pass looked like.
+      var puBelt = function (a0, a1, w) {
+        g.lineCap = 'butt';
+        g.strokeStyle = PU_EDG; g.lineWidth = w + 3;
+        g.beginPath(); g.ellipse(cx - 2, baseY + 3, 61, 27, 0, a0, a1); g.stroke();
+        g.strokeStyle = PU_DUC; g.lineWidth = w;
+        g.beginPath(); g.ellipse(cx - 2, baseY + 3, 61, 27, 0, a0, a1); g.stroke();
+        g.strokeStyle = 'rgba(16,19,26,.55)'; g.lineWidth = w * 0.34;
+        g.beginPath(); g.ellipse(cx - 2, baseY + 3 + w * 0.30, 61, 27, 0, a0, a1); g.stroke();
+      };
+      var puSpec = function (a0, a1) {                         // the belt's white run
+        g.strokeStyle = PU_DUCL; g.lineWidth = 2.4;
+        g.beginPath(); g.ellipse(cx - 2, baseY + 1.4, 61, 27, 0, a0, a1); g.stroke();
+        g.strokeStyle = 'rgba(238,242,248,.72)'; g.lineWidth = 1.1;
+        g.beginPath(); g.ellipse(cx - 2, baseY + 0.8, 61, 27, 0, a0, a1); g.stroke();
+      };
+      puBelt(3.24, 6.18, 13);
+
+      // ---- the fluted main drum ---------------------------------------------
+      var puFB = baseY + 10, puFT = baseY - 20;               // foot / top
+      var puDrumPath = function () {
         g.beginPath();
-        g.moveTo(x0, y0 - w2 * 0.28);
-        g.quadraticCurveTo(x1, y1 - w2 * 0.28, x2, y2 - w2 * 0.28); g.stroke();
-        for (var pdI = 1; pdI < 4; pdI++) {                 // white ribbed sleeves
-          var pt2 = pdI / 4, iv = 1 - pt2;
-          var sx3 = iv * iv * x0 + 2 * iv * pt2 * x1 + pt2 * pt2 * x2;
-          var sy3 = iv * iv * y0 + 2 * iv * pt2 * y1 + pt2 * pt2 * y2;
-          g.strokeStyle = PUR_SILD; g.lineWidth = w2 * 0.92;
-          g.beginPath(); g.moveTo(sx3 - 2.4, sy3 + 1.4); g.lineTo(sx3 + 2.4, sy3 - 1.4); g.stroke();
-          g.strokeStyle = PUR_SILL; g.lineWidth = w2 * 0.62;
-          g.beginPath(); g.moveTo(sx3 - 2.2, sy3 + 1.2); g.lineTo(sx3 + 2.2, sy3 - 1.2); g.stroke();
+        g.moveTo(cx - 38, puFB); g.lineTo(cx - 30, puFT);
+        g.lineTo(cx + 30, puFT); g.lineTo(cx + 38, puFB);
+        g.closePath();
+      };
+      g.fillStyle = PU_SIL;
+      g.beginPath(); g.ellipse(cx, puFB, 38, 12, 0, 0, 3.15); g.fill();
+      puDrumPath(); g.fill();
+      g.save();
+      g.beginPath();
+      g.moveTo(cx - 38, puFB + 12); g.lineTo(cx - 30, puFT);
+      g.lineTo(cx + 30, puFT); g.lineTo(cx + 38, puFB + 12);
+      g.closePath(); g.clip();
+      for (var puVI = -10; puVI <= 10; puVI++) {              // cog-tooth flutes
+        g.fillStyle = puVI % 2 ? 'rgba(22,26,22,.38)' : 'rgba(255,255,255,.13)';
+        g.fillRect(cx + puVI * 3.3 - 0.85, puFT - 1, 1.7, puFB - puFT + 14);
+      }
+      g.fillStyle = 'rgba(255,255,255,.09)'; g.fillRect(cx - 38, puFT, 11, 40);
+      g.fillStyle = 'rgba(0,0,0,.30)'; g.fillRect(cx + 17, puFT, 22, 40);
+      g.strokeStyle = 'rgba(28,30,24,.62)'; g.lineWidth = 1.7;  // ring courses
+      for (var puCI = 1; puCI <= 3; puCI++) {
+        g.beginPath(); g.ellipse(cx, puFT + 30 * puCI / 4, 33.0, 10.0, 0, 0.12, 3.02); g.stroke();
+      }
+      g.restore();
+      puDrumPath(); outline(g, PU_SILD);
+
+      // ---- the molten ore ring on the drum's shoulder ---------------------
+      // In the sprite this is a THIN torus of glowing ore round the drum's
+      // rim with the cone rising from inside it, not a tall lit band.
+      g.fillStyle = 'rgba(255,150,40,' + (0.08 + 0.05 * puGlow).toFixed(3) + ')';
+      g.beginPath(); g.ellipse(cx, baseY - 22, 44, 19, 0, 0, 6.29); g.fill();
+      var puGPath = function () { g.beginPath(); g.ellipse(cx, baseY - 21, 30, 9.4, 0, 0, 6.29); };
+      puGPath(); g.fillStyle = PU_HOTD; g.fill();
+      g.save(); puGPath(); g.clip();
+      g.fillStyle = PU_HOT; g.fillRect(cx - 30, baseY - 31, 60, 20);
+      g.fillStyle = PU_HOTL;
+      g.globalAlpha = puGlow; g.fillRect(cx - 30, baseY - 26, 60, 2.2); g.globalAlpha = 1;
+      g.fillStyle = 'rgba(255,232,173,.30)'; g.fillRect(cx - 30, baseY - 31, 20, 20);
+      g.fillStyle = 'rgba(92,38,6,.34)'; g.fillRect(cx + 15, baseY - 31, 15, 20);
+      g.fillStyle = 'rgba(48,18,2,.88)';                       // the turning slots
+      for (var puSI = 0; puSI < 9; puSI++) {
+        var puSX = cx - 32 + (((puSI + (bph || 0)) * 7.1) % 64);
+        g.fillRect(puSX - 1.2, baseY - 32, 2.4, 22);
+      }
+      g.restore();
+      puGPath(); outline(g, '#2a1204');
+      g.fillStyle = PU_SILD;                                   // the dark inner throat
+      g.beginPath(); g.ellipse(cx, baseY - 24.5, 22, 6.6, 0, 0, 6.29); g.fill();
+      outline(g, '#2c2f28');
+
+      // ---- the ore-crusted cone ---------------------------------------------
+      var puKB = baseY - 25, puKT = baseY - 45;
+      var puConePath = function () {
+        g.beginPath();
+        g.moveTo(cx - 21, puKB); g.lineTo(cx - 15, puKT);
+        g.lineTo(cx + 15, puKT); g.lineTo(cx + 21, puKB);
+        g.closePath();
+      };
+      puConePath(); g.fillStyle = shade(PU_SIL, 0.88); g.fill();
+      g.save(); puConePath(); g.clip();
+      g.fillStyle = 'rgba(255,255,255,.20)'; g.fillRect(cx - 21, puKT, 8, 22);
+      g.fillStyle = 'rgba(0,0,0,.20)'; g.fillRect(cx + 11, puKT, 11, 22);
+      srand(211);
+      for (var puKI = 0; puKI < 40; puKI++) {                  // ore crust, low on the cone
+        var puKX = cx - 20 + rnd() * 40, puKY = puKB - rnd() * rnd() * 17;
+        g.fillStyle = puKI % 3 ? PU_CRU : PU_CRUD;
+        g.beginPath(); g.ellipse(puKX, puKY, 1.5 + rnd() * 2.2, 0.9 + rnd() * 1.3, 0, 0, 6.29); g.fill();
+      }
+      g.restore();
+      puConePath(); outline(g, '#43463f');
+      g.fillStyle = PU_SILD;                                   // scalloped hem tabs
+      for (var puTI = -4; puTI <= 4; puTI++) {
+        g.beginPath(); g.ellipse(cx + puTI * 4.7, puKB - 0.4, 2.0, 1.6, 0, 0, 6.29); g.fill();
+      }
+      g.fillStyle = PU_SILL;                                   // pale shoulder lip
+      g.beginPath(); g.ellipse(cx, puKT, 15, 4.7, 0, 0, 6.29); g.fill();
+      outline(g, PU_SILD);
+      g.fillStyle = 'rgba(0,0,0,.16)';
+      g.beginPath(); g.ellipse(cx + 1.6, puKT + 0.6, 12, 3.4, 0, 0, 6.29); g.fill();
+
+      // ---- house collar, gunmetal neck, chute --------------------------------
+      g.fillStyle = shade(col, 0.74); g.fillRect(cx - 12, baseY - 50, 24, 6.2);
+      g.fillStyle = col; g.fillRect(cx - 12, baseY - 49.4, 24, 4.2);
+      g.fillStyle = shade(col, 1.22); g.fillRect(cx - 12, baseY - 49.4, 24, 1.4);
+      g.fillStyle = 'rgba(240,242,236,.62)'; g.fillRect(cx - 12, baseY - 50.8, 24, 1.2);
+      g.fillStyle = PU_EDG; g.fillRect(cx - 12, baseY - 44, 24, 1);
+      cylinder(g, cx, baseY - 45, 7.5, 19, PU_GUN, PU_GUNL, '#0b0d11');
+      g.fillStyle = 'rgba(150,160,172,.22)'; g.fillRect(cx - 7.5, baseY - 64, 2.6, 19);
+      g.fillStyle = '#0a0c10';                                 // the black star on the neck
+      for (var puRI = 0; puRI < 8; puRI++) {
+        var puRA = puRI * 0.7854, puRR = puRI % 2 ? 1.8 : 4.4;
+        var puRX = cx + Math.cos(puRA) * puRR, puRY = baseY - 53 + Math.sin(puRA) * puRR * 0.76;
+        if (puRI === 0) { g.beginPath(); g.moveTo(puRX, puRY); } else g.lineTo(puRX, puRY);
+      }
+      g.closePath(); g.fill();
+      cylinder(g, cx, baseY - 64, 10, 9, PU_SIL, PU_SILL, PU_SILD);
+      g.fillStyle = PU_SILL;                                   // scalloped rim teeth
+      for (var puEI = -3; puEI <= 3; puEI++) {
+        g.beginPath(); g.ellipse(cx + puEI * 3.0, baseY - 74.2, 1.7, 2.2, 0, 0, 6.29); g.fill();
+      }
+      g.fillStyle = PU_SILD;
+      g.beginPath(); g.ellipse(cx, baseY - 73, 10, 3.9, 0, 0, 6.29); g.fill();
+      outline(g, PU_SILD);
+      g.fillStyle = '#12151b';                                 // the black bore
+      g.beginPath(); g.ellipse(cx, baseY - 73.4, 6.3, 2.4, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,150,40,' + (0.14 + 0.20 * puGlow).toFixed(3) + ')';
+      g.beginPath(); g.ellipse(cx, baseY - 72.8, 4.2, 1.5, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,176,70,' + (0.03 + 0.05 * puGlow).toFixed(3) + ')';
+      g.beginPath(); g.ellipse(cx, baseY - 77, 9, 5, 0, 0, 6.29); g.fill();
+
+      // ---- the house elbows rearing up the cone's flanks --------------------
+      var puElbow = function (sgn, x0, y0, x1, y1, x2, y2) {
+        g.lineCap = 'round';
+        g.strokeStyle = PU_EDG; g.lineWidth = 12.6;
+        g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x1, y1, x2, y2); g.stroke();
+        g.strokeStyle = shade(col, 0.86); g.lineWidth = 8.4;
+        g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x1, y1, x2, y2); g.stroke();
+        g.strokeStyle = shade(col, 0.74); g.lineWidth = 2.6;
+        g.beginPath();
+        g.moveTo(x0, y0 + 3.2); g.quadraticCurveTo(x1, y1 + 3.2, x2, y2 + 3.2); g.stroke();
+        g.strokeStyle = col; g.lineWidth = 2.4;
+        g.beginPath();
+        g.moveTo(x0, y0 - 3.0); g.quadraticCurveTo(x1, y1 - 3.0, x2, y2 - 3.0); g.stroke();
+        g.strokeStyle = 'rgba(238,240,234,.48)'; g.lineWidth = 1.3;    // white weld streak
+        g.beginPath();
+        g.moveTo(x0 + sgn * 1.4, y0 - 4.4);
+        g.quadraticCurveTo(x1 + sgn * 1.4, y1 - 4.4, x2 - sgn * 0.6, y2 - 4.6); g.stroke();
+        g.fillStyle = col;                                       // the bolted flange
+        g.beginPath(); g.ellipse(x2, y2, 3.6, 4.6, 0, 0, 6.29); g.fill();
+        g.fillStyle = PU_EDG;
+        for (var puBI = -1; puBI <= 1; puBI++) {
+          g.beginPath(); g.ellipse(x2, y2 + puBI * 2.6, 1.0, 1.0, 0, 0, 6.29); g.fill();
         }
       };
-      purDuct(cx - fw * 0.10, baseY - fh * 0.78, cx - fw * 1.14, baseY - fh * 0.66,
-              cx - fw * 0.94, baseY + fh * 0.14, 14);
-      purDuct(cx + fw * 0.20, baseY - fh * 0.26, cx + fw * 1.28, baseY - fh * 0.04,
-              cx + fw * 0.88, baseY + fh * 0.68, 15);
+      puElbow(-1, cx - 49, baseY + 6, cx - 47, baseY - 20, cx - 27, baseY - 25);
+      puElbow(1, cx + 49, baseY + 2, cx + 47, baseY - 25, cx + 25, baseY - 31);
 
-      // ---- the ribbed ring stack -----------------------------------------
-      var purRing = function (ry3, rr, rh, ribs) {
-        cylinder(g, cx, ry3, rr, rh, PUR_SIL, PUR_SILL, PUR_SILD);
-        if (ribs) {
-          g.save();
-          g.beginPath(); g.rect(cx - rr, ry3 - rh, rr * 2, rh); g.clip();
-          for (var pvI = -9; pvI <= 9; pvI++) {             // cog-tooth flutes
-            g.fillStyle = pvI % 2 ? 'rgba(40,44,48,.30)' : 'rgba(255,255,255,.22)';
-            g.fillRect(cx + pvI * rr * 0.11, ry3 - rh, rr * 0.055, rh);
-          }
-          g.restore();
-        }
-        g.fillStyle = 'rgba(255,255,255,.16)'; g.fillRect(cx - rr, ry3 - rh, rr * 0.34, rh);
-        g.fillStyle = 'rgba(0,0,0,.20)'; g.fillRect(cx + rr * 0.52, ry3 - rh, rr * 0.48, rh);
+      // ---- the belt's front half, its specular runs, and the spoil lip ------
+      puBelt(0.02, 3.20, 13);
+      puSpec(0.10, 0.92); puSpec(2.24, 3.10);
+      // the conduit's lowest run is half-buried: the spoil laps over it
+      g.save(); puMPath(); g.clip();
+      g.fillStyle = PU_MND;
+      g.beginPath(); g.ellipse(cx - 2, baseY + 44, 56, 14, 0, 3.15, 6.29); g.fill();
+      g.fillStyle = PU_MNDD;
+      g.beginPath(); g.ellipse(cx - 2, baseY + 45, 56, 14, 0, 3.15, 6.29); g.fill();
+      g.restore();
+
+      // ---- the red-white-red clamp down the drum's right front --------------
+      var puClamp = function (off, w, fill) {
+        g.lineCap = 'butt';
+        g.strokeStyle = fill; g.lineWidth = w;
+        g.beginPath();
+        g.moveTo(cx + 5 + off, baseY - 18);
+        g.quadraticCurveTo(cx + 15 + off, baseY + 2, cx + 21 + off, baseY + 28);
+        g.stroke();
       };
-      purRing(baseY + 2, 31, 13, true);                     // wide fluted skirt
-      purRing(baseY - 11, 26, 10, true);
+      puClamp(0, 24, PU_EDG);
+      puClamp(-7.6, 7.2, shade(col, 0.86)); puClamp(7.6, 7.2, shade(col, 0.86));
+      puClamp(-9.8, 2.2, col); puClamp(5.8, 2.2, col);
+      puClamp(-5.8, 1.8, shade(col, 0.74)); puClamp(9.8, 1.8, shade(col, 0.74));
+      puClamp(0, 6.6, '#bcbfb7'); puClamp(-1.4, 2.0, '#e6e8e2');
 
-      // the glowing ore band
-      g.fillStyle = 'rgba(255,150,40,.16)';
-      g.beginPath(); g.ellipse(cx, baseY - 25, 44, 20, 0, 0, 6.29); g.fill();
-      cylinder(g, cx, baseY - 21, 23, 8, '#a05512', '#d3821f', '#3d1f04');
-      g.fillStyle = PUR_HOT; g.fillRect(cx - 23, baseY - 27.5, 46, 5);
-      g.fillStyle = PUR_HOTL; g.fillRect(cx - 23, baseY - 27.5, 46, 1.8);
-      g.fillStyle = 'rgba(60,26,4,.55)';                    // dark slots in the glow
-      for (var pgI = -4; pgI <= 4; pgI++) g.fillRect(cx + pgI * 5.2 - 1, baseY - 27.5, 1.8, 5);
-
-      purRing(baseY - 29, 22, 9, false);                    // smooth shoulder
-      g.fillStyle = shade(col, 0.84);                       // OWNER band on it
-      g.fillRect(cx - 22, baseY - 37, 44, 5.4); outline(g, shade(col, 0.38));
-      g.fillStyle = col; g.fillRect(cx - 22, baseY - 37, 44, 3.2);
-      g.fillStyle = shade(col, 1.30); g.fillRect(cx - 22, baseY - 37, 12, 3.2);
-      // The bulb BULGES before it necks - the sprite's upper body is a
-      // rounded barrel, and drawing it as a plain frustum turned the whole
-      // purifier into a lampshade.
-      var purBulb = function (fill, x0f, x1f) {
-        g.beginPath();
-        g.moveTo(cx + x0f * 21, baseY - 38);
-        g.quadraticCurveTo(cx + x0f * 27, baseY - 46, cx + x0f * 11, baseY - 58);
-        g.lineTo(cx + x1f * 11, baseY - 58);
-        g.quadraticCurveTo(cx + x1f * 27, baseY - 46, cx + x1f * 21, baseY - 38);
-        g.closePath(); g.fillStyle = fill; g.fill();
-      };
-      purBulb(PUR_SIL, -1, 1); outline(g, PUR_SILD);
-      purBulb('rgba(255,255,255,.26)', -1, -0.36);
-      purBulb('rgba(0,0,0,.22)', 0.44, 1);
-      g.strokeStyle = 'rgba(80,84,80,.28)'; g.lineWidth = 1;   // two seam bands
-      for (var pbI = 1; pbI <= 2; pbI++) {
-        var pby = baseY - 38 - pbI * 6.6, pbw = 22 - pbI * 3.4;
-        g.beginPath(); g.moveTo(cx - pbw, pby); g.lineTo(cx + pbw, pby); g.stroke();
-      }
-      g.fillStyle = PUR_SILL;
-      g.beginPath(); g.ellipse(cx, baseY - 58, 11, 4.6, 0, 0, 6.29); g.fill();
-      outline(g, PUR_SILD);
-      // white ribbed hose girdling the skirt, straight off the sprite
-      g.strokeStyle = PUR_SILD; g.lineWidth = 3.8;
-      g.beginPath(); g.ellipse(cx, baseY - 4, 32.5, 11, 0, 3.46, 5.98); g.stroke();
-      g.strokeStyle = PUR_SILL; g.lineWidth = 2.2;
-      g.beginPath(); g.ellipse(cx, baseY - 4, 32.5, 11, 0, 3.46, 5.98); g.stroke();
-      g.strokeStyle = 'rgba(96,100,96,.44)'; g.lineWidth = 1;
-      for (var phI = 0; phI < 8; phI++) {
-        var pha = 3.54 + phI * 0.30;
-        g.beginPath();
-        g.moveTo(cx + Math.cos(pha) * 31, baseY - 4 + Math.sin(pha) * 10);
-        g.lineTo(cx + Math.cos(pha) * 34, baseY - 4 + Math.sin(pha) * 12); g.stroke();
-      }
-
-      // ---- dark chute with its spiked collar and glowing mouth ------------
-      cylinder(g, cx, baseY - 58, 9.5, 18, PUR_GUN, shade(PUR_GUN, 1.34), PUR_GUND);
-      g.fillStyle = shade(PUR_GUN, 1.5);
-      g.fillRect(cx - 9.5, baseY - 69, 19, 3);
-      g.fillStyle = PUR_GUND;                               // spiked collar
-      for (var psI = -4; psI <= 4; psI++) {
-        g.beginPath();
-        g.moveTo(cx + psI * 2.3 - 1, baseY - 76);
-        g.lineTo(cx + psI * 2.3 + 1, baseY - 76);
-        g.lineTo(cx + psI * 2.3, baseY - 80.5); g.closePath(); g.fill();
-      }
-      g.fillStyle = '#20242a';
-      g.beginPath(); g.ellipse(cx, baseY - 76, 9.5, 4, 0, 0, 6.29); g.fill();
-      outline(g, PUR_GUND);
-      g.fillStyle = '#0b0d10';
-      g.beginPath(); g.ellipse(cx, baseY - 76, 6.6, 2.7, 0, 0, 6.29); g.fill();
-      g.fillStyle = 'rgba(255,150,40,.34)';                 // ore glow in the throat
-      g.beginPath(); g.ellipse(cx, baseY - 75, 4.6, 1.8, 0, 0, 6.29); g.fill();
-      g.fillStyle = 'rgba(255,176,70,.13)';
-      g.beginPath(); g.ellipse(cx, baseY - 79, 13, 7, 0, 0, 6.29); g.fill();
-
-      // ---- ore chunks spilled at the foot ---------------------------------
+      // ---- ore spilled at the foot, and two marker lamps --------------------
       srand(97);
-      for (var poI = 0; poI < 7; poI++) {
-        var oa = 2.2 + rnd() * 1.9, orr = 0.72 + rnd() * 0.24;
-        var oxx = cx + Math.cos(oa) * fw * 0.80 * orr, oyy = baseY + Math.abs(Math.sin(oa)) * fh * 0.74 * orr;
-        g.fillStyle = poI % 2 ? '#c8922e' : '#8f6a1d';
-        g.beginPath(); g.ellipse(oxx, oyy, 2.6 + rnd() * 1.8, 1.6 + rnd(), 0, 0, 6.29); g.fill();
+      for (var puOI = 0; puOI < 9; puOI++) {
+        var puOA = 2.30 + rnd() * 1.7, puOR = 0.66 + rnd() * 0.28;
+        var puOX = cx - 2 + Math.cos(puOA) * 58 * puOR;
+        var puOY = baseY + 2 + Math.abs(Math.sin(puOA)) * 31 * puOR;
+        g.fillStyle = puOI % 2 ? '#c8922e' : '#8f6a1d';
+        g.beginPath(); g.ellipse(puOX, puOY, 2.4 + rnd() * 1.8, 1.5 + rnd(), 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(255,214,120,.34)';
+        g.beginPath(); g.ellipse(puOX - 0.6, puOY - 0.8, 1.2, 0.7, 0, 0, 6.29); g.fill();
       }
-
+      for (var puLI = -1; puLI <= 1; puLI += 2) {
+        var puLX = cx - 2 + puLI * 40, puLY = baseY + 26;
+        g.fillStyle = PU_EDG; g.fillRect(puLX - 1.4, puLY - 6, 2.8, 6);
+        g.fillStyle = (ph6 % 2) ? shade(col, 1.22) : shade(col, 0.76);
+        g.beginPath(); g.ellipse(puLX, puLY - 7, 2.4, 2.4, 0, 0, 6.29); g.fill();
+      }
     } else if (key === 'prism') {
       // --- RA2 Prism Tower --------------------------------------------------
       // Built from the clean keyed sprite rip (114x208, w/h 0.55) plus the
@@ -10212,155 +10322,285 @@
       }
     } else if (key === 'reactor') {
       // --- RA2 Nuclear Reactor ----------------------------------------------
-      // From the clean sprite (519x408, keyed 504x384, w/h 1.31) plus the
-      // in-game shot: THREE waisted brick cooling towers — one tall behind,
-      // two shorter flanking — around a squat house-banded reactor vessel,
-      // with fat black ducts writhing out of the vessel's crown and diving
-      // into each tower like tentacles. A small instrument caisson sits on
-      // the concrete at the front. Wide and low: the towers set the width and
-      // only the middle one is allowed to break the skyline.
-      var NUC_BRK = '#b49a90', NUC_BRKD = '#463632';
-      var NUC_DUC = '#1e2126', NUC_DUCL = '#4e555d';
-      var NUC_VES = '#8a7a6c', NUC_VESL = '#a89786', NUC_VESD = '#332a22';
+      // Rebuilt at 1:1 against the in-game shot
+      // (docs/ra2-ref/soviet-nuclear-reactor.png, 173x136, building 169x124,
+      // w/h 1.36) cross-checked against the snow-theatre shot
+      // (soviet-nuclear-reactor-ingame.png), which is the one that shows the
+      // GREEN core light inside every rim and between the skirt vents. Every
+      // measurement below is a row of that sprite scaled 0.90 about the
+      // concrete slab. No clean SHP rip exists on the wiki - `File:RA2
+      // Nuclear Reactor.gif` is the same screenshot.
+      // Reading it: THREE waisted brick cooling towers - a tall one behind,
+      // two shorter ones flanking - standing on a pale poured slab, each with
+      // a hard hourglass WAIST, a ring of black skirt VENTS at its flared
+      // foot, thin riser pipes up its face and a flared rim with a lit far
+      // wall. Between them squats the reactor vessel: a stack of dark rings
+      // under three house-red bands, with fat black ducts writhing out of its
+      // crown and diving into each tower. A pale instrument caisson sits on
+      // the slab at the front.
+      // COLOUR: `col` is the vessel's three bands, one riser pipe per tower,
+      // the rim beacons and the caisson band - the brick and the ducts are
+      // fixed. The reference itself only reads 8% house colour; ours sits at
+      // the bottom of the 12-18% house band rather than painting the towers.
+      // Six idle phases (`bph`): steam rolls off the two near rims, the core
+      // glow pulses between the towers and the rim beacons blink.
+      var anP = (bph || 0) * 6.283, ph6 = Math.round((bph || 0) * 6) % 6;
+      var NU_BRK = '#b09489', NU_BRKL = '#cdb3a7', NU_BRKD = '#3e302b';
+      var NU_PAD = '#9c9d92', NU_PADL = '#b8b9ad', NU_PADD = '#4a4b43';
+      var NU_DUC = '#464c53', NU_DUCD = '#111417', NU_DUCL = '#8b939b';
+      var NU_VES = '#6c6046', NU_VESL = '#8d7f5f', NU_VESD = '#241d13';
+      var NU_GRN = '#7ec828';
+      var nuPulse = 0.68 + 0.32 * Math.sin(anP);              // the core breathing
       if (sov) {
-        g.fillStyle = 'rgba(0,0,0,.26)';                     // poured concrete raft
-        diamond(g, cx + 2, baseY + 4, fw * 1.66, fh * 1.66); g.fill();
-        diamond(g, cx, baseY + 1, fw * 1.66, fh * 1.66);
-        g.fillStyle = '#9ba093'; g.fill(); outline(g, '#4e5248');
-        diamond(g, cx, baseY - 1, fw * 1.50, fh * 1.50);
-        g.fillStyle = '#aab0a1'; g.fill(); outline(g, '#565b4f');
-        g.strokeStyle = shade(col, 0.58); g.lineWidth = 4;   // painted kerb line
-        diamond(g, cx, baseY - 1, fw * 1.58, fh * 1.58); g.stroke();
-        g.strokeStyle = col; g.lineWidth = 2.2;
-        diamond(g, cx, baseY - 1.8, fw * 1.58, fh * 1.58); g.stroke();
+        // ---- ground: plinths do the work, not a parade slab ------------------
+        // RA2 stands this on bare theatre ground with a small poured pad under
+        // the vessel; a full concrete diamond made it read as a board-game
+        // piece (and buried the whole sprite in pale grey).
+        g.fillStyle = 'rgba(0,0,0,.24)';
+        diamond(g, cx + 3, baseY + 5, fw * 1.86, fh * 1.86); g.fill();
+        diamond(g, cx, baseY + 1, fw * 1.86, fh * 1.86);
+        g.fillStyle = 'rgba(74,72,58,.62)'; g.fill();
+        g.save(); diamond(g, cx, baseY + 1, fw * 1.86, fh * 1.86); g.clip();
+        srand(431);
+        for (var nuPI = 0; nuPI < 14; nuPI++) {                // scuffed dirt
+          g.fillStyle = rnd() < 0.5 ? 'rgba(126,122,98,.34)' : 'rgba(40,42,34,.30)';
+          g.beginPath();
+          g.ellipse(cx + (rnd() - 0.5) * fw * 1.7, baseY + (rnd() - 0.5) * fh * 1.6,
+                    5 + rnd() * 9, 2 + rnd() * 4, 0, 0, 6.29);
+          g.fill();
+        }
+        g.restore();
+        g.fillStyle = NU_PADD;                                 // poured pad, vessel + caisson
+        diamond(g, cx + 3, baseY + 14, fw * 0.98, fh * 0.98); g.fill();
+        diamond(g, cx + 3, baseY + 12, fw * 0.94, fh * 0.94);
+        g.fillStyle = NU_PAD; g.fill(); outline(g, NU_PADD);
+        g.fillStyle = 'rgba(226,228,216,.22)';
+        diamond(g, cx + 3, baseY + 11, fw * 0.74, fh * 0.74); g.fill();
 
-        // A cooling tower in Soviet brick: black strakes round the skirt,
-        // a house-coloured riser pipe up the face, and a house rim band.
-        var nucTower = function (tx, ty, rb, rt, th) {
-          g.fillStyle = 'rgba(0,0,0,.32)';
-          g.beginPath(); g.ellipse(tx + 3, ty + 3, rb * 1.06, rb * 0.46, 0, 0, 6.29); g.fill();
-          g.fillStyle = '#7f8479';                           // plinth the tower stands on
-          g.beginPath(); g.ellipse(tx, ty, rb * 1.10, rb * 0.44, 0, 0, 6.29); g.fill();
-          outline(g, '#3f433a');
-          coolTower(g, tx, ty, rb, rt, th, NUC_BRK, NUC_BRKD);
-          g.save();
-          g.beginPath();                                     // clip to the skirt
-          g.moveTo(tx - rb, ty + 2); g.lineTo(tx - rb * 0.90, ty - th * 0.24);
-          g.lineTo(tx + rb * 0.90, ty - th * 0.24); g.lineTo(tx + rb, ty + 2);
-          g.closePath(); g.clip();
-          g.strokeStyle = 'rgba(22,18,14,.62)'; g.lineWidth = 2;      // skirt fins
-          for (var ntI = -3; ntI <= 3; ntI++) {
+        // ---- a cooling tower --------------------------------------------------
+        // The waist is the whole read: RA2's towers pinch to about half their
+        // foot radius before flaring back out at the rim. A straight frustum
+        // (what coolTower gives) reads as a cement silo, which is what the
+        // previous pass looked like.
+        var nuBez = function (rb, rw, rt, h, u) {             // [radius, dy] up the wall
+          var d = 1 - u;
+          return [rw + (rb - rw) * d * d * d + (rt - rw) * u * u * u, -h * u];
+        };
+        var nuTower = function (tx, ty, rb, rw, rt, h, seed, steamN) {
+          g.fillStyle = 'rgba(0,0,0,.30)';                    // plinth
+          g.beginPath(); g.ellipse(tx + 3, ty + 3, rb * 0.98, rb * 0.40, 0, 0, 6.29); g.fill();
+          g.fillStyle = NU_PADD;
+          g.beginPath(); g.ellipse(tx, ty + 1.4, rb * 1.00, rb * 0.41, 0, 0, 6.29); g.fill();
+          g.fillStyle = '#7e7f74';
+          g.beginPath(); g.ellipse(tx, ty - 1, rb * 0.94, rb * 0.38, 0, 0, 6.29); g.fill();
+          outline(g, NU_PADD);
+          g.strokeStyle = shade(col, 0.72); g.lineWidth = 2.4;    // painted kerb, front only
+          g.beginPath(); g.ellipse(tx, ty - 0.8, rb * 0.94, rb * 0.38, 0, 0.62, 2.52); g.stroke();
+          var nuSil = function () {
+            var nuSJ, nuSB;
+            g.beginPath(); g.moveTo(tx - rb, ty);
+            for (nuSJ = 1; nuSJ <= 16; nuSJ++) {
+              nuSB = nuBez(rb, rw, rt, h, nuSJ / 16);
+              g.lineTo(tx - nuSB[0], ty + nuSB[1]);
+            }
+            for (nuSJ = 16; nuSJ >= 0; nuSJ--) {
+              nuSB = nuBez(rb, rw, rt, h, nuSJ / 16);
+              g.lineTo(tx + nuSB[0], ty + nuSB[1]);
+            }
+            g.closePath();
+          };
+          nuSil(); g.fillStyle = NU_BRK; g.fill();
+          g.save(); nuSil(); g.clip();
+          g.fillStyle = 'rgba(255,244,236,.20)'; g.fillRect(tx - rb, ty - h, rb * 0.52, h);
+          g.fillStyle = 'rgba(28,20,16,.26)'; g.fillRect(tx + rb * 0.30, ty - h, rb, h);
+          srand(seed);
+          for (var nuMI = 0; nuMI < 44; nuMI++) {             // weathered brick mottle
+            var nuMT = rnd(), nuMB = nuBez(rb, rw, rt, h, nuMT);
+            g.fillStyle = rnd() < 0.5 ? NU_BRKL : 'rgba(78,58,50,.34)';
             g.beginPath();
-            g.moveTo(tx + ntI * rb * 0.30, ty + 2);
-            g.lineTo(tx + ntI * rb * 0.27, ty - th * 0.24); g.stroke();
+            g.ellipse(tx + (rnd() - 0.5) * nuMB[0] * 1.8, ty + nuMB[1], 2.4 + rnd() * 3.4, 1.4 + rnd() * 1.6, 0, 0, 6.29);
+            g.fill();
+          }
+          g.strokeStyle = 'rgba(58,42,36,.52)'; g.lineWidth = 1;   // brick courses
+          for (var nuCI = 1; nuCI < 11; nuCI++) {
+            var nuCB = nuBez(rb, rw, rt, h, nuCI / 11);
+            g.beginPath();
+            g.ellipse(tx, ty + nuCB[1], nuCB[0], nuCB[0] * 0.26, 0, 3.16, 6.28); g.stroke();
+          }
+          var nuVT = 0.17, nuVB = nuBez(rb, rw, rt, h, nuVT);  // the black skirt vents
+          for (var nuVI = -6; nuVI <= 6; nuVI++) {
+            var nuFB = nuVI / 6.6, nuGl = 0.5 + 0.5 * Math.cos(nuFB * 1.5);
+            g.fillStyle = '#0d0c0b';
+            g.beginPath();
+            g.moveTo(tx + nuFB * rb - 2.4 * nuGl, ty + 1);
+            g.lineTo(tx + nuFB * rb + 2.4 * nuGl, ty + 1);
+            g.lineTo(tx + nuFB * nuVB[0] + 1.5 * nuGl, ty + nuVB[1]);
+            g.lineTo(tx + nuFB * nuVB[0] - 1.5 * nuGl, ty + nuVB[1]);
+            g.closePath(); g.fill();
+            g.fillStyle = 'rgba(126,200,40,' + (0.05 + 0.09 * nuPulse * nuGl).toFixed(3) + ')';
+            g.beginPath();
+            g.moveTo(tx + nuFB * rb - 1.4 * nuGl, ty + 1);
+            g.lineTo(tx + nuFB * rb + 1.4 * nuGl, ty + 1);
+            g.lineTo(tx + nuFB * nuVB[0], ty + nuVB[1] + 3);
+            g.closePath(); g.fill();
+          }
+          g.strokeStyle = 'rgba(196,182,172,.60)'; g.lineWidth = 1.2;   // pale vent ribs
+          for (var nuRI = -6; nuRI <= 7; nuRI++) {
+            var nuRF = (nuRI - 0.5) / 6.6;
+            g.beginPath();
+            g.moveTo(tx + nuRF * rb, ty + 1);
+            g.lineTo(tx + nuRF * nuVB[0], ty + nuVB[1]); g.stroke();
+          }
+          var nuP1 = nuBez(rb, rw, rt, h, 0.94), nuP2 = nuBez(rb, rw, rt, h, 0.30);
+          for (var nuQJ = 0; nuQJ < 15; nuQJ++) {                      // one dashed house cable
+            var nuQT = 0.05 + nuQJ * 0.062, nuQA = nuBez(rb, rw, rt, h, nuQT);
+            var nuQB = nuBez(rb, rw, rt, h, nuQT + 0.040);
+            var nuQF = 0.42 + 0.18 * nuQT;
+            g.strokeStyle = nuQJ % 4 === 3 ? shade(col, 0.72) : shade(col, 0.86); g.lineWidth = 2.9;
+            g.beginPath();
+            g.moveTo(tx - nuQA[0] * nuQF, ty + nuQA[1]);
+            g.lineTo(tx - nuQB[0] * nuQF, ty + nuQB[1]); g.stroke();
+          }
+          g.strokeStyle = 'rgba(34,38,42,.82)'; g.lineWidth = 1.8;      // two grey twins
+          for (var nuGI = 0; nuGI < 2; nuGI++) {
+            var nuGF = nuGI ? 0.62 : 0.16;
+            g.beginPath();
+            g.moveTo(tx + nuP1[0] * nuGF, ty + nuP1[1]);
+            g.quadraticCurveTo(tx + nuP2[0] * (nuGF + 0.16), ty + nuP2[1], tx + rb * (nuGF * 0.8), ty + 1);
+            g.stroke();
           }
           g.restore();
-          g.strokeStyle = 'rgba(64,50,44,.34)'; g.lineWidth = 1;     // brick courses
-          for (var ncI = 1; ncI < 7; ncI++) {
-            var ncy = ty - th * ncI / 7.4;
-            var ncr = rb + (rt - rb) * (ncI / 7.4);
-            g.beginPath(); g.ellipse(tx, ncy, ncr * 1.02, ncr * 0.24, 0, 3.15, 6.29); g.stroke();
+          nuSil(); outline(g, NU_BRKD);
+
+          // ---- the rim: flared lip, lit far wall, green core ----------------
+          g.fillStyle = '#3a2f29';
+          g.beginPath(); g.ellipse(tx, ty - h, rt * 1.04, rt * 0.38, 0, 0, 6.29); g.fill();
+          outline(g, NU_BRKD);
+          g.fillStyle = '#171210';
+          g.beginPath(); g.ellipse(tx, ty - h + 0.6, rt * 0.80, rt * 0.28, 0, 0, 6.29); g.fill();
+          g.fillStyle = shade(NU_BRK, 0.94);                  // far inner wall, lit
+          g.beginPath(); g.ellipse(tx, ty - h + 1.2, rt * 0.76, rt * 0.26, 0, 3.30, 6.14); g.fill();
+          g.fillStyle = 'rgba(126,200,40,' + (0.13 + 0.15 * nuPulse).toFixed(3) + ')';
+          g.beginPath(); g.ellipse(tx, ty - h + 2.0, rt * 0.46, rt * 0.15, 0, 0, 6.29); g.fill();
+          g.fillStyle = 'rgba(206,246,150,' + (0.09 + 0.14 * nuPulse).toFixed(3) + ')';
+          g.beginPath(); g.ellipse(tx, ty - h + 2.0, rt * 0.24, rt * 0.08, 0, 0, 6.29); g.fill();
+          g.strokeStyle = 'rgba(236,228,220,.50)'; g.lineWidth = 1.2;   // rim highlight
+          g.beginPath(); g.ellipse(tx, ty - h - 0.6, rt * 1.04, rt * 0.38, 0, 3.34, 6.10); g.stroke();
+          for (var nuBI = -1; nuBI <= 1; nuBI += 2) {          // rim beacons
+            g.fillStyle = ((ph6 + (nuBI > 0 ? 3 : 0)) % 6) < 3 ? col : shade(col, 0.72);
+            g.beginPath();
+            g.ellipse(tx + nuBI * rt * 0.72, ty - h - 1.4, 2.2, 2.2, 0, 0, 6.29); g.fill();
           }
-          g.strokeStyle = shade(col, 0.56); g.lineWidth = 3.2;       // house riser pipe
-          g.beginPath();
-          g.moveTo(tx - rt * 0.62, ty - th + 2);
-          g.quadraticCurveTo(tx - rb * 0.86, ty - th * 0.48, tx - rb * 0.74, ty - 1);
-          g.stroke();
-          g.strokeStyle = col; g.lineWidth = 2.4;
-          g.beginPath();
-          g.moveTo(tx - rt * 0.62, ty - th + 2);
-          g.quadraticCurveTo(tx - rb * 0.86, ty - th * 0.48, tx - rb * 0.74, ty - 1);
-          g.stroke();
-          g.strokeStyle = shade(col, 0.56); g.lineWidth = 3.4;       // second riser
-          g.beginPath();
-          g.moveTo(tx + rt * 0.30, ty - th + 2);
-          g.quadraticCurveTo(tx + rb * 0.50, ty - th * 0.46, tx + rb * 0.42, ty - 1);
-          g.stroke();
-          g.strokeStyle = col; g.lineWidth = 1.8;
-          g.beginPath();
-          g.moveTo(tx + rt * 0.30, ty - th + 2);
-          g.quadraticCurveTo(tx + rb * 0.50, ty - th * 0.46, tx + rb * 0.42, ty - 1);
-          g.stroke();
-          g.strokeStyle = '#2c2521'; g.lineWidth = 2.6;              // dark cast lip
-          g.beginPath(); g.ellipse(tx, ty - th + 1.2, rt, rt * 0.40, 0, 0, 6.29); g.stroke();
-          g.strokeStyle = 'rgba(232,226,218,.34)'; g.lineWidth = 1;
-          g.beginPath(); g.ellipse(tx, ty - th - 0.4, rt, rt * 0.40, 0, 3.4, 6.0); g.stroke();
-          g.strokeStyle = shade(col, 0.54); g.lineWidth = 3;         // house paint, front arc
-          g.beginPath(); g.ellipse(tx, ty - th + 1.4, rt, rt * 0.40, 0, 0.30, 2.84); g.stroke();
-          g.strokeStyle = col; g.lineWidth = 1.5;
-          g.beginPath(); g.ellipse(tx, ty - th + 1.2, rt, rt * 0.40, 0, 0.30, 2.84); g.stroke();
+          for (var nuSI = 0; nuSI < steamN; nuSI++) {          // steam rolling off
+            var nuST = ((bph || 0) + nuSI / steamN) % 1;
+            g.fillStyle = 'rgba(226,234,228,' + (0.17 * (1 - nuST)).toFixed(3) + ')';
+            g.beginPath();
+            g.ellipse(tx + (nuSI % 2 ? 3 : -4) * nuST * 2.2, ty - h - 3 - nuST * 15,
+                      rt * (0.40 + nuST * 0.50), rt * (0.20 + nuST * 0.26), 0, 0, 6.29);
+            g.fill();
+          }
         };
-        nucTower(cx - fw * 0.14, baseY - fh * 0.26, 20, 14.5, 53);   // tall one, behind
-        nucTower(cx + fw * 0.60, baseY + fh * 0.22, 16.5, 12.2, 44);  // right
-        nucTower(cx - fw * 0.60, baseY + fh * 0.40, 16.5, 12.2, 40);  // left, nearest
 
-        // ---- the ducts: black tentacles writhing out of the vessel ---------
-        // They leave the drum's FLANKS at four different heights, not one
-        // point on its crown — a single origin reads as a spider. Four go
-        // behind the vessel into the towers, two loop across in front.
-        var nvx = cx + fw * 0.02, nvy = baseY + fh * 0.34;
-        var nucDuct = function (x0, y0, kx, ky, x1, y1, wd) {
+        // ---- a duct: a fat ribbed tentacle ------------------------------------
+        var nuDuct = function (x0, y0, kx, ky, x1, y1, w) {
           g.lineCap = 'round';
-          g.strokeStyle = NUC_DUC; g.lineWidth = wd + 2.4;
+          g.strokeStyle = NU_DUCD; g.lineWidth = w + 2.6;
           g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(kx, ky, x1, y1); g.stroke();
-          g.strokeStyle = NUC_DUCL; g.lineWidth = wd;
+          g.strokeStyle = NU_DUC; g.lineWidth = w;
           g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(kx, ky, x1, y1); g.stroke();
-          g.strokeStyle = 'rgba(206,216,226,.20)'; g.lineWidth = wd * 0.30;
+          g.strokeStyle = 'rgba(30,34,38,.55)'; g.lineWidth = w * 0.30;   // rib shadows
+          for (var nuDI = 1; nuDI < 9; nuDI++) {
+            var nuDT = nuDI / 9, nuDU = 1 - nuDT;
+            var nuDX = nuDU * nuDU * x0 + 2 * nuDU * nuDT * kx + nuDT * nuDT * x1;
+            var nuDY = nuDU * nuDU * y0 + 2 * nuDU * nuDT * ky + nuDT * nuDT * y1;
+            var nuTX = 2 * nuDU * (kx - x0) + 2 * nuDT * (x1 - kx);
+            var nuTY = 2 * nuDU * (ky - y0) + 2 * nuDT * (y1 - ky);
+            var nuTL = Math.sqrt(nuTX * nuTX + nuTY * nuTY) || 1;
+            g.beginPath();
+            g.moveTo(nuDX + nuTY / nuTL * w * 0.48, nuDY - nuTX / nuTL * w * 0.48);
+            g.lineTo(nuDX - nuTY / nuTL * w * 0.48, nuDY + nuTX / nuTL * w * 0.48);
+            g.stroke();
+          }
+          g.strokeStyle = NU_DUCL; g.lineWidth = w * 0.22;
           g.beginPath();
-          g.moveTo(x0 - wd * 0.26, y0 - wd * 0.20);
-          g.quadraticCurveTo(kx - wd * 0.26, ky - wd * 0.20, x1 - wd * 0.26, y1 - wd * 0.20);
+          g.moveTo(x0 - w * 0.26, y0 - w * 0.24);
+          g.quadraticCurveTo(kx - w * 0.26, ky - w * 0.24, x1 - w * 0.26, y1 - w * 0.24);
           g.stroke();
         };
-        nucDuct(nvx - 13, nvy - 23, cx - fw * 0.40, baseY - fh * 1.00,
-                cx - fw * 0.56, baseY - fh * 0.30, 5.4);
-        nucDuct(nvx + 12, nvy - 25, cx + fw * 0.42, baseY - fh * 0.94,
-                cx + fw * 0.54, baseY - fh * 0.18, 5.4);
-        nucDuct(nvx - 9, nvy - 29, cx - fw * 0.26, baseY - fh * 1.30,
-                cx - fw * 0.16, baseY - fh * 0.94, 4.4);
-        nucDuct(nvx + 9, nvy - 30, cx + fw * 0.20, baseY - fh * 1.24,
-                cx + fw * 0.04, baseY - fh * 0.98, 4.4);
 
-        // ---- the reactor vessel: a squat drum under two house bands --------
+        // ---- back tower, then the vessel, then its ducts over the top --------
+        nuTower(cx - 14, baseY - 3, 33, 18, 23, 77, 71, 1);
+        var nuVX = cx + 1, nuVY = baseY + 6;
+
+        // ---- the reactor vessel ----------------------------------------------
         g.fillStyle = 'rgba(0,0,0,.32)';
-        g.beginPath(); g.ellipse(nvx + 3, nvy + 3, 16, 7.4, 0, 0, 6.29); g.fill();
-        cylinder(g, nvx, nvy, 15, 31, NUC_VES, NUC_VESL, NUC_VESD);
-        g.strokeStyle = 'rgba(46,36,28,.42)'; g.lineWidth = 1;
-        for (var nbI = 1; nbI < 6; nbI++) {
-          var nby = nvy - 31 * nbI / 6;
-          g.beginPath(); g.moveTo(nvx - 15, nby); g.lineTo(nvx + 15, nby); g.stroke();
+        g.beginPath(); g.ellipse(nuVX + 4, nuVY + 3, 26, 10, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(126,200,40,' + (0.05 + 0.07 * nuPulse).toFixed(3) + ')';
+        g.beginPath(); g.ellipse(nuVX, nuVY - 34, 38, 20, 0, 0, 6.29); g.fill();
+        cylinder(g, nuVX, nuVY, 27, 40, NU_VES, NU_VESL, NU_VESD);
+        for (var nuKI = 0; nuKI < 6; nuKI++) {                 // the stacked lower rings
+          var nuKY = nuVY - 1 - nuKI * 3.4;
+          g.fillStyle = nuKI % 2 ? shade(NU_VES, 1.16) : shade(NU_VES, 0.82);
+          g.fillRect(nuVX - 27, nuKY - 2.8, 54, 2.8);
+          g.fillStyle = 'rgba(24,18,10,.46)'; g.fillRect(nuVX - 27, nuKY - 0.7, 54, 0.8);
         }
-        g.fillStyle = shade(col, 0.58);                      // the wide house band
-        g.fillRect(nvx - 15, nvy - 29, 30, 9);
-        g.fillStyle = col; g.fillRect(nvx - 15, nvy - 28, 30, 6.2);
-        g.fillStyle = shade(col, 1.38); g.fillRect(nvx - 15, nvy - 28, 30, 2);
-        g.fillStyle = '#241f19'; g.fillRect(nvx - 15, nvy - 20, 30, 3.2);
-        g.fillStyle = shade(col, 0.58); g.fillRect(nvx - 15, nvy - 16.8, 30, 4.2);
-        g.fillStyle = col; g.fillRect(nvx - 15, nvy - 16.8, 30, 2.4);
-        g.fillStyle = 'rgba(0,0,0,.24)'; g.fillRect(nvx + 7, nvy - 31, 8, 31);
-        g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(nvx - 15, nvy - 31, 4, 31);
-        g.fillStyle = '#6f6459';                             // small crown cap
-        g.beginPath(); g.ellipse(nvx, nvy - 31, 15, 6.2, 0, 0, 6.29); g.fill();
-        outline(g, NUC_VESD);
-        g.fillStyle = '#2b2822';
-        g.beginPath(); g.ellipse(nvx + 2, nvy - 31.6, 6.4, 2.6, 0, 0, 6.29); g.fill();
-        nucDuct(nvx - 14, nvy - 11, nvx - 34, nvy - 2, nvx - 44, nvy + 8, 4.4);
-        nucDuct(nvx + 13, nvy - 18, nvx + 27, nvy - 14, nvx + 25, nvy + 3, 3.6);
+        g.fillStyle = '#4e4433';                               // crown cap
+        g.beginPath(); g.ellipse(nuVX, nuVY - 40, 27, 8.4, 0, 0, 6.29); g.fill();
+        outline(g, NU_VESD);
+        g.fillStyle = '#201a12';
+        g.beginPath(); g.ellipse(nuVX + 2, nuVY - 41, 12, 3.8, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(160,232,70,' + (0.20 + 0.30 * nuPulse).toFixed(3) + ')';
+        g.beginPath(); g.ellipse(nuVX + 2, nuVY - 41.4, 7.6, 2.4, 0, 0, 6.29); g.fill();
+        for (var nuHI = 0; nuHI < 4; nuHI++) {                 // four house bands
+          var nuHY = nuVY - 14 - nuHI * 6.6;
+          g.fillStyle = shade(col, 0.72); g.fillRect(nuVX - 27, nuHY - 6.4, 54, 6.4);
+          g.fillStyle = shade(col, 0.90); g.fillRect(nuVX - 27, nuHY - 6.0, 54, 3.4);
+          g.fillStyle = col; g.fillRect(nuVX - 27, nuHY - 5.6, 54, 1.4);
+          g.fillStyle = 'rgba(214,206,186,.90)'; g.fillRect(nuVX - 27, nuHY - 0.9, 54, 1.1);
+        }
+        g.fillStyle = 'rgba(0,0,0,.26)'; g.fillRect(nuVX + 14, nuVY - 40, 13, 40);
+        g.fillStyle = 'rgba(255,255,255,.13)'; g.fillRect(nuVX - 27, nuVY - 40, 5, 40);
+        g.fillStyle = shade(col, 0.72); g.fillRect(nuVX - 27, nuVY - 3.4, 54, 3.4);
+        g.fillStyle = shade(col, 0.94); g.fillRect(nuVX - 27, nuVY - 3.4, 54, 1.4);
 
-        // ---- instrument caisson on the concrete, front-centre ---------------
-        var ncx2 = cx + fw * 0.06, ncy2 = baseY + fh * 0.70;
-        prism(g, ncx2, ncy2, fw * 0.13, fh * 0.13, 11, '#4b5057', '#6b727a', '#1d2126', [0.5]);
-        g.fillStyle = col; g.fillRect(ncx2 - fw * 0.09, ncy2 - 12.5, fw * 0.18, 3);
-        g.fillStyle = shade(col, 1.34); g.fillRect(ncx2 - fw * 0.09, ncy2 - 12.5, fw * 0.18, 1);
-        g.fillStyle = '#c9ced4';
-        g.beginPath(); g.arc(ncx2 - 4, ncy2 - 6, 1.8, 0, 6.29); g.fill();
-        g.beginPath(); g.arc(ncx2 + 3, ncy2 - 5, 1.8, 0, 6.29); g.fill();
-        drums(g, cx - fw * 0.86, baseY + fh * 0.40, 2, '#57503c');
+        // ---- the ducts writhing out of the crown -----------------------------
+        // They leave the crown at four heights and arc HIGH: in the sprite this
+        // tangle is the reactor's silhouette, not a detail behind the drum.
+        nuDuct(nuVX - 15, nuVY - 34, cx - 42, baseY - 58, cx - 46, baseY - 22, 8.0);
+        nuDuct(nuVX + 14, nuVY - 36, cx + 36, baseY - 64, cx + 46, baseY - 30, 7.2);
+        nuDuct(nuVX - 7, nuVY - 38, cx - 20, baseY - 74, cx - 16, baseY - 58, 6.6);
+        nuDuct(nuVX + 5, nuVY - 38, cx + 8, baseY - 66, cx + 22, baseY - 48, 5.4);
+        nuDuct(nuVX - 22, nuVY - 22, nuVX - 42, nuVY - 34, cx - 36, baseY - 8, 6.4);
+        nuDuct(nuVX + 21, nuVY - 30, nuVX + 44, nuVY - 30, cx + 38, baseY - 14, 5.6);
+
+        // ---- the two near towers ---------------------------------------------
+        nuTower(cx + 45, baseY + 15, 31, 17, 22, 59, 37, 3);
+        nuTower(cx - 46, baseY + 21, 30, 16, 21, 56, 53, 3);
+        nuDuct(nuVX - 14, nuVY - 8, cx - 26, baseY + 8, cx - 34, baseY + 2, 4.6);
+        nuDuct(nuVX + 14, nuVY - 12, cx + 26, baseY + 2, cx + 30, baseY + 6, 4.4);
+
+        // ---- the instrument caisson on the slab, front-centre -----------------
+        var nuCX = cx + 6, nuCY = baseY + 26;
+        g.fillStyle = 'rgba(0,0,0,.30)';
+        g.beginPath(); g.ellipse(nuCX + 3, nuCY + 2, 18, 6, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#2b2f30';                               // two dark legs
+        g.fillRect(nuCX - 12, nuCY - 9, 5, 9); g.fillRect(nuCX + 7, nuCY - 9, 5, 9);
+        prism(g, nuCX, nuCY - 8, 16, 6.4, 10, '#9aa09a', '#c4cac2', '#2c302c');
+        g.fillStyle = shade(col, 0.74); g.fillRect(nuCX - 15, nuCY - 19.8, 30, 4.4);
+        g.fillStyle = col; g.fillRect(nuCX - 15, nuCY - 19.8, 30, 1.6);
+        g.fillStyle = '#1e2122';                               // instrument ports
+        for (var nuOI = -1; nuOI <= 1; nuOI++) {
+          g.beginPath(); g.ellipse(nuCX + nuOI * 6, nuCY - 12, 2.2, 2.2, 0, 0, 6.29); g.fill();
+          g.fillStyle = 'rgba(206,214,206,.70)';
+          g.beginPath(); g.ellipse(nuCX + nuOI * 6 - 0.6, nuCY - 12.7, 0.9, 0.9, 0, 0, 6.29); g.fill();
+          g.fillStyle = '#1e2122';
+        }
+        drums(g, cx - 60, baseY - 12, 2, '#4e5240');
       } else {
         // Directorate never builds this (Soviet-only in RA2): plain block.
         prism(g, cx, baseY, fw * 0.8, fh * 0.8, 30, '#6a6f78', '#8a9099', '#2a2e36');
         g.fillStyle = col; g.fillRect(cx - fw * 0.5, baseY - 32, fw, 4);
       }
-
     } else if (key === 'sentrygun') {
       // --- RA2 Sentry Gun ---------------------------------------------------
       // From the sprite (keyed 252x198 at x6, w/h 1.27): a tiny thing, and
@@ -10755,7 +10995,7 @@
           A.rise = A.ay - artTop(A.s);
           A.s.bb = artBox(A.s);
           if (k === 'base' || k === 'power' || k === 'refinery' || k === 'factory' || k === 'barracks'
-              || k === 'airforce' || k === 'radar' || k === 'depot' || k === 'lab') {
+              || k === 'airforce' || k === 'radar' || k === 'depot' || k === 'lab' || k === 'purifier' || k === 'reactor') {
             // The yard's crane works: six phases, cycled by drawBld like the
             // RA2 idle animation. The bbox is the union so the brackets and
             // the build-up clip cover every phase.
