@@ -191,12 +191,12 @@
   .start-btn.open { box-shadow: 0 0 0 2px rgba(210,105,30,0.5) inset; filter: brightness(1.12); }
   .start-btn .icon { font-size: 18px; line-height: 1; }
 
-  /* THE window control — one icon, and the only one. Left-click 🗔 = plain on/off
-     toggle; turning ON just floats the CURRENT app at max size (it does NOT auto-
-     tile everything — arranging is explicit). Right-click 🗔 opens the layout
-     palette (Halves, Thirds, Quarters…), which is where tiling lives now. There is
-     no Start-menu row and no second button. Phones show nothing: the mode needs a
-     tablet-sized screen. */
+  /* THE window control — one icon, and the only one. Left-click 🗔 = on/off toggle;
+     turning ON tiles the open apps once if there are 2+ (instant overview), or
+     floats a lone app at max size — and does NOT keep auto-tiling after that.
+     Right-click 🗔 opens the layout palette (Halves, Thirds, Quarters…) for
+     explicit rearranging. There is no Start-menu row and no second button. Phones
+     show nothing: the mode needs a tablet-sized screen. */
   .wm-btn {
     display: none; align-items: center; justify-content: center; flex-shrink: 0;
     width: 40px; height: 40px; margin-left: 4px;
@@ -1796,17 +1796,25 @@
   function toggleWindowMode() {
     WM_FLAG = !WM_FLAG;
     try { localStorage.setItem('vibetop:wm', WM_FLAG ? '1' : '0'); } catch (e) {}
-    // Turning ON no longer auto-tiles everything. Just float the CURRENT app at
-    // max size (filling the frame minus the edge gap) and leave the rest where
-    // they are — arranging is now an explicit choice (right-click the 🗔 for a
-    // layout). markUserArranged so the auto-tiler doesn't undo this on the next
-    // app open.
-    if (WM_FLAG && active) {
-      var g = winGeom(active); g.min = false; g.max = true; g.z = ++zTop;
-      markUserArranged(active);
-    }
     renderWindows(); renderTaskbar(); applyWinModeMenu();
-    if (WM_FLAG) { var cur = active; setTimeout(function(){ maybeWinTip(); if (cur) coachForApp(cur); }, 300); }
+    // Turning ON, hybrid by how many apps are open:
+    //  - 2+ already open  -> tile them once, so window mode's whole point (seeing
+    //    them at once) is there with no extra step;
+    //  - a lone app       -> just float it at max size.
+    // Either way there is NO auto-tiling after this — further arranging is
+    // explicit, via the right-click layout palette. markUserArranged so the
+    // on-open auto-tiler doesn't override what we just set.
+    if (WM_FLAG) {
+      var visN = openApps.filter(function (id) { return !(wins[id] && wins[id].min); }).length;
+      if (visN >= 2) {
+        tidyWindows();                       // tidyWindows re-renders + saves
+      } else if (active) {
+        var g = winGeom(active); g.min = false; g.max = true; g.z = ++zTop;
+        markUserArranged(active);
+        renderWindows();
+      }
+      var cur = active; setTimeout(function(){ maybeWinTip(); if (cur) coachForApp(cur); }, 300);
+    }
   }
   // Sync the toggle's single surface: the taskbar button. What the Start-menu row
   // used to spell out in words now has to come across without one, so the title

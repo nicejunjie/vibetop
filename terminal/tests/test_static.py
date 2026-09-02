@@ -380,13 +380,16 @@ def test_window_mode_switch_lives_only_in_the_taskbar():
         "a Start-menu row for the window toggle is back — the button is its only surface"
     assert 'id="tidy-btn"' not in src, \
         "the ▦ Tidy button is back — tiling lives in the right-click layout palette, not a button"
-    # Turning floating windows ON floats the CURRENT app at max size; it does NOT
-    # auto-tile everything (that used to be `if (WM_FLAG) tidyWindows();`).
-    # Arranging is explicit, via the RIGHT-CLICK layout palette on the 🗔 button.
+    # Turning floating windows ON is a hybrid: tile once when 2+ apps are open
+    # (instant overview), else float the lone app at max size — but it must NOT
+    # keep auto-tiling unconditionally (the old `if (WM_FLAG) tidyWindows();`).
+    # Further arranging is explicit, via the RIGHT-CLICK layout palette.
     assert "if (WM_FLAG) tidyWindows();" not in src, \
-        "turn-on should no longer auto-tile — it maximizes the current window instead"
-    assert re.search(r"if \(WM_FLAG && active\)", src), \
-        "turn-on must float the current app (maximize the active window)"
+        "turn-on must not unconditionally auto-tile every time"
+    assert re.search(r"if \(visN >= 2\)", src), \
+        "turn-on should tile once only when several apps are open"
+    assert re.search(r"g\.max = true", src), \
+        "turn-on should float a lone app at max size"
     assert re.search(r"addEventListener\('contextmenu'", src), \
         "the layout palette must open on right-click of the 🗔 button"
 
