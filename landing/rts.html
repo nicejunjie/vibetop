@@ -270,7 +270,7 @@
   <div id="stage">
     <canvas id="cv"></canvas>
     <div id="marq"></div>
-    <div id="tip">Left-drag to select · Right-click to move or attack</div>
+    <div id="tip">Left-drag to select · Right-click to move or attack · Right-drag to pan when nothing is selected</div>
     <div id="hov" hidden><b id="hovName"></b><span id="hovSub"></span></div>
     <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
 
@@ -12030,8 +12030,9 @@
   // lost pointer has to clear it — pointerup alone is not enough (house rule).
   function endPan() {
     if (!pan) return;
-    pan = null;
+    var p = pan; pan = null;
     cv.style.cursor = '';
+    if (p.right && Math.abs(mouse.x - p.x0) < 4 && Math.abs(mouse.y - p.y0) < 4 && G && state === 'play') rightOrder(p.x0, p.y0, p.shift);
   }
 
   function endDrag() {
@@ -12121,6 +12122,15 @@
     } else if (e.button === 2) {
       e.preventDefault();
       if (placing) { placing = null; cv.classList.remove('placing'); say('Placement cancelled'); return; }
+      var mine = sel.some(function (o) { return !o.dead && o.p === P_HUMAN; });
+      if (!mine) {
+        // Nothing of ours selected: a right-drag pans the map (a plain right
+        // click still falls through in endPan when the pointer did not move).
+        pan = { x: px, y: py, x0: px, y0: py, right: true, shift: e.shiftKey };
+        cv.style.cursor = 'grabbing';
+        try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+        return;
+      }
       rightOrder(px, py, e.shiftKey);
     }
   });
@@ -13500,7 +13510,7 @@
     if (tipT > 0 && --tipT === 0) {
       tipEl.className = '';
       tipEl.textContent = state === 'play'
-        ? 'Left-drag to select · Right-click to move or attack'
+        ? 'Left-drag to select · Right-click to move or attack · Right-drag to pan when nothing is selected'
         : '';
     }
     render();

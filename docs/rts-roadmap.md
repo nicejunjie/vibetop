@@ -104,6 +104,9 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 ### Debug mode (user, 2026-09-02: "add a debug mode, for instant build, no resource limit and all map vision open, player unit has 10x more durance and 10x more attack than AI opponent")
 - ☑ Start-screen checkbox (remembered): instant build for the player, credits pinned at 999999, whole map revealed, the player's units and structures deal 10× and take 1/10; the game is not scored; a banner says so at start (v1.19.213)
 
+### Camera (user, 2026-09-02: "when no unit is selected, I can use right click and drag to move my view on the map")
+- ☑ Right-drag pans the map whenever nothing of the player's is selected (middle-drag always pans; a right click that does not move still falls through to the normal right-click) (v1.19.215)
+
 ### Terrain and maps (user, 2026-09-02: "build real terrains like RA2, instead of the current plain surface with blocked areas; support multiple maps")
 - ☑ Terrain step 1: water with shimmer, shorelines, cliffs (raised, block movement), roads, trees as occluding objects, snow theatre (v1.19.210)
 - ☑ Terrain art pass against RA2 tileset references (`docs/ra2-ref/terr-*.png`): seamless 256×128 ground sheets cut into 64 position-indexed tiles, 32 px cliff faces with 16 edge masks, animated water + shallows, shore/road overlays, rock sheets with scree, 4 tree variants per theatre; rocks/trees never land on water or against a cliff, ridges are 3-wide plateaus (v1.19.211)
