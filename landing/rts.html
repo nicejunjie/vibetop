@@ -11638,7 +11638,7 @@
     try {
       var n = Math.floor(AC.sampleRate * dur);
       var buf = AC.createBuffer(1, n, AC.sampleRate), ch = buf.getChannelData(0);
-      for (var i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      for (var i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);   // audio-only white noise: never reaches the sim, so the seed rule does not apply
       var src = AC.createBufferSource(), g = AC.createGain();
       src.buffer = buf; g.gain.value = vol == null ? 0.18 : vol;
       src.connect(g); g.connect(master); src.start();
