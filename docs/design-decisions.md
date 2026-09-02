@@ -5559,3 +5559,33 @@ them and the first attempt silently squashed widths that were already right.
 sprites are drawn inside the scene's `ctx.scale(zoom, zoom)`, so that was a
 double scale — anything drawn per-frame beside a unit must use raw sprite
 units, never `* zoom`.
+
+## The RA2 vehicle sheets are FACING RINGS, and d0 is the SE sprite, not the E one
+
+- **Symptom:** comparing a baked vehicle against `docs/ra2-ref/<unit>.png` looked
+  like it needed a hand-picked crop, and the first automatic pick ("the
+  component furthest into the lower-right quadrant") grabbed a *rock* out of the
+  snow background on `soviet-rhino-tank.png`.
+- **Cause:** every vehicle reference in `docs/ra2-ref/` is one unit rendered
+  eight times **arranged in a ring, each sprite standing in the direction it
+  faces**. Segmenting them gives 8 blobs plus, on the snow plates, two or three
+  decorations. And `bakeVehicle`'s `d` is a GRID direction, not a screen angle:
+  the iso projection sends `d3`/`d7` to the exact due-W/due-E screen directions
+  and `d0` to SE, `d1` to S, `d2` to SW, `d4` to NW, `d5` to N, `d6` to NE. So
+  the *bottom-right* sprite in the ring is `d0` — the one to compare "the
+  down-right facing" against — and the sprite at the far right of the ring is
+  `d7`.
+- **Fix:** keep the 8 largest components only (drops the scenery), then bin each
+  by `atan2(dy, dx)` of its centre against the ring's centre using
+  `SE=0, S=1, SW=2, W=3, NW=4, N=5, NE=6, E=7`. Measure aspect on the reference
+  crop and on our sprite with the **shadow excluded** (`shadowBlob` fills at
+  alpha .38, the art is opaque — threshold alpha > 200) or the shared contact
+  blob widens every measurement.
+- **Also:** the owner-hue census is not symmetric between the two players.
+  `COL = ['#4aa3db', '#e5646c']` — the blue is saturated, the red is pale — so
+  the SAME sprite measures ~5-6 points higher for the blue owner than the red
+  under any fixed `s > 0.35` hue window. Judge a unit by the blue figure (the
+  higher one) against the 15-25% band and treat the red figure as its floor;
+  tuning to put the red number in band pushes the blue one out the top.
+- **Check:** `.work/` harness of art pass 8 — dump hull+turret composed per
+  facing, crop both sides to the alpha box, print `w/h` and the hue split.
