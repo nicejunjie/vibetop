@@ -915,3 +915,25 @@ test("a mining harvester obeys a move order and holds there instead of driving b
   for (let i = 0; i < 60 * 30 && u.state === "idle"; i++) H.step(1);
   assert.ok(u.state === "tomine" || u.state === "mining", `expected it to resume mining after the hold, state ${u.state}`);
 });
+
+test("every map is playable from both starts and mirror-fair", () => {
+  const W = load();
+  const T = W.__rtsTables, API = W.__rtsTest.api;
+  for (const id of Object.keys(T.MAPS)) {
+    for (const seed of [11, 202, 3033]) {
+      const g = API.newState(seed, "normal", id);
+      assert.equal(g.mapId, id);
+      const a = g.start[0], b = g.start[1];
+      const path = API.astar(g, a.x, a.y, b.x, b.y);
+      assert.ok(path && path.length, `${id} seed ${seed}: no route between the starts`);
+      let ore0 = 0, ore1 = 0, solid0 = 0, solid1 = 0;
+      for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+        const i = y * 64 + x, m = (63 - y) * 64 + (63 - x);
+        if (y < 32) { ore0 += g.ore[i]; ore1 += g.ore[m]; }
+        if (g.terrain[i] >= 3 && y < 32) { solid0++; solid1 += g.terrain[m] >= 3 ? 1 : 0; }
+      }
+      assert.ok(Math.abs(ore0 - ore1) < ore0 * 0.005 + 1, `${id}: ore not mirrored (${ore0} vs ${ore1})`);
+      assert.equal(solid0, solid1, `${id}: water/cliff/trees not mirrored`);
+    }
+  }
+});

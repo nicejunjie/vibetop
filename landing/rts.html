@@ -273,6 +273,7 @@
       <p id="ovP">Build a base, mine ore, crush the enemy.</p>
       <div class="facrow" id="facRow"></div>
       <div class="diffrow" id="diffRow"></div>
+      <div class="facrow" id="mapRow"></div>
       <div class="btns">
         <button class="primary" id="ovA">Start</button>
         <button class="ghost" id="ovB" style="display:none">Cancel</button>
@@ -358,7 +359,8 @@
   var DPR = Math.min(window.devicePixelRatio || 1, 2);
 
   // Terrain codes
-  var T_GROUND = 0, T_ROCK = 1, T_ORE = 2;
+  var T_GROUND = 0, T_ROCK = 1, T_ORE = 2, T_WATER = 3, T_CLIFF = 4, T_TREE = 5, T_ROAD = 6;
+  function solidT(t) { return t === T_ROCK || t === T_WATER || t === T_CLIFF || t === T_TREE; }
 
   var P_HUMAN = 0, P_AI = 1;
 
@@ -663,10 +665,11 @@
   var faction = 'dir';
   var headless = false;    // true inside __rtsSim (skips all rendering)
 
-  function newState(seed, diff) {
+  function newState(seed, diff, mapId) {
     srand(seed);
     var g = {
       seed: seed, diff: diff, tick: 0, over: 0,   // over: 0 running, 1 won, -1 lost
+      mapId: MAPS[mapId] ? mapId : 'frontier', theatre: (MAPS[mapId] || MAPS.frontier).theatre,
       terrain: new Uint8Array(MAP * MAP),
       ore: new Float32Array(MAP * MAP),
       occ: new Int32Array(MAP * MAP),             // entity id occupying a tile, 0 = free
@@ -700,12 +703,57 @@
   //  The unit test asserts both starts reach ore and each other, and that
   //  the two halves carry the same ore total.
   // --------------------------------------------------------------------- //
-  function genMap(g) {
+  // Maps. Each generator lays terrain on a mirrored (180°) 64x64 board so the
+  // two starts are fair by construction; `theatre` picks the ground palette.
+  var MAPS = {
+    frontier: { name: 'Iron Frontier', theatre: 'temperate', blurb: 'Open plains, rock outcrops, a road between the bases',
+                gen: function (g) { genCore(g, 26, null); mapRoad(g); mapTrees(g, 14); } },
+    lake:     { name: 'Lake Divide',   theatre: 'temperate', blurb: 'A lake splits the middle; cliff ridges guard the flanks',
+                gen: function (g) { genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 9, 5.5); mapRidge(g, 12, 40, 26, 40, 2); mapRidge(g, 44, 18, 44, 30, 2); }); mapTrees(g, 10); } },
+    tundra:   { name: 'Frozen Front',  theatre: 'snow',      blurb: 'Snowfield with frozen lakes and cliff ridges',
+                gen: function (g) { genCore(g, 18, function () { mapLake(g, 20, 44, 5, 3.2); mapRidge(g, 24, 6, 24, 20, 2); mapRidge(g, 34, 44, 46, 44, 2); }); mapTrees(g, 12); } }
+  };
+  function genMap(g) { (MAPS[g.mapId] || MAPS.frontier).gen(g); }
+  function setT(g, x, y, t) { if (inMap(x, y) && g.terrain[idx(x, y)] === T_GROUND) g.terrain[idx(x, y)] = t; }
+  function setTM(g, x, y, t) { setT(g, x, y, t); setT(g, MAP - 1 - x, MAP - 1 - y, t); }   // mirrored pair
+  function mapLake(g, cx, cy, rx, ry) {
+    for (var y = Math.floor(cy - ry) - 1; y <= Math.ceil(cy + ry) + 1; y++) for (var x = Math.floor(cx - rx) - 1; x <= Math.ceil(cx + rx) + 1; x++) {
+      var dx = (x - cx) / rx, dy = (y - cy) / ry;
+      if (dx * dx + dy * dy <= 1) setTM(g, x, y, T_WATER);
+    }
+  }
+  function mapRidge(g, x0, y0, x1, y1, w) {
+    // A cliff line with a two-tile gap at its middle, mirrored.
+    var n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+    for (var i = 0; i <= n; i++) {
+      if (Math.abs(i - n / 2) < 1.5) continue;                       // the pass
+      var x = Math.round(x0 + (x1 - x0) * i / n), y = Math.round(y0 + (y1 - y0) * i / n);
+      for (var k = 0; k < w; k++) setTM(g, x + (x1 === x0 ? k : 0), y + (y1 === y0 ? k : 0), T_CLIFF);
+    }
+  }
+  function mapRoad(g) {
+    // A dirt road from one base toward the other, bending at the middle.
+    // Drawn from one base to the centre and mirrored, so the map stays fair.
+    var a = g.start[0], mx = (MAP >> 1) - 1, my = (MAP >> 1) - 1, x, y;
+    for (x = a.x; x <= mx; x++) setTM(g, x, a.y + 2, T_ROAD);
+    for (y = a.y + 2; y <= my; y++) setTM(g, mx, y, T_ROAD);
+  }
+  function mapTrees(g, clusters) {
+    for (var c = 0; c < clusters; c++) {
+      var cx = 3 + rint(MAP - 6), cy = 3 + rint((MAP >> 1) - 4), n = 2 + rint(4);
+      for (var i = 0; i < n; i++) {
+        var x = cx + rint(5) - 2, y = cy + rint(4) - 2;
+        if (Math.abs(x - g.start[0].x) < 6 && Math.abs(y - g.start[0].y) < 6) continue;
+        setTM(g, x, y, T_TREE);
+      }
+    }
+  }
+  function genCore(g, rocks, features) {
     var i, x, y;
     for (i = 0; i < MAP * MAP; i++) { g.terrain[i] = T_GROUND; g.ore[i] = 0; }
+    if (features) features();                       // water and cliffs first: ore never lands on an island
 
     // Rock clusters in one half, mirrored into the other (180° rotation).
-    var rocks = 26;
     for (i = 0; i < rocks; i++) {
       var cx = 4 + rint(MAP - 8), cy = 4 + rint((MAP >> 1) - 6);
       var r = 1 + rint(3);
@@ -732,9 +780,9 @@
         var d = Math.sqrt((xx - cx) * (xx - cx) + (yy - cy) * (yy - cy));
         if (d > r) continue;
         var j = idx(xx, yy);
-        if (g.terrain[j] === T_ROCK) continue;
+        if (g.terrain[j] !== T_GROUND && g.terrain[j] !== T_ORE) continue;   // overlapping patches merge (max)
         g.terrain[j] = T_ORE;
-        g.ore[j] = amount * (1 - d / (r + 1));
+        g.ore[j] = Math.max(g.ore[j], amount * (1 - d / (r + 1)));
       }
     }
     function mirrorPatch(cx, cy, r, amount) {
@@ -861,6 +909,79 @@
     g.restore();
     diamond(g, cx, cy, TW, TH);
     g.strokeStyle = edge; g.lineWidth = 1; g.stroke();
+    return s;
+  }
+
+  // Water: a dark diamond with a few pale ripple arcs (variants break the repeat).
+  function bakeWater(fill, ripple, seed) {
+    var s = mkCanvas(TW + 2, TH + 2), g = s.g, cx = (TW + 2) / 2, cy = (TH + 2) / 2;
+    diamond(g, cx, cy, TW, TH); g.fillStyle = fill; g.fill();
+    g.save(); diamond(g, cx, cy, TW, TH); g.clip(); srand(seed);
+    g.strokeStyle = ripple; g.lineWidth = 1; g.globalAlpha = 0.55;
+    for (var i = 0; i < 5; i++) {
+      var x = cx - 20 + rnd() * 40, y = cy - 9 + rnd() * 18, w = 5 + rnd() * 9;
+      g.beginPath(); g.moveTo(x - w, y); g.quadraticCurveTo(x, y - 2.2, x + w, y); g.stroke();
+    }
+    g.globalAlpha = 0.18; g.fillStyle = ripple;
+    g.beginPath(); g.ellipse(cx + 6, cy - 4, 14, 4, 0, 0, 6.29); g.fill();
+    g.restore();
+    diamond(g, cx, cy, TW, TH); g.strokeStyle = fill; g.stroke();
+    return s;
+  }
+  // Cliff: the tile diamond raised by CLIFF_H with the two visible faces
+  // (down-right = +gx neighbour, down-left = +gy neighbour) drawn when that
+  // neighbour is not cliff. mask bit1 = show down-right face, bit2 = down-left.
+  var CLIFF_H = 14;
+  function bakeCliff(mask, top, side, dark) {
+    var w = TW + 2, h = TH + 2 + CLIFF_H, s = mkCanvas(w, h), g = s.g;
+    var cx = w / 2, cy = CLIFF_H + (TH + 2) / 2, ty = cy - CLIFF_H;
+    if (mask & 1) {   // down-right face: from the right vertex to the bottom vertex
+      g.fillStyle = side; g.beginPath();
+      g.moveTo(cx + TW / 2, ty); g.lineTo(cx, ty + TH / 2); g.lineTo(cx, cy + TH / 2); g.lineTo(cx + TW / 2, cy); g.closePath(); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 1; for (var k = 1; k < 3; k++) { g.beginPath(); g.moveTo(cx + TW / 2, ty + k * 4.5); g.lineTo(cx, ty + TH / 2 + k * 4.5); g.stroke(); }
+    }
+    if (mask & 2) {   // down-left face
+      g.fillStyle = shade(side, 0.8); g.beginPath();
+      g.moveTo(cx - TW / 2, ty); g.lineTo(cx, ty + TH / 2); g.lineTo(cx, cy + TH / 2); g.lineTo(cx - TW / 2, cy); g.closePath(); g.fill();
+      g.strokeStyle = dark; for (var k2 = 1; k2 < 3; k2++) { g.beginPath(); g.moveTo(cx - TW / 2, ty + k2 * 4.5); g.lineTo(cx, ty + TH / 2 + k2 * 4.5); g.stroke(); }
+    }
+    diamond(g, cx, ty, TW, TH); g.fillStyle = top; g.fill();
+    g.save(); diamond(g, cx, ty, TW, TH); g.clip(); srand(31 + mask);
+    g.globalAlpha = 0.25; for (var i = 0; i < 10; i++) { g.fillStyle = rnd() < 0.5 ? shade(top, 1.15) : shade(top, 0.8); g.beginPath(); g.ellipse(cx - 22 + rnd() * 44, ty - 10 + rnd() * 20, 2 + rnd() * 4, 1 + rnd() * 2, 0, 0, 6.29); g.fill(); }
+    g.globalAlpha = 1; g.restore();
+    diamond(g, cx, ty, TW, TH); g.strokeStyle = dark; g.lineWidth = 1; g.stroke();
+    s.lift = CLIFF_H;
+    return s;
+  }
+  // Road: a worn strip across the tile with pale wheel ruts.
+  function bakeRoad(fill, seed) {
+    var s = bakeTile(fill, fill, seed), g = s.g, cx = (TW + 2) / 2, cy = (TH + 2) / 2;
+    g.save(); diamond(g, cx, cy, TW, TH); g.clip();
+    g.strokeStyle = shade(fill, 1.25); g.lineWidth = 1; g.globalAlpha = 0.7;
+    g.beginPath(); g.moveTo(cx - TW / 2 + 4, cy - 3); g.lineTo(cx + TW / 2 - 4, cy - 3); g.stroke();
+    g.beginPath(); g.moveTo(cx - TW / 2 + 4, cy + 3); g.lineTo(cx + TW / 2 - 4, cy + 3); g.stroke();
+    g.restore(); return s;
+  }
+  // Tree: drawn in the entity pass (it occludes what stands behind it).
+  function bakeTree(v, snow) {
+    var s = mkCanvas(48, 64), g = s.g, cx = 24, by = 58;
+    srand(80 + v);
+    g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(cx + 3, by, 13, 5, 0, 0, 6.29); g.fill();
+    g.fillStyle = '#4a3527'; g.fillRect(cx - 2.5, by - 22, 5, 22);
+    if (snow) {   // conifer with a dusting
+      for (var t = 0; t < 3; t++) {
+        var yy = by - 16 - t * 12, ww = 20 - t * 5;
+        g.fillStyle = '#2f4a30'; g.beginPath(); g.moveTo(cx - ww, yy); g.lineTo(cx, yy - 16); g.lineTo(cx + ww, yy); g.closePath(); g.fill();
+        g.fillStyle = '#e9eef1'; g.beginPath(); g.moveTo(cx - ww * 0.55, yy - 5); g.lineTo(cx, yy - 16); g.lineTo(cx + ww * 0.55, yy - 5); g.closePath(); g.fill();
+      }
+    } else {
+      var r = 15 + v * 2;
+      g.fillStyle = '#35592b'; g.beginPath(); g.ellipse(cx, by - 30, r, r * 0.85, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#4d7a3a'; g.beginPath(); g.ellipse(cx - 4, by - 34, r * 0.7, r * 0.55, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#6a9a4c'; g.beginPath(); g.ellipse(cx - 7, by - 38, r * 0.35, r * 0.28, 0, 0, 6.29); g.fill();
+      g.strokeStyle = '#243d1e'; g.lineWidth = 1; g.beginPath(); g.ellipse(cx, by - 30, r, r * 0.85, 0, 0, 6.29); g.stroke();
+    }
+    s.ax = cx; s.ay = by;
     return s;
   }
 
@@ -7485,6 +7606,18 @@
       bakeTile('#69753f', '#69753f', 43), bakeTile('#717d4b', '#717d4b', 44),
       bakeTile('#6b7743', '#6b7743', 45), bakeTile('#767f52', '#767f52', 46)
     ];
+    // Theatres: RA2 has temperate and snow ground; structures keep their art.
+    SPR.groundT = {
+      temperate: SPR.ground,
+      snow: [bakeTile('#cfd6da', '#cfd6da', 51), bakeTile('#d6dce0', '#d6dce0', 52), bakeTile('#c6ced4', '#c6ced4', 53),
+             bakeTile('#d2d9dd', '#d2d9dd', 54), bakeTile('#cbd3d8', '#cbd3d8', 55), bakeTile('#dae0e3', '#dae0e3', 56)]
+    };
+    SPR.water = { temperate: [bakeWater('#2c5d86', '#4d86b3', 61), bakeWater('#2a5a82', '#4a82ae', 62), bakeWater('#2e6089', '#5089b6', 63), bakeWater('#2b5b84', '#4b84b0', 64)],
+                  snow:      [bakeWater('#a6bfd0', '#d9e6ee', 65), bakeWater('#a2bccd', '#d5e3ec', 66), bakeWater('#a9c2d2', '#dce8ef', 67), bakeWater('#a4bdce', '#d7e4ed', 68)] };
+    SPR.cliff = { temperate: [], snow: [] };
+    for (var cm = 0; cm < 4; cm++) { SPR.cliff.temperate[cm] = bakeCliff(cm, '#8a8062', '#5a5142', '#3e372c'); SPR.cliff.snow[cm] = bakeCliff(cm, '#dfe5e8', '#6a6f74', '#474b50'); }
+    SPR.road = { temperate: [bakeRoad('#6c6a58', 71), bakeRoad('#706e5b', 72)], snow: [bakeRoad('#b3b8bc', 73), bakeRoad('#b8bdc0', 74)] };
+    SPR.tree = { temperate: [bakeTree(0, false), bakeTree(1, false), bakeTree(2, false)], snow: [bakeTree(0, true), bakeTree(1, true), bakeTree(2, true)] };
     SPR.rock = [bakeRock(0), bakeRock(1), bakeRock(2), bakeRock(3)];
     SPR.oreLv = [];
     for (var lv = 0; lv < 3; lv++) {
@@ -7613,7 +7746,7 @@
   function blocked(g, x, y) {
     if (!inMap(x, y)) return true;
     var i = idx(x, y);
-    return g.terrain[i] === T_ROCK || g.occ[i] !== 0;
+    return solidT(g.terrain[i]) || g.occ[i] !== 0;
   }
 
   var pathQ = [];
@@ -8121,7 +8254,7 @@
     var x = Math.round(fx), y = Math.round(fy);
     if (!inMap(x, y)) return false;
     var i = idx(x, y);
-    return g.terrain[i] !== T_ROCK && g.occ[i] === 0;
+    return !solidT(g.terrain[i]) && g.occ[i] === 0;
   }
 
   // --------------------------------------------------------------------- //
@@ -8474,7 +8607,7 @@
       for (var x = gx; x < gx + d.gw; x++) {
         if (!inMap(x, y)) return false;
         var i = idx(x, y);
-        if (g.terrain[i] === T_ROCK || g.terrain[i] === T_ORE) return false;
+        if (g.terrain[i] !== T_GROUND && g.terrain[i] !== T_ROAD) return false;
         if (g.occ[i] !== 0) return false;
         for (var k = 0; k < g.units.length; k++) {          // not on top of a unit
           var u = g.units[k];
@@ -10107,8 +10240,15 @@
           diamond(ctx, px, py, TW + 1, TH + 1); ctx.fill();
           continue;
         }
-        var tile = t === T_ROCK ? SPR.rock[h6 & 3] : SPR.ground[h6 % 6];
-        ctx.drawImage(tile.c, px - tile.w / 2, py - tile.h / 2, tile.w, tile.h);
+        var th = G.theatre || 'temperate', tile;
+        if (t === T_ROCK) tile = SPR.rock[h6 & 3];
+        else if (t === T_WATER) tile = SPR.water[th][h6 & 3];
+        else if (t === T_ROAD) tile = SPR.road[th][h6 & 1];
+        else if (t === T_CLIFF) {
+          var cm = (x + 1 < MAP && G.terrain[idx(x + 1, y)] !== T_CLIFF ? 1 : 0) | (y + 1 < MAP && G.terrain[idx(x, y + 1)] !== T_CLIFF ? 2 : 0);
+          tile = SPR.cliff[th][cm];
+        } else tile = (SPR.groundT[th] || SPR.ground)[h6 % 6];
+        ctx.drawImage(tile.c, px - tile.w / 2, py - tile.h / 2 - (tile.lift || 0), tile.w, tile.h);
         if (t === T_ORE) {
           var lv = G.ore[i] > 600 ? 2 : (G.ore[i] > 250 ? 1 : 0);
           var os = SPR.oreLv[lv][(x * 5 + y * 11) & 3];
@@ -10127,7 +10267,7 @@
         for (x = minX; x <= maxX; x++) {
           if (!mask[idx(x, y)]) continue;
           var ti = idx(x, y);
-          if (G.terrain[ti] === T_ROCK || G.terrain[ti] === T_ORE || G.occ[ti] !== 0) continue;
+          if ((G.terrain[ti] !== T_GROUND && G.terrain[ti] !== T_ROAD) || G.occ[ti] !== 0) continue;
           diamond(ctx, sx(x, y), sy(x, y), TW - 3, TH - 1.5);
           ctx.fill();
         }
@@ -10162,10 +10302,15 @@
       if (u.dead || !entSeen(G, u)) continue;
       draw.push({ d: u.x + u.y, e: u, b: false });
     }
+    for (y = minY; y <= maxY; y++) for (x = minX; x <= maxX; x++) {
+      i = idx(x, y);
+      if (G.terrain[i] === T_TREE && G.seen[i]) draw.push({ d: x + y, t: SPR.tree[G.theatre || 'temperate'][((x * 7 + y * 13) >>> 0) % 3], x: x, y: y });
+    }
     draw.sort(function (a, c) { return a.d - c.d; });
 
     for (i = 0; i < draw.length; i++) {
-      if (draw[i].b) drawBld(draw[i].e); else drawUnit(draw[i].e);
+      if (draw[i].t) { var tr = draw[i].t, tpx = sx(draw[i].x, draw[i].y), tpy = sy(draw[i].x, draw[i].y); ctx.drawImage(tr.c, tpx - tr.ax, tpy - tr.ay, tr.w, tr.h); }
+      else if (draw[i].b) drawBld(draw[i].e); else drawUnit(draw[i].e);
     }
 
     // Rally lines for any selected production building, over the world so the
@@ -10512,7 +10657,9 @@
       for (var y = 0; y < MAP; y++) for (var x = 0; x < MAP; x++) {
         var t = G.terrain[idx(x, y)];
         if (!G.seen[idx(x, y)]) { mctx.fillStyle = '#000'; mctx.fillRect(x * sc, y * sc, sc + 0.5, sc + 0.5); continue; }
-        mctx.fillStyle = t === T_GROUND ? '#2e3a24' : (t === T_ROCK ? '#39414f' : '#c9822f');
+        var snowy = G.theatre === 'snow';
+        mctx.fillStyle = t === T_GROUND ? (snowy ? '#aeb8be' : '#2e3a24') : t === T_ROCK ? '#39414f' : t === T_ORE ? '#c9822f'
+                       : t === T_WATER ? (snowy ? '#8fb0c4' : '#2c5d86') : t === T_CLIFF ? '#6e6656' : t === T_TREE ? '#2f5a2a' : '#6a6a60';
         mctx.fillRect(x * sc, y * sc, sc + 0.5, sc + 0.5);
       }
       mini._terr = mctx.getImageData(0, 0, 184, 184);
@@ -10549,7 +10696,18 @@
   var ov = document.getElementById('ov'), ovIc = document.getElementById('ovIc');
   var ovT = document.getElementById('ovT'), ovP = document.getElementById('ovP');
   var ovA = document.getElementById('ovA'), ovB = document.getElementById('ovB');
-  var diffRow = document.getElementById('diffRow'), facRow = document.getElementById('facRow');
+  var diffRow = document.getElementById('diffRow'), facRow = document.getElementById('facRow'), mapRow = document.getElementById('mapRow');
+  var mapId = MAPS[lsGet('vibetop:rts:map')] ? lsGet('vibetop:rts:map') : 'frontier';
+  function buildMapRow() {
+    mapRow.innerHTML = '';
+    Object.keys(MAPS).forEach(function (k) {
+      var M = MAPS[k], b = document.createElement('button');
+      b.className = mapId === k ? 'on' : '';
+      b.innerHTML = '<span class="fn">' + (M.theatre === 'snow' ? '❄️ ' : '🌲 ') + M.name + '</span><span class="fb">' + M.blurb + '</span>';
+      b.addEventListener('click', function () { mapId = k; lsSet('vibetop:rts:map', k); buildMapRow(); });
+      mapRow.appendChild(b);
+    });
+  }
   var scoresEl = document.getElementById('scores');
   var hv = document.getElementById('hv'), lv = document.getElementById('lv');
   var sess = null;
@@ -10562,6 +10720,8 @@
     if (bLabel) ovB.textContent = bLabel;
     diffRow.style.display = showDiff ? 'flex' : 'none';
     facRow.style.display = showDiff ? 'flex' : 'none';
+    mapRow.style.display = showDiff ? 'flex' : 'none';
+    if (showDiff) buildMapRow();
     scoresEl.style.display = showScores ? 'block' : 'none';
     ov.classList.add('show');
   }
@@ -10682,7 +10842,7 @@
 
   function startMatch() {
     var seed = (Date.now() ^ (performance.now() * 1000)) >>> 0;
-    G = newState(seed, difficulty);
+    G = newState(seed, difficulty, mapId);
     G.side[P_HUMAN].fac = faction;
     G.side[P_AI].fac = faction === 'dir' ? 'col' : 'dir';   // always the other side
     G.ai = newAI(difficulty);
@@ -10829,7 +10989,7 @@
     // Start a bare match (no opening units) that the other hooks act on.
     begin: function (seed, diff) {
       headless = true;
-      G = newState((seed >>> 0) || 1, diff || 'normal');
+      G = newState((seed >>> 0) || 1, diff || 'normal', arguments[2]);
       state = 'play';
       return G;
     },
@@ -10950,7 +11110,7 @@
 
   window.__rtsBuildFactor = function (lane) { return G ? buildFactor(G, P_HUMAN, lane) : 1; };
 
-  window.__rtsTables = { UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS };
+  window.__rtsTables = { UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS };
 
   // --------------------------------------------------------------------- //
   //  Boot
