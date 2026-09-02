@@ -593,9 +593,9 @@
        rounded-corner clip it provided now lives on the two children that need it. */
   }
   body.wm .win.floating > .win-body { overflow: hidden; border-radius: 0 0 7px 7px; }
-  body.wm .win.floating.maximized > .win-titlebar,
-  body.wm .win.floating.maximized > .win-body { border-radius: 0; }
-  body.wm .win.floating.maximized { border: 0; border-radius: 0; box-shadow: none; }
+  /* Maximize now fills the frame MINUS the edge margin, so it sits in the gap as
+     a normal-looking window — keep its border, radius and shadow (they used to be
+     stripped for the old edge-to-edge full-bleed maximize). */
   body.wm .win.floating > .win-titlebar {
     display: flex; align-items: center; gap: 8px; flex: 0 0 32px; height: 32px;
     border-radius: 7px 7px 0 0;   /* was inherited from the window's overflow clip */
@@ -627,7 +627,7 @@
   .win-titlebar .wt-close:focus-visible {
     outline: 2px solid #5aa2f0; outline-offset: -2px; color: #eaf1f8;
   }
-  /* Snap-layout palette — hover (or long-press) the taskbar 🗔. It arranges EVERY
+  /* Snap-layout palette — right-click (or long-press on touch) the taskbar 🗔. It arranges EVERY
      window, so it hangs off the desktop-level control. It first hung off a
      window's ▢, Windows-11 style, and that was the wrong home: "all windows can be
      controlled from another window" — a control on window A silently moved B and C.
@@ -1325,7 +1325,13 @@
   function applyWinGeom(w, g) {
     if (g.max) {
       w.classList.add('maximized');
-      w.style.left = '0'; w.style.top = '0'; w.style.width = '100%'; w.style.height = '100%';
+      // Maximize FILLS the frame but keeps the same edge gap as a free window —
+      // in window mode there is always a visible margin, even maxed. calc(% - px)
+      // so it still tracks a frame resize without recomputing here.
+      var m = window.VibeWin ? VibeWin.MARGIN : 0;
+      w.style.left = m + 'px'; w.style.top = m + 'px';
+      w.style.width = 'calc(100% - ' + (2 * m) + 'px)';
+      w.style.height = 'calc(100% - ' + (2 * m) + 'px)';
     } else {
       w.classList.remove('maximized');
       w.style.left = g.left + 'px'; w.style.top = g.top + 'px';
@@ -1353,12 +1359,12 @@
     else { g.prev = { left: g.left, top: g.top, width: g.width, height: g.height }; g.max = true; g.z = ++zTop; }
     renderWindows(); nudgeResize(id); saveWins();
   }
-  // --- snap-layout palette (hover / long-press the taskbar 🗔) ---------------
+  // --- snap-layout palette (right-click / long-press the taskbar 🗔) ----------
   // It arranges EVERY window, so it hangs off the desktop-level control, not off a
   // window. It first lived on a window's ▢ (Windows 11 style) and that was the
   // wrong home: "all windows can be controlled from another window" — a control
   // sitting on window A silently moved B and C. Scope now matches location; ▢ is
-  // plain maximize again. Tap 🗔 = on/off, hover (or long-press on touch) = this.
+  // plain maximize again. Left-click 🗔 = on/off, right-click (or long-press on touch) = this.
   var layoutsEl = document.getElementById('win-layouts');
   var layoutHideT = null, layoutHoverT = null;
 
@@ -1784,8 +1790,8 @@
     var on = windowModeOn();
     btn.classList.toggle('on', on);
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    btn.title = !WM_FLAG ? 'Floating windows — off (apps fill the screen)'
-      : (on ? 'Floating windows — on (drag a title bar to move, an edge to resize)'
+    btn.title = !WM_FLAG ? 'Floating windows — off (apps fill the screen) · right-click for layouts'
+      : (on ? 'Floating windows — on (drag a title bar to move, an edge to resize) · right-click for layouts'
             : 'Floating windows — on (screen too small, showing full-screen)');
   }
   function loadWins() {
@@ -2826,11 +2832,11 @@
   // self-caps at 3 shows + dismiss-on-tap; a no-op on touch/narrow).
   function maybeWinTip() {
     if (!window.vibeCoach || !windowModeOn()) return;
-    // :v5 — ▦ is gone (folded into the 🗔 toggle); :v4 said the button was "top-left",
-    // which is along the bottom. Bumping the key re-shows the corrected tip to
-    // anyone who already saw the wrong one.
-    vibeCoach({ key: 'vibetop:tip:wm:v7',
-                text: 'Windows: drag the title bar to move · drag an edge or corner to resize · hover the windows button in the taskbar to pick a layout' },
+    // :v8 — layout picker moved from hover to RIGHT-CLICK on the windows button;
+    // re-show so anyone taught the old hover gesture learns the new one. (:v5 —
+    // ▦ folded into the 🗔 toggle; :v4 wrongly said "top-left".)
+    vibeCoach({ key: 'vibetop:tip:wm:v8',
+                text: 'Windows: drag the title bar to move · drag an edge or corner to resize · right-click the windows button in the taskbar to pick a layout' },
               { bottom: 60 });
     // Click-through comes from the `body.wm .vibe-coach` CSS rule (race-free —
     // the old one-shot querySelector here missed the banner whenever it rendered
@@ -2998,17 +3004,19 @@
       if (held) { held = false; return; }   // that press opened the palette; don't also toggle
       toggleWindowMode();
     });
-    // Mouse: hover-intent, so passing over the icon on the way to a taskbar app
-    // never pops the palette open.
-    wb.addEventListener('mouseenter', function () {
-      if (layoutHoverT) clearTimeout(layoutHoverT);
-      layoutHoverT = setTimeout(function () { showLayouts(wb); }, 420);
+    // Right-click = the layout palette (left-click above is the on/off toggle).
+    // A familiar context-menu gesture, and it replaces the old hover-to-open that
+    // popped the palette just from passing over the icon. If windows are off,
+    // turn them on first (toggleWindowMode lays out synchronously) so there is
+    // something to arrange.
+    wb.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!windowModeOn()) toggleWindowMode();
+      showLayouts(wb);
     });
-    wb.addEventListener('mouseleave', function () {
-      if (layoutHoverT) { clearTimeout(layoutHoverT); layoutHoverT = null; }
-      hideLayoutsSoon();
-    });
-    // Touch has no hover: long-press instead. `held` stops the release toggling.
+    // Touch has no hover or right-click: long-press instead. `held` stops the
+    // release toggling.
     wb.addEventListener('pointerdown', function (e) {
       if (e.pointerType === 'mouse') return;
       held = false;
