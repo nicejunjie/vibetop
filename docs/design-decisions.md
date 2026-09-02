@@ -5466,3 +5466,26 @@ original exact-bytes test stayed green through the whole breakage.
   dock tile) centres that area on the footprint the sim uses, and the greebles
   move instead.
 
+## A sprite's aspect budget is pinned at the bottom by the shared contact shadow
+
+- **Symptom:** the Ore Purifier and the Nuclear Reactor were both drawn to
+  their reference's proportions and still measured 5-10% too *tall*. Scaling
+  the building down did not move the number.
+- **Cause:** `bakeBuilding`'s shared preamble draws a contact shadow at
+  `diamond(cx + 3, baseY + 4, fw*2, fh*2)` before any branch runs, so every
+  structure's opaque bbox already reaches `baseY + 36` — about 6px below the
+  footprint diamond's own bottom vertex, and below anything a 2x2 building's
+  art normally puts there. RA2's sprite has no such skirt. Painting over it
+  does not help: an opaque ground plate of the same size lands at the same
+  row, and a smaller one leaves the shadow's tip showing.
+- **Fix:** treat the bbox bottom as fixed at `baseY + 36` and solve for the
+  width instead. Measure the reference's bbox, decide the top row (the tallest
+  point of the art), and set the plan width to `(top→baseY+36) * refAspect`.
+  For the reactor that meant pushing the two near towers out to `cx ± 45`
+  rather than shortening them, and holding any idle-animation overshoot (the
+  cooling-tower steam) below the tallest tower's rim, since `A.frames`' bbox
+  is the union over phases and a plume above the skyline re-inflates the
+  height it was just tuned to.
+- **Rule:** measure aspect from a render, not from the numbers you drew with,
+  and budget the extra 6 rows before choosing the scale.
+
