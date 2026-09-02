@@ -5489,3 +5489,47 @@ original exact-bytes test stayed green through the whole breakage.
 - **Rule:** measure aspect from a render, not from the numbers you drew with,
   and budget the extra 6 rows before choosing the scale.
 
+
+## A 1x1 defence cannot wear as much house colour as its RA2 sprite does
+
+- **Symptom:** the rebuilt Tesla Coil measured 36% owner hue on a red base and
+  37% on a blue one against the house rule's 12-18% ceiling, and the first two
+  attempts to bring it down (narrower pylons, a darker red cheek) barely moved
+  it — 27.5% then 28.4%.
+- **Cause:** two things compound on a 1x1. RA2 paints the Tesla Coil's four
+  buttresses *entirely* in the house colour and they are the biggest mass on
+  the sprite, so the reference itself is well past 18%; and the denominator is
+  small, because a 1x1 sprite is mostly its own tile-sized hardstanding. Worse,
+  `shade(col, f)` does not change saturation at all — a "dark red cheek" is
+  still a fully saturated red pixel — and the blue player colour (`#4aa3db`,
+  HSV s=0.66) survives a 60% blend with grey while the red one (`#e5646c`,
+  s=0.56) does not, so a mix tuned on the red owner silently leaves the blue
+  owner 12 points higher.
+- **Fix:** keep the lit faces in `col`/`hi` and desaturate every *turned*
+  face — shaded cheek, foot, cut top — with `mixc(col, <neutral>, 0.74-0.80)`,
+  and stop outlining house masses with `shade(col, 0.36)` (a 1px outline round
+  four pylons was 10% of the sprite on its own). Check the result on BOTH
+  owners; the blue one is always the binding constraint.
+- **Rule of thumb for the census:** a pixel counts as house colour at HSV
+  s > 0.45, v > 0.18 — the same threshold the Allied Power Plant's "keep every
+  cool navy under s=0.45" note is written against. Navy bodies (Prism Tower,
+  Patriot launcher) must be built at s ≈ 0.34-0.40 or a red-owner structure
+  reads as carrying blue.
+
+## The emitter in the art and the shot's origin constant are two sources of truth
+
+- **Symptom:** the Tesla bolt left the coil 42px below the electrode and the
+  prism lance left the column 28px below the crown — both had been true when
+  the towers were shorter, and neither was visible on a contact sheet.
+- **Cause:** the shot pass hard-codes the launch height per weapon
+  (`ay = sy(...) - 62` for `tesla`, `- 58` for `beam`, and `spec.launch` for
+  the AA sites), while the art puts the emitter wherever the branch draws it.
+  Nothing ties them together and nothing tests them.
+- **Fix:** when a defence's height changes, move the constant with it (now
+  -104 and -86), and for the AA sites do the reverse — `launch` is gameplay
+  data, so the Patriot's tube mouths were placed at -46 to meet its existing
+  `launch: 34` (drawn at `-10 - launch`) rather than the other way round. The
+  Flak Cannon's muzzle sits ~10px above its origin because the sprite's aspect
+  (0.779) will not allow a shorter barrel; that is the one remaining gap.
+- **Check:** a scene render with a shot pushed into `g.shots` from the
+  structure — a sprite sheet cannot show it.
