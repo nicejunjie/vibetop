@@ -71,7 +71,7 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 - ☑ v1.19.199 Shroud: map starts black, stays revealed once seen; hidden enemies neither drawn nor hoverable (RA2 without fog)
 - ☑ v1.19.199 Ore regrows slowly on existing seams (2/s per tile, never spreads)
 - ☐ Superweapons / tech buildings — decide the scope against RA2's tech tree
-- ☐ AI: attacks harvesters, builds defences toward the enemy, rebuilds destroyed structures
+- ☑ AI: harvester harassment (existing), defences toward the enemy (existing), rebuilds by count (existing); target list now covers every structure type with a catch-all
 
 ### Audio
 - ☑ v1.19.199 EVA via speech synthesis: unit ready, construction complete, low power, base/miner under attack, unit/structure lost, insufficient funds, primary building selected
@@ -79,13 +79,13 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 
 ### Roster expansion (user, 2026-09-01: "implement more buildings and other combat items matching real RA2, right now there are too few")
 Every new item is built to the same bar as wave 4: real sprite fetched from the C&C wiki `File:` namespace, aspect within ±8%, owner-only colour 12-18% with 0% opposing hue, checked at 1:1 in the scene, sim stats scaled from RA2 rules.ini, AI taught to use it.
-- ☐ Phase A — defences and tech structures: Allied Patriot Missile, Prism Tower, Gap Generator, Battle Lab, Airforce Command; Soviet Sentry Gun (sprite on disk), Flak Cannon, Radar Tower, Battle Lab, Nuclear Reactor
-- ☐ Phase B — units: Allied Engineer, Rocketeer (jetpack), IFV, Mirage Tank, Harrier, Chrono Legionnaire, Tanya; Soviet Engineer, Tesla Trooper, Crazy Ivan, Rhino Tank (sprite on disk), Flak Track, V3 Launcher, Terror Drone, Kirov, Tesla Tank
+- ☑ Phase A — tech structures from real sprites: Allied Airforce Command, Service Depot, Battle Lab, Ore Purifier, Prism Tower; Soviet Radar Tower, Service Depot, Battle Lab, Nuclear Reactor, Sentry Gun (Patriot/Flak Cannon/Gap Generator wait for air units and fog)
+- ◐ Phase B — units: model for all 11 ground units + engineer capture, hero cap, tiers, AI use; art done for Engineer (both), Tanya, IFV, Mirage; Soviet unit art (Rhino, Flak Track, V3, Tesla Trooper, Crazy Ivan, Terror Drone, Tesla Tank) in progress; Rocketeer, Harrier, Kirov, Chrono Legionnaire wait for the air layer
 - ☐ Phase C — superweapons: Chronosphere / Weather Control Device vs Iron Curtain / Nuclear Missile Silo
 - ☐ Tech-tree gating as RA2 (Radar/Airforce → tier 2, Battle Lab → tier 3), sidebar shows prerequisites
 
 ### Terrain and maps (user, 2026-09-02: "build real terrains like RA2, instead of the current plain surface with blocked areas; support multiple maps")
-- ☐ Tileset built against RA2 references: grass/dirt/sand variants, cliffs (height edges that block movement, with top/side faces), water and shoreline, roads, trees and rocks as objects with shadows, ore and gem fields
-- ☐ Map format (size, tiles, objects, ore, start positions) + several 2-player maps (temperate lake, snow, urban ruins) — hand-authored layouts, seeded variation
-- ☐ Map picker on the start screen; pathfinding aware of cliffs/water; minimap colours per terrain
+- ◐ Terrain step 1: water with shimmer, shorelines, cliffs (raised, block movement), roads, trees as occluding objects, snow theatre — first-pass vector tiles; an art pass against RA2 tileset references is next
+- ☑ Three mirrored 2-player maps (Iron Frontier, Lake Divide, Frozen Front) with seeded variation; a playability + mirror-fairness test covers every map
+- ☑ Map picker on the start screen; pathfinding and placement aware of water/cliffs/trees; minimap colours per terrain
 - ☐ Theatres: temperate first, then snow (RA2 has temperate/snow/urban); structures keep their art, ground changes
