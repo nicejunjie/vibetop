@@ -16527,9 +16527,12 @@
     resumeAudio();
     if (state === 'play' || state === 'paused') {
       if (state === 'play') togglePause(true);
-      onA = function () { hideCard(); startMatch(); };
+      // New goes back to the front menu (side / difficulty / map), never
+      // straight into another match; one confirm so a stray click cannot
+      // throw away a game.
+      onA = function () { hideCard(); menu(); };
       onB = function () { hideCard(); if (state === 'paused') togglePause(); };
-      showCard('🔄', 'Start over?', 'This abandons the current match.', 'Start over', 'Keep playing', false, false);
+      showCard('🔄', 'Back to the menu?', 'This abandons the current match.', 'Back to menu', 'Keep playing', false, false);
       return;
     }
     menu();
