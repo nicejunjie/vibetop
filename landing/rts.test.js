@@ -1442,7 +1442,7 @@ test("an MCV deploys in place into a Construction Yard and is consumed", () => {
   assert.ok(mcv.dead, "the MCV is consumed by deploying");
   assert.ok(Math.abs(yard.hp / yard.maxhp - 0.5) < 0.01,
     `the yard must start at the MCV's hp fraction (got ${(yard.hp / yard.maxhp).toFixed(2)})`);
-  assert.ok(g.tick - yard.builtAt < 4, "a deployed yard plays the build-up animation");
+  assert.ok(g.tick - yard.builtAt < 4, "a deployed yard records when it was placed");
 });
 
 test("an MCV refuses to deploy on ground it cannot fill", () => {

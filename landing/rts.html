@@ -12349,7 +12349,7 @@
       hp: d.hp, maxhp: d.hp, dead: false,
       cool: 0, target: null, sel: false,
       cx: gx + (d.gw - 1) / 2, cy: gy + (d.gh - 1) / 2, rally: null,
-      builtAt: g.tick > 0 ? g.tick : -9999                 // starting base is already up
+      builtAt: g.tick
     };
     g.blds.push(b);
     g.byId[b.id] = b;
@@ -12379,7 +12379,7 @@
     u.dead = true; u.sel = false;
     var b = placeBld(g, UNITS[u.type].deploysInto, u.p, sp.x, sp.y);
     b.hp = Math.max(1, b.maxhp * frac);
-    b.builtAt = g.tick;                       // plays the build-up animation
+    b.builtAt = g.tick;
     return b;
   }
 
@@ -16231,29 +16231,15 @@
 
     var bb = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
     var ox = px - art.ax, oy = py - art.ay;
-    var age = G.tick - (b.builtAt == null ? -9999 : b.builtAt), BUILD_T = 80;
-    // Idle animation (the yards' cranes): phases cycle slowly, offset per
-    // building so two yards do not move in lockstep.
+    // A placed structure appears complete at once. The old clipped-rise
+    // behind a drawn scaffold grid read as a wireframe glitch, not RA2's
+    // MAKE animation (which is a per-structure sprite sequence we do not
+    // have), so it was removed rather than left ugly.
     var artC = art.frames ? art.frames[((G.tick / 5 + b.id * 2) | 0) % art.frames.length].c : art.s.c;
-    if (age < BUILD_T) {
-      // Build-up: the structure rises out of its pad behind a scaffold, as in
-      // RA2, instead of popping into existence.
-      var t = Math.max(0, age) / BUILD_T, ah = bb.y1 - bb.y0, topY = oy + bb.y1 - t * ah;
-      ctx.save(); ctx.beginPath(); ctx.rect(ox, topY, art.s.w, t * ah + 3); ctx.clip();
-      ctx.drawImage(artC, ox, oy, art.s.w, art.s.h);
-      ctx.restore();
-      ctx.strokeStyle = 'rgba(205,210,222,' + (0.75 * (1 - t)).toFixed(2) + ')'; ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (var gxs = ox + bb.x0 + 6; gxs < ox + bb.x1 - 2; gxs += 11) { ctx.moveTo(gxs, oy + bb.y0); ctx.lineTo(gxs, topY); }
-      for (var gys = oy + bb.y0 + 8; gys < topY; gys += 10) { ctx.moveTo(ox + bb.x0 + 2, gys); ctx.lineTo(ox + bb.x1 - 2, gys); }
-      ctx.moveTo(ox + bb.x0, topY); ctx.lineTo(ox + bb.x1, topY);
-      ctx.stroke();
-    } else {
-      ctx.drawImage(artC, ox, oy, art.s.w, art.s.h);
-    }
+    ctx.drawImage(artC, ox, oy, art.s.w, art.s.h);
     // Damage states: smoke from a hurt structure, fire once it is critical.
     var frac = b.hp / b.maxhp;
-    if (frac < 0.5 && age >= BUILD_T) {
+    if (frac < 0.5) {
       var ph = (G.tick + b.id * 7) % 18;
       if (ph === 0 || (frac < 0.25 && ph === 9)) {
         var k = ((G.tick / 18 + b.id) | 0) % 3, sxo = [-0.3, 0.25, 0.05][k], syo = [0.1, -0.25, 0.3][k];
