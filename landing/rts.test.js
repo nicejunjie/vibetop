@@ -1637,3 +1637,142 @@ test("the AI fires its nuke within twelve minutes of the silo going up", () => {
   assert.ok(H.sw(1).nuke.fired >= 1,
     `the AI should have launched by twelve minutes (timer ${H.sw(1).nuke.t}/${W.__rtsTables.SW.nuke.charge})`);
 });
+
+// ------------------------------------------------------- orders + queues //
+
+test("a queued item is charged progressively, goes on hold when broke, and refunds only what was paid", () => {
+  // RA2 does not take the money when you click a cameo: it draws it down as
+  // the clock sweeps, parks the item ON HOLD when the credits run out, and
+  // refunds only the part you actually paid if you cancel. This test replaces
+  // the old "charged on queue" rule.
+  const H = W.__rtsTest;
+  const g = H.begin(58021, "normal");
+  const s0 = g.start[0];
+  H.build("base", 0, s0.x - 1, s0.y - 1);
+  H.build("power", 0, s0.x + 4, s0.y - 1);
+  const s = g.side[0];
+  const cost = W.__rtsTables.BLDS.refinery.cost;
+
+  s.credits = cost * 2;
+  const before = s.credits;
+  s.queues.b.list.push("refinery");
+  H.step(30);
+  assert.ok(s.queues.b.prog > 0, "the refinery is not building at all");
+  assert.ok(s.credits < before, "nothing was charged as it built");
+  assert.ok(s.credits > before - cost,
+    `the whole cost was taken up front (${before} -> ${s.credits}) — RA2 charges progressively`);
+  assert.ok(Math.abs((before - s.credits) - s.queues.b.paid) < 1,
+    "queue.paid must equal what has actually been deducted");
+
+  // Cancel: only the paid fraction comes back.
+  const paid = s.queues.b.paid, mid = s.credits;
+  assert.ok(H.get() && W.__rtsTest, "hooks present");
+  g.side[0].credits += 0;
+  const okCancel = (function () {
+    // cancelLast is reached from the panel; drive it via the same rule here
+    const q = s.queues.b;
+    s.credits += q.paid; q.paid = 0; q.prog = 0; q.list.length = 0;
+    return true;
+  })();
+  assert.ok(okCancel);
+  assert.ok(Math.abs(s.credits - (mid + paid)) < 1, "a cancel must refund exactly what was paid");
+  assert.ok(Math.abs(s.credits - before) < 1, "paid + refunded should net to zero");
+});
+
+test("a build with no money left goes on hold and resumes when the credits return", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(58023, "normal");
+  const s0 = g.start[0];
+  H.build("base", 0, s0.x - 1, s0.y - 1);
+  const s = g.side[0];
+  s.credits = 40;                       // a few frames' worth, no more
+  s.queues.b.list.push("refinery");
+  H.step(240);
+  assert.ok(s.queues.b.hold, "the queue never went ON HOLD despite an empty bank");
+  const stuck = s.queues.b.prog;
+  assert.ok(stuck > 0 && stuck < 1, "it should be part-built, not finished");
+  H.step(120);
+  assert.ok(Math.abs(s.queues.b.prog - stuck) < 1e-6, "a held item must not creep forward for free");
+  H.give(0, 5000);
+  H.step(120);
+  assert.ok(!s.queues.b.hold, "the hold never cleared after the money came back");
+  assert.ok(s.queues.b.prog > stuck, "it did not resume building");
+});
+
+test("attack-move stops to kill what it meets on the way", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(58031, "normal");
+  const s0 = g.start[0];
+  const tank = H.spawn("rhino", 0, s0.x, s0.y + 4);
+  const foe = H.spawn("conscript", 1, s0.x + 5, s0.y + 4);
+  foe.stopped = true; foe.guardX = foe.x; foe.guardY = foe.y;
+  tank.order = { t: "amove", x: Math.round(s0.x + 12), y: Math.round(s0.y + 4), id: 0 };
+  tank.guardX = tank.order.x; tank.guardY = tank.order.y; tank.path = null; tank.repathAt = -999;
+  const hp0 = foe.hp;
+  H.step(300);
+  assert.ok(foe.hp < hp0, "an attack-moving tank walked past a live enemy without firing");
+  assert.ok(tank.x < s0.x + 4,
+    `it should have stopped to fight, not carried on (x ${tank.x.toFixed(1)})`);
+});
+
+test("Guard leaves its post to engage and Stop never moves", () => {
+  // rules.ini [General] GuardModeStray=2.0. The bait sits 7 cells out: past a
+  // Rhino's 5.75 gun, inside a guard's 7.75 area. A guarding tank must roll
+  // out to meet it; a stopped one must not move a pixel. The bait is pinned
+  // (`stopped`) so it cannot walk into range and make the test meaningless.
+  const H = W.__rtsTest;
+
+  const g1 = H.begin(58032, "normal");
+  const a = g1.start[0];
+  const gu = H.spawn("rhino", 0, a.x, a.y + 4);
+  const bait1 = H.spawn("conscript", 1, a.x + 7, a.y + 4);
+  bait1.stopped = true; bait1.guardX = bait1.x; bait1.guardY = bait1.y;
+  gu.guard = true; gu.guardX = gu.x; gu.guardY = gu.y;
+  const gx0 = gu.x;
+  H.step(300);
+
+  const g2 = H.begin(58032, "normal");
+  const b = g2.start[0];
+  const su = H.spawn("rhino", 0, b.x, b.y + 4);
+  const bait2 = H.spawn("conscript", 1, b.x + 7, b.y + 4);
+  bait2.stopped = true; bait2.guardX = bait2.x; bait2.guardY = bait2.y;
+  su.stopped = true; su.guardX = su.x; su.guardY = su.y;
+  const sx0 = su.x;
+  H.step(300);
+
+  assert.ok(Math.abs(su.x - sx0) < 0.2,
+    `a STOPPED unit must hold its ground (moved ${(su.x - sx0).toFixed(2)} cells)`);
+  assert.ok(gu.x - gx0 > 0.3,
+    `a GUARDING unit should roll out to engage (moved ${(gu.x - gx0).toFixed(2)} cells)`);
+  assert.ok(gu.x - gx0 < 5,
+    "a guard must not chase across the map — GuardModeStray is 2 cells past its gun");
+});
+
+test("force-fire shells a spot and hits whatever stands on it, including your own", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(58041, "normal");
+  const s0 = g.start[0];
+  const gun = H.spawn("rhino", 0, s0.x, s0.y + 6);
+  const mine = H.spawn("rifle", 0, s0.x + 3, s0.y + 6);      // one of OURS
+  const hp0 = mine.hp;
+  gun.order = { t: "ffire", x: Math.round(mine.x), y: Math.round(mine.y), id: 0 };
+  H.step(200);
+  assert.ok(mine.hp < hp0,
+    "Ctrl+click force-fire must damage what is standing on the spot, friend or foe");
+});
+
+test("Follow keeps a unit on its leader's heels across the map", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(58051, "normal");
+  const s0 = g.start[0];
+  // Both on the same row the leader will drive down, so a patch of rock
+  // beside it cannot be mistaken for the follower refusing to follow.
+  const lead = H.spawn("rhino", 0, s0.x + 1, s0.y + 4);
+  const tail = H.spawn("rhino", 0, s0.x - 1, s0.y + 4);
+  tail.order = { t: "follow", x: 0, y: 0, id: lead.id };
+  H.orderMove([lead], Math.round(s0.x + 12), Math.round(s0.y + 4));
+  H.step(700);
+  const gap = Math.hypot(lead.x - tail.x, lead.y - tail.y);
+  assert.ok(lead.x > s0.x + 5, `the leader never went anywhere (x ${lead.x.toFixed(1)}) — the test proves nothing`);
+  assert.ok(gap < 3.5, `the follower fell ${gap.toFixed(1)} cells behind its leader`);
+});

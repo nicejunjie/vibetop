@@ -5938,3 +5938,72 @@ dims the frame and the READY stamp too; only `.em canvas` is filtered.
   2.5s inert build-up is presentation only — `rts.test.js` (every test goes
   through `__rtsTest.begin`, which sets `headless`) keeps building and firing
   on the same tick, and no test needed changing.
+
+---
+
+## RTS controls: cursors, orders, the progressive build charge and an isometric radar
+
+**Symptom.** Five CSS cursor keywords stood in for RA2's dozen animated intent
+cursors, so nothing told you what a click would do before you made it; Ctrl and
+Ctrl+Shift right-clicks did nothing (no force-fire, no attack-move); Guard and
+Stop ran the *same* code path; a structure took its whole price the instant you
+clicked its cameo; the placement ghost was a rectangle of tinted tiles that
+never showed you which way the building faced; and the radar was a top-down
+square plan of a world drawn isometrically, so you rotated it in your head on
+every glance.
+
+**Cause / what the fixes turn on.** Five things that are each non-obvious:
+
+1. **A CSS cursor's data URL is sized by its intrinsic pixels.** `mkCanvas()`
+   in `rts.html` multiplies by `DPR`, so a cursor built with it exports at
+   64×64 on a hidpi screen and the browser renders a comically large pointer.
+   The cursor set uses its own raw 32×32 `curCanvas()` for that reason alone.
+2. **The animation timer is also the context poll.** `pickCursor()` runs on
+   the same 150 ms beat that swaps the animated frame, which is what makes the
+   cursor change the instant Ctrl goes down *without the mouse moving*. Every
+   ad-hoc `cv.style.cursor = …` had to be routed through it: the applied string
+   is cached in `curApplied`, so one stray write elsewhere would make the cache
+   agree with reality and freeze the cursor permanently.
+3. **`findTarget()` ignores the range you pass it.** Its `rng` argument only
+   sizes the spatial-hash sweep; the real filter is `d > rngVs(w, o)`, the
+   *weapon's* range. So widening the argument cannot give Guard its `[General]
+   GuardModeStray=2.0` area — a guard that reaches out for something just past
+   its gun needs its own `nearestFoe()` pass. This is the whole mechanical
+   difference between Guard (engages within reach+2 of its post, then walks
+   back) and Stop (`u.stopped`: fires at what comes, never moves).
+4. **Force-firing at bare ground has no entity to hand `fire()`.** `fire()`
+   needs a target with `kind`/`x`/`y` and resolves damage immediately;
+   `fireGround()` mirrors it against the *cell*, damaging whatever stands
+   there — including your own units, which is the point of RA2's Ctrl+click.
+5. **The radar is the same projection as the field, not a rotation of it.**
+   `(x,y) → (mmOX + k(x−y), mmOY + (k/2)(x+y))` is exactly the canvas matrix
+   `setTransform(k, k/2, −k, k/2, mmOX, mmOY)`, so the terrain is painted once
+   into a `MAP × MAP` pixel buffer and blitted through that matrix instead of
+   stroking 4096 diamonds. The viewport marker is the four screen corners run
+   through the same map, which is why it is the *true* screen quad at any zoom.
+
+**Fix.** 17 cursors drawn as 32×32 canvases with a fat black pass under every
+coloured stroke (so they read on snow, ore and a Rhino alike), 2–3 frames on
+move/attack/force-fire/attack-move/chrono. Order types `amove`, `ffire` and
+`follow` in `stepUnit`, plus `u.guard` / `u.stopped`. `stepQueues` charges
+`cost × Δprog` per tick, parks the item `q.hold` when the bank empties (red
+clock hand, `HOLD` on the cameo) and resumes when money returns; `cancelLast`
+refunds `q.paid`, and a *finished* structure waiting for a spot still refunds
+its whole cost because it is by definition fully paid. The placement ghost is
+the structure's own baked sprite, tinted green/red with `source-atop` and
+cached per (structure, verdict, faction) — drawn **after** the world, because
+under it the ghost was buried behind the very Construction Yard you were
+building next to.
+
+**Rejected.** (a) Rotating the map 45° into a 1:1 diamond so it fills the
+square radar box: it wastes less space but the viewport marker stops being the
+true screen quad and the radar no longer matches the field's proportions. The
+2:1 diamond letterboxes, exactly as RA2's radar does for a map that is not the
+shape of its radar box. (b) Removing `enqueue()`'s affordability test now that
+nothing is charged there — RA2 does let you start with an empty bank, but both
+callers already report "Insufficient funds" against that test, and an item that
+goes on hold at 0% the moment you click it is a worse answer than being told
+no. Holds still occur the way they matter: several items queued, or income lost
+mid-build. (c) Giving Follow its own leash constant — `GuardModeStray` is the
+same 2.0 cells RA2 uses for "how far from the thing you are guarding", so
+Follow reuses it.

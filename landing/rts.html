@@ -466,6 +466,11 @@
     <div class="facrow" id="facRow"></div>
     <div class="optrow" id="diffWrap"><span class="olbl">Opponent</span><div class="diffrow" id="diffRow"></div></div>
     <div class="mapwrap" id="mapWrap"><span class="olbl">Battlefield</span><div class="maprow" id="mapRow"></div></div>
+    <div id="optCard" style="display:none">
+      <div class="optrow"><span class="olbl">Sound</span><div class="diffrow" id="sndRow"></div></div>
+      <div class="optrow"><span class="olbl">Scroll speed</span><div class="diffrow" id="scrRow"></div></div>
+      <div class="optrow"><span class="olbl">Match</span><div class="diffrow" id="gameRow"></div></div>
+    </div>
     <div class="cardfoot">
       <label class="dbgrow" title="Cheats for testing: instant build, unlimited credits, the whole map revealed, your units take 1/10 damage and deal 10x. Wins are not recorded."><input type="checkbox" id="dbgChk"> Debug mode</label>
       <div class="btns">
@@ -480,9 +485,11 @@
     <h2>How to play</h2>
     <dl>
       <dt>Select</dt><dd>Left-click a unit, or left-drag a box. Double-click selects every visible unit of that type.</dd>
-      <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch.</dd>
+      <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch. <b>Ctrl</b>+right-click <b>force-fires</b> at a spot (or at your own units); <b>Ctrl+Shift</b>+right-click is an <b>attack-move</b> — they advance and engage whatever they meet. <b>F</b> then click a friendly unit to <b>follow</b> it.</dd>
+      <dt>Hold ground</dt><dd><b>S</b> stops dead — the unit fires at what comes into range but never moves. <b>G</b> guards: it leaves its post by up to two cells to engage, then walks back. <b>X</b> scatters.</dd>
       <dt>Camera</dt><dd>WASD / arrow keys, or push the mouse to a screen edge. Click the minimap to jump.</dd>
-      <dt>Groups</dt><dd><b>Ctrl+1…5</b> stores the selection, <b>1…5</b> recalls it.</dd>
+      <dt>Teams</dt><dd><b>Ctrl+1…0</b> stores the selection, <b>1…0</b> recalls it, <b>Shift+digit</b> adds to it, <b>Alt+digit</b> jumps the camera to it.</dd>
+      <dt>Views</dt><dd><b>Ctrl+F1…F4</b> saves a camera bookmark, <b>F1…F4</b> returns to it. <b>N</b> steps through everything you own.</dd>
       <dt>Faster</dt><dd>A second Barracks or War Factory speeds that queue up (20% off each, up to six — as in RA2) and gives units another exit.</dd>
       <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
       <dt>Rally</dt><dd>Select a Barracks or War Factory, then right-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected. Click an already-selected factory again to make it <b>primary</b> — the one that builds.</dd>
@@ -490,7 +497,7 @@
       <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
       <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
       <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over.</dd>
-      <dt>Also</dt><dd><b>Space</b> (or <b>H</b>) jumps back to your base · <b>P</b> pauses · <b>Esc</b> cancels placing.</dd>
+      <dt>Also</dt><dd><b>Space</b> jumps to the last radar event · <b>H</b> jumps home · <b>Delete</b> self-destructs the selection · <b>P</b> pauses · <b>Esc</b> cancels, and with nothing to cancel opens the <b>options</b> card (sound, scroll speed, restart, abort).</dd>
     </dl>
     <div class="btns"><button class="ghost" id="hvClose">Got it</button></div>
   </div></div>
@@ -653,6 +660,9 @@
     if (u && u.deployed && spec.dep) return spec.dep;       // a deployed GI fires from its sandbags
     return spec;
   }
+  // rules.ini [General] GuardModeStray=2.0 — how far a guarding unit may
+  // leave its post to engage before it is told to go back.
+  var GUARD_STRAY = 2.0;
   function reachOf(spec, u) {
     var r = spec.w2 && spec.w2.rng > spec.rng ? spec.w2.rng : spec.rng;
     if (spec.aaW) { var ar = spec.aaW.aaRng || spec.aaW.rng; if (ar > r) r = ar; }
@@ -1172,7 +1182,7 @@
       sw: swInit()                                 // superweapon charge timers, one per weapon
     };
   }
-  function newQueue() { return { list: [], prog: 0, ready: null }; }
+  function newQueue() { return { list: [], prog: 0, ready: null, paid: 0, hold: false }; }
 
   function idx(x, y) { return y * MAP + x; }
   function inMap(x, y) { return x >= 0 && y >= 0 && x < MAP && y < MAP; }
@@ -13214,6 +13224,11 @@
     if (tgt.p === P_HUMAN && src.p !== P_HUMAN) {
       if (tgt.kind === 'b') eva('Our base is under attack', 20000);
       else if (tgt.type === 'harvester') eva('Ore miner under attack', 20000);
+      // keyboard.ini CenterOnRadarEvent=32 (Space) needs somewhere to go:
+      // the last of ours that was shot at. Rate-limited so a running battle
+      // does not drag the key's destination one tile at a time.
+      if (!g.radarEvent || g.tick - g.radarEvent.tick > 90)
+        g.radarEvent = { x: tgt.kind === 'b' ? tgt.cx : tgt.x, y: tgt.kind === 'b' ? tgt.cy : tgt.y, tick: g.tick };
     }
     if (tgt.hp <= 0 && !tgt.dead) {
       g.side[src.p].killed++;
@@ -13450,7 +13465,10 @@
     sfx('boom');
     return true;
   }
-  function mmPing(g, x, y) { g.mmFlash = { x: x, y: y, until: g.tick + 60 * 8 }; }
+  function mmPing(g, x, y) {
+    g.mmFlash = { x: x, y: y, until: g.tick + 60 * 8 };
+    g.radarEvent = { x: x, y: y, tick: g.tick };     // a superweapon always wins Space
+  }
 
   function fire(g, src, tgt) {
     var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt, src);
@@ -13875,6 +13893,71 @@
       advance(g, u, Math.round(cb.cx), Math.round(cb.cy), d.spd, 60);
       return;
     }
+    // ATTACK-MOVE. RA2's AttackMove advances on a spot and stops to kill what
+    // it meets, then carries on — the difference between a column that walks
+    // past a Tesla Coil and one that levels it.
+    if (u.order && u.order.t === 'amove') {
+      var am = findTarget(g, u, reachOf(d, u));
+      if (am) {
+        var amd = dist(u, am), amw = weaponFor(d, am, u);
+        if (amd <= rngVs(amw, am) && !tooClose(amw, amd)) {
+          u.path = null;
+          var aax = (am.kind === 'b' ? am.cx : am.x) - u.x, aay = (am.kind === 'b' ? am.cy : am.y) - u.y;
+          var aaf = ((Math.round(Math.atan2(aay, aax) / (Math.PI / 4)) % 8) + 8) % 8;
+          if (d.turret) { u.tface = aaf; u.aimAt = g.tick; } else u.face = aaf;
+          if (u.cool <= 0) fire(g, u, am);
+          return;                                  // hold and fight
+        }
+        // Close the last few cells rather than walking past out of range.
+        if (amd < reachOf(d, u) + 3) {
+          advance(g, u, Math.round(am.kind === 'b' ? am.cx : am.x),
+                        Math.round(am.kind === 'b' ? am.cy : am.y), d.spd, 45);
+          return;
+        }
+      }
+      var amdx = u.order.x - u.x, amdy = u.order.y - u.y;
+      if (amdx * amdx + amdy * amdy < (u.air ? 0.3 : 1.4)) {
+        u.order = null; u.path = null; u.guard = true; u.guardX = u.x; u.guardY = u.y;
+        nextWaypoint(g, u);
+      } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path && u.noProg > 90) {
+        u.order = null; u.guardX = u.x; u.guardY = u.y;
+      }
+      return;
+    }
+
+    // FORCE-FIRE at a spot: close to range, then keep shelling it.
+    if (u.order && u.order.t === 'ffire') {
+      var fdx = u.order.x - u.x, fdy = u.order.y - u.y;
+      var fd = Math.sqrt(fdx * fdx + fdy * fdy);
+      var fspec = (u.deployed && d.dep) ? d.dep : d;
+      if (fd <= fspec.rng && !tooClose(fspec, fd)) {
+        u.path = null;
+        var ff = ((Math.round(Math.atan2(fdy, fdx) / (Math.PI / 4)) % 8) + 8) % 8;
+        if (d.turret) { u.tface = ff; u.aimAt = g.tick; } else u.face = ff;
+        if (u.cool <= 0) fireGround(g, u, u.order.x, u.order.y);
+        return;
+      }
+      if (!advance(g, u, u.order.x, u.order.y, d.spd, 60) && u.noProg > 90) {
+        u.order = null; u.noProg = 0;
+      }
+      return;
+    }
+
+    // FOLLOW (F): shadow a friendly unit, shooting anything that comes into
+    // reach on the way. RA2's GuardModeStray is the leash length.
+    if (u.order && u.order.t === 'follow') {
+      var fo = entById(g, u.order.id);
+      if (!fo || fo === u) { u.order = null; return; }
+      if (d.dmg > 0 && u.cool <= 0) {
+        var fpass = findTarget(g, u, reachOf(d, u));
+        if (fpass) fire(g, u, fpass);
+      }
+      u.guardX = fo.kind === 'b' ? fo.cx : fo.x; u.guardY = fo.kind === 'b' ? fo.cy : fo.y;
+      if (dist(u, fo) > GUARD_STRAY) advance(g, u, Math.round(u.guardX), Math.round(u.guardY), d.spd, 30);
+      else u.path = null;
+      return;
+    }
+
     if (u.order && u.order.t === 'move') {
       if (d.dmg > 0 && u.cool <= 0) {
         var passing = findTarget(g, u, reachOf(d, u));
@@ -13924,8 +14007,16 @@
         return;
       }
       // Chase only what we were told to chase, or what is close to our post.
+      // RA2 separates Stop from Guard (`[General] GuardModeStray=2.0`): a
+      // STOPPED unit holds its ground and only fires at what walks into
+      // range, while a GUARDING unit leaves its post by up to two cells to
+      // engage and then walks back. Everything else keeps the old loose
+      // leash so freshly built and idle troops still defend themselves.
+      var postD = Math.sqrt((u.guardX - u.x) * (u.guardX - u.x) + (u.guardY - u.y) * (u.guardY - u.y));
       var chase = (ordered && tgt === ordered) ||
-                  Math.sqrt((u.guardX - u.x) * (u.guardX - u.x) + (u.guardY - u.y) * (u.guardY - u.y)) < 7;
+                  (u.stopped ? false
+                   : u.guard ? postD < reachOf(d, u) + GUARD_STRAY
+                   : postD < 7);
       if (chase) {
         advance(g, u, Math.round(tgt.kind === 'b' ? tgt.cx : tgt.x),
                       Math.round(tgt.kind === 'b' ? tgt.cy : tgt.y), d.spd, 45);
@@ -13949,7 +14040,41 @@
       return;
     }
 
+    // GUARD, the half Stop does not have: a guarding unit watches a whole
+    // area, not just what its gun can already reach, and steps out to meet
+    // anything inside `GuardModeStray` of its post. findTarget() only ever
+    // returns what is ALREADY in weapon range, so the reaching-out pass has
+    // to be its own.
+    if (!tgt && u.guard && !u.order && !u.air && d.dmg > 0) {
+      var away = nearestFoe(g, u, reachOf(d, u) + GUARD_STRAY);
+      if (away) {
+        advance(g, u, Math.round(away.kind === 'b' ? away.cx : away.x),
+                      Math.round(away.kind === 'b' ? away.cy : away.y), d.spd, 45);
+        return;
+      }
+    }
+
+    // A guard that chased something comes home; a stopped unit never left.
+    if (!tgt && u.guard && !u.order && !u.air) {
+      var gdx = u.guardX - u.x, gdy = u.guardY - u.y;
+      if (gdx * gdx + gdy * gdy > 1.4) { advance(g, u, Math.round(u.guardX), Math.round(u.guardY), d.spd, 90); return; }
+      u.path = null;
+    }
+
     if (u.air) hoverIdle(g, u);          // nothing to do up there: hold a circle
+  }
+
+  // The nearest thing this unit could shoot within `r`, whether or not its
+  // gun reaches that far yet — Guard's "something is coming" sense.
+  function nearestFoe(g, u, r) {
+    var spec = UNITS[u.type], best = null, bd = 1e9;
+    near(u.x, u.y, r + 1, function (o) {
+      if (o.dead || o.p === u.p || !canHit(spec, o)) return;
+      var dd = dist(u, o);
+      if (dd > r || dd >= bd) return;
+      bd = dd; best = o;
+    });
+    return best;
   }
 
   function entById(g, id) {
@@ -14166,18 +14291,23 @@
     if (q.list.length >= QUEUE_MAX) return false;
     var spec = isBldLane(lane) ? bspecOf(g, key, p) : UNITS[key];
     if (s.credits < spec.cost) return false;
-    s.credits -= spec.cost;                     // charged on queue, refunded on cancel
+    // RA2 charges PROGRESSIVELY (see stepQueues): nothing is deducted here.
+    // The affordability test stays because both callers already report
+    // "Insufficient funds" against it, and starting something you cannot pay
+    // a single frame of is a worse first experience than being told no.
     q.list.push(key);
     return true;
   }
 
+  // Cancelling refunds exactly what has been PAID so far (RA2 rule): an item
+  // still waiting in the queue has cost nothing, the one building has cost
+  // `q.paid`, and a finished structure waiting for a spot has cost all of it.
   function cancelLast(g, p, lane, key) {
     var q = g.side[p].queues[lane];
     for (var i = q.list.length - 1; i >= 0; i--) {
       if (q.list[i] === key) {
-        g.side[p].credits += (isBldLane(lane) ? BLDS[key] : UNITS[key]).cost;
+        if (i === 0) { g.side[p].credits += q.paid || 0; q.paid = 0; q.prog = 0; q.hold = false; }
         q.list.splice(i, 1);
-        if (i === 0) q.prog = 0;
         return true;
       }
     }
@@ -14213,9 +14343,32 @@
       if (lane === 'a' && !hasBld(g, p, 'airforce')) continue;
       if (isBldLane(lane) && !hasBld(g, p, 'base')) continue;
 
-      q.prog += slow / (spec.build * 60 * buildFactor(g, p, lane));
-      if (g.debug && p === P_HUMAN) q.prog = 1;                 // debug mode: instant build
+      // ---- RA2 progressive charging -----------------------------------
+      // RA2 does not take the money when you click a cameo; it draws it down
+      // as the clock sweeps, and an item that runs out of money goes ON HOLD
+      // at whatever fraction it reached until the credits come back.
+      var dp = slow / (spec.build * 60 * buildFactor(g, p, lane));
+      if (g.debug && p === P_HUMAN) dp = 1;                      // debug mode: instant build
+      dp = Math.min(dp, 1 - q.prog);
+      if (dp > 0) {
+        var due = spec.cost * dp;
+        if (due > 0.0001 && s.credits < due) {
+          // Spend whatever is left this tick and stall on the rest.
+          var afford = Math.max(0, s.credits);
+          dp *= afford / due; due = afford;
+          if (!q.hold) {
+            q.hold = true;
+            if (p === P_HUMAN && !headless) { say('On hold — ' + spec.name + ' is waiting for credits', true); eva('On hold', 8000); }
+          }
+        } else if (q.hold) {
+          q.hold = false;
+          if (p === P_HUMAN && !headless) say('Building resumed — ' + spec.name);
+        }
+        if (due > 0) { s.credits -= due; q.paid = (q.paid || 0) + due; }
+        q.prog += dp;
+      }
       if (q.prog >= 1) {
+        q.paid = 0; q.hold = false;
         if (isBldLane(lane)) { q.prog = 0; q.list.shift(); q.ready = key; if (p === P_HUMAN) { sfx('ready'); eva('Construction complete', 3000); } }
         else {
           var src = producerFor(g, p, lane);
@@ -15411,7 +15564,7 @@
   var hovEl = document.getElementById('hov');
   var hovName = document.getElementById('hovName'), hovSub = document.getElementById('hovSub');
   function updateHover(e, nx, ny) {
-    if (!e || state !== 'play') { hovEl.hidden = true; return; }
+    if (!e || state !== 'play' || placing || swMode) { hovEl.hidden = true; return; }
     var d = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
     var mine = e.p === P_HUMAN;
     var who = mine ? 'Yours' : 'Enemy (' + FACTIONS[facOf(G, e.p)].name + ')';
@@ -15516,13 +15669,13 @@
     if (!st || !st.ready) { say(SW[key].name + ' is still charging', true); sfx('no'); return; }
     if (placing) { placing = null; cv.classList.remove('placing'); }
     swMode = { key: key, stage: 0, x: 0, y: 0 };
-    cv.style.cursor = 'crosshair';
+    pickCursor();
     say(SW[key].hint, false, 500);
     sfx('click'); refreshSW();
   }
   function swCancel(quiet) {
     if (!swMode) return false;
-    swMode = null; cv.style.cursor = 'default';
+    swMode = null; pickCursor();
     if (!quiet) say('Targeting cancelled');
     refreshSW();
     return true;
@@ -15539,7 +15692,7 @@
     var ok = W.two ? swFire(G, P_HUMAN, swMode.key, swMode.x, swMode.y, gx, gy)
                    : swFire(G, P_HUMAN, swMode.key, gx, gy);
     if (!ok) say(W.name + ' is not charged', true);
-    swMode = null; cv.style.cursor = 'default'; refreshSW();
+    swMode = null; pickCursor(); refreshSW();
   }
 
   // RA2's credit counter is a mechanical ticker: it walks toward the real
@@ -15834,13 +15987,17 @@
         var deg = (q.prog * 360).toFixed(1);
         fl.style.display = 'block';
         // Two layers: the bright clock hand at the leading edge, and the
-        // unbuilt sector behind it.
+        // unbuilt sector behind it. A HELD item's hand goes cold, because a
+        // bright hand that never advances reads as the game having frozen.
+        var hand = q.hold ? 'rgba(255,120,110,.9)' : 'rgba(255,230,150,.95)';
         fl.style.background =
-          'conic-gradient(from ' + deg + 'deg, rgba(255,230,150,.95) 0deg 2.4deg, rgba(0,0,0,0) 2.4deg),' +
+          'conic-gradient(from ' + deg + 'deg, ' + hand + ' 0deg 2.4deg, rgba(0,0,0,0) 2.4deg),' +
           'conic-gradient(from 0deg, rgba(0,0,0,0) 0deg ' + deg + 'deg, rgba(4,6,11,.8) ' + deg + 'deg 360deg)';
       } else if (fl.style.display !== 'none') { fl.style.display = 'none'; }
-      // The ::after stamp says READY now; the corner only carries queue depth.
-      el.querySelector('.qn').textContent = isReady ? '' : (n > 1 ? '\u00d7' + n : '');
+      // The ::after stamp says READY now; the corner carries queue depth, or
+      // HOLD when the credits ran out mid-build (RA2's on-hold cameo).
+      el.querySelector('.qn').textContent = isReady ? ''
+        : (first && q.hold ? 'HOLD' : (n > 1 ? '\u00d7' + n : ''));
       el.classList.toggle('rdy', isReady);
       var ok = isReady || canBuild(G, P_HUMAN, k, isBldLane(it.lane));
       el.classList.toggle('dis', !ok);
@@ -15924,40 +16081,313 @@
   });
 
   // --------------------------------------------------------------------- //
+  //  Cursors — RA2 has no single pointer. It has an ANIMATED cursor per
+  //  intent, and the cursor is how the game tells you what a click will do
+  //  before you make it: green chevrons mean "walk here", a red reticle means
+  //  "kill that", a barred circle means "not there". Five CSS keywords cannot
+  //  say any of that, so the set is drawn here into 32x32 canvases and hung
+  //  on #cv as `cursor: url(data:...) hx hy, auto`.
+  //
+  //  Two frames-per-second details matter: the hotspot is the pixel the click
+  //  lands on (the arrow's tip, a reticle's centre), and the animated ones
+  //  (move, attack, force-fire, attack-move) swap their data URL on a timer,
+  //  which is also what re-evaluates the hover context — so a cursor that
+  //  changes because you pressed Ctrl updates without moving the mouse.
+  // --------------------------------------------------------------------- //
+  var CUR_SZ = 32;
+  function curCanvas() {                      // raw 32x32: a DPR-scaled canvas
+    var c = document.createElement('canvas'); // would export a 64px cursor
+    c.width = CUR_SZ; c.height = CUR_SZ;
+    return { c: c, g: c.getContext('2d') };
+  }
+  // Every stroke is laid twice — a fat black pass, then the colour — so the
+  // cursor reads on snow, on ore and on a Rhino alike.
+  function ink(g, w, col) {
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    g.lineWidth = w + 2.4; g.strokeStyle = 'rgba(0,0,0,.82)'; g.stroke();
+    g.lineWidth = w; g.strokeStyle = col; g.stroke();
+  }
+  function inkFill(g, col) {
+    g.lineJoin = 'round'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.82)'; g.stroke();
+    g.fillStyle = col; g.fill();
+  }
+  // One arm of RA2's four-way move cursor: a chevron sitting `r` from the
+  // centre, its tip `len` further out (negative len points it inward).
+  function chevron(g, cx, cy, a, r, len, wid) {
+    var ux = Math.cos(a), uy = Math.sin(a), px = -uy, py = ux;
+    g.beginPath();
+    g.moveTo(cx + ux * r + px * wid, cy + uy * r + py * wid);
+    g.lineTo(cx + ux * (r + len), cy + uy * (r + len));
+    g.lineTo(cx + ux * r - px * wid, cy + uy * r - py * wid);
+  }
+  function ring(g, r, col, w) { g.beginPath(); g.arc(16, 16, r, 0, 6.2832); ink(g, w || 2, col); }
+
+  function curArrow(g) {                       // the plain select pointer
+    g.beginPath();
+    g.moveTo(2, 1); g.lineTo(2, 20.5); g.lineTo(6.6, 16); g.lineTo(9.8, 23);
+    g.lineTo(13, 21.5); g.lineTo(10, 14.8); g.lineTo(16, 14.4); g.closePath();
+    inkFill(g, '#f2f6ff');
+  }
+  function curFour(g, f, col, inward, pip) {   // move / attack-move / deploy
+    var r = inward ? 14 - f * 1.6 : 7.6 + f * 1.6;
+    for (var i = 0; i < 4; i++) {
+      chevron(g, 16, 16, i * Math.PI / 2, r, inward ? -4.8 : 4.8, 4);
+      ink(g, 1.8, col);
+    }
+    if (pip) { g.beginPath(); g.arc(16, 16, 2, 0, 6.2832); inkFill(g, col); }
+  }
+  function curReticle(g, f, col, dot, arms) {  // attack / force-fire
+    var r = 12 - f * 1.1, L = 4.2;
+    for (var i = 0; i < 4; i++) {
+      var qx = (i & 1) ? 1 : -1, qy = (i & 2) ? 1 : -1;
+      g.beginPath();
+      g.moveTo(16 + qx * r, 16 + qy * (r - L));
+      g.lineTo(16 + qx * r, 16 + qy * r);
+      g.lineTo(16 + qx * (r - L), 16 + qy * r);
+      ink(g, 1.8, col);
+    }
+    var a0 = arms ? 8.4 : 5.4, a1 = arms ? 3.4 : 2.6;
+    g.beginPath();
+    g.moveTo(16 - a0, 16); g.lineTo(16 - a1, 16); g.moveTo(16 + a1, 16); g.lineTo(16 + a0, 16);
+    g.moveTo(16, 16 - a0); g.lineTo(16, 16 - a1); g.moveTo(16, 16 + a1); g.lineTo(16, 16 + a0);
+    ink(g, 1.4, col);
+    if (dot) { g.beginPath(); g.arc(16, 16, 1.7, 0, 6.2832); inkFill(g, col); }
+  }
+  function curBolt(g, col) {
+    g.beginPath();
+    g.moveTo(19.5, 3); g.lineTo(9, 18); g.lineTo(15, 18); g.lineTo(12.5, 29);
+    g.lineTo(23, 13.5); g.lineTo(17, 13.5); g.closePath();
+    inkFill(g, col || '#ffd24a');
+  }
+
+  var CUR_DRAW = {
+    select:   { hx: 2, hy: 1, n: 1, d: function (g) { curArrow(g); } },
+    move:     { hx: 16, hy: 16, n: 3, d: function (g, f) { curFour(g, f, '#7ef0a0', false, true); } },
+    nomove:   { hx: 16, hy: 16, n: 1, d: function (g) {
+                  ring(g, 9, '#ff5a62', 2.6);
+                  g.beginPath(); g.moveTo(9.6, 9.6); g.lineTo(22.4, 22.4); ink(g, 2.6, '#ff5a62'); } },
+    attack:   { hx: 16, hy: 16, n: 3, d: function (g, f) { curReticle(g, f, '#ff4a52', false, false); } },
+    ffire:    { hx: 16, hy: 16, n: 3, d: function (g, f) { curReticle(g, f, '#ffa93a', true, true); } },
+    amove:    { hx: 16, hy: 16, n: 3, d: function (g, f) {
+                  curFour(g, f, '#ffb454', false, false); ring(g, 3.6, '#ff6a5a', 1.6); } },
+    guard:    { hx: 16, hy: 16, n: 1, d: function (g) {
+                  ring(g, 6.2, '#9ee6ff', 1.9);
+                  for (var i = 0; i < 4; i++) {
+                    var a = i * Math.PI / 2 + Math.PI / 4;
+                    g.beginPath();
+                    g.moveTo(16 + Math.cos(a) * 9.8, 16 + Math.sin(a) * 9.8);
+                    g.lineTo(16 + Math.cos(a) * 14, 16 + Math.sin(a) * 14);
+                    ink(g, 1.8, '#9ee6ff');
+                  }
+                  g.beginPath(); g.arc(16, 16, 1.7, 0, 6.2832); inkFill(g, '#9ee6ff'); } },
+    deploy:   { hx: 16, hy: 16, n: 2, d: function (g, f) {
+                  curFour(g, f, '#ffd24a', true, false);
+                  g.beginPath(); g.rect(12.5, 12.5, 7, 7); ink(g, 1.8, '#ffd24a'); } },
+    enter:    { hx: 16, hy: 16, n: 1, d: function (g) {
+                  g.beginPath(); g.moveTo(24, 5); g.lineTo(28, 5); g.lineTo(28, 27); g.lineTo(24, 27);
+                  ink(g, 2.2, '#7ef0a0');
+                  g.beginPath(); g.moveTo(5, 16); g.lineTo(20, 16);
+                  g.moveTo(14.5, 10.5); g.lineTo(20.5, 16); g.lineTo(14.5, 21.5);
+                  ink(g, 2.4, '#7ef0a0'); } },
+    sell:     { hx: 16, hy: 16, n: 1, d: function (g) {
+                  g.beginPath();
+                  g.moveTo(8, 9); g.lineTo(4, 9); g.lineTo(4, 23); g.lineTo(8, 23);
+                  g.moveTo(24, 9); g.lineTo(28, 9); g.lineTo(28, 23); g.lineTo(24, 23);
+                  ink(g, 2, '#ffd24a');
+                  g.font = 'bold 21px Georgia, "Times New Roman", serif';
+                  g.textAlign = 'center'; g.textBaseline = 'middle';
+                  g.lineJoin = 'round'; g.lineWidth = 4.6; g.strokeStyle = 'rgba(0,0,0,.85)';
+                  g.strokeText('$', 16, 16.5);
+                  g.fillStyle = '#ffd24a'; g.fillText('$', 16, 16.5); } },
+    repair:   { hx: 16, hy: 16, n: 1, d: function (g) {
+                  g.beginPath(); g.moveTo(7, 26); g.lineTo(19, 14); ink(g, 4.4, '#cfe4ff');
+                  g.beginPath(); g.arc(21.5, 10.5, 5.4, 0.95, 5.75); ink(g, 4, '#cfe4ff'); } },
+    power:    { hx: 16, hy: 16, n: 1, d: function (g) { curBolt(g, '#ffd24a'); } },
+    waypoint: { hx: 9, hy: 27, n: 1, d: function (g) {
+                  g.beginPath(); g.moveTo(9, 28); g.lineTo(9, 4); ink(g, 2.2, '#e8eef8');
+                  g.beginPath(); g.moveTo(10.2, 5); g.lineTo(24, 9.5); g.lineTo(10.2, 14); g.closePath();
+                  inkFill(g, '#7ef0a0'); } },
+    chrono:   { hx: 16, hy: 16, n: 3, d: function (g, f) {
+                  g.beginPath();
+                  for (var t = 0; t <= Math.PI * 4; t += 0.14) {
+                    var rr = 1.2 + t * 1.02, a = t + f * 0.5;
+                    var x = 16 + Math.cos(a) * rr, y = 16 + Math.sin(a) * rr;
+                    if (t === 0) g.moveTo(x, y); else g.lineTo(x, y);
+                  }
+                  ink(g, 2, '#9ad8ff'); } },
+    nuke:     { hx: 16, hy: 16, n: 2, d: function (g, f) {
+                  ring(g, 12 - f, '#ffe45a', 2);
+                  for (var i = 0; i < 3; i++) {
+                    var a = -Math.PI / 2 + i * 2.0944, w = 0.46;
+                    g.beginPath();
+                    g.moveTo(16 + Math.cos(a - w) * 2.6, 16 + Math.sin(a - w) * 2.6);
+                    g.arc(16, 16, 8, a - w, a + w);
+                    g.lineTo(16 + Math.cos(a + w) * 2.6, 16 + Math.sin(a + w) * 2.6);
+                    g.closePath(); inkFill(g, '#ffe45a');
+                  }
+                  g.beginPath(); g.arc(16, 16, 1.8, 0, 6.2832); inkFill(g, '#ffe45a'); } },
+    storm:    { hx: 16, hy: 16, n: 2, d: function (g, f) { ring(g, 12 - f, '#c8b6ff', 2); curBolt(g, '#e6dcff'); } },
+    curtain:  { hx: 16, hy: 16, n: 2, d: function (g, f) {
+                  ring(g, 12 - f, '#ff9a6a', 2);
+                  g.beginPath();
+                  g.moveTo(16, 6); g.lineTo(23, 9.5); g.lineTo(23, 17);
+                  g.quadraticCurveTo(23, 23, 16, 26.5);
+                  g.quadraticCurveTo(9, 23, 9, 17); g.lineTo(9, 9.5); g.closePath();
+                  inkFill(g, '#ff9a6a'); } }
+  };
+
+  var CURSORS = null;
+  function buildCursors() {
+    if (CURSORS || headless) return;
+    CURSORS = {};
+    for (var k in CUR_DRAW) {
+      var spec = CUR_DRAW[k], frames = [];
+      for (var f = 0; f < spec.n; f++) {
+        var o = curCanvas();
+        try { spec.d(o.g, f); frames.push(o.c.toDataURL()); } catch (e) { frames.push(''); }
+      }
+      CURSORS[k] = { hx: spec.hx, hy: spec.hy, f: frames };
+    }
+  }
+
+  var curKind = 'select', curFrameN = 0, curApplied = '';
+  function applyCursor() {
+    if (headless || !cv) return;
+    buildCursors();
+    var c = CURSORS && (CURSORS[curKind] || CURSORS.select);
+    if (!c || !c.f.length || !c.f[0]) return;
+    var url = c.f[c.f.length > 1 ? curFrameN % c.f.length : 0];
+    var css = 'url(' + url + ') ' + c.hx + ' ' + c.hy + ', auto';
+    if (css === curApplied) return;
+    curApplied = css; cv.style.cursor = css;
+  }
+
+  // What a click WOULD do, right now, given the hover, the modifiers and any
+  // armed mode. Called from pointermove and from the animation timer, so a
+  // cursor that changes only because Ctrl went down still updates.
+  function pickCursor() {
+    if (headless || !cv) return;
+    var k = 'select';
+    if (pan) {                          // middle/right-drag: grabbing the map
+      if (curApplied !== 'grabbing') { curApplied = 'grabbing'; cv.style.cursor = 'grabbing'; }
+      curKind = 'select'; return;
+    }
+    if (!G || (state !== 'play' && state !== 'paused')) k = 'select';
+    else if (swMode) k = swMode.key === 'chrono' ? 'chrono'
+                        : (swMode.key === 'nuke' ? 'nuke'
+                        : (swMode.key === 'storm' ? 'storm' : 'curtain'));
+    else if (placing) {
+      var pd = BLDS[placing];
+      k = canPlace(G, P_HUMAN, placing, hoverTile.x - Math.floor((pd.gw - 1) / 2),
+                   hoverTile.y - Math.floor((pd.gh - 1) / 2)) ? 'deploy' : 'nomove';
+    }
+    else if (cmdMode === 'sell') k = 'sell';
+    else if (cmdMode === 'repair') k = 'repair';
+    else if (cmdMode === 'power') k = 'power';
+    else {
+      var hov = (mouse.in && !drag) ? pickAt(mouse.x, mouse.y) : null;
+      var units = [];
+      for (var i = 0; i < sel.length; i++) if (sel[i].kind === 'u' && !sel[i].dead && sel[i].p === P_HUMAN) units.push(sel[i]);
+      if (cmdMode === 'follow') k = (hov && hov.p === P_HUMAN && hov.kind === 'u' && units.length) ? 'guard' : 'nomove';
+      else if (!units.length) k = 'select';
+      else if (mod.ctrl && mod.shift) k = 'amove';
+      else if (mod.ctrl) k = 'ffire';
+      else if (hov && !hov.dead && hov.p !== P_HUMAN) {
+        var cap = hov.kind === 'b' && units.some(function (u) { return UNITS[u.type].capture; });
+        k = cap ? 'enter'
+          : (units.some(function (u) { return canHit(UNITS[u.type], hov); }) ? 'attack' : 'nomove');
+      }
+      else if (hov && hov.p === P_HUMAN) k = 'select';
+      else if (!inMap(hoverTile.x, hoverTile.y)) k = 'nomove';
+      else if (pathMode || mod.shift) k = 'waypoint';
+      else if (units.some(function (u) { return u.air; }) ||
+               !solidT(G.terrain[idx(hoverTile.x, hoverTile.y)])) k = 'move';
+      else k = 'nomove';
+    }
+    if (k !== curKind) { curKind = k; curFrameN = 0; }
+    applyCursor();
+  }
+  // 6.7 fps: RA2's cursors are slow, deliberate loops, not a flicker. The
+  // same beat re-reads the hover context, so a cursor that changes because
+  // Ctrl went down updates without the mouse moving.
+  if (typeof setInterval === 'function') setInterval(function () { curFrameN++; pickCursor(); }, 150);
+
+  // --------------------------------------------------------------------- //
   //  Input
   // --------------------------------------------------------------------- //
   var keys = {};
+  // Held modifiers, kept as their own record: the cursor has to know that
+  // Ctrl is down even when the mouse has not moved, and a right-click order
+  // reads the same three flags the cursor drew itself from.
+  var mod = { ctrl: false, shift: false, alt: false };
+  function readMod(e) { mod.ctrl = !!(e.ctrlKey || e.metaKey); mod.shift = !!e.shiftKey; mod.alt = !!e.altKey; }
   var drag = null, pan = null, marq = document.getElementById('marq');
   var mouse = { x: -1, y: -1, in: false };
   var lastClickT = 0, lastClickType = null;
+  var views = {};                     // keyboard.ini View1..4 camera bookmarks
 
   window.addEventListener('keydown', function (e) {
     if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
     keys[e.key.toLowerCase()] = true;
+    readMod(e); pickCursor();
 
     if (e.key === 'Escape') {
+      if (ov.classList.contains('show')) { if (optOpen) closeOptions(); return; }
       if (hv.classList.contains('show')) { hv.classList.remove('show'); return; }
       if (lv.classList.contains('show')) { lv.classList.remove('show'); return; }
       if (swCancel()) return;
-      if (cmdMode) { cmdMode = null; cv.style.cursor = 'default'; refreshCmdbar(); say('Mode cancelled'); return; }
+      if (cmdMode) { cmdMode = null; refreshCmdbar(); pickCursor(); say('Mode cancelled'); return; }
       if (pathMode) { pathMode = false; refreshCmdbar(); say('Waypoint mode off'); return; }
-      if (placing) { placing = null; cv.classList.remove('placing'); say('Placement cancelled'); }
-      else if (sel.length) { clearSel(); }
+      if (placing) { placing = null; cv.classList.remove('placing'); pickCursor(); say('Placement cancelled'); return; }
+      if (sel.length) { clearSel(); return; }
+      // keyboard.ini Options=27: with nothing left to cancel, Esc IS the
+      // in-game menu, exactly as it is in RA2.
+      if (state === 'play' || state === 'paused') showOptions();
       return;
     }
-    // Space jumps home — the thing you reach for most in a match. Pause moved
-    // to P; it also exits on a click anywhere, so it needs the key least.
-    if (e.key === ' ') { e.preventDefault(); goHome(); return; }
+    // keyboard.ini CenterOnRadarEvent=32 (Space) and CenterBase=72 (H) are
+    // two different keys in RA2: Space answers "where did that explosion
+    // happen", H answers "take me home". They used to both go home.
+    if (e.key === ' ') {
+      e.preventDefault();
+      if (G && G.radarEvent) { centerOn(G.radarEvent.x, G.radarEvent.y); clampCam(); camVel.x = camVel.y = 0; say('Last radar event'); }
+      else { goHome(); say('Nothing on the radar yet — showing your base'); }
+      return;
+    }
     if (e.key.toLowerCase() === 'h') { goHome(); return; }
+    // keyboard.ini Delete=46 — self-destruct the selection. RA2 asks nothing.
+    if (e.key === 'Delete' && state === 'play') {
+      var dl = sel.filter(function (o) { return !o.dead && o.p === P_HUMAN; });
+      if (!dl.length) { say('Nothing selected to destroy', true); return; }
+      dl.forEach(function (o) { if (o.kind === 'b') killBld(G, o); else { o.dead = true; if (!headless) G.fx.push({ x: o.x, y: o.y, t: 0, life: 22, size: 10 }); } });
+      clearSel(); sfx('boom');
+      say('Self-destructed ' + dl.length + ' ' + (dl.length === 1 ? 'object' : 'objects'), true);
+      return;
+    }
+    // keyboard.ini View1..4=112..115 (F1-F4), SetView1..4=624..627 (Ctrl+F1-F4).
+    if (/^F[1-4]$/.test(e.key) && G) {
+      e.preventDefault();
+      var vn = e.key.charAt(1);
+      if (e.ctrlKey || e.metaKey) { views[vn] = { x: cam.x, y: cam.y, z: zoom }; say('View ' + vn + ' saved'); sfx('click'); }
+      else if (views[vn]) { cam.x = views[vn].x; cam.y = views[vn].y; setZoom(views[vn].z, cvW / 2, cvH / 2); clampCam(); camVel.x = camVel.y = 0; say('View ' + vn); }
+      else say('View ' + vn + ' is empty — Ctrl+F' + vn + ' saves this one', true);
+      return;
+    }
     var units0 = sel.filter(function (u) { return u.kind === 'u' && !u.dead; });
     if (units0.length && (e.key === 's' || e.key === 'S' || e.key === 'g' || e.key === 'G')) {
-      // Stop / guard: drop orders and hold this ground (RA2 S and G).
+      // RA2 keeps StopObject (S) and GuardObject (G) apart: Stop drops the
+      // order and roots the unit — it fires at what walks into range but
+      // never moves — while Guard makes it defend the post it is standing
+      // on, straying up to GuardModeStray cells to engage and walking back.
+      var isG = e.key.toLowerCase() === 'g';
       units0.forEach(function (u) {
-        u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
+        u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y;
+        u.guard = isG; u.stopped = !isG;
         if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
         if (UNITS[u.type].ammo) u.rtb = true;           // RA2: a stopped aircraft returns to its pad
       });
-      say((e.key.toLowerCase() === 'g' ? 'Guarding' : 'Stopped') + ' — ' + units0.length + ' unit' + (units0.length === 1 ? '' : 's'));
+      say((isG ? 'Guarding this ground — they will engage within ' + GUARD_STRAY + ' cells and return'
+               : 'Stopped — holding position') + ' (' + units0.length + ' unit' + (units0.length === 1 ? '' : 's') + ')');
       return;
     }
     if (units0.length && (e.key === 'd' || e.key === 'D')) { unitsCmd('deploy'); return; }
@@ -15987,31 +16417,70 @@
       if (lk === 't') { selectSameType(); return; }
       if (lk === 'k') { setCmdMode('repair'); return; }
       if (lk === 'l') { setCmdMode('sell'); return; }
-      if (lk === 'z') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: right-clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); return; }
+      if (lk === 'z') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: right-clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); pickCursor(); return; }
+      if (lk === 'n') { nextObject(); return; }         // keyboard.ini NextObject=78
+      if (lk === 'f') {                                  // keyboard.ini Follow=70
+        if (!units0.length) { say('Select the units that should follow first', true); sfx('no'); return; }
+        setCmdMode('follow'); return;
+      }
     }
 
-    if (/^[1-5]$/.test(e.key)) {
+    // keyboard.ini teams: TeamSelect_1..10 = 1..9,0 · TeamCreate = Ctrl+digit
+    // · TeamAddSelect = Shift+digit · TeamCenter = Alt+digit.
+    if (/^[0-9]$/.test(e.key) && state === 'play') {
+      var tk = e.key === '0' ? '10' : e.key;
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        groups[e.key] = sel.filter(function (u) { return !u.dead && u.kind === 'u'; });
-        say('Group ' + e.key + ': ' + groups[e.key].length + ' unit' + (groups[e.key].length === 1 ? '' : 's')); refreshCmdbar();
-      } else if (groups[e.key]) {
+        groups[tk] = sel.filter(function (u) { return !u.dead && u.kind === 'u'; });
+        say('Team ' + tk + ': ' + groups[tk].length + ' unit' + (groups[tk].length === 1 ? '' : 's')); refreshCmdbar();
+      } else if (e.altKey) {
+        e.preventDefault();
+        var gc = (groups[tk] || []).filter(function (u) { return !u.dead; });
+        if (gc.length) { centerOn(gc[0].x, gc[0].y); clampCam(); camVel.x = camVel.y = 0; say('Team ' + tk); }
+        else say('Team ' + tk + ' is empty', true);
+      } else if (e.shiftKey) {
+        // Shift+digit ADDS the current selection to the team (TeamAddSelect).
+        var add = sel.filter(function (u) { return !u.dead && u.kind === 'u'; });
+        var cur = (groups[tk] || []).filter(function (u) { return !u.dead; });
+        add.forEach(function (u) { if (cur.indexOf(u) < 0) cur.push(u); });
+        groups[tk] = cur;
+        say('Team ' + tk + ' now ' + cur.length + ' unit' + (cur.length === 1 ? '' : 's')); refreshCmdbar();
+      } else if (groups[tk]) {
         clearSel();
-        groups[e.key] = groups[e.key].filter(function (u) { return !u.dead; });
-        groups[e.key].forEach(function (u) { u.sel = true; sel.push(u); });
-        if (sel.length) { centerSelIfOffscreen(); say(sel.length + ' selected'); }
+        groups[tk] = groups[tk].filter(function (u) { return !u.dead; });
+        groups[tk].forEach(function (u) { u.sel = true; sel.push(u); });
+        if (sel.length) { centerSelIfOffscreen(); say('Team ' + tk + ': ' + sel.length + ' selected'); }
       }
     }
   });
-  window.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; });
+
+  // keyboard.ini NextObject=78 (N): step through everything you own, one
+  // object per press, centring on each. RA2's way of finding the harvester
+  // that has wandered off or the tank left behind at the last battle.
+  var nextIdx = 0;
+  function nextObject() {
+    if (!G) return;
+    var own = [];
+    G.units.forEach(function (u) { if (!u.dead && u.p === P_HUMAN) own.push(u); });
+    G.blds.forEach(function (b) { if (!b.dead && b.p === P_HUMAN) own.push(b); });
+    if (!own.length) { say('Nothing left to cycle through', true); return; }
+    nextIdx = (nextIdx + 1) % own.length;
+    var o = own[nextIdx];
+    clearSel(); o.sel = true; sel.push(o);
+    centerOn(o.kind === 'b' ? o.cx : o.x, o.kind === 'b' ? o.cy : o.y);
+    clampCam(); camVel.x = camVel.y = 0;
+    say((nextIdx + 1) + '/' + own.length + ' · ' + describe(o));
+    sfx('click');
+  }
+  window.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; readMod(e); pickCursor(); });
 
   // A pointer that starts a marquee must survive leaving the canvas, and any
   // lost pointer has to clear it — pointerup alone is not enough (house rule).
   function endPan() {
     if (!pan) return;
     var p = pan; pan = null;
-    cv.style.cursor = '';
-    if (p.right && Math.abs(mouse.x - p.x0) < 4 && Math.abs(mouse.y - p.y0) < 4 && G && state === 'play') rightOrder(p.x0, p.y0, p.shift);
+    curApplied = ''; pickCursor();
+    if (p.right && Math.abs(mouse.x - p.x0) < 4 && Math.abs(mouse.y - p.y0) < 4 && G && state === 'play') rightOrder(p.x0, p.y0, p.shift, p.ctrl);
   }
 
   function endDrag() {
@@ -16098,7 +16567,7 @@
     } else if (e.button === 1) {
       e.preventDefault();                       // middle-drag pans the map
       pan = { x: px, y: py };
-      cv.style.cursor = 'grabbing';
+      pickCursor();
       try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     } else if (e.button === 2) {
       e.preventDefault();
@@ -16108,12 +16577,12 @@
       if (!mine) {
         // Nothing of ours selected: a right-drag pans the map (a plain right
         // click still falls through in endPan when the pointer did not move).
-        pan = { x: px, y: py, x0: px, y0: py, right: true, shift: e.shiftKey };
-        cv.style.cursor = 'grabbing';
+        pan = { x: px, y: py, x0: px, y0: py, right: true, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey };
+        pickCursor();
         try { cv.setPointerCapture(e.pointerId); } catch (err) {}
         return;
       }
-      rightOrder(px, py, e.shiftKey);
+      rightOrder(px, py, e.shiftKey, e.ctrlKey || e.metaKey);
     }
   });
   cv.addEventListener('pointermove', function (e) {
@@ -16140,8 +16609,10 @@
     var noAir = !!(hovE && hovE.p !== P_HUMAN && isAir(hovE) && sel.length &&
                    !sel.some(function (u) { return u.kind === 'u' && canHit(UNITS[u.type], hovE); }));
     if (cv.classList.contains('noair') !== noAir) cv.classList.toggle('noair', noAir);
+    readMod(e);
     var gp = screenToGrid(mouse.x, mouse.y);
     hoverTile.x = Math.round(gp.x); hoverTile.y = Math.round(gp.y);
+    pickCursor();
     if (drag) {
       drag.x2 = mouse.x; drag.y2 = mouse.y;
       marq.style.display = 'block';
@@ -16175,7 +16646,7 @@
     // Drop held input so nothing is stuck down, but do NOT pause: a real-time
     // match that stops because the cursor wandered off is worse than one that
     // keeps running, and pausing is what the pause button is for.
-    keys = {}; endDrag(); mouse.in = false;
+    keys = {}; mod.ctrl = mod.shift = mod.alt = false; endDrag(); mouse.in = false; pickCursor();
   });
 
   function clearSel() { sel.forEach(function (u) { u.sel = false; }); sel = []; }
@@ -16194,7 +16665,7 @@
     t2:     ['Team 2', 'Click to select · Shift-click to assign', 'Ctrl+2 assigns, 2 recalls'],
     same:   ['Select same type', 'Every unit of this type on screen', 'Hotkey T'],
     deploy: ['Deploy', 'An MCV unfolds; GIs dig in behind sandbags', 'Hotkey D'],
-    guard:  ['Guard', 'Hold this ground and engage what comes', 'Hotkey G'],
+    guard:  ['Guard', 'Hold this post, engage within ' + GUARD_STRAY + ' cells, then return', 'Hotkey G · S stops dead instead'],
     path:   ['Planning mode', 'Right-clicks queue waypoints (or hold Shift)', 'Hotkey Z'],
     sell:   ['Sell', 'Click one of your structures for half its cost', 'Hotkey L'],
     repair: ['Repair', 'Click a structure to start or stop repairs', 'Hotkey K'],
@@ -16202,10 +16673,11 @@
   };
   function setCmdMode(m) {
     cmdMode = cmdMode === m ? null : m;
-    cv.style.cursor = cmdMode ? 'pointer' : 'default';
+    pickCursor();
     say(cmdMode === 'sell' ? 'Sell: click one of your structures (Esc cancels)'
       : cmdMode === 'repair' ? 'Repair: click one of your structures to start or stop repairs (Esc cancels)'
-      : cmdMode === 'power' ? 'Power: click one of your structures to switch it off or on (Esc cancels)' : 'Mode cancelled');
+      : cmdMode === 'power' ? 'Power: click one of your structures to switch it off or on (Esc cancels)'
+      : cmdMode === 'follow' ? 'Follow: click the friendly unit to shadow (Esc cancels)' : 'Mode cancelled');
     refreshCmdbar();
   }
   function selectSameType() {
@@ -16272,8 +16744,10 @@
         u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y;
         if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
         if (UNITS[u.type].ammo) u.rtb = true;
+        u.guard = kind === 'guard'; u.stopped = kind !== 'guard'; u.wp = null;
       });
-      say((kind === 'guard' ? 'Guarding' : 'Stopped') + ' — ' + us.length + ' unit' + (us.length === 1 ? '' : 's'));
+      say((kind === 'guard' ? 'Guarding this ground — they will engage within ' + GUARD_STRAY + ' cells and return'
+                            : 'Stopped — holding position') + ' (' + us.length + ' unit' + (us.length === 1 ? '' : 's') + ')');
     }
     sfx('click');
   }
@@ -16375,6 +16849,16 @@
 
   function clickSelect(px, py, shift) {
     var e = pickAt(px, py);
+    if (cmdMode === 'follow') {
+      // keyboard.ini Follow=70 (F): pick the friendly unit to shadow.
+      var fus = sel.filter(function (u) { return u.kind === 'u' && !u.dead && u.p === P_HUMAN; });
+      if (!e || e.p !== P_HUMAN || e.kind !== 'u') { say('Follow: click one of your own units', true); sfx('no'); return; }
+      var nfw = orderFollow(G, fus, e);
+      cmdMode = null; refreshCmdbar(); pickCursor();
+      if (nfw) { say(nfw + ' unit' + (nfw === 1 ? '' : 's') + ' following the ' + UNITS[e.type].name); sfx('click'); unitAck(fus, 'move'); }
+      else say('Nothing left to follow with', true);
+      return;
+    }
     if (cmdMode) {
       if (e && e.kind === 'b' && e.p === P_HUMAN) {
         if (cmdMode === 'sell') { if (e.type === 'base' && countBld(G, P_HUMAN, 'base') < 2) say('Cannot sell your only Construction Yard', true); else sellBld(e); }
@@ -16471,7 +16955,7 @@
       // Shift-click queues a waypoint behind the current order (RA2 waypoint
       // mode); a plain order replaces the whole queue.
       if (opts.queue && u.order) { (u.wp || (u.wp = [])).push({ x: gx, y: gy }); n++; return; }
-      u.wp = null;
+      u.wp = null; u.guard = false; u.stopped = false;
       if (onOre && u.type === 'harvester') {
         u.order = { t: 'harvest', x: gx, y: gy, id: 0 };
         u.mineAt = { x: gx, y: gy }; u.state = 'tomine'; u.path = null;
@@ -16492,6 +16976,76 @@
     if (opts.voice && n) unitAck(units, onOre ? 'harvest' : 'move');
     return n;
   }
+  // ---- RA2's three "go and fight" orders ---------------------------------
+  // Attack-move: advance on a spot and engage whatever is met on the way,
+  // resuming the advance when the road is clear again. RA2 lists AttackMove
+  // in ui.ini's command bar; here it is Ctrl+Shift+right-click.
+  function orderAmove(g, units, gx, gy) {
+    var taken = {}, n = 0;
+    units.forEach(function (u) {
+      var sp = u.air ? { x: gx, y: gy } : spreadSpot(g, gx, gy, taken);
+      u.wp = null; u.guard = false; u.stopped = false;
+      u.order = { t: 'amove', x: sp.x, y: sp.y, id: 0 };
+      u.guardX = sp.x; u.guardY = sp.y; u.repathAt = -999; u.path = null; u.rtb = false;
+      if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; }
+      requestPath(g, u, sp.x, sp.y);
+      n++;
+    });
+    return n;
+  }
+  // Force-fire at a patch of ground (RA2 Ctrl+click): the unit closes to
+  // weapon range and keeps shooting the spot until told otherwise. This is
+  // how you flush a Mirage, break a bridge or shell your own repair bay.
+  function orderFFire(g, units, gx, gy) {
+    var n = 0;
+    units.forEach(function (u) {
+      var d = UNITS[u.type];
+      if (!(d.dmg > 0) || d.ammo) return;              // no gun, or a pad aircraft
+      u.wp = null; u.guard = false; u.stopped = false;
+      u.order = { t: 'ffire', x: gx, y: gy, id: 0 };
+      u.guardX = gx; u.guardY = gy; u.repathAt = -999; u.path = null;
+      requestPath(g, u, gx, gy);
+      n++;
+    });
+    return n;
+  }
+  // Follow (keyboard.ini Follow=70, F): stay with a friendly unit, fighting
+  // opportunistically, until it dies or a new order arrives.
+  function orderFollow(g, units, tgt) {
+    var n = 0;
+    units.forEach(function (u) {
+      if (u === tgt) return;
+      u.wp = null; u.guard = false; u.stopped = false;
+      u.order = { t: 'follow', x: 0, y: 0, id: tgt.id };
+      u.repathAt = -999; u.path = null; n++;
+    });
+    return n;
+  }
+  // Firing at bare ground: there is no entity to hand `fire()`, so the shot
+  // and its splash are resolved here against whatever is standing on the
+  // spot — friend or foe, exactly as RA2's force-fire does.
+  function fireGround(g, u, gx, gy) {
+    var d = UNITS[u.type];
+    var spec = (u.deployed && d.dep) ? d.dep : d;    // ground fire is always the primary weapon
+    u.cool = spec.rate * (u.rank === 2 ? 0.6 : 1);
+    u.fireAt = g.tick;
+    if (!headless) {
+      g.shots.push({ x: u.x, y: u.y, tx: gx, ty: gy, t: 0, life: spec.bomb ? 14 : 7, id: g.nextId++,
+                     tesla: u.type === 'tesla', beam: u.type === 'prism' || u.type === 'prismtank',
+                     rocket: spec.splash > 0.2, bomb: !!spec.bomb, alt: altOf(u), talt: 0 });
+      g.fx.push({ x: gx, y: gy, t: 0, life: 18, size: 6 + (spec.splash || 0) * 6 });
+    }
+    sfx(u.type === 'rifle' ? 'shot' : 'cannon');
+    var r = Math.max(0.7, spec.splash || 0);
+    near(gx, gy, r + 1, function (o) {
+      if (o.dead || isAir(o) || !canHit(spec, o)) return;
+      var ox = o.kind === 'b' ? o.cx : o.x, oy = o.kind === 'b' ? o.cy : o.y;
+      var dd = Math.sqrt((ox - gx) * (ox - gx) + (oy - gy) * (oy - gy));
+      if (dd > r) return;
+      damage(g, u, o, spec.dmg * vetFire(u.rank) * (1 - 0.5 * dd / (r + 0.4)), spec.wh);
+    });
+  }
+
   // Next queued waypoint, if any, becomes the order when one completes.
   function nextWaypoint(g, u) {
     if (!u.wp || !u.wp.length) return false;
@@ -16501,7 +17055,7 @@
     return true;
   }
 
-  function rightOrder(px, py, shift) {
+  function rightOrder(px, py, shift, ctrl) {
     if (!sel.length) { say('Select something first — left-drag a box over your units'); return; }
     var gp = screenToGrid(px, py);
     var gx = Math.round(gp.x), gy = Math.round(gp.y);
@@ -16534,6 +17088,28 @@
     var units = sel.filter(function (u) { return u.kind === 'u'; });
     if (!units.length) return;
 
+    // Ctrl+Shift = attack-move; Ctrl alone = force-fire (RA2's modifiers).
+    if (ctrl && shift) {
+      var nam = orderAmove(G, units, gx, gy);
+      if (nam) { say('Attack-move — ' + nam + ' unit' + (nam === 1 ? '' : 's') + ' will engage what they meet'); sfx('click'); unitAck(units, 'attack');
+                 if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 22, size: 0, ping: true }); }
+      return;
+    }
+    if (ctrl) {
+      if (tgt && !tgt.dead) {
+        var nf = orderAttack(G, units, tgt, true);
+        if (!nf) { say('Nothing selected can shoot that', true); sfx('no'); return; }
+        say('Force-firing on ' + describe(tgt).replace(/ —.*$/, ''));
+        sfx('click'); unitAck(units, 'attack');
+        return;
+      }
+      var ng = orderFFire(G, units, gx, gy);
+      if (!ng) { say('Nothing selected has a gun that can shell a spot', true); sfx('no'); return; }
+      say('Force-firing on the ground'); sfx('click'); unitAck(units, 'attack');
+      if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 22, size: 0, ping: true });
+      return;
+    }
+
     if (tgt && tgt.p !== P_HUMAN && !tgt.dead) {
       var na = orderAttack(G, units, tgt);
       if (!na) { say(isAir(tgt) ? 'Nothing selected can shoot aircraft' : 'Nothing selected can attack that', true); sfx('no'); return; }
@@ -16551,15 +17127,16 @@
   // Attack (or capture) order for a group. Units whose weapon cannot reach
   // the target — a rifleman told to shoot a Kirov — are left alone rather
   // than marched under it. Returns how many took the order.
-  function orderAttack(g, units, tgt) {
+  function orderAttack(g, units, tgt, force) {
     var n = 0;
     units.forEach(function (u) {
-      if (UNITS[u.type].capture && tgt.kind === 'b') {
+      u.guard = false; u.stopped = false;
+      if (UNITS[u.type].capture && tgt.kind === 'b' && !force) {
         u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
         requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
       }
       if (!canHit(UNITS[u.type], tgt)) return;
-      u.order = { t: 'attack', x: 0, y: 0, id: tgt.id };
+      u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: force ? 1 : 0 };
       u.guardX = tgt.kind === 'b' ? tgt.cx : tgt.x;
       u.guardY = tgt.kind === 'b' ? tgt.cy : tgt.y;
       u.repathAt = -999; u.rtb = false;
@@ -16614,14 +17191,18 @@
   mini.addEventListener('pointerdown', function (e) {
     if (!G) return;
     var r = mini.getBoundingClientRect();
-    var fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    // The radar is isometric, so a click has to come back through the same
+    // projection — a linear x/y read would land a whole quadrant away.
+    var gp = mmToGrid((e.clientX - r.left) / r.width * MM_PX, (e.clientY - r.top) / r.height * MM_PX);
+    var gx = Math.max(0, Math.min(MAP - 1, Math.round(gp.x)));
+    var gy = Math.max(0, Math.min(MAP - 1, Math.round(gp.y)));
     if (e.button === 2) {
       // RA2: a right-click on the radar is an order to that spot.
       var own = sel.filter(function (u) { return u.kind === 'u' && u.p === P_HUMAN && !u.dead; });
-      if (own.length && state === 'play') { orderUnitsTo(G, own, Math.round(fx * MAP), Math.round(fy * MAP), { voice: true }); sfx('click'); }
+      if (own.length && state === 'play') { orderUnitsTo(G, own, gx, gy, { voice: true }); sfx('click'); }
       return;
     }
-    centerOn(fx * MAP, fy * MAP);
+    centerOn(gp.x, gp.y);
     clampCam();
   });
   mini.addEventListener('contextmenu', function (e) { e.preventDefault(); });
@@ -16639,6 +17220,12 @@
   //     first. A pointer merely passing through must scroll nothing.
   var camVel = { x: 0, y: 0 };
   var KEY_SPEED = 900;          // px/s
+  // RA2's Options card has a scroll-rate slider; this is the same idea with
+  // three stops, applied to BOTH the keys and the edge band so they always
+  // agree with each other.
+  var SCROLL_MUL = { slow: 0.6, normal: 1, fast: 1.6 };
+  var scrollRate = SCROLL_MUL[lsGet('vibetop:rts:scroll')] ? lsGet('vibetop:rts:scroll') : 'normal';
+  function scrollMul() { return SCROLL_MUL[scrollRate] || 1; }
 
   // Edge scrolling is a ZONE with a speed curve, not a trigger with a timer.
   // A dwell delay was tried and is wrong: RA2 has none, and waiting for the
@@ -16665,7 +17252,7 @@
   }
 
   function edgeSpeed(t) {                    // t: 0 at the lip, 1 at the edge
-    return EDGE_MIN + (EDGE_MAX - EDGE_MIN) * t * t;
+    return (EDGE_MIN + (EDGE_MAX - EDGE_MIN) * t * t) * scrollMul();
   }
 
   function camScroll(dtms) {
@@ -16680,7 +17267,7 @@
       if (keys.s || keys.arrowdown) ky += 1;
       if (kx || ky) {
         var kl = Math.sqrt(kx * kx + ky * ky);
-        wx += kx / kl * KEY_SPEED; wy += ky / kl * KEY_SPEED;
+        wx += kx / kl * KEY_SPEED * scrollMul(); wy += ky / kl * KEY_SPEED * scrollMul();
       }
 
       if (pan) {                              // middle-drag beats everything
@@ -16840,20 +17427,27 @@
       ctx.globalAlpha = 1;
     }
 
-    // Placement ghost
+    // Placement ghost: RA2 shows the BUILDING itself under the cursor, tinted
+    // by whether it may go there, over the footprint tint. A bare rectangle of
+    // squares made you place a Refinery and only then discover which way it
+    // faced and how much of the view it ate.
     if (placing) {
       var d = BLDS[placing];
       var ggx = hoverTile.x - Math.floor((d.gw - 1) / 2), ggy = hoverTile.y - Math.floor((d.gh - 1) / 2);
       var ok = canPlace(G, P_HUMAN, placing, ggx, ggy);
       ctx.globalAlpha = 0.5;
       for (y = ggy; y < ggy + d.gh; y++) for (x = ggx; x < ggx + d.gw; x++) {
-        if (!inMap(x, y)) continue;
+        if (!inMap(x, y)) continue;             // never paint the mask off the map
         diamond(ctx, sx(x, y), sy(x, y), TW - 4, TH - 2);
         ctx.fillStyle = ok ? 'rgba(90,220,140,.45)' : 'rgba(229,100,108,.45)';
         ctx.fill();
       }
       ctx.globalAlpha = 1;
-    }
+      // Off the map entirely (the pointer is out over the black): no ghost and
+      // no footprint — there is nothing there to build on.
+      ghostAt = inMap(ggx, ggy) || inMap(ggx + d.gw - 1, ggy + d.gh - 1)
+        ? { key: placing, ok: ok, cx: ggx + (d.gw - 1) / 2, cy: ggy + (d.gh - 1) / 2 } : null;
+    } else ghostAt = null;
 
     // Superweapon targeting ghost: the footprint the strike will actually
     // cover, so a nuke is aimed at a base and not at a guess.
@@ -16928,6 +17522,19 @@
       for (i = 0; i < airborne.length; i++) drawUnit(airborne[i]);
     }
     for (i = 0; i < G.wrecks.length; i++) drawWreck(G.wrecks[i]);
+
+    // The placement ghost sits ON TOP of the world: buried behind the very
+    // Construction Yard you are building next to, it answered nothing.
+    if (ghostAt) {
+      var gart = SPR.bld[P_HUMAN] && SPR.bld[P_HUMAN][facOf(G, P_HUMAN) || 'dir'][ghostAt.key];
+      if (gart) {
+        ctx.globalAlpha = 0.66;
+        ctx.drawImage(ghostSprite(ghostAt.key, ghostAt.ok, gart),
+                      sx(ghostAt.cx, ghostAt.cy) - gart.ax, sy(ghostAt.cx, ghostAt.cy) - gart.ay,
+                      gart.s.w, gart.s.h);
+        ctx.globalAlpha = 1;
+      }
+    }
 
     // Rally lines for any selected production building, over the world so the
     // route is readable across terrain, under the effects layer.
@@ -17396,6 +18003,27 @@
     ctx.globalCompositeOperation = 'source-over';
   }
 
+  // The ghost is the structure's OWN baked sprite washed green or red — one
+  // cached tint per (structure, verdict, faction), never re-composited per
+  // frame. `source-atop` keeps the wash inside the sprite's own pixels, so
+  // the silhouette stays readable instead of becoming a coloured box.
+  var ghostCache = {}, ghostAt = null;
+  function ghostSprite(key, ok, art) {
+    var ck = key + '|' + (ok ? 1 : 0) + '|' + (G.side[P_HUMAN].fac || 'dir');
+    if (ghostCache[ck]) return ghostCache[ck];
+    var src = art.s.c;
+    var c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    var g = c.getContext('2d');
+    g.drawImage(src, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = ok ? 'rgba(80,225,140,.5)' : 'rgba(235,70,80,.6)';
+    g.fillRect(0, 0, src.width, src.height);
+    g.globalCompositeOperation = 'source-over';
+    ghostCache[ck] = c;
+    return c;
+  }
+
   function drawBld(b) {
     var art = SPR.bld[b.p][facOf(G, b.p) || 'dir'][b.type];
     var px = sx(b.cx, b.cy), py = sy(b.cx, b.cy);
@@ -17582,59 +18210,113 @@
   }
 
   var miniDirty = 0;
+  // --------------------------------------------------------------------- //
+  //  Radar. RA2's radar is not a top-down plan: it is the SAME isometric
+  //  frame as the battlefield, so north-east on the radar is north-east on
+  //  screen and the viewport marker is the literal quad of what you can see.
+  //  A square plan forced you to rotate the map in your head on every glance.
+  //  The projection below is worldX/worldY scaled to fit 184 px across; the
+  //  2:1 diamond is 92 px tall, so it is centred with letterbox above and
+  //  below rather than stretched (RA2 letterboxes non-square maps too).
+  // --------------------------------------------------------------------- //
+  var MM_PX = 184;
+  var mmK = MM_PX / (2 * MAP);                       // radar px per half-tile
+  var mmOX = MM_PX / 2, mmOY = (MM_PX - MAP * mmK) / 2;
+  function mmX(gx, gy) { return mmOX + (gx - gy) * mmK; }
+  function mmY(gx, gy) { return mmOY + (gx + gy) * mmK / 2; }
+  function mmToGrid(px, py) {
+    var a = (px - mmOX) / mmK;                       // gx - gy
+    var b = (py - mmOY) * 2 / mmK;                   // gx + gy
+    return { x: (b + a) / 2, y: (b - a) / 2 };
+  }
+  function mmQuad(g, x0, y0, x1, y1) {               // a grid rect as its diamond
+    g.beginPath();
+    g.moveTo(mmX(x0, y0), mmY(x0, y0));
+    g.lineTo(mmX(x1, y0), mmY(x1, y0));
+    g.lineTo(mmX(x1, y1), mmY(x1, y1));
+    g.lineTo(mmX(x0, y1), mmY(x0, y1));
+    g.closePath();
+  }
+
   function drawMini() {
-    var sc = 184 / MAP;
     // RA2: the radar is dark until you own a powered radar-class structure.
     var radarOn = G.debug || ((hasBld(G, P_HUMAN, 'radar') || hasBld(G, P_HUMAN, 'airforce')) && powered(G, P_HUMAN));
     if (!radarOn) {
-      mctx.fillStyle = '#0b0e14'; mctx.fillRect(0, 0, 184, 184);
+      mctx.setTransform(1, 0, 0, 1, 0, 0);
+      mctx.fillStyle = '#0b0e14'; mctx.fillRect(0, 0, MM_PX, MM_PX);
       mctx.fillStyle = '#3a4456'; mctx.font = 'bold 11px system-ui'; mctx.textAlign = 'center';
       mctx.fillText(hasBld(G, P_HUMAN, 'radar') || hasBld(G, P_HUMAN, 'airforce') ? 'RADAR OFFLINE' : 'NO RADAR', 92, 96);
       mctx.textAlign = 'left'; miniDirty = 0;
       return;
     }
-    // Terrain is only redrawn a few times a second — it barely changes.
+    // Terrain is only redrawn a few times a second — it barely changes. It is
+    // painted once into a MAP x MAP pixel buffer and then blitted through the
+    // isometric matrix, which is thousands of times cheaper than stroking one
+    // diamond per tile every pass.
     if (--miniDirty <= 0) {
       miniDirty = 12;
-      mctx.fillStyle = '#0b0e14'; mctx.fillRect(0, 0, 184, 184);
-      for (var y = 0; y < MAP; y++) for (var x = 0; x < MAP; x++) {
-        var t = G.terrain[idx(x, y)];
-        if (!G.seen[idx(x, y)]) { mctx.fillStyle = '#000'; mctx.fillRect(x * sc, y * sc, sc + 0.5, sc + 0.5); continue; }
-        mctx.fillStyle = terrCol(t, G.theatre);
-        mctx.fillRect(x * sc, y * sc, sc + 0.5, sc + 0.5);
+      if (!mini._src) {
+        mini._src = document.createElement('canvas');
+        mini._src.width = MAP; mini._src.height = MAP;
+        mini._sctx = mini._src.getContext('2d');
+        mini._img = mini._sctx.createImageData(MAP, MAP);
       }
-      mini._terr = mctx.getImageData(0, 0, 184, 184);
-    } else if (mini._terr) {
-      mctx.putImageData(mini._terr, 0, 0);
+      var px32 = mini._img.data, ci = {};
+      for (var y = 0; y < MAP; y++) for (var x = 0; x < MAP; x++) {
+        var ti = idx(x, y), o = ti * 4;
+        if (!G.seen[ti]) { px32[o] = px32[o + 1] = px32[o + 2] = 0; px32[o + 3] = 255; continue; }
+        var col = terrCol(G.terrain[ti], G.theatre), rgb = ci[col];
+        if (!rgb) {
+          // terrCol returns '#rrggbb'; parse once per distinct colour per pass.
+          var h = col.charAt(0) === '#' ? parseInt(col.slice(1), 16) : 0;
+          rgb = ci[col] = [(h >> 16) & 255, (h >> 8) & 255, h & 255];
+        }
+        px32[o] = rgb[0]; px32[o + 1] = rgb[1]; px32[o + 2] = rgb[2]; px32[o + 3] = 255;
+      }
+      mini._sctx.putImageData(mini._img, 0, 0);
     }
+    mctx.setTransform(1, 0, 0, 1, 0, 0);
+    mctx.fillStyle = '#080b11'; mctx.fillRect(0, 0, MM_PX, MM_PX);
+    // (x,y) -> (mmOX + k(x-y), mmOY + k/2 (x+y)) is exactly this matrix.
+    mctx.setTransform(mmK, mmK / 2, -mmK, mmK / 2, mmOX, mmOY);
+    mctx.imageSmoothingEnabled = false;          // RA2's radar is hard pixels
+    mctx.drawImage(mini._src, -0.5, -0.5);
+    mctx.imageSmoothingEnabled = true;
+    mctx.setTransform(1, 0, 0, 1, 0, 0);
 
     var i;
     for (i = 0; i < G.blds.length; i++) {
       var b = G.blds[i];
       if (b.dead || !entSeen(G, b)) continue;
       mctx.fillStyle = COL[b.p];
-      mctx.fillRect(b.x * sc, b.y * sc, b.gw * sc, b.gh * sc);
+      mmQuad(mctx, b.x, b.y, b.x + b.gw, b.y + b.gh);
+      mctx.fill();
     }
     for (i = 0; i < G.units.length; i++) {
       var u = G.units[i];
       if (u.dead || !entSeen(G, u)) continue;
       mctx.fillStyle = u.p === P_HUMAN ? '#8ad0ff' : '#ff9098';
-      mctx.fillRect(u.x * sc - 1, u.y * sc - 1, 2.4, 2.4);
+      mctx.fillRect(mmX(u.x, u.y) - 1.2, mmY(u.x, u.y) - 1.2, 2.4, 2.4);
     }
-    // viewport box
     // An incoming superweapon flashes its target on the minimap.
     if (G.mmFlash && ((G.tick >> 3) & 1)) {
+      var fx = mmX(G.mmFlash.x, G.mmFlash.y), fy = mmY(G.mmFlash.x, G.mmFlash.y);
       mctx.strokeStyle = '#ff4a4a'; mctx.lineWidth = 2;
-      mctx.beginPath(); mctx.arc(G.mmFlash.x * sc, G.mmFlash.y * sc, 8, 0, 6.29); mctx.stroke();
-      mctx.beginPath(); mctx.arc(G.mmFlash.x * sc, G.mmFlash.y * sc, 3, 0, 6.29); mctx.stroke();
+      mctx.beginPath(); mctx.arc(fx, fy, 8, 0, 6.29); mctx.stroke();
+      mctx.beginPath(); mctx.arc(fx, fy, 3, 0, 6.29); mctx.stroke();
     }
 
+    // The viewport marker is the four screen corners run through the same
+    // projection, so it is the true quad of what is on screen — including
+    // whatever the zoom is doing.
     var tl = screenToGrid(0, 0), br = screenToGrid(cvW, cvH);
     var tr = screenToGrid(cvW, 0), bl = screenToGrid(0, cvH);
-    mctx.strokeStyle = 'rgba(255,255,255,.5)'; mctx.lineWidth = 1;
+    mctx.strokeStyle = 'rgba(255,255,255,.55)'; mctx.lineWidth = 1;
     mctx.beginPath();
-    mctx.moveTo(tl.x * sc, tl.y * sc); mctx.lineTo(tr.x * sc, tr.y * sc);
-    mctx.lineTo(br.x * sc, br.y * sc); mctx.lineTo(bl.x * sc, bl.y * sc);
+    mctx.moveTo(mmX(tl.x, tl.y), mmY(tl.x, tl.y));
+    mctx.lineTo(mmX(tr.x, tr.y), mmY(tr.x, tr.y));
+    mctx.lineTo(mmX(br.x, br.y), mmY(br.x, br.y));
+    mctx.lineTo(mmX(bl.x, bl.y), mmY(bl.x, bl.y));
     mctx.closePath(); mctx.stroke();
   }
 
@@ -17925,9 +18607,64 @@
     mapWrap.style.display = showDiff ? 'block' : 'none';
     if (showDiff) { buildFacRow(); buildDiffRow(); buildMapRow(); }
     scoresEl.style.display = showScores ? 'block' : 'none';
+    if (optCard) optCard.style.display = 'none';
     ov.classList.add('show');
   }
   function hideCard() { ov.classList.remove('show'); }
+
+  // --------------------------------------------------------------------- //
+  //  In-game options (keyboard.ini Options=27, Esc). RA2 pauses the match
+  //  behind this card and offers exactly this: carry on, restart, quit to
+  //  the shell, sound, scroll rate.
+  // --------------------------------------------------------------------- //
+  var optCard = document.getElementById('optCard');
+  var sndRow = document.getElementById('sndRow'), scrRow = document.getElementById('scrRow');
+  var gameRow = document.getElementById('gameRow');
+  var optOpen = false;
+
+  function optButtons(row, list, isOn, onPick) {
+    row.innerHTML = '';
+    list.forEach(function (it) {
+      var b = document.createElement('button');
+      b.textContent = it[1];
+      if (isOn && isOn(it[0])) b.className = 'on';
+      b.addEventListener('click', function () { resumeAudio(); onPick(it[0]); });
+      row.appendChild(b);
+    });
+  }
+  function buildOptRows() {
+    optButtons(sndRow, [['on', 'On'], ['off', 'Off']],
+      function (k) { return (k === 'on') === !!soundOn; },
+      function (k) {
+        soundOn = k === 'on';
+        lsSet('vibetop:rts:sound', soundOn ? '1' : '0');
+        if (typeof paintSnd === 'function') paintSnd();
+        if (soundOn) resumeAudio();
+        buildOptRows();
+      });
+    optButtons(scrRow, [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']],
+      function (k) { return k === scrollRate; },
+      function (k) { scrollRate = k; lsSet('vibetop:rts:scroll', k); buildOptRows(); });
+    optButtons(gameRow, [['restart', 'Restart match']], null, function () {
+      optOpen = false; optCard.style.display = 'none'; hideCard();
+      startMatch();
+    });
+  }
+  function showOptions() {
+    if (state === 'play') togglePause(true);
+    optOpen = true;
+    onA = function () { closeOptions(); };
+    onB = function () { optOpen = false; hideCard(); menu(); };
+    showCard('\u2699\ufe0f', 'Options', 'The match is paused.', 'Resume', 'Abort to menu', false, false);
+    optCard.style.display = 'block';
+    buildOptRows();
+  }
+  function closeOptions() {
+    optOpen = false;
+    optCard.style.display = 'none';
+    hideCard();
+    if (state === 'paused') togglePause();
+  }
 
   // Two picture panels, built once and then only re-lit: the emblem and the
   // line-up are baked canvases, so rebuilding the markup on every click would
@@ -18217,6 +18954,11 @@
     },
     deployMcv: function (u) { return G ? deployMcv(G, u) : null; },
     centerOn: function (gx, gy) { centerOn(gx, gy); },
+    // Cursors are CSS, so a screenshot never shows them: these let the art
+    // review render the whole set as a contact sheet and assert the context
+    // picker chose the right one.
+    cursorKind: function () { return curKind; },
+    cursorSet: function () { buildCursors(); return CURSORS; },
     api: { astar: astar, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
            countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld,
            findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf },

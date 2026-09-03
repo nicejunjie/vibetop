@@ -231,8 +231,13 @@ fidelity plus reproduced player reports.
   a backdrop click; radar right-click did nothing; no message when queuing
   behind an unplaced structure; band box skipped harvesters/MCV; first AI
   attack came at 5 min on Normal (now 8; Easy 10).
-- ☐ Still open from the playtests: structures charge full cost on click
-  (RA2 charges progressively); placement ghost shows the footprint only;
+- ☑ 2026-09-03 Progressive charging: `stepQueues` deducts `cost × Δprog`
+  per tick, parks an item `q.hold` (red clock hand, `HOLD` on the cameo, EVA
+  "On hold") when the bank empties and resumes when money returns;
+  `cancelLast` refunds `q.paid`, while a finished structure waiting for a spot
+  still refunds its whole cost. Placement ghost is now the structure's own
+  baked sprite, tinted green/red and drawn over the world.
+- ☐ Still open from the playtests:
   superweapon clocks overlay the battlefield (Phase 1 moves them to the
   sidebar); own structures interpenetrate when adjacent (Phase 2 footprints);
   Weather Storm is one thin bolt (Phase 5); AI never fields Engineer, Tanya,
@@ -259,8 +264,10 @@ fidelity plus reproduced player reports.
 - ☐ Repair cost 15% (`RepairPercent`), Service Depot at `IRepairRate`.
 - ☐ Radar: minimap black until a powered Radar/AFC exists (`RadarOn/Off`).
 - ☐ Ore never on roads/pavement; ore tiles without the tan backing square.
-- ☐ Minimap drawn isometric (same orientation as the field), viewport as the
-  true screen quad; `fsheet.js` canvas tall enough for the Collective row.
+- ◐ ☑ Minimap drawn isometric (same orientation as the field, terrain blitted
+  through the `setTransform(k, k/2, −k, k/2, …)` matrix, click-to-jump and
+  right-click orders inverted through the same projection), viewport as the
+  true screen quad. ☐ `fsheet.js` canvas tall enough for the Collective row.
 
 **Phase 1 — the RA2 sidebar and controls (art §6; feature §3, §5).
 ~3 batches, L.** The single largest presentation gap.
@@ -276,18 +283,30 @@ fidelity plus reproduced player reports.
   Deploy, Guard, PlanningMode); Sell / Repair / Power are the three sidebar
   toggles (Power flips `b.offline`, which `recalcPower` honours and `drawBld`
   draws dark with an OFF tag); Stop is the S key, Scatter the X key.
-- ☐ Cursor set: move, no-move, attack, force-fire, select, sell, repair,
-  deploy, enter, guard, waypoint, chrono, nuke (canvas-drawn, animated).
-- ☐ Orders: force-fire (Ctrl+click), attack-move, Follow (F), planning mode
-  (Z), Guard distinct from Stop (`GuardModeStray`).
-- ◐ Hotkeys per `keyboard.ini`: ☑ Q/W/E/R tabs, T type-select, K/L
-  repair/sell, Z planning mode. ☐ N next object, F1–F4 + Ctrl views, teams
-  1–10 with Shift-add and Alt-centre, Space = last radar event, Delete,
-  Esc = options menu; P becomes CombatantSelect (pause lives in the menu).
+- ☑ Cursor set: 17 canvas-drawn cursors (select, move, no-move, attack,
+  force-fire, attack-move, guard, deploy, enter, sell, repair, power,
+  waypoint, chrono, nuke, storm, curtain), applied to `#cv` as
+  `cursor: url(data:…) hx hy`, chosen per hover context by `pickCursor()`;
+  move / attack / force-fire / attack-move / chrono animate on a 150 ms beat
+  that doubles as the context poll, so the cursor answers a held Ctrl without
+  the mouse moving.
+- ☑ Orders: force-fire (Ctrl+right-click, at an entity **or** bare ground —
+  `fireGround` hits your own units too), attack-move (Ctrl+Shift+right-click,
+  order type `amove`: fights what it meets, then resumes), Follow (F, then
+  click a friendly unit), planning mode (Z), Guard distinct from Stop
+  (`GuardModeStray=2.0`: `u.guard` reaches out via `nearestFoe` and walks back
+  to its post; `u.stopped` fires but never moves).
+- ☑ Hotkeys per `keyboard.ini`: Q/W/E/R tabs, T type-select, K/L repair/sell,
+  Z planning mode, N next object, F1–F4 views with Ctrl+F1–F4 to set, teams
+  1–0 with Ctrl assign / Shift add / Alt centre, Space = last radar event
+  (`g.radarEvent`), H = base, Delete = self-destruct, Esc = options card.
+  **P deliberately stays pause** rather than becoming CombatantSelect: pause
+  is the key a player reaches for, and it also lives in the options card.
 - ◐ ☑ Pip health bar (bracketed, green/yellow/red, pip count scaled to the
   object); ☑ EVA text top-left in the tactical view as a fading stack; ☑
-  superweapon clocks over their own cameos. ☐ In-game options menu (restart,
-  abort, volumes, scroll rate); 8 house colours.
+  superweapon clocks over their own cameos; ☑ in-game options card (Esc —
+  resume, restart, abort to menu, sound, scroll speed; pauses while open).
+  ☐ 8 house colours.
 
 **Phase 2 — structure states (art §1). ~4 batches, L.** One baked frame set
 per state, for every structure and defence, both factions.
