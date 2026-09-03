@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Codex tok/s</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #0e1117; color: #e6edf3; font-family: system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%; display: flex; align-items: center; justify-content: center;
+  }
+  .wrap { text-align: center; padding: 24px; max-width: 520px; }
+  .k { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #7a8a9a; }
+  .num {
+    font-size: 72px; font-weight: 700; line-height: 1.05; margin: 6px 0 2px;
+    font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  }
+  .num small { font-size: 22px; font-weight: 600; color: #8b9bad; margin-left: 6px; }
+  .num.na { font-size: 40px; color: #6a7a8a; }
+  .sub { color: #7a8a9a; font-size: 12px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .sub .stale { color: #d2902a; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+         background: #3fb950; margin-right: 6px; vertical-align: middle; }
+  .dot.off { background: #6a7a8a; }
+  .hint { color: #55606e; font-size: 11px; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="k"><span class="dot off" id="dot"></span>Codex · live output rate</div>
+  <div class="num na" id="num">n/a</div>
+  <div class="sub" id="sub">waiting for a completed turn…</div>
+  <div class="hint">per-turn average · updates as each turn completes</div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  async function tick() {
+    let d;
+    try {
+      const r = await fetch("/api/codex/tok-s", { cache: "no-store" });
+      d = await r.json();
+    } catch (e) {
+      $("num").textContent = "n/a";
+      $("num").classList.add("na");
+      $("dot").classList.add("off");
+      $("sub").textContent = "unreachable";
+      return;
+    }
+    if (d.rate != null) {
+      $("num").textContent = Math.round(d.rate);
+      $("num").insertAdjacentHTML("beforeend", "<small>tok/s</small>");
+      $("num").classList.remove("na");
+      $("dot").classList.remove("off");
+      const stale = d.stale ? ' <span class="stale">· stale</span>' : "";
+      $("sub").innerHTML =
+        d.outNow + " tok / " + d.dt + "s" +
+        (d.file ? " · " + d.file : "") + stale;
+    } else {
+      $("num").textContent = "n/a";
+      $("num").classList.add("na");
+      $("dot").classList.add("off");
+      $("sub").textContent = "waiting for a completed turn…";
+    }
+  }
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>
