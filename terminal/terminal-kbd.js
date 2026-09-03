@@ -181,6 +181,39 @@
     }
     document.addEventListener('visibilitychange', function () { if (!document.hidden) claimSoon(); });
     window.addEventListener('pageshow', claimSoon);
+
+    // Also re-claim when THIS terminal's tab becomes the visible one. Switching
+    // between the vibetop desktop's IN-APP tabs (each /tN/ is an iframe) fires
+    // neither visibilitychange nor pageshow — the inactive iframe is display:none
+    // (clientWidth 0) and simply flips back to a positive width. Without a claim
+    // here, flipping to a terminal that a WIDER device shaped last leaves a TUI
+    // (Claude Code) rendered at that foreign width — the mis-wrapped-history the
+    // screenshot showed — until you two-finger tap. Re-claiming on the width
+    // 0 -> >0 edge sends a SIGWINCH so the TUI repaints its live frame at THIS
+    // phone's shape the instant you look at it.
+    //
+    // This is the one narrow exception to the "no ResizeObserver on touch" ban
+    // above (iOS URL-bar collapse resizing the viewport constantly): the URL bar
+    // changes HEIGHT and never takes clientWidth to 0, so it never crosses the
+    // 0-edge and never triggers a claim. Rotation (positive -> different positive)
+    // is likewise ignored here; the existing gestures cover it.
+    try {
+      if (window.ResizeObserver) {
+        var _arm = setInterval(function () {
+          var t = window.term;
+          if (!t || !t.element) return;
+          clearInterval(_arm);
+          var wasVisible = t.element.clientWidth > 0;
+          try {
+            new ResizeObserver(function () {
+              var vis = t.element.clientWidth > 0;
+              if (vis && wasVisible === false) claimSoon();   // hidden -> shown only
+              wasVisible = vis;
+            }).observe(t.element);
+          } catch (_) {}
+        }, 60);
+      }
+    } catch (_) {}
   }
 
   // Brief toast (used to confirm a touch double-tap registered).
