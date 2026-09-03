@@ -301,14 +301,23 @@ fidelity plus reproduced player reports.
 - ☑ Hotkeys per `keyboard.ini`: Q/W/E/R tabs, T type-select, K/L repair/sell,
   Z planning mode, N next object, F1–F4 views with Ctrl+F1–F4 to set, teams
   1–0 with Ctrl assign / Shift add / Alt centre, Space = last radar event
-  (`g.radarEvent`), H = base, Delete = self-destruct, Esc = options card.
+  (`g.radarEvent`), H = base, Delete = self-destruct, Esc = options card,
+  PageUp/PageDown/Home/End scroll the sidebar (`SidebarUp/Down` — the arrows
+  are the camera, in RA2 too), Ctrl+C = ScreenCapture (RA2 wrote a .pcx; the
+  browser hands the canvas over as a downloaded PNG).
   **P deliberately stays pause** rather than becoming CombatantSelect: pause
   is the key a player reaches for, and it also lives in the options card.
 - ◐ ☑ Pip health bar (bracketed, green/yellow/red, pip count scaled to the
   object); ☑ EVA text top-left in the tactical view as a fading stack; ☑
   superweapon clocks over their own cameos; ☑ in-game options card (Esc —
-  resume, restart, abort to menu, sound, scroll speed; pauses while open).
-  ☐ 8 house colours.
+  resume, restart, abort to menu, sound, scroll speed, game speed, three
+  save/load slots; pauses while open).
+  ☑ 8 house colours (RA2's gold/red/blue/green/orange/teal/purple/pink on the
+  front menu's settings strip; the player picks, the AI takes the opposite —
+  blue↔red, otherwise red. The colour is painted INTO the art at bake time,
+  so a pick re-runs `bakeOwned()` — the owner-coloured half of `bakeAll`,
+  ~1.6s — behind a "Repainting the army…" notice, and the faction line-ups
+  and map-preview spawn dots follow it).
 
 **Phase 2 — structure states (art §1). ~4 batches, L.** One baked frame set
 per state, for every structure and defence, both factions.
@@ -526,12 +535,41 @@ per state, for every structure and defence, both factions.
   own frame belongs with the unit art.
 
 **Phase 6 — match flow and AI (feature §4, §6). ~2 batches, M.**
-- ☐ Skirmish options: starting credits, unit count, short game, crates,
-  superweapons on/off, game speed, bases on/off.
-- ☐ EVA coverage of `eva.ini`'s 120 skirmish lines (NewConstructionOptions,
-  Building, OnHold, Canceled, BaseDefensesOffLine, CannotDeployHere, the
-  three "*Detected" superweapon warnings first).
-- ☐ RA2 score screen; save/load.
+- ☑ Skirmish options: a shut-by-default "Game settings" drawer under the map
+  row carrying starting credits (5 000/10 000/20 000), starting units (0–10),
+  game speed (RA2's 1–6), Bases, Short Game, Crates, Superweapons and the
+  eight house colours, persisted in `localStorage` beside faction/map and
+  frozen into `G.opt` at `startMatch`. Every default reproduces the
+  pre-Phase-6 match bit for bit (asserted against a recorded three-minute
+  sim), so the balance harness is unaffected. Crates off spawns none;
+  Superweapons off takes all four structures out of `canBuild`; Short Game
+  off is RA2's long game (the last unit has to die too); Bases off starts
+  each side with an MCV instead of the yard; speed is ticks per second, not a
+  changed tick (see `docs/design-decisions.md`).
+- ☑ EVA coverage of `eva.ini`'s skirmish lines. Added on top of the 23 that
+  were there: NewConstructionOptions (#49), Building (#52), Training (#66),
+  Canceled (#51), Repairing (#57), UnitRepaired (#70), BaseDefensesOffLine
+  (#59), BuildingOffLine/OnLine (#60/61), CannotDeployHere (#63),
+  SelectTarget (#65), UnableToComply (#47), NewRallyPointEstablished (#100),
+  BattlefieldControlOnline (#120), BattleControlTerminated (#15),
+  YouAreVictorious/YouHaveLost (#22/23), NuclearSilo/IronCurtain/
+  Chronosphere-Detected (#1/#4/#7, on the enemy BUILDING one),
+  EnemyAirArmadaDetected (#96), ArmorBattallianDetected (#98),
+  EnemyInfantryBattalionDetected (#99), ChronoMiner/OreMinerOffline
+  (#109/#86), NewTechnologyAcquired (#74). The standing watches
+  (`stepEvaWatch`) run every 30 ticks, are edge-tested against their
+  threshold and are skipped headless; `eva()` throttles per line in game
+  FRAMES, as RA2 does, and returns whether it spoke.
+- ☑ RA2 score screen: a per-house table (structures built/lost/destroyed,
+  units built/lost/destroyed, ore harvested) in the two house colours with
+  the better column bolded, then Leadership/Economy/Technology as
+  percentages — **approximations** of Westwood's, not the shipped formula
+  (the weights are in no readable .ini); the leaderboard follows it.
+- ☑ Save/load: three `localStorage` slots (map, clock, age) from the Esc
+  options card, plus a "Load saved game" button on the front menu that only
+  appears when a slot is full. Format and the determinism guarantee are in
+  `docs/design-decisions.md`; a round-trip test steps the original and the
+  restored copy 1 000 ticks and compares state hashes.
 - ☐ AI: task-force/team-type layer with per-difficulty triggers, engineer
   teams, `AIIonCannon*Value` superweapon targeting, `HarvestersPerRefinery`,
   RA2's difficulty curve.

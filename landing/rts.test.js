@@ -39,7 +39,8 @@ function stubCtx() {
 }
 function stubEl() {
   const el = {
-    style: {}, dataset: {}, textContent: "", innerHTML: "", className: "",
+    style: { setProperty: () => {}, removeProperty: () => {}, getPropertyValue: () => "" },
+    dataset: {}, textContent: "", innerHTML: "", className: "", hidden: false, value: "0",
     width: 800, height: 600, _terr: null,
     classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
     addEventListener: () => {}, removeEventListener: () => {},
@@ -67,7 +68,11 @@ function load() {
     localStorage: {
       getItem: (k) => (k in store ? store[k] : null),
       setItem: (k, v) => { store[k] = String(v); },
+      removeItem: (k) => { delete store[k]; },
     },
+    btoa: (b) => Buffer.from(b, "binary").toString("base64"),
+    atob: (b) => Buffer.from(b, "base64").toString("binary"),
+    Buffer, ArrayBuffer, Int8Array, Int16Array, URL,
     setTimeout: () => 0,
     Math, JSON, Date, isNaN, parseInt, parseFloat,
     Float32Array, Int32Array, Uint8Array,
@@ -2705,4 +2710,198 @@ test("every new man is in his faction's Infantry tab and behind the right prereq
       assert.ok(art.fr("walk", 3, 2), `${k} cannot bake a walk frame`);
     }
   });
+});
+
+// ============================ match flow ================================ //
+//
+// Phase 6: the skirmish strip, EVA's throttle, the score screen and
+// save/load. The first test here is the load-bearing one — every default in
+// OPT_DEF is chosen to reproduce the match the game played before the
+// options existed, so a seed that drifts means an option leaked into the
+// default path.
+
+test("the default options replay a seed exactly as the game did before them", () => {
+  // Recorded from the build immediately before the skirmish strip landed
+  // (seed 4242, normal vs normal, Directorate vs Collective, three minutes).
+  const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
+  assert.deepEqual(
+    { u0: r.p0units, u1: r.p1units, b0: r.p0blds, b1: r.p1blds, c0: r.p0credits, c1: r.p1credits },
+    { u0: 10, u1: 12, b0: 5, b1: 5, c0: 8437, c1: 9105 },
+    "a default match must be bit-for-bit the match it was before Phase 6",
+  );
+});
+
+test("starting credits, unit count and Bases flow out of the strip into the match", () => {
+  const H = W.__rtsTest;
+  [5000, 10000, 20000].forEach((c) => {
+    const g = H.startWith(9, "normal", "frontier", { credits: c });
+    assert.equal(g.side[0].credits, c);
+    assert.equal(g.side[1].credits, c, "both houses get the same bank");
+    assert.equal(g.opt.credits, c, "the strip is frozen into the match");
+  });
+
+  // "Units" is the guard that starts beside the yard: 0..10, three by default.
+  for (const n of [0, 1, 3, 7]) {
+    const g = H.startWith(11, "normal", "frontier", { units: n });
+    const inf = g.units.filter((u) => !u.dead && u.p === 0 && T.UNITS[u.type].cls === "i").length;
+    assert.equal(inf, n, `unit count ${n} should seed ${n} infantry`);
+    assert.equal(g.units.filter((u) => !u.dead && u.p === 0 && API.countUnit(g, 0, "harvester")).length > 0, true);
+  }
+
+  // Bases off is RA2's "units only": no Construction Yard, an MCV instead.
+  const off = H.startWith(13, "normal", "frontier", { bases: false });
+  assert.equal(API.hasBld(off, 0, "base"), false, "no yard with Bases off");
+  assert.equal(API.countUnit(off, 0, "mcv"), 1, "an MCV stands in for it");
+  assert.equal(API.countUnit(off, 1, "mcv"), 1, "and for the opponent too");
+  const on = H.startWith(13, "normal", "frontier", {});
+  assert.equal(API.hasBld(on, 0, "base"), true);
+  assert.equal(API.countUnit(on, 0, "mcv"), 0);
+});
+
+test("Crates off means no crate ever appears, however long the match runs", () => {
+  const H = W.__rtsTest;
+  const on = H.startWith(21, "normal", "frontier", { crates: true });
+  H.step(4);
+  assert.ok(on.crates.length > 0, "crates ON seeds CrateMinimum at once");
+
+  const off = H.startWith(21, "normal", "frontier", { crates: false });
+  let seen = 0;
+  for (let i = 0; i < 60 * 60 * 5; i++) {          // five minutes, CrateRegen is three
+    H.step(1);
+    seen = Math.max(seen, off.crates.length);
+  }
+  assert.equal(seen, 0, "no crate may spawn in five minutes with Crates off");
+});
+
+test("Superweapons off takes all four structures off the build list", () => {
+  const H = W.__rtsTest;
+  const sw = T.SW_KEYS.map((k) => T.SW[k].bld).filter((b) => b !== "airport");
+  assert.ok(sw.length >= 4);
+
+  for (const supers of [true, false]) {
+    const g = H.startWith(31, "normal", "frontier", { supers });
+    H.give(0, 900000);
+    // Everything the superweapons need, so only the toggle can refuse them.
+    for (const k of ["power", "reactor", "refinery", "barracks", "factory", "radar", "airforce", "lab"]) {
+      if (!T.BLDS[k] || API.hasBld(g, 0, k)) continue;
+      placeNear(H, g, 0, g.start[0], k);
+    }
+    for (const b of sw) {
+      const own = !T.BLDS[b].fac || T.BLDS[b].fac === g.side[0].fac;
+      if (!own) continue;
+      const can = API.canBuild(g, 0, b, true);
+      if (supers) assert.equal(can, true, `${b} should be buildable with superweapons on`);
+      else assert.equal(can, false, `${b} must be off the list with superweapons off`);
+    }
+  }
+});
+
+test("Short Game off is RA2's long game: the last unit has to die too", () => {
+  const H = W.__rtsTest;
+  for (const short of [true, false]) {
+    const g = H.startWith(41, "normal", "frontier", { short, units: 2 });
+    // Level the AI's base but leave its infantry standing.
+    const src = g.units.find((u) => u.p === 0 && !u.dead);
+    g.blds.filter((b) => b.p === 1 && !b.dead).forEach((b) => API.damage(g, src, b, 1e9, "HE"));
+    g.side[1].credits = 0;
+    H.step(2);
+    const alive = API.countUnit(g, 1, null);
+    assert.ok(alive > 0, "the opponent still has units on the field");
+    if (short) assert.equal(g.over, 1, "short game ends on the last structure");
+    else assert.equal(g.over, 0, "long game keeps running while a unit lives");
+    if (!short) {
+      g.units.filter((u) => u.p === 1 && !u.dead).forEach((u) => { u.dead = true; });
+      H.step(2);
+      assert.equal(g.over, 1, "and ends when the last one falls");
+    }
+  }
+});
+
+test("a saved game reloads into a state that steps identically for 1000 ticks", () => {
+  const H = W.__rtsTest;
+  // Play a real match to minute five, both sides driven by the AI, so the
+  // save carries orders, paths, queues, a spatial index and a live RNG.
+  const g = H.startWith(1234, "normal", "frontier", {});
+  H.attachAI(1, "normal");
+  H.attachAI(0, "normal");
+  for (let i = 0; i < 60 * 60 * 5; i++) H.step(1);
+  assert.ok(g.units.length > 4, "there is something to save");
+
+  const blob = JSON.parse(JSON.stringify(H.saveBlob()));
+  const before = H.hash(g);
+
+  // Step the original on...
+  for (let i = 0; i < 1000; i++) H.step(1);
+  const original = H.hash(g);
+
+  // ...and the restored copy the same distance from the same point.
+  const g2 = H.loadBlob(blob);
+  assert.equal(H.hash(g2), before, "the restored state must match the saved one");
+  assert.equal(g2.tick, blob.tick);
+  assert.equal(g2.opt.credits, g.opt.credits);
+  for (let i = 0; i < 1000; i++) H.step(1);
+  assert.equal(H.hash(g2), original, "1000 ticks later the two must still agree");
+});
+
+test("save/load restores the entity graph, not just the numbers", () => {
+  const H = W.__rtsTest;
+  const g = H.startWith(77, "normal", "frontier", { units: 4 });
+  H.attachAI(1, "normal");
+  for (let i = 0; i < 60 * 90; i++) H.step(1);
+  const g2 = H.loadBlob(JSON.parse(JSON.stringify(H.saveBlob())));
+
+  assert.equal(g2.units.length, g.units.length);
+  assert.equal(g2.blds.length, g.blds.length);
+  // Typed arrays survive byte for byte.
+  assert.equal(g2.terrain.constructor.name, "Uint8Array");
+  assert.equal(g2.ore.constructor.name, "Float32Array");
+  for (let i = 0; i < g.terrain.length; i += 37) assert.equal(g2.terrain[i], g.terrain[i]);
+  for (let i = 0; i < g.occ.length; i += 37) assert.equal(g2.occ[i], g.occ[i]);
+  // Every reference points at an object in the restored world, never at a
+  // {$r:id} marker or at an entity from the graph it was serialised from.
+  g2.units.concat(g2.blds).forEach((e) => {
+    assert.equal(e.$r, undefined);
+    if (e.target) {
+      assert.equal(typeof e.target.id, "number");
+      assert.equal(g2.byId[e.target.id], e.target, "a target must be the restored entity");
+      assert.equal(g.byId[e.target.id] === e.target, false, "and not the one from the old graph");
+    }
+  });
+  g2.units.forEach((u) => assert.equal(g2.byId[u.id], u));
+});
+
+test("EVA does not repeat a line inside its own cooldown", () => {
+  const H = W.__rtsTest;
+  H.startWith(5, "normal", "frontier", {});
+  const line = "Test advisory line";
+  assert.equal(H.eva(line, 6000), true, "the first call speaks");
+  assert.equal(H.eva(line, 6000), false, "the second inside the gap does not");
+  H.step(60 * 3);                                  // three seconds of match time
+  assert.equal(H.eva(line, 6000), false, "still inside the six-second gap");
+  H.step(60 * 4);                                  // now past it
+  assert.equal(H.eva(line, 6000), true, "and speaks again once the gap is out");
+  // A different line has its own clock.
+  assert.equal(H.eva("Another advisory", 6000), true);
+  assert.ok(H.evaLog().indexOf(line) >= 0, "spoken lines are logged");
+});
+
+test("the score screen counts what RA2's columns count", () => {
+  const H = W.__rtsTest;
+  const g = H.startWith(303, "normal", "frontier", {});
+  H.attachAI(1, "normal");
+  H.attachAI(0, "normal");
+  for (let i = 0; i < 60 * 60 * 4; i++) H.step(1);
+
+  const a = H.score(0), b = H.score(1);
+  for (const s of [a, b]) {
+    assert.ok(s.bmade >= 1, "the opening yard is a structure built");
+    assert.ok(s.harv > 0, "four minutes of mining banks something");
+    for (const k of ["lead", "econ", "tech"]) {
+      assert.ok(s[k] >= 0 && s[k] <= 100, `${k} is a percentage`);
+    }
+    assert.equal(Number.isFinite(s.made) && Number.isFinite(s.lost), true);
+  }
+  // "destroyed" on one side is "lost" on the other — the two must agree.
+  assert.equal(a.bkilled, b.blost);
+  assert.equal(b.bkilled, a.blost);
 });

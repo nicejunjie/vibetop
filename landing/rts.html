@@ -370,6 +370,82 @@
   /* --- map previews (terrain generated once, painted at 2px a tile) --- */
   .mapwrap { margin-bottom: 14px; }
   .mapwrap .olbl { display: block; margin-bottom: 7px; }
+  /* Game settings: RA2's skirmish strip. Shut by default — the card must
+     still read as "pick a side, pick a map, go" — and one line of prose when
+     shut tells you what you would be changing. */
+  .setwrap { margin-bottom: 12px; }
+  .settog {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    background: #0e121a; border: 1px solid #262c3a; border-radius: 8px;
+    color: #8d97a8; font: 600 11px/1 inherit; letter-spacing: .08em; text-transform: uppercase;
+    padding: 9px 11px; cursor: pointer; text-align: left;
+  }
+  .settog:hover { color: #cdd5e1; border-color: #3a4358; background: #131924; }
+  .settog .cv { display: inline-block; transition: transform .12s; color: var(--acc); }
+  .settog.open .cv { transform: rotate(90deg); }
+  .settog .sum { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 400; color: #6c7684; }
+  /* Two columns of label/control pairs — one column ran the card past the
+     fold on a 900px window and pushed Start Game off the bottom. */
+  .setgrid {
+    display: grid; grid-template-columns: auto minmax(0,1fr) auto minmax(0,1fr);
+    row-gap: 8px; column-gap: 14px; align-items: center;
+    padding: 11px 11px 2px; text-align: left;
+  }
+  .setgrid[hidden] { display: none; }
+  .huerow.wide { grid-column: 2 / -1; }
+  .slbl { font-size: 11px; color: #8d97a8; white-space: nowrap; }
+  .setgrid .diffrow { justify-self: start; }
+  .sldr { display: flex; align-items: center; gap: 9px; }
+  .sldr input[type=range] { flex: 1; max-width: 150px; accent-color: var(--acc); height: 16px; }
+  .sldr b { font-size: 12px; color: #cdd5e1; min-width: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+  .huerow { display: flex; gap: 5px; flex-wrap: wrap; }
+  .huerow button {
+    width: 20px; height: 20px; border-radius: 5px; border: 1px solid #262c3a;
+    background: var(--h); cursor: pointer; padding: 0; opacity: .5;
+  }
+  .huerow button:hover { opacity: .82; }
+  .huerow button.on { opacity: 1; box-shadow: 0 0 0 2px #0e121a, 0 0 0 3px #cdd5e1; }
+  .huerow button.ai { opacity: .34; cursor: not-allowed; }
+  .huerow button.ai::after { content: ''; }
+  .huerow.busy { opacity: .55; pointer-events: none; }
+
+  /* RA2's score screen: the two houses side by side, then the tally. */
+  #scoreCard { width: 100%; border-collapse: collapse; margin: 2px 0 14px; text-align: right; }
+  #scoreCard th, #scoreCard td { padding: 3px 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+  #scoreCard th.rl { text-align: left; font-weight: 400; color: #8d97a8; white-space: nowrap; }
+  #scoreCard thead th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding-bottom: 6px; }
+  #scoreCard thead th span { display: inline-flex; align-items: center; gap: 6px; }
+  #scoreCard thead th i { width: 9px; height: 9px; border-radius: 2px; background: var(--h); display: inline-block; }
+  #scoreCard td { color: #cdd5e1; }
+  #scoreCard td.win { color: #fff; font-weight: 700; }
+  #scoreCard tbody tr:nth-child(odd) { background: rgba(255,255,255,.025); }
+  #scoreCard tr.rule td, #scoreCard tr.rule th { border-top: 1px solid #262c3a; padding-top: 8px; }
+  #scoreCard tr.pct td { color: #e6edf3; }
+  #scoreCard + #scores:not(:empty) { margin-bottom: 14px; }
+
+  /* Esc options: three save slots, each its own row. */
+  .optrow.slots { align-items: flex-start; }
+  /* The card sizes to its content, so a flex:1 column with an ellipsised
+     name in it collapses to the width of the two buttons. */
+  .slotlist { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 290px; }
+  /* `.slot` is already taken by the sidebar's 64x52 cameo plate — this one
+     needs its own name or it inherits that fixed width and collapses. */
+  .gslot { display: flex; align-items: center; gap: 7px; }
+  .gslot .sname {
+    flex: 1 1 auto; min-width: 0; text-align: left; font-size: 11px; color: #8d97a8;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .gslot .sname b { color: #cdd5e1; font-weight: 600; }
+  .gslot .sname i { font-style: normal; color: #5c6675; }
+  .gslot button {
+    background: #0e121a; border: 1px solid #262c3a; color: #8d97a8;
+    font: 600 10px/1 inherit; letter-spacing: .06em; text-transform: uppercase;
+    padding: 6px 9px; border-radius: 6px; cursor: pointer; flex: 0 0 auto;
+  }
+  .gslot button:hover:not(:disabled) { background: var(--acc); border-color: var(--acc); color: #fff; }
+  .gslot button:disabled { opacity: .3; cursor: default; }
+  #ovA.wide + #ovB { margin-top: 0; }
+  .card .btns .ghost.load { color: #8d97a8; }
   .maprow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
   .maprow button {
     display: block; width: 100%; padding: 0; overflow: hidden; cursor: pointer;
@@ -467,11 +543,29 @@
     <div class="facrow" id="facRow"></div>
     <div class="optrow" id="diffWrap"><span class="olbl">Opponent</span><div class="diffrow" id="diffRow"></div></div>
     <div class="mapwrap" id="mapWrap"><span class="olbl">Battlefield</span><div class="maprow" id="mapRow"></div></div>
+    <div class="setwrap" id="setWrap">
+      <button class="settog" id="setTog" aria-expanded="false"><span class="cv">▸</span>Game settings<span class="sum" id="setSum"></span></button>
+      <div class="setgrid" id="setGrid" hidden>
+        <span class="slbl">Colour</span><div class="huerow wide" id="hueRow"></div>
+        <span class="slbl">Starting credits</span><div class="diffrow" id="credRow"></div>
+        <span class="slbl">Bases</span><div class="diffrow" id="baseRow"></div>
+        <span class="slbl">Starting units</span><div class="sldr"><input type="range" id="unitSl" min="0" max="10" step="1"><b id="unitVal">3</b></div>
+        <span class="slbl">Short game</span><div class="diffrow" id="shortRow"></div>
+        <span class="slbl">Game speed</span><div class="sldr"><input type="range" id="spdSl" min="1" max="6" step="1"><b id="spdVal">4</b></div>
+        <span class="slbl">Crates</span><div class="diffrow" id="crateRow"></div>
+        <span class="slbl"></span><span></span>
+        <span class="slbl">Superweapons</span><div class="diffrow" id="swRow"></div>
+      </div>
+    </div>
     <div id="optCard" style="display:none">
+      <div class="optrow slots"><span class="olbl">Saved games</span><div class="slotlist" id="slotList"></div></div>
+      <div class="optrow"><span class="olbl">Game speed</span><div class="sldr"><input type="range" id="gspdSl" min="1" max="6" step="1"><b id="gspdVal">Fast</b></div></div>
       <div class="optrow"><span class="olbl">Sound</span><div class="diffrow" id="sndRow"></div></div>
       <div class="optrow"><span class="olbl">Scroll speed</span><div class="diffrow" id="scrRow"></div></div>
       <div class="optrow"><span class="olbl">Match</span><div class="diffrow" id="gameRow"></div></div>
     </div>
+    <table id="scoreCard" hidden></table>
+    <div id="scores"></div>
     <div class="cardfoot">
       <label class="dbgrow" title="Cheats for testing: instant build, unlimited credits, the whole map revealed, your units take 1/10 damage and deal 10x. Wins are not recorded."><input type="checkbox" id="dbgChk"> Debug mode</label>
       <div class="btns">
@@ -479,7 +573,6 @@
         <button class="ghost" id="ovB" style="display:none">Cancel</button>
       </div>
     </div>
-    <div id="scores"></div>
   </div></div>
 
   <div class="overlay help" id="hv"><div class="card">
@@ -490,14 +583,15 @@
       <dt>Hold ground</dt><dd><b>S</b> stops dead — the unit fires at what comes into range but never moves. <b>G</b> guards: it leaves its post by up to two cells to engage, then walks back. <b>X</b> scatters.</dd>
       <dt>Camera</dt><dd>WASD / arrow keys, or push the mouse to a screen edge. Click the minimap to jump.</dd>
       <dt>Teams</dt><dd><b>Ctrl+1…0</b> stores the selection, <b>1…0</b> recalls it, <b>Shift+digit</b> adds to it, <b>Alt+digit</b> jumps the camera to it.</dd>
-      <dt>Views</dt><dd><b>Ctrl+F1…F4</b> saves a camera bookmark, <b>F1…F4</b> returns to it. <b>N</b> steps through everything you own.</dd>
+      <dt>Views</dt><dd><b>Ctrl+F1…F4</b> saves a camera bookmark, <b>F1…F4</b> returns to it. <b>N</b> steps through everything you own. <b>Ctrl+C</b> saves a screenshot of the field.</dd>
+      <dt>Settings</dt><dd><b>Game settings</b> on the front menu carries RA2's skirmish options — starting credits and units, game speed, Bases, Short Game, Crates, Superweapons, and your house colour out of the eight. <b>Esc</b> in a match pauses and opens the same card with three <b>save slots</b>, the speed slider and Restart.</dd>
       <dt>Faster</dt><dd>A second Barracks or War Factory speeds that queue up (20% off each, up to six — as in RA2) and gives units another exit.</dd>
       <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
       <dt>Rally</dt><dd>Select a Barracks or War Factory, then right-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected. Click an already-selected factory again to make it <b>primary</b> — the one that builds.</dd>
-      <dt>Sidebar</dt><dd>Hover a cameo for its cost, power draw and prerequisites. <b>Q W E R</b> pick the four tabs, <b>T</b> selects every unit of one type, <b>K</b> / <b>L</b> are repair and sell, and <b>Power</b> switches a structure off to free its drain.</dd>
+      <dt>Sidebar</dt><dd>Hover a cameo for its cost, power draw and prerequisites. <b>Q W E R</b> pick the four tabs, <b>PageUp</b> / <b>PageDown</b> scroll the list, <b>T</b> selects every unit of one type, <b>K</b> / <b>L</b> are repair and sell, and <b>Power</b> switches a structure off to free its drain.</dd>
       <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
       <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
-      <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over.</dd>
+      <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over. With <b>Short game</b> off you must also destroy every last enemy unit.</dd>
       <dt>Also</dt><dd><b>Space</b> jumps to the last radar event · <b>H</b> jumps home · <b>Delete</b> self-destructs the selection · <b>P</b> pauses · <b>Esc</b> cancels, and with nothing to cancel opens the <b>options</b> card (sound, scroll speed, restart, abort).</dd>
     </dl>
     <div class="btns"><button class="ghost" id="hvClose">Got it</button></div>
@@ -568,6 +662,55 @@
   // ===================================================================== //
 
   var STEP = 1000 / 60;          // ms per simulation tick
+
+  // --------------------------------------------------------------------- //
+  //  Skirmish options — RA2's setup screen, in one object.
+  //
+  //  Every default here reproduces the match the game played before the
+  //  options existed (10 000 credits, three opening infantry, short game,
+  //  crates on, superweapons on, a Construction Yard), so an untouched strip
+  //  replays a seed exactly as it did before — rts.test.js asserts that
+  //  against a recorded three-minute sim.
+  //
+  //  `speed` is RA2's 1-6 slider. The simulation is a FIXED 60Hz tick and
+  //  nothing in it may depend on wall clock, so the slider cannot change the
+  //  tick — it changes how many ticks a second of wall clock buys: 15 x
+  //  speed, i.e. 15/30/45/60/75/90 per second, which on a 60Hz display is
+  //  0.25 .. 1.5 sim ticks per rendered frame with no interpolation at all.
+  //  Speed 4 is exactly the old 60/s, RA2's "Fast" and our default.
+  // --------------------------------------------------------------------- //
+  var OPT_DEF = { credits: 10000, units: 3, short: true, crates: true,
+                  supers: true, speed: 4, bases: true, colour: 2, aiColour: 1 };
+  var OPT_CREDITS = [5000, 10000, 20000];
+  // RA2's eight multiplayer house colours. Index 2 (blue) and 1 (red) are the
+  // pair the game shipped with, so the default COL below is byte-identical.
+  var HOUSE = [
+    { k: 'gold',   name: 'Gold',   c: '#e0bf49' },
+    { k: 'red',    name: 'Red',    c: '#e5646c' },
+    { k: 'blue',   name: 'Blue',   c: '#4aa3db' },
+    { k: 'green',  name: 'Green',  c: '#5ec468' },
+    { k: 'orange', name: 'Orange', c: '#e0873a' },
+    { k: 'teal',   name: 'Teal',   c: '#3ec3bf' },
+    { k: 'purple', name: 'Purple', c: '#a56ada' },
+    { k: 'pink',   name: 'Pink',   c: '#e879b5' }
+  ];
+  // The AI never wears the player's colour. Blue and red stay each other's
+  // opposite so the classic pairing survives; any other pick puts the AI in
+  // red, or blue if the player took red.
+  function aiHouse(h) { return h === 1 ? 2 : 1; }
+  function normOpts(o) {
+    var r = {}, k;
+    for (k in OPT_DEF) r[k] = OPT_DEF[k];
+    if (o) for (k in OPT_DEF) if (o[k] !== undefined && o[k] !== null) r[k] = o[k];
+    r.credits = OPT_CREDITS.indexOf(r.credits) < 0 ? OPT_DEF.credits : r.credits;
+    r.units = Math.max(0, Math.min(10, r.units | 0));
+    r.speed = Math.max(1, Math.min(6, r.speed | 0));
+    r.short = !!r.short; r.crates = !!r.crates; r.supers = !!r.supers; r.bases = !!r.bases;
+    r.colour = HOUSE[r.colour] ? (r.colour | 0) : OPT_DEF.colour;
+    r.aiColour = HOUSE[r.aiColour] ? (r.aiColour | 0) : aiHouse(r.colour);
+    if (r.aiColour === r.colour) r.aiColour = aiHouse(r.colour);
+    return r;
+  }
   var TW = 64, TH = 32;          // isometric tile: 64 wide, 32 tall (2:1 diamond)
   var MAP = 64;                  // map is MAP x MAP tiles
   var DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -1450,6 +1593,12 @@
     for (var i = 0; i < SW_KEYS.length; i++) o[SW_KEYS[i]] = { t: 0, ready: false, fired: 0, armed: false };
     return o;
   }
+  // Is this structure a superweapon? (The captured Airport carries the
+  // Paratrooper special but is not buildable, so it never reaches canBuild.)
+  function swBld(key) {
+    for (var i = 0; i < SW_KEYS.length; i++) if (SW[SW_KEYS[i]].bld === key) return true;
+    return false;
+  }
   function swKeysFor(fac) {
     var a = [];
     for (var i = 0; i < SW_KEYS.length; i++) if (BLDS[SW[SW_KEYS[i]].bld].fac === fac) a.push(SW_KEYS[i]);
@@ -1487,11 +1636,12 @@
   var faction = 'dir';
   var headless = false;    // true inside __rtsSim (skips all rendering)
 
-  function newState(seed, diff, mapId) {
+  function newState(seed, diff, mapId, opt) {
     srand(seed);
     pathQ.length = 0;                             // a previous match's pending path requests must not leak in
     var g = {
       seed: seed, diff: diff, tick: 0, over: 0,   // over: 0 running, 1 won, -1 lost
+      opt: normOpts(opt),                         // the skirmish strip, frozen into the match
       mapId: MAPS[mapId] ? mapId : 'frontier', theatre: (MAPS[mapId] || MAPS.frontier).theatre,
       terrain: new Uint8Array(MAP * MAP),
       ore: new Float32Array(MAP * MAP),
@@ -1514,6 +1664,7 @@
       focusFor: [true, true],
       ai: null, ai2: null
     };
+    g.side[P_HUMAN].credits = g.side[P_AI].credits = g.opt.credits;   // "Starting credits"
     genMap(g);
     indexBridges(g);
     placeNeutrals(g);
@@ -1523,6 +1674,9 @@
   function newSide(p) {
     return {
       p: p, fac: 'dir', credits: 10000, made: 0, lost: 0, killed: 0, deadFor: 0, exitTurn: 0,
+      // RA2's score screen columns: structures raised and lost, and the ore
+      // value actually banked (not the same as credits, which is spent).
+      bmade: 0, blost: 0, bkilled: 0, harv: 0,
       powerMade: 0, powerUse: 0,
       blackout: 0,                                 // [General] SpyPowerBlackout — grid dead until this tick
       stolen: null, vetInf: false, vetVeh: false,  // what a Spy brought home
@@ -13602,7 +13756,21 @@
     return { s: s, ax: cx, ay: baseY };
   }
 
-  var COL = ['#4aa3db', '#e5646c'];            // player 0 blue, player 1 red
+  var COL = ['#4aa3db', '#e5646c'];            // player 0 blue, player 1 red — HOUSE[2], HOUSE[1]
+
+  // Picking a house colour re-bakes every owner-coloured sprite, because the
+  // colour is painted INTO the art at bake time (a per-pixel remap at draw
+  // time is what RA2's SHP palette does and what a canvas cannot do cheaply).
+  // Only bakeOwned() is redone, and only when the pair actually changed.
+  function applyHouse(h, ah) {
+    var a = (HOUSE[h] || HOUSE[OPT_DEF.colour]).c, b = (HOUSE[ah] || HOUSE[OPT_DEF.aiColour]).c;
+    if (COL[0] === a && COL[1] === b) return false;
+    COL[0] = a; COL[1] = b;
+    if (SPR.unit) bakeOwned();                 // before the first bakeAll there is nothing to redo
+    lineupCache = {};                          // the menu line-ups are painted in the player's colour
+    thumbDots = {};                            // ...and so are the map preview's start dots
+    return true;
+  }
 
   // Weapon-effect sprites, baked once. render() only ever scales/alphas and
   // drawImage()s these — no gradient is ever constructed per shot or per
@@ -14994,6 +15162,17 @@
                      rad:    [bakeRadDecal(0), bakeRadDecal(1), bakeRadDecal(2)] };
     SPR.flash = bakeMuzzleFlash();
     SPR.shadow = bakeAirShadow();
+    bakeOwned();
+  }
+
+  // Everything whose art carries an owner's house colour. Split out of
+  // bakeAll so picking one of the eight RA2 colours re-bakes THESE and not
+  // the terrain sheets, the explosions or the decals — see
+  // docs/design-decisions.md. Every lazy per-frame cache (infantry facings,
+  // damage states, aimed turrets, the build-up wipe) hangs off the art
+  // objects this rebuilds, so it goes with them.
+  function bakeOwned() {
+    _wallSpr = {}; _gateSpr = {};
     // Units are keyed like structures: [player][faction][type]. Only the
     // harvester actually differs by faction (Chrono Miner vs War Miner), but
     // baking the whole set per faction keeps every lookup uniform.
@@ -15113,6 +15292,7 @@
     };
     g.blds.push(b);
     g.byId[b.id] = b;
+    if (!neutral(p) && !d.neut && !d.wall && !d.gate) g.side[p].bmade++;   // score screen: structures built
     for (var yy = gy; yy < gy + d.gh; yy++) for (var xx = gx; xx < gx + d.gw; xx++) {
       if (inMap(xx, yy)) g.occ[idx(xx, yy)] = b.id;
     }
@@ -15159,6 +15339,10 @@
   var RUBBLE_LIFE = 60 * 60;                       // a minute at 60 ticks/s
   function killBld(g, b) {
     b.dead = true;
+    if (!neutral(b.p) && !BLDS[b.type].neut && !BLDS[b.type].wall && !BLDS[b.type].gate) {
+      g.side[b.p].blost++;                                    // score screen: structures lost...
+      g.side[b.p ? P_HUMAN : P_AI].bkilled++;                 // ...is the other side's "destroyed"
+    }
     // RA2 kills every occupant when an occupied building falls — the whole
     // risk of holding a city block.
     killOccupants(g, b);
@@ -16229,7 +16413,8 @@
         return;
       }
       if (atRefinery(u, ref2)) {
-        g.side[u.p].credits += Math.round(u.cargoV * (hasBld(g, u.p, 'purifier') ? 1.25 : 1));   // Ore Purifier: +25%
+        var _got = Math.round(u.cargoV * (hasBld(g, u.p, 'purifier') ? 1.25 : 1));   // Ore Purifier: +25%
+        g.side[u.p].credits += _got; g.side[u.p].harv += _got;
         if (u.p === P_HUMAN && !headless) creditPop(Math.round(u.cargoV));
         u.cargo = 0; u.cargoV = 0; u.state = 'idle'; u.path = null; u.noProg = 0; u.stallAt = g.tick;
         sfx('cash');
@@ -17474,6 +17659,7 @@
     if (g.noCrates) return;
     // CrateMinimum=1 per player: the board starts at its floor, then one more
     // arrives every CrateRegen=3 minutes for as long as it is below it.
+    if (!g.opt.crates) return;                     // skirmish "Crates" off: none ever spawn
     if (g.tick <= 2) { while (g.crates.length < CRATE_MIN) if (!spawnCrate(g, g.crates.length + 1)) break; }
     else if (g.tick >= g.crateAt && g.crates.length < CRATE_MIN) {
       spawnCrate(g, g.tick);
@@ -17624,7 +17810,9 @@
         // RA2's only cure for a Terror Drone: the bay shakes it out and
         // crushes it before it touches the repair itself.
         if (v.drone) { killDrone(g, v); if (v.p === P_HUMAN) { eva('Terror Drone destroyed', 4000); say('Service Depot killed the Terror Drone'); } }
+        var _was = v.hp;
         v.hp = Math.min(v.maxhp, v.hp + v.maxhp * 0.02);
+        if (v.p === P_HUMAN && _was < v.maxhp && v.hp >= v.maxhp) eva('Unit repaired', 4000);   // eva.ini #70
       }
     }
     if (!d.dmg) return;
@@ -17664,6 +17852,9 @@
     // A Spy's stolen blueprint is exactly the exception to "you can only
     // build your own faction's list" ([General] eva.ini #92 Technology stolen).
     if (!ownedBy(spec, s.fac) && !(!isBld && s.stolen && s.stolen.indexOf(key) >= 0)) return false;
+    // Skirmish "Superweapons" off: RA2 sets DisableableFromShell=yes on all
+    // four [*Special] sections, which takes the STRUCTURE off the build list.
+    if (isBld && !g.opt.supers && swBld(key)) return false;
     if (s.credits < spec.cost) return false;
     if (!reqMet(g, p, spec)) return false;
     if (!isBld && spec.max && countUnit(g, p, key) + queuedCount(s, key) >= spec.max) return false;
@@ -17727,6 +17918,13 @@
     // "Insufficient funds" against it, and starting something you cannot pay
     // a single frame of is a worse first experience than being told no.
     q.list.push(key);
+    // eva.ini #52 EVA_Building / #66 EVA_Training: RA2 names the LANE, not
+    // the item — "Building" for anything from the Construction Yard,
+    // "Training" for anything out of a Barracks.
+    if (p === P_HUMAN && !headless) {
+      if (isBldLane(lane)) eva('Building', 6000);
+      else if (lane === 'i') eva('Training', 6000);
+    }
     return true;
   }
 
@@ -17739,11 +17937,14 @@
       if (q.list[i] === key) {
         if (i === 0) { g.side[p].credits += q.paid || 0; q.paid = 0; q.prog = 0; q.hold = false; }
         q.list.splice(i, 1);
+        if (p === P_HUMAN) eva('Canceled', 3000);                 // eva.ini #51
         return true;
       }
     }
     if (isBldLane(lane) && q.ready === key) {
-      g.side[p].credits += bspecOf(g, key, p).cost; q.ready = null; return true;
+      g.side[p].credits += bspecOf(g, key, p).cost; q.ready = null;
+      if (p === P_HUMAN) eva('Canceled', 3000);                   // eva.ini #51
+      return true;
     }
     return false;
   }
@@ -18895,6 +19096,7 @@
     // ...and, far more slowly, throws a seam into the ground next to it.
     if ((g.tick % ORE_SPREAD_T) === (ORE_SPREAD_T - 1)) stepOreSpread(g);
     stepCrates(g);
+    stepEvaWatch(g);
     stepDrops(g);
     stepInfest(g);
     stepBombs(g);
@@ -18948,10 +19150,130 @@
       // hand is a base MOVE, not a surrender.
       mine += countUnit(g, P_HUMAN, 'mcv') + (canBuild(g, P_HUMAN, 'mcv', false) ? 1 : 0);
       theirs += countUnit(g, P_AI, 'mcv') + (canBuild(g, P_AI, 'mcv', false) ? 1 : 0);
+      // "Short Game" off is RA2's LONG game: levelling the base is not
+      // enough, the last vehicle and the last rifleman have to go too.
+      if (!g.opt.short) {
+        mine += countUnit(g, P_HUMAN, null);
+        theirs += countUnit(g, P_AI, null);
+      }
       if (theirs === 0) g.over = 1;
       else if (mine === 0) g.over = -1;
     }
     if (g.over && g.overAt == null) g.overAt = g.tick;   // the infantry Cheer starts here
+  }
+
+  // ------------------------------------------------------------------- //
+  //  eva.ini's standing watches.
+  //
+  //  RA2's advisor does not only answer clicks: it reports the state of the
+  //  battlefield on a timer. These are the lines with no single call site —
+  //  a tech unlock, the defence grid browning out, an enemy massing armour,
+  //  a silo going up on the far side of the map. Every line is rate limited
+  //  by eva() itself; the edge tests here are what stop it chattering when a
+  //  count merely wobbles across its threshold.
+  //
+  //  Presentation only: it makes no random draw and mutates nothing the sim
+  //  reads, and it is skipped entirely when headless.
+  // ------------------------------------------------------------------- //
+  function techCount(g, p) {
+    var s = g.side[p], n = 0, k, d;
+    if (!hasBld(g, p, 'base')) return 0;
+    for (k in BLDS) {
+      d = BLDS[k];
+      if (d.neut || d.wall || d.gate || !ownedBy(d, s.fac)) continue;
+      if (reqMet(g, p, d)) n++;
+    }
+    for (k in UNITS) {
+      d = UNITS[k];
+      if (!ownedBy(d, s.fac) || !reqMet(g, p, d)) continue;
+      if (d.cls === 'i' ? hasBld(g, p, 'barracks')
+        : d.cls === 'a' ? hasBld(g, p, 'airforce') : hasBld(g, p, 'factory')) n++;
+    }
+    return n;
+  }
+  function countCls(g, p, cls, harv) {
+    var n = 0;
+    for (var i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      if (u.dead || u.p !== p) continue;
+      if (UNITS[u.type].cls !== cls) continue;
+      if (!harv && isHarv(u)) continue;
+      n++;
+    }
+    return n;
+  }
+  // eva.ini #1 / #4 / #7: the three warnings that fire when the ENEMY raises
+  // the structure, not when it fires the weapon.
+  var SW_DETECT = { nuke: 'Nuclear silo detected', curtain: 'Iron Curtain detected',
+                    chrono: 'Chronosphere detected' };
+  function stepEvaWatch(g) {
+    if (headless) return;
+    if (!g.ev) g.ev = { tech: -1, defOff: false, air: false, armour: false, inf: false, sw: {}, lab: false, minerOff: false };
+    var ev = g.ev, i, b;
+    if ((g.tick % 30) !== 7) return;
+
+    // #49 NewConstructionOptions — one of RA2's most recognisable lines.
+    var tc = techCount(g, P_HUMAN);
+    if (ev.tech >= 0 && tc > ev.tech) eva('New construction options', 4000);
+    ev.tech = tc;
+
+    // #59 BaseDefensesOffLine — a brown-out takes the turrets with it.
+    var hasDef = false;
+    for (i = 0; i < g.blds.length; i++) {
+      b = g.blds[i];
+      if (!b.dead && b.p === P_HUMAN && BLDS[b.type].cat === 'def' && BLDS[b.type].power < 0) { hasDef = true; break; }
+    }
+    var defOff = hasDef && !powered(g, P_HUMAN);
+    if (defOff && !ev.defOff) eva('Base defenses offline', 20000);
+    ev.defOff = defOff;
+
+    // #1 / #4 / #7 — the enemy's superweapon went up.
+    for (i = 0; i < g.blds.length; i++) {
+      b = g.blds[i];
+      if (b.dead || b.p !== P_AI || b.make > 0) continue;
+      if (SW_DETECT[b.type] && !ev.sw[b.type]) { ev.sw[b.type] = 1; eva(SW_DETECT[b.type], 30000); mmPing(g, b.cx, b.cy); }
+    }
+
+    // #96 / #98 / #99 — the enemy has massed something worth naming. Edge
+    // tested on the threshold so a battalion that loses one tank and builds
+    // it again does not re-announce itself.
+    var ea = countCls(g, P_AI, 'a', true), evh = countCls(g, P_AI, 'v', false), ei = countCls(g, P_AI, 'i', true);
+    if (ea >= 5 && !ev.air) eva('Enemy air armada detected', 60000);
+    ev.air = ea >= 4;
+    if (evh >= 8 && !ev.armour) eva('Armor battallian detected', 60000);
+    ev.armour = evh >= 6;
+    if (ei >= 12 && !ev.inf) eva('Enemy infantry battalion detected', 60000);
+    ev.inf = ei >= 9;
+
+    // #86 / #109 — a miner with nowhere to unload is a stopped economy.
+    var minerOff = countUnit(g, P_HUMAN, 'harvester') > 0 && !hasBld(g, P_HUMAN, 'refinery');
+    if (minerOff && !ev.minerOff) {
+      eva(facOf(g, P_HUMAN) === 'dir' ? 'Chrono miner offline' : 'Ore miner offline', 30000);
+      say('Miners have nowhere to unload — build a Refinery', true, 300);
+    }
+    ev.minerOff = minerOff;
+
+    // #74 NewTechnologyAcquired — the Battle Lab opens the top of the tree.
+    if (!ev.lab && hasBld(g, P_HUMAN, 'lab')) { ev.lab = true; eva('New technology acquired', 10000); }
+  }
+
+  // The opening position, honouring the skirmish strip. RA2's "Bases" off
+  // gives you the MCV instead of the yard it would unfold into; "Units" is
+  // the guard that starts beside it (0-10, three by default, which is what
+  // the game always gave).
+  function openingForce(g, p) {
+    var st = g.start[p], sp, i;
+    if (g.opt.bases) placeBld(g, 'base', p, st.x - 1, st.y - 1);
+    else { sp = freeTileNear(g, st.x, st.y); if (sp) spawnUnit(g, 'mcv', p, sp.x, sp.y); }
+    for (i = 0; i < 2; i++) {
+      sp = freeTileNear(g, st.x + (p ? -3 : 3), st.y + (p ? -3 : 3) + i);
+      if (sp) spawnUnit(g, 'harvester', p, sp.x, sp.y);
+    }
+    var opener = FACTIONS[g.side[p].fac].inf;
+    for (i = 0; i < g.opt.units; i++) {
+      sp = freeTileNear(g, st.x + (p ? -4 : 4) + (i % 5), st.y + (p ? -1 : 1) + ((i / 5) | 0));
+      if (sp) spawnUnit(g, opener, p, sp.x, sp.y);
+    }
   }
 
   function economyDead(g, p) {
@@ -19030,6 +19352,154 @@
   //  Audio — synthesised, no files. Mirrors circuit.html's mute convention.
   // --------------------------------------------------------------------- //
   var AC = null, master = null, soundOn = lsGet('vibetop:rts:sound') !== '0';
+  // ------------------------------------------------------------------- //
+  //  Save / load.
+  //
+  //  `G` is plain data — no DOM, no closures — but it is not JSON: it holds
+  //  eight typed arrays and a graph of entities that reference each other
+  //  (u.target, b.occ[], ai.army[], pathQ[].u, g.byId). So the format is
+  //  JSON with two escapes, and nothing else:
+  //
+  //    {$t:"<ctor>", b:"<base64>"}   a typed array, byte for byte
+  //    {$r:<id>}                     "the entity with this id"
+  //
+  //  Entities are emitted once each, inside g.units / g.blds; every other
+  //  sighting of one is an $r marker resolved against a rebuilt byId on the
+  //  way in. The seeded RNG's whole state is one integer (_seed) and the
+  //  pathfinder's backlog is pathQ, so both ride along and a loaded match
+  //  replays tick for tick with the one it was saved from — which is what
+  //  rts.test.js asserts by stepping both 1000 ticks and comparing hashes.
+  // ------------------------------------------------------------------- //
+  var SAVE_SLOTS = 3, SAVE_VER = 1;
+  var TA = { Uint8Array: Uint8Array, Int8Array: Int8Array, Int16Array: Int16Array,
+             Int32Array: Int32Array, Float32Array: Float32Array };
+  function b64enc(ta) {
+    var u = new Uint8Array(ta.buffer, ta.byteOffset, ta.byteLength), out = '', i, CH = 0x8000;
+    for (i = 0; i < u.length; i += CH) out += String.fromCharCode.apply(null, u.subarray(i, i + CH));
+    return btoa(out);
+  }
+  function b64dec(name, str) {
+    var bin = atob(str), u = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return new TA[name](u.buffer, 0, u.byteLength / TA[name].BYTES_PER_ELEMENT);
+  }
+  function isEnt(v) { return !!(v && (v.kind === 'u' || v.kind === 'b') && typeof v.id === 'number'); }
+  // `skip` names own keys of THIS object to leave out — used once, at the
+  // top, to stop g.units/g.blds serialising as arrays of $r markers pointing
+  // at themselves. serialiseGame writes them back as full entities.
+  function ser(v, skip) {
+    if (v === null || v === undefined) return null;
+    var t = typeof v;
+    if (t === 'number') return isFinite(v) ? v : 0;
+    if (t !== 'object') return t === 'function' ? null : v;
+    if (ArrayBuffer.isView(v)) return { $t: v.constructor.name, b: b64enc(v) };
+    if (Array.isArray(v)) { var a = [], i; for (i = 0; i < v.length; i++) a.push(ser(v[i])); return a; }
+    if (isEnt(v)) return { $r: v.id };
+    var o = {}, k;
+    for (k in v) if (Object.prototype.hasOwnProperty.call(v, k)) {
+      if (k === 'byId' || (skip && skip[k])) continue;
+      var sv = ser(v[k]);
+      if (sv !== null || v[k] === null) o[k] = sv;
+    }
+    return o;
+  }
+  function deser(v) {
+    if (v === null || typeof v !== 'object') return v;
+    if (Array.isArray(v)) { var a = [], i; for (i = 0; i < v.length; i++) a.push(deser(v[i])); return a; }
+    if (v.$t && TA[v.$t]) return b64dec(v.$t, v.b);
+    var o = {}, k;
+    for (k in v) if (Object.prototype.hasOwnProperty.call(v, k)) o[k] = deser(v[k]);
+    return o;
+  }
+  // Second pass: swap every {$r:id} for the live entity. Walks in place so a
+  // deep field (ai.army[3], pathQ[0].u, b.occ[1]) is resolved wherever it is.
+  function resolveRefs(v, byId, seen) {
+    if (!v || typeof v !== 'object' || ArrayBuffer.isView(v)) return;
+    if (seen.indexOf(v) >= 0) return;
+    seen.push(v);
+    var k, c;
+    if (Array.isArray(v)) {
+      for (k = 0; k < v.length; k++) {
+        c = v[k];
+        if (c && typeof c === 'object' && c.$r !== undefined) v[k] = byId[c.$r] || null;
+        else resolveRefs(c, byId, seen);
+      }
+      return;
+    }
+    for (k in v) if (Object.prototype.hasOwnProperty.call(v, k)) {
+      c = v[k];
+      if (c && typeof c === 'object' && c.$r !== undefined) v[k] = byId[c.$r] || null;
+      else resolveRefs(c, byId, seen);
+    }
+  }
+  function serialiseGame(g) {
+    return {
+      v: SAVE_VER, at: Date.now(), tick: g.tick, seed: _seed,
+      map: g.mapId, mapName: (MAPS[g.mapId] || MAPS.frontier).name,
+      fac: g.side[P_HUMAN].fac, diff: g.diff, opt: g.opt,
+      g: serWorld(g), pq: pathQ.map(function (r) { return { u: { $r: r.u.id }, tx: r.tx, ty: r.ty }; })
+    };
+  }
+  // The one place entities are written out in full; everywhere else in the
+  // blob they are {$r:id}.
+  function serEnt(e) {
+    var o = {}, k;
+    for (k in e) if (Object.prototype.hasOwnProperty.call(e, k)) {
+      var sv = ser(e[k]);
+      if (sv !== null || e[k] === null) o[k] = sv;
+    }
+    return o;
+  }
+  function serWorld(g) {
+    var o = ser(g, { units: 1, blds: 1 });
+    o.units = g.units.map(serEnt);
+    o.blds = g.blds.map(serEnt);
+    return o;
+  }
+  function restoreGame(blob) {
+    var g = deser(blob.g), i;
+    g.byId = {};
+    for (i = 0; i < g.units.length; i++) g.byId[g.units[i].id] = g.units[i];
+    for (i = 0; i < g.blds.length; i++) g.byId[g.blds[i].id] = g.blds[i];
+    var pq = deser(blob.pq || []);
+    resolveRefs(g, g.byId, []);
+    resolveRefs(pq, g.byId, []);
+    srand(blob.seed >>> 0);
+    pathQ.length = 0;
+    for (i = 0; i < pq.length; i++) if (pq[i].u && !pq[i].u.dead) pathQ.push(pq[i]);
+    hashAt = -1;                            // the spatial index is derived; rebuilt on the next tick
+    return g;
+  }
+  function saveKey(n) { return 'vibetop:rts:save:' + n; }
+  function saveSlots() {
+    var out = [];
+    for (var n = 1; n <= SAVE_SLOTS; n++) {
+      var raw = lsGet(saveKey(n)), meta = null;
+      if (raw) { try { var b = JSON.parse(raw); meta = { at: b.at, map: b.mapName, tick: b.tick, fac: b.fac, diff: b.diff }; } catch (e) { meta = null; } }
+      out.push(meta);
+    }
+    return out;
+  }
+  function saveGame(n) {
+    if (!G) return false;
+    try { lsSet(saveKey(n), JSON.stringify(serialiseGame(G))); } catch (e) { return false; }
+    return !!lsGet(saveKey(n));
+  }
+  function loadGame(n) {
+    var raw = lsGet(saveKey(n));
+    if (!raw) return false;
+    var blob;
+    try { blob = JSON.parse(raw); } catch (e) { return false; }
+    if (blob.v !== SAVE_VER) return false;
+    var g;
+    try { g = restoreGame(blob); } catch (e) { return false; }
+    G = g;
+    difficulty = g.diff; faction = g.side[P_HUMAN].fac; mapId = g.mapId;
+    opts = normOpts(g.opt);
+    applyHouse(opts.colour, opts.aiColour);
+    return true;
+  }
+
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
@@ -19070,12 +19540,18 @@
   var sfxAt = {};
   // EVA: spoken announcements like RA2's advisor, via the browser's speech
   // synthesis. Throttled per line so a hot fight does not chant.
-  var evaAt = {}, evaVoice = null;
+  var evaAt = {}, evaVoice = null, evaLog = [];
+  // RA2 throttles the advisor in game FRAMES, not wall clock — at a faster
+  // game speed the same event still gets the same number of ticks of quiet.
+  // So the clock is the match's while there is one, and the wall's on the
+  // menu (where there are no ticks to count).
+  function evaNow() { return G ? G.tick * (1000 / 60) : performance.now(); }
   function eva(line, gap) {
-    if (headless || !soundOn || typeof speechSynthesis === 'undefined') return;
-    var now = performance.now();
-    if (evaAt[line] && now - evaAt[line] < (gap || 6000)) return;
+    var now = evaNow();
+    if (evaAt[line] !== undefined && now - evaAt[line] < (gap || 6000) && now >= evaAt[line]) return false;
     evaAt[line] = now;
+    evaLog.push(line); if (evaLog.length > 64) evaLog.shift();
+    if (headless || !soundOn || typeof speechSynthesis === 'undefined') return true;
     try {
       if (!evaVoice) {
         var vs = speechSynthesis.getVoices();
@@ -19087,6 +19563,7 @@
       if (evaVoice) u.voice = evaVoice;
       speechSynthesis.speak(u);
     } catch (e) {}
+    return true;
   }
 
   // Units talk back when ordered, like RA2's acknowledgement lines. One line
@@ -19286,6 +19763,7 @@
     }
   }
   function clearEva() {
+    evaAt = {}; evaLog = [];
     for (var i = 0; i < evLines.length; i++) if (evLines[i].el.parentNode) evLines[i].el.parentNode.removeChild(evLines[i].el);
     evLines = [];
   }
@@ -19335,6 +19813,7 @@
     if (!st || !st.ready) { say(SW[key].name + ' is still charging', true); sfx('no'); return; }
     if (placing) { placing = null; wallDrag = null; cv.classList.remove('placing'); }
     swMode = { key: key, stage: 0, x: 0, y: 0 };
+    eva('Select target', 4000);                                   // eva.ini #65
     pickCursor();
     say(SW[key].hint, false, 500);
     sfx('click'); refreshSW();
@@ -20047,6 +20526,26 @@
       say('Self-destructed ' + dl.length + ' ' + (dl.length === 1 ? 'object' : 'objects'), true);
       return;
     }
+    // keyboard.ini SidebarUp/SidebarDown: PageUp/PageDown scroll the build
+    // list, Home/End jump to its ends. The arrows are the camera here (they
+    // are in RA2 too), so the page keys are the ones that reach the sidebar.
+    if (/^(PageUp|PageDown|Home|End)$/.test(e.key) && (state === 'play' || state === 'paused')) {
+      var pl = document.getElementById('plist');
+      if (pl) {
+        e.preventDefault();
+        var page = Math.max(60, pl.clientHeight - 24);
+        if (e.key === 'PageUp') pl.scrollTop -= page;
+        else if (e.key === 'PageDown') pl.scrollTop += page;
+        else if (e.key === 'Home') pl.scrollTop = 0;
+        else pl.scrollTop = pl.scrollHeight;
+        return;
+      }
+    }
+    // keyboard.ini ScreenCapture=579 (Ctrl+C). RA2 wrote a .pcx beside the
+    // game; the browser equivalent is to hand the canvas over as a PNG.
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') && !e.shiftKey) {
+      e.preventDefault(); screenCapture(); return;
+    }
     // keyboard.ini View1..4=112..115 (F1-F4), SetView1..4=624..627 (Ctrl+F1-F4).
     if (/^F[1-4]$/.test(e.key) && G) {
       e.preventDefault();
@@ -20418,6 +20917,7 @@
           say('Construction Yard deployed'); sfx('place');
           eva('Construction complete', 3000); unitAck(mcvs, 'deploy');
         } else {
+          eva('Cannot deploy here', 4000);                       // eva.ini #63
           say('Cannot deploy here — the MCV needs a clear 3x3 of open ground', true); sfx('no');
         }
         refreshCmdbar();
@@ -20565,7 +21065,8 @@
         // rules.ini `Unsellable=yes` / `ClickRepairable=no`: a captured tech
         // building or a held city block is neither sold nor patched up.
         if (BLDS[e.type].neut && cmdMode !== 'power') {
-          say(bspecOf(G, e.type, e.p).name + ' is not yours to sell or repair — it came with the map', true); sfx('no');
+          say(bspecOf(G, e.type, e.p).name + ' is not yours to sell or repair — it came with the map', true);
+          eva('Unable to comply', 5000); sfx('no');               // eva.ini #47
         }
         else if (cmdMode === 'sell') { if (e.type === 'base' && countBld(G, P_HUMAN, 'base') < 2) say('Cannot sell your only Construction Yard', true); else sellBld(e); }
         else if (cmdMode === 'power') {
@@ -20573,10 +21074,15 @@
           // power and stops working. Cheap way to ride out a brown-out.
           e.offline = !e.offline;
           recalcPower(G, e.p);
+          eva(e.offline ? 'Building offline' : 'Building online', 3000);   // eva.ini #60 / #61
           say((e.offline ? 'Powered down ' : 'Powered up ') + bspecOf(G, e.type, e.p).name); sfx('click');
         }
         else if (BLDS[e.type].norep) { say(BLDS[e.type].name + ' cannot be repaired — build a new segment', true); sfx('no'); }
-        else { e.repair = !e.repair; say(e.repair ? 'Repairing ' + BLDS[e.type].name : 'Repair stopped'); sfx('click'); }
+        else {
+          e.repair = !e.repair;
+          if (e.repair) eva('Repairing', 4000);                   // eva.ini #57
+          say(e.repair ? 'Repairing ' + BLDS[e.type].name : 'Repair stopped'); sfx('click');
+        }
       } else say('Click one of your structures', true);
       return;
     }
@@ -20782,10 +21288,12 @@
         say(bsel.some(function (b) { return b.type === 'airforce'; })
             ? 'Aircraft return to their pads — an Airforce Command takes no rally point'
             : 'Only the Barracks and War Factory take a rally point', true);
+        eva('Unable to comply', 5000);                            // eva.ini #47
         sfx('no');
         return;
       }
       prod.forEach(function (b) { b.rally = makeRally(b, gx, gy); });
+      eva('New rally point established', 4000);                   // eva.ini #100
       say(prod.length > 1 ? 'Rally point set for ' + prod.length + ' buildings'
                           : 'Rally point set — new units will head there');
       sfx('click');
@@ -23138,9 +23646,12 @@
   // file) and painted at 2px a tile in the theatre's own palette, with the
   // two mirrored starts marked. Six 64x64 generations, once, at first open.
   var THUMB_SEED = 0x1f0e5a3b, THUMB_PX = 2, THUMB_W = MAP * THUMB_PX;
-  var thumbCache = {};
-  function mapThumb(k) {
-    if (thumbCache[k]) return thumbCache[k];
+  // Two caches, because they age differently: the ground plate costs a whole
+  // map generation and never changes, while the two spawn dots are painted in
+  // the house colours and have to follow the colour picker.
+  var thumbPlate = {}, thumbDots = {}, thumbStart = {};
+  function mapPlate(k) {
+    if (thumbPlate[k]) return thumbPlate[k];
     var o = mkCanvas(THUMB_W, THUMB_W), g = o.g;
     g.fillStyle = '#0b0e14'; g.fillRect(0, 0, THUMB_W, THUMB_W);
     try {
@@ -23149,15 +23660,26 @@
         g.fillStyle = terrCol(st.terrain[idx(x, y)], st.theatre);
         g.fillRect(x * THUMB_PX, y * THUMB_PX, THUMB_PX, THUMB_PX);
       }
-      for (var i = 0; i < st.start.length; i++) {
-        var sp = st.start[i], px = sp.x * THUMB_PX, py = sp.y * THUMB_PX;
+      thumbStart[k] = st.start.map(function (sp) { return { x: sp.x, y: sp.y }; });
+    } catch (e) { thumbStart[k] = []; }
+    thumbPlate[k] = o.c;
+    return o.c;
+  }
+  function mapThumb(k) {
+    if (thumbDots[k]) return thumbDots[k];
+    var plate = mapPlate(k), o = mkCanvas(THUMB_W, THUMB_W), g = o.g;
+    try {
+      g.drawImage(plate, 0, 0, THUMB_W, THUMB_W);
+      var st = thumbStart[k] || [];
+      for (var i = 0; i < st.length; i++) {
+        var px = st[i].x * THUMB_PX, py = st[i].y * THUMB_PX;
         g.fillStyle = 'rgba(0,0,0,.6)';
         g.beginPath(); g.arc(px, py, 4.6, 0, 6.2832); g.fill();
         g.fillStyle = COL[i];
         g.beginPath(); g.arc(px, py, 3.1, 0, 6.2832); g.fill();
       }
     } catch (e) {}
-    thumbCache[k] = o.c;
+    thumbDots[k] = o.c;
     return o.c;
   }
 
@@ -23182,6 +23704,7 @@
     Object.keys(mapBtns).forEach(function (k) { mapBtns[k].className = mapId === k ? 'on' : ''; });
   }
   var scoresEl = document.getElementById('scores');
+  var scoreCard = document.getElementById('scoreCard');
   var hv = document.getElementById('hv'), lv = document.getElementById('lv');
   var sess = null;
   var onA = null, onB = null;
@@ -23197,8 +23720,10 @@
     facRow.style.display = showDiff ? 'grid' : 'none';
     diffWrap.style.display = showDiff ? 'flex' : 'none';
     mapWrap.style.display = showDiff ? 'block' : 'none';
-    if (showDiff) { buildFacRow(); buildDiffRow(); buildMapRow(); }
+    setWrap.style.display = showDiff ? 'block' : 'none';
+    if (showDiff) { buildFacRow(); buildDiffRow(); buildMapRow(); buildSetRows(); }
     scoresEl.style.display = showScores ? 'block' : 'none';
+    if (!showScores) scoreCard.hidden = true;
     if (optCard) optCard.style.display = 'none';
     ov.classList.add('show');
   }
@@ -23212,6 +23737,8 @@
   var optCard = document.getElementById('optCard');
   var sndRow = document.getElementById('sndRow'), scrRow = document.getElementById('scrRow');
   var gameRow = document.getElementById('gameRow');
+  var slotList = document.getElementById('slotList');
+  var gspdSl = document.getElementById('gspdSl'), gspdVal = document.getElementById('gspdVal');
   var optOpen = false;
 
   function optButtons(row, list, isOn, onPick) {
@@ -23241,12 +23768,89 @@
       optOpen = false; optCard.style.display = 'none'; hideCard();
       startMatch();
     });
+    // RA2 puts the speed slider in the Options card, and it takes effect on
+    // the running match — G.opt is what the loop reads.
+    var sp = G && G.opt ? G.opt.speed : opts.speed;
+    gspdSl.value = sp; gspdVal.textContent = SPD_NAME[sp];
+    // The card doubles as the front menu's Load screen, where "Restart" and
+    // a live speed slider mean nothing.
+    var inMatch = state === 'play' || state === 'paused';
+    gspdSl.parentNode.parentNode.style.display = inMatch ? 'flex' : 'none';
+    gameRow.parentNode.style.display = inMatch ? 'flex' : 'none';
+    buildSlotRows();
   }
+  function ago(ms) {
+    var d = Math.max(0, Date.now() - ms) / 1000;
+    if (d < 90) return 'just now';
+    if (d < 5400) return Math.round(d / 60) + ' min ago';
+    if (d < 108000) return Math.round(d / 3600) + ' h ago';
+    return Math.round(d / 86400) + ' d ago';
+  }
+  function buildSlotRows() {
+    var metas = saveSlots();
+    slotList.innerHTML = '';
+    metas.forEach(function (m, i) {
+      var n = i + 1, row = document.createElement('div');
+      row.className = 'gslot';
+      var nm = document.createElement('span');
+      nm.className = 'sname';
+      nm.innerHTML = m
+        ? '<b>' + n + '</b> · ' + m.map + ' · ' + mmss(Math.floor(m.tick / 60)) + ' · ' + ago(m.at)
+        : '<b>' + n + '</b> · <i>empty</i>';
+      row.appendChild(nm);
+      var sv = document.createElement('button');
+      sv.textContent = 'Save';
+      sv.disabled = !G || (state !== 'play' && state !== 'paused');   // nothing to save from the shell
+      sv.addEventListener('click', function () {
+        if (saveGame(n)) { say('Saved to slot ' + n); sfx('click'); } else say('Could not save — storage is full', true);
+        buildSlotRows();
+      });
+      row.appendChild(sv);
+      var ld = document.createElement('button');
+      ld.textContent = 'Load'; ld.disabled = !m;
+      ld.addEventListener('click', function () {
+        if (!loadGame(n)) { say('That save could not be read', true); buildSlotRows(); return; }
+        enterLoaded(n);
+      });
+      row.appendChild(ld);
+      slotList.appendChild(row);
+    });
+  }
+  // Everything startMatch does that is NOT the match: a loaded G brings its
+  // own units and its own tick, but the selection, the camera, the sidebar
+  // and the announcement rail all belong to the session and have to be reset.
+  function enterLoaded(n) {
+    optOpen = false; optCard.style.display = 'none'; hideCard();
+    G.debug = !!G.debug;
+    state = 'play';
+    pauseBtn.textContent = '⏸';
+    pausedEl.classList.remove('show');
+    sel = []; groups = {}; placing = null; swMode = null;
+    cmdMode = null; refreshCmdbar(); pickCursor();
+    cv.classList.remove('placing');
+    shownCred = 0; lastReady = null; toldRefinery = false; lastPowerWarn = 0;
+    sess = window.vibeScores ? window.vibeScores.session() : null;
+    centerOn(G.start[P_HUMAN].x, G.start[P_HUMAN].y);
+    panel = 'b';
+    document.querySelectorAll('.ptab div').forEach(function (o, i) { o.classList.toggle('on', i === 0); });
+    if (sideEl) sideEl.style.setProperty('--acc', COL[P_HUMAN]);
+    clearEva();
+    buildFacRow(); buildMapRow(); buildDiffRow();
+    buildPanel(); refreshSW();
+    say('Slot ' + n + ' restored — ' + (MAPS[G.mapId] || MAPS.frontier).name + ' at ' + mmss(Math.floor(G.tick / 60)), false, 320);
+    eva('Battlefield control online', 30000);
+  }
+  gspdSl.addEventListener('input', function () {
+    var v = Math.max(1, Math.min(6, gspdSl.value | 0));
+    gspdVal.textContent = SPD_NAME[v];
+    opts.speed = v; saveOpts();
+    if (G && G.opt) G.opt.speed = v;
+  });
   function showOptions() {
     if (state === 'play') togglePause(true);
     optOpen = true;
     onA = function () { closeOptions(); };
-    onB = function () { optOpen = false; hideCard(); menu(); };
+    onB = function () { optOpen = false; hideCard(); eva('Battle control terminated', 3000); menu(); };
     showCard('\u2699\ufe0f', 'Options', 'The match is paused.', 'Resume', 'Abort to menu', false, false);
     optCard.style.display = 'block';
     buildOptRows();
@@ -23291,6 +23895,110 @@
     // As in RA2, the setup screen takes the colour of the side you picked.
     ov.classList.toggle('col', faction === 'col');
   }
+
+  // ------------------------------------------------------------------- //
+  //  The skirmish settings strip (RA2's setup options), shut by default.
+  //  `opts` is the live UI copy; startMatch freezes it into `G.opt`, which is
+  //  what the sim actually reads, so a running match cannot be re-tuned from
+  //  under itself.
+  // ------------------------------------------------------------------- //
+  var opts = normOpts(null);
+  function loadOpts() {
+    var raw = lsGet('vibetop:rts:opts');
+    if (raw) { try { opts = normOpts(JSON.parse(raw)); } catch (e) { opts = normOpts(null); } }
+    applyHouse(opts.colour, opts.aiColour);
+  }
+  function saveOpts() { lsSet('vibetop:rts:opts', JSON.stringify(opts)); }
+
+  var setTog = document.getElementById('setTog'), setGrid = document.getElementById('setGrid');
+  var setSum = document.getElementById('setSum'), setWrap = document.getElementById('setWrap');
+  var hueRow = document.getElementById('hueRow'), credRow = document.getElementById('credRow');
+  var unitSl = document.getElementById('unitSl'), unitVal = document.getElementById('unitVal');
+  var spdSl = document.getElementById('spdSl'), spdVal = document.getElementById('spdVal');
+  var baseRow = document.getElementById('baseRow'), shortRow = document.getElementById('shortRow');
+  var crateRow = document.getElementById('crateRow'), swRow = document.getElementById('swRow');
+  var SPD_NAME = ['', 'Slowest', 'Slow', 'Moderate', 'Fast', 'Faster', 'Fastest'];
+
+  // One line that says what is NOT default, so a shut drawer never hides a
+  // changed rule. All-default reads "Standard rules".
+  function optSummary() {
+    var d = [];
+    if (opts.credits !== OPT_DEF.credits) d.push('$' + opts.credits.toLocaleString('en-US'));
+    if (opts.units !== OPT_DEF.units) d.push(opts.units + ' unit' + (opts.units === 1 ? '' : 's'));
+    if (!opts.bases) d.push('no bases');
+    if (!opts.short) d.push('long game');
+    if (!opts.crates) d.push('no crates');
+    if (!opts.supers) d.push('no superweapons');
+    if (opts.speed !== OPT_DEF.speed) d.push(SPD_NAME[opts.speed].toLowerCase());
+    return d.length ? d.join(' · ') : 'Standard rules';
+  }
+  function onOff(row, get, set) {
+    optButtons(row, [[1, 'On'], [0, 'Off']], function (k) { return !!k === !!get(); },
+      function (k) { set(!!k); saveOpts(); buildSetRows(); });
+  }
+  var hueBtns = null;
+  function buildHueRow() {
+    if (!hueBtns) {
+      hueBtns = [];
+      hueRow.innerHTML = '';
+      HOUSE.forEach(function (h, i) {
+        var b = document.createElement('button');
+        b.setAttribute('style', '--h:' + h.c);
+        b.setAttribute('aria-label', h.name);
+        b.addEventListener('click', function () {
+          if (i === opts.aiColour) return;                  // the opponent already wears it
+          opts.colour = i; opts.aiColour = aiHouse(i);
+          saveOpts();
+          buildSetRows();                                   // the swatch lights up FIRST...
+          if (COL[P_HUMAN] === HOUSE[i].c) return;
+          // ...because re-painting every owner-coloured sprite is ~1.6s of
+          // synchronous canvas work, and a click that freezes with no
+          // acknowledgement reads as a dead button. Two frames of grace let
+          // the selection and the notice paint before the bake blocks.
+          setSum.textContent = 'Repainting the army\u2026';
+          hueRow.className = 'huerow wide busy';
+          requestAnimationFrame(function () { requestAnimationFrame(function () {
+            applyHouse(opts.colour, opts.aiColour);
+            facBtns = null; mapBtns = null;
+            hueRow.className = 'huerow wide';
+            buildSetRows(); buildFacRow(); buildMapRow();
+          }); });
+        });
+        hueRow.appendChild(b); hueBtns.push(b);
+      });
+    }
+    hueBtns.forEach(function (b, i) {
+      b.className = i === opts.colour ? 'on' : (i === opts.aiColour ? 'ai' : '');
+      b.title = HOUSE[i].name + (i === opts.aiColour ? ' — the opponent\u2019s colour' : '');
+    });
+  }
+  function buildSetRows() {
+    buildHueRow();
+    optButtons(credRow, [[5000, '$5,000'], [10000, '$10,000'], [20000, '$20,000']],
+      function (k) { return k === opts.credits; },
+      function (k) { opts.credits = k; saveOpts(); buildSetRows(); });
+    unitSl.value = opts.units; unitVal.textContent = opts.units;
+    spdSl.value = opts.speed; spdVal.textContent = SPD_NAME[opts.speed];
+    onOff(baseRow, function () { return opts.bases; }, function (v) { opts.bases = v; });
+    onOff(shortRow, function () { return opts.short; }, function (v) { opts.short = v; });
+    onOff(crateRow, function () { return opts.crates; }, function (v) { opts.crates = v; });
+    onOff(swRow, function () { return opts.supers; }, function (v) { opts.supers = v; });
+    setSum.textContent = optSummary();
+  }
+  unitSl.addEventListener('input', function () {
+    opts.units = Math.max(0, Math.min(10, unitSl.value | 0));
+    unitVal.textContent = opts.units; setSum.textContent = optSummary(); saveOpts();
+  });
+  spdSl.addEventListener('input', function () {
+    opts.speed = Math.max(1, Math.min(6, spdSl.value | 0));
+    spdVal.textContent = SPD_NAME[opts.speed]; setSum.textContent = optSummary(); saveOpts();
+  });
+  setTog.addEventListener('click', function () {
+    var open = setGrid.hidden;
+    setGrid.hidden = !open;
+    setTog.classList.toggle('open', open);
+    setTog.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
 
   var diffBtns = null;
   function buildDiffRow() {
@@ -23383,7 +24091,7 @@
       // New goes back to the front menu (side / difficulty / map), never
       // straight into another match; one confirm so a stray click cannot
       // throw away a game.
-      onA = function () { hideCard(); menu(); };
+      onA = function () { hideCard(); eva('Battle control terminated', 3000); menu(); };
       onB = function () { hideCard(); if (state === 'paused') togglePause(); };
       showCard('🔄', 'Back to the menu?', 'This abandons the current match.', 'Back to menu', 'Keep playing', false, false);
       return;
@@ -23391,19 +24099,32 @@
     menu();
   });
 
+  // The front menu offers Load only when there IS something to load — an
+  // always-present dead button is exactly the clutter the card avoids.
+  function showLoadCard() {
+    optOpen = true;
+    onA = function () { optOpen = false; optCard.style.display = 'none'; hideCard(); menu(); };
+    onB = null;
+    showCard('\ud83d\udcbe', 'Load a saved game', 'Pick a slot.', 'Back', null, false, false);
+    optCard.style.display = 'block';
+    buildOptRows();
+  }
+
   function menu() {
     state = 'menu';
     onA = function () { hideCard(); startMatch(); };
-    onB = null;
+    var hasSave = saveSlots().some(function (m) { return !!m; });
+    onB = hasSave ? function () { hideCard(); showLoadCard(); } : null;
     // Nothing explanatory: the sides are pictures and the maps are previews.
     // ovIc/ovT/ovP are hidden by `.card.menu` but still set, so the card has
     // a title for assistive tech and the shared showCard signature is intact.
-    showCard('', 'Iron Frontier', '', 'Start Game', null, true, false);
+    showCard('', 'Iron Frontier', '', 'Start Game', hasSave ? 'Load saved game' : null, true, false);
   }
 
   function startMatch() {
     var seed = (Date.now() ^ (performance.now() * 1000)) >>> 0;
-    G = newState(seed, difficulty, mapId);
+    applyHouse(opts.colour, opts.aiColour);
+    G = newState(seed, difficulty, mapId, opts);
     G.debug = debugMode;
     if (debugMode) setTimeout(function () { say('Debug mode — instant build, unlimited credits, full map, 10× units; this game is not scored'); }, 400);
     G.side[P_HUMAN].fac = faction;
@@ -23423,27 +24144,15 @@
 
     // Opening position: a yard, two harvesters, a small guard — enough to do
     // something in the first ten seconds instead of watching a build bar.
-    [P_HUMAN, P_AI].forEach(function (p) {
-      var s = G.start[p];
-      placeBld(G, 'base', p, s.x - 1, s.y - 1);
-      var sp;
-      for (var i = 0; i < 2; i++) {
-        sp = freeTileNear(G, s.x + (p ? -3 : 3), s.y + (p ? -3 : 3) + i);
-        if (sp) spawnUnit(G, 'harvester', p, sp.x, sp.y);
-      }
-      var opener = FACTIONS[G.side[p].fac].inf;
-      for (var j = 0; j < 3; j++) {
-        sp = freeTileNear(G, s.x + (p ? -4 : 4) + j, s.y + (p ? -1 : 1));
-        if (sp) spawnUnit(G, opener, p, sp.x, sp.y);
-      }
-    });
+    [P_HUMAN, P_AI].forEach(function (p) { openingForce(G, p); });
 
     centerOn(G.start[P_HUMAN].x, G.start[P_HUMAN].y);
     panel = 'b';
     document.querySelectorAll('.ptab div').forEach(function (o, i) { o.classList.toggle('on', i === 0); });
     // The sidebar takes the player's house colour, as RA2's does.
-    if (sideEl) sideEl.style.setProperty('--acc', faction === 'col' ? '#e5646c' : '#4aa3db');
+    if (sideEl) sideEl.style.setProperty('--acc', COL[P_HUMAN]);
     clearEva();
+    eva('Battlefield control online', 30000);                     // eva.ini #120
     buildPanel();
     say('Left-drag to select · Right-click to move or attack · Right-drag to pan when nothing is selected', false, 420);
     say(FACTIONS[faction].name + ' vs ' + FACTIONS[G.side[P_AI].fac].name +
@@ -23451,6 +24160,64 @@
   }
 
   function mmss(v) { return Math.floor(v / 60) + ':' + ('0' + (v % 60)).slice(-2); }
+
+  // ------------------------------------------------------------------- //
+  //  RA2's score screen.
+  //
+  //  The three percentages are APPROXIMATIONS of RA2's, not the shipped
+  //  formula — Westwood's exact weights are not in any .ini we can read, so
+  //  these are reconstructed from what the columns plainly measure:
+  //    Leadership  what you killed against what you lost (units + structures)
+  //    Economy     ore actually banked against a healthy two-refinery rate
+  //                (~1400 credits a minute), capped at 100
+  //    Technology  how far up your own faction's tree you climbed, as the
+  //                fraction of it that was unlocked when the match ended
+  //  Everything to the left of them is a raw count and is exact.
+  // ------------------------------------------------------------------- //
+  function techTotal(g, p) {
+    var s = g.side[p], n = 0, k, d;
+    for (k in BLDS) { d = BLDS[k]; if (!d.neut && !d.wall && !d.gate && ownedBy(d, s.fac)) n++; }
+    for (k in UNITS) { d = UNITS[k]; if (ownedBy(d, s.fac)) n++; }
+    return n || 1;
+  }
+  function scoreOf(g, p) {
+    var s = g.side[p], mins = Math.max(1, g.tick / 3600);
+    var kills = s.killed + s.bkilled, losses = s.lost + s.blost;
+    return {
+      bmade: s.bmade, blost: s.blost, made: s.made, lost: s.lost, killed: s.killed,
+      bkilled: s.bkilled, harv: Math.round(s.harv),
+      lead: Math.round(100 * kills / Math.max(1, kills + losses)),
+      econ: Math.round(100 * Math.min(1, s.harv / (mins * 1400))),
+      tech: Math.round(100 * techCount(g, p) / techTotal(g, p))
+    };
+  }
+  var SCORE_ROWS = [
+    ['Structures built', 'bmade'], ['Structures lost', 'blost'], ['Structures destroyed', 'bkilled'],
+    ['Units built', 'made'], ['Units lost', 'lost'], ['Units destroyed', 'killed'],
+    ['Ore harvested', 'harv', true]
+  ];
+  function buildScoreCard(won) {
+    var a = scoreOf(G, P_HUMAN), b = scoreOf(G, P_AI), h = '';
+    var nm = [FACTIONS[G.side[P_HUMAN].fac].name, FACTIONS[G.side[P_AI].fac].name];
+    h += '<thead><tr><th class="rl">' + mmss(Math.floor(G.tick / 60)) + '</th>';
+    h += '<th style="--h:' + COL[P_HUMAN] + '"><span><i></i>' + nm[0] + '</span></th>';
+    h += '<th style="--h:' + COL[P_AI] + '"><span><i></i>' + nm[1] + '</span></th></tr></thead><tbody>';
+    SCORE_ROWS.forEach(function (r) {
+      var va = a[r[1]], vb = b[r[1]];
+      var f = function (v) { return r[2] ? '$' + v.toLocaleString('en-US') : String(v); };
+      h += '<tr><th class="rl">' + r[0] + '</th>' +
+           '<td class="' + (va > vb ? 'win' : '') + '">' + f(va) + '</td>' +
+           '<td class="' + (vb > va ? 'win' : '') + '">' + f(vb) + '</td></tr>';
+    });
+    [['Leadership', 'lead'], ['Economy', 'econ'], ['Technology', 'tech']].forEach(function (r, i) {
+      h += '<tr class="pct' + (i === 0 ? ' rule' : '') + '"><th class="rl">' + r[0] + '</th>' +
+           '<td class="' + (a[r[1]] > b[r[1]] ? 'win' : '') + '">' + a[r[1]] + '%</td>' +
+           '<td class="' + (b[r[1]] > a[r[1]] ? 'win' : '') + '">' + b[r[1]] + '%</td></tr>';
+    });
+    h += '</tbody>';
+    scoreCard.innerHTML = h;
+    scoreCard.hidden = false;
+  }
 
   function finish(won) {
     state = 'over';
@@ -23473,14 +24240,14 @@
       });
     }
     var mm = mmss(secs);
-    var s = G.side[P_HUMAN];
     onA = function () { hideCard(); menu(); };
     onB = null;
     showCard(won ? '🏆' : '💥',
       won ? 'Victory' : 'Defeated',
-      won ? 'Enemy base levelled in ' + mm + '. Units built: ' + s.made + ', lost: ' + s.lost + '.'
-          : 'Your base is gone at ' + mm + '. Units built: ' + s.made + ', killed: ' + s.killed + '.',
+      won ? 'Enemy base levelled in ' + mm + '.' : 'Your base is gone at ' + mm + '.',
       'Menu', null, false, true);
+    buildScoreCard(won);
+    eva(won ? 'You are victorious' : 'You have lost', 30000);       // eva.ini #22 / #23
     sfx(won ? 'ready' : 'boom');
   }
 
@@ -23498,9 +24265,16 @@
 
     if (state === 'play' && G) {
       acc += dt;
+      // RA2's speed slider. The tick itself is untouchable (the sim is
+      // seed-deterministic and nothing in it may read a clock), so the
+      // slider buys ticks per second instead: 15 x speed, i.e. speed 4 is
+      // the old fixed 60/s. No interpolation — the render just sees whatever
+      // tick the accumulator last stepped to.
+      var _rate = (G.opt ? G.opt.speed : OPT_DEF.speed) / 4;
+      var _step = STEP / _rate, _cap = Math.max(5, Math.ceil(_rate * 5));
       var n = 0;
-      while (acc >= STEP && n < 5) { acc -= STEP; simStep(G); n++; }
-      if (acc > STEP * 5) acc = 0;
+      while (acc >= _step && n < _cap) { acc -= _step; simStep(G); n++; }
+      if (acc > _step * _cap) acc = 0;
       // RA2 lets the field play for a beat after the last structure falls —
       // the winning side's infantry cheer (art.ini `Cheer=56,15,0,W`) before
       // the score card comes up. Three seconds, then finish().
@@ -23565,6 +24339,7 @@
     api: { astar: astar, damage: damage, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
            countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld,
            findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf,
+           canBuild: canBuild, swBld: swBld, techCount: techCount,
            blocked: blocked, adjOf: adjOf, buildMask: buildMask, gateOpen: gateOpen, applyGaps: applyGaps,
            gapped: gapped, tileSeen: tileSeen, entSeen: entSeen, versesVs: versesVs, isWall: isWall, detected: detected },
     // Baked sprite atlas, so art work can be reviewed as a contact sheet
@@ -23600,6 +24375,43 @@
     // Phase 4b: the neutral house. Every one of these is the same call the
     // game itself makes, so a test cannot pass against a path the player
     // never takes.
+    // Match flow: the skirmish strip, the save format and a state hash the
+    // save/load round-trip test compares.
+    opts: function () { return G ? G.opt : null; },
+    setOpts: function (o) { opts = normOpts(o); return opts; },
+    startWith: function (seed, diff, map, o) {
+      headless = true;
+      G = newState((seed >>> 0) || 1, diff || 'normal', map, o);
+      state = 'play';
+      [P_HUMAN, P_AI].forEach(function (p) { openingForce(G, p); });
+      return G;
+    },
+    step: function (n) { for (var i = 0; i < (n || 1); i++) simStep(G); return G; },
+    hash: function (g) {
+      g = g || G;
+      var h = 2166136261 >>> 0, i, k;
+      function mix(v) { h ^= (v | 0); h = Math.imul(h, 16777619) >>> 0; }
+      mix(g.tick); mix(_seed); mix(Math.round(g.side[0].credits)); mix(Math.round(g.side[1].credits));
+      for (i = 0; i < g.units.length; i++) {
+        var u = g.units[i];
+        mix(u.id); mix(u.dead ? 1 : 0); mix(Math.round(u.x * 64)); mix(Math.round(u.y * 64));
+        mix(Math.round(u.hp)); mix(u.face | 0); mix(u.target ? u.target.id : 0);
+      }
+      for (i = 0; i < g.blds.length; i++) {
+        var b = g.blds[i];
+        mix(b.id); mix(b.dead ? 1 : 0); mix(Math.round(b.hp)); mix(b.target ? b.target.id : 0);
+      }
+      for (k = 0; k < g.ore.length; k += 7) mix(Math.round(g.ore[k]));
+      return h >>> 0;
+    },
+    eva: function (line, gap) { return eva(line, gap); },
+    evaLog: function () { return evaLog.slice(); },
+    save: function (n) { return saveGame(n); },
+    load: function (n) { return loadGame(n); },
+    saveBlob: function () { return serialiseGame(G); },
+    loadBlob: function (blob) { G = restoreGame(JSON.parse(JSON.stringify(blob))); return G; },
+    slots: function () { return saveSlots(); },
+    score: function (p) { return scoreOf(G, p); },
     crates: function () { return G ? G.crates : []; },
     spawnCrate: function (kind, x, y) {
       if (!G) return null;
@@ -23670,26 +24482,14 @@
     var prevG = G, prevHeadless = headless, prevState = state;
     headless = true;
     try {
-      var g = newState(seed >>> 0, diffB || 'normal');
+      var g = newState(seed >>> 0, diffB || 'normal', arguments[7], arguments[8]);
       g.side[P_HUMAN].fac = FACTIONS[facA] ? facA : 'dir';
       g.side[P_AI].fac = FACTIONS[facB] ? facB : 'col';
       g.ai = newAI(diffB || 'normal');      // player 1
       g.ai2 = newAI(diffA || 'normal');     // player 0
       g.focusFor[P_AI] = g.ai.cfg.focus;
       g.focusFor[P_HUMAN] = g.ai2.cfg.focus;
-      [P_HUMAN, P_AI].forEach(function (p) {
-        var s = g.start[p], i, sp;
-        placeBld(g, 'base', p, s.x - 1, s.y - 1);
-        for (i = 0; i < 2; i++) {
-          sp = freeTileNear(g, s.x + (p ? -3 : 3), s.y + (p ? -3 : 3) + i);
-          if (sp) spawnUnit(g, 'harvester', p, sp.x, sp.y);
-        }
-        var op = FACTIONS[g.side[p].fac].inf;
-        for (i = 0; i < 3; i++) {
-          sp = freeTileNear(g, s.x + (p ? -4 : 4) + i, s.y + (p ? -1 : 1));
-          if (sp) spawnUnit(g, op, p, sp.x, sp.y);
-        }
-      });
+      [P_HUMAN, P_AI].forEach(function (p) { openingForce(g, p); });
 
       G = g;
       var cap = maxTicks || 60 * 60 * 25;
@@ -23756,6 +24556,24 @@
     return n;
   }
 
+  // ScreenCapture: the whole field as it stands, saved as a PNG. The frame
+  // is drawn fresh first so a capture taken while paused is not the frame
+  // from before the pause.
+  function screenCapture() {
+    try {
+      render();
+      var name = 'iron-frontier-' + (G ? mmss(Math.floor(G.tick / 60)).replace(':', 'm') + 's' : 'menu') + '.png';
+      cv.toBlob(function (blob) {
+        if (!blob) { say('Screen capture failed', true); return; }
+        var url = URL.createObjectURL(blob), a = document.createElement('a');
+        a.href = url; a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        say('Screenshot saved — ' + name); sfx('click');
+      }, 'image/png');
+    } catch (err) { say('Screen capture failed', true); }
+  }
+
   window.__rtsFocus = function (gx, gy) { centerOn(gx, gy); clampCam(); };
 
   window.__rtsCam = function () { return { x: Math.round(cam.x), y: Math.round(cam.y) }; };
@@ -23773,6 +24591,7 @@
   if (!DIFF[difficulty]) difficulty = 'normal';
   faction = lsGet('vibetop:rts:fac') || 'dir';
   if (!FACTIONS[faction]) faction = 'dir';
+  loadOpts();
 
   // Load-time bake cost, so the art harness can prove a change did not add
   // seconds to the boot (infantry facings/states are baked lazily for exactly
