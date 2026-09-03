@@ -202,7 +202,7 @@
   .overlay {
     position: absolute; inset: 0; display: none;
     align-items: safe center; justify-content: center; overflow: auto;
-    background: rgba(14,17,23,.62); z-index: 5;
+    padding: 10px; background: rgba(11,14,20,.74); z-index: 5;
   }
   .overlay.help { z-index: 6; }
   .overlay.lb { z-index: 7; }
@@ -237,24 +237,122 @@
     font-size: 11.5px; min-height: 30px; width: auto; display: inline-block; padding: 6px 14px;
   }
   .lbfoot button:hover { color: #e5646c; border-color: #5a3038; background: #241a1c; }
-  .facrow { display: flex; gap: 7px; margin-bottom: 9px; }
-  .dbgrow { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #9aa3b2; margin: 2px 0 10px; cursor: pointer; }
-  .dbgrow input { accent-color: #e0b040; }
-  .facrow button {
-    flex: 1; min-height: 62px; padding: 7px 9px; text-align: left;
-    display: flex; flex-direction: column; gap: 2px; line-height: 1.25;
+
+  /* ---- front menu -------------------------------------------------------
+     RA2's skirmish setup, in this game's palette: a wordmark band, the two
+     sides as picture panels (emblem + a line-up drawn from the game's own
+     baked sprites), one segmented Opponent control, and a real generated
+     preview per map. No prose — the pictures are the description. The whole
+     UI takes the CHOSEN SIDE's colour as its accent, as RA2 does.
+     Everything here is scoped to `.card.menu`, because #ov is shared with
+     the confirm / victory / defeat cards, which must keep the plain look. */
+  .card.menu {
+    --acc: #4aa3db; --accH: #62b6ea; --emb: 104px;
+    width: min(880px, 100%); padding: 20px 24px 16px; text-align: left;
+    background: linear-gradient(180deg, #1a2029 0%, #12161e 100%);
   }
-  .facrow button.on { background: #8a4adb; border-color: #8a4adb; color: #fff; }
-  /* Six maps do not fit one line on a phone: wrap, and give each card a
-     third-of-a-row basis so the wrap lands 3+3 rather than 5+1. */
-  #mapRow { flex-wrap: wrap; }
-  #mapRow button { flex: 1 1 30%; min-width: 132px; }
-  @media (max-width: 520px) { #mapRow button { flex: 1 1 46%; min-width: 118px; } }
-  .facrow .fn { font-size: 13px; font-weight: 700; }
-  .facrow .fb { font-size: 10.5px; opacity: .82; }
-  .diffrow { display: flex; gap: 7px; margin-bottom: 12px; }
-  .diffrow button { flex: 1; min-height: 44px; font-size: 12.5px; }
-  .diffrow button.on { background: #8a4adb; border-color: #8a4adb; color: #fff; }
+  #ov.col .card.menu { --acc: #d8434d; --accH: #e9616a; }
+  .card.menu .big, .card.menu h2, .card.menu p { display: none; }
+  .card.menu .mhead { display: block; }
+  .mhead {
+    display: none; text-align: center;
+    padding-bottom: 13px; margin-bottom: 15px; border-bottom: 1px solid #2a3040;
+  }
+  .wordmark {
+    display: inline-block; font-size: 31px; font-weight: 800; line-height: 1.05;
+    text-transform: uppercase; letter-spacing: .3em; text-indent: .3em;
+    background: linear-gradient(180deg, #ffffff 0%, #c9d5e4 32%, #7f8da3 50%, #e8eef7 60%, #6f7b8f 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent; -webkit-text-fill-color: transparent;
+  }
+
+  /* --- the two side panels --- */
+  .facrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .facrow button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; padding: 14px 12px 12px; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(180deg, #151a23 0%, #0e121a 100%);
+    border: 1px solid #262c3a; color: #838fa2;
+  }
+  .facrow button.dir { --c: #4aa3db; --cg: rgba(74,163,219,.20); }
+  .facrow button.col { --c: #d8434d; --cg: rgba(216,67,77,.20); }
+  .facrow button:hover { background: linear-gradient(180deg, #171d27 0%, #101520 100%); border-color: #3a4358; color: #b3bdcc; }
+  .facrow button .emb { display: block; width: var(--emb); height: var(--emb); opacity: .62; }
+  .facrow button .fn {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .24em; text-indent: .24em;
+  }
+  .facrow button .lineup { display: block; width: 100%; max-width: 380px; height: auto; opacity: .72; }
+  .facrow button.on, .facrow button.on:hover {
+    color: #e6edf3; border-color: var(--c);
+    background: linear-gradient(180deg, #1c2430 0%, #10141c 100%);
+    box-shadow: inset 0 0 44px -8px var(--cg), inset 0 0 0 1px var(--c);
+  }
+  .facrow button.on .emb, .facrow button.on .lineup { opacity: 1; }
+
+  /* --- Opponent: one segmented control --- */
+  .olbl {
+    font-size: 10px; font-weight: 700; letter-spacing: .18em;
+    text-transform: uppercase; color: #6b7488; flex-shrink: 0;
+  }
+  .optrow { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .diffrow { display: flex; border: 1px solid #262c3a; border-radius: 8px; overflow: hidden; background: #0e121a; }
+  .diffrow button {
+    min-height: 36px; padding: 0 26px; font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    background: transparent; color: #838fa2;
+    border: 0; border-left: 1px solid #262c3a; border-radius: 0;
+  }
+  .diffrow button:first-child { border-left: 0; }
+  .diffrow button:hover { background: #182029; color: #cdd5e1; }
+  .diffrow button.on, .diffrow button.on:hover { background: var(--acc); color: #fff; }
+
+  /* --- map previews (terrain generated once, painted at 2px a tile) --- */
+  .mapwrap { margin-bottom: 14px; }
+  .mapwrap .olbl { display: block; margin-bottom: 7px; }
+  .maprow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .maprow button {
+    display: block; width: 100%; padding: 0; overflow: hidden; cursor: pointer;
+    background: #0b0e14; border: 1px solid #262c3a; border-radius: 8px;
+    color: #838fa2; min-height: 0;
+  }
+  .maprow canvas { display: block; width: 100%; height: auto; opacity: .68; }
+  .maprow .mn {
+    display: block; padding: 5px 4px 6px; font-size: 10.5px; font-weight: 600;
+    text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .maprow button:hover { border-color: #3a4358; color: #cdd5e1; }
+  .maprow button:hover canvas { opacity: .88; }
+  .maprow button.on, .maprow button.on:hover {
+    border-color: var(--acc); color: #e6edf3; box-shadow: inset 0 0 0 1px var(--acc);
+  }
+  .maprow button.on canvas { opacity: 1; }
+
+  /* --- footer: debug demoted to the left, Start the only loud thing --- */
+  .dbgrow { display: none; align-items: center; gap: 7px; font-size: 11.5px; color: #6b7488; cursor: pointer; }
+  .dbgrow input { accent-color: #e0b040; }
+  .dbgrow:hover { color: #9aa3b2; }
+  .card.menu .cardfoot {
+    display: flex; align-items: center; gap: 16px;
+    padding-top: 13px; border-top: 1px solid #2a3040;
+  }
+  .card.menu .dbgrow { display: flex; flex: 1; }
+  .card.menu .btns { flex-direction: row; margin-top: 0; flex-shrink: 0; }
+  .card.menu .btns button { width: auto; padding: 12px 44px; }
+  .card.menu .primary, .card.menu .primary:hover { background: var(--acc); border-color: var(--acc); }
+  .card.menu .primary:hover { background: var(--accH); border-color: var(--accH); }
+
+  /* Short windows (1024x600 landscape and the like): the same layout, smaller. */
+  @media (max-height: 730px) {
+    .card.menu { --emb: 64px; width: min(720px, 100%); padding: 13px 18px 11px; }
+    .wordmark { font-size: 23px; }
+    .mhead { padding-bottom: 9px; margin-bottom: 11px; }
+    .facrow button { padding: 11px 10px 9px; gap: 6px; }
+    .facrow, .optrow, .mapwrap { margin-bottom: 10px; }
+    .facrow button .fn { font-size: 12px; }
+    .maprow .mn { padding: 3px 4px 4px; font-size: 10px; }
+    .card.menu .cardfoot { padding-top: 9px; }
+    .card.menu .btns button { padding: 10px 32px; }
+  }
   @media (max-height: 340px) {
     .card { padding: 10px 12px; min-width: 0; }
     .card .big, .card p { display: none; }
@@ -262,6 +360,10 @@
     .card .btns { flex-direction: row; flex-wrap: wrap; gap: 6px; }
     .card .btns button { min-height: 38px; padding: 7px 10px; font-size: 12.5px; width: auto; flex: 1 1 auto; }
   }
+  /* One short settle, nothing that loops. */
+  .overlay.show > .card { animation: cardin .17s ease-out; }
+  @keyframes cardin { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .overlay.show > .card { animation: none; } }
 
   /* Touch is supported (tap / drag-pan / pinch); the old desktop-only gate is gone. */
   #nomob { display: none; }
@@ -291,47 +393,50 @@
     <div id="tip">Left-drag to select · Right-click to move or attack · Right-drag to pan when nothing is selected</div>
     <div id="hov" hidden><b id="hovName"></b><span id="hovSub"></span></div>
     <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
+  </div>
 
-    <div class="overlay" id="ov"><div class="card">
-      <div class="big" id="ovIc">⚔️</div>
-      <h2 id="ovT">Iron Frontier</h2>
-      <p id="ovP">Build a base, mine ore, crush the enemy.</p>
-      <div class="facrow" id="facRow"></div>
-      <div class="diffrow" id="diffRow"></div>
-      <div class="facrow" id="mapRow"></div>
-      <label class="dbgrow" title="Cheats for testing: instant build, unlimited credits, the whole map revealed, your units take 1/10 damage and deal 10x. Wins are not recorded."><input type="checkbox" id="dbgChk"> Debug mode (instant build · unlimited credits · full map · 10× units)</label>
+  <div class="overlay" id="ov"><div class="card" id="ovCard">
+    <div class="mhead"><span class="wordmark">Iron Frontier</span></div>
+    <div class="big" id="ovIc">⚔️</div>
+    <h2 id="ovT">Iron Frontier</h2>
+    <p id="ovP">Build a base, mine ore, crush the enemy.</p>
+    <div class="facrow" id="facRow"></div>
+    <div class="optrow" id="diffWrap"><span class="olbl">Opponent</span><div class="diffrow" id="diffRow"></div></div>
+    <div class="mapwrap" id="mapWrap"><span class="olbl">Battlefield</span><div class="maprow" id="mapRow"></div></div>
+    <div class="cardfoot">
+      <label class="dbgrow" title="Cheats for testing: instant build, unlimited credits, the whole map revealed, your units take 1/10 damage and deal 10x. Wins are not recorded."><input type="checkbox" id="dbgChk"> Debug mode</label>
       <div class="btns">
-        <button class="primary" id="ovA">Start</button>
+        <button class="primary" id="ovA">Start Game</button>
         <button class="ghost" id="ovB" style="display:none">Cancel</button>
       </div>
-      <div id="scores"></div>
-    </div></div>
+    </div>
+    <div id="scores"></div>
+  </div></div>
 
-    <div class="overlay help" id="hv"><div class="card">
-      <h2>How to play</h2>
-      <dl>
-        <dt>Select</dt><dd>Left-click a unit, or left-drag a box. Double-click selects every visible unit of that type.</dd>
-        <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch.</dd>
-        <dt>Camera</dt><dd>WASD / arrow keys, or push the mouse to a screen edge. Click the minimap to jump.</dd>
-        <dt>Groups</dt><dd><b>Ctrl+1…5</b> stores the selection, <b>1…5</b> recalls it.</dd>
-        <dt>Faster</dt><dd>A second Barracks or War Factory speeds that queue up (20% off each, up to six — as in RA2) and gives units another exit.</dd>
-        <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
-        <dt>Rally</dt><dd>Select a Barracks or War Factory, then right-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected.</dd>
-        <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
-        <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
-        <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over.</dd>
-        <dt>Also</dt><dd><b>Space</b> (or <b>H</b>) jumps back to your base · <b>P</b> pauses · <b>Esc</b> cancels placing.</dd>
-      </dl>
-      <div class="btns"><button class="ghost" id="hvClose">Got it</button></div>
-    </div></div>
+  <div class="overlay help" id="hv"><div class="card">
+    <h2>How to play</h2>
+    <dl>
+      <dt>Select</dt><dd>Left-click a unit, or left-drag a box. Double-click selects every visible unit of that type.</dd>
+      <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch.</dd>
+      <dt>Camera</dt><dd>WASD / arrow keys, or push the mouse to a screen edge. Click the minimap to jump.</dd>
+      <dt>Groups</dt><dd><b>Ctrl+1…5</b> stores the selection, <b>1…5</b> recalls it.</dd>
+      <dt>Faster</dt><dd>A second Barracks or War Factory speeds that queue up (20% off each, up to six — as in RA2) and gives units another exit.</dd>
+      <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
+      <dt>Rally</dt><dd>Select a Barracks or War Factory, then right-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected.</dd>
+      <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
+      <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
+      <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over.</dd>
+      <dt>Also</dt><dd><b>Space</b> (or <b>H</b>) jumps back to your base · <b>P</b> pauses · <b>Esc</b> cancels placing.</dd>
+    </dl>
+    <div class="btns"><button class="ghost" id="hvClose">Got it</button></div>
+  </div></div>
 
-    <div class="overlay lb" id="lv"><div class="card">
-      <h2>🏆 Best results</h2>
-      <div id="lbBody"></div>
-      <div class="btns" style="margin-top:14px"><button class="ghost" id="lvClose">Close</button></div>
-      <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
-    </div></div>
-  </div>
+  <div class="overlay lb" id="lv"><div class="card">
+    <h2>🏆 Best results</h2>
+    <div id="lbBody"></div>
+    <div class="btns" style="margin-top:14px"><button class="ghost" id="lvClose">Close</button></div>
+    <div class="lbfoot"><button id="lbReset">Reset scores</button></div>
+  </div></div>
 
   <div id="side">
     <canvas id="mini" width="184" height="184"></canvas>
@@ -16340,6 +16445,16 @@
     ctx.fillRect(x - w / 2, y, w * f, 3);
   }
 
+  // The one terrain palette: the minimap and the menu's map previews are the
+  // same picture at two sizes, so they must not drift apart.
+  function terrCol(t, theatre) {
+    var snowy = theatre === 'snow', urb = theatre === 'urban';
+    return t === T_GROUND ? (snowy ? '#aeb8be' : urb ? '#4b4f55' : '#2e3a24') : t === T_ROCK ? '#39414f'
+         : t === T_ORE ? '#c9822f' : t === T_GEM ? '#8a6ae0'
+         : t === T_WATER ? (snowy ? '#8fb0c4' : '#2c5d86') : t === T_CLIFF ? '#6e6656' : t === T_TREE ? '#2f5a2a'
+         : t === T_RAMP ? '#8f8468' : t === T_BRIDGE ? '#c6bba0' : t === T_CIV ? '#9a9184' : '#6a6a60';
+  }
+
   var miniDirty = 0;
   function drawMini() {
     var sc = 184 / MAP;
@@ -16350,11 +16465,7 @@
       for (var y = 0; y < MAP; y++) for (var x = 0; x < MAP; x++) {
         var t = G.terrain[idx(x, y)];
         if (!G.seen[idx(x, y)]) { mctx.fillStyle = '#000'; mctx.fillRect(x * sc, y * sc, sc + 0.5, sc + 0.5); continue; }
-        var snowy = G.theatre === 'snow', urb = G.theatre === 'urban';
-        mctx.fillStyle = t === T_GROUND ? (snowy ? '#aeb8be' : urb ? '#4b4f55' : '#2e3a24') : t === T_ROCK ? '#39414f'
-                       : t === T_ORE ? '#c9822f' : t === T_GEM ? '#8a6ae0'
-                       : t === T_WATER ? (snowy ? '#8fb0c4' : '#2c5d86') : t === T_CLIFF ? '#6e6656' : t === T_TREE ? '#2f5a2a'
-                       : t === T_RAMP ? '#8f8468' : t === T_BRIDGE ? '#c6bba0' : t === T_CIV ? '#9a9184' : '#6a6a60';
+        mctx.fillStyle = terrCol(t, G.theatre);
         mctx.fillRect(x * sc, y * sc, sc + 0.5, sc + 0.5);
       }
       mini._terr = mctx.getImageData(0, 0, 184, 184);
@@ -16398,21 +16509,268 @@
   var ov = document.getElementById('ov'), ovIc = document.getElementById('ovIc');
   var ovT = document.getElementById('ovT'), ovP = document.getElementById('ovP');
   var ovA = document.getElementById('ovA'), ovB = document.getElementById('ovB');
+  var ovCard = document.getElementById('ovCard');
   var diffRow = document.getElementById('diffRow'), facRow = document.getElementById('facRow'), mapRow = document.getElementById('mapRow');
+  var diffWrap = document.getElementById('diffWrap'), mapWrap = document.getElementById('mapWrap');
   var mapId = MAPS[lsGet('vibetop:rts:map')] ? lsGet('vibetop:rts:map') : 'frontier';
   var debugMode = lsGet('vibetop:rts:debug') === '1';
   var dbgChk = document.getElementById('dbgChk');
   if (dbgChk) { dbgChk.checked = debugMode; dbgChk.addEventListener('change', function () { debugMode = dbgChk.checked; lsSet('vibetop:rts:debug', debugMode ? '1' : '0'); }); }
-  var THEATRE_GLYPH = { temperate: '🌲', snow: '❄️', urban: '🏙️' };
+  // --------------------------------------------------------------------- //
+  //  Front-menu art. RA2's setup screen shows you pictures, not prose: a
+  //  faction emblem, the side's hardware, and a preview of the ground you
+  //  are about to fight over. All three are drawn ONCE into cached canvases
+  //  at first open — nothing below runs per frame.
+  // --------------------------------------------------------------------- //
+  // These canvases are laid out by the PAGE, not blitted by the renderer, so
+  // their display size belongs to CSS: an inline width would outrank the
+  // class rules and the emblem would ignore --emb (and the line-up would push
+  // the card wider than a phone).
+  // Points computed from cos/sin rather than ctx.rotate: the same maths draws
+  // the Directorate's star and the Collective's, and it keeps every path in
+  // one coordinate frame.
+  function starPath(g, cx, cy, R, r, n, rot) {
+    g.beginPath();
+    for (var i = 0; i < n * 2; i++) {
+      var a = rot + i * Math.PI / n, rad = (i & 1) ? r : R;
+      var x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad;
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.closePath();
+  }
+  // A quad laid along an axis: used for the eagle's feathers and the
+  // Collective hammer, both of which want a rotated bar without a transform.
+  function barPath(g, x0, y0, x1, y1, t0, t1) {
+    var dx = x1 - x0, dy = y1 - y0, L = Math.sqrt(dx * dx + dy * dy) || 1;
+    var px = -dy / L, py = dx / L;
+    g.beginPath();
+    g.moveTo(x0 + px * t0, y0 + py * t0);
+    g.lineTo(x1 + px * t1, y1 + py * t1);
+    g.lineTo(x1 - px * t1, y1 - py * t1);
+    g.lineTo(x0 - px * t0, y0 - py * t0);
+    g.closePath();
+  }
+
+  var EMB = 96;                       // emblems are authored on a 96x96 field
+  var emblemCache = {};
+  function facEmblem(k) {
+    if (emblemCache[k]) return emblemCache[k];
+    var o = mkCanvas(EMB, EMB), g = o.g;
+    o.c.className = 'emb';
+    try { (k === 'col' ? drawColEmblem : drawDirEmblem)(g); } catch (e) {}
+    emblemCache[k] = o.c;
+    return o.c;
+  }
+
+  // Directorate — a spread eagle on a star, inside a steel ring. RA2's Allied
+  // eagle in spirit, not in line: three swept feathers a side, a hard-edged
+  // body, and the ring the Allies always wear.
+  function drawDirEmblem(g) {
+    var C = 48, i;
+    var disc = g.createRadialGradient(C, 32, 4, C, C, 46);
+    disc.addColorStop(0, '#1d2c3c'); disc.addColorStop(1, '#0b1017');
+    g.fillStyle = disc;
+    g.beginPath(); g.arc(C, C, 42, 0, 6.2832); g.fill();
+
+    g.lineWidth = 3; g.strokeStyle = '#4aa3db';
+    g.beginPath(); g.arc(C, C, 44, 0, 6.2832); g.stroke();
+    g.lineWidth = 1; g.strokeStyle = 'rgba(160,214,247,.55)';
+    g.beginPath(); g.arc(C, C, 39.5, 0, 6.2832); g.stroke();
+
+    starPath(g, C, 19, 7.6, 3.2, 5, -Math.PI / 2);
+    g.fillStyle = '#bfe0f7'; g.fill();
+
+    var wing = g.createLinearGradient(0, 20, 0, 74);
+    wing.addColorStop(0, '#f4f9fd'); wing.addColorStop(0.5, '#c2d6e9'); wing.addColorStop(1, '#7692b0');
+
+    // Wings raised in a V, each one solid with four scalloped primaries along
+    // the trailing edge: a heraldic displayed eagle still reads as a bird at
+    // 58px, where separate feather bars turn into insect legs.
+    for (var side = 0; side < 2; side++) {
+      g.save();
+      if (side) { g.translate(2 * C, 0); g.scale(-1, 1); }
+      g.beginPath();
+      g.moveTo(50, 40);
+      g.quadraticCurveTo(64, 20, 79, 24);                 // leading edge
+      g.lineTo(81, 30);                                   // blunt tip
+      g.lineTo(75.7, 28.1); g.lineTo(73.5, 34.5);         // trailing edge, four primaries
+      g.lineTo(68.2, 32.6); g.lineTo(66.0, 39.0);
+      g.lineTo(60.7, 37.1); g.lineTo(58.5, 43.5);
+      g.lineTo(53.2, 41.6); g.lineTo(51.0, 48.0);
+      g.closePath();
+      g.fillStyle = wing; g.fill();
+      g.lineWidth = 0.9; g.strokeStyle = 'rgba(20,40,60,.45)'; g.stroke();
+      g.restore();
+    }
+
+    // Body and fanned tail: one hard wedge, so the silhouette survives small.
+    g.beginPath();
+    g.moveTo(42.4, 36.5); g.lineTo(53.6, 36.5); g.lineTo(55.2, 53);
+    g.lineTo(52.2, 66); g.lineTo(48, 60.5); g.lineTo(43.8, 66); g.lineTo(40.8, 53);
+    g.closePath();
+    g.fillStyle = wing; g.fill();
+    g.lineWidth = 0.9; g.strokeStyle = 'rgba(20,40,60,.45)'; g.stroke();
+
+    // Keel line and a shaded flank: volume, where a flat strip read as cloth.
+    g.beginPath();
+    g.moveTo(48, 37.5); g.lineTo(53.6, 36.5); g.lineTo(55.2, 53);
+    g.lineTo(52.2, 66); g.lineTo(48, 60.5); g.closePath();
+    g.fillStyle = 'rgba(24,52,78,.22)'; g.fill();
+    g.lineWidth = 0.9; g.strokeStyle = 'rgba(20,40,60,.34)';
+    g.beginPath(); g.moveTo(48, 38.5); g.lineTo(48, 59); g.stroke();
+
+    g.beginPath(); g.ellipse(47.7, 32.2, 4.4, 4.9, 0, 0, 6.2832);
+    g.fillStyle = '#f4f9fd'; g.fill();
+    g.beginPath();                                        // hooked beak, in profile
+    g.moveTo(43.5, 29.9); g.lineTo(34, 34.4); g.lineTo(39.4, 36.2); g.lineTo(43.1, 37.6);
+    g.closePath();
+    g.fillStyle = '#e0b040'; g.fill();
+    g.beginPath(); g.arc(45.2, 31.3, 0.8, 0, 6.2832); g.fillStyle = '#1a3145'; g.fill();
+  }
+
+  // Collective — a gear ring behind a red star with a hammer laid across it.
+  // The Soviet grammar (star, industry, the tool as a weapon) without lifting
+  // the hammer-and-sickle itself.
+  function drawColEmblem(g) {
+    var C = 48, i, a;
+    g.fillStyle = '#7d858f';
+    for (i = 0; i < 12; i++) {
+      a = i * Math.PI / 6;
+      barPath(g, C + Math.cos(a) * 33, C + Math.sin(a) * 33,
+                 C + Math.cos(a) * 45, C + Math.sin(a) * 45, 5.2, 3.6);
+      g.fill();
+    }
+    g.beginPath(); g.arc(C, C, 38, 0, 6.2832);
+    g.fillStyle = '#5b626c'; g.fill();
+    g.beginPath(); g.arc(C, C, 33.5, 0, 6.2832);
+    var disc = g.createRadialGradient(C, 32, 4, C, C, 36);
+    disc.addColorStop(0, '#221118'); disc.addColorStop(1, '#0d0a0e');
+    g.fillStyle = disc; g.fill();
+    g.lineWidth = 1.4; g.strokeStyle = 'rgba(255,255,255,.16)';
+    g.beginPath(); g.arc(C, C, 33.5, 0, 6.2832); g.stroke();
+
+    starPath(g, C, C - 1, 31, 12.6, 5, -Math.PI / 2);
+    var st = g.createLinearGradient(0, 16, 0, 78);
+    st.addColorStop(0, '#f0616b'); st.addColorStop(0.5, '#d8434d'); st.addColorStop(1, '#98232c');
+    g.fillStyle = st; g.fill();
+    g.lineWidth = 1.2; g.strokeStyle = 'rgba(255,190,195,.42)'; g.stroke();
+
+    // Hammer: haft up-right, head square across it.
+    var ax = 30.5, ay = 68, bx = 58.5, by = 40;
+    var dx = bx - ax, dy = by - ay, L = Math.sqrt(dx * dx + dy * dy);
+    var ux = dx / L, uy = dy / L;
+    var hg = g.createLinearGradient(0, 28, 0, 72);
+    hg.addColorStop(0, '#f6e3ab'); hg.addColorStop(1, '#b98f33');
+    barPath(g, ax, ay, bx, by, 3.1, 3.1);
+    g.fillStyle = hg; g.fill();
+    g.lineWidth = 1; g.strokeStyle = 'rgba(52,32,8,.55)'; g.stroke();
+    var hx = bx + ux * 4.2, hy = by + uy * 4.2;                 // head, square across the haft
+    barPath(g, hx - ux * 6, hy - uy * 6, hx + ux * 6, hy + uy * 6, 11.5, 11.5);
+    g.fillStyle = hg; g.fill();
+    g.lineWidth = 1.1; g.strokeStyle = 'rgba(52,32,8,.6)'; g.stroke();
+    barPath(g, hx + ux * 2.6, hy + uy * 2.6, hx + ux * 6, hy + uy * 6, 11.5, 11.5);
+    g.fillStyle = 'rgba(70,44,10,.30)'; g.fill();               // the striking face, in shade
+  }
+
+  // The side's hardware, drawn from the game's OWN baked sprites, on a common
+  // ground line — what you are choosing, in the colour you will actually
+  // play it in (player 0; colour follows the PLAYER, never the faction).
+  var LINEUP = {
+    dir: [['b', 'base'], ['u', 'lancer'], ['u', 'rifle'], ['u', 'harrier']],
+    col: [['b', 'base'], ['u', 'rhino'], ['u', 'conscript'], ['u', 'kirov']]
+  };
+  // Slot heights, the SAME for both sides. Fitting every sprite to its own
+  // box made the two rows read at different sizes — the Soviet yard is a tall
+  // spire and the Kirov an airship, so both came out over-scaled against the
+  // Allied pair beside them. Fixing the height per slot (yard, tank, rifleman,
+  // aircraft) makes the line-ups directly comparable, which is the whole point
+  // of showing them side by side.
+  var LINE_SLOT_H = [56, 50, 44, 50];
+  var LINE_SLOT_LIFT = [0, 0, 0, 9];              // aircraft hang off the ground
+  var LINE_W = 380, LINE_H = 70;
+  var lineupCache = {};
+  function facLineup(k) {
+    if (lineupCache[k]) return lineupCache[k];
+    var o = mkCanvas(LINE_W, LINE_H), g = o.g;
+    o.c.className = 'lineup';
+    try {
+      var list = LINEUP[k], cw = LINE_W / list.length, ground = LINE_H - 7;
+      g.fillStyle = 'rgba(190,214,240,.10)';          // the ground they stand on
+      g.fillRect(6, ground + 1.5, LINE_W - 12, 1);
+      g.imageSmoothingEnabled = true;
+      for (var i = 0; i < list.length; i++) {
+        var kind = list[i][0], key = list[i][1], src = null, sw = 0, sh = 0, ox = 0, oy = 0;
+        if (kind === 'b') {
+          var A = SPR.bld[0][k][key];
+          if (!A) continue;
+          src = A.s.c;
+          var bb = A.s.bb || { x0: 0, y0: 0, x1: A.s.w, y1: A.s.h };
+          sw = bb.x1 - bb.x0; sh = bb.y1 - bb.y0; ox = bb.x0; oy = bb.y0;
+        } else {
+          var U = SPR.unit[0][k][key];
+          if (!U) continue;
+          var fr = Array.isArray(U) ? U[1] : U;
+          src = fr.c;
+          var ub = fr.bb || { x0: 0, y0: 0, x1: fr.w, y1: fr.h };
+          sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; ox = ub.x0; oy = ub.y0;
+        }
+        if (!src || !(sw > 0) || !(sh > 0)) continue;
+        var sc = Math.min(LINE_SLOT_H[i] / sh, (cw - 12) / sw);   // height first, width only as a cap
+        var dw = sw * sc, dh = sh * sc, lift = LINE_SLOT_LIFT[i];
+        g.drawImage(src, ox, oy, sw, sh, cw * i + (cw - dw) / 2, ground - dh - lift, dw, dh);
+      }
+    } catch (e) {}
+    lineupCache[k] = o.c;
+    return o.c;
+  }
+
+  // Map previews. RA2 shows the ground before you commit to it, so each map
+  // is generated once from a FIXED seed (no Math.random anywhere in this
+  // file) and painted at 2px a tile in the theatre's own palette, with the
+  // two mirrored starts marked. Six 64x64 generations, once, at first open.
+  var THUMB_SEED = 0x1f0e5a3b, THUMB_PX = 2, THUMB_W = MAP * THUMB_PX;
+  var thumbCache = {};
+  function mapThumb(k) {
+    if (thumbCache[k]) return thumbCache[k];
+    var o = mkCanvas(THUMB_W, THUMB_W), g = o.g;
+    g.fillStyle = '#0b0e14'; g.fillRect(0, 0, THUMB_W, THUMB_W);
+    try {
+      var st = newState(THUMB_SEED, 'normal', k), x, y;
+      for (y = 0; y < MAP; y++) for (x = 0; x < MAP; x++) {
+        g.fillStyle = terrCol(st.terrain[idx(x, y)], st.theatre);
+        g.fillRect(x * THUMB_PX, y * THUMB_PX, THUMB_PX, THUMB_PX);
+      }
+      for (var i = 0; i < st.start.length; i++) {
+        var sp = st.start[i], px = sp.x * THUMB_PX, py = sp.y * THUMB_PX;
+        g.fillStyle = 'rgba(0,0,0,.6)';
+        g.beginPath(); g.arc(px, py, 4.6, 0, 6.2832); g.fill();
+        g.fillStyle = COL[i];
+        g.beginPath(); g.arc(px, py, 3.1, 0, 6.2832); g.fill();
+      }
+    } catch (e) {}
+    thumbCache[k] = o.c;
+    return o.c;
+  }
+
+  var mapBtns = null;
   function buildMapRow() {
-    mapRow.innerHTML = '';
-    Object.keys(MAPS).forEach(function (k) {
-      var M = MAPS[k], b = document.createElement('button');
-      b.className = mapId === k ? 'on' : '';
-      b.innerHTML = '<span class="fn">' + THEATRE_GLYPH[M.theatre] + ' ' + M.name + '</span><span class="fb">' + M.blurb + '</span>';
-      b.addEventListener('click', function () { mapId = k; lsSet('vibetop:rts:map', k); buildMapRow(); });
-      mapRow.appendChild(b);
-    });
+    if (!mapBtns) {
+      mapBtns = {};
+      mapRow.innerHTML = '';
+      Object.keys(MAPS).forEach(function (k) {
+        var b = document.createElement('button');
+        b.title = MAPS[k].name + ' — ' + MAPS[k].blurb;
+        var th = mapThumb(k);
+        if (th) b.appendChild(th);
+        var nm = document.createElement('span');
+        nm.className = 'mn'; nm.textContent = MAPS[k].name;
+        b.appendChild(nm);
+        b.addEventListener('click', function () { mapId = k; lsSet('vibetop:rts:map', k); buildMapRow(); });
+        mapRow.appendChild(b);
+        mapBtns[k] = b;
+      });
+    }
+    Object.keys(mapBtns).forEach(function (k) { mapBtns[k].className = mapId === k ? 'on' : ''; });
   }
   var scoresEl = document.getElementById('scores');
   var hv = document.getElementById('hv'), lv = document.getElementById('lv');
@@ -16424,45 +16782,70 @@
     ovA.textContent = aLabel;
     ovB.style.display = bLabel ? 'block' : 'none';
     if (bLabel) ovB.textContent = bLabel;
-    diffRow.style.display = showDiff ? 'flex' : 'none';
-    facRow.style.display = showDiff ? 'flex' : 'none';
-    mapRow.style.display = showDiff ? 'flex' : 'none';
-    if (showDiff) buildMapRow();
+    // The same card is the front menu, the abandon-match confirm and the
+    // victory/defeat screen. Only the front menu wears the setup layout.
+    ovCard.classList.toggle('menu', !!showDiff);
+    facRow.style.display = showDiff ? 'grid' : 'none';
+    diffWrap.style.display = showDiff ? 'flex' : 'none';
+    mapWrap.style.display = showDiff ? 'block' : 'none';
+    if (showDiff) { buildFacRow(); buildDiffRow(); buildMapRow(); }
     scoresEl.style.display = showScores ? 'block' : 'none';
     ov.classList.add('show');
   }
   function hideCard() { ov.classList.remove('show'); }
 
+  // Two picture panels, built once and then only re-lit: the emblem and the
+  // line-up are baked canvases, so rebuilding the markup on every click would
+  // throw them away for nothing.
+  var facBtns = null;
   function buildFacRow() {
-    facRow.innerHTML = '';
-    ['dir', 'col'].forEach(function (k) {
-      var F = FACTIONS[k];
-      var b = document.createElement('button');
-      b.className = faction === k ? 'on' : '';
-      b.innerHTML = '<span class="fn">' + F.em + ' ' + F.name + '</span>' +
-                    '<span class="fb">' + F.blurb + '</span>';
-      b.addEventListener('click', function () {
-        faction = k;
-        lsSet('vibetop:rts:fac', faction);
-        buildFacRow();
+    if (!facBtns) {
+      facBtns = {};
+      facRow.innerHTML = '';
+      ['dir', 'col'].forEach(function (k) {
+        var b = document.createElement('button');
+        b.title = FACTIONS[k].name + ' — ' + FACTIONS[k].blurb;
+        var em = facEmblem(k);
+        if (em) b.appendChild(em);
+        var nm = document.createElement('span');
+        nm.className = 'fn'; nm.textContent = FACTIONS[k].name;
+        b.appendChild(nm);
+        var ln = facLineup(k);
+        if (ln) b.appendChild(ln);
+        b.addEventListener('click', function () {
+          faction = k;
+          lsSet('vibetop:rts:fac', faction);
+          buildFacRow();
+        });
+        facRow.appendChild(b);
+        facBtns[k] = b;
       });
-      facRow.appendChild(b);
+    }
+    ['dir', 'col'].forEach(function (k) {
+      facBtns[k].className = k + (faction === k ? ' on' : '');
     });
+    // As in RA2, the setup screen takes the colour of the side you picked.
+    ov.classList.toggle('col', faction === 'col');
   }
 
+  var diffBtns = null;
   function buildDiffRow() {
-    diffRow.innerHTML = '';
-    [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']].forEach(function (d) {
-      var b = document.createElement('button');
-      b.textContent = d[1];
-      b.className = difficulty === d[0] ? 'on' : '';
-      b.addEventListener('click', function () {
-        difficulty = d[0];
-        lsSet('vibetop:rts:diff', difficulty);
-        buildDiffRow();
+    if (!diffBtns) {
+      diffBtns = {};
+      diffRow.innerHTML = '';
+      [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']].forEach(function (d) {
+        var b = document.createElement('button');
+        b.textContent = d[1];
+        b.addEventListener('click', function () {
+          difficulty = d[0];
+          lsSet('vibetop:rts:diff', difficulty);
+          buildDiffRow();
+        });
+        diffRow.appendChild(b);
+        diffBtns[d[0]] = b;
       });
-      diffRow.appendChild(b);
-    });
+    }
+    Object.keys(diffBtns).forEach(function (k) { diffBtns[k].className = difficulty === k ? 'on' : ''; });
   }
 
   ovA.addEventListener('click', function () { resumeAudio(); if (onA) onA(); });
@@ -16540,13 +16923,12 @@
 
   function menu() {
     state = 'menu';
-    buildFacRow();
-    buildDiffRow();
     onA = function () { hideCard(); startMatch(); };
     onB = null;
-    showCard('⚔️', 'Iron Frontier',
-      'Mine ore, raise a base, and destroy every enemy structure. Pick a side, then a difficulty:',
-      'Start', null, true, false);
+    // Nothing explanatory: the sides are pictures and the maps are previews.
+    // ovIc/ovT/ovP are hidden by `.card.menu` but still set, so the card has
+    // a title for assistive tech and the shared showCard signature is intact.
+    showCard('', 'Iron Frontier', '', 'Start Game', null, true, false);
   }
 
   function startMatch() {

@@ -5750,3 +5750,72 @@ serialised and kept in step with every generator. (b) Making ramps plain
 `T_GROUND` with cliff art around them — then the minimap, the shroud and
 `canPlace` cannot tell a ramp from a field, and the AI happily builds a
 refinery in the pass.
+
+---
+
+## RTS front menu: pictures instead of prose, and one overlay over the whole frame
+
+**Symptom.** The pre-match card was "ugly and confusing" (user, 2026-09-02):
+a ⚔️ emoji, two instructional paragraphs, and then eight text buttons — two
+sides and six maps — each carrying a name *and* a blurb, all in the same flat
+purple. Nothing on the screen was a picture of anything you were choosing. On
+a narrow window the card was also squeezed into the stage beside the build
+sidebar, because `#ov` lived inside `#stage`.
+
+**Cause.** Every control was a `<button>` with two lines of text, so the eye
+had nothing to sort by and the selected item was distinguished only by fill
+colour. RA2's own setup screen does the opposite: side emblems, a map preview,
+and one segmented difficulty control — you *look*, you don't read.
+
+**Fix.** `showCard`, `buildFacRow`, `buildDiffRow`, `buildMapRow` and `menu()`
+rebuilt around three baked canvases, plus a wordmark band and a footer:
+
+- **Faction emblems** (`facEmblem`, `drawDirEmblem`, `drawColEmblem`) are drawn
+  once into a canvas at `DPR`, no image files. Original insignia in RA2's
+  grammar, not copies: a heraldic displayed eagle with a star, in a steel-blue
+  ring; a red star with a gold hammer inside a gunmetal gear. Both are built
+  from `cos`/`sin` point maths and `barPath`, never `ctx.rotate`, so the test
+  suite's minimal 2D-context stub (which has no `rotate`) can still boot the
+  page.
+- **Line-ups** (`facLineup`) draw four of the side's own baked sprites —
+  `SPR.bld[0][fac]` / `SPR.unit[0][fac]`, player colour 0, as `cameoFor` does —
+  on a shared ground line. This replaced the blurb entirely; `FACTIONS[k].blurb`
+  and `MAPS[k].blurb` are still the data, now surfaced as `title` tooltips.
+- **Map previews** (`mapThumb`) run `newState(THUMB_SEED, …)` once per map at
+  first open and paint the terrain at 2px a tile through `terrCol`, the palette
+  the minimap now shares, with both mirrored starts marked in the player
+  colours. Six 64×64 generations, cached — not per frame, and from a fixed seed
+  because `Math.random` is banned in this file.
+- **The accent follows the chosen side** (`--acc`, `#ov.col`), steel-blue or
+  red, as RA2 tints its UI by house. Debug is demoted to a muted footer toggle
+  (id `dbgChk` kept) whose explanation lives only in its `title`, and it is now
+  hidden on the confirm/victory cards, where it never belonged.
+- `#ov`, `#hv` and `#lv` moved out of `#stage` to be children of `.wrap`, so an
+  overlay covers stage **and** sidebar.
+
+**Two things that are not obvious.**
+
+1. **Never set an inline width on these canvases.** `mkCanvas` is shared with
+   the sprite baker and only sizes the bitmap; a first cut also pinned
+   `style.width`, and because an inline style outranks a class selector the
+   emblem ignored `--emb` and the 380px line-up forced the whole card wider
+   than the viewport. CSS owns the display size; `mkCanvas` owns the bitmap.
+   (The same cut also *redefined* `mkCanvas` — a duplicate function declaration
+   silently replaced the baker's version and `bakeAll` threw at boot. Grep for
+   the name before adding a helper to a 17k-line single file.)
+2. **Line-up sprites are scaled to a per-slot height, not fitted to a box.**
+   `LINE_SLOT_H = [56, 50, 44, 50]` is the same for both sides. Fitting each
+   sprite to its own cell made the two rows read at different sizes — the
+   Soviet yard is a tall spire (195×152) and the Kirov an airship (64×88), so
+   both came out over-scaled against the Allied pair beside them. Height is
+   set per slot and width is only a cap, so yard lines up with yard and
+   rifleman with rifleman, which is the entire point of showing them side by
+   side.
+
+**Rejected.** (a) Hiding `#side` while `state === 'menu'` instead of moving the
+overlay — it fixes only the menu and leaves the help and leaderboard cards
+squeezed. (b) A per-map theatre glyph badge over each preview: the thumbnail
+already shows snow, city and grass at a glance, and the user's standing
+preference is the quietest option. (c) Emoji or image files for the emblems —
+the file ships no external assets, and emoji render differently on every
+platform.
