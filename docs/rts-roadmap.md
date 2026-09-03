@@ -214,8 +214,30 @@ player reports). ~2 batches, all S.** Nothing new to draw; pure rules.ini
 fidelity plus reproduced player reports.
 - ☑ v1.19.241 Superweapon clock shows LOW POWER (red) while the charge is
   halted, with time-left in the tooltip, instead of a frozen countdown.
-- ☐ Player-reported issues (to be listed by the user; each reproduced with a
-  script before fixing).
+- ☑ 2026-09-03 Phase 0 sweep shipped: Prism Tank `CometWH`/ROF 400/range 10/
+  Speed 4; every prerequisite above enforced (`reqAll` = AND, faction-aware
+  lock labels); the stat list above; elite ROF ×0.6 and speed ×1.2; kill-value
+  promotion (`VeteranRatio=3`); 15% repair; radar-gated minimap; V3/IFV
+  minimum range. Not done from the list: War Miner gun (needs a shooting
+  harvester state — moved to Phase 4), isometric minimap (Phase 1 sidebar).
+- ☑ 2026-09-03 Playtest pass 1 (`docs/rts-playtest-2026-09-03-{human,soak}.md`,
+  144 soak matches + 10 human scenarios). Fixed: move orders that could never
+  give up (dead `repathAt` test, truthy empty path); armies stacked on one
+  tile (spawn steps off the door, idle units and group orders take one cell
+  each); units entombed by a new structure (nudged out); AI posture deadlock;
+  Collective never built Sentry Guns; AI never built the Depot or a
+  superweapon (rungs + a reserve); paid units binned at a blocked door;
+  `pathQ` leaking between matches; Help/Scores could not be closed by Esc or
+  a backdrop click; radar right-click did nothing; no message when queuing
+  behind an unplaced structure; band box skipped harvesters/MCV; first AI
+  attack came at 5 min on Normal (now 8; Easy 10).
+- ☐ Still open from the playtests: structures charge full cost on click
+  (RA2 charges progressively); placement ghost shows the footprint only;
+  superweapon clocks overlay the battlefield (Phase 1 moves them to the
+  sidebar); own structures interpenetrate when adjacent (Phase 2 footprints);
+  Weather Storm is one thin bolt (Phase 5); AI never fields Engineer, Tanya,
+  Ivan, Drone, Tesla Tank, Purifier (Phase 6 AI); soak residuals: ~16 tile
+  stacks and ~12 crowd-stuck units per 24 matches, 5 units inside footprints.
 - ☐ Prism Tank: `CometWH` (50% vs armour, 200% vs structures), ROF 400,
   range 10, Speed 4. *(blocker)*
 - ☐ Prerequisites enforced exactly as `Prerequisite=`: Tesla Coil POWER+RADAR;
