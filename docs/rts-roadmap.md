@@ -351,11 +351,28 @@ per state, for every structure and defence, both factions.
   "RTS infantry facings are two transforms" in `docs/design-decisions.md`.
 
 **Phase 4 — roster and mechanics, land (feature §1, §3). ~4 batches, M.**
-- ☐ Attack Dog (both sides; the only Spy/Mirage detector).
-- ☐ Walls and gates: `Adjacent=8`, chain placement, `WallBuildSpeedCoefficient`,
-  `Wall=` warhead flag; per-structure `Adjacent=` replaces `BUILD_RADIUS`.
-- ☐ Gap Generator with re-shrouding (turn `g.seen` into a level map); Spy
-  Satellite; Psychic Sensor; Cloning Vats; Grand Cannon (`MinimumRange`).
+- ☑ Attack Dog, both sides ([ADOG]/[DOG] $200/100hp/Speed 8/Sight 9,
+  `GoodTeeth`/`BadTeeth` firing `ParasiteDog`: the leap removes any infantryman
+  outright and does literally nothing to armour). Own 8-facing atlas (stand /
+  6-frame run / 3-frame leap), `DetectDisguise=yes` strips a Mirage within
+  Sight 9, TechLevel-2 slot after the Engineer, and the AI buys two or three
+  when the enemy is fielding men.
+- ☑ Walls and gates: `[GAWALL]`/`[NAWALL]` $100 concrete segments with 16
+  neighbour-mask pieces per faction (Directorate precast, Collective bolted
+  plate), press-and-drag chain laying that charges per segment,
+  `WallBuildSpeedCoefficient=3.0`, the `Wall=` warhead flag (`WH_WALL`, folded
+  into target picking as well as damage), `Selectable=no`, `ThreatPosed=0`;
+  `[GAGATE_A]` gates that travel for their owner and are shut to everyone else.
+  Per-structure `Adjacent=` replaces `BUILD_RADIUS` (see design-decisions for
+  why the rules.ini values are carried in at +4).
+- ☑ Gap Generator ([GAGAP] $1000/600hp/−100 power, radius 10): `applyGaps()`
+  writes the shroud back over `g.seen` before each reveal pass, so the enemy
+  has to re-scout what it took; soft-edged gap fog; it blinds the AI's
+  `scoutEnemy` on the same terms.
+- ☑ Grand Cannon ([GTGCAN] $2000/900hp/steel/−100, 150 damage, ROF 480,
+  Range 15, `MinimumRange=3`) with the defences' 8-bearing aiming frames, a
+  slow lobbed shell on a real arc and a crater where it lands.
+- ☐ Spy Satellite; Psychic Sensor; Cloning Vats.
 - ☐ Garrisonable civilian buildings (`MaxNumberOccupants`, muzzle ports,
   Structure Garrisoned EVA); destructible bridges + repair hut; tech
   buildings (Oil Derrick, Hospital, Airport) as capturable neutrals; crates

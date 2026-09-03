@@ -1776,3 +1776,215 @@ test("Follow keeps a unit on its leader's heels across the map", () => {
   assert.ok(lead.x > s0.x + 5, `the leader never went anywhere (x ${lead.x.toFixed(1)}) — the test proves nothing`);
   assert.ok(gap < 3.5, `the follower fell ${gap.toFixed(1)} cells behind its leader`);
 });
+
+// -------------------------------------------------- Phase 4: land roster //
+
+test("an Attack Dog kills a GI in one bite and cannot scratch a tank", () => {
+  // [GoodTeeth]/[BadTeeth] fire the [ParasiteDog] warhead: Parasite=yes, and
+  // Verses 100/100/100 then nine zeroes. So the leap removes any infantryman
+  // outright regardless of his 125 hit points, and does literally nothing to
+  // anything with a vehicle or a building armour class.
+  const H = W.__rtsTest;
+  H.begin(90210, "normal");
+  const dog = H.spawn("dog", 0, 40, 40);
+  const gi = H.spawn("rifle", 1, 41, 40);
+  gi.guardX = gi.x; gi.guardY = gi.y;
+  H.orderAttack([dog], gi);
+  H.step(200);
+  assert.ok(gi.dead, "one bite should have taken the GI off the board");
+
+  const g2 = H.begin(90211, "normal");
+  const dog2 = H.spawn("dog", 0, 40, 40);
+  const tank = H.spawn("rhino", 1, 41, 40);
+  const hp0 = tank.hp;
+  H.orderAttack([dog2], tank);
+  H.step(400);
+  assert.equal(tank.hp, hp0, "ParasiteDog is 0% against every vehicle armour");
+  // and the dog never CHOOSES a tank either: verses 0 means findTarget skips it
+  assert.equal(API.findTarget(g2, dog2, T.UNITS.dog.rng + 4), null,
+    "a dog offered only armour has no target at all");
+});
+
+test("a dog strips a Mirage of its disguise, a Grizzly does not", () => {
+  // rules.ini `DetectDisguise=yes` is on the Attack Dog and nothing else in
+  // the buildable set.
+  const H = W.__rtsTest;
+  const g = H.begin(90212, "normal");
+  const mir = H.spawn("mirage", 1, 40, 40);
+  // Settled: not moving, not shooting, no order. (Held explicitly rather than
+  // stepped to it, so the assertions are about DETECTION and nothing else —
+  // a Mirage that opens fire on the tank we park beside it un-disguises for
+  // an unrelated reason.)
+  const settle = () => { mir.order = null; mir.movedAt = -9999; mir.fireAt = -9999; };
+  settle();
+  assert.ok(API.isDisguised(g, mir), "an idle Mirage should read as a tree");
+  const griz = H.spawn("lancer", 0, 44, 40);
+  settle();
+  assert.equal(API.detected(g, mir), false, "a tank parked beside it sees nothing");
+  assert.ok(API.isDisguised(g, mir), "so it is still a tree");
+  griz.dead = true;
+  const dog = H.spawn("dog", 0, 45, 40);         // inside the dog's Sight of 9
+  settle();
+  assert.equal(API.detected(g, mir), true, "a dog within sight sees the tank");
+  assert.ok(!API.isDisguised(g, mir), "and the disguise is stripped");
+  const farDog = H.spawn("dog", 0, 40, 58);      // 18 cells: outside Sight 9
+  dog.dead = true;
+  settle();
+  assert.ok(API.isDisguised(g, mir), "with the near dog gone it is a tree again");
+  assert.ok(!farDog.dead);
+});
+
+test("a wall stops a Rhino, shrugs off a warhead with no Wall= and falls to one with it", () => {
+  // [GAWALL]/[NAWALL] Strength 300, Armor=concrete; rules.ini gives `Wall=yes`
+  // to the tank shells (AP/ApocAP) and the artillery family but NOT to small
+  // arms, flak, C4 or the Prism Tank's CometWH.
+  const H = W.__rtsTest;
+  const g = H.begin(90213, "normal");
+  // a wall across the whole width of a corridor the tank must cross
+  for (let y = 0; y < T.MAP; y++) H.build("wall", 1, 44, y);   // shore to shore
+  g.blds.forEach((b) => { b.make = 0; });
+  const rhino = H.spawn("rhino", 0, 40, 40);
+  assert.equal(API.blocked(g, 44, 40), true, "a wall segment is not walkable");
+  H.orderMove([rhino], 48, 40);
+  H.step(600);
+  assert.ok(rhino.x < 44, `the Rhino should still be short of the wall (x=${rhino.x.toFixed(1)})`);
+
+  const wall = g.blds.find((b) => b.type === "wall" && !b.dead);
+  const hp0 = wall.hp;
+  const gi = H.spawn("rifle", 0, 42, 40);        // [SA] has no Wall= key
+  H.orderAttack([gi], wall);
+  H.step(400);
+  assert.equal(wall.hp, hp0, "small arms cannot touch concrete (no Wall=yes)");
+  assert.equal(API.versesVs("SA", wall), 0, "SA scores nothing against a wall");
+  assert.ok(API.versesVs("AP", wall) > 0, "[AP] carries Wall=yes and does");
+  const tank = H.spawn("lancer", 0, 42, 41);     // [GRIZAPE]/[AP]: Wall=yes
+  H.orderAttack([tank], wall);
+  H.step(900);
+  assert.ok(wall.hp < hp0 || wall.dead, "a tank shell chews the wall down");
+});
+
+test("a gate opens for its owner and stays shut to the enemy", () => {
+  // [GAGATE_A] Gate=yes. The leaves only travel when one of the OWNER's units
+  // comes up to them, which is what makes a gate one-way in practice.
+  const H = W.__rtsTest;
+  const g = H.begin(90214, "normal");
+  for (let y = 0; y < T.MAP; y++) if (y !== 40) H.build("wall", 0, 44, y);
+  const gate = H.build("gate", 0, 44, 40);
+  g.blds.forEach((b) => { b.make = 0; });
+  assert.equal(API.blocked(g, 44, 40), true, "a shut gate is a wall");
+
+  const foe = H.spawn("rhino", 1, 42, 40);       // an enemy walks up to it
+  foe.guardX = foe.x; foe.guardY = foe.y;
+  H.step(200);
+  assert.equal(gate.gate | 0, 0, "the leaves never move for an enemy");
+  assert.equal(API.blocked(g, 44, 40), true, "and it stays impassable to him");
+  assert.ok(foe.x < 44, "so the enemy tank is still on his own side");
+
+  foe.dead = true;                               // clear the field before the next leg
+  const mine = H.spawn("lancer", 0, 41, 40);
+  H.orderMove([mine], 48, 40);
+  let moved = false, wideOpen = false;
+  for (let i = 0; i < 40; i++) {
+    H.step(10);
+    if (gate.gate > 0) moved = true;
+    if (API.gateOpen(g, 40 * T.MAP + 44)) wideOpen = true;
+  }
+  assert.ok(moved, "the leaves must travel for their owner");
+  assert.ok(wideOpen, `and go right open (tank at ${mine.x.toFixed(1)},${mine.y.toFixed(1)})`);
+  assert.ok(mine.x > 44, `the owner's tank should be through (x=${mine.x.toFixed(1)})`);
+  // ...and once he is clear the leaves come back together.
+  H.step(200);
+  assert.equal(gate.gate | 0, 0, "GateCloseDelay: it shuts again behind him");
+  assert.equal(API.blocked(g, 44, 40), true, "and the wall is whole");
+});
+
+test("Adjacent= is per structure: a defence reaches further than a factory, a wall further again", () => {
+  // rules.ini `Adjacent=` 2 / 4 / 8 carried in at +4 (see buildMask): a plain
+  // structure keeps the tuned radius, a cheap defence goes two cells past it
+  // and a wall six past that, so a wall run can leave the base and a Pillbox
+  // can be pushed out in front of it.
+  const H = W.__rtsTest;
+  const g = H.begin(90215, "normal");
+  const yard = H.build("base", 0, 40, 40);
+  g.blds.forEach((b) => { b.make = 0; });
+  const R = API.adjOf("power"), RD = API.adjOf("sentry"), RW = API.adjOf("wall");
+  assert.ok(RD > R && RW > RD, `defence ${RD} must beat structure ${R}, wall ${RW} must beat both`);
+
+  // The yard's footprint is 40..42; a 2x2 plant placed at x = 42 + n has its
+  // nearest cell n cells past the edge.
+  const inRange = 42 + R, tooFar = 42 + R + 1;
+  assert.equal(API.canPlace(g, 0, "power", inRange, 41), true,
+    `a Power Plant exactly ${R} cells out must be legal`);
+  assert.equal(API.canPlace(g, 0, "power", tooFar, 41), false,
+    `a Power Plant ${R + 1} cells out is outside Adjacent=`);
+  // the defence, from the same yard, reaches past where the plant was refused
+  assert.equal(API.canPlace(g, 0, "sentry", tooFar, 41), true,
+    "a Pillbox may go where a Power Plant may not");
+  assert.equal(API.canPlace(g, 0, "sentry", 42 + RD + 1, 41), false,
+    "but not past its own Adjacent");
+  assert.equal(API.canPlace(g, 0, "wall", 42 + RD + 1, 41), true,
+    "a wall chains further still");
+  // ...and a chain of walls extends the base for DEFENCES only (WallTower),
+  // never for economy or tech.
+  for (let x = 44; x <= 44 + RW; x++) H.build("wall", 0, x, 41);
+  g.blds.forEach((b) => { b.make = 0; });
+  const far = 44 + RW + 3;                       // three cells past the last segment
+  assert.equal(API.canPlace(g, 0, "sentry", far, 43), true,
+    "a Pillbox may be planted off the end of a wall run");
+  assert.equal(API.canPlace(g, 0, "power", far, 43), false,
+    "a $100 wall run must never carry the whole base with it");
+  assert.ok(!yard.dead);
+});
+
+test("a Gap Generator re-shrouds the enemy's map and hides what stands in it", () => {
+  // [GAGAP] GapGenerator=yes, GapRadiusInCells=10, Power=-100 (Powered=true).
+  const H = W.__rtsTest;
+  const g = H.begin(90216, "normal");
+  // The human's eyes on a spot far from his own base, so the only thing that
+  // can un-see it is the generator.
+  const scout = H.spawn("lancer", 0, 40, 40);
+  const foe = H.spawn("rhino", 1, 41, 40);
+  H.step(12);
+  assert.equal(API.entSeen(g, foe), true, "an enemy tank under our nose is visible");
+
+  scout.dead = true;                              // we walk away; the ground is remembered
+  H.step(12);
+  assert.equal(API.entSeen(g, foe), true, "RA2 has no fog of war: what was seen stays seen");
+
+  // The enemy switches a Gap Generator on over it. It needs a powered grid.
+  const plant = H.build("power", 1, 55, 55);
+  const gap = H.build("gapgen", 1, 39, 39);
+  g.blds.forEach((b) => { b.make = 0; });
+  H.step(12);
+  assert.ok(API.gapped(g, 0, 41, 40), "the cell is inside the field");
+  assert.equal(API.entSeen(g, foe), false, "and the tank standing in it is gone from our map");
+
+  // Cut its power and the field drops.
+  H.killBld(plant);
+  H.step(12);
+  assert.equal(API.gapped(g, 0, 41, 40), false, "an unpowered Gap Generator projects nothing");
+  assert.ok(gap && !gap.dead);
+});
+
+test("the Grand Cannon out-ranges everything on the ground and is blind inside three cells", () => {
+  // [GTGCAN] Primary=GrandCannonWeapon: 150 damage, ROF 120 (=480), Range 15,
+  // MinimumRange 3, Power=-100 so it needs a grid.
+  const H = W.__rtsTest;
+  const g = H.begin(90217, "normal");
+  const spec = T.BLDS.grandcannon;
+  assert.equal(spec.rng, 15);
+  assert.equal(spec.minRng, 3);
+  H.build("power", 0, 55, 55); H.build("power", 0, 58, 55); H.build("power", 0, 61, 55);
+  const gun = H.build("grandcannon", 0, 40, 40);
+  g.blds.forEach((b) => { b.make = 0; });
+  const near = H.spawn("rhino", 1, 42, 40);       // ~1.5 cells: inside MinimumRange
+  near.guardX = near.x; near.guardY = near.y;
+  const hp0 = near.hp;
+  H.step(600);
+  assert.equal(near.hp, hp0, "MinimumRange=3 means it cannot defend its own feet");
+  const far = H.spawn("rhino", 1, 52, 41);        // ~11 cells: well inside 15
+  far.guardX = far.x; far.guardY = far.y;
+  H.step(600);
+  assert.ok(far.hp < far.maxhp, "but it reaches a tank eleven cells away");
+  assert.ok(!gun.dead);
+});

@@ -6083,3 +6083,76 @@ at all, which is why the corpse helper returns true without one.
 - **Cause:** the Directorate's early anti-infantry is all `SA` (GI, Pillbox), which the prone table halves; the Collective has Tesla (`Electric`, no ProneDamage key → 100%). The AI's tanks stopped at range and shelled the blob at 50%.
 - **Fix:** (1) the prone table follows rules.ini including its documented default of 100% — only bullets/shells lose to the dirt (the builder had defaulted to 50%); (2) a soldier walking a live path is not dropped (RA2 drops the standing man); (3) AI-owned crushers close to melee on crushable infantry and run them over (`stepUnit` attack branch; humans keep stop-and-shoot unless force-moved); (4) the AI scales barracks with its bank and caps standing infantry (`18 + 8·expand`), since RA2's AI fields capped team types, never a 64-man blob; (5) vs infantry-heavy foes the heavy pick is Mirage/Prism or Tesla Tank. Result 23/24.
 - **Rejected:** softening `ProneDamage` (not RA2); dropping prone only for defenders (RA2 drops any standing man). **Rule:** every merge is followed by the 12-fresh-seed hard-vs-easy sample (`tmp/play/soakB.js`); a dip is a defect to bisect, not noise.
+
+## Walls, gates and the Gap Generator: three rules that all live on the occupancy grid
+
+- **Symptom / need:** Phase 4 wanted RA2's wall+gate layer, per-structure
+  `Adjacent=`, and a Gap Generator that takes the map back. Three separate
+  features, one shared hazard: every one of them wants to change what a tile
+  *means* (blocked, buildable, seen), and all three are read on the hot path.
+- **Fix, and the shape of it:**
+  - **A wall is an ordinary 1×1 structure.** It goes in `g.blds` and writes
+    `g.occ`, so pathing, placement, damage, rubble and the shroud all pick it
+    up with no new machinery — `blocked()` already refused an occupied cell.
+    What it needed instead were three *subtractions*: it is not selectable
+    (`Selectable=no`), it is never auto-targeted (`ThreatPosed=0` — a Rhino on
+    attack-move walks past concrete), and it is not damageable by a warhead
+    without `Wall=yes`. That last one is `WH_WALL`, taken verbatim from the 37
+    rules.ini sections carrying the flag — and note it is **not** the intuitive
+    set: every tank shell (`AP`/`ApocAP`), the artillery family and `Electric`
+    go through, while small arms, flak, Tanya's C4 and the Prism Tank's
+    `CometWH` bounce off. `versesVs()` folds the rule into target *picking* as
+    well as damage, so a Sentry Gun never wastes a burst on a wall it cannot
+    scratch.
+  - **A gate is passable to its owner, not to whoever is standing there.**
+    First attempt: the leaves open when an owner's unit is within ~2 cells, and
+    `blocked()` reports the cell walkable while they are apart. That deadlocks —
+    A\* refuses to route through a shut gate, so the column never comes close
+    enough to open it, and a gate in your own wall walls *you* in. `blocked()`
+    and `astar()` therefore take the mover's side: your own gate is always
+    *routable*, while `tilePassable()` (the physical step) still needs the
+    leaves actually apart. The enemy gets neither, which is what makes a gate
+    one-way without a second passability system.
+  - **The Gap Generator erases the shroud rather than tinting it.** `g.seen` is
+    a one-way latch by design (RA2 has no fog of war), so the field does not
+    add a "hidden" layer over it — `applyGaps()` runs immediately *before*
+    `revealFor()` each pass and writes 0 back into `g.seen` inside the radius.
+    The order is the whole trick: your own sight discs are re-applied
+    afterwards, so a column inside the field still lights its own pool, exactly
+    as RA2 does. `g.gapM[p]` (2 = core, 1 = rim) survives only for the
+    renderer's soft edge and for the AI's `scoutEnemy`, which is blinded by a
+    human-owned generator on the same terms.
+- **Rejected:** a separate `hidden` mask consulted by every draw and pick (two
+  sources of truth for "can I see this", and the field would evaporate the
+  moment the generator died instead of leaving ground you have to re-scout);
+  making walls unpathable *terrain* (they must take damage, leave rubble and
+  return their tile); giving the gate its own passability grid.
+
+## `Adjacent=` is RA2's ratio, not RA2's cell count
+
+- **Symptom:** dropping rules.ini's `Adjacent=` in literally (2 default, 4 on
+  Pillbox/Sentry/Patriot/Flak, 8 on walls) cost the hard AI two matches in
+  twelve — 8/12 against an 11/12 baseline on the standard six-seed × both-
+  faction-assignments sample (`tmp/play/soakB.js`).
+- **Cause:** bisected by neutralising one number at a time. `Adjacent=4` on the
+  four defences alone was worth two of the three losses (it is *smaller* than
+  the flat radius of 6 the base scale was tuned to through the 2026-09-03
+  playtests, so defences could no longer be pushed out in front of the base);
+  the 2 was worth the third. RA2's numbers are cell counts on RA2's map scale,
+  and this game's is not RA2's. With all the adjacency values neutralised the
+  rest of the Phase 4 change set measured 11/12 with match lengths identical to
+  the baseline, so adjacency was the whole regression.
+- **Fix:** carry the rules.ini values in at **+4** — 2 → 6 (the tuned radius,
+  unchanged), 4 → 8, 8 → 12. That preserves the thing the roadmap item is
+  actually about, which is the *ordering*: a defence reaches further than a
+  factory, and a wall further again, so a wall run can leave the base and a
+  Pillbox can be planted in front of it. Measured 12/12. `buildMask` is keyed
+  by `(player, adjacency)` because the radius now depends on what is being
+  placed, and a wall segment extends the base **for defences only** — RA2's
+  `WallTower=GACTWR` rule — or a $100 chain of concrete would let you drop a
+  Battle Lab anywhere on the map.
+- **Rejected:** RA2's literal numbers plus a rewrite of `aiPlace`'s "leave a
+  one-tile gap" pass to cope with the tighter mask (the balance sample is the
+  gate on every merge, and re-tuning the AI to survive a cosmetic-scale change
+  is the wrong trade); a single global radius for everything (what this
+  replaced — it matches none of RA2's three values and made walls pointless).
