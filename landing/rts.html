@@ -281,6 +281,10 @@
     padding: 22px 28px; text-align: center; min-width: 210px;
     box-shadow: 0 12px 40px rgba(0,0,0,.5);
   }
+  /* A tall menu card (settings drawer open) scrolls inside the viewport and
+     keeps its Start button in reach instead of pushing it below the fold. */
+  #ov .card { max-height: calc(100vh - 96px); overflow-y: auto; }
+  #ov .card .cardfoot { position: sticky; bottom: -22px; background: #161b22; padding-bottom: 22px; margin-bottom: -22px; z-index: 1; }
   .card .big { font-size: 30px; margin-bottom: 6px; }
   .card h2 { font-size: 17px; margin-bottom: 4px; color: #e6edf3; }
   .card p { font-size: 13px; color: #aab4c5; margin-bottom: 14px; line-height: 1.5; }
@@ -22711,7 +22715,7 @@
     var cost = '$' + sp.cost;
     if (pw) cost += pw > 0 ? '   +' + pw + ' power' : '   ' + pw + ' power';
     lines.push({ t: cost, c: pw < 0 && s.powerMade - s.powerUse + pw < 0 ? '#ff9c8f' : '#dfe7f2' });
-    lines.push({ t: sp.desc, c: '#8f9bae' });
+    if (sp.desc && cost.indexOf(sp.desc) < 0) lines.push({ t: sp.desc, c: '#8f9bae' });   // a plant's desc IS its power line
     var tone = null;
     if (!reqMet(G, P_HUMAN, sp)) { lines.push({ t: 'Requires ' + reqName(sp, fac), c: '#ff9c8f' }); tone = 'bad'; }
     else if (s.credits < sp.cost) { lines.push({ t: 'Not enough credits', c: '#ff9c8f' }); tone = 'bad'; }
