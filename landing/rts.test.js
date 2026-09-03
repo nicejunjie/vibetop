@@ -1443,11 +1443,12 @@ function openCentre(H, g, p, near) {
       if (H.api.canPlace(g, p, "base", x - 1, y - 1, { anywhere: true })) return { x, y };
     }
   }
-  throw new Error("no open 3x3 anywhere on this map");
+  throw new Error("no open Construction Yard footprint anywhere on this map");
 }
 
 test("an MCV deploys in place into a Construction Yard and is consumed", () => {
-  // RA2: the 3x3 yard lands centred on the MCV's tile, the MCV is spent, and
+  // RA2: the 4x4 yard ([GACNST] Foundation=4x4) lands centred on the MCV's
+  // tile the way the placement ghost centres it, the MCV is spent, and
   // the yard inherits the MCV's damage — a half-dead MCV does not hand you a
   // fresh $3000 building.
   const H = W.__rtsTest;
@@ -1459,8 +1460,9 @@ test("an MCV deploys in place into a Construction Yard and is consumed", () => {
   const yard = H.deployMcv(mcv);
   assert.ok(yard, "the MCV should have deployed on open ground");
   assert.equal(yard.type, "base", "an MCV deploys into a Construction Yard");
-  assert.equal(yard.x, at.x - 1, "the 3x3 footprint is centred on the MCV's tile");
-  assert.equal(yard.y, at.y - 1, "the 3x3 footprint is centred on the MCV's tile");
+  const yd = T.BLDS.base;
+  assert.equal(yard.x, at.x - Math.floor((yd.gw - 1) / 2), "the footprint is centred on the MCV's tile");
+  assert.equal(yard.y, at.y - Math.floor((yd.gh - 1) / 2), "the footprint is centred on the MCV's tile");
   assert.ok(mcv.dead, "the MCV is consumed by deploying");
   assert.ok(Math.abs(yard.hp / yard.maxhp - 0.5) < 0.01,
     `the yard must start at the MCV's hp fraction (got ${(yard.hp / yard.maxhp).toFixed(2)})`);
@@ -1469,12 +1471,12 @@ test("an MCV deploys in place into a Construction Yard and is consumed", () => {
 
 test("an MCV refuses to deploy on ground it cannot fill", () => {
   // The footprint is checked with canPlace, so a structure or another unit
-  // anywhere in the 3x3 vetoes it — otherwise deploying would silently
+  // anywhere in the 4x4 vetoes it — otherwise deploying would silently
   // overwrite the occupancy grid and strand whatever was standing there.
   const H = W.__rtsTest;
   const gb = H.begin(55051, "normal");
   const at0 = openCentre(H, gb, 0);
-  const blocker = H.build("power", 0, at0.x + 1, at0.y + 1);   // 2x2 overlapping the 3x3
+  const blocker = H.build("power", 0, at0.x + 1, at0.y + 1);   // overlaps the yard's footprint
   assert.ok(blocker, "need a blocker for this scenario");
   const mcv = H.spawn("mcv", 0, at0.x, at0.y);
   assert.equal(H.api.canDeployMcv(gb, mcv), false, "blocked ground must refuse");
@@ -1930,9 +1932,10 @@ test("Adjacent= is per structure: a defence reaches further than a factory, a wa
   const R = API.adjOf("power"), RD = API.adjOf("sentry"), RW = API.adjOf("wall");
   assert.ok(RD > R && RW > RD, `defence ${RD} must beat structure ${R}, wall ${RW} must beat both`);
 
-  // The yard's footprint is 40..42; a 2x2 plant placed at x = 42 + n has its
-  // nearest cell n cells past the edge.
-  const inRange = 42 + R, tooFar = 42 + R + 1;
+  // The yard's footprint is 40..43 ([GACNST] Foundation=4x4); a plant placed
+  // at x = 43 + n has its nearest cell n cells past the edge.
+  const EDGE = 40 + T.BLDS.base.gw - 1;
+  const inRange = EDGE + R, tooFar = EDGE + R + 1;
   assert.equal(API.canPlace(g, 0, "power", inRange, 41), true,
     `a Power Plant exactly ${R} cells out must be legal`);
   assert.equal(API.canPlace(g, 0, "power", tooFar, 41), false,
@@ -1940,15 +1943,16 @@ test("Adjacent= is per structure: a defence reaches further than a factory, a wa
   // the defence, from the same yard, reaches past where the plant was refused
   assert.equal(API.canPlace(g, 0, "sentry", tooFar, 41), true,
     "a Pillbox may go where a Power Plant may not");
-  assert.equal(API.canPlace(g, 0, "sentry", 42 + RD + 1, 41), false,
+  assert.equal(API.canPlace(g, 0, "sentry", EDGE + RD + 1, 41), false,
     "but not past its own Adjacent");
-  assert.equal(API.canPlace(g, 0, "wall", 42 + RD + 1, 41), true,
+  assert.equal(API.canPlace(g, 0, "wall", EDGE + RD + 1, 41), true,
     "a wall chains further still");
   // ...and a chain of walls extends the base for DEFENCES only (WallTower),
   // never for economy or tech.
-  for (let x = 44; x <= 44 + RW; x++) H.build("wall", 0, x, 41);
+  const W0 = EDGE + 2;
+  for (let x = W0; x <= W0 + RW; x++) H.build("wall", 0, x, 41);
   g.blds.forEach((b) => { b.make = 0; });
-  const far = 44 + RW + 3;                       // three cells past the last segment
+  const far = W0 + RW + 3;                       // three cells past the last segment
   assert.equal(API.canPlace(g, 0, "sentry", far, 43), true,
     "a Pillbox may be planted off the end of a wall run");
   assert.equal(API.canPlace(g, 0, "power", far, 43), false,
@@ -2723,7 +2727,9 @@ test("every new man is in his faction's Infantry tab and behind the right prereq
 test("the default options replay a seed exactly as the game did before them", () => {
   // Recorded from the build immediately before the skirmish strip landed
   // (seed 4242, normal vs normal, Directorate vs Collective, three minutes),
-  // then RE-recorded when the Phase 6 task-force AI landed: that change is
+  // then RE-recorded when the Phase 6 task-force AI landed and again when the
+  // footprints moved to RA2's `Foundation=` (both change where every building
+  // in every match ends up standing): that change is
   // the AI's own decisions, which every skirmish shares, so the recording
   // moved with it. What this test still guards is what it always guarded —
   // that nothing in OPT_DEF leaks into the default path, so a drift here with
@@ -2731,7 +2737,7 @@ test("the default options replay a seed exactly as the game did before them", ()
   const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
   assert.deepEqual(
     { u0: r.p0units, u1: r.p1units, b0: r.p0blds, b1: r.p1blds, c0: r.p0credits, c1: r.p1credits },
-    { u0: 8, u1: 10, b0: 5, b1: 5, c0: 8509, c1: 9176 },   // re-recorded: Normal lost its economy bonus (playtest pass 3)
+    { u0: 8, u1: 11, b0: 5, b1: 5, c0: 8407, c1: 9235 },   // re-recorded after the footprint + Tesla Reactor cost change
     "a default match must be bit-for-bit the recorded match",
   );
 });
@@ -2998,19 +3004,19 @@ test("the whole audio layer is inert without an AudioContext", () => {
 
 test("adding audio did not move the simulation", () => {
   // Presentation-only layers (audio, doors) must not reach the sim. The pinned
-  // numbers are re-recorded whenever a SIM change lands (last: the Phase 6 AI
-  // team layer changed the AI's own decisions) — a presentation change must
-  // never be the reason they move.
+  // numbers are re-recorded whenever a SIM change lands (last: RA2
+  // `Foundation=` footprints moved where every structure stands) — a
+  // presentation change must never be the reason they move.
   const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
   assert.equal(r.ticks, 10800);
   assert.equal(r.p0units, 8);
-  assert.equal(r.p1units, 10);
+  assert.equal(r.p1units, 11);
   assert.equal(r.p0blds, 5);
   assert.equal(r.p1blds, 5);
-  assert.equal(r.p0credits, 8509);
-  assert.equal(r.p1credits, 9176);
+  assert.equal(r.p0credits, 8407);
+  assert.equal(r.p1credits, 9235);
   assert.equal(r.p0made, 8);
-  assert.equal(r.p1made, 10);
+  assert.equal(r.p1made, 11);
 });
 
 // ======================= Phase 6: the AI team layer ===================== //
@@ -3026,7 +3032,11 @@ test("adding audio did not move the simulation", () => {
 // stand buildings up for the AI to reason about, including neutral ones and
 // ones whose prerequisites are not met yet.
 function putNear(H, g, key, p, x, y) {
-  const API = H.api, TB = W.__rtsTables, MAP = TB.MAP, d = TB.BLDS[key];
+  // Footprints are per FACTION (RA2 Foundation=: a Soviet Battle Lab is 3x3
+  // where the Allied one is 3x2), so the hole this reserves has to be sized
+  // from the same resolved spec placeBld will use.
+  const API = H.api, TB = W.__rtsTables, MAP = TB.MAP;
+  const d = API.bspecFor(key, (p >= 0 && g.side[p] && g.side[p].fac) || "dir");   // the neutral house has no faction
   const clear = (gx, gy) => {
     for (let yy = gy - 1; yy <= gy + d.gh; yy++) for (let xx = gx - 1; xx <= gx + d.gw; xx++) {
       if (xx < 0 || yy < 0 || xx >= MAP || yy >= MAP) return false;

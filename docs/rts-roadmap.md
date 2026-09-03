@@ -239,7 +239,8 @@ fidelity plus reproduced player reports.
   baked sprite, tinted green/red and drawn over the world.
 - ☐ Still open from the playtests:
   superweapon clocks overlay the battlefield (Phase 1 moves them to the
-  sidebar); own structures interpenetrate when adjacent (Phase 2 footprints);
+  sidebar); ~~own structures interpenetrate when adjacent~~ (fixed in Phase 2
+  footprints: RA2 `Foundation=` sizes and a true cell-parallelogram plate);
   ~~Weather Storm is one thin bolt~~ (fixed in Phase 5: RA2's
   `LightningHitDelay`/`ScatterDelay`/`CellSpread`, ~54 bolts in 12 s over a
   rolling cloud deck); AI never fields Engineer, Tanya,
@@ -366,9 +367,24 @@ per state, for every structure and defence, both factions.
   structure, runs `make` down through the build-up frames in reverse, and
   only then pays the refund and removes it — with no death blasts, debris
   or rubble decal (a sold building is folded away, not levelled).
-- ☐ Footprints to RA2 `Foundation=` (yard 4×4, WF 5×3, Refinery 4×3, Barracks
-  3×2, AFC 3×2, Lab 3×2/3×3, Tesla Reactor 3×2, Chronosphere 4×3) with maps and
-  AI placement re-tuned; shared bib aprons on the ground layer.
+- ☑ Footprints to RA2 `Foundation=`, every key verified against `art.ini`:
+  Construction Yard 4×4 (`[GACNST]`/`[NACNST]`), War Factory **5×3**
+  (`[GAWEAP]`/`[NAWEAP]`), Refinery 4×3, Allied Barracks 3×2 (`[GAPILE]`) /
+  Soviet 2×2 (`[NAHAND]`), Airforce Command 3×2 (`[GAAIRC]`), Allied Battle Lab
+  3×2 (`[GATECH]`) / Soviet 3×3 (`[NATECH]`), Tesla Reactor 3×2 (`[NAPOWR]`),
+  Nuclear Reactor 2×3 (`[NAAPWR]`), Chronosphere 4×3 (`[GACSPH]`), Soviet
+  Service Depot 4×3 (`[NADEPT]`, Allied stays 3×3), Ore Purifier 3×3
+  (`[GAOREP]`), Cloning Vats 2×2 (`[NACLON]`) and Gap Generator 1×1
+  (`[GAGAP]`) — the last two SHRANK. Footprints are now per FACTION, resolved
+  through `bspecFor` at every site that reads one (`placeBld`, `canPlace`,
+  `aiPlace`, the ghost, the cursor, `bakeBuilding`), because RA2's are.
+  Two art changes carry it: the ground plate is the TRUE cell parallelogram
+  (`plot()`, not a rhombus — this is what stopped adjacent structures reading
+  as though they grew through each other), and the superstructure's vertical
+  mass scales with the plot so a bigger `Foundation=` is bigger in both axes.
+  Start pads, the opening force, `mapTrees` and the AI's placement radius
+  re-tuned around the bigger plots. See `docs/design-decisions.md` for the
+  before/after aspect table.
 
 **Phase 3 — infantry motion (art §2). ~2 batches, L.** — DONE
 - ☑ 8 facings for every infantry kind; 6-frame walk.

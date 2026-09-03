@@ -1228,27 +1228,32 @@
     base: {
       fac: null, cat: 'str',
       name: 'Construction Yard', em: '🏛️', cost: 3000, build: 126,
-      armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: 0, sight: 8, makes: 'b', desc: 'Builds structures'
+      // art.ini [GACNST]/[NACNST] Foundation=4x4.
+      armour: 'concrete', gw: 4, gh: 4, hp: 1000, power: 0, sight: 8, makes: 'b', desc: 'Builds structures'
     },
     power: {
-      fac: null, cat: 'str', byFac: { col: { name: 'Tesla Reactor', cost: 600, power: 150, build: 25, desc: '+150 power' } },   // Tesla Reactor (NAPOWR)
+      fac: null, cat: 'str', byFac: { col: { name: 'Tesla Reactor', cost: 600, power: 150, build: 25, gw: 3, gh: 2, desc: '+150 power' } },   // Tesla Reactor (NAPOWR) Foundation=3x2
       name: 'Power Plant', em: '⚡', cost: 800, build: 34,
+      // art.ini [GAPOWR] Foundation=2x2.
       armour: 'wood', gw: 2, gh: 2, hp: 750, power: 200, sight: 4, makes: null, desc: '+200 power'
     },
     refinery: {
       fac: null, cat: 'str',
       req: 'power', name: 'Refinery', em: '🏭', cost: 2000, build: 84,
-      armour: 'wood', gw: 3, gh: 2, hp: 1000, power: -50, sight: 6, makes: null, desc: 'Ore drop-off, +1 harvester'
+      // art.ini [GAREFN]/[NAREFN] Foundation=4x3.
+      armour: 'wood', gw: 4, gh: 3, hp: 1000, power: -50, sight: 6, makes: null, desc: 'Ore drop-off, +1 harvester'
     },
     barracks: {
-      fac: null, cat: 'str',
+      fac: null, cat: 'str', byFac: { col: { gw: 2, gh: 2 } },   // [NAHAND] Foundation=2x2 — the Soviet hall is the squat one
       req: 'power', name: 'Barracks', em: '⛺', cost: 500, build: 21,
-      armour: 'steel', gw: 2, gh: 2, hp: 500, power: -10, sight: 5, makes: 'i', desc: 'Trains infantry'
+      // art.ini [GAPILE] Foundation=3x2.
+      armour: 'steel', gw: 3, gh: 2, hp: 500, power: -10, sight: 5, makes: 'i', desc: 'Trains infantry'
     },
     factory: {
       fac: null, cat: 'str',
       reqAll: ['refinery', 'barracks'], name: 'War Factory', em: '🏗️', cost: 2000, build: 84,
-      armour: 'wood', gw: 3, gh: 3, hp: 1000, power: -25, sight: 4, makes: 'v', desc: 'Builds vehicles'
+      // art.ini [GAWEAP]/[NAWEAP] Foundation=5x3 — RA2's long assembly hall.
+      armour: 'wood', gw: 5, gh: 3, hp: 1000, power: -25, sight: 4, makes: 'v', desc: 'Builds vehicles'
     },
     sentry: {
       cat: 'def',
@@ -1268,7 +1273,8 @@
     airforce: {
       fac: 'dir', cat: 'str', req: 'refinery',
       name: 'Airforce Command', em: '📡', cost: 1000, build: 42,
-      armour: 'steel', gw: 2, gh: 2, hp: 600, power: -50, sight: 5, makes: 'a', desc: 'Radar; unlocks tier 2; four Harrier pads'
+      // art.ini [GAAIRC] Foundation=3x2.
+      armour: 'steel', gw: 3, gh: 2, hp: 600, power: -50, sight: 5, makes: 'a', desc: 'Radar; unlocks tier 2; four Harrier pads'
     },
     radar: {
       fac: 'col', cat: 'str', req: 'refinery',
@@ -1276,24 +1282,27 @@
       armour: 'wood', gw: 2, gh: 2, hp: 1000, power: -50, sight: 10, makes: null, desc: 'Radar; unlocks tier 2'
     },
     depot: {
-      fac: null, cat: 'str', req: 'factory', byFac: { col: { power: -20 } },   // [GADEPT] -25 / [NADEPT] -20
+      fac: null, cat: 'str', req: 'factory', byFac: { col: { power: -20, gw: 4, gh: 3 } },   // [GADEPT] -25 3x3 / [NADEPT] -20 4x3
       name: 'Service Depot', em: '🔧', cost: 800, build: 34,
       armour: 'wood', gw: 3, gh: 3, hp: 1200, power: -25, sight: 5, makes: null, desc: 'Repairs vehicles parked on it'
     },
     lab: {
-      fac: null, cat: 'str', req: ['airforce', 'radar'], reqAll: ['factory'],
+      fac: null, cat: 'str', req: ['airforce', 'radar'], reqAll: ['factory'], byFac: { col: { gh: 3 } },   // [NATECH] Foundation=3x3
       name: 'Battle Lab', em: '🔬', cost: 2000, build: 84,
-      armour: 'wood', gw: 2, gh: 2, hp: 500, power: -100, sight: 6, makes: null, desc: 'Unlocks tier 3'
+      // art.ini [GATECH] Foundation=3x2.
+      armour: 'wood', gw: 3, gh: 2, hp: 500, power: -100, sight: 6, makes: null, desc: 'Unlocks tier 3'
     },
     purifier: {
       fac: 'dir', cat: 'str', req: 'lab',
       name: 'Ore Purifier', em: '💎', cost: 2500, build: 105,
-      armour: 'wood', gw: 2, gh: 2, hp: 900, power: -200, sight: 5, makes: null, desc: '+25% ore income'
+      // art.ini [GAOREP] Foundation=3x3.
+      armour: 'wood', gw: 3, gh: 3, hp: 900, power: -200, sight: 5, makes: null, desc: '+25% ore income'
     },
     reactor: {
       fac: 'col', cat: 'str', req: 'lab',
       name: 'Nuclear Reactor', em: '☢️', cost: 1000, build: 42,
-      armour: 'concrete', gw: 2, gh: 2, hp: 1000, power: 2000, sight: 5, makes: null, desc: '+2000 power'
+      // art.ini [NAAPWR] Foundation=2x3 — deep, not wide.
+      armour: 'concrete', gw: 2, gh: 3, hp: 1000, power: 2000, sight: 5, makes: null, desc: '+2000 power'
     },
     prism: {
       cat: 'def', req: 'airforce',
@@ -1339,7 +1348,8 @@
     gapgen: {
       cat: 'def', req: 'lab', fac: 'dir', gap: 10,
       name: 'Gap Generator', em: '🌫️', cost: 1000, build: 42,
-      armour: 'wood', gw: 2, gh: 2, hp: 600, power: -100, sight: 5, makes: null,
+      // art.ini [GAGAP] Foundation=1x1 — a single mast on one cell.
+      armour: 'wood', gw: 1, gh: 1, hp: 600, power: -100, sight: 5, makes: null,
       desc: 'Re-shrouds ten cells of the enemy map'
     },
     // [GTGCAN] $2000, Strength 900, Armor=steel, Power=-100, Sight 10,
@@ -1376,7 +1386,8 @@
     chrono: {
       cat: 'def', fac: 'dir', req: 'lab', sw: 'chrono',
       name: 'Chronosphere', em: '\ud83c\udf00', cost: 2500, build: 105,
-      armour: 'concrete', gw: 3, gh: 3, hp: 750, power: -200, sight: 6, makes: null, max: 1,
+      // art.ini [GACSPH] Foundation=4x3.
+      armour: 'concrete', gw: 4, gh: 3, hp: 750, power: -200, sight: 6, makes: null, max: 1,
       desc: 'Teleports up to nine vehicles anywhere'
     },
     weather: {
@@ -1426,7 +1437,8 @@
     cloningvats: {
       cat: 'str', fac: 'col', req: 'lab', clone: true, max: 1,
       name: 'Cloning Vats', em: '🧬', cost: 2500, build: 105,
-      armour: 'wood', gw: 3, gh: 2, hp: 1000, power: -200, sight: 5, makes: null,
+      // art.ini [NACLON] Foundation=2x2.
+      armour: 'wood', gw: 2, gh: 2, hp: 1000, power: -200, sight: 5, makes: null,
       desc: 'Every infantryman you train is duplicated here, free'
     },
 
@@ -1549,7 +1561,23 @@
   function airborneYet(u) { return !u.air || u.landed || !(u.born > 0) || (G ? G.tick : 0) - u.born >= CLIMB; }
   // Where Harriers park: four pads on each Airforce Command, in grid offsets
   // from the structure's centre (the helipad is the near-right half of the art).
-  var PAD_SLOTS = [[0.09, -0.59], [0.99, -0.59], [0.09, 0.31], [0.99, 0.31]];   // the four quadrants of the pad's cross
+  // Where the helipad sits on the Airforce Command's plot and how big it is,
+  // in fractions of the plot's half-width/half-height, plus the quadrant
+  // offset of one Harrier slot. The ART draws the pad from these numbers and
+  // PAD_SLOTS is DERIVED from them, so the four aircraft always park on the
+  // four painted quadrants. Hand-written slot offsets silently stopped
+  // matching the moment the AFC moved to RA2's 3x2 `Foundation=`.
+  var AFC_PAD = { ox: 0.34, oy: 0.20, w: 0.62, h: 0.62, q: 0.363 };
+  var PAD_SLOTS = (function () {
+    var d = BLDS.airforce, pw = (d.gw + d.gh) * TW / 4, ph = (d.gw + d.gh) * TH / 4, out = [];
+    for (var i = 0; i < 4; i++) {
+      var hu = ((i & 1) ? 1 : -1) * AFC_PAD.q, hv = ((i & 2) ? 1 : -1) * AFC_PAD.q;
+      var dx = pw * AFC_PAD.ox + (hu - hv) * pw * AFC_PAD.w;
+      var dy = ph * AFC_PAD.oy + (hu + hv) * ph * AFC_PAD.h;
+      out.push([(dy / (TH / 2) + dx / (TW / 2)) / 2, (dy / (TH / 2) - dx / (TW / 2)) / 2]);
+    }
+    return out;                                  // the four quadrants of the pad's cross
+  })();
   function padSlot(b, i) { return { x: b.cx + PAD_SLOTS[i][0], y: b.cy + PAD_SLOTS[i][1] }; }
 
   // Faction identity. Colour still follows the PLAYER, not the faction, so a
@@ -1822,7 +1850,7 @@
       var cx = 3 + rint(MAP - 6), cy = 3 + rint((MAP >> 1) - 4), n = 2 + rint(4);
       for (var i = 0; i < n; i++) {
         var x = cx + rint(5) - 2, y = cy + rint(4) - 2;
-        if (Math.abs(x - g.start[0].x) < 6 && Math.abs(y - g.start[0].y) < 6) continue;
+        if (Math.abs(x - g.start[0].x) < 7 && Math.abs(y - g.start[0].y) < 7) continue;   // clear of the 4x4 yard and its opening force
         if (nearT(g, x, y, T_WATER) || nearT(g, x, y, T_CLIFF)) continue;   // no trees on the shoreline or against a cliff face
         setTM(g, x, y, T_TREE);
       }
@@ -2021,10 +2049,13 @@
     if (extraOre) extraOre(mirrorPatch, mirrorGem);   // per-map pockets and gem fields
 
     mapTech(g, g.tech2);
-    // Clear a build pad around each start so the yard always fits.
+    // Clear a build pad around each start so the yard always fits. Five cells
+    // out, not four: the Construction Yard is 4x4 (RA2 Foundation=) and the
+    // opening force spawns off its corners, so a 9x9 clearing left the first
+    // harvester wedged against an outcrop it had been given no room to leave.
     for (i = 0; i < 2; i++) {
       var s = g.start[i];
-      for (y = s.y - 4; y <= s.y + 4; y++) for (x = s.x - 4; x <= s.x + 4; x++) {
+      for (y = s.y - 5; y <= s.y + 5; y++) for (x = s.x - 5; x <= s.x + 5; x++) {
         if (!inMap(x, y)) continue;
         g.terrain[idx(x, y)] = T_GROUND; g.ore[idx(x, y)] = 0;
       }
@@ -7372,6 +7403,14 @@
   // shut (the idle state of [GAWEAP]/[NAWEAP]/[GAPILE]/[NAHAND]), 1 is fully
   // open. Only the War Factory and the Barracks read it; every other key
   // ignores it, and every existing caller passes nothing, which is shut.
+  // (gw+gh) each structure's art was proportioned at before the footprints
+  // moved to RA2's Foundation=. Used only to rescale the headroom allowance.
+  var FOOT0 = { base: 6, power: 4, refinery: 5, barracks: 4, factory: 6,
+                airforce: 4, depot: 6, lab: 4, purifier: 4, reactor: 4,
+                chrono: 6, cloningvats: 5, gapgen: 4 };
+  // How hard the vertical mass follows the plot, per key (default 0.5 -- see
+  // bakeBuilding). Measured against docs/ra2-ref/, not guessed.
+  var VPOW = { airforce: 1, depot: 1 };
   function bakeBuilding(key, col, fac, bph, bdir, dopen) {
     var DOP = dopen == null ? 0 : dopen;
     if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
@@ -7381,8 +7420,30 @@
     if (key === 'wall') return bakeWallSeg(col, fac, 15);
     if (key === 'gate') return bakeGateSeg(col, fac, false, 0);
     var sov = fac === 'col';                    // Collective reads as RA2's Soviets
-    var b = BLDS[key];
+    // RA2's Foundation= is per FACTION, not per key: a Soviet Battle Lab is
+    // 3x3 where the Allied one is 3x2, a Tesla Reactor 3x2 where the Allied
+    // plant is 2x2. The art must be baked from the faction-resolved spec or
+    // the sprite and the cells it occupies disagree.
+    var b = bspecFor(key, fac);
     var fw = (b.gw + b.gh) * TW / 4, fh = (b.gw + b.gh) * TH / 4;
+    // How far the drawn plot leans off a square diamond. In 2:1 iso a gw x gh
+    // block of cells is a PARALLELOGRAM, not a rhombus: its E corner sits at
+    // (+fw, +fh*FKW) and its S corner at (+fw*FKW, +fh). Drawing a rhombus
+    // instead is exactly why adjacent structures looked as though they grew
+    // through each other -- the plate covered cells the building did not own
+    // and missed cells it did. plot() traces the true cell outline; every
+    // ground plate, apron and bib in here goes through it.
+    var FKW = (b.gw - b.gh) / (b.gw + b.gh);
+    function plot(gg, px, py, sw, sh) {
+      // Undo the vertical mass scale: the plate must be exactly as tall as the
+      // cells it covers, whatever the superstructure above it is doing.
+      var hw = sw / 2, hh = sh / 2 / VS, kx = FKW * hw, ky = FKW * hh;
+      var pyy = baseY + (py - baseY) / VS;
+      gg.beginPath();
+      gg.moveTo(px + hw, pyy + ky); gg.lineTo(px + kx, pyy + hh);
+      gg.lineTo(px - hw, pyy - ky); gg.lineTo(px - kx, pyy - hh);
+      gg.closePath();
+    }
     var pad = (key === 'factory' || key === 'airforce' || key === 'radar') ? 24 : 18;   // factory rails, the Airforce helipad and the Radar's front wedge overhang the plot
     var head = { base: 108, power: 90, refinery: 72, factory: 104, barracks: 190, sentry: 56, tesla: 106,
                  airforce: 96, radar: 110, depot: 70, lab: 100, purifier: 96, reactor: 100, prism: 110, sentrygun: 56,
@@ -7398,8 +7459,36 @@
     else if (key === 'cloningvats') head = 92;
     if (key === 'chrono') head = 100; else if (key === 'weather') head = 168;
     else if (key === 'curtain') head = 124; else if (key === 'nuke') head = 152;
+    // Every `head`/`pad` above was tuned against the OLD footprint. The art
+    // itself is parametric in `fw` (`u = fw / 3`), so moving a structure to
+    // its RA2 Foundation= scales the whole drawing -- and the headroom and
+    // the canvas margin have to scale with it or a taller mast is clipped
+    // off the top of its own sprite. FOOT0 is the (gw+gh) each allowance was
+    // drawn at; anything not listed never moved.
+    // VS also scales the structure's VERTICAL mass. RA2's sprite for a bigger
+    // Foundation= is bigger in both axes; ours was parametric in `fw` across
+    // the plan but every HEIGHT is a literal pixel count, so moving the yard
+    // to 4x4 grew it 33% wider and only 13% taller and the silhouette flopped
+    // out toward the plate's own 2:1 (measured: aspect 1.50 -> 1.70 against a
+    // 1.26 reference). The whole drawing therefore runs under a vertical
+    // scale about the ground line, and plot() pre-divides by it so the ground
+    // plate still lands exactly on its cells. Never below 1: the two
+    // footprints that SHRANK (Gap Generator 2x2->1x1, Cloning Vats 3x2->2x2)
+    // already read correctly and squashing them would undo that.
+    // The exponent: half the art's vertical detail is drawn in literal pixels
+    // (which do not scale at all) and half off `fh` (which scales twice over
+    // once the plot grows), so the square root of the plot's growth is what
+    // holds a sprite's aspect against its RA2 reference across the set. Two
+    // keys measured better at the full factor and are listed in VPOW -- both
+    // are cases where no second faction pulls the other way (the Airforce
+    // Command is Allied-only; the Allied Service Depot's plot did not move at
+    // all, so only the 4x3 Soviet one is affected).
+    var f0 = FOOT0[key] || (b.gw + b.gh);
+    var VS = Math.max(1, Math.pow((b.gw + b.gh) / f0, VPOW[key] || 0.5));
+    if (VS !== 1) { head = Math.round(head * VS); pad = Math.round(pad * VS); }
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
+    if (VS !== 1) { g.translate(0, baseY * (1 - VS)); g.scale(1, VS); }   // heights grow with the plot
 
     // RA2 structures are poured concrete and painted steel; the HOUSE colour
     // is trim — a door, a ridge, a flag, a chevron — never the whole shell.
@@ -7410,12 +7499,12 @@
 
     // Contact shadow, then a thin skirt of hardstanding — NOT a parade square.
     g.fillStyle = 'rgba(0,0,0,.34)';
-    diamond(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
-    diamond(g, cx, baseY, fw * 2, fh * 2);
+    plot(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
+    plot(g, cx, baseY, fw * 2, fh * 2);
     g.fillStyle = shade(CONC, 0.60); g.fill();
     outline(g, shade(CONC, 0.46));
     g.save();
-    diamond(g, cx, baseY, fw * 2, fh * 2); g.clip();
+    plot(g, cx, baseY, fw * 2, fh * 2); g.clip();
     srand(key.charCodeAt(0) * 13 + key.length);
     for (var pI = 0; pI < 7; pI++) {                       // oil stains / patches
       var pa = rnd() * Math.PI * 2, pr = Math.sqrt(rnd());
@@ -7446,10 +7535,10 @@
 
     // Dark bevelled platform every structure stands on.
     g.fillStyle = 'rgba(0,0,0,.34)';
-    diamond(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
-    diamond(g, cx, baseY, fw * 2, fh * 2);
+    plot(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
+    plot(g, cx, baseY, fw * 2, fh * 2);
     g.fillStyle = PLAT; g.fill(); outline(g, PLAT_E);
-    diamond(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
+    plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
     g.fillStyle = shade(PLAT, 1.16); g.fill(); outline(g, PLAT_E);
 
     // A thick stack: dark barrel, lighter bands, open mouth, blue collar.
@@ -7549,9 +7638,9 @@
         var padPt = function (pu, pv) {
           return [cx + (pu - pv) * fw * 0.5, baseY - 2 + (pu + pv) * fh * 0.5];
         };
-        diamond(g, cx, baseY - 2, fw * 1.96, fh * 1.96);
+        plot(g, cx, baseY - 2, fw * 1.96, fh * 1.96);
         g.fillStyle = SCON; g.fill(); outline(g, SCON_D);
-        g.save(); diamond(g, cx, baseY - 2, fw * 1.96, fh * 1.96); g.clip();
+        g.save(); plot(g, cx, baseY - 2, fw * 1.96, fh * 1.96); g.clip();
         g.fillStyle = SPNT;                               // gold paint: the WEST half
         g.fillRect(cx - fw - 4, baseY - fh - 6, fw + 14, fh * 2 + 12);
         g.fillStyle = shade(SPNT, 0.88);                  // its worn far edge
@@ -7985,9 +8074,9 @@
         var AWHT = '#eef0f4', ARAIL = '#d08236';  // shutter white, orange rail
 
         // ---- deck: mottled dark platform ------------------------------------
-        diamond(g, cx, baseY - 3, fw * 1.96, fh * 1.96);
+        plot(g, cx, baseY - 3, fw * 1.96, fh * 1.96);
         g.fillStyle = DKB; g.fill(); outline(g, DKB_D);
-        g.save(); diamond(g, cx, baseY - 3, fw * 1.96, fh * 1.96); g.clip();
+        g.save(); plot(g, cx, baseY - 3, fw * 1.96, fh * 1.96); g.clip();
         srand(917);
         for (var mtA = 0; mtA < 22; mtA++) {              // worn plate mottling
           var mta = rnd() * 6.283, mtr = Math.sqrt(rnd());
@@ -8405,7 +8494,7 @@
         // diagonal strut lattice across its near riser.
         var dW = fw * 1.90, dH = fh * 1.90, dTop = baseY - 5, dRise = 8;
         g.fillStyle = 'rgba(0,0,0,.44)';
-        diamond(g, cx + 3, baseY + 6, dW * 1.02, dH * 1.02); g.fill();
+        plot(g, cx + 3, baseY + 6, dW * 1.02, dH * 1.02); g.fill();
         g.fillStyle = DECK_D;                                        // riser
         g.beginPath();
         g.moveTo(cx - dW / 2, dTop); g.lineTo(cx, dTop + dH / 2); g.lineTo(cx + dW / 2, dTop);
@@ -9151,9 +9240,9 @@
         var bfx = cx - 14, bfy = baseY - 2;                                // back furnace foot
 
         // ---- pad: khaki plate, a pale concrete octagon under the near cone -
-        diamond(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
+        plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
         g.fillStyle = S_PAD; g.fill(); outline(g, PLAT_E);
-        g.save(); diamond(g, cx, baseY - 2, fw * 1.94, fh * 1.94); g.clip();
+        g.save(); plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94); g.clip();
         srand(97);
         for (var mI = 0; mI < 12; mI++) {
           g.fillStyle = rnd() < 0.5 ? shade(S_PAD, 0.78) : shade(S_PAD, 1.16);
@@ -9401,9 +9490,9 @@
         var tsx = cx + 7, ssx = cx + 42;                               // stack centres
 
         // ---- plate: olive-brown, lit along the two upper edges -----------
-        diamond(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
+        plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
         g.fillStyle = A_PLT; g.fill(); outline(g, A_PLT_D);
-        g.save(); diamond(g, cx, baseY - 2, fw * 1.94, fh * 1.94); g.clip();
+        g.save(); plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94); g.clip();
         line(cx - fw * 0.97, baseY - 2, cx, baseY - 2 - fh * 0.97, 3, A_PLT_L);
         line(cx, baseY - 2 - fh * 0.97, cx + fw * 0.97, baseY - 2, 3, shade(A_PLT_L, 0.86));
         srand(131);
@@ -9631,13 +9720,13 @@
       //   sprite and is what you name the building by.
       // Colour law: the only saturated hue on either sprite is `col`.
       var bkPad = sov ? '#8b8770' : '#7d7850';
-      diamond(g, cx, baseY - 2, fw * 1.92, fh * 1.92);
+      plot(g, cx, baseY - 2, fw * 1.92, fh * 1.92);
       g.fillStyle = bkPad; g.fill(); outline(g, sov ? shade(bkPad, 0.52) : '#20242e');
       if (!sov) {                                        // navy kerb round the Allied pad
         g.strokeStyle = '#2a2e38'; g.lineWidth = 2.2;
-        diamond(g, cx, baseY - 2, fw * 1.90, fh * 1.90); g.stroke();
+        plot(g, cx, baseY - 2, fw * 1.90, fh * 1.90); g.stroke();
         g.strokeStyle = 'rgba(255,255,255,.10)'; g.lineWidth = 1;
-        diamond(g, cx, baseY - 3.5, fw * 1.74, fh * 1.74); g.stroke();
+        plot(g, cx, baseY - 3.5, fw * 1.74, fh * 1.74); g.stroke();
       }
 
       if (!sov) {
@@ -9881,10 +9970,10 @@
 
         // Stone apron: a stepped stone raft, palest thing on the sprite, with
         // three flush drain plates. It is what the statue's mass sits on.
-        diamond(g, cx, baseY - 4, fw * 1.86, fh * 1.86);
+        plot(g, cx, baseY - 4, fw * 1.86, fh * 1.86);
         g.fillStyle = shade(SVS, 1.06); g.fill(); outline(g, SVSD);
         g.strokeStyle = 'rgba(0,0,0,.20)'; g.lineWidth = 1;
-        diamond(g, cx, baseY - 5.5, fw * 1.62, fh * 1.62); g.stroke();
+        plot(g, cx, baseY - 5.5, fw * 1.62, fh * 1.62); g.stroke();
         var grate = function (gx0, gy0, gw0) {
           diamond(g, gx0, gy0, gw0, gw0 * 0.5);
           g.fillStyle = shade(SLAB, 0.86); g.fill(); outline(g, SVSD);
@@ -10221,7 +10310,7 @@
         var ii, jj, kk;
 
         // -- deck ------------------------------------------------------------
-        diamond(g, cx, baseY - 1, fw * 1.92, fh * 1.92);
+        plot(g, cx, baseY - 1, fw * 1.92, fh * 1.92);
         g.fillStyle = NAVY_D; g.fill();
         qpoly([IP(0.50, -1.46, 0), IP(1.80, -1.56, 0), IP(1.62, 1.44, 0), IP(0.50, 1.46, 0)], KHK, KHKD);
         srand(71);
@@ -10497,9 +10586,9 @@
         var PINK = '#c49a8c', PINK_D = '#8f6a60', PINK_L = '#e0bcae';
         var GOLD = '#c8973a', IRON = '#20222a', BOIL = '#aaaa9c', BRASS = '#b8933f';
         var si, sj;
-        diamond(g, cx, baseY, fw * 2, fh * 2);           // pale concrete pad
+        plot(g, cx, baseY, fw * 2, fh * 2);           // pale concrete pad
         g.fillStyle = shade(PADC, 0.70); g.fill(); outline(g, shade(PADC, 0.50));
-        diamond(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
+        plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
         g.fillStyle = PADC; g.fill(); outline(g, shade(PADC, 0.62));
         srand(73);
         for (si = 0; si < 8; si++) {                     // cracks and stains
@@ -10917,11 +11006,11 @@
       var CONCT = '#5a5850', MACH = '#b9bec6';
       // Bare hardstanding: the space around the pylons is part of the read,
       // so no bevelled parade platform on top of the skirt already drawn.
-      diamond(g, cx, baseY, fw * 2, fh * 2);
+      plot(g, cx, baseY, fw * 2, fh * 2);
       g.fillStyle = 'rgba(30,34,26,.72)'; g.fill();
-      diamond(g, cx, baseY, fw * 1.30, fh * 1.30);         // concrete raft
+      plot(g, cx, baseY, fw * 1.30, fh * 1.30);         // concrete raft
       g.fillStyle = shade(CONCT, 0.52); g.fill(); outline(g, shade(CONCT, 0.34));
-      diamond(g, cx, baseY - 2.5, fw * 1.16, fh * 1.16);
+      plot(g, cx, baseY - 2.5, fw * 1.16, fh * 1.16);
       g.fillStyle = shade(CONCT, 0.78); g.fill(); outline(g, shade(CONCT, 0.40));
 
       // Geometry, all offsets from baseY. The pylon tops now reach 45% of the
@@ -11118,8 +11207,11 @@
       // ---- helipad: the near-right half of the foundation ----------------
       // hpw/hph are fixed by PAD_SLOTS: a slot sits at u,v = (+-0.363, -+0.363)
       // in this frame, which is where each quadrant diamond is centred.
-      var hpx = cx + fw * 0.34, hpy = baseY + fh * 0.20;
-      var hpw = fw * 0.62, hph = fh * 0.62;
+      // The pad is GROUND: its vertical offsets are pre-divided by VS so the
+      // structure's vertical mass scale cannot flatten the iso of the deck
+      // (and so PAD_SLOTS, derived from the same AFC_PAD numbers, lands on it).
+      var hpx = cx + fw * AFC_PAD.ox, hpy = baseY + (fh * AFC_PAD.oy) / VS;
+      var hpw = fw * AFC_PAD.w, hph = (fh * AFC_PAD.h) / VS;
       var hp = function (hu, hv) {
         return [hpx + (hu - hv) * hpw, hpy + (hu + hv) * hph];
       };
@@ -11152,7 +11244,8 @@
       }
       g.restore();
       // the four quadrant markings, each centred on its Harrier pad slot
-      var afSlot = [[-0.363, -0.363], [0.363, -0.363], [-0.363, 0.363], [0.363, 0.363]];
+      var _q = AFC_PAD.q;
+      var afSlot = [[-_q, -_q], [_q, -_q], [-_q, _q], [_q, _q]];
       for (var afI = 0; afI < 4; afI++) {
         var mu = afSlot[afI][0], mv = afSlot[afI][1], mr = 0.252;
         hdia(mu, mv, mr, shade(col, 0.42), null);          // the diamond's shadowed outer line
@@ -11489,15 +11582,15 @@
         // ---- the works, off the back-left corner ---------------------------
         var swx = cx - fw * 0.64, swy = baseY - fh * 0.22;
         g.fillStyle = '#7c8073';                                    // works slab
-        diamond(g, swx + fw * 0.04, swy + fh * 0.20, fw * 0.62, fh * 0.62); g.fill();
+        plot(g, swx + fw * 0.04, swy + fh * 0.20, fw * 0.62, fh * 0.62); g.fill();
         outline(g, '#3c4038');
         g.fillStyle = 'rgba(0,0,0,.22)';
-        diamond(g, swx + fw * 0.04, swy + fh * 0.20, fw * 0.44, fh * 0.44); g.fill();
+        plot(g, swx + fw * 0.04, swy + fh * 0.20, fw * 0.44, fh * 0.44); g.fill();
 
         // bold house-red PIPE frame round the slab, at deck level
         var sdFrame = function (dy2, w2, cc) {
           g.strokeStyle = cc; g.lineWidth = w2; g.lineJoin = 'round';
-          diamond(g, swx + fw * 0.04, swy + fh * 0.20 + dy2, fw * 0.62, fh * 0.62); g.stroke();
+          plot(g, swx + fw * 0.04, swy + fh * 0.20 + dy2, fw * 0.62, fh * 0.62); g.stroke();
         };
         sdFrame(3, 9, shade(col, 0.40));
         sdFrame(0, 7.4, col);
@@ -11958,12 +12051,12 @@
         var SLB_BRS = '#c8a63c', SLB_BRSL = '#f6e293', SLB_BRSD = '#6f520c';
         var SLB_PNK = '#b0928a', SLB_PNKD = '#6c554e';
         g.fillStyle = 'rgba(0,0,0,.30)';                     // pale stone slab
-        diamond(g, cx + 2, baseY + 5, fw * 2.36, fh * 2.36); g.fill();
-        diamond(g, cx, baseY + 2, fw * 2.36, fh * 2.36);
+        plot(g, cx + 2, baseY + 5, fw * 2.36, fh * 2.36); g.fill();
+        plot(g, cx, baseY + 2, fw * 2.36, fh * 2.36);
         g.fillStyle = '#8f9284'; g.fill(); outline(g, '#4c4f44');
-        diamond(g, cx, baseY - 1, fw * 2.20, fh * 2.20);
+        plot(g, cx, baseY - 1, fw * 2.20, fh * 2.20);
         g.fillStyle = '#adb0a1'; g.fill(); outline(g, '#585b4e');
-        g.save(); diamond(g, cx, baseY - 1, fw * 2.20, fh * 2.20); g.clip();
+        g.save(); plot(g, cx, baseY - 1, fw * 2.20, fh * 2.20); g.clip();
         g.strokeStyle = 'rgba(80,84,72,.34)'; g.lineWidth = 1;
         for (var slPI = -2; slPI <= 2; slPI++) {
           g.beginPath();
@@ -12681,7 +12774,7 @@
       var PZ_STR = '#5d6a90', PZ_BLT = '#e08a1c';
 
       // ---- olive-khaki ground disc -----------------------------------------
-      diamond(g, cx, baseY, fw * 2, fh * 2);
+      plot(g, cx, baseY, fw * 2, fh * 2);
       g.fillStyle = 'rgba(30,34,26,.62)'; g.fill();
       g.fillStyle = 'rgba(0,0,0,.34)';
       g.beginPath(); g.ellipse(cx + 2, baseY + 5, 29, 12.6, 0, 0, 6.29); g.fill();
@@ -12840,8 +12933,8 @@
       if (sov) {
         // ---- ground: only a thin hardstanding, the sprite has no raft ------
         g.fillStyle = 'rgba(0,0,0,.22)';                     // just a scuffed dirt patch
-        diamond(g, cx + 1, baseY + 4, fw * 0.74, fh * 0.74); g.fill();
-        diamond(g, cx, baseY + 2, fw * 0.70, fh * 0.70);
+        plot(g, cx + 1, baseY + 4, fw * 0.74, fh * 0.74); g.fill();
+        plot(g, cx, baseY + 2, fw * 0.70, fh * 0.70);
         g.fillStyle = 'rgba(96,94,72,.55)'; g.fill();
 
         // ---- pale concrete ramp off the front-left ------------------------
@@ -13164,10 +13257,10 @@
         // the vessel; a full concrete diamond made it read as a board-game
         // piece (and buried the whole sprite in pale grey).
         g.fillStyle = 'rgba(0,0,0,.24)';
-        diamond(g, cx + 3, baseY + 5, fw * 1.86, fh * 1.86); g.fill();
-        diamond(g, cx, baseY + 1, fw * 1.86, fh * 1.86);
+        plot(g, cx + 3, baseY + 5, fw * 1.86, fh * 1.86); g.fill();
+        plot(g, cx, baseY + 1, fw * 1.86, fh * 1.86);
         g.fillStyle = 'rgba(74,72,58,.62)'; g.fill();
-        g.save(); diamond(g, cx, baseY + 1, fw * 1.86, fh * 1.86); g.clip();
+        g.save(); plot(g, cx, baseY + 1, fw * 1.86, fh * 1.86); g.clip();
         srand(431);
         for (var nuPI = 0; nuPI < 14; nuPI++) {                // scuffed dirt
           g.fillStyle = rnd() < 0.5 ? 'rgba(126,122,98,.34)' : 'rgba(40,42,34,.30)';
@@ -13178,11 +13271,11 @@
         }
         g.restore();
         g.fillStyle = NU_PADD;                                 // poured pad, vessel + caisson
-        diamond(g, cx + 3, baseY + 14, fw * 0.98, fh * 0.98); g.fill();
-        diamond(g, cx + 3, baseY + 12, fw * 0.94, fh * 0.94);
+        plot(g, cx + 3, baseY + 14, fw * 0.98, fh * 0.98); g.fill();
+        plot(g, cx + 3, baseY + 12, fw * 0.94, fh * 0.94);
         g.fillStyle = NU_PAD; g.fill(); outline(g, NU_PADD);
         g.fillStyle = 'rgba(226,228,216,.22)';
-        diamond(g, cx + 3, baseY + 11, fw * 0.74, fh * 0.74); g.fill();
+        plot(g, cx + 3, baseY + 11, fw * 0.74, fh * 0.74); g.fill();
 
         // ---- a cooling tower --------------------------------------------------
         // The waist is the whole read: RA2's towers pinch to about half their
@@ -13426,7 +13519,7 @@
       var SGN_BAR = '#a9a37c', SGN_BARL = '#e4dfc2', SGN_BARD = '#33301f';
       if (sov) {
         // Bare hardstanding - the sprite stands straight on the ground.
-        diamond(g, cx, baseY, fw * 2, fh * 2);
+        plot(g, cx, baseY, fw * 2, fh * 2);
         g.fillStyle = 'rgba(56,60,44,.52)'; g.fill();
         g.fillStyle = 'rgba(0,0,0,.28)';
         g.beginPath(); g.ellipse(cx + 2, baseY + 4, 22, 9.5, 0, 0, 6.29); g.fill();
@@ -13525,7 +13618,7 @@
       var ph6 = Math.round((bph || 0) * 6) % 6;
       var PT_BOX = '#2c3342', PT_BOXL = '#4c5668', PT_BOXD = '#12161f';
       var PT_SIL = '#dfe3ea', PT_SILL = '#fbfcff', PT_SILD = '#828894';
-      diamond(g, cx, baseY, fw * 2, fh * 2);
+      plot(g, cx, baseY, fw * 2, fh * 2);
       g.fillStyle = 'rgba(30,34,26,.62)'; g.fill();
       g.fillStyle = 'rgba(0,0,0,.34)';
       g.beginPath(); g.ellipse(cx + 2, baseY + 5, 25, 11, 0, 0, 6.29); g.fill();
@@ -13631,7 +13724,7 @@
       var ph6 = Math.round((bph || 0) * 6) % 6;
       var FK_GUN = '#343a44', FK_GUNL = '#5f6672', FK_GUND = '#12151a';
       var FK_BAR = '#b9bcc2', FK_BARL = '#eceef2', FK_BARD = '#2a2e35';
-      diamond(g, cx, baseY, fw * 2, fh * 2);
+      plot(g, cx, baseY, fw * 2, fh * 2);
       g.fillStyle = 'rgba(30,34,26,.62)'; g.fill();
       g.fillStyle = 'rgba(0,0,0,.30)';
       g.beginPath(); g.ellipse(cx + 3, baseY + 4, 22, 9.5, 0, 0, 6.29); g.fill();
@@ -14046,11 +14139,11 @@
       var NS_W = '#33302e', NS_WL = '#494340', NS_R = '#3c3936', NS_ED = '#141312';
 
       // ---- apron + railings ----------------------------------------------
-      diamond(g, cx, baseY + 3, fw * 2.02, fh * 2.02);
+      plot(g, cx, baseY + 3, fw * 2.02, fh * 2.02);
       g.fillStyle = '#a7a89c'; g.fill(); outline(g, '#5a5b52');
-      diamond(g, cx, baseY, fw * 1.88, fh * 1.88);
+      plot(g, cx, baseY, fw * 1.88, fh * 1.88);
       g.fillStyle = '#bcbdb0'; g.fill(); outline(g, '#63645a');
-      g.save(); diamond(g, cx, baseY, fw * 1.88, fh * 1.88); g.clip();
+      g.save(); plot(g, cx, baseY, fw * 1.88, fh * 1.88); g.clip();
       g.strokeStyle = 'rgba(80,82,74,.32)'; g.lineWidth = 1;
       for (var nsS = -3; nsS <= 3; nsS++) {
         g.beginPath(); g.moveTo(cx + nsS * 26 - fw, baseY + nsS * 13 + fh); g.lineTo(cx + nsS * 26 + fw, baseY + nsS * 13 - fh); g.stroke();
@@ -14058,7 +14151,7 @@
       }
       g.restore();
       g.strokeStyle = shade(col, 0.72); g.lineWidth = 2.2;           // painted apron kerb
-      diamond(g, cx, baseY, fw * 1.88, fh * 1.88); g.stroke();
+      plot(g, cx, baseY, fw * 1.88, fh * 1.88); g.stroke();
       railing(g, cx - fw * 0.94, baseY, cx, baseY + fh * 0.94, 9, 'rgba(96,98,90,.9)');
       railing(g, cx, baseY + fh * 0.94, cx + fw * 0.94, baseY, 9, 'rgba(96,98,90,.9)');
 
@@ -16327,7 +16420,9 @@
     return Math.max(0, 1 - (el - DOOR_OPEN - DOOR_HOLD) / DOOR_SHUT);
   }
   function placeBld(g, key, p, gx, gy) {
-    var d = BLDS[key];
+    // The faction-resolved spec, not the raw table: footprints differ by
+    // faction (RA2 Foundation=), so a Soviet Battle Lab must occupy 3x3.
+    var d = bspecFor(key, facOf(g, p));
     var b = {
       id: g.nextId++, kind: 'b', type: key, p: p,
       x: gx, y: gy, gw: d.gw, gh: d.gh,
@@ -16369,7 +16464,12 @@
   // The footprint is checked with canPlace so terrain, other buildings and
   // other units all still veto it — only the build radius and the MCV's own
   // body are exempted.
-  function mcvSpot(u) { return { x: Math.round(u.x) - 1, y: Math.round(u.y) - 1 }; }
+  // The yard lands centred on the MCV's tile, using the same rounding rule the
+  // placement ghost uses, so a 4x4 Foundation= sits where the cursor said.
+  function mcvSpot(u) {
+    var yd = BLDS[UNITS[u.type].deploysInto];
+    return { x: Math.round(u.x) - Math.floor((yd.gw - 1) / 2), y: Math.round(u.y) - Math.floor((yd.gh - 1) / 2) };
+  }
   function canDeployMcv(g, u) {
     if (!u || u.dead || !UNITS[u.type].deploysInto) return false;
     var sp = mcvSpot(u);
@@ -19115,7 +19215,7 @@
       if (!q.list.length) continue;
       if (isBldLane(lane) && q.ready) continue;  // one finished structure waits for placement
       var key = q.list[0];
-      var spec = isBldLane(lane) ? BLDS[key] : UNITS[key];
+      var spec = isBldLane(lane) ? bspecOf(g, key, p) : UNITS[key];   // byFac cost/build: a Tesla Reactor is $600/25 s, not the Allied plant's
       // A lane with no producing structure left stalls (and refunds nothing —
       // same as RA2: rebuild the factory and it resumes).
       if (lane === 'i' && !hasBld(g, p, 'barracks')) continue;
@@ -19339,7 +19439,7 @@
   // your base is gone. opts.ignore: a unit that does not block the footprint
   // (the deploying MCV itself is standing on the centre tile).
   function canPlace(g, p, key, gx, gy, opts) {
-    var d = BLDS[key];
+    var d = bspecFor(key, facOf(g, p));
     var mask = buildMask(g, p, key), inRange = !!(opts && opts.anywhere);
     for (var y = gy; y < gy + d.gh; y++) {
       for (var x = gx; x < gx + d.gw; x++) {
@@ -20311,7 +20411,7 @@
   function aiPlace(g, ai, me, foe) {
     var s = g.side[me];
     var rl = readyLane(s), key = s.queues[rl].ready;
-    var d = BLDS[key];
+    var d = bspecFor(key, s.fac);                  // per-faction Foundation=
     var home = g.start[me];
     // Turrets go toward the enemy; everything else hugs the base.
     var aim = (key === 'sentry' || key === 'tesla' || key === 'sentrygun' || key === 'prism')
@@ -20322,8 +20422,14 @@
     // Two passes: first only spots with a clear one-tile gap all round (how a
     // human lays out an RA2 base — roads between buildings, units can leave),
     // then, if the base has grown into its walls, anything not too crowded.
+    // The ring searched has to grow with the footprint: a 5x3 War Factory that
+    // wants a clear one-tile skirt needs a 7x5 hole, and at the old radius 14
+    // a mature base simply ran out of legal spots and started refunding its
+    // own production (`placeFail` -> cancelLast), which reads as an AI that
+    // stopped building. Radius scales with the plot's longest side.
+    var rMax = 14 + 2 * Math.max(d.gw, d.gh);
     for (var pass = 0; pass < 2 && !best; pass++)
-    for (var r = 1; r < 14; r++) {
+    for (var r = 1; r < rMax; r++) {
       for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
         if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
         var gx = Math.round(home.x + ox), gy = Math.round(home.y + oy);
@@ -21090,15 +21196,20 @@
   // the game always gave).
   function openingForce(g, p) {
     var st = g.start[p], sp, i;
-    if (g.opt.bases) placeBld(g, 'base', p, st.x - 1, st.y - 1);
+    // The yard is centred on the start tile the same way the placement ghost
+    // and the MCV deploy centre it, so a 4x4 Foundation= sits where a 3x3 did.
+    var yd = BLDS.base;
+    if (g.opt.bases) placeBld(g, 'base', p, st.x - Math.floor((yd.gw - 1) / 2), st.y - Math.floor((yd.gh - 1) / 2));
     else { sp = freeTileNear(g, st.x, st.y); if (sp) spawnUnit(g, 'mcv', p, sp.x, sp.y); }
+    // Clear of the yard's own footprint: it now reaches two cells past the
+    // start tile, so the opener forms up one cell further out than it did.
     for (i = 0; i < 2; i++) {
-      sp = freeTileNear(g, st.x + (p ? -3 : 3), st.y + (p ? -3 : 3) + i);
+      sp = freeTileNear(g, st.x + (p ? -4 : 4), st.y + (p ? -4 : 4) + i);
       if (sp) spawnUnit(g, 'harvester', p, sp.x, sp.y);
     }
     var opener = FACTIONS[g.side[p].fac].inf;
     for (i = 0; i < g.opt.units; i++) {
-      sp = freeTileNear(g, st.x + (p ? -4 : 4) + (i % 5), st.y + (p ? -1 : 1) + ((i / 5) | 0));
+      sp = freeTileNear(g, st.x + (p ? -5 : 5) + (i % 5), st.y + (p ? -1 : 1) + ((i / 5) | 0));
       if (sp) spawnUnit(g, opener, p, sp.x, sp.y);
     }
   }
@@ -22915,7 +23026,7 @@
                         : (swMode.key === 'storm' ? 'storm'
                         : (swMode.key === 'para' ? 'deploy' : 'curtain')));
     else if (placing) {
-      var pd = BLDS[placing];
+      var pd = bspecFor(placing, facOf(G, P_HUMAN));
       k = canPlace(G, P_HUMAN, placing, hoverTile.x - Math.floor((pd.gw - 1) / 2),
                    hoverTile.y - Math.floor((pd.gh - 1) / 2)) ? 'deploy' : 'nomove';
     }
@@ -23972,7 +24083,7 @@
   }
   function tryPlace(px, py) {
     var gp = screenToGrid(px, py);
-    var d = BLDS[placing];
+    var d = bspecFor(placing, facOf(G, P_HUMAN));
     var gx = Math.round(gp.x - (d.gw - 1) / 2), gy = Math.round(gp.y - (d.gh - 1) / 2);
     if (d.wall) {
       // The queued segment is the paid one; the drag charges for the rest.
@@ -24386,7 +24497,7 @@
     // squares made you place a Refinery and only then discover which way it
     // faced and how much of the view it ate.
     if (placing) {
-      var d = BLDS[placing];
+      var d = bspecFor(placing, facOf(G, P_HUMAN));
       var ggx = hoverTile.x - Math.floor((d.gw - 1) / 2), ggy = hoverTile.y - Math.floor((d.gh - 1) / 2);
       var ok = canPlace(G, P_HUMAN, placing, ggx, ggy);
       ctx.globalAlpha = 0.5;
@@ -27000,7 +27111,8 @@
            canBuild: canBuild, swBld: swBld, techCount: techCount,
            blocked: blocked, adjOf: adjOf, buildMask: buildMask, gateOpen: gateOpen, applyGaps: applyGaps,
            gapped: gapped, tileSeen: tileSeen, entSeen: entSeen, versesVs: versesVs, isWall: isWall, detected: detected,
-           aiSwTarget: aiSwTarget, aiSwValue: aiSwValue, aiPickTarget: aiPickTarget, aiDefencePlan: aiDefencePlan },
+           aiSwTarget: aiSwTarget, aiSwValue: aiSwValue, aiPickTarget: aiPickTarget, aiDefencePlan: aiDefencePlan,
+           bspecFor: bspecFor },
     // Baked sprite atlas, so art work can be reviewed as a contact sheet
     // instead of by hunting for one building in a live match.
     spr: function () { return SPR; },
