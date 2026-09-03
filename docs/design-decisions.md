@@ -5649,3 +5649,39 @@ refuses the deploy instead, and a silent shove loses units into cliffs.
 drift, and terrain rules are the part that must never disagree.
 (c) Deploying to the nearest legal spot — the MCV is a base *move*; landing
 the yard somewhere other than the tile you aimed at is worse than a refusal.
+
+## A crashing aircraft is a wreck object, not a dying unit
+
+**Symptom.** RA2 aircraft fall out of the sky and explode where they land;
+ours vanished in a puff at the altitude they were hit. The obvious fix — keep
+the unit alive with a `crashing` flag and let it sink — breaks the sim in a
+dozen places at once.
+
+**Cause.** `dead` is the only liveness predicate in the whole file. Targeting
+(`near`/`findTarget`), the spatial hash rebuild, army counts, win/lose,
+selection, the AI's threat maths and the 32-tick reaper all key off
+`!e.dead`. A "still alive but doomed" unit is shot at, counted, selected,
+ordered and defended for as long as it takes to fall.
+
+**Fix.** `damage()` marks the aircraft `dead` exactly as before and hands a
+copy of what the renderer needs (type, owner, position, facing, altitude) to
+`g.wrecks`. `stepWrecks()` ages the wrecks in `simStep`, `wreckAlt()` gives
+them an accelerating fall (`alt0 · k²`), and `crashBoom()` fires one
+indiscriminate blast on landing — a Kirov's own bomb (250 / splash 2 /
+BlimpHE), a jet's 50, a Rocketeer's 25 — that skips anything still airborne.
+The wreck is inert data: nothing can target it, own it or lose to it.
+
+**Rejected.** (a) A `crashing` unit state — see Cause; every `!dead` site
+would need a second condition, and one missed site is a phantom target.
+(b) Doing it in the fx list — `boom()` is a no-op headless, and the crash has
+to deal real damage in a simulated match (the balance sims and the regression
+test both run headless).
+(c) Drifting a Kirov's wreck along its heading like a jet's — the drift is
+~1.6 tiles over 90 ticks, which moved the blast off whatever was underneath
+it. A gasbag drops straight down; only jets keep their momentum.
+
+**Related.** The same commit gives aircraft a `born` tick so one built
+mid-match climbs to cruise height over 30 ticks. `born <= 0` (a match's
+opening force, a test fixture) means "already up there" — otherwise every
+existing test that spawns a flyer and immediately asserts `altOf > 0` reads a
+Kirov sitting on the grass.

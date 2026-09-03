@@ -431,6 +431,10 @@
   // RA2 primary/secondary weapons: the secondary is picked by what it is for
   // (Guardian GI missile vs armour, Tanya C4 vs structures).
   function weaponFor(spec, tgt, u) {
+    // RA2 AA secondaries: a Flak Track swaps FlakTWH for FlakWH against a
+    // flyer, an Apocalypse unlimbers its MammothTusk missiles. The ground
+    // gun is never the thing that shoots the sky.
+    if (spec.aaW && isAir(tgt)) return spec.aaW;
     var w2 = spec.w2;
     if (w2) { var a = armourOf(tgt); if ((w2.use === 'veh' && isVehArmour(a)) || (w2.use === 'bld' && isBldArmour(a)) || (w2.use === 'inf' && isInfArmour(a))) return w2; }
     if (u && u.deployed && spec.dep) return spec.dep;       // a deployed GI fires from its sandbags
@@ -438,6 +442,7 @@
   }
   function reachOf(spec, u) {
     var r = spec.w2 && spec.w2.rng > spec.rng ? spec.w2.rng : spec.rng;
+    if (spec.aaW) { var ar = spec.aaW.aaRng || spec.aaW.rng; if (ar > r) r = ar; }
     if (u && u.deployed && spec.dep && spec.dep.rng > r) r = spec.dep.rng;
     return r;
   }
@@ -545,9 +550,12 @@
       // field and still 0.73x a Lancer (about the RA2 Apocalypse/Grizzly
       // ratio); it just lets the army arrive together. Single biggest lever
       // in the whole table — see docs/design-decisions.md.
-      hp: 800, spd: 0.052, sight: 6, armour: 'heavy',
+      hp: 800, spd: 0.052, sight: 6, armour: 'heavy', aa: true, aaRng: 6,
       dmg: 200, rate: 320, rng: 5.75, splash: 0.3,
       wh: 'ApocAP',
+      // MammothTusk: the twin AA missile pack on the Apocalypse's hull, so it
+      // is not helpless under a Harrier the way it was here.
+      aaW: { dmg: 50, rate: 100, rng: 6, aaRng: 6, splash: 0.2, wh: 'HE', aa: true },
       cap: 0, mine: 0, w: 22, h: 17, desc: 'Slow, heavy, wide splash'
     },
     // ---- RA2 roster, phase B. Tier gating via `req` (any of), like structures.
@@ -591,6 +599,8 @@
       hp: 180, spd: 0.104, sight: 8, armour: 'heavy', aa: true, aaRng: 6.5, flak: true,
       dmg: 25, rate: 160, rng: 5, splash: 1,
       wh: 'FlakTWH',
+      // FlakTWH (25) is the anti-ground burst; the AA barrel fires FlakWH (35).
+      aaW: { dmg: 35, rate: 100, rng: 6.5, aaRng: 6.5, splash: 0.6, wh: 'FlakWH', aa: true, flak: true },
       cap: 0, mine: 0, w: 16, h: 12, desc: 'Fast flak halftrack, anti-infantry'
     },
     v3: {
@@ -769,11 +779,18 @@
   // Screen-pixel altitude of a unit right now: 0 on the ground or on a pad,
   // else the type's cruise height plus a slow bob (a Kirov wallows, a
   // Rocketeer bounces on his jets).
+  var CLIMB = 30;                       // ticks from the ground to cruise height
   function altOf(u) {
     if (!u.air || u.landed) return 0;
-    var d = UNITS[u.type], t = (G ? G.tick : 0) + u.id * 7;
-    return d.alt + (d.bomb ? Math.sin(t * 0.035) * 3 : Math.sin(t * 0.09) * 1.6);
+    var d = UNITS[u.type], now = (G ? G.tick : 0), t = now + u.id * 7;
+    // An aircraft built on the ground (a Rocketeer out of the Barracks door,
+    // a Kirov off the War Factory ramp) climbs to altitude instead of
+    // popping into existence at cruise height. Anything placed before the
+    // match starts (an opening force, a test fixture) is already up there.
+    var k = (u.born || 0) <= 0 ? 1 : Math.min(1, (now - u.born) / CLIMB);
+    return k * (d.alt + (d.bomb ? Math.sin(t * 0.035) * 3 : Math.sin(t * 0.09) * 1.6));
   }
+  function airborneYet(u) { return !u.air || u.landed || !(u.born > 0) || (G ? G.tick : 0) - u.born >= CLIMB; }
   // Where Harriers park: four pads on each Airforce Command, in grid offsets
   // from the structure's centre (the helipad is the near-right half of the art).
   var PAD_SLOTS = [[0.09, -0.59], [0.99, -0.59], [0.09, 0.31], [0.99, 0.31]];   // the four quadrants of the pad's cross
@@ -830,7 +847,7 @@
       ore: new Float32Array(MAP * MAP),
       occ: new Int32Array(MAP * MAP),             // entity id occupying a tile, 0 = free
       seen: new Uint8Array(MAP * MAP),            // shroud: tiles the human has ever had in sight
-      units: [], blds: [], shots: [], fx: [], byId: {},
+      units: [], blds: [], shots: [], fx: [], wrecks: [], byId: {},
       nextId: 1,
       side: [ newSide(P_HUMAN), newSide(P_AI) ],
       focusFor: [true, true],
@@ -11365,7 +11382,7 @@
       cargo: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
       bestD: 1e9, stallAt: 0, holdUntil: 0, movedAt: -99, tface: null, aimAt: 0,
       kills: 0, rank: 0, wp: null,                                   // veterancy: 3 kills veteran, 6 elite
-      sel: false, aggro: null, guardX: gx, guardY: gy,
+      sel: false, aggro: null, guardX: gx, guardY: gy, born: g.tick, hov: 0,
       // air layer: air = flies; landed/rtb/pad/slot/ammo are the Harrier's pad cycle
       air: !!d.air, landed: false, rtb: false, pad: 0, slot: 0, ammo: d.ammo || 0
     };
@@ -11602,6 +11619,16 @@
   }
   function armourOf(e) { return (e.kind === 'b' ? BLDS[e.type] : UNITS[e.type]).armour; }
 
+  // RA2 Mirage Tank: standing still, it dresses itself as a tree of the
+  // local theatre. Firing blows the disguise for two seconds, and an enemy
+  // that walks within 1.5 tiles is close enough to see the barrel.
+  var MIRAGE_IDLE = 120;
+  function isDisguised(g, u) {
+    return u.kind === 'u' && u.type === 'mirage' && !u.dead && !u.order &&
+           g.tick - (u.movedAt || -9999) > MIRAGE_IDLE &&
+           g.tick - (u.fireAt || -9999) > MIRAGE_IDLE;
+  }
+
   function findTarget(g, e, rng) {
     // -Infinity, not -1: the score is a PREFERENCE between candidates, never a
     // threshold for engaging at all. With a -1 floor, a target this weapon is
@@ -11616,6 +11643,7 @@
       if (o.dead || o.p === e.p) return;
       if (!canHit(spec, o)) return;          // a GI cannot shoot a Kirov; a Patriot cannot shoot a tank
       var d = dist(e, o);
+      if (isDisguised(g, o) && d > 1.5) return;      // it reads as a tree from here
       var w = weaponFor(spec, o, e);
       var mult = w.wh ? verses(w.wh, armourOf(o)) : 1;
       if (mult <= 0 || d > rngVs(w, o)) return;   // this weapon cannot hurt / reach it
@@ -11660,7 +11688,8 @@
       }
       if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
       if (tgt.kind === 'b') { killBld(g, tgt); boom(g, tgt.cx, tgt.cy, 26); sfx('boom'); }
-      else { tgt.dead = true; boom(g, tgt.x, tgt.y, isAir(tgt) ? 18 : 12); sfx(isAir(tgt) ? 'boom' : 'die'); }
+      else if (isAir(tgt)) { tgt.dead = true; crashAircraft(g, tgt); }
+      else { tgt.dead = true; boom(g, tgt.x, tgt.y, 12); sfx('die'); }
     }
   }
 
@@ -11669,9 +11698,52 @@
     g.fx.push({ x: x, y: y, t: 0, life: size > 20 ? 34 : 20, size: size });
   }
 
+  // RA2: a shot-down aircraft is not a puff of smoke where it was hit. It
+  // falls — spinning, trailing smoke — and detonates where it lands, and a
+  // Kirov takes its bomb load down with it (250 / splash 2, BlimpHE).
+  var CRASH_LIFE = 40, CRASH_LIFE_BOMB = 90;
+  function crashAircraft(g, u) {
+    var d = UNITS[u.type];
+    boom(g, u.x, u.y, 10); sfx('boom');
+    g.wrecks.push({
+      type: u.type, p: u.p, x: u.x, y: u.y, face: u.face || 0, t: 0,
+      life: d.bomb ? CRASH_LIFE_BOMB : CRASH_LIFE,
+      alt0: altOf(u) || d.alt, spin: d.bomb ? 0.04 : 0.12,
+      // A jet keeps its forward momentum into the ground; a gasbag drops
+      // straight down where it was holed.
+      vx: d.bomb ? 0 : Math.cos(u.face * Math.PI / 4) * d.spd * 0.4,
+      vy: d.bomb ? 0 : Math.sin(u.face * Math.PI / 4) * d.spd * 0.4
+    });
+  }
+  function wreckAlt(w) { var k = 1 - w.t / w.life; return w.alt0 * k * k; }   // it accelerates downward
+  function stepWrecks(g) {
+    for (var i = g.wrecks.length - 1; i >= 0; i--) {
+      var w = g.wrecks[i];
+      w.t++; w.x += w.vx; w.y += w.vy;
+      if (w.t >= w.life) { g.wrecks.splice(i, 1); crashBoom(g, w); }
+    }
+  }
+  function crashBoom(g, w) {
+    var d = UNITS[w.type];
+    var dmg = d.bomb ? d.dmg : (d.cls === 'a' ? 50 : 25);
+    var spl = d.bomb ? d.splash : (d.cls === 'a' ? 1 : 0.6);
+    var wh = d.bomb ? d.wh : 'HE';
+    boom(g, w.x, w.y, d.bomb ? 30 : 18); sfx('boom');
+    // A wreck is indiscriminate: it hurts whoever is standing where it lands,
+    // including its own side. It cannot touch anything still flying.
+    var src = { kind: 'u', type: w.type, p: w.p, kills: 0, rank: 0 };
+    near(w.x, w.y, spl + 1, function (o) {
+      if (o.dead || isAir(o)) return;
+      var ox = (o.kind === 'b' ? o.cx : o.x) - w.x, oy = (o.kind === 'b' ? o.cy : o.y) - w.y;
+      var dd = Math.sqrt(ox * ox + oy * oy);
+      if (dd <= spl) damage(g, src, o, dmg * (1 - dd / (spl + 0.8)), wh);
+    });
+  }
+
   function fire(g, src, tgt) {
     var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt, src);
     src.cool = spec.rate;
+    if (src.kind === 'u') src.fireAt = g.tick;        // a Mirage that shoots is a Mirage again
     if (src.kind === 'u' && spec.ammo) src.ammo = Math.max(0, (src.ammo || 0) - 1);
     if (!headless) {
       var tx0 = tgt.kind === 'b' ? tgt.cx : tgt.x, ty0 = tgt.kind === 'b' ? tgt.cy : tgt.y;
@@ -11996,6 +12068,22 @@
   }
 
   // refresh = ticks between re-plans while a path is already being followed.
+  // An idle flyer holds a slow hover circle over its post instead of hanging
+  // motionless in the sky (RA2 Harriers and Rocketeers orbit). A Kirov is too
+  // big and too slow to orbit — it just sits.
+  function hoverIdle(g, u) {
+    var d = UNITS[u.type];
+    if (!u.air || u.landed || u.order || d.bomb) return;
+    if (!airborneYet(u)) return;                     // still climbing off the ground
+    if (u.guardX == null) { u.guardX = u.x; u.guardY = u.y; }
+    u.hov = (u.hov || 0) + 0.05;
+    var c = Math.cos(u.hov), sn = Math.sin(u.hov), r = 0.45;
+    u.x = Math.max(0, Math.min(MAP - 1, u.guardX + c * r));
+    u.y = Math.max(0, Math.min(MAP - 1, u.guardY + sn * r * 0.6));
+    u.face = ((Math.round(Math.atan2(c * 0.6, -sn) / (Math.PI / 4)) % 8) + 8) % 8;
+    u.movedAt = g.tick;
+  }
+
   function advance(g, u, tx, ty, spd, refresh) {
     if (u.deployed) {
       // Chasing a target undeploys; a plain hold stays put.
@@ -12136,7 +12224,7 @@
       return;
     }
 
-
+    if (u.air) hoverIdle(g, u);          // nothing to do up there: hold a circle
   }
 
   function entById(g, id) {
@@ -12218,8 +12306,10 @@
       if (u.ammo >= d.ammo && u.order && u.order.t === 'attack') u.landed = false;   // sortie again
       return;
     }
-    // Hovering with nothing to do and no ammo: go home.
+    // Hovering with nothing to do and no ammo: go home. With missiles left it
+    // circles on station.
     if (u.ammo <= 0 && pad) u.rtb = true;
+    else hoverIdle(g, u);
   }
 
   function stepBld(g, b) {
@@ -12326,9 +12416,19 @@
     return false;
   }
 
+  // RA2 low-power penalty (rules.ini MinLowPowerProductionSpeed=.5,
+  // MaxLowPowerProductionSpeed=.8, LowPowerPenaltyModifier=1): a base barely
+  // in the red still builds at 0.8x and one with no power at all at 0.5x —
+  // a curve on the size of the deficit, not the flat 0.4x this used to be.
+  function prodSpeed(g, p) {
+    var s = g.side[p];
+    if (s.powerUse === 0 || s.powerMade >= s.powerUse) return 1;
+    return 0.8 - 0.3 * Math.min(1, (s.powerUse - s.powerMade) / s.powerUse);
+  }
+
   function stepQueues(g, p) {
     var s = g.side[p];
-    var slow = powered(g, p) ? 1 : 0.4;          // low power = crawling production
+    var slow = prodSpeed(g, p);                  // low power = slower production
     for (var lane in s.queues) {
       var q = s.queues[lane];
       if (!q.list.length) continue;
@@ -12370,17 +12470,18 @@
   }
 
   // Extra production buildings shorten build time. The DISCOUNT matches RA2's
-  // MultipleFactory=0.8 — cumulative, capped at six buildings — but the
-  // BEHAVIOUR deliberately does not: RA2's actual implementation is, per
-  // ModEnc, "rather irrational", and at values between 0.5 and 1.0 a second
-  // factory makes you SLOWER, needing three before you gain anything. Here
-  // every additional building of a type always speeds up what it makes.
-  //   1x  2x    3x    4x    5x    6x+
-  //   1  0.80  0.64  0.51  0.41  0.33
-  var FACTORY_STEP = 0.8, FACTORY_CAP = 6;
+  // MultipleFactory=0.8 — cumulative, floored at 0.25 — but the BEHAVIOUR
+  // deliberately does not: RA2's actual implementation is, per ModEnc,
+  // "rather irrational", and at values between 0.5 and 1.0 a second factory
+  // makes you SLOWER, needing three before you gain anything. Here every
+  // additional building of a type always speeds up what it makes, down to
+  // the floor.
+  //   1x  2x    3x    4x    5x    6x     7x     8x+
+  //   1  0.80  0.64  0.51  0.41  0.328  0.262  0.25
+  var FACTORY_STEP = 0.8, FACTORY_FLOOR = 0.25;
   function buildFactor(g, p, lane) {
-    var n = Math.min(FACTORY_CAP, countBld(g, p, producerType(lane)));
-    return n <= 1 ? 1 : Math.pow(FACTORY_STEP, n - 1);
+    var n = countBld(g, p, producerType(lane));
+    return n <= 1 ? 1 : Math.max(FACTORY_FLOOR, Math.pow(FACTORY_STEP, n - 1));
   }
 
   // Round-robin across the buildings that can make this, so a second factory
@@ -13088,6 +13189,7 @@
     }
 
     // effects
+    stepWrecks(g);
     for (i = g.shots.length - 1; i >= 0; i--) if (++g.shots[i].t > g.shots[i].life) g.shots.splice(i, 1);
     for (i = g.fx.length - 1; i >= 0; i--) if (++g.fx[i].t > g.fx[i].life) g.fx.splice(i, 1);
 
@@ -13344,7 +13446,8 @@
     var d = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
     var mine = e.p === P_HUMAN;
     var who = mine ? 'Yours' : 'Enemy (' + FACTIONS[facOf(G, e.p)].name + ')';
-    hovName.textContent = d.em + ' ' + d.name;
+    hovName.textContent = d.em + ' ' + d.name +
+      (mine && isDisguised(G, e) ? ' (disguised)' : '');
     var vet = e.kind === 'u' ? (e.rank === 2 ? ' · Elite' : (e.rank === 1 ? ' · Veteran' : '')) + (e.kills ? ' · ' + e.kills + ' kill' + (e.kills === 1 ? '' : 's') : '') : '';
     var ammoTxt = e.kind === 'u' && d.ammo ? ' · ' + e.ammo + '/' + d.ammo + ' missiles' + (e.landed ? ' (on pad)' : '') : '';
     hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + d.hp + ' hp' + ammoTxt + vet;
@@ -14436,6 +14539,7 @@
       for (i = 0; i < airborne.length; i++) drawAirShadow(airborne[i]);
       for (i = 0; i < airborne.length; i++) drawUnit(airborne[i]);
     }
+    for (i = 0; i < G.wrecks.length; i++) drawWreck(G.wrecks[i]);
 
     // Rally lines for any selected production building, over the world so the
     // route is readable across terrain, under the effects layer.
@@ -14613,6 +14717,16 @@
     var px = sx(u.x, u.y), py = sy(u.x, u.y);
     if (px < VX0 - 60 || py < VY0 - 60 || px > VX1 + 60 || py > VY1 + 60) return;
     var d = UNITS[u.type];
+    if (isDisguised(G, u)) {
+      // The whole point of the disguise is that it looks exactly like the
+      // trees around it — same sprite, same anchor, picked off the unit id so
+      // a row of Mirages is not a row of identical trees.
+      var tr = SPR.tree[G.theatre || 'temperate'][(u.id * 7) & 3];
+      ctx.drawImage(tr.c, px - tr.ax, py - tr.ay, tr.w, tr.h);
+      if (u.sel) brackets(px - tr.ax - 3, py - tr.ay - 3, px - tr.ax + tr.w + 3, py - tr.ay + tr.h + 1);
+      if (u.hp < u.maxhp) hpBar(px, py - tr.ay - 8, 20, u.hp / u.maxhp);
+      return;
+    }
     var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
     var moving = G.tick - (u.movedAt || -99) < 3;
     var alt = altOf(u);
@@ -14683,6 +14797,29 @@
       }
       ctx.textAlign = 'left';
     }
+  }
+
+  // A falling airframe: the sprite spun through its facings as it tumbles,
+  // over a smoke trail drawn back along the path it fell.
+  function drawWreck(w) {
+    var alt = wreckAlt(w), px = sx(w.x, w.y), py = sy(w.x, w.y);
+    if (px < VX0 - 90 || py < VY0 - 90 || px > VX1 + 90 || py > VY1 + 90) return;
+    var art = SPR.unit[w.p][facOf(G, w.p) || 'dir'][w.type];
+    var f = (((w.face + Math.round(w.t * w.spin)) % 8) + 8) % 8;
+    var s = Array.isArray(art) ? art[f] : (art.walk ? art.walk[(w.t >> 3) % 3] : art);
+    if (!s) return;
+    ctx.save();
+    for (var k = 1; k <= 4; k++) {
+      var tt = w.t - k * 5; if (tt < 0) break;
+      var bx = w.x - w.vx * (w.t - tt), by = w.y - w.vy * (w.t - tt);
+      var ba = w.alt0 * (1 - tt / w.life) * (1 - tt / w.life);
+      ctx.globalAlpha = 0.30 * (1 - k / 5);
+      ctx.fillStyle = '#39404a';
+      ctx.beginPath(); ctx.arc(sx(bx, by), sy(bx, by) - ba, 3 + k * 1.7, 0, 6.29); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.drawImage(s.c, px - s.w / 2, py - (s.h - UPAD) - alt, s.w, s.h);
+    ctx.restore();
   }
 
   // Drop shadow of an aircraft on the ground: one baked soft ellipse scaled
@@ -15173,7 +15310,8 @@
     },
     deployMcv: function (u) { return G ? deployMcv(G, u) : null; },
     api: { astar: astar, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
-           countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld },
+           countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld,
+           findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf },
     // Baked sprite atlas, so art work can be reviewed as a contact sheet
     // instead of by hunting for one building in a live match.
     spr: function () { return SPR; },

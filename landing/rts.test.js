@@ -421,11 +421,115 @@ test("extra production buildings always speed up what they make", () => {
   assert.ok(Math.abs(seen[1] - 0.8) < 0.001, `two factories should be 0.80, got ${seen[1]}`);
   assert.ok(Math.abs(seen[2] - 0.64) < 0.001, `three should be 0.64, got ${seen[2]}`);
   assert.ok(Math.abs(seen[5] - 0.32768) < 0.001, `six should be 0.328, got ${seen[5]}`);
-  // capped at six, like the original
-  assert.equal(seen[6], seen[5], "the seventh factory adds nothing (cap of six)");
+  // MultipleFactory=0.8 keeps compounding, floored at 0.25 — a wall of
+  // factories cannot make a Grizzly appear instantly.
+  assert.ok(Math.abs(seen[6] - 0.262144) < 0.001, `seven should be 0.262, got ${seen[6]}`);
+  if (seen.length > 7) assert.ok(Math.abs(seen[7] - 0.25) < 0.001, `eight is the 0.25 floor, got ${seen[7]}`);
 
   // and the barracks lane is independent of the factory lane
   assert.equal(H.buildFactor(0, "i"), 1, "factories must not speed up infantry");
+});
+
+
+test("a Flak Track fires FlakWH at aircraft and FlakTWH at the ground", () => {
+  // RA2 gives the Flak Track two warheads: FlakTWH (25) shreds infantry,
+  // FlakWH (35) is the flak burst that reaches the sky. Firing the ground
+  // warhead upward is what this replaces.
+  const { H, g, s0 } = bareMatch(4101);
+  const rk = H.spawn("rocketeer", 1, s0.x + 2, s0.y + 2);
+  const gi = H.spawn("rifle", 1, s0.x + 2, s0.y + 4);
+  assert.equal(T.weaponFor(T.UNITS.flaktrack, rk).wh, "FlakWH", "against a flyer");
+  assert.equal(T.weaponFor(T.UNITS.flaktrack, gi).wh, "FlakTWH", "against the ground");
+
+  const ft = H.spawn("flaktrack", 0, s0.x + 2, s0.y + 3);
+  ft.cool = 0;
+  H.step(4);                                  // one burst: ROF 100 leaves no room for a second
+  const dealt = rk.maxhp - rk.hp;
+  const want = 35 * T.verses("FlakWH", T.UNITS.rocketeer.armour);   // 35 * 1.5
+  assert.ok(Math.abs(dealt - want) < 0.01,
+    `the hit should be FlakWH's ${want}, got ${dealt.toFixed(1)}`);
+  assert.ok(ft.hp > 0 && rk.hp > 0, "neither died in four ticks");
+});
+
+test("an Apocalypse shoots back at a Kirov with its MammothTusk missiles", () => {
+  // Without the AA secondary the heaviest tank in the game was free food for
+  // an airship parked on top of it.
+  const { H, g, s0 } = bareMatch(4102);
+  assert.equal(API.canHit(T.UNITS.mammoth, { kind: "u", type: "kirov" }), true);
+  assert.equal(T.weaponFor(T.UNITS.mammoth, { kind: "u", type: "kirov" }).wh, "HE");
+  const k = H.spawn("kirov", 1, s0.x + 3, s0.y + 3);
+  const ap = H.spawn("mammoth", 0, s0.x + 3, s0.y + 5);
+  ap.cool = 0;
+  H.step(4);
+  assert.ok(k.hp < k.maxhp, "the Apocalypse damaged the Kirov");
+  const want = 50 * T.verses("HE", T.UNITS.kirov.armour);
+  assert.ok(Math.abs(k.maxhp - k.hp - want) < 0.01,
+    `MammothTusk should land ${want}, got ${(k.maxhp - k.hp).toFixed(1)}`);
+});
+
+test("a shot-down Kirov falls out of the sky and its wreck explodes on what is beneath it", () => {
+  // RA2 aircraft do not pop where they were hit: the airship falls for a
+  // second and a half and takes its bomb load off on the ground.
+  const { H, g, s0 } = bareMatch(4103);
+  const victim = H.spawn("mammoth", 0, s0.x + 4, s0.y + 4);
+  const k = H.spawn("kirov", 1, s0.x + 4, s0.y + 4);      // directly overhead
+  k.hp = 1; k.cool = 9999;                                 // it never gets its bomb off
+  victim.cool = 0;
+  H.step(4);
+  assert.ok(k.dead, "the Apocalypse's AA fire brought it down");
+  assert.equal(g.wrecks.length, 1, "it left a falling wreck, it did not simply vanish");
+  const w = g.wrecks[0];
+  assert.ok(w.t < w.life && w.life >= 80, "a Kirov takes ~90 ticks to reach the ground");
+  const midAlt = w.alt0 * Math.pow(1 - w.t / w.life, 2);
+  assert.ok(midAlt > 0, "still airborne while it falls");
+
+  const before = victim.hp;
+  H.step(100);
+  assert.equal(g.wrecks.length, 0, "the wreck landed");
+  const dealt = before - victim.hp;
+  const want = 250 * T.verses("BlimpHE", T.UNITS.mammoth.armour);
+  assert.ok(Math.abs(dealt - want) < 1,
+    `the crash should hit for the Kirov's own 250-damage bomb (${want}), got ${dealt.toFixed(1)}`);
+});
+
+test("a Rocketeer takes off from the ground and climbs to cruise altitude", () => {
+  // He walks out of the Barracks door like any other infantryman and then
+  // lights the jetpack — he does not blink into existence at 36px.
+  const { H, g, s0 } = bareMatch(4104);
+  H.build("base", 0, s0.x - 1, s0.y - 1);
+  const bar = placeNear(H, g, 0, s0, "barracks");
+  assert.ok(bar, "could not seat a Barracks");
+  H.step(1);                                   // anything built mid-match climbs
+  const r = H.spawn("rocketeer", 0, Math.round(bar.cx), Math.round(bar.cy + bar.gh / 2 + 1));
+  const cruise = T.UNITS.rocketeer.alt;
+  assert.ok(API.altOf(r) < cruise * 0.1, `starts on the ground, got ${API.altOf(r)}`);
+  H.step(15);
+  const half = API.altOf(r);
+  assert.ok(half > cruise * 0.2 && half < cruise * 0.9, `climbing, got ${half}`);
+  H.step(45);
+  assert.ok(API.altOf(r) > cruise * 0.9, `at cruise within 60 ticks, got ${API.altOf(r)}`);
+});
+
+test("an idle Mirage Tank disguises itself as a tree and only close enemies see through it", () => {
+  // RA2: the disguise is a real targeting rule, not a paint job — the AI
+  // walks past it until it is almost on top of it, or until the tank fires.
+  const { H, g, s0 } = bareMatch(4105);
+  const mi = H.spawn("mirage", 0, s0.x + 6, s0.y + 6);
+  assert.equal(API.isDisguised(g, mi), false, "it has to settle first");
+  H.step(130);                                  // two seconds of standing still
+  assert.equal(API.isDisguised(g, mi), true);
+
+  const far = H.spawn("rhino", 1, s0.x + 11, s0.y + 6);      // 5 tiles away
+  assert.equal(API.findTarget(g, far, T.UNITS.rhino.rng), null,
+    "a Rhino five tiles off sees a tree");
+  const close = H.spawn("rhino", 1, s0.x + 7, s0.y + 6);     // 1 tile away
+  assert.equal(API.findTarget(g, close, T.UNITS.rhino.rng), mi,
+    "one tile away it sees the tank");
+
+  // Firing gives it away, everywhere, for two seconds.
+  mi.fireAt = g.tick;
+  assert.equal(API.isDisguised(g, mi), false);
+  assert.equal(API.findTarget(g, far, T.UNITS.rhino.rng), mi, "a Mirage that shot is a target");
 });
 
 // Every test below this point runs a full headless AI-vs-AI match via
@@ -633,9 +737,11 @@ function placeNear(H, g, p, s, type) {
 }
 
 test("production crawls when unpowered and runs at full speed once power is restored", () => {
-  // stepQueues() reads `slow = powered(g,p) ? 1 : 0.4` — a flat 2.5x
-  // difference. This is the entire cost of running a base in the red; if the
-  // multiplier were ever dropped, negative power would be free.
+  // stepQueues() reads prodSpeed(), RA2's low-power curve
+  // (MinLowPowerProductionSpeed=.5, MaxLowPowerProductionSpeed=.8): 0.8x when
+  // barely in the red down to 0.5x with nothing running. This is the entire
+  // cost of a base in the red; if it were ever dropped, negative power would
+  // be free.
   const H = W.__rtsTest;
   const g = H.begin(55013, "normal");
   const s = g.start[0];
@@ -658,8 +764,20 @@ test("production crawls when unpowered and runs at full speed once power is rest
   H.step(60);
   const powered = g.side[0].queues.i.prog;
 
-  assert.ok(Math.abs(powered / unpowered - 2.5) < 0.1,
-    `restoring power should give exactly 2.5x the progress in the same time (0.4 -> 1.0 slow), got ${(powered / unpowered).toFixed(2)}x`);
+  // A lone Barracks makes NO power at all, the bottom of the curve (0.5x).
+  assert.ok(Math.abs(powered / unpowered - 2.0) < 0.05,
+    `a total blackout is the 0.5x floor, so power should give 2x the progress, got ${(powered / unpowered).toFixed(2)}x`);
+
+  // and the curve between the two ends, read straight off the side's numbers
+  const curve = (made, use) => {
+    g.side[0].powerMade = made; g.side[0].powerUse = use;
+    return API.prodSpeed(g, 0);
+  };
+  assert.equal(curve(100, 100), 1, "in the black is full speed");
+  assert.equal(curve(120, 100), 1, "a surplus is not a bonus");
+  assert.ok(Math.abs(curve(80, 100) - 0.74) < 1e-9, "a 20% deficit builds at 0.74x");
+  assert.ok(Math.abs(curve(50, 100) - 0.65) < 1e-9, "half power builds at 0.65x");
+  assert.ok(Math.abs(curve(0, 100) - 0.5) < 1e-9, "no power at all is the 0.5x floor");
 });
 
 test("a defensive structure goes dark on negative power and re-arms once power is restored", () => {
