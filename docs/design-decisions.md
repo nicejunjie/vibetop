@@ -5819,3 +5819,10 @@ already shows snow, city and grass at a glance, and the user's standing
 preference is the quietest option. (c) Emoji or image files for the emblems —
 the file ships no external assets, and emoji render differently on every
 platform.
+
+## Blank build-menu cameos on HiDPI screens: `artBox` scanned the wrong quarter
+
+- **Symptom:** on a 2x display (the user's desktop) the Allied Barracks, Chronosphere, Pillbox, Harrier, Flak Cannon, Terror Drone and others had an empty cameo in the build list, while 1x Playwright shots looked fine and every canvas "had pixels" (the cameo's own bevel fill fooled a naive check).
+- **Cause:** `mkCanvas` bakes every sprite bitmap at `DPR` times its CSS `w x h`, but `artBox`/`artTop` called `getImageData(0, 0, s.w, s.h)`; `getImageData` ignores the context transform, so on a 2x screen they scanned only the top-left quarter of the bitmap and returned a sprite-dependent box (in bitmap px, or the whole-canvas fallback). `cameoFor` and the menu line-up then passed that box as a `drawImage` *source* rect in CSS px against a 2x bitmap.
+- **Fix:** `artBox`/`artTop` scan the whole bitmap and divide by `c.width / s.w`, so `bb` is always CSS px (what `drawBld`'s brackets already assumed); every 9-arg `drawImage` that crops a sprite scales its source rect by that per-sprite ratio (`kb`), never by the global `DPR` (test stubs and any un-scaled canvas keep ratio 1).
+- **Rejected:** multiplying by `DPR` at the draw sites — the headless test stub and future 1x bakes would then crop wrong the other way. **Rule:** verify cameo/bracket work at `deviceScaleFactor: 2` as well as 1, and measure sprite pixels against the cameo's inner fill, not "any pixel".

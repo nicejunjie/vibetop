@@ -11956,29 +11956,36 @@
   // the headless test stub).
   function artTop(s) {
     try {
-      var d = s.g.getImageData(0, 0, s.w, s.h).data;
-      if (!d || d.length < s.w * s.h * 4) return 0;
-      for (var y = 0; y < s.h; y++)
-        for (var x = 3; x < s.w * 4; x += 4)
-          if (d[y * s.w * 4 + x] > 24) return y;
+      var W = s.c.width, H = s.c.height, k = W / s.w;   // bitmap is DPR x the CSS size
+      var d = s.g.getImageData(0, 0, W, H).data;
+      if (!d || d.length < W * H * 4) return 0;
+      for (var y = 0; y < H; y++)
+        for (var x = 3; x < W * 4; x += 4)
+          if (d[y * W * 4 + x] > 24) return y / k;
     } catch (e) {}
     return 0;
   }
 
   // Opaque bounding box of a baked canvas (whole canvas if unreadable).
+  // Ink bounds in CSS px (the sprite's own w/h space). The bitmap is DPR times
+  // larger than s.w x s.h (mkCanvas) and getImageData ignores the transform,
+  // so scan the WHOLE bitmap and divide by the ratio; scanning s.w x s.h read
+  // only the top-left quarter on a HiDPI screen and gave sprite-dependent
+  // wrong boxes (blank cameos, mis-set brackets).
   function artBox(s) {
     var bb = { x0: 0, y0: 0, x1: s.w, y1: s.h };
     try {
-      var d = s.g.getImageData(0, 0, s.w, s.h).data;
-      if (!d || d.length < s.w * s.h * 4) return bb;
-      var x0 = s.w, y0 = s.h, x1 = -1, y1 = -1;
-      for (var y = 0; y < s.h; y++)
-        for (var x = 0; x < s.w; x++)
-          if (d[(y * s.w + x) * 4 + 3] > 24) {
+      var W = s.c.width, H = s.c.height, k = W / s.w;
+      var d = s.g.getImageData(0, 0, W, H).data;
+      if (!d || d.length < W * H * 4) return bb;
+      var x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (var y = 0; y < H; y++)
+        for (var x = 0; x < W; x++)
+          if (d[(y * W + x) * 4 + 3] > 24) {
             if (x < x0) x0 = x; if (x > x1) x1 = x;
             if (y < y0) y0 = y; if (y > y1) y1 = y;
           }
-      if (x1 >= 0) bb = { x0: x0, y0: y0, x1: x1 + 1, y1: y1 + 1 };
+      if (x1 >= 0) bb = { x0: x0 / k, y0: y0 / k, x1: (x1 + 1) / k, y1: (y1 + 1) / k };
     } catch (e) {}
     return bb;
   }
@@ -14927,10 +14934,10 @@
   function cameoFor(key, isBld, fac) {
     var ck = (isBld ? 'b:' : 'u:') + fac + ':' + key;
     if (cameoCache[ck]) return cameoCopy(cameoCache[ck]);
-    var src = null, sw, sh, sc;
+    var src = null, sw, sh, sc, kb = 1;
     try {
-      if (isBld) { var A = SPR.bld[0][fac][key]; if (!A) return null; src = A.s.c; var bb = A.s.bb || { x0: 0, y0: 0, x1: A.s.w, y1: A.s.h }; sw = bb.x1 - bb.x0; sh = bb.y1 - bb.y0; sc = { x: bb.x0, y: bb.y0 }; }
-      else { var U = SPR.unit[0][fac][key]; if (!U) return null; var f = Array.isArray(U) ? U[1] : U; src = f.c; var ub = f.bb || { x0: 0, y0: 0, x1: f.w, y1: f.h }; sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; sc = { x: ub.x0, y: ub.y0 }; }
+      if (isBld) { var A = SPR.bld[0][fac][key]; if (!A) return null; src = A.s.c; var bb = A.s.bb || { x0: 0, y0: 0, x1: A.s.w, y1: A.s.h }; sw = bb.x1 - bb.x0; sh = bb.y1 - bb.y0; sc = { x: bb.x0, y: bb.y0 }; kb = src.width / A.s.w; }
+      else { var U = SPR.unit[0][fac][key]; if (!U) return null; var f = Array.isArray(U) ? U[1] : U; src = f.c; var ub = f.bb || { x0: 0, y0: 0, x1: f.w, y1: f.h }; sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; sc = { x: ub.x0, y: ub.y0 }; kb = src.width / f.w; }
     } catch (e) { return null; }
     if (!src || sw <= 0 || sh <= 0) return null;
     var W = 60, H = 44, c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2; c.style.width = W + 'px'; c.style.height = H + 'px';
@@ -14940,7 +14947,9 @@
     var k = Math.min((W - 8) / sw, (H - 6) / sh); if (k > 1.6) k = 1.6;
     var dw = sw * k, dh = sh * k;
     g.imageSmoothingEnabled = true;
-    g.drawImage(src, sc.x, sc.y, sw, sh, (W - dw) / 2, (H - dh) / 2 + 1, dw, dh);
+    // bb is CSS px; the bitmap is `kb` times larger (baked at DPR), so the
+    // SOURCE rect is scaled by the sprite's own ratio.
+    g.drawImage(src, sc.x * kb, sc.y * kb, sw * kb, sh * kb, (W - dw) / 2, (H - dh) / 2 + 1, dw, dh);
     g.strokeStyle = '#3a4456'; g.lineWidth = 1; g.strokeRect(0.5, 0.5, W - 1, H - 1);
     cameoCache[ck] = c;
     return cameoCopy(c);
@@ -16711,25 +16720,25 @@
       g.fillRect(6, ground + 1.5, LINE_W - 12, 1);
       g.imageSmoothingEnabled = true;
       for (var i = 0; i < list.length; i++) {
-        var kind = list[i][0], key = list[i][1], src = null, sw = 0, sh = 0, ox = 0, oy = 0;
+        var kind = list[i][0], key = list[i][1], src = null, sw = 0, sh = 0, ox = 0, oy = 0, kb = 1;
         if (kind === 'b') {
           var A = SPR.bld[0][k][key];
           if (!A) continue;
-          src = A.s.c;
+          src = A.s.c; kb = src.width / A.s.w;
           var bb = A.s.bb || { x0: 0, y0: 0, x1: A.s.w, y1: A.s.h };
           sw = bb.x1 - bb.x0; sh = bb.y1 - bb.y0; ox = bb.x0; oy = bb.y0;
         } else {
           var U = SPR.unit[0][k][key];
           if (!U) continue;
           var fr = Array.isArray(U) ? U[1] : U;
-          src = fr.c;
+          src = fr.c; kb = src.width / fr.w;
           var ub = fr.bb || { x0: 0, y0: 0, x1: fr.w, y1: fr.h };
           sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; ox = ub.x0; oy = ub.y0;
         }
         if (!src || !(sw > 0) || !(sh > 0)) continue;
         var sc = Math.min(LINE_SLOT_H[i] / sh, (cw - 12) / sw);   // height first, width only as a cap
         var dw = sw * sc, dh = sh * sc, lift = LINE_SLOT_LIFT[i];
-        g.drawImage(src, ox, oy, sw, sh, cw * i + (cw - dw) / 2, ground - dh - lift, dw, dh);
+        g.drawImage(src, ox * kb, oy * kb, sw * kb, sh * kb, cw * i + (cw - dw) / 2, ground - dh - lift, dw, dh);
       }
     } catch (e) {}
     lineupCache[k] = o.c;
