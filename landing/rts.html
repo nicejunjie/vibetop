@@ -1241,14 +1241,25 @@
   // Rocketeer bounces on his jets).
   var CLIMB = 30;                       // ticks from the ground to cruise height
   function altOf(u) {
-    if (!u.air || u.landed) return 0;
+    if (!u.air) return 0;
     var d = UNITS[u.type], now = (G ? G.tick : 0), t = now + u.id * 7;
+    var k;
+    if (u.landed) {
+      // Touching down is a ramp, not a snap: the airframe sinks onto the pad
+      // over LAND_T ticks (it was a one-tick pop from cruise height to zero).
+      var lp = now - (u.landAt == null ? -9999 : u.landAt);
+      if (lp < 0 || lp >= LAND_T) return 0;
+      k = 1 - lp / LAND_T; k = k * k;
+      return k * d.alt;
+    }
     // An aircraft built on the ground (a Rocketeer out of the Barracks door,
     // a Kirov off the War Factory ramp) climbs to altitude instead of
     // popping into existence at cruise height. Anything placed before the
     // match starts (an opening force, a test fixture) is already up there.
-    var k = (u.born || 0) <= 0 ? 1 : Math.min(1, (now - u.born) / CLIMB);
-    return k * (d.alt + (d.bomb ? Math.sin(t * 0.035) * 3 : Math.sin(t * 0.09) * 1.6));
+    // A sortie off the pad climbs on the same ramp.
+    k = (u.born || 0) <= 0 ? 1 : Math.min(1, (now - u.born) / CLIMB);
+    if (u.flyAt != null) k = Math.min(k, Math.max(0, (now - u.flyAt) / LAND_T));
+    return k * (d.alt + (d.bomb ? Math.sin(t * 0.035) * 4.5 : Math.sin(t * 0.09) * 1.6));
   }
   function airborneYet(u) { return !u.air || u.landed || !(u.born > 0) || (G ? G.tick : 0) - u.born >= CLIMB; }
   // Where Harriers park: four pads on each Airforce Command, in grid offsets
@@ -1325,7 +1336,7 @@
                hint: 'Paratrooper Drop \u2014 click where the stick should land. Esc cancels.' }
   };
   var SW_KEYS = ['chrono', 'storm', 'curtain', 'nuke', 'para'];
-  var IRON_T = 20 * 60, STORM_T = 20 * 60, NUKE_FLIGHT = 10 * 60;
+  var IRON_T = 20 * 60, STORM_T = 12 * 60, NUKE_FLIGHT = 10 * 60;   // [General] LightningStormDuration=180 frames
   function swInit() {
     var o = {};
     for (var i = 0; i < SW_KEYS.length; i++) o[SW_KEYS[i]] = { t: 0, ready: false, fired: 0, armed: false };
@@ -2392,6 +2403,78 @@
   // shadow facet and a cast shadow, on stained earth. Three densities so a
   // depleting patch visibly thins; four variants each so a field is not a
   // printed grid.
+  // Erase a tile sprite's outer rim so what is painted on it (ore soil, gem
+  // soil) fades out instead of stopping dead on the diamond.
+  function feather(g, cx, cy) {
+    var fg = g.createRadialGradient(cx, cy, TW * 0.20, cx, cy, TW * 0.52);
+    fg.addColorStop(0, 'rgba(0,0,0,0)');
+    fg.addColorStop(0.72, 'rgba(0,0,0,.55)');
+    fg.addColorStop(1, 'rgba(0,0,0,1)');
+    var prev = g.globalCompositeOperation;
+    g.globalCompositeOperation = 'destination-out';
+    g.save(); g.translate(cx, cy); g.scale(1, TH / TW); g.translate(-cx, -cy);
+    g.fillStyle = fg;
+    g.beginPath(); g.arc(cx, cy, TW * 0.52, 0, 6.29); g.fill();
+    g.restore();
+    g.globalCompositeOperation = prev;
+  }
+
+  // RA2's ore and gems glint: the overlay animates, and a field twinkles
+  // because each cell is on its own phase. Three baked flashes, cycled off
+  // `tick` plus the cell hash so no two neighbours fire together.
+  function bakeSparkle(k, col, hot) {
+    var d = 14, s = mkCanvas(d, d), g = s.g, c = d / 2;
+    var r = [1.1, 1.9, 1.4][k], a = [0.34, 0.62, 0.42][k];
+    var grd = g.createRadialGradient(c, c, 0, c, c, r * 2.1);
+    grd.addColorStop(0, 'rgba(255,255,255,' + (0.9 * a).toFixed(2) + ')');
+    grd.addColorStop(0.4, col.replace('ALPHA', (0.55 * a).toFixed(2)));
+    grd.addColorStop(1, col.replace('ALPHA', '0'));
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(c, c, r * 2.1, 0, 6.29); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,' + (0.62 * a).toFixed(2) + ')';
+    g.lineWidth = 0.7; g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(c - r * 1.7, c); g.lineTo(c + r * 1.7, c);
+    g.moveTo(c, c - r * 1.2); g.lineTo(c, c + r * 1.2);
+    g.stroke();
+    if (hot) { g.fillStyle = 'rgba(255,252,236,' + (0.9 * a).toFixed(2) + ')'; g.beginPath(); g.arc(c, c, r * 0.42, 0, 6.29); g.fill(); }
+    return s;
+  }
+  // RA2 does not stop the shroud on a tile boundary: it draws the border with
+  // a dedicated edge-shape set (half / corner / inner-corner), so the black
+  // ends in a soft ragged line. Ours is one tile per 4-neighbour mask of
+  // EXPLORED neighbours: solid black, with the rim eaten away toward each
+  // open side and a few bites taken out of it so the line is not a clean
+  // airbrush. Bit 1 = (x, y-1) which lies up-RIGHT on screen, 2 = (x+1, y)
+  // down-right, 4 = (x, y+1) down-left, 8 = (x-1, y) up-left.
+  var SHROUD_DIRS = [[0.25, -0.25], [0.25, 0.25], [-0.25, 0.25], [-0.25, -0.25]];
+  function bakeShroudEdge(mask) {
+    var s = mkCanvas(TCW + 2, TCH + 2), g = s.g, cx = s.w / 2, cy = s.h / 2;
+    g.fillStyle = '#05070b';
+    diamond(g, cx, cy, TCW, TCH); g.fill();
+    var rnd = lcg(0x9e37 + mask * 2749), k;
+    g.globalCompositeOperation = 'destination-out';
+    for (k = 0; k < 4; k++) {
+      if (!(mask & (1 << k))) continue;
+      var mx = SHROUD_DIRS[k][0] * TCW, my = SHROUD_DIRS[k][1] * TCH;
+      var gr = g.createLinearGradient(cx + mx * 1.35, cy + my * 1.35, cx - mx * 0.55, cy - my * 0.55);
+      gr.addColorStop(0, 'rgba(0,0,0,1)');
+      gr.addColorStop(0.34, 'rgba(0,0,0,.82)');
+      gr.addColorStop(0.66, 'rgba(0,0,0,.42)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr;
+      g.fillRect(0, 0, s.w, s.h);
+      // Ragged bites along that edge, so the border is not a smooth airbrush.
+      for (var b = 0; b < 5; b++) {
+        var q = rnd(), bxp = cx + mx * (0.55 + rnd() * 0.85) + (my) * (q * 2 - 1) * 1.5;
+        var byp = cy + my * (0.55 + rnd() * 0.85) - (mx) * (q * 2 - 1) * 0.75;
+        g.fillStyle = 'rgba(0,0,0,' + (0.35 + rnd() * 0.45).toFixed(2) + ')';
+        g.beginPath(); g.ellipse(bxp, byp, 3 + rnd() * 5, 2 + rnd() * 3, 0, 0, 6.29); g.fill();
+      }
+    }
+    g.globalCompositeOperation = 'source-over';
+    return s;
+  }
   function bakeOre(level, variant) {
     var s = mkCanvas(TCW, TCH), g = s.g;
     var cx = TCW / 2, cy = TCH / 2;
@@ -2403,6 +2486,10 @@
     g.globalAlpha = 0.13;
     for (q = 0; q < 5; q++) { g.fillStyle = q & 1 ? '#96702a' : '#523c14'; g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 30, cy + (rnd() - 0.5) * 15, 4 + rnd() * 7, 2 + rnd() * 3, 0, 0, 6.29); g.fill(); }
     g.globalAlpha = 1;
+    // Feather the soil away from the tile edge. Clipped flat, the wash ended
+    // on the diamond boundary and every ore cell in a field showed its own
+    // tan backing square -- a checkerboard, not a seam of ore.
+    feather(g, cx, cy);
     var n = 6 + level * 5, chunks = [];
     for (var i = 0; i < n; i++) {
       var a2 = rnd() * 6.283, r = Math.sqrt(rnd());
@@ -13231,16 +13318,166 @@
     return _gateSpr[k] || (_gateSpr[k] = bakeGateSeg(COL[p], fk, vert, fi / (GATE_FRAMES - 1)));
   }
 
-  function bakeExplosionSprite() {
-    var d = 128, r = d / 2;
-    var s = mkCanvas(d, d), g = s.g;
-    var grd = g.createRadialGradient(r, r, 0, r, r, r);
-    grd.addColorStop(0, 'rgba(255,214,120,0.75)');
-    grd.addColorStop(0.5, 'rgba(232,120,40,0.42)');
-    grd.addColorStop(1, 'rgba(120,30,10,0)');
+  // RA2 does not have "an explosion". rules.ini hands every structure a whole
+  // FAMILY at once (351 entries carry `Explosion=TWLT070,S_BANG48,S_BRNL58,
+  // S_CLSN58,S_TUMU60`), and art.ini keeps stock sizes for everything else --
+  // [EXPLOSML] / [EXPLOMED] / [EXPLOLRG] (art.ini:11611-11670), every one of
+  // them `Crater=yes` and `Scorch=yes`. Ours are four baked frame sequences:
+  // a fireball that blooms, rolls over and cools into a smoke ball. The hot
+  // core is baked as its OWN frame so it can go down additively over the
+  // smoke without the smoke brightening whatever it happens to overlap --
+  // the old single radial blob, scaled, was one orange smudge at every size.
+  var EXPL_N = 11;                               // frames per family (RA2's run 8-12)
+  function bakeExplosionFamily(ref, lobes, seed, sooty, hotEnd, riseK) {
+    var body = [], core = [], k, i;
+    for (k = 0; k < EXPL_N; k++) {
+      var q = k / (EXPL_N - 1);
+      var bs = mkCanvas(ref, ref), bg = bs.g, cx = ref / 2, cy = ref / 2;
+      var rnd = lcg(seed);
+      // The ball blooms fast, coasts, and lifts as it cools.
+      var R = ref * 0.5 * (0.26 + 0.74 * Math.pow(q, 0.50));
+      var lift = ref * riseK * q * q;
+      var fade = q > 0.55 ? Math.max(0, 1 - (q - 0.55) / 0.45) : 1;
+      var tall = 1 + 0.34 * Math.max(0, (q - hotEnd) / (1 - hotEnd));   // the smoke ball stretches as it climbs
+      // Billows, drawn back to front so the near ones overlap the far ones
+      // and the ball has a front and a back instead of reading as an
+      // airbrushed cloud.
+      var lob = [];
+      for (i = 0; i < lobes; i++) {
+        var a = rnd() * 6.2832, rr = Math.sqrt(rnd());
+        lob.push({ x: cx + Math.cos(a) * rr * R * 0.56,
+                   y: cy - lift + Math.sin(a) * rr * R * 0.46 * tall,
+                   r: R * (0.26 + rnd() * 0.28), t: Math.min(1, (q / hotEnd) * (0.62 + rnd() * 0.42)) });
+      }
+      lob.sort(function (p1, p2) { return p1.y - p2.y; });
+      for (i = 0; i < lob.length; i++) {
+        var L = lob[i], t2 = L.t;
+        bg.fillStyle = t2 < 0.30 ? mixc('#fff2c8', '#ff8c1c', t2 / 0.30)
+                     : t2 < 0.62 ? mixc('#ff8c1c', '#6e3f1c', (t2 - 0.30) / 0.32)
+                                 : mixc(sooty ? '#3e362c' : '#5c5248', '#2a2d32', (t2 - 0.62) / 0.38);
+        bg.globalAlpha = fade * (t2 < 0.62 ? 0.95 : 0.46 * (1 - (t2 - 0.62) / 0.38 * 0.45));
+        bg.beginPath(); bg.ellipse(L.x, L.y, L.r, L.r * (0.92 + 0.14 * (tall - 1)), 0, 0, 6.29); bg.fill();
+        // Lit crown on the billow's upper left, the same light the sprites use.
+        bg.fillStyle = t2 < 0.45 ? 'rgba(255,238,182,.60)' : 'rgba(176,170,160,.26)';
+        bg.globalAlpha = fade * (t2 < 0.62 ? 0.82 : 0.40);
+        bg.beginPath(); bg.ellipse(L.x - L.r * 0.26, L.y - L.r * 0.32, L.r * 0.52, L.r * 0.38, -0.5, 0, 6.29); bg.fill();
+      }
+      // Sparks thrown off the rim while it is still burning.
+      if (q < hotEnd) {
+        bg.globalAlpha = fade * (1 - q / hotEnd);
+        for (i = 0; i < (lobes >> 1); i++) {
+          var sa = rnd() * 6.2832, sr = R * (0.64 + rnd() * 0.30);
+          bg.fillStyle = (i & 1) ? '#ffe6a0' : '#ff8c2a';
+          bg.fillRect(cx + Math.cos(sa) * sr - 0.8, cy - lift + Math.sin(sa) * sr * 0.85 - 0.8,
+                      1.5 + rnd() * 1.2, 1.5);
+        }
+      }
+      bg.globalAlpha = 1;
+      body.push(bs);
+      // The core: white-hot at the start, gone by the time the smoke wins.
+      if (q < hotEnd) {
+        var cs = mkCanvas(ref, ref), cg = cs.g;
+        var cr = R * (0.30 + 0.34 * Math.max(0, 1 - q / hotEnd));
+        var grd = cg.createRadialGradient(cx, cy - lift, 0, cx, cy - lift, Math.max(1, cr));
+        var ca = (1 - q / hotEnd);
+        grd.addColorStop(0, 'rgba(255,255,244,' + (0.95 * ca).toFixed(3) + ')');
+        grd.addColorStop(0.35, 'rgba(255,214,120,' + (0.72 * ca).toFixed(3) + ')');
+        grd.addColorStop(0.72, 'rgba(238,124,36,' + (0.34 * ca).toFixed(3) + ')');
+        grd.addColorStop(1, 'rgba(160,50,10,0)');
+        cg.fillStyle = grd;
+        cg.beginPath(); cg.arc(cx, cy - lift, Math.max(1, cr), 0, 6.29); cg.fill();
+        core.push(cs);
+      } else core.push(null);
+    }
+    return { body: body, core: core, ref: ref };
+  }
+  // 0 small (a bullet impact, a man going down), 1 medium (a shell or a
+  // rocket), 2 large (a vehicle), 3 building (the centre blast of a levelled
+  // structure). `famOf` maps the fx's own size onto them, which is how
+  // `Explosion=` reads in RA2: the warhead and the victim pick the family.
+  function bakeExplosions() {
+    return [bakeExplosionFamily(56, 7, 0x51a3, false, 0.40, 0.10),
+            bakeExplosionFamily(88, 11, 0x7c19, false, 0.50, 0.15),
+            bakeExplosionFamily(128, 15, 0x2f61, true, 0.60, 0.21),
+            bakeExplosionFamily(168, 19, 0x9b07, true, 0.68, 0.27)];
+  }
+  function famOf(size) { return size <= 12 ? 0 : (size <= 22 ? 1 : (size <= 32 ? 2 : 3)); }
+
+  // Ground decals an explosion leaves behind. art.ini gives every EXPLO*,
+  // TWLT* and S_* anim `Crater=yes` / `Scorch=yes`, and ships twelve crater
+  // SHPs ([CRATER01]..[CRATER12], art.ini:8835-8868); rules.ini gates the
+  // real ground deformation on `Deform=10-15%` / `DeformThreshhold=120-300`,
+  // which is why a rifle round leaves nothing and a shell leaves a hole.
+  // Three variants each, so a firefight does not stamp the same blot.
+  function bakeScorchDecal(v) {
+    var w = TW * 1.1, h = TH * 1.1, s = mkCanvas(w, h), g = s.g;
+    var cx = w / 2, cy = h / 2, rnd = lcg(0x3311 + v * 977);
+    for (var i = 0; i < 9; i++) {
+      var a = rnd() * 6.2832, r = Math.sqrt(rnd());
+      g.fillStyle = 'rgba(18,15,12,' + (0.10 + rnd() * 0.07).toFixed(3) + ')';
+      g.beginPath();
+      g.ellipse(cx + Math.cos(a) * r * w * 0.24, cy + Math.sin(a) * r * h * 0.22,
+                w * (0.15 + rnd() * 0.16), h * (0.13 + rnd() * 0.15), 0, 0, 6.29);
+      g.fill();
+    }
+    // A few flecks of ash so the blot is not a clean airbrush oval.
+    for (i = 0; i < 14; i++) {
+      var fa = rnd() * 6.2832, fr = Math.sqrt(rnd()) * 0.42;
+      g.fillStyle = 'rgba(12,10,8,.34)';
+      g.fillRect(cx + Math.cos(fa) * fr * w - 1, cy + Math.sin(fa) * fr * h - 0.6, 1.6 + rnd() * 1.6, 1.2);
+    }
+    return { s: s, ax: cx, ay: cy };
+  }
+  function bakeCraterDecal(v) {
+    var w = TW * 0.92, h = TH * 0.92, s = mkCanvas(w, h), g = s.g;
+    var cx = w / 2, cy = h / 2, rnd = lcg(0x77c1 + v * 613), i;
+    for (i = 0; i < 7; i++) {                                   // the burn round the hole
+      var a = rnd() * 6.2832, r = Math.sqrt(rnd());
+      g.fillStyle = 'rgba(18,15,12,.11)';
+      g.beginPath();
+      g.ellipse(cx + Math.cos(a) * r * w * 0.26, cy + Math.sin(a) * r * h * 0.24,
+                w * (0.18 + rnd() * 0.16), h * (0.16 + rnd() * 0.15), 0, 0, 6.29);
+      g.fill();
+    }
+    // Churned earth, not a hole: a warm dug-out bowl with a lit far rim.
+    // Painted dark it reads as a black void punched through the map.
+    var rw = w * (0.24 + rnd() * 0.05), rh = h * (0.23 + rnd() * 0.05);
+    g.fillStyle = 'rgba(150,130,96,.30)';                        // spoil ring
+    g.beginPath(); g.ellipse(cx, cy + rh * 0.35, rw * 1.32, rh * 0.72, 0, 0, 6.29); g.fill();
+    g.fillStyle = 'rgba(96,80,58,.88)';
+    g.beginPath(); g.ellipse(cx, cy, rw, rh, 0, 0, 6.29); g.fill();
+    g.fillStyle = 'rgba(134,115,84,.85)';                        // lit far rim
+    g.beginPath(); g.ellipse(cx - 0.6, cy - rh * 0.24, rw * 0.86, rh * 0.78, 0, 0, 6.29); g.fill();
+    g.fillStyle = 'rgba(76,63,46,.62)';                          // shadowed floor
+    g.beginPath(); g.ellipse(cx + 1, cy + rh * 0.18, rw * 0.60, rh * 0.52, 0, 0, 6.29); g.fill();
+    for (i = 0; i < 9; i++) {                                    // thrown spoil
+      var sa = rnd() * 6.2832, sr = 1.05 + rnd() * 0.55;
+      g.fillStyle = 'rgba(112,96,70,.45)';
+      g.fillRect(cx + Math.cos(sa) * sr * rw - 1, cy + Math.sin(sa) * sr * rh - 0.7, 1.8 + rnd() * 1.8, 1.3);
+    }
+    return { s: s, ax: cx, ay: cy };
+  }
+  // Fallout on the nuke's crater. [Radiation] RadLevelMax=500, the nuke lays
+  // 2000 units down and it decays over minutes; until the radiation ground
+  // layer lands this is what marks the ground as poisoned.
+  function bakeRadDecal(v) {
+    var w = TW * 1.15, h = TH * 1.15, s = mkCanvas(w, h), g = s.g;
+    var cx = w / 2, cy = h / 2, rnd = lcg(0x5ee1 + v * 331);
+    for (var i = 0; i < 8; i++) {
+      var a = rnd() * 6.2832, r = Math.sqrt(rnd());
+      g.fillStyle = 'rgba(16,26,12,' + (0.10 + rnd() * 0.06).toFixed(3) + ')';
+      g.beginPath();
+      g.ellipse(cx + Math.cos(a) * r * w * 0.26, cy + Math.sin(a) * r * h * 0.24,
+                w * (0.16 + rnd() * 0.16), h * (0.14 + rnd() * 0.15), 0, 0, 6.29);
+      g.fill();
+    }
+    var grd = g.createRadialGradient(cx, cy, 0, cx, cy, w * 0.46);
+    grd.addColorStop(0, 'rgba(150,232,96,.30)');
+    grd.addColorStop(0.55, 'rgba(96,190,64,.15)');
+    grd.addColorStop(1, 'rgba(60,140,40,0)');
     g.fillStyle = grd;
-    g.beginPath(); g.arc(r, r, r, 0, 6.29); g.fill();
-    return s;
+    g.beginPath(); g.ellipse(cx, cy, w * 0.46, h * 0.46, 0, 0, 6.29); g.fill();
+    return { s: s, ax: cx, ay: cy };
   }
   // Aircraft drop shadow: one soft ellipse, scaled per type by the renderer.
   function bakeAirShadow() {
@@ -13467,15 +13704,23 @@
     g.globalAlpha = 0.12 + level * 0.05; g.fillStyle = '#3b2f63';
     for (var q = 0; q < 8; q++) { g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 34, cy + (rnd() - 0.5) * 17, 5 + rnd() * 8, 2.5 + rnd() * 4, 0, 0, 6.29); g.fill(); }
     g.globalAlpha = 1;
-    var n = 5 + level * 4, chunks = [], i;
+    feather(g, cx, cy);
+    // Three habits, not one repeated cone: rules.ini ships GEM01..GEM09 and
+    // an RA2 gem field is visibly a mix. 0 tall spires, 1 squat blocky
+    // clusters, 2 a low blue-white fan; 3 mixes them.
+    var HAB = [{ w: 0.72, h: 1.34, n: 1.0, pal: ['#6f4fd0', '#8a68ee', '#5238a6', '#a487ff'] },
+               { w: 1.34, h: 0.62, n: 1.3, pal: ['#7a5cc8', '#9a7cf0', '#5b45a0', '#b09aff'] },
+               { w: 1.00, h: 0.92, n: 1.1, pal: ['#6455d2', '#8b7cf0', '#4a3d9c', '#ab9dff'] }][variant % 3];
+    var n = Math.round((5 + level * 4) * HAB.n), chunks = [], i;
     for (i = 0; i < n; i++) {
       var a2 = rnd() * 6.283, r = Math.sqrt(rnd());
       chunks.push({ x: cx + Math.cos(a2) * r * (TW / 2 - 6), y: cy + Math.sin(a2) * r * (TH / 2 - 3),
-                    w: 2.4 + rnd() * 2.2 + level * 0.5, h: 4.5 + rnd() * 4.0 + level * 1.2 });
+                    w: (2.4 + rnd() * 2.2 + level * 0.5) * HAB.w,
+                    h: (4.5 + rnd() * 4.0 + level * 1.2) * HAB.h });
     }
     chunks.sort(function (p1, p2) { return p1.y - p2.y; });
     for (i = 0; i < chunks.length; i++) {
-      var c = chunks[i], base = ['#6f4fd0', '#8a68ee', '#5238a6', '#a487ff'][i & 3];
+      var c = chunks[i], base = HAB.pal[i & 3];
       g.fillStyle = 'rgba(30,18,64,.36)';
       g.beginPath(); g.ellipse(c.x + c.w * 0.5, c.y + 1.2, c.w * 1.5, c.w * 0.5, 0, 0, 6.29); g.fill();
       g.fillStyle = shade(base, 0.58);                                  // shadow facet
@@ -14267,12 +14512,19 @@
         if (A.lit) { A.lit.s.bb = A.s.bb; }
       }
     })();
+    SPR.shroudE = [];
+    for (var sm = 0; sm < 16; sm++) SPR.shroudE.push(bakeShroudEdge(sm));
     SPR.oreLv = []; SPR.gemLv = [];
+    SPR.oreSpark = [bakeSparkle(0, 'rgba(255,214,120,ALPHA)', 0), bakeSparkle(1, 'rgba(255,214,120,ALPHA)', 1), bakeSparkle(2, 'rgba(255,214,120,ALPHA)', 0)];
+    SPR.gemSpark = [bakeSparkle(0, 'rgba(198,178,255,ALPHA)', 0), bakeSparkle(1, 'rgba(198,178,255,ALPHA)', 1), bakeSparkle(2, 'rgba(198,178,255,ALPHA)', 0)];
     for (var lv = 0; lv < 3; lv++) {
       SPR.oreLv.push([bakeOre(lv, 0), bakeOre(lv, 1), bakeOre(lv, 2), bakeOre(lv, 3)]);
       SPR.gemLv.push([bakeGem(lv, 0), bakeGem(lv, 1), bakeGem(lv, 2), bakeGem(lv, 3)]);
     }
-    SPR.boom = bakeExplosionSprite();
+    SPR.expl = bakeExplosions();
+    SPR.decal_fx = { scorch: [bakeScorchDecal(0), bakeScorchDecal(1), bakeScorchDecal(2)],
+                     crater: [bakeCraterDecal(0), bakeCraterDecal(1), bakeCraterDecal(2)],
+                     rad:    [bakeRadDecal(0), bakeRadDecal(1), bakeRadDecal(2)] };
     SPR.flash = bakeMuzzleFlash();
     SPR.shadow = bakeAirShadow();
     // Units are keyed like structures: [player][faction][type]. Only the
@@ -14810,7 +15062,7 @@
       if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
       if (tgt.kind === 'b') { killBld(g, tgt); sfx('boom'); }   // killBld runs the whole death sequence
       else if (isAir(tgt)) { tgt.dead = true; crashAircraft(g, tgt); }
-      else { tgt.dead = true; if (!infCorpse(g, tgt, wh, src.crushKill)) boom(g, tgt.x, tgt.y, 12); sfx('die'); }
+      else { tgt.dead = true; if (!infCorpse(g, tgt, wh, src.crushKill)) vehicleDeath(g, tgt); sfx('die'); }
     }
   }
 
@@ -14839,9 +15091,48 @@
     return true;
   }
 
-  function boom(g, x, y, size) {
+  // Decals live on `g.rubble` (the ground layer, under units) beside the
+  // structure rubble, and are capped: a long game with a lot of shelling
+  // would otherwise stamp thousands of them and the ground pass would
+  // start costing more than the units standing on it.
+  var DECAL_LIFE = 90 * 60, DECAL_MAX = 56;          // ~90 s, RA2's scorch weathers away
+  function decal(g, x, y, kind) {
     if (headless) return;
-    g.fx.push({ x: x, y: y, t: 0, life: size > 20 ? 34 : 20, size: size });
+    var n = 0, oldest = -1, i;
+    for (i = 0; i < g.rubble.length; i++) if (g.rubble[i].fx) { n++; if (oldest < 0) oldest = i; }
+    if (n >= DECAL_MAX && oldest >= 0) g.rubble.splice(oldest, 1);
+    g.rubble.push({ x: x, y: y, gw: 1, gh: 1, t: 0, life: DECAL_LIFE, fx: kind,
+                    v: (((x * 7 + y * 13) | 0) % 3 + 3) % 3 });
+  }
+  // `size` picks the family AND what the ground keeps: art.ini flags every
+  // EXPLO*/TWLT*/S_* anim `Crater=yes` `Scorch=yes`, but rules.ini only
+  // deforms the ground above `DeformThreshhold` (120-300), so a rifle round
+  // marks nothing, a medium blast scorches, and a shell digs.
+  function boom(g, x, y, size, dig) {
+    if (headless) return;
+    g.fx.push({ x: x, y: y, t: 0, life: size > 30 ? 44 : (size > 20 ? 34 : 20), size: size });
+    if (dig || size >= 24) decal(g, x, y, 'crater');
+    else if (size >= 14) decal(g, x, y, 'scorch');
+  }
+
+  // A vehicle does not go out like a rifleman. RA2 gives it the large
+  // family, throws chunks (`DebrisAnims=` / `MinDebris`-`MaxDebris`) and
+  // leaves a smoke column standing over the wreck.
+  function vehicleDeath(g, u) {
+    if (headless) return;
+    var rnd = lcg(((u.id * 2654435761) >>> 0) || 1), i;
+    boom(g, u.x, u.y, 26);
+    g.fx.push({ x: u.x, y: u.y, t: 5, life: 26, size: 13 });          // a second cook-off
+    for (i = 0; i < 3 + ((rnd() * 4) | 0); i++) {                     // 3-6 chunks
+      var da = rnd() * 6.2832, dv = 0.35 + rnd() * 0.85;
+      g.fx.push({ x: u.x, y: u.y, t: -((i * 2) % 5), life: 28 + ((rnd() * 14) | 0), deb: true,
+                  vx: Math.cos(da) * dv, vy: Math.sin(da) * dv * 0.5, vz: 1.7 + rnd() * 1.9,
+                  dw: 1.8 + rnd() * 2.6, spin: (rnd() - 0.5) * 0.5 });
+    }
+    for (i = 0; i < 4; i++) {                                         // a short smoke column
+      g.fx.push({ x: u.x, y: u.y, t: -i * 8, life: 96, smoke: true, big: 0.8,
+                  ox: (rnd() - 0.5) * 6, oy: -4 - rnd() * 6, lift: 0 });
+    }
   }
 
   // RA2: a shot-down aircraft is not a puff of smoke where it was hit. It
@@ -14938,29 +15229,50 @@
     if (g.mmFlash && g.tick > g.mmFlash.until) g.mmFlash = null;
   }
 
-  // Ten bolts over twenty seconds inside a 3x3, each 200 damage on the
-  // Electric-style WeatherWH (which, unlike a Tesla Coil, is at full strength
-  // against concrete).
+  // RA2's Lightning Storm is a sustained barrage, not a bolt now and then.
+  // [General] LightningStormDuration=180 frames, LightningHitDelay=10 (how
+  // often the DIRECT target is hit), LightningScatterDelay=5 (random bolts
+  // between them), LightningCellSpread=10 (an n-by-n square), and
+  // LightningSeparation=3 (city-block cells between successive bolts), each
+  // one LightningDamage=250 on LightningWarhead=IonWH. One rules frame is
+  // four of our ticks (a Grizzly's ROF=60 is our `rate: 240`), so the storm
+  // runs twelve seconds and lands about fifty bolts -- where the old one
+  // fired ten in twenty seconds and a playtest watched it miss everything.
+  var LIGHT_HIT = 40, LIGHT_SCATTER = 20, LIGHT_SPREAD = 5, LIGHT_SEP = 3;
+  function stormBolt(g, st, bx, by, direct) {
+    var src = { kind: 'b', type: 'weather', p: st.p };
+    swNear(g, bx, by, 1.6, function (e, d) {
+      if (isAir(e)) return;                                    // the storm strikes the ground
+      if (e.kind === 'b') { if (d > 1.4 + Math.max(e.gw, e.gh) / 2) return; }
+      else if (d > 1.1) return;
+      damage(g, src, e, 250, 'IonWH');   // [General] LightningDamage=250
+    });
+    if (!headless) {
+      st.lit = g.tick;                                         // the deck flares on every strike
+      g.fx.push({ x: bx, y: by, t: 0, life: direct ? 17 : 14, bolt: true,
+                  big: direct ? 1 : 0.74, seed: (g.tick * 7 + ((bx * 31 + by * 17) | 0)) | 0 });
+      g.fx.push({ x: bx, y: by, t: 0, life: 22, size: direct ? 17 : 12 });
+      if (direct) decal(g, bx, by, 'scorch');
+    }
+    if (direct) sfx('boom');
+  }
   function stepStorm(g, st) {
     st.t++;
-    if (st.t >= st.next && st.left > 0) {
-      st.left--;
-      st.next = st.t + 96 + rint(28);
-      var bx = st.x + (rnd() * 3 - 1.5), by = st.y + (rnd() * 3 - 1.5);
-      var src = { kind: 'b', type: 'weather', p: st.p };
-      swNear(g, bx, by, 1.6, function (e, d) {
-        if (isAir(e)) return;                                    // the storm strikes the ground
-        if (e.kind === 'b') { if (d > 1.4 + Math.max(e.gw, e.gh) / 2) return; }
-        else if (d > 1.1) return;
-        damage(g, src, e, 250, 'IonWH');   // [General] LightningDamage=250
-      });
-      if (!headless) {
-        g.fx.push({ x: bx, y: by, t: 0, life: 14, bolt: true, seed: (g.tick * 7 + st.left * 31) | 0 });
-        g.fx.push({ x: bx, y: by, t: 0, life: 20, size: 16 });
+    if (st.t <= st.life) {
+      if (st.t >= st.next) { st.next = st.t + LIGHT_HIT; stormBolt(g, st, st.x, st.y, true); }
+      if (st.t >= st.nextS) {
+        st.nextS = st.t + LIGHT_SCATTER;
+        var bx = st.x, by = st.y, tries = 0;
+        do {                                                   // LightningSeparation=3
+          bx = st.x + (rnd() * 2 - 1) * LIGHT_SPREAD;
+          by = st.y + (rnd() * 2 - 1) * LIGHT_SPREAD;
+          tries++;
+        } while (tries < 6 && Math.abs(bx - st.lx) + Math.abs(by - st.ly) < LIGHT_SEP);
+        st.lx = bx; st.ly = by;
+        stormBolt(g, st, bx, by, false);
       }
-      sfx('boom');
     }
-    return st.t > st.life;
+    return st.t > st.life + 45;      // the deck hangs on a moment after the last bolt
   }
 
   // The missile flies for ten seconds, then a falling blast: RA2's warhead
@@ -14990,9 +15302,19 @@
         g.seen[ii] = 1;                                  // the flash burns the shroud off
       }
     if (!headless) {
-      g.fx.push({ x: x, y: y, t: 0, life: 96, mush: true });
-      g.fx.push({ x: x, y: y, t: 0, life: 40, size: 46 });
-      g.flash = 26;
+      g.fx.push({ x: x, y: y, t: 0, life: 240, mush: true });     // ~4 s of mushroom
+      g.fx.push({ x: x, y: y, t: 0, life: 44, size: 46 });
+      // Fallout on the crater. [Radiation] RadLevelMax=500 and the nuke lays
+      // 2000 units down, so ground zero stays poisoned long after the cloud
+      // is gone; a green-tinted scorch stands in until the radiation ground
+      // layer lands.
+      decal(g, x, y, 'rad');
+      var rl = lcg(((x * 733 + y * 977) | 0) >>> 0);
+      for (var ri = 0; ri < 6; ri++) {
+        var ra2 = rl() * 6.2832, rr2 = 0.9 + rl() * 2.4;
+        decal(g, x + Math.cos(ra2) * rr2, y + Math.sin(ra2) * rr2, ri < 4 ? 'rad' : 'crater');
+      }
+      g.flash = 34;
     }
     sfx('boom');
     if (nk.p !== P_HUMAN) { eva('Nuclear missile impact', 20000); say('Nuclear detonation', true, 260); }
@@ -15011,7 +15333,7 @@
       paraDrop(g, p, x, y);
       if (!headless) { mmPing(g, x, y); g.fx.push({ x: x, y: y, t: 0, life: 26, size: 0, ping: true }); }
     } else if (key === 'storm') {
-      g.storms.push({ p: p, x: x, y: y, t: 0, life: STORM_T, next: 20, left: 10 });
+      g.storms.push({ p: p, x: x, y: y, t: 0, life: STORM_T, next: 24, nextS: 12, lx: x, ly: y, lit: -99 });
       if (mine) eva('Lightning storm created', 20000);
       else { eva('Warning: lightning storm created', 20000); say('Warning — lightning storm created', true, 300); mmPing(g, x, y); }
     } else if (key === 'nuke') {
@@ -15080,8 +15402,9 @@
       g.shots.push({
         x: src.kind === 'b' ? src.cx : src.x, y: src.kind === 'b' ? src.cy : src.y,
         tx: tx0, ty: ty0,
-        t: 0, life: src.type === 'tesla' ? 12 : (src.type === 'grandcannon' ? 26 : (spec.bomb ? 14 : (isAir(tgt) ? 9 : 7))), id: g.nextId++,
+        t: 0, life: src.type === 'tesla' ? 12 : (src.type === 'grandcannon' ? 26 : (src.kind === 'u' && src.type === 'v3' ? 30 : (spec.bomb ? 14 : (isAir(tgt) ? 9 : 7)))), id: g.nextId++,
         shell: src.type === 'grandcannon',
+        v3: src.kind === 'u' && src.type === 'v3',
         tesla: src.type === 'tesla', beam: src.type === 'prism' || src.type === 'prismtank',
         rocket: src.kind === 'u' && UNITS[src.type] && UNITS[src.type].splash > 0.2 ||
                 src.type === 'rocket' || src.type === 'patriot' || src.type === 'harrier',
@@ -15094,13 +15417,24 @@
       });
       // A Kirov bomb takes its whole flight to land: the blast is queued with
       // a negative age so it appears when the bomb does, not when it is dropped.
-      if (spec.bomb) g.fx.push({ x: tx0, y: ty0, t: -13, life: 22, size: 15 });
+      if (spec.bomb) {
+        g.fx.push({ x: tx0, y: ty0, t: -13, life: 30, size: 24 });
+        g.rubble.push({ x: tx0, y: ty0, gw: 1, gh: 1, t: -13, life: DECAL_LIFE, fx: 'crater', v: 2 });
+      }
+      // A splash weapon bursts where it lands whether or not it killed
+      // anything -- in RA2 every shell and rocket carries its own EXPLO*/
+      // TWLT* anim, and the ground keeps the mark (`Crater=yes`).
+      else if (spec.splash > 0.25 && !isAir(tgt) && src.type !== 'grandcannon') {
+        g.fx.push({ x: tx0, y: ty0, t: 4, life: 26, size: 11 + spec.splash * 9 });
+        if (spec.splash >= 0.8) decal(g, tx0, ty0, 'crater');
+        else if (spec.splash >= 0.5) decal(g, tx0, ty0, 'scorch');
+      }
       // [GrandCannonWeapon] Projectile=GrandCannonBall Speed=1: a genuinely
       // SLOW shell that arcs over. The burst and the crater are queued to
       // appear when it lands, not when it is fired — you watch it travel.
       if (src.type === 'grandcannon') {
         g.fx.push({ x: tx0, y: ty0, t: -25, life: 30, size: 26 });
-        g.rubble.push({ x: tx0, y: ty0, gw: 1, gh: 1, t: -25, life: 60 * 24, crater: true });
+        g.rubble.push({ x: tx0, y: ty0, gw: 1, gh: 1, t: -25, life: DECAL_LIFE, fx: 'crater', v: 1 });
       }
     }
     sfx(spec.wh === 'ParasiteDog' ? 'bark' : (src.type === 'rifle' ? 'shot' : 'cannon'));
@@ -15785,7 +16119,17 @@
   }
   function padCapacity(g, p) { return PAD_SLOTS.length * countBld(g, p, 'airforce'); }
 
+  // RA2 Harriers descend onto the pad and climb off it; ours snapped between
+  // cruise altitude and zero on the tick `landed` flipped. The transition is
+  // caught here and `altOf` ramps the height over LAND_T either way.
+  var LAND_T = 34;
   function stepAircraft(g, u) {
+    var wasLanded = !!u.landed;
+    stepAircraft0(g, u);
+    if (wasLanded && !u.landed) u.flyAt = g.tick;
+    else if (!wasLanded && u.landed) u.landAt = g.tick;
+  }
+  function stepAircraft0(g, u) {
     var d = UNITS[u.type];
     var pad = u.pad ? entById(g, u.pad) : null;
     if (pad && pad.p !== u.p) pad = null;
@@ -19356,7 +19700,7 @@
       g.shots.push({ x: u.x, y: u.y, tx: gx, ty: gy, t: 0, life: spec.bomb ? 14 : 7, id: g.nextId++,
                      tesla: u.type === 'tesla', beam: u.type === 'prism' || u.type === 'prismtank',
                      rocket: spec.splash > 0.2, bomb: !!spec.bomb, alt: altOf(u), talt: 0 });
-      g.fx.push({ x: gx, y: gy, t: 0, life: 18, size: 6 + (spec.splash || 0) * 6 });
+      boom(g, gx, gy, 8 + (spec.splash || 0) * 9);
     }
     sfx(u.type === 'rifle' ? 'shot' : 'cannon');
     var r = Math.max(0.7, spec.splash || 0);
@@ -19723,20 +20067,39 @@
     maxX = Math.min(MAP - 1, maxX); maxY = Math.min(MAP - 1, maxY);
 
     var x, y, i, px, py;
+    SPARKS.length = 0;
     for (y = minY; y <= maxY; y++) {
       for (x = minX; x <= maxX; x++) {
         i = idx(x, y);
         px = sx(x, y); py = sy(x, y);
         var t = G.terrain[i];
         var h6 = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+        var th = G.theatre || 'temperate', tile, ov = null;
         if (!G.seen[i]) {
-          // Shroud: unexplored ground is black, drawn as the tile diamond so
-          // the edge follows the isometric grid like RA2's.
-          ctx.fillStyle = '#05070b';
-          diamond(ctx, px, py, TW + 1, TH + 1); ctx.fill();
+          // Shroud. A cell with nothing explored beside it is simply black;
+          // one ON the border shows its ground through a feathered edge tile,
+          // which is how RA2's shroud ends -- soft and ragged, not a
+          // staircase of hard black diamonds.
+          var shm = 0;
+          if (y > 0 && G.seen[i - MAP]) shm |= 1;
+          if (x + 1 < MAP && G.seen[i + 1]) shm |= 2;
+          if (y + 1 < MAP && G.seen[i + MAP]) shm |= 4;
+          if (x > 0 && G.seen[i - 1]) shm |= 8;
+          if (!shm) {
+            ctx.fillStyle = '#05070b';
+            diamond(ctx, px, py, TW + 1, TH + 1); ctx.fill();
+            continue;
+          }
+          var gi0 = (((x - y) & 7) << 3) | ((x + y) & 7);
+          var bt = t === T_ROCK ? (SPR.rockT[th] || SPR.rock)[gi0]
+                 : (t === T_WATER || t === T_BRIDGE)
+                   ? SPR.water[th][((((x - y) & 3) << 2) | ((x + y) & 3)) * 4]
+                   : (SPR.groundT[th] || SPR.ground)[gi0];
+          ctx.drawImage(bt.c, px - bt.w / 2, py - bt.h / 2 - (bt.lift || 0), bt.w, bt.h);
+          var se = SPR.shroudE[shm];
+          ctx.drawImage(se.c, px - se.w / 2, py - se.h / 2, se.w, se.h);
           continue;
         }
-        var th = G.theatre || 'temperate', tile, ov = null;
         // Ground/rock tiles are cut from a seamless sheet, so the variant is
         // the tile's POSITION in that sheet, not a hash — that is what makes
         // neighbouring tiles line up into one continuous surface.
@@ -19784,6 +20147,16 @@
           var lv = G.ore[i] > 600 ? 2 : (G.ore[i] > 250 ? 1 : 0);
           var os = (t === T_GEM ? SPR.gemLv : SPR.oreLv)[lv][(x * 5 + y * 11) & 3];
           ctx.drawImage(os.c, px - os.w / 2, py - os.h / 2, os.w, os.h);
+          // Glitter: an eight-step cycle offset by the cell hash, so only
+          // about a third of a field is flashing at any moment.
+          var gph = (((G.tick >> 3) + h6) & 7);
+          if (gph < 3) {
+            // Queued, not drawn here: flipping globalCompositeOperation twice
+            // per ore tile costs more than the sparkle does. They all go down
+            // in one additive pass after the ground loop.
+            SPARKS.push((t === T_GEM ? SPR.gemSpark : SPR.oreSpark)[gph],
+                        px + ((h6 >> 5) & 15) - 7.5, py + ((((h6 >> 9) & 7) - 3.5) * 0.6));
+          }
         }
       }
     }
@@ -19800,18 +20173,34 @@
       for (y = minY; y <= maxY; y++) for (x = minX; x <= maxX; x++) {
         i = idx(x, y);
         if (!gmk[i]) continue;
-        // Alpha off the number of gapped/black neighbours: a rim cell against
-        // the black core is nearly opaque, one on the outside is a whisper.
-        var nb = 0;
-        if (y > 0 && (gmk[i - MAP] === 2 || !G.seen[i - MAP])) nb++;
-        if (y + 1 < MAP && (gmk[i + MAP] === 2 || !G.seen[i + MAP])) nb++;
-        if (x > 0 && (gmk[i - 1] === 2 || !G.seen[i - 1])) nb++;
-        if (x + 1 < MAP && (gmk[i + 1] === 2 || !G.seen[i + 1])) nb++;
-        ctx.fillStyle = 'rgba(5,7,11,' + (0.16 + nb * 0.16).toFixed(3) + ')';
-        diamond(ctx, sx(x, y), sy(x, y), TW + 1, TH + 1); ctx.fill();
+        // The same feathered edge the shroud uses, at a fraction of its
+        // opacity: the fog thins toward whatever the Gap field does NOT
+        // cover, so the disc ends in a haze instead of a cut circle.
+        var gm2 = 0;
+        var clr = function (j) { return !(gmk[j] === 2 || !G.seen[j]); };
+        if (y > 0 && clr(i - MAP)) gm2 |= 1;
+        if (x + 1 < MAP && clr(i + 1)) gm2 |= 2;
+        if (y + 1 < MAP && clr(i + MAP)) gm2 |= 4;
+        if (x > 0 && clr(i - 1)) gm2 |= 8;
+        var gse = SPR.shroudE[gm2];
+        ctx.globalAlpha = gm2 ? 0.62 : 0.5;
+        ctx.drawImage(gse.c, sx(x, y) - gse.w / 2, sy(x, y) - gse.h / 2, gse.w, gse.h);
+        ctx.globalAlpha = 1;
       }
       ctx.restore();
     }
+
+    // Ore/gem glitter, all in one additive pass.
+    if (SPARKS.length) {
+      ctx.globalCompositeOperation = 'lighter';
+      for (i = 0; i < SPARKS.length; i += 3) {
+        var gs = SPARKS[i];
+        ctx.drawImage(gs.c, SPARKS[i + 1] - gs.w / 2, SPARKS[i + 2] - gs.h / 2, gs.w, gs.h);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    drawTracks();
 
     // Rubble: what a levelled structure leaves. On the GROUND layer, under
     // units (RA2's rubble is passable), fading out over its last 30%.
@@ -19822,8 +20211,11 @@
       if (!inMap(rgx, rgy) || !G.seen[idx(rgx, rgy)]) continue;
       var rpx = sx(rb.x, rb.y), rpy = sy(rb.x, rb.y);
       if (rpx < VX0 - 200 || rpy < VY0 - 200 || rpx > VX1 + 200 || rpy > VY1 + 200) continue;
-      var rs = rubbleFor(rb.gw, rb.gh), rf = rb.t / rb.life;
-      ctx.globalAlpha = rf > 0.7 ? Math.max(0, (1 - rf) / 0.3) : 1;
+      var rf = rb.t / rb.life;
+      var rs = rb.fx ? SPR.decal_fx[rb.fx][rb.v || 0] : rubbleFor(rb.gw, rb.gh);
+      // A decal weathers the whole time it is down; rubble only fades at the end.
+      ctx.globalAlpha = rb.fx ? (1 - rf * 0.55) * (rf > 0.72 ? Math.max(0, (1 - rf) / 0.28) : 1)
+                              : (rf > 0.7 ? Math.max(0, (1 - rf) / 0.3) : 1);
       ctx.drawImage(rs.s.c, rpx - rs.ax, rpy - rs.ay, rs.s.w, rs.s.h);
       ctx.globalAlpha = 1;
     }
@@ -19888,16 +20280,30 @@
       }
     }
 
-    // Storm cloud deck: a dark disc turning over the strike zone.
+    // Storm cloud deck: a rolling disc of cloud over the whole strike zone
+    // (LightningCellSpread=10 cells), with its shadow on the ground under it
+    // and a flare through it on every strike.
     for (i = 0; i < G.storms.length; i++) {
       var stm = G.storms[i], spx = sx(stm.x, stm.y), spy = sy(stm.x, stm.y);
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = '#1b2133';
-      for (var sc2 = 0; sc2 < 3; sc2++) {
-        var sa = G.tick * 0.012 + sc2 * 2.1;
-        ctx.beginPath();
-        ctx.ellipse(spx + Math.cos(sa) * 26, spy - 150 + Math.sin(sa) * 12, 74, 30, 0, 0, 6.29);
-        ctx.fill();
+      var stmIn = Math.min(1, stm.t / 45);                     // it gathers as it arrives
+      var stmOut = stm.t > stm.life ? Math.max(0, 1 - (stm.t - stm.life) / 45) : 1;
+      var stmA = stmIn * stmOut;
+      var deckW = LIGHT_SPREAD * TW * 0.72, deckH = LIGHT_SPREAD * TH * 0.72;
+      ctx.globalAlpha = 0.15 * stmA;                           // the shadow it casts
+      ctx.fillStyle = '#0a0d16';
+      ctx.beginPath(); ctx.ellipse(spx, spy, deckW * 0.92, deckH * 0.92, 0, 0, 6.29); ctx.fill();
+      var flare = Math.max(0, 1 - (G.tick - (stm.lit == null ? -99 : stm.lit)) / 8);
+      for (var sc2 = 0; sc2 < 9; sc2++) {
+        var sa = G.tick * 0.010 + sc2 * 0.698;
+        var lrr = (sc2 % 3) * 0.13 + 0.22;
+        var lx3 = spx + Math.cos(sa) * deckW * lrr, ly3 = spy - 158 + Math.sin(sa) * deckH * lrr * 1.2;
+        var lw = deckW * (0.22 + (sc2 % 4) * 0.035);
+        ctx.globalAlpha = 0.32 * stmA;
+        ctx.fillStyle = mixc('#1c2334', '#5b687f', flare * 0.6);
+        ctx.beginPath(); ctx.ellipse(lx3, ly3, lw, lw * 0.46, 0, 0, 6.29); ctx.fill();
+        ctx.globalAlpha = 0.22 * stmA;                         // lit crown on each roll
+        ctx.fillStyle = mixc('#38415a', '#a3b0cc', flare * 0.75);
+        ctx.beginPath(); ctx.ellipse(lx3 - lw * 0.16, ly3 - lw * 0.16, lw * 0.60, lw * 0.24, 0, 0, 6.29); ctx.fill();
       }
       ctx.globalAlpha = 1;
     }
@@ -19918,7 +20324,10 @@
       // A Harrier parked on its pad is ground-level and sorts with the pad.
       // A parked aircraft sorts just behind its pad's structure (the slots
       // are on the structure's near half), never under it.
-      if (u.air && !u.landed) airborne.push(u); else draw.push({ d: u.x + u.y + (u.landed ? 1.2 : 0), e: u, b: false });
+      // A Harrier still sinking onto its pad is `landed` but not yet down:
+      // it belongs in the air pass until its altitude ramp reaches zero.
+      if (u.air && (!u.landed || altOf(u) > 0)) airborne.push(u);
+      else draw.push({ d: u.x + u.y + (u.landed ? 1.2 : 0), e: u, b: false });
     }
     // Bodies sort with the living, a hair behind them, so a corpse is never
     // painted over the man standing on the next tile.
@@ -20114,6 +20523,60 @@
         }
         continue;
       }
+      if (s.v3) {
+        // [V3Launcher]: a rocket, not a shell. A big finned round on a high
+        // arc that trails smoke for its whole flight -- RA2 hangs the
+        // [FIRE01]/[FIRE02]/[FIRE03] puff family off every missile.
+        var ARC = 86;
+        var vhx = ax + (bx - ax) * f, vhy = ay + (by - ay) * f - Math.sin(f * Math.PI) * ARC;
+        ctx.globalCompositeOperation = 'source-over';
+        for (var vp = 0; vp <= 28; vp++) {
+          var pq = vp / 28; if (pq > f) break;
+          var vage = f - pq;
+          var pqx = ax + (bx - ax) * pq, pqy = ay + (by - ay) * pq - Math.sin(pq * Math.PI) * ARC;
+          ctx.globalAlpha = Math.max(0, 0.46 - vage * 0.44);
+          ctx.fillStyle = vage < 0.05 ? '#e2d8c8' : (vage < 0.18 ? '#a8a29a' : '#7d7973');
+          ctx.beginPath(); ctx.arc(pqx, pqy + vage * 8, 2.6 + vage * 17, 0, 6.29); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        // The round: nose along the tangent of the arc it is riding.
+        var vdx = bx - ax, vdy = (by - ay) - Math.cos(f * Math.PI) * Math.PI * ARC;
+        var vang = Math.atan2(vdy, vdx);
+        ctx.save(); ctx.translate(vhx, vhy); ctx.rotate(vang);
+        ctx.fillStyle = '#4a4f57';                                    // fins
+        ctx.beginPath();
+        ctx.moveTo(-8, 0); ctx.lineTo(-13, -5.2); ctx.lineTo(-7, -1.7);
+        ctx.lineTo(-7, 1.7); ctx.lineTo(-13, 5.2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#6e747d';                                    // body
+        ctx.beginPath(); ctx.ellipse(0, 0, 11, 3.1, 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = '#aeb4bd';                                    // lit upper flank
+        ctx.beginPath(); ctx.ellipse(-0.5, -1.1, 9.6, 1.3, 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = '#b6423c';                                    // warhead band
+        ctx.beginPath(); ctx.ellipse(7.8, 0, 3.4, 2.6, 0, 0, 6.29); ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';                     // motor flame
+        ctx.fillStyle = 'rgba(255,196,110,.85)';
+        ctx.beginPath(); ctx.ellipse(-12 - ((s.t * 3) % 3), 0, 5 + ((s.t * 5) % 3), 1.9, 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = 'rgba(255,252,232,.9)';
+        ctx.beginPath(); ctx.ellipse(-10, 0, 2.6, 1.1, 0, 0, 6.29); ctx.fill();
+        ctx.restore();
+        ctx.globalCompositeOperation = 'source-over';
+        continue;
+      }
+      if (s.rocket) {
+        // Every other missile gets the same puff trail, laid along the path
+        // it has already flown so it stays put while the head runs on.
+        ctx.globalCompositeOperation = 'source-over';
+        for (var rp = 0; rp <= 14; rp++) {
+          var rq2 = rp / 14; if (rq2 > f) break;
+          var rage = f - rq2;
+          ctx.globalAlpha = Math.max(0, 0.42 - rage * 0.58);
+          ctx.fillStyle = rage < 0.08 ? '#ded6c8' : '#8f8b85';
+          ctx.beginPath();
+          ctx.arc(ax + (bx - ax) * rq2, ay + (by - ay) * rq2 + rage * 5, 1.6 + rage * 8, 0, 6.29);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
       // Muzzle flash sits at the end of the barrel, not on the hull centre.
       var dlen = Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay)) || 1;
       var mfx = ax + (bx - ax) / dlen * 11, mfy = ay + (by - ay) / dlen * 11;
@@ -20224,34 +20687,138 @@
         continue;
       }
       if (fx.bolt) {
-        // A storm bolt: a jagged column out of the cloud deck onto the tile.
+        // A storm bolt: a thick forked stroke out of the cloud deck with a
+        // white core inside it, and a flash where it earths.
         ctx.globalCompositeOperation = 'lighter';
-        var bl = 1 - ff, btop = fyy - 190;
-        for (var bp = 0; bp < 2; bp++) {
-          ctx.strokeStyle = bp ? 'rgba(240,246,255,' + bl.toFixed(2) + ')' : 'rgba(120,170,255,' + (0.5 * bl).toFixed(2) + ')';
-          ctx.lineWidth = bp ? 2 : 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-          ctx.beginPath(); ctx.moveTo(fxx + Math.sin(fx.seed) * 14, btop);
-          for (var bk = 1; bk <= 8; bk++) {
-            var bq = bk / 8;
-            ctx.lineTo(fxx + Math.sin(fx.seed + bk * 2.7) * 16 * (1 - bq), btop + (fyy - btop) * bq);
-          }
+        var bbig = fx.big || 1;
+        var bl = Math.max(0, 1 - ff * 1.4), btop = fyy - 200 * bbig;
+        var bpts = [], bk, bq;
+        bpts.push([fxx + Math.sin(fx.seed) * 16 * bbig, btop]);
+        for (bk = 1; bk <= 9; bk++) {
+          bq = bk / 9;
+          bpts.push([fxx + Math.sin(fx.seed + bk * 2.7) * 18 * bbig * (1 - bq), btop + (fyy - btop) * bq]);
+        }
+        var boltPath = function () {
+          ctx.beginPath(); ctx.moveTo(bpts[0][0], bpts[0][1]);
+          for (var q2 = 1; q2 < bpts.length; q2++) ctx.lineTo(bpts[q2][0], bpts[q2][1]);
+        };
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.strokeStyle = 'rgba(96,140,255,' + (0.32 * bl).toFixed(2) + ')';
+        ctx.lineWidth = 14 * bbig; boltPath(); ctx.stroke();          // the glow round it
+        ctx.strokeStyle = 'rgba(150,190,255,' + (0.62 * bl).toFixed(2) + ')';
+        ctx.lineWidth = 6 * bbig; boltPath(); ctx.stroke();           // the body
+        ctx.strokeStyle = 'rgba(248,252,255,' + bl.toFixed(2) + ')';
+        ctx.lineWidth = 2.2 * bbig; boltPath(); ctx.stroke();         // the core
+        // Forks: short branches off the third, fifth and seventh kink.
+        ctx.strokeStyle = 'rgba(196,220,255,' + (0.72 * bl).toFixed(2) + ')';
+        ctx.lineWidth = 1.6 * bbig;
+        for (bk = 3; bk <= 7; bk += 2) {
+          var bpt = bpts[bk], bdir = ((fx.seed + bk) & 1) ? 1 : -1;
+          ctx.beginPath(); ctx.moveTo(bpt[0], bpt[1]);
+          ctx.lineTo(bpt[0] + bdir * 13 * bbig, bpt[1] + 16 * bbig);
+          ctx.lineTo(bpt[0] + bdir * 8 * bbig, bpt[1] + 32 * bbig);
           ctx.stroke();
         }
+        // Ground flash where it earths.
+        ctx.globalAlpha = bl;
+        ctx.fillStyle = 'rgba(180,214,255,.55)';
+        ctx.beginPath(); ctx.ellipse(fxx, fyy, 26 * bbig * (0.5 + ff), 13 * bbig * (0.5 + ff), 0, 0, 6.29); ctx.fill();
+        ctx.globalAlpha = 1;
         continue;
       }
       if (fx.mush) {
-        // Mushroom cloud: stem, cap, fire core, and the shock ring rolling out.
+        // The nuke, over four seconds: a white flash column, a white-hot core
+        // that lifts off the ground, a fireball cap that rolls over and
+        // darkens as it climbs, and a shock ring running out across the dirt.
+        // The hot parts go down additively so the whole thing reads as light
+        // rather than as painted brown mud (which is what the old stack of
+        // ellipses looked like).
+        var mf = ff;
+        var rise = Math.min(1, Math.pow(mf * 1.75, 0.70));         // how far the column has got
+        var stemH = 8 + 224 * rise, capY = fyy - stemH;
+        var cool = Math.min(1, Math.max(0, (mf - 0.08) / 0.50));   // white-hot -> soot
+        var out = Math.max(0, 1 - Math.max(0, mf - 0.70) / 0.30);  // it thins away at the end
+        var lseed = (fx.x * 71 + fx.y * 131) | 0;
+        var mi;
+        // Ground shock ring: a bright rim over a rolling dust wave.
+        if (mf < 0.46) {
+          var sq = mf / 0.46;
+          // A dust ANNULUS, not a stroked circle: an outer and an inner ellipse
+          // filled even-odd, so the wave has thickness and the ground inside it
+          // is left alone.
+          ctx.globalCompositeOperation = 'source-over';
+          for (mi = 0; mi < 3; mi++) {
+            var rq = sq - mi * 0.07; if (rq <= 0) continue;
+            var ro = 24 + rq * 250, riw = ro * (0.62 + mi * 0.06);
+            ctx.globalAlpha = 0.24 * (1 - sq) * (1 - mi * 0.26);
+            ctx.fillStyle = 'rgb(186,168,134)';
+            ctx.beginPath();
+            ctx.ellipse(fxx, fyy, ro, ro * 0.5, 0, 0, 6.29);
+            ctx.ellipse(fxx, fyy, riw, riw * 0.5, 0, 0, 6.29);
+            ctx.fill('evenodd');
+          }
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = 0.42 * (1 - sq) * (1 - sq);
+          ctx.strokeStyle = 'rgb(255,238,196)'; ctx.lineWidth = 2 + 10 * (1 - sq);
+          ctx.beginPath(); ctx.ellipse(fxx, fyy, 26 + sq * 252, 13 + sq * 126, 0, 0, 6.29); ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+        // The flash column: a hard white shaft standing over ground zero for
+        // the first third of a second.
+        if (mf < 0.09) {
+          var fq = 1 - mf / 0.09;
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = fq;
+          ctx.fillStyle = 'rgba(255,255,246,.9)';
+          ctx.beginPath();
+          ctx.ellipse(fxx, fyy - 150 * (1 - fq * 0.4), 16 + 26 * fq, 160, 0, 0, 6.29); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        // Dust skirt thrown up round the base.
         ctx.globalCompositeOperation = 'source-over';
-        var up = Math.min(1, ff * 2.4), stemH = 130 * up, capY = fyy - stemH;
-        ctx.globalAlpha = Math.max(0, 1 - Math.max(0, ff - 0.5) / 0.5);
-        ctx.fillStyle = 'rgba(120,102,84,.55)';
-        ctx.beginPath(); ctx.ellipse(fxx, fyy, 34 + ff * 110, 17 + ff * 55, 0, 0, 6.29); ctx.fill();
-        ctx.fillStyle = '#4c3d2e';
-        ctx.beginPath(); ctx.ellipse(fxx, fyy - stemH / 2, 13 + ff * 9, Math.max(1, stemH / 2), 0, 0, 6.29); ctx.fill();
-        ctx.fillStyle = '#6d543a';
-        ctx.beginPath(); ctx.ellipse(fxx, capY, 26 + ff * 40, 14 + ff * 21, 0, 0, 6.29); ctx.fill();
-        ctx.fillStyle = 'rgba(255,196,112,' + (0.55 * (1 - ff)).toFixed(2) + ')';
-        ctx.beginPath(); ctx.ellipse(fxx, capY + 3, 17 + ff * 24, 9 + ff * 13, 0, 0, 6.29); ctx.fill();
+        ctx.globalAlpha = out * 0.45 * (1 - mf * 0.4);
+        ctx.fillStyle = mixc('#c8b28a', '#6b6055', cool);
+        for (mi = 0; mi < 5; mi++) {
+          var da2 = (mi - 2) * 26 * (0.5 + mf * 1.6);
+          ctx.beginPath();
+          ctx.ellipse(fxx + da2, fyy - 4 - mf * 10, 22 + mf * 46, 11 + mf * 20, 0, 0, 6.29); ctx.fill();
+        }
+        // The stem: churned smoke drawn up behind the cap, narrow at the waist.
+        ctx.globalAlpha = out * 0.9;
+        for (mi = 0; mi <= 18; mi++) {
+          var sq2 = mi / 18, sy2 = fyy - stemH * sq2;
+          // Wide at the ground, pinched at the waist, flaring into the cap.
+          var swid = (34 - 17 * Math.sin(sq2 * Math.PI)) * (0.66 + rise * 0.72);
+          ctx.fillStyle = mixc('#ffb04a', '#494038', Math.min(1, cool + sq2 * 0.22));
+          ctx.beginPath();
+          ctx.ellipse(fxx + Math.sin(sq2 * 4.2 + lseed) * 6 * rise, sy2, swid * 0.5, swid * 0.42, 0, 0, 6.29);
+          ctx.fill();
+        }
+        // The cap: a ring of billows that rolls outward as it climbs, lit on
+        // top and shadowed underneath.
+        var capR = 30 + 84 * rise, capH = capR * 0.52;
+        ctx.globalAlpha = out;
+        for (mi = 0; mi < 14; mi++) {
+          var ca2 = mi * 0.4488 + lseed * 0.13, cr2 = capR * (0.44 + 0.56 * Math.abs(Math.cos(ca2)));
+          var lx2 = fxx + Math.cos(ca2) * cr2, ly2 = capY + Math.sin(ca2) * capH * 0.52 - capH * 0.10;
+          var lr2 = capR * (0.32 + 0.09 * Math.sin(mi * 2.1 + lseed));
+          var lt = Math.min(1, cool + (ly2 > capY ? 0.22 : 0));      // the underside stays dark
+          ctx.fillStyle = mixc('#ff9a2c', '#4c4238', lt);
+          ctx.beginPath(); ctx.ellipse(lx2, ly2, lr2, lr2 * 0.86, 0, 0, 6.29); ctx.fill();
+          ctx.fillStyle = cool < 0.6 ? 'rgba(255,232,170,.30)' : 'rgba(168,160,150,.18)';
+          ctx.beginPath(); ctx.ellipse(lx2 - lr2 * 0.24, ly2 - lr2 * 0.32, lr2 * 0.40, lr2 * 0.28, -0.5, 0, 6.29); ctx.fill();
+        }
+        // The white-hot core inside the cap, while there is still one.
+        if (cool < 1) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.globalAlpha = out * (1 - cool);
+          var mg = ctx.createRadialGradient(fxx, capY, 0, fxx, capY, capR);
+          mg.addColorStop(0, 'rgba(255,255,242,.95)');
+          mg.addColorStop(0.35, 'rgba(255,206,110,.6)');
+          mg.addColorStop(1, 'rgba(255,120,30,0)');
+          ctx.fillStyle = mg;
+          ctx.beginPath(); ctx.ellipse(fxx, capY, capR, capR * 0.72, 0, 0, 6.29); ctx.fill();
+        }
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'lighter';
         continue;
@@ -20274,10 +20841,15 @@
         ctx.globalCompositeOperation = 'lighter';
         continue;
       }
-      var rr = fx.size * (0.4 + ff * 1.5) * 2;
-      ctx.globalAlpha = 1 - ff;
-      ctx.drawImage(SPR.boom.c, fxx - rr / 2, fyy - 6 - rr / 2, rr, rr);
-      ctx.globalAlpha = 1;
+      // Explosion families: a baked frame sequence (body, then the hot core
+      // additively over it) instead of one radial blob scaled up.
+      var EF = SPR.expl[famOf(fx.size)];
+      var ek = Math.min(EXPL_N - 1, (ff * EXPL_N) | 0);
+      var ed = fx.size * 2.15, ex0 = fxx - ed / 2, ey0 = fyy - 6 - ed / 2 - ed * 0.08;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(EF.body[ek].c, ex0, ey0, ed, ed);
+      ctx.globalCompositeOperation = 'lighter';
+      if (EF.core[ek]) ctx.drawImage(EF.core[ek].c, ex0, ey0, ed, ed);
     }
     ctx.globalCompositeOperation = 'source-over';
 
@@ -20300,7 +20872,15 @@
     ctx.restore();
 
     // Storm sky and nuclear whiteout sit over the whole viewport, as RA2's do.
-    if (G.storms.length) { ctx.fillStyle = 'rgba(14,18,38,.34)'; ctx.fillRect(0, 0, cvW, cvH); }
+    if (G.storms.length) {
+      var skyA = 0;
+      for (i = 0; i < G.storms.length; i++) {
+        var sk = G.storms[i];
+        skyA = Math.max(skyA, Math.min(1, sk.t / 45) * (sk.t > sk.life ? Math.max(0, 1 - (sk.t - sk.life) / 45) : 1));
+      }
+      ctx.fillStyle = 'rgba(14,18,38,' + (0.38 * skyA).toFixed(3) + ')';
+      ctx.fillRect(0, 0, cvW, cvH);
+    }
     if (G.flash > 0) { ctx.fillStyle = 'rgba(255,248,230,' + (G.flash / 26 * 0.8).toFixed(2) + ')'; ctx.fillRect(0, 0, cvW, cvH); }
 
     drawMini();
@@ -20444,6 +21024,49 @@
     ctx.restore();
   }
 
+  // Tread marks and dust. RA2 lays a fading decal behind a tracked vehicle
+  // and kicks dust off dry ground. Kept in a render-side ring buffer, NOT on
+  // the game state: they are pure decoration, they are capped, and nothing
+  // the deterministic sim replays may depend on them.
+  var TRACKS = [], TRACK_MAX = 140, TRACK_LIFE = 360, DUST_LIFE = 42;
+  var SPARKS = [];                    // ore/gem glitter queued for one additive pass
+  function drawTracks() {
+    for (var i = TRACKS.length - 1; i >= 0; i--) {
+      var tr = TRACKS[i], age = G.tick - tr.t;
+      if (age < 0 || age > TRACK_LIFE * 0.86) { TRACKS.splice(i, 1); continue; }   // the last 14% is invisible anyway
+      var tpx = sx(tr.x, tr.y), tpy = sy(tr.x, tr.y);
+      if (tpx < VX0 - 40 || tpy < VY0 - 40 || tpx > VX1 + 40 || tpy > VY1 + 40) continue;
+      var gx0 = Math.round(tr.x), gy0 = Math.round(tr.y);
+      if (!inMap(gx0, gy0) || !G.seen[idx(gx0, gy0)]) continue;
+      var ta = tr.face * Math.PI / 4;
+      var fdx = Math.cos(ta), fdy = Math.sin(ta);
+      var fsx = (fdx - fdy) * (TW / 2), fsy = (fdx + fdy) * (TH / 2);
+      var fl = Math.sqrt(fsx * fsx + fsy * fsy) || 1; fsx /= fl; fsy /= fl;
+      var pdx = -fdy, pdy = fdx;                                  // perpendicular in GRID space
+      var psx = (pdx - pdy) * (TW / 2), psy = (pdx + pdy) * (TH / 2);
+      var pl = Math.sqrt(psx * psx + psy * psy) || 1; psx /= pl; psy /= pl;
+      // Both rails in ONE path: at the buffer's cap this is the difference
+      // between 300 stroke calls a frame and 150.
+      ctx.globalAlpha = 0.26 * (1 - age / TRACK_LIFE);
+      ctx.strokeStyle = '#2b2820'; ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      for (var sg = -1; sg <= 1; sg += 2) {
+        var bx = tpx + psx * 4.6 * sg, by = tpy + psy * 4.6 * sg;
+        ctx.moveTo(bx - fsx * 7, by - fsy * 7); ctx.lineTo(bx + fsx * 7, by + fsy * 7);
+      }
+      ctx.stroke();
+      if (tr.dust && age < DUST_LIFE) {
+        ctx.globalAlpha = 0.22 * (1 - age / DUST_LIFE);
+        ctx.fillStyle = '#b8a682';
+        ctx.beginPath();
+        ctx.ellipse(tpx - fsx * 6, tpy - fsy * 6 - 2 - age * 0.18,
+                    3 + age * 0.26, 1.6 + age * 0.13, 0, 0, 6.29);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
   function drawUnit(u) {
     var px = sx(u.x, u.y), py = sy(u.x, u.y);
     if (px < VX0 - 60 || py < VY0 - 60 || px > VX1 + 60 || py > VY1 + 60) return;
@@ -20478,13 +21101,75 @@
       s = art.fr(is.st, u.face, is.ph);
     } else s = art;
 
-    var ox = px - s.w / 2, oy = py - (s.h - UPAD) - alt;
+    // RA2's Kirov is the largest thing in the sky; ours read as a small red
+    // cigar. Scaled here rather than rebaked, so the airframe art stays one
+    // sprite set.
+    var uk = d.bomb && d.air ? 1.3 : 1;
+    var ox = px - s.w * uk / 2, oy = py - (s.h - UPAD) * uk - alt;
+    // A gasbag does not hold station: the Kirov rocks slowly on its long
+    // axis, which swings the gondola under it (the pod is part of the
+    // airframe sprite, so the whole hull carries the motion).
+    if (uk !== 1) ox += Math.sin((G.tick + u.id * 11) * 0.021) * 2.4;
+    // Recoil: RA2 tanks rock BACK on firing (`Recoilless=yes` is called out as
+    // the exception on [GAPILL], art.ini:2113). Two pixels along the barrel
+    // axis for four ticks, projected through the same iso transform the hull
+    // is drawn in so the kick runs down the gun, not down the screen.
+    var rck = G.tick - (u.fireAt == null ? -99 : u.fireAt);
+    if (!art.fr && rck >= 0 && rck < 4 && d.dmg > 0) {
+      var rang = ((u.tface == null ? u.face : u.tface) || 0) * Math.PI / 4;
+      var rgx = Math.cos(rang), rgy = Math.sin(rang);
+      var rsx = (rgx - rgy) * (TW / 2), rsy = (rgx + rgy) * (TH / 2);
+      var rl = Math.sqrt(rsx * rsx + rsy * rsy) || 1;
+      var rmag = 2 * (1 - rck / 4);
+      ox -= rsx / rl * rmag; oy -= rsy / rl * rmag;
+    }
     // A working harvester rocks on its tracks instead of sitting parked.
     if (u.state === 'mining') oy += ((G.tick >> 3) & 1) ? 1 : 0;
     if (u.deployed) oy += 9;                                               // he drops down behind the bags
     if (u.air && !alt) drawAirShadow(u);                                   // parked: shadow under it
-    ctx.drawImage(s.c, ox, oy, s.w, s.h);
-    if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w, turretS.h);
+    // Tread marks and a dust kick behind a moving ground vehicle.
+    if (!art.fr && !d.air && moving && G.tick - (u.trkAt == null ? -99 : u.trkAt) >= 5) {
+      u.trkAt = G.tick;
+      if (TRACKS.length >= TRACK_MAX) TRACKS.shift();
+      var tgi = inMap(Math.round(u.x), Math.round(u.y)) ? G.terrain[idx(Math.round(u.x), Math.round(u.y))] : -1;
+      TRACKS.push({ x: u.x, y: u.y, face: u.face || 0, t: G.tick,
+                    dust: tgi === T_GROUND || tgi === T_ROAD });
+    }
+    ctx.drawImage(s.c, ox, oy, s.w * uk, s.h * uk);
+    if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w * uk, turretS.h * uk);
+    // Battle damage: RA2 vehicles trail black smoke below half health and
+    // burn below a quarter. Phase comes off `tick` and the unit id, never
+    // off the sim RNG.
+    if (!art.fr && u.hp < u.maxhp * 0.5) {
+      var hurt = u.hp / u.maxhp, burning = hurt < 0.25;
+      // Anchored to the hull's own ink top, so the column leaves the deck and
+      // rises clear of the sprite instead of getting lost inside it.
+      var deck = s.bb ? oy + s.bb.y0 * uk + 4 : py - alt - 16;
+      for (var sk = 0; sk < 3; sk++) {
+        // The three puffs are spread evenly round the cycle, so one is always
+        // fresh off the deck and the column never blinks out entirely.
+        var sper = 34, sph = ((((G.tick + u.id * 23) % sper) / sper) + sk / 3) % 1;
+        ctx.globalAlpha = (burning ? 0.62 : 0.48) * (1 - sph * 0.85);
+        ctx.fillStyle = burning ? '#1d1d22' : '#31353c';
+        ctx.beginPath();
+        ctx.arc(px + Math.sin((u.id + sk) * 2.1) * 3 + sph * 6, deck - 4 - sph * 30,
+                3 + sph * 9, 0, 6.29);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (burning) {                                    // flame licks out of the hull
+        ctx.globalCompositeOperation = 'lighter';
+        for (sk = 0; sk < 2; sk++) {
+          var fl2 = 1 + ((G.tick + u.id * 5 + sk * 3) % 5) * 0.14;
+          var fx2 = px + (sk ? 3.5 : -3.5), fy2 = deck + 10;
+          ctx.fillStyle = 'rgba(226,96,26,.75)';
+          ctx.beginPath(); ctx.ellipse(fx2, fy2 - 2.4 * fl2, 2.4 * fl2, 4 * fl2, 0, 0, 6.29); ctx.fill();
+          ctx.fillStyle = 'rgba(255,214,120,.85)';
+          ctx.beginPath(); ctx.ellipse(fx2, fy2 - 1.6 * fl2, 1.2 * fl2, 2.2 * fl2, 0, 0, 6.29); ctx.fill();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
     if (u.deployed && SPR.bags) {                                          // the parapet, OVER him
       var BG = SPR.bags[u.p];
       ctx.drawImage(BG.c, px - BG.w / 2, py - (BG.h - UPAD), BG.w, BG.h);
@@ -20498,6 +21183,7 @@
       bb = { x0: s.w / 2 - (u.prone ? 13 : 8), y0: s.h - UPAD - ibh,
              x1: s.w / 2 + (u.prone ? 13 : 8), y1: s.h - UPAD + 1 };
     } else bb = s.bb || { x0: 0, y0: 0, x1: s.w, y1: s.h };
+    if (uk !== 1) bb = { x0: bb.x0 * uk, y0: bb.y0 * uk, x1: bb.x1 * uk, y1: bb.y1 * uk };
     var top = oy + bb.y0;
 
     // RA2-style corner brackets around the sprite, drawn over it so a wide
@@ -21665,9 +22351,12 @@
     // Cursors are CSS, so a screenshot never shows them: these let the art
     // review render the whole set as a contact sheet and assert the context
     // picker chose the right one.
+    // Frame cost: the renderer on its own, so a perf check measures drawing
+    // and not the browser's idle time between animation frames.
+    render: function () { render(); },
     cursorKind: function () { return curKind; },
     cursorSet: function () { buildCursors(); return CURSORS; },
-    api: { astar: astar, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
+    api: { astar: astar, damage: damage, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
            countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld,
            findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf,
            blocked: blocked, adjOf: adjOf, buildMask: buildMask, gateOpen: gateOpen, applyGaps: applyGaps,

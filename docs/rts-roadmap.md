@@ -240,7 +240,9 @@ fidelity plus reproduced player reports.
 - ☐ Still open from the playtests:
   superweapon clocks overlay the battlefield (Phase 1 moves them to the
   sidebar); own structures interpenetrate when adjacent (Phase 2 footprints);
-  Weather Storm is one thin bolt (Phase 5); AI never fields Engineer, Tanya,
+  ~~Weather Storm is one thin bolt~~ (fixed in Phase 5: RA2's
+  `LightningHitDelay`/`ScatterDelay`/`CellSpread`, ~54 bolts in 12 s over a
+  rolling cloud deck); AI never fields Engineer, Tanya,
   Ivan, Drone, Tesla Tank, Purifier (Phase 6 AI); soak residuals: ~16 tile
   stacks and ~12 crowd-stuck units per 24 matches, 5 units inside footprints.
 - ☐ Prism Tank: `CometWH` (50% vs armour, 200% vs structures), ROF 400,
@@ -415,16 +417,47 @@ per state, for every structure and defence, both factions.
   tech, radar); Chronosphere return trip and `ChronoDelay`.
 
 **Phase 5 — effects and terrain (art §4, §5). ~4 batches, M/L.**
-- ☐ Explosion size families, craters, scorch, debris; nuke with white core,
+- ☑ Explosion size families, craters, scorch, debris; nuke with white core,
   fireball, rolling cap, shock ring, additive blend; rocket smoke trails;
-  distinct V3 projectile; recoil; track marks and dust.
-- ☐ Ore glitter animation and seamless ore fields; gem variety.
-- ☐ Soft feathered shroud edge; Gap fog rendering.
+  distinct V3 projectile; recoil; track marks and dust. Four baked frame
+  sequences (`bakeExplosionFamily`, 11 frames each: small / medium / large /
+  building) replace the single scaled radial blob — a billowing fireball that
+  cools into a smoke ball, with the white-hot core baked as its own frame and
+  drawn additively over it; `famOf(size)` picks the family, so every existing
+  `boom()` call site got the right one for free. Vehicle deaths take the large
+  family plus 3–6 debris chunks and a smoke column (`vehicleDeath`). Ground
+  decals (`decal()` on `g.rubble`, capped at 56, weathering over 90 s):
+  medium+ blasts scorch, shells/bombs/large blasts crater
+  (art.ini `Crater=yes`/`Scorch=yes`, rules.ini `Deform`/`DeformThreshhold`).
+  The nuke is a four-second mushroom — flash column, dust annulus running out
+  across the ground, hourglass stem, rolling cap that climbs and darkens,
+  additive core — and leaves radiation decals on the crater. Missiles trail
+  puffs laid along the path already flown; the V3 is its own finned round on
+  a high arc with a motor flame. Tanks rock 2 px back along the barrel axis
+  for four ticks; tracked vehicles lay fading tread decals (a render-side
+  ring buffer, 180 max) and kick dust on dirt and road.
+- ☑ Ore glitter animation and seamless ore fields; gem variety. The soil wash
+  is feathered off the tile edge (`feather()`), so a field is one seam
+  instead of a checkerboard of tan backing squares; three baked sparkle
+  phases cycle on an eight-step clock offset by the cell hash; gems bake
+  three habits (tall spires / squat clusters / low fan) rather than one cone.
+- ☑ Soft feathered shroud edge; Gap fog rendering. 16 `bakeShroudEdge` tiles
+  keyed on the explored-neighbour mask: the border cell draws its ground
+  under a black tile whose rim is eaten away toward each open side, with
+  ragged bites so the line is not an airbrush. The Gap Generator's fog draws
+  the same tiles at a fraction of the opacity.
 - ☐ LAT ground transitions; rock cliffs with shadowed faces; rock-slope
   ramps; road bends/junctions/ends; snow trees; theatre-specific civilian
   sets; map border continuation; per-map ambient lighting.
 - ☐ Terrain height levels (plateaus draw raised).
-- ☐ Harrier descent onto the pad; Kirov size and gondola motion.
+- ☑ Vehicle damage: dark smoke below 50 % hp, flame licks below 25 %
+  (art §3 "no damaged smoke or damaged art on vehicles").
+- ☑ Harrier descent onto the pad; Kirov size and gondola motion. `altOf`
+  ramps the altitude over 34 ticks in BOTH directions (`landAt` / `flyAt`
+  caught on the `landed` transition), and a descending Harrier stays in the
+  air draw pass until it is down. The Kirov draws at 1.3× and rocks on its
+  long axis, which swings the gondola with it; splitting the gondola into its
+  own frame belongs with the unit art.
 
 **Phase 6 — match flow and AI (feature §4, §6). ~2 batches, M.**
 - ☐ Skirmish options: starting credits, unit count, short game, crates,
