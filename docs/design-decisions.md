@@ -5720,3 +5720,33 @@ one indirection away).
 arms it, the map click fires it, Esc or a right-click cancels, and while it is
 armed the ghost draws the exact footprint the strike will cover (a 4-tile disc
 for the nuke, the 3x3 for the rest). Nothing has to be learned to use it.
+
+## RTS: ramps and bridges are passable by omission, not by a special case
+
+**Symptom.** Terrain step 3 wanted a cliff wall you cross at two ramps and a
+river you cross on two bridges. The obvious shape is a "passable overrides":
+a tile is a cliff/water tile, and a parallel structure says "…except here".
+
+**Cause.** Every mover in `landing/rts.html` asks the same question in a
+different place — `astar`'s `blocked()`, `tilePassable`, the separation step,
+the harvester's seam search, the AI's approach tests. An override consulted by
+only some of them is a bug factory: a tank paths over a bridge that separation
+then shoves it off, or the AI refuses a ramp the player walks through.
+
+**Fix.** `T_RAMP` and `T_BRIDGE` are ordinary terrain codes that are simply
+**not in `solidT()`**. There is no override and no second list. Every mover
+already routes its answer through `solidT`, so all of them honour a ramp and a
+bridge with no new code at all; the bridge is laid with a forcing setter
+(`setFM`) because it is the one feature written *on* water rather than on clear
+ground. Buildability is the separate question, so `buildableT()` (ground or
+road only) gates `canPlace` and the placement wash — walking on a slope and
+pouring a foundation on it are not the same permission. The shoreline masks
+treat a deck as water (`waterish()`) so the bank does not grow a beach against
+the abutment.
+
+**Rejected.** (a) A `passable[]` overlay array parallel to `terrain` — two
+sources of truth for one question, and it would have to be mirrored,
+serialised and kept in step with every generator. (b) Making ramps plain
+`T_GROUND` with cliff art around them — then the minimap, the shroud and
+`canPlace` cannot tell a ramp from a field, and the AI happily builds a
+refinery in the pass.
