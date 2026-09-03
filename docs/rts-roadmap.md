@@ -197,7 +197,11 @@ anti-infantry gun instead of a siege gun).
 
 Fixed the same day as the audit: superweapons queued in the structures lane
 (v1.19.239); `T3`/`Sell` command buttons rendered outside the sidebar and were
-unclickable (v1.19.240).
+unclickable (v1.19.240); a superweapon clock froze silently under low power —
+the charge halt is RA2's `IsPowered` rule, but the clock now reads LOW POWER
+(v1.19.241). The auditors did not play whole matches, so **player-observed
+issues are a separate input**: every one the user reports goes into Phase 0
+below as its own line, reproduced first, before anything else is built.
 
 ### Plan — eight phases, ordered by player impact per builder-hour
 
@@ -205,8 +209,13 @@ Each phase is sized in builder batches (one opus builder, one worktree, one
 verified merge; two run in parallel). Effort letters are the audits' S/M/L.
 Within a phase, items are in execution order.
 
-**Phase 0 — correctness sweep (feature audit §2, §3; art §6 "broken").
-~2 batches, all S.** Nothing new to draw; pure rules.ini fidelity.
+**Phase 0 — correctness sweep (feature audit §2, §3; art §6 "broken";
+player reports). ~2 batches, all S.** Nothing new to draw; pure rules.ini
+fidelity plus reproduced player reports.
+- ☑ v1.19.241 Superweapon clock shows LOW POWER (red) while the charge is
+  halted, with time-left in the tooltip, instead of a frozen countdown.
+- ☐ Player-reported issues (to be listed by the user; each reproduced with a
+  script before fixing).
 - ☐ Prism Tank: `CometWH` (50% vs armour, 200% vs structures), ROF 400,
   range 10, Speed 4. *(blocker)*
 - ☐ Prerequisites enforced exactly as `Prerequisite=`: Tesla Coil POWER+RADAR;

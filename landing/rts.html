@@ -173,6 +173,11 @@
   .swic .cd { position: absolute; left: 0; right: 0; bottom: 4px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
   .swic.rdy { cursor: pointer; border-color: #6ee7a8; color: #d8ffe9; animation: swpulse 1.15s ease-in-out infinite; }
   .swic.rdy .em { filter: none; }
+  /* Low power halts the charge (RA2's IsPowered rule): say so on the clock
+     instead of leaving a frozen countdown the player reads as "broken". */
+  .swic.hold { border-color: #e5646c; color: #ffb3b8; }
+  .swic.hold .cd { font-size: 9px; font-weight: 700; letter-spacing: .4px; }
+  .swic.hold .arc { opacity: .35; }
   .swic.arm { border-color: #ffd24a; color: #ffe9a8; animation: none; box-shadow: 0 0 0 2px rgba(255,210,74,.4); }
   @keyframes swpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(110,231,168,.5); } 50% { box-shadow: 0 0 0 6px rgba(110,231,168,0); } }
   #tip {
@@ -14826,10 +14831,12 @@
       el.style.display = 'block';
       var st = G.side[P_HUMAN].sw[k], frac = st.ready ? 1 : st.t / SW[k].charge;
       var left = Math.max(0, Math.ceil((SW[k].charge - st.t) / 60));
-      el._cd.textContent = st.ready ? 'READY' : (Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2));
+      var hold = !st.ready && !powered(G, P_HUMAN);
+      el._cd.textContent = st.ready ? 'READY' : hold ? 'LOW POWER' : (Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2));
+      el.title = SW[k].name + (hold ? ' — charging halted: low power (' + Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2) + ' left)' : '');
       el._arc.style.background = 'conic-gradient(from 180deg, rgba(110,231,168,.32) ' +
                                  (frac * 360).toFixed(0) + 'deg, rgba(0,0,0,0) 0)';
-      el.className = 'swic' + (st.ready ? ' rdy' : '') + (swMode && swMode.key === k ? ' arm' : '');
+      el.className = 'swic' + (st.ready ? ' rdy' : '') + (hold ? ' hold' : '') + (swMode && swMode.key === k ? ' arm' : '');
     }
   }
   function swArm(key) {
