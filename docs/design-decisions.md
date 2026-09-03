@@ -7336,3 +7336,93 @@ the hull line slews too instead of snapping to `null`.
   gives back most of the load-time win to save one frame per unit type. The
   infantry facing atlas already made this trade the other way and nobody has
   ever noticed it.
+
+## The navy needed a second passability class, not a second pathfinder (2026-09-03)
+
+**Symptom.** `solidT()` made `T_WATER` impassable to everything, so a Destroyer
+was a unit that could not move at all and a Shipyard was a building that could
+not be placed.
+
+**Cause.** Passability was a single global predicate. Every one of the ~40 call
+sites that ask "can something stand here" — `blocked`, `tilePassable`, `astar`,
+`standSpot`, `freeTileNear`, `spreadSpot`, `canPlace`, the move cursor —
+answered for *the* mover, because there was only one kind.
+
+**Fix.** RA2's own model: `SpeedType=` / `MovementZone=` are per-unit, so the
+class is a parameter, not a global. `terrPass(t, mv)` with `MV_LAND` (0),
+`MV_NAVAL` (1), `MV_AMPH` (2), threaded through `blocked` / `tilePassable` /
+`astar` as an **optional last argument** whose `undefined` value is LAND. That
+is the whole trick: every pre-naval call site kept its exact behaviour by
+construction, so the pinned Iron Frontier sim snapshots could not move, and the
+only places that had to learn about water are the ones that actually deal with
+hulls (`moverOf(u)` at the four movement entry points, plus `waterSpot` /
+`freeWaterNear` / `dockSpot` as the wet twins of `standSpot` / `freeTileNear`).
+
+A bridge deck blocks a ship. RA2 says so twice over: every naval hull worth the
+name carries `TooBigToFitUnderBridge=true`, and the cells under a low bridge
+are not navigable. `T_BRIDGE` is therefore walkable and NOT floatable, which is
+the one place where the naval class is stricter than "is it water".
+
+**Rejected.**
+- *A separate naval A\**. Two pathfinders means two heaps, two heuristics and
+  two sets of corner-cutting rules to keep in step; the first thing that goes
+  out of step is the one nobody tests.
+- *A per-unit `passable` callback.* It reads well and it allocates a closure
+  per path request; `runPathQueue` is on the hot path.
+- *Making `solidT` water-aware by flipping a module flag around the call.*
+  Global mutable state under a queue that batches requests across units.
+
+## `Underwater=yes` is a targeting class, not cover (2026-09-03)
+
+**Symptom.** A submarine that is merely *invisible* is either useless (anything
+can still shoot it because the sim knows where it is) or unkillable (nothing
+can, including the Dolphin that exists to hunt it).
+
+**Cause.** Two different questions were being conflated: *may this weapon
+engage that unit at all* (a permanent property of the pair) and *can this side
+see it right now* (a property of the tick).
+
+**Fix.** Both, separately, and in the two places that already ask them.
+`canHit()` carries the RULE — `isSub(tgt) && !spec.sensors && !spec.asw` is
+false for every gun ashore, every tank and every aircraft, for ever, because
+rules.ini gives `Sensors=yes` to exactly three hulls and a depth charge to one
+more. `findTarget()` carries the STATE — `subSeen(g, o, e.p)` is true only if
+the hull surfaced within `SUB_SURFACE` (90 ticks, set by `fire()`) or a
+detector of that side is inside its sensor radius. The renderer reads the same
+`subSeen`, so what the player can shoot and what the player can see are one
+answer rather than two that drift.
+
+The Destroyer's Osprey is modelled as a *weapon*, not a second airframe:
+`asw:` is picked by `weaponFor` against a submerged target and its range
+doubles as the hull's detection radius. RA2's ASW helicopter never takes an
+order of its own either, so an airframe would have been three hundred lines of
+flight code to reproduce a secondary weapon.
+
+**Rejected.** *A global "detected" flag on the sub.* Detection is per-side: the
+owner always sees it, and one player's Dolphin must not reveal it to the other.
+
+## A ship needs a give-up that a tank does not (2026-09-03)
+
+**Symptom.** One Destroyer on Coastal raised `B1-stuck` **419 times in a single
+match**: `order=move->49,49 no move/fire for 114 s (noProg=181 path=none)`.
+
+**Cause.** The chase branch in `stepUnit` has no give-up, and it never needed
+one: on a land map every reachable thing is reachable, so a unit that is not
+moving is a unit that is about to move. The shoreline breaks that assumption —
+an order aimed across a spit, at a second body of water, or at a target with no
+water near it is one a hull can *never* complete, and it re-requests the path
+for the rest of the match. The move branch's own `noProg > 90` escape does not
+help, because the AI hands its fleet an ATTACK order, not a move.
+
+**Fix.** Two, at both ends. `aiOrderAttack` refuses to point a hull at anything
+with no open water within fourteen cells — the ship stays on station instead of
+being sent at a target it cannot reach. And `stepUnit` gains a naval-only
+escape: four seconds with no path and no progress and the hull drops its order
+and holds. Both branches are gated on `UNITS[u.type].nav`, which is false for
+every unit that exists on a land map, so no land behaviour and none of the
+pinned Iron Frontier snapshots can move.
+
+**Rejected.** *A general `noProg` give-up for every chasing unit.* It is
+probably right, and it changes what every tank in the game does when it is
+briefly boxed in — which is a balance change wearing a bug fix's clothes. It
+belongs in its own pass with its own soak.
