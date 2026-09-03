@@ -817,6 +817,59 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
   one ROT point = 0.1 facings per tick, so a ROT=5 turret sweeps the full 32
   in ~64 ticks) instead of snapping, and a gun will not fire until it BEARS —
   the sim rule RA2 has and we did not.
+
+- ☑ Water pathing: a second passability class. `MV_LAND` / `MV_NAVAL` /
+  `MV_AMPH` (rules.ini `SpeedType=` / `MovementZone=`) threaded through
+  `blocked()` / `tilePassable()` / `astar()` as an optional last argument, so
+  `undefined` still means LAND and no pre-naval call site changed behaviour.
+  A hull only floats on `T_WATER`; the amphibious pair (Landing Craft,
+  Amphibious Transport) crosses both; a bridge deck BLOCKS a ship, because
+  every RA2 naval hull that matters carries `TooBigToFitUnderBridge=true`.
+  `waterSpot`/`freeWaterNear`/`dockSpot` are the wet `standSpot`/`freeTileNear`.
+- ☑ Shipyards: `[GAYARD]`/`[NAYARD]` $1000 / Str 1500 / concrete /
+  Foundation 4x4 / `Adjacent=12` / Sight 10, `WaterBound=yes` — `canPlace`
+  gains a water plot rule (every footprint cell `T_WATER`, at least one dry
+  cell in the ring) and a `queues.n` naval lane whose producer is the yard.
+  Ships list at the bottom of the Units tab in TechLevel order. Original art
+  for both houses on the shared machine — piled mole, fitting-out shed, bay
+  doors that part, portal gantry with a traversing trolley, a keel and frames
+  standing on the slip — six idle phases each.
+- ☑ Ships: nine hulls with rules.ini stats and original 8-facing art (plan
+  outline extruded to a deck, boot-topping at the waterline, tiered
+  superstructure, one house band), a foam wake on the water, a slow heave and
+  roll, and `[General] ShipSinkingWeight=3.0` — a heavy hull lists and goes
+  under instead of exploding. Directorate: Destroyer (155mm + the Osprey's
+  depth charge as an auto-selected anti-sub weapon), Aegis Cruiser (AA only),
+  Aircraft Carrier (`Spawns=HORNET` x3, recovered and re-armed on the deck),
+  Dolphin (sonic, `Sensors=yes`), Landing Craft (12 seats, amphibious).
+  Collective: Typhoon Sub, Sea Scorpion (flak + deck gun), Dreadnought
+  (`Burst=2` at Range 25 / MinimumRange 8), Giant Squid (`ParasitePlus` — it
+  takes hold of a hull and drags it under).
+- ☑ Naval combat rules: `Underwater=yes` is a targeting class, not cover —
+  only `Sensors=yes` (or the Destroyer's depth charge) can engage a submerged
+  hull at all, and it surfaces for 90 ticks when it fires. `LandTargeting=1`
+  on the Aegis, the Typhoon, the Dolphin and the Squid: their weapons cannot
+  be aimed ashore. The Amphibious Transport floats and moved to the Soviet
+  Shipyard, per its own `Prerequisite=NAYARD`.
+- ☑ Maps: **Coastal** — one shared bay on the map's anti-diagonal with a
+  harbour channel up to each start on the main diagonal (both axes are their
+  own mirror), an ore-and-gem island in the middle that only an amphibious
+  hull can reach, and a land route round either end so the map still plays
+  without a fleet. Lake Divide's lake widened and given an inlet; River
+  Crossing's four-tile river already takes a 4x4 yard.
+- ☑ Naval AI: six task forces (`dirFleet`/`dirCV`/`dirLand`,
+  `colSub`/`colDred`/`colLand`), all gated on a Shipyard, which is itself
+  gated on `[General] AINavalYardAdjacency=20` — no shore inside twenty cells
+  of the Construction Yard and the whole naval half of the ladder is
+  unreachable, which is why Iron Frontier is unchanged (measured: eight
+  gate matches step tick-for-tick to the same result and the same clock).
+  A fleet is ordered to the water nearest its shore target, not onto it, and
+  a hull that cannot reach where it was sent drops the order and holds rather
+  than churning on it. Landing raids are hard-only.
+  Eleven hulls in total, counting the two that are not on a build list: the
+  Amphibious Transport (moved here from the vehicle lane) and the Hornet
+  (`TechLevel=-1`, it only ever leaves a carrier deck).
+- ☐ 32-facing vehicles.
 - ☐ Lockstep multiplayer over the deterministic `__rtsSim` core (command
   queue, beacon).
 

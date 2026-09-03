@@ -755,6 +755,44 @@
   // so the render can draw the torn deck ends instead of clean shoreline.
   function oreT(t) { return t === T_ORE || t === T_GEM; }
   function waterish(t) { return t === T_WATER || t === T_BRIDGE; }   // the deck reads as water to the shoreline
+
+  // ---- Mover classes (RA2 `SpeedType=` / `MovementZone=`) --------------- //
+  // Three ground classes share ONE A*. LAND (Track/Wheel/Foot, MovementZone
+  // Normal) never enters water; NAVAL (`Naval=yes`, SpeedType=Float,
+  // MovementZone=Water) never leaves it; AMPHIBIOUS (the Landing Craft and
+  // the Amphibious Transport, MovementZone=AmphibiousDestroyer) does both.
+  // The class is threaded through blocked() / tilePassable() / astar() as an
+  // OPTIONAL last argument, and `undefined` means LAND — so every call site
+  // written before the navy existed keeps its exact behaviour and the pinned
+  // Iron Frontier sim snapshots do not move.
+  //
+  // A bridge deck is a LOW bridge in RA2: every naval hull that matters
+  // carries `TooBigToFitUnderBridge=true`, so the water under a span is not
+  // navigable. T_BRIDGE therefore BLOCKS a ship even though it is walkable.
+  var MV_LAND = 0, MV_NAVAL = 1, MV_AMPH = 2;
+  function terrPass(t, mv) {
+    if (mv === MV_NAVAL) return t === T_WATER;
+    if (mv === MV_AMPH) return t === T_WATER || !solidT(t);
+    return !solidT(t);
+  }
+  function moverOf(e) {
+    if (!e || e.kind !== 'u') return MV_LAND;
+    var d = UNITS[e.type];
+    return d.amph ? MV_AMPH : (d.nav ? MV_NAVAL : MV_LAND);
+  }
+  function isNaval(e) { return !!(e && e.kind === 'u' && UNITS[e.type].nav); }
+  // `Underwater=yes` — a Typhoon, a Dolphin and a Giant Squid run submerged.
+  function isSub(e) { return !!(e && e.kind === 'u' && UNITS[e.type].sub); }
+  // `Sensors=yes` / `SensorsSight=4`: what can SEE a submerged hull.
+  function isSensor(e) {
+    if (!e || e.kind !== 'u') return false;
+    var d = UNITS[e.type];
+    return !!(d.sensors || d.asw);              // [DEST]'s Osprey hunts what the hull cannot see
+  }
+  function senseRng(e) {
+    var d = UNITS[e.type];
+    return d.asw ? d.asw.rng : 4;               // SensorsSight=4
+  }
   function buildableT(t) { return t === T_GROUND || t === T_ROAD; }  // never a ramp, a bridge deck or a civilian lot
 
   var P_HUMAN = 0, P_AI = 1;
@@ -854,7 +892,17 @@
     IvanWH:       [100, 100, 100, 100, 100, 100, 100, 250,  20],
     // [PsiPulse] PsychicDamage=yes, CellSpread=3 — a Yuri in an IFV throws a
     // wave that only minds feel: 0% against anything with a hull or a wall.
-    PsiPulse:     [100, 100, 100,   0,   0,   0,   0,   0,   0]
+    PsiPulse:     [100, 100, 100,   0,   0,   0,   0,   0,   0],
+    // ---- naval warheads, read straight off rules.ini ------------------ //
+    // [ARTYHE] (the Destroyer's 155mm), [APSplash] (Typhoon torpedo and the
+    // Destroyer's depth charge), [SonicWarhead] (the Dolphin's sonic zap).
+    ARTYHE:       [100,  80,  60, 100,  60,  60, 100,  80,  60],
+    APSplash:     [ 25,  25,  25,  75, 100, 100,  65,  65,  60],
+    SonicWH:      [100, 100, 100, 100,  80,  80, 100,  60,  60],
+    // [DredWH] — the Dreadnought's missile. A siege warhead: it is aimed at
+    // the shore, and everything it lands on is a building or standing beside
+    // one. Same shape as [HE] with the structure rows opened up.
+    DredWH:       [100,  90,  80,  80,  60,  60, 100,  90,  60]
   };
   // rules.ini per-warhead `Wall=`: a warhead without it cannot scratch a wall
   // segment. Taken verbatim from the 37 sections that carry `Wall=yes` — note
@@ -862,7 +910,7 @@
   // through, and does NOT let small arms, flak, Tanya's C4 or a Prism Tank's
   // CometWH touch a wall.
   var WH_WALL = { AP: 1, ApocAP: 1, HE: 1, IonWH: 1, Electric: 1, PrismWarhead: 1,
-                  ORCAAP: 1, BlimpHE: 1, GrandCannonWH: 1 };
+                  ORCAAP: 1, BlimpHE: 1, GrandCannonWH: 1, ARTYHE: 1, APSplash: 1, DredWH: 1 };
   function isWall(e) { return e.kind === 'b' && !!BLDS[e.type].wall; }
   // verses() with RA2's wall rule folded in, so target PICKING and the damage
   // itself agree: a Sentry Gun never wastes its burst on concrete.
@@ -881,6 +929,7 @@
   var PRONE_DMG = {
     SA: 0.70, SSA: 0.50, HE: 0.70, BlimpHE: 0.70,
     AP: 0.50, ApocAP: 0.50, ORCAAP: 0.50, GUARDWH: 0.50, HARVWH: 0.50,
+    ARTYHE: 0.50, APSplash: 0.50, SonicWH: 0.50, DredWH: 0.50,
     GrandCannonWH: 0.30
   };
   function proneMul(wh) { var v = PRONE_DMG[wh]; return v === undefined ? 1.0 : v; }
@@ -891,6 +940,7 @@
     SA: 1, SSA: 1, HollowPoint: 1, Parasite: 1, ParasiteDog: 1,
     HE: 2, BlimpHE: 2, Super: 2, IvanBomb: 2,
     AP: 3, ApocAP: 3, ORCAAP: 3, SAMWH: 3, GUARDWH: 3,
+    ARTYHE: 2, DredWH: 2, APSplash: 3, SonicWH: 5,
     FlakWH: 3, FlakTWH: 3, FlakGuyWH: 3,
     MirageWH: 4, NukeWH: 4, RadBeamWH: 4, RadSite: 4,   // InfDeath=7 (radiation melt) folds into the burn
     IvanWH: 2,
@@ -915,8 +965,11 @@
     // flyer, an Apocalypse unlimbers its MammothTusk missiles. The ground
     // gun is never the thing that shoots the sky.
     if (spec.aaW && isAir(tgt)) return spec.aaW;
+    // [DEST] Secondary=ASWLauncher: the 155mm cannot reach a submarine, the
+    // Osprey's depth charge is what answers one.
+    if (spec.asw && isSub(tgt)) return spec.asw;
     var w2 = spec.w2;
-    if (w2) { var a = armourOf(tgt); if ((w2.use === 'veh' && isVehArmour(a)) || (w2.use === 'bld' && isBldArmour(a)) || (w2.use === 'inf' && isInfArmour(a))) return w2; }
+    if (w2) { var a = armourOf(tgt); if ((w2.use === 'veh' && isVehArmour(a)) || (w2.use === 'bld' && isBldArmour(a)) || (w2.use === 'inf' && isInfArmour(a)) || (w2.use === 'ship' && isNaval(tgt))) return w2; }
     if (u && u.deployed && spec.dep) return spec.dep;       // a deployed GI fires from its sandbags
     return spec;
   }
@@ -927,6 +980,7 @@
     if (spec.ifv && u && u.pax && u.pax.length) spec = ifvSpec(u);
     var r = spec.w2 && spec.w2.rng > spec.rng ? spec.w2.rng : spec.rng;
     if (spec.aaW) { var ar = spec.aaW.aaRng || spec.aaW.rng; if (ar > r) r = ar; }
+    if (spec.asw && spec.asw.rng > r) r = spec.asw.rng;
     if (u && u.deployed && spec.dep && spec.dep.rng > r) r = spec.dep.rng;
     return r;
   }
@@ -1262,11 +1316,135 @@
     // the War Factory and only drives — the hovercraft's water half lands with
     // the navy (roadmap Phase 8).
     apc: {
+      // [SAPC] `Naval=yes`, `Prerequisite=NAYARD`. Until the navy landed this
+      // was a land-only halftrack with nothing to point its prerequisite at;
+      // it now floats (MovementZone=Amphibious) and is built at the Soviet
+      // Shipyard, which is what rules.ini has always said it was.
       name: 'Amphibious Transport', em: '🚤', cost: 900, build: 38, cls: 'v', fac: 'col',
+      nav: 1, amph: 1, req: 'shipyard',
       hp: 300, spd: 0.078, sight: 6, armour: 'heavy',
-      pax: 12, paxInf: true, paxVeh: true, passive: true,
+      pax: 12, paxInf: true, paxVeh: true, paxHarv: true, passive: true,
       dmg: 0, rate: 0, rng: 0, splash: 0, wh: null,
       cap: 0, mine: 0, w: 22, h: 15, desc: 'Carries twelve — infantry or light vehicles; unload with D'
+    },
+    // ===================================================================
+    //  The navy. `nav: 1` is SpeedType=Float / MovementZone=Water (the hull
+    //  lives on water and cannot leave it); `amph: 1` is the amphibious pair
+    //  that crosses both. `sub: 1` is `Underwater=yes`, `sensors: 1` is
+    //  `Sensors=yes` / SensorsSight=4 — the only thing that sees a submerged
+    //  hull. `landTgt: false` is rules.ini `LandTargeting=1` (this weapon
+    //  cannot be aimed at anything ashore); `navTgt: 'sub'` is the
+    //  `NavalTargeting` family that ONLY reaches what is under the water.
+    //  Every ROF below is rules.ini's x4, the conversion the whole roster
+    //  uses (RA2 runs at 15 fps, we tick at 60).
+    // ===================================================================
+    destroyer: {
+      // [DEST] $1000 / Str 600 / heavy / Speed 6 / Sight 7. Primary [155mm]
+      // 60 / ROF 110 / Range 8 / ARTYHE. Secondary [ASWLauncher] launches an
+      // Osprey ([ASW]) that drops [ASWBomb] 50 / APSplash on a submarine —
+      // modelled here as an auto-launched short-range depth-charge attack
+      // rather than a second airframe, because the helicopter never takes an
+      // order of its own in RA2 either.
+      name: 'Destroyer', em: '🚢', cost: 1000, build: 42, cls: 'n', fac: 'dir', nav: 1,
+      hp: 600, spd: 0.078, sight: 7, armour: 'heavy',
+      dmg: 60, rate: 440, rng: 8, splash: 0.5, wh: 'ARTYHE',
+      asw: { dmg: 50, rate: 600, rng: 6, wh: 'APSplash', splash: 0.5 },
+      cap: 0, mine: 0, w: 30, h: 16, desc: 'Naval gun; its Osprey hunts submarines by itself'
+    },
+    aegis: {
+      // [AEGIS] $1200 / Str 800 / light / Speed 4 / Sight 8, Prerequisite
+      // GAYARD+RADAR. [Medusa] 100 / ROF 15 / Range 12 / SAMWH, and
+      // LandTargeting=1 with NavalTargeting=6: it is an anti-air battery and
+      // nothing else — it cannot be aimed at a hull or at the shore.
+      name: 'Aegis Cruiser', em: '🛰️', cost: 1200, build: 50, cls: 'n', fac: 'dir', nav: 1, req: 'radar',
+      hp: 800, spd: 0.052, sight: 8, armour: 'light', aa: true, aaRng: 12, ag: false,
+      dmg: 100, rate: 60, rng: 12, splash: 0.3, wh: 'SAMWH',
+      cap: 0, mine: 0, w: 30, h: 16, desc: 'Anti-air only: a 12-cell missile umbrella over the fleet'
+    },
+    carrier: {
+      // [CARRIER] $2000 / Str 800 / heavy / Speed 4, Prerequisite GAYARD+TECH.
+      // Spawns=HORNET, SpawnsNumber=3, SpawnReloadRate=150; [HornetLauncher]
+      // Range=25 is the standoff, and the damage is the Hornets' own
+      // [HornetBomb] 40 / ORCAAP. CanPassiveAquire=no — it never picks its
+      // own target, you give it one.
+      name: 'Aircraft Carrier', em: '🛳️', cost: 2000, build: 84, cls: 'n', fac: 'dir', nav: 1, req: 'lab',
+      hp: 800, spd: 0.052, sight: 7, armour: 'heavy', passive: true,
+      spawns: 'hornet', spawnN: 3, spawnReload: 150,
+      dmg: 1, rate: 600, rng: 25, splash: 0, wh: 'ORCAAP',
+      cap: 0, mine: 0, w: 38, h: 18, desc: 'Launches three Hornets at a target up to 25 cells away'
+    },
+    hornet: {
+      // [HORNET] Str 75 / light / Speed 12 / Ammo 1, Spawned=yes, TechLevel -1
+      // — it is never on a build list, it comes off the deck.
+      name: 'Hornet', em: '🛩️', cost: 50, build: 2, cls: 'a', fac: 'dir', spawned: true,
+      hp: 75, spd: 0.156, sight: 2, armour: 'light', air: true, alt: 40, ammo: 1, reload: 150,
+      shadow: [13, 6],
+      dmg: 40, rate: 12, rng: 5, splash: 0.3, wh: 'ORCAAP',
+      cap: 0, mine: 0, w: 20, h: 14, desc: 'Carrier-borne bomber'
+    },
+    dolphin: {
+      // [DLPH] $500 / Str 200 / light / Speed 8 / Sight 4, Underwater=yes,
+      // Sensors=yes, Cloakable=yes. [SonicZap] 4 + AmbientDamage 10 / ROF 120
+      // / Range 6 / SonicWarhead; LandTargeting=1, NavalTargeting=5 — it is
+      // an anti-submarine escort, it does not shell the shore.
+      name: 'Dolphin', em: '🐬', cost: 500, build: 21, cls: 'n', fac: 'dir', nav: 1,
+      sub: 1, sensors: 1, notHuman: true, psiImmune: true, req: 'lab',
+      hp: 200, spd: 0.104, sight: 4, armour: 'light', landTgt: false,
+      dmg: 42, rate: 480, rng: 6, splash: 0, wh: 'SonicWH',
+      cap: 0, mine: 0, w: 16, h: 10, desc: 'Submerged sonic escort; sees and kills submarines'
+    },
+    lcraft: {
+      // [LCRF] $900 / Str 300 / light / Speed 6 / Passengers 12. SpeedType
+      // Hover in v1.006 — it crosses the beach, which is what makes it a
+      // LANDING craft rather than a ferry.
+      name: 'Landing Craft', em: '⛴️', cost: 900, build: 38, cls: 'n', fac: 'dir', nav: 1, amph: 1,
+      hp: 300, spd: 0.078, sight: 6, armour: 'light',
+      pax: 12, paxInf: true, paxVeh: true, paxHarv: true, passive: true,
+      dmg: 0, rate: 0, rng: 0, splash: 0, wh: null,
+      cap: 0, mine: 0, w: 26, h: 14, desc: 'Twelve seats, crosses water AND land; unload with D'
+    },
+    sub: {
+      // [SUB] $1000 / Str 600 / heavy / Speed 4 / Sight 4, Underwater=yes,
+      // Sensors=yes, Cloakable=yes, TechLevel 2. [SubTorpedo] 100 / ROF 120 /
+      // Range 7 / APSplash; LandTargeting=1 — torpedoes are for hulls.
+      name: 'Typhoon Attack Sub', em: '🌊', cost: 1000, build: 42, cls: 'n', fac: 'col', nav: 1,
+      sub: 1, sensors: 1,
+      hp: 600, spd: 0.052, sight: 4, armour: 'heavy', landTgt: false,
+      dmg: 100, rate: 480, rng: 7, splash: 0.5, wh: 'APSplash',
+      cap: 0, mine: 0, w: 26, h: 12, desc: 'Runs submerged; torpedoes anything afloat'
+    },
+    seascorp: {
+      // [HYD] $600 / Str 400 / heavy / Speed 8 / Sight 8, Prerequisite
+      // NAYARD+NARADR. Primary [FlakTrackGun] 25 / ROF 40 / Range 5 / FlakTWH,
+      // Secondary [FlakWeapon] 40 / ROF 20 / Range 12 / FlakWH — the fleet's
+      // flak escort with a light gun for anything on the surface.
+      name: 'Sea Scorpion', em: '🦂', cost: 600, build: 25, cls: 'n', fac: 'col', nav: 1, req: 'radar',
+      hp: 400, spd: 0.104, sight: 8, armour: 'heavy', aa: true, aaRng: 12, flak: true,
+      dmg: 25, rate: 160, rng: 5, splash: 0.4, wh: 'FlakTWH',
+      aaW: { dmg: 40, rate: 80, rng: 12, aaRng: 12, splash: 0.6, wh: 'FlakWH', aa: true, flak: true },
+      cap: 0, mine: 0, w: 22, h: 13, desc: 'Flak escort: anti-air umbrella and a light deck gun'
+    },
+    dread: {
+      // [DRED] $2000 / Str 800 / heavy / Speed 4, Prerequisite NAYARD+NATECH.
+      // Spawns=DMISL, SpawnsNumber=2 (`SpawnReloadRate=0` — the missiles do
+      // not come back); [DredLauncher] ROF 50 / Range 25 / MinimumRange 8.
+      // The V3's big brother: it bombards the shore from open water.
+      name: 'Dreadnought', em: '🚀', cost: 2000, build: 84, cls: 'n', fac: 'col', nav: 1, req: 'lab',
+      hp: 800, spd: 0.052, sight: 7, armour: 'heavy', passive: true,
+      dmg: 100, burst: 2, rate: 200, rng: 25, minRng: 8, splash: 1.2, wh: 'DredWH',
+      cap: 0, mine: 0, w: 34, h: 17, desc: 'Two long-range missiles per salvo; cannot fire inside 8 cells'
+    },
+    squid: {
+      // [SQD] $1000 / Str 200 / light / Speed 8, Underwater=yes, Organic=yes,
+      // SelfHealing=yes, Sensors=yes. [SquidGrab] Range 1.5 / ParasitePlus
+      // (Parasite=yes — it does not wound the hull, it takes hold of it) and
+      // [SquidPunch] 50 / ROF 32 / Range 1.83 / HE for everything else.
+      name: 'Giant Squid', em: '🦑', cost: 1000, build: 42, cls: 'n', fac: 'col', nav: 1, req: 'lab',
+      sub: 1, sensors: 1, notHuman: true, selfHeal: true, grab: true,
+      hp: 200, spd: 0.104, sight: 5, armour: 'light', landTgt: false,
+      dmg: 50, rate: 128, rng: 1.83, splash: 0, wh: 'HE',
+      w2: { dmg: 15, rate: 128, rng: 1.5, wh: 'Parasite', splash: 0, use: 'ship' },
+      cap: 0, mine: 0, w: 18, h: 12, desc: 'Grabs a ship and drags it under; invisible until it strikes'
     },
     mcv: {
       // RA2 SMCV/AMCV: Cost 3000, Strength 1000, Armor heavy, Speed 4,
@@ -1403,6 +1581,17 @@
       reqAll: ['refinery', 'barracks'], name: 'War Factory', em: '🏗️', cost: 2000, build: 84,
       // art.ini [GAWEAP]/[NAWEAP] Foundation=5x3 — RA2's long assembly hall.
       armour: 'wood', gw: 5, gh: 3, hp: 1000, power: -25, sight: 4, makes: 'v', desc: 'Builds vehicles'
+    },
+    // [GAYARD] / [NAYARD] $1000 / Str 1500 / concrete / Foundation 4x4 /
+    // Adjacent=12 / Sight 10, `Naval=yes` + `WaterBound=yes` — the footprint
+    // must be OPEN WATER, and RA2's own maps always put it against the shore.
+    // Prerequisite=PROC,POWER,*CNST. GAYARD is TechLevel 4, NAYARD 2.
+    shipyard: {
+      fac: null, cat: 'str', water: true, adj: 12,
+      byFac: { col: { power: -20 } },
+      reqAll: ['refinery', 'power'], name: 'Shipyard', em: '⚓', cost: 1000, build: 42,
+      armour: 'concrete', gw: 4, gh: 4, hp: 1500, power: -25, sight: 10, makes: 'n',
+      desc: 'Builds ships. Goes on open water against the shore'
     },
     sentry: {
       cat: 'def',
@@ -1678,7 +1867,35 @@
     // shoot down a Rocketeer, an Engineer aboard cannot shoot anything.
     if (spec && spec.ifv && u && u.pax && u.pax.length) spec = ifvSpec(u);
     if (!spec || !spec.dmg) return false;
-    return isAir(tgt) ? !!spec.aa : spec.ag !== false;
+    if (isAir(tgt)) return !!spec.aa;
+    if (spec.ag === false) return false;
+    // rules.ini `LandTargeting=1` — [AEGIS], [SUB], [DLPH], [SQD]. A torpedo,
+    // a sonic zap and a squid's arms reach hulls, not the shore: anything
+    // that is not afloat is simply not a legal target for this weapon.
+    if (spec.landTgt === false && !isNaval(tgt)) return false;
+    // `Underwater=yes` is not cover, it is a targeting class: only a hull
+    // with `Sensors=yes` (Typhoon, Dolphin, Squid) or a depth-charge carrier
+    // (the Destroyer's Osprey) can engage a submerged unit at all. Every gun
+    // ashore, every tank and every aircraft simply cannot.
+    if (isSub(tgt) && !spec.sensors && !spec.asw) return false;
+    return true;
+  }
+  // rules.ini `Underwater=yes` + `Cloakable=yes` / `CloakingSpeed=1`: a
+  // submerged hull is off the board for anything that cannot detect it. It
+  // BREAKS the surface to fire and stays up for SUB_SURFACE ticks after, which
+  // is the window an escort has to answer. `Sensors=yes` / `SensorsSight=4`
+  // is the only thing that sees one otherwise — and its owner always can.
+  var SUB_SURFACE = 90, SENSOR_SIGHT = 4;
+  function surfaced(g, u) { return !!(u.surfAt != null && g.tick - u.surfAt < SUB_SURFACE); }
+  function subSeen(g, u, p) {
+    if (!isSub(u) || u.p === p || u.dead) return true;
+    if (surfaced(g, u)) return true;
+    var seen = false;
+    near(u.x, u.y, SENSOR_SIGHT + 3, function (o) {
+      if (seen || o.dead || o.kind !== 'u' || o.p !== p || !isSensor(o)) return;
+      if (dist(o, u) <= senseRng(o)) seen = true;
+    });
+    return seen;
   }
   // Range against a given target: AA weapons reach further into the sky (RA2
   // gives most AA guns a longer air range than their ground range).
@@ -1755,8 +1972,10 @@
   // with rules.ini list position breaking ties (values read off rules.ini
   // v1.006; Guardian GI's TechLevel 2 from rulesmd.ini).
   function buildOrderFor(fac) {
-    return fac === 'col' ? ['power', 'refinery', 'barracks', 'factory', 'radar', 'depot', 'lab', 'reactor', 'cloningvats']
-                         : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'depot', 'lab', 'purifier', 'spysat'];
+    // [NAYARD] is TechLevel 2 (right behind the War Factory); [GAYARD] is
+    // TechLevel 4, one rung past the Airforce Command.
+    return fac === 'col' ? ['power', 'refinery', 'barracks', 'factory', 'shipyard', 'radar', 'depot', 'lab', 'reactor', 'cloningvats']
+                         : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'shipyard', 'depot', 'lab', 'purifier', 'spysat'];
   }
   function defenceOrderFor(fac) {
     // TechLevel order, as RA2's Defence tab is: wall and gate (TL1) first,
@@ -1780,6 +1999,11 @@
     // / Tesla Tank (#32).
     else a = fac === 'col' ? [harvKey(fac), 'rhino', 'apc', 'v3', 'flaktrack', 'drone', 'mammoth', 'kirov', 'mcv', 'teslatank']
                            : [harvKey(fac), 'lancer', 'ifv', 'harrier', 'nighthawk', 'prismtank', 'mirage', 'mcv'];
+    // The navy sits at the BOTTOM of the Units tab, after every vehicle, in
+    // TechLevel order — RA2's own sidebar does the same, because a ship's
+    // TechLevel is read against the same ladder but its lane is the Shipyard's.
+    if (tab === 'v') a = a.concat(fac === 'col' ? ['sub', 'seascorp', 'dread', 'squid']
+                                                : ['destroyer', 'lcraft', 'dolphin', 'aegis', 'carrier']);
     // A Spy who got into their Battle Lab brings home a blueprint: RA2's
     // "Technology stolen" adds the OTHER side's lab unit to your own lane.
     if (side && side.stolen) {
@@ -1935,9 +2159,9 @@
       powerMade: 0, powerUse: 0,
       blackout: 0,                                 // [General] SpyPowerBlackout — grid dead until this tick
       stolen: null, vetInf: false, vetVeh: false,  // what a Spy brought home
-      queues: { b: newQueue(), d: newQueue(), i: newQueue(), v: newQueue(), a: newQueue() },
+      queues: { b: newQueue(), d: newQueue(), i: newQueue(), v: newQueue(), a: newQueue(), n: newQueue() },
       pending: null,                               // a finished structure awaiting placement
-      primary: { i: 0, v: 0, a: 0 },               // building id that produces each lane (RA2 "primary")
+      primary: { i: 0, v: 0, a: 0, n: 0 },               // building id that produces each lane (RA2 "primary")
       sw: swInit()                                 // superweapon charge timers, one per weapon
     };
   }
@@ -1957,7 +2181,7 @@
     frontier: { name: 'Iron Frontier', theatre: 'temperate', light: { mul: '#fff0d0', a: 0.12 }, blurb: 'Open plains, rock outcrops, a road between the bases',
                 gen: function (g) { g.tech2 = 'airport'; genCore(g, 26, null); mapRoad(g); mapFarms(g); mapTrees(g, 14); } },
     lake:     { name: 'Lake Divide',   theatre: 'temperate', light: { mul: '#cbd6e6', a: 0.20 }, blurb: 'A lake splits the middle; cliff ridges guard the flanks',
-                gen: function (g) { g.tech2 = 'hospital'; genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 9, 5.5); mapRidge(g, 12, 40, 26, 40, 3); mapRidge(g, 44, 18, 44, 30, 3); }); mapFarms(g); mapTrees(g, 10); } },
+                gen: function (g) { g.tech2 = 'hospital'; genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 11, 7); mapLake(g, 19, 19, 4, 3); mapRidge(g, 12, 40, 26, 40, 3); mapRidge(g, 44, 18, 44, 30, 3); }); mapFarms(g); mapTrees(g, 10); } },
     tundra:   { name: 'Frozen Front',  theatre: 'snow',      light: { mul: '#bfcfe8', a: 0.24 }, blurb: 'Snowfield with frozen lakes and cliff ridges',
                 gen: function (g) { g.tech2 = 'hospital'; genCore(g, 18, function () { mapLake(g, 20, 44, 5, 3.2); mapRidge(g, 21, 4, 21, 16, 3); mapRidge(g, 34, 44, 46, 44, 3); }); mapTrees(g, 12); } },
     choke:    { name: 'Chokepoint Pass', theatre: 'temperate', light: { mul: '#ffb07a', a: 0.24, add: '#2a1424', aa: 0.09 }, blurb: 'One cliff wall across the middle; two ramps decide the game',
@@ -1966,6 +2190,9 @@
     river:    { name: 'River Crossing', theatre: 'urban',     light: { mul: '#ffcbbe', a: 0.20, add: '#26142c', aa: 0.07 }, blurb: 'A city river, two bridges, civilian blocks along the streets',
                 gen: function (g) { g.tech2 = 'hospital'; genCore(g, 7, function () { mapRiver(g); },
                   function (mp) { mp(24, 24, 3.0, 840); mp(40, 25, 3.0, 820); }); mapCity(g); mapTrees(g, 6); } },
+    coastal:  { name: 'Coastal',        theatre: 'temperate', light: { mul: '#e6efff', a: 0.14 }, blurb: 'A wide bay between the two bases, a harbour each and an ore island in the middle',
+                gen: function (g) { g.tech2 = 'airport'; genCore(g, 10, function () { mapCoast(g); },
+                  function (mp, gp) { gp(31.5, 31.5, 3.0, 900); mp(31.5, 31.5, 4.6, 700); }); mapFarms(g); mapTrees(g, 8); } },
     gems:     { name: 'Gem Valley',     theatre: 'temperate', light: { mul: '#fff7e4', a: 0.08 }, blurb: 'A gem plateau ringed by cliffs — two ramps in, and everyone wants them',
                 gen: function (g) { g.tech2 = 'airport'; genCore(g, 13, function () { mapPlateau(g); },
                   function (mp, gp) { gp(31.5, 27, 3.4, 560); gp(27, 31.5, 3.0, 480); mp(19, 17, 3.0, 820); }); mapTrees(g, 10); } }
@@ -2054,6 +2281,35 @@
     g.neut.push({ key: 'bhut', x: cols[0] - 2, y: 29 }, { key: 'bhut', x: cols[2] + 2, y: 34 },
                  { key: 'bhut', x: MAP - 1 - (cols[0] - 2), y: MAP - 1 - 29 },
                  { key: 'bhut', x: MAP - 1 - (cols[2] + 2), y: MAP - 1 - 34 });
+  }
+  // Coastal. ONE body of water shared by both players, laid on the map's own
+  // symmetry axes so it is fair by construction: an ellipse whose long axis
+  // lies along the ANTI-diagonal (which the 180 deg mirror maps onto itself),
+  // plus a harbour channel running from the bay up toward each start along
+  // the MAIN diagonal — and those two channels are each other's reflection.
+  // The land route between the bases goes round either end of the bay, so the
+  // map is playable without a fleet and much shorter with one. In the middle
+  // of the bay is an island carrying a gem seam nobody can reach on foot.
+  function mapCoast(g) {
+    var x, y, u, v;
+    for (y = 0; y < MAP; y++) for (x = 0; x < MAP; x++) {
+      u = ((x - 31.5) + (y - 31.5)) / 1.41421;      // across the bay
+      v = ((x - 31.5) - (y - 31.5)) / 1.41421;      // along it
+      var inBay = (u / 11) * (u / 11) + (v / 25) * (v / 25) <= 1;
+      // The channel has to stay navigable AROUND a yard: a 4x4 WaterBound
+      // footprint spans six cells of |x-y| on the diagonal, so a channel any
+      // narrower than this is one a single Shipyard plugs — and a plugged
+      // channel strands the fleet behind it for the rest of the match
+      // (measured: one Destroyer re-flagged B1-stuck 557 times).
+      var inChan = Math.abs(v) <= 4.6 && Math.abs(u) >= 9 && Math.abs(u) <= 25;
+      if (inBay || inChan) setF(g, x, y, T_WATER);
+    }
+    // The island: a rounded shoal at the exact mirror centre, so it is its
+    // own reflection. genCore lays the gem seam on it afterwards.
+    for (y = 26; y <= 37; y++) for (x = 26; x <= 37; x++) {
+      var dx = x - 31.5, dy = y - 31.5;
+      if (dx * dx + dy * dy <= 26) setF(g, x, y, T_GROUND);
+    }
   }
   // Ten neutral civilian blocks in mirrored pairs, set back from the streets.
   // setT only writes on clear ground and the board is already 180 deg
@@ -5391,6 +5647,416 @@
     return s;
   }
 
+
+  // ===================================================================== //
+  //  THE NAVY — eight baked facings per hull, same anchor and the same iso
+  //  basis as bakeVehicle, so drawUnit places a Destroyer exactly as it
+  //  places a Grizzly.
+  //
+  //  A ship is not a tank with a pointed nose, and the five moves that make
+  //  one read at 1:1 are different ones:
+  //
+  //    1. A PLAN, not a box. The hull is a nine-point outline in the ground
+  //       plane — raked stem, a long parallel midbody, a squared transom —
+  //       extruded to a deck. Every RA2 hull is drawn from its waterline
+  //       silhouette and this is what carries the direction at the three-
+  //       quarter facings where a box collapses.
+  //    2. A WATERLINE. The plan is filled once as a dark boot-topping BELOW
+  //       the deck line, so the hull sits IN the water instead of on it, and
+  //       the shadowed side of the freeboard is what tells you which way it
+  //       is heeled.
+  //    3. SUPERSTRUCTURE IN TIERS. Bridge block, then a smaller wheelhouse on
+  //       it, then a mast: three descending masses is what stops a warship
+  //       reading as a barge with a lump on it.
+  //    4. ONE house band, high on the hull side under the deck edge, plus a
+  //       funnel or launcher cheek. Ships carry very little paint in RA2 and
+  //       the eye still finds it because the rest of the hull is grey.
+  //    5. FITMENTS with a job: gun, radar, funnel, boat davit, deck lights.
+  // ===================================================================== //
+  var SHIP_KINDS = { destroyer: 1, aegis: 1, carrier: 1, dolphin: 1, lcraft: 1,
+                     sub: 1, seascorp: 1, dread: 1, squid: 1 };
+  function bakeShip(col, kind, fac) {
+    var sov = fac === 'col';
+    var HOUSE = col, HD = shade(col, 0.74), HL = shade(col, 1.24);
+    var GUN = '#191b20', GUN_L = '#5b616b', STEEL = '#9aa0a8', DKSTEEL = '#4a505a';
+    var GLASS = '#7fb6d8', WHITE = '#e6eaf0';
+    // Hull colours. Directorate hulls are haze grey; Collective hulls are the
+    // dark olive-slate the Soviet fleet wears. Neither is chromatic, so the
+    // owner colour keeps the field to itself.
+    var HULL = sov ? '#666d61' : '#8d97a3';
+    var DECK = sov ? '#3d4239' : '#454c57';
+    if (kind === 'sub')      { HULL = '#2f333a'; DECK = '#1e2126'; }
+    if (kind === 'dolphin')  { HULL = '#728798'; DECK = '#4b5a68'; }
+    if (kind === 'squid')    { HULL = sov ? '#6c4a60' : '#6c4a60'; DECK = '#432c3d'; }
+    if (kind === 'lcraft')   { HULL = '#7e8778'; DECK = '#41473c'; }
+    if (kind === 'carrier')  { HULL = '#8a949f'; DECK = '#3a3f47'; }
+    var BOOT = shade(HULL, 0.34);                       // boot-topping at the waterline
+
+    // Plan geometry per hull, in pre-scale pixels. L is overall length, W
+    // beam, FREE the freeboard the deck stands on.
+    var G = { destroyer: { L: 46, W: 12, FREE: 5.0 },
+              aegis:     { L: 44, W: 14, FREE: 5.4 },
+              carrier:   { L: 58, W: 21, FREE: 6.4 },
+              dolphin:   { L: 18, W: 7,  FREE: 2.0 },
+              lcraft:    { L: 34, W: 16, FREE: 3.4 },
+              sub:       { L: 42, W: 11, FREE: 2.2 },
+              seascorp:  { L: 28, W: 12, FREE: 4.0 },
+              dread:     { L: 52, W: 17, FREE: 5.8 },
+              squid:     { L: 20, W: 14, FREE: 2.2 } }[kind];
+
+    function frame(d) {
+      var big = kind === 'carrier' || kind === 'dread';
+      var s = big ? mkCanvas(150, 112) : unitCanvas(), g = s.g;
+      var cx = s.w / 2, by = s.h - UPAD;
+      g.translate(cx, by); g.scale(USC_V, USC_V); g.translate(-cx, -by);
+      var a = d * Math.PI / 4, cd = Math.cos(a), sd = Math.sin(a);
+      var fx = ISO_X * (cd - sd), fy = ISO_Y * (cd + sd);       // forward
+      var px = ISO_X * (-sd - cd), py = ISO_Y * (-sd + cd);     // sideways
+      var nearS = py >= 0 ? 1 : -1;                             // the flank facing us
+      var head = fy;                                            // >0 = coming toward the camera
+
+      function P(u, v, z) { return [cx + fx * u + px * v, cy0 + fy * u + py * v - (z || 0)]; }
+      var cy0 = by;
+
+      // ---- the plan outline ------------------------------------------- //
+      var L = G.L / 2, W = G.W / 2, FR = G.FREE;
+      var stem = kind === 'lcraft' ? 0.72 : (kind === 'carrier' ? 0.86 : 1);   // a landing craft has a blunt ramp bow
+      var plan = kind === 'squid'
+        ? [[L, 0], [L * 0.5, W * 0.8], [-L * 0.2, W], [-L * 0.9, W * 0.55],
+           [-L, 0], [-L * 0.9, -W * 0.55], [-L * 0.2, -W], [L * 0.5, -W * 0.8]]
+        : [[L, 0], [L * 0.66 * stem, W * 0.70], [L * 0.12, W], [-L * 0.76, W],
+           [-L, W * 0.70], [-L, -W * 0.70], [-L * 0.76, -W], [L * 0.12, -W],
+           [L * 0.66 * stem, -W * 0.70]];
+      if (kind === 'lcraft') { plan[0] = [L * 0.86, W * 0.30]; plan.push([L * 0.86, -W * 0.30]); }
+
+      function poly(z, fill, line) {
+        g.beginPath();
+        for (var i = 0; i < plan.length; i++) {
+          var q = P(plan[i][0], plan[i][1], z);
+          if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]);
+        }
+        g.closePath();
+        if (fill) { g.fillStyle = fill; g.fill(); }
+        if (line) { g.strokeStyle = line; g.lineWidth = 0.8; g.stroke(); }
+      }
+
+      // 1. The wet hull: the plan filled at the waterline, a shade darker
+      //    than the topsides. Drawn FIRST so the freeboard sits on it.
+      poly(0, BOOT);
+      // 2. Freeboard: one quad per plan edge, far ones first so the near
+      //    flank wins, graded like every other iso wall in the game.
+      var edges = [], i2;
+      for (i2 = 0; i2 < plan.length; i2++) {
+        var pA = plan[i2], pB = plan[(i2 + 1) % plan.length];
+        var mA = P(pA[0], pA[1], 0), mB = P(pB[0], pB[1], 0);
+        edges.push({ a: pA, b: pB, y: (mA[1] + mB[1]) / 2 });
+      }
+      edges.sort(function (m, n) { return m.y - n.y; });
+      for (i2 = 0; i2 < edges.length; i2++) {
+        var e = edges[i2];
+        var q0 = P(e.a[0], e.a[1], 0), q1 = P(e.b[0], e.b[1], 0);
+        var lit = ((q0[1] + q1[1]) / 2 - cy0) > 0 ? 1 : 0.62;
+        g.beginPath();
+        g.moveTo(q0[0], q0[1]); g.lineTo(q1[0], q1[1]);
+        g.lineTo(q1[0], q1[1] - FR); g.lineTo(q0[0], q0[1] - FR);
+        g.closePath();
+        var top = Math.min(q0[1], q1[1]) - FR, bot = Math.max(q0[1], q1[1]);
+        var grd = g.createLinearGradient(0, top, 0, bot + 0.5);
+        grd.addColorStop(0, shade(HULL, 1.10 * lit));
+        grd.addColorStop(0.62, shade(HULL, 0.92 * lit));
+        grd.addColorStop(1, shade(HULL, 0.66 * lit));
+        g.fillStyle = grd; g.fill();
+        // A single house stripe high on the flank, only on the lit side.
+        if (lit === 1 && kind !== 'sub' && kind !== 'dolphin' && kind !== 'squid') {
+          g.strokeStyle = HOUSE; g.lineWidth = 1.5;
+          g.beginPath();
+          g.moveTo(q0[0], q0[1] - FR + 1.2); g.lineTo(q1[0], q1[1] - FR + 1.2); g.stroke();
+          g.strokeStyle = HD; g.lineWidth = 0.6;
+          g.beginPath();
+          g.moveTo(q0[0], q0[1] - FR + 2.2); g.lineTo(q1[0], q1[1] - FR + 2.2); g.stroke();
+        }
+      }
+      // 3. The deck.
+      var dg = g.createLinearGradient(0, cy0 - FR - Math.abs(fy) * L, 0, cy0 - FR + Math.abs(fy) * L);
+      dg.addColorStop(0, shade(DECK, 1.30)); dg.addColorStop(1, shade(DECK, 0.92));
+      poly(FR, null, null);
+      g.save(); poly(FR, null, null); g.clip();
+      poly(FR, dg, null);
+      g.restore();
+      poly(FR, null, shade(HULL, 1.35));                 // lit sheer line
+
+      // ---- helpers on the deck ---------------------------------------- //
+      function box(u, v, len, wid, hgt, colr) {
+        var q = P(u, v, FR);
+        isoBox(g, q[0], q[1], len, wid, hgt, a, colr, 'rgba(10,12,16,.55)');
+      }
+      function mast(u, v, h, colr) {
+        var q = P(u, v, FR);
+        g.strokeStyle = colr || DKSTEEL; g.lineWidth = 1.3;
+        g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[0], q[1] - h); g.stroke();
+        g.strokeStyle = colr || DKSTEEL; g.lineWidth = 0.9;
+        g.beginPath(); g.moveTo(q[0] - 3, q[1] - h * 0.72); g.lineTo(q[0] + 3, q[1] - h * 0.72); g.stroke();
+      }
+      function barrel(u, v, z, len, thick) {
+        var q = P(u, v, FR + z), r = P(u + len, v, FR + z);
+        g.strokeStyle = GUN; g.lineWidth = thick;
+        g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(r[0], r[1]); g.stroke();
+        g.strokeStyle = GUN_L; g.lineWidth = Math.max(0.6, thick - 1.1);
+        g.beginPath(); g.moveTo(q[0], q[1] - 0.4); g.lineTo(r[0], r[1] - 0.4); g.stroke();
+      }
+      function disc(u, v, z, rx, ry, colr) {
+        var q = P(u, v, FR + z);
+        g.fillStyle = colr; g.beginPath(); g.ellipse(q[0], q[1], rx, ry, 0, 0, 6.29); g.fill();
+      }
+
+      if (kind === 'destroyer') {
+        // [DEST]: a raked stem, one turret forward, a stack amidships, and
+        // the Osprey's pad right aft — the three masses of an RA2 Destroyer.
+        box(-L * 0.05, 0, L * 0.72, W * 1.05, 5.2, DECK);                 // bridge block
+        box(L * 0.02, 0, L * 0.34, W * 0.72, 4.4, shade(DECK, 1.16));     // wheelhouse
+        disc(L * 0.55, 0, 3.4, 4.2, 2.4, STEEL);                          // A-turret mount
+        barrel(L * 0.62, 0, 4.2, 8, 2.1);
+        box(-L * 0.24, 0, 6, W * 0.55, 7.0, '#33373d');                   // funnel
+        g.strokeStyle = HOUSE; g.lineWidth = 1.6;
+        var fq = P(-L * 0.24, 0, FR + 5.4); g.beginPath();
+        g.moveTo(fq[0] - 3.6, fq[1]); g.lineTo(fq[0] + 3.6, fq[1]); g.stroke();
+        mast(L * 0.10, 0, 13);
+        disc(L * 0.10, 0, 11.6, 3.0, 1.3, STEEL);                         // air-search radar
+        // The helicopter pad, and the Osprey folded on it.
+        disc(-L * 0.72, 0, 0.4, 6.0, 3.2, '#22262b');
+        g.strokeStyle = HOUSE; g.lineWidth = 0.9;
+        var hq = P(-L * 0.72, 0, FR + 0.6);
+        g.beginPath(); g.ellipse(hq[0], hq[1], 4.4, 2.3, 0, 0, 6.29); g.stroke();
+        disc(-L * 0.72, 0, 1.6, 3.0, 1.5, '#5d6a58');
+        g.strokeStyle = '#2a2f33'; g.lineWidth = 0.9;
+        g.beginPath(); g.moveTo(hq[0] - 4, hq[1] - 2.4); g.lineTo(hq[0] + 4, hq[1] - 2.0); g.stroke();
+      } else if (kind === 'aegis') {
+        // [AEGIS]: the whole ship is a missile battery. One tall slab-sided
+        // deckhouse carrying the four phased-array PANELS (the house colour
+        // lives on those, nowhere else) and a box launcher fore and aft.
+        box(-L * 0.02, 0, L * 0.80, W * 1.02, 7.6, DECK);
+        var pq = P(L * 0.20, W * 0.45 * nearS, FR + 6.6);
+        g.fillStyle = HOUSE;
+        g.beginPath();
+        g.moveTo(pq[0] - 4.6, pq[1] - 4.4); g.lineTo(pq[0] + 4.6, pq[1] - 3.2);
+        g.lineTo(pq[0] + 4.6, pq[1] + 1.4); g.lineTo(pq[0] - 4.6, pq[1] + 0.4);
+        g.closePath(); g.fill();
+        g.strokeStyle = HL; g.lineWidth = 0.8; g.stroke();
+        g.strokeStyle = HD; g.lineWidth = 0.6;
+        for (var pi = -3; pi <= 3; pi += 2) {
+          g.beginPath(); g.moveTo(pq[0] + pi, pq[1] - 4.0); g.lineTo(pq[0] + pi, pq[1] + 0.9); g.stroke();
+        }
+        box(L * 0.56, 0, 7, W * 0.66, 3.0, '#3a4048');                    // forward VLS
+        box(-L * 0.68, 0, 7, W * 0.66, 3.0, '#3a4048');                   // aft VLS
+        g.fillStyle = '#12161b';
+        for (var vi = 0; vi < 3; vi++) {
+          var vq = P(L * 0.56 - vi * 2.2, (vi - 1) * 2.2, FR + 3.2);
+          g.beginPath(); g.ellipse(vq[0], vq[1], 1.0, 0.6, 0, 0, 6.29); g.fill();
+        }
+        mast(-L * 0.16, 0, 16);
+        disc(-L * 0.16, 0, 14.4, 2.4, 1.1, WHITE);
+      } else if (kind === 'carrier') {
+        // [CARRIER]: a flat flight deck with a centreline and a house-colour
+        // landing stripe, the island offset to starboard, three Hornets ranged
+        // aft. The deck IS the silhouette; the island must stay small.
+        g.save(); poly(FR, null, null); g.clip();
+        g.strokeStyle = '#d9dde2'; g.lineWidth = 1.4;
+        for (var ci = 0; ci < 9; ci++) {                                  // dashed centreline
+          var cu0 = L * (0.80 - ci * 0.185), cu1 = cu0 - L * 0.10;
+          var c0 = P(cu0, 0, FR), c1 = P(cu1, 0, FR);
+          g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]); g.stroke();
+        }
+        g.strokeStyle = HOUSE; g.lineWidth = 2.2;
+        var a0 = P(L * 0.55, -W * 0.42, FR), a1 = P(-L * 0.88, -W * 0.10, FR);
+        g.beginPath(); g.moveTo(a0[0], a0[1]); g.lineTo(a1[0], a1[1]); g.stroke();
+        g.restore();
+        box(-L * 0.06, W * 0.62, L * 0.28, W * 0.30, 9.5, '#4b515a');     // island
+        box(-L * 0.06, W * 0.62, L * 0.16, W * 0.22, 12.0, '#5a616b');
+        mast(-L * 0.14, W * 0.62, 15);
+        disc(-L * 0.14, W * 0.62, 13.6, 2.6, 1.2, WHITE);
+        var iq = P(-L * 0.02, W * 0.62, FR + 10.6);
+        g.fillStyle = GLASS; g.fillRect(iq[0] - 3.0, iq[1] - 1.6, 6.0, 1.8);
+        g.strokeStyle = HOUSE; g.lineWidth = 1.4;
+        g.beginPath(); g.moveTo(iq[0] - 3.2, iq[1] + 0.8); g.lineTo(iq[0] + 3.2, iq[1] + 0.8); g.stroke();
+        // Three parked Hornets — the air group, visible on the deck.
+        for (var hi = 0; hi < 3; hi++) {
+          var pq2 = P(-L * (0.30 + hi * 0.24), -W * 0.42, FR + 0.4);
+          g.fillStyle = '#c8cdd4';
+          g.beginPath(); g.ellipse(pq2[0], pq2[1], 3.2, 1.5, 0, 0, 6.29); g.fill();
+          g.strokeStyle = '#8f959d'; g.lineWidth = 1.5;
+          g.beginPath(); g.moveTo(pq2[0] - 3.0, pq2[1] + 0.6); g.lineTo(pq2[0] + 3.0, pq2[1] - 0.6); g.stroke();
+          g.fillStyle = HOUSE;
+          g.beginPath(); g.ellipse(pq2[0] + 1.6, pq2[1] - 0.4, 0.9, 0.7, 0, 0, 6.29); g.fill();
+        }
+      } else if (kind === 'dread') {
+        // [DRED]: the missile ship. Two huge box launchers standing proud of
+        // a low hull, angled up and aft — the RA2 silhouette is those boxes.
+        box(-L * 0.10, 0, L * 0.52, W * 0.90, 4.6, DECK);
+        for (var si = 0; si < 2; si++) {
+          var su = L * (0.16 - si * 0.40);
+          box(su, 0, 12, W * 0.80, 9.0, '#4d5346');
+          var sq = P(su, 0, FR + 8.6);
+          g.fillStyle = HOUSE;
+          g.beginPath();
+          g.moveTo(sq[0] - 5.4, sq[1] + 0.6); g.lineTo(sq[0] + 5.4, sq[1] - 0.6);
+          g.lineTo(sq[0] + 5.4, sq[1] - 2.6); g.lineTo(sq[0] - 5.4, sq[1] - 1.4);
+          g.closePath(); g.fill();
+          g.strokeStyle = '#12161b'; g.lineWidth = 1.0;
+          for (var hi2 = -1; hi2 <= 1; hi2++) {
+            g.beginPath(); g.moveTo(sq[0] + hi2 * 3.0, sq[1] - 1.6); g.lineTo(sq[0] + hi2 * 3.0 + 1.6, sq[1] - 4.6); g.stroke();
+          }
+        }
+        box(-L * 0.66, 0, 8, W * 0.66, 8.4, '#3a3f36');                   // aft house
+        mast(-L * 0.62, 0, 12, '#2c3129');
+        disc(-L * 0.62, 0, 10.6, 2.4, 1.1, '#b9bfae');
+        g.strokeStyle = '#8e2c2c'; g.lineWidth = 1.0;                      // hazard hatching fore
+        var zq = P(L * 0.62, 0, FR + 0.4);
+        g.beginPath(); g.moveTo(zq[0] - 4, zq[1] - 1.2); g.lineTo(zq[0] + 4, zq[1] + 1.2); g.stroke();
+      } else if (kind === 'seascorp') {
+        // [HYD]: small, fast, and all gun. A low planing hull with the flak
+        // mount over the stern and a stubby house-coloured cheek each side.
+        box(L * 0.02, 0, L * 0.50, W * 0.86, 4.2, DECK);
+        var gq = P(-L * 0.24, 0, FR + 3.8);
+        g.fillStyle = shade(DECK, 1.2);
+        g.beginPath(); g.ellipse(gq[0], gq[1], 4.6, 2.6, 0, 0, 6.29); g.fill();
+        // Two sloped house-coloured ammo cheeks either side of the mount —
+        // wedges, as [HYD]'s sprite has, not discs.
+        g.fillStyle = HOUSE;
+        for (var ch = -1; ch <= 1; ch += 2) {
+          g.beginPath();
+          g.moveTo(gq[0] + ch * 2.0, gq[1] + 0.9);
+          g.lineTo(gq[0] + ch * 4.8, gq[1] - 0.4);
+          g.lineTo(gq[0] + ch * 4.4, gq[1] - 3.0);
+          g.lineTo(gq[0] + ch * 1.8, gq[1] - 2.0);
+          g.closePath(); g.fill();
+          g.strokeStyle = HD; g.lineWidth = 0.6; g.stroke();
+        }
+        barrel(-L * 0.24, -1.6, 6.8, 8, 1.4);
+        barrel(-L * 0.24, 1.6, 6.8, 8, 1.4);
+        var wq = P(L * 0.22, 0, FR + 4.4);
+        g.fillStyle = GLASS; g.fillRect(wq[0] - 2.6, wq[1] - 1.4, 5.2, 1.6);
+        mast(L * 0.02, 0, 9);
+      } else if (kind === 'lcraft') {
+        // [LCRF]: an open well deck between two side walls, and the bow RAMP
+        // — the one feature that says "this thing beaches".
+        box(-L * 0.10, W * 0.80, L * 0.90, W * 0.24, 4.0, shade(HULL, 0.94));
+        box(-L * 0.10, -W * 0.80, L * 0.90, W * 0.24, 4.0, shade(HULL, 0.94));
+        g.save(); poly(FR, null, null); g.clip();
+        g.fillStyle = '#2b2f28';
+        poly(FR, '#2b2f28', null);                     // the open well, in shadow
+        g.strokeStyle = '#4d5347'; g.lineWidth = 0.8;
+        for (var ri = -2; ri <= 2; ri++) {
+          var r0 = P(L * 0.5, ri * 3.0, FR), r1 = P(-L * 0.8, ri * 3.0, FR);
+          g.beginPath(); g.moveTo(r0[0], r0[1]); g.lineTo(r1[0], r1[1]); g.stroke();
+        }
+        g.restore();
+        // Ramp: a pale wedge folded up over the bow.
+        var m0 = P(L * 0.86, W * 0.34, FR), m1 = P(L * 0.86, -W * 0.34, FR);
+        var m2 = P(L * 0.62, -W * 0.34, FR + 6.4), m3 = P(L * 0.62, W * 0.34, FR + 6.4);
+        g.beginPath(); g.moveTo(m0[0], m0[1]); g.lineTo(m1[0], m1[1]);
+        g.lineTo(m2[0], m2[1]); g.lineTo(m3[0], m3[1]); g.closePath();
+        g.fillStyle = shade(HULL, 1.16); g.fill();
+        g.strokeStyle = '#22261f'; g.lineWidth = 0.8; g.stroke();
+        g.strokeStyle = HOUSE; g.lineWidth = 1.6;
+        g.beginPath(); g.moveTo((m2[0] + m3[0]) / 2 - 4, (m2[1] + m3[1]) / 2);
+        g.lineTo((m2[0] + m3[0]) / 2 + 4, (m2[1] + m3[1]) / 2 + 0.6); g.stroke();
+        box(-L * 0.76, 0, 6, W * 0.50, 5.4, shade(DECK, 1.1));            // little wheelhouse aft
+      } else if (kind === 'sub') {
+        // [SUB]: almost nothing above water. A long whaleback casing awash,
+        // one sail with a house band, two periscopes. The reason it reads as a
+        // submarine is that the deck is BARELY above the waterline.
+        g.save(); poly(FR, null, null); g.clip();
+        g.strokeStyle = '#4a5058'; g.lineWidth = 0.8;
+        var d0 = P(L * 0.8, 0, FR), d1 = P(-L * 0.9, 0, FR);
+        g.beginPath(); g.moveTo(d0[0], d0[1]); g.lineTo(d1[0], d1[1]); g.stroke();
+        g.restore();
+        box(L * 0.02, 0, L * 0.28, W * 0.52, 6.6, '#3b4048');             // the sail
+        var sq2 = P(L * 0.02, 0, FR + 5.6);
+        g.strokeStyle = HOUSE; g.lineWidth = 1.6;
+        g.beginPath(); g.moveTo(sq2[0] - 3.2, sq2[1]); g.lineTo(sq2[0] + 3.2, sq2[1] + 0.4); g.stroke();
+        g.strokeStyle = '#20242a'; g.lineWidth = 1.1;
+        g.beginPath(); g.moveTo(sq2[0] - 0.8, sq2[1] - 1.0); g.lineTo(sq2[0] - 1.4, sq2[1] - 6.4); g.stroke();
+        g.beginPath(); g.moveTo(sq2[0] + 0.8, sq2[1] - 1.0); g.lineTo(sq2[0] + 1.2, sq2[1] - 5.2); g.stroke();
+        // Torpedo tube caps in the bow, and the stern planes.
+        g.fillStyle = '#171a1f';
+        var tq = P(L * 0.80, 0, FR - 0.6);
+        g.beginPath(); g.ellipse(tq[0], tq[1], 1.6, 1.0, 0, 0, 6.29); g.fill();
+        g.strokeStyle = '#2b3038'; g.lineWidth = 1.6;
+        var e0 = P(-L * 0.88, W * 1.3, 1.2), e1 = P(-L * 0.88, -W * 1.3, 1.2);
+        g.beginPath(); g.moveTo(e0[0], e0[1]); g.lineTo(e1[0], e1[1]); g.stroke();
+      } else if (kind === 'dolphin') {
+        // [DLPH]: an animal, not a boat. The plan gives the body; on top of it
+        // a smooth back arc, a dorsal fin, a beak and a fluke.
+        var bq = P(0, 0, FR);
+        g.fillStyle = HULL;
+        g.beginPath(); g.ellipse(bq[0], bq[1] - 1.2, 8.4, 3.4, 0, 0, 6.29); g.fill();
+        g.fillStyle = shade(HULL, 1.24);
+        g.beginPath(); g.ellipse(bq[0], bq[1] - 2.2, 7.0, 2.1, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#cfd8de';                                          // pale belly
+        g.beginPath(); g.ellipse(bq[0], bq[1] + 0.4, 6.0, 1.5, 0, 0, 6.29); g.fill();
+        var nq = P(L * 0.95, 0, FR);
+        g.strokeStyle = HULL; g.lineWidth = 2.4; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(bq[0], bq[1] - 1.6); g.lineTo(nq[0], nq[1] - 0.2); g.stroke();
+        g.lineCap = 'butt';
+        var kq = P(-L * 0.95, 0, FR);                                     // fluke
+        g.fillStyle = shade(HULL, 0.86);
+        g.beginPath();
+        g.moveTo(kq[0] + 2, kq[1] - 1.2); g.lineTo(kq[0] - 3.4, kq[1] - 3.0);
+        g.lineTo(kq[0] - 2.4, kq[1] - 0.4); g.lineTo(kq[0] - 3.6, kq[1] + 1.8);
+        g.closePath(); g.fill();
+        g.fillStyle = HOUSE;                                              // the harness, its only paint
+        g.beginPath();
+        g.moveTo(bq[0] - 0.6, bq[1] - 4.2); g.lineTo(bq[0] + 2.2, bq[1] - 8.2);
+        g.lineTo(bq[0] + 2.8, bq[1] - 3.6); g.closePath(); g.fill();
+        g.fillStyle = '#101418';
+        g.beginPath(); g.ellipse(nq[0] - 2.2, nq[1] - 1.6, 0.7, 0.6, 0, 0, 6.29); g.fill();
+      } else if (kind === 'squid') {
+        // [SQD]: a mantle and eight arms. No deck, no fittings — the only
+        // straight line on it would kill the read.
+        var mq = P(0, 0, FR);
+        g.fillStyle = HULL;
+        g.beginPath(); g.ellipse(mq[0], mq[1] - 2.4, 6.6, 4.4, 0, 0, 6.29); g.fill();
+        g.fillStyle = shade(HULL, 1.22);
+        g.beginPath(); g.ellipse(mq[0] - 0.6, mq[1] - 3.8, 4.6, 2.6, 0, 0, 6.29); g.fill();
+        var tipq = P(-L * 1.0, 0, FR);
+        g.fillStyle = shade(HULL, 0.78);
+        g.beginPath();
+        g.moveTo(mq[0], mq[1] - 5.6); g.lineTo(tipq[0], tipq[1] - 2.4); g.lineTo(mq[0], mq[1] + 0.6);
+        g.closePath(); g.fill();
+        g.strokeStyle = shade(HULL, 0.72); g.lineWidth = 2.3; g.lineCap = 'round';
+        for (var ti = 0; ti < 8; ti++) {
+          var ang = (ti / 8) * 6.283 + 0.4;
+          var aq = P(L * (0.55 + Math.cos(ang) * 0.5), W * Math.sin(ang) * 0.85, FR);
+          g.beginPath();
+          g.moveTo(mq[0], mq[1] - 1.6);
+          g.quadraticCurveTo((mq[0] + aq[0]) / 2 + Math.sin(ang) * 3, (mq[1] + aq[1]) / 2 - 3.4, aq[0], aq[1] - 0.4);
+          g.stroke();
+        }
+        g.lineCap = 'butt';
+        g.fillStyle = '#f2e27a';                                           // the eye
+        g.beginPath(); g.ellipse(mq[0] + 3.0 * (head > 0 ? 1 : -1), mq[1] - 2.6, 1.5, 1.2, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#141018';
+        g.beginPath(); g.ellipse(mq[0] + 3.0 * (head > 0 ? 1 : -1), mq[1] - 2.6, 0.7, 0.9, 0, 0, 6.29); g.fill();
+      }
+      // A bow wave on every surface hull: two pale chevrons off the stem, on
+      // the water, so a ship reads as sitting IN something.
+      if (kind !== 'sub' && kind !== 'dolphin' && kind !== 'squid') {
+        g.strokeStyle = 'rgba(232,244,252,.34)'; g.lineWidth = 1.0;
+        for (var wi = 0; wi < 2; wi++) {
+          var bw0 = P(L * (0.74 - wi * 0.14), W * (0.90 + wi * 0.34), 0);
+          var bw1 = P(L * (0.99 - wi * 0.09), 0, 0);
+          var bw2 = P(L * (0.74 - wi * 0.14), -W * (0.90 + wi * 0.34), 0);
+          g.beginPath(); g.moveTo(bw0[0], bw0[1]);
+          g.quadraticCurveTo(bw1[0], bw1[1], bw2[0], bw2[1]); g.stroke();
+        }
+      }
+      return s;
+    }
+    var out = [];
+    for (var d = 0; d < 8; d++) out.push(frame(d));
+    return out;
+  }
+
   // Same lazy atlas as infArt: one standing frame at load, the rest of the
   // 8 x 10 set baked the first time a dog actually faces that way.
   function dogArt(col, fac) {
@@ -8073,6 +8739,269 @@
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
     if (VS !== 1) { g.translate(0, baseY * (1 - VS)); g.scale(1, VS); }   // heights grow with the plot
+
+    // ------------------------------------------------------------------- //
+    //  [GAYARD] / [NAYARD] — the Shipyard. It is the ONE structure in the
+    //  game that stands on water (`WaterBound=yes`), so it skips the concrete
+    //  plate and the olive platform every land building shares: what it
+    //  stands on is a piled MOLE round three sides of the plot and an open
+    //  SLIPWAY on the fourth, which is where `DockingOffset0=384,-128,0`
+    //  puts the launch. Both faction sprites are the same machine — quay,
+    //  covered hall, gantry over the slip, crane — in two different
+    //  languages: the Directorate's is a white steel boathouse with a curved
+    //  roof and blue glass, the Collective's a black-iron dock with a red
+    //  gantry and a stack. Six phases: the gantry trolley traverses, the
+    //  welding arc flashes in the bay, the bay doors part and the swell moves.
+    // ------------------------------------------------------------------- //
+    if (key === 'shipyard') {
+      var ph = bph || 0;
+      var PILE = '#37312a';
+      var QUAY = sov ? '#6e6a5f' : '#8b9296', QUAY_D = sov ? '#332f29' : '#3f4448';
+      var HALL = sov ? '#39403a' : '#b9c2cb', HALL_D = sov ? '#1c201d' : '#6d7783';
+      var GANT = sov ? '#9a352b' : '#c9d0d8', GANT_D = sov ? '#4c1a14' : '#71787f';
+      var GLASSY = '#4d90bb';
+
+      // Everything here is placed in CELLS, not in pixels. `du` runs along
+      // +gx (down-right on screen), `dv` along +gy (down-left); the plot is
+      // 4x4, so both run -2..+2 and the four corners of the ground plate are
+      // (±2, ±2). Placing a dock by eye in screen pixels is what put the
+      // first draft's quay off the side of its own footprint: a slab whose
+      // half-width and half-height are not in the tile's 2:1 ratio is not a
+      // patch of ground, it is a diamond floating over one.
+      function P(du, dv, z) {
+        return [cx + (du - dv) * (TW / 2), baseY + (du + dv) * (TH / 2) - (z || 0)];
+      }
+      // An nu x nv patch of ground at (du,dv), extruded `h` high: the four
+      // walls back to front, then the top face. Same treatment as isoBox.
+      function slab(du, dv, nu, nv, h, body, edge) {
+        var q = [P(du - nu / 2, dv - nv / 2), P(du + nu / 2, dv - nv / 2),
+                 P(du + nu / 2, dv + nv / 2), P(du - nu / 2, dv + nv / 2)];
+        var ord = [0, 1, 2, 3].sort(function (m, n) {
+          return (q[m][1] + q[(m + 1) % 4][1]) - (q[n][1] + q[(n + 1) % 4][1]);
+        });
+        for (var i = 0; i < 4; i++) {
+          var k = ord[i], p0 = q[k], p1 = q[(k + 1) % 4];
+          var lit = ((p0[1] + p1[1]) / 2 - baseY - (du + dv) * (TH / 2)) > 0 ? 0.92 : 0.60;
+          g.beginPath();
+          g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]);
+          g.lineTo(p1[0], p1[1] - h); g.lineTo(p0[0], p0[1] - h);
+          g.closePath();
+          var gr = g.createLinearGradient(0, Math.min(p0[1], p1[1]) - h, 0, Math.max(p0[1], p1[1]) + 0.5);
+          gr.addColorStop(0, shade(body, lit * 1.22));
+          gr.addColorStop(1, shade(body, lit * 0.80));
+          g.fillStyle = gr; g.fill();
+          if (edge) { g.strokeStyle = edge; g.lineWidth = 0.7; g.stroke(); }
+        }
+        g.beginPath();
+        for (var j = 0; j < 4; j++) {
+          if (j) g.lineTo(q[j][0], q[j][1] - h); else g.moveTo(q[j][0], q[j][1] - h);
+        }
+        g.closePath();
+        var ty0 = Math.min(q[0][1], q[1][1], q[2][1], q[3][1]) - h;
+        var ty1 = Math.max(q[0][1], q[1][1], q[2][1], q[3][1]) - h;
+        var tg = g.createLinearGradient(0, ty0, 0, ty1 + 0.5);
+        tg.addColorStop(0, shade(body, 1.26)); tg.addColorStop(1, shade(body, 1.02));
+        g.fillStyle = tg; g.fill();
+        if (edge) { g.strokeStyle = edge; g.lineWidth = 0.7; g.stroke(); }
+        return q;
+      }
+
+      // ---- the basin ---------------------------------------------------- //
+      // The yard's own shadow on the sea, with the swell running through it.
+      // Nothing opaque: the ground under the plot IS the map's animated water.
+      g.save();
+      plot(g, cx, baseY, fw * 2, fh * 2); g.clip();
+      plot(g, cx, baseY, fw * 2, fh * 2);
+      g.fillStyle = 'rgba(6,22,34,.38)'; g.fill();
+      g.strokeStyle = 'rgba(190,225,245,.22)'; g.lineWidth = 1.0;
+      for (var wv = -3; wv <= 3; wv++) {
+        var a0 = P(-2.2, wv * 0.7 + Math.sin(ph * 6.283 + wv) * 0.10);
+        var a1 = P(2.2, wv * 0.7 + Math.sin(ph * 6.283 + wv) * 0.10);
+        g.beginPath();
+        g.moveTo(a0[0], a0[1]);
+        g.quadraticCurveTo((a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2 + 3.0, a1[0], a1[1]);
+        g.stroke();
+      }
+      g.restore();
+
+      // ---- the mole ----------------------------------------------------- //
+      // An L of quay along the two FAR faces on driven piles. The near half
+      // of the plot is left open: that is the slip.
+      var QH = 9;
+      function piles(du, dv, nu, nv) {
+        g.strokeStyle = PILE; g.lineWidth = 2.4;
+        for (var i = -1; i <= 1; i += 2) for (var j = -2; j <= 2; j++) {
+          var pu = du + (nu / 2 - 0.25) * i, pv = dv + (nv / 2 - 0.25) * (j / 2);
+          var q = P(pu, pv, 0);
+          g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[0], q[1] - QH - 3); g.stroke();
+        }
+      }
+      piles(0, -1.3, 4, 1.4); piles(1.35, 0.7, 1.3, 2.6);
+      slab(0, -1.3, 4, 1.4, QH, shade(QUAY, 0.90), QUAY_D);       // the far quay, along -gy
+      slab(1.35, 0.7, 1.3, 2.6, QH, shade(QUAY, 0.90), QUAY_D);   // the side quay, along +gx
+      // Deck seams and oil, so the quay is a worked surface and not a card.
+      g.strokeStyle = 'rgba(0,0,0,.22)'; g.lineWidth = 0.9;
+      for (var sm2 = -3; sm2 <= 3; sm2++) {
+        var s0 = P(sm2 * 0.55, -2, QH), s1 = P(sm2 * 0.55, -0.6, QH);
+        g.beginPath(); g.moveTo(s0[0], s0[1]); g.lineTo(s1[0], s1[1]); g.stroke();
+        var s2 = P(1.35 - 0.55, sm2 * 0.36 + 0.7, QH), s3 = P(1.35 + 0.55, sm2 * 0.36 + 0.7, QH);
+        g.beginPath(); g.moveTo(s2[0], s2[1]); g.lineTo(s3[0], s3[1]); g.stroke();
+      }
+      srand(97);
+      g.globalAlpha = 0.22;
+      for (var oil = 0; oil < 9; oil++) {
+        var oq = P(-1.7 + rnd() * 3.4, -1.9 + rnd() * 1.2, QH);
+        g.fillStyle = rnd() < 0.5 ? shade(QUAY, 0.62) : shade(QUAY, 1.12);
+        g.beginPath(); g.ellipse(oq[0], oq[1], 3 + rnd() * 5, 1.6 + rnd() * 2.4, 0, 0, 6.29); g.fill();
+      }
+      g.globalAlpha = 1;
+
+      // ---- the fitting-out hall ------------------------------------------ //
+      // Low and long, set back on the far quay: RA2's yards are wide and flat
+      // and the CRANE is the tall part of the silhouette.
+      var HW = 3.2, HV = 0.92, HU = -0.30, HVV = -1.36, HH = 13;
+      slab(HU, HVV, HW, HV, QH + HH, HALL, HALL_D);
+      var hq0 = P(HU - HW / 2, HVV - HV / 2, QH + HH);            // far-left eave
+      var hq1 = P(HU + HW / 2, HVV - HV / 2, QH + HH);            // far-right eave
+      var hq2 = P(HU + HW / 2, HVV + HV / 2, QH + HH);            // near-right eave
+      var hq3 = P(HU - HW / 2, HVV + HV / 2, QH + HH);            // near-left eave
+      var ridY = Math.min(hq0[1], hq1[1], hq2[1], hq3[1]);
+      if (!sov) {
+        // Directorate: a shallow white barrel roof with a glazed clerestory.
+        g.fillStyle = shade(HALL, 1.32);
+        g.beginPath();
+        g.moveTo(hq3[0], hq3[1]);
+        g.quadraticCurveTo((hq3[0] + hq0[0]) / 2, ridY - 8, hq0[0], hq0[1]);
+        g.lineTo(hq1[0], hq1[1]);
+        g.quadraticCurveTo((hq1[0] + hq2[0]) / 2, ridY - 8 + (hq2[1] - hq3[1]), hq2[0], hq2[1]);
+        g.closePath(); g.fill();
+        g.strokeStyle = shade(HALL, 0.62); g.lineWidth = 0.9; g.stroke();
+        g.fillStyle = GLASSY;
+        for (var gz = 0; gz < 6; gz++) {
+          var gt = (gz + 0.5) / 6;
+          var gx0 = hq3[0] + (hq2[0] - hq3[0]) * gt, gy0 = hq3[1] + (hq2[1] - hq3[1]) * gt;
+          g.fillRect(gx0 - 4, gy0 + 3.2, 8, 3.4);
+        }
+      } else {
+        // Collective: a saw-tooth iron roof and a brick stack venting smoke.
+        g.fillStyle = shade(HALL, 0.80);
+        for (var st = 0; st < 5; st++) {
+          var t0 = st / 5, t1 = (st + 0.5) / 5, t2 = (st + 1) / 5;
+          var x0 = hq3[0] + (hq2[0] - hq3[0]) * t0, y0 = hq3[1] + (hq2[1] - hq3[1]) * t0;
+          var x1 = hq3[0] + (hq2[0] - hq3[0]) * t1, y1 = hq3[1] + (hq2[1] - hq3[1]) * t1;
+          var x2 = hq3[0] + (hq2[0] - hq3[0]) * t2, y2 = hq3[1] + (hq2[1] - hq3[1]) * t2;
+          g.beginPath();
+          g.moveTo(x0, y0 - 1); g.lineTo(x1, y1 - 12); g.lineTo(x2, y2 - 1);
+          g.closePath(); g.fill();
+        }
+        var stq = P(HU + HW / 2 - 0.35, HVV, QH + HH);
+        g.fillStyle = '#2b2b26'; g.fillRect(stq[0] - 3.4, stq[1] - 26, 6.8, 26);
+        g.fillStyle = col; g.fillRect(stq[0] - 3.4, stq[1] - 22, 6.8, 3.2);
+        g.fillStyle = 'rgba(165,165,165,.26)';
+        for (var sk = 0; sk < 3; sk++) {
+          var sp2 = ((ph * 2.4 + sk / 3) % 1);
+          g.beginPath();
+          g.ellipse(stq[0] + sp2 * 5, stq[1] - 28 - sp2 * 16, 2.6 + sp2 * 4.6, 1.8 + sp2 * 3.2, 0, 0, 6.29);
+          g.fill();
+        }
+      }
+      // ONE house band along the near eave — the only paint on the shell.
+      g.strokeStyle = col; g.lineWidth = 3.2;
+      g.beginPath(); g.moveTo(hq3[0], hq3[1] - 1.6); g.lineTo(hq2[0], hq2[1] - 1.6); g.stroke();
+      g.strokeStyle = shade(col, 0.68); g.lineWidth = 1.0;
+      g.beginPath(); g.moveTo(hq3[0], hq3[1] + 1.2); g.lineTo(hq2[0], hq2[1] + 1.2); g.stroke();
+
+      // ---- the bay doors, on the slip ------------------------------------ //
+      var dq = P(HU + 0.15, HVV + HV / 2, QH);
+      var open = (0.5 - Math.abs(ph - 0.5)) * 2;
+      g.fillStyle = '#0a0f14'; g.fillRect(dq[0] - 13, dq[1] - 17, 26, 17);
+      g.fillStyle = shade(HALL, sov ? 1.36 : 0.84);
+      g.fillRect(dq[0] - 13, dq[1] - 17, 13 - open * 11, 17);
+      g.fillRect(dq[0] + open * 11, dq[1] - 17, 13 - open * 11, 17);
+      g.strokeStyle = '#161a1e'; g.lineWidth = 0.8; g.strokeRect(dq[0] - 13, dq[1] - 17, 26, 17);
+      if (ph > 0.30 && ph < 0.55) {                                // welding arc inside the bay
+        g.fillStyle = 'rgba(205,235,255,.9)';
+        g.beginPath(); g.ellipse(dq[0] + 1, dq[1] - 7, 3.2, 2.2, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(120,190,255,.30)';
+        g.beginPath(); g.ellipse(dq[0] + 1, dq[1] - 7, 8, 5.2, 0, 0, 6.29); g.fill();
+      }
+
+      // ---- a hull on the slip -------------------------------------------- //
+      // A keel with its frames standing out of the water. This is what makes
+      // the plot read as a YARD rather than a warehouse that happens to be wet.
+      var k0 = P(-1.5, 1.3, 0), k1 = P(0.5, 0.2, 0);
+      g.strokeStyle = '#4f5649'; g.lineWidth = 3.4;
+      g.beginPath(); g.moveTo(k0[0], k0[1]); g.lineTo(k1[0], k1[1]); g.stroke();
+      g.strokeStyle = '#727a6c'; g.lineWidth = 1.6;
+      for (var rb = 0; rb < 6; rb++) {
+        var rt = rb / 5;
+        var rx2 = k0[0] + (k1[0] - k0[0]) * rt, ry2 = k0[1] + (k1[1] - k0[1]) * rt;
+        var rh = 5 + Math.sin(rt * 3.14) * 5.5;
+        g.beginPath();
+        g.moveTo(rx2 - 5.5, ry2 + 1.6);
+        g.quadraticCurveTo(rx2, ry2 - rh, rx2 + 5.5, ry2 + 1.6);
+        g.stroke();
+      }
+
+      // ---- the portal gantry --------------------------------------------- //
+      // Two lattice legs standing on the two quays, a beam across the slip, a
+      // trolley that traverses it and a hook that rises and falls.
+      var L0 = P(-1.55, -0.75, QH), L1 = P(1.35, 1.35, QH);
+      function leg(q, h) {
+        g.strokeStyle = GANT; g.lineWidth = 2.6;
+        g.beginPath(); g.moveTo(q[0] - 4, q[1]); g.lineTo(q[0], q[1] - h); g.stroke();
+        g.beginPath(); g.moveTo(q[0] + 4, q[1]); g.lineTo(q[0], q[1] - h); g.stroke();
+        g.strokeStyle = GANT_D; g.lineWidth = 0.9;
+        for (var bz = 1; bz < 5; bz++) {
+          var t3 = bz / 5, w3 = 4 * (1 - t3);
+          g.beginPath(); g.moveTo(q[0] - w3, q[1] - h * t3); g.lineTo(q[0] + w3, q[1] - h * t3); g.stroke();
+        }
+      }
+      var GHA = 44, GHB = 40;
+      leg(L0, GHA); leg(L1, GHB);
+      var b0 = [L0[0], L0[1] - GHA], b1 = [L1[0], L1[1] - GHB];
+      g.strokeStyle = GANT; g.lineWidth = 4.2;
+      g.beginPath(); g.moveTo(b0[0] - 4, b0[1]); g.lineTo(b1[0] + 4, b1[1]); g.stroke();
+      g.strokeStyle = GANT_D; g.lineWidth = 1.1;
+      g.beginPath(); g.moveTo(b0[0] - 4, b0[1] + 3.4); g.lineTo(b1[0] + 4, b1[1] + 3.4); g.stroke();
+      var tr = 0.16 + 0.68 * (0.5 - Math.cos(ph * 6.283) * 0.5);
+      var trx = b0[0] + (b1[0] - b0[0]) * tr, tryy = b0[1] + (b1[1] - b0[1]) * tr;
+      g.fillStyle = shade(GANT, 0.84); g.fillRect(trx - 5, tryy - 1, 10, 6.5);
+      g.fillStyle = col; g.fillRect(trx - 5, tryy + 4.4, 10, 2.4);
+      g.strokeStyle = '#23272b'; g.lineWidth = 1.0;
+      var hook = 16 + Math.sin(ph * 6.283) * 11;
+      g.beginPath(); g.moveTo(trx, tryy + 6.8); g.lineTo(trx, tryy + 6.8 + hook); g.stroke();
+      g.fillStyle = '#949ca4';
+      g.beginPath(); g.ellipse(trx, tryy + 8.8 + hook, 2.8, 1.9, 0, 0, 6.29); g.fill();
+
+      // ---- fittings ------------------------------------------------------- //
+      // A house-colour kerb painted along the quay edge that fronts the slip,
+      // so the eye is told which face a hull comes out of.
+      var e0 = P(-2, -0.6, QH), e1 = P(0.72, -0.6, QH);
+      g.strokeStyle = col; g.lineWidth = 2.6;
+      g.beginPath(); g.moveTo(e0[0], e0[1] - 1); g.lineTo(e1[0], e1[1] - 1); g.stroke();
+      g.strokeStyle = shade(col, 0.66); g.lineWidth = 1.0;
+      g.beginPath(); g.moveTo(e0[0], e0[1] + 1.4); g.lineTo(e1[0], e1[1] + 1.4); g.stroke();
+      g.fillStyle = QUAY_D;                                        // bollards along that edge
+      for (var bo = 0; bo < 5; bo++) {
+        var bq = P(-1.7 + bo * 0.62, -0.78, QH);
+        g.beginPath(); g.ellipse(bq[0], bq[1] - 2, 2.0, 1.3, 0, 0, 6.29); g.fill();
+      }
+      var FLS = [P(-1.9, -1.9, QH), P(1.8, 1.8, QH)];              // floodlights, blinking in turn
+      for (var fl = 0; fl < 2; fl++) {
+        var fq = FLS[fl];
+        g.strokeStyle = '#43484d'; g.lineWidth = 1.5;
+        g.beginPath(); g.moveTo(fq[0], fq[1]); g.lineTo(fq[0], fq[1] - 26); g.stroke();
+        var lit2 = (Math.floor(ph * 6) % 2) === fl;
+        g.fillStyle = lit2 ? '#ffe9ab' : '#686d71';
+        g.beginPath(); g.ellipse(fq[0], fq[1] - 27, 2.8, 1.9, 0, 0, 6.29); g.fill();
+        if (lit2) {
+          g.fillStyle = 'rgba(255,232,170,.18)';
+          g.beginPath(); g.ellipse(fq[0], fq[1] - 27, 9.5, 5.6, 0, 0, 6.29); g.fill();
+        }
+      }
+      return { s: s, ax: cx, ay: baseY };
+    }
 
     // RA2 structures are poured concrete and painted steel; the HOUSE colour
     // is trim — a door, a ridge, a flag, a chevron — never the whole shell.
@@ -17054,7 +17983,7 @@
             // The Prism Tank's art kind is still called `spectre` inside
             // bakeVehicle — the sprite it names is the Prism Tank's.
             var vk = UNITS[uk].harv ? 'harv' : (uk === 'prismtank' ? 'spectre' : uk);
-            U = bakeVehicle(COL[p], vk, ufk);
+            U = SHIP_KINDS[vk] ? bakeShip(COL[p], vk, ufk) : bakeVehicle(COL[p], vk, ufk);
             // Harvesters get a second 8-facing set with the scoop working;
             // drawUnit alternates the two while mining.
             if (vk === 'harv') U.mine = bakeVehicle(COL[p], vk, ufk, 'mine');
@@ -17087,7 +18016,7 @@
           A.rise = A.ay - artTop(A.s);
           A.mass = A.ay - artTopSolid(A.s, 12);   // over the mass, not a mast tip
           A.s.bb = artBox(A.s);
-          if (k === 'base' || k === 'power' || k === 'refinery' || k === 'factory' || k === 'barracks'
+          if (k === 'shipyard' || k === 'base' || k === 'power' || k === 'refinery' || k === 'factory' || k === 'barracks'
               || k === 'airforce' || k === 'radar' || k === 'depot' || k === 'lab' || k === 'purifier' || k === 'reactor'
               || k === 'sentry' || k === 'sentrygun' || k === 'prism' || k === 'tesla'
               || k === 'patriot' || k === 'flakcannon'
@@ -17186,7 +18115,8 @@
       var su = g.units[ui];
       if (su.dead || su.air) continue;
       if (Math.round(su.x) < gx || Math.round(su.x) >= gx + d.gw || Math.round(su.y) < gy || Math.round(su.y) >= gy + d.gh) continue;
-      var out = standSpot(g, Math.round(su.x), Math.round(su.y));
+      var out = (UNITS[su.type].nav ? waterSpot(g, Math.round(su.x), Math.round(su.y))
+                                    : standSpot(g, Math.round(su.x), Math.round(su.y)));
       if (out) { su.x = out.x; su.y = out.y; su.path = null; su.noProg = 0; if (su.order && su.order.t === 'move') su.repathAt = -999; }
     }
     recalcPower(g, p);
@@ -17336,10 +18266,10 @@
     var b = g.byId[g.occ[i]];
     return !!(b && !b.dead && BLDS[b.type].gate && b.p === p);
   }
-  function blocked(g, x, y, p) {
+  function blocked(g, x, y, p, mv) {
     if (!inMap(x, y)) return true;
     var i = idx(x, y);
-    if (solidT(g.terrain[i])) return true;
+    if (!terrPass(g.terrain[i], mv)) return true;
     if (g.occ[i] === 0) return false;
     if (gateOpen(g, i)) return false;
     return !(p !== undefined && ownGate(g, i, p));
@@ -17363,7 +18293,7 @@
     while (pathQ.length && n < budget) {
       var r = pathQ.shift(); n++;
       if (r.u.dead) continue;
-      var pth = astar(g, Math.round(r.u.x), Math.round(r.u.y), r.tx, r.ty, r.u.p);
+      var pth = astar(g, Math.round(r.u.x), Math.round(r.u.y), r.tx, r.ty, r.u.p, moverOf(r.u));
       // `[]` (goal is the unit's own tile) is truthy: it left a unit holding a
       // path it could never finish and an order it could never drop.
       r.u.path = pth && pth.length ? pth : null;
@@ -17372,19 +18302,19 @@
   }
 
   // Binary-heap A*. Returns an array of {x,y} or null when unreachable.
-  function astar(g, sx, sy, tx, ty, p) {
+  function astar(g, sx, sy, tx, ty, p, mv) {
     sx = Math.max(0, Math.min(MAP - 1, sx)); sy = Math.max(0, Math.min(MAP - 1, sy));
     if (!inMap(tx, ty)) return null;
     if (sx === tx && sy === ty) return [];
 
     // If the goal is blocked, walk out to the nearest free tile near it.
-    if (blocked(g, tx, ty, p)) {
+    if (blocked(g, tx, ty, p, mv)) {
       var best = null, bd = 1e9;
       for (var r = 1; r <= 4 && !best; r++) {
         for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
           if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
           var nx = tx + ox, ny = ty + oy;
-          if (blocked(g, nx, ny, p)) continue;
+          if (blocked(g, nx, ny, p, mv)) continue;
           var dd = (nx - sx) * (nx - sx) + (ny - sy) * (ny - sy);
           if (dd < bd) { bd = dd; best = { x: nx, y: ny }; }
         }
@@ -17441,9 +18371,9 @@
         if (!inMap(nx2, ny2)) continue;
         var ni = idx(nx2, ny2);
         if (closed[ni]) continue;
-        if (blocked(g, nx2, ny2, p) && ni !== ti) continue;
+        if (blocked(g, nx2, ny2, p, mv) && ni !== ti) continue;
         // no corner-cutting through two blocked orthogonals
-        if (ax && ay && blocked(g, cxx + ax, cyy, p) && blocked(g, cxx, cyy + ay, p)) continue;
+        if (ax && ay && blocked(g, cxx + ax, cyy, p, mv) && blocked(g, cxx, cyy + ay, p, mv)) continue;
         var step = (ax && ay) ? 1.4142 : 1;
         var ng = gs[cur] + step;
         if (ng < gs[ni]) { gs[ni] = ng; came[ni] = cur; push(ni, ng + h(nx2, ny2)); }
@@ -17545,6 +18475,7 @@
       if (o.dead || o.p === e.p) return;
       if (o.limbo) return;                   // inside a vehicle, or out of phase mid-warp
       if (!canHit(spec, o, e.kind === 'u' ? e : null)) return;   // a GI cannot shoot a Kirov; a Patriot cannot shoot a tank
+      if (isSub(o) && !subSeen(g, o, e.p)) return;                // running submerged and undetected
       var d = dist(e, o);
       // A Mirage reads as a tree until you are almost touching it; a Spy in
       // the enemy's own uniform is never shot at at all until a dog says so.
@@ -17691,6 +18622,11 @@
   var DECAL_LIFE = 90 * 60, DECAL_MAX = 56;          // ~90 s, RA2's scorch weathers away
   function decal(g, x, y, kind) {
     if (headless) return;
+    // Water keeps no scorch and no crater. A shell that bursts on the sea
+    // leaves a ring of foam and then nothing — a burnt patch floating in a
+    // bay is the single loudest tell that the naval layer was bolted on.
+    var dcx = Math.round(x), dcy = Math.round(y);
+    if (inMap(dcx, dcy) && waterish(g.terrain[idx(dcx, dcy)])) return;
     var n = 0, oldest = -1, i;
     for (i = 0; i < g.rubble.length; i++) if (g.rubble[i].fx) { n++; if (oldest < 0) oldest = i; }
     if (n >= DECAL_MAX && oldest >= 0) g.rubble.splice(oldest, 1);
@@ -17711,8 +18647,26 @@
   // A vehicle does not go out like a rifleman. RA2 gives it the large
   // family, throws chunks (`DebrisAnims=` / `MinDebris`-`MaxDebris`) and
   // leaves a smoke column standing over the wreck.
+  // [General] ShipSinkingWeight=3.0 — a surface ship of that weight or more
+  // does not explode, it SINKS: it lists, settles by the stern and goes under
+  // in a ring of foam, and the wreck is gone. Everything lighter (a Sea
+  // Scorpion, a Dolphin, a Squid) blows up like a vehicle.
+  var SINK_LIFE = 150;
+  function shipSinks(u) {
+    var d = UNITS[u.type];
+    return !!d.nav && d.hp >= 300 && d.cls === 'n' && u.type !== 'seascorp';
+  }
+  function shipSink(g, u) {
+    if (headless) return;
+    boom(g, u.x, u.y, 16); sfx('sink', u.x, u.y);
+    g.wrecks.push({ type: u.type, p: u.p, x: u.x, y: u.y, face: u.face || 0, t: 0,
+                    life: SINK_LIFE, alt0: 0, spin: 0, vx: 0, vy: 0, sink: true });
+    for (var i = 0; i < 3; i++)
+      g.fx.push({ x: u.x, y: u.y, t: -i * 16, life: 70, smoke: true, big: 1.0, ox: 0, oy: -6, lift: 0 });
+  }
   function vehicleDeath(g, u) {
     if (headless) return;
+    if (shipSinks(u)) { shipSink(g, u); return; }
     var rnd = lcg(((u.id * 2654435761) >>> 0) || 1), i;
     boom(g, u.x, u.y, 26);
     g.fx.push({ x: u.x, y: u.y, t: 5, life: 26, size: 13 });          // a second cook-off
@@ -17750,6 +18704,8 @@
     for (var i = g.wrecks.length - 1; i >= 0; i--) {
       var w = g.wrecks[i];
       w.t++; w.x += w.vx; w.y += w.vy;
+      // A ship that has gone under leaves foam, not a crater full of casualties.
+      if (w.sink) { if (w.t >= w.life) g.wrecks.splice(i, 1); continue; }
       if (w.t >= w.life) { g.wrecks.splice(i, 1); crashBoom(g, w); }
     }
   }
@@ -18004,6 +18960,10 @@
     // Patriot alternates its left and right tube.
     if (src.kind === 'b' && src.type === 'patriot') src.tube = src.tube ? 0 : 1;
     if (src.kind === 'u') src.fireAt = g.tick;        // a Mirage that shoots is a Mirage again
+    // `DecloakToFire=no` is on the torpedo and the sonic zap, but RA2 still
+    // shows the wake and the launch: firing is what gives a submerged hull
+    // away for SUB_SURFACE ticks.
+    if (src.kind === 'u' && isSub(src)) src.surfAt = g.tick;
     if (src.kind === 'u' && spec.ammo) src.ammo = Math.max(0, (src.ammo || 0) - 1);
     if (!headless) {
       var tx0 = tgt.kind === 'b' ? tgt.cx : tgt.x, ty0 = tgt.kind === 'b' ? tgt.cy : tgt.y;
@@ -18051,11 +19011,18 @@
     // Each of these RETURNS: the shot has been drawn and the cooldown set,
     // but no damage is dealt, because rules.ini's flag on the warhead
     // (Parasite / IvanBomb / MindControl / Temporal) replaces the damage.
-    if (spec.wh === 'Parasite' && tgt.kind === 'u' && isVeh(tgt) && !tgt.drone) { infest(g, src, tgt); return; }
+    if (spec.wh === 'Parasite' && tgt.kind === 'u' && (isVeh(tgt) || isNaval(tgt)) && !tgt.drone) { infest(g, src, tgt); return; }
     if (spec.wh === 'IvanBomb') { plantBomb(g, src, tgt); return; }
     if (spec.wh === 'Controller') { mindControl(g, src, tgt); return; }
     if (spec.wh === 'ChronoBeam') { startErase(g, src, tgt); src.cool = 8; return; }
-    var amt = spec.dmg * vetFire(src.rank) * (src.fpMul || 1) * supMul;   // [Powerups] Firepower crate
+    // [DredLauncher] / [HornetLauncher] `Spawner=yes`: the launcher itself
+    // does nothing. What leaves the deck is the payload, and the damage is
+    // the payload's.
+    if (spec.spawns) { launchSpawns(g, src, tgt); return; }
+    // rules.ini `Burst=2` — the Dreadnought puts BOTH missiles in the air on
+    // one trigger pull.
+    var burst = spec.burst || 1;
+    var amt = spec.dmg * burst * vetFire(src.rank) * (src.fpMul || 1) * supMul;   // [Powerups] Firepower crate
     // Three Tesla Troopers on a coil turn [TeslaZap] into [OPCoilBolt].
     if (src.kind === 'b' && src.type === 'tesla' && coilCharged(g, src)) amt *= COIL_BOOST;
     // [ParasiteDog] Parasite=yes + [GoodTeeth] LimboLaunch=yes: the dog does
@@ -18094,6 +19061,65 @@
   }
 
   // --------------------------------------------------------------------- //
+  //  Carrier air group ([CARRIER] Spawns=HORNET / SpawnsNumber=3 /
+  //  SpawnReloadRate=150). The Hornets ARE the carrier's weapon: they are
+  //  TechLevel -1 so they never reach a build list, they take no orders of
+  //  their own, and one that makes it back to the deck is re-armed there.
+  //  The Airforce Command's pad cycle is reused wholesale — the carrier is
+  //  the pad, `u.mother` is the slot.
+  // --------------------------------------------------------------------- //
+  function spawnStock(u) {
+    var d = UNITS[u.type];
+    if (!d.spawns) return 0;
+    if (u.brood == null) u.brood = d.spawnN;
+    return u.brood;
+  }
+  function stepSpawner(g, u) {
+    var d = UNITS[u.type];
+    if (u.brood == null) u.brood = d.spawnN;
+    if (u.brood < d.spawnN && (g.tick % d.spawnReload) === 0) u.brood++;
+  }
+  function launchSpawns(g, src, tgt) {
+    var d = UNITS[src.type], n = spawnStock(src);
+    if (n <= 0) { src.cool = 60; return; }       // empty deck: try again shortly
+    var sd = UNITS[d.spawns];
+    for (var i = 0; i < n; i++) {
+      var h = spawnUnit(g, d.spawns, src.p, src.x, src.y);
+      h.mother = src.id; h.tgtId = tgt.id; h.ammo = sd.ammo; h.born = g.tick;
+      h.guardX = src.x; h.guardY = src.y;
+      h.face = ((Math.round(Math.atan2((tgt.kind === 'b' ? tgt.cy : tgt.y) - src.y,
+                                       (tgt.kind === 'b' ? tgt.cx : tgt.x) - src.x) / (Math.PI / 4)) % 8) + 8) % 8;
+    }
+    src.brood = 0;
+    if (!headless) sfx('boom3', src.x, src.y);
+  }
+  function stepSpawned(g, u) {
+    var d = UNITS[u.type];
+    var mom = u.mother ? g.byId[u.mother] : null;
+    if (mom && mom.dead) mom = null;
+    var t = u.tgtId ? entById(g, u.tgtId) : null;
+    if (t && (t.dead || !canHit(d, t, u))) t = null;
+    if (!u.rtb && t && u.ammo > 0) {
+      var tx = t.kind === 'b' ? t.cx : t.x, ty = t.kind === 'b' ? t.cy : t.y;
+      if (dist(u, t) <= d.rng) {
+        u.face = ((Math.round(Math.atan2(ty - u.y, tx - u.x) / (Math.PI / 4)) % 8) + 8) % 8;
+        if (u.cool <= 0) fire(g, u, t);
+        if (u.ammo <= 0) u.rtb = true;
+      } else flyToward(g, u, tx, ty, uspd(u));
+      return;
+    }
+    u.rtb = true;
+    // Nothing to go home to: it circles where it is until something shoots it
+    // down, which is exactly what RA2 does with an orphaned spawn.
+    if (!mom) { hoverIdle(g, u); return; }
+    if (!flyToward(g, u, mom.x, mom.y, uspd(u))) {
+      u.dead = true; u.limbo = true;             // recovered, not lost
+      if (u.sel) dropFromSel(u);
+      mom.brood = Math.min(UNITS[mom.type].spawnN, (mom.brood == null ? 0 : mom.brood) + 1);
+    }
+  }
+
+  // --------------------------------------------------------------------- //
   //  Transports (RA2 `Passengers=`)
   // --------------------------------------------------------------------- //
   //  Flak Track 5, IFV 1, Nighthawk 5, Amphibious Transport 12. A passenger
@@ -18115,7 +19141,8 @@
     if (!paxCapOf(tr) || paxCount(tr) >= paxCapOf(tr)) return false;
     var d = UNITS[u.type], td = UNITS[tr.type];
     if (paxCapOf(u)) return false;                       // no transport rides a transport
-    if (d.harv || d.deploysInto || d.air) return false;  // no miners, no MCV, nothing that flies
+    if ((d.harv && !td.paxHarv) || d.deploysInto || d.air) return false;  // no MCV, nothing that flies;
+                                                        // a miner only rides an AMPHIBIOUS hull (island ore)
     if (d.cls === 'i') return !!td.paxInf;
     return !!td.paxVeh;
   }
@@ -18477,6 +19504,7 @@
   // the drone chewed at twice RA2's rate and a pair of them could carry a
   // whole match on their own.
   var PARASITE_DMG = 50, PARASITE_ROF = 120;
+  var SQUID_DMG = 100, SQUID_ROF = 60;
   function infest(g, dr, v) {
     if (v.drone || dr.limbo) return false;
     v.drone = dr;
@@ -18493,7 +19521,8 @@
     var dr = v.drone;
     v.drone = null;
     if (!dr || dr.dead) return;
-    var sp = freeTileNear(g, Math.round(v.x), Math.round(v.y));
+    var sp = (UNITS[dr.type].nav ? freeWaterNear(g, Math.round(v.x), Math.round(v.y))
+                                 : freeTileNear(g, Math.round(v.x), Math.round(v.y)));
     dr.limbo = false; dr.inside = 0; dr.cool = 30;
     dr.x = sp ? sp.x : v.x; dr.y = sp ? sp.y : v.y;
     dr.guardX = dr.x; dr.guardY = dr.y; dr.path = null; dr.repathAt = -999;
@@ -18511,9 +19540,12 @@
       var v = g.units[i];
       if (v.dead || !v.drone) continue;
       if (v.drone.dead) { v.drone = null; continue; }
-      if (g.tick - (v.drone.gnaw || 0) < PARASITE_ROF) continue;
+      var pd = UNITS[v.drone.type];
+      if (g.tick - (v.drone.gnaw || 0) < (pd.grab ? SQUID_ROF : PARASITE_ROF)) continue;
       v.drone.gnaw = g.tick;
-      damage(g, v.drone, v, PARASITE_DMG, 'Parasite');
+      // [SquidGrab] Culling=yes: a squid does not nibble a hull, it holds it
+      // under until it goes down. Twice a Terror Drone's bite, twice as often.
+      damage(g, v.drone, v, pd.grab ? SQUID_DMG : PARASITE_DMG, 'Parasite');
     }
   }
 
@@ -18857,8 +19889,9 @@
     var nx = u.x + vx, ny = u.y + vy;
 
     // Don't walk into rock or a building; slide along instead.
-    if (!tilePassable(g, nx, u.y, u.p)) nx = u.x;
-    if (!tilePassable(g, u.x, ny, u.p)) ny = u.y;
+    var _mv = moverOf(u);
+    if (!tilePassable(g, nx, u.y, u.p, _mv)) nx = u.x;
+    if (!tilePassable(g, u.x, ny, u.p, _mv)) ny = u.y;
     u.x = Math.max(0, Math.min(MAP - 1, nx)); u.y = Math.max(0, Math.min(MAP - 1, ny));
     if (cr) near(u.x, u.y, 0.7, function (o) {
       if (o.dead || o.p === u.p || !crushable(o)) return;
@@ -18940,11 +19973,11 @@
     return ok;
   }
 
-  function tilePassable(g, fx, fy, p) {
+  function tilePassable(g, fx, fy, p, mv) {
     var x = Math.round(fx), y = Math.round(fy);
     if (!inMap(x, y)) return false;
     var i = idx(x, y);
-    if (solidT(g.terrain[i])) return false;
+    if (!terrPass(g.terrain[i], mv)) return false;
     if (g.occ[i] === 0) return true;
     // An open gate is a hole in the wall; a shut one your own men may stand
     // in front of, but not walk through, until the leaves have travelled.
@@ -18984,6 +20017,23 @@
       stepHarvester(g, u);
       return;
     }
+    // A hull is fenced in by the shoreline in a way a tank is not: an order
+    // aimed at the far side of a headland, or at a second body of water, is
+    // one it can NEVER complete, and the chase branch below has no give-up in
+    // it (a land unit always has some route). Four seconds of no path and no
+    // progress and the ship drops the order and holds station — measured on
+    // Coastal, where one Destroyer ordered across a spit re-flagged B1-stuck
+    // 419 times in a single match. Naval only, so no land unit's behaviour and
+    // no pinned Iron Frontier snapshot can move.
+    if (d.nav && u.order && !u.path && u.noProg > 240) {
+      u.order = null; u.noProg = 0; u.guardX = u.x; u.guardY = u.y;
+      // ...and it STAYS given up for ten seconds. Without the hold the AI's
+      // next tactical pass hands the hull the same unreachable order and the
+      // pair of them churn for the rest of the match.
+      u.navHold = g.tick + 600;
+      nextWaypoint(g, u);
+      return;
+    }
     // [SHAD] Landable=yes, JumpJet locomotor, no `ammo`: the Nighthawk never
     // joins the Airforce Command's pad cycle. It sets down on whatever clear
     // cell it is over to load or unload, and stays down until it is moved.
@@ -18997,6 +20047,8 @@
         if (down && u.unloadReq) { unloadTransport(g, u); u.unloadReq = 0; if (!paxCount(u)) u.landReq = 0; }
       }
     }
+    if (d.spawned) { stepSpawned(g, u); return; }
+    if (d.spawns) stepSpawner(g, u);
     if (d.ammo) { stepAircraft(g, u); return; }
 
     // [RadEruptionWeapon] AreaFire / FireOnce=no: a deployed Desolator does
@@ -19949,6 +21001,7 @@
     if (!isBld && key === 'harvester') key = harvKey(s.fac);
     var spec = isBld ? BLDS[key] : UNITS[key];
     if (!spec) return false;
+    if (!isBld && spec.spawned) return false;      // TechLevel=-1: it comes off a deck, not off a list
     // A Spy's stolen blueprint is exactly the exception to "you can only
     // build your own faction's list" ([General] eva.ini #92 Technology stolen).
     if (!ownedBy(spec, s.fac) && !(!isBld && s.stolen && s.stolen.indexOf(key) >= 0)) return false;
@@ -19965,6 +21018,9 @@
       // One aircraft per pad: four Harriers per Airforce Command, as in RA2.
       return hasBld(g, p, 'airforce') && countUnit(g, p, key) + queuedCount(s, key) < padCapacity(g, p);
     }
+    // `Naval=yes` + Prerequisite=*YARD: a hull is built at the Shipyard, in
+    // its own lane, and nowhere else.
+    if (UNITS[key].cls === 'n') return hasBld(g, p, 'shipyard');
     return hasBld(g, p, 'factory');
   }
 
@@ -20107,6 +21163,7 @@
       if (lane === 'i' && !hasBld(g, p, 'barracks')) continue;
       if (lane === 'v' && !hasBld(g, p, 'factory')) continue;
       if (lane === 'a' && !hasBld(g, p, 'airforce')) continue;
+      if (lane === 'n' && !hasBld(g, p, 'shipyard')) continue;
       // A prerequisite lost mid-build (the Radar behind a queued coil) puts the
       // item ON HOLD with a reason, instead of a silent stall at 0%.
       if (!reqMet(g, p, spec)) {
@@ -20146,6 +21203,7 @@
           var src = producerFor(g, p, lane);
           if (src) {
             var sp = lane === 'a' ? { x: Math.round(src.cx), y: Math.round(src.cy) }
+                    : lane === 'n' ? dockSpot(g, src)
                                   : freeTileNear(g, Math.round(src.cx), Math.round(src.cy + src.gh / 2 + 1));
             // No free tile at the door: the unit waits in the factory (RA2
             // does the same) instead of being shifted out and silently lost.
@@ -20166,7 +21224,8 @@
   }
 
   function producerType(lane) {
-    return lane === 'i' ? 'barracks' : (lane === 'v' ? 'factory' : (lane === 'a' ? 'airforce' : 'base'));
+    return lane === 'i' ? 'barracks' : (lane === 'v' ? 'factory'
+         : (lane === 'a' ? 'airforce' : (lane === 'n' ? 'shipyard' : 'base')));
   }
 
   // Extra production buildings shorten build time. The DISCOUNT matches RA2's
@@ -20226,13 +21285,13 @@
   // The k-th distinct passable tile on a spiral around (x,y): one cell per
   // unit, as RA2 lays a group out at its destination. `taken` is a set the
   // caller keeps across one group order.
-  function spreadSpot(g, x, y, taken) {
+  function spreadSpot(g, x, y, taken, mv) {
     for (var k = 0; k < 400; k++) {
       var r = k === 0 ? 0 : 0.9 + Math.sqrt(k) * 0.8, a = k * 2.399;
       var cx = Math.max(0, Math.min(MAP - 1, Math.round(x + Math.cos(a) * r)));
       var cy = Math.max(0, Math.min(MAP - 1, Math.round(y + Math.sin(a) * r)));
       var key = cx + ',' + cy;
-      if (taken[key] || !tilePassable(g, cx, cy)) continue;
+      if (taken[key] || !tilePassable(g, cx, cy, undefined, mv)) continue;
       taken[key] = true; return { x: cx, y: cy };
     }
     return { x: x, y: y };
@@ -20263,6 +21322,40 @@
       }
     }
     return null;
+  }
+  // The same two searches for a hull: open water, and open water with no ship
+  // already sitting on it. A ship built with nowhere to float waits in the
+  // yard exactly as a tank waits behind a blocked factory door.
+  function freeWaterNear(g, x, y, r0) {
+    for (var r = (r0 || 0); r < 10; r++) {
+      for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+        var nx = x + ox, ny = y + oy;
+        if (inMap(nx, ny) && !blocked(g, nx, ny, undefined, MV_NAVAL)) return { x: nx, y: ny };
+      }
+    }
+    return null;
+  }
+  function waterSpot(g, x, y, used) {
+    for (var r = 0; r < 9; r++) {
+      for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+        var nx = x + ox, ny = y + oy;
+        if (!inMap(nx, ny) || blocked(g, nx, ny, undefined, MV_NAVAL)) continue;
+        if (used && used[nx + ',' + ny]) continue;
+        var taken = false;
+        near(nx, ny, 0.7, function (o) { if (o.kind === 'u' && !o.dead && !o.air) taken = true; });
+        if (!taken) return { x: nx, y: ny };
+      }
+    }
+    return null;
+  }
+  // art.ini [GAYARD] `DockingOffset0=384,-128,0`: the slipway is off the
+  // yard's near-left face. A new hull is launched from the first clear water
+  // cell out from there, so it appears at the DOOR and not on the roof.
+  function dockSpot(g, b) {
+    return waterSpot(g, Math.round(b.cx - b.gw / 2 - 0.5), Math.round(b.cy + b.gh / 2 + 0.5))
+        || waterSpot(g, Math.round(b.cx), Math.round(b.cy));
   }
 
   // Build radius, RA2-style: `Adjacent=` on the structure BEING PLACED says
@@ -20330,6 +21423,11 @@
   function canPlace(g, p, key, gx, gy, opts) {
     var d = bspecFor(key, facOf(g, p));
     var mask = buildMask(g, p, key), inRange = !!(opts && opts.anywhere);
+    // [GAYARD]/[NAYARD] `WaterBound=yes`: the whole footprint must be OPEN
+    // WATER, and RA2 only ever lays one against a shore — so at least one
+    // cell of the ring round the plot has to be dry land you could stand a
+    // crane on. A yard in the middle of a lake is not a shipyard, it is a raft.
+    if (d.water && !waterPlot(g, gx, gy, d.gw, d.gh)) return false;
     for (var y = gy; y < gy + d.gh; y++) {
       for (var x = gx; x < gx + d.gw; x++) {
         if (!inMap(x, y)) return false;
@@ -20337,7 +21435,7 @@
         // Clear ground or a road only: a ramp is a slope, a bridge is a deck
         // over water and a civilian lot is someone else's — all walkable, none
         // of them buildable.
-        if (!buildableT(g.terrain[i])) return false;
+        if (!d.water && !buildableT(g.terrain[i])) return false;
         if (g.occ[i] !== 0) return false;
         for (var k = 0; k < g.units.length; k++) {          // not on top of a unit
           var u = g.units[k];
@@ -20348,6 +21446,21 @@
       }
     }
     return inRange;
+  }
+  // The water half of canPlace: every footprint cell deep water, and a dry
+  // cell somewhere in the ring around it.
+  function waterPlot(g, gx, gy, gw, gh) {
+    var x, y, shore = false;
+    for (y = gy; y < gy + gh; y++) for (x = gx; x < gx + gw; x++) {
+      if (!inMap(x, y) || g.terrain[idx(x, y)] !== T_WATER) return false;
+    }
+    for (y = gy - 1; y <= gy + gh; y++) for (x = gx - 1; x <= gx + gw; x++) {
+      if (y > gy - 1 && y < gy + gh && x > gx - 1 && x < gx + gw) continue;
+      if (!inMap(x, y)) continue;
+      var t = g.terrain[idx(x, y)];
+      if (t !== T_WATER && t !== T_BRIDGE) { shore = true; break; }
+    }
+    return shore;
   }
 
   // --------------------------------------------------------------------- //
@@ -20497,6 +21610,20 @@
     { key: 'dirEng',   name: 'Allied Tech Capture', fac: 'dir', role: 'engineer', tgt: 'tech',
       force: [{ n: 1, t: 'engineer' }], prod: true,
       w: { easy: 2, normal: 3, hard: 4 }, max: 2, need: 'barracks' },
+    // ---- Directorate navy. ai.ini keeps its naval teams on their own
+    // trigger and they are only ever considered once a Shipyard stands, which
+    // itself only happens when the base has shore inside AINavalYardAdjacency.
+    { key: 'dirFleet', name: 'Allied Destroyer Screen', fac: 'dir', role: 'attack', tgt: 'coast', naval: true,
+      force: [{ n: 3, t: 'destroyer' }, { n: 1, t: 'aegis' }],
+      w: { easy: 2, normal: 4, hard: 5 }, max: 1, need: 'shipyard' },
+    { key: 'dirCV',    name: 'Allied Carrier Strike', fac: 'dir', role: 'siege', tgt: 'coast', naval: true,
+      force: [{ n: 1, t: 'carrier' }, { n: 2, t: 'destroyer' }, { n: 1, t: 'aegis' }],
+      w: { easy: 0, normal: 2, hard: 5 }, max: 1, need: 'shipyard' },
+    // Hard only: twelve men put ashore behind the line, straight off the water.
+    { key: 'dirLand',  name: 'Allied Landing Raid', fac: 'dir', role: 'harass', tgt: 'economy',
+      naval: true, mech: true, drop: true,
+      force: [{ n: 1, t: 'lcraft' }, { n: 4, t: 'rifle' }, { n: 2, t: 'lancer' }],
+      w: { easy: 0, normal: 0, hard: 4 }, max: 1, need: 'shipyard' },
     { key: 'dirDef',   name: 'Allied Base Defense', fac: 'dir', role: 'defend', tgt: 'any',
       force: [{ n: 2, t: 'rocket' }, { n: 2, t: 'lancer' }],
       w: { easy: 3, normal: 3, hard: 3 }, max: 2 },
@@ -20528,12 +21655,26 @@
     { key: 'colDeso',  name: 'Soviet Desolator Line', fac: 'col', role: 'defend', tgt: 'any',
       force: [{ n: 2, t: 'desolator' }, { n: 4, t: 'conscript' }],
       w: { easy: 0, normal: 2, hard: 3 }, max: 1, need: 'radar' },
+    // The Amphibious Transport moved to the Shipyard with its rules.ini
+    // prerequisite, so the LAND mounted raid rides Flak Tracks ([HTK]
+    // Passengers=5) — which is what it can build on a map with no coast.
     { key: 'colMech',  name: 'Soviet Mechanised Raid', fac: 'col', role: 'attack', tgt: 'any', mech: true,
-      force: [{ n: 1, t: 'apc' }, { n: 2, t: 'flaktrack' }, { n: 6, t: 'conscript' }],
+      force: [{ n: 3, t: 'flaktrack' }, { n: 6, t: 'conscript' }],
       w: { easy: 0, normal: 2, hard: 3 }, max: 1, need: 'factory' },
     { key: 'colEng',   name: 'Soviet Tech Capture', fac: 'col', role: 'engineer', tgt: 'tech',
       force: [{ n: 1, t: 'engineer' }], prod: true,
       w: { easy: 2, normal: 3, hard: 4 }, max: 2, need: 'barracks' },
+    // ---- Collective navy.
+    { key: 'colSub',   name: 'Soviet Submarine Pack', fac: 'col', role: 'attack', tgt: 'coast', naval: true,
+      force: [{ n: 3, t: 'sub' }, { n: 1, t: 'seascorp' }],
+      w: { easy: 2, normal: 4, hard: 5 }, max: 1, need: 'shipyard' },
+    { key: 'colDred',  name: 'Soviet Dreadnought Bombardment', fac: 'col', role: 'siege', tgt: 'coast', naval: true,
+      force: [{ n: 2, t: 'dread' }, { n: 2, t: 'sub' }, { n: 1, t: 'seascorp' }],
+      w: { easy: 0, normal: 2, hard: 5 }, max: 1, need: 'shipyard' },
+    { key: 'colLand',  name: 'Soviet Amphibious Raid', fac: 'col', role: 'harass', tgt: 'economy',
+      naval: true, mech: true, drop: true,
+      force: [{ n: 1, t: 'apc' }, { n: 6, t: 'conscript' }],
+      w: { easy: 0, normal: 0, hard: 4 }, max: 1, need: 'shipyard' },
     { key: 'colDef',   name: 'Soviet Base Defense', fac: 'col', role: 'defend', tgt: 'any',
       force: [{ n: 3, t: 'conscript' }, { n: 2, t: 'flak' }],
       w: { easy: 3, normal: 3, hard: 3 }, max: 2 }
@@ -20549,6 +21690,8 @@
       diff: DIFF[diff] ? diff : 'normal',
       cfg: DIFF[diff] || DIFF.normal,
       posture: 'build', t: 0, lastStrat: 0, lastTac: 0, lastScout: 0,
+      shore: false,                              // AINavalYardAdjacency: is a navy possible at all
+
       seen: { inf: 0, veh: 0, bld: 0, air: 0 }, seenAt: 0, airAt: -1e9,
       army: [], attacking: false, rally: null, scout: null, placeFail: 0,
       wave: [], waveN: 0, waveTarget: 0, scoutSent: 0, garrison: [],
@@ -20558,7 +21701,11 @@
   }
 
   // What the AI can see: only tiles within sight of something it owns.
+  // AINavalYardAdjacency: settled once, from the Construction Yard's own
+  // start position, because neither the map nor the start moves.
+  function aiCheckShore(g, ai, me) { ai.shore = hasShore(g, me); ai.shoreAt = 1; }
   function scoutEnemy(g, ai, me, foe) {
+    if (!ai.shoreAt) aiCheckShore(g, ai, me);
     var seen = { inf: 0, veh: 0, bld: 0, air: 0 };
     var eyes = [];
     var i;
@@ -21027,6 +22174,15 @@
       else if (!hasBar) want = 'barracks';                // War Factory needs Refinery + Barracks (rules.ini)
       else if (!hasFac) want = 'factory';
       else if (nRef < maxRef && s.credits > 2000 && (nRef < 2 || ai.army.length >= 6)) want = 'refinery';
+      // [GAYARD]/[NAYARD] AIBuildThis=yes. `AINavalYardAdjacency=20` is the
+      // whole gate: on a map with no water within twenty cells of its
+      // Construction Yard the AI never considers a yard at all, which is why
+      // Iron Frontier plays exactly as it did before the navy existed. It
+      // sits HERE — ahead of the second factory and the tech ladder — because
+      // [NAYARD] is TechLevel 2, one rung behind the War Factory, and a fleet
+      // that only starts building at minute twelve never reaches the water.
+      else if (hasFac && !hasBld(g, me, 'shipyard') && ai.shore && s.credits > 1600 &&
+               ai.army.length >= cfg.group * 0.5) want = 'shipyard';
       // A full lane and a fat bank is the AI saying "I have money I cannot
       // spend". The answer a human reaches for is a SECOND factory, and the
       // multi-building speed-up makes it pay twice. ONE extra factory, and
@@ -21216,6 +22372,17 @@
                countUnit(g, me, 'prismtank') < 4) enqueue(g, me, 'prismtank', 'v');
     }
     // Aircraft lane: whatever the air team is short of, up to the pad count.
+    // The naval lane. Same shape as the aircraft lane: whatever the fleet
+    // teams are short of, capped so a yard never eats the land army's money.
+    if (hasBld(g, me, 'shipyard') && !s.queues.n.list.length && s.credits > 1500 &&
+        countUnit(g, me, null, 'n') < 8) {
+      var navWant = pickFrom('n', null);
+      if (navWant && canBuild(g, me, navWant, false)) enqueue(g, me, navWant, 'n');
+      else {
+        var fallback = s.fac === 'col' ? 'sub' : 'destroyer';
+        if (canBuild(g, me, fallback, false)) enqueue(g, me, fallback, 'n');
+      }
+    }
     if (s.fac === 'dir' && !s.queues.a.list.length && s.credits > 1800) {
       var apick = pickFrom('a', 'air') || 'harrier';
       if (canBuild(g, me, apick, false)) enqueue(g, me, apick, 'a');
@@ -21369,7 +22536,11 @@
         // still seals the base once the good tiles are gone.
         var ring = 2 * (d.gw + 2) + 2 * d.gh;
         var crowd = crowding(g, gx, gy, d);
-        if (pass === 0 ? crowd > 0 : crowd > ring * 0.35) continue;
+        // A `WaterBound=yes` plot is surrounded by water, which `crowding`
+        // scores as solid — the yard would never pass either sieve. Its
+        // placement rule IS canPlace (all water, one shore cell).
+        if (!d.water && (pass === 0 ? crowd > 0 : crowd > ring * 0.35)) continue;
+        if (d.water) crowd = 0;
         var dd = (gx - aim.x) * (gx - aim.x) + (gy - aim.y) * (gy - aim.y);
         // Breathing room reads as a base, not a pile: every blocked tile
         // touching the footprint costs as much as being ~2.5 tiles further out.
@@ -21406,6 +22577,24 @@
   // RA2's scripts pick a target CLASS, not a building: "Attack Nearest
   // Target: base defenses / power / factories / harvesters". `from` is the
   // team's own centre, so "nearest" means nearest to the team.
+  // [General] AINavalYardAdjacency=20 — how far from its Construction Yard
+  // the AI will look for water to put a Shipyard on. It is also the test for
+  // "is this a map where a navy is worth anything at all": no shore inside
+  // that radius and the naval half of the build ladder never runs.
+  var AI_NAVAL_ADJ = 20;
+  // The nearest cell of open water to (x,y), out to `r`. Used both for
+  // "can we build a yard here" and for pointing a fleet at a shore target.
+  function nearestWater(g, x, y, r) {
+    for (var rr = 0; rr <= r; rr++) {
+      for (var oy = -rr; oy <= rr; oy++) for (var ox = -rr; ox <= rr; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== rr) continue;
+        var nx = Math.round(x) + ox, ny = Math.round(y) + oy;
+        if (inMap(nx, ny) && g.terrain[idx(nx, ny)] === T_WATER) return { x: nx, y: ny };
+      }
+    }
+    return null;
+  }
+  function hasShore(g, p) { return !!nearestWater(g, g.start[p].x, g.start[p].y, AI_NAVAL_ADJ); }
   var AI_DEF_KEYS = { sentry: 1, sentrygun: 1, tesla: 1, prism: 1, patriot: 1, flakcannon: 1, grandcannon: 1 };
   var AI_POWER_KEYS = { power: 1, reactor: 1 };
   var AI_PROD_KEYS = { factory: 1, barracks: 1, airforce: 1, radar: 1, lab: 1, base: 1 };
@@ -21413,6 +22602,21 @@
     var i, best = null, bd = 1e9;
     cls = cls || 'any';
     var fx = from ? from.x : g.start[me].x, fy = from ? from.y : g.start[me].y;
+    // 'coast': a target a hull can actually shoot — one with open water
+    // within a Destroyer's reach of it. Falls back to 'any' if the enemy has
+    // nothing on the waterfront at all.
+    if (cls === 'coast') {
+      var cbest = null, cbd = 1e9;
+      for (var ci2 = 0; ci2 < g.blds.length; ci2++) {
+        var cb2 = g.blds[ci2];
+        if (cb2.dead || cb2.p !== foe) continue;
+        if (!nearestWater(g, cb2.cx, cb2.cy, 8)) continue;
+        var cdd = (cb2.cx - fx) * (cb2.cx - fx) + (cb2.cy - fy) * (cb2.cy - fy);
+        if (cdd < cbd) { cbd = cdd; cbest = cb2; }
+      }
+      if (cbest) return cbest;
+      cls = 'any';
+    }
     function nearer(e) {
       var ex = e.kind === 'b' ? e.cx : e.x, ey = e.kind === 'b' ? e.cy : e.y;
       var dd = (ex - fx) * (ex - fx) + (ey - fy) * (ey - fy);
@@ -21469,6 +22673,11 @@
   // Move a group to a point without stacking it on one tile: each unit gets
   // its own passable tile on a spiral around the target (the soak found 34
   // units parked on one staging tile, all sharing an identical order).
+  // Where a fleet gathers: the water nearest the land staging point.
+  function aiNavalStage(g, me, foe) {
+    var st = aiStaging(g, me, foe);
+    return nearestWater(g, st.x, st.y, AI_NAVAL_ADJ + 6) || st;
+  }
   function aiMoveSpread(g, units, at) {
     var taken = {};
     for (var i = 0; i < units.length; i++) {
@@ -21491,6 +22700,18 @@
 
   function aiOrderAttack(g, u, tgt) {
     var tx = tgt.kind === 'b' ? tgt.cx : tgt.x, ty = tgt.kind === 'b' ? tgt.cy : tgt.y;
+    // A hull cannot drive up the beach at what it is shooting. Point it at
+    // the nearest water to the target instead and let its guns reach ashore
+    // from there — which is how a bombardment works and why a Dreadnought's
+    // 25-cell missile matters. The attack ORDER still names the target, so it
+    // fires the moment the shore comes inside its reach.
+    if (UNITS[u.type].nav && !UNITS[u.type].amph &&
+        (tgt.kind === 'b' || !UNITS[tgt.type].nav) && !isAir(tgt)) {
+      if (u.navHold && g.tick < u.navHold) return;   // it just proved it cannot get there
+      var w = nearestWater(g, tx, ty, 14);
+      if (!w) return;                            // nothing afloat can reach it: leave the hull on station
+      tx = w.x; ty = w.y;
+    }
     u.order = { t: 'attack', x: tx, y: ty, id: tgt.id };
     u.guardX = tx; u.guardY = ty;
   }
@@ -21849,7 +23070,7 @@
       t.launched = g.tick; t.n0 = t.units.length; t.mode = 'attack';
     }
     if (t.mode === 'retreat') {
-      var home2 = aiStaging(g, me, foe);
+      var home2 = def.naval ? aiNavalStage(g, me, foe) : aiStaging(g, me, foe);
       var back = [];
       for (i = 0; i < t.units.length; i++) if (!t.units[i].order) back.push(t.units[i]);
       if (back.length) { aiMoveSpread(g, back, home2); budget -= back.length; }
@@ -22596,6 +23817,13 @@
     v3:       { l: 2, p: 3, r: 22, v: 0.95 },   // V3RocketAttack
     flak:     { l: 3, p: 2, r: 16, v: 0.7 },    // FlakCannonAttack / FlakTrackAttackAir
     tesla:    { l: 2, p: 3, r: 18, v: 0.85 },   // TeslaCoilAttack
+    // -- the navy (sound.ini DestroyerAttack / SubAttack / DolphinAttack /
+    //    AegisAttack / DreadnoughtAttack / HornetAttack) --
+    navgun:   { l: 2, p: 3, r: 22, v: 0.95 },   // DestroyerAttack — a 155 mm over water
+    torp:     { l: 2, p: 2, r: 16, v: 0.7 },    // SubAttack — the tube blowing
+    sonar:    { l: 2, p: 2, r: 14, v: 0.6 },    // DolphinAttack — a sonic zap
+    depth:    { l: 2, p: 2, r: 16, v: 0.75 },   // ASWBomb going off under the surface
+    sink:     { l: 2, p: 3, r: 24, v: 0.9 },    // SinkingSound=GenLargeWaterDie
     charge:   { l: 2, p: 2, r: 14, v: 0.55 },   // TeslaCoilPowerUp (art.ini:3014)
     teslainf: { l: 3, p: 2, r: 13, v: 0.6 },    // TeslaTroopAttack
     prism:    { l: 2, p: 3, r: 18, v: 0.8 },    // PrismTowerAttack / PrismTankAttack
@@ -22665,7 +23893,13 @@
     tesla: 'tesla', teslatank: 'tesla', teslatrooper: 'teslainf',
     prism: 'prism', prismtank: 'prism',
     desolator: 'deso', yuri: 'psy', cleg: 'cleg', ivan: 'ivantick',
-    drone: 'drone', dog: 'bite'
+    drone: 'drone', dog: 'bite',
+    // The navy. [DEST] Report=DestroyerAttack, [SUB] SubAttack, [DLPH]
+    // DolphinAttack, [AEGIS] AegisAttack, [HYD] FlakTrackAttackGround,
+    // [DRED] DreadnoughtAttack, [CARRIER]/[HORNET] HornetAttack.
+    destroyer: 'navgun', sub: 'torp', dolphin: 'sonar', aegis: 'rocket',
+    seascorp: 'flak', dread: 'v3', carrier: 'harrier', hornet: 'harrier',
+    squid: 'bite'
   };
 
   // ---- the synths ------------------------------------------------------- //
@@ -22719,6 +23953,37 @@
       nz(c, verb(c, o), t, 0.28, 0.16, 2600, 700, 2.0);
     },
     charge: function (c, o, t) { op(c, o, t, 110, 900, 0.55, 0.2, 'sawtooth', 0.12); nz(c, o, t + 0.3, 0.25, 0.1, 3000, 6000, 4); },
+    // ---- the navy -------------------------------------------------------
+    // A naval rifle is a cannon with a long tail over open water: the same
+    // crack, a deeper body, and the report coming back off the far shore.
+    navgun: function (c, o, t) {
+      clk(c, o, t, 0.85, 900); op(c, o, t, 120, 40, 0.34, 0.45, 'square', 0.003);
+      nz(c, o, t, 0.5, 0.5, 700, 90, 0.75, 'lowpass');
+      nz(c, verb(c, o), t + 0.05, 0.9, 0.24, 420, 110, 0.9);
+    },
+    // A torpedo tube: compressed air, then the screw winding up under water.
+    torp: function (c, o, t) {
+      nz(c, o, t, 0.22, 0.45, 2600, 500, 1.6);
+      op(c, o, t + 0.06, 190, 460, 0.5, 0.13, 'sawtooth', 0.03);
+      nz(c, o, t + 0.1, 0.6, 0.16, 900, 260, 0.9, 'lowpass');
+    },
+    // Sonic: one pure descending ping and its echo. Nothing percussive.
+    sonar: function (c, o, t) {
+      op(c, o, t, 1800, 620, 0.34, 0.2, 'sine', 0.02);
+      op(c, verb(c, o), t + 0.16, 1200, 480, 0.4, 0.1, 'sine', 0.03);
+    },
+    // A depth charge: no crack at all, just a muffled thump and a swell.
+    depth: function (c, o, t) {
+      nz(c, o, t, 0.7, 0.6, 260, 55, 0.6, 'lowpass');
+      op(c, o, t, 62, 34, 0.5, 0.35, 'sine', 0.01);
+      nz(c, verb(c, o), t + 0.08, 0.8, 0.2, 300, 80, 0.8);
+    },
+    // Something big going under: tearing plate, then water closing over it.
+    sink: function (c, o, t) {
+      nz(c, o, t, 1.4, 0.4, 420, 120, 0.7, 'lowpass');
+      op(c, o, t, 90, 34, 1.2, 0.22, 'sawtooth', 0.02);
+      nz(c, verb(c, o), t + 0.5, 1.2, 0.26, 900, 200, 1.1);
+    },
     teslainf: function (c, o, t) { op(c, o, t, 600, 200, 0.08, 0.18, 'sawtooth', 0.003); for (var i = 0; i < 4; i++) nz(c, o, t + i * 0.02, 0.04, 0.2, 3600 - i * 500, 1000, 3); },
     // Prism: a pure tone winding up, then the zap it collapses into.
     prism: function (c, o, t) {
@@ -23006,7 +24271,21 @@
     // [SHAD] VoiceSelect=BlackOpsSelect — clipped, low, and unhurried.
     nighthawk:   { f: 118, b: 1.06, r: 0.30, s: [0, 12], m: [2, 4], a: [7, 6] },
     // [SAPC] VoiceSelect=GenSovWaterSelect — the landing-craft crew.
-    apc:         { f: 88,  b: 0.86, r: 0.40, s: [1, 0], m: [4, 3], a: [] }
+    apc:         { f: 88,  b: 0.86, r: 0.40, s: [1, 0], m: [4, 3], a: [] },
+    // The navy. [DEST]/[AEGIS]/[CARRIER]/[LCRF] all use GenAllWaterSelect,
+    // [SUB]/[HYD]/[DRED] GenSovWaterSelect — one bridge crew per side, but
+    // each hull is a different watch, so each gets its own pitch.
+    destroyer:   { f: 122, b: 0.98, r: 0.28, s: [0, 1], m: [2, 4], a: [6, 7] },
+    aegis:       { f: 130, b: 1.12, r: 0.24, s: [0, 5], m: [4, 2], a: [7, 12] },
+    carrier:     { f: 116, b: 0.96, r: 0.32, s: [1, 0], m: [2, 3], a: [6, 12] },
+    lcraft:      { f: 126, b: 1.04, r: 0.30, s: [0, 12], m: [3, 4], a: [] },
+    hornet:      { f: 162, b: 1.24, r: 0.34, s: [5, 0], m: [2, 4], a: [7, 6] },
+    sub:         { f: 86,  b: 0.74, r: 0.50, s: [1, 9], m: [3, 10], a: [8, 6] },
+    seascorp:    { f: 100, b: 0.86, r: 0.44, s: [1, 12], m: [4, 3], a: [8, 7] },
+    dread:       { f: 80,  b: 0.68, r: 0.54, s: [9, 1], m: [10, 3], a: [8, 6] },
+    // [DLPH] VoiceSelect=DolphinSelect, [SQD] SquidSelect — neither talks.
+    dolphin:     { f: 0,   b: 1.0,  r: 0,    s: [], m: [], a: [] },
+    squid:       { f: 0,   b: 1.0,  r: 0,    s: [], m: [], a: [] }
   };
   // The radio band, built once per context: high-pass, clip, low-pass. Every
   // voice line in the game shares this one chain.
@@ -24075,8 +25354,12 @@
       else if (hov && hov.p === P_HUMAN) k = 'select';
       else if (!inMap(hoverTile.x, hoverTile.y)) k = 'nomove';
       else if (pathMode || mod.shift) k = 'waypoint';
-      else if (units.some(function (u) { return u.air; }) ||
-               !solidT(G.terrain[idx(hoverTile.x, hoverTile.y)])) k = 'move';
+      // Each selected mover asks its OWN class: a Destroyer over the shore
+      // is barred, a Grizzly over the bay is barred, and a mixed selection
+      // shows MOVE if anything in it can actually go there.
+      else if (units.some(function (u) {
+                 return u.air || terrPass(G.terrain[idx(hoverTile.x, hoverTile.y)], moverOf(u));
+               })) k = 'move';
       else k = 'nomove';
     }
     if (k !== curKind) { curKind = k; curFrameN = 0; }
@@ -24839,7 +26122,7 @@
       }
       // One destination cell per unit (the old six-per-ring put the first
       // six on the exact target tile — ten Rhinos arrived as one pile).
-      var sp = u.air ? { x: gx, y: gy } : spreadSpot(g, gx, gy, taken), tx = sp.x, ty = sp.y;
+      var sp = u.air ? { x: gx, y: gy } : spreadSpot(g, gx, gy, taken, moverOf(u)), tx = sp.x, ty = sp.y;
       u.order = { t: 'move', x: tx, y: ty, id: 0 };
       u.guardX = tx; u.guardY = ty; u.repathAt = -999; u.path = null;
       if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.noProg = 0; }
@@ -24857,7 +26140,7 @@
   function orderAmove(g, units, gx, gy) {
     var taken = {}, n = 0;
     units.forEach(function (u) {
-      var sp = u.air ? { x: gx, y: gy } : spreadSpot(g, gx, gy, taken);
+      var sp = u.air ? { x: gx, y: gy } : spreadSpot(g, gx, gy, taken, moverOf(u));
       u.wp = null; u.guard = false; u.stopped = false;
       u.order = { t: 'amove', x: sp.x, y: sp.y, id: 0 };
       u.guardX = sp.x; u.guardY = sp.y; u.repathAt = -999; u.path = null; u.rtb = false;
@@ -26415,6 +27698,32 @@
       if (tpx < VX0 - 40 || tpy < VY0 - 40 || tpx > VX1 + 40 || tpy > VY1 + 40) continue;
       var gx0 = Math.round(tr.x), gy0 = Math.round(tr.y);
       if (!inMap(gx0, gy0) || !G.seen[idx(gx0, gy0)]) continue;
+      // A WAKE, not a tread mark: a ship leaves a widening V of foam on the
+      // water that fades in about a second and a half, and a submerged hull
+      // leaves only a feather.
+      if (tr.foam) {
+        var wa = tr.face * FANG;
+        var wdx = Math.cos(wa), wdy = Math.sin(wa);
+        var wfx = (wdx - wdy) * (TW / 2), wfy = (wdx + wdy) * (TH / 2);
+        var wfl = Math.sqrt(wfx * wfx + wfy * wfy) || 1; wfx /= wfl; wfy /= wfl;
+        var wk = age / (TRACK_LIFE * 0.24);
+        if (wk >= 1) { TRACKS.splice(i, 1); continue; }
+        ctx.globalAlpha = (tr.sub ? 0.30 : 0.55) * (1 - wk);
+        ctx.strokeStyle = '#e8f4fc'; ctx.lineWidth = tr.sub ? 1.0 : 1.6;
+        var ww = (tr.sub ? 2.0 : 4.0) + wk * (tr.sub ? 3 : 9);
+        ctx.beginPath();
+        ctx.ellipse(tpx - wfx * 6, tpy - wfy * 6, ww, ww * 0.5, Math.atan2(wfy, wfx), 0, 6.29);
+        ctx.stroke();
+        if (!tr.sub) {
+          ctx.globalAlpha = 0.34 * (1 - wk);
+          ctx.fillStyle = '#dceef8';
+          ctx.beginPath();
+          ctx.ellipse(tpx - wfx * 5, tpy - wfy * 5, ww * 0.72, ww * 0.32, Math.atan2(wfy, wfx), 0, 6.29);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        continue;
+      }
       var ta = tr.face * FANG;
       var fdx = Math.cos(ta), fdy = Math.sin(ta);
       var fsx = (fdx - fdy) * (TW / 2), fsy = (fdx + fdy) * (TH / 2);
@@ -26469,6 +27778,19 @@
       if (u.sel) brackets(px - tr.ax - 3, py - tr.ay - 3, px - tr.ax + tr.w + 3, py - tr.ay + tr.h + 1);
       if (u.hp < u.maxhp) hpBar(px, py - tr.ay - 8, 20, u.hp / u.maxhp);
       return;
+    }
+    // `Underwater=yes`. To an enemy with nothing that can detect it, a
+    // submerged hull is not drawn at all — only the ring it pushes up. To its
+    // owner it is drawn, dimmed and tinted with the water over it, because
+    // you have to be able to steer the thing.
+    var submerged = isSub(u) && !surfaced(G, u);
+    if (submerged) {
+      var rp = (G.tick + u.id * 17) % 90 / 90;
+      ctx.strokeStyle = 'rgba(190,225,245,.45)'; ctx.lineWidth = 1.1;
+      ctx.globalAlpha = 0.7 * (1 - rp);
+      ctx.beginPath(); ctx.ellipse(px, py, 4 + rp * 11, 2 + rp * 5.5, 0, 0, 6.29); ctx.stroke();
+      ctx.globalAlpha = 1;
+      if (!subSeen(G, u, P_HUMAN)) return;
     }
     var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
     var moving = G.tick - (u.movedAt || -99) < 3;
@@ -26535,23 +27857,34 @@
     }
     // A working harvester rocks on its tracks instead of sitting parked.
     if (u.state === 'mining') oy += ((G.tick >> 3) & 1) ? 1 : 0;
+    // A hull afloat is never still: a slow heave on the swell, with a small
+    // sideways roll a beat out of phase so it does not read as a lift.
+    if (d.nav) {
+      var bt = (G.tick + u.id * 29) * 0.024;
+      oy += Math.sin(bt) * 1.25;
+      ox += Math.sin(bt * 0.63 + 1.1) * 0.9;
+    }
     if (u.deployed) oy += 9;                                               // he drops down behind the bags
     // A Terror Drone inside the hull: the whole vehicle judders on its
     // springs while something tears at it from underneath.
     if (u.drone) ox += ((G.tick >> 1) & 1) ? 1 : -1;
     if (u.air && !alt) drawAirShadow(u);                                   // parked: shadow under it
-    // Tread marks and a dust kick behind a moving ground vehicle.
+    // Tread marks and a dust kick behind a moving ground vehicle; a wake
+    // behind a moving hull.
     if (!art.fr && !d.air && moving && G.tick - (u.trkAt == null ? -99 : u.trkAt) >= 5) {
       u.trkAt = G.tick;
       if (TRACKS.length >= TRACK_MAX) TRACKS.shift();
       var tgi = inMap(Math.round(u.x), Math.round(u.y)) ? G.terrain[idx(Math.round(u.x), Math.round(u.y))] : -1;
-      TRACKS.push({ x: u.x, y: u.y, face: u.face || 0, t: G.tick,
+      if (tgi === T_WATER) TRACKS.push({ x: u.x, y: u.y, face: u.face || 0, t: G.tick, foam: true, sub: submerged });
+      else TRACKS.push({ x: u.x, y: u.y, face: u.face || 0, t: G.tick,
                     dust: tgi === T_GROUND || tgi === T_ROAD });
     }
     // Being erased ([ChronoBeam] Temporal=yes): the unit fades out of the
     // frame over its own outline instead of taking damage.
     if (u.erase > 0) { ctx.save(); ctx.globalAlpha = Math.max(0.08, 1 - u.erase * 0.85); }
+    else if (submerged) { ctx.save(); ctx.globalAlpha = 0.42; }
     ctx.drawImage(s.c, ox, oy, s.w * uk, s.h * uk);
+    if (submerged && u.erase <= 0) ctx.restore();
     if (gondS) ctx.drawImage(gondS.c, ox + gondDx, oy + gondDy, gondS.w * uk, gondS.h * uk);
     if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w * uk, turretS.h * uk);
     if (u.erase > 0) {
@@ -26752,6 +28085,30 @@
     var alt = wreckAlt(w), px = sx(w.x, w.y), py = sy(w.x, w.y);
     if (px < VX0 - 90 || py < VY0 - 90 || px > VX1 + 90 || py > VY1 + 90) return;
     var art = SPR.unit[w.p][facOf(G, w.p) || 'dir'][w.type];
+    if (w.sink) {
+      var sk = w.t / w.life, ss = Array.isArray(art) ? art[octOf ? octOf(w.face) : (w.face & 7)] : art;
+      if (!ss) return;
+      // She goes down by the stern, heeling as she goes: the hull is clipped
+      // at the waterline and the clip line climbs the sprite.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(px - 70, py - 90, 140, 90 - sk * 46);
+      ctx.clip();
+      ctx.translate(px, py);
+      ctx.rotate(sk * 0.42 * (w.face < NFACE / 2 ? 1 : -1));
+      ctx.globalAlpha = 1 - sk * 0.35;
+      ctx.drawImage(ss.c, -ss.w / 2, -(ss.h - UPAD) + sk * 16, ss.w, ss.h);
+      ctx.restore();
+      // Foam closing over her.
+      ctx.strokeStyle = 'rgba(226,242,250,' + (0.75 * (1 - sk)) + ')';
+      ctx.lineWidth = 1.6;
+      for (var ri = 0; ri < 3; ri++) {
+        var rr = (sk + ri * 0.33) % 1;
+        ctx.beginPath(); ctx.ellipse(px, py, 5 + rr * 20, 2.4 + rr * 10, 0, 0, 6.29); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
     var f = (((w.face + Math.round(w.t * w.spin)) % NFACE) + NFACE) % NFACE;
     var s = Array.isArray(art) ? art[f] : (art.fr ? art.fr('walk', f, (w.t >> 3) % 6) : art);
     if (!s) return;
@@ -28235,6 +29592,15 @@
            gapped: gapped, tileSeen: tileSeen, entSeen: entSeen, versesVs: versesVs, isWall: isWall, detected: detected,
            aiSwTarget: aiSwTarget, aiSwValue: aiSwValue, aiPickTarget: aiPickTarget, aiDefencePlan: aiDefencePlan,
            bspecFor: bspecFor },
+    // Phase 8 navy: the mover classes, the underwater visibility model and
+    // the water-placement rule, so a test can ask the same questions the sim
+    // asks rather than inferring them from a match.
+    apiN: { MV_LAND: MV_LAND, MV_NAVAL: MV_NAVAL, MV_AMPH: MV_AMPH,
+            terrPass: terrPass, moverOf: moverOf, isNaval: isNaval, isSub: isSub,
+            isSensor: isSensor, subSeen: subSeen, surfaced: surfaced,
+            waterPlot: waterPlot, nearestWater: nearestWater, hasShore: hasShore,
+            dockSpot: dockSpot, freeWaterNear: freeWaterNear, shipSinks: shipSinks,
+            SUB_SURFACE: SUB_SURFACE, AI_NAVAL_ADJ: AI_NAVAL_ADJ },
     // Baked sprite atlas, so art work can be reviewed as a contact sheet
     // instead of by hunting for one building in a live match.
     spr: function () { return SPR; },

@@ -1247,10 +1247,10 @@ test("a harvester on gems banks double per bail", () => {
   assert.ok(Math.abs(gem.cargoV - 2 * gem.cargo) < 0.01, `gems should bank 2x per bail (${gem.cargoV} for ${gem.cargo})`);
 });
 
-test("six maps across three theatres, each with a picker glyph", () => {
+test("seven maps across three theatres, each with a picker glyph", () => {
   const W = load(), T = W.__rtsTables;
   const ids = Object.keys(T.MAPS);
-  assert.equal(ids.length, 6, `expected six maps, got ${ids.join(", ")}`);
+  assert.equal(ids.length, 7, `expected seven maps, got ${ids.join(", ")}`);
   const th = new Set(ids.map((k) => T.MAPS[k].theatre));
   assert.deepEqual([...th].sort(), ["snow", "temperate", "urban"]);
   for (const k of ids) {
@@ -3564,4 +3564,319 @@ test("the AI's mechanised team mounts its infantry into its transports", () => {
     if (carried >= 4) break;
   }
   assert.ok(carried >= 4, `the team mounted up (${carried} aboard)`);
+});
+
+// ------------------------------------------------------------- Phase 8: navy //
+//
+// The naval layer is a second PASSABILITY CLASS plus nine hulls, and both
+// halves are data the sim reads rather than behaviour you can see in a
+// screenshot — so the tests read the data and do the arithmetic, exactly as
+// the rest of this suite does for the land roster.
+
+test("water is a second passability class: naval only afloat, amphibious both, land never", () => {
+  const N = W.__rtsTest.apiN, TER = T.TER;
+  const wet = [TER.WATER], dry = [TER.GROUND, TER.ROAD, TER.ORE, TER.GEM];
+  const solid = [TER.ROCK, TER.CLIFF, TER.TREE, TER.CIV];
+  for (const t of wet) {
+    assert.equal(N.terrPass(t, N.MV_NAVAL), true, "a hull floats on deep water");
+    assert.equal(N.terrPass(t, N.MV_AMPH), true, "so does an amphibious hull");
+    assert.equal(N.terrPass(t, N.MV_LAND), false, "a tank does not");
+    assert.equal(N.terrPass(t, undefined), false, "and `undefined` still means LAND");
+  }
+  for (const t of dry) {
+    assert.equal(N.terrPass(t, N.MV_NAVAL), false, `a ship cannot cross terrain ${t}`);
+    assert.equal(N.terrPass(t, N.MV_AMPH), true);
+    assert.equal(N.terrPass(t, N.MV_LAND), true);
+  }
+  for (const t of solid) {
+    for (const mv of [N.MV_LAND, N.MV_NAVAL, N.MV_AMPH])
+      assert.equal(N.terrPass(t, mv), false, `terrain ${t} stops every mover`);
+  }
+  // RA2's naval hulls carry TooBigToFitUnderBridge=true: a low bridge deck is
+  // walkable but the water under it is not navigable.
+  assert.equal(N.terrPass(TER.BRIDGE, N.MV_NAVAL), false, "a ship cannot pass under a bridge");
+  assert.equal(N.terrPass(TER.BRIDGE, N.MV_LAND), true, "infantry walk across it");
+
+  // And the class comes off the unit, not off the call site.
+  const H = W.__rtsTest;
+  H.begin(4242, "normal");
+  assert.equal(N.moverOf(H.spawn("destroyer", 0, 5, 5)), N.MV_NAVAL);
+  assert.equal(N.moverOf(H.spawn("lcraft", 0, 5, 6)), N.MV_AMPH);
+  assert.equal(N.moverOf(H.spawn("apc", 0, 5, 7)), N.MV_AMPH);
+  assert.equal(N.moverOf(H.spawn("lancer", 0, 5, 8)), N.MV_LAND);
+});
+
+test("A* keeps a ship in the water and a tank out of it, and the shoreline is the wall", () => {
+  const H = W.__rtsTest, N = H.apiN, TER = T.TER;
+  const g = H.startWith(31, "normal", "coastal", {});
+  // A cell of open water inside the bay, and a cell of dry land beside it.
+  let wet = null, dry = null;
+  for (let y = 20; y < 44 && !wet; y++)
+    for (let x = 20; x < 44 && !wet; x++)
+      if (g.terrain[y * T.MAP + x] === TER.WATER) wet = { x, y };
+  assert.ok(wet, "Coastal has open water");
+  // A dry cell WELL clear of the shore, and clear of the opening base:
+  // astar's "goal blocked, walk out to the nearest free tile" fallback only
+  // looks four cells, so a beach tile would legitimately resolve to the water
+  // beside it, and a cell inside a footprint has no free neighbour at all.
+  const st = g.start[0];
+  for (let y = 2; y < 62 && !dry; y++)
+    for (let x = 2; x < 62 && !dry; x++) {
+      if (g.occ[y * T.MAP + x]) continue;
+      if (N.terrPass(g.terrain[y * T.MAP + x], N.MV_LAND) !== true) continue;
+      if (N.nearestWater(g, x, y, 6)) continue;
+      if (Math.abs(x - st.x) + Math.abs(y - st.y) > 22) continue;   // same half of the map
+      dry = { x, y };
+    }
+  assert.ok(dry, "there is open ground well back from the shore");
+
+  const far = N.nearestWater(g, 31, 31, 6);
+  assert.ok(far, "the middle of the map is the bay");
+  // Naval: water to water is fine, water to land is refused outright.
+  assert.ok(API.astar(g, wet.x, wet.y, far.x, far.y, 0, N.MV_NAVAL), "a hull crosses the bay");
+  assert.equal(API.astar(g, wet.x, wet.y, dry.x, dry.y, 0, N.MV_NAVAL), null,
+    "and cannot be routed up the beach");
+  // Land: the mirror image.
+  assert.equal(API.astar(g, dry.x, dry.y, far.x, far.y, 0, N.MV_LAND), null,
+    "a tank cannot be routed into the bay");
+  // Amphibious: it does both.
+  assert.ok(API.astar(g, dry.x, dry.y, far.x, far.y, 0, N.MV_AMPH), "a landing craft can");
+
+  // Every water tile the naval class accepts must be T_WATER — the shoreline
+  // is the boundary and nothing leaks across it.
+  const path = API.astar(g, wet.x, wet.y, far.x, far.y, 0, N.MV_NAVAL);
+  for (const c of path) assert.equal(g.terrain[c.y * T.MAP + c.x], TER.WATER,
+    `the route stayed wet at ${c.x},${c.y}`);
+});
+
+test("the Shipyard is WaterBound: all water under it, dry land beside it", () => {
+  const H = W.__rtsTest, N = H.apiN, TER = T.TER;
+  const d = T.BLDS.shipyard;
+  assert.equal(d.gw, 4); assert.equal(d.gh, 4);        // art.ini Foundation=4x4
+  assert.equal(d.cost, 1000); assert.equal(d.hp, 1500); // rules.ini Cost/Strength
+  assert.equal(d.armour, "concrete");
+  assert.equal(d.adj, 12, "rules.ini Adjacent=12");
+  assert.equal(d.makes, "n", "it is the naval Factory=UnitType");
+  assert.equal(d.water, true, "WaterBound=yes");
+
+  const g = H.startWith(31, "normal", "coastal", {});
+  // The middle of the bay: all water, but with no shore in the ring.
+  assert.equal(N.waterPlot(g, 20, 42, 4, 4) || N.waterPlot(g, 42, 20, 4, 4), false,
+    "a plot in open water with no shore beside it is refused");
+  // Walk the harbour channel until a legal plot turns up, and prove that the
+  // plot is all water and has land in its ring.
+  let ok = null;
+  for (let k = 12; k < 30 && !ok; k++) if (N.waterPlot(g, k, k, 4, 4)) ok = { x: k, y: k };
+  assert.ok(ok, "the harbour channel takes a yard");
+  for (let y = ok.y; y < ok.y + 4; y++)
+    for (let x = ok.x; x < ok.x + 4; x++)
+      assert.equal(g.terrain[y * T.MAP + x], TER.WATER, "every footprint cell is water");
+  // A plot on dry ground is refused for a WaterBound structure.
+  const st = g.start[0];
+  assert.equal(N.waterPlot(g, st.x, st.y, 4, 4), false, "and it cannot be built ashore");
+  assert.equal(API.canPlace(g, 0, "shipyard", st.x, st.y, { anywhere: true }), false);
+});
+
+test("every hull carries its rules.ini stats", () => {
+  // Cost / Strength / Speed / Sight / Armor read off rules.ini v1.006, with
+  // the project's two standing conversions: Speed x0.013 and ROF x4.
+  const R = {
+    destroyer: { cost: 1000, hp: 600, spd: 6, sight: 7, armour: "heavy", dmg: 60, rof: 110, rng: 8, wh: "ARTYHE", fac: "dir" },
+    aegis:     { cost: 1200, hp: 800, spd: 4, sight: 8, armour: "light", dmg: 100, rof: 15, rng: 12, wh: "SAMWH", fac: "dir" },
+    carrier:   { cost: 2000, hp: 800, spd: 4, sight: 7, armour: "heavy", rng: 25, fac: "dir" },
+    dolphin:   { cost: 500, hp: 200, spd: 8, sight: 4, armour: "light", rof: 120, rng: 6, wh: "SonicWH", fac: "dir" },
+    lcraft:    { cost: 900, hp: 300, spd: 6, sight: 6, armour: "light", fac: "dir" },
+    sub:       { cost: 1000, hp: 600, spd: 4, sight: 4, armour: "heavy", dmg: 100, rof: 120, rng: 7, wh: "APSplash", fac: "col" },
+    seascorp:  { cost: 600, hp: 400, spd: 8, sight: 8, armour: "heavy", dmg: 25, rof: 40, rng: 5, wh: "FlakTWH", fac: "col" },
+    dread:     { cost: 2000, hp: 800, spd: 4, sight: 7, armour: "heavy", rof: 50, rng: 25, fac: "col" },
+    squid:     { cost: 1000, hp: 200, spd: 8, sight: 5, armour: "light", dmg: 50, rof: 32, rng: 1.83, fac: "col" },
+  };
+  for (const [k, r] of Object.entries(R)) {
+    const u = T.UNITS[k];
+    assert.ok(u, `UNITS.${k} exists`);
+    assert.equal(u.cls, "n", `${k} builds in the naval lane`);
+    assert.equal(u.nav, 1, `${k} is Naval=yes`);
+    assert.equal(u.fac, r.fac, `${k} belongs to the right house`);
+    assert.equal(u.cost, r.cost, `${k} Cost=`);
+    assert.equal(u.hp, r.hp, `${k} Strength=`);
+    assert.equal(u.sight, r.sight, `${k} Sight=`);
+    assert.equal(u.armour, r.armour, `${k} Armor=`);
+    assert.ok(Math.abs(u.spd - r.spd * 0.013) < 1e-9, `${k} Speed=${r.spd} -> ${r.spd * 0.013}`);
+    if (r.rof) assert.equal(u.rate, r.rof * 4, `${k} ROF=${r.rof} at 4x`);
+    if (r.rng) assert.equal(u.rng, r.rng, `${k} Range=`);
+    if (r.dmg) assert.equal(u.dmg, r.dmg, `${k} Damage=`);
+    if (r.wh) assert.equal(u.wh, r.wh, `${k} Warhead=`);
+    assert.ok(T.VERSES[u.wh] || !u.wh, `${k}'s warhead has a Verses row`);
+  }
+  // The distinguishing flags, each one a rules.ini line.
+  assert.equal(T.UNITS.sub.sub, 1);          // [SUB] Underwater=yes
+  assert.equal(T.UNITS.dolphin.sub, 1);      // [DLPH] Underwater=yes
+  assert.equal(T.UNITS.squid.sub, 1);        // [SQD] Underwater=yes
+  assert.equal(T.UNITS.sub.sensors, 1);      // Sensors=yes on all three
+  assert.equal(T.UNITS.lcraft.pax, 12);      // [LCRF] Passengers=12
+  assert.equal(T.UNITS.lcraft.amph, 1);      // it crosses the beach
+  assert.equal(T.UNITS.apc.pax, 12);         // [SAPC] Passengers=12
+  assert.equal(T.UNITS.apc.amph, 1, "the Amphibious Transport now floats");
+  assert.equal(T.UNITS.apc.req, "shipyard", "Prerequisite=NAYARD");
+  assert.equal(T.UNITS.carrier.spawns, "hornet");
+  assert.equal(T.UNITS.carrier.spawnN, 3);   // SpawnsNumber=3
+  assert.equal(T.UNITS.dread.burst, 2);      // [DredLauncher] Burst=2
+  assert.equal(T.UNITS.dread.minRng, 8);     // MinimumRange=8
+  assert.equal(T.UNITS.aegis.ag, false);     // LandTargeting=1 + NavalTargeting=6
+  assert.equal(T.UNITS.aegis.aa, true);
+  assert.equal(T.UNITS.destroyer.asw.dmg, 50);  // [ASWBomb] Damage=50
+  assert.equal(T.UNITS.hornet.spawned, true);   // TechLevel=-1
+  assert.equal(API.canBuild(W.__rtsTest.get() || {}, 0, "hornet", false), false);
+});
+
+test("naval targeting: nobody ashore can touch a submarine, and a sub cannot shell the shore", () => {
+  const H = W.__rtsTest, N = H.apiN;
+  const g = H.begin(515, "normal");
+  const sub = H.spawn("sub", 1, 20, 20);
+  const dest = H.spawn("destroyer", 0, 21, 20);
+  const dolphin = H.spawn("dolphin", 0, 22, 20);
+  const tank = H.spawn("lancer", 0, 21, 21);
+  const gi = H.spawn("rifle", 0, 21, 22);
+  const harrier = H.spawn("harrier", 0, 21, 23);
+  // Nothing without Sensors= (or a depth charge) can engage it at all.
+  assert.equal(API.canHit(T.UNITS.lancer, sub, tank), false, "a Grizzly cannot shoot a submarine");
+  assert.equal(API.canHit(T.UNITS.rifle, sub, gi), false, "nor can a GI");
+  assert.equal(API.canHit(T.UNITS.harrier, sub, harrier), false, "nor can a Harrier");
+  assert.equal(API.canHit(T.UNITS.dolphin, sub, dolphin), true, "a Dolphin has Sensors=yes");
+  assert.equal(API.canHit(T.UNITS.destroyer, sub, dest), true, "the Destroyer's Osprey answers it");
+  assert.equal(API.weaponFor(T.UNITS.destroyer, sub, dest).wh, "APSplash",
+    "and it uses the depth charge, not the 155mm");
+  // LandTargeting=1: torpedoes and sonic zaps are for hulls only.
+  assert.equal(API.canHit(T.UNITS.sub, tank, sub), false, "a torpedo cannot be aimed at a tank");
+  assert.equal(API.canHit(T.UNITS.sub, dest, sub), true, "but it can be aimed at a hull");
+  assert.equal(API.canHit(T.UNITS.aegis, dest, null), false, "the Aegis is anti-air and nothing else");
+  assert.equal(API.canHit(T.UNITS.aegis, harrier, null), true);
+});
+
+test("a submerged hull is invisible until it fires, then surfaces for a beat", () => {
+  const H = W.__rtsTest, N = H.apiN;
+  const g = H.begin(516, "normal");
+  const sub = H.spawn("sub", 1, 20, 20);
+  assert.equal(N.isSub(sub), true);
+  assert.equal(N.subSeen(g, sub, 1), true, "its owner always sees it");
+  assert.equal(N.subSeen(g, sub, 0), false, "the enemy does not");
+  // A hull with Sensors=yes inside SensorsSight=4 finds it.
+  const dolphin = H.spawn("dolphin", 0, 22, 20);
+  sub.cool = 1e9;                              // hold its fire: this is about DETECTION
+  H.step(1);                                   // the spatial hash is rebuilt per tick
+  assert.equal(N.subSeen(g, sub, 0), true, "a Dolphin two cells away detects it");
+  dolphin.dead = true;
+  sub.cool = 1e9; sub.surfAt = null;
+  H.step(1);
+  assert.equal(N.subSeen(g, sub, 0), false, "and loses it again when the escort dies");
+  // Firing gives it away, for SUB_SURFACE ticks and no longer.
+  const victim = H.spawn("destroyer", 0, 22, 20);
+  sub.cool = 0;
+  let fired = false;
+  for (let i = 0; i < 1200 && !fired; i++) { H.step(1); fired = N.surfaced(g, sub); }
+  assert.ok(fired, "it surfaced to shoot");
+  assert.equal(N.subSeen(g, sub, 0), true, "and is visible while it is up");
+  for (let i = 0; i < N.SUB_SURFACE + 5; i++) { sub.cool = 9999; H.step(1); }
+  assert.equal(N.surfaced(g, sub), false, "it goes back under");
+});
+
+test("[CARRIER] Spawns=HORNET: three aircraft leave the deck, bomb, and are recovered", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(517, "normal");
+  const cv = H.spawn("carrier", 0, 20, 20);
+  const tgt = H.spawn("rhino", 1, 20, 32);          // 12 cells: inside Range=25
+  assert.equal(H.orderAttack([cv], tgt), 1);
+  let peak = 0;
+  for (let i = 0; i < 60 * 90 && !tgt.dead; i++) {
+    H.step(1);
+    peak = Math.max(peak, g.units.filter((u) => !u.dead && u.type === "hornet").length);
+  }
+  assert.equal(peak, 3, "SpawnsNumber=3 left the deck together");
+  assert.ok(tgt.dead, "and the Hornets killed what the carrier was pointed at");
+  // They come home and the deck fills back up (SpawnReloadRate).
+  let back = false;
+  for (let i = 0; i < 60 * 60 && !back; i++) { H.step(1); back = cv.brood >= 3; }
+  assert.ok(back, `the air group was recovered (brood ${cv.brood})`);
+  assert.equal(g.units.filter((u) => !u.dead && u.type === "hornet").length, 0,
+    "and no Hornet is left orbiting");
+});
+
+test("[DRED] the Dreadnought out-ranges everything ashore and cannot fire inside MinimumRange", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(518, "normal");
+  const d = T.UNITS.dread;
+  assert.ok(d.rng > T.UNITS.v3.rng, "a Dreadnought out-ranges a V3");
+  assert.ok(d.rng > T.BLDS.grandcannon.rng, "and the Grand Cannon");
+  // Inside MinimumRange=8 it is helpless; outside it, two missiles a salvo.
+  // CanPassiveAquire=no: it never picks its own fight, you give it one.
+  assert.equal(T.UNITS.dread.passive, true);
+  const dr = H.spawn("dread", 0, 20, 20);
+  const close = H.spawn("rhino", 1, 20, 24);        // 4 cells: inside MinimumRange
+  H.orderAttack([dr], close);
+  for (let i = 0; i < 900; i++) H.step(1);
+  assert.equal(close.hp, T.UNITS.rhino.hp, "nothing inside eight cells is ever hit");
+  close.dead = true;
+  const far = H.spawn("rhino", 1, 20, 38);          // 18 cells
+  H.orderAttack([dr], far);
+  const hp0 = far.hp;
+  let hit = false;
+  for (let i = 0; i < 60 * 40 && !hit; i++) { H.step(1); hit = far.hp < hp0; }
+  assert.ok(hit, "and everything between eight and twenty-five is");
+});
+
+test("[SQD] the Giant Squid takes hold of a hull and drags it under", () => {
+  const H = W.__rtsTest, A3 = H.api3;
+  const g = H.begin(519, "normal");
+  const sq = H.spawn("squid", 1, 20, 20);
+  const ship = H.spawn("destroyer", 0, 20, 21);
+  assert.equal(T.UNITS.squid.w2.wh, "Parasite", "[SquidGrab] ParasitePlus");
+  let grabbed = false;
+  for (let i = 0; i < 60 * 40 && !grabbed; i++) { H.step(1); grabbed = !!ship.drone; }
+  assert.ok(grabbed, "it got hold of the Destroyer");
+  assert.equal(ship.drone, sq); assert.equal(sq.limbo, true);
+  let sunk = false;
+  for (let i = 0; i < 60 * 60 && !sunk; i++) { H.step(1); sunk = ship.dead; }
+  assert.ok(sunk, "and held it under until it went down");
+  // A ship of that weight SINKS ([General] ShipSinkingWeight=3.0).
+  assert.equal(H.apiN.shipSinks({ type: "destroyer" }), true);
+  assert.equal(H.apiN.shipSinks({ type: "seascorp" }), false, "a light hull explodes instead");
+});
+
+test("the AI builds a navy where there is a coast and never where there is not", () => {
+  const H = W.__rtsTest, N = H.apiN;
+  // AINavalYardAdjacency=20, measured from the Construction Yard's start.
+  const wet = H.startWith(77, "hard", "coastal", {});
+  assert.equal(N.hasShore(wet, 0), true, "Coastal has shore inside twenty cells of both starts");
+  assert.equal(N.hasShore(wet, 1), true);
+  const dry = H.startWith(77, "hard", "frontier", {});
+  assert.equal(N.hasShore(dry, 0), false, "Iron Frontier has none");
+  assert.equal(N.hasShore(dry, 1), false);
+
+  // Every naval task force is gated on a Shipyard, so on a dry map the whole
+  // naval half of the ladder is unreachable rather than merely unlikely.
+  const navalTeams = T.AI_TEAMS.filter((d) => d.naval);
+  assert.ok(navalTeams.length >= 6, "both houses get a fleet, a bombardment and a landing");
+  for (const d of navalTeams) assert.equal(d.need, "shipyard", `${d.key} needs a yard`);
+  for (const d of navalTeams)
+    for (const f of d.force)
+      assert.ok(T.UNITS[f.t], `${d.key} force member ${f.t} exists`);
+
+  // On Coastal a hard AI actually gets one up.
+  const g = H.startWith(4611, "hard", "coastal", {});
+  fullBase(H, g, 1, "col", ["radar"]);
+  const ai = H.attachAI(1, "hard");
+  for (let i = 0; i < 14; i++) H.spawn("rhino", 1, g.start[1].x - 3 - (i % 7), g.start[1].y - 3 - ((i / 7) | 0));
+  let built = false;
+  for (let i = 0; i < 60 * 60 * 10 && !built; i++) { H.step(1); built = API.hasBld(g, 1, "shipyard"); }
+
+  assert.ok(built, "the Collective AI put a Shipyard on the water");
+  const yard = g.blds.find((b) => !b.dead && b.type === "shipyard");
+  assert.equal(N.waterPlot(g, yard.x, yard.y, 4, 4), true, "on a legal WaterBound plot");
+  // ...and then puts hulls in the water out of it.
+  let ships = 0;
+  for (let i = 0; i < 60 * 60 * 5 && ships < 1; i++) {
+    H.step(1);
+    ships = g.units.filter((u) => !u.dead && u.p === 1 && T.UNITS[u.type].nav).length;
+  }
+  assert.ok(ships >= 1, "and launched at least one");
 });
