@@ -7575,3 +7575,11 @@ poor AI still buys tanks. Gates over 12 seeds × both faction orders,
 - **Rejected:** moving them into the sidebar under the radar (RA2-faithful,
   but the user prefers them in the tactical view, where they are readable
   while you are looking at the map rather than at the build list).
+
+## Right-drag always navigates; the right-click order is decided on release
+
+- **Symptom (user, 2026-09-03):** "I don't like the current mouse control logic, I'd like to keep right click + drag as a way to navigate."
+- **Cause:** right-drag panned *only when nothing was selected*. The same gesture meant two different things depending on selection state — drag-to-look worked until you had an army, and then silently became an order. Selection state is invisible while you are looking at the map, so the gesture was unpredictable exactly when it mattered.
+- **Fix:** the right button always begins a pan. The context order (move / attack / harvest / enter, plus Ctrl force-fire and Ctrl+Shift attack-move) is issued on *release*, and only if the pointer never travelled more than `RIGHT_SLOP = 5` px — hand-shake still counts as a click, but once the map has moved the gesture stays navigation and nothing is ordered. `Esc` clears the selection (it already did), and middle-drag still pans as an unambiguous alternative.
+- **Trap:** the drag-vs-click decision must be made in the **pointermove handler**, not in the camera loop. The camera loop only runs on a frame, so a fast flick can finish between frames and be mistaken for a click. Measured: with the flag set in the camera loop, a 160 px right-drag still issued a move order.
+- **Rejected:** classic C&C (left-click orders, right-click deselects) — faithful to RA2 but a misclick sends the army, and the user wants right-drag navigation; a modifier for panning (Space+drag) — an extra key for the most-used camera gesture.
