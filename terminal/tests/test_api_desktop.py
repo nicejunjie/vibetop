@@ -8,7 +8,7 @@ def test_heartbeat_response_shape(client):
                                {"instance": "a", "open": ["terminal"], "active": "terminal"})
     assert status == 200 and body["ok"] is True
     for k in ("running", "reset_epoch", "close_targets", "sys_stats",
-              "claude_usage", "terminals_running", "warnings"):
+              "claude_usage", "codex_usage", "terminals_running", "warnings"):
         assert k in body
     assert body["running"] == ["terminal"]
     assert body["system"] == {"cpu": {"pct": 0}, "mem": {}}   # folded in (stats on)
@@ -44,6 +44,17 @@ def test_ui_toggle_hides_system_field(client):
     _, hb = client.post("/api/desktop", {"instance": "a", "open": []})
     assert hb["sys_stats"] is False
     assert "system" not in hb            # server omits it so it isn't collected
+
+
+def test_codex_usage_toggle_folds_snapshot_into_heartbeat(client, mgr, monkeypatch):
+    monkeypatch.setattr(mgr, "_codex_usage_payload",
+                        lambda home=None, enabled=True: {"enabled": enabled,
+                                                        "session": {"pct": .25}})
+    status, body = client.post("/api/desktop/ui", {"codexUsage": True})
+    assert status == 200 and body["codex_usage"] is True
+    _, hb = client.get("/api/desktop?instance=codex-test")
+    assert hb["codex_usage"] is True
+    assert hb["codex"]["session"]["pct"] == .25
 
 
 def test_close_records_targets_for_live_holders(client):
