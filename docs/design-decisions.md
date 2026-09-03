@@ -6317,3 +6317,88 @@ at all, which is why the corpse helper returns true without one.
 - **Rejected:** keeping ten bolts and widening the hit radius (RA2's storm is a
   *barrage* — the sound and the sight of it are the point, not the arithmetic);
   scaling the rules frames 1:1 to ticks (that would give a 3-second storm).
+
+---
+
+## Giving the War Miner its gun conscripted the Collective's economy
+
+**Symptom:** Phase 4c added RA2's two miners — [CMIN] Chrono Miner with no
+weapon, [HARV] War Miner with `Primary=20mmRapid` — and the balance gate
+collapsed from **12/12 to 5/12**. Hard-as-Collective lost *every* soak match to
+easy-as-Directorate. The trace showed the Collective sitting at **0 credits from
+minute five**, with 25 units produced in eight minutes where the baseline made
+211 in nineteen. It looked like broken mining, and it was not: a controlled
+one-refinery/two-miner harness measured identical income (17,283/6 min) on both
+builds.
+
+**Cause:** `aiArmy()` selects the attack wave with
+
+```js
+if (!u.dead && u.p === me && UNITS[u.type].dmg > 0 && !UNITS[u.type].ammo) a.push(u);
+```
+
+`dmg > 0` was standing in for "is this a soldier". The moment the War Miner had
+a gun it passed that test, so every miner the Collective owned was drafted into
+the attack wave, marched into the enemy base and killed. `armyValue()` had the
+same shape, so the AI also *believed* it had a bigger army than it did and
+attacked on a strength reading that was mostly harvesters.
+
+**Fix:** three separate rules.ini facts, each applied where the assumption
+lived:
+
+* `aiArmy()` and `armyValue()` exclude `isHarv(u)`. rules.ini says this
+  outright — `[HARV] ToProtect=yes` and `ThreatPosed=0`: a War Miner carries a
+  20mm and is still never part of a team.
+* `findTarget()`'s "shooters first" bonus (+25) also skips harvesters, for the
+  same `ThreatPosed=0` reason — otherwise arming the miner makes your own
+  economy the first thing every enemy in range turns to shoot.
+* Target *acquisition* for the miner's own gun is limited to infantry and light
+  armour, which is what `[HARVWH]`'s Verses row (100/80/70 vs infantry,
+  50/20/20 vs vehicles) says the weapon is for. Without it the miner picks a
+  fight with a Rhino, gets shot, and runs for the refinery with a half-full
+  hold.
+
+With all three: 11/12, one stalemate, no losses.
+
+**Rejected:** dropping the War Miner's gun (it is the Collective miner's whole
+identity in RA2, and the brief is fidelity); giving harvesters a blanket
+"never targeted" flag (RA2 attacks harvesters on purpose — the +12 economy
+score in `findTarget` is correct and stays).
+
+**Second-order finding from the same gate:** the Terror Drone's `[DroneJump]`
+`ROF=60` is 60 *frames* at RA2's 30 fps — two seconds, i.e. 120 ticks here, not
+60. Left at 60 the drone chewed at twice RA2's rate and a pair of them could
+carry a whole match. The same 30 fps conversion gives `IvanTimedDelay=450` a
+15-second fuse (900 ticks) and `ChronoDelay=60` two seconds (120 ticks). Any
+rules.ini value in *frames* needs the ×2.
+
+---
+
+## Yuri is the one unit with no sprite to build from
+
+**Symptom:** the Phase 4c art pass fetches the real RA2 asset from the C&C wiki
+`File:` namespace before drawing anything. Desolator, Chrono Legionnaire and Spy
+all have renders and sprite rips there. Yuri has none — `list=search`
+`srnamespace=6` for "Yuri RA2", "Yuri Render", "Yuri Cameo", "Yuri Clone" all
+return unrelated files (Black Eagle turnarounds, a Siege Chopper animation).
+
+**Cause:** Yuri Prime is a *Yuri's Revenge* character; the wiki's RA2 v1.006
+sprite coverage does not include him, and the YR renders are not filed under a
+searchable RA2 name.
+
+**Fix:** built from the unit as RA2 presents him and said so in the code — the
+only figure on the field that is not a soldier: a bald head above a long
+high-collared coat, house colour on the lapels and waist sash, arms at his
+sides, violet psychic motes at the temples. He is the only infantryman with no
+helmet dome *and* no weapon, which is enough to separate him at 1:1. Working
+rule 1 in `docs/rts-roadmap.md` permits this exactly once an asset is shown not
+to exist anywhere, and requires the commit to say so.
+
+**Rejected:** drawing the RA2 *cameo* portrait as a field sprite (it is a bust,
+not a 15×28 figure); reusing the Tesla Trooper body in another colour (the
+whole point of the silhouette is that Yuri is not armoured).
+
+**Note on the pose:** the first cut had his hands at his temples, RA2's psychic
+attack pose. At sprite scale the two hands and the violet glow buried the bald
+head — the single thing that identifies him — so the arms came down to his
+sides. The temple pose is his *attack*, not his walk.
