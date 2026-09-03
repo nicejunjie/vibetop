@@ -265,6 +265,14 @@
     align-items: safe center; justify-content: center; overflow: auto;
     padding: 10px; background: rgba(11,14,20,.74); z-index: 5;
   }
+  /* The FRONT menu is a screen, not a dialog laid over a running HUD: with
+     the sidebar left visible beside it you read a radar bezel, an empty
+     cameo grid, SELL/REPAIR/POWER, a 0:00 clock and a 0-credit ticker for a
+     match that does not exist yet. Hidden, not removed, so the stage keeps
+     its size and the canvas is not re-laid-out on every visit to the menu.
+     Scoped to `body.atmenu`, which only the front menu sets, so every
+     in-match card showCard() puts up still shows the HUD behind it. */
+  body.atmenu #side { visibility: hidden; }
   .overlay.help { z-index: 6; }
   .overlay.lb { z-index: 7; }
   .overlay.show { display: flex; }
@@ -2128,7 +2136,19 @@
       var qq = [], k = 0, j;
       for (j = 0; j < n; j++) {
         dist[j] = 32000;
-        if (g.terrain[j] === T_RAMP || g.terrain[j] === T_CLIFF) continue;
+        if (g.terrain[j] === T_RAMP) continue;
+        // A CLIFF is high ground by definition (hi[] is seeded from it), so
+        // it seeds the uphill BFS. It used to be skipped, and the cost was
+        // Chokepoint Pass: its ridge runs corner to corner with open field on
+        // both sides, so no cell anywhere is enclosed, nothing but the wall
+        // itself is ever level 1, and both passes -- whose only high
+        // neighbour IS the wall -- found no uphill end, fell into the "a ramp
+        // that climbs nothing" case and stayed dead flat. The ridge on the
+        // map named for it was scenery you walked straight through. With the
+        // wall seeding, each pass now climbs out of the field, crests inside
+        // the band and drops down the far side, which is what a pass IS.
+        // Passability is untouched: hf is read only by hPx/sy, i.e. by where
+        // a thing is DRAWN, never by the movement grid.
         if ((hi[j] ? 1 : 0) === wantHi) { dist[j] = 0; qq.push(j); }
       }
       while (k < qq.length) {
@@ -4952,10 +4972,14 @@
   //  1:1). What that sprite actually is: a low, LONG German shepherd — the
   //  body reads about 26x16 with the ground line, so it is well over half as
   //  wide again as it is tall, the opposite proportion to every man in the
-  //  game. Coat is warm tan/gold; the OWNER's colour is the saddle down the
-  //  back and the collar, and nothing else (docs/design-decisions.md: only the
-  //  owner's colour is saturated, faction never paints a unit). Black muzzle,
-  //  black stockings, pricked ears, a low bushy tail.
+  //  game. Coat is warm tan/gold over a BLACK saddle -- the shepherd's own
+  //  marking, and the thing a playtester missed when the saddle was painted
+  //  in the house colour instead: a tan animal with a coloured back and a
+  //  bushy level tail read as an orange FOX. The owner's colour is therefore
+  //  worn, not grown: a broad collar and a harness strap over the withers
+  //  (docs/design-decisions.md: only the owner's colour is saturated, faction
+  //  never paints a unit). Black blocky muzzle, black stockings, pricked
+  //  ears, a sabre tail hanging below the hocks.
   //
   //  Same canvas, anchor and scale contract as bakeInfantry, so drawUnit
   //  places a dog with the identical expression. Eight facings are the same
@@ -4988,9 +5012,11 @@
     var air = LEAP === 1 ? 7.0 : (LEAP === 2 ? 2.2 : 0);
     var stretch = LEAP === 1 ? 1.22 : (LEAP === 0 ? 0.86 : 1.0);
 
-    var TAN = '#d79a44', TANL = '#f0c079', TAND = '#8e5f21';
-    var BLK = '#2a2118', BLKL = '#463628';
-    var SAD = col, SADD = shade(col, 0.62), SADL = shade(col, 1.24);
+    var TAN = '#c98f42', TANL = '#eab970', TAND = '#7d5320';
+    var BLK = '#22201c', BLKL = '#3d3830';
+    // The saddle is the animal's own black; the HOUSE colour is worn, never coat.
+    var SAD = '#26231e', SADD = '#141210', SADL = '#4a453c';
+    var HSE = col, HSED = shade(col, 0.60), HSEL = shade(col, 1.25);
 
     shadowBlob(g, cx + (air ? 3 : 0), by, 8.2 * (0.55 + 0.45 * sd), 2.6);
 
@@ -5002,7 +5028,7 @@
     // barrel is about a quarter of the animal's length deep, and it sits high
     // on long thin legs. Drawn any deeper it reads as a barrel on a table.
     var L = (10.5 * (0.32 + 0.68 * sd)) * stretch;   // half-length, front is +x
-    var H = 3.0;                                     // half-depth of the barrel
+    var H = 3.7;                                     // half-depth of the barrel: a shepherd is deep-chested, not whippety
     var bY = by - 9.4 - bob;                         // spine height above the ground
     var W = 2.9 + 1.7 * (1 - sd);                    // chest width when seen end-on
     var BL = Math.max(W, L * 0.92);                  // the drawn half-length
@@ -5022,11 +5048,18 @@
     leg(L * 0.52 - 1.2, swA, false);
     leg(-L * 0.58 - 1.2, swB, false);
 
-    // Tail: low and bushy, curving away behind.
-    g.strokeStyle = TAND; g.lineWidth = 3.0; g.lineCap = 'round';
+    // Tail: HANGING, sabre-shaped, dark at the tip. A tail carried level and
+    // fluffed out behind is the strongest fox cue there is; a working
+    // shepherd's drops below the hocks and only the last third curves.
+    g.strokeStyle = TAND; g.lineWidth = 2.6; g.lineCap = 'round';
     g.beginPath();
-    g.moveTo(cx - L * 0.92, bY + 0.6);
-    g.quadraticCurveTo(cx - L * 1.5, bY - 0.4 + swA * 0.8, cx - L * 1.7, bY + 3.2 + swA * 1.2);
+    g.moveTo(cx - L * 0.92, bY + 0.4);
+    g.quadraticCurveTo(cx - L * 1.30, bY + 2.6 + swA * 0.5, cx - L * 1.34, bY + 6.4 + swA * 0.8);
+    g.stroke();
+    g.strokeStyle = BLK; g.lineWidth = 2.1;
+    g.beginPath();
+    g.moveTo(cx - L * 1.32, bY + 4.0 + swA * 0.5);
+    g.quadraticCurveTo(cx - L * 1.36, bY + 5.4 + swA * 0.7, cx - L * 1.34, bY + 6.6 + swA * 0.8);
     g.stroke();
     g.lineWidth = 1;
 
@@ -5047,15 +5080,15 @@
     g.fillStyle = TAND;                                            // belly in shadow
     g.beginPath(); g.ellipse(bcx, bY + H * 0.92, BL * 0.95, H * 0.62, 0, 0, 6.29); g.fill();
 
-    // OWNER SADDLE — a German shepherd's black back marking, in the house
-    // colour: it follows the TOP of the back and stops at the flank, so it is
-    // a marking on an animal rather than a lid on a bucket.
+    // SADDLE — a German shepherd's black back marking. It follows the TOP of
+    // the back and drops onto the flank, so it is a marking on an animal
+    // rather than a lid on a bucket: the black mass over tan IS the breed.
     g.fillStyle = SAD;
     g.beginPath();
     g.moveTo(bcx - BL, bY - H * 0.10);
     g.quadraticCurveTo(bcx - BL * 0.5, bY - H * 1.20, bcx + BL * 0.34, bY - H * 1.05);
     g.quadraticCurveTo(bcx + BL * 0.85, bY - H * 0.95, bcx + BL * 0.92, bY - H * 0.20);
-    g.quadraticCurveTo(bcx + BL * 0.30, bY - H * 0.02, bcx - BL * 0.30, bY - H * 0.30);
+    g.quadraticCurveTo(bcx + BL * 0.30, bY + H * 0.24, bcx - BL * 0.30, bY - H * 0.08);
     g.closePath(); g.fill();
     g.strokeStyle = SADD; g.lineWidth = 0.9; g.stroke(); g.lineWidth = 1;
     g.strokeStyle = SADL; g.lineWidth = 1.1;                       // one lit line along the spine
@@ -5076,12 +5109,19 @@
     g.strokeStyle = TAN; g.lineWidth = 4.2; g.lineCap = 'round';
     g.beginPath(); g.moveTo(cx + L * 0.55, bY - H * 0.35); g.lineTo(cx + hxo - 1.2, hyo + 1.4); g.stroke();
     g.lineWidth = 1;
-    // Collar in the owner's colour, at the base of the neck.
-    g.strokeStyle = SADD; g.lineWidth = 1.8;
-    g.beginPath(); g.moveTo(cx + L * 0.62, bY - H * 0.9); g.lineTo(cx + L * 0.74, bY + H * 0.25); g.stroke();
-    g.lineWidth = 1;
+    // The house colour, all of it: a broad collar at the base of the neck and
+    // a harness strap over the withers. Small surfaces, but they are the only
+    // saturated pixels on the animal, so they still read at 1:1.
+    g.lineCap = 'butt';
+    g.strokeStyle = HSE; g.lineWidth = 2.6;
+    g.beginPath(); g.moveTo(cx + L * 0.60, bY - H * 0.98); g.lineTo(cx + L * 0.74, bY + H * 0.34); g.stroke();
+    g.strokeStyle = HSED; g.lineWidth = 0.8;
+    g.beginPath(); g.moveTo(cx + L * 0.71, bY - H * 0.96); g.lineTo(cx + L * 0.85, bY + H * 0.32); g.stroke();
+    g.strokeStyle = HSEL; g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(cx + L * 0.28, bY - H * 1.04); g.lineTo(cx + L * 0.38, bY + H * 0.08); g.stroke();
+    g.lineCap = 'round'; g.lineWidth = 1;
 
-    var hw = 2.5 + 1.0 * (1 - sd), hh = 2.6;
+    var hw = 2.8 + 1.1 * (1 - sd), hh = 2.9;   // a shepherd's head is a wedge, not a point
     g.fillStyle = TAN;
     g.beginPath(); g.ellipse(cx + hxo, hyo, hw, hh, 0, 0, 6.29); g.fill();
     outline(g, TAND);
@@ -5100,11 +5140,16 @@
     if (!BACK) {
       // Muzzle: the black snout is the whole reason a dog reads as a dog.
       var mxo = cx + hxo + (1.6 + 1.4 * sd), myo = hyo + 0.9;
+      // A shepherd's muzzle is long, BLOCKY and black-masked -- but only the
+      // muzzle: mask the whole head and the dog loses its face and reads as a
+      // black blob on a tan body.
       g.fillStyle = TAN;
-      g.beginPath(); g.ellipse(mxo - 0.6, myo, 2.2 + sd * 0.9, 1.5, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(mxo - 1.1, myo - 0.1, 2.1 + sd * 0.8, 1.5, 0, 0, 6.29); g.fill();
       outline(g, TAND);
       g.fillStyle = BLK;
-      g.beginPath(); g.ellipse(mxo + (0.9 + sd * 0.7), myo - 0.2, 1.05, 0.9, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(mxo + (0.5 + sd * 0.5), myo + 0.15, 1.65 + sd * 0.6, 1.2, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#0d0b08';
+      g.beginPath(); g.ellipse(mxo + (1.5 + sd * 0.9), myo - 0.05, 0.95, 0.85, 0, 0, 6.29); g.fill();
       // Open jaw on the leap: the bite is the frame that has to sell it.
       if (LEAP === 1) {
         g.fillStyle = '#7a2020';
@@ -7408,9 +7453,13 @@
   var FOOT0 = { base: 6, power: 4, refinery: 5, barracks: 4, factory: 6,
                 airforce: 4, depot: 6, lab: 4, purifier: 4, reactor: 4,
                 chrono: 6, cloningvats: 5, gapgen: 4 };
-  // How hard the vertical mass follows the plot, per key (default 0.5 -- see
-  // bakeBuilding). Measured against docs/ra2-ref/, not guessed.
-  var VPOW = { airforce: 1, depot: 1 };
+  // How hard the vertical mass follows the plot (default 0.5 -- see
+  // bakeBuilding). Keyed `key` or, where RA2's two factions disagree,
+  // `key:fac`; the faction-specific entry wins. Measured against
+  // docs/ra2-ref/ with a corrected aspect.py, not guessed: `factory` is the
+  // case that forced the split, because the Soviet hall is 14% too flat at
+  // the square root while the Allied vault is already 7% too tall.
+  var VPOW = { airforce: 1, depot: 1, lab: 1, 'factory:col': 1 };
   function bakeBuilding(key, col, fac, bph, bdir, dopen) {
     var DOP = dopen == null ? 0 : dopen;
     if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
@@ -7445,6 +7494,7 @@
       gg.closePath();
     }
     var pad = (key === 'factory' || key === 'airforce' || key === 'radar') ? 24 : 18;   // factory rails, the Airforce helipad and the Radar's front wedge overhang the plot
+    if (key === 'factory') pad = 34;   // the Soviet exit ramp runs a long way past the plot's S corner, and grows with VS
     var head = { base: 108, power: 90, refinery: 72, factory: 104, barracks: 190, sentry: 56, tesla: 106,
                  airforce: 96, radar: 110, depot: 70, lab: 100, purifier: 96, reactor: 100, prism: 110, sentrygun: 56,
                  patriot: 64, flakcannon: 84 }[key] || 70;
@@ -7484,7 +7534,8 @@
     // Command is Allied-only; the Allied Service Depot's plot did not move at
     // all, so only the 4x3 Soviet one is affected).
     var f0 = FOOT0[key] || (b.gw + b.gh);
-    var VS = Math.max(1, Math.pow((b.gw + b.gh) / f0, VPOW[key] || 0.5));
+    var vp = VPOW[key + ':' + fac]; if (vp == null) vp = VPOW[key] || 0.5;
+    var VS = Math.max(1, Math.pow((b.gw + b.gh) / f0, vp));
     if (VS !== 1) { head = Math.round(head * VS); pad = Math.round(pad * VS); }
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
@@ -14935,6 +14986,25 @@
     return 0;
   }
 
+  // The topmost row where the sprite is more than a hair WIDE. artTop finds
+  // the first opaque pixel, which on a civilian office block is the tip of a
+  // two-pixel radio mast forty pixels above the roof -- and a status bar hung
+  // off that tip floats in open sky, detached from the building it belongs
+  // to. RA2 hangs the bar just over the building's MASS, so measure the mass.
+  function artTopSolid(s, minRun) {
+    try {
+      var W = s.c.width, H = s.c.height, k = W / s.w, need = Math.max(1, minRun * k);
+      var d = s.g.getImageData(0, 0, W, H).data;
+      if (!d || d.length < W * H * 4) return artTop(s);
+      for (var y = 0; y < H; y++) {
+        var n = 0, row = y * W * 4;
+        for (var x = 3; x < W * 4; x += 4) if (d[row + x] > 24) n++;
+        if (n >= need) return y / k;
+      }
+    } catch (e) {}
+    return artTop(s);
+  }
+
   // Opaque bounding box of a baked canvas (whole canvas if unreadable).
   // Ink bounds in CSS px (the sprite's own w/h space). The bitmap is DPR times
   // larger than s.w x s.h (mkCanvas) and getImageData ignores the transform,
@@ -15260,8 +15330,13 @@
         g.closePath(); g.fill();
       }
     }
+    // Ground shadow. It used to sit at (cx+7, by-2) with a 27x10 radius --
+    // entirely underneath the block's own base, so every civilian building on
+    // the board was the one thing standing on the pavement without a shadow.
+    // Cast it down-right, past the footprint, the way every other structure
+    // and unit in the game does.
     g.fillStyle = 'rgba(8,10,14,.34)';                                  // ground shadow
-    g.beginPath(); g.ellipse(cx + 7, by - 2, 27, 10, 0, 0, 6.29); g.fill();
+    g.beginPath(); g.ellipse(cx + 12, by + 2, 34, 13, 0, 0, 6.29); g.fill();
     if (v === 0) {                                                      // two-storey corner shop
       block(cx, by, 25, 12, 26, '#8d8378', '#6d6559', '#59524a');
       windows(cx, by, 25, 12, 26, 2, 3, 0, '#d8c890', '#3c4048');
@@ -16273,7 +16348,8 @@
         var A = SPR.neut[k];
         A.s.bb = artBox(A.s);
         A.rise = A.ay - artTop(A.s);
-        if (BLDS[k].civ) A.lit = { s: bakeCivLit(A.s, A.ax, A.ay), ax: A.ax, ay: A.ay, rise: A.rise };
+        A.mass = A.ay - artTopSolid(A.s, 12);
+        if (BLDS[k].civ) A.lit = { s: bakeCivLit(A.s, A.ax, A.ay), ax: A.ax, ay: A.ay, rise: A.rise, mass: A.mass };
         if (A.lit) { A.lit.s.bb = A.s.bb; }
       }
     })();
@@ -16353,6 +16429,7 @@
           // painted across a stack or a statue (they used to be placed off the
           // footprint size alone, which the taller RA2 shapes outgrew).
           A.rise = A.ay - artTop(A.s);
+          A.mass = A.ay - artTopSolid(A.s, 12);   // over the mass, not a mast tip
           A.s.bb = artBox(A.s);
           if (k === 'base' || k === 'power' || k === 'refinery' || k === 'factory' || k === 'barracks'
               || k === 'airforce' || k === 'radar' || k === 'depot' || k === 'lab' || k === 'purifier' || k === 'reactor'
@@ -24279,20 +24356,28 @@
     if (apr && (minXr < 0 || minYr < 0 || maxXr >= MAP || maxYr >= MAP)) {
       var ax0 = Math.max(-APRON, minXr), ax1 = Math.min(MAP - 1 + APRON, maxXr);
       var ay0 = Math.max(-APRON, minYr), ay1 = Math.min(MAP - 1 + APRON, maxYr);
-      // Three distance bands, each one path and one fill, so the apron dims
-      // with distance and its outermost ring matches the cleared background.
-      var band = [[], [], [], [], [], [], [], []];
+      // The apron dims with distance to the playable rectangle. Two things
+      // made this read as "hard-edged diagonal stripes" rather than as land
+      // going away: eight bands over sixteen cells is an 0.11 alpha step, and
+      // a CHEBYSHEV distance (max of the four overhangs) draws SQUARE rings,
+      // whose corners project to long straight diagonals across the screen.
+      // A Euclidean distance draws rounded rings instead, and 32 bands on a
+      // smoothstep ramp puts the step below one value of the palette. The
+      // outermost band reaches the cleared background so the apron ends by
+      // becoming the background rather than by stopping against it.
+      var NBAND = 32, band = [];
+      for (var bq = 0; bq < NBAND; bq++) band.push([]);
       for (y = ay0; y <= ay1; y++) for (x = ax0; x <= ax1; x++) {
         if (x >= 0 && y >= 0 && x < MAP && y < MAP) continue;
         var apx = sxF(x, y), apy = syFlat(x, y);
         if (apx < VX0 - 80 || apx > VX1 + 80 || apy < VY0 - 80 || apy > VY1 + 80) continue;
         var at = apr[(((x - y) & 7) << 3) | ((x + y) & 7)];
         ctx.drawImage(at.c, apx - at.w / 2, apy - at.h / 2, at.w, at.h);
-        var ad = Math.max(-x, -y, x - (MAP - 1), y - (MAP - 1));
-        band[Math.min(7, (ad * 8 / APRON) | 0)].push(apx, apy);
+        var adx = Math.max(0, -x, x - (MAP - 1)), ady = Math.max(0, -y, y - (MAP - 1));
+        var ad = Math.sqrt(adx * adx + ady * ady);
+        band[Math.min(NBAND - 1, (ad * NBAND / APRON) | 0)].push(apx, apy);
       }
-      var bAl = [0.06, 0.17, 0.28, 0.39, 0.50, 0.60, 0.70, 0.82];
-      for (var bi = 0; bi < 8; bi++) {
+      for (var bi = 0; bi < NBAND; bi++) {
         if (!band[bi].length) continue;
         ctx.beginPath();
         for (var bj = 0; bj < band[bi].length; bj += 2) {
@@ -24300,7 +24385,9 @@
           ctx.moveTo(bx0, by0 - TH / 2 - 1); ctx.lineTo(bx0 + TW / 2 + 1, by0);
           ctx.lineTo(bx0, by0 + TH / 2 + 1); ctx.lineTo(bx0 - TW / 2 - 1, by0); ctx.closePath();
         }
-        ctx.fillStyle = 'rgba(5,7,12,' + bAl[bi] + ')'; ctx.fill();
+        var bt = (bi + 0.5) / NBAND;                       // smoothstep, 0.04 at the border to 0.97 at the rim
+        ctx.fillStyle = 'rgba(5,7,12,' + (0.04 + 0.93 * bt * bt * (3 - 2 * bt)).toFixed(3) + ')';
+        ctx.fill();
       }
     }
     for (y = minY; y <= maxY; y++) {
@@ -24477,19 +24564,23 @@
     // Placement ghost, over a wash showing WHERE you may build at all. Without
     // it the radius is invisible and you find its edge by trial and error.
     if (placing) {
+      // RA2 marks the buildable area with a CELL GRID, not a colour wash: a
+      // 0.16 flat green over half the screen drained the terrain of its own
+      // colour, so you could not see what you were building onto. One path,
+      // a barely-there fill and a crisp edge, is the same information at a
+      // fifth of the tint.
       var mask = buildMask(G, P_HUMAN);
-      ctx.globalAlpha = 0.16;
-      ctx.fillStyle = '#6ee7a8';
+      ctx.beginPath();
       for (y = minY; y <= maxY; y++) {
         for (x = minX; x <= maxX; x++) {
           if (!mask[idx(x, y)]) continue;
           var ti = idx(x, y);
           if (!buildableT(G.terrain[ti]) || G.occ[ti] !== 0) continue;
           diamond(ctx, sx(x, y), sy(x, y), TW - 3, TH - 1.5);
-          ctx.fill();
         }
       }
-      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(110,231,168,.055)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(110,231,168,.32)'; ctx.lineWidth = 1; ctx.stroke();
     }
 
     // Placement ghost: RA2 shows the BUILDING itself under the cursor, tinted
@@ -25788,7 +25879,8 @@
     }
     var bbN = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
     if (b.sel) brackets(ox + bbN.x0 - 3, oy + bbN.y0 - 3, ox + bbN.x1 + 3, oy + bbN.y1 + 2);
-    var topN = py - Math.max(art.rise || 0, (b.gw + b.gh) * 8) - 6;
+    // Over the MASS, not over the mast tip (see artTopSolid).
+    var topN = py - Math.max(art.mass || art.rise || 0, (b.gw + b.gh) * 8) - 6;
     if (b.hp < b.maxhp) hpBar(px, topN - 4, 30, frac);
     // Garrison pips: RA2 shows how many men are inside as a row of dots.
     if (held) {
@@ -25922,7 +26014,7 @@
       // sprite was hidden by the building's own platform.
       brackets(ox + bb.x0 - 3, oy + bb.y0 - 3, ox + bb.x1 + 3, oy + bb.y1 + 2);
     }
-    var topY = py - Math.max(art.rise || 0, (b.gw + b.gh) * 8) - 6;
+    var topY = py - Math.max(art.mass || art.rise || 0, (b.gw + b.gh) * 8) - 6;
     if (b.hp < b.maxhp) hpBar(px, topY - 4, 30, b.hp / b.maxhp);
 
     // Switched off at the sidebar: the art already reads as dead metal, so
@@ -26455,8 +26547,19 @@
     if (!showScores) scoreCard.hidden = true;
     if (optCard) optCard.style.display = 'none';
     ov.classList.add('show');
+    menuChrome();
   }
-  function hideCard() { ov.classList.remove('show'); }
+  function hideCard() { ov.classList.remove('show'); menuChrome(); }
+  // Hide the live sidebar behind the FRONT menu only. Keyed off `state`
+  // rather than off showCard's own arguments so the Load-a-saved-game card,
+  // which is reached from the menu and passes showDiff=false, does not blink
+  // the HUD back on underneath it.
+  function menuChrome() {
+    // The headless test harness has no document.body.
+    var bd = document.body;
+    if (!bd || !bd.classList) return;
+    bd.classList.toggle('atmenu', state === 'menu' && ov.classList.contains('show'));
+  }
 
   // --------------------------------------------------------------------- //
   //  In-game options (keyboard.ini Options=27, Esc). RA2 pauses the match

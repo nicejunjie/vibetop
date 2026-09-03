@@ -6957,3 +6957,103 @@ any SIM change, and where every building in every match stands is one.
 are on different seeds from the baseline's three and one of them is a 30-minute
 timeout with the hard side holding 44 buildings to 9 and the enemy army wiped —
 i.e. reshuffled noise on 24 samples, not a systematically weaker builder.
+
+---
+
+## The aspect harness was measuring the shadow (art pass 9)
+
+**Symptom.** The `Foundation=` entry above closed with a follow-up list: eight
+structures "far out" against their RA2 sprite, headed by the Allied
+Construction Yard at **+25.7%** with the note that the fix was a redraw — a
+taller superstructure. Four of the eight (`dir:lab` −39.9%, `col:radar`
+−41.5%, `col:barracks` −48.0%, `dir:power` −20.1%) were nearly half wrong,
+which is not a proportion error, it is a different building.
+
+**Cause.** `tools/rts-art/aspect.py` took the reference's **alpha** bbox.
+Two things in `docs/ra2-ref/` are opaque and are not the sprite:
+
+1. **The palette's shadow index.** Every clean SHP rip carries the building's
+   drop shadow as a solid magenta `(153,0,153)` blob sprawling off the lower
+   right — often as wide as the building itself. It inflated the reference's
+   WIDTH, so a correctly-proportioned structure of ours measured as far too
+   tall. That is the whole of `dir:lab`'s phantom -40%: its reference is
+   212 px wide by the alpha bbox and the building in it is **118 px** -- the
+   other 94 are shadow.
+2. **The two Construction Yard grabs are in-game gif frames on a solid BLUE
+   key**, so their alpha bbox is the entire canvas — and the files the table
+   pointed at, `*-construction-yard-idle-last.png`, are the LAST frame of the
+   idle loop: a puff of smoke for the Allied yard and an *entirely empty
+   field* for the Soviet one. `dir:base`'s "reference aspect 1.257" was the
+   aspect of a 284×226 rectangle of nothing.
+
+Both yards' real numbers: the Allied sprite is 213×137 (**1.555**) against our
+1.580, and the Soviet 204×153 (**1.333**) against our 1.340. They were the two
+best matches in the set and were recorded as the two worst.
+
+**Fix.** `aspect()` masks transparency, the gif blue key and the shadow index
+before taking the bbox, and the two yard entries point at `-idle.png`. Six of
+the eight "far out" structures were already inside ±8%. Nothing was redrawn to
+chase a number that a bad measurement invented.
+
+The three genuinely out — `col:factory` +14.2%, `col:lab` +11.4%, `dir:lab`
++8.0%, all too flat — are fixed through the existing `VS` mechanism rather
+than by hand-tuning heights: **`VPOW` is now keyed `key` or `key:fac`**, and
+`VPOW.lab = 1`, `VPOW['factory:col'] = 1` put those keys' vertical mass on the
+plot in full instead of on its square root. `factory` is what forced the
+per-faction split — RA2's own two references disagree by 25%, so the Soviet
+hall is 14% too flat at the square root at the same moment the Allied vault is
+7% too tall, and one shared exponent cannot serve both. `factory`'s `pad` goes
+24 → 34 because the Soviet exit ramp runs past the plot's S corner and grows
+with `VS`. Result: every structure with a usable reference is inside ±8%
+except `dir:grandcannon` (+14.6%) and `dir:gapgen` (−8.4%), whose plots never
+grew, so `VS` is 1 and only a redraw can move them.
+
+**Rejected: stretching the Allied Construction Yard 25% taller.** It was the
+brief, and it was wrong. The yard is +1.6% against its real sprite; the
+"redraw" would have taken the one structure that matched RA2 best and pulled
+it a quarter of a level off, permanently, on the authority of a smoke frame.
+**Fix the instrument before you trust the reading**: three of the four numbers
+that looked like emergencies were the instrument.
+
+**Two other measurement traps found on the way.** `artTop` returns the first
+opaque row, which on a civilian office block is the tip of a two-pixel radio
+mast forty pixels above the roof — so the garrison and health bars hung in
+open sky. `artTopSolid(s, minRun)` returns the first row that is more than
+`minRun` px wide, and `A.mass` beside `A.rise` is what the bars anchor to. And
+the civilian blocks' ground shadow had been drawn at 27×10 centred under the
+block's own base, i.e. entirely hidden by the building: every civilian
+structure on the board was the one thing standing on the pavement without a
+shadow, and the code that "drew" it had been there all along.
+
+## Chokepoint Pass: a ramp that climbs nothing (art pass 9)
+
+**Symptom.** On the map named for its chokepoint, the ridge had no elevation.
+Ground, ore and units on both sides sat at identical screen height and the
+cliff read as a fence.
+
+**Cause.** `computeHeight` derives level 1 from two things: a cell is a
+`T_CLIFF`, or the border flood cannot reach it. Chokepoint's wall runs corner
+to corner with open field on *both* sides, so **nothing on that map is ever
+enclosed** and nothing but the wall's own cells is high. Its two passes are
+`T_RAMP`, and the uphill BFS that gives a ramp its slope seeded only from
+non-ramp **non-cliff** cells — so a pass whose only high neighbour is the wall
+found no uphill end at all, hit the explicit "a ramp with nothing high at
+either end is simply flat rock" branch, and rendered as a flat cutting.
+
+**Fix.** A cliff is high ground by definition — `hi[]` is seeded from it — so
+it seeds the uphill BFS too. Each pass now climbs out of the field, crests
+inside the band and drops down the far side, drawn with the ramp's stone kerbs
+and risers instead of the flat tile. The crest reaches ~0.3 of a level, which
+is what the geometry gives: the notch is three cells thick, so its centre is
+two cells from open field and five from the nearest cliff.
+
+**Passability is untouched, by construction.** `hf` is read only by `hPx`,
+which `sy()` uses to decide where a thing is DRAWN; the movement grid reads
+`terrain`, which no part of this changes. The terrain builder is not touched
+either, so the map is the same map — which is the point: raising half the
+board would have been a map-design change, and giving the ridge itself the
+height is not.
+
+**Rejected: thickening the wall or adding a walkable crest tile.** Both are
+the only ways to make the pass reach a full level over three cells, and both
+change which cells you can walk on.
