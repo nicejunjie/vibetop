@@ -31,7 +31,7 @@ carries (GGI, FLAKT) are in scope.
 | Black Eagle | `[BEAG]` $1200, Str 200, `Primary=Maverick2` (200 dmg vs the Harrier's 150), TL3 (Korean) | **missing** | minor | S |
 | Nighthawk / BlackHawk Transport | `[SHAD]` $1000, Str 175, Speed 14, `Passengers=5`, `Primary=BlackHawkCannon`, `Prerequisite=GAWEAP` | **missing** — no transports of any kind | major | L |
 | Allied Shipyard + all Allied navy | `[GAYARD]` $1000 Str 1500 `Adjacent=12`; `[DEST]` $1000, `[AEGIS]` $1200, `[CARRIER]` $2000, `[DLPH]` $500, `[LCRF]` $900 | **missing** — `solidT()` (L517) makes `T_WATER` impassable to everything; no naval layer | major | L |
-| SpySat Uplink | `[GASPYSAT]` $1500, Str 1000, wood, Power −100, `Prerequisite=GATECH,GACNST`, TL9 — reveals the whole map | **missing** | minor | S |
+| SpySat Uplink | `[GASPYSAT]` $1500, Str 1000, wood, Power −100, `Prerequisite=GATECH,GACNST`, TL9 — reveals the whole map | **present** (Phase 4b) | — | — |
 | Gap Generator | `[GAGAP]` $1000, Str 600, wood, Power −100, `GapGenerator=yes`, `Prerequisite=GATECH`, TL7 | **missing** — no shroud-*re*-imposition mechanic exists (`g.seen` is a one-way latch, L14470-14481) | major | M |
 | Grand Cannon | `[GTGCAN]` $2000, Str 900, steel, Power −100, Sight 10, `Primary=GrandCannonWeapon` (150 dmg, ROF 120, **Range 15, MinimumRange 3**, `GrandCannonWH`), `Prerequisite=RADAR`, TL7 | **missing** — the Allies have no long-range defence at all | major | M |
 | Allied Wall | `[GAWALL]` $100/segment, Str 300, concrete, `Adjacent=8`, `Repairable=false`, `Prerequisite=GAPILE`; `[General] WallBuildSpeedCoefficient=3.0`, `WallTower=GACTWR` | **missing** — no wall/gate at all | major | M |
@@ -50,8 +50,8 @@ carries (GGI, FLAKT) are in scope.
 | Demolition Truck | `[DTRUCK]` $1500, `Primary=Demobomb` (300 dmg, `DemobombWH` **CellSpread 8**), `Explodes=yes` (Libya) | **missing** | minor | S |
 | Amphibious Transport | `[SAPC]` $900, Str 300, heavy, `Passengers=12`, `Prerequisite=NAYARD` | **missing** | major | L |
 | Soviet Shipyard + navy | `[NAYARD]` $1000 TL2; `[SUB]` $1000, `[HYD]` $600, `[DRED]` $2000, `[SQD]` $1000 | **missing** | major | L |
-| Cloning Vats | `[NACLON]` $2500, Str 1000, Power −200, `Prerequisite=NATECH`, TL9 — doubles infantry output | **missing** | minor | S |
-| Psychic Sensor | `[NAPSIS]` $1000, Str 750, Power −50, Sight 10, `SensorArray=yes`, `Prerequisite=NATECH`, TL10 | **missing** | minor | S |
+| Cloning Vats | `[NACLON]` $2500, Str 1000, Power −200, `Prerequisite=NATECH`, TL9 — doubles infantry output | **present** (Phase 4b) | — | — |
+| Psychic Sensor | `[NAPSIS]` $1000, Str 750, Power −50, Sight 10, `SensorArray=yes`, `Prerequisite=NATECH`, TL10 | **present** (Phase 4b) — enemy intent lines inside `PsychicDetectionRadius=15` | — | — |
 | Soviet Wall | `[NAWALL]` $100, Str 300, concrete, `Adjacent=8`, `Prerequisite=NAHAND` | **missing** | major | M |
 | War Miner's gun | `[HARV] Primary=20mmRapid` — 30 dmg, ROF 20, Rng 5.5, `HARVWH`; the Soviet miner shoots back | **missing** — `UNITS.harvester` (L618) is `dmg: 0` for both factions | major | S |
 | Terror Drone armour class | `[DRON] Armor=special_1` | **partial** — game uses `light` (L779). `ARMOURS` (L551) has no `special_1`/`special_2` slot, so every warhead's 10th/11th Verses column is discarded | minor | M |
@@ -61,12 +61,12 @@ carries (GGI, FLAKT) are in scope.
 
 | Gap | RA2 behaviour | What the game does now | Severity | Effort |
 |---|---|---|---|---|
-| Tech Oil Derrick | `[CAOILD]` Str 1000, steel, `Capturable=yes`, `Unsellable=yes` — capture for a cash trickle | **missing** | major | M |
-| Tech Airport / Hospital / Outpost | `[CAAIRP]` Str 800 (paradrop), `[CATHOSP]`/`[CAHOSP]` Str 800 (heals infantry), `[CAOUTP]` Str 2000 | **missing** | minor | M |
-| Garrisonable civilian buildings | 155 sections carry `CanBeOccupied=yes` with `MaxNumberOccupants` 1-10 (e.g. `[CACITY01]`=10, `[CAEUR1]`=3); `[General] ThreatPerOccupant=10` | **missing** — `T_CIV` (L515) is inert scenery, `solidT()` (L517) treats it as a rock. `mapCity` (L1194) places 10 of them | major | M |
-| Bridges destructible + `[CABHUT]` repair hut | Bridge cells collapse under fire; `[CABHUT]` Str 2000 rebuilds them; `EVA_BridgeRepaired` exists in eva.ini (#46) | **missing** — `T_BRIDGE` (L515) is an indestructible passable deck | major | M |
-| Crates | `[CrateRules]` `CrateMaximum=255 CrateMinimum=1 CrateRadius=3.0 CrateRegen=3 FreeMCV=yes`; `[Powerups]` Money 2000 / Veteran / Firepower ×2.0 / Armor ×1.5 / Speed ×1.2 / Reveal / HealBase / Unit | **missing** — no crate entity anywhere in the file | major | M |
-| Ore spreading | `[General] TiberiumSpreads=yes`, `[Riparius] Spread=2200 SpreadPercentage=.06 Growth=2200 Value=25`; `[Cruentus] Value=50` | **partial** — regrowth only, capped at 900/tile, never spreads (L14512-14515). Gem value ×2 is correct (`GEM_MULT`, L516) | minor | S |
+| Tech Oil Derrick | `[CAOILD]` Str 1000, steel, `Capturable=yes`, `Unsellable=yes` — capture for a cash trickle | **present** (Phase 4b) — `BLDS.oilderrick`, house −1, `ProduceCashStartup=1000` + 20/100 ticks | — | — |
+| Tech Airport / Hospital / Outpost | `[CAAIRP]` Str 800 (paradrop), `[CATHOSP]`/`[CAHOSP]` Str 800 (heals infantry), `[CAOUTP]` Str 2000 | **present** (Phase 4b) for Airport + Hospital; Outpost (`UnitRepair`/turret) still missing | minor | S |
+| Garrisonable civilian buildings | 155 sections carry `CanBeOccupied=yes` with `MaxNumberOccupants` 1-10 (e.g. `[CACITY01]`=10, `[CAEUR1]`=3); `[General] ThreatPerOccupant=10` | **present** (Phase 4b) — four block types, caps 10/6/3/2, `Occupier=yes` on GI + Conscript only, window ports, ThreatPerOccupant, engineer eviction | — | — |
+| Bridges destructible + `[CABHUT]` repair hut | Bridge cells collapse under fire; `[CABHUT]` Str 2000 rebuilds them; `EVA_BridgeRepaired` exists in eva.ini (#46) | **present** (Phase 4b) — per-column spans at `BridgeStrength=1500`, torn-deck art, engineer-in-hut repair | — | — |
+| Crates | `[CrateRules]` `CrateMaximum=255 CrateMinimum=1 CrateRadius=3.0 CrateRegen=3 FreeMCV=yes`; `[Powerups]` Money 2000 / Veteran / Firepower ×2.0 / Armor ×1.5 / Speed ×1.2 / Reveal / HealBase / Unit | **present** (Phase 4b) — all eight weighted powerups, FreeMCV, crate art + pickup glyph | — | — |
+| Ore spreading | `[General] TiberiumSpreads=yes`, `[Riparius] Spread=2200 SpreadPercentage=.06 Growth=2200 Value=25`; `[Cruentus] Value=50` | **present** (Phase 4b) — `stepOreSpread` seeds a neighbour at 6% a pass; gems do not spread | — | — |
 
 ---
 

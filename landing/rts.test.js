@@ -29,7 +29,7 @@ function stubCtx() {
     beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
     fill: noop, stroke: noop, arc: noop, ellipse: noop, roundRect: noop, clip: noop,
     quadraticCurveTo: noop, bezierCurveTo: noop, arcTo: noop, rect: noop,
-    save: noop, restore: noop, scale: noop, translate: noop, setTransform: noop,
+    save: noop, restore: noop, scale: noop, translate: noop, rotate: noop, setTransform: noop,
     drawImage: noop, putImageData: noop,
     getImageData: () => ({ data: [] }),
     createRadialGradient: () => ({ addColorStop: noop }),
@@ -115,8 +115,12 @@ test("every unit and structure declares the fields the sim reads", () => {
   }
   // RA2: every superweapon is BuildCat=Combat — Defence tab AND defence lane.
   // (A second `cat:` key later in the literal silently won once; keep this.)
+  // ...except the Paratrooper Drop, whose charger is a captured [CAAIRP]:
+  // a neutral structure you take off the map, never a sidebar item.
   for (const k of T.SW_KEYS) {
-    assert.equal(T.BLDS[T.SW[k].bld].cat, "def", `${T.SW[k].bld} must build in the defence lane`);
+    const bld = T.BLDS[T.SW[k].bld];
+    if (bld.neut) continue;
+    assert.equal(bld.cat, "def", `${T.SW[k].bld} must build in the defence lane`);
   }
   for (const k of ["sentry", "prism", "patriot", "sentrygun", "tesla", "flakcannon"]) {
     assert.equal(T.BLDS[k].cat, "def", `${k} must build in the defence lane`);
@@ -1146,10 +1150,13 @@ test("civilian blocks are solid and a bridge deck is not buildable", () => {
   const W = load(), T = W.__rtsTables, H = W.__rtsTest, API = H.api, TER = T.TER;
   const g = H.begin(44, "normal", "river");
   H.give(0, 99999);
-  const civ = tiles(g, TER.CIV);
-  assert.ok(civ.length >= 6 && civ.length <= 12, `expected 6-10 civilian blocks, got ${civ.length}`);
+  // Phase 4b: a civilian block is no longer a terrain type, it is a real
+  // neutral STRUCTURE — house -1 in g.blds, holding its own tiles in g.occ.
+  const civ = g.blds.filter((b) => !b.dead && T.BLDS[b.type].civ).map((b) => ({ x: b.x, y: b.y }));
+  assert.ok(civ.length >= 6 && civ.length <= 12, `expected 6-12 civilian blocks, got ${civ.length}`);
+  const at = new Set(civ.map((c) => c.x + "," + c.y));
   // mirror-fair: every block has its 180-degree partner
-  for (const c of civ) assert.equal(g.terrain[(63 - c.y) * 64 + (63 - c.x)], TER.CIV, `civilian block at ${c.x},${c.y} has no mirror`);
+  for (const c of civ) assert.ok(at.has((63 - c.x) + "," + (63 - c.y)), `civilian block at ${c.x},${c.y} has no mirror`);
   // a civilian lot blocks movement: astar diverts to a free tile beside it
   // and the returned route never steps on the lot itself
   const c0 = civ[0];
@@ -1990,4 +1997,278 @@ test("the Grand Cannon out-ranges everything on the ground and is blind inside t
   H.step(600);
   assert.ok(far.hp < far.maxhp, "but it reaches a tank eleven cells away");
   assert.ok(!gun.dead);
+});
+
+// ======================================================================= //
+//  Phase 4b — the neutral house: garrisons, bridges, tech buildings,
+//  crates, ore spreading, the SpySat.
+// ======================================================================= //
+
+// A cleared square of open ground: the neutral-house tests place structures
+// by hand and must not be at the mercy of where a seed put its rocks.
+function clearGround(g, x0, y0, x1, y1) {
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { g.terrain[y * 64 + x] = 0; g.ore[y * 64 + x] = 0; }
+}
+
+test("infantry garrison a city block, shoot out of it, and die with it", () => {
+  // rules.ini: [CACITY01] CanBeOccupied=yes MaxNumberOccupants=10, and
+  // Occupier=yes on [E1]/[E2] only. [General] ThreatPerOccupant=10.
+  const H = W.__rtsTest, API2 = H.api2;
+  const g = H.begin(4401, "normal");
+  clearGround(g, 34, 34, 46, 46);
+  const block = H.build("civflat", -1, 40, 40);
+  block.make = 0;
+  assert.equal(block.p, -1, "an untouched block belongs to the neutral house");
+  assert.equal(API2.occCapOf(block), 10, "MaxNumberOccupants=10");
+  assert.equal(API2.canOccupy("rifle"), true, "[E1] Occupier=yes");
+  assert.equal(API2.canOccupy("conscript"), true, "[E2] Occupier=yes");
+  assert.equal(API2.canOccupy("flak"), false, "a Flak Trooper has no Occupier= key");
+  assert.equal(API2.canOccupy("tanya"), false, "and neither does Tanya");
+
+  // Walk two GIs in with the real order the right-click issues.
+  const a = H.spawn("rifle", 0, 38, 40), b2 = H.spawn("rifle", 0, 38, 41);
+  assert.equal(H.orderGarrison([a, b2], block), 2, "both took the garrison order");
+  H.step(600);
+  assert.equal(H.occupants(block), 2, "both are inside");
+  assert.ok(a.dead && b2.dead, "an occupant stops being a unit on the field");
+  assert.equal(block.p, 0, "and the block flies the occupier's colour");
+
+  // They shoot what comes into range, with their own weapon.
+  const foe = H.spawn("conscript", 1, 42, 41);
+  foe.guardX = foe.x; foe.guardY = foe.y;
+  const hp0 = foe.hp;
+  H.step(400);
+  assert.ok(foe.hp < hp0, `the garrison never fired (${foe.hp} of ${hp0})`);
+
+  // The building falls: RA2 kills everyone inside.
+  H.killBld(block);
+  assert.equal(H.occupants(block), 0, "the garrison died with the building");
+  const alive = g.units.filter((u) => !u.dead && u.p === 0 && u.type === "rifle");
+  assert.equal(alive.length, 0, "nobody walked out of the rubble");
+});
+
+test("a garrison can be evacuated, and an enemy Engineer clears one", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(4402, "normal");
+  clearGround(g, 24, 24, 36, 36);
+  const block = H.build("civshop", -1, 30, 30);
+  block.make = 0;
+  assert.equal(H.api2.occCapOf(block), 3, "the small block is a 3-man section");
+
+  const men = [H.spawn("rifle", 0, 28, 30), H.spawn("rifle", 0, 28, 31), H.spawn("rifle", 0, 29, 32)];
+  men.forEach((u) => H.garrison(block, u));
+  assert.equal(H.occupants(block), 3, "full");
+  const spare = H.spawn("rifle", 0, 28, 29);
+  assert.equal(H.garrison(block, spare), false, "MaxNumberOccupants is a cap, not a suggestion");
+  assert.ok(!spare.dead, "and the man who could not fit is still on the street");
+
+  // D on the building turns them out again, at the health they went in with.
+  assert.equal(H.eject(block), 3, "three men back on the street");
+  assert.equal(block.p, -1, "and the block reverts to the neutral house");
+  const out = g.units.filter((u) => !u.dead && u.p === 0 && u.type === "rifle");
+  assert.equal(out.length, 4, "three evacuated plus the one who never got in");
+
+  // Re-garrison, then send an enemy engineer in: RA2 evicts, it does not capture.
+  out.slice(0, 2).forEach((u) => H.garrison(block, u));
+  assert.equal(H.occupants(block), 2);
+  const eng = H.spawn("engineer", 1, 32, 30);
+  assert.equal(H.orderCapture([eng], block), 1);
+  H.step(600);
+  assert.equal(H.occupants(block), 0, "the engineer cleared the building");
+  assert.equal(block.p, -1, "a civilian block is not Capturable — it goes back to neutral");
+  assert.ok(eng.dead, "and the engineer was spent doing it");
+});
+
+test("a bridge span collapses under fire, blocks the crossing, and a repair hut rebuilds it", () => {
+  // [General] DestroyableBridges=yes, BridgeStrength=1500; [CABHUT]
+  // BridgeRepairHut=yes, Immune=yes.
+  const H = W.__rtsTest, API = H.api, API2 = H.api2, TER = T.TER;
+  const g = H.begin(4403, "normal", "river");
+  assert.ok(g.bridges.length >= 2, `River Crossing should have spans, got ${g.bridges.length}`);
+  const sp = g.bridges[0];
+  assert.equal(sp.maxhp, 1500, "BridgeStrength=1500");
+  const cell = sp.cells[0], cx = cell % 64, cy = (cell / 64) | 0;
+  assert.equal(g.terrain[cell], TER.BRIDGE);
+  // a unit can cross it before
+  assert.equal(API.blocked(g, cx, cy, 0), false, "the deck is passable while it stands");
+
+  // Force-fire damage, in the same units the game applies.
+  assert.equal(API2.damageBridge(g, cx, cy, 700), true);
+  assert.ok(!sp.down, "700 does not drop a 1500-point span");
+  API2.damageBridge(g, cx, cy, 900);
+  assert.ok(sp.down, "1600 does");
+  for (const c of sp.cells) assert.equal(g.terrain[c], TER.WATER, "the deck is river again");
+  assert.equal(API.blocked(g, cx, cy, 0), true, "and nothing walks across the gap");
+
+  // The hut at the head of the crossing rebuilds it.
+  const hut = g.blds.find((b) => !b.dead && T.BLDS[b.type].hut);
+  assert.ok(hut, "mapRiver places [CABHUT]s");
+  // Immune=yes: it cannot be shot down.
+  const hp0 = hut.hp;
+  const gun = H.spawn("rhino", 0, hut.x + 3, hut.y);
+  H.api.canHit; // (referenced for clarity)
+  H.orderAttack([gun], hut);
+  H.step(400);
+  assert.equal(hut.hp, hp0, "[CABHUT] Immune=yes");
+
+  const eng = H.spawn("engineer", 0, hut.x + 1, hut.y + 1);
+  assert.equal(H.orderCapture([eng], hut), 1);
+  H.step(900);
+  assert.ok(!sp.down, "the engineer rebuilt the span");
+  assert.equal(g.terrain[cell], TER.BRIDGE);
+  assert.equal(API.blocked(g, cx, cy, 0), false, "the crossing is open again");
+  assert.ok(eng.dead, "and the engineer went into the hut");
+});
+
+test("an Oil Derrick pays a lump sum on capture and then a trickle", () => {
+  // [CAOILD] ProduceCashStartup=1000, ProduceCashAmount=20, ProduceCashDelay=100.
+  const H = W.__rtsTest;
+  const g = H.begin(4404, "normal");
+  clearGround(g, 24, 24, 36, 36);
+  const spec = T.BLDS.oilderrick;
+  assert.equal(spec.cashStart, 1000);
+  assert.equal(spec.cash, 20);
+  assert.equal(spec.cashDelay, 100);
+
+  const rig = H.build("oilderrick", -1, 30, 30);
+  rig.make = 0;
+  g.side[0].credits = 0;
+  H.step(300);
+  assert.equal(H.credits(0), 0, "a derrick nobody owns pays nobody");
+
+  const eng = H.spawn("engineer", 0, 28, 30);
+  assert.equal(H.orderCapture([eng], rig), 1);
+  H.step(600);
+  assert.equal(rig.p, 0, "the engineer took it");
+  assert.ok(H.credits(0) >= 1000, `ProduceCashStartup did not pay (${H.credits(0)})`);
+  const c0 = H.credits(0);
+  H.step(1000);                                    // ten ProduceCashDelay windows
+  const gained = H.credits(0) - c0;
+  assert.ok(gained >= 150 && gained <= 260, `the trickle should be ~$200 per 1000 ticks, got ${gained}`);
+});
+
+test("a crate is picked up, and a money crate pays $2000", () => {
+  // [CrateRules] CrateRadius=3.0; [Powerups] Money=20,MONEY,yes,2000.
+  const H = W.__rtsTest;
+  const g = H.begin(4405, "normal");
+  clearGround(g, 16, 16, 36, 36);
+  H.build("base", 0, 8, 8).make = 0;               // FreeMCV only fires with no buildings
+  g.side[0].credits = 0;
+  H.spawnCrate("money", 30, 30);
+  assert.equal(H.crates().length >= 1, true);
+  const u = H.spawn("lancer", 0, 30, 30);
+  H.step(8);
+  assert.equal(H.credits(0), 2000, `a Money crate is $2000, got ${H.credits(0)}`);
+  assert.equal(H.crates().filter((c) => c.x === 30 && c.y === 30).length, 0, "and the crate is gone");
+  assert.ok(!u.dead);
+
+  // The area crates apply their multiplier to everything inside CrateRadius.
+  const a = H.spawn("lancer", 0, 20, 20), b2 = H.spawn("lancer", 0, 22, 20), far = H.spawn("lancer", 0, 30, 20);
+  H.api2.openCrate(g, { x: 21, y: 20, kind: "firepower", id: 1 }, a);
+  assert.equal(a.fpMul, 2.0, "[Powerups] Firepower ...,2.0");
+  assert.equal(b2.fpMul, 2.0, "a neighbour inside CrateRadius=3 gets it too");
+  assert.equal(far.fpMul, undefined, "a unit nine cells away does not");
+  H.api2.openCrate(g, { x: 21, y: 20, kind: "speed", id: 2 }, a);
+  assert.equal(a.spMul, 1.2, "[Powerups] Speed ...,1.2");
+  assert.ok(Math.abs(H.api2.uspd(a) - T.UNITS.lancer.spd * 1.2) < 1e-9, "and the mover reads it");
+});
+
+test("ore spreads into empty ground, and gems do not", () => {
+  // [Riparius] Spread=2200 SpreadPercentage=.06; [Cruentus] SpreadPercentage=0.
+  const H = W.__rtsTest, API2 = H.api2, TER = T.TER;
+  const g = H.begin(4406, "normal");
+  // a solid block of rich ore in cleared ground
+  for (let y = 30; y < 36; y++) for (let x = 30; x < 36; x++) { g.terrain[y * 64 + x] = TER.ORE; g.ore[y * 64 + x] = 800; }
+  for (let y = 26; y < 40; y++) for (let x = 26; x < 40; x++) {
+    if (x >= 30 && x < 36 && y >= 30 && y < 36) continue;
+    g.terrain[y * 64 + x] = TER.GROUND; g.ore[y * 64 + x] = 0;
+  }
+  const before = g.terrain.reduce((n, t) => n + (t === TER.ORE ? 1 : 0), 0);
+  for (let i = 0; i < 40; i++) API2.stepOreSpread(g);
+  const after = g.terrain.reduce((n, t) => n + (t === TER.ORE ? 1 : 0), 0);
+  assert.ok(after > before, `ore never spread (${before} -> ${after})`);
+
+  // gems are finite
+  const g2 = H.begin(4407, "normal");
+  for (let y = 30; y < 36; y++) for (let x = 30; x < 36; x++) { g2.terrain[y * 64 + x] = TER.GEM; g2.ore[y * 64 + x] = 800; }
+  for (let y = 26; y < 40; y++) for (let x = 26; x < 40; x++) {
+    if (x >= 30 && x < 36 && y >= 30 && y < 36) continue;
+    g2.terrain[y * 64 + x] = TER.GROUND;
+  }
+  const gemBefore = g2.terrain.reduce((n, t) => n + (t === TER.GEM ? 1 : 0), 0);
+  for (let i = 0; i < 40; i++) API2.stepOreSpread(g2);
+  const gemAfter = g2.terrain.reduce((n, t) => n + (t === TER.GEM ? 1 : 0), 0);
+  assert.equal(gemAfter, gemBefore, "[Cruentus] SpreadPercentage=0 — a gem field is finite");
+});
+
+test("a SpySat Uplink reveals the whole map, and loses it with its power", () => {
+  // [GASPYSAT] SpySat=yes, Power=-100, Powered=true.
+  const H = W.__rtsTest, API = H.api;
+  const g = H.begin(4408, "normal");
+  const far = { x: 55, y: 55 };
+  assert.equal(API.tileSeen(g, far.x, far.y), false, "the far corner starts shrouded");
+  const plant = H.build("reactor", 0, 10, 10);
+  const sat = H.build("spysat", 0, 14, 10);
+  g.blds.forEach((b) => { b.make = 0; });
+  H.step(12);
+  assert.equal(H.api2.spySatUp(g, 0), true);
+  assert.equal(API.tileSeen(g, far.x, far.y), true, "SpySat=yes reveals everything");
+
+  // Pull the power: RA2's SpySat is Powered=true.
+  H.killBld(plant);
+  H.step(12);
+  assert.equal(H.api2.spySatUp(g, 0), false, "no grid, no satellite");
+  assert.ok(sat && !sat.dead);
+});
+
+test("the Cloning Vats duplicates every infantryman, and a Tech Airport drops a stick", () => {
+  // [NACLON] Cloning=yes; [CAAIRP] SuperWeapon=ParaDropSpecial,
+  // [General] SovParaDropNum=9 / AllyParaDropNum=6.
+  const H = W.__rtsTest;
+  const g = H.begin(4409, "normal");
+  g.side[0].fac = "col";
+  H.build("base", 0, 8, 8); H.build("reactor", 0, 12, 8); H.build("reactor", 0, 15, 8);
+  H.build("barracks", 0, 18, 8);
+  const vats = H.build("cloningvats", 0, 22, 8);
+  g.blds.forEach((b) => { b.make = 0; });
+  H.give(0, 20000);
+  assert.equal(H.api2.cloneVatsOf(g, 0) === vats, true);
+  const before = g.units.filter((u) => !u.dead && u.type === "conscript").length;
+  g.side[0].queues.i.list.push("conscript");
+  H.step(60 * 30);
+  const after = g.units.filter((u) => !u.dead && u.type === "conscript").length;
+  assert.ok(after - before >= 2, `one conscript trained should yield two (${before} -> ${after})`);
+
+  // Paradrop: nine Conscripts for the Collective.
+  const g2 = H.begin(4410, "normal");
+  g2.side[0].fac = "col";
+  const n0 = g2.units.filter((u) => !u.dead).length;
+  H.api2.paraDrop(g2, 0, 40, 40);
+  H.step(60 * 5);
+  const dropped = g2.units.filter((u) => !u.dead && u.type === "conscript").length;
+  assert.equal(dropped, 9, `SovParaDropNum=9, got ${dropped}`);
+  assert.ok(g2.units.filter((u) => !u.dead).length > n0);
+});
+
+test("neutral structures never decide the match and never take the sidebar", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(4411, "normal", "river");
+  // A player whose last real structure is gone has lost, however many
+  // civilian blocks and derricks are still standing.
+  const neut = H.neutrals();
+  assert.ok(neut.length >= 8, `the urban map should carry a neutral layer, got ${neut.length}`);
+  H.build("base", 0, 8, 8).make = 0;
+  H.build("base", 1, 54, 54).make = 0;
+  H.step(4);
+  assert.equal(g.over, 0);
+  H.kill(1);
+  H.step(4);
+  assert.equal(g.over, 1, "the neutral house does not keep a beaten side alive");
+
+  // ...and nothing neutral is offered for sale in the sidebar.
+  for (const k of Object.keys(T.BLDS)) {
+    if (!T.BLDS[k].neut) continue;
+    assert.equal(T.BLDS[k].cat, "neut", `${k} must not sit in a buildable lane`);
+    assert.equal(T.BLDS[k].build, 0, `${k} has a build time and therefore a cameo`);
+  }
 });

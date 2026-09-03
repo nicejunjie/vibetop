@@ -372,11 +372,42 @@ per state, for every structure and defence, both factions.
 - ☑ Grand Cannon ([GTGCAN] $2000/900hp/steel/−100, 150 damage, ROF 480,
   Range 15, `MinimumRange=3`) with the defences' 8-bearing aiming frames, a
   slow lobbed shell on a real arc and a crater where it lands.
-- ☐ Spy Satellite; Psychic Sensor; Cloning Vats.
-- ☐ Garrisonable civilian buildings (`MaxNumberOccupants`, muzzle ports,
-  Structure Garrisoned EVA); destructible bridges + repair hut; tech
-  buildings (Oil Derrick, Hospital, Airport) as capturable neutrals; crates
-  (`[CrateRules]`/`[Powerups]`); ore spreading.
+- ☑ Spy Satellite ([GASPYSAT] $1500/1000hp/−100, `SpySat=yes`, `Powered=true`
+  — the whole map while it stands and the grid holds, shroud straight back
+  when either goes); Psychic Sensor ([NAPSIS] $1000/750hp/−50,
+  `PsychicDetectionRadius=15` — every hostile inside the ring is drawn joined
+  to the thing of yours it means to kill); Cloning Vats ([NACLON]
+  $2500/1000hp/−200, `Cloning=yes`, BuildLimit=1 — a free second copy of every
+  infantryman, out of the Vats' own door).
+- ☑ The neutral house (`P_NEUT`, house −1 in `g.blds`):
+  - **Garrisonable civilian buildings.** The urban theatre's blocks are real
+    neutral structures, not terrain: four looks with `MaxNumberOccupants`
+    10/6/3/2, entered by right-click with the ENTER cursor, and only by RA2's
+    two `Occupier=yes` sections ([E1] GI, [E2] Conscript). Occupants fire their
+    own weapons out of four sandbagged ports with lit windows, the block flies
+    the occupier's colour, `[General] ThreatPerOccupant=10` folds into target
+    picking, D evacuates, an enemy Engineer *clears* rather than captures, and
+    the whole garrison dies with the building. EVA StructureGarrisoned /
+    StructureAbandoned (#107/#108).
+  - **Destructible bridges + [CABHUT].** Deck cells are grouped into vertical
+    spans at `BridgeStrength=1500`; force-fire and nuke blast take one down,
+    the cells revert to water with torn-deck art, traffic on them goes into the
+    river, and an Engineer entering a repair hut rebuilds it (EVA
+    BridgeRepaired #46). `mapRiver` places four huts, two per bank.
+  - **Tech buildings.** Oil Derrick ([CAOILD] `ProduceCashStartup=1000`,
+    `ProduceCashAmount=20` every `ProduceCashDelay=100`), Tech Hospital
+    ([CATHOSP] `Hospital=yes`, heals your infantry near it) and Tech Airport
+    ([CAAIRP] `SuperWeapon=ParaDropSpecial`, 4-minute recharge, `AllyParaDropNum=6`
+    / `SovParaDropNum=9`), all `Capturable=yes NeedsEngineer=yes Unsellable=yes`,
+    laid down in mirrored pairs by every map generator, and the AI sends spare
+    Engineers at them.
+  - **Crates.** `[CrateRules]` CrateMinimum/CrateRegen=3/CrateRadius=3.0/FreeMCV,
+    with the `[Powerups]` weight table (Money 2000, Veteran, Unit, Firepower
+    ×2.0, Armour ×1.5, Speed ×1.2, Reveal, HealBase), RA2's wooden crate art and
+    the effect glyph on pickup.
+  - **Ore spreading.** `[Riparius] Spread=2200 SpreadPercentage=.06` throws a
+    seam into empty ground next to a rich cell; `[Cruentus] SpreadPercentage=0`
+    keeps gem fields finite.
 - ☐ Unit mechanics: Chrono Miner warp-home; Terror Drone infest + depot cure;
   Crazy Ivan timed sticky bombs + engineer defuse; engineer repairs own
   structures; Tesla Trooper charges coils; Desolator + radiation field; Yuri

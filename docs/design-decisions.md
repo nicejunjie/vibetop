@@ -6156,3 +6156,90 @@ at all, which is why the corpse helper returns true without one.
   gate on every merge, and re-tuning the AI to survive a cosmetic-scale change
   is the wrong trade); a single global radius for everything (what this
   replaced — it matches none of RA2's three values and made walls pointless).
+
+## Civilian blocks are structures owned by house −1, not terrain
+
+- **Symptom:** RA2's `CanBeOccupied=yes` city blocks, the capturable tech
+  buildings, the bridge repair huts and the crates all had to arrive at once
+  for Phase 4b, and each of them wants the same set of things: hit points, a
+  footprint that blocks, damage states, an owner that can change, a place in
+  the depth sort. `T_CIV` was a terrain byte and could carry none of it.
+- **Cause:** the game already has exactly one thing that carries all of that —
+  a `g.blds` entry. The only reason a civilian block was not one is that every
+  structure path assumes `g.side[b.p]` exists.
+- **Fix:** add RA2's Neutral house as `P_NEUT = -1` and put civilian blocks,
+  the Oil Derrick / Hospital / Airport and the repair huts in `g.blds` like
+  anything else. Four call sites learn that house −1 has no side record
+  (`facOf`, `recalcPower`, the kill bookkeeping in `damage()`, the win
+  condition), and everything else — occupancy, A*, `canPlace`, target picking,
+  the engineer's capture order, selection, the damage post-pass, rubble — works
+  unchanged. Garrisoning then falls out of the same idea: the first occupant
+  sets `b.p` to his own house, so the block flies your colour, becomes a legal
+  target for the enemy and shoots for you with no special case anywhere; the
+  last man out sets it back to −1. `findTarget` skips a neutral building with
+  nobody in it (`Insignificant=yes`) and adds `ThreatPerOccupant=10` a head once
+  somebody is, which is the whole of RA2's "a held block is worth storming".
+- **Rejected:** a parallel `g.civ` array (every one of the paths above would
+  have needed a second loop, and the two would have drifted); keeping `T_CIV`
+  and hanging garrison state off the terrain index (no hit points, no damage
+  state, no owner, and the depth sort would still have drawn it as scenery).
+
+## Bridge spans are columns, and only force-fire brings one down
+
+- **Symptom:** `[General] DestroyableBridges=yes BridgeStrength=1500` is one
+  number for a structure the map draws as a dozen deck cells. Damaging "the
+  bridge" as a single object makes the three-lane crossing on River Crossing an
+  all-or-nothing switch; damaging each cell separately makes it a sieve.
+- **Fix:** `indexBridges()` groups deck cells by **vertical** connectivity, so
+  the three-lane crossing is three independent 1500-point spans. Knock one out
+  and the crossing narrows — which is what a player actually wants from a
+  bridge — and the repair hut at either end rebuilds every span within nine
+  cells of it, so one Engineer restores the crossing rather than one lane.
+  Damage comes only from force-fire, a nuke and a storm bolt: `findTarget`
+  never chooses terrain, and RA2 likewise makes you aim at a bridge on purpose.
+- **Rejected:** per-cell hit points (a bridge with holes in it, and a
+  three-cell path through a "destroyed" span); making the deck a `g.blds`
+  entry like the civilian blocks (a structure standing in water breaks the
+  shoreline masks, the depth sort and `canPlace`, and units would path *around*
+  the deck instead of over it).
+
+## Crates and ore spreading are hashed, not seeded from a stream
+
+- **Symptom:** both features need randomness inside `simStep`, and the file's
+  one PRNG (`srand`/`rnd()`) is the map generator's — the bake and render code
+  are already banned from touching it because a draw call must not advance the
+  match's random stream.
+- **Fix:** a pure hash of `(seed, cell, pass)` — `hash3()` — for where a crate
+  lands, what is in it, and which ore cell seeds which neighbour. No stream, no
+  state to save, identical results in the headless sim and the rendered game,
+  and a replay puts the same prize in the same field. `[Riparius] Spread=2200`
+  is carried in as 2200 RA2 logic frames ≈ one pass every 2.4 minutes at our
+  60 Hz tick, with `SpreadPercentage=.06` per cell, so a field creeps outward
+  over a match instead of flooding it.
+- **Rejected:** a second stateful LCG on `g` (one more thing to keep in step
+  between the two runners, for no benefit); reusing `rnd()` (couples the match
+  to map generation and to anything else that ever calls it).
+
+## A tech building near a start is a lump, not a prize
+
+- **Symptom:** the Phase 4b change set measured **10/12** on the standard
+  six-seed × both-faction-assignments balance sample against a 12/12 baseline
+  (`tmp/play/soakB.js`, hard vs easy). Both losses were the hard AI playing
+  Directorate from start 0.
+- **Cause:** bisected by disabling one feature at a time and re-running the two
+  failing seeds. Crates off, ore spreading off, the AI's new garrison/engineer
+  behaviour off and the derrick's `Explodes=yes` off all still lost both. Only
+  `placeNeutrals()` off restored them — so it was not any *mechanic*, it was the
+  neutral structures **being there**. The first candidate spot list put a 3×2
+  Tech Airport at (12,22), thirteen cells from the (9,9) start and on the same
+  latitude as the base: occupied tiles inside the area the AI sprawls into, and
+  a permanent detour for everything leaving the base on that side.
+- **Fix:** move the candidate spots into the contested middle band
+  ([28,20] / [20,28] / [34,18] / [18,34] / [26,26] / [38,24]) and widen the
+  start exclusion from a 10-cell box to a 16-cell box in *both* axes. Measured
+  12/12, match lengths in line with the baseline. This is also what RA2 does —
+  a tech building is a thing two players race for, so it belongs between them.
+- **Rejected:** dropping the tech buildings from the default map (the feature
+  is the point); teaching `aiPlace` to route around them (the balance sample is
+  the merge gate, and re-tuning the AI to absorb a map-layout choice is the
+  wrong trade — the same conclusion the `Adjacent=` entry above reached).

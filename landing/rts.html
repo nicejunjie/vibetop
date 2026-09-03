@@ -585,11 +585,21 @@
   var T_RAMP = 7, T_BRIDGE = 8, T_GEM = 9, T_CIV = 10;
   var GEM_MULT = 2;
   function solidT(t) { return t === T_ROCK || t === T_WATER || t === T_CLIFF || t === T_TREE || t === T_CIV; }
+  // A destroyed bridge span: the deck is gone, the water underneath is not,
+  // so the cell reverts to T_WATER and `g.bwrk` remembers the broken abutment
+  // so the render can draw the torn deck ends instead of clean shoreline.
   function oreT(t) { return t === T_ORE || t === T_GEM; }
   function waterish(t) { return t === T_WATER || t === T_BRIDGE; }   // the deck reads as water to the shoreline
   function buildableT(t) { return t === T_GROUND || t === T_ROAD; }  // never a ramp, a bridge deck or a civilian lot
 
   var P_HUMAN = 0, P_AI = 1;
+  // RA2's "Neutral"/"Special" house. Civilian blocks, tech buildings and the
+  // bridge repair huts belong to it: they sit in `g.blds` like any structure
+  // (so occupancy, pathing, targeting and rendering all work unchanged) but
+  // they have no side record, no power grid and no bearing on who has lost.
+  // Everything that indexes `g.side[p]` therefore has to check for it.
+  var P_NEUT = -1;
+  function neutral(p) { return p < 0; }
 
   // --------------------------------------------------------------------- //
   //  Deterministic PRNG (mulberry32). Every random draw in the game goes
@@ -720,6 +730,10 @@
   }
   // RA2 veterancy ([General]): VeteranCombat=1.1 firepower and VeteranArmor=1.5 per rank.
   function vetFire(rank) { return Math.pow(1.1, rank || 0); }
+  // A unit's ground speed after the [Powerups] Speed crate (x1.2). Every
+  // mover reads it through here so one crate cannot be applied twice or
+  // missed on one of the fifteen advance() call sites.
+  function uspd(u) { var m = UNITS[u.type].spd; return u.spMul ? m * u.spMul : m; }
   function vetArmour(rank) { return Math.pow(1.5, rank || 0); }
   // Structures that differ per faction (Allied Power Plant $800/+200 vs Tesla Reactor $600/+150).
   var _bspec = {};
@@ -1121,7 +1135,92 @@
       name: 'Nuclear Missile Silo', em: '\u2622\ufe0f', cost: 5000, build: 210,
       armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: -200, sight: 6, makes: null, max: 1,
       desc: 'Launches a nuclear missile at any target'
-    }
+    },
+    // ---- Spy Satellite Uplink ([GASPYSAT]) -------------------------------
+    // $1500, Strength 1000, Armor=wood, Power=-100, Powered=true, Sight 5,
+    // Prerequisite=GATECH,GACNST, TechLevel 9, `SpySat=yes`. It has no
+    // weapon and no radius: while it stands AND the grid holds, the whole
+    // map is yours to see. Pull the power and the shroud comes straight back.
+    spysat: {
+      cat: 'str', fac: 'dir', req: 'lab', spysat: true, max: 1,
+      name: 'SpySat Uplink', em: '🛰️', cost: 1500, build: 63,
+      armour: 'wood', gw: 2, gh: 2, hp: 1000, power: -100, sight: 5, makes: null,
+      desc: 'Reveals the entire map while it stands and is powered'
+    },
+    // ---- Psychic Sensor ([NAPSIS]) ---------------------------------------
+    // $1000, Strength 750, Armor=wood, Power=-50, Sight 10, TechLevel 10,
+    // `SensorArray=yes`, `PsychicDetectionRadius=15`. RA2 does not reveal the
+    // enemy — it reveals his INTENT: anything inside the radius that is on
+    // its way to attack you is drawn with a line to what it means to kill.
+    psisensor: {
+      cat: 'def', fac: 'col', req: 'lab', psi: 15, max: 1,
+      name: 'Psychic Sensor', em: '🔮', cost: 1000, build: 42,
+      armour: 'wood', gw: 2, gh: 2, hp: 750, power: -50, sight: 10, makes: null,
+      desc: 'Shows what enemies inside fifteen cells intend to attack'
+    },
+    // ---- Cloning Vats ([NACLON]) -----------------------------------------
+    // $2500, Strength 1000, Armor=wood, Power=-200, `Cloning=yes`,
+    // Prerequisite=NATECH,NACNST, TechLevel 9, BuildLimit=1. Every man the
+    // barracks turns out walks out of the vats a second time, free.
+    cloningvats: {
+      cat: 'str', fac: 'col', req: 'lab', clone: true, max: 1,
+      name: 'Cloning Vats', em: '🧬', cost: 2500, build: 105,
+      armour: 'wood', gw: 3, gh: 2, hp: 1000, power: -200, sight: 5, makes: null,
+      desc: 'Every infantryman you train is duplicated here, free'
+    },
+
+    // ===================================================================== //
+    //  The neutral house (RA2's civilian/"Special" side). None of these are
+    //  buildable: they are laid down by the map generator, they carry
+    //  `neut:true` so the win condition and the sidebar both ignore them, and
+    //  the only way to own one is to walk in.
+    // ===================================================================== //
+    // Garrisonable city blocks. rules.ini gives 155 civilian sections
+    // `CanBeOccupied=yes` with `MaxNumberOccupants` 1-10 — [CACITY01] is 10,
+    // the small European sets are 3 — and `[General] ThreatPerOccupant=10`.
+    // Strength 1000, Armor=steel on the RA2 blocks; the filling station is the
+    // wooden one. `occ` is our MaxNumberOccupants.
+    civflat: { cat: 'neut', neut: true, civ: 1, occCap: 10, art: 1,
+      name: 'Apartment Block', em: '🏢', cost: 0, build: 0,
+      armour: 'steel', gw: 1, gh: 1, hp: 1000, power: 0, sight: 4, makes: null,
+      desc: 'Civilian block — up to ten of your riflemen can hold it' },
+    civware: { cat: 'neut', neut: true, civ: 1, occCap: 6, art: 2,
+      name: 'Warehouse', em: '🏬', cost: 0, build: 0,
+      armour: 'steel', gw: 1, gh: 1, hp: 1000, power: 0, sight: 4, makes: null,
+      desc: 'Civilian block — up to six of your riflemen can hold it' },
+    civshop: { cat: 'neut', neut: true, civ: 1, occCap: 3, art: 0,
+      name: 'Corner Shop', em: '🏪', cost: 0, build: 0,
+      armour: 'steel', gw: 1, gh: 1, hp: 1000, power: 0, sight: 4, makes: null,
+      desc: 'Civilian block — up to three of your riflemen can hold it' },
+    civfuel: { cat: 'neut', neut: true, civ: 1, occCap: 2, art: 3, explodes: 1,
+      name: 'Filling Station', em: '⛽', cost: 0, build: 0,
+      armour: 'wood', gw: 1, gh: 1, hp: 600, power: 0, sight: 4, makes: null,
+      desc: 'Civilian block — two riflemen, and it burns' },
+    // [CAOILD] Strength 1000, Armor=steel, Capturable=yes, NeedsEngineer=yes,
+    // Unsellable=yes, ProduceCashStartup=1000, ProduceCashAmount=20,
+    // ProduceCashDelay=100 frames.
+    oilderrick: { cat: 'neut', neut: true, tech: 1, cash: 20, cashDelay: 100, cashStart: 1000, explodes: 1,
+      name: 'Oil Derrick', em: '🛢️', cost: 1000, build: 0,
+      armour: 'steel', gw: 2, gh: 2, hp: 1000, power: 0, sight: 4, makes: null,
+      desc: 'Capture with an Engineer: $1000 now, then a steady trickle' },
+    // [CATHOSP] Strength 800, Armor=concrete, `Hospital=yes`.
+    hospital: { cat: 'neut', neut: true, tech: 1, heal: 4,
+      name: 'Tech Hospital', em: '🏥', cost: 800, build: 0,
+      armour: 'concrete', gw: 2, gh: 2, hp: 800, power: 0, sight: 4, makes: null,
+      desc: 'Capture with an Engineer: heals your infantry standing near it' },
+    // [CAAIRP] Strength 800, Armor=concrete, `SuperWeapon=ParaDropSpecial`
+    // ([ParaDropSpecial] RechargeTime=4). [General] AllyParaDropInf=E1
+    // AllyParaDropNum=6 / SovParaDropInf=E2 SovParaDropNum=9.
+    airport: { cat: 'neut', neut: true, tech: 1, sw: 'para',
+      name: 'Tech Airport', em: '✈️', cost: 800, build: 0,
+      armour: 'concrete', gw: 3, gh: 2, hp: 800, power: 0, sight: 4, makes: null,
+      desc: 'Capture with an Engineer: a paratrooper drop every four minutes' },
+    // [CABHUT] Strength 2000, `BridgeRepairHut=yes`, Immune=yes. It cannot be
+    // shot; an engineer walking in rebuilds the span it belongs to.
+    bhut: { cat: 'neut', neut: true, hut: true, immune: true,
+      name: 'Bridge Repair Hut', em: '🛖', cost: 0, build: 0,
+      armour: 'concrete', gw: 1, gh: 1, hp: 2000, power: 0, sight: 3, makes: null,
+      desc: 'Send an Engineer in to rebuild a fallen bridge span' }
   };
 
   // Air layer: a unit with `air` flies over every kind of terrain and can only
@@ -1168,7 +1267,7 @@
            defence: 'tesla', tank: 'rhino', inf: 'conscript' }
   };
 
-  function facOf(g, p) { return g.side[p].fac; }
+  function facOf(g, p) { return neutral(p) ? 'dir' : g.side[p].fac; }
   function ownedBy(spec, fac) { return !spec.fac || spec.fac === fac; }
 
   // Structures and defences share ONE construction queue (as in RA2 — the
@@ -1180,14 +1279,14 @@
   // with rules.ini list position breaking ties (values read off rules.ini
   // v1.006; Guardian GI's TechLevel 2 from rulesmd.ini).
   function buildOrderFor(fac) {
-    return fac === 'col' ? ['power', 'refinery', 'barracks', 'factory', 'radar', 'depot', 'lab', 'reactor']
-                         : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'depot', 'lab', 'purifier'];
+    return fac === 'col' ? ['power', 'refinery', 'barracks', 'factory', 'radar', 'depot', 'lab', 'reactor', 'cloningvats']
+                         : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'depot', 'lab', 'purifier', 'spysat'];
   }
   function defenceOrderFor(fac) {
     // TechLevel order, as RA2's Defence tab is: wall and gate (TL1) first,
     // then the guns (TL2/4/5-6), then the TL7 pair the Directorate alone gets
     // (Gap Generator, Grand Cannon), then the superweapons.
-    return fac === 'col' ? ['wall', 'gate', 'sentrygun', 'flakcannon', 'tesla', 'curtain', 'nuke']
+    return fac === 'col' ? ['wall', 'gate', 'sentrygun', 'flakcannon', 'tesla', 'psisensor', 'curtain', 'nuke']
                          : ['wall', 'gate', 'sentry', 'patriot', 'prism', 'gapgen', 'grandcannon', 'chrono', 'weather'];
   }
   function unitOrderFor(fac, tab) {
@@ -1217,9 +1316,15 @@
                hint: 'Iron Curtain \u2014 click the 3\u00d73 to make invulnerable. Esc cancels.' },
     nuke:    { bld: 'nuke',    name: 'Nuclear Missile',        em: '\u2622\ufe0f', charge: 60 * 60 * 10,
                ready: 'Nuclear missile ready',
-               hint: 'Nuclear Missile \u2014 click the target. Esc cancels.' }
+               hint: 'Nuclear Missile \u2014 click the target. Esc cancels.' },
+    // [ParaDropSpecial] RechargeTime=4, carried by a captured [CAAIRP]. It is
+    // the only superweapon in the game that belongs to a building you cannot
+    // build — you take it off the map with an Engineer.
+    para:    { bld: 'airport', name: 'Paratrooper Drop',        em: '\ud83e\ude82', charge: 60 * 60 * 4,
+               ready: 'Paratroopers ready',
+               hint: 'Paratrooper Drop \u2014 click where the stick should land. Esc cancels.' }
   };
-  var SW_KEYS = ['chrono', 'storm', 'curtain', 'nuke'];
+  var SW_KEYS = ['chrono', 'storm', 'curtain', 'nuke', 'para'];
   var IRON_T = 20 * 60, STORM_T = 20 * 60, NUKE_FLIGHT = 10 * 60;
   function swInit() {
     var o = {};
@@ -1274,6 +1379,10 @@
       occ: new Int32Array(MAP * MAP),             // entity id occupying a tile, 0 = free
       seen: new Uint8Array(MAP * MAP),            // shroud: tiles the human has ever had in sight
       units: [], blds: [], shots: [], fx: [], wrecks: [], rubble: [], storms: [], nukes: [], byId: {},
+      crates: [], crateAt: 0,                     // [CrateRules] CrateMinimum / CrateRegen
+      bridges: [], bwrk: new Uint8Array(MAP * MAP),   // spans + torn-deck memory
+      bspan: new Int16Array(MAP * MAP),           // cell -> span index + 1, 0 = not a bridge
+      neut: [], drops: [], spread: 0,             // neutral spawn list, paradrops in flight, ore-spread pass
       flash: 0, mmFlash: null,                    // nuke whiteout + the minimap ping on an incoming superweapon
       nextId: 1,
       side: [ newSide(P_HUMAN), newSide(P_AI) ],
@@ -1281,6 +1390,8 @@
       ai: null, ai2: null
     };
     genMap(g);
+    indexBridges(g);
+    placeNeutrals(g);
     return g;
   }
 
@@ -1308,19 +1419,19 @@
   // two starts are fair by construction; `theatre` picks the ground palette.
   var MAPS = {
     frontier: { name: 'Iron Frontier', theatre: 'temperate', blurb: 'Open plains, rock outcrops, a road between the bases',
-                gen: function (g) { genCore(g, 26, null); mapRoad(g); mapTrees(g, 14); } },
+                gen: function (g) { g.tech2 = 'airport'; genCore(g, 26, null); mapRoad(g); mapTrees(g, 14); } },
     lake:     { name: 'Lake Divide',   theatre: 'temperate', blurb: 'A lake splits the middle; cliff ridges guard the flanks',
-                gen: function (g) { genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 9, 5.5); mapRidge(g, 12, 40, 26, 40, 3); mapRidge(g, 44, 18, 44, 30, 3); }); mapTrees(g, 10); } },
+                gen: function (g) { g.tech2 = 'hospital'; genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 9, 5.5); mapRidge(g, 12, 40, 26, 40, 3); mapRidge(g, 44, 18, 44, 30, 3); }); mapTrees(g, 10); } },
     tundra:   { name: 'Frozen Front',  theatre: 'snow',      blurb: 'Snowfield with frozen lakes and cliff ridges',
-                gen: function (g) { genCore(g, 18, function () { mapLake(g, 20, 44, 5, 3.2); mapRidge(g, 21, 4, 21, 16, 3); mapRidge(g, 34, 44, 46, 44, 3); }); mapTrees(g, 12); } },
+                gen: function (g) { g.tech2 = 'hospital'; genCore(g, 18, function () { mapLake(g, 20, 44, 5, 3.2); mapRidge(g, 21, 4, 21, 16, 3); mapRidge(g, 34, 44, 46, 44, 3); }); mapTrees(g, 12); } },
     choke:    { name: 'Chokepoint Pass', theatre: 'temperate', blurb: 'One cliff wall across the middle; two ramps decide the game',
-                gen: function (g) { genCore(g, 16, function () { mapWall(g); },
+                gen: function (g) { g.tech2 = 'airport'; genCore(g, 16, function () { mapWall(g); },
                   function (mp) { mp(14, 45, 3.2, 900); mp(22, 45, 3.0, 860); }); mapTrees(g, 9); } },
     river:    { name: 'River Crossing', theatre: 'urban',     blurb: 'A city river, two bridges, civilian blocks along the streets',
-                gen: function (g) { genCore(g, 7, function () { mapRiver(g); },
+                gen: function (g) { g.tech2 = 'hospital'; genCore(g, 7, function () { mapRiver(g); },
                   function (mp) { mp(24, 24, 3.0, 840); mp(40, 25, 3.0, 820); }); mapCity(g); mapTrees(g, 6); } },
     gems:     { name: 'Gem Valley',     theatre: 'temperate', blurb: 'A gem plateau ringed by cliffs — two ramps in, and everyone wants them',
-                gen: function (g) { genCore(g, 13, function () { mapPlateau(g); },
+                gen: function (g) { g.tech2 = 'airport'; genCore(g, 13, function () { mapPlateau(g); },
                   function (mp, gp) { gp(31.5, 27, 3.4, 560); gp(27, 31.5, 3.0, 480); mp(19, 17, 3.0, 820); }); mapTrees(g, 10); } }
   };
   function genMap(g) { (MAPS[g.mapId] || MAPS.frontier).gen(g); }
@@ -1388,6 +1499,12 @@
       for (y = 30; y <= 33; y++) setFM(g, cols[c], y, T_BRIDGE);
       for (y = 22; y <= 29; y++) setTM(g, cols[c], y, T_ROAD);    // mirrors to the far approach
     }
+    // [CABHUT] sits at BOTH ends of the crossing, off the deck and off the
+    // approach road, so an engineer can reach a hut from either bank even
+    // when the span between them is in the river.
+    g.neut.push({ key: 'bhut', x: cols[0] - 2, y: 29 }, { key: 'bhut', x: cols[2] + 2, y: 34 },
+                 { key: 'bhut', x: MAP - 1 - (cols[0] - 2), y: MAP - 1 - 29 },
+                 { key: 'bhut', x: MAP - 1 - (cols[2] + 2), y: MAP - 1 - 34 });
   }
   // Ten neutral civilian blocks in mirrored pairs, set back from the streets.
   // setT only writes on clear ground and the board is already 180 deg
@@ -1400,8 +1517,91 @@
     for (var i = 0, made = 0; i < lots.length && made < 5; i++) {
       var x = lots[i][0], y = lots[i][1];
       if (g.terrain[idx(x, y)] !== T_GROUND || g.terrain[idx(MAP - 1 - x, MAP - 1 - y)] !== T_GROUND) continue;
-      if (nearT(g, x, y, T_CIV)) continue;                 // no two blocks in each other's laps
-      setTM(g, x, y, T_CIV); made++;
+      if (nearNeut(g, x, y, 3)) continue;                  // no two blocks in each other's laps
+      var ck = CIV_KEYS[made % CIV_KEYS.length];
+      g.neut.push({ key: ck, x: x, y: y }, { key: ck, x: MAP - 1 - x, y: MAP - 1 - y });
+      made++;
+    }
+  }
+  // The four civilian looks, in the order mapCity hands them out so a city
+  // never comes up as five copies of one block.
+  var CIV_KEYS = ['civflat', 'civware', 'civshop', 'civfuel'];
+  function nearNeut(g, x, y, r) {
+    for (var i = 0; i < g.neut.length; i++) {
+      if (Math.abs(g.neut[i].x - x) <= r && Math.abs(g.neut[i].y - y) <= r) return true;
+    }
+    return false;
+  }
+  // RA2 scatters two to four capturable tech buildings across a skirmish map,
+  // always in mirrored pairs so neither side is nearer one. Every map gets an
+  // Oil Derrick pair ([CAOILD]); the second pair is the map's own — the
+  // Airport ([CAAIRP], paradrops) or the Hospital ([CATHOSP], field healing).
+  function mapTech(g, second) {
+    // Candidates in the CONTESTED middle band, never on a start's doorstep.
+    // A tech building 13 cells from a base is not a prize to fight over, it is
+    // a lump in somebody's build area — and it measurably cost the hard AI two
+    // of twelve soak matches (see docs/design-decisions.md).
+    var spots = [[28, 20], [20, 28], [34, 18], [18, 34], [26, 26], [38, 24]];
+    var want = ['oilderrick', second || 'hospital'], wi = 0;
+    for (var i = 0; i < spots.length && wi < want.length; i++) {
+      var k = want[wi], d = BLDS[k], x = spots[i][0], y = spots[i][1];
+      if (!techFits(g, x, y, d.gw, d.gh) || !techFits(g, MAP - 1 - x - d.gw + 1, MAP - 1 - y - d.gh + 1, d.gw, d.gh)) continue;
+      if (nearNeut(g, x, y, 4)) continue;
+      g.neut.push({ key: k, x: x, y: y }, { key: k, x: MAP - 1 - x - d.gw + 1, y: MAP - 1 - y - d.gh + 1 });
+      wi++;
+    }
+  }
+  function techFits(g, x, y, w, h) {
+    for (var yy = y; yy < y + h; yy++) for (var xx = x; xx < x + w; xx++) {
+      if (!inMap(xx, yy) || !buildableT(g.terrain[idx(xx, yy)])) return false;
+      // Well clear of BOTH start pads, in x and in y: a derrick inside
+      // somebody's build area is not a contested prize.
+      for (var p = 0; p < 2; p++) {
+        var st = g.start[p];
+        if (st && Math.abs(xx - st.x) < 16 && Math.abs(yy - st.y) < 16) return false;
+      }
+    }
+    return true;
+  }
+  // Lay everything the generator queued. Done here rather than in the
+  // generators so the whole set goes down AFTER the start pads are cleared
+  // and after ore, and so a lot that something else claimed is simply skipped.
+  function placeNeutrals(g) {
+    for (var i = 0; i < g.neut.length; i++) {
+      var n = g.neut[i], d = BLDS[n.key], ok = true, xx, yy;
+      // The lot was reserved while the generator was still laying terrain, so
+      // a tree cluster or a rock outcrop can have landed on it afterwards.
+      // RA2's map authors place these buildings on cleared ground, and so do
+      // we: soft cover is bulldozed, water and cliff still veto the lot (and
+      // the pair's mirror is checked the same way, so it stays symmetric).
+      for (yy = n.y; yy < n.y + d.gh && ok; yy++) for (xx = n.x; xx < n.x + d.gw && ok; xx++) {
+        if (!inMap(xx, yy) || g.occ[idx(xx, yy)]) { ok = false; break; }
+        var tt = g.terrain[idx(xx, yy)];
+        if (tt === T_WATER || tt === T_CLIFF || tt === T_RAMP || tt === T_BRIDGE) ok = false;
+      }
+      if (!ok) continue;
+      for (yy = n.y; yy < n.y + d.gh; yy++) for (xx = n.x; xx < n.x + d.gw; xx++) {
+        if (!buildableT(g.terrain[idx(xx, yy)])) { g.terrain[idx(xx, yy)] = T_GROUND; g.ore[idx(xx, yy)] = 0; }
+      }
+      var b = placeBld(g, n.key, P_NEUT, n.x, n.y);
+      b.make = 0;                                  // it has always been there
+    }
+  }
+  // Bridge spans. Deck cells are grouped by VERTICAL connectivity, so the
+  // three-lane crossing on River Crossing is three independent spans: knock
+  // one out and the crossing narrows rather than vanishing. [General]
+  // BridgeStrength=1500 is the whole span's hit points.
+  var BRIDGE_HP = 1500;
+  function indexBridges(g) {
+    var seen = {}, i, x, y;
+    for (x = 0; x < MAP; x++) for (y = 0; y < MAP; y++) {
+      i = idx(x, y);
+      if (g.terrain[i] !== T_BRIDGE || seen[i]) continue;
+      var cells = [], yy = y;
+      while (yy < MAP && g.terrain[idx(x, yy)] === T_BRIDGE) { cells.push(idx(x, yy)); seen[idx(x, yy)] = 1; yy++; }
+      var si = g.bridges.length;
+      g.bridges.push({ cells: cells, hp: BRIDGE_HP, maxhp: BRIDGE_HP, down: false, x: x, y: y });
+      for (var c = 0; c < cells.length; c++) g.bspan[cells[c]] = si + 1;
     }
   }
   // Gem Valley: a cliff-ringed plateau, 22..41 square (self-mirroring), open
@@ -1468,6 +1668,7 @@
     mirrorPatch(30, 30, 3.8, 1150);
     if (extraOre) extraOre(mirrorPatch, mirrorGem);   // per-map pockets and gem fields
 
+    mapTech(g, g.tech2);
     // Clear a build pad around each start so the yard always fits.
     for (i = 0; i < 2; i++) {
       var s = g.start[i];
@@ -5867,6 +6068,8 @@
     // Superweapons are the tallest things on the board: the Chronosphere's
     // dome, the Weather Device's mast, the Curtain's emitter, the silo tower.
     if (key === 'gapgen') head = 116; else if (key === 'grandcannon') head = 84;
+    if (key === 'spysat') head = 118; else if (key === 'psisensor') head = 128;
+    else if (key === 'cloningvats') head = 92;
     if (key === 'chrono') head = 100; else if (key === 'weather') head = 168;
     else if (key === 'curtain') head = 124; else if (key === 'nuke') head = 152;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
@@ -12702,6 +12905,138 @@
       g.beginPath(); g.ellipse(tipX + ux2 * 1.4, tipY + uy2 * 1.4 - 0.4, 2.3, 2.1, 0, 0, 6.29); g.fill();
       g.lineWidth = 1;
 
+
+    } else if (key === 'spysat') {
+      // [GASPYSAT] SpySat Uplink. A low Allied signals bunker with a big
+      // white parabolic dish on a yoke, tilted up at the sky, a feed horn on
+      // three struts and a cable trunk running down into the roof.
+      var ssLift = 20, ssHw = fw * 0.82, ssHh = fh * 0.82;
+      prism(g, cx, baseY, ssHw, ssHh, ssLift, CONC, shade(CONC, 1.06), '#3a3a34', 3);
+      // service door + louvres, house colour on the door only
+      facePatch(g, faceR, cx, baseY, ssHw, ssHh, ssLift, 0.30, 0.52, 0.05, 0.72, shade(col, 0.80), '#2c2c28');
+      for (var ssV = 0; ssV < 4; ssV++) {
+        var sst = 0.12 + ssV * 0.13;
+        facePatch(g, faceL, cx, baseY, ssHw, ssHh, ssLift, sst, sst + 0.07, 0.22, 0.62, 'rgba(30,34,38,.55)', null);
+      }
+      var ssRy = baseY - ssLift;
+      // dish mount: a short pedestal and a two-arm yoke
+      cylinder(g, cx + 2, ssRy - 2, 7, 12, STEEL, shade(STEEL, 1.2), '#33383a');
+      g.strokeStyle = shade(STEEL, 0.72); g.lineWidth = 3;
+      g.beginPath(); g.moveTo(cx - 4, ssRy - 12); g.lineTo(cx - 12, ssRy - 26); g.stroke();
+      g.beginPath(); g.moveTo(cx + 9, ssRy - 12); g.lineTo(cx + 15, ssRy - 24); g.stroke();
+      // the dish: an ellipse seen three-quarters on, rim + shaded interior
+      var dcx = cx + 2, dcy = ssRy - 34, drx = fw * 0.62, dry = fw * 0.40;
+      g.save();
+      g.translate(dcx, dcy); g.rotate(-0.30);
+      g.fillStyle = '#cdd2d6';
+      g.beginPath(); g.ellipse(0, 0, drx, dry, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#e6eaee';
+      g.beginPath(); g.ellipse(-drx * 0.10, -dry * 0.12, drx * 0.86, dry * 0.82, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(120,132,142,.45)';
+      g.beginPath(); g.ellipse(drx * 0.18, dry * 0.16, drx * 0.72, dry * 0.66, 0, 0, 6.29); g.fill();
+      g.strokeStyle = '#8e979d'; g.lineWidth = 2;
+      g.beginPath(); g.ellipse(0, 0, drx, dry, 0, 0, 6.29); g.stroke();
+      g.strokeStyle = 'rgba(150,160,168,.55)'; g.lineWidth = 1;
+      for (var ssR = 0; ssR < 6; ssR++) {
+        var sa = ssR * Math.PI / 6;
+        g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(sa) * drx, Math.sin(sa) * dry); g.stroke();
+        g.beginPath(); g.moveTo(0, 0); g.lineTo(-Math.cos(sa) * drx, -Math.sin(sa) * dry); g.stroke();
+      }
+      // feed horn on three struts
+      g.strokeStyle = '#7d868c'; g.lineWidth = 1.4;
+      [-1, 0, 1].forEach(function (k3) {
+        g.beginPath(); g.moveTo(k3 * drx * 0.66, k3 * dry * 0.2 + dry * 0.35); g.lineTo(0, -dry * 0.95); g.stroke();
+      });
+      g.fillStyle = shade(col, 0.9);
+      g.beginPath(); g.ellipse(0, -dry * 1.0, 4.2, 3.0, 0, 0, 6.29); g.fill();
+      g.restore();
+      // cable trunk into the roof, and a beacon that keeps time with bph
+      g.strokeStyle = '#4a4f52'; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(cx + 6, ssRy - 14); g.quadraticCurveTo(cx + 18, ssRy - 8, cx + 20, ssRy + 1); g.stroke();
+      var ssPh = 0.5 + 0.5 * Math.sin((bph || 0) * 6.283);
+      g.fillStyle = 'rgba(255,110,110,' + (0.35 + 0.6 * ssPh).toFixed(2) + ')';
+      g.beginPath(); g.arc(cx - fw * 0.66, ssRy - 5, 2.6, 0, 6.29); g.fill();
+
+    } else if (key === 'psisensor') {
+      // [NAPSIS] Psychic Sensor. Soviet: a squat armoured drum, a ring of
+      // dish antennae round its shoulder and a violet lens on a gantry that
+      // pulses. `ConcentricRadialIndicator=true` is the ring motif.
+      var psH = 26, psR = fw * 0.62;
+      cylinder(g, cx, baseY - 2, psR, psH, '#6e6f68', '#8b8c83', '#2d2e2a');
+      // hazard band + house-colour ring
+      g.fillStyle = shade(col, 0.85);
+      g.beginPath(); g.ellipse(cx, baseY - 2 - psH + 1, psR, psR * 0.5, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#8b8c83';
+      g.beginPath(); g.ellipse(cx, baseY - 2 - psH - 2, psR * 0.92, psR * 0.46, 0, 0, 6.29); g.fill();
+      g.strokeStyle = 'rgba(20,20,18,.5)'; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(cx, baseY - 2 - psH - 2, psR * 0.92, psR * 0.46, 0, 0, 6.29); g.stroke();
+      // six antennae on the shoulder
+      for (var psI = 0; psI < 6; psI++) {
+        var pa = psI * 1.047 + 0.3;
+        var pax = cx + Math.cos(pa) * psR * 0.86, pay = baseY - 2 - psH + Math.sin(pa) * psR * 0.43;
+        g.strokeStyle = '#4c4d47'; g.lineWidth = 1.8;
+        g.beginPath(); g.moveTo(pax, pay); g.lineTo(pax, pay - 11); g.stroke();
+        g.fillStyle = '#b9bcb4';
+        g.beginPath(); g.ellipse(pax, pay - 13, 4.2, 2.4, 0, 0, 6.29); g.fill();
+        g.strokeStyle = '#787a72'; g.lineWidth = 0.9;
+        g.beginPath(); g.ellipse(pax, pay - 13, 4.2, 2.4, 0, 0, 6.29); g.stroke();
+      }
+      // the gantry and the lens
+      var psTop = baseY - 2 - psH - 4;
+      g.strokeStyle = '#575850'; g.lineWidth = 3.4;
+      g.beginPath(); g.moveTo(cx - 7, psTop); g.lineTo(cx, psTop - 22); g.stroke();
+      g.beginPath(); g.moveTo(cx + 7, psTop); g.lineTo(cx, psTop - 22); g.stroke();
+      var psPh = 0.5 + 0.5 * Math.sin((bph || 0) * 6.283 * 2);
+      var lg = g.createRadialGradient(cx, psTop - 27, 1, cx, psTop - 27, 13);
+      lg.addColorStop(0, 'rgba(240,225,255,' + (0.85 + 0.15 * psPh).toFixed(2) + ')');
+      lg.addColorStop(0.45, 'rgba(176,120,240,' + (0.70 + 0.25 * psPh).toFixed(2) + ')');
+      lg.addColorStop(1, 'rgba(96,50,170,0)');
+      g.fillStyle = lg;
+      g.beginPath(); g.arc(cx, psTop - 27, 13, 0, 6.29); g.fill();
+      g.fillStyle = '#3a2a5e';
+      g.beginPath(); g.arc(cx, psTop - 27, 6.4, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(226,210,255,.9)';
+      g.beginPath(); g.arc(cx - 2, psTop - 29, 2.2, 0, 6.29); g.fill();
+      // concentric rings on the apron, the RadialIndicator motif
+      g.strokeStyle = 'rgba(178,132,244,.20)'; g.lineWidth = 1.4;
+      for (var psK = 1; psK <= 3; psK++) { diamond(g, cx, baseY + 4, fw * 0.7 * psK, fh * 0.7 * psK); g.stroke(); }
+
+    } else if (key === 'cloningvats') {
+      // [NACLON] Cloning Vats. A Soviet hall with four glass cylinders of
+      // green fluid along its face, pipe runs into a control shed, and a
+      // house-colour band under the eaves.
+      var cvLift = 22, cvHw = fw * 0.86, cvHh = fh * 0.86;
+      prism(g, cx, baseY, cvHw, cvHh, cvLift, '#67685f', '#7d7e74', '#2b2c28', 4);
+      facePatch(g, faceL, cx, baseY, cvHw, cvHh, cvLift, 0.03, 0.97, 0.80, 0.90, shade(col, 0.82), null);
+      facePatch(g, faceR, cx, baseY, cvHw, cvHh, cvLift, 0.03, 0.97, 0.80, 0.90, shade(col, 0.60), null);
+      var cvRy = baseY - cvLift;
+      // control shed on the roof
+      prism(g, cx + fw * 0.28, cvRy + fh * 0.16, fw * 0.26, fh * 0.26, 13, '#5d5e56', '#74756c', '#262723', 0);
+      g.fillStyle = 'rgba(150,210,170,.55)';
+      g.fillRect(cx + fw * 0.14, cvRy + fh * 0.10 - 9, 11, 4);
+      // four vats along the near face, back to front
+      var cvPh = 0.5 + 0.5 * Math.sin((bph || 0) * 6.283);
+      for (var cvI = 0; cvI < 4; cvI++) {
+        var vx = cx - fw * 0.62 + cvI * fw * 0.34, vy = baseY + 3 + (cvI - 1.5) * 3;
+        g.fillStyle = 'rgba(10,14,12,.32)';
+        g.beginPath(); g.ellipse(vx + 2, vy + 2, 8, 3.4, 0, 0, 6.29); g.fill();
+        cylinder(g, vx, vy, 6.4, 24, '#3d5a48', '#54785f', '#1d2a22');
+        // the fluid, lit from within
+        g.fillStyle = 'rgba(96,214,138,' + (0.42 + 0.24 * (cvI === ((bph || 0) * 4 | 0) ? cvPh : 0.3)).toFixed(2) + ')';
+        g.fillRect(vx - 5.4, vy - 21, 10.8, 18);
+        g.fillStyle = 'rgba(210,255,225,.30)';
+        g.fillRect(vx - 5.0, vy - 21, 2.4, 18);
+        // a silhouette suspended in it
+        g.fillStyle = 'rgba(16,40,26,.55)';
+        g.beginPath(); g.ellipse(vx, vy - 14, 1.9, 3.6, 0, 0, 6.29); g.fill();
+        g.fillRect(vx - 0.7, vy - 10, 1.4, 5);
+        // cap and pipe up into the wall
+        g.fillStyle = '#8a8c84';
+        g.beginPath(); g.ellipse(vx, vy - 24, 6.6, 2.9, 0, 0, 6.29); g.fill();
+        g.strokeStyle = '#6a6c64'; g.lineWidth = 2.2;
+        g.beginPath(); g.moveTo(vx, vy - 26); g.lineTo(vx + 4, vy - 34); g.stroke();
+      }
+
     } else {
       // Placeholder until the item's real-sprite branch lands: a drab block
       // the size of the footprint with a house-colour band, never shipped as
@@ -13091,6 +13426,38 @@
     return s;
   }
 
+  // What is left of a span that came down: broken deck plate half in the
+  // water, a snapped pier stub and reinforcing bar sticking out of it.
+  function bakeBridgeWreck() {
+    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i;
+    srand(3311);
+    g.save(); diamondT(g, cx, cy); g.clip();
+    // slabs of deck, tilted, dark against the water
+    for (i = 0; i < 4; i++) {
+      var bx = cx + (rnd() - 0.5) * 34, by = cy + (rnd() - 0.5) * 15;
+      var bw = 7 + rnd() * 9, bh = 3 + rnd() * 3, rot = (rnd() - 0.5) * 0.9;
+      g.save(); g.translate(bx, by); g.rotate(rot);
+      g.fillStyle = 'rgba(10,22,28,.45)';
+      g.fillRect(-bw / 2 + 1.5, -bh / 2 + 1.5, bw, bh);
+      g.fillStyle = '#6d6b63'; g.fillRect(-bw / 2, -bh / 2, bw, bh);
+      g.fillStyle = '#8b8880'; g.fillRect(-bw / 2, -bh / 2, bw, 1.2);
+      g.restore();
+    }
+    // reinforcing bar
+    g.strokeStyle = '#4b4a44'; g.lineWidth = 1;
+    for (i = 0; i < 5; i++) {
+      var rx = cx + (rnd() - 0.5) * 26, ry = cy + (rnd() - 0.5) * 10;
+      g.beginPath(); g.moveTo(rx, ry); g.lineTo(rx + (rnd() - 0.5) * 8, ry - 3 - rnd() * 4); g.stroke();
+    }
+    // foam where the water still churns round the debris
+    g.fillStyle = 'rgba(220,236,240,.22)';
+    for (i = 0; i < 5; i++) {
+      g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 30, cy + (rnd() - 0.5) * 13, 4 + rnd() * 5, 1.6 + rnd() * 1.6, 0, 0, 6.29); g.fill();
+    }
+    g.restore();
+    return s;
+  }
+
   // Gems: RA2's blue-violet crystal clusters. Taller and sharper than an ore
   // shard, with a cold rim light, on stained ground.
   function bakeGem(level, variant) {
@@ -13202,6 +13569,247 @@
       g.fillStyle = '#9aa0a6'; g.fillRect(cx - 20, by - 12, 4, 3); g.fillRect(cx - 12, by - 8, 4, 3);
     }
     s.ax = cx * K; s.ay = by * K;
+    return s;
+  }
+
+
+  // ===================================================================== //
+  //  Neutral-house art: the four civilian blocks (occupied and empty), the
+  //  three capturable tech buildings, the bridge repair hut and the crate.
+  //  None of these carry a house colour: RA2 paints civilian and tech
+  //  structures in their own municipal palette whoever happens to hold them,
+  //  and the only owner signal is the garrison's lit gun ports and the
+  //  selection brackets. (Built from the RA2 descriptions and the existing
+  //  structure vocabulary — no wiki rip exists for a usable CACITY/CAOILD
+  //  sheet; see docs/ra2-art-plan.md.)
+  // ===================================================================== //
+  // A plot-sized canvas laid out exactly as bakeBuilding does, so the
+  // neutral art drops straight into drawBld's pipeline.
+  function neutCanvas(gw, gh, head) {
+    var fw = (gw + gh) * TW / 4, fh = (gw + gh) * TH / 4, pad = 18;
+    var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2);
+    return { s: s, g: s.g, cx: s.w / 2, baseY: s.h - pad - fh, fw: fw, fh: fh };
+  }
+  function neutPad(g, cx, baseY, fw, fh, tone) {
+    g.fillStyle = 'rgba(0,0,0,.32)';
+    diamond(g, cx + 3, baseY + 4, fw * 2, fh * 2); g.fill();
+    diamond(g, cx, baseY, fw * 2, fh * 2);
+    g.fillStyle = shade(tone, 0.62); g.fill();
+    outline(g, shade(tone, 0.46));
+  }
+
+  // An occupied block: the windows RA2 lights up when men are inside, plus
+  // the muzzle ports they shoot through. Drawn over the empty sprite so the
+  // two frames register perfectly.
+  function bakeCivLit(src, ax, ay) {
+    var d = copyArt(src), g = d.g, i;
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(255,196,96,.13)';                     // warm spill through the glass
+    g.fillRect(0, 0, src.w, src.h);
+    g.globalCompositeOperation = 'source-over';
+    // Gun ports: four sandbagged loopholes, matching GARRISON_PORTS so the
+    // muzzle flashes come out of the holes that are drawn.
+    var P = [[-13, 30], [13, 30], [-9, 16], [9, 16]];
+    for (i = 0; i < P.length; i++) {
+      var px = ax + P[i][0], py = ay - P[i][1];
+      g.fillStyle = 'rgba(18,16,14,.82)';
+      g.beginPath(); g.roundRect(px - 4, py - 3.4, 8, 6.4, 1.4); g.fill();
+      g.fillStyle = 'rgba(255,214,140,.60)';
+      g.beginPath(); g.roundRect(px - 2.6, py - 2.0, 5.2, 3.6, 1); g.fill();
+      g.fillStyle = '#7d7566';                                // sandbag lip
+      g.beginPath(); g.ellipse(px, py + 3.6, 5.4, 1.9, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#948b79';
+      g.beginPath(); g.ellipse(px - 1.8, py + 3.1, 2.2, 1.3, 0, 0, 6.29); g.fill();
+    }
+    return d;
+  }
+
+  // [CAOILD] Tech Oil Derrick: a steel lattice tower over a concrete pad, a
+  // nodding pump beside it and two crude tanks, with hazard-striped skirting.
+  function bakeOilDerrick() {
+    var N = neutCanvas(2, 2, 118), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, i;
+    neutPad(g, cx, by, fw, N.fh, '#9c968a');
+    // the derrick: four legs converging, cross-braced
+    var tH = 76, tw0 = fw * 0.46, tw1 = fw * 0.12, lx = cx - 6;
+    function leg(sgn, back) {
+      g.strokeStyle = back ? '#5d6166' : '#7b8087'; g.lineWidth = back ? 2.2 : 3;
+      g.beginPath(); g.moveTo(lx + sgn * tw0, by - (back ? 6 : 0)); g.lineTo(lx + sgn * tw1, by - tH); g.stroke();
+    }
+    leg(-1, true); leg(1, true); leg(-1, false); leg(1, false);
+    g.strokeStyle = 'rgba(120,128,136,.85)'; g.lineWidth = 1.5;
+    for (i = 1; i < 7; i++) {
+      var q = i / 7, y0 = by - tH * q, w0 = tw0 + (tw1 - tw0) * q;
+      g.beginPath(); g.moveTo(lx - w0, y0); g.lineTo(lx + w0, y0); g.stroke();
+      var q2 = (i + 1) / 7, y1 = by - tH * q2, w1 = tw0 + (tw1 - tw0) * q2;
+      g.beginPath(); g.moveTo(lx - w0, y0); g.lineTo(lx + w1, y1); g.stroke();
+      g.beginPath(); g.moveTo(lx + w0, y0); g.lineTo(lx - w1, y1); g.stroke();
+    }
+    g.fillStyle = '#4a4f54';                                  // crown block
+    g.fillRect(lx - tw1 - 3, by - tH - 6, tw1 * 2 + 6, 6);
+    g.fillStyle = '#c8563f';                                  // aircraft warning paint
+    g.fillRect(lx - tw1 - 3, by - tH - 6, tw1 * 2 + 6, 2);
+    // nodding donkey
+    var px2 = cx + fw * 0.62, py2 = by + 5;
+    g.fillStyle = '#5a5f64'; g.fillRect(px2 - 12, py2 - 8, 24, 8);
+    g.strokeStyle = '#6f757b'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(px2, py2 - 8); g.lineTo(px2, py2 - 24); g.stroke();
+    g.strokeStyle = '#8a9096'; g.lineWidth = 5; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(px2 - 16, py2 - 20); g.lineTo(px2 + 14, py2 - 28); g.stroke();
+    g.fillStyle = '#3f4348';
+    g.beginPath(); g.ellipse(px2 - 17, py2 - 19, 5, 6, 0, 0, 6.29); g.fill();
+    // two crude tanks
+    for (i = 0; i < 2; i++) {
+      var tx = cx - fw * 0.72 + i * 22, ty = by + 8 + i * 4;
+      cylinder(g, tx, ty, 9, 18, '#7d6f58', '#98886c', '#332c22');
+      g.strokeStyle = 'rgba(24,20,14,.45)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(tx - 9, ty - 9); g.lineTo(tx + 9, ty - 9); g.stroke();
+    }
+    // hazard skirting on the pad edge
+    g.save(); diamond(g, cx, by, fw * 2, N.fh * 2); g.clip();
+    for (i = 0; i < 14; i++) {
+      g.fillStyle = i & 1 ? '#d8b23a' : '#2b2b28';
+      g.fillRect(cx - fw + i * (fw * 2 / 14), by + N.fh - 5, fw * 2 / 14, 4);
+    }
+    g.restore();
+    return { s: N.s, ax: cx, ay: by };
+  }
+
+  // [CATHOSP] Tech Hospital: a pale two-storey ward block with a flat roof,
+  // a red cross on the roof and over the ambulance canopy.
+  function bakeHospital() {
+    var N = neutCanvas(2, 2, 96), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, fh = N.fh, i;
+    neutPad(g, cx, by, fw, fh, '#a8a79c');
+    var lift = 40, hw = fw * 0.84, hh = fh * 0.84;
+    prism(g, cx, by, hw, hh, lift, '#d3d2c8', '#e6e5db', '#5d5c54', 2);
+    // two window bands on both faces
+    for (i = 0; i < 2; i++) {
+      var v0 = 0.26 + i * 0.30;
+      facePatch(g, faceL, cx, by, hw, hh, lift, 0.10, 0.90, v0, v0 + 0.15, '#5f7180', '#42505b');
+      facePatch(g, faceR, cx, by, hw, hh, lift, 0.10, 0.90, v0, v0 + 0.15, '#4e606e', '#374450');
+    }
+    // ambulance canopy + doors
+    facePatch(g, faceR, cx, by, hw, hh, lift, 0.34, 0.62, 0.02, 0.22, '#8e9aa2', '#3d454b');
+    var ca = faceR(cx, by, hw, hh, lift, 0.30, 0.26), cb2 = faceR(cx, by, hw, hh, lift, 0.66, 0.26);
+    g.strokeStyle = '#c9ccc6'; g.lineWidth = 4; g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(ca[0], ca[1]); g.lineTo(cb2[0], cb2[1]); g.stroke();
+    // the red cross, on the roof and over the door
+    var ry = by - lift;
+    g.fillStyle = '#c8362f';
+    g.save(); g.translate(cx - fw * 0.22, ry - 2); g.scale(1, 0.5); g.rotate(Math.PI / 4);
+    g.fillRect(-11, -3.4, 22, 6.8); g.fillRect(-3.4, -11, 6.8, 22);
+    g.restore();
+    var dm = faceR(cx, by, hw, hh, lift, 0.48, 0.34);
+    g.fillStyle = '#c8362f';
+    g.fillRect(dm[0] - 5, dm[1] - 1.8, 10, 3.6); g.fillRect(dm[0] - 1.8, dm[1] - 5, 3.6, 10);
+    // roof plant + a helipad ring
+    g.fillStyle = '#b6b5ac'; g.fillRect(cx + fw * 0.26, ry - 12, 16, 10);
+    g.fillStyle = '#8f8e86'; g.fillRect(cx + fw * 0.26, ry - 12, 16, 3);
+    g.strokeStyle = 'rgba(240,240,235,.5)'; g.lineWidth = 1.6;
+    diamond(g, cx + fw * 0.20, ry + 6, 22, 11); g.stroke();
+    return { s: N.s, ax: cx, ay: by };
+  }
+
+  // [CAAIRP] Tech Airport: an apron with runway markings, a low terminal and
+  // a glazed control tower — the building the paratroopers come off.
+  function bakeAirport() {
+    var N = neutCanvas(3, 2, 116), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, fh = N.fh, i;
+    neutPad(g, cx, by, fw, fh, '#8f9490');
+    // apron markings
+    g.save(); diamond(g, cx, by, fw * 2, fh * 2); g.clip();
+    g.strokeStyle = 'rgba(240,236,210,.55)'; g.lineWidth = 2.4;
+    for (i = -3; i <= 3; i++) {
+      g.beginPath();
+      g.moveTo(cx - fw * 0.9, by + i * 7 + fh * 0.45);
+      g.lineTo(cx + fw * 0.9, by + i * 7 - fh * 0.45);
+      g.stroke();
+    }
+    g.restore();
+    // terminal block on the far half
+    var lift = 26, hw = fw * 0.52, hh = fh * 0.52;
+    prism(g, cx - fw * 0.34, by - fh * 0.28, hw, hh, lift, '#b7bab4', '#cbcec7', '#4d5049', 2);
+    facePatch(g, faceL, cx - fw * 0.34, by - fh * 0.28, hw, hh, lift, 0.08, 0.92, 0.28, 0.62, '#5d7280', '#3c4a54');
+    // control tower
+    var tx = cx + fw * 0.42, ty = by - fh * 0.20;
+    cylinder(g, tx, ty, 9, 46, '#b2b5af', '#c9ccc5', '#43463f');
+    g.fillStyle = '#3f5460';                                 // glazed cab
+    g.beginPath(); g.moveTo(tx - 14, ty - 46); g.lineTo(tx + 14, ty - 46); g.lineTo(tx + 11, ty - 58); g.lineTo(tx - 11, ty - 58); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(160,204,224,.55)';
+    g.beginPath(); g.moveTo(tx - 12, ty - 48); g.lineTo(tx + 12, ty - 48); g.lineTo(tx + 9.6, ty - 56); g.lineTo(tx - 9.6, ty - 56); g.closePath(); g.fill();
+    g.fillStyle = '#9a9d97';
+    g.beginPath(); g.ellipse(tx, ty - 59, 15, 5, 0, 0, 6.29); g.fill();
+    g.strokeStyle = '#6d706a'; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(tx, ty - 62); g.lineTo(tx, ty - 74); g.stroke();
+    g.fillStyle = '#d8493e';
+    g.beginPath(); g.arc(tx, ty - 75, 2.4, 0, 6.29); g.fill();
+    // windsock
+    var wx = cx - fw * 0.80, wy = by + 10;
+    g.strokeStyle = '#7d817b'; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx, wy - 20); g.stroke();
+    g.fillStyle = '#e08a30';
+    g.beginPath(); g.moveTo(wx, wy - 20); g.lineTo(wx + 13, wy - 17); g.lineTo(wx + 13, wy - 13); g.lineTo(wx, wy - 14); g.closePath(); g.fill();
+    g.fillStyle = '#f2f0e6';
+    g.beginPath(); g.moveTo(wx + 5, wy - 19); g.lineTo(wx + 8, wy - 18.4); g.lineTo(wx + 8, wy - 13.6); g.lineTo(wx + 5, wy - 14.2); g.closePath(); g.fill();
+    return { s: N.s, ax: cx, ay: by };
+  }
+
+  // [CABHUT] Bridge repair hut: a bank hut with a corrugated roof, a girder
+  // stack and a work light, standing at the head of the crossing.
+  function bakeHut() {
+    var N = neutCanvas(1, 1, 60), g = N.g, cx = N.cx, by = N.baseY, fw = N.fw, i;
+    neutPad(g, cx, by, fw, N.fh, '#8e8a80');
+    prism(g, cx, by, fw * 0.72, N.fh * 0.72, 15, '#8a7f6d', '#a2977f', '#3a352c', 0);
+    // corrugated roof
+    var ry = by - 15;
+    diamond(g, cx, ry - 3, fw * 1.5, N.fh * 1.5);
+    g.fillStyle = '#6f7a72'; g.fill(); outline(g, '#2c332e');
+    g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1;
+    for (i = -3; i <= 3; i++) {
+      g.beginPath(); g.moveTo(cx - fw * 0.7, ry - 3 + i * 3 + N.fh * 0.34); g.lineTo(cx + fw * 0.7, ry - 3 + i * 3 - N.fh * 0.34); g.stroke();
+    }
+    // door + girder stack
+    facePatch(g, faceR, cx, by, fw * 0.72, N.fh * 0.72, 15, 0.36, 0.62, 0.04, 0.74, '#4a4238', '#241f1a');
+    for (i = 0; i < 3; i++) {
+      g.fillStyle = i & 1 ? '#7a6a4e' : '#8d7c5c';
+      g.fillRect(cx - fw * 0.86, by + 4 - i * 3, 18, 3);
+      g.fillStyle = 'rgba(20,16,10,.35)';
+      g.fillRect(cx - fw * 0.86, by + 6 - i * 3, 18, 1);
+    }
+    // work light on a pole
+    g.strokeStyle = '#63665f'; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(cx + fw * 0.7, by + 2); g.lineTo(cx + fw * 0.7, by - 22); g.stroke();
+    g.fillStyle = '#ffd06a';
+    g.beginPath(); g.arc(cx + fw * 0.7, by - 24, 3, 0, 6.29); g.fill();
+    g.fillStyle = 'rgba(255,208,106,.22)';
+    g.beginPath(); g.arc(cx + fw * 0.7, by - 24, 8, 0, 6.29); g.fill();
+    return { s: N.s, ax: cx, ay: by };
+  }
+
+  // [CrateRules] WoodCrateImg=CRATE: RA2's crate is a small wooden box with
+  // an iron strap, sitting on the ground with a soft shadow.
+  function bakeCrate() {
+    var s = mkCanvas(34, 32), g = s.g, cx = 17, by = 24;
+    g.fillStyle = 'rgba(8,10,12,.34)';
+    g.beginPath(); g.ellipse(cx + 1, by + 2, 11, 4.4, 0, 0, 6.29); g.fill();
+    var hw = 9, hh = 4.5, lift = 10;
+    // three faces of a small iso box
+    g.fillStyle = '#6f5433';
+    g.beginPath(); g.moveTo(cx - hw, by - hh); g.lineTo(cx, by); g.lineTo(cx, by - lift); g.lineTo(cx - hw, by - hh - lift); g.closePath(); g.fill();
+    g.fillStyle = '#8a6a41';
+    g.beginPath(); g.moveTo(cx + hw, by - hh); g.lineTo(cx, by); g.lineTo(cx, by - lift); g.lineTo(cx + hw, by - hh - lift); g.closePath(); g.fill();
+    g.fillStyle = '#a8834f';
+    g.beginPath(); g.moveTo(cx, by - 2 * hh - lift); g.lineTo(cx + hw, by - hh - lift); g.lineTo(cx, by - lift); g.lineTo(cx - hw, by - hh - lift); g.closePath(); g.fill();
+    // plank seams and the iron strap
+    g.strokeStyle = 'rgba(48,34,18,.55)'; g.lineWidth = 0.9;
+    g.beginPath(); g.moveTo(cx - hw, by - hh - lift * 0.5); g.lineTo(cx, by - lift * 0.5); g.stroke();
+    g.beginPath(); g.moveTo(cx + hw, by - hh - lift * 0.5); g.lineTo(cx, by - lift * 0.5); g.stroke();
+    g.strokeStyle = '#4d5257'; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(cx - hw, by - hh - lift * 0.66); g.lineTo(cx, by - lift * 0.66); g.lineTo(cx + hw, by - hh - lift * 0.66); g.stroke();
+    g.strokeStyle = 'rgba(20,14,8,.5)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(cx, by - 2 * hh - lift); g.lineTo(cx + hw, by - hh - lift); g.lineTo(cx, by - lift); g.lineTo(cx - hw, by - hh - lift); g.closePath(); g.stroke();
+    // a pale stencil on the lid so it reads as cargo, not a rock
+    g.fillStyle = 'rgba(232,222,196,.55)';
+    g.fillRect(cx - 2.5, by - hh - lift - 2.5, 5, 1.4);
+    s.ax = cx; s.ay = by;
     return s;
   }
 
@@ -13635,7 +14243,30 @@
       SPR.ramp.temperate[rd] = bakeRamp('grass', rd); SPR.ramp.snow[rd] = bakeRamp('snow', rd); SPR.ramp.urban[rd] = bakeRamp('pave', rd);
     }
     SPR.bridge = [bakeBridge(0), bakeBridge(1)];
+    SPR.bwreck = bakeBridgeWreck();
     SPR.civ = [bakeCiv(0), bakeCiv(1), bakeCiv(2), bakeCiv(3)];
+    SPR.crate = bakeCrate();
+    // Neutral structures, keyed by BLDS key exactly like SPR.bld, but with
+    // ONE set: house -1 has no colour and no faction, so there is nothing to
+    // vary. `lit` is the occupied frame.
+    SPR.neut = {};
+    (function () {
+      var mk = { oilderrick: bakeOilDerrick, hospital: bakeHospital, airport: bakeAirport, bhut: bakeHut };
+      var k;
+      for (k in mk) SPR.neut[k] = mk[k]();
+      for (k in BLDS) {
+        if (!BLDS[k].civ) continue;
+        var cs = SPR.civ[BLDS[k].art];
+        SPR.neut[k] = { s: cs, ax: cs.ax, ay: cs.ay };
+      }
+      for (k in SPR.neut) {
+        var A = SPR.neut[k];
+        A.s.bb = artBox(A.s);
+        A.rise = A.ay - artTop(A.s);
+        if (BLDS[k].civ) A.lit = { s: bakeCivLit(A.s, A.ax, A.ay), ax: A.ax, ay: A.ay, rise: A.rise };
+        if (A.lit) { A.lit.s.bb = A.s.bb; }
+      }
+    })();
     SPR.oreLv = []; SPR.gemLv = [];
     for (var lv = 0; lv < 3; lv++) {
       SPR.oreLv.push([bakeOre(lv, 0), bakeOre(lv, 1), bakeOre(lv, 2), bakeOre(lv, 3)]);
@@ -13699,6 +14330,7 @@
               || k === 'airforce' || k === 'radar' || k === 'depot' || k === 'lab' || k === 'purifier' || k === 'reactor'
               || k === 'sentry' || k === 'sentrygun' || k === 'prism' || k === 'tesla'
               || k === 'patriot' || k === 'flakcannon'
+              || k === 'spysat' || k === 'psisensor' || k === 'cloningvats'
               || k === 'chrono' || k === 'weather' || k === 'curtain' || k === 'nuke') {
             // The yard's crane works: six phases, cycled by drawBld like the
             // RA2 idle animation. The bbox is the union so the brackets and
@@ -13807,6 +14439,20 @@
   var RUBBLE_LIFE = 60 * 60;                       // a minute at 60 ticks/s
   function killBld(g, b) {
     b.dead = true;
+    // RA2 kills every occupant when an occupied building falls — the whole
+    // risk of holding a city block.
+    killOccupants(g, b);
+    // `Explodes=yes` + `DeathWeapon=OilExplosion` on [CAOILD], and the fuel
+    // station is a tank farm: both go up and take what is beside them.
+    if (BLDS[b.type].explodes) {
+      near(b.cx, b.cy, 3.2, function (o) {
+        if (o.dead || o === b) return;
+        var dd = dist(b, o);
+        if (dd > 2.6) return;
+        damage(g, b, o, 300 * (1 - dd / 3.2), 'HE');
+      });
+      if (!headless) { boom(g, b.cx, b.cy, 34); g.fx.push({ x: b.cx, y: b.cy, t: 4, life: 30, size: 24 }); }
+    }
     for (var yy = b.y; yy < b.y + b.gh; yy++) for (var xx = b.x; xx < b.x + b.gw; xx++) {
       if (inMap(xx, yy) && g.occ[idx(xx, yy)] === b.id) g.occ[idx(xx, yy)] = 0;
     }
@@ -13840,6 +14486,7 @@
   }
 
   function recalcPower(g, p) {
+    if (neutral(p)) return;                       // the neutral house has no grid
     var made = 0, use = 0;
     for (var i = 0; i < g.blds.length; i++) {
       var b = g.blds[i];
@@ -14081,6 +14728,12 @@
       // wall. You can force-fire one, and splash will chew it, but a tank on
       // attack-move walks past concrete looking for something that matters.
       if (isWall(o)) return;
+      // Insignificant=yes on every civilian and tech section: an empty city
+      // block, a derrick or a repair hut is scenery, and nothing chooses to
+      // shoot it. The moment men are firing out of the windows it is a
+      // building like any other — worth [General] ThreatPerOccupant=10 a head.
+      if (o.kind === 'b' && BLDS[o.type].neut && !occCount(o) && neutral(o.p)) return;
+      if (o.kind === 'b' && BLDS[o.type].immune) return;
       var w = weaponFor(spec, o, e);
       var mult = w.wh ? versesVs(w.wh, o) : 1;
       if (mult <= 0 || d > rngVs(w, o) || tooClose(w, d)) return;   // this weapon cannot hurt / reach it
@@ -14091,6 +14744,7 @@
         score = mult * 100 - d * 6 - (o.hp / o.maxhp) * 40;
         if (o.kind === 'u' && UNITS[o.type].dmg > 0) score += 25;   // shooters first
         if (o.kind === 'u' && o.type === 'harvester') score += 12;  // then economy
+        if (o.kind === 'b' && occCount(o)) score += THREAT_PER_OCCUPANT * occCount(o);
       } else {
         score = -d;                       // unfocused: just shoot the nearest
       }
@@ -14101,6 +14755,7 @@
 
   function damage(g, src, tgt, amount, wh) {
     if (ironed(g, tgt)) return;                 // Iron Curtain: the hit never lands
+    if (tgt.kind === 'b' && BLDS[tgt.type].immune) return;    // [CABHUT] Immune=yes
     var spec = src.kind === 'b' ? BLDS[src.type] : UNITS[src.type];
     if (wh === undefined) wh = spec.wh;
     // rules.ini `Wall=` on the warhead: a wall segment is simply not a legal
@@ -14110,6 +14765,7 @@
     var mult = wh ? versesVs(wh, tgt) : 1;
     if (tgt.kind === 'u' && tgt.prone) mult *= proneMul(wh);         // rules.ini ProneDamage
     if (tgt.kind === 'u' && tgt.rank) mult /= vetArmour(tgt.rank);   // veterans are tougher (VeteranArmor)
+    if (tgt.arMul) mult /= tgt.arMul;                                // [Powerups] Armor crate, x1.5
     if (g.debug) {                                                    // debug mode: the player hits 10x and takes 1/10
       if (src.p === P_HUMAN && tgt.p !== P_HUMAN) mult *= 10;
       else if (tgt.p === P_HUMAN && src.p !== P_HUMAN) mult /= 10;
@@ -14140,8 +14796,8 @@
         g.radarEvent = { x: tgt.kind === 'b' ? tgt.cx : tgt.x, y: tgt.kind === 'b' ? tgt.cy : tgt.y, tick: g.tick };
     }
     if (tgt.hp <= 0 && !tgt.dead) {
-      g.side[src.p].killed++;
-      g.side[tgt.p].lost++;
+      if (!neutral(src.p)) g.side[src.p].killed++;
+      if (!neutral(tgt.p)) g.side[tgt.p].lost++;
       if (src.kind === 'u') {
         src.kills = (src.kills || 0) + 1;
         // [General] VeteranRatio=3: promotion at 3x the unit's OWN cost in kill
@@ -14330,6 +14986,7 @@
         var dd = Math.sqrt((ox - x) * (ox - x) + (oy - y) * (oy - y));
         var ii = idx(ox, oy);
         if (dd <= 4 && g.terrain[ii] === T_ORE) { g.terrain[ii] = T_GROUND; g.ore[ii] = 0; }
+        if (dd <= 5) damageBridge(g, ox, oy, 900);
         g.seen[ii] = 1;                                  // the flash burns the shroud off
       }
     if (!headless) {
@@ -14350,7 +15007,10 @@
     if (!inMap(Math.round(x), Math.round(y))) return false;
     st.ready = false; st.t = 0; st.armed = false; st.fired++;
     var mine = p === P_HUMAN, W = SW[key], i, u;
-    if (key === 'storm') {
+    if (key === 'para') {
+      paraDrop(g, p, x, y);
+      if (!headless) { mmPing(g, x, y); g.fx.push({ x: x, y: y, t: 0, life: 26, size: 0, ping: true }); }
+    } else if (key === 'storm') {
       g.storms.push({ p: p, x: x, y: y, t: 0, life: STORM_T, next: 20, left: 10 });
       if (mine) eva('Lightning storm created', 20000);
       else { eva('Warning: lightning storm created', 20000); say('Warning — lightning storm created', true, 300); mmPing(g, x, y); }
@@ -14396,7 +15056,7 @@
       if (mine) { eva('Chronosphere activated', 20000); say('Chronosphere — ' + lift.length + ' vehicle' + (lift.length === 1 ? '' : 's') + ' shifted', false, 260); }
       else { eva('Warning: enemy Chronosphere activated', 20000); mmPing(g, x2, y2); }
     }
-    sfx('boom');
+    sfx(key === 'para' ? 'ready' : 'boom');
     return true;
   }
   function mmPing(g, x, y) {
@@ -14444,7 +15104,7 @@
       }
     }
     sfx(spec.wh === 'ParasiteDog' ? 'bark' : (src.type === 'rifle' ? 'shot' : 'cannon'));
-    var amt = spec.dmg * vetFire(src.rank) * supMul;
+    var amt = spec.dmg * vetFire(src.rank) * (src.fpMul || 1) * supMul;   // [Powerups] Firepower crate
     // [ParasiteDog] Parasite=yes + [GoodTeeth] LimboLaunch=yes: the dog does
     // not shoot a man for 30 points, it LEAPS at him and he is gone. The 30
     // damage in rules.ini never gets a chance to matter, so neither does it
@@ -14545,7 +15205,7 @@
         u.order = null; u.path = null; u.state = 'idle'; u.mineAt = null;
         u.guardX = u.x; u.guardY = u.y; u.holdUntil = g.tick + 60 * 20;
         nextWaypoint(g, u);
-      } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
+      } else if (!advance(g, u, u.order.x, u.order.y, uspd(u), 0) && !u.path &&
                  u.noProg > 90) {                          // repathAt is refreshed every 8 ticks; noProg is the honest signal
         u.order = null; u.state = 'idle'; u.holdUntil = g.tick + 60 * 20;   // unreachable: stop here
       }
@@ -14599,14 +15259,14 @@
       }
       else if (d2 < (u.bestD == null ? 1e9 : u.bestD) - 0.01) {
         u.bestD = d2; u.stallAt = g.tick;                // still closing
-        advance(g, u, m.x, m.y, d.spd, 240);
+        advance(g, u, m.x, m.y, uspd(u), 240);
       } else if (g.tick - (u.stallAt == null ? g.tick : u.stallAt) > 420) {
         // Has a route and is walking it, but has not got any closer for seven
         // seconds — contested seam. Step off it for a while and take another.
         (u.noGo || (u.noGo = {}))[m.x + ',' + m.y] = g.tick;
         u.mineAt = null; u.state = 'idle'; u.order = null;
         u.noProg = 0; u.bestD = 1e9; u.stallAt = g.tick;
-      } else if (!advance(g, u, m.x, m.y, d.spd, 240) && u.noProg > 45) {
+      } else if (!advance(g, u, m.x, m.y, uspd(u), 240) && u.noProg > 45) {
         // No route to this seam — ore is walkable but the ground around it
         // may not be, so a patch can be visible and still unreachable. Without
         // this the harvester locks onto it and freezes for the rest of the
@@ -14677,7 +15337,7 @@
         return;
       }
       var dk = refDock(g, ref2);
-      advance(g, u, dk.x, dk.y, d.spd, 240);
+      advance(g, u, dk.x, dk.y, uspd(u), 240);
       // Nothing in this branch used to be able to give up, so a harvester
       // that could not reach its dock simply stopped being part of the game.
       // Re-choosing the refinery re-runs the dock search against current
@@ -14848,20 +15508,58 @@
     // fire: the unit goes where it was sent. It shoots on the way — standing
     // still to do that is what made ordered troops refuse to disengage — and
     // resumes normal engagement once it arrives and the order clears.
+    // GARRISON. RA2's Enter mission: walk to the block, then step inside and
+    // stop being a unit. A block that filled up or changed hands on the way
+    // just cancels the order rather than leaving the man standing in the road.
+    if (u.order && u.order.t === 'garrison') {
+      var gb = entById(g, u.order.id);
+      if (!gb || gb.dead || !garrisonable(g, gb, u.p)) { u.order = null; return; }
+      if (dist(u, gb) <= Math.max(gb.gw, gb.gh) / 2 + 1.1) { enterGarrison(g, gb, u); return; }
+      advance(g, u, Math.round(gb.cx), Math.round(gb.cy), uspd(u), 60);
+      return;
+    }
     if (u.order && u.order.t === 'capture') {
       // Engineer: walk into the enemy structure and take it over (RA2 rules:
       // the engineer is consumed, the building keeps its damage).
       var cb = entById(g, u.order.id);
-      if (!cb || cb.dead || cb.p === u.p) { u.order = null; return; }
+      if (!cb || cb.dead || (cb.p === u.p && !BLDS[cb.type].hut)) { u.order = null; return; }
       if (dist(u, cb) <= Math.max(cb.gw, cb.gh) / 2 + 1.1) {
+        var cbd = BLDS[cb.type];
+        // [CABHUT] BridgeRepairHut=yes — the engineer is spent rebuilding the
+        // span, and the hut stays neutral.
+        if (cbd.hut) {
+          var nsp = repairBridgeFrom(g, cb);
+          u.dead = true; u.order = null;
+          if (nsp && u.p === P_HUMAN) { eva('Bridge repaired', 4000); say('Bridge repaired'); }   // eva.ini #46
+          else if (!nsp && u.p === P_HUMAN) say('Nothing to repair — the span is already standing', true);
+          return;
+        }
+        // A garrisoned civilian block is not captured, it is CLEARED: RA2's
+        // engineer throws the occupants out and the block goes back to nobody.
+        if (cbd.civ) {
+          killOccupants(g, cb);
+          cb.p = P_NEUT; cb.sel = false; cb.target = null;
+          u.dead = true; u.order = null;
+          if (u.p === P_HUMAN) { eva('Structure abandoned', 3000); say('Building cleared'); }
+          return;
+        }
         var oldP = cb.p; cb.p = u.p; cb.sel = false; cb.rally = null;
         recalcPower(g, oldP); recalcPower(g, u.p);
         u.dead = true; u.order = null;
-        if (u.p === P_HUMAN) eva('Structure captured', 3000);
+        // [CAOILD] ProduceCashStartup=1000 — the derrick pays out the moment
+        // it changes hands from the Neutral house.
+        if (cbd.cashStart && neutral(oldP)) {
+          g.side[cb.p].credits += cbd.cashStart;
+          if (cb.p === P_HUMAN && !headless) { creditPop(cbd.cashStart); sfx('cash'); }
+        }
+        if (cbd.neut) {
+          if (u.p === P_HUMAN) eva('Tech building captured', 3000);          // eva.ini #105
+          else if (oldP === P_HUMAN) eva('Tech building lost', 3000);        // eva.ini #106
+        } else if (u.p === P_HUMAN) eva('Structure captured', 3000);
         else if (oldP === P_HUMAN) eva('Structure captured by the enemy', 3000);
         return;
       }
-      advance(g, u, Math.round(cb.cx), Math.round(cb.cy), d.spd, 60);
+      advance(g, u, Math.round(cb.cx), Math.round(cb.cy), uspd(u), 60);
       return;
     }
     // ATTACK-MOVE. RA2's AttackMove advances on a spot and stops to kill what
@@ -14882,7 +15580,7 @@
         // Close the last few cells rather than walking past out of range.
         if (amd < reachOf(d, u) + 3) {
           advance(g, u, Math.round(am.kind === 'b' ? am.cx : am.x),
-                        Math.round(am.kind === 'b' ? am.cy : am.y), d.spd, 45);
+                        Math.round(am.kind === 'b' ? am.cy : am.y), uspd(u), 45);
           return;
         }
       }
@@ -14890,7 +15588,7 @@
       if (amdx * amdx + amdy * amdy < (u.air ? 0.3 : 1.4)) {
         u.order = null; u.path = null; u.guard = true; u.guardX = u.x; u.guardY = u.y;
         nextWaypoint(g, u);
-      } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path && u.noProg > 90) {
+      } else if (!advance(g, u, u.order.x, u.order.y, uspd(u), 0) && !u.path && u.noProg > 90) {
         u.order = null; u.guardX = u.x; u.guardY = u.y;
       }
       return;
@@ -14908,7 +15606,7 @@
         if (u.cool <= 0) fireGround(g, u, u.order.x, u.order.y);
         return;
       }
-      if (!advance(g, u, u.order.x, u.order.y, d.spd, 60) && u.noProg > 90) {
+      if (!advance(g, u, u.order.x, u.order.y, uspd(u), 60) && u.noProg > 90) {
         u.order = null; u.noProg = 0;
       }
       return;
@@ -14924,7 +15622,7 @@
         if (fpass) fire(g, u, fpass);
       }
       u.guardX = fo.kind === 'b' ? fo.cx : fo.x; u.guardY = fo.kind === 'b' ? fo.cy : fo.y;
-      if (dist(u, fo) > GUARD_STRAY) advance(g, u, Math.round(u.guardX), Math.round(u.guardY), d.spd, 30);
+      if (dist(u, fo) > GUARD_STRAY) advance(g, u, Math.round(u.guardX), Math.round(u.guardY), uspd(u), 30);
       else u.path = null;
       return;
     }
@@ -14938,7 +15636,7 @@
       if (mdx * mdx + mdy * mdy < (u.air ? 0.3 : 1.4)) {  // arrived (a flyer lands its spot exactly)
         u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
         nextWaypoint(g, u);
-      } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
+      } else if (!advance(g, u, u.order.x, u.order.y, uspd(u), 0) && !u.path &&
                  u.noProg > 90) {
         // Path ran out short and a fresh one changed nothing: unreachable.
         u.order = null; u.guardX = u.x; u.guardY = u.y;
@@ -14972,7 +15670,7 @@
       // tanks keep RA2's stop-and-shoot unless force-moved.
       if (u.p !== P_HUMAN && tgt.kind === 'u' && crusher(u) && crushable(tgt) && dd > 0.8) {
         if (dd <= rngVs(weaponFor(d, tgt, u), tgt) && u.cool <= 0) fire(g, u, tgt);
-        advance(g, u, Math.round(tgt.x), Math.round(tgt.y), d.spd, 30);
+        advance(g, u, Math.round(tgt.x), Math.round(tgt.y), uspd(u), 30);
         return;
       }
       if (dd <= rngVs(weaponFor(d, tgt, u), tgt) && !tooClose(weaponFor(d, tgt, u), dd)) {
@@ -14998,14 +15696,14 @@
                    : postD < 7);
       if (chase) {
         advance(g, u, Math.round(tgt.kind === 'b' ? tgt.cx : tgt.x),
-                      Math.round(tgt.kind === 'b' ? tgt.cy : tgt.y), d.spd, 45);
+                      Math.round(tgt.kind === 'b' ? tgt.cy : tgt.y), uspd(u), 45);
         return;
       }
     }
 
     if (u.order && u.order.t === 'attack' && ordered) {
       if (!advance(g, u, Math.round(ordered.kind === 'b' ? ordered.cx : ordered.x),
-                         Math.round(ordered.kind === 'b' ? ordered.cy : ordered.y), d.spd, 60) &&
+                         Math.round(ordered.kind === 'b' ? ordered.cy : ordered.y), uspd(u), 60) &&
           u.noProg > 90) {
         // No route to the thing we were told to kill. Holding the order here
         // is not patience, it is paralysis — the unit stands still for the
@@ -15028,7 +15726,7 @@
       var away = nearestFoe(g, u, reachOf(d, u) + GUARD_STRAY);
       if (away) {
         advance(g, u, Math.round(away.kind === 'b' ? away.cx : away.x),
-                      Math.round(away.kind === 'b' ? away.cy : away.y), d.spd, 45);
+                      Math.round(away.kind === 'b' ? away.cy : away.y), uspd(u), 45);
         return;
       }
     }
@@ -15036,7 +15734,7 @@
     // A guard that chased something comes home; a stopped unit never left.
     if (!tgt && u.guard && !u.order && !u.air) {
       var gdx = u.guardX - u.x, gdy = u.guardY - u.y;
-      if (gdx * gdx + gdy * gdy > 1.4) { advance(g, u, Math.round(u.guardX), Math.round(u.guardY), d.spd, 90); return; }
+      if (gdx * gdx + gdy * gdy > 1.4) { advance(g, u, Math.round(u.guardX), Math.round(u.guardY), uspd(u), 90); return; }
       u.path = null;
     }
 
@@ -15101,7 +15799,7 @@
       u.landed = false; u.rtb = false;
       var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
       if (mdx * mdx + mdy * mdy < 0.3) { u.order = null; u.guardX = u.x; u.guardY = u.y; nextWaypoint(g, u); }
-      else flyToward(g, u, u.order.x, u.order.y, d.spd);
+      else flyToward(g, u, u.order.x, u.order.y, uspd(u));
       return;
     }
     if (u.order && u.order.t === 'attack') {
@@ -15113,7 +15811,7 @@
           var ax = (t.kind === 'b' ? t.cx : t.x) - u.x, ay = (t.kind === 'b' ? t.cy : t.y) - u.y;
           u.face = ((Math.round(Math.atan2(ay, ax) / (Math.PI / 4)) % 8) + 8) % 8;
           if (u.cool <= 0) fire(g, u, t);
-        } else flyToward(g, u, t.kind === 'b' ? t.cx : t.x, t.kind === 'b' ? t.cy : t.y, d.spd);
+        } else flyToward(g, u, t.kind === 'b' ? t.cx : t.x, t.kind === 'b' ? t.cy : t.y, uspd(u));
         return;
       } else if (!u.landed) u.rtb = true;            // out of missiles: home to reload, order kept
     }
@@ -15122,7 +15820,7 @@
       if (!pad) { u.rtb = false; return; }           // nowhere to land: hover here
       var sl = padSlot(pad, u.slot);
       u.landed = false;
-      if (!flyToward(g, u, sl.x, sl.y, d.spd)) {
+      if (!flyToward(g, u, sl.x, sl.y, uspd(u))) {
         u.x = sl.x; u.y = sl.y; u.landed = true; u.rtb = false; u.face = 0;
         u.guardX = u.x; u.guardY = u.y;
       }
@@ -15188,8 +15886,387 @@
     b.gate = Math.max(0, Math.min(GATE_T, (b.gate || 0) + (hold ? 1 : -1)));
   }
 
+
+  // ===================================================================== //
+  //  The neutral house: garrisoning, tech buildings, bridges, crates
+  //
+  //  RA2's civilian layer is not scenery. A city block with `CanBeOccupied=yes`
+  //  is a fortress waiting for infantry; an Oil Derrick is an income stream
+  //  waiting for an Engineer; a bridge is a road that can be cut. All of it
+  //  hangs off ONE idea — structures owned by house -1 (`P_NEUT`) that sit in
+  //  `g.blds` like any other, so occupancy, pathing, targeting, damage and
+  //  rendering need no special case beyond "there is no g.side[-1]".
+  // ===================================================================== //
+
+  // rules.ini `Occupier=yes` appears on exactly TWO infantry sections in
+  // v1.006: [E1] (GI) and [E2] (Conscript). A Flak Trooper, a Tesla Trooper
+  // or Tanya cannot garrison, however much you would like them to.
+  var OCCUPIER = { rifle: 1, conscript: 1 };
+  // [General] ThreatPerOccupant=10 — what a garrison adds to the building's
+  // pull on enemy target selection, per man inside.
+  var THREAT_PER_OCCUPANT = 10;
+
+  function occCapOf(b) { return (BLDS[b.type] && BLDS[b.type].occCap) || 0; }
+  function occCount(b) { return b.occ ? b.occ.length : 0; }
+  function canOccupy(type) { return !!OCCUPIER[type]; }
+  // Can THIS man walk into THAT building? Only an Occupier, only a civilian
+  // block, only one that is empty or already ours, and only if there is room.
+  function garrisonable(g, b, p) {
+    if (!b || b.dead || !occCapOf(b) || b.make > 0) return false;
+    if (!neutral(b.p) && b.p !== p) return false;
+    return occCount(b) < occCapOf(b);
+  }
+
+  function enterGarrison(g, b, u) {
+    if (!garrisonable(g, b, u.p) || !canOccupy(u.type)) return false;
+    if (!b.occ) b.occ = [];
+    var first = !b.occ.length;
+    b.occ.push({ type: u.type, hp: u.hp, rank: u.rank || 0, cool: 0, port: b.occ.length });
+    // RA2 hands the building to the occupying house the moment the first man
+    // is inside — it flies your colour, it shoots for you, and the enemy can
+    // now target it. The last man out hands it back.
+    b.p = u.p;
+    u.dead = true; u.sel = false; u.order = null;
+    if (u.p === P_HUMAN) eva('Structure garrisoned', 4000);       // eva.ini #107
+    if (first && !headless) sfx('click');
+    return true;
+  }
+
+  // Everybody out. RA2 puts the men back on the ground around the building at
+  // the health they went in with; the block reverts to the neutral house.
+  function ejectGarrison(g, b) {
+    if (!b.occ || !b.occ.length) return 0;
+    var n = 0, p = b.p;
+    for (var i = 0; i < b.occ.length; i++) {
+      var o = b.occ[i], sp = freeTileNear(g, Math.round(b.cx), Math.round(b.cy));
+      if (!sp) break;
+      var u = spawnUnit(g, o.type, p, sp.x, sp.y);
+      u.hp = Math.max(1, o.hp); u.rank = o.rank; n++;
+    }
+    b.occ.length = 0;
+    b.p = P_NEUT; b.sel = false; b.target = null;
+    if (p === P_HUMAN) eva('Structure abandoned', 4000);          // eva.ini #108
+    return n;
+  }
+
+  // The building came down with men inside. RA2 kills every occupant.
+  function killOccupants(g, b) {
+    if (!b.occ || !b.occ.length) return;
+    for (var i = 0; i < b.occ.length; i++) {
+      if (!headless) infCorpse(g, { kind: 'u', type: b.occ[i].type, p: b.p, x: b.cx, y: b.cy }, 'HE');
+      if (!neutral(b.p)) g.side[b.p].lost++;
+    }
+    b.occ.length = 0;
+  }
+
+  // Occupants fire their OWN weapons out of the windows. A garrison of GIs is
+  // a ring of M60s behind cover, which is exactly why RA2 players fight over
+  // the crossroads block.
+  function garrisonTarget(g, b, spec) {
+    var best = null, bs = -Infinity;
+    near(b.cx, b.cy, spec.rng + 1.5, function (o) {
+      if (o.dead || o.p === b.p || neutral(o.p)) return;
+      if (!canHit(spec, o) || isWall(o)) return;
+      var dd = dist(b, o);
+      if (dd > spec.rng + 0.5) return;
+      var mult = spec.wh ? versesVs(spec.wh, o) : 1;
+      if (mult <= 0) return;
+      var sc = mult * 100 - dd * 6 - (o.hp / o.maxhp) * 40;
+      if (sc > bs) { bs = sc; best = o; }
+    });
+    return best;
+  }
+  // Where a man's muzzle sits on the block's face. Four ports round the
+  // sprite, so a full garrison flashes from several windows at once rather
+  // than stacking every shot on the roof ridge.
+  var GARRISON_PORTS = [[-13, 30], [13, 30], [-9, 16], [9, 16]];
+  function stepGarrison(g, b) {
+    var fired = null;
+    for (var i = 0; i < b.occ.length; i++) {
+      var o = b.occ[i], d = UNITS[o.type];
+      if (o.cool > 0) { o.cool--; continue; }
+      var t = garrisonTarget(g, b, d);
+      if (!t) continue;
+      o.cool = d.rate * (o.rank === 2 ? 0.6 : 1);
+      fired = t;
+      if (!headless) {
+        var pt = GARRISON_PORTS[o.port % GARRISON_PORTS.length];
+        g.shots.push({ x: b.cx, y: b.cy, tx: entX(t), ty: entY(t), t: 0, life: 7, id: g.nextId++,
+                       ox: pt[0], alt: pt[1], talt: t.kind === 'u' ? altOf(t) : 0 });
+      }
+      damage(g, b, t, d.dmg * vetFire(o.rank), d.wh);
+    }
+    b.target = fired;
+    if (fired && !headless && (g.tick % 12) === 0) sfx('shot');
+  }
+
+  // Everything the neutral house does on its own tick: garrison fire, the
+  // derrick's cash trickle ([CAOILD] ProduceCashAmount/Delay) and the
+  // hospital's field healing ([CATHOSP] Hospital=yes).
+  function stepNeutral(g, b) {
+    var d = BLDS[b.type];
+    if (b.occ && b.occ.length) stepGarrison(g, b);
+    if (neutral(b.p)) return;                       // the rest needs an owner
+    if (d.cash && (g.tick % d.cashDelay) === 0) {
+      g.side[b.p].credits += d.cash;
+      if (b.p === P_HUMAN && !headless && (g.tick % (d.cashDelay * 10)) === 0) creditPop(d.cash * 10);
+    }
+    if (d.heal && (g.tick % 30) === 0) {
+      for (var i = 0; i < g.units.length; i++) {
+        var u = g.units[i];
+        if (u.dead || u.p !== b.p || !isInf(u) || u.hp >= u.maxhp) continue;
+        if (dist(u, b) > d.heal) continue;
+        u.hp = Math.min(u.maxhp, u.hp + u.maxhp * 0.04);
+      }
+    }
+  }
+
+  // ---- Bridges ([General] DestroyableBridges=yes, BridgeStrength=1500) --- //
+  // A span is a column of deck cells (indexBridges). Force-fire, a nuke or a
+  // storm bolt on the deck takes it down; the cells revert to open water, the
+  // traffic on them goes into the river, and `g.bwrk` remembers the torn ends.
+  function damageBridge(g, x, y, amount) {
+    x = Math.round(x); y = Math.round(y);
+    if (!inMap(x, y)) return false;
+    var si = g.bspan[idx(x, y)];
+    if (!si) return false;
+    var sp = g.bridges[si - 1];
+    if (sp.down) return false;
+    sp.hp -= amount;
+    if (sp.hp <= 0) collapseSpan(g, sp);
+    return true;
+  }
+  function collapseSpan(g, sp) {
+    sp.down = true; sp.hp = 0;
+    var i, c;
+    for (i = 0; i < sp.cells.length; i++) {
+      c = sp.cells[i];
+      g.terrain[c] = T_WATER;
+      g.bwrk[c] = 1;                                 // this water used to be a deck
+    }
+    for (i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      if (u.dead || u.air) continue;
+      var ci = idx(Math.max(0, Math.min(MAP - 1, Math.round(u.x))), Math.max(0, Math.min(MAP - 1, Math.round(u.y))));
+      if (g.bspan[ci] !== sp.cells.length && sp.cells.indexOf(ci) < 0) continue;
+      u.dead = true; u.path = null;
+      if (!headless) boom(g, u.x, u.y, 14);
+    }
+    if (headless) return;
+    for (i = 0; i < sp.cells.length; i++) {
+      var cx = sp.cells[i] % MAP, cy = (sp.cells[i] / MAP) | 0;
+      g.fx.push({ x: cx, y: cy, t: -i * 3, life: 30, size: 18 });
+    }
+    say('A bridge span has collapsed', true);
+  }
+  // [CABHUT] BridgeRepairHut=yes: an engineer walks in and the span comes
+  // back. The hut serves whatever spans lie within a few cells of it, which
+  // is how RA2's huts sit at both ends of one crossing.
+  function repairBridgeFrom(g, b) {
+    var n = 0;
+    for (var i = 0; i < g.bridges.length; i++) {
+      var sp = g.bridges[i];
+      if (!sp.down) continue;
+      var best = 1e9;
+      for (var c = 0; c < sp.cells.length; c++) {
+        var cx = sp.cells[c] % MAP, cy = (sp.cells[c] / MAP) | 0;
+        var dd = Math.abs(cx - b.cx) + Math.abs(cy - b.cy);
+        if (dd < best) best = dd;
+      }
+      if (best > 9) continue;
+      sp.down = false; sp.hp = sp.maxhp;
+      for (c = 0; c < sp.cells.length; c++) { g.terrain[sp.cells[c]] = T_BRIDGE; g.bwrk[sp.cells[c]] = 0; }
+      n++;
+    }
+    return n;
+  }
+
+  // ---- Crates ([CrateRules] / [Powerups]) ------------------------------- //
+  // CrateMinimum=1 (one per player), CrateRegen=3 (minutes), CrateRadius=3.0
+  // for the area bonuses. The weights are the first field of each [Powerups]
+  // row; the ones RA2 leaves at weight 0 (IonStorm, Pod, Napalm...) are not
+  // in the pool, and neither is Cloak, which we have nothing to cloak with.
+  var CRATE_MIN = 2, CRATE_REGEN = 3 * 60 * 60, CRATE_RADIUS = 3.0;
+  var CRATE_POOL = [
+    { k: 'money',   w: 20 }, { k: 'veteran', w: 20 }, { k: 'unit',    w: 20 },
+    { k: 'armor',   w: 10 }, { k: 'firepower', w: 10 }, { k: 'healbase', w: 10 },
+    { k: 'reveal',  w: 10 }, { k: 'speed',   w: 10 }
+  ];
+  // A hash, not a stateful RNG: crate placement and contents have to be
+  // reproducible from (seed, tick) alone so a replay lands the same crate in
+  // the same field with the same prize.
+  function hash3(a, b, c) {
+    var h = ((a | 0) * 374761393 + (b | 0) * 668265263 + (c | 0) * 2246822519) >>> 0;
+    h = (h ^ (h >>> 13)) >>> 0; h = (h * 1274126177) >>> 0;
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+  function crateSpot(g, salt) {
+    for (var tries = 0; tries < 200; tries++) {
+      var x = (hash3(g.seed, salt, tries * 2 + 1) * MAP) | 0;
+      var y = (hash3(g.seed, salt, tries * 2 + 2) * MAP) | 0;
+      if (!inMap(x, y)) continue;
+      var i = idx(x, y);
+      if (!buildableT(g.terrain[i]) || g.occ[i]) continue;
+      var near0 = false;
+      for (var p = 0; p < 2; p++) {
+        var st = g.start[p];
+        if (st && Math.abs(x - st.x) < 12 && Math.abs(y - st.y) < 12) near0 = true;
+      }
+      if (near0) continue;
+      var taken = false;
+      for (var c = 0; c < g.crates.length; c++) if (g.crates[c].x === x && g.crates[c].y === y) taken = true;
+      if (taken) continue;
+      return { x: x, y: y };
+    }
+    return null;
+  }
+  function crateKind(g, salt) {
+    var total = 0, i;
+    for (i = 0; i < CRATE_POOL.length; i++) total += CRATE_POOL[i].w;
+    var r = hash3(g.seed, salt, 7777) * total;
+    for (i = 0; i < CRATE_POOL.length; i++) { r -= CRATE_POOL[i].w; if (r <= 0) return CRATE_POOL[i].k; }
+    return 'money';
+  }
+  function spawnCrate(g, salt) {
+    var sp = crateSpot(g, salt);
+    if (!sp) return null;
+    var cr = { x: sp.x, y: sp.y, kind: crateKind(g, salt), born: g.tick, id: g.nextId++ };
+    g.crates.push(cr);
+    return cr;
+  }
+  function stepCrates(g) {
+    if (g.noCrates) return;
+    // CrateMinimum=1 per player: the board starts at its floor, then one more
+    // arrives every CrateRegen=3 minutes for as long as it is below it.
+    if (g.tick <= 2) { while (g.crates.length < CRATE_MIN) if (!spawnCrate(g, g.crates.length + 1)) break; }
+    else if (g.tick >= g.crateAt && g.crates.length < CRATE_MIN) {
+      spawnCrate(g, g.tick);
+      g.crateAt = g.tick + CRATE_REGEN;
+    }
+    if ((g.tick & 3) !== 0) return;
+    for (var i = g.crates.length - 1; i >= 0; i--) {
+      var cr = g.crates[i], got = null;
+      for (var j = 0; j < g.units.length; j++) {
+        var u = g.units[j];
+        if (u.dead || u.air || u.type === 'harvester') continue;
+        if (Math.abs(u.x - cr.x) > 0.75 || Math.abs(u.y - cr.y) > 0.75) continue;
+        got = u; break;
+      }
+      if (!got) continue;
+      g.crates.splice(i, 1);
+      openCrate(g, cr, got);
+      g.crateAt = Math.min(g.crateAt, g.tick + CRATE_REGEN);
+    }
+  }
+  // FreeMCV=yes: a player with money but no buildings gets an MCV out of the
+  // next crate he touches, whatever was in it.
+  function openCrate(g, cr, u) {
+    var p = u.p, s = g.side[p], k = cr.kind, i, msg = '', glyph = '?';
+    var noBase = true;
+    for (i = 0; i < g.blds.length; i++) if (!g.blds[i].dead && g.blds[i].p === p) { noBase = false; break; }
+    if (noBase) k = 'unit';
+    function around(fn) {
+      for (var q = 0; q < g.units.length; q++) {
+        var o = g.units[q];
+        if (o.dead || o.p !== p) continue;
+        if (Math.abs(o.x - cr.x) > CRATE_RADIUS || Math.abs(o.y - cr.y) > CRATE_RADIUS) continue;
+        fn(o);
+      }
+    }
+    if (k === 'money') {
+      s.credits += 2000; msg = '$2000'; glyph = '$';
+      if (p === P_HUMAN) { creditPop(2000); sfx('cash'); }
+    } else if (k === 'veteran') {
+      u.rank = Math.min(2, (u.rank || 0) + 1); msg = 'Veteran'; glyph = '★';
+      if (p === P_HUMAN) eva('Unit promoted', 3000);
+    } else if (k === 'firepower') {
+      around(function (o) { o.fpMul = Math.max(o.fpMul || 1, 2.0); });      // [Powerups] Firepower ...,2.0
+      msg = 'Firepower'; glyph = '⚔';
+      if (p === P_HUMAN) eva('Unit firepower upgraded', 3000);             // eva.ini #76
+    } else if (k === 'armor') {
+      around(function (o) { o.arMul = Math.max(o.arMul || 1, 1.5); });      // [Powerups] Armor ...,1.5
+      msg = 'Armour'; glyph = '🛡';
+      if (p === P_HUMAN) eva('Unit armor upgraded', 3000);                 // eva.ini #77
+    } else if (k === 'speed') {
+      around(function (o) { o.spMul = Math.max(o.spMul || 1, 1.2); });      // [Powerups] Speed ...,1.2
+      msg = 'Speed'; glyph = '»';
+      if (p === P_HUMAN) eva('Unit speed upgraded', 3000);                 // eva.ini #78
+    } else if (k === 'healbase') {
+      for (i = 0; i < g.blds.length; i++) if (!g.blds[i].dead && g.blds[i].p === p) g.blds[i].hp = g.blds[i].maxhp;
+      msg = 'Base repaired'; glyph = '✚';
+    } else if (k === 'reveal') {
+      if (p === P_HUMAN) for (i = 0; i < g.seen.length; i++) g.seen[i] = 1;
+      msg = 'Map revealed'; glyph = '👁';
+      if (p === P_HUMAN) eva('New terrain discovered', 3000);              // eva.ini #39
+    } else {
+      // [Powerups] Unit / [CrateRules] UnitCrateType=none — a random vehicle,
+      // or the free MCV when the owner has nothing left to build from.
+      var pick = noBase ? 'mcv' : (facOf(g, p) === 'col' ? ['rhino', 'flaktrack', 'v3'] : ['lancer', 'ifv', 'harvester'])[(hash3(g.seed, cr.id, 5) * 3) | 0];
+      var sp2 = freeTileNear(g, cr.x, cr.y);
+      if (sp2) spawnUnit(g, pick, p, sp2.x, sp2.y);
+      msg = bspecFor ? UNITS[pick].name : 'Unit'; glyph = '🚚';
+      if (p === P_HUMAN) eva('Reinforcements have arrived', 3000);         // eva.ini #38
+    }
+    if (headless) return;
+    g.fx.push({ x: cr.x, y: cr.y, t: 0, life: 60, crateFx: 1, glyph: glyph });
+    if (p === P_HUMAN) say('Crate: ' + msg);
+  }
+
+  // ---- Ore spreading ([Riparius] Spread=2200 SpreadPercentage=.06) ------ //
+  // RA2 counts Spread in its own logic frames; 2200 of them is about two and
+  // a half minutes. Every pass, six per cent of the ore cells throw a seam
+  // into one empty neighbour. Gems do not spread at all — [Cruentus] has
+  // SpreadPercentage=0 — so a gem field is finite, and that is the point of it.
+  var ORE_SPREAD_T = 2200 * 4;                    // 2200 RA2 frames at our 60Hz tick
+  function stepOreSpread(g) {
+    var pass = ++g.spread, ter = g.terrain, ore = g.ore, i, n;
+    var DIRS = [-1, 1, -MAP, MAP];
+    for (i = 0; i < ter.length; i++) {
+      if (ter[i] !== T_ORE || ore[i] < 200) continue;                 // a thin seam has nothing to give
+      if (hash3(g.seed, i, pass) >= 0.06) continue;                   // SpreadPercentage=.06
+      var d = DIRS[(hash3(g.seed, i, pass + 991) * 4) | 0];
+      n = i + d;
+      if (n < 0 || n >= ter.length) continue;
+      if (Math.abs((n % MAP) - (i % MAP)) > 1) continue;              // never wrap a row
+      if (ter[n] !== T_GROUND || g.occ[n]) continue;
+      ter[n] = T_ORE; ore[n] = 120;
+    }
+  }
+
+  // ---- Paradrop ([CAAIRP] SuperWeapon=ParaDropSpecial) ------------------ //
+  // [General] AllyParaDropInf=E1 AllyParaDropNum=6 / SovParaDropInf=E2
+  // SovParaDropNum=9. The plane crosses the map, the sticks come down on
+  // chutes, and they are yours where they land.
+  function paraDrop(g, p, gx, gy) {
+    var fk = facOf(g, p);
+    var n = fk === 'col' ? 9 : 6, type = FACTIONS[fk].inf;
+    g.drops.push({ p: p, x: gx, y: gy, type: type, left: n, t: 0, next: 0 });
+    if (p === P_HUMAN) eva('Reinforcements have arrived', 4000);
+    return true;
+  }
+  function stepDrops(g) {
+    for (var i = g.drops.length - 1; i >= 0; i--) {
+      var dr = g.drops[i];
+      dr.t++;
+      if (dr.t < 40) continue;                        // the run-in
+      if (dr.t < dr.next) continue;
+      dr.next = dr.t + 7;
+      var ang = dr.left * 1.9, rr = 0.6 + (dr.left % 3) * 0.7;
+      var tx = Math.round(dr.x + Math.cos(ang) * rr), ty = Math.round(dr.y + Math.sin(ang) * rr);
+      var sp = freeTileNear(g, Math.max(1, Math.min(MAP - 2, tx)), Math.max(1, Math.min(MAP - 2, ty)));
+      if (sp) {
+        spawnUnit(g, dr.type, dr.p, sp.x, sp.y);
+        if (!headless) g.fx.push({ x: sp.x, y: sp.y, t: 0, life: 34, chute: 1 });
+      }
+      if (--dr.left <= 0) g.drops.splice(i, 1);
+    }
+  }
+
   function stepBld(g, b) {
     var d = BLDS[b.type];
+    // The neutral house runs its own short tick: no repair bay, no power, no
+    // production, but garrison fire, oil money and hospital healing.
+    if (d.neut) { if (b.make > 0) b.make = 0; stepNeutral(g, b); return; }
     // Under construction: RA2's MAKE runs before the structure does anything.
     if (b.make > 0) { b.make--; return; }
     if (b.cool > 0) b.cool--;
@@ -15401,6 +16478,15 @@
                 if (aside && (aside.x !== sp.x || aside.y !== sp.y)) {
                   nu.order = { t: 'move', x: aside.x, y: aside.y, id: 0 };
                   nu.guardX = aside.x; nu.guardY = aside.y; requestPath(g, nu, aside.x, aside.y);
+                }
+              }
+              // [NACLON] Cloning=yes: a second, free copy of every infantryman
+              // steps out of the Vats' own door. Vehicles are not cloned.
+              if (lane === 'i') {
+                var cv = cloneVatsOf(g, p);
+                if (cv) {
+                  var csp = freeTileNear(g, Math.round(cv.cx), Math.round(cv.cy + cv.gh / 2 + 1));
+                  if (csp) spawnUnit(g, key, p, csp.x, csp.y);
                 }
               }
               if (p === P_HUMAN) { sfx('ready'); eva('Unit ready', 3000); }
@@ -16149,6 +17235,57 @@
     u.guardX = tx; u.guardY = ty;
   }
 
+  // RA2's AI does two things with the neutral house that ours did not: it
+  // puts riflemen into the city blocks around its own base when it is on the
+  // back foot, and it sends spare Engineers to the nearest uncaptured tech
+  // building. Both are cheap, both are checked once a second.
+  function aiNeutrals(g, ai, me, foe, defending) {
+    if ((g.tick % 60) !== (me * 17) % 60) return 0;
+    var i, used = 0, base = null;
+    for (i = 0; i < g.blds.length && !base; i++) {
+      var hb = g.blds[i];
+      if (!hb.dead && hb.p === me && hb.type === 'base') base = hb;
+    }
+    if (!base) return 0;
+    // ---- Engineers: the nearest capturable tech building we do not own.
+    for (i = 0; i < g.units.length; i++) {
+      var eu = g.units[i];
+      if (eu.dead || eu.p !== me || !UNITS[eu.type].capture || eu.order) continue;
+      var tb = null, td = 1e9;
+      for (var j = 0; j < g.blds.length; j++) {
+        var nb = g.blds[j];
+        if (nb.dead || !BLDS[nb.type].tech || nb.p === me) continue;
+        var dd = dist(eu, nb);
+        if (dd < td) { td = dd; tb = nb; }
+      }
+      if (!tb || td > 40) continue;
+      eu.order = { t: 'capture', x: 0, y: 0, id: tb.id }; eu.repathAt = -999;
+      requestPath(g, eu, Math.round(tb.cx), Math.round(tb.cy));
+      used++;
+    }
+    if (!defending) return used;
+    // ---- Garrison: fill the blocks near home with Occupiers, two apiece,
+    // rather than leaving them for the attacker to shoot from.
+    for (i = 0; i < g.blds.length; i++) {
+      var cb = g.blds[i];
+      if (cb.dead || !BLDS[cb.type].occCap) continue;
+      if (dist(cb, base) > 18) continue;
+      if (!garrisonable(g, cb, me) || occCount(cb) >= Math.min(2, occCapOf(cb))) continue;
+      for (var k = 0; k < g.units.length; k++) {
+        var mu = g.units[k];
+        if (mu.dead || mu.p !== me || !canOccupy(mu.type)) continue;
+        if (mu.order && mu.order.t === 'garrison') continue;
+        if (dist(mu, cb) > 22) continue;
+        mu.order = { t: 'garrison', x: 0, y: 0, id: cb.id }; mu.repathAt = -999;
+        mu.guard = false; mu.stopped = false;
+        requestPath(g, mu, Math.round(cb.cx), Math.round(cb.cy));
+        used++;
+        break;
+      }
+    }
+    return used;
+  }
+
   function aiTactics(g, ai, me, foe) {
     var cfg = ai.cfg;
     ai.army = aiArmy(g, me);
@@ -16167,6 +17304,7 @@
         if (dist(e, b) < 16) { threat = e; break; }
       }
     }
+    aiNeutrals(g, ai, me, foe, !!threat);
     if (threat && !ai.wave.length) {
       var answered = 0;
       for (i = 0; i < ai.army.length && budget > 0; i++) {
@@ -16278,6 +17416,10 @@
   // not shrouded — RA2's AI is not either.
   function revealFor(g, p) {
     var seen = g.seen, i, e, r, cx, cy, x, y, r2;
+    // [GASPYSAT] SpySat=yes, Powered=true: no radius, no sweep — the map is
+    // simply yours. Pull the power (or the building) and the shroud returns,
+    // because the gap pass and this one run again from scratch every beat.
+    if (spySatUp(g, p)) { for (i = 0; i < seen.length; i++) seen[i] = 1; return; }
     function disc(cx, cy, r) {
       var x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(MAP - 1, Math.ceil(cx + r));
       var y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(MAP - 1, Math.ceil(cy + r));
@@ -16287,6 +17429,24 @@
     }
     for (i = 0; i < g.units.length; i++) { e = g.units[i]; if (!e.dead && e.p === p) disc(e.x, e.y, UNITS[e.type].sight); }
     for (i = 0; i < g.blds.length; i++) { e = g.blds[i]; if (!e.dead && e.p === p) disc(e.cx, e.cy, BLDS[e.type].sight + Math.max(e.gw, e.gh) / 2); }
+  }
+  function spySatUp(g, p) {
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (b.dead || b.p !== p || b.make > 0 || b.offline) continue;
+      if (BLDS[b.type].spysat && powered(g, p)) return true;
+    }
+    return false;
+  }
+  // [NACLON] Cloning=yes: the Vats runs a second copy of every man the
+  // barracks turns out, free, and puts him at its own door.
+  function cloneVatsOf(g, p) {
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (b.dead || b.p !== p || b.make > 0 || b.offline) continue;
+      if (BLDS[b.type].clone && powered(g, p)) return b;
+    }
+    return null;
   }
   // --------------------------------------------------------------------- //
   //  Gap Generator ([GAGAP] GapGenerator=yes, GapRadiusInCells=10)
@@ -16359,10 +17519,14 @@
     if (g.ai2) stepAI(g, g.ai2, P_HUMAN, P_AI);
     if ((g.tick % 6) === 1 || g.tick <= 2) { applyGaps(g); revealFor(g, P_HUMAN); }
     if ((g.tick % 60) === 30) {
-      // Ore regrows slowly on existing seams (RA2's "ore grows"), never spreads.
+      // Ore regrows slowly on existing seams ([Riparius] Growth=2200).
       var ore = g.ore, ter = g.terrain;
       for (var oi = 0; oi < ore.length; oi++) if (oreT(ter[oi]) && ore[oi] < 900) ore[oi] = Math.min(900, ore[oi] + 2);
     }
+    // ...and, far more slowly, throws a seam into the ground next to it.
+    if ((g.tick % ORE_SPREAD_T) === (ORE_SPREAD_T - 1)) stepOreSpread(g);
+    stepCrates(g);
+    stepDrops(g);
 
     // effects
     stepWrecks(g);
@@ -16400,6 +17564,10 @@
         // Insignificant=yes / BaseNormal=no: a ring of walls is not a base,
         // so a side down to its perimeter has already lost.
         if (BLDS[g.blds[i].type].wall || BLDS[g.blds[i].type].gate) continue;
+        // A city block or an oil derrick belongs to nobody, and a captured one
+        // is Unsellable=yes/Insignificant=yes in rules.ini: neither side wins
+        // or loses a match on it.
+        if (neutral(g.blds[i].p) || BLDS[g.blds[i].type].neut) continue;
         if (g.blds[i].p === P_HUMAN) mine++; else theirs++;
       }
       // RA2: you are not beaten while an MCV is still rolling, and neither is
@@ -17399,7 +18567,8 @@
     if (!G || (state !== 'play' && state !== 'paused')) k = 'select';
     else if (swMode) k = swMode.key === 'chrono' ? 'chrono'
                         : (swMode.key === 'nuke' ? 'nuke'
-                        : (swMode.key === 'storm' ? 'storm' : 'curtain'));
+                        : (swMode.key === 'storm' ? 'storm'
+                        : (swMode.key === 'para' ? 'deploy' : 'curtain')));
     else if (placing) {
       var pd = BLDS[placing];
       k = canPlace(G, P_HUMAN, placing, hoverTile.x - Math.floor((pd.gw - 1) / 2),
@@ -17417,10 +18586,17 @@
       else if (mod.ctrl && mod.shift) k = 'amove';
       else if (mod.ctrl) k = 'ffire';
       else if (hov && !hov.dead && hov.p !== P_HUMAN) {
-        var cap = hov.kind === 'b' && units.some(function (u) { return UNITS[u.type].capture; });
-        k = cap ? 'enter'
+        var cap = hov.kind === 'b' && units.some(function (u) { return UNITS[u.type].capture; })
+                  && !(BLDS[hov.type].civ && !occCount(hov));
+        // RA2's ENTER cursor: a GI or Conscript over a city block with room in it.
+        var gar = hov.kind === 'b' && garrisonable(G, hov, P_HUMAN) &&
+                  units.some(function (u) { return canOccupy(u.type); });
+        k = (cap || gar) ? 'enter'
           : (units.some(function (u) { return canHit(UNITS[u.type], hov); }) ? 'attack' : 'nomove');
       }
+      // Our own garrisoned block: the enter cursor still applies (reinforce it).
+      else if (hov && hov.kind === 'b' && hov.p === P_HUMAN && garrisonable(G, hov, P_HUMAN) &&
+               units.some(function (u) { return canOccupy(u.type); })) k = 'enter';
       else if (hov && hov.p === P_HUMAN) k = 'select';
       else if (!inMap(hoverTile.x, hoverTile.y)) k = 'nomove';
       else if (pathMode || mod.shift) k = 'waypoint';
@@ -17831,6 +19007,21 @@
   }
   function unitsCmd(kind) {
     var us = sel.filter(function (u) { return u.kind === 'u' && !u.dead; });
+    if (kind === 'deploy') {
+      // A garrisoned building is deployed INTO; D turns it out again, exactly
+      // as RA2 evacuates a held structure.
+      var held = sel.filter(function (e) { return e.kind === 'b' && !e.dead && e.p === P_HUMAN && occCount(e); });
+      if (held.length) {
+        var out = 0;
+        held.forEach(function (b) { out += ejectGarrison(G, b); });
+        sel = sel.filter(function (e) { return !e.dead; });
+        say(out ? 'Evacuated — ' + out + ' infantryman' + (out === 1 ? '' : 'men') + ' back on the street'
+                : 'Nowhere to put them — the street is blocked', !out);
+        sfx(out ? 'click' : 'no');
+        refreshCmdbar();
+        return;
+      }
+    }
     if (!us.length) { say('Select some units first', true); return; }
     if (kind === 'deploy') {
       // An MCV unfolds into a Construction Yard; a GI digs in. Same key, same
@@ -17987,7 +19178,12 @@
     }
     if (cmdMode) {
       if (e && e.kind === 'b' && e.p === P_HUMAN) {
-        if (cmdMode === 'sell') { if (e.type === 'base' && countBld(G, P_HUMAN, 'base') < 2) say('Cannot sell your only Construction Yard', true); else sellBld(e); }
+        // rules.ini `Unsellable=yes` / `ClickRepairable=no`: a captured tech
+        // building or a held city block is neither sold nor patched up.
+        if (BLDS[e.type].neut && cmdMode !== 'power') {
+          say(bspecOf(G, e.type, e.p).name + ' is not yours to sell or repair — it came with the map', true); sfx('no');
+        }
+        else if (cmdMode === 'sell') { if (e.type === 'base' && countBld(G, P_HUMAN, 'base') < 2) say('Cannot sell your only Construction Yard', true); else sellBld(e); }
         else if (cmdMode === 'power') {
           // RA2's power toggle: the structure stops drawing (or making)
           // power and stops working. Cheap way to ride out a brown-out.
@@ -18169,8 +19365,10 @@
       var ox = o.kind === 'b' ? o.cx : o.x, oy = o.kind === 'b' ? o.cy : o.y;
       var dd = Math.sqrt((ox - gx) * (ox - gx) + (oy - gy) * (oy - gy));
       if (dd > r) return;
-      damage(g, u, o, spec.dmg * vetFire(u.rank) * (1 - 0.5 * dd / (r + 0.4)), spec.wh);
+      damage(g, u, o, spec.dmg * vetFire(u.rank) * (u.fpMul || 1) * (1 - 0.5 * dd / (r + 0.4)), spec.wh);
     });
+    // Force-firing at a bridge deck is how RA2 drops a span.
+    damageBridge(g, gx, gy, spec.dmg * vetFire(u.rank) * (u.fpMul || 1));
   }
 
   // Next queued waypoint, if any, becomes the order when one completes.
@@ -18237,6 +19435,18 @@
       return;
     }
 
+    // Reinforcing a block we already hold is an order to our own building,
+    // which the attack path would refuse — handled before it.
+    if (tgt && tgt.kind === 'b' && tgt.p === P_HUMAN && garrisonable(G, tgt, P_HUMAN)) {
+      var ng2 = 0;
+      units.forEach(function (u) {
+        if (!canOccupy(u.type)) return;
+        u.guard = false; u.stopped = false;
+        u.order = { t: 'garrison', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
+        requestPath(G, u, Math.round(tgt.cx), Math.round(tgt.cy)); ng2++;
+      });
+      if (ng2) { say('Entering ' + bspecOf(G, tgt.type, tgt.p).name); sfx('click'); unitAck(units, 'move'); return; }
+    }
     if (tgt && tgt.p !== P_HUMAN && !tgt.dead) {
       var na = orderAttack(G, units, tgt);
       if (!na) { say(isAir(tgt) ? 'Nothing selected can shoot aircraft' : 'Nothing selected can attack that', true); sfx('no'); return; }
@@ -18260,6 +19470,12 @@
       u.guard = false; u.stopped = false;
       if (UNITS[u.type].capture && tgt.kind === 'b' && !force) {
         u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
+        requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
+      }
+      // An Occupier told to "attack" a garrisonable block moves IN instead —
+      // the same right-click RA2 uses, with the same enter cursor.
+      if (canOccupy(u.type) && tgt.kind === 'b' && !force && garrisonable(g, tgt, u.p)) {
+        u.order = { t: 'garrison', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
         requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
       }
       if (!canHit(UNITS[u.type], tgt)) return;
@@ -18485,6 +19701,7 @@
   // --------------------------------------------------------------------- //
   var VX0 = 0, VY0 = 0, VX1 = 800, VY1 = 600;   // visible window in unzoomed screen space
   function render() {
+    updatePsi();
     ctx.fillStyle = '#0b0e14';
     ctx.fillRect(0, 0, cvW, cvH);
     if (!G) return;
@@ -18542,6 +19759,7 @@
             var lm = (y > 0 && !waterish(G.terrain[i - MAP]) ? 1 : 0) | (x + 1 < MAP && !waterish(G.terrain[i + 1]) ? 2 : 0) |
                      (y + 1 < MAP && !waterish(G.terrain[i + MAP]) ? 4 : 0) | (x > 0 && !waterish(G.terrain[i - 1]) ? 8 : 0);
             if (lm) ov = SPR.shallow[th][lm];
+            if (G.bwrk[i]) ov = SPR.bwreck;         // this water used to be a deck
           }
         } else if (t === T_RAMP) {
           tile = SPR.ramp[th][rampDir(G, x, y)];
@@ -18708,11 +19926,54 @@
       var cf = G.fx[i];
       if (cf.corpse && cf.t >= 0) draw.push({ d: cf.x + cf.y - 0.02, cp: cf });
     }
+    // Crate pickup: the effect's glyph rises off the spot, RA2's crate pip.
+    for (i = 0; i < G.fx.length; i++) {
+      var kf = G.fx[i];
+      if (!kf.crateFx || kf.t < 0) continue;
+      var kq = kf.t / kf.life;
+      ctx.globalAlpha = Math.max(0, 1 - kq * kq);
+      ctx.font = 'bold 15px system-ui'; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(14,18,24,.65)';
+      ctx.fillText(kf.glyph, sx(kf.x, kf.y) + 1, sy(kf.x, kf.y) - 14 - kq * 22 + 1);
+      ctx.fillStyle = '#ffe9a8';
+      ctx.fillText(kf.glyph, sx(kf.x, kf.y), sy(kf.x, kf.y) - 14 - kq * 22);
+      ctx.textAlign = 'left'; ctx.globalAlpha = 1;
+    }
+    // [NAPSIS] SensorArray=yes: not "where the enemy is" but "what he means
+    // to kill". Every hostile inside PsychicDetectionRadius=15 of the sensor
+    // that already has a target of ours is drawn joined to it.
+    if (psiRadius > 0) {
+      ctx.save();
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 1.4;
+      for (i = 0; i < G.units.length; i++) {
+        var pu = G.units[i];
+        if (pu.dead || pu.p === P_HUMAN) continue;
+        if (!psiCovers(pu.x, pu.y)) continue;
+        var po = pu.order, pt2 = null;
+        if (po && po.id) pt2 = G.byId[po.id];
+        if (!pt2 && pu.target) pt2 = pu.target;
+        if (!pt2 || pt2.dead || pt2.p !== P_HUMAN) continue;
+        var pax = sx(pu.x, pu.y), pay = sy(pu.x, pu.y) - altOf(pu) - 8;
+        var pbx = sx(entX(pt2), entY(pt2)), pby = sy(entX(pt2), entY(pt2)) - 8;
+        ctx.strokeStyle = 'rgba(186,140,255,.55)';
+        ctx.beginPath(); ctx.moveTo(pax, pay); ctx.lineTo(pbx, pby); ctx.stroke();
+        ctx.fillStyle = 'rgba(214,182,255,.85)';
+        ctx.beginPath(); ctx.arc(pbx, pby, 3.2, 0, 6.29); ctx.fill();
+      }
+      ctx.restore();
+      ctx.setLineDash([]);
+    }
     for (y = minY; y <= maxY; y++) for (x = minX; x <= maxX; x++) {
       i = idx(x, y);
       if (!G.seen[i]) continue;
       if (G.terrain[i] === T_TREE) draw.push({ d: x + y, t: SPR.tree[G.theatre || 'temperate'][((x * 7 + y * 13) >>> 0) & 3], x: x, y: y });
-      else if (G.terrain[i] === T_CIV) draw.push({ d: x + y, t: SPR.civ[((x * 11 + y * 5) >>> 0) & 3], x: x, y: y });
+    }
+    // Crates sort with the world: a box behind a tank is behind it.
+    for (i = 0; i < G.crates.length; i++) {
+      var cr0 = G.crates[i];
+      if (!G.seen[idx(cr0.x, cr0.y)]) continue;
+      draw.push({ d: cr0.x + cr0.y - 0.01, t: SPR.crate, x: cr0.x, y: cr0.y });
     }
     draw.sort(function (a, c) { return a.d - c.d; });
 
@@ -19046,6 +20307,24 @@
   }
 
   // Iron Curtain: RA2 tints what it protects red and lets it shimmer.
+  // The live Psychic Sensor, if we own one. Recomputed once a frame rather
+  // than per unit — there is at most one ([NAPSIS] is effectively unique).
+  var psiRadius = 0, psiX = 0, psiY = 0;
+  function updatePsi() {
+    psiRadius = 0;
+    if (!G) return;
+    for (var i = 0; i < G.blds.length; i++) {
+      var b = G.blds[i], d = BLDS[b.type];
+      if (b.dead || b.p !== P_HUMAN || !d.psi || b.make > 0 || b.offline) continue;
+      if (!powered(G, P_HUMAN)) continue;
+      psiRadius = d.psi; psiX = b.cx; psiY = b.cy; return;
+    }
+  }
+  function psiCovers(x, y) {
+    var dx = x - psiX, dy = y - psiY;
+    return dx * dx + dy * dy <= psiRadius * psiRadius;
+  }
+
   function ironGlow(e) {
     if (!ironed(G, e)) return;
     var px = sx(entX(e), entY(e)), py = sy(entX(e), entY(e));
@@ -19378,8 +20657,46 @@
     }
     return m;
   }
+  // The neutral house has one art set and no owner colour. Everything else —
+  // the damage post-pass, the fire ports, the smoke, the brackets — is the
+  // same machinery the player's structures use.
+  function drawNeutral(b) {
+    var A0 = SPR.neut[b.type];
+    if (!A0) return;
+    var held = occCount(b) > 0;
+    var art = (held && A0.lit) ? A0.lit : A0;
+    var px = sx(b.cx, b.cy), py = sy(b.cx, b.cy);
+    if (px < VX0 - 260 || py < VY0 - 260 || px > VX1 + 260 || py > VY1 + 260) return;
+    var ox = px - art.ax, oy = py - art.ay;
+    var frac = b.hp / b.maxhp, hurt = frac <= 0.5;
+    var setN = hurt ? dmgSetOf(art, b.type + (art === A0 ? '' : 'lit')) : [art.s];
+    ctx.drawImage(setN[0].c, ox, oy, art.s.w, art.s.h);
+    if (hurt) {
+      var crit0 = frac < 0.25, ports0 = portsOf(art), per0 = crit0 ? 7 : 13;
+      if (((G.tick + b.id * 7) % per0) === 0) {
+        var pt0 = ports0[((G.tick / per0 + b.id) | 0) % ports0.length];
+        G.fx.push({ x: b.cx, y: b.cy, ox: pt0.x, oy: pt0.y, t: 0, life: 78, smoke: true, lift: 0, big: crit0 ? 1.35 : 1 });
+        if (crit0) G.fx.push({ x: b.cx, y: b.cy, ox: pt0.x, oy: pt0.y + 3, t: 0, life: 24, fire: true, lift: 0, big: 1.5 });
+      }
+    }
+    var bbN = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
+    if (b.sel) brackets(ox + bbN.x0 - 3, oy + bbN.y0 - 3, ox + bbN.x1 + 3, oy + bbN.y1 + 2);
+    var topN = py - Math.max(art.rise || 0, (b.gw + b.gh) * 8) - 6;
+    if (b.hp < b.maxhp) hpBar(px, topN - 4, 30, frac);
+    // Garrison pips: RA2 shows how many men are inside as a row of dots.
+    if (held) {
+      var capN = occCapOf(b), k0, pw = Math.min(3.4, 26 / capN);
+      var x0N = px - (capN * (pw + 1.4)) / 2;
+      for (k0 = 0; k0 < capN; k0++) {
+        ctx.fillStyle = k0 < occCount(b) ? (b.p === P_HUMAN ? COL[P_HUMAN] : COL[P_AI]) : 'rgba(20,24,30,.55)';
+        ctx.fillRect(x0N + k0 * (pw + 1.4), topN - 12, pw, 4);
+      }
+    }
+  }
+
   function drawBld(b) {
     var bd0 = BLDS[b.type];
+    if (bd0.neut) { drawNeutral(b); return; }
     if (bd0.wall || bd0.gate) {
       var wpx = sx(b.cx, b.cy), wpy = sy(b.cx, b.cy);
       if (wpx < VX0 - 120 || wpy < VY0 - 120 || wpx > VX1 + 120 || wpy > VY1 + 120) return;
@@ -20384,7 +21701,44 @@
     credits: function (p) { return G ? G.side[p].credits : 0; },
     ore: function (x, y) { return G ? G.ore[y * MAP + x] : 0; },
     findOre: function (x, y) { return G ? findOre(G, x, y) : null; },
-    buildFactor: function (p, lane) { return G ? buildFactor(G, p, lane) : 1; }
+    buildFactor: function (p, lane) { return G ? buildFactor(G, p, lane) : 1; },
+    // Phase 4b: the neutral house. Every one of these is the same call the
+    // game itself makes, so a test cannot pass against a path the player
+    // never takes.
+    crates: function () { return G ? G.crates : []; },
+    spawnCrate: function (kind, x, y) {
+      if (!G) return null;
+      var cr = { x: x, y: y, kind: kind, born: G.tick, id: G.nextId++ };
+      G.crates.push(cr); return cr;
+    },
+    bridges: function () { return G ? G.bridges : []; },
+    neutrals: function () { return G ? G.blds.filter(function (b) { return !b.dead && BLDS[b.type].neut; }) : []; },
+    occupants: function (b) { return b && b.occ ? b.occ.length : 0; },
+    garrison: function (b, u) { return G ? enterGarrison(G, b, u) : false; },
+    eject: function (b) { return G ? ejectGarrison(G, b) : 0; },
+    orderGarrison: function (units, b) {
+      var n = 0;
+      units.forEach(function (u) {
+        if (!canOccupy(u.type) || !garrisonable(G, b, u.p)) return;
+        u.order = { t: 'garrison', x: 0, y: 0, id: b.id }; u.repathAt = -999;
+        requestPath(G, u, Math.round(b.cx), Math.round(b.cy)); n++;
+      });
+      return n;
+    },
+    orderCapture: function (units, b) {
+      var n = 0;
+      units.forEach(function (u) {
+        if (!UNITS[u.type].capture) return;
+        u.order = { t: 'capture', x: 0, y: 0, id: b.id }; u.repathAt = -999;
+        requestPath(G, u, Math.round(b.cx), Math.round(b.cy)); n++;
+      });
+      return n;
+    },
+    api2: { damageBridge: damageBridge, collapseSpan: collapseSpan, repairBridgeFrom: repairBridgeFrom,
+            garrisonable: garrisonable, canOccupy: canOccupy, occCapOf: occCapOf, occCount: occCount,
+            stepOreSpread: stepOreSpread, stepCrates: stepCrates, openCrate: openCrate,
+            spySatUp: spySatUp, cloneVatsOf: cloneVatsOf, paraDrop: paraDrop, uspd: uspd,
+            placeNeutrals: placeNeutrals, indexBridges: indexBridges, ORE_SPREAD_T: ORE_SPREAD_T }
   };
 
   // Headless match runner used by the balance tests: no rendering, no audio.
