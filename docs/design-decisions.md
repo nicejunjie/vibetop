@@ -7426,3 +7426,131 @@ pinned Iron Frontier snapshots can move.
 probably right, and it changes what every tank in the game does when it is
 briefly boxed in — which is a balance change wearing a bug fix's clothes. It
 belongs in its own pass with its own soak.
+
+## Lockstep multiplayer: one mutator, a two-tick delay, and a hash that argues (2026-09-03)
+
+**Symptom.** The gap audit's Multiplayer row said the hard part was already
+done — `simStep` is the only mutator, `rnd` is a seeded xorshift, `__rtsSim`
+replays a whole match from a seed — and the missing piece was "a command-queue
+/ lockstep layer". That is true and it undersells the problem: the *simulation*
+was clean, but the **input** was not. Twenty-odd handlers (`rightOrder`,
+`unitsCmd`, `tryPlace`, `laySeg`, `onPanelClick`, `clickSelect`, `swClickMap`,
+the minimap, six hotkeys) each reached into `G` and mutated it directly, with
+`say()` / `sfx()` / `unitAck()` interleaved line by line with the mutation. A
+second client cannot be handed *those*.
+
+**Cause.** Nothing separated "what did this click MEAN" from "what does the
+world do about it". The first half is irreducibly local — it needs the
+selection, the hover pick, the camera, the modifier keys, the cursor mode. The
+second half is the only part that may ever cross a wire.
+
+**Fix.**
+
+*One mutator.* Every input path now resolves the intent locally and emits a
+plain-JSON command (`cmd(type, payload)`) whose payload is entity **ids** and
+grid coordinates — never object references. `applyCmd(g, playerId, cmd)` is the
+only thing that mutates the sim on a player's behalf; `simStep` still steps the
+world. The mutation inside `applyCmd` is unconditional; the feedback is guarded
+by `cmdLocal(cmd)`, so a spectating client takes the identical state change and
+says nothing about it. Moving `say()`/`sfx()` *into* `applyCmd` rather than
+leaving predicted copies behind at the emit site is what keeps the messages
+exactly the ones the game shipped — there is one copy of each string, and it
+fires from the same branch that did the work.
+
+*A uniform delay.* A command issued on tick T runs on tick T + `LOCKSTEP_DELAY`
+(2, ~33 ms) on **every** client, the issuing one included. The temptation is to
+short-circuit locally for responsiveness; that is precisely the bug, because
+the issuer would then be one tick ahead of its peers for that order and the
+worlds diverge on the first click. The due queue is drained in a canonical
+order — player id, then that player's own issue sequence — because packet
+arrival order and JS key order are not the same on two machines.
+
+*Two clients in one page.* `LoopbackNet` is what proves the thing works without
+a server: two `G`s, one bus, a settable per-client latency. It exposed the one
+piece of real coupling left in the file — `_seed`, the spatial `hash`/`hashAt`
+and `pathQ` are **module-level derived caches**, so client B was reading client
+A's neighbour buckets. (Exactly the failure the per-match `resetHash()` fixed
+for back-to-back matches — see "`__rtsSim` was not reproducible after the first
+call".) Each client owns a `ctx` holding all four, and `netUse(c)` swaps them.
+The bus also JSON round-trips every bundle it forwards, which asserts on every
+send that a command is plain data with no live references in it.
+
+*A hash that argues.* Every 60 ticks each client fingerprints its world with
+`stateHash` — extracted from the save/load round-trip test, so one function
+answers both "did the save restore" and "do we still agree" — and posts it. A
+mismatch stops the match and dumps both hashes and the tick. Single player
+never computes it (`check` is false with no peer), so the checkpoint is free.
+
+**What a real server must do — and nothing more.** (a) Agree the seed, map,
+options, factions and player ids before tick 0 and hand every client the same
+record. (b) Relay command bundles without dropping one; it may reorder them,
+since each is stamped with its due tick and its issuer. (c) Hold the tick
+barrier: a client may not step T until it holds a bundle — empty counts — from
+every player for T. That is `Transport.ready(tick)` and it is the whole of flow
+control; the slowest player sets the pace, as in RA2. It simulates nothing and
+stores no game state, so it cannot be the component that gets the answer wrong.
+
+**Rejected.**
+
+* *Networking the selection and the control groups.* The brief listed group
+  assign/select among the actions to cover; they do not mutate the sim (`u.sel`
+  is read only by the renderer) and RA2 does not send them. Putting them on the
+  wire would make one player's selection depend on another player's latency for
+  no gain. They stay local, and the layer is honest about it.
+* *Zero delay for `LocalNet`, "since there is no peer".* It would have made
+  single player a different code path from multiplayer, which is how a lockstep
+  layer rots: the path that is exercised daily stops being the path that has to
+  be correct. 33 ms is under half of what RA2 itself ran at, and the pinned
+  seed-4242 snapshots are unmoved because the AI never goes through the command
+  queue at all — it is part of the simulation, not a peer.
+* *Making the AI a network player.* It runs inside `simStep` on every client
+  from the same seed and therefore reaches the same decisions with nothing on
+  the wire. Sending its orders would double the traffic to prove a point the
+  determinism already makes.
+* *A `g.cmdQ` on the game object* instead of on the client. It would have been
+  serialised by the save format and dragged a live transport reference into a
+  `JSON.stringify`. A restored game gets a fresh client and an empty schedule;
+  the couple of ticks of orders in flight when a save was taken are dropped,
+  because a save is not a network checkpoint.
+* *Predicting the feedback at the emit site* so messages appear on the same
+  frame as the click. Two copies of every string and two copies of every
+  eligibility test, kept in sync by hand, to hide 33 ms nobody can see.
+
+## The AI's anti-air was a reaction, and a reaction is one sortie late (2026-09-03)
+
+**Symptom.** The difficulty ladder was right at the ends and wrong in the
+middle at one specific moment: from about 14:00 an easy Directorate's Harriers
+worked over a normal Collective's harvesters with nothing in the sky to answer
+them.
+
+**Cause.** `aiProduce` opened its AA on `ai.airAt` — the tick an enemy aircraft
+was last **seen or felt**. The first sortie is also the first sighting, so the
+flak cannon was queued *after* the miners were already dying, and a $1000
+structure takes long enough that the second sortie landed before it did.
+
+**Fix.** Plan against what the enemy CAN field, which is what RA2's AI does.
+`aiFoeCanFly(g, foe)` reads the other house's base directly (as the target
+picker and the superweapon aim already do): an Airforce Command means
+Harriers, Rocketeers and Nighthawks are possible; a Battle Lab plus a War
+Factory means Kirovs are. The size of the screen is a **proportion of the same
+`Allied/SovietBaseDefenseCounts` plan** the gun towers use, so it scales with
+the base instead of being a flat count: a third of the plan (2–4 guns) when the
+enemy can fly, half of it (3–6) once bombs are actually falling, and the old
+single post-radar tower when the enemy has no airfield at all. It is bought out
+of spare cash at a higher bar ($1600 pre-emptive vs $1100 under fire), so a
+poor AI still buys tanks. Gates over 12 seeds × both faction orders,
+30-minute cap: hard vs easy 19/24 → **23/24**, hard vs normal 19/24 →
+**22/24**, normal vs easy 22/24 → **21/24**.
+
+**Rejected.**
+
+* *Keeping the reaction and merely shortening its window.* The window is not
+  the problem; the trigger is. No value of "recently" fires before the first
+  aircraft exists.
+* *A flat "three guns once they have an airfield".* A four-building opening
+  base and a twenty-building late base do not want the same screen, and the
+  defence plan already knows the difference.
+* *Gating on whether the enemy airfield has been SCOUTED.* Defensible, and
+  every other AI read of the enemy base (`aiPickTarget`, `aiSwTarget`,
+  `aiDefencePlan`'s valuation) is omniscient already. Making one of them honest
+  makes the AI inconsistent, not fairer.

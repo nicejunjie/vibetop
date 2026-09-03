@@ -2147,6 +2147,9 @@
     computeGroundMat(g);
     indexBridges(g);
     placeNeutrals(g);
+    // Every new game gets its own lockstep client (single-player loopback by
+    // default) with an empty command schedule and its own derived caches.
+    netAttach(g);
     return g;
   }
 
@@ -18410,6 +18413,27 @@
       if (!b.dead) add(b);                      // b.cx/cy are its centre
     }
   }
+  // A 32-bit FNV-1a fingerprint of everything the simulation owns. Two
+  // lockstep clients that have run the same commands over the same ticks must
+  // produce the same number; the first tick where they do not is the desync.
+  // (It is also what the save/load round-trip test compares.)
+  function stateHash(g) {
+    var h = 2166136261 >>> 0, i, k;
+    function mix(v) { h ^= (v | 0); h = Math.imul(h, 16777619) >>> 0; }
+    mix(g.tick); mix(_seed); mix(Math.round(g.side[0].credits)); mix(Math.round(g.side[1].credits));
+    for (i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      mix(u.id); mix(u.dead ? 1 : 0); mix(Math.round(u.x * 64)); mix(Math.round(u.y * 64));
+      mix(Math.round(u.hp)); mix(u.face | 0); mix(u.target ? u.target.id : 0);
+    }
+    for (i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      mix(b.id); mix(b.dead ? 1 : 0); mix(Math.round(b.hp)); mix(b.target ? b.target.id : 0);
+    }
+    for (k = 0; k < g.ore.length; k += 7) mix(Math.round(g.ore[k]));
+    return h >>> 0;
+  }
+
   // Every match starts from the same derived state: emptied buckets and an
   // unset rebuild clock (see newState).
   function resetHash() {
@@ -22109,6 +22133,16 @@
     return Math.max(1, Math.min(ai.cfg.defCount, n));
   }
 
+  // Can the other house put anything in the air AT ALL? RA2's aircraft all
+  // hang off two structures: [ORCA]/[ROCK]/[SHAD] need an Airforce Command,
+  // and the Collective's [ZEP] needs a Battle Lab with a War Factory to build
+  // it in. The AI already reads the enemy's base directly everywhere else
+  // (target picking, superweapon aim), so this reads it the same way.
+  function aiFoeCanFly(g, foe) {
+    if (hasBld(g, foe, 'airforce')) return true;
+    return g.side[foe].fac === 'col' && hasBld(g, foe, 'lab') && hasBld(g, foe, 'factory');
+  }
+
   function aiProduce(g, ai, me, foe) {
     var s = g.side[me], cfg = ai.cfg;
     // RA2's AI rebuilds its base rather than dying with it: with no yard
@@ -22223,23 +22257,43 @@
 
     // Defence builds in its own lane now, so a turret never delays a refinery
     // for the AI either — it is a separate decision, not a queue position.
-    // Anti-air goes up as soon as the enemy has fielded an aircraft (seen, or
-    // felt: being bombed counts), and once anyway after the radar as part of
-    // the defence order — a base with a lab and no AA is a Kirov's lunch.
-    var aaKey = s.fac === 'col' ? 'flakcannon' : 'patriot';
-    var airThreat = g.tick - ai.airAt < 60 * 90;
-    var nAA = countBld(g, me, aaKey);
-    if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
-        canBuild(g, me, aaKey, true) &&
-        ((airThreat && nAA < 3 && s.credits > 1100) ||
-         (!airThreat && nAA < 1 && hasBld(g, me, radarKey) && countBld(g, me, def) + countBld(g, me, def2) >= 2 && s.credits > 2400))) {
-      enqueue(g, me, aaKey, 'd');
-    }
+    //
     // AlliedBaseDefenseCounts / SovietBaseDefenseCounts (25,20,6 h,m,e): the
     // number of base defences the house PLANS on making over a match. It is a
     // ceiling, not a schedule — the affordability slack below is what paces
-    // it, so a rich hard AI fortifies and a poor one still buys tanks.
+    // it, so a rich hard AI fortifies and a poor one still buys tanks. The AA
+    // screen is a PROPORTION of that same plan, so it scales with the base
+    // instead of being a flat count.
     var defCap = aiDefencePlan(g, ai, me);
+    // Anti-air used to wait for `ai.airAt` — the tick an enemy aircraft was
+    // last SEEN or FELT. That is a reaction, and a reaction is too late: an
+    // easy Directorate could open an Airforce Command at 12:00 and have its
+    // Harriers eating a Normal Collective's miners from 14:00 with nothing in
+    // the sky to answer them, because the first sortie was also the first
+    // sighting. RA2's AI plans against what the enemy CAN field. So the
+    // screen goes up once the other house owns the buildings that make
+    // aircraft possible at all — an Airforce Command (Harriers, Rocketeers,
+    // Nighthawks) or, for the Collective, the Battle Lab + War Factory pair
+    // that a Kirov needs — and it deepens if they actually come.
+    var aaKey = s.fac === 'col' ? 'flakcannon' : 'patriot';
+    var airThreat = g.tick - ai.airAt < 60 * 90;          // seen, or felt: being bombed counts
+    var airPoss = aiFoeCanFly(g, foe);
+    var nAA = countBld(g, me, aaKey);
+    // Bombed: half the defence plan, never fewer than three guns. Merely able
+    // to fly: a third of it, never fewer than two. Neither: the single tower
+    // the old rule put up after the radar, so nothing regressed for a house
+    // whose enemy has no airfield at all.
+    var aaWant = airThreat ? Math.max(3, Math.min(6, Math.ceil(defCap * 0.5)))
+               : airPoss ? Math.max(2, Math.min(4, Math.ceil(defCap * 0.3)))
+               : (hasBld(g, me, radarKey) && countBld(g, me, def) + countBld(g, me, def2) >= 2 ? 1 : 0);
+    // A pre-emptive screen is bought out of spare cash, not out of the army's
+    // money — the same slack rule the gun towers below use. Once the bombs
+    // are actually falling it stops being optional.
+    var aaCash = airThreat ? 1100 : airPoss ? 1600 : 2400;
+    if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
+        canBuild(g, me, aaKey, true) && nAA < aaWant && s.credits > aaCash) {
+      enqueue(g, me, aaKey, 'd');
+    }
     if (ai.posture !== 'defend') defCap = Math.round(defCap * 0.7);
     // A turret is bought out of money the ARMY is not already asking for.
     // Without this the plan above turned into ten pillboxes and eleven men.
@@ -23209,8 +23263,586 @@
     return false;
   }
 
+  // --------------------------------------------------------------------- //
+  //  Lockstep command layer
+  //
+  //  RA2's netcode is LOCKSTEP: every client runs the same deterministic
+  //  simulation from the same seed and the wire carries only COMMANDS —
+  //  "these unit ids move to that cell" — applied on an agreed FUTURE tick,
+  //  so every machine mutates its world at the identical moment. Nothing but
+  //  the command stream ever crosses the network; state never does.
+  //
+  //  The rules this layer enforces, and why each one matters:
+  //    1. `applyCmd` is the ONLY thing that mutates the sim on a player's
+  //       behalf. An input handler resolves what the click MEANT (which is
+  //       full of local-only knowledge: the selection, the cursor, the
+  //       camera) and then emits a serialisable command. It never touches
+  //       `G` itself. A single mutator is what makes two clients agree.
+  //    2. A command issued on tick T runs on tick T + LOCKSTEP_DELAY on
+  //       EVERY client, local one included. Uniform delay is the point: a
+  //       local shortcut would make the issuing client run one tick ahead of
+  //       its peers for that order and desync immediately.
+  //    3. The due queue is applied in a canonical order — by player id, then
+  //       by that player's issue sequence — because JS object key order and
+  //       packet arrival order are not the same everywhere.
+  //    4. The AI is NOT a network player. It is part of the simulation: it
+  //       runs inside `simStep` on every client from the same seed and
+  //       therefore reaches the same decisions without sending anything.
+  //
+  //  A REAL SERVER plugs in at the `Transport` seam below. It has to do
+  //  exactly three things and nothing else:
+  //     (a) agree the match seed, map, options, faction and player ids
+  //         BEFORE tick 0, and hand every client the identical record;
+  //     (b) relay command bundles — it may reorder them in flight, since
+  //         each bundle is stamped with its due tick and its issuer, but it
+  //         must never drop one;
+  //     (c) hold the tick barrier: a client may not step tick T until it
+  //         holds a bundle (empty counts) from every player for T. That is
+  //         `Transport.ready(tick)`, and it is the whole of flow control —
+  //         the slowest player sets the pace, exactly as RA2 does.
+  //  It does no simulation and stores no game state, so it cannot be the
+  //  thing that gets the answer wrong.
+  // --------------------------------------------------------------------- //
+  var LOCKSTEP_DELAY = 2;          // ticks between issuing an order and running it
+  var DESYNC_EVERY = 60;           // ticks between state-hash comparisons
+  var NET = { active: null };
+
+  // The module-level derived caches (`_seed`, the spatial hash, the path
+  // queue) belong to whichever game is stepping. One page running two
+  // clients has to SWAP them, or client B reads client A's neighbour buckets
+  // and the two worlds drift apart in the first minute — the same failure the
+  // per-match `resetHash()` fixed for back-to-back matches.
+  function netStash() {
+    var c = NET.active;
+    if (c) c.ctx = { seed: _seed, hash: hash, hashAt: hashAt, pathQ: pathQ };
+  }
+  function netLoad(c) {
+    _seed = c.ctx.seed; hash = c.ctx.hash; hashAt = c.ctx.hashAt; pathQ = c.ctx.pathQ;
+    G = c.g; NET.active = c;
+  }
+  function netUse(c) {
+    if (NET.active === c) { G = c.g; return; }
+    netStash(); netLoad(c);
+  }
+
+  function NetClient(g, pid, tr, nplayers) {
+    this.g = g; this.p = pid | 0; this.tr = tr;
+    this.n = nplayers || 1;
+    this.q = {};                   // due tick -> [cmd]
+    this.pend = [];                // emitted this tick, not yet sent
+    this.seq = 0;
+    this.sent = -1;                // highest tick a bundle has been sent for
+    this.hashes = {};              // tick -> our own state hash
+    this.check = this.n > 1;       // only a networked match needs desync checks
+    this.desync = null;
+    // Fresh derived caches: two clients must never share a spatial hash.
+    this.ctx = { seed: _seed, hash: {}, hashAt: HASH_UNSET, pathQ: [] };
+  }
+  // A bundle is one player's commands for one tick — empty bundles are sent
+  // too, because "nothing happened on tick T" is exactly the information the
+  // barrier needs.
+  // The tick the NEXT bundle covers: LOCKSTEP_DELAY ticks after the one the
+  // client is sitting on. One number, used both to stamp commands and to
+  // address bundles, so the barrier's ledger and the schedule can never
+  // disagree about which tick an order belongs to.
+  NetClient.prototype.due = function () { return this.g.tick + LOCKSTEP_DELAY; };
+  NetClient.prototype.flush = function () {
+    var at = this.due(), i;
+    for (i = 0; i < this.pend.length; i++) if (this.pend[i].at < at) this.pend[i].at = at;
+    var b = { p: this.p, at: at, cmds: this.pend };
+    this.pend = [];
+    this.sent = at;
+    this.tr.send(b);
+  };
+  NetClient.prototype.recv = function (b) {
+    if (b.hash !== undefined) { this.onPeerHash(b); return; }
+    for (var i = 0; i < b.cmds.length; i++) {
+      var t = b.cmds[i].at;
+      (this.q[t] || (this.q[t] = [])).push(b.cmds[i]);
+    }
+  };
+  NetClient.prototype.onPeerHash = function (b) {
+    if (this.desync) return;
+    var mine = this.hashes[b.at];
+    if (mine === undefined) { (this.peerHash || (this.peerHash = {}))[b.at] = b; return; }
+    if (mine !== b.hash) this.fail(b.at, mine, b.hash, b.p);
+  };
+  NetClient.prototype.fail = function (t, mine, theirs, who) {
+    this.desync = { tick: t, mine: mine, theirs: theirs, peer: who };
+    netOnDesync(this, this.desync);
+  };
+  // Ordered application: player id first, then that player's own sequence.
+  // Two clients that receive the same commands in different orders still run
+  // them in the same order.
+  function cmdOrder(a, b) { return a.p !== b.p ? a.p - b.p : a.seq - b.seq; }
+  function netApplyDue(g) {
+    var c = NET.active;
+    if (!c || c.g !== g) return;
+    var list = c.q[g.tick];
+    if (!list) return;
+    delete c.q[g.tick];
+    list.sort(cmdOrder);
+    for (var i = 0; i < list.length; i++) applyCmd(g, list[i].p, list[i]);
+  }
+  // End-of-tick checkpoint. Single player has no peer to disagree with, so
+  // the hash is not even computed.
+  function netTick(g) {
+    var c = NET.active;
+    if (!c || c.g !== g || !c.check || c.desync) return;
+    if (g.tick % DESYNC_EVERY) return;
+    var h = stateHash(g);
+    c.hashes[g.tick] = h;
+    var pend = c.peerHash && c.peerHash[g.tick];
+    if (pend) { delete c.peerHash[g.tick]; if (pend.hash !== h) { c.fail(g.tick, h, pend.hash, pend.p); return; } }
+    c.tr.send({ p: c.p, at: g.tick, hash: h });
+  }
+  // A desync is not a defeat and must not run the score screen: the match
+  // simply stops where it is (netMayStep refuses to step a desynced client)
+  // and says which tick the two worlds stopped agreeing on, with both
+  // fingerprints, because that pair is the whole of the bug report.
+  var netOnDesync = function (c, d) {
+    if (headless || !c.g) return;
+    state = 'paused';
+    say('Desynchronised at tick ' + d.tick + ' — this client ' + d.mine +
+        ', player ' + d.peer + ' ' + d.theirs + '. The match has stopped.', true, 900);
+  };
+
+  // The one place a player action turns into a mutation.
+  function netEmit(c) {
+    var n = NET.active;
+    if (!n || !n.g || n.desync) return false;
+    c.p = n.p; c.seq = n.seq++; c.at = n.due();
+    n.pend.push(c);
+    // A LocalNet has no barrier and no wire, so the bundle can go straight
+    // out; a networked client batches until its tick boundary.
+    if (n.tr.immediate) n.flush();
+    return true;
+  }
+  function cmd(type, payload) {
+    var c = payload || {};
+    c.t = type;
+    return netEmit(c);
+  }
+  function cmdLocal(c) { return !headless && NET.active && c.p === NET.active.p; }
+
+  // ---- transports --------------------------------------------------------
+  // LocalNet: single player. The "network" is a function call, the barrier is
+  // always open, and a command is in the schedule the moment it is issued.
+  function LocalNet() { this.immediate = true; this.peers = []; }
+  LocalNet.prototype.join = function (c) { this.peers.push(c); };
+  LocalNet.prototype.send = function (b) { for (var i = 0; i < this.peers.length; i++) this.peers[i].recv(b); };
+  LocalNet.prototype.ready = function () { return true; };
+  LocalNet.prototype.onCmd = function (fn) { this.sink = fn; };
+
+  // LoopbackNet: two (or more) clients in ONE page, each with its own `G`,
+  // trading bundles across a bus with a settable per-client latency. No
+  // sockets, no server — but every rule a real transport has to obey is
+  // exercised: bundles arrive late, out of order relative to the other
+  // player's, and the barrier is what keeps the two worlds on the same tick.
+  function LoopBus() { this.links = []; this.wire = []; this.clock = 0; }
+  LoopBus.prototype.link = function (lat) {
+    var L = new LoopbackNet(this, lat | 0);
+    this.links.push(L);
+    return L;
+  };
+  LoopBus.prototype.post = function (from, b) {
+    var at = this.clock + (from.lat || 0);
+    for (var i = 0; i < this.links.length; i++) {
+      var to = this.links[i];
+      if (to === from) { to.deliver(b); continue; }   // your own orders never travel
+      // A real wire SERIALISES. Copying here is not politeness: it keeps the
+      // two clients from sharing command objects (a mutation on one would
+      // otherwise silently appear on the other, which is exactly the bug a
+      // desync test must be able to stage) and it asserts, every single
+      // bundle, that a command is plain JSON with no live references in it.
+      this.wire.push({ at: at, to: to, b: JSON.parse(JSON.stringify(b)) });
+    }
+  };
+  // One bus beat: everything whose latency has expired lands.
+  LoopBus.prototype.pump = function () {
+    this.clock++;
+    var keep = [], i;
+    for (i = 0; i < this.wire.length; i++) {
+      if (this.wire[i].at <= this.clock) this.wire[i].to.deliver(this.wire[i].b);
+      else keep.push(this.wire[i]);
+    }
+    this.wire = keep;
+  };
+  LoopBus.prototype.drain = function () { while (this.wire.length) this.pump(); };
+
+  function LoopbackNet(bus, lat) {
+    this.immediate = false; this.bus = bus; this.lat = lat | 0;
+    this.client = null; this.have = {};   // "p@tick" -> true, the barrier's ledger
+  }
+  LoopbackNet.prototype.join = function (c) { this.client = c; };
+  LoopbackNet.prototype.send = function (b) { this.bus.post(this, b); };
+  LoopbackNet.prototype.deliver = function (b) {
+    if (b.hash === undefined) this.have[b.p + '@' + b.at] = 1;
+    if (this.client) this.client.recv(b);
+  };
+  LoopbackNet.prototype.onCmd = function (fn) { this.sink = fn; };
+  // The barrier: tick T may not run until every player's bundle for T is in.
+  // Ticks before the first scheduled one are free — nobody could have sent a
+  // bundle for them.
+  LoopbackNet.prototype.ready = function (t) {
+    if (t < LOCKSTEP_DELAY) return true;       // nobody could have addressed these
+    for (var p = 0; p < (this.client ? this.client.n : 1); p++) {
+      if (!this.have[p + '@' + t]) return false;
+    }
+    return true;
+  };
+
+  // Attach a fresh single-player client to a new game. Called at the end of
+  // `newState`, so every entry point — the menu, the test hooks, the balance
+  // harness — starts with an empty schedule and its own derived caches.
+  function netAttach(g, tr, pid, nplayers) {
+    var t = tr || new LocalNet();
+    var c = new NetClient(g, pid || 0, t, nplayers);
+    if (t.join) t.join(c);
+    c.ctx = { seed: _seed, hash: {}, hashAt: HASH_UNSET, pathQ: [] };
+    hash = c.ctx.hash; pathQ = c.ctx.pathQ; hashAt = HASH_UNSET;
+    NET.active = c; c.g = g;
+    return c;
+  }
+  // Re-point the game's client at a real transport once the opening force is
+  // down. `netAttach` resets the derived caches, so it cannot be used here.
+  function netBind(tr, pid, nplayers) {
+    var c = NET.active;
+    c.tr = tr; c.p = pid | 0; c.n = nplayers || 1; c.check = c.n > 1;
+    if (tr.join) tr.join(c);
+    return c;
+  }
+
+  // The frame loop's gate. Single player never waits.
+  function netMayStep(g) {
+    var c = NET.active;
+    if (!c || c.g !== g) return true;          // no client owns this game: nothing to wait for
+    if (c.desync) return false;                // the worlds disagree; stepping on makes it worse
+    if (c.tr.immediate) return true;
+    if (c.sent < c.due()) c.flush();
+    return c.tr.ready(g.tick + 1);
+  }
+  // One networked client's tick: post this tick's bundle, wait for the
+  // barrier, step. Returns whether it actually stepped.
+  function netStep(c) {
+    netUse(c);
+    if (c.desync || c.g.over) return false;
+    if (!c.tr.immediate && c.sent < c.due()) c.flush();
+    if (!c.tr.ready(c.g.tick + 1)) return false;
+    simStep(c.g);
+    return true;
+  }
+
+  // ---- the single mutator ------------------------------------------------
+  function entsOf(g, ids) {
+    var a = [], i, e;
+    if (!ids) return a;
+    for (i = 0; i < ids.length; i++) { e = g.byId[ids[i]]; if (e && !e.dead) a.push(e); }
+    return a;
+  }
+  function idsOf(list) {
+    var a = [];
+    for (var i = 0; i < list.length; i++) a.push(list[i].id);
+    return a;
+  }
+  function entOf(g, id) { var e = g.byId[id]; return e && !e.dead ? e : null; }
+
+  // Every player-initiated change to the world passes through here, on both
+  // clients, on the same tick. The `local` guard is only ever about FEEDBACK —
+  // the mutation above it is unconditional, so a spectator's world and the
+  // issuing player's world take the identical change.
+  function applyCmd(g, p, c) {
+    var local = cmdLocal(c), us, i, n, tgt;
+    switch (c.t) {
+
+      case 'move':
+        us = entsOf(g, c.u);
+        n = orderUnitsTo(g, us, c.x, c.y, { queue: !!c.queue, voice: local });
+        if (local && n) {
+          say(c.queue ? 'Waypoint added' : (c.ore ? 'Harvesting' : 'Moving')); sfx('click');
+          g.fx.push({ x: c.x, y: c.y, t: 0, life: 18, size: 0, ping: true });
+        }
+        return;
+
+      case 'attack':
+        us = entsOf(g, c.u); tgt = entOf(g, c.id);
+        if (!tgt) return;
+        n = orderAttack(g, us, tgt, !!c.force);
+        if (!local) return;
+        if (!n) { say(c.force ? 'Nothing selected can shoot that' : (isAir(tgt) ? 'Nothing selected can shoot aircraft' : 'Nothing selected can attack that'), true); sfx('no'); return; }
+        say((c.force ? 'Force-firing on ' : 'Attacking ') + describe(tgt).replace(/ —.*$/, ''));
+        sfx('click'); unitAck(us, 'attack');
+        return;
+
+      case 'ffire':
+        us = entsOf(g, c.u);
+        n = orderFFire(g, us, c.x, c.y);
+        if (!local) return;
+        if (!n) { say('Nothing selected has a gun that can shell a spot', true); sfx('no'); return; }
+        say('Force-firing on the ground'); sfx('click'); unitAck(us, 'attack');
+        g.fx.push({ x: c.x, y: c.y, t: 0, life: 22, size: 0, ping: true });
+        return;
+
+      case 'amove':
+        us = entsOf(g, c.u);
+        n = orderAmove(g, us, c.x, c.y);
+        if (local && n) {
+          say('Attack-move — ' + n + ' unit' + (n === 1 ? '' : 's') + ' will engage what they meet');
+          sfx('click'); unitAck(us, 'attack');
+          g.fx.push({ x: c.x, y: c.y, t: 0, life: 22, size: 0, ping: true });
+        }
+        return;
+
+      case 'follow':
+        us = entsOf(g, c.u); tgt = entOf(g, c.id);
+        if (!tgt) return;
+        n = orderFollow(g, us, tgt);
+        if (!local) return;
+        if (n) { say(n + ' unit' + (n === 1 ? '' : 's') + ' following the ' + UNITS[tgt.type].name); sfx('click'); unitAck(us, 'move'); }
+        else say('Nothing left to follow with', true);
+        return;
+
+      case 'enter':                                  // board one of our transports
+        us = entsOf(g, c.u); tgt = entOf(g, c.id);
+        if (!tgt) return;
+        var room = paxCapOf(tgt) - paxCount(tgt), nin = 0;
+        us.forEach(function (u) {
+          if (nin >= room || !canBoard(g, tgt, u) || u === tgt) return;
+          u.guard = false; u.stopped = false; u.wp = null;
+          u.order = { t: 'enter', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
+          requestPath(g, u, Math.round(tgt.x), Math.round(tgt.y)); nin++;
+        });
+        if (nin && UNITS[tgt.type].air) { tgt.landReq = 1; tgt.order = null; tgt.path = null; }
+        if (!local) return;
+        if (nin) {
+          say('Boarding the ' + UNITS[tgt.type].name + ' — ' + nin + ' on the way (' +
+              paxCount(tgt) + '/' + paxCapOf(tgt) + ' aboard)');
+          sfx('click'); unitAck(us, 'move');
+        } else if (room <= 0) { say(UNITS[tgt.type].name + ' is full — ' + paxCount(tgt) + '/' + paxCapOf(tgt), true); sfx('no'); }
+        return;
+
+      case 'own':                                    // coil / engineer patch / Ivan on our own
+        us = entsOf(g, c.u); tgt = entOf(g, c.id);
+        if (!tgt) return;
+        var nown = 0, what = '';
+        us.forEach(function (u) {
+          var ud = UNITS[u.type];
+          if (ud.coiler && tgt.kind === 'b' && tgt.type === 'tesla') {
+            u.guard = false; u.stopped = false; u.wp = null;
+            u.order = { t: 'coil', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
+            requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy));
+            nown++; what = 'Charging the Tesla Coil';
+          } else if (ud.capture && tgt.kind === 'b' && tgt.hp < tgt.maxhp && !BLDS[tgt.type].hut) {
+            u.guard = false; u.stopped = false; u.wp = null;
+            u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
+            requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy));
+            nown++; what = 'Engineer will repair ' + bspecOf(g, tgt.type, tgt.p).name;
+          } else if (ud.ivan && !tgt.bomb) {
+            u.guard = false; u.stopped = false; u.wp = null;
+            u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: 1 }; u.repathAt = -999; u.path = null;
+            u.guardX = entX(tgt); u.guardY = entY(tgt);
+            requestPath(g, u, Math.round(u.guardX), Math.round(u.guardY));
+            nown++; what = 'Bombing our own ' + describeShort(tgt);
+          }
+        });
+        if (local && nown) { say(what); sfx('click'); unitAck(us, 'move'); }
+        return;
+
+      case 'garrison':
+        us = entsOf(g, c.u); tgt = entOf(g, c.id);
+        if (!tgt) return;
+        var ng = 0;
+        us.forEach(function (u) {
+          if (!canOccupy(u.type)) return;
+          u.guard = false; u.stopped = false;
+          u.order = { t: 'garrison', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
+          requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); ng++;
+        });
+        if (local && ng) { say('Entering ' + bspecOf(g, tgt.type, tgt.p).name); sfx('click'); unitAck(us, 'move'); }
+        return;
+
+      case 'rally':
+        var prod = entsOf(g, c.b);
+        prod.forEach(function (b) { b.rally = makeRally(g, b, c.x, c.y); });
+        if (local && prod.length) {
+          eva('New rally point established', 4000);                 // eva.ini #100
+          say(prod.length > 1 ? 'Rally point set for ' + prod.length + ' buildings'
+                              : 'Rally point set — new units will head there');
+          sfx('click');
+          g.fx.push({ x: c.x, y: c.y, t: 0, life: 22, size: 0, ping: true });
+        }
+        return;
+
+      case 'evac':                                   // D on a held building
+        var held = entsOf(g, c.b), out = 0;
+        held.forEach(function (b) { out += ejectGarrison(g, b); });
+        if (!local) return;
+        sel = sel.filter(function (e) { return !e.dead; });
+        say(out ? 'Evacuated — ' + out + ' infantryman' + (out === 1 ? '' : 'men') + ' back on the street'
+                : 'Nowhere to put them — the street is blocked', !out);
+        sfx(out ? 'click' : 'no'); refreshCmdbar();
+        return;
+
+      case 'unload':
+        us = entsOf(g, c.u);
+        var outN = 0, waiting = 0;
+        us.forEach(function (u) {
+          if (paxCount(u) <= 0) return;
+          if (UNITS[u.type].air) {
+            u.landReq = 1; u.unloadReq = 1; u.order = null; u.path = null;
+            if (u.landed && g.tick - (u.landAt == null ? -9999 : u.landAt) >= LAND_T) { outN += unloadTransport(g, u).length; u.unloadReq = 0; }
+            else waiting++;
+          } else outN += unloadTransport(g, u).length;
+        });
+        if (!local) return;
+        if (outN) say('Unloaded — ' + outN + ' out');
+        else if (waiting) say('Landing to unload');
+        else say('Nowhere to put them — the ground around it is blocked', true);
+        sfx(outN || waiting ? 'click' : 'no'); refreshCmdbar();
+        return;
+
+      case 'mcv':
+        us = entsOf(g, c.u);
+        var made = 0;
+        us.forEach(function (u) { if (UNITS[u.type].deploysInto && deployMcv(g, u)) made++; });
+        if (!local) return;
+        sel = sel.filter(function (e) { return !e.dead; });
+        if (made) { say('Construction Yard deployed'); sfx('place'); eva('Construction complete', 3000); unitAck(us, 'deploy'); }
+        else { eva('Cannot deploy here', 4000); say('Cannot deploy here — the MCV needs a clear 3x3 of open ground', true); sfx('no'); }
+        refreshCmdbar();
+        return;
+
+      case 'dig':                                    // GI / Desolator deploy toggle
+        us = entsOf(g, c.u).filter(function (u) { return UNITS[u.type].dep || UNITS[u.type].deployRad; });
+        if (!us.length) return;
+        var on = !!c.on;
+        us.forEach(function (u) { u.deployed = on; u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y; });
+        if (!local) return;
+        var dn = UNITS[us[0].type].deployRad ? 'Desolator' : 'GI';
+        say((on ? 'Deployed' : 'Undeployed') + ' — ' + us.length + ' ' + dn + (us.length === 1 ? '' : 's'));
+        sfx('click');
+        if (on) unitAck(us, 'deploy');
+        return;
+
+      case 'scatter':
+        us = entsOf(g, c.u);
+        if (!us.length) return;
+        var mx = 0, my = 0;
+        us.forEach(function (u) { mx += u.x; my += u.y; });
+        mx /= us.length; my /= us.length;
+        us.forEach(function (u, i) {
+          var a = Math.atan2(u.y - my, u.x - mx);
+          if (!isFinite(a) || (u.x === mx && u.y === my)) a = i * 2.4;
+          orderUnitsTo(g, [u], Math.max(0, Math.min(MAP - 1, Math.round(u.x + Math.cos(a) * 2))),
+                                Math.max(0, Math.min(MAP - 1, Math.round(u.y + Math.sin(a) * 2))));
+        });
+        if (local) { say('Scatter'); sfx('click'); }
+        return;
+
+      case 'hold':                                   // guard / stop
+        us = entsOf(g, c.u);
+        if (!us.length) return;
+        var isG = c.kind === 'guard';
+        us.forEach(function (u) {
+          u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y;
+          if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.holdUntil = g.tick + 60 * 20; }
+          if (UNITS[u.type].ammo) u.rtb = true;      // RA2: a stopped aircraft returns to its pad
+          u.guard = isG; u.stopped = !isG;
+        });
+        if (local) {
+          say((isG ? 'Guarding this ground — they will engage within ' + GUARD_STRAY + ' cells and return'
+                   : 'Stopped — holding position') + ' (' + us.length + ' unit' + (us.length === 1 ? '' : 's') + ')');
+          if (c.sfx) sfx('click');
+        }
+        return;
+
+      case 'queue':
+        if (!canBuild(g, p, c.k, isBldLane(c.lane))) return;
+        if (enqueue(g, p, c.k, c.lane) && local) sfx('click');
+        return;
+
+      case 'cancel':
+        if (cancelLast(g, p, c.lane, c.k) && local) {
+          sfx('click');
+          say('Cancelled ' + (isBldLane(c.lane) ? bspecOf(g, c.k, p) : UNITS[c.k]).name + ' — refunded');
+        }
+        return;
+
+      case 'place':
+        if (!canPlace(g, p, c.k, c.x, c.y)) {
+          if (local) { say('Can’t build there — needs clear ground inside the green area', true); sfx('no'); }
+          return;
+        }
+        var nb = placeBld(g, c.k, p, c.x, c.y);
+        g.side[p].queues[laneOfBld(c.k)].ready = null;
+        if (c.k === 'refinery') {
+          var sp = freeTileNear(g, c.x, c.y + bspecOf(g, c.k, p).gh + 1);
+          if (sp) spawnUnit(g, 'harvester', p, sp.x, sp.y);
+        }
+        if (local && nb) { sfx('place'); say(bspecOf(g, c.k, p).name + ' online'); }
+        return;
+
+      case 'wall':
+        if (!canPlace(g, p, c.k, c.x, c.y)) return;
+        if (!c.free) {
+          if (g.side[p].credits < bspecOf(g, c.k, p).cost) return;
+          g.side[p].credits -= bspecOf(g, c.k, p).cost;
+        } else g.side[p].queues[laneOfBld(c.k)].ready = null;
+        placeBld(g, c.k, p, c.x, c.y);
+        if (local) sfx('place');
+        return;
+
+      case 'sell':
+        tgt = entOf(g, c.id);
+        if (!tgt || tgt.kind !== 'b' || tgt.p !== p || tgt.sell) return;
+        sellBld(g, tgt, local);
+        return;
+
+      case 'power':
+        tgt = entOf(g, c.id);
+        if (!tgt || tgt.kind !== 'b' || tgt.p !== p) return;
+        tgt.offline = !tgt.offline;
+        recalcPower(g, tgt.p);
+        if (!local) return;
+        eva(tgt.offline ? 'Building offline' : 'Building online', 3000);   // eva.ini #60 / #61
+        say((tgt.offline ? 'Powered down ' : 'Powered up ') + bspecOf(g, tgt.type, tgt.p).name);
+        sfx(tgt.offline ? 'powoff' : 'powon', tgt.cx, tgt.cy);
+        return;
+
+      case 'repair':
+        tgt = entOf(g, c.id);
+        if (!tgt || tgt.kind !== 'b' || tgt.p !== p) return;
+        tgt.repair = !tgt.repair;
+        if (!local) return;
+        if (tgt.repair) eva('Repairing', 4000);                            // eva.ini #57
+        say(tgt.repair ? 'Repairing ' + BLDS[tgt.type].name : 'Repair stopped');
+        sfx(tgt.repair ? 'wrench' : 'click', tgt.cx, tgt.cy);
+        return;
+
+      case 'sw':
+        var okSw = SW[c.k].two ? swFire(g, p, c.k, c.x, c.y, c.x2, c.y2)
+                               : swFire(g, p, c.k, c.x, c.y);
+        if (local && !okSw) say(SW[c.k].name + ' is not charged', true);
+        if (local) refreshSW();
+        return;
+
+      case 'destroy':                                // keyboard.ini Delete
+        var dl = entsOf(g, c.u).filter(function (o) { return o.p === p; });
+        dl.forEach(function (o) {
+          if (o.kind === 'b') killBld(g, o);
+          else { o.dead = true; if (!headless) g.fx.push({ x: o.x, y: o.y, t: 0, life: 22, size: 10 }); }
+        });
+        if (local && dl.length) {
+          clearSel(); sfx('boom');
+          say('Self-destructed ' + dl.length + ' ' + (dl.length === 1 ? 'object' : 'objects'), true);
+        }
+        return;
+    }
+  }
+
   function simStep(g) {
     g.tick++;
+    netApplyDue(g);
     if (g.tick - hashAt >= 3 || hashAt > g.tick) { rebuildHash(g); hashAt = g.tick; }
     runPathQueue(g, Math.min(40, 8 + (pathQ.length >> 2)));
 
@@ -23299,6 +23931,7 @@
       else if (mine === 0) g.over = -1;
     }
     if (g.over && g.overAt == null) g.overAt = g.tick;   // the infantry Cheer starts here
+    netTick(g);                                          // lockstep desync checkpoint
   }
 
   // ------------------------------------------------------------------- //
@@ -23636,7 +24269,11 @@
     resolveRefs(g, g.byId, []);
     resolveRefs(pq, g.byId, []);
     srand(blob.seed >>> 0);
-    pathQ.length = 0;
+    // A restored game is a NEW game as far as the lockstep layer is
+    // concerned: fresh client, empty schedule, fresh derived caches. (The
+    // couple of ticks of commands still in flight when the save was taken are
+    // dropped — 33 ms of orders, and a save is not a network checkpoint.)
+    netAttach(g);
     for (i = 0; i < pq.length; i++) if (pq[i].u && !pq[i].u.dead) pathQ.push(pq[i]);
     hashAt = HASH_UNSET;                    // the spatial index is derived; rebuilt on the next tick
     return g;
@@ -24720,9 +25357,8 @@
       say(W.hint2, false, 500); sfx('click');
       return;
     }
-    var ok = W.two ? swFire(G, P_HUMAN, swMode.key, swMode.x, swMode.y, gx, gy)
-                   : swFire(G, P_HUMAN, swMode.key, gx, gy);
-    if (!ok) say(W.name + ' is not charged', true);
+    if (W.two) cmd('sw', { k: swMode.key, x: swMode.x, y: swMode.y, x2: gx, y2: gy });
+    else cmd('sw', { k: swMode.key, x: gx, y: gy });
     swMode = null; pickCursor(); refreshSW();
   }
 
@@ -24788,7 +25424,7 @@
       b.addEventListener('click', function (ev) { onPanelClick(it, ev); });
       b.addEventListener('contextmenu', function (ev) {
         ev.preventDefault();
-        if (cancelLast(G, P_HUMAN, it.lane, it.k)) { sfx('click'); say('Cancelled ' + it.spec.name + ' — refunded'); }
+        cmd('cancel', { lane: it.lane, k: it.k });
       });
       b.addEventListener('pointerenter', function () { showItemTip(b, it, myFac); });
       b.addEventListener('pointerleave', hideTip);
@@ -24956,7 +25592,7 @@
       sfx('no');
       return;
     }
-    if (enqueue(G, P_HUMAN, it.k, it.lane)) sfx('click');
+    cmd('queue', { k: it.k, lane: it.lane });
   }
 
   var lastReady = null, toldRefinery = false, lastPowerWarn = 0;
@@ -25417,9 +26053,7 @@
     if (e.key === 'Delete' && state === 'play') {
       var dl = sel.filter(function (o) { return !o.dead && o.p === P_HUMAN; });
       if (!dl.length) { say('Nothing selected to destroy', true); return; }
-      dl.forEach(function (o) { if (o.kind === 'b') killBld(G, o); else { o.dead = true; if (!headless) G.fx.push({ x: o.x, y: o.y, t: 0, life: 22, size: 10 }); } });
-      clearSel(); sfx('boom');
-      say('Self-destructed ' + dl.length + ' ' + (dl.length === 1 ? 'object' : 'objects'), true);
+      cmd('destroy', { u: idsOf(dl) });
       return;
     }
     // keyboard.ini SidebarUp/SidebarDown: PageUp/PageDown scroll the build
@@ -25457,27 +26091,13 @@
       // order and roots the unit — it fires at what walks into range but
       // never moves — while Guard makes it defend the post it is standing
       // on, straying up to GuardModeStray cells to engage and walking back.
-      var isG = e.key.toLowerCase() === 'g';
-      units0.forEach(function (u) {
-        u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y;
-        u.guard = isG; u.stopped = !isG;
-        if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
-        if (UNITS[u.type].ammo) u.rtb = true;           // RA2: a stopped aircraft returns to its pad
-      });
-      say((isG ? 'Guarding this ground — they will engage within ' + GUARD_STRAY + ' cells and return'
-               : 'Stopped — holding position') + ' (' + units0.length + ' unit' + (units0.length === 1 ? '' : 's') + ')');
+      cmd('hold', { u: idsOf(units0), kind: e.key.toLowerCase() === 'g' ? 'guard' : 'stop', sfx: 0 });
       return;
     }
     if ((units0.length || sel.some(function (o) { return o.kind === 'b' && !o.dead; })) && (e.key === 'd' || e.key === 'D')) { unitsCmd('deploy'); return; }   // D also evacuates a held building, like the button
     if (units0.length && (e.key === 'x' || e.key === 'X')) {
       // Scatter: each unit steps one or two tiles away from the group centre.
-      var mx = 0, my = 0; units0.forEach(function (u) { mx += u.x; my += u.y; }); mx /= units0.length; my /= units0.length;
-      units0.forEach(function (u, i) {
-        var a = Math.atan2(u.y - my, u.x - mx); if (!isFinite(a) || (u.x === mx && u.y === my)) a = i * 2.4;
-        var tx = Math.max(0, Math.min(MAP - 1, Math.round(u.x + Math.cos(a) * 2))), ty = Math.max(0, Math.min(MAP - 1, Math.round(u.y + Math.sin(a) * 2)));
-        orderUnitsTo(G, [u], tx, ty);
-      });
-      say('Scatter'); sfx('click');
+      cmd('scatter', { u: idsOf(units0) });
       return;
     }
     if (e.key.toLowerCase() === 'p') { if (state === 'play' || state === 'paused') togglePause(); return; }
@@ -25790,84 +26410,27 @@
       // A garrisoned building is deployed INTO; D turns it out again, exactly
       // as RA2 evacuates a held structure.
       var held = sel.filter(function (e) { return e.kind === 'b' && !e.dead && e.p === P_HUMAN && occCount(e); });
-      if (held.length) {
-        var out = 0;
-        held.forEach(function (b) { out += ejectGarrison(G, b); });
-        sel = sel.filter(function (e) { return !e.dead; });
-        say(out ? 'Evacuated — ' + out + ' infantryman' + (out === 1 ? '' : 'men') + ' back on the street'
-                : 'Nowhere to put them — the street is blocked', !out);
-        sfx(out ? 'click' : 'no');
-        refreshCmdbar();
-        return;
-      }
+      if (held.length) { cmd('evac', { b: idsOf(held) }); return; }
     }
     if (!us.length) { say('Select some units first', true); return; }
     if (kind === 'deploy') {
       // A loaded transport is deployed by putting its load DOWN — RA2's
       // Unload, on the same key. A Nighthawk has to touch down first.
       var loaded = us.filter(function (u) { return paxCount(u) > 0; });
-      if (loaded.length) {
-        var outN = 0, waiting = 0;
-        loaded.forEach(function (u) {
-          if (UNITS[u.type].air) {
-            u.landReq = 1; u.unloadReq = 1; u.order = null; u.path = null;
-            if (u.landed && G.tick - (u.landAt == null ? -9999 : u.landAt) >= LAND_T) { outN += unloadTransport(G, u).length; u.unloadReq = 0; }
-            else waiting++;
-          } else outN += unloadTransport(G, u).length;
-        });
-        if (outN) say('Unloaded — ' + outN + ' out');
-        else if (waiting) say('Landing to unload');
-        else say('Nowhere to put them — the ground around it is blocked', true);
-        sfx(outN || waiting ? 'click' : 'no');
-        refreshCmdbar();
-        return;
-      }
+      if (loaded.length) { cmd('unload', { u: idsOf(loaded) }); return; }
       // An MCV unfolds into a Construction Yard; a GI digs in. Same key, same
       // button, as RA2 — the unit decides which "deploy" it means.
       var mcvs = us.filter(function (u) { return UNITS[u.type].deploysInto; });
-      if (mcvs.length) {
-        var made = 0;
-        mcvs.forEach(function (u) { if (deployMcv(G, u)) made++; });
-        sel = sel.filter(function (e) { return !e.dead; });
-        if (made) {
-          say('Construction Yard deployed'); sfx('place');
-          eva('Construction complete', 3000); unitAck(mcvs, 'deploy');
-        } else {
-          eva('Cannot deploy here', 4000);                       // eva.ini #63
-          say('Cannot deploy here — the MCV needs a clear 3x3 of open ground', true); sfx('no');
-        }
-        refreshCmdbar();
-        return;
-      }
+      if (mcvs.length) { cmd('mcv', { u: idsOf(mcvs) }); return; }
       var gis = us.filter(function (u) { return UNITS[u.type].dep || UNITS[u.type].deployRad; });
       if (!gis.length) { say('Only GIs, Desolators and MCVs can deploy', true); return; }
-      var on = gis.some(function (u) { return !u.deployed; });
-      gis.forEach(function (u) { u.deployed = on; u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y; });
-      var dn = gis[0] && UNITS[gis[0].type].deployRad ? 'Desolator' : 'GI';
-      say((on ? 'Deployed' : 'Undeployed') + ' — ' + gis.length + ' ' + dn + (gis.length === 1 ? '' : 's')); sfx('click');
-      if (on) unitAck(gis, 'deploy');
+      cmd('dig', { u: idsOf(gis), on: gis.some(function (u) { return !u.deployed; }) ? 1 : 0 });
       return;
     }
-    if (kind === 'scatter') {
-      var mx = 0, my = 0; us.forEach(function (u) { mx += u.x; my += u.y; }); mx /= us.length; my /= us.length;
-      us.forEach(function (u, i) {
-        var a = Math.atan2(u.y - my, u.x - mx); if (!isFinite(a) || (u.x === mx && u.y === my)) a = i * 2.4;
-        orderUnitsTo(G, [u], Math.max(0, Math.min(MAP - 1, Math.round(u.x + Math.cos(a) * 2))), Math.max(0, Math.min(MAP - 1, Math.round(u.y + Math.sin(a) * 2))));
-      });
-      say('Scatter');
-    } else {
-      us.forEach(function (u) {
-        u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y;
-        if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
-        if (UNITS[u.type].ammo) u.rtb = true;
-        u.guard = kind === 'guard'; u.stopped = kind !== 'guard'; u.wp = null;
-      });
-      say((kind === 'guard' ? 'Guarding this ground — they will engage within ' + GUARD_STRAY + ' cells and return'
-                            : 'Stopped — holding position') + ' (' + us.length + ' unit' + (us.length === 1 ? '' : 's') + ')');
-    }
-    sfx('click');
+    if (kind === 'scatter') cmd('scatter', { u: idsOf(us) });
+    else cmd('hold', { u: idsOf(us), kind: kind, sfx: 1 });
   }
-  function sellBld(b) {
+  function sellBld(g, b, local) {
     if (b.sell) return;                               // already coming down
     // RA2 sells a structure by playing its BUILD-UP BACKWARDS: it stops
     // working, folds itself away over the same ~2.5s, and only then does the
@@ -25875,8 +26438,8 @@
     // path already written for the MAKE applies unchanged.
     b.sel = false; b.sell = true; b.door = 0; b.hold = null; b.repair = false;
     b.make = headless ? 0 : MAKE_T;
-    if (b.make <= 0) { finishSell(G, b); return; }
-    sfx('sell'); eva('Structure sold', 2000);
+    if (b.make <= 0) { finishSell(g, b); return; }
+    if (local !== false) { sfx('sell'); eva('Structure sold', 2000); }
   }
   function finishSell(g, b) {
     var refund = Math.round(bspecOf(g, b.type, b.p).cost * 0.5);
@@ -25981,10 +26544,8 @@
       // keyboard.ini Follow=70 (F): pick the friendly unit to shadow.
       var fus = sel.filter(function (u) { return u.kind === 'u' && !u.dead && u.p === P_HUMAN; });
       if (!e || e.p !== P_HUMAN || e.kind !== 'u') { say('Follow: click one of your own units', true); sfx('no'); return; }
-      var nfw = orderFollow(G, fus, e);
+      cmd('follow', { u: idsOf(fus), id: e.id });
       cmdMode = null; refreshCmdbar(); pickCursor();
-      if (nfw) { say(nfw + ' unit' + (nfw === 1 ? '' : 's') + ' following the ' + UNITS[e.type].name); sfx('click'); unitAck(fus, 'move'); }
-      else say('Nothing left to follow with', true);
       return;
     }
     if (cmdMode) {
@@ -25995,23 +26556,12 @@
           say(bspecOf(G, e.type, e.p).name + ' is not yours to sell or repair — it came with the map', true);
           eva('Unable to comply', 5000); sfx('no');               // eva.ini #47
         }
-        else if (cmdMode === 'sell') { if (e.type === 'base' && countBld(G, P_HUMAN, 'base') < 2) say('Cannot sell your only Construction Yard', true); else sellBld(e); }
-        else if (cmdMode === 'power') {
-          // RA2's power toggle: the structure stops drawing (or making)
-          // power and stops working. Cheap way to ride out a brown-out.
-          e.offline = !e.offline;
-          recalcPower(G, e.p);
-          eva(e.offline ? 'Building offline' : 'Building online', 3000);   // eva.ini #60 / #61
-          say((e.offline ? 'Powered down ' : 'Powered up ') + bspecOf(G, e.type, e.p).name);
-          sfx(e.offline ? 'powoff' : 'powon', e.cx, e.cy);   // rules.ini WorkingSound / NotWorkingSound
-        }
+        else if (cmdMode === 'sell') { if (e.type === 'base' && countBld(G, P_HUMAN, 'base') < 2) say('Cannot sell your only Construction Yard', true); else cmd('sell', { id: e.id }); }
+        // RA2's power toggle: the structure stops drawing (or making) power
+        // and stops working. Cheap way to ride out a brown-out.
+        else if (cmdMode === 'power') cmd('power', { id: e.id });
         else if (BLDS[e.type].norep) { say(BLDS[e.type].name + ' cannot be repaired — build a new segment', true); sfx('no'); }
-        else {
-          e.repair = !e.repair;
-          if (e.repair) eva('Repairing', 4000);                   // eva.ini #57
-          say(e.repair ? 'Repairing ' + BLDS[e.type].name : 'Repair stopped');
-          sfx(e.repair ? 'wrench' : 'click', e.cx, e.cy);
-        }
+        else cmd('repair', { id: e.id });
       } else say('Click one of your structures', true);
       return;
     }
@@ -26236,12 +26786,7 @@
         sfx('no');
         return;
       }
-      prod.forEach(function (b) { b.rally = makeRally(b, gx, gy); });
-      eva('New rally point established', 4000);                   // eva.ini #100
-      say(prod.length > 1 ? 'Rally point set for ' + prod.length + ' buildings'
-                          : 'Rally point set — new units will head there');
-      sfx('click');
-      if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 22, size: 0, ping: true });
+      cmd('rally', { b: idsOf(prod), x: gx, y: gy });
       return;
     }
 
@@ -26250,24 +26795,10 @@
     if (!units.length) return;
 
     // Ctrl+Shift = attack-move; Ctrl alone = force-fire (RA2's modifiers).
-    if (ctrl && shift) {
-      var nam = orderAmove(G, units, gx, gy);
-      if (nam) { say('Attack-move — ' + nam + ' unit' + (nam === 1 ? '' : 's') + ' will engage what they meet'); sfx('click'); unitAck(units, 'attack');
-                 if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 22, size: 0, ping: true }); }
-      return;
-    }
+    if (ctrl && shift) { cmd('amove', { u: idsOf(units), x: gx, y: gy }); return; }
     if (ctrl) {
-      if (tgt && !tgt.dead) {
-        var nf = orderAttack(G, units, tgt, true);
-        if (!nf) { say('Nothing selected can shoot that', true); sfx('no'); return; }
-        say('Force-firing on ' + describe(tgt).replace(/ —.*$/, ''));
-        sfx('click'); unitAck(units, 'attack');
-        return;
-      }
-      var ng = orderFFire(G, units, gx, gy);
-      if (!ng) { say('Nothing selected has a gun that can shell a spot', true); sfx('no'); return; }
-      say('Force-firing on the ground'); sfx('click'); unitAck(units, 'attack');
-      if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 22, size: 0, ping: true });
+      if (tgt && !tgt.dead) cmd('attack', { u: idsOf(units), id: tgt.id, force: 1 });
+      else cmd('ffire', { u: idsOf(units), x: gx, y: gy });
       return;
     }
 
@@ -26275,73 +26806,37 @@
     // with room in it and everything selected that will fit climbs aboard.
     // A Nighthawk sets down where it is so they can reach it.
     if (tgt && !tgt.dead && tgt.kind === 'u' && tgt.p === P_HUMAN && paxCapOf(tgt) && tgt !== units[0]) {
-      var room = paxCapOf(tgt) - paxCount(tgt), nin = 0;
-      units.forEach(function (u) {
-        if (nin >= room || !canBoard(G, tgt, u)) return;
-        u.guard = false; u.stopped = false; u.wp = null;
-        u.order = { t: 'enter', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
-        requestPath(G, u, Math.round(tgt.x), Math.round(tgt.y)); nin++;
-      });
-      if (nin) {
-        if (UNITS[tgt.type].air) { tgt.landReq = 1; tgt.order = null; tgt.path = null; }
-        say('Boarding the ' + UNITS[tgt.type].name + ' — ' + nin + ' on the way (' +
-            paxCount(tgt) + '/' + paxCapOf(tgt) + ' aboard)');
-        sfx('click'); unitAck(units, 'move');
-        return;
-      }
-      if (room <= 0) { say(UNITS[tgt.type].name + ' is full — ' + paxCount(tgt) + '/' + paxCapOf(tgt), true); sfx('no'); return; }
+      // The intent is resolved here (is there room, does anything fit); the
+      // boarding itself is a command, re-checked against the world it lands in.
+      var fits = paxCapOf(tgt) - paxCount(tgt) <= 0 ||
+                 units.some(function (u) { return canBoard(G, tgt, u); });
+      if (fits) { cmd('enter', { u: idsOf(units), id: tgt.id }); return; }
     }
     // Our own things can be given orders too: a Tesla Trooper hand-charges a
     // coil, an Engineer patches a damaged building, and Crazy Ivan is happy to
     // bomb anything at all ([IVAN] AttackCursorOnFriendlies=yes).
     if (tgt && !tgt.dead && tgt.p === P_HUMAN) {
-      var nown = 0, what = '';
-      units.forEach(function (u) {
+      var wantsOwn = units.some(function (u) {
         var ud = UNITS[u.type];
-        if (ud.coiler && tgt.kind === 'b' && tgt.type === 'tesla') {
-          u.guard = false; u.stopped = false; u.wp = null;
-          u.order = { t: 'coil', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
-          requestPath(G, u, Math.round(tgt.cx), Math.round(tgt.cy));
-          nown++; what = 'Charging the Tesla Coil';
-        } else if (ud.capture && tgt.kind === 'b' && tgt.hp < tgt.maxhp && !BLDS[tgt.type].hut) {
-          u.guard = false; u.stopped = false; u.wp = null;
-          u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
-          requestPath(G, u, Math.round(tgt.cx), Math.round(tgt.cy));
-          nown++; what = 'Engineer will repair ' + bspecOf(G, tgt.type, tgt.p).name;
-        } else if (ud.ivan && !tgt.bomb) {
-          u.guard = false; u.stopped = false; u.wp = null;
-          u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: 1 }; u.repathAt = -999; u.path = null;
-          u.guardX = entX(tgt); u.guardY = entY(tgt);
-          requestPath(G, u, Math.round(u.guardX), Math.round(u.guardY));
-          nown++; what = 'Bombing our own ' + describeShort(tgt);
-        }
+        return (ud.coiler && tgt.kind === 'b' && tgt.type === 'tesla') ||
+               (ud.capture && tgt.kind === 'b' && tgt.hp < tgt.maxhp && !BLDS[tgt.type].hut) ||
+               (ud.ivan && !tgt.bomb);
       });
-      if (nown) { say(what); sfx('click'); unitAck(units, 'move'); return; }
+      if (wantsOwn) { cmd('own', { u: idsOf(units), id: tgt.id }); return; }
     }
     // Reinforcing a block we already hold is an order to our own building,
     // which the attack path would refuse — handled before it.
-    if (tgt && tgt.kind === 'b' && tgt.p === P_HUMAN && garrisonable(G, tgt, P_HUMAN)) {
-      var ng2 = 0;
-      units.forEach(function (u) {
-        if (!canOccupy(u.type)) return;
-        u.guard = false; u.stopped = false;
-        u.order = { t: 'garrison', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
-        requestPath(G, u, Math.round(tgt.cx), Math.round(tgt.cy)); ng2++;
-      });
-      if (ng2) { say('Entering ' + bspecOf(G, tgt.type, tgt.p).name); sfx('click'); unitAck(units, 'move'); return; }
-    }
-    if (tgt && tgt.p !== P_HUMAN && !tgt.dead) {
-      var na = orderAttack(G, units, tgt);
-      if (!na) { say(isAir(tgt) ? 'Nothing selected can shoot aircraft' : 'Nothing selected can attack that', true); sfx('no'); return; }
-      say('Attacking ' + describe(tgt).replace(/ —.*$/, ''));
-      sfx('click'); unitAck(units, 'attack');
+    if (tgt && tgt.kind === 'b' && tgt.p === P_HUMAN && garrisonable(G, tgt, P_HUMAN) &&
+        units.some(function (u) { return canOccupy(u.type); })) {
+      cmd('garrison', { u: idsOf(units), id: tgt.id });
       return;
     }
-
-    var onOre = oreT(G.terrain[idx(gx, gy)]);
-    var n = orderUnitsTo(G, units, gx, gy, { queue: !!shift || pathMode, voice: true });
-    if (n) { say(shift ? 'Waypoint added' : (onOre ? 'Harvesting' : 'Moving')); sfx('click'); }
-    if (!headless) G.fx.push({ x: gx, y: gy, t: 0, life: 18, size: 0, ping: true });
+    if (tgt && tgt.p !== P_HUMAN && !tgt.dead) {
+      cmd('attack', { u: idsOf(units), id: tgt.id, force: 0 });
+      return;
+    }
+    cmd('move', { u: idsOf(units), x: gx, y: gy, queue: !!shift || pathMode,
+                  ore: oreT(G.terrain[idx(gx, gy)]) ? 1 : 0 });
   }
 
   // Attack (or capture) order for a group. Units whose weapon cannot reach
@@ -26382,10 +26877,10 @@
   // A rally point stores the ROUTE, not just the destination: seeing the line
   // bend around a cliff is the difference between "units gather there" and
   // "units gather there, the long way round". Computed once, on set.
-  function makeRally(b, gx, gy) {
-    var from = freeTileNear(G, Math.round(b.cx), Math.round(b.cy + b.gh / 2 + 1)) ||
+  function makeRally(g, b, gx, gy) {
+    var from = freeTileNear(g, Math.round(b.cx), Math.round(b.cy + b.gh / 2 + 1)) ||
                { x: Math.round(b.cx), y: Math.round(b.cy) };
-    var path = astar(G, from.x, from.y, gx, gy);
+    var path = astar(g, from.x, from.y, gx, gy);
     return { x: gx, y: gy, from: from, path: path, reachable: !!path };
   }
 
@@ -26397,17 +26892,16 @@
   function laySeg(gx, gy) {
     var d = BLDS[placing];
     if (!canPlace(G, P_HUMAN, placing, gx, gy)) return false;
-    if (!wallFree) {
-      if (G.side[P_HUMAN].credits < d.cost) {
-        say('Insufficient funds — ' + d.name.toLowerCase() + ' needs $' + d.cost, true);
-        sfx('no'); placing = null; wallDrag = null; cv.classList.remove('placing'); wallDrag = null;
-        return false;
-      }
-      G.side[P_HUMAN].credits -= d.cost;
+    if (!wallFree && G.side[P_HUMAN].credits < d.cost) {
+      // Read-only affordability test: the drag has to STOP here and now, so
+      // it cannot wait two ticks for the command to land. The deduction
+      // itself still happens once, inside applyCmd.
+      say('Insufficient funds — ' + d.name.toLowerCase() + ' needs $' + d.cost, true);
+      sfx('no'); placing = null; wallDrag = null; cv.classList.remove('placing');
+      return false;
     }
+    cmd('wall', { k: placing, x: gx, y: gy, free: wallFree ? 1 : 0 });
     wallFree = false;
-    placeBld(G, placing, P_HUMAN, gx, gy);
-    sfx('place');
     return true;
   }
   // Every cell on the line from the last segment to here (RA2 lays the whole
@@ -26436,8 +26930,7 @@
         if (placing) { say('Can’t build there — needs clear ground inside the green area', true); sfx('no'); }
         return;
       }
-      G.side[P_HUMAN].queues[laneOfBld(placing)].ready = null;
-      wallDrag = { x: gx, y: gy };
+      wallDrag = { x: gx, y: gy };      // the ready flag is cleared by the wall command
       say('Drag to run the wall — right click when you are done', false, 200);
       return;
     }
@@ -26446,15 +26939,8 @@
       sfx('no');
       return;
     }
-    var b = placeBld(G, placing, P_HUMAN, gx, gy);
-    G.side[P_HUMAN].queues[laneOfBld(placing)].ready = null;
-    sfx('place');
-    say(d.name + ' online');
-    if (placing === 'refinery') {
-      var sp = freeTileNear(G, gx, gy + d.gh + 1);
-      if (sp) spawnUnit(G, 'harvester', P_HUMAN, sp.x, sp.y);
-    }
-    placing = null;
+    cmd('place', { k: placing, x: gx, y: gy });
+    placing = null;                       // the ghost goes now; the building lands on its tick
     cv.classList.remove('placing');
   }
 
@@ -26480,7 +26966,7 @@
     if (e.button === 2) {
       // RA2: a right-click on the radar is an order to that spot.
       var own = sel.filter(function (u) { return u.kind === 'u' && u.p === P_HUMAN && !u.dead; });
-      if (own.length && state === 'play') { orderUnitsTo(G, own, gx, gy, { voice: true }); sfx('click'); }
+      if (own.length && state === 'play') cmd('move', { u: idsOf(own), x: gx, y: gy, queue: 0, ore: 0 });
       return;
     }
     centerOn(gp.x, gp.y);
@@ -29372,7 +29858,7 @@
     MUS.set(G.theatre); MUS.start();      // theme.ini rotates a track per match; here the theatre picks the loop
     pauseBtn.textContent = '⏸';
     pausedEl.classList.remove('show');
-    sel = []; groups = {}; placing = null; pathQ = []; swMode = null;
+    sel = []; groups = {}; placing = null; swMode = null;   // pathQ belongs to the net client now (netAttach)
     cmdMode = null; refreshCmdbar(); pickCursor();          // a sell mode must not survive New -> menu -> match
     setTimeout(touchHint, 4000);                 // after the opening tip has had its say
     cv.classList.remove('placing');
@@ -29513,7 +29999,12 @@
       var _rate = (G.opt ? G.opt.speed : OPT_DEF.speed) / 4;
       var _step = STEP / _rate, _cap = Math.max(5, Math.ceil(_rate * 5));
       var n = 0;
-      while (acc >= _step && n < _cap) { acc -= _step; simStep(G); n++; }
+      // `netMayStep` is the lockstep barrier. Single player runs on a
+      // LocalNet, whose barrier is always open, so this loop is exactly the
+      // one that shipped; a networked build stalls here instead of running
+      // ahead of its peers (and would call `netStep` to post its bundle on
+      // the same beat).
+      while (acc >= _step && n < _cap && netMayStep(G)) { acc -= _step; simStep(G); n++; }
       if (acc > _step * _cap) acc = 0;
       // RA2 lets the field play for a beat after the last structure falls —
       // the winning side's infantry cheer (art.ini `Cheer=56,15,0,W`) before
@@ -29548,8 +30039,90 @@
     };
   };
 
+  // --------------------------------------------------------------------- //
+  //  Lockstep test hooks. `match` builds N in-page clients on one LoopBus,
+  //  each with its OWN `G` and its own derived caches, and drives them
+  //  through the barrier — which is the whole of what a real networked
+  //  build does, minus the socket.
+  // --------------------------------------------------------------------- //
+  window.__rtsNet = {
+    delay: function (n) { if (n !== undefined) LOCKSTEP_DELAY = n | 0; return LOCKSTEP_DELAY; },
+    emit: function (type, payload) { return cmd(type, payload); },
+    active: function () { return NET.active; },
+    scheduled: function () {
+      var c = NET.active, n = 0, k;
+      if (!c) return 0;
+      for (k in c.q) n += c.q[k].length;
+      return n;
+    },
+    hash: function (g) { return stateHash(g); },
+    match: function (seed, cfg) {
+      cfg = cfg || {};
+      var lats = cfg.lat || [0, 0], np = lats.length;
+      var bus = new LoopBus(), cl = [], i;
+      headless = true;
+      for (i = 0; i < np; i++) {
+        netStash();
+        var g = newState(seed >>> 0, cfg.diff || 'normal', cfg.map, cfg.opt);
+        g.side[P_HUMAN].fac = cfg.facA || 'dir';
+        g.side[P_AI].fac = cfg.facB || 'col';
+        // An AI is NOT a peer: it runs inside simStep on every client from
+        // the same seed, so both worlds reach the same decisions with
+        // nothing on the wire. Attaching one here is a determinism test in
+        // its own right.
+        if (cfg.ai) { g.ai = newAI(cfg.ai); g.focusFor[P_AI] = g.ai.cfg.focus; }
+        [P_HUMAN, P_AI].forEach(function (pp) { openingForce(g, pp); });
+        cl.push(netBind(bus.link(lats[i]), i, np));
+      }
+      var M = {
+        bus: bus, clients: cl,
+        game: function (i) { return cl[i].g; },
+        hash: function (i) { netUse(cl[i]); return stateHash(cl[i].g); },
+        desync: function () {
+          for (var j = 0; j < cl.length; j++) if (cl[j].desync) return cl[j].desync;
+          return null;
+        },
+        // One client emits a command as itself.
+        as: function (i, type, payload) { netUse(cl[i]); return cmd(type, payload); },
+        // Corrupt a command AFTER it has been queued on one client only —
+        // the cleanest possible stand-in for a client that has cheated, or a
+        // build whose sim differs by one line.
+        corrupt: function (i, fn) {
+          var c = cl[i], k, j;
+          for (k in c.q) for (j = 0; j < c.q[k].length; j++) if (fn(c.q[k][j])) return true;
+          return false;
+        },
+        // Drive every client one tick. `script(client, tick, index)` runs
+        // BEFORE the bundle for that tick goes out, so anything it emits
+        // travels with it.
+        run: function (ticks, script) {
+          for (var t = 0; t < ticks; t++) {
+            var j, done = 0, guard = 0;
+            for (j = 0; j < cl.length; j++) { netUse(cl[j]); cl[j]._did = 0; if (script) script(cl[j], cl[j].g.tick, j); }
+            while (done < cl.length && guard++ < 512) {
+              for (j = 0; j < cl.length; j++) {
+                if (!cl[j]._did && netStep(cl[j])) { cl[j]._did = 1; done++; }
+              }
+              if (done < cl.length) bus.pump();
+            }
+            bus.pump();                              // let hashes and late bundles land
+            if (M.desync()) return t + 1;
+          }
+          return ticks;
+        },
+        end: function () { bus.drain(); }
+      };
+      return M;
+    }
+  };
+
   window.__rtsDamage = damage;                 // art harness: kill by a chosen warhead
   window.__rtsTest = {
+    // NOTE: these are the SIM API, not the player's input path. They call
+    // `orderUnitsTo` / `placeBld` / `swFire` directly and so bypass the
+    // lockstep command layer on purpose — a fixture wants the world in a
+    // state on the tick it asks for, not two ticks later. The command layer
+    // itself is driven through `__rtsNet`.
     // Drop entities into a specific situation instead of playing into it.
     spawn: function (type, p, x, y) { return G ? spawnUnit(G, type, p, x, y) : null; },
     build: function (key, p, x, y) { return G ? placeBld(G, key, p, x, y) : null; },
@@ -29646,23 +30219,7 @@
       return G;
     },
     step: function (n) { for (var i = 0; i < (n || 1); i++) simStep(G); return G; },
-    hash: function (g) {
-      g = g || G;
-      var h = 2166136261 >>> 0, i, k;
-      function mix(v) { h ^= (v | 0); h = Math.imul(h, 16777619) >>> 0; }
-      mix(g.tick); mix(_seed); mix(Math.round(g.side[0].credits)); mix(Math.round(g.side[1].credits));
-      for (i = 0; i < g.units.length; i++) {
-        var u = g.units[i];
-        mix(u.id); mix(u.dead ? 1 : 0); mix(Math.round(u.x * 64)); mix(Math.round(u.y * 64));
-        mix(Math.round(u.hp)); mix(u.face | 0); mix(u.target ? u.target.id : 0);
-      }
-      for (i = 0; i < g.blds.length; i++) {
-        var b = g.blds[i];
-        mix(b.id); mix(b.dead ? 1 : 0); mix(Math.round(b.hp)); mix(b.target ? b.target.id : 0);
-      }
-      for (k = 0; k < g.ore.length; k += 7) mix(Math.round(g.ore[k]));
-      return h >>> 0;
-    },
+    hash: function (g) { return stateHash(g || G); },
     eva: function (line, gap) { return eva(line, gap); },
     evaLog: function () { return evaLog.slice(); },
     save: function (n) { return saveGame(n); },
@@ -29805,6 +30362,8 @@
 
   window.__rtsSim = function (seed, diffA, diffB, maxTicks, facA, facB, everyMinute) {
     var prevG = G, prevHeadless = headless, prevState = state;
+    netStash();
+    var prevNet = NET.active;                 // the menu/match client, parked
     headless = true;
     try {
       var g = newState(seed >>> 0, diffB || 'normal', arguments[7], arguments[8]);
@@ -29838,6 +30397,7 @@
       };
     } finally {
       G = prevG; headless = prevHeadless; state = prevState;
+      if (prevNet) netLoad(prevNet); else NET.active = null;
     }
   };
 

@@ -741,6 +741,20 @@ per state, for every structure and defence, both factions.
   second match in a process is the same match as the first (it was not — see
   `docs/design-decisions.md`). `tmp/play/soakB.js --batch` plays several
   matches per process and matches the one-per-process numbers 24/24.
+- ☑ AA is PLANNED, not reacted to. `aiProduce` used to open its anti-air on
+  `ai.airAt` — the tick an enemy aircraft was last seen or felt — so the first
+  sortie was also the first sighting and an easy Directorate's Harriers ate a
+  normal Collective's miners unopposed from 14–16 min. The screen now goes up
+  once the other house merely *can* field aircraft (`aiFoeCanFly`: an Airforce
+  Command for Harriers/Rocketeers/Nighthawks, or the Battle Lab + War Factory
+  pair a Kirov needs), sized as a PROPORTION of the same
+  `Allied/SovietBaseDefenseCounts` plan the gun towers use — a third of it
+  (2–4 guns) when they can fly, half of it (3–6) once the bombs actually fall,
+  and the old single post-radar tower when the enemy has no airfield at all.
+  It is bought out of spare cash, so it does not come out of the army's money.
+  Gates over 12 seeds × both faction orders, 30-minute cap: hard vs easy
+  **19/24 → 23/24**, hard vs normal **19/24 → 22/24**, normal vs easy
+  **22/24 → 21/24**.
 
 **Phase 7 — audio (art §7). DONE (2026-09-03).** Original synthesis only —
 every sound is oscillators and one baked noise buffer, no files, no libraries.
@@ -872,6 +886,39 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
 - ☐ 32-facing vehicles.
 - ☐ Lockstep multiplayer over the deterministic `__rtsSim` core (command
   queue, beacon).
+
+- ☑ Lockstep command layer over the deterministic `simStep` core, local-first.
+  RA2's netcode sends COMMANDS, not state: every client runs the same
+  simulation from the same seed and applies each order on an agreed future
+  tick. Every input path — move / attack / force-fire / attack-move / follow /
+  guard / stop / scatter / deploy / evacuate / unload / enter / garrison /
+  queue / cancel / place / wall / rally / sell / repair / power / superweapon /
+  self-destruct — now RESOLVES the click (which needs the selection, the
+  cursor and the camera: all local) and then emits a plain-JSON command;
+  `applyCmd(g, playerId, cmd)` is the only thing that mutates the sim on a
+  player's behalf, and `simStep` still steps the world. Commands issued on
+  tick T run on T + `LOCKSTEP_DELAY` (2) on every client, applied in a
+  canonical order (player id, then that player's issue sequence). Two
+  transports behind one interface (`send` / `onCmd` / `ready(tick)`):
+  `LocalNet` for single player (loopback, barrier always open — the
+  single-player sim is bit-identical to before, the pinned seed-4242 snapshots
+  did not move) and `LoopbackNet`, two in-page clients each with its own `G`,
+  its own spatial hash and its own path queue, trading JSON bundles across a
+  bus with a settable per-client latency. Desync detection hashes the world
+  every 60 ticks (`stateHash`, the same fingerprint save/load compares) and
+  stops the match with both hashes on a mismatch. Tested: two clients at
+  latencies 0 and 3 stay hash-identical at every checkpoint over five game
+  minutes of scripted play, and a command corrupted on one side only is caught
+  by the check. The AI is NOT a peer — it runs inside `simStep` on every
+  client from the same seed and sends nothing.
+- ☐ A real transport in the `Transport` seam. The server has three jobs and no
+  others: agree the seed / map / options / factions / player ids before tick
+  0; relay command bundles without dropping any (it may reorder them, since
+  each is stamped with its due tick and issuer); and hold the tick barrier so
+  no client steps T until it holds every player's bundle for T. It simulates
+  nothing and stores no game state. Still to build on top: lobby and player
+  ids past two, reconnect/replay from the command log, latency adaptation
+  (RA2 grows the delay rather than stalling), and the Beacon.
 
 Roughly 29 builder batches at two in parallel. Phases 0–1 change how the
 game plays and reads immediately; 2–3 make it look like RA2 in motion; 4–5

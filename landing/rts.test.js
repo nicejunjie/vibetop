@@ -3880,3 +3880,209 @@ test("the AI builds a navy where there is a coast and never where there is not",
   }
   assert.ok(ships >= 1, "and launched at least one");
 });
+
+// ------------------------------------------------------- lockstep netcode //
+
+test("a command is scheduled LOCKSTEP_DELAY ticks ahead and applies exactly once", () => {
+  const H = W.__rtsTest, N = W.__rtsNet;
+  const g = H.begin(7101, "normal");
+  H.give(0, 20000);
+  const d = N.delay();
+  assert.ok(d >= 1, "there is a real delay");
+  const u = H.spawn("lancer", 0, 20, 20);
+  H.step(4);                                        // let the spawn settle
+  const t0 = g.tick;
+  N.emit("move", { u: [u.id], x: 30, y: 30, queue: 0, ore: 0 });
+  assert.equal(N.scheduled(), 1, "queued, not applied");
+  // Nothing may happen before the due tick.
+  for (let i = 0; i < d; i++) { assert.ok(!u.order, `no order yet at +${i}`); H.step(1); }
+  assert.ok(u.order && u.order.t === "move", "the order lands on tick T + delay");
+  assert.equal(g.tick, t0 + d);
+  assert.equal(N.scheduled(), 0, "the schedule is drained, so it cannot fire twice");
+  const ox = u.order.x, oy = u.order.y;
+  H.step(5);
+  assert.equal(u.order && u.order.x, ox);
+  assert.equal(u.order && u.order.y, oy);
+});
+
+test("applyCmd is the mutator for every kind of order, and it goes through the queue", () => {
+  const H = W.__rtsTest, N = W.__rtsNet, A = H.api;
+  const g = H.begin(7102, "normal");
+  H.give(0, 40000);
+  const run = () => H.step(N.delay() + 1);
+
+  const yard = H.build("base", 0, 20, 20);
+  // queue -> place
+  N.emit("queue", { k: "power", lane: "b" });
+  run();
+  assert.ok(g.side[0].queues.b.list.indexOf("power") >= 0, "queue command enqueued");
+  // cancel refunds it back out of the lane
+  N.emit("cancel", { lane: "b", k: "power" });
+  run();
+  assert.equal(g.side[0].queues.b.list.indexOf("power"), -1, "cancel command dequeued");
+
+  N.emit("place", { k: "power", x: 20, y: 24 });
+  run();
+  assert.ok(g.blds.some((b) => !b.dead && b.type === "power" && b.p === 0), "place command built it");
+
+  const pwr = g.blds.find((b) => !b.dead && b.type === "power");
+  N.emit("power", { id: pwr.id });
+  run();
+  assert.equal(pwr.offline, true, "power command toggled it offline");
+  yard.hp = Math.round(yard.maxhp * 0.6);            // a full-health building drops the wrench again
+  N.emit("repair", { id: yard.id });
+  run();
+  assert.equal(yard.repair, true, "repair command toggled the wrench on");
+  N.emit("sell", { id: pwr.id });
+  run();
+  assert.ok(pwr.sell || pwr.dead, "sell command started the fold-away");
+
+  // unit orders
+  const a = H.spawn("lancer", 0, 22, 26), b2 = H.spawn("lancer", 0, 23, 26);
+  const foe = H.spawn("rhino", 1, 40, 40);
+  H.step(2);
+  N.emit("hold", { u: [a.id, b2.id], kind: "guard", sfx: 0 });
+  run();
+  assert.ok(a.guard && b2.guard, "hold/guard command");
+  N.emit("amove", { u: [a.id], x: 34, y: 34 });
+  run();
+  assert.ok(a.order && a.order.t === "amove", "attack-move command");
+  N.emit("attack", { u: [b2.id], id: foe.id, force: 0 });
+  run();
+  assert.ok(b2.order && b2.order.t === "attack", "attack command");
+  N.emit("scatter", { u: [a.id, b2.id] });
+  run();
+  assert.ok(a.order && a.order.t === "move", "scatter command");
+  N.emit("destroy", { u: [a.id] });
+  run();
+  assert.ok(a.dead, "self-destruct command");
+
+  // rally, wall and superweapon fire go through the same door.
+  const bar = H.build("barracks", 0, 16, 24);
+  N.emit("rally", { b: [bar.id], x: 18, y: 30 });
+  run();
+  assert.ok(bar.rally && bar.rally.x === 18, "rally command");
+
+  const walls0 = g.blds.filter((b) => !b.dead && b.type === "wall").length;
+  const cash0 = g.side[0].credits;
+  N.emit("wall", { k: "wall", x: 18, y: 26, free: 0 });
+  run();
+  assert.equal(g.blds.filter((b) => !b.dead && b.type === "wall").length, walls0 + 1, "wall command laid a segment");
+  assert.ok(g.side[0].credits < cash0, "and charged for it exactly once");
+
+  H.build("weather", 0, 17, 28);                    // stepSuper drops `ready` without the charger
+  H.swCharge(0, "storm");
+  const fx0 = g.storms.length;
+  N.emit("sw", { k: "storm", x: 34, y: 34 });
+  run();
+  assert.ok(g.storms.length > fx0, "superweapon command fired it");
+});
+
+test("two lockstep clients at different latencies stay bit-identical for five game minutes", () => {
+  const N = W.__rtsNet;
+  // Two in-page clients: one on a zero-latency link, one three bus beats
+  // behind. Both step the same match from the same seed and exchange only
+  // commands; an AI on the second house runs inside BOTH sims from the same
+  // seed and sends nothing.
+  const M = N.match(9001, { lat: [0, 3], diff: "normal", facA: "dir", facB: "col", ai: "normal" });
+  assert.equal(M.hash(0), M.hash(1), "the two worlds start identical");
+
+  const MINUTES = 5, CHECK = 600;
+  let checks = 0;
+  for (let m = 0; m < MINUTES; m++) {
+    M.run(3600, (c, tick, i) => {
+      // Scripted play: each client gives its OWN house orders on its own
+      // cadence. Client 1's orders are issued three beats late on the wire,
+      // which is exactly the case the tick barrier exists for.
+      if (i === 0 && tick % 240 === 17) {
+        const mine = c.g.units.filter((u) => !u.dead && u.p === 0 && !u.air).slice(0, 6);
+        if (mine.length) M.as(0, "move", { u: mine.map((u) => u.id), x: 20 + (tick % 40), y: 24 + (tick % 30), queue: 0, ore: 0 });
+      }
+      if (i === 0 && tick % 900 === 61) M.as(0, "queue", { k: "power", lane: "b" });
+      if (i === 1 && tick % 300 === 143) {
+        const theirs = c.g.units.filter((u) => !u.dead && u.p === 1 && !u.air).slice(0, 5);
+        if (theirs.length) M.as(1, "hold", { u: theirs.map((u) => u.id), kind: "guard", sfx: 0 });
+      }
+      if (tick % CHECK === 0 && tick > 0) {
+        // Cheap in-loop assertion: the tick numbers must not drift either.
+        assert.equal(c.g.tick, tick, "a client stepped out of turn");
+      }
+    });
+    assert.equal(M.desync(), null, `no desync by minute ${m + 1}`);
+    assert.equal(M.game(0).tick, M.game(1).tick, "both clients are on the same tick");
+    assert.equal(M.hash(0), M.hash(1), `state hashes agree at minute ${m + 1}`);
+    checks++;
+  }
+  M.end();
+  assert.equal(checks, MINUTES);
+  // The desync CHECKPOINT itself has to have run, or the test proves nothing
+  // about detection — only about the sim.
+  assert.ok(Object.keys(M.clients[0].hashes).length > 100, "checkpoints were taken every 60 ticks");
+});
+
+test("a corrupted command on one client is caught by the desync check", () => {
+  const N = W.__rtsNet;
+  const M = N.match(9002, { lat: [0, 1], diff: "normal", facA: "dir", facB: "col" });
+  // Play cleanly for a while, then tamper with a command AFTER it has been
+  // queued on client 0 only — a client whose sim has been altered, which is
+  // exactly what the hash comparison exists to find.
+  M.run(120);
+  assert.equal(M.desync(), null, "clean so far");
+
+  let armed = false;
+  const ran = M.run(600, (c, tick, i) => {
+    if (i === 0 && tick === 130) {
+      const mine = c.g.units.filter((u) => !u.dead && u.p === 0 && !u.air).slice(0, 4);
+      M.as(0, "move", { u: mine.map((u) => u.id), x: 30, y: 30, queue: 0, ore: 0 });
+    }
+    if (i === 0 && tick === 131 && !armed) {
+      // Same command id, different destination — only on client 0.
+      armed = M.corrupt(0, (cmd) => { if (cmd.t === "move") { cmd.x = 44; cmd.y = 44; return true; } return false; });
+    }
+  });
+  assert.ok(armed, "the tamper actually landed on a queued command");
+  const d = M.desync();
+  assert.ok(d, "the hash comparison caught it");
+  assert.notEqual(d.mine, d.theirs, "and it dumps both hashes");
+  assert.ok(d.tick % 60 === 0, "caught on a checkpoint tick");
+  assert.ok(ran < 600, "the match stopped at the desync rather than playing on");
+  M.end();
+});
+
+test("the AI screens against aircraft the enemy CAN field, not only ones it has been hit by", () => {
+  // The old rule waited for `ai.airAt` — the tick an enemy aircraft was seen
+  // or felt. An easy Directorate could therefore open an Airforce Command and
+  // have Harriers over a Normal Collective's miners before a single flak gun
+  // existed, because the first sortie was also the first sighting.
+  const H = W.__rtsTest;
+  const g = H.begin(7311, "normal");
+  g.side[1].fac = "col";                       // the AI house we are watching
+  g.side[0].fac = "dir";                       // the enemy that will own the airfield
+  const ai = H.attachAI(1, "normal");
+  H.build("base", 1, g.start[1].x, g.start[1].y);
+  H.build("power", 1, g.start[1].x + 4, g.start[1].y);
+  H.build("barracks", 1, g.start[1].x, g.start[1].y + 4);
+  H.build("radar", 1, g.start[1].x + 4, g.start[1].y + 4);
+  H.build("sentrygun", 1, g.start[1].x - 3, g.start[1].y);
+  H.build("sentrygun", 1, g.start[1].x - 3, g.start[1].y + 2);
+  H.give(1, 30000);
+
+  const flak = () => H.api.countBld(g, 1, "flakcannon") +
+    g.side[1].queues.d.list.filter((k) => k === "flakcannon").length +
+    (g.side[1].queues.d.ready === "flakcannon" ? 1 : 0);
+
+  // No enemy airfield: the old single post-radar tower, no more.
+  for (let i = 0; i < 60 * 60 * 2; i++) H.step(1);
+  const before = flak();
+  assert.ok(before <= 1, `no airfield, no screen (${before})`);
+  assert.equal(g.tick - ai.airAt < 60 * 90, false, "and nothing has been seen or felt");
+
+  // The enemy raises an Airforce Command. Nothing has flown yet, nothing has
+  // been bombed — but Harriers are now possible, so the screen must go up.
+  H.build("airforce", 0, g.start[0].x + 4, g.start[0].y);
+  H.give(1, 30000);
+  for (let i = 0; i < 60 * 60 * 4; i++) H.step(1);
+  const after = flak();
+  assert.ok(after >= 2, `a proportionate screen went up unprovoked (${before} -> ${after})`);
+  assert.equal(g.tick - ai.airAt < 60 * 90, false, "still never seen an aircraft");
+});
