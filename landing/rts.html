@@ -211,7 +211,8 @@
     display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
     pointer-events: none; max-width: 46%;
   }
-  #swbar { display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+  #swbar { display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+  #swbar .swic { pointer-events: auto; }
   .swic { position: relative; width: 62px; height: 62px; border: 1px solid #3a4456; border-radius: 6px;
           background: linear-gradient(#161d29, #0c1015); box-shadow: 0 2px 7px rgba(0,0,0,.5);
           font: 600 10px system-ui; color: #97a3b6; text-align: center; user-select: none; overflow: hidden; }
@@ -15344,6 +15345,12 @@
       if (lane === 'i' && !hasBld(g, p, 'barracks')) continue;
       if (lane === 'v' && !hasBld(g, p, 'factory')) continue;
       if (lane === 'a' && !hasBld(g, p, 'airforce')) continue;
+      // A prerequisite lost mid-build (the Radar behind a queued coil) puts the
+      // item ON HOLD with a reason, instead of a silent stall at 0%.
+      if (!reqMet(g, p, spec)) {
+        if (!q.hold) { q.hold = true; if (p === P_HUMAN && !headless) { say('On hold — ' + spec.name + ' needs ' + reqName(spec, s.fac), true); eva('On hold', 8000); } }
+        continue;
+      }
       if (isBldLane(lane) && !hasBld(g, p, 'base')) continue;
 
       // ---- RA2 progressive charging -----------------------------------
@@ -15609,9 +15616,12 @@
     // Easy stays at 7 min: at 10 it turtled behind its whole army and the hard
     // AI, which cannot yet siege a static base, fell to 14/24 vs 22/24 (soak,
     // 12 fresh seeds). The siege posture is a Phase 6 item.
-    easy:   { react: 72, apm: 22,  focus: false, harass: false, group: 6,  expand: 1, scoutEvery: 0,    give: 0.30, opening: 60 * 420 },
-    normal: { react: 36, apm: 55,  focus: true,  harass: false, group: 9,  expand: 2, scoutEvery: 1800, give: 0.40, opening: 60 * 360 },   // 6 min: a human following the RA2 opening died at 6:53 against 5
-    hard:   { react: 12, apm: 999, focus: true,  harass: true,  group: 10, expand: 3, scoutEvery: 1000, give: 0.45, opening: 60 * 165 }
+    // wave / fact / bar: RA2's Easy and Medium AIs attack with small teams and
+    // run one or two production buildings; only Brutal throws 40 units at
+    // minute six (playtest pass 2: Normal killed a clean opening at 6:53).
+    easy:   { react: 72, apm: 22,  focus: false, harass: false, group: 6,  expand: 1, scoutEvery: 0,    give: 0.30, opening: 60 * 420, wave: 8,   fact: 1, bar: 1 },
+    normal: { react: 36, apm: 55,  focus: true,  harass: false, group: 9,  expand: 2, scoutEvery: 1800, give: 0.40, opening: 60 * 360, wave: 14,  fact: 2, bar: 2 },
+    hard:   { react: 12, apm: 999, focus: true,  harass: true,  group: 10, expand: 3, scoutEvery: 1000, give: 0.45, opening: 60 * 165, wave: 999, fact: 4, bar: 4 }
   };
 
   function newAI(diff) {
@@ -15830,11 +15840,11 @@
       // RA2 pacing: a factory turns out ~1.5 tanks a minute, so a bank that
       // keeps growing means more factories/barracks, not a bigger queue.
       else if (s.queues.v.list.length >= 2 && s.credits > 2200 &&
-               countBld(g, me, 'factory') < Math.min(4, 2 + Math.floor(s.credits / 4000))) want = 'factory';
+               countBld(g, me, 'factory') < Math.min(cfg.fact || 4, 2 + Math.floor(s.credits / 4000))) want = 'factory';
       // A full infantry lane and a fat bank: more barracks, not a deeper queue
       // (a $200 GI takes twice a Conscript's 4 s; the soak showed hard sitting
       // on $9500 with two barracks while easy fielded 64 Conscripts).
-      else if (s.queues.i.list.length >= 2 && s.credits > 3000 && countBld(g, me, 'barracks') < (s.credits > 7000 ? 4 : s.credits > 4500 ? 3 : 2)) want = 'barracks';
+      else if (s.queues.i.list.length >= 2 && s.credits > 3000 && countBld(g, me, 'barracks') < Math.min(cfg.bar || 4, s.credits > 7000 ? 4 : s.credits > 4500 ? 3 : 2)) want = 'barracks';
       // Tech only once an army stands: a $1000 radar and a $2000 lab before
       // ten fighters is how the hard AI lost to a seven-minute infantry flood.
       else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200 && ai.army.length >= cfg.group * 0.6) want = radarKey;
@@ -16213,7 +16223,7 @@
         // game you were winning.
         var pool = ai.army.filter(function (w) { return w !== ai.scout; });
         var keep = Math.max(2, Math.round(pool.length * 0.25));
-        ai.wave = pool.slice(keep);
+        ai.wave = pool.slice(keep).slice(0, cfg.wave || 999);
         ai.garrison = pool.slice(0, keep);
         if (!ai.wave.length) { ai.wave = pool; ai.garrison = []; }
         ai.waveN = ai.wave.length;
@@ -16706,7 +16716,7 @@
   // RA2 prints its messages top-left inside the tactical view and lets them
   // fade; a bottom-centre toast that replaces itself loses the line you were
   // half-way through reading. Newest sits at the bottom of the stack.
-  var evLines = [], EV_MAX = 5;
+  var evLines = [], EV_MAX = 3;
   function say(msg, warn, hold) {
     if (!tipEl) return;
     var life = hold || 150;
@@ -17447,7 +17457,7 @@
 
     if (e.key === 'Escape') {
       if (ov.classList.contains('show')) { if (optOpen) closeOptions(); return; }
-      if (hv.classList.contains('show')) { hv.classList.remove('show'); return; }
+      if (hv.classList.contains('show')) { closeHelp(); return; }
       if (lv.classList.contains('show')) { lv.classList.remove('show'); return; }
       if (swCancel()) return;
       if (cmdMode) { cmdMode = null; refreshCmdbar(); pickCursor(); say('Mode cancelled'); return; }
@@ -20096,10 +20106,13 @@
   ovA.addEventListener('click', function () { resumeAudio(); if (onA) onA(); });
   ovB.addEventListener('click', function () { if (onB) onB(); });
 
-  document.getElementById('helpBtn').addEventListener('click', function () { hv.classList.add('show'); });
-  document.getElementById('hvClose').addEventListener('click', function () { hv.classList.remove('show'); });
+  var helpPaused = false;
+  function openHelp() { hv.classList.add('show'); helpPaused = state === 'play'; if (helpPaused) togglePause(true); }
+  function closeHelp() { hv.classList.remove('show'); if (helpPaused && state === 'paused') togglePause(); helpPaused = false; }
+  document.getElementById('helpBtn').addEventListener('click', openHelp);
+  document.getElementById('hvClose').addEventListener('click', closeHelp);
   // A click on the dimmed backdrop closes the card too (and never reaches the map).
-  hv.addEventListener('pointerdown', function (e) { if (e.target === hv) hv.classList.remove('show'); });
+  hv.addEventListener('pointerdown', function (e) { if (e.target === hv) closeHelp(); });
   lv.addEventListener('pointerdown', function (e) { if (e.target === lv) lv.classList.remove('show'); });
   document.getElementById('lbBtn').addEventListener('click', function () { openBoard(); });
   document.getElementById('lvClose').addEventListener('click', function () { lv.classList.remove('show'); });
@@ -20192,6 +20205,7 @@
     pauseBtn.textContent = '⏸';
     pausedEl.classList.remove('show');
     sel = []; groups = {}; placing = null; pathQ = []; swMode = null;
+    cmdMode = null; refreshCmdbar(); pickCursor();          // a sell mode must not survive New -> menu -> match
     setTimeout(touchHint, 4000);                 // after the opening tip has had its say
     cv.classList.remove('placing');
     shownCred = 0;

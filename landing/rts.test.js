@@ -969,6 +969,8 @@ test("defence builds in its own lane — a turret never delays the economy", () 
   const H = W.__rtsTest;
   const g = H.begin(55041, "normal");
   H.build("base", 0, g.start[0].x - 1, g.start[0].y - 1);
+  H.build("power", 0, g.start[0].x + 3, g.start[0].y - 1);      // the Refinery and Sentry Gun have prerequisites now
+  H.build("barracks", 0, g.start[0].x + 3, g.start[0].y + 2);
   const s = g.side[0];
   s.credits = 20000;
   assert.ok(s.queues.d, "there is a defence lane at all");
@@ -1684,6 +1686,7 @@ test("a build with no money left goes on hold and resumes when the credits retur
   const g = H.begin(58023, "normal");
   const s0 = g.start[0];
   H.build("base", 0, s0.x - 1, s0.y - 1);
+  H.build("power", 0, s0.x + 3, s0.y - 1);                       // a Refinery needs power (or it is ON HOLD for that reason)
   const s = g.side[0];
   s.credits = 40;                       // a few frames' worth, no more
   s.queues.b.list.push("refinery");
