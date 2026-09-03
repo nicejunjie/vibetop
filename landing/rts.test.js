@@ -2905,3 +2905,103 @@ test("the score screen counts what RA2's columns count", () => {
   assert.equal(a.bkilled, b.blost);
   assert.equal(b.bkilled, a.blost);
 });
+
+// ------------------------------------------------------------------ audio //
+// Phase 7. Nothing here can hear anything — the vm has no AudioContext — so
+// these check the two things that fail silently in a browser instead: that
+// the tables are complete and consistent, and that the whole audio layer is
+// inert without one.
+
+test("every sound the game asks for exists, with RA2's Limit/Priority/Range", () => {
+  const A = W.__rtsAudio;
+  const kinds = A.kinds();
+  // Table parity: a SPEC row with no synth is a silent call site; a synth
+  // with no SPEC row cannot be scheduled at all.
+  for (const k of kinds) assert.ok(A.SPEC[k], `PLAY.${k} has no SPEC row`);
+  for (const k of Object.keys(A.SPEC)) assert.ok(kinds.includes(k), `SPEC.${k} has no synth`);
+  assert.ok(kinds.length >= 45, `only ${kinds.length} sounds — RA2 declares 501`);
+  for (const [k, s] of Object.entries(A.SPEC)) {
+    assert.ok(s.l >= 1 && s.l <= 5, `${k}: Limit ${s.l} is outside sound.ini's range`);
+    assert.ok(s.p >= 0 && s.p <= 4, `${k}: Priority ${s.p} is not lowest..critical`);
+    assert.ok(s.r >= 0 && s.r <= 40, `${k}: Range ${s.r} cells`);
+    assert.ok(s.v > 0 && s.v <= 1, `${k}: Volume ${s.v}`);
+  }
+  // The loudest, rarest events must outrank chatter, or a nuke gets dropped
+  // for a rifle shot when the mixer fills.
+  for (const k of ["nuke", "bldboom", "siren", "swready", "powon", "powoff"])
+    assert.equal(A.SPEC[k].p, 4, `${k} must be Priority=critical`);
+  for (const k of ["shot", "mg", "click", "cash"])
+    assert.ok(A.SPEC[k].p <= 1, `${k} must be droppable`);
+});
+
+test("every weapon in the game has its own report", () => {
+  const A = W.__rtsAudio, T = W.__rtsTables, kinds = A.kinds();
+  for (const [k, v] of Object.entries(A.REPORT))
+    assert.ok(kinds.includes(v), `REPORT.${k} points at "${v}", which is not a sound`);
+  // rules.ini gives a Report= to every weapon; anything armed that is missing
+  // from the table falls back on the generic cannon, which is what this
+  // guards against silently swallowing a new unit.
+  const missing = [];
+  for (const [k, u] of Object.entries(T.UNITS)) if (u.dmg > 0 && !A.REPORT[k]) missing.push("UNITS." + k);
+  for (const [k, b] of Object.entries(T.BLDS)) if (b.dmg > 0 && !A.REPORT[k]) missing.push("BLDS." + k);
+  assert.deepEqual(missing, [], "armed things with no Report=");
+  // The four cannon weights and the four explosion bands must all be distinct
+  // sounds, or a 40-tank battle is a monotone again — the exact finding in
+  // docs/rts-gap-audit-art.md §7.
+  const guns = new Set(Object.values(A.REPORT));
+  assert.ok(guns.size >= 14, `only ${guns.size} distinct reports across the roster`);
+});
+
+test("every unit kind has a voice, with select, move and attack lines", () => {
+  const A = W.__rtsAudio, T = W.__rtsTables;
+  for (const k of Object.keys(T.UNITS)) assert.ok(A.VOX[k], `UNITS.${k} has no voice`);
+  for (const [k, v] of Object.entries(A.VOX)) {
+    if (!v.f) continue;                       // the dog and the Terror Drone do not talk
+    assert.ok(v.f > 40 && v.f < 400, `${k}: carrier pitch ${v.f} Hz is not a voice`);
+    for (const key of ["s", "m"]) {
+      assert.ok(v[key] && v[key].length, `${k} has no ${key === "s" ? "VoiceSelect" : "VoiceMove"} line`);
+    }
+    for (const key of ["s", "m", "a", "d", "h"]) {
+      for (const i of v[key] || []) assert.ok(A.VOXPAT[i], `${k}.${key} points at pattern ${i}, which does not exist`);
+    }
+  }
+  // Two units that sound identical are one unit: no two kinds may share both
+  // pitch and formant colour.
+  const seen = new Set();
+  for (const [k, v] of Object.entries(A.VOX)) {
+    if (!v.f) continue;
+    const sig = v.f + "/" + v.b;
+    assert.ok(!seen.has(sig), `${k} has the same voice as another unit (${sig})`);
+    seen.add(sig);
+  }
+});
+
+test("the whole audio layer is inert without an AudioContext", () => {
+  // The vm has no AudioContext, no speechSynthesis and no OfflineAudioContext.
+  // Nothing below may throw, and nothing may claim to have played.
+  const A = W.__rtsAudio, H = W.__rtsTest;
+  A.clear();
+  const g = H.startWith(77, "normal", "frontier", {});
+  H.attachAI(1, "normal");
+  for (let i = 0; i < 600; i++) H.step(1);
+  assert.deepEqual(A.log(), [], "a headless run must schedule no audio");
+  assert.equal(A.stats().played, 0);
+  assert.equal(A.music().on, false, "music never starts without a context");
+  assert.equal(A.render("boom", 1), null, "no OfflineAudioContext, no render");
+  assert.equal(A.renderVox("rifle", "select", false, 1), null);
+});
+
+test("adding audio did not move the simulation", () => {
+  // Recorded from the build immediately before Phase 7. Audio is presentation
+  // only: if any of these move, something in the sound layer reached the sim.
+  const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
+  assert.equal(r.ticks, 10800);
+  assert.equal(r.p0units, 10);
+  assert.equal(r.p1units, 12);
+  assert.equal(r.p0blds, 5);
+  assert.equal(r.p1blds, 5);
+  assert.equal(r.p0credits, 8437);
+  assert.equal(r.p1credits, 9105);
+  assert.equal(r.p0made, 10);
+  assert.equal(r.p1made, 13);
+});

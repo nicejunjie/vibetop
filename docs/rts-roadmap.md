@@ -608,11 +608,36 @@ per state, for every structure and defence, both factions.
   7 min, 22/24). RA2's AI masses artillery (V3/Prism/Kirov) against static
   defence and attacks on a timer regardless.
 
-**Phase 7 — audio (art §7). ~2 batches, M.** Original synthesis only.
-- ☐ Per-weapon reports, structure sounds (power on/off, sell, capture,
-  place), Tesla charge, radar on/off, credit tick.
-- ☐ Unit voices for the 12 kinds without lines; select vs move vs attack.
-- ☐ Original music loop per theatre.
+**Phase 7 — audio (art §7). DONE (2026-09-03).** Original synthesis only —
+every sound is oscillators and one baked noise buffer, no files, no libraries.
+- ☑ A synth kit (`SND`: `nz`/`op`/`clk`/`verb`, one shared feedback delay) under
+  a four-bus mixer (SFX / voices / EVA / music) that enforces sound.ini's rules:
+  per-sound `Limit`, `Priority` (a full 26-voice mixer drops the lowest), `Range`
+  attenuation in cells from the camera, `MinVolume` for `Type=GLOBAL`, and the
+  existing 70 ms same-sound throttle.
+- ☑ 50 sounds where there were 10. Per-weapon reports keyed by shooter the way
+  rules.ini's `Report=` reads (`REPORT` table): rifle, MG, three cannon weights,
+  rocket, flak, Tesla bolt + `TeslaCoilPowerUp` charge, Prism beam + wind-up,
+  Harrier, V3, Grand Cannon, Kirov bomb, Desolator, Yuri, Chrono Legionnaire,
+  Ivan tick, Terror Drone, dog, `InfantrySquish`; four explosion bands with
+  debris tails; nuke + siren, storm thunder + wind bed, Chronosphere and Iron
+  Curtain stings.
+- ☑ Structure and economy: placement thud, MAKE hammer loop, construction
+  chime, sell (till + collapse), repair wrench, `WorkingSound`/`NotWorkingSound`,
+  low-power alarm, credit tick, harvester dump, radar on/off, superweapon-ready
+  sting, garrison in/out, bridge collapse, crate pickup, promotion fanfare.
+- ☑ Unit voices: a per-faction radio synth (formant bursts, 420–2900 Hz band,
+  squelch) replaces SpeechSynthesis for units — all 29 kinds, `VoiceSelect`
+  (new) / `VoiceMove` / `VoiceAttack` / deploy / harvest, 2–3 patterns each.
+  EVA keeps SpeechSynthesis for its words but now rides the EVA bus and falls
+  back to a chime + the message rail when `getVoices()` is empty (it used to
+  say nothing at all).
+- ☑ Music: a generative score — a ~90 s loop per theatre (temperate industrial
+  march, snow cold pads, urban driving bass), a menu theme, four eight-bar
+  sections, and an intensity layer that opens up on weapon reports near the
+  camera. Toggle + three volume sliders in the Options card, all persisted.
+- Cost: 0.042 ms/frame of audio scheduling in a 40-unit battle (measured), one
+  noise buffer per context, one delay, one radio chain.
 
 **Phase 8 — transports, navy, multiplayer. ~6 batches, L.**
 - ☐ Transports: Flak Track 5, IFV 1 with turret swap per passenger,

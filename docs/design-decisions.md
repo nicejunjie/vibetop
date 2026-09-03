@@ -6594,3 +6594,64 @@ rock sheet plus its own loose stones — the special case it always was.
 operation per boundary tile, every frame, to save 45 baked canvases. *Sixteen
 masks × sixty-four sheet positions* — 1024 canvases per theatre, for a match
 nobody can see across a 13-pixel band.
+
+
+## The sound engine is sound.ini's rules, not a play() call (2026-09-03)
+
+**Symptom:** the RTS had ten synthesised effects, one 70 ms throttle and a
+master gain. A 40-tank battle was one noise, the Tesla bolt and the nuke shared
+`boom`, and `docs/rts-gap-audit-art.md` §7 scored it a major gap against RA2's
+501 `sound.ini` entries.
+
+**Cause:** there was no mixer. Adding forty more effects to a flat `sfx(kind)`
+would have made the monotone louder, not better — RA2 sounds the way it does
+because of what sound.ini says *around* each entry: `Limit` (max concurrent
+instances of one sound — 3 for most explosions, 1 for `PowerOn`), `Priority`
+(lowest→critical), `Range` (cells to inaudible; `[Defaults] Range=10`),
+`MinVolume=50` for `Type=GLOBAL`, and `Volume` as a per-entry trim.
+
+**Fix:** a `SPEC` table with exactly those five fields per sound, and an `alloc`
+that applies them in RA2's order — a sound already at its `Limit` is *refused*
+(it never steals from itself, which is what keeps three explosions from becoming
+thirty); a full 26-voice mixer drops the lowest-priority live voice, and only
+for a strictly higher one. Distance is measured in cells from the camera centre
+through the same isometric projection the renderer uses. In a measured 40-unit
+battle 105 sounds played and 109 were dropped by those rules, for 0.042 ms of
+scheduling per frame.
+
+Every synth is scheduled against an explicit `(ctx, out, t)` triple rather than
+the live context. That is what lets the harness re-render any one of them into
+an `OfflineAudioContext` and assert its RMS and peak — a synthesised effect that
+comes out silent or clipped is otherwise invisible until someone listens.
+
+**Rejected:** *sampled assets* — no RA2 audio may be used and a sample library
+would end the single-file property. *A Web Audio `PannerNode` per sound* — a
+full 3-D listener graph for a top-down game whose only spatial fact is "how far
+from the middle of the screen", at a node's cost per shot.
+
+## Unit acknowledgements are a radio, not a speech synthesiser (2026-09-03)
+
+**Symptom:** unit lines were `SpeechSynthesisUtterance` with the pitch pushed
+down for the Collective. The voice differed on every OS, `getVoices()` is empty
+until it warms up (so the first order was silent, and EVA silently said *nothing
+at all* on a cold Chromium), and TTS cannot be routed through a Web Audio bus,
+so a volume slider could not touch it. Only 13 of 29 unit kinds had lines, and
+none had RA2's `VoiceSelect`.
+
+**Fix:** a formant synth. Each syllable is a sawtooth carrier through two
+band-pass formants, the utterance goes through one shared radio chain
+(high-pass 420 Hz → `tanh` waveshaper → low-pass 2900 Hz) and is topped and
+tailed with a squelch click. A unit's identity is its carrier pitch and formant
+brightness (`VOX`, 29 entries, no two alike — a test asserts it); a *line* is a
+cadence drawn from 14 patterns of `[semitone, ms]` syllables, indexed per order,
+so select is short and level, move falls away, attack rises and clips. The
+Collective drops the pitch 14 %, stretches 12 % and adds rasp. You do not hear
+words — you hear which unit answered and what you asked it, which is what an
+acknowledgement is for.
+
+EVA keeps SpeechSynthesis, because EVA's lines *are* words; it now rides the
+mixer's EVA gain (applied to `utterance.volume`, the only place TTS accepts one)
+and falls back to a chime plus the existing message rail when no voice exists.
+
+**Rejected:** *recording lines* — no assets. *Shipping a phoneme synthesiser* —
+a library, for words nobody needs to understand.

@@ -561,6 +561,10 @@
       <div class="optrow slots"><span class="olbl">Saved games</span><div class="slotlist" id="slotList"></div></div>
       <div class="optrow"><span class="olbl">Game speed</span><div class="sldr"><input type="range" id="gspdSl" min="1" max="6" step="1"><b id="gspdVal">Fast</b></div></div>
       <div class="optrow"><span class="olbl">Sound</span><div class="diffrow" id="sndRow"></div></div>
+      <div class="optrow"><span class="olbl">Music</span><div class="diffrow" id="musRow"></div></div>
+      <div class="optrow"><span class="olbl">Effects volume</span><div class="sldr"><input type="range" id="vsfxSl" min="0" max="100" step="5"><b id="vsfxVal">90%</b></div></div>
+      <div class="optrow"><span class="olbl">Voice volume</span><div class="sldr"><input type="range" id="vvoxSl" min="0" max="100" step="5"><b id="vvoxVal">85%</b></div></div>
+      <div class="optrow"><span class="olbl">Music volume</span><div class="sldr"><input type="range" id="vmusSl" min="0" max="100" step="5"><b id="vmusVal">45%</b></div></div>
       <div class="optrow"><span class="olbl">Scroll speed</span><div class="diffrow" id="scrRow"></div></div>
       <div class="optrow"><span class="olbl">Match</span><div class="diffrow" id="gameRow"></div></div>
     </div>
@@ -16531,9 +16535,9 @@
         if (tgt.eraseId) { var er = g.byId[tgt.eraseId]; if (er) { er.erasedBy = 0; er.erase = 0; } tgt.eraseId = 0; }
       } else if (tgt.bomb) defuseBomb(g, tgt);
       if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
-      if (tgt.kind === 'b') { killBld(g, tgt); sfx('boom'); }   // killBld runs the whole death sequence
+      if (tgt.kind === 'b') { killBld(g, tgt); sfx('bldboom', tgt.cx, tgt.cy); }   // killBld runs the whole death sequence
       else if (isAir(tgt)) { tgt.dead = true; crashAircraft(g, tgt); }
-      else { tgt.dead = true; if (!infCorpse(g, tgt, wh, src.crushKill)) vehicleDeath(g, tgt); sfx('die'); }
+      else { tgt.dead = true; if (!infCorpse(g, tgt, wh, src.crushKill)) vehicleDeath(g, tgt); sfx(isInfArmour(UNITS[tgt.type].armour) ? 'die' : 'vdie', tgt.x, tgt.y); }
     }
   }
 
@@ -16612,7 +16616,7 @@
   var CRASH_LIFE = 40, CRASH_LIFE_BOMB = 90;
   function crashAircraft(g, u) {
     var d = UNITS[u.type];
-    boom(g, u.x, u.y, 10); sfx('boom');
+    boom(g, u.x, u.y, 10); sfx('boom3', u.x, u.y);
     g.wrecks.push({
       type: u.type, p: u.p, x: u.x, y: u.y, face: u.face || 0, t: 0,
       life: d.bomb ? CRASH_LIFE_BOMB : CRASH_LIFE,
@@ -16636,7 +16640,7 @@
     var dmg = d.bomb ? d.dmg : (d.cls === 'a' ? 50 : 25);
     var spl = d.bomb ? d.splash : (d.cls === 'a' ? 1 : 0.6);
     var wh = d.bomb ? d.wh : 'HE';
-    boom(g, w.x, w.y, d.bomb ? 30 : 18); sfx('boom');
+    boom(g, w.x, w.y, d.bomb ? 30 : 18); sfx(d.bomb ? 'boom3' : 'boom1', w.x, w.y);
     // A wreck is indiscriminate: it hurts whoever is standing where it lands,
     // including its own side. It cannot touch anything still flying.
     var src = { kind: 'u', type: w.type, p: w.p, kills: 0, rank: 0 };
@@ -16684,7 +16688,7 @@
       if (++st.t >= SW[k].charge) {
         st.t = SW[k].charge; st.ready = true;
         if (p === P_HUMAN) {
-          eva(SW[k].ready, 60000); sfx('promote');
+          eva(SW[k].ready, 60000); sfx('swready');
           say(SW[k].name + ' ready — click its icon top-left, then the map', false, 300);
         }
       }
@@ -16725,10 +16729,12 @@
       g.fx.push({ x: bx, y: by, t: 0, life: 22, size: direct ? 17 : 12 });
       if (direct) decal(g, bx, by, 'scorch');
     }
-    if (direct) sfx('boom');
+    sfx(direct ? 'thunder' : 'boom1', bx, by);   // one clap per bolt, over the storm's own bed
   }
   function stepStorm(g, st) {
     st.t++;
+    if (!headless && (st.t % 80) === 1) sfx('wind');     // the bed the bolts land in
+
     if (st.t <= st.life) {
       if (st.t >= st.next) { st.next = st.t + LIGHT_HIT; stormBolt(g, st, st.x, st.y, true); }
       if (st.t >= st.nextS) {
@@ -16790,7 +16796,7 @@
       }
       g.flash = 34;
     }
-    sfx('boom');
+    sfx('nuke', x, y);
     if (nk.p !== P_HUMAN) { eva('Nuclear missile impact', 20000); say('Nuclear detonation', true, 260); }
     return true;
   }
@@ -16812,6 +16818,7 @@
       else { eva('Warning: lightning storm created', 20000); say('Warning — lightning storm created', true, 300); mmPing(g, x, y); }
     } else if (key === 'nuke') {
       g.nukes.push({ p: p, x: x, y: y, t: 0, life: NUKE_FLIGHT });
+      sfx('siren');
       if (mine) { eva('Nuclear missile launched', 20000); say('Nuclear missile launched', false, 300); }
       else { eva('Warning: nuclear missile launched', 20000); say('WARNING — nuclear missile launched', true, 400); mmPing(g, x, y); }
     } else if (key === 'curtain') {
@@ -16828,6 +16835,7 @@
         if (b.dead || b.p !== p || Math.abs(b.cx - x) > 1.5 + b.gw / 2 || Math.abs(b.cy - y) > 1.5 + b.gh / 2) continue;
         b.ironUntil = g.tick + IRON_T; n++;
       }
+      sfx('curtain', x, y);
       if (mine) { eva('Iron Curtain activated', 20000); say('Iron Curtain — ' + n + ' invulnerable for 20 seconds', false, 260); }
       else { eva('Warning: enemy Iron Curtain activated', 20000); mmPing(g, x, y); }
     } else if (key === 'chrono') {
@@ -16854,6 +16862,7 @@
         u.warp = { x: nx, y: ny, at: g.tick + CHRONO_DELAY, out: g.tick, drown: wet };
         u.limbo = true; u.path = null; u.pi = 0; u.order = null; u.repathAt = -999; u.target = null;
       }
+      sfx('chronofx', x2, y2);
       if (mine) { eva('Chronosphere activated', 20000);
                   say('Chronosphere — ' + lift.length + ' vehicle' + (lift.length === 1 ? '' : 's') + ' shifted' +
                       (drowned ? ', ' + drowned + ' dropped over water' : ''), !!drowned, 260); }
@@ -16918,7 +16927,8 @@
         g.rubble.push({ x: tx0, y: ty0, gw: 1, gh: 1, t: -25, life: DECAL_LIFE, fx: 'crater', v: 1 });
       }
     }
-    sfx(spec.wh === 'ParasiteDog' ? 'bark' : (src.type === 'rifle' ? 'shot' : 'cannon'));
+    if (!headless) sfx(REPORT[src.type] || (spec.flak ? 'flak' : spec.bomb ? 'kbomb' : src.kind === 'b' ? 'mg' : 'cannon'),
+                       src.kind === 'b' ? src.cx : src.x, src.kind === 'b' ? src.cy : src.y);
     // ---- warheads that do something other than subtract hit points -------
     // Each of these RETURNS: the shot has been drawn and the cooldown set,
     // but no damage is dealt, because rules.ini's flag on the warhead
@@ -17205,7 +17215,7 @@
         g.side[u.p].credits += _got; g.side[u.p].harv += _got;
         if (u.p === P_HUMAN && !headless) creditPop(Math.round(u.cargoV));
         u.cargo = 0; u.cargoV = 0; u.state = 'idle'; u.path = null; u.noProg = 0; u.stallAt = g.tick;
-        sfx('cash');
+        sfx('dump', u.x, u.y); sfx('cash');
         return;
       }
       var dk = refDock(g, ref2);
@@ -17306,12 +17316,16 @@
     for (var i = g.bombs.length - 1; i >= 0; i--) {
       var e = g.bombs[i];
       if (!e.bomb || e.dead) { e.bomb = null; g.bombs.splice(i, 1); continue; }
-      if (g.tick < e.bomb.at) continue;
+      if (g.tick < e.bomb.at) {
+        // [IVANBOMB] the charge ticks audibly, and faster as the timer runs out.
+        if (!headless) { var _left = e.bomb.at - g.tick; if ((g.tick % (_left < 120 ? 20 : 40)) === 0) sfx('ivantick', entX(e), entY(e)); }
+        continue;
+      }
       var src = { kind: 'u', type: 'ivan', p: e.bomb.p, rank: 0 };
       var bx = entX(e), by = entY(e);
       e.bomb = null; g.bombs.splice(i, 1);
       boom(g, bx, by, 26);
-      sfx('boom');
+      sfx('boom3', bx, by);
       // The carrier itself takes the full charge; everything inside
       // CellSpread takes it scaled down to PercentAtMax at the rim.
       damage(g, src, e, IVAN_DMG, 'IvanWH');
@@ -17586,7 +17600,7 @@
     u.crushKill = true;                                   // picks InfDeath 6 (the splat)
     damage(g, u, o, o.maxhp * 20, 'Super');
     u.crushKill = false;
-    if (!headless && u.p === P_HUMAN) sfx('die');
+    if (!headless) sfx('squish', o.x, o.y);   // CrushSound=InfantrySquish
   }
   function moveAlong(g, u, spd) {
     if (!u.path || u.pi >= u.path.length) return false;
@@ -18237,7 +18251,7 @@
     b.p = u.p;
     u.dead = true; u.sel = false; u.order = null;
     if (u.p === P_HUMAN) eva('Structure garrisoned', 4000);       // eva.ini #107
-    if (first && !headless) sfx('click');
+    if (first && !headless) sfx('garrin', b.cx, b.cy);
     return true;
   }
 
@@ -18254,6 +18268,7 @@
     }
     b.occ.length = 0;
     b.p = P_NEUT; b.sel = false; b.target = null;
+    if (!headless) sfx('garrout', b.cx, b.cy);
     if (p === P_HUMAN) eva('Structure abandoned', 4000);          // eva.ini #108
     return n;
   }
@@ -18366,6 +18381,7 @@
       var cx = sp.cells[i] % MAP, cy = (sp.cells[i] / MAP) | 0;
       g.fx.push({ x: cx, y: cy, t: -i * 3, life: 30, size: 18 });
     }
+    sfx('bridge', sp.x, sp.y);
     say('A bridge span has collapsed', true);
   }
   // [CABHUT] BridgeRepairHut=yes: an engineer walks in and the span comes
@@ -18464,6 +18480,7 @@
       }
       if (!got) continue;
       g.crates.splice(i, 1);
+      if (got.p === P_HUMAN) sfx('crate');
       openCrate(g, cr, got);
       g.crateAt = Math.min(g.crateAt, g.tick + CRATE_REGEN);
     }
@@ -18578,7 +18595,8 @@
     // production, but garrison fire, oil money and hospital healing.
     if (d.neut) { if (b.make > 0) b.make = 0; stepNeutral(g, b); return; }
     // Under construction: RA2's MAKE runs before the structure does anything.
-    if (b.make > 0) { b.make--; return; }
+    // The build-up: RA2 runs a MAKE anim with a hammering loop under it.
+    if (b.make > 0) { b.make--; if (!headless && (b.make % 44) === 0) sfx('make', b.cx, b.cy); return; }
     if (b.cool > 0) b.cool--;
     if (b.repair) {
       if (b.hp >= b.maxhp) b.repair = false;
@@ -18622,7 +18640,7 @@
       if (t && b.cool <= 0) {
         b.charging = CHARGE_T; b.chgT = t; b.sup = 0;
         if (b.type === 'prism') prismSupport(g, b);
-        if (!headless) sfx(b.type === 'tesla' ? 'charge' : 'prismup');
+        if (!headless) sfx(b.type === 'tesla' ? 'charge' : 'prismup', b.cx, b.cy);
       }
       return;
     }
@@ -18795,7 +18813,7 @@
       }
       if (q.prog >= 1) {
         q.paid = 0; q.hold = false;
-        if (isBldLane(lane)) { q.prog = 0; q.list.shift(); q.ready = key; if (p === P_HUMAN) { sfx('ready'); eva('Construction complete', 3000); } }
+        if (isBldLane(lane)) { q.prog = 0; q.list.shift(); q.ready = key; if (p === P_HUMAN) { sfx('built'); eva('Construction complete', 3000); } }
         else {
           var src = producerFor(g, p, lane);
           if (src) {
@@ -20167,10 +20185,6 @@
     return p;
   }
 
-  // --------------------------------------------------------------------- //
-  //  Audio — synthesised, no files. Mirrors circuit.html's mute convention.
-  // --------------------------------------------------------------------- //
-  var AC = null, master = null, soundOn = lsGet('vibetop:rts:sound') !== '0';
   // ------------------------------------------------------------------- //
   //  Save / load.
   //
@@ -20322,128 +20336,763 @@
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
+  // ------------------------------------------------------------------- //
+  //  Audio — a synth kit, RA2's mixer rules, and an original score.
+  //
+  //  Nothing here is a sample. Every report, voice line and bar of music is
+  //  built at run time out of oscillators and one baked noise buffer, so the
+  //  page stays a single file with no assets and no licence problem.
+  //
+  //  The shape follows RA2's own sound engine (sound.ini):
+  //
+  //    Limit=     max concurrent instances of ONE sound. sound.ini caps most
+  //               explosions at 3 and PowerOn/PowerOff at 1 — that is what
+  //               stops a 40-tank battle from turning into white noise.
+  //    Priority=  lowest/low/normal/high/critical. When the mixer is full the
+  //               LOWEST-priority live voice is dropped for a higher one, and
+  //               a new low-priority sound is simply refused.
+  //    Range=     radius in cells at which the sound is inaudible; inside it
+  //               the gain falls off from the camera centre (sound.ini
+  //               Defaults Range=10). Sounds marked global (the nuke siren,
+  //               EVA, superweapon stings) ignore range and instead sit at
+  //               MinVolume or above, exactly like RA2's Type=GLOBAL.
+  //    Volume=    per-entry trim, 0..100 in RA2, 0..1 here.
+  //
+  //  Everything is scheduled against an explicit (ctx, out, t) triple rather
+  //  than the live context, which is what lets the audio harness re-render
+  //  any one sound into an OfflineAudioContext and measure its waveform.
+  // ------------------------------------------------------------------- //
+  var AC = null, master = null, BUS = null;
+  var soundOn = lsGet('vibetop:rts:sound') !== '0';
+  var musicOn = lsGet('vibetop:rts:music') !== '0';
+  function lsNum(k, d) { var v = parseFloat(lsGet(k)); return isNaN(v) ? d : Math.max(0, Math.min(1, v)); }
+  var vol = {
+    sfx:   lsNum('vibetop:rts:vol:sfx', 0.9),
+    voice: lsNum('vibetop:rts:vol:voice', 0.85),
+    music: lsNum('vibetop:rts:vol:music', 0.45)
+  };
+
   function resumeAudio() {
     if (headless || !soundOn) return;
     try {
       if (!AC) {
         AC = new (window.AudioContext || window.webkitAudioContext)();
         master = AC.createGain(); master.gain.value = 0.32; master.connect(AC.destination);
+        BUS = {};
+        ['sfx', 'voice', 'eva', 'music'].forEach(function (k) {
+          var g = AC.createGain(); g.connect(master); BUS[k] = g;
+        });
+        applyVol();
       }
       if (AC.state === 'suspended') AC.resume();
+      if (musicOn) MUS.start();
     } catch (e) { AC = null; }
   }
-  function tone(freq, dur, type, vol, to) {
-    if (!soundOn || !AC || headless) return;
-    try {
-      var o = AC.createOscillator(), g = AC.createGain();
-      o.type = type || 'square'; o.frequency.value = freq;
-      if (to) o.frequency.exponentialRampToValueAtTime(Math.max(20, to), AC.currentTime + dur);
-      g.gain.value = vol == null ? 0.2 : vol;
-      g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur);
-      o.connect(g); g.connect(master);
-      o.start(); o.stop(AC.currentTime + dur + 0.02);
-    } catch (e) {}
+  function applyVol() {
+    if (!BUS) return;
+    BUS.sfx.gain.value = vol.sfx;
+    BUS.voice.gain.value = vol.voice;
+    BUS.eva.gain.value = Math.min(1, vol.voice * 1.15);   // EVA rides the voice slider a shade louder
+    BUS.music.gain.value = musicOn ? vol.music : 0;
   }
-  function noiseBurst(dur, vol) {
-    if (!soundOn || !AC || headless) return;
-    try {
-      var n = Math.floor(AC.sampleRate * dur);
-      var buf = AC.createBuffer(1, n, AC.sampleRate), ch = buf.getChannelData(0);
-      for (var i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);   // audio-only white noise: never reaches the sim, so the seed rule does not apply
-      var src = AC.createBufferSource(), g = AC.createGain();
-      src.buffer = buf; g.gain.value = vol == null ? 0.18 : vol;
-      src.connect(g); g.connect(master); src.start();
-    } catch (e) {}
+
+  // ---- primitives ------------------------------------------------------ //
+  // One noise buffer per context, baked once and re-used by every burst: a
+  // fresh createBuffer per shot was the single biggest allocation in a
+  // 40-unit fight. Two seconds is longer than any effect, and each voice
+  // starts at a random offset so repeats do not phase-lock.
+  function nbuf(c) {
+    if (c.__nb) return c.__nb;
+    var n = Math.floor(c.sampleRate * 2), b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+    // Audio-only randomness: it never reaches the sim, so the seeded-RNG rule
+    // that governs everything in G does not apply here.
+    for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    c.__nb = b; return b;
   }
-  // Rate-limited: a 40-tank battle would otherwise fire hundreds of oscillators.
-  var sfxAt = {};
-  // EVA: spoken announcements like RA2's advisor, via the browser's speech
-  // synthesis. Throttled per line so a hot fight does not chant.
+  function env(g, t, atk, dur, peak, hold) {
+    peak = Math.max(0.0004, peak);
+    g.gain.setValueAtTime(0.0002, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + Math.max(0.0006, atk));
+    if (hold) g.gain.setValueAtTime(peak, t + Math.max(0.0006, atk) + hold);
+    g.gain.exponentialRampToValueAtTime(0.0002, t + Math.max(dur, atk + 0.01));
+  }
+  // A filtered noise voice: the workhorse behind every report, explosion and
+  // mechanical clatter. f0->f1 sweeps the filter, which is what separates a
+  // rifle crack (high, fast) from a building collapse (low, long).
+  function nz(c, o, t, dur, v, f0, f1, q, ftype) {
+    var s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = nbuf(c); s.loop = true;
+    try { s.playbackRate.value = 0.7 + Math.random() * 0.6; } catch (e) {}
+    f.type = ftype || 'bandpass'; f.Q.value = q == null ? 1 : q;
+    f.frequency.setValueAtTime(Math.max(30, f0), t);
+    if (f1) f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+    env(g, t, dur * 0.06, dur, v);
+    s.connect(f); f.connect(g); g.connect(o);
+    s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.03);
+    return g;
+  }
+  // An oscillator voice with an optional pitch sweep — tank cannons, sirens,
+  // Tesla whine, every musical note.
+  function op(c, o, t, f0, f1, dur, v, type, atk) {
+    var s = c.createOscillator(), g = c.createGain();
+    s.type = type || 'square';
+    s.frequency.setValueAtTime(Math.max(20, f0), t);
+    if (f1) s.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    env(g, t, atk == null ? dur * 0.05 : atk, dur, v);
+    s.connect(g); g.connect(o);
+    s.start(t); s.stop(t + dur + 0.03);
+    return g;
+  }
+  // A short, hard transient. Real reports start with one; without it every
+  // synthesised gun sounds like a puff rather than a bang.
+  function clk(c, o, t, v, f) {
+    return nz(c, o, t, 0.012, v, f || 2600, (f || 2600) * 0.35, 0.7, 'bandpass');
+  }
+  // One shared feedback delay per context, used as a send. It is what gives a
+  // Tesla bolt and a Grand Cannon their room; a per-shot reverb would cost
+  // more than every other node in the graph put together.
+  function verb(c, o) {
+    if (c.__verb) return c.__verb;
+    var d = c.createDelay(0.6), fb = c.createGain(), lp = c.createBiquadFilter(), snd = c.createGain();
+    d.delayTime.value = 0.115; fb.gain.value = 0.34;
+    lp.type = 'lowpass'; lp.frequency.value = 1700;
+    snd.connect(d); d.connect(lp); lp.connect(fb); fb.connect(d); lp.connect(o);
+    c.__verb = snd; return snd;
+  }
+
+  // ---- the sound table -------------------------------------------------- //
+  // One row per sound, in sound.ini's own terms. l = Limit (concurrent
+  // instances), p = Priority (0 lowest .. 4 critical), r = Range in cells
+  // (0 = global, heard anywhere at MinVolume or above), v = Volume trim.
+  var PRI = { lowest: 0, low: 1, normal: 2, high: 3, critical: 4 };
+  var MINVOL = 0.5;                 // sound.ini [Defaults] MinVolume=50
+  var MAXVOICE = 26;                // mixer size: past this the lowest priority is dropped
+  var SPEC = {
+    // -- small arms and cannon (rules.ini Report=) --
+    shot:     { l: 4, p: 1, r: 12, v: 0.55 },   // GIAttack
+    mg:       { l: 3, p: 1, r: 12, v: 0.5 },    // PillboxAttack / SentryGunAttack / IFVAttack
+    cannon:   { l: 3, p: 2, r: 16, v: 0.8 },    // GrizzlyTankAttack
+    cannonh:  { l: 3, p: 2, r: 18, v: 0.95 },   // RhinoTankAttack
+    cannonx:  { l: 2, p: 3, r: 20, v: 1.0 },    // ApocalypseAttackGround
+    rocket:   { l: 3, p: 2, r: 16, v: 0.75 },   // GIRocketAttack / PatriotAttack
+    harrier:  { l: 2, p: 2, r: 18, v: 0.8 },    // BlackEagleAttack / HarrierAttack
+    v3:       { l: 2, p: 3, r: 22, v: 0.95 },   // V3RocketAttack
+    flak:     { l: 3, p: 2, r: 16, v: 0.7 },    // FlakCannonAttack / FlakTrackAttackAir
+    tesla:    { l: 2, p: 3, r: 18, v: 0.85 },   // TeslaCoilAttack
+    charge:   { l: 2, p: 2, r: 14, v: 0.55 },   // TeslaCoilPowerUp (art.ini:3014)
+    teslainf: { l: 3, p: 2, r: 13, v: 0.6 },    // TeslaTroopAttack
+    prism:    { l: 2, p: 3, r: 18, v: 0.8 },    // PrismTowerAttack / PrismTankAttack
+    prismup:  { l: 2, p: 2, r: 14, v: 0.5 },
+    gcannon:  { l: 1, p: 4, r: 30, v: 1.0 },    // ParisTowerAttack (Grand Cannon)
+    kbomb:    { l: 2, p: 3, r: 22, v: 0.8 },    // KirovAttack
+    deso:     { l: 2, p: 2, r: 14, v: 0.7 },    // DesolatorAttack
+    psy:      { l: 2, p: 3, r: 16, v: 0.7 },    // YuriAttack / psychic blast
+    cleg:     { l: 2, p: 3, r: 16, v: 0.7 },    // ChronoLegionAttack
+    ivantick: { l: 3, p: 2, r: 10, v: 0.6 },    // IvanBombTick
+    drone:    { l: 3, p: 1, r: 11, v: 0.55 },   // TerrorDroneAttack
+    bark:     { l: 3, p: 1, r: 11, v: 0.6 },    // DogAttack
+    bite:     { l: 2, p: 2, r: 10, v: 0.65 },
+    squish:   { l: 2, p: 2, r: 11, v: 0.7 },    // InfantrySquish (CrushSound, 40x in rules.ini)
+    // -- explosion families (sound.ini Explosion01..15, Limit=3) --
+    boom1:    { l: 3, p: 2, r: 18, v: 0.7 },
+    boom:     { l: 3, p: 3, r: 22, v: 0.9 },    // the medium family — the long-standing name
+    boom3:    { l: 2, p: 3, r: 26, v: 1.0 },
+    bldboom:  { l: 2, p: 4, r: 30, v: 1.0 },    // GenBuildingExplode
+    die:      { l: 3, p: 1, r: 12, v: 0.6 },    // infantry die
+    vdie:     { l: 3, p: 2, r: 16, v: 0.75 },   // GenVehicleDie
+    // -- superweapons and weather (Type=GLOBAL in RA2) --
+    nuke:     { l: 1, p: 4, r: 0, v: 1.0 },
+    siren:    { l: 1, p: 4, r: 0, v: 0.8 },
+    thunder:  { l: 3, p: 3, r: 0, v: 0.85 },
+    wind:     { l: 1, p: 1, r: 0, v: 0.45 },
+    chronofx: { l: 1, p: 4, r: 0, v: 0.75 },
+    curtain:  { l: 1, p: 4, r: 0, v: 0.75 },
+    swready:  { l: 1, p: 4, r: 0, v: 0.7 },
+    // -- structures and economy --
+    place:    { l: 2, p: 3, r: 0, v: 0.8 },
+    make:     { l: 2, p: 1, r: 14, v: 0.45 },   // build-up hammer during MAKE
+    built:    { l: 1, p: 4, r: 0, v: 0.7 },
+    ready:    { l: 1, p: 4, r: 0, v: 0.6 },
+    sell:     { l: 1, p: 3, r: 0, v: 0.8 },
+    wrench:   { l: 2, p: 1, r: 12, v: 0.45 },
+    powon:    { l: 1, p: 4, r: 0, v: 0.5 },     // rules.ini WorkingSound=PowerOn
+    powoff:   { l: 1, p: 4, r: 0, v: 0.6 },     // NotWorkingSound=PowerOff
+    lowpower: { l: 1, p: 4, r: 0, v: 0.55 },
+    cash:     { l: 3, p: 1, r: 0, v: 0.6 },     // CreditTicks
+    dump:     { l: 2, p: 1, r: 14, v: 0.6 },
+    radaron:  { l: 1, p: 3, r: 0, v: 0.6 },
+    radaroff: { l: 1, p: 3, r: 0, v: 0.6 },
+    garrin:   { l: 2, p: 2, r: 12, v: 0.6 },
+    garrout:  { l: 2, p: 2, r: 12, v: 0.6 },
+    bridge:   { l: 1, p: 3, r: 26, v: 0.9 },
+    crate:    { l: 1, p: 3, r: 0, v: 0.7 },
+    promote:  { l: 1, p: 3, r: 0, v: 0.6 },
+    // -- interface --
+    click:    { l: 3, p: 1, r: 0, v: 0.5 },
+    no:       { l: 1, p: 2, r: 0, v: 0.6 },
+    evachime: { l: 1, p: 4, r: 0, v: 0.6 }
+  };
+  // rules.ini gives every weapon a Report=. The table is keyed by the
+  // SHOOTER because that is how rules.ini reads it: [RHINO] Primary=120mm ->
+  // [120mm] Report=RhinoTankAttack. Anything not listed falls back on its
+  // projectile kind, so a new unit is never silent.
+  var REPORT = {
+    rifle: 'shot', conscript: 'shot', tanya: 'shot', spy: 'shot', engineer: 'shot',
+    rocket: 'rocket', rocketeer: 'rocket', patriot: 'rocket',
+    flak: 'flak', flaktrack: 'flak', flakcannon: 'flak',
+    sentry: 'mg', sentrygun: 'mg', ifv: 'mg', warminer: 'mg',
+    lancer: 'cannon', mirage: 'cannon', rhino: 'cannonh', mammoth: 'cannonx',
+    harrier: 'harrier', kirov: 'kbomb', v3: 'v3', grandcannon: 'gcannon',
+    tesla: 'tesla', teslatank: 'tesla', teslatrooper: 'teslainf',
+    prism: 'prism', prismtank: 'prism',
+    desolator: 'deso', yuri: 'psy', cleg: 'cleg', ivan: 'ivantick',
+    drone: 'drone', dog: 'bite'
+  };
+
+  // ---- the synths ------------------------------------------------------- //
+  // kind -> function(ctx, out, t). Each one is scheduled, never played, so
+  // the same code drives the live context and the offline renderer.
+  var PLAY = {
+    // Small arms: a crack plus a short body. RA2's igiat1a/b/c differ only in
+    // pitch, which is what the random playbackRate inside nz() reproduces.
+    shot: function (c, o, t) { clk(c, o, t, 0.5, 3200); nz(c, o, t, 0.055, 0.3, 2000, 500, 1.4); },
+    mg: function (c, o, t) {
+      for (var i = 0; i < 3; i++) { clk(c, o, t + i * 0.045, 0.34, 2800); nz(c, o, t + i * 0.045, 0.04, 0.22, 1700, 600, 1.6); }
+    },
+    cannon: function (c, o, t) {
+      clk(c, o, t, 0.7, 1400); op(c, o, t, 170, 55, 0.16, 0.35, 'square', 0.002);
+      nz(c, o, t, 0.22, 0.4, 900, 140, 0.8, 'lowpass'); nz(c, verb(c, o), t, 0.2, 0.14, 700, 200, 0.9);
+    },
+    cannonh: function (c, o, t) {
+      clk(c, o, t, 0.8, 1100); op(c, o, t, 130, 42, 0.24, 0.42, 'square', 0.002);
+      nz(c, o, t, 0.34, 0.45, 700, 100, 0.7, 'lowpass'); nz(c, verb(c, o), t, 0.3, 0.2, 520, 150, 0.9);
+    },
+    cannonx: function (c, o, t) {
+      // [APOC] two barrels: RA2 fires them a beat apart, and you hear it.
+      PLAY.cannonh(c, o, t); PLAY.cannonh(c, o, t + 0.09);
+      op(c, o, t, 62, 30, 0.5, 0.3, 'sine', 0.004);
+    },
+    rocket: function (c, o, t) {
+      clk(c, o, t, 0.4, 900);
+      nz(c, o, t, 0.5, 0.34, 420, 2600, 0.9);                    // the whoosh climbing away
+      op(c, o, t, 260, 90, 0.18, 0.2, 'sawtooth', 0.004);
+    },
+    harrier: function (c, o, t) {
+      nz(c, o, t, 0.55, 0.3, 700, 3000, 1.1); op(c, o, t, 340, 120, 0.22, 0.2, 'sawtooth', 0.004);
+      nz(c, o, t + 0.02, 0.3, 0.18, 1800, 400, 1.0);
+    },
+    v3: function (c, o, t) {
+      // A big solid motor lighting up, not a bang: 1.1 s of rising roar.
+      nz(c, o, t, 1.1, 0.5, 220, 1500, 0.7, 'lowpass');
+      op(c, o, t, 80, 190, 0.9, 0.28, 'sawtooth', 0.05);
+      nz(c, verb(c, o), t, 0.8, 0.2, 500, 900, 0.8);
+    },
+    flak: function (c, o, t) {
+      for (var i = 0; i < 4; i++) {
+        var d = t + i * 0.062;
+        clk(c, o, d, 0.5, 1800); nz(c, o, d, 0.09, 0.3, 1100, 260, 1.1, 'lowpass');
+      }
+    },
+    // Tesla: a rising whine that snaps into a crackle, then rings in the delay.
+    tesla: function (c, o, t) {
+      op(c, o, t, 900, 240, 0.1, 0.22, 'sawtooth', 0.003);
+      for (var i = 0; i < 7; i++) nz(c, o, t + i * 0.016 + Math.random() * 0.01, 0.05, 0.28 - i * 0.03, 4200 - i * 380, 900, 3.2);
+      nz(c, verb(c, o), t, 0.28, 0.16, 2600, 700, 2.0);
+    },
+    charge: function (c, o, t) { op(c, o, t, 110, 900, 0.55, 0.2, 'sawtooth', 0.12); nz(c, o, t + 0.3, 0.25, 0.1, 3000, 6000, 4); },
+    teslainf: function (c, o, t) { op(c, o, t, 600, 200, 0.08, 0.18, 'sawtooth', 0.003); for (var i = 0; i < 4; i++) nz(c, o, t + i * 0.02, 0.04, 0.2, 3600 - i * 500, 1000, 3); },
+    // Prism: a pure tone winding up, then the zap it collapses into.
+    prism: function (c, o, t) {
+      op(c, o, t, 520, 1900, 0.2, 0.2, 'sine', 0.06);
+      nz(c, o, t + 0.18, 0.14, 0.3, 5200, 1200, 2.4);
+      op(c, verb(c, o), t + 0.18, 2400, 700, 0.2, 0.14, 'sine', 0.002);
+    },
+    prismup: function (c, o, t) { op(c, o, t, 420, 1500, 0.5, 0.16, 'sine', 0.14); },
+    gcannon: function (c, o, t) {
+      clk(c, o, t, 0.9, 800); op(c, o, t, 95, 28, 0.6, 0.5, 'square', 0.003);
+      nz(c, o, t, 0.9, 0.55, 500, 60, 0.6, 'lowpass'); nz(c, verb(c, o), t, 0.8, 0.3, 380, 90, 0.8);
+    },
+    kbomb: function (c, o, t) {
+      nz(c, o, t, 0.45, 0.25, 1600, 300, 1.2);                   // the falling whistle
+      PLAY.boom(c, o, t + 0.45);
+    },
+    deso: function (c, o, t) {
+      // A rad beam: a low buzz under a Geiger stutter.
+      op(c, o, t, 70, 58, 0.6, 0.22, 'square', 0.02);
+      for (var i = 0; i < 12; i++) nz(c, o, t + i * 0.05 + Math.random() * 0.02, 0.02, 0.13, 5000, 3000, 6);
+    },
+    psy: function (c, o, t) {
+      op(c, o, t, 300, 1500, 0.35, 0.16, 'sine', 0.09);
+      op(c, o, t, 303, 1520, 0.35, 0.14, 'sine', 0.09);          // beating pair — the "wobble"
+      nz(c, verb(c, o), t + 0.1, 0.4, 0.12, 900, 2600, 2.2);
+    },
+    cleg: function (c, o, t) {
+      op(c, o, t, 1400, 260, 0.3, 0.18, 'sine', 0.004);
+      op(c, o, t + 0.04, 900, 2200, 0.26, 0.12, 'triangle', 0.02);
+      nz(c, verb(c, o), t, 0.35, 0.14, 3000, 600, 2.6);
+    },
+    ivantick: function (c, o, t) { clk(c, o, t, 0.5, 3400); op(c, o, t, 1800, 1200, 0.03, 0.14, 'square', 0.001); },
+    drone: function (c, o, t) {
+      for (var i = 0; i < 5; i++) { clk(c, o, t + i * 0.038, 0.4, 3600 - i * 300); nz(c, o, t + i * 0.038, 0.03, 0.18, 2400, 900, 3); }
+    },
+    bark: function (c, o, t) { op(c, o, t, 300, 170, 0.06, 0.3, 'sawtooth', 0.004); nz(c, o, t, 0.07, 0.3, 900, 300, 1.4); },
+    bite: function (c, o, t) { PLAY.bark(c, o, t); nz(c, o, t + 0.05, 0.09, 0.3, 500, 160, 0.9, 'lowpass'); },
+    squish: function (c, o, t) { nz(c, o, t, 0.13, 0.4, 700, 130, 0.6, 'lowpass'); op(c, o, t, 150, 60, 0.1, 0.14, 'triangle', 0.006); },
+    // ---- explosion families. RA2 fires a named anim per size band; the
+    // audio follows the same four bands, each a body plus a debris tail.
+    boom1: function (c, o, t) {
+      clk(c, o, t, 0.7, 1200); nz(c, o, t, 0.3, 0.5, 900, 90, 0.7, 'lowpass'); op(c, o, t, 120, 40, 0.24, 0.24, 'sawtooth', 0.003);
+    },
+    boom: function (c, o, t) {
+      clk(c, o, t, 0.9, 900);
+      nz(c, o, t, 0.55, 0.6, 800, 60, 0.6, 'lowpass'); op(c, o, t, 95, 30, 0.42, 0.32, 'sawtooth', 0.003);
+      nz(c, verb(c, o), t, 0.5, 0.24, 400, 120, 0.8);
+      for (var i = 0; i < 5; i++) nz(c, o, t + 0.16 + Math.random() * 0.5, 0.05, 0.1, 1800, 500, 2.4);   // debris
+    },
+    boom3: function (c, o, t) {
+      PLAY.boom(c, o, t); op(c, o, t, 52, 22, 0.9, 0.36, 'sine', 0.005);
+      nz(c, o, t + 0.05, 1.0, 0.3, 400, 45, 0.5, 'lowpass');
+      for (var i = 0; i < 8; i++) nz(c, o, t + 0.2 + Math.random() * 0.9, 0.06, 0.12, 1500, 400, 2.2);
+    },
+    bldboom: function (c, o, t) {
+      PLAY.boom3(c, o, t);
+      nz(c, o, t + 0.3, 1.4, 0.32, 900, 120, 0.5, 'lowpass');    // the structure coming down
+      for (var i = 0; i < 10; i++) nz(c, o, t + 0.35 + Math.random() * 1.1, 0.08, 0.14, 1100, 260, 1.8);
+    },
+    die: function (c, o, t) { nz(c, o, t, 0.16, 0.35, 1300, 260, 1.0); op(c, o, t, 240, 90, 0.13, 0.12, 'sawtooth', 0.006); },
+    vdie: function (c, o, t) { PLAY.boom1(c, o, t); for (var i = 0; i < 4; i++) nz(c, o, t + 0.2 + Math.random() * 0.5, 0.06, 0.12, 1600, 400, 2.2); },
+    // ---- superweapons ----
+    nuke: function (c, o, t) {
+      clk(c, o, t, 1.0, 600);
+      op(c, o, t, 60, 18, 2.2, 0.5, 'sine', 0.006);
+      nz(c, o, t, 2.6, 0.6, 700, 40, 0.5, 'lowpass');
+      nz(c, verb(c, o), t, 2.4, 0.35, 300, 70, 0.7);
+      op(c, o, t + 0.4, 34, 20, 2.6, 0.3, 'triangle', 0.3);      // the rumble that follows the flash
+    },
+    siren: function (c, o, t) {
+      for (var i = 0; i < 3; i++) { op(c, o, t + i * 1.1, 420, 800, 0.5, 0.2, 'sawtooth', 0.2); op(c, o, t + i * 1.1 + 0.5, 800, 420, 0.5, 0.2, 'sawtooth', 0.05); }
+    },
+    thunder: function (c, o, t) {
+      clk(c, o, t, 0.8, 5000);
+      nz(c, o, t, 0.12, 0.55, 6000, 1200, 1.2);                  // the strike
+      nz(c, o, t + 0.06, 1.6, 0.4, 700, 60, 0.55, 'lowpass');    // the roll
+      nz(c, verb(c, o), t + 0.06, 1.4, 0.25, 350, 90, 0.7);
+    },
+    // The bed under a Lightning Storm: gusts, not a drone.
+    wind: function (c, o, t) {
+      nz(c, o, t, 1.4, 0.5, 260, 620, 0.8, 'lowpass');
+      nz(c, o, t + 0.4, 1.0, 0.3, 700, 240, 0.7, 'lowpass');
+    },
+    chronofx: function (c, o, t) {
+      op(c, o, t, 180, 2400, 0.7, 0.2, 'sine', 0.3); op(c, o, t, 182, 2380, 0.7, 0.16, 'triangle', 0.3);
+      nz(c, verb(c, o), t + 0.4, 0.6, 0.16, 2000, 600, 2.4);
+    },
+    curtain: function (c, o, t) {
+      op(c, o, t, 900, 90, 0.8, 0.24, 'sawtooth', 0.01);
+      nz(c, o, t, 0.9, 0.3, 2400, 200, 1.0); nz(c, verb(c, o), t, 0.8, 0.2, 900, 180, 1.2);
+    },
+    swready: function (c, o, t) {
+      [523, 784, 1046].forEach(function (f, i) { op(c, o, t + i * 0.11, f, 0, 0.3, 0.16, 'triangle', 0.006); });
+      op(c, verb(c, o), t + 0.22, 1046, 0, 0.5, 0.1, 'sine', 0.01);
+    },
+    // ---- structures and economy ----
+    place: function (c, o, t) { nz(c, o, t, 0.22, 0.5, 500, 70, 0.6, 'lowpass'); op(c, o, t, 150, 55, 0.2, 0.22, 'square', 0.003); },
+    make: function (c, o, t) {
+      // The build-up: two hammer strikes over a crane's servo whine.
+      op(c, o, t, 260, 190, 0.5, 0.09, 'sawtooth', 0.09);
+      clk(c, o, t + 0.05, 0.5, 2400); nz(c, o, t + 0.05, 0.09, 0.24, 1400, 300, 1.4);
+      clk(c, o, t + 0.34, 0.4, 2200); nz(c, o, t + 0.34, 0.08, 0.2, 1200, 280, 1.4);
+    },
+    built: function (c, o, t) { [392, 523, 659].forEach(function (f, i) { op(c, o, t + i * 0.09, f, 0, 0.26, 0.16, 'triangle', 0.005); }); },
+    ready: function (c, o, t) { op(c, o, t, 660, 0, 0.1, 0.16, 'square', 0.004); op(c, o, t + 0.08, 990, 0, 0.14, 0.16, 'square', 0.004); },
+    sell: function (c, o, t) {
+      op(c, o, t, 1400, 0, 0.05, 0.18, 'square', 0.002); op(c, o, t + 0.05, 1900, 0, 0.06, 0.15, 'square', 0.002);   // the till
+      nz(c, o, t + 0.12, 0.7, 0.35, 800, 90, 0.55, 'lowpass');                                                        // and the walls coming down
+      for (var i = 0; i < 6; i++) nz(c, o, t + 0.15 + Math.random() * 0.55, 0.06, 0.12, 1200, 300, 2.0);
+    },
+    wrench: function (c, o, t) { for (var i = 0; i < 3; i++) { clk(c, o, t + i * 0.09, 0.4, 3000 - i * 200); op(c, o, t + i * 0.09, 1500, 900, 0.05, 0.1, 'square', 0.002); } },
+    powon: function (c, o, t) { op(c, o, t, 60, 120, 0.6, 0.18, 'sawtooth', 0.2); op(c, o, t, 90, 180, 0.6, 0.1, 'triangle', 0.2); },
+    powoff: function (c, o, t) { op(c, o, t, 130, 38, 0.9, 0.2, 'sawtooth', 0.02); op(c, o, t, 195, 55, 0.9, 0.1, 'triangle', 0.02); },
+    lowpower: function (c, o, t) { for (var i = 0; i < 2; i++) op(c, o, t + i * 0.34, 300, 240, 0.24, 0.16, 'square', 0.01); },
+    cash: function (c, o, t) { op(c, o, t, 880, 1320, 0.08, 0.16, 'sine', 0.002); },
+    dump: function (c, o, t) {
+      op(c, o, t, 90, 60, 0.5, 0.12, 'square', 0.05);                                    // the hopper motor
+      nz(c, o, t + 0.1, 0.6, 0.32, 2200, 500, 1.1);                                      // ore pouring
+    },
+    radaron: function (c, o, t) { op(c, o, t, 220, 660, 0.3, 0.14, 'sine', 0.06); op(c, o, t + 0.16, 880, 0, 0.2, 0.1, 'sine', 0.004); },
+    radaroff: function (c, o, t) { op(c, o, t, 660, 180, 0.4, 0.14, 'sine', 0.01); },
+    garrin: function (c, o, t) { nz(c, o, t, 0.16, 0.3, 1600, 400, 1.2); op(c, o, t + 0.1, 300, 460, 0.12, 0.1, 'square', 0.004); },
+    garrout: function (c, o, t) { op(c, o, t, 460, 300, 0.12, 0.1, 'square', 0.004); nz(c, o, t + 0.06, 0.16, 0.28, 1400, 380, 1.2); },
+    bridge: function (c, o, t) {
+      op(c, o, t, 70, 26, 1.2, 0.3, 'sawtooth', 0.01);
+      nz(c, o, t, 1.6, 0.45, 900, 70, 0.5, 'lowpass');
+      for (var i = 0; i < 9; i++) nz(c, o, t + 0.1 + Math.random() * 1.2, 0.09, 0.16, 1000, 240, 1.8);
+    },
+    crate: function (c, o, t) { [659, 880, 1174].forEach(function (f, i) { op(c, o, t + i * 0.07, f, 0, 0.2, 0.14, 'sine', 0.004); }); },
+    promote: function (c, o, t) { [523, 659, 784].forEach(function (f, i) { op(c, o, t + i * 0.09, f, 0, 0.22, 0.15, 'square', 0.004); }); op(c, verb(c, o), t + 0.18, 784, 0, 0.4, 0.08, 'triangle', 0.01); },
+    click: function (c, o, t) { op(c, o, t, 420, 0, 0.035, 0.12, 'square', 0.002); },
+    no: function (c, o, t) { op(c, o, t, 180, 120, 0.1, 0.16, 'sawtooth', 0.003); },
+    evachime: function (c, o, t) { op(c, o, t, 784, 0, 0.16, 0.14, 'sine', 0.006); op(c, o, t + 0.13, 1046, 0, 0.24, 0.12, 'sine', 0.006); }
+  };
+
+  // ---- the mixer -------------------------------------------------------- //
+  // Long sounds need a length so the voice slot frees itself; everything else
+  // is short enough that the default covers it.
+  var DUR = { v3: 1.6, nuke: 3.2, siren: 3.6, thunder: 2.0, bldboom: 2.4, boom3: 1.5,
+              bridge: 2.0, sell: 1.0, kbomb: 1.2, wind: 1.5, gcannon: 1.2, charge: 0.7, make: 0.7,
+              dump: 0.8, curtain: 1.0, chronofx: 1.2, swready: 0.8, powon: 0.7, powoff: 1.0 };
+  var live = [];               // the voices in flight, for Limit and Priority
+  var sfxAt = {};              // the 70 ms same-sound throttle, unchanged
+  var aStat = { calls: 0, played: 0, dropped: 0, ms: 0 };
+  var aLog = [];               // ring of what actually played — the harness reads this
+
+  function prune(now) { for (var i = live.length - 1; i >= 0; i--) if (live[i].end <= now) live.splice(i, 1); }
+  // RA2's rule, in order: a sound already at its Limit is simply refused (it
+  // never steals from itself, which is why three explosions never become
+  // thirty); a full mixer drops the lowest-priority voice, and only for a
+  // strictly higher one.
+  function alloc(kind, sp, now, dur, node) {
+    prune(now);
+    var i, same = 0, lo = -1;
+    for (i = 0; i < live.length; i++) {
+      if (live[i].kind === kind) same++;
+      if (lo < 0 || live[i].pri < live[lo].pri) lo = i;
+    }
+    if (same >= sp.l) return false;
+    if (live.length >= MAXVOICE) {
+      if (lo < 0 || live[lo].pri >= sp.p) return false;
+      try { live[lo].g.gain.cancelScheduledValues(AC.currentTime); live[lo].g.gain.setTargetAtTime(0, AC.currentTime, 0.01); } catch (e) {}
+      live.splice(lo, 1);
+    }
+    live.push({ kind: kind, pri: sp.p, end: now + dur * 1000, g: node });
+    return true;
+  }
+  // Range in cells from the camera centre, on the isometric metric (a cell is
+  // TW px across and TH px down, so vertical distance counts double).
+  function distGain(sp, gx, gy) {
+    if (gx == null || gy == null) return 1;
+    // Positions arrive in GRID cells, the way everything in G carries them;
+    // project them the way the renderer does, then measure in cells so
+    // sound.ini's Range numbers mean what they mean in RA2.
+    var dx = worldX(gx, gy) - cam.x, dy = (worldY(gx, gy) - cam.y) * (TW / TH);
+    var cells = Math.sqrt(dx * dx + dy * dy) / (TW * 0.7071);
+    var r = sp.r || 40;
+    if (cells >= r) return sp.r ? 0 : MINVOL;      // Type=GLOBAL keeps MinVolume; a local sound goes silent
+    var k = cells <= r * 0.3 ? 1 : 1 - (cells - r * 0.3) / (r * 0.7);
+    return sp.r ? k : Math.max(MINVOL, k);
+  }
+
+  // The one entry point. `x`/`y` are world pixels; omit them for an interface
+  // or global sound.
+  function sfx(kind, x, y) {
+    if (headless || !soundOn || !AC || !BUS) return false;
+    var sp = SPEC[kind], fn = PLAY[kind];
+    if (!sp || !fn) return false;
+    var t0 = performance.now();
+    aStat.calls++;
+    var now = t0;
+    if (sfxAt[kind] && now - sfxAt[kind] < 70) { aStat.dropped++; return false; }
+    var dg = distGain(sp, x, y);
+    if (dg <= 0.004) { aStat.dropped++; return false; }
+    var dur = DUR[kind] || 0.4;
+    try {
+      var g = AC.createGain();
+      g.gain.value = sp.v * dg;
+      g.connect(BUS.sfx);
+      if (!alloc(kind, sp, now, dur, g)) { try { g.disconnect(); } catch (e) {} aStat.dropped++; return false; }
+      sfxAt[kind] = now;
+      fn(AC, g, AC.currentTime + 0.002);
+      // A weapon report near the camera is exactly what "combat is close"
+      // means, so the music's intensity layer rides on it for free.
+      if (sp.p >= 2 && sp.r && dg > 0.35) MUS.heat(dg);
+      aStat.played++;
+      aLog.push(kind); if (aLog.length > 96) aLog.shift();
+    } catch (e) { return false; }
+    aStat.ms += performance.now() - t0;
+    return true;
+  }
+  // Kept for the two call sites outside sfx() and for anything that wants a
+  // bare tone; the old signatures still work.
+  function tone(freq, dur, type, v, to) { if (soundOn && AC && !headless) try { op(AC, BUS.sfx, AC.currentTime, freq, to || 0, dur, v == null ? 0.2 : v, type || 'square'); } catch (e) {} }
+  function noiseBurst(dur, v) { if (soundOn && AC && !headless) try { nz(AC, BUS.sfx, AC.currentTime, dur, v == null ? 0.18 : v, 1600, 300, 1.0); } catch (e) {} }
+
+  // ------------------------------------------------------------------- //
+  //  Unit voices — a radio, not a speech synthesiser.
+  //
+  //  RA2's acknowledgements are recorded lines; the browser's TTS was a poor
+  //  stand-in (a different voice on every OS, silent until getVoices() warms
+  //  up, and no way to route it through a mixer). What replaces it is the
+  //  radio itself: a formant-filtered burst per syllable, band-limited to a
+  //  field radio's 400-2900 Hz, clipped by a waveshaper and topped and
+  //  tailed with a squelch click. You do not hear words; you hear the
+  //  cadence and the timbre, and after a minute you know a Conscript's
+  //  double-grunt from Tanya's clipped two-syllable reply.
+  // ------------------------------------------------------------------- //
+  // Syllable patterns: [semitone offset, milliseconds]. Cadence carries the
+  // meaning — a select is short and level, a move falls away, an attack
+  // rises and clips off.
+  var VOXPAT = [
+    [[0, 130], [3, 150]],                       // 0  two beats, lifting     (select)
+    [[0, 110], [0, 130]],                       // 1  flat double            (select)
+    [[2, 100], [0, 90], [-3, 200]],             // 2  three, falling         (move)
+    [[0, 90], [-2, 170]],                       // 3  short, falling         (move)
+    [[0, 80], [2, 80], [0, 90], [-2, 180]],     // 4  four beats, rolling    (move)
+    [[0, 120], [5, 210]],                       // 5  lifting and holding    (move/select)
+    [[3, 90], [5, 110], [7, 130]],              // 6  climbing               (attack)
+    [[7, 80], [5, 70], [7, 190]],               // 7  snapped, high          (attack)
+    [[0, 70], [7, 100], [7, 70]],               // 8  bark-and-hold          (attack)
+    [[0, 180], [0, 100], [-4, 240]],            // 9  long, resigned         (deploy)
+    [[-2, 150], [0, 160], [3, 150]],            // 10 measured               (deploy/harvest)
+    [[0, 100], [-3, 120], [0, 220]],            // 11 grumbling              (harvest)
+    [[5, 70], [0, 130]],                        // 12 clipped                (attack/select)
+    [[0, 200], [4, 120], [0, 130], [4, 260]]    // 13 sing-song              (rare/elite)
+  ];
+  // Per unit kind: f = carrier pitch, b = formant brightness (a bigger man is
+  // darker), r = rasp. Then the pattern indices each order may draw from.
+  var VOX = {
+    rifle:       { f: 132, b: 1.05, r: 0.22, s: [0, 1], m: [2, 3, 4], a: [6, 7] },
+    conscript:   { f: 104, b: 0.82, r: 0.42, s: [1, 12], m: [3, 2], a: [8, 6] },
+    rocket:      { f: 140, b: 1.10, r: 0.20, s: [0, 5], m: [2, 4], a: [6, 12] },
+    flak:        { f: 100, b: 0.80, r: 0.46, s: [1, 12], m: [3, 4], a: [8, 7] },
+    rocketeer:   { f: 176, b: 1.25, r: 0.30, s: [5, 0], m: [4, 2], a: [7, 6] },
+    harrier:     { f: 158, b: 1.20, r: 0.34, s: [0, 5], m: [2, 4], a: [7, 12] },
+    kirov:       { f: 78,  b: 0.70, r: 0.52, s: [9, 1], m: [9, 10], a: [8, 6] },
+    lancer:      { f: 124, b: 1.00, r: 0.26, s: [0, 12], m: [2, 3], a: [6, 8] },
+    rhino:       { f: 96,  b: 0.80, r: 0.44, s: [1, 0], m: [3, 4], a: [8, 7] },
+    mammoth:     { f: 84,  b: 0.72, r: 0.50, s: [9, 1], m: [4, 3], a: [8, 6] },
+    mirage:      { f: 128, b: 1.02, r: 0.22, s: [12, 0], m: [3, 2], a: [7, 6] },
+    prismtank:   { f: 136, b: 1.15, r: 0.18, s: [0, 5], m: [2, 4], a: [6, 13] },
+    teslatank:   { f: 98,  b: 0.84, r: 0.46, s: [1, 12], m: [3, 4], a: [8, 7] },
+    flaktrack:   { f: 102, b: 0.82, r: 0.44, s: [1, 0], m: [4, 3], a: [8, 6] },
+    ifv:         { f: 138, b: 1.08, r: 0.24, s: [0, 1], m: [2, 4], a: [6, 12] },
+    v3:          { f: 92,  b: 0.76, r: 0.48, s: [9, 1], m: [10, 3], a: [8, 6] },
+    engineer:    { f: 150, b: 1.18, r: 0.16, s: [1, 0], m: [3, 2], a: [12], d: [10, 9] },
+    tanya:       { f: 196, b: 1.34, r: 0.14, s: [12, 0], m: [3, 5], a: [7, 13] },
+    teslatrooper:{ f: 90,  b: 0.78, r: 0.54, s: [1, 9], m: [3, 4], a: [8, 7] },
+    ivan:        { f: 106, b: 0.86, r: 0.44, s: [1, 13], m: [3, 2], a: [8, 13] },
+    desolator:   { f: 94,  b: 0.74, r: 0.52, s: [9, 1], m: [3, 10], a: [8, 6] },
+    yuri:        { f: 112, b: 0.90, r: 0.36, s: [13, 5], m: [10, 2], a: [13, 6] },
+    cleg:        { f: 144, b: 1.22, r: 0.20, s: [5, 0], m: [2, 4], a: [6, 13] },
+    spy:         { f: 152, b: 1.16, r: 0.14, s: [12, 1], m: [3, 2], a: [12] },
+    drone:       { f: 0,   b: 1.0,  r: 0,    s: [], m: [], a: [] },   // a Terror Drone clatters, it does not talk
+    dog:         { f: 0,   b: 1.0,  r: 0,    s: [], m: [], a: [] },   // [DOG] VoiceMove=DogMove: a bark
+    mcv:         { f: 110, b: 0.92, r: 0.30, s: [1, 0], m: [4, 2], a: [], d: [9, 10] },
+    chronominer: { f: 134, b: 1.02, r: 0.26, s: [1, 0], m: [3, 2], a: [], h: [10, 11] },
+    warminer:    { f: 106, b: 0.78, r: 0.44, s: [1, 12], m: [3, 4], a: [8], h: [11, 10] }
+  };
+  // The radio band, built once per context: high-pass, clip, low-pass. Every
+  // voice line in the game shares this one chain.
+  function radio(c, o) {
+    if (c.__radio) return c.__radio;
+    var hp = c.createBiquadFilter(), ws = c.createWaveShaper(), lp = c.createBiquadFilter(), g = c.createGain();
+    hp.type = 'highpass'; hp.frequency.value = 420;
+    lp.type = 'lowpass'; lp.frequency.value = 2900;
+    var n = 512, cv = new Float32Array(n);
+    for (var i = 0; i < n; i++) { var x = i / (n - 1) * 2 - 1; cv[i] = Math.tanh(x * 2.6); }
+    ws.curve = cv; ws.oversample = '2x';
+    g.gain.value = 0.9;
+    hp.connect(ws); ws.connect(lp); lp.connect(g); g.connect(o);
+    c.__radio = hp; return hp;
+  }
+  // One acknowledgement: squelch open, the syllables, squelch closed.
+  function voxLine(c, o, t, f0, bright, rasp, pat, stretch) {
+    var band = radio(c, o), at = t + 0.01;
+    nz(c, band, t, 0.02, 0.5 + rasp * 0.4, 2200, 900, 1.2);           // the mic keying up
+    for (var i = 0; i < pat.length; i++) {
+      var d = pat[i][1] / 1000 * (stretch || 1);
+      var f = f0 * Math.pow(2, pat[i][0] / 12);
+      var s = c.createOscillator(), g = c.createGain();
+      var f1 = c.createBiquadFilter(), f2 = c.createBiquadFilter();
+      s.type = 'sawtooth';
+      s.frequency.setValueAtTime(f, at);
+      s.frequency.linearRampToValueAtTime(f * 0.94, at + d);           // every syllable sags a little
+      f1.type = 'bandpass'; f1.Q.value = 4.5; f1.frequency.value = 560 * bright;
+      f2.type = 'bandpass'; f2.Q.value = 5.5; f2.frequency.value = 1480 * bright;
+      env(g, at, 0.016, d, 0.34 - rasp * 0.06, d * 0.4);
+      s.connect(f1); f1.connect(f2); f2.connect(g); g.connect(band);
+      s.start(at); s.stop(at + d + 0.02);
+      nz(c, band, at, 0.014, 0.16 + rasp * 0.2, 1900 * bright, 800, 1.6);   // the consonant
+      at += d + 0.028;
+    }
+    nz(c, band, at + 0.01, 0.05, 0.3 + rasp * 0.3, 1500, 3200, 1.0);  // squelch tail
+    return at - t + 0.08;
+  }
+
+  var ackAt = 0;
+  // `kind` is RA2's VoiceSelect / VoiceMove / VoiceAttack / deploy / harvest.
+  function unitAck(units, kind) {
+    if (headless || !soundOn || !AC || !BUS || !G) return false;
+    var now = performance.now();
+    var gap = kind === 'select' ? 900 : 2500;      // selecting is constant; RA2 lets it talk more often
+    if (now - ackAt < gap) return false;
+    var u = null;
+    for (var i = 0; i < units.length; i++) if (units[i].p === P_HUMAN && !units[i].dead) { u = units[i]; break; }
+    if (!u) return false;
+    ackAt = now;
+    var d = UNITS[u.type];
+    if (d.dog) { sfx('bark', u.x, u.y); return true; }
+    if (u.drone || u.type === 'drone') { sfx('drone', u.x, u.y); return true; }
+    var vx = VOX[u.type] || VOX.rifle;
+    var key = kind === 'select' ? 's' : kind === 'attack' ? 'a' : kind === 'deploy' ? 'd' : kind === 'harvest' ? 'h' : 'm';
+    var pats = vx[key];
+    if (!pats || !pats.length) pats = vx.m;        // no line for this order: fall back to the move set, as RA2 does
+    if (!pats || !pats.length) return false;
+    // The variant rotates with the match clock, so repeated orders to the
+    // same unit do not repeat the same line.
+    var pat = VOXPAT[pats[(G.tick >> 5) % pats.length]];
+    var sov = facOf(G, u.p) === 'col';
+    try {
+      var g = AC.createGain(); g.gain.value = 0.95; g.connect(BUS.voice);
+      voxLine(AC, g, AC.currentTime + 0.002,
+              vx.f * (sov ? 0.86 : 1), vx.b * (sov ? 0.94 : 1), Math.min(0.75, vx.r + (sov ? 0.12 : 0)),
+              pat, sov ? 1.12 : 1);
+      aLog.push('vox:' + u.type + ':' + kind); if (aLog.length > 96) aLog.shift();
+    } catch (e) { return false; }
+    return true;
+  }
+
+  // ------------------------------------------------------------------- //
+  //  Music — an original generative score.
+  //
+  //  theme.ini ships 18 tracks and rotates the ones marked `Normal=yes`
+  //  during a match. None of them can appear here, so this is a sequencer
+  //  over the same synth kit: a 16th-note grid, four eight-bar sections that
+  //  swap patterns as the loop turns over, and roughly ninety seconds before
+  //  it comes round. One loop per theatre, a quieter one for the shell, and
+  //  an intensity layer that opens up when weapons are firing near the
+  //  camera — RA2's energy, none of its notes.
+  // ------------------------------------------------------------------- //
+  var MUS = (function () {
+    function P(s) { var a = [], i; for (i = 0; i < s.length; i++) a.push(s.charAt(i)); return a; }
+    var THEMES = {
+      // Industrial march: four-on-the-floor under a minor-key ostinato.
+      temperate: { bpm: 124, bars: 48, root: 65.41 /* C2 */, sc: [0, 2, 3, 5, 7, 8, 10],
+        kick: P('x...x...x...x...'), snare: P('....x.......x...'), hat: P('..x...x...x...x.'),
+        bass: [0, 0, 7, 0, 3, 0, 7, 5], lead: [7, 10, 12, 10, 7, 5, 3, 5], pad: [0, 5, 3, 7], wave: 'sawtooth' },
+      // Cold: slow pads, a dry snare, almost no bottom end.
+      snow: { bpm: 100, bars: 38, root: 61.74 /* B1 */, sc: [0, 2, 3, 5, 7, 8, 10],
+        kick: P('x.......x.......'), snare: P('....x.......x..x'), hat: P('....x.......x...'),
+        bass: [0, 0, 3, 3, 5, 5, 3, 2], lead: [12, 10, 7, 10, 12, 15, 12, 10], pad: [0, 3, 5, 3], wave: 'triangle' },
+      // Urban: a driving eighth-note bass and a busy hat.
+      urban: { bpm: 132, bars: 50, root: 73.42 /* D2 */, sc: [0, 2, 3, 5, 7, 8, 10],
+        kick: P('x..x..x...x.....'), snare: P('....x.......x...'), hat: P('x.x.x.x.x.x.x.x.'),
+        bass: [0, 7, 0, 7, 3, 10, 3, 5], lead: [3, 5, 7, 5, 10, 7, 5, 3], pad: [0, 7, 5, 3], wave: 'square' },
+      // The shell: no drums at all until a match starts.
+      menu: { bpm: 92, bars: 24, root: 65.41, sc: [0, 2, 3, 5, 7, 8, 10],
+        kick: P('................'), snare: P('................'), hat: P('................'),
+        bass: [0, 0, 5, 5, 3, 3, 7, 5], lead: [7, 12, 10, 7, 5, 7, 10, 12], pad: [0, 5, 3, 7], wave: 'triangle' }
+    };
+    var on = false, timer = null, theme = 'menu', step = 0, nextT = 0, heatV = 0;
+    function hz(root, deg, oct) {
+      var T = THEMES[theme], sc = T.sc;
+      var o = Math.floor(deg / sc.length), i = ((deg % sc.length) + sc.length) % sc.length;
+      return root * Math.pow(2, (sc[i] + 12 * o + 12 * (oct || 0)) / 12);
+    }
+    function one(T, t, AC, out) {
+      var s16 = step % 16, bar = Math.floor(step / 16), sec = Math.floor(bar / 8) % 4;
+      var loud = 0.5 + heatV * 0.5;
+      if (T.kick[s16] === 'x') { op(AC, out, t, 120, 42, 0.14, 0.5, 'sine', 0.002); clk(AC, out, t, 0.18, 900); }
+      if (T.snare[s16] === 'x') nz(AC, out, t, 0.13, 0.24, 2100, 400, 1.1);
+      if (T.hat[s16] === 'x' || (heatV > 0.3 && s16 % 2 === 1)) nz(AC, out, t, 0.035, 0.10 * loud, 8200, 6000, 1.4);
+      // Bass on every eighth; section 2 drops it to the downbeats for air.
+      if (s16 % 2 === 0 && !(sec === 2 && s16 % 8 !== 0)) {
+        var bi = ((bar * 8 + s16 / 2) % T.bass.length + T.bass.length) % T.bass.length;
+        var bg = AC.createGain(), lp = AC.createBiquadFilter();
+        lp.type = 'lowpass'; lp.frequency.value = 380 + heatV * 700; lp.Q.value = 3;
+        bg.gain.value = 1; lp.connect(bg); bg.connect(out);
+        op(AC, lp, t, hz(T.root, T.bass[bi], 0), 0, 0.21, 0.30, T.wave, 0.004);
+      }
+      // The lead only in sections 1 and 3, so the loop breathes.
+      if ((sec === 1 || sec === 3) && s16 % 4 === 0) {
+        var li = ((bar * 4 + s16 / 4) % T.lead.length + T.lead.length) % T.lead.length;
+        op(AC, out, t, hz(T.root, T.lead[li], 2), 0, 0.30, 0.11 * loud, sec === 3 ? 'square' : 'triangle', 0.01);
+      }
+      // Pad: one long chord at the top of each bar, cheap because it is rare.
+      if (s16 === 0) {
+        var pd = T.pad[bar % T.pad.length], dur = 240 / T.bpm * 4;
+        [0, 2, 4].forEach(function (iv, k) {
+          op(AC, out, t, hz(T.root, pd + iv, 1) * (k === 1 ? 1.004 : 1), 0, dur, 0.055, 'sawtooth', dur * 0.3);
+        });
+        if (heatV > 0.45) op(AC, out, t, hz(T.root, pd, 0), 0, dur * 0.5, 0.10 * heatV, 'sawtooth', 0.01);   // the intensity stab
+        heatV *= 0.86;
+      }
+    }
+    function pump() {
+      if (!on || !AC || !BUS) return;
+      var _t0 = performance.now(), out = BUS.music;
+      var T = THEMES[theme] || THEMES.menu, sp = 15 / T.bpm;      // one 16th note
+      if (nextT < AC.currentTime) nextT = AC.currentTime + 0.06;
+      var guard = 0;
+      while (nextT < AC.currentTime + 0.35 && guard++ < 32) {
+        try { one(T, nextT, AC, out); } catch (e) {}
+        nextT += sp; step = (step + 1) % (T.bars * 16);
+      }
+      aStat.ms += performance.now() - _t0;
+    }
+    return {
+      start: function () {
+        if (on || headless || !AC || !BUS || !musicOn || !soundOn) return;
+        on = true; step = 0; nextT = AC.currentTime + 0.1;
+        if (typeof setInterval === 'function') timer = setInterval(pump, 110);
+        pump();
+      },
+      stop: function () { on = false; if (timer && typeof clearInterval === 'function') clearInterval(timer); timer = null; },
+      set: function (k) { if (THEMES[k] && k !== theme) { theme = k; step = 0; } },
+      heat: function (v) { heatV = Math.min(1, heatV + v * 0.13); },
+      state: function () { return { on: on, theme: theme, step: step, heat: heatV }; },
+      // Offline render of one theme, for the audio harness.
+      render: function (k, secs, heat) {
+        var OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        if (!OC || !THEMES[k]) return null;
+        var was = theme, wasHeat = heatV, wasStep = step;
+        theme = k; heatV = heat || 0;
+        var T = THEMES[k], sp = 15 / T.bpm, c = new OC(1, Math.floor(44100 * secs), 44100);
+        var g = c.createGain(); g.gain.value = 0.5; g.connect(c.destination);
+        step = 0;
+        for (var t = 0.02; t < secs; t += sp) { try { one(T, t, c, g); } catch (e) {} step = (step + 1) % (T.bars * 16); }
+        theme = was; heatV = wasHeat; step = wasStep;
+        return c.startRendering();
+      }
+    };
+  })();
+
+  // ------------------------------------------------------------------- //
+  //  EVA — still the browser's voice, because words are the point, but now
+  //  on the mixer's EVA gain and with a real fallback. `getVoices()` comes
+  //  back empty on a cold Chromium and on every headless run, and until now
+  //  that meant EVA silently said nothing at all; a chime plus the line on
+  //  the message rail is what plays instead.
+  // ------------------------------------------------------------------- //
   var evaAt = {}, evaVoice = null, evaLog = [];
   // RA2 throttles the advisor in game FRAMES, not wall clock — at a faster
   // game speed the same event still gets the same number of ticks of quiet.
-  // So the clock is the match's while there is one, and the wall's on the
-  // menu (where there are no ticks to count).
   function evaNow() { return G ? G.tick * (1000 / 60) : performance.now(); }
   function eva(line, gap) {
     var now = evaNow();
     if (evaAt[line] !== undefined && now - evaAt[line] < (gap || 6000) && now >= evaAt[line]) return false;
     evaAt[line] = now;
     evaLog.push(line); if (evaLog.length > 64) evaLog.shift();
-    if (headless || !soundOn || typeof speechSynthesis === 'undefined') return true;
+    if (headless || !soundOn) return true;
+    var spoke = false;
     try {
-      if (!evaVoice) {
-        var vs = speechSynthesis.getVoices();
-        evaVoice = vs.filter(function (v) { return /^en/i.test(v.lang) && /female|samantha|zira|google us english|karen|moira/i.test(v.name); })[0]
-                || vs.filter(function (v) { return /^en/i.test(v.lang); })[0] || null;
+      if (typeof speechSynthesis !== 'undefined') {
+        if (!evaVoice) {
+          var vs = speechSynthesis.getVoices();
+          evaVoice = vs.filter(function (v) { return /^en/i.test(v.lang) && /female|samantha|zira|google us english|karen|moira/i.test(v.name); })[0]
+                  || vs.filter(function (v) { return /^en/i.test(v.lang); })[0] || null;
+        }
+        if (evaVoice) {
+          var u = new SpeechSynthesisUtterance(line);
+          u.rate = 1.0; u.pitch = 0.85;
+          u.volume = 0.9 * (BUS ? Math.min(1, vol.voice * 1.15) : 1);   // the EVA bus, applied where TTS can take it
+          u.voice = evaVoice;
+          speechSynthesis.speak(u);
+          spoke = true;
+        }
       }
-      var u = new SpeechSynthesisUtterance(line);
-      u.rate = 1.0; u.pitch = 0.85; u.volume = 0.9;
-      if (evaVoice) u.voice = evaVoice;
-      speechSynthesis.speak(u);
     } catch (e) {}
+    if (!spoke) { sfx('evachime'); if (typeof say === 'function') say(line, /warning|lost|low|insufficient/i.test(line), 260); }
     return true;
-  }
-
-  // Units talk back when ordered, like RA2's acknowledgement lines. One line
-  // per order, throttled, in a faction voice (Collective lower and slower).
-  var ACK = {
-    rifle:     { move: ['Yes sir', 'Moving out', 'On my way'], attack: ['Engaging', 'Weapons hot'], harvest: [], deploy: ['Deploying', 'Sandbags up', 'Holding here'] },
-    rocket:    { move: ['Affirmative', 'Moving'], attack: ['Target acquired', 'Firing rockets'], harvest: [] },
-    flak:      { move: ['Da comrade', 'Flak trooper moving'], attack: ['Guns up', 'Take them down'], harvest: [] },
-    rocketeer: { move: ['Rocketeer reporting', 'Up, up and away', 'Airborne'], attack: ['Going in', 'Target in sight'], harvest: [] },
-    harrier:   { move: ['Harrier ready', 'Vector locked'], attack: ['On approach', 'Missiles armed', 'Locked on'], harvest: [] },
-    kirov:     { move: ['Kirov reporting', 'Helium mix optimal', 'Airship ready'], attack: ['Bombardiers to your stations', 'Bombs away'], harvest: [] },
-    lancer:    { move: ['Grizzly rolling', 'Copy that'], attack: ['Engaging target', 'Fire at will'], harvest: [] },
-    prismtank: { move: ['Prism tank moving', 'Acknowledged'], attack: ['Illuminating target', 'Charging prism'], harvest: [] },
-    mcv:       { move: ['MCV reporting', 'Moving out', 'Rolling'], attack: [], harvest: [], deploy: ['Deploying', 'Establishing battlefield control'] },
-    conscript: { move: ['Da', 'For the Union', 'Moving comrade'], attack: ['Attack', 'For the motherland'], harvest: [] },
-    mammoth:   { move: ['Apocalypse rolling out', 'Understood'], attack: ['Crushing them', 'Target sighted'], harvest: [] },
-    chronominer: { move: ['Miner moving', 'On it'], attack: [], harvest: ['Mining', 'Collecting ore'] },
-    warminer: { move: ['Miner moving', 'On it'], attack: ['Engaging'], harvest: ['Mining', 'Collecting ore'] }
-  };
-  var ackAt = 0;
-  function unitAck(units, kind) {
-    if (headless || !soundOn || !G) return;
-    var now = performance.now(); if (now - ackAt < 2500) return;
-    var u = null; for (var i = 0; i < units.length; i++) if (units[i].p === P_HUMAN && !units[i].dead) { u = units[i]; break; }
-    if (!u) return;
-    // [DOG] VoiceMove=DogMove: a dog does not say "yes sir", it barks. It has
-    // no ACK entry at all, so without this it would borrow the rifleman's.
-    if (UNITS[u.type].dog) { ackAt = now; sfx('bark'); return; }
-    if (typeof speechSynthesis === 'undefined') return;
-    var lines = (ACK[u.type] || ACK.rifle)[kind] || []; if (!lines.length) return;
-    ackAt = now;
-    try {
-      var sp = new SpeechSynthesisUtterance(lines[(G.tick >> 4) % lines.length]);
-      var sov = facOf(G, u.p) === 'col';
-      sp.rate = sov ? 0.9 : 1.05; sp.pitch = sov ? 0.6 : 1.0; sp.volume = 0.7;
-      var vs = speechSynthesis.getVoices();
-      var v = vs.filter(function (x) { return /^en/i.test(x.lang) && /male|daniel|david|alex|google uk english male/i.test(x.name) && !/female/i.test(x.name); })[0]
-           || vs.filter(function (x) { return /^en/i.test(x.lang); })[0];
-      if (v) sp.voice = v;
-      speechSynthesis.speak(sp);
-    } catch (e) {}
-  }
-
-  function sfx(kind) {
-    if (headless || !soundOn || !AC) return;
-    var now = performance.now();
-    if (sfxAt[kind] && now - sfxAt[kind] < 70) return;
-    sfxAt[kind] = now;
-    if (kind === 'shot') noiseBurst(0.04, 0.07);
-    else if (kind === 'cannon') { tone(150, 0.1, 'square', 0.12, 60); noiseBurst(0.07, 0.1); }
-    else if (kind === 'die') noiseBurst(0.14, 0.13);
-    else if (kind === 'boom') { noiseBurst(0.36, 0.26); tone(90, 0.3, 'sawtooth', 0.16, 30); }
-    else if (kind === 'cash') tone(880, 0.07, 'sine', 0.13, 1320);
-    else if (kind === 'ready') { tone(660, 0.07, 'square', 0.1); setTimeout(function () { tone(990, 0.09, 'square', 0.1); }, 80); }
-    else if (kind === 'click') tone(420, 0.03, 'square', 0.07);
-    else if (kind === 'place') { tone(220, 0.12, 'square', 0.13, 160); noiseBurst(0.12, 0.1); }
-    else if (kind === 'no') tone(180, 0.09, 'sawtooth', 0.1, 120);
-    else if (kind === 'charge') { tone(150, 0.46, 'sawtooth', 0.085, 900); }
-    else if (kind === 'prismup') { tone(420, 0.46, 'sine', 0.08, 1500); }
-    else if (kind === 'bark') { tone(300, 0.05, 'sawtooth', 0.11, 170); noiseBurst(0.05, 0.10); }
-    else if (kind === 'promote') { tone(523, 0.08, 'square', 0.1); setTimeout(function () { tone(659, 0.08, 'square', 0.1); }, 90); setTimeout(function () { tone(784, 0.12, 'square', 0.1); }, 180); }
   }
 
   // --------------------------------------------------------------------- //
@@ -20935,7 +21584,8 @@
     // rather than letting the build bar mysteriously slow down.
     if (s.powerMade - s.powerUse < 0 && G.tick - lastPowerWarn > 60 * 45) {
       lastPowerWarn = G.tick;
-      say('Low power — production is slowed and defences are offline. Build a Power Plant.', true, 300); eva('Low power', 30000);
+      say('Low power — production is slowed and defences are offline. Build a Power Plant.', true, 300);
+      sfx('lowpower'); eva('Low power', 30000);
     }
     for (var k in panelRows) {
       var row = panelRows[k], it = row.it, el = row.el;
@@ -21450,6 +22100,7 @@
         clearSel();
         groups[tk] = groups[tk].filter(function (u) { return !u.dead; });
         groups[tk].forEach(function (u) { u.sel = true; sel.push(u); });
+        unitAck(sel, 'select');
         if (sel.length) { centerSelIfOffscreen(); say('Team ' + tk + ': ' + sel.length + ' selected'); }
       }
     }
@@ -21773,7 +22424,7 @@
   function sellBld(b) {
     var refund = Math.round(bspecOf(G, b.type, b.p).cost * 0.5);
     G.side[b.p].credits += refund; killBld(G, b); b.sel = false;
-    say('Sold ' + bspecOf(G, b.type, b.p).name + ' for $' + refund); sfx('cash'); eva('Structure sold', 2000);
+    say('Sold ' + bspecOf(G, b.type, b.p).name + ' for $' + refund); sfx('sell'); eva('Structure sold', 2000);
   }
   function cmdButtons() {
     var a = [];
@@ -21894,13 +22545,15 @@
           e.offline = !e.offline;
           recalcPower(G, e.p);
           eva(e.offline ? 'Building offline' : 'Building online', 3000);   // eva.ini #60 / #61
-          say((e.offline ? 'Powered down ' : 'Powered up ') + bspecOf(G, e.type, e.p).name); sfx('click');
+          say((e.offline ? 'Powered down ' : 'Powered up ') + bspecOf(G, e.type, e.p).name);
+          sfx(e.offline ? 'powoff' : 'powon', e.cx, e.cy);   // rules.ini WorkingSound / NotWorkingSound
         }
         else if (BLDS[e.type].norep) { say(BLDS[e.type].name + ' cannot be repaired — build a new segment', true); sfx('no'); }
         else {
           e.repair = !e.repair;
           if (e.repair) eva('Repairing', 4000);                   // eva.ini #57
-          say(e.repair ? 'Repairing ' + BLDS[e.type].name : 'Repair stopped'); sfx('click');
+          say(e.repair ? 'Repairing ' + BLDS[e.type].name : 'Repair stopped');
+          sfx(e.repair ? 'wrench' : 'click', e.cx, e.cy);
         }
       } else say('Click one of your structures', true);
       return;
@@ -21919,6 +22572,7 @@
         u.sel = true; sel.push(u);
       });
       say('All visible ' + UNITS[e.type].name + 's: ' + sel.length);
+      unitAck(sel, 'select');
       lastClickT = 0; lastClickType = null;
       return;
     }
@@ -21939,6 +22593,7 @@
     if (!shift) clearSel();
     if (!e.sel) { e.sel = true; sel.push(e); }
     say(describe(e));
+    if (e.kind === 'u') unitAck([e], 'select');   // RA2 VoiceSelect — the line the game never had
   }
 
   function describe(e) {
@@ -21968,7 +22623,8 @@
       ux = (ux - cvW / 2) * zoom + cvW / 2; uy = (uy - cvH / 2) * zoom + cvH / 2;   // to screen px
       if (ux >= x && ux <= x + w && uy >= y && uy <= y + h) { u.sel = true; sel.push(u); got++; }
     });
-    if (sel.length) say(sel.length + ' selected'); else if (got === 0) say('Nothing selected');
+    if (sel.length) { say(sel.length + ' selected'); unitAck(sel, 'select'); }
+    else if (got === 0) say('Nothing selected');
   }
 
   function centerSelIfOffscreen() {
@@ -24226,9 +24882,13 @@
     g.closePath();
   }
 
+  var lastRadar = null;
   function drawMini() {
     // RA2: the radar is dark until you own a powered radar-class structure.
     var radarOn = G.debug || ((hasBld(G, P_HUMAN, 'radar') || hasBld(G, P_HUMAN, 'airforce')) && powered(G, P_HUMAN));
+    // RA2 chirps when the radar comes up and drops when the grid does.
+    if (lastRadar !== null && radarOn !== lastRadar) sfx(radarOn ? 'radaron' : 'radaroff');
+    lastRadar = radarOn;
     if (!radarOn) {
       mctx.setTransform(1, 0, 0, 1, 0, 0);
       mctx.fillStyle = '#0b0e14'; mctx.fillRect(0, 0, MM_PX, MM_PX);
@@ -24627,6 +25287,8 @@
   var gameRow = document.getElementById('gameRow');
   var slotList = document.getElementById('slotList');
   var gspdSl = document.getElementById('gspdSl'), gspdVal = document.getElementById('gspdVal');
+  var musRow = document.getElementById('musRow');
+  var VSL = [['sfx', 'vsfxSl', 'vsfxVal'], ['voice', 'vvoxSl', 'vvoxVal'], ['music', 'vmusSl', 'vmusVal']];
   var optOpen = false;
 
   function optButtons(row, list, isOn, onPick) {
@@ -24646,9 +25308,26 @@
         soundOn = k === 'on';
         lsSet('vibetop:rts:sound', soundOn ? '1' : '0');
         if (typeof paintSnd === 'function') paintSnd();
-        if (soundOn) resumeAudio();
+        if (soundOn) { resumeAudio(); if (musicOn) MUS.start(); } else MUS.stop();
         buildOptRows();
       });
+    // Music is its own switch, on the front menu as well as in a match, so
+    // you can silence the score without silencing the game.
+    optButtons(musRow, [['on', 'On'], ['off', 'Off']],
+      function (k) { return (k === 'on') === !!musicOn; },
+      function (k) {
+        musicOn = k === 'on';
+        lsSet('vibetop:rts:music', musicOn ? '1' : '0');
+        applyVol();
+        if (musicOn) { resumeAudio(); MUS.start(); } else MUS.stop();
+        buildOptRows();
+      });
+    VSL.forEach(function (v) {
+      var sl = document.getElementById(v[1]), lb = document.getElementById(v[2]);
+      if (!sl) return;
+      sl.value = Math.round(vol[v[0]] * 100);
+      if (lb) lb.textContent = sl.value + '%';
+    });
     optButtons(scrRow, [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']],
       function (k) { return k === scrollRate; },
       function (k) { scrollRate = k; lsSet('vibetop:rts:scroll', k); buildOptRows(); });
@@ -24723,11 +25402,28 @@
     document.querySelectorAll('.ptab div').forEach(function (o, i) { o.classList.toggle('on', i === 0); });
     if (sideEl) sideEl.style.setProperty('--acc', COL[P_HUMAN]);
     clearEva();
+    MUS.set(G.theatre); MUS.start();
     buildFacRow(); buildMapRow(); buildDiffRow();
     buildPanel(); refreshSW();
     say('Slot ' + n + ' restored — ' + (MAPS[G.mapId] || MAPS.frontier).name + ' at ' + mmss(Math.floor(G.tick / 60)), false, 320);
     eva('Battlefield control online', 30000);
   }
+  VSL.forEach(function (v) {
+    var sl = document.getElementById(v[1]), lb = document.getElementById(v[2]);
+    if (!sl) return;
+    sl.addEventListener('input', function () {
+      vol[v[0]] = Math.max(0, Math.min(100, sl.value | 0)) / 100;
+      if (lb) lb.textContent = Math.round(vol[v[0]] * 100) + '%';
+      lsSet('vibetop:rts:vol:' + v[0], vol[v[0]].toFixed(2));
+      resumeAudio(); applyVol();
+    });
+    // A slider you cannot hear is a slider you cannot set: each one previews
+    // its own bus as you let go.
+    sl.addEventListener('change', function () {
+      if (v[0] === 'sfx') sfx('cannon');
+      else if (v[0] === 'voice') unitAck([{ p: P_HUMAN, type: 'rifle', dead: false, x: cam.x, y: cam.y }], 'select');
+    });
+  });
   gspdSl.addEventListener('input', function () {
     var v = Math.max(1, Math.min(6, gspdSl.value | 0));
     gspdVal.textContent = SPD_NAME[v];
@@ -24943,7 +25639,7 @@
     soundOn = !soundOn;
     lsSet('vibetop:rts:sound', soundOn ? '1' : '0');
     paintSnd();
-    if (soundOn) resumeAudio();
+    if (soundOn) { resumeAudio(); if (musicOn) MUS.start(); } else MUS.stop();
   });
   paintSnd();
 
@@ -25000,6 +25696,7 @@
 
   function menu() {
     state = 'menu';
+    MUS.set('menu');
     onA = function () { hideCard(); startMatch(); };
     var hasSave = saveSlots().some(function (m) { return !!m; });
     onB = hasSave ? function () { hideCard(); showLoadCard(); } : null;
@@ -25020,6 +25717,7 @@
     G.ai = newAI(difficulty);
     G.focusFor[P_AI] = G.ai.cfg.focus;
     state = 'play';
+    MUS.set(G.theatre); MUS.start();      // theme.ini rotates a track per match; here the theatre picks the loop
     pauseBtn.textContent = '⏸';
     pausedEl.classList.remove('show');
     sel = []; groups = {}; placing = null; pathQ = []; swMode = null;
@@ -25366,6 +26064,50 @@
   // Headless match runner used by the balance tests: no rendering, no audio.
   // Both sides are driven by the same AI code (stepAI is side-agnostic), so
   // "hard beats easy" measures the decision layers and nothing else.
+  // The audio harness drives this: every synth can be rendered offline into
+  // an OfflineAudioContext and measured, and `log` says which one fired for
+  // a given game event without anything having to be heard.
+  window.__rtsAudio = {
+    SPEC: SPEC, REPORT: REPORT, VOX: VOX, VOXPAT: VOXPAT,
+    kinds: function () { return Object.keys(PLAY); },
+    log: function () { return aLog.slice(); },
+    // Also drops the 70 ms per-sound throttle, the voice throttle and the
+    // live-voice list, so a harness stepping 900 ticks in a millisecond is
+    // not measuring wall-clock rate limits it never meant to exercise.
+    clear: function () {
+      aLog.length = 0; aStat.calls = aStat.played = aStat.dropped = 0; aStat.ms = 0;
+      sfxAt = {}; ackAt = 0; live.length = 0;
+    },
+    stats: function () { return { calls: aStat.calls, played: aStat.played, dropped: aStat.dropped, ms: aStat.ms, live: live.length }; },
+    music: function () { return MUS.state(); },
+    ack: function (units, kind) { return unitAck(units, kind); },
+    vol: function () { return { sfx: vol.sfx, voice: vol.voice, music: vol.music, on: soundOn, musicOn: musicOn }; },
+    // One sound, rendered dry into `secs` of mono 44.1 kHz.
+    render: function (kind, secs) {
+      var OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!OC || !PLAY[kind]) return null;
+      var c = new OC(1, Math.floor(44100 * (secs || 3)), 44100);
+      var g = c.createGain(); g.gain.value = (SPEC[kind] ? SPEC[kind].v : 1);
+      g.connect(c.destination);
+      PLAY[kind](c, g, 0.02);
+      return c.startRendering();
+    },
+    // One acknowledgement, likewise.
+    renderVox: function (type, kind, sov, secs) {
+      var OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      var vx = VOX[type]; if (!OC || !vx || !vx.f) return null;
+      var key = kind === 'select' ? 's' : kind === 'attack' ? 'a' : kind === 'deploy' ? 'd' : kind === 'harvest' ? 'h' : 'm';
+      var pats = (vx[key] && vx[key].length) ? vx[key] : vx.m;
+      if (!pats || !pats.length) return null;
+      var c = new OC(1, Math.floor(44100 * (secs || 3)), 44100);
+      var g = c.createGain(); g.gain.value = 1; g.connect(c.destination);
+      voxLine(c, g, 0.02, vx.f * (sov ? 0.86 : 1), vx.b * (sov ? 0.94 : 1),
+              Math.min(0.75, vx.r + (sov ? 0.12 : 0)), VOXPAT[pats[0]], sov ? 1.12 : 1);
+      return c.startRendering();
+    },
+    renderMusic: function (theme, secs, heat) { return MUS.render(theme, secs || 3, heat); }
+  };
+
   window.__rtsSim = function (seed, diffA, diffB, maxTicks, facA, facB, everyMinute) {
     var prevG = G, prevHeadless = headless, prevState = state;
     headless = true;
