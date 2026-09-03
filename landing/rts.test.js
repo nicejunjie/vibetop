@@ -113,6 +113,14 @@ test("every unit and structure declares the fields the sim reads", () => {
     }
     assert.ok(b.gw > 0 && b.gh > 0 && b.hp > 0, `BLDS.${k} has a nonsense footprint`);
   }
+  // RA2: every superweapon is BuildCat=Combat — Defence tab AND defence lane.
+  // (A second `cat:` key later in the literal silently won once; keep this.)
+  for (const k of T.SW_KEYS) {
+    assert.equal(T.BLDS[T.SW[k].bld].cat, "def", `${T.SW[k].bld} must build in the defence lane`);
+  }
+  for (const k of ["sentry", "prism", "patriot", "sentrygun", "tesla", "flakcannon"]) {
+    assert.equal(T.BLDS[k].cat, "def", `${k} must build in the defence lane`);
+  }
 });
 
 test("the counter triangle closes — nothing is unanswerable", () => {
