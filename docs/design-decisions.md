@@ -6402,3 +6402,103 @@ whole point of the silhouette is that Yuri is not armoured).
 attack pose. At sprite scale the two hands and the violet glow buried the bald
 head — the single thing that identifies him — so the arms came down to his
 sides. The temple pose is his *attack*, not his walk.
+
+---
+
+## RA2's game-speed slider is ticks per SECOND, not a changed tick
+
+**Symptom:** Phase 6 needs RA2's 1–6 speed slider, and the obvious reading of
+"speed" — step the simulation N times per rendered frame — cannot be done here.
+
+**Cause:** the whole simulation is a fixed 60 Hz tick over a seeded PRNG, and
+`__rtsSim` replays entire matches headlessly from a seed to assert on the
+outcome. Everything that matters — `Verses` tables, ROF, build times, crate
+regen, the AI's timers — is denominated in ticks. Making a frame worth more
+than one tick is fine; making a *tick* worth more or less real time is not
+expressible, and stepping "N per frame" ties the sim rate to the display's
+refresh, which differs per machine and would make a 144 Hz monitor play a
+different game from a 60 Hz one.
+
+**Fix:** the slider buys **ticks per second** through the existing accumulator:
+`15 × speed`, i.e. 15/30/45/60/75/90. Speed 4 is exactly the old fixed 60/s and
+is the default, so an untouched strip replays every seed unchanged; on a 60 Hz
+display the slider is 0.25 … 1.5 sim ticks per rendered frame, with no
+interpolation at all — the renderer draws whatever tick the accumulator last
+reached. The value lives in `G.opt.speed` (not a module global) so the Esc
+card can retune a running match and a saved game carries its own speed.
+
+**Rejected:** scaling `STEP` itself (same thing, but it hides that the tick is
+invariant); a frame-count multiplier (couples the sim to refresh rate);
+speeding up only unit movement via `GameSpeedBias` (that is RA2's *global*
+movement multiplier and is already folded into the speed tables).
+
+---
+
+## The save format is JSON with exactly two escapes
+
+**Symptom:** `G` looks like plain data — no DOM, no closures — so "just
+`JSON.stringify` it" is the first thing anyone tries. It produces a file that
+cannot be loaded: eight typed arrays come back as `{"0":3,"1":0,…}` objects,
+and every entity is written out once per reference, so a restored world has
+four different copies of the tank three units are shooting at.
+
+**Cause:** two things in `G` are not JSON. The map layers (`terrain`, `ore`,
+`occ`, `seen`, `rad`, `radOwn`, `bwrk`, `bspan`) are typed arrays; and the
+entities form a *graph* — `u.target`, `b.occ[]`, `b.target`, `ai.army[]`,
+`pathQ[].u`, `g.byId` — not a tree.
+
+**Fix:** JSON plus two escapes and nothing else. `{$t:"<ctor>", b:"<base64>"}`
+is a typed array, byte for byte (chunked `String.fromCharCode` so a 16 KB
+buffer does not blow the stack). `{$r:<id>}` is "the entity with this id".
+Entities are written in full exactly once, inside `g.units`/`g.blds`
+(`serWorld` skips those two keys on the generic pass and re-adds them); every
+other sighting is an `$r` marker, resolved on the way in against a `byId`
+rebuilt from the restored lists. `byId` itself is never serialised.
+
+The determinism guarantee needs three more things riding along: `_seed` (the
+mulberry32 state is one integer), `pathQ` (the pathfinder's backlog, whose
+entries hold unit references), and `hashAt = -1` to force one rebuild of the
+spatial index — which is derived state, so rebuilding it early is free. With
+those, a loaded match replays tick for tick with the one it was saved from:
+`rts.test.js` steps the original and the restored copy 1 000 ticks each from
+the same point and compares state hashes.
+
+**Rejected:** a command-log replay save (smaller and exact, but there is no
+command queue yet — that is Phase 8's lockstep layer, and a replay cannot
+restore a match you did not record from tick 0); structuredClone into
+IndexedDB (async, and it does not survive a reload of the page's code, which
+is the whole point of a save); dropping `pathQ` and re-requesting paths on
+load (cheap, but the two runs then diverge within a hundred ticks and the
+round-trip test has nothing left to assert).
+
+---
+
+## Picking a house colour re-bakes the sprites, so the click has to say so
+
+**Symptom:** the eight RA2 house colours are a menu control, but choosing one
+froze the page for ~1.6 s with no feedback — the swatch did not even light up
+until the freeze ended, so the button read as dead.
+
+**Cause:** the owner's colour is painted **into** the art at bake time. RA2
+remaps an SHP palette per house at draw time; a canvas cannot do that cheaply,
+so `bakeBuilding`/`bakeVehicle`/`infArt` take `col` as an argument and every
+sprite for both players is baked once at boot. Changing `COL[]` therefore means
+re-running that bake — which is ~96 % of `bakeAll`'s 1.7 s.
+
+**Fix:** two halves. `bakeAll` was split so `bakeOwned()` holds only what
+carries an owner colour (units, structures, wall/gate segments, the GI
+sandbags) and the terrain sheets, explosions, decals and ore are left alone.
+And the click paints first: the swatch lights up, the summary line reads
+"Repainting the army…", the row is disabled, and the bake runs two
+`requestAnimationFrame`s later so both have reached the screen. The menu's
+faction line-ups and the map previews' spawn dots follow the new colour, which
+is why `lineupCache` is cleared and the map thumbnail was split into a cached
+terrain plate plus dots composited per call — regenerating six 64×64 maps to
+recolour two dots would have cost more than the bake.
+
+**Rejected:** a lazy per-colour bake keyed by `(player, colour)` (correct, and
+where this goes if 8-player skirmish lands, but it multiplies the atlas by
+four for a control used once a session); a `globalCompositeOperation` hue
+rotate at draw time (the house colour is not a single hue in these sprites —
+it is a band, a rim and a stripe over neutral steel, and a whole-sprite filter
+takes the steel with it).
