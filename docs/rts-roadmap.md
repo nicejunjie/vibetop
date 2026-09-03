@@ -282,12 +282,17 @@ fidelity plus reproduced player reports.
   `cancelLast` refunds `q.paid`, while a finished structure waiting for a spot
   still refunds its whole cost. Placement ghost is now the structure's own
   baked sprite, tinted green/red and drawn over the world.
-- ☐ Still open from the playtests: superweapon clocks still sit over the
-  battlefield rather than on their sidebar cameos (they no longer eat mouse
-  input, but the placement is not RA2's); soak residuals of ~16 tile stacks
-  and ~12 crowd-stuck units per 24 matches. Everything else that list carried
-  is fixed: ~~structures interpenetrate~~ (Phase 2 footprints), ~~Weather
-  Storm is one thin bolt~~ (Phase 5 storm timing), ~~the AI never fields
+- ☑ **Superweapon and paradrop clocks stay top-left over the battlefield — by
+  decision, not omission.** RA2 stacks them on their sidebar cameos; the user
+  ruled the tactical-view placement better (2026-09-03) and it is now the
+  intended design. They take no mouse input (`#swbar` is `pointer-events:
+  none`, only `.swic` is clickable), so the drag-eating bug that made this
+  look like a defect is gone. **Do not "fix" this by moving them to the
+  sidebar.** See `docs/design-decisions.md`.
+- ☐ Still open from the playtests: soak residuals of ~16 tile stacks and ~12
+  crowd-stuck units per 24 matches. Everything else that list carried is
+  fixed: ~~structures interpenetrate~~ (Phase 2 footprints), ~~Weather Storm
+  is one thin bolt~~ (Phase 5 storm timing), ~~the AI never fields
   Engineer/Tanya/Ivan/Drone/Tesla Tank/Purifier~~ (Phase 6 task forces).
 - ☑ v1.19.242 Prism Tank: `CometWH` (50% vs armour, 200% vs structures), ROF 400,
   range 10, Speed 4. *(blocker)*
