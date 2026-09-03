@@ -6076,3 +6076,10 @@ at all, which is why the corpse helper returns true without one.
 - **art.ini disagrees with the obvious guess about who goes prone.** `Crawls=`
   is *no* for `[ROCK]` (Rocketeer) and `[FLAKT]` (Flak Trooper) only. `[SHK]`
   (Tesla Trooper) and `[TANY]` both crawl, so both go prone here.
+
+## Prone infantry made the hard Directorate AI lose to Easy; the fix was crushing, not the table
+
+- **Symptom:** after Phase 3 (RA2 `ProneDamage`), hard-vs-easy on 12 fresh seeds fell from 22/24 to 15/24, every loss a hard Directorate against an easy Collective. Traces: by minute 6 easy had 64 Conscripts (100$, 4 s) to hard's 19 GIs, prone under fire and taking 70% from small arms; hard sat on $9500 it could not push through two barracks.
+- **Cause:** the Directorate's early anti-infantry is all `SA` (GI, Pillbox), which the prone table halves; the Collective has Tesla (`Electric`, no ProneDamage key → 100%). The AI's tanks stopped at range and shelled the blob at 50%.
+- **Fix:** (1) the prone table follows rules.ini including its documented default of 100% — only bullets/shells lose to the dirt (the builder had defaulted to 50%); (2) a soldier walking a live path is not dropped (RA2 drops the standing man); (3) AI-owned crushers close to melee on crushable infantry and run them over (`stepUnit` attack branch; humans keep stop-and-shoot unless force-moved); (4) the AI scales barracks with its bank and caps standing infantry (`18 + 8·expand`), since RA2's AI fields capped team types, never a 64-man blob; (5) vs infantry-heavy foes the heavy pick is Mirage/Prism or Tesla Tank. Result 23/24.
+- **Rejected:** softening `ProneDamage` (not RA2); dropping prone only for defenders (RA2 drops any standing man). **Rule:** every merge is followed by the 12-fresh-seed hard-vs-easy sample (`tmp/play/soakB.js`); a dip is a defect to bisect, not noise.

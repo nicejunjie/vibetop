@@ -649,14 +649,14 @@
   // takes. Small arms lose most of their effect, an air-bursting shell keeps
   // 70%, and anything that does not care about cover (electricity, a crush,
   // a bomb strapped to your leg) keeps all of it. Default 50%, as RA2's is.
+  // rules.ini ProneDamage= per warhead; the documented default is 100%
+  // (rules.ini:19102 "def=1.0"), so lasers, bolts, flak and beams hit a
+  // prone man in full — only bullets and shells lose to the dirt.
   var PRONE_DMG = {
-    SA: 0.70, SSA: 0.50, HollowPoint: 1.00, HE: 0.70, BlimpHE: 0.70,
-    AP: 0.50, ApocAP: 0.50, ORCAAP: 0.50, SAMWH: 1.00, GUARDWH: 0.50,
-    FlakWH: 0.50, FlakTWH: 0.50, FlakGuyWH: 0.50, MirageWH: 1.00,
-    CometWH: 0.70, PrismWarhead: 1.00, Electric: 1.00, Shock: 1.00,
-    IonWH: 1.00, NukeWH: 1.00, IvanBomb: 1.00, Parasite: 1.00, Super: 1.00
+    SA: 0.70, SSA: 0.50, HE: 0.70, BlimpHE: 0.70,
+    AP: 0.50, ApocAP: 0.50, ORCAAP: 0.50, GUARDWH: 0.50, HARVWH: 0.50
   };
-  function proneMul(wh) { var v = PRONE_DMG[wh]; return v === undefined ? 0.5 : v; }
+  function proneMul(wh) { var v = PRONE_DMG[wh]; return v === undefined ? 1.0 : v; }
   // rules.ini:19096 `InfDeath=` — the KILLING warhead picks the animation:
   // 1 twirl, 2 explodes (no body), 3 flying death, 4 burn, 5 electro. 6 is
   // ours, for a man under a tank. RA2's 7 (nuke melt) folds into the burn.
@@ -13443,7 +13443,10 @@
       tgt.hitAt = g.tick;
       // A deployed GI is already behind his own parapet — RA2 does not drop
       // him flat and neither do we.
-      if (!tgt.prone && !(tgt.order && tgt.order.t === 'move')) { tgt.prone = true; tgt.downAt = g.tick; }
+      // RA2 drops a soldier who is standing still; one walking a live path
+      // (a move, or an attack whose target is still out of reach) keeps going.
+      var walking = (tgt.order && tgt.order.t === 'move') || (tgt.path && tgt.pi < tgt.path.length);
+      if (!tgt.prone && !walking) { tgt.prone = true; tgt.downAt = g.tick; }
     }
     if (tgt.kind === 'u' && tgt.type === 'harvester') tgt.fleeAt = g.tick;
     if (isAir(src)) { var hitAI = tgt.p === P_AI ? g.ai : g.ai2; if (hitAI) hitAI.airAt = g.tick; }
@@ -14262,6 +14265,14 @@
 
     if (tgt) {
       var dd = dist(u, tgt);
+      // The AI's tanks drive THROUGH infantry, as RA2's do: a prone Conscript
+      // shrugs off shells (ProneDamage 50%) but not 30 tons of Grizzly. Human
+      // tanks keep RA2's stop-and-shoot unless force-moved.
+      if (u.p !== P_HUMAN && tgt.kind === 'u' && crusher(u) && crushable(tgt) && dd > 0.8) {
+        if (dd <= rngVs(weaponFor(d, tgt, u), tgt) && u.cool <= 0) fire(g, u, tgt);
+        advance(g, u, Math.round(tgt.x), Math.round(tgt.y), d.spd, 30);
+        return;
+      }
       if (dd <= rngVs(weaponFor(d, tgt, u), tgt) && !tooClose(weaponFor(d, tgt, u), dd)) {
         u.path = null;
         var ax = (tgt.kind === 'b' ? tgt.cx : tgt.x) - u.x;
@@ -14533,10 +14544,10 @@
     }
     return n;
   }
-  function countUnit(g, p, type) {
+  function countUnit(g, p, type, cls) {
     var n = 0;
     for (var i = 0; i < g.units.length; i++) {
-      if (!g.units[i].dead && g.units[i].p === p && (!type || g.units[i].type === type)) n++;
+      if (!g.units[i].dead && g.units[i].p === p && (!type || g.units[i].type === type) && (!cls || UNITS[g.units[i].type].cls === cls)) n++;
     }
     return n;
   }
@@ -15060,7 +15071,10 @@
       // keeps growing means more factories/barracks, not a bigger queue.
       else if (s.queues.v.list.length >= 2 && s.credits > 2200 &&
                countBld(g, me, 'factory') < Math.min(4, 2 + Math.floor(s.credits / 4000))) want = 'factory';
-      else if (s.queues.i.list.length >= 2 && s.credits > 3000 && countBld(g, me, 'barracks') < 2) want = 'barracks';
+      // A full infantry lane and a fat bank: more barracks, not a deeper queue
+      // (a $200 GI takes twice a Conscript's 4 s; the soak showed hard sitting
+      // on $9500 with two barracks while easy fielded 64 Conscripts).
+      else if (s.queues.i.list.length >= 2 && s.credits > 3000 && countBld(g, me, 'barracks') < (s.credits > 7000 ? 4 : s.credits > 4500 ? 3 : 2)) want = 'barracks';
       // Tech only once an army stands: a $1000 radar and a $2000 lab before
       // ten fighters is how the hard AI lost to a seven-minute infantry flood.
       else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200 && ai.army.length >= cfg.group * 0.6) want = radarKey;
@@ -15131,7 +15145,11 @@
     // reserve the unit lanes may not spend, or the bank never clears the
     // silo's price at a strategy tick (144 soak matches: 0 built).
     var reserve = hasBld(g, me, 'lab') && ai.army.length >= cfg.group * 1.5 && g.tick > 60 * 60 * 10 && aiSwWant(g, me) ? 2500 : 0;
-    if (s.queues.i.list.length < depth && hasBar && s.credits > reserve + 300) {
+    // RA2's AI fields capped team types, never a 64-Conscript blob: hold the
+    // infantry lane once the standing infantry count is high and let the
+    // vehicle lane (and crushing tanks) carry the rest of the bank.
+    var infCap = 18 + 8 * cfg.expand;
+    if (s.queues.i.list.length < depth && hasBar && s.credits > reserve + 300 && countUnit(g, me, null, 'i') < infCap) {
       var atInf = s.fac === 'col' ? 'flak' : 'rocket';        // the faction's AA-capable trooper
       var pick = (airThreat && rnd() < 0.6) ? atInf
                : vehHeavy ? (s.fac === 'col' && rnd() < 0.5 ? 'teslatrooper' : atInf)
@@ -15144,12 +15162,16 @@
       // masses infantry, else the line tank; Prism Tanks for the Directorate.
       // The Directorate's tier-3 choice is Mirage (ambush) or Prism Tank
       // (siege) — the Prism out-ranges everything but folds if it is caught.
-      var heavy = s.fac === 'col' ? 'mammoth'
-                : ((rnd() < 0.5 && canBuild(g, me, 'prismtank', false)) ? 'prismtank' : 'mirage');
+      // Against massed (and prone) infantry the answer is a weapon with no
+      // ProneDamage penalty: Mirage / Prism for the Directorate, Tesla Tank
+      // for the Collective. Otherwise the line heavy.
+      var heavy = s.fac === 'col' ? ((infHeavy && rnd() < 0.5 && canBuild(g, me, 'teslatank', false)) ? 'teslatank' : 'mammoth')
+                : (infHeavy ? ((rnd() < 0.4 && canBuild(g, me, 'prismtank', false)) ? 'prismtank' : 'mirage')
+                            : ((rnd() < 0.5 && canBuild(g, me, 'prismtank', false)) ? 'prismtank' : 'mirage'));
       var light = s.fac === 'col' ? 'flaktrack' : 'ifv';
       var vpick = (s.fac === 'col' && hasBld(g, me, 'lab') && s.credits > 3200 && countUnit(g, me, 'kirov') < 2 &&
                    rnd() < 0.35 && canBuild(g, me, 'kirov', false)) ? 'kirov'
-                : (hasBld(g, me, 'lab') && rnd() < 0.4 && canBuild(g, me, heavy, false)) ? heavy
+                : (hasBld(g, me, 'lab') && rnd() < (infHeavy ? 0.55 : 0.4) && canBuild(g, me, heavy, false)) ? heavy
                 : (infHeavy && rnd() < 0.55 && canBuild(g, me, light, false)) ? light
                 : (s.fac === 'col' && hasBld(g, me, 'radar') && rnd() < 0.25 && canBuild(g, me, 'v3', false)) ? 'v3'
                 : F.tank;
