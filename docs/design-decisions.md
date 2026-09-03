@@ -5589,3 +5589,37 @@ units, never `* zoom`.
   tuning to put the red number in band pushes the blue one out the top.
 - **Check:** `.work/` harness of art pass 8 — dump hull+turret composed per
   facing, crop both sides to the alpha box, print `w/h` and the hue split.
+## Measuring an RA2 reference sheet: segment by GREENNESS, never by background median
+
+**Symptom.** The aspect numbers for the light-vehicle pass came out different
+every run. `allied-chrono-miner.png`, `allied-prism-tank.png`,
+`allied-ifv-idle.png` and `allied-harriers.png` each measured as a single blob
+the size of the whole image; hand-cropping around one unit gave 1.15, 1.25 and
+1.38 for the *same* sprite depending on where the crop landed.
+
+**Cause.** Two things at once. The usual "background = median of the border
+pixels, mask = |pixel - bg| > k" works on the snow-theatre sheets and fails on
+the grass ones: RA2 grass tiles carry dark olive speckle whose distance from
+the median is larger than a dark hull's, so the mask floods and every unit in
+the ring joins into one component. And a generous crop around "the down-right
+unit" always clips a neighbour in an 8-facing ring, because the units are
+spaced by less than their own width.
+
+**Fix.** Segment the WHOLE sheet (never a crop) on greenness,
+`g - (r + b) / 2 < 6`, then `binary_closing(3x3)` + `binary_opening(2x2)`,
+label, and pick the component whose centroid is nearest (0.70, 0.68) of the
+image — that is the down-right facing in every RA2 ring dump. Snow sheets still
+want the border-median test with `(sat > 25 | v < 95 | v > 212)` so the pale
+drop shadow is excluded. The measured down-right aspects that came out of this:
+Chrono Miner 1.15, War Miner 1.17, IFV 0.98, Flak Track 1.05, Terror Drone
+1.64, Harrier 1.34, Kirov 1.50 (2.25 broadside), Prism 1.30.
+
+**Rejected.** Eyeballing the bbox off a 4x NEAREST crop. It is what produced
+the 1.38 for the Flak Track, which sent the first fix round the wrong way — the
+sprite is 1.05 and ours was already close.
+
+**Also.** The two facts that came out of actually looking rather than reading:
+the Chrono Miner's chrono gear is not a badge on the flank, the whole nose drum
+is violet; and the RA2 IFV is nearly SQUARE in bbox (a stubby wheeled body
+under a tall boxy launcher), not the long low wedge every written description
+of it suggests.
