@@ -459,7 +459,7 @@ test("a Flak Track fires FlakWH at aircraft and FlakTWH at the ground", () => {
   assert.equal(T.weaponFor(T.UNITS.flaktrack, gi).wh, "FlakTWH", "against the ground");
 
   const ft = H.spawn("flaktrack", 0, s0.x + 2, s0.y + 3);
-  ft.cool = 0;
+  ft.cool = 0; layGun(ft, rk);
   H.step(4);                                  // one burst: ROF 100 leaves no room for a second
   const dealt = rk.maxhp - rk.hp;
   const want = 35 * T.verses("FlakWH", T.UNITS.rocketeer.armour);   // 35 * 1.5
@@ -476,7 +476,7 @@ test("an Apocalypse shoots back at a Kirov with its MammothTusk missiles", () =>
   assert.equal(T.weaponFor(T.UNITS.mammoth, { kind: "u", type: "kirov" }).wh, "HE");
   const k = H.spawn("kirov", 1, s0.x + 3, s0.y + 3);
   const ap = H.spawn("mammoth", 0, s0.x + 3, s0.y + 5);
-  ap.cool = 0;
+  ap.cool = 0; layGun(ap, k);
   H.step(4);
   assert.ok(k.hp < k.maxhp, "the Apocalypse damaged the Kirov");
   const want = 100 * T.verses("HE", T.UNITS.kirov.armour);   // [MammothTusk] 2x50 per volley
@@ -491,7 +491,7 @@ test("a shot-down Kirov falls out of the sky and its wreck explodes on what is b
   const victim = H.spawn("mammoth", 0, s0.x + 4, s0.y + 4);
   const k = H.spawn("kirov", 1, s0.x + 4, s0.y + 4);      // directly overhead
   k.hp = 1; k.cool = 9999;                                 // it never gets its bomb off
-  victim.cool = 0;
+  victim.cool = 0; layGun(victim, k);                      // turret already laid
   H.step(4);
   assert.ok(k.dead, "the Apocalypse's AA fire brought it down");
   assert.equal(g.wrecks.length, 1, "it left a falling wreck, it did not simply vanish");
@@ -1259,6 +1259,14 @@ test("six maps across three theatres, each with a picker glyph", () => {
 });
 
 // ------------------------------------------------------------- air layer //
+
+// RA2 vehicles traverse before they shoot (rules.ini `ROT=`, 32 voxel
+// bearings): a tank whose turret is stowed across its deck takes up to half a
+// second to come round, so a fixture that spawns an attacker and steps four
+// ticks has to lay the gun first — exactly as a tank that had been watching
+// its lane already would have it laid. `bear` is the game's own quantiser.
+function bear(dy, dx) { return ((Math.round(Math.atan2(dy, dx) / (Math.PI / 16)) % 32) + 32) % 32; }
+function layGun(u, t) { u.face = u.tface = bear(t.y - u.y, t.x - u.x); u.fsub = u.tsub = 0; return u; }
 
 function bareMatch(seed) {
   const H = W.__rtsTest;

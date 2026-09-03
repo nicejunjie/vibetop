@@ -116,9 +116,37 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
   | `col:power` | −11.4% | **+6.6%** (ref 1.202, not 1.447) | 1.281 / +6.6% |
   | `col:factory` | +11.3% | +14.2% (ref 1.096, not 1.124) | **1.085 / −1.0%** |
 
-  The three that were genuinely out (`col:factory`, `col:lab`, `dir:lab`) are fixed by making `VPOW` faction-aware — `VPOW['factory:col'] = 1` and `VPOW.lab = 1`, i.e. their vertical mass follows the plot in full rather than by its square root. `factory` is the entry that forced the per-faction split: the Soviet hall was 14% too flat at the square root while the Allied vault is already 7% too tall. The Soviet exit ramp runs well past the plot's S corner and grows with `VS`, so `factory`'s `pad` goes 24 → 34; nothing in the set clips. Whole set after: **every structure with a usable reference inside ±8% except `dir:grandcannon` (+14.6%) and `dir:gapgen` (−8.4%)**, both of which sit at `VS = 1` (their plots did not grow) and so need a real redraw, not a rescale — next pass.
+  The three that were genuinely out (`col:factory`, `col:lab`, `dir:lab`) are fixed by making `VPOW` faction-aware — `VPOW['factory:col'] = 1` and `VPOW.lab = 1`, i.e. their vertical mass follows the plot in full rather than by its square root. `factory` is the entry that forced the per-faction split: the Soviet hall was 14% too flat at the square root while the Allied vault is already 7% too tall. The Soviet exit ramp runs well past the plot's S corner and grows with `VS`, so `factory`'s `pad` goes 24 → 34; nothing in the set clips. Whole set after: **every structure with a usable reference inside ±8% except `dir:grandcannon` (+14.6%) and `dir:gapgen` (−8.4%)**, both of which sit at `VS = 1` (their plots did not grow) and so needed a real redraw, not a rescale. Done in the Grand Cannon / Gap Generator entry below: **`dir:grandcannon` +14.6% → +1.3%** and **`dir:gapgen` −8.4% → −2.8%**, so the whole set with a usable reference is now inside ±8%.
 - ☑ Playtest pass-3 art nits (art pass 9): the **Attack Dog** read as an orange fox and is now a German Shepherd — black saddle (the breed's own marking; the house colour moved off the coat onto a broad collar and a harness strap over the withers), deeper barrel (`H` 3.0 → 3.7), long black-masked blocky muzzle, wedge head, and a sabre tail hanging below the hocks instead of a bushy one carried level. **Civilian blocks** cast a ground shadow again (it was drawn at 27×10 under the block's own base, so every civilian building on the board was the one thing standing on the pavement without one) and their status/garrison bars hang over the building's MASS rather than off a two-pixel radio mast forty pixels above the roof (`artTopSolid`, a new `A.mass` beside `A.rise`, used by structures too). The **map apron** no longer stripes: it dimmed in 8 bands (an 0.11 alpha step) on a Chebyshev distance, whose square rings project to long straight diagonals — now 32 bands on a smoothstep over a Euclidean distance, ending at the cleared background. The **placement wash** is RA2's cell grid, not a colour bath: one path, a 0.055 fill and a 0.32 edge instead of a flat 0.16 green over half the screen. The **front menu** hides the live sidebar (`body.atmenu`, keyed off `state === 'menu'` so every in-match `showCard` still shows the HUD behind it).
 - ☑ **Chokepoint Pass has elevation** (art pass 9). Its ridge runs corner to corner with open field on both sides, so nothing is ever enclosed, nothing but the wall itself is level 1, and the two passes — whose only high neighbour IS the wall — found no uphill end, fell into `computeHeight`'s "a ramp that climbs nothing" case and stayed dead flat: the ridge on the map named for it was scenery you walked straight through. A T_CLIFF is high ground by definition (`hi[]` is seeded from it) but was skipped as a seed for the uphill BFS; it now seeds it, so each pass climbs out of the field, crests inside the band and drops down the far side, drawn with the ramp kerbs and risers instead of the flat cutting tile. Passability is untouched — `hf` is read only by `hPx`/`sy`, i.e. by where a thing is DRAWN, never by the movement grid — and the terrain builder is unchanged, so the map design is the same map. The crest reaches ~0.3 of a level: the notch is three cells thick, and its centre is two cells from open field and five from the nearest cliff, so that is what interpolating between them gives.
+- ☑ Grand Cannon + Gap Generator — the last two structures outside ±8%, both
+  re-read at 1:1 against their in-game renders. **Grand Cannon** ([GTGCAN],
+  `allied-grand-cannon.png`, 181x133): the previous pass had it exactly the
+  wrong way round — a low drum on a parade slab with a forty-pixel barbette
+  gun, so nearly all of the sprite was barrel. The real French emplacement is
+  a fat rounded ARMOURED DOME (44 high on a 22 radius, welded plate with two
+  seams) standing on a splayed steel turntable whose four outrigger arms end
+  in round pads with a bright boss, and the gun out of its shoulder is SHORT
+  and thick (25 long) with three baffle fins and a fat muzzle brake. House
+  colour moved off the whole left flank onto what the sprite actually paints:
+  one cheek plate, a bowed band round the dome's foot (drawn as an ellipse
+  whose top arc IS the band edge, so it wraps the front instead of ringing the
+  far side), the rim round the race and the gun's plating. The old octagonal
+  apron and four bollards are gone. Aspect 1.379 vs ref 1.361; owner hue
+  13.9%, 0% opposing. **Gap Generator** ([GAGAP], `allied-gap-generator.png`,
+  118x130, GREEN owner — which is what proves the remap is the two COLLAR
+  RINGS and nothing else): rebuilt as the sprite's stack — a mound of five fat
+  pale spheres lobed round the foot with a warm gold sheen across each
+  shoulder and a pale cap closing them into one body, the lower house collar,
+  a WAISTED grey column with two shallow seams, the upper house collar, a
+  white disc platform with four navy instrument pods stood round its rim, and
+  out of its centre a short black mast faced in gold inside a crown of four
+  tall black talons. The old three loose pods on a slab, ten thin spines and
+  a bowl are gone, and `gapgen` joins the `A.frames` list so its six idle
+  phases actually cycle (art.ini [GAGAP] `ActiveAnim=GAGAP_A`): the talons
+  breathe, the gold mast face flickers, the pod lamps light in turn and a ring
+  of field lifts off the tips. Aspect 0.882 vs ref 0.908; owner hue 14.9%, 0%
+  opposing.
 - ☐ Barracks-adjacent leftovers, defences, the rest — same method (`docs/ra2-art-plan.md` §4, `aspect.py`, hue census, scene at zoom 1 and 2, build-up, damaged).
 
 ### Controls and UX
@@ -775,7 +803,20 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
   down at the target, plus a hard-only Nighthawk insertion that drops a squad
   at the enemy refineries.
 - ☐ Naval layer: Shipyards, water pathing, all 11 ship classes, naval AI.
-- ☐ 32-facing vehicles.
+- ☑ 32-facing vehicles and aircraft. RA2 renders a voxel at 32 bearings, not
+  the 8 an infantry SHP carries: `u.face`/`u.tface` are now 0..31 (11.25 deg a
+  step) for every hull, turret, aircraft nose and aiming defence, and infantry
+  stay at 8 because their art really is eight hand-drawn facings (`octOf`
+  bridges the two). The sheets are baked LAZILY per bearing — `faceSheet`
+  hands back an Array of self-replacing getters, so `set[u.face]` reads like
+  the old baked strip while the canvas behind it is drawn the first frame that
+  bearing is actually asked for. Four times the facings therefore HALVED the
+  load: bake 1289–1358 ms → 702–731 ms, because no vehicle bakes anything at
+  boot any more. Hulls and turrets also SLEW at rules.ini `ROT=` (5 for almost
+  every tank, 40 for a Terror Drone, 10 for a Kirov, 3 for an Orca/Harrier;
+  one ROT point = 0.1 facings per tick, so a ROT=5 turret sweeps the full 32
+  in ~64 ticks) instead of snapping, and a gun will not fire until it BEARS —
+  the sim rule RA2 has and we did not.
 - ☐ Lockstep multiplayer over the deterministic `__rtsSim` core (command
   queue, beacon).
 

@@ -3773,6 +3773,71 @@
   // octant here is measured from "straight at the camera" toward screen-right.
   var INF_OCT = [1, 0, 7, 6, 5, 4, 3, 2];
 
+  // --- the facing model -------------------------------------------------
+  // RA2's vehicles and aircraft are VOXELS, and a voxel is rendered at 32
+  // bearings, not the 8 an infantry SHP carries. `u.face` (hull) and
+  // `u.tface` (turret) are therefore 0..31, one step = 11.25 degrees, and the
+  // vehicle sheets are baked LAZILY per bearing so a match pays only for the
+  // bearings its units actually stop on. Infantry stay at 8, because their
+  // art really is eight hand-drawn SHP facings — `octOf` is the one bridge
+  // between the two, and it ROUNDS (not truncates) so a man facing bearing 2
+  // or 3 stands on the same octant a 45-degree step would have given him.
+  var NFACE = 32, FANG = Math.PI * 2 / NFACE;
+  // The bearing the cameos, the menu line-up and the placement ghost crop
+  // from: due south, front-on to the camera (grid facing 1 of the old eight).
+  var ICON_FACE = 4;
+  function faceOf(dy, dx) { return ((Math.round(Math.atan2(dy, dx) / FANG) % NFACE) + NFACE) % NFACE; }
+  function octOf(f) { return (((f | 0) + 2) >> 2) & 7; }
+  // Shortest signed step from a to b around the 32-facing ring, in facings.
+  function faceDelta(a, b) {
+    var d = (((b - a) % NFACE) + NFACE) % NFACE;
+    return d > NFACE / 2 ? d - NFACE : d;
+  }
+  // rules.ini `ROT=` is a turn rate in RA2's own units; ROT=5 is what almost
+  // every tank hull and turret carries ([HTNK]/[MTNK]/[APOC]/[FV]/[HARV]...),
+  // a Terror Drone is 40 (it whips round on the spot), a Kirov 10 and an
+  // Orca/Harrier 3. One ROT point is 0.1 facings per tick here, so a ROT=5
+  // turret sweeps the full 32 in ~64 ticks — a hair over a second, which is
+  // what a Grizzly's turret looks like in RA2.
+  var ROT = { drone: 40, harrier: 3, kirov: 10 };
+  function rotOf(t) { return ROT[t] || 5; }
+  // A facing has to stay an INTEGER (it indexes a baked sheet), so the
+  // fraction a sub-facing-per-tick rate leaves over is carried in a companion
+  // field and folded back in next tick. `fk`/`sk` are the two field names,
+  // so the same routine turns a hull ('face'/'fsub') and a turret
+  // ('tface'/'tsub'). Returns true once it has ARRIVED.
+  function slew(u, fk, sk, want, rot) {
+    var cur = u[fk] + (u[sk] || 0);
+    var d = faceDelta(cur, want), step = (rot || 5) * 0.1;
+    if (Math.abs(d) <= step) { u[fk] = want; u[sk] = 0; return true; }
+    var nf = cur + (d > 0 ? step : -step), rr = Math.round(nf);
+    u[sk] = nf - rr;
+    u[fk] = ((rr % NFACE) + NFACE) % NFACE;
+    return false;
+  }
+  // RA2 will not let a tank fire across its own deck: the turret traverses
+  // first and the gun speaks when it BEARS. One facing of slop (11.25 deg) is
+  // close enough that the shell still leaves the barrel it is drawn down.
+  var AIM_TOL = 1.0;
+  // ...but only a MACHINE traverses. Infantry are eight hand-drawn SHP
+  // facings with no ROT in rules.ini: a rifleman turns where he stands and
+  // shoots, and gating him behind a slew would be inventing a rule RA2 does
+  // not have.
+  function slews(u) { var sp = UNITS[u.type]; return !!sp && sp.cls !== 'i'; }
+  function aimTurret(u, want, rot) {
+    if (!slews(u)) { u.tface = want; u.tsub = 0; return true; }
+    if (u.tface == null) { u.tface = u.face | 0; u.tsub = 0; }
+    if (slew(u, 'tface', 'tsub', want, rot)) return true;
+    return Math.abs(faceDelta(u.tface + (u.tsub || 0), want)) <= AIM_TOL;
+  }
+  // Same rule for a turretless hull (V3, Terror Drone, an aircraft's nose):
+  // the whole vehicle is the mount, so the HULL has to come round.
+  function aimHull(u, want, rot) {
+    if (!slews(u)) { u.face = want; u.fsub = 0; return true; }
+    if (slew(u, 'face', 'fsub', want, rot)) return true;
+    return Math.abs(faceDelta(u.face + (u.fsub || 0), want)) <= AIM_TOL;
+  }
+
   function bakeInfantry(col, kind, fac, phase, dir, state) {
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
@@ -5119,7 +5184,7 @@
     base.inf = true;
     base.fr = function (st, dir, phase) {
       if (!INF_SEQ[st]) st = 'stand';
-      var nf = INF_SEQ[st], d = (((dir | 0) % 8) + 8) % 8;
+      var nf = INF_SEQ[st], d = octOf(dir);              // 32-facing in, 8 SHP facings out
       var ph = (((phase | 0) % nf) + nf) % nf;
       var k = st + d + '_' + ph;
       return cache[k] || (cache[k] = bakeInfantry(col, kind, fac, st === 'stand' ? -1 : ph, d, st));
@@ -5335,7 +5400,7 @@
     base.dog = true;
     base.fr = function (st, dir, phase) {
       if (!DOG_SEQ[st]) st = 'stand';
-      var nf = DOG_SEQ[st], d = (((dir | 0) % 8) + 8) % 8;
+      var nf = DOG_SEQ[st], d = octOf(dir);              // 32-facing in, 8 SHP facings out
       var ph = (((phase | 0) % nf) + nf) % nf;
       var k = st + d + '_' + ph;
       return cache[k] || (cache[k] = bakeDog(col, fac, ph, d, st));
@@ -5465,7 +5530,7 @@
     // one: [FV] TurretCount=4 (0 rocket, 1 gun, 2 repair arm, 3 high-tech).
     function frame(d, part, tv) {
       var wantH = part !== 't', wantT = part !== 'h';
-      var a = d * Math.PI / 4;
+      var a = d * FANG;
       // The Kirov is 137px broadside in RA2 against a Rhino's ~60: it gets a
       // sheet of its own, with the same ground-anchor rule (w/2, h - UPAD).
       var s = kind === 'kirov' ? mkCanvas(176, 132) : unitCanvas(), g = s.g;
@@ -7480,39 +7545,61 @@
       return s;
     }
 
-    var out = [], d;
-    for (d = 0; d < 8; d++) out.push(frame(d, 'a'));
+    // 32 bearings, LAZILY. Four times the facings must not be four times the
+    // boot: `faceSheet` hands back a real Array of length NFACE whose slots
+    // are accessor properties, so `set[u.face]` reads exactly like the old
+    // eight-entry array while the canvas behind it is drawn on the first
+    // frame that actually asks for that bearing — and the getter then
+    // replaces itself with the value, so the second read is a plain lookup.
+    // A skirmish only ever visits the handful of bearings its units stop on.
+    var out = faceSheet(function (d) { return frame(d, 'a'); });
     if (kind === 'kirov') {
       // Baked on demand: a match without a Kirov never pays for the extra
       // sheets, and one Kirov pays for them once.
       out.lay = function () {
-        if (!out._lay) {
-          var kh = [], kg = [], ko = [], q;
-          for (q = 0; q < 8; q++) { kh.push(frame(q, 'h')); kg.push(frame(q, 'g')); ko.push(frame(q, 'go')); }
-          out._lay = { hull: kh, gond: kg, open: ko };
-        }
+        if (!out._lay) out._lay = {
+          hull: faceSheet(function (q) { return frame(q, 'h'); }),
+          gond: faceSheet(function (q) { return frame(q, 'g'); }),
+          open: faceSheet(function (q) { return frame(q, 'go'); })
+        };
         return out._lay;
       };
     }
     if (turreted) {
-      out.hull = []; out.turret = [];
-      for (d = 0; d < 8; d++) { out.hull.push(frame(d, 'h')); out.turret.push(frame(d, 't')); }
+      out.hull = faceSheet(function (q) { return frame(q, 'h'); });
+      out.turret = faceSheet(function (q) { return frame(q, 't'); });
     }
     // [FV] TurretCount=4. Baked ON DEMAND, like the Kirov's gondola layers: a
     // match with no IFV — or one whose IFVs are all empty — never pays for the
-    // three extra 8-facing sheets, and a loaded one pays for its model once.
+    // three extra facing sheets, and a loaded one pays for its model once.
     if (kind === 'ifv') {
       out.turrets = function (ti) {
         if (!out._tur) out._tur = {};
-        if (!out._tur[ti]) {
-          var arr = [], q;
-          for (q = 0; q < 8; q++) { var sc = frame(q, 't', ti); sc.bb = artBox(sc); arr.push(sc); }
-          out._tur[ti] = arr;
-        }
+        if (!out._tur[ti]) out._tur[ti] = faceSheet(function (q) { return frame(q, 't', ti); });
         return out._tur[ti];
       };
     }
     return out;
+  }
+  // An Array of NFACE lazily-baked frames. Every slot is a self-replacing
+  // getter, so the array reads like a plain baked strip and costs nothing
+  // until it is indexed. `bb` is filled in here (bakeOwned used to walk every
+  // frame to do it, which would have forced all 32).
+  function faceSheet(make) {
+    var arr = new Array(NFACE);
+    for (var i = 0; i < NFACE; i++) defineFace(arr, i, make);
+    return arr;
+  }
+  function defineFace(arr, i, make) {
+    Object.defineProperty(arr, i, {
+      configurable: true, enumerable: true,
+      get: function () {
+        var v = make(i);
+        if (v && !v.bb) v.bb = artBox(v);
+        Object.defineProperty(arr, i, { value: v, writable: true, enumerable: true, configurable: true });
+        return v;
+      }
+    });
   }
   // --- structure assembly ------------------------------------------------
   // RA2's buildings are told apart by MASSING, not by a badge on a shared
@@ -14715,86 +14802,143 @@
 
     } else if (key === 'gapgen') {
       // --- RA2 Gap Generator ([GAGAP]) ------------------------------------
-      // Read at 1:1 off docs/ra2-ref/allied-gap-generator.png (118x130, the
-      // in-game render on snow). It is a SHORT, TOP-HEAVY thing: a cluster of
-      // three fat white spherical pods on the ground, a house-coloured collar
-      // ring, a stubby grey column, a shallow white dish with a second house
-      // ring round its lip, and standing out of the dish a crown of black
-      // curved talons that fan up and outward like bare branches. Almost all
-      // of its silhouette is that crown; the machine underneath is small.
-      var GP_W = '#e7e6e0', GP_WL = '#ffffff', GP_WD = '#a7a69f';
-      var GP_G = '#7d8288', GP_GD = '#454a50', GP_BLK = '#191a1c';
+      // Re-read at 1:1 off docs/ra2-ref/allied-gap-generator.png (118x130,
+      // the in-game render on snow, GREEN owner — which is what proves where
+      // the remap lives: two fat COLLAR RINGS, and nothing else). The sprite
+      // is a stack, read bottom to top: a cluster of fat pale spheres lobed
+      // round the foot (gold-lit on the near side), the lower house collar, a
+      // WAISTED grey column, the upper house collar, a white disc platform
+      // with four small navy instrument pods stood round its rim, and out of
+      // its centre a short black-and-gold mast inside a crown of four tall
+      // black talons that splay up and outward. The talons are the tallest
+      // thing on it and the base is the widest — the previous pass had three
+      // loose pods on a slab, ten thin spines and a bowl, and read a tenth
+      // too narrow for its height. art.ini [GAGAP] Foundation=1x1, Height=6:
+      // the base genuinely overhangs its single cell.
+      var GP_W = '#e9eaec', GP_WL = '#ffffff', GP_WD = '#8d9096', GP_WM = '#b9bcc2';
+      var GP_G = '#9298a0', GP_GD = '#4a4f57', GP_BLK = '#141518';
+      var GP_GOLD = '#c9a94e', GP_GOLDD = '#7d6528';
       var gpPh = (bph || 0) * 6.2832;
 
-      // pods
-      var pods = [[-0.52, 0.18, 10.5], [0.50, 0.20, 10.0], [0.02, -0.30, 9.0]];
-      for (var gi2 = 0; gi2 < 3; gi2++) {
-        var pd = pods[gi2], pq = gproj(pd[0], pd[1]);
-        var ppx = cx + pq[0], ppy = baseY + pq[1];
-        g.fillStyle = 'rgba(0,0,0,.30)';
-        g.beginPath(); g.ellipse(ppx + 2, ppy + 3, pd[2] * 0.9, pd[2] * 0.42, 0, 0, 6.29); g.fill();
-        g.fillStyle = GP_W;
-        g.beginPath(); g.ellipse(ppx, ppy - pd[2] * 0.42, pd[2], pd[2] * 0.86, 0, 0, 6.29); g.fill();
+      // ---- the lobed base -------------------------------------------------
+      // Five spheres round a ring, drawn far side first so the near ones
+      // overlap them into one cluster rather than five separate balls.
+      var gpRing = 0.56, lobes = [];
+      for (var gi2 = 0; gi2 < 5; gi2++) {
+        var la = gi2 / 5 * 6.2832 + 1.10;
+        var lq = gproj(Math.cos(la) * gpRing, Math.sin(la) * gpRing);
+        lobes.push([cx + lq[0], baseY + lq[1] - 2, 14.0, lq[1]]);
+      }
+      lobes.sort(function (p, q) { return p[3] - q[3]; });
+      g.fillStyle = 'rgba(0,0,0,.32)';
+      g.beginPath(); g.ellipse(cx + 3, baseY + 5, 30, 13.5, 0, 0, 6.29); g.fill();
+      for (gi2 = 0; gi2 < lobes.length; gi2++) {
+        var lb = lobes[gi2], lx = lb[0], ly = lb[1], lr = lb[2];
+        var near = lb[3] > 0;
+        g.fillStyle = GP_WM;
+        g.beginPath(); g.ellipse(lx, ly - lr * 0.34, lr, lr * 0.92, 0, 0, 6.29); g.fill();
         outline(g, GP_WD);
+        g.fillStyle = GP_W;
+        g.beginPath(); g.ellipse(lx - lr * 0.16, ly - lr * 0.48, lr * 0.78, lr * 0.70, 0, 0, 6.29); g.fill();
         g.fillStyle = GP_WL;
-        g.beginPath(); g.ellipse(ppx - pd[2] * 0.30, ppy - pd[2] * 0.70, pd[2] * 0.46, pd[2] * 0.34, 0, 0, 6.29); g.fill();
-        g.fillStyle = 'rgba(120,124,132,.35)';
-        g.beginPath(); g.ellipse(ppx + pd[2] * 0.30, ppy - pd[2] * 0.16, pd[2] * 0.52, pd[2] * 0.36, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(lx - lr * 0.34, ly - lr * 0.70, lr * 0.40, lr * 0.30, 0, 0, 6.29); g.fill();
+        // the sprite's warm sheen: gold across the shoulder of each lobe,
+        // not a puddle under it.
+        g.fillStyle = near ? GP_GOLD : GP_GOLDD;
+        g.globalAlpha = near ? 0.34 : 0.20;
+        g.beginPath(); g.ellipse(lx + lr * 0.30, ly - lr * 0.30, lr * 0.46, lr * 0.30, -0.35, 0, 6.29); g.fill();
+        g.globalAlpha = 1;
       }
-      var gpY = baseY - 14;
-      // house collar over the pods
-      g.fillStyle = shade(col, 0.62);
-      g.beginPath(); g.ellipse(cx, gpY + 1.6, 13.5, 6.0, 0, 0, 6.29); g.fill(); outline(g, shade(col, 0.36));
-      g.fillStyle = col;
-      g.beginPath(); g.ellipse(cx, gpY, 13.5, 6.0, 0, 0, 6.29); g.fill(); outline(g, shade(col, 0.38));
-      g.fillStyle = shade(col, 1.30);
-      g.beginPath(); g.ellipse(cx - 2.4, gpY - 1.4, 10.0, 3.8, 0, 0, 6.29); g.fill();
-      // grey column
-      cylinder(g, cx, gpY - 1, 7.4, 15, GP_G, '#9aa0a6', GP_GD);
-      g.fillStyle = 'rgba(255,255,255,.16)';
-      g.fillRect(cx - 6.2, gpY - 15, 2.6, 14);
-      // dish
-      var dY = gpY - 17;
-      g.fillStyle = GP_WD;
-      g.beginPath(); g.ellipse(cx, dY + 2.0, 16.5, 7.2, 0, 0, 6.29); g.fill(); outline(g, '#6d6c66');
+      // a pale cap closing the cluster into one body
+      g.fillStyle = GP_WM;
+      g.beginPath(); g.ellipse(cx, baseY - 15, 16.6, 8.0, 0, 0, 6.29); g.fill(); outline(g, GP_WD);
       g.fillStyle = GP_W;
-      g.beginPath(); g.ellipse(cx, dY, 16.5, 7.2, 0, 0, 6.29); g.fill(); outline(g, '#75746e');
-      g.fillStyle = shade(col, 1.05);                       // house ring on the lip
-      g.beginPath(); g.ellipse(cx, dY - 0.6, 16.5, 7.2, 0, 0, 6.29);
-      g.ellipse(cx, dY - 0.6, 13.0, 5.6, 0, 0, 6.29);
-      g.fill('evenodd');
-      g.fillStyle = '#cfcec8';                              // the bowl's inside
-      g.beginPath(); g.ellipse(cx, dY - 0.4, 12.6, 5.4, 0, 0, 6.29); g.fill();
-      g.fillStyle = '#f2f1ec';
-      g.beginPath(); g.ellipse(cx - 2.0, dY - 1.8, 8.6, 3.2, 0, 0, 6.29); g.fill();
-      // a couple of small equipment nodes nested in the bowl
-      for (var gn = 0; gn < 2; gn++) {
-        var gnx = cx + (gn ? 6.2 : -5.4), gny = dY - 1.2;
-        g.fillStyle = gn ? '#6d5f9c' : '#4a5f9c';
-        g.beginPath(); g.ellipse(gnx, gny, 2.6, 1.8, 0, 0, 6.29); g.fill(); outline(g, '#22243a');
+      g.beginPath(); g.ellipse(cx - 1.6, baseY - 16.6, 12.4, 5.4, 0, 0, 6.29); g.fill();
+      g.fillStyle = GP_WL;
+      g.beginPath(); g.ellipse(cx - 3.4, baseY - 17.8, 6.6, 2.8, 0, 0, 6.29); g.fill();
+
+      // ---- lower house collar ---------------------------------------------
+      function collar(cy2, rx, ry, th) {
+        g.fillStyle = shade(col, 0.58);
+        g.beginPath(); g.ellipse(cx, cy2 + th, rx, ry, 0, 0, 6.29); g.fill();
+        g.fillStyle = col;
+        g.beginPath(); g.ellipse(cx, cy2, rx, ry, 0, 0, 6.29); g.fill(); outline(g, shade(col, 0.40));
+        g.fillStyle = shade(col, 1.32);
+        g.beginPath(); g.ellipse(cx - rx * 0.18, cy2 - ry * 0.30, rx * 0.72, ry * 0.44, 0, 0, 6.29); g.fill();
       }
-      // ---- the crown of talons ------------------------------------------
-      // Ten curved black spines, tallest at the back. Idle: they breathe, and
-      // a faint ring of field lifts off the tips (the animation IS the
-      // structure's tell — a gap field you cannot see the source of is unfair).
-      for (var tk = 0; tk < 10; tk++) {
-        var ta = tk / 10 * 6.2832 + 0.31;
-        var rx0 = Math.cos(ta) * 9.6, ry0 = Math.sin(ta) * 4.1;
+      collar(baseY - 17, 14.4, 6.4, 3.0);
+
+      // ---- the waisted column ---------------------------------------------
+      var colTop = baseY - 35;
+      g.fillStyle = GP_G;
+      g.beginPath();
+      g.moveTo(cx - 8.8, baseY - 17);
+      g.bezierCurveTo(cx - 5.2, baseY - 24, cx - 5.2, baseY - 29, cx - 8.0, colTop + 2);
+      g.lineTo(cx + 8.0, colTop + 2);
+      g.bezierCurveTo(cx + 5.2, baseY - 29, cx + 5.2, baseY - 24, cx + 8.8, baseY - 17);
+      g.closePath(); g.fill(); outline(g, GP_GD);
+      g.fillStyle = 'rgba(255,255,255,.22)';
+      g.fillRect(cx - 6.2, colTop + 3, 2.2, 16);
+      g.fillStyle = 'rgba(24,28,34,.30)';                    // two shallow panel seams
+      g.fillRect(cx + 0.6, colTop + 4, 1.0, 14);
+      g.fillRect(cx + 4.0, colTop + 4, 1.0, 14);
+
+      // ---- upper house collar + the disc platform --------------------------
+      collar(colTop, 12.2, 5.4, 2.6);
+      var dY = colTop - 7;
+      g.fillStyle = '#a5a9b0';
+      g.beginPath(); g.ellipse(cx, dY + 2.0, 13.2, 6.0, 0, 0, 6.29); g.fill(); outline(g, '#6b6f76');
+      g.fillStyle = '#dfe2e6';
+      g.beginPath(); g.ellipse(cx, dY, 13.2, 6.0, 0, 0, 6.29); g.fill(); outline(g, '#787c83');
+      g.fillStyle = '#f4f6f8';
+      g.beginPath(); g.ellipse(cx - 1.8, dY - 1.4, 9.4, 3.8, 0, 0, 6.29); g.fill();
+      // four navy instrument pods stood round the rim
+      for (gi2 = 0; gi2 < 4; gi2++) {
+        var na = gi2 / 4 * 6.2832 + 0.7854;
+        var npx = cx + Math.cos(na) * 9.8, npy = dY + Math.sin(na) * 4.4;
+        g.fillStyle = '#2c3550';
+        g.beginPath(); g.roundRect(npx - 2.4, npy - 5.2, 4.8, 6.0, 1.2); g.fill();
+        outline(g, '#12162a');
+        g.fillStyle = '#5b6a96';
+        g.beginPath(); g.ellipse(npx, npy - 5.0, 2.4, 1.2, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(150,190,235,' + (0.30 + 0.50 * (0.5 + 0.5 * Math.sin(gpPh + gi2 * 1.6))).toFixed(3) + ')';
+        g.beginPath(); g.arc(npx, npy - 2.6, 1.0, 0, 6.29); g.fill();
+      }
+
+      // ---- the mast and its crown of talons --------------------------------
+      // A short black column faced in gold stands in the middle; four black
+      // talons rise round it, curving outward. Idle: they breathe, the gold
+      // face flickers and a ring of field lifts off the tips (the animation
+      // IS the structure's tell — a gap field with no visible source is
+      // unfair).
+      var mH = 12 + Math.sin(gpPh) * 0.8;
+      g.fillStyle = GP_BLK;
+      g.beginPath(); g.moveTo(cx - 3.4, dY - 1); g.lineTo(cx - 2.4, dY - mH);
+      g.lineTo(cx + 2.4, dY - mH); g.lineTo(cx + 3.4, dY - 1); g.closePath(); g.fill();
+      g.fillStyle = GP_GOLD;
+      g.globalAlpha = 0.62 + 0.30 * (0.5 + 0.5 * Math.sin(gpPh * 1.7));
+      g.fillRect(cx - 0.8, dY - mH + 2, 1.4, mH - 4);
+      g.globalAlpha = 1;
+      g.fillStyle = GP_GOLDD;
+      g.beginPath(); g.ellipse(cx, dY - mH, 2.8, 1.3, 0, 0, 6.29); g.fill();
+      for (var tk = 0; tk < 4; tk++) {
+        var ta = tk / 4 * 6.2832 + 0.7854;
+        var rx0 = Math.cos(ta) * 8.4, ry0 = Math.sin(ta) * 3.8;
         var far = Math.sin(ta) < 0;
-        var hgt = (far ? 30 : 25) + Math.sin(gpPh + tk * 0.7) * 1.6;
-        var flare = 5.5 + Math.sin(gpPh + tk) * 0.5;
-        g.strokeStyle = far ? '#101113' : GP_BLK;
-        g.lineWidth = far ? 2.0 : 2.4; g.lineCap = 'round';
+        var hgt = (far ? 19 : 16) + Math.sin(gpPh + tk * 0.8) * 1.1;
+        var flare = 4.6 + Math.sin(gpPh + tk) * 0.4;
+        g.strokeStyle = far ? '#26292f' : GP_BLK;
+        g.lineWidth = far ? 3.0 : 3.6; g.lineCap = 'round';
         g.beginPath();
-        g.moveTo(cx + rx0, dY - 1 + ry0);
-        g.quadraticCurveTo(cx + rx0 * 0.7, dY - hgt * 0.62 + ry0,
-                           cx + rx0 * 0.5 + Math.cos(ta) * flare, dY - hgt + ry0 * 0.5);
+        g.moveTo(cx + rx0, dY - 2 + ry0);
+        g.quadraticCurveTo(cx + rx0 * 0.86, dY - hgt * 0.60 + ry0,
+                           cx + rx0 * 0.80 + Math.cos(ta) * flare, dY - hgt + ry0 * 0.5);
         g.stroke();
         if (!far) {                                          // a cold glint on the near tips
-          g.strokeStyle = 'rgba(150,190,230,.5)'; g.lineWidth = 0.9;
+          g.strokeStyle = 'rgba(150,190,230,.45)'; g.lineWidth = 1.0;
           g.beginPath();
-          g.moveTo(cx + rx0 * 0.6, dY - hgt * 0.55 + ry0);
-          g.lineTo(cx + rx0 * 0.5 + Math.cos(ta) * flare, dY - hgt + ry0 * 0.5);
+          g.moveTo(cx + rx0 * 0.84, dY - hgt * 0.52 + ry0);
+          g.lineTo(cx + rx0 * 0.80 + Math.cos(ta) * flare, dY - hgt + ry0 * 0.5);
           g.stroke();
         }
       }
@@ -14802,91 +14946,160 @@
       var gRing = (bph || 0);
       g.strokeStyle = 'rgba(140,180,225,' + (0.34 * (1 - gRing)).toFixed(3) + ')';
       g.lineWidth = 1.6;
-      g.beginPath(); g.ellipse(cx, dY - 24 - gRing * 12, 10 + gRing * 20, (10 + gRing * 20) * 0.42, 0, 0, 6.29); g.stroke();
+      g.beginPath(); g.ellipse(cx, dY - 18 - gRing * 12, 9 + gRing * 18, (9 + gRing * 18) * 0.42, 0, 0, 6.29); g.stroke();
       g.lineWidth = 1;
 
     } else if (key === 'grandcannon') {
       // --- RA2 Grand Cannon ([GTGCAN]) ------------------------------------
-      // Read at 1:1 off docs/ra2-ref/allied-grand-cannon.png (181x133). It is
-      // a low, WIDE emplacement: a pale octagonal concrete apron with four
-      // dark bollards on its points, a squat dark blue-grey turret drum
-      // sitting almost ON the slab (not on a tower), and one very long barrel
-      // in the house colour banded with grey, elevated about 25 degrees, with
-      // a fat muzzle brake at the tip. Nearly all of the sprite is that
-      // barrel. `bdir` is the bearing it is laid on (aimOf bakes eight).
-      var GC_SLB = '#b3aa93', GC_SLD = '#7d7663', GC_SLL = '#cfc7b0';
-      var GC_MT = '#3d4450', GC_MTL = '#5d6675', GC_MTD = '#1b1f26';
-      // The idle bearing is the one the cameo and the placement ghost show, so
-      // it is the grid direction that projects to a flat horizontal barrel
+      // Re-read at 1:1 off docs/ra2-ref/allied-grand-cannon.png (181x133, the
+      // in-game render, RED owner). The previous pass had this the wrong way
+      // round: it drew a low drum on a big parade slab with a forty-pixel
+      // barbette gun, and nearly all of the sprite was that barrel. The real
+      // French emplacement is the OPPOSITE — a fat rounded ARMOURED DOME,
+      // taller than it is wide once the gun is on, standing on a splayed
+      // steel turntable whose three outrigger arms end in round pads with a
+      // bright boss, and the gun poking out of its shoulder is SHORT and
+      // thick with a fat multi-baffle muzzle brake. `bdir` is the bearing it
+      // is laid on (aimOf bakes the 32 RA2 voxel bearings).
+      var GC_ST = '#8d93a0', GC_STL = '#c2c8d2', GC_STD = '#3a4050';   // turntable steel
+      var GC_DM = '#3b4152', GC_DML = '#666d80', GC_DMD = '#1d2130';   // dome armour
+      var GC_SPC = '#9aa2b8';                                          // the big specular sweep
+      var GC_GUN = '#7d838f', GC_GUND = '#23262e';
+      // The idle bearing is the one the cameo and the placement ghost show,
+      // so it is the grid direction that projects to a flat horizontal gun
       // (north-east): pointed any other way the tube foreshortens into the
-      // drum and the icon reads as a bare turret ring.
+      // dome and the icon reads as a bare turret ring.
       var gcA = bdir === undefined ? -0.7854 : bdir;
 
-      // octagonal apron
-      g.beginPath();
-      for (var gk = 0; gk < 8; gk++) {
-        var ga = gk / 8 * 6.2832 + 0.3927;
-        var gq = gproj(Math.cos(ga) * 0.96, Math.sin(ga) * 0.96);
-        if (gk) g.lineTo(cx + gq[0], baseY + gq[1]); else g.moveTo(cx + gq[0], baseY + gq[1]);
+      // ---- turntable: a low steel star with four splayed outrigger arms ---
+      // The pads land at screen left, right and front (the fourth is behind
+      // the dome and only its arm root shows), which is how the sprite reads.
+      var gcArm = [3.9270, 2.3562, 5.4978, 0.7854];         // back, left, right, FRONT (draw order)
+      for (var gk = 0; gk < 4; gk++) {
+        var gaq = gproj(Math.cos(gcArm[gk]) * 0.80, Math.sin(gcArm[gk]) * 0.80);
+        var apx = cx + gaq[0], apy = baseY + gaq[1];
+        g.fillStyle = 'rgba(0,0,0,.30)';
+        g.beginPath(); g.ellipse(apx + 2, apy + 3, 10, 4.8, 0, 0, 6.29); g.fill();
+        // the arm itself, a tapering plate from the hub out to the pad
+        g.strokeStyle = GC_ST; g.lineWidth = 8.0; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(cx, baseY - 1); g.lineTo(apx, apy - 1); g.stroke();
+        g.strokeStyle = GC_STD; g.lineWidth = 1.1;
+        g.beginPath(); g.moveTo(cx, baseY + 2.6); g.lineTo(apx, apy + 2.6); g.stroke();
+        // round pad with a bright boss standing proud of it
+        g.fillStyle = GC_ST;
+        g.beginPath(); g.ellipse(apx, apy - 1, 9.0, 4.4, 0, 0, 6.29); g.fill(); outline(g, GC_STD);
+        g.fillStyle = 'rgba(255,255,255,.13)';
+        g.beginPath(); g.ellipse(apx - 1.5, apy - 2.2, 6.0, 2.6, 0, 0, 6.29); g.fill();
+        g.fillStyle = GC_STL;
+        g.beginPath(); g.ellipse(apx, apy - 3.2, 3.8, 2.3, 0, 0, 6.29); g.fill(); outline(g, GC_STD);
+        g.fillStyle = '#f0f3f8';
+        g.beginPath(); g.ellipse(apx - 0.6, apy - 4.0, 2.2, 1.3, 0, 0, 6.29); g.fill();
       }
-      g.closePath(); g.fillStyle = GC_SLB; g.fill(); outline(g, GC_SLD);
-      g.fillStyle = 'rgba(255,255,255,.10)';
-      g.beginPath();
-      for (gk = 0; gk < 8; gk++) {
-        var ga2 = gk / 8 * 6.2832 + 0.3927;
-        var gq2 = gproj(Math.cos(ga2) * 0.70, Math.sin(ga2) * 0.70);
-        if (gk) g.lineTo(cx + gq2[0], baseY + gq2[1] - 2); else g.moveTo(cx + gq2[0], baseY + gq2[1] - 2);
+      // hub plinth the dome turns on, with a house rim round the race
+      cylinder(g, cx, baseY - 1, 21, 6, '#6e7484', GC_ST, GC_STD);
+      g.fillStyle = shade(col, 0.72);
+      g.beginPath(); g.ellipse(cx, baseY - 7, 21, 9.4, 0, 0, 6.29);
+      g.ellipse(cx, baseY - 7, 17.4, 7.8, 0, 0, 6.29); g.fill('evenodd');
+
+      // ---- the armoured dome ----------------------------------------------
+      // A SQUAT rounded mass with a wide foot, not an egg on end: the
+      // silhouette leaves the turntable almost vertically, bellies out at a
+      // third of its height and closes over the top.
+      var domH = 44, domR = 22, domY = baseY - 6;
+      function domePath() {
+        g.beginPath();
+        g.moveTo(cx - domR, domY - 6);
+        g.bezierCurveTo(cx - domR - 0.5, domY - domH * 0.62, cx - domR * 0.70, domY - domH,
+                        cx - domR * 0.06, domY - domH);
+        g.bezierCurveTo(cx + domR * 0.66, domY - domH, cx + domR + 0.5, domY - domH * 0.60,
+                        cx + domR, domY - 6);
+        g.bezierCurveTo(cx + domR, domY + 5, cx - domR, domY + 5, cx - domR, domY - 6);
+        g.closePath();
       }
-      g.closePath(); g.fill();
-      // four bollards on the diagonals
-      for (gk = 0; gk < 4; gk++) {
-        var gb = gk / 4 * 6.2832 + 0.7854;
-        var gbq = gproj(Math.cos(gb) * 0.86, Math.sin(gb) * 0.86);
-        cylinder(g, cx + gbq[0], baseY + gbq[1] - 1, 3.0, 7, '#4a4f58', '#6a7079', '#21252b');
-      }
-      // turret ring, then the drum
-      g.fillStyle = '#8f8878';
-      g.beginPath(); g.ellipse(cx, baseY - 3, 19, 8.6, 0, 0, 6.29); g.fill(); outline(g, GC_SLD);
-      g.fillStyle = GC_SLL;
-      g.beginPath(); g.ellipse(cx, baseY - 4.4, 16, 7.2, 0, 0, 6.29); g.fill(); outline(g, GC_SLD);
-      cylinder(g, cx, baseY - 5, 13.5, 11, GC_MT, GC_MTL, GC_MTD);
-      g.fillStyle = 'rgba(255,255,255,.13)';
-      g.beginPath(); g.ellipse(cx - 5, baseY - 13, 7.5, 3.4, 0, 0, 6.29); g.fill();
-      // mantlet + barrel, laid on the bearing
+      domePath(); g.fillStyle = GC_DM; g.fill(); outline(g, GC_DMD);
+      g.save(); domePath(); g.clip();
+      // HOUSE band round the foot, drawn as a big ellipse whose TOP ARC is
+      // the band's edge — so it bows across the front the way the sprite's
+      // does instead of ringing the far side as well.
+      g.fillStyle = shade(col, 0.86);
+      g.beginPath(); g.ellipse(cx, domY + 4, domR * 1.02, 9.6, 0, 0, 6.29); g.fill();
+      g.fillStyle = shade(col, 1.18);
+      g.beginPath(); g.ellipse(cx - 2, domY + 3.6, domR * 0.76, 7.0, 0, 0, 6.29); g.fill();
+      g.fillStyle = shade(col, 0.58);
+      g.beginPath(); g.ellipse(cx, domY + 8, domR * 1.02, 8.2, 0, 0, 6.29); g.fill();
+      // near-right flank catches the light in one broad sweep
+      g.fillStyle = GC_SPC;
+      g.beginPath(); g.ellipse(cx + 5.4, domY - domH * 0.44, 6.6, domH * 0.40, -0.16, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(228,235,248,.48)';
+      g.beginPath(); g.ellipse(cx + 3.8, domY - domH * 0.54, 3.2, domH * 0.24, -0.16, 0, 6.29); g.fill();
+      g.strokeStyle = 'rgba(20,24,36,.45)'; g.lineWidth = 1.1;
+      g.beginPath(); g.ellipse(cx + 5.4, domY - domH * 0.44, 6.6, domH * 0.40, -0.16, 0, 6.29); g.stroke();
+      // shaded far-right shoulder
+      g.fillStyle = 'rgba(14,17,26,.44)';
+      g.beginPath(); g.ellipse(cx + domR * 0.86, domY - domH * 0.34, 7.4, domH * 0.34, 0.22, 0, 6.29); g.fill();
+      // HOUSE armour: one broad cheek plate on the near-LEFT quarter...
+      g.fillStyle = col;
+      g.beginPath(); g.ellipse(cx - domR * 0.60, domY - domH * 0.52, 6.4, domH * 0.32, 0.16, 0, 6.29); g.fill();
+      g.fillStyle = shade(col, 1.28);
+      g.beginPath(); g.ellipse(cx - domR * 0.68, domY - domH * 0.60, 3.0, domH * 0.16, 0.16, 0, 6.29); g.fill();
+      // armour seams: the sprite's dome is welded plate, not a smooth shell
+      g.strokeStyle = 'rgba(12,15,24,.55)'; g.lineWidth = 1.1;
+      g.beginPath(); g.moveTo(cx - domR, domY - domH * 0.30); g.lineTo(cx + domR, domY - domH * 0.44); g.stroke();
+      g.beginPath(); g.moveTo(cx - domR * 0.20, domY - domH * 0.99); g.lineTo(cx - domR * 0.34, domY + 4); g.stroke();
+      g.lineWidth = 1;
+      // the dark visor slot the gun comes out of
+      g.fillStyle = GC_DMD;
+      g.beginPath(); g.ellipse(cx + 1.5, domY - domH * 0.66, 9.0, 5.0, -0.18, 0, 6.29); g.fill();
+      g.restore();
+      domePath(); outline(g, GC_DMD);
+      // two service pipes off the far shoulder
+      g.strokeStyle = '#a8aeb8'; g.lineWidth = 2.4; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(cx - 7, domY - domH * 0.88); g.lineTo(cx - 10, domY - domH - 7); g.stroke();
+      g.beginPath(); g.moveTo(cx - 2, domY - domH * 0.94); g.lineTo(cx - 3.6, domY - domH - 4); g.stroke();
+      g.strokeStyle = '#5d636d'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(cx - 10, domY - domH - 7); g.lineTo(cx - 3.6, domY - domH - 4); g.stroke();
+
+      // ---- the gun --------------------------------------------------------
+      // SHORT and thick, out of the dome's shoulder, elevated a shallow 20-odd
+      // degrees, with a fat multi-baffle brake at the tip.
       var bx = Math.cos(gcA), byy = Math.sin(gcA);
       var bq = gproj(bx, byy);                       // one grid cell along the bearing, projected
       var bl = Math.sqrt(bq[0] * bq[0] + bq[1] * bq[1]) || 1;
       var ux2 = bq[0] / bl, uy2 = bq[1] / bl;
-      var pivX = cx, pivY = baseY - 19;
-      var LEN = 42, RISE = 24;                       // elevation ~30deg: the tip lifts on screen
+      var pivX = cx, pivY = domY - domH * 0.66;
+      var LEN = 25, RISE = 15;
       var tipX = pivX + ux2 * LEN, tipY = pivY + uy2 * LEN - RISE;
-      // mantlet
-      g.fillStyle = GC_MTL;
-      g.beginPath(); g.ellipse(pivX + ux2 * 5, pivY + uy2 * 5 - 2, 8.5, 7.0, 0, 0, 6.29); g.fill();
-      outline(g, GC_MTD);
-      // barrel in the house colour, grey bands
-      g.lineCap = 'round';
-      g.strokeStyle = GC_MTD; g.lineWidth = 7.4;
-      g.beginPath(); g.moveTo(pivX + ux2 * 4, pivY + uy2 * 4 - 1.8); g.lineTo(tipX, tipY); g.stroke();
-      g.strokeStyle = col; g.lineWidth = 5.4;
-      g.beginPath(); g.moveTo(pivX + ux2 * 4, pivY + uy2 * 4 - 1.8); g.lineTo(tipX, tipY); g.stroke();
-      g.strokeStyle = shade(col, 1.35); g.lineWidth = 1.5;
-      g.beginPath(); g.moveTo(pivX + ux2 * 5 - 1.2, pivY + uy2 * 5 - 3.6); g.lineTo(tipX - 1.2, tipY - 1.8); g.stroke();
-      g.strokeStyle = '#6f757e'; g.lineWidth = 5.6;   // two grey collars along the tube
-      for (gk = 1; gk <= 2; gk++) {
-        var f2 = gk / 3;
-        g.beginPath();
-        g.moveTo(pivX + ux2 * (4 + LEN * f2), pivY + uy2 * (4 + LEN * f2) - 1.8 - RISE * f2);
-        g.lineTo(pivX + ux2 * (7 + LEN * f2), pivY + uy2 * (7 + LEN * f2) - 1.8 - RISE * f2 - 1.2);
-        g.stroke();
+      function gcAt(t) { return [pivX + ux2 * LEN * t, pivY + uy2 * LEN * t - RISE * t]; }
+      // mantlet: a chunky block sitting in the dome's slot
+      g.fillStyle = GC_DML;
+      g.beginPath(); g.ellipse(pivX + ux2 * 3, pivY + uy2 * 3 - 1.8, 9.2, 7.6, 0, 0, 6.29); g.fill();
+      outline(g, GC_DMD);
+      g.fillStyle = col;
+      g.beginPath(); g.ellipse(pivX + ux2 * 2, pivY + uy2 * 2 - 3.4, 6.0, 4.4, 0, 0, 6.29); g.fill();
+      // the tube: a dark casing, a house-plated box over it, a steel top strip
+      g.lineCap = 'butt';
+      var p0 = gcAt(0.10), p1 = gcAt(0.94);
+      g.strokeStyle = GC_GUND; g.lineWidth = 11.0;
+      g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.stroke();
+      g.strokeStyle = col; g.lineWidth = 8.4;
+      g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.stroke();
+      g.strokeStyle = shade(col, 0.66); g.lineWidth = 2.0;
+      g.beginPath(); g.moveTo(p0[0], p0[1] + 3.2); g.lineTo(p1[0], p1[1] + 3.2); g.stroke();
+      g.strokeStyle = GC_GUN; g.lineWidth = 3.4;
+      g.beginPath(); g.moveTo(p0[0], p0[1] - 2.8); g.lineTo(p1[0], p1[1] - 2.8); g.stroke();
+      g.strokeStyle = shade(col, 1.34); g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(p0[0] - 1.0, p0[1] - 4.2); g.lineTo(p1[0] - 1.0, p1[1] - 4.2); g.stroke();
+      // three baffle fins, then the brake
+      g.strokeStyle = '#565d68'; g.lineWidth = 10.4;
+      for (gk = 0; gk < 3; gk++) {
+        var pf = gcAt(0.62 + gk * 0.16);
+        g.beginPath(); g.moveTo(pf[0], pf[1]); g.lineTo(pf[0] + ux2 * 1.6, pf[1] + uy2 * 1.6 - 1.0); g.stroke();
       }
-      // muzzle brake
-      g.fillStyle = '#565d68';
-      g.beginPath(); g.ellipse(tipX, tipY, 5.0, 4.4, 0, 0, 6.29); g.fill(); outline(g, GC_MTD);
+      g.fillStyle = '#6a7280';
+      g.beginPath(); g.ellipse(tipX, tipY, 6.2, 5.4, 0, 0, 6.29); g.fill(); outline(g, GC_GUND);
       g.fillStyle = '#12151a';
-      g.beginPath(); g.ellipse(tipX + ux2 * 1.4, tipY + uy2 * 1.4 - 0.4, 2.3, 2.1, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(tipX + ux2 * 1.8, tipY + uy2 * 1.8 - 0.5, 2.6, 2.3, 0, 0, 6.29); g.fill();
       g.lineWidth = 1;
-
 
     } else if (key === 'spysat') {
       // [GASPYSAT] SpySat Uplink. A low Allied signals bunker with a big
@@ -16598,7 +16811,7 @@
   function unpackOf(p, fk, face) {
     var ky = p + fk + face;
     if (SPR_UNPK[ky]) return SPR_UNPK[ky];
-    var S = SPR.unit[p][fk].mcv[face & 7], col = COL[p], out = [], i;
+    var S = SPR.unit[p][fk].mcv[face & (NFACE - 1)], col = COL[p], out = [], i;
     for (i = 0; i < 4; i++) {
       var t = i / 3;
       var c = mkCanvas(S.w + 52, S.h + 24), g = c.g;
@@ -16665,22 +16878,21 @@
     }
     return art._doorD;
   }
-  // 8 bearing frames for the defences whose art has a barrel, launcher or
-  // slit that should point at what they are shooting (art.ini `Turret=yes`).
+  // NFACE bearing frames for the defences whose art has a barrel, launcher
+  // or slit that should point at what they are shooting (art.ini
+  // `Turret=yes`) — a Grand Cannon traverses through the same 32 bearings a
+  // tank turret does. Lazy per bearing (`faceSheet`), so a defence that never
+  // acquires anything bakes none of them and one that holds a firing lane
+  // bakes the two or three it uses.
   var AIMED = { sentry: 1, sentrygun: 1, patriot: 1, flakcannon: 1, grandcannon: 1 };
   function aimOf(art, key, p, fk) {
-    if (!art._aim) {
-      var out = [];
-      for (var i = 0; i < 8; i++) out.push(bakeBuilding(key, COL[p], fk, 0, i * Math.PI / 4).s);
-      art._aim = out;
-    }
+    if (!art._aim) art._aim = faceSheet(function (i) { return bakeBuilding(key, COL[p], fk, 0, i * FANG).s; });
     return art._aim;
   }
   function aimDmgOf(art, key, p, fk) {
     if (!art._aimD) {
-      var aim = aimOf(art, key, p, fk), ports = portsOf(art), out = [];
-      for (var i = 0; i < aim.length; i++) out.push(bakeDamaged(aim[i], ports, art.ax, art.ay, hashKey(key) + 31));
-      art._aimD = out;
+      var aim = aimOf(art, key, p, fk), ports = portsOf(art);
+      art._aimD = faceSheet(function (i) { return bakeDamaged(aim[i], ports, art.ax, art.ay, hashKey(key) + 31); });
     }
     return art._aimD;
   }
@@ -16852,14 +17064,11 @@
           }
           // Selection brackets and the HP bar are placed off the art's real
           // bounds, not off the stat-table width: a ground ring sized from
-          // UNITS[].w vanished under the wider rebuilt hulls.
-          var frames = Array.isArray(U) ? U.slice() : [U];
-          if (U.mine) frames = frames.concat(U.mine);
-          if (U.hull) frames = frames.concat(U.hull);
-          if (U.turret) frames = frames.concat(U.turret);
-          if (U.anim) frames = frames.concat(U.anim);
-          if (U.empty) frames = frames.concat(U.empty);
-          frames.forEach(function (sc) { if (sc && !sc.bb) sc.bb = artBox(sc); });
+          // UNITS[].w vanished under the wider rebuilt hulls. A vehicle's
+          // sheets fill `bb` inside their own lazy getter, so walking them
+          // here (which would bake all 32 bearings of every unit in the game)
+          // is exactly what must NOT happen; only the eager art needs it.
+          if (!Array.isArray(U) && U && !U.bb) U.bb = artBox(U);
           SPR.unit[p][ufk][uk] = U;
         }
       }
@@ -16882,7 +17091,7 @@
               || k === 'airforce' || k === 'radar' || k === 'depot' || k === 'lab' || k === 'purifier' || k === 'reactor'
               || k === 'sentry' || k === 'sentrygun' || k === 'prism' || k === 'tesla'
               || k === 'patriot' || k === 'flakcannon'
-              || k === 'spysat' || k === 'psisensor' || k === 'cloningvats'
+              || k === 'spysat' || k === 'psisensor' || k === 'cloningvats' || k === 'gapgen'
               || k === 'chrono' || k === 'weather' || k === 'curtain' || k === 'nuke') {
             // The yard's crane works: six phases, cycled by drawBld like the
             // RA2 idle animation. The bbox is the union so the brackets and
@@ -16909,7 +17118,7 @@
     var u = {
       id: g.nextId++, kind: 'u', type: type, p: p,
       x: gx, y: gy, hp: d.hp, maxhp: d.hp, dead: false,
-      face: (gx + gy) & 7, cool: 0, target: null, order: null,     // order: {t:'move'|'attack'|'harvest', x,y,id}
+      face: ((gx + gy) & 7) * 4, fsub: 0, tsub: 0, cool: 0, target: null, order: null,     // order: {t:'move'|'attack'|'harvest', x,y,id}
       path: null, pi: 0, repath: 0, repathAt: -999, stuck: 0, lastx: gx, lasty: gy,
       cargo: 0, cargoV: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
       pax: [],                                                       // RA2 Passengers=: who is riding in this hull
@@ -16924,7 +17133,7 @@
     g.side[p].made++;
     if (d.ammo) {
       var fp = findPad(g, u);
-      if (fp) { u.pad = fp.b.id; u.slot = fp.slot; var sl = padSlot(fp.b, fp.slot); u.x = sl.x; u.y = sl.y; u.landed = true; u.face = 0; }
+      if (fp) { u.pad = fp.b.id; u.slot = fp.slot; var sl = padSlot(fp.b, fp.slot); u.x = sl.x; u.y = sl.y; u.landed = true; u.face = 0; u.fsub = 0; }
     }
     return u;
   }
@@ -17529,11 +17738,11 @@
     g.wrecks.push({
       type: u.type, p: u.p, x: u.x, y: u.y, face: u.face || 0, t: 0,
       life: d.bomb ? CRASH_LIFE_BOMB : CRASH_LIFE,
-      alt0: altOf(u) || d.alt, spin: d.bomb ? 0.04 : 0.12,
+      alt0: altOf(u) || d.alt, spin: d.bomb ? 0.16 : 0.48,
       // A jet keeps its forward momentum into the ground; a gasbag drops
       // straight down where it was holed.
-      vx: d.bomb ? 0 : Math.cos(u.face * Math.PI / 4) * d.spd * 0.4,
-      vy: d.bomb ? 0 : Math.sin(u.face * Math.PI / 4) * d.spd * 0.4
+      vx: d.bomb ? 0 : Math.cos(u.face * FANG) * d.spd * 0.4,
+      vy: d.bomb ? 0 : Math.sin(u.face * FANG) * d.spd * 0.4
     });
   }
   function wreckAlt(w) { var k = 1 - w.t / w.life; return w.alt0 * k * k; }   // it accelerates downward
@@ -18062,9 +18271,8 @@
       if (wt && !(isInfArmour(armourOf(wt)) || armourOf(wt) === 'light')) wt = null;
       if (wt) {
         var wax = entX(wt) - u.x, way = entY(wt) - u.y;
-        u.tface = ((Math.round(Math.atan2(way, wax) / (Math.PI / 4)) % 8) + 8) % 8;
         u.aimAt = g.tick;
-        fire(g, u, wt);
+        if (aimTurret(u, faceOf(way, wax), rotOf(u.type))) fire(g, u, wt);
       }
     }
     // ---- the Chrono Miner's trip home ([CMIN] Teleporter=yes) ------------
@@ -18143,7 +18351,7 @@
       // seam on one axis indefinitely, and a per-axis test never passes.
       if (d2 < 1.44) {
         u.state = 'mining'; u.path = null; u.noProg = 0;
-        u.face = ((Math.round(Math.atan2(m.y - u.y, m.x - u.x) / (Math.PI / 4)) % 8) + 8) % 8;
+        u.face = faceOf(m.y - u.y, m.x - u.x); u.fsub = 0;
       }
       else if (d2 < (u.bestD == null ? 1e9 : u.bestD) - 0.01) {
         u.bestD = d2; u.stallAt = g.tick;                // still closing
@@ -18658,8 +18866,12 @@
       if (cx * cx + cy * cy < 0.2) crush(g, u, o);           // within ~0.45 of a tile: under the tracks
     });
 
-    var ang = Math.atan2(dy, dx);
-    u.face = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8;
+    // The hull turns at its own ROT rather than snapping to the new
+    // bearing: a Grizzly pivots onto its heading over about a second. The
+    // MOVEMENT vector above is untouched and continuous — only the drawn
+    // bearing is quantised, and only to 32.
+    if (slews(u)) slew(u, 'face', 'fsub', faceOf(dy, dx), rotOf(u.type));
+    else { u.face = faceOf(dy, dx); u.fsub = 0; }
     u.movedAt = g.tick;
     return true;
   }
@@ -18678,7 +18890,7 @@
     var step = Math.min(spd, d);
     u.x = Math.max(0, Math.min(MAP - 1, u.x + dx / d * step + sx * spd * 0.5));
     u.y = Math.max(0, Math.min(MAP - 1, u.y + dy / d * step + sy * spd * 0.5));
-    u.face = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+    slew(u, 'face', 'fsub', faceOf(dy, dx), rotOf(u.type));      // [ORCA] ROT=3: a jet banks round
     u.movedAt = g.tick; u.noProg = 0; u.path = null;
     return true;
   }
@@ -18696,7 +18908,7 @@
     var c = Math.cos(u.hov), sn = Math.sin(u.hov), r = 0.45;
     u.x = Math.max(0, Math.min(MAP - 1, u.guardX + c * r));
     u.y = Math.max(0, Math.min(MAP - 1, u.guardY + sn * r * 0.6));
-    u.face = ((Math.round(Math.atan2(c * 0.6, -sn) / (Math.PI / 4)) % 8) + 8) % 8;
+    slew(u, 'face', 'fsub', faceOf(c * 0.6, -sn), rotOf(u.type));
     u.movedAt = g.tick;
   }
 
@@ -18762,7 +18974,9 @@
     if (u.prone && g.tick - (u.hitAt || 0) > 240) { u.prone = false; u.upAt = g.tick; }
     if (u.rank === 2 && u.hp < u.maxhp && (g.tick % 30) === 0) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * 0.005);   // EliteAbilities=SELF_HEAL
     // A turret swings back to the hull's line 1.5 s after it last aimed.
-    if (u.tface != null && g.tick - (u.aimAt || 0) > 90) u.tface = null;
+    // ...and it swings back at the same ROT rather than snapping.
+    if (u.tface != null && g.tick - (u.aimAt || 0) > 90 &&
+        slew(u, 'tface', 'tsub', u.face | 0, rotOf(u.type))) u.tface = null;
 
     if (isHarv(u)) {
       // Harvesters flee toward the nearest refinery when shot at rather than
@@ -18932,9 +19146,9 @@
         if (amd <= rngVs(amw, am) && !tooClose(amw, amd)) {
           u.path = null;
           var aax = (am.kind === 'b' ? am.cx : am.x) - u.x, aay = (am.kind === 'b' ? am.cy : am.y) - u.y;
-          var aaf = ((Math.round(Math.atan2(aay, aax) / (Math.PI / 4)) % 8) + 8) % 8;
-          if (d.turret) { u.tface = aaf; u.aimAt = g.tick; } else u.face = aaf;
-          if (u.cool <= 0) fire(g, u, am);
+          var aaf = faceOf(aay, aax), amRot = rotOf(u.type);
+          var amB = d.turret ? (u.aimAt = g.tick, aimTurret(u, aaf, amRot)) : aimHull(u, aaf, amRot);
+          if (u.cool <= 0 && amB) fire(g, u, am);
           return;                                  // hold and fight
         }
         // Close the last few cells rather than walking past out of range.
@@ -18961,9 +19175,9 @@
       var fspec = (u.deployed && d.dep) ? d.dep : d;
       if (fd <= fspec.rng && !tooClose(fspec, fd)) {
         u.path = null;
-        var ff = ((Math.round(Math.atan2(fdy, fdx) / (Math.PI / 4)) % 8) + 8) % 8;
-        if (d.turret) { u.tface = ff; u.aimAt = g.tick; } else u.face = ff;
-        if (u.cool <= 0) fireGround(g, u, u.order.x, u.order.y);
+        var ff = faceOf(fdy, fdx), ffRot = rotOf(u.type);
+        var ffB = d.turret ? (u.aimAt = g.tick, aimTurret(u, ff, ffRot)) : aimHull(u, ff, ffRot);
+        if (u.cool <= 0 && ffB) fireGround(g, u, u.order.x, u.order.y);
         return;
       }
       if (!advance(g, u, u.order.x, u.order.y, uspd(u), 60) && u.noProg > 90) {
@@ -19047,10 +19261,11 @@
         u.path = null;
         var ax = (tgt.kind === 'b' ? tgt.cx : tgt.x) - u.x;
         var ay = (tgt.kind === 'b' ? tgt.cy : tgt.y) - u.y;
-        var af = ((Math.round(Math.atan2(ay, ax) / (Math.PI / 4)) % 8) + 8) % 8;
+        var af = faceOf(ay, ax), afRot = rotOf(u.type), bears = true;
         // A Kirov does not pivot to face what is directly beneath it.
-        if (d.turret) { u.tface = af; u.aimAt = g.tick; } else if (!(d.bomb && dd < 0.6)) u.face = af;
-        if (u.cool <= 0) fire(g, u, tgt);
+        if (d.turret) { u.aimAt = g.tick; bears = aimTurret(u, af, afRot); }
+        else if (!(d.bomb && dd < 0.6)) bears = aimHull(u, af, afRot);
+        if (u.cool <= 0 && bears) fire(g, u, tgt);
         return;
       }
       // Chase only what we were told to chase, or what is close to our post.
@@ -19189,7 +19404,7 @@
         var dd = dist(u, t);
         if (dd <= d.rng) {
           var ax = (t.kind === 'b' ? t.cx : t.x) - u.x, ay = (t.kind === 'b' ? t.cy : t.y) - u.y;
-          u.face = ((Math.round(Math.atan2(ay, ax) / (Math.PI / 4)) % 8) + 8) % 8;
+          slew(u, 'face', 'fsub', faceOf(ay, ax), rotOf(u.type));
           if (u.cool <= 0) fire(g, u, t);
         } else flyToward(g, u, t.kind === 'b' ? t.cx : t.x, t.kind === 'b' ? t.cy : t.y, uspd(u));
         return;
@@ -19201,7 +19416,7 @@
       var sl = padSlot(pad, u.slot);
       u.landed = false;
       if (!flyToward(g, u, sl.x, sl.y, uspd(u))) {
-        u.x = sl.x; u.y = sl.y; u.landed = true; u.rtb = false; u.face = 0;
+        u.x = sl.x; u.y = sl.y; u.landed = true; u.rtb = false; u.face = 0; u.fsub = 0;
         u.guardX = u.x; u.guardY = u.y;
       }
       return;
@@ -23334,7 +23549,7 @@
     var src = null, sw, sh, sc, kb = 1;
     try {
       if (isBld) { var A = SPR.bld[0][fac][key]; if (!A) return null; src = A.s.c; var bb = A.s.bb || { x0: 0, y0: 0, x1: A.s.w, y1: A.s.h }; sw = bb.x1 - bb.x0; sh = bb.y1 - bb.y0; sc = { x: bb.x0, y: bb.y0 }; kb = src.width / A.s.w; }
-      else { var U = SPR.unit[0][fac][key]; if (!U) return null; var f = Array.isArray(U) ? U[1] : U; src = f.c; var ub = f.bb || { x0: 0, y0: 0, x1: f.w, y1: f.h }; sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; sc = { x: ub.x0, y: ub.y0 }; kb = src.width / f.w; }
+      else { var U = SPR.unit[0][fac][key]; if (!U) return null; var f = Array.isArray(U) ? U[ICON_FACE] : U; src = f.c; var ub = f.bb || { x0: 0, y0: 0, x1: f.w, y1: f.h }; sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; sc = { x: ub.x0, y: ub.y0 }; kb = src.width / f.w; }
     } catch (e) { return null; }
     if (!src || sw <= 0 || sh <= 0) return null;
     // RA2's cameos are 60x48 PCX plates in a house-tinted frame: a lit sky
@@ -26156,7 +26371,7 @@
       // off its own tile.
       ctx.translate(px, py); 
       if (f.mode === 1) ctx.rotate(q * q * 1.45);                     // twirl
-      else if (f.mode === 3) { ctx.translate(-Math.cos(f.face * Math.PI / 4) * q * 9, -q * q * 5 + q * 7); ctx.rotate(-q * 1.5); }
+      else if (f.mode === 3) { ctx.translate(-Math.cos(f.face * FANG) * q * 9, -q * q * 5 + q * 7); ctx.rotate(-q * 1.5); }
       else if (f.mode === 5) ctx.translate(((t % 3) - 1) * 0.8, 0);   // electro judder
       ctx.translate(-px, -py);
     }
@@ -26200,7 +26415,7 @@
       if (tpx < VX0 - 40 || tpy < VY0 - 40 || tpx > VX1 + 40 || tpy > VY1 + 40) continue;
       var gx0 = Math.round(tr.x), gy0 = Math.round(tr.y);
       if (!inMap(gx0, gy0) || !G.seen[idx(gx0, gy0)]) continue;
-      var ta = tr.face * Math.PI / 4;
+      var ta = tr.face * FANG;
       var fdx = Math.cos(ta), fdy = Math.sin(ta);
       var fsx = (fdx - fdy) * (TW / 2), fsy = (fdx + fdy) * (TH / 2);
       var fl = Math.sqrt(fsx * fsx + fsy * fsy) || 1; fsx /= fl; fsy /= fl;
@@ -26260,8 +26475,8 @@
     var alt = altOf(u);
     var s, turretS = null, gondS = null;
     if (Array.isArray(art)) {
-      // Vehicles: 8 facings; a mining harvester alternates its two sets; a
-      // turreted tank draws hull by travel facing and turret by aim facing.
+      // Vehicles: 32 facings, baked lazily; a mining harvester alternates its
+      // two sets; a turreted tank draws hull by travel facing, turret by aim.
       var set = art;
       if (u.state === 'mining' && art.mine && ((G.tick >> 3) & 1)) set = art.mine;
       // Kirov propeller; a Nighthawk's rotors keep turning on the ground too
@@ -26311,7 +26526,7 @@
     // is drawn in so the kick runs down the gun, not down the screen.
     var rck = G.tick - (u.fireAt == null ? -99 : u.fireAt);
     if (!art.fr && rck >= 0 && rck < 4 && d.dmg > 0) {
-      var rang = ((u.tface == null ? u.face : u.tface) || 0) * Math.PI / 4;
+      var rang = ((u.tface == null ? u.face : u.tface) || 0) * FANG;
       var rgx = Math.cos(rang), rgy = Math.sin(rang);
       var rsx = (rgx - rgy) * (TW / 2), rsy = (rgx + rgy) * (TH / 2);
       var rl = Math.sqrt(rsx * rsx + rsy * rsy) || 1;
@@ -26537,7 +26752,7 @@
     var alt = wreckAlt(w), px = sx(w.x, w.y), py = sy(w.x, w.y);
     if (px < VX0 - 90 || py < VY0 - 90 || px > VX1 + 90 || py > VY1 + 90) return;
     var art = SPR.unit[w.p][facOf(G, w.p) || 'dir'][w.type];
-    var f = (((w.face + Math.round(w.t * w.spin)) % 8) + 8) % 8;
+    var f = (((w.face + Math.round(w.t * w.spin)) % NFACE) + NFACE) % NFACE;
     var s = Array.isArray(art) ? art[f] : (art.fr ? art.fr('walk', f, (w.t >> 3) % 6) : art);
     if (!s) return;
     ctx.save();
@@ -26764,7 +26979,7 @@
       if (AIMED[b.type] && b.target && !b.target.dead && !dark) {
         var tX = b.target.kind === 'b' ? b.target.cx : b.target.x;
         var tY = b.target.kind === 'b' ? b.target.cy : b.target.y;
-        aimI = (Math.round(Math.atan2(tY - b.cy, tX - b.cx) / (Math.PI / 4)) + 8) % 8;
+        aimI = faceOf(tY - b.cy, tX - b.cx);
       }
       var set, tag, fi;
       if (b.door > 0) {
@@ -27243,7 +27458,7 @@
         } else {
           var U = SPR.unit[0][k][key];
           if (!U) continue;
-          var fr = Array.isArray(U) ? U[1] : U;
+          var fr = Array.isArray(U) ? U[ICON_FACE] : U;
           src = fr.c; kb = src.width / fr.w;
           var ub = fr.bb || { x0: 0, y0: 0, x1: fr.w, y1: fr.h };
           sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; ox = ub.x0; oy = ub.y0;
