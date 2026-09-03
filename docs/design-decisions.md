@@ -7261,3 +7261,78 @@ skirt crown (5px of hull over a 30px skirt is a raft, not a vehicle).
 twelve on the same cell, because `standSpot` tests the neighbour index and that
 index is only rebuilt on `simStep`. `standSpot` now takes an optional `used`
 set, exactly as `spreadSpot` does.
+
+## 32 facings for a voxel, 8 for an SHP — and lazily, so four times the art costs half the load (2026-09-03)
+
+**Symptom.** A Grizzly driving across the map read as a turntable, not a tank:
+it snapped between eight bearings 45 degrees apart, and its turret snapped with
+it. A tank asked to shoot something behind it fired the same tick it was
+ordered to, gun still pointing the other way.
+
+**Cause.** Two RA2 facts the engine did not have. First, RA2's vehicles and
+aircraft are **voxels** and a voxel is rendered at **32 bearings** — only
+infantry are 8-facing hand-drawn SHPs. Second, rules.ini gives every vehicle a
+`ROT=` turn rate (5 for almost every tank hull and turret, `[DRON]` 40,
+`[ZEP]` 10, `[ORCA]` 3) and a gun does not speak until the mount **bears**.
+Ours had neither: `bakeVehicle` baked exactly eight frames and `u.face` was
+`Math.round(atan2 / (PI/4)) & 7`, assigned in one hop.
+
+**Fix — the facing model.** `NFACE = 32`, `FANG = 2*PI/32`, and one quantiser
+(`faceOf(dy, dx)`) replacing nine copies of the old expression. `u.face` and
+`u.tface` are 0..31 everywhere — hulls, turrets, aircraft noses, tread marks,
+the recoil axis, the muzzle-flash origin, the crash tumble, the MCV unpack
+facing, and the aiming defences' bearing frames (a Grand Cannon traverses
+through the same 32 a tank turret does). Infantry stay at 8: their art really
+is eight drawn facings, so `octOf(f) = ((f + 2) >> 2) & 7` is the single bridge,
+applied at the two atlas entry points (`infArt.fr`, `dogArt.fr`) rather than at
+every call site. It **rounds**, so a man on bearing 2 or 3 stands on the octant
+a 45-degree step would have given him. The cameo/line-up crop, which used to
+take facing 1 of eight (due south, front-on), is now the named `ICON_FACE = 4`.
+
+**Fix — lazily, or the load would have quadrupled.** `faceSheet(make)` returns a
+real `Array` of length 32 whose slots are `Object.defineProperty` getters; the
+first read bakes the canvas, fills its `bb`, and **replaces itself with the
+value**, so the second read is a plain array lookup and `set[u.face]` reads
+exactly like the old baked strip at every call site. The consequence is the
+opposite of what four times the facings suggests: because no vehicle bakes
+anything at boot, load **halved** — 1289–1358 ms → 702–731 ms measured. The
+cost moved into the first seconds of a battle, and honestly: the cold mean over
+the first 120 rendered frames of a 40-unit brawl goes 3.78 → 4.19 ms and the
+worst single cold frame 15 → 23 ms, while the **steady-state** frame is flat
+(3.53 → 3.60 ms, +1.5%, inside the +10% budget). One dropped frame per bearing
+per unit type, once, in exchange for half the boot. `bakeOwned` had to stop
+walking a unit's frames to fill `bb` — that one `forEach` would have forced all
+32 bearings of every unit in the game at load and undone the whole thing.
+
+**Fix — the turn rates, which ARE sim.** `slew(u, 'face', 'fsub', want, rot)`
+turns one field at `rot * 0.1` facings per tick (ROT=5 → the full 32 in ~64
+ticks, a hair over a second, which is what a Grizzly's turret looks like in
+RA2). A facing has to stay an integer because it indexes a baked sheet, so the
+sub-facing remainder is carried in a companion field (`fsub`/`tsub`) and folded
+back in next tick. `aimTurret` / `aimHull` return whether the mount bears
+(`AIM_TOL = 1.0` facing of slop, so the shell still leaves the barrel it is
+drawn down) and **fire is gated on that** — RA2 will not let a tank shoot
+across its own deck. Movement is untouched: `stepToward` still steps along the
+continuous vector and only the DRAWN bearing is quantised, which is why the
+pinned seed-4242 snapshots did not have to move. The turret's 1.5 s return to
+the hull line slews too instead of snapping to `null`.
+
+**Rejected.**
+
+* *A fractional `u.face`, rounded at draw time.* Would have made every
+  `art.hull[u.face]` an `undefined` waiting to happen and put a float in the
+  determinism hash. The integer-plus-remainder pair keeps both honest.
+* *Gating movement on the hull turn rate too* (a real RA2 vehicle pivots before
+  it drives). That is a pathing change, not a drawing change: it would have
+  moved the sim, moved the pinned snapshots, and put a whole balance pass at
+  risk for something you barely see at 1:1. The hull slews visually and drives
+  on its continuous vector.
+* *Snapping the first acquisition and slewing only afterwards*, to keep three
+  four-tick fixtures green without touching them. That is not RA2 — a turret
+  stowed across the deck traverses. The three fixtures (`flaktrack`, `mammoth`
+  x2) lay the gun explicitly instead, via a `layGun(u, t)` helper that says in
+  one line why it exists.
+* *Baking the eight cardinal bearings eagerly to smooth the cold spike.* It
+  gives back most of the load-time win to save one frame per unit type. The
+  infantry facing atlas already made this trade the other way and nobody has
+  ever noticed it.
