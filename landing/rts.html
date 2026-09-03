@@ -782,6 +782,73 @@
     return d.amph ? MV_AMPH : (d.nav ? MV_NAVAL : MV_LAND);
   }
   function isNaval(e) { return !!(e && e.kind === 'u' && UNITS[e.type].nav); }
+
+  // ---- water connectivity ----------------------------------------------- //
+  // A hull cannot swim across a beach. Every `T_WATER` cell carries the label
+  // of the BODY of water it belongs to (`g.wzone`, 0 = dry), worked out once
+  // when the terrain is final; two cells with different labels have no route
+  // between them for anything that floats, however short the straight line
+  // looks. Without it the AI pointed a Destroyer at a target across a spit —
+  // or in a second lake entirely — and re-issued the same impossible order
+  // every ten seconds for the rest of the match.
+  //
+  // 8-connected, because `astar` steps diagonally; and a diagonal step is
+  // refused when BOTH of its orthogonals are blocked, so the fill obeys the
+  // same no-corner-cutting rule and two pools that meet at a single corner
+  // stay separate bodies.
+  //
+  // TERRAIN, not occupancy. A structure can straddle a channel and cut a body
+  // in two, but that is transient — it can be sold, or shot — and A* already
+  // handles it the way it always has. `wzone` answers the PERMANENT question,
+  // so it only has to be recomputed when the terrain itself changes, which is
+  // a bridge span collapsing or being repaired.
+  var WZ_DX = [1, -1, 0, 0, 1, 1, -1, -1], WZ_DY = [0, 0, 1, -1, 1, -1, 1, -1];
+  function labelWater(g) {
+    var z = g.wzone, n = MAP * MAP, i, lab = 0, stack = [];
+    for (i = 0; i < n; i++) z[i] = 0;
+    for (i = 0; i < n; i++) {
+      if (z[i] || g.terrain[i] !== T_WATER) continue;
+      lab++; z[i] = lab; stack.push(i);
+      while (stack.length) {
+        var c = stack.pop(), cx = c % MAP, cy = (c / MAP) | 0;
+        for (var d = 0; d < 8; d++) {
+          var ax = WZ_DX[d], ay = WZ_DY[d], nx = cx + ax, ny = cy + ay;
+          if (!inMap(nx, ny)) continue;
+          var ni = ny * MAP + nx;
+          if (z[ni] || g.terrain[ni] !== T_WATER) continue;
+          if (ax && ay && g.terrain[cy * MAP + cx + ax] !== T_WATER &&
+                          g.terrain[(cy + ay) * MAP + cx] !== T_WATER) continue;
+          z[ni] = lab; stack.push(ni);
+        }
+      }
+    }
+    g.wzoneN = lab;
+  }
+  function waterZoneAt(g, x, y) {
+    x = Math.round(x); y = Math.round(y);
+    return inMap(x, y) ? g.wzone[y * MAP + x] : 0;
+  }
+  // The body a hull is floating in. An amphibious hull may be standing on a
+  // beach, so it falls back to the nearest water — and `navReach` lets it go
+  // anywhere anyway, because it can drive round.
+  function hullZone(g, u) {
+    var z = waterZoneAt(g, u.x, u.y);
+    if (z) return z;
+    var w = nearestWater(g, Math.round(u.x), Math.round(u.y), 3);
+    return w ? waterZoneAt(g, w.x, w.y) : 0;
+  }
+  // Can this unit's mover ever reach (x,y)? Only a pure naval hull is fenced
+  // in: it needs open water of ITS OWN body within `r` cells of the spot
+  // (`r` because a shore order legitimately lands on the beach and `astar`
+  // walks out to the nearest floatable cell). Land and amphibious movers are
+  // unconstrained here — this is the water question, not the pathing one.
+  function navReach(g, u, x, y, r) {
+    var d = u && u.kind === 'u' ? UNITS[u.type] : null;
+    if (!d || !d.nav || d.amph) return true;
+    var z = hullZone(g, u);
+    if (!z) return true;                          // not afloat yet (in a yard): do not veto
+    return !!nearestWater(g, x, y, r == null ? 2 : r, z);
+  }
   // `Underwater=yes` — a Typhoon, a Dolphin and a Giant Squid run submerged.
   function isSub(e) { return !!(e && e.kind === 'u' && UNITS[e.type].sub); }
   // `Sensors=yes` / `SensorsSight=4`: what can SEE a submerged hull.
@@ -1354,10 +1421,16 @@
     },
     aegis: {
       // [AEGIS] $1200 / Str 800 / light / Speed 4 / Sight 8, Prerequisite
-      // GAYARD+RADAR. [Medusa] 100 / ROF 15 / Range 12 / SAMWH, and
+      // GAYARD,GARADR. [Medusa] 100 / ROF 15 / Range 12 / SAMWH, and
       // LandTargeting=1 with NavalTargeting=6: it is an anti-air battery and
       // nothing else — it cannot be aimed at a hull or at the shore.
-      name: 'Aegis Cruiser', em: '🛰️', cost: 1200, build: 50, cls: 'n', fac: 'dir', nav: 1, req: 'radar',
+      // GARADR is the AIRFORCE COMMAND: the Directorate has no `radar`
+      // building at all (`radar` is `fac: 'col'`), so a bare `req: 'radar'`
+      // here made the Aegis unbuildable for the only house that owns it —
+      // and aiTeamPass refuses any task force with an unbuildable member, so
+      // it took the WHOLE Allied offensive navy down with it. `lab` spells
+      // the same "either house's radar" the same way.
+      name: 'Aegis Cruiser', em: '🛰️', cost: 1200, build: 50, cls: 'n', fac: 'dir', nav: 1, req: ['airforce', 'radar'],
       hp: 800, spd: 0.052, sight: 8, armour: 'light', aa: true, aaRng: 12, ag: false,
       dmg: 100, rate: 60, rng: 12, splash: 0.3, wh: 'SAMWH',
       cap: 0, mine: 0, w: 30, h: 16, desc: 'Anti-air only: a 12-cell missile umbrella over the fleet'
@@ -2122,6 +2195,7 @@
       crates: [], crateAt: 0,                     // [CrateRules] CrateMinimum / CrateRegen
       bridges: [], bwrk: new Uint8Array(MAP * MAP),   // spans + torn-deck memory
       bspan: new Int16Array(MAP * MAP),           // cell -> span index + 1, 0 = not a bridge
+      wzone: new Int16Array(MAP * MAP),           // connected body of water per cell, 0 = dry (see labelWater)
       neut: [], drops: [], spread: 0,             // neutral spawn list, paradrops in flight, ore-spread pass
       // [Radiation]: a per-cell radiation LEVEL plus who put it there (kill
       // credit). `radAny` is the "is any cell hot" flag that keeps the whole
@@ -2147,6 +2221,7 @@
     computeHeight(g);
     computeGroundMat(g);
     indexBridges(g);
+    labelWater(g);
     placeNeutrals(g);
     // Every new game gets its own lockstep client (single-player loopback by
     // default) with an empty command schedule and its own derived caches.
@@ -5713,7 +5788,7 @@
       var s = big ? mkCanvas(150, 112) : unitCanvas(), g = s.g;
       var cx = s.w / 2, by = s.h - UPAD;
       g.translate(cx, by); g.scale(USC_V, USC_V); g.translate(-cx, -by);
-      var a = d * Math.PI / 4, cd = Math.cos(a), sd = Math.sin(a);
+      var a = d * FANG, cd = Math.cos(a), sd = Math.sin(a);
       var fx = ISO_X * (cd - sd), fy = ISO_Y * (cd + sd);       // forward
       var px = ISO_X * (-sd - cd), py = ISO_Y * (-sd + cd);     // sideways
       var nearS = py >= 0 ? 1 : -1;                             // the flank facing us
@@ -6045,20 +6120,33 @@
       // A bow wave on every surface hull: two pale chevrons off the stem, on
       // the water, so a ship reads as sitting IN something.
       if (kind !== 'sub' && kind !== 'dolphin' && kind !== 'squid') {
+        // Both arms START AT THE STEM and sweep aft and outboard, which is
+        // what a bow wave is. The first draft drew each chevron as ONE curve
+        // between two points abeam of the stem, so its ends floated free of
+        // the plan — and at the two facings where the hull is nearly beam-on
+        // to the camera the hull's projected width collapses while the wave's
+        // does not, which pulled the whole chevron off the ship. Anchoring
+        // the arms on the stem makes that impossible at any bearing.
         g.strokeStyle = 'rgba(232,244,252,.34)'; g.lineWidth = 1.0;
+        var stemQ = P(L * 0.97, 0, 0);
         for (var wi = 0; wi < 2; wi++) {
-          var bw0 = P(L * (0.74 - wi * 0.14), W * (0.90 + wi * 0.34), 0);
-          var bw1 = P(L * (0.99 - wi * 0.09), 0, 0);
-          var bw2 = P(L * (0.74 - wi * 0.14), -W * (0.90 + wi * 0.34), 0);
-          g.beginPath(); g.moveTo(bw0[0], bw0[1]);
-          g.quadraticCurveTo(bw1[0], bw1[1], bw2[0], bw2[1]); g.stroke();
+          for (var sgn = -1; sgn <= 1; sgn += 2) {
+            var bwT = P(L * (0.34 - wi * 0.30), sgn * W * (1.10 + wi * 0.48), 0);
+            var bwC = P(L * (0.86 - wi * 0.10), sgn * W * (0.86 + wi * 0.30), 0);
+            g.beginPath(); g.moveTo(stemQ[0], stemQ[1]);
+            g.quadraticCurveTo(bwC[0], bwC[1], bwT[0], bwT[1]); g.stroke();
+          }
         }
       }
       return s;
     }
-    var out = [];
-    for (var d = 0; d < 8; d++) out.push(frame(d));
-    return out;
+    // 32 bearings, baked LAZILY, exactly as bakeVehicle's sheet is. Hulls
+    // shipped with a flat 8-frame array while `u.face` had already moved to
+    // 0..31 for every vehicle and aircraft, so `set[u.face]` was `undefined`
+    // for 24 of the 32 bearings and drawUnit threw the moment a ship turned
+    // off a cardinal — caught by driving a set-piece and screenshotting it,
+    // which no headless balance run can see.
+    return faceSheet(frame);
   }
 
   // Same lazy atlas as infArt: one standing frame at load, the rest of the
@@ -8705,6 +8793,7 @@
     // both outgrew the shared head allowance (added on their own line so the
     // per-key `head` map above stays untouched).
     if (key === 'lab') head = 152; else if (key === 'depot') head = 88;
+    else if (key === 'shipyard') head = 226;   // the crane is the tallest thing on either rig
     // Superweapons are the tallest things on the board: the Chronosphere's
     // dome, the Weather Device's mast, the Curtain's emitter, the silo tower.
     if (key === 'gapgen') head = 116; else if (key === 'grandcannon') head = 84;
@@ -8747,36 +8836,55 @@
     // ------------------------------------------------------------------- //
     //  [GAYARD] / [NAYARD] — the Shipyard. It is the ONE structure in the
     //  game that stands on water (`WaterBound=yes`), so it skips the concrete
-    //  plate and the olive platform every land building shares: what it
-    //  stands on is a piled MOLE round three sides of the plot and an open
-    //  SLIPWAY on the fourth, which is where `DockingOffset0=384,-128,0`
-    //  puts the launch. Both faction sprites are the same machine — quay,
-    //  covered hall, gantry over the slip, crane — in two different
-    //  languages: the Directorate's is a white steel boathouse with a curved
-    //  roof and blue glass, the Collective's a black-iron dock with a red
-    //  gantry and a stack. Six phases: the gantry trolley traverses, the
-    //  welding arc flashes in the bay, the bay doors part and the swell moves.
+    //  plate and the olive platform every land building shares. Rebuilt
+    //  against docs/ra2-ref/allied-naval-yard-anim-last.png and
+    //  soviet-naval-yard-anim-last.png; the earlier quay-and-boathouse draft
+    //  was simply the wrong building. RA2's two yards are not docks along a
+    //  shore, they are OFFSHORE RIGS standing in open water on their own
+    //  legs, and the tallest thing in either silhouette is a lattice CRANE
+    //  JIB reaching out over the sea with a hook on a cable.
+    //
+    //  Directorate ([GAYARD]): four fat cylindrical caissons at the corners,
+    //  each on a concrete collar with a foam ring at the waterline, ribbed
+    //  steel above it, capped by a glossy hemispherical dome over a house
+    //  ring; a pale stepped tower on a spoked deck rosette in the middle; a
+    //  dark steel arch springing over it from behind with a house band and a
+    //  small domed head; a yellow lattice jib out to the right on a yellow
+    //  grab.
+    //
+    //  Collective ([NAYARD]): a low rectangular pontoon riding the water on
+    //  corner pilings, its rim painted in the house colour top and bottom;
+    //  four squat brick blockhouse pylons with cream slab caps carrying a
+    //  house-colour grille each; a black crane tower with a house band, a
+    //  cream lattice jib and a wrecking ball on the fall.
+    //
+    //  Six idle phases: the jib slews, the fall rises, the launch-bay gate
+    //  parts, the welding arc flashes in the bay, the swell runs through the
+    //  basin and the two floodlights blink in turn.
     // ------------------------------------------------------------------- //
     if (key === 'shipyard') {
       var ph = bph || 0;
-      var PILE = '#37312a';
-      var QUAY = sov ? '#6e6a5f' : '#8b9296', QUAY_D = sov ? '#332f29' : '#3f4448';
-      var HALL = sov ? '#39403a' : '#b9c2cb', HALL_D = sov ? '#1c201d' : '#6d7783';
-      var GANT = sov ? '#9a352b' : '#c9d0d8', GANT_D = sov ? '#4c1a14' : '#71787f';
-      var GLASSY = '#4d90bb';
+      // A PRIVATE generator for the scatter below. `srand`/`rnd` are the
+      // SIM's stream, and structure art is baked lazily now — a bake that
+      // reseeded the shared LCG in the middle of a match would move every
+      // subsequent die roll in the simulation.
+      var ySeed = 0x9e3779b1;
+      function yrnd() { ySeed = (Math.imul(ySeed, 1664525) + 1013904223) >>> 0; return ySeed / 4294967296; }
+      var SWING = Math.sin(ph * 6.283);                      // jib slew
+      var FALL  = 16 + Math.cos(ph * 6.283) * 12;            // hook drop
+      var open = (0.5 - Math.abs(ph - 0.5)) * 2;             // the launch gate
 
       // Everything here is placed in CELLS, not in pixels. `du` runs along
       // +gx (down-right on screen), `dv` along +gy (down-left); the plot is
-      // 4x4, so both run -2..+2 and the four corners of the ground plate are
-      // (±2, ±2). Placing a dock by eye in screen pixels is what put the
-      // first draft's quay off the side of its own footprint: a slab whose
-      // half-width and half-height are not in the tile's 2:1 ratio is not a
-      // patch of ground, it is a diamond floating over one.
+      // 4x4, so both run -2..+2. Placing a rig by eye in screen pixels is
+      // what put the first draft's quay off the side of its own footprint: a
+      // slab whose half-width and half-height are not in the tile's 2:1 ratio
+      // is not a patch of ground, it is a diamond floating over one.
       function P(du, dv, z) {
         return [cx + (du - dv) * (TW / 2), baseY + (du + dv) * (TH / 2) - (z || 0)];
       }
-      // An nu x nv patch of ground at (du,dv), extruded `h` high: the four
-      // walls back to front, then the top face. Same treatment as isoBox.
+      // An nu x nv patch of deck at (du,dv), extruded `h` high: the four walls
+      // back to front, then the top face. Same treatment as isoBox.
       function slab(du, dv, nu, nv, h, body, edge) {
         var q = [P(du - nu / 2, dv - nv / 2), P(du + nu / 2, dv - nv / 2),
                  P(du + nu / 2, dv + nv / 2), P(du - nu / 2, dv + nv / 2)];
@@ -8809,18 +8917,83 @@
         if (edge) { g.strokeStyle = edge; g.lineWidth = 0.7; g.stroke(); }
         return q;
       }
+      // A lattice jib: two chords with a zig-zag web between them. RA2 draws
+      // both yards' jibs this way, and it is the one shape that still says
+      // CRANE from thirty pixels away.
+      function jib(x0, y0, x1, y1, w0, w1, cA, cB) {
+        var dx = x1 - x0, dy = y1 - y0, ln = Math.sqrt(dx * dx + dy * dy) || 1;
+        var nx = -dy / ln, ny = dx / ln;
+        function pt(t, sg) {
+          var w = w0 + (w1 - w0) * t;
+          return [x0 + dx * t + nx * w * sg, y0 + dy * t + ny * w * sg];
+        }
+        g.strokeStyle = cB; g.lineWidth = 0.9;                 // the web, first
+        for (var i = 0; i < 7; i++) {
+          var a2 = pt(i / 7, 1), b2 = pt((i + 0.5) / 7, -1), c2 = pt((i + 1) / 7, 1);
+          g.beginPath(); g.moveTo(a2[0], a2[1]); g.lineTo(b2[0], b2[1]); g.lineTo(c2[0], c2[1]); g.stroke();
+        }
+        g.strokeStyle = cA; g.lineWidth = 2.0;                 // then the chords over it
+        for (var sg2 = -1; sg2 <= 1; sg2 += 2) {
+          var p0 = pt(0, sg2), p1 = pt(1, sg2);
+          g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.stroke();
+        }
+      }
+      // Water broken by a leg: concentric rings and a bright meniscus. This
+      // is the detail that tells the eye the whole thing is FLOATING.
+      function foam(q, rx) {
+        g.strokeStyle = 'rgba(206,232,246,.30)'; g.lineWidth = 1.0;
+        for (var r2 = 0; r2 < 3; r2++) {
+          var rr = rx * (1.15 + r2 * 0.40 + Math.sin(ph * 6.283 + r2) * 0.06);
+          g.beginPath(); g.ellipse(q[0], q[1] + 1, rr, rr * 0.5, 0, 0, 6.29); g.stroke();
+        }
+        g.strokeStyle = 'rgba(232,244,252,.52)'; g.lineWidth = 1.4;
+        g.beginPath(); g.ellipse(q[0], q[1], rx * 1.02, rx * 0.51, 0, 0, 6.29); g.stroke();
+      }
+      // The launch bay both yards need: a lit trough with a gate that parts,
+      // set into the near face, because `dockSpot` puts the new hull there.
+      function launchBay(q, w2, h2, gate, lip) {
+        g.fillStyle = '#0a0f14'; g.fillRect(q[0] - w2, q[1] - h2, w2 * 2, h2);
+        if (ph > 0.30 && ph < 0.55) {                          // welding arc inside
+          g.fillStyle = 'rgba(205,235,255,.9)';
+          g.beginPath(); g.ellipse(q[0], q[1] - h2 * 0.5, 3.2, 2.2, 0, 0, 6.29); g.fill();
+          g.fillStyle = 'rgba(120,190,255,.30)';
+          g.beginPath(); g.ellipse(q[0], q[1] - h2 * 0.5, 8, 5.2, 0, 0, 6.29); g.fill();
+        }
+        g.fillStyle = gate;
+        g.fillRect(q[0] - w2, q[1] - h2, w2 - open * (w2 - 1), h2);
+        g.fillRect(q[0] + open * (w2 - 1), q[1] - h2, w2 - open * (w2 - 1), h2);
+        g.strokeStyle = '#161a1e'; g.lineWidth = 0.8;
+        g.strokeRect(q[0] - w2, q[1] - h2, w2 * 2, h2);
+        g.fillStyle = lip; g.fillRect(q[0] - w2 - 1, q[1] - h2 - 2.6, w2 * 2 + 2, 2.6);
+      }
+      // Two floodlights on masts, blinking in turn. Kept from the first draft
+      // because RA2's rigs carry them and they read at 1:1.
+      function floods(pts) {
+        for (var fl = 0; fl < pts.length; fl++) {
+          var fq = pts[fl];
+          g.strokeStyle = '#43484d'; g.lineWidth = 1.5;
+          g.beginPath(); g.moveTo(fq[0], fq[1]); g.lineTo(fq[0], fq[1] - 24); g.stroke();
+          var lit2 = (Math.floor(ph * 6) % 2) === fl % 2;
+          g.fillStyle = lit2 ? '#ffe9ab' : '#686d71';
+          g.beginPath(); g.ellipse(fq[0], fq[1] - 25, 2.8, 1.9, 0, 0, 6.29); g.fill();
+          if (lit2) {
+            g.fillStyle = 'rgba(255,232,170,.18)';
+            g.beginPath(); g.ellipse(fq[0], fq[1] - 25, 9.5, 5.6, 0, 0, 6.29); g.fill();
+          }
+        }
+      }
 
       // ---- the basin ---------------------------------------------------- //
-      // The yard's own shadow on the sea, with the swell running through it.
+      // The rig's own shadow on the sea, with the swell running through it.
       // Nothing opaque: the ground under the plot IS the map's animated water.
       g.save();
       plot(g, cx, baseY, fw * 2, fh * 2); g.clip();
-      plot(g, cx, baseY, fw * 2, fh * 2);
-      g.fillStyle = 'rgba(6,22,34,.38)'; g.fill();
-      g.strokeStyle = 'rgba(190,225,245,.22)'; g.lineWidth = 1.0;
-      for (var wv = -3; wv <= 3; wv++) {
-        var a0 = P(-2.2, wv * 0.7 + Math.sin(ph * 6.283 + wv) * 0.10);
-        var a1 = P(2.2, wv * 0.7 + Math.sin(ph * 6.283 + wv) * 0.10);
+      g.fillStyle = 'rgba(6,22,34,.34)';
+      g.beginPath(); g.ellipse(cx, baseY, fw * 0.62, fh * 0.62, 0, 0, 6.29); g.fill();
+      g.strokeStyle = 'rgba(190,225,245,.20)'; g.lineWidth = 1.0;
+      for (var wv = -2; wv <= 2; wv++) {
+        var a0 = P(-1.5, wv * 0.62 + Math.sin(ph * 6.283 + wv) * 0.10);
+        var a1 = P(1.5, wv * 0.62 + Math.sin(ph * 6.283 + wv) * 0.10);
         g.beginPath();
         g.moveTo(a0[0], a0[1]);
         g.quadraticCurveTo((a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2 + 3.0, a1[0], a1[1]);
@@ -8828,181 +9001,291 @@
       }
       g.restore();
 
-      // ---- the mole ----------------------------------------------------- //
-      // An L of quay along the two FAR faces on driven piles. The near half
-      // of the plot is left open: that is the slip.
-      var QH = 9;
-      function piles(du, dv, nu, nv) {
-        g.strokeStyle = PILE; g.lineWidth = 2.4;
-        for (var i = -1; i <= 1; i += 2) for (var j = -2; j <= 2; j++) {
-          var pu = du + (nu / 2 - 0.25) * i, pv = dv + (nv / 2 - 0.25) * (j / 2);
-          var q = P(pu, pv, 0);
-          g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[0], q[1] - QH - 3); g.stroke();
-        }
-      }
-      piles(0, -1.3, 4, 1.4); piles(1.35, 0.7, 1.3, 2.6);
-      slab(0, -1.3, 4, 1.4, QH, shade(QUAY, 0.90), QUAY_D);       // the far quay, along -gy
-      slab(1.35, 0.7, 1.3, 2.6, QH, shade(QUAY, 0.90), QUAY_D);   // the side quay, along +gx
-      // Deck seams and oil, so the quay is a worked surface and not a card.
-      g.strokeStyle = 'rgba(0,0,0,.22)'; g.lineWidth = 0.9;
-      for (var sm2 = -3; sm2 <= 3; sm2++) {
-        var s0 = P(sm2 * 0.55, -2, QH), s1 = P(sm2 * 0.55, -0.6, QH);
-        g.beginPath(); g.moveTo(s0[0], s0[1]); g.lineTo(s1[0], s1[1]); g.stroke();
-        var s2 = P(1.35 - 0.55, sm2 * 0.36 + 0.7, QH), s3 = P(1.35 + 0.55, sm2 * 0.36 + 0.7, QH);
-        g.beginPath(); g.moveTo(s2[0], s2[1]); g.lineTo(s3[0], s3[1]); g.stroke();
-      }
-      srand(97);
-      g.globalAlpha = 0.22;
-      for (var oil = 0; oil < 9; oil++) {
-        var oq = P(-1.7 + rnd() * 3.4, -1.9 + rnd() * 1.2, QH);
-        g.fillStyle = rnd() < 0.5 ? shade(QUAY, 0.62) : shade(QUAY, 1.12);
-        g.beginPath(); g.ellipse(oq[0], oq[1], 3 + rnd() * 5, 1.6 + rnd() * 2.4, 0, 0, 6.29); g.fill();
-      }
-      g.globalAlpha = 1;
-
-      // ---- the fitting-out hall ------------------------------------------ //
-      // Low and long, set back on the far quay: RA2's yards are wide and flat
-      // and the CRANE is the tall part of the silhouette.
-      var HW = 3.2, HV = 0.92, HU = -0.30, HVV = -1.36, HH = 13;
-      slab(HU, HVV, HW, HV, QH + HH, HALL, HALL_D);
-      var hq0 = P(HU - HW / 2, HVV - HV / 2, QH + HH);            // far-left eave
-      var hq1 = P(HU + HW / 2, HVV - HV / 2, QH + HH);            // far-right eave
-      var hq2 = P(HU + HW / 2, HVV + HV / 2, QH + HH);            // near-right eave
-      var hq3 = P(HU - HW / 2, HVV + HV / 2, QH + HH);            // near-left eave
-      var ridY = Math.min(hq0[1], hq1[1], hq2[1], hq3[1]);
       if (!sov) {
-        // Directorate: a shallow white barrel roof with a glazed clerestory.
-        g.fillStyle = shade(HALL, 1.32);
-        g.beginPath();
-        g.moveTo(hq3[0], hq3[1]);
-        g.quadraticCurveTo((hq3[0] + hq0[0]) / 2, ridY - 8, hq0[0], hq0[1]);
-        g.lineTo(hq1[0], hq1[1]);
-        g.quadraticCurveTo((hq1[0] + hq2[0]) / 2, ridY - 8 + (hq2[1] - hq3[1]), hq2[0], hq2[1]);
-        g.closePath(); g.fill();
-        g.strokeStyle = shade(HALL, 0.62); g.lineWidth = 0.9; g.stroke();
-        g.fillStyle = GLASSY;
-        for (var gz = 0; gz < 6; gz++) {
-          var gt = (gz + 0.5) / 6;
-          var gx0 = hq3[0] + (hq2[0] - hq3[0]) * gt, gy0 = hq3[1] + (hq2[1] - hq3[1]) * gt;
-          g.fillRect(gx0 - 4, gy0 + 3.2, 8, 3.4);
-        }
-      } else {
-        // Collective: a saw-tooth iron roof and a brick stack venting smoke.
-        g.fillStyle = shade(HALL, 0.80);
-        for (var st = 0; st < 5; st++) {
-          var t0 = st / 5, t1 = (st + 0.5) / 5, t2 = (st + 1) / 5;
-          var x0 = hq3[0] + (hq2[0] - hq3[0]) * t0, y0 = hq3[1] + (hq2[1] - hq3[1]) * t0;
-          var x1 = hq3[0] + (hq2[0] - hq3[0]) * t1, y1 = hq3[1] + (hq2[1] - hq3[1]) * t1;
-          var x2 = hq3[0] + (hq2[0] - hq3[0]) * t2, y2 = hq3[1] + (hq2[1] - hq3[1]) * t2;
-          g.beginPath();
-          g.moveTo(x0, y0 - 1); g.lineTo(x1, y1 - 12); g.lineTo(x2, y2 - 1);
-          g.closePath(); g.fill();
-        }
-        var stq = P(HU + HW / 2 - 0.35, HVV, QH + HH);
-        g.fillStyle = '#2b2b26'; g.fillRect(stq[0] - 3.4, stq[1] - 26, 6.8, 26);
-        g.fillStyle = col; g.fillRect(stq[0] - 3.4, stq[1] - 22, 6.8, 3.2);
-        g.fillStyle = 'rgba(165,165,165,.26)';
-        for (var sk = 0; sk < 3; sk++) {
-          var sp2 = ((ph * 2.4 + sk / 3) % 1);
-          g.beginPath();
-          g.ellipse(stq[0] + sp2 * 5, stq[1] - 28 - sp2 * 16, 2.6 + sp2 * 4.6, 1.8 + sp2 * 3.2, 0, 0, 6.29);
-          g.fill();
-        }
-      }
-      // ONE house band along the near eave — the only paint on the shell.
-      g.strokeStyle = col; g.lineWidth = 3.2;
-      g.beginPath(); g.moveTo(hq3[0], hq3[1] - 1.6); g.lineTo(hq2[0], hq2[1] - 1.6); g.stroke();
-      g.strokeStyle = shade(col, 0.68); g.lineWidth = 1.0;
-      g.beginPath(); g.moveTo(hq3[0], hq3[1] + 1.2); g.lineTo(hq2[0], hq2[1] + 1.2); g.stroke();
+        // =============== [GAYARD] — the Allied rig ====================== //
+        var CAIS = '#8e959b', CAIS_D = '#3d4348', COLLAR = '#c9cfd3';
+        var TOWER = '#adad93', TOWER_D = '#63644f';
+        var ARCH = '#5e656d', ARCH_D = '#282d33';
+        var JIBC = '#e6c94f', JIBD = '#8d7622';
+        var CH = 44, CU = 0.98;                    // caisson height / corner offset
 
-      // ---- the bay doors, on the slip ------------------------------------ //
-      var dq = P(HU + 0.15, HVV + HV / 2, QH);
-      var open = (0.5 - Math.abs(ph - 0.5)) * 2;
-      g.fillStyle = '#0a0f14'; g.fillRect(dq[0] - 13, dq[1] - 17, 26, 17);
-      g.fillStyle = shade(HALL, sov ? 1.36 : 0.84);
-      g.fillRect(dq[0] - 13, dq[1] - 17, 13 - open * 11, 17);
-      g.fillRect(dq[0] + open * 11, dq[1] - 17, 13 - open * 11, 17);
-      g.strokeStyle = '#161a1e'; g.lineWidth = 0.8; g.strokeRect(dq[0] - 13, dq[1] - 17, 26, 17);
-      if (ph > 0.30 && ph < 0.55) {                                // welding arc inside the bay
-        g.fillStyle = 'rgba(205,235,255,.9)';
-        g.beginPath(); g.ellipse(dq[0] + 1, dq[1] - 7, 3.2, 2.2, 0, 0, 6.29); g.fill();
-        g.fillStyle = 'rgba(120,190,255,.30)';
-        g.beginPath(); g.ellipse(dq[0] + 1, dq[1] - 7, 8, 5.2, 0, 0, 6.29); g.fill();
-      }
+        // The four caissons, back to front so the near pair overlaps.
+        var LEGS = [[-CU, -CU], [CU, -CU], [-CU, CU], [CU, CU]];
+        LEGS.sort(function (m, n) { return (m[0] + m[1]) - (n[0] + n[1]); });
+        function caisson(du, dv) {
+          var q0 = P(du, dv, 0);
+          foam(q0, 21);
+          g.fillStyle = shade(COLLAR, 0.80);                   // concrete collar
+          g.beginPath(); g.ellipse(q0[0], q0[1], 21, 10.4, 0, 0, 6.29); g.fill();
+          g.fillStyle = COLLAR;
+          g.beginPath(); g.ellipse(q0[0], q0[1] - 3.4, 21, 10.4, 0, 0, 6.29); g.fill();
+          g.strokeStyle = shade(COLLAR, 0.52); g.lineWidth = 0.8; g.stroke();
+          var cg = g.createLinearGradient(q0[0] - 18, 0, q0[0] + 18, 0);
+          cg.addColorStop(0, shade(CAIS, 0.58)); cg.addColorStop(0.36, shade(CAIS, 1.16));
+          cg.addColorStop(1, shade(CAIS, 0.64));
+          g.fillStyle = cg; g.fillRect(q0[0] - 18, q0[1] - 3.4 - CH, 36, CH);
+          g.strokeStyle = CAIS_D; g.lineWidth = 0.8;
+          for (var rbd = 1; rbd < 7; rbd++) {                  // the bands round the tube
+            var ry3 = q0[1] - 3.4 - CH * rbd / 7;
+            g.beginPath(); g.moveTo(q0[0] - 18, ry3); g.lineTo(q0[0] + 18, ry3); g.stroke();
+          }
+          g.fillStyle = 'rgba(0,0,0,.16)';                     // a shadowed quarter, so it reads round
+          g.fillRect(q0[0] + 8, q0[1] - 3.4 - CH, 10, CH);
+          g.strokeStyle = CAIS_D; g.strokeRect(q0[0] - 18, q0[1] - 3.4 - CH, 36, CH);
+          var dy2 = q0[1] - 3.4 - CH;
+          g.fillStyle = shade(col, 1.20);                      // the house ring
+          g.beginPath(); g.ellipse(q0[0], dy2, 20, 9.6, 0, 0, 6.29); g.fill();
+          g.strokeStyle = shade(col, 0.50); g.lineWidth = 0.9; g.stroke();
+          var dg2 = g.createRadialGradient(q0[0] - 6, dy2 - 10, 1, q0[0], dy2 - 4, 19);
+          dg2.addColorStop(0, shade(col, 1.80)); dg2.addColorStop(0.52, shade(col, 0.90));
+          dg2.addColorStop(1, shade(col, 0.34));
+          g.fillStyle = dg2;                                   // and the dome over it
+          g.beginPath(); g.ellipse(q0[0], dy2, 17, 14, 0, Math.PI, 0); g.fill();
+          g.fillStyle = 'rgba(255,255,255,.55)';
+          g.beginPath(); g.ellipse(q0[0] - 5.4, dy2 - 9.4, 3.8, 2.8, -0.5, 0, 6.29); g.fill();
+        }
+        caisson(LEGS[0][0], LEGS[0][1]);            // the far leg, behind the core
 
-      // ---- a hull on the slip -------------------------------------------- //
-      // A keel with its frames standing out of the water. This is what makes
-      // the plot read as a YARD rather than a warehouse that happens to be wet.
-      var k0 = P(-1.5, 1.3, 0), k1 = P(0.5, 0.2, 0);
-      g.strokeStyle = '#4f5649'; g.lineWidth = 3.4;
-      g.beginPath(); g.moveTo(k0[0], k0[1]); g.lineTo(k1[0], k1[1]); g.stroke();
-      g.strokeStyle = '#727a6c'; g.lineWidth = 1.6;
-      for (var rb = 0; rb < 6; rb++) {
-        var rt = rb / 5;
-        var rx2 = k0[0] + (k1[0] - k0[0]) * rt, ry2 = k0[1] + (k1[1] - k0[1]) * rt;
-        var rh = 5 + Math.sin(rt * 3.14) * 5.5;
+        // The deck rosette between the legs: a round plate with radiating
+        // ribs, which is what the sprite's pale spoked centre actually is.
+        var dc = P(0, 0, 0), DKY = dc[1] - 36, DKR = 27;
+        g.fillStyle = shade(TOWER, 0.56);
+        g.beginPath(); g.ellipse(dc[0], DKY + 6, DKR, DKR / 2, 0, 0, 6.29); g.fill();
+        g.fillStyle = TOWER;
+        g.beginPath(); g.ellipse(dc[0], DKY, DKR, DKR / 2, 0, 0, 6.29); g.fill();
+        g.strokeStyle = TOWER_D; g.lineWidth = 0.9; g.stroke();
+        for (var sk2 = 0; sk2 < 8; sk2++) {
+          var aa = sk2 * 0.7854 + 0.3927;
+          g.beginPath(); g.moveTo(dc[0], DKY);
+          g.lineTo(dc[0] + Math.cos(aa) * DKR, DKY + Math.sin(aa) * DKR / 2); g.stroke();
+        }
+        // The stepped tower: three cylinders, each narrower and paler than the
+        // one below, the way the reference's pale core is built.
+        var TIER = [[25, 12.5, 26], [18, 9, 24], [12, 6, 20]];
+        var ty2 = DKY;
+        for (var ti = 0; ti < TIER.length; ti++) {
+          var rx2 = TIER[ti][0], ry4 = TIER[ti][1], hh2 = TIER[ti][2];
+          var tgd = g.createLinearGradient(dc[0] - rx2, 0, dc[0] + rx2, 0);
+          tgd.addColorStop(0, shade(TOWER, 0.62)); tgd.addColorStop(0.36, shade(TOWER, 1.14));
+          tgd.addColorStop(1, shade(TOWER, 0.70));
+          g.fillStyle = tgd; g.fillRect(dc[0] - rx2, ty2 - hh2, rx2 * 2, hh2);
+          g.beginPath(); g.ellipse(dc[0], ty2, rx2, ry4, 0, 0, Math.PI); g.fill();
+          g.fillStyle = shade(TOWER, 1.24);
+          g.beginPath(); g.ellipse(dc[0], ty2 - hh2, rx2, ry4, 0, 0, 6.29); g.fill();
+          g.strokeStyle = TOWER_D; g.lineWidth = 0.8; g.stroke();
+          ty2 -= hh2;
+        }
+        // The dark steel arch. It springs from behind the tower, bends over
+        // its head and carries the one house band on the whole shell.
+        var A0 = P(-0.60, -0.60, 38), AT = [dc[0] + 9, ty2 - 62];
+        var AC = [A0[0] - 12, ty2 - 76];                       // the arch's control point
+        g.strokeStyle = ARCH; g.lineWidth = 13;
+        g.beginPath(); g.moveTo(A0[0], A0[1]);
+        g.quadraticCurveTo(AC[0], AC[1], AT[0], AT[1]); g.stroke();
+        g.strokeStyle = ARCH_D; g.lineWidth = 2.2;             // its shaded underside
+        g.beginPath(); g.moveTo(A0[0] + 5, A0[1]);
+        g.quadraticCurveTo(AC[0] + 5, AC[1] + 5, AT[0] + 4, AT[1] + 3); g.stroke();
+        g.strokeStyle = col; g.lineWidth = 2.8;                // the house band along its back
+        g.beginPath(); g.moveTo(A0[0] - 4.5, A0[1] - 4);
+        g.quadraticCurveTo(AC[0] - 4.5, AC[1] - 2, AT[0] - 4, AT[1] - 2); g.stroke();
+        // The little domed head on the crown.
+        g.fillStyle = shade(ARCH, 1.12);
+        g.fillRect(AT[0] - 8, AT[1] - 7, 16, 8);
+        g.strokeStyle = ARCH_D; g.lineWidth = 0.9; g.strokeRect(AT[0] - 8, AT[1] - 7, 16, 8);
+        var hg = g.createRadialGradient(AT[0] - 2, AT[1] - 11, 1, AT[0], AT[1] - 8, 8);
+        hg.addColorStop(0, shade(col, 1.7)); hg.addColorStop(1, shade(col, 0.42));
+        g.fillStyle = hg;
+        g.beginPath(); g.ellipse(AT[0], AT[1] - 7, 7, 6, 0, Math.PI, 0); g.fill();
+        // The lattice jib, slewing over the sea to starboard, with a grab on
+        // the fall. `SWING` moves the tip; the fall hangs from wherever it is.
+        var JX = AT[0] + 44 + SWING * 8, JY = AT[1] - 20 + SWING * 5;
+        jib(AT[0] + 6, AT[1] - 2, JX, JY, 5.5, 2.4, JIBC, JIBD);
+        g.strokeStyle = '#2a2d31'; g.lineWidth = 1.6;          // the back-stay
+        g.beginPath(); g.moveTo(AT[0] + 2, AT[1] - 6); g.lineTo(JX - 6, JY - 3); g.stroke();
+        g.strokeStyle = '#23272b'; g.lineWidth = 1.0;          // the fall
+        g.beginPath(); g.moveTo(JX, JY + 1); g.lineTo(JX, JY + 1 + FALL); g.stroke();
+        g.fillStyle = JIBC;                                    // the grab
+        g.fillRect(JX - 5, JY + FALL, 10, 5);
+        g.strokeStyle = JIBD; g.lineWidth = 1.4;
         g.beginPath();
-        g.moveTo(rx2 - 5.5, ry2 + 1.6);
-        g.quadraticCurveTo(rx2, ry2 - rh, rx2 + 5.5, ry2 + 1.6);
+        g.moveTo(JX - 5, JY + FALL + 5); g.lineTo(JX - 6, JY + FALL + 11);
+        g.moveTo(JX + 5, JY + FALL + 5); g.lineTo(JX + 6, JY + FALL + 11);
         g.stroke();
-      }
+        // Two more caissons in FRONT of the deck, so the rosette reads as
+        // standing between them, then the launch bay between their feet.
+        caisson(LEGS[1][0], LEGS[1][1]); caisson(LEGS[2][0], LEGS[2][1]);
+        // The slipway: an apron running out from the deck to the near-left
+        // face, with the gate at its lip. `dockSpot` launches from exactly
+        // there ([GAYARD] art.ini DockingOffset0=384,-128,0), so the art has
+        // to say which face a hull comes out of.
+        slab(-0.30, 0.80, 0.85, 1.5, 7, shade(CAIS, 0.78), CAIS_D);
+        g.fillStyle = 'rgba(8,14,20,.55)';                     // the flooded trough itself
+        var tq0 = P(-0.30 - 0.26, 0.80 - 0.62, 7), tq1 = P(-0.30 + 0.26, 0.80 - 0.62, 7);
+        var tq2 = P(-0.30 + 0.26, 0.80 + 0.62, 7), tq3 = P(-0.30 - 0.26, 0.80 + 0.62, 7);
+        g.beginPath(); g.moveTo(tq0[0], tq0[1]); g.lineTo(tq1[0], tq1[1]);
+        g.lineTo(tq2[0], tq2[1]); g.lineTo(tq3[0], tq3[1]); g.closePath(); g.fill();
+        g.strokeStyle = shade(col, 1.05); g.lineWidth = 2.0;   // the house kerb along the slip
+        g.beginPath(); g.moveTo(tq1[0], tq1[1]); g.lineTo(tq2[0], tq2[1]); g.stroke();
+        launchBay(P(-0.28, 1.34, 7), 10, 13, shade(CAIS, 1.05), shade(col, 1.05));
+        caisson(LEGS[3][0], LEGS[3][1]);            // the near leg, over everything
+        floods([P(-1.18, 1.18, 2), P(1.18, -1.18, CH * 0.5)]);
+      } else {
+        // =============== [NAYARD] — the Soviet pontoon =================== //
+        var PONT = '#5c6058', PONT_D = '#26291f';
+        var BRICK = '#8d7f5e', BRICK_D = '#4a422f', CAP = '#d8cf94', CAP_D = '#7c7443';
+        var TOWR = '#2f3140', TOWR_D = '#13141c', MACH = '#3b4436';
+        var JIBC2 = '#d9cf8a', JIBD2 = '#7d7440';
+        var PH2 = 17;                                       // pontoon freeboard
 
-      // ---- the portal gantry --------------------------------------------- //
-      // Two lattice legs standing on the two quays, a beam across the slip, a
-      // trolley that traverses it and a hook that rises and falls.
-      var L0 = P(-1.55, -0.75, QH), L1 = P(1.35, 1.35, QH);
-      function leg(q, h) {
-        g.strokeStyle = GANT; g.lineWidth = 2.6;
-        g.beginPath(); g.moveTo(q[0] - 4, q[1]); g.lineTo(q[0], q[1] - h); g.stroke();
-        g.beginPath(); g.moveTo(q[0] + 4, q[1]); g.lineTo(q[0], q[1] - h); g.stroke();
-        g.strokeStyle = GANT_D; g.lineWidth = 0.9;
-        for (var bz = 1; bz < 5; bz++) {
-          var t3 = bz / 5, w3 = 4 * (1 - t3);
-          g.beginPath(); g.moveTo(q[0] - w3, q[1] - h * t3); g.lineTo(q[0] + w3, q[1] - h * t3); g.stroke();
+        // Corner pilings, each breaking the water.
+        for (var pl2 = 0; pl2 < 4; pl2++) {
+          var pu2 = (pl2 & 1 ? 1 : -1) * 1.10, pv2 = (pl2 & 2 ? 1 : -1) * 1.10;
+          var pq = P(pu2, pv2, 0);
+          foam(pq, 11);
+          g.fillStyle = '#2b2f26';
+          g.beginPath(); g.ellipse(pq[0], pq[1] - 2, 9, 4.5, 0, 0, 6.29); g.fill();
         }
-      }
-      var GHA = 44, GHB = 40;
-      leg(L0, GHA); leg(L1, GHB);
-      var b0 = [L0[0], L0[1] - GHA], b1 = [L1[0], L1[1] - GHB];
-      g.strokeStyle = GANT; g.lineWidth = 4.2;
-      g.beginPath(); g.moveTo(b0[0] - 4, b0[1]); g.lineTo(b1[0] + 4, b1[1]); g.stroke();
-      g.strokeStyle = GANT_D; g.lineWidth = 1.1;
-      g.beginPath(); g.moveTo(b0[0] - 4, b0[1] + 3.4); g.lineTo(b1[0] + 4, b1[1] + 3.4); g.stroke();
-      var tr = 0.16 + 0.68 * (0.5 - Math.cos(ph * 6.283) * 0.5);
-      var trx = b0[0] + (b1[0] - b0[0]) * tr, tryy = b0[1] + (b1[1] - b0[1]) * tr;
-      g.fillStyle = shade(GANT, 0.84); g.fillRect(trx - 5, tryy - 1, 10, 6.5);
-      g.fillStyle = col; g.fillRect(trx - 5, tryy + 4.4, 10, 2.4);
-      g.strokeStyle = '#23272b'; g.lineWidth = 1.0;
-      var hook = 16 + Math.sin(ph * 6.283) * 11;
-      g.beginPath(); g.moveTo(trx, tryy + 6.8); g.lineTo(trx, tryy + 6.8 + hook); g.stroke();
-      g.fillStyle = '#949ca4';
-      g.beginPath(); g.ellipse(trx, tryy + 8.8 + hook, 2.8, 1.9, 0, 0, 6.29); g.fill();
-
-      // ---- fittings ------------------------------------------------------- //
-      // A house-colour kerb painted along the quay edge that fronts the slip,
-      // so the eye is told which face a hull comes out of.
-      var e0 = P(-2, -0.6, QH), e1 = P(0.72, -0.6, QH);
-      g.strokeStyle = col; g.lineWidth = 2.6;
-      g.beginPath(); g.moveTo(e0[0], e0[1] - 1); g.lineTo(e1[0], e1[1] - 1); g.stroke();
-      g.strokeStyle = shade(col, 0.66); g.lineWidth = 1.0;
-      g.beginPath(); g.moveTo(e0[0], e0[1] + 1.4); g.lineTo(e1[0], e1[1] + 1.4); g.stroke();
-      g.fillStyle = QUAY_D;                                        // bollards along that edge
-      for (var bo = 0; bo < 5; bo++) {
-        var bq = P(-1.7 + bo * 0.62, -0.78, QH);
-        g.beginPath(); g.ellipse(bq[0], bq[1] - 2, 2.0, 1.3, 0, 0, 6.29); g.fill();
-      }
-      var FLS = [P(-1.9, -1.9, QH), P(1.8, 1.8, QH)];              // floodlights, blinking in turn
-      for (var fl = 0; fl < 2; fl++) {
-        var fq = FLS[fl];
-        g.strokeStyle = '#43484d'; g.lineWidth = 1.5;
-        g.beginPath(); g.moveTo(fq[0], fq[1]); g.lineTo(fq[0], fq[1] - 26); g.stroke();
-        var lit2 = (Math.floor(ph * 6) % 2) === fl;
-        g.fillStyle = lit2 ? '#ffe9ab' : '#686d71';
-        g.beginPath(); g.ellipse(fq[0], fq[1] - 27, 2.8, 1.9, 0, 0, 6.29); g.fill();
-        if (lit2) {
-          g.fillStyle = 'rgba(255,232,170,.18)';
-          g.beginPath(); g.ellipse(fq[0], fq[1] - 27, 9.5, 5.6, 0, 0, 6.29); g.fill();
+        // The barge itself, and the painted rim that is its whole read.
+        var pq4 = slab(0, 0, 2.42, 2.42, PH2, PONT, PONT_D);
+        g.strokeStyle = shade(col, 0.92); g.lineWidth = 2.0;  // the painted rim, top
+        g.beginPath();
+        for (var rq = 0; rq < 4; rq++) {
+          var pA = pq4[rq], pB = pq4[(rq + 1) % 4];
+          g.moveTo(pA[0], pA[1] - PH2 + 1.2); g.lineTo(pB[0], pB[1] - PH2 + 1.2);
         }
+        g.stroke();
+        g.strokeStyle = shade(col, 0.55); g.lineWidth = 2.0;  // boot-topping at the waterline
+        g.beginPath();
+        for (rq = 0; rq < 4; rq++) {
+          pA = pq4[rq]; pB = pq4[(rq + 1) % 4];
+          g.moveTo(pA[0], pA[1] - 1.4); g.lineTo(pB[0], pB[1] - 1.4);
+        }
+        g.stroke();
+        // Deck plating: seams both ways, then oil.
+        g.strokeStyle = 'rgba(0,0,0,.24)'; g.lineWidth = 0.9;
+        for (var sm3 = -3; sm3 <= 3; sm3++) {
+          var s0 = P(sm3 * 0.42, -1.5, PH2), s1 = P(sm3 * 0.42, 1.5, PH2);
+          g.beginPath(); g.moveTo(s0[0], s0[1]); g.lineTo(s1[0], s1[1]); g.stroke();
+          var s2 = P(-1.5, sm3 * 0.42, PH2), s3 = P(1.5, sm3 * 0.42, PH2);
+          g.beginPath(); g.moveTo(s2[0], s2[1]); g.lineTo(s3[0], s3[1]); g.stroke();
+        }
+        g.globalAlpha = 0.22;
+        for (var oil = 0; oil < 9; oil++) {
+          var oq = P(-1.2 + yrnd() * 2.4, -1.2 + yrnd() * 2.4, PH2);
+          g.fillStyle = yrnd() < 0.5 ? shade(PONT, 0.60) : shade(PONT, 1.14);
+          g.beginPath(); g.ellipse(oq[0], oq[1], 3 + yrnd() * 5, 1.6 + yrnd() * 2.2, 0, 0, 6.29); g.fill();
+        }
+        g.globalAlpha = 1;
+        // Four brick blockhouse pylons with cream caps and a house grille on
+        // each — the reference's most distinctive feature by a long way.
+        var PYL = [[-0.68, -0.68], [0.68, -0.68], [-0.68, 0.68], [0.68, 0.68]];
+        PYL.sort(function (m, n) { return (m[0] + m[1]) - (n[0] + n[1]); });
+        function pylon2(du, dv) {
+          var bq2 = P(du, dv, PH2), BH = 50, BW = 14;
+          var bg2 = g.createLinearGradient(bq2[0] - BW, 0, bq2[0] + BW, 0);
+          bg2.addColorStop(0, shade(BRICK, 0.60)); bg2.addColorStop(0.34, shade(BRICK, 1.12));
+          bg2.addColorStop(1, shade(BRICK, 0.62));
+          g.fillStyle = bg2; g.fillRect(bq2[0] - BW, bq2[1] - BH, BW * 2, BH);
+          g.strokeStyle = BRICK_D; g.lineWidth = 0.7;         // brick courses, staggered
+          for (var cr = 1; cr < 8; cr++) {
+            var cy4 = bq2[1] - BH * cr / 8;
+            g.beginPath(); g.moveTo(bq2[0] - BW, cy4); g.lineTo(bq2[0] + BW, cy4); g.stroke();
+            for (var bk = 0; bk < 4; bk++) {
+              var bx2 = bq2[0] - BW + (bk + (cr % 2) * 0.5) * (BW / 2);
+              g.beginPath(); g.moveTo(bx2, cy4); g.lineTo(bx2, cy4 + BH / 8); g.stroke();
+            }
+          }
+          g.fillStyle = 'rgba(0,0,0,.14)'; g.fillRect(bq2[0] + 7, bq2[1] - BH, BW - 7, BH);
+          g.strokeStyle = BRICK_D; g.strokeRect(bq2[0] - BW, bq2[1] - BH, BW * 2, BH);
+          // the cream slab cap, tilted, with the house grille on it
+          var capY = bq2[1] - BH;
+          g.fillStyle = CAP;                                  // the cream slab cap, tilted
+          g.beginPath();
+          g.moveTo(bq2[0] - BW - 3, capY + 2); g.lineTo(bq2[0] + 9, capY - 11);
+          g.lineTo(bq2[0] + BW + 3, capY - 5); g.lineTo(bq2[0] - 9, capY + 8);
+          g.closePath(); g.fill();
+          g.strokeStyle = CAP_D; g.lineWidth = 1.0; g.stroke();
+          g.fillStyle = shade(CAP, 0.72);                     // its thickness
+          g.beginPath();
+          g.moveTo(bq2[0] - BW - 3, capY + 2); g.lineTo(bq2[0] - 9, capY + 8);
+          g.lineTo(bq2[0] + BW + 3, capY - 5); g.lineTo(bq2[0] + BW + 3, capY - 2);
+          g.lineTo(bq2[0] - 9, capY + 11); g.lineTo(bq2[0] - BW - 3, capY + 5);
+          g.closePath(); g.fill(); g.stroke();
+          g.fillStyle = shade(col, 0.34);                     // the grille bed, then its rungs
+          g.beginPath();
+          g.moveTo(bq2[0] - 11, capY + 1.4); g.lineTo(bq2[0] + 6, capY - 8);
+          g.lineTo(bq2[0] + 11, capY - 5); g.lineTo(bq2[0] - 6, capY + 4.4);
+          g.closePath(); g.fill();
+          g.strokeStyle = col; g.lineWidth = 2.2;
+          for (var rg2 = 0; rg2 < 5; rg2++) {
+            var tt2 = 0.10 + rg2 * 0.20;
+            var gx4 = bq2[0] - 11 + 17 * tt2, gy4 = capY + 1.4 - 9.4 * tt2;
+            g.beginPath(); g.moveTo(gx4, gy4); g.lineTo(gx4 + 5, gy4 + 3.0); g.stroke();
+          }
+        }
+        pylon2(PYL[0][0], PYL[0][1]); pylon2(PYL[1][0], PYL[1][1]);
+        // The crane tower: a black mast with a house band and a counterweight,
+        // set back-left, then the cream jib slewing out to starboard.
+        var TQ = P(-0.75, -0.10, PH2), TH2 = 124;  // off to port, so all four pylons read
+        g.strokeStyle = TOWR; g.lineWidth = 3.0;              // a splayed lattice base
+        for (var sp3 = -1; sp3 <= 1; sp3 += 2) {
+          g.beginPath(); g.moveTo(TQ[0] + sp3 * 17, TQ[1]); g.lineTo(TQ[0] + sp3 * 9, TQ[1] - 26); g.stroke();
+        }
+        g.strokeStyle = TOWR_D; g.lineWidth = 1.2;
+        for (var br2 = 0; br2 < 3; br2++) {
+          var byy = TQ[1] - br2 * 9, bw2 = 17 - br2 * 2.8;
+          g.beginPath(); g.moveTo(TQ[0] - bw2, byy); g.lineTo(TQ[0] + bw2, byy - 6); g.stroke();
+          g.beginPath(); g.moveTo(TQ[0] + bw2, byy); g.lineTo(TQ[0] - bw2, byy - 6); g.stroke();
+        }
+        g.fillStyle = TOWR; g.fillRect(TQ[0] - 9, TQ[1] - TH2, 18, TH2 - 24);
+        g.fillStyle = TOWR_D; g.fillRect(TQ[0] + 4, TQ[1] - TH2, 5, TH2 - 24);
+        g.strokeStyle = TOWR_D; g.lineWidth = 0.8; g.strokeRect(TQ[0] - 9, TQ[1] - TH2, 18, TH2 - 24);
+        g.fillStyle = col; g.fillRect(TQ[0] - 6, TQ[1] - TH2 + 12, 7, TH2 - 40);
+        g.fillStyle = shade(col, 0.55); g.fillRect(TQ[0] + 1, TQ[1] - TH2 + 12, 2.4, TH2 - 40);
+        var TT = [TQ[0], TQ[1] - TH2];
+        g.fillStyle = MACH;                                   // the machinery cab
+        g.fillRect(TT[0] - 22, TT[1] - 5, 18, 15);
+        g.strokeStyle = '#1b201a'; g.lineWidth = 0.9; g.strokeRect(TT[0] - 22, TT[1] - 5, 18, 15);
+        g.fillStyle = shade(MACH, 1.35);
+        g.fillRect(TT[0] - 19, TT[1] - 2, 6, 5);
+        g.fillStyle = CAP;                                    // the counterweight box
+        g.fillRect(TT[0] - 28, TT[1] - 9, 11, 15);
+        g.strokeStyle = CAP_D; g.lineWidth = 0.9; g.strokeRect(TT[0] - 28, TT[1] - 9, 11, 15);
+        g.fillStyle = TOWR; g.fillRect(TT[0] - 7, TT[1] - 9, 14, 8);
+        var JX2 = TT[0] + 48 + SWING * 9, JY2 = TT[1] - 12 + SWING * 6;
+        jib(TT[0] + 5, TT[1] - 5, JX2, JY2, 5.0, 2.2, JIBC2, JIBD2);
+        g.strokeStyle = '#171a20'; g.lineWidth = 1.5;         // stays over the jib
+        g.beginPath();
+        g.moveTo(TT[0] - 1, TT[1] - 11); g.lineTo((TT[0] + JX2) / 2, (TT[1] + JY2) / 2 - 8);
+        g.lineTo(JX2 - 4, JY2 - 3); g.stroke();
+        g.strokeStyle = '#23272b'; g.lineWidth = 1.0;         // the fall
+        g.beginPath(); g.moveTo(JX2, JY2 + 1); g.lineTo(JX2, JY2 + 1 + FALL); g.stroke();
+        var bg4 = g.createRadialGradient(JX2 - 2, JY2 + FALL + 3, 1, JX2, JY2 + FALL + 5, 7);
+        bg4.addColorStop(0, shade(col, 1.7)); bg4.addColorStop(1, shade(col, 0.42));
+        g.fillStyle = bg4;                                    // the wrecking ball
+        g.beginPath(); g.arc(JX2, JY2 + FALL + 5, 5.2, 0, 6.29); g.fill();
+        // A house-colour mast on the starboard corner, and the near pylons.
+        var MQ = P(1.05, -1.05, PH2);
+        g.strokeStyle = shade(col, 0.72); g.lineWidth = 2.4;
+        g.beginPath(); g.moveTo(MQ[0], MQ[1]); g.lineTo(MQ[0], MQ[1] - 34); g.stroke();
+        pylon2(PYL[2][0], PYL[2][1]); pylon2(PYL[3][0], PYL[3][1]);
+        // Pipework along the near rail, then the launch gate in the rim.
+        g.strokeStyle = '#7b7f74'; g.lineWidth = 3.0;
+        var g0 = P(-1.1, 1.05, PH2 + 3), g1 = P(1.05, 1.1, PH2 + 3);
+        g.beginPath(); g.moveTo(g0[0], g0[1]); g.lineTo(g1[0], g1[1]); g.stroke();
+        var wh = P(0.25, 0.90, PH2);                          // a winch house on the deck
+        g.fillStyle = shade(PONT, 1.30); g.fillRect(wh[0] - 12, wh[1] - 15, 24, 15);
+        g.strokeStyle = PONT_D; g.lineWidth = 0.9; g.strokeRect(wh[0] - 12, wh[1] - 15, 24, 15);
+        g.fillStyle = shade(col, 0.85); g.fillRect(wh[0] - 12, wh[1] - 17, 24, 2.6);
+        g.fillStyle = '#1d2126'; g.fillRect(wh[0] - 7, wh[1] - 11, 5, 7);
+        for (var cr2 = 0; cr2 < 5; cr2++) {                   // crates on the deck
+          var cq = P(0.35 + yrnd() * 0.8, -1.05 + yrnd() * 0.6, PH2);
+          g.fillStyle = shade(BRICK, 0.86 + yrnd() * 0.3);
+          g.fillRect(cq[0] - 5, cq[1] - 8, 10, 8);
+          g.strokeStyle = BRICK_D; g.lineWidth = 0.7; g.strokeRect(cq[0] - 5, cq[1] - 8, 10, 8);
+        }
+        launchBay(P(0, 1.32, PH2 - 4), 13, 13, shade(PONT, 1.25), col);
+        floods([P(-1.12, 1.12, PH2), P(1.12, -1.12, PH2)]);
       }
       return { s: s, ax: cx, ay: baseY };
     }
@@ -20713,6 +20996,7 @@
       g.terrain[c] = T_WATER;
       g.bwrk[c] = 1;                                 // this water used to be a deck
     }
+    labelWater(g);                                   // a dropped span can JOIN two bodies of water
     for (i = 0; i < g.units.length; i++) {
       var u = g.units[i];
       if (u.dead || u.air) continue;
@@ -20746,6 +21030,7 @@
       if (best > 9) continue;
       sp.down = false; sp.hp = sp.maxhp;
       for (c = 0; c < sp.cells.length; c++) { g.terrain[sp.cells[c]] = T_BRIDGE; g.bwrk[sp.cells[c]] = 0; }
+      labelWater(g);                                 // and a repaired one can split them again
       n++;
     }
     return n;
@@ -21306,13 +21591,16 @@
   // The k-th distinct passable tile on a spiral around (x,y): one cell per
   // unit, as RA2 lays a group out at its destination. `taken` is a set the
   // caller keeps across one group order.
-  function spreadSpot(g, x, y, taken, mv) {
+  // `zone` (optional) keeps a fleet's spread inside ONE body of water: a spot
+  // two cells away across a spit is not a spot a Destroyer can take up.
+  function spreadSpot(g, x, y, taken, mv, zone) {
     for (var k = 0; k < 400; k++) {
       var r = k === 0 ? 0 : 0.9 + Math.sqrt(k) * 0.8, a = k * 2.399;
       var cx = Math.max(0, Math.min(MAP - 1, Math.round(x + Math.cos(a) * r)));
       var cy = Math.max(0, Math.min(MAP - 1, Math.round(y + Math.sin(a) * r)));
       var key = cx + ',' + cy;
       if (taken[key] || !tilePassable(g, cx, cy, undefined, mv)) continue;
+      if (zone && g.wzone[idx(cx, cy)] !== zone) continue;
       taken[key] = true; return { x: cx, y: cy };
     }
     return { x: x, y: y };
@@ -21818,6 +22106,7 @@
     if (!reqMet(g, p, spec)) return false;
     if (spec.cls === 'i') return hasBld(g, p, 'barracks');
     if (spec.cls === 'a') return hasBld(g, p, 'airforce');
+    if (spec.cls === 'n') return hasBld(g, p, 'shipyard');   // a hull comes off a slip, not a factory floor
     return hasBld(g, p, 'factory');
   }
   function aiTeamCount(ai, key) {
@@ -21914,12 +22203,20 @@
     }
     for (i = 0; i < ai.army.length; i++) if (!claimed[ai.army[i].id]) free++;
     var loose = free >= cfg.group * 2;
-    var filling = false;
+    // "One task force recruits at a time" is a LAND rule and a NAVAL rule,
+    // not one rule across both. ai.ini keeps its naval teams on their own
+    // trigger for exactly this reason: a fleet is built out of a different
+    // production lane and cannot absorb a rifleman, so a half-filled
+    // Destroyer Screen has no business freezing the Grizzly Attack behind it.
+    // Sharing the interlock cost the Directorate two of twelve Coastal soak
+    // matches the moment its navy became buildable — the yard's slow $2000
+    // hulls held the land ladder for a whole DissolveUnfilledTeamDelay.
+    var filling = [false, false];
     for (i = 0; i < ai.teams.length; i++) {
       var ft = ai.teams[i];
       if (ft.def.prod || ft.launched) continue;
       if (ft.def.role === 'defend') continue;
-      if (g.tick - ft.born < cfg.dissolve * 0.5) filling = true;
+      if (g.tick - ft.born < cfg.dissolve * 0.5) filling[ft.def.naval ? 1 : 0] = true;
     }
     if (g.tick - ai.lastTeam < (loose ? 600 : cfg.teamDelay)) return;
     ai.lastTeam = g.tick;
@@ -21927,6 +22224,19 @@
     // TotalAITeamCap bounds the whole list; the offensive slice is
     // attackTeams, widened while a big loose pool is going to waste.
     var atkCap = cfg.attackTeams + Math.floor(free / 12);
+    // The fleet gets its own slice of the ceiling. Two hulls' worth of task
+    // force is the whole naval ladder (a screen and a bombardment, or a
+    // screen and a landing), so it never needs the land allowance.
+    var navCap = 2;
+    function offCount(nav) {
+      var n = 0;
+      for (var k = 0; k < ai.teams.length; k++) {
+        var td = ai.teams[k].def;
+        if (td.prod || td.role === 'defend' || td.role === 'engineer' || td.role === 'air') continue;
+        if (!!td.naval === !!nav) n++;
+      }
+      return n;
+    }
 
     // The defensive floor is a hard requirement, not a weighted roll.
     var nDef = aiRoleCount(ai, 'defend');
@@ -21940,11 +22250,13 @@
       if (d.need && !hasBld(g, me, d.need)) continue;
       if (d.role === 'defend' && nDef >= cfg.defMax) continue;
       if (d.role === 'attack' || d.role === 'siege' || d.role === 'harass') {
-        if (aiRoleCount(ai, 'attack') + aiRoleCount(ai, 'siege') + aiRoleCount(ai, 'harass') >= atkCap) continue;
-        // One task force recruits at a time. Eight half-filled teams sharing
-        // fifty units is how the Collective ended a 30-minute match with
-        // every team still in `fill` and nothing on the field (measured).
-        if (filling) continue;
+        if (offCount(d.naval) >= (d.naval ? navCap : atkCap)) continue;
+        // One task force recruits at a time, per domain. Eight half-filled
+        // teams sharing fifty units is how the Collective ended a 30-minute
+        // match with every team still in `fill` and nothing on the field
+        // (measured) — but a fleet filling out of the naval lane is not
+        // competing for those fifty units at all.
+        if (filling[d.naval ? 1 : 0]) continue;
       }
       // Every member has to be buildable, or the team can never fill.
       var ok = true;
@@ -22635,12 +22947,18 @@
   var AI_NAVAL_ADJ = 20;
   // The nearest cell of open water to (x,y), out to `r`. Used both for
   // "can we build a yard here" and for pointing a fleet at a shore target.
-  function nearestWater(g, x, y, r) {
+  // `zone`, when given, restricts the answer to ONE body of water — the body
+  // the asking hull is already floating in. `undefined` means any water, so
+  // the placement caller ("is there a shore near the Construction Yard") is
+  // unchanged.
+  function nearestWater(g, x, y, r, zone) {
     for (var rr = 0; rr <= r; rr++) {
       for (var oy = -rr; oy <= rr; oy++) for (var ox = -rr; ox <= rr; ox++) {
         if (Math.max(Math.abs(ox), Math.abs(oy)) !== rr) continue;
         var nx = Math.round(x) + ox, ny = Math.round(y) + oy;
-        if (inMap(nx, ny) && g.terrain[idx(nx, ny)] === T_WATER) return { x: nx, y: ny };
+        if (!inMap(nx, ny) || g.terrain[idx(nx, ny)] !== T_WATER) continue;
+        if (zone && g.wzone[idx(nx, ny)] !== zone) continue;
+        return { x: nx, y: ny };
       }
     }
     return null;
@@ -22725,15 +23043,34 @@
   // its own passable tile on a spiral around the target (the soak found 34
   // units parked on one staging tile, all sharing an identical order).
   // Where a fleet gathers: the water nearest the land staging point.
-  function aiNavalStage(g, me, foe) {
+  function aiNavalStage(g, me, foe, zone) {
     var st = aiStaging(g, me, foe);
-    return nearestWater(g, st.x, st.y, AI_NAVAL_ADJ + 6) || st;
+    return nearestWater(g, st.x, st.y, AI_NAVAL_ADJ + 6, zone) ||
+           (zone ? nearestWater(g, st.x, st.y, AI_NAVAL_ADJ + 6) : null) || st;
+  }
+  // The body of water a naval task force is actually in — its first hull's.
+  function teamZone(g, t) {
+    for (var i = 0; i < t.units.length; i++) {
+      var u = t.units[i];
+      if (u && !u.dead && UNITS[u.type].nav && !UNITS[u.type].amph) {
+        var z = hullZone(g, u); if (z) return z;
+      }
+    }
+    return 0;
   }
   function aiMoveSpread(g, units, at) {
     var taken = {};
     for (var i = 0; i < units.length; i++) {
       var u = units[i]; if (!u || u.dead) continue;
-      var sp = spreadSpot(g, at.x, at.y, taken), tx = sp.x, ty = sp.y;
+      // A hull ordered into a body of water it is not in never arrives, and
+      // the order is re-issued on the next tactical pass — the churn the soak
+      // saw as 419 B1-stuck flags in one match. Leave it where it is instead.
+      var zone = 0;
+      if (UNITS[u.type].nav && !UNITS[u.type].amph) {
+        zone = hullZone(g, u);
+        if (zone && !navReach(g, u, at.x, at.y, 3)) continue;
+      }
+      var sp = spreadSpot(g, at.x, at.y, taken, moverOf(u), zone), tx = sp.x, ty = sp.y;
       u.order = { t: 'move', x: tx, y: ty, id: 0 };
       u.guardX = tx; u.guardY = ty; u.repathAt = -999;
       requestPath(g, u, tx, ty);
@@ -22759,7 +23096,9 @@
     if (UNITS[u.type].nav && !UNITS[u.type].amph &&
         (tgt.kind === 'b' || !UNITS[tgt.type].nav) && !isAir(tgt)) {
       if (u.navHold && g.tick < u.navHold) return;   // it just proved it cannot get there
-      var w = nearestWater(g, tx, ty, 14);
+      // Water THIS hull can reach: a bay on the far side of a spit is not a
+      // firing position, it is fourteen minutes of re-issued orders.
+      var w = nearestWater(g, tx, ty, 14, hullZone(g, u));
       if (!w) return;                            // nothing afloat can reach it: leave the hull on station
       tx = w.x; ty = w.y;
     }
@@ -23032,6 +23371,10 @@
   function aiRunTeam(g, ai, me, foe, t, stage, mayAttack, budget) {
     var cfg = ai.cfg, i, u;
     var def = t.def;
+    // A fleet musters ON THE WATER, in the body its own hulls are floating
+    // in. The land staging point it used to be handed is a beach: every hull
+    // sent there re-pathed for the rest of the match.
+    if (def.naval) stage = aiNavalStage(g, me, foe, teamZone(g, t));
     // Defensive teams never leave: they sit between the base and the enemy
     // and are re-posted whenever they drift.
     if (def.role === 'defend') {
@@ -23121,7 +23464,7 @@
       t.launched = g.tick; t.n0 = t.units.length; t.mode = 'attack';
     }
     if (t.mode === 'retreat') {
-      var home2 = def.naval ? aiNavalStage(g, me, foe) : aiStaging(g, me, foe);
+      var home2 = def.naval ? aiNavalStage(g, me, foe, teamZone(g, t)) : aiStaging(g, me, foe);
       var back = [];
       for (i = 0; i < t.units.length; i++) if (!t.units[i].order) back.push(t.units[i]);
       if (back.length) { aiMoveSpread(g, back, home2); budget -= back.length; }
@@ -26707,10 +27050,14 @@
   // seam; sent anywhere else they go there and HOLD (see stepHarvester).
   function orderUnitsTo(g, units, gx, gy, opts) {
     opts = opts || {};
-    var onOre = oreT(g.terrain[idx(gx, gy)]), n = 0, taken = {}, held = 0;
+    var onOre = oreT(g.terrain[idx(gx, gy)]), n = 0, taken = {}, held = 0, wet = 0;
     units.forEach(function (u, i) {
       // RA2: a deployed GI does not take move orders — D packs him up first.
       if (u.deployed && u.p === P_HUMAN && !opts.queue) { held++; return; }
+      // A hull will not accept an order into a body of water it is not in.
+      // Taking it and never arriving is worse than refusing it: the ship
+      // re-paths for the rest of the match and the player never learns why.
+      if (!navReach(g, u, gx, gy)) { wet++; return; }
       // Shift-click queues a waypoint behind the current order (RA2 waypoint
       // mode); a plain order replaces the whole queue.
       if (opts.queue && u.order) { (u.wp || (u.wp = [])).push({ x: gx, y: gy }); n++; return; }
@@ -26725,7 +27072,9 @@
       }
       // One destination cell per unit (the old six-per-ring put the first
       // six on the exact target tile — ten Rhinos arrived as one pile).
-      var sp = u.air ? { x: gx, y: gy } : spreadSpot(g, gx, gy, taken, moverOf(u)), tx = sp.x, ty = sp.y;
+      var sp = u.air ? { x: gx, y: gy }
+             : spreadSpot(g, gx, gy, taken, moverOf(u), isNaval(u) && !UNITS[u.type].amph ? hullZone(g, u) : 0);
+      var tx = sp.x, ty = sp.y;
       u.order = { t: 'move', x: tx, y: ty, id: 0 };
       u.guardX = tx; u.guardY = ty; u.repathAt = -999; u.path = null;
       if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.noProg = 0; }
@@ -26734,6 +27083,7 @@
     });
     if (opts.voice && n) unitAck(units, onOre ? 'harvest' : 'move');
     if (held && !n && !headless) { say('Deployed — press D to pack up before moving', true); sfx('no'); }
+    else if (wet && !n && !headless) { say('No sea route — that water is not joined to ours', true); sfx('no'); }
     return n;
   }
   // ---- RA2's three "go and fight" orders ---------------------------------
@@ -26741,9 +27091,11 @@
   // resuming the advance when the road is clear again. RA2 lists AttackMove
   // in ui.ini's command bar; here it is Ctrl+Shift+right-click.
   function orderAmove(g, units, gx, gy) {
-    var taken = {}, n = 0;
+    var taken = {}, n = 0, wet = 0;
     units.forEach(function (u) {
-      var sp = u.air ? { x: gx, y: gy } : spreadSpot(g, gx, gy, taken, moverOf(u));
+      if (!navReach(g, u, gx, gy)) { wet++; return; }
+      var sp = u.air ? { x: gx, y: gy }
+             : spreadSpot(g, gx, gy, taken, moverOf(u), isNaval(u) && !UNITS[u.type].amph ? hullZone(g, u) : 0);
       u.wp = null; u.guard = false; u.stopped = false;
       u.order = { t: 'amove', x: sp.x, y: sp.y, id: 0 };
       u.guardX = sp.x; u.guardY = sp.y; u.repathAt = -999; u.path = null; u.rtb = false;
@@ -26751,6 +27103,7 @@
       requestPath(g, u, sp.x, sp.y);
       n++;
     });
+    if (wet && !n && !headless) { say('No sea route — that water is not joined to ours', true); sfx('no'); }
     return n;
   }
   // Force-fire at a patch of ground (RA2 Ctrl+click): the unit closes to
@@ -30269,13 +30622,18 @@
             isSensor: isSensor, subSeen: subSeen, surfaced: surfaced,
             waterPlot: waterPlot, nearestWater: nearestWater, hasShore: hasShore,
             dockSpot: dockSpot, freeWaterNear: freeWaterNear, shipSinks: shipSinks,
-            SUB_SURFACE: SUB_SURFACE, AI_NAVAL_ADJ: AI_NAVAL_ADJ },
+            SUB_SURFACE: SUB_SURFACE, AI_NAVAL_ADJ: AI_NAVAL_ADJ,
+            labelWater: labelWater, waterZoneAt: waterZoneAt, hullZone: hullZone,
+            navReach: navReach, orderUnitsTo: orderUnitsTo, collapseSpan: collapseSpan,
+            aiCanMake: aiCanMake, unloadTransport: unloadTransport, paxCount: paxCount },
     // Baked sprite atlas, so art work can be reviewed as a contact sheet
     // instead of by hunting for one building in a live match.
     spr: function () { return SPR; },
     // Start a bare match (no opening units) that the other hooks act on.
+    // `live` (5th arg) leaves the RENDERER on, so an art or QA pass can drive
+    // a set-piece and screenshot it instead of only asserting on numbers.
     begin: function (seed, diff) {
-      headless = true;
+      headless = !arguments[4];
       G = newState((seed >>> 0) || 1, diff || 'normal', arguments[2]);
       G.debug = !!arguments[3];
       state = 'play';

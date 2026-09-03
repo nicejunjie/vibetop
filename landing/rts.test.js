@@ -4117,3 +4117,102 @@ test("the AI screens against aircraft the enemy CAN field, not only ones it has 
   assert.ok(after >= 2, `a proportionate screen went up unprovoked (${before} -> ${after})`);
   assert.equal(g.tick - ai.airAt < 60 * 90, false, "still never seen an aircraft");
 });
+// --------------------------------------------------------------------- //
+//  Water connectivity, and the prerequisite bug it was found beside.
+// --------------------------------------------------------------------- //
+
+test("water is labelled into BODIES, and a hull is fenced into its own", () => {
+  const H = W.__rtsTest, N = H.apiN;
+
+  // Every map's water, counted. Two separate pools are two bodies however
+  // close they look; a bridge deck splits a river because a low bridge is
+  // not navigable ([General] TooBigToFitUnderBridge).
+  const bodies = (g) => {
+    const set = new Set();
+    for (let i = 0; i < g.wzone.length; i++) if (g.wzone[i]) set.add(g.wzone[i]);
+    return set.size;
+  };
+  const coast = API.newState(4242, "normal", "coastal");
+  assert.equal(bodies(coast), 1, "Coastal's bay and both harbour channels are ONE body");
+  const lake = API.newState(4242, "normal", "lake");
+  assert.equal(bodies(lake), 3, "Lake Divide is a lake plus two unreachable pools");
+  const dry = API.newState(4242, "normal", "frontier");
+  assert.equal(bodies(dry), 0, "Iron Frontier has no water at all");
+
+  // A pure naval hull may only be ordered inside its own body; land and
+  // amphibious movers are never fenced.
+  const zones = {};
+  for (let i = 0; i < lake.wzone.length; i++) {
+    const z = lake.wzone[i];
+    if (z && !zones[z]) zones[z] = { x: i % 64, y: (i / 64) | 0 };
+  }
+  const ids = Object.keys(zones);
+  assert.ok(ids.length >= 2);
+  const [zA, zB] = [zones[ids[0]], zones[ids[1]]];
+  const hull = { kind: "u", type: "destroyer", x: zA.x, y: zA.y };
+  assert.equal(N.hullZone(lake, hull), Number(ids[0]));
+  assert.equal(N.navReach(lake, hull, zA.x, zA.y), true, "its own body is reachable");
+  assert.equal(N.navReach(lake, hull, zB.x, zB.y), false, "the other pool is not");
+  const amph = { kind: "u", type: "lcraft", x: zA.x, y: zA.y };
+  assert.equal(N.navReach(lake, amph, zB.x, zB.y), true, "an amphibious hull drives round");
+  const tank = { kind: "u", type: "lancer", x: zA.x, y: zA.y };
+  assert.equal(N.navReach(lake, tank, zB.x, zB.y), true, "a tank was never in this argument");
+});
+
+test("a move order into unreachable water is refused, not churned on", () => {
+  const H = W.__rtsTest, N = H.apiN;
+  const g = H.startWith(4242, "normal", "lake", {});
+  const zones = {};
+  for (let i = 0; i < g.wzone.length; i++) {
+    const z = g.wzone[i];
+    if (z && !zones[z]) zones[z] = { x: i % 64, y: (i / 64) | 0 };
+  }
+  const ids = Object.keys(zones).sort((a, b) => a - b);
+  const here = zones[ids[0]], there = zones[ids[1]];
+  const ship = H.spawn("destroyer", 0, here.x, here.y);
+  ship.order = null;
+  assert.equal(N.orderUnitsTo(g, [ship], there.x, there.y, {}), 0, "the order is taken by nobody");
+  assert.equal(ship.order, null, "so the hull keeps no impossible order to re-path on");
+  assert.ok(N.orderUnitsTo(g, [ship], here.x, here.y, {}) > 0, "and its own body still works");
+});
+
+test("a dropped bridge span JOINS the two bodies it separated", () => {
+  const H = W.__rtsTest, N = H.apiN;
+  const g = API.newState(4242, "normal", "river");
+  const before = new Set();
+  for (let i = 0; i < g.wzone.length; i++) if (g.wzone[i]) before.add(g.wzone[i]);
+  assert.ok(before.size >= 2, "the spans cut the river into reaches");
+  // A crossing is several lanes wide (River Crossing's is three), so the
+  // reaches only join once the whole crossing is down — which is exactly the
+  // behaviour that makes the relabel necessary rather than decorative.
+  const count = () => {
+    const set = new Set();
+    for (let i = 0; i < g.wzone.length; i++) if (g.wzone[i]) set.add(g.wzone[i]);
+    return set.size;
+  };
+  let joined = false;
+  for (const sp of g.bridges) { N.collapseSpan(g, sp); if (count() < before.size) { joined = true; break; } }
+  assert.ok(joined, "and dropping a crossing opens one reach into the next");
+});
+
+test("[AEGIS] Prerequisite=GAYARD,GARADR — the Allied radar IS the Airforce Command", () => {
+  const H = W.__rtsTest, N = H.apiN;
+  // The Directorate owns no `radar` structure at all, so a bare req:'radar'
+  // made its own cruiser unbuildable — and aiTeamPass refuses a task force
+  // with an unbuildable member, which took the WHOLE Allied offensive navy
+  // (dirFleet and dirCV) off the ladder for the entire match.
+  assert.equal(T.BLDS.radar.fac, "col", "there is no Allied Radar Tower");
+  const req = [].concat(T.UNITS.aegis.req);
+  assert.ok(req.indexOf("airforce") >= 0, "so the Aegis names the Airforce Command");
+
+  const g = H.startWith(4242, "normal", "coastal", {});
+  g.side[0].fac = "dir";
+  for (const k of ["power", "refinery", "barracks", "factory", "airforce", "lab", "shipyard"])
+    placeNear(H, g, 0, g.start[0], k);
+  g.side[0].credits = 20000;
+  assert.equal(API.canBuild(g, 0, "aegis", false), true, "and can now be built");
+  assert.equal(N.aiCanMake(g, 0, "aegis"), true);
+  for (const d of T.AI_TEAMS.filter((t) => t.naval && t.fac === "dir"))
+    for (const f of d.force)
+      assert.equal(N.aiCanMake(g, 0, f.t), true, `${d.key} can field a ${f.t}`);
+});

@@ -293,7 +293,18 @@ fidelity plus reproduced player reports.
   crowd-stuck units per 24 matches. Everything else that list carried is
   fixed: ~~structures interpenetrate~~ (Phase 2 footprints), ~~Weather Storm
   is one thin bolt~~ (Phase 5 storm timing), ~~the AI never fields
-  Engineer/Tanya/Ivan/Drone/Tesla Tank/Purifier~~ (Phase 6 task forces).
+  Engineer/Tanya/Ivan/Drone/Tesla Tank/Purifier~~ (Phase 6 task forces),
+  ~~a hull re-issues an order it can never complete~~ (the naval follow-up's
+  `g.wzone` water bodies — 419 of those stuck flags came from one Destroyer
+  ordered to a beach).
+- ☐ **The Directorate is slower than the Collective through the mid game.**
+  Found while chasing the Coastal asymmetry, and it is not naval: on Iron
+  Frontier, which has no water at all, hard-Directorate takes 19.9 min on
+  average against the same seeds hard-Collective closes in 13.3. Between the
+  War Factory and the Battle Lab the Directorate fields `dirGrz` (max 2) and
+  `dirInf`; the Collective fields `colFlood`, `colRhino` (max 2), `colMech`
+  and `colDrone`. It wants its own balance pass with its own soak — it moves
+  the pinned snapshots, so it must not ride inside another change.
 - ☑ v1.19.242 Prism Tank: `CometWH` (50% vs armour, 200% vs structures), ROF 400,
   range 10, Speed 4. *(blocker)*
 - ☑ v1.19.242 Prerequisites enforced exactly as `Prerequisite=`: Tesla Coil POWER+RADAR;
@@ -847,10 +858,20 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
   Foundation 4x4 / `Adjacent=12` / Sight 10, `WaterBound=yes` — `canPlace`
   gains a water plot rule (every footprint cell `T_WATER`, at least one dry
   cell in the ring) and a `queues.n` naval lane whose producer is the yard.
-  Ships list at the bottom of the Units tab in TechLevel order. Original art
-  for both houses on the shared machine — piled mole, fitting-out shed, bay
-  doors that part, portal gantry with a traversing trolley, a keel and frames
-  standing on the slip — six idle phases each.
+  Ships list at the bottom of the Units tab in TechLevel order. Art rebuilt
+  against the real sprites (`docs/ra2-ref/allied-naval-yard-anim*.png`,
+  `soviet-naval-yard-anim*.png`, fetched from the C&C wiki): RA2's yards are
+  not docks along a shore, they are OFFSHORE RIGS in open water on their own
+  legs with a lattice crane over the sea. Directorate — four fat caissons on
+  concrete collars with foam rings, glossy house-coloured domes over house
+  rings, a pale stepped tower on a spoked deck rosette, a dark steel arch with
+  a house band and a domed head, a yellow jib on a grab. Collective — a low
+  pontoon with a house-painted rim, four brick blockhouse pylons under cream
+  slab caps carrying house grilles, a black crane tower with a house band and
+  a cream jib on a wrecking ball. Six idle phases each (jib slew, fall, launch
+  gate, welding arc, swell, floodlights) and a slipway on the near-left face
+  where `DockingOffset0` launches. Bbox aspect vs reference: dir 0.862 / 0.823
+  (+4.7%), col 0.849 / 0.874 (-2.8%).
 - ☑ Ships: nine hulls with rules.ini stats and original 8-facing art (plan
   outline extruded to a deck, boot-topping at the waterline, tiered
   superstructure, one house band), a foam wake on the water, a slow heave and
@@ -880,9 +901,22 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
   of the Construction Yard and the whole naval half of the ladder is
   unreachable, which is why Iron Frontier is unchanged (measured: eight
   gate matches step tick-for-tick to the same result and the same clock).
-  A fleet is ordered to the water nearest its shore target, not onto it, and
-  a hull that cannot reach where it was sent drops the order and holds rather
-  than churning on it. Landing raids are hard-only.
+  A fleet musters ON THE WATER in its own body (it used to be handed the land
+  staging point, which is a beach), is ordered to the water nearest its shore
+  target rather than onto it, and a hull that cannot reach where it was sent
+  drops the order and holds rather than churning on it. Landing raids are
+  hard-only. The offensive team cap and the "one task force recruits at a
+  time" interlock are PER DOMAIN — a fleet filling out of the naval lane
+  cannot absorb a rifleman, so it must not freeze the land ladder behind it.
+- ☑ Water connectivity: `g.wzone` labels every `T_WATER` cell with the BODY it
+  belongs to (8-connected, obeying A*'s no-corner-cutting rule), settled once
+  when the terrain is final and recomputed when a bridge span drops or is
+  repaired. `navReach()` is the single question; the AI never orders a hull
+  into a body it is not in, and a human's order to an unreachable body is
+  refused with a message instead of churning. Measured: Coastal is one body,
+  Lake Divide three, River Crossing three, Iron Frontier none.
+- ☑ Ships render at 32 bearings like every other vehicle (`bakeShip` returns a
+  lazy `faceSheet`); the bow wave's arms are anchored on the stem.
   Eleven hulls in total, counting the two that are not on a build list: the
   Amphibious Transport (moved here from the vehicle lane) and the Hornet
   (`TechLevel=-1`, it only ever leaves a carrier deck).

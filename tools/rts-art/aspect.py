@@ -41,6 +41,8 @@ REF = {
     ('col','cloningvats'): 'soviet-cloning-vats-idle.png',
     ('dir','gapgen'):    'allied-gap-generator.png',
     ('dir','grandcannon'): 'allied-grand-cannon.png',
+    ('dir','shipyard'):  'allied-naval-yard-anim-last.png',
+    ('col','shipyard'):  'soviet-naval-yard-anim-last.png',
 }
 
 def aspect(path):

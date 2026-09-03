@@ -7591,3 +7591,119 @@ poor AI still buys tanks. Gates over 12 seeds × both faction orders,
 - **Debug mode no longer touches combat** (user, 2026-09-03): the cheats are instant build, unlimited credits and full vision only, so a debug game measures the same fight a normal one does. The ×10 / ÷10 damage block is gone, with the label and the in-match notice reworded.
 - **Also:** a ⚙ button in the top bar opens the settings card (volume, game speed, scroll rate, save/load, restart) during a match — Esc was the only way in, and nobody finds Esc.
 - **Test trap:** `UNITS.harvester` no longer exists (the Chrono Miner / War Miner split), and a GI shooter on the AI side auto-deploys and changes warhead mid-test. The debug test now uses Conscripts on both sides and derives each expectation from the unit that actually spawned.
+
+## Water has BODIES, and one house's cruiser needed the other house's radar (2026-09-03)
+
+**Symptom.** Two things the naval layer left behind. A hull on Coastal
+re-issued an order it could never complete every ten seconds for the rest of
+the match (the soak counted 419 `B1-stuck` flags from ONE Destroyer). And
+Coastal was paced asymmetrically: a hard Collective closed in 12–15 minutes
+while a hard Directorate averaged 18.6 and sometimes ran to the 30-minute cap.
+
+**Cause — three, and only the second is what it looked like.**
+
+1. **A fleet was mustered on a beach.** `aiRunTeam` hands every team the same
+   `aiStaging()` point, which is 88% of the way back toward our own
+   Construction Yard — dry land. `aiNavalStage` existed and was called only on
+   the retreat branch, so a *filling* or *stray* fleet was ordered ashore,
+   never arrived, and re-pathed forever. `aiMoveSpread` also spread with the
+   LAND mover (`spreadSpot(g, x, y, taken)`, `mv` undefined), so even the spot
+   it picked was a field.
+
+2. **Water was one undifferentiated predicate.** `terrPass(t, MV_NAVAL)` says
+   "is this cell wet", which is not the same question as "can this hull get
+   there". Lake Divide is a lake plus two 35-cell pools; River Crossing is
+   three reaches separated by bridge decks (a low bridge is not navigable —
+   `TooBigToFitUnderBridge=true`). Nothing in the game knew that.
+
+3. **The pacing was not naval at all.** `[AEGIS]` carried `req: 'radar'`, and
+   `radar` is `fac: 'col'` — the Directorate owns no structure by that name,
+   so its own cruiser was unbuildable for ever. `aiTeamPass` refuses any task
+   force with an unbuildable member, and the Aegis is in BOTH Allied naval
+   attack teams, so `dirFleet` and `dirCV` never existed. The destroyers still
+   got built (the naval lane's fallback), joined no team, and sat in harbour:
+   seven idle hulls and $54 000 in the bank at minute 15. RA2 spells the Allied
+   radar prerequisite `GARADR`, which is the Air Force Command; `lab` in this
+   file already writes that as `req: ['airforce', 'radar']`.
+
+   Fixing that exposed a fourth: with a navy finally buildable, the Allied land
+   ladder STALLED. `aiTeamPass` had one `filling` flag and one `atkCap` across
+   every offensive team, so a Destroyer Screen waiting on an $2000 hull froze
+   the Grizzly Attack behind it for a whole `DissolveUnfilledTeamDelay`. That
+   alone turned two of twelve Coastal wins into 30-minute caps.
+
+**Fix.**
+- `g.wzone` — an 8-connected flood fill labelling every `T_WATER` cell with its
+  body, computed once when the terrain is final and recomputed on the only two
+  events that change it (a span collapsing, a span repaired). It obeys A*'s own
+  no-corner-cutting rule, so two pools meeting at one corner stay separate.
+  `nearestWater` takes an optional `zone`; `navReach(g, u, x, y)` is the one
+  question everything asks. The AI will not point a hull at water it is not in
+  (`aiOrderAttack`, `aiMoveSpread`, `aiNavalStage`), and a human's order to an
+  unreachable body is REFUSED with *"No sea route — that water is not joined to
+  ours"* rather than silently accepted and churned on.
+- Naval teams muster at `aiNavalStage` in their own body, and `aiMoveSpread`
+  spreads with the unit's own mover.
+- `[AEGIS] req: ['airforce', 'radar']`, and `aiCanMake` learned that a `cls:'n'`
+  hull comes off a slip (`hasBld(shipyard)`) and not a factory floor.
+- `filling` and the offensive team cap are **per domain** — land and naval each
+  get their own — because a fleet fills out of a different production lane and
+  cannot absorb a rifleman. ai.ini keeps its naval teams on their own trigger
+  for exactly this reason.
+
+Measured on twelve Coastal matches (6 seeds x both faction orders, hard vs
+easy): hard 11/12 with **no** 30-minute cap, and the mean hard-Directorate
+clock 18.6 -> 17.0 minutes while the two houses' means converged from 5.0
+minutes apart to 1.4. Iron Frontier is unchanged at 22/24 — by construction,
+since `filling[0]`/`offCount(false)` are exactly the old flag and the old sum
+on a map with no water, which is why the pinned seed-4242 snapshots did not
+move.
+
+**What is NOT fixed, and is not naval.** The residual gap is a LAND asymmetry
+that predates the navy: on Iron Frontier, which has no water at all, hard
+Directorate still averages 19.9 minutes against hard Collective's 13.3 on the
+same seeds. Between the War Factory and the Battle Lab the Directorate has
+`dirGrz` (max 2) and `dirInf` and nothing else, while the Collective has
+`colFlood`, `colRhino` (max 2), `colMech` and `colDrone` — so the Allied AI
+banks money it has no task force to spend. That is a balance pass of its own,
+it moves the pinned snapshots, and it should not ride along inside a naval fix.
+
+**Rejected.**
+- *Labelling by occupancy as well as terrain.* A Shipyard can straddle a
+  channel and cut a body in two, but that is transient — it can be sold or shot
+  — and A* already handles it. `wzone` answers the PERMANENT question, which is
+  why it only has to be recomputed when the terrain itself changes.
+- *A second, naval A\*.* Same reason the mover class was a parameter and not a
+  second pathfinder: two heaps go out of step and the one nobody tests is the
+  one that breaks.
+- *Giving the Directorate an early naval team with no Aegis in it* to close the
+  Coastal gap. It would have hidden the land-side cause behind a naval-shaped
+  patch, and RA2's `[AEGIS] Prerequisite=GAYARD,GARADR` is not the thing that
+  was wrong.
+
+## A ship was drawn at 8 bearings after the fleet had moved to 32 (2026-09-03)
+
+**Symptom.** `TypeError: Cannot read properties of undefined (reading 'w')` in
+`drawUnit`, the first time a set-piece was driven in a real browser instead of
+headless.
+
+**Cause.** The 32-facing pass gave `u.face` the range 0..31 for every hull,
+turret and airframe and wrapped every vehicle sheet in `faceSheet`. `bakeShip`
+was written afterwards and still returned a flat `for (d = 0; d < 8; d++)`
+array, so `set[u.face]` was `undefined` for 24 of the 32 bearings and the
+renderer threw the moment a hull turned off a cardinal. A Destroyer spawns on
+face 12. Every headless balance run and every unit test passed throughout,
+because none of them draws.
+
+**Fix.** `bakeShip` returns `faceSheet(frame)` and `frame` steps by `FANG`
+instead of `Math.PI / 4` — the same lazy 32-bearing atlas every other vehicle
+already had. The bow wave was rebuilt at the same time: both arms now START AT
+THE STEM and sweep aft and outboard, because the first draft drew each chevron
+as one curve between two points abeam of the stem and its ends floated free of
+the plan at the bearings where the hull's projected width collapses and the
+wave's does not.
+
+**The generalizable lesson:** a canvas game has a whole class of defect that
+only a rendered frame can catch. Drive one set-piece per feature and LOOK at it;
+"the tests are green" is a statement about the simulation.
+
