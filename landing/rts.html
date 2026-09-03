@@ -5675,6 +5675,14 @@
           // blunt nose, tapered tail; four house-colour tail fins and two
           // house-colour engine pods; a grey gondola slung under the belly;
           // a propeller on the tail cone (the two-frame `prop` set spins it).
+          // LAYER SPLIT: the gondola hangs on its cables and swings a beat
+          // behind the envelope, so it is baked on a sheet of its own -- part
+          // 'h' is the airframe WITHOUT it, 'g' / 'go' the gondola alone with
+          // the bomb bay shut / open ([ZEP] PrimaryFireFLH=-50,0,-140: the
+          // bomb leaves from under the pod). A layer is skipped by drawing it
+          // at alpha 0, which leaves the airframe code itself untouched.
+          var kGond = part !== 'h', kAir = part !== 'g' && part !== 'go';
+          g.globalAlpha = kAir ? 1 : 0;
           var ENV = '#c9a95a', ENVL = '#eddc9a', ENVD = '#6e5320', ENVE = '#3a2c12';
           var far = py < 0 ? 1 : -1;                              // which P side is behind the body
           var tailAway = fy > 0;                                  // nose toward the viewer: the tail is behind
@@ -5757,7 +5765,14 @@
           g.stroke();
           g.restore();
           // gondola under the belly: dark grey box with a window strip
+          g.globalAlpha = kGond ? 1 : 0;
           var gp = pt(0.08), gpy = gp[1] + rad(0.08) * 0.82;
+          if (kGond && !kAir) {                               // its own sheet: the cables it hangs on
+            g.strokeStyle = 'rgba(58,44,18,.85)'; g.lineWidth = 0.9;
+            for (var kc = -1; kc <= 1; kc += 2) {
+              g.beginPath(); g.moveTo(gp[0] + kc * 4.2, gpy - 6.5); g.lineTo(gp[0] + kc * 5.4, gpy + 0.4); g.stroke();
+            }
+          }
           isoBox(g, gp[0], gpy + 3.4, 12, 5.5, 5.5, a, '#5a5f68', '#23262c');
           g.fillStyle = '#c9dce8'; g.fillRect(gp[0] - 4.2, gpy - 0.8, 8.4, 1.4);
           g.strokeStyle = '#d6dbe2'; g.lineWidth = 0.9;            // catwalk rails, as the sprite
@@ -5766,8 +5781,35 @@
           for (var gr2 = -2; gr2 <= 2; gr2++) {
             g.beginPath(); g.moveTo(gp[0] + gr2 * 2.4, gpy + 1.2); g.lineTo(gp[0] + gr2 * 2.4, gpy + 3.2); g.stroke();
           }
-          g.fillStyle = '#2a2d33';                                 // bomb bay doors
-          g.beginPath(); g.ellipse(gp[0], gpy + 4.0, 4.0, 1.5, 0, 0, 6.29); g.fill();
+          if (part === 'go') {
+            // Bay OPEN: two leaves hinged down either side, a lit bay between
+            // them and the bomb already on its way out.
+            g.fillStyle = '#241a06';
+            g.beginPath(); g.ellipse(gp[0], gpy + 4.2, 4.4, 1.9, 0, 0, 6.29); g.fill();
+            g.fillStyle = 'rgba(255,186,72,.92)';                  // the lit bay showing through
+            g.beginPath(); g.ellipse(gp[0], gpy + 4.0, 3.2, 1.3, 0, 0, 6.29); g.fill();
+            g.fillStyle = 'rgba(255,236,176,.95)';
+            g.beginPath(); g.ellipse(gp[0], gpy + 3.9, 1.9, 0.8, 0, 0, 6.29); g.fill();
+            for (var bd = -1; bd <= 1; bd += 2) {                  // the two leaves hanging down
+              g.fillStyle = bd < 0 ? '#767d89' : '#565c66';
+              g.beginPath();
+              g.moveTo(gp[0] + bd * 1.4, gpy + 3.4); g.lineTo(gp[0] + bd * 4.6, gpy + 3.0);
+              g.lineTo(gp[0] + bd * 6.2, gpy + 7.4); g.lineTo(gp[0] + bd * 2.4, gpy + 7.0);
+              g.closePath(); g.fill();
+              g.strokeStyle = '#14171c'; g.lineWidth = 0.8; g.stroke();
+            }
+            g.fillStyle = '#9aa1ac';                               // the bomb dropping clear
+            g.beginPath(); g.ellipse(gp[0], gpy + 8.4, 1.9, 3.0, 0, 0, 6.29); g.fill();
+            g.strokeStyle = '#20242a'; g.lineWidth = 0.8; g.stroke();
+            g.fillStyle = '#23262c';
+            g.beginPath(); g.ellipse(gp[0], gpy + 10.6, 1.3, 1.2, 0, 0, 6.29); g.fill();
+          } else {
+            g.fillStyle = '#2a2d33';                               // bomb bay doors, shut
+            g.beginPath(); g.ellipse(gp[0], gpy + 4.0, 4.0, 1.5, 0, 0, 6.29); g.fill();
+            g.strokeStyle = '#15181d'; g.lineWidth = 0.8;
+            g.beginPath(); g.moveTo(gp[0] - 3.6, gpy + 4.0); g.lineTo(gp[0] + 3.6, gpy + 4.0); g.stroke();
+          }
+          g.globalAlpha = kAir ? 1 : 0;
           // engine pod, near side
           var epN = pt(-0.5);
           puck(epN[0] - px * far * bodyR * 0.85, epN[1] - py * far * bodyR * 0.85 + 2.5, 2.2, 4.0, shade(col, 0.74), col, shade(col, 0.36));
@@ -5791,6 +5833,7 @@
             g.lineTo(clP[0] + px * ci * bodyR * 0.3, clP[1] + py * ci * bodyR * 0.3);
             g.stroke();
           }
+          g.globalAlpha = 1;
         } else {
           // HARRIER. From allied-harriers.png: a dark blue-grey jet with a
           // white belly and nose, swept wings, a tall house-colour fin and
@@ -6931,6 +6974,18 @@
 
     var out = [], d;
     for (d = 0; d < 8; d++) out.push(frame(d, 'a'));
+    if (kind === 'kirov') {
+      // Baked on demand: a match without a Kirov never pays for the extra
+      // sheets, and one Kirov pays for them once.
+      out.lay = function () {
+        if (!out._lay) {
+          var kh = [], kg = [], ko = [], q;
+          for (q = 0; q < 8; q++) { kh.push(frame(q, 'h')); kg.push(frame(q, 'g')); ko.push(frame(q, 'go')); }
+          out._lay = { hull: kh, gond: kg, open: ko };
+        }
+        return out._lay;
+      };
+    }
     if (turreted) {
       out.hull = []; out.turret = [];
       for (d = 0; d < 8; d++) { out.hull.push(frame(d, 'h')); out.turret.push(frame(d, 't')); }
@@ -7313,7 +7368,12 @@
     return { a: Math.atan2(vy, vx), k: Math.sqrt(vx * vx + vy * vy), sx: sdx, sy: sdy };
   }
 
-  function bakeBuilding(key, col, fac, bph, bdir) {
+  // `dopen` (0..1) is the PRODUCTION DOOR position, RA2's DoorStages: 0 is
+  // shut (the idle state of [GAWEAP]/[NAWEAP]/[GAPILE]/[NAHAND]), 1 is fully
+  // open. Only the War Factory and the Barracks read it; every other key
+  // ignores it, and every existing caller passes nothing, which is shut.
+  function bakeBuilding(key, col, fac, bph, bdir, dopen) {
+    var DOP = dopen == null ? 0 : dopen;
     if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
     // Walls and gates are drawn from their own neighbour-mask atlas
     // (wallSprite/gateSprite); what bakeBuilding hands back is the frame the
@@ -9716,6 +9776,21 @@
           bpoly([bpt(hx, hy, 1.03, 0.32, 0), bpt(hx, hy, 1.03, -0.32, 0),
                  bpt(hx, hy, 1.03, -0.32, vRise * 0.40), bpt(hx, hy, 1.03, 0.32, vRise * 0.40)],
                 'rgba(232,190,104,' + dz.toFixed(3) + ')', null);
+          // [GAPILE] the hut door: a steel shutter filling the arch, clipped
+          // inside the cavity so only what the ring frames is ever seen. Shut
+          // at rest; it rises for the man walking out and drops behind him.
+          if (DOP < 0.999) {
+            var bzT = vRise * 0.80, bzL = bzT * DOP, bsi;
+            for (bsi = 0; bzL + bsi * 2.4 < bzT; bsi++) {
+              var bz0 = bzL + bsi * 2.4, bz1 = Math.min(bzT, bz0 + 2.4);
+              bpoly([bpt(hx, hy, 1.035, -0.82, bz0), bpt(hx, hy, 1.035, 0.82, bz0),
+                     bpt(hx, hy, 1.035, 0.82, bz1), bpt(hx, hy, 1.035, -0.82, bz1)],
+                    bsi & 1 ? '#7f8593' : '#8f95a3', 'rgba(20,24,34,.45)', 0.8);
+            }
+            bpoly([bpt(hx, hy, 1.04, -0.82, bzL), bpt(hx, hy, 1.04, 0.82, bzL),
+                   bpt(hx, hy, 1.04, 0.82, bzL + 1.7), bpt(hx, hy, 1.04, -0.82, bzL + 1.7)],
+                  shade(col, 0.94), '#12151c', 0.8);
+          }
           g.restore();
           var lp = bpt(hx, hy, 1.05, 0, -vLift * 0.5);     // step out onto the pad
           diamond(g, lp[0], lp[1] + 1.5, 15, 7.5);
@@ -9891,6 +9966,20 @@
             mQuad(F, 0.400, 0.600, 0.00, 0.115, '#15171a', '#0b0d0f');
             mQuad(F, 0.400, 0.600, 0.075, 0.115,
                   'rgba(255,186,88,' + (0.20 + 0.28 * (0.5 - 0.5 * anC)).toFixed(3) + ')', null);
+            // With the leaves apart you see INTO the hall: the doorway is small
+            // and half behind the machinery, so the light doing the work is
+            // what makes the door read at 1:1.
+            if (DOP > 0.02)
+              mQuad(F, 0.402, 0.598, 0.005, 0.113,
+                    'rgba(255,196,104,' + (0.30 + 0.45 * DOP).toFixed(3) + ')', null);
+            // [NAHAND] the door itself: two steel leaves that part sideways
+            // onto the face. Shut at rest, open while a conscript walks out.
+            var dSl = 0.105 * DOP;
+            mQuad(F, 0.400 - dSl, 0.505 - dSl, 0.005, 0.113, '#6c7076', '#26292e');
+            mQuad(F, 0.495 + dSl, 0.600 + dSl, 0.005, 0.113, '#5e6268', '#26292e');
+            mQuad(F, 0.400 - dSl, 0.505 - dSl, 0.096, 0.108, '#8b9098', null);
+            mQuad(F, 0.495 + dSl, 0.600 + dSl, 0.096, 0.108, '#7c8189', null);
+            mQuad(F, 0.492 + dSl, 0.508 + dSl, 0.005, 0.113, '#2b2e33', null);
           }
           // lintel course under the cap and a sill at the ground
           mQuad(F, 0, 1, 0.885, 1.00, shade(STONE, k2 * 0.80), '#4a4436');
@@ -10285,6 +10374,38 @@
         var hk = IP(ac + 0.02, vb1 - 0.30, hkz);
         g.fillStyle = '#5c6172'; g.fillRect(hk[0] - 3, hk[1] - 1, 6, 4);
         g.restore();
+        // -- [GAWEAP] UnderDoorAnim=GAWEAP_1 / DoorStages: the bay door -------
+        // A steel roller shutter filling the arch, clipped to the mouth so it
+        // can only ever be seen through it. Shut is the idle state (RA2's
+        // factories stand closed); it RISES, so the visible band is the top
+        // (1-DOP) of the arch and the leading rail carries the owner stripe.
+        if (DOP < 0.999) {
+          var dH = 2 + rise * 0.96, dLo = dH * DOP;
+          g.save();
+          g.beginPath(); g.moveTo(mth[0][0], mth[0][1]);
+          for (ii = 1; ii < mth.length; ii++) g.lineTo(mth[ii][0], mth[ii][1]);
+          g.closePath(); g.clip();
+          for (ii = 0; ii * 3 < dH - dLo; ii++) {
+            var sz0 = dLo + ii * 3, sz1 = Math.min(dH, sz0 + 3);
+            qpoly([IP(ac - ha, vb1 + 0.005, sz0), IP(ac + ha, vb1 + 0.005, sz0),
+                   IP(ac + ha, vb1 + 0.005, sz1), IP(ac - ha, vb1 + 0.005, sz1)],
+                  ii & 1 ? '#8b91a0' : '#9ba1b0', null);
+            qline([IP(ac - ha, vb1 + 0.006, sz1), IP(ac + ha, vb1 + 0.006, sz1)], 'rgba(22,26,38,.55)', 1);
+          }
+          qpoly([IP(ac - ha, vb1 + 0.007, dLo), IP(ac + ha, vb1 + 0.007, dLo),          // PLAYER: leading rail
+                 IP(ac + ha, vb1 + 0.007, dLo + 2.6), IP(ac - ha, vb1 + 0.007, dLo + 2.6)], col, null);
+          qline([IP(ac - ha, vb1 + 0.008, dLo), IP(ac + ha, vb1 + 0.008, dLo)], '#12151f', 1.4);
+          g.restore();
+        }
+        // -- [GAWEAP] RoofDeployingAnim=GAWEAP_3: the crown panel slides ------
+        var rhB0 = vb1 - 0.92, rhB1 = vb1 - 0.16, rhA = ha * 0.46, rhZ = zb + rise - 1.5;
+        qpoly([IP(ac - rhA, rhB0, rhZ), IP(ac + rhA, rhB0, rhZ),
+               IP(ac + rhA, rhB1, rhZ), IP(ac - rhA, rhB1, rhZ)], '#171b26', null);
+        var rhS = (rhB1 - rhB0) * DOP;
+        qpoly([IP(ac - rhA, rhB0 - rhS, rhZ + 1), IP(ac + rhA, rhB0 - rhS, rhZ + 1),
+               IP(ac + rhA, rhB1 - rhS, rhZ + 1), IP(ac - rhA, rhB1 - rhS, rhZ + 1)], shade(SIL, 0.86), EDGE);
+        qline([IP(ac - rhA * 0.55, rhB0 - rhS, rhZ + 1.6), IP(ac - rhA * 0.55, rhB1 - rhS, rhZ + 1.6)], SILH, 1);
+        qline([IP(ac + rhA * 0.55, rhB0 - rhS, rhZ + 1.6), IP(ac + rhA * 0.55, rhB1 - rhS, rhZ + 1.6)], SILH, 1);
         var hoop = arcPts(vb1 + 0.03, 1.12, zb - 1, rise + 5, 22, 1);   // the hoop itself
         var hin = arcPts(vb1 + 0.03, 0.94, zb - 1, rise * 0.98, 22, -1);
         qpoly(hoop.concat(hin), SIL, EDGE);
@@ -10604,8 +10725,13 @@
           g.globalAlpha = 1; g.fillStyle = '#fff6d0';
           g.beginPath(); g.ellipse(wf[0], wf[1], 2.4, 2.0, 0, 0, 6.29); g.fill();
         }
-        // the leaf, swung out past the -gx jamb: pink frame round a navy panel
-        var lp0 = [dA0 - 0.12, hb1], lp1 = [-1.08, hb1 + 0.40];
+        // [NAWEAP] the leaf: pink frame round a navy panel, hinged on the -gx
+        // jamb. Shut it lies flat across the maw (RA2's idle state); the door
+        // sequence swings it out past the jamb, and DOP is where in that
+        // swing it stands.
+        var lHin = [dA0 - 0.12, hb1], lLen = (dA1 + 0.11) - (dA0 - 0.12);
+        var lAng = 2.505 * DOP;
+        var lp0 = lHin, lp1 = [lHin[0] + lLen * Math.cos(lAng), lHin[1] + lLen * Math.sin(lAng)];
         qpoly([IP(lp0[0] + 0.04, lp0[1] + 0.05, 0), IP(lp1[0] + 0.04, lp1[1] + 0.05, 0),
                IP(lp1[0] - 0.02, lp1[1] + 0.18, 0), IP(lp0[0] - 0.02, lp0[1] + 0.18, 0)], 'rgba(0,0,0,.30)', null);
         qpoly([IP(lp0[0], lp0[1], 0), IP(lp1[0], lp1[1], 0), IP(lp1[0], lp1[1], dz + 4), IP(lp0[0], lp0[1], dz + 4)], NVY, EDGE2);
@@ -15806,6 +15932,125 @@
     }
     return art._make;
   }
+  // RA2 turns an animated SPINNING WRENCH over a structure that is repairing;
+  // ours was the '🔧' glyph, which is a different tool in every font. The
+  // sprite and the Repair-mode cursor are now drawn from ONE path so they read
+  // as the same tool: handle (-9,10) -> (3,-2) about the centre, open jaw of
+  // radius 5.4 at (5.5,-5.5) -- the cursor's own geometry, kept exactly.
+  function wrenchPath(g, ox, oy, k, ang, which) {
+    var c = Math.cos(ang), sn = Math.sin(ang), q, a, pp;
+    var P = function (x, y) { return [ox + (x * c - y * sn) * k, oy + (x * sn + y * c) * k]; };
+    if (which === 'jaw') {
+      g.beginPath();
+      for (q = 0; q <= 18; q++) {
+        a = 0.95 + (5.75 - 0.95) * q / 18;
+        pp = P(5.5 + Math.cos(a) * 5.4, -5.5 + Math.sin(a) * 5.4);
+        if (q) g.lineTo(pp[0], pp[1]); else g.moveTo(pp[0], pp[1]);
+      }
+    } else {
+      var h0 = P(-9, 10), h1 = P(3, -2);
+      g.beginPath(); g.moveTo(h0[0], h0[1]); g.lineTo(h1[0], h1[1]);
+    }
+  }
+  var SPR_WRENCH = null;
+  function wrenchSpr() {
+    if (SPR_WRENCH) return SPR_WRENCH;
+    var out = [], i;
+    for (i = 0; i < 8; i++) {
+      var c = mkCanvas(26, 26), g = c.g, ang = i * Math.PI / 4;
+      g.fillStyle = 'rgba(12,15,22,.60)';
+      g.beginPath(); g.arc(13, 13, 11, 0, 6.2832); g.fill();
+      g.strokeStyle = 'rgba(255,210,74,.30)'; g.lineWidth = 1; g.stroke();
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      var pass = [['#3d3008', 5.4, 5.0], ['#ffd24a', 3.2, 2.9], ['#fff0b8', 1.1, 1.0]];
+      for (var q2 = 0; q2 < 3; q2++) {
+        wrenchPath(g, 13, 13, 0.60, ang, 'handle');
+        g.strokeStyle = pass[q2][0]; g.lineWidth = pass[q2][1]; g.stroke();
+        wrenchPath(g, 13, 13, 0.60, ang, 'jaw');
+        g.strokeStyle = pass[q2][0]; g.lineWidth = pass[q2][2]; g.stroke();
+      }
+      out.push(c);
+    }
+    SPR_WRENCH = out;
+    return out;
+  }
+
+  // [GACNST] Buildup=GACNSTMK: deploying an MCV is not a swap, it is the
+  // vehicle OPENING OUT into the yard -- the flanks fold down into aprons,
+  // four jacks drop, the gantry stands up -- and only then does the yard's own
+  // MAKE run. Four frames, baked lazily off this owner's MCV sprite at the
+  // facing it stopped on, so nothing is baked for a match with no MCV deploy.
+  var SPR_UNPK = {};
+  function unpackOf(p, fk, face) {
+    var ky = p + fk + face;
+    if (SPR_UNPK[ky]) return SPR_UNPK[ky];
+    var S = SPR.unit[p][fk].mcv[face & 7], col = COL[p], out = [], i;
+    for (i = 0; i < 4; i++) {
+      var t = i / 3;
+      var c = mkCanvas(S.w + 52, S.h + 24), g = c.g;
+      var ax = c.w / 2, ay = c.h - UPAD;
+      // hardstanding spreading out from under it
+      g.globalAlpha = 0.20 + 0.55 * t;
+      g.fillStyle = '#6f6a56';
+      g.beginPath(); g.ellipse(ax, ay - 2, 20 + 30 * t, 10 + 15 * t, 0, 0, 6.29); g.fill();
+      g.globalAlpha = 1;
+      // the flanks folding down: two plates hinged on the hull sides, laid
+      // flatter and pushed further out with every frame
+      for (var sg = -1; sg <= 1; sg += 2) {
+        var hxo = sg * (11 + 26 * t), hzo = 13 - 11 * t;
+        g.beginPath();
+        g.moveTo(ax + sg * 9, ay - 15); g.lineTo(ax + sg * 9, ay - 15 + hzo);
+        g.lineTo(ax + hxo, ay - 4 + hzo * 0.45); g.lineTo(ax + hxo, ay - 4 - hzo * 0.55);
+        g.closePath();
+        g.fillStyle = sg < 0 ? shade(col, 0.78) : col; g.fill();
+        g.strokeStyle = '#191b20'; g.lineWidth = 0.9; g.stroke();
+        // hydraulic jack under the outer lip
+        g.strokeStyle = '#3c414a'; g.lineWidth = 2.2;
+        g.beginPath(); g.moveTo(ax + hxo, ay - 4 + hzo * 0.45);
+        g.lineTo(ax + hxo, ay - 4 + hzo * 0.45 + 4 + 5 * t); g.stroke();
+        g.fillStyle = '#20242b';
+        g.fillRect(ax + hxo - 3, ay - 1 + hzo * 0.45 + 4 * t, 6, 2.4);
+      }
+      // the vehicle itself, settling on its jacks as the shell opens
+      g.drawImage(S.c, ax - S.w / 2, ay - (S.h - UPAD) + t * 3, S.w, S.h);
+      // gantry standing up out of the deck once the flanks are clear
+      if (t > 0.30) {
+        var gh2 = (t - 0.30) / 0.70 * 26;
+        g.strokeStyle = '#7f8894'; g.lineWidth = 2.4;
+        g.beginPath(); g.moveTo(ax - 6, ay - 18); g.lineTo(ax - 6, ay - 18 - gh2); g.stroke();
+        g.beginPath(); g.moveTo(ax + 6, ay - 18); g.lineTo(ax + 6, ay - 18 - gh2); g.stroke();
+        g.strokeStyle = '#c9d0da'; g.lineWidth = 1.6;
+        g.beginPath(); g.moveTo(ax - 7, ay - 18 - gh2); g.lineTo(ax + 7, ay - 18 - gh2); g.stroke();
+        g.fillStyle = col; g.fillRect(ax - 3, ay - 21 - gh2, 6, 3);
+      }
+      out.push({ s: c, ax: ax, ay: ay });
+    }
+    SPR_UNPK[ky] = out;
+    return out;
+  }
+  var MCV_T = 48;                               // ~0.8s of unpack before the MAKE
+
+  // RA2 plays a DOOR sequence when a unit comes out: [GAWEAP]'s UnderDoorAnim
+  // + RoofDeployingAnim, [NAWEAP]'s maw leaf, the [GAPILE]/[NAHAND] barracks
+  // door. Baked lazily the first time a structure produces -- whole frames at
+  // idle phase 0, indexed by door position, exactly like the aim frames.
+  var DOOR_N = 7;
+  function doorOf(art, key, p, fk) {
+    if (!art._door) {
+      var out = [], i;
+      for (i = 0; i < DOOR_N; i++) out.push(bakeBuilding(key, COL[p], fk, 0, null, i / (DOOR_N - 1)).s);
+      art._door = out;
+    }
+    return art._door;
+  }
+  function doorDmgOf(art, key, p, fk) {
+    if (!art._doorD) {
+      var dr = doorOf(art, key, p, fk), ports = portsOf(art), out = [], i;
+      for (i = 0; i < dr.length; i++) out.push(bakeDamaged(dr[i], ports, art.ax, art.ay, hashKey(key) + 53));
+      art._doorD = out;
+    }
+    return art._doorD;
+  }
   // 8 bearing frames for the defences whose art has a barrel, launcher or
   // slit that should point at what they are shooting (art.ini `Turret=yes`).
   var AIMED = { sentry: 1, sentrygun: 1, patriot: 1, flakcannon: 1, grandcannon: 1 };
@@ -16067,6 +16312,20 @@
   }
 
   var MAKE_T = 150;                             // ~2.5s of MAKE at 60 ticks/s
+  // Production doors. RA2's [GAWEAP] DoorStages=10: the door opens, the
+  // vehicle comes out of the mouth, the door shuts behind it. Only the War
+  // Factory and the Barracks have one (the Airforce Command lowers a Harrier
+  // onto its pad instead), and the whole thing is PRESENTATION -- a headless
+  // sim never opens a door and gets its unit on the tick it finished.
+  var DOORED = { factory: 1, barracks: 1 };
+  var DOOR_OPEN = 22, DOOR_HOLD = 26, DOOR_SHUT = 22;
+  var DOOR_T = DOOR_OPEN + DOOR_HOLD + DOOR_SHUT;
+  function doorPos(el) {
+    if (el <= 0) return 0;
+    if (el < DOOR_OPEN) return el / DOOR_OPEN;
+    if (el < DOOR_OPEN + DOOR_HOLD) return 1;
+    return Math.max(0, 1 - (el - DOOR_OPEN - DOOR_HOLD) / DOOR_SHUT);
+  }
   function placeBld(g, key, p, gx, gy) {
     var d = BLDS[key];
     var b = {
@@ -16080,7 +16339,11 @@
       // inert (no firing, no repair bay) while `make` counts down. Purely
       // presentational, so a headless sim never pays for it and the balance
       // tests keep firing on the tick they place a defence.
-      make: headless ? 0 : MAKE_T, charging: 0, chgT: null, sup: 0, tube: 0
+      make: headless ? 0 : MAKE_T, charging: 0, chgT: null, sup: 0, tube: 0,
+      // door: ticks left in the production-door sequence; hold: the finished
+      // unit waiting inside the bay; unpack: MCV folding out in front of the
+      // yard's MAKE; sell: this MAKE is running BACKWARDS.
+      door: 0, hold: null, unpack: 0, sell: false
     };
     g.blds.push(b);
     g.byId[b.id] = b;
@@ -16121,6 +16384,10 @@
     var b = placeBld(g, UNITS[u.type].deploysInto, u.p, sp.x, sp.y);
     b.hp = Math.max(1, b.maxhp * frac);
     b.builtAt = g.tick;
+    // The unpack plays IN FRONT OF the yard's build-up: `make` is lengthened
+    // by the unpack, so the yard is inert for both and the sim is untouched
+    // (a headless deploy still has make === 0 and no unpack at all).
+    if (!headless) { b.unpack = MCV_T; b.unpackFace = u.face || 0; b.make = MAKE_T + MCV_T; }
     return b;
   }
 
@@ -16129,7 +16396,7 @@
   // (passable, and it weathers away). None of that existed -- the building
   // simply vanished.
   var RUBBLE_LIFE = 60 * 60;                       // a minute at 60 ticks/s
-  function killBld(g, b) {
+  function killBld(g, b, quiet) {
     b.dead = true;
     if (!neutral(b.p) && !BLDS[b.type].neut && !BLDS[b.type].wall && !BLDS[b.type].gate) {
       g.side[b.p].blost++;                                    // score screen: structures lost...
@@ -16154,6 +16421,15 @@
     }
     recalcPower(g, b.p);
     if (headless) return;
+    // A SOLD structure is not a destroyed one: RA2 folds it away and leaves
+    // clean ground, so the blasts, the debris and the rubble decal are all
+    // skipped -- only the dust of the last panel coming down.
+    if (quiet) {
+      for (var qd = 0; qd < 5; qd++)
+        g.fx.push({ x: b.cx + (qd - 2) * b.gw * 0.22, y: b.cy + (2 - qd) * b.gh * 0.22,
+                    t: -qd * 2, life: 26, dust: true, size: 0 });
+      return;
+    }
     g.rubble.push({ x: b.cx, y: b.cy, gw: b.gw, gh: b.gh, t: 0, life: RUBBLE_LIFE });
     // Staggered blasts across the footprint, biggest at the centre.
     var area = b.gw * b.gh, n = Math.min(5, 3 + (area > 4 ? 2 : (area > 1 ? 1 : 0))), i;
@@ -18594,9 +18870,28 @@
     // The neutral house runs its own short tick: no repair bay, no power, no
     // production, but garrison fire, oil money and hospital healing.
     if (d.neut) { if (b.make > 0) b.make = 0; stepNeutral(g, b); return; }
-    // Under construction: RA2's MAKE runs before the structure does anything.
+    // Production door: it opens, the finished unit comes out of the mouth
+    // partway through, then it shuts again. Never set headless.
+    if (b.door > 0) {
+      b.door--;
+      if (b.hold && DOOR_T - b.door >= DOOR_OPEN) {
+        var hd = b.hold; b.hold = null;
+        var hsp = freeTileNear(g, hd.x, hd.y);
+        if (hsp) emitUnit(g, hd.key, hd.p, hd.lane, b, hsp);
+        else b.hold = hd;                       // apron blocked: it waits in the bay
+      }
+      if (b.hold && b.door <= 0) b.door = 1;    // hold the door open until it can leave
+    }
+    // Under construction (or being sold, which is the same anim backwards):
+    // RA2's MAKE runs before the structure does anything.
     // The build-up: RA2 runs a MAKE anim with a hammering loop under it.
-    if (b.make > 0) { b.make--; if (!headless && (b.make % 44) === 0) sfx('make', b.cx, b.cy); return; }
+    if (b.make > 0) {
+      b.make--;
+      if (b.unpack > 0) b.unpack--;
+      if (!headless && (b.make % 44) === 0) sfx(b.sell ? 'sell' : 'make', b.cx, b.cy);
+      if (b.make <= 0 && b.sell) finishSell(g, b);
+      return;
+    }
     if (b.cool > 0) b.cool--;
     if (b.repair) {
       if (b.hp >= b.maxhp) b.repair = false;
@@ -18765,6 +19060,40 @@
     return 0.8 - 0.3 * Math.min(1, (s.powerUse - s.powerMade) / s.powerUse);
   }
 
+  // Everything that happens the moment a finished unit reaches the apron.
+  // Split out of stepQueues so the door sequence can hold it inside the bay
+  // for the opening ticks and then release it at the mouth.
+  function emitUnit(g, key, p, lane, src, sp) {
+    var s = g.side[p];
+    var nu = spawnUnit(g, key, p, sp.x, sp.y);   // an aircraft lands on its pad in spawnUnit
+    // RA2: a Spy who got into their Barracks / War Factory makes
+    // every unit that comes out of ours a veteran from then on.
+    if ((UNITS[key].cls === 'i' && s.vetInf) || (UNITS[key].cls !== 'i' && s.vetVeh)) nu.rank = 1;
+    if (src.rally) { nu.order = { t: 'move', x: src.rally.x, y: src.rally.y, id: 0 };
+                     requestPath(g, nu, src.rally.x, src.rally.y);
+                     nu.guardX = src.rally.x; nu.guardY = src.rally.y; }
+    else if (!nu.air) {
+      // No rally: step off the door onto a tile nobody stands on, as
+      // RA2 units do — the soak found 54 conscripts on one tile.
+      var aside = standSpot(g, sp.x, sp.y);
+      if (aside && (aside.x !== sp.x || aside.y !== sp.y)) {
+        nu.order = { t: 'move', x: aside.x, y: aside.y, id: 0 };
+        nu.guardX = aside.x; nu.guardY = aside.y; requestPath(g, nu, aside.x, aside.y);
+      }
+    }
+    // [NACLON] Cloning=yes: a second, free copy of every infantryman
+    // steps out of the Vats' own door. Vehicles are not cloned.
+    if (lane === 'i') {
+      var cv = cloneVatsOf(g, p);
+      if (cv) {
+        var csp = freeTileNear(g, Math.round(cv.cx), Math.round(cv.cy + cv.gh / 2 + 1));
+        if (csp) spawnUnit(g, key, p, csp.x, csp.y);
+      }
+    }
+    if (p === P_HUMAN) { sfx('ready'); eva('Unit ready', 3000); }
+    return nu;
+  }
+
   function stepQueues(g, p) {
     var s = g.side[p];
     var slow = prodSpeed(g, p);                  // low power = slower production
@@ -18823,34 +19152,14 @@
             // does the same) instead of being shifted out and silently lost.
             if (!sp) { q.prog = 1; continue; }
             q.prog = 0; q.list.shift();
-            if (sp) {
-              var nu = spawnUnit(g, key, p, sp.x, sp.y);   // an aircraft lands on its pad in spawnUnit
-              // RA2: a Spy who got into their Barracks / War Factory makes
-              // every unit that comes out of ours a veteran from then on.
-              if ((UNITS[key].cls === 'i' && s.vetInf) || (UNITS[key].cls !== 'i' && s.vetVeh)) nu.rank = 1;
-              if (src.rally) { nu.order = { t: 'move', x: src.rally.x, y: src.rally.y, id: 0 };
-                               requestPath(g, nu, src.rally.x, src.rally.y);
-                               nu.guardX = src.rally.x; nu.guardY = src.rally.y; }
-              else if (!nu.air) {
-                // No rally: step off the door onto a tile nobody stands on, as
-                // RA2 units do — the soak found 54 conscripts on one tile.
-                var aside = standSpot(g, sp.x, sp.y);
-                if (aside && (aside.x !== sp.x || aside.y !== sp.y)) {
-                  nu.order = { t: 'move', x: aside.x, y: aside.y, id: 0 };
-                  nu.guardX = aside.x; nu.guardY = aside.y; requestPath(g, nu, aside.x, aside.y);
-                }
-              }
-              // [NACLON] Cloning=yes: a second, free copy of every infantryman
-              // steps out of the Vats' own door. Vehicles are not cloned.
-              if (lane === 'i') {
-                var cv = cloneVatsOf(g, p);
-                if (cv) {
-                  var csp = freeTileNear(g, Math.round(cv.cx), Math.round(cv.cy + cv.gh / 2 + 1));
-                  if (csp) spawnUnit(g, key, p, csp.x, csp.y);
-                }
-              }
-              if (p === P_HUMAN) { sfx('ready'); eva('Unit ready', 3000); }
-            }
+            // RA2 does not teleport the unit onto the apron: the factory door
+            // opens, the vehicle rolls out of the mouth, the door shuts. The
+            // hold is presentation only -- headless spawns on the same tick it
+            // always did, so every balance run is unchanged.
+            if (!headless && DOORED[src.type] && !src.hold && src.make <= 0 && !src.sell) {
+              src.hold = { key: key, p: p, lane: lane, x: sp.x, y: sp.y };
+              src.door = DOOR_T;
+            } else emitUnit(g, key, p, lane, src, sp);
           }
         }
       }
@@ -21813,9 +22122,11 @@
                   g.lineJoin = 'round'; g.lineWidth = 4.6; g.strokeStyle = 'rgba(0,0,0,.85)';
                   g.strokeText('$', 16, 16.5);
                   g.fillStyle = '#ffd24a'; g.fillText('$', 16, 16.5); } },
+    // The same wrench the in-world repair sprite is drawn from (wrenchPath),
+    // so the cursor and the thing turning over the building are one tool.
     repair:   { hx: 16, hy: 16, n: 1, d: function (g) {
-                  g.beginPath(); g.moveTo(7, 26); g.lineTo(19, 14); ink(g, 4.4, '#cfe4ff');
-                  g.beginPath(); g.arc(21.5, 10.5, 5.4, 0.95, 5.75); ink(g, 4, '#cfe4ff'); } },
+                  wrenchPath(g, 16, 16, 1, 0, 'handle'); ink(g, 4.4, '#cfe4ff');
+                  wrenchPath(g, 16, 16, 1, 0, 'jaw'); ink(g, 4, '#cfe4ff'); } },
     power:    { hx: 16, hy: 16, n: 1, d: function (g) { curBolt(g, '#ffd24a'); } },
     waypoint: { hx: 9, hy: 27, n: 1, d: function (g) {
                   g.beginPath(); g.moveTo(9, 28); g.lineTo(9, 4); ink(g, 2.2, '#e8eef8');
@@ -22422,9 +22733,20 @@
     sfx('click');
   }
   function sellBld(b) {
-    var refund = Math.round(bspecOf(G, b.type, b.p).cost * 0.5);
-    G.side[b.p].credits += refund; killBld(G, b); b.sel = false;
-    say('Sold ' + bspecOf(G, b.type, b.p).name + ' for $' + refund); sfx('sell'); eva('Structure sold', 2000);
+    if (b.sell) return;                               // already coming down
+    // RA2 sells a structure by playing its BUILD-UP BACKWARDS: it stops
+    // working, folds itself away over the same ~2.5s, and only then does the
+    // money land. `make` carries the countdown so every "inert while it runs"
+    // path already written for the MAKE applies unchanged.
+    b.sel = false; b.sell = true; b.door = 0; b.hold = null; b.repair = false;
+    b.make = headless ? 0 : MAKE_T;
+    if (b.make <= 0) { finishSell(G, b); return; }
+    sfx('sell'); eva('Structure sold', 2000);
+  }
+  function finishSell(g, b) {
+    var refund = Math.round(bspecOf(g, b.type, b.p).cost * 0.5);
+    g.side[b.p].credits += refund; b.sell = false; b.make = 0; killBld(g, b, true); b.sel = false;
+    if (b.p === P_HUMAN) say('Sold ' + bspecOf(g, b.type, b.p).name + ' for $' + refund);
   }
   function cmdButtons() {
     var a = [];
@@ -24253,7 +24575,7 @@
     var art = SPR.unit[u.p][facOf(G, u.p) || 'dir'][u.type];
     var moving = G.tick - (u.movedAt || -99) < 3;
     var alt = altOf(u);
-    var s, turretS = null;
+    var s, turretS = null, gondS = null;
     if (Array.isArray(art)) {
       // Vehicles: 8 facings; a mining harvester alternates its two sets; a
       // turreted tank draws hull by travel facing and turret by aim facing.
@@ -24264,6 +24586,13 @@
       if (art.hull && art.turret) {
         s = art.hull[u.face];
         turretS = art.turret[u.tface == null ? u.face : u.tface];
+      } else if (set.lay) {
+        // Kirov: airframe and gondola are separate layers so the pod can hang
+        // and swing a beat behind the envelope, and open its bomb bay.
+        var LY = set.lay();
+        s = LY.hull[u.face];
+        var kbo = u.fireAt != null && G.tick - u.fireAt >= 0 && G.tick - u.fireAt < 24;
+        gondS = (kbo ? LY.open : LY.gond)[u.face];
       } else s = set[u.face];
     } else if (art.fr) {
       var is = infSeqOf(u, moving, alt);
@@ -24276,9 +24605,19 @@
     var uk = d.bomb && d.air ? 1.3 : 1;
     var ox = px - s.w * uk / 2, oy = py - (s.h - UPAD) * uk - alt;
     // A gasbag does not hold station: the Kirov rocks slowly on its long
-    // axis, which swings the gondola under it (the pod is part of the
-    // airframe sprite, so the whole hull carries the motion).
-    if (uk !== 1) ox += Math.sin((G.tick + u.id * 11) * 0.021) * 2.4;
+    // axis, and the gondola hanging under it does NOT rock with it -- it
+    // trails the envelope by about a quarter of a second and swings wider,
+    // which is what makes the pod read as slung on cables.
+    var gondDx = 0, gondDy = 0;
+    if (uk !== 1) {
+      var swH = Math.sin((G.tick + u.id * 11) * 0.021);
+      ox += swH * 2.4;
+      if (gondS) {
+        var swG = Math.sin((G.tick - 14 + u.id * 11) * 0.021);
+        gondDx = swG * 3.3 - swH * 2.4;
+        gondDy = Math.abs(swG) * 0.8 - 0.4;
+      }
+    }
     // Recoil: RA2 tanks rock BACK on firing (`Recoilless=yes` is called out as
     // the exception on [GAPILL], art.ini:2113). Two pixels along the barrel
     // axis for four ticks, projected through the same iso transform the hull
@@ -24311,6 +24650,7 @@
     // frame over its own outline instead of taking damage.
     if (u.erase > 0) { ctx.save(); ctx.globalAlpha = Math.max(0.08, 1 - u.erase * 0.85); }
     ctx.drawImage(s.c, ox, oy, s.w * uk, s.h * uk);
+    if (gondS) ctx.drawImage(gondS.c, ox + gondDx, oy + gondDy, gondS.w * uk, gondS.h * uk);
     if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w * uk, turretS.h * uk);
     if (u.erase > 0) {
       ctx.restore();
@@ -24686,8 +25026,20 @@
     if (b.make > 0) {
       // MAKE: apron first, then the structure behind a rising wipe with a
       // scaffold band and a crane working in the uncovered strip.
+      // MCV unpack runs first: the vehicle opening out where the yard will be.
+      if (b.unpack > 0) {
+        var UPK = unpackOf(b.p, fk, b.unpackFace || 0);
+        var upi = Math.min(UPK.length - 1, (((MCV_T - b.unpack) / MCV_T) * UPK.length) | 0);
+        var upf = UPK[upi];
+        ctx.drawImage(upf.s.c, px - upf.ax, py - upf.ay, upf.s.w, upf.s.h);
+        if ((G.tick % 5) === 0)
+          G.fx.push({ x: b.cx + ((G.tick / 5 | 0) % 3 - 1) * 0.5, y: b.cy, t: 0, life: 22, dust: true, size: 0 });
+        return;
+      }
       var MK = makeOf(art, COL[b.p]);
-      var prog = 1 - b.make / MAKE_T;
+      // Selling runs the MAKE BACKWARDS (RA2 plays the build-up in reverse to
+      // sell); the MCV's unpack runs in front of the yard's own build-up.
+      var prog = b.sell ? b.make / MAKE_T : (1 - b.make / MAKE_T);
       artC = MK.length ? MK[Math.min(MK.length - 1, (prog * MK.length) | 0)].c : art.s.c;
       if ((G.tick % 6) === (b.id % 6)) {                   // dust at the foot
         var dz = ((G.tick / 6 + b.id) | 0) % 3;
@@ -24704,7 +25056,13 @@
         aimI = (Math.round(Math.atan2(tY - b.cy, tX - b.cx) / (Math.PI / 4)) + 8) % 8;
       }
       var set, tag, fi;
-      if (aimI >= 0) {
+      if (b.door > 0) {
+        // The door sequence: whole baked frames indexed by door position, so
+        // the roof panel, the bay shutter and the maw leaf all move together.
+        var DS = hurt ? doorDmgOf(art, b.type, b.p, fk) : doorOf(art, b.type, b.p, fk);
+        set = DS; fi = Math.min(DS.length - 1, Math.round(doorPos(DOOR_T - b.door) * (DS.length - 1)));
+        tag = (hurt ? 'rd' : 'r') + fi;
+      } else if (aimI >= 0) {
         set = hurt ? aimDmgOf(art, b.type, b.p, fk) : aimOf(art, b.type, b.p, fk);
         tag = (hurt ? 'ad' : 'a') + aimI; fi = aimI;
       } else {
@@ -24754,9 +25112,9 @@
       ctx.textAlign = 'left';
     }
 
-    if (b.repair) {   // wrench glyph while repairing, like RA2's spinning wrench
-      ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.fillStyle = '#ffd24a';
-      ctx.fillText('🔧', px, topY - 22); ctx.textAlign = 'left';
+    if (b.repair) {   // RA2's spinning wrench, gold on a dark disc
+      var WR = wrenchSpr(), wri = ((G.tick / 4) | 0) & 7;
+      ctx.drawImage(WR[wri].c, px - 13, topY - 34, 26, 26);
     }
     // "PRIMARY" tag, only when the choice exists (one factory is trivially it).
     var mk = BLDS[b.type].makes;

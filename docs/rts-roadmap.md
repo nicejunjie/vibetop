@@ -332,16 +332,40 @@ per state, for every structure and defence, both factions.
   broken slabs, twisted rebar) on the ground layer, passable, fading over 60s.
 - ☑ MAKE build-up per structure (apron first, then a rising wipe behind a
   scaffold girder + working crane, 7 phases baked lazily per key, ~2.5s,
-  inert while it runs); MCV unpack plays the yard's MAKE via `placeBld`.
+  inert while it runs); ☑ MCV unpack ([GACNST] `Buildup=GACNSTMK`) plays
+  FIRST — four frames baked off this owner's MCV sprite at the facing it
+  stopped on (flanks folding down into aprons, four jacks dropping, the
+  gantry standing up, the hardstanding spreading), 48 ticks in front of the
+  yard's own MAKE, which `placeBld` then runs as before.
 - ☑ Unpowered: baked desaturated frame, animation frozen, no emoji (the OFF
-  tag stays for a player-switched-off structure). ☐ wrench sprite for repair.
+  tag stays for a player-switched-off structure). ☑ Repair wrench: an
+  8-frame gold wrench turning on a dark disc over the structure, replacing
+  the `🔧` glyph. Sprite and Repair-mode cursor are drawn from ONE path
+  (`wrenchPath`), so the tool in the world and the tool on the pointer are
+  the same object.
 - ☑ Defences aim: 8 bearing frames baked lazily for the Sentry Gun barrels,
   Flak Cannon barrel, Patriot launcher and Pillbox slit (`gunAim` projects a
   raised gun at a world bearing into the iso view); Tesla Coil and Prism
   Tower both wind up for `DelayedFireDelay=28` with drawn charge art and a
   rising sound; Prism support links (+150% per supporter, max 8) with the
   beams drawn; Patriot alternates its tubes.
-- ☐ Production doors (War Factory roof/door, Barracks door) on spawn.
+- ☑ Production doors on spawn ([GAWEAP] `UnderDoorAnim`/`RoofDeployingAnim`,
+  [NAWEAP]'s maw leaf, [GAPILE]/[NAHAND]). Every producing structure now
+  stands SHUT when idle, as RA2's do; a finished unit waits inside the bay
+  while the door opens (22 ticks), steps out at the mouth tile
+  `stepQueues` already picked, and the door holds 26 ticks and shuts over
+  22. Seven whole frames are baked lazily per structure the first time it
+  produces (`doorOf`, `doorDmgOf` — the aim-frame pattern), indexed by a
+  `dopen` 0..1 argument to `bakeBuilding`: the Directorate factory's roller
+  shutter rises inside the hoop while the crown panel slides back, the
+  Collective factory's leaf swings out past the -gx jamb, the Directorate
+  barracks' hut shutters lift and the Collective barracks' two steel leaves
+  part onto a lit hall. Presentation only — `headless` spawns on the tick
+  it always did, so every balance run is bit-identical.
+- ☑ Sell = the MAKE played BACKWARDS (RA2's own rule): `sellBld` stops the
+  structure, runs `make` down through the build-up frames in reverse, and
+  only then pays the refund and removes it — with no death blasts, debris
+  or rubble decal (a sold building is folded away, not levelled).
 - ☐ Footprints to RA2 `Foundation=` (yard 4×4, WF 5×3, Refinery 4×3, Barracks
   3×2, AFC 3×2, Lab 3×2/3×3, Tesla Reactor 3×2, Chronosphere 4×3) with maps and
   AI placement re-tuned; shared bib aprons on the ground layer.
@@ -561,8 +585,12 @@ per state, for every structure and defence, both factions.
   ramps the altitude over 34 ticks in BOTH directions (`landAt` / `flyAt`
   caught on the `landed` transition), and a descending Harrier stays in the
   air draw pass until it is down. The Kirov draws at 1.3× and rocks on its
-  long axis, which swings the gondola with it; splitting the gondola into its
-  own frame belongs with the unit art.
+  long axis. ☑ The gondola is now its OWN baked layer (`out.lay()` on the
+  Kirov's sprite set — hull / gondola / gondola-with-the-bay-open, baked on
+  first draw): `drawUnit` draws the two layers with the pod trailing the
+  envelope by 14 ticks and swinging wider, so it reads as slung on cables,
+  and the bomb bay opens for 24 ticks from `u.fireAt` — two leaves down, a
+  lit bay and the bomb clear of it ([ZEP] `PrimaryFireFLH=-50,0,-140`).
 
 **Phase 6 — match flow and AI (feature §4, §6). ~2 batches, M.**
 - ☑ Skirmish options: a shut-by-default "Game settings" drawer under the map
