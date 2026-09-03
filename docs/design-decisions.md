@@ -6243,3 +6243,77 @@ at all, which is why the corpse helper returns true without one.
   is the point); teaching `aiPlace` to route around them (the balance sample is
   the merge gate, and re-tuning the AI to absorb a map-layout choice is the
   wrong trade — the same conclusion the `Adjacent=` entry above reached).
+
+## Explosions are baked FAMILIES, not one blob with a scale factor (2026-09-03)
+
+- **Symptom:** every blast in the game was the same sprite. `bakeExplosionSprite()`
+  baked one 128 px radial gradient and the renderer drew it at
+  `size * (0.4 + ff * 1.5) * 2` — so a rifle round, a shell and a dying
+  Apocalypse differed only in how large the orange smudge got. The art audit
+  called it a blocker (`docs/rts-gap-audit-art.md` §4).
+- **Cause:** a scaled gradient has no *shape* over time. RA2's explosions are
+  animations: they bloom, roll over, cool and turn into smoke, and rules.ini
+  hands a structure five anims at once
+  (`Explosion=TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60`, 351 entries) while
+  art.ini keeps three stock sizes for everything else
+  ([EXPLOSML]/[EXPLOMED]/[EXPLOLRG], art.ini:11611-11670).
+- **Fix:** four baked sequences of 11 frames — small (bullet impact, a man
+  going down), medium (shell, rocket), large (a vehicle), building — each a
+  ring of billows sorted back-to-front, cooling on its own per-lobe clock from
+  white through orange to soot, with `hotEnd`/`riseK` per family so a small one
+  pops and smokes at once while the building blast holds its fireball to frame
+  seven. The white-hot core is baked as a SEPARATE frame and drawn additively
+  over the body: two `drawImage` calls per explosion, no per-shot gradient, and
+  the smoke never brightens what it overlaps. `famOf(size)` maps the fx's own
+  size onto a family, so every existing `boom()` call site got the right one
+  without touching it.
+- **Rejected:** baking one family and tinting/scaling it per size (the whole
+  defect being fixed); drawing the billows live per frame (a 40-unit battle
+  measured 4.2 ms/frame before this work — per-blast gradient construction is
+  exactly what the previous pass removed).
+
+## Ground decals are capped and live on `g.rubble` (2026-09-03)
+
+- **Symptom:** nothing marked the ground. Five buildings could be levelled and
+  the grass under them stayed pristine, though art.ini flags every EXPLO*,
+  TWLT* and S_* anim `Crater=yes` and `Scorch=yes` and ships twelve crater SHPs.
+- **Cause:** there was no decal list at all; the only ground layer was the
+  structure rubble added with the damage-states work.
+- **Fix:** reuse `g.rubble` — it is already drawn on the ground layer under
+  units, already stepped, already culled by shroud and viewport. A decal is a
+  rubble entry with an `fx` kind (`scorch` / `crater` / `rad`) and a variant,
+  routed to `SPR.decal_fx` instead of `rubbleFor()`. `decal()` caps the list at
+  **56** decals and drops the oldest, and they weather over 90 s rather than the
+  rubble's 60. `boom(g, x, y, size, dig)` decides what the ground keeps, which
+  matches rules.ini's `Deform=10-15%` / `DeformThreshhold=120-300`: a rifle
+  round marks nothing, a medium blast scorches, a shell or a bomb digs.
+- **Rejected:** a second array on the game state (a parallel list to cull,
+  shroud-test and depth-sort for no gain); an offscreen "ground scar" canvas
+  blitted under the map (it would have to be re-cut whenever the camera or zoom
+  moved, and it cannot fade per decal); no cap (a long shelling match would
+  stamp thousands and the ground pass would cost more than the units on it).
+  Measured worst case with the decal list full and the tread buffer at its cap:
+  6.67 → 7.92 ms per frame, inside a 16.7 ms budget.
+
+## The Lightning Storm fires on RA2's clock, not a spaced-out trickle (2026-09-03)
+
+- **Symptom:** a playtest watched the Weather Control Device produce "one
+  hair-thin bolt every 1.7 s" and land **zero hits in eleven seconds**. A
+  superweapon you could walk away from.
+- **Cause:** `stepStorm` fired ten bolts over twenty seconds
+  (`next = t + 96 + rint(28)`) at a random point in a 3×3 box. Ten shots at
+  1.6-cell radius over nine cells is a coin flip per bolt, and a unit only has
+  to keep walking.
+- **Fix:** RA2's own numbers. `[General] LightningStormDuration=180` frames,
+  `LightningHitDelay=10` (the DIRECT target), `LightningScatterDelay=5` (random
+  bolts between them), `LightningCellSpread=10`, `LightningSeparation=3`,
+  `LightningDamage=250` on `IonWH`. One rules frame is four of our ticks (a
+  Grizzly's `ROF=60` is our `rate: 240`), so the storm runs 12 s and lands ~18
+  bolts on the aim point plus ~36 scattered ones inside a 10×10 cell square,
+  each keeping a city-block distance of 3 from the last. Measured: 6 kills in
+  the first second of a 24-unit block, 16 by five seconds. Only the direct
+  bolts scorch the ground and clap, so 54 bolts do not evict the whole decal
+  budget or spam the mixer.
+- **Rejected:** keeping ten bolts and widening the hit radius (RA2's storm is a
+  *barrage* — the sound and the sight of it are the point, not the arithmetic);
+  scaling the rules frames 1:1 to ticks (that would give a 3-second storm).
