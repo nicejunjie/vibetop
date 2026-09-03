@@ -175,3 +175,159 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 - ☑ Three mirrored 2-player maps (Iron Frontier, Lake Divide, Frozen Front) with seeded variation; a playability + mirror-fairness test covers every map
 - ☑ Map picker on the start screen; pathfinding and placement aware of water/cliffs/trees; minimap colours per terrain
 - ☑ Theatres: temperate and snow (v1.19.211), urban (v1.19.212) — structures keep their art, the ground and street furniture change
+
+## Gap audit (2026-09-02) and closure plan
+
+Two audits were run against the real RA2 v1.006 inis (`rules.ini`, `art.ini`,
+theatre inis, `eva.ini`, `keyboard.ini`, `ui.ini`), with every claim cited and
+verified in the running game. They are the execution documents for this plan;
+read the relevant section before starting any item:
+
+- **`docs/rts-gap-audit-features.md`** — roster, stats, mechanics, match flow,
+  hotkeys, AI. 25 ranked gaps; one blocker.
+- **`docs/rts-gap-audit-art.md`** — structures, infantry, vehicles, effects,
+  terrain, HUD, audio. 25 ranked gaps; two systemic causes.
+
+The two systemic findings that most rows fall out of: **a structure sprite has
+exactly one state** (no damaged art, no destruction, no build-up, no aiming,
+no power-off), and **infantry have no facings and no death animations**. On
+the feature side, **prerequisites are largely unenforced** and a handful of
+stats are wrong enough to invert a unit's role (the Prism Tank is an
+anti-infantry gun instead of a siege gun).
+
+Fixed the same day as the audit: superweapons queued in the structures lane
+(v1.19.239); `T3`/`Sell` command buttons rendered outside the sidebar and were
+unclickable (v1.19.240).
+
+### Plan — eight phases, ordered by player impact per builder-hour
+
+Each phase is sized in builder batches (one opus builder, one worktree, one
+verified merge; two run in parallel). Effort letters are the audits' S/M/L.
+Within a phase, items are in execution order.
+
+**Phase 0 — correctness sweep (feature audit §2, §3; art §6 "broken").
+~2 batches, all S.** Nothing new to draw; pure rules.ini fidelity.
+- ☐ Prism Tank: `CometWH` (50% vs armour, 200% vs structures), ROF 400,
+  range 10, Speed 4. *(blocker)*
+- ☐ Prerequisites enforced exactly as `Prerequisite=`: Tesla Coil POWER+RADAR;
+  Patriot/Flak Cannon BARRACKS only; Refinery/Barracks POWER; War Factory
+  PROC+Barracks; Battle Lab War Factory+RADAR; Tesla Tank RADAR; Flak Trooper
+  RADAR; Pillbox/Sentry BARRACKS.
+- ☐ Stats: Barracks armour steel; War Factory −25, Service Depot −25/−20,
+  Battle Lab −100 power; yard sight 8, AFC 5, Refinery/Lab 6, WF 4,
+  harvester 4; superweapon HP 750 (Chrono/Curtain); Iron Curtain recharge 5;
+  Lightning 250 dmg on IonWH (3% vs concrete); Kirov Speed 5; Harrier
+  Maverick range 6 as one 2-round burst; Apocalypse MammothTusk 2×50 / ROF 320
+  / range 8; Flak Track AA range 10; Flak Trooper `FlakGuyAAGun` secondary
+  (20/100/8, FlakGuyWH); Guardian GI missile ROF 160 range 8, deploy-only
+  (`DeployFire`); Tanya C4 ROF 400; GI `Para` 15/60/5; Terror Drone range
+  1.83; V3 and IFV `MinimumRange`; War Miner `20mmRapid` gun; Nuclear Reactor
+  desc +2000; Pillbox not `Powered`.
+- ☐ Veterancy: promote on kill *value* (`VeteranRatio=3` × own cost), add
+  `VeteranROF=0.6` and `VeteranSpeed=1.2`, drop the elite self-heal.
+- ☐ Repair cost 15% (`RepairPercent`), Service Depot at `IRepairRate`.
+- ☐ Radar: minimap black until a powered Radar/AFC exists (`RadarOn/Off`).
+- ☐ Ore never on roads/pavement; ore tiles without the tan backing square.
+- ☐ Minimap drawn isometric (same orientation as the field), viewport as the
+  true screen quad; `fsheet.js` canvas tall enough for the Collective row.
+
+**Phase 1 — the RA2 sidebar and controls (art §6; feature §3, §5).
+~3 batches, L.** The single largest presentation gap.
+- ☐ Sidebar as RA2's command bar: radar in a bezel, vertical power meter with
+  needle, credits ticker counting per tick, two-column 60×48 cameo grid with
+  no prose (name/cost/power in a drawn tooltip), icon tabs, clock wipe over
+  the cameo and READY flash on the cameo, queue count badge.
+- ☐ Command bar reduced to `ui.ini`'s six (Team01, Team02, TypeSelect,
+  Deploy, Guard, PlanningMode); Sell / Repair / Power become the three sidebar
+  toggles; Stop is the S key.
+- ☐ Cursor set: move, no-move, attack, force-fire, select, sell, repair,
+  deploy, enter, guard, waypoint, chrono, nuke (canvas-drawn, animated).
+- ☐ Orders: force-fire (Ctrl+click), attack-move, Follow (F), planning mode
+  (Z), Guard distinct from Stop (`GuardModeStray`).
+- ☐ Hotkeys per `keyboard.ini`: Q/W/E/R tabs, T type-select, K/L repair/sell,
+  N next object, F1–F4 + Ctrl views, teams 1–10 with Shift-add and Alt-centre,
+  Space = last radar event, H = base, Delete, Esc = options menu; P becomes
+  CombatantSelect (pause lives in the menu).
+- ☐ Pip health bar; EVA text top-left in the tactical view; superweapon
+  clocks over their own cameos; in-game options menu (restart, abort,
+  volumes, scroll rate); 8 house colours.
+
+**Phase 2 — structure states (art §1). ~4 batches, L.** One baked frame set
+per state, for every structure and defence, both factions.
+- ☐ Damaged art at 50% + `DamageFireOffset` fire ports (art.ini values).
+- ☐ Destruction: explosion families, debris, crater + scorch decals, rubble
+  that persists on the ground layer.
+- ☐ MAKE build-up per structure (rising wipe + crane/scaffold band, 6–10
+  phases, once, from `builtAt`); MCV unpack plays the yard's MAKE.
+- ☐ Unpowered: animation stops, lights out, no emoji; wrench sprite for repair.
+- ☐ Defences aim (bearing-indexed turret frames); Tesla Coil 28-frame charge
+  with power-up sound; Prism Tower charge + support links (+150%, max 8,
+  feature and art together); Patriot alternating tubes.
+- ☐ Production doors (War Factory roof/door, Barracks door) on spawn.
+- ☐ Footprints to RA2 `Foundation=` (yard 4×4, WF 5×3, Refinery 4×3, Barracks
+  3×2, AFC 3×2, Lab 3×2/3×3, Tesla Reactor 3×2, Chronosphere 4×3) with maps and
+  AI placement re-tuned; shared bib aprons on the ground layer.
+
+**Phase 3 — infantry motion (art §2). ~2 batches, L.**
+- ☐ 8 facings for every infantry kind; 6-frame walk.
+- ☐ Firing frames; prone/crawl under fire with `ProneDamage`.
+- ☐ Death animations per warhead `InfDeath` (twirl, explode, fly, burn,
+  electro, crushed splat); idle fidgets; cheer on victory.
+- ☐ Selection bracket from unit size, not sprite bbox.
+
+**Phase 4 — roster and mechanics, land (feature §1, §3). ~4 batches, M.**
+- ☐ Attack Dog (both sides; the only Spy/Mirage detector).
+- ☐ Walls and gates: `Adjacent=8`, chain placement, `WallBuildSpeedCoefficient`,
+  `Wall=` warhead flag; per-structure `Adjacent=` replaces `BUILD_RADIUS`.
+- ☐ Gap Generator with re-shrouding (turn `g.seen` into a level map); Spy
+  Satellite; Psychic Sensor; Cloning Vats; Grand Cannon (`MinimumRange`).
+- ☐ Garrisonable civilian buildings (`MaxNumberOccupants`, muzzle ports,
+  Structure Garrisoned EVA); destructible bridges + repair hut; tech
+  buildings (Oil Derrick, Hospital, Airport) as capturable neutrals; crates
+  (`[CrateRules]`/`[Powerups]`); ore spreading.
+- ☐ Unit mechanics: Chrono Miner warp-home; Terror Drone infest + depot cure;
+  Crazy Ivan timed sticky bombs + engineer defuse; engineer repairs own
+  structures; Tesla Trooper charges coils; Desolator + radiation field; Yuri
+  mind control; Chrono Legionnaire erasure; Spy infiltration (cash, power,
+  tech, radar); Chronosphere return trip and `ChronoDelay`.
+
+**Phase 5 — effects and terrain (art §4, §5). ~4 batches, M/L.**
+- ☐ Explosion size families, craters, scorch, debris; nuke with white core,
+  fireball, rolling cap, shock ring, additive blend; rocket smoke trails;
+  distinct V3 projectile; recoil; track marks and dust.
+- ☐ Ore glitter animation and seamless ore fields; gem variety.
+- ☐ Soft feathered shroud edge; Gap fog rendering.
+- ☐ LAT ground transitions; rock cliffs with shadowed faces; rock-slope
+  ramps; road bends/junctions/ends; snow trees; theatre-specific civilian
+  sets; map border continuation; per-map ambient lighting.
+- ☐ Terrain height levels (plateaus draw raised).
+- ☐ Harrier descent onto the pad; Kirov size and gondola motion.
+
+**Phase 6 — match flow and AI (feature §4, §6). ~2 batches, M.**
+- ☐ Skirmish options: starting credits, unit count, short game, crates,
+  superweapons on/off, game speed, bases on/off.
+- ☐ EVA coverage of `eva.ini`'s 120 skirmish lines (NewConstructionOptions,
+  Building, OnHold, Canceled, BaseDefensesOffLine, CannotDeployHere, the
+  three "*Detected" superweapon warnings first).
+- ☐ RA2 score screen; save/load.
+- ☐ AI: task-force/team-type layer with per-difficulty triggers, engineer
+  teams, `AIIonCannon*Value` superweapon targeting, `HarvestersPerRefinery`,
+  RA2's difficulty curve.
+
+**Phase 7 — audio (art §7). ~2 batches, M.** Original synthesis only.
+- ☐ Per-weapon reports, structure sounds (power on/off, sell, capture,
+  place), Tesla charge, radar on/off, credit tick.
+- ☐ Unit voices for the 12 kinds without lines; select vs move vs attack.
+- ☐ Original music loop per theatre.
+
+**Phase 8 — transports, navy, multiplayer. ~6 batches, L.**
+- ☐ Transports: Flak Track 5, IFV 1 with turret swap per passenger,
+  Nighthawk, Amphibious Transport; load/unload orders.
+- ☐ Naval layer: Shipyards, water pathing, all 11 ship classes, naval AI.
+- ☐ 32-facing vehicles.
+- ☐ Lockstep multiplayer over the deterministic `__rtsSim` core (command
+  queue, beacon).
+
+Roughly 29 builder batches at two in parallel. Phases 0–1 change how the
+game plays and reads immediately; 2–3 make it look like RA2 in motion; 4–5
+fill the world; 6–8 are the long tail.

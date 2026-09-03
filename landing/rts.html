@@ -79,7 +79,7 @@
   .pit.locked > span:nth-child(3), .pit.dis > span:nth-child(3) { opacity: .5; }
   .pit.locked .em canvas, .pit.dis .em canvas { filter: grayscale(.45) brightness(.7); }
   /* RA2-style command bar at the foot of the sidebar: visible buttons, hotkey in the tooltip. */
-  #cmdbar { flex-shrink: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px; border-top: 1px solid #2a3040; background: #12161d; }
+  #cmdbar { flex-shrink: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 6px; border-top: 1px solid #2a3040; background: #12161d; }
   #cmdbar button { min-height: 30px; font-size: 11px; font-weight: 600; color: #cdd5e1; background: #1f2733; border: 1px solid #2a3040; border-radius: 5px; cursor: pointer; padding: 0 2px; }
   #cmdbar button:hover { background: #253044; color: #e6edf3; }
   #cmdbar button.on { background: #8a4adb; border-color: #8a4adb; color: #fff; }
