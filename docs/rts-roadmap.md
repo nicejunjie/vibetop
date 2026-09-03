@@ -164,7 +164,14 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 ### Terrain and maps (user, 2026-09-02: "build real terrains like RA2, instead of the current plain surface with blocked areas; support multiple maps")
 - ☑ Terrain step 1: water with shimmer, shorelines, cliffs (raised, block movement), roads, trees as occluding objects, snow theatre (v1.19.210)
 - ☑ Terrain art pass against RA2 tileset references (`docs/ra2-ref/terr-*.png`): seamless 256×128 ground sheets cut into 64 position-indexed tiles, 32 px cliff faces with 16 edge masks, animated water + shallows, shore/road overlays, rock sheets with scree, 4 tree variants per theatre; rocks/trees never land on water or against a cliff, ridges are 3-wide plateaus (v1.19.211)
-- ☐ Terrain step 3: more map shapes (chokepoints, plateaus with ramps, bridges), gem fields, urban theatre with civilian structures
+- ☑ Terrain step 3: three more map shapes, gem fields and the urban theatre (v1.19.212)
+  - ☑ **Chokepoint Pass** — one unbroken cliff wall on the anti-diagonal (self-mirroring), cut only by two mirrored ramp bands; the ore sits in the pockets either side of each pass
+  - ☑ **River Crossing** — a four-tile river across the waist with two bridge crossings, approach roads and a street along each bank
+  - ☑ **Gem Valley** — a cliff-ringed plateau open through one ramp on the north face and its mirror on the south, gems inside
+  - ☑ `T_RAMP` / `T_BRIDGE` — passable by construction (out of `solidT`, so astar, `tilePassable` and the AI honour them for free), refused by `canPlace`, drawn with their own art, and coloured on the minimap
+  - ☑ `T_GEM` — an ore variant worth 2× per bail (RA2 gems 50 vs ore 25) via a `cargoV` value carried beside the `cargo` volume; blue-violet crystal clusters, distinct minimap colour, `patch()` takes a gem flag
+  - ☑ Urban theatre — a poured-concrete ground sheet with iso-aligned slab joints, oil stains and rubble; asphalt roads with kerb-and-sidewalk rims; street trees in paved pits; ten neutral `T_CIV` civilian blocks (shop, apartment, warehouse, filling station) in mirrored pairs; cliffs, shores and scree keep their sculpted art under a cool grey cast
+  - ☑ Map picker shows all six with theatre glyphs (🌲 temperate, ❄️ snow, 🏙️ urban) and wraps to two lines on narrow widths
 - ☑ Three mirrored 2-player maps (Iron Frontier, Lake Divide, Frozen Front) with seeded variation; a playability + mirror-fairness test covers every map
 - ☑ Map picker on the start screen; pathfinding and placement aware of water/cliffs/trees; minimap colours per terrain
-- ◐ Theatres: temperate and snow shipped (v1.19.211); urban still open — structures keep their art, ground changes
+- ☑ Theatres: temperate and snow (v1.19.211), urban (v1.19.212) — structures keep their art, the ground and street furniture change

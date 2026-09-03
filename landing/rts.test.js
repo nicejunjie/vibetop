@@ -1079,6 +1079,124 @@ test("every map is playable from both starts and mirror-fair", () => {
   }
 });
 
+// ---- step-3 terrain: ramps, bridges, gems, civilian blocks ------------ //
+
+function tiles(g, code) {
+  const out = [];
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) if (g.terrain[y * 64 + x] === code) out.push({ x, y });
+  return out;
+}
+
+test("a ramp is the only way through a chokepoint wall, and units path over it", () => {
+  const W = load(), T = W.__rtsTables, API = W.__rtsTest.api, TER = T.TER;
+  const g = API.newState(21, "normal", "choke");
+  const ramps = tiles(g, TER.RAMP);
+  assert.ok(ramps.length >= 20, `expected two ramp bands, got ${ramps.length} tiles`);
+
+  // A route between the starts exists, and every crossing of the wall line
+  // (x+y === 63) happens on a ramp tile — that is what makes it a chokepoint
+  // rather than decoration.
+  const a = g.start[0], b = g.start[1];
+  const path = API.astar(g, a.x, a.y, b.x, b.y);
+  assert.ok(path && path.length, "no route across the wall");
+  let crossings = 0;
+  for (const p of path) {
+    if (p.x + p.y !== 63) continue;
+    crossings++;
+    assert.equal(g.terrain[p.y * 64 + p.x], TER.RAMP, `the path crosses the wall at ${p.x},${p.y}, which is not a ramp`);
+  }
+  assert.ok(crossings > 0, "the path never crossed the wall line");
+
+  // Fill the ramps in with cliff and the two halves must fall apart.
+  for (const r of ramps) g.terrain[r.y * 64 + r.x] = TER.CLIFF;
+  assert.ok(!API.astar(g, a.x, a.y, b.x, b.y), "sealing the ramps left a route — the wall has another hole");
+});
+
+test("a bridge carries units over the river, and nothing can be built on the deck", () => {
+  const W = load(), T = W.__rtsTables, API = W.__rtsTest.api, TER = T.TER;
+  const g = API.newState(33, "normal", "river");
+  const deck = tiles(g, TER.BRIDGE);
+  assert.ok(deck.length >= 16, `expected two crossings, got ${deck.length} deck tiles`);
+  // every deck tile sits in the river band, i.e. it really is over water
+  for (const d of deck) assert.ok(d.y >= 30 && d.y <= 33, `bridge tile at ${d.x},${d.y} is not on the river`);
+
+  const a = g.start[0], b = g.start[1];
+  const path = API.astar(g, a.x, a.y, b.x, b.y);
+  assert.ok(path && path.length, "no route across the river");
+  let onDeck = 0;
+  for (const p of path) if (g.terrain[p.y * 64 + p.x] === TER.BRIDGE) onDeck++;
+  assert.ok(onDeck >= 4, `the route crossed the river without using a bridge (${onDeck} deck tiles)`);
+
+  // Drop the decks and the crossing is gone.
+  for (const d of deck) g.terrain[d.y * 64 + d.x] = TER.WATER;
+  assert.ok(!API.astar(g, a.x, a.y, b.x, b.y), "removing the bridges left a route over the river");
+});
+
+test("civilian blocks are solid and a bridge deck is not buildable", () => {
+  const W = load(), T = W.__rtsTables, H = W.__rtsTest, API = H.api, TER = T.TER;
+  const g = H.begin(44, "normal", "river");
+  H.give(0, 99999);
+  const civ = tiles(g, TER.CIV);
+  assert.ok(civ.length >= 6 && civ.length <= 12, `expected 6-10 civilian blocks, got ${civ.length}`);
+  // mirror-fair: every block has its 180-degree partner
+  for (const c of civ) assert.equal(g.terrain[(63 - c.y) * 64 + (63 - c.x)], TER.CIV, `civilian block at ${c.x},${c.y} has no mirror`);
+  // a civilian lot blocks movement: astar diverts to a free tile beside it
+  // and the returned route never steps on the lot itself
+  const c0 = civ[0];
+  const toCiv = API.astar(g, g.start[0].x, g.start[0].y, c0.x, c0.y);
+  assert.ok(toCiv && toCiv.length, "no route toward the civilian block at all");
+  for (const p of toCiv) assert.ok(!(p.x === c0.x && p.y === c0.y), "the route walked through a civilian block");
+  const end = toCiv[toCiv.length - 1];
+  assert.ok(!(end.x === c0.x && end.y === c0.y), "a unit was routed onto a civilian block");
+
+  // ...and neither a bridge deck nor a civilian lot accepts a structure.
+  // opts.anywhere drops the build-radius rule, so what is left under test is
+  // the terrain rule alone.
+  const deck = tiles(g, TER.BRIDGE)[0];
+  assert.equal(API.canPlace(g, 0, "power", deck.x, deck.y, { anywhere: true }), false, "a power plant was allowed on the bridge deck");
+  assert.equal(API.canPlace(g, 0, "power", c0.x, c0.y, { anywhere: true }), false, "a power plant was allowed on a civilian block");
+  const ramp = tiles(API.newState(21, "normal", "choke"), TER.RAMP)[0];
+  const gc = API.newState(21, "normal", "choke");
+  assert.equal(API.canPlace(gc, 0, "power", ramp.x, ramp.y, { anywhere: true }), false, "a power plant was allowed on a ramp");
+});
+
+test("a harvester on gems banks double per bail", () => {
+  const W = load(), T = W.__rtsTables, H = W.__rtsTest, TER = T.TER;
+  const g = H.begin(9, "normal", "gems");
+  const gems = tiles(g, TER.GEM);
+  assert.ok(gems.length > 20, `Gem Valley has only ${gems.length} gem tiles`);
+  // the gems sit on the plateau, behind the cliff ring
+  for (const q of gems) assert.ok(q.x > 23 && q.x < 40 && q.y > 23 && q.y < 40, `gem at ${q.x},${q.y} is outside the plateau`);
+
+  function haul(code) {
+    const gg = H.begin(9, "normal", "gems");
+    const seam = { x: 31, y: 27 };
+    const si = seam.y * 64 + seam.x;
+    gg.terrain[si] = code; gg.ore[si] = 900;
+    const u = H.spawn("harvester", 0, seam.x + 1, seam.y);
+    u.mineAt = { x: seam.x, y: seam.y }; u.state = "mining";
+    for (let i = 0; i < 200 && u.cargo < 20; i++) H.step(1);
+    assert.ok(u.cargo > 5, `the harvester never loaded (cargo ${u.cargo})`);
+    return u;
+  }
+  const ore = haul(TER.ORE), gem = haul(TER.GEM);
+  // Same bin, same volume — twice the money. RA2 prices a gem bail at 50
+  // against ore's 25.
+  assert.ok(Math.abs(ore.cargoV - ore.cargo) < 0.01, `ore should bank 1x per bail (${ore.cargoV} for ${ore.cargo})`);
+  assert.ok(Math.abs(gem.cargoV - 2 * gem.cargo) < 0.01, `gems should bank 2x per bail (${gem.cargoV} for ${gem.cargo})`);
+});
+
+test("six maps across three theatres, each with a picker glyph", () => {
+  const W = load(), T = W.__rtsTables;
+  const ids = Object.keys(T.MAPS);
+  assert.equal(ids.length, 6, `expected six maps, got ${ids.join(", ")}`);
+  const th = new Set(ids.map((k) => T.MAPS[k].theatre));
+  assert.deepEqual([...th].sort(), ["snow", "temperate", "urban"]);
+  for (const k of ids) {
+    assert.ok(T.MAPS[k].name && T.MAPS[k].blurb, `${k} has no name/blurb for the picker`);
+  }
+});
+
 // ------------------------------------------------------------- air layer //
 
 function bareMatch(seed) {
