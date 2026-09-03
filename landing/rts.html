@@ -1154,7 +1154,7 @@
       hp: 300, spd: 0.078, sight: 8, armour: 'heavy',
       dmg: 135, rate: 300, rng: 4, splash: 0,
       wh: 'Electric',
-      cap: 0, mine: 0, w: 18, h: 14, desc: 'Tesla cannon on tracks; needs a Battle Lab'
+      cap: 0, mine: 0, w: 18, h: 14, desc: 'Tesla cannon on tracks; needs a Radar Tower'
     },
     prismtank: {
       // RA2 PTNK: Cost 1200, Strength 150, Armor light, Speed 6, Sight 8,
@@ -19412,15 +19412,19 @@
     //   safeDist   AISafeDistance=20                         (flat)
     easy: {
       react: 72, apm: 22, focus: false, harass: false, group: 6, expand: 1,
-      scoutEvery: 0, give: 0.30, opening: 60 * 420, wave: 8, fact: 1, bar: 1,
+      scoutEvery: 0, give: 0.30, opening: 60 * 600, wave: 8, fact: 1, bar: 1,
       teamDelay: 2000, teamCap: 30, dissolve: 20000, defMin: 1, defMax: 2,
       defCount: 6, wallPct: 10, purifiers: 0, hate: 70, attackTeams: 1, aicm: 0
     },
     normal: {
       react: 36, apm: 55, focus: true, harass: false, group: 9, expand: 2,
-      scoutEvery: 1800, give: 0.40, opening: 60 * 360, wave: 14, fact: 2, bar: 2,
+      // Playtest pass 3: with RA2's two virtual purifiers Normal out-harvested a
+      // clean human opening 2:1 and killed it at 8:48. RA2's Medium is weak in
+      // ways we do not copy (dumb scripts), so Normal gets no economy bonus, a
+      // later first push and a smaller wave. Hard keeps the RA2 curve.
+      scoutEvery: 1800, give: 0.40, opening: 60 * 480, wave: 12, fact: 2, bar: 2,
       teamDelay: 2500, teamCap: 30, dissolve: 20000, defMin: 1, defMax: 2,
-      defCount: 20, wallPct: 25, purifiers: 2, hate: 50, attackTeams: 2, aicm: 0
+      defCount: 20, wallPct: 25, purifiers: 0, hate: 50, attackTeams: 2, aicm: 0
     },
     hard: {
       react: 12, apm: 999, focus: true, harass: true, group: 10, expand: 3,
@@ -21069,7 +21073,7 @@
     ev.inf = ei >= 9;
 
     // #86 / #109 — a miner with nowhere to unload is a stopped economy.
-    var minerOff = countUnit(g, P_HUMAN, 'harvester') > 0 && !hasBld(g, P_HUMAN, 'refinery');
+    var minerOff = g.tick > 60 * 45 && countUnit(g, P_HUMAN, 'harvester') > 0 && !hasBld(g, P_HUMAN, 'refinery');   // not at 0:02 of every match
     if (minerOff && !ev.minerOff) {
       eva(facOf(g, P_HUMAN) === 'dir' ? 'Chrono miner offline' : 'Ore miner offline', 30000);
       say('Miners have nowhere to unload — build a Refinery', true, 300);
@@ -22195,7 +22199,7 @@
     if (!e || state !== 'play' || placing || swMode) { hovEl.hidden = true; return; }
     var d = e.kind === 'b' ? BLDS[e.type] : UNITS[e.type];
     var mine = e.p === P_HUMAN;
-    var who = mine ? 'Yours' : 'Enemy (' + FACTIONS[facOf(G, e.p)].name + ')';
+    var who = mine ? 'Yours' : (e.p < 0 || !G.side[e.p]) ? 'Neutral' : 'Enemy (' + FACTIONS[facOf(G, e.p)].name + ')';
     hovName.textContent = d.em + ' ' + d.name +
       (mine && isDisguised(G, e) ? ' (disguised)' : '');
     var vet = e.kind === 'u' ? (e.rank === 2 ? ' · Elite' : (e.rank === 1 ? ' · Veteran' : '')) + (e.kills ? ' · ' + e.kills + ' kill' + (e.kills === 1 ? '' : 's') : '') : '';
@@ -23060,7 +23064,7 @@
                : 'Stopped — holding position') + ' (' + units0.length + ' unit' + (units0.length === 1 ? '' : 's') + ')');
       return;
     }
-    if (units0.length && (e.key === 'd' || e.key === 'D')) { unitsCmd('deploy'); return; }
+    if ((units0.length || sel.some(function (o) { return o.kind === 'b' && !o.dead; })) && (e.key === 'd' || e.key === 'D')) { unitsCmd('deploy'); return; }   // D also evacuates a held building, like the button
     if (units0.length && (e.key === 'x' || e.key === 'X')) {
       // Scatter: each unit steps one or two tiles away from the group centre.
       var mx = 0, my = 0; units0.forEach(function (u) { mx += u.x; my += u.y; }); mx /= units0.length; my /= units0.length;
@@ -26839,7 +26843,9 @@
       bmade: s.bmade, blost: s.blost, made: s.made, lost: s.lost, killed: s.killed,
       bkilled: s.bkilled, harv: Math.round(s.harv),
       lead: Math.round(100 * kills / Math.max(1, kills + losses)),
-      econ: Math.round(100 * Math.min(1, s.harv / (mins * 1400))),
+      // Relative to the better harvester of the two: a flat per-minute rate read
+      // 100% for both sides after a 14k-vs-33k match (playtest pass 3).
+      econ: Math.round(100 * s.harv / Math.max(1, g.side[0].harv, g.side[1].harv)),
       tech: Math.round(100 * techCount(g, p) / techTotal(g, p))
     };
   }

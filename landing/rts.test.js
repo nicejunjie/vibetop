@@ -2731,7 +2731,7 @@ test("the default options replay a seed exactly as the game did before them", ()
   const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
   assert.deepEqual(
     { u0: r.p0units, u1: r.p1units, b0: r.p0blds, b1: r.p1blds, c0: r.p0credits, c1: r.p1credits },
-    { u0: 8, u1: 10, b0: 5, b1: 5, c0: 10698, c1: 11698 },
+    { u0: 8, u1: 10, b0: 5, b1: 5, c0: 8509, c1: 9176 },   // re-recorded: Normal lost its economy bonus (playtest pass 3)
     "a default match must be bit-for-bit the recorded match",
   );
 });
@@ -3007,8 +3007,8 @@ test("adding audio did not move the simulation", () => {
   assert.equal(r.p1units, 10);
   assert.equal(r.p0blds, 5);
   assert.equal(r.p1blds, 5);
-  assert.equal(r.p0credits, 10698);
-  assert.equal(r.p1credits, 11698);
+  assert.equal(r.p0credits, 8509);
+  assert.equal(r.p1credits, 9176);
   assert.equal(r.p0made, 8);
   assert.equal(r.p1made, 10);
 });
