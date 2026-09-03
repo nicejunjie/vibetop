@@ -6655,3 +6655,41 @@ and falls back to a chime plus the existing message rail when no voice exists.
 
 **Rejected:** *recording lines* — no assets. *Shipping a phoneme synthesiser* —
 a library, for words nobody needs to understand.
+
+## Production doors: one `dopen` argument, not an overlay (2026-09-03)
+
+**Symptom:** units teleported onto the apron. RA2 opens a door first
+(`[GAWEAP] UnderDoorAnim=GAWEAP_1`, `RoofDeployingAnim=GAWEAP_3`, `DoorStages`;
+`[NAWEAP]`'s hinged maw leaf), and ours had none — the War Factory's Collective
+leaf was even baked permanently *open*, so there was nothing to swing.
+
+**Fix:** a sixth argument to `bakeBuilding(key, col, fac, bph, bdir, dopen)`.
+`dopen` is the door position 0..1, defaulting to **0 = shut**, which is RA2's
+idle state; the four door structures read it and every other key ignores it.
+`doorOf(art, key, p, fk)` then bakes **seven whole frames** lazily the first
+time a structure produces — the same pattern `aimOf` uses for the eight bearing
+frames — and `doorDmgOf` runs the damage post-pass over them so a hurt factory
+does not flash healthy for a second. `stepQueues` parks the finished unit in
+`b.hold` and starts `b.door`; `stepBld` releases it at the mouth tile once the
+door has been open for `DOOR_OPEN` ticks (re-checking `freeTileNear`, so a
+blocked apron keeps the door open rather than losing the unit).
+
+**Why not a post-pass overlay on the healthy frame, like `A.dmg`/`makeOf`?**
+Because a door is not additive. The Collective leaf has to *move*, and its open
+position is already painted into the art: an overlay can draw a shut leaf across
+the maw but cannot un-draw the open one, so every "shut" frame would show two
+leaves. Re-baking the whole frame is one more lazy cache and gets the geometry
+for free.
+
+**Presentation only.** `headless` never sets `b.hold`/`b.door`, so a sim spawns
+on the tick it always did — a 3-minute `__rtsSim(4242,…)` is bit-identical
+across the change (10/12 units, 5/5 structures, 8437/9105 credits). The same
+rule carries the MCV unpack (48 ticks in front of the yard's MAKE) and the sell
+animation (the MAKE run backwards before the refund lands).
+
+**Rejected:** *animating the door in the renderer over a static frame* — the
+door is part of the building's geometry (the roof panel slides along the vault,
+the leaf swings through the iso plane), and screen-space quads over a baked
+sprite do not survive a facing or a footprint change. *Keeping the doors open
+when idle* — RA2's factories stand shut, and a permanently open bay makes the
+door sequence unreadable.
