@@ -334,7 +334,7 @@
       <button data-cmd="guard" title="Guard: hold position and engage (G)">Guard</button>
       <button data-cmd="stop" title="Stop (S)">Stop</button>
       <button data-cmd="scatter" title="Scatter (X)">Scatter</button>
-      <button data-cmd="deploy" title="Deploy / undeploy GIs behind sandbags (D)">Deploy</button>
+      <button data-cmd="deploy" title="Deploy (D): an MCV unfolds into a Construction Yard, GIs dig in behind sandbags">Deploy</button>
       <button data-cmd="sell" title="Sell mode: click one of your structures to sell it for half">Sell</button>
       <button data-cmd="repair" title="Repair mode: click one of your structures to repair it (costs credits)">Repair</button>
     </div>
@@ -628,12 +628,26 @@
       wh: 'Electric',
       cap: 0, mine: 0, w: 18, h: 14, desc: 'Tesla cannon on tracks; needs a Battle Lab'
     },
-    spectre: {
-      name: 'Spectre', em: '👁️', cost: 450, build: 19, cls: 'v', fac: 'dir', req: 'lab', turret: true,
-      hp: 95, spd: 0.104, sight: 8, armour: 'light',
-      dmg: 15, rate: 120, rng: 4, splash: 0,
-      wh: 'SA',
-      cap: 0, mine: 0, w: 15, h: 12, desc: 'Fast eyes, harasses workers'
+    prismtank: {
+      // RA2 PTNK: Cost 1200, Strength 150, Armor light, Speed 6, Sight 8,
+      // weapon Comet — 100 damage, ROF 60, Range 8, PrismWarhead, no splash,
+      // prerequisite Battle Lab. It out-ranges every tank on the field and
+      // pays for it in paper armour.
+      name: 'Prism Tank', em: '🔆', cost: 1200, build: 50, cls: 'v', fac: 'dir', req: 'lab', turret: true,
+      hp: 150, spd: 0.078, sight: 8, armour: 'light',
+      dmg: 100, rate: 240, rng: 8, splash: 0,
+      wh: 'PrismWarhead',
+      cap: 0, mine: 0, w: 15, h: 12, desc: 'Long-range prism beam, siege armour; needs a Battle Lab'
+    },
+    mcv: {
+      // RA2 SMCV/AMCV: Cost 3000, Strength 1000, Armor heavy, Speed 4,
+      // Sight 6, no weapon. `req: 'depot'` on top of the vehicle lane's
+      // implicit War Factory is RA2's "Factory AND Service Depot" pair.
+      // `deploysInto` is what makes D / the Deploy button turn it into a yard.
+      name: 'MCV', em: '🏗️', cost: 3000, build: 126, cls: 'v', fac: null, req: 'depot', deploysInto: 'base',
+      hp: 1000, spd: 0.052, sight: 6, armour: 'heavy',
+      dmg: 0, rate: 0, rng: 0, splash: 0, wh: null,
+      cap: 0, mine: 0, w: 22, h: 16, desc: 'Deploys in place into a Construction Yard (D)'
     }
   };
 
@@ -1782,7 +1796,8 @@
     tank:      '#39415a',   // gunmetal barrel
     lancer:    '#3a3f4c',   // neutral grey deck insets on a pale hull
     mammoth:   '#17181c',   // gun-black twin barrels
-    spectre:   '#dfe9f5',   // small mirror face on a grey head
+    spectre:   '#dfe9f5',   // small mirror face on a grey head (Prism Tank art)
+    mcv:       '#e0a33c',   // amber folded-crane boom on a grey crawler
     harv:      '#b0955a',   // tan slatted ore bin
     engineer:  '#e8c33c',   // amber hard hat — the engineer's one loud surface
     tanya:     '#2c1e16',   // near-black hair, the only bare head on the field
@@ -2794,6 +2809,7 @@
     else if (kind === 'v3')        { hull = '#7d7c5e'; deck = '#4c4b39'; } // olive-drab truck
     else if (kind === 'drone')     { hull = '#9aa1ac'; deck = '#5a606b'; } // bare metal carapace
     else if (kind === 'teslatank') { hull = '#7e8163'; deck = '#4a4c3b'; } // olive, like the Rhino's kin
+    else if (kind === 'mcv')     { hull = '#8e959f'; deck = '#41464f'; }   // grey works-vehicle body
     else                         { hull = sov ? '#4c515a' : '#40454e'; deck = '#2a2e35'; }
     var dark = shade(hull, 0.40);
     var turreted = kind === 'lancer' || kind === 'spectre' || kind === 'mammoth' ||
@@ -2855,6 +2871,10 @@
                 (kind === 'mirage' ? 19 : (kind === 'rhino' ? 19 :
                 (kind === 'flaktrack' ? 15 : (kind === 'v3' ? 15 :
                 (kind === 'drone' ? 12 : (kind === 'teslatank' ? 18 : 17)))))))))))));
+      // The MCV is the biggest thing that drives: a Construction Yard folded
+      // onto a crawler. Appended here rather than threaded into the ternaries
+      // above so no other kind's numbers move.
+      if (kind === 'mcv') { len = 36; wid = 23; }
       // The Terror Drone's shadow is pulled in: a spider does not cast a
       // tank's footprint, and at 14x12 the shared blob was wider than the
       // body it belonged to.
@@ -4465,6 +4485,52 @@
             lamp(cx + fx * 9.0 + px * 3.9 * l2, by - 5.0 + fy * 9.0 + py * 3.9 * l2);
         };
         if (fy > 0) { drawBin2(); drawFront2(); } else { drawFront2(); drawBin2(); }
+      }
+
+      // MCV — a Construction Yard folded down onto a heavy crawler. It is NOT
+      // a tank: no turret, no gun. What tells it apart at a glance is the tall
+      // boxed superstructure filling most of the deck and the amber crane boom
+      // lying folded along the top, exactly the parts that stand up when it
+      // deploys. Written as its own `if` after the chain above so it shares the
+      // fleet's tracks/chassis/fitments without touching another kind's art.
+      if (kind === 'mcv') {
+        if (wantH) {
+          tracks(len * 1.00, 5.6, wid * 0.30, '#aeb5c0');
+          chassis(cx, by - 1.8, len * 0.90, wid * 0.82, 6.2, hull, dark, 3.2);
+          deckPlate(-0.5, len * 0.72, wid * 0.60, 9.6, shade(hull, 1.08));
+          // the folded works block: a tall body with a stepped upper storey
+          isoBox(g, cx - fx * 2.2, by - 9.6 - fy * 2.2, len * 0.50, wid * 0.62, 9.0, a, deck, PEDGE);
+          isoBox(g, cx - fx * 4.6, by - 18.4 - fy * 4.6, len * 0.34, wid * 0.48, 4.2, a, shade(hull, 0.92), PEDGE);
+          // one unbroken house-colour band round the works block, plus skirts
+          isoBox(g, cx - fx * 2.2, by - 12.0 - fy * 2.2, len * 0.51, wid * 0.64, 2.6, a, panel, PEDGE);
+          for (sg = -1; sg <= 1; sg += 2)
+            isoBox(g, cx + px * wid * 0.40 * sg, by - 3.4 + py * wid * 0.40 * sg,
+                   len * 0.80, 1.8, 3.6, a, panel, PEDGE);
+          // the amber crane boom, folded flat along the roof and overhanging
+          // the nose, with a lattice of cross-braces and the hook block
+          var bmz = by - 22.4, bmf = 2.0;
+          isoBox(g, cx + fx * 5.0, bmz + fy * 5.0, len * 0.86, 2.8, 2.4, a, '#d79c2e', '#5a3f0e');
+          for (i2 = -3; i2 <= 3; i2++)
+            isoBox(g, cx + fx * (5.0 + i2 * 4.2), bmz - 1.2 + fy * (5.0 + i2 * 4.2),
+                   0.9, 3.6, 0.9, a, '#f0c164', '#5a3f0e');
+          g.strokeStyle = '#20242b'; g.lineWidth = 1.0;                 // the hoist cable
+          g.beginPath();
+          g.moveTo(cx + fx * (len * 0.44 + 5.0), bmz + fy * (len * 0.44 + 5.0) - bmf);
+          g.lineTo(cx + fx * (len * 0.44 + 5.0), bmz + fy * (len * 0.44 + 5.0) + 5.0);
+          g.stroke();
+          isoBox(g, cx + fx * (len * 0.44 + 5.0), bmz + fy * (len * 0.44 + 5.0) + 6.4,
+                 2.2, 2.2, 2.0, a, STEEL, '#1a1d23');
+          // cab glass on the near shoulder, so it reads as crewed
+          isoBox(g, cx + fx * len * 0.26 + px * wid * 0.20, by - 11.6 + fy * len * 0.26 + py * wid * 0.20,
+                 5.0, 4.6, 4.4, a, '#2d3a49', PEDGE);
+          isoBox(g, cx + fx * len * 0.26 + px * wid * 0.20, by - 14.8 + fy * len * 0.26 + py * wid * 0.20,
+                 4.4, 4.0, 1.4, a, '#8fb6d4', '#1b2531');
+          fenders(len * 0.42, 3.8);
+          bumper(len * 0.42, wid * 0.28, by - 2.0);
+          lamp(cx + fx * len * 0.40 + px * wid * 0.26, by - 5.4 + fy * len * 0.40 + py * wid * 0.26);
+          lamp(cx + fx * len * 0.40 - px * wid * 0.26, by - 5.4 + fy * len * 0.40 - py * wid * 0.26);
+          exhaust(cx - fx * len * 0.40 + px * wid * 0.18, by - 12.6 - fy * len * 0.40 + py * wid * 0.18);
+        }
       }
       return s;
     }
@@ -11228,7 +11294,9 @@
             U = bakeInfantry(COL[p], uk, ufk, 0);
             U.walk = [U, bakeInfantry(COL[p], uk, ufk, 1), bakeInfantry(COL[p], uk, ufk, 2)];
           } else {
-            var vk = uk === 'harvester' ? 'harv' : uk;
+            // The Prism Tank's art kind is still called `spectre` inside
+            // bakeVehicle — the sprite it names is the Prism Tank's.
+            var vk = uk === 'harvester' ? 'harv' : (uk === 'prismtank' ? 'spectre' : uk);
             U = bakeVehicle(COL[p], vk, ufk);
             // Harvesters get a second 8-facing set with the scoop working;
             // drawUnit alternates the two while mining.
@@ -11327,6 +11395,29 @@
       if (inMap(xx, yy)) g.occ[idx(xx, yy)] = b.id;
     }
     recalcPower(g, p);
+    return b;
+  }
+
+  // MCV deploy (RA2): the 3x3 Construction Yard lands CENTRED on the tile the
+  // MCV occupies, the MCV is consumed, and the new yard inherits its damage.
+  // The footprint is checked with canPlace so terrain, other buildings and
+  // other units all still veto it — only the build radius and the MCV's own
+  // body are exempted.
+  function mcvSpot(u) { return { x: Math.round(u.x) - 1, y: Math.round(u.y) - 1 }; }
+  function canDeployMcv(g, u) {
+    if (!u || u.dead || !UNITS[u.type].deploysInto) return false;
+    var sp = mcvSpot(u);
+    return canPlace(g, u.p, UNITS[u.type].deploysInto, sp.x, sp.y, { anywhere: true, ignore: u });
+  }
+  function deployMcv(g, u) {
+    if (!canDeployMcv(g, u)) return null;
+    var sp = mcvSpot(u), frac = u.hp / u.maxhp;
+    // The unit dies BEFORE the yard is placed so its tile is free the moment
+    // the occupancy grid is written.
+    u.dead = true; u.sel = false;
+    var b = placeBld(g, UNITS[u.type].deploysInto, u.p, sp.x, sp.y);
+    b.hp = Math.max(1, b.maxhp * frac);
+    b.builtAt = g.tick;                       // plays the build-up animation
     return b;
   }
 
@@ -11588,7 +11679,7 @@
         x: src.kind === 'b' ? src.cx : src.x, y: src.kind === 'b' ? src.cy : src.y,
         tx: tx0, ty: ty0,
         t: 0, life: src.type === 'tesla' ? 12 : (spec.bomb ? 14 : (isAir(tgt) ? 9 : 7)), id: g.nextId++,
-        tesla: src.type === 'tesla', beam: src.type === 'prism',
+        tesla: src.type === 'tesla', beam: src.type === 'prism' || src.type === 'prismtank',
         rocket: src.kind === 'u' && UNITS[src.type] && UNITS[src.type].splash > 0.2 ||
                 src.type === 'rocket' || src.type === 'patriot' || src.type === 'harrier',
         bomb: !!spec.bomb, flak: !!spec.flak && isAir(tgt),
@@ -12370,9 +12461,13 @@
     return m;
   }
 
-  function canPlace(g, p, key, gx, gy) {
+  // opts.anywhere: skip the "near one of your buildings" test — an MCV
+  // deploys wherever it stands, which is the whole point of owning one when
+  // your base is gone. opts.ignore: a unit that does not block the footprint
+  // (the deploying MCV itself is standing on the centre tile).
+  function canPlace(g, p, key, gx, gy, opts) {
     var d = BLDS[key];
-    var mask = buildMask(g, p), inRange = false;
+    var mask = buildMask(g, p), inRange = !!(opts && opts.anywhere);
     for (var y = gy; y < gy + d.gh; y++) {
       for (var x = gx; x < gx + d.gw; x++) {
         if (!inMap(x, y)) return false;
@@ -12381,6 +12476,7 @@
         if (g.occ[i] !== 0) return false;
         for (var k = 0; k < g.units.length; k++) {          // not on top of a unit
           var u = g.units[k];
+          if (opts && opts.ignore === u) continue;
           if (!u.dead && !u.air && Math.round(u.x) === x && Math.round(u.y) === y) return false;
         }
         if (mask[i]) inRange = true;
@@ -12550,6 +12646,26 @@
 
   function aiProduce(g, ai, me, foe) {
     var s = g.side[me], cfg = ai.cfg;
+    // RA2's AI rebuilds its base rather than dying with it: with no yard
+    // standing it unfolds an MCV on the spot, shuffling one tile at a time if
+    // the ground under it is blocked, and buys one if it still has the War
+    // Factory + Service Depot pair and the $3000.
+    if (!hasBld(g, me, 'base')) {
+      for (var mi = 0; mi < g.units.length; mi++) {
+        var mu = g.units[mi];
+        if (mu.dead || mu.p !== me || mu.type !== 'mcv') continue;
+        if (deployMcv(g, mu)) return;
+        if (!mu.order && (g.tick & 31) === 0) {                 // nudge it clear, deterministically
+          var step = ((g.tick >> 5) % 4), dxs = [2, 0, -2, 0][step], dys = [0, 2, 0, -2][step];
+          orderUnitsTo(g, [mu], Math.max(0, Math.min(MAP - 1, Math.round(mu.x) + dxs)),
+                                Math.max(0, Math.min(MAP - 1, Math.round(mu.y) + dys)));
+        }
+        return;
+      }
+      if (!s.queues.v.list.length && !queuedCount(s, 'mcv') && canBuild(g, me, 'mcv', false)) {
+        enqueue(g, me, 'mcv', 'v'); return;
+      }
+    }
     var F = FACTIONS[s.fac], def = F.defence;
     var def2 = s.fac === 'col' ? 'tesla' : 'prism';
     var nRef = countBld(g, me, 'refinery');
@@ -12669,8 +12785,12 @@
     }
     if (s.queues.v.list.length < depth && hasFac && s.credits > 1200) {
       // Tier-3 armour when the lab is up, fast anti-infantry when the enemy
-      // masses infantry, else the line tank; eyes for the Directorate.
-      var heavy = s.fac === 'col' ? 'mammoth' : 'mirage', light = s.fac === 'col' ? 'flaktrack' : 'ifv';
+      // masses infantry, else the line tank; Prism Tanks for the Directorate.
+      // The Directorate's tier-3 choice is Mirage (ambush) or Prism Tank
+      // (siege) — the Prism out-ranges everything but folds if it is caught.
+      var heavy = s.fac === 'col' ? 'mammoth'
+                : ((rnd() < 0.5 && canBuild(g, me, 'prismtank', false)) ? 'prismtank' : 'mirage');
+      var light = s.fac === 'col' ? 'flaktrack' : 'ifv';
       var vpick = (s.fac === 'col' && hasBld(g, me, 'lab') && s.credits > 3200 && countUnit(g, me, 'kirov') < 2 &&
                    rnd() < 0.35 && canBuild(g, me, 'kirov', false)) ? 'kirov'
                 : (hasBld(g, me, 'lab') && rnd() < 0.4 && canBuild(g, me, heavy, false)) ? heavy
@@ -12678,8 +12798,8 @@
                 : (s.fac === 'col' && hasBld(g, me, 'radar') && rnd() < 0.25 && canBuild(g, me, 'v3', false)) ? 'v3'
                 : F.tank;
       if (canBuild(g, me, vpick, false)) enqueue(g, me, vpick, 'v');
-      else if (s.fac === 'dir' && countUnit(g, me, 'spectre') < 1 &&
-               canBuild(g, me, 'spectre', false)) enqueue(g, me, 'spectre', 'v');
+      else if (s.fac === 'dir' && canBuild(g, me, 'prismtank', false) &&
+               countUnit(g, me, 'prismtank') < 4) enqueue(g, me, 'prismtank', 'v');
     }
   }
 
@@ -13000,6 +13120,11 @@
         if (g.blds[i].dead) continue;
         if (g.blds[i].p === P_HUMAN) mine++; else theirs++;
       }
+      // RA2: you are not beaten while an MCV is still rolling, and neither is
+      // anyone who can still buy one. Selling your last yard with an MCV in
+      // hand is a base MOVE, not a surrender.
+      mine += countUnit(g, P_HUMAN, 'mcv') + (canBuild(g, P_HUMAN, 'mcv', false) ? 1 : 0);
+      theirs += countUnit(g, P_AI, 'mcv') + (canBuild(g, P_AI, 'mcv', false) ? 1 : 0);
       if (theirs === 0) g.over = 1;
       else if (mine === 0) g.over = -1;
     }
@@ -13009,7 +13134,9 @@
     if (countUnit(g, p, 'harvester') > 0) return false;
     var c = g.side[p].credits;
     if (c >= UNITS.harvester.cost && hasBld(g, p, 'factory')) return false;
-    if (c >= BLDS.factory.cost + UNITS.harvester.cost && hasBld(g, p, 'base')) return false;
+    // An MCV IS a Construction Yard — it just has not unfolded yet.
+    var base = hasBld(g, p, 'base') || countUnit(g, p, 'mcv') > 0;
+    if (c >= BLDS.factory.cost + UNITS.harvester.cost && base) return false;
     return true;
   }
 
@@ -13148,7 +13275,8 @@
     harrier:   { move: ['Harrier ready', 'Vector locked'], attack: ['On approach', 'Missiles armed', 'Locked on'], harvest: [] },
     kirov:     { move: ['Kirov reporting', 'Helium mix optimal', 'Airship ready'], attack: ['Bombardiers to your stations', 'Bombs away'], harvest: [] },
     lancer:    { move: ['Grizzly rolling', 'Copy that'], attack: ['Engaging target', 'Fire at will'], harvest: [] },
-    spectre:   { move: ['Prism tank moving', 'Acknowledged'], attack: ['Illuminating target', 'Charging prism'], harvest: [] },
+    prismtank: { move: ['Prism tank moving', 'Acknowledged'], attack: ['Illuminating target', 'Charging prism'], harvest: [] },
+    mcv:       { move: ['MCV reporting', 'Moving out', 'Rolling'], attack: [], harvest: [], deploy: ['Deploying', 'Establishing battlefield control'] },
     conscript: { move: ['Da', 'For the Union', 'Moving comrade'], attack: ['Attack', 'For the motherland'], harvest: [] },
     mammoth:   { move: ['Apocalypse rolling out', 'Understood'], attack: ['Crushing them', 'Target sighted'], harvest: [] },
     harvester: { move: ['Miner moving', 'On it'], attack: [], harvest: ['Mining', 'Collecting ore'] }
@@ -13641,6 +13769,12 @@
     }
   });
   cv.addEventListener('pointerup', endDrag);
+  // RA2 deploys an MCV on a double-click as well as on D.
+  cv.addEventListener('dblclick', function () {
+    if (!G || state !== 'play') return;
+    var m = sel.filter(function (u) { return u.kind === 'u' && !u.dead && u.p === P_HUMAN && UNITS[u.type].deploysInto; });
+    if (m.length) unitsCmd('deploy');
+  });
   cv.addEventListener('pointercancel', endDrag);
   cv.addEventListener('lostpointercapture', endDrag);
   cv.addEventListener('pointerleave', function () { mouse.in = false; updateHover(null); });
@@ -13702,8 +13836,24 @@
     var us = sel.filter(function (u) { return u.kind === 'u' && !u.dead; });
     if (!us.length) { say('Select some units first', true); return; }
     if (kind === 'deploy') {
+      // An MCV unfolds into a Construction Yard; a GI digs in. Same key, same
+      // button, as RA2 — the unit decides which "deploy" it means.
+      var mcvs = us.filter(function (u) { return UNITS[u.type].deploysInto; });
+      if (mcvs.length) {
+        var made = 0;
+        mcvs.forEach(function (u) { if (deployMcv(G, u)) made++; });
+        sel = sel.filter(function (e) { return !e.dead; });
+        if (made) {
+          say('Construction Yard deployed'); sfx('place');
+          eva('Construction complete', 3000); unitAck(mcvs, 'deploy');
+        } else {
+          say('Cannot deploy here — the MCV needs a clear 3x3 of open ground', true); sfx('no');
+        }
+        refreshCmdbar();
+        return;
+      }
       var gis = us.filter(function (u) { return UNITS[u.type].dep; });
-      if (!gis.length) { say('Only GIs can deploy', true); return; }
+      if (!gis.length) { say('Only GIs and MCVs can deploy', true); return; }
       var on = gis.some(function (u) { return !u.deployed; });
       gis.forEach(function (u) { u.deployed = on; u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y; });
       say((on ? 'Deployed' : 'Undeployed') + ' — ' + gis.length + ' GI' + (gis.length === 1 ? '' : 's')); sfx('click');
@@ -15021,7 +15171,9 @@
       if (!G) return;
       G.blds.forEach(function (b) { if (b.p === p && !b.dead) killBld(G, b); });
     },
-    api: { astar: astar, canPlace: canPlace, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld },
+    deployMcv: function (u) { return G ? deployMcv(G, u) : null; },
+    api: { astar: astar, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
+           countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld },
     // Baked sprite atlas, so art work can be reviewed as a contact sheet
     // instead of by hunting for one building in a live match.
     spr: function () { return SPR; },

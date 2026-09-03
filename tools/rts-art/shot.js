@@ -11,7 +11,7 @@ const path = require('path');
       const H = window.__rtsTest, g = H.get(), s = g.start[0];
       H.give(0, 99999);
       const mine = g.side[0].fac, theirs = g.side[1].fac;
-      const F = { dir: ['lancer', 'spectre', 'rifle'], col: ['mammoth', 'conscript'] };
+      const F = { dir: ['lancer', 'prismtank', 'rifle'], col: ['mammoth', 'conscript'] };
       [...F[mine], 'harvester', 'rocket'].forEach((t, i) => H.spawn(t, 0, s.x - 4 + i * 2, s.y + 4));
       [...F[theirs], 'harvester'].forEach((t, i) => H.spawn(t, 1, s.x - 4 + i * 2, s.y + 7));
       const def = mine === 'dir' ? 'sentry' : 'tesla', edef = theirs === 'dir' ? 'sentry' : 'tesla';

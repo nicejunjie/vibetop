@@ -5623,3 +5623,29 @@ the Chrono Miner's chrono gear is not a badge on the flank, the whole nose drum
 is violet; and the RA2 IFV is nearly SQUARE in bbox (a stubby wheeled body
 under a tall boxy launcher), not the long low wedge every written description
 of it suggests.
+
+## MCV deploy-in-place vs the occupancy grid and the build radius
+
+**Symptom.** An MCV that deploys "where it stands" fails every ordinary
+placement check: it is itself standing on the centre tile of the 3x3 it wants
+to fill (`canPlace` rejects any footprint tile holding a unit), and when its
+base is gone there is no building left to satisfy `buildMask`'s build-radius
+test — which is exactly the moment an MCV exists to solve.
+
+**Cause.** `canPlace` was written for the yard's own build queue, where both
+rules are correct: you place near your base, and never on top of your army.
+
+**Fix.** `canPlace(g, p, key, gx, gy, opts)` takes two narrow exemptions —
+`opts.anywhere` seeds `inRange` true (an MCV deploys anywhere), and
+`opts.ignore` skips one unit in the overlap scan (the deploying MCV). Nothing
+else relaxes: terrain, existing buildings and every *other* unit still veto.
+`deployMcv` also kills the MCV *before* `placeBld` writes the occupancy grid,
+so the centre tile is free at the moment it is claimed rather than being
+overwritten while a live unit still points at it.
+
+**Rejected.** (a) Clearing the footprint by shoving bystanders aside — RA2
+refuses the deploy instead, and a silent shove loses units into cliffs.
+(b) A separate `canDeployPlace` copy of the checks — two placement predicates
+drift, and terrain rules are the part that must never disagree.
+(c) Deploying to the nearest legal spot — the MCV is a base *move*; landing
+the yard somewhere other than the tile you aimed at is worse than a refusal.

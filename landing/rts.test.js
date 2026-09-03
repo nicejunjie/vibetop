@@ -139,9 +139,16 @@ test("the counter triangle closes — nothing is unanswerable", () => {
     const counters = armed.filter(([, u]) => best(u, cls) >= need);
     assert.ok(counters.length > 0, `nothing counters armour class "${cls}"`);
   }
+  // "Best answer" has to mean damage OVER TIME, not the verses multiplier on
+  // its own. The Prism Tank carries RA2's real PrismWarhead (200% vs infantry
+  // and 100% vs everything else, straight out of rules.ini) but fires once
+  // every 240 ticks, so a Tesla Tank still out-damages it against heavy
+  // armour and Tanya shreds infantry far faster. Comparing bare multipliers
+  // called an RA2-accurate siege unit "the answer to everything".
+  const dps = (u, cls) => best(u, cls) * u.dmg / Math.max(1, u.rate);
   for (const [name, u] of armed) {
     const bestAtAll = ["none", "heavy"].every(
-      (cls) => armed.every(([n2, u2]) => n2 === name || best(u, cls) >= best(u2, cls))
+      (cls) => armed.every(([n2, u2]) => n2 === name || dps(u, cls) >= dps(u2, cls))
     );
     assert.ok(!bestAtAll, `${name} is the best answer to everything — no counter play`);
   }
@@ -1163,4 +1170,127 @@ test("a tank crushes enemy infantry it drives over; a Tesla Trooper survives", (
   H.orderMove([rhino2], 47, 50);
   H.step(240);
   assert.ok(!shk.dead, "a Tesla Trooper cannot be crushed");
+});
+
+// ------------------------------------------------------------------- MCV //
+
+// A tile whose 3x3 is open ground for player `p` — map generation is seeded,
+// so "30,30" is a different kind of ground in every scenario.
+function openCentre(H, g, p, near) {
+  const n = near || { x: 30, y: 30 };
+  for (let r = 0; r < 30; r++) {
+    for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      const x = n.x + ox, y = n.y + oy;
+      if (H.api.canPlace(g, p, "base", x - 1, y - 1, { anywhere: true })) return { x, y };
+    }
+  }
+  throw new Error("no open 3x3 anywhere on this map");
+}
+
+test("an MCV deploys in place into a Construction Yard and is consumed", () => {
+  // RA2: the 3x3 yard lands centred on the MCV's tile, the MCV is spent, and
+  // the yard inherits the MCV's damage — a half-dead MCV does not hand you a
+  // fresh $3000 building.
+  const H = W.__rtsTest;
+  const g = H.begin(55050, "normal");
+  const at = openCentre(H, g, 0);
+  const mcv = H.spawn("mcv", 0, at.x, at.y);
+  mcv.hp = mcv.maxhp * 0.5;
+
+  const yard = H.deployMcv(mcv);
+  assert.ok(yard, "the MCV should have deployed on open ground");
+  assert.equal(yard.type, "base", "an MCV deploys into a Construction Yard");
+  assert.equal(yard.x, at.x - 1, "the 3x3 footprint is centred on the MCV's tile");
+  assert.equal(yard.y, at.y - 1, "the 3x3 footprint is centred on the MCV's tile");
+  assert.ok(mcv.dead, "the MCV is consumed by deploying");
+  assert.ok(Math.abs(yard.hp / yard.maxhp - 0.5) < 0.01,
+    `the yard must start at the MCV's hp fraction (got ${(yard.hp / yard.maxhp).toFixed(2)})`);
+  assert.ok(g.tick - yard.builtAt < 4, "a deployed yard plays the build-up animation");
+});
+
+test("an MCV refuses to deploy on ground it cannot fill", () => {
+  // The footprint is checked with canPlace, so a structure or another unit
+  // anywhere in the 3x3 vetoes it — otherwise deploying would silently
+  // overwrite the occupancy grid and strand whatever was standing there.
+  const H = W.__rtsTest;
+  const gb = H.begin(55051, "normal");
+  const at0 = openCentre(H, gb, 0);
+  const blocker = H.build("power", 0, at0.x + 1, at0.y + 1);   // 2x2 overlapping the 3x3
+  assert.ok(blocker, "need a blocker for this scenario");
+  const mcv = H.spawn("mcv", 0, at0.x, at0.y);
+  assert.equal(H.api.canDeployMcv(gb, mcv), false, "blocked ground must refuse");
+  assert.equal(H.deployMcv(mcv), null, "deploy must be refused, not silently placed");
+  assert.ok(!mcv.dead, "a refused MCV is still alive and still yours");
+
+  // A bystander in the footprint blocks it too; the MCV itself never does.
+  const H2 = W.__rtsTest;
+  const gb2 = H2.begin(55052, "normal");
+  const at1 = openCentre(H2, gb2, 0);
+  const mcv2 = H2.spawn("mcv", 0, at1.x, at1.y);
+  const bystander = H2.spawn("rifle", 0, at1.x + 1, at1.y + 1);
+  assert.equal(H2.deployMcv(mcv2), null, "a unit standing in the footprint blocks the deploy");
+  bystander.dead = true;
+  assert.ok(H2.deployMcv(mcv2), "with the tile clear the same spot deploys — the MCV does not block itself");
+});
+
+test("a side that loses its yard but holds an MCV is not counted out", () => {
+  // Selling or losing the last Construction Yard is a base MOVE when you have
+  // an MCV, not a surrender: both the instant win check and the economyDead
+  // stall-breaker have to see the MCV as a base.
+  const H = W.__rtsTest;
+  const g = H.begin(55053, "normal");
+  H.build("base", 1, g.start[1].x - 1, g.start[1].y - 1);   // the AI keeps a base so the match is live
+  const yard = H.build("base", 0, g.start[0].x - 1, g.start[0].y - 1);
+  H.spawn("mcv", 0, openCentre(H, g, 0, { x: 30, y: 30 }).x, 30);
+  H.killBld(yard);
+  H.step(2);
+  assert.equal(g.over, 0, "holding an MCV must not lose the match on the spot");
+  assert.equal(H.api.economyDead(g, 0), false,
+    "an MCV plus the credits for a factory and a harvester is a live economy");
+
+  // Without the MCV the same position is over.
+  const g2 = H.begin(55054, "normal");
+  H.build("base", 1, g2.start[1].x - 1, g2.start[1].y - 1);
+  const yard2 = H.build("base", 0, g2.start[0].x - 1, g2.start[0].y - 1);
+  H.killBld(yard2);
+  H.step(2);
+  assert.equal(g2.over, -1, "no yard, no MCV, no buildings at all is a loss");
+});
+
+test("the AI redeploys its base when its Construction Yard dies", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(55055, "normal");
+  H.attachAI(1, "normal");
+  const mcv = H.spawn("mcv", 1, g.start[1].x, g.start[1].y);
+  assert.equal(H.api.countBld(g, 1, "base"), 0, "the AI starts this scenario with no yard");
+  H.step(300);
+  assert.ok(mcv.dead, "the AI should have spent its MCV");
+  assert.equal(H.api.countBld(g, 1, "base"), 1, "the AI must redeploy a Construction Yard");
+});
+
+// ------------------------------------------------------------ Prism Tank //
+
+test("the Prism Tank out-ranges a Rhino and hits with PrismWarhead verses", () => {
+  // RA2 PTNK: Range 8 against the Rhino's 5.75, 100 damage on PrismWarhead.
+  // The range gap is the unit's whole reason to exist — it must be able to
+  // shoot from where it cannot be shot.
+  const H = W.__rtsTest;
+  const pt = T.UNITS.prismtank, rh = T.UNITS.rhino;
+  assert.ok(pt.rng > rh.rng, `a Prism Tank (${pt.rng}) must out-range a Rhino (${rh.rng})`);
+  assert.equal(pt.wh, "PrismWarhead");
+  assert.equal(T.UNITS.spectre, undefined, "the made-up `spectre` must be gone");
+
+  const g = H.begin(55056, "normal");
+  const tank = H.spawn("prismtank", 0, 20, 20);
+  const target = H.spawn("rhino", 1, 20 + rh.rng + 1, 20);   // inside 8, outside 5.75
+  target.guardX = target.x; target.guardY = target.y;
+  H.orderAttack([tank], target);
+  H.step(3);
+  const dealt = target.maxhp - target.hp;
+  const expect = pt.dmg * T.verses(pt.wh, rh.armour);
+  assert.ok(Math.abs(dealt - expect) < 0.5,
+    `the prism hit should be ${expect} under PrismWarhead verses, got ${dealt}`);
+  assert.equal(target.hp, target.maxhp - dealt);
+  assert.ok(tank.hp === tank.maxhp, "the Rhino cannot reach back at that range");
 });

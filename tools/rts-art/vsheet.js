@@ -6,7 +6,7 @@ const { open, save } = require('./_pw');
   const { b, p, errs } = await open({ width: 1400, height: 1400 });
   const png = await p.evaluate((sc) => {
     const S = window.__rtsTest.spr();
-    const rows = [['dir', 0, 'lancer'], ['dir', 0, 'spectre'], ['dir', 0, 'harvester'],
+    const rows = [['dir', 0, 'lancer'], ['dir', 0, 'prismtank'], ['dir', 0, 'harvester'],
                   ['col', 1, 'mammoth'], ['col', 1, 'harvester'], ['col', 0, 'harvester']];
     const a0 = S.unit[0].dir.lancer[0];
     const c = document.createElement('canvas'); c.width = 8 * (a0.w * sc + 2) + 20; c.height = rows.length * (a0.h * sc + 22) + 10;
