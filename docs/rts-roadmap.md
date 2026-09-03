@@ -147,7 +147,33 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
   breathe, the gold mast face flickers, the pod lamps light in turn and a ring
   of field lifts off the tips. Aspect 0.882 vs ref 0.908; owner hue 14.9%, 0%
   opposing.
-- ☐ Barracks-adjacent leftovers, defences, the rest — same method (`docs/ra2-art-plan.md` §4, `aspect.py`, hue census, scene at zoom 1 and 2, build-up, damaged).
+- ☑ 2026-09-03 The leftovers, audited rather than assumed. The six base
+  defences (Pillbox, Sentry Gun, Tesla Coil, Prism Tower, Patriot, Flak
+  Cannon) turned out to have been rebuilt against real sprites back in the
+  defence pass and merely never REGISTERED in `aspect.py`'s `REF`, so they had
+  gone two months unmeasured; all six are now in the map and all six pass
+  (+0.2 / −5.3 / −3.6 / +4.4 / +7.4 / −0.0%). What was genuinely still a
+  placeholder was the **walls and gates**, drawn as a flat cross of precast
+  slabs for both houses with the owner's colour at 0.9%. Both rebuilt from the
+  real SHP rips off the C&C wiki (`allied-wall.png` frame 0 of
+  `Allied_Fortress_Walls_animation.gif`, 42x43; `soviet-wall.png` frame 0 of
+  `Soviet_Fortress_Walls_animation.gif`, 35x38 — the file that was already
+  here as "the Soviet wall" was Yuri's citadel wall, and the run photos
+  `allied-wall-scene.jpg` / `soviet-wall-scene.jpg` show how a run links):
+  **Directorate** — a stepped SANDBAG plinth under a stone collar, an
+  octagonal post in the owner's colour and, in a silver crown rim, a glass
+  dome; neighbours joined by a narrow precast curtain wall. **Collective** —
+  a heaped mound of RUBBLE with an iron cap block, a steel lid and two
+  steel-tipped stakes leaning out of it; a run reads as a rampart of piled
+  stone. Aspect +2.4% and +0.4%; owner hue 14.9% / 11.4% with 0% opposing.
+  The **gate** follows each faction's wall: a pier at each end built like that
+  faction's post, and two BARRED leaves that slide apart (the old leaves lay
+  flat on the ground like planks), red pier lamps that go green as it opens.
+  `aspect.py` also stopped pointing at four filenames that were not on disk —
+  a missing reference is skipped in SILENCE, which is how `col:reactor` hid
+  standing 12.1% too tall for its 2x3 plot; it is measured now (−5.5%) after a
+  `VPOW` fix, and the three with no usable wiki asset are listed by name with
+  the reason.
 
 ### Controls and UX
 - ☑ v1.19.194 Selection brackets, primary building, hover name card
@@ -196,7 +222,20 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 - ☑ MCV — RA2 SMCV/AMCV ($3000, 1000 hp, heavy, Speed 4, Sight 6, no weapon, War Factory + Service Depot). D / the Deploy button / a double-click unfolds it in place into a 3x3 Construction Yard centred on its tile (refused with a warning if `canPlace` says no), the yard inherits the MCV's hp fraction. Losing the last yard no longer loses the match while an MCV stands, and the AI buys and redeploys one. Ore Purifier +25% and Service Depot repair already follow rules.ini
 - ☑ MultipleFactory=0.8 compounds without a building cap now, floored at 0.25 (1 · .80 · .64 · .51 · .41 · .328 · .262 · .25), and the low-power penalty is RA2's curve instead of a flat 0.4×: `prodSpeed()` = 0.8 − 0.3 × min(1, deficit/use), so barely in the red is 0.8× and a total blackout is the 0.5× floor (MinLowPowerProductionSpeed=.5 / MaxLowPowerProductionSpeed=.8). Defences still go dark on negative power
 - ☑ Mirage Tank tree disguise: two seconds still (no order, no move, no shot) and it draws as a theatre tree picked off its id; `findTarget` skips a disguised Mirage beyond 1.5 tiles, so an enemy walks past it until it is almost on top of it or until the tank fires (firing sets `fireAt` and drops the disguise for 2 s). The owner's hover card says "Mirage Tank (disguised)"
-- ☑ GI deploy (RA2 E1 Para weapon: range 6, double fire rate behind sandbags; a move order packs up; the AI deploys holding GIs, a human uses D) (v1.19.212) — ☐ deployed-GI art is a placeholder sandbag ring, needs the real RA2 sandbag sprite
+- ☑ GI deploy (RA2 E1 Para weapon: range 6, double fire rate behind sandbags; a move order packs up; the AI deploys holding GIs, a human uses D) (v1.19.212) — ☑ 2026-09-03 deployed-GI art rebuilt from
+  `docs/ra2-ref/allied-gi.png`, which has three deployed men in it: RA2 drops
+  a complete RING of bags, about 32x19, and the man sits down INSIDE it so
+  only his helmet, his house-coloured shoulders and his gun clear the rim.
+  Ours was a front arc with no back lip at all, which read as a soldier
+  standing behind a crescent. It is now baked as TWO canvases on the infantry
+  sheet — `back` (his ground shadow, the dark dished pit and the lower back
+  lip) goes down BEFORE the man, `front` (three courses of parapet) over him —
+  with the bags laid as oblong sacks along the ring's tangent and a seeded
+  size jitter so a course is bags rather than a moulded tyre. The house-colour
+  stripe that used to be painted along the crest is gone: RA2 leaves the bags
+  khaki and the owner's colour on the emplacement is the man's own vest
+  showing over the rim (owner hue 8.0% blue / 10.8% red, 0% opposing, against
+  6.8% on the reference crop)
 - ☑ Vehicles crush infantry (RA2 Crusher=yes / Crushable=yes): a ground vehicle other than the Terror Drone ignores enemy infantry in its separation nudge and kills any trooper under its tracks; the Tesla Trooper is uncrushable (v1.19.218)
 - ◐ AI re-tuned for RA2 pacing: spends its bank on more factories/barracks and deeper queues, weighs enemy defences before attacking, no tech before an army, one or two miners per refinery, assumes infantry until scouted; hard-vs-easy self-play is still being measured across both factions
 
@@ -329,7 +368,13 @@ fidelity plus reproduced player reports.
 - ◐ ☑ Minimap drawn isometric (same orientation as the field, terrain blitted
   through the `setTransform(k, k/2, −k, k/2, …)` matrix, click-to-jump and
   right-click orders inverted through the same projection), viewport as the
-  true screen quad. ☐ `fsheet.js` canvas tall enough for the Collective row.
+  true screen quad. ☑ 2026-09-03 `fsheet.js` MEASURES its canvas
+  instead of guessing it. The hard-coded 1500x4200 fitted only the Directorate
+  row (and painted the background over just the top 2600 of it), so the whole
+  Collective row rendered off the bottom, and it would have re-broken silently
+  on the next unit added. It now lays every sprite out in a first pass with no
+  drawing and allocates exactly what that came to — 1500x9202 at the current
+  86-sprite roster — with a faction header on each row.
 
 **Phase 1 — the RA2 sidebar and controls (art §6; feature §3, §5).
 ~3 batches, L.** The single largest presentation gap.

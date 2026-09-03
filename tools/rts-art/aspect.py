@@ -31,19 +31,46 @@ REF = {
     ('dir','lab'):       'allied-battle-lab-idle.png',
     ('col','lab'):       'soviet-battle-lab-idle.png',
     ('dir','purifier'):  'allied-ore-purifier-anim-last.png',
-    ('col','reactor'):   'soviet-nuclear-reactor-idle.png',
     ('dir','chrono'):    'allied-chronosphere-idle.png',
     ('dir','weather'):   'allied-weather-control-idle.png',
     ('col','curtain'):   'soviet-iron-curtain-idle.png',
     ('col','nuke'):      'soviet-nuclear-silo-idle.png',
-    ('dir','spysat'):    'allied-spy-satellite-idle.png',
-    ('col','psisensor'): 'soviet-psychic-sensor-idle.png',
-    ('col','cloningvats'): 'soviet-cloning-vats-idle.png',
     ('dir','gapgen'):    'allied-gap-generator.png',
     ('dir','grandcannon'): 'allied-grand-cannon.png',
     ('dir','shipyard'):  'allied-naval-yard-anim-last.png',
     ('col','shipyard'):  'soviet-naval-yard-anim-last.png',
+    # Base defences. Rebuilt against these in the 2026-09-01 defence pass but
+    # never registered here, so six of the structures a player stares at all
+    # match went unmeasured for two months.
+    ('dir','sentry'):    'allied-pillbox-anim-last.png',
+    ('col','sentrygun'): 'soviet-sentry-gun-anim-last.png',
+    ('col','tesla'):     'soviet-tesla-coil-idle.png',
+    ('dir','prism'):     'allied-prism-tower-anim-last.png',
+    ('dir','patriot'):   'allied-patriot-anim-last.png',
+    ('col','flakcannon'):'soviet-flak-cannon-anim-last.png',
+    # Walls. `mine_<fac>_wall.png` is the four-way CAMEO piece; the RA2 SHP
+    # frame is ONE isolated segment, so cmp.js dumps `..._wallseg.png` from
+    # __rtsTest.wallSeg(0, fac, 0) and that is what is compared here.
+    ('dir','wallseg'):   'allied-wall.png',
+    ('col','wallseg'):   'soviet-wall.png',
+    # Never measured before: REF pointed at a filename that was not on disk,
+    # so this row was skipped in silence. The rip is real, and it caught the
+    # reactor standing 12.1% too tall for its 2x3 plot (fixed via VPOW).
+    ('col','reactor'):   'soviet-nuclear-reactor-idle.png',
 }
+
+# Structures with NO usable reference, and why -- listed so the next session
+# does not put a dangling filename back in REF (a name that does not exist on
+# disk is skipped in silence, which is how `dir:lab` once hid a -40%):
+#   dir:spysat     the only wiki asset is the rotating DISH overlay (56x41),
+#                  not the building -- nothing fetched.
+#   col:cloningvats  only an in-game photo on grass; the opaque bbox would be
+#                  the photo, not the sprite -- nothing fetched.
+#   col:psisensor  `soviet-psychic-sensor-idle.png` IS a clean rip, but frame
+#                  0 has the mast fully deployed (81x150 -> 0.540) where ours
+#                  reads 1.225. A rebuild, not a re-measure.
+# `soviet-psychic-sensor-idle.png` is on disk under that name, out of REF
+# until the art is redone.
 
 def aspect(path):
     """Aspect of the SPRITE's opaque bbox.

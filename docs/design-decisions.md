@@ -7742,3 +7742,109 @@ heavier guards and pommels.* Tried twice and checked at 8× device scale: at
 the 15px the bar allows, the guards merge into the blades and it stays an X.
 A mark that reads as "close" beside real buttons is worse than no mark, so the
 title is now just the bold word.
+## Three art gates that all failed by being SILENT (2026-09-03)
+
+**Symptom.** Nothing looked broken. `aspect.py` printed a clean table with every
+row inside ±8%; `fsheet.js` produced a contact sheet; the walls rendered.
+
+**Cause.** Each of the three had a hole that produced no error at all.
+
+1. **`aspect.py` skipped what it could not find.** `REF` mapped four structures
+   to filenames that were not on disk (`allied-spy-satellite-idle.png`,
+   `soviet-psychic-sensor-idle.png`, `soviet-cloning-vats-idle.png`,
+   `soviet-nuclear-reactor-idle.png`). The loop's `if not os.path.exists(mine):
+   continue` and the `r = aspect(rp) if os.path.exists(rp) else None` fallback
+   turned both halves of a missing pair into a `-` row, and a `-` row reads as
+   "nothing to report". `col:reactor` was standing 12.1% too tall the whole
+   time. This is the same failure mode the file's own docstring already warns
+   about for `dir:lab`'s phantom −40%, one layer up.
+2. **`aspect.py` was never TOLD about six structures.** The Pillbox, Sentry Gun,
+   Tesla Coil, Prism Tower, Patriot and Flak Cannon were rebuilt against real
+   sprites in the defence pass and simply never added to `REF`. A structure
+   missing from the map is not reported as missing — the table just does not
+   mention it, and a table you read every session teaches you that what is on
+   it is what exists.
+3. **`fsheet.js` allocated 1500x4200 from a constant** and painted its
+   background over `(0, 0, 1500, 2600)` of that. The Directorate row alone had
+   grown past 4200, so the entire Collective row rendered off the bottom of the
+   canvas — silently, because drawing outside a canvas is not an error.
+
+**Fix.** All six defences and both wall segments registered in `REF`; the four
+dangling names removed and replaced with a comment block that names each
+structure and why it has no reference, so the next session cannot re-add a name
+that will be skipped. `fsheet.js` lays the sheet out in a first pass with no
+drawing and allocates exactly what the layout came to (1500x9202 today). And
+`VPOW`'s lookup was `VPOW[key] || 0.5`, which silently threw away a legitimate
+`0` — the setting `col:reactor` needed.
+
+**The generalizable lesson:** a verification tool that answers "I found nothing"
+the same way it answers "there is nothing" is not a gate. Every one of these
+printed a plausible, complete-looking result. When you add a row to a coverage
+map, also make the map say out loud what it is NOT covering.
+
+**Rejected.**
+- *Fetching a reference for the last three at any cost.* The only wiki asset for
+  the Spy Satellite Uplink is its rotating dish overlay (56x41, not the
+  building), and the Cloning Vats one is a photograph on grass whose opaque
+  bbox is the photograph. Measuring against either would have produced a number
+  that looked like evidence and was not. They are named in the comment instead.
+- *Leaving `wall` compared at mask 15.* `SPR.bld[..].wall` is deliberately the
+  four-way CAMEO piece, which is a cross and not what any RA2 SHP frame shows.
+  Rather than change the cameo, `cmp.js` dumps an extra `mine_<fac>_wallseg.png`
+  from a new `__rtsTest.wallSeg(0, fac, 0)` hook — one isolated segment, which
+  is exactly what the reference is.
+
+## The walls were the same building twice, and one reference was Yuri's (2026-09-03)
+
+**Symptom.** Both factions' walls were a flat X of precast slabs with a coloured
+pip on the post — the same object in two greys. The owner's colour measured
+0.9% on the Directorate wall (the convention across the set is 12-18%) and the
+Collective wall's 13.5% was a rust wash, not the owner's colour at all.
+
+**Cause.** They had never been built from a sprite. The one reference on disk,
+`allied-wall.png`, had been fetched but not used; and the obvious companion grab
+was wrong — the wiki's "Fortress walls (Red Alert 2)" gallery captions
+`Citadel_walls_animation.gif` as **Yuri's** wall. The Soviet one is
+`Soviet_Fortress_Walls_animation.gif`, a completely different object (a rubble
+mound, not an iron pylon).
+
+**Fix.** Both rebuilt from frame 0 of the right rip, with the in-game run photos
+(`Wallsa.jpg` / `Wallss.jpg`, `Alied Fortress Walls in Snow Theater.jpg`) as the
+guide for how neighbours link. Directorate: sandbag plinth → stone collar →
+octagonal post in the owner's colour → silver crown rim → glass dome, joined by
+a narrow precast curtain. Collective: a rubble mound with an iron cap block, a
+steel lid and two steel-tipped stakes, the run a rampart of piled stone. Aspect
++2.4% / +0.4%, owner hue 14.9% / 11.4%, 0% opposing.
+
+**Rejected.**
+- *Making the post the same colour on both houses because RA2's rip is navy.*
+  The in-game shot settles it: a grey house turns the post grey and leaves the
+  sandbags khaki, so the post is the remap surface and the plinth is not. Every
+  fixed surface was then pulled below the census's 0.35 saturation line — the
+  khaki and the rubble stayed khaki and rubble, but they stopped registering as
+  a second saturated hue on a sprite that is supposed to carry exactly one.
+
+## A deployed GI was standing behind a crescent, not sitting in a pit (2026-09-03)
+
+**Symptom.** A deployed GI read as a man standing behind a low wall of bags. At
+zoom 1 you could tell he was deployed, but not that he was DUG IN.
+
+**Cause.** The bake drew a front arc only, with a comment asserting that RA2's
+emplacement "is not a ring around the tile". `docs/ra2-ref/allied-gi.png` has
+three deployed men in it and all three sit in a complete ring — the back lip is
+simply behind the man, which is why it is easy to miss when you are looking at a
+front-facing crop. It also painted a house-colour stripe along the crest, which
+the sprite does not have.
+
+**Fix.** Two canvases on the same infantry sheet and anchor: `back` (ground
+shadow, dark dished pit, lower back lip) drawn BEFORE the man, `front` (three
+parapet courses) after, so he is inside the ring with only helmet, shoulders and
+gun clear of it. Bags are oblongs laid along the ring's tangent with a seeded
+size jitter, because a course of equal circles reads as a moulded tyre. The
+crest stripe is gone: the owner's colour on the emplacement is the man's own
+vest, which is what RA2 does and what the reference measures (6.8% blue on the
+reference crop, 8.0% on ours).
+
+**The generalizable lesson:** when a code comment states a fact about a
+reference sprite ("it is not a ring"), that fact was someone's reading of the
+image, not the image. Re-open the image.

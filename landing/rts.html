@@ -6188,50 +6188,81 @@
     return base;
   }
 
-  // A deployed GI's SANDBAG PARAPET. RA2 drops a low arc of bags in FRONT of
-  // the man and he crouches down behind it — it is not a ring around the tile,
-  // and it is not drawn under him: the wall has to occlude his legs or the
-  // pose reads as a soldier standing in a flowerbed. Baked once per owner
-  // colour on the same 104x90 sheet and the same ground anchor as an
-  // infantryman, so drawUnit places it with the identical expression.
+  // A deployed GI's SANDBAG EMPLACEMENT. Rebuilt from `docs/ra2-ref/allied-gi.png`,
+  // which shows three of them: RA2 drops a complete RING of bags — an oval
+  // doughnut about 32x19 with a lower BACK lip and a taller front parapet —
+  // and the man sits down INSIDE it, so only his helmet, his blue shoulders
+  // and his gun clear the rim. The old bake was a front arc only, with no
+  // back lip at all, which read as a soldier standing behind a crescent of
+  // bags rather than dug into a pit; and it painted a house-colour stripe
+  // along the crest, which RA2 does not — the bags stay khaki and the OWNER's
+  // colour on the emplacement is the man's own vest showing over the rim.
+  // Baked as TWO canvases on the infantry sheet and anchor: `back` goes down
+  // before the man, `front` over him.
   function bakeSandbags(col) {
-    var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
-    var BAG = '#9a8b62', BAGL = '#bdae81', BAGD = '#584d33';
-    function bag(x, y, rx, ry, lit) {
-      g.fillStyle = lit ? BAGL : BAG;
-      g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 6.29); g.fill();
-      outline(g, BAGD);
-      g.fillStyle = 'rgba(255,255,255,.15)';
-      g.beginPath();
-      g.ellipse(x - rx * 0.22, y - ry * 0.36, rx * 0.52, ry * 0.32, 0, 0, 6.29); g.fill();
+    var back = unitCanvas(), front = unitCanvas();
+    var BAG = '#847b5e', BAGL = '#a39a7a', BAGD = '#3b352a', BAGX = '#5e5644';
+    // A sack, not a cobble: an OBLONG laid along the ring's tangent, which is
+    // what makes a course of them read as stacked bags at 1:1.
+    function bag(g, x, y, rx, ry, tone, rot) {
+      g.fillStyle = tone === 2 ? BAGL : (tone === 1 ? BAG : BAGX);
+      g.beginPath(); g.ellipse(x, y, rx, ry, rot || 0, 0, 6.29); g.fill();
+      g.strokeStyle = BAGD; g.lineWidth = 1.1; g.stroke(); g.lineWidth = 1;
+      if (tone) {
+        g.fillStyle = 'rgba(255,255,255,.16)';
+        g.beginPath();
+        g.ellipse(x - rx * 0.18, y - ry * 0.42, rx * 0.50, ry * 0.30, rot || 0, 0, 6.29); g.fill();
+      }
     }
-    var i, a, x2, y2;
-    g.fillStyle = 'rgba(0,0,0,.24)';                       // the wall's own ground shadow
-    g.beginPath(); g.ellipse(cx, by + 1.4, 15.0, 5.2, 0, 0, 6.29); g.fill();
-    for (i = 0; i < 9; i++) {                              // lower course, the FRONT arc only
-      a = -0.14 + (i / 8) * (Math.PI + 0.28);
-      bag(cx + Math.cos(a) * 14.2, by + Math.sin(a) * 6.4 - 1.2, 3.2, 2.2, false);
+    function tang(a, rx, ry) { return Math.atan2(ry * Math.cos(a), -rx * Math.sin(a)); }
+    var gb = back.g, gf = front.g, cx = back.w / 2, by = back.h - UPAD;
+    var RX = 15.4, RY = 7.2, i, a2, jr = lcg(5171);
+    function jx() { return 0.86 + jr() * 0.30; }   // per-bag size jitter (seeded, never Math.random)
+
+    // ---- behind the man: his own ground shadow, the pit, the back lip -----
+    gb.fillStyle = 'rgba(0,0,0,.26)';
+    gb.beginPath(); gb.ellipse(cx + 1.2, by + 1.6, RX + 1.6, RY + 1.2, 0, 0, 6.29); gb.fill();
+    // the hole he is sitting in: a dark dished floor inside the ring
+    gb.fillStyle = '#463f32';
+    gb.beginPath(); gb.ellipse(cx, by - 3.2, RX - 3.6, RY - 1.8, 0, 0, 6.29); gb.fill();
+    gb.fillStyle = 'rgba(0,0,0,.30)';
+    gb.beginPath(); gb.ellipse(cx, by - 4.4, RX - 5.0, RY - 3.0, 0, 0, 6.29); gb.fill();
+    for (i = 0; i < 9; i++) {                      // back lip, lower course
+      a2 = Math.PI + 0.12 + (i / 8) * (Math.PI - 0.24);
+      bag(gb, cx + Math.cos(a2) * RX, by + Math.sin(a2) * RY - 1.0, 3.5 * jx(), 2.0, 0, tang(a2, RX, RY));
     }
-    for (i = 0; i < 9; i++) {                              // middle course, staggered over the joints
-      a = 0.00 + ((i + 0.5) / 9) * Math.PI;
-      bag(cx + Math.cos(a) * 13.4, by + Math.sin(a) * 6.0 - 4.2, 3.1, 2.2, false);
+    for (i = 0; i < 8; i++) {                      // back lip, upper course
+      a2 = Math.PI + 0.20 + ((i + 0.5) / 8) * (Math.PI - 0.40);
+      bag(gb, cx + Math.cos(a2) * (RX - 1.0), by + Math.sin(a2) * (RY - 0.5) - 4.0, 3.3 * jx(), 1.9, 1,
+          tang(a2, RX, RY));
     }
-    for (i = 0; i < 8; i++) {                              // top course
-      a = 0.05 + ((i + 0.2) / 8) * (Math.PI - 0.10);
-      bag(cx + Math.cos(a) * 12.6, by + Math.sin(a) * 5.6 - 7.0, 3.0, 2.1, true);
+
+    // ---- over the man: the front parapet, three courses -------------------
+    for (i = 0; i < 10; i++) {
+      a2 = -0.16 + (i / 9) * (Math.PI + 0.32);
+      bag(gf, cx + Math.cos(a2) * RX, by + Math.sin(a2) * RY - 1.2, 3.6 * jx(), 2.1, 0, tang(a2, RX, RY));
     }
-    // The owner's colour is a painted stripe along the CREST — the only thing
-    // that says whose foxhole this is at 1:1, and small enough that the bags
-    // still read as khaki sandbags rather than as a coloured wall.
-    g.strokeStyle = col; g.lineWidth = 1.4; g.lineCap = 'round';
-    g.beginPath();
-    for (i = 0; i <= 16; i++) {
-      a = 0.10 + (i / 16) * (Math.PI - 0.20);
-      x2 = cx + Math.cos(a) * 12.6; y2 = by + Math.sin(a) * 5.6 - 8.6;
-      if (i) g.lineTo(x2, y2); else g.moveTo(x2, y2);
+    for (i = 0; i < 9; i++) {
+      a2 = -0.04 + ((i + 0.5) / 9) * (Math.PI + 0.08);
+      bag(gf, cx + Math.cos(a2) * (RX - 0.9), by + Math.sin(a2) * (RY - 0.4) - 4.6, 3.5 * jx(), 2.0, 1,
+          tang(a2, RX, RY));
     }
-    g.stroke();
-    return s;
+    for (i = 0; i < 8; i++) {
+      a2 = 0.06 + ((i + 0.2) / 8) * (Math.PI - 0.12);
+      bag(gf, cx + Math.cos(a2) * (RX - 2.2), by + Math.sin(a2) * (RY - 1.0) - 8.4, 3.3 * jx(), 1.9, 2,
+          tang(a2, RX, RY));
+    }
+    // the crest shadow the bags cast back into the pit, so the ring reads as
+    // a hole rather than as a pile of stones on flat ground
+    gf.strokeStyle = 'rgba(30,26,16,.34)'; gf.lineWidth = 2.0;
+    gf.beginPath();
+    for (i = 0; i <= 14; i++) {
+      a2 = 0.16 + (i / 14) * (Math.PI - 0.32);
+      var xq = cx + Math.cos(a2) * (RX - 4.4), yq = by + Math.sin(a2) * (RY - 2.2) - 9.8;
+      if (i) gf.lineTo(xq, yq); else gf.moveTo(xq, yq);
+    }
+    gf.stroke(); gf.lineWidth = 1;
+    return { back: back, front: front };
   }
 
   // Vehicles get 8 baked facings, and every facing is built from the same
@@ -8772,7 +8803,12 @@
   // docs/ra2-ref/ with a corrected aspect.py, not guessed: `factory` is the
   // case that forced the split, because the Soviet hall is 14% too flat at
   // the square root while the Allied vault is already 7% too tall.
-  var VPOW = { airforce: 1, depot: 1, lab: 1, 'factory:col': 1 };
+  // `reactor: 0` — the Nuclear Reactor was the one structure whose art
+  // already stood at the right height for its 2x3 plot: at the square root it
+  // came out 12.1% too tall against `soviet-nuclear-reactor-idle.png` (166x129
+  // -> 1.287). It had never been measured because REF pointed at a filename
+  // that did not exist on disk.
+  var VPOW = { airforce: 1, depot: 1, lab: 1, 'factory:col': 1, reactor: 0 };
   function bakeBuilding(key, col, fac, bph, bdir, dopen) {
     var DOP = dopen == null ? 0 : dopen;
     if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
@@ -8848,7 +8884,10 @@
     // Command is Allied-only; the Allied Service Depot's plot did not move at
     // all, so only the 4x3 Soviet one is affected).
     var f0 = FOOT0[key] || (b.gw + b.gh);
-    var vp = VPOW[key + ':' + fac]; if (vp == null) vp = VPOW[key] || 0.5;
+    // `!= null`, not `||`: a VPOW of 0 (grow the plot, do NOT grow the art)
+    // is a real setting and `0 || 0.5` silently threw it away.
+    var vp = VPOW[key + ':' + fac];
+    if (vp == null) vp = VPOW[key] != null ? VPOW[key] : 0.5;
     var VS = Math.max(1, Math.pow((b.gw + b.gh) / f0, vp));
     if (VS !== 1) { head = Math.round(head * VS); pad = Math.round(pad * VS); }
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
@@ -16551,115 +16590,280 @@
   }
 
   var WALL_DIRS = [[1, 0, -0.5], [2, 0.5, 0], [4, 0, 0.5], [8, -0.5, 0]];   // bit, gx, gy
+
+  // An upright OCTAGONAL prism in iso: the plan is a regular octagon squashed
+  // 2:1, its eight side faces sorted back-to-front and lit by the direction
+  // their screen run travels (right = toward the light), then the cap.
+  function octCol(g, cx, cy, rx, h, body, edge, cap) {
+    var i, P = [], f = [];
+    for (i = 0; i < 8; i++) {
+      var a = 0.3927 + i * 0.7854;
+      P.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * rx * 0.5]);
+    }
+    for (i = 0; i < 8; i++) f.push([P[i], P[(i + 1) % 8]]);
+    f.sort(function (p, q) { return (p[0][1] + p[1][1]) - (q[0][1] + q[1][1]); });
+    for (i = 0; i < 8; i++) {
+      var A = f[i][0], B = f[i][1];
+      var run = Math.max(-1, Math.min(1, (B[0] - A[0]) / (rx * 1.42)));
+      g.beginPath(); g.moveTo(A[0], A[1]); g.lineTo(B[0], B[1]);
+      g.lineTo(B[0], B[1] - h); g.lineTo(A[0], A[1] - h); g.closePath();
+      g.fillStyle = shade(body, 0.78 + 0.40 * run); g.fill(); outline(g, edge);
+    }
+    g.beginPath(); g.moveTo(P[0][0], P[0][1] - h);
+    for (i = 1; i < 8; i++) g.lineTo(P[i][0], P[i][1] - h);
+    g.closePath(); g.fillStyle = cap; g.fill(); outline(g, edge);
+    return cy - h;
+  }
+  // An extruded diamond centred on the cell, i.e. a plinth course.
+  function padSlab(g, cx, cy, hw, hh, lift, top, sL, sR, edge) {
+    extrude(g, [[cx, cy - hh], [cx + hw, cy], [cx, cy + hh], [cx - hw, cy]],
+            lift, top, sL, sR, edge);
+    return cy - lift;
+  }
+
+  // ---- Walls -----------------------------------------------------------
+  // [GAWALL] and [NAWALL] are two DIFFERENT barriers, and both used to be the
+  // same flat cross of precast slabs here. Rebuilt from the SHP rips and the
+  // in-game shots (`allied-wall.png` 42x43 + `allied-wall-scene.jpg`,
+  // `soviet-wall.png` 35x38 + `soviet-wall-scene.jpg`):
+  //   Directorate — a stepped SANDBAG plinth carrying a stone collar, an
+  //     octagonal POST and, in a silver rim on top, a glass dome. Neighbours
+  //     are joined by a low pale curtain that runs along the plinth.
+  //   Collective — a heaped mound of RUBBLE with an iron cap block and a
+  //     steel lid, two stakes leaning out of it; a run reads as a rampart of
+  //     piled stone, not a fence.
+  // The post (Allied) and the cap block (Soviet) are the remap surface: the
+  // in-game shots show a grey house turning them grey while the sandbags and
+  // the rubble stay khaki and pink-grey.
   function bakeWallSeg(col, fac, mask) {
     var fw = TW / 2, fh = TH / 2, pad = 18, head = 40;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, by = s.h - pad - fh;
     var sov = fac === 'col';
-
-    // Directorate: precast pale concrete. Collective: dark plate over rust.
-    var TOP  = sov ? '#6e6255' : '#c3bcab';
-    var SL   = sov ? '#4f463c' : '#9b9484';
-    var SR   = sov ? '#3a332c' : '#786f61';
-    var EDG  = sov ? '#211c17' : '#4c463b';
-    var lift = sov ? 11 : 13, hw = sov ? 0.19 : 0.16;
+    var rnd = lcg(sov ? 8821 : 4409);
+    var i, d, oi, q;
+    var order = [0, 3, 1, 2];                      // N, W, E, S by screen depth
 
     g.fillStyle = 'rgba(0,0,0,.30)';
-    g.beginPath(); g.ellipse(cx + 2, by + 3, 15, 7, 0, 0, 6.29); g.fill();
+    g.beginPath(); g.ellipse(cx + 2, by + 3, sov ? 17 : 20, sov ? 8 : 9, 0, 0, 6.29); g.fill();
 
-    // Arms first (they run under the post), far side before near side so the
-    // post always sits on top of the joint.
-    var order = [0, 3, 1, 2];                      // N, W, E, S by screen depth
-    for (var oi = 0; oi < 4; oi++) {
-      var d = WALL_DIRS[order[oi]];
-      if (!(mask & d[0])) continue;
-      // The arm runs a HAIR past the tile edge so two neighbouring segments
-      // overlap and the join has no seam in it.
-      gridSlab(g, cx, by, 0, 0, d[1] * 1.14, d[2] * 1.14, hw, lift, TOP, SL, SR, EDG);
-    }
-    // The post: a fatter block at the cell centre.
-    var ph = sov ? 0.24 : 0.21;
-    gridSlab(g, cx, by, -ph * 0.5, -ph * 0.5, ph * 0.5, ph * 0.5, ph, lift + (sov ? 3 : 2.5), TOP, SL, SR, EDG);
-
-    if (sov) {
-      // Bolted plate: rivets round the post cap and a rust wash down the face.
-      g.fillStyle = 'rgba(122,72,38,.30)';
-      g.beginPath(); g.ellipse(cx, by - lift * 0.35, 11, 6, 0, 0, 6.29); g.fill();
-      g.fillStyle = '#8d8171';
-      for (var rv = 0; rv < 4; rv++) {
-        var ra = rv * 1.5708 + 0.7854;
-        g.beginPath(); g.arc(cx + Math.cos(ra) * 7, by - lift - 2.4 + Math.sin(ra) * 3.4, 1.05, 0, 6.29); g.fill();
-        outline(g, EDG);
+    if (!sov) {
+      // ---- Directorate: sandbag plinth, silver post, glass dome ----------
+      var SAND = '#918872', SAND_L = '#a89f88', SAND_D = '#5f5949';
+      var STONE = '#c3c0b4', STONE_L = '#d8d5c9', STONE_D = '#84817a', EDG = '#3a372f';
+      // plinth strips first, so the centre pad closes over the joints
+      var TURF = '#5f5c48', TURF_L = '#767260', TURF_D = '#403e30';
+      for (oi = 0; oi < 4; oi++) {
+        d = WALL_DIRS[order[oi]];
+        if (!(mask & d[0])) continue;
+        gridSlab(g, cx, by, 0, 0, d[1] * 1.14, d[2] * 1.14, 0.32, 3, TURF, TURF_L, TURF_D, EDG);
+        gridSlab(g, cx, by - 3, 0, 0, d[1] * 1.14, d[2] * 1.14, 0.24, 3.5, SAND, SAND_L, SAND_D, EDG);
       }
-    } else {
-      // Precast: a scored joint across the cap of every arm.
-      g.strokeStyle = 'rgba(70,64,54,.55)'; g.lineWidth = 0.9;
-      for (var ai = 0; ai < 4; ai++) {
-        var da = WALL_DIRS[ai];
-        if (!(mask & da[0])) continue;
-        var m1 = gproj(da[1] * 0.62, da[2] * 0.62), m2 = gproj(-da[2] * 0.16, da[1] * 0.16);
+      padSlab(g, cx, by, 20.5, 10.2, 3, TURF, TURF_L, TURF_D, EDG);
+      padSlab(g, cx, by - 3, 16, 8, 3.5, SAND, SAND_L, SAND_D, EDG);
+      // the curtain between two posts: a narrow precast wall standing on the
+      // plinth, its cap a ridge rather than a paddle (see allied-wall-scene)
+      for (oi = 0; oi < 4; oi++) {
+        d = WALL_DIRS[order[oi]];
+        if (!(mask & d[0])) continue;
+        gridSlab(g, cx, by - 3.0, 0, 0, d[1] * 1.14, d[2] * 1.14, 0.085, 11.5,
+                 shade(STONE, 1.02), STONE, shade(STONE_D, 0.86), EDG);
+        // coping shadow line along the near face
+        var e1 = gproj(d[1] * 0.30, d[2] * 0.30), e2 = gproj(d[1] * 1.10, d[2] * 1.10);
+        g.strokeStyle = 'rgba(50,46,38,.40)'; g.lineWidth = 0.9;
         g.beginPath();
-        g.moveTo(cx + m1[0] + m2[0], by + m1[1] + m2[1] - lift);
-        g.lineTo(cx + m1[0] - m2[0], by + m1[1] - m2[1] - lift);
-        g.stroke();
+        g.moveTo(cx + e1[0], by - 3.0 + e1[1] - 9.0); g.lineTo(cx + e2[0], by - 3.0 + e2[1] - 9.0);
+        g.stroke(); g.lineWidth = 1;
+      }
+      // sandbags: individual bags heaped over BOTH steps and spilling past
+      // their rims, so the plinth is a pile and not a machined octagon
+      for (i = 0; i < 34; i++) {
+        var ta = i / 34 * 6.2832, rr = 0.90 + rnd() * 0.20;
+        var bx = cx + Math.cos(ta) * 18.1 * rr, byy = by - 2.6 + Math.sin(ta) * 9.0 * rr;
+        g.fillStyle = rnd() > 0.5 ? TURF_L : TURF_D;
+        g.beginPath(); g.ellipse(bx, byy, 2.9, 1.7, 0, 0, 6.29); g.fill();
+        g.strokeStyle = '#332f2b'; g.lineWidth = 0.7; g.stroke();
+      }
+      for (i = 0; i < 26; i++) {
+        var t2 = i / 26 * 6.2832, r2 = 0.90 + rnd() * 0.20;
+        var b2 = cx + Math.cos(t2) * 15.2 * r2, y2 = by - 6.4 + Math.sin(t2) * 7.5 * r2;
+        g.fillStyle = rnd() > 0.5 ? SAND_L : SAND;
+        g.beginPath(); g.ellipse(b2, y2, 2.7, 1.6, 0, 0, 6.29); g.fill();
+        g.strokeStyle = SAND_D; g.lineWidth = 0.7; g.stroke();
+      }
+      // mottle across the two caps so the flat tops are not dead colour
+      for (i = 0; i < 26; i++) {
+        var m3 = rnd() * 6.2832, d3 = Math.sqrt(rnd());
+        var lo3 = i % 2 === 0;
+        var x3 = cx + Math.cos(m3) * (lo3 ? 17.5 : 13.4) * d3;
+        var y3 = (lo3 ? by - 3.2 : by - 6.9) + Math.sin(m3) * (lo3 ? 8.7 : 6.6) * d3;
+        g.fillStyle = lo3 ? (rnd() > 0.5 ? TURF_D : TURF_L) : (rnd() > 0.5 ? SAND_D : SAND_L);
+        g.beginPath(); g.ellipse(x3, y3, 1.6 + rnd() * 1.2, 0.9, 0, 0, 6.29); g.fill();
       }
       g.lineWidth = 1;
+      // stone collar, then the post itself
+      padSlab(g, cx, by - 6.5, 10.4, 5.2, 2.6, STONE, STONE_L, STONE_D, EDG);
+      var pTop = octCol(g, cx, by - 9.1, 8.6, 15.5, shade(col, 0.60), EDG, shade(col, 0.86));
+      // panel seams down the two lit faces
+      g.strokeStyle = 'rgba(16,18,24,.55)'; g.lineWidth = 0.9;
+      for (i = -1; i <= 1; i += 2) {
+        g.beginPath(); g.moveTo(cx + i * 3.5, by - 10.6); g.lineTo(cx + i * 3.5, by - 23.4); g.stroke();
+      }
+      g.lineWidth = 1;
+      // silver crown rim with its bolt dots, then the dome in the collar
+      octCol(g, cx, pTop, 10.4, 3.4, STONE, EDG, STONE_L);
+      g.fillStyle = '#b8ae86';
+      for (i = 0; i < 4; i++) {
+        var ba = 0.7854 + i * 1.5708;
+        g.beginPath(); g.arc(cx + Math.cos(ba) * 7.8, pTop - 3.4 + Math.sin(ba) * 3.9, 0.9, 0, 6.29); g.fill();
+      }
+      var dy = pTop - 4.4;
+      g.fillStyle = shade(col, 0.62);
+      g.beginPath(); g.ellipse(cx, dy, 6.2, 3.1, 0, 0, 6.29); g.fill(); outline(g, EDG);
+      g.fillStyle = shade(col, 1.05);
+      g.beginPath(); g.ellipse(cx - 1.0, dy - 0.7, 3.6, 1.8, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.85)';
+      g.beginPath(); g.ellipse(cx - 1.9, dy - 1.1, 1.5, 0.75, 0, 0, 6.29); g.fill();
+    } else {
+      // ---- Collective: a rampart of heaped rubble under an iron cap ------
+      var RUB = '#918079', RUB_L = '#ab9a90', RUB_D = '#584b47';
+      var IRON = '#2a2c34', STL = '#8b8f98', STL_L = '#b6bac2', EDGS = '#191a20';
+      for (oi = 0; oi < 4; oi++) {
+        d = WALL_DIRS[order[oi]];
+        if (!(mask & d[0])) continue;
+        gridSlab(g, cx, by, 0, 0, d[1] * 1.14, d[2] * 1.14, 0.28, 7.5, RUB, RUB_L, RUB_D, EDGS);
+        // stones along the run, so the rampart reads as piled rock
+        for (i = 0; i < 14; i++) {
+          var t4 = 0.22 + i / 14 * 0.80, o4 = (rnd() - 0.5) * 0.44;
+          var a4 = gproj(d[1] * 1.14 * t4 - d[2] * 0.56 * o4, d[2] * 1.14 * t4 + d[1] * 0.56 * o4);
+          var w4 = 1.7 + rnd() * 1.8;
+          g.fillStyle = rnd() > 0.45 ? shade(RUB_L, 1.10) : shade(RUB_D, 0.94);
+          g.beginPath();
+          g.ellipse(cx + a4[0], by - 7.5 + a4[1] + rnd() * 1.8, w4, w4 * 0.55, 0, 0, 6.29);
+          g.fill();
+        }
+      }
+      padSlab(g, cx, by, 16.2, 8.1, 5.5, RUB, RUB_L, RUB_D, EDGS);
+      padSlab(g, cx, by - 5.5, 12.4, 6.2, 3.5, RUB_L, shade(RUB_L, 1.10), RUB, EDGS);
+      // broken stone: blocks over the cap and down the two near faces
+      for (i = 0; i < 46; i++) {
+        var an = rnd() * 6.2832, rd = Math.sqrt(rnd());
+        var hi = i % 2 === 0;
+        var sxp = cx + Math.cos(an) * (hi ? 11.6 : 15.2) * rd;
+        var syp = (hi ? by - 9 : by - 5.5) + Math.sin(an) * (hi ? 5.8 : 7.6) * rd;
+        var w2 = 2.3 + rnd() * 2.6;
+        g.fillStyle = rnd() > 0.45 ? shade(RUB_L, 1.12) : shade(RUB_D, 0.92);
+        g.beginPath(); g.ellipse(sxp, syp, w2, w2 * 0.55, 0, 0, 6.29); g.fill();
+        g.strokeStyle = 'rgba(40,28,26,.45)'; g.lineWidth = 0.7; g.stroke(); g.lineWidth = 1;
+      }
+      // ragged rim: broken stone tumbling off the two near faces
+      for (i = 0; i < 22; i++) {
+        var fa = -0.30 + rnd() * 3.74;
+        var fx2 = cx + Math.cos(fa) * (13.0 + rnd() * 2.0), fy2 = by - 5.5 + Math.sin(fa) * 7.0 + rnd() * 5.5;
+        g.fillStyle = rnd() > 0.5 ? RUB_D : RUB;
+        g.beginPath(); g.ellipse(fx2, fy2, 1.5 + rnd() * 0.8, 1.1, 0, 0, 6.29); g.fill();
+      }
+      // two stakes leaning out of the heap, steel-tipped
+      for (i = -1; i <= 1; i += 2) {
+        var x0 = cx + i * 5.8, y0 = by - 11, x1 = cx + i * 9.4, y1 = by - 27.6;
+        g.strokeStyle = IRON; g.lineWidth = 3.0; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+        g.strokeStyle = STL; g.lineWidth = 2.0;
+        g.beginPath(); g.moveTo(cx + i * 8.1, by - 21.4); g.lineTo(cx + i * 9.2, by - 26.5); g.stroke();
+        g.lineWidth = 1; g.lineCap = 'butt';
+        g.fillStyle = col;
+        g.beginPath(); g.ellipse(cx + i * 7.2, by - 16.4, 2.1, 1.5, 0, 0, 6.29); g.fill();
+        outline(g, EDGS);
+      }
+      // the iron cap block, then a steel lid plate on top of it
+      var cTop = padSlab(g, cx, by - 9, 7.8, 3.9, 9.5, shade(col, 0.72), shade(col, 0.96),
+                         shade(col, 0.46), EDGS);
+      g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 0.9;
+      g.beginPath(); g.moveTo(cx - 8.2, by - 13.1); g.lineTo(cx, by - 9.3); g.lineTo(cx + 8.2, by - 13.1); g.stroke();
+      g.lineWidth = 1;
+      padSlab(g, cx, cTop, 10.4, 5.2, 2.8, STL, shade(STL, 1.20), shade(STL, 0.58), EDGS);
+      g.fillStyle = 'rgba(255,255,255,.26)';
+      g.beginPath(); g.ellipse(cx - 2.2, cTop - 3.3, 3.8, 1.7, 0, 0, 6.29); g.fill();
     }
-    // The single house-colour stripe: a chevron plate on the post cap.
-    g.fillStyle = col;
-    g.beginPath(); g.ellipse(cx, by - lift - (sov ? 3.6 : 3.0), 3.3, 1.6, 0, 0, 6.29); g.fill();
-    outline(g, shade(col, 0.5));
-    g.fillStyle = shade(col, 1.3);
-    g.beginPath(); g.ellipse(cx - 0.6, by - lift - (sov ? 4.2 : 3.6), 1.8, 0.8, 0, 0, 6.29); g.fill();
     return { s: s, ax: cx, ay: by };
   }
 
-  // A gate is a wall segment with the middle cut out and two leaves that
-  // travel apart along the run. `openF` 0 = shut, 1 = fully open. `vert` is
-  // whether the run is the NW-SE grid axis instead of the SW-NE one.
+  // [GAGATE_A]/[NAGATE_A]: the faction's own wall with the run cut open — a
+  // pier at each end built like its wall post, and two LEAVES that travel
+  // apart along the run. The leaf is a standing panel with vertical bars, not
+  // a slab lying on the ground: a gate you can see through is the whole read.
+  // `openF` 0 = shut, 1 = fully open. `vert` = the run is the NW-SE grid axis.
   function bakeGateSeg(col, fac, vert, openF) {
     var fw = TW / 2, fh = TH / 2, pad = 18, head = 44;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, by = s.h - pad - fh;
     var sov = fac === 'col';
-    var TOP = sov ? '#6e6255' : '#c3bcab', SL = sov ? '#4f463c' : '#9b9484';
-    var SR = sov ? '#3a332c' : '#786f61', EDG = sov ? '#211c17' : '#4c463b';
-    var LTOP = sov ? '#7a6a55' : '#a8a293', LSL = sov ? '#5a4c3a' : '#8a8474', LSR = sov ? '#3c3226' : '#6a6355';
+    var rnd = lcg(sov ? 6613 : 3307), i;
+    var SAND = '#918872', SAND_L = '#a89f88', SAND_D = '#5f5949';
+    var RUB = '#918079', RUB_L = '#ab9a90', RUB_D = '#584b47';
+    var STONE = sov ? '#8b8f98' : '#c3c0b4', STONE_L = sov ? '#b6bac2' : '#d8d5c9';
+    var STONE_D = sov ? '#5c6068' : '#84817a', EDG = sov ? '#191a20' : '#3a372f';
+    var BASE = sov ? RUB : SAND, BASE_L = sov ? RUB_L : SAND_L, BASE_D = sov ? RUB_D : SAND_D;
 
     g.fillStyle = 'rgba(0,0,0,.30)';
-    g.beginPath(); g.ellipse(cx + 2, by + 3, 16, 7, 0, 0, 6.29); g.fill();
+    g.beginPath(); g.ellipse(cx + 2, by + 3, 20, 9, 0, 0, 6.29); g.fill();
 
-    // run axis and the piers at each end
+    // the plinth the whole gate stands on, running the length of the gap
     var ux = vert ? 0 : 0.5, uy = vert ? 0.5 : 0;
-    function pier(sgn) {
-      gridSlab(g, cx, by, ux * sgn * 0.86 - 0.10 * (vert ? 0 : 1), uy * sgn * 0.86 - 0.10 * (vert ? 1 : 0),
-               ux * sgn * 1.14, uy * sgn * 1.14, 0.20, 17, TOP, SL, SR, EDG);
+    var lift0 = sov ? 6.5 : 3.2;
+    gridSlab(g, cx, by, -ux * 1.14, -uy * 1.14, ux * 1.14, uy * 1.14, 0.24, lift0,
+             BASE, BASE_L, BASE_D, EDG);
+    for (i = 0; i < 24; i++) {
+      var t0 = (i / 24 - 0.5) * 2.2, o0 = (rnd() - 0.5) * 0.56;
+      var q0 = gproj(ux * 1.14 * t0 - uy * 0.56 * o0, uy * 1.14 * t0 + ux * 0.56 * o0);
+      var w0 = 1.9 + rnd() * 1.9;
+      g.fillStyle = rnd() > 0.5 ? BASE_L : BASE_D;
+      g.beginPath(); g.ellipse(cx + q0[0], by - lift0 + q0[1], w0, w0 * 0.55, 0, 0, 6.29); g.fill();
     }
-    function leaf(sgn) {
-      // travel: shut the leaves meet at the centre, open they fold back to
-      // the piers.
-      var a = 0.06 + openF * 0.62, b = 0.62 + openF * 0.20;
-      gridSlab(g, cx, by, ux * sgn * a, uy * sgn * a, ux * sgn * b, uy * sgn * b, 0.13, 12, LTOP, LSL, LSR, EDG);
-    }
-    // far half first
-    pier(vert ? -1 : -1); leaf(-1);
-    leaf(1); pier(1);
+    var pierY = by - lift0;
 
-    // warning chevrons on the leaf caps, in the owner's colour
-    for (var i = 0; i < 2; i++) {
-      var sgn = i ? 1 : -1, m = 0.34 + openF * 0.40;
-      var q = gproj(ux * sgn * m, uy * sgn * m);
-      g.fillStyle = col;
-      g.beginPath(); g.ellipse(cx + q[0], by + q[1] - 12.6, 3.2, 1.6, 0, 0, 6.29); g.fill();
-      outline(g, shade(col, 0.5));
+    // A leaf: a standing panel of bars, `a`..`b` along the run from centre.
+    function leaf(sgn) {
+      var a = 0.05 + openF * 0.52, b2 = 0.56 + openF * 0.20, H = sov ? 13 : 14;
+      gridSlab(g, cx, pierY, ux * sgn * a, uy * sgn * a, ux * sgn * b2, uy * sgn * b2, 0.055, H,
+               STONE_L, STONE, STONE_D, EDG);
+      // vertical bars down the near face of the panel
+      g.strokeStyle = sov ? 'rgba(20,22,28,.62)' : 'rgba(58,55,47,.55)'; g.lineWidth = 1.1;
+      for (i = 0; i <= 4; i++) {
+        var t1 = a + (b2 - a) * (i / 4);
+        var q1 = gproj(ux * sgn * t1, uy * sgn * t1);
+        g.beginPath();
+        g.moveTo(cx + q1[0], pierY + q1[1]); g.lineTo(cx + q1[0], pierY + q1[1] - H);
+        g.stroke();
+      }
+      g.lineWidth = 1;
+      // hazard band along the leaf's cap, in the owner's colour
+      var qa = gproj(ux * sgn * a, uy * sgn * a), qb = gproj(ux * sgn * b2, uy * sgn * b2);
+      g.strokeStyle = col; g.lineWidth = 2.2;
+      g.beginPath();
+      g.moveTo(cx + qa[0], pierY + qa[1] - H + 1.6); g.lineTo(cx + qb[0], pierY + qb[1] - H + 1.6);
+      g.stroke(); g.lineWidth = 1;
     }
-    // pier lamps: green when the leaves are apart, red when they are shut
-    for (i = 0; i < 2; i++) {
-      var sg2 = i ? 1 : -1, p2 = gproj(ux * sg2 * 1.0, uy * sg2 * 1.0);
+    // A pier: the faction's own wall post, one at each end of the run.
+    function pier(sgn) {
+      var q2 = gproj(ux * sgn * 0.82, uy * sgn * 0.82);
+      var px2 = cx + q2[0], py2 = pierY + q2[1], tp;
+      if (sov) {
+        tp = padSlab(g, px2, py2, 7.2, 3.6, 11, shade(col, 0.72), shade(col, 0.96),
+                     shade(col, 0.46), EDG);
+        padSlab(g, px2, tp, 9.2, 4.6, 2.6, STONE, shade(STONE, 1.20), shade(STONE, 0.58), EDG);
+        tp -= 2.6;
+      } else {
+        tp = octCol(g, px2, py2, 7.4, 14, shade(col, 0.60), EDG, shade(col, 0.86));
+        octCol(g, px2, tp, 8.8, 3.0, STONE, EDG, STONE_L);
+        tp -= 3.0;
+      }
+      // the lamp RA2 puts on a gate pier: red shut, green once it is open
       g.fillStyle = openF > 0.5 ? '#7fe08a' : '#e06a5a';
-      g.beginPath(); g.arc(cx + p2[0], by + p2[1] - 18.5, 1.5, 0, 6.29); g.fill();
-      outline(g, EDG);
+      g.beginPath(); g.arc(px2, tp - 2.4, 1.7, 0, 6.29); g.fill(); outline(g, EDG);
     }
+    // far half first, so the near pier closes over the near leaf's joint
+    pier(-1); leaf(-1); leaf(1); pier(1);
     return { s: s, ax: cx, ay: by };
   }
 
@@ -18278,7 +18482,7 @@
     // Units are keyed like structures: [player][faction][type]. Only the
     // harvester actually differs by faction (Chrono Miner vs War Miner), but
     // baking the whole set per faction keeps every lookup uniform.
-    SPR.bags = [bakeSandbags(COL[0]), bakeSandbags(COL[1])];   // deployed-GI parapet, one per owner
+    SPR.bags = [bakeSandbags(COL[0]), bakeSandbags(COL[1])];   // deployed-GI emplacement {back, front}, one per owner
     SPR.unit = [{ dir: {}, col: {} }, { dir: {}, col: {} }];
     for (var p = 0; p < 2; p++) {
       for (var ufk in FACTIONS) {
@@ -28833,6 +29037,10 @@
     // frame over its own outline instead of taking damage.
     if (u.erase > 0) { ctx.save(); ctx.globalAlpha = Math.max(0.08, 1 - u.erase * 0.85); }
     else if (submerged) { ctx.save(); ctx.globalAlpha = 0.42; }
+    if (u.deployed && SPR.bags) {                        // the pit and the BACK lip, UNDER him
+      var BGb = SPR.bags[u.p].back;
+      ctx.drawImage(BGb.c, px - BGb.w / 2, py - (BGb.h - UPAD), BGb.w, BGb.h);
+    }
     ctx.drawImage(s.c, ox, oy, s.w * uk, s.h * uk);
     if (submerged && u.erase <= 0) ctx.restore();
     if (gondS) ctx.drawImage(gondS.c, ox + gondDx, oy + gondDy, gondS.w * uk, gondS.h * uk);
@@ -28918,8 +29126,8 @@
         ctx.globalCompositeOperation = 'source-over';
       }
     }
-    if (u.deployed && SPR.bags) {                                          // the parapet, OVER him
-      var BG = SPR.bags[u.p];
+    if (u.deployed && SPR.bags) {                                          // the front parapet, OVER him
+      var BG = SPR.bags[u.p].front;
       ctx.drawImage(BG.c, px - BG.w / 2, py - (BG.h - UPAD), BG.w, BG.h);
     }
     // RA2 sizes the selection box off the unit's own SIZE, not off the frame
@@ -30651,6 +30859,12 @@
     // Baked sprite atlas, so art work can be reviewed as a contact sheet
     // instead of by hunting for one building in a live match.
     spr: function () { return SPR; },
+    // An ISOLATED wall/gate segment. `SPR.bld[..].wall` is the four-way
+    // cameo piece, which is not what the RA2 SHP frame shows, so the art
+    // harness measures this instead (tools/rts-art/cmp.js -> aspect.py).
+    wallSeg: function (p, fk, mask) { return wallSprite(p, fk, mask || 0); },
+    gateSeg: function (p, fk, vert, openF) { return gateSprite(p, fk, !!vert, openF || 0); },
+
     // Start a bare match (no opening units) that the other hooks act on.
     // `live` (5th arg) leaves the RENDERER on, so an art or QA pass can drive
     // a set-piece and screenshot it instead of only asserting on numbers.
