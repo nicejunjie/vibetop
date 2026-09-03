@@ -21,7 +21,8 @@
     user-select: none; -webkit-user-select: none;
   }
   .bar .title { font-size: 13px; font-weight: 600; white-space: nowrap; }
-  .bar .title .ic { margin-right: 5px; }
+  /* No glyph before the title: U+2694 crossed swords collapses to a bare X
+     at 15px and reads as a close button next to a row of real buttons. */
   @media (max-width: 560px) { .bar .title .txt { display: none; } }
   /* Below ~560px the bar's buttons are wider than the window, and a
      non-wrapping flex row does not clip them — it strands them off the right
@@ -54,12 +55,25 @@
   }
   button:hover { background: #47336a; border-color: #8a4adb; }
   button:focus-visible { outline: 2px solid #8a4adb; outline-offset: 1px; }
-  #helpBtn, #lbBtn, #pauseBtn, #sndBtn {
+  #helpBtn, #lbBtn, #pauseBtn, #sndBtn, #optBtn {
     background: #1f2733; border-color: #2a3040; color: #aab4c5;
     min-width: 32px; font-weight: 700; padding: 5px 9px;
   }
-  #helpBtn:hover, #lbBtn:hover, #pauseBtn:hover, #sndBtn:hover { background: #253044; border-color: #3a4358; }
-  #lbBtn, #sndBtn { font-size: 14px; }
+  #helpBtn:hover, #lbBtn:hover, #pauseBtn:hover, #sndBtn:hover, #optBtn:hover { background: #253044; border-color: #3a4358; }
+  /* U+2699 GEAR is a TEXT-presentation glyph: at 12px most families draw it
+     as a thin ring that reads as a dot, and the ones that do not are the
+     ones that substitute an emoji. Same font dependency that made the
+     paradrop clock a tofu box, so the gear is drawn, not typed. The word
+     rides along because a settings button is the one control nobody should
+     have to guess at. */
+  #optBtn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font-weight: 600; }
+  #optBtn svg { width: 15px; height: 15px; fill: currentColor; display: block; flex: none; }
+  #pauseBtn { display: inline-flex; align-items: center; justify-content: center; }
+  #pauseBtn svg { width: 14px; height: 14px; fill: currentColor; display: block; }
+  .bar .title { display: inline-flex; align-items: center; }
+  #lbBtn { font-size: 14px; }
+  #sndBtn { display: inline-flex; align-items: center; justify-content: center; }
+  #sndBtn svg { width: 15px; height: 15px; fill: currentColor; display: block; }
 
   .wrap { flex: 1; min-height: 0; display: flex; position: relative; }
   #stage { flex: 1; min-width: 0; position: relative; overflow: hidden; }
@@ -529,13 +543,13 @@
 <body>
 
 <div class="bar">
-  <span class="title"><span class="ic">⚔️</span><span class="txt">Iron Frontier</span></span>
+  <span class="title"><span class="txt">Iron Frontier</span></span>
   <span class="spacer"></span>
   <button id="helpBtn" title="How to play">?</button>
   <button id="lbBtn" title="Best results">🏆</button>
-  <button id="sndBtn" title="Sound on/off">🔊</button>
-  <button id="optBtn" title="Settings: volume, game speed, save/load (Esc)">⚙</button>
-  <button id="pauseBtn" title="Pause (P)">⏸</button>
+  <button id="sndBtn" title="Sound on/off"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5,9.2 L7.2,9.2 L12.2,5.0 L12.2,19.0 L7.2,14.8 L3.5,14.8 Z"/><path d="M14.6,8.6 A5.2,5.2 0 0 1 14.6,15.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M17.0,6.0 A8.4,8.4 0 0 1 17.0,18.0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></button>
+  <button id="optBtn" title="Settings: volume, game speed, save/load (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M 19.44,9.65 L 22.41,9.98 L 22.41,14.02 L 19.44,14.35 L 18.92,15.60 L 20.79,17.93 L 17.93,20.79 L 15.60,18.92 L 14.35,19.44 L 14.02,22.41 L 9.98,22.41 L 9.65,19.44 L 8.40,18.92 L 6.07,20.79 L 3.21,17.93 L 5.08,15.60 L 4.56,14.35 L 1.59,14.02 L 1.59,9.98 L 4.56,9.65 L 5.08,8.40 L 3.21,6.07 L 6.07,3.21 L 8.40,5.08 L 9.65,4.56 L 9.98,1.59 L 14.02,1.59 L 14.35,4.56 L 15.60,5.08 L 17.93,3.21 L 20.79,6.07 L 18.92,8.40 Z M 15.60,12.00 A 3.6,3.6 0 1 0 8.40,12.00 A 3.6,3.6 0 1 0 15.60,12.00 Z"/></svg><span>Settings</span></button>
+  <button id="pauseBtn" title="Pause (P)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="4.5" width="4.2" height="15" rx="1.2"/><rect x="13.3" y="4.5" width="4.2" height="15" rx="1.2"/></svg></button>
   <button id="newBtn">New</button>
 </div>
 
@@ -864,6 +878,14 @@
   function buildableT(t) { return t === T_GROUND || t === T_ROAD; }  // never a ramp, a bridge deck or a civilian lot
 
   var P_HUMAN = 0, P_AI = 1;
+  // The top bar's icons are DRAWN, not typed. U+23F8/U+25B6/U+2694 are
+  // text-presentation glyphs: at 12px they came out as a bare square, a
+  // thin triangle and an X that read as a close button. Same font
+  // dependency that made the paradrop clock a tofu box.
+  var PAUSE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="4.5" width="4.2" height="15" rx="1.2"/><rect x="13.3" y="4.5" width="4.2" height="15" rx="1.2"/></svg>';
+  var PLAY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5,4.6 L19,12 L7.5,19.4 Z"/></svg>';
+  var SND_ON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5,9.2 L7.2,9.2 L12.2,5.0 L12.2,19.0 L7.2,14.8 L3.5,14.8 Z"/><path d="M14.6,8.6 A5.2,5.2 0 0 1 14.6,15.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M17.0,6.0 A8.4,8.4 0 0 1 17.0,18.0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>';
+  var SND_OFF_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5,9.2 L7.2,9.2 L12.2,5.0 L12.2,19.0 L7.2,14.8 L3.5,14.8 Z"/><path d="M15.0,9.4 L20.4,14.8 M20.4,9.4 L15.0,14.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>';
   // RA2's "Neutral"/"Special" house. Civilian blocks, tech buildings and the
   // bridge repair huts belong to it: they sit in `g.blds` like any structure
   // (so occupancy, pathing, targeting and rendering all work unchanged) but
@@ -29970,7 +29992,7 @@
     optOpen = false; optCard.style.display = 'none'; hideCard();
     G.debug = !!G.debug;
     state = 'play';
-    pauseBtn.textContent = '⏸';
+    pauseBtn.innerHTML = PAUSE_SVG;
     pausedEl.classList.remove('show');
     sel = []; groups = {}; placing = null; swMode = null;
     cmdMode = null; refreshCmdbar(); pickCursor();
@@ -30221,7 +30243,7 @@
   }
 
   var sndBtn = document.getElementById('sndBtn');
-  function paintSnd() { sndBtn.textContent = soundOn ? '🔊' : '🔇'; }
+  function paintSnd() { sndBtn.innerHTML = soundOn ? SND_ON_SVG : SND_OFF_SVG; }
   sndBtn.addEventListener('click', function () {
     soundOn = !soundOn;
     lsSet('vibetop:rts:sound', soundOn ? '1' : '0');
@@ -30234,10 +30256,10 @@
   var pausedEl = document.getElementById('paused');
   function togglePause(force) {
     if (state === 'play' && (force === undefined || force === true)) {
-      state = 'paused'; pauseBtn.textContent = '▶';
+      state = 'paused'; pauseBtn.innerHTML = PLAY_SVG;
       pausedEl.classList.add('show');
     } else if (state === 'paused' && force !== true) {
-      state = 'play'; pauseBtn.textContent = '⏸';
+      state = 'play'; pauseBtn.innerHTML = PAUSE_SVG;
       pausedEl.classList.remove('show');
       say('Resumed');
     }
@@ -30305,7 +30327,7 @@
     G.focusFor[P_AI] = G.ai.cfg.focus;
     state = 'play';
     MUS.set(G.theatre); MUS.start();      // theme.ini rotates a track per match; here the theatre picks the loop
-    pauseBtn.textContent = '⏸';
+    pauseBtn.innerHTML = PAUSE_SVG;
     pausedEl.classList.remove('show');
     sel = []; groups = {}; placing = null; swMode = null;   // pathQ belongs to the net client now (netAttach)
     cmdMode = null; refreshCmdbar(); pickCursor();          // a sell mode must not survive New -> menu -> match
