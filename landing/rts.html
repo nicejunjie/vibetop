@@ -12513,6 +12513,15 @@
     for (var yy = gy; yy < gy + d.gh; yy++) for (var xx = gx; xx < gx + d.gw; xx++) {
       if (inMap(xx, yy)) g.occ[idx(xx, yy)] = b.id;
     }
+    // Anyone standing inside the new footprint is nudged out to the nearest
+    // free cell, as RA2 does — otherwise they are entombed with a live order.
+    for (var ui = 0; ui < g.units.length; ui++) {
+      var su = g.units[ui];
+      if (su.dead || su.air) continue;
+      if (Math.round(su.x) < gx || Math.round(su.x) >= gx + d.gw || Math.round(su.y) < gy || Math.round(su.y) >= gy + d.gh) continue;
+      var out = standSpot(g, Math.round(su.x), Math.round(su.y));
+      if (out) { su.x = out.x; su.y = out.y; su.path = null; su.noProg = 0; if (su.order && su.order.t === 'move') su.repathAt = -999; }
+    }
     recalcPower(g, p);
     return b;
   }
@@ -13749,6 +13758,15 @@
               if (src.rally) { nu.order = { t: 'move', x: src.rally.x, y: src.rally.y, id: 0 };
                                requestPath(g, nu, src.rally.x, src.rally.y);
                                nu.guardX = src.rally.x; nu.guardY = src.rally.y; }
+              else if (!nu.air) {
+                // No rally: step off the door onto a tile nobody stands on, as
+                // RA2 units do — the soak found 54 conscripts on one tile.
+                var aside = standSpot(g, sp.x, sp.y);
+                if (aside && (aside.x !== sp.x || aside.y !== sp.y)) {
+                  nu.order = { t: 'move', x: aside.x, y: aside.y, id: 0 };
+                  nu.guardX = aside.x; nu.guardY = aside.y; requestPath(g, nu, aside.x, aside.y);
+                }
+              }
               if (p === P_HUMAN) { sfx('ready'); eva('Unit ready', 3000); }
             }
           }
@@ -13815,6 +13833,34 @@
     return true;
   }
 
+  // The k-th distinct passable tile on a spiral around (x,y): one cell per
+  // unit, as RA2 lays a group out at its destination. `taken` is a set the
+  // caller keeps across one group order.
+  function spreadSpot(g, x, y, taken) {
+    for (var k = 0; k < 400; k++) {
+      var r = k === 0 ? 0 : 0.9 + Math.sqrt(k) * 0.8, a = k * 2.399;
+      var cx = Math.max(0, Math.min(MAP - 1, Math.round(x + Math.cos(a) * r)));
+      var cy = Math.max(0, Math.min(MAP - 1, Math.round(y + Math.sin(a) * r)));
+      var key = cx + ',' + cy;
+      if (taken[key] || !tilePassable(g, cx, cy)) continue;
+      taken[key] = true; return { x: cx, y: cy };
+    }
+    return { x: x, y: y };
+  }
+  // A passable tile near (x,y) with no ground unit already standing on it.
+  function standSpot(g, x, y) {
+    for (var r = 0; r < 7; r++) {
+      for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+        var nx = x + ox, ny = y + oy;
+        if (!inMap(nx, ny) || blocked(g, nx, ny)) continue;
+        var taken = false;
+        near(nx, ny, 0.6, function (o) { if (o.kind === 'u' && !o.dead && !o.air) taken = true; });
+        if (!taken) return { x: nx, y: ny };
+      }
+    }
+    return null;
+  }
   function freeTileNear(g, x, y) {
     for (var r = 0; r < 8; r++) {
       for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
@@ -13901,8 +13947,8 @@
     // opening: ticks of grace before it will commit an attack at all. A human
     // needs time to read the panel before the first wave arrives; an AI that
     // rushes a beginner at three minutes is not "hard", it is unplayable.
-    easy:   { react: 72, apm: 22,  focus: false, harass: false, group: 6,  expand: 1, scoutEvery: 0,    give: 0.30, opening: 60 * 420 },
-    normal: { react: 36, apm: 55,  focus: true,  harass: false, group: 9,  expand: 2, scoutEvery: 1800, give: 0.40, opening: 60 * 300 },
+    easy:   { react: 72, apm: 22,  focus: false, harass: false, group: 6,  expand: 1, scoutEvery: 0,    give: 0.30, opening: 60 * 600 },
+    normal: { react: 36, apm: 55,  focus: true,  harass: false, group: 9,  expand: 2, scoutEvery: 1800, give: 0.40, opening: 60 * 480 },
     hard:   { react: 12, apm: 999, focus: true,  harass: true,  group: 10, expand: 3, scoutEvery: 1000, give: 0.45, opening: 60 * 165 }
   };
 
@@ -14026,7 +14072,7 @@
       else if (mayAttack && ai.army.length >= cfg.group && myArmy > theirArmy * 0.95 + defenceValue(g, foe) * 0.6) ai.posture = 'attack';
       // No fallback here deadlocked a 58-unit army in 'build' behind a wall of
       // defences it could have rolled over: a big enough army attacks anyway.
-      else if (mayAttack && ai.army.length >= cfg.group * 2.5 && myArmy > theirArmy * 0.95) ai.posture = 'attack';
+      else if (mayAttack && ai.army.length >= cfg.group * 2.5 && (myArmy > theirArmy * 0.95 || ai.army.length >= cfg.group * 4)) ai.posture = 'attack';
       else if (theirArmy > myArmy * 1.5 && theirArmy > 2500) ai.posture = 'defend';   // three GIs are not a threat worth a $1500 coil
       else ai.posture = 'build';
 
@@ -14130,7 +14176,7 @@
       // Superweapons before the economy building: a 7-10 minute charge has to
       // start early enough to fire inside a match. The army has to stand
       // first and the bank has to be deep enough that the silo is spare cash.
-      else if (hasBld(g, me, 'lab') && s.credits > 4500 && ai.army.length >= cfg.group && aiSwWant(g, me)) want = aiSwWant(g, me);
+      else if (hasBld(g, me, 'lab') && s.credits > 3000 && ai.army.length >= cfg.group && aiSwWant(g, me)) want = aiSwWant(g, me);
       else if (hasBld(g, me, 'lab') && !hasBld(g, me, ecoKey) && s.credits > 2600) want = ecoKey;
       if (want && want !== 'power' && netQ + draw(want) < 30 && canBuild(g, me, 'power', true)) want = 'power';   // headroom first
       if (want && canBuild(g, me, want, true)) enqueue(g, me, want, laneOfBld(want));
@@ -14151,10 +14197,13 @@
       enqueue(g, me, aaKey, 'd');
     }
     if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
-        countBld(g, me, def) + countBld(g, me, def2) < (ai.posture === 'defend' ? 5 : 3) &&
+        countBld(g, me, def) + countBld(g, me, def2) < (ai.posture === 'defend' ? 6 : 4) &&
         s.credits > 600) {
-      // Alternate the faction's two defences once the heavier one is unlocked.
-      var pick = (countBld(g, me, def) > countBld(g, me, def2) && canBuild(g, me, def2, true)) ? def2 : def;
+      // Cheap guns up to three, the tier-2 tower up to two once it is unlocked
+      // (a shared cap let three Sentry Guns lock the Tesla Coil out for good).
+      var nDef = countBld(g, me, def), nDef2 = countBld(g, me, def2);
+      var pick = (canBuild(g, me, def2, true) && nDef2 < (ai.posture === 'defend' ? 3 : 2) && nDef >= 1) ? def2 : (nDef < 3 ? def : null);
+      if (!pick) pick = def;
       // RA2 defences cost $500-1500: buy one when it is affordable beside the
       // army, not at a flat bank level a $500 Sentry Gun never needed.
       var slack = ai.posture === 'defend' ? 1.2 : 2;
@@ -14183,7 +14232,11 @@
     var vehHeavy = !stale && seen.veh > seen.inf * 0.8;
 
     var depth = s.credits > 6000 ? 4 : s.credits > 3000 ? 3 : 2;   // spend the bank
-    if (s.queues.i.list.length < depth && hasBar) {
+    // Saving for a superweapon: with the lab up and an army standing, keep a
+    // reserve the unit lanes may not spend, or the bank never clears the
+    // silo's price at a strategy tick (144 soak matches: 0 built).
+    var reserve = hasBld(g, me, 'lab') && ai.army.length >= cfg.group * 1.5 && g.tick > 60 * 60 * 10 && aiSwWant(g, me) ? 2500 : 0;
+    if (s.queues.i.list.length < depth && hasBar && s.credits > reserve + 300) {
       var atInf = s.fac === 'col' ? 'flak' : 'rocket';        // the faction's AA-capable trooper
       var pick = (airThreat && rnd() < 0.6) ? atInf
                : vehHeavy ? (s.fac === 'col' && rnd() < 0.5 ? 'teslatrooper' : atInf)
@@ -14191,7 +14244,7 @@
       if (s.fac === 'dir' && hasBld(g, me, 'airforce') && rnd() < 0.2 && canBuild(g, me, 'rocketeer', false)) pick = 'rocketeer';
       if (canBuild(g, me, pick, false)) enqueue(g, me, pick, 'i');
     }
-    if (s.queues.v.list.length < depth && hasFac && s.credits > 1200) {
+    if (s.queues.v.list.length < depth && hasFac && s.credits > 1200 + reserve) {
       // Tier-3 armour when the lab is up, fast anti-infantry when the enemy
       // masses infantry, else the line tank; Prism Tanks for the Directorate.
       // The Directorate's tier-3 choice is Mirage (ambush) or Prism Tank
@@ -14371,15 +14424,10 @@
   // its own passable tile on a spiral around the target (the soak found 34
   // units parked on one staging tile, all sharing an identical order).
   function aiMoveSpread(g, units, at) {
-    var k = 0;
+    var taken = {};
     for (var i = 0; i < units.length; i++) {
       var u = units[i]; if (!u || u.dead) continue;
-      var tx = at.x, ty = at.y;
-      for (var tries = 0; tries < 60; tries++, k++) {
-        var r = 0.8 + Math.sqrt(k) * 0.75, a = k * 2.399;
-        var cx = Math.round(at.x + Math.cos(a) * r), cy = Math.round(at.y + Math.sin(a) * r);
-        if (inMap(cx, cy) && tilePassable(g, cx, cy)) { tx = cx; ty = cy; k++; break; }
-      }
+      var sp = spreadSpot(g, at.x, at.y, taken), tx = sp.x, ty = sp.y;
       u.order = { t: 'move', x: tx, y: ty, id: 0 };
       u.guardX = tx; u.guardY = ty; u.repathAt = -999;
       requestPath(g, u, tx, ty);
@@ -14499,17 +14547,24 @@
         budget--;
       }
     }
+    // Idle units gather at the staging point, each on its own tile: far ones
+    // walk over, and any tile holding three or more standing units is broken
+    // up (the soak found whole armies stacked on the barracks door).
+    var toStage = [], tileN = {};
     for (i = 0; i < ai.army.length; i++) {
       u = ai.army[i];
-      if (u === ai.scout || u.order) continue;
+      if (u.dead || u.air || u.order) continue;
+      var tk = Math.round(u.x) + ',' + Math.round(u.y);
+      tileN[tk] = (tileN[tk] || 0) + 1;
+    }
+    for (i = 0; i < ai.army.length; i++) {
+      u = ai.army[i];
+      if (u === ai.scout || u.order || u.air) continue;
       if (ai.garrison.indexOf(u) >= 0) continue;
       var dd = Math.sqrt((u.x - stage.x) * (u.x - stage.x) + (u.y - stage.y) * (u.y - stage.y));
-      if (dd > 4) {
-        u.order = { t: 'move', x: stage.x, y: stage.y, id: 0 };
-        u.guardX = stage.x; u.guardY = stage.y;
-        requestPath(g, u, stage.x, stage.y);
-      }
+      if (dd > 4 || tileN[Math.round(u.x) + ',' + Math.round(u.y)] >= 3) toStage.push(u);
     }
+    if (toStage.length) aiMoveSpread(g, toStage, stage);
   }
 
 
@@ -15023,6 +15078,10 @@
     resumeAudio();
     if (!G || state !== 'play') return;
     var s = G.side[P_HUMAN];
+    if (isBldLane(it.lane) && s.queues[it.lane].ready && s.queues[it.lane].ready !== it.k) {
+      // RA2: nothing else starts on this tab until the finished one is placed.
+      say('Place the ' + bspecOf(G, s.queues[it.lane].ready, P_HUMAN).name + ' first', true); sfx('no'); return;
+    }
     if (isBldLane(it.lane) && s.queues[it.lane].ready === it.k) {
       placing = it.k; cv.classList.add('placing');
       say('Click anywhere in the green area to place the ' + it.spec.name + '. Esc cancels.');
@@ -15126,6 +15185,8 @@
     keys[e.key.toLowerCase()] = true;
 
     if (e.key === 'Escape') {
+      if (hv.classList.contains('show')) { hv.classList.remove('show'); return; }
+      if (lv.classList.contains('show')) { lv.classList.remove('show'); return; }
       if (swCancel()) return;
       if (cmdMode) { cmdMode = null; cv.style.cursor = 'default'; refreshCmdbar(); say('Mode cancelled'); return; }
       if (pathMode) { pathMode = false; refreshCmdbar(); say('Waypoint mode off'); return; }
@@ -15576,12 +15637,6 @@
       ux = (ux - cvW / 2) * zoom + cvW / 2; uy = (uy - cvH / 2) * zoom + cvH / 2;   // to screen px
       if (ux >= x && ux <= x + w && uy >= y && uy <= y + h) { u.sel = true; sel.push(u); got++; }
     });
-    // Prefer combat units: a box over the base shouldn't hand you harvesters.
-    var fighters = sel.filter(function (u) { return u.kind === 'u' && UNITS[u.type].dmg > 0; });
-    if (fighters.length && fighters.length < sel.length) {
-      sel.forEach(function (u) { if (fighters.indexOf(u) < 0) u.sel = false; });
-      sel = fighters;
-    }
     if (sel.length) say(sel.length + ' selected'); else if (got === 0) say('Nothing selected');
   }
 
@@ -15596,7 +15651,7 @@
   // seam; sent anywhere else they go there and HOLD (see stepHarvester).
   function orderUnitsTo(g, units, gx, gy, opts) {
     opts = opts || {};
-    var onOre = oreT(g.terrain[idx(gx, gy)]), n = 0;
+    var onOre = oreT(g.terrain[idx(gx, gy)]), n = 0, taken = {};
     units.forEach(function (u, i) {
       // Shift-click queues a waypoint behind the current order (RA2 waypoint
       // mode); a plain order replaces the whole queue.
@@ -15610,11 +15665,9 @@
         n++;
         return;
       }
-      // Spread a group over a small ring so they don't fight for one tile.
-      var ring = Math.floor(i / 6), slot = i % 6;
-      var a = slot / 6 * Math.PI * 2;
-      var tx = Math.max(0, Math.min(MAP - 1, gx + Math.round(Math.cos(a) * ring)));
-      var ty = Math.max(0, Math.min(MAP - 1, gy + Math.round(Math.sin(a) * ring)));
+      // One destination cell per unit (the old six-per-ring put the first
+      // six on the exact target tile — ten Rhinos arrived as one pile).
+      var sp = u.air ? { x: gx, y: gy } : spreadSpot(g, gx, gy, taken), tx = sp.x, ty = sp.y;
       u.order = { t: 'move', x: tx, y: ty, id: 0 };
       u.guardX = tx; u.guardY = ty; u.repathAt = -999; u.path = null;
       if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.noProg = 0; }
@@ -15747,9 +15800,16 @@
     if (!G) return;
     var r = mini.getBoundingClientRect();
     var fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    if (e.button === 2) {
+      // RA2: a right-click on the radar is an order to that spot.
+      var own = sel.filter(function (u) { return u.kind === 'u' && u.p === P_HUMAN && !u.dead; });
+      if (own.length && state === 'play') { orderUnitsTo(G, own, Math.round(fx * MAP), Math.round(fy * MAP), { voice: true }); sfx('click'); }
+      return;
+    }
     centerOn(fx * MAP, fy * MAP);
     clampCam();
   });
+  mini.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // --- camera ------------------------------------------------------------
   // Three rules learned the hard way:
@@ -16947,6 +17007,9 @@
 
   document.getElementById('helpBtn').addEventListener('click', function () { hv.classList.add('show'); });
   document.getElementById('hvClose').addEventListener('click', function () { hv.classList.remove('show'); });
+  // A click on the dimmed backdrop closes the card too (and never reaches the map).
+  hv.addEventListener('pointerdown', function (e) { if (e.target === hv) hv.classList.remove('show'); });
+  lv.addEventListener('pointerdown', function (e) { if (e.target === lv) lv.classList.remove('show'); });
   document.getElementById('lbBtn').addEventListener('click', function () { openBoard(); });
   document.getElementById('lvClose').addEventListener('click', function () { lv.classList.remove('show'); });
   document.getElementById('lbReset').addEventListener('click', function () {
