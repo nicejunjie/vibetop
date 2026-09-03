@@ -1434,7 +1434,7 @@ test("a deployed GI fires from its sandbags: longer range, double rate, and it w
   assert.ok(Math.abs(deployed.x - 40) > 0.5 || Math.abs(deployed.y - 40) > 0.5, "packed up, he walks");
 });
 
-test("debug mode: instant build, bottomless credits, full map, and 10x damage both ways for the player only", () => {
+test("debug mode: instant build, bottomless credits and full map — but combat is normal", () => {
   const H = W.__rtsTest;
   const g = H.begin(55030, "normal", undefined, true);
   const s = g.start[0];
@@ -1447,19 +1447,24 @@ test("debug mode: instant build, bottomless credits, full map, and 10x damage bo
   H.step(3);
   assert.equal(g.side[0].queues.i.list.length, 0, "a queued GI should finish instantly in debug mode");
 
-  // A GI shot on an enemy harvester does 10x; an enemy GI on the player's harvester does 1/10.
-  const gi = T.UNITS.rifle, hv = T.UNITS.chronominer;
-  // Far from the base: the GI that just came out of the barracks would join in.
-  const mine = H.spawn("rifle", 0, 30, 30), theirs = H.spawn("harvester", 1, 31, 30);
-  mine.order = { t: "attack", id: theirs.id, x: theirs.x, y: theirs.y };
-  const foe = H.spawn("rifle", 1, 50, 50), ours = H.spawn("harvester", 0, 51, 50);
-  foe.order = { t: "attack", id: ours.id, x: ours.x, y: ours.y };
+  // Combat is NOT touched by debug mode (user, 2026-09-03): the cheats are
+  // build/credits/vision only, so a debug game measures the same fight a
+  // normal one does.
+  // Conscripts on both sides: no `dep` weapon, so an AI-side shooter cannot
+  // dig in and change warhead mid-test (a GI does, and SSA is not SA).
+  const gi = T.UNITS.conscript;
+  const mine = H.spawn("conscript", 0, 30, 30), theirs = H.spawn("conscript", 1, 31, 30);
+  const foe = H.spawn("conscript", 1, 40, 40), ours = H.spawn("conscript", 0, 41, 40);
+  mine.cool = 0; foe.cool = 0;
   H.step(2);
-  const base = gi.dmg * T.verses(gi.wh, hv.armour);
-  assert.ok(Math.abs((theirs.maxhp - theirs.hp) - base * 10) < 0.5, `player hit should be 10x (${theirs.maxhp - theirs.hp} vs ${base * 10})`);
-  assert.ok(Math.abs((ours.maxhp - ours.hp) - base / 10) < 0.5, `player should take 1/10 (${ours.maxhp - ours.hp} vs ${base / 10})`);
+  // Each side's expectation comes from what actually spawned: a faction can
+  // substitute its own infantry, and the two have different armour.
+  const expect = (tg) => gi.dmg * T.verses(gi.wh, T.UNITS[tg.type].armour);
+  assert.ok(Math.abs((theirs.maxhp - theirs.hp) - expect(theirs)) < 0.5,
+    `the player's hit must be normal (${theirs.maxhp - theirs.hp} vs ${expect(theirs)})`);
+  assert.ok(Math.abs((ours.maxhp - ours.hp) - expect(ours)) < 0.5,
+    `and the player must take normal damage (${ours.maxhp - ours.hp} vs ${expect(ours)})`);
 
-  // And off by default: a normal game is untouched.
   const g2 = H.begin(55031, "normal");
   H.build("base", 0, g2.start[0].x - 1, g2.start[0].y - 1);
   H.step(2);
@@ -1938,6 +1943,32 @@ test("a wall stops a Rhino, shrugs off a warhead with no Wall= and falls to one 
   H.orderAttack([tank], wall);
   H.step(900);
   assert.ok(wall.hp < hp0 || wall.dead, "a tank shell chews the wall down");
+});
+
+test("a wall laid in line with one of yours closes the gap between them", () => {
+  // RA2 walls only join when they touch, so two clicked posts a few cells
+  // apart are two posts. A segment laid in line with one of your own walls
+  // fills the run between them (user, 2026-09-03: "extend their range").
+  const H = W.__rtsTest, API = H.api;
+  const g = H.begin(6301, "normal");
+  const s = g.start[0];
+  H.build("base", 0, s.x - 1, s.y - 1);
+  H.build("barracks", 0, s.x + 3, s.y - 1);
+  g.side[0].credits = 99999;
+  const walls = () => g.blds.filter((b) => b.type === "wall" && !b.dead).length;
+  const y = s.y + 5, x0 = s.x - 4;
+  assert.ok(H.build("wall", 0, x0, y), "first segment stands");
+  const before = walls();
+  const laid = API.linkWall(x0 + 6, y, "wall");     // six cells away, same row
+  H.step(4);
+  assert.ok(laid >= 4, `the gap was filled (${laid} sections)`);
+  assert.equal(walls(), before + laid, "and every one of them is on the map");
+  for (let x = x0 + 1; x < x0 + 6; x++) {
+    assert.ok(g.blds.some((b) => b.type === "wall" && !b.dead && b.x === x && b.y === y),
+      `cell ${x},${y} is walled`);
+  }
+  // Out of line, or too far, and nothing is filled.
+  assert.equal(API.linkWall(x0 + 3, y + 4, "wall"), 0, "a cell off the line links nothing");
 });
 
 test("a gate opens for its owner and stays shut to the enemy", () => {

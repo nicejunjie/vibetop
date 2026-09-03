@@ -533,7 +533,8 @@
   <span class="spacer"></span>
   <button id="helpBtn" title="How to play">?</button>
   <button id="lbBtn" title="Best results">🏆</button>
-  <button id="sndBtn" title="Sound">🔊</button>
+  <button id="sndBtn" title="Sound on/off">🔊</button>
+  <button id="optBtn" title="Settings: volume, game speed, save/load (Esc)">⚙</button>
   <button id="pauseBtn" title="Pause (P)">⏸</button>
   <button id="newBtn">New</button>
 </div>
@@ -583,7 +584,7 @@
     <table id="scoreCard" hidden></table>
     <div id="scores"></div>
     <div class="cardfoot">
-      <label class="dbgrow" title="Cheats for testing: instant build, unlimited credits, the whole map revealed, your units take 1/10 damage and deal 10x. Wins are not recorded."><input type="checkbox" id="dbgChk"> Debug mode</label>
+      <label class="dbgrow" title="Cheats for testing: instant build, unlimited credits and the whole map revealed. Combat is exactly as in a normal game. Wins are not recorded."><input type="checkbox" id="dbgChk"> Debug mode</label>
       <div class="btns">
         <button class="primary" id="ovA">Start Game</button>
         <button class="ghost" id="ovB" style="display:none">Cancel</button>
@@ -18557,10 +18558,6 @@
     if (tgt.kind === 'u' && tgt.prone) mult *= proneMul(wh);         // rules.ini ProneDamage
     if (tgt.kind === 'u' && tgt.rank) mult /= vetArmour(tgt.rank);   // veterans are tougher (VeteranArmor)
     if (tgt.arMul) mult /= tgt.arMul;                                // [Powerups] Armor crate, x1.5
-    if (g.debug) {                                                    // debug mode: the player hits 10x and takes 1/10
-      if (src.p === P_HUMAN && tgt.p !== P_HUMAN) mult *= 10;
-      else if (tgt.p === P_HUMAN && src.p !== P_HUMAN) mult /= 10;
-    }
     tgt.hp -= amount * mult;
     // RA2 infantry hit the dirt the moment they are shot at and stay down
     // while the fire lasts. A man executing a real move order keeps running;
@@ -25296,13 +25293,61 @@
   // map; clicking a charged one puts the cursor into targeting mode. The AI's
   // clocks are never drawn — you learn about its nuke from EVA, as in RA2.
   var swBar = document.getElementById('swbar'), swEls = {}, swMode = null;
+  // A paratrooper under a canopy, drawn at the cameo's own size: full canopy
+  // arc with gores and a lit crown, eight shroud lines converging on a
+  // harness, and a small man in the owner's colour with his legs together.
+  var paraIcon = null;
+  function bakeParaIcon() {
+    if (!paraIcon) {
+      var W = 60, H = 48, c = mkCanvas(W, H), g = c.g;
+      g.fillStyle = '#0d1016'; g.fillRect(0, 0, W, H);
+      g.fillStyle = '#1a2130'; g.fillRect(1, 1, W - 2, H - 2);
+      var cxp = W / 2, cyp = 17, rr = 15;
+      g.beginPath(); g.moveTo(cxp - rr, cyp); g.arc(cxp, cyp, rr, Math.PI, 0); g.closePath();
+      g.fillStyle = '#c9d6e4'; g.fill();
+      g.fillStyle = 'rgba(255,255,255,.55)';                       // lit crown
+      g.beginPath(); g.moveTo(cxp - rr * 0.55, cyp); g.arc(cxp, cyp, rr * 0.55, Math.PI, 0); g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(40,52,70,.55)'; g.lineWidth = 1;       // gores
+      for (var gi = 1; gi < 4; gi++) {
+        var ga = Math.PI + gi * (Math.PI / 4);
+        g.beginPath(); g.moveTo(cxp, cyp); g.lineTo(cxp + Math.cos(ga) * rr, cyp + Math.sin(ga) * rr); g.stroke();
+      }
+      g.beginPath(); g.moveTo(cxp - rr, cyp); g.arc(cxp, cyp, rr, Math.PI, 0); g.closePath();
+      g.strokeStyle = 'rgba(30,40,56,.8)'; g.lineWidth = 1.2; g.stroke();
+      g.strokeStyle = 'rgba(210,222,236,.9)'; g.lineWidth = 0.8;   // shrouds
+      for (var si = 0; si <= 6; si++) {
+        var sx0 = cxp - rr + si * (rr * 2 / 6);
+        g.beginPath(); g.moveTo(sx0, cyp + 1); g.lineTo(cxp, cyp + 17); g.stroke();
+      }
+      var mc = COL[P_HUMAN] || '#4aa3db';
+      g.fillStyle = mc;                                            // trooper
+      g.beginPath(); g.ellipse(cxp, cyp + 22, 3.2, 4.4, 0, 0, 6.29); g.fill();
+      g.fillStyle = '#e2c6a0';
+      g.beginPath(); g.arc(cxp, cyp + 17.5, 2.4, 0, 6.29); g.fill();
+      g.fillStyle = '#2e3a4c';
+      g.beginPath(); g.arc(cxp, cyp + 17, 2.6, Math.PI, 0); g.closePath(); g.fill();
+      g.strokeStyle = '#2e3a4c'; g.lineWidth = 1.6; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(cxp - 1.4, cyp + 26); g.lineTo(cxp - 2.2, cyp + 30);
+      g.moveTo(cxp + 1.4, cyp + 26); g.lineTo(cxp + 2.2, cyp + 30); g.stroke();
+      g.strokeStyle = '#3a4456'; g.lineWidth = 1; g.strokeRect(0.5, 0.5, W - 1, H - 1);
+      paraIcon = c.c;
+    }
+    var out = document.createElement('canvas');
+    out.width = paraIcon.width; out.height = paraIcon.height;
+    out.style.width = '60px'; out.style.height = '48px';
+    out.getContext('2d').drawImage(paraIcon, 0, 0);
+    return out;
+  }
   function mkSwIcon(k) {
     var el = document.createElement('div');
     el.className = 'swic'; el.title = SW[k].name;
     var arc = document.createElement('div'); arc.className = 'arc';
     var em = document.createElement('span'); em.className = 'em';
-    // RA2 stacks the superweapon's own cameo, not a glyph.
-    var cam = G ? cameoFor(SW[k].bld, true, G.side[P_HUMAN].fac) : null;
+    // RA2 stacks the superweapon's own cameo, not a glyph. The paradrop has
+    // no structure of its own to crop (it comes off a captured Airport), and
+    // its emoji (U+1FA82) is missing from most font sets — it rendered as a
+    // tofu box. Draw the canopy instead.
+    var cam = k === 'para' ? bakeParaIcon() : (G ? cameoFor(SW[k].bld, true, G.side[P_HUMAN].fac) : null);
     if (cam) em.appendChild(cam); else em.textContent = SW[k].em;
     var cd = document.createElement('span'); cd.className = 'cd';
     el.appendChild(arc); el.appendChild(em); el.appendChild(cd);
@@ -26897,9 +26942,10 @@
   // $100 out of the bank until you let go, cancel, or run out. The cameo
   // stays READY the whole time, so a perimeter is one purchase and one drag.
   var wallDrag = null, wallFree = false;
-  function laySeg(gx, gy) {
-    var d = BLDS[placing];
-    if (!canPlace(G, P_HUMAN, placing, gx, gy)) return false;
+  function laySeg(gx, gy, key) {
+    key = key || placing;
+    var d = BLDS[key];
+    if (!canPlace(G, P_HUMAN, key, gx, gy)) return false;
     if (!wallFree && G.side[P_HUMAN].credits < d.cost) {
       // Read-only affordability test: the drag has to STOP here and now, so
       // it cannot wait two ticks for the command to land. The deduction
@@ -26908,7 +26954,7 @@
       sfx('no'); placing = null; wallDrag = null; cv.classList.remove('placing');
       return false;
     }
-    cmd('wall', { k: placing, x: gx, y: gy, free: wallFree ? 1 : 0 });
+    cmd('wall', { k: key, x: gx, y: gy, free: wallFree ? 1 : 0 });
     wallFree = false;
     return true;
   }
@@ -26927,6 +26973,37 @@
       wallDrag.x = x; wallDrag.y = y;
     }
   }
+  // RA2 walls only *join* when they touch, so two pieces a few cells apart are
+  // two posts and a gap. Rather than make the art bridge thin air, a segment
+  // laid in line with one of your own walls fills the run between them — the
+  // pieces link at a distance, which is what "one wall" means when you place
+  // it by clicking rather than dragging.
+  var WALL_LINK = 10;
+  function linkWall(gx, gy, key) {
+    key = key || placing;
+    if (!key || !BLDS[key] || !BLDS[key].wall) return 0;
+    var best = null, bd = 1e9;
+    for (var i = 0; i < G.blds.length; i++) {
+      var b = G.blds[i];
+      if (b.dead || b.p !== P_HUMAN || !BLDS[b.type].wall) continue;
+      var dx = gx - b.x, dy = gy - b.y;
+      if (dx === 0 && dy === 0) continue;
+      // In line: same row, same column, or a true diagonal.
+      if (dx !== 0 && dy !== 0 && Math.abs(dx) !== Math.abs(dy)) continue;
+      var n = Math.max(Math.abs(dx), Math.abs(dy));
+      if (n < 2 || n > WALL_LINK || n >= bd) continue;
+      bd = n; best = { x: b.x, y: b.y, sx: Math.sign(dx), sy: Math.sign(dy), n: n };
+    }
+    if (!best) return 0;
+    var laid = 0;
+    for (var k = 1; k < best.n; k++) {
+      var cx2 = best.x + best.sx * k, cy2 = best.y + best.sy * k;
+      if (!canPlace(G, P_HUMAN, key, cx2, cy2)) continue;
+      if (!laySeg(cx2, cy2, key)) break;
+      laid++;
+    }
+    return laid;
+  }
   function tryPlace(px, py) {
     var gp = screenToGrid(px, py);
     var d = bspecFor(placing, facOf(G, P_HUMAN));
@@ -26939,7 +27016,9 @@
         return;
       }
       wallDrag = { x: gx, y: gy };      // the ready flag is cleared by the wall command
-      say('Drag to run the wall — right click when you are done', false, 200);
+      var linked = linkWall(gx, gy);    // in line with one of ours: close the gap
+      say(linked ? 'Wall joined — ' + (linked + 1) + ' sections laid'
+                 : 'Drag to run the wall — right click when you are done', false, 200);
       return;
     }
     if (!canPlace(G, P_HUMAN, placing, gx, gy)) {
@@ -29578,6 +29657,12 @@
     opts.speed = v; saveOpts();
     if (G && G.opt) G.opt.speed = v;
   });
+  // The card was reachable by Esc only, which nobody finds. The gear in the
+  // top bar is the discoverable way in, during a match or at the menu.
+  function wireOptBtn() {
+    var ob = document.getElementById('optBtn');
+    if (ob) ob.addEventListener('click', function () { resumeAudio(); if (optOpen) closeOptions(); else showOptions(); });
+  }
   function showOptions() {
     if (state === 'play') togglePause(true);
     optOpen = true;
@@ -29759,6 +29844,7 @@
   function openHelp() { hv.classList.add('show'); helpPaused = state === 'play'; if (helpPaused) togglePause(true); }
   function closeHelp() { hv.classList.remove('show'); if (helpPaused && state === 'paused') togglePause(); helpPaused = false; }
   document.getElementById('helpBtn').addEventListener('click', openHelp);
+  wireOptBtn();
   document.getElementById('hvClose').addEventListener('click', closeHelp);
   // A click on the dimmed backdrop closes the card too (and never reaches the map).
   hv.addEventListener('pointerdown', function (e) { if (e.target === hv) closeHelp(); });
@@ -29859,7 +29945,7 @@
     applyHouse(opts.colour, opts.aiColour);
     G = newState(seed, difficulty, mapId, opts);
     G.debug = debugMode;
-    if (debugMode) setTimeout(function () { say('Debug mode — instant build, unlimited credits, full map, 10× units; this game is not scored'); }, 400);
+    if (debugMode) setTimeout(function () { say('Debug mode — instant build, unlimited credits, full map; combat is normal and this game is not scored'); }, 400);
     G.side[P_HUMAN].fac = faction;
     G.side[P_AI].fac = faction === 'dir' ? 'col' : 'dir';   // always the other side
     G.ai = newAI(difficulty);
@@ -30167,7 +30253,7 @@
       for (var k in hash) { keys++; entries += hash[k].length; }
       return { hashAt: hashAt, hashKeys: keys, hashEntries: entries, pathQ: pathQ.length };
     },
-    api: { astar: astar, damage: damage, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
+    api: { astar: astar, linkWall: function (x, y, k) { return linkWall(x, y, k); }, damage: damage, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
            countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld,
            findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf,
            canBuild: canBuild, swBld: swBld, techCount: techCount,
