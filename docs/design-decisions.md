@@ -7707,3 +7707,38 @@ wave's does not.
 only a rendered frame can catch. Drive one set-piece per feature and LOOK at it;
 "the tests are green" is a statement about the simulation.
 
+
+## The top bar's icons are drawn, not typed (2026-09-03)
+
+**Symptom.** (user) "the icon just looks like a dot, no one would know it is
+'setting'". The Settings button in the RTS top bar was a `⚙` character.
+
+**Cause.** Two faults stacked. `#optBtn` was never added to the
+`#helpBtn, #lbBtn, #pauseBtn, #sndBtn` style group, so it kept the default
+purple pill instead of the dark icon-button treatment and stood out as the odd
+one in the row. And U+2699 GEAR is a **text-presentation** codepoint: at the
+bar's 12px most families draw it as a thin open ring, which at that size is a
+dot. This is the same font dependency that rendered the paradrop clock as a
+tofu box — a glyph is only as good as the viewer's font stack.
+
+The same defect ran along the whole row once looked at: `⏸` was a bare square,
+`▶` a thin triangle, `🔊`/`🔇` faint outlines, and the title's `⚔️` crossed
+swords collapsed to an `✕` that read as a **close button** sitting next to a
+row of real buttons.
+
+**Fix.** Every mark in the bar is now inline SVG with `fill: currentColor`, so
+it inherits the button's colour and hover state and cannot be substituted:
+an eight-tooth gear, two pause bars, a play triangle, a speaker with arcs and
+a muted speaker with a cross. The Settings button also carries the **word**,
+because it is the one control a player should never have to guess at, and
+`#optBtn` joined the icon-button group so the row is visually uniform.
+
+**Rejected.** *`⚙️` with the U+FE0F emoji variation selector.* It only moves
+the dependency from the text font to the emoji font — precisely the failure
+the paradrop icon already taught us.
+
+**Rejected.** *Keeping crossed swords as the title mark, drawn larger or with
+heavier guards and pommels.* Tried twice and checked at 8× device scale: at
+the 15px the bar allows, the guards merge into the blades and it stays an X.
+A mark that reads as "close" beside real buttons is worse than no mark, so the
+title is now just the bold word.
