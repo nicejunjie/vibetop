@@ -945,7 +945,7 @@
     var o = {}; for (var k in b) o[k] = b[k]; for (k in b.byFac[fac]) o[k] = b.byFac[fac][k];
     return (_bspec[ck] = o);
   }
-  function bspecOf(g, key, p) { return bspecFor(key, g.side[p].fac); }
+  function bspecOf(g, key, p) { return bspecFor(key, facOf(g, p)); }   // facOf handles the neutral house (-1): killing a derrick used to throw here
   function ucap(g, u) { var d = UNITS[u.type]; return g.side[u.p].fac === 'col' && d.capCol ? d.capCol : d.cap; }
   // RA2 has no unit called "harvester" — it has a Chrono Miner and a War
   // Miner. The word survives here as the ROLE, resolved to the faction's
@@ -16642,7 +16642,7 @@
     SPR_UNPK[ky] = out;
     return out;
   }
-  var MCV_T = 48;                               // ~0.8s of unpack before the MAKE
+  var MCV_T = 0;                                // no unpack delay either (see MAKE_T) — was ~0.8s of unpack before the MAKE
 
   // RA2 plays a DOOR sequence when a unit comes out: [GAWEAP]'s UnderDoorAnim
   // + RoofDeployingAnim, [NAWEAP]'s maw leaf, the [GAPILE]/[NAHAND] barracks
@@ -16929,7 +16929,7 @@
     return u;
   }
 
-  var MAKE_T = 150;                             // ~2.5s of MAKE at 60 ticks/s
+  var MAKE_T = 0;                               // no build-up animation: the user wants placed structures to appear complete (asked twice)
   // Production doors. RA2's [GAWEAP] DoorStages=10: the door opens, the
   // vehicle comes out of the mouth, the door shuts behind it. Only the War
   // Factory and the Barracks have one (the Airforce Command lowers a Harrier
@@ -18087,7 +18087,7 @@
     // the ore instead). On arrival it HOLDS for a while, like an RA2 miner
     // parked by hand, then goes back to work on its own.
     if (u.order && u.order.t === 'move') {
-      if (u.deployed) u.deployed = false;                    // RA2: a move order packs the sandbags up
+      if (u.deployed && u.p !== P_HUMAN) u.deployed = false; // AI packs up on a move; a human's deployed GI stays put until D
       var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
       if (mdx * mdx + mdy * mdy < 1.4) {
         u.order = null; u.path = null; u.state = 'idle'; u.mineAt = null;
@@ -18710,7 +18710,7 @@
     }
     if (u.deployed) {
       // Chasing a target undeploys; a plain hold stays put.
-      if (u.order && u.order.t !== 'attack') u.deployed = false; else return false;
+      if (u.p !== P_HUMAN && u.order && u.order.t !== 'attack') u.deployed = false; else return false;   // deployed men do not walk
     }
     if (u.air) return flyToward(g, u, tx, ty, spd);
     if (!u.path) {
@@ -24606,8 +24606,10 @@
   // seam; sent anywhere else they go there and HOLD (see stepHarvester).
   function orderUnitsTo(g, units, gx, gy, opts) {
     opts = opts || {};
-    var onOre = oreT(g.terrain[idx(gx, gy)]), n = 0, taken = {};
+    var onOre = oreT(g.terrain[idx(gx, gy)]), n = 0, taken = {}, held = 0;
     units.forEach(function (u, i) {
+      // RA2: a deployed GI does not take move orders — D packs him up first.
+      if (u.deployed && u.p === P_HUMAN && !opts.queue) { held++; return; }
       // Shift-click queues a waypoint behind the current order (RA2 waypoint
       // mode); a plain order replaces the whole queue.
       if (opts.queue && u.order) { (u.wp || (u.wp = [])).push({ x: gx, y: gy }); n++; return; }
@@ -24630,6 +24632,7 @@
       n++;
     });
     if (opts.voice && n) unitAck(units, onOre ? 'harvest' : 'move');
+    if (held && !n && !headless) { say('Deployed — press D to pack up before moving', true); sfx('no'); }
     return n;
   }
   // ---- RA2's three "go and fight" orders ---------------------------------

@@ -348,7 +348,7 @@ per state, for every structure and defence, both factions.
   debris on ballistic arcs, stands a smoke column over the wreck, and leaves
   a baked rubble decal per footprint size (soft scorch, churned crater,
   broken slabs, twisted rebar) on the ground layer, passable, fading over 60s.
-- ☑ MAKE build-up per structure (apron first, then a rising wipe behind a
+- ☒ MAKE build-up per structure — REMOVED at the user's request (asked twice; MAKE_T = 0, no unpack delay, instant sell). Was: MAKE build-up per structure (apron first, then a rising wipe behind a
   scaffold girder + working crane, 7 phases baked lazily per key, ~2.5s,
   inert while it runs); ☑ MCV unpack ([GACNST] `Buildup=GACNSTMK`) plays
   FIRST — four frames baked off this owner's MCV sprite at the facing it

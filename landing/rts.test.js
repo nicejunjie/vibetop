@@ -1413,9 +1413,17 @@ test("a deployed GI fires from its sandbags: longer range, double rate, and it w
   assert.ok(farB.hp < farB.maxhp, "a deployed GI must reach 5 tiles");
   assert.ok(Math.abs(deployed.x - 40) < 0.01 && Math.abs(deployed.y - 40) < 0.01, "a deployed GI must not move");
 
+  // RA2 (and the user, twice): a deployed GI does not walk. A move order on a
+  // human's deployed man is refused at the order path and, if it does land on
+  // him, he stays put and stays deployed until D packs him up.
   deployed.order = { t: "move", x: 30, y: 30 };
   H.step(30);
-  assert.equal(deployed.deployed, false, "a move order must undeploy");
+  assert.equal(deployed.deployed, true, "a move order must not undeploy a human's GI");
+  assert.ok(Math.abs(deployed.x - 40) < 0.01 && Math.abs(deployed.y - 40) < 0.01, "and he must not move");
+  deployed.deployed = false;                                  // D
+  deployed.order = { t: "move", x: 30, y: 30 }; deployed.path = null; deployed.repathAt = -999;
+  H.step(120);
+  assert.ok(Math.abs(deployed.x - 40) > 0.5 || Math.abs(deployed.y - 40) > 0.5, "packed up, he walks");
 });
 
 test("debug mode: instant build, bottomless credits, full map, and 10x damage both ways for the player only", () => {
