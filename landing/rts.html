@@ -1151,7 +1151,7 @@
       ore: new Float32Array(MAP * MAP),
       occ: new Int32Array(MAP * MAP),             // entity id occupying a tile, 0 = free
       seen: new Uint8Array(MAP * MAP),            // shroud: tiles the human has ever had in sight
-      units: [], blds: [], shots: [], fx: [], wrecks: [], storms: [], nukes: [], byId: {},
+      units: [], blds: [], shots: [], fx: [], wrecks: [], rubble: [], storms: [], nukes: [], byId: {},
       flash: 0, mmFlash: null,                    // nuke whiteout + the minimap ping on an incoming superweapon
       nextId: 1,
       side: [ newSide(P_HUMAN), newSide(P_AI) ],
@@ -5326,7 +5326,22 @@
   // structure renders from geometry below. bakePix stays for later.
   var PIXBLD = {};
 
-  function bakeBuilding(key, col, fac, bph) {
+  // A gun raised `el` radians and traversed to WORLD bearing `th`, seen in
+  // this isometric projection: `a` is the angle to draw the barrel at on the
+  // sprite, `k` how much it foreshortens, and (sx,sy) the screen-space unit
+  // vector of the bearing itself (what a launcher or a gun slit slides along).
+  // At th = -PI/4 this returns exactly the head-on pose the defences were
+  // drawn in, so a null bearing and bearing 7 look the same.
+  function gunAim(th, el) {
+    var sdx = Math.cos(th) - Math.sin(th), sdy = (Math.cos(th) + Math.sin(th)) * 0.5;
+    var m = Math.sqrt(sdx * sdx + sdy * sdy) || 1;
+    sdx /= m; sdy /= m;
+    var ce = Math.cos(el), se = Math.sin(el);
+    var vx = sdx * ce, vy = sdy * ce - se;
+    return { a: Math.atan2(vy, vx), k: Math.sqrt(vx * vx + vy * vy), sx: sdx, sy: sdy };
+  }
+
+  function bakeBuilding(key, col, fac, bph, bdir) {
     if (PIXBLD[key]) return bakePix(PIXBLD[key], col);
     var sov = fac === 'col';                    // Collective reads as RA2's Soviets
     var b = BLDS[key];
@@ -8761,7 +8776,9 @@
       // The gun slit: a dark notch cut low in the navy collar on the near
       // right, flaring amber on two of the six phases. The Pillbox's shots
       // leave the footprint centre, so the slit stays on the near face.
-      var slX = cx + fw * 0.40, slY = baseY - 7.8;
+      var slDX = 0.707, slDY = 0.354;                         // head-on, the pose it is drawn in
+      if (bdir != null) { var slAim = gunAim(bdir, 0); slDX = slAim.sx; slDY = slAim.sy; }
+      var slX = cx + slDX * fw * 0.56, slY = baseY - 7.8 + slDY * 5.0;
       g.fillStyle = '#0a0c10';
       g.beginPath(); g.ellipse(slX, slY, 5.0, 2.0, 0.22, 0, 6.29); g.fill();
       g.fillStyle = 'rgba(206,214,228,.30)';
@@ -11343,7 +11360,9 @@
         };
         sgPlate(-11.2, 10.0, false); sgPlate(-1.9, 10.4, true);
         // ---- twin barrels, raised ~62 deg -----------------------------------
-        var sgA = -1.082 + anS * 0.08;                          // slew
+        // Slew: idle wobble with no target, the real bearing with one.
+      var sgA = -1.082 + anS * 0.08, sgK = 1;
+      if (bdir != null) { var sgAim = gunAim(bdir, 1.082); sgA = sgAim.a; sgK = sgAim.k; }
         var sgTx = cx + 1.5, sgTy = baseY - 25;
         g.fillStyle = SGN_ARMD;                                 // trunnion
         g.beginPath(); g.ellipse(sgTx, sgTy, 4.6, 4.0, 0, 0, 6.29); g.fill();
@@ -11351,6 +11370,7 @@
         g.beginPath(); g.ellipse(sgTx - 1, sgTy - 1.2, 2.2, 1.8, 0, 0, 6.29); g.fill();
         var sgBar = function (rx3, ry3, len, w4) {
           var ex3 = sgTx + rx3, ey3 = sgTy + ry3;
+          len *= sgK;
           var tx3 = ex3 + Math.cos(sgA) * len, ty3 = ey3 + Math.sin(sgA) * len;
           g.lineCap = 'butt';
           g.strokeStyle = SGN_BARD; g.lineWidth = w4 + 1.8;
@@ -11439,23 +11459,34 @@
       // ---- the launcher: four chunky tubes in a 2x2 stack -------------------
       // Traverse and tilt come off the phase: the whole block leans a little
       // and slides a pixel or two, which is what the sprite's idle does.
-      var trv = anS * 1.8, tlt = Math.cos(anP) * 1.2;
+      var trv = anS * 1.8, tlt = Math.cos(anP) * 1.2, ptLean = 0;
+      if (bdir != null) {
+        var ptAim = gunAim(bdir, 0);
+        trv = ptAim.sx * 3.0; tlt = ptAim.sy * 2.4; ptLean = ptAim.sx * 10.0;
+      }
       var ptTube = function (dx, yb, hgt, lit) {
         var x0 = cx + dx + trv, y1 = yb - hgt + tlt * (dx < 0 ? -1 : 1) * 0.4;
+        var xt = x0 + ptLean;
         g.fillStyle = lit ? PT_BOX : shade(PT_BOX, 0.72);
         g.beginPath();
         g.moveTo(x0 - 6.4, yb); g.lineTo(x0 + 6.4, yb - 2.2);
-        g.lineTo(x0 + 6.4, y1 - 2.2); g.lineTo(x0 - 6.4, y1);
+        g.lineTo(xt + 6.4, y1 - 2.2); g.lineTo(xt - 6.4, y1);
         g.closePath(); g.fill(); outline(g, PT_BOXD);
         g.fillStyle = lit ? PT_BOXL : shade(PT_BOX, 0.94);       // lit left strip
-        g.fillRect(x0 - 6.0, y1 + 1, 2.4, hgt - 2);
+        g.beginPath();
+        g.moveTo(x0 - 6.0, yb - 1); g.lineTo(x0 - 3.6, yb - 1);
+        g.lineTo(xt - 3.6, y1 + 1); g.lineTo(xt - 6.0, y1 + 1);
+        g.closePath(); g.fill();
         g.fillStyle = 'rgba(0,0,0,.28)';                          // shaded right strip
-        g.fillRect(x0 + 2.8, y1 - 1.4, 3.4, hgt - 2);
+        g.beginPath();
+        g.moveTo(x0 + 2.8, yb - 1.4); g.lineTo(x0 + 6.2, yb - 1.4);
+        g.lineTo(xt + 6.2, y1 - 1.4); g.lineTo(xt + 2.8, y1 - 1.4);
+        g.closePath(); g.fill();
         g.fillStyle = '#0c1016';                                  // the mouth
-        g.beginPath(); g.ellipse(x0, y1 - 1.1, 6.4, 2.8, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(xt, y1 - 1.1, 6.4, 2.8, 0, 0, 6.29); g.fill();
         g.strokeStyle = '#98a0b2'; g.lineWidth = 1.1; g.stroke();
         g.fillStyle = 'rgba(228,234,244,.55)';
-        g.beginPath(); g.ellipse(x0 - 1.6, y1 - 1.9, 2.2, 0.9, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(xt - 1.6, y1 - 1.9, 2.2, 0.9, 0, 0, 6.29); g.fill();
       };
       ptTube(-8.5, baseY - 20, 31, false);                        // back-left
       ptTube(4.5, baseY - 23, 31, false);                         // back-right
@@ -11465,13 +11496,13 @@
       // ---- one broad house strap across the front of the block --------------
       g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 11.2 + trv, baseY - 26.0); g.lineTo(cx + 15.4 + trv, baseY - 31.0);
-      g.lineTo(cx + 15.4 + trv, baseY - 36.4); g.lineTo(cx - 11.2 + trv, baseY - 31.4);
+      g.moveTo(cx - 11.2 + trv + ptLean * 0.35, baseY - 26.0); g.lineTo(cx + 15.4 + trv + ptLean * 0.35, baseY - 31.0);
+      g.lineTo(cx + 15.4 + trv + ptLean * 0.35, baseY - 36.4); g.lineTo(cx - 11.2 + trv + ptLean * 0.35, baseY - 31.4);
       g.closePath(); g.fill(); outline(g, shade(col, 0.36));
       g.fillStyle = shade(col, 1.30);
       g.beginPath();
-      g.moveTo(cx - 11.2 + trv, baseY - 31.4); g.lineTo(cx + 15.4 + trv, baseY - 36.4);
-      g.lineTo(cx + 15.4 + trv, baseY - 38.0); g.lineTo(cx - 11.2 + trv, baseY - 33.0);
+      g.moveTo(cx - 11.2 + trv + ptLean * 0.35, baseY - 31.4); g.lineTo(cx + 15.4 + trv + ptLean * 0.35, baseY - 36.4);
+      g.lineTo(cx + 15.4 + trv + ptLean * 0.35, baseY - 38.0); g.lineTo(cx - 11.2 + trv + ptLean * 0.35, baseY - 33.0);
       g.closePath(); g.fill();
 
       // ---- radar cap and its blinking lamp on the dome's left shoulder ------
@@ -11550,6 +11581,7 @@
       g.beginPath(); g.ellipse(fkPiv.x - 1.2, fkPiv.y - 1.2, 2.2, 1.8, 0, 0, 6.29); g.fill();
       // ---- the barrel: pale banded tube raised ~70 deg -------------------------
       var fkA = -1.235 + anS * 0.075, fkL = 39;
+      if (bdir != null) { var fkAim = gunAim(bdir, 1.235); fkA = fkAim.a; fkL = 39 * fkAim.k; }
       var fmx = fkPiv.x + Math.cos(fkA) * fkL, fmy = fkPiv.y + Math.sin(fkA) * fkL;
       g.lineCap = 'butt';
       g.strokeStyle = FK_BARD; g.lineWidth = 5.4;
@@ -12395,6 +12427,301 @@
     return out;
   }
 
+  // --------------------------------------------------------------------- //
+  //  Structure STATE frames: damaged / unpowered / build-up / rubble.
+  //
+  //  RA2 ships a separate SHP for each of these, per building (208 `Buildup=`
+  //  keys, 39 `ActiveAnimDamaged=`, 174 `DamageFireOffset0=` in art.ini).
+  //  Hand-redrawing 22 keys x 2 factions x 4 states is not a thing anyone
+  //  maintains, so every state here is a GENERIC POST-PASS over the already
+  //  baked healthy canvas, masked to that canvas's own alpha. The one piece
+  //  of per-key data is the fire ports, and even those are read off the art
+  //  (a roofline scan) rather than typed in -- art.ini's DamageFireOffset
+  //  idea, derived from the sprite instead of transcribed.
+  //
+  //  All of it is baked LAZILY, on the first frame a structure actually
+  //  needs the state, so a match that never loses a building never pays.
+  // --------------------------------------------------------------------- //
+  // A PRIVATE random stream. The shared `srand`/`rnd` pair also drives AI
+  // decisions, so a lazy bake or a building death that reseeded it would let
+  // the RENDERER steer the match. Everything below uses its own generator.
+  function lcg(seed) {
+    var st = (seed >>> 0) || 1;
+    return function () { st = (st * 1664525 + 1013904223) >>> 0; return st / 4294967296; };
+  }
+  function copyArt(src) {
+    var d = mkCanvas(src.w, src.h);
+    d.g.drawImage(src.c, 0, 0, src.w, src.h);
+    return d;
+  }
+
+  // Three FIXED fire ports per structure, on its own roofline: sample the
+  // alpha at 30/54/74% of the sprite's width and drop the port just under
+  // the first opaque row. Fixed per key, so the flames come out of the same
+  // holes every time (RA2's DamageFireOffset0..2), and they sit on roof and
+  // vent geometry because that is what the scan lands on.
+  function firePorts(src, ax, ay) {
+    var ports = [];
+    try {
+      var W = src.c.width, H = src.c.height, k = W / src.w;
+      var d = src.g.getImageData(0, 0, W, H).data;
+      var x0 = W, x1 = -1;
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++)
+        if (d[(y * W + x) * 4 + 3] > 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+      if (x1 < 0) return ports;
+      var fr = [0.30, 0.54, 0.76];
+      for (var i = 0; i < fr.length; i++) {
+        var pxx = Math.round(x0 + (x1 - x0) * fr[i]);
+        for (var y2 = 0; y2 < H; y2++) {
+          if (d[(y2 * W + pxx) * 4 + 3] > 40) {
+            ports.push({ x: pxx / k - ax, y: y2 / k - ay + 4 });
+            break;
+          }
+        }
+      }
+    } catch (e) {}
+    if (!ports.length) ports.push({ x: 0, y: -18 });
+    return ports;
+  }
+
+  // <=50% hp: the same art, broken. Bites out of the silhouette at the fire
+  // ports, soot rings round them, cracks running down from each, blackened
+  // patches, and broken panes -- all clipped to the sprite's own alpha, so
+  // nothing lands beside the building.
+  function bakeDamaged(src, ports, ax, ay, seed) {
+    var d = copyArt(src), g = d.g, i, j;
+    var rnd = lcg(seed);
+    g.globalCompositeOperation = 'destination-out';
+    for (i = 0; i < ports.length; i++) {                       // holes punched in the roof
+      var hx = ax + ports[i].x, hy = ay + ports[i].y;
+      for (j = 0; j < 4; j++) {
+        g.beginPath();
+        g.ellipse(hx + (rnd() - 0.5) * 11, hy - 1 + (rnd() - 0.5) * 6,
+                  1.8 + rnd() * 2.8, 1.2 + rnd() * 2.0, rnd() * 3, 0, 6.29);
+        g.fill();
+      }
+    }
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(26,22,18,.18)';                        // overall grime
+    g.fillRect(0, 0, src.w, src.h);
+    for (i = 0; i < ports.length; i++) {                       // soot round every port
+      var sxp = ax + ports[i].x, syp = ay + ports[i].y;
+      g.fillStyle = 'rgba(14,12,10,.55)';
+      g.beginPath(); g.ellipse(sxp, syp + 1, 12, 8, 0, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(24,20,16,.48)';
+      g.beginPath(); g.ellipse(sxp + 1, syp + 8, 9, 13, 0, 0, 6.29); g.fill();   // the streak it leaves
+      g.strokeStyle = 'rgba(16,14,12,.62)'; g.lineWidth = 1.3; g.lineCap = 'round';
+      for (j = 0; j < 2; j++) {                                // cracks running down
+        var cxp = sxp + (rnd() - 0.5) * 8, cyp = syp + 2;
+        g.beginPath(); g.moveTo(cxp, cyp);
+        for (var k2 = 1; k2 <= 4; k2++) {
+          cxp += (rnd() - 0.5) * 9; cyp += 4 + rnd() * 5;
+          g.lineTo(cxp, cyp);
+        }
+        g.stroke();
+      }
+    }
+    for (i = 0; i < 9; i++) {                                  // blackened patches
+      var bxp = ax + (rnd() - 0.5) * src.w * 0.55, byp = ay - rnd() * src.h * 0.42 + 6;
+      g.fillStyle = rnd() < 0.5 ? 'rgba(18,16,14,.30)' : 'rgba(46,38,30,.26)';
+      g.beginPath();
+      g.ellipse(bxp, byp, 3 + rnd() * 7, 2 + rnd() * 5, rnd() * 3, 0, 6.29); g.fill();
+    }
+    for (i = 0; i < 6; i++) {                                  // broken panes / bent plate
+      var pxp = ax + (rnd() - 0.5) * src.w * 0.45, pyp = ay - 8 - rnd() * src.h * 0.34;
+      var pw = 3 + rnd() * 5, phh = 2.5 + rnd() * 4;
+      g.fillStyle = 'rgba(8,10,14,.62)';
+      g.fillRect(pxp, pyp, pw, phh);
+      g.fillStyle = 'rgba(196,214,236,.30)';                   // the lit edge of the break
+      g.fillRect(pxp, pyp, pw, 0.9);
+      g.strokeStyle = 'rgba(8,10,14,.5)'; g.lineWidth = 0.8;
+      g.beginPath(); g.moveTo(pxp, pyp); g.lineTo(pxp + pw, pyp + phh); g.stroke();
+    }
+    g.globalCompositeOperation = 'source-over';
+    return d;
+  }
+
+  // No power: RA2 stops the animation and puts the lights out. Desaturating
+  // (a `saturation` blend, re-masked with `destination-in`) is what actually
+  // kills a lit amber window; brightness alone leaves it glowing orange.
+  function bakeUnpowered(src) {
+    var d = copyArt(src), g = d.g;
+    g.globalCompositeOperation = 'saturation';
+    g.fillStyle = '#808080'; g.fillRect(0, 0, src.w, src.h);
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(src.c, 0, 0, src.w, src.h);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(10,16,30,.50)'; g.fillRect(0, 0, src.w, src.h);
+    g.globalCompositeOperation = 'source-over';
+    return d;
+  }
+
+  // MAKE: the apron is poured first, then the structure comes up behind a
+  // rising wipe with a scaffold band and a crane in the uncovered strip.
+  // The band is what stops the old clipped rise reading as a wireframe glitch
+  // -- there is always something solid at the cut line.
+  function makeScaffold(g, x0, x1, y, col, ph) {
+    var w = Math.max(14, x1 - x0);
+    g.save();
+    g.lineCap = 'butt';
+    g.fillStyle = '#2b3038'; g.fillRect(x0 - 2, y - 3, w + 4, 5);            // girder
+    g.fillStyle = '#79818e'; g.fillRect(x0 - 2, y - 3, w + 4, 1.4);
+    g.fillStyle = col; g.fillRect(x0 - 2, y + 1.3, w + 4, 1.3);              // house band
+    g.strokeStyle = 'rgba(126,136,152,.8)'; g.lineWidth = 1.2;
+    var bays = Math.max(2, Math.round(w / 18));
+    for (var k = 0; k < bays; k++) {                                          // cross braces
+      var bx = x0 + w * k / bays, bx2 = x0 + w * (k + 1) / bays;
+      g.beginPath();
+      g.moveTo(bx, y - 3); g.lineTo(bx2, y - 14);
+      g.moveTo(bx2, y - 3); g.lineTo(bx, y - 14);
+      g.stroke();
+    }
+    g.strokeStyle = 'rgba(150,160,176,.62)';
+    g.beginPath(); g.moveTo(x0, y - 14); g.lineTo(x0 + w, y - 14); g.stroke();
+    g.fillStyle = '#242931';                                                  // legs
+    g.fillRect(x0 - 1.2, y, 2.6, 11); g.fillRect(x0 + w - 1.4, y, 2.6, 11);
+    var mx = x0 + w - 5;                                                      // crane
+    g.fillStyle = '#3a4048'; g.fillRect(mx, y - 44, 3, 44);
+    g.fillStyle = '#c9a227'; g.fillRect(mx - 26, y - 44, 29, 2.6);            // jib
+    g.fillStyle = '#20242a'; g.fillRect(mx - 3, y - 48, 9, 4);                // cab
+    var hx = mx - 9 - (ph % 3) * 5;
+    g.strokeStyle = '#1a1e24'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(hx, y - 42); g.lineTo(hx, y - 26); g.stroke();
+    g.fillStyle = '#828a95'; g.fillRect(hx - 3, y - 26, 6, 4);                // hook block
+    g.restore();
+  }
+  function bakeMake(src, bb, ay, col, n) {
+    var out = [];
+    var top = bb.y0;
+    // Phase 0 is the poured apron: everything from the anchor row down, which
+    // on every one of these sprites is the near half of the hardstanding
+    // diamond and nothing else. The wipe then climbs from there to the top of
+    // the art -- NOT from the bottom of the canvas, which left 45% of the
+    // building standing in the first frame.
+    var apronTop = Math.min(bb.y1 - 2, ay + 3);
+    for (var i = 1; i < n; i++) {
+      var p = i / n, d = mkCanvas(src.w, src.h), g = d.g;
+      var revY = apronTop - (apronTop - top) * p;
+      g.save();
+      g.beginPath(); g.rect(0, revY, src.w, src.h - revY); g.clip();
+      g.drawImage(src.c, 0, 0, src.w, src.h);
+      g.restore();
+      makeScaffold(g, bb.x0, bb.x1, revY, col, i);
+      out.push(d);
+    }
+    return out;
+  }
+
+  // What a levelled structure leaves: a scorch decal, a crater, broken slabs
+  // and twisted pieces, sized to the footprint. Drawn on the GROUND layer
+  // (under units), passable, and faded out over a minute -- RA2's rubble.
+  var SPR_RUBBLE = {};
+  function rubbleFor(gw, gh) {
+    var key = gw + 'x' + gh;
+    if (SPR_RUBBLE[key]) return SPR_RUBBLE[key];
+    var fw = (gw + gh) * TW / 4, fh = (gw + gh) * TH / 4;
+    var s = mkCanvas(fw * 2 + 26, fh * 2 + 30), g = s.g;
+    var cx = s.w / 2, cy = s.h / 2 + 3, i;
+    var rnd = lcg(gw * 131 + gh * 17 + 7);
+    // Scorch: overlapping soft blots, not a hard tile diamond -- a burn does
+    // not stop on the footprint edge.
+    for (i = 0; i < 14; i++) {
+      var sa2 = rnd() * 6.2832, sr2 = Math.sqrt(rnd());
+      g.fillStyle = 'rgba(20,17,14,.10)';
+      g.beginPath();
+      g.ellipse(cx + Math.cos(sa2) * sr2 * fw * 0.85, cy + Math.sin(sa2) * sr2 * fh * 0.85,
+                fw * (0.30 + rnd() * 0.30), fh * (0.28 + rnd() * 0.28), 0, 0, 6.29);
+      g.fill();
+    }
+    g.fillStyle = 'rgba(30,25,20,.26)';
+    g.beginPath(); g.ellipse(cx, cy, fw * 0.92, fh * 0.90, 0, 0, 6.29); g.fill();
+    // The crater is CHURNED EARTH, not a hole: a warm dug-out bowl with a
+    // lit far rim and only a shallow shadow on the near lip. Painted dark it
+    // read as a black void punched through the map.
+    g.fillStyle = 'rgba(96,80,58,.92)';
+    g.beginPath(); g.ellipse(cx, cy, fw * 0.62, fh * 0.60, 0, 0, 6.29); g.fill();
+    g.fillStyle = 'rgba(132,113,82,.85)';                                   // lit far rim
+    g.beginPath(); g.ellipse(cx - 1, cy - 2.5, fw * 0.55, fh * 0.50, 0, 0, 6.29); g.fill();
+    g.fillStyle = 'rgba(58,47,34,.85)';                                     // shadowed floor
+    g.beginPath(); g.ellipse(cx + 1.5, cy + 2, fw * 0.42, fh * 0.36, 0, 0, 6.29); g.fill();
+    g.fillStyle = 'rgba(150,130,96,.35)';                                   // spoil on the near lip
+    g.beginPath(); g.ellipse(cx, cy + fh * 0.5, fw * 0.5, fh * 0.20, 0, 0, 6.29); g.fill();
+    for (i = 0; i < 16; i++) {                                              // broken slabs
+      var a = rnd() * 6.2832, r = Math.sqrt(rnd()) * 0.92;
+      var qx = cx + Math.cos(a) * r * fw, qy = cy + Math.sin(a) * r * fh;
+      var sw2 = 4 + rnd() * 9, sh2 = 2 + rnd() * 4, tl = (rnd() - 0.5) * 4;
+      g.fillStyle = ['#4e4a40', '#5f5a4c', '#3a372f', '#6b6455'][(rnd() * 4) | 0];
+      g.beginPath();
+      g.moveTo(qx - sw2 / 2, qy); g.lineTo(qx - sw2 / 2 + tl, qy - sh2);
+      g.lineTo(qx + sw2 / 2 + tl, qy - sh2 + 1); g.lineTo(qx + sw2 / 2, qy + 1);
+      g.closePath(); g.fill();
+      g.fillStyle = 'rgba(178,186,168,.22)';
+      g.fillRect(qx - sw2 / 2 + tl, qy - sh2, sw2, 0.9);
+      g.strokeStyle = 'rgba(24,26,22,.55)'; g.lineWidth = 0.8; g.stroke();
+    }
+    g.strokeStyle = 'rgba(46,44,36,.9)'; g.lineCap = 'round';                // twisted rebar
+    for (i = 0; i < 8; i++) {
+      var ra = rnd() * 6.2832, rr = Math.sqrt(rnd()) * 0.8;
+      var rx = cx + Math.cos(ra) * rr * fw, ry = cy + Math.sin(ra) * rr * fh;
+      g.lineWidth = 1 + rnd();
+      g.beginPath(); g.moveTo(rx, ry);
+      var bx2 = rx, by2 = ry;
+      for (var k3 = 0; k3 < 3; k3++) { bx2 += (rnd() - 0.5) * 9; by2 -= 1 + rnd() * 4; g.lineTo(bx2, by2); }
+      g.stroke();
+    }
+    var out = { s: s, ax: cx, ay: cy };
+    SPR_RUBBLE[key] = out;
+    return out;
+  }
+
+  // --- lazy per-art state caches ----------------------------------------
+  function portsOf(art) {
+    if (!art.ports) art.ports = firePorts(art.frames ? art.frames[0] : art.s, art.ax, art.ay);
+    return art.ports;
+  }
+  function hashKey(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) h = (h ^ s.charCodeAt(i)) * 16777619; return h >>> 0; }
+  function dmgSetOf(art, key) {
+    if (!art._dmg) {
+      var ports = portsOf(art), base = art.frames || [art.s], out = [];
+      for (var i = 0; i < base.length; i++) out.push(bakeDamaged(base[i], ports, art.ax, art.ay, hashKey(key) + i * 7919));
+      art._dmg = out;
+    }
+    return art._dmg;
+  }
+  // Unpowered is a modifier on whatever frame is showing, not a frame of its
+  // own: a structure that is BOTH hurt and dark has to read as both.
+  function offOf(art, tag, frame) {
+    if (!art._off) art._off = {};
+    if (!art._off[tag]) art._off[tag] = bakeUnpowered(frame);
+    return art._off[tag];
+  }
+  function makeOf(art, col) {
+    if (!art._make) {
+      var bb = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
+      art._make = bakeMake(art.frames ? art.frames[0] : art.s, bb, art.ay, col, 8);
+    }
+    return art._make;
+  }
+  // 8 bearing frames for the defences whose art has a barrel, launcher or
+  // slit that should point at what they are shooting (art.ini `Turret=yes`).
+  var AIMED = { sentry: 1, sentrygun: 1, patriot: 1, flakcannon: 1 };
+  function aimOf(art, key, p, fk) {
+    if (!art._aim) {
+      var out = [];
+      for (var i = 0; i < 8; i++) out.push(bakeBuilding(key, COL[p], fk, 0, i * Math.PI / 4).s);
+      art._aim = out;
+    }
+    return art._aim;
+  }
+  function aimDmgOf(art, key, p, fk) {
+    if (!art._aimD) {
+      var aim = aimOf(art, key, p, fk), ports = portsOf(art), out = [];
+      for (var i = 0; i < aim.length; i++) out.push(bakeDamaged(aim[i], ports, art.ax, art.ay, hashKey(key) + 31));
+      art._aimD = out;
+    }
+    return art._aimD;
+  }
+
   function bakeAll() {
     // Terrain is cut from seamless screen-space sheets (see bakeGroundSheet):
     // 64 tiles per theatre that reassemble into one continuous surface, so
@@ -12555,6 +12882,7 @@
     return u;
   }
 
+  var MAKE_T = 150;                             // ~2.5s of MAKE at 60 ticks/s
   function placeBld(g, key, p, gx, gy) {
     var d = BLDS[key];
     var b = {
@@ -12563,7 +12891,12 @@
       hp: d.hp, maxhp: d.hp, dead: false,
       cool: 0, target: null, sel: false,
       cx: gx + (d.gw - 1) / 2, cy: gy + (d.gh - 1) / 2, rally: null,
-      builtAt: g.tick
+      builtAt: g.tick,
+      // RA2 plays a ~2.5s MAKE before the structure is a structure: it is
+      // inert (no firing, no repair bay) while `make` counts down. Purely
+      // presentational, so a headless sim never pays for it and the balance
+      // tests keep firing on the tick they place a defence.
+      make: headless ? 0 : MAKE_T, charging: 0, chgT: null, sup: 0, tube: 0
     };
     g.blds.push(b);
     g.byId[b.id] = b;
@@ -12606,12 +12939,43 @@
     return b;
   }
 
+  // RA2 building death: `Explosion=` names FIVE anims at once, `DebrisAnims=`
+  // throws 2-10 chunks, and the tile keeps a crater, a scorch and rubble
+  // (passable, and it weathers away). None of that existed -- the building
+  // simply vanished.
+  var RUBBLE_LIFE = 60 * 60;                       // a minute at 60 ticks/s
   function killBld(g, b) {
     b.dead = true;
     for (var yy = b.y; yy < b.y + b.gh; yy++) for (var xx = b.x; xx < b.x + b.gw; xx++) {
       if (inMap(xx, yy) && g.occ[idx(xx, yy)] === b.id) g.occ[idx(xx, yy)] = 0;
     }
     recalcPower(g, b.p);
+    if (headless) return;
+    g.rubble.push({ x: b.cx, y: b.cy, gw: b.gw, gh: b.gh, t: 0, life: RUBBLE_LIFE });
+    // Staggered blasts across the footprint, biggest at the centre.
+    var area = b.gw * b.gh, n = Math.min(5, 3 + (area > 4 ? 2 : (area > 1 ? 1 : 0))), i;
+    var rnd = lcg((b.id * 2654435761) >>> 0);
+    for (i = 0; i < n; i++) {
+      var ox = i === 0 ? 0 : (rnd() - 0.5) * b.gw * 0.9, oy = i === 0 ? 0 : (rnd() - 0.5) * b.gh * 0.9;
+      g.fx.push({ x: b.cx + ox, y: b.cy + oy, t: -i * 4, life: 32, size: i === 0 ? 20 + area * 2.2 : 12 + rnd() * 10 });
+    }
+    // Debris: chunks thrown out on ballistic arcs.
+    for (i = 0; i < 6 + area; i++) {
+      var da = rnd() * 6.2832, dv = 0.45 + rnd() * 1.1;
+      g.fx.push({ x: b.cx, y: b.cy, t: -((i * 2) % 8), life: 34 + (rnd() * 14) | 0, deb: true,
+                  vx: Math.cos(da) * dv, vy: Math.sin(da) * dv * 0.5, vz: 2.2 + rnd() * 2.4,
+                  dw: 2 + rnd() * 3.5, spin: (rnd() - 0.5) * 0.5 });
+    }
+    // A smoke column that stands over the wreck long after the fire is out.
+    for (i = 0; i < 7; i++) {
+      g.fx.push({ x: b.cx, y: b.cy, t: -i * 9, life: 150, smoke: true, big: 1 + area * 0.12,
+                  ox: (rnd() - 0.5) * 10, oy: -6 - rnd() * 10, lift: 0 });
+    }
+  }
+  function stepRubble(g) {
+    for (var i = g.rubble.length - 1; i >= 0; i--) {
+      if (++g.rubble[i].t >= g.rubble[i].life) g.rubble.splice(i, 1);
+    }
   }
 
   function recalcPower(g, p) {
@@ -12864,7 +13228,7 @@
         if (nr > (src.rank || 0)) { src.rank = nr; if (src.p === P_HUMAN) { sfx('promote'); eva(nr === 2 ? 'Unit promoted to elite' : 'Unit promoted', 3000); } }
       }
       if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
-      if (tgt.kind === 'b') { killBld(g, tgt); boom(g, tgt.cx, tgt.cy, 26); sfx('boom'); }
+      if (tgt.kind === 'b') { killBld(g, tgt); sfx('boom'); }   // killBld runs the whole death sequence
       else if (isAir(tgt)) { tgt.dead = true; crashAircraft(g, tgt); }
       else { tgt.dead = true; boom(g, tgt.x, tgt.y, 12); sfx('die'); }
     }
@@ -13091,6 +13455,12 @@
   function fire(g, src, tgt) {
     var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt, src);
     src.cool = spec.rate * (src.rank === 2 ? 0.6 : 1);   // EliteAbilities=ROF (VeteranROF=0.6)
+    // Prism support: every tower that beamed into this one adds 150%.
+    var supMul = 1;
+    if (src.kind === 'b' && src.type === 'prism' && src.sup) { supMul = 1 + PRISM_SUP_MOD * src.sup; src.sup = 0; }
+    // [NASAM] PrimaryFireFLH=90,50,100 / SecondaryFireFLH=90,-50,100: the
+    // Patriot alternates its left and right tube.
+    if (src.kind === 'b' && src.type === 'patriot') src.tube = src.tube ? 0 : 1;
     if (src.kind === 'u') src.fireAt = g.tick;        // a Mirage that shoots is a Mirage again
     if (src.kind === 'u' && spec.ammo) src.ammo = Math.max(0, (src.ammo || 0) - 1);
     if (!headless) {
@@ -13105,14 +13475,16 @@
         bomb: !!spec.bomb, flak: !!spec.flak && isAir(tgt),
         // launch heights: an aircraft fires from its altitude, an AA site from its mount
         alt: src.kind === 'u' ? altOf(src) : (spec.launch || 0),
-        talt: tgt.kind === 'u' ? altOf(tgt) : 0
+        talt: tgt.kind === 'u' ? altOf(tgt) : 0,
+        ox: (src.kind === 'b' && src.type === 'patriot') ? (src.tube ? 7 : -7) : 0,
+        sup: (src.kind === 'b' && src.type === 'prism') ? (supMul > 1 ? supMul : 0) : 0
       });
       // A Kirov bomb takes its whole flight to land: the blast is queued with
       // a negative age so it appears when the bomb does, not when it is dropped.
       if (spec.bomb) g.fx.push({ x: tx0, y: ty0, t: -13, life: 22, size: 15 });
     }
     sfx(src.type === 'rifle' ? 'shot' : 'cannon');
-    damage(g, src, tgt, spec.dmg * vetFire(src.rank), spec.wh);
+    damage(g, src, tgt, spec.dmg * vetFire(src.rank) * supMul, spec.wh);
     if (spec.splash > 0) {
       var tx = tgt.kind === 'b' ? tgt.cx : tgt.x, ty = tgt.kind === 'b' ? tgt.cy : tgt.y;
       var tAir = isAir(tgt);
@@ -13122,7 +13494,7 @@
         // rake the infantry below, and a bomb does not clip a passing Harrier.
         if (isAir(o) !== tAir || !canHit(spec, o)) return;
         var d = Math.sqrt((o.x - tx) * (o.x - tx) + (o.y - ty) * (o.y - ty));
-        if (d <= spec.splash) damage(g, src, o, spec.dmg * vetFire(src.rank) * 0.45 * (1 - d / (spec.splash + 0.4)), spec.wh);
+        if (d <= spec.splash) damage(g, src, o, spec.dmg * vetFire(src.rank) * supMul * 0.45 * (1 - d / (spec.splash + 0.4)), spec.wh);
       });
     }
   }
@@ -13665,8 +14037,33 @@
     else hoverIdle(g, u);
   }
 
+  // art.ini `IsAnimDelayedFire=yes` / `DelayedFireDelay=28` on [NATSLA] and
+  // [GAPRIS]: both towers visibly wind up for 28 frames before the shot.
+  var CHARGE_T = 28;
+  // rules.ini [General] PrismSupportModifier=150%, PrismSupportMax=8,
+  // PrismSupportDuration=15: idle towers in range of a firing tower beam
+  // their charge into it, and each one adds 150% to the shot.
+  var PRISM_SUP_MAX = 8, PRISM_SUP_MOD = 1.5, PRISM_SUP_DUR = 15;
+  function prismSupport(g, b) {
+    var n = 0;
+    for (var i = 0; i < g.blds.length && n < PRISM_SUP_MAX; i++) {
+      var o = g.blds[i];
+      if (o === b || o.dead || o.p !== b.p || o.type !== 'prism') continue;
+      if (o.charging > 0 || o.cool > 0 || o.make > 0) continue;
+      var dx = o.cx - b.cx, dy = o.cy - b.cy, rr = BLDS.prism.rng;
+      if (dx * dx + dy * dy > rr * rr) continue;
+      n++;
+      o.cool = Math.max(o.cool, PRISM_SUP_DUR * 2);       // it spent its charge supporting
+      o.supAt = g.tick;
+      if (!headless) g.shots.push({ x: o.cx, y: o.cy, tx: b.cx, ty: b.cy, t: 0, life: CHARGE_T, link: true, id: g.nextId++ });
+    }
+    b.sup = n;
+  }
+
   function stepBld(g, b) {
     var d = BLDS[b.type];
+    // Under construction: RA2's MAKE runs before the structure does anything.
+    if (b.make > 0) { b.make--; return; }
     if (b.cool > 0) b.cool--;
     if (b.repair) {
       if (b.hp >= b.maxhp) b.repair = false;
@@ -13688,6 +14085,24 @@
     // key in rules.ini ([NALASR] Sentry Gun does, though it draws nothing).
     if (!powered(g, b.p) && (d.power < 0 || b.type === 'sentrygun')) return;
     var t = findTarget(g, b, d.rng);
+    b.target = t;                                 // what the turret frames point at
+    // Tesla Coil / Prism Tower: 28 ticks of charge before the bolt, and the
+    // Prism pulls support beams out of every idle tower in range first.
+    if (b.type === 'tesla' || b.type === 'prism') {
+      if (b.charging > 0) {
+        b.charging--;
+        var ct = (b.chgT && !b.chgT.dead) ? b.chgT : t;
+        if (!ct) { b.charging = 0; b.chgT = null; b.sup = 0; return; }
+        if (b.charging <= 0) { b.chgT = null; fire(g, b, ct); }
+        return;
+      }
+      if (t && b.cool <= 0) {
+        b.charging = CHARGE_T; b.chgT = t; b.sup = 0;
+        if (b.type === 'prism') prismSupport(g, b);
+        if (!headless) sfx(b.type === 'tesla' ? 'charge' : 'prismup');
+      }
+      return;
+    }
     if (t && b.cool <= 0) fire(g, b, t);
   }
 
@@ -14683,6 +15098,7 @@
 
     // effects
     stepWrecks(g);
+    stepRubble(g);
     for (i = g.shots.length - 1; i >= 0; i--) if (++g.shots[i].t > g.shots[i].life) g.shots.splice(i, 1);
     for (i = g.fx.length - 1; i >= 0; i--) if (++g.fx[i].t > g.fx[i].life) g.fx.splice(i, 1);
 
@@ -14910,6 +15326,8 @@
     else if (kind === 'click') tone(420, 0.03, 'square', 0.07);
     else if (kind === 'place') { tone(220, 0.12, 'square', 0.13, 160); noiseBurst(0.12, 0.1); }
     else if (kind === 'no') tone(180, 0.09, 'sawtooth', 0.1, 120);
+    else if (kind === 'charge') { tone(150, 0.46, 'sawtooth', 0.085, 900); }
+    else if (kind === 'prismup') { tone(420, 0.46, 'sine', 0.08, 1500); }
     else if (kind === 'promote') { tone(523, 0.08, 'square', 0.1); setTimeout(function () { tone(659, 0.08, 'square', 0.1); }, 90); setTimeout(function () { tone(784, 0.12, 'square', 0.1); }, 180); }
   }
 
@@ -16390,6 +16808,20 @@
       }
     }
 
+    // Rubble: what a levelled structure leaves. On the GROUND layer, under
+    // units (RA2's rubble is passable), fading out over its last 30%.
+    for (i = 0; i < G.rubble.length; i++) {
+      var rb = G.rubble[i];
+      var rgx = Math.round(rb.x), rgy = Math.round(rb.y);
+      if (!inMap(rgx, rgy) || !G.seen[idx(rgx, rgy)]) continue;
+      var rpx = sx(rb.x, rb.y), rpy = sy(rb.x, rb.y);
+      if (rpx < VX0 - 200 || rpy < VY0 - 200 || rpx > VX1 + 200 || rpy > VY1 + 200) continue;
+      var rs = rubbleFor(rb.gw, rb.gh), rf = rb.t / rb.life;
+      ctx.globalAlpha = rf > 0.7 ? Math.max(0, (1 - rf) / 0.3) : 1;
+      ctx.drawImage(rs.s.c, rpx - rs.ax, rpy - rs.ay, rs.s.w, rs.s.h);
+      ctx.globalAlpha = 1;
+    }
+
     // Placement ghost, over a wash showing WHERE you may build at all. Without
     // it the radius is invisible and you find its edge by trial and error.
     if (placing) {
@@ -16510,7 +16942,7 @@
     for (i = 0; i < G.shots.length; i++) {
       var s = G.shots[i];
       var f = s.t / s.life;
-      var ax = sx(s.x, s.y), ay = sy(s.x, s.y) - 10 - (s.alt || 0);
+      var ax = sx(s.x, s.y) + (s.ox || 0), ay = sy(s.x, s.y) - 10 - (s.alt || 0);
       var bx = sx(s.tx, s.ty), by = sy(s.tx, s.ty) - 8 - (s.talt || 0);
       if (s.bomb) {
         // Kirov bomb: a dark drop falling from the gondola, drifting with the
@@ -16541,12 +16973,33 @@
         }
         continue;
       }
+      if (s.link) {
+        // A Prism Tower feeding its charge into the one that is firing
+        // ([General] PrismSupportModifier/Max/Duration).
+        var lax = sx(s.x, s.y), lay = sy(s.x, s.y) - 86;
+        var lbx = sx(s.tx, s.ty), lby = sy(s.tx, s.ty) - 86;
+        var lf = Math.min(1, f * 1.6), pulse2 = 0.6 + 0.3 * Math.sin(s.t * 0.4);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = 'rgba(90,200,240,' + (0.5 * pulse2).toFixed(2) + ')';
+        ctx.lineWidth = 6; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(lax, lay); ctx.lineTo(lbx, lby); ctx.stroke();
+        ctx.strokeStyle = 'rgba(200,248,255,' + pulse2.toFixed(2) + ')';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.moveTo(lax, lay); ctx.lineTo(lbx, lby); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.95)';      // the charge running along it
+        ctx.beginPath(); ctx.arc(lax + (lbx - lax) * lf, lay + (lby - lay) * lf, 3.2, 0, 6.29); ctx.fill();
+        ctx.beginPath(); ctx.arc(lax, lay, 3.4 * pulse2, 0, 6.29); ctx.fill();   // it leaves the crown
+        ctx.restore();
+        continue;
+      }
       if (s.beam) {
         // Prism beam: an instant white-cyan lance from the tower head.
         ax = sx(s.x, s.y); ay = sy(s.x, s.y) - 86;   // the prism crown's hub
-        ctx.strokeStyle = 'rgba(160,240,255,' + (0.5 * (1 - f)) + ')'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+        var sup2 = s.sup ? Math.min(3.2, 1 + (s.sup - 1) * 0.28) : 1;   // supported shots are fatter
+        ctx.strokeStyle = 'rgba(160,240,255,' + (0.5 * (1 - f)) + ')'; ctx.lineWidth = 6 * sup2; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,255,255,' + (1 - f) + ')'; ctx.lineWidth = 1.6;
+        ctx.strokeStyle = 'rgba(255,255,255,' + (1 - f) + ')'; ctx.lineWidth = 1.6 * sup2;
         ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
         continue;
       }
@@ -16597,10 +17050,11 @@
     for (i = 0; i < G.fx.length; i++) {
       var fx = G.fx[i], ff = fx.t / fx.life;
       if (fx.t < 0) continue;                       // queued (a bomb still falling)
-      var fxx = sx(fx.x, fx.y), fyy = sy(fx.x, fx.y);
+      var fxx = sx(fx.x, fx.y) + (fx.ox || 0), fyy = sy(fx.x, fx.y) + (fx.oy || 0);
       if (fx.smoke) {
         ctx.globalCompositeOperation = 'source-over';
-        var sr = 3 + ff * 8, sy0 = fyy - fx.lift - ff * 22 + Math.sin(fx.t * 0.15) * 1.5;
+        var sbg = fx.big || 1;
+        var sr = (3 + ff * 8) * sbg, sy0 = fyy - (fx.lift || 0) - ff * 22 * sbg + Math.sin(fx.t * 0.15) * 1.5;
         ctx.globalAlpha = 0.38 * (1 - ff);
         ctx.fillStyle = '#3a3c40';
         ctx.beginPath(); ctx.arc(fxx + Math.sin(fx.t * 0.11) * 3, sy0, sr, 0, 6.29); ctx.fill();
@@ -16611,12 +17065,17 @@
       }
       if (fx.fire) {
         ctx.globalCompositeOperation = 'lighter';
-        var fl = 1 + ((fx.t * 7) % 5) * 0.12, fy0 = fyy - fx.lift;
+        var fbg = fx.big || 1;
+        var fl = (1 + ((fx.t * 7) % 5) * 0.12) * fbg, fy0 = fyy - (fx.lift || 0);
         ctx.globalAlpha = 0.85 * (1 - ff);
+        ctx.fillStyle = 'rgba(120,32,8,.7)';
+        ctx.beginPath(); ctx.ellipse(fxx, fy0 - 4 * fl, 5.5 * fl, 8 * fl, 0, 0, 6.29); ctx.fill();
         ctx.fillStyle = '#e8641e';
         ctx.beginPath(); ctx.ellipse(fxx, fy0 - 3 * fl, 4 * fl, 6 * fl, 0, 0, 6.29); ctx.fill();
         ctx.fillStyle = '#ffd24a';
         ctx.beginPath(); ctx.ellipse(fxx + 0.5, fy0 - 2 * fl, 2 * fl, 3.5 * fl, 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = 'rgba(255,246,214,.9)';
+        ctx.beginPath(); ctx.ellipse(fxx + 0.5, fy0 - 1.2 * fl, 1 * fl, 1.8 * fl, 0, 0, 6.29); ctx.fill();
         ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
         continue;
       }
@@ -16634,6 +17093,24 @@
           ctx.fillStyle = (dk & 1) ? '#f0c060' : '#c8983a';
           ctx.fillRect(fxx + da - 1.5, fyy - 6 - lift, 3, 3);
         }
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      if (fx.deb) {
+        // Debris: a chunk thrown out of the wreck on a ballistic arc
+        // (rules.ini DebrisAnims= / MinDebris / MaxDebris).
+        ctx.globalCompositeOperation = 'source-over';
+        var dt = fx.t, dz2 = fx.vz * dt * 0.42 - 0.020 * dt * dt;
+        if (dz2 < 0) dz2 = 0;
+        ctx.save();
+        ctx.translate(fxx + fx.vx * dt, fyy + fx.vy * dt - dz2);
+        ctx.rotate(dt * fx.spin);
+        ctx.globalAlpha = ff > 0.8 ? (1 - ff) / 0.2 : 1;
+        ctx.fillStyle = '#2b2f2a';
+        ctx.fillRect(-fx.dw / 2, -fx.dw / 2, fx.dw, fx.dw * 0.82);
+        ctx.fillStyle = 'rgba(158,166,148,.35)';
+        ctx.fillRect(-fx.dw / 2, -fx.dw / 2, fx.dw, 0.9);
+        ctx.restore();
         ctx.globalAlpha = 1;
         continue;
       }
@@ -16871,6 +17348,54 @@
     ctx.globalAlpha = 1;
   }
 
+  // The 28 ticks before a Tesla Coil or Prism Tower shoots. art.ini gates
+  // both on IsAnimDelayedFire / DelayedFireDelay=28 with their own firing
+  // anim ([NATSLA_B] is 10 frames, [GAPRIS_A] the prism's); this is that
+  // wind-up drawn rather than sprited.
+  function drawCharge(b, px, py) {
+    var q = 1 - b.charging / CHARGE_T;                  // 0 -> 1 over the wind-up
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    if (b.type === 'tesla') {
+      var topY2 = py - 104, footY = py - 18;
+      var climb = footY + (topY2 - footY) * Math.min(1, q * 1.15);
+      for (var a = 0; a < 3; a++) {                     // arcs crawling up the coil
+        var seed2 = G.tick * 2.3 + a * 11 + b.id;
+        ctx.strokeStyle = 'rgba(150,190,255,' + (0.30 + 0.5 * q).toFixed(2) + ')';
+        ctx.lineWidth = a ? 1.1 : 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(px + Math.sin(seed2) * 3, footY);
+        for (var k5 = 1; k5 <= 5; k5++) {
+          var qq = k5 / 5;
+          ctx.lineTo(px + Math.sin(seed2 + k5 * 2.1) * 7 * (1 - qq * 0.4),
+                     footY + (climb - footY) * qq);
+        }
+        ctx.stroke();
+      }
+      var gr = 3 + q * 9;                               // the electrode charging
+      ctx.fillStyle = 'rgba(180,215,255,' + (0.25 + 0.6 * q).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(px, topY2, gr, 0, 6.29); ctx.fill();
+      ctx.fillStyle = 'rgba(240,248,255,' + (0.3 + 0.6 * q).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(px, topY2, gr * 0.45, 0, 6.29); ctx.fill();
+    } else {
+      var cy2 = py - 86, cr = 4 + q * 10;               // the prism crown filling
+      ctx.fillStyle = 'rgba(150,240,255,' + (0.2 + 0.55 * q).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(px, cy2, cr, 0, 6.29); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + 0.6 * q).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(px, cy2, cr * 0.4, 0, 6.29); ctx.fill();
+      ctx.strokeStyle = 'rgba(180,245,255,' + (0.5 * (1 - q) + 0.2).toFixed(2) + ')';
+      ctx.lineWidth = 1.3;
+      for (var si = 0; si < 4; si++) {                  // light drawn into the crown
+        var sa = si * 1.5708 + G.tick * 0.08, sd = 26 * (1 - q) + 6;
+        ctx.beginPath();
+        ctx.moveTo(px + Math.cos(sa) * sd, cy2 + Math.sin(sa) * sd * 0.6);
+        ctx.lineTo(px + Math.cos(sa) * (sd - 7), cy2 + Math.sin(sa) * (sd - 7) * 0.6);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   function drawBld(b) {
     var art = SPR.bld[b.p][facOf(G, b.p) || 'dir'][b.type];
     var px = sx(b.cx, b.cy), py = sy(b.cx, b.cy);
@@ -16878,27 +17403,67 @@
 
     var bb = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
     var ox = px - art.ax, oy = py - art.ay;
-    // A placed structure appears complete at once. The old clipped-rise
-    // behind a drawn scaffold grid read as a wireframe glitch, not RA2's
-    // MAKE animation (which is a per-structure sprite sequence we do not
-    // have), so it was removed rather than left ugly.
-    var artC = art.frames ? art.frames[((G.tick / 5 + b.id * 2) | 0) % art.frames.length].c : art.s.c;
-    // Switched off by the player: RA2 kills the lights and the animation.
-    if (b.offline) { ctx.filter = 'brightness(.40) saturate(.35)'; artC = art.s.c; }
-    ctx.drawImage(artC, ox, oy, art.s.w, art.s.h);
-    if (b.offline) ctx.filter = 'none';
-    // Damage states: smoke from a hurt structure, fire once it is critical.
+    var fk = facOf(G, b.p) || 'dir';
     var frac = b.hp / b.maxhp;
-    if (frac < 0.5) {
-      var ph = (G.tick + b.id * 7) % 18;
-      if (ph === 0 || (frac < 0.25 && ph === 9)) {
-        var k = ((G.tick / 18 + b.id) | 0) % 3, sxo = [-0.3, 0.25, 0.05][k], syo = [0.1, -0.25, 0.3][k];
-        G.fx.push({ x: b.cx + sxo * b.gw, y: b.cy + syo * b.gh, t: 0, life: 70, smoke: true,
-                    lift: (art.rise || 40) * 0.45 });
-        if (frac < 0.25) G.fx.push({ x: b.cx + sxo * b.gw, y: b.cy + syo * b.gh, t: 0, life: 26, fire: true,
-                                     lift: (art.rise || 40) * 0.35 });
+    var hurt = frac <= 0.5;
+    // No power on this side (or switched off at the sidebar): RA2 stops the
+    // animation and puts the lights out -- there is no emoji over the roof.
+    var dark = !!b.offline || (BLDS[b.type].power < 0 && !powered(G, b.p));
+    var artC;
+
+    if (b.make > 0) {
+      // MAKE: apron first, then the structure behind a rising wipe with a
+      // scaffold band and a crane working in the uncovered strip.
+      var MK = makeOf(art, COL[b.p]);
+      var prog = 1 - b.make / MAKE_T;
+      artC = MK.length ? MK[Math.min(MK.length - 1, (prog * MK.length) | 0)].c : art.s.c;
+      if ((G.tick % 6) === (b.id % 6)) {                   // dust at the foot
+        var dz = ((G.tick / 6 + b.id) | 0) % 3;
+        G.fx.push({ x: b.cx + (dz - 1) * b.gw * 0.3, y: b.cy + (1 - dz) * b.gh * 0.3,
+                    t: 0, life: 26, dust: true, size: 0 });
+      }
+    } else {
+      // A defence with a target points at it: 8 bearing frames, indexed by
+      // the bearing to b.target (art.ini Turret=yes / TurretAnim=).
+      var aimI = -1;
+      if (AIMED[b.type] && b.target && !b.target.dead && !dark) {
+        var tX = b.target.kind === 'b' ? b.target.cx : b.target.x;
+        var tY = b.target.kind === 'b' ? b.target.cy : b.target.y;
+        aimI = (Math.round(Math.atan2(tY - b.cy, tX - b.cx) / (Math.PI / 4)) + 8) % 8;
+      }
+      var set, tag, fi;
+      if (aimI >= 0) {
+        set = hurt ? aimDmgOf(art, b.type, b.p, fk) : aimOf(art, b.type, b.p, fk);
+        tag = (hurt ? 'ad' : 'a') + aimI; fi = aimI;
+      } else {
+        // Hurt machinery runs slow (one third speed); healthy runs at pace.
+        set = hurt ? dmgSetOf(art, b.type) : (art.frames || [art.s]);
+        tag = hurt ? 'd' : 'i';
+        // Dead metal does not move: an unpowered structure freezes on frame 0.
+        fi = dark ? 0 : ((G.tick / (hurt ? 15 : 5) + b.id * 2) | 0) % set.length;
+        tag += fi;
+      }
+      artC = (dark ? offOf(art, tag, set[fi]) : set[fi]).c;
+    }
+    ctx.drawImage(artC, ox, oy, art.s.w, art.s.h);
+
+    // Damage: smoke and fire out of this structure's OWN fire ports, the
+    // same holes every time (art.ini DamageFireOffset0..2), not a jitter.
+    if (hurt && b.make <= 0) {
+      var crit = frac < 0.25;
+      var ports = portsOf(art);
+      var per2 = crit ? 7 : 13;
+      if (((G.tick + b.id * 7) % per2) === 0) {
+        var pt = ports[((G.tick / per2 + b.id) | 0) % ports.length];
+        G.fx.push({ x: b.cx, y: b.cy, ox: pt.x, oy: pt.y, t: 0, life: 78, smoke: true,
+                    lift: 0, big: crit ? 1.35 : 1 });
+        if (crit) G.fx.push({ x: b.cx, y: b.cy, ox: pt.x, oy: pt.y + 3, t: 0, life: 24, fire: true,
+                              lift: 0, big: 1.5 });
       }
     }
+    // Winding up: the Tesla Coil's arcs climb the coil, the Prism's crown
+    // brightens and pulls light in, for the 28 ticks before the shot.
+    if (b.charging > 0) drawCharge(b, px, py);
     if (b.sel) {
       // Brackets around the art, over it: a footprint ring drawn under the
       // sprite was hidden by the building's own platform.
@@ -16907,16 +17472,13 @@
     var topY = py - Math.max(art.rise || 0, (b.gw + b.gh) * 8) - 6;
     if (b.hp < b.maxhp) hpBar(px, topY - 4, 30, b.hp / b.maxhp);
 
-    // Unpowered structures read as dead metal, not "maybe fine".
+    // Switched off at the sidebar: the art already reads as dead metal, so
+    // this is only the tag that says a PLAYER did it (a brown-out looks the
+    // same and needs no label). RA2 has no emoji over the roof.
     if (b.offline) {
       ctx.fillStyle = 'rgba(150,162,180,.95)';
       ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
       ctx.fillText('OFF', px, topY - 8);
-      ctx.textAlign = 'left';
-    } else if (BLDS[b.type].power < 0 && !powered(G, b.p)) {
-      ctx.fillStyle = 'rgba(229,100,108,.85)';
-      ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText('⚡', px, topY - 8);
       ctx.textAlign = 'left';
     }
 
@@ -17654,6 +18216,7 @@
       G.blds.forEach(function (b) { if (b.p === p && !b.dead) killBld(G, b); });
     },
     deployMcv: function (u) { return G ? deployMcv(G, u) : null; },
+    centerOn: function (gx, gy) { centerOn(gx, gy); },
     api: { astar: astar, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
            countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld,
            findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf },

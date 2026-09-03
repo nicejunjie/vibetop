@@ -5887,3 +5887,54 @@ not the fix — and a tab switch is visible and instantly reversible. (c) A CSS
 `filter: brightness()` on the whole `.pit` for the offline/locked state — it
 dims the frame and the READY stamp too; only `.em canvas` is filtered.
 
+
+## Structure states are a post-pass over the baked art, never a second hand-drawn sprite
+
+- **Symptom:** RA2 gives every building four extra sprite sets — a MAKE
+  build-up (`Buildup=`, 208 keys), a damaged base SHP plus a damaged twin of
+  every active anim (`ActiveAnimDamaged=`, 39 keys), an unpowered/lights-out
+  look, and a death. `landing/rts.html` had exactly one: `bakeBuilding` baked
+  N idle phases and nothing else, so a structure at 45% hp was pixel-identical
+  to a new one and a dead one simply vanished.
+- **Cause:** the obvious fix — hand-drawing the damaged/unpowered/build-up
+  variant inside each of the 22 per-key art branches — is 22 × 2 factions ×
+  4 states of bespoke code. Nobody maintains that, and every future silhouette
+  change would have to be made four times.
+- **Fix:** one generic post-pass per state, run **lazily** on the already-baked
+  healthy canvas and masked to that canvas's own alpha:
+  `bakeDamaged` (silhouette bites with `destination-out`, then soot rings,
+  cracks, blackened patches and broken panes under `source-atop`),
+  `bakeUnpowered` (a `saturation` blend re-masked with `destination-in`, then
+  a cool wash), `bakeMake` (a rising clip plus a drawn scaffold girder and
+  crane), `rubbleFor` (per footprint size). The only per-key data is the fire
+  ports, and even those are **read off the art** — `firePorts` samples the
+  alpha at 30/54/76% of the sprite's width and drops a port just under the
+  first opaque row, which lands them on that structure's own roofline. That is
+  art.ini's `DamageFireOffset0..2` idea derived rather than transcribed, and it
+  keeps working when a sprite is redrawn.
+- **Trap 1 — the unpowered look must be a MODIFIER, not a frame.** Caching one
+  "off" canvas per structure meant a building that was both hurt and unpowered
+  lost its damage. `offOf(art, tag, frame)` caches per *displayed frame* tag
+  instead, so damaged+dark, aiming+dark and idle+dark all compose.
+- **Trap 2 — `ctx.filter = 'brightness()'` does not put lights out.** A lit
+  amber window stays orange under any brightness. Desaturating first (the
+  `saturation` blend) is what actually kills it.
+- **Trap 3 — the MAKE wipe runs from the ANCHOR ROW, not the canvas bottom.**
+  The first attempt swept `bb.y1 → bb.y0` and took `min(revY, apronTop)` so the
+  apron would show; because `apronTop` was above the sweep for every early
+  phase, the clip never moved and the first four phases were identical images
+  of a nearly finished building. The wipe has to start at `ay + 3` (the
+  anchor row — on these sprites that is the near half of the hardstanding
+  diamond and nothing else) and climb to `bb.y0`.
+- **Trap 4 — a crater painted dark reads as a hole punched in the map.** The
+  first rubble bake used near-black for the bowl; on grass it looked like a
+  void. RA2's crater is churned earth: a warm dug-out bowl, a lit far rim, a
+  shallow shadow on the near lip, and the scorch as overlapping soft blots
+  rather than a hard tile diamond.
+- **Rejected:** baking every state eagerly in `bakeAll`. That doubles the
+  ~530 building canvases at load for states most matches never show. Lazy
+  bakes cost one canvas the first frame a state appears and nothing after.
+- **Note on the sim:** `placeBld` only sets `b.make` when `!headless`, so the
+  2.5s inert build-up is presentation only — `rts.test.js` (every test goes
+  through `__rtsTest.begin`, which sets `headless`) keeps building and firing
+  on the same tick, and no test needed changing.

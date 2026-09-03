@@ -291,15 +291,26 @@ fidelity plus reproduced player reports.
 
 **Phase 2 — structure states (art §1). ~4 batches, L.** One baked frame set
 per state, for every structure and defence, both factions.
-- ☐ Damaged art at 50% + `DamageFireOffset` fire ports (art.ini values).
-- ☐ Destruction: explosion families, debris, crater + scorch decals, rubble
-  that persists on the ground layer.
-- ☐ MAKE build-up per structure (rising wipe + crane/scaffold band, 6–10
-  phases, once, from `builtAt`); MCV unpack plays the yard's MAKE.
-- ☐ Unpowered: animation stops, lights out, no emoji; wrench sprite for repair.
-- ☐ Defences aim (bearing-indexed turret frames); Tesla Coil 28-frame charge
-  with power-up sound; Prism Tower charge + support links (+150%, max 8,
-  feature and art together); Patriot alternating tubes.
+- ☑ Damaged art at ≤50% + fire ports. `A.dmg` is a generic post-pass over the
+  baked healthy frames (silhouette bites, soot, cracks, blackened patches,
+  broken panes, masked to the sprite's alpha); the three ports per key are
+  read off the art's own roofline, and the idle animation drops to a third
+  speed while hurt.
+- ☑ Destruction: `killBld` stages 3–5 blasts across the footprint, throws
+  debris on ballistic arcs, stands a smoke column over the wreck, and leaves
+  a baked rubble decal per footprint size (soft scorch, churned crater,
+  broken slabs, twisted rebar) on the ground layer, passable, fading over 60s.
+- ☑ MAKE build-up per structure (apron first, then a rising wipe behind a
+  scaffold girder + working crane, 7 phases baked lazily per key, ~2.5s,
+  inert while it runs); MCV unpack plays the yard's MAKE via `placeBld`.
+- ☑ Unpowered: baked desaturated frame, animation frozen, no emoji (the OFF
+  tag stays for a player-switched-off structure). ☐ wrench sprite for repair.
+- ☑ Defences aim: 8 bearing frames baked lazily for the Sentry Gun barrels,
+  Flak Cannon barrel, Patriot launcher and Pillbox slit (`gunAim` projects a
+  raised gun at a world bearing into the iso view); Tesla Coil and Prism
+  Tower both wind up for `DelayedFireDelay=28` with drawn charge art and a
+  rising sound; Prism support links (+150% per supporter, max 8) with the
+  beams drawn; Patriot alternates its tubes.
 - ☐ Production doors (War Factory roof/door, Barracks door) on spawn.
 - ☐ Footprints to RA2 `Foundation=` (yard 4×4, WF 5×3, Refinery 4×3, Barracks
   3×2, AFC 3×2, Lab 3×2/3×3, Tesla Reactor 3×2, Chronosphere 4×3) with maps and
