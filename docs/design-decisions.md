@@ -6693,3 +6693,146 @@ the leaf swings through the iso plane), and screen-space quads over a baked
 sprite do not survive a facing or a footprint change. *Keeping the doors open
 when idle* — RA2's factories stand shut, and a permanently open bay makes the
 door sequence unreadable.
+
+## The AI is a task-force machine now, and its difficulty rests on RA2's economy curve (2026-09-03)
+
+**Symptom.** Three separate complaints about the same AI. It could not crack an
+opponent that turtled: with the easy side holding its whole army at home, hard
+won **11 of 24** matches (12 seeds × both faction orders, 30-minute cap) and
+timed out in the rest. Its difficulty ladder was thin — hard beat *normal* only
+**12 of 24**. And the soak's roster coverage showed whole shelves of the rules
+file it never touched: no Engineer, no Tanya, no Ivan, no Terror Drone, no Tesla
+Tank, no Ore Purifier, no artillery group of any kind.
+
+**Cause.** The AI had no concept of a *force*. `aiProduce` rolled dice on a
+weighted list ("40% chance of a Mirage") and `aiTactics` swept whatever existed
+into one wave aimed at a fixed preference list — War Factory, Barracks,
+Refinery. That list walks past the guns to reach the factory, so against a
+defended base the wave died at the perimeter every time, and because the next
+unit off the line joined the *next* wave rather than any plan, the AI never
+massed the one thing that beats a static defence: artillery that out-ranges it.
+
+RA2 does not work that way. `ai.ini` declares **[TaskForces]** (2 Prism Tanks,
+6 Grizzly), **[ScriptTypes]** (gather; attack the nearest *base defence*),
+**[TeamTypes]** binding the two with `Max=`, `Full=`, `Reinforce=`, and
+**[AITriggerTypes]** that fire them on a weighted roll per difficulty.
+`rules.ini [General]` paces the whole machine.
+
+**Fix.** A team layer, read off the real files, wired into the existing economy
+and structure ladder rather than over it:
+
+- **`AI_TEAMS`** (exposed as `__rtsTables.AI_TEAMS`): twenty named task forces,
+  ten a side, each with a per-difficulty trigger weight, an instance cap, a
+  prerequisite structure and a target class. `aiTeamPass` runs on `TeamDelays`,
+  bounded by `TotalAITeamCap`, dissolving anything that has not filled inside
+  `DissolveUnfilledTeamDelay`.
+- **Production is a team request.** `aiTeamNeeds` returns what the unfilled
+  teams are short of, in team-priority order, and the infantry/vehicle/air
+  lanes build that. The old dice-roll survives only as the fallback for spare
+  money once every team is full.
+- **Siege posture.** When the enemy defence line is worth more than 45% of our
+  own army, or two waves have broken inside four minutes, the artillery task
+  force gets `AITriggerSuccessWeightDelta`'s +20 and its script targets base
+  defences → power → production. It works because the artillery genuinely
+  out-ranges the guns (Prism Tank 10 vs Tesla Coil 7; V3 18 vs Prism Tower 8),
+  which is why the same team composition that dies as a line company wins as a
+  siege.
+- **Engineers, superweapons, economy, defence** as the tables say: Oil Derrick
+  first; `AIIonCannon*Value` aiming (War Factory 100 beats a refinery cluster);
+  `HarvestersPerRefinery=2`; the base-defence plan from rules.ini's own
+  superseded formula clamped by `Allied/SovietBaseDefenseCounts`;
+  `AIBuildsWalls=no` so none are built, but one in the way is shot.
+
+**Numbers.** Four gates, each 12 seeds × both faction orders, 30-minute cap,
+`over===1` = the first-named side won. The turtle gate runs a harness copy in
+which the easy side's `opening` is infinite and every unit — aircraft
+included — is held inside 22 tiles of its start.
+
+| Gate | Threshold | Before | After |
+|---|---|---|---|
+| hard vs easy | ≥ 20/24 | 22/24 | **21/24** |
+| hard vs normal | ≥ 16/24 | 12/24 | **18/24** |
+| normal vs easy | ≥ 16/24 | 19/24 | **18/24** |
+| hard vs a turtle | ≥ 18/24 | 11/24 | **22/24** |
+
+(Two "before" runs crashed and are counted as losses — see the two crash fixes
+below, both pre-existing.)
+
+**The economy handicap, and how much of the ladder it is.** `[General]
+AIVirtualPurifiers=4,2,0` (hard, medium, easy) gives a skirmish AI that many
+*imaginary* Ore Purifiers at +25% each, so hard mines at 2.0× and medium at
+1.5× with no building to shoot; `MultiplayerAICM=400,0,0` pays the Genius AI a
+one-off opening bonus. This project's previous stance was "every knob is a
+handicap on the AI's own play, never a bonus to its economy". RA2's curve is
+the standard now, so it is implemented — and measured. Rebuilding the final
+file with `purifiers` and `aicm` zeroed on every tier:
+
+| Gate | With RA2's curve | Without |
+|---|---|---|
+| hard vs easy | 21/24 | 12/24 |
+| hard vs normal | 18/24 | 11/24 |
+| normal vs easy | 18/24 | 13/24 |
+| hard vs a turtle | 22/24 | 14/24 |
+
+That is the honest reading: **most of the current difficulty ladder is the
+economy multiplier.** Strip it and every pairing collapses toward a coin flip.
+The tactical knobs (`opening`, `group`, `give`, `apm`, `wave`, `fact`, `bar`,
+`expand`, the trigger weights) still separate the tiers, but not by much once
+both sides are running the same task-force machine — which is the real finding:
+the team layer raised the FLOOR of the easy AI as much as the ceiling of the
+hard one.
+
+**Rejected.**
+
+- *Keeping the wave and bolting teams beside it.* Two systems fighting over the
+  same units. The wave is now simply the largest attacking team (`ai.wave` is
+  kept as an alias so the soak harness's `A1-frozen-army` check still reads).
+- *Launching a team the moment it is full.* `ai.ini` writes `Full=no` on nearly
+  every attack TeamType, and our first cut launched on fill alone: 41 units
+  went into an easy AI at seven minutes and 29 died in one crossing. A team now
+  needs the posture ladder's agreement too — except a siege force, which
+  out-ranges what holds it back, and a raid, which is meant to be small.
+- *Letting every team recruit at once.* Eight half-filled teams shared fifty
+  Soviet units for a whole 30-minute match and not one of them ever launched.
+  One offensive task force recruits at a time; the rest wait.
+- *Capping the committed force at the task-force size.* RA2's maps do not field
+  what ours do. `Reinforce=` folds the loose pool into the spearhead up to
+  `wave`, keeping a quarter of it home.
+- *Taking `AlliedBaseDefenseCounts=25` literally.* Twenty-five pillboxes is a
+  plan for RA2's economy, not ours: the first build spent $10 000 on turrets and
+  fielded eleven men. rules.ini prints the formula those numbers replaced right
+  beside them, and running the formula with the explicit number as a ceiling
+  scales the plan to the base that is actually standing.
+- *Converting `TeamDelays` from RA2's 15 fps to our 60.* At 4× the hard AI would
+  raise a team every 3 m 53 s and a 30-minute match would see seven of them.
+  The cadence is used as ticks. `DissolveUnfilledTeamDelay` **is** converted,
+  because it is a timeout and its real-world length is what matters: at 5 000
+  ticks a 15-strong siege force was binned before it could fill.
+
+**Four pre-existing bugs this work surfaced**, all found by running the balance
+harness 96 matches at a time:
+
+1. `stepUnit`'s move branch took an opportunity shot and then read `u.order.x`.
+   `fire()` can end the order under it (a Terror Drone burrowing in, an Ivan
+   planting and dying), which crashed the whole match — 3 of 96 soak runs.
+2. `openCrate` picked a random vehicle from `['lancer','ifv','harvester']`.
+   `'harvester'` is a *role*, not a `UNITS` key, so the Directorate's crate
+   crashed one time in three instead of paying out.
+3. Save/load deep-copies the AI, so `ai.cfg === DIFF.hard` stopped being true
+   across a reload and every identity test on it silently answered "normal".
+   The difficulty NAME is stored on the AI now.
+4. The threat scan asked "is an enemy within 16 tiles of ANY building I own".
+   Once the new Engineer teams started capturing an Oil Derrick on the far side
+   of the map, that read as a raid on the homeland and marched the entire
+   production line across the field to die — 247 GIs killed at the enemy's door
+   in eight minutes. "Our base" is now the buildings inside `AISafeDistance` of
+   the start.
+
+**One thing the harness had to learn.** The first turtle fixture was not a
+turtle: with `opening` set to infinity the easy side still ran Harrier strikes
+at the attacker's harvesters (the air pass had no opening gate) and its threat
+response chased a repelled wave all the way home. Both are now fixed on the
+right side of the line — the air strike is gated by `opening` in the *game*,
+because an easy AI that bombs your miners at three minutes while it "has not
+started attacking yet" reads as a cheat; and the *harness* holds every unit,
+aircraft included, inside 22 tiles of the turtle's start.
