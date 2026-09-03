@@ -628,13 +628,45 @@ per state, for every structure and defence, both factions.
   appears when a slot is full. Format and the determinism guarantee are in
   `docs/design-decisions.md`; a round-trip test steps the original and the
   restored copy 1 000 ticks and compares state hashes.
-- ☐ AI: task-force/team-type layer with per-difficulty triggers, engineer
-  teams, `AIIonCannon*Value` superweapon targeting, `HarvestersPerRefinery`,
-  RA2's difficulty curve.
-- ☐ AI siege posture: the hard AI cannot crack an opponent that turtles (soak
-  2026-09-03: with Easy holding its army home for 10 min, hard won 14/24; at
-  7 min, 22/24). RA2's AI masses artillery (V3/Prism/Kirov) against static
-  defence and attacks on a timer regardless.
+- ☑ AI: RA2's **task-force / team-type layer**, modelled on `ai.ini`'s
+  [TaskForces] / [ScriptTypes] / [TeamTypes] / [AITriggerTypes] and paced by
+  `rules.ini [General]`. Twenty named task forces (`__rtsTables.AI_TEAMS`), ten
+  a side — Allied Infantry Attack (4 GI + 2 Grizzly), Grizzly Attack (4 Grizzly
+  + 2 IFV + 2 Guardian GI), Mirage Ambush, **Prism Siege** (3 Prism + 4 Mirage
+  + 2 Grizzly + 6 GI), Rocketeer Raid, Tanya Strike, Harrier Attack, Tech
+  Capture, Base Defense; Soviet Conscript Flood, Rhino Spearhead, Apocalypse,
+  Tesla Tank, **Bombard** (3 V3 + 4 Flak Track + 4 Rhino), Kirov Raid, Terror
+  Drone Attack, Ivan vs Allies, Desolator Line, Tech Capture, Base Defense.
+  Each carries a per-difficulty trigger weight, a `Max=` instance count and a
+  prerequisite structure; `TotalAITeamCap` (30), `TeamDelays` (2000/2500/3500)
+  and `DissolveUnfilledTeamDelay` (5000 frames, converted) run the cadence.
+  **Production requests come from the teams being filled** — the ad-hoc "roll a
+  die and pick a unit" in `aiProduce` is gone, the economy/structure ladder is
+  untouched. Teams gather at the staging point, then attack-move at a target
+  CLASS (`aiPickTarget(…, cls)`: base defences → power → production →
+  harvesters → nearest), retreat below `give`, and absorb the loose pool
+  (`Reinforce=`) up to `wave`. Engineer teams capture the Oil Derrick first,
+  then tech buildings, bridge huts, our own damaged structures and an
+  undefended enemy building. `AIIonCannon*Value` drives the superweapon aim
+  (War Factory 100, Power 60, Base Defense 35, Helipad/Radar 20, ConYard 10,
+  harvester/MCV/Engineer 1), with `AIMinorSuperReadyPercent` holding a full
+  team for an Iron Curtain that is 70% charged. `HarvestersPerRefinery=2`, the
+  refinery count follows the ore the base can reach, and
+  `AIVirtualPurifiers` / `MultiplayerAICM` are RA2's Brutal-tier economy
+  handicap (see `docs/design-decisions.md`). Defensive teams honour
+  `Minimum/MaximumAIDefensiveTeams`; the base-defence plan runs rules.ini's own
+  `((TotalBaseCost-2000)/1500 × Coefficient) + 3×(Level-1)` clamped by
+  `Allied/SovietBaseDefenseCounts`. `AIBuildsWalls=no`, so the AI builds none —
+  `AIPickWallDefensePercent` is wired but dormant, and a wall in the way is
+  SHOT (`aiClearWall`).
+- ☑ AI siege posture: the defence line is valued against our own army, and two
+  broken waves inside four minutes set it too; hard and normal then raise the
+  artillery task force, which targets base defences first and out-ranges them
+  (Prism Tank 10 vs Tesla Coil 7, V3 18 vs Prism Tower 8) behind a screen of
+  line tanks and infantry, with the Chronosphere dropping it at the defence
+  line when it is still walking. Gate: hard vs an easy AI that never attacks
+  and holds every unit home went **11/24 → 22/24** over 12 seeds × both faction
+  orders (30-minute cap).
 
 **Phase 7 — audio (art §7). DONE (2026-09-03).** Original synthesis only —
 every sound is oscillators and one baked noise buffer, no files, no libraries.

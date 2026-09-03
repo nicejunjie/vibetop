@@ -2722,12 +2722,17 @@ test("every new man is in his faction's Infantry tab and behind the right prereq
 
 test("the default options replay a seed exactly as the game did before them", () => {
   // Recorded from the build immediately before the skirmish strip landed
-  // (seed 4242, normal vs normal, Directorate vs Collective, three minutes).
+  // (seed 4242, normal vs normal, Directorate vs Collective, three minutes),
+  // then RE-recorded when the Phase 6 task-force AI landed: that change is
+  // the AI's own decisions, which every skirmish shares, so the recording
+  // moved with it. What this test still guards is what it always guarded —
+  // that nothing in OPT_DEF leaks into the default path, so a drift here with
+  // the AI untouched means an option escaped its default.
   const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
   assert.deepEqual(
     { u0: r.p0units, u1: r.p1units, b0: r.p0blds, b1: r.p1blds, c0: r.p0credits, c1: r.p1credits },
-    { u0: 10, u1: 12, b0: 5, b1: 5, c0: 8437, c1: 9105 },
-    "a default match must be bit-for-bit the match it was before Phase 6",
+    { u0: 8, u1: 10, b0: 5, b1: 5, c0: 10698, c1: 11698 },
+    "a default match must be bit-for-bit the recorded match",
   );
 });
 
@@ -2992,16 +2997,232 @@ test("the whole audio layer is inert without an AudioContext", () => {
 });
 
 test("adding audio did not move the simulation", () => {
-  // Recorded from the build immediately before Phase 7. Audio is presentation
-  // only: if any of these move, something in the sound layer reached the sim.
+  // Presentation-only layers (audio, doors) must not reach the sim. The pinned
+  // numbers are re-recorded whenever a SIM change lands (last: the Phase 6 AI
+  // team layer changed the AI's own decisions) — a presentation change must
+  // never be the reason they move.
   const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
   assert.equal(r.ticks, 10800);
-  assert.equal(r.p0units, 10);
-  assert.equal(r.p1units, 12);
+  assert.equal(r.p0units, 8);
+  assert.equal(r.p1units, 10);
   assert.equal(r.p0blds, 5);
   assert.equal(r.p1blds, 5);
-  assert.equal(r.p0credits, 8437);
-  assert.equal(r.p1credits, 9105);
-  assert.equal(r.p0made, 10);
-  assert.equal(r.p1made, 13);
+  assert.equal(r.p0credits, 10698);
+  assert.equal(r.p1credits, 11698);
+  assert.equal(r.p0made, 8);
+  assert.equal(r.p1made, 10);
+});
+
+// ======================= Phase 6: the AI team layer ===================== //
+//
+// RA2's AI is a task-force machine: ai.ini names a [TaskForce] (so many of
+// each type), a [ScriptType] (gather, then attack a target CLASS) and a
+// [TeamType] that binds the two with a trigger weight per difficulty. These
+// tests read that table and then drive real matches through it.
+
+// Place a structure on the first spot spiralling out from a point whose whole
+// footprint (plus a one-tile skirt, so the base does not seal itself in) is
+// clear ground. This deliberately does NOT go through canPlace: these fixtures
+// stand buildings up for the AI to reason about, including neutral ones and
+// ones whose prerequisites are not met yet.
+function putNear(H, g, key, p, x, y) {
+  const API = H.api, TB = W.__rtsTables, MAP = TB.MAP, d = TB.BLDS[key];
+  const clear = (gx, gy) => {
+    for (let yy = gy - 1; yy <= gy + d.gh; yy++) for (let xx = gx - 1; xx <= gx + d.gw; xx++) {
+      if (xx < 0 || yy < 0 || xx >= MAP || yy >= MAP) return false;
+      if (API.blocked(g, xx, yy)) return false;
+    }
+    return true;
+  };
+  for (let r = 0; r < 24; r++) {
+    for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      const gx = x + ox, gy = y + oy;
+      if (gx < 2 || gy < 2 || gx > MAP - 6 || gy > MAP - 6) continue;
+      if (!clear(gx, gy)) continue;
+      return H.build(key, p, gx, gy);
+    }
+  }
+  return null;
+}
+// A house with everything standing and money in the bank.
+function fullBase(H, g, p, fac, extra) {
+  g.side[p].fac = fac;
+  const st = g.start[p];
+  const keys = ["base", "power", "refinery", "barracks", "factory"].concat(extra || []);
+  for (const k of keys) putNear(H, g, k, p, st.x, st.y);
+  g.side[p].credits = 40000;
+  for (let i = 0; i < 2; i++) H.spawn(fac === "col" ? "warminer" : "chronominer", p, st.x + 3 + i, st.y + 3);
+}
+
+test("AI_TEAMS is a well-formed ai.ini task-force table", () => {
+  const TT = T.AI_TEAMS;
+  assert.ok(Array.isArray(TT) && TT.length >= 16, "__rtsTables.AI_TEAMS is exposed");
+  const roles = new Set(["attack", "siege", "harass", "defend", "air", "engineer"]);
+  const keys = new Set();
+  for (const d of TT) {
+    assert.ok(!keys.has(d.key), `${d.key} is used twice`);
+    keys.add(d.key);
+    assert.ok(d.fac === "dir" || d.fac === "col", `${d.key} belongs to a faction`);
+    assert.ok(roles.has(d.role), `${d.key} has a known role (${d.role})`);
+    assert.ok(d.max >= 1, `${d.key} may exist at least once`);
+    assert.ok(d.force.length > 0, `${d.key} has a task force`);
+    for (const diff of ["easy", "normal", "hard"]) {
+      assert.equal(typeof d.w[diff], "number", `${d.key} has a ${diff} trigger weight`);
+    }
+    for (const f of d.force) {
+      const spec = T.UNITS[f.t];
+      assert.ok(spec, `${d.key} asks for a real unit (${f.t})`);
+      assert.ok(f.n >= 1, `${d.key} asks for at least one ${f.t}`);
+      assert.ok(!spec.fac || spec.fac === d.fac,
+        `${d.key} (${d.fac}) may not field ${f.t}, which is ${spec.fac}`);
+      if (d.need) assert.ok(T.BLDS[d.need], `${d.key} needs a real structure`);
+    }
+  }
+  // Both factions get the whole shape, and the siege forces are the RA2 ones.
+  for (const fac of ["dir", "col"]) {
+    for (const role of ["attack", "siege", "harass", "defend", "engineer"]) {
+      assert.ok(TT.some((d) => d.fac === fac && d.role === role),
+        `${fac} has a ${role} team type`);
+    }
+  }
+  const dirSiege = TT.find((d) => d.fac === "dir" && d.role === "siege");
+  const colSiege = TT.find((d) => d.fac === "col" && d.role === "siege");
+  assert.ok(dirSiege.force.some((f) => f.t === "prismtank"), "the Allied siege force is prism artillery");
+  assert.ok(colSiege.force.some((f) => f.t === "v3"), "the Soviet siege force is V3 artillery");
+  // Only the hardest tiers get the specials — RA2 gates them by difficulty.
+  assert.equal(TT.find((d) => d.key === "dirTanya").w.easy, 0, "easy never fields Tanya");
+  assert.ok(dirSiege.w.hard > dirSiege.w.normal, "hard reaches for artillery more often");
+});
+
+test("a task force fills from production and then launches its script", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(90210, "hard");
+  fullBase(H, g, 1, "dir");
+  fullBase(H, g, 0, "col");                     // something to attack
+  const ai = H.attachAI(1, "hard");
+  let launched = null;
+  for (let i = 0; i < 60 * 60 * 9 && !launched; i++) {
+    H.step(1);
+    launched = ai.teams.find((t) => !t.def.prod && t.launched && t.units.length);
+  }
+  assert.ok(ai.teams.length > 0, "the trigger pass created teams");
+  assert.ok(launched, "a team filled and ran its script");
+  assert.equal(launched.mode, "attack");
+  assert.ok(launched.tgt, "the script picked a target");
+  for (const u of launched.units) {
+    assert.equal(u.p, 1, "the team is made of its own house's units");
+    assert.ok(launched.def.force.some((f) => f.t === u.type) || launched.n0 > 0,
+      `${u.type} is either in the task force or a Reinforce= straggler`);
+  }
+});
+
+test("a siege team assembles against a base that out-guns a direct assault", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(4711, "hard");
+  fullBase(H, g, 1, "dir", ["airforce", "lab"]);
+  fullBase(H, g, 0, "col");
+  // A turtle: a wall of Tesla Coils is worth more than a line company.
+  const st0 = g.start[0];
+  // Coils are Powered=yes and defenceValue() only counts a LIT defence line,
+  // so the turtle needs the grid to carry them.
+  for (let i = 0; i < 4; i++) putNear(H, g, "power", 0, st0.x, st0.y);
+  for (let i = 0; i < 6; i++) putNear(H, g, "tesla", 0, st0.x + 4, st0.y + 4);
+  const ai = H.attachAI(1, "hard");
+  // The script aims at the guns, not past them: with the coils standing, the
+  // "defence" target class has to return one of them and not the refinery
+  // behind it (which is what the default preference list would pick).
+  const tgt = H.api.aiPickTarget(g, ai, 1, 0, "defence", g.start[1]);
+  assert.ok(tgt && T.BLDS[tgt.type] && T.BLDS[tgt.type].dmg > 0,
+    "the defence script picks a base defence");
+  assert.equal(tgt.type, "tesla");
+  let siege = null, sawSiege = false;
+  for (let i = 0; i < 60 * 60 * 12 && !siege; i++) {
+    H.step(1);
+    if (ai.siege) sawSiege = true;
+    siege = ai.teams.find((t) => t.def.role === "siege");
+  }
+  assert.ok(sawSiege, "the defence line switched the AI into siege posture");
+  assert.ok(siege, "a siege task force was raised");
+  // The artillery out-ranges what it is sent against.
+  assert.ok(T.UNITS.prismtank.rng > T.BLDS.tesla.rng, "the Prism Tank out-ranges a Tesla Coil");
+  assert.ok(T.UNITS.v3.rng > T.BLDS.prism.rng, "the V3 out-ranges a Prism Tower");
+});
+
+test("an Engineer team captures the Oil Derrick", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(5150, "hard");
+  fullBase(H, g, 1, "dir");
+  fullBase(H, g, 0, "col");
+  const st = g.start[1];
+  const oil = putNear(H, g, "oilderrick", -1, st.x + 10, st.y + 10);
+  assert.ok(oil && oil.p < 0, "the derrick starts neutral");
+  // On open ground between the base and the derrick — spawned inside the
+  // fixture's own building cluster the engineer is simply walled in.
+  let spot = null;
+  for (let r = 3; r < 10 && !spot; r++) {
+    for (let oy = -r; oy <= r && !spot; oy++) for (let ox = -r; ox <= r && !spot; ox++) {
+      const x = Math.round(oil.cx) + ox, y = Math.round(oil.cy) + oy;
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      if (!H.api.blocked(g, x, y)) spot = { x, y };
+    }
+  }
+  assert.ok(spot, "there is open ground beside the derrick");
+  const eng = H.spawn("engineer", 1, spot.x, spot.y);
+  assert.ok(eng, "an engineer is on the field");
+  const ai = H.attachAI(1, "hard");
+  for (let i = 0; i < 60 * 60 * 4 && oil.p !== 1; i++) H.step(1);
+  assert.equal(oil.p, 1, "the AI walked an Engineer into the derrick");
+  // And it keeps an Engineer team type on the books to make the next one.
+  let engTeam = false;
+  for (let i = 0; i < 60 * 60 * 4 && !engTeam; i++) {
+    H.step(1);
+    engTeam = ai.teams.some((t) => t.def.role === "engineer");
+  }
+  assert.ok(engTeam, "an Engineer team type was raised");
+});
+
+test("the superweapon aims by the AIIonCannon value table, not by size", () => {
+  const H = W.__rtsTest, API = H.api;
+  const g = H.begin(31337, "normal");
+  g.side[0].fac = "dir";
+  // Two clusters, far apart: a refinery pair one side, the War Factory the
+  // other. rules.ini scores WarFactory 100 and a refinery is not in the
+  // table at all, so the factory has to win.
+  const a = putNear(H, g, "refinery", 0, 12, 12);
+  putNear(H, g, "refinery", 0, 12, 16);
+  const f = putNear(H, g, "factory", 0, 48, 48);
+  assert.ok(a && f);
+  const hit = API.aiSwTarget(g, 0);
+  assert.ok(hit && hit.b, "a target was scored");
+  assert.equal(hit.b.type, "factory", "the War Factory outscores the ore economy");
+  assert.equal(API.aiSwValue({ kind: "b", type: "factory" }), 100);
+  assert.equal(API.aiSwValue({ kind: "b", type: "power" }), 60);
+  assert.equal(API.aiSwValue({ kind: "b", type: "base" }), 10);
+  assert.equal(API.aiSwValue({ kind: "b", type: "sentry" }), 35);
+  assert.equal(API.aiSwValue({ kind: "b", type: "airforce" }), 20);
+  assert.equal(API.aiSwValue({ kind: "u", type: "chronominer" }), 1);
+});
+
+test("HarvestersPerRefinery=2: the AI mans every refinery it owns", () => {
+  const H = W.__rtsTest, API = H.api;
+  for (const [nRef, want] of [[1, 2], [2, 4]]) {
+    const g = H.begin(606 + nRef, "hard");
+    fullBase(H, g, 1, "col");
+    const st = g.start[1];
+    for (let i = 1; i < nRef; i++) putNear(H, g, "refinery", 1, st.x + 5, st.y + 5);
+    H.attachAI(1, "hard");
+    assert.equal(API.countBld(g, 1, "refinery"), nRef);
+    // The AI expands, so the ceiling has to be read against the refineries it
+    // actually ended up owning, not the ones it started with.
+    let peak = 0, peakRef = nRef;
+    for (let i = 0; i < 60 * 60 * 8; i++) {
+      H.step(1);
+      peak = Math.max(peak, API.countUnit(g, 1, "harvester"));
+      peakRef = Math.max(peakRef, API.countBld(g, 1, "refinery"));
+    }
+    assert.ok(peak >= Math.min(want, 3), `${nRef} refineries should man up to ${want} miners (peaked at ${peak})`);
+    assert.ok(peak <= 2 * peakRef + 1,
+      `and never a fleet: ${peak} miners for ${peakRef} refineries breaks HarvestersPerRefinery=2`);
+  }
 });

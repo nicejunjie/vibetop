@@ -17487,7 +17487,12 @@
         return;
       }
       if (atRefinery(u, ref2)) {
-        var _got = Math.round(u.cargoV * (hasBld(g, u.p, 'purifier') ? 1.25 : 1));   // Ore Purifier: +25%
+        // Ore Purifier: +25%.  [General] AIVirtualPurifiers=4,2,0 (hard,
+        // medium, easy) gives a skirmish AI that many IMAGINARY purifiers at
+        // 25% each — RA2's own economy handicap curve, so hard mines at 2x and
+        // medium at 1.5x with no building to shoot. See docs/design-decisions.md.
+        var _pur = (hasBld(g, u.p, 'purifier') ? 1 : 0) + aiVirtualPurifiers(g, u.p);
+        var _got = Math.round(u.cargoV * (1 + 0.25 * _pur));
         g.side[u.p].credits += _got; g.side[u.p].harv += _got;
         if (u.p === P_HUMAN && !headless) creditPop(Math.round(u.cargoV));
         u.cargo = 0; u.cargoV = 0; u.state = 'idle'; u.path = null; u.noProg = 0; u.stallAt = g.tick;
@@ -18221,6 +18226,11 @@
         var passing = findTarget(g, u, reachOf(d, u));
         if (passing) fire(g, u, passing);
       }
+      // fire() can end the order under us — a Terror Drone that burrows into
+      // its victim, an Ivan that plants and dies, a Chrono Legionnaire that
+      // erases the thing it was walking past. Reading u.order.x after it has
+      // been nulled crashed the whole match (soak, 3 of 96 runs).
+      if (!u.order || u.order.t !== 'move') return;
       var mdx = u.order.x - u.x, mdy = u.order.y - u.y;
       if (mdx * mdx + mdy * mdy < (u.air ? 0.3 : 1.4)) {  // arrived (a flyer lands its spot exactly)
         u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
@@ -18804,7 +18814,10 @@
     } else {
       // [Powerups] Unit / [CrateRules] UnitCrateType=none — a random vehicle,
       // or the free MCV when the owner has nothing left to build from.
-      var pick = noBase ? 'mcv' : (facOf(g, p) === 'col' ? ['rhino', 'flaktrack', 'v3'] : ['lancer', 'ifv', 'harvester'])[(hash3(g.seed, cr.id, 5) * 3) | 0];
+      // 'harvester' is a ROLE, not a key: UNITS has chronominer/warminer, so
+      // the literal crashed openCrate (and spawned nothing) whenever the die
+      // came up 2 for the Directorate.
+      var pick = noBase ? 'mcv' : (facOf(g, p) === 'col' ? ['rhino', 'flaktrack', 'v3'] : ['lancer', 'ifv', harvKey(facOf(g, p))])[(hash3(g.seed, cr.id, 5) * 3) | 0];
       var sp2 = freeTileNear(g, cr.x, cr.y);
       if (sp2) spawnUnit(g, pick, p, sp2.x, sp2.y);
       msg = bspecFor ? UNITS[pick].name : 'Unit'; glyph = '🚚';
@@ -19356,36 +19369,180 @@
   //  orders, and a tactical pass moves the army. It reads the same world
   //  every player does — no free credits, no map knowledge it did not scout.
   // --------------------------------------------------------------------- //
+  // ===================================================================== //
+  //  AI — RA2's task-force / team-type layer
+  // ===================================================================== //
+  // Every number below is read off the real game: `rules.ini [General]` for
+  // the cadences and caps, `ai.ini` [TaskForces]/[ScriptTypes]/[TeamTypes]/
+  // [AITriggerTypes] for the compositions and the trigger weights.
+  //
+  // One conversion is deliberate and is NOT a straight copy. RA2 runs its
+  // logic at 15 frames per second; we run 60 ticks per second. TeamDelays is
+  // used here as TICKS, not multiplied by four: at 4x, hard's 3500 would be
+  // 3 m 53 s between team-creation passes and a 30-minute skirmish would see
+  // seven teams in total.  DissolveUnfilledTeamDelay is a TIMEOUT rather than
+  // a cadence, so there the real-world length is what matters and 5000 frames
+  // is converted properly (20 000 ticks, about five and a half minutes) — at
+  // 5000 ticks a 15-strong siege force was binned before it could ever fill.
+  // See docs/design-decisions.md.
   var DIFF = {
     // group = how many fighters it masses before committing. A LOW number is
     // a weakness, not a strength: it feeds units piecemeal into defences.
     // give = the fraction of a wave that must survive before it presses on.
-    // Every knob here is a HANDICAP on the AI's own play, never a bonus to
-    // its economy or vision. focus: does it concentrate fire or just shoot
-    // the nearest thing. apm: how many orders it can issue per tactical pass
-    // (a big army it cannot command is a real weakness). group: how many it
-    // masses before committing — low dribbles units in, high is slow to start.
-    // opening: ticks of grace before it will commit an attack at all. A human
-    // needs time to read the panel before the first wave arrives; an AI that
-    // rushes a beginner at three minutes is not "hard", it is unplayable.
-    // Easy stays at 7 min: at 10 it turtled behind its whole army and the hard
-    // AI, which cannot yet siege a static base, fell to 14/24 vs 22/24 (soak,
-    // 12 fresh seeds). The siege posture is a Phase 6 item.
+    // focus: does it concentrate fire or just shoot the nearest thing. apm:
+    // how many orders it can issue per tactical pass (a big army it cannot
+    // command is a real weakness). opening: ticks of grace before it will
+    // commit an attack at all. A human needs time to read the panel before
+    // the first wave arrives; an AI that rushes a beginner at three minutes
+    // is not "hard", it is unplayable.
     // wave / fact / bar: RA2's Easy and Medium AIs attack with small teams and
     // run one or two production buildings; only Brutal throws 40 units at
     // minute six (playtest pass 2: Normal killed a clean opening at 6:53).
-    easy:   { react: 72, apm: 22,  focus: false, harass: false, group: 6,  expand: 1, scoutEvery: 0,    give: 0.30, opening: 60 * 420, wave: 8,   fact: 1, bar: 1 },
-    normal: { react: 36, apm: 55,  focus: true,  harass: false, group: 9,  expand: 2, scoutEvery: 1800, give: 0.40, opening: 60 * 360, wave: 14,  fact: 2, bar: 2 },
-    hard:   { react: 12, apm: 999, focus: true,  harass: true,  group: 10, expand: 3, scoutEvery: 1000, give: 0.45, opening: 60 * 165, wave: 999, fact: 4, bar: 4 }
+    //
+    // The RA2 [General] block, by difficulty (rules.ini lists most of these
+    // hardest-first, a few easiest-first — each line says which):
+    //   teamDelay  TeamDelays=2000,2500,3500                 (easy,med,hard)
+    //   teamCap    TotalAITeamCap=30,30,30                   (hardest first)
+    //   dissolve   DissolveUnfilledTeamDelay=5000            (flat)
+    //   defMin/Max Minimum/MaximumAIDefensiveTeams=1,1,1 / 2,2,2
+    //   defCount   Allied/SovietBaseDefenseCounts=25,20,6    (h,m,e)
+    //   wallPct    AIPickWallDefensePercent=50,25,10         (h,m,e)
+    //   purifiers  AIVirtualPurifiers=4,2,0                  (h,m,e)
+    //   hate       AIHateDelays=30,50,70                     (hardest first)
+    //   safeDist   AISafeDistance=20                         (flat)
+    easy: {
+      react: 72, apm: 22, focus: false, harass: false, group: 6, expand: 1,
+      scoutEvery: 0, give: 0.30, opening: 60 * 420, wave: 8, fact: 1, bar: 1,
+      teamDelay: 2000, teamCap: 30, dissolve: 20000, defMin: 1, defMax: 2,
+      defCount: 6, wallPct: 10, purifiers: 0, hate: 70, attackTeams: 1, aicm: 0
+    },
+    normal: {
+      react: 36, apm: 55, focus: true, harass: false, group: 9, expand: 2,
+      scoutEvery: 1800, give: 0.40, opening: 60 * 360, wave: 14, fact: 2, bar: 2,
+      teamDelay: 2500, teamCap: 30, dissolve: 20000, defMin: 1, defMax: 2,
+      defCount: 20, wallPct: 25, purifiers: 2, hate: 50, attackTeams: 2, aicm: 0
+    },
+    hard: {
+      react: 12, apm: 999, focus: true, harass: true, group: 10, expand: 3,
+      scoutEvery: 1000, give: 0.45, opening: 60 * 165, wave: 999, fact: 4, bar: 4,
+      teamDelay: 3500, teamCap: 30, dissolve: 20000, defMin: 1, defMax: 2,
+      defCount: 25, wallPct: 50, purifiers: 4, hate: 30, attackTeams: 3, aicm: 400
+    }
   };
+  // [General] AIBuildsWalls=no. RA2 ships with the AI's wall builder OFF, so
+  // AIPickWallDefensePercent above is dead data in the shipped game and it is
+  // dead data here too — kept because a mod (or a future map flag) turns it on
+  // and because the roadmap asked for the number to be read, not guessed.
+  var AI_BUILDS_WALLS = false;
+  // AISafeDistance=20: how far from the centre of the enemy base a team
+  // gathers before it commits.
+  var AI_SAFE_DISTANCE = 20;
+  // AIMinorSuperReadyPercent=.7 — a Curtain or a Sphere this charged is
+  // already counted by the AI's triggers, so a full team will wait a little
+  // for it rather than leave without it.
+  var AI_MINOR_SUPER_READY = 0.7;
+  // AIIonCannon*Value: the superweapon aim table, verbatim. Anything not
+  // named here scores AI_SW_DEFAULT; units score 1 (RA2 lists Engineer,
+  // Thief, Harvester, MCV and APC at 1 apiece, i.e. "not worth a shot").
+  var AI_SW_VALUE = {
+    factory: 100, power: 60, reactor: 60, base: 10,
+    sentry: 35, sentrygun: 35, tesla: 35, prism: 35, patriot: 35,
+    flakcannon: 35, grandcannon: 35, gapgen: 35,
+    airforce: 20, radar: 20,
+    nuke: 40, chrono: 40, weather: 40, curtain: 40, psisensor: 40, spysat: 40
+  };
+  var AI_SW_DEFAULT = 15, AI_SW_UNIT = 1;
+
+  // ---- [TaskForces] + [TeamTypes] -------------------------------------- //
+  // force  : the task force, exactly as ai.ini writes it (count, type).
+  // role   : attack | siege | harass | defend | air | engineer.
+  // tgt    : the script's target class (see aiPickTarget).
+  // w      : the AITrigger weight per difficulty; 0 means "never on this one".
+  // max    : concurrent instances (ai.ini's TeamTypes Max=).
+  // need   : a structure that must stand before the trigger is even read.
+  // prod   : production-only. The team exists to place an order; something
+  //          else commands the units (aircraft have their own strike pass,
+  //          Engineers are driven by aiNeutrals).
+  var AI_TEAMS = [
+    // ---- Directorate ----
+    { key: 'dirInf',   name: 'Allied Infantry Attack', fac: 'dir', role: 'attack', tgt: 'any',
+      force: [{ n: 4, t: 'rifle' }, { n: 2, t: 'lancer' }],
+      w: { easy: 6, normal: 5, hard: 3 }, max: 1 },
+    { key: 'dirGrz',   name: 'Allied Grizzly Attack', fac: 'dir', role: 'attack', tgt: 'any',
+      force: [{ n: 4, t: 'lancer' }, { n: 2, t: 'ifv' }, { n: 2, t: 'rocket' }],
+      w: { easy: 2, normal: 5, hard: 5 }, max: 2, need: 'factory' },
+    { key: 'dirMir',   name: 'Allied Mirage Ambush', fac: 'dir', role: 'attack', tgt: 'any',
+      force: [{ n: 4, t: 'mirage' }, { n: 2, t: 'ifv' }],
+      w: { easy: 0, normal: 2, hard: 4 }, max: 1, need: 'lab' },
+    { key: 'dirPrism', name: 'Allied Prism Siege', fac: 'dir', role: 'siege', tgt: 'defence',
+      force: [{ n: 3, t: 'prismtank' }, { n: 4, t: 'mirage' }, { n: 2, t: 'lancer' }, { n: 6, t: 'rifle' }],
+      w: { easy: 0, normal: 3, hard: 7 }, max: 1, need: 'lab' },
+    { key: 'dirRckt',  name: 'Allied Rocketeer Raid', fac: 'dir', role: 'harass', tgt: 'harvester',
+      force: [{ n: 4, t: 'rocketeer' }],
+      w: { easy: 0, normal: 1, hard: 3 }, max: 1, need: 'airforce' },
+    { key: 'dirTanya', name: 'Allied Tanya Strike', fac: 'dir', role: 'harass', tgt: 'production',
+      force: [{ n: 1, t: 'tanya' }, { n: 2, t: 'lancer' }],
+      w: { easy: 0, normal: 0, hard: 3 }, max: 1, need: 'lab' },
+    { key: 'dirHarr',  name: 'Allied Harrier Attack', fac: 'dir', role: 'air', tgt: 'production',
+      force: [{ n: 4, t: 'harrier' }], prod: true,
+      w: { easy: 1, normal: 3, hard: 4 }, max: 1, need: 'airforce' },
+    { key: 'dirEng',   name: 'Allied Tech Capture', fac: 'dir', role: 'engineer', tgt: 'tech',
+      force: [{ n: 1, t: 'engineer' }], prod: true,
+      w: { easy: 2, normal: 3, hard: 4 }, max: 2, need: 'barracks' },
+    { key: 'dirDef',   name: 'Allied Base Defense', fac: 'dir', role: 'defend', tgt: 'any',
+      force: [{ n: 2, t: 'rocket' }, { n: 2, t: 'lancer' }],
+      w: { easy: 3, normal: 3, hard: 3 }, max: 2 },
+    // ---- Collective ----
+    { key: 'colFlood', name: 'Soviet Conscript Flood', fac: 'col', role: 'attack', tgt: 'any',
+      force: [{ n: 8, t: 'conscript' }, { n: 2, t: 'rhino' }],
+      w: { easy: 6, normal: 5, hard: 3 }, max: 1 },
+    { key: 'colRhino', name: 'Soviet Rhino Spearhead', fac: 'col', role: 'attack', tgt: 'any',
+      force: [{ n: 5, t: 'rhino' }, { n: 2, t: 'flaktrack' }],
+      w: { easy: 2, normal: 5, hard: 5 }, max: 2, need: 'factory' },
+    { key: 'colApoc',  name: 'Soviet Apocalypse', fac: 'col', role: 'attack', tgt: 'any',
+      force: [{ n: 2, t: 'mammoth' }, { n: 4, t: 'rhino' }],
+      w: { easy: 0, normal: 2, hard: 4 }, max: 1, need: 'lab' },
+    { key: 'colTtnk',  name: 'Soviet Tesla Tank', fac: 'col', role: 'attack', tgt: 'any',
+      force: [{ n: 4, t: 'teslatank' }, { n: 2, t: 'flaktrack' }],
+      w: { easy: 0, normal: 2, hard: 3 }, max: 1, need: 'radar' },
+    { key: 'colV3',    name: 'Soviet Bombard', fac: 'col', role: 'siege', tgt: 'defence',
+      force: [{ n: 3, t: 'v3' }, { n: 4, t: 'flaktrack' }, { n: 4, t: 'rhino' }],
+      w: { easy: 0, normal: 3, hard: 7 }, max: 1, need: 'radar' },
+    { key: 'colKirov', name: 'Soviet Kirov Raid', fac: 'col', role: 'attack', tgt: 'production',
+      force: [{ n: 3, t: 'kirov' }],
+      w: { easy: 0, normal: 2, hard: 4 }, max: 1, need: 'lab' },
+    { key: 'colDrone', name: 'Soviet Terror Drone Attack', fac: 'col', role: 'harass', tgt: 'harvester',
+      force: [{ n: 3, t: 'drone' }],
+      w: { easy: 0, normal: 2, hard: 3 }, max: 1, need: 'factory' },
+    { key: 'colIvan',  name: 'Soviet Ivan vs Allies', fac: 'col', role: 'harass', tgt: 'production',
+      force: [{ n: 2, t: 'ivan' }, { n: 2, t: 'conscript' }],
+      w: { easy: 0, normal: 1, hard: 3 }, max: 1, need: 'radar' },
+    { key: 'colDeso',  name: 'Soviet Desolator Line', fac: 'col', role: 'defend', tgt: 'any',
+      force: [{ n: 2, t: 'desolator' }, { n: 4, t: 'conscript' }],
+      w: { easy: 0, normal: 2, hard: 3 }, max: 1, need: 'radar' },
+    { key: 'colEng',   name: 'Soviet Tech Capture', fac: 'col', role: 'engineer', tgt: 'tech',
+      force: [{ n: 1, t: 'engineer' }], prod: true,
+      w: { easy: 2, normal: 3, hard: 4 }, max: 2, need: 'barracks' },
+    { key: 'colDef',   name: 'Soviet Base Defense', fac: 'col', role: 'defend', tgt: 'any',
+      force: [{ n: 3, t: 'conscript' }, { n: 2, t: 'flak' }],
+      w: { easy: 3, normal: 3, hard: 3 }, max: 2 }
+  ];
+  var AI_TEAM_BY_KEY = {};
+  (function () { for (var i = 0; i < AI_TEAMS.length; i++) AI_TEAM_BY_KEY[AI_TEAMS[i].key] = AI_TEAMS[i]; })();
 
   function newAI(diff) {
     return {
+      // The NAME as well as the knobs: save/load deep-copies the AI, so
+      // `cfg === DIFF.hard` stops being true across a reload and every
+      // identity test on it silently answered "normal".
+      diff: DIFF[diff] ? diff : 'normal',
       cfg: DIFF[diff] || DIFF.normal,
       posture: 'build', t: 0, lastStrat: 0, lastTac: 0, lastScout: 0,
       seen: { inf: 0, veh: 0, bld: 0, air: 0 }, seenAt: 0, airAt: -1e9,
       army: [], attacking: false, rally: null, scout: null, placeFail: 0,
-      wave: [], waveN: 0, waveTarget: 0, scoutSent: 0, garrison: []
+      wave: [], waveN: 0, waveTarget: 0, scoutSent: 0, garrison: [],
+      // team layer
+      teams: [], teamId: 0, lastTeam: -1e9, failed: 0, lastFail: -1e9, siege: false
     };
   }
 
@@ -19428,6 +19585,12 @@
     if (seen.inf + seen.veh + seen.bld > 0) { ai.seen = seen; ai.seenAt = g.tick; }
   }
 
+  // [General] AIVirtualPurifiers=4,2,0 — the AI houses only, never the human.
+  function aiVirtualPurifiers(g, p) {
+    var ai = p === P_AI ? g.ai : g.ai2;
+    return ai ? (ai.cfg.purifiers || 0) : 0;
+  }
+
   function aiArmy(g, me) {
     var a = [];
     for (var i = 0; i < g.units.length; i++) {
@@ -19462,9 +19625,212 @@
     return v;
   }
 
+  // ---- team plumbing ---------------------------------------------------- //
+  // "Can this house make one of these at all", ignoring the bank. canBuild()
+  // folds the price in, which would make a team ineligible for the whole match
+  // simply because the AI happened to be broke at the tick the trigger fired.
+  function aiCanMake(g, p, key) {
+    var s = g.side[p], spec = UNITS[key];
+    if (!spec) return false;
+    if (!ownedBy(spec, s.fac)) return false;
+    if (!reqMet(g, p, spec)) return false;
+    if (spec.cls === 'i') return hasBld(g, p, 'barracks');
+    if (spec.cls === 'a') return hasBld(g, p, 'airforce');
+    return hasBld(g, p, 'factory');
+  }
+  function aiTeamCount(ai, key) {
+    var n = 0;
+    for (var i = 0; i < ai.teams.length; i++) if (ai.teams[i].def.key === key) n++;
+    return n;
+  }
+  function aiRoleCount(ai, role) {
+    var n = 0;
+    for (var i = 0; i < ai.teams.length; i++) if (ai.teams[i].def.role === role) n++;
+    return n;
+  }
+  function aiTeamFull(t) {
+    for (var i = 0; i < t.def.force.length; i++) {
+      var f = t.def.force[i], n = 0;
+      for (var j = 0; j < t.units.length; j++) if (t.units[j].type === f.t) n++;
+      if (n < f.n) return false;
+    }
+    return true;
+  }
+  // Everything an unfilled team still wants, most urgent first. This is what
+  // replaced the ad-hoc "roll a die and pick a unit" in aiProduce: RA2's AI
+  // builds because a team is short of a member, not because it feels like a
+  // tank. Types the house cannot currently make are skipped, so a team whose
+  // Battle Lab has just been shot does not jam the whole request list.
+  function aiTeamNeeds(g, ai, me, cls) {
+    var s = g.side[me], want = [], seenT = {};
+    var order = ai.teams.slice().sort(function (a, b) { return aiTeamPri(ai, b) - aiTeamPri(ai, a); });
+    for (var i = 0; i < order.length; i++) {
+      var t = order[i];
+      // A production-only team (Engineers, the Harrier flight) does not
+      // compete with the battle groups for the infantry and vehicle lanes —
+      // it has its own gate below. Letting it in had the Collective buying
+      // $500 Engineers where it wanted $100 Conscripts and sitting on $22 000
+      // at five minutes with eleven men on the field.
+      if (t.def.prod && cls !== t.def.role) continue;
+      for (var k = 0; k < t.def.force.length; k++) {
+        var f = t.def.force[k], have = 0;
+        if (t.def.prod) have = countUnit(g, me, f.t);
+        else for (var j = 0; j < t.units.length; j++) if (t.units[j].type === f.t) have++;
+        var short = f.n - have - queuedCount(s, f.t);
+        if (short <= 0) continue;
+        if (!aiCanMake(g, me, f.t)) continue;
+        if (seenT[f.t]) { seenT[f.t].n += short; continue; }
+        var rec = { t: f.t, n: short };
+        seenT[f.t] = rec; want.push(rec);
+      }
+    }
+    return want;
+  }
+  function aiTeamPri(ai, t) {
+    var r = t.def.role;
+    if (r === 'siege') return ai.siege ? 100 : 40;
+    if (r === 'defend') return ai.posture === 'defend' ? 90 : 30;
+    if (r === 'engineer') return 35;
+    if (r === 'air') return 45;
+    if (r === 'harass') return 38;
+    return 50;                                       // attack
+  }
+  function aiReleaseTeam(ai, t) {
+    var i = ai.teams.indexOf(t);
+    if (i >= 0) ai.teams.splice(i, 1);
+  }
+  function aiInTeam(ai, u) {
+    for (var i = 0; i < ai.teams.length; i++) {
+      if (ai.teams[i].def.prod) continue;
+      if (ai.teams[i].units.indexOf(u) >= 0) return ai.teams[i];
+    }
+    return null;
+  }
+
+  // [AITriggerTypes]: every pass reads every trigger, rolls its weight and
+  // creates the teams that come up. TeamDelays is the interval between passes,
+  // TotalAITeamCap the ceiling on live teams, Minimum/MaximumAIDefensiveTeams
+  // the floor and ceiling on the ones that stay home.
+  function aiTeamPass(g, ai, me, foe) {
+    var cfg = ai.cfg, s = g.side[me], i, t;
+    // dissolve: a team that has not filled inside DissolveUnfilledTeamDelay
+    // gives its members back to the pool and the trigger is read again.
+    for (i = ai.teams.length - 1; i >= 0; i--) {
+      t = ai.teams[i];
+      t.units = t.units.filter(function (u) { return u && !u.dead; });
+      if (t.def.prod) continue;
+      if (!t.launched && g.tick - t.born > cfg.dissolve && !aiTeamFull(t)) aiReleaseTeam(ai, t);
+    }
+    // How many fighters are standing around in no team at all. RA2 calls a
+    // team with LooseRecruit=yes on the loose pool; the effect here is that an
+    // idle army does not wait out a 58-second TeamDelays pass — a pool big
+    // enough for another task force gets one straight away.
+    var claimed = {}, free = 0;
+    for (i = 0; i < ai.teams.length; i++) {
+      if (ai.teams[i].def.prod) continue;
+      for (var ci = 0; ci < ai.teams[i].units.length; ci++) claimed[ai.teams[i].units[ci].id] = 1;
+    }
+    for (i = 0; i < ai.army.length; i++) if (!claimed[ai.army[i].id]) free++;
+    var loose = free >= cfg.group * 2;
+    var filling = false;
+    for (i = 0; i < ai.teams.length; i++) {
+      var ft = ai.teams[i];
+      if (ft.def.prod || ft.launched) continue;
+      if (ft.def.role === 'defend') continue;
+      if (g.tick - ft.born < cfg.dissolve * 0.5) filling = true;
+    }
+    if (g.tick - ai.lastTeam < (loose ? 600 : cfg.teamDelay)) return;
+    ai.lastTeam = g.tick;
+    if (ai.teams.length >= cfg.teamCap) return;
+    // TotalAITeamCap bounds the whole list; the offensive slice is
+    // attackTeams, widened while a big loose pool is going to waste.
+    var atkCap = cfg.attackTeams + Math.floor(free / 12);
+
+    // The defensive floor is a hard requirement, not a weighted roll.
+    var nDef = aiRoleCount(ai, 'defend');
+    var cand = [], total = 0;
+    for (i = 0; i < AI_TEAMS.length; i++) {
+      var d = AI_TEAMS[i];
+      if (d.fac !== s.fac) continue;
+      var w = d.w[ai.diff] || 0;
+      if (!w) continue;
+      if (aiTeamCount(ai, d.key) >= d.max) continue;
+      if (d.need && !hasBld(g, me, d.need)) continue;
+      if (d.role === 'defend' && nDef >= cfg.defMax) continue;
+      if (d.role === 'attack' || d.role === 'siege' || d.role === 'harass') {
+        if (aiRoleCount(ai, 'attack') + aiRoleCount(ai, 'siege') + aiRoleCount(ai, 'harass') >= atkCap) continue;
+        // One task force recruits at a time. Eight half-filled teams sharing
+        // fifty units is how the Collective ended a 30-minute match with
+        // every team still in `fill` and nothing on the field (measured).
+        if (filling) continue;
+      }
+      // Every member has to be buildable, or the team can never fill.
+      var ok = true;
+      for (var k = 0; k < d.force.length; k++) if (!aiCanMake(g, me, d.force[k].t)) { ok = false; break; }
+      if (!ok) continue;
+      // AITriggerSuccessWeightDelta=20: a posture that is failing re-weights
+      // the triggers. Ours is the siege switch — when the enemy base out-guns
+      // a straight push, the artillery team is what the AI reaches for.
+      if (ai.siege && d.role === 'siege') w += 20;
+      if (ai.siege && d.role === 'attack') w = Math.max(1, w - 2);
+      if (ai.posture === 'defend' && d.role === 'defend') w += 10;
+      cand.push({ d: d, w: w }); total += w;
+    }
+    if (nDef < cfg.defMin) {
+      for (i = 0; i < cand.length; i++) if (cand[i].d.role === 'defend') { aiMakeTeam(g, ai, cand[i].d); return; }
+    }
+    if (!total) return;
+    var roll = rnd() * total;
+    for (i = 0; i < cand.length; i++) {
+      roll -= cand[i].w;
+      if (roll <= 0) { aiMakeTeam(g, ai, cand[i].d); return; }
+    }
+    aiMakeTeam(g, ai, cand[cand.length - 1].d);
+  }
+  function aiMakeTeam(g, ai, d) {
+    ai.teams.push({ def: d, id: ++ai.teamId, units: [], born: g.tick,
+                    launched: 0, mode: 'fill', n0: 0, tgt: 0, gatherAt: 0 });
+  }
+
+  // Recruiting: a free fighter joins the neediest team that wants its type.
+  // ai.ini calls this Recruiter/LooseRecruit; the effect is that production
+  // and the battle group are the same list, which is why the AI stops
+  // dribbling one new tank at a time into a dead attack.
+  function aiRecruit(g, ai, me) {
+    var i, j, t, claimed = {};
+    for (i = 0; i < ai.teams.length; i++) {
+      t = ai.teams[i];
+      if (t.def.prod) continue;
+      for (j = 0; j < t.units.length; j++) claimed[t.units[j].id] = 1;
+    }
+    var free = [];
+    for (i = 0; i < ai.army.length; i++) {
+      var u = ai.army[i];
+      if (u.dead || claimed[u.id] || u === ai.scout) continue;
+      free.push(u);
+    }
+    if (!free.length) return;
+    var order = ai.teams.slice().sort(function (a, b) { return aiTeamPri(ai, b) - aiTeamPri(ai, a); });
+    for (i = 0; i < order.length; i++) {
+      t = order[i];
+      if (t.def.prod || aiTeamFull(t)) continue;
+      for (var k = 0; k < t.def.force.length; k++) {
+        var f = t.def.force[k], have = 0;
+        for (j = 0; j < t.units.length; j++) if (t.units[j].type === f.t) have++;
+        for (j = 0; j < free.length && have < f.n; j++) {
+          if (!free[j] || free[j].type !== f.t) continue;
+          t.units.push(free[j]); free[j] = null; have++;
+        }
+      }
+    }
+  }
+
   function stepAI(g, ai, me, foe) {
     var s = g.side[me], cfg = ai.cfg;
     ai.t++;
+    // [General] MultiplayerAICM=400,0,0 (Genius, Smart, Easy) — the skirmish
+    // AI's Coefficient of Money, paid once at the start of the match.
+    if (ai.t === 1 && cfg.aicm) s.credits += cfg.aicm;
 
     // ---- scouting: send one cheap unit to look, on a timer ----
     if (ai.scout && ai.scout.dead) ai.scout = null;
@@ -19503,9 +19869,25 @@
       var harv = countUnit(g, me, 'harvester');
       ai.army = aiArmy(g, me);
 
+      // ---- SIEGE POSTURE ------------------------------------------------
+      // RA2's AI does not keep walking a line company into a Tesla Coil. Two
+      // signals switch it to artillery: the defence line is worth more than
+      // half its own army (a straight push loses on arithmetic), or two waves
+      // in a row have already died on it. Once set it stays set for four
+      // minutes, so the artillery team has time to be built and to fill.
+      var dv = defenceValue(g, foe);
+      var wantSiege = (dv > 900 && dv > myArmy * 0.45) || (ai.failed >= 2 && g.tick - ai.lastFail < 60 * 240);
+      ai.siege = !!wantSiege && ai.diff !== 'easy';
       var mayAttack = ai.t > cfg.opening;
-      if (harv < 2 || !hasBld(g, me, 'refinery')) ai.posture = 'eco';
-      else if (mayAttack && ai.army.length >= cfg.group && myArmy > theirArmy * 0.95 + defenceValue(g, foe) * 0.6) ai.posture = 'attack';
+
+      // An economy that can still be repaired is worth repairing; one with no
+      // refinery AND no yard to build another is not, and an army that stands
+      // in the wreckage waiting for a miner has already lost. RA2's AI throws
+      // what is left at you.
+      var ruined = !hasBld(g, me, 'refinery') && !hasBld(g, me, 'base') && !countUnit(g, me, 'mcv');
+      if (ruined && mayAttack && ai.army.length >= cfg.group) ai.posture = 'attack';
+      else if (harv < 2 || !hasBld(g, me, 'refinery')) ai.posture = 'eco';
+      else if (mayAttack && ai.army.length >= cfg.group && myArmy > theirArmy * 0.95 + dv * 0.6) ai.posture = 'attack';
       // No fallback here deadlocked a 58-unit army in 'build' behind a wall of
       // defences it could have rolled over: a big enough army attacks anyway.
       else if (mayAttack && ai.army.length >= cfg.group * 2.5 && (myArmy > theirArmy * 0.95 || ai.army.length >= cfg.group * 4)) ai.posture = 'attack';
@@ -19516,6 +19898,9 @@
       aiSuper(g, ai, me, foe);
     }
 
+    // ---- teams: create, dissolve, recruit ----
+    aiTeamPass(g, ai, me, foe);
+
     // ---- placement: the AI places its finished structures ----
     if (readyLane(s)) aiPlace(g, ai, me, foe);
 
@@ -19524,6 +19909,36 @@
       ai.lastTac = ai.t;
       aiTactics(g, ai, me, foe);
     }
+  }
+
+  // Ore fields the base can actually work: RA2 sizes its refinery count on
+  // the ore it can reach, not on a flat number.
+  function aiOreFields(g, me) {
+    var home = g.start[me], n = 0, ter = g.terrain, ore = g.ore;
+    for (var y = 0; y < MAP; y++) for (var x = 0; x < MAP; x++) {
+      var dx = x - home.x, dy = y - home.y;
+      if (dx * dx + dy * dy > 34 * 34) continue;
+      var i = y * MAP + x;
+      if (oreT(ter[i]) && ore[i] > 40) n++;
+    }
+    return n;
+  }
+  // AlliedBaseDefenseCounts=25,20,6 / SovietBaseDefenseCounts=25,22,6 are the
+  // ceilings; rules.ini records the formula they replaced right beside them —
+  // ((TotalBaseCost-2000)/1500 * Coefficient) + 3*(Level-1), with
+  // GDIBaseDefenseCoefficient=1.5 and NodBaseDefenseCoefficient=1.2. The
+  // explicit numbers were tuned for RA2's much richer maps; the formula is
+  // what makes the plan grow with the base actually standing, so we run the
+  // formula and clamp it with the explicit ceiling.
+  function aiDefencePlan(g, ai, me) {
+    var cost = 0, coef = g.side[me].fac === 'col' ? 1.2 : 1.5;
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (!b.dead && b.p === me && !BLDS[b.type].dmg) cost += BLDS[b.type].cost;
+    }
+    var lvl = ai.diff === 'hard' ? 3 : ai.diff === 'normal' ? 2 : 1;
+    var n = Math.floor((cost - 2000) / 1500 * coef) + 3 * (lvl - 1);
+    return Math.max(1, Math.min(ai.cfg.defCount, n));
   }
 
   function aiProduce(g, ai, me, foe) {
@@ -19564,6 +19979,14 @@
     s.queues.d.list.forEach(function (k) { netQ += draw(k); }); if (s.queues.d.ready) netQ += draw(s.queues.d.ready);
     var hasFac = hasBld(g, me, 'factory'), hasBar = hasBld(g, me, 'barracks');
     var radarKey = s.fac === 'col' ? 'radar' : 'airforce', ecoKey = s.fac === 'col' ? 'reactor' : 'purifier';
+    // HarvestersPerRefinery=2, and the refinery count follows the ore the base
+    // can actually reach rather than a flat "expand" number.
+    // One refinery per ~25 reachable ore tiles, bounded by the difficulty's
+    // expansion appetite. Sampling every FOURTH tile (and dividing by 30)
+    // counted 18 fields on the reference map and capped every difficulty at
+    // two refineries, which quietly deleted the hard AI's economic lead — it
+    // ran 2 refineries and 4 miners where the pre-team build ran 3 and 5.
+    var maxRef = Math.max(2, Math.min(cfg.expand + 1, 1 + Math.floor(aiOreFields(g, me) / 40)));
 
     // ---- structures -----------------------------------------------------
     // Order matters more than it looks. Harvesters come out of the factory,
@@ -19582,23 +20005,13 @@
       else if (net < 20) want = 'power';                  // grid is short
       else if (!hasBar) want = 'barracks';                // War Factory needs Refinery + Barracks (rules.ini)
       else if (!hasFac) want = 'factory';
-      else if (nRef < cfg.expand && s.credits > 2000 && (nRef < 2 || ai.army.length >= 6)) want = 'refinery';
+      else if (nRef < maxRef && s.credits > 2000 && (nRef < 2 || ai.army.length >= 6)) want = 'refinery';
       // A full lane and a fat bank is the AI saying "I have money I cannot
       // spend". The answer a human reaches for is a SECOND factory, and the
-      // multi-building speed-up makes it pay twice. Without this the whole
-      // side is throughput-capped at one building's rate, and the side whose
-      // units build slower simply loses to arithmetic: measured mid-match,
-      // the Collective sat on 8000 credits at three minutes with the armies
-      // still level, and was a building down and half an army behind by six.
-      // ONE extra factory, and none for infantry. The saturating lane was
-      // always the vehicle one (a Mammoth is 18 build-units to a Conscript's
-      // 3), and each extra production building doubles army growth on a
-      // 64-tile map: measured across capped variants, 3 factories tripled the
-      // fielded army and the matches stopped resolving — 1 of 6 decided, with
-      // a quarter of both armies jammed in their own bases. Two is the point
-      // where the money gets spent and the map still has room to walk.
-      // RA2 pacing: a factory turns out ~1.5 tanks a minute, so a bank that
-      // keeps growing means more factories/barracks, not a bigger queue.
+      // multi-building speed-up makes it pay twice. ONE extra factory, and
+      // none for infantry: three factories tripled the fielded army and the
+      // matches stopped resolving. Two is the point where the money gets
+      // spent and the map still has room to walk.
       else if (s.queues.v.list.length >= 2 && s.credits > 2200 &&
                countBld(g, me, 'factory') < Math.min(cfg.fact || 4, 2 + Math.floor(s.credits / 4000))) want = 'factory';
       // A full infantry lane and a fat bank: more barracks, not a deeper queue
@@ -19635,14 +20048,28 @@
          (!airThreat && nAA < 1 && hasBld(g, me, radarKey) && countBld(g, me, def) + countBld(g, me, def2) >= 2 && s.credits > 2400))) {
       enqueue(g, me, aaKey, 'd');
     }
-    if (!s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
-        countBld(g, me, def) + countBld(g, me, def2) < (ai.posture === 'defend' ? 6 : 4) &&
+    // AlliedBaseDefenseCounts / SovietBaseDefenseCounts (25,20,6 h,m,e): the
+    // number of base defences the house PLANS on making over a match. It is a
+    // ceiling, not a schedule — the affordability slack below is what paces
+    // it, so a rich hard AI fortifies and a poor one still buys tanks.
+    var defCap = aiDefencePlan(g, ai, me);
+    if (ai.posture !== 'defend') defCap = Math.round(defCap * 0.7);
+    // A turret is bought out of money the ARMY is not already asking for.
+    // Without this the plan above turned into ten pillboxes and eleven men.
+    var defSpare = ai.posture === 'defend' || ai.army.length >= cfg.group ||
+                   s.queues.i.list.length >= 2 || s.queues.v.list.length >= 2;
+    if (defSpare && !s.queues.d.list.length && !s.queues.d.ready && hasBld(g, me, 'base') &&
+        countBld(g, me, def) + countBld(g, me, def2) < defCap &&
         s.credits > 600) {
-      // Cheap guns up to three, the tier-2 tower up to two once it is unlocked
+      // Cheap guns up to a third of the plan, the tier-2 tower for the rest
       // (a shared cap let three Sentry Guns lock the Tesla Coil out for good).
       var nDef = countBld(g, me, def), nDef2 = countBld(g, me, def2);
-      var pick = (canBuild(g, me, def2, true) && nDef2 < (ai.posture === 'defend' ? 3 : 2) && nDef >= 1) ? def2 : (nDef < 3 ? def : null);
+      var pick = (canBuild(g, me, def2, true) && nDef2 < Math.ceil(defCap * 0.5) && nDef >= 1) ? def2 : (nDef < Math.ceil(defCap * 0.5) ? def : null);
       if (!pick) pick = def;
+      // AIBuildsWalls=no in the shipped rules.ini, so this never fires; when a
+      // mod turns it on, AIPickWallDefensePercent is the chance that a defence
+      // slot is spent on a wall segment instead of a gun.
+      if (AI_BUILDS_WALLS && rnd() * 100 < cfg.wallPct && canBuild(g, me, 'wall', true)) pick = 'wall';
       // RA2 defences cost $500-1500: buy one when it is affordable beside the
       // army, not at a flat bank level a $500 Sentry Gun never needed.
       var slack = ai.posture === 'defend' ? 1.2 : (pick === def2 ? 1.5 : 2);   // a $1500 coil at 2x never cleared the bank
@@ -19659,19 +20086,30 @@
              : (hasBld(g, me, 'lab') && !countBld(g, me, 'gapgen') && s.credits > 6000) ? 'gapgen' : null;
       if (t3 && netQ + draw(t3) >= 0 && canBuild(g, me, t3, true)) enqueue(g, me, t3, 'd');
     }
-    // Aircraft lane: fill every Harrier pad while the money is there.
-    if (s.fac === 'dir' && !s.queues.a.list.length && s.credits > 1800 && canBuild(g, me, 'harrier', false))
-      enqueue(g, me, 'harrier', 'a');
 
     // ---- harvesters before soldiers -------------------------------------
-    var wantHarv = Math.min(1 + cfg.expand, nRef + 1);          // RA2: one or two miners per refinery, not a fleet before an army
-    if (harv < wantHarv && hasFac && !s.queues.v.list.length) {
-      if (canBuild(g, me, 'harvester', false)) { enqueue(g, me, 'harvester', 'v'); return; }
+    // [General] HarvestersPerRefinery=2 — two miners a refinery, capped by the
+    // ore the base can reach.
+    var wantHarv = Math.min(2 * nRef, 2 * maxRef);
+    var qHarv = queuedCount(s, harvKey(s.fac));
+    // Replacing a lost miner may NOT wait for an empty vehicle lane. Under the
+    // team layer that lane is permanently four deep, so the old "only when the
+    // lane is idle" rule meant a Collective that lost its four War Miners
+    // never built a fifth and died of economyDead at fourteen minutes with a
+    // 41-man army standing (soak: six of twelve turtle matches).
+    var harvIdle = !s.queues.v.list.length;
+    if (harv + qHarv < wantHarv && hasFac && qHarv < 1 && (harvIdle || harv < 2) &&
+        canBuild(g, me, 'harvester', false)) {
+      enqueue(g, me, 'harvester', 'v');
+      if (harvIdle) return;
     }
     // Below two harvesters the economy is dying: hold the credits for one.
-    if (harv < 2 && hasFac) return;
+    // Only while the credits are actually SCARCE, though — a side whose miners
+    // have been killed under a lightning storm sat on $41 000 and built
+    // nothing at all while its Construction Yard was dismantled around it.
+    if (harv < 2 && hasFac && s.credits < 3000) return;
 
-    // ---- army: answer what has actually been SEEN -----------------------
+    // ---- army: the teams place the orders ------------------------------
     var seen = ai.seen, stale = g.tick - ai.seenAt > 3600;
     // Under RA2 verses a shell does 25% to infantry, so an unscouted enemy
     // is assumed to be fielding infantry until proven otherwise.
@@ -19683,55 +20121,73 @@
     // reserve the unit lanes may not spend, or the bank never clears the
     // silo's price at a strategy tick (144 soak matches: 0 built).
     var reserve = hasBld(g, me, 'lab') && ai.army.length >= cfg.group * 1.5 && g.tick > 60 * 60 * 10 && aiSwWant(g, me) ? 2500 : 0;
-    // RA2's AI fields capped team types, never a 64-Conscript blob: hold the
-    // infantry lane once the standing infantry count is high and let the
-    // vehicle lane (and crushing tanks) carry the rest of the bank.
+    // RA2's AI fields capped team types, never a 64-Conscript blob.
     var infCap = 18 + 8 * cfg.expand;
+
+    var pickFrom = function (cls, role) {
+      var needs = aiTeamNeeds(g, ai, me, role || null);
+      for (var i = 0; i < needs.length; i++) {
+        var k = needs[i].t;
+        if (UNITS[k].cls !== cls) continue;
+        if (canBuild(g, me, k, false)) return k;
+      }
+      return null;
+    };
+    // ai.ini's "Engineer Oil" trigger: ONE engineer at a time, and only when
+    // there is something on the map worth walking into.
+    if (hasBar && !s.queues.i.list.length && countUnit(g, me, 'engineer') === 0 &&
+        queuedCount(s, 'engineer') === 0 && s.credits > 1500 && canBuild(g, me, 'engineer', false)) {
+      var capTgt = false;
+      for (var ci2 = 0; ci2 < g.blds.length && !capTgt; ci2++) {
+        var cbb = g.blds[ci2];
+        if (cbb.dead) continue;
+        if ((BLDS[cbb.type].tech && cbb.p !== me) || BLDS[cbb.type].hut ||
+            (cbb.p === me && cbb.hp < cbb.maxhp * 0.6)) capTgt = true;
+      }
+      if (capTgt) enqueue(g, me, 'engineer', 'i');
+    }
+
     if (s.queues.i.list.length < depth && hasBar && s.credits > reserve + 300 && countUnit(g, me, null, 'i') < infCap) {
       var atInf = s.fac === 'col' ? 'flak' : 'rocket';        // the faction's AA-capable trooper
-      var pick = (airThreat && rnd() < 0.6) ? atInf
-               : vehHeavy ? (s.fac === 'col' && rnd() < 0.5 ? 'teslatrooper' : atInf)
-               : (infHeavy ? F.inf : (rnd() < 0.6 ? F.inf : atInf));
-      // A couple of dogs when the enemy is fielding men: $200 for something
-      // that removes a GI per bite is the answer RA2's AI reaches for, and
-      // they are the only eyes it has against a Mirage. Two or three, never a
-      // pack — a dog is worth nothing at all against armour.
-      if (infHeavy && countUnit(g, me, 'dog') < 3 && rnd() < 0.30 && canBuild(g, me, 'dog', false)) pick = 'dog';
-      // The specialists, RA2-AI style: ONE or two of a kind, never a mass.
-      // Each answers a specific problem, so each is gated on the scout report.
-      // The rates are deliberately small: at 0.10-0.16 the lane spent enough
-      // of the bank on $1200-1500 men that hard stopped closing matches out
-      // (3 of 6 soak games ran to the 30-minute cap). A specialist is a tool
-      // the AI reaches for, not a unit it masses.
-      else if (s.fac === 'col' && infHeavy && countUnit(g, me, 'desolator') < 2 && rnd() < 0.07 && canBuild(g, me, 'desolator', false)) pick = 'desolator';
-      else if (s.fac === 'col' && vehHeavy && countUnit(g, me, 'yuri') < 1 && rnd() < 0.06 && canBuild(g, me, 'yuri', false)) pick = 'yuri';
-      else if (s.fac === 'col' && countUnit(g, me, 'ivan') < 2 && rnd() < 0.05 && canBuild(g, me, 'ivan', false)) pick = 'ivan';
-      else if (s.fac === 'dir' && vehHeavy && countUnit(g, me, 'cleg') < 1 && rnd() < 0.06 && canBuild(g, me, 'cleg', false)) pick = 'cleg';
-      if (s.fac === 'dir' && hasBld(g, me, 'airforce') && rnd() < 0.2 && canBuild(g, me, 'rocketeer', false)) pick = 'rocketeer';
+      var pick = pickFrom('i');
+      if (!pick) {
+        // Nothing a team is short of: spend the surplus the old way, on the
+        // answer to what has been SEEN.
+        pick = (airThreat && rnd() < 0.6) ? atInf
+             : vehHeavy ? (s.fac === 'col' && rnd() < 0.5 ? 'teslatrooper' : atInf)
+             : (infHeavy ? F.inf : (rnd() < 0.6 ? F.inf : atInf));
+        // A couple of dogs when the enemy is fielding men: $200 for something
+        // that removes a GI per bite is the answer RA2's AI reaches for, and
+        // they are the only eyes it has against a Mirage.
+        if (infHeavy && countUnit(g, me, 'dog') < 3 && rnd() < 0.30 && canBuild(g, me, 'dog', false)) pick = 'dog';
+        else if (s.fac === 'dir' && vehHeavy && countUnit(g, me, 'cleg') < 1 && rnd() < 0.06 && canBuild(g, me, 'cleg', false)) pick = 'cleg';
+        else if (s.fac === 'col' && vehHeavy && countUnit(g, me, 'yuri') < 1 && rnd() < 0.06 && canBuild(g, me, 'yuri', false)) pick = 'yuri';
+      }
       if (canBuild(g, me, pick, false)) enqueue(g, me, pick, 'i');
     }
     if (s.queues.v.list.length < depth && hasFac && s.credits > 1200 + reserve) {
-      // Tier-3 armour when the lab is up, fast anti-infantry when the enemy
-      // masses infantry, else the line tank; Prism Tanks for the Directorate.
-      // The Directorate's tier-3 choice is Mirage (ambush) or Prism Tank
-      // (siege) — the Prism out-ranges everything but folds if it is caught.
-      // Against massed (and prone) infantry the answer is a weapon with no
-      // ProneDamage penalty: Mirage / Prism for the Directorate, Tesla Tank
-      // for the Collective. Otherwise the line heavy.
-      var heavy = s.fac === 'col' ? ((infHeavy && rnd() < 0.5 && canBuild(g, me, 'teslatank', false)) ? 'teslatank' : 'mammoth')
-                : (infHeavy ? ((rnd() < 0.4 && canBuild(g, me, 'prismtank', false)) ? 'prismtank' : 'mirage')
-                            : ((rnd() < 0.5 && canBuild(g, me, 'prismtank', false)) ? 'prismtank' : 'mirage'));
-      var light = s.fac === 'col' ? 'flaktrack' : 'ifv';
-      var vpick = (s.fac === 'col' && hasBld(g, me, 'lab') && s.credits > 3200 && countUnit(g, me, 'kirov') < 2 &&
-                   rnd() < 0.35 && canBuild(g, me, 'kirov', false)) ? 'kirov'
-                : (hasBld(g, me, 'lab') && rnd() < (infHeavy ? 0.55 : 0.4) && canBuild(g, me, heavy, false)) ? heavy
-                : (infHeavy && rnd() < 0.55 && canBuild(g, me, light, false)) ? light
-                : (s.fac === 'col' && vehHeavy && countUnit(g, me, 'drone') < 2 && rnd() < 0.12 && canBuild(g, me, 'drone', false)) ? 'drone'
-                : (s.fac === 'col' && hasBld(g, me, 'radar') && rnd() < 0.25 && canBuild(g, me, 'v3', false)) ? 'v3'
-                : F.tank;
+      var vpick = pickFrom('v');
+      if (!vpick) {
+        // Tier-3 armour when the lab is up, fast anti-infantry when the enemy
+        // masses infantry, else the line tank. Against massed (and prone)
+        // infantry the answer is a weapon with no ProneDamage penalty:
+        // Mirage / Prism for the Directorate, Tesla Tank for the Collective.
+        var heavy = s.fac === 'col' ? ((infHeavy && rnd() < 0.5 && canBuild(g, me, 'teslatank', false)) ? 'teslatank' : 'mammoth')
+                  : (infHeavy ? ((rnd() < 0.4 && canBuild(g, me, 'prismtank', false)) ? 'prismtank' : 'mirage')
+                              : ((rnd() < 0.5 && canBuild(g, me, 'prismtank', false)) ? 'prismtank' : 'mirage'));
+        var light = s.fac === 'col' ? 'flaktrack' : 'ifv';
+        vpick = (hasBld(g, me, 'lab') && rnd() < (infHeavy ? 0.55 : 0.4) && canBuild(g, me, heavy, false)) ? heavy
+              : (infHeavy && rnd() < 0.55 && canBuild(g, me, light, false)) ? light
+              : F.tank;
+      }
       if (canBuild(g, me, vpick, false)) enqueue(g, me, vpick, 'v');
       else if (s.fac === 'dir' && canBuild(g, me, 'prismtank', false) &&
                countUnit(g, me, 'prismtank') < 4) enqueue(g, me, 'prismtank', 'v');
+    }
+    // Aircraft lane: whatever the air team is short of, up to the pad count.
+    if (s.fac === 'dir' && !s.queues.a.list.length && s.credits > 1800) {
+      var apick = pickFrom('a', 'air') || 'harrier';
+      if (canBuild(g, me, apick, false)) enqueue(g, me, apick, 'a');
     }
   }
 
@@ -19744,24 +20200,38 @@
     }
     return null;
   }
-  // Where a nuke or a storm hurts most: the densest knot of enemy structures,
-  // with refineries weighted — RA2's AI aims at the base, not at the nearest
-  // wall, and killing the ore economy is what actually ends a match.
+  // Where a nuke or a storm hurts most. RA2 scores every cell by the
+  // AIIonCannon*Value of what stands in it: a War Factory is worth 100, a
+  // power plant 60, a base defence 35, a helipad/radar 20, the Construction
+  // Yard only 10, and a harvester or an MCV 1 — the AI aims at PRODUCTION,
+  // not at the biggest building. The blast is summed over its radius so a
+  // tight cluster still beats a lone factory.
+  function aiSwValue(e) {
+    if (e.kind !== 'b') return AI_SW_UNIT;
+    var v = AI_SW_VALUE[e.type];
+    return v == null ? AI_SW_DEFAULT : v;
+  }
   function aiSwTarget(g, foe) {
     var best = null, bs = -1, i, j;
     for (i = 0; i < g.blds.length; i++) {
       var b = g.blds[i];
       if (b.dead || b.p !== foe) continue;
-      var score = b.type === 'refinery' ? 2.5 : 0;
+      var score = 0;
       for (j = 0; j < g.blds.length; j++) {
         var o = g.blds[j];
         if (o.dead || o.p !== foe) continue;
         var d = Math.sqrt((o.cx - b.cx) * (o.cx - b.cx) + (o.cy - b.cy) * (o.cy - b.cy));
-        if (d <= 4) score += (o.type === 'refinery' ? 2 : 1) * (1 - d / 5);
+        if (d <= 4) score += aiSwValue(o) * (1 - d / 5);
+      }
+      for (j = 0; j < g.units.length; j++) {
+        var un = g.units[j];
+        if (un.dead || un.p !== foe) continue;
+        var du = Math.sqrt((un.x - b.cx) * (un.x - b.cx) + (un.y - b.cy) * (un.y - b.cy));
+        if (du <= 4) score += AI_SW_UNIT * (1 - du / 5);
       }
       if (score > bs) { bs = score; best = b; }
     }
-    return best ? { x: best.cx, y: best.cy } : null;
+    return best ? { x: best.cx, y: best.cy, b: best } : null;
   }
   function aiArmyCentre(army) {
     var n = 0, ax = 0, ay = 0;
@@ -19771,6 +20241,18 @@
     }
     return n ? { x: ax / n, y: ay / n } : null;
   }
+  // The team that is doing the pushing, if any: the Iron Curtain goes over it
+  // and the Chronosphere drops it on the far side of the defence line.
+  function aiSpearhead(ai) {
+    var best = null;
+    for (var i = 0; i < ai.teams.length; i++) {
+      var t = ai.teams[i];
+      if (t.def.prod || t.mode !== 'attack' || !t.units.length) continue;
+      if (!best || t.units.length > best.units.length ||
+          (t.def.role === 'siege' && best.def.role !== 'siege')) best = t;
+    }
+    return best;
+  }
   function aiSuper(g, ai, me, foe) {
     var s = g.side[me];
     if (!s.sw.nuke.ready && !s.sw.storm.ready && !s.sw.curtain.ready && !s.sw.chrono.ready) return;
@@ -19778,20 +20260,35 @@
     if (hit && s.sw.nuke.ready) swFire(g, me, 'nuke', hit.x, hit.y);
     if (hit && s.sw.storm.ready) swFire(g, me, 'storm', hit.x, hit.y);
     // The Iron Curtain goes over the wave at the moment it commits, and the
-    // Chronosphere drops that same wave next to the enemy refinery.
-    var army = ai.army || [];
-    if (ai.posture !== 'attack' || army.length < 4) return;
+    // Chronosphere drops that same wave next to the enemy defence line.
+    var spear = aiSpearhead(ai);
+    var army = spear ? spear.units : (ai.army || []);
+    if (!spear && ai.posture !== 'attack') return;
+    if (army.length < 4) return;
     var c = aiArmyCentre(army);
     if (!c) return;
     if (s.sw.curtain.ready) swFire(g, me, 'curtain', c.x, c.y);
     if (s.sw.chrono.ready) {
-      var ref = findRefinery(g, foe, g.start[me].x, g.start[me].y);
-      if (ref) {
-        var dx = g.start[me].x - ref.cx, dy = g.start[me].y - ref.cy;
-        var dl = Math.sqrt(dx * dx + dy * dy) || 1;
-        var tx = Math.round(ref.cx + dx / dl * 3.5), ty = Math.round(ref.cy + dy / dl * 3.5);
-        if (inMap(tx, ty)) swFire(g, me, 'chrono', c.x, c.y, tx, ty);
+      // A siege team that is still walking gets chrono'd to the edge of its
+      // own reach of the target; otherwise the old refinery drop.
+      var land = null;
+      if (spear && spear.def.role === 'siege') {
+        var st = entById(g, spear.tgt);
+        if (st && dist({ x: c.x, y: c.y }, st) > 16) {
+          var sx0 = st.kind === 'b' ? st.cx : st.x, sy0 = st.kind === 'b' ? st.cy : st.y;
+          var vx = g.start[me].x - sx0, vy = g.start[me].y - sy0, vl = Math.sqrt(vx * vx + vy * vy) || 1;
+          land = { x: Math.round(sx0 + vx / vl * 8), y: Math.round(sy0 + vy / vl * 8) };
+        }
       }
+      if (!land) {
+        var ref = findRefinery(g, foe, g.start[me].x, g.start[me].y);
+        if (ref) {
+          var dx = g.start[me].x - ref.cx, dy = g.start[me].y - ref.cy;
+          var dl = Math.sqrt(dx * dx + dy * dy) || 1;
+          land = { x: Math.round(ref.cx + dx / dl * 3.5), y: Math.round(ref.cy + dy / dl * 3.5) };
+        }
+      }
+      if (land && inMap(land.x, land.y)) swFire(g, me, 'chrono', c.x, c.y, land.x, land.y);
     }
   }
 
@@ -19812,7 +20309,6 @@
     var rl = readyLane(s), key = s.queues[rl].ready;
     var d = BLDS[key];
     var home = g.start[me];
-
     // Turrets go toward the enemy; everything else hugs the base.
     var aim = (key === 'sentry' || key === 'tesla' || key === 'sentrygun' || key === 'prism')
       ? { x: (home.x * 0.62 + g.start[foe].x * 0.38), y: (home.y * 0.62 + g.start[foe].y * 0.38) }
@@ -19869,15 +20365,49 @@
     }
   }
 
-  // Pick what the next push aims at: production first, then economy, then
-  // whatever is left. A harassing AI prefers a harvester.
-  function aiPickTarget(g, ai, me, foe) {
-    var i;
-    if (ai.cfg.harass && rnd() < 0.35) {
+  // ---- ScriptTypes: what a team's script points it at ------------------- //
+  // RA2's scripts pick a target CLASS, not a building: "Attack Nearest
+  // Target: base defenses / power / factories / harvesters". `from` is the
+  // team's own centre, so "nearest" means nearest to the team.
+  var AI_DEF_KEYS = { sentry: 1, sentrygun: 1, tesla: 1, prism: 1, patriot: 1, flakcannon: 1, grandcannon: 1 };
+  var AI_POWER_KEYS = { power: 1, reactor: 1 };
+  var AI_PROD_KEYS = { factory: 1, barracks: 1, airforce: 1, radar: 1, lab: 1, base: 1 };
+  function aiPickTarget(g, ai, me, foe, cls, from) {
+    var i, best = null, bd = 1e9;
+    cls = cls || 'any';
+    var fx = from ? from.x : g.start[me].x, fy = from ? from.y : g.start[me].y;
+    function nearer(e) {
+      var ex = e.kind === 'b' ? e.cx : e.x, ey = e.kind === 'b' ? e.cy : e.y;
+      var dd = (ex - fx) * (ex - fx) + (ey - fy) * (ey - fy);
+      if (dd < bd) { bd = dd; best = e; }
+    }
+    if (cls === 'harvester' || (cls === 'any' && ai.cfg.harass && rnd() < 0.35)) {
       for (i = 0; i < g.units.length; i++) {
         var h = g.units[i];
-        if (!h.dead && h.p === foe && isHarv(h)) return h;
+        if (!h.dead && h.p === foe && isHarv(h)) nearer(h);
       }
+      if (best) return best;
+    }
+    if (cls === 'defence' || cls === 'power' || cls === 'production') {
+      var set = cls === 'defence' ? AI_DEF_KEYS : cls === 'power' ? AI_POWER_KEYS : AI_PROD_KEYS;
+      for (i = 0; i < g.blds.length; i++) {
+        var db = g.blds[i];
+        if (db.dead || db.p !== foe || !set[db.type]) continue;
+        nearer(db);
+      }
+      if (best) return best;
+      // A siege team that has flattened the defence line moves on to the
+      // power grid, then to production — RA2's scripts chain the same way.
+      if (cls === 'defence') return aiPickTarget(g, ai, me, foe, 'power', from);
+      if (cls === 'power') return aiPickTarget(g, ai, me, foe, 'production', from);
+    }
+    if (cls === 'nearest') {
+      for (i = 0; i < g.blds.length; i++) {
+        var nb = g.blds[i];
+        if (nb.dead || nb.p !== foe || BLDS[nb.type].wall) continue;
+        nearer(nb);
+      }
+      if (best) return best;
     }
     var pref = ['factory', 'barracks', 'refinery', 'power', 'reactor', 'base', 'lab', 'airforce', 'radar', 'purifier', 'depot', 'sentry', 'sentrygun', 'prism', 'tesla', 'patriot', 'flakcannon'];
     for (var pi = 0; pi < pref.length; pi++) {
@@ -19919,11 +20449,34 @@
     u.order = { t: 'attack', x: tx, y: ty, id: tgt.id };
     u.guardX = tx; u.guardY = ty;
   }
+  // A wall in the way is shot, not walked around: a unit that has been making
+  // no progress with an enemy wall segment beside it re-aims at the wall.
+  // (RA2's warheads carry Wall=yes for exactly this.)
+  function aiClearWall(g, u, me, foe) {
+    if (u.noProg < 90) return false;
+    var bx = Math.round(u.x), by = Math.round(u.y);
+    for (var oy = -2; oy <= 2; oy++) for (var ox = -2; ox <= 2; ox++) {
+      var x = bx + ox, y = by + oy;
+      if (!inMap(x, y)) continue;
+      var id = g.occ[y * MAP + x];
+      if (!id) continue;
+      var b = g.byId[id];
+      if (!b || b.dead || b.kind !== 'b' || b.p !== foe || !BLDS[b.type].wall) continue;
+      aiOrderAttack(g, u, b);
+      return true;
+    }
+    return false;
+  }
 
   // RA2's AI does two things with the neutral house that ours did not: it
   // puts riflemen into the city blocks around its own base when it is on the
   // back foot, and it sends spare Engineers to the nearest uncaptured tech
   // building. Both are cheap, both are checked once a second.
+  //
+  // Engineer priority is ai.ini's: the Oil Derrick first (it is the only one
+  // that pays), then the other tech buildings, then a bridge repair hut, then
+  // one of our own damaged structures, and last an enemy structure nobody is
+  // standing near.
   function aiNeutrals(g, ai, me, foe, defending) {
     if ((g.tick % 60) !== (me * 17) % 60) return 0;
     var i, used = 0, base = null;
@@ -19932,18 +20485,41 @@
       if (!hb.dead && hb.p === me && hb.type === 'base') base = hb;
     }
     if (!base) return 0;
-    // ---- Engineers: the nearest capturable tech building we do not own.
+    function guarded(b) {
+      for (var k = 0; k < g.units.length; k++) {
+        var e = g.units[k];
+        if (e.dead || e.p !== foe || UNITS[e.type].dmg <= 0) continue;
+        if (dist(e, b) < 8) return true;
+      }
+      for (k = 0; k < g.blds.length; k++) {
+        var d = g.blds[k];
+        if (d.dead || d.p !== foe || !BLDS[d.type].dmg) continue;
+        if (dist(d, b) < 9) return true;
+      }
+      return false;
+    }
     for (i = 0; i < g.units.length; i++) {
       var eu = g.units[i];
       if (eu.dead || eu.p !== me || !UNITS[eu.type].capture || eu.order) continue;
-      var tb = null, td = 1e9;
+      var tb = null, tscore = -1;
       for (var j = 0; j < g.blds.length; j++) {
-        var nb = g.blds[j];
-        if (nb.dead || !BLDS[nb.type].tech || nb.p === me) continue;
+        var nb = g.blds[j], sc = -1;
+        if (nb.dead) continue;
+        var nd = BLDS[nb.type];
+        if (nd.tech && nb.p !== me) sc = (nb.type === 'oilderrick' ? 400 : 250);
+        else if (nd.hut) sc = 120;
+        else if (nb.p === me && nb.hp < nb.maxhp * 0.6 && !nd.hut) sc = 100;
+        else if (nb.p === foe && !nd.wall && !guarded(nb)) sc = 60;
+        if (sc < 0) continue;
         var dd = dist(eu, nb);
-        if (dd < td) { td = dd; tb = nb; }
+        if (dd > 40) continue;
+        // Never send an Engineer past the far side of the map for a building
+        // we cannot hold: an enemy structure has to be inside our reach.
+        if (nb.p === foe && dist(nb, { x: g.start[me].x, y: g.start[me].y, kind: 'u' }) > 34) continue;
+        sc -= dd;
+        if (sc > tscore) { tscore = sc; tb = nb; }
       }
-      if (!tb || td > 40) continue;
+      if (!tb) continue;
       eu.order = { t: 'capture', x: 0, y: 0, id: tb.id }; eu.repathAt = -999;
       requestPath(g, eu, Math.round(tb.cx), Math.round(tb.cy));
       used++;
@@ -19956,8 +20532,8 @@
       if (cb.dead || !BLDS[cb.type].occCap) continue;
       if (dist(cb, base) > 18) continue;
       if (!garrisonable(g, cb, me) || occCount(cb) >= Math.min(2, occCapOf(cb))) continue;
-      for (var k = 0; k < g.units.length; k++) {
-        var mu = g.units[k];
+      for (var k2 = 0; k2 < g.units.length; k2++) {
+        var mu = g.units[k2];
         if (mu.dead || mu.p !== me || !canOccupy(mu.type)) continue;
         if (mu.order && mu.order.t === 'garrison') continue;
         if (dist(mu, cb) > 22) continue;
@@ -19971,38 +20547,82 @@
     return used;
   }
 
+  // A minor superweapon this close to charged is already in RA2's trigger
+  // list, so a full team waits a moment rather than leaving without it.
+  function aiMinorSuperSoon(g, me) {
+    var s = g.side[me], ks = ['curtain', 'chrono'];
+    for (var i = 0; i < ks.length; i++) {
+      var sw = s.sw[ks[i]], spec = SW[ks[i]];
+      if (!sw || sw.ready || !hasBld(g, me, spec.bld)) continue;
+      var f = sw.t / spec.charge;
+      if (f >= AI_MINOR_SUPER_READY && (spec.charge - sw.t) < 900) return true;
+    }
+    return false;
+  }
+
   function aiTactics(g, ai, me, foe) {
     var cfg = ai.cfg;
     ai.army = aiArmy(g, me);
-    var i, u, budget = aiBudget(cfg);
+    var i, j, u, t, budget = aiBudget(cfg);
 
-    ai.wave = ai.wave.filter(function (w) { return !w.dead; });
+    // ---- teams: prune the dead, recruit the new
+    for (i = ai.teams.length - 1; i >= 0; i--) {
+      t = ai.teams[i];
+      t.units = t.units.filter(function (w) { return w && !w.dead; });
+      if (!t.def.prod && t.launched && !t.units.length) { aiReleaseTeam(ai, t); ai.failed++; ai.lastFail = g.tick; }
+    }
+    aiRecruit(g, ai, me);
+
+    // Which units are committed to an attack: everything else is the home
+    // guard and answers a raid.
+    var busy = {}, attacking = 0;
+    for (i = 0; i < ai.teams.length; i++) {
+      t = ai.teams[i];
+      if (t.def.prod || t.def.role === 'defend') continue;
+      if (t.mode !== 'attack') continue;
+      attacking++;
+      for (j = 0; j < t.units.length; j++) busy[t.units[j].id] = 1;
+    }
+    ai.attacking = attacking > 0;
+    var spear = aiSpearhead(ai);
+    ai.wave = spear ? spear.units : [];
+    ai.waveN = spear ? spear.n0 : 0;
+    ai.waveTarget = spear ? spear.tgt : 0;
 
     // ---- defending our own base outranks any push
-    var threat = null;
+    // "Our base" is the buildings around the start position, not every
+    // structure we own: an Engineer capture on the far side of the map used to
+    // read as a raid on the homeland and marched the entire production line
+    // across the field to die (measured: 247 GIs killed at the enemy's door in
+    // eight minutes). AISafeDistance=20 is the radius RA2 uses for the same
+    // "is this near the base" question.
+    var homeC = g.start[me], threat = null;
     for (i = 0; i < g.units.length && !threat; i++) {
       var e = g.units[i];
       if (e.dead || e.p !== foe || UNITS[e.type].dmg <= 0) continue;
-      for (var j = 0; j < g.blds.length; j++) {
+      for (j = 0; j < g.blds.length; j++) {
         var b = g.blds[j];
         if (b.dead || b.p !== me) continue;
+        var bhx = b.cx - homeC.x, bhy = b.cy - homeC.y;
+        if (bhx * bhx + bhy * bhy > AI_SAFE_DISTANCE * AI_SAFE_DISTANCE) continue;
         if (dist(e, b) < 16) { threat = e; break; }
       }
     }
     aiNeutrals(g, ai, me, foe, !!threat);
-    if (threat && !ai.wave.length) {
+    if (threat) {
       var answered = 0;
       for (i = 0; i < ai.army.length && budget > 0; i++) {
+        if (busy[ai.army[i].id]) continue;                       // do not recall a live push
         if (!canHit(UNITS[ai.army[i].type], threat)) continue;   // a tank cannot answer a Kirov
         aiOrderAttack(g, ai.army[i], threat); budget--; answered++;
       }
-      ai.attacking = false;
-      if (answered || !isAir(threat)) return;
-      // Nothing that can shoot up: carry on with the ground plan below.
+      if (answered) return;
+      if (!attacking && !isAir(threat)) return;
     }
 
     // ---- Harrier strikes: every pad full and rearmed launches at the
     // enemy's economy (a harvester, then a refinery), RA2-AI style.
+    var mayAttackAir = ai.t > cfg.opening;
     var ready = [], planes = 0;
     for (i = 0; i < g.units.length; i++) {
       u = g.units[i];
@@ -20010,86 +20630,174 @@
       planes++;
       if (u.landed && u.ammo >= UNITS[u.type].ammo && !u.order) ready.push(u);
     }
-    if (ready.length && ready.length >= Math.min(planes, cfg.harass ? 2 : 4)) {
+    // The air arm is bound by the same opening grace as the ground teams:
+    // ai.ini gates its Harrier TeamTypes through AITriggerTypes like every
+    // other attack, and an easy AI that bombs your miners at three minutes
+    // while it "has not started attacking yet" reads as a cheat.
+    if (mayAttackAir && ready.length && ready.length >= Math.min(planes, cfg.harass ? 2 : 4)) {
       var st = null;
       for (i = 0; i < g.units.length && !st; i++) { var hv = g.units[i]; if (!hv.dead && hv.p === foe && isHarv(hv)) st = hv; }
       for (i = 0; i < g.blds.length && !st; i++) { var rb = g.blds[i]; if (!rb.dead && rb.p === foe && rb.type === 'refinery') st = rb; }
-      if (!st) st = aiPickTarget(g, ai, me, foe);
+      if (!st) st = aiPickTarget(g, ai, me, foe, 'production');
       if (st) for (i = 0; i < ready.length && budget > 0; i++, budget--) aiOrderAttack(g, ready[i], st);
     }
 
-    // ---- a push already underway
-    if (ai.wave.length) {
-      // Losing most of a wave means the push failed. Pull the survivors back
-      // and rebuild rather than feeding replacements in one at a time: with
-      // no wave concept at all, this AI lost 129 units without taking a
-      // single building, because every new unit walked into the guns alone.
-      if (ai.wave.length < ai.waveN * cfg.give) {
-        aiMoveSpread(g, ai.wave, aiStaging(g, me, foe));
-        ai.wave = []; ai.waveN = 0; ai.waveTarget = 0; ai.attacking = false;
-        return;
-      }
-      var cur = entById(g, ai.waveTarget) || aiPickTarget(g, ai, me, foe);
-      if (!cur) { ai.wave = []; ai.attacking = false; return; }
-      ai.waveTarget = cur.id;
-      for (i = 0; i < ai.wave.length && budget > 0; i++, budget--) aiOrderAttack(g, ai.wave[i], cur);
-      return;
-    }
-
-    // ---- commit a new wave once enough have massed
+    // ---- run every team's script
     var stage = aiStaging(g, me, foe);
-    if (ai.posture === 'attack' && ai.army.length >= cfg.group) {
-      var tgt = aiPickTarget(g, ai, me, foe);
-      if (tgt) {
-        // Never commit the whole army. A base with nothing standing in it is
-        // free to raid, and an attack that empties home is how you lose the
-        // game you were winning.
-        var pool = ai.army.filter(function (w) { return w !== ai.scout; });
-        var keep = Math.max(2, Math.round(pool.length * 0.25));
-        ai.wave = pool.slice(keep).slice(0, cfg.wave || 999);
-        ai.garrison = pool.slice(0, keep);
-        if (!ai.wave.length) { ai.wave = pool; ai.garrison = []; }
-        ai.waveN = ai.wave.length;
-        ai.waveTarget = tgt.id;
-        ai.attacking = true;
-        for (i = 0; i < ai.wave.length && budget > 0; i++, budget--) aiOrderAttack(g, ai.wave[i], tgt);
-      }
-      return;
+    var mayAttack = ai.t > cfg.opening;
+    for (i = 0; i < ai.teams.length && budget > 0; i++) {
+      t = ai.teams[i];
+      if (t.def.prod || !t.units.length) continue;
+      budget = aiRunTeam(g, ai, me, foe, t, stage, mayAttack, budget);
     }
 
-    // ---- otherwise gather; new units join the NEXT wave, not the last one
-    var home = g.start[me];
-    ai.garrison = (ai.garrison || []).filter(function (w) { return !w.dead; });
-    for (i = 0; i < ai.garrison.length && budget > 0; i++) {
-      u = ai.garrison[i];
-      var hd = Math.sqrt((u.x - home.x) * (u.x - home.x) + (u.y - home.y) * (u.y - home.y));
-      if (hd > 7 && !u.order) {
-        u.order = { t: 'move', x: home.x, y: home.y, id: 0 };
-        u.guardX = home.x; u.guardY = home.y;
-        requestPath(g, u, home.x, home.y);
-        budget--;
+    // ---- Reinforce=yes: the loose pool joins the push
+    // ai.ini sets Reinforce on the offensive TeamTypes, and RA2's own "Big
+    // Team" task forces are three times the size of its opening ones. Our
+    // economy fields far more units than one task force, so a spearhead that
+    // is already moving absorbs the fighters standing at the staging point —
+    // capped by `wave`, which is what makes an easy AI attack in eights and a
+    // hard one in one mass. A quarter of the loose pool always stays home: a
+    // base with nothing in it is free to raid.
+    var spear2 = aiSpearhead(ai);
+    if (spear2 && spear2.def.role !== 'harass' && (ai.posture === 'attack' || ai.siege)) {
+      var held = {}, loosePool = [];
+      for (i = 0; i < ai.teams.length; i++) {
+        if (ai.teams[i].def.prod) continue;
+        for (j = 0; j < ai.teams[i].units.length; j++) held[ai.teams[i].units[j].id] = 1;
+      }
+      for (i = 0; i < ai.army.length; i++) {
+        u = ai.army[i];
+        if (u.dead || held[u.id] || u === ai.scout) continue;
+        loosePool.push(u);
+      }
+      var keepHome = Math.max(2, Math.round(loosePool.length * 0.25));
+      var room = Math.max(0, (cfg.wave || 999) - spear2.units.length);
+      var join = loosePool.slice(keepHome, keepHome + room);
+      if (join.length) {
+        for (i = 0; i < join.length; i++) spear2.units.push(join[i]);
+        spear2.n0 = spear2.units.length;
+        var jt = entById(g, spear2.tgt);
+        if (jt) for (i = 0; i < join.length && budget > 0; i++, budget--) aiOrderAttack(g, join[i], jt);
       }
     }
-    // Idle units gather at the staging point, each on its own tile: far ones
-    // walk over, and any tile holding three or more standing units is broken
-    // up (the soak found whole armies stacked on the barracks door).
+
+    // ---- everything not in a team holds the base
+    var home = g.start[me];
+    var claimed = {};
+    for (i = 0; i < ai.teams.length; i++) {
+      if (ai.teams[i].def.prod) continue;
+      for (j = 0; j < ai.teams[i].units.length; j++) claimed[ai.teams[i].units[j].id] = 1;
+    }
+    ai.garrison = [];
     var toStage = [], tileN = {};
     for (i = 0; i < ai.army.length; i++) {
       u = ai.army[i];
-      if (u.dead || u.air || u.order) continue;
+      if (u.dead || u.air || u.order || claimed[u.id]) continue;
       var tk = Math.round(u.x) + ',' + Math.round(u.y);
       tileN[tk] = (tileN[tk] || 0) + 1;
     }
     for (i = 0; i < ai.army.length; i++) {
       u = ai.army[i];
-      if (u === ai.scout || u.order || u.air) continue;
-      if (ai.garrison.indexOf(u) >= 0) continue;
+      if (u === ai.scout || claimed[u.id] || u.air) continue;
+      ai.garrison.push(u);
+      if (u.order) continue;
       var dd = Math.sqrt((u.x - stage.x) * (u.x - stage.x) + (u.y - stage.y) * (u.y - stage.y));
       if (dd > 4 || tileN[Math.round(u.x) + ',' + Math.round(u.y)] >= 3) toStage.push(u);
     }
     if (toStage.length) aiMoveSpread(g, toStage, stage);
   }
 
+  // One team's script. RA2 writes these as a list of ScriptTypes actions —
+  // "Gather at enemy base", "Attack nearest target", "Move to waypoint" — and
+  // ours is the same shape: fill, gather at the staging point, attack a target
+  // class, retreat when the team has been broken.
+  function aiRunTeam(g, ai, me, foe, t, stage, mayAttack, budget) {
+    var cfg = ai.cfg, i, u;
+    var def = t.def;
+    // Defensive teams never leave: they sit between the base and the enemy
+    // and are re-posted whenever they drift.
+    if (def.role === 'defend') {
+      var post = { x: Math.round(g.start[me].x * 0.80 + g.start[foe].x * 0.20),
+                   y: Math.round(g.start[me].y * 0.80 + g.start[foe].y * 0.20) };
+      var stray = [];
+      for (i = 0; i < t.units.length; i++) {
+        u = t.units[i];
+        if (u.order) continue;
+        var pd = Math.sqrt((u.x - post.x) * (u.x - post.x) + (u.y - post.y) * (u.y - post.y));
+        if (pd > 6) stray.push(u);
+      }
+      if (stray.length && budget > 0) { aiMoveSpread(g, stray, post); budget -= stray.length; }
+      return budget;
+    }
+    // ai.ini writes Full=no on nearly every attack TeamType: a team runs its
+    // script as soon as it is worth running, and stragglers join later. Ours
+    // waits for the full task force while it is fresh, then goes with what it
+    // has once a TeamDelays pass has come and gone.
+    var size = 0;
+    for (i = 0; i < def.force.length; i++) size += def.force[i].n;
+    var enough = aiTeamFull(t) ||
+                 (t.units.length >= Math.ceil(size * 0.6) && g.tick - t.born > cfg.teamDelay);
+    if (!enough && !t.launched) {
+      // Still filling: hold what we have at the staging point.
+      var wait = [];
+      for (i = 0; i < t.units.length; i++) if (!t.units[i].order) wait.push(t.units[i]);
+      if (wait.length && budget > 0) {
+        var far = [];
+        for (i = 0; i < wait.length; i++) {
+          var wd = Math.sqrt((wait[i].x - stage.x) * (wait[i].x - stage.x) + (wait[i].y - stage.y) * (wait[i].y - stage.y));
+          if (wd > 5) far.push(wait[i]);
+        }
+        if (far.length) { aiMoveSpread(g, far, stage); budget -= far.length; }
+      }
+      return budget;
+    }
+    if (!t.launched) {
+      if (!mayAttack) return budget;
+      // A filled task force still has to be worth committing. RA2's
+      // AITriggerTypes carry their own comparison conditions; ours is the
+      // posture ladder, which weighs our army against theirs PLUS their
+      // defence line. Launching on "the team is full" alone threw 41 units
+      // into an easy AI at seven minutes and lost 29 of them in one crossing.
+      // A siege force is the exception — it out-ranges the defence line, so
+      // the value comparison that holds a line company back does not apply —
+      // and so is a raid, which is meant to be small and annoying.
+      if (def.role === 'attack' && ai.posture !== 'attack') return budget;
+      if (def.role === 'siege' && ai.posture !== 'attack' && !ai.siege) return budget;
+      // AIMinorSuperReadyPercent: an Iron Curtain or a Chronosphere about to
+      // finish charging is worth thirty seconds of waiting.
+      if (aiMinorSuperSoon(g, me) && g.tick - t.born < 60 * 60) return budget;
+      t.launched = g.tick; t.n0 = t.units.length; t.mode = 'attack';
+    }
+    if (t.mode === 'retreat') {
+      var home2 = aiStaging(g, me, foe);
+      var back = [];
+      for (i = 0; i < t.units.length; i++) if (!t.units[i].order) back.push(t.units[i]);
+      if (back.length) { aiMoveSpread(g, back, home2); budget -= back.length; }
+      if (g.tick - t.retreatAt > 900) aiReleaseTeam(ai, t);
+      return budget;
+    }
+    // Broken: pull the survivors out and count the failure. Feeding
+    // replacements into a dead attack one at a time is how this AI once lost
+    // 129 units without taking a single building.
+    if (t.units.length < t.n0 * cfg.give) {
+      t.mode = 'retreat'; t.retreatAt = g.tick;
+      ai.failed++; ai.lastFail = g.tick;
+      aiMoveSpread(g, t.units, aiStaging(g, me, foe));
+      return budget - t.units.length;
+    }
+    var centre = aiArmyCentre(t.units) || stage;
+    var cur = entById(g, t.tgt);
+    if (!cur || cur.dead) cur = aiPickTarget(g, ai, me, foe, def.tgt, centre);
+    if (!cur) { aiReleaseTeam(ai, t); return budget; }
+    t.tgt = cur.id;
+    for (i = 0; i < t.units.length && budget > 0; i++, budget--) {
+      u = t.units[i];
+      if (aiClearWall(g, u, me, foe)) continue;
+      aiOrderAttack(g, u, cur);
+    }
+    return budget;
+  }
 
   // --------------------------------------------------------------------- //
   //  Simulation step
@@ -26285,7 +26993,8 @@
            findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf,
            canBuild: canBuild, swBld: swBld, techCount: techCount,
            blocked: blocked, adjOf: adjOf, buildMask: buildMask, gateOpen: gateOpen, applyGaps: applyGaps,
-           gapped: gapped, tileSeen: tileSeen, entSeen: entSeen, versesVs: versesVs, isWall: isWall, detected: detected },
+           gapped: gapped, tileSeen: tileSeen, entSeen: entSeen, versesVs: versesVs, isWall: isWall, detected: detected,
+           aiSwTarget: aiSwTarget, aiSwValue: aiSwValue, aiPickTarget: aiPickTarget, aiDefencePlan: aiDefencePlan },
     // Baked sprite atlas, so art work can be reviewed as a contact sheet
     // instead of by hunting for one building in a live match.
     spr: function () { return SPR; },
@@ -26570,7 +27279,7 @@
 
   window.__rtsBuildFactor = function (lane) { return G ? buildFactor(G, P_HUMAN, lane) : 1; };
 
-  window.__rtsTables = { SW: SW, SW_KEYS: SW_KEYS, UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS, TER: { GROUND: T_GROUND, ROCK: T_ROCK, ORE: T_ORE, WATER: T_WATER, CLIFF: T_CLIFF, TREE: T_TREE, ROAD: T_ROAD, RAMP: T_RAMP, BRIDGE: T_BRIDGE, GEM: T_GEM, CIV: T_CIV }, VERSES: VERSES, ARMOURS: ARMOURS, verses: verses, weaponFor: weaponFor, bspecFor: bspecFor };
+  window.__rtsTables = { AI_TEAMS: AI_TEAMS, SW: SW, SW_KEYS: SW_KEYS, UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS, TER: { GROUND: T_GROUND, ROCK: T_ROCK, ORE: T_ORE, WATER: T_WATER, CLIFF: T_CLIFF, TREE: T_TREE, ROAD: T_ROAD, RAMP: T_RAMP, BRIDGE: T_BRIDGE, GEM: T_GEM, CIV: T_CIV }, VERSES: VERSES, ARMOURS: ARMOURS, verses: verses, weaponFor: weaponFor, bspecFor: bspecFor };
 
   // --------------------------------------------------------------------- //
   //  Boot
