@@ -7057,3 +7057,99 @@ height is not.
 **Rejected: thickening the wall or adding a walkable crest tile.** Both are
 the only ways to make the pass reach a full level over three cells, and both
 change which cells you can walk on.
+
+## Transports: a passenger is a record, not a hidden unit (2026-09-03)
+
+**Symptom (design question).** Phase 8 needed `Passengers=` on four hulls
+(Flak Track 5, IFV 1, Nighthawk 5, Amphibious Transport 12). The obvious model
+is "keep the passenger as a live unit and hide it": set a flag, skip drawing,
+skip stepping. That flag then has to be honoured by every pass that walks
+`g.units` — `findTarget`, splash, `boxSelect`, `countUnit`, `aiArmy`,
+`armyValue`, the score screen, the minimap, the crush check, `near()` — and one
+missed call site is an invisible, invulnerable soldier being shot at from
+across the map.
+
+**Cause.** The codebase already had this problem once and had already solved
+it: a **garrison occupant** is not a unit. `enterGarrison` stores
+`{type, hp, rank}` on the building and sets `u.dead = true`, and every pass
+above already skips the dead. The Terror Drone's `limbo` flag is the *other*
+approach, and it needs its own guard in `findTarget` and in `stepUnit` — two
+guards for one unit, which is exactly the cost that would have multiplied by
+twelve here.
+
+**Fix.** Passengers use the garrison shape verbatim: `u.pax` is an array of
+`{type, hp, rank, kv}` records and boarding sets `u.dead = true`. Everything the
+brief asked for — not targetable, not army, band-select excludes them — falls
+out with no new call sites, and unloading restores the health *and* the
+veterancy the man went in with. `killPassengers` in `damage()`'s death branch
+is the only new hook, and it matches RA2: rules.ini has no mechanism that
+ejects a load when the hull dies (`[General] CrewEscape=50%` spawns **one**
+crewman for a `Crewed=` vehicle, which is not the cargo).
+
+**Note:** the field is `u.pax`, *not* `u.cargo`. `u.cargo` has been the
+harvester's ore tonnage since Phase 0 and is read by `ucap`, the cargo pip and
+`stepHarvester`.
+
+**Rejected.**
+- *A `limbo` flag on a live unit* — see above: N guards instead of zero.
+- *Ejecting survivors on death* — not RA2, and it would make a full
+  Amphibious Transport a better place to keep infantry than the ground.
+
+## The IFV's weapon is a property of its passenger, resolved in `weaponFor` (2026-09-03)
+
+**Symptom (design question).** rules.ini's `[FV]` is unlike every other unit:
+`Gunner=yes`, `TurretCount=4`, `WeaponCount=13`, and thirteen
+`*TurretIndex`/`*TurretWeapon` pairs. The passenger's `IFVMode=` indexes that
+table, so an IFV with an Engineer in it is a repair vehicle with no gun and an
+IFV with a Flak Trooper in it is anti-air. Nothing in the sim had a concept of
+a unit whose stat block changes.
+
+**Cause.** It did, though, have a concept of a unit whose *weapon* changes:
+`weaponFor(spec, tgt, u)` already picks between a primary, an AA secondary
+(`aaW`), a use-based secondary (`w2`) and a deployed variant (`dep`). Three
+lines at the top of that function — "if this is an IFV and it has a passenger,
+`spec` is the mode's row" — put the whole feature behind the one call every
+firing path already goes through.
+
+**Fix.** `IFV_MODES[0..12]` carries the thirteen rules.ini weapons; `IFV_MODE`
+maps each infantry kind to its `IFVMode=`. `weaponFor` and `reachOf` resolve
+through it, and `canHit` grew an optional third argument (`u`) so target
+*picking* agrees with target *shooting* — without it, a GI's IFV would path
+across the map to a Kirov its machine gun cannot touch. Turret art follows the
+same index: `bakeVehicle` gained a third `frame(d, part, tv)` argument and the
+IFV's art object gets a lazy `turrets(ti)` builder, so a match whose IFVs are
+all empty never pays for the three extra 8-facing sheets.
+
+**Rejected.**
+- *A synthesised UNITS entry per mode* (`ifv_flak`, `ifv_engineer`, …) —
+  thirteen fake unit types leak into the build list, the AI's `countUnit`, the
+  score screen and every table that iterates `UNITS`.
+- *Mutating `UNITS.ifv` when a passenger boards* — `UNITS` is shared by every
+  IFV on both sides.
+
+## Two art traps the transports fell into (2026-09-03)
+
+**Symptom.** The Nighthawk came out of `bakeVehicle` as a **Harrier**, and then
+as a **Chrono Miner** with a rotor bolted on.
+
+**Cause.** Two different fall-throughs. (1) `isAirKind` is not "is this an
+aircraft" — it is "is this one of the two bodies-of-revolution airframes", and
+adding `nighthawk` to it routed the sprite into the Harrier's `else`. (2) The
+long `if (kind === …) else if (…)` chain does not end in a generic hull: it
+ends in `} else if (!sov) { CHRONO MINER } else { WAR MINER }`, so **the miners
+are the fallback for any kind the chain does not name**.
+
+**Fix.** `isAirKind` keeps its two members and the ground-shadow test names the
+Nighthawk separately; the chain gained an explicit empty arm for the two new
+kinds, with a comment saying why it exists.
+
+**Also fixed in the same pass:** the hovercraft's skirt was drawn as a
+screen-axis ellipse, which does not rotate with the hull — at all eight facings
+it read as a flat pancake the vehicle was parked on. It is now the oriented
+`stadium()` capsule the track runs use, and the hull stands well clear of the
+skirt crown (5px of hull over a 30px skirt is a raft, not a vehicle).
+
+**And a one-tick stacking bug:** unloading twelve men in a single tick put all
+twelve on the same cell, because `standSpot` tests the neighbour index and that
+index is only rebuilt on `simStep`. `standSpot` now takes an optional `used`
+set, exactly as `spreadSpot` does.

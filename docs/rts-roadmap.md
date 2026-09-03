@@ -733,8 +733,34 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
   noise buffer per context, one delay, one radio chain.
 
 **Phase 8 — transports, navy, multiplayer. ~6 batches, L.**
-- ☐ Transports: Flak Track 5, IFV 1 with turret swap per passenger,
-  Nighthawk, Amphibious Transport; load/unload orders.
+- ☑ Transports: `Passengers=` on four hulls — Flak Track 5 ([HTK]), IFV 1
+  ([FV]), Nighthawk 5 ([SHAD] $1000 / Str 175 / Speed 14 / Sight 7 /
+  `BlackHawkCannon` 35, a Directorate helicopter that lands on any clear cell
+  to load and unload and never touches an Airforce Command pad) and the
+  Amphibious Transport 12 ([SAPC] $900 / Str 300 / heavy / Speed 6, Collective,
+  and land-only until the navy lands since `Prerequisite=NAYARD` has nothing
+  to point at yet). A passenger is stored the way a garrison's occupants are —
+  off the map, not targetable, not counted as army, not band-selectable — and
+  comes back out with the health and rank it went in with; the load dies with
+  the hull, as RA2's does (there is no eject mechanism in rules.ini, only
+  `[General] CrewEscape` for a `Crewed=` vehicle's single crewman).
+  Load = right-click one of our own transports with the ENTER cursor (the
+  garrison UX, reused); unload = `D`/Deploy. A cargo pip strip per RA2's
+  `PipScale=Passengers`, on two rows past six seats.
+- ☑ IFV turret swap: [FV] `TurretCount=4` / `WeaponCount=13`, driven off
+  `IFVMode=` on the passenger. All thirteen modes are in the table with their
+  rules.ini weapons, and every infantryman on the roster maps to one (GI /
+  Conscript / Spy machine gun, Engineer repair arm, Flak Trooper and Rocketeer
+  flak, Tanya SMG, Shock Trooper bolt, Ivan demolition charge, Yuri psi-pulse,
+  Desolator rad beam, Chrono Legionnaire neutron rifle, dog and Guardian GI the
+  rocket pod). Four turret models are baked on demand and swap on the hull; the
+  weapon, its range, its warhead and whether the thing can shoot aircraft at
+  all follow the man inside. An Engineer's IFV has no gun — it welds friendly
+  vehicles ([RepairBullet] Damage=-50 / ROF 80 / Range 1.8).
+- ☑ AI transports: two `mech` task forces that mount their infantry before
+  they move (ai.ini pairs LoadOntoTransport with the Move) and put the load
+  down at the target, plus a hard-only Nighthawk insertion that drops a squad
+  at the enemy refineries.
 - ☐ Naval layer: Shipyards, water pathing, all 11 ship classes, naval AI.
 - ☐ 32-facing vehicles.
 - ☐ Lockstep multiplayer over the deterministic `__rtsSim` core (command

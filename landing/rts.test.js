@@ -3236,3 +3236,277 @@ test("HarvestersPerRefinery=2: the AI mans every refinery it owns", () => {
       `and never a fleet: ${peak} miners for ${peakRef} refineries breaks HarvestersPerRefinery=2`);
   }
 });
+
+// ==================== Phase 8: transports and the IFV ==================== //
+//
+// rules.ini `Passengers=`: [FV] 1, [HTK] 5, [SHAD] 5, [SAPC] 12. A passenger
+// is off the map while it rides — RA2 has no mechanism that ejects a load
+// when the hull dies ([General] CrewEscape spawns ONE crewman for a Crewed=
+// vehicle, not the cargo), so the men inside go with it. And [FV] Gunner=yes
+// means the IFV's weapon and turret are properties of its PASSENGER.
+
+function transportBase(H, seed, fac) {
+  const g = H.begin(seed, "normal");
+  fullBase(H, g, 0, fac);
+  return g;
+}
+// A cell with a clear 5x5 around it: transports and their squads need ground
+// they can actually path over, and a random map start is full of trees.
+function clearSpot(H, g, x, y) {
+  const API = H.api, MAP = W.__rtsTables.MAP;
+  for (let r = 0; r < 26; r++)
+    for (let oy = -r; oy <= r; oy++)
+      for (let ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+        const nx = x + ox, ny = y + oy;
+        let ok = nx > 3 && ny > 3 && nx < MAP - 4 && ny < MAP - 4;
+        for (let dy = -2; ok && dy <= 2; dy++)
+          for (let dx = -2; ok && dx <= 2; dx++) if (API.blocked(g, nx + dx, ny + dy)) ok = false;
+        if (ok) return { x: nx, y: ny };
+      }
+  throw new Error("no clear ground");
+}
+
+test("Passengers= : each transport loads exactly its rules.ini seat count", () => {
+  const H = W.__rtsTest, T2 = W.__rtsTables;
+  assert.equal(T2.UNITS.ifv.pax, 1, "[FV] Passengers=1");
+  assert.equal(T2.UNITS.flaktrack.pax, 5, "[HTK] Passengers=5");
+  assert.equal(T2.UNITS.nighthawk.pax, 5, "[SHAD] Passengers=5");
+  assert.equal(T2.UNITS.apc.pax, 12, "[SAPC] Passengers=12");
+
+  for (const [kind, fac, rider, cap] of [["ifv", "dir", "rifle", 1],
+                                         ["flaktrack", "col", "conscript", 5],
+                                         ["nighthawk", "dir", "rifle", 5],
+                                         ["apc", "col", "conscript", 12]]) {
+    const g = transportBase(H, 8100, fac);
+    const st = g.start[0];
+    const tr = H.spawn(kind, 0, st.x + 6, st.y + 6);
+    let aboard = 0;
+    for (let i = 0; i < cap + 3; i++) {                 // three more than it can hold
+      const m = H.spawn(rider, 0, st.x + 6, st.y + 6);
+      if (H.board(tr, m)) aboard++;
+      else { assert.equal(m.dead, false, "a refused passenger is still on the map"); m.dead = true; }
+    }
+    assert.equal(aboard, cap, `${kind} took ${aboard} aboard, not ${cap}`);
+    assert.equal(H.passengers(tr).length, cap);
+    // ...and everybody comes out again, on their own free cells
+    const out = H.unload(tr);
+    assert.equal(out, cap, `${kind} put ${out} down, not ${cap}`);
+    assert.equal(H.passengers(tr).length, 0);
+    const live = g.units.filter((u) => !u.dead && u.type === rider);
+    assert.equal(live.length, cap);
+    const cells = new Set(live.map((u) => `${u.x},${u.y}`));
+    assert.equal(cells.size, cap, "standSpot gave every man his own cell");
+  }
+});
+
+test("a passenger is off the map: not targetable, not army, not band-selected", () => {
+  const H = W.__rtsTest, API = H.api;
+  const g = transportBase(H, 8101, "col");
+  const st = g.start[0];
+  const tr = H.spawn("flaktrack", 0, st.x + 6, st.y + 6);
+  const men = [];
+  for (let i = 0; i < 3; i++) men.push(H.spawn("conscript", 0, st.x + 6, st.y + 6));
+  const before = API.countUnit(g, 0, "conscript");
+  assert.equal(before, 3);
+  men.forEach((m) => H.board(tr, m));
+  assert.equal(API.countUnit(g, 0, "conscript"), 0, "riders do not count as units");
+  // findTarget for an enemy standing on top of the halftrack must not see them
+  const foe = H.spawn("rhino", 1, st.x + 6, st.y + 6);
+  for (let i = 0; i < 60; i++) H.step(1);
+  assert.ok(men.every((m) => m.dead), "riders stay off the map");
+  assert.ok(!foe.target || foe.target.type !== "conscript", "nothing can shoot a rider");
+  // and they come back with the health and the rank they went in with
+  tr.pax[0].hp = 40; tr.pax[0].rank = 2;
+  const n = H.unload(tr);
+  assert.ok(n >= 1);
+  const back = g.units.filter((u) => !u.dead && u.type === "conscript");
+  assert.ok(back.some((u) => Math.round(u.hp) === 40 && u.rank === 2),
+    "a wounded veteran comes out wounded and a veteran");
+});
+
+test("the cargo dies with the transport", () => {
+  const H = W.__rtsTest, API = H.api;
+  const g = transportBase(H, 8102, "col");
+  const st = g.start[0];
+  const tr = H.spawn("apc", 0, st.x + 6, st.y + 6);
+  for (let i = 0; i < 5; i++) H.board(tr, H.spawn("conscript", 0, st.x + 6, st.y + 6));
+  assert.equal(H.passengers(tr).length, 5);
+  const lost0 = g.side[0].lost;
+  const killer = H.spawn("rhino", 1, st.x + 7, st.y + 6);
+  API.damage(g, killer, tr, 99999, "AP");
+  assert.equal(tr.dead, true);
+  assert.equal(H.passengers(tr).length, 0, "the load is gone");
+  assert.equal(g.units.filter((u) => !u.dead && u.type === "conscript").length, 0,
+    "nobody walks out of a wreck");
+  assert.equal(g.side[0].lost, lost0 + 6, "the hull and all five men count as losses");
+});
+
+test("[FV] IFVMode: the man inside picks the IFV's weapon and its turret model", () => {
+  const H = W.__rtsTest, T2 = W.__rtsTables, API = H.api, A3 = H.api3;
+  // The table itself, straight off rules.ini.
+  const want = { rifle: 2, conscript: 2, spy: 2, engineer: 1, flak: 3, rocketeer: 3,
+                 tanya: 4, teslatrooper: 6, ivan: 7, yuri: 8, desolator: 9, cleg: 10,
+                 dog: 0, rocket: 0 };
+  for (const [k, m] of Object.entries(want))
+    assert.equal(A3.IFV_MODE[k], m, `${k} IFVMode=${m}`);
+  // Every infantryman on the roster resolves to a real mode.
+  for (const [k, u] of Object.entries(T2.UNITS)) {
+    if (u.cls !== "i") continue;
+    const m = A3.IFV_MODE[k] === undefined ? 0 : A3.IFV_MODE[k];
+    assert.ok(A3.IFV_MODES[m], `${k} maps to mode ${m}, which has no row`);
+  }
+  // [FV] *TurretIndex: 0 rocket, 1 gun, 2 repair arm, 3 high-tech.
+  const turret = { 0: 0, 1: 2, 2: 1, 3: 1, 4: 1, 5: 1, 6: 3, 7: 3, 8: 3, 9: 3, 10: 3, 11: 3, 12: 3 };
+  for (const [m, ti] of Object.entries(turret))
+    assert.equal(A3.IFV_MODES[m].tur, ti, `mode ${m} wears turret ${ti}`);
+
+  const g = transportBase(H, 8103, "dir");
+  const st = g.start[0];
+  const mk = (rider) => {
+    const u = H.spawn("ifv", 0, st.x + 6, st.y + 6);
+    if (rider) H.board(u, H.spawn(rider, 0, st.x + 6, st.y + 6));
+    return u;
+  };
+  const tank = H.spawn("rhino", 1, st.x + 9, st.y + 6);
+  const air = H.spawn("kirov", 1, st.x + 9, st.y + 6);
+
+  const empty = mk(null);
+  assert.equal(A3.ifvTurret(empty), 0, "an empty IFV keeps the rocket pod");
+  assert.equal(API.weaponFor(T2.UNITS.ifv, tank, empty).wh, "HE");
+
+  const gi = mk("rifle");
+  assert.equal(A3.ifvTurret(gi), 1, "a GI puts the gun turret on");
+  const giW = API.weaponFor(T2.UNITS.ifv, tank, gi);
+  assert.equal(giW.wh, "SSA", "[CRM60] Warhead=SSA");
+  assert.equal(giW.dmg, 20);
+  assert.equal(giW.rng, 6);
+
+  const eng = mk("engineer");
+  assert.equal(A3.ifvTurret(eng), 2, "an Engineer puts the repair arm on");
+  assert.equal(A3.ifvSpec(eng).repair, 50, "[RepairBullet] Damage=-50");
+  assert.equal(API.canHit(T2.UNITS.ifv, tank, eng), false, "the repair arm is not a gun");
+
+  const shk = mk("teslatrooper");
+  assert.equal(A3.ifvTurret(shk), 3, "a Shock Trooper puts the high-tech turret on");
+  assert.equal(API.weaponFor(T2.UNITS.ifv, tank, shk).wh, "Shock");
+  assert.equal(API.weaponFor(T2.UNITS.ifv, tank, shk).dmg, 60);
+
+  // AA follows the weapon, not the hull: an empty IFV and a Flak Trooper's
+  // IFV can shoot a Kirov; a GI's machine gun cannot.
+  assert.equal(API.canHit(T2.UNITS.ifv, air, empty), true);
+  assert.equal(API.canHit(T2.UNITS.ifv, air, mk("flak")), true);
+  assert.equal(API.canHit(T2.UNITS.ifv, air, gi), false);
+  // ...and the reach follows it too ([AWPE] Range=14 is the long one).
+  assert.equal(API.reachOf(T2.UNITS.ifv, gi), 6);
+  assert.equal(API.reachOf(T2.UNITS.ifv, mk("desolator")), 7);
+});
+
+test("an Engineer's IFV welds friendly vehicles instead of shooting", () => {
+  const H = W.__rtsTest;
+  const g = transportBase(H, 8104, "dir");
+  const st = g.start[0];
+  const ifv = H.spawn("ifv", 0, st.x + 6, st.y + 6);
+  H.board(ifv, H.spawn("engineer", 0, st.x + 6, st.y + 6));
+  const hurt = H.spawn("lancer", 0, st.x + 7, st.y + 6);
+  hurt.hp = 100;
+  hurt.stopped = true; ifv.stopped = true;
+  for (let i = 0; i < 300; i++) H.step(1);
+  assert.ok(hurt.hp > 150, `the arm repaired it (${Math.round(hurt.hp)} of ${hurt.maxhp})`);
+  assert.ok(hurt.hp <= hurt.maxhp, "and never past full");
+});
+
+test("a Nighthawk lands on clear ground, puts its squad down and can lift again", () => {
+  const H = W.__rtsTest, T2 = W.__rtsTables, A3 = H.api3;
+  const g = transportBase(H, 8105, "dir");
+  const st = g.start[0];
+  const nh = H.spawn("nighthawk", 0, st.x + 8, st.y + 8);
+  nh.born = -9999;                                   // already at cruise height
+  assert.equal(T2.UNITS.nighthawk.air, true);
+  assert.ok(!T2.UNITS.nighthawk.ammo, "it is not on the Airforce Command's pad cycle");
+  for (let i = 0; i < 4; i++) H.board(nh, H.spawn("rifle", 0, st.x + 8, st.y + 8));
+  assert.equal(H.passengers(nh).length, 4);
+  H.orderUnload(nh);
+  let landed = false;
+  for (let i = 0; i < 400 && H.passengers(nh).length; i++) { H.step(1); if (nh.landed) landed = true; }
+  assert.ok(landed, "it touched down");
+  assert.equal(H.api.altOf(nh), 0, "and it is on the deck");
+  assert.equal(H.passengers(nh).length, 0, "the squad is out");
+  assert.equal(g.units.filter((u) => !u.dead && u.type === "rifle" && u.p === 0).length, 4);
+  // A move order lifts it off again.
+  H.orderMove([nh], st.x + 14, st.y + 14);
+  for (let i = 0; i < 60; i++) H.step(1);
+  assert.equal(nh.landed, false, "a move order gets it back in the air");
+  assert.ok(H.api.altOf(nh) > 0);
+});
+
+test("an ENTER order walks infantry into a transport, up to its remaining seats", () => {
+  const H = W.__rtsTest;
+  const g = transportBase(H, 8106, "col");
+  const st = g.start[0];
+  const sp = clearSpot(H, g, st.x + 9, st.y + 9);
+  const tr = H.spawn("flaktrack", 0, sp.x, sp.y);
+  tr.stopped = true;
+  const men = [];
+  for (let i = 0; i < 7; i++) men.push(H.spawn("conscript", 0, sp.x - 1 + (i % 3), sp.y + 2 + ((i / 3) | 0)));
+  const n = H.orderEnter(men, tr);
+  assert.equal(n, 5, "only five seats, so only five are given the order");
+  for (let i = 0; i < 60 * 60 && H.passengers(tr).length < 5; i++) H.step(1);
+  assert.equal(H.passengers(tr).length, 5, "they walked in");
+  assert.equal(g.units.filter((u) => !u.dead && u.type === "conscript").length, 2,
+    "the two with no seat are still standing outside");
+  // A full hull refuses more.
+  assert.equal(H.orderEnter([men[6]], tr), 0);
+  // Nothing that is not infantry rides a Flak Track ([HTK] carries men only).
+  const tank = H.spawn("rhino", 0, sp.x, sp.y);
+  assert.equal(H.api3.canBoard(g, tr, tank), false);
+  // ...but the Amphibious Transport carries vehicles too.
+  const ap = H.spawn("apc", 0, sp.x + 1, sp.y);
+  assert.equal(H.api3.canBoard(g, ap, tank), true);
+  assert.equal(H.api3.canBoard(g, ap, H.spawn("apc", 0, sp.x + 2, sp.y)), false,
+    "no transport rides a transport");
+});
+
+test("the AI's mechanised team mounts its infantry into its transports", () => {
+  const H = W.__rtsTest, T2 = W.__rtsTables, A3 = H.api3;
+  const mech = T2.AI_TEAMS.filter((d) => d.mech);
+  assert.ok(mech.length >= 3, "both houses have a mounted task force, plus the air insertion");
+  for (const d of mech) {
+    const trs = d.force.filter((f) => T2.UNITS[f.t].pax);
+    const inf = d.force.filter((f) => T2.UNITS[f.t].cls === "i");
+    assert.ok(trs.length, `${d.key} has something to ride in`);
+    assert.ok(inf.length, `${d.key} has somebody to ride`);
+    const seats = trs.reduce((s, f) => s + f.n * T2.UNITS[f.t].pax, 0);
+    assert.ok(seats >= inf.reduce((s, f) => s + f.n, 0),
+      `${d.key} has ${seats} seats for its squad`);
+  }
+  const hawk = T2.AI_TEAMS.find((d) => d.key === "dirHawk");
+  assert.equal(hawk.drop, true);
+  assert.equal(hawk.tgt, "economy", "the Nighthawk goes for the refineries");
+  assert.equal(hawk.w.easy, 0); assert.equal(hawk.w.normal, 0);
+  assert.ok(hawk.w.hard > 0, "hard difficulty only");
+
+  // And it actually loads in a live match: hand the AI a filled team.
+  const g = H.begin(8107, "hard");
+  fullBase(H, g, 1, "col", ["radar"]);
+  const ai = H.attachAI(1, "hard");
+  const st = g.start[1];
+  const def = T2.AI_TEAMS.find((d) => d.key === "colMech");
+  const t = { def, id: 1, units: [], born: g.tick, launched: 0, mode: "fill", n0: 0, tgt: 0, gatherAt: 0 };
+  for (const f of def.force)
+    for (let i = 0; i < f.n; i++) {
+      const u = H.spawn(f.t, 1, st.x + 4 + (i % 3), st.y + 4 + ((i / 3) | 0));
+      t.units.push(u);
+    }
+  ai.teams.push(t);
+  ai.posture = "attack";
+  const seats = t.units.filter((u) => A3.paxCapOf(u)).length;
+  assert.ok(seats >= 3);
+  let carried = 0;
+  for (let i = 0; i < 60 * 90; i++) {
+    H.step(1);
+    carried = t.units.reduce((s, u) => s + (u.dead ? 0 : A3.paxCount(u)), 0);
+    if (carried >= 4) break;
+  }
+  assert.ok(carried >= 4, `the team mounted up (${carried} aboard)`);
+});

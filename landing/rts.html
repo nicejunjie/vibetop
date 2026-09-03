@@ -851,7 +851,10 @@
     // [Controller] MindControl=yes — same story: it skips damage entirely.
     Controller:   [100, 100, 100, 100, 100, 100,   0,   0,   0],
     // [IvanWH] — the bomb going off, not the bomb being placed.
-    IvanWH:       [100, 100, 100, 100, 100, 100, 100, 250,  20]
+    IvanWH:       [100, 100, 100, 100, 100, 100, 100, 250,  20],
+    // [PsiPulse] PsychicDamage=yes, CellSpread=3 — a Yuri in an IFV throws a
+    // wave that only minds feel: 0% against anything with a hull or a wall.
+    PsiPulse:     [100, 100, 100,   0,   0,   0,   0,   0,   0]
   };
   // rules.ini per-warhead `Wall=`: a warhead without it cannot scratch a wall
   // segment. Taken verbatim from the 37 sections that carry `Wall=yes` — note
@@ -891,7 +894,8 @@
     FlakWH: 3, FlakTWH: 3, FlakGuyWH: 3,
     MirageWH: 4, NukeWH: 4, RadBeamWH: 4, RadSite: 4,   // InfDeath=7 (radiation melt) folds into the burn
     IvanWH: 2,
-    Electric: 5, Shock: 5, IonWH: 5, PrismWarhead: 5, CometWH: 5
+    Electric: 5, Shock: 5, IonWH: 5, PrismWarhead: 5, CometWH: 5,
+    PsiPulse: 6                                      // [PsiPulse] InfDeath=6
   };
   // art.ini `Crawls=` (art.ini:27): [ROCK] and [FLAKT] are `no` — they run
   // instead, so they never hit the dirt. Everyone else (including [SHK] and
@@ -903,6 +907,10 @@
   // RA2 primary/secondary weapons: the secondary is picked by what it is for
   // (Guardian GI missile vs armour, Tanya C4 vs structures).
   function weaponFor(spec, tgt, u) {
+    // [FV] Gunner=yes: the IFV's weapon is not a property of the vehicle, it
+    // is a property of its passenger. Resolve that FIRST, then let the AA and
+    // secondary rules below run against the weapon it actually has.
+    if (spec.ifv && u && u.pax && u.pax.length) spec = ifvSpec(u);
     // RA2 AA secondaries: a Flak Track swaps FlakTWH for FlakWH against a
     // flyer, an Apocalypse unlimbers its MammothTusk missiles. The ground
     // gun is never the thing that shoots the sky.
@@ -916,6 +924,7 @@
   // leave its post to engage before it is told to go back.
   var GUARD_STRAY = 2.0;
   function reachOf(spec, u) {
+    if (spec.ifv && u && u.pax && u.pax.length) spec = ifvSpec(u);
     var r = spec.w2 && spec.w2.rng > spec.rng ? spec.w2.rng : spec.rng;
     if (spec.aaW) { var ar = spec.aaW.aaRng || spec.aaW.rng; if (ar > r) r = ar; }
     if (u && u.deployed && spec.dep && spec.dep.rng > r) r = spec.dep.rng;
@@ -1084,11 +1093,16 @@
       cap: 0, mine: 0, w: 13, h: 10, desc: 'Leaps on infantry and kills outright; sees through a Mirage'
     },
     ifv: {
+      // [FV] Passengers=1, Gunner=yes, TurretCount=4, WeaponCount=13: the IFV
+      // is a TRANSPORT whose weapon and turret are chosen by whoever is
+      // riding in it (`IFVMode=` on the infantryman). Empty it is the rocket
+      // pod — [HoverMissile] 25 x Burst 2 / ROF 50 / Range 6 / HE, MinimumRange=1.
       name: 'IFV', em: '🚙', cost: 600, build: 25, cls: 'v', fac: 'dir', turret: true,
       hp: 200, spd: 0.130, sight: 8, armour: 'light', aa: true, aaRng: 6,
+      pax: 1, paxInf: true, ifv: true,
       dmg: 50, rate: 200, rng: 6, minRng: 1, splash: 0.5,
       wh: 'HE',
-      cap: 0, mine: 0, w: 15, h: 12, desc: 'Fast rocket buggy'
+      cap: 0, mine: 0, w: 15, h: 12, desc: 'Fast rocket buggy; its gun changes with the infantryman riding in it'
     },
     mirage: {
       name: 'Mirage Tank', em: '🌳', cost: 1000, build: 42, cls: 'v', fac: 'dir', req: 'lab',
@@ -1118,7 +1132,8 @@
       wh: 'FlakTWH',
       // FlakTWH (25) is the anti-ground burst; the AA barrel fires FlakWH (35).
       aaW: { dmg: 35, rate: 100, rng: 10, aaRng: 10, splash: 0.6, wh: 'FlakWH', aa: true, flak: true },   // [FlakTrackAAGun] Range=10
-      cap: 0, mine: 0, w: 16, h: 12, desc: 'Fast flak halftrack, anti-infantry'
+      pax: 5, paxInf: true,                                             // [HTK] Passengers=5
+      cap: 0, mine: 0, w: 16, h: 12, desc: 'Fast flak halftrack, anti-infantry; carries five men'
     },
     v3: {
       name: 'V3 Launcher', em: '🚀', cost: 800, build: 34, cls: 'v', fac: 'col', req: 'radar',
@@ -1224,6 +1239,35 @@
       dmg: 0, rate: 0, rng: 0, splash: 0, wh: null,
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Disguised; infiltrates an enemy structure (consumed). Dogs see through it'
     },
+    // ---- RA2 roster, phase 8: the transports ----------------------------
+    // [SHAD] BlackHawk Transport. Cost 1000, Strength 175, Armor light,
+    // Speed 14, Sight 7, TechLevel 7, JumpJet locomotor, Landable=yes,
+    // RadarInvisible=yes, Passengers=5, ThreatPosed=0, CanPassiveAquire=no,
+    // Primary=[BlackHawkCannon] 35 / ROF 40 / Range 6 / Warhead SA.
+    // Prerequisite=GAWEAP — the `;Prerequisite=GAHPAD` line above it is
+    // commented out in rules.ini, so the War Factory is the whole gate.
+    // It carries no `ammo`, so it never joins the Airforce Command's pad
+    // cycle: it lands on any clear cell to load and unload, as RA2's does.
+    nighthawk: {
+      name: 'Nighthawk', em: '🚁', cost: 1000, build: 42, cls: 'v', fac: 'dir',
+      hp: 175, spd: 0.182, sight: 7, armour: 'light', air: true, alt: 40,
+      pax: 5, paxInf: true, passive: true, shadow: [16, 7],
+      dmg: 35, rate: 40, rng: 6, splash: 0,
+      wh: 'SA',
+      cap: 0, mine: 0, w: 20, h: 14, desc: 'Carries five infantry; lands on any clear ground to load and unload (D)'
+    },
+    // [SAPC] Armored Transport. Cost 900, Strength 300, Armor heavy, Speed 6,
+    // Sight 6, TechLevel 2, Passengers=12, Crusher=yes, Turret=no, no weapon.
+    // Prerequisite=NAYARD: there is no Shipyard yet, so for now it is built at
+    // the War Factory and only drives — the hovercraft's water half lands with
+    // the navy (roadmap Phase 8).
+    apc: {
+      name: 'Amphibious Transport', em: '🚤', cost: 900, build: 38, cls: 'v', fac: 'col',
+      hp: 300, spd: 0.078, sight: 6, armour: 'heavy',
+      pax: 12, paxInf: true, paxVeh: true, passive: true,
+      dmg: 0, rate: 0, rng: 0, splash: 0, wh: null,
+      cap: 0, mine: 0, w: 22, h: 15, desc: 'Carries twelve — infantry or light vehicles; unload with D'
+    },
     mcv: {
       // RA2 SMCV/AMCV: Cost 3000, Strength 1000, Armor heavy, Speed 4,
       // Sight 6, no weapon. `req: 'depot'` on top of the vehicle lane's
@@ -1235,6 +1279,99 @@
       cap: 0, mine: 0, w: 22, h: 16, desc: 'Deploys in place into a Construction Yard (D)'
     }
   };
+
+  // --------------------------------------------------------------------- //
+  //  The IFV's thirteen weapons ([FV] WeaponCount=13, TurretCount=4)
+  // --------------------------------------------------------------------- //
+  // rules.ini gives every infantryman an `IFVMode=`; [FV] then lists, in that
+  // exact order, a *TurretIndex / *TurretWeapon pair per mode. So the mode
+  // number IS the index into the table below, the turret index is which of the
+  // four turret models goes on the hull, and the weapon index picks one of the
+  // thirteen Weapon= lines. Read straight off rules.ini v1.006:
+  //
+  //   0 Normal   tur 0  HoverMissile      | 1 Repair  tur 2  RepairBullet
+  //   2 MachineGun tur 1 CRM60            | 3 Flak    tur 1  CRFlakGuyGun
+  //   4 Pistol   tur 1  CRMP5             | 5 Sniper  tur 1  AWPE
+  //   6 Shock    tur 3  CRElectricBolt    | 7 Explode tur 3  CRNuke
+  //   8 BrainBlast tur 3 CRMindControl    | 9 RadCannon tur 3 CRRadBeamWeapon
+  //  10 Chrono   tur 3  CRNeutronRifle    |11 Terrorist tur 3 CRTerrorBomb
+  //  12 Cow      tur 3  CowShot
+  //
+  // Turret models (the `;GEF` comment block in [FV]): 0 rocket, 1 gun,
+  // 2 repair arm, 3 high-tech.
+  var IFV_TUR_ROCKET = 0, IFV_TUR_GUN = 1, IFV_TUR_ARM = 2, IFV_TUR_TECH = 3;
+  var IFV_MODES = [
+    // 0 — empty, a dog, or anything rules.ini leaves at the default.
+    { n: 'Missile',      tur: IFV_TUR_ROCKET, rep: 'rocket',
+      dmg: 50, rate: 200, rng: 6, minRng: 1, splash: 0.5, wh: 'HE', aa: true, aaRng: 6 },
+    // 1 — [RepairBullet] Damage=-50, ROF=80, Range=1.8, Warhead=Mechanical.
+    //     A negative-damage weapon: it welds friendly vehicles, it has no gun.
+    { n: 'Repair arm',   tur: IFV_TUR_ARM, rep: 'repairifv', repair: 50,
+      dmg: 0, rate: 80, rng: 1.8, splash: 0, wh: null },
+    // 2 — [CRM60] 20 / ROF 15 / Range 6 / SSA. GI, Conscript, Spy.
+    { n: 'Machine gun',  tur: IFV_TUR_GUN, rep: 'mg',
+      dmg: 20, rate: 15, rng: 6, splash: 0, wh: 'SSA' },
+    // 3 — [CRFlakGuyGun] 30 / ROF 15 / Range 7 / FlakTWH. Flak Trooper, Rocketeer.
+    { n: 'Flak cannon',  tur: IFV_TUR_GUN, rep: 'flak',
+      dmg: 30, rate: 15, rng: 7, splash: 1, wh: 'FlakTWH', aa: true, aaRng: 7,
+      aaW: { dmg: 30, rate: 15, rng: 7, aaRng: 7, splash: 0.6, wh: 'FlakWH', aa: true, flak: true }, flak: true },
+    // 4 — [CRMP5] 125 / ROF 20 / Range 6 / HollowPoint3. SEAL, Tanya.
+    { n: 'Sub-machine gun', tur: IFV_TUR_GUN, rep: 'shot',
+      dmg: 125, rate: 20, rng: 6, splash: 0, wh: 'HollowPoint' },
+    // 5 — [AWPE] 125 / ROF 60 / Range 14 / HollowPoint. (No Sniper on the
+    //     roster yet; the row is here because the mode index has to line up.)
+    { n: 'Sniper rifle', tur: IFV_TUR_GUN, rep: 'shot',
+      dmg: 125, rate: 60, rng: 14, splash: 0, wh: 'HollowPoint' },
+    // 6 — [CRElectricBolt] 60 / ROF 45 / Range 6 / Shock. Tesla Trooper.
+    { n: 'Tesla coil',   tur: IFV_TUR_TECH, rep: 'tesla',
+      dmg: 60, rate: 45, rng: 6, splash: 0, wh: 'Shock' },
+    // 7 — [CRNuke] 200 / ROF 80 / Range 1 / CRNUKEWH, Suicide=yes, and
+    //     [FV] DeathWeapon=CRNuke: an Ivan aboard blows the hull up as well.
+    { n: 'Demolition charge', tur: IFV_TUR_TECH, rep: 'ivantick', suicide: true,
+      dmg: 200, rate: 80, rng: 1.5, splash: 1.5, wh: 'IvanWH' },
+    // 8 — [CRMindControl] 200 / ROF 10 / Range 1 / PsiPulse, AreaFire. Yuri.
+    { n: 'Psychic blast', tur: IFV_TUR_TECH, rep: 'psy',
+      dmg: 200, rate: 10, rng: 1, splash: 3, wh: 'PsiPulse' },
+    // 9 — [CRRadBeamWeapon] 175 / ROF 30 / Range 7 / RadBeamWarhead. Desolator.
+    { n: 'Radiation beam', tur: IFV_TUR_TECH, rep: 'deso',
+      dmg: 175, rate: 30, rng: 7, splash: 0, wh: 'RadBeamWH' },
+    // 10 — [CRNeutronRifle] 10 / ROF 120 / Range 6 / ChronoBeam (Temporal=yes).
+    { n: 'Neutron rifle', tur: IFV_TUR_TECH, rep: 'cleg', temporal: true,
+      dmg: 10, rate: 120, rng: 6, splash: 0, wh: 'ChronoBeam' },
+    // 11 — [CRTerrorBomb] 250 / ROF 10 / Range 1.5, Suicide=yes. (No Terrorist.)
+    { n: 'Terror bomb',  tur: IFV_TUR_TECH, rep: 'ivantick', suicide: true,
+      dmg: 250, rate: 10, rng: 1.5, splash: 1.5, wh: 'IvanWH' },
+    // 12 — [CowShot]. Livestock. Kept so the index matches rules.ini.
+    { n: 'Cow',          tur: IFV_TUR_TECH, rep: 'shot',
+      dmg: 1, rate: 200, rng: 2, splash: 0, wh: 'SSA' }
+  ];
+  // `IFVMode=` per infantry kind, straight off rules.ini: [E1] GI 2, [E2]
+  // Conscript 2, [SPY] 2, [ENGINEER]/[SENGINEER] 1, [FLAKT] 3, [TANY] 4,
+  // [SNIPE] 5, [SHK] Shock Trooper 6, [IVAN] 7, [YURI] 8, [DESO] 9, [CLEG] 10,
+  // [DOG]/[ADOG] 0. The Guardian GI is a Yuri's Revenge unit and has no row in
+  // this rules.ini; rulesmd gives [GGI] IFVMode=0, the rocket pod — which is
+  // also the one thing a missile trooper would obviously man.
+  var IFV_MODE = {
+    rifle: 2, conscript: 2, spy: 2,
+    engineer: 1,
+    flak: 3, rocketeer: 3,          // [FV] Weapon4 comment: "Flak Troop ;Rocketeer"
+    tanya: 4,
+    teslatrooper: 6,
+    ivan: 7,
+    yuri: 8,
+    desolator: 9,
+    cleg: 10,
+    dog: 0, rocket: 0
+  };
+  function ifvModeOf(u) {
+    if (!u || !UNITS[u.type] || !UNITS[u.type].ifv) return 0;
+    if (!u.pax || !u.pax.length) return 0;
+    var m = IFV_MODE[u.pax[0].type];
+    return m === undefined ? 0 : m;
+  }
+  function ifvSpec(u) { return IFV_MODES[ifvModeOf(u)] || IFV_MODES[0]; }
+  // Which of the four turret models the hull is wearing right now.
+  function ifvTurret(u) { return ifvSpec(u).tur; }
 
   var BLDS = {
     base: {
@@ -1536,7 +1673,10 @@
   // be shot by a weapon flagged `aa`; a weapon flagged `ag:false` (the AA
   // sites) cannot fire at the ground. Buildings are never airborne.
   function isAir(e) { return e.kind === 'u' && !!UNITS[e.type].air; }
-  function canHit(spec, tgt) {
+  function canHit(spec, tgt, u) {
+    // An IFV asks on behalf of the man inside it: a Flak Trooper aboard can
+    // shoot down a Rocketeer, an Engineer aboard cannot shoot anything.
+    if (spec && spec.ifv && u && u.pax && u.pax.length) spec = ifvSpec(u);
     if (!spec || !spec.dmg) return false;
     return isAir(tgt) ? !!spec.aa : spec.ag !== false;
   }
@@ -1633,8 +1773,13 @@
     var a;
     if (tab === 'i') a = fac === 'col' ? ['conscript', 'engineer', 'dog', 'flak', 'teslatrooper', 'ivan', 'desolator', 'yuri']
                                        : ['rifle', 'engineer', 'dog', 'rocket', 'rocketeer', 'spy', 'tanya', 'cleg'];
-    else a = fac === 'col' ? [harvKey(fac), 'rhino', 'v3', 'flaktrack', 'drone', 'mammoth', 'mcv', 'kirov', 'teslatank']
-                           : [harvKey(fac), 'lancer', 'ifv', 'harrier', 'prismtank', 'mirage', 'mcv'];
+    // Vehicles, same rule: TechLevel then rules.ini [VehicleTypes] position.
+    // TL1 miner; TL2 Rhino (#4) then Amphibious Transport (#5), TL2 Grizzly;
+    // TL3 IFV / Intruder / V3 / Flak Track; TL4 Terror Drone; TL7 Apocalypse
+    // and BlackHawk; TL8 Prism Tank; TL9 Mirage; TL10 Kirov (#16) / MCV (#27)
+    // / Tesla Tank (#32).
+    else a = fac === 'col' ? [harvKey(fac), 'rhino', 'apc', 'v3', 'flaktrack', 'drone', 'mammoth', 'kirov', 'mcv', 'teslatank']
+                           : [harvKey(fac), 'lancer', 'ifv', 'harrier', 'nighthawk', 'prismtank', 'mirage', 'mcv'];
     // A Spy who got into their Battle Lab brings home a blueprint: RA2's
     // "Technology stolen" adds the OTHER side's lab unit to your own lane.
     if (side && side.stolen) {
@@ -5284,6 +5429,8 @@
     else if (kind === 'drone')     { hull = '#9aa1ac'; deck = '#5a606b'; } // bare metal carapace
     else if (kind === 'teslatank') { hull = '#7e8163'; deck = '#4a4c3b'; } // olive, like the Rhino's kin
     else if (kind === 'mcv')     { hull = '#8e959f'; deck = '#41464f'; }   // grey works-vehicle body
+    else if (kind === 'nighthawk') { hull = '#31353d'; deck = '#1b1e23'; } // black-ops matte charcoal
+    else if (kind === 'apc')       { hull = '#8a8d76'; deck = '#4d5042'; } // olive-grey hovercraft
     else                         { hull = sov ? '#4c515a' : '#40454e'; deck = '#2a2e35'; }
     var dark = shade(hull, 0.40);
     var turreted = kind === 'lancer' || kind === 'spectre' || kind === 'mammoth' ||
@@ -5300,7 +5447,9 @@
     // part: 'a' = hull+turret in one canvas (the fallback strip), 'h' = hull
     // only, 't' = turret only on a transparent sheet. Same canvas, same
     // anchor, so the three are interchangeable at draw time.
-    function frame(d, part) {
+    // `tv` picks WHICH turret model, for the one vehicle that has more than
+    // one: [FV] TurretCount=4 (0 rocket, 1 gun, 2 repair arm, 3 high-tech).
+    function frame(d, part, tv) {
       var wantH = part !== 't', wantT = part !== 'h';
       var a = d * Math.PI / 4;
       // The Kirov is 137px broadside in RA2 against a Rhino's ~60: it gets a
@@ -5349,12 +5498,21 @@
       // onto a crawler. Appended here rather than threaded into the ternaries
       // above so no other kind's numbers move.
       if (kind === 'mcv') { len = 36; wid = 23; }
+      // The Nighthawk is a light helicopter: long for its beam, and the tail
+      // boom runs past the hull, so the sheet's length is mostly boom.
+      if (kind === 'nighthawk') { len = 34; wid = 13; }
+      // [SAPC] Size=15, SizeLimit=6 — a wide, low hovercraft with a skirt
+      // that overhangs the deck on every side.
+      if (kind === 'apc') { len = 30; wid = 21; }
       // The Terror Drone's shadow is pulled in: a spider does not cast a
       // tank's footprint, and at 14x12 the shared blob was wider than the
       // body it belonged to.
       var shR = kind === 'drone' ? 0.44 : 0.46, shRy = kind === 'drone' ? 0.30 : 0.31;
+      // The two bodies-of-revolution airframes. The Nighthawk is NOT one of
+      // them — it is built out of the ground kit below — but it is still an
+      // aircraft, so it gets the renderer's drop shadow rather than a baked one.
       var isAirKind = kind === 'harrier' || kind === 'kirov';
-      if (wantH && !isAirKind) shadowBlob(g, cx, by, len * shR, wid * shRy);   // aircraft: the renderer drops the shadow on the ground
+      if (wantH && !isAirKind && kind !== 'nighthawk') shadowBlob(g, cx, by, len * shR, wid * shRy);
 
       // --- primitives -----------------------------------------------------
       // A circle of radius r in the GROUND plane projects to an AXIS-ALIGNED
@@ -6254,7 +6412,71 @@
         }
         if (wantT) {
           var ivx = cx - fx * 1.2, ivy = by - RING - fy * 1.2;
+          var ivT = tv || 0;
           puck(ivx, ivy, 3.4, 1.6, pdark, panel, PEDGE);      // house-colour turret ring
+          // ---- turret 1: the GUN mount ([FV] MachineGunTurretIndex=1) -----
+          // GI, Conscript, Spy, Flak Trooper, Rocketeer, Tanya, a sniper: all
+          // of them fire out of the same low, wide cupola with a slim barrel
+          // over the front lip and a shield beside it, which is why the RA2
+          // sprite for six different passengers is one model.
+          if (ivT === IFV_TUR_GUN) {
+            prism(ivx, ivy - 1.4, [[2.4, -2.7], [2.4, 2.7], [-2.6, 2.3], [-2.6, -2.3]],
+                  3.2, shade(deck, 1.10), dark);
+            isoBox(g, ivx, ivy - 4.6, 4.6, 4.2, 1.1, a, panel, PEDGE);       // owner-colour cupola band
+            barrel(ivx + fx * 2.2, ivy - 5.0 + fy * 2.2, 11.0, 0.95, 0.60, '#15161a');
+            for (sg = -1; sg <= 1; sg += 2)                                   // gunner's shield ears
+              isoBox(g, ivx + fx * 1.4 + px * 2.4 * sg, ivy - 5.2 + fy * 1.4 + py * 2.4 * sg,
+                     1.2, 0.9, 2.2, a, STEEL, PEDGE);
+            g.fillStyle = '#b7bec8';                                          // ammo box on the near cheek
+            gEllipse(ivx - fx * 1.8, ivy - 5.4 - fy * 1.8, 0.9); g.fill();
+          }
+          // ---- turret 2: the REPAIR ARM ([FV] RepairTurretIndex=2) --------
+          // [RepairBullet] Warhead=Mechanical, AttachedParticleSystem=WeldingSys:
+          // an articulated boom on a flat deck with a welding head on the end,
+          // and no gun anywhere on it.
+          else if (ivT === IFV_TUR_ARM) {
+            isoBox(g, ivx, ivy - 1.2, 5.2, 4.8, 1.6, a, shade(deck, 1.02), dark);
+            isoBox(g, ivx - fx * 1.6, ivy - 2.8 - fy * 1.6, 2.6, 3.2, 2.2, a, panel, PEDGE);
+            var jx = ivx + fx * 0.6, jy = ivy - 5.0 + fy * 0.6;              // shoulder joint
+            puck(jx, jy + 1.2, 1.15, 1.2, pdark, plit, PEDGE);
+            var ex1 = jx + fx * 3.4, ey1 = jy - 3.4 + fy * 3.4;              // upper arm, raked up
+            var ex2 = ex1 + fx * 3.2, ey2 = ey1 + 1.1 + fy * 3.2;            // forearm, dropping to the work
+            g.strokeStyle = '#454b54'; g.lineWidth = 2.4; g.lineCap = 'round';
+            g.beginPath(); g.moveTo(jx, jy); g.lineTo(ex1, ey1); g.lineTo(ex2, ey2); g.stroke();
+            g.strokeStyle = '#8f97a2'; g.lineWidth = 0.9;                     // lit upper edge of the boom
+            g.beginPath(); g.moveTo(jx, jy - 1.0); g.lineTo(ex1, ey1 - 1.0); g.stroke();
+            puck(ex1, ey1 + 0.9, 0.9, 0.9, '#2a2e34', '#7b828d', PEDGE);      // elbow
+            g.fillStyle = '#c8ced7';                                          // welding head
+            g.beginPath(); g.ellipse(ex2, ey2, 1.5, 1.2, 0, 0, 6.29); g.fill();
+            g.fillStyle = 'rgba(150,215,255,.85)';                            // the arc at the tip
+            g.beginPath(); g.ellipse(ex2 + fx * 1.0, ey2 + fy * 1.0, 0.9, 0.8, 0, 0, 6.29); g.fill();
+          }
+          // ---- turret 3: the HIGH-TECH emitter ([FV] ShockTurretIndex=3) --
+          // Shock Trooper, Ivan, Yuri, Desolator, Chrono Legionnaire, a cow:
+          // RA2 hangs all six off ONE model — a drum with a dish and a lens.
+          else if (ivT === IFV_TUR_TECH) {
+            prism(ivx, ivy - 1.4, [[2.2, -2.5], [2.2, 2.5], [-2.5, 2.2], [-2.5, -2.2]],
+                  4.4, shade(deck, 0.96), dark);
+            puck(ivx, ivy - 5.8, 2.5, 2.0, pdark, panel, PEDGE);              // owner-colour collar
+            var dsx = ivx + fx * 1.9, dsy = ivy - 8.6 + fy * 1.9;             // the dish, tilted forward
+            g.fillStyle = '#2a2f37';
+            g.beginPath(); g.ellipse(dsx, dsy, 3.2, 2.2, 0, 0, 6.29); g.fill();
+            g.strokeStyle = '#9aa2ae'; g.lineWidth = 0.8; g.stroke();
+            g.fillStyle = 'rgba(158,214,255,.9)';                             // the lens in its throat
+            g.beginPath(); g.ellipse(dsx, dsy, 1.35, 0.95, 0, 0, 6.29); g.fill();
+            for (sg = -1; sg <= 1; sg += 2) {                                 // two emitter rods
+              g.strokeStyle = '#7d8590'; g.lineWidth = 1.1; g.lineCap = 'round';
+              g.beginPath();
+              g.moveTo(ivx + px * 2.0 * sg, ivy - 6.6 + py * 2.0 * sg);
+              g.lineTo(ivx + px * 2.6 * sg + fx * 1.2, ivy - 10.4 + py * 2.6 * sg + fy * 1.2);
+              g.stroke();
+              g.fillStyle = '#cfe6ff';
+              g.beginPath();
+              g.ellipse(ivx + px * 2.6 * sg + fx * 1.2, ivy - 10.4 + py * 2.6 * sg + fy * 1.2, 0.8, 0.7, 0, 0, 6.29);
+              g.fill();
+            }
+          }
+          else {
           // The launcher is a BOX that stands up — six units tall against the
           // body's five — because that upright mass is the whole silhouette.
           prism(ivx, ivy - 1.5, [[2.6, -2.9], [2.6, 2.9], [-2.9, 2.5], [-2.9, -2.5]],
@@ -6295,6 +6517,7 @@
           }
           puck(ivx - fx * 2.6, ivy - 8.0 - fy * 2.6, 1.1, 1.5,   // sight box on the roof
                shade(deck, 0.82), shade(deck, 1.20), dark);
+          }
         }
 
       } else if (kind === 'rhino') {
@@ -6809,6 +7032,12 @@
         if (fy > 0) { drawCowl(); drawStack(); drawNose(); }
         else { drawNose(); drawStack(); drawCowl(); }
 
+      // The tail of this chain is the two miners, which makes it the FALLBACK
+      // for any kind the chain does not name. The Phase 8 transports assemble
+      // their own bodies further down, so they need an arm of their own here
+      // or they arrive wearing a mining bin.
+      } else if (kind === 'nighthawk' || kind === 'apc') {
+        /* built below */
       } else if (!sov) {
         // CHRONO MINER — a LOW, DARK truck. In `allied-chrono-miner.png` the
         // body is near-black charcoal, the house colour is ONE bright band
@@ -7049,6 +7278,191 @@
           exhaust(cx - fx * len * 0.40 + px * wid * 0.18, by - 12.6 - fy * len * 0.40 + py * wid * 0.18);
         }
       }
+
+      // ---- Nighthawk ([SHAD], art `SHAD.VXL`) --------------------------- //
+      // A light black-ops helicopter, and the read at 1:1 is entirely the
+      // PROPORTION: a short deep glassed cabin at the front, then a long slim
+      // TAIL BOOM running most of the sprite's length to a fin and a tail
+      // rotor, on skids, under a four-blade main rotor whose disc is wider
+      // than the airframe. The first pass drew the cabin as wide as it was
+      // long and hid the boom behind it, and it read as a black crate with a
+      // propeller. Cabin and boom are drawn as two closures so the near one
+      // is drawn last, exactly as the Kirov's pod and the miners' bins are.
+      // The airframe is matte charcoal throughout; the owner's colour is a
+      // band over each door and the fin flash, because a half-house-coloured
+      // helicopter reads as a toy.
+      if (kind === 'nighthawk') {
+        if (wantH) {
+          var hy = by - 5.4;                                  // the belly line
+          var bmA = 2.0, bmB = 16.5;                          // boom start/end, aft of centre
+          var drawSkids = function () {
+            for (sg = -1; sg <= 1; sg += 2) {
+              g.strokeStyle = '#191c21'; g.lineWidth = 1.6; g.lineCap = 'round';
+              g.beginPath();
+              g.moveTo(cx + fx * 8.0 + px * wid * 0.34 * sg, by - 0.6 + fy * 8.0 + py * wid * 0.34 * sg);
+              g.lineTo(cx - fx * 4.0 + px * wid * 0.34 * sg, by - 0.6 - fy * 4.0 + py * wid * 0.34 * sg);
+              g.stroke();
+              for (i2 = -1; i2 <= 1; i2 += 2) {
+                g.strokeStyle = '#3d434b'; g.lineWidth = 1.1;
+                g.beginPath();
+                g.moveTo(cx + fx * i2 * 3.0 + px * wid * 0.34 * sg, by - 0.8 + fy * i2 * 3.0 + py * wid * 0.34 * sg);
+                g.lineTo(cx + fx * i2 * 2.2 + px * wid * 0.20 * sg, hy + 0.4 + fy * i2 * 2.2 + py * wid * 0.20 * sg);
+                g.stroke();
+              }
+            }
+          };
+          var drawBoom = function () {
+            var b0x = cx - fx * bmA, b0y = hy - 3.4 - fy * bmA;
+            var b1x = cx - fx * bmB, b1y = hy - 4.6 - fy * bmB;
+            g.strokeStyle = shade(hull, 0.84); g.lineWidth = 3.0; g.lineCap = 'round';
+            g.beginPath(); g.moveTo(b0x, b0y); g.lineTo(b1x, b1y); g.stroke();
+            g.strokeStyle = shade(hull, 1.55); g.lineWidth = 0.9;         // lit upper edge
+            g.beginPath(); g.moveTo(b0x, b0y - 1.2); g.lineTo(b1x, b1y - 1.2); g.stroke();
+            // horizontal stabiliser
+            g.strokeStyle = shade(hull, 1.02); g.lineWidth = 1.8;
+            g.beginPath();
+            g.moveTo(b1x + fx * 3.0 + px * 3.6, b1y + 0.6 + fy * 3.0 + py * 3.6);
+            g.lineTo(b1x + fx * 3.0 - px * 3.6, b1y + 0.6 + fy * 3.0 - py * 3.6);
+            g.stroke();
+            // the fin, wearing the house flash, and the tail rotor on it
+            isoBox(g, b1x, b1y + 0.4, 3.2, 0.9, 5.0, a, shade(hull, 0.94), PEDGE);
+            isoBox(g, b1x - fx * 0.4, b1y - 4.0 - fy * 0.4, 2.2, 1.0, 1.4, a, panel, PEDGE);
+            var trR = 3.2, trPh = anim === 'prop' ? 0.5236 : 0;
+            g.strokeStyle = 'rgba(206,214,224,.40)'; g.lineWidth = 1.0; g.lineCap = 'round';
+            for (i2 = 0; i2 < 3; i2++) {
+              var tra = trPh + i2 * 2.094;
+              g.beginPath(); g.moveTo(b1x + px * 1.2, b1y - 2.6 + py * 1.2);
+              g.lineTo(b1x + px * 1.2 + Math.cos(tra) * trR * 0.5, b1y - 2.6 + py * 1.2 + Math.sin(tra) * trR);
+              g.stroke();
+            }
+          };
+          var drawCabin = function () {
+            var kx = cx + fx * 3.6, ky = hy + fy * 3.6;
+            chassis(kx, ky, len * 0.30, wid * 0.62, 6.4, hull, PEDGE, 2.4);
+            isoBox(g, kx - fx * 0.6, ky - 8.0 - fy * 0.6, len * 0.24, wid * 0.52, 1.2, a,
+                   shade(hull, 1.16), PEDGE);                             // roof
+            // the glass nose
+            isoBox(g, kx + fx * 4.2, ky - 2.6 + fy * 4.2, 1.5, wid * 0.50, 5.4, a, '#222a33', '#0b0e12');
+            g.fillStyle = 'rgba(168,196,222,.52)';
+            g.beginPath(); g.ellipse(kx + fx * 4.7, ky - 6.2 + fy * 4.7, 3.0, 1.5, 0, 0, 6.29); g.fill();
+            g.fillStyle = 'rgba(214,232,248,.34)';
+            g.beginPath(); g.ellipse(kx + fx * 4.9, ky - 7.0 + fy * 4.9, 1.7, 0.7, 0, 0, 6.29); g.fill();
+            for (sg = -1; sg <= 1; sg += 2) {
+              // the sliding door a side, with the owner's band over it
+              isoBox(g, kx + px * wid * 0.34 * sg, ky - 3.0 + py * wid * 0.34 * sg,
+                     len * 0.18, 0.9, 3.6, a, '#151920', PEDGE);
+              isoBox(g, kx + px * wid * 0.34 * sg, ky - 5.6 + py * wid * 0.34 * sg,
+                     len * 0.20, 1.0, 1.2, a, panel, PEDGE);
+              puck(kx - fx * 1.8 + px * wid * 0.42 * sg, ky - 3.4 - fy * 1.8 + py * wid * 0.42 * sg,
+                   0.9, 1.2, shade(hull, 0.70), STEEL, PEDGE);            // sensor pod on a stub pylon
+            }
+            // the chin gun ([BlackHawkCannon], a 20mm quad)
+            barrel(kx + fx * 4.6, ky - 1.4 + fy * 4.6, 5.6, 0.75, 0.50, '#131519');
+          };
+          drawSkids();
+          if (fy > 0) { drawBoom(); drawCabin(); } else { drawCabin(); drawBoom(); }
+          // mast and main rotor, over everything
+          var mrx = cx + fx * 2.0, mry = hy - 9.6 + fy * 2.0;
+          puck(mrx, mry + 1.4, 1.2, 2.0, shade(hull, 0.72), STEEL, PEDGE);
+          var mrPh = anim === 'prop' ? 0.7854 : 0, mrR = 19.0;
+          g.lineCap = 'round';
+          g.fillStyle = 'rgba(150,160,176,.09)';                          // the disc it sweeps
+          g.beginPath();
+          g.ellipse(mrx, mry, mrR * ISO_X * 1.4142, mrR * ISO_Y * 1.4142, 0, 0, 6.29); g.fill();
+          for (i2 = 0; i2 < 4; i2++) {
+            var mra = mrPh + i2 * 1.5708;
+            g.strokeStyle = 'rgba(214,222,232,.32)'; g.lineWidth = 1.1;
+            g.beginPath(); g.moveTo(mrx, mry);
+            g.lineTo(mrx + Math.cos(mra) * mrR * ISO_X * 1.4142,
+                     mry + Math.sin(mra) * mrR * ISO_Y * 1.4142);
+            g.stroke();
+          }
+          g.fillStyle = '#c34a2c';                                        // anti-collision lamp
+          g.beginPath(); g.ellipse(mrx - fx * 2.4, mry + 1.6 - fy * 2.4, 0.8, 0.7, 0, 0, 6.29); g.fill();
+        }
+      }
+
+      // ---- Amphibious Transport ([SAPC], art `TRS.VXL`) ------------------ //
+      // The Soviet landing hovercraft. Four masses, biggest first: a
+      // segmented SKIRT lying on the ground; a tall slab-sided HULL standing
+      // proud of it; a raised BRIDGE block along the port side with the open
+      // cargo well beside it to starboard; and two big ducted lift fans at
+      // the stern. Turret=no, no gun, nothing on the roof.
+      //
+      // The skirt is an ORIENTED capsule (the stadium the track runs use), not
+      // a screen-axis ellipse: drawn as a fixed oval it read as a pancake the
+      // vehicle was parked on rather than as part of it. The hull has to stand
+      // WELL clear of the skirt crown or the whole thing reads as a raft — the
+      // first pass had 5px of hull over a 30px skirt and that is exactly what
+      // happened. House colour is one rubbing strake a flank plus the bridge
+      // roof: a deck-wide band turns the vehicle into a slab of player hue.
+      if (kind === 'apc') {
+        if (wantH) {
+          var skHW = wid * 0.48, skST = Math.max(0.5, len * 0.46 - skHW);
+          var SK = stadium(cx, by - 0.8, skST, skHW), i4, q0, q1;
+          polyPath(SK, 0); g.fillStyle = '#191b16'; g.fill();          // the ground it settles into
+          for (i4 = 0; i4 < SK.length; i4++) {                         // the tube's wall
+            q0 = SK[i4]; q1 = SK[(i4 + 1) % SK.length];
+            var near0 = (q0[1] + q1[1]) / 2 > by - 0.8;
+            g.beginPath();
+            g.moveTo(q0[0], q0[1]); g.lineTo(q1[0], q1[1]);
+            g.lineTo(q1[0], q1[1] - 2.8); g.lineTo(q0[0], q0[1] - 2.8);
+            g.closePath();
+            g.fillStyle = near0 ? '#4e5241' : '#31342a'; g.fill();
+            g.strokeStyle = 'rgba(0,0,0,.42)'; g.lineWidth = 0.8; g.stroke();
+          }
+          polyPath(SK, -2.8); g.fillStyle = '#666a52'; g.fill();       // the crown of the tube
+          g.strokeStyle = '#23261e'; g.lineWidth = 0.8; g.stroke();
+          // the hull: slab-sided and standing well clear of the skirt
+          isoBox(g, cx, by - 3.0, len * 0.74, wid * 0.62, 7.4, a, hull, PEDGE);
+          deckPlate(0, len * 0.66, wid * 0.54, 11.6, shade(hull, 1.12));
+          // one rubbing strake a flank, in the owner's colour
+          for (sg = -1; sg <= 1; sg += 2)
+            isoBox(g, cx + px * wid * 0.32 * sg, by - 8.2 + py * wid * 0.32 * sg,
+                   len * 0.70, 0.9, 1.5, a, panel, PEDGE);
+          // the open cargo well, to starboard of the bridge
+          isoBox(g, cx + fx * 1.0 - px * wid * 0.16, by - 11.8 + fy * 1.0 - py * wid * 0.16,
+                 len * 0.50, wid * 0.24, 1.0, a, '#1d201a', PEDGE);
+          // the bridge block, running fore-and-aft along the port side
+          var brx = cx - fx * 2.4 + px * wid * 0.20, bry = by - 11.4 - fy * 2.4 + py * wid * 0.20;
+          isoBox(g, brx, bry, len * 0.46, wid * 0.26, 5.6, a, shade(hull, 0.88), PEDGE);
+          isoBox(g, brx, bry - 5.8, len * 0.42, wid * 0.22, 1.2, a, panel, PEDGE);
+          isoBox(g, brx + fx * 6.0, bry - 2.8 + fy * 6.0, 1.0, wid * 0.20, 3.0, a, '#232a33', '#0e1115');
+          g.fillStyle = 'rgba(190,210,228,.36)';
+          g.beginPath(); g.ellipse(brx + fx * 6.4, bry - 4.6 + fy * 6.4, 1.8, 0.8, 0, 0, 6.29); g.fill();
+          g.strokeStyle = '#8d94a0'; g.lineWidth = 0.9;                 // a short mast with a lamp
+          g.beginPath();
+          g.moveTo(brx - fx * 5.0, bry - 7.0 - fy * 5.0);
+          g.lineTo(brx - fx * 5.0, bry - 11.2 - fy * 5.0); g.stroke();
+          g.fillStyle = '#f2d98a';
+          g.beginPath(); g.ellipse(brx - fx * 5.0, bry - 11.4 - fy * 5.0, 0.9, 0.8, 0, 0, 6.29); g.fill();
+          // the bow ramp, hinged down over the skirt
+          isoBox(g, cx + fx * len * 0.40, by - 4.6 + fy * len * 0.40,
+                 len * 0.13, wid * 0.50, 1.4, a, shade(hull, 0.78), PEDGE);
+          g.strokeStyle = shade(hull, 1.55); g.lineWidth = 1.1;
+          g.beginPath();
+          g.moveTo(cx + fx * len * 0.46 + px * wid * 0.25, by - 5.8 + fy * len * 0.46 + py * wid * 0.25);
+          g.lineTo(cx + fx * len * 0.46 - px * wid * 0.25, by - 5.8 + fy * len * 0.46 - py * wid * 0.25);
+          g.stroke();
+          // two big ducted lift fans across the stern, standing on the hull
+          for (sg = -1; sg <= 1; sg += 2) {
+            var fnx = cx - fx * len * 0.30 + px * wid * 0.22 * sg;
+            var fny = by - 10.6 - fy * len * 0.30 + py * wid * 0.22 * sg;
+            puck(fnx, fny, 3.1, 3.4, shade(deck, 0.82), shade(deck, 1.08), PEDGE);
+            g.fillStyle = '#15171b';
+            gEllipse(fnx, fny - 3.4, 2.3); g.fill();
+            g.strokeStyle = 'rgba(186,194,204,.66)'; g.lineWidth = 1.0;
+            for (i2 = 0; i2 < 4; i2++) {
+              var fna = i2 * 1.5708;
+              g.beginPath(); g.moveTo(fnx, fny - 3.4);
+              g.lineTo(fnx + Math.cos(fna) * 2.2 * ER, fny - 3.4 + Math.sin(fna) * 2.2 * ERY);
+              g.stroke();
+            }
+            g.strokeStyle = STEEL; g.lineWidth = 0.9;
+            gEllipse(fnx, fny - 3.4, 2.35); g.stroke();
+          }
+        }
+      }
       return s;
     }
 
@@ -7069,6 +7483,20 @@
     if (turreted) {
       out.hull = []; out.turret = [];
       for (d = 0; d < 8; d++) { out.hull.push(frame(d, 'h')); out.turret.push(frame(d, 't')); }
+    }
+    // [FV] TurretCount=4. Baked ON DEMAND, like the Kirov's gondola layers: a
+    // match with no IFV — or one whose IFVs are all empty — never pays for the
+    // three extra 8-facing sheets, and a loaded one pays for its model once.
+    if (kind === 'ifv') {
+      out.turrets = function (ti) {
+        if (!out._tur) out._tur = {};
+        if (!out._tur[ti]) {
+          var arr = [], q;
+          for (q = 0; q < 8; q++) { var sc = frame(q, 't', ti); sc.bb = artBox(sc); arr.push(sc); }
+          out._tur[ti] = arr;
+        }
+        return out._tur[ti];
+      };
     }
     return out;
   }
@@ -16405,6 +16833,7 @@
             // drawUnit alternates the two while mining.
             if (vk === 'harv') U.mine = bakeVehicle(COL[p], vk, ufk, 'mine');
             if (vk === 'kirov') U.anim = bakeVehicle(COL[p], vk, ufk, 'prop');      // propeller turned 45 degrees
+            if (vk === 'nighthawk') U.anim = bakeVehicle(COL[p], vk, ufk, 'prop');  // main and tail rotors, half a blade on
             if (vk === 'harrier') U.empty = bakeVehicle(COL[p], vk, ufk, 'empty');  // missile racks fired
           }
           // Selection brackets and the HP bar are placed off the art's real
@@ -16469,6 +16898,7 @@
       face: (gx + gy) & 7, cool: 0, target: null, order: null,     // order: {t:'move'|'attack'|'harvest', x,y,id}
       path: null, pi: 0, repath: 0, repathAt: -999, stuck: 0, lastx: gx, lasty: gy,
       cargo: 0, cargoV: 0, mineAt: null, homeRef: null, state: 'idle', fleeAt: -999, noGo: null, noProg: 0,
+      pax: [],                                                       // RA2 Passengers=: who is riding in this hull
       bestD: 1e9, stallAt: 0, holdUntil: 0, movedAt: -99, tface: null, aimAt: 0,
       kills: 0, rank: 0, wp: null,                                   // veterancy: 3 kills veteran, 6 elite
       sel: false, aggro: null, guardX: gx, guardY: gy, born: g.tick, hov: 0,
@@ -16883,7 +17313,7 @@
     near(ex, ey, reach + 1, function (o) {
       if (o.dead || o.p === e.p) return;
       if (o.limbo) return;                   // inside a vehicle, or out of phase mid-warp
-      if (!canHit(spec, o)) return;          // a GI cannot shoot a Kirov; a Patriot cannot shoot a tank
+      if (!canHit(spec, o, e.kind === 'u' ? e : null)) return;   // a GI cannot shoot a Kirov; a Patriot cannot shoot a tank
       var d = dist(e, o);
       // A Mirage reads as a tree until you are almost touching it; a Spy in
       // the enemy's own uniform is never shot at at all until a dog says so.
@@ -16993,8 +17423,8 @@
       } else if (tgt.bomb) defuseBomb(g, tgt);
       if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
       if (tgt.kind === 'b') { killBld(g, tgt); sfx('bldboom', tgt.cx, tgt.cy); }   // killBld runs the whole death sequence
-      else if (isAir(tgt)) { tgt.dead = true; crashAircraft(g, tgt); }
-      else { tgt.dead = true; if (!infCorpse(g, tgt, wh, src.crushKill)) vehicleDeath(g, tgt); sfx(isInfArmour(UNITS[tgt.type].armour) ? 'die' : 'vdie', tgt.x, tgt.y); }
+      else if (isAir(tgt)) { tgt.dead = true; killPassengers(g, tgt); crashAircraft(g, tgt); }
+      else { tgt.dead = true; killPassengers(g, tgt); if (!infCorpse(g, tgt, wh, src.crushKill)) vehicleDeath(g, tgt); sfx(isInfArmour(UNITS[tgt.type].armour) ? 'die' : 'vdie', tgt.x, tgt.y); }
     }
   }
 
@@ -17384,7 +17814,7 @@
         g.rubble.push({ x: tx0, y: ty0, gw: 1, gh: 1, t: -25, life: DECAL_LIFE, fx: 'crater', v: 1 });
       }
     }
-    if (!headless) sfx(REPORT[src.type] || (spec.flak ? 'flak' : spec.bomb ? 'kbomb' : src.kind === 'b' ? 'mg' : 'cannon'),
+    if (!headless) sfx(spec.rep || REPORT[src.type] || (spec.flak ? 'flak' : spec.bomb ? 'kbomb' : src.kind === 'b' ? 'mg' : 'cannon'),
                        src.kind === 'b' ? src.cx : src.x, src.kind === 'b' ? src.cy : src.y);
     // ---- warheads that do something other than subtract hit points -------
     // Each of these RETURNS: the shot has been drawn and the cooldown set,
@@ -17419,6 +17849,112 @@
         if (d <= spec.splash) damage(g, src, o, amt * 0.45 * (1 - d / (spec.splash + 0.4)), spec.wh);
       });
     }
+    // [CRNuke]/[CRTerrorBomb] Suicide=yes, and [FV] DeathWeapon=CRNuke: an
+    // Ivan (or a Terrorist) riding an IFV drives it into the target and the
+    // hull goes with the charge — the blast above is the whole attack, and
+    // this is the vehicle being written off by it.
+    if (spec.suicide && src.kind === 'u' && !src.dead) {
+      src.hp = 0; src.dead = true;
+      killPassengers(g, src);
+      if (!neutral(src.p)) g.side[src.p].lost++;
+      if (!headless) { vehicleDeath(g, src); sfx('vdie', src.x, src.y); }
+      if (src.sel) dropFromSel(src);
+    }
+  }
+
+  // --------------------------------------------------------------------- //
+  //  Transports (RA2 `Passengers=`)
+  // --------------------------------------------------------------------- //
+  //  Flak Track 5, IFV 1, Nighthawk 5, Amphibious Transport 12. A passenger
+  //  is stored the way a garrison's occupants are — a plain record, not a live
+  //  unit — so it is off the map by construction: not targetable, not in the
+  //  army, not band-selectable, and it comes back out with the health and the
+  //  rank it went in with. RA2 does NOT eject a load when the hull dies
+  //  (rules.ini's only survivor mechanism is [General] CrewEscape, which
+  //  spawns ONE crewman for a Crewed= vehicle, not the cargo), so the men
+  //  inside go with it.
+  function paxCapOf(u) { return (u && UNITS[u.type] && UNITS[u.type].pax) || 0; }
+  function paxCount(u) { return u && u.pax ? u.pax.length : 0; }
+  // Can THIS unit ride in THAT transport? Only our own, only one with room,
+  // and only the classes rules.ini lets aboard: everything but the
+  // Amphibious Transport is infantry-only, and nothing carries a transport.
+  function canBoard(g, tr, u) {
+    if (!tr || tr.dead || !u || u.dead || tr === u) return false;
+    if (tr.kind !== 'u' || u.kind !== 'u' || tr.p !== u.p) return false;
+    if (!paxCapOf(tr) || paxCount(tr) >= paxCapOf(tr)) return false;
+    var d = UNITS[u.type], td = UNITS[tr.type];
+    if (paxCapOf(u)) return false;                       // no transport rides a transport
+    if (d.harv || d.deploysInto || d.air) return false;  // no miners, no MCV, nothing that flies
+    if (d.cls === 'i') return !!td.paxInf;
+    return !!td.paxVeh;
+  }
+  function boardTransport(g, tr, u) {
+    if (!canBoard(g, tr, u)) return false;
+    if (!tr.pax) tr.pax = [];
+    tr.pax.push({ type: u.type, hp: u.hp, rank: u.rank || 0, kv: u.kv || 0 });
+    u.dead = true; u.order = null; u.path = null;
+    if (u.sel) dropFromSel(u);
+    if (u.mcTarget) releaseMind(g, u);
+    if (!headless) sfx('garrin', tr.x, tr.y);            // EnterTransportSound=EnterTransport
+    return true;
+  }
+  // Everybody out, onto free cells around the hull, at the health they went
+  // in with. Returns how many made it out; a transport parked in a hole keeps
+  // whoever it could not put down.
+  // The whole load steps out in ONE tick, so the neighbour index has not been
+  // rebuilt between men: standSpot alone would put all twelve on the same
+  // cell. The cells handed out are tracked here, exactly as spreadSpot does.
+  function unloadTransport(g, tr) {
+    var out = [], used = {};
+    if (!tr || !tr.pax || !tr.pax.length) return out;
+    while (tr.pax.length) {
+      var sp = standSpot(g, Math.round(tr.x), Math.round(tr.y), used);
+      if (!sp) break;
+      used[sp.x + ',' + sp.y] = 1;
+      var o = tr.pax[0];
+      var u = spawnUnit(g, o.type, tr.p, sp.x, sp.y);
+      u.hp = Math.max(1, o.hp); u.rank = o.rank; u.kv = o.kv;
+      u.guardX = u.x; u.guardY = u.y;
+      tr.pax.shift(); out.push(u);
+    }
+    if (out.length && !headless) sfx('garrout', tr.x, tr.y);   // LeaveTransportSound=ExitTransport
+    return out;
+  }
+  // The hull went up with the load aboard.
+  function killPassengers(g, tr) {
+    if (!tr || !tr.pax || !tr.pax.length) return 0;
+    var n = tr.pax.length;
+    for (var i = 0; i < n; i++) {
+      if (!headless) infCorpse(g, { kind: 'u', type: tr.pax[i].type, p: tr.p, x: tr.x, y: tr.y }, 'HE');
+      if (!neutral(tr.p)) g.side[tr.p].lost++;
+    }
+    tr.pax.length = 0;
+    return n;
+  }
+  // [RepairBullet] Damage=-50, ROF=80, Range=1.8, Warhead=Mechanical (0%
+  // against every infantry armour): an Engineer riding an IFV welds the
+  // friendly VEHICLES around it and has no gun at all.
+  function stepRepairIFV(g, u) {
+    var m = ifvSpec(u);
+    if (!m.repair) return false;
+    if (u.cool > 0) return true;
+    var best = null, bw = 0;
+    near(u.x, u.y, m.rng + 1, function (o) {
+      if (o.dead || o.p !== u.p || o === u) return;
+      if (o.kind !== 'u' || !isVeh(o) || o.hp >= o.maxhp) return;
+      if (dist(u, o) > m.rng) return;
+      var w = o.maxhp - o.hp;
+      if (w > bw) { bw = w; best = o; }
+    });
+    if (!best) return true;
+    best.hp = Math.min(best.maxhp, best.hp + m.repair);
+    u.cool = m.rate;
+    u.fireAt = g.tick;
+    if (!headless) {
+      g.fx.push({ x: best.x, y: best.y, t: 0, life: 14, size: 0, ping: true });
+      sfx('repairifv', u.x, u.y);
+    }
+    return true;
   }
 
   // --------------------------------------------------------------------- //
@@ -18212,6 +18748,19 @@
       stepHarvester(g, u);
       return;
     }
+    // [SHAD] Landable=yes, JumpJet locomotor, no `ammo`: the Nighthawk never
+    // joins the Airforce Command's pad cycle. It sets down on whatever clear
+    // cell it is over to load or unload, and stays down until it is moved.
+    if (d.air && d.pax) {
+      if (u.order && u.order.t !== 'enter') u.landReq = 0;
+      if (u.order && u.landed) { u.landed = false; u.flyAt = g.tick; }
+      if (u.landReq && !u.landed && !u.order && airborneYet(u) &&
+          tilePassable(g, u.x, u.y, u.p)) { u.landed = true; u.landAt = g.tick; }
+      if (u.landed) {
+        var down = g.tick - (u.landAt == null ? -9999 : u.landAt) >= LAND_T;
+        if (down && u.unloadReq) { unloadTransport(g, u); u.unloadReq = 0; if (!paxCount(u)) u.landReq = 0; }
+      }
+    }
     if (d.ammo) { stepAircraft(g, u); return; }
 
     // [RadEruptionWeapon] AreaFire / FireOnce=no: a deployed Desolator does
@@ -18279,6 +18828,20 @@
       if (!gb || gb.dead || !garrisonable(g, gb, u.p)) { u.order = null; return; }
       if (dist(u, gb) <= Math.max(gb.gw, gb.gh) / 2 + 1.1) { enterGarrison(g, gb, u); return; }
       advance(g, u, Math.round(gb.cx), Math.round(gb.cy), uspd(u), 60);
+      return;
+    }
+    // ENTER a transport. RA2's Enter mission again: walk to the hull, then
+    // step inside and stop being a unit. A hull that filled up, died or is
+    // still in the air on the way just cancels the order.
+    if (u.order && u.order.t === 'enter') {
+      var tr = entById(g, u.order.id);
+      if (!tr || tr.dead || tr.kind !== 'u' || paxCount(tr) >= paxCapOf(tr) || tr.p !== u.p) { u.order = null; return; }
+      if (dist(u, tr) <= 1.4) {
+        if (tr.air && !tr.landed) { u.path = null; return; }     // wait for it to touch down
+        if (boardTransport(g, tr, u)) return;
+        u.order = null; return;
+      }
+      advance(g, u, Math.round(tr.x), Math.round(tr.y), uspd(u), 24);
       return;
     }
     if (u.order && u.order.t === 'capture') {
@@ -18431,10 +18994,15 @@
     var tgt = null, ordered = null;
     if (u.order && u.order.t === 'attack') {
       ordered = entById(g, u.order.id);
-      if (!ordered || !canHit(d, ordered)) { u.order = null; ordered = null; }
+      if (!ordered || !canHit(d, ordered, u)) { u.order = null; ordered = null; }
       else if (dist(u, ordered) <= rngVs(weaponFor(d, ordered, u), ordered) && !tooClose(weaponFor(d, ordered, u), dist(u, ordered))) tgt = ordered;
     }
-    if (!tgt) tgt = findTarget(g, u, reachOf(d, u));
+    // [RepairBullet]: an IFV with an Engineer aboard has no gun, it has a
+    // welding arm, and it uses it on the vehicles around it.
+    if (d.ifv && ifvSpec(u).repair) { stepRepairIFV(g, u); if (!u.order) return; }
+    // ThreatPosed=0 / CanPassiveAquire=no on [SHAD]: a transport never picks
+    // its own fight, it shoots only what it was told to.
+    if (!tgt && !d.passive) tgt = findTarget(g, u, reachOf(d, u));
     // AI-driven GIs deploy when something is in sandbag range and pack up
     // after five quiet seconds; a human deploys with D, as in RA2.
     if (d.dep && (u.p !== P_HUMAN || g.ai2)) {
@@ -18526,7 +19094,7 @@
   function nearestFoe(g, u, r) {
     var spec = UNITS[u.type], best = null, bd = 1e9;
     near(u.x, u.y, r + 1, function (o) {
-      if (o.dead || o.p === u.p || !canHit(spec, o)) return;
+      if (o.dead || o.p === u.p || !canHit(spec, o, u)) return;
       var dd = dist(u, o);
       if (dd > r || dd >= bd) return;
       bd = dd; best = o;
@@ -18594,7 +19162,7 @@
     }
     if (u.order && u.order.t === 'attack') {
       var t = entById(g, u.order.id);
-      if (!t || !canHit(d, t)) { u.order = null; if (!u.landed) u.rtb = true; }
+      if (!t || !canHit(d, t, u)) { u.order = null; if (!u.landed) u.rtb = true; }
       else if (!u.landed && !u.rtb && u.ammo > 0) {
         var dd = dist(u, t);
         if (dd <= d.rng) {
@@ -19433,12 +20001,15 @@
     return { x: x, y: y };
   }
   // A passable tile near (x,y) with no ground unit already standing on it.
-  function standSpot(g, x, y) {
+  // `used` (optional) is a set of "x,y" keys already handed out this tick, for
+  // callers that place several units before the neighbour index is rebuilt.
+  function standSpot(g, x, y, used) {
     for (var r = 0; r < 7; r++) {
       for (var oy = -r; oy <= r; oy++) for (var ox = -r; ox <= r; ox++) {
         if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
         var nx = x + ox, ny = y + oy;
         if (!inMap(nx, ny) || blocked(g, nx, ny)) continue;
+        if (used && used[nx + ',' + ny]) continue;
         var taken = false;
         near(nx, ny, 0.6, function (o) { if (o.kind === 'u' && !o.dead && !o.air) taken = true; });
         if (!taken) return { x: nx, y: ny };
@@ -19671,6 +20242,18 @@
     { key: 'dirHarr',  name: 'Allied Harrier Attack', fac: 'dir', role: 'air', tgt: 'production',
       force: [{ n: 4, t: 'harrier' }], prod: true,
       w: { easy: 1, normal: 3, hard: 4 }, max: 1, need: 'airforce' },
+    // `mech`: the task force MOUNTS UP before it moves — ai.ini pairs a
+    // LoadOntoTransport with the Move in exactly this way, and it is the only
+    // reason a transport is worth building for the AI at all.
+    { key: 'dirMech',  name: 'Allied Mechanised Raid', fac: 'dir', role: 'attack', tgt: 'any', mech: true,
+      force: [{ n: 3, t: 'ifv' }, { n: 3, t: 'rifle' }],
+      w: { easy: 0, normal: 2, hard: 3 }, max: 1, need: 'factory' },
+    // The Nighthawk's whole job: five men on the far side of the map, next to
+    // the refineries, without walking past the defence line to get there.
+    { key: 'dirHawk',  name: 'Allied Nighthawk Insertion', fac: 'dir', role: 'harass', tgt: 'economy',
+      mech: true, drop: true,
+      force: [{ n: 1, t: 'nighthawk' }, { n: 4, t: 'rifle' }],
+      w: { easy: 0, normal: 0, hard: 3 }, max: 1, need: 'airforce' },
     { key: 'dirEng',   name: 'Allied Tech Capture', fac: 'dir', role: 'engineer', tgt: 'tech',
       force: [{ n: 1, t: 'engineer' }], prod: true,
       w: { easy: 2, normal: 3, hard: 4 }, max: 2, need: 'barracks' },
@@ -19705,6 +20288,9 @@
     { key: 'colDeso',  name: 'Soviet Desolator Line', fac: 'col', role: 'defend', tgt: 'any',
       force: [{ n: 2, t: 'desolator' }, { n: 4, t: 'conscript' }],
       w: { easy: 0, normal: 2, hard: 3 }, max: 1, need: 'radar' },
+    { key: 'colMech',  name: 'Soviet Mechanised Raid', fac: 'col', role: 'attack', tgt: 'any', mech: true,
+      force: [{ n: 1, t: 'apc' }, { n: 2, t: 'flaktrack' }, { n: 6, t: 'conscript' }],
+      w: { easy: 0, normal: 2, hard: 3 }, max: 1, need: 'factory' },
     { key: 'colEng',   name: 'Soviet Tech Capture', fac: 'col', role: 'engineer', tgt: 'tech',
       force: [{ n: 1, t: 'engineer' }], prod: true,
       w: { easy: 2, normal: 3, hard: 4 }, max: 2, need: 'barracks' },
@@ -19785,7 +20371,10 @@
       // still never part of a team. Without the isHarv guard, giving the
       // Collective's miner its gun conscripted the whole economy into the
       // attack wave and the faction lost 6 of 6 soak matches to it.
-      if (!u.dead && u.p === me && UNITS[u.type].dmg > 0 && !UNITS[u.type].ammo && !isHarv(u)) a.push(u);
+      // A transport is part of a task force even when it has no gun of its
+      // own — [SAPC] carries the wave, it is not baggage.
+      if (!u.dead && u.p === me && !UNITS[u.type].ammo && !isHarv(u) &&
+          (UNITS[u.type].dmg > 0 || UNITS[u.type].pax)) a.push(u);
     }
     return a;
   }
@@ -19904,7 +20493,7 @@
       t = ai.teams[i];
       t.units = t.units.filter(function (u) { return u && !u.dead; });
       if (t.def.prod) continue;
-      if (!t.launched && g.tick - t.born > cfg.dissolve && !aiTeamFull(t)) aiReleaseTeam(ai, t);
+      if (!t.launched && !t.loaded && g.tick - t.born > cfg.dissolve && !aiTeamFull(t)) aiReleaseTeam(ai, t);
     }
     // How many fighters are standing around in no team at all. RA2 calls a
     // team with LooseRecruit=yes on the loose pool; the effect here is that an
@@ -20592,6 +21181,14 @@
       if (cls === 'defence') return aiPickTarget(g, ai, me, foe, 'power', from);
       if (cls === 'power') return aiPickTarget(g, ai, me, foe, 'production', from);
     }
+    // The refineries: what a Nighthawk squad is put down next to.
+    if (cls === 'economy') {
+      for (i = 0; i < g.blds.length; i++) {
+        var eb = g.blds[i];
+        if (!eb.dead && eb.p === foe && eb.type === 'refinery') nearer(eb);
+      }
+      if (best) return best;
+    }
     if (cls === 'nearest') {
       for (i = 0; i < g.blds.length; i++) {
         var nb = g.blds[i];
@@ -20804,7 +21401,7 @@
       var answered = 0;
       for (i = 0; i < ai.army.length && budget > 0; i++) {
         if (busy[ai.army[i].id]) continue;                       // do not recall a live push
-        if (!canHit(UNITS[ai.army[i].type], threat)) continue;   // a tank cannot answer a Kirov
+        if (!canHit(UNITS[ai.army[i].type], threat, ai.army[i])) continue;   // a tank cannot answer a Kirov
         aiOrderAttack(g, ai.army[i], threat); budget--; answered++;
       }
       if (answered) return;
@@ -20927,7 +21524,7 @@
     // has once a TeamDelays pass has come and gone.
     var size = 0;
     for (i = 0; i < def.force.length; i++) size += def.force[i].n;
-    var enough = aiTeamFull(t) ||
+    var enough = t.loaded || aiTeamFull(t) ||
                  (t.units.length >= Math.ceil(size * 0.6) && g.tick - t.born > cfg.teamDelay);
     if (!enough && !t.launched) {
       // Still filling: hold what we have at the staging point.
@@ -20942,6 +21539,40 @@
         if (far.length) { aiMoveSpread(g, far, stage); budget -= far.length; }
       }
       return budget;
+    }
+    // Mount up. Every man who has a seat gets an Enter order; a Nighthawk in
+    // the force sets down so they can reach it. The team is `loaded` once
+    // nobody is still walking to a hull, or once it has waited long enough —
+    // whoever missed the ride simply marches with it.
+    if (def.mech && !t.loaded) {
+      var trs = [], inf = [], k2, waiting = false;
+      for (i = 0; i < t.units.length; i++) {
+        u = t.units[i];
+        if (paxCapOf(u)) trs.push(u); else inf.push(u);
+      }
+      for (i = 0; i < inf.length; i++) {
+        u = inf[i];
+        if (u.order && u.order.t === 'enter') { waiting = true; continue; }
+        var ride = null;
+        for (k2 = 0; k2 < trs.length; k2++) {
+          var pend = 0, pj;
+          for (pj = 0; pj < inf.length; pj++)
+            if (inf[pj].order && inf[pj].order.t === 'enter' && inf[pj].order.id === trs[k2].id) pend++;
+          if (canBoard(g, trs[k2], u) && paxCount(trs[k2]) + pend < paxCapOf(trs[k2])) { ride = trs[k2]; break; }
+        }
+        if (!ride) continue;
+        u.order = { t: 'enter', x: 0, y: 0, id: ride.id }; u.repathAt = -999; u.path = null;
+        u.guard = false; u.stopped = false;
+        requestPath(g, u, Math.round(ride.x), Math.round(ride.y));
+        if (ride.air) { ride.landReq = 1; ride.order = null; ride.path = null; }
+        waiting = true; budget--;
+      }
+      if (waiting && g.tick - t.born < cfg.dissolve) return budget;
+      t.loaded = 1;
+      t.units = t.units.filter(function (x) { return x && !x.dead; });
+      t.n0 = t.units.length;
+      for (i = 0; i < t.units.length; i++) if (t.units[i].air) t.units[i].landReq = 0;
+      if (!t.units.length) { aiReleaseTeam(ai, t); return budget; }
     }
     if (!t.launched) {
       if (!mayAttack) return budget;
@@ -20984,6 +21615,23 @@
     t.tgt = cur.id;
     for (i = 0; i < t.units.length && budget > 0; i++, budget--) {
       u = t.units[i];
+      // Close enough: the doors open. A Nighthawk touches down first (RA2's
+      // BlackHawk cannot unload in the air); a halftrack just stops and drops.
+      if (paxCount(u) && dist(u, cur) < (def.drop ? 6 : 3.5)) {
+        if (UNITS[u.type].air) {
+          u.landReq = 1; u.unloadReq = 1; u.order = null; u.path = null;
+          continue;
+        }
+        var got = unloadTransport(g, u);
+        for (var gi = 0; gi < got.length; gi++) t.units.push(got[gi]);
+        continue;
+      }
+      // An empty transport with no gun of its own has nothing left to do at
+      // the sharp end: it goes home rather than driving into a Tesla Coil.
+      if (paxCapOf(u) && !paxCount(u) && !UNITS[u.type].dmg) {
+        if (!u.order) aiMoveSpread(g, [u], aiStaging(g, me, foe));
+        continue;
+      }
       if (aiClearWall(g, u, me, foe)) continue;
       aiOrderAttack(g, u, cur);
     }
@@ -21736,6 +22384,7 @@
     radaron:  { l: 1, p: 3, r: 0, v: 0.6 },
     radaroff: { l: 1, p: 3, r: 0, v: 0.6 },
     garrin:   { l: 2, p: 2, r: 12, v: 0.6 },
+    repairifv: { l: 2, p: 1, r: 11, v: 0.45 },  // IFVRepair (the welding arm)
     garrout:  { l: 2, p: 2, r: 12, v: 0.6 },
     bridge:   { l: 1, p: 3, r: 26, v: 0.9 },
     crate:    { l: 1, p: 3, r: 0, v: 0.7 },
@@ -21754,6 +22403,7 @@
     rocket: 'rocket', rocketeer: 'rocket', patriot: 'rocket',
     flak: 'flak', flaktrack: 'flak', flakcannon: 'flak',
     sentry: 'mg', sentrygun: 'mg', ifv: 'mg', warminer: 'mg',
+    nighthawk: 'mg',                                  // [BlackHawkCannon] Report=BlackOpsAttack, a 20mm quad
     lancer: 'cannon', mirage: 'cannon', rhino: 'cannonh', mammoth: 'cannonx',
     harrier: 'harrier', kirov: 'kbomb', v3: 'v3', grandcannon: 'gcannon',
     tesla: 'tesla', teslatank: 'tesla', teslatrooper: 'teslainf',
@@ -21935,6 +22585,11 @@
     radaron: function (c, o, t) { op(c, o, t, 220, 660, 0.3, 0.14, 'sine', 0.06); op(c, o, t + 0.16, 880, 0, 0.2, 0.1, 'sine', 0.004); },
     radaroff: function (c, o, t) { op(c, o, t, 660, 180, 0.4, 0.14, 'sine', 0.01); },
     garrin: function (c, o, t) { nz(c, o, t, 0.16, 0.3, 1600, 400, 1.2); op(c, o, t + 0.1, 300, 460, 0.12, 0.1, 'square', 0.004); },
+    // IFVRepair: an arc welder — a buzzing crackle, not a shot.
+    repairifv: function (c, o, t) {
+      for (var i = 0; i < 5; i++) nz(c, o, t + i * 0.045, 0.05, 0.16, 3400, 900, 2.2);
+      op(c, o, t, 120, 96, 0.24, 0.05, 'sawtooth', 0.005);
+    },
     garrout: function (c, o, t) { op(c, o, t, 460, 300, 0.12, 0.1, 'square', 0.004); nz(c, o, t + 0.06, 0.16, 0.28, 1400, 380, 1.2); },
     bridge: function (c, o, t) {
       op(c, o, t, 70, 26, 1.2, 0.3, 'sawtooth', 0.01);
@@ -22091,7 +22746,11 @@
     dog:         { f: 0,   b: 1.0,  r: 0,    s: [], m: [], a: [] },   // [DOG] VoiceMove=DogMove: a bark
     mcv:         { f: 110, b: 0.92, r: 0.30, s: [1, 0], m: [4, 2], a: [], d: [9, 10] },
     chronominer: { f: 134, b: 1.02, r: 0.26, s: [1, 0], m: [3, 2], a: [], h: [10, 11] },
-    warminer:    { f: 106, b: 0.78, r: 0.44, s: [1, 12], m: [3, 4], a: [8], h: [11, 10] }
+    warminer:    { f: 106, b: 0.78, r: 0.44, s: [1, 12], m: [3, 4], a: [8], h: [11, 10] },
+    // [SHAD] VoiceSelect=BlackOpsSelect — clipped, low, and unhurried.
+    nighthawk:   { f: 118, b: 1.06, r: 0.30, s: [0, 12], m: [2, 4], a: [7, 6] },
+    // [SAPC] VoiceSelect=GenSovWaterSelect — the landing-craft crew.
+    apc:         { f: 88,  b: 0.86, r: 0.40, s: [1, 0], m: [4, 3], a: [] }
   };
   // The radio band, built once per context: high-pass, clip, low-pass. Every
   // voice line in the game shares this one chain.
@@ -22396,7 +23055,18 @@
       (mine && isDisguised(G, e) ? ' (disguised)' : '');
     var vet = e.kind === 'u' ? (e.rank === 2 ? ' · Elite' : (e.rank === 1 ? ' · Veteran' : '')) + (e.kills ? ' · ' + e.kills + ' kill' + (e.kills === 1 ? '' : 's') : '') : '';
     var ammoTxt = e.kind === 'u' && d.ammo ? ' · ' + e.ammo + '/' + d.ammo + ' missiles' + (e.landed ? ' (on pad)' : '') : '';
-    hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + d.hp + ' hp' + ammoTxt + vet;
+    // [FV]/[HTK]/[SHAD]/[SAPC] PipScale=Passengers, and [FV] HasTurretTooltips:
+    // a transport says how full it is, and an IFV says what its load turns its
+    // gun into — the pip strip alone does not tell you WHO is in there.
+    var paxTxt = '';
+    if (e.kind === 'u' && d.pax) {
+      paxTxt = ' · ' + paxCount(e) + '/' + d.pax + ' aboard';
+      if (paxCount(e)) paxTxt += ' (' + UNITS[e.pax[0].type].name +
+                                 (paxCount(e) > 1 ? ' +' + (paxCount(e) - 1) : '') + ')';
+      if (d.ifv) paxTxt += ' · ' + ifvSpec(e).n;
+      if (d.air && e.landed) paxTxt += ' · landed';
+    }
+    hovSub.textContent = who + ' · ' + d.desc + ' · ' + Math.ceil(e.hp) + '/' + d.hp + ' hp' + ammoTxt + paxTxt + vet;
     hovEl.className = mine ? '' : 'enemy';
     hovEl.hidden = false;
     // Sit to the lower-right of the cursor, flipping to stay on the canvas.
@@ -23132,7 +23802,7 @@
         var spyIn = hov.kind === 'b' && !neutral(hov.p) && !BLDS[hov.type].wall && !BLDS[hov.type].gate &&
                     !BLDS[hov.type].neut && units.some(function (u) { return UNITS[u.type].infil; });
         k = (cap || gar || spyIn) ? 'enter'
-          : (units.some(function (u) { return canHit(UNITS[u.type], hov); }) ? 'attack' : 'nomove');
+          : (units.some(function (u) { return canHit(UNITS[u.type], hov, u); }) ? 'attack' : 'nomove');
       }
       // Our own garrisoned block: the enter cursor still applies (reinforce it).
       else if (hov && hov.kind === 'b' && hov.p === P_HUMAN && garrisonable(G, hov, P_HUMAN) &&
@@ -23142,6 +23812,9 @@
       else if (hov && hov.kind === 'b' && hov.p === P_HUMAN &&
                ((hov.type === 'tesla' && units.some(function (u) { return UNITS[u.type].coiler; })) ||
                 (hov.hp < hov.maxhp && !BLDS[hov.type].hut && units.some(function (u) { return UNITS[u.type].capture; })))) k = 'enter';
+      // Our own transport with room in it, under a unit that fits: RA2's ENTER.
+      else if (hov && hov.kind === 'u' && hov.p === P_HUMAN && paxCapOf(hov) &&
+               units.some(function (u) { return canBoard(G, hov, u); })) k = 'enter';
       else if (hov && hov.p === P_HUMAN && !hov.bomb && units.some(function (u) { return UNITS[u.type].ivan; })) k = 'attack';
       else if (hov && hov.p === P_HUMAN) k = 'select';
       else if (!inMap(hoverTile.x, hoverTile.y)) k = 'nomove';
@@ -23474,7 +24147,7 @@
     updateHover(hovE, nx, ny);
     // Right-click would do nothing: an enemy aircraft with no AA in the selection.
     var noAir = !!(hovE && hovE.p !== P_HUMAN && isAir(hovE) && sel.length &&
-                   !sel.some(function (u) { return u.kind === 'u' && canHit(UNITS[u.type], hovE); }));
+                   !sel.some(function (u) { return u.kind === 'u' && canHit(UNITS[u.type], hovE, u); }));
     if (cv.classList.contains('noair') !== noAir) cv.classList.toggle('noair', noAir);
     readMod(e);
     var gp = screenToGrid(mouse.x, mouse.y);
@@ -23591,6 +24264,25 @@
     }
     if (!us.length) { say('Select some units first', true); return; }
     if (kind === 'deploy') {
+      // A loaded transport is deployed by putting its load DOWN — RA2's
+      // Unload, on the same key. A Nighthawk has to touch down first.
+      var loaded = us.filter(function (u) { return paxCount(u) > 0; });
+      if (loaded.length) {
+        var outN = 0, waiting = 0;
+        loaded.forEach(function (u) {
+          if (UNITS[u.type].air) {
+            u.landReq = 1; u.unloadReq = 1; u.order = null; u.path = null;
+            if (u.landed && G.tick - (u.landAt == null ? -9999 : u.landAt) >= LAND_T) { outN += unloadTransport(G, u).length; u.unloadReq = 0; }
+            else waiting++;
+          } else outN += unloadTransport(G, u).length;
+        });
+        if (outN) say('Unloaded — ' + outN + ' out');
+        else if (waiting) say('Landing to unload');
+        else say('Nowhere to put them — the ground around it is blocked', true);
+        sfx(outN || waiting ? 'click' : 'no');
+        refreshCmdbar();
+        return;
+      }
       // An MCV unfolds into a Construction Yard; a GI digs in. Same key, same
       // button, as RA2 — the unit decides which "deploy" it means.
       var mcvs = us.filter(function (u) { return UNITS[u.type].deploysInto; });
@@ -23837,6 +24529,15 @@
     var u = UNITS[e.type];
     var extra = isHarv(e) ? ' — ' + Math.round(e.cargo) + '/' + ucap(G, e) + ' ore'
               : u.ammo ? ' — ' + e.ammo + '/' + u.ammo + ' missiles' + (e.landed ? ', on pad' : '') : '';
+    // A transport says what it is carrying, and an IFV says what that turns
+    // its gun into ([FV] HasTurretTooltips=yes).
+    if (u.pax) {
+      extra += ' — ' + paxCount(e) + '/' + u.pax + ' aboard';
+      if (paxCount(e)) extra += ' (' + UNITS[e.pax[0].type].name +
+                                (paxCount(e) > 1 ? ' +' + (paxCount(e) - 1) : '') + ')';
+      if (u.ifv) extra += ' · ' + ifvSpec(e).n;
+      if (e.landed) extra += ' · landed';
+    }
     return u.em + ' ' + u.name + ' — ' + Math.ceil(e.hp) + '/' + u.hp + ' hp' + extra;
   }
 
@@ -24028,6 +24729,26 @@
       return;
     }
 
+    // RA2's Enter mission on a TRANSPORT: right-click one of our own hulls
+    // with room in it and everything selected that will fit climbs aboard.
+    // A Nighthawk sets down where it is so they can reach it.
+    if (tgt && !tgt.dead && tgt.kind === 'u' && tgt.p === P_HUMAN && paxCapOf(tgt) && tgt !== units[0]) {
+      var room = paxCapOf(tgt) - paxCount(tgt), nin = 0;
+      units.forEach(function (u) {
+        if (nin >= room || !canBoard(G, tgt, u)) return;
+        u.guard = false; u.stopped = false; u.wp = null;
+        u.order = { t: 'enter', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
+        requestPath(G, u, Math.round(tgt.x), Math.round(tgt.y)); nin++;
+      });
+      if (nin) {
+        if (UNITS[tgt.type].air) { tgt.landReq = 1; tgt.order = null; tgt.path = null; }
+        say('Boarding the ' + UNITS[tgt.type].name + ' — ' + nin + ' on the way (' +
+            paxCount(tgt) + '/' + paxCapOf(tgt) + ' aboard)');
+        sfx('click'); unitAck(units, 'move');
+        return;
+      }
+      if (room <= 0) { say(UNITS[tgt.type].name + ' is full — ' + paxCount(tgt) + '/' + paxCapOf(tgt), true); sfx('no'); return; }
+    }
     // Our own things can be given orders too: a Tesla Trooper hand-charges a
     // coil, an Engineer patches a damaged building, and Crazy Ivan is happy to
     // bomb anything at all ([IVAN] AttackCursorOnFriendlies=yes).
@@ -24105,7 +24826,7 @@
         u.order = { t: 'infil', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
         requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
       }
-      if (!canHit(UNITS[u.type], tgt)) return;
+      if (!canHit(UNITS[u.type], tgt, u)) return;
       u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: force ? 1 : 0 };
       u.guardX = tgt.kind === 'b' ? tgt.cx : tgt.x;
       u.guardY = tgt.kind === 'b' ? tgt.cy : tgt.y;
@@ -25499,11 +26220,15 @@
       // turreted tank draws hull by travel facing and turret by aim facing.
       var set = art;
       if (u.state === 'mining' && art.mine && ((G.tick >> 3) & 1)) set = art.mine;
-      if (art.anim && alt > 0 && ((G.tick >> 2) & 1)) set = art.anim;     // Kirov propeller
+      // Kirov propeller; a Nighthawk's rotors keep turning on the ground too
+      if (art.anim && (alt > 0 || u.landed) && ((G.tick >> 2) & 1)) set = art.anim;
       if (art.empty && u.ammo <= 0) set = art.empty;                       // Harrier racks fired
       if (art.hull && art.turret) {
         s = art.hull[u.face];
-        turretS = art.turret[u.tface == null ? u.face : u.tface];
+        // [FV]: the turret model is chosen by the passenger, not by the hull.
+        var tset = art.turret;
+        if (art.turrets) { var tvi = ifvTurret(u); if (tvi) tset = art.turrets(tvi); }
+        turretS = tset[u.tface == null ? u.face : u.tface];
       } else if (set.lay) {
         // Kirov: airframe and gondola are separate layers so the pod can hang
         // and swing a beat behind the envelope, and open its bomb bay.
@@ -25675,6 +26400,29 @@
     if (isHarv(u) && u.cargo > 30) {
       ctx.fillStyle = '#e8b428';
       ctx.fillRect(px - 7, py - 26, 14 * (u.cargo / ucap(G, u)), 2.6);
+    }
+    // [FV]/[HTK]/[SHAD]/[SAPC] PipScale=Passengers: RA2 draws one pip per
+    // SEAT over the hull, lit for a seat that is filled. Twelve seats would
+    // out-width the vehicle, so past six they go on two rows.
+    if (paxCapOf(u)) {
+      var pcap = paxCapOf(u), pnum = paxCount(u);
+      var prow = pcap > 6 ? Math.ceil(pcap / 2) : pcap;
+      var ppw = 4, ppg = 1, ptot = prow * (ppw + ppg) - ppg;
+      var ppy = Math.min(top - 5, py - 28 - alt);
+      var prows = Math.ceil(pcap / prow);
+      for (var prr = 0; prr < prows; prr++) {                // one solid backing bar per row
+        var nr = Math.min(prow, pcap - prr * prow);
+        var bw = nr * (ppw + ppg) - ppg;
+        ctx.fillStyle = 'rgba(10,13,17,.82)';
+        ctx.fillRect(px - bw / 2 - 1, ppy - prr * 5 - 1, bw + 2, 5);
+      }
+      for (var pip = 0; pip < pcap; pip++) {
+        var pr = (pip / prow) | 0, pc = pip - pr * prow;
+        var inRow = Math.min(prow, pcap - pr * prow);
+        var pxx = px - (inRow * (ppw + ppg) - ppg) / 2 + pc * (ppw + ppg);
+        ctx.fillStyle = pip < pnum ? '#48e07c' : 'rgba(126,138,152,.55)';
+        ctx.fillRect(pxx, ppy - pr * 5, ppw, 3);
+      }
     }
     if (u.hp < u.maxhp) hpBar(px, art.fr ? top - 6 : Math.min(top - 8, py - 30 - alt), 20, u.hp / u.maxhp);
     if (u.rank) {
@@ -27310,6 +28058,25 @@
       });
       return n;
     },
+    // Phase 8: transports. Every hook is the same call the game makes.
+    passengers: function (tr) { return tr && tr.pax ? tr.pax.slice() : []; },
+    board: function (tr, u) { return G ? boardTransport(G, tr, u) : false; },
+    unload: function (tr) { return G ? unloadTransport(G, tr).length : 0; },
+    orderEnter: function (units, tr) {
+      var n = 0, room = paxCapOf(tr) - paxCount(tr);
+      units.forEach(function (u) {
+        if (n >= room || !canBoard(G, tr, u)) return;
+        u.order = { t: 'enter', x: 0, y: 0, id: tr.id }; u.repathAt = -999; u.path = null;
+        requestPath(G, u, Math.round(tr.x), Math.round(tr.y)); n++;
+      });
+      if (n && UNITS[tr.type].air) { tr.landReq = 1; tr.order = null; tr.path = null; }
+      return n;
+    },
+    orderUnload: function (tr) {
+      if (!tr) return 0;
+      if (UNITS[tr.type].air) { tr.landReq = 1; tr.unloadReq = 1; tr.order = null; tr.path = null; return 0; }
+      return unloadTransport(G, tr).length;
+    },
     orderCapture: function (units, b) {
       var n = 0;
       units.forEach(function (u) {
@@ -27343,6 +28110,9 @@
             startErase: startErase, beginWarp: beginWarp, chronoDelayFor: chronoDelayFor,
             addRad: addRad, radAt: radAt, coilCharged: coilCharged, spyInfiltrate: spyInfiltrate,
             isHarv: isHarv, harvKey: harvKey, powered: powered, unitOrderFor: unitOrderFor,
+            paxCapOf: paxCapOf, paxCount: paxCount, canBoard: canBoard, killPassengers: killPassengers,
+            ifvModeOf: ifvModeOf, ifvSpec: ifvSpec, ifvTurret: ifvTurret,
+            IFV_MODE: IFV_MODE, IFV_MODES: IFV_MODES, AI_TEAMS: AI_TEAMS, LAND_T: LAND_T,
             fire: fire, findRefinery: findRefinery, refDock: refDock,
             IVAN_BOMB_T: IVAN_BOMB_T, RAD_MAX: RAD_MAX, CHRONO_DELAY: CHRONO_DELAY,
             SPY_BLACKOUT: SPY_BLACKOUT, COIL_BOOST: COIL_BOOST, PARASITE_DMG: PARASITE_DMG },
