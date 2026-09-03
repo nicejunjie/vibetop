@@ -335,12 +335,20 @@ per state, for every structure and defence, both factions.
   3×2, AFC 3×2, Lab 3×2/3×3, Tesla Reactor 3×2, Chronosphere 4×3) with maps and
   AI placement re-tuned; shared bib aprons on the ground layer.
 
-**Phase 3 — infantry motion (art §2). ~2 batches, L.**
-- ☐ 8 facings for every infantry kind; 6-frame walk.
-- ☐ Firing frames; prone/crawl under fire with `ProneDamage`.
-- ☐ Death animations per warhead `InfDeath` (twirl, explode, fly, burn,
+**Phase 3 — infantry motion (art §2). ~2 batches, L.** — DONE
+- ☑ 8 facings for every infantry kind; 6-frame walk.
+- ☑ Firing frames; prone/crawl under fire with `ProneDamage`.
+- ☑ Death animations per warhead `InfDeath` (twirl, explode, fly, burn,
   electro, crushed splat); idle fidgets; cheer on victory.
-- ☐ Selection bracket from unit size, not sprite bbox.
+- ☑ Selection bracket from unit size, not sprite bbox.
+
+  Built as a *lazy facing/state atlas*: `bakeInfantry(col, kind, fac, phase,
+  dir, state)` bakes one frame, `SPR.unit[p][fac][kind].fr(state, dir, phase)`
+  memoises the rest on first use, so load-time baking is unchanged (~1.6 s).
+  Sequences follow `[E1Sequence]`: stand / walk 6 / fire 3 / down / up /
+  prone / crawl 6 / fireProne 2 / idle1 3 / idle2 3 / cheer 2. Deaths are fx
+  objects (`g.fx[].corpse`) played off the same baked figure. See
+  "RTS infantry facings are two transforms" in `docs/design-decisions.md`.
 
 **Phase 4 — roster and mechanics, land (feature §1, §3). ~4 batches, M.**
 - ☐ Attack Dog (both sides; the only Spy/Mirage detector).

@@ -6007,3 +6007,72 @@ no. Holds still occur the way they matter: several items queued, or income lost
 mid-build. (c) Giving Follow its own leash constant — `GuardModeStray` is the
 same 2.0 cells RA2 uses for "how far from the thing you are guarding", so
 Follow reuses it.
+
+## RTS infantry facings are two transforms and five re-cut parts, not nine more branches
+
+**Symptom.** Every soldier faced the camera at all times while the tanks beside
+them were correctly oriented (`docs/rts-gap-audit-art.md` §2, severity
+*blocker*). `bakeInfantry(col, kind, fac, phase)` took no direction and
+`drawUnit` never indexed one.
+
+**Cause.** The nine kind branches are ~700 lines of explicit point math. Eight
+facings x ~30 state frames authored by hand is not a thing anyone can maintain,
+and it is not how a sprite sheet is built anyway.
+
+**Fix.** A turned figure is the SAME art under two transforms plus five parts
+that a flat transform cannot fake.
+
+- **Facing.** The grid facing maps to a SCREEN octant (`INF_OCT`, the same
+  d0=SE ring the vehicles use). From its angle: `hx` (which way he looks on
+  screen) and `fz` (front + / back -). Facings left of the camera are the
+  MIRROR of the ones to its right, so only `hx`'s sign flips the canvas; the
+  body then squeezes on x by `TURN = 1 - 0.34*sd`, because a shoulder line seen
+  edge-on projects to the body's DEPTH, not its width.
+- **Pose.** Every non-standing state is a pose transform over that same figure:
+  prone/crawl/down rotate it about its own ground point and then flatten it in
+  SCREEN space (the `scale` is written OUTSIDE the `rotate`, or it squashes the
+  standing body instead of the lying one). Head-on there is nothing to rotate,
+  so it is almost all foreshortening; side-on it is almost all rotation.
+- **The five re-cut parts** are the ones a squeeze cannot turn: `legs()` swings
+  its stride from lateral to fore-and-aft as `sd` rises, `arms()` swaps which
+  arm is nearer (it flips with `fz`) and raises both for Cheer, `face()`
+  disappears entirely on the three rear facings and grows a profile nose on the
+  side ones, `helmet()` puts a nape and a strap there instead, and `carbine()` /
+  `wpn()` re-aim the weapon about the hands and swap shoulders on a back view.
+
+**Lazy, or the load doubles.** 9 kinds x 2 factions x 2 owners x 8 facings x
+~30 frames is 8,600 canvases. `bakeAll` bakes ONE frame per kind (the front-on
+stand frame, which is also what the build cameos and the menu line-up crop
+from) and `fr(state, dir, phase)` memoises the rest on first use — the same
+rule as the structure damaged/unpowered/make states. Measured load-time bake:
+1595/1618/1619 ms before, 1599/1592/1607 ms after. A full 8-facing walk cycle
+for all nine kinds costs ~28 ms, spread over the frames a squad first walks.
+
+**Deaths are fx, not units.** `damage()` reads the KILLING warhead's
+`InfDeath=` (rules.ini:19096) and pushes a `g.fx[].corpse`; the unit is gone
+that tick. The five animations all play off the same two baked frames (stand,
+prone): twirl rotates, flying translates back along the shot, burn draws the
+sprite over ITSELF in `multiply` (so no black silhouette needs baking), electro
+draws it in `lighter`, crush flattens it. `InfDeath=2` (explodes) draws no body
+at all, which is why the corpse helper returns true without one.
+
+**Traps.**
+- **The mirror must be the outermost transform.** Written order is outermost
+  first, so `MIR` before `PRONE` before `TURN` means a west-facing man lies
+  down toward the west. Any other order lies him down the wrong way at four of
+  the eight facings.
+- **Six walk frames need TWO phase terms.** On `sin(t)` alone, phases 1 and 2
+  (and 4 and 5) come out identical and the walk is a three-frame twitch again;
+  `gait()` returns `swf = sin(t)` for the stride AND `cf = cos(t)` for the bob,
+  which is what makes all six distinct.
+- **The idle fidget must not touch `rnd()`.** It is derived from `G.tick` and
+  the unit's id — render code that consumes the seeded sim RNG desynchronises
+  every headless replay. (Same rule as bake code: use a private LCG or pure
+  arithmetic, never `srand`/`rnd`.)
+- **A per-frame `artBox` is not affordable** at ~30 frames per kind, and the
+  audit wanted the selection bracket sized from the unit's class anyway. The
+  infantry bracket is now a fixed screen box (a lower, wider one while prone),
+  which is what RA2 does and what makes a Tesla Trooper's box match a GI's.
+- **art.ini disagrees with the obvious guess about who goes prone.** `Crawls=`
+  is *no* for `[ROCK]` (Rocketeer) and `[FLAKT]` (Flak Trooper) only. `[SHK]`
+  (Tesla Trooper) and `[TANY]` both crawl, so both go prone here.

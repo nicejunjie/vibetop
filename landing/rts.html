@@ -645,6 +645,33 @@
     BlimpHE:      [100, 100, 100,  70,  35,  35,  85,  75,  50]
   };
   function verses(wh, armour) { var v = VERSES[wh]; var i = ARMOURS.indexOf(armour); return v && i >= 0 ? v[i] / 100 : 1; }
+  // rules.ini:19102 `ProneDamage=` — what a man flat on his face actually
+  // takes. Small arms lose most of their effect, an air-bursting shell keeps
+  // 70%, and anything that does not care about cover (electricity, a crush,
+  // a bomb strapped to your leg) keeps all of it. Default 50%, as RA2's is.
+  var PRONE_DMG = {
+    SA: 0.70, SSA: 0.50, HollowPoint: 1.00, HE: 0.70, BlimpHE: 0.70,
+    AP: 0.50, ApocAP: 0.50, ORCAAP: 0.50, SAMWH: 1.00, GUARDWH: 0.50,
+    FlakWH: 0.50, FlakTWH: 0.50, FlakGuyWH: 0.50, MirageWH: 1.00,
+    CometWH: 0.70, PrismWarhead: 1.00, Electric: 1.00, Shock: 1.00,
+    IonWH: 1.00, NukeWH: 1.00, IvanBomb: 1.00, Parasite: 1.00, Super: 1.00
+  };
+  function proneMul(wh) { var v = PRONE_DMG[wh]; return v === undefined ? 0.5 : v; }
+  // rules.ini:19096 `InfDeath=` — the KILLING warhead picks the animation:
+  // 1 twirl, 2 explodes (no body), 3 flying death, 4 burn, 5 electro. 6 is
+  // ours, for a man under a tank. RA2's 7 (nuke melt) folds into the burn.
+  var INF_DEATH = {
+    SA: 1, SSA: 1, HollowPoint: 1, Parasite: 1,
+    HE: 2, BlimpHE: 2, Super: 2, IvanBomb: 2,
+    AP: 3, ApocAP: 3, ORCAAP: 3, SAMWH: 3, GUARDWH: 3,
+    FlakWH: 3, FlakTWH: 3, FlakGuyWH: 3,
+    MirageWH: 4, NukeWH: 4,
+    Electric: 5, Shock: 5, IonWH: 5, PrismWarhead: 5, CometWH: 5
+  };
+  // art.ini `Crawls=` (art.ini:27): [ROCK] and [FLAKT] are `no` — they run
+  // instead, so they never hit the dirt. Everyone else (including [SHK] and
+  // [TANY], which do have crawl frames) goes prone under fire.
+  function infCrawls(type) { return type !== 'rocketeer' && type !== 'flak'; }
   function isVehArmour(a) { return a === 'light' || a === 'medium' || a === 'heavy'; }
   function isBldArmour(a) { return a === 'wood' || a === 'steel' || a === 'concrete'; }
   function isInfArmour(a) { return a === 'none' || a === 'flak' || a === 'plate'; }
@@ -2275,11 +2302,14 @@
     rocketeer: { coat: '#6f7782', boot: '#2a2e35', skin: '#d8a878' }    // grey pressure suit
   };
 
-  // THE WALK. bakeInfantry is baked three times per unit and drawUnit cycles
-  // 0 -> 1 -> 2 every 8 ticks while the figure moves, exactly like an RA2
-  // infantry SHP's walk sequence. Frame 0 is the PASSING pose (legs together,
-  // body at its highest point) and doubles as the standing frame; 1 and 2 are
-  // the two full strides, mirrored.
+  // THE WALK. RA2's `[E1Sequence] Walk=8,6,6` (art.ini:9659) is SIX frames per
+  // facing, so the cycle is baked at six phases and drawUnit steps one every
+  // five ticks. The cycle is one continuous sine: `swf` is the stride (which
+  // leg leads and how far), `cf` the same cycle a quarter turn on, which is
+  // what keeps all six frames distinct — on stride alone phases 1 and 2 (and
+  // 4 and 5) come out identical and the walk reads as a three-frame twitch
+  // again. `phase < 0` is the NEUTRAL pose: legs together, no bob, no lean —
+  // the standing / firing / idle frames stand on it.
   //
   // The anchor rule is what makes it a walk instead of a twitch: EVERY frame
   // puts the leading boot flat on `by`, so the figure's ground point never
@@ -2287,13 +2317,31 @@
   // leg leads, which arm counter-swings, and a sub-pixel bob and lateral lean
   // of everything above the hips — drawn with ONE translate so the torso,
   // head and weapon move together like a body, not like separate parts.
+  var INF_WALK = 6;
   function gait(phase) {
-    var ph = ((phase | 0) % 3 + 3) % 3;
-    var sw = ph === 0 ? 0 : (ph === 1 ? 1 : -1);   // which side leads
-    return { ph: ph, sw: sw, bob: ph ? 0.9 : 0, lean: sw * 0.55 };
+    if ((phase | 0) < 0) return { ph: 0, swf: 0, cf: 1, sw: 0, amp: 0, bob: 0, lean: 0 };
+    var ph = ((phase | 0) % INF_WALK + INF_WALK) % INF_WALK;
+    var t = (ph + 0.5) / INF_WALK * 6.283185307;
+    var swf = Math.sin(t), cf = Math.cos(t);
+    return { ph: ph, swf: swf, cf: cf,
+             sw: swf > 0.05 ? 1 : (swf < -0.05 ? -1 : 0),
+             amp: Math.abs(swf),
+             bob: (1 - Math.abs(swf)) * 0.95 + cf * 0.28,
+             lean: swf * 0.55 };
   }
 
-  function bakeInfantry(col, kind, fac, phase) {
+  // RA2 `[E1Sequence]` (art.ini:9655) trimmed to what reads at 1:1. Every one
+  // of these is the SAME figure under a pose transform plus a small overlay —
+  // never a second hand-drawn body (the structure-state rule, applied to men).
+  var INF_SEQ = { stand: 1, walk: 6, fire: 3, down: 1, up: 1, prone: 1,
+                  crawl: 6, fireprone: 2, idle1: 3, idle2: 3, cheer: 2 };
+  // grid facing -> SCREEN octant. The iso projection sends d0 to SE, d1 to S,
+  // d2 to SW, d3 to W, d4 to NW, d5 to N, d6 to NE, d7 to E (see "The RA2
+  // vehicle sheets are FACING RINGS" in docs/design-decisions.md), and the
+  // octant here is measured from "straight at the camera" toward screen-right.
+  var INF_OCT = [1, 0, 7, 6, 5, 4, 3, 2];
+
+  function bakeInfantry(col, kind, fac, phase, dir, state) {
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
     // PROPORTION. An RA2 infantry walk frame is about 15x28 (w:h 0.50-0.55)
@@ -2307,6 +2355,68 @@
     // per branch, because a uniform squeeze cannot fix a head that is too big
     // in BOTH axes.
     g.translate(cx, by); g.scale(0.90, 1); g.translate(-cx, -by);
+
+    // ---- FACING + POSE -------------------------------------------------
+    // A turned figure is the SAME art under two transforms, not nine more
+    // hand-drawn branches. `sd` is how side-on he is (0 front/back, 1 pure
+    // profile), `fz` whether we are looking at his front (+) or his back (-).
+    //   * the whole body squeezes on x by TURN, because a shoulder line seen
+    //     edge-on projects to the body's DEPTH, about 0.58 of its width;
+    //   * facings left of the camera are the mirror of the ones to its right,
+    //     so only hx's SIGN needs a flip — the silhouette is identical;
+    //   * what a flat squeeze cannot do is turn a head, swing a stride from
+    //     lateral to fore-and-aft, or move a rifle off the chest, so legs(),
+    //     arms(), face(), helmet(), carbine() and wpn() each re-cut their own
+    //     part off `sd` / `fz`. That is the whole facing system.
+    var oct = INF_OCT[(((dir | 0) % 8) + 8) % 8];
+    var oa = oct * Math.PI / 4;
+    var hx = Math.sin(oa), fz = Math.cos(oa);
+    var MIR = hx < -0.01;
+    var sd = Math.abs(hx);                       // 0 = front/back on, 1 = profile
+    var TURN = 1 - 0.34 * sd;                    // shoulder line -> body depth
+    var GSIDE = fz >= -0.25 ? 1 : -1;            // his weapon hand swaps on a back view
+    var FA = { sd: sd, fz: fz, back: fz < -0.25, prof: sd > 0.85 };
+
+    var ST = state || 'stand';
+    var nf = INF_SEQ[ST] || 1, sph = (((phase | 0) % nf) + nf) % nf;
+    var PRONE = (ST === 'prone' || ST === 'crawl' || ST === 'fireprone') ? 1 :
+                ((ST === 'down' || ST === 'up') ? 0.55 : 0);
+    var FIRING = ST === 'fire' || ST === 'fireprone';
+    // RA2's FireUp is a raise, a recoil and a settle; the muzzle flash itself
+    // is the renderer's, so these frames only carry the body.
+    var RECOIL = FIRING ? (sph === 1 ? -1.5 : (sph === 2 ? -0.5 : 0.4)) : 0;
+    var RAISE = FIRING ? (sph === 1 ? 1 : 0.75) : 0;
+    var CHEER = ST === 'cheer' ? (sph ? 0.65 : 1) : 0;
+    var IDLE = ST === 'idle1' ? 1 : (ST === 'idle2' ? 2 : 0);
+    // Idle1 is "look around" (the head turns on a locked body), Idle2 is
+    // "check the weapon" (it comes up and goes back down). Direction-locked,
+    // as art.ini's `Idle1=56,15,0,W` / `Idle2=71,14,0,E` are.
+    var HEADX = IDLE === 1 ? [0, 1.6, -1.3][sph] : 0;
+    if (IDLE === 2) RAISE = [0, 0.85, 0.35][sph];
+    var HOP = CHEER ? (sph ? 0 : -1.4) : 0;
+
+    var gph = (ST === 'walk' || ST === 'crawl') ? phase : -1;
+    var gt = gait(gph);
+    // Contact shadow first: it belongs to the GROUND, so it is drawn before
+    // the turn and the pose so a prone man's shadow does not stand on end.
+    if (kind !== 'rocketeer')
+      shadowBlob(g, cx + (PRONE ? sd * 5.5 : 0), by,
+                 (6.0 + gt.amp * 0.9) * (1 + PRONE * 1.05 * sd), 2.5 * (1 - PRONE * 0.25));
+
+    if (MIR) { g.translate(cx, by); g.scale(-1, 1); g.translate(-cx, -by); }
+    if (PRONE) {
+      // Lie the standing figure down about its own ground point: rotate it
+      // toward the way it faces, then flatten in SCREEN space (the scale is
+      // written OUTSIDE the rotate so it squashes the lying body, not the
+      // standing one). Head-on there is nothing to rotate, so almost all of
+      // it is foreshortening; side-on it is almost all rotation.
+      g.translate(cx, by + PRONE * 1.0);
+      g.scale(1 + PRONE * 0.25 * (1 - sd), 1 - PRONE * (0.62 - 0.24 * sd));
+      g.rotate(PRONE * (0.30 + 0.85 * sd));
+      g.translate(-cx, -by);
+    }
+    g.translate(cx, by); g.scale(TURN, 1); g.translate(-cx, -by);
+    if (RECOIL || HOP) g.translate(RECOIL * (0.75 + 0.5 * sd), HOP);
     var sov = fac === 'col';
     // The Flak Trooper's art was built under `rocket` for the Collective; the
     // unit now has its own key, the art path is the same.
@@ -2318,9 +2428,7 @@
     var JACKET = '#252a38';        // Conscript's near-black tunic
     var SLEEVE = '#3b4256';        // ...his sleeves, one step lighter so they read
     var POUCH = '#b58a52';         // his tan ammo pouch
-    var gt = gait(phase);
     var ar;
-    if (kind !== 'rocketeer') shadowBlob(g, cx, by, gt.ph ? 6.8 : 6.0, 2.5);   // an airborne figure's shadow is drawn on the ground by the renderer
 
     // Two legs that SCISSOR — the one thing that separates a walk from a
     // wider stance. `i` is the screen side (-1 left, +1 right). In a stride
@@ -2333,13 +2441,20 @@
     function legs(sp, hipY, w, trousers, bootW) {
       bootW = bootW || w + 0.5;
       var order = gt.sw === 0 ? [-1, 1] : [-gt.sw, gt.sw];   // trailing leg first
+      // Turning swaps the stride's AXIS. Head-on the legs scissor sideways
+      // and barely separate; side-on the same stride is fore-and-aft and is
+      // the biggest thing on the sprite, so the lateral splay collapses by
+      // `latK` and reappears as `fwdK` along the facing (divided by TURN so
+      // it survives the body squeeze at its true screen length).
+      var latK = 1 - 0.50 * sd, fwdK = 2.2 * sd / TURN;
       for (var n = 0; n < 2; n++) {
         var i = order[n];
         var lead = gt.sw === 0 ? 0 : (i === gt.sw ? 1 : -1);
-        var fx = cx + (lead > 0 ? i * (sp + 3.0) : lead < 0 ? -i * sp * 0.30 : i * sp);
+        var fx = cx + (lead > 0 ? i * (sp + 3.0) : lead < 0 ? -i * sp * 0.30 : i * sp) * latK
+                    + (lead > 0 ? fwdK : lead < 0 ? -fwdK * 0.68 : 0);
         var lift = lead < 0 ? 2.3 : 0;                 // trailing foot swings clear
         var lw = w * (lead < 0 ? 0.84 : 1);
-        var hx = cx + i * sp * 0.74;
+        var hx = cx + i * sp * 0.74 * latK;
         g.fillStyle = shade(trousers, lead > 0 ? 1.14 : lead < 0 ? 0.70 : 1);
         g.beginPath();                                 // hip -> ankle
         g.moveTo(hx - w / 2, hipY); g.lineTo(hx + w / 2, hipY);
@@ -2361,39 +2476,104 @@
     // `cb` gets (side, x, y, forward) so each unit can hang its own cuff,
     // pauldron or glove off the same swing.
     function arms(sp, topY, w, h, sleeve, cb) {
-      for (var i = -1; i <= 1; i += 2) {
+      // Which arm is NEARER the camera flips with the body: facing away, the
+      // shoulder that was in front is now behind. The far arm is drawn first,
+      // narrower, darker and pulled in toward the spine, which is the only
+      // thing that stops a profile figure reading as a man with four arms.
+      var nearI = fz >= 0 ? -1 : 1;
+      var order = [-nearI, nearI];
+      var latK = 1 - 0.26 * sd, swK = 1.7 * sd / TURN;
+      for (var n2 = 0; n2 < 2; n2++) {
+        var i = order[n2], far = i !== nearI;
         var fwd = gt.sw === 0 ? 0 : (i === gt.sw ? -1 : 1);
-        var ax = cx + i * (sp + (fwd > 0 ? 0.45 : fwd < 0 ? -0.3 : 0)) - w / 2;
-        var ay = topY + (fwd > 0 ? 0.7 : fwd < 0 ? -0.7 : 0);
-        g.fillStyle = shade(sleeve, fwd > 0 ? 1.06 : 0.76);
-        g.beginPath(); g.roundRect(ax, ay, w, h + (fwd > 0 ? 0.8 : 0), w * 0.46); g.fill();
+        var aw = w * (far ? 1 - 0.30 * sd : 1);
+        var ax = cx + i * (sp + (fwd > 0 ? 0.45 : fwd < 0 ? -0.3 : 0) + CHEER * 1.5) * latK - aw / 2
+                    - (far ? i * sd * 1.1 : 0) + fwd * swK * (1 - CHEER);
+        var ay = topY + (fwd > 0 ? 0.7 : fwd < 0 ? -0.7 : 0) - CHEER * (h * 1.30);
+        var ah = h + (fwd > 0 ? 0.8 : 0) - CHEER * h * 0.18;
+        // Cheer: both arms go straight up over the head (art.ini Cheer=56,15).
+        g.fillStyle = shade(sleeve, far ? 0.66 : (fwd > 0 ? 1.06 : 0.76));
+        g.beginPath(); g.roundRect(ax, ay, aw, ah, aw * 0.46); g.fill();
         outline(g, shade(sleeve, 0.48));
-        if (cb) cb(i, ax + w / 2, ay, fwd);
+        if (cb) cb(i, ax + aw / 2, ay, fwd);
       }
     }
+    // A held weapon keeps its TRUE length while the body squeezes (undo TURN
+    // on x), swaps shoulders when we are behind him, and rides up when he
+    // fires. Used by the branches whose weapon is a long shoulder piece.
+    function wpn(fn) {
+      // A shoulder piece is authored ALREADY foreshortened at the front
+      // facing (it points at the camera there); swinging round to a profile
+      // gives back its true length. `wl` is that screen length, divided by
+      // TURN so the body's squeeze does not eat it a second time.
+      var wl = (0.82 + 0.33 * sd) / TURN;
+      g.save();
+      g.translate(cx + GSIDE * sd * 1.7, -RAISE * 1.3);
+      g.scale(GSIDE * wl, 1);
+      g.translate(-cx, 0);
+      fn();
+      g.restore();
+    }
+    // A face only exists on the facings that HAVE one. On the three rear
+    // facings the branch's eyes/visor/beard are skipped too (`FA.back`), and
+    // helmet() puts a nape and a strap there instead — the single clearest
+    // signal that a man is walking away from you.
     function face(hy) {
+      if (FA.back) return;
+      var fx2 = cx + sd * 1.9 / TURN + HEADX;
       g.fillStyle = T.skin;
-      g.beginPath(); g.ellipse(cx, hy, 2.35, 2.55, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(fx2, hy, 2.35 * (1 - 0.24 * sd), 2.55, 0, 0, 6.29); g.fill();
       outline(g, '#8a6440');
+      if (sd > 0.5) {                                 // profile: a nose off the cheek line
+        g.fillStyle = T.skin;
+        g.beginPath();
+        g.moveTo(fx2 + 1.5, hy - 0.6); g.lineTo(fx2 + 2.5 * sd, hy + 0.25);
+        g.lineTo(fx2 + 1.5, hy + 1.0); g.closePath(); g.fill();
+        outline(g, '#8a6440');
+      }
     }
     // A helmet dome with a lit crown and a shaded brim. The helmet is the
     // single most reliable friend-or-foe tell on a 20px figure, so it is
     // drawn as a solid house-colour cap rather than a tinted grey one.
     function helmet(hy, r, hcol, brim) {
+      var hcx = cx + sd * 1.1 / TURN + HEADX;
+      var rw = r * (1 - 0.16 * sd);                    // a helmet is longer than it is wide
       g.fillStyle = hcol;
-      g.beginPath(); g.arc(cx, hy, r, Math.PI, 0); g.fill();
-      g.fillRect(cx - r, hy, r * 2, 1.1);
+      g.beginPath(); g.ellipse(hcx, hy, rw, r, 0, Math.PI, 0); g.fill();
+      g.fillRect(hcx - rw, hy, rw * 2, 1.1);
       g.fillStyle = shade(hcol, 0.62);
-      g.fillRect(cx - r - 0.5, hy + 0.8, r * 2 + 1.0, brim);
+      g.fillRect(hcx - rw - 0.5, hy + 0.8, rw * 2 + 1.0, brim);
       outline(g, shade(hcol, 0.38));
+      if (FA.back) {
+        // the nape: a shaded crescent under the shell and the chin strap's
+        // buckle at the back of the neck
+        g.fillStyle = shade(hcol, 0.52);
+        g.beginPath(); g.ellipse(hcx, hy + 1.2, rw * 0.82, r * 0.5, 0, 0, Math.PI); g.fill();
+        g.fillStyle = 'rgba(20,22,26,.55)';
+        g.fillRect(hcx - rw * 0.5, hy + 1.5, rw, 1.0);
+      }
       g.fillStyle = shade(hcol, 1.42);                              // lit crown band
       g.beginPath();
-      g.ellipse(cx - r * 0.32, hy - r * 0.46, r * 0.42, r * 0.24, -0.35, 0, 6.29); g.fill();
+      g.ellipse(hcx - rw * 0.32, hy - r * 0.46, rw * 0.42, r * 0.24, -0.35, 0, 6.29); g.fill();
     }
     // A rifle as a short angled stroke: butt at (x0,y0), muzzle at (x1,y1),
     // with a barrel glint and a magazine hanging off the middle. Drawing it
     // level and symmetric turned the GI into a man holding a pipe.
+    // The authored endpoints are the FRONT-ON pose (angled across the chest).
+    // Turning re-aims the same weapon about the hands: side-on it swings out
+    // to point along the facing, and firing brings it up to the shoulder. The
+    // x terms are divided by TURN so the barrel keeps its true screen length
+    // while the body behind it narrows.
     function carbine(x0, y0, x1, y1, w) {
+      var vx = x1 - x0, vy = y1 - y0, L = Math.sqrt(vx * vx + vy * vy);
+      var hxp = x0 + vx * 0.40, hyp = y0 + vy * 0.40;
+      var a2 = Math.atan2(vy, vx) * (1 - sd) * (1 - RAISE * 0.55) + (-0.16 - RAISE * 0.10) * sd - RAISE * 0.16 * (1 - sd);
+      var L2 = L * (0.80 + 0.26 * sd);
+      var mx = cx + (hxp - cx) * GSIDE / TURN + GSIDE * sd * 2.2 / TURN;
+      var my = hyp - RAISE * 3.2;
+      var ux = Math.cos(a2) * GSIDE / TURN, uy = Math.sin(a2);
+      x0 = mx - ux * L2 * 0.40; y0 = my - uy * L2 * 0.40;
+      x1 = mx + ux * L2 * 0.60; y1 = my + uy * L2 * 0.60;
       g.strokeStyle = GUN; g.lineWidth = w; g.lineCap = 'butt';
       g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
       g.strokeStyle = '#5c636e'; g.lineWidth = w * 0.42;               // barrel glint
@@ -2475,7 +2655,7 @@
       // the jet flame: it flickers instead of striding, and drawUnit runs the
       // cycle for as long as he is airborne.
       var RS = '#8d959f', RSD = shade(RS, 0.64), RSL = shade(RS, 1.22);
-      var fl = [5.2, 7.4, 6.2][gt.ph], fw2 = [2.0, 2.5, 2.2][gt.ph];
+      var fl = [5.2, 7.4, 6.2, 8.0, 5.6, 6.9][gt.ph], fw2 = [2.0, 2.5, 2.2, 2.6, 2.1, 2.4][gt.ph];
       // jet flames first, behind the legs: white-blue core in an orange sheath
       for (ar = -1; ar <= 1; ar += 2) {
         var jx = cx + ar * 4.6, jy = by - 8.4;
@@ -2535,10 +2715,13 @@
       carbine(cx - 5.2, by - 12.2, cx + 6.4, by - 15.6, 1.9);         // machine gun across the chest
       face(by - 21.9);
       helmet(by - 23.7, 3.3, '#aeb5bf', 0.95);                       // steel dome, not house colour
-      g.fillStyle = '#1e232a';                                      // wide dark visor
-      g.beginPath(); g.roundRect(cx - 2.9, by - 23.1, 5.8, 2.0, 0.85); g.fill();
-      g.fillStyle = 'rgba(170,215,255,.42)';
-      g.fillRect(cx - 2.4, by - 22.8, 2.4, 0.75);
+      if (!FA.back) {                                               // wide dark visor
+        var vhx = cx + sd * 1.1 / TURN + HEADX;
+        g.fillStyle = '#1e232a';
+        g.beginPath(); g.roundRect(vhx - 2.9 * (1 - 0.2 * sd), by - 23.1, 5.8 * (1 - 0.2 * sd), 2.0, 0.85); g.fill();
+        g.fillStyle = 'rgba(170,215,255,.42)';
+        g.fillRect(vhx - 2.4 * (1 - 0.2 * sd), by - 22.8, 2.4, 0.75);
+      }
       g.restore();
 
     } else if (kind === 'rocket' && !sov) {
@@ -2582,6 +2765,7 @@
         g.fillRect(x - 1.4, y - 0.9, 2.8, 0.9);
       });
 
+      wpn(function () {
       var ry = gt.bob ? 0.4 : 0;                                    // launcher rides the bob
       g.strokeStyle = '#33383f'; g.lineWidth = 3.4; g.lineCap = 'round';
       g.beginPath();                                                // missile tube
@@ -2602,13 +2786,16 @@
       outline(g, '#6a4a10');
       g.fillStyle = shade(ACCENT.rocket, 1.28);
       g.fillRect(cx + 6.7, by - 19.2 - ry, 1.6, 0.8);
+      });
 
       face(by - 21.7);
       helmet(by - 23.6, 3.3, col, 1.0);
-      g.fillStyle = '#1f2429';                                      // dark visor band
-      g.beginPath(); g.roundRect(cx - 2.9, by - 22.5, 5.8, 1.6, 0.7); g.fill();
+      if (!FA.back) {                                               // dark visor band
+      g.fillStyle = '#1f2429';
+      g.beginPath(); g.roundRect(cx + sd * 1.1 / TURN + HEADX - 2.9, by - 22.5, 5.8, 1.6, 0.7); g.fill();
       g.fillStyle = 'rgba(200,225,255,.30)';
-      g.fillRect(cx - 2.4, by - 22.3, 2.3, 0.65);
+      g.fillRect(cx + sd * 1.1 / TURN + HEADX - 2.4, by - 22.3, 2.3, 0.65);
+      }
       g.restore();
 
     } else if (kind === 'rocket') {
@@ -2655,6 +2842,7 @@
       g.fillStyle = shade(col, 0.74);                               // shoulder-strap shadow
       g.fillRect(cx + 1.6, by - 19.6, 2.5, 5.8);
 
+      wpn(function () {
       var fy = gt.bob ? 0.5 : 0;                                    // cannon rides the bob
       var bx0 = cx + 2.4, by0 = by - 12.8 + fy;                     // grip, at the right hip
       var bx1 = cx + 5.6, by1 = by - 26.4 - fy;                     // muzzle, above the helmet
@@ -2676,6 +2864,7 @@
       outline(g, '#6a4a10');
       g.fillStyle = shade(ACCENT.rocket, 1.26);
       g.fillRect(cx - 0.4, by - 14.6 + fy, 1.1, 0.75);
+      });
 
       face(by - 21.2);
       helmet(by - 23.1, 3.15, '#8b929b', 1.0);                      // plain steel helmet
@@ -2968,10 +3157,16 @@
       g.fillStyle = '#f2f6fb';                                      // bright crown
       g.beginPath();
       g.ellipse(cx - 1.1, hby - 1.4, 1.7, 0.9, -0.35, 0, 6.29); g.fill();
-      g.fillStyle = '#14171c';                                      // visor slot
-      g.beginPath(); g.roundRect(cx - 2.8, hby + 0.5, 5.6, 1.6, 0.6); g.fill();
-      g.fillStyle = 'rgba(190,214,240,.28)';
-      g.fillRect(cx - 2.3, hby + 0.75, 2.0, 0.7);
+      if (!FA.back) {                                               // visor slot
+        var thx = cx + sd * 1.2 / TURN;
+        g.fillStyle = '#14171c';
+        g.beginPath(); g.roundRect(thx - 2.8 * (1 - 0.2 * sd), hby + 0.5, 5.6 * (1 - 0.2 * sd), 1.6, 0.6); g.fill();
+        g.fillStyle = 'rgba(190,214,240,.28)';
+        g.fillRect(thx - 2.3 * (1 - 0.2 * sd), hby + 0.75, 2.0, 0.7);
+      } else {
+        g.fillStyle = 'rgba(30,34,40,.5)';                          // nape of the bowl
+        g.beginPath(); g.ellipse(cx, hby + 1.1, 2.9, 1.5, 0, 0, Math.PI); g.fill();
+      }
       g.fillStyle = '#6c737d';                                      // collar ring
       g.fillRect(cx - 3.3, hby + 2.0, 6.6, 1.4);
       g.restore();
@@ -3061,17 +3256,20 @@
       // back to the chin, because at the first sizing the ushanka's brim met
       // the beard and he read as a man in a red balaclava with no face.
       face(by - 21.0);
+      if (!FA.back) {
+      var ihx = cx + sd * 1.9 / TURN + HEADX;
       g.fillStyle = ACCENT.ivan;                                    // beard, chin only
       g.beginPath();
-      g.moveTo(cx - 2.0, by - 20.4); g.lineTo(cx + 2.0, by - 20.4);
-      g.lineTo(cx + 1.7, by - 19.3); g.lineTo(cx, by - 18.5);
-      g.lineTo(cx - 1.7, by - 19.3); g.closePath(); g.fill();
+      g.moveTo(ihx - 2.0, by - 20.4); g.lineTo(ihx + 2.0, by - 20.4);
+      g.lineTo(ihx + 1.7, by - 19.3); g.lineTo(ihx, by - 18.5);
+      g.lineTo(ihx - 1.7, by - 19.3); g.closePath(); g.fill();
       outline(g, '#3d2a16');
       g.fillStyle = shade(ACCENT.ivan, 1.24);
-      g.fillRect(cx - 1.7, by - 20.25, 1.5, 0.7);
+      g.fillRect(ihx - 1.7, by - 20.25, 1.5, 0.7);
       g.fillStyle = '#3a2b1c';                                      // two eyes under the brim
-      g.fillRect(cx - 1.55, by - 21.5, 0.95, 0.8);
-      g.fillRect(cx + 0.6, by - 21.5, 0.95, 0.8);
+      g.fillRect(ihx - 1.55, by - 21.5, 0.95 * (1 - 0.5 * sd), 0.8);
+      g.fillRect(ihx + 0.6, by - 21.5, 0.95, 0.8);
+      }
 
       // the USHANKA: a fur crown with the two ear flaps hanging beside the
       // face. Drawn as a plain dome it was indistinguishable from a helmet,
@@ -3140,6 +3338,27 @@
       g.restore();
     }
     return s;
+  }
+
+  // Infantry art is a LAZY facing/state atlas, not a baked array. Nine kinds
+  // x two factions x two owners x eight facings x ~30 state frames is 8,600
+  // canvases — many seconds of load for frames a given match mostly never
+  // shows. So `bakeAll` bakes ONE frame per kind (the front-on standing
+  // frame, which is also what the build cameos and the menu line-up crop
+  // from) and `fr()` bakes the rest on first use and memoises them, exactly
+  // as the structure damaged / unpowered / make states do.
+  function infArt(col, kind, fac) {
+    var base = bakeInfantry(col, kind, fac, -1, 1, 'stand');     // d1 = due S = front-on
+    var cache = { 'stand1_0': base };
+    base.inf = true;
+    base.fr = function (st, dir, phase) {
+      if (!INF_SEQ[st]) st = 'stand';
+      var nf = INF_SEQ[st], d = (((dir | 0) % 8) + 8) % 8;
+      var ph = (((phase | 0) % nf) + nf) % nf;
+      var k = st + d + '_' + ph;
+      return cache[k] || (cache[k] = bakeInfantry(col, kind, fac, st === 'stand' ? -1 : ph, d, st));
+    };
+    return base;
   }
 
   // A deployed GI's SANDBAG PARAPET. RA2 drops a low arc of bags in FRONT of
@@ -12801,10 +13020,7 @@
         for (var uk in UNITS) {
           var U;
           if (UNITS[uk].cls === 'i') {
-            // Three walk phases (0 = standing, 1/2 = stride); drawUnit cycles
-            // them while the figure moves, like an RA2 infantry SHP.
-            U = bakeInfantry(COL[p], uk, ufk, 0);
-            U.walk = [U, bakeInfantry(COL[p], uk, ufk, 1), bakeInfantry(COL[p], uk, ufk, 2)];
+            U = infArt(COL[p], uk, ufk);          // one frame now, the rest on demand
           } else {
             // The Prism Tank's art kind is still called `spectre` inside
             // bakeVehicle — the sprite it names is the Prism Tank's.
@@ -12820,7 +13036,6 @@
           // bounds, not off the stat-table width: a ground ring sized from
           // UNITS[].w vanished under the wider rebuilt hulls.
           var frames = Array.isArray(U) ? U.slice() : [U];
-          if (U.walk) frames = frames.concat(U.walk);
           if (U.mine) frames = frames.concat(U.mine);
           if (U.hull) frames = frames.concat(U.hull);
           if (U.turret) frames = frames.concat(U.turret);
@@ -13213,12 +13428,23 @@
     var spec = src.kind === 'b' ? BLDS[src.type] : UNITS[src.type];
     if (wh === undefined) wh = spec.wh;
     var mult = wh ? verses(wh, armourOf(tgt)) : 1;
+    if (tgt.kind === 'u' && tgt.prone) mult *= proneMul(wh);         // rules.ini ProneDamage
     if (tgt.kind === 'u' && tgt.rank) mult /= vetArmour(tgt.rank);   // veterans are tougher (VeteranArmor)
     if (g.debug) {                                                    // debug mode: the player hits 10x and takes 1/10
       if (src.p === P_HUMAN && tgt.p !== P_HUMAN) mult *= 10;
       else if (tgt.p === P_HUMAN && src.p !== P_HUMAN) mult /= 10;
     }
     tgt.hp -= amount * mult;
+    // RA2 infantry hit the dirt the moment they are shot at and stay down
+    // while the fire lasts. A man executing a real move order keeps running;
+    // one holding, guarding or already in place drops.
+    if (tgt.kind === 'u' && tgt.hp > 0 && !tgt.air && !tgt.deployed &&
+        UNITS[tgt.type].cls === 'i' && infCrawls(tgt.type)) {
+      tgt.hitAt = g.tick;
+      // A deployed GI is already behind his own parapet — RA2 does not drop
+      // him flat and neither do we.
+      if (!tgt.prone && !(tgt.order && tgt.order.t === 'move')) { tgt.prone = true; tgt.downAt = g.tick; }
+    }
     if (tgt.kind === 'u' && tgt.type === 'harvester') tgt.fleeAt = g.tick;
     if (isAir(src)) { var hitAI = tgt.p === P_AI ? g.ai : g.ai2; if (hitAI) hitAI.airAt = g.tick; }
     if (tgt.p === P_HUMAN && src.p !== P_HUMAN) {
@@ -13245,8 +13471,33 @@
       if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
       if (tgt.kind === 'b') { killBld(g, tgt); sfx('boom'); }   // killBld runs the whole death sequence
       else if (isAir(tgt)) { tgt.dead = true; crashAircraft(g, tgt); }
-      else { tgt.dead = true; boom(g, tgt.x, tgt.y, 12); sfx('die'); }
+      else { tgt.dead = true; if (!infCorpse(g, tgt, wh, src.crushKill)) boom(g, tgt.x, tgt.y, 12); sfx('die'); }
     }
+  }
+
+  // A dead soldier is an fx object, not a unit: the unit is gone the tick it
+  // dies, and the body plays out on its own. Which of the five RA2 deaths it
+  // plays is read off the KILLING warhead's `InfDeath=`, so the same GI is
+  // blown apart by a shell, thrown back by an AP round and lit up by a Tesla
+  // coil. Only vehicles fall through to the generic 12px blast.
+  var INF_DEATH_LIFE = 84;
+  function infCorpse(g, u, wh, crushed) {
+    if (u.kind !== 'u' || !UNITS[u.type] || UNITS[u.type].cls !== 'i') return false;
+    if (headless) return true;
+    var mode = crushed ? 6 : INF_DEATH[wh];
+    if (mode === undefined || mode === 0) mode = 1;
+    if (mode === 2) {
+      // "Explodes": there is no body left, just the mist and the burst.
+      g.fx.push({ x: u.x, y: u.y, t: 0, life: 20, size: 10 });
+      g.fx.push({ x: u.x, y: u.y, t: 0, life: 28, mist: true });
+      return true;
+    }
+    g.fx.push({ corpse: true, x: u.x, y: u.y, t: 0, life: INF_DEATH_LIFE,
+                type: u.type, p: u.p, fac: facOf(g, u.p) || 'dir',
+                face: u.face || 0, mode: mode });
+    if (mode === 4) for (var k = 0; k < 3; k++)
+      g.fx.push({ x: u.x, y: u.y, t: -k * 9, life: 40, fire: true, big: 0.5 });
+    return true;
   }
 
   function boom(g, x, y, size) {
@@ -13747,7 +13998,12 @@
   // Tesla Trooper's suit is the one uncrushable body.
   function crusher(u) { var d = UNITS[u.type]; return d.cls === 'v' && !d.air && !u.air; }
   function crushable(o) { return o.kind === 'u' && !o.air && isInfArmour(UNITS[o.type].armour) && o.type !== 'teslatrooper' && o.type !== 'drone'; }
-  function crush(g, u, o) { damage(g, u, o, o.maxhp * 20, 'Super'); if (!headless && u.p === P_HUMAN) sfx('die'); }
+  function crush(g, u, o) {
+    u.crushKill = true;                                   // picks InfDeath 6 (the splat)
+    damage(g, u, o, o.maxhp * 20, 'Super');
+    u.crushKill = false;
+    if (!headless && u.p === P_HUMAN) sfx('die');
+  }
   function moveAlong(g, u, spd) {
     if (!u.path || u.pi >= u.path.length) return false;
     var wp = u.path[u.pi];
@@ -13828,6 +14084,12 @@
 
   function advance(g, u, tx, ty, spd, refresh) {
     if (u.rank === 2) spd *= 1.2;                       // EliteAbilities=FASTER (VeteranSpeed=1.2)
+    if (u.prone) {
+      // A short shuffle is a crawl (art.ini `Crawl=86,6,6`, and it is slow);
+      // anything that is actually going somewhere gets him back on his feet.
+      if (Math.abs(tx - u.x) + Math.abs(ty - u.y) > 3.5) { u.prone = false; u.upAt = g.tick; }
+      else spd *= 0.45;
+    }
     if (u.deployed) {
       // Chasing a target undeploys; a plain hold stays put.
       if (u.order && u.order.t !== 'attack') u.deployed = false; else return false;
@@ -13861,6 +14123,10 @@
   function stepUnit(g, u) {
     var d = UNITS[u.type];
     if (u.cool > 0) u.cool--;
+    // Four seconds without being shot at and a prone man gets back on his
+    // feet (art.ini `Up=276,2,2`). Held here rather than in `damage()` so a
+    // trooper pinned by continuous fire never stands up into it.
+    if (u.prone && g.tick - (u.hitAt || 0) > 240) { u.prone = false; u.upAt = g.tick; }
     if (u.rank === 2 && u.hp < u.maxhp && (g.tick % 30) === 0) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * 0.005);   // EliteAbilities=SELF_HEAL
     // A turret swings back to the hull's line 1.5 s after it last aimed.
     if (u.tface != null && g.tick - (u.aimAt || 0) > 90) u.tface = null;
@@ -15295,6 +15561,7 @@
       if (theirs === 0) g.over = 1;
       else if (mine === 0) g.over = -1;
     }
+    if (g.over && g.overAt == null) g.overAt = g.tick;   // the infantry Cheer starts here
   }
 
   function economyDead(g, p) {
@@ -17504,6 +17771,12 @@
       // are on the structure's near half), never under it.
       if (u.air && !u.landed) airborne.push(u); else draw.push({ d: u.x + u.y + (u.landed ? 1.2 : 0), e: u, b: false });
     }
+    // Bodies sort with the living, a hair behind them, so a corpse is never
+    // painted over the man standing on the next tile.
+    for (i = 0; i < G.fx.length; i++) {
+      var cf = G.fx[i];
+      if (cf.corpse && cf.t >= 0) draw.push({ d: cf.x + cf.y - 0.02, cp: cf });
+    }
     for (y = minY; y <= maxY; y++) for (x = minX; x <= maxX; x++) {
       i = idx(x, y);
       if (!G.seen[i]) continue;
@@ -17514,6 +17787,7 @@
 
     for (i = 0; i < draw.length; i++) {
       if (draw[i].t) { var tr = draw[i].t, tpx = sx(draw[i].x, draw[i].y), tpy = sy(draw[i].x, draw[i].y); ctx.drawImage(tr.c, tpx - tr.ax, tpy - tr.ay, tr.w, tr.h); }
+      else if (draw[i].cp) drawCorpse(draw[i].cp);
       else if (draw[i].b) { drawBld(draw[i].e); ironGlow(draw[i].e); }
       else { drawUnit(draw[i].e); ironGlow(draw[i].e); }
     }
@@ -17659,7 +17933,7 @@
     ctx.globalCompositeOperation = 'lighter';
     for (i = 0; i < G.fx.length; i++) {
       var fx = G.fx[i], ff = fx.t / fx.life;
-      if (fx.t < 0) continue;                       // queued (a bomb still falling)
+      if (fx.t < 0 || fx.corpse) continue;          // queued (a bomb still falling) / drawn in the depth pass
       var fxx = sx(fx.x, fx.y) + (fx.ox || 0), fyy = sy(fx.x, fx.y) + (fx.oy || 0);
       if (fx.smoke) {
         ctx.globalCompositeOperation = 'source-over';
@@ -17687,6 +17961,21 @@
         ctx.fillStyle = 'rgba(255,246,214,.9)';
         ctx.beginPath(); ctx.ellipse(fxx + 0.5, fy0 - 1.2 * fl, 1 * fl, 1.8 * fl, 0, 0, 6.29); ctx.fill();
         ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+        continue;
+      }
+      if (fx.mist) {
+        // InfDeath=2, "explodes": there is no body, only what is left of one.
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.55 * (1 - ff);
+        ctx.fillStyle = '#8e1e1e';
+        for (var mk = 0; mk < 6; mk++) {
+          var ma = mk * 1.05 + 0.3, mr = 3 + ff * 13;
+          ctx.beginPath();
+          ctx.arc(fxx + Math.cos(ma) * mr, fyy - 7 - ff * 8 + Math.sin(ma) * mr * 0.55,
+                  3.2 * (1 - ff * 0.5), 0, 6.29);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
         continue;
       }
       if (fx.dust) {
@@ -17835,6 +18124,88 @@
     ctx.stroke(); ctx.lineCap = 'butt';
   }
 
+  // Which RA2 sequence a soldier is playing, and which frame of it. Priority
+  // is RA2's: a victory cheer, then prone (crawling if he is moving), then
+  // the firing burst, then the walk, and only a man with nothing at all to do
+  // gets an idle fidget.
+  //
+  // The fidget is derived from `tick` and the unit's id — NEVER from the
+  // shared `rnd()`. Render code that touches the sim RNG desynchronises every
+  // headless test that replays the same seed.
+  function infSeqOf(u, moving, alt) {
+    if (G.over && G.overAt != null && G.tick - G.overAt < 180 &&
+        G.over === (u.p === P_HUMAN ? 1 : -1)) return { st: 'cheer', ph: (G.tick >> 3) & 1 };
+    var firing = G.tick - (u.fireAt == null ? -999 : u.fireAt) < 13;
+    if (u.prone) {
+      if (firing) return { st: 'fireprone', ph: ((G.tick - u.fireAt) >> 2) & 1 };
+      if (moving) return { st: 'crawl', ph: (G.tick >> 3) % 6 };
+      if (G.tick - (u.downAt || -99) < 12) return { st: 'down', ph: 0 };
+      return { st: 'prone', ph: 0 };
+    }
+    if (G.tick - (u.upAt == null ? -99 : u.upAt) < 12) return { st: 'up', ph: 0 };
+    if (firing) return { st: 'fire', ph: Math.min(2, (G.tick - u.fireAt) >> 2) };
+    if (moving || alt > 0) return { st: 'walk', ph: (G.tick >> 2) % 6 };
+    var per = 480 + (u.id * 37) % 420;                     // one fidget every 8-15 s
+    var ip = (G.tick + u.id * 131) % per;
+    if (ip < 36) return { st: (((u.id + (((G.tick + u.id * 131) / per) | 0)) & 1) ? 'idle2' : 'idle1'),
+                          ph: (ip / 12) | 0 };
+    return { st: 'stand', ph: 0 };
+  }
+
+  // The RA2 infantry deaths, all played off the SAME baked figure: a twirl
+  // spins the standing frame down onto its face, a flying death throws it
+  // back along the shot, a burn blackens it under flames (the sprite drawn
+  // over itself in `multiply`, so no black silhouette needs baking), an
+  // electro strobes it white, and a crush flattens it. The last stretch of
+  // every one of them is the prone frame, fading.
+  function drawCorpse(f) {
+    var art = SPR.unit[f.p][f.fac][f.type];
+    if (!art || !art.fr) return;
+    if (!G.seen[idx(f.x | 0, f.y | 0)]) return;            // bodies stay under the shroud
+    var px = sx(f.x, f.y), py = sy(f.x, f.y);
+    if (px < VX0 - 70 || py < VY0 - 70 || px > VX1 + 70 || py > VY1 + 70) return;
+    var t = f.t, k = t / f.life;
+    var DROP = f.mode === 6 ? 4 : 22;                      // ticks of the fall itself
+    var down = t < DROP, q = down ? t / DROP : 1;
+    var s = down && f.mode !== 6 ? art.fr('stand', f.face, 0) : art.fr('prone', f.face, 0);
+    var ox = px - s.w / 2, oy = py - (s.h - UPAD);
+    ctx.save();
+    ctx.globalAlpha = k > 0.72 ? Math.max(0, (1 - k) / 0.28) : 1;
+    if (down) {
+      // The fall itself: pivot on the ground point so the body never slides
+      // off its own tile.
+      ctx.translate(px, py); 
+      if (f.mode === 1) ctx.rotate(q * q * 1.45);                     // twirl
+      else if (f.mode === 3) { ctx.translate(-Math.cos(f.face * Math.PI / 4) * q * 9, -q * q * 5 + q * 7); ctx.rotate(-q * 1.5); }
+      else if (f.mode === 5) ctx.translate(((t % 3) - 1) * 0.8, 0);   // electro judder
+      ctx.translate(-px, -py);
+    }
+    ctx.drawImage(s.c, ox, oy, s.w, s.h);
+    if (f.mode === 4) {                                    // burn: char the body
+      ctx.globalCompositeOperation = 'multiply';
+      var burns = 1 + Math.min(3, (t / 7) | 0);
+      for (var bi = 0; bi < burns; bi++) ctx.drawImage(s.c, ox, oy, s.w, s.h);
+      ctx.globalCompositeOperation = 'source-over';
+    } else if (f.mode === 5 && t < 34 && ((t >> 2) & 1)) {  // electro: blow him white
+      ctx.globalCompositeOperation = 'lighter';
+      for (var ei = 0; ei < 3; ei++) ctx.drawImage(s.c, ox, oy, s.w, s.h);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = 'rgba(190,225,255,.85)'; ctx.lineWidth = 1.1;
+      for (var ea = 0; ea < 3; ea++) {
+        var an = (t * 1.7 + ea * 2.1);
+        ctx.beginPath(); ctx.moveTo(px, py - 12);
+        ctx.lineTo(px + Math.cos(an) * 9, py - 12 + Math.sin(an) * 7); ctx.stroke();
+      }
+    } else if (f.mode === 6) {                             // crushed: a flat smear
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(s.c, ox, oy, s.w, s.h);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(96,20,20,.5)';
+      ctx.beginPath(); ctx.ellipse(px, py - 1, 9, 4, 0, 0, 6.29); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function drawUnit(u) {
     var px = sx(u.x, u.y), py = sy(u.x, u.y);
     if (px < VX0 - 60 || py < VY0 - 60 || px > VX1 + 60 || py > VY1 + 60) return;
@@ -17864,11 +18235,10 @@
         s = art.hull[u.face];
         turretS = art.turret[u.tface == null ? u.face : u.tface];
       } else s = set[u.face];
-    } else {
-      // Infantry cycle their walk while moving; a Rocketeer's frames are his
-      // jet flame, which never stops while he is airborne.
-      s = ((moving || alt > 0) && art.walk) ? art.walk[((G.tick >> 3) % 3)] : art;
-    }
+    } else if (art.fr) {
+      var is = infSeqOf(u, moving, alt);
+      s = art.fr(is.st, u.face, is.ph);
+    } else s = art;
 
     var ox = px - s.w / 2, oy = py - (s.h - UPAD) - alt;
     // A working harvester rocks on its tracks instead of sitting parked.
@@ -17881,7 +18251,15 @@
       var BG = SPR.bags[u.p];
       ctx.drawImage(BG.c, px - BG.w / 2, py - (BG.h - UPAD), BG.w, BG.h);
     }
-    var bb = s.bb || { x0: 0, y0: 0, x1: s.w, y1: s.h };
+    // RA2 sizes the selection box off the unit's own SIZE, not off the frame
+    // it happens to be showing, so every infantryman's brackets match and a
+    // man who drops prone or leans into a stride does not change box.
+    var bb;
+    if (art.fr) {
+      var ibh = u.prone ? 9 : 26;                  // a man on his face is a low box
+      bb = { x0: s.w / 2 - (u.prone ? 13 : 8), y0: s.h - UPAD - ibh,
+             x1: s.w / 2 + (u.prone ? 13 : 8), y1: s.h - UPAD + 1 };
+    } else bb = s.bb || { x0: 0, y0: 0, x1: s.w, y1: s.h };
     var top = oy + bb.y0;
 
     // RA2-style corner brackets around the sprite, drawn over it so a wide
@@ -17893,7 +18271,7 @@
       ctx.fillStyle = '#e8b428';
       ctx.fillRect(px - 7, py - 26, 14 * (u.cargo / ucap(G, u)), 2.6);
     }
-    if (u.hp < u.maxhp) hpBar(px, Math.min(top - 8, py - 30 - alt), 20, u.hp / u.maxhp);
+    if (u.hp < u.maxhp) hpBar(px, art.fr ? top - 6 : Math.min(top - 8, py - 30 - alt), 20, u.hp / u.maxhp);
     if (u.rank) {
       // Veterancy chevrons at the sprite's lower right, gold like RA2's.
       var cxr = ox + bb.x1 + 1, cyr = oy + bb.y1 - 2;
@@ -17928,7 +18306,7 @@
     if (px < VX0 - 90 || py < VY0 - 90 || px > VX1 + 90 || py > VY1 + 90) return;
     var art = SPR.unit[w.p][facOf(G, w.p) || 'dir'][w.type];
     var f = (((w.face + Math.round(w.t * w.spin)) % 8) + 8) % 8;
-    var s = Array.isArray(art) ? art[f] : (art.walk ? art.walk[(w.t >> 3) % 3] : art);
+    var s = Array.isArray(art) ? art[f] : (art.fr ? art.fr('walk', f, (w.t >> 3) % 6) : art);
     if (!s) return;
     ctx.save();
     for (var k = 1; k <= 4; k++) {
@@ -18908,7 +19286,10 @@
       var n = 0;
       while (acc >= STEP && n < 5) { acc -= STEP; simStep(G); n++; }
       if (acc > STEP * 5) acc = 0;
-      if (G.over) finish(G.over === 1);
+      // RA2 lets the field play for a beat after the last structure falls —
+      // the winning side's infantry cheer (art.ini `Cheer=56,15,0,W`) before
+      // the score card comes up. Three seconds, then finish().
+      if (G.over && G.tick - (G.overAt == null ? G.tick : G.overAt) >= 180) finish(G.over === 1);
     } else {
       acc = 0;
     }
@@ -18938,6 +19319,7 @@
     };
   };
 
+  window.__rtsDamage = damage;                 // art harness: kill by a chosen warhead
   window.__rtsTest = {
     // Drop entities into a specific situation instead of playing into it.
     spawn: function (type, p, x, y) { return G ? spawnUnit(G, type, p, x, y) : null; },
@@ -19108,7 +19490,12 @@
   faction = lsGet('vibetop:rts:fac') || 'dir';
   if (!FACTIONS[faction]) faction = 'dir';
 
+  // Load-time bake cost, so the art harness can prove a change did not add
+  // seconds to the boot (infantry facings/states are baked lazily for exactly
+  // this reason — see docs/design-decisions.md).
+  var _bake0 = (window.performance && performance.now) ? performance.now() : 0;
   bakeAll();
+  window.__rtsBakeMs = ((window.performance && performance.now) ? performance.now() : 0) - _bake0;
   resize();
   if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
   else window.addEventListener('resize', resize);
