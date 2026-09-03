@@ -597,7 +597,7 @@
       <dt>Select</dt><dd>Left-click a unit, or left-drag a box. Double-click selects every visible unit of that type.</dd>
       <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch. <b>Ctrl</b>+right-click <b>force-fires</b> at a spot (or at your own units); <b>Ctrl+Shift</b>+right-click is an <b>attack-move</b> — they advance and engage whatever they meet. <b>F</b> then click a friendly unit to <b>follow</b> it.</dd>
       <dt>Hold ground</dt><dd><b>S</b> stops dead — the unit fires at what comes into range but never moves. <b>G</b> guards: it leaves its post by up to two cells to engage, then walks back. <b>X</b> scatters.</dd>
-      <dt>Camera</dt><dd>WASD / arrow keys, or push the mouse to a screen edge. Click the minimap to jump.</dd>
+      <dt>Camera</dt><dd><b>Right-drag</b> (or middle-drag) grabs the map and looks around — it never gives an order, whatever is selected. WASD / arrow keys, mouse to a screen edge, or click the minimap to jump.</dd>
       <dt>Teams</dt><dd><b>Ctrl+1…0</b> stores the selection, <b>1…0</b> recalls it, <b>Shift+digit</b> adds to it, <b>Alt+digit</b> jumps the camera to it.</dd>
       <dt>Views</dt><dd><b>Ctrl+F1…F4</b> saves a camera bookmark, <b>F1…F4</b> returns to it. <b>N</b> steps through everything you own. <b>Ctrl+C</b> saves a screenshot of the field.</dd>
       <dt>Settings</dt><dd><b>Game settings</b> on the front menu carries RA2's skirmish options — starting credits and units, game speed, Bases, Short Game, Crates, Superweapons, and your house colour out of the eight. <b>Esc</b> in a match pauses and opens the same card with three <b>save slots</b>, the speed slider and Restart.</dd>
@@ -26175,11 +26175,16 @@
 
   // A pointer that starts a marquee must survive leaving the canvas, and any
   // lost pointer has to clear it — pointerup alone is not enough (house rule).
+  var RIGHT_SLOP = 5;                           // px of travel a right-click may have and still be a click
   function endPan() {
     if (!pan) return;
     var p = pan; pan = null;
     curApplied = ''; pickCursor();
-    if (p.right && Math.abs(mouse.x - p.x0) < 4 && Math.abs(mouse.y - p.y0) < 4 && G && state === 'play') rightOrder(p.x0, p.y0, p.shift, p.ctrl);
+    // A click, not a drag: RIGHT_SLOP px of hand-shake still counts as a click,
+    // but once the map has actually moved it stays navigation and nothing is
+    // ordered — a jittery right-click must never send an army somewhere.
+    if (p.right && !p.moved && Math.abs(mouse.x - p.x0) <= RIGHT_SLOP && Math.abs(mouse.y - p.y0) <= RIGHT_SLOP &&
+        G && state === 'play') rightOrder(p.x0, p.y0, p.shift, p.ctrl);
   }
 
   function endDrag() {
@@ -26272,22 +26277,25 @@
       e.preventDefault();
       if (swCancel()) return;
       if (placing) { placing = null; wallDrag = null; cv.classList.remove('placing'); say('Placement cancelled'); return; }
-      var mine = sel.some(function (o) { return !o.dead && o.p === P_HUMAN; });
-      if (!mine) {
-        // Nothing of ours selected: a right-drag pans the map (a plain right
-        // click still falls through in endPan when the pointer did not move).
-        pan = { x: px, y: py, x0: px, y0: py, right: true, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey };
-        pickCursor();
-        try { cv.setPointerCapture(e.pointerId); } catch (err) {}
-        return;
-      }
-      rightOrder(px, py, e.shiftKey, e.ctrlKey || e.metaKey);
+      // The right button always begins a pan; the ORDER is issued on release,
+      // and only if the pointer never travelled (see endPan). Before this the
+      // same gesture meant two different things depending on whether anything
+      // was selected — drag-to-look worked, until you had an army, and then it
+      // silently became an order. One gesture, one meaning, always.
+      pan = { x: px, y: py, x0: px, y0: py, right: true, moved: false,
+              shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey };
+      pickCursor();
+      try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     }
   });
   cv.addEventListener('pointermove', function (e) {
     var r = cv.getBoundingClientRect();
     var nx = e.clientX - r.left, ny = e.clientY - r.top;
     if (e.pointerType === 'touch') { touchMove(e, nx, ny); return; }
+    // Decide drag-vs-click HERE: the camera loop only runs on a frame, so a
+    // fast flick could finish between frames and be mistaken for a click.
+    if (pan && pan.right && !pan.moved &&
+        (Math.abs(nx - pan.x0) > RIGHT_SLOP || Math.abs(ny - pan.y0) > RIGHT_SLOP)) pan.moved = true;
     var now = performance.now(), dtm = now - lastMoveT;
     if (dtm > 0 && dtm < 120) {
       var dpx = Math.sqrt((nx - lastMoveX) * (nx - lastMoveX) + (ny - lastMoveY) * (ny - lastMoveY));
@@ -27037,7 +27045,9 @@
         wx += kx / kl * KEY_SPEED * scrollMul(); wy += ky / kl * KEY_SPEED * scrollMul();
       }
 
-      if (pan) {                              // middle-drag beats everything
+      if (pan) {                              // middle/right-drag beats everything
+        if (pan.right && !pan.moved &&
+            (Math.abs(mouse.x - pan.x0) > RIGHT_SLOP || Math.abs(mouse.y - pan.y0) > RIGHT_SLOP)) pan.moved = true;
         cam.x -= (mouse.x - pan.x) / zoom; cam.y -= (mouse.y - pan.y) / zoom;
         pan.x = mouse.x; pan.y = mouse.y;
         camVel.x = camVel.y = 0;
@@ -29878,7 +29888,7 @@
     clearEva();
     eva('Battlefield control online', 30000);                     // eva.ini #120
     buildPanel();
-    say('Left-drag to select · Right-click to move or attack · Right-drag to pan when nothing is selected', false, 420);
+    say('Left-drag to select · Right-click to move or attack · Right-drag to look around · Esc clears the selection', false, 420);
     say(FACTIONS[faction].name + ' vs ' + FACTIONS[G.side[P_AI].fac].name +
         ' — build a Power Plant, then a Refinery. Harvesters mine on their own.', false, 340);
   }
