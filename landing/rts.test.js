@@ -1412,3 +1412,98 @@ test("the Prism Tank out-ranges a Rhino and hits with PrismWarhead verses", () =
   assert.equal(target.hp, target.maxhp - dealt);
   assert.ok(tank.hp === tank.maxhp, "the Rhino cannot reach back at that range");
 });
+
+// -------------------------------------------------------- superweapons //
+
+test("a superweapon timer only charges while the base has power", () => {
+  // RA2 rule: an unpowered Chronosphere is a $2500 ornament. The timer lives
+  // on the SIDE, so this is also the check that losing the plant freezes it.
+  const H = W.__rtsTest;
+  const g = H.begin(77101, "normal");
+  H.build("base", 0, 10, 10);
+  const plant = H.build("power", 0, 14, 10);
+  H.build("chrono", 0, 20, 10);          // +200 against -200: exactly in the black
+  H.step(600);
+  const charged = H.sw(0).chrono.t;
+  assert.ok(charged >= 590, `powered, the Chronosphere should have charged ~600 ticks, got ${charged}`);
+  H.killBld(plant);
+  H.step(600);
+  assert.equal(H.sw(0).chrono.t, charged, "an unpowered Chronosphere must not charge");
+  assert.equal(g.side[0].sw.chrono.ready, false, "and it certainly must not come ready");
+});
+
+test("a nuclear missile flattens what it lands on and spares what stands off", () => {
+  // 500 at ground zero falling to nothing at four tiles, applied per CELL of
+  // the footprint (RA2 CellSpread): a plant under it dies, one four tiles out
+  // is scratched.
+  const H = W.__rtsTest;
+  H.begin(77102, "normal");
+  const hit = H.build("power", 1, 30, 30);
+  const away = H.build("power", 1, 34, 30);
+  H.swCharge(0, "nuke");
+  assert.ok(H.swFire(0, "nuke", hit.cx, hit.cy), "a charged silo must fire");
+  assert.equal(H.swFire(0, "nuke", hit.cx, hit.cy), false, "and it must not fire twice on one charge");
+  H.step(30);
+  assert.equal(hit.dead, false, "the missile takes ten seconds to arrive");
+  H.step(610);
+  assert.ok(hit.dead, "the Power Plant at ground zero should be gone");
+  assert.ok(!away.dead && away.hp > away.maxhp * 0.6,
+    `the plant four tiles out should only be scratched, got ${away.hp}/${away.maxhp}`);
+  assert.equal(H.sw(0).nuke.t, 0, "firing resets the countdown");
+});
+
+test("the Iron Curtain makes a tank untouchable for its twenty seconds, and kills the infantry under it", () => {
+  const H = W.__rtsTest;
+  H.begin(77103, "normal");
+  const rhino = H.spawn("rhino", 0, 20, 20);
+  const gi = H.spawn("rifle", 0, 20.5, 20.5);
+  const foe = H.spawn("rhino", 1, 23, 20);
+  H.swCharge(0, "curtain");
+  H.swFire(0, "curtain", 20, 20);
+  assert.ok(gi.dead, "RA2 kills the infantry the Iron Curtain is thrown over");
+  assert.ok(!rhino.dead && rhino.ironUntil > 0, "the vehicle is shielded, not killed");
+  H.orderAttack([foe], rhino);
+  H.step(300);
+  assert.equal(rhino.hp, rhino.maxhp, "nothing may touch a curtained unit");
+  H.step(1100);                                   // the twenty seconds run out
+  const foe2 = H.spawn("rhino", 1, 23, 20);       // the first one lost the duel it started
+  H.orderAttack([foe2], rhino);
+  H.step(300);
+  assert.ok(rhino.hp < rhino.maxhp, "once the curtain lapses the tank takes fire again");
+});
+
+test("the Chronosphere shifts a squad of vehicles and vaporises the infantry with them", () => {
+  const H = W.__rtsTest;
+  H.begin(77104, "normal");
+  const tanks = [H.spawn("lancer", 0, 20, 20), H.spawn("lancer", 0, 21, 20), H.spawn("lancer", 0, 20, 21)];
+  const gi = H.spawn("rifle", 0, 20.5, 20.5);
+  H.swCharge(0, "chrono");
+  assert.ok(H.swFire(0, "chrono", 20.5, 20.5, 40, 40), "a charged Chronosphere fires on two clicks");
+  assert.ok(gi.dead, "infantry caught in the field are killed, as in RA2");
+  for (const t of tanks) {
+    assert.ok(!t.dead, "vehicles survive the shift");
+    assert.ok(Math.abs(t.x - 40) <= 4 && Math.abs(t.y - 40) <= 4,
+      `a shifted tank should land by the target, got ${t.x.toFixed(1)},${t.y.toFixed(1)}`);
+  }
+});
+
+test("the AI fires its nuke within twelve minutes of the silo going up", () => {
+  // The whole chain end to end: the silo charges on the AI's own power, the
+  // strategy layer notices it is ready, and picks a target in the enemy base.
+  const H = W.__rtsTest;
+  const g = H.begin(77105, "normal", "frontier", true);
+  const home = g.start[1], foe = g.start[0];
+  H.build("base", 1, home.x - 1, home.y - 1);
+  H.build("power", 1, home.x + 3, home.y - 1);
+  H.build("power", 1, home.x + 3, home.y + 2);
+  H.build("power", 1, home.x + 3, home.y + 5);
+  H.build("lab", 1, home.x - 4, home.y - 1);
+  H.build("nuke", 1, home.x - 4, home.y + 3);
+  H.build("base", 0, foe.x - 1, foe.y - 1);
+  H.build("refinery", 0, foe.x + 3, foe.y - 1);
+  H.give(1, 60000);
+  H.attachAI(1, "normal");
+  H.step(60 * 60 * 12);
+  assert.ok(H.sw(1).nuke.fired >= 1,
+    `the AI should have launched by twelve minutes (timer ${H.sw(1).nuke.t}/${W.__rtsTables.SW.nuke.charge})`);
+});

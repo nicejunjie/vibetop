@@ -119,7 +119,7 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 - ☑ v1.19.198 Harvester obeys move orders and holds; AI spaces its base
 - ☑ v1.19.199 Shroud: map starts black, stays revealed once seen; hidden enemies neither drawn nor hoverable (RA2 without fog)
 - ☑ v1.19.199 Ore regrows slowly on existing seams (2/s per tile, never spreads)
-- ☐ Superweapons / tech buildings — decide the scope against RA2's tech tree
+- ☑ Superweapons: all four built (see Phase C under Roster expansion) — timers, targeting, EVA warnings, AI use
 - ☑ AI: harvester harassment (existing), defences toward the enemy (existing), rebuilds by count (existing); target list now covers every structure type with a catch-all
 
 ### Audio
@@ -134,6 +134,14 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 - ☑ Air layer follow-ups, part 1: a killed aircraft no longer pops — it becomes a `g.wrecks` entry that falls (40 ticks, a Kirov 90, tumbling through its facings behind a smoke trail), and detonates where it lands on friend and foe alike (a Kirov as its own bomb: 250 / splash 2 / BlimpHE, straight down; a jet keeps its forward momentum). An idle Harrier/Rocketeer holds a 0.45-tile hover circle instead of freezing, and an aircraft built mid-match climbs from the ground to cruise height over 30 ticks (`born`), so a Rocketeer lifts off from the Barracks door
 - ☐ Air layer follow-ups, part 2: IFV turret swap on a Rocketeer passenger (no transports yet), Chrono Legionnaire
 - ☐ Phase C — superweapons: Chronosphere / Weather Control Device vs Iron Curtain / Nuclear Missile Silo
+- ☐ Air layer follow-ups: aircraft crash-and-burn on death (they pop now), Harrier hover-circle animation while idle in the air, Rocketeer take-off from the Barracks door, IFV turret swap on a Rocketeer passenger (no transports yet), Chrono Legionnaire
+- ☑ Phase C — superweapons, all four from real sprites, both factions (`req:'lab'`, 3x3, rules.ini cost/1000hp concrete/-200 power, one each). One charge timer per weapon PER SIDE (a second silo buys nothing, losing the charger resets it), and it only advances while the grid is powered:
+  - ☑ Chronosphere ($2500, 7:00) — pale panelled dome and house-coloured arch rails over a pod deck (`allied-chronosphere-idle.png`, aspect 1.598 vs 1.633, house 13.0-13.3%, 0% opposing); two clicks lift up to nine vehicles out of a 3x3 and drop them anywhere, infantry in the field die as in RA2.
+  - ☑ Weather Control Device ($5000, 10:00) — the great orb on its ribbed column with four corner orbs and a cross mast, lightning crawling between them (`allied-weather-control-idle.png`, aspect 1.066 vs 1.081, house 13.7-14.6%); fires a 20-second 3x3 storm of ten 200-damage bolts on `WeatherWH` under a darkened sky.
+  - ☑ Iron Curtain ($2500, 7:00) — radial house-panelled drum under an emitter sphere on struts, coils crackling (`soviet-iron-curtain-idle.png`, aspect 1.364 vs 1.366, house 15.7-16.8%); 20 seconds of true invulnerability (`damage()` voids the hit) for a 3x3 of own units and structures, and it kills the infantry under it.
+  - ☑ Nuclear Missile Silo ($5000, 10:00) — ribbed black tower on a railed apron with red trim, a service hoop and blinking hatch lamps (`soviet-nuclear-silo-idle.png`, aspect 1.146 vs 1.16, house 15.4-15.8%); ten-second flight, then 500 damage per footprint CELL falling to nothing at four tiles, mushroom cloud, ore vaporised, shroud burned off.
+  - ☑ UI: RA2-style clocks stacked in the top-left of the map (one per superweapon owned, the AI's never shown), a conic charge sweep and MM:SS, EVA on ready, click-to-target with a footprint ghost and Esc to cancel; enemy launches raise the RA2 warnings and flash the target on the minimap.
+  - ☑ AI: builds its faction's pair after the Battle Lab once the bank clears $6000 and an army stands, nukes/storms the densest enemy structure cluster (refinery weighted), curtains its wave when it commits and chronoshifts it next to the enemy refinery.
 - ☑ Tech-tree gating as RA2 (Radar/Airforce → tier 2, Battle Lab → tier 3), sidebar shows prerequisites (v1.19.209)
 
 ### Combat model (user, 2026-09-02: "攻击力和血量、装甲等等因素也要全都符合ra2")

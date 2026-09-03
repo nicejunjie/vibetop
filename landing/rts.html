@@ -159,6 +159,18 @@
 
   /* ---- selection marquee + floating hints ---- */
   #marq { position: absolute; border: 1px solid #8ad0ff; background: rgba(138,208,255,.12); pointer-events: none; display: none; }
+  /* Superweapon clocks: RA2 stacks them in the corner of the map. */
+  #swbar { position: absolute; left: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+  .swic { position: relative; width: 56px; height: 56px; border: 1px solid #3a4456; border-radius: 6px;
+          background: linear-gradient(#161d29, #0c1015); box-shadow: 0 2px 7px rgba(0,0,0,.5);
+          font: 600 10px system-ui; color: #97a3b6; text-align: center; user-select: none; overflow: hidden; }
+  .swic .arc { position: absolute; inset: -1px; pointer-events: none; }
+  .swic .em { position: relative; display: block; font-size: 21px; line-height: 1; padding-top: 9px; filter: grayscale(1) brightness(.75); }
+  .swic .cd { position: absolute; left: 0; right: 0; bottom: 4px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+  .swic.rdy { cursor: pointer; border-color: #6ee7a8; color: #d8ffe9; animation: swpulse 1.15s ease-in-out infinite; }
+  .swic.rdy .em { filter: none; }
+  .swic.arm { border-color: #ffd24a; color: #ffe9a8; animation: none; box-shadow: 0 0 0 2px rgba(255,210,74,.4); }
+  @keyframes swpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(110,231,168,.5); } 50% { box-shadow: 0 0 0 6px rgba(110,231,168,0); } }
   #tip {
     position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px;
     background: rgba(14,17,23,.86); border: 1px solid #2a3040; border-radius: 7px;
@@ -270,6 +282,7 @@
   <div id="stage">
     <canvas id="cv"></canvas>
     <div id="marq"></div>
+    <div id="swbar"></div>
     <div id="tip">Left-drag to select · Right-click to move or attack · Right-drag to pan when nothing is selected</div>
     <div id="hov" hidden><b id="hovName"></b><span id="hovSub"></span></div>
     <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
@@ -410,6 +423,8 @@
     HE:           [100,  90,  80,  70,  35,  35,  75,  40,  20],
     Shock:        [100, 100, 100,  85, 100, 100,  50,  50,  50],
     Electric:     [100, 100, 100,  85, 100, 100,  50,  50,  50],
+    WeatherWH:    [100, 100, 100,  85, 100, 100, 100, 100, 100],   // the lightning storm: Electric, but it levels buildings too
+    NukeWH:       [100, 100, 100, 100, 100, 100, 100, 100, 100],   // a nuke does not care what you are made of
     HollowPoint:  [200, 100, 100,   1,   1,   1,   1,   1,   1],
     Super:        [100, 100, 100, 100, 100, 100, 100, 100, 100],
     IvanBomb:     [100, 100, 100, 100, 100, 100, 100, 100, 100],
@@ -762,6 +777,33 @@
       armour: 'steel', gw: 1, gh: 1, hp: 900, power: -50, sight: 10, makes: null, aa: true, ag: false, flak: true, launch: 40,
       dmg: 40, rate: 80, rng: 12, splash: 1,
       wh: 'FlakWH', desc: 'Anti-air flak bursts; cannot hit ground'
+    },
+    // ---- Superweapons (RA2 rules.ini): $2500/$5000, 1000hp concrete, -200
+    // power, Battle Lab required, one each. A second silo does not stack —
+    // RA2 runs ONE timer per superweapon per player, and so do we.
+    chrono: {
+      fac: 'dir', cat: 'str', req: 'lab', sw: 'chrono',
+      name: 'Chronosphere', em: '\ud83c\udf00', cost: 2500, build: 105,
+      armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: -200, sight: 6, makes: null, max: 1,
+      desc: 'Teleports up to nine vehicles anywhere'
+    },
+    weather: {
+      fac: 'dir', cat: 'str', req: 'lab', sw: 'storm',
+      name: 'Weather Control Device', em: '\u26c8\ufe0f', cost: 5000, build: 210,
+      armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: -200, sight: 6, makes: null, max: 1,
+      desc: 'Calls a lightning storm on any target'
+    },
+    curtain: {
+      fac: 'col', cat: 'str', req: 'lab', sw: 'curtain',
+      name: 'Iron Curtain', em: '\ud83d\udee1\ufe0f', cost: 2500, build: 105,
+      armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: -200, sight: 6, makes: null, max: 1,
+      desc: 'Makes your units invulnerable for 20 seconds'
+    },
+    nuke: {
+      fac: 'col', cat: 'str', req: 'lab', sw: 'nuke',
+      name: 'Nuclear Missile Silo', em: '\u2622\ufe0f', cost: 5000, build: 210,
+      armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: -200, sight: 6, makes: null, max: 1,
+      desc: 'Launches a nuclear missile at any target'
     }
   };
 
@@ -814,12 +856,49 @@
   // yard builds one thing at a time); they are only listed separately, so the
   // list you are scanning is the list you meant to scan.
   function buildOrderFor(fac) {
-    return fac === 'col' ? ['power', 'refinery', 'barracks', 'factory', 'radar', 'depot', 'lab', 'reactor']
-                         : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'depot', 'lab', 'purifier'];
+    return fac === 'col' ? ['power', 'refinery', 'barracks', 'factory', 'radar', 'depot', 'lab', 'reactor', 'curtain', 'nuke']
+                         : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'depot', 'lab', 'purifier', 'chrono', 'weather'];
   }
   function defenceOrderFor(fac) {
     return fac === 'col' ? ['sentrygun', 'tesla', 'flakcannon'] : ['sentry', 'prism', 'patriot'];
   }
+
+  // --------------------------------------------------------------------- //
+  //  Superweapons (RA2). The structure is only the charger: the TIMER lives
+  //  on the side, so losing and rebuilding a silo restarts the countdown and
+  //  a second silo buys nothing — exactly RA2's rule. Charge times are the
+  //  rules.ini ones and only advance while the owner's grid is powered.
+  // --------------------------------------------------------------------- //
+  var SW = {
+    chrono:  { bld: 'chrono',  name: 'Chronosphere',           em: '\ud83c\udf00', charge: 60 * 60 * 7,  two: true,
+               ready: 'Chronosphere ready',
+               hint: 'Chronosphere \u2014 click the 3\u00d73 of vehicles to lift. Esc cancels.',
+               hint2: 'Chronosphere \u2014 now click where to drop them. Esc cancels.' },
+    storm:   { bld: 'weather', name: 'Weather Control Device', em: '\u26c8\ufe0f', charge: 60 * 60 * 10,
+               ready: 'Weather Control Device ready',
+               hint: 'Weather Control Device \u2014 click where the storm should form. Esc cancels.' },
+    curtain: { bld: 'curtain', name: 'Iron Curtain',           em: '\ud83d\udee1\ufe0f', charge: 60 * 60 * 7,
+               ready: 'Iron Curtain ready',
+               hint: 'Iron Curtain \u2014 click the 3\u00d73 to make invulnerable. Esc cancels.' },
+    nuke:    { bld: 'nuke',    name: 'Nuclear Missile',        em: '\u2622\ufe0f', charge: 60 * 60 * 10,
+               ready: 'Nuclear missile ready',
+               hint: 'Nuclear Missile \u2014 click the target. Esc cancels.' }
+  };
+  var SW_KEYS = ['chrono', 'storm', 'curtain', 'nuke'];
+  var IRON_T = 20 * 60, STORM_T = 20 * 60, NUKE_FLIGHT = 10 * 60;
+  function swInit() {
+    var o = {};
+    for (var i = 0; i < SW_KEYS.length; i++) o[SW_KEYS[i]] = { t: 0, ready: false, fired: 0, armed: false };
+    return o;
+  }
+  function swKeysFor(fac) {
+    var a = [];
+    for (var i = 0; i < SW_KEYS.length; i++) if (BLDS[SW[SW_KEYS[i]].bld].fac === fac) a.push(SW_KEYS[i]);
+    return a;
+  }
+  // Invulnerable under the Iron Curtain: checked by damage() before anything
+  // else, so a shot at a curtained Rhino is not merely survived, it is void.
+  function ironed(g, e) { return !!e.ironUntil && g.tick < e.ironUntil; }
   // Prerequisite check (RA2 tech tree): spec.req is one key or a list, any of.
   function reqMet(g, p, spec) {
     if (!spec.req) return true;
@@ -847,7 +926,8 @@
       ore: new Float32Array(MAP * MAP),
       occ: new Int32Array(MAP * MAP),             // entity id occupying a tile, 0 = free
       seen: new Uint8Array(MAP * MAP),            // shroud: tiles the human has ever had in sight
-      units: [], blds: [], shots: [], fx: [], wrecks: [], byId: {},
+      units: [], blds: [], shots: [], fx: [], wrecks: [], storms: [], nukes: [], byId: {},
+      flash: 0, mmFlash: null,                    // nuke whiteout + the minimap ping on an incoming superweapon
       nextId: 1,
       side: [ newSide(P_HUMAN), newSide(P_AI) ],
       focusFor: [true, true],
@@ -863,7 +943,8 @@
       powerMade: 0, powerUse: 0,
       queues: { b: newQueue(), d: newQueue(), i: newQueue(), v: newQueue(), a: newQueue() },
       pending: null,                               // a finished structure awaiting placement
-      primary: { i: 0, v: 0, a: 0 }                // building id that produces each lane (RA2 "primary")
+      primary: { i: 0, v: 0, a: 0 },               // building id that produces each lane (RA2 "primary")
+      sw: swInit()                                 // superweapon charge timers, one per weapon
     };
   }
   function newQueue() { return { list: [], prog: 0, ready: null }; }
@@ -4934,6 +5015,10 @@
     // both outgrew the shared head allowance (added on their own line so the
     // per-key `head` map above stays untouched).
     if (key === 'lab') head = 152; else if (key === 'depot') head = 88;
+    // Superweapons are the tallest things on the board: the Chronosphere's
+    // dome, the Weather Device's mast, the Curtain's emitter, the silo tower.
+    if (key === 'chrono') head = 100; else if (key === 'weather') head = 168;
+    else if (key === 'curtain') head = 124; else if (key === 'nuke') head = 152;
     var s = mkCanvas(fw * 2 + pad * 2, fh * 2 + head + pad * 2), g = s.g;
     var cx = s.w / 2, baseY = s.h - pad - fh;
 
@@ -11165,6 +11250,417 @@
       g.beginPath(); g.ellipse(fmx, fmy - 0.4, 2.6, 1.8, fkA + 1.57, 0, 6.29); g.fill();
       g.strokeStyle = '#d9dde3'; g.lineWidth = 0.8; g.stroke();
       g.lineWidth = 1;
+    } else if (key === 'chrono') {
+      // --- RA2 Chronosphere (GACSPH) --------------------------------------
+      // Rebuilt against `allied-chronosphere-idle.png` (178x109, w/h 1.63):
+      // a pale panelled DOME with a grid of blue windows filling the right of
+      // the plot, and on the left a low deck under two heavy arch rails with
+      // white capsule pods slung along them. The arches and the drum band are
+      // the HOUSE remap (the blue in the rip); the dome, the pods and the
+      // deck are fixed pale steel.
+      // Six idle phases (`bph`) bake into A.frames and are cycled by drawBld:
+      // the ring under the dome glows round, and the pod lamps run along.
+      var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
+      var ph6 = Math.round((bph || 0) * 6) % 6;
+      var CH_SH = '#dfe3ea', CH_SHD = '#9fa6b6', CH_ED = '#3a4050';
+      var CH_WIN = '#3c4454', CH_WINL = '#aab6c8';   // glass reads as glass, never as the other player's blue
+
+      // ---- the deck on the left, with its arch rails --------------------
+      var chDx = cx - fw * 0.44, chDy = baseY + fh * 0.16;
+      var chRy = prism(g, chDx, chDy, fw * 0.44, fh * 0.44, 15, '#767c72', '#8f958a', PLAT_E, [0.34, 0.68]);
+      g.fillStyle = shade(col, 0.85);                          // painted deck stripe
+      facePatch(g, faceL, chDx, chDy, fw * 0.44, fh * 0.44, 15, 0.08, 0.92, 0.62, 0.80, shade(col, 0.86), null);
+      facePatch(g, faceR, chDx, chDy, fw * 0.44, fh * 0.44, 15, 0.08, 0.92, 0.62, 0.80, shade(col, 0.66), null);
+
+      // two arch rails: a thick house-coloured hoop over the deck
+      var chArch = function (ax0, ay0, ax1, ay1, rise, w2, tone) {
+        g.strokeStyle = shade(col, tone * 0.62); g.lineWidth = w2 + 2.4; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(ax0, ay0);
+        g.quadraticCurveTo((ax0 + ax1) / 2, (ay0 + ay1) / 2 - rise, ax1, ay1); g.stroke();
+        g.strokeStyle = shade(col, tone); g.lineWidth = w2;
+        g.beginPath(); g.moveTo(ax0, ay0);
+        g.quadraticCurveTo((ax0 + ax1) / 2, (ay0 + ay1) / 2 - rise, ax1, ay1); g.stroke();
+        g.strokeStyle = shade(col, tone * 1.35); g.lineWidth = w2 * 0.32;
+        g.beginPath(); g.moveTo(ax0, ay0 - w2 * 0.3);
+        g.quadraticCurveTo((ax0 + ax1) / 2, (ay0 + ay1) / 2 - rise - w2 * 0.4, ax1, ay1 - w2 * 0.3); g.stroke();
+      };
+      chArch(chDx - fw * 0.40, chRy + fh * 0.30, chDx + fw * 0.40, chRy - fh * 0.30, 54, 8, 0.98);
+      chArch(chDx - fw * 0.16, chRy + fh * 0.40, chDx + fw * 0.52, chRy - fh * 0.16, 46, 6.4, 0.78);
+
+      // white capsule pods hung under the near rail
+      var chPod = function (px2, py2, lit) {
+        cylinder(g, px2, py2, 6.4, 15, '#e7eaf0', '#f6f8fc', CH_ED);
+        g.fillStyle = shade(col, 0.9); g.fillRect(px2 - 6.4, py2 - 11, 12.8, 3);
+        g.fillStyle = lit ? '#dbe6f2' : '#5d6472';
+        g.beginPath(); g.ellipse(px2, py2 - 6.5, 2.6, 2.6, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(px2 - 6.4, py2 - 15, 2.4, 15);
+      };
+      chPod(chDx - fw * 0.30, chRy + fh * 0.16, ph6 === 0 || ph6 === 3);
+      chPod(chDx + fw * 0.02, chRy + fh * 0.02, ph6 === 1 || ph6 === 4);
+      chPod(chDx + fw * 0.34, chRy - fh * 0.12, ph6 === 2 || ph6 === 5);
+
+      // ---- the dome -----------------------------------------------------
+      var chCx = cx + fw * 0.36, chCy = baseY + fh * 0.12, chR = fw * 0.58;
+      g.fillStyle = 'rgba(0,0,0,.28)';
+      g.beginPath(); g.ellipse(chCx + 3, chCy + 4, chR * 0.98, chR * 0.42, 0, 0, 6.29); g.fill();
+      // the chrono ring under the dome, sweeping round as it charges
+      var chGl = 0.30 + 0.55 * (0.5 + 0.5 * anS);
+      g.strokeStyle = 'rgba(202,226,246,' + chGl.toFixed(3) + ')'; g.lineWidth = 3.4;
+      g.beginPath(); g.ellipse(chCx, chCy + 1, chR * 1.02, chR * 0.44, 0, 0, 6.29); g.stroke();
+      cylinder(g, chCx, chCy, chR * 0.90, 15, shade(CH_SH, 0.72), shade(CH_SH, 0.86), CH_ED);
+      g.fillStyle = col;                                        // house band round the drum
+      g.fillRect(chCx - chR * 0.90, chCy - 12, chR * 1.80, 5);
+      g.fillStyle = 'rgba(0,0,0,.20)'; g.fillRect(chCx + chR * 0.34, chCy - 12, chR * 0.56, 5);
+
+      var chTop = chCy - 15;
+      g.fillStyle = CH_SH;
+      g.beginPath(); g.ellipse(chCx, chTop, chR, chR * 0.96, 0, Math.PI, 6.29); g.fill();
+      outline(g, CH_ED);
+      g.save();
+      g.beginPath(); g.ellipse(chCx, chTop, chR, chR * 0.96, 0, Math.PI, 6.29); g.clip();
+      g.fillStyle = 'rgba(255,255,255,.30)';                    // lit shoulder
+      g.beginPath(); g.ellipse(chCx - chR * 0.34, chTop - chR * 0.42, chR * 0.44, chR * 0.30, -0.5, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(30,36,52,.24)';                       // shaded right flank
+      g.beginPath(); g.ellipse(chCx + chR * 0.62, chTop - chR * 0.12, chR * 0.42, chR * 0.60, 0, 0, 6.29); g.fill();
+      g.strokeStyle = 'rgba(90,100,124,.42)'; g.lineWidth = 1.1;
+      for (var chI = -4; chI <= 4; chI++) {                     // meridian ribs
+        g.beginPath(); g.moveTo(chCx + chI * chR * 0.235, chTop);
+        g.quadraticCurveTo(chCx + chI * chR * 0.30, chTop - chR * 0.62, chCx, chTop - chR * 0.96);
+        g.stroke();
+      }
+      // latitude bands, and the blue window panels sitting on them
+      var chBands = [0.30, 0.56, 0.80];
+      for (var chB = 0; chB < 3; chB++) {
+        var chH = chR * chBands[chB], chRx = Math.sqrt(Math.max(1, chR * chR - chH * chH)), chYb = chTop - chH * 0.96;
+        g.strokeStyle = 'rgba(90,100,124,.36)'; g.lineWidth = 1;
+        g.beginPath(); g.ellipse(chCx, chYb, chRx, chRx * 0.34, 0, 0, 6.29); g.stroke();
+        var chN = chB === 2 ? 3 : (chB === 1 ? 5 : 6);
+        for (var chW = 0; chW < chN; chW++) {
+          var chA = (chW - (chN - 1) / 2) * (chB === 2 ? 0.62 : 0.44);
+          var wx = chCx + Math.sin(chA) * chRx, wy = chYb + Math.cos(chA) * chRx * 0.30 - 1;
+          var litW = ((chW + chB * 2 + ph6) % 5) === 0;
+          g.fillStyle = shade(CH_SHD, 0.72);
+          g.fillRect(wx - 5.4, wy - 5.4, 10.8, 10.4);
+          g.fillStyle = litW ? CH_WINL : CH_WIN;
+          g.fillRect(wx - 4.2, wy - 4.4, 8.4, 8.4);
+          g.fillStyle = 'rgba(255,255,255,.30)'; g.fillRect(wx - 4.2, wy - 4.4, 8.4, 2.2);
+        }
+      }
+      g.restore();
+      g.fillStyle = shade(CH_SH, 0.92);                          // apex cap + beacon
+      g.beginPath(); g.ellipse(chCx, chTop - chR * 0.94, 8, 3.4, 0, 0, 6.29); g.fill(); outline(g, CH_ED);
+      g.fillStyle = ph6 % 2 ? '#e2e9f1' : '#93a0b2';
+      g.beginPath(); g.arc(chCx, chTop - chR * 0.99 - 3, 2.6, 0, 6.29); g.fill();
+
+    } else if (key === 'weather') {
+      // --- RA2 Weather Control Device (GAWEAT) ----------------------------
+      // Rebuilt against `allied-weather-control-idle.png` (146x135, w/h 1.08):
+      // a pale octagonal deck, a big dark steel ORB on a ribbed column with a
+      // white cross mast on top, and four smaller orbs on stubby legs at the
+      // deck's corners. Six idle phases arc lightning between the small orbs
+      // and the big one and swing the mast's beacon.
+      var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
+      var ph6 = Math.round((bph || 0) * 6) % 6;
+      var WD_ORB = '#3f4348', WD_ORBL = '#9fa4ab', WD_ORBD = '#1d1f22', WD_ED = '#24262a';
+      var WD_DK = '#b9bec6';
+
+      // ---- octagonal deck -----------------------------------------------
+      g.fillStyle = WD_DK;
+      g.beginPath();
+      for (var wdO = 0; wdO < 8; wdO++) {
+        var wa = wdO * 0.7854 + 0.3927;
+        var wx2 = cx + Math.cos(wa) * fw * 0.94, wy2 = baseY + Math.sin(wa) * fh * 0.94;
+        if (wdO) g.lineTo(wx2, wy2); else g.moveTo(wx2, wy2);
+      }
+      g.closePath(); g.fill(); outline(g, '#5c6068');
+      g.strokeStyle = shade(col, 0.86); g.lineWidth = 3;          // painted deck rim, the rip's house ring
+      g.stroke();
+      g.save(); g.clip();
+      g.strokeStyle = 'rgba(70,76,86,.28)'; g.lineWidth = 1;
+      for (var wdG = -3; wdG <= 3; wdG++) {
+        g.beginPath(); g.moveTo(cx + wdG * 22 - fw, baseY + wdG * 11 + fh); g.lineTo(cx + wdG * 22 + fw, baseY + wdG * 11 - fh); g.stroke();
+        g.beginPath(); g.moveTo(cx - wdG * 22 - fw, baseY - wdG * 11 + fh); g.lineTo(cx - wdG * 22 + fw, baseY - wdG * 11 - fh); g.stroke();
+      }
+      // the house-coloured landing chevron the rip carries on the near deck
+      g.fillStyle = shade(col, 0.92);
+      g.beginPath();
+      g.moveTo(cx - 26, baseY + fh * 0.44); g.lineTo(cx, baseY + fh * 0.20);
+      g.lineTo(cx + 26, baseY + fh * 0.44); g.lineTo(cx + 26, baseY + fh * 0.60);
+      g.lineTo(cx, baseY + fh * 0.36); g.lineTo(cx - 26, baseY + fh * 0.60);
+      g.closePath(); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.55)';
+      g.fillRect(cx - 30, baseY + fh * 0.66, 60, 2.6);
+      g.restore();
+
+      // ---- four corner orbs ---------------------------------------------
+      var wdSmall = [];
+      var wdOrb = function (ox2, oy2, r2) {
+        cylinder(g, ox2, oy2, r2 * 0.56, r2 * 0.9, '#767d88', '#8b929d', WD_ED);   // stubby leg
+        g.fillStyle = shade(col, 0.9);
+        g.fillRect(ox2 - r2 * 0.60, oy2 - r2 * 0.9 - 2, r2 * 1.2, 2.6);            // house collar
+        var oc = oy2 - r2 * 0.9 - r2 * 0.86;
+        g.fillStyle = WD_ORB;
+        g.beginPath(); g.arc(ox2, oc, r2, 0, 6.29); g.fill(); outline(g, WD_ED);
+        g.fillStyle = 'rgba(220,230,244,.30)';
+        g.beginPath(); g.ellipse(ox2 - r2 * 0.32, oc - r2 * 0.34, r2 * 0.44, r2 * 0.32, -0.6, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(0,0,0,.26)';
+        g.beginPath(); g.ellipse(ox2 + r2 * 0.40, oc + r2 * 0.28, r2 * 0.44, r2 * 0.40, 0, 0, 6.29); g.fill();
+        g.strokeStyle = WD_ORBD; g.lineWidth = 1.2;                                 // banding
+        g.beginPath(); g.ellipse(ox2, oc, r2, r2 * 0.34, 0, 0, 6.29); g.stroke();
+        g.fillStyle = '#cfd8e4';                                                    // emitter stud
+        g.beginPath(); g.arc(ox2, oc - r2 * 0.92, 1.9, 0, 6.29); g.fill();
+        wdSmall.push([ox2, oc - r2 * 0.92]);
+      };
+      wdOrb(cx - fw * 0.52, baseY + fh * 0.10, 11);
+      wdOrb(cx + fw * 0.52, baseY + fh * 0.10, 11);
+      wdOrb(cx - fw * 0.16, baseY + fh * 0.52, 11.5);
+      wdOrb(cx + fw * 0.16, baseY + fh * 0.52, 11.5);
+
+      // ---- the column and the great orb ---------------------------------
+      var wdCy = baseY + fh * 0.04;
+      cylinder(g, cx, wdCy, fw * 0.19, 40, '#6f7681', '#868d99', WD_ED);
+      g.strokeStyle = 'rgba(24,28,36,.42)'; g.lineWidth = 1;
+      for (var wdR = 1; wdR <= 3; wdR++) {
+        g.beginPath(); g.moveTo(cx - fw * 0.19, wdCy - wdR * 11); g.lineTo(cx + fw * 0.19, wdCy - wdR * 11); g.stroke();
+      }
+      g.fillStyle = col;                                          // house band on the column
+      g.fillRect(cx - fw * 0.20, wdCy - 24, fw * 0.40, 5);
+      g.fillStyle = 'rgba(0,0,0,.20)'; g.fillRect(cx + fw * 0.07, wdCy - 24, fw * 0.13, 5);
+
+      var wdR2 = fw * 0.42, wdOy = wdCy - 40 - wdR2 * 0.80;
+      g.fillStyle = WD_ORB;
+      g.beginPath(); g.arc(cx, wdOy, wdR2, 0, 6.29); g.fill(); outline(g, WD_ED);
+      g.save(); g.beginPath(); g.arc(cx, wdOy, wdR2, 0, 6.29); g.clip();
+      g.fillStyle = 'rgba(216,228,244,.34)';
+      g.beginPath(); g.ellipse(cx - wdR2 * 0.34, wdOy - wdR2 * 0.36, wdR2 * 0.46, wdR2 * 0.32, -0.6, 0, 6.29); g.fill();
+      g.fillStyle = 'rgba(0,0,0,.30)';
+      g.beginPath(); g.ellipse(cx + wdR2 * 0.44, wdOy + wdR2 * 0.30, wdR2 * 0.50, wdR2 * 0.46, 0, 0, 6.29); g.fill();
+      g.strokeStyle = 'rgba(18,22,28,.50)'; g.lineWidth = 1.4;    // meridian + equator seams
+      g.beginPath(); g.ellipse(cx, wdOy, wdR2, wdR2 * 0.32, 0, 0, 6.29); g.stroke();
+      g.beginPath(); g.ellipse(cx, wdOy, wdR2 * 0.30, wdR2, 0, 0, 6.29); g.stroke();
+      g.fillStyle = 'rgba(216,228,242,' + (0.16 + 0.34 * (0.5 + 0.5 * anS)).toFixed(3) + ')';
+      g.beginPath(); g.ellipse(cx, wdOy + wdR2 * 0.10, wdR2 * 0.70, wdR2 * 0.24, 0, 0, 6.29); g.fill();
+      g.fillStyle = shade(col, 0.92);                             // house band across the equator
+      g.fillRect(cx - wdR2, wdOy - 3, wdR2 * 2, 6);
+      g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(cx + wdR2 * 0.34, wdOy - 3, wdR2 * 0.66, 6);
+      g.restore();
+      g.fillStyle = shade(col, 0.94);                              // house ring where it meets the mast
+      g.beginPath(); g.ellipse(cx, wdOy - wdR2 * 0.82, wdR2 * 0.40, wdR2 * 0.15, 0, 0, 6.29); g.fill();
+
+      // white cross mast
+      g.strokeStyle = '#e9edf3'; g.lineWidth = 3.4; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(cx, wdOy - wdR2 * 0.86); g.lineTo(cx, wdOy - wdR2 - 16); g.stroke();
+      g.lineWidth = 2.6;
+      g.beginPath(); g.moveTo(cx - 12, wdOy - wdR2 - 9); g.lineTo(cx + 12, wdOy - wdR2 - 9); g.stroke();
+      g.fillStyle = ph6 % 3 === 0 ? '#dff0ff' : '#93a3b8';
+      g.beginPath(); g.arc(cx, wdOy - wdR2 - 17.5, 2.6, 0, 6.29); g.fill();
+
+      // ---- idle: lightning crawling from the small orbs to the great one --
+      for (var wdL = 0; wdL < wdSmall.length; wdL++) {
+        if ((wdL + ph6) % 4 > 1) continue;
+        var sxp = wdSmall[wdL][0], syp = wdSmall[wdL][1];
+        var exp2 = cx + (sxp < cx ? -1 : 1) * wdR2 * 0.44, eyp = wdOy + wdR2 * 0.44;
+        for (var wdP = 0; wdP < 2; wdP++) {
+          g.strokeStyle = wdP ? 'rgba(240,246,254,.92)' : 'rgba(208,222,250,.45)';
+          g.lineWidth = wdP ? 1.2 : 3.6; g.lineJoin = 'round';
+          g.beginPath(); g.moveTo(sxp, syp);
+          for (var wdK = 1; wdK < 6; wdK++) {
+            var wq = wdK / 6;
+            g.lineTo(sxp + (exp2 - sxp) * wq + Math.sin(wdK * 3.1 + wdL * 2.2 + anP) * 5 * (1 - Math.abs(wq - 0.5) * 1.4),
+                     syp + (eyp - syp) * wq + Math.cos(wdK * 2.6 + wdL) * 3);
+          }
+          g.lineTo(exp2, eyp); g.stroke();
+        }
+      }
+
+    } else if (key === 'curtain') {
+      // --- RA2 Iron Curtain Device (NACURE) -------------------------------
+      // Rebuilt against `soviet-iron-curtain-idle.png` (138x101, w/h 1.37): a
+      // round drum of RED radial panels, a heavy dark emitter sphere carried
+      // over it on two red struts, and cable spools round the rim. The red is
+      // the HOUSE remap in the rip, so it follows the owner; the sphere, the
+      // spools and the deck plate are fixed dark steel.
+      // Six idle phases crackle the coils and roll the charge round the drum.
+      var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
+      var ph6 = Math.round((bph || 0) * 6) % 6;
+      var IC_ST = '#767c86', IC_STD = '#2a2e36', IC_DRK = '#22262d';
+
+      // ---- the drum ------------------------------------------------------
+      var icCy = baseY + fh * 0.16, icR = fw * 0.74;
+      g.fillStyle = 'rgba(0,0,0,.30)';
+      g.beginPath(); g.ellipse(cx + 3, icCy + 4, icR, icR * 0.44, 0, 0, 6.29); g.fill();
+      cylinder(g, cx, icCy, icR, 17, shade(IC_ST, 0.82), '#5f656e', IC_STD);
+      // radial red panels across the drum head
+      g.save();
+      g.beginPath(); g.ellipse(cx, icCy - 17, icR, icR * 0.42, 0, 0, 6.29); g.clip();
+      for (var icP = 0; icP < 8; icP++) {
+        var ia = icP * 0.7854 + 0.10;
+        g.strokeStyle = ((icP + ph6) % 4 === 0) ? shade(col, 1.25) : col;
+        g.lineWidth = 3.2;
+        g.beginPath(); g.moveTo(cx, icCy - 17);
+        g.lineTo(cx + Math.cos(ia) * icR, icCy - 17 + Math.sin(ia) * icR * 0.42); g.stroke();
+      }
+      g.strokeStyle = 'rgba(20,24,30,.40)'; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(cx, icCy - 17, icR * 0.55, icR * 0.23, 0, 0, 6.29); g.stroke();
+      g.restore();
+      g.fillStyle = shade(col, 0.60);                            // rim band round the drum wall
+      g.fillRect(cx - icR, icCy - 15, icR * 2, 3.2);
+      g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(cx + icR * 0.36, icCy - 15, icR * 0.64, 3.2);
+      g.fillStyle = IC_DRK;                                      // central hub
+      g.beginPath(); g.ellipse(cx, icCy - 18, icR * 0.24, icR * 0.10, 0, 0, 6.29); g.fill(); outline(g, '#0e1116');
+
+      // cable spools round the rim
+      var icSpool = function (spx, spy) {
+        cylinder(g, spx, spy, 6.6, 8.4, '#4a505a', '#606773', IC_STD);
+        g.strokeStyle = 'rgba(16,18,22,.55)'; g.lineWidth = 1;
+        g.beginPath(); g.moveTo(spx - 6.6, spy - 4.4); g.lineTo(spx + 6.6, spy - 4.4); g.stroke();
+      };
+      icSpool(cx - icR * 0.74, icCy + icR * 0.20);
+      icSpool(cx + icR * 0.74, icCy + icR * 0.20);
+      icSpool(cx, icCy + icR * 0.36);
+
+      // ---- struts and the emitter sphere ---------------------------------
+      var icOy = icCy - 58, icOr = fw * 0.29;
+      var icStrut = function (sx0, tone) {
+        g.strokeStyle = shade(col, tone * 0.58); g.lineWidth = 9.5; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(cx + sx0, icCy - 12); g.lineTo(cx + sx0 * 0.34, icOy + icOr * 0.55); g.stroke();
+        g.strokeStyle = shade(col, tone); g.lineWidth = 6.4;
+        g.beginPath(); g.moveTo(cx + sx0, icCy - 12); g.lineTo(cx + sx0 * 0.34, icOy + icOr * 0.55); g.stroke();
+        g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1.6;
+        g.beginPath(); g.moveTo(cx + sx0 - 1.4, icCy - 12); g.lineTo(cx + sx0 * 0.34 - 1.4, icOy + icOr * 0.55); g.stroke();
+      };
+      icStrut(-icR * 0.72, 1.0);
+      icStrut(icR * 0.72, 0.74);
+
+      g.fillStyle = IC_DRK;
+      g.beginPath(); g.arc(cx, icOy, icOr, 0, 6.29); g.fill(); outline(g, '#0c0e12');
+      g.save(); g.beginPath(); g.arc(cx, icOy, icOr, 0, 6.29); g.clip();
+      g.fillStyle = 'rgba(198,212,232,.28)';
+      g.beginPath(); g.ellipse(cx - icOr * 0.34, icOy - icOr * 0.36, icOr * 0.46, icOr * 0.32, -0.6, 0, 6.29); g.fill();
+      g.strokeStyle = 'rgba(120,132,150,.34)'; g.lineWidth = 1.2;
+      g.beginPath(); g.ellipse(cx, icOy, icOr, icOr * 0.34, 0, 0, 6.29); g.stroke();
+      g.beginPath(); g.ellipse(cx, icOy, icOr * 0.32, icOr, 0, 0, 6.29); g.stroke();
+      g.fillStyle = 'rgba(226,232,240,' + (0.10 + 0.30 * (0.5 + 0.5 * anS)).toFixed(3) + ')';
+      g.beginPath(); g.ellipse(cx, icOy + icOr * 0.18, icOr * 0.62, icOr * 0.26, 0, 0, 6.29); g.fill();
+      g.restore();
+      g.fillStyle = shade(col, 0.88);                            // collar where the struts meet it
+      g.beginPath(); g.ellipse(cx, icOy + icOr * 0.72, icOr * 0.56, icOr * 0.18, 0, 0, 6.29); g.fill();
+      g.fillStyle = IC_DRK;                                      // top emitter horn
+      g.beginPath();
+      g.moveTo(cx - 5, icOy - icOr * 0.92); g.lineTo(cx + 5, icOy - icOr * 0.92);
+      g.lineTo(cx + 3, icOy - icOr - 9); g.lineTo(cx - 3, icOy - icOr - 9);
+      g.closePath(); g.fill(); outline(g, '#0c0e12');
+      g.fillStyle = ph6 % 2 ? shade(col, 1.42) : shade(col, 0.78);
+      g.beginPath(); g.arc(cx, icOy - icOr - 10.5, 2.4, 0, 6.29); g.fill();
+
+      // idle: the coil crackle between the struts' heads and the sphere
+      for (var icB = 0; icB < 2; icB++) {
+        if (((icB + ph6) % 3) === 2) continue;
+        var bx0 = cx + (icB ? 1 : -1) * icR * 0.72, by0 = icCy - 12;
+        var bx1 = cx + (icB ? 1 : -1) * icOr * 0.50, by1 = icOy + icOr * 0.30;
+        for (var icQ = 0; icQ < 2; icQ++) {
+          g.strokeStyle = icQ ? 'rgba(252,240,240,.85)' : 'rgba(250,214,214,.32)';
+          g.lineWidth = icQ ? 1.1 : 3.2; g.lineJoin = 'round';
+          g.beginPath(); g.moveTo(bx0, by0);
+          for (var icK = 1; icK < 6; icK++) {
+            var iq = icK / 6;
+            g.lineTo(bx0 + (bx1 - bx0) * iq + Math.sin(icK * 2.9 + icB * 1.7 + anP) * 6 * (1 - Math.abs(iq - 0.5) * 1.4),
+                     by0 + (by1 - by0) * iq);
+          }
+          g.lineTo(bx1, by1); g.stroke();
+        }
+      }
+
+    } else if (key === 'nuke') {
+      // --- RA2 Nuclear Missile Silo (NAMISL) ------------------------------
+      // Rebuilt against `soviet-nuclear-silo-idle.png` (152x131, w/h 1.16): a
+      // near-black ribbed TOWER on a broad pale concrete apron with railings,
+      // red trim bands under its head, a big red service hoop on the front
+      // face, and the split hatch doors on the roof. Red is the HOUSE remap;
+      // the tower, apron and rails are fixed. Six idle phases blink the hatch
+      // lights and pulse the seam between the doors.
+      var anP = (bph || 0) * 6.283, anS = Math.sin(anP);
+      var ph6 = Math.round((bph || 0) * 6) % 6;
+      var NS_W = '#33302e', NS_WL = '#494340', NS_R = '#3c3936', NS_ED = '#141312';
+
+      // ---- apron + railings ----------------------------------------------
+      diamond(g, cx, baseY + 3, fw * 2.02, fh * 2.02);
+      g.fillStyle = '#a7a89c'; g.fill(); outline(g, '#5a5b52');
+      diamond(g, cx, baseY, fw * 1.88, fh * 1.88);
+      g.fillStyle = '#bcbdb0'; g.fill(); outline(g, '#63645a');
+      g.save(); diamond(g, cx, baseY, fw * 1.88, fh * 1.88); g.clip();
+      g.strokeStyle = 'rgba(80,82,74,.32)'; g.lineWidth = 1;
+      for (var nsS = -3; nsS <= 3; nsS++) {
+        g.beginPath(); g.moveTo(cx + nsS * 26 - fw, baseY + nsS * 13 + fh); g.lineTo(cx + nsS * 26 + fw, baseY + nsS * 13 - fh); g.stroke();
+        g.beginPath(); g.moveTo(cx - nsS * 26 - fw, baseY - nsS * 13 + fh); g.lineTo(cx - nsS * 26 + fw, baseY - nsS * 13 - fh); g.stroke();
+      }
+      g.restore();
+      g.strokeStyle = shade(col, 0.72); g.lineWidth = 2.2;           // painted apron kerb
+      diamond(g, cx, baseY, fw * 1.88, fh * 1.88); g.stroke();
+      railing(g, cx - fw * 0.94, baseY, cx, baseY + fh * 0.94, 9, 'rgba(96,98,90,.9)');
+      railing(g, cx, baseY + fh * 0.94, cx + fw * 0.94, baseY, 9, 'rgba(96,98,90,.9)');
+
+      // ---- the tower -----------------------------------------------------
+      var nsBy = baseY - fh * 0.06, nsHw = fw * 0.50, nsHh = fh * 0.50, nsLift = 84;
+      g.fillStyle = 'rgba(0,0,0,.34)';
+      diamond(g, cx + 5, nsBy + 6, nsHw * 2, nsHh * 2); g.fill();
+      var nsRy = prism(g, cx, nsBy, nsHw, nsHh, nsLift, NS_W, NS_R, NS_ED, [0.30, 0.62]);
+      // vertical ribbing on both walls
+      for (var nsC = 1; nsC < 7; nsC++) {
+        var nt = nsC / 7;
+        facePatch(g, faceL, cx, nsBy, nsHw, nsHh, nsLift, nt - 0.018, nt + 0.018, 0.02, 0.94, 'rgba(255,255,255,.06)', null);
+        facePatch(g, faceR, cx, nsBy, nsHw, nsHh, nsLift, nt - 0.018, nt + 0.018, 0.02, 0.94, 'rgba(0,0,0,.16)', null);
+      }
+      // lit slit windows
+      for (var nsWv = 0; nsWv < 3; nsWv++) {
+        var nv = 0.30 + nsWv * 0.21;
+        facePatch(g, faceL, cx, nsBy, nsHw, nsHh, nsLift, 0.16, 0.84, nv, nv + 0.035, 'rgba(226,196,120,' + (0.22 + (nsWv === ph6 % 3 ? 0.34 : 0)).toFixed(2) + ')', null);
+      }
+      // red trim bands under the head, on both faces
+      [[faceL, 1.0], [faceR, 0.74]].forEach(function (F) {
+        facePatch(g, F[0], cx, nsBy, nsHw, nsHh, nsLift, 0.02, 0.98, 0.840, 0.892, shade(col, F[1]), null);
+        facePatch(g, F[0], cx, nsBy, nsHw, nsHh, nsLift, 0.02, 0.98, 0.920, 0.962, shade(col, F[1] * 0.72), null);
+        facePatch(g, F[0], cx, nsBy, nsHw, nsHh, nsLift, 0.02, 0.98, 0.024, 0.054, shade(col, F[1] * 0.60), null);
+      });
+      // the big service hoop on the left face
+      var nsA = faceL(cx, nsBy, nsHw, nsHh, nsLift, 0.20, 0.10), nsB = faceL(cx, nsBy, nsHw, nsHh, nsLift, 0.82, 0.10);
+      var nsM = faceL(cx, nsBy, nsHw, nsHh, nsLift, 0.51, 0.62);
+      g.strokeStyle = shade(col, 0.60); g.lineWidth = 7.6; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(nsA[0], nsA[1]); g.quadraticCurveTo(nsM[0], nsM[1], nsB[0], nsB[1]); g.stroke();
+      g.strokeStyle = col; g.lineWidth = 4.6;
+      g.beginPath(); g.moveTo(nsA[0], nsA[1]); g.quadraticCurveTo(nsM[0], nsM[1], nsB[0], nsB[1]); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.20)'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(nsA[0], nsA[1] - 1.6); g.quadraticCurveTo(nsM[0], nsM[1] - 1.8, nsB[0], nsB[1] - 1.6); g.stroke();
+
+      // ---- roof: the split hatch doors + lights ---------------------------
+      diamond(g, cx, nsRy - 3, nsHw * 1.70, nsHh * 1.70);
+      g.fillStyle = '#2a2724'; g.fill(); outline(g, '#0f0e0d');
+      g.strokeStyle = shade(col, 0.86); g.lineWidth = 2.6;           // painted hatch frame
+      diamond(g, cx, nsRy - 3, nsHw * 1.70, nsHh * 1.70); g.stroke();
+      g.save(); diamond(g, cx, nsRy - 3, nsHw * 1.70, nsHh * 1.70); g.clip();
+      g.fillStyle = '#1b1917';
+      g.beginPath();
+      g.moveTo(cx - nsHw * 0.86, nsRy - 3); g.lineTo(cx, nsRy - 3 - nsHh * 0.86);
+      g.lineTo(cx + nsHw * 0.86, nsRy - 3); g.lineTo(cx, nsRy - 3 + nsHh * 0.86);
+      g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(255,168,96,' + (0.30 + 0.50 * (0.5 + 0.5 * anS)).toFixed(3) + ')';
+      g.lineWidth = 2.2;
+      g.beginPath(); g.moveTo(cx - nsHw * 0.80, nsRy - 3 + nsHh * 0.06); g.lineTo(cx + nsHw * 0.80, nsRy - 3 - nsHh * 0.06); g.stroke();
+      g.restore();
+      // four hatch lamps that run round the rim
+      for (var nsL = 0; nsL < 4; nsL++) {
+        var nlx = cx + [-1, 0, 1, 0][nsL] * nsHw * 0.92, nly = nsRy - 3 + [0, 1, 0, -1][nsL] * nsHh * 0.92;
+        g.fillStyle = (nsL === ph6 % 4) ? shade(col, 1.35) : shade(col, 0.62);
+        g.beginPath(); g.arc(nlx, nly, 2.8, 0, 6.29); g.fill();
+        g.strokeStyle = '#15130f'; g.lineWidth = 0.8; g.stroke();
+      }
+      // vent mast
+      g.fillStyle = '#3b3835';
+      g.fillRect(cx + nsHw * 0.42, nsRy - 20, 5.4, 20); outline(g, NS_ED);
+      g.fillStyle = '#191715';
+      g.beginPath(); g.ellipse(cx + nsHw * 0.42 + 2.7, nsRy - 20, 3.4, 1.5, 0, 0, 6.29); g.fill();
+      steam(g, cx + nsHw * 0.42 + 2.7, nsRy - 24, 4, 3);
+
     } else {
       // Placeholder until the item's real-sprite branch lands: a drab block
       // the size of the footprint with a house-colour band, never shipped as
@@ -11352,7 +11848,8 @@
           if (k === 'base' || k === 'power' || k === 'refinery' || k === 'factory' || k === 'barracks'
               || k === 'airforce' || k === 'radar' || k === 'depot' || k === 'lab' || k === 'purifier' || k === 'reactor'
               || k === 'sentry' || k === 'sentrygun' || k === 'prism' || k === 'tesla'
-              || k === 'patriot' || k === 'flakcannon') {
+              || k === 'patriot' || k === 'flakcannon'
+              || k === 'chrono' || k === 'weather' || k === 'curtain' || k === 'nuke') {
             // The yard's crane works: six phases, cycled by drawBld like the
             // RA2 idle animation. The bbox is the union so the brackets and
             // the build-up clip cover every phase.
@@ -11663,6 +12160,7 @@
   }
 
   function damage(g, src, tgt, amount, wh) {
+    if (ironed(g, tgt)) return;                 // Iron Curtain: the hit never lands
     var spec = src.kind === 'b' ? BLDS[src.type] : UNITS[src.type];
     if (wh === undefined) wh = spec.wh;
     var mult = wh ? verses(wh, armourOf(tgt)) : 1;
@@ -11739,6 +12237,177 @@
       if (dd <= spl) damage(g, src, o, dmg * (1 - dd / (spl + 0.8)), wh);
     });
   }
+
+  // --------------------------------------------------------------------- //
+  //  Superweapon runtime: charge, target, fire.
+  // --------------------------------------------------------------------- //
+  // Every entity in a radius, buildings included. The spatial hash is tuned
+  // for unit-sized queries; a nuke reaches four tiles across three-tile
+  // footprints, so this walks the lists instead of the grid.
+  function swNear(g, x, y, r, fn) {
+    var i;
+    for (i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      if (u.dead) continue;
+      if (Math.abs(u.x - x) <= r && Math.abs(u.y - y) <= r) fn(u, Math.sqrt((u.x - x) * (u.x - x) + (u.y - y) * (u.y - y)));
+    }
+    for (i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (b.dead) continue;
+      if (Math.abs(b.cx - x) <= r + b.gw && Math.abs(b.cy - y) <= r + b.gh)
+        fn(b, Math.sqrt((b.cx - x) * (b.cx - x) + (b.cy - y) * (b.cy - y)));
+    }
+  }
+  function entX(e) { return e.kind === 'b' ? e.cx : e.x; }
+  function entY(e) { return e.kind === 'b' ? e.cy : e.y; }
+  function isInf(u) { return u.kind === 'u' && UNITS[u.type].cls === 'i'; }
+  function isVeh(u) { return u.kind === 'u' && UNITS[u.type].cls === 'v' && !u.air; }
+
+  // The countdown. RA2 charges a superweapon only while the base has power,
+  // and a destroyed charger loses the progress with it.
+  function stepSW(g, p) {
+    var s = g.side[p], pw = powered(g, p);
+    for (var i = 0; i < SW_KEYS.length; i++) {
+      var k = SW_KEYS[i], st = s.sw[k];
+      if (!hasBld(g, p, SW[k].bld)) { st.t = 0; st.ready = false; st.armed = false; continue; }
+      if (st.ready || !pw) continue;
+      if (++st.t >= SW[k].charge) {
+        st.t = SW[k].charge; st.ready = true;
+        if (p === P_HUMAN) {
+          eva(SW[k].ready, 60000); sfx('promote');
+          say(SW[k].name + ' ready — click its icon top-left, then the map', false, 300);
+        }
+      }
+    }
+  }
+
+  function stepSuper(g) {
+    stepSW(g, P_HUMAN); stepSW(g, P_AI);
+    var i;
+    for (i = g.storms.length - 1; i >= 0; i--) if (stepStorm(g, g.storms[i])) g.storms.splice(i, 1);
+    for (i = g.nukes.length - 1; i >= 0; i--) if (stepNuke(g, g.nukes[i])) g.nukes.splice(i, 1);
+    if (g.flash > 0) g.flash--;
+    if (g.mmFlash && g.tick > g.mmFlash.until) g.mmFlash = null;
+  }
+
+  // Ten bolts over twenty seconds inside a 3x3, each 200 damage on the
+  // Electric-style WeatherWH (which, unlike a Tesla Coil, is at full strength
+  // against concrete).
+  function stepStorm(g, st) {
+    st.t++;
+    if (st.t >= st.next && st.left > 0) {
+      st.left--;
+      st.next = st.t + 96 + rint(28);
+      var bx = st.x + (rnd() * 3 - 1.5), by = st.y + (rnd() * 3 - 1.5);
+      var src = { kind: 'b', type: 'weather', p: st.p };
+      swNear(g, bx, by, 1.6, function (e, d) {
+        if (isAir(e)) return;                                    // the storm strikes the ground
+        if (e.kind === 'b') { if (d > 1.4 + Math.max(e.gw, e.gh) / 2) return; }
+        else if (d > 1.1) return;
+        damage(g, src, e, 200, 'WeatherWH');
+      });
+      if (!headless) {
+        g.fx.push({ x: bx, y: by, t: 0, life: 14, bolt: true, seed: (g.tick * 7 + st.left * 31) | 0 });
+        g.fx.push({ x: bx, y: by, t: 0, life: 20, size: 16 });
+      }
+      sfx('boom');
+    }
+    return st.t > st.life;
+  }
+
+  // The missile flies for ten seconds, then a falling blast: RA2's warhead
+  // applies per CELL, so a three-by-three refinery over ground zero eats far
+  // more of it than a pillbox does. 500 at the centre, nothing at four tiles.
+  function stepNuke(g, nk) {
+    nk.t++;
+    if (nk.t < nk.life) return false;
+    var src = { kind: 'b', type: 'nuke', p: nk.p }, x = nk.x, y = nk.y;
+    swNear(g, x, y, 5.5, function (e) {
+      var tot = 0, x0 = e.kind === 'b' ? e.x : Math.round(e.x), y0 = e.kind === 'b' ? e.y : Math.round(e.y);
+      var w = e.kind === 'b' ? e.gw : 1, h = e.kind === 'b' ? e.gh : 1;
+      for (var ty = 0; ty < h; ty++) for (var tx = 0; tx < w; tx++) {
+        var px = e.kind === 'b' ? x0 + tx : e.x, py = e.kind === 'b' ? y0 + ty : e.y;
+        var d = Math.sqrt((px - x) * (px - x) + (py - y) * (py - y));
+        if (d < 4) tot += 500 * (1 - d / 4);
+      }
+      if (tot > 0) damage(g, src, e, tot, 'NukeWH');
+    });
+    // Ore in the blast is simply gone, and the flash burns the shroud off.
+    for (var oy = Math.max(0, (y - 6) | 0); oy <= Math.min(MAP - 1, y + 6); oy++)
+      for (var ox = Math.max(0, (x - 6) | 0); ox <= Math.min(MAP - 1, x + 6); ox++) {
+        var dd = Math.sqrt((ox - x) * (ox - x) + (oy - y) * (oy - y));
+        var ii = idx(ox, oy);
+        if (dd <= 4 && g.terrain[ii] === T_ORE) { g.terrain[ii] = T_GROUND; g.ore[ii] = 0; }
+        g.seen[ii] = 1;                                  // the flash burns the shroud off
+      }
+    if (!headless) {
+      g.fx.push({ x: x, y: y, t: 0, life: 96, mush: true });
+      g.fx.push({ x: x, y: y, t: 0, life: 40, size: 46 });
+      g.flash = 26;
+    }
+    sfx('boom');
+    if (nk.p !== P_HUMAN) { eva('Nuclear missile impact', 20000); say('Nuclear detonation', true, 260); }
+    return true;
+  }
+
+  // Fire one. Returns false if it was not charged — every path (icon, AI,
+  // test hook) goes through here, so the timer can only be spent once.
+  function swFire(g, p, key, x, y, x2, y2) {
+    var s = g.side[p], st = s.sw[key];
+    if (!st || !st.ready) return false;
+    if (!inMap(Math.round(x), Math.round(y))) return false;
+    st.ready = false; st.t = 0; st.armed = false; st.fired++;
+    var mine = p === P_HUMAN, W = SW[key], i, u;
+    if (key === 'storm') {
+      g.storms.push({ p: p, x: x, y: y, t: 0, life: STORM_T, next: 20, left: 10 });
+      if (mine) eva('Lightning storm created', 20000);
+      else { eva('Warning: lightning storm created', 20000); say('Warning — lightning storm created', true, 300); mmPing(g, x, y); }
+    } else if (key === 'nuke') {
+      g.nukes.push({ p: p, x: x, y: y, t: 0, life: NUKE_FLIGHT });
+      if (mine) { eva('Nuclear missile launched', 20000); say('Nuclear missile launched', false, 300); }
+      else { eva('Warning: nuclear missile launched', 20000); say('WARNING — nuclear missile launched', true, 400); mmPing(g, x, y); }
+    } else if (key === 'curtain') {
+      var n = 0;
+      for (i = 0; i < g.units.length; i++) {
+        u = g.units[i];
+        if (u.dead || u.p !== p || Math.abs(u.x - x) > 1.5 || Math.abs(u.y - y) > 1.5) continue;
+        // RA2: the Iron Curtain kills the infantry it is thrown over.
+        if (isInf(u)) { u.dead = true; g.side[p].lost++; boom(g, u.x, u.y, 12); continue; }
+        u.ironUntil = g.tick + IRON_T; n++;
+      }
+      for (i = 0; i < g.blds.length; i++) {
+        var b = g.blds[i];
+        if (b.dead || b.p !== p || Math.abs(b.cx - x) > 1.5 + b.gw / 2 || Math.abs(b.cy - y) > 1.5 + b.gh / 2) continue;
+        b.ironUntil = g.tick + IRON_T; n++;
+      }
+      if (mine) { eva('Iron Curtain activated', 20000); say('Iron Curtain — ' + n + ' invulnerable for 20 seconds', false, 260); }
+      else { eva('Warning: enemy Iron Curtain activated', 20000); mmPing(g, x, y); }
+    } else if (key === 'chrono') {
+      var lift = [];
+      for (i = 0; i < g.units.length; i++) {
+        u = g.units[i];
+        if (u.dead || u.p !== p || Math.abs(u.x - x) > 1.5 || Math.abs(u.y - y) > 1.5) continue;
+        // RA2 chronoshifts vehicles; infantry that stand in the field die.
+        if (isInf(u)) { u.dead = true; g.side[p].lost++; boom(g, u.x, u.y, 12); continue; }
+        if (isVeh(u) && lift.length < 9) lift.push(u);
+      }
+      for (i = 0; i < lift.length; i++) {
+        u = lift[i];
+        var nx = Math.round(x2 + (u.x - x)), ny = Math.round(y2 + (u.y - y));
+        var sp = freeTileNear(g, Math.max(0, Math.min(MAP - 1, nx)), Math.max(0, Math.min(MAP - 1, ny)));
+        if (!sp) continue;
+        if (!headless) g.fx.push({ x: u.x, y: u.y, t: 0, life: 24, chrono: true });
+        u.x = sp.x; u.y = sp.y; u.path = null; u.pi = 0; u.order = null; u.repathAt = -999;
+        u.guardX = sp.x; u.guardY = sp.y; u.target = null;
+        if (!headless) g.fx.push({ x: u.x, y: u.y, t: 0, life: 24, chrono: true });
+      }
+      if (mine) { eva('Chronosphere activated', 20000); say('Chronosphere — ' + lift.length + ' vehicle' + (lift.length === 1 ? '' : 's') + ' shifted', false, 260); }
+      else { eva('Warning: enemy Chronosphere activated', 20000); mmPing(g, x2, y2); }
+    }
+    sfx('boom');
+    return true;
+  }
+  function mmPing(g, x, y) { g.mmFlash = { x: x, y: y, until: g.tick + 60 * 8 }; }
 
   function fire(g, src, tgt) {
     var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt, src);
@@ -12346,6 +13015,7 @@
     if (s.credits < spec.cost) return false;
     if (!reqMet(g, p, spec)) return false;
     if (!isBld && spec.max && countUnit(g, p, key) + queuedCount(s, key) >= spec.max) return false;
+    if (isBld && spec.max && countBld(g, p, key) + queuedCount(s, key) >= spec.max) return false;
     if (isBld) return hasBld(g, p, 'base');
     if (UNITS[key].cls === 'i') return hasBld(g, p, 'barracks');
     if (UNITS[key].cls === 'a') {
@@ -12733,6 +13403,7 @@
       else ai.posture = 'build';
 
       aiProduce(g, ai, me, foe);
+      aiSuper(g, ai, me, foe);
     }
 
     // ---- placement: the AI places its finished structures ----
@@ -12825,6 +13496,10 @@
       else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200 && ai.army.length >= cfg.group * 0.6) want = radarKey;
       else if (hasBld(g, me, radarKey) && !hasBld(g, me, 'lab') && s.credits > 2200 && ai.army.length >= cfg.group) want = 'lab';
       else if (hasBld(g, me, 'lab') && !hasBld(g, me, ecoKey) && s.credits > 2600) want = ecoKey;
+      // Superweapons last: a $5000 silo bought instead of ten tanks loses the
+      // match long before the missile is charged, so the army has to stand
+      // first and the bank has to be deep enough that the silo is spare cash.
+      else if (hasBld(g, me, 'lab') && s.credits > 6000 && ai.army.length >= cfg.group && aiSwWant(g, me)) want = aiSwWant(g, me);
       if (want && want !== 'power' && netQ + draw(want) < 30 && canBuild(g, me, 'power', true)) want = 'power';   // headroom first
       if (want && canBuild(g, me, want, true)) enqueue(g, me, want, laneOfBld(want));
     }
@@ -12901,6 +13576,66 @@
       if (canBuild(g, me, vpick, false)) enqueue(g, me, vpick, 'v');
       else if (s.fac === 'dir' && canBuild(g, me, 'prismtank', false) &&
                countUnit(g, me, 'prismtank') < 4) enqueue(g, me, 'prismtank', 'v');
+    }
+  }
+
+  // The AI's next superweapon: the cheaper one of its faction's pair first.
+  function aiSwWant(g, p) {
+    var ks = swKeysFor(g.side[p].fac);
+    for (var i = 0; i < ks.length; i++) {
+      var key = SW[ks[i]].bld;
+      if (!hasBld(g, p, key) && canBuild(g, p, key, true)) return key;
+    }
+    return null;
+  }
+  // Where a nuke or a storm hurts most: the densest knot of enemy structures,
+  // with refineries weighted — RA2's AI aims at the base, not at the nearest
+  // wall, and killing the ore economy is what actually ends a match.
+  function aiSwTarget(g, foe) {
+    var best = null, bs = -1, i, j;
+    for (i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (b.dead || b.p !== foe) continue;
+      var score = b.type === 'refinery' ? 2.5 : 0;
+      for (j = 0; j < g.blds.length; j++) {
+        var o = g.blds[j];
+        if (o.dead || o.p !== foe) continue;
+        var d = Math.sqrt((o.cx - b.cx) * (o.cx - b.cx) + (o.cy - b.cy) * (o.cy - b.cy));
+        if (d <= 4) score += (o.type === 'refinery' ? 2 : 1) * (1 - d / 5);
+      }
+      if (score > bs) { bs = score; best = b; }
+    }
+    return best ? { x: best.cx, y: best.cy } : null;
+  }
+  function aiArmyCentre(army) {
+    var n = 0, ax = 0, ay = 0;
+    for (var i = 0; i < army.length; i++) {
+      if (army[i].dead) continue;
+      ax += army[i].x; ay += army[i].y; n++;
+    }
+    return n ? { x: ax / n, y: ay / n } : null;
+  }
+  function aiSuper(g, ai, me, foe) {
+    var s = g.side[me];
+    if (!s.sw.nuke.ready && !s.sw.storm.ready && !s.sw.curtain.ready && !s.sw.chrono.ready) return;
+    var hit = aiSwTarget(g, foe);
+    if (hit && s.sw.nuke.ready) swFire(g, me, 'nuke', hit.x, hit.y);
+    if (hit && s.sw.storm.ready) swFire(g, me, 'storm', hit.x, hit.y);
+    // The Iron Curtain goes over the wave at the moment it commits, and the
+    // Chronosphere drops that same wave next to the enemy refinery.
+    var army = ai.army || [];
+    if (ai.posture !== 'attack' || army.length < 4) return;
+    var c = aiArmyCentre(army);
+    if (!c) return;
+    if (s.sw.curtain.ready) swFire(g, me, 'curtain', c.x, c.y);
+    if (s.sw.chrono.ready) {
+      var ref = findRefinery(g, foe, g.start[me].x, g.start[me].y);
+      if (ref) {
+        var dx = g.start[me].x - ref.cx, dy = g.start[me].y - ref.cy;
+        var dl = Math.sqrt(dx * dx + dy * dy) || 1;
+        var tx = Math.round(ref.cx + dx / dl * 3.5), ty = Math.round(ref.cy + dy / dl * 3.5);
+        if (inMap(tx, ty)) swFire(g, me, 'chrono', c.x, c.y, tx, ty);
+      }
     }
   }
 
@@ -13179,6 +13914,7 @@
     }
     stepQueues(g, P_HUMAN);
     stepQueues(g, P_AI);
+    stepSuper(g);
     if (g.ai) stepAI(g, g.ai, P_AI, P_HUMAN);
     if (g.ai2) stepAI(g, g.ai2, P_HUMAN, P_AI);
     if ((g.tick % 6) === 1 || g.tick <= 2) revealFor(g, P_HUMAN);
@@ -13472,8 +14208,75 @@
     tipT = hold || 150;
   }
 
+  // ---- Superweapon clocks + targeting -----------------------------------
+  // RA2 shows one charging clock per superweapon you own in the corner of the
+  // map; clicking a charged one puts the cursor into targeting mode. The AI's
+  // clocks are never drawn — you learn about its nuke from EVA, as in RA2.
+  var swBar = document.getElementById('swbar'), swEls = {}, swMode = null;
+  function mkSwIcon(k) {
+    var el = document.createElement('div');
+    el.className = 'swic'; el.title = SW[k].name;
+    var arc = document.createElement('div'); arc.className = 'arc';
+    var em = document.createElement('span'); em.className = 'em'; em.textContent = SW[k].em;
+    var cd = document.createElement('span'); cd.className = 'cd';
+    el.appendChild(arc); el.appendChild(em); el.appendChild(cd);
+    el._arc = arc; el._cd = cd;
+    el.addEventListener('click', function () { swArm(k); });
+    if (swBar) swBar.appendChild(el);
+    return el;
+  }
+  function refreshSW() {
+    if (!swBar) return;
+    for (var i = 0; i < SW_KEYS.length; i++) {
+      var k = SW_KEYS[i];
+      var have = !!(G && state !== 'menu' && hasBld(G, P_HUMAN, SW[k].bld));
+      var el = swEls[k];
+      if (!have) { if (el) el.style.display = 'none'; continue; }
+      if (!el) el = swEls[k] = mkSwIcon(k);
+      el.style.display = 'block';
+      var st = G.side[P_HUMAN].sw[k], frac = st.ready ? 1 : st.t / SW[k].charge;
+      var left = Math.max(0, Math.ceil((SW[k].charge - st.t) / 60));
+      el._cd.textContent = st.ready ? 'READY' : (Math.floor(left / 60) + ':' + ('0' + (left % 60)).slice(-2));
+      el._arc.style.background = 'conic-gradient(from 180deg, rgba(110,231,168,.32) ' +
+                                 (frac * 360).toFixed(0) + 'deg, rgba(0,0,0,0) 0)';
+      el.className = 'swic' + (st.ready ? ' rdy' : '') + (swMode && swMode.key === k ? ' arm' : '');
+    }
+  }
+  function swArm(key) {
+    if (!G || state !== 'play') return;
+    var st = G.side[P_HUMAN].sw[key];
+    if (!st || !st.ready) { say(SW[key].name + ' is still charging', true); sfx('no'); return; }
+    if (placing) { placing = null; cv.classList.remove('placing'); }
+    swMode = { key: key, stage: 0, x: 0, y: 0 };
+    cv.style.cursor = 'crosshair';
+    say(SW[key].hint, false, 500);
+    sfx('click'); refreshSW();
+  }
+  function swCancel(quiet) {
+    if (!swMode) return false;
+    swMode = null; cv.style.cursor = 'default';
+    if (!quiet) say('Targeting cancelled');
+    refreshSW();
+    return true;
+  }
+  function swClickMap(px, py) {
+    var t = screenToGrid(px, py), gx = Math.round(t.x), gy = Math.round(t.y);
+    var W = SW[swMode.key];
+    if (!inMap(gx, gy)) { say('Off the map', true); return; }
+    if (W.two && swMode.stage === 0) {
+      swMode.stage = 1; swMode.x = gx; swMode.y = gy;
+      say(W.hint2, false, 500); sfx('click');
+      return;
+    }
+    var ok = W.two ? swFire(G, P_HUMAN, swMode.key, swMode.x, swMode.y, gx, gy)
+                   : swFire(G, P_HUMAN, swMode.key, gx, gy);
+    if (!ok) say(W.name + ' is not charged', true);
+    swMode = null; cv.style.cursor = 'default'; refreshSW();
+  }
+
   function updateHUD() {
     if (!G) return;
+    refreshSW();
     var s = G.side[P_HUMAN];
     // Ease the credit counter so income reads as a flow, not a jump.
     shownCred += (s.credits - shownCred) * 0.25;
@@ -13678,6 +14481,7 @@
     keys[e.key.toLowerCase()] = true;
 
     if (e.key === 'Escape') {
+      if (swCancel()) return;
       if (cmdMode) { cmdMode = null; cv.style.cursor = 'default'; refreshCmdbar(); say('Mode cancelled'); return; }
       if (pathMode) { pathMode = false; refreshCmdbar(); say('Waypoint mode off'); return; }
       if (placing) { placing = null; cv.classList.remove('placing'); say('Placement cancelled'); }
@@ -13754,6 +14558,7 @@
   var touches = {}, touchN = 0, tg = null;
   function touchPts() { var a = []; for (var k in touches) a.push(touches[k]); return a; }
   function touchTap(px, py) {
+    if (swMode) { swClickMap(px, py); return; }
     if (placing) { tryPlace(px, py); return; }
     var e = pickAt(px, py);
     if (e && e.p === P_HUMAN) { clickSelect(px, py, false); return; }
@@ -13813,6 +14618,7 @@
     var px = e.clientX - r.left, py = e.clientY - r.top;
     if (e.pointerType === 'touch') { e.preventDefault(); touchDown(e, px, py); return; }
     if (e.button === 0) {
+      if (swMode) { swClickMap(px, py); return; }
       if (placing) { tryPlace(px, py); return; }
       drag = { x1: px, y1: py, x2: px, y2: py, shift: e.shiftKey };
       try { cv.setPointerCapture(e.pointerId); } catch (err) {}
@@ -13823,6 +14629,7 @@
       try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     } else if (e.button === 2) {
       e.preventDefault();
+      if (swCancel()) return;
       if (placing) { placing = null; cv.classList.remove('placing'); say('Placement cancelled'); return; }
       var mine = sel.some(function (o) { return !o.dead && o.p === P_HUMAN; });
       if (!mine) {
@@ -14504,6 +15311,40 @@
       ctx.globalAlpha = 1;
     }
 
+    // Superweapon targeting ghost: the footprint the strike will actually
+    // cover, so a nuke is aimed at a base and not at a guess.
+    if (swMode) {
+      var swR = swMode.key === 'nuke' ? 4 : 1.5;
+      var swCx = hoverTile.x, swCy = hoverTile.y;
+      ctx.globalAlpha = 0.34;
+      ctx.fillStyle = swMode.key === 'chrono' ? '#9ad8ff' : (swMode.key === 'curtain' ? '#ff8a6a' : '#ffd24a');
+      for (y = Math.floor(swCy - swR); y <= Math.ceil(swCy + swR); y++)
+        for (x = Math.floor(swCx - swR); x <= Math.ceil(swCx + swR); x++) {
+          if (!inMap(x, y)) continue;
+          if (Math.sqrt((x - swCx) * (x - swCx) + (y - swCy) * (y - swCy)) > swR) continue;
+          diamond(ctx, sx(x, y), sy(x, y), TW - 6, TH - 3); ctx.fill();
+        }
+      ctx.globalAlpha = 1;
+      if (swMode.stage === 1) {                       // the Chronosphere's pick-up field
+        ctx.strokeStyle = '#9ad8ff'; ctx.lineWidth = 2;
+        diamond(ctx, sx(swMode.x, swMode.y), sy(swMode.x, swMode.y), (TW - 6) * 3, (TH - 3) * 3); ctx.stroke();
+      }
+    }
+
+    // Storm cloud deck: a dark disc turning over the strike zone.
+    for (i = 0; i < G.storms.length; i++) {
+      var stm = G.storms[i], spx = sx(stm.x, stm.y), spy = sy(stm.x, stm.y);
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#1b2133';
+      for (var sc2 = 0; sc2 < 3; sc2++) {
+        var sa = G.tick * 0.012 + sc2 * 2.1;
+        ctx.beginPath();
+        ctx.ellipse(spx + Math.cos(sa) * 26, spy - 150 + Math.sin(sa) * 12, 74, 30, 0, 0, 6.29);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // Depth-sorted entity pass
     var draw = [];
     for (i = 0; i < G.blds.length; i++) {
@@ -14530,7 +15371,8 @@
 
     for (i = 0; i < draw.length; i++) {
       if (draw[i].t) { var tr = draw[i].t, tpx = sx(draw[i].x, draw[i].y), tpy = sy(draw[i].x, draw[i].y); ctx.drawImage(tr.c, tpx - tr.ax, tpy - tr.ay, tr.w, tr.h); }
-      else if (draw[i].b) drawBld(draw[i].e); else drawUnit(draw[i].e);
+      else if (draw[i].b) { drawBld(draw[i].e); ironGlow(draw[i].e); }
+      else { drawUnit(draw[i].e); ironGlow(draw[i].e); }
     }
     // Air pass: shadows first (they fall on buildings and trees alike), then
     // the aircraft, low to high on screen so an overlap resolves like depth.
@@ -14681,6 +15523,48 @@
         ctx.globalAlpha = 1;
         continue;
       }
+      if (fx.bolt) {
+        // A storm bolt: a jagged column out of the cloud deck onto the tile.
+        ctx.globalCompositeOperation = 'lighter';
+        var bl = 1 - ff, btop = fyy - 190;
+        for (var bp = 0; bp < 2; bp++) {
+          ctx.strokeStyle = bp ? 'rgba(240,246,255,' + bl.toFixed(2) + ')' : 'rgba(120,170,255,' + (0.5 * bl).toFixed(2) + ')';
+          ctx.lineWidth = bp ? 2 : 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.beginPath(); ctx.moveTo(fxx + Math.sin(fx.seed) * 14, btop);
+          for (var bk = 1; bk <= 8; bk++) {
+            var bq = bk / 8;
+            ctx.lineTo(fxx + Math.sin(fx.seed + bk * 2.7) * 16 * (1 - bq), btop + (fyy - btop) * bq);
+          }
+          ctx.stroke();
+        }
+        continue;
+      }
+      if (fx.mush) {
+        // Mushroom cloud: stem, cap, fire core, and the shock ring rolling out.
+        ctx.globalCompositeOperation = 'source-over';
+        var up = Math.min(1, ff * 2.4), stemH = 130 * up, capY = fyy - stemH;
+        ctx.globalAlpha = Math.max(0, 1 - Math.max(0, ff - 0.5) / 0.5);
+        ctx.fillStyle = 'rgba(120,102,84,.55)';
+        ctx.beginPath(); ctx.ellipse(fxx, fyy, 34 + ff * 110, 17 + ff * 55, 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = '#4c3d2e';
+        ctx.beginPath(); ctx.ellipse(fxx, fyy - stemH / 2, 13 + ff * 9, Math.max(1, stemH / 2), 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = '#6d543a';
+        ctx.beginPath(); ctx.ellipse(fxx, capY, 26 + ff * 40, 14 + ff * 21, 0, 0, 6.29); ctx.fill();
+        ctx.fillStyle = 'rgba(255,196,112,' + (0.55 * (1 - ff)).toFixed(2) + ')';
+        ctx.beginPath(); ctx.ellipse(fxx, capY + 3, 17 + ff * 24, 9 + ff * 13, 0, 0, 6.29); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'lighter';
+        continue;
+      }
+      if (fx.chrono) {
+        // Chrono flash: a ring closing on the tile and a column of light.
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = 'rgba(150,220,255,' + (1 - ff).toFixed(2) + ')'; ctx.lineWidth = 3;
+        diamond(ctx, fxx, fyy, (TW + 10) * (1.2 - ff), (TH + 6) * (1.2 - ff)); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.8 * (1 - ff)).toFixed(2) + ')'; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(fxx, fyy - 46 * (1 - ff)); ctx.lineTo(fxx, fyy); ctx.stroke();
+        continue;
+      }
       if (fx.ping) {
         ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = 'rgba(138,208,255,' + (1 - ff) + ')';
@@ -14696,9 +15580,46 @@
       ctx.globalAlpha = 1;
     }
     ctx.globalCompositeOperation = 'source-over';
+
+    // A missile in flight: the target ring pulses for the whole ten seconds,
+    // then the warhead comes down out of the top of the screen.
+    for (i = 0; i < G.nukes.length; i++) {
+      var nk = G.nukes[i], nf = nk.t / nk.life;
+      var npx = sx(nk.x, nk.y), npy = sy(nk.x, nk.y);
+      ctx.strokeStyle = 'rgba(255,90,90,' + (0.3 + 0.35 * Math.abs(Math.sin(G.tick * 0.12))).toFixed(2) + ')';
+      ctx.lineWidth = 2;
+      diamond(ctx, npx, npy, TW * 4, TH * 4); ctx.stroke();
+      diamond(ctx, npx, npy, TW * 2, TH * 2); ctx.stroke();
+      if (nf > 0.78) {
+        var fall = (nf - 0.78) / 0.22, my = npy - 560 * (1 - fall);
+        ctx.strokeStyle = 'rgba(255,190,120,.8)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(npx, my - 30); ctx.lineTo(npx, my); ctx.stroke();
+        ctx.fillStyle = '#e6ecf5'; ctx.fillRect(npx - 2.5, my - 13, 5, 13);
+      }
+    }
     ctx.restore();
 
+    // Storm sky and nuclear whiteout sit over the whole viewport, as RA2's do.
+    if (G.storms.length) { ctx.fillStyle = 'rgba(14,18,38,.34)'; ctx.fillRect(0, 0, cvW, cvH); }
+    if (G.flash > 0) { ctx.fillStyle = 'rgba(255,248,230,' + (G.flash / 26 * 0.8).toFixed(2) + ')'; ctx.fillRect(0, 0, cvW, cvH); }
+
     drawMini();
+  }
+
+  // Iron Curtain: RA2 tints what it protects red and lets it shimmer.
+  function ironGlow(e) {
+    if (!ironed(G, e)) return;
+    var px = sx(entX(e), entY(e)), py = sy(entX(e), entY(e));
+    var t = (G.tick + e.id * 5) * 0.22;
+    var r = e.kind === 'b' ? (e.gw + e.gh) * 9 : 15;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.28 + 0.16 * Math.sin(t);
+    ctx.fillStyle = '#ff2f2f';
+    ctx.beginPath(); ctx.ellipse(px, py - (e.kind === 'b' ? 12 : 6), r, r * 0.62, 0, 0, 6.29); ctx.fill();
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = 'rgba(255,132,132,' + (0.5 + 0.32 * Math.sin(t * 1.7)).toFixed(2) + ')';
+    ctx.lineWidth = 1.4;
+    diamond(ctx, px, py, r * 1.35, r * 0.75); ctx.stroke();
   }
 
   // Selection brackets: four corners of a screen-space box.
@@ -15000,6 +15921,13 @@
       mctx.fillRect(u.x * sc - 1, u.y * sc - 1, 2.4, 2.4);
     }
     // viewport box
+    // An incoming superweapon flashes its target on the minimap.
+    if (G.mmFlash && ((G.tick >> 3) & 1)) {
+      mctx.strokeStyle = '#ff4a4a'; mctx.lineWidth = 2;
+      mctx.beginPath(); mctx.arc(G.mmFlash.x * sc, G.mmFlash.y * sc, 8, 0, 6.29); mctx.stroke();
+      mctx.beginPath(); mctx.arc(G.mmFlash.x * sc, G.mmFlash.y * sc, 3, 0, 6.29); mctx.stroke();
+    }
+
     var tl = screenToGrid(0, 0), br = screenToGrid(cvW, cvH);
     var tr = screenToGrid(cvW, 0), bl = screenToGrid(0, cvH);
     mctx.strokeStyle = 'rgba(255,255,255,.5)'; mctx.lineWidth = 1;
@@ -15174,7 +16102,7 @@
     state = 'play';
     pauseBtn.textContent = '⏸';
     pausedEl.classList.remove('show');
-    sel = []; groups = {}; placing = null; pathQ = [];
+    sel = []; groups = {}; placing = null; pathQ = []; swMode = null;
     setTimeout(touchHint, 4000);                 // after the opening tip has had its say
     cv.classList.remove('placing');
     shownCred = 0;
@@ -15334,6 +16262,10 @@
       G.focusFor[p] = a.cfg.focus;
       return a;
     },
+    // Superweapons: read the timers, force one charged, fire one by hand.
+    sw: function (p) { return G ? G.side[p].sw : null; },
+    swCharge: function (p, k) { if (G) { G.side[p].sw[k].t = SW[k].charge; G.side[p].sw[k].ready = true; } },
+    swFire: function (p, k, x, y, x2, y2) { return G ? swFire(G, p, k, x, y, x2, y2) : false; },
     credits: function (p) { return G ? G.side[p].credits : 0; },
     ore: function (x, y) { return G ? G.ore[y * MAP + x] : 0; },
     findOre: function (x, y) { return G ? findOre(G, x, y) : null; },
@@ -15441,7 +16373,7 @@
 
   window.__rtsBuildFactor = function (lane) { return G ? buildFactor(G, P_HUMAN, lane) : 1; };
 
-  window.__rtsTables = { UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS, VERSES: VERSES, ARMOURS: ARMOURS, verses: verses, weaponFor: weaponFor, bspecFor: bspecFor };
+  window.__rtsTables = { SW: SW, SW_KEYS: SW_KEYS, UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS, VERSES: VERSES, ARMOURS: ARMOURS, verses: verses, weaponFor: weaponFor, bspecFor: bspecFor };
 
   // --------------------------------------------------------------------- //
   //  Boot
