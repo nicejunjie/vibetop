@@ -7554,3 +7554,24 @@ poor AI still buys tanks. Gates over 12 seeds × both faction orders,
   every other AI read of the enemy base (`aiPickTarget`, `aiSwTarget`,
   `aiDefencePlan`'s valuation) is omniscient already. Making one of them honest
   makes the AI inconsistent, not fairer.
+
+
+## Superweapon and paradrop clocks live over the battlefield, not on the sidebar
+
+- **Decision (user, 2026-09-03):** "letting superweapon clock and paratroop
+  clock sit over the battlefield is actually better, document it so this
+  design is not accidentally changed."
+- **What that means in code:** `#swbar` is the top-left column inside `#tl`,
+  above the EVA message rail, holding one `.swic` per charging superweapon and
+  per paradrop timer, each drawn on the owning structure's cameo with a conic
+  charge sweep. It is `pointer-events: none` with `pointer-events: auto` only
+  on the icons themselves, so a left-drag begun anywhere in that corner still
+  reaches the canvas — the playtest finding that a drag from (30,70) selected
+  nothing was that missing rule, not the placement.
+- **Why it is not an RA2-fidelity defect:** RA2 stacks these clocks on the
+  sidebar cameos. This is a deliberate departure — the same class of exception
+  as the removed structure build-up animation. A gap audit that lists "the
+  clocks are not on the sidebar" is wrong; mark it "won't do — user decision".
+- **Rejected:** moving them into the sidebar under the radar (RA2-faithful,
+  but the user prefers them in the tactical view, where they are readable
+  while you are looking at the map rather than at the build list).
