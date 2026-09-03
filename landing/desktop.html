@@ -86,15 +86,28 @@
     font-family: system-ui, sans-serif; user-select: none;
   }
   .cu-strip[hidden] { display: none; }
-  .cu-strip .cu-who { display: flex; align-items: baseline; gap: 6px; flex: 0 0 auto; min-width: 0; }
+  /* Fixed identity columns: changing "9m ago" to "10m ago" must never move the
+     metric grid. The empty fresh-data age also keeps its reserved width. */
+  .cu-strip .cu-who {
+    display: grid; grid-template-columns: 42px 48px; align-items: baseline; gap: 4px;
+    flex: 0 0 94px; width: 94px; min-width: 94px;
+  }
   .cu-strip .cu-brand { font-weight: 600; color: #c8d4e0; }
-  .cu-strip .cu-asof { color: #6a7a8a; font-size: 10px; white-space: nowrap; }
-  .cu-strip .cu-metrics { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+  .cu-strip .cu-asof {
+    color: #6a7a8a; font-size: 10px; white-space: nowrap; width: 48px;
+    font-variant-numeric: tabular-nums;
+  }
+  .cu-strip .cu-asof.is-empty { visibility: hidden; }
+  .cu-strip .cu-metrics {
+    display: grid; grid-template-columns: repeat(2, 260px);
+    align-items: center; gap: 6px; min-width: 0; flex: 0 0 auto;
+  }
   /* Each metric is a self-contained chip — reads cleanly on its own whether it's
      inline (desktop, one 26px line) or wrapped onto its own line (narrow phone),
      so there are no dangling separators or misaligned columns. */
   .cu-strip .cu-seg {
-    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    display: inline-grid; grid-template-columns: 3.6em 52px 2.5em auto;
+    align-items: center; gap: 6px; white-space: nowrap;
     min-width: 0;
     background: rgba(255,255,255,0.04); border: 1px solid #222c3a;
     border-radius: 6px; padding: 1px 8px;
@@ -120,23 +133,26 @@
      own line, so the two chip BOXES share a left edge (and their internal
      label→bar→% columns align via min-widths) instead of one being pushed in by
      the "Claude" label. On wider screens they stay inline on one line. */
-  @media (max-width: 600px) {
+  @media (max-width: 680px) {
     /* brand as a left column, the two metric chips stacked to its right -> the
        whole strip is 2 lines (not 3), and the chip boxes still share a left edge
        with their label/bar/% columns aligned. */
-    .cu-strip { flex-wrap: nowrap; align-items: flex-start; }
+    .cu-strip { flex-wrap: nowrap; align-items: flex-start; column-gap: 6px; }
     /* Claude over "as of …" — one identity column, two lines, beside the chips. */
-    .cu-strip .cu-who { flex-direction: column; align-items: flex-start; gap: 1px; margin: 2px 8px 0 0; }
-    .cu-strip .cu-metrics { flex-direction: column; align-items: stretch; gap: 4px; flex: 1 1 auto; }
+    .cu-strip .cu-who {
+      display: flex; flex: 0 0 48px; width: 48px; min-width: 48px;
+      flex-direction: column; align-items: flex-start; gap: 1px; margin: 2px 0 0;
+    }
+    .cu-strip .cu-metrics { display: flex; flex-direction: column; align-items: stretch; gap: 4px; flex: 1 1 auto; }
     /* A grid, not a flex row: an explicit template is what makes the two chips
        agree, so the bars start at one x, the percentages end at one x and the
        reset texts begin at one x. Min-widths only approximated that, and drifted
        apart the moment "week" and "session" measured differently. */
     .cu-strip .cu-seg {
-      display: grid; grid-template-columns: 3.6em 44px 2.5em 1fr;
+      display: grid; grid-template-columns: 3.6em 56px 2.5em 1fr;
       align-items: center; gap: 5px; width: 100%; box-sizing: border-box;
     }
-    .cu-strip .cu-bar { width: 44px; }
+    .cu-strip .cu-bar { width: 56px; }
     .cu-strip .cu-dim { font-size: 11.5px; }
     .cu-strip .cu-pct { text-align: right; }
     .cu-strip .cu-dim { text-align: left; }
@@ -144,13 +160,13 @@
   /* The narrowest phones still in use. Every fixed column gives up a few px so
      the reset time — the part worth keeping — still has somewhere to sit. */
   @media (max-width: 340px) {
-    .cu-strip .cu-seg { grid-template-columns: 3.2em 34px 2.3em 1fr; gap: 4px; }
-    .cu-strip .cu-bar { width: 34px; }
-    .cu-strip .cu-who { margin-right: 6px; }
+    .cu-strip .cu-seg { grid-template-columns: 3.2em 50px 2.3em 1fr; gap: 5px; }
+    .cu-strip .cu-bar { width: 50px; }
     .cu-strip { padding-left: 6px; }
   }
   /* toggle row's On state gets a green dot, like a running app */
-  .sm-item[data-id="claudeusage"].cu-on .sm-name::after {
+  .sm-item[data-id="claudeusage"].cu-on .sm-name::after,
+  .sm-item[data-id="codexusage"].cu-on .sm-name::after {
     content: "\25CF"; color: #34a853; font-size: 9px; margin-left: 8px;
   }
 
@@ -1008,6 +1024,7 @@
        overlay it (see the CSS note). -->
   <div id="sys-warn"></div>
   <div class="cu-strip" id="cu-strip" hidden></div>
+  <div class="cu-strip" id="cx-strip" hidden></div>
   <div class="frames" id="frames">
     <div class="wallpaper" aria-hidden="true">
       <svg class="wp-logo" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
@@ -1169,6 +1186,7 @@
     // the usage strip, an assessment/bar-chart for token stats) so the Start-menu
     // icons match in style and size instead of falling back to emoji.
     claudeusage: svgIcon('M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z'),
+    codexusage:  svgIcon('M12 2l8.66 5v10L12 22l-8.66-5V7L12 2zm0 3.1L6 8.56v6.88l6 3.46 6-3.46V8.56L12 5.1zm0 2.3l4 2.3v4.6l-4 2.3-4-2.3V9.7l4-2.3z'),
     tokenstats:  svgIcon('M21 8c-1.45 0-2.26 1.44-1.93 2.51l-3.55 3.56c-.3-.09-.74-.09-1.04 0l-2.55-2.55C12.27 10.45 11.46 9 10 9c-1.45 0-2.27 1.44-1.93 2.52l-4.56 4.55C2.44 15.74 1 16.55 1 18c0 1.1.9 2 2 2 1.45 0 2.26-1.44 1.93-2.51l4.55-4.56c.3.09.74.09 1.04 0l2.55 2.55C12.73 16.55 13.54 18 15 18c1.45 0 2.27-1.44 1.93-2.52l3.56-3.55c1.07.33 2.51-.48 2.51-1.93 0-1.1-.9-2-2-2z'),
     sysstats:    svgIcon('M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z'),
     // System administration (settings gear) — a System-section app, sudo-gated.
@@ -1201,6 +1219,7 @@
     // the Start-menu click handler — no iframe, no src. Lives under the
     // collapsible "Utilities" submenu (section 'utilities').
     claudeusage: { label: 'Claude Usage', icon: '📈', desc: 'Off', section: 'utilities', toggle: true },
+    codexusage: { label: 'Codex Usage', icon: '◈', desc: 'Off', section: 'utilities', toggle: true },
     // A normal app (iframe) under Utilities: token-consumption + estimated-cost
     // analytics parsed from Claude Code's local transcripts.
     tokenstats: { label: 'Token Stats', icon: '📊', src: '/token-stats.html', desc: 'Token use & est. cost', section: 'utilities' },
@@ -2538,6 +2557,7 @@
     // Shared shell-level toggles, converged across all clients via this heartbeat.
     if (typeof d.sys_stats === 'boolean' && window.applyServerSysStats) window.applyServerSysStats(d.sys_stats);
     if (typeof d.claude_usage === 'boolean' && window.applyServerClaudeUsage) window.applyServerClaudeUsage(d.claude_usage, d.claude);
+    if (typeof d.codex_usage === 'boolean' && window.applyServerCodexUsage) window.applyServerCodexUsage(d.codex_usage, d.codex);
     // Feature-hints kill-switch (Config): mirror the host-wide flag into
     // localStorage (shared across all same-origin surfaces — incl. the terminal
     // /tN/ iframes — where coach.js reads it). Yank any live banner when off.
@@ -3091,6 +3111,7 @@
     var id = item.dataset.id;
     if (APPS[id] && APPS[id].toggle) {   // a toggle row, not an app
       if (id === 'sysstats') { toggleSysStats(); }
+      else if (id === 'codexusage') { toggleCodexUsage(); }
       else { toggleClaudeUsage(); }
       return;
     }
@@ -4166,7 +4187,8 @@
     // Mirror the active state onto the collapsed "Utilities" parent so you can
     // see something inside is on without expanding it.
     var parent = document.getElementById('sm-util-parent');
-    if (parent) parent.classList.toggle('has-active', enabled);
+    if (parent) parent.classList.toggle('has-active',
+      !!document.querySelector('.sm-item[data-id="claudeusage"].cu-on, .sm-item[data-id="codexusage"].cu-on'));
   }
   function render(d) {
     if (d) lastData = d;
@@ -4189,7 +4211,7 @@
     // came straight out of the reset time on the row beside it.
     var asof = (d.stale || ageMin >= 1)
       ? '<span class="cu-asof" title="usage data was read ' + ageMin + ' minutes ago">' +
-        ageMin + 'm ago</span>' : '';
+        ageMin + 'm ago</span>' : '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
     var html = '<span class="cu-who"><span class="cu-brand">Claude</span>' + asof + '</span>' +
                '<span class="cu-metrics">';
     if (d.session && d.session.pct != null) {
@@ -4265,6 +4287,113 @@
   };
   // No initial poll / interval / visibilitychange handler: the restore GET and
   // the 5s heartbeat (which also re-fires on visibilitychange) drive the strip.
+})();
+
+// --- Codex plan-usage strip (opt-in) ---------------------------------------
+// Codex writes account-wide rate-limit snapshots into its local session logs,
+// so this toggle only changes Vibetop's display preference; it does not reroute
+// Codex traffic or alter ~/.codex configuration.
+(function codexUsage() {
+  var strip = document.getElementById('cx-strip');
+  if (!strip) return;
+  var enabled = false, lastData = null, localOverrideUntil = 0;
+  function resetText(ts) {
+    if (!ts) return '';
+    var sec = Math.max(0, ts - Math.floor(Date.now() / 1000));
+    var d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600),
+        m = Math.floor((sec % 3600) / 60);
+    return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + (m < 10 ? '0' : '') + m + 'm' : m + 'm';
+  }
+  function resetAt(ts) {
+    if (!ts) return '';
+    var dt = new Date(ts * 1000);
+    var days = (ts - Math.floor(Date.now() / 1000)) / 86400;
+    if (days >= 1) {
+      return dt.toLocaleDateString([], {weekday: 'short'}) + ' ' +
+             dt.toLocaleTimeString([], {hour: 'numeric'});
+    }
+    return dt.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  }
+  function segment(label, value) {
+    var p = Math.round(Math.max(0, Math.min(1, Number(value.pct) || 0)) * 100);
+    var cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
+    var reset = resetText(value.reset);
+    var at = resetAt(value.reset);
+    var full = '· resets ' + reset + (at ? ' (' + at + ')' : '');
+    var mid = at ? '· resets ' + at : full;
+    var min = at ? '· ' + at : '· ' + reset;
+    return '<span class="cu-seg"' + (reset ? ' title="resets in ' + reset + (at ? ' — at ' + at : '') + '"' : '') + '>' +
+      '<span class="cu-lbl">' + label + '</span><span class="cu-bar"><span class="cu-fill ' + cls +
+      '" style="width:' + p + '%"></span></span><span class="cu-pct">' + p + '%</span>' +
+      (reset ? '<span class="cu-dim" data-full="' + full + '" data-mid="' + mid +
+       '" data-min="' + min + '">' + full + '</span>' : '') + '</span>';
+  }
+  function fitSegments() {
+    var segments = strip.querySelectorAll('.cu-seg');
+    for (var i = 0; i < segments.length; i++) {
+      var item = segments[i], dim = item.querySelector('.cu-dim');
+      if (!dim) continue;
+      var over = function() { return item.scrollWidth > item.clientWidth + 1; };
+      dim.hidden = false;
+      dim.textContent = dim.dataset.full;
+      if (over()) dim.textContent = dim.dataset.mid;
+      if (over()) dim.textContent = dim.dataset.min;
+      if (over()) dim.hidden = true;
+    }
+  }
+  function updateRow() {
+    var row = document.querySelector('.sm-item[data-id="codexusage"]');
+    if (row) {
+      row.classList.toggle('cu-on', enabled);
+      var desc = row.querySelector('.sm-desc');
+      if (desc) desc.textContent = enabled ? 'On — plan usage strip' : 'Off';
+    }
+    var parent = document.getElementById('sm-util-parent');
+    if (parent) parent.classList.toggle('has-active',
+      !!document.querySelector('.sm-item[data-id="claudeusage"].cu-on, .sm-item[data-id="codexusage"].cu-on'));
+  }
+  function render(data) {
+    if (data) lastData = data;
+    enabled = !!(data && data.enabled);
+    updateRow();
+    if (!enabled) { strip.hidden = true; return; }
+    strip.hidden = false;
+    var age = Math.round(((data && data.ageSec) || 0) / 60);
+    var asof = age >= 1 ? '<span class="cu-asof">' + age + 'm ago</span>' :
+      '<span class="cu-asof is-empty" aria-hidden="true">0m ago</span>';
+    var html = '<span class="cu-who"><span class="cu-brand">Codex</span>' + asof + '</span><span class="cu-metrics">';
+    if (data && data.session && data.session.pct != null) {
+      html += segment('session', data.session);
+      if (data.weekly && data.weekly.pct != null) html += segment('week', data.weekly);
+    } else {
+      html += '<span class="cu-dim">waiting for first Codex response…</span>';
+    }
+    strip.innerHTML = html + '</span><span class="cu-x" id="cx-x" title="Turn off Codex Usage (all devices)">✕</span>';
+    var close = document.getElementById('cx-x');
+    if (close) close.onclick = window.toggleCodexUsage;
+    fitSegments();
+  }
+  window.applyServerCodexUsage = function(on, data) {
+    if (Date.now() < localOverrideUntil) return;
+    if (data) { render(data); return; }
+    if (on === enabled) return;
+    var next = Object.assign({}, lastData || {}, {enabled: on});
+    render(next);
+  };
+  window.toggleCodexUsage = function() {
+    var want = !enabled;
+    localOverrideUntil = Date.now() + 8000;
+    render(Object.assign({}, lastData || {}, {enabled: want}));
+    fetch('/api/desktop/ui', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({codexUsage: want})})
+      .then(function() { localOverrideUntil = 0; pushDesktop(); })
+      .catch(function() { localOverrideUntil = 0; });
+  };
+  var fitTimer = null;
+  window.addEventListener('resize', function() {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(fitSegments, 120);
+  });
 })();
 </script>
 </body>

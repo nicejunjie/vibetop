@@ -42,6 +42,8 @@ import time
 import threading
 import urllib.parse
 import zipfile
+import glob
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
@@ -581,6 +583,72 @@ def _set_claude_usage(on):
                            capture_output=True, text=True, timeout=30)
     log.info("claude usage enabled" if on else
              "claude usage disabled (proxy left running for pinned sessions)")
+
+# ---- Codex plan-usage strip (opt-in display) -------------------------------
+# Codex already records account rate-limit snapshots in token_count events in
+# ~/.codex/sessions. Enabling this only controls whether Vibetop displays them.
+CODEX_USAGE_STALE_SEC = 15 * 60
+
+
+def _last_codex_rate_limit(path, max_bytes=512 * 1024):
+    """Return the newest rate-limit event near the end of one rollout file."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - max_bytes))
+            raw = f.read()
+    except OSError:
+        return None
+    for line in reversed(raw.splitlines()):
+        if b'"rate_limits"' not in line or b'"token_count"' not in line:
+            continue
+        try:
+            event = json.loads(line)
+            payload = event.get("payload") or {}
+            limits = payload.get("rate_limits")
+            if payload.get("type") != "token_count" or not isinstance(limits, dict):
+                continue
+            stamp = event.get("timestamp")
+            updated = int(datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp())
+            return updated, limits
+        except (ValueError, TypeError, AttributeError):
+            continue
+    return None
+
+
+def _codex_usage_payload(home=None, enabled=True):
+    """Latest Codex 5-hour/weekly usage snapshot for the requesting user."""
+    out = {"enabled": bool(enabled)}
+    if not enabled:
+        return out
+    home = home or _office_home()
+    paths = glob.glob(os.path.join(home, ".codex", "sessions", "**", "*.jsonl"),
+                      recursive=True)
+    paths.sort(key=lambda p: os.path.getmtime(p) if os.path.exists(p) else 0,
+               reverse=True)
+    newest = None
+    for path in paths[:32]:
+        got = _last_codex_rate_limit(path)
+        if got and (newest is None or got[0] > newest[0]):
+            newest = got
+    if not newest:
+        return out
+    updated, limits = newest
+
+    def window(src):
+        if not isinstance(src, dict) or src.get("used_percent") is None:
+            return None
+        return {"pct": max(0.0, min(1.0, float(src["used_percent"]) / 100.0)),
+                "reset": src.get("resets_at"),
+                "minutes": src.get("window_minutes")}
+
+    age = max(0, int(time.time()) - updated)
+    out.update({"session": window(limits.get("primary")),
+                "weekly": window(limits.get("secondary")),
+                "plan": limits.get("plan_type"), "updated": updated,
+                "ageSec": age, "stale": age > CODEX_USAGE_STALE_SEC})
+    return out
 
 # ---- Office (Word/Excel/PPT) view & edit -----------------------------------
 # View: convert to PDF with headless LibreOffice (cached) and serve it inline.
@@ -4449,16 +4517,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _desktop_prune_targets(state, now)
             _write_desktop_state(state)
             want_sys = state.get("sys_stats", True)
+            want_codex = state.get("codex_usage", False)
             resp = {"ok": True, "running": _desktop_union(state, now),
                     "reset_epoch": state["reset_epoch"],
                     "close_targets": state["close_targets"],
                     "sys_stats": want_sys,
+                    "codex_usage": want_codex,
                     "claude_usage": cu,
                     "terminals_running": nterm}
         if want_sys:   # taskbar stats only when the shared toggle is on
             resp["system"] = self._get_system_status()
         if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
             resp["claude"] = _claude_usage_payload(cu)
+        if want_codex:
+            resp["codex"] = _codex_usage_payload(_office_home(), True)
         # System-health warnings ride the heartbeat too, ALWAYS (independent of the
         # stats toggle) — a red banner must show even with the stats readout off.
         resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)
@@ -4513,8 +4585,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             state = _read_desktop_state()
             if "sysStats" in data:
                 state["sys_stats"] = bool(data["sysStats"])
+            if "codexUsage" in data:
+                state["codex_usage"] = bool(data["codexUsage"])
             _write_desktop_state(state)
-            resp = {"ok": True, "sys_stats": state.get("sys_stats", True)}
+            resp = {"ok": True, "sys_stats": state.get("sys_stats", True),
+                    "codex_usage": state.get("codex_usage", False)}
         self._json(200, resp)
 
     def _handle_reset(self):
@@ -6843,6 +6918,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if instance:
                     _write_desktop_state(state)
                 want_sys = state.get("sys_stats", True)
+                want_codex = state.get("codex_usage", False)
                 resp = {
                     "open": (ent or {}).get("open", []),
                     "active": (ent or {}).get("active"),
@@ -6850,6 +6926,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "reset_epoch": state["reset_epoch"],
                     "close_targets": state["close_targets"],
                     "sys_stats": want_sys,
+                    "codex_usage": want_codex,
                     "claude_usage": cu,
                     "terminals_running": nterm,
                 }
@@ -6857,6 +6934,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 resp["system"] = self._get_system_status()
             if cu:         # Claude-Usage numbers folded on too (retires the 30s poll)
                 resp["claude"] = _claude_usage_payload(cu)
+            if want_codex:
+                resp["codex"] = _codex_usage_payload(_office_home(), True)
             resp["warnings"] = _cached("sys_warnings", 5.0, _system_warnings)   # red-banner alerts (always)
             resp["hints"] = _cached("hints_enabled", 5.0, _read_hints_enabled)   # feature-tip kill-switch
             self._json(200, resp)
