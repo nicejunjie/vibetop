@@ -666,9 +666,9 @@ test("warhead verses actually change how much damage a hit deals", () => {
   const infLoss = infTarget.maxhp - infTarget.hp;
   assert.ok(vehLoss > 0, "the missile never hit the vehicle");
   assert.ok(infLoss > 0, "the rifle never hit the infantry");
-  const expVeh = ggi.w2.dmg * T.verses(ggi.w2.wh, T.UNITS.harvester.armour);
+  const expVeh = ggi.w2.dmg * T.verses(ggi.w2.wh, T.UNITS.chronominer.armour);
   const expInf = ggi.dmg * T.verses(ggi.wh, T.UNITS.rifle.armour);
-  assert.ok(Math.abs(vehLoss - expVeh) < 0.5, `expected ${expVeh} damage to a ${T.UNITS.harvester.armour} vehicle, got ${vehLoss}`);
+  assert.ok(Math.abs(vehLoss - expVeh) < 0.5, `expected ${expVeh} damage to a ${T.UNITS.chronominer.armour} vehicle, got ${vehLoss}`);
   assert.ok(Math.abs(infLoss - expInf) < 0.5, `expected ${expInf} damage to unarmoured infantry, got ${infLoss}`);
 
   // And the RA2 truths the table encodes: a GI's rifle barely scratches a
@@ -724,7 +724,7 @@ test("splash damage falls on neighbours but never on the attacker's own side", (
   // then the target's own vs-multiplier) — a numeric check catches a
   // rewritten formula, not just a dropped sign.
   const d = 0.25;
-  const expectedSplash = lancer.dmg * 0.45 * (1 - d / (lancer.splash + 0.4)) * T.verses(lancer.wh, T.UNITS.harvester.armour);
+  const expectedSplash = lancer.dmg * 0.45 * (1 - d / (lancer.splash + 0.4)) * T.verses(lancer.wh, T.UNITS.chronominer.armour);
   assert.ok(Math.abs(bystanderLoss - expectedSplash) < 0.5,
     `expected ~${expectedSplash.toFixed(1)} splash damage, got ${bystanderLoss.toFixed(1)}`);
 });
@@ -1388,7 +1388,7 @@ test("debug mode: instant build, bottomless credits, full map, and 10x damage bo
   assert.equal(g.side[0].queues.i.list.length, 0, "a queued GI should finish instantly in debug mode");
 
   // A GI shot on an enemy harvester does 10x; an enemy GI on the player's harvester does 1/10.
-  const gi = T.UNITS.rifle, hv = T.UNITS.harvester;
+  const gi = T.UNITS.rifle, hv = T.UNITS.chronominer;
   // Far from the base: the GI that just came out of the barracks would join in.
   const mine = H.spawn("rifle", 0, 30, 30), theirs = H.spawn("harvester", 1, 31, 30);
   mine.order = { t: "attack", id: theirs.id, x: theirs.x, y: theirs.y };
@@ -1616,8 +1616,13 @@ test("the Chronosphere shifts a squad of vehicles and vaporises the infantry wit
   H.swCharge(0, "chrono");
   assert.ok(H.swFire(0, "chrono", 20.5, 20.5, 40, 40), "a charged Chronosphere fires on two clicks");
   assert.ok(gi.dead, "infantry caught in the field are killed, as in RA2");
+  // [General] ChronoDelay=60 frames: the squad spends the delay out of phase
+  // (untargetable) before it rematerialises at the far end.
+  assert.ok(tanks.every((t) => t.limbo), "a shifted vehicle is out of phase during ChronoDelay");
+  H.step(130);
   for (const t of tanks) {
     assert.ok(!t.dead, "vehicles survive the shift");
+    assert.ok(!t.limbo, "and are back on the map once the delay runs out");
     assert.ok(Math.abs(t.x - 40) <= 4 && Math.abs(t.y - 40) <= 4,
       `a shifted tank should land by the target, got ${t.x.toFixed(1)},${t.y.toFixed(1)}`);
   }
@@ -2271,4 +2276,433 @@ test("neutral structures never decide the match and never take the sidebar", () 
     assert.equal(T.BLDS[k].cat, "neut", `${k} must not sit in a buildable lane`);
     assert.equal(T.BLDS[k].build, 0, `${k} has a build time and therefore a cameo`);
   }
+});
+
+// ------------------------------------------- Phase 4c: unit mechanics //
+// Each of these drives the real mechanic through the same entry point the
+// game uses (a warhead going off in fire(), or an ORDER), never by poking
+// the field the mechanic happens to set.
+
+test("the miner is two units: a Chrono Miner that warps home and a War Miner that shoots", () => {
+  const H = W.__rtsTest, A = W.__rtsTest.api3;
+  H.begin(9401, "normal");
+  // rules.ini [CMIN] vs [HARV]: same chassis, Storage 20 vs 40 bails, one
+  // with Primary=none and a teleport locomotor, the other with 20mmRapid.
+  const cm = T.UNITS.chronominer, wm = T.UNITS.warminer;
+  assert.equal(cm.cost, 1400); assert.equal(wm.cost, 1400);
+  assert.equal(cm.hp, 1000); assert.equal(wm.hp, 1000);
+  assert.equal(cm.sight, 4); assert.equal(wm.sight, 4);
+  assert.equal(cm.cap, 500, "Chrono Miner Storage=20 bails at $25");
+  assert.equal(wm.cap, 1000, "War Miner Storage=40 bails at $25");
+  assert.equal(cm.dmg, 0, "[CMIN] Primary=none");
+  assert.equal(wm.dmg, 30); assert.equal(wm.rate, 20); assert.equal(wm.rng, 5.5);
+  assert.equal(wm.wh, "HARVWH", "[20mmRapid] Warhead=HARVWH");
+  assert.ok(cm.chronoHome && !wm.chronoHome, "only the Chrono Miner teleports");
+  // The legacy role name still resolves per faction, everywhere.
+  assert.equal(A.harvKey("dir"), "chronominer");
+  assert.equal(A.harvKey("col"), "warminer");
+  const g = H.get();
+  g.side[0].fac = "dir"; g.side[1].fac = "col";
+  const h0 = H.spawn("harvester", 0, 20, 20), h1 = H.spawn("harvester", 1, 40, 40);
+  assert.equal(h0.type, "chronominer");
+  assert.equal(h1.type, "warminer");
+  assert.ok(A.isHarv(h0) && A.isHarv(h1));
+  assert.equal(W.__rtsTest.api.countUnit(g, 0, "harvester"), 1, "'harvester' still counts the side's miner");
+});
+
+test("a full Chrono Miner teleports to its refinery after ChronoDelay, and drives if it is too far", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9402, "normal");
+  g.side[0].fac = "dir";
+  const ref = H.build("refinery", 0, 20, 20); ref.make = 0;
+  const m = H.spawn("harvester", 0, 44, 44);
+  m.cargo = m.cargoV = 500;                       // full hold, far from home
+  m.state = "mining"; m.mineAt = { x: 44, y: 44 };
+  g.ore[44 * T.MAP + 44] = 0.2;                   // seam is spent: it must go home
+  H.step(1);
+  assert.equal(m.state, "warp", "a full Chrono Miner enters the warp, it does not drive");
+  const bank = H.credits(0);
+  const before = { x: m.x, y: m.y };
+  H.step(A.CHRONO_DELAY - 4);
+  assert.ok(m.x === before.x && m.y === before.y, "it holds still for ChronoDelay");
+  H.step(10);
+  assert.ok(m.state !== "warp", "and then it is somewhere else");
+  const d = Math.hypot(m.x - ref.cx, m.y - ref.cy);
+  assert.ok(d < 4, `it should arrive at the refinery, got ${d.toFixed(1)} tiles away`);
+  H.step(400);
+  assert.ok(H.credits(0) > bank, `it should have banked its hold at the refinery (state ${m.state}, ${m.x.toFixed(1)},${m.y.toFixed(1)})`);
+
+  // [General] ChronoHarvTooFarDistance=50: past that it drives instead of
+  // blinking, so a miner never warps across two bases and walks back.
+  H.killBld(ref);
+  const ref2 = H.build("refinery", 0, 3, 3); ref2.make = 0;
+  const far = H.spawn("harvester", 0, 60, 60);
+  far.cargo = far.cargoV = 500; far.state = "mining"; far.mineAt = { x: 60, y: 60 };
+  g.ore[60 * T.MAP + 60] = 0.2;
+  assert.ok(Math.hypot(60 - ref2.cx, 60 - ref2.cy) > 50, "the two are further apart than the limit");
+  H.step(1);
+  assert.equal(far.state, "toref", "too far to warp: it drives home like a War Miner");
+  assert.ok(A.chronoDelayFor(80) > A.chronoDelayFor(4), "ChronoTrigger: the delay scales with distance");
+});
+
+test("a War Miner shoots infantry that walk past while it mines", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(9403, "normal");
+  g.side[0].fac = "col"; g.side[1].fac = "col";
+  const m = H.spawn("harvester", 0, 30, 30);
+  const foe = H.spawn("conscript", 1, 32, 30);
+  const hp0 = foe.hp;
+  H.step(30);
+  assert.ok(foe.hp < hp0, `the War Miner's 20mm never fired (${foe.hp}/${hp0})`);
+});
+
+test("a Terror Drone climbs inside a tank, grinds it down, and a Service Depot kills it", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9404, "normal");
+  const tank = H.spawn("rhino", 0, 30, 30);
+  const dr = H.spawn("drone", 1, 30.5, 30);
+  // Drive it through fire(): [DroneJump]'s Parasite warhead is what limbos it.
+  A.fire(g, dr, tank);
+  assert.equal(tank.drone, dr, "the vehicle is carrying the drone");
+  assert.ok(dr.limbo, "and the drone is off the map (LimboLaunch=yes)");
+  const witness = H.spawn("lancer", 0, 30, 31);
+  H.step(1);                                        // let the spatial hash catch up
+  assert.equal(H.api.findTarget(g, witness, 6), null,
+    "a limboed drone cannot be shot at");
+  const hp0 = tank.hp;
+  H.step(400);
+  // [DroneJump] Damage=50 / ROF=60 frames at RA2's 30 fps = 50 every 2 s.
+  assert.ok(tank.hp <= hp0 - 3 * A.PARASITE_DMG, `Parasite damage never landed (${tank.hp}/${hp0})`);
+
+  // The depot: RA2's only cure.
+  const dep = H.build("depot", 0, 34, 34); dep.make = 0;
+  H.build("power", 0, 38, 34).make = 0;
+  H.build("power", 0, 38, 38).make = 0;
+  tank.x = dep.cx; tank.y = dep.cy;
+  H.step(62);
+  assert.ok(dr.dead, "the Service Depot should have killed the drone");
+  assert.equal(tank.drone, null);
+  const hp1 = tank.hp;
+  H.step(120);
+  assert.ok(tank.hp >= hp1, "and the tank stops losing hit points");
+});
+
+test("a drone whose host dies climbs back out onto the map", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9405, "normal");
+  const tank = H.spawn("rhino", 0, 30, 30);
+  const dr = H.spawn("drone", 1, 30.5, 30);
+  A.fire(g, dr, tank);
+  assert.ok(dr.limbo);
+  tank.hp = 1;
+  H.step(200);
+  assert.ok(tank.dead, "the drone finishes the tank off");
+  assert.ok(!dr.dead && !dr.limbo, "and pops out alive");
+});
+
+test("Crazy Ivan plants a timed bomb, an Engineer defuses it, and it levels what it is on", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9406, "normal");
+  // [General] IvanTimedDelay=450 frames at RA2's 30 fps = 15 seconds.
+  assert.equal(A.IVAN_BOMB_T, 900);
+  const ivan = H.spawn("ivan", 1, 30, 30);
+  const tank = H.spawn("lancer", 0, 30.8, 30);
+  A.fire(g, ivan, tank);
+  assert.ok(tank.bomb, "the IvanBomb warhead PLACES, it does not damage");
+  assert.equal(tank.hp, tank.maxhp, "and does no damage at all when it lands");
+  assert.ok(H.bombs().indexOf(tank) >= 0);
+  H.step(A.IVAN_BOMB_T + 2);
+  assert.ok(tank.dead, "400 damage of IvanWH should finish a 300 hp Grizzly");
+
+  // ...and an Engineer takes one off, without being spent.
+  const tank2 = H.spawn("lancer", 0, 40, 40);
+  A.plantBomb(g, ivan, tank2);
+  assert.ok(tank2.bomb);
+  const eng = H.spawn("engineer", 0, 40.6, 40);
+  H.step(20);
+  assert.ok(!tank2.bomb, "an Engineer inside DefuseKit range takes the bomb off");
+  assert.ok(!eng.dead, "and is not consumed doing it");
+  H.step(A.IVAN_BOMB_T + 10);
+  assert.ok(!tank2.dead, "a defused bomb never goes off");
+
+  // He will bomb his OWN side too (AttackCursorOnFriendlies=yes).
+  const mine = H.spawn("rhino", 1, 30, 31);
+  A.fire(g, ivan, mine);
+  assert.ok(mine.bomb, "Ivan bombs his own carriers");
+});
+
+test("three Tesla Troopers keep a Tesla Coil firing with the grid down, and harder", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9407, "normal");
+  g.side[0].fac = "col";
+  const coil = H.build("tesla", 0, 30, 30); coil.make = 0;
+  H.build("radar", 0, 36, 36).make = 0;                    // a drain, no generation
+  H.api.applyGaps(g);
+  assert.ok(!A.powered(g, 0), "the grid is down");
+  const foe = H.spawn("conscript", 1, 33, 30);
+  H.step(200);
+  assert.equal(foe.hp, foe.maxhp, "an unpowered coil does not fire");
+
+  const crew = [H.spawn("teslatrooper", 0, 30, 31.2), H.spawn("teslatrooper", 0, 31.2, 30),
+                H.spawn("teslatrooper", 0, 29, 30), H.spawn("teslatrooper", 0, 30, 29)];
+  assert.equal(H.orderCoil(crew, coil), 4);
+  H.step(240);
+  assert.ok(A.coilCharged(g, coil), "the coil is being hand-charged");
+  assert.ok(coil.crewN <= 3, `RA2 caps the crew at three, got ${coil.crewN}`);
+  assert.ok(foe.hp < foe.maxhp, "and a charged coil fires with no power at all");
+  // [OPCoilBolt] 300 against the coil's own 200.
+  assert.ok(Math.abs(A.COIL_BOOST - 1.5) < 0.001);
+});
+
+test("a Desolator floods the ground with radiation that kills infantry and leaves him alone", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9408, "normal");
+  const deso = H.spawn("desolator", 0, 30, 30);
+  assert.equal(T.UNITS.desolator.cost, 600);
+  assert.equal(T.UNITS.desolator.hp, 150);
+  assert.equal(T.UNITS.desolator.armour, "plate");
+  assert.equal(T.UNITS.desolator.dmg, 125);          // [RadBeamWeapon]
+  assert.equal(T.UNITS.desolator.rate, 50);
+  assert.equal(T.UNITS.desolator.rng, 6);
+  assert.equal(H.deploy([deso], true), 1);
+  H.step(120);
+  assert.ok(H.rad(30, 30) > 0, "a deployed Desolator irradiates his own cell");
+  assert.ok(H.rad(31, 30) > 0, "and the ring around him");
+  assert.equal(H.rad(38, 30), 0, "but not the whole map");
+  assert.equal(deso.hp, deso.maxhp, "ImmuneToRadiation=yes — his own pool never touches him");
+
+  const gi = H.spawn("rifle", 1, 30, 30);
+  const hp0 = gi.hp;
+  H.step(70);
+  assert.ok(gi.hp < hp0 || gi.dead, `a man standing in it should be dying (${gi.hp}/${hp0})`);
+  const tank = H.spawn("rhino", 1, 31, 30);
+  const thp = tank.hp;
+  H.step(70);
+  assert.ok(tank.maxhp - tank.hp < gi.maxhp - hp0 + 40 || tank.hp > thp * 0.9,
+    "RadSite Verses is 10% against heavy armour: a tank barely notices");
+
+  // ...and it fades. Undeploy him and the pool decays away.
+  H.deploy([deso], false);
+  const lvl = H.rad(30, 30);
+  H.step(A.RAD_MAX * 2 + 200);
+  assert.ok(H.rad(30, 30) < lvl, "radiation decays");
+  assert.equal(H.rad(30, 30), 0, "and is gone once the site has run out");
+});
+
+test("a nuke leaves a radiation crater behind it", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(9409, "normal");
+  H.swCharge(0, "nuke");
+  assert.ok(H.swFire(0, "nuke", 30, 30));
+  H.step(60 * 11);
+  assert.ok(H.rad(30, 30) > 0, "[NukePayload] RadLevel=500 — the ground stays hot");
+});
+
+test("Yuri takes one unit at a time, and killing him gives it back", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9410, "normal");
+  assert.equal(T.UNITS.yuri.cost, 1200);
+  assert.equal(T.UNITS.yuri.sight, 12);
+  assert.equal(T.UNITS.yuri.rng, 7);                 // [MindControl] Range=7
+  assert.equal(T.UNITS.yuri.rate, 200);              // ...ROF=200
+  const yuri = H.spawn("yuri", 1, 30, 30);
+  const tank = H.spawn("lancer", 0, 33, 30);
+  A.fire(g, yuri, tank);
+  assert.equal(tank.p, 1, "the Controller warhead takes the unit, it does not damage it");
+  assert.equal(tank.hp, tank.maxhp);
+  assert.equal(tank.mcHome, 0, "it remembers who built it");
+  assert.equal(yuri.mcTarget, tank.id);
+
+  // One at a time: a second victim releases the first.
+  const tank2 = H.spawn("lancer", 0, 32, 31);
+  A.fire(g, yuri, tank2);
+  assert.equal(tank2.p, 1);
+  assert.equal(tank.p, 0, "the first victim comes back the moment he takes another");
+
+  // ImmuneToPsionics=yes on the miners, the drone and Yuri himself.
+  const m = H.spawn("harvester", 0, 31, 31);
+  assert.ok(A.psiImmune(m), "a miner is ImmuneToPsionics");
+  A.fire(g, yuri, m);
+  assert.equal(m.p, 0, "and cannot be taken");
+  const b = H.build("power", 0, 40, 40);
+  assert.ok(A.psiImmune(b), "and neither can a building (Controller Verses 0% vs structures)");
+
+  // Kill Yuri and the leash snaps.
+  yuri.hp = 1;
+  H.api.findTarget(g, yuri, 1);
+  const killer = H.spawn("rifle", 0, 30.5, 30);
+  H.step(120);
+  assert.ok(yuri.dead, "Yuri should be dead");
+  assert.equal(tank2.p, 0, "and his victim is his owner's again");
+});
+
+test("a Chrono Legionnaire erases what it shoots, warps instead of walking, and lets go if the beam breaks", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9411, "normal");
+  assert.equal(T.UNITS.cleg.cost, 1500);
+  assert.equal(T.UNITS.cleg.hp, 125);
+  assert.equal(T.UNITS.cleg.dmg, 8);                 // [NeutronRifle]
+  assert.equal(T.UNITS.cleg.rng, 5);
+  assert.equal(T.UNITS.cleg.wh, "ChronoBeam");
+  const cl = H.spawn("cleg", 0, 30, 30);
+  const prey = H.spawn("conscript", 1, 33, 30);
+  A.fire(g, cl, prey);
+  assert.ok(prey.erasedBy === cl.id, "the beam latches on");
+  assert.equal(prey.hp, prey.maxhp, "Temporal=yes: no damage is ever dealt");
+  H.step(30);
+  assert.ok(prey.erase > 0 && prey.erase < 1, `erasure should be under way, got ${prey.erase}`);
+  const part = prey.erase;
+  // Break the beam by walking out of its 5-cell reach: RA2 restores the victim.
+  prey.x = 55; prey.y = 55;
+  H.step(6);
+  assert.equal(prey.erase, 0, `a broken beam puts the victim back together (got ${prey.erase})`);
+  assert.ok(!prey.dead);
+
+  // Re-latch and see it through.
+  prey.x = 33; prey.y = 30;
+  A.startErase(g, cl, prey); cl.eraseId = prey.id;
+  H.step(400);
+  assert.ok(prey.dead, `a 125 hp Conscript should be gone (erase ${prey.erase})`);
+
+  // The teleport locomotor: a move order is a warp, delayed by distance.
+  assert.ok(A.chronoDelayFor(20) > A.chronoDelayFor(2));
+  const cl2 = H.spawn("cleg", 0, 20, 20);
+  H.orderMove([cl2], 40, 20);
+  H.step(2);
+  assert.ok(cl2.warp, "it warps rather than walking");
+  assert.ok(cl2.limbo, "and is out of phase while it does");
+  H.step(A.chronoDelayFor(20) + 20);
+  assert.ok(!cl2.limbo, "then it is back");
+  assert.ok(Math.abs(cl2.x - 40) < 4, `it should have arrived, got x=${cl2.x.toFixed(1)}`);
+  assert.ok(part >= 0);
+});
+
+test("a Spy is disguised until a dog sees him, and each building he enters pays differently", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9412, "normal");
+  g.side[0].fac = "dir"; g.side[1].fac = "col";
+  assert.equal(T.UNITS.spy.cost, 1000);
+  assert.equal(T.UNITS.spy.sight, 9);
+  assert.equal(T.UNITS.spy.armour, "flak");
+  const spy = H.spawn("spy", 0, 30, 30);
+  assert.ok(H.api.isDisguised(g, spy), "PermaDisguise=yes — he is disguised standing still");
+  H.orderMove([spy], 34, 30);
+  H.step(20);
+  assert.ok(H.api.isDisguised(g, spy), "...and while walking, unlike a Mirage");
+  const dog = H.spawn("dog", 1, 34, 31);
+  assert.ok(!H.api.isDisguised(g, spy), "DetectDisguise=yes: a dog strips him");
+  dog.dead = true;
+
+  // Refinery: SpyMoneyStealPercent=.5
+  g.side[1].credits = 4000; g.side[0].credits = 0;
+  const ref = H.build("refinery", 1, 40, 40); ref.make = 0;
+  assert.ok(A.spyInfiltrate(g, spy, ref));
+  assert.equal(g.side[1].credits, 2000);
+  assert.equal(g.side[0].credits, 2000);
+
+  // Power Plant: SpyPowerBlackout — the whole grid, not one building.
+  const pw = H.build("power", 1, 44, 40); pw.make = 0;
+  H.build("radar", 1, 48, 40).make = 0;
+  H.api.applyGaps(g);
+  assert.ok(A.powered(g, 1), "their grid is up before he gets in");
+  assert.ok(A.spyInfiltrate(g, spy, pw));
+  assert.ok(!A.powered(g, 1), "and down after");
+  H.step(A.SPY_BLACKOUT + 5);
+  assert.ok(A.powered(g, 1), "the blackout ends");
+
+  // Barracks / War Factory: veteran production from then on.
+  const bar = H.build("barracks", 1, 52, 40); bar.make = 0;
+  assert.ok(A.spyInfiltrate(g, spy, bar));
+  assert.ok(g.side[0].vetInf, "a spied Barracks makes our infantry veteran");
+
+  // Battle Lab: eva.ini #92 "Technology stolen" — their lab unit joins our list.
+  const lab = H.build("lab", 1, 56, 40); lab.make = 0;
+  assert.ok(A.spyInfiltrate(g, spy, lab));
+  assert.ok((g.side[0].stolen || []).indexOf("teslatank") >= 0, "the Collective's lab unit is ours now");
+  assert.ok(A.unitOrderFor("dir", "v", g.side[0]).indexOf("teslatank") >= 0,
+    "and it shows up in the Directorate's own vehicle tab");
+  g.side[0].credits = 99999;
+  H.build("factory", 0, 20, 20).make = 0;
+  H.build("radar", 0, 24, 20).make = 0;
+  assert.ok(H.api.hasBld(g, 0, "factory"));
+});
+
+test("a Spy walks into an enemy building on a right-click, and is spent inside it", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(9413, "normal");
+  g.side[0].fac = "dir"; g.side[1].fac = "col";
+  g.side[1].credits = 6000; g.side[0].credits = 0;
+  const ref = H.build("refinery", 1, 30, 30); ref.make = 0;
+  const spy = H.spawn("spy", 0, 34, 30);
+  assert.equal(H.orderInfil([spy], ref), 1, "the attack order becomes an infiltrate");
+  assert.equal(spy.order.t, "infil");
+  H.step(600);
+  assert.ok(spy.dead, "he is consumed inside");
+  assert.ok(g.side[0].credits >= 3000, `the cash should have moved, got ${g.side[0].credits}`);
+});
+
+test("an Engineer repairs one of our own damaged buildings to full and is spent doing it", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(9414, "normal");
+  const b = H.build("barracks", 0, 30, 30); b.make = 0;
+  b.hp = 100;
+  const eng = H.spawn("engineer", 0, 34, 30);
+  assert.equal(H.orderCapture([eng], b), 1);
+  H.step(600);
+  assert.equal(b.hp, b.maxhp, "the building should be whole again");
+  assert.ok(eng.dead, "and the Engineer spent");
+});
+
+test("the Chronosphere is one-way: land keeps the vehicle, water takes it", () => {
+  const H = W.__rtsTest, A = H.api3;
+  const g = H.begin(9415, "normal", "river");
+  // Find a water cell and a land cell to drop onto.
+  let wet = null, dry = null;
+  for (let y = 4; y < T.MAP - 4 && !(wet && dry); y++)
+    for (let x = 4; x < T.MAP - 4 && !(wet && dry); x++) {
+      const t = g.terrain[y * T.MAP + x];
+      if (t === T.TER.WATER && !wet) wet = { x, y };
+      if (t === T.TER.GROUND && !dry && x > 30) dry = { x, y };
+    }
+  assert.ok(wet && dry, "the river map should have both");
+  const a = H.spawn("lancer", 0, 20, 20);
+  H.swCharge(0, "chrono");
+  assert.ok(H.swFire(0, "chrono", 20, 20, dry.x, dry.y));
+  H.step(A.CHRONO_DELAY + 6);
+  assert.ok(!a.dead, "a vehicle dropped on solid ground survives, and stays");
+  const b2 = H.spawn("lancer", 0, 24, 24);
+  H.swCharge(0, "chrono");
+  assert.ok(H.swFire(0, "chrono", 24, 24, wet.x, wet.y));
+  H.step(A.CHRONO_DELAY + 6);
+  assert.ok(b2.dead, "one dropped over open water goes in with it");
+});
+
+test("every new man is in his faction's Infantry tab and behind the right prerequisites", () => {
+  const A = W.__rtsTest.api3;
+  const col = A.unitOrderFor("col", "i"), dir = A.unitOrderFor("dir", "i");
+  ["conscript", "engineer", "dog", "flak", "teslatrooper", "ivan", "desolator", "yuri"]
+    .forEach((k) => assert.ok(col.indexOf(k) >= 0, `${k} missing from the Collective Infantry tab`));
+  ["rifle", "engineer", "dog", "rocket", "rocketeer", "spy", "tanya", "cleg"]
+    .forEach((k) => assert.ok(dir.indexOf(k) >= 0, `${k} missing from the Directorate Infantry tab`));
+  // rules.ini Prerequisite= lines.
+  assert.deepEqual(T.UNITS.desolator.reqAll, ["barracks", "radar"]);   // [DESO] NAHAND,RADAR
+  assert.deepEqual(T.UNITS.yuri.reqAll, ["barracks", "lab"]);          // [YURI] NAHAND,NATECH
+  assert.deepEqual(T.UNITS.cleg.reqAll, ["barracks", "lab"]);          // [CLEG] GAPILE,TECH
+  assert.deepEqual(T.UNITS.spy.reqAll, ["barracks", "lab"]);           // [SPY]  GAPILE,GATECH
+  // Faction ownership, both ways.
+  assert.equal(T.UNITS.desolator.fac, "col");
+  assert.equal(T.UNITS.yuri.fac, "col");
+  assert.equal(T.UNITS.cleg.fac, "dir");
+  assert.equal(T.UNITS.spy.fac, "dir");
+  // And every one of them has art baked for both owners and both factions.
+  const H = W.__rtsTest;
+  H.begin(9416, "normal");
+  const SPR = H.spr();
+  ["desolator", "yuri", "cleg", "spy"].forEach((k) => {
+    for (const p of [0, 1]) for (const f of ["dir", "col"]) {
+      const art = SPR.unit[p][f][k];
+      assert.ok(art && art.fr, `${k} has no facing atlas for player ${p} / ${f}`);
+      assert.ok(art.fr("walk", 3, 2), `${k} cannot bake a walk frame`);
+    }
+  });
 });

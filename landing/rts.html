@@ -659,7 +659,21 @@
     // wound the man, it takes him off the board (see fire()).
     ParasiteDog:  [100, 100, 100,   0,   0,   0,   0,   0,   0],
     // [GrandCannonWH] Verses=...,50%,100%,50% on wood/steel/concrete.
-    GrandCannonWH:[100, 100, 100, 100, 100, 100,  50, 100,  50]
+    GrandCannonWH:[100, 100, 100, 100, 100, 100,  50, 100,  50],
+    // [HARVWH] — the War Miner's 20mm. Good on men and light skins, useless
+    // on armour, and (Verses[9]=200%) it chews wooden structures.
+    HARVWH:       [100,  80,  70,  50,  20,  20,  20,  15,  10],
+    // [RadBeamWarhead] / [RadSite] — the Desolator's beam and the pool it
+    // leaves. Infantry only: 20%/15%/10% against armour, nothing on buildings.
+    RadBeamWH:    [100, 100, 100,  20,  15,  10,   0,   0,   0],
+    RadSite:      [100, 100, 100,  50,  10,  10,   0,   0,   0],
+    // [ChronoBeam] Temporal=yes — the Verses row is 100% across the board
+    // because it never does damage at all; it erases (see fire()).
+    ChronoBeam:   [100, 100, 100, 100, 100, 100, 100, 100, 100],
+    // [Controller] MindControl=yes — same story: it skips damage entirely.
+    Controller:   [100, 100, 100, 100, 100, 100,   0,   0,   0],
+    // [IvanWH] — the bomb going off, not the bomb being placed.
+    IvanWH:       [100, 100, 100, 100, 100, 100, 100, 250,  20]
   };
   // rules.ini per-warhead `Wall=`: a warhead without it cannot scratch a wall
   // segment. Taken verbatim from the 37 sections that carry `Wall=yes` — note
@@ -697,7 +711,8 @@
     HE: 2, BlimpHE: 2, Super: 2, IvanBomb: 2,
     AP: 3, ApocAP: 3, ORCAAP: 3, SAMWH: 3, GUARDWH: 3,
     FlakWH: 3, FlakTWH: 3, FlakGuyWH: 3,
-    MirageWH: 4, NukeWH: 4,
+    MirageWH: 4, NukeWH: 4, RadBeamWH: 4, RadSite: 4,   // InfDeath=7 (radiation melt) folds into the burn
+    IvanWH: 2,
     Electric: 5, Shock: 5, IonWH: 5, PrismWarhead: 5, CometWH: 5
   };
   // art.ini `Crawls=` (art.ini:27): [ROCK] and [FLAKT] are `no` — they run
@@ -745,6 +760,14 @@
   }
   function bspecOf(g, key, p) { return bspecFor(key, g.side[p].fac); }
   function ucap(g, u) { var d = UNITS[u.type]; return g.side[u.p].fac === 'col' && d.capCol ? d.capCol : d.cap; }
+  // RA2 has no unit called "harvester" — it has a Chrono Miner and a War
+  // Miner. The word survives here as the ROLE, resolved to the faction's
+  // actual type at every boundary (spawn, build, count) so the AI, the tests
+  // and orderUnitsTo can still say "harvester" and mean "our miner".
+  function harvKey(fac) { return fac === 'col' ? 'warminer' : 'chronominer'; }
+  function isHarv(u) { var d = u && u.type && UNITS[u.type]; return !!(d && d.harv); }
+  function psiImmune(u) { return u.kind !== 'u' || !!UNITS[u.type].psiImmune; }
+  function radImmune(u) { return !!UNITS[u.type].radImmune; }
 
   // fac: null = both sides can build it. Otherwise the faction that owns it.
   //
@@ -752,11 +775,25 @@
   // in a fight rather than just a stat sheet: the Directorate outranges and
   // outruns you, the Collective outlasts and out-masses you.
   var UNITS = {
-    harvester: { capCol: 1000,
-      name: 'Harvester', em: '🚛', cost: 1400, build: 59, cls: 'v', fac: null,
-      hp: 1000, spd: 0.052, sight: 4, armour: 'medium',
+    // RA2 has TWO miners, not one hull in two colours: [CMIN] Chrono Miner
+    // (Storage=20, no weapon, teleport locomotor, ChronoInSound) and [HARV]
+    // War Miner (Storage=40, Turret=yes, Primary=20mmRapid). Same $1400 /
+    // Str 1000 / Speed 4 / Sight 4 chassis, two completely different jobs:
+    // the Directorate's skips the drive home, the Collective's shoots back.
+    // `harv: true` is what every call site tests (isHarv), and the legacy
+    // key 'harvester' still resolves through harvKey() so nothing that says
+    // "a harvester" — the AI, orderUnitsTo, the tests — had to be rewritten.
+    chronominer: { harv: true, chronoHome: true,
+      name: 'Chrono Miner', em: '🚛', cost: 1400, build: 59, cls: 'v', fac: 'dir',
+      hp: 1000, spd: 0.052, sight: 4, armour: 'medium', psiImmune: true, radImmune: true,
       dmg: 0, rate: 0, rng: 0, splash: 0, wh: null,
-      cap: 500, mine: 0.42, w: 15, h: 12, desc: 'Mines ore'   // RA2: ~1 bail/s, 20 bails (Chrono Miner) or 40 (War Miner) at $25
+      cap: 500, mine: 0.42, w: 15, h: 12, desc: 'Mines ore; warps home to the refinery when full'
+    },
+    warminer: { harv: true, turret: true,
+      name: 'War Miner', em: '🚛', cost: 1400, build: 59, cls: 'v', fac: 'col',
+      hp: 1000, spd: 0.052, sight: 4, armour: 'medium', psiImmune: true, radImmune: true,
+      dmg: 30, rate: 20, rng: 5.5, splash: 0, wh: 'HARVWH',   // [20mmRapid] 30 / ROF 20 / Range 5.5, HARVWH
+      cap: 1000, mine: 0.42, w: 15, h: 12, desc: 'Mines ore and shoots back with a 20mm gun'
     },
     rifle: {
       name: 'GI', em: '🔫', cost: 200, build: 8, cls: 'i', fac: 'dir',
@@ -913,6 +950,10 @@
       cap: 0, mine: 0, w: 18, h: 14, desc: 'Long-range rocket artillery; needs Radar'
     },
     teslatrooper: {
+      // [SHK] Shock Trooper. Beyond its own bolt it is the thing that keeps a
+      // Tesla Coil alive: RA2 lets up to three of them charge one coil, which
+      // fires without power and swaps [TeslaZap] for [OPCoilBolt] (300 dmg).
+      coiler: true,
       name: 'Tesla Trooper', em: '⚡', cost: 500, build: 21, cls: 'i', fac: 'col',
       hp: 130, spd: 0.052, sight: 6, armour: 'plate',
       dmg: 50, rate: 240, rng: 3, splash: 0,
@@ -920,6 +961,11 @@
       cap: 0, mine: 0, w: 10, h: 15, desc: 'Armoured, zaps tanks'
     },
     ivan: {
+      // [IVAN] Primary=[IvanBomber] FireOnce / Range 1.5 / Warhead=[IvanBomb]
+      // (IvanBomb=yes — it PLACES, it does not hurt); the blast is [IvanWH],
+      // 400 damage, CellSpread 1.5. AttackCursorOnFriendlies=yes, so a bomb
+      // can go on your own tank and walk it into their base.
+      ivan: true,
       name: 'Crazy Ivan', em: '🧨', cost: 600, build: 25, cls: 'i', fac: 'col', req: 'radar',
       hp: 125, spd: 0.052, sight: 6, armour: 'none',
       dmg: 400, rate: 200, rng: 1.5, splash: 1,
@@ -927,6 +973,10 @@
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Plants bombs point-blank; needs Radar'
     },
     drone: {
+      // [DRON] Primary=[DroneJump] 50 / ROF 60 / Range 1.83, Projectile=JUMP,
+      // LimboLaunch=yes, Warhead=[Parasite] Parasite=yes: the drone does not
+      // shoot a vehicle, it CLIMBS INSIDE and is removed from the map.
+      parasite: true, psiImmune: true, radImmune: true,
       name: 'Terror Drone', em: '🕷️', cost: 500, build: 21, cls: 'v', fac: 'col',
       hp: 100, spd: 0.130, sight: 4, armour: 'light',
       dmg: 50, rate: 240, rng: 1.83, splash: 0,
@@ -950,6 +1000,51 @@
       dmg: 100, rate: 400, rng: 10, splash: 0,
       wh: 'CometWH',   // [Comet]: 100 dmg, ROF 100, Range 10, Speed 4 — RA2's siege tank, not an infantry gun
       cap: 0, mine: 0, w: 15, h: 12, desc: 'Long-range prism beam, siege armour; needs a Battle Lab'
+    },
+    // ---- RA2 roster, phase C: the special infantry ----------------------
+    // [DESO] Desolater: $600, Str 150, Armor plate, TechLevel 8, Sight 6,
+    // Prerequisite=NAHAND,RADAR, SelfHealing=yes, ImmuneToRadiation=yes.
+    // Primary [RadBeamWeapon] 125 / ROF 50 / Range 6 / RadBeamWarhead;
+    // Secondary [RadEruptionWeapon] AreaFire, RadLevel=500 — the deploy.
+    desolator: {
+      name: 'Desolator', em: '☢️', cost: 600, build: 25, cls: 'i', fac: 'col',
+      reqAll: ['barracks', 'radar'], selfHeal: true, radImmune: true, deployRad: true,
+      hp: 150, spd: 0.052, sight: 6, armour: 'plate',
+      dmg: 125, rate: 50, rng: 6, splash: 0,
+      wh: 'RadBeamWH',
+      cap: 0, mine: 0, w: 10, h: 15, desc: 'Radiation beam; deploys (D) to flood the ground with radiation'
+    },
+    // [YURI] $1200, Str 100, Sight 12, Primary=[MindControl] 10 / ROF 200 /
+    // Range 7 / Warhead=Controller (MindControl=yes), Prerequisite=NAHAND,
+    // NATECH, TechLevel 10, ImmuneToPsionics=yes.
+    yuri: {
+      name: 'Yuri', em: '🧠', cost: 1200, build: 50, cls: 'i', fac: 'col',
+      reqAll: ['barracks', 'lab'], psiImmune: true, mind: true,
+      hp: 100, spd: 0.052, sight: 12, armour: 'none',
+      dmg: 10, rate: 200, rng: 7, splash: 0,
+      wh: 'Controller',
+      cap: 0, mine: 0, w: 9, h: 14, desc: 'Takes permanent control of one enemy unit; needs a Battle Lab'
+    },
+    // [CLEG] Chrono Legionnaire: $1500, Str 125, Speed 5, Armor none,
+    // TechLevel 10, Prerequisite=GAPILE,TECH, teleport locomotor.
+    // [NeutronRifle] 8 / ROF 120 / Range 5 / Warhead=[ChronoBeam] Temporal=yes.
+    cleg: {
+      name: 'Chrono Legionnaire', em: '⏳', cost: 1500, build: 63, cls: 'i', fac: 'dir',
+      reqAll: ['barracks', 'lab'], teleport: true, temporal: true,
+      hp: 125, spd: 0.065, sight: 8, armour: 'none',
+      dmg: 8, rate: 120, rng: 5, splash: 0,
+      wh: 'ChronoBeam',
+      cap: 0, mine: 0, w: 10, h: 15, desc: 'Warps instead of walking; erases what it shoots instead of damaging it'
+    },
+    // [SPY] $1000, Str 100, Armor flak, Speed 4, Sight 9, Agent=yes,
+    // Infiltrate=yes, CanDisguise + PermaDisguise, Primary=[MakeupKit]
+    // (Warhead [Snapshot] MakesDisguise=yes), CanPassiveAquire=no.
+    spy: {
+      name: 'Spy', em: '🕵️', cost: 1000, build: 42, cls: 'i', fac: 'dir',
+      reqAll: ['barracks', 'lab'], spy: true, infil: true,
+      hp: 100, spd: 0.052, sight: 9, armour: 'flak',
+      dmg: 0, rate: 0, rng: 0, splash: 0, wh: null,
+      cap: 0, mine: 0, w: 9, h: 14, desc: 'Disguised; infiltrates an enemy structure (consumed). Dogs see through it'
     },
     mcv: {
       // RA2 SMCV/AMCV: Cost 3000, Strength 1000, Armor heavy, Speed 4,
@@ -1300,12 +1395,25 @@
     return fac === 'col' ? ['wall', 'gate', 'sentrygun', 'flakcannon', 'tesla', 'psisensor', 'curtain', 'nuke']
                          : ['wall', 'gate', 'sentry', 'patriot', 'prism', 'gapgen', 'grandcannon', 'chrono', 'weather'];
   }
-  function unitOrderFor(fac, tab) {
+  function unitOrderFor(fac, tab, side) {
     // Attack Dog is TechLevel 2, one rung above the rifleman and the Engineer.
-    if (tab === 'i') return fac === 'col' ? ['conscript', 'engineer', 'dog', 'flak', 'teslatrooper', 'ivan']
-                                          : ['rifle', 'engineer', 'dog', 'rocket', 'rocketeer', 'tanya'];
-    return fac === 'col' ? ['harvester', 'rhino', 'v3', 'flaktrack', 'drone', 'mammoth', 'mcv', 'kirov', 'teslatank']
-                         : ['harvester', 'lancer', 'ifv', 'harrier', 'prismtank', 'mirage', 'mcv'];
+    // Order is rules.ini TechLevel: TL1 rifleman/Engineer, TL2 dog/GGI, TL5
+    // Flak Trooper/Shock Trooper/Ivan/Spy, TL8 Desolator, TL10 Yuri, Tanya
+    // and the Chrono Legionnaire.
+    var a;
+    if (tab === 'i') a = fac === 'col' ? ['conscript', 'engineer', 'dog', 'flak', 'teslatrooper', 'ivan', 'desolator', 'yuri']
+                                       : ['rifle', 'engineer', 'dog', 'rocket', 'rocketeer', 'spy', 'tanya', 'cleg'];
+    else a = fac === 'col' ? [harvKey(fac), 'rhino', 'v3', 'flaktrack', 'drone', 'mammoth', 'mcv', 'kirov', 'teslatank']
+                           : [harvKey(fac), 'lancer', 'ifv', 'harrier', 'prismtank', 'mirage', 'mcv'];
+    // A Spy who got into their Battle Lab brings home a blueprint: RA2's
+    // "Technology stolen" adds the OTHER side's lab unit to your own lane.
+    if (side && side.stolen) {
+      for (var i = 0; i < side.stolen.length; i++) {
+        var k = side.stolen[i];
+        if (UNITS[k] && UNITS[k].cls === (tab === 'i' ? 'i' : 'v') && a.indexOf(k) < 0) a.push(k);
+      }
+    }
+    return a;
   }
 
   // --------------------------------------------------------------------- //
@@ -1394,6 +1502,12 @@
       bridges: [], bwrk: new Uint8Array(MAP * MAP),   // spans + torn-deck memory
       bspan: new Int16Array(MAP * MAP),           // cell -> span index + 1, 0 = not a bridge
       neut: [], drops: [], spread: 0,             // neutral spawn list, paradrops in flight, ore-spread pass
+      // [Radiation]: a per-cell radiation LEVEL plus who put it there (kill
+      // credit). `radAny` is the "is any cell hot" flag that keeps the whole
+      // pass free when nothing on the map is irradiated, which is most of
+      // every match.
+      rad: new Float32Array(MAP * MAP), radOwn: new Int8Array(MAP * MAP), radAny: 0,
+      bombs: [],                                  // entities carrying a live Ivan bomb
       flash: 0, mmFlash: null,                    // nuke whiteout + the minimap ping on an incoming superweapon
       nextId: 1,
       side: [ newSide(P_HUMAN), newSide(P_AI) ],
@@ -1410,6 +1524,8 @@
     return {
       p: p, fac: 'dir', credits: 10000, made: 0, lost: 0, killed: 0, deadFor: 0, exitTurn: 0,
       powerMade: 0, powerUse: 0,
+      blackout: 0,                                 // [General] SpyPowerBlackout — grid dead until this tick
+      stolen: null, vetInf: false, vetVeh: false,  // what a Spy brought home
       queues: { b: newQueue(), d: newQueue(), i: newQueue(), v: newQueue(), a: newQueue() },
       pending: null,                               // a finished structure awaiting placement
       primary: { i: 0, v: 0, a: 0 },               // building id that produces each lane (RA2 "primary")
@@ -2644,7 +2760,11 @@
     teslatrooper: '#c3cbd6',// steel helmet bowl and gauntlet
     ivan:      '#6f4c2c',   // his beard — the only bare face under a fur hat
     flak:      '#ffbe45',   // amber shell drum, as the Flak Trooper art under `rocket`
-    rocketeer: '#9aa3ae'    // steel flight suit; the jets are the loud part
+    rocketeer: '#9aa3ae',   // steel flight suit; the jets are the loud part
+    desolator: '#4de04a',   // the rad cannon's green muzzle glow — his one loud surface
+    cleg:      '#cfe4f5',   // the bone-white helmet dome and the rifle's cold coil
+    spy:       '#d8d2c4',   // the pale shirt strip down the dark suit
+    yuri:      '#a86ff0'    // psychic violet at the temples
   };
 
   function outline(g, col) { g.strokeStyle = col; g.lineWidth = 1; g.stroke(); }
@@ -2672,7 +2792,20 @@
     tanya:     { coat: '#666a44', boot: '#1c1e24', skin: '#e6b98f' },  // olive combat trousers
     teslatrooper: { coat: '#1e2338', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
     ivan:      { coat: '#232a44', boot: '#4a4e57', skin: '#dfae82' },   // navy trousers, grey boots
-    rocketeer: { coat: '#6f7782', boot: '#2a2e35', skin: '#d8a878' }    // grey pressure suit
+    rocketeer: { coat: '#6f7782', boot: '#2a2e35', skin: '#d8a878' },   // grey pressure suit
+    // Read off ra2-deso-RA2_Desolator_{Render,Manual_Render}: a charcoal
+    // hazard suit with the house colour on the plates, heavy black boots.
+    desolator: { coat: '#3a3d45', boot: '#191b20', skin: '#d8a878' },
+    // Read off ra2-cleg-CC_Legion_Chrono_Legionnaire + the sprite animation:
+    // a PALE suit — bone-white plate over pale blue-grey underlayer.
+    cleg:      { coat: '#8f97a6', boot: '#40454f', skin: '#dcae84' },
+    // Read off ra2-spy-RA2_Spy_Manual_Render: a charcoal business suit,
+    // black shoes, bare head. He is the only man on the field in a suit.
+    spy:       { coat: '#464b57', boot: '#191b21', skin: '#e2b78e' },
+    // No RA2 sprite rip could be found for Yuri on the wiki (searched
+    // ns:File "Yuri RA2"/"Yuri Render"/"Yuri Cameo" — nothing); built from
+    // the unit's description instead: bald, pale, long high-collared coat.
+    yuri:      { coat: '#2a2436', boot: '#191622', skin: '#e6cdbd' }
   };
 
   // THE WALK. RA2's `[E1Sequence] Walk=8,6,6` (art.ini:9659) is SIX frames per
@@ -3667,6 +3800,340 @@
       g.ellipse(cx - 1.05, by - 24.9, 1.7, 0.85, -0.35, 0, 6.29); g.fill();
       g.fillStyle = shade(col, 0.72);                               // shadowed brow band
       g.fillRect(cx - 2.8, by - 22.9, 5.6, 0.75);
+      g.restore();
+
+    } else if (kind === 'desolator') {
+      // DESOLATOR ([DESO]), read off docs/ra2-ref/ra2-deso-RA2_Desolator_
+      // {Render,Manual_Render}. What actually identifies him at 1:1 is the
+      // SHOULDER: a fat cylindrical rad cannon carried on the leading
+      // shoulder with a glowing green muzzle disc pointing forward, so his
+      // silhouette is lopsided in a way nothing else on the field is. Under
+      // it, a charcoal hazard suit with house-colour plates on the chest,
+      // one shoulder and both thighs, a domed helmet with a green visor
+      // slit, and heavy black boots. Bulk one class above a Conscript.
+      legs(3.0, by - 12.2, 4.4, T.coat, 5.2);
+
+      g.save(); g.translate(gt.lean, gt.bob);
+      for (var dtp = -1; dtp <= 1; dtp += 2) {                       // house-colour thigh plates
+        g.fillStyle = shade(col, 0.86);
+        g.beginPath(); g.roundRect(cx + dtp * 3.0 - 2.1, by - 13.0, 4.2, 3.4, 1.0); g.fill();
+        outline(g, shade(col, 0.42));
+        g.fillStyle = shade(col, 1.18);
+        g.fillRect(cx + dtp * 3.0 - 1.7, by - 12.8, 3.4, 0.9);
+      }
+      g.fillStyle = '#5a5f69';                                       // suit waist ring
+      g.fillRect(cx - 5.4, by - 14.6, 10.8, 1.6);
+      g.fillStyle = '#7d8590';
+      g.fillRect(cx - 5.2, by - 14.5, 10.4, 0.6);
+
+      g.fillStyle = shade(T.coat, 1.04);                             // charcoal carapace
+      g.beginPath();
+      g.moveTo(cx - 5.3, by - 20.4); g.lineTo(cx + 5.3, by - 20.4);
+      g.lineTo(cx + 5.6, by - 15.0); g.lineTo(cx - 5.6, by - 15.0);
+      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
+      g.fillStyle = col;                                             // house-colour chest plate
+      g.beginPath();
+      g.moveTo(cx - 3.6, by - 20.2); g.lineTo(cx + 3.6, by - 20.2);
+      g.lineTo(cx + 2.6, by - 15.4); g.lineTo(cx - 2.6, by - 15.4);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      g.fillStyle = shade(col, 1.24);
+      g.fillRect(cx - 3.4, by - 20.1, 6.8, 1.2);
+      // rivets down the plate — the render's studded seam
+      g.fillStyle = 'rgba(20,22,26,.55)';
+      for (var drv = 0; drv < 3; drv++) g.fillRect(cx - 0.5, by - 19.0 - drv * 1.5, 1.0, 0.8);
+
+      arms(5.5, by - 18.4, 2.9, 5.6, shade(T.coat, 0.92), function (i, x, y) {
+        g.fillStyle = shade(col, 0.94);                              // armoured gauntlet
+        g.beginPath(); g.roundRect(x - 1.5, y + 4.9, 3.0, 2.5, 0.9); g.fill();
+        outline(g, shade(col, 0.42));
+      });
+
+      // The rad cannon on the leading shoulder. `wpn` keeps its true length
+      // through the body squeeze and swings it round with the facing.
+      wpn(function () {
+        var gy0 = by - 19.4;
+        g.fillStyle = '#5b6169';                                     // barrel body
+        g.beginPath(); g.roundRect(cx - 0.4, gy0, 5.8, 3.4, 1.2); g.fill();
+        outline(g, '#232629');
+        g.fillStyle = '#7f868f';                                     // lit top of the tube
+        g.fillRect(cx - 0.1, gy0 + 0.3, 5.2, 1.0);
+        g.fillStyle = '#3d4249';                                     // cooling bands
+        for (var db = 0; db < 3; db++) g.fillRect(cx + 1.0 + db * 1.4, gy0 + 0.3, 0.7, 2.8);
+        g.fillStyle = '#2e3238';                                     // shoulder yoke
+        g.beginPath(); g.roundRect(cx - 2.1, gy0 + 0.5, 2.1, 3.2, 0.9); g.fill();
+        // the muzzle: a green disc with a soft bloom, his one loud surface
+        g.fillStyle = 'rgba(77,224,74,.28)';
+        g.beginPath(); g.ellipse(cx + 5.9, gy0 + 1.7, 2.1, 2.1, 0, 0, 6.29); g.fill();
+        g.fillStyle = ACCENT.desolator;
+        g.beginPath(); g.ellipse(cx + 5.9, gy0 + 1.7, 1.25, 1.35, 0, 0, 6.29); g.fill();
+        outline(g, '#1f5c1e');
+        g.fillStyle = '#d6ffd0';
+        g.beginPath(); g.ellipse(cx + 5.6, gy0 + 1.3, 0.55, 0.55, 0, 0, 6.29); g.fill();
+        // the ribbed feed hose running back to the pack
+        g.strokeStyle = '#4a5058'; g.lineWidth = 1.1;
+        g.beginPath(); g.moveTo(cx - 0.6, gy0 + 2.9);
+        g.quadraticCurveTo(cx - 3.4, gy0 + 5.0, cx - 2.6, gy0 + 7.0); g.stroke();
+      });
+
+      // A sealed helmet, not a face: a domed shell with a green visor band.
+      g.fillStyle = shade(T.coat, 1.28);
+      var dhy = by - 22.4;
+      g.beginPath(); g.ellipse(cx + sd * 1.1 / TURN, dhy, 3.4 * (1 - 0.16 * sd), 3.5, 0, Math.PI, 0); g.fill();
+      g.fillRect(cx + sd * 1.1 / TURN - 3.4 * (1 - 0.16 * sd), dhy, 6.8 * (1 - 0.16 * sd), 1.9);
+      outline(g, shade(T.coat, 0.42));
+      if (!FA.back) {
+        g.fillStyle = 'rgba(77,224,74,.85)';                         // visor slit
+        g.fillRect(cx + sd * 1.9 / TURN - 2.4, dhy + 0.2, 4.8, 1.5);
+        g.fillStyle = '#d6ffd0';
+        g.fillRect(cx + sd * 1.9 / TURN - 2.1, dhy + 0.4, 1.6, 0.7);
+      } else {
+        g.fillStyle = shade(T.coat, 0.62);
+        g.beginPath(); g.ellipse(cx, dhy + 1.3, 2.7, 1.5, 0, 0, Math.PI); g.fill();
+      }
+      g.fillStyle = shade(col, 1.0);                                 // house-colour crest
+      g.fillRect(cx + sd * 1.1 / TURN - 0.8, dhy - 3.6, 1.6, 3.2);
+      g.restore();
+
+    } else if (kind === 'yuri') {
+      // YURI ([YURI]). No sprite rip exists on the wiki (ns:File searches for
+      // "Yuri RA2" / "Yuri Render" / "Yuri Cameo" return nothing), so this is
+      // built from the character as RA2 presents him — the ONE unit in the
+      // game that is not a soldier: a BALD head above a long high-collared
+      // coat, arms raised toward the temples, and a violet psychic glow at
+      // the head. Everything about the silhouette is deliberately un-military:
+      // no helmet dome, no weapon, a skirted coat instead of trousers.
+      legs(2.2, by - 12.6, 3.0, T.coat, 3.6);
+
+      g.save(); g.translate(gt.lean, gt.bob);
+      g.fillStyle = shade(T.coat, 1.12);                             // the coat SKIRT, past the knee
+      g.beginPath();
+      g.moveTo(cx - 4.6, by - 15.0); g.lineTo(cx + 4.6, by - 15.0);
+      g.lineTo(cx + 6.2, by - 5.4); g.lineTo(cx - 6.2, by - 5.4);
+      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
+      g.fillStyle = shade(T.coat, 1.42);                             // lit front panel
+      g.beginPath();
+      g.moveTo(cx - 4.2, by - 14.8); g.lineTo(cx - 1.0, by - 14.8);
+      g.lineTo(cx - 1.8, by - 5.6); g.lineTo(cx - 5.4, by - 5.6);
+      g.closePath(); g.fill();
+      g.fillStyle = col;                                             // house-colour sash at the waist
+      g.fillRect(cx - 4.7, by - 15.6, 9.4, 1.8);
+      g.fillStyle = shade(col, 1.26);
+      g.fillRect(cx - 4.5, by - 15.5, 9.0, 0.7);
+
+      g.fillStyle = shade(T.coat, 1.0);                              // torso
+      g.beginPath();
+      g.moveTo(cx - 4.4, by - 21.0); g.lineTo(cx + 4.4, by - 21.0);
+      g.lineTo(cx + 4.8, by - 15.2); g.lineTo(cx - 4.8, by - 15.2);
+      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.42));
+      g.fillStyle = col;                                             // house-colour lapels
+      g.beginPath();
+      g.moveTo(cx - 4.2, by - 20.8); g.lineTo(cx - 0.6, by - 20.8);
+      g.lineTo(cx - 1.6, by - 15.6); g.lineTo(cx - 4.4, by - 15.6);
+      g.closePath(); g.fill();
+      g.beginPath();
+      g.moveTo(cx + 4.2, by - 20.8); g.lineTo(cx + 0.6, by - 20.8);
+      g.lineTo(cx + 1.6, by - 15.6); g.lineTo(cx + 4.4, by - 15.6);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+
+      // Arms DOWN at the sides. RA2 raises them for the psychic attack; hands
+      // held at the temples in every frame buried the bald head, which is the
+      // entire silhouette read.
+      arms(4.7, by - 19.6, 2.1, 5.8, shade(T.coat, 0.90), function (i, x, y) {
+        g.fillStyle = T.skin;                                        // bare hand
+        g.beginPath(); g.ellipse(x + i * 0.3, y + 6.2, 1.05, 1.2, 0, 0, 6.29); g.fill();
+        outline(g, '#a5806a');
+        g.fillStyle = shade(T.coat, 0.70);                           // cuff
+        g.fillRect(x - 1.0, y + 4.6, 2.0, 1.0);
+      });
+
+      // The high collar stands ABOVE the shoulder line, which is what makes
+      // the bald head sit in a notch rather than on a normal neck.
+      g.fillStyle = shade(T.coat, 0.76);
+      g.beginPath();
+      g.moveTo(cx - 4.4, by - 21.2); g.lineTo(cx - 2.6, by - 25.0);
+      g.lineTo(cx + 2.6, by - 25.0); g.lineTo(cx + 4.4, by - 21.2);
+      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.38));
+      g.fillStyle = shade(col, 0.92);
+      g.fillRect(cx - 2.6, by - 25.0, 5.2, 0.9);
+
+      face(by - 24.0);
+      // The bald skull: skin, not a helmet, and drawn slightly larger than a
+      // helmet dome would be so the absence of a helmet is unmistakable.
+      var yhx = cx + sd * 1.1 / TURN + HEADX;
+      g.fillStyle = T.skin;
+      g.beginPath(); g.ellipse(yhx, by - 24.9, 2.7 * (1 - 0.16 * sd), 2.9, 0, Math.PI, 0); g.fill();
+      g.fillRect(yhx - 2.7 * (1 - 0.16 * sd), by - 24.9, 5.4 * (1 - 0.16 * sd), 1.3);
+      outline(g, '#a5806a');
+      g.fillStyle = 'rgba(255,255,255,.22)';                         // scalp highlight
+      g.beginPath(); g.ellipse(yhx - 0.9, by - 26.0, 1.3, 0.7, -0.35, 0, 6.29); g.fill();
+      if (!FA.back) {                                                // the dark goatee
+        g.fillStyle = '#2b2028';
+        g.beginPath(); g.ellipse(yhx + sd * 0.8, by - 22.4, 1.5 * (1 - 0.2 * sd), 1.5, 0, 0, 6.29); g.fill();
+      }
+      // Psychic aura at the temples: two violet motes, drawn additively so
+      // they read as light rather than as paint.
+      g.save();
+      g.globalCompositeOperation = 'lighter';
+      for (var ypi = -1; ypi <= 1; ypi += 2) {
+        g.fillStyle = 'rgba(168,111,240,.40)';
+        g.beginPath(); g.ellipse(yhx + ypi * 3.2, by - 24.8, 1.25, 1.25, 0, 0, 6.29); g.fill();
+        g.fillStyle = ACCENT.yuri;
+        g.beginPath(); g.ellipse(yhx + ypi * 3.2, by - 24.8, 0.55, 0.55, 0, 0, 6.29); g.fill();
+      }
+      g.restore();
+      g.restore();
+
+    } else if (kind === 'cleg') {
+      // CHRONO LEGIONNAIRE ([CLEG]), read off docs/ra2-ref/ra2-cleg-CC_Legion
+      // _Chrono_Legionnaire.png and the sprite animation. He is the PALEST
+      // figure on the field: bone-white plate over a light blue-grey suit,
+      // a full domed helmet with a dark faceplate and a breathing hose, and
+      // a heavy two-handed neutron rifle held ACROSS the body with a cold
+      // blue coil glowing on top of the receiver. Value alone separates him
+      // from every other man in the line-up before colour does.
+      legs(2.7, by - 12.0, 3.8, '#4a525e', 4.4);
+
+      g.save(); g.translate(gt.lean, gt.bob);
+      g.fillStyle = '#5b6472';                                       // belt rig
+      g.fillRect(cx - 4.9, by - 14.2, 9.8, 1.5);
+      g.fillStyle = '#8d97a6';
+      g.fillRect(cx - 4.7, by - 14.1, 9.4, 0.6);
+
+      g.fillStyle = shade(T.coat, 1.30);                             // bone-white torso plate
+      g.beginPath();
+      g.moveTo(cx - 5.0, by - 20.6); g.lineTo(cx + 5.0, by - 20.6);
+      g.lineTo(cx + 5.2, by - 14.4); g.lineTo(cx - 5.2, by - 14.4);
+      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
+      g.fillStyle = shade(T.coat, 1.62);                             // lit left half
+      g.fillRect(cx - 4.8, by - 20.4, 3.2, 5.8);
+      g.fillStyle = col;                                             // house-colour yoke
+      g.beginPath();
+      g.moveTo(cx - 5.0, by - 20.6); g.lineTo(cx + 5.0, by - 20.6);
+      g.lineTo(cx + 3.0, by - 18.0); g.lineTo(cx - 3.0, by - 18.0);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      g.fillStyle = '#5f6a7a';                                       // chest vent slot
+      g.fillRect(cx - 1.6, by - 17.4, 3.2, 1.9);
+      g.fillStyle = ACCENT.cleg;
+      g.fillRect(cx - 1.3, by - 17.2, 1.1, 1.4);
+
+      arms(5.2, by - 18.6, 2.6, 5.4, shade(T.coat, 1.02), function (i, x, y) {
+        g.fillStyle = shade(col, 0.90);                              // pauldron cap
+        g.beginPath(); g.roundRect(x - 1.7, y - 0.9, 3.4, 2.4, 1.0); g.fill();
+        outline(g, shade(col, 0.42));
+        g.fillStyle = '#4b5361';                                     // dark glove
+        g.beginPath(); g.roundRect(x - 1.3, y + 4.6, 2.6, 2.2, 0.8); g.fill();
+      });
+
+      // The neutron rifle: a long slab receiver with a glowing coil ring
+      // near the muzzle and a stubby emitter fork at the end.
+      wpn(function () {
+        // Carried across the body and CANTED — the muzzle drops toward the
+        // leading hip. Level, an 8-unit slab at waist height read as a belt.
+        var ry = by - 16.2;
+        g.save();
+        g.translate(cx, ry); g.rotate(0.30); g.translate(-cx, -ry);
+        g.fillStyle = '#3f4753';
+        g.beginPath(); g.roundRect(cx - 3.0, ry, 7.6, 2.2, 0.8); g.fill();
+        outline(g, '#1c2026');
+        g.fillStyle = '#7c8694';                                     // lit spine
+        g.fillRect(cx - 2.7, ry + 0.25, 7.0, 0.8);
+        g.fillStyle = '#272d36';                                     // grip
+        g.beginPath(); g.roundRect(cx - 1.1, ry + 1.9, 1.6, 2.4, 0.5); g.fill();
+        g.fillStyle = '#272d36';                                     // fore grip
+        g.beginPath(); g.roundRect(cx + 2.4, ry + 1.9, 1.3, 1.8, 0.5); g.fill();
+        g.save();                                                    // the coil, drawn as light
+        g.globalCompositeOperation = 'lighter';
+        g.fillStyle = 'rgba(120,190,255,.45)';
+        g.beginPath(); g.ellipse(cx + 4.0, ry + 1.0, 2.1, 2.0, 0, 0, 6.29); g.fill();
+        g.fillStyle = ACCENT.cleg;
+        g.fillRect(cx + 3.4, ry - 0.5, 1.3, 3.2);
+        g.restore();
+        g.strokeStyle = '#9fb2c6'; g.lineWidth = 1.0;                // emitter fork
+        g.beginPath();
+        g.moveTo(cx + 4.9, ry + 1.1); g.lineTo(cx + 6.6, ry - 0.3);
+        g.moveTo(cx + 4.9, ry + 1.1); g.lineTo(cx + 6.6, ry + 2.5); g.stroke();
+        g.restore();
+      });
+
+      // A sealed dome, a dark faceplate and the hose down to the chest.
+      var chy = by - 22.3, chx = cx + sd * 1.1 / TURN + HEADX;
+      g.fillStyle = shade(T.coat, 1.5);
+      g.beginPath(); g.ellipse(chx, chy, 3.2 * (1 - 0.16 * sd), 3.3, 0, Math.PI, 0); g.fill();
+      g.fillRect(chx - 3.2 * (1 - 0.16 * sd), chy, 6.4 * (1 - 0.16 * sd), 1.8);
+      outline(g, shade(T.coat, 0.44));
+      g.fillStyle = shade(T.coat, 1.85);                             // lit crown
+      g.beginPath(); g.ellipse(chx - 1.0, chy - 1.5, 1.4, 0.75, -0.35, 0, 6.29); g.fill();
+      if (!FA.back) {
+        g.fillStyle = '#2b323c';                                     // dark faceplate
+        g.beginPath(); g.roundRect(chx + sd * 0.9 - 2.2, chy + 0.1, 4.4, 1.9, 0.7); g.fill();
+        g.fillStyle = 'rgba(190,225,255,.55)';
+        g.fillRect(chx + sd * 0.9 - 1.9, chy + 0.35, 1.6, 0.7);
+        g.strokeStyle = '#616b79'; g.lineWidth = 1.1;                // breathing hose
+        g.beginPath(); g.moveTo(chx + 2.2, chy + 1.8);
+        g.quadraticCurveTo(chx + 4.2, chy + 3.6, chx + 3.0, chy + 5.4); g.stroke();
+      } else {
+        g.fillStyle = shade(T.coat, 0.70);
+        g.beginPath(); g.ellipse(chx, chy + 1.2, 2.5, 1.4, 0, 0, Math.PI); g.fill();
+      }
+      g.restore();
+
+    } else if (kind === 'spy') {
+      // SPY ([SPY]), read off docs/ra2-ref/ra2-spy-RA2_Spy_Manual_Render: a
+      // man in a CHARCOAL BUSINESS SUIT — the only civilian silhouette in the
+      // army. Bare dark head, pale shirt strip and a house-colour tie down
+      // the jacket's opening, black dress shoes, and he walks with a slight
+      // crouch, hands out at his sides. No helmet, no webbing, no weapon:
+      // the whole read is "that man is not dressed like the others".
+      legs(2.2, by - 12.4, 3.0, T.coat, 3.4);
+
+      g.save(); g.translate(gt.lean, gt.bob);
+      g.fillStyle = shade(T.coat, 1.10);                             // jacket, skirted past the hip
+      g.beginPath();
+      g.moveTo(cx - 4.6, by - 20.4); g.lineTo(cx + 4.6, by - 20.4);
+      g.lineTo(cx + 5.0, by - 11.6); g.lineTo(cx - 5.0, by - 11.6);
+      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
+      g.fillStyle = shade(T.coat, 1.38);                             // lit lapel side
+      g.beginPath();
+      g.moveTo(cx - 4.4, by - 20.2); g.lineTo(cx - 1.2, by - 20.2);
+      g.lineTo(cx - 1.9, by - 11.8); g.lineTo(cx - 4.7, by - 11.8);
+      g.closePath(); g.fill();
+      g.fillStyle = ACCENT.spy;                                      // pale shirt strip
+      g.beginPath();
+      g.moveTo(cx - 2.0, by - 20.6); g.lineTo(cx + 2.0, by - 20.6);
+      g.lineTo(cx + 1.4, by - 13.8); g.lineTo(cx - 1.4, by - 13.8);
+      g.closePath(); g.fill(); outline(g, '#8d8a7e');
+      g.fillStyle = '#f4f1e8';                                       // lit collar wings
+      g.fillRect(cx - 2.0, by - 20.7, 4.0, 1.1);
+      g.fillStyle = shade(col, 1.10);                                // house-colour tie
+      g.beginPath();
+      g.moveTo(cx - 1.0, by - 20.4); g.lineTo(cx + 1.0, by - 20.4);
+      g.lineTo(cx + 0.65, by - 14.2); g.lineTo(cx - 0.65, by - 14.2);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.44));
+      g.fillStyle = shade(T.coat, 0.66);                             // lapel notches
+      g.beginPath();
+      g.moveTo(cx - 2.2, by - 20.4); g.lineTo(cx - 0.9, by - 20.4);
+      g.lineTo(cx - 1.6, by - 17.2); g.closePath(); g.fill();
+      g.beginPath();
+      g.moveTo(cx + 2.2, by - 20.4); g.lineTo(cx + 0.9, by - 20.4);
+      g.lineTo(cx + 1.6, by - 17.2); g.closePath(); g.fill();
+
+      arms(4.6, by - 19.4, 2.1, 6.0, shade(T.coat, 0.94), function (i, x, y) {
+        g.fillStyle = T.skin;                                        // bare hand, held out
+        g.beginPath(); g.ellipse(x + i * 0.4, y + 6.4, 1.15, 1.3, 0, 0, 6.29); g.fill();
+        outline(g, '#a5806a');
+        g.fillStyle = '#dfe3ea';                                     // shirt cuff
+        g.fillRect(x - 1.0, y + 4.9, 2.0, 0.9);
+      });
+
+      face(by - 22.2);
+      // Bare head with short dark hair — no helmet, which is the tell.
+      var shx = cx + sd * 1.1 / TURN + HEADX;
+      g.fillStyle = '#2f2620';
+      g.beginPath(); g.ellipse(shx, by - 23.2, 2.55 * (1 - 0.16 * sd), 2.35, 0, Math.PI, 0); g.fill();
+      g.fillRect(shx - 2.55 * (1 - 0.16 * sd), by - 23.3, 5.1 * (1 - 0.16 * sd), 1.0);
+      outline(g, '#150f0b');
+      g.fillStyle = 'rgba(255,255,255,.18)';
+      g.beginPath(); g.ellipse(shx - 0.9, by - 23.9, 1.2, 0.6, -0.35, 0, 6.29); g.fill();
       g.restore();
 
     } else {
@@ -14543,7 +15010,7 @@
           } else {
             // The Prism Tank's art kind is still called `spectre` inside
             // bakeVehicle — the sprite it names is the Prism Tank's.
-            var vk = uk === 'harvester' ? 'harv' : (uk === 'prismtank' ? 'spectre' : uk);
+            var vk = UNITS[uk].harv ? 'harv' : (uk === 'prismtank' ? 'spectre' : uk);
             U = bakeVehicle(COL[p], vk, ufk);
             // Harvesters get a second 8-facing set with the scoop working;
             // drawUnit alternates the two while mining.
@@ -14604,6 +15071,7 @@
   //  Entity factories. Every field read anywhere is declared here.
   // --------------------------------------------------------------------- //
   function spawnUnit(g, type, p, gx, gy) {
+    if (type === 'harvester') type = harvKey(facOf(g, p));      // the role resolves to this side's miner
     var d = UNITS[type];
     var u = {
       id: g.nextId++, kind: 'u', type: type, p: p,
@@ -14752,6 +15220,9 @@
   }
   function powered(g, p) {
     var s = g.side[p];
+    // A Spy in the Power Plant ([General] SpyPowerBlackout=1000) takes the
+    // whole grid down for a minute — not one building, the GRID.
+    if (s.blackout > g.tick) return false;
     return s.powerUse === 0 || s.powerMade >= s.powerUse;
   }
 
@@ -14915,7 +15386,7 @@
       var key = ((ex / CELL) | 0) + ',' + ((ey / CELL) | 0);
       (hash[key] || (hash[key] = [])).push(e);
     }
-    for (var i = 0; i < g.units.length; i++) if (!g.units[i].dead) add(g.units[i]);
+    for (var i = 0; i < g.units.length; i++) if (!g.units[i].dead && !g.units[i].limbo) add(g.units[i]);
     for (var j = 0; j < g.blds.length; j++) {
       var b = g.blds[j];
       if (!b.dead) add(b);                      // b.cx/cy are its centre
@@ -14955,7 +15426,12 @@
     return false;
   }
   function isDisguised(g, u) {
-    return u.kind === 'u' && u.type === 'mirage' && !u.dead && !u.order &&
+    if (u.kind !== 'u' || u.dead) return false;
+    // [SPY] CanDisguise + PermaDisguise=yes: unlike the Mirage it does not
+    // have to stand still, and moving never blows it — only a dog does
+    // (DetectDisguise=yes, the same key that sees through a Mirage).
+    if (UNITS[u.type].spy) return !detected(g, u);
+    return u.type === 'mirage' && !u.order &&
            g.tick - (u.movedAt || -9999) > MIRAGE_IDLE &&
            g.tick - (u.fireAt || -9999) > MIRAGE_IDLE &&
            !detected(g, u);
@@ -14973,9 +15449,12 @@
     var reach = Math.max(rng, spec.aa && spec.aaRng ? spec.aaRng : 0);
     near(ex, ey, reach + 1, function (o) {
       if (o.dead || o.p === e.p) return;
+      if (o.limbo) return;                   // inside a vehicle, or out of phase mid-warp
       if (!canHit(spec, o)) return;          // a GI cannot shoot a Kirov; a Patriot cannot shoot a tank
       var d = dist(e, o);
-      if (isDisguised(g, o) && d > 1.5) return;      // it reads as a tree from here
+      // A Mirage reads as a tree until you are almost touching it; a Spy in
+      // the enemy's own uniform is never shot at at all until a dog says so.
+      if (isDisguised(g, o) && (UNITS[o.type].spy || d > 1.5)) return;
       // ThreatPosed=0 on [GAWALL]/[NAWALL]: nothing ever CHOOSES to shoot a
       // wall. You can force-fire one, and splash will chew it, but a tank on
       // attack-move walks past concrete looking for something that matters.
@@ -14987,6 +15466,10 @@
       if (o.kind === 'b' && BLDS[o.type].neut && !occCount(o) && neutral(o.p)) return;
       if (o.kind === 'b' && BLDS[o.type].immune) return;
       var w = weaponFor(spec, o, e);
+      // A [Controller] shot at anything ImmuneToPsionics is a wasted 200-frame
+      // reload, and a Chrono Legionnaire cannot erase a wall.
+      if (w.wh === 'Controller' && psiImmune(o)) return;
+      if (w.wh === 'ChronoBeam' && isWall(o)) return;
       var mult = w.wh ? versesVs(w.wh, o) : 1;
       if (mult <= 0 || d > rngVs(w, o) || tooClose(w, d)) return;   // this weapon cannot hurt / reach it
       var score;
@@ -14994,8 +15477,15 @@
         // Prefer what we hurt most, then what is closest to dying: focus fire
         // falls out of the scoring rather than needing a separate pass.
         score = mult * 100 - d * 6 - (o.hp / o.maxhp) * 40;
-        if (o.kind === 'u' && UNITS[o.type].dmg > 0) score += 25;   // shooters first
-        if (o.kind === 'u' && o.type === 'harvester') score += 12;  // then economy
+        // `ThreatPosed=` decides what a threat scan WANTS: 20-25 on a
+        // soldier or a tank, and 0 on [HARV]/[CMIN] — which is the whole
+        // reason RA2's War Miner can carry a gun without becoming the first
+        // thing every enemy in range turns to shoot at. Without the isHarv
+        // guard, giving the miner its 20mm made it read as a "shooter" and
+        // the Collective's own economy became the priority target on the
+        // field (measured: hard-Collective lost 6 of 6 soak matches).
+        if (o.kind === 'u' && UNITS[o.type].dmg > 0 && !isHarv(o)) score += 25;   // shooters first
+        if (o.kind === 'u' && isHarv(o)) score += 12;                            // then economy
         if (o.kind === 'b' && occCount(o)) score += THREAT_PER_OCCUPANT * occCount(o);
       } else {
         score = -d;                       // unfocused: just shoot the nearest
@@ -15036,11 +15526,11 @@
       var walking = (tgt.order && tgt.order.t === 'move') || (tgt.path && tgt.pi < tgt.path.length);
       if (!tgt.prone && !walking) { tgt.prone = true; tgt.downAt = g.tick; }
     }
-    if (tgt.kind === 'u' && tgt.type === 'harvester') tgt.fleeAt = g.tick;
+    if (tgt.kind === 'u' && isHarv(tgt)) tgt.fleeAt = g.tick;
     if (isAir(src)) { var hitAI = tgt.p === P_AI ? g.ai : g.ai2; if (hitAI) hitAI.airAt = g.tick; }
     if (tgt.p === P_HUMAN && src.p !== P_HUMAN) {
       if (tgt.kind === 'b') eva('Our base is under attack', 20000);
-      else if (tgt.type === 'harvester') eva('Ore miner under attack', 20000);
+      else if (isHarv(tgt)) eva('Ore miner under attack', 20000);
       // keyboard.ini CenterOnRadarEvent=32 (Space) needs somewhere to go:
       // the last of ours that was shot at. Rate-limited so a running battle
       // does not drag the key's destination one tile at a time.
@@ -15059,6 +15549,15 @@
         var nr = src.kv >= oc * 6 ? 2 : (src.kv >= oc * 3 ? 1 : 0);
         if (nr > (src.rank || 0)) { src.rank = nr; if (src.p === P_HUMAN) { sfx('promote'); eva(nr === 2 ? 'Unit promoted to elite' : 'Unit promoted', 3000); } }
       }
+      // A dead Yuri lets his victim go; a dead host spits its drone back out;
+      // a dead victim frees its controller to take someone else.
+      if (tgt.kind === 'u') {
+        if (tgt.mcTarget) releaseMind(g, tgt);
+        if (tgt.mcBy) { var mcc = g.byId[tgt.mcBy]; if (mcc) mcc.mcTarget = 0; }
+        if (tgt.drone) popDrone(g, tgt);
+        if (tgt.bomb) defuseBomb(g, tgt);
+        if (tgt.eraseId) { var er = g.byId[tgt.eraseId]; if (er) { er.erasedBy = 0; er.erase = 0; } tgt.eraseId = 0; }
+      } else if (tgt.bomb) defuseBomb(g, tgt);
       if (tgt.p === P_HUMAN) eva(tgt.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
       if (tgt.kind === 'b') { killBld(g, tgt); sfx('boom'); }   // killBld runs the whole death sequence
       else if (isAir(tgt)) { tgt.dead = true; crashAircraft(g, tgt); }
@@ -15301,6 +15800,9 @@
         if (dd <= 5) damageBridge(g, ox, oy, 900);
         g.seen[ii] = 1;                                  // the flash burns the shroud off
       }
+    // [NukePayload] RadLevel=500: the ground stays lethal to infantry long
+    // after the fireball is gone. The audit had this missing entirely.
+    addRad(g, x, y, RAD_MAX, 5);
     if (!headless) {
       g.fx.push({ x: x, y: y, t: 0, life: 240, mush: true });     // ~4 s of mushroom
       g.fx.push({ x: x, y: y, t: 0, life: 44, size: 46 });
@@ -15365,17 +15867,24 @@
         if (isInf(u)) { u.dead = true; g.side[p].lost++; boom(g, u.x, u.y, 12); continue; }
         if (isVeh(u) && lift.length < 9) lift.push(u);
       }
+      // RA2's Chronosphere is a ONE-WAY trip (the return leg was RA1's):
+      // ChronoDelay=60 is how long the vehicle spends out of phase, and what
+      // decides its fate is the ground it lands on. Solid ground and it stays
+      // there for good; water and it goes in with it.
+      var drowned = 0;
       for (i = 0; i < lift.length; i++) {
         u = lift[i];
-        var nx = Math.round(x2 + (u.x - x)), ny = Math.round(y2 + (u.y - y));
-        var sp = freeTileNear(g, Math.max(0, Math.min(MAP - 1, nx)), Math.max(0, Math.min(MAP - 1, ny)));
-        if (!sp) continue;
+        var nx = Math.max(0, Math.min(MAP - 1, Math.round(x2 + (u.x - x))));
+        var ny = Math.max(0, Math.min(MAP - 1, Math.round(y2 + (u.y - y))));
+        var wet = waterish(g.terrain[idx(nx, ny)]) && g.terrain[idx(nx, ny)] !== T_BRIDGE;
+        if (wet) drowned++;
         if (!headless) g.fx.push({ x: u.x, y: u.y, t: 0, life: 24, chrono: true });
-        u.x = sp.x; u.y = sp.y; u.path = null; u.pi = 0; u.order = null; u.repathAt = -999;
-        u.guardX = sp.x; u.guardY = sp.y; u.target = null;
-        if (!headless) g.fx.push({ x: u.x, y: u.y, t: 0, life: 24, chrono: true });
+        u.warp = { x: nx, y: ny, at: g.tick + CHRONO_DELAY, out: g.tick, drown: wet };
+        u.limbo = true; u.path = null; u.pi = 0; u.order = null; u.repathAt = -999; u.target = null;
       }
-      if (mine) { eva('Chronosphere activated', 20000); say('Chronosphere — ' + lift.length + ' vehicle' + (lift.length === 1 ? '' : 's') + ' shifted', false, 260); }
+      if (mine) { eva('Chronosphere activated', 20000);
+                  say('Chronosphere — ' + lift.length + ' vehicle' + (lift.length === 1 ? '' : 's') + ' shifted' +
+                      (drowned ? ', ' + drowned + ' dropped over water' : ''), !!drowned, 260); }
       else { eva('Warning: enemy Chronosphere activated', 20000); mmPing(g, x2, y2); }
     }
     sfx(key === 'para' ? 'ready' : 'boom');
@@ -15438,7 +15947,17 @@
       }
     }
     sfx(spec.wh === 'ParasiteDog' ? 'bark' : (src.type === 'rifle' ? 'shot' : 'cannon'));
+    // ---- warheads that do something other than subtract hit points -------
+    // Each of these RETURNS: the shot has been drawn and the cooldown set,
+    // but no damage is dealt, because rules.ini's flag on the warhead
+    // (Parasite / IvanBomb / MindControl / Temporal) replaces the damage.
+    if (spec.wh === 'Parasite' && tgt.kind === 'u' && isVeh(tgt) && !tgt.drone) { infest(g, src, tgt); return; }
+    if (spec.wh === 'IvanBomb') { plantBomb(g, src, tgt); return; }
+    if (spec.wh === 'Controller') { mindControl(g, src, tgt); return; }
+    if (spec.wh === 'ChronoBeam') { startErase(g, src, tgt); src.cool = 8; return; }
     var amt = spec.dmg * vetFire(src.rank) * (src.fpMul || 1) * supMul;   // [Powerups] Firepower crate
+    // Three Tesla Troopers on a coil turn [TeslaZap] into [OPCoilBolt].
+    if (src.kind === 'b' && src.type === 'tesla' && coilCharged(g, src)) amt *= COIL_BOOST;
     // [ParasiteDog] Parasite=yes + [GoodTeeth] LimboLaunch=yes: the dog does
     // not shoot a man for 30 points, it LEAPS at him and he is gone. The 30
     // damage in rules.ini never gets a chance to matter, so neither does it
@@ -15524,8 +16043,46 @@
   // as having arrived.
   function atRefinery(u, b) { return dist(u, b) < Math.max(b.gw, b.gh) / 2 + 1.9; }
 
+  // [General] ChronoDelay=60 frames after a teleport, and
+  // ChronoHarvTooFarDistance=50 — a Chrono Miner that would have to warp
+  // further than that across the map drives home instead, so it stays on its
+  // own side rather than blinking across two bases and walking all the way back.
+  var CHRONO_DELAY = 60 * 2, CHRONO_HARV_TOOFAR = 50;
   function stepHarvester(g, u) {
-    var d = UNITS.harvester;
+    var d = UNITS[u.type];
+    // [HARV] OpportunityFire=yes + Turret=yes: the War Miner keeps its 20mm
+    // pointed at whatever wanders past, mining or not. The Chrono Miner has
+    // Primary=none and simply never enters this branch.
+    if (d.dmg > 0 && u.cool <= 0 && u.state !== 'warp') {
+      var wt = findTarget(g, u, d.rng);
+      // [HARVWH] is 100/80/70 against the three infantry armours and 50/20/20
+      // against the three vehicle ones: a 20mm autocannon is for men and thin
+      // skins, not for tanks. Restricting ACQUISITION to what the gun is for
+      // is not a nerf, it is the difference between a miner that defends
+      // itself and one that picks a fight with a Rhino, gets shot, and runs
+      // for the refinery with a half-full hold — measured as the Collective
+      // losing 6 of 6 soak matches to its own miners' opportunism.
+      if (wt && !(isInfArmour(armourOf(wt)) || armourOf(wt) === 'light')) wt = null;
+      if (wt) {
+        var wax = entX(wt) - u.x, way = entY(wt) - u.y;
+        u.tface = ((Math.round(Math.atan2(way, wax) / (Math.PI / 4)) % 8) + 8) % 8;
+        u.aimAt = g.tick;
+        fire(g, u, wt);
+      }
+    }
+    // ---- the Chrono Miner's trip home ([CMIN] Teleporter=yes) ------------
+    if (u.state === 'warp') {
+      if (g.tick < u.warpAt) { u.path = null; return; }
+      var wr = u.homeRef;
+      if (!wr || wr.dead) { u.state = 'toref'; return; }
+      var wd = refDock(g, wr), wsp = freeTileNear(g, wd.x, wd.y);
+      if (!headless) g.fx.push({ x: u.x, y: u.y, t: 0, life: 24, chrono: true });
+      if (wsp) { u.x = wsp.x; u.y = wsp.y; }
+      u.path = null; u.pi = 0; u.repathAt = -999; u.noProg = 0; u.stallAt = g.tick;
+      u.guardX = u.x; u.guardY = u.y; u.state = 'toref';
+      if (!headless) { g.fx.push({ x: u.x, y: u.y, t: 0, life: 24, chrono: true }); sfx('click'); }
+      return;
+    }
 
     // A move order is the player talking; it beats auto-mining. The idle
     // branch below used to re-acquire a seam on the very next tick, so a
@@ -15561,7 +16118,7 @@
         var taken = {};
         for (var ti = 0; ti < g.units.length; ti++) {
           var o = g.units[ti];
-          if (o !== u && !o.dead && o.p === u.p && o.type === 'harvester' && o.mineAt)
+          if (o !== u && !o.dead && o.p === u.p && isHarv(o) && o.mineAt)
             taken[o.mineAt.x + ',' + o.mineAt.y] = g.tick;
         }
         if (u.noGo) for (var nk in u.noGo) if (taken[nk] == null) taken[nk] = u.noGo[nk];
@@ -15644,8 +16201,16 @@
           var ref = findRefinery(g, u.p, u.x, u.y);
           if (ref) {
             var dock = refDock(g, ref);
-            u.homeRef = ref; u.state = 'toref'; u.noProg = 0; u.stallAt = g.tick;
-            requestPath(g, u, dock.x, dock.y);
+            u.homeRef = ref; u.noProg = 0; u.stallAt = g.tick;
+            if (d.chronoHome && dist(u, ref) <= CHRONO_HARV_TOOFAR) {
+              // It does not drive home. It stands still for ChronoDelay and
+              // then it is simply THERE — and drives back out normally.
+              u.state = 'warp'; u.warpAt = g.tick + CHRONO_DELAY; u.path = null;
+              if (!headless) sfx('charge');
+            } else {
+              u.state = 'toref';
+              requestPath(g, u, dock.x, dock.y);
+            }
           } else u.state = 'idle';
         } else u.state = 'idle';
       }
@@ -15683,6 +16248,357 @@
       }
       return;
     }
+  }
+
+  // ===================================================================== //
+  //  Phase 4c — the special-unit mechanics. Every one of these is a weapon
+  //  whose warhead does something OTHER than subtract hit points, which is
+  //  why they all hang off fire() rather than off damage().
+  // ===================================================================== //
+
+  // ---- Terror Drone ([DRON] / [DroneJump] / [Parasite] Parasite=yes) ------
+  // RA2's drone does not shoot a tank. `LimboLaunch=yes` removes the drone
+  // from the map at the moment it fires and puts it INSIDE the victim, where
+  // it grinds the vehicle down until one of them is finished. A Service Depot
+  // is the only cure, and a drone whose host died climbs back out.
+  // [DroneJump] Damage=50, ROF=60 frames. RA2 runs its logic at 30 fps, so
+  // that is 50 points every TWO seconds — 120 ticks here, not 60. Left at 60
+  // the drone chewed at twice RA2's rate and a pair of them could carry a
+  // whole match on their own.
+  var PARASITE_DMG = 50, PARASITE_ROF = 120;
+  function infest(g, dr, v) {
+    if (v.drone || dr.limbo) return false;
+    v.drone = dr;
+    dr.limbo = true; dr.inside = v.id; dr.sel = false;
+    dr.order = null; dr.path = null; dr.wp = null; dr.target = null;
+    dr.x = v.x; dr.y = v.y; dr.gnaw = g.tick;
+    if (!headless) sfx('bark');
+    if (v.p === P_HUMAN) eva('Our vehicle has been infested', 12000);
+    return true;
+  }
+  // The host died (or was repaired out from under it): put the drone back on
+  // the map beside the wreck, exactly as RA2 does.
+  function popDrone(g, v) {
+    var dr = v.drone;
+    v.drone = null;
+    if (!dr || dr.dead) return;
+    var sp = freeTileNear(g, Math.round(v.x), Math.round(v.y));
+    dr.limbo = false; dr.inside = 0; dr.cool = 30;
+    dr.x = sp ? sp.x : v.x; dr.y = sp ? sp.y : v.y;
+    dr.guardX = dr.x; dr.guardY = dr.y; dr.path = null; dr.repathAt = -999;
+  }
+  function killDrone(g, v) {
+    var dr = v.drone;
+    v.drone = null;
+    if (!dr || dr.dead) return;
+    dr.dead = true; dr.limbo = false;
+    g.side[dr.p].lost++;
+    boom(g, v.x, v.y, 9);
+  }
+  function stepInfest(g) {
+    for (var i = 0; i < g.units.length; i++) {
+      var v = g.units[i];
+      if (v.dead || !v.drone) continue;
+      if (v.drone.dead) { v.drone = null; continue; }
+      if (g.tick - (v.drone.gnaw || 0) < PARASITE_ROF) continue;
+      v.drone.gnaw = g.tick;
+      damage(g, v.drone, v, PARASITE_DMG, 'Parasite');
+    }
+  }
+
+  // ---- Crazy Ivan ([IVAN] / [IvanBomber] / [IvanBomb] IvanBomb=yes) -------
+  // [General] IvanTimedDelay=450 frames; RA2 runs its logic at 30 fps, so the
+  // fuse is 15 seconds — 900 ticks here. The bomb is PLACED (the warhead does
+  // no damage at all); what goes off is [IvanWH]: 400 damage, CellSpread 1.5,
+  // PercentAtMax=.25.
+  var IVAN_BOMB_T = 900, IVAN_DMG = 400, IVAN_SPREAD = 1.5, IVAN_ATMAX = 0.25;
+  var DEFUSE_RNG = 1.5;                            // [DefuseKit] Range=1.5
+  function plantBomb(g, u, tgt) {
+    if (tgt.bomb || tgt.dead) return false;
+    tgt.bomb = { p: u.p, at: g.tick + IVAN_BOMB_T };
+    g.bombs.push(tgt);
+    if (!headless) sfx('click');
+    if (tgt.p === P_HUMAN && u.p !== P_HUMAN) { eva('Warning: bomb planted', 6000); say('A bomb has been planted on ' + describeShort(tgt), true, 260); }
+    else if (u.p === P_HUMAN) say('Bomb planted — ' + Math.round(IVAN_BOMB_T / 60) + 's');
+    return true;
+  }
+  function defuseBomb(g, e) {
+    if (!e.bomb) return false;
+    e.bomb = null;
+    var i = g.bombs.indexOf(e);
+    if (i >= 0) g.bombs.splice(i, 1);
+    return true;
+  }
+  function stepBombs(g) {
+    for (var i = g.bombs.length - 1; i >= 0; i--) {
+      var e = g.bombs[i];
+      if (!e.bomb || e.dead) { e.bomb = null; g.bombs.splice(i, 1); continue; }
+      if (g.tick < e.bomb.at) continue;
+      var src = { kind: 'u', type: 'ivan', p: e.bomb.p, rank: 0 };
+      var bx = entX(e), by = entY(e);
+      e.bomb = null; g.bombs.splice(i, 1);
+      boom(g, bx, by, 26);
+      sfx('boom');
+      // The carrier itself takes the full charge; everything inside
+      // CellSpread takes it scaled down to PercentAtMax at the rim.
+      damage(g, src, e, IVAN_DMG, 'IvanWH');
+      (function (skip) {
+        near(bx, by, IVAN_SPREAD + 1, function (o) {
+          if (o.dead || o === skip || isAir(o)) return;
+          var dd = Math.sqrt((entX(o) - bx) * (entX(o) - bx) + (entY(o) - by) * (entY(o) - by));
+          if (dd > IVAN_SPREAD) return;
+          damage(g, src, o, IVAN_DMG * (1 - (1 - IVAN_ATMAX) * dd / IVAN_SPREAD), 'IvanWH');
+        });
+      })(e);
+    }
+  }
+  // An Engineer carries the [DefuseKit] and RA2 gives him `BombSight=4` to
+  // spot one with. He does not spend himself doing it.
+  function engineerDefuse(g, u) {
+    for (var i = g.bombs.length - 1; i >= 0; i--) {
+      var e = g.bombs[i];
+      if (!e.bomb || e.dead || e.bomb.p === u.p) continue;
+      var dx = entX(e) - u.x, dy = entY(e) - u.y;
+      if (dx * dx + dy * dy > DEFUSE_RNG * DEFUSE_RNG) continue;
+      defuseBomb(g, e);
+      if (u.p === P_HUMAN) { eva('Bomb defused', 4000); say('Bomb defused'); }
+      return true;
+    }
+    return false;
+  }
+
+  // ---- Tesla Trooper charging a coil ([SHK] + [OPCoilBolt]) --------------
+  // RA2 lets up to three Shock Troopers hold a Tesla Coil. A charged coil
+  // fires with no power at all and swaps its bolt for [OPCoilBolt] — 300
+  // damage against the coil's own 200.
+  var COIL_CREW_MAX = 3, COIL_BOOST = 300 / 200;
+  function coilCharged(g, b) { return b.type === 'tesla' && b.crewTick >= g.tick - 2 && b.crewN > 0; }
+  function coilCrew(g, b) {
+    if (b.crewTick !== g.tick) { b.crewTick = g.tick; b.crewN = 0; }
+    if (b.crewN >= COIL_CREW_MAX) return false;
+    b.crewN++;
+    return true;
+  }
+
+  // ---- Desolator + the radiation layer ([Radiation]) ---------------------
+  // rules.ini [Radiation]: RadLevelMax=500, RadLevelFactor=0.2 (damage per
+  // level), RadApplicationDelay=16 frames, RadDurationMultiple=1 (the site
+  // lasts Level frames), RadColor=0,255,0. At 30 fps that is an application
+  // roughly twice a second and a full-strength pool that lives ~17 seconds;
+  // doubled for our 60-tick second.
+  var RAD_MAX = 500, RAD_FACTOR = 0.2, RAD_APPLY = 32, RAD_DECAY_T = 10, RAD_DECAY = 5;
+  var DESO_RAD_LEVEL = 90, DESO_RAD_R = 3, DESO_RAD_T = 30;
+  function addRad(g, cx, cy, level, radius) {
+    var x0 = Math.max(0, Math.floor(cx - radius)), x1 = Math.min(MAP - 1, Math.ceil(cx + radius));
+    var y0 = Math.max(0, Math.floor(cy - radius)), y1 = Math.min(MAP - 1, Math.ceil(cy + radius));
+    for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
+      var d = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+      if (d > radius) continue;
+      var i = idx(x, y);
+      g.rad[i] = Math.min(RAD_MAX, g.rad[i] + level * (1 - 0.55 * d / radius));
+      g.radOwn[i] = 0;
+      g.radAny = 1;
+    }
+  }
+  function radAt(g, x, y) {
+    var xi = Math.round(x), yi = Math.round(y);
+    return inMap(xi, yi) ? g.rad[idx(xi, yi)] : 0;
+  }
+  var RAD_SRC = { kind: 'u', type: 'desolator', p: 0, rank: 0 };
+  // A unit can change hands (mind control) or leave the board (erasure) while
+  // it is in the player's selection; `sel` is a presentation array, so the sim
+  // pokes it through this one hook and never touches it directly.
+  function dropFromSel(u) {
+    if (headless || typeof sel === 'undefined' || !sel) return;
+    var i = sel.indexOf(u);
+    if (i >= 0) sel.splice(i, 1);
+  }
+  function stepRad(g) {
+    if (!g.radAny) return;
+    var r = g.rad, i;
+    if ((g.tick % RAD_DECAY_T) === 0) {
+      var any = 0;
+      for (i = 0; i < r.length; i++) if (r[i] > 0) { r[i] = r[i] > RAD_DECAY ? r[i] - RAD_DECAY : 0; if (r[i] > 0) any = 1; }
+      g.radAny = any;
+      if (!any) return;
+    }
+    if ((g.tick % RAD_APPLY) !== 0) return;
+    for (i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      if (u.dead || u.air || u.limbo || radImmune(u)) continue;
+      var lvl = radAt(g, u.x, u.y);
+      if (lvl <= 0) continue;
+      RAD_SRC.p = u.p === P_HUMAN ? P_AI : P_HUMAN;     // nobody owns a puddle; credit the other side
+      damage(g, RAD_SRC, u, lvl * RAD_FACTOR, 'RadSite');
+    }
+  }
+
+  // ---- Yuri ([YURI] / [MindControl] / [Controller] MindControl=yes) -------
+  // One victim at a time, permanently, until Yuri dies. `ImmuneToPsionics=yes`
+  // is the whole gate: miners, Terror Drones and Yuri himself are exempt, and
+  // a warhead with MindControl=yes has Verses 0% against every structure.
+  function mindControl(g, y, tgt) {
+    if (tgt.kind !== 'u' || tgt.dead || psiImmune(tgt) || tgt.p === y.p) return false;
+    releaseMind(g, y);
+    tgt.mcHome = tgt.mcBy ? tgt.mcHome : tgt.p;      // the ORIGINAL owner, through a re-capture
+    var prev = tgt.mcBy && g.byId[tgt.mcBy];
+    if (prev && prev !== y) prev.mcTarget = 0;
+    tgt.p = y.p; tgt.mcBy = y.id; tgt.mcAt = g.tick;
+    tgt.order = null; tgt.path = null; tgt.wp = null; tgt.target = null;
+    tgt.guard = false; tgt.stopped = false; tgt.guardX = tgt.x; tgt.guardY = tgt.y;
+    if (tgt.sel) { tgt.sel = false; if (!headless) dropFromSel(tgt); }
+    y.mcTarget = tgt.id;
+    if (y.p === P_HUMAN) { eva('Mind control engaged', 6000); say('Mind-controlled ' + describeShort(tgt)); }
+    else if (tgt.mcHome === P_HUMAN) { eva('Warning: our unit has been mind-controlled', 8000); say('One of ours has been mind-controlled', true, 260); }
+    return true;
+  }
+  function releaseMind(g, y) {
+    var t = y.mcTarget && g.byId[y.mcTarget];
+    y.mcTarget = 0;
+    if (!t || t.dead || t.mcBy !== y.id) return false;
+    t.p = t.mcHome; t.mcBy = 0;
+    t.order = null; t.path = null; t.target = null;
+    t.guard = false; t.guardX = t.x; t.guardY = t.y;
+    if (t.sel) { t.sel = false; if (!headless) dropFromSel(t); }
+    return true;
+  }
+
+  // ---- Chrono Legionnaire ([CLEG] / [NeutronRifle] / [ChronoBeam]) --------
+  // `Temporal=yes`: the beam does not damage the target, it erases it from
+  // the timeline, and RA2 scales how long that takes by the victim's
+  // Strength. Break the beam and the victim snaps back to whole.
+  var ERASE_K = 0.96;                              // 125 hp erased in ~2 s, an 800 hp Apocalypse in ~13 s
+  var CLEG_MIN_DELAY = 32, CLEG_PER_CELL = 10;     // [General] ChronoMinimumDelay / 256/ChronoDistanceFactor
+  function startErase(g, u, tgt) {
+    if (tgt.dead || (tgt.kind === 'b' && (BLDS[tgt.type].wall || BLDS[tgt.type].gate))) return false;
+    if (tgt.erasedBy && tgt.erasedBy !== u.id) return false;
+    tgt.erasedBy = u.id;
+    if (tgt.erase == null) tgt.erase = 0;
+    u.eraseId = tgt.id;
+    return true;
+  }
+  function stepErase(g) {
+    // RA2's Chrono Legionnaire erases STRUCTURES as well as units, and the
+    // Strength scaling is what makes a Construction Yard a two-man job.
+    stepEraseList(g, g.units);
+    stepEraseList(g, g.blds);
+  }
+  function stepEraseList(g, list) {
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      if (t.dead || !t.erasedBy) continue;
+      var by = g.byId[t.erasedBy];
+      var live = by && !by.dead && by.eraseId === t.id &&
+                 dist(by, t) <= UNITS[by.type].rng + (t.kind === 'b' ? Math.max(t.gw, t.gh) / 2 : 0) + 0.6;
+      if (!live) {                                  // beam broken: RA2 restores the victim
+        t.erasedBy = 0; t.erase = 0;
+        if (by && by.eraseId === t.id) by.eraseId = 0;
+        continue;
+      }
+      t.erase += 1 / (t.maxhp * ERASE_K);
+      if (t.erase < 1) continue;
+      // Gone. Not killed — removed; there is no body, no wreck, no rubble.
+      t.erase = 1; t.erasedBy = 0; by.eraseId = 0;
+      by.kills = (by.kills || 0) + 1;
+      if (!neutral(t.p)) g.side[t.p].lost++;
+      if (!neutral(by.p)) g.side[by.p].killed++;
+      if (t.kind === 'b') {
+        t.dead = true;
+        killOccupants(g, t);
+        for (var ey = t.y; ey < t.y + t.gh; ey++) for (var ex = t.x; ex < t.x + t.gw; ex++)
+          if (inMap(ex, ey) && g.occ[idx(ex, ey)] === t.id) g.occ[idx(ex, ey)] = 0;
+        recalcPower(g, t.p);
+      } else {
+        t.dead = true;
+        if (t.drone) popDrone(g, t);
+        if (t.mcTarget) releaseMind(g, t);
+        if (t.mcBy) { var mb = g.byId[t.mcBy]; if (mb) mb.mcTarget = 0; }
+      }
+      if (!headless) g.fx.push({ x: entX(t), y: entY(t), t: 0, life: 26, chrono: true });
+      if (t.p === P_HUMAN) eva(t.kind === 'b' ? 'Structure lost' : 'Unit lost', 5000);
+    }
+  }
+  // The teleport locomotor: `ChronoTrigger=yes` means the delay VARIES with
+  // distance — 256/ChronoDistanceFactor(48) frames per cell, floored at
+  // ChronoMinimumDelay=16, doubled for our tick rate.
+  function chronoDelayFor(d) { return Math.max(CLEG_MIN_DELAY, Math.round(d * CLEG_PER_CELL)); }
+  function beginWarp(g, u, tx, ty) {
+    var d = Math.sqrt((tx - u.x) * (tx - u.x) + (ty - u.y) * (ty - u.y));
+    if (d < 0.6) return false;
+    u.warp = { x: tx, y: ty, at: g.tick + chronoDelayFor(d), out: g.tick };
+    u.path = null; u.pi = 0;
+    if (!headless) g.fx.push({ x: u.x, y: u.y, t: 0, life: 24, chrono: true });
+    return true;
+  }
+  function stepWarp(g, u) {
+    // Out of phase: untargetable, unmovable, and it re-materialises on time.
+    if (g.tick < u.warp.at) { u.limbo = true; return; }
+    if (u.warp.drown) {
+      // Rematerialised over open water: RA2 loses the vehicle.
+      u.x = u.warp.x; u.y = u.warp.y; u.limbo = false; u.warp = null;
+      u.dead = true; g.side[u.p].lost++;
+      if (u.drone) popDrone(g, u);
+      boom(g, u.x, u.y, 14);
+      if (u.sel) dropFromSel(u);
+      if (u.p === P_HUMAN) eva('Unit lost', 5000);
+      return;
+    }
+    var sp = freeTileNear(g, Math.max(0, Math.min(MAP - 1, Math.round(u.warp.x))),
+                             Math.max(0, Math.min(MAP - 1, Math.round(u.warp.y))));
+    if (sp) { u.x = sp.x; u.y = sp.y; }
+    u.limbo = false; u.warp = null;
+    u.guardX = u.x; u.guardY = u.y; u.repathAt = -999; u.movedAt = g.tick;
+    if (u.order && u.order.t === 'move') u.order = null;
+    if (!headless) g.fx.push({ x: u.x, y: u.y, t: 0, life: 24, chrono: true });
+  }
+
+  // ---- Spy ([SPY] Agent/Infiltrate, [MakeupKit]/[Snapshot]) --------------
+  // [General] SpyPowerBlackout=1000 frames, SpyMoneyStealPercent=.5. The EVA
+  // lines are eva.ini #88-95: the victim hears "Building infiltrated…", the
+  // owner of the Spy hears the short form.
+  var SPY_BLACKOUT = 60 * 60, SPY_STEAL = 0.5;
+  function spyInfiltrate(g, u, b) {
+    var vic = g.side[b.p], mine = g.side[u.p], key = b.type, amt = 0;
+    var yours = u.p === P_HUMAN, theirs = b.p === P_HUMAN;
+    if (key === 'refinery' || key === 'purifier') {
+      amt = Math.round(vic.credits * SPY_STEAL);
+      vic.credits -= amt; mine.credits += amt;
+      if (yours) { eva('Cash stolen', 6000); say('Spy stole $' + amt); if (!headless) { creditPop(amt); sfx('cash'); } }
+      if (theirs) { eva('Building infiltrated: cash stolen', 8000); say('A spy emptied half our bank', true, 300); }
+    } else if (key === 'power' || key === 'reactor') {
+      vic.blackout = g.tick + SPY_BLACKOUT;
+      if (yours) { eva('Power sabotaged', 6000); say('Spy blacked out the enemy grid for a minute'); }
+      if (theirs) { eva('Building infiltrated: power sabotaged', 8000); say('A spy has blacked out our grid', true, 300); }
+    } else if (key === 'radar' || key === 'airforce') {
+      // eva.ini #89/#93 "Radar sabotaged": the victim loses the map he has
+      // uncovered and has to scout it again.
+      if (b.p === P_HUMAN) { for (var i = 0; i < g.seen.length; i++) g.seen[i] = 0; g.debugSeen = false; }
+      if (yours) { eva('Radar sabotaged', 6000); say('Spy wiped the enemy radar'); }
+      if (theirs) { eva('Building infiltrated: radar sabotaged', 8000); say('A spy wiped our radar — the map is dark again', true, 300); }
+    } else if (key === 'barracks' || key === 'factory') {
+      // RA2: a spied production building turns out VETERAN units from then on.
+      if (key === 'barracks') mine.vetInf = true; else mine.vetVeh = true;
+      if (yours) { eva('Unit promoted to veteran', 6000); say('Spy stole their training — new ' + (key === 'barracks' ? 'infantry' : 'vehicles') + ' come out veteran'); }
+      if (theirs) { eva('Building infiltrated', 8000); say('A spy has been in our ' + bspecOf(g, key, b.p).name, true, 300); }
+    } else if (key === 'lab') {
+      // eva.ini #88/#92 "Technology stolen": the enemy's Battle Lab unit
+      // joins YOUR build list.
+      var loot = facOf(g, b.p) === 'col' ? 'teslatank' : 'mirage';
+      (mine.stolen || (mine.stolen = [])).indexOf(loot) < 0 && mine.stolen.push(loot);
+      if (yours) { eva('Technology stolen', 8000); say('Technology stolen — the ' + UNITS[loot].name + ' is on your list now'); if (!headless) refreshPanel(); }
+      if (theirs) { eva('Building infiltrated: technology stolen', 8000); say('A spy has stolen our technology', true, 300); }
+    } else {
+      if (yours) say('Nothing worth taking in there', true);
+      return false;
+    }
+    return true;
+  }
+
+  // A short name for the EVA/status lines above, without the hp tail that
+  // describe() adds (which the sim has no business computing headless).
+  function describeShort(e) {
+    return e.kind === 'b' ? bspecOf(G || { side: [{ fac: 'dir' }, { fac: 'col' }] }, e.type, e.p).name
+                          : UNITS[e.type].name;
   }
 
   // --------------------------------------------------------------------- //
@@ -15821,7 +16737,18 @@
   // --------------------------------------------------------------------- //
   function stepUnit(g, u) {
     var d = UNITS[u.type];
+    // A drone that has climbed inside a tank is not on the map at all; a
+    // Chrono Legionnaire mid-warp is out of phase; a unit being erased is
+    // frozen out of time. None of the three takes a turn.
+    if (u.warp) { stepWarp(g, u); if (u.warp) return; }
+    if (u.limbo) return;
+    if (u.erase > 0) return;
     if (u.cool > 0) u.cool--;
+    // [DESO]/[CMIN] SelfHealing=yes — slow, and it never brings a corpse back.
+    if (d.selfHeal && u.hp < u.maxhp && (g.tick % 45) === 0) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * 0.004);
+    // [ENGINEER] Primary=DefuseKit, BombSight=4: he walks past a ticking
+    // bomb and takes it off without being spent.
+    if (d.capture && (g.tick % 15) === (u.id % 15)) engineerDefuse(g, u);
     // Four seconds without being shot at and a prone man gets back on his
     // feet (art.ini `Up=276,2,2`). Held here rather than in `damage()` so a
     // trooper pinned by continuous fire never stands up into it.
@@ -15830,13 +16757,66 @@
     // A turret swings back to the hull's line 1.5 s after it last aimed.
     if (u.tface != null && g.tick - (u.aimAt || 0) > 90) u.tface = null;
 
-    if (u.type === 'harvester') {
+    if (isHarv(u)) {
       // Harvesters flee toward the nearest refinery when shot at rather than
       // standing in the open being farmed.
       stepHarvester(g, u);
       return;
     }
     if (d.ammo) { stepAircraft(g, u); return; }
+
+    // [RadEruptionWeapon] AreaFire / FireOnce=no: a deployed Desolator does
+    // nothing but keep the ground under him lethal, for as long as he stands.
+    if (u.deployed && d.deployRad) {
+      if ((g.tick % DESO_RAD_T) === 0) addRad(g, u.x, u.y, DESO_RAD_LEVEL, DESO_RAD_R);
+      return;
+    }
+    // Teleport locomotor ([CLEG] Locomotor={...2747}): it does not walk to
+    // where it was sent, it warps, after ChronoTrigger's distance-scaled delay.
+    if (d.teleport) {
+      var tw = null;
+      if (u.order && (u.order.t === 'move' || u.order.t === 'amove')) tw = { x: u.order.x, y: u.order.y };
+      else if (u.order && u.order.t === 'attack') {
+        var ot0 = entById(g, u.order.id);
+        if (ot0 && dist(u, ot0) > d.rng) {
+          // Land just inside weapon range, not on top of what we came to erase.
+          var tx0 = entX(ot0), ty0 = entY(ot0), dl = dist(u, ot0) || 1;
+          tw = { x: tx0 + (u.x - tx0) / dl * (d.rng - 1), y: ty0 + (u.y - ty0) / dl * (d.rng - 1) };
+        }
+      }
+      if (tw && beginWarp(g, u, tw.x, tw.y)) return;
+    }
+
+    // A Tesla Trooper sent onto one of our own Tesla Coils stands beside it
+    // and hand-feeds it: RA2's charged coil fires with the grid down.
+    if (u.order && u.order.t === 'coil') {
+      var cb0 = entById(g, u.order.id);
+      if (!cb0 || cb0.dead || cb0.p !== u.p || cb0.type !== 'tesla') { u.order = null; return; }
+      if (dist(u, cb0) <= Math.max(cb0.gw, cb0.gh) / 2 + 1.3) {
+        u.path = null; u.guardX = u.x; u.guardY = u.y;
+        if (!coilCrew(g, cb0)) { u.order = null; return; }      // the coil already has its three
+        u.coilAt = g.tick;
+        // He still shoots what walks into his own three-cell reach.
+        if (u.cool <= 0) { var ct0 = findTarget(g, u, d.rng); if (ct0) fire(g, u, ct0); }
+        return;
+      }
+      advance(g, u, Math.round(cb0.cx), Math.round(cb0.cy), uspd(u), 60);
+      return;
+    }
+
+    // A Spy walks in through the front door and is spent inside.
+    if (u.order && u.order.t === 'infil') {
+      var sb0 = entById(g, u.order.id);
+      if (!sb0 || sb0.dead || sb0.p === u.p || neutral(sb0.p)) { u.order = null; return; }
+      if (dist(u, sb0) <= Math.max(sb0.gw, sb0.gh) / 2 + 1.1) {
+        spyInfiltrate(g, u, sb0);
+        u.dead = true; u.order = null;
+        if (u.sel) dropFromSel(u);
+        return;
+      }
+      advance(g, u, Math.round(sb0.cx), Math.round(sb0.cy), uspd(u), 60);
+      return;
+    }
 
     // A MOVE order is an explicit instruction and outranks opportunistic
     // fire: the unit goes where it was sent. It shoots on the way — standing
@@ -15856,9 +16836,21 @@
       // Engineer: walk into the enemy structure and take it over (RA2 rules:
       // the engineer is consumed, the building keeps its damage).
       var cb = entById(g, u.order.id);
-      if (!cb || cb.dead || (cb.p === u.p && !BLDS[cb.type].hut)) { u.order = null; return; }
+      var ownFix = cb && !cb.dead && cb.p === u.p && !BLDS[cb.type].hut && cb.hp < cb.maxhp;
+      if (!cb || cb.dead || (cb.p === u.p && !BLDS[cb.type].hut && !ownFix)) { u.order = null; return; }
       if (dist(u, cb) <= Math.max(cb.gw, cb.gh) / 2 + 1.1) {
         var cbd = BLDS[cb.type];
+        // RA2's Engineer on YOUR OWN damaged building: it goes straight back
+        // to full strength and he is spent doing it. Free, instant, and the
+        // reason an Engineer is worth keeping behind the line.
+        if (cb.p === u.p && !cbd.hut) {
+          if (cb.hp >= cb.maxhp) { u.order = null; return; }
+          cb.hp = cb.maxhp; cb.repair = false;
+          u.dead = true; u.order = null;
+          if (u.sel) dropFromSel(u);
+          if (u.p === P_HUMAN) { eva('Structure repaired', 3000); say(bspecOf(g, cb.type, cb.p).name + ' repaired'); }
+          return;
+        }
         // [CABHUT] BridgeRepairHut=yes — the engineer is spent rebuilding the
         // span, and the hut stays neutral.
         if (cbd.hut) {
@@ -16492,7 +17484,7 @@
       var cr = g.crates[i], got = null;
       for (var j = 0; j < g.units.length; j++) {
         var u = g.units[j];
-        if (u.dead || u.air || u.type === 'harvester') continue;
+        if (u.dead || u.air || isHarv(u)) continue;
         if (Math.abs(u.x - cr.x) > 0.75 || Math.abs(u.y - cr.y) > 0.75) continue;
         got = u; break;
       }
@@ -16626,14 +17618,19 @@
       // Service Depot: vehicles parked on the pad (or touching it) are repaired.
       for (var di = 0; di < g.units.length; di++) {
         var v = g.units[di];
-        if (v.dead || v.p !== b.p || UNITS[v.type].cls !== 'v' || v.air || v.hp >= v.maxhp) continue;
-        if (Math.abs(v.x - b.cx) <= b.gw / 2 + 0.6 && Math.abs(v.y - b.cy) <= b.gh / 2 + 0.6) v.hp = Math.min(v.maxhp, v.hp + v.maxhp * 0.02);
+        if (v.dead || v.p !== b.p || UNITS[v.type].cls !== 'v' || v.air) continue;
+        if (v.hp >= v.maxhp && !v.drone) continue;
+        if (Math.abs(v.x - b.cx) > b.gw / 2 + 0.6 || Math.abs(v.y - b.cy) > b.gh / 2 + 0.6) continue;
+        // RA2's only cure for a Terror Drone: the bay shakes it out and
+        // crushes it before it touches the repair itself.
+        if (v.drone) { killDrone(g, v); if (v.p === P_HUMAN) { eva('Terror Drone destroyed', 4000); say('Service Depot killed the Terror Drone'); } }
+        v.hp = Math.min(v.maxhp, v.hp + v.maxhp * 0.02);
       }
     }
     if (!d.dmg) return;
     // Unpowered defences go dark — except the Pillbox, which has no Powered=
     // key in rules.ini ([NALASR] Sentry Gun does, though it draws nothing).
-    if (!powered(g, b.p) && (d.power < 0 || b.type === 'sentrygun')) return;
+    if (!powered(g, b.p) && (d.power < 0 || b.type === 'sentrygun') && !coilCharged(g, b)) return;
     var t = findTarget(g, b, d.rng);
     b.target = t;                                 // what the turret frames point at
     // Tesla Coil / Prism Tower: 28 ticks of charge before the bolt, and the
@@ -16661,8 +17658,12 @@
   // --------------------------------------------------------------------- //
   function canBuild(g, p, key, isBld) {
     var s = g.side[p];
+    if (!isBld && key === 'harvester') key = harvKey(s.fac);
     var spec = isBld ? BLDS[key] : UNITS[key];
-    if (!spec || !ownedBy(spec, s.fac)) return false;
+    if (!spec) return false;
+    // A Spy's stolen blueprint is exactly the exception to "you can only
+    // build your own faction's list" ([General] eva.ini #92 Technology stolen).
+    if (!ownedBy(spec, s.fac) && !(!isBld && s.stolen && s.stolen.indexOf(key) >= 0)) return false;
     if (s.credits < spec.cost) return false;
     if (!reqMet(g, p, spec)) return false;
     if (!isBld && spec.max && countUnit(g, p, key) + queuedCount(s, key) >= spec.max) return false;
@@ -16693,9 +17694,13 @@
     return n;
   }
   function countUnit(g, p, type, cls) {
-    var n = 0;
+    var n = 0, role = type === 'harvester';                     // "how many miners" spans both types
     for (var i = 0; i < g.units.length; i++) {
-      if (!g.units[i].dead && g.units[i].p === p && (!type || g.units[i].type === type) && (!cls || UNITS[g.units[i].type].cls === cls)) n++;
+      var cu = g.units[i];
+      if (cu.dead || cu.p !== p) continue;
+      if (type && (role ? !isHarv(cu) : cu.type !== type)) continue;
+      if (cls && UNITS[cu.type].cls !== cls) continue;
+      n++;
     }
     return n;
   }
@@ -16712,6 +17717,7 @@
 
   function enqueue(g, p, key, lane) {
     var s = g.side[p];
+    if (!isBldLane(lane) && key === 'harvester') key = harvKey(s.fac);
     var q = s.queues[lane];
     if (q.list.length >= QUEUE_MAX) return false;
     var spec = isBldLane(lane) ? bspecOf(g, key, p) : UNITS[key];
@@ -16812,6 +17818,9 @@
             q.prog = 0; q.list.shift();
             if (sp) {
               var nu = spawnUnit(g, key, p, sp.x, sp.y);   // an aircraft lands on its pad in spawnUnit
+              // RA2: a Spy who got into their Barracks / War Factory makes
+              // every unit that comes out of ours a veteran from then on.
+              if ((UNITS[key].cls === 'i' && s.vetInf) || (UNITS[key].cls !== 'i' && s.vetVeh)) nu.rank = 1;
               if (src.rally) { nu.order = { t: 'move', x: src.rally.x, y: src.rally.y, id: 0 };
                                requestPath(g, nu, src.rally.x, src.rally.y);
                                nu.guardX = src.rally.x; nu.guardY = src.rally.y; }
@@ -17107,7 +18116,12 @@
     var a = [];
     for (var i = 0; i < g.units.length; i++) {
       var u = g.units[i];
-      if (!u.dead && u.p === me && UNITS[u.type].dmg > 0 && !UNITS[u.type].ammo) a.push(u);
+      // `dmg > 0` is "can it shoot", not "is it a soldier". [HARV] is
+      // ToProtect=yes / ThreatPosed=0 — a War Miner carries a 20mm and is
+      // still never part of a team. Without the isHarv guard, giving the
+      // Collective's miner its gun conscripted the whole economy into the
+      // attack wave and the faction lost 6 of 6 soak matches to it.
+      if (!u.dead && u.p === me && UNITS[u.type].dmg > 0 && !UNITS[u.type].ammo && !isHarv(u)) a.push(u);
     }
     return a;
   }
@@ -17127,7 +18141,7 @@
     var v = 0;
     for (var i = 0; i < g.units.length; i++) {
       var u = g.units[i];
-      if (!u.dead && u.p === p && UNITS[u.type].dmg > 0) v += UNITS[u.type].cost * (u.hp / u.maxhp);
+      if (!u.dead && u.p === p && UNITS[u.type].dmg > 0 && !isHarv(u)) v += UNITS[u.type].cost * (u.hp / u.maxhp);
     }
     return v;
   }
@@ -17367,6 +18381,16 @@
       // they are the only eyes it has against a Mirage. Two or three, never a
       // pack — a dog is worth nothing at all against armour.
       if (infHeavy && countUnit(g, me, 'dog') < 3 && rnd() < 0.30 && canBuild(g, me, 'dog', false)) pick = 'dog';
+      // The specialists, RA2-AI style: ONE or two of a kind, never a mass.
+      // Each answers a specific problem, so each is gated on the scout report.
+      // The rates are deliberately small: at 0.10-0.16 the lane spent enough
+      // of the bank on $1200-1500 men that hard stopped closing matches out
+      // (3 of 6 soak games ran to the 30-minute cap). A specialist is a tool
+      // the AI reaches for, not a unit it masses.
+      else if (s.fac === 'col' && infHeavy && countUnit(g, me, 'desolator') < 2 && rnd() < 0.07 && canBuild(g, me, 'desolator', false)) pick = 'desolator';
+      else if (s.fac === 'col' && vehHeavy && countUnit(g, me, 'yuri') < 1 && rnd() < 0.06 && canBuild(g, me, 'yuri', false)) pick = 'yuri';
+      else if (s.fac === 'col' && countUnit(g, me, 'ivan') < 2 && rnd() < 0.05 && canBuild(g, me, 'ivan', false)) pick = 'ivan';
+      else if (s.fac === 'dir' && vehHeavy && countUnit(g, me, 'cleg') < 1 && rnd() < 0.06 && canBuild(g, me, 'cleg', false)) pick = 'cleg';
       if (s.fac === 'dir' && hasBld(g, me, 'airforce') && rnd() < 0.2 && canBuild(g, me, 'rocketeer', false)) pick = 'rocketeer';
       if (canBuild(g, me, pick, false)) enqueue(g, me, pick, 'i');
     }
@@ -17386,6 +18410,7 @@
                    rnd() < 0.35 && canBuild(g, me, 'kirov', false)) ? 'kirov'
                 : (hasBld(g, me, 'lab') && rnd() < (infHeavy ? 0.55 : 0.4) && canBuild(g, me, heavy, false)) ? heavy
                 : (infHeavy && rnd() < 0.55 && canBuild(g, me, light, false)) ? light
+                : (s.fac === 'col' && vehHeavy && countUnit(g, me, 'drone') < 2 && rnd() < 0.12 && canBuild(g, me, 'drone', false)) ? 'drone'
                 : (s.fac === 'col' && hasBld(g, me, 'radar') && rnd() < 0.25 && canBuild(g, me, 'v3', false)) ? 'v3'
                 : F.tank;
       if (canBuild(g, me, vpick, false)) enqueue(g, me, vpick, 'v');
@@ -17535,7 +18560,7 @@
     if (ai.cfg.harass && rnd() < 0.35) {
       for (i = 0; i < g.units.length; i++) {
         var h = g.units[i];
-        if (!h.dead && h.p === foe && h.type === 'harvester') return h;
+        if (!h.dead && h.p === foe && isHarv(h)) return h;
       }
     }
     var pref = ['factory', 'barracks', 'refinery', 'power', 'reactor', 'base', 'lab', 'airforce', 'radar', 'purifier', 'depot', 'sentry', 'sentrygun', 'prism', 'tesla', 'patriot', 'flakcannon'];
@@ -17671,7 +18696,7 @@
     }
     if (ready.length && ready.length >= Math.min(planes, cfg.harass ? 2 : 4)) {
       var st = null;
-      for (i = 0; i < g.units.length && !st; i++) { var hv = g.units[i]; if (!hv.dead && hv.p === foe && hv.type === 'harvester') st = hv; }
+      for (i = 0; i < g.units.length && !st; i++) { var hv = g.units[i]; if (!hv.dead && hv.p === foe && isHarv(hv)) st = hv; }
       for (i = 0; i < g.blds.length && !st; i++) { var rb = g.blds[i]; if (!rb.dead && rb.p === foe && rb.type === 'refinery') st = rb; }
       if (!st) st = aiPickTarget(g, ai, me, foe);
       if (st) for (i = 0; i < ready.length && budget > 0; i++, budget--) aiOrderAttack(g, ready[i], st);
@@ -17871,6 +18896,10 @@
     if ((g.tick % ORE_SPREAD_T) === (ORE_SPREAD_T - 1)) stepOreSpread(g);
     stepCrates(g);
     stepDrops(g);
+    stepInfest(g);
+    stepBombs(g);
+    stepErase(g);
+    stepRad(g);
 
     // effects
     stepWrecks(g);
@@ -17927,11 +18956,11 @@
 
   function economyDead(g, p) {
     if (countUnit(g, p, 'harvester') > 0) return false;
-    var c = g.side[p].credits;
-    if (c >= UNITS.harvester.cost && hasBld(g, p, 'factory')) return false;
+    var c = g.side[p].credits, hcost = UNITS[harvKey(facOf(g, p))].cost;
+    if (c >= hcost && hasBld(g, p, 'factory')) return false;
     // An MCV IS a Construction Yard — it just has not unfolded yet.
     var base = hasBld(g, p, 'base') || countUnit(g, p, 'mcv') > 0;
-    if (c >= BLDS.factory.cost + UNITS.harvester.cost && base) return false;
+    if (c >= BLDS.factory.cost + hcost && base) return false;
     return true;
   }
 
@@ -18074,7 +19103,8 @@
     mcv:       { move: ['MCV reporting', 'Moving out', 'Rolling'], attack: [], harvest: [], deploy: ['Deploying', 'Establishing battlefield control'] },
     conscript: { move: ['Da', 'For the Union', 'Moving comrade'], attack: ['Attack', 'For the motherland'], harvest: [] },
     mammoth:   { move: ['Apocalypse rolling out', 'Understood'], attack: ['Crushing them', 'Target sighted'], harvest: [] },
-    harvester: { move: ['Miner moving', 'On it'], attack: [], harvest: ['Mining', 'Collecting ore'] }
+    chronominer: { move: ['Miner moving', 'On it'], attack: [], harvest: ['Mining', 'Collecting ore'] },
+    warminer: { move: ['Miner moving', 'On it'], attack: ['Engaging'], harvest: ['Mining', 'Collecting ore'] }
   };
   var ackAt = 0;
   function unitAck(units, kind) {
@@ -18935,12 +19965,21 @@
         // RA2's ENTER cursor: a GI or Conscript over a city block with room in it.
         var gar = hov.kind === 'b' && garrisonable(G, hov, P_HUMAN) &&
                   units.some(function (u) { return canOccupy(u.type); });
-        k = (cap || gar) ? 'enter'
+        // A Spy over an enemy structure gets the same ENTER cursor a captor does.
+        var spyIn = hov.kind === 'b' && !neutral(hov.p) && !BLDS[hov.type].wall && !BLDS[hov.type].gate &&
+                    !BLDS[hov.type].neut && units.some(function (u) { return UNITS[u.type].infil; });
+        k = (cap || gar || spyIn) ? 'enter'
           : (units.some(function (u) { return canHit(UNITS[u.type], hov); }) ? 'attack' : 'nomove');
       }
       // Our own garrisoned block: the enter cursor still applies (reinforce it).
       else if (hov && hov.kind === 'b' && hov.p === P_HUMAN && garrisonable(G, hov, P_HUMAN) &&
                units.some(function (u) { return canOccupy(u.type); })) k = 'enter';
+      // Our own Tesla Coil under a Tesla Trooper, or a damaged building under
+      // an Engineer: both are RA2's ENTER. Ivan over anything is ATTACK.
+      else if (hov && hov.kind === 'b' && hov.p === P_HUMAN &&
+               ((hov.type === 'tesla' && units.some(function (u) { return UNITS[u.type].coiler; })) ||
+                (hov.hp < hov.maxhp && !BLDS[hov.type].hut && units.some(function (u) { return UNITS[u.type].capture; })))) k = 'enter';
+      else if (hov && hov.p === P_HUMAN && !hov.bomb && units.some(function (u) { return UNITS[u.type].ivan; })) k = 'attack';
       else if (hov && hov.p === P_HUMAN) k = 'select';
       else if (!inMap(hoverTile.x, hoverTile.y)) k = 'nomove';
       else if (pathMode || mod.shift) k = 'waypoint';
@@ -19027,7 +20066,7 @@
       units0.forEach(function (u) {
         u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y;
         u.guard = isG; u.stopped = !isG;
-        if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
+        if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
         if (UNITS[u.type].ammo) u.rtb = true;           // RA2: a stopped aircraft returns to its pad
       });
       say((isG ? 'Guarding this ground — they will engage within ' + GUARD_STRAY + ' cells and return'
@@ -19384,11 +20423,12 @@
         refreshCmdbar();
         return;
       }
-      var gis = us.filter(function (u) { return UNITS[u.type].dep; });
-      if (!gis.length) { say('Only GIs and MCVs can deploy', true); return; }
+      var gis = us.filter(function (u) { return UNITS[u.type].dep || UNITS[u.type].deployRad; });
+      if (!gis.length) { say('Only GIs, Desolators and MCVs can deploy', true); return; }
       var on = gis.some(function (u) { return !u.deployed; });
       gis.forEach(function (u) { u.deployed = on; u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y; });
-      say((on ? 'Deployed' : 'Undeployed') + ' — ' + gis.length + ' GI' + (gis.length === 1 ? '' : 's')); sfx('click');
+      var dn = gis[0] && UNITS[gis[0].type].deployRad ? 'Desolator' : 'GI';
+      say((on ? 'Deployed' : 'Undeployed') + ' — ' + gis.length + ' ' + dn + (gis.length === 1 ? '' : 's')); sfx('click');
       if (on) unitAck(gis, 'deploy');
       return;
     }
@@ -19402,7 +20442,7 @@
     } else {
       us.forEach(function (u) {
         u.order = null; u.path = null; u.wp = null; u.guardX = u.x; u.guardY = u.y;
-        if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
+        if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.holdUntil = G.tick + 60 * 20; }
         if (UNITS[u.type].ammo) u.rtb = true;
         u.guard = kind === 'guard'; u.stopped = kind !== 'guard'; u.wp = null;
       });
@@ -19589,7 +20629,7 @@
       return t;
     }
     var u = UNITS[e.type];
-    var extra = e.type === 'harvester' ? ' — ' + Math.round(e.cargo) + '/' + ucap(G, e) + ' ore'
+    var extra = isHarv(e) ? ' — ' + Math.round(e.cargo) + '/' + ucap(G, e) + ' ore'
               : u.ammo ? ' — ' + e.ammo + '/' + u.ammo + ' missiles' + (e.landed ? ', on pad' : '') : '';
     return u.em + ' ' + u.name + ' — ' + Math.ceil(e.hp) + '/' + u.hp + ' hp' + extra;
   }
@@ -19623,7 +20663,7 @@
       // mode); a plain order replaces the whole queue.
       if (opts.queue && u.order) { (u.wp || (u.wp = [])).push({ x: gx, y: gy }); n++; return; }
       u.wp = null; u.guard = false; u.stopped = false;
-      if (onOre && u.type === 'harvester') {
+      if (onOre && isHarv(u)) {
         u.order = { t: 'harvest', x: gx, y: gy, id: 0 };
         u.mineAt = { x: gx, y: gy }; u.state = 'tomine'; u.path = null;
         u.noProg = 0; u.bestD = 1e9; u.stallAt = g.tick;
@@ -19636,7 +20676,7 @@
       var sp = u.air ? { x: gx, y: gy } : spreadSpot(g, gx, gy, taken), tx = sp.x, ty = sp.y;
       u.order = { t: 'move', x: tx, y: ty, id: 0 };
       u.guardX = tx; u.guardY = ty; u.repathAt = -999; u.path = null;
-      if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; u.noProg = 0; }
+      if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; u.noProg = 0; }
       requestPath(g, u, tx, ty);
       n++;
     });
@@ -19654,7 +20694,7 @@
       u.wp = null; u.guard = false; u.stopped = false;
       u.order = { t: 'amove', x: sp.x, y: sp.y, id: 0 };
       u.guardX = sp.x; u.guardY = sp.y; u.repathAt = -999; u.path = null; u.rtb = false;
-      if (u.type === 'harvester') { u.state = 'idle'; u.mineAt = null; }
+      if (isHarv(u)) { u.state = 'idle'; u.mineAt = null; }
       requestPath(g, u, sp.x, sp.y);
       n++;
     });
@@ -19779,6 +20819,33 @@
       return;
     }
 
+    // Our own things can be given orders too: a Tesla Trooper hand-charges a
+    // coil, an Engineer patches a damaged building, and Crazy Ivan is happy to
+    // bomb anything at all ([IVAN] AttackCursorOnFriendlies=yes).
+    if (tgt && !tgt.dead && tgt.p === P_HUMAN) {
+      var nown = 0, what = '';
+      units.forEach(function (u) {
+        var ud = UNITS[u.type];
+        if (ud.coiler && tgt.kind === 'b' && tgt.type === 'tesla') {
+          u.guard = false; u.stopped = false; u.wp = null;
+          u.order = { t: 'coil', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
+          requestPath(G, u, Math.round(tgt.cx), Math.round(tgt.cy));
+          nown++; what = 'Charging the Tesla Coil';
+        } else if (ud.capture && tgt.kind === 'b' && tgt.hp < tgt.maxhp && !BLDS[tgt.type].hut) {
+          u.guard = false; u.stopped = false; u.wp = null;
+          u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
+          requestPath(G, u, Math.round(tgt.cx), Math.round(tgt.cy));
+          nown++; what = 'Engineer will repair ' + bspecOf(G, tgt.type, tgt.p).name;
+        } else if (ud.ivan && !tgt.bomb) {
+          u.guard = false; u.stopped = false; u.wp = null;
+          u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: 1 }; u.repathAt = -999; u.path = null;
+          u.guardX = entX(tgt); u.guardY = entY(tgt);
+          requestPath(G, u, Math.round(u.guardX), Math.round(u.guardY));
+          nown++; what = 'Bombing our own ' + describeShort(tgt);
+        }
+      });
+      if (nown) { say(what); sfx('click'); unitAck(units, 'move'); return; }
+    }
     // Reinforcing a block we already hold is an order to our own building,
     // which the attack path would refuse — handled before it.
     if (tgt && tgt.kind === 'b' && tgt.p === P_HUMAN && garrisonable(G, tgt, P_HUMAN)) {
@@ -19820,6 +20887,13 @@
       // the same right-click RA2 uses, with the same enter cursor.
       if (canOccupy(u.type) && tgt.kind === 'b' && !force && garrisonable(g, tgt, u.p)) {
         u.order = { t: 'garrison', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
+        requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
+      }
+      // [SPY] Infiltrate=yes — a Spy told to "attack" an enemy structure walks
+      // into it instead. Never a wall, never a neutral block.
+      if (UNITS[u.type].infil && tgt.kind === 'b' && !force && tgt.p !== u.p && !neutral(tgt.p) &&
+          !BLDS[tgt.type].wall && !BLDS[tgt.type].gate && !BLDS[tgt.type].neut) {
+        u.order = { t: 'infil', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
         requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); n++; return;
       }
       if (!canHit(UNITS[u.type], tgt)) return;
@@ -20308,6 +21382,36 @@
       ctx.globalAlpha = 1;
     }
 
+    // [Radiation] RadColor=0,255,0 — a sickly green wash over the cell that
+    // brightens with the level and crawls, so a pool reads as active rather
+    // than as a painted decal. Ground layer: under every unit standing in it.
+    if (G.radAny) {
+      // Source-over, and the diamonds are cut to the tile EXACTLY: under
+      // `lighter` with a 1px bleed every shared edge doubled up and the pool
+      // read as a green wireframe grid instead of a wash.
+      ctx.save();
+      for (y = minY; y <= maxY; y++) for (x = minX; x <= maxX; x++) {
+        i = idx(x, y);
+        var rl = G.rad[i];
+        if (rl <= 0 || !G.seen[i]) continue;
+        var rk = Math.min(1, rl / RAD_MAX);
+        var shim = 0.72 + 0.28 * Math.sin(G.tick * 0.06 + (x * 3 + y * 5));
+        ctx.fillStyle = 'rgba(74,' + (188 + ((60 * rk) | 0)) + ',60,' + (0.13 + 0.34 * rk * shim).toFixed(3) + ')';
+        diamond(ctx, sx(x, y), sy(x, y), TW, TH); ctx.fill();
+      }
+      ctx.restore();
+      // A few motes lifting off the hottest cells.
+      ctx.fillStyle = 'rgba(150,255,120,.5)';
+      for (y = minY; y <= maxY; y += 2) for (x = minX; x <= maxX; x += 2) {
+        i = idx(x, y);
+        if (G.rad[i] < RAD_MAX * 0.3 || !G.seen[i]) continue;
+        var mp = ((G.tick * 1.4 + x * 17 + y * 29) % 60) / 60;
+        ctx.globalAlpha = (1 - mp) * 0.7;
+        ctx.fillRect(sx(x, y) + ((x * 7 + y * 3) % 9) - 4, sy(x, y) - mp * 16, 1.6, 1.6);
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // Depth-sorted entity pass
     var draw = [];
     for (i = 0; i < G.blds.length; i++) {
@@ -20318,7 +21422,7 @@
     var airborne = [];
     for (i = 0; i < G.units.length; i++) {
       var u = G.units[i];
-      if (u.dead || !entSeen(G, u)) continue;
+      if (u.dead || u.limbo || !entSeen(G, u)) continue;   // inside a tank, or out of phase
       // Flying units leave the depth sort: they are drawn after every ground
       // entity and tree, as RA2 does, with their shadow on the ground first.
       // A Harrier parked on its pad is ground-level and sorts with the pad.
@@ -20399,6 +21503,7 @@
       for (i = 0; i < airborne.length; i++) drawAirShadow(airborne[i]);
       for (i = 0; i < airborne.length; i++) drawUnit(airborne[i]);
     }
+    drawBombs();
     for (i = 0; i < G.wrecks.length; i++) drawWreck(G.wrecks[i]);
 
     // The placement ghost sits ON TOP of the world: buried behind the very
@@ -21071,7 +22176,19 @@
     var px = sx(u.x, u.y), py = sy(u.x, u.y);
     if (px < VX0 - 60 || py < VY0 - 60 || px > VX1 + 60 || py > VY1 + 60) return;
     var d = UNITS[u.type];
-    if (isDisguised(G, u)) {
+    // [Snapshot] MakesDisguise=yes: to the ENEMY a Spy is one of his own
+    // riflemen, walking about with the rest of them. To his owner he is a
+    // Spy, because you have to be able to steer him.
+    if (d.spy && u.p !== P_HUMAN && isDisguised(G, u)) {
+      var dgFac = facOf(G, P_HUMAN) || 'dir';
+      var dgArt = SPR.unit[P_HUMAN][dgFac][FACTIONS[dgFac].inf];
+      if (dgArt && dgArt.fr) {
+        var dgS = dgArt.fr(infSeqOf(u, G.tick - (u.movedAt || -99) < 3, 0).st, u.face, 0);
+        ctx.drawImage(dgS.c, px - dgS.w / 2, py - (dgS.h - UPAD), dgS.w, dgS.h);
+        return;
+      }
+    }
+    if (isDisguised(G, u) && !d.spy) {
       // The whole point of the disguise is that it looks exactly like the
       // trees around it — same sprite, same anchor, picked off the unit id so
       // a row of Mirages is not a row of identical trees.
@@ -21126,6 +22243,9 @@
     // A working harvester rocks on its tracks instead of sitting parked.
     if (u.state === 'mining') oy += ((G.tick >> 3) & 1) ? 1 : 0;
     if (u.deployed) oy += 9;                                               // he drops down behind the bags
+    // A Terror Drone inside the hull: the whole vehicle judders on its
+    // springs while something tears at it from underneath.
+    if (u.drone) ox += ((G.tick >> 1) & 1) ? 1 : -1;
     if (u.air && !alt) drawAirShadow(u);                                   // parked: shadow under it
     // Tread marks and a dust kick behind a moving ground vehicle.
     if (!art.fr && !d.air && moving && G.tick - (u.trkAt == null ? -99 : u.trkAt) >= 5) {
@@ -21135,8 +22255,59 @@
       TRACKS.push({ x: u.x, y: u.y, face: u.face || 0, t: G.tick,
                     dust: tgi === T_GROUND || tgi === T_ROAD });
     }
+    // Being erased ([ChronoBeam] Temporal=yes): the unit fades out of the
+    // frame over its own outline instead of taking damage.
+    if (u.erase > 0) { ctx.save(); ctx.globalAlpha = Math.max(0.08, 1 - u.erase * 0.85); }
     ctx.drawImage(s.c, ox, oy, s.w * uk, s.h * uk);
     if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w * uk, turretS.h * uk);
+    if (u.erase > 0) {
+      ctx.restore();
+      // ...and rings of collapsing spacetime close on it as it goes.
+      ctx.strokeStyle = 'rgba(150,215,255,.75)'; ctx.lineWidth = 1.3;
+      for (var eri = 0; eri < 3; eri++) {
+        var erp = ((G.tick * 0.02 + eri / 3) % 1);
+        ctx.globalAlpha = (1 - erp) * 0.8;
+        ctx.beginPath(); ctx.ellipse(px, py - 9, 3 + erp * 15, 1.6 + erp * 7.5, 0, 0, 6.29); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (u.drone) {
+      // The sparks coming off the joint the drone is working on.
+      ctx.fillStyle = 'rgba(255,236,150,.95)';
+      for (var spi = 0; spi < 4; spi++) {
+        var sph = ((G.tick * 3 + spi * 13 + u.id * 7) % 24) / 24;
+        var spa = (u.id * 1.7 + spi * 1.9 + (G.tick >> 3)) % 6.283;
+        ctx.globalAlpha = 1 - sph;
+        ctx.fillRect(px + Math.cos(spa) * (3 + sph * 9), py - 5 - sph * 7 + Math.sin(spa) * 3, 1.6, 1.6);
+      }
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(180,120,255,.6)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(px, py - 6, 8 + ((G.tick >> 2) & 3), 0, 6.29); ctx.stroke();
+    }
+    if (u.mcBy) {
+      // [Controller] AnimList=YURICNTL: a violet halo turning over the head of
+      // something that is no longer fighting for the side that built it.
+      ctx.save();
+      ctx.strokeStyle = 'rgba(186,120,255,.8)'; ctx.lineWidth = 1.4;
+      var mcy = py - (art.fr ? 24 : 26) - alt;
+      ctx.beginPath(); ctx.ellipse(px, mcy, 7, 2.6, 0, 0, 6.29); ctx.stroke();
+      for (var mci = 0; mci < 3; mci++) {
+        var mca = G.tick * 0.07 + mci * 2.094;
+        ctx.fillStyle = 'rgba(226,190,255,.9)';
+        ctx.fillRect(px + Math.cos(mca) * 7 - 1, mcy + Math.sin(mca) * 2.6 - 1, 2, 2);
+      }
+      // The tether back to the Yuri holding it, for the first two seconds.
+      if (G.tick - (u.mcAt || 0) < 120) {
+        var mcu = G.byId[u.mcBy];
+        if (mcu && !mcu.dead) {
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = 'rgba(186,120,255,' + (0.85 - (G.tick - u.mcAt) / 160).toFixed(2) + ')';
+          ctx.beginPath(); ctx.moveTo(sx(mcu.x, mcu.y), sy(mcu.x, mcu.y) - 14);
+          ctx.lineTo(px, mcy); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
     // Battle damage: RA2 vehicles trail black smoke below half health and
     // burn below a quarter. Phase comes off `tick` and the unit id, never
     // off the sim RNG.
@@ -21191,7 +22362,7 @@
     if (u.sel) brackets(ox + bb.x0 - 3, top - 3, ox + bb.x1 + 3, oy + bb.y1 + 1);
 
     // Cargo pip on a loaded harvester — you can see who is worth killing.
-    if (u.type === 'harvester' && u.cargo > 30) {
+    if (isHarv(u) && u.cargo > 30) {
       ctx.fillStyle = '#e8b428';
       ctx.fillRect(px - 7, py - 26, 14 * (u.cargo / ucap(G, u)), 2.6);
     }
@@ -21225,6 +22396,41 @@
 
   // A falling airframe: the sprite spun through its facings as it tumbles,
   // over a smoke trail drawn back along the path it fell.
+  // A live Ivan bomb, drawn on whatever is carrying it — unit or structure —
+  // with the fuse counting down in seconds, so "get away from that tank" is a
+  // readable instruction and not a surprise.
+  function drawBombs() {
+    if (!G.bombs.length) return;
+    ctx.save();
+    ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center';
+    for (var i = 0; i < G.bombs.length; i++) {
+      var e = G.bombs[i];
+      if (!e.bomb || e.dead || !entSeen(G, e)) continue;
+      var ex = entX(e), ey = entY(e), bx = sx(ex, ey), by = sy(ex, ey);
+      if (bx < VX0 - 60 || by < VY0 - 60 || bx > VX1 + 60 || by > VY1 + 60) continue;
+      var left = Math.max(0, e.bomb.at - G.tick);
+      var secs = Math.ceil(left / 60);
+      var beat = left < 180 ? (((G.tick >> 2) & 1) ? 1 : 0) : (((G.tick >> 4) & 1) ? 1 : 0);
+      var top = by - (e.kind === 'b' ? 40 + e.gh * 4 : 36);
+      // the satchel itself
+      ctx.fillStyle = beat ? '#ff5b46' : '#8d2b1f';
+      ctx.beginPath(); ctx.roundRect(bx - 6, top - 6, 12, 10, 2); ctx.fill();
+      ctx.strokeStyle = '#2a1210'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.strokeStyle = '#d9c98a'; ctx.lineWidth = 1.2;              // the fuse
+      ctx.beginPath(); ctx.moveTo(bx, top - 6); ctx.quadraticCurveTo(bx + 4, top - 12, bx + 1, top - 14); ctx.stroke();
+      if (beat) { ctx.fillStyle = '#ffd06a'; ctx.beginPath(); ctx.arc(bx + 1, top - 14, 2.1, 0, 6.29); ctx.fill(); }
+      // The count goes ABOVE the satchel, clear of the hull it is stuck to —
+      // painted across the sprite it was unreadable on exactly the units you
+      // most need to read it on.
+      ctx.fillStyle = 'rgba(10,12,16,.8)';
+      ctx.fillText(secs + 's', bx + 1, top - 9);
+      ctx.fillStyle = beat ? '#ffd7cf' : '#f0a89c';
+      ctx.fillText(secs + 's', bx, top - 10);
+    }
+    ctx.textAlign = 'left';
+    ctx.restore();
+  }
+
   function drawWreck(w) {
     var alt = wreckAlt(w), px = sx(w.x, w.y), py = sy(w.x, w.y);
     if (px < VX0 - 90 || py < VY0 - 90 || px > VX1 + 90 || py > VY1 + 90) return;
@@ -22423,6 +23629,33 @@
       });
       return n;
     },
+    // Phase 4c: the special-unit mechanics, each reachable the same way the
+    // game reaches it (an ORDER, not a poke at the field it sets).
+    orderCoil: function (units, b) {
+      var n = 0;
+      units.forEach(function (u) {
+        if (!UNITS[u.type].coiler || !b || b.type !== 'tesla' || b.p !== u.p) return;
+        u.order = { t: 'coil', x: 0, y: 0, id: b.id }; u.repathAt = -999; u.path = null;
+        requestPath(G, u, Math.round(b.cx), Math.round(b.cy)); n++;
+      });
+      return n;
+    },
+    orderInfil: function (units, b) { return G ? orderAttack(G, units, b) : 0; },
+    deploy: function (units, on) {
+      units.forEach(function (u) { u.deployed = !!on; u.order = null; u.path = null; });
+      return units.length;
+    },
+    rad: function (x, y) { return G ? radAt(G, x, y) : 0; },
+    bombs: function () { return G ? G.bombs : []; },
+    api3: { infest: infest, popDrone: popDrone, killDrone: killDrone,
+            plantBomb: plantBomb, defuseBomb: defuseBomb, engineerDefuse: engineerDefuse,
+            mindControl: mindControl, releaseMind: releaseMind, psiImmune: psiImmune,
+            startErase: startErase, beginWarp: beginWarp, chronoDelayFor: chronoDelayFor,
+            addRad: addRad, radAt: radAt, coilCharged: coilCharged, spyInfiltrate: spyInfiltrate,
+            isHarv: isHarv, harvKey: harvKey, powered: powered, unitOrderFor: unitOrderFor,
+            fire: fire, findRefinery: findRefinery, refDock: refDock,
+            IVAN_BOMB_T: IVAN_BOMB_T, RAD_MAX: RAD_MAX, CHRONO_DELAY: CHRONO_DELAY,
+            SPY_BLACKOUT: SPY_BLACKOUT, COIL_BOOST: COIL_BOOST, PARASITE_DMG: PARASITE_DMG },
     api2: { damageBridge: damageBridge, collapseSpan: collapseSpan, repairBridgeFrom: repairBridgeFrom,
             garrisonable: garrisonable, canOccupy: canOccupy, occCapOf: occCapOf, occCount: occCount,
             stepOreSpread: stepOreSpread, stepCrates: stepCrates, openCrate: openCrate,

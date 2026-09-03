@@ -410,11 +410,77 @@ per state, for every structure and defence, both factions.
   - **Ore spreading.** `[Riparius] Spread=2200 SpreadPercentage=.06` throws a
     seam into empty ground next to a rich cell; `[Cruentus] SpreadPercentage=0`
     keeps gem fields finite.
-- ☐ Unit mechanics: Chrono Miner warp-home; Terror Drone infest + depot cure;
-  Crazy Ivan timed sticky bombs + engineer defuse; engineer repairs own
-  structures; Tesla Trooper charges coils; Desolator + radiation field; Yuri
-  mind control; Chrono Legionnaire erasure; Spy infiltration (cash, power,
-  tech, radar); Chronosphere return trip and `ChronoDelay`.
+- ☑ 2026-09-03 Unit mechanics, the whole row. Every one of these is a weapon
+  whose warhead does something other than subtract hit points, so they all
+  hang off `fire()` rather than off `damage()`:
+  - **Two miners, not one.** `harvester` split into [CMIN] **Chrono Miner**
+    (Directorate: $1400, Str 1000, Speed 4, Sight 4, Storage 20 bails,
+    `Primary=none`, teleport locomotor) and [HARV] **War Miner** (Collective:
+    same chassis, Storage 40, `Turret=yes` + `20mmRapid` 30 / ROF 20 / Range
+    5.5 / `HARVWH`, `OpportunityFire=yes`). The word "harvester" survives as
+    the ROLE — `harvKey(fac)` / `isHarv(u)` resolve it at spawn, build, count
+    and order, so the AI, the tests and `orderUnitsTo` never had to change.
+    A full Chrono Miner stands still for `ChronoDelay` and is then simply AT
+    its refinery (chrono flash both ends), unless the trip is longer than
+    `ChronoHarvTooFarDistance=50`, in which case it drives.
+  - **Terror Drone infest.** `[DroneJump]` `LimboLaunch=yes` + `[Parasite]`
+    `Parasite=yes`: the drone leaves the map and lives inside the vehicle,
+    taking 50 off it every two seconds until one of them is finished. It is
+    untargetable in there, the host shudders and throws sparks, a Service
+    Depot shakes it out and kills it, and a drone whose host died climbs back
+    out.
+  - **Crazy Ivan.** `[IvanBomb]` `IvanBomb=yes` PLACES (no damage at all);
+    `[General] IvanTimedDelay=450` frames at RA2's 30 fps is a 15-second fuse,
+    drawn as a satchel with a lit fuse and a count over the carrier. The blast
+    is `[IvanWH]` 400 / CellSpread 1.5 / `PercentAtMax=.25`. He will bomb his
+    own units (`AttackCursorOnFriendlies=yes`), and an Engineer inside
+    `[DefuseKit]`'s Range 1.5 takes one off without being spent.
+  - **Engineer extras.** Entering one of your OWN damaged buildings puts it
+    straight back to full and spends him; the garrison eviction and the
+    bridge-hut repair are unchanged.
+  - **Tesla Trooper charges coils.** Up to three ([SHK]) hold one Tesla Coil:
+    it fires with the grid completely down and swaps its bolt for
+    `[OPCoilBolt]` (300 against the coil's own 200). Right-click the coil with
+    troopers selected; the ENTER cursor is on it.
+  - **Desolator + the radiation layer.** [DESO] $600 / Str 150 / plate /
+    Sight 6 / `RadBeamWeapon` 125 / ROF 50 / Range 6, `SelfHealing=yes`,
+    `ImmuneToRadiation=yes`, Prerequisite Barracks+Radar. D deploys him into
+    `RadEruptionWeapon`, which floods the ground around him. `g.rad` is a
+    per-cell level following `[Radiation]`: `RadLevelMax=500`,
+    `RadLevelFactor=0.2` applied every `RadApplicationDelay`, decaying over
+    `Level × RadDurationMultiple`, `RadColor=0,255,0` drawn as a green wash
+    with motes lifting off the hot cells. `RadSite` Verses is infantry-only.
+    The nuke leaves one too (`[NukePayload] RadLevel=500` — the audit had it
+    missing).
+  - **Yuri.** [YURI] $1200 / Sight 12 / `[MindControl]` Range 7 / ROF 200 /
+    `[Controller]` `MindControl=yes`. One victim at a time, permanently, until
+    Yuri dies or he takes another; `ImmuneToPsionics=yes` exempts both miners,
+    the Terror Drone and Yuri himself, and the warhead's Verses row is 0%
+    against every structure. Violet halo on the victim, tether to the holder.
+  - **Chrono Legionnaire.** [CLEG] $1500 / Str 125 / `[NeutronRifle]` 8 / ROF
+    120 / Range 5 / `[ChronoBeam]` `Temporal=yes`: the target is erased over
+    time, never damaged, at a rate scaled by its own Strength (a Conscript in
+    ~2 s, an Apocalypse in ~13, a structure by the same rule), and snaps back
+    whole if the beam breaks. It moves by the teleport locomotor —
+    `ChronoTrigger=yes`, `256/ChronoDistanceFactor` per cell, floored at
+    `ChronoMinimumDelay` — and is out of phase (untargetable) while warping.
+  - **Spy.** [SPY] $1000 / flak / Sight 9, `PermaDisguise=yes`: he reads as one
+    of the ENEMY's own riflemen to the enemy, walking or standing, and nothing
+    targets him until a dog (`DetectDisguise=yes`) strips him. Infiltration:
+    Refinery `SpyMoneyStealPercent=.5`, Power Plant `SpyPowerBlackout` (the
+    whole grid, not one building), Radar wipes the victim's shroud, Barracks /
+    War Factory turn out veterans from then on, Battle Lab is eva.ini #92
+    "Technology stolen" and adds the enemy's lab unit to your own lane.
+  - **Chronosphere.** RA2's is a ONE-WAY trip (the return leg was RA1's):
+    `ChronoDelay` is how long the squad spends out of phase, and the ground it
+    lands on decides — solid ground keeps it, open water takes it.
+  - Sidebar Infantry tabs now run GI / Engineer / Dog / Guardian GI /
+    Rocketeer / Spy / Tanya / Chrono Legionnaire and Conscript / Engineer /
+    Dog / Flak Trooper / Tesla Trooper / Ivan / Desolator / Yuri, in TechLevel
+    order; the AI fields one or two of each specialist where the scout report
+    calls for it. Art for all four new men is built on the infantry facing
+    atlas against `docs/ra2-ref/ra2-{deso,cleg,spy}-*` (no Yuri rip exists on
+    the wiki — see `docs/design-decisions.md`).
 
 **Phase 5 — effects and terrain (art §4, §5). ~4 batches, M/L.**
 - ☑ Explosion size families, craters, scorch, debris; nuke with white core,
