@@ -380,6 +380,10 @@ per state, for every structure and defence, both factions.
 - ☐ AI: task-force/team-type layer with per-difficulty triggers, engineer
   teams, `AIIonCannon*Value` superweapon targeting, `HarvestersPerRefinery`,
   RA2's difficulty curve.
+- ☐ AI siege posture: the hard AI cannot crack an opponent that turtles (soak
+  2026-09-03: with Easy holding its army home for 10 min, hard won 14/24; at
+  7 min, 22/24). RA2's AI masses artillery (V3/Prism/Kirov) against static
+  defence and attacks on a timer regardless.
 
 **Phase 7 — audio (art §7). ~2 batches, M.** Original synthesis only.
 - ☐ Per-weapon reports, structure sounds (power on/off, sell, capture,

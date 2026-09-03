@@ -14573,7 +14573,10 @@
     // opening: ticks of grace before it will commit an attack at all. A human
     // needs time to read the panel before the first wave arrives; an AI that
     // rushes a beginner at three minutes is not "hard", it is unplayable.
-    easy:   { react: 72, apm: 22,  focus: false, harass: false, group: 6,  expand: 1, scoutEvery: 0,    give: 0.30, opening: 60 * 600 },
+    // Easy stays at 7 min: at 10 it turtled behind its whole army and the hard
+    // AI, which cannot yet siege a static base, fell to 14/24 vs 22/24 (soak,
+    // 12 fresh seeds). The siege posture is a Phase 6 item.
+    easy:   { react: 72, apm: 22,  focus: false, harass: false, group: 6,  expand: 1, scoutEvery: 0,    give: 0.30, opening: 60 * 420 },
     normal: { react: 36, apm: 55,  focus: true,  harass: false, group: 9,  expand: 2, scoutEvery: 1800, give: 0.40, opening: 60 * 480 },
     hard:   { react: 12, apm: 999, focus: true,  harass: true,  group: 10, expand: 3, scoutEvery: 1000, give: 0.45, opening: 60 * 165 }
   };
@@ -14832,7 +14835,7 @@
       if (!pick) pick = def;
       // RA2 defences cost $500-1500: buy one when it is affordable beside the
       // army, not at a flat bank level a $500 Sentry Gun never needed.
-      var slack = ai.posture === 'defend' ? 1.2 : 2;
+      var slack = ai.posture === 'defend' ? 1.2 : (pick === def2 ? 1.5 : 2);   // a $1500 coil at 2x never cleared the bank
       if (s.credits < bspecOf(g, pick, me).cost * slack) pick = def;
       if (s.credits < bspecOf(g, pick, me).cost * slack) pick = null;
       if (pick && netQ + draw(pick) < 0) pick = def;                   // never a coil into a power deficit
