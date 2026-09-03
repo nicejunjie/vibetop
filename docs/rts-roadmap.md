@@ -264,24 +264,30 @@ fidelity plus reproduced player reports.
 
 **Phase 1 — the RA2 sidebar and controls (art §6; feature §3, §5).
 ~3 batches, L.** The single largest presentation gap.
-- ☐ Sidebar as RA2's command bar: radar in a bezel, vertical power meter with
-  needle, credits ticker counting per tick, two-column 60×48 cameo grid with
-  no prose (name/cost/power in a drawn tooltip), icon tabs, clock wipe over
-  the cameo and READY flash on the cameo, queue count badge.
-- ☐ Command bar reduced to `ui.ini`'s six (Team01, Team02, TypeSelect,
-  Deploy, Guard, PlanningMode); Sell / Repair / Power become the three sidebar
-  toggles; Stop is the S key.
+- ☑ Sidebar as RA2's command bar: radar in a drawn metal bezel with rivets, a
+  vertical power meter (bar = drain, needle = output, green→yellow→red),
+  credits ticker stepping once per frame with the coin tick, a two-column
+  60×48 cameo grid with NO prose (name/cost/power/prerequisite in a
+  canvas-drawn tooltip hung off the sidebar's edge), icon tabs, a clock wipe
+  with a bright hand over the cameo, READY on the cameo, a queue-count badge,
+  and empty slot plates so the grid reads as a fixed panel. Army and clock
+  fold into the sidebar header; the top-bar Credits/Power pills are gone.
+- ☑ Command bar reduced to `ui.ini`'s six (Team01, Team02, TypeSelect,
+  Deploy, Guard, PlanningMode); Sell / Repair / Power are the three sidebar
+  toggles (Power flips `b.offline`, which `recalcPower` honours and `drawBld`
+  draws dark with an OFF tag); Stop is the S key, Scatter the X key.
 - ☐ Cursor set: move, no-move, attack, force-fire, select, sell, repair,
   deploy, enter, guard, waypoint, chrono, nuke (canvas-drawn, animated).
 - ☐ Orders: force-fire (Ctrl+click), attack-move, Follow (F), planning mode
   (Z), Guard distinct from Stop (`GuardModeStray`).
-- ☐ Hotkeys per `keyboard.ini`: Q/W/E/R tabs, T type-select, K/L repair/sell,
-  N next object, F1–F4 + Ctrl views, teams 1–10 with Shift-add and Alt-centre,
-  Space = last radar event, H = base, Delete, Esc = options menu; P becomes
-  CombatantSelect (pause lives in the menu).
-- ☐ Pip health bar; EVA text top-left in the tactical view; superweapon
-  clocks over their own cameos; in-game options menu (restart, abort,
-  volumes, scroll rate); 8 house colours.
+- ◐ Hotkeys per `keyboard.ini`: ☑ Q/W/E/R tabs, T type-select, K/L
+  repair/sell, Z planning mode. ☐ N next object, F1–F4 + Ctrl views, teams
+  1–10 with Shift-add and Alt-centre, Space = last radar event, Delete,
+  Esc = options menu; P becomes CombatantSelect (pause lives in the menu).
+- ◐ ☑ Pip health bar (bracketed, green/yellow/red, pip count scaled to the
+  object); ☑ EVA text top-left in the tactical view as a fading stack; ☑
+  superweapon clocks over their own cameos. ☐ In-game options menu (restart,
+  abort, volumes, scroll rate); 8 house colours.
 
 **Phase 2 — structure states (art §1). ~4 batches, L.** One baked frame set
 per state, for every structure and defence, both factions.

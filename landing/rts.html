@@ -23,37 +23,29 @@
   .bar .title { font-size: 13px; font-weight: 600; white-space: nowrap; }
   .bar .title .ic { margin-right: 5px; }
   @media (max-width: 560px) { .bar .title .txt { display: none; } }
-  /* Below ~560px the bar's four stat tiles plus five buttons are wider than
-     the window, and a non-wrapping flex row does not clip them — it strands
-     them off the right edge, unreachable, with nothing to scroll. Let the row
-     wrap (the spacer becomes a full-width break, so the buttons take their own
-     line) and let the tiles shrink. The game still wants a real desktop
-     window, but no control is ever placed where it cannot be clicked. */
+  /* Below ~560px the bar's buttons are wider than the window, and a
+     non-wrapping flex row does not clip them — it strands them off the right
+     edge, unreachable, with nothing to scroll. Let the row wrap (the spacer
+     becomes a full-width break, so the buttons take their own line). The game
+     still wants a real desktop window, but no control is ever placed where it
+     cannot be clicked. (The credit / power / army / clock readouts moved into
+     the sidebar; the bar is app chrome only.) */
   @media (max-width: 560px) {
     .bar { flex-wrap: wrap; row-gap: 4px; }
     .bar .spacer { flex-basis: 100%; height: 0; }
-    .stat { min-width: 0; padding: 2px 6px; }
-    .stat .lbl { font-size: 8px; }
-    .stat .val { font-size: 13px; }
   }
-  .stat {
-    display: flex; flex-direction: column; align-items: center;
-    background: #0e1117; border: 1px solid #2a3040; border-radius: 6px;
-    padding: 2px 10px; min-width: 62px; position: relative;
-  }
-  .stat .lbl { font-size: 9px; letter-spacing: .08em; color: #6b7488; text-transform: uppercase; }
-  .stat .val { font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #d4d8de; }
-  .stat.low .val { color: #e8b428; }
+  /* Income pops INSIDE the credit readout, on the empty left of the digits —
+     above it and it would float over the app's top bar. */
   .plus {
-    position: absolute; right: 4px; top: -4px; pointer-events: none;
-    font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #b78bf0;
+    position: absolute; left: 7px; top: 6px; pointer-events: none;
+    font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #8ee0a4;
+    text-shadow: 0 1px 3px rgba(0,0,0,.9);
     animation: plusrise .62s ease-out forwards;
   }
   @keyframes plusrise {
-    from { opacity: .95; transform: translateY(5px); }
-    to { opacity: 0; transform: translateY(-12px); }
+    from { opacity: .95; transform: translateY(4px); }
+    to { opacity: 0; transform: translateY(-7px); }
   }
-  .stat.bad .val { color: #e5646c; }
   .spacer { flex: 1; }
   button {
     background: #3a2a55; color: #d9c8f5; border: 1px solid #55407a;
@@ -74,103 +66,160 @@
   #cv { display: block; width: 100%; height: 100%; cursor: default; touch-action: none; }
   #cv.placing { cursor: crosshair; }
   #cv.noair { cursor: not-allowed; }
-  /* Locked / unaffordable: dim the words, keep the cameo legible (RA2 greys a
-     cameo out, it never fades it away). */
-  .pit.locked > span:nth-child(3), .pit.dis > span:nth-child(3) { opacity: .5; }
-  .pit.locked .em canvas, .pit.dis .em canvas { filter: grayscale(.45) brightness(.7); }
-  /* RA2-style command bar at the foot of the sidebar: visible buttons, hotkey in the tooltip. */
-  #cmdbar { flex-shrink: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 6px; border-top: 1px solid #2a3040; background: #12161d; }
-  #cmdbar button { min-height: 30px; font-size: 11px; font-weight: 600; color: #cdd5e1; background: #1f2733; border: 1px solid #2a3040; border-radius: 5px; cursor: pointer; padding: 0 2px; }
-  #cmdbar button:hover { background: #253044; color: #e6edf3; }
-  #cmdbar button.on { background: #8a4adb; border-color: #8a4adb; color: #fff; }
-  #cmdbar button.has { border-color: #4a86e8; }
-
-  /* ---- right-hand command bar (build panel + minimap) ---- */
+  /* ---- the RA2 command bar (right-hand sidebar) -------------------------
+     RA2's sidebar is a fixed metal panel and every part of it is a picture:
+     the credit total counts one step at a time at the top, the radar sits in
+     a riveted bezel, a vertical power meter with a needle runs down the left
+     edge, the four tabs are icons, and the items are a two-column grid of
+     60x48 cameos with NO prose at all — name, cost, power draw and
+     prerequisites live in a canvas-drawn tooltip shown on hover. */
   #side {
-    width: 186px; flex-shrink: 0; display: flex; flex-direction: column;
-    background: #161b22; border-left: 1px solid #2a3040;
+    --acc: #4aa3db;
+    width: 176px; flex-shrink: 0; display: flex; flex-direction: column;
+    background: linear-gradient(180deg, #232a35 0%, #181e27 46%, #131820 100%);
+    border-left: 1px solid #39424f;
+    box-shadow: inset 1px 0 0 rgba(255,255,255,.05);
     user-select: none; -webkit-user-select: none;
   }
-  #mini { display: block; width: 184px; height: 184px; background: #0b0e14; border-bottom: 1px solid #2a3040; cursor: pointer; }
-  .ptab { display: flex; border-bottom: 1px solid #2a3040; flex-shrink: 0; }
+  /* Credits: RA2's readout sits above the radar in its own recessed slot.
+     Army and clock ride quietly beside it — two 9px lines, no tiles. */
+  #sbtop { display: flex; align-items: stretch; gap: 5px; padding: 5px 7px 4px; }
+  #sbmeta {
+    font: 700 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #6f7c90; white-space: nowrap; align-self: center; letter-spacing: .02em;
+  }
+  #sbcred {
+    position: relative; flex: 1; min-width: 0; text-align: right;
+    font: 700 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #ffe07a; letter-spacing: .5px; text-shadow: 0 0 7px rgba(255,224,122,.3);
+    background: #080b10; border: 1px solid #39424f; border-radius: 3px;
+    box-shadow: inset 0 1px 4px rgba(0,0,0,.85);
+    padding: 5px 6px 4px;
+  }
+  #sbcred.low { color: #ff9a86; text-shadow: 0 0 7px rgba(255,154,134,.3); }
+  /* Radar bezel: brushed metal with four rivets, drawn from gradients. */
+  #radarwrap {
+    margin: 0 6px 5px; padding: 9px; border-radius: 4px;
+    background:
+      radial-gradient(circle 2.4px at 4.5px 4.5px, #dbe3ee 0%, #7c8797 48%, #171c24 100%, rgba(0,0,0,0) 100%) no-repeat,
+      radial-gradient(circle 2.4px at calc(100% - 4.5px) 4.5px, #dbe3ee 0%, #7c8797 48%, #171c24 100%, rgba(0,0,0,0) 100%) no-repeat,
+      radial-gradient(circle 2.4px at 4.5px calc(100% - 4.5px), #dbe3ee 0%, #7c8797 48%, #171c24 100%, rgba(0,0,0,0) 100%) no-repeat,
+      radial-gradient(circle 2.4px at calc(100% - 4.5px) calc(100% - 4.5px), #dbe3ee 0%, #7c8797 48%, #171c24 100%, rgba(0,0,0,0) 100%) no-repeat,
+      linear-gradient(152deg, #566275 0%, #2c3441 30%, #1d232d 63%, #3d4756 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.18), inset 0 -1px 0 rgba(0,0,0,.65), 0 2px 6px rgba(0,0,0,.55);
+  }
+  #mini {
+    display: block; width: 100%; height: auto; background: #05070b; cursor: pointer;
+    box-shadow: 0 0 0 1px #05070b, inset 0 0 14px rgba(0,0,0,.9);
+  }
+  /* RA2's three sidebar toggles live under the radar, not in the command bar. */
+  #sbtools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 0 6px 6px; flex-shrink: 0; }
+  #sbtools button, #cmdbar button {
+    min-height: 26px; padding: 0 1px; border-radius: 3px; cursor: pointer;
+    font: 700 9.5px/1 system-ui, sans-serif; letter-spacing: .05em; text-transform: uppercase;
+    color: #a9b6c8; background: linear-gradient(180deg, #2b333f, #1a2029); border: 1px solid #3c4757;
+  }
+  #sbtools button:hover, #cmdbar button:hover { color: #e9eff7; border-color: #5f6d82; background: linear-gradient(180deg, #36404e, #202836); }
+  #sbtools button.on, #cmdbar button.on {
+    color: #1a1400; border-color: #ffe07a;
+    background: linear-gradient(180deg, #ffd968, #b98d12);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+  }
+  #cmdbar button.has { border-color: var(--acc); color: #dce8f5; }
+  /* Power meter + the tabs/cameo column sit side by side, RA2's layout. */
+  #sbody { flex: 1; min-height: 0; display: flex; }
+  #pwrwrap { flex-shrink: 0; display: flex; padding: 0 3px 6px 5px; }
+  #pwr { display: block; flex: 1; width: 12px; min-height: 0; }
+  #sbcol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .ptab { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 0 5px 4px; flex-shrink: 0; }
   .ptab div {
-    flex: 1; text-align: center; padding: 7px 0; font-size: 10px; letter-spacing: -0.2px; cursor: pointer; white-space: nowrap; overflow: hidden;
-    color: #8a94a6; border-bottom: 2px solid transparent;
+    position: relative; display: flex; align-items: center; justify-content: center;
+    height: 27px; cursor: pointer; border-radius: 3px;
+    background: linear-gradient(180deg, #252d38, #161b23); border: 1px solid #333d4a;
   }
-  .ptab div:hover { color: #d4d8de; background: #1c2430; }
-  .ptab div.on { color: #d9c8f5; border-bottom-color: #8a4adb; background: #1c2430; }
-  #plist { flex: 1; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 5px; }
+  .ptab div canvas { display: block; width: 21px; height: 17px; opacity: .5; }
+  .ptab div:hover { border-color: #5f6d82; }
+  .ptab div:hover canvas { opacity: .85; }
+  .ptab div.on {
+    background: linear-gradient(180deg, #38455a, #1d2632); border-color: var(--acc);
+    box-shadow: inset 0 0 9px rgba(255,255,255,.12);
+  }
+  .ptab div.on canvas { opacity: 1; }
+  .ptab div.hasready::after {
+    content: ''; position: absolute; top: 2px; right: 2px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: #ffe14d; box-shadow: 0 0 6px rgba(255,225,77,.9);
+    animation: rdypulse 1.05s ease-in-out infinite;
+  }
+  #plist {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    display: grid; grid-template-columns: repeat(2, 64px); justify-content: center;
+    align-content: start; gap: 6px; padding: 2px 0 8px;
+  }
+  #plist::-webkit-scrollbar { width: 6px; }
+  #plist::-webkit-scrollbar-thumb { background: #3c4757; border-radius: 3px; }
+  /* One cameo = one button. No words: the tooltip carries the text. */
   .pit {
-    position: relative; overflow: hidden; text-align: left;
-    background: #1f2733; border: 1px solid #2a3040; border-radius: 7px;
-    padding: 5px 7px; cursor: pointer; color: #cdd5e1; min-height: 54px;
-    display: flex; align-items: center; gap: 7px; width: 100%;
-    flex-shrink: 0;   /* #plist is a flex column: without this a long list squeezes every row and clips the names */
+    position: relative; overflow: hidden; width: 64px; height: 52px; padding: 0;
+    background: #05070b; border: 1px solid #46515f; border-radius: 2px; cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.13), inset 0 -1px 0 rgba(0,0,0,.7);
   }
-  .pit > span:nth-child(3) { flex: 1; min-width: 0; line-height: 1.2; }
-  .pit .nm { font-size: 12.5px; }
-  .pit .ct { font-size: 10.5px; display: block; margin-top: 2px; white-space: normal; }
-  .pit:hover:not(.dis) { background: #253044; border-color: #3a4358; }
+  .pit:hover, .pit.dis:hover { background: #05070b; }
+  .pit:hover:not(.dis) { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc), inset 0 1px 0 rgba(255,255,255,.2); }
   .pit.dis { cursor: not-allowed; }
-  .pit .em { font-size: 17px; flex-shrink: 0; width: 60px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
-  .pit .em canvas { display: block; border-radius: 3px; }
-  .pit .nm { font-size: 11.5px; font-weight: 600; line-height: 1.25; }
-  .pit .ct { font-size: 10px; color: #7f8a9d; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .pit .fill {
-    position: absolute; inset: 0 auto 0 0; width: 0;
-    background: rgba(138,74,219,.30); pointer-events: none;
+  .pit.dis:hover { border-color: #74808f; box-shadow: inset 0 1px 0 rgba(255,255,255,.13); }
+  /* An empty slot: RA2's grid is a fixed panel, not a list that stops. */
+  .slot { width: 64px; height: 52px; border: 1px solid #2a3240; border-radius: 2px;
+          background: rgba(255,255,255,.018); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+  .pit .em, .pit .em canvas { display: block; width: 60px; height: 48px; }
+  .pit .nm, .pit .ct { display: none; }   /* kept for the tooltip's text, never rendered */
+  /* Locked / unaffordable: RA2 greys a cameo out, it never fades it away. */
+  .pit.locked .em canvas, .pit.dis .em canvas { filter: grayscale(.65) brightness(.6); }
+  /* Build progress is RA2's clock wipe: a dark sector sweeping clockwise. */
+  .pit .fill { position: absolute; inset: 0; pointer-events: none; display: none; }
+  .pit .qn {
+    position: absolute; right: 1px; bottom: 1px; min-width: 14px; padding: 0 2px;
+    font: 700 9px/13px ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center;
+    color: #0b0e14; background: #ffe07a; border-radius: 2px; pointer-events: none;
   }
-  .pit.rdy {
-    border-color: #ffe14d; background: #2b2415;
-    box-shadow: inset 0 0 0 1px rgba(255,225,77,.55), 0 0 14px rgba(255,225,77,.28);
-  }
-  .pit.rdy .ct { color: #e8cf8a; }
-  /* Stamped across the whole row, translucent so you can still read what it
-     is, and pulsing so it catches the eye you have on the battlefield. */
+  .pit.rdy { border-color: #ffe14d; box-shadow: 0 0 10px rgba(255,225,77,.45); }
   .pit.rdy::after {
-    content: 'READY';
-    position: absolute; inset: 0; border-radius: 6px;
+    content: 'READY'; position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(12,9,3,.76);
-    color: #ffe14d; font: 800 16px/1 system-ui, sans-serif;
-    letter-spacing: .22em; text-shadow: 0 1px 3px rgba(0,0,0,.85);
+    background: rgba(10,8,2,.62);
+    color: #ffe14d; font: 800 11px/1 system-ui, sans-serif; letter-spacing: .16em;
+    text-shadow: 0 1px 3px rgba(0,0,0,.9);
     animation: rdypulse 1.05s ease-in-out infinite;
     pointer-events: none;
   }
-  @keyframes rdypulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: .48; }
-  }
+  @keyframes rdypulse { 0%, 100% { opacity: 1; } 50% { opacity: .48; } }
   @media (prefers-reduced-motion: reduce) {
     .pit.rdy::after { animation: none; }
     .ptab div.hasready::after { animation: none; }
   }
-  /* And mark the tab it is on — with four categories the ready item is often
-     not on the tab you are looking at. */
-  .ptab div { position: relative; }
-  .ptab div.hasready::after {
-    content: ''; position: absolute; top: 4px; right: 6px;
-    width: 6px; height: 6px; border-radius: 50%;
-    background: #ffe14d; box-shadow: 0 0 6px rgba(255,225,77,.9);
-    animation: rdypulse 1.05s ease-in-out infinite;
-  }
-  .pit .qn {
-    position: absolute; top: 3px; right: 5px; font: 700 10px ui-monospace, monospace;
-    color: #c3a4f0; pointer-events: none;
-  }
-  .phead { font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: #5d6678; padding: 3px 2px 0; }
-  .pnote { font-size: 10.5px; color: #6b7488; padding: 6px 4px; line-height: 1.4; }
+  /* RA2's six-button command bar, at the foot of the sidebar. */
+  #cmdbar { flex-shrink: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 5px 6px 6px; border-top: 1px solid #333d4a; }
+  /* The drawn tooltip — a canvas, not a browser title. */
+  #ptip { position: absolute; z-index: 20; pointer-events: none; display: none; }
 
   /* ---- selection marquee + floating hints ---- */
   #marq { position: absolute; border: 1px solid #8ad0ff; background: rgba(138,208,255,.12); pointer-events: none; display: none; }
-  /* Superweapon clocks: RA2 stacks them in the corner of the map. */
-  #swbar { position: absolute; left: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
-  .swic { position: relative; width: 56px; height: 56px; border: 1px solid #3a4456; border-radius: 6px;
+  /* Top-left of the tactical view: RA2 stacks the superweapon clocks there,
+     and prints EVA / game messages under them in its own yellow type. */
+  #tl {
+    position: absolute; left: 10px; top: 10px; z-index: 5;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
+    pointer-events: none; max-width: 46%;
+  }
+  #swbar { display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+  .swic { position: relative; width: 62px; height: 62px; border: 1px solid #3a4456; border-radius: 6px;
           background: linear-gradient(#161d29, #0c1015); box-shadow: 0 2px 7px rgba(0,0,0,.5);
           font: 600 10px system-ui; color: #97a3b6; text-align: center; user-select: none; overflow: hidden; }
-  .swic .arc { position: absolute; inset: -1px; pointer-events: none; }
-  .swic .em { position: relative; display: block; font-size: 21px; line-height: 1; padding-top: 9px; filter: grayscale(1) brightness(.75); }
-  .swic .cd { position: absolute; left: 0; right: 0; bottom: 4px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+  .swic .arc { position: absolute; inset: -1px; pointer-events: none; z-index: 1; }
+  .swic .em { position: relative; display: block; font-size: 21px; line-height: 1; padding-top: 4px; filter: grayscale(1) brightness(.75); }
+  .swic .em canvas { display: block; width: 56px; height: 42px; margin: 0 auto; border-radius: 2px; }
+  .swic .cd { position: absolute; left: 0; right: 0; bottom: 3px; z-index: 2; font-variant-numeric: tabular-nums; letter-spacing: .3px;
+              text-shadow: 0 1px 3px #000, 0 0 4px #000; }
   .swic.rdy { cursor: pointer; border-color: #6ee7a8; color: #d8ffe9; animation: swpulse 1.15s ease-in-out infinite; }
   .swic.rdy .em { filter: none; }
   /* Low power halts the charge (RA2's IsPowered rule): say so on the clock
@@ -180,13 +229,15 @@
   .swic.hold .arc { opacity: .35; }
   .swic.arm { border-color: #ffd24a; color: #ffe9a8; animation: none; box-shadow: 0 0 0 2px rgba(255,210,74,.4); }
   @keyframes swpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(110,231,168,.5); } 50% { box-shadow: 0 0 0 6px rgba(110,231,168,0); } }
-  #tip {
-    position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px;
-    background: rgba(14,17,23,.86); border: 1px solid #2a3040; border-radius: 7px;
-    padding: 5px 12px; font-size: 12px; color: #aab4c5; pointer-events: none;
-    white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis;
+  /* EVA / game text: a stacked list in RA2's yellow, newest at the bottom,
+     each line fading out on its own timer. */
+  #tip { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .ev {
+    font: 600 12px/1.35 system-ui, sans-serif; color: #ffe07a;
+    text-shadow: 1px 1px 0 #000, 0 0 7px rgba(0,0,0,.95);
+    white-space: normal; word-break: break-word;
   }
-  #tip.warn { color: #e8b428; border-color: #5a4a20; }
+  .ev.warn { color: #ff9c6b; }
   /* Hover card: what is that building / unit (yours or the enemy's). */
   #hov {
     position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5;
@@ -390,10 +441,6 @@
 
 <div class="bar">
   <span class="title"><span class="ic">⚔️</span><span class="txt">Iron Frontier</span></span>
-  <div class="stat" id="stCred"><span class="lbl">Credits</span><span class="val" id="vCred">0</span></div>
-  <div class="stat" id="stPow"><span class="lbl">Power</span><span class="val" id="vPow">0</span></div>
-  <div class="stat"><span class="lbl">Army</span><span class="val" id="vArmy">0</span></div>
-  <div class="stat"><span class="lbl">Time</span><span class="val" id="vTime">0:00</span></div>
   <span class="spacer"></span>
   <button id="helpBtn" title="How to play">?</button>
   <button id="lbBtn" title="Best results">🏆</button>
@@ -406,8 +453,7 @@
   <div id="stage">
     <canvas id="cv"></canvas>
     <div id="marq"></div>
-    <div id="swbar"></div>
-    <div id="tip">Left-drag to select · Right-click to move or attack · Right-drag to pan when nothing is selected</div>
+    <div id="tl"><div id="swbar"></div><div id="tip"></div></div>
     <div id="hov" hidden><b id="hovName"></b><span id="hovSub"></span></div>
     <div id="paused"><b>Paused</b><span>Click anywhere to resume</span></div>
   </div>
@@ -439,7 +485,8 @@
       <dt>Groups</dt><dd><b>Ctrl+1…5</b> stores the selection, <b>1…5</b> recalls it.</dd>
       <dt>Faster</dt><dd>A second Barracks or War Factory speeds that queue up (20% off each, up to six — as in RA2) and gives units another exit.</dd>
       <dt>Build</dt><dd>Pick from the right-hand panel. A finished <b>building</b> turns purple — click it, then click the map to place it (it must touch your base area).</dd>
-      <dt>Rally</dt><dd>Select a Barracks or War Factory, then right-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected.</dd>
+      <dt>Rally</dt><dd>Select a Barracks or War Factory, then right-click the map: new units walk that route as they roll out. The line stays drawn while the building is selected. Click an already-selected factory again to make it <b>primary</b> — the one that builds.</dd>
+      <dt>Sidebar</dt><dd>Hover a cameo for its cost, power draw and prerequisites. <b>Q W E R</b> pick the four tabs, <b>T</b> selects every unit of one type, <b>K</b> / <b>L</b> are repair and sell, and <b>Power</b> switches a structure off to free its drain.</dd>
       <dt>Economy</dt><dd>Harvesters mine ore and drive it back to a refinery. More refineries, more income. Ore patches run dry — expand.</dd>
       <dt>Power</dt><dd>Every structure draws power. Go negative and construction crawls. Bombing a power plant hurts.</dd>
       <dt>Win</dt><dd>Destroy every enemy structure. Lose them all yourself and it's over.</dd>
@@ -456,28 +503,38 @@
   </div></div>
 
   <div id="side">
-    <canvas id="mini" width="184" height="184"></canvas>
-    <div class="ptab">
-      <div data-tab="b" class="on">Structures</div>
-      <div data-tab="d">Defence</div>
-      <div data-tab="i">Infantry</div>
-      <div data-tab="v">Units</div>
+    <div id="sbtop">
+      <span id="sbmeta"><span id="vArmy">0</span><br><span id="vTime">0:00</span></span>
+      <span id="sbcred"><span id="vCred">0</span></span>
     </div>
-    <div id="plist"></div>
+    <div id="radarwrap"><canvas id="mini" width="184" height="184"></canvas></div>
+    <div id="sbtools">
+      <button data-cmd="sell">Sell</button>
+      <button data-cmd="repair">Repair</button>
+      <button data-cmd="power">Power</button>
+    </div>
+    <div id="sbody">
+      <div id="pwrwrap"><canvas id="pwr" width="24" height="200"></canvas></div>
+      <div id="sbcol">
+        <div class="ptab">
+          <div data-tab="b" class="on"></div>
+          <div data-tab="d"></div>
+          <div data-tab="i"></div>
+          <div data-tab="v"></div>
+        </div>
+        <div id="plist"></div>
+      </div>
+    </div>
     <div id="cmdbar">
-      <button data-cmd="same" title="Select all units of the same type on screen">Same</button>
-      <button data-cmd="path" title="Waypoint mode: right-clicks queue stops (or hold Shift)">Path</button>
-      <button data-cmd="t1" title="Team 1 — click to select, Shift-click to assign (Ctrl+1)">T1</button>
-      <button data-cmd="t2" title="Team 2 — click to select, Shift-click to assign (Ctrl+2)">T2</button>
-      <button data-cmd="t3" title="Team 3 — click to select, Shift-click to assign (Ctrl+3)">T3</button>
-      <button data-cmd="guard" title="Guard: hold position and engage (G)">Guard</button>
-      <button data-cmd="stop" title="Stop (S)">Stop</button>
-      <button data-cmd="scatter" title="Scatter (X)">Scatter</button>
-      <button data-cmd="deploy" title="Deploy (D): an MCV unfolds into a Construction Yard, GIs dig in behind sandbags">Deploy</button>
-      <button data-cmd="sell" title="Sell mode: click one of your structures to sell it for half">Sell</button>
-      <button data-cmd="repair" title="Repair mode: click one of your structures to repair it (costs credits)">Repair</button>
+      <button data-cmd="t1">Team 1</button>
+      <button data-cmd="t2">Team 2</button>
+      <button data-cmd="same">Same</button>
+      <button data-cmd="deploy">Deploy</button>
+      <button data-cmd="guard">Guard</button>
+      <button data-cmd="path">Plan</button>
     </div>
   </div>
+  <canvas id="ptip"></canvas>
 </div>
 
 <div id="nomob"><div class="card">
@@ -12562,6 +12619,7 @@
     for (var i = 0; i < g.blds.length; i++) {
       var b = g.blds[i];
       if (b.dead || b.p !== p) continue;
+      if (b.offline) continue;      // switched off by the player (RA2's Power toggle)
       var pw = bspecOf(g, b.type, b.p).power;
       if (pw > 0) made += pw; else use += -pw;
     }
@@ -14858,10 +14916,12 @@
   // --------------------------------------------------------------------- //
   //  HUD
   // --------------------------------------------------------------------- //
-  var vCred = document.getElementById('vCred'), vPow = document.getElementById('vPow');
+  var vCred = document.getElementById('vCred');
   var vArmy = document.getElementById('vArmy'), vTime = document.getElementById('vTime');
-  var stCred = document.getElementById('stCred'), stPow = document.getElementById('stPow');
+  var stCred = document.getElementById('sbcred');
   var tipEl = document.getElementById('tip');
+  var sideEl = document.getElementById('side');
+  var pwrCv = document.getElementById('pwr'), pctx = pwrCv ? pwrCv.getContext('2d') : null;
   var shownCred = 0;
 
   function creditPop(n) {
@@ -14871,7 +14931,63 @@
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 640);
   }
 
-  var tipT = 0;
+  // ---- the vertical power meter -----------------------------------------
+  // RA2 runs a meter down the left of the sidebar: the trough is total
+  // output, a bar fills it, and a needle marks the drain. Green while there
+  // is headroom, yellow as the drain closes on the output, red once it is
+  // over — the same three states the structures themselves show.
+  function drawPower() {
+    if (!pctx || !G) return;
+    var h = pwrCv.clientHeight | 0, w = 12;
+    if (h < 8) return;
+    if (pwrCv.width !== w * 2 || pwrCv.height !== h * 2) { pwrCv.width = w * 2; pwrCv.height = h * 2; }
+    var g = pctx;
+    g.setTransform(2, 0, 0, 2, 0, 0);
+    g.clearRect(0, 0, w, h);
+    var s = G.side[P_HUMAN], made = s.powerMade, use = s.powerUse;
+    var top = 3, bot = h - 3, span = bot - top;
+
+    // The housing: a machined channel, so an empty gauge still reads as a
+    // gauge rather than a gap in the panel.
+    var hz = g.createLinearGradient(0, 0, w, 0);
+    hz.addColorStop(0, '#3b4552'); hz.addColorStop(0.35, '#6f7d8f'); hz.addColorStop(0.7, '#39424f'); hz.addColorStop(1, '#242b35');
+    g.fillStyle = hz; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#05070b'; g.fillRect(2, top, w - 4, span);
+    g.strokeStyle = 'rgba(0,0,0,.8)'; g.lineWidth = 1; g.strokeRect(2.5, top + 0.5, w - 5, span - 1);
+
+    // Scale: whichever of output and drain is larger, rounded up to a whole
+    // 100 so the graduations stay meaningful as the base grows.
+    var full = Math.max(100, Math.ceil(Math.max(made, use) / 100) * 100);
+    var ratio = made > 0 ? use / made : (use > 0 ? 2 : 0);
+    var over = use > made, warn = !over && ratio > 0.75;
+    var col = over ? '#e5646c' : warn ? '#e8b428' : '#5ad07a';
+    var hi  = over ? '#ffb0b5' : warn ? '#ffe09a' : '#b6f0c6';
+
+    // The BAR is the drain — it climbs toward the needle, and RA2's colour
+    // change is exactly "how close is the climb to the mark".
+    var bh = Math.round(span * Math.min(1, use / full));
+    if (bh > 0) {
+      var bg = g.createLinearGradient(2, 0, w - 2, 0);
+      bg.addColorStop(0, col); bg.addColorStop(0.4, hi); bg.addColorStop(1, col);
+      g.fillStyle = bg; g.fillRect(3, bot - bh, w - 6, bh);
+    }
+    // Graduations every 100 power, over the whole channel.
+    g.fillStyle = 'rgba(255,255,255,.13)';
+    for (var v = 100; v < full; v += 100) {
+      g.fillRect(3, Math.round(bot - span * (v / full)), w - 6, 1);
+    }
+    // The NEEDLE is the output you have to stay under.
+    var ny = Math.round(bot - span * Math.min(1, made / full));
+    g.fillStyle = 'rgba(0,0,0,.85)'; g.fillRect(2, ny - 1, w - 4, 3);
+    g.fillStyle = over ? '#ff5a63' : '#eef3fa'; g.fillRect(2, ny, w - 4, 1);
+    g.beginPath();
+    g.moveTo(w - 2, ny + 0.5); g.lineTo(w - 6, ny - 2.5); g.lineTo(w - 6, ny + 3.5);
+    g.closePath(); g.fill();
+    if (over && (G.tick >> 4) % 2 === 0) {          // low power blinks, as RA2's does
+      g.fillStyle = 'rgba(229,100,108,.3)'; g.fillRect(2, top, w - 4, span);
+    }
+  }
+
   // Hover card for whatever is under the pointer. RA2 answers "what is that?"
   // with a name on hover; without it the enemy base is a guessing game.
   var hovEl = document.getElementById('hov');
@@ -14901,10 +15017,40 @@
     if (IS_TOUCH) say('Touch: tap a unit to select, tap the ground to move, drag to pan, pinch to zoom', false, 600);
   }
 
+  // ---- EVA / game text ---------------------------------------------------
+  // RA2 prints its messages top-left inside the tactical view and lets them
+  // fade; a bottom-centre toast that replaces itself loses the line you were
+  // half-way through reading. Newest sits at the bottom of the stack.
+  var evLines = [], EV_MAX = 5;
   function say(msg, warn, hold) {
-    tipEl.textContent = msg;
-    tipEl.className = warn ? 'warn' : '';
-    tipT = hold || 150;
+    if (!tipEl) return;
+    var life = hold || 150;
+    var last = evLines[evLines.length - 1];
+    if (last && last.msg === msg) { last.t = life; last.el.style.opacity = '1'; return; }
+    var el = document.createElement('div');
+    el.className = warn ? 'ev warn' : 'ev';
+    el.textContent = msg;
+    tipEl.appendChild(el);
+    evLines.push({ el: el, t: life, msg: msg });
+    while (evLines.length > EV_MAX) {
+      var d = evLines.shift();
+      if (d.el.parentNode) d.el.parentNode.removeChild(d.el);
+    }
+  }
+  // One tick of the message stack, driven by the same frame counter the rest
+  // of the HUD uses so a paused game does not silently drain the log.
+  function stepEva() {
+    for (var i = evLines.length - 1; i >= 0; i--) {
+      var e = evLines[i];
+      if (--e.t <= 0) {
+        if (e.el.parentNode) e.el.parentNode.removeChild(e.el);
+        evLines.splice(i, 1);
+      } else if (e.t < 34) e.el.style.opacity = (e.t / 34).toFixed(2);
+    }
+  }
+  function clearEva() {
+    for (var i = 0; i < evLines.length; i++) if (evLines[i].el.parentNode) evLines[i].el.parentNode.removeChild(evLines[i].el);
+    evLines = [];
   }
 
   // ---- Superweapon clocks + targeting -----------------------------------
@@ -14916,7 +15062,10 @@
     var el = document.createElement('div');
     el.className = 'swic'; el.title = SW[k].name;
     var arc = document.createElement('div'); arc.className = 'arc';
-    var em = document.createElement('span'); em.className = 'em'; em.textContent = SW[k].em;
+    var em = document.createElement('span'); em.className = 'em';
+    // RA2 stacks the superweapon's own cameo, not a glyph.
+    var cam = G ? cameoFor(SW[k].bld, true, G.side[P_HUMAN].fac) : null;
+    if (cam) em.appendChild(cam); else em.textContent = SW[k].em;
     var cd = document.createElement('span'); cd.className = 'cd';
     el.appendChild(arc); el.appendChild(em); el.appendChild(cd);
     el._arc = arc; el._cd = cd;
@@ -14975,19 +15124,30 @@
     swMode = null; cv.style.cursor = 'default'; refreshSW();
   }
 
+  // RA2's credit counter is a mechanical ticker: it walks toward the real
+  // total one step per frame, clicking as it goes, so income reads as a flow.
+  // The step scales with the gap so a $2000 sale is not a minute of counting,
+  // but it is never a jump.
+  function tickCredits() {
+    if (!G) return;
+    var real = G.side[P_HUMAN].credits;
+    if (shownCred !== real) {
+      var gap = real - shownCred;
+      var step = Math.max(1, Math.ceil(Math.abs(gap) / 22));
+      shownCred += gap > 0 ? Math.min(step, gap) : Math.max(-step, gap);
+      sfx('cash');
+      vCred.textContent = Math.round(shownCred);
+    }
+  }
+
   function updateHUD() {
     if (!G) return;
     refreshSW();
     var s = G.side[P_HUMAN];
-    // Ease the credit counter so income reads as a flow, not a jump.
-    shownCred += (s.credits - shownCred) * 0.25;
-    if (Math.abs(s.credits - shownCred) < 1) shownCred = s.credits;
-    vCred.textContent = Math.round(shownCred);
-    var net = s.powerMade - s.powerUse;
-    vPow.textContent = (net >= 0 ? '+' : '') + net;
-    stPow.className = 'stat' + (net < 0 ? ' bad' : (net < 25 ? ' low' : ''));
-    stCred.className = 'stat' + (s.credits < 150 ? ' low' : '');
-    vArmy.textContent = countUnit(G, P_HUMAN, null);
+    stCred.className = s.credits < 150 ? 'low' : '';   // tickCredits runs per frame, in the loop
+    drawPower();
+    var n = countUnit(G, P_HUMAN, null);
+    vArmy.textContent = n + (n === 1 ? ' UNIT' : ' UNITS');
     var secs = Math.floor(G.tick / 60);
     vTime.textContent = Math.floor(secs / 60) + ':' + ('0' + (secs % 60)).slice(-2);
   }
@@ -14999,6 +15159,7 @@
   var panelRows = {};
 
   function buildPanel() {
+    hideTip();
     plist.innerHTML = '';
     panelRows = {};
     var items = [];
@@ -15014,33 +15175,42 @@
     items.forEach(function (it) {
       var b = document.createElement('button');
       b.className = 'pit';
-      b.innerHTML = '<span class="fill"></span><span class="em"></span>' +
-        '<span><span class="nm">' + it.spec.name + '</span><br>' +
-        '<span class="ct">$' + it.spec.cost + ' · ' + it.spec.desc + '</span></span>' +
+      // No prose on the cameo — RA2 puts none there. The `.nm` / `.ct` spans
+      // stay in the DOM but are display:none: they are the accessible name of
+      // the button (a 60x48 picture otherwise announces nothing) and the text
+      // refreshPanel keeps current. What you SEE is the drawn tooltip.
+      b.innerHTML = '<span class="em"></span><span class="fill"></span>' +
+        '<span class="nm">' + it.spec.name + '</span>' +
+        '<span class="ct">$' + it.spec.cost + ' · ' + it.spec.desc + '</span>' +
         '<span class="qn"></span>';
-      b.title = it.spec.name + ' — $' + it.spec.cost + (it.spec.req || it.spec.reqAll ? ' · requires ' + reqName(it.spec, myFac) : '');
       b.addEventListener('click', function (ev) { onPanelClick(it, ev); });
       b.addEventListener('contextmenu', function (ev) {
         ev.preventDefault();
         if (cancelLast(G, P_HUMAN, it.lane, it.k)) { sfx('click'); say('Cancelled ' + it.spec.name + ' — refunded'); }
       });
+      b.addEventListener('pointerenter', function () { showItemTip(b, it, myFac); });
+      b.addEventListener('pointerleave', hideTip);
       // RA2-style cameo: the item's own baked sprite framed in a dark bevel.
       var cam = cameoFor(it.k, isBldLane(it.lane), myFac);
       if (cam) b.querySelector('.em').appendChild(cam); else b.querySelector('.em').textContent = it.spec.em;
       plist.appendChild(b);
       panelRows[it.k] = { el: b, it: it };
     });
-    var note = document.createElement('div');
-    note.className = 'pnote';
-    note.textContent = panel === 'b' || panel === 'd'
-      ? (panel === 'd'
-          ? 'Defences and superweapons build in their own lane beside the structures. Right-click to cancel.'
-          : 'Right-click an item to cancel and refund.')
-      : panel === 'v' && myFac === 'dir'
-      ? 'Right-click the map with a factory selected to set a rally point. Harriers come from the Airforce Command, four per pad; they fly out, fire, and return to reload.'
-      : 'Right-click the map with a factory selected to set a rally point. Click a selected factory again to make it primary.';
-    plist.appendChild(note);
+    padSlots(items.length);
     refreshPanel();
+  }
+  // RA2's cameo grid is a fixed panel: past the last item it keeps drawing
+  // empty slots rather than stopping in a void.
+  function padSlots(n) {
+    var h = plist.clientHeight || 0;
+    if (!h) return;
+    var rows = Math.floor((h - 10) / 58);
+    var want = Math.max(0, rows * 2 - n);
+    for (var i = 0; i < want; i++) {
+      var d = document.createElement('div');
+      d.className = 'slot';
+      plist.appendChild(d);
+    }
   }
 
   var cameoCache = {};
@@ -15059,19 +15229,104 @@
       else { var U = SPR.unit[0][fac][key]; if (!U) return null; var f = Array.isArray(U) ? U[1] : U; src = f.c; var ub = f.bb || { x0: 0, y0: 0, x1: f.w, y1: f.h }; sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; sc = { x: ub.x0, y: ub.y0 }; kb = src.width / f.w; }
     } catch (e) { return null; }
     if (!src || sw <= 0 || sh <= 0) return null;
-    var W = 60, H = 44, c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2; c.style.width = W + 'px'; c.style.height = H + 'px';
+    // RA2's cameos are 60x48 PCX plates in a house-tinted frame: a lit sky
+    // wash behind the sprite, a hairline bevel, and the owner's colour only
+    // in the frame — the art itself is never repainted.
+    var W = 60, H = 48, c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2; c.style.width = W + 'px'; c.style.height = H + 'px';
     var g = c.getContext('2d'); g.scale(2, 2);
-    g.fillStyle = '#0d1016'; g.fillRect(0, 0, W, H);
-    g.fillStyle = '#1a2130'; g.fillRect(1, 1, W - 2, H - 2);
-    var k = Math.min((W - 8) / sw, (H - 6) / sh); if (k > 1.6) k = 1.6;
+    var acc = fac === 'col' ? [216, 67, 77] : [74, 163, 219];
+    var sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, 'rgb(' + Math.round(acc[0] * 0.30 + 24) + ',' + Math.round(acc[1] * 0.30 + 28) + ',' + Math.round(acc[2] * 0.30 + 34) + ')');
+    sky.addColorStop(1, '#0b0f16');
+    g.fillStyle = sky; g.fillRect(0, 0, W, H);
+    // A ground line, so a structure sits on something rather than floating.
+    g.fillStyle = 'rgba(0,0,0,.34)'; g.fillRect(0, H - 11, W, 11);
+    var k = Math.min((W - 8) / sw, (H - 9) / sh); if (k > 1.7) k = 1.7;
     var dw = sw * k, dh = sh * k;
     g.imageSmoothingEnabled = true;
     // bb is CSS px; the bitmap is `kb` times larger (baked at DPR), so the
     // SOURCE rect is scaled by the sprite's own ratio.
     g.drawImage(src, sc.x * kb, sc.y * kb, sw * kb, sh * kb, (W - dw) / 2, (H - dh) / 2 + 1, dw, dh);
-    g.strokeStyle = '#3a4456'; g.lineWidth = 1; g.strokeRect(0.5, 0.5, W - 1, H - 1);
+    // Bevel: light top-left, dark bottom-right, house colour on the outside.
+    g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0.5, H - 1); g.lineTo(0.5, 0.5); g.lineTo(W - 1, 0.5); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,.62)';
+    g.beginPath(); g.moveTo(W - 0.5, 0); g.lineTo(W - 0.5, H - 0.5); g.lineTo(0, H - 0.5); g.stroke();
     cameoCache[ck] = c;
     return cameoCopy(c);
+  }
+
+  // ---- the drawn tooltip -------------------------------------------------
+  // RA2 draws its own tooltip panel; the browser's `title=` waits a second,
+  // renders in the OS font and cannot show a cost the way the game does.
+  var ptip = document.getElementById('ptip'), ptx = ptip ? ptip.getContext('2d') : null;
+  function drawTip(title, lines, tone) {
+    if (!ptx) return null;
+    var PAD = 7, TH2 = 15, LH = 13;
+    ptx.setTransform(1, 0, 0, 1, 0, 0);
+    ptx.font = '700 12px system-ui, sans-serif';
+    var w = ptx.measureText(title).width;
+    ptx.font = '11px system-ui, sans-serif';
+    for (var i = 0; i < lines.length; i++) w = Math.max(w, ptx.measureText(lines[i].t).width);
+    w = Math.ceil(w) + PAD * 2;
+    var h = PAD * 2 + TH2 + lines.length * LH - (lines.length ? 2 : 0);
+    ptip.width = w * 2; ptip.height = h * 2;
+    ptip.style.width = w + 'px'; ptip.style.height = h + 'px';
+    var g = ptx; g.setTransform(2, 0, 0, 2, 0, 0);
+    g.fillStyle = 'rgba(9,12,18,.95)'; g.fillRect(0, 0, w, h);
+    var bd = tone === 'bad' ? '#8a3a42' : '#5c6a80';
+    g.strokeStyle = bd; g.lineWidth = 1; g.strokeRect(0.5, 0.5, w - 1, h - 1);
+    g.strokeStyle = 'rgba(255,255,255,.10)'; g.strokeRect(1.5, 1.5, w - 3, h - 3);
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.font = '700 12px system-ui, sans-serif';
+    g.fillStyle = tone === 'bad' ? '#ff9c8f' : '#ffe07a';
+    g.fillText(title, PAD, PAD + 11);
+    g.font = '11px system-ui, sans-serif';
+    for (var j = 0; j < lines.length; j++) {
+      g.fillStyle = lines[j].c || '#b6c2d3';
+      g.fillText(lines[j].t, PAD, PAD + TH2 + 9 + j * LH);
+    }
+    return { w: w, h: h };
+  }
+  // Anchored to the LEFT of the sidebar, vertically centred on the control,
+  // the way RA2 hangs its tooltips off the command bar.
+  function placeTip(anchor, size) {
+    var wr = document.querySelector('.wrap').getBoundingClientRect();
+    var r = anchor.getBoundingClientRect();
+    // Hang it off the sidebar's outer edge, not the control's, so it never
+    // lands on top of the panel it is describing.
+    var edge = sideEl ? sideEl.getBoundingClientRect().left : r.left;
+    var x = edge - wr.left - size.w - 8;
+    if (x < 6) x = r.right - wr.left + 8;
+    var y = r.top - wr.top + r.height / 2 - size.h / 2;
+    y = Math.max(6, Math.min(wr.height - size.h - 6, y));
+    ptip.style.left = Math.round(x) + 'px';
+    ptip.style.top = Math.round(y) + 'px';
+    ptip.style.display = 'block';
+  }
+  function showTip(anchor, title, lines, tone) {
+    var sz = drawTip(title, lines, tone);
+    if (sz) placeTip(anchor, sz);
+  }
+  function hideTip() { if (ptip) ptip.style.display = 'none'; }
+  // The build item's card: cost, power draw, queue depth, and — only when it
+  // is out of reach — the reason.
+  function showItemTip(el, it, fac) {
+    if (!G) return;
+    var sp = it.spec, s = G.side[P_HUMAN], lines = [];
+    var pw = sp.power || 0;
+    var cost = '$' + sp.cost;
+    if (pw) cost += pw > 0 ? '   +' + pw + ' power' : '   ' + pw + ' power';
+    lines.push({ t: cost, c: pw < 0 && s.powerMade - s.powerUse + pw < 0 ? '#ff9c8f' : '#dfe7f2' });
+    lines.push({ t: sp.desc, c: '#8f9bae' });
+    var tone = null;
+    if (!reqMet(G, P_HUMAN, sp)) { lines.push({ t: 'Requires ' + reqName(sp, fac), c: '#ff9c8f' }); tone = 'bad'; }
+    else if (s.credits < sp.cost) { lines.push({ t: 'Not enough credits', c: '#ff9c8f' }); tone = 'bad'; }
+    var q = s.queues[it.lane], n = 0;
+    if (q) for (var i = 0; i < q.list.length; i++) if (q.list[i] === it.k) n++;
+    if (isBldLane(it.lane) && q && q.ready === it.k) lines.push({ t: 'Ready — click, then click the map', c: '#ffe14d' });
+    else if (n) lines.push({ t: n + ' queued · right-click to cancel', c: '#a8b8cc' });
+    showTip(el, sp.name, lines, tone);
   }
 
   function onPanelClick(it, ev) {
@@ -15154,22 +15409,100 @@
       for (var i = 0; i < q.list.length; i++) if (q.list[i] === k) n++;
       var isReady = isBldLane(it.lane) && q.ready === k;
       var first = q.list[0] === k && !(isBldLane(it.lane) && q.ready);
-      el.querySelector('.fill').style.width = first ? (q.prog * 100) + '%' : '0';
+      // RA2 wipes a clock over the cameo: a dark sector sweeping clockwise
+      // from noon, leaving the finished part of the picture lit.
+      var fl = el.querySelector('.fill');
+      if (first && q.prog > 0) {
+        var deg = (q.prog * 360).toFixed(1);
+        fl.style.display = 'block';
+        // Two layers: the bright clock hand at the leading edge, and the
+        // unbuilt sector behind it.
+        fl.style.background =
+          'conic-gradient(from ' + deg + 'deg, rgba(255,230,150,.95) 0deg 2.4deg, rgba(0,0,0,0) 2.4deg),' +
+          'conic-gradient(from 0deg, rgba(0,0,0,0) 0deg ' + deg + 'deg, rgba(4,6,11,.8) ' + deg + 'deg 360deg)';
+      } else if (fl.style.display !== 'none') { fl.style.display = 'none'; }
       // The ::after stamp says READY now; the corner only carries queue depth.
-      el.querySelector('.qn').textContent = isReady ? '' : (n > 1 ? '×' + n : (n === 1 ? '•' : ''));
+      el.querySelector('.qn').textContent = isReady ? '' : (n > 1 ? '\u00d7' + n : '');
       el.classList.toggle('rdy', isReady);
       var ok = isReady || canBuild(G, P_HUMAN, k, isBldLane(it.lane));
       el.classList.toggle('dis', !ok);
     }
   }
 
+  // ---- the four tabs, as icons -------------------------------------------
+  // RA2's tabs are pictures, not words: a structure, a turret, a soldier and
+  // a tank, drawn as flat silhouettes with a lit top edge so they read at
+  // 21x17 without any colour of their own (the .on state supplies that).
+  var TAB_ICON = {
+    b: function (g) {                              // structure: hall + annexe
+      g.fillStyle = '#c6d2e2';
+      g.fillRect(2, 6, 9, 9); g.fillRect(11, 9, 7, 6);
+      g.fillStyle = '#8e9cb0';
+      g.beginPath(); g.moveTo(1, 6); g.lineTo(6.5, 2.5); g.lineTo(12, 6); g.closePath(); g.fill();
+      g.fillRect(10.5, 9, 8, 1.4);
+      g.fillStyle = '#2b3240'; g.fillRect(5, 10, 3, 5); g.fillRect(13, 11.5, 3, 3.5);
+    },
+    d: function (g) {                              // defence: turret on a pad
+      g.fillStyle = '#2b3240';                     // concrete pad
+      g.beginPath(); g.moveTo(1, 14.5); g.lineTo(10, 11.6); g.lineTo(19, 14.5); g.lineTo(10, 17.4); g.closePath(); g.fill();
+      g.fillStyle = '#8e9cb0';                     // squat base
+      g.beginPath(); g.moveTo(5, 14); g.lineTo(6.4, 9.6); g.lineTo(13.6, 9.6); g.lineTo(15, 14); g.closePath(); g.fill();
+      g.save(); g.translate(10, 8.6); g.rotate(-0.66);   // barrel
+      g.fillStyle = '#c6d2e2'; g.fillRect(0, -1.2, 10.5, 2.4);
+      g.fillRect(9.4, -1.9, 1.6, 3.8);
+      g.restore();
+      g.fillStyle = '#c6d2e2';                     // mantlet
+      g.beginPath(); g.arc(10, 9.6, 3.3, Math.PI, 0); g.closePath(); g.fill();
+    },
+    i: function (g) {                              // infantry: helmet + rifle
+      g.fillStyle = '#c6d2e2';
+      g.beginPath(); g.arc(8.5, 4.4, 2.7, Math.PI, 0); g.closePath(); g.fill();
+      g.fillRect(5.4, 4.4, 6.2, 1.2);
+      g.beginPath(); g.moveTo(6.2, 6.4); g.lineTo(11, 6.4); g.lineTo(11.8, 12); g.lineTo(5.4, 12); g.closePath(); g.fill();
+      g.fillRect(6, 12, 2.2, 4.4); g.fillRect(9.2, 12, 2.2, 4.4);
+      g.fillStyle = '#8e9cb0'; g.save(); g.translate(11, 8.4); g.rotate(-0.5);
+      g.fillRect(-1, -0.8, 8.4, 1.6); g.restore();
+    },
+    v: function (g) {                              // vehicle: hull + turret
+      g.fillStyle = '#8e9cb0'; g.fillRect(1.5, 11, 18, 4.4);
+      g.fillStyle = '#2b3240';
+      for (var i = 0; i < 5; i++) g.fillRect(2.6 + i * 3.5, 12.1, 1.6, 2.2);
+      g.fillStyle = '#c6d2e2'; g.fillRect(2.6, 7.4, 14.5, 3.8);
+      g.fillRect(6.4, 4.2, 6.4, 3.4);
+      g.fillRect(12.4, 5, 7.2, 1.8);
+    }
+  };
+  var TAB_NAME = { b: ['Structures', 'Q'], d: ['Defence', 'W'], i: ['Infantry', 'E'], v: ['Units', 'R'] };
+  function tabIcon(kind) {
+    var c = document.createElement('canvas');
+    c.width = 42; c.height = 34; c.style.width = '21px'; c.style.height = '17px';
+    var g = c.getContext('2d');
+    g.setTransform(2, 0, 0, 2, 0, 0);
+    g.translate(0, -0.6);
+    (TAB_ICON[kind] || TAB_ICON.b)(g);
+    return c;
+  }
+  function selectTab(tab) {
+    if (!TAB_NAME[tab] || panel === tab) return;
+    document.querySelectorAll('.ptab div').forEach(function (o) { o.classList.toggle('on', o.getAttribute('data-tab') === tab); });
+    panel = tab;
+    buildPanel();
+    sfx('click');
+  }
   document.querySelectorAll('.ptab div').forEach(function (t) {
+    var tab = t.getAttribute('data-tab');
+    t.appendChild(tabIcon(tab));
     t.addEventListener('click', function () {
       document.querySelectorAll('.ptab div').forEach(function (o) { o.classList.remove('on'); });
       t.classList.add('on');
-      panel = t.getAttribute('data-tab');
+      panel = tab;
       buildPanel();
     });
+    t.addEventListener('pointerenter', function () {
+      var nm = TAB_NAME[tab] || ['', ''];
+      showTip(t, nm[0], [{ t: 'Hotkey ' + nm[1], c: '#8f9bae' }]);
+    });
+    t.addEventListener('pointerleave', hideTip);
   });
 
   // --------------------------------------------------------------------- //
@@ -15222,6 +15555,22 @@
       return;
     }
     if (e.key.toLowerCase() === 'p') { if (state === 'play' || state === 'paused') togglePause(); return; }
+
+    // ---- keyboard.ini's sidebar keys -------------------------------------
+    // Q/W/E/R pick the four tabs, T is TypeSelect, K/L are the Repair and
+    // Sell toggles, Z is PlanningMode. W/A/S/D still pan: RA2 scrolled with
+    // the arrows, and this file already doubles S (stop) and D (deploy) with
+    // the pan keys, so the tab keys follow the same rule rather than
+    // inventing a second one.
+    var lk = e.key.toLowerCase();
+    if (state === 'play' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      var TABK = { q: 'b', w: 'd', e: 'i', r: 'v' };
+      if (TABK[lk]) { selectTab(TABK[lk]); return; }
+      if (lk === 't') { selectSameType(); return; }
+      if (lk === 'k') { setCmdMode('repair'); return; }
+      if (lk === 'l') { setCmdMode('sell'); return; }
+      if (lk === 'z') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: right-clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); return; }
+    }
 
     if (/^[1-5]$/.test(e.key)) {
       if (e.ctrlKey || e.metaKey) {
@@ -15413,15 +15762,32 @@
 
   function clearSel() { sel.forEach(function (u) { u.sel = false; }); sel = []; }
 
-  // ---- RA2 bottom command bar ------------------------------------------
-  var cmdMode = null;          // 'sell' | 'repair' | null
+  // ---- RA2's command bar + the three sidebar toggles ---------------------
+  // ui.ini's [AdvancedCommandBar] is six buttons — Team01, Team02,
+  // TypeSelect, Deploy, Guard, PlanningMode — and Sell / Repair / Power are
+  // the three TOGGLES on the sidebar itself, under the radar. Stop and
+  // Scatter are the S and X keys, and never had buttons in RA2.
+  var cmdMode = null;          // 'sell' | 'repair' | 'power' | null
   var pathMode = false;        // waypoint mode: right-clicks queue
   var cmdbar = document.getElementById('cmdbar');
+  var sbtools = document.getElementById('sbtools');
+  var CMD_TIP = {
+    t1:     ['Team 1', 'Click to select · Shift-click to assign', 'Ctrl+1 assigns, 1 recalls'],
+    t2:     ['Team 2', 'Click to select · Shift-click to assign', 'Ctrl+2 assigns, 2 recalls'],
+    same:   ['Select same type', 'Every unit of this type on screen', 'Hotkey T'],
+    deploy: ['Deploy', 'An MCV unfolds; GIs dig in behind sandbags', 'Hotkey D'],
+    guard:  ['Guard', 'Hold this ground and engage what comes', 'Hotkey G'],
+    path:   ['Planning mode', 'Right-clicks queue waypoints (or hold Shift)', 'Hotkey Z'],
+    sell:   ['Sell', 'Click one of your structures for half its cost', 'Hotkey L'],
+    repair: ['Repair', 'Click a structure to start or stop repairs', 'Hotkey K'],
+    power:  ['Power', 'Click a structure to switch its power off or on', 'Frees the drain; the building goes dark']
+  };
   function setCmdMode(m) {
     cmdMode = cmdMode === m ? null : m;
     cv.style.cursor = cmdMode ? 'pointer' : 'default';
     say(cmdMode === 'sell' ? 'Sell: click one of your structures (Esc cancels)'
-      : cmdMode === 'repair' ? 'Repair: click one of your structures to start or stop repairs (Esc cancels)' : 'Mode cancelled');
+      : cmdMode === 'repair' ? 'Repair: click one of your structures to start or stop repairs (Esc cancels)'
+      : cmdMode === 'power' ? 'Power: click one of your structures to switch it off or on (Esc cancels)' : 'Mode cancelled');
     refreshCmdbar();
   }
   function selectSameType() {
@@ -15498,25 +15864,49 @@
     G.side[b.p].credits += refund; killBld(G, b); b.sel = false;
     say('Sold ' + bspecOf(G, b.type, b.p).name + ' for $' + refund); sfx('cash'); eva('Structure sold', 2000);
   }
+  function cmdButtons() {
+    var a = [];
+    [cmdbar, sbtools].forEach(function (box) {
+      if (!box) return;
+      var bs = box.querySelectorAll('button');
+      for (var i = 0; i < bs.length; i++) a.push(bs[i]);
+    });
+    return a;
+  }
   function refreshCmdbar() {
-    if (!cmdbar) return;
-    var bs = cmdbar.querySelectorAll('button');
+    var bs = cmdButtons();
     for (var i = 0; i < bs.length; i++) {
       var c = bs[i].getAttribute('data-cmd');
+      if (!c) continue;
       bs[i].classList.toggle('on', c === cmdMode || (c === 'path' && pathMode));
-      if (c[0] === 't') bs[i].classList.toggle('has', !!(groups[c[1]] && groups[c[1]].length));
+      if (c[0] === 't' && /^\d$/.test(c[1])) bs[i].classList.toggle('has', !!(groups[c[1]] && groups[c[1]].length));
     }
   }
-  if (cmdbar) cmdbar.addEventListener('click', function (e) {
+  function onCmdClick(e) {
     var b = e.target.closest('button'); if (!b || !G || state !== 'play') return;
     resumeAudio();
     var c = b.getAttribute('data-cmd');
     if (c === 'same') selectSameType();
     else if (c === 'path') { pathMode = !pathMode; say(pathMode ? 'Waypoint mode: right-clicks queue stops' : 'Waypoint mode off'); refreshCmdbar(); }
-    else if (c[0] === 't') teamCmd(c[1], e.shiftKey || e.ctrlKey);
+    else if (c[0] === 't' && /^\d$/.test(c[1])) teamCmd(c[1], e.shiftKey || e.ctrlKey);
     else if (c === 'guard' || c === 'stop' || c === 'scatter' || c === 'deploy') unitsCmd(c);
-    else if (c === 'sell' || c === 'repair') setCmdMode(c);
-  });
+    else if (c === 'sell' || c === 'repair' || c === 'power') setCmdMode(c);
+  }
+  // The tooltip is drawn, not the browser's — same panel as the build items.
+  function wireCmdTips(box) {
+    if (!box) return;
+    box.addEventListener('click', onCmdClick);
+    var bs = box.querySelectorAll('button');
+    for (var i = 0; i < bs.length; i++) (function (b) {
+      var t = CMD_TIP[b.getAttribute('data-cmd')];
+      if (!t) return;
+      b.addEventListener('pointerenter', function () {
+        showTip(b, t[0], [{ t: t[1] }, { t: t[2], c: '#8f9bae' }]);
+      });
+      b.addEventListener('pointerleave', hideTip);
+    })(bs[i]);
+  }
+  wireCmdTips(cmdbar); wireCmdTips(sbtools);
 
   // Centre on the construction yard; if it is gone, on anything else still
   // standing, then on any surviving unit. Losing your yard should not also
@@ -15570,6 +15960,13 @@
     if (cmdMode) {
       if (e && e.kind === 'b' && e.p === P_HUMAN) {
         if (cmdMode === 'sell') { if (e.type === 'base' && countBld(G, P_HUMAN, 'base') < 2) say('Cannot sell your only Construction Yard', true); else sellBld(e); }
+        else if (cmdMode === 'power') {
+          // RA2's power toggle: the structure stops drawing (or making)
+          // power and stops working. Cheap way to ride out a brown-out.
+          e.offline = !e.offline;
+          recalcPower(G, e.p);
+          say((e.offline ? 'Powered down ' : 'Powered up ') + bspecOf(G, e.type, e.p).name); sfx('click');
+        }
         else { e.repair = !e.repair; say(e.repair ? 'Repairing ' + BLDS[e.type].name : 'Repair stopped'); sfx('click'); }
       } else say('Click one of your structures', true);
       return;
@@ -16486,7 +16883,10 @@
     // MAKE animation (which is a per-structure sprite sequence we do not
     // have), so it was removed rather than left ugly.
     var artC = art.frames ? art.frames[((G.tick / 5 + b.id * 2) | 0) % art.frames.length].c : art.s.c;
+    // Switched off by the player: RA2 kills the lights and the animation.
+    if (b.offline) { ctx.filter = 'brightness(.40) saturate(.35)'; artC = art.s.c; }
     ctx.drawImage(artC, ox, oy, art.s.w, art.s.h);
+    if (b.offline) ctx.filter = 'none';
     // Damage states: smoke from a hurt structure, fire once it is critical.
     var frac = b.hp / b.maxhp;
     if (frac < 0.5) {
@@ -16508,7 +16908,12 @@
     if (b.hp < b.maxhp) hpBar(px, topY - 4, 30, b.hp / b.maxhp);
 
     // Unpowered structures read as dead metal, not "maybe fine".
-    if (BLDS[b.type].power < 0 && !powered(G, b.p)) {
+    if (b.offline) {
+      ctx.fillStyle = 'rgba(150,162,180,.95)';
+      ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('OFF', px, topY - 8);
+      ctx.textAlign = 'left';
+    } else if (BLDS[b.type].power < 0 && !powered(G, b.p)) {
       ctx.fillStyle = 'rgba(229,100,108,.85)';
       ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
       ctx.fillText('⚡', px, topY - 8);
@@ -16583,11 +16988,25 @@
     ctx.restore();
   }
 
+  // RA2 does not draw a solid bar: it draws a bracketed strip of discrete
+  // pips, green above two thirds, yellow above one third, red below — which
+  // is why an RA2 player can read "three pips left" at a glance across a
+  // battle. Wider things (structures) get more pips, exactly as RA2 scales
+  // the strip with the object.
   function hpBar(x, y, w, f) {
-    ctx.fillStyle = 'rgba(0,0,0,.55)';
-    ctx.fillRect(x - w / 2 - 1, y - 1, w + 2, 5);
-    ctx.fillStyle = f > 0.6 ? '#5ad07a' : (f > 0.3 ? '#e8b428' : '#e5646c');
-    ctx.fillRect(x - w / 2, y, w * f, 3);
+    var n = Math.max(5, Math.min(16, Math.round(w / 3.4)));
+    var lit = f <= 0 ? 0 : Math.max(1, Math.ceil(f * n));
+    var x0 = x - w / 2, gap = 1, pw = (w - (n - 1) * gap) / n;
+    ctx.fillStyle = 'rgba(0,0,0,.62)';
+    ctx.fillRect(x0 - 2, y - 1.5, w + 4, 6);
+    // brackets
+    ctx.fillStyle = 'rgba(226,235,247,.8)';
+    ctx.fillRect(x0 - 2, y - 1.5, 1, 6); ctx.fillRect(x0 + w + 1, y - 1.5, 1, 6);
+    var col = f > 0.6 ? '#5ad07a' : (f > 0.3 ? '#e8b428' : '#e5646c');
+    for (var i = 0; i < n; i++) {
+      ctx.fillStyle = i < lit ? col : 'rgba(255,255,255,.12)';
+      ctx.fillRect(x0 + i * (pw + gap), y, pw, 3);
+    }
   }
 
   // The one terrain palette: the minimap and the menu's map previews are the
@@ -17127,7 +17546,11 @@
     centerOn(G.start[P_HUMAN].x, G.start[P_HUMAN].y);
     panel = 'b';
     document.querySelectorAll('.ptab div').forEach(function (o, i) { o.classList.toggle('on', i === 0); });
+    // The sidebar takes the player's house colour, as RA2's does.
+    if (sideEl) sideEl.style.setProperty('--acc', faction === 'col' ? '#e5646c' : '#4aa3db');
+    clearEva();
     buildPanel();
+    say('Left-drag to select · Right-click to move or attack · Right-drag to pan when nothing is selected', false, 420);
     say(FACTIONS[faction].name + ' vs ' + FACTIONS[G.side[P_AI].fac].name +
         ' — build a Power Plant, then a Refinery. Harvesters mine on their own.', false, 340);
   }
@@ -17189,12 +17612,8 @@
     }
 
     if (--hudT <= 0) { hudT = 6; updateHUD(); refreshPanel(); }
-    if (tipT > 0 && --tipT === 0) {
-      tipEl.className = '';
-      tipEl.textContent = state === 'play'
-        ? 'Left-drag to select · Right-click to move or attack · Right-drag to pan when nothing is selected'
-        : '';
-    }
+    tickCredits();
+    stepEva();
     render();
   }
 

@@ -5832,3 +5832,58 @@ platform.
 - **Symptom:** the Weather Control Device (and the other superweapons) sat at the end of the Structures tab; aircraft had a fifth tab; items were listed in declaration order.
 - **Cause:** the tabs were hand lists that grew as features landed. In RA2 the sidebar has four tabs, a structure goes to the second tab iff `BuildCat=Combat` — which in rules.ini v1.006 is every wall, turret AND `GAWEAT/GACSPH/NAIRON/NAMISL` — and each tab is sorted by `TechLevel`, ties by list position (verified against the Allied/Soviet infantry tabs, which only that rule reproduces). Aircraft live on the Units tab with vehicles.
 - **Fix:** `cat: 'def'` on the four superweapons (they now build in the defence lane too, as RA2's Combat lane does); `buildOrderFor`/`defenceOrderFor`/`unitOrderFor` hold the TechLevel-sorted lists (numbers in `/tmp/RA2inis/rules.ini` from the stats pass; Guardian GI's 2 from rulesmd.ini); Aircraft tab removed, Harrier listed under Units after the IFV (both TechLevel 3, vehicles first). Production lanes (`queues.a`, pads) are untouched — the tab is only where a cameo is listed.
+
+## The RA2 sidebar: five things that are not obvious
+
+The build panel in `landing/rts.html` was rebuilt from a scrolling web list of
+`cameo + name + "$800 · +200 power"` rows into RA2's command bar (roadmap
+Phase 1). Most of it is straightforward drawing; these five were not.
+
+1. **The power meter's bar is the DRAIN, the needle is the OUTPUT.** The first
+   cut filled the bar with the power you *make* and put the needle at the
+   drain, which is the same two numbers — and useless: from the first Power
+   Plant the bar is pinned full and never moves again. RA2's meter answers
+   "how close am I to a brown-out", so the bar climbs toward a fixed mark and
+   the colour is the ratio (green → yellow past 75% → red once drain exceeds
+   output, with the channel flashing). Scale is
+   `ceil(max(made, use) / 100) * 100` so the 100-power graduations stay whole
+   as the base grows.
+2. **A `radial-gradient` rivet floods the whole box.** The bezel's four rivets
+   are four `radial-gradient(circle 2.4px at …)` layers over a metal
+   `linear-gradient`. A gradient's *last* colour stop extends to infinity, so
+   the first rivet layer painted the entire element opaque and hid the other
+   three — only the top-left rivet ever appeared. Every ring layer has to end
+   `…, rgba(0,0,0,0) 100%`.
+3. **`button:hover` reaches the cameos.** `.pit` is a `<button>`, so the
+   file's generic `button:hover { border-color:#8a4adb }` styled a *locked*
+   cameo purple: the intended rule was `.pit:hover:not(.dis)`, which by
+   definition cannot match a disabled item. Locked cameos need their own
+   `.pit.dis:hover`, or the fallback wins.
+4. **Empty slot plates, not a void.** RA2's grid is a fixed metal panel; ours
+   stopped after the last item and left a hole the height of the sidebar.
+   `padSlots()` measures `#plist.clientHeight` after the items are appended
+   and fills the remaining rows with inert `.slot` divs.
+5. **`.nm` / `.ct` stayed in the DOM at `display:none`.** They carry no
+   visible text any more — the drawn tooltip does — but a 60×48 picture
+   button with no text content announces nothing to a screen reader, and
+   `refreshPanel` already keeps `.ct` current. Deleting them would have cost
+   the accessible name for no gain.
+
+**Also worth knowing.** The tooltip is a real `<canvas>` (`#ptip`) anchored to
+the *sidebar's* outer edge rather than the hovered control's, so it never lands
+on the panel it describes; `buildPanel()` calls `hideTip()` first because a tab
+switch destroys the hovered element and `pointerleave` never fires. The credit
+ticker steps once per *frame* from the render loop, not from `updateHUD()`
+(which runs every sixth frame) — and it is deliberately called from exactly one
+place, because being called from both stepped twice on every sixth frame.
+
+**Rejected.** (a) Keeping the name and cost under each cameo "so it is
+discoverable" — RA2 puts no text there, and at two columns it forces the
+sidebar back to 186px of prose. The hover tooltip plus the Help card's new
+*Sidebar* row carry it. (b) Giving the tab keys their own modifier to avoid
+W double-duty with WASD panning: this file already doubles S (stop) and D
+(deploy) with the pan keys, so a second convention would be the inconsistency,
+not the fix — and a tab switch is visible and instantly reversible. (c) A CSS
+`filter: brightness()` on the whole `.pit` for the offline/locked state — it
+dims the frame and the READY stamp too; only `.em canvas` is filtered.
+
