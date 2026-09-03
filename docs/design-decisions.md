@@ -6839,6 +6839,114 @@ aircraft included, inside 22 tiles of the turtle's start.
 
 ---
 
+## Normal could not beat Easy, and `__rtsSim` could not repeat itself (2026-09-03)
+
+Two defects in one sitting, unrelated in mechanism but both invisible to a
+single match played once.
+
+### 1. The difficulty ladder was flat in the middle
+
+**Symptom.** On the standing gate — 12 seeds (111…1313) × both faction
+orders, 30-minute cap, `over===1` = the first-named side won — the ladder read
+**hard vs easy 18/24, hard vs normal 19/24, normal vs easy 9/24.** Normal
+against Easy was worse than a coin flip, and it was not evenly bad: Normal
+playing the **Directorate** won 8 of 12, Normal playing the **Collective** won
+**1 of 12**. The same asymmetry sat in the hard gate (hard-as-Directorate
+12/12, hard-as-Collective 6/12), which is the tell that this was never about
+the faction and always about a rule that reads a Collective army wrong.
+
+**Cause (traced minute by minute, `tmp/diag.js`, seeds 111 and 222).** Two
+things, and both are about *value*, not about tactics.
+
+1. **The posture ladder's escape hatch counted heads.** `stepAI`'s deadlock
+   breaker was `army.length >= group * 2.5 && (myArmy > theirArmy * 0.95 ||
+   army.length >= group * 4)`. The second disjunct threw the value comparison
+   away entirely, and $100 Conscripts trip a unit-count threshold at half the
+   price of the GIs, IFVs and Grizzlies facing them. Seed 111: at 8:00 Normal
+   held 42 units worth about $11 000 against Easy's 37 worth about $20 000,
+   the count clause fired, and the minute from 8:00 to 9:00 cost Normal **32
+   of those 42 units for 17 kills**. It never had the initiative again. The
+   first disjunct already breaks the original deadlock — a 58-unit army held
+   in `build` by nothing but the defence line — because it ignores `dv`; only
+   the count clause had to go.
+2. **Normal earned money it had no way to spend.** `fact: 2, bar: 2` is the
+   tier's *appetite*, but it was also a hard ceiling. Seed 222 at 10:00:
+   Normal banked **$21 112** behind two factories and fourteen Sentry Guns
+   while Easy, on $4 525, fielded an army worth twice as much. Production
+   throughput, not income and not tactics, was the binding constraint —
+   which is exactly what the economy-multiplier ablation above predicts once
+   both sides run the same task-force machine.
+
+**Fix.** Two lines, no new knob on any tier and no change to `DIFF` or to the
+`AI_TEAMS` weights.
+
+- The escape hatch keeps the value test: `army.length >= group * 2.5 &&
+  myArmy > theirArmy * 0.95`. A big army that out-values the enemy field army
+  still pushes through a defence line; one that does not, waits.
+- `AI_HOARD = 12000`: a house sitting on that much has proved it cannot spend
+  what it earns, and gets **one** production building past `fact`/`bar`. It
+  fires for any tier and only for the tier that is drowning in money, which is
+  never the hard one.
+
+| Gate | Threshold | Before | Escape hatch only | **After** |
+|---|---|---|---|---|
+| hard vs easy | ≥ 19/24 | 18/24 | 20/24 | **21/24** |
+| hard vs normal | ≥ 16/24 | 19/24 | 18/24 | **21/24** |
+| normal vs easy | ≥ 17/24 | 9/24 | 15/24 | **19/24** |
+
+Normal-as-Collective went from 1/12 to 9/12 and the faction asymmetry is gone.
+
+**Rejected.** *Weakening Easy* (`group 5, wave 6, teamDelay 3500, teamCap 12`,
+tried earlier): a weaker Easy turtles, a turtle costs the attacker timeouts,
+and normal-vs-easy stayed at 13 while hard-vs-easy fell to 17. *Raising
+Normal's `fact`/`bar` to 3 outright*: **14/24**, worse than the escape-hatch
+fix alone — an unconditional third factory buys buildings the AI cannot yet
+fill, where the hoard gate buys one only once the money is provably idle.
+*Moving Normal's `opening`, `wave` or `purifiers`*: fenced off by playtest
+pass 3, where a human following the RA2 opening died at 8:48 to a Normal with
+two virtual purifiers and `opening 360`. Normal keeps `purifiers: 0`,
+`opening ≥ 480`, `wave ≤ 12` — none of them moved.
+
+### 2. `__rtsSim` was not reproducible after the first call in a process
+
+**Symptom.** The same arguments gave a different match the second time
+`__rtsSim` ran in one node process, so the balance harness could only ever run
+one match per process. Runs 2, 3, 4… agreed with each other; only run **1**
+was different, which is what made the existing "the same seed replays
+identically" test — two calls back to back — pass through it.
+
+**Cause.** `hashAt`, the spatial index's rebuild clock, is module-level and
+`newState` did not reset it (`pathQ` was the same class of bug, fixed
+earlier). `simStep` rebuilds when `g.tick - hashAt >= 3 || hashAt > g.tick`.
+Starting at `-1` that first fires on tick **2**; carrying the previous match's
+final tick it fires on tick **0**. Every rebuild after that lands on a
+different tick PHASE, so `near()` answers with neighbour positions up to two
+ticks stale in one run and fresh in the other. Bisected to a single tick: seed
+777, hard vs easy, tick 8783 (2:26), a Chrono Miner's separation vector picked
+up one stale neighbour in run 1 and none in run 2, `y` differed by **0.013 of
+a tile**, and by minute 15 the two matches had different armies.
+
+**Fix.** `resetHash()` in `newState` — buckets emptied (they were still
+holding the previous match's entities until the first rebuild) and the clock
+set to `HASH_UNSET = -1e9`, not to `-1`. `-1` is one tick short of `>= 3`,
+which left the index EMPTY for ticks 0 and 1: that is what a fresh page load
+had always done and a second match never did, and it is a bug in its own right
+— a Flak Track spawned at tick 0 acquired nothing until tick 2 (two unit tests
+had been quietly relying on the leak to get their index built on tick 0).
+
+**Tests.** `__rtsTest.derived()` reports every module-level cache the sim reads
+back (`hashAt`, bucket and entity counts, `pathQ` length); one fast test plays
+a match, calls `newState`, and asserts the whole thing is pristine, then does
+the same for a save/load round trip. One slow test asserts first-match ==
+later-match for the same arguments, which is the pair the old replay test
+never separated — it fails on the unfixed build, which is how it was checked.
+
+**Harness.** `tmp/play/soakB.js` grew a `--batch <outDir> seed:dA:dB:fA:fB:min…`
+form that plays several matches in one process. On the 24 normal-vs-easy gate
+matches, batch output is **identical to one-process-per-match for all 24**.
+
+---
+
 ## RA2 `Foundation=` footprints (Phase 2)
 
 **Symptom.** Two things, and they turned out to be the same bug. The playtest

@@ -1871,6 +1871,20 @@
   function newState(seed, diff, mapId, opt) {
     srand(seed);
     pathQ.length = 0;                             // a previous match's pending path requests must not leak in
+    // The spatial index is module-level and DERIVED, so every match has to
+    // start it in the SAME condition — empty, with its rebuild clock unset —
+    // whether or not a match has already been played. Left alone, `hashAt`
+    // carried the previous match's final tick, which made simStep's `g.tick - hashAt >= 3` fire on tick 0 instead
+    // of tick 2: from then on every rebuild in the second match landed on a
+    // different tick PHASE, so near() read neighbour positions up to two ticks
+    // stale in one run and fresh in the other. One separation vector differed
+    // by 0.013 of a tile at 2:26 and the two matches ended differently. (The
+    // arrays are also still holding the previous match's entities until the
+    // first rebuild.) The reset is to HASH_UNSET rather than to -1 because -1
+    // is one tick short of `>= 3`: it left the index EMPTY for ticks 0 and 1,
+    // which is what a fresh page load used to do and a second match never did
+    // — a Flak Track spawned at tick 0 acquired nothing until tick 2.
+    resetHash();
     var g = {
       seed: seed, diff: diff, tick: 0, over: 0,   // over: 0 running, 1 won, -1 lost
       opt: normOpts(opt),                         // the skirmish strip, frozen into the match
@@ -17242,6 +17256,8 @@
   // --------------------------------------------------------------------- //
   var CELL = 6;
   var hash = {};
+  var HASH_UNSET = -1e9;                          // "no index yet", forces a rebuild on tick 0
+  var hashAt = HASH_UNSET;                        // tick of the last rebuild
   function rebuildHash(g) {
     for (var k in hash) hash[k].length = 0;     // keep the arrays, drop contents
     function add(e) {
@@ -17254,6 +17270,12 @@
       var b = g.blds[j];
       if (!b.dead) add(b);                      // b.cx/cy are its centre
     }
+  }
+  // Every match starts from the same derived state: emptied buckets and an
+  // unset rebuild clock (see newState).
+  function resetHash() {
+    for (var k in hash) delete hash[k];
+    hashAt = HASH_UNSET;
   }
   function near(x, y, r, fn) {
     var c0 = ((x - r) / CELL) | 0, c1 = ((x + r) / CELL) | 0;
@@ -20193,6 +20215,9 @@
   // AISafeDistance=20: how far from the centre of the enemy base a team
   // gathers before it commits.
   var AI_SAFE_DISTANCE = 20;
+  // "Money I cannot spend": the bank level at which the production ladder is
+  // allowed one building past the difficulty's appetite (see aiProduce).
+  var AI_HOARD = 12000;
   // AIMinorSuperReadyPercent=.7 — a Curtain or a Sphere this charged is
   // already counted by the AI's triggers, so a full team will wait a little
   // for it rather than leave without it.
@@ -20663,8 +20688,15 @@
       else if (harv < 2 || !hasBld(g, me, 'refinery')) ai.posture = 'eco';
       else if (mayAttack && ai.army.length >= cfg.group && myArmy > theirArmy * 0.95 + dv * 0.6) ai.posture = 'attack';
       // No fallback here deadlocked a 58-unit army in 'build' behind a wall of
-      // defences it could have rolled over: a big enough army attacks anyway.
-      else if (mayAttack && ai.army.length >= cfg.group * 2.5 && (myArmy > theirArmy * 0.95 || ai.army.length >= cfg.group * 4)) ai.posture = 'attack';
+      // defences it could have rolled over, so a big army that OUT-VALUES the
+      // enemy field army pushes anyway and ignores the defence line. What it
+      // may not do is push on unit COUNT alone: the Collective's $100
+      // Conscript made `army.length >= group * 4` trip while the enemy's GIs,
+      // IFVs and Grizzlies were worth twice as much, and Normal-as-Collective
+      // threw 42 units into a fortified Directorate at 8:00 and lost 32 of
+      // them in one minute (seed 111, measured). That single clause was worth
+      // six of the twelve normal-vs-easy losses on the Collective side.
+      else if (mayAttack && ai.army.length >= cfg.group * 2.5 && myArmy > theirArmy * 0.95) ai.posture = 'attack';
       else if (theirArmy > myArmy * 1.5 && theirArmy > 2500) ai.posture = 'defend';   // three GIs are not a threat worth a $1500 coil
       else ai.posture = 'build';
 
@@ -20786,12 +20818,22 @@
       // none for infantry: three factories tripled the fielded army and the
       // matches stopped resolving. Two is the point where the money gets
       // spent and the map still has room to walk.
+      //
+      // `fact`/`bar` are the difficulty's APPETITE, not a hard ceiling: a
+      // house sitting on AI_HOARD dollars has already proved it cannot spend
+      // what it earns, and one more building is the only answer to that. This
+      // is what Normal's tier was actually short of — at 10:00 on seed 222 it
+      // held $21 000 behind two factories while an easy Directorate, poorer
+      // by four to one, fielded an army worth twice as much (normal vs easy
+      // 15/24 -> 17/24). It fires for every tier, but only for the tier that
+      // is drowning in money, which is never the hard one.
       else if (s.queues.v.list.length >= 2 && s.credits > 2200 &&
-               countBld(g, me, 'factory') < Math.min(cfg.fact || 4, 2 + Math.floor(s.credits / 4000))) want = 'factory';
+               countBld(g, me, 'factory') < Math.min((cfg.fact || 4) + (s.credits > AI_HOARD ? 1 : 0), 2 + Math.floor(s.credits / 4000))) want = 'factory';
       // A full infantry lane and a fat bank: more barracks, not a deeper queue
       // (a $200 GI takes twice a Conscript's 4 s; the soak showed hard sitting
       // on $9500 with two barracks while easy fielded 64 Conscripts).
-      else if (s.queues.i.list.length >= 2 && s.credits > 3000 && countBld(g, me, 'barracks') < Math.min(cfg.bar || 4, s.credits > 7000 ? 4 : s.credits > 4500 ? 3 : 2)) want = 'barracks';
+      // Same escape on the infantry side of the house.
+      else if (s.queues.i.list.length >= 2 && s.credits > 3000 && countBld(g, me, 'barracks') < Math.min((cfg.bar || 4) + (s.credits > AI_HOARD ? 1 : 0), s.credits > 7000 ? 4 : s.credits > 4500 ? 3 : 2)) want = 'barracks';
       // Tech only once an army stands: a $1000 radar and a $2000 lab before
       // ten fighters is how the hard AI lost to a seven-minute infantry flood.
       else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200 && ai.army.length >= cfg.group * 0.6) want = radarKey;
@@ -21641,7 +21683,6 @@
   // --------------------------------------------------------------------- //
   //  Simulation step
   // --------------------------------------------------------------------- //
-  var hashAt = -1;
   // Shroud (RA2 without fog of war): the map starts black and stays revealed
   // once any of the player's units or structures has had it in sight. Enemy
   // entities on unrevealed tiles are neither drawn nor hoverable. The AI is
@@ -22161,7 +22202,7 @@
     srand(blob.seed >>> 0);
     pathQ.length = 0;
     for (i = 0; i < pq.length; i++) if (pq[i].u && !pq[i].u.dead) pathQ.push(pq[i]);
-    hashAt = -1;                            // the spatial index is derived; rebuilt on the next tick
+    hashAt = HASH_UNSET;                    // the spatial index is derived; rebuilt on the next tick
     return g;
   }
   function saveKey(n) { return 'vibetop:rts:save:' + n; }
@@ -27960,6 +28001,14 @@
     render: function () { render(); },
     cursorKind: function () { return curKind; },
     cursorSet: function () { buildCursors(); return CURSORS; },
+    // Every module-level cache the SIMULATION reads back. A match must start
+    // from the same derived state a fresh page does, or the second match in a
+    // process plays differently from the first (see design-decisions.md).
+    derived: function () {
+      var keys = 0, entries = 0;
+      for (var k in hash) { keys++; entries += hash[k].length; }
+      return { hashAt: hashAt, hashKeys: keys, hashEntries: entries, pathQ: pathQ.length };
+    },
     api: { astar: astar, damage: damage, canPlace: canPlace, canDeployMcv: canDeployMcv, economyDead: economyDead,
            countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld,
            findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf,

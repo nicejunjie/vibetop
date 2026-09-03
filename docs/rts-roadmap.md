@@ -700,6 +700,19 @@ per state, for every structure and defence, both factions.
   line when it is still walking. Gate: hard vs an easy AI that never attacks
   and holds every unit home went **11/24 → 22/24** over 12 seeds × both faction
   orders (30-minute cap).
+- ☑ The ladder is ordered in the MIDDLE, not just at the ends. The posture
+  ladder's deadlock escape no longer commits on unit COUNT (a $100 Conscript
+  army trips a head-count threshold at half the value it is charging into),
+  and a house sitting on `AI_HOARD` = $12 000 gets one production building
+  past its tier's `fact`/`bar` appetite. Gates over the same 12 seeds × both
+  faction orders, 30-minute cap: hard vs easy **18/24 → 21/24**, hard vs
+  normal **19/24 → 21/24**, normal vs easy **9/24 → 19/24** (and Normal
+  playing the Collective 1/12 → 9/12). Normal's `opening`, `wave` and
+  `purifiers` are fenced by playtest pass 3 and did not move.
+- ☑ `__rtsSim` repeats itself: `newState` resets the spatial index, so the
+  second match in a process is the same match as the first (it was not — see
+  `docs/design-decisions.md`). `tmp/play/soakB.js --batch` plays several
+  matches per process and matches the one-per-process numbers 24/24.
 
 **Phase 7 — audio (art §7). DONE (2026-09-03).** Original synthesis only —
 every sound is oscillators and one baked noise buffer, no files, no libraries.

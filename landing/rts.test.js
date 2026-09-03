@@ -568,6 +568,45 @@ test("the same seed replays identically", slow, () => {
   assert.notDeepEqual(a, c, "different seeds produced identical matches — the seed is ignored");
 });
 
+test("a match starts from the same derived state a fresh page does", () => {
+  // The bug this pins: every module-level cache the SIMULATION reads back has
+  // to be reset by newState, or the second match in a process is not the same
+  // match as the first. `hashAt` was not. Left holding the previous match's
+  // final tick, simStep's `g.tick - hashAt >= 3` fired on tick 0 instead of
+  // tick 2, so every spatial-index rebuild after that landed on a different
+  // tick PHASE and near() answered with neighbour positions up to two ticks
+  // stale. One separation vector differed by 0.013 of a tile at 2:26 and the
+  // two matches ended differently. (`pathQ` was the same class of bug.)
+  const H = W.__rtsTest;
+  W.__rtsSim(4242, "hard", "easy", 60 * 60 * 2, "dir", "col");   // dirty everything
+  assert.ok(H.derived().hashAt > 0, "the fixture must actually leave the index dirty");
+
+  API.newState(1, "normal");
+  assert.deepEqual(H.derived(), { hashAt: -1e9, hashKeys: 0, hashEntries: 0, pathQ: 0 },
+    "newState left derived module state behind — whatever survives makes the SECOND match in a process play differently from the first");
+
+  // Loading a save is the other entry point into a world the module caches
+  // were not built for.
+  const g = H.startWith(4242, "normal", "frontier", {});
+  H.attachAI(1, "normal");
+  for (let i = 0; i < 400; i++) H.step(1);
+  H.loadBlob(JSON.parse(JSON.stringify(H.saveBlob())));
+  assert.equal(H.derived().hashAt, -1e9, "a restored game must rebuild the spatial index, not inherit one");
+});
+
+test("__rtsSim replays identically when it is NOT the first match in the process", slow, () => {
+  // The existing replay test calls __rtsSim twice in a row, which is exactly
+  // the pair the leak did NOT separate: both runs saw the same dirty state.
+  // The one that matters is first-match vs later-match.
+  const key = (r) => [r.ticks, r.over, r.p0units, r.p1units, r.p0blds, r.p1blds,
+                      r.p0credits, r.p1credits, r.p0made, r.p1made].join("/");
+  const first = key(W.__rtsSim(111, "hard", "easy", 60 * 60 * 10, "dir", "col"));
+  W.__rtsSim(112, "normal", "easy", 60 * 60 * 2, "col", "dir");     // another match in between
+  const later = key(W.__rtsSim(111, "hard", "easy", 60 * 60 * 10, "dir", "col"));
+  assert.equal(later, first,
+    "the same arguments produced a different match once another match had run in the same process");
+});
+
 test("AI economies actually grow", slow, () => {
   // If the AI never banks or spends, every other balance number is noise.
   for (const seed of [11, 22, 33]) {
