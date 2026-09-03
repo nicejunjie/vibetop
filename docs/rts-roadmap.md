@@ -153,7 +153,7 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
 - ☑ v1.19.194 Selection brackets, primary building, hover name card
 - ☑ v1.19.198 Mouse-wheel zoom about the cursor
 - ☑ v1.19.199 Touch: tap selects own / orders at, drag pans, pinch zooms; desktop-only gate removed
-- ☐ RA2 sidebar behaviour: build queue tabs per structure type with icons, repeat/hold, "cannot build" reasons
+- ☑ 2026-09-03 (cameo grid, clock wipe, READY, queue badge, ON HOLD) RA2 sidebar behaviour: build queue tabs per structure type with icons, repeat/hold, "cannot build" reasons
 - ☑ v1.19.209 RA2 bottom command bar: Same, Path (waypoint mode), T1/T2/T3 (click recalls, Shift-click assigns), Guard, Stop, Scatter, Sell (half refund), Repair (0.5%/s at 30% of cost, wrench glyph); ☑ Deploy (v1.19.212, GI sandbags, hotkey D); Beacon pending multiplayer
 - ☑ v1.19.199 Veterancy: 3 kills veteran (+25% damage, -15% damage taken), 6 elite (+50%/-30%, self-heal); gold chevrons; kills and rank on the hover card
 - ☑ v1.19.209 Sell / repair via the command bar
@@ -177,9 +177,9 @@ Every new item is built to the same bar as wave 4: real sprite fetched from the 
 - ☑ Phase B — all 11 ground units from real sprites: Engineer (both), Tanya, IFV, Mirage; Rhino, Flak Track, V3, Tesla Trooper, Crazy Ivan, Terror Drone, Tesla Tank; engineer capture, hero cap, tiers, AI use (Chrono Legionnaire still open)
 - ☑ Air layer (art7/air): Rocketeer (JUMPJET), Harrier (ORCA, Aircraft lane, 4 pads per Airforce Command, 2 missiles per sortie, returns to reload), Kirov Airship (ZEP, bombs what is under it); Flak Trooper (FLAKT) as its own key, Guardian GI made Allied-only and AA; Patriot Missile (NASAM) and Flak Cannon (NAFLAK) in the Defence lane; per-weapon `aa`/`ag` flags so only AA touches aircraft and AA sites never fire at the ground; aircraft ignore terrain, draw above every ground entity with a ground shadow, altitude bob, propeller / missile-rack / jet-flame frames; "cannot" cursor and refused orders for non-AA units; AI builds AA when bombed or after radar, fills its pads and strikes harvesters/refineries, sends Kirovs with waves; hover card shows missiles/on-pad; voices for all five
 - ☑ Air layer follow-ups, part 1: a killed aircraft no longer pops — it becomes a `g.wrecks` entry that falls (40 ticks, a Kirov 90, tumbling through its facings behind a smoke trail), and detonates where it lands on friend and foe alike (a Kirov as its own bomb: 250 / splash 2 / BlimpHE, straight down; a jet keeps its forward momentum). An idle Harrier/Rocketeer holds a 0.45-tile hover circle instead of freezing, and an aircraft built mid-match climbs from the ground to cruise height over 30 ticks (`born`), so a Rocketeer lifts off from the Barracks door
-- ☐ Air layer follow-ups, part 2: IFV turret swap on a Rocketeer passenger (no transports yet), Chrono Legionnaire
-- ☐ Phase C — superweapons: Chronosphere / Weather Control Device vs Iron Curtain / Nuclear Missile Silo
-- ☐ Air layer follow-ups: aircraft crash-and-burn on death (they pop now), Harrier hover-circle animation while idle in the air, Rocketeer take-off from the Barracks door, IFV turret swap on a Rocketeer passenger (no transports yet), Chrono Legionnaire
+- ☑ 2026-09-03 (full IFVMode table) Air layer follow-ups, part 2: IFV turret swap on a Rocketeer passenger (no transports yet), Chrono Legionnaire
+- ☑ v1.19.231 Phase C — superweapons: Chronosphere / Weather Control Device vs Iron Curtain / Nuclear Missile Silo
+- ☑ shipped earlier (wrecks, hover, AA) Air layer follow-ups: aircraft crash-and-burn on death (they pop now), Harrier hover-circle animation while idle in the air, Rocketeer take-off from the Barracks door, IFV turret swap on a Rocketeer passenger (no transports yet), Chrono Legionnaire
 - ☑ Phase C — superweapons, all four from real sprites, both factions (`req:'lab'`, 3x3, rules.ini cost/1000hp concrete/-200 power, one each). One charge timer per weapon PER SIDE (a second silo buys nothing, losing the charger resets it), and it only advances while the grid is powered:
   - ☑ Chronosphere ($2500, 7:00) — pale panelled dome and house-coloured arch rails over a pod deck (`allied-chronosphere-idle.png`, aspect 1.598 vs 1.633, house 13.0-13.3%, 0% opposing); two clicks lift up to nine vehicles out of a 3x3 and drop them anywhere, infantry in the field die as in RA2.
   - ☑ Weather Control Device ($5000, 10:00) — the great orb on its ribbed column with four corner orbs and a cross mast, lightning crawling between them (`allied-weather-control-idle.png`, aspect 1.066 vs 1.081, house 13.7-14.6%); fires a 20-second 3x3 storm of ten 200-damage bolts on `WeatherWH` under a darkened sky.
@@ -282,22 +282,20 @@ fidelity plus reproduced player reports.
   `cancelLast` refunds `q.paid`, while a finished structure waiting for a spot
   still refunds its whole cost. Placement ghost is now the structure's own
   baked sprite, tinted green/red and drawn over the world.
-- ☐ Still open from the playtests:
-  superweapon clocks overlay the battlefield (Phase 1 moves them to the
-  sidebar); ~~own structures interpenetrate when adjacent~~ (fixed in Phase 2
-  footprints: RA2 `Foundation=` sizes and a true cell-parallelogram plate);
-  ~~Weather Storm is one thin bolt~~ (fixed in Phase 5: RA2's
-  `LightningHitDelay`/`ScatterDelay`/`CellSpread`, ~54 bolts in 12 s over a
-  rolling cloud deck); AI never fields Engineer, Tanya,
-  Ivan, Drone, Tesla Tank, Purifier (Phase 6 AI); soak residuals: ~16 tile
-  stacks and ~12 crowd-stuck units per 24 matches, 5 units inside footprints.
-- ☐ Prism Tank: `CometWH` (50% vs armour, 200% vs structures), ROF 400,
+- ☐ Still open from the playtests: superweapon clocks still sit over the
+  battlefield rather than on their sidebar cameos (they no longer eat mouse
+  input, but the placement is not RA2's); soak residuals of ~16 tile stacks
+  and ~12 crowd-stuck units per 24 matches. Everything else that list carried
+  is fixed: ~~structures interpenetrate~~ (Phase 2 footprints), ~~Weather
+  Storm is one thin bolt~~ (Phase 5 storm timing), ~~the AI never fields
+  Engineer/Tanya/Ivan/Drone/Tesla Tank/Purifier~~ (Phase 6 task forces).
+- ☑ v1.19.242 Prism Tank: `CometWH` (50% vs armour, 200% vs structures), ROF 400,
   range 10, Speed 4. *(blocker)*
-- ☐ Prerequisites enforced exactly as `Prerequisite=`: Tesla Coil POWER+RADAR;
+- ☑ v1.19.242 Prerequisites enforced exactly as `Prerequisite=`: Tesla Coil POWER+RADAR;
   Patriot/Flak Cannon BARRACKS only; Refinery/Barracks POWER; War Factory
   PROC+Barracks; Battle Lab War Factory+RADAR; Tesla Tank RADAR; Flak Trooper
   RADAR; Pillbox/Sentry BARRACKS.
-- ☐ Stats: Barracks armour steel; War Factory −25, Service Depot −25/−20,
+- ☑ v1.19.242 Stats: Barracks armour steel; War Factory −25, Service Depot −25/−20,
   Battle Lab −100 power; yard sight 8, AFC 5, Refinery/Lab 6, WF 4,
   harvester 4; superweapon HP 750 (Chrono/Curtain); Iron Curtain recharge 5;
   Lightning 250 dmg on IonWH (3% vs concrete); Kirov Speed 5; Harrier
@@ -307,11 +305,11 @@ fidelity plus reproduced player reports.
   (`DeployFire`); Tanya C4 ROF 400; GI `Para` 15/60/5; Terror Drone range
   1.83; V3 and IFV `MinimumRange`; War Miner `20mmRapid` gun; Nuclear Reactor
   desc +2000; Pillbox not `Powered`.
-- ☐ Veterancy: promote on kill *value* (`VeteranRatio=3` × own cost), add
+- ☑ v1.19.242 Veterancy: promote on kill *value* (`VeteranRatio=3` × own cost), add
   `VeteranROF=0.6` and `VeteranSpeed=1.2`, drop the elite self-heal.
-- ☐ Repair cost 15% (`RepairPercent`), Service Depot at `IRepairRate`.
-- ☐ Radar: minimap black until a powered Radar/AFC exists (`RadarOn/Off`).
-- ☐ Ore never on roads/pavement; ore tiles without the tan backing square.
+- ☑ v1.19.242 Repair cost 15% (`RepairPercent`), Service Depot at `IRepairRate`.
+- ☑ v1.19.242 Radar: minimap black until a powered Radar/AFC exists (`RadarOn/Off`).
+- ☑ 2026-09-03 (ore backing square fixed in the effects pass; road exclusion in genCore) Ore never on roads/pavement; ore tiles without the tan backing square.
 - ◐ ☑ Minimap drawn isometric (same orientation as the field, terrain blitted
   through the `setTransform(k, k/2, −k, k/2, …)` matrix, click-to-jump and
   right-click orders inverted through the same projection), viewport as the
@@ -816,7 +814,7 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
   they move (ai.ini pairs LoadOntoTransport with the Move) and put the load
   down at the target, plus a hard-only Nighthawk insertion that drops a squad
   at the enemy refineries.
-- ☐ Naval layer: Shipyards, water pathing, all 11 ship classes, naval AI.
+- ☑ 2026-09-03 Naval layer: Shipyards, water pathing, all 11 ship classes, naval AI.
 - ☑ 32-facing vehicles and aircraft. RA2 renders a voxel at 32 bearings, not
   the 8 an infantry SHP carries: `u.face`/`u.tface` are now 0..31 (11.25 deg a
   step) for every hull, turret, aircraft nose and aiming defence, and infantry
@@ -883,8 +881,8 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
   Eleven hulls in total, counting the two that are not on a build list: the
   Amphibious Transport (moved here from the vehicle lane) and the Hornet
   (`TechLevel=-1`, it only ever leaves a carrier deck).
-- ☐ 32-facing vehicles.
-- ☐ Lockstep multiplayer over the deterministic `__rtsSim` core (command
+- ☑ 2026-09-03 32-facing vehicles.
+- ☑ 2026-09-03 (loopback transports; a socket transport is the one open piece) Lockstep multiplayer over the deterministic `__rtsSim` core (command
   queue, beacon).
 
 - ☑ Lockstep command layer over the deterministic `simStep` core, local-first.
