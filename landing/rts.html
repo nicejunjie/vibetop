@@ -453,11 +453,10 @@
   <div id="side">
     <canvas id="mini" width="184" height="184"></canvas>
     <div class="ptab">
-      <div data-tab="b" class="on">Build</div>
+      <div data-tab="b" class="on">Structures</div>
       <div data-tab="d">Defence</div>
       <div data-tab="i">Infantry</div>
-      <div data-tab="v">Vehicles</div>
-      <div data-tab="a">Aircraft</div>
+      <div data-tab="v">Units</div>
     </div>
     <div id="plist"></div>
     <div id="cmdbar">
@@ -917,25 +916,25 @@
     // power, Battle Lab required, one each. A second silo does not stack —
     // RA2 runs ONE timer per superweapon per player, and so do we.
     chrono: {
-      fac: 'dir', cat: 'str', req: 'lab', sw: 'chrono',
+      cat: 'def', fac: 'dir', cat: 'str', req: 'lab', sw: 'chrono',
       name: 'Chronosphere', em: '\ud83c\udf00', cost: 2500, build: 105,
       armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: -200, sight: 6, makes: null, max: 1,
       desc: 'Teleports up to nine vehicles anywhere'
     },
     weather: {
-      fac: 'dir', cat: 'str', req: 'lab', sw: 'storm',
+      cat: 'def', fac: 'dir', cat: 'str', req: 'lab', sw: 'storm',
       name: 'Weather Control Device', em: '\u26c8\ufe0f', cost: 5000, build: 210,
       armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: -200, sight: 6, makes: null, max: 1,
       desc: 'Calls a lightning storm on any target'
     },
     curtain: {
-      fac: 'col', cat: 'str', req: 'lab', sw: 'curtain',
+      cat: 'def', fac: 'col', cat: 'str', req: 'lab', sw: 'curtain',
       name: 'Iron Curtain', em: '\ud83d\udee1\ufe0f', cost: 2500, build: 105,
       armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: -200, sight: 6, makes: null, max: 1,
       desc: 'Makes your units invulnerable for 20 seconds'
     },
     nuke: {
-      fac: 'col', cat: 'str', req: 'lab', sw: 'nuke',
+      cat: 'def', fac: 'col', cat: 'str', req: 'lab', sw: 'nuke',
       name: 'Nuclear Missile Silo', em: '\u2622\ufe0f', cost: 5000, build: 210,
       armour: 'concrete', gw: 3, gh: 3, hp: 1000, power: -200, sight: 6, makes: null, max: 1,
       desc: 'Launches a nuclear missile at any target'
@@ -990,12 +989,24 @@
   // Structures and defences share ONE construction queue (as in RA2 — the
   // yard builds one thing at a time); they are only listed separately, so the
   // list you are scanning is the list you meant to scan.
+  // Sidebar listing, as RA2 lays it out: four tabs (Structures / Defence /
+  // Infantry / Units), every BuildCat=Combat structure — walls, turrets AND
+  // the superweapons — on the Defence tab, and each tab sorted by TechLevel
+  // with rules.ini list position breaking ties (values read off rules.ini
+  // v1.006; Guardian GI's TechLevel 2 from rulesmd.ini).
   function buildOrderFor(fac) {
-    return fac === 'col' ? ['power', 'refinery', 'barracks', 'factory', 'radar', 'depot', 'lab', 'reactor', 'curtain', 'nuke']
-                         : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'depot', 'lab', 'purifier', 'chrono', 'weather'];
+    return fac === 'col' ? ['power', 'refinery', 'barracks', 'factory', 'radar', 'depot', 'lab', 'reactor']
+                         : ['power', 'refinery', 'barracks', 'factory', 'airforce', 'depot', 'lab', 'purifier'];
   }
   function defenceOrderFor(fac) {
-    return fac === 'col' ? ['sentrygun', 'tesla', 'flakcannon'] : ['sentry', 'prism', 'patriot'];
+    return fac === 'col' ? ['sentrygun', 'flakcannon', 'tesla', 'curtain', 'nuke']
+                         : ['sentry', 'patriot', 'prism', 'chrono', 'weather'];
+  }
+  function unitOrderFor(fac, tab) {
+    if (tab === 'i') return fac === 'col' ? ['conscript', 'engineer', 'flak', 'teslatrooper', 'ivan']
+                                          : ['rifle', 'engineer', 'rocket', 'rocketeer', 'tanya'];
+    return fac === 'col' ? ['harvester', 'rhino', 'v3', 'flaktrack', 'drone', 'mammoth', 'mcv', 'kirov', 'teslatank']
+                         : ['harvester', 'lancer', 'ifv', 'harrier', 'prismtank', 'mirage', 'mcv'];
   }
 
   // --------------------------------------------------------------------- //
@@ -14885,11 +14896,9 @@
       var order = panel === 'b' ? buildOrderFor(myFac) : defenceOrderFor(myFac);
       items = order.map(function (k) { return { k: k, lane: laneOfBld(k), spec: bspecFor(k, myFac) }; });
     } else {
-      for (var k in UNITS) {
-        if (UNITS[k].cls === panel && ownedBy(UNITS[k], myFac)) {
-          items.push({ k: k, lane: panel, spec: UNITS[k] });
-        }
-      }
+      unitOrderFor(myFac, panel).forEach(function (k) {
+        if (UNITS[k] && ownedBy(UNITS[k], myFac)) items.push({ k: k, lane: UNITS[k].cls, spec: UNITS[k] });
+      });
     }
     items.forEach(function (it) {
       var b = document.createElement('button');
@@ -14914,11 +14923,10 @@
     note.className = 'pnote';
     note.textContent = panel === 'b' || panel === 'd'
       ? (panel === 'd'
-          ? 'Defences share the Construction Yard queue. Right-click to cancel.'
+          ? 'Defences and superweapons build in their own lane beside the structures. Right-click to cancel.'
           : 'Right-click an item to cancel and refund.')
-      : panel === 'a'
-      ? (items.length ? 'Each Airforce Command holds four aircraft. They fly out, fire, and return to reload.'
-                      : 'The Collective has no aircraft lane — the Kirov Airship is built at the War Factory.')
+      : panel === 'v' && myFac === 'dir'
+      ? 'Right-click the map with a factory selected to set a rally point. Harriers come from the Airforce Command, four per pad; they fly out, fire, and return to reload.'
       : 'Right-click the map with a factory selected to set a rally point. Click a selected factory again to make it primary.';
     plist.appendChild(note);
     refreshPanel();
@@ -15010,7 +15018,7 @@
       lastReady = rdyNow;
       if (fresh) {
         say(BLDS[fresh].name + ' ready — click it under ' +
-            (laneOfBld(fresh) === 'd' ? 'Defence' : 'Build') +
+            (laneOfBld(fresh) === 'd' ? 'Defence' : 'Structures') +
             ', then click the map to place it', false, 420);
       }
     }
