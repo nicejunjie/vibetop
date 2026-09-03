@@ -5685,3 +5685,38 @@ mid-match climbs to cruise height over 30 ticks. `born <= 0` (a match's
 opening force, a test fixture) means "already up there" — otherwise every
 existing test that spawns a flyer and immediately asserts `altOf > 0` reads a
 Kirov sitting on the grass.
+## A superweapon's timer belongs to the SIDE, and its blast is applied per cell
+
+**Symptom.** Two questions with no obvious answer once superweapons landed:
+where does the countdown live, and why can a $5000 nuclear missile not kill an
+$800 Power Plant? Hanging the timer on the structure gives you a second silo
+that halves the wait and a rebuild that resumes an old countdown; and a single
+500-damage application at ground zero leaves a 750hp plant standing at 250.
+
+**Cause.** Both are the same mistake — treating a superweapon as a building
+with a weapon, when RA2 treats it as a PLAYER-level ability with an area
+warhead. RA2 runs one timer per superweapon per house (`SuperWeapon=` on the
+house, not on the structure), and its warheads spread damage over the CELLS
+they cover, so a three-by-three refinery over the epicentre eats nine
+overlapping applications while a pillbox eats one.
+
+**Fix.** `side.sw[key] = {t, ready, fired}` — the structure only gates it
+(`hasBld` charges it, losing it zeroes the charge), and `powered()` gates the
+tick, so an unpowered Chronosphere is an ornament. Every path to firing —
+the icon, `aiSuper`, the test hook — goes through `swFire()`, which spends the
+charge before it does anything, so a double click cannot fire twice. The nuke
+sums `500 * (1 - d/4)` over each tile of the target's footprint: a Power Plant
+at ground zero dies, one four tiles out loses about a fifth of its hull. The
+Iron Curtain is not "high armour", it is an early return at the very top of
+`damage()` — under the curtain the hit never happened at all.
+
+**Rejected.** A per-structure timer (a second silo would halve the wait);
+scaling the nuke's centre damage up to 1000 so a single application kills the
+plant (it makes a 1x1 turret as fragile as a refinery and breaks the falloff
+figure the roadmap quotes); a `verses` entry of 200 vs concrete (same problem
+one indirection away).
+
+**Also.** The targeting mode is a mode, not a hotkey: clicking a READY clock
+arms it, the map click fires it, Esc or a right-click cancels, and while it is
+armed the ghost draws the exact footprint the strike will cover (a 4-tile disc
+for the nuke, the 3x3 for the rest). Nothing has to be learned to use it.
