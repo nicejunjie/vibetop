@@ -6836,3 +6836,124 @@ right side of the line — the air strike is gated by `opening` in the *game*,
 because an easy AI that bombs your miners at three minutes while it "has not
 started attacking yet" reads as a cheat; and the *harness* holds every unit,
 aircraft included, inside 22 tiles of the turtle's start.
+
+---
+
+## RA2 `Foundation=` footprints (Phase 2)
+
+**Symptom.** Two things, and they turned out to be the same bug. The playtest
+report said *"own structures interpenetrate when adjacent"* — put two of your
+own buildings side by side with no gap and each one's art grew through its
+neighbour's. Separately, the art audit found every production footprint was
+**one tile smaller than RA2's**, which is why the long RA2 halls (the 5×3 War
+Factory) could not be drawn at all.
+
+**Cause.** Two independent errors that reinforced each other.
+
+1. `BLDS[].gw/gh` were invented, not read: base 3×3 where `[GACNST]` says 4×4,
+   factory 3×3 where `[GAWEAP]` says 5×3, refinery 3×2 vs 4×3, and so on. They
+   were also **one size per key**, when RA2's `Foundation=` is per *faction* —
+   `[GATECH]` is 3×2 and `[NATECH]` is 3×3; `[GAPILE]` 3×2 and `[NAHAND]` 2×2;
+   `[GAPOWR]` 2×2 and `[NAPOWR]` 3×2; `[GADEPT]` 3×3 and `[NADEPT]` 4×3.
+2. `bakeBuilding` drew the ground plate as a **rhombus** —
+   `diamond(g, cx, baseY, fw*2, fh*2)` with `fw = (gw+gh)*TW/4`. In 2:1 iso a
+   `gw × gh` block of cells is a *parallelogram*: its E corner is at
+   `(+fw, +fh·k)` and its S corner at `(+fw·k, +fh)` where `k = (gw−gh)/(gw+gh)`.
+   A rhombus is only right when `gw === gh`. Every non-square structure was
+   therefore painting concrete over cells it did not own and leaving cells it
+   did own bare — which is exactly what "interpenetrates when adjacent" looks
+   like. Note the trap: a 5×3 and a 4×4 have the **same bounding box** in iso,
+   so a bbox check can never catch this. Only the corner positions differ.
+
+**Fix.**
+
+- Every `gw/gh` read off `/tmp/RA2inis/art.ini`, per faction via `byFac` where
+  RA2 differs. Two footprints SHRANK (Gap Generator 2×2 → 1×1 `[GAGAP]`,
+  Cloning Vats 3×2 → 2×2 `[NACLON]`) — `Foundation=` is the authority, not the
+  direction of travel.
+- Everything that reads a footprint now resolves it through `bspecFor(key, fac)`
+  rather than `BLDS[key]`: `placeBld`, `canPlace`, `aiPlace`, the placement
+  ghost, the hover cursor, `tryPlace`, `bakeBuilding` and the test harness's
+  `putNear`. Miss one and the cells a structure occupies disagree with the art
+  drawn on them, per faction, silently.
+- `plot()` inside `bakeBuilding` traces the true cell parallelogram, and all 49
+  ground plates/aprons/bibs go through it. The plates now tile.
+- **The superstructure's vertical mass scales with the plot.** The art is
+  parametric in `fw` across the plan but every *height* is a literal pixel
+  count, so moving the yard to 4×4 made it 33% wider and only 13% taller and
+  the silhouette flopped out toward the plate's own 2:1 (aspect 1.50 → 1.70
+  against a 1.26 reference). The whole drawing therefore runs under a vertical
+  scale `VS` about the ground line, and `plot()` pre-divides by `VS` so the
+  plate still lands exactly on its cells. `VS = (plot growth)^0.5` — half the
+  vertical detail is literal pixels that do not scale at all and half is drawn
+  off `fh`, which scales twice over once the plot grows, so the square root is
+  what holds the aspect. Two keys measured better at the full factor and are
+  listed in `VPOW`; both are cases where no second faction pulls the other way.
+  `VS` is never below 1, so the two footprints that shrank keep their
+  proportions.
+- `PAD_SLOTS` (where the four Harriers park on an Airforce Command) is now
+  **derived** from the same `AFC_PAD` constants the helipad art is drawn from,
+  and the pad's vertical offsets are `VS`-compensated so it stays true ground.
+  Hand-written slot offsets stopped matching the painted quadrants the moment
+  the AFC moved to 3×2.
+- Room to build: the start pad is cleared 5 cells out rather than 4, trees keep
+  7 cells off a start rather than 6, the opening force forms up one cell
+  further out, and `aiPlace`'s search radius scales with the plot
+  (`14 + 2·max(gw,gh)`) — at the fixed 14 a mature base ran out of legal spots
+  for a 5×3 and started refunding its own production.
+
+**Before / after, opaque-bbox aspect vs the `docs/ra2-ref/` sprite** (the ±8%
+bar from `docs/ra2-art-plan.md`; `tools/rts-art/aspect.py`, new):
+
+| structure | `Foundation=` | ref | before | after |
+|---|---|---|---|---|
+| `dir:base` | 3×3 → 4×4 | 1.257 | 1.500 (+19.4%) | 1.580 (+25.7%) |
+| `col:base` | 3×3 → 4×4 | 1.509 | 1.283 (−15.0%) | 1.340 (−11.2%) |
+| `col:power` (Tesla Reactor) | 2×2 → 3×2 | 1.447 | 1.202 (−16.9%) | 1.281 (−11.4%) |
+| `dir:refinery` | 3×2 → 4×3 | 1.398 | 1.275 (−8.8%) | 1.341 (−4.1%) |
+| `col:refinery` | 3×2 → 4×3 | 1.099 | 1.060 (−3.5%) | 1.163 (+5.9%) |
+| `dir:barracks` | 2×2 → 3×2 | 1.187 | 1.031 (−13.1%) | 1.123 (−5.4%) |
+| `dir:factory` | 3×3 → 5×3 | 1.415 | 1.323 (−6.5%) | 1.306 (−7.7%) |
+| `col:factory` | 3×3 → 5×3 | 1.124 | 1.202 (+7.0%) | 1.251 (+11.3%) |
+| `dir:airforce` | 2×2 → 3×2 | 0.940 | 0.953 (+1.5%) | 0.952 (+1.3%) |
+| `col:depot` | 3×3 → 4×3 | 1.102 | 1.162 (+5.4%) | 1.149 (+4.3%) |
+| `dir:lab` | 2×2 → 3×2 | 0.995 | 0.553 (−44.5%) | 0.599 (−39.9%) |
+| `col:lab` | 2×2 → 3×3 | 1.126 | 0.846 (−24.8%) | 0.991 (−11.9%) |
+| `dir:purifier` | 2×2 → 3×3 | 1.238 | 1.167 (−5.8%) | 1.209 (−2.4%) |
+| `col:reactor` | 2×2 → 2×3 | *(no ref)* | 1.238 | 1.131 |
+| `dir:chrono` | 3×3 → 4×3 | 1.633 | 1.598 (−2.1%) | 1.572 (−3.7%) |
+| `col:cloningvats` | 3×2 → 2×2 | *(no ref)* | 1.614 | 1.523 |
+| `dir:gapgen` | 2×2 → 1×1 | 0.908 | 1.323 (+45.8%) | 0.831 (−8.4%) |
+
+Fifteen of seventeen moved toward their reference; nine now sit inside ±8%.
+
+**What is still out, and why.** `dir:base` got *worse* (+19.4% → +25.7%): the
+Allied Construction Yard's superstructure is flat relative to RA2's, and a
+33%-bigger 2:1 plate under a flat mass drags the silhouette toward 2.0. No
+choice of `VS` fixes it — at the full factor it reaches +15.9% but drives
+`col:base` to −18.8%, because the two references themselves differ by 20%. The
+real fix is a taller Allied yard, i.e. a redraw, and it is a follow-up.
+`dir:lab` (−39.9%), `col:radar` (−41.5%), `col:barracks` (−48.0%) and
+`dir:power` (−20.1%) were already out before this work and are untouched by it.
+
+**Rejected: shearing the whole sprite onto the parallelogram.** The obvious
+"correct" move is to apply the affine that maps the unit diamond onto the true
+cell parallelogram to the entire drawing, so a 5×3 hall leans along the grid
+the way RA2's does. It cannot be done here: the art code writes ground
+positions and *heights* in the same `(cx ± a·fw, baseY ± b·fh)` frame, with no
+way to tell them apart, so that shear tilts every mast, stack and tower off
+vertical. Ground plates go through `plot()` and the superstructure stays
+upright over them.
+
+**Tests that had to move** (all four encoded the old sizes, none was a real
+failure): `putNear` sized its reserved hole from `BLDS[key]` instead of the
+faction's spec; the `Adjacent=` test hard-coded "the yard's footprint is
+40..42"; and the two pinned-replay recordings (`the default options replay a
+seed exactly`, `adding audio did not move the simulation`) are re-recorded on
+any SIM change, and where every building in every match stands is one.
+
+**Balance.** The 24-match gate (hard vs easy, 12 seeds × both faction orders,
+30 minutes) went 21/24 → **20/24**, against a floor of 19. The four non-wins
+are on different seeds from the baseline's three and one of them is a 30-minute
+timeout with the hard side holding 44 buildings to 9 and the enemy army wiped —
+i.e. reshuffled noise on 24 samples, not a systematically weaker builder.
