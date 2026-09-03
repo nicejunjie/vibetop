@@ -1086,6 +1086,7 @@
 
   function newState(seed, diff, mapId) {
     srand(seed);
+    pathQ.length = 0;                             // a previous match's pending path requests must not leak in
     var g = {
       seed: seed, diff: diff, tick: 0, over: 0,   // over: 0 running, 1 won, -1 lost
       mapId: MAPS[mapId] ? mapId : 'frontier', theatre: (MAPS[mapId] || MAPS.frontier).theatre,
@@ -12591,7 +12592,10 @@
     while (pathQ.length && n < budget) {
       var r = pathQ.shift(); n++;
       if (r.u.dead) continue;
-      r.u.path = astar(g, Math.round(r.u.x), Math.round(r.u.y), r.tx, r.ty);
+      var pth = astar(g, Math.round(r.u.x), Math.round(r.u.y), r.tx, r.ty);
+      // `[]` (goal is the unit's own tile) is truthy: it left a unit holding a
+      // path it could never finish and an order it could never drop.
+      r.u.path = pth && pth.length ? pth : null;
       r.u.pi = 0;
     }
   }
@@ -13133,7 +13137,7 @@
         u.guardX = u.x; u.guardY = u.y; u.holdUntil = g.tick + 60 * 20;
         nextWaypoint(g, u);
       } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
-                 g.tick - u.repathAt > 90) {
+                 u.noProg > 90) {                          // repathAt is refreshed every 8 ticks; noProg is the honest signal
         u.order = null; u.state = 'idle'; u.holdUntil = g.tick + 60 * 20;   // unreachable: stop here
       }
       return;
@@ -13316,7 +13320,7 @@
     // Don't walk into rock or a building; slide along instead.
     if (!tilePassable(g, nx, u.y)) nx = u.x;
     if (!tilePassable(g, u.x, ny)) ny = u.y;
-    u.x = nx; u.y = ny;
+    u.x = Math.max(0, Math.min(MAP - 1, nx)); u.y = Math.max(0, Math.min(MAP - 1, ny));
     if (cr) near(u.x, u.y, 0.7, function (o) {
       if (o.dead || o.p === u.p || !crushable(o)) return;
       var cx = u.x - o.x, cy = u.y - o.y;
@@ -13442,7 +13446,7 @@
         u.order = null; u.path = null; u.guardX = u.x; u.guardY = u.y;
         nextWaypoint(g, u);
       } else if (!advance(g, u, u.order.x, u.order.y, d.spd, 0) && !u.path &&
-                 g.tick - u.repathAt > 90) {
+                 u.noProg > 90) {
         // Path ran out short and a fresh one changed nothing: unreachable.
         u.order = null; u.guardX = u.x; u.guardY = u.y;
       }
@@ -13730,13 +13734,16 @@
       q.prog += slow / (spec.build * 60 * buildFactor(g, p, lane));
       if (g.debug && p === P_HUMAN) q.prog = 1;                 // debug mode: instant build
       if (q.prog >= 1) {
-        q.prog = 0; q.list.shift();
-        if (isBldLane(lane)) { q.ready = key; if (p === P_HUMAN) { sfx('ready'); eva('Construction complete', 3000); } }
+        if (isBldLane(lane)) { q.prog = 0; q.list.shift(); q.ready = key; if (p === P_HUMAN) { sfx('ready'); eva('Construction complete', 3000); } }
         else {
           var src = producerFor(g, p, lane);
           if (src) {
             var sp = lane === 'a' ? { x: Math.round(src.cx), y: Math.round(src.cy) }
                                   : freeTileNear(g, Math.round(src.cx), Math.round(src.cy + src.gh / 2 + 1));
+            // No free tile at the door: the unit waits in the factory (RA2
+            // does the same) instead of being shifted out and silently lost.
+            if (!sp) { q.prog = 1; continue; }
+            q.prog = 0; q.list.shift();
             if (sp) {
               var nu = spawnUnit(g, key, p, sp.x, sp.y);   // an aircraft lands on its pad in spawnUnit
               if (src.rally) { nu.order = { t: 'move', x: src.rally.x, y: src.rally.y, id: 0 };
@@ -14017,6 +14024,9 @@
       var mayAttack = ai.t > cfg.opening;
       if (harv < 2 || !hasBld(g, me, 'refinery')) ai.posture = 'eco';
       else if (mayAttack && ai.army.length >= cfg.group && myArmy > theirArmy * 0.95 + defenceValue(g, foe) * 0.6) ai.posture = 'attack';
+      // No fallback here deadlocked a 58-unit army in 'build' behind a wall of
+      // defences it could have rolled over: a big enough army attacks anyway.
+      else if (mayAttack && ai.army.length >= cfg.group * 2.5 && myArmy > theirArmy * 0.95) ai.posture = 'attack';
       else if (theirArmy > myArmy * 1.5 && theirArmy > 2500) ai.posture = 'defend';   // three GIs are not a threat worth a $1500 coil
       else ai.posture = 'build';
 
@@ -14056,7 +14066,9 @@
         enqueue(g, me, 'mcv', 'v'); return;
       }
     }
-    var F = FACTIONS[s.fac], def = F.defence;
+    // Cheap gun first, the tier-2 tower second (def2 used to equal def for the
+    // Collective, so it never built a Sentry Gun and its defence cap halved).
+    var F = FACTIONS[s.fac], def = s.fac === 'col' ? 'sentrygun' : 'sentry';
     var def2 = s.fac === 'col' ? 'tesla' : 'prism';
     var nRef = countBld(g, me, 'refinery');
     var harv = countUnit(g, me, 'harvester');
@@ -14112,11 +14124,14 @@
       // ten fighters is how the hard AI lost to a seven-minute infantry flood.
       else if (nRef >= 2 && !hasBld(g, me, radarKey) && s.credits > 1200 && ai.army.length >= cfg.group * 0.6) want = radarKey;
       else if (hasBld(g, me, radarKey) && !hasBld(g, me, 'lab') && s.credits > 2200 && ai.army.length >= cfg.group) want = 'lab';
-      else if (hasBld(g, me, 'lab') && !hasBld(g, me, ecoKey) && s.credits > 2600) want = ecoKey;
-      // Superweapons last: a $5000 silo bought instead of ten tanks loses the
-      // match long before the missile is charged, so the army has to stand
+      // Service Depot once the tech is up: it gates the MCV (and the base
+      // rebuild) and repairs the tanks — the soak found it never built.
+      else if (hasBld(g, me, radarKey) && hasFac && !hasBld(g, me, 'depot') && s.credits > 1800 && ai.army.length >= cfg.group * 0.6) want = 'depot';
+      // Superweapons before the economy building: a 7-10 minute charge has to
+      // start early enough to fire inside a match. The army has to stand
       // first and the bank has to be deep enough that the silo is spare cash.
-      else if (hasBld(g, me, 'lab') && s.credits > 6000 && ai.army.length >= cfg.group && aiSwWant(g, me)) want = aiSwWant(g, me);
+      else if (hasBld(g, me, 'lab') && s.credits > 4500 && ai.army.length >= cfg.group && aiSwWant(g, me)) want = aiSwWant(g, me);
+      else if (hasBld(g, me, 'lab') && !hasBld(g, me, ecoKey) && s.credits > 2600) want = ecoKey;
       if (want && want !== 'power' && netQ + draw(want) < 30 && canBuild(g, me, 'power', true)) want = 'power';   // headroom first
       if (want && canBuild(g, me, want, true)) enqueue(g, me, want, laneOfBld(want));
     }
@@ -14352,6 +14367,24 @@
     return null;
   }
 
+  // Move a group to a point without stacking it on one tile: each unit gets
+  // its own passable tile on a spiral around the target (the soak found 34
+  // units parked on one staging tile, all sharing an identical order).
+  function aiMoveSpread(g, units, at) {
+    var k = 0;
+    for (var i = 0; i < units.length; i++) {
+      var u = units[i]; if (!u || u.dead) continue;
+      var tx = at.x, ty = at.y;
+      for (var tries = 0; tries < 60; tries++, k++) {
+        var r = 0.8 + Math.sqrt(k) * 0.75, a = k * 2.399;
+        var cx = Math.round(at.x + Math.cos(a) * r), cy = Math.round(at.y + Math.sin(a) * r);
+        if (inMap(cx, cy) && tilePassable(g, cx, cy)) { tx = cx; ty = cy; k++; break; }
+      }
+      u.order = { t: 'move', x: tx, y: ty, id: 0 };
+      u.guardX = tx; u.guardY = ty; u.repathAt = -999;
+      requestPath(g, u, tx, ty);
+    }
+  }
   function aiStaging(g, me, foe) {
     var home = g.start[me], ft = g.start[foe];
     return { x: Math.round(home.x * 0.88 + ft.x * 0.12), y: Math.round(home.y * 0.88 + ft.y * 0.12) };
@@ -14421,13 +14454,7 @@
       // no wave concept at all, this AI lost 129 units without taking a
       // single building, because every new unit walked into the guns alone.
       if (ai.wave.length < ai.waveN * cfg.give) {
-        var st = aiStaging(g, me, foe);
-        for (i = 0; i < ai.wave.length; i++) {
-          u = ai.wave[i];
-          u.order = { t: 'move', x: st.x, y: st.y, id: 0 };
-          u.guardX = st.x; u.guardY = st.y; u.repathAt = -999;
-          requestPath(g, u, st.x, st.y);
-        }
+        aiMoveSpread(g, ai.wave, aiStaging(g, me, foe));
         ai.wave = []; ai.waveN = 0; ai.waveTarget = 0; ai.attacking = false;
         return;
       }
