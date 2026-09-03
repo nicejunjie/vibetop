@@ -6502,3 +6502,95 @@ four for a control used once a session); a `globalCompositeOperation` hue
 rotate at draw time (the house colour is not a single hue in these sprites —
 it is a band, a rim and a stripe over neutral steel, and a whole-sprite filter
 takes the steel with it).
+
+## Terrain height is DERIVED from the map, and `sy()` is the only place it lands (2026-09-03)
+
+**Symptom:** RA2 terrain is 2-level per cliff (`temperat.ini` ships `Cliff Set`,
+`Ramps`, `New MM Height Pieces`, …). Ours was flat: `bakeCliff` set
+`s.lift` on the cliff *tile* and nothing else, so on Gem Valley the plateau
+interior — its gems, its trees, the tanks fighting over it — drew at exactly the
+same screen height as the field outside the wall that was supposed to be holding
+it up. A "cliff" was a fence on a lawn.
+
+**Cause:** height existed only as one sprite's draw offset. There was no per-cell
+elevation anywhere in the state, so nothing but that one sprite could know about it.
+
+**Fix:** a **derived** height field, computed once in `newState` after `genMap`:
+
+- `computeHeight(g)` marks cliff cells level 1, floods the low level in from the
+  map border through everything that is not a cliff and not a ramp, and calls any
+  cell the flood cannot reach *enclosed* — i.e. on top of a plateau, also level 1.
+  Ramp runs get a BFS distance to the low ground and to the high ground and
+  interpolate, so a two-cell ramp climbs in even thirds instead of jumping a
+  level per cell. `g.hgx`/`g.hgy` carry the gradient inside a ramp cell (zero
+  everywhere else), chosen so `h` is *continuous* across the cell boundary — a
+  tank climbing a ramp must not jerk at every seam.
+- `sy(gx, gy)` subtracts `hPx()`. That is the whole integration: ground tiles,
+  ore, trees, decals, rubble, structures, units, shots and explosions all go
+  through `sy()`, so every one of them rides the tile it stands on for free.
+  `screenToGrid` inverts it by re-projecting twice (height is locally constant,
+  so two passes settle it), and `hPx` early-outs on `G.hiAny` so a map with no
+  plateau pays one boolean.
+- **Passability is untouched.** Height is read out of the terrain, never written
+  back into it, so `astar`, `tilePassable`, `canPlace` and the AI see exactly the
+  board they saw before, and the pathing/mirror-fairness tests still pass. A ramp
+  is still the only way up, because it always was.
+
+Three geometry traps had to be paid for, and each one showed as a band of bare
+canvas or a black stripe on screen:
+
+1. **The cliff sprite must stop lifting itself.** `sy()` already moves a cliff
+   cell up a level, so `s.lift` flipped from `+(CLIFF_H − CLIFF_SH)/2` to
+   `−(CLIFF_H + CLIFF_SH)/2`: the sprite now only has to sit its crown on the
+   point it is given.
+2. **A ramp cell sits a notch below the level it climbs to**, and the diamonds
+   only overlap by `TPAD`, so the step showed as a hole. The ramp sprite grew a
+   surface strip running *up* past its uphill edge and a rock skirt hanging
+   *down* past its downhill one — but only in the two cases the projection
+   actually exposes (the slope falling to `+gx` or `+gy`). Fall the other way and
+   the neighbour, drawn later and higher, covers it.
+3. **`rampDir` used to ask "is my neighbour a cliff?"** The top cell of a plateau
+   ramp runs into plain *ground*, so the old rule pointed the slope — and its new
+   uphill strip — downhill, and the hole stayed. It now follows the height field
+   and falls toward the lowest neighbour, with the old rule kept as the fallback
+   for a "ramp" that climbs nothing (Chokepoint Pass cuts its two passes straight
+   through the ridge at field level; those bake flat, with no skirt).
+
+**Rejected:** *a `syH()` beside `sy()`, called only by the entity passes* — every
+new call site would have had to remember which one to use, and the first one that
+forgot would put a tank inside a hill. *An authored per-map height layer* — six
+generators would each have had to declare elevation by hand and keep it in sync
+with the cliffs they lay; deriving it means a generator that moves a cliff moves
+the plateau with it. *Baking a tilted quad per ramp rise* — the rise varies per
+cell (1/3 of a level on a two-cell ramp, 1/2 on a one-cell one), so it would have
+meant a sprite set per rise; the strip-and-skirt pair covers every case with one.
+
+## LAT edge tiles are cut from a deliberately FLAT sheet (2026-09-03)
+
+**Symptom:** RA2 blends its ground types through LAT ("linked adjacent tile")
+sets — `LAT Grass`, `LAT Grass Rough`, `LAT Sand`, `LAT Pavement` in
+`temperat.ini` alone. Ours had none: every ground boundary was a hard tile
+diamond, and the map read as a quilt.
+
+**Cause:** there was only ever *one* ground per theatre, so there was nothing to
+blend. The fix needs two: a base ground and an alt (grass/sand, snow/scoured
+earth, pavement/dirt), scattered in patches by a cell hash — `computeGroundMat`,
+evaluated on the canonical half of the 180° mirror so a "fair" map carries the
+same ground on both sides, and run off a pure hash so it never touches `rnd()`.
+
+**Fix:** a base cell beside an alt one draws a 16-mask edge tile (`bakeLat`) with
+the alt material feathered along each alt-facing edge and speckled beyond it.
+The band content is **cut from the alt sheet at a fixed position** rather than at
+the neighbour's own sheet position — 16 canvases per theatre instead of 1024 —
+which only works because the alt sheets are baked deliberately **flat**: they skip
+the field-scale tonal drift and the dirt patches the base sheets get. The first
+version reused the normal sheet recipe and the mismatch between a band and the
+patch it belonged to was plainly visible as a lighter diamond.
+
+`bakeScree`, the pre-existing rock fringe, is now the same function with a flat
+rock sheet plus its own loose stones — the special case it always was.
+
+**Rejected:** *masking the correct alt tile at render time* — one composite
+operation per boundary tile, every frame, to save 45 baked canvases. *Sixteen
+masks × sixty-four sheet positions* — 1024 canvases per theatre, for a match
+nobody can see across a 13-pixel band.

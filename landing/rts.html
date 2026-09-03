@@ -726,6 +726,12 @@
   // GEM is an ore variant worth double per bail (RA2: gems 50, ore 25).
   // CIV is a neutral civilian building: solid, unowned, never owner-coloured.
   var T_RAMP = 7, T_BRIDGE = 8, T_GEM = 9, T_CIV = 10;
+  // RA2 terrain is not flat: a cliff is the wall between height LEVEL n and
+  // n+1, and everything standing on the upper level -- ground, ore, trees,
+  // units, buildings, decals -- draws that much further up the screen. One
+  // level is exactly the height of the baked cliff face (CLIFF_H), so a
+  // plateau's surface meets the crown of the cliff that rings it.
+  var HSTEP = 32;
   var GEM_MULT = 2;
   function solidT(t) { return t === T_ROCK || t === T_WATER || t === T_CLIFF || t === T_TREE || t === T_CIV; }
   // A destroyed bridge span: the deck is gone, the water underneath is not,
@@ -757,6 +763,19 @@
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
   function rint(n) { return Math.floor(rnd() * n); }
+  // A SECOND generator, used only by sprite bakers. rnd() is the simulation's
+  // stream and a bake that borrowed it would move the match off its seed the
+  // day anything is baked lazily; keeping the art on its own LCG makes that
+  // impossible by construction.
+  var _bseed = 1;
+  function bsr(v) { _bseed = (v >>> 0) || 1; }
+  function brnd() {
+    _bseed |= 0; _bseed = (_bseed + 0x9E3779B9) | 0;
+    var t = Math.imul(_bseed ^ (_bseed >>> 16), 0x21F0AAAD);
+    t = Math.imul(t ^ (t >>> 15), 0x735A2D97);
+    return ((t ^ (t >>> 15)) >>> 0) / 4294967296;
+  }
+  function bint(n) { return Math.floor(brnd() * n); }
 
   // --------------------------------------------------------------------- //
   //  Unit + structure tables.
@@ -1434,6 +1453,30 @@
       name: 'Filling Station', em: '⛽', cost: 0, build: 0,
       armour: 'wood', gw: 1, gh: 1, hp: 600, power: 0, sight: 4, makes: null,
       desc: 'Civilian block — two riflemen, and it burns' },
+    civoffice: { cat: 'neut', neut: true, civ: 1, occCap: 10, art: 4,
+      name: 'Office Block', em: '🏢', cost: 0, build: 0,
+      armour: 'steel', gw: 1, gh: 1, hp: 1000, power: 0, sight: 4, makes: null,
+      desc: 'Civilian block — up to ten of your riflemen can hold it' },
+    civrow: { cat: 'neut', neut: true, civ: 1, occCap: 4, art: 5,
+      name: 'Shop Row', em: '🏪', cost: 0, build: 0,
+      armour: 'steel', gw: 1, gh: 1, hp: 800, power: 0, sight: 4, makes: null,
+      desc: 'Civilian block — up to four of your riflemen can hold it' },
+    civruin: { cat: 'neut', neut: true, civ: 1, occCap: 4, art: 6,
+      name: 'Ruined Block', em: '🧱', cost: 0, build: 0,
+      armour: 'steel', gw: 1, gh: 1, hp: 700, power: 0, sight: 4, makes: null,
+      desc: 'A bombed-out shell — four riflemen can still hold the walls' },
+    civsilo: { cat: 'neut', neut: true, civ: 1, occCap: 4, art: 7,
+      name: 'Grain Depot', em: '🌾', cost: 0, build: 0,
+      armour: 'wood', gw: 1, gh: 1, hp: 700, power: 0, sight: 4, makes: null,
+      desc: 'Civilian depot — four riflemen, and it burns' },
+    civfarm: { cat: 'neut', neut: true, civ: 1, occCap: 4, art: 8,
+      name: 'Farmhouse', em: '🏠', cost: 0, build: 0,
+      armour: 'wood', gw: 1, gh: 1, hp: 600, power: 0, sight: 4, makes: null,
+      desc: 'Farmhouse — four riflemen can hold it, and it burns' },
+    civbarn: { cat: 'neut', neut: true, civ: 1, occCap: 6, art: 9,
+      name: 'Barn', em: '🛖', cost: 0, build: 0,
+      armour: 'wood', gw: 1, gh: 1, hp: 700, power: 0, sight: 4, makes: null,
+      desc: 'Barn — up to six of your riflemen can hold it, and it burns' },
     // [CAOILD] Strength 1000, Armor=steel, Capturable=yes, NeedsEngineer=yes,
     // Unsellable=yes, ProduceCashStartup=1000, ProduceCashAmount=20,
     // ProduceCashDelay=100 frames.
@@ -1657,6 +1700,13 @@
       // pass free when nothing on the map is irradiated, which is most of
       // every match.
       rad: new Float32Array(MAP * MAP), radOwn: new Int8Array(MAP * MAP), radAny: 0,
+      // Height field, in LEVELS (not pixels). `hf` is the level at the cell
+      // centre; `hgx`/`hgy` are its gradient across the cell, which is zero
+      // everywhere except on a ramp -- that is what makes a unit climb
+      // smoothly instead of popping a whole level at a tile boundary.
+      hf: new Float32Array(MAP * MAP), hgx: new Float32Array(MAP * MAP), hgy: new Float32Array(MAP * MAP),
+      hiAny: 0,                                   // does this map have any raised ground at all
+      gm: new Uint8Array(MAP * MAP),              // 0 = the theatre's base ground, 1 = its ALT ground (LAT)
       bombs: [],                                  // entities carrying a live Ivan bomb
       flash: 0, mmFlash: null,                    // nuke whiteout + the minimap ping on an incoming superweapon
       nextId: 1,
@@ -1666,6 +1716,8 @@
     };
     g.side[P_HUMAN].credits = g.side[P_AI].credits = g.opt.credits;   // "Starting credits"
     genMap(g);
+    computeHeight(g);
+    computeGroundMat(g);
     indexBridges(g);
     placeNeutrals(g);
     return g;
@@ -1699,19 +1751,19 @@
   // Maps. Each generator lays terrain on a mirrored (180°) 64x64 board so the
   // two starts are fair by construction; `theatre` picks the ground palette.
   var MAPS = {
-    frontier: { name: 'Iron Frontier', theatre: 'temperate', blurb: 'Open plains, rock outcrops, a road between the bases',
-                gen: function (g) { g.tech2 = 'airport'; genCore(g, 26, null); mapRoad(g); mapTrees(g, 14); } },
-    lake:     { name: 'Lake Divide',   theatre: 'temperate', blurb: 'A lake splits the middle; cliff ridges guard the flanks',
-                gen: function (g) { g.tech2 = 'hospital'; genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 9, 5.5); mapRidge(g, 12, 40, 26, 40, 3); mapRidge(g, 44, 18, 44, 30, 3); }); mapTrees(g, 10); } },
-    tundra:   { name: 'Frozen Front',  theatre: 'snow',      blurb: 'Snowfield with frozen lakes and cliff ridges',
+    frontier: { name: 'Iron Frontier', theatre: 'temperate', light: { mul: '#fff0d0', a: 0.12 }, blurb: 'Open plains, rock outcrops, a road between the bases',
+                gen: function (g) { g.tech2 = 'airport'; genCore(g, 26, null); mapRoad(g); mapFarms(g); mapTrees(g, 14); } },
+    lake:     { name: 'Lake Divide',   theatre: 'temperate', light: { mul: '#cbd6e6', a: 0.20 }, blurb: 'A lake splits the middle; cliff ridges guard the flanks',
+                gen: function (g) { g.tech2 = 'hospital'; genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 9, 5.5); mapRidge(g, 12, 40, 26, 40, 3); mapRidge(g, 44, 18, 44, 30, 3); }); mapFarms(g); mapTrees(g, 10); } },
+    tundra:   { name: 'Frozen Front',  theatre: 'snow',      light: { mul: '#bfcfe8', a: 0.24 }, blurb: 'Snowfield with frozen lakes and cliff ridges',
                 gen: function (g) { g.tech2 = 'hospital'; genCore(g, 18, function () { mapLake(g, 20, 44, 5, 3.2); mapRidge(g, 21, 4, 21, 16, 3); mapRidge(g, 34, 44, 46, 44, 3); }); mapTrees(g, 12); } },
-    choke:    { name: 'Chokepoint Pass', theatre: 'temperate', blurb: 'One cliff wall across the middle; two ramps decide the game',
+    choke:    { name: 'Chokepoint Pass', theatre: 'temperate', light: { mul: '#ffb07a', a: 0.24, add: '#2a1424', aa: 0.09 }, blurb: 'One cliff wall across the middle; two ramps decide the game',
                 gen: function (g) { g.tech2 = 'airport'; genCore(g, 16, function () { mapWall(g); },
                   function (mp) { mp(14, 45, 3.2, 900); mp(22, 45, 3.0, 860); }); mapTrees(g, 9); } },
-    river:    { name: 'River Crossing', theatre: 'urban',     blurb: 'A city river, two bridges, civilian blocks along the streets',
+    river:    { name: 'River Crossing', theatre: 'urban',     light: { mul: '#ffcbbe', a: 0.20, add: '#26142c', aa: 0.07 }, blurb: 'A city river, two bridges, civilian blocks along the streets',
                 gen: function (g) { g.tech2 = 'hospital'; genCore(g, 7, function () { mapRiver(g); },
                   function (mp) { mp(24, 24, 3.0, 840); mp(40, 25, 3.0, 820); }); mapCity(g); mapTrees(g, 6); } },
-    gems:     { name: 'Gem Valley',     theatre: 'temperate', blurb: 'A gem plateau ringed by cliffs — two ramps in, and everyone wants them',
+    gems:     { name: 'Gem Valley',     theatre: 'temperate', light: { mul: '#fff7e4', a: 0.08 }, blurb: 'A gem plateau ringed by cliffs — two ramps in, and everyone wants them',
                 gen: function (g) { g.tech2 = 'airport'; genCore(g, 13, function () { mapPlateau(g); },
                   function (mp, gp) { gp(31.5, 27, 3.4, 560); gp(27, 31.5, 3.0, 480); mp(19, 17, 3.0, 820); }); mapTrees(g, 10); } }
   };
@@ -1743,6 +1795,19 @@
     var a = g.start[0], mx = (MAP >> 1) - 1, my = (MAP >> 1) - 1, x, y;
     for (x = a.x; x <= mx; x++) setTM(g, x, a.y + 2, T_ROAD);
     for (y = a.y + 2; y <= my; y++) setTM(g, mx, y, T_ROAD);
+  }
+  // temperat.ini ships Farm Crops and a House set; a temperate map with no
+  // farm on it reads as a wilderness rather than as somewhere people live.
+  // One mirrored pair each, well off the lane between the two starts.
+  function mapFarms(g) {
+    var lots = [['civfarm', 7, 33], ['civbarn', 33, 7], ['civfarm', 45, 6], ['civbarn', 6, 45]];
+    for (var i = 0, made = 0; i < lots.length && made < 2; i++) {
+      var k = lots[i][0], x = lots[i][1], y = lots[i][2];
+      if (g.terrain[idx(x, y)] !== T_GROUND || g.terrain[idx(MAP - 1 - x, MAP - 1 - y)] !== T_GROUND) continue;
+      if (nearNeut(g, x, y, 3)) continue;
+      g.neut.push({ key: k, x: x, y: y }, { key: k, x: MAP - 1 - x, y: MAP - 1 - y });
+      made++;
+    }
   }
   function nearT(g, x, y, t) {
     for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) if (inMap(x + dx, y + dy) && g.terrain[idx(x + dx, y + dy)] === t) return true;
@@ -1799,14 +1864,16 @@
       var x = lots[i][0], y = lots[i][1];
       if (g.terrain[idx(x, y)] !== T_GROUND || g.terrain[idx(MAP - 1 - x, MAP - 1 - y)] !== T_GROUND) continue;
       if (nearNeut(g, x, y, 3)) continue;                  // no two blocks in each other's laps
-      var ck = CIV_KEYS[made % CIV_KEYS.length];
+      // Stride the set rather than walking it, so the five lots a city gets
+      // are five DIFFERENT looks out of the eight instead of the first five.
+      var ck = CIV_KEYS[(made * 3) % CIV_KEYS.length];
       g.neut.push({ key: ck, x: x, y: y }, { key: ck, x: MAP - 1 - x, y: MAP - 1 - y });
       made++;
     }
   }
   // The four civilian looks, in the order mapCity hands them out so a city
   // never comes up as five copies of one block.
-  var CIV_KEYS = ['civflat', 'civware', 'civshop', 'civfuel'];
+  var CIV_KEYS = ['civflat', 'civware', 'civshop', 'civfuel', 'civoffice', 'civrow', 'civruin', 'civsilo'];
   function nearNeut(g, x, y, r) {
     for (var i = 0; i < g.neut.length; i++) {
       if (Math.abs(g.neut[i].x - x) <= r && Math.abs(g.neut[i].y - y) <= r) return true;
@@ -1960,6 +2027,106 @@
     }
   }
 
+  // Which of the theatre's TWO ground materials each cell wears. RA2's LAT
+  // sets exist because a theatre has more than one ground -- grass and sand,
+  // snow and scoured earth, pavement and dirt -- laid down in patches that
+  // blend at their boundary. This is pure decoration (nothing reads it but
+  // the renderer), so it runs off a cell hash and never touches rnd(): the
+  // simulation's stream must stay exactly where the generator left it.
+  function computeGroundMat(g) {
+    var sd = (g.seed || 1) >>> 0;
+    function hs(a, b, k) {
+      var v = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(sd + k, 362437)) >>> 0;
+      v = Math.imul(v ^ (v >>> 13), 1274126177) >>> 0;
+      return ((v ^ (v >>> 16)) >>> 0) / 4294967296;
+    }
+    function vn(gx, gy, sc, k) {
+      var x0 = Math.floor(gx / sc), y0 = Math.floor(gy / sc);
+      var fx = gx / sc - x0, fy = gy / sc - y0;
+      fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+      var a = hs(x0, y0, k), b = hs(x0 + 1, y0, k), c = hs(x0, y0 + 1, k), d = hs(x0 + 1, y0 + 1, k);
+      return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
+    }
+    for (var y = 0; y < MAP; y++) for (var x = 0; x < MAP; x++) {
+      // Evaluate on the canonical half of the 180 deg mirror so the two
+      // halves of a "fair" map carry the same ground, not just the same ore.
+      var mx = MAP - 1 - x, my = MAP - 1 - y;
+      var ax = x, ay = y;
+      if (y * MAP + x > my * MAP + mx) { ax = mx; ay = my; }
+      var v = vn(ax, ay, 10.5, 0) * 0.82 + vn(ax, ay, 4.3, 7) * 0.18;
+      g.gm[y * MAP + x] = v > 0.62 ? 1 : 0;
+    }
+  }
+
+  // Height levels. RA2 maps carry a per-cell height and the cliff tilesets
+  // are the WALL between two levels; a plateau's interior is a level up from
+  // the field around it. We derive the same thing from the terrain we already
+  // generate, so no generator has to be rewritten and passability is
+  // untouched: a cliff top is level 1, any ground the map border cannot reach
+  // without crossing a cliff is ENCLOSED and therefore also level 1, and a
+  // ramp interpolates between the two ends of its run.
+  function computeHeight(g) {
+    var i, x, y, n = MAP * MAP;
+    var hi = new Uint8Array(n);                    // 1 = level 1
+    for (i = 0; i < n; i++) if (g.terrain[i] === T_CLIFF) hi[i] = 1;
+    // Flood the LOW level in from the border. Anything a flood cannot reach
+    // is behind a cliff ring, i.e. on top of a plateau.
+    var open = new Uint8Array(n), q = [], qi = 0;
+    function push(xx, yy) {
+      if (xx < 0 || yy < 0 || xx >= MAP || yy >= MAP) return;
+      var j = yy * MAP + xx;
+      if (open[j] || hi[j] || g.terrain[j] === T_RAMP) return;
+      open[j] = 1; q.push(j);
+    }
+    for (x = 0; x < MAP; x++) { push(x, 0); push(x, MAP - 1); }
+    for (y = 0; y < MAP; y++) { push(0, y); push(MAP - 1, y); }
+    while (qi < q.length) {
+      i = q[qi++]; x = i % MAP; y = (i / MAP) | 0;
+      push(x + 1, y); push(x - 1, y); push(x, y + 1); push(x, y - 1);
+    }
+    for (i = 0; i < n; i++) if (!open[i] && g.terrain[i] !== T_RAMP) hi[i] = 1;
+    // Ramp runs: BFS the distance through ramp cells to the low ground and to
+    // the high ground, so a two-cell ramp climbs in even steps instead of
+    // jumping a level per cell.
+    var dLo = new Int16Array(n), dHi = new Int16Array(n);
+    function bfs(dist, wantHi) {
+      var qq = [], k = 0, j;
+      for (j = 0; j < n; j++) {
+        dist[j] = 32000;
+        if (g.terrain[j] === T_RAMP || g.terrain[j] === T_CLIFF) continue;
+        if ((hi[j] ? 1 : 0) === wantHi) { dist[j] = 0; qq.push(j); }
+      }
+      while (k < qq.length) {
+        var c = qq[k++], cx = c % MAP, cy = (c / MAP) | 0, d = dist[c] + 1, e;
+        for (e = 0; e < 4; e++) {
+          var nx = cx + (e === 0 ? 1 : e === 1 ? -1 : 0), ny = cy + (e === 2 ? 1 : e === 3 ? -1 : 0);
+          if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) continue;
+          var nj = ny * MAP + nx;
+          if (g.terrain[nj] !== T_RAMP || dist[nj] <= d) continue;
+          dist[nj] = d; qq.push(nj);
+        }
+      }
+    }
+    bfs(dLo, 0); bfs(dHi, 1);
+    for (i = 0; i < n; i++) {
+      if (g.terrain[i] === T_RAMP) {
+        // A ramp with nothing high at either end (the Chokepoint wall's own
+        // passes) is simply flat rock, not a slope to nowhere.
+        g.hf[i] = (dHi[i] > 16000) ? 0 : dLo[i] / (dLo[i] + dHi[i]);
+      } else g.hf[i] = hi[i];
+      if (g.hf[i] > 0) g.hiAny = 1;
+    }
+    // Gradient inside each ramp cell, from the two cells the slope runs
+    // between: h is continuous across the boundary, so a tank does not jerk.
+    for (y = 0; y < MAP; y++) for (x = 0; x < MAP; x++) {
+      i = y * MAP + x;
+      if (g.terrain[i] !== T_RAMP || g.hf[i] <= 0) continue;
+      var hL = x > 0 ? g.hf[i - 1] : g.hf[i], hR = x + 1 < MAP ? g.hf[i + 1] : g.hf[i];
+      var hU = y > 0 ? g.hf[i - MAP] : g.hf[i], hD = y + 1 < MAP ? g.hf[i + MAP] : g.hf[i];
+      g.hgx[i] = (hR - hL) / 2; g.hgy[i] = (hD - hU) / 2;
+    }
+  }
+
   // --------------------------------------------------------------------- //
   //  Isometric projection
   // --------------------------------------------------------------------- //
@@ -2090,12 +2257,29 @@
       // urban: poured concrete slabs. Cool mid grey, low-contrast drift, and
       // the dirt tones are oil and soot rather than earth.
       pave:  { base: '#7b7d7e', dark: '#666a6c', light: '#93989a', dirt: '#575652', dirt2: '#4a4a48',
-               worn: '#a6abac', peb: '#bcc0c1', pebD: '#4b4e50', grain: 0.24 }
+               worn: '#a6abac', peb: '#bcc0c1', pebD: '#4b4e50', grain: 0.24 },
+      // The three ALT surfaces: RA2 gives every theatre a second ground the
+      // first one blends into through the LAT sets -- Sand and Grass Rough on
+      // temperate, scoured earth on snow, a dirt lot on urban.
+      sand:  { base: '#93825a', dark: '#7e6e49', light: '#a8956a', dirt: '#6f5f3e', dirt2: '#615336',
+               worn: '#b6a279', peb: '#c8b78f', pebD: '#5d4c31', grain: 0.32 },
+      scour: { base: '#8d8478', dark: '#766d5e', light: '#a69c8c', dirt: '#6b6354', dirt2: '#5c5548',
+               worn: '#b8ae9c', peb: '#cbc2ae', pebD: '#524b3f', grain: 0.32 },
+      grit:  { base: '#6f6656', dark: '#5a523f', light: '#877c66', dirt: '#4d4738', dirt2: '#3f3a2e',
+               worn: '#988c74', peb: '#b0a68c', pebD: '#3b362a', grain: 0.32 }
     }[kind];
     g.fillStyle = P.base; g.fillRect(0, 0, SHW, SHH);
-    // 1. big tonal drift — the field-scale variation that reads at zoom-out
+    // The ALT grounds skip the field-scale drift and the patches. They are
+    // laid in small pockets and their material is ALSO what the LAT edge
+    // tiles are cut from, so any tonal drift across the sheet would show up
+    // as a mismatch where a band meets the patch it belongs to.
+    var flatKind = kind === 'sand' || kind === 'scour' || kind === 'grit';
     var i;
-    if (kind === 'snow') {
+    if (flatKind) {
+      g.globalAlpha = 0.07;
+      for (i = 0; i < 12; i++) { g.fillStyle = i & 1 ? P.dark : P.light; sheetBlob(g, rnd() * SHW, rnd() * SHH, 16 + rnd() * 26, 8 + rnd() * 13); }
+      g.globalAlpha = 1;
+    } else if (kind === 'snow') {
       g.globalAlpha = 0.11;                        // wind drifts: long, shallow, low contrast
       for (i = 0; i < 26; i++) {
         g.fillStyle = rnd() < 0.5 ? P.dark : P.light;
@@ -2114,10 +2298,16 @@
       }
     }
     // 2. bare earth / drift patches, irregular, crossing several tiles
-    for (i = 0; i < 7; i++) {
+    for (i = 0; flatKind ? 0 : i < 7; i++) {
       g.globalAlpha = (kind === 'snow' ? 0.10 : kind === 'pave' ? 0.11 : 0.30) + rnd() * 0.14;
       g.fillStyle = rnd() < 0.55 ? P.dirt : P.dirt2;
       sheetSplotch(g, rnd() * SHW, rnd() * SHH, (kind === 'snow' ? 8 : 13) + rnd() * 15, 5);
+    }
+    if (kind === 'sand' || kind === 'grit') {       // wind ripples across the bare ground
+      g.globalAlpha = 0.13; g.strokeStyle = P.worn;
+      for (i = 0; i < 10; i++) sheetStreak(g, rnd() * SHW, rnd() * SHH, 6 + rint(4), 2 + rnd() * 2, 0.35);
+      g.globalAlpha = 0.16; g.strokeStyle = P.dirt2;
+      for (i = 0; i < 8; i++) sheetStreak(g, rnd() * SHW, rnd() * SHH, 6 + rint(4), 1.5 + rnd() * 2, 0.35);
     }
     if (kind === 'snow') {                          // a couple of exposed earth scars
       g.globalAlpha = 0.30;
@@ -2178,9 +2368,54 @@
     return s;
   }
 
+  // RA2 does not end a map on raw black: the theatre carries on past the
+  // playable border as terrain you can see but never enter. Same sheet,
+  // darkened and cooled, so the apron reads as "out there" rather than as a
+  // second, brighter field.
+  function bakeApronSheet(kind, seed) {
+    var src = bakeGroundSheet(kind, seed), s = mkCanvas(SHW, SHH), g = s.g;
+    g.drawImage(src.c, 0, 0, SHW, SHH);
+    g.globalCompositeOperation = 'saturation';                 // drain the colour out of it
+    g.fillStyle = 'hsl(0,22%,50%)'; g.fillRect(0, 0, SHW, SHH);
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = 'rgba(8,11,18,.40)'; g.fillRect(0, 0, SHW, SHH);
+    return s;
+  }
+  // What the viewport is cleared to: the far end of the apron, so terrain
+  // fades OUT of the world instead of stopping at a black wall.
+  var APRON_BG = { temperate: '#141812', snow: '#161b1f', urban: '#141618' };
+
+  // Ice floes: snow.ini ships an Ice Flow set, and a frozen lake with nothing
+  // on it reads as flat blue paint.
+  function bakeFloe(v) {
+    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i;
+    bsr(7700 + v * 313);
+    g.save(); diamondT(g, cx, cy); g.clip();
+    var n = 2 + v, k;
+    for (k = 0; k < n; k++) {
+      var fx = cx + (brnd() - 0.5) * (TW - 20), fy = cy + (brnd() - 0.5) * (TH - 10);
+      var rw = 5 + brnd() * 9, rh = rw * (0.42 + brnd() * 0.18), pts = [], sides = 5 + bint(3);
+      for (i = 0; i < sides; i++) {
+        var a = (i / sides) * 6.283 + brnd() * 0.5;
+        pts.push([fx + Math.cos(a) * rw * (0.7 + brnd() * 0.5), fy + Math.sin(a) * rh * (0.7 + brnd() * 0.5)]);
+      }
+      function poly(dx, dy) { g.beginPath(); g.moveTo(pts[0][0] + dx, pts[0][1] + dy); for (var q = 1; q < pts.length; q++) g.lineTo(pts[q][0] + dx, pts[q][1] + dy); g.closePath(); }
+      g.fillStyle = 'rgba(18,44,58,.30)'; poly(1.2, 1.6); g.fill();      // the floe's own shadow in the water
+      g.fillStyle = '#dceaee'; poly(0, 0); g.fill();
+      g.fillStyle = '#f6fcfd'; poly(-1, -1.4); g.globalAlpha = 0.75; g.fill(); g.globalAlpha = 1;
+      g.strokeStyle = 'rgba(120,160,178,.55)'; g.lineWidth = 0.8;         // cracks
+      for (i = 0; i < 2; i++) {
+        g.beginPath(); g.moveTo(fx - rw * 0.6, fy + (brnd() - 0.5) * rh);
+        g.lineTo(fx + rw * 0.6, fy + (brnd() - 0.5) * rh); g.stroke();
+      }
+    }
+    g.restore();
+    return s;
+  }
+
   // Grey scree for T_ROCK: impassable broken ground, so boulders with real
   // volume sit in it rather than a flat recoloured floor.
-  function bakeRockSheet(kind, seed) {
+  function bakeRockSheet(kind, seed, flat) {
     var s = mkCanvas(SHW, SHH), g = s.g;
     srand(seed);
     var snowy = kind === 'snow';
@@ -2190,8 +2425,8 @@
       RB = '#6e6f6d'; R1 = '#535451'; R2 = '#8b8d8b'; RG1 = '#494a48'; RG2 = '#a6a8a6'; RBOULD = '#83837f';
     }
     g.fillStyle = RB; g.fillRect(0, 0, SHW, SHH);
-    g.globalAlpha = 0.22;
-    for (var i = 0; i < 14; i++) { g.fillStyle = rnd() < 0.5 ? R1 : R2; sheetBlob(g, rnd() * SHW, rnd() * SHH, 26 + rnd() * 40, 13 + rnd() * 20); }
+    g.globalAlpha = flat ? 0.09 : 0.22;
+    for (var i = 0; i < 14; i++) { g.fillStyle = rnd() < 0.5 ? R1 : R2; sheetBlob(g, rnd() * SHW, rnd() * SHH, flat ? 14 : 26 + rnd() * 40, flat ? 7 : 13 + rnd() * 20); }
     g.globalAlpha = 0.30;
     for (i = 0; i < 1600; i++) { g.fillStyle = rnd() < 0.5 ? RG1 : RG2; var q = 0.6 + rnd() * 1.2; g.beginPath(); g.ellipse(rnd() * SHW, rnd() * SHH, q, q * 0.6, 0, 0, 6.29); g.fill(); }
     g.globalAlpha = 1;
@@ -2201,7 +2436,7 @@
       g.globalAlpha = 1;
     }
     // weathered boulders: a shadow, a body, a lit crown, a moss foot
-    for (i = 0; i < 34; i++) {
+    for (i = 0; flat ? 0 : i < 34; i++) {
       var bx2 = rnd() * SHW, by2 = rnd() * SHH, r = 3.5 + rnd() * 6.5;
       g.fillStyle = 'rgba(30,26,18,.34)'; sheetBlob(g, bx2 + r * 0.4, by2 + r * 0.34, r * 1.12, r * 0.5);
       var body = shade(RBOULD, 0.66 + rnd() * 0.34);
@@ -2402,25 +2637,65 @@
     return s;
   }
 
-  function bakeScree(kind, mask) {
-    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
+  // RA2's LAT ("linked adjacent tile") sets: where two ground types meet,
+  // the boundary tile carries the NEIGHBOUR's material creeping over its own
+  // edge, so grass runs into sand and pavement into dirt instead of the two
+  // meeting on a hard tile diamond. 16 masks per theatre, keyed on which of
+  // the four neighbours is the other material. bakeScree below is the same
+  // idea for the rock fringe and stays as the special case it always was.
+  function bakeLat(altSheet, mask, seed) {
+    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, e, i;
+    // The alt sheet is a seamless screen-space surface, so a fixed cut from
+    // it is indistinguishable from the neighbour's own cut over a band this
+    // thin -- and it costs 16 canvases per theatre instead of 1024.
+    var ox = cx - ((mask * 3) & 7) * (TW / 2), oy = cy - ((mask * 5) & 7) * (TH / 2);
+    function paint() {
+      for (var kx = -1; kx <= 1; kx++) for (var ky = -1; ky <= 1; ky++)
+        g.drawImage(altSheet.c, ox + kx * SHW, oy + ky * SHH, SHW, SHH);
+    }
+    for (e = 0; e < 4; e++) {
+      if (!(mask & (1 << e))) continue;
+      g.save(); diamondT(g, cx, cy); g.clip();
+      edgeBand(g, e, 13, 13, 4300 + mask * 17 + e); g.clip();
+      paint();
+      g.restore();
+      // Speckle beyond the band: a scatter of the alt material breaking up
+      // over the base, which is what stops the transition reading as a ribbon.
+      bsr(4700 + mask * 31 + e);
+      var E = tileEdge(e), mx = (E[0] + E[2]) / 2, my = (E[1] + E[3]) / 2;
+      var nl = Math.hypot(cx - mx, cy - my), nx = (cx - mx) / nl, ny = (cy - my) / nl;
+      for (i = 0; i < 11; i++) {
+        var t = brnd(), d = 10 + brnd() * 13, r = 1.4 + brnd() * 3.4 * (1 - (d - 10) / 15);
+        if (r < 0.7) continue;
+        g.save(); diamondT(g, cx, cy); g.clip();
+        g.beginPath();
+        g.ellipse(E[0] + (E[2] - E[0]) * t + nx * d, E[1] + (E[3] - E[1]) * t + ny * d, r * 1.5, r * 0.8, 0, 0, 6.29);
+        g.clip(); paint(); g.restore();
+      }
+    }
+    return s;
+  }
+
+  // The rock fringe is the SAME idea as the LAT sets above -- broken ground
+  // creeping over the edge of the grass beside it -- plus the loose stones
+  // that a scree slope sheds, which the ground materials do not have.
+  function bakeScree(kind, mask, rockSheet) {
+    var s = rockSheet ? bakeLat(rockSheet, mask, 9) : mkCanvas(TCW, TCH);
+    var g = s.g, cx = TCW / 2, cy = TCH / 2;
     var snowy = kind === 'snow';
     g.save(); diamondT(g, cx, cy); g.clip();
     for (var e = 0; e < 4; e++) {
       if (!(mask & (1 << e))) continue;
-      srand(2600 + mask * 17 + e);
-      g.globalAlpha = 0.30; g.fillStyle = snowy ? '#b9c3c5' : '#6b6453';
-      edgeBand(g, e, 8, 8, 2400 + mask * 13 + e); g.fill();
-      g.globalAlpha = 1;
+      bsr(2600 + mask * 17 + e);
       var E = tileEdge(e), nx = (cx - (E[0] + E[2]) / 2), ny = (cy - (E[1] + E[3]) / 2);
       var nl = Math.hypot(nx, ny); nx /= nl; ny /= nl;
-      for (var i = 0; i < 12; i++) {
-        var t = rnd(), d = 1 + rnd() * 13;
+      for (var i = 0; i < 13; i++) {
+        var t = brnd(), d = 1 + brnd() * 15;
         var px2 = E[0] + (E[2] - E[0]) * t + nx * d, py2 = E[1] + (E[3] - E[1]) * t + ny * d;
-        var r = 1 + rnd() * 2.4 * (1 - d / 16);
+        var r = 1 + brnd() * 2.6 * (1 - d / 18);
         if (r < 0.5) continue;
         g.fillStyle = 'rgba(24,22,14,.32)'; g.beginPath(); g.ellipse(px2 + 0.6, py2 + 0.5, r * 1.25, r * 0.55, 0, 0, 6.29); g.fill();
-        g.fillStyle = shade(snowy ? '#a8b1b3' : '#7c745f', 0.8 + rnd() * 0.5);
+        g.fillStyle = shade(snowy ? '#a8b1b3' : kind === 'urban' ? '#8b8d8b' : '#7c745f', 0.8 + brnd() * 0.5);
         g.beginPath(); g.ellipse(px2, py2 - 0.2, r, r * 0.62, 0, 0, 6.29); g.fill();
       }
     }
@@ -2428,23 +2703,25 @@
     return s;
   }
 
-  // Cliff: a layered rock face nearly a tile-height tall with a grass crown,
-  // strata, a lit right face and a shaded left one, talus and a cast shadow.
-  // mask bits: 1 = +gx face (down-right), 2 = +gy face (down-left),
-  // 4 = -gy back edge exposed, 8 = -gx back edge exposed.
   var CLIFF_H = 32, CLIFF_SH = 10;
   function bakeCliff(mask, kind) {
     var H = CLIFF_H + TCH + CLIFF_SH;
-    var s = mkCanvas(TCW, H), g = s.g;
+    var s = mkCanvas(TCW, H), g = s.g, i, k;
     var cx = TCW / 2, by = CLIFF_H + TCH / 2, ty = TCH / 2;   // base centre, crown centre
     var P = kind === 'snow'
-      ? { top: '#dbe8e8', top2: '#c3d2d7', rock: '#5d666c', rockD: '#2b3238', rockL: '#8b959c', crown: '#eef5f6' }
-      : { top: '#5f7038', top2: '#4a5a2a', rock: '#584e3d', rockD: '#241f16', rockL: '#8d8067', crown: '#78873f' };
-    srand(2200 + mask * 37 + (kind === 'snow' ? 5 : 0));
+      ? { top: '#dbe8e8', top2: '#c3d2d7', crown: '#eef5f6',
+          rock: '#828d95', rockD: '#3f4952', rockL: '#bfcad1', wet: '#5b6670' }
+      : kind === 'urban'
+        ? { top: '#7b7d7e', top2: '#666a6c', crown: '#93989a',
+            rock: '#8b8c88', rockD: '#43443f', rockL: '#c2c3bd', wet: '#6a6b66' }
+        : { top: '#5f7038', top2: '#4a5a2a', crown: '#78873f',
+            rock: '#6b5f4a', rockD: '#2f2820', rockL: '#a39273', wet: '#4a4034' };
+    bsr(2200 + mask * 37 + (kind === 'snow' ? 5 : kind === 'urban' ? 11 : 0));
     var R = cx + TW / 2, L = cx - TW / 2;
+    var conc = kind === 'urban';
 
     // cast shadow on the ground below the exposed faces
-    g.fillStyle = 'rgba(12,14,10,.30)';
+    g.fillStyle = 'rgba(12,14,10,.32)';
     g.beginPath();
     g.moveTo(cx - (mask & 2 ? TW / 2 : 0), by + (mask & 2 ? 0 : TH / 2));
     g.lineTo(cx, by + TH / 2 + 5); g.lineTo(cx + (mask & 1 ? TW / 2 : 0), by + (mask & 1 ? 3 : TH / 2));
@@ -2453,124 +2730,207 @@
     // Point on the face: t runs 0 (outer vertex) to 1 (front vertex), d is
     // depth down the wall in pixels.
     function fp(dir, t, d) { var xE = cx + dir * TW / 2; return [xE + (cx - xE) * t, ty + (TH / 2) * t + d]; }
-    function face(dir) {                       // dir +1 = right (lit), -1 = left
-      var lit = dir > 0 ? 1.08 : 0.66;
-      function quad(t0, t1, d0, d1, e0, e1) {  // a slab between two t's and two depths
-        var p1 = fp(dir, t0, d0), p2 = fp(dir, t1, d0 + (e0 || 0)), p3 = fp(dir, t1, d1 + (e1 || 0)), p4 = fp(dir, t0, d1);
-        g.beginPath(); g.moveTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.lineTo(p3[0], p3[1]); g.lineTo(p4[0], p4[1]); g.closePath();
+
+    // A cliff is not a wall: it is a row of rock COLUMNS of unequal width that
+    // jut out by different amounts, crest at different heights and shade each
+    // other. That is the whole difference between the RA2 cliff set and a
+    // retaining wall, so the columns are built first and everything else --
+    // strata, crest, crown rim, talus -- hangs off them.
+    var COLS = {};
+    function columns(dir) {
+      if (COLS[dir]) return COLS[dir];
+      var cuts = [0], acc = 0;
+      while (acc < 0.82) { acc += 0.09 + brnd() * 0.26; cuts.push(Math.min(1, acc)); }
+      cuts[cuts.length - 1] = 1;
+      var out = [];
+      for (var c = 0; c < cuts.length - 1; c++) {
+        var cr = conc ? -0.5 + brnd() * 1.8 : -2 + brnd() * 10;
+        out.push({ t0: cuts[c], t1: cuts[c + 1],
+                   crest: cr,
+                   crest1: cr + (conc ? 0 : (brnd() - 0.5) * 5),
+                   jut: (conc ? 0.8 : 3.4) * (brnd() - 0.42),
+                   tone: 0.66 + brnd() * 0.66,
+                   foot: CLIFF_H + (conc ? 1 : 1 + brnd() * 9) });
       }
-      g.fillStyle = shade(P.rock, lit); quad(0, 1, 0, CLIFF_H + TH / 2); g.fill();
-      g.save(); quad(0, 1, -1, CLIFF_H); g.clip();
-      // sedimentary strata of unequal thickness
-      var yo = 0;
-      for (var k = 0; k < 5; k++) {
-        var thk = (CLIFF_H / 5) * (0.65 + rnd() * 0.8);
-        g.fillStyle = shade(P.rock, lit * (k & 1 ? 0.8 : 1.14));
-        quad(0, 1, yo, yo + thk, (rnd() - 0.5) * 3, (rnd() - 0.5) * 3); g.fill();
-        g.fillStyle = shade(P.rockD, 1); g.globalAlpha = 0.45;
-        quad(0, 1, yo + thk - 1.2, yo + thk, 0, 0); g.fill(); g.globalAlpha = 1;
-        yo += thk;
+      COLS[dir] = out;
+      return out;
+    }
+
+    function face(dir) {
+      var lit = dir > 0 ? 1.14 : 0.68;               // the right face takes the light
+      var cols = columns(dir);
+      function pt(cl, t, d) {                        // a point on this column, including its jut
+        var q = fp(dir, t, d);
+        return [q[0] + dir * cl.jut * 2.0, q[1] + cl.jut * 1.0];
       }
-      // chunky blocks: irregular slabs with their own light, which is what
-      // separates a rock face from a fence panel
-      for (k = 0; k < 7; k++) {
-        var t0 = rnd() * 0.8, tw2 = 0.12 + rnd() * 0.3, d0 = rnd() * (CLIFF_H - 8), dh = 4 + rnd() * 8;
-        g.fillStyle = shade(P.rock, lit * (0.7 + rnd() * 0.62));
-        quad(t0, Math.min(1, t0 + tw2), d0, d0 + dh, (rnd() - 0.5) * 3, (rnd() - 0.5) * 3); g.fill();
-        g.strokeStyle = shade(P.rockD, 1); g.globalAlpha = 0.4; g.lineWidth = 0.9; g.stroke();
-        g.strokeStyle = shade(P.rockL, lit); g.globalAlpha = 0.3;
-        var q1 = fp(dir, t0, d0), q2 = fp(dir, Math.min(1, t0 + tw2), d0);
-        g.beginPath(); g.moveTo(q1[0], q1[1]); g.lineTo(q2[0], q2[1]); g.stroke(); g.globalAlpha = 1;
-      }
-      // mottling
-      g.globalAlpha = 0.15;
-      for (k = 0; k < 14; k++) {
-        g.fillStyle = rnd() < 0.5 ? P.rockD : P.rockL;
-        var mp = fp(dir, rnd(), rnd() * CLIFF_H);
-        g.beginPath(); g.ellipse(mp[0], mp[1], 2.5 + rnd() * 5, 1.4 + rnd() * 2.6, 0, 0, 6.29); g.fill();
-      }
-      g.globalAlpha = 1;
-      // two partial fractures at most — a full-height grid of them reads as a picket fence
-      g.globalAlpha = 0.32; g.strokeStyle = P.rockD; g.lineWidth = 1;
-      for (k = 0; k < 2; k++) {
-        if (rnd() > 0.5) continue;
-        var ft = 0.15 + rnd() * 0.7, fa = fp(dir, ft, 3 + rnd() * 6), fb = fp(dir, ft + (rnd() - 0.5) * 0.05, 12 + rnd() * (CLIFF_H - 14));
-        g.beginPath(); g.moveTo(fa[0], fa[1]); g.lineTo(fb[0], fb[1]); g.stroke();
-      }
-      g.globalAlpha = 0.4; g.fillStyle = '#000'; quad(0, 1, CLIFF_H - 8, CLIFF_H + 1); g.fill();   // foot shadow
-      g.globalAlpha = 1; g.restore();
-      // broken lit lip: drawn in segments so the top line is not a ruled edge
-      g.strokeStyle = shade(P.rockL, lit * 1.25); g.lineWidth = 1.6; g.globalAlpha = 0.85;
-      for (k = 0; k < 3; k++) {
-        var s0 = k / 3 + rnd() * 0.09, s1 = Math.min(1, s0 + 0.16 + rnd() * 0.14);
-        var l1 = fp(dir, s0, 0.9), l2 = fp(dir, s1, 0.9);
-        g.beginPath(); g.moveTo(l1[0], l1[1]); g.lineTo(l2[0], l2[1]); g.stroke();
-      }
-      g.globalAlpha = 1;
-      if (kind === 'snow') {                     // snow on the lip and caught on the ledges
-        g.fillStyle = 'rgba(246,252,252,.92)';
-        for (k = 0; k < 5; k++) {
-          var st = k / 5 + rnd() * 0.1, sa = fp(dir, st, 0), sb = fp(dir, Math.min(1, st + 0.2), 0);
-          g.beginPath(); g.moveTo(sa[0], sa[1] - 1); g.lineTo(sb[0], sb[1] - 1);
-          g.lineTo(sb[0], sb[1] + 1.6 + rnd() * 2.4); g.lineTo(sa[0], sa[1] + 1.4 + rnd() * 2.6); g.closePath(); g.fill();
+      // 1. the recess: everything the columns do not cover reads as deep shade
+      g.fillStyle = shade(P.rockD, dir > 0 ? 1.25 : 0.95);
+      var r0 = fp(dir, 0, -2), r1 = fp(dir, 1, -2), r2 = fp(dir, 1, CLIFF_H + 4), r3 = fp(dir, 0, CLIFF_H + 4);
+      g.beginPath(); g.moveTo(r0[0], r0[1]); g.lineTo(r1[0], r1[1]); g.lineTo(r2[0], r2[1]); g.lineTo(r3[0], r3[1]); g.closePath(); g.fill();
+
+      for (var c = 0; c < cols.length; c++) {
+        var cl = cols[c];
+        // The column is NOT a parallelogram: its two sides wander in and out
+        // over the drop and its crest is broken. A ruled quad with a dark seam
+        // beside it is what made this read as a palisade rather than as rock.
+        var NSEG = 5, q, L = [], Rr = [], crestPts = [];
+        for (q = 0; q <= NSEG; q++) {
+          var dq = cl.crest + (cl.foot - cl.crest) * (q / NSEG);
+          L.push(pt(cl, cl.t0 + (brnd() - 0.5) * 0.05, dq));
+          Rr.push(pt(cl, cl.t1 + (brnd() - 0.5) * 0.05, dq));
         }
-        g.fillStyle = 'rgba(236,246,248,.7)';
+        for (q = 0; q <= 3; q++) crestPts.push(pt(cl, cl.t0 + (cl.t1 - cl.t0) * (q / 3), cl.crest + (q === 0 ? 0 : (brnd() - 0.5) * 3.6)));
+        var a0 = crestPts[0], a1 = crestPts[crestPts.length - 1];
+        var b1 = Rr[NSEG], b0 = L[NSEG];
+        function colPath() {
+          g.beginPath(); g.moveTo(L[0][0], L[0][1]);
+          for (q = 0; q < crestPts.length; q++) g.lineTo(crestPts[q][0], crestPts[q][1]);
+          for (q = 0; q <= NSEG; q++) g.lineTo(Rr[q][0], Rr[q][1]);
+          for (q = NSEG; q >= 0; q--) g.lineTo(L[q][0], L[q][1]);
+          g.closePath();
+        }
+        g.save();
+        colPath();
+        g.fillStyle = shade(P.rock, lit * cl.tone); g.fill();
+        g.clip();
+        // strata (rock) or form-board courses (concrete)
+        var yo = cl.crest;
+        var nb = conc ? 6 : 4 + bint(3);
+        for (k = 0; k < nb; k++) {
+          var thk = conc ? (CLIFF_H / 6) : (CLIFF_H / nb) * (0.6 + brnd() * 0.85);
+          var pa = pt(cl, cl.t0, yo), pb = pt(cl, cl.t1, yo + (conc ? 0 : (brnd() - 0.5) * 2.4));
+          var pc = pt(cl, cl.t1, yo + thk + (conc ? 0 : (brnd() - 0.5) * 2.4)), pd = pt(cl, cl.t0, yo + thk);
+          g.fillStyle = shade(P.rock, lit * cl.tone * (conc ? (k & 1 ? 0.97 : 1.03) : (k & 1 ? 0.82 : 1.13)));
+          g.beginPath(); g.moveTo(pa[0], pa[1]); g.lineTo(pb[0], pb[1]); g.lineTo(pc[0], pc[1]); g.lineTo(pd[0], pd[1]); g.closePath(); g.fill();
+          g.strokeStyle = shade(P.rockD, 1); g.globalAlpha = conc ? 0.30 : 0.46; g.lineWidth = conc ? 0.8 : 1.1;
+          g.beginPath(); g.moveTo(pd[0], pd[1]); g.lineTo(pc[0], pc[1]); g.stroke(); g.globalAlpha = 1;
+          yo += thk;
+        }
+        // mottling inside the column
+        g.globalAlpha = conc ? 0.10 : 0.20;
         for (k = 0; k < 6; k++) {
-          var lt = rnd() * 0.85, lp = fp(dir, lt, 5 + rnd() * (CLIFF_H - 9));
-          g.beginPath(); g.ellipse(lp[0], lp[1], 2.5 + rnd() * 4, 0.8 + rnd() * 1.2, 0, 0, 6.29); g.fill();
+          g.fillStyle = brnd() < 0.5 ? P.rockD : P.rockL;
+          var mp = pt(cl, cl.t0 + brnd() * (cl.t1 - cl.t0), 2 + brnd() * (CLIFF_H - 4));
+          g.beginPath(); g.ellipse(mp[0], mp[1], 2 + brnd() * 4.5, 1.2 + brnd() * 2.4, 0, 0, 6.29); g.fill();
         }
-      }
-      // rubble mound at the foot, overlapping the bottom edge so it is not straight
-      for (k = 0; k < 7; k++) {
-        var rt = 0.06 + rnd() * 0.88, rp = fp(dir, rt, CLIFF_H - 1 + rnd() * 4), rr = 1.5 + rnd() * 3;
-        g.fillStyle = 'rgba(16,14,9,.32)'; g.beginPath(); g.ellipse(rp[0] + 0.7, rp[1] + 0.8, rr * 1.3, rr * 0.5, 0, 0, 6.29); g.fill();
-        g.fillStyle = shade(P.rock, lit * (1.05 + rnd() * 0.5)); g.beginPath(); g.ellipse(rp[0], rp[1], rr, rr * 0.62, 0, 0, 6.29); g.fill();
+        g.globalAlpha = 1;
+        // a wet seepage streak, or a concrete stain, on some columns
+        if (brnd() < 0.45) {
+          g.globalAlpha = 0.22; g.strokeStyle = P.wet; g.lineWidth = 1.6 + brnd() * 2;
+          var wt = cl.t0 + brnd() * (cl.t1 - cl.t0);
+          var w0 = pt(cl, wt, cl.crest + 2), w1 = pt(cl, wt, cl.crest + 8 + brnd() * (CLIFF_H - 12));
+          g.beginPath(); g.moveTo(w0[0], w0[1]); g.lineTo(w1[0], w1[1]); g.stroke(); g.globalAlpha = 1;
+        }
+        // foot shadow inside the column
+        g.globalAlpha = 0.42; g.fillStyle = '#000';
+        var f0 = pt(cl, cl.t0, cl.foot - 7), f1 = pt(cl, cl.t1, cl.foot - 7);
+        g.beginPath(); g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]); g.lineTo(b1[0], b1[1]); g.lineTo(b0[0], b0[1]); g.closePath(); g.fill();
+        g.globalAlpha = 1;
+        g.restore();
+        // seams: a crevice on the trailing side only, and only sometimes --
+        // a line down every join is a fence, not a cliff
+        if (brnd() < 0.55) {
+          g.strokeStyle = shade(P.rockD, 0.9); g.globalAlpha = 0.3; g.lineWidth = 1.1;
+          g.beginPath(); g.moveTo(Rr[0][0], Rr[0][1]);
+          for (q = 1; q <= NSEG; q++) g.lineTo(Rr[q][0], Rr[q][1]);
+          g.stroke();
+        }
+        // lit crest cap, following the broken crest
+        g.strokeStyle = shade(P.rockL, lit * 1.15); g.globalAlpha = 0.7; g.lineWidth = 1.5;
+        g.beginPath(); g.moveTo(crestPts[0][0], crestPts[0][1] + 0.6);
+        for (q = 1; q < crestPts.length; q++) g.lineTo(crestPts[q][0], crestPts[q][1] + 0.6);
+        g.stroke();
+        g.globalAlpha = 1;
+        if (kind === 'snow') {                       // snow sitting on the crest and the ledges
+          g.fillStyle = 'rgba(246,252,252,.94)';
+          g.beginPath(); g.moveTo(a0[0], a0[1] - 1.4); g.lineTo(a1[0], a1[1] - 1.4);
+          g.lineTo(a1[0], a1[1] + 1.4 + brnd() * 2.6); g.lineTo(a0[0], a0[1] + 1.6 + brnd() * 2.4); g.closePath(); g.fill();
+          g.fillStyle = 'rgba(232,244,248,.62)';
+          for (k = 0; k < 2; k++) {
+            var lp = pt(cl, cl.t0 + brnd() * (cl.t1 - cl.t0), 6 + brnd() * (CLIFF_H - 12));
+            g.beginPath(); g.ellipse(lp[0], lp[1], 2 + brnd() * 3.4, 0.7 + brnd() * 1.1, 0, 0, 6.29); g.fill();
+          }
+        }
+        if (conc) {                                   // tie-rod holes down the form work
+          g.fillStyle = 'rgba(40,42,40,.45)';
+          for (k = 1; k < 5; k++) {
+            var hp = pt(cl, (cl.t0 + cl.t1) / 2, k * (CLIFF_H / 5));
+            g.beginPath(); g.ellipse(hp[0], hp[1], 1.1, 0.8, 0, 0, 6.29); g.fill();
+          }
+        }
+        // talus at this column's foot -- scattered up the wall as well as at
+        // its base, so the bottom edge is a rubble slope and not a plinth
+        for (k = 0; k < 4; k++) {
+          var rt = cl.t0 - 0.03 + brnd() * (cl.t1 - cl.t0 + 0.06);
+          var rp = pt(cl, rt, cl.foot - 5 + brnd() * 9), rr = 1.1 + brnd() * 3.4;
+          g.fillStyle = 'rgba(16,14,9,.34)'; g.beginPath(); g.ellipse(rp[0] + 0.7, rp[1] + 0.8, rr * 1.3, rr * 0.5, 0, 0, 6.29); g.fill();
+          g.fillStyle = shade(P.rock, lit * (0.95 + brnd() * 0.55)); g.beginPath(); g.ellipse(rp[0], rp[1], rr, rr * 0.62, 0, 0, 6.29); g.fill();
+          if (kind === 'snow') { g.fillStyle = 'rgba(240,250,252,.5)'; g.beginPath(); g.ellipse(rp[0] - rr * 0.2, rp[1] - rr * 0.35, rr * 0.7, rr * 0.28, 0, 0, 6.29); g.fill(); }
+        }
       }
     }
-    if (mask & 1) face(1);
-    if (mask & 2) face(-1);
-    // outside corner: the two faces meet at the front vertex — a crisp edge
+    function faceShade(dir) {                    // light falls off down the drop
+      var p0 = fp(dir, 0, 0), p1 = fp(dir, 1, 0), p2 = fp(dir, 1, CLIFF_H + 6), p3 = fp(dir, 0, CLIFF_H + 6);
+      var gd = g.createLinearGradient(0, ty, 0, ty + CLIFF_H + TH / 2);
+      gd.addColorStop(0, 'rgba(0,0,0,0)'); gd.addColorStop(0.55, 'rgba(0,0,0,.10)'); gd.addColorStop(1, 'rgba(0,0,0,.30)');
+      g.fillStyle = gd;
+      g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.lineTo(p3[0], p3[1]); g.closePath(); g.fill();
+    }
+    if (mask & 1) { face(1); faceShade(1); }
+    if (mask & 2) { face(-1); faceShade(-1); }
+    // outside corner: the two faces meet at the front vertex
     if ((mask & 3) === 3) {
-      g.strokeStyle = shade(P.rockL, 1.1); g.globalAlpha = 0.55; g.lineWidth = 1.2;
+      g.strokeStyle = shade(P.rockD, 0.9); g.globalAlpha = 0.4; g.lineWidth = 1.6;
       g.beginPath(); g.moveTo(cx, ty + TH / 2); g.lineTo(cx, by + TH / 2); g.stroke(); g.globalAlpha = 1;
     }
 
-    // crown: grass (or snow) plateau with a rocky rim on every exposed edge
+    // crown: the theatre's own surface, mottled, with a broken rocky rim on
+    // every exposed edge -- the crown is the top of the UPPER level, which is
+    // where anything standing on the plateau draws.
     diamond(g, cx, ty, TCW, TCH); g.fillStyle = P.top; g.fill();
     g.save(); diamond(g, cx, ty, TCW, TCH); g.clip();
-    g.globalAlpha = 0.22;
-    for (var i = 0; i < 9; i++) { g.fillStyle = rnd() < 0.5 ? P.top2 : P.crown; g.beginPath(); g.ellipse(cx - 24 + rnd() * 48, ty - 11 + rnd() * 22, 4 + rnd() * 9, 2 + rnd() * 4, 0, 0, 6.29); g.fill(); }
+    g.globalAlpha = 0.24;
+    for (i = 0; i < 12; i++) { g.fillStyle = brnd() < 0.5 ? P.top2 : P.crown; g.beginPath(); g.ellipse(cx - 26 + brnd() * 52, ty - 12 + brnd() * 24, 4 + brnd() * 10, 2 + brnd() * 4.5, 0, 0, 6.29); g.fill(); }
+    g.globalAlpha = 0.16;                               // rock showing through the thin soil
+    for (i = 0; i < 7; i++) { g.fillStyle = P.rock; g.beginPath(); g.ellipse(cx - 24 + brnd() * 48, ty - 10 + brnd() * 20, 3 + brnd() * 6, 1.4 + brnd() * 2.6, 0, 0, 6.29); g.fill(); }
     g.globalAlpha = 1;
-    // rocky lip along the exposed front edges + crown vegetation
-    var lips = [[mask & 1, 1], [mask & 2, -1]];
+    // the rim: one rock lump per column, so the top edge is as ragged as the
+    // face beneath it rather than a ruled diamond
+    var rims = [[mask & 1, 1], [mask & 2, -1]];
     for (var li = 0; li < 2; li++) {
-      if (!lips[li][0]) continue;
-      var d2 = lips[li][1], xE = cx + d2 * TW / 2;
-      for (i = 0; i < 6; i++) {
-        var t3 = rnd(), lx = xE + (cx - xE) * t3, ly = ty + (TH / 2) * t3, lr = 2.6 + rnd() * 3.4;
-        g.fillStyle = shade(P.rock, 0.86 + rnd() * 0.5);
+      if (!rims[li][0]) continue;
+      var d2 = rims[li][1], cs = columns(d2);
+      for (i = 0; i < cs.length; i++) {
+        var cl2 = cs[i], tm = (cl2.t0 + cl2.t1) / 2;
+        var xE = cx + d2 * TW / 2, lx = xE + (cx - xE) * tm + d2 * cl2.jut * 2, ly = ty + (TH / 2) * tm + cl2.jut;
+        var lr = 3 + (cl2.t1 - cl2.t0) * 26;
+        g.fillStyle = shade(P.rock, 0.9 + brnd() * 0.45);
         g.beginPath();
-        g.moveTo(lx - lr, ly + 1.4); g.lineTo(lx - lr * 0.5, ly - lr * 0.75);
-        g.lineTo(lx + lr * 0.35, ly - lr * 0.5); g.lineTo(lx + lr, ly + 1.2); g.closePath(); g.fill();
-        g.fillStyle = shade(P.rockL, 1.1); g.globalAlpha = 0.6;
-        g.beginPath(); g.ellipse(lx - lr * 0.2, ly - lr * 0.55, lr * 0.5, lr * 0.22, 0, 0, 6.29); g.fill(); g.globalAlpha = 1;
+        g.moveTo(lx - lr, ly + 1.6); g.lineTo(lx - lr * 0.55, ly - lr * 0.6 - 1);
+        g.lineTo(lx + lr * 0.3, ly - lr * 0.4); g.lineTo(lx + lr, ly + 1.4); g.closePath(); g.fill();
+        g.fillStyle = shade(P.rockL, 1.05); g.globalAlpha = 0.55;
+        g.beginPath(); g.ellipse(lx - lr * 0.2, ly - lr * 0.4, lr * 0.45, lr * 0.2, 0, 0, 6.29); g.fill(); g.globalAlpha = 1;
       }
     }
-    if (kind !== 'snow') {                        // tufts and a small bush on the crown
+    if (kind === 'grass') {                        // tufts and a small bush on the crown
       g.strokeStyle = 'rgba(96,124,52,.8)'; g.lineWidth = 1;
       for (i = 0; i < 11; i++) {
-        var gx3 = cx + (rnd() - 0.5) * (TW - 14), gy3 = ty + (rnd() - 0.5) * (TH - 9);
-        for (var k3 = 0; k3 < 3; k3++) { g.beginPath(); g.moveTo(gx3 + k3 - 1, gy3 + 1); g.lineTo(gx3 + (k3 - 1) * 1.6, gy3 - 3 - rnd() * 2); g.stroke(); }
+        var gx3 = cx + (brnd() - 0.5) * (TW - 14), gy3 = ty + (brnd() - 0.5) * (TH - 9);
+        for (var k3 = 0; k3 < 3; k3++) { g.beginPath(); g.moveTo(gx3 + k3 - 1, gy3 + 1); g.lineTo(gx3 + (k3 - 1) * 1.6, gy3 - 3 - brnd() * 2); g.stroke(); }
       }
-      if ((mask & 3) && rnd() < 0.4) {
-        var bx3 = cx + (rnd() - 0.5) * 30, by3 = ty + (rnd() - 0.5) * 14;
+      if ((mask & 3) && brnd() < 0.4) {
+        var bx3 = cx + (brnd() - 0.5) * 30, by3 = ty + (brnd() - 0.5) * 14;
         g.fillStyle = 'rgba(20,30,12,.3)'; g.beginPath(); g.ellipse(bx3 + 2, by3 + 2, 6, 2.6, 0, 0, 6.29); g.fill();
         g.fillStyle = '#31491f'; g.beginPath(); g.ellipse(bx3, by3, 5.5, 3.6, 0, 0, 6.29); g.fill();
         g.fillStyle = '#4a6a2c'; g.beginPath(); g.ellipse(bx3 - 1.6, by3 - 1.4, 3.4, 2.2, 0, 0, 6.29); g.fill();
       }
-    } else {
+    } else if (kind === 'snow') {
       g.fillStyle = 'rgba(255,255,255,.30)';
-      for (i = 0; i < 14; i++) { g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 46, ty + (rnd() - 0.5) * 22, 2 + rnd() * 4, 1 + rnd() * 2, 0, 0, 6.29); g.fill(); }
+      for (i = 0; i < 14; i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 46, ty + (brnd() - 0.5) * 22, 2 + brnd() * 4, 1 + brnd() * 2, 0, 0, 6.29); g.fill(); }
+    } else {                                        // urban: a slab joint across the deck
+      g.globalAlpha = 0.34; g.strokeStyle = '#494c4e'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(cx - TW / 2, ty + TH / 4); g.lineTo(cx + TW / 2, ty - TH / 4); g.stroke();
+      g.globalAlpha = 1;
     }
     g.restore();
     // sharp dark rim on the back edges: the plateau ends there, the ground
@@ -2578,42 +2938,121 @@
     g.lineWidth = 1.3; g.strokeStyle = 'rgba(30,26,18,.6)';
     if (mask & 4) { g.beginPath(); g.moveTo(cx, ty - TH / 2); g.lineTo(R, ty); g.stroke(); }
     if (mask & 8) { g.beginPath(); g.moveTo(L, ty); g.lineTo(cx, ty - TH / 2); g.stroke(); }
-    s.lift = (CLIFF_H - CLIFF_SH) / 2;
+    // The cell itself is one height LEVEL up (sy() has already moved the draw
+    // point), so the sprite only has to sit its crown on that point: the
+    // canvas is anchored by its centre, and the crown is TCH/2 from its top.
+    s.lift = -(CLIFF_H + CLIFF_SH) / 2;
     return s;
   }
 
-  // Road: an overlay on the ground tile, not its own floor, so the dirt sits
-  // in the same continuous surface. The perimeter wobbles and occasionally
-  // pulls in, which reads as grass encroaching on a worn track.
-  function bakeRoad(kind, v) {
-    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
-    var snowy = kind === 'snow';
-    srand(1900 + v * 211 + (snowy ? 3 : 0));
-    g.save(); diamondT(g, cx, cy); g.clip();
-    var V = [[cx, cy - TCH / 2], [cx + TCW / 2, cy], [cx, cy + TCH / 2], [cx - TCW / 2, cy]];
-    var N = 24, pts = [];
-    for (var i = 0; i < N; i++) {                 // wobbly diamond outline
-      var f = (i / N) * 4, e0 = Math.floor(f) & 3, e1 = (e0 + 1) & 3, u = f - Math.floor(f);
-      var bx = V[e0][0] + (V[e1][0] - V[e0][0]) * u, byy = V[e0][1] + (V[e1][1] - V[e0][1]) * u;
-      var k = 1.0 + 0.05 * Math.sin(f * 2.7 + v) - rnd() * 0.05;
-      pts.push([cx + (bx - cx) * k, cy + (byy - cy) * k]);
+  // Roads are connector sets, not decorative variants: RA2 ships DirtRoads
+  // Straight / Bendy / Junctions / Ends and the Paved Roads equivalents, and
+  // picks the piece from which NEIGHBOURS are road. So this is keyed on the
+  // 4-bit neighbour mask -- bit 1 = -gy, 2 = +gx, 4 = +gy, 8 = -gx -- and the
+  // carriageway is the union of one arm per connected side, which makes
+  // straights, bends, T-junctions, crossroads and dead ends fall out for free
+  // and tile exactly with the neighbour's arm.
+  function roadV() {
+    var cx = TCW / 2, cy = TCH / 2;
+    return [[cx, cy - TCH / 2], [cx + TCW / 2, cy], [cx, cy + TCH / 2], [cx - TCW / 2, cy]];
+  }
+  // Lay the union of arms into the current path. `w` is the half-width as a
+  // fraction of a tile edge; `wob` jitters the shoulders so a dirt road does
+  // not read as machined.
+  function roadPath(g, mask, w, wob, seed) {
+    var V = roadV(), cx = TCW / 2, cy = TCH / 2, e;
+    bsr(seed);
+    g.beginPath();
+    // Surrounded on all four sides, the cell is not a junction at all -- it is
+    // the INTERIOR of a paved area, and RA2 lays those as solid surface. Left
+    // as four arms it grew a kerb fillet on every diamond corner, which turned
+    // River Crossing's three-lane crossing into a waffle.
+    if (mask === 15) {
+      g.moveTo(V[0][0], V[0][1]); g.lineTo(V[1][0], V[1][1]);
+      g.lineTo(V[2][0], V[2][1]); g.lineTo(V[3][0], V[3][1]); g.closePath();
+      return;
     }
-    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
-    for (i = 1; i < N; i++) g.lineTo(pts[i][0], pts[i][1]);
-    g.closePath();
-    g.fillStyle = snowy ? '#c4cacc' : '#7a7053'; g.fill();
-    g.save(); g.clip();
-    g.fillStyle = snowy ? '#dbe0e2' : '#9a8c64'; g.globalAlpha = 0.55;  // worn pale centre
-    for (i = 0; i < 5; i++) { g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 22, cy + (rnd() - 0.5) * 10, 12 + rnd() * 12, 6 + rnd() * 5, 0, 0, 6.29); g.fill(); }
-    g.globalAlpha = 0.26; g.fillStyle = snowy ? '#a3adb1' : '#5f5439';   // darker, dusty edges
-    for (i = 0; i < 10; i++) { var a2 = rnd() * 6.29, d = (0.74 + rnd() * 0.3); g.beginPath(); g.ellipse(cx + Math.cos(a2) * TW / 2 * d, cy + Math.sin(a2) * TH / 2 * d, 5 + rnd() * 8, 2.5 + rnd() * 3.5, 0, 0, 6.29); g.fill(); }
+    for (e = 0; e < 4; e++) {
+      if (!(mask & (1 << e))) continue;
+      var p0 = V[e], p1 = V[(e + 1) & 3];
+      var j0 = wob ? (brnd() - 0.5) * wob : 0, j1 = wob ? (brnd() - 0.5) * wob : 0;
+      var A = [p0[0] + (p1[0] - p0[0]) * (0.5 - w) + j0, p0[1] + (p1[1] - p0[1]) * (0.5 - w) + j0 * 0.5];
+      var B = [p0[0] + (p1[0] - p0[0]) * (0.5 + w) + j1, p0[1] + (p1[1] - p0[1]) * (0.5 + w) + j1 * 0.5];
+      var mx = (p0[0] + p1[0]) / 2, my = (p0[1] + p1[1]) / 2, dx = cx - mx, dy = cy - my;
+      g.moveTo(A[0], A[1]); g.lineTo(B[0], B[1]);
+      g.lineTo(B[0] + dx, B[1] + dy); g.lineTo(A[0] + dx, A[1] + dy);
+      g.closePath();
+    }
+    // the junction plate, which also IS the tile when nothing connects
+    var hw = TCW * w * 1.16, hh = TCH * w * 1.16;
+    g.moveTo(cx, cy - hh); g.lineTo(cx + hw, cy); g.lineTo(cx, cy + hh); g.lineTo(cx - hw, cy); g.closePath();
+  }
+  // The centre of the arm running to edge `e`, `t` of the way out from the
+  // tile centre -- used for ruts and centre lines.
+  function armPt(e, t) {
+    var V = roadV(), cx = TCW / 2, cy = TCH / 2;
+    var mx = (V[e][0] + V[(e + 1) & 3][0]) / 2, my = (V[e][1] + V[(e + 1) & 3][1]) / 2;
+    return [cx + (mx - cx) * t, cy + (my - cy) * t];
+  }
+  function bakeRoad(kind, mask, vv) {
+    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i, e;
+    var snowy = kind === 'snow';
+    bsr(1900 + mask * 211 + (vv || 0) * 4099 + (snowy ? 3 : 0));
+    g.save(); diamondT(g, cx, cy); g.clip();
+    var W = 0.28;
+    // 1. the beaten shoulder: dust and gravel pushed off the track
+    g.globalAlpha = 0.40; g.fillStyle = snowy ? '#93a0a6' : '#514832';
+    roadPath(g, mask, W + 0.075, 2.6, 1700 + mask * 13); g.fill();
     g.globalAlpha = 1;
-    for (i = 0; i < 9; i++) {                                            // grit
-      var gx4 = cx + (rnd() - 0.5) * (TW - 10), gy4 = cy + (rnd() - 0.5) * (TH - 6), gr = 0.8 + rnd() * 1.2;
+    // 2. the carriageway
+    g.fillStyle = snowy ? '#aab4b8' : '#6a5f42';
+    roadPath(g, mask, W, 2.0, 1800 + mask * 13); g.fill();
+    g.save(); roadPath(g, mask, W, 2.0, 1800 + mask * 13); g.clip();
+    g.fillStyle = snowy ? '#c6cfd2' : '#87794f'; g.globalAlpha = 0.5;   // worn pale centre
+    for (i = 0; i < 5; i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 22, cy + (brnd() - 0.5) * 10, 10 + brnd() * 12, 5 + brnd() * 5, 0, 0, 6.29); g.fill(); }
+    g.globalAlpha = 1;
+    // 3. wheel ruts down each arm -- two parallel scuffs, which is what makes
+    //    a bend read as a bend rather than a painted corner
+    g.lineCap = 'round';
+    for (e = 0; e < 4; e++) {
+      if (!(mask & (1 << e))) continue;
+      var P0 = armPt(e, 0.02), P1 = armPt(e, 1.02);
+      var nx = -(P1[1] - P0[1]), ny = (P1[0] - P0[0]), nl = Math.hypot(nx, ny) || 1;
+      nx /= nl; ny /= nl;
+      for (var r = -1; r <= 1; r += 2) {
+        var o = r * TW * 0.085;
+        g.strokeStyle = snowy ? 'rgba(122,138,148,.5)' : 'rgba(58,50,32,.45)'; g.lineWidth = 4.2;
+        g.beginPath(); g.moveTo(P0[0] + nx * o, P0[1] + ny * o); g.lineTo(P1[0] + nx * o, P1[1] + ny * o); g.stroke();
+        g.strokeStyle = snowy ? 'rgba(232,240,244,.34)' : 'rgba(160,146,104,.34)'; g.lineWidth = 1.4;
+        g.beginPath(); g.moveTo(P0[0] + nx * (o + 2.4), P0[1] + ny * (o + 2.4)); g.lineTo(P1[0] + nx * (o + 2.4), P1[1] + ny * (o + 2.4)); g.stroke();
+      }
+    }
+    g.globalAlpha = 0.24; g.fillStyle = snowy ? '#a3adb1' : '#5f5439';   // dusty edges
+    for (i = 0; i < 9; i++) { var a2 = brnd() * 6.29, d = 0.7 + brnd() * 0.34; g.beginPath(); g.ellipse(cx + Math.cos(a2) * TW / 2 * d, cy + Math.sin(a2) * TH / 2 * d, 5 + brnd() * 7, 2.5 + brnd() * 3, 0, 0, 6.29); g.fill(); }
+    g.globalAlpha = 1;
+    for (i = 0; i < 10; i++) {                                           // grit
+      var gx4 = cx + (brnd() - 0.5) * (TW - 10), gy4 = cy + (brnd() - 0.5) * (TH - 6), gr = 0.8 + brnd() * 1.2;
       g.fillStyle = 'rgba(30,26,18,.3)'; g.beginPath(); g.ellipse(gx4 + 0.6, gy4 + 0.4, gr * 1.1, gr * 0.55, 0, 0, 6.29); g.fill();
       g.fillStyle = snowy ? '#eef3f4' : '#b6a97e'; g.beginPath(); g.ellipse(gx4, gy4 - 0.2, gr * 0.9, gr * 0.45, 0, 0, 6.29); g.fill();
     }
     g.restore();
+    // 4. bite the shoulders out so the track meets whatever ground it crosses
+    //    on a ragged line rather than on a ruled polygon. Done as an erase, so
+    //    it works over grass, sand or rock without knowing which is under it.
+    g.globalCompositeOperation = 'destination-out';
+    for (e = 0; e < 4; e++) {
+      if (!(mask & (1 << e))) continue;
+      var Q0 = armPt(e, 0.0), Q1 = armPt(e, 1.06);
+      var qx = -(Q1[1] - Q0[1]), qy = (Q1[0] - Q0[0]), ql = Math.hypot(qx, qy) || 1;
+      qx /= ql; qy /= ql;
+      for (i = 0; i < 11; i++) {
+        var f2 = brnd(), sgn2 = i & 1 ? 1 : -1;
+        var off = sgn2 * (TW * (W + 0.055) + brnd() * 4 - 1);
+        var bx2 = Q0[0] + (Q1[0] - Q0[0]) * f2 + qx * off, by2 = Q0[1] + (Q1[1] - Q0[1]) * f2 + qy * off;
+        g.beginPath(); g.ellipse(bx2, by2, 2 + brnd() * 4.5, 1.4 + brnd() * 2.6, 0, 0, 6.29); g.fill();
+      }
+    }
+    g.globalCompositeOperation = 'source-over';
     g.restore();
     return s;
   }
@@ -2664,6 +3103,121 @@
       for (i = 0; i < 7; i++) { g.beginPath(); g.ellipse(cx - 4 + (rnd() - 0.5) * rw * 0.8, cyy - 5 - rnd() * rh * 0.5, 4 + rnd() * 4, 3.4 + rnd() * 3, 0, 0, 6.29); g.fill(); }
       g.fillStyle = '#5d8c39';
       for (i = 0; i < 4; i++) { g.beginPath(); g.ellipse(cx - 6 + (rnd() - 0.5) * rw * 0.5, cyy - 8 - rnd() * rh * 0.35, 3 + rnd() * 2.6, 2.4 + rnd() * 2, 0, 0, 6.29); g.fill(); }
+    }
+    s.ax = cx; s.ay = by;
+    return s;
+  }
+
+  // RA2 ships far more than trees as terrain objects -- art.ini's [TREE*] and
+  // [TC*] sets, plus rocks, dead trunks and the theatre's own debris. These
+  // ride the SAME T_TREE cell as a tree does, so they cost nothing but art.
+  function bakeDeadTree(v, snow) {
+    var s = mkCanvas(64, 88), g = s.g, cx = 32, by = 78, i;
+    bsr(4100 + v * 71 + (snow ? 9 : 0));
+    g.fillStyle = 'rgba(8,12,6,.30)';
+    g.beginPath(); g.ellipse(cx + 8, by - 1, 15, 5.5, 0, 0, 6.29); g.fill();
+    var bark = snow ? '#5b544c' : '#4b3d2c', barkL = snow ? '#7d766c' : '#6b5942';
+    var hgt = 34 + v * 4;
+    g.strokeStyle = bark; g.lineCap = 'round'; g.lineWidth = 6;
+    g.beginPath(); g.moveTo(cx, by); g.lineTo(cx - 1.5, by - hgt); g.stroke();
+    g.strokeStyle = barkL; g.lineWidth = 2.2;
+    g.beginPath(); g.moveTo(cx - 2, by - 3); g.lineTo(cx - 3.2, by - hgt + 3); g.stroke();
+    // broken limbs, snapped short
+    var limbs = [[-1, 0.62, -15, -9], [1, 0.72, 13, -12], [-1, 0.86, -9, -7], [1, 0.44, 10, -6]];
+    for (i = 0; i < limbs.length; i++) {
+      var L = limbs[i], y0 = by - hgt * L[1];
+      g.strokeStyle = bark; g.lineWidth = 3.2 - i * 0.4;
+      g.beginPath(); g.moveTo(cx, y0);
+      g.quadraticCurveTo(cx + L[2] * 0.6, y0 + L[3] * 0.3, cx + L[2], y0 + L[3]); g.stroke();
+      g.strokeStyle = bark; g.lineWidth = 1.8;
+      g.beginPath(); g.moveTo(cx + L[2], y0 + L[3]);
+      g.lineTo(cx + L[2] * 1.3, y0 + L[3] - 5 - brnd() * 4); g.stroke();
+    }
+    if (snow) {                                        // snow caught on the upper side of each limb
+      g.strokeStyle = 'rgba(244,252,253,.9)'; g.lineWidth = 2;
+      for (i = 0; i < limbs.length; i++) {
+        var L2 = limbs[i], yy = by - hgt * L2[1] - 1.6;
+        g.beginPath(); g.moveTo(cx, yy); g.quadraticCurveTo(cx + L2[2] * 0.6, yy + L2[3] * 0.3, cx + L2[2], yy + L2[3]); g.stroke();
+      }
+      g.beginPath(); g.moveTo(cx - 3, by - hgt); g.lineTo(cx + 1, by - hgt); g.stroke();
+    }
+    s.ax = cx; s.ay = by;
+    return s;
+  }
+  // A boulder / rock outcrop: real volume, a cast shadow and a lit crown, so
+  // it does not read as a flat decal lying on the grass.
+  function bakeBoulder(kind, v) {
+    var s = mkCanvas(64, 88), g = s.g, cx = 32, by = 78, i, k;
+    bsr(4300 + v * 137 + (kind === 'snow' ? 5 : kind === 'urban' ? 11 : 0));
+    var C = kind === 'snow' ? { b: '#8d979b', d: '#4d565c', l: '#c3ced2' }
+          : kind === 'urban' ? { b: '#84837e', d: '#46453f', l: '#bcbbb4' }
+          : { b: '#7a6f57', d: '#3a3226', l: '#b0a184' };
+    var lumps = 1 + (v & 1) + (v === 2 ? 1 : 0);
+    g.fillStyle = 'rgba(10,12,8,.34)';
+    g.beginPath(); g.ellipse(cx + 6, by - 2, 19 - v * 2, 7, 0, 0, 6.29); g.fill();
+    for (k = 0; k < lumps; k++) {
+      var ox = (k - (lumps - 1) / 2) * 15 + (brnd() - 0.5) * 4, oy = -brnd() * 4;
+      var rw = 13 - k * 2.5 - v, rh = (10 - k * 2 - v * 0.6);
+      var pts = [], sides = 7 + bint(3);
+      for (i = 0; i < sides; i++) {
+        var a = (i / sides) * 6.283 + brnd() * 0.34;
+        pts.push([cx + ox + Math.cos(a) * rw * (0.76 + brnd() * 0.4),
+                  by - 8 + oy + Math.sin(a) * rh * (0.7 + brnd() * 0.5)]);
+      }
+      g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+      for (i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+      g.closePath();
+      g.fillStyle = shade(C.b, 0.86 + brnd() * 0.3); g.fill();
+      g.strokeStyle = C.d; g.globalAlpha = 0.5; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1;
+      g.fillStyle = shade(C.l, 1); g.globalAlpha = 0.6;      // lit crown
+      g.beginPath(); g.ellipse(cx + ox - rw * 0.24, by - 12 + oy - rh * 0.3, rw * 0.48, rh * 0.3, 0, 0, 6.29); g.fill();
+      g.globalAlpha = 0.34; g.fillStyle = C.d;               // shaded underside
+      g.beginPath(); g.ellipse(cx + ox + rw * 0.2, by - 5 + oy + rh * 0.3, rw * 0.55, rh * 0.26, 0, 0, 6.29); g.fill();
+      g.globalAlpha = 1;
+      if (kind === 'snow') { g.fillStyle = 'rgba(244,252,253,.75)'; g.beginPath(); g.ellipse(cx + ox - rw * 0.2, by - 13 + oy - rh * 0.25, rw * 0.62, rh * 0.3, 0, 0, 6.29); g.fill(); }
+      else if (kind !== 'urban') { g.fillStyle = 'rgba(74,92,44,.34)'; g.beginPath(); g.ellipse(cx + ox - rw * 0.1, by - 4 + oy + rh * 0.4, rw * 0.7, rh * 0.24, 0, 0, 6.29); g.fill(); }
+    }
+    s.ax = cx; s.ay = by;
+    return s;
+  }
+  // urban.ini ships a Ruins set: a bombed-out shell of a building, kept to a
+  // single tile so it can stand in for a tree in the city.
+  function bakeRuin(v) {
+    var s = mkCanvas(64, 88), g = s.g, cx = 32, by = 78, i;
+    bsr(4500 + v * 197);
+    g.fillStyle = 'rgba(8,10,14,.34)';
+    g.beginPath(); g.ellipse(cx + 5, by - 2, 22, 8, 0, 0, 6.29); g.fill();
+    // rubble mound
+    for (i = 0; i < 16; i++) {
+      var rx = cx + (brnd() - 0.5) * 36, ry = by - 4 - brnd() * 7, rr = 1.6 + brnd() * 3.4;
+      g.fillStyle = 'rgba(24,24,26,.4)'; g.beginPath(); g.ellipse(rx + 0.8, ry + 0.8, rr * 1.2, rr * 0.5, 0, 0, 6.29); g.fill();
+      g.fillStyle = shade(brnd() < 0.5 ? '#8b8781' : '#6e6a63', 0.85 + brnd() * 0.4);
+      g.beginPath(); g.ellipse(rx, ry, rr, rr * 0.6, 0, 0, 6.29); g.fill();
+    }
+    // one or two standing wall stubs with a broken top and empty windows
+    var walls = v === 2 ? 1 : 2;
+    for (var w = 0; w < walls; w++) {
+      var sgn = w ? 1 : -1, wx = cx + sgn * 9, wh = 26 + brnd() * 12, ww = 15 + brnd() * 5;
+      g.fillStyle = w ? '#7e7a72' : '#5f5c56';
+      g.beginPath();
+      g.moveTo(wx, by - 6); g.lineTo(wx + sgn * ww, by - 6 - ww * 0.5);
+      g.lineTo(wx + sgn * ww, by - 6 - ww * 0.5 - wh * 0.72);
+      // broken crest
+      for (i = 3; i >= 0; i--) {
+        var t = i / 4;
+        g.lineTo(wx + sgn * ww * t, by - 6 - ww * 0.5 * t - wh * (0.6 + brnd() * 0.45));
+      }
+      g.closePath(); g.fill();
+      g.fillStyle = 'rgba(0,0,0,.28)';                 // window holes
+      for (i = 0; i < 2; i++) {
+        var u = 0.28 + i * 0.34, hx = wx + sgn * ww * u, hy = by - 12 - ww * 0.5 * u - wh * 0.42;
+        g.beginPath(); g.moveTo(hx, hy); g.lineTo(hx + sgn * 5, hy + 2.5); g.lineTo(hx + sgn * 5, hy + 9); g.lineTo(hx, hy + 6.5); g.closePath(); g.fill();
+      }
+      g.strokeStyle = 'rgba(70,66,60,.7)'; g.lineWidth = 1;  // exposed rebar
+      for (i = 0; i < 3; i++) {
+        var bx = wx + sgn * ww * (0.2 + brnd() * 0.7), byy = by - 6 - wh * (0.7 + brnd() * 0.3);
+        g.beginPath(); g.moveTo(bx, byy); g.lineTo(bx + (brnd() - 0.5) * 4, byy - 4 - brnd() * 4); g.stroke();
+      }
     }
     s.ax = cx; s.ay = by;
     return s;
@@ -14190,7 +14744,18 @@
   // N,E,S,W. Four bakes cover it: 0 downhill toward -y (screen up-right),
   // 1 +x (down-right), 2 +y (down-left), 3 -x (up-left).
   function hiT(t) { return t === T_CLIFF || t === T_RAMP; }
+  var RAMP_NB = [[0, -1], [1, 0], [0, 1], [-1, 0]];    // dir -> the neighbour it falls toward
   function rampDir(g, x, y) {
+    if (g.hiAny && g.hf[idx(x, y)] > 0) {
+      var best = -1, bh = 1e9;
+      for (var d = 0; d < 4; d++) {
+        var nx = x + RAMP_NB[d][0], ny = y + RAMP_NB[d][1];
+        if (!inMap(nx, ny)) continue;
+        var h = g.hf[idx(nx, ny)];
+        if (h < bh - 1e-6) { bh = h; best = d; }
+      }
+      if (best >= 0) return best;
+    }
     if (y > 0 && !hiT(g.terrain[idx(x, y - 1)])) return 0;
     if (x + 1 < MAP && !hiT(g.terrain[idx(x + 1, y)])) return 1;
     if (y + 1 < MAP && !hiT(g.terrain[idx(x, y + 1)])) return 2;
@@ -14199,47 +14764,113 @@
   // RA2 draws a ramp as the theatre's own surface tilted between two stone
   // retaining kerbs: dark at the top of the slope where it meets the cliff
   // face, bright at the foot where it rejoins the ground.
-  function bakeRamp(kind, dir) {
-    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i;
-    srand(2600 + dir * 331 + (kind === 'snow' ? 7 : kind === 'pave' ? 13 : 0));
-    var base = kind === 'snow' ? '#cfdadd' : kind === 'pave' ? '#7d7f81' : '#6c6a46';
-    var hi   = kind === 'snow' ? '#f4fafb' : kind === 'pave' ? '#9c9ea0' : '#8c8b5e';
-    var lo   = kind === 'snow' ? '#8e9aa1' : kind === 'pave' ? '#4b4d4f' : '#3a3927';
-    var kerb = kind === 'snow' ? '#aab4b8' : kind === 'pave' ? '#8b8c8e' : '#7a7360';
+  var RAMP_SKIRT = 14, RAMP_SKIRT_ON = 14;
+  function bakeRamp(kind, dir, flat, walls) {
+    // A step only has to be PAINTED where the projection exposes it. The
+    // drop shows toward the camera when the slope falls to +gx or +gy (dir 1
+    // or 2), and the same two cases are the ones where the cell behind is a
+    // level higher and would otherwise leave a band of bare canvas. Fall the
+    // other way and the neighbour, drawn later and higher, covers it all.
+    var steep = !flat && (dir === 1 || dir === 2);
+    var UP = steep ? RAMP_SKIRT : 0, SK = steep ? RAMP_SKIRT : 0;
+    var HH = TCH + UP + SK, s = mkCanvas(TCW, HH), g = s.g, cx = TCW / 2, cy = UP + TCH / 2, i, k;
+    bsr(2600 + dir * 331 + (kind === 'snow' ? 7 : kind === 'pave' ? 13 : 0));
+    // A "ramp" that climbs nothing -- Chokepoint Pass cuts its two passes
+    // straight THROUGH the ridge at field level -- is a rock cutting, not a
+    // slope, so it gets no skirt and no gradient.
+    RAMP_SKIRT_ON = SK;
+    var P = kind === 'snow'
+      ? { base: '#9fabb0', hi: '#e8f2f4', lo: '#5d686f', rock: '#6d777e', rockD: '#333b41', rockL: '#a8b4bc' }
+      : kind === 'pave'
+        ? { base: '#7d7f81', hi: '#a9abac', lo: '#494b4d', rock: '#8b8c88', rockD: '#43443f', rockL: '#c2c3bd' }
+        : { base: '#7b7159', hi: '#a89a76', lo: '#463f2e', rock: '#6b5f4a', rockD: '#2f2820', rockL: '#a39273' };
     var V = [[cx, cy - TCH / 2], [cx + TCW / 2, cy], [cx, cy + TCH / 2], [cx - TCW / 2, cy]];
     function mid(d) { var a = V[d & 3], b = V[(d + 1) & 3]; return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
-    var L = mid(dir), Hh = mid(dir + 2);
-    g.save(); diamondT(g, cx, cy); g.clip();
-    var grd = g.createLinearGradient(Hh[0], Hh[1], L[0], L[1]);
-    grd.addColorStop(0, lo); grd.addColorStop(0.45, base); grd.addColorStop(1, hi);
-    g.fillStyle = grd; g.fillRect(0, 0, TCW, TCH);
-    // treads across the slope, parallel to the downhill edge
-    var ea = V[dir & 3], eb = V[(dir + 1) & 3], ex = eb[0] - ea[0], ey = eb[1] - ea[1];
-    g.lineWidth = 1;
-    for (i = 1; i < 7; i++) {
-      var t = i / 7, mx = Hh[0] + (L[0] - Hh[0]) * t, my = Hh[1] + (L[1] - Hh[1]) * t;
-      g.strokeStyle = 'rgba(0,0,0,.20)';
-      g.beginPath(); g.moveTo(mx - ex, my - ey); g.lineTo(mx + ex, my + ey); g.stroke();
-      g.strokeStyle = 'rgba(255,255,255,.12)';
-      g.beginPath(); g.moveTo(mx - ex, my - ey + 1); g.lineTo(mx + ex, my + ey + 1); g.stroke();
+    var LO = mid(dir), HI = mid(dir + 2);      // downhill edge, uphill edge
+    // The slope surface, and the strip of it that runs UP past the uphill
+    // edge. A ramp cell sits at its own height, one notch below the level it
+    // climbs to, so without that strip the step between them is a hole --
+    // the whole reason the plateau approach used to show a black band.
+    function slopeClip() {
+      g.beginPath();
+      g.moveTo(V[0][0], V[0][1]); g.lineTo(V[1][0], V[1][1]);
+      g.lineTo(V[2][0], V[2][1]); g.lineTo(V[3][0], V[3][1]); g.closePath();
+      if (UP) {
+        var ue = (dir + 2) & 3, a = V[ue], b = V[(ue + 1) & 3];
+        g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+        g.lineTo(b[0], b[1] - UP); g.lineTo(a[0], a[1] - UP); g.closePath();
+      }
+      g.clip();
     }
-    for (i = 0; i < 26; i++) {                                   // grit
-      var gr = 0.7 + rnd() * 1.2, gx5 = cx + (rnd() - 0.5) * (TW - 8), gy5 = cy + (rnd() - 0.5) * (TH - 5);
+
+    // 1. the rock skirt under the two DOWNHILL edges. sy() has already put the
+    //    cell at its own height; the skirt is what fills the step down to the
+    //    lower neighbour so the slope does not float.
+    for (k = 0; RAMP_SKIRT_ON && k < 1; k++) {
+      var de = dir, a0 = V[de], a1 = V[(de + 1) & 3];
+      g.fillStyle = shade(P.rock, k ? 1.05 : 0.66);
+      g.beginPath(); g.moveTo(a0[0], a0[1]); g.lineTo(a1[0], a1[1]);
+      g.lineTo(a1[0], a1[1] + RAMP_SKIRT_ON); g.lineTo(a0[0], a0[1] + RAMP_SKIRT_ON); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(0,0,0,.24)';
+      g.beginPath(); g.moveTo(a0[0], a0[1] + RAMP_SKIRT_ON - 5); g.lineTo(a1[0], a1[1] + RAMP_SKIRT_ON - 5);
+      g.lineTo(a1[0], a1[1] + RAMP_SKIRT_ON); g.lineTo(a0[0], a0[1] + RAMP_SKIRT_ON); g.closePath(); g.fill();
+      for (i = 0; i < 5; i++) {                 // broken rock in the skirt
+        var t = brnd(), sx0 = a0[0] + (a1[0] - a0[0]) * t, sy0 = a0[1] + (a1[1] - a0[1]) * t + brnd() * RAMP_SKIRT_ON;
+        g.fillStyle = shade(P.rock, (k ? 1.05 : 0.66) * (0.72 + brnd() * 0.6));
+        g.beginPath(); g.ellipse(sx0, sy0, 2 + brnd() * 4, 1.4 + brnd() * 2.6, 0, 0, 6.29); g.fill();
+      }
+    }
+
+    // 2. the slope surface itself: dark where it meets the cliff top, bright
+    //    where it rejoins the field, which is how a lit slope reads.
+    g.save(); slopeClip();
+    var grd = g.createLinearGradient(HI[0], HI[1] - UP, LO[0], LO[1]);
+    grd.addColorStop(0, shade(P.base, 0.9)); grd.addColorStop(0.5, P.base); grd.addColorStop(1, shade(P.base, 1.1));
+    g.fillStyle = grd; g.fillRect(0, 0, TCW, HH);
+    // rock ledges stepping down the slope -- a rock ramp, not a boardwalk
+    var ea = V[dir & 3], eb = V[(dir + 1) & 3], ex = (eb[0] - ea[0]) / 2, ey = (eb[1] - ea[1]) / 2;
+    for (i = 1; i < 6; i++) {
+      var t2 = i / 6 + (brnd() - 0.5) * 0.05;
+      var mx = HI[0] + (LO[0] - HI[0]) * t2, my = HI[1] + (LO[1] - HI[1]) * t2;
+      g.fillStyle = shade(P.rock, 0.8 + t2 * 0.7); g.globalAlpha = 0.5;
+      g.beginPath(); g.moveTo(mx - ex, my - ey); g.lineTo(mx + ex, my + ey);
+      g.lineTo(mx + ex, my + ey + 2.4); g.lineTo(mx - ex, my - ey + 2.4); g.closePath(); g.fill();
+      g.globalAlpha = 0.34; g.fillStyle = P.rockL;
+      g.beginPath(); g.moveTo(mx - ex, my - ey - 1); g.lineTo(mx + ex, my + ey - 1);
+      g.lineTo(mx + ex, my + ey); g.lineTo(mx - ex, my - ey); g.closePath(); g.fill();
+      g.globalAlpha = 1;
+    }
+    for (i = 0; i < 30; i++) {                                   // gravel
+      var gr = 0.7 + brnd() * 1.4, gx5 = cx + (brnd() - 0.5) * (TW - 8), gy5 = cy + (brnd() - 0.5) * (TH - 5);
       g.fillStyle = 'rgba(20,18,14,.30)'; g.beginPath(); g.ellipse(gx5 + 0.6, gy5 + 0.4, gr * 1.1, gr * 0.55, 0, 0, 6.29); g.fill();
-      g.fillStyle = kerb; g.beginPath(); g.ellipse(gx5, gy5 - 0.2, gr * 0.9, gr * 0.45, 0, 0, 6.29); g.fill();
+      g.fillStyle = shade(P.rockL, 0.8 + brnd() * 0.5); g.beginPath(); g.ellipse(gx5, gy5 - 0.2, gr * 0.9, gr * 0.45, 0, 0, 6.29); g.fill();
     }
-    // the two retaining kerbs, on the edges that meet the cliff
-    g.lineCap = 'round';
-    for (var k = 0; k < 2; k++) {
-      var d2 = (dir + 1 + k * 2) & 3, a2 = V[d2], b2 = V[(d2 + 1) & 3];
-      g.strokeStyle = 'rgba(18,16,12,.45)'; g.lineWidth = 4.6;
-      g.beginPath(); g.moveTo(a2[0], a2[1] + 1.4); g.lineTo(b2[0], b2[1] + 1.4); g.stroke();
-      g.strokeStyle = kerb; g.lineWidth = 3.0;
-      g.beginPath(); g.moveTo(a2[0], a2[1]); g.lineTo(b2[0], b2[1]); g.stroke();
-      g.strokeStyle = 'rgba(255,255,255,.20)'; g.lineWidth = 1.0;
-      g.beginPath(); g.moveTo(a2[0], a2[1] - 1); g.lineTo(b2[0], b2[1] - 1); g.stroke();
+    if (kind === 'snow') {
+      g.fillStyle = 'rgba(246,252,252,.5)';
+      for (i = 0; i < 9; i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 44, cy + (brnd() - 0.5) * 20, 3 + brnd() * 6, 1.4 + brnd() * 2.4, 0, 0, 6.29); g.fill(); }
     }
     g.restore();
+
+    // 3. the retaining walls -- ONLY on a side that meets the cliff. Drawn on
+    //    every cell they cut a wide ramp into a row of separate slabs.
+    for (k = 0; k < 2; k++) {
+      if (!((walls === undefined ? 3 : walls) & (1 << k))) continue;
+      var d2 = (dir + 1 + k * 2) & 3, b0 = V[d2], b1 = V[(d2 + 1) & 3];
+      g.strokeStyle = 'rgba(18,16,12,.45)'; g.lineWidth = 5.2; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(b0[0], b0[1] + 1.6); g.lineTo(b1[0], b1[1] + 1.6); g.stroke();
+      for (i = 0; i < 7; i++) {
+        var t3 = (i + 0.5) / 7, bx = b0[0] + (b1[0] - b0[0]) * t3, byy = b0[1] + (b1[1] - b0[1]) * t3;
+        var br = 2.4 + brnd() * 2.2;
+        g.fillStyle = shade(P.rock, 0.85 + brnd() * 0.55);
+        g.beginPath(); g.ellipse(bx, byy, br, br * 0.62, 0, 0, 6.29); g.fill();
+        g.fillStyle = shade(P.rockL, 1.1); g.globalAlpha = 0.5;
+        g.beginPath(); g.ellipse(bx - br * 0.2, byy - br * 0.3, br * 0.5, br * 0.22, 0, 0, 6.29); g.fill();
+        g.globalAlpha = 1;
+      }
+    }
+    // Uphill strip and downhill skirt are the same depth, so the diamond's
+    // centre already sits at the canvas centre and no lift is needed.
+    s.lift = cy - HH / 2;
     return s;
   }
 
@@ -14383,7 +15014,7 @@
     // vanishes into the pavement.
     var K = 1.45, s = mkCanvas(78 * K, 100 * K), g = s.g, cx = 39, by = 88, i, j;
     g.scale(K, K);
-    srand(5200 + v * 617);
+    bsr(5200 + v * 617);
     function block(bx, byy, hw, hh, ht, top, left, right) {
       g.fillStyle = left;
       g.beginPath(); g.moveTo(bx - hw, byy - hh); g.lineTo(bx, byy); g.lineTo(bx, byy - ht); g.lineTo(bx - hw, byy - hh - ht); g.closePath(); g.fill();
@@ -14400,7 +15031,7 @@
         // so the window slides down as it goes out from the near corner.
         var u = (i + 0.5) / cols, wy = byy - ht + 6 + j * ((ht - 9) / rows);
         var wx = bx + sgn * hw * u, wyy = wy + hh * u;
-        g.fillStyle = rnd() < 0.34 ? lit : dark;
+        g.fillStyle = brnd() < 0.34 ? lit : dark;
         g.beginPath();
         g.moveTo(wx, wyy); g.lineTo(wx + sgn * 4, wyy + 2); g.lineTo(wx + sgn * 4, wyy + 7); g.lineTo(wx, wyy + 5);
         g.closePath(); g.fill();
@@ -14435,6 +15066,100 @@
       for (i = 0; i < 3; i++) {
         var rx3 = cx - 14 + i * 13;
         g.beginPath(); g.moveTo(rx3, by - 13 - 20 - i * 0.4); g.lineTo(rx3 + 9, by - 18 - 20); g.lineTo(rx3 + 9, by - 23 - 20); g.lineTo(rx3, by - 18 - 20); g.closePath(); g.fill();
+      }
+    } else if (v === 4) {                                               // office tower, glass curtain wall
+      block(cx, by, 21, 10, 58, '#8a8d90', '#5b6166', '#474c50');
+      g.fillStyle = '#2f3a44';                                          // the glazed faces
+      for (var oq = 0; oq < 2; oq++) {
+        var sg = oq ? 1 : -1;
+        g.beginPath();
+        g.moveTo(cx + sg * 18, by - 10 - 4); g.lineTo(cx, by - 4);
+        g.lineTo(cx, by - 54); g.lineTo(cx + sg * 18, by - 10 - 54); g.closePath(); g.fill();
+      }
+      windows(cx, by, 21, 10, 58, 6, 4, 0, '#e8dfa8', '#3d4a56');
+      windows(cx, by, 21, 10, 58, 6, 4, 1, '#cfc48d', '#333e48');
+      g.fillStyle = '#9ba0a3';                                          // capping band + roof plant
+      g.beginPath(); g.moveTo(cx, by - 20 - 58); g.lineTo(cx + 21, by - 10 - 58); g.lineTo(cx, by - 58); g.lineTo(cx - 21, by - 10 - 58); g.closePath(); g.fill();
+      g.fillStyle = '#767b7e'; g.fillRect(cx - 7, by - 10 - 58 - 8, 14, 8);
+      g.fillStyle = '#c0392b'; g.fillRect(cx - 1, by - 10 - 58 - 15, 2, 8);
+    } else if (v === 5) {                                               // a terrace of three shops
+      var roofs = ['#8e7f6e', '#7c8a7a', '#8a7570'];
+      for (i = 0; i < 3; i++) {
+        var tx = cx - 15 + i * 15, tyy = by - 3 + i * 4;
+        block(tx, tyy, 9, 5, 20 + (i & 1) * 5, roofs[i], shade(roofs[i], 0.74), shade(roofs[i], 0.6));
+        g.fillStyle = i === 1 ? '#c8564b' : '#4f7f8c';                   // shop awning
+        g.beginPath(); g.moveTo(tx - 8, tyy - 8); g.lineTo(tx, tyy - 4); g.lineTo(tx, tyy - 8); g.lineTo(tx - 8, tyy - 12); g.closePath(); g.fill();
+        g.fillStyle = (i & 1) ? '#d8c890' : '#39404a';                   // shopfront glass
+        g.beginPath(); g.moveTo(tx + 1, tyy - 5); g.lineTo(tx + 8, tyy - 9); g.lineTo(tx + 8, tyy - 15); g.lineTo(tx + 1, tyy - 11); g.closePath(); g.fill();
+      }
+    } else if (v === 6) {                                               // a bombed-out shell
+      g.fillStyle = '#4a453e';                                          // the exposed floor slab
+      g.beginPath(); g.moveTo(cx, by); g.lineTo(cx + 24, by - 12); g.lineTo(cx, by - 24); g.lineTo(cx - 24, by - 12); g.closePath(); g.fill();
+      for (i = 0; i < 2; i++) {
+        var sg2 = i ? 1 : -1, wh2 = 30 + brnd() * 10;
+        g.fillStyle = i ? '#7e7a72' : '#5f5c56';
+        g.beginPath();
+        g.moveTo(cx, by - (i ? 0 : 0)); g.lineTo(cx + sg2 * 24, by - 12);
+        g.lineTo(cx + sg2 * 24, by - 12 - wh2 * 0.7);
+        for (j = 3; j >= 0; j--) { var tt = j / 4; g.lineTo(cx + sg2 * 24 * tt, by - 12 * tt - wh2 * (0.58 + brnd() * 0.42)); }
+        g.closePath(); g.fill();
+        g.fillStyle = 'rgba(0,0,0,.34)';
+        for (j = 0; j < 2; j++) {
+          var uu = 0.3 + j * 0.32, hx = cx + sg2 * 24 * uu, hy = by - 12 * uu - 12 - wh2 * 0.36;
+          g.beginPath(); g.moveTo(hx, hy); g.lineTo(hx + sg2 * 6, hy + 3); g.lineTo(hx + sg2 * 6, hy + 11); g.lineTo(hx, hy + 8); g.closePath(); g.fill();
+        }
+      }
+      for (i = 0; i < 14; i++) {                                        // rubble spill
+        var rx4 = cx + (brnd() - 0.5) * 46, ry4 = by - 3 - brnd() * 9, rr4 = 1.4 + brnd() * 3;
+        g.fillStyle = 'rgba(22,22,24,.4)'; g.beginPath(); g.ellipse(rx4 + 0.8, ry4 + 0.7, rr4 * 1.2, rr4 * 0.5, 0, 0, 6.29); g.fill();
+        g.fillStyle = shade(brnd() < 0.5 ? '#8b8781' : '#6e6a63', 0.85 + brnd() * 0.4);
+        g.beginPath(); g.ellipse(rx4, ry4, rr4, rr4 * 0.6, 0, 0, 6.29); g.fill();
+      }
+    } else if (v === 7) {                                               // grain depot: shed plus two silos
+      block(cx - 4, by, 20, 10, 18, '#8a8478', '#6b655a', '#57524a');
+      for (i = 0; i < 2; i++) {
+        var sx7 = cx + 12 + i * 11, sy7 = by - 8 - i * 5;
+        g.fillStyle = '#9aa0a2'; g.fillRect(sx7 - 6, sy7 - 34, 12, 34);
+        g.fillStyle = '#7c8285'; g.fillRect(sx7 + 1, sy7 - 34, 5, 34);
+        g.fillStyle = '#b6bbbd'; g.beginPath(); g.ellipse(sx7, sy7 - 34, 6, 2.6, 0, 0, 6.29); g.fill();
+        g.fillStyle = '#5d6265'; g.beginPath(); g.ellipse(sx7, sy7 - 38, 6, 2.6, 0, 0, 6.29); g.fill();
+        g.strokeStyle = 'rgba(60,64,66,.5)'; g.lineWidth = 0.8;
+        for (j = 1; j < 5; j++) { g.beginPath(); g.moveTo(sx7 - 6, sy7 - j * 7); g.lineTo(sx7 + 6, sy7 - j * 7); g.stroke(); }
+      }
+      g.fillStyle = '#4a4d52';                                          // shed door
+      g.beginPath(); g.moveTo(cx - 14, by - 9); g.lineTo(cx - 4, by - 4); g.lineTo(cx - 4, by - 15); g.lineTo(cx - 14, by - 20); g.closePath(); g.fill();
+    } else if (v === 8 || v === 9) {                                    // farmhouse / barn
+      var barn = v === 9;
+      var hw = barn ? 24 : 19, hh = barn ? 12 : 9, ht = barn ? 20 : 17, rise = barn ? 20 : 16;
+      var wall = barn ? '#9c4136' : '#ddd4bd', wl = barn ? '#7a3128' : '#b3aa93', wr = barn ? '#652820' : '#968d78';
+      block(cx, by, hw, hh, ht, wall, wl, wr);
+      // gable roof: a ridge along the tile's other diagonal, two slopes and
+      // two triangular ends -- the shape that says "farm" at a glance
+      var Wv = [cx - hw, by - hh - ht], Nv = [cx, by - 2 * hh - ht], Ev = [cx + hw, by - hh - ht], Sv = [cx, by - ht];
+      var P1 = [(Wv[0] + Nv[0]) / 2, (Wv[1] + Nv[1]) / 2 - rise], P2 = [(Sv[0] + Ev[0]) / 2, (Sv[1] + Ev[1]) / 2 - rise];
+      function quad4(a, b2, c2, d2, col) {
+        g.fillStyle = col; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b2[0], b2[1]); g.lineTo(c2[0], c2[1]); g.lineTo(d2[0], d2[1]); g.closePath(); g.fill();
+      }
+      quad4(Wv, Sv, P2, P1, barn ? '#7d3128' : '#6b4034');              // near slope (clay tile)
+      quad4(Nv, Ev, P2, P1, barn ? '#a4483a' : '#8d5643');              // far slope
+      quad4(Wv, P1, Nv, Nv, barn ? '#8b3a2f' : '#cbc2ab');              // gable ends
+      quad4(Sv, P2, Ev, Ev, barn ? '#5f2620' : '#a89f8a');
+      g.strokeStyle = 'rgba(30,26,22,.45)'; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(P1[0], P1[1]); g.lineTo(P2[0], P2[1]); g.stroke();
+      if (barn) {
+        g.fillStyle = '#e6e0d2';                                        // white trim + big doors
+        g.beginPath(); g.moveTo(cx - 11, by - 6); g.lineTo(cx, by - 1); g.lineTo(cx, by - 16); g.lineTo(cx - 11, by - 21); g.closePath(); g.fill();
+        g.fillStyle = '#4a4038';
+        g.beginPath(); g.moveTo(cx - 9.5, by - 7); g.lineTo(cx - 0.6, by - 2.6); g.lineTo(cx - 0.6, by - 15.4); g.lineTo(cx - 9.5, by - 19.6); g.closePath(); g.fill();
+        g.strokeStyle = '#e6e0d2'; g.lineWidth = 1.2;
+        g.beginPath(); g.moveTo(cx - 9.5, by - 19.6); g.lineTo(cx - 0.6, by - 2.6); g.stroke();
+      } else {
+        g.fillStyle = '#8d8578'; g.fillRect(cx + 6, by - hh - ht - rise - 6, 5, 12);   // chimney
+        g.fillStyle = '#6a6259'; g.fillRect(cx + 6, by - hh - ht - rise - 6, 5, 2.4);
+        windows(cx, by, hw, hh, ht, 1, 2, 0, '#e2cf93', '#3a4048');
+        windows(cx, by, hw, hh, ht, 1, 2, 1, '#cfbc85', '#2f343b');
+        g.fillStyle = '#5a4a38';                                        // door
+        g.beginPath(); g.moveTo(cx - 5, by - 5); g.lineTo(cx - 0.6, by - 2.8); g.lineTo(cx - 0.6, by - 13); g.lineTo(cx - 5, by - 15.2); g.closePath(); g.fill();
       }
     } else {                                                            // filling station
       block(cx + 6, by, 15, 8, 15, '#8f8b80', '#6d6a60', '#585449');
@@ -14694,28 +15419,52 @@
   }
 
   // Urban road: asphalt with a kerb-and-sidewalk rim and a broken centre line.
-  function bakeUrbanRoad(v) {
-    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i;
-    srand(6100 + v * 179);
+  // Paved Roads, the urban connector set: an asphalt carriageway inside a
+  // raised concrete kerb, both built from the same neighbour-mask union, so a
+  // crossroads has proper radiused corners and a dead end has a kerb across it.
+  function bakeUrbanRoad(mask, vv) {
+    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2, i, e;
+    bsr(6100 + mask * 179 + (vv || 0) * 3571);
+    var W = 0.37;
     g.save(); diamondT(g, cx, cy); g.clip();
-    g.fillStyle = '#b8bab8'; g.fillRect(0, 0, TCW, TCH);                // sidewalk slab
-    g.strokeStyle = 'rgba(70,72,74,.4)'; g.lineWidth = 1;               // kerb shadow line
-    diamond(g, cx, cy, TCW - 8, TCH - 4); g.stroke();
-    g.fillStyle = '#43464a';                                            // carriageway
-    diamond(g, cx, cy, TCW - 13, TCH - 6.5); g.fill();
+    // kerb + sidewalk lip around the whole junction
+    g.fillStyle = '#b8bab8'; roadPath(g, mask, W + 0.085, 0, 0); g.fill();
+    g.strokeStyle = 'rgba(70,72,74,.45)'; g.lineWidth = 1.1;
+    roadPath(g, mask, W + 0.085, 0, 0); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.12)'; roadPath(g, mask, W + 0.055, 0, 0); g.fill();
+    // carriageway
+    g.fillStyle = '#43464a'; roadPath(g, mask, W, 0, 0); g.fill();
+    g.save(); roadPath(g, mask, W, 0, 0); g.clip();
     g.globalAlpha = 0.4; g.fillStyle = '#565a5e';                       // patched asphalt
-    for (i = 0; i < 5; i++) { g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 24, cy + (rnd() - 0.5) * 11, 5 + rnd() * 8, 2.5 + rnd() * 3.5, 0, 0, 6.29); g.fill(); }
-    g.globalAlpha = 0.28; g.fillStyle = '#1d1f21';                      // oil down the middle
-    g.beginPath(); g.ellipse(cx, cy, 15, 6, 0, 0, 6.29); g.fill();
+    for (i = 0; i < 6; i++) { g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 24, cy + (brnd() - 0.5) * 11, 5 + brnd() * 8, 2.5 + brnd() * 3.5, 0, 0, 6.29); g.fill(); }
+    g.globalAlpha = 0.16; g.fillStyle = '#1d1f21';                      // oil down the middle
+    g.beginPath(); g.ellipse(cx + (brnd() - 0.5) * 10, cy + (brnd() - 0.5) * 5, 8 + brnd() * 7, 3 + brnd() * 3, 0, 0, 6.29); g.fill();
     g.globalAlpha = 1;
-    g.strokeStyle = 'rgba(228,214,140,.75)'; g.lineWidth = 1.5;         // centre dashes, on the tile axis
-    if (v & 1) { g.beginPath(); g.moveTo(cx - 13, cy - 6.5); g.lineTo(cx + 13, cy + 6.5); g.stroke(); }
-    else       { g.beginPath(); g.moveTo(cx - 13, cy + 6.5); g.lineTo(cx + 13, cy - 6.5); g.stroke(); }
-    g.globalAlpha = 0.75;                                               // grit on the sidewalk
-    for (i = 0; i < 7; i++) {
-      var gx6 = cx + (rnd() - 0.5) * (TW - 6), gy6 = cy + (rnd() - 0.5) * (TH - 3);
-      g.fillStyle = rnd() < 0.5 ? '#9ea1a0' : '#6e7170';
-      g.beginPath(); g.ellipse(gx6, gy6, 0.9 + rnd(), 0.5 + rnd() * 0.5, 0, 0, 6.29); g.fill();
+    // Centre line: RA2 paints it down a straight and stops it at a junction,
+    // which is exactly the rule a driver would expect.
+    var n = 0; for (e = 0; e < 4; e++) if (mask & (1 << e)) n++;
+    if (mask === 5 || mask === 10 || n === 1) {
+      g.strokeStyle = 'rgba(228,214,140,.75)'; g.lineWidth = 1.5;
+      for (e = 0; e < 4; e++) {
+        if (!(mask & (1 << e))) continue;
+        var A = armPt(e, 0.18), B = armPt(e, 0.86);
+        g.beginPath(); g.moveTo(A[0], A[1]); g.lineTo(B[0], B[1]); g.stroke();
+      }
+    } else if (n === 3) {                                                // one stop bar, on the stem
+      g.strokeStyle = 'rgba(226,226,220,.42)'; g.lineWidth = 2.2;
+      for (e = 0; e < 4; e++) {
+        if (mask & (1 << e)) continue;                                   // the side with no road
+        var st = (e + 2) & 3, M = armPt(st, 0.74), V = roadV();
+        var ex = V[(st + 1) & 3][0] - V[st][0], ey = V[(st + 1) & 3][1] - V[st][1], el = Math.hypot(ex, ey);
+        g.beginPath(); g.moveTo(M[0] - ex / el * 7, M[1] - ey / el * 7); g.lineTo(M[0] + ex / el * 7, M[1] + ey / el * 7); g.stroke();
+      }
+    }
+    g.restore();
+    g.globalAlpha = 0.7;                                                // grit on the sidewalk
+    for (i = 0; i < 8; i++) {
+      var gx6 = cx + (brnd() - 0.5) * (TW - 6), gy6 = cy + (brnd() - 0.5) * (TH - 3);
+      g.fillStyle = brnd() < 0.5 ? '#9ea1a0' : '#6e7170';
+      g.beginPath(); g.ellipse(gx6, gy6, 0.9 + brnd(), 0.5 + brnd() * 0.5, 0, 0, 6.29); g.fill();
     }
     g.globalAlpha = 1; g.restore();
     return s;
@@ -15081,6 +15830,18 @@
     SPR.groundT = { temperate: sheetTiles(bakeGroundSheet('grass', 41)), snow: sheetTiles(bakeGroundSheet('snow', 51)),
                     urban: sheetTiles(bakeGroundSheet('pave', 61)) };
     SPR.ground = SPR.groundT.temperate;
+    // The theatre's SECOND ground, and the 16 LAT masks that blend the two.
+    var altS = { temperate: bakeGroundSheet('sand', 43), snow: bakeGroundSheet('scour', 53), urban: bakeGroundSheet('grit', 63) };
+    SPR.groundAltT = { temperate: sheetTiles(altS.temperate), snow: sheetTiles(altS.snow), urban: sheetTiles(altS.urban) };
+    SPR.lat = { temperate: [], snow: [], urban: [] };
+    for (var lm = 1; lm < 16; lm++) {
+      SPR.lat.temperate[lm] = bakeLat(altS.temperate, lm, 1);
+      SPR.lat.snow[lm] = bakeLat(altS.snow, lm, 2);
+      SPR.lat.urban[lm] = bakeLat(altS.urban, lm, 3);
+    }
+    // The apron: the theatre continuing past the playable diamond, darkened.
+    SPR.apron = { temperate: sheetTiles(bakeApronSheet('grass', 41)), snow: sheetTiles(bakeApronSheet('snow', 51)),
+                  urban: sheetTiles(bakeApronSheet('pave', 61)) };
     SPR.rockT = { temperate: sheetTiles(bakeRockSheet('grass', 88)), snow: sheetTiles(bakeRockSheet('snow', 89)),
                   urban: sheetTiles(bakeRockSheet('urban', 90)) };
     SPR.rock = SPR.rockT.temperate;
@@ -15098,33 +15859,60 @@
       }
     }
     SPR.water.urban = SPR.water.temperate;                       // a river is a river in any theatre
-    SPR.cliff = { temperate: [], snow: [] };
-    for (var cm = 0; cm < 16; cm++) { SPR.cliff.temperate[cm] = bakeCliff(cm, 'grass'); SPR.cliff.snow[cm] = bakeCliff(cm, 'snow'); }
-    SPR.cliff.urban = tintSet(SPR.cliff.temperate, '#6e7176', 0.34);
+    SPR.cliff = { temperate: [], snow: [], urban: [] };
+    for (var cm = 0; cm < 16; cm++) {
+      SPR.cliff.temperate[cm] = bakeCliff(cm, 'grass'); SPR.cliff.snow[cm] = bakeCliff(cm, 'snow');
+      SPR.cliff.urban[cm] = bakeCliff(cm, 'urban');
+    }
+    // Roads are keyed by the neighbour mask, not by a decorative variant.
     SPR.road = { temperate: [], snow: [], urban: [] };
-    for (var rv = 0; rv < 8; rv++) { SPR.road.temperate[rv] = bakeRoad('grass', rv); SPR.road.snow[rv] = bakeRoad('snow', rv); SPR.road.urban[rv] = bakeUrbanRoad(rv); }
+    for (var rv = 0; rv < 32; rv++) {
+      var rmk = rv >> 1, rvv = rv & 1;
+      SPR.road.temperate[rv] = bakeRoad('grass', rmk, rvv);
+      SPR.road.snow[rv] = bakeRoad('snow', rmk, rvv);
+      SPR.road.urban[rv] = bakeUrbanRoad(rmk, rvv);
+    }
+    SPR.floe = [bakeFloe(0), bakeFloe(1), bakeFloe(2)];
     SPR.shore = { temperate: [], snow: [] };
     SPR.shallow = { temperate: [], snow: [] };
-    SPR.scree = { temperate: [], snow: [] };
+    SPR.scree = { temperate: [], snow: [], urban: [] };
+    var rkF = { temperate: bakeRockSheet('grass', 88, 1), snow: bakeRockSheet('snow', 89, 1), urban: bakeRockSheet('urban', 90, 1) };
     for (var sm = 1; sm < 16; sm++) {
       SPR.shore.temperate[sm] = bakeShore('grass', sm); SPR.shore.snow[sm] = bakeShore('snow', sm);
       SPR.shallow.temperate[sm] = bakeShallow('grass', sm); SPR.shallow.snow[sm] = bakeShallow('snow', sm);
-      SPR.scree.temperate[sm] = bakeScree('grass', sm); SPR.scree.snow[sm] = bakeScree('snow', sm);
+      SPR.scree.temperate[sm] = bakeScree('grass', sm, rkF.temperate);
+      SPR.scree.snow[sm] = bakeScree('snow', sm, rkF.snow);
+      SPR.scree.urban[sm] = bakeScree('urban', sm, rkF.urban);
     }
     SPR.shore.urban = tintSet(SPR.shore.temperate, '#767a7e', 0.36);
     SPR.shallow.urban = tintSet(SPR.shallow.temperate, '#767a7e', 0.28);
-    SPR.scree.urban = tintSet(SPR.scree.temperate, '#6e7176', 0.40);
-    SPR.tree = { temperate: [bakeTree(0, false), bakeTree(1, false), bakeTree(2, false), bakeTree(3, false)],
-                 snow: [bakeTree(0, true), bakeTree(1, true), bakeTree(2, true), bakeTree(3, true)] };
-    SPR.tree.urban = [bakeStreetTree(SPR.tree.temperate[0]), bakeStreetTree(SPR.tree.temperate[1]),
-                      bakeStreetTree(SPR.tree.temperate[2]), bakeStreetTree(SPR.tree.temperate[3])];
+    // Eight terrain objects per theatre, not four: RA2 temperate alone ships
+    // dozens, and a field of one repeated conifer is the tell. Five trees,
+    // a dead trunk and two rock outcrops on the wild theatres; five street
+    // trees and three bombed shells in the city.
+    SPR.tree = { temperate: [], snow: [], urban: [] };
+    for (var tv = 0; tv < 5; tv++) {
+      SPR.tree.temperate[tv] = bakeTree(tv, false);
+      SPR.tree.snow[tv] = bakeTree(tv, true);
+    }
+    SPR.tree.temperate[5] = bakeDeadTree(0, false);
+    SPR.tree.temperate[6] = bakeBoulder('grass', 0);
+    SPR.tree.temperate[7] = bakeBoulder('grass', 1);
+    SPR.tree.snow[5] = bakeDeadTree(1, true);
+    SPR.tree.snow[6] = bakeBoulder('snow', 0);
+    SPR.tree.snow[7] = bakeBoulder('snow', 2);
+    for (tv = 0; tv < 5; tv++) SPR.tree.urban[tv] = bakeStreetTree(SPR.tree.temperate[tv]);
+    SPR.tree.urban[5] = bakeRuin(0); SPR.tree.urban[6] = bakeRuin(1); SPR.tree.urban[7] = bakeRuin(2);
     SPR.ramp = { temperate: [], snow: [], urban: [] };
-    for (var rd = 0; rd < 4; rd++) {
-      SPR.ramp.temperate[rd] = bakeRamp('grass', rd); SPR.ramp.snow[rd] = bakeRamp('snow', rd); SPR.ramp.urban[rd] = bakeRamp('pave', rd);
+    SPR.rampF = { temperate: [], snow: [], urban: [] };
+    for (var rd = 0; rd < 16; rd++) {
+      var rdd = rd >> 2, rdw = rd & 3;
+      SPR.ramp.temperate[rd] = bakeRamp('grass', rdd, 0, rdw); SPR.ramp.snow[rd] = bakeRamp('snow', rdd, 0, rdw); SPR.ramp.urban[rd] = bakeRamp('pave', rdd, 0, rdw);
+      SPR.rampF.temperate[rd] = bakeRamp('grass', rdd, 1, rdw); SPR.rampF.snow[rd] = bakeRamp('snow', rdd, 1, rdw); SPR.rampF.urban[rd] = bakeRamp('pave', rdd, 1, rdw);
     }
     SPR.bridge = [bakeBridge(0), bakeBridge(1)];
     SPR.bwreck = bakeBridgeWreck();
-    SPR.civ = [bakeCiv(0), bakeCiv(1), bakeCiv(2), bakeCiv(3)];
+    SPR.civ = []; for (var cv = 0; cv < 10; cv++) SPR.civ[cv] = bakeCiv(cv);
     SPR.crate = bakeCrate();
     // Neutral structures, keyed by BLDS key exactly like SPR.bld, but with
     // ONE set: house -1 has no colour and no faction, so there is nothing to
@@ -19341,11 +20129,42 @@
     cam.x = Math.max(-(MAP * TW / 2) - margin, Math.min((MAP * TW / 2) + margin, cam.x));
     cam.y = Math.max(-margin, Math.min(MAP * TH + margin, cam.y));
   }
+  var APRON = 16;                                 // how far the terrain runs past the border
   function sx(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
-  function sy(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2; }
+  function sxF(gx, gy) { return worldX(gx, gy) - cam.x + cvW / 2; }
+  // Which of the four neighbours carry a road, for the connector set. A road
+  // that runs off the board keeps going into the apron rather than stopping
+  // dead in a kerb.
+  function roadAt(xx, yy) {
+    if (xx < 0 || yy < 0 || xx >= MAP || yy >= MAP) return 1;
+    var t = G.terrain[yy * MAP + xx];
+    return (t === T_ROAD || t === T_BRIDGE) ? 1 : 0;
+  }
+  function roadMask(x, y) {
+    return roadAt(x, y - 1) | (roadAt(x + 1, y) << 1) | (roadAt(x, y + 1) << 2) | (roadAt(x - 1, y) << 3);
+  }
+  // Screen height of the ground under a point, in pixels. Flat everywhere on
+  // a map with no plateau, so the common case costs one array read.
+  function hPx(gx, gy) {
+    if (!G || !G.hiAny) return 0;
+    var x = Math.round(gx), y = Math.round(gy);
+    if (x < 0 || y < 0 || x >= MAP || y >= MAP) return 0;
+    var i = y * MAP + x, h = G.hf[i];
+    if (!h && !G.hgx[i] && !G.hgy[i]) return 0;
+    return HSTEP * (h + G.hgx[i] * (gx - x) + G.hgy[i] * (gy - y));
+  }
+  // EVERYTHING on a tile rides its height: units, structures, trees, decals,
+  // shots, explosions. That is the whole point of folding it into sy().
+  function sy(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2 - hPx(gx, gy); }
+  function syFlat(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2; }
   function screenToGrid(px, py) {
     var u = unzoom(px, py);
-    return gridAt(u.x - cvW / 2 + cam.x, u.y - cvH / 2 + cam.y);
+    var wx = u.x - cvW / 2 + cam.x, wy = u.y - cvH / 2 + cam.y;
+    var p = gridAt(wx, wy);
+    // Inverting a raised tile: add the height back and re-project. Two passes
+    // settle it because height is constant over a plateau's interior.
+    if (G && G.hiAny) { p = gridAt(wx, wy + hPx(p.x, p.y)); p = gridAt(wx, wy + hPx(p.x, p.y)); }
+    return p;
   }
 
   // --------------------------------------------------------------------- //
@@ -21628,7 +22447,7 @@
   var VX0 = 0, VY0 = 0, VX1 = 800, VY1 = 600;   // visible window in unzoomed screen space
   function render() {
     updatePsi();
-    ctx.fillStyle = '#0b0e14';
+    ctx.fillStyle = (G && APRON_BG[G.theatre]) || '#0b0e14';
     ctx.fillRect(0, 0, cvW, cvH);
     if (!G) return;
     // Everything in the world is drawn in unzoomed screen space and scaled
@@ -21645,18 +22464,51 @@
     var maxX = Math.ceil(Math.max(c0.x, c1.x, c2.x, c3.x)) + 1;
     var minY = Math.floor(Math.min(c0.y, c1.y, c2.y, c3.y)) - 1;
     var maxY = Math.ceil(Math.max(c0.y, c1.y, c2.y, c3.y)) + 2;
+    var minXr = minX, minYr = minY, maxXr = maxX, maxYr = maxY;
     minX = Math.max(0, minX); minY = Math.max(0, minY);
     maxX = Math.min(MAP - 1, maxX); maxY = Math.min(MAP - 1, maxY);
 
     var x, y, i, px, py;
     SPARKS.length = 0;
+    // The apron. RA2 maps carry real terrain past the playable border and
+    // clamp the camera inside it; ending on raw black makes the world look
+    // like a cut-out. The apron is the same theatre, drained and darkened,
+    // and nothing ever interacts with it.
+    var thA = G.theatre || 'temperate', apr = SPR.apron[thA];
+    if (apr && (minXr < 0 || minYr < 0 || maxXr >= MAP || maxYr >= MAP)) {
+      var ax0 = Math.max(-APRON, minXr), ax1 = Math.min(MAP - 1 + APRON, maxXr);
+      var ay0 = Math.max(-APRON, minYr), ay1 = Math.min(MAP - 1 + APRON, maxYr);
+      // Three distance bands, each one path and one fill, so the apron dims
+      // with distance and its outermost ring matches the cleared background.
+      var band = [[], [], [], [], [], [], [], []];
+      for (y = ay0; y <= ay1; y++) for (x = ax0; x <= ax1; x++) {
+        if (x >= 0 && y >= 0 && x < MAP && y < MAP) continue;
+        var apx = sxF(x, y), apy = syFlat(x, y);
+        if (apx < VX0 - 80 || apx > VX1 + 80 || apy < VY0 - 80 || apy > VY1 + 80) continue;
+        var at = apr[(((x - y) & 7) << 3) | ((x + y) & 7)];
+        ctx.drawImage(at.c, apx - at.w / 2, apy - at.h / 2, at.w, at.h);
+        var ad = Math.max(-x, -y, x - (MAP - 1), y - (MAP - 1));
+        band[Math.min(7, (ad * 8 / APRON) | 0)].push(apx, apy);
+      }
+      var bAl = [0.06, 0.17, 0.28, 0.39, 0.50, 0.60, 0.70, 0.82];
+      for (var bi = 0; bi < 8; bi++) {
+        if (!band[bi].length) continue;
+        ctx.beginPath();
+        for (var bj = 0; bj < band[bi].length; bj += 2) {
+          var bx0 = band[bi][bj], by0 = band[bi][bj + 1];
+          ctx.moveTo(bx0, by0 - TH / 2 - 1); ctx.lineTo(bx0 + TW / 2 + 1, by0);
+          ctx.lineTo(bx0, by0 + TH / 2 + 1); ctx.lineTo(bx0 - TW / 2 - 1, by0); ctx.closePath();
+        }
+        ctx.fillStyle = 'rgba(5,7,12,' + bAl[bi] + ')'; ctx.fill();
+      }
+    }
     for (y = minY; y <= maxY; y++) {
       for (x = minX; x <= maxX; x++) {
         i = idx(x, y);
         px = sx(x, y); py = sy(x, y);
         var t = G.terrain[i];
         var h6 = ((x * 73856093) ^ (y * 19349663)) >>> 0;
-        var th = G.theatre || 'temperate', tile, ov = null;
+        var th = G.theatre || 'temperate', tile, ov = null, lat = null, ov2 = null;
         if (!G.seen[i]) {
           // Shroud. A cell with nothing explored beside it is simply black;
           // one ON the border shows its ground through a feathered edge tile,
@@ -21695,6 +22547,7 @@
         else if (t === T_WATER || t === T_BRIDGE) {
           var wp = (((x - y) & 3) << 2) | ((x + y) & 3);
           tile = SPR.water[th][wp * 4 + (((G.tick >> 5) + h6) & 3)];
+          if (th === 'snow' && t === T_WATER && ((h6 >> 4) & 3) === 0) ov2 = SPR.floe[(h6 >> 7) % 3];
           if (t === T_BRIDGE) {
             // the deck runs along the axis its neighbouring deck tiles lie on
             var vert = (y > 0 && G.terrain[i - MAP] === T_BRIDGE) || (y + 1 < MAP && G.terrain[i + MAP] === T_BRIDGE);
@@ -21707,14 +22560,30 @@
             if (G.bwrk[i]) ov = SPR.bwreck;         // this water used to be a deck
           }
         } else if (t === T_RAMP) {
-          tile = SPR.ramp[th][rampDir(G, x, y)];
+          // The retaining wall goes only on a side that is NOT more ramp, so a
+          // four-wide ramp is one slope and not four slabs in a row.
+          var rdr = rampDir(G, x, y), rdw = 0;
+          for (var rk = 0; rk < 2; rk++) {
+            var re = (rdr + 1 + rk * 2) & 3, rnx = x + RAMP_NB[re][0], rny = y + RAMP_NB[re][1];
+            if (!inMap(rnx, rny) || G.terrain[idx(rnx, rny)] !== T_RAMP) rdw |= (1 << rk);
+          }
+          tile = (G.hf[i] > 0 ? SPR.ramp : SPR.rampF)[th][rdr * 4 + rdw];
         } else if (t === T_CLIFF) {
           var cm = (x + 1 < MAP && G.terrain[idx(x + 1, y)] !== T_CLIFF ? 1 : 0) | (y + 1 < MAP && G.terrain[idx(x, y + 1)] !== T_CLIFF ? 2 : 0) |
                    (y > 0 && G.terrain[idx(x, y - 1)] !== T_CLIFF ? 4 : 0) | (x > 0 && G.terrain[idx(x - 1, y)] !== T_CLIFF ? 8 : 0);
           tile = SPR.cliff[th][cm];
         } else {
-          tile = (SPR.groundT[th] || SPR.ground)[gi];
-          if (t === T_ROAD) ov = SPR.road[th][h6 & 7];
+          // LAT. The cell wears one of the theatre's two grounds; a BASE cell
+          // beside an ALT one carries the alt material feathered over its own
+          // edge, which is exactly how RA2's LAT sets read.
+          var alt = G.gm[i];
+          tile = (alt ? SPR.groundAltT[th] : (SPR.groundT[th] || SPR.ground))[gi];
+          if (!alt && t !== T_ROAD) {
+            var am = (y > 0 && G.gm[i - MAP] ? 1 : 0) | (x + 1 < MAP && G.gm[i + 1] ? 2 : 0) |
+                     (y + 1 < MAP && G.gm[i + MAP] ? 4 : 0) | (x > 0 && G.gm[i - 1] ? 8 : 0);
+            if (am) lat = SPR.lat[th][am];
+          }
+          if (t === T_ROAD) ov = SPR.road[th][roadMask(x, y) * 2 + (h6 & 1)];
           else if (wm) ov = SPR.shore[th][wm];
           else {
             var rm = (y > 0 && G.terrain[i - MAP] === T_ROCK ? 1 : 0) | (x + 1 < MAP && G.terrain[i + 1] === T_ROCK ? 2 : 0) |
@@ -21724,7 +22593,9 @@
           }
         }
         ctx.drawImage(tile.c, px - tile.w / 2, py - tile.h / 2 - (tile.lift || 0), tile.w, tile.h);
+        if (lat) ctx.drawImage(lat.c, px - lat.w / 2, py - lat.h / 2, lat.w, lat.h);
         if (ov) ctx.drawImage(ov.c, px - ov.w / 2, py - ov.h / 2, ov.w, ov.h);
+        if (ov2) ctx.drawImage(ov2.c, px - ov2.w / 2, py - ov2.h / 2, ov2.w, ov2.h);
         if (oreT(t)) {
           var lv = G.ore[i] > 600 ? 2 : (G.ore[i] > 250 ? 1 : 0);
           var os = (t === T_GEM ? SPR.gemLv : SPR.oreLv)[lv][(x * 5 + y * 11) & 3];
@@ -21988,7 +22859,7 @@
     for (y = minY; y <= maxY; y++) for (x = minX; x <= maxX; x++) {
       i = idx(x, y);
       if (!G.seen[i]) continue;
-      if (G.terrain[i] === T_TREE) draw.push({ d: x + y, t: SPR.tree[G.theatre || 'temperate'][((x * 7 + y * 13) >>> 0) & 3], x: x, y: y });
+      if (G.terrain[i] === T_TREE) draw.push({ d: x + y, t: SPR.tree[G.theatre || 'temperate'][((x * 7 + y * 13) >>> 0) & 7], x: x, y: y });
     }
     // Crates sort with the world: a box behind a tank is behind it.
     for (i = 0; i < G.crates.length; i++) {
@@ -22483,6 +23354,23 @@
       }
     }
     ctx.restore();
+
+    // Per-map ambient. RA2 maps carry a [Lighting] block (Ambient/Red/Green/
+    // Blue) and the whole tactical view is lit through it, so a dusk map is
+    // not the same picture as a noon one. One multiply plus one additive
+    // wash, under the storm and nuke washes so those still read as events.
+    var LT = (MAPS[G.mapId] || {}).light;
+    if (LT) {
+      if (LT.a > 0.05) {
+        ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = LT.a;
+        ctx.fillStyle = LT.mul; ctx.fillRect(0, 0, cvW, cvH);
+      }
+      if (LT.aa > 0.05) {
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = LT.aa;
+        ctx.fillStyle = LT.add; ctx.fillRect(0, 0, cvW, cvH);
+      }
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    }
 
     // Storm sky and nuclear whiteout sit over the whole viewport, as RA2's do.
     if (G.storms.length) {

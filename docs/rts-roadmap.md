@@ -521,10 +521,40 @@ per state, for every structure and defence, both factions.
   under a black tile whose rim is eaten away toward each open side, with
   ragged bites so the line is not an airbrush. The Gap Generator's fog draws
   the same tiles at a fraction of the opacity.
-- ☐ LAT ground transitions; rock cliffs with shadowed faces; rock-slope
+- ☑ LAT ground transitions; rock cliffs with shadowed faces; rock-slope
   ramps; road bends/junctions/ends; snow trees; theatre-specific civilian
-  sets; map border continuation; per-map ambient lighting.
-- ☐ Terrain height levels (plateaus draw raised).
+  sets; map border continuation; per-map ambient lighting. Each theatre now
+  carries TWO grounds (grass/sand, snow/scoured earth, pavement/dirt) laid in
+  hashed patches, and the base cell beside an alt one draws a 16-mask LAT edge
+  tile with the alt material feathered and speckled over its own edge
+  (`bakeLat`); the rock fringe (`bakeScree`) is the same machinery with the
+  scree stones added. `bakeCliff` is rebuilt as a row of irregular rock
+  COLUMNS — unequal widths, broken crests, per-column jut, strata, seepage
+  streaks and talus — in three palettes (temperate grey-brown, snow
+  white-blue, urban concrete with form-board courses and tie-rod holes).
+  Roads (`bakeRoad` / `bakeUrbanRoad`) are keyed by the 4-bit neighbour mask,
+  so straights, bends, T-junctions, crossroads and dead ends fall out of one
+  arm union, with wheel ruts and bitten-out ragged shoulders on dirt and
+  kerbs, sidewalk lips, centre lines and stop bars on the paved set; a cell
+  with road on all four sides is drawn as solid paving instead of a junction.
+  Eight terrain objects per theatre (five trees + a dead trunk + two rock
+  outcrops; five street trees + three bombed shells in the city), ice floes
+  on frozen water, six new civilian looks (office block, shop row, ruined
+  block, grain depot, farmhouse, barn) and a mirrored farm pair on the
+  temperate maps. Terrain continues `APRON` tiles past the playable diamond,
+  drained and dimmed in eight distance bands into a matching background.
+  Every map carries a `light` block (`multiply` + additive wash) under the
+  storm and nuke washes.
+- ☑ Terrain height levels (plateaus draw raised). `computeHeight` derives a
+  per-cell height field from the terrain the generators already lay: a cliff
+  top is level 1, any ground the map border cannot flood-reach without
+  crossing a cliff is enclosed and therefore level 1 too, and a ramp
+  interpolates between the two ends of its run (BFS distance to low and to
+  high). `sy()` subtracts that height, so the ground, ore, trees, structures,
+  units, decals, shots and explosions on a raised tile all draw raised
+  together; `screenToGrid` inverts it by re-projecting twice. Passability is
+  untouched — the height is derived FROM the terrain, never the other way
+  round.
 - ☑ Vehicle damage: dark smoke below 50 % hp, flame licks below 25 %
   (art §3 "no damaged smoke or damaged art on vehicles").
 - ☑ Harrier descent onto the pad; Kirov size and gondola motion. `altOf`
