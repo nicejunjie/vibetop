@@ -148,9 +148,9 @@ test("the counter triangle closes — nothing is unanswerable", () => {
     assert.ok(counters.length > 0, `nothing counters armour class "${cls}"`);
   }
   // "Best answer" has to mean damage OVER TIME, not the verses multiplier on
-  // its own. The Prism Tank carries RA2's real PrismWarhead (200% vs infantry
-  // and 100% vs everything else, straight out of rules.ini) but fires once
-  // every 240 ticks, so a Tesla Tank still out-damages it against heavy
+  // its own. The Prism Tank carries RA2's real CometWH (200% vs structures,
+  // 50% vs armour, straight out of rules.ini) but fires once
+  // every 400 ticks, so a Tesla Tank still out-damages it against heavy
   // armour and Tanya shreds infantry far faster. Comparing bare multipliers
   // called an RA2-accurate siege unit "the answer to everything".
   const dps = (u, cls) => best(u, cls) * u.dmg / Math.max(1, u.rate);
@@ -470,7 +470,7 @@ test("an Apocalypse shoots back at a Kirov with its MammothTusk missiles", () =>
   ap.cool = 0;
   H.step(4);
   assert.ok(k.hp < k.maxhp, "the Apocalypse damaged the Kirov");
-  const want = 50 * T.verses("HE", T.UNITS.kirov.armour);
+  const want = 100 * T.verses("HE", T.UNITS.kirov.armour);   // [MammothTusk] 2x50 per volley
   assert.ok(Math.abs(k.maxhp - k.hp - want) < 0.01,
     `MammothTusk should land ${want}, got ${(k.maxhp - k.hp).toFixed(1)}`);
 });
@@ -1515,26 +1515,27 @@ test("the AI redeploys its base when its Construction Yard dies", () => {
 
 // ------------------------------------------------------------ Prism Tank //
 
-test("the Prism Tank out-ranges a Rhino and hits with PrismWarhead verses", () => {
-  // RA2 PTNK: Range 8 against the Rhino's 5.75, 100 damage on PrismWarhead.
+test("the Prism Tank out-ranges a Rhino and hits with CometWH verses", () => {
+  // RA2 SREF [Comet]: Range 10 against the Rhino's 5.75, 100 damage on CometWH
+  // (50% vs heavy armour, 200% vs structures — a siege gun).
   // The range gap is the unit's whole reason to exist — it must be able to
   // shoot from where it cannot be shot.
   const H = W.__rtsTest;
   const pt = T.UNITS.prismtank, rh = T.UNITS.rhino;
   assert.ok(pt.rng > rh.rng, `a Prism Tank (${pt.rng}) must out-range a Rhino (${rh.rng})`);
-  assert.equal(pt.wh, "PrismWarhead");
+  assert.equal(pt.wh, "CometWH");
   assert.equal(T.UNITS.spectre, undefined, "the made-up `spectre` must be gone");
 
   const g = H.begin(55056, "normal");
   const tank = H.spawn("prismtank", 0, 20, 20);
-  const target = H.spawn("rhino", 1, 20 + rh.rng + 1, 20);   // inside 8, outside 5.75
+  const target = H.spawn("rhino", 1, 20 + rh.rng + 1, 20);   // inside 10, outside 5.75
   target.guardX = target.x; target.guardY = target.y;
   H.orderAttack([tank], target);
   H.step(3);
   const dealt = target.maxhp - target.hp;
   const expect = pt.dmg * T.verses(pt.wh, rh.armour);
   assert.ok(Math.abs(dealt - expect) < 0.5,
-    `the prism hit should be ${expect} under PrismWarhead verses, got ${dealt}`);
+    `the prism hit should be ${expect} under CometWH verses, got ${dealt}`);
   assert.equal(target.hp, target.maxhp - dealt);
   assert.ok(tank.hp === tank.maxhp, "the Rhino cannot reach back at that range");
 });
@@ -1629,6 +1630,9 @@ test("the AI fires its nuke within twelve minutes of the silo going up", () => {
   H.build("refinery", 0, foe.x + 3, foe.y - 1);
   H.give(1, 60000);
   H.attachAI(1, "normal");
+  // The target must still stand when the silo charges: with RA2 prerequisites
+  // and armour the AI now razes an undefended base inside ten minutes.
+  g.blds.filter((b) => b.p === 0).forEach((b) => { b.maxhp = 1e9; b.hp = 1e9; });
   H.step(60 * 60 * 12);
   assert.ok(H.sw(1).nuke.fired >= 1,
     `the AI should have launched by twelve minutes (timer ${H.sw(1).nuke.t}/${W.__rtsTables.SW.nuke.charge})`);
