@@ -48,6 +48,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import system_status  # sibling module: /api/system/status data collection
 import claude_stats   # sibling module: /api/claude/stats token/cost analytics
+import codex_stats    # sibling module: /api/codex/stats token/cost analytics
 import service_discovery  # sibling module: /api/services/discover network-service scan
 
 # ---- logging -----------------------------------------------------------------
@@ -588,19 +589,33 @@ def _set_claude_usage(on):
 # Codex already records account rate-limit snapshots in token_count events in
 # ~/.codex/sessions. Enabling this only controls whether Vibetop displays them.
 CODEX_USAGE_STALE_SEC = 15 * 60
+_codex_rate_cache = {}
+_codex_rate_cache_lock = threading.Lock()
 
 
-def _last_codex_rate_limit(path, max_bytes=512 * 1024):
-    """Return the newest rate-limit event near the end of one rollout file."""
+def _last_codex_rate_limit(path):
+    """Return and retain the newest rate-limit event in one rollout file.
+
+    A capped tail read lost the useful 100%-and-reset snapshot when error or
+    tool records appended enough text after the final successful response.
+    Cache by byte offset instead: new calls inspect only appended records, but
+    keep returning the last valid limit while Codex is blocked. On a manager
+    restart the first call scans the complete rollout once.
+    """
     try:
+        size = os.path.getsize(path)
+        with _codex_rate_cache_lock:
+            cached = _codex_rate_cache.get(path)
+        if cached and cached[0] == size:
+            return cached[1]
+        start = cached[0] if cached and cached[0] < size else 0
         with open(path, "rb") as f:
-            f.seek(0, os.SEEK_END)
-            size = f.tell()
-            f.seek(max(0, size - max_bytes))
+            f.seek(start)
             raw = f.read()
     except OSError:
         return None
-    for line in reversed(raw.splitlines()):
+    newest = cached[1] if cached and start else None
+    for line in raw.splitlines():
         if b'"rate_limits"' not in line or b'"token_count"' not in line:
             continue
         try:
@@ -609,12 +624,20 @@ def _last_codex_rate_limit(path, max_bytes=512 * 1024):
             limits = payload.get("rate_limits")
             if payload.get("type") != "token_count" or not isinstance(limits, dict):
                 continue
+            primary = limits.get("primary")
+            # Out-of-limit events carry primary=null (limit_id flips to
+            # "premium"); skip them so the last valid 100%-and-reset snapshot
+            # is retained while Codex is blocked.
+            if not isinstance(primary, dict) or primary.get("used_percent") is None:
+                continue
             stamp = event.get("timestamp")
             updated = int(datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp())
-            return updated, limits
+            newest = (updated, limits)
         except (ValueError, TypeError, AttributeError):
             continue
-    return None
+    with _codex_rate_cache_lock:
+        _codex_rate_cache[path] = (size, newest)
+    return newest
 
 
 def _codex_usage_payload(home=None, enabled=True):
@@ -648,6 +671,100 @@ def _codex_usage_payload(home=None, enabled=True):
                 "weekly": window(limits.get("secondary")),
                 "plan": limits.get("plan_type"), "updated": updated,
                 "ageSec": age, "stale": age > CODEX_USAGE_STALE_SEC})
+    return out
+
+# ---- Codex live tok/s (per-turn output rate) --------------------------------
+# Codex logs, per completed turn, a `token_count` event
+# (`info.last_token_usage.output_tokens` — that turn's output, NOT a running
+# counter) immediately followed by a `task_complete` event whose `duration_ms`
+# is the turn's wall clock (thinking + tool calls + generation). There is no
+# per-token clock, so the best "live" rate is a per-turn average:
+# this_turn.output / this_turn.duration. duration_ms is the honest denominator —
+# it excludes the user's think-time between turns (a gap between two token_count
+# events would include it), so it reads like the Claude status line's tok/s.
+_CODEX_TOK_TAIL = 4 * 1024 * 1024
+
+
+def _last_codex_turn(path, tail=_CODEX_TOK_TAIL):
+    """Most recent COMPLETED turn in one rollout: (output_tokens, duration_sec,
+    completed_at), or None.
+
+    Pairs each `task_complete` with the `token_count` that immediately preceded it
+    (the same turn — Codex logs them back-to-back at the end of a turn). Reads only
+    the tail (a turn's worth of records) and skips every other line, so it stays
+    O(1) on multi-MB rollouts. A missing/renamed field simply yields None — the
+    caller degrades to n/a, so a future schema change is a one-line fix here.
+    """
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            f.seek(max(0, size - tail))
+            raw = f.read()
+    except OSError:
+        return None
+    pending_out = None   # output_tokens of the turn whose task_complete we haven't seen
+    result = None
+    for line in raw.splitlines():
+        if b'"token_count"' not in line and b'"task_complete"' not in line:
+            continue
+        try:
+            event = json.loads(line)
+            payload = event.get("payload") or {}
+            ptype = payload.get("type")
+            if ptype == "token_count":
+                last = (payload.get("info") or {}).get("last_token_usage") or {}
+                out = last.get("output_tokens")
+                if isinstance(out, int) and out >= 0:
+                    pending_out = out
+            elif ptype == "task_complete" and pending_out is not None:
+                d = payload.get("duration_ms")
+                if isinstance(d, (int, float)) and d > 0:
+                    stamp = event.get("timestamp")
+                    completed = datetime.fromisoformat(
+                        stamp.replace("Z", "+00:00")).timestamp()
+                    result = (pending_out, d / 1000.0, completed)
+                    pending_out = None
+        except (ValueError, TypeError, AttributeError, KeyError):
+            continue
+    return result
+
+
+def _codex_tok_s_payload(home=None):
+    """Latest per-turn output tok/s for the requesting user's Codex.
+
+    rate = this_turn.output_tokens / this_turn.duration_ms (the turn's wall clock,
+    from task_complete). Returns rate=None (the page shows "n/a") until a completed
+    turn is visible in the newest rollout. Defensive: any missing field degrades to
+    n/a rather than throwing, so a future schema change is a one-line fix here.
+    """
+    home = home or _office_home()
+    out = {"rate": None, "outNow": None, "dt": None, "ts": None,
+           "file": None, "stale": True}
+    paths = glob.glob(os.path.join(home, ".codex", "sessions", "**", "*.jsonl"),
+                      recursive=True)
+    # mtime is only a pre-filter (look at recently-touched files first); the
+    # winner is the file whose LATEST completed turn is most recent — same rule as
+    # the usage snapshot, so a touched-but-quiet file can't shadow the live one.
+    paths.sort(key=lambda p: os.path.getmtime(p) if os.path.exists(p) else 0,
+               reverse=True)
+    best = None  # (completed_at, path, output_tokens, duration_sec)
+    for path in paths[:32]:
+        turn = _last_codex_turn(path)
+        if turn is None:
+            continue
+        output_tokens, duration, completed = turn
+        if best is None or completed > best[0]:
+            best = (completed, path, output_tokens, duration)
+    if best is None:
+        return out
+    completed, path, output_tokens, duration = best
+    if duration <= 0:
+        return out
+    out.update({"rate": round(output_tokens / duration, 1),
+                "outNow": output_tokens,
+                "dt": round(duration, 1), "ts": completed,
+                "file": os.path.basename(path),
+                "stale": (time.time() - completed) > CODEX_USAGE_STALE_SEC})
     return out
 
 # ---- Office (Word/Excel/PPT) view & edit -----------------------------------
@@ -6185,7 +6302,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _update_version_info(self):
         ok, head = self._git_as_user(["log", "-1", "--format=%h\t%cd\t%s",
                                       "--date=short"])
-        info = {"repo": REPO_DIR}
+        # `build` lets clients independently detect a stale shell even when an
+        # SSE stream was disconnected or throttled through a proxy.
+        info = {"repo": REPO_DIR, "build": _shell_version()}
         try:  # release number (root VERSION file) — lets the shell show it live
             with open(os.path.join(REPO_DIR, "VERSION")) as f:
                 info["version"] = f.read().strip()
@@ -6856,6 +6975,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json(200, claude_stats.get_stats(_office_home()))
             except Exception as e:
                 log.warning("claude stats failed: %s", e)
+                self._json(500, {"error": str(e)})
+            return
+        if self.path == "/api/codex/stats":
+            try:
+                self._json(200, codex_stats.get_stats(_office_home()))
+            except Exception as e:
+                log.warning("codex stats failed: %s", e)
+                self._json(500, {"error": str(e)})
+            return
+        if self.path == "/api/codex/tok-s":
+            try:
+                self._json(200, _codex_tok_s_payload())
+            except Exception as e:
+                log.warning("codex tok/s failed: %s", e)
                 self._json(500, {"error": str(e)})
             return
         if self.path == "/api/share/list":
