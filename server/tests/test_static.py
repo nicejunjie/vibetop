@@ -550,3 +550,74 @@ def test_design_decisions_toc_is_current():
     gen = os.path.join(_REPO, "tools", "gen-dd-toc.py")
     r = subprocess.run([sys.executable, gen, "--check"], capture_output=True, text=True)
     assert r.returncode == 0, (r.stderr or r.stdout).strip()
+
+
+# ---------------------------------------------------------------------------
+# The delivery path for SPLIT-OUT assets.
+#
+# Inline code cannot 404 and cannot ship an unstamped cache-buster. A separate
+# file can do both, and both are silent: the page still renders, just without
+# that module, or pinned to a constant cache key so every later edit is served
+# stale forever (the `?v=0` class in design-decisions, "Repo-path references
+# break SILENTLY"). These are the tests that make the split-file era safe.
+# ---------------------------------------------------------------------------
+
+def test_no_deployed_page_ships_a_literal_placeholder():
+    """A @TOKEN@ in a DEPLOYED page must be stamped by some installer.
+
+    test_every_template_placeholder_is_stamped covers nginx/systemd templates.
+    This covers the web pages themselves — where an unstamped token is not a
+    startup error but a permanently wrong string in the browser.
+    """
+    stamped = set()
+    for inst in _installers():
+        with open(inst) as f:
+            stamped |= set(_TOKEN_RE.findall(f.read()))
+    unstamped = {}
+    for name, src in sorted(_web_sources().items()):
+        if os.path.splitext(name)[1] not in (".html", ".js"):
+            continue
+        with open(src) as f:
+            missing = set(_TOKEN_RE.findall(f.read())) - stamped
+        if missing:
+            unstamped[os.path.relpath(src, _REPO)] = sorted(missing)
+    assert not unstamped, ("deployed pages carry placeholders no install.sh "
+                           "stamps (they ship literally): %r" % unstamped)
+
+
+def test_root_level_script_refs_resolve():
+    """Every /foo.js the shell's pages load must exist as a deployable source.
+
+    Only SINGLE-SEGMENT web-root assets are checked: the web root is flat, so
+    `/keybar.js` must have a source, while `/api/...`, `/files/...` and
+    `/onlyoffice/...` are proxied prefixes owned by nginx, not files.
+    """
+    import html.parser
+
+    class P(html.parser.HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.refs = []
+
+        def handle_starttag(self, tag, attrs):
+            d = dict(attrs)
+            for key in ("src", "href"):
+                v = d.get(key)
+                if v:
+                    self.refs.append(v)
+
+    root_asset = re.compile(r"^/([^/?#]+\.(?:js|json))(?:\?.*)?$")
+    sources = _web_sources()
+    broken = []
+    for name, src in sorted(sources.items()):
+        if not name.endswith(".html"):
+            continue
+        p = P()
+        with open(src) as f:
+            p.feed(f.read())
+        for ref in p.refs:
+            m = root_asset.match(ref)
+            if m and m.group(1) not in sources:
+                broken.append(f"{os.path.relpath(src, _REPO)} -> {ref}")
+    assert not broken, ("pages load web-root assets with no deployable source "
+                        "(a silent 404): %r" % broken)
