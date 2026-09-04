@@ -27581,13 +27581,57 @@
     // colour, which is what the player actually picked.
     var hx = COL[ME] || COL[0], hn = parseInt(String(hx).slice(1), 16);
     var acc = [(hn >> 16) & 255, (hn >> 8) & 255, hn & 255];
+    // A DARK subject on a DARK plate is why ten structures came out as ten
+    // brown blobs: measured over the ten build icons, mean pairwise distance
+    // 29.8 with a minimum of 13.1, against 41.9 for telling your own unit from
+    // the enemy's. RA2's plates silhouette the subject against a LIT sky and
+    // let it fill the frame; ours put a small dark sprite on a near-black wash
+    // and capped its scale at 1.7 so half the plate was empty.
+    //
+    // Three changes, all of them "draw the same art properly":
+    //   * the sky is genuinely light at the top and only falls dark at the
+    //     horizon, so a dark roofline reads as a shape rather than as mud;
+    //   * the subject fills the plate (the 1.7 cap goes to 2.6 and the padding
+    //     halves) — a Power Plant used 38% of the box, now it uses most of it;
+    //   * the house colour stays in the FRAME and the ground band, which is
+    //     where RA2 keeps it, so this does not fight the owner signal.
+    // The plate's own colour comes from THE SUBJECT. Brightening one shared sky
+    // made the icons MORE alike, not less (measured: mean pairwise distance
+    // 29.8 -> 27.2), because on a 60x48 plate the background is most of what a
+    // glance gets, and a background every icon shares carries no information.
+    //
+    // RA2's cameos are painted scenes and each one is a different picture. We
+    // cannot draw forty plates, so the systematic equivalent is to derive each
+    // plate's wash from the mean colour of ITS OWN art — which is not an
+    // arbitrary code, it is "what colour is this thing", pushed until it reads.
+    var sc0 = document.createElement('canvas'); sc0.width = 16; sc0.height = 16;
+    var sg0 = sc0.getContext('2d');
+    sg0.drawImage(src, sc.x * kb, sc.y * kb, sw * kb, sh * kb, 0, 0, 16, 16);
+    var sd0 = sg0.getImageData(0, 0, 16, 16).data, sr = 0, sgc = 0, sb = 0, sn = 0;
+    for (var si = 0; si < sd0.length; si += 4) {
+      if (sd0[si + 3] < 40) continue;
+      sr += sd0[si]; sgc += sd0[si + 1]; sb += sd0[si + 2]; sn++;
+    }
+    var sub = sn ? [sr / sn, sgc / sn, sb / sn] : [110, 118, 130];
+    // Push it away from grey and away from the subject's own value, so the
+    // building silhouettes against its wash instead of sinking into it.
+    var smx = Math.max(sub[0], sub[1], sub[2]) || 1;
+    var tint = [0, 1, 2].map(function (i2) {
+      var t = 96 + (sub[i2] / smx) * 150 - 62;                 // stretch the hue
+      return Math.max(28, Math.min(228, Math.round(t + acc[i2] * 0.16)));
+    });
     var sky = g.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, 'rgb(' + Math.round(acc[0] * 0.30 + 24) + ',' + Math.round(acc[1] * 0.30 + 28) + ',' + Math.round(acc[2] * 0.30 + 34) + ')');
-    sky.addColorStop(1, '#0b0f16');
+    sky.addColorStop(0, 'rgb(' + tint[0] + ',' + tint[1] + ',' + tint[2] + ')');
+    sky.addColorStop(0.66, 'rgb(' + Math.round(tint[0] * 0.46) + ',' + Math.round(tint[1] * 0.46) + ',' + Math.round(tint[2] * 0.46) + ')');
+    sky.addColorStop(1, '#10151c');
     g.fillStyle = sky; g.fillRect(0, 0, W, H);
-    // A ground line, so a structure sits on something rather than floating.
-    g.fillStyle = 'rgba(0,0,0,.34)'; g.fillRect(0, H - 11, W, 11);
-    var k = Math.min((W - 8) / sw, (H - 9) / sh); if (k > 1.7) k = 1.7;
+    // A ground band, so a structure sits on something rather than floating. It
+    // carries a little of the house colour, as RA2's plates do.
+    var gnd = g.createLinearGradient(0, H - 12, 0, H);
+    gnd.addColorStop(0, 'rgba(' + acc[0] + ',' + acc[1] + ',' + acc[2] + ',.22)');
+    gnd.addColorStop(1, 'rgba(6,8,12,.72)');
+    g.fillStyle = gnd; g.fillRect(0, H - 12, W, 12);
+    var k = Math.min((W - 3) / sw, (H - 4) / sh); if (k > 3.0) k = 3.0;
     var dw = sw * k, dh = sh * k;
     g.imageSmoothingEnabled = true;
     // bb is CSS px; the bitmap is `kb` times larger (baked at DPR), so the
