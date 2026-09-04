@@ -6230,7 +6230,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # sw.js — pairing it with version_date shows a stale date next to a newer
         # build number (e.g. "build v143 · <v1.11.4's date>").
         okb, bdate = self._git_as_user(["log", "-1", "--format=%cd",
-                                        "--date=short", "--", "landing/sw.js"])
+                                        # Glob pathspec, not a literal path: sw.js moved
+                                        # once already (landing/ -> landing/shell/) and a
+                                        # literal here fails SILENTLY, returning no date.
+                                        "--date=short", "--", ":(glob)landing/**/sw.js"])
         if okb and bdate.strip():
             info["build_date"] = bdate.strip()
         if ok and "\t" in head:
@@ -6448,7 +6451,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # patch-only change MUST re-render the /files/ snippet too or the browser
         # keeps serving the old cached JS (stale ?v=). INSTALL_DEPS/SYSTEMD=0 keeps
         # it to config (idempotent) + nginx + a brief filebrowser restart.
-        if touched("files/") or "landing/filebrowser-patches.js" in changed:
+        # Matched by BASENAME, not by a literal path: the patch JS moved once
+        # already (landing/ -> landing/apps/files/) and an exact-path check fails
+        # silently — files/install.sh would not re-run, so the ?v= cache-buster
+        # would keep pointing at the old bundle and browsers keep serving it.
+        if touched("files/") or any(c.endswith("/filebrowser-patches.js") for c in changed):
             deploy("deploy files & nginx", ["./files/install.sh"], base_env)
         # claude-usage/ — the opt-in usage proxy runs in-place from the checkout,
         # so install.sh (INSTALL_SYSTEMD=0) just re-renders nothing and try-restarts
