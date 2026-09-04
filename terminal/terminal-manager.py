@@ -673,100 +673,6 @@ def _codex_usage_payload(home=None, enabled=True):
                 "ageSec": age, "stale": age > CODEX_USAGE_STALE_SEC})
     return out
 
-# ---- Codex live tok/s (per-turn output rate) --------------------------------
-# Codex logs, per completed turn, a `token_count` event
-# (`info.last_token_usage.output_tokens` — that turn's output, NOT a running
-# counter) immediately followed by a `task_complete` event whose `duration_ms`
-# is the turn's wall clock (thinking + tool calls + generation). There is no
-# per-token clock, so the best "live" rate is a per-turn average:
-# this_turn.output / this_turn.duration. duration_ms is the honest denominator —
-# it excludes the user's think-time between turns (a gap between two token_count
-# events would include it), so it reads like the Claude status line's tok/s.
-_CODEX_TOK_TAIL = 4 * 1024 * 1024
-
-
-def _last_codex_turn(path, tail=_CODEX_TOK_TAIL):
-    """Most recent COMPLETED turn in one rollout: (output_tokens, duration_sec,
-    completed_at), or None.
-
-    Pairs each `task_complete` with the `token_count` that immediately preceded it
-    (the same turn — Codex logs them back-to-back at the end of a turn). Reads only
-    the tail (a turn's worth of records) and skips every other line, so it stays
-    O(1) on multi-MB rollouts. A missing/renamed field simply yields None — the
-    caller degrades to n/a, so a future schema change is a one-line fix here.
-    """
-    try:
-        size = os.path.getsize(path)
-        with open(path, "rb") as f:
-            f.seek(max(0, size - tail))
-            raw = f.read()
-    except OSError:
-        return None
-    pending_out = None   # output_tokens of the turn whose task_complete we haven't seen
-    result = None
-    for line in raw.splitlines():
-        if b'"token_count"' not in line and b'"task_complete"' not in line:
-            continue
-        try:
-            event = json.loads(line)
-            payload = event.get("payload") or {}
-            ptype = payload.get("type")
-            if ptype == "token_count":
-                last = (payload.get("info") or {}).get("last_token_usage") or {}
-                out = last.get("output_tokens")
-                if isinstance(out, int) and out >= 0:
-                    pending_out = out
-            elif ptype == "task_complete" and pending_out is not None:
-                d = payload.get("duration_ms")
-                if isinstance(d, (int, float)) and d > 0:
-                    stamp = event.get("timestamp")
-                    completed = datetime.fromisoformat(
-                        stamp.replace("Z", "+00:00")).timestamp()
-                    result = (pending_out, d / 1000.0, completed)
-                    pending_out = None
-        except (ValueError, TypeError, AttributeError, KeyError):
-            continue
-    return result
-
-
-def _codex_tok_s_payload(home=None):
-    """Latest per-turn output tok/s for the requesting user's Codex.
-
-    rate = this_turn.output_tokens / this_turn.duration_ms (the turn's wall clock,
-    from task_complete). Returns rate=None (the page shows "n/a") until a completed
-    turn is visible in the newest rollout. Defensive: any missing field degrades to
-    n/a rather than throwing, so a future schema change is a one-line fix here.
-    """
-    home = home or _office_home()
-    out = {"rate": None, "outNow": None, "dt": None, "ts": None,
-           "file": None, "stale": True}
-    paths = glob.glob(os.path.join(home, ".codex", "sessions", "**", "*.jsonl"),
-                      recursive=True)
-    # mtime is only a pre-filter (look at recently-touched files first); the
-    # winner is the file whose LATEST completed turn is most recent — same rule as
-    # the usage snapshot, so a touched-but-quiet file can't shadow the live one.
-    paths.sort(key=lambda p: os.path.getmtime(p) if os.path.exists(p) else 0,
-               reverse=True)
-    best = None  # (completed_at, path, output_tokens, duration_sec)
-    for path in paths[:32]:
-        turn = _last_codex_turn(path)
-        if turn is None:
-            continue
-        output_tokens, duration, completed = turn
-        if best is None or completed > best[0]:
-            best = (completed, path, output_tokens, duration)
-    if best is None:
-        return out
-    completed, path, output_tokens, duration = best
-    if duration <= 0:
-        return out
-    out.update({"rate": round(output_tokens / duration, 1),
-                "outNow": output_tokens,
-                "dt": round(duration, 1), "ts": completed,
-                "file": os.path.basename(path),
-                "stale": (time.time() - completed) > CODEX_USAGE_STALE_SEC})
-    return out
-
 # ---- Office (Word/Excel/PPT) view & edit -----------------------------------
 # View: convert to PDF with headless LibreOffice (cached) and serve it inline.
 # Edit: open the file in the OnlyOffice web editor (Document Server, below).
@@ -6982,13 +6888,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json(200, codex_stats.get_stats(_office_home()))
             except Exception as e:
                 log.warning("codex stats failed: %s", e)
-                self._json(500, {"error": str(e)})
-            return
-        if self.path == "/api/codex/tok-s":
-            try:
-                self._json(200, _codex_tok_s_payload())
-            except Exception as e:
-                log.warning("codex tok/s failed: %s", e)
                 self._json(500, {"error": str(e)})
             return
         if self.path == "/api/share/list":
