@@ -640,3 +640,43 @@ def test_root_level_script_refs_resolve():
                 broken.append(f"{os.path.relpath(src, _REPO)} -> {ref}")
     assert not broken, ("pages load web-root assets with no deployable source "
                         "(a silent 404): %r" % broken)
+
+
+# ---- Accessible dialogs + polite polling (audit VT-09 / VT-12) --------------
+
+def test_configs_own_prompt_is_a_labelled_modal():
+    """Config has its own dialog rather than the shared one, and it had no
+    dialog role or ARIA relationship at all — while gating a password reset and
+    account deletion. The shared modal's behaviour is covered by
+    shared/vibe-modal.test.js; this pins the markup Config hand-writes."""
+    src = open(os.path.join(_REPO, "apps/system/config/config.html")).read()
+    box = src[src.index('<div class="vt-ov" id="vt-ov">'):]
+    box = box[:box.index("</div>", box.index("m-btns"))]
+    for attr in ('role="dialog"', 'aria-modal="true"',
+                 'aria-labelledby="vt-title"', 'aria-describedby="vt-msg"'):
+        assert attr in box, f"config.html prompt is missing {attr}"
+
+
+def test_configs_prompt_traps_focus_and_gives_it_back():
+    """Tab must not reach the account-deletion controls behind a visible
+    confirmation, and dismissing must not dump the user at the top of the page."""
+    body = open(os.path.join(_REPO, "apps/system/config/config.html")).read()
+    fn = body[body.index("function vtPrompt("):body.index("function handle403(")]
+    assert "setAttribute('inert'" in fn, "the background is not inerted"
+    assert "removeAttribute('inert')" in fn, "the background is never released"
+    assert "opener" in fn and ".focus()" in fn, "focus is not restored to the opener"
+    assert "'Tab'" in fn, "no focus trap"
+
+
+def test_the_services_pane_does_not_poll_twice_or_while_hidden():
+    """The iframe fetched /api/services/discover every 5s forever while the shell
+    ALSO relayed the same endpoint every 5s — two timers for one list when
+    active, and one paying for a list nobody was looking at when backgrounded.
+    Each scan walks listening sockets and /proc cmdlines."""
+    src = open(os.path.join(_REPO, "apps/utilities/services/index.html")).read()
+    assert "window.top !== window" in src, "the pane cannot tell embedded from standalone"
+    assert "visibilitychange" in src, "polling is not paused while hidden"
+    assert "clearInterval" in src, "the timer is never stopped"
+    # the unconditional forever-timer is gone
+    assert "setInterval(load, 5000);" not in src.replace(
+        "timer = setInterval(load, 5000);", ""), "an unconditional 5s poll remains"

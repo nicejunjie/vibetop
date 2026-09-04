@@ -243,7 +243,8 @@
 
   <!-- reusable text/confirm prompt -->
   <div class="vt-ov" id="vt-ov">
-    <div class="vt-modal">
+    <div class="vt-modal" role="dialog" aria-modal="true"
+         aria-labelledby="vt-title" aria-describedby="vt-msg" tabindex="-1">
       <h3 id="vt-title"></h3>
       <div class="m-label" id="vt-msg"></div>
       <input id="vt-input" type="text" autocomplete="off" autocapitalize="none" spellcheck="false">
@@ -297,23 +298,49 @@
     var ok = document.getElementById('vt-ok'), cancel = document.getElementById('vt-cancel');
     ok.textContent = o.okText || 'OK';
     ok.className = o.danger ? 'btn-danger' : '';
+    // Remember who opened it, and make the page behind it unavailable — this
+    // panel's prompts gate a password reset and account deletion, so Tab must
+    // not be able to reach the controls behind a visible confirmation.
+    var opener = document.activeElement;
+    var inerted = [];
+    var root = document.body;
+    for (var bi = 0; bi < root.children.length; bi++) {
+      var bel = root.children[bi];
+      if (bel !== ov && !bel.hasAttribute('inert')) {
+        bel.setAttribute('inert', ''); inerted.push(bel);
+      }
+    }
     ov.classList.add('show');
     setTimeout(function () { (o.noInput ? ok : inp).focus(); }, 30);
     return new Promise(function (resolve) {
-      // With noInput the box is hidden, so Escape is bound on the overlay instead
-      // (Enter already activates the focused OK button natively).
-      var keyTarget = o.noInput ? ov : inp;
+      // Bind on the overlay in BOTH cases: with an input the trap needs every
+      // Tab, not only the ones that start in the box.
+      var keyTarget = ov;
       function done(val) {
         ov.classList.remove('show');
+        for (var i = 0; i < inerted.length; i++) inerted[i].removeAttribute('inert');
+        inerted = [];
         ok.removeEventListener('click', onOk); cancel.removeEventListener('click', onCancel);
         keyTarget.removeEventListener('keydown', onKey);
+        try { if (opener && opener.focus) opener.focus(); } catch (e) {}
         resolve(val);
       }
       function onOk() { done({ value: inp.value, checked: chk.checked }); }
       function onCancel() { done(null); }
       function onKey(e) {
-        if (e.key === 'Escape') onCancel();
-        else if (e.key === 'Enter' && !o.noInput) onOk();
+        if (e.key === 'Escape') { onCancel(); return; }
+        if (e.key === 'Enter' && !o.noInput) { onOk(); return; }
+        if (e.key !== 'Tab') return;
+        var box = ov.querySelector('.vt-modal');
+        var f = [].slice.call(box.querySelectorAll('button, input:not([type=hidden])'))
+                  .filter(function (el) { return !el.disabled && el.offsetParent !== null; });
+        if (!f.length) { e.preventDefault(); return; }
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !box.contains(document.activeElement))) {
+          e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && (document.activeElement === last || !box.contains(document.activeElement))) {
+          e.preventDefault(); first.focus();
+        }
       }
       ok.addEventListener('click', onOk); cancel.addEventListener('click', onCancel);
       keyTarget.addEventListener('keydown', onKey);

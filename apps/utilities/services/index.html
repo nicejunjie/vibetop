@@ -129,9 +129,19 @@ function render(model) {
   });
 }
 
-// Fetch directly (works on LAN / standalone); the parent shell also relays this
-// via postMessage (needed through the Cloudflare tunnel, where an iframe's own
-// fetch doesn't carry the Access cookie).
+// Two pollers used to run against the same endpoint: this one every 5s forever,
+// and the shell's relay every 5s while Services was active. Each host scan walks
+// listening sockets and /proc cmdlines, so a backgrounded tab kept paying for a
+// list nobody was looking at, and an active one paid twice whenever the timers
+// straddled the server's 5s cache.
+//
+// Embedded, the SHELL is the only poller — it has to be, because through the
+// Cloudflare tunnel an iframe's own fetch doesn't carry the Access cookie, so
+// its relay is the only thing that works there anyway. Standalone (opened
+// directly, no parent), poll here and pause while hidden.
+var EMBEDDED = window.top !== window;
+var timer = null;
+
 function load() {
   fetch('/api/services/discover').then(function (r) { return r.json(); }).then(render).catch(function () {});
 }
@@ -140,8 +150,23 @@ window.addEventListener('message', function (e) {
   if (e.data && e.data.type === 'services') render(e.data.data);
 });
 document.getElementById('refresh').addEventListener('click', load);
+
+function startPolling() {
+  if (EMBEDDED || timer || document.hidden) return;
+  load();
+  timer = setInterval(load, 5000);
+}
+function stopPolling() {
+  if (timer) { clearInterval(timer); timer = null; }
+}
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) stopPolling(); else startPolling();
+});
+
+// One immediate fetch either way, so the pane is never blank while it waits for
+// the shell's first relay (up to 1.5s) or for a poll tick.
 load();
-setInterval(load, 5000);
+startPolling();
 </script>
 </body>
 </html>
