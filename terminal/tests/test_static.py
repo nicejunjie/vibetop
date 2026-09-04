@@ -202,7 +202,10 @@ def test_claude_proxy_unit_renders_the_operator_not_app_user(tmp_path):
     me = subprocess.run(["id", "-un"], capture_output=True, text=True).stdout.strip()
     env_file.write_text("VIBETOP_ADMINS=%s,someone-else\n" % me)
 
-    env = dict(os.environ, APP_USER="root", APP_DIR=_REPO,
+    env = dict(os.environ, APP_USER="root",
+                   # APP_DIR is the app's OWN directory now that the installer
+                   # lives in apps/utilities/claude-usage/ and resolves it locally.
+                   APP_DIR=os.path.join(_REPO, "apps", "utilities", "claude-usage"),
                VT_ENV_FILE=str(env_file))
     env.pop("VIBETOP_ADMINS", None)          # the whole point: NOT in the environment
     out = subprocess.run(["bash", inst, "--dry-run"], capture_output=True,
@@ -512,3 +515,23 @@ def test_filebrowser_cache_buster_is_content_derived_and_fails_loudly():
     assert m, "FB_PATCH_FILE not found"
     resolved = m.group(1).replace("$APP_DIR", os.path.dirname(inst))
     assert os.path.isfile(resolved), f"cache-buster hashes a nonexistent file: {m.group(1)}"
+
+
+def test_installers_find_the_repo_root_by_search_not_by_dots():
+    """Every app installer must locate tools/lib/ by SEARCHING upward.
+
+    `../tools/lib/osdeps.sh` was correct only while these installers lived at the
+    top level. Moving them into apps/<section>/<item>/ made every one of them fail
+    at source time with "No such file or directory" — a break no unit test could
+    see, because it only happens when the installer actually runs.
+    """
+    bad = []
+    for inst in _walk(["apps/**/install.sh"]):
+        src = open(inst).read()
+        if "tools/lib/osdeps.sh" not in src:
+            continue
+        if 'BASH_SOURCE[0]}")/.." && pwd)/tools/lib' in src or '/../tools/lib' in src:
+            bad.append(os.path.relpath(inst, _REPO))
+    assert not bad, (
+        "installers reaching tools/lib by a fixed number of '..' — they break on "
+        "the next move: %r" % bad)

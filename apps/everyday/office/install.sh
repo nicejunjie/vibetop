@@ -18,8 +18,19 @@ set -euo pipefail
 
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-# shellcheck source=../tools/lib/osdeps.sh
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/tools/lib/osdeps.sh"
+# Repo root by SEARCH, not by counting "..": these installers have already moved
+# one level deeper (top level -> apps/<section>/<item>/) and a fixed ../ broke
+# instantly. Walk up until the shared lib is found.
+_vt_root() {
+  local d; d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  while [ "$d" != / ]; do
+    [ -f "$d/tools/lib/osdeps.sh" ] && { printf '%s' "$d"; return 0; }
+    d="$(dirname "$d")"
+  done
+  echo "install.sh: could not locate the repo root (tools/lib/osdeps.sh)" >&2; exit 1
+}
+REPO_ROOT="$(_vt_root)"
+. "$REPO_ROOT/tools/lib/osdeps.sh"
 if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist on this system" >&2; exit 1
 fi
