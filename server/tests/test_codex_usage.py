@@ -141,15 +141,15 @@ def test_codex_usage_ignores_the_premium_credits_record(mgr, tmp_path):
     (sessions / "r.jsonl").write_text(
         json.dumps(_family_event("2026-09-04T17:35:06Z", "codex",
                                  {"used_percent": 98, "window_minutes": 300,
-                                  "resets_at": 1788546279},
+                                  "resets_at": 2000000000},
                                  {"used_percent": 77, "window_minutes": 10080,
-                                  "resets_at": 1788891174})) + "\n"
+                                  "resets_at": 2000600000})) + "\n"
         + json.dumps(_family_event("2026-09-04T17:35:08Z", "premium", None, None,
                                    {"credits": {"has_credits": False,
                                                 "unlimited": False, "balance": "0"}})) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
-    assert got["session"] == {"pct": .98, "reset": 1788546279, "minutes": 300}
-    assert got["weekly"] == {"pct": .77, "reset": 1788891174, "minutes": 10080}
+    assert got["session"] == {"pct": .98, "reset": 2000000000, "minutes": 300}
+    assert got["weekly"] == {"pct": .77, "reset": 2000600000, "minutes": 10080}
 
 
 def test_codex_usage_ignores_the_gpt_reserve_record(mgr, tmp_path):
@@ -160,12 +160,12 @@ def test_codex_usage_ignores_the_gpt_reserve_record(mgr, tmp_path):
     (sessions / "r.jsonl").write_text(
         json.dumps(_family_event("2026-09-04T17:00:00Z", "codex",
                                  {"used_percent": 12, "window_minutes": 300,
-                                  "resets_at": 1788546279},
+                                  "resets_at": 2000000000},
                                  {"used_percent": 40, "window_minutes": 10080,
-                                  "resets_at": 1788891174})) + "\n"
+                                  "resets_at": 2000600000})) + "\n"
         + json.dumps(_family_event("2026-09-04T17:00:01Z", "base_model_inference",
                                    {"used_percent": 0, "window_minutes": 10080,
-                                    "resets_at": 1789081387}, None)) + "\n")
+                                    "resets_at": 2001000000}, None)) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
     assert got["session"]["minutes"] == 300, "the 5-hour slot must stay the 5-hour window"
     assert got["session"]["pct"] == .12
@@ -182,9 +182,9 @@ def test_codex_usage_does_not_cry_exhausted_on_a_low_reading(mgr, tmp_path):
     (sessions / "r.jsonl").write_text(
         json.dumps(_family_event("2026-09-04T10:00:00Z", "codex",
                                  {"used_percent": 12, "window_minutes": 300,
-                                  "resets_at": 1788546279},
+                                  "resets_at": 2000000000},
                                  {"used_percent": 30, "window_minutes": 10080,
-                                  "resets_at": 1788891174})) + "\n"
+                                  "resets_at": 2000600000})) + "\n"
         + json.dumps(_family_event("2026-09-04T10:00:05Z", "codex", None, None)) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
     assert got["session"]["pct"] == .12, "a 12% window is not exhausted"
@@ -199,13 +199,13 @@ def test_codex_usage_both_null_after_a_near_limit_reading(mgr, tmp_path):
     (sessions / "r.jsonl").write_text(
         json.dumps(_family_event("2026-09-04T17:35:06Z", "codex",
                                  {"used_percent": 98, "window_minutes": 300,
-                                  "resets_at": 1788546279},
+                                  "resets_at": 2000000000},
                                  {"used_percent": 77, "window_minutes": 10080,
-                                  "resets_at": 1788891174})) + "\n"
+                                  "resets_at": 2000600000})) + "\n"
         + json.dumps(_family_event("2026-09-04T17:35:07Z", "codex", None, None)) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
-    assert got["session"] == {"pct": 1.0, "reset": 1788546279, "minutes": 300}
-    assert got["weekly"] == {"pct": .77, "reset": 1788891174, "minutes": 10080}
+    assert got["session"] == {"pct": 1.0, "reset": 2000000000, "minutes": 300}
+    assert got["weekly"] == {"pct": .77, "reset": 2000600000, "minutes": 10080}
 
 
 def test_codex_usage_never_invents_a_hundred_percent(mgr, tmp_path):
@@ -217,8 +217,34 @@ def test_codex_usage_never_invents_a_hundred_percent(mgr, tmp_path):
     (sessions / "r.jsonl").write_text(
         json.dumps(_family_event("2026-09-04T09:00:00Z", "codex",
                                  {"used_percent": 95, "window_minutes": 300,
-                                  "resets_at": 1788546279}, None)) + "\n"
+                                  "resets_at": 2000000000}, None)) + "\n"
         + json.dumps(_family_event("2026-09-04T09:00:01Z", "codex", None, None)) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
     assert got["session"]["pct"] == 1.0, "the session WAS near the limit"
     assert got["weekly"] is None, "we have never seen a weekly reading — say nothing"
+
+
+def test_codex_usage_a_rolled_window_reads_zero_not_the_stale_number(mgr, tmp_path):
+    """Usage never falls DURING a window, so a stale number is a valid lower
+    bound — until `resets_at` passes. Then the window has emptied and the old
+    number is just wrong. Real trace: 98% at 17:35 with resets_at ~18:24:39,
+    Codex silent for fifty minutes, next record 0%. Between the reset and that
+    record the strip showed 98% of a window that no longer existed."""
+    import time as _t
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    now = int(_t.time())
+    past = now - 600                      # the 5-hour window rolled ten minutes ago
+    weekly_future = now + 3 * 86400
+    (sessions / "r.jsonl").write_text(
+        json.dumps(_family_event("2026-09-04T17:35:06Z", "codex",
+                                 {"used_percent": 98, "window_minutes": 300,
+                                  "resets_at": past},
+                                 {"used_percent": 77, "window_minutes": 10080,
+                                  "resets_at": weekly_future})) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"]["pct"] == 0.0, "the 5-hour window rolled — it is empty, not 98%"
+    assert got["session"]["reset"] > now, "and the reset rolls forward to the next real one"
+    assert got["session"]["reset"] == past + 300 * 60
+    assert got["weekly"]["pct"] == .77, "the weekly window has NOT rolled: keep its value"
+    assert got["weekly"]["reset"] == weekly_future

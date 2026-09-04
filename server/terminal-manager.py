@@ -786,6 +786,31 @@ def _codex_usage_payload(home=None, enabled=True):
     session = resolve("primary", last_primary)
     weekly = resolve("secondary", last_secondary)
 
+    def rolled(w):
+        """A stale reading is only true until its window turns over.
+
+        Usage never falls DURING a window, so a last-known number stays a valid
+        lower bound however old it gets — but the moment `resets_at` passes, the
+        window has rolled and that number is simply wrong. Measured on the real
+        trace: 98% at 17:35 with resets_at ~18:24:39, then Codex silent for
+        fifty minutes; the next record at 18:25:13 reads 0%. For those last
+        thirty-four seconds the strip was showing 98% of a window that had
+        already emptied, and on a quieter day it would show it until the user
+        next ran Codex — which could be hours.
+
+        `resets_at` is the answer, not hiding the number: past the reset, report
+        0% and roll the reset forward by whole windows to the next real one."""
+        if not w or not w.get("reset") or not w.get("minutes"):
+            return w
+        span = int(w["minutes"]) * 60
+        now = int(time.time())
+        if span <= 0 or now < w["reset"]:
+            return w
+        nxt = w["reset"] + span * (((now - w["reset"]) // span) + 1)
+        return {"pct": 0.0, "reset": nxt, "minutes": w["minutes"]}
+
+    session, weekly = rolled(session), rolled(weekly)
+
     age = max(0, int(time.time()) - updated)
     out.update({"session": session, "weekly": weekly,
                 "plan": limits.get("plan_type"), "updated": updated,
