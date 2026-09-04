@@ -233,8 +233,7 @@ test.describe('window mode', () => {
     // the drag, so a window could not be resized — the tip that says "drag an edge
     // to resize" was blocking the resize. v1.19.9 patched only the window-mode tip
     // via a racy one-shot querySelector; the per-app tips were never covered.
-    test('resize works, and no coach banner can block the grips', async ({ page }, info) => {
-      test.skip(info.project.name.startsWith('desktop'), DESKTOP_WM_GAP);
+    test('resize works, and no coach banner can block the grips', async ({ page }) => {
       const probe = () => page.evaluate(() => {
         const w = document.getElementById('win-notes');
         const g = w.querySelector('.win-rz-se').getBoundingClientRect();
@@ -404,14 +403,18 @@ test.describe('window mode', () => {
     }
 
     // THE report: "still cannot resize from left or right". All four edges worked
-    // when aimed INSIDE the border — but Tidy insets each tile by GAP=8, so two
-    // side-by-side tiles have a 16px gutter, and the obvious place to grab (the
-    // divider between them) was bare #frames: elementFromPoint returned the desktop
-    // with cursor `auto`. Left/right felt broken and top/bottom didn't, because a
-    // side-by-side split only ever puts a gutter on the VERTICAL edges. The grab
-    // ring now reaches outside the window so the two rings meet inside the gutter.
-    test('the gutter between two tiled windows is grabbable end to end', async ({ page }, info) => {
-      test.skip(info.project.name.startsWith('desktop'), DESKTOP_WM_GAP);
+    // when aimed INSIDE the border — but the seam between two tiled windows belonged
+    // to neither of them, and the obvious place to grab (the divider) was bare
+    // #frames: elementFromPoint returned the desktop with cursor `auto`. Left/right
+    // felt broken and top/bottom didn't, because a side-by-side split only ever puts
+    // a seam on the VERTICAL edges. The grab rings now reach outside the window and
+    // tile the seam exactly — see shell/winrz-css.test.js for the arithmetic.
+    //
+    // Both halves are asserted on purpose. When the rings OVERLAPPED (each covering
+    // the whole seam plus a few px inside its neighbour), z-order gave every pixel
+    // to one window: the left-half drag resized 0px while the right half still
+    // "worked". One drag could not tell those apart; two can.
+    test('the gutter between two tiled windows is grabbable end to end', async ({ page }) => {
       await tidy(page);
       await page.waitForTimeout(400);
       const layout = await page.evaluate(() => {
@@ -439,16 +442,47 @@ test.describe('window mode', () => {
       }, layout);
       expect(dead, `dead pixels in the gutter: ${dead.join(', ')}`).toEqual([]);
 
-      // And grabbing it actually resizes the window on that side.
-      const before = await geom(page, 'notes');
-      const x = layout.gapL + 2;                       // the left window's half of the gutter
-      await page.mouse.move(x, layout.y);
+      // And grabbing it actually resizes the window on THAT side — each half of the
+      // seam drives its own neighbour, and neither drag may move the other window.
+      const drag = async (x) => {
+        await page.mouse.move(x, layout.y);
+        await page.mouse.down();
+        await page.mouse.move(x + 50, layout.y, { steps: 10 });
+        await page.mouse.up();
+        await page.waitForTimeout(250);
+      };
+
+      const beforeL = await geom(page, 'notes');
+      const beforeR = await geom(page, 'upload');
+      await drag(layout.gapL + 1);                     // the LEFT window's half
+      const afterL = await geom(page, 'notes');
+      const bystanderR = await geom(page, 'upload');
+      expect(afterL.width, 'dragging the left half must widen the LEFT window')
+        .toBeGreaterThan(beforeL.width + 40);
+      expect(Math.abs(bystanderR.width - beforeR.width),
+        'the right window must not resize from the left half of the seam').toBeLessThanOrEqual(3);
+
+      // Re-tile, then drive the right half. Its left edge moves right (the window
+      // narrows from the left) while the left window is left alone.
+      await tidy(page);
+      await page.waitForTimeout(400);
+      const seam = await page.evaluate(() => {
+        const r = (id) => document.querySelector('#win-' + id).getBoundingClientRect();
+        return { gapR: Math.round(r('upload').left), y: Math.round(r('notes').top + r('notes').height / 2) };
+      });
+      const beforeL2 = await geom(page, 'notes');
+      const beforeR2 = await geom(page, 'upload');
+      await page.mouse.move(seam.gapR - 1, seam.y);
       await page.mouse.down();
-      await page.mouse.move(x + 50, layout.y, { steps: 10 });
+      await page.mouse.move(seam.gapR - 1 + 50, seam.y, { steps: 10 });
       await page.mouse.up();
       await page.waitForTimeout(250);
-      const after = await geom(page, 'notes');
-      expect(after.width).toBeGreaterThan(before.width + 40);
+      const afterR2 = await geom(page, 'upload');
+      const bystanderL2 = await geom(page, 'notes');
+      expect(afterR2.left, 'dragging the right half must move the RIGHT window\'s left edge')
+        .toBeGreaterThan(beforeR2.left + 40);
+      expect(Math.abs(bystanderL2.width - beforeL2.width),
+        'the left window must not resize from the right half of the seam').toBeLessThanOrEqual(3);
     });
 
     // The drag mask covers every iframe for the duration of a gesture so the pointer
