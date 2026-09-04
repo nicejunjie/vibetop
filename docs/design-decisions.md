@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_220 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_223 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -243,6 +243,9 @@ _220 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A paradrop was six men appearing out of nothing (2026-09-03)](#a-paradrop-was-six-men-appearing-out-of-nothing-2026-09-03)
 - [Capturing their War Factory did not buy you their tanks (2026-09-03)](#capturing-their-war-factory-did-not-buy-you-their-tanks-2026-09-03)
 - [The infantry art gate cannot see colour, and a drab zone impersonated an owner (2026-09-04)](#the-infantry-art-gate-cannot-see-colour-and-a-drab-zone-impersonated-an-owner-2026-09-04)
+- [Every tank was the same lozenge because they were all the same SIZE (2026-09-04)](#every-tank-was-the-same-lozenge-because-they-were-all-the-same-size-2026-09-04)
+- [A laterally-mounted pair collapses to one mast at our broadside (2026-09-04)](#a-laterally-mounted-pair-collapses-to-one-mast-at-our-broadside-2026-09-04)
+- [The Hornet was a flying ore truck (2026-09-04)](#the-hornet-was-a-flying-ore-truck-2026-09-04)
 
 <!-- END TOC -->
 
@@ -8906,3 +8909,86 @@ same-faction infantry share a zone layout") needs a zone segmenter that does not
 exist. The census stays a hand-run check (`§1.4`'s method: body pixels at
 HSV s > 0.40 within ±22° of the owner hue) recorded in the commit message, and
 the gate keeps scoring only what a single unit cannot fake.
+
+## Every tank was the same lozenge because they were all the same SIZE (2026-09-04)
+
+**Symptom.** Nine ground combat vehicles with a mean pairwise silhouette IoU of
+0.679; eleven of thirteen beaten by a peer rather than by themselves at another
+bearing; nine pixels of a Grizzly falling outside a Rhino. Two commits of colour
+work (C2, C3) moved those numbers by less than 0.01 between them.
+
+**Cause.** The colour metrics and the shape metrics are computed off different
+things: `iou.*` and `peerVsSelf.*` read the **alpha mask**, so no amount of paint
+can move them. The shape they read was near-identical because the nine vehicles
+occupied a ×2.357 mass range with six of them inside ×1.200 — and IoU centres two
+masks on their bbox centres without normalising size, so two units of similar
+mass and similar outline *cannot* score low however their turrets differ. Size
+was the untouched variable.
+
+**Fix — one uniform multiplier per kind, applied about the ground anchor.**
+`bakeVehicle`'s `frame()` scales by `USC_V * VSC[kind]` instead of `USC_V`, and a
+kind scaled up gets a sheet scaled with it. Deliberately a scale and not a
+rewrite of `len`/`wid`: the per-unit aspect work (1.01–1.53 against the RA2
+references) had already landed and a uniform scale cannot disturb it. Span
+2.357 → 3.532, tightest six-unit band 1.200 → **2.009** (the target), and that
+alone carried `iou.groundCombat.mean` 0.6769 → 0.5330 and `peerVsSelf.vehicle`
+11 → 9.
+
+**Rejected: chasing `mass.groundCombatSpan`'s ×6.8 target.** That number is RA2's
+span across its *whole* vehicle-and-ship class (Terror Drone 21 px → Carrier
+143 px). Measured over the nine ground-combat vehicles the metric actually
+covers, **RA2's own span is ×2.04 and RA2's own tightest six-unit band is
+×1.196** — the same bunching the metric calls a defect. Reaching ×6.8 means
+building a roster RA2 does not have. The pass holds each unit near its measured
+RA2 proportion and pushes the two ends ~15% further apart than the sprites do,
+justified by our renderer going to 0.55× where RA2's never left 1.0×, and the
+remaining span debt is recorded as a target-definition problem rather than art
+debt.
+
+## A laterally-mounted pair collapses to one mast at our broadside (2026-09-04)
+
+**Symptom.** The Tesla Tank's two coil columns — its entire identity, and
+`unit-identity-reference.md` §2.4's "gap >= 5 px so the pair reads as two" —
+rendered as a single tall mast at the facing a player reads a unit from, and the
+gate scored the tank against the Mirage at 0.815.
+
+**Cause.** The coils were mounted abreast, at `± px * wid * 0.28`. In this
+projection `px = ISO_X * (-sin a - cos a)`, which is **exactly 0** at a = 135°
+and 315° — the two broadside bearings. A lateral offset there has no horizontal
+component at all: the two coils land in the same screen columns, separated only
+vertically, and stack.
+
+**Fix.** Stagger the pair fore-and-aft as well as abreast
+(`px * wid * 0.30 * sg + fx * len * 0.155 * sg`). The gap then survives all eight
+bearings. It is a small departure from the plan view and it is worth it: the
+measured spike thickness went 28 → 6.5, meaning the crown stopped being a block
+and became a spike. Any "two X side by side" feature in this renderer needs the
+same treatment — check `px` at the bearing you care about before assuming a
+lateral offset separates anything.
+
+## The Hornet was a flying ore truck (2026-09-04)
+
+**Symptom.** A ground-vehicle art change (lowering the Chrono Miner's bin) moved
+`iou.air.mean`, a metric computed only over the Harrier, Hornet, Nighthawk and
+Kirov.
+
+**Cause.** `bakeVehicle`'s kind chain ends in an unguarded `else` whose comment
+says it is the body "for any kind the chain does not name" — and that final arm
+is the **Chrono Miner**. `hornet` was never named in the chain, so the aircraft
+carrier's strike flight took off as three 56×28 harvesters with violet chrono
+drums for noses, flying at altitude 40. Shipped, and invisible to every review,
+because nobody renders the Hornet on its own and the fallback produced a
+perfectly healthy sprite.
+
+**Fix.** `hornet` joins `isAirKind` at `VSC 0.45` — the Harrier's airframe at the
+size §2.3 specifies for it ("the smallest thing that flies — half a Harrier;
+identity is size, not detail"): 21×15, mass 125 against the Harrier's 495.
+`iou.air.mean` 0.3025 → **0.1622**.
+
+**The lesson is about the fallback, not the Hornet.** A default arm that silently
+draws a *plausible* unit hides the gap forever; one that threw, or drew a magenta
+box, would have been caught the day the Hornet was added. The comment above it
+already records the same bug happening once before ("the Phase 8 transports …
+arrive wearing a mining bin") — twice is a pattern, and the third time should be
+prevented by making the fallback loud rather than by remembering.
+
