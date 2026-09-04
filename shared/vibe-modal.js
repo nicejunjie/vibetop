@@ -32,35 +32,94 @@
       '.vibe-mb-cancel:hover{background:rgba(255,255,255,0.06);color:#c8d4e0;}' +
       '.vibe-mb-ok{background:#2f6fd6;color:#fff;}' +
       '.vibe-mb-ok:hover{filter:brightness(1.12);}' +
-      '.vibe-mb-ok.danger{background:#c0392b;}';
+      '.vibe-mb-ok.danger{background:#c0392b;}' +
+      // The QA charter requires it, and a dialog that slides in is the
+      // exact motion a vestibular-sensitive reader asked to be spared.
+      '@media (prefers-reduced-motion: reduce){.vibe-modal-ov,.vibe-modal{transition:none;}' +
+      '.vibe-modal{transform:none;}}';
     var s = document.createElement('style');
     s.id = STYLE_ID; s.textContent = css;
     (document.head || document.documentElement).appendChild(s);
   }
 
+  var seq = 0;
+
   function show(opts) {
     injectStyle();
     return new Promise(function (resolve) {
+      var id = 'vibe-modal-' + (++seq);
+      // The element that had focus when we opened, so it can be given it back.
+      // Without this a keyboard user lands at the top of the document after
+      // every confirmation and has to tab back to where they were.
+      var opener = document.activeElement;
       var ov = document.createElement('div'); ov.className = 'vibe-modal-ov';
       var box = document.createElement('div'); box.className = 'vibe-modal';
       box.setAttribute('role', opts.alert ? 'alertdialog' : 'dialog');
+      // aria-modal tells a screen reader the rest of the page is unavailable;
+      // `inert` on the background is what actually MAKES that true. Without
+      // both, Tab walked straight out of a visible confirmation into the
+      // controls behind it — including, in Config, account deletion.
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('tabindex', '-1');
       if (opts.title) {
-        var h = document.createElement('h3'); h.textContent = opts.title; box.appendChild(h);
+        var h = document.createElement('h3'); h.textContent = opts.title;
+        h.id = id + '-t'; box.setAttribute('aria-labelledby', h.id);
+        box.appendChild(h);
       }
-      var p = document.createElement('p'); p.textContent = opts.message || ''; box.appendChild(p);
+      var p = document.createElement('p'); p.textContent = opts.message || '';
+      p.id = id + '-d';
+      // With no title the message IS the accessible name, or the dialog opens
+      // announcing nothing at all.
+      box.setAttribute(opts.title ? 'aria-describedby' : 'aria-labelledby', p.id);
+      box.appendChild(p);
       var btns = document.createElement('div'); btns.className = 'vibe-modal-btns';
+
+      // Everything that is not the overlay goes inert while it is open.
+      var inerted = [];
+      function setBackgroundInert(on) {
+        var root = document.body || document.documentElement;
+        for (var i = 0; i < root.children.length; i++) {
+          var el = root.children[i];
+          if (el === ov) continue;
+          if (on) {
+            if (!el.hasAttribute('inert')) { el.setAttribute('inert', ''); inerted.push(el); }
+          }
+        }
+        if (!on) {
+          for (var j = 0; j < inerted.length; j++) inerted[j].removeAttribute('inert');
+          inerted = [];
+        }
+      }
 
       var done = false;
       function close(val) {
         if (done) return; done = true;
         document.removeEventListener('keydown', onKey, true);
+        setBackgroundInert(false);
         ov.classList.remove('in');
         setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 140);
+        try { if (opener && opener.focus) opener.focus(); } catch (e) {}
         resolve(val);
+      }
+      function focusables() {
+        return [].slice.call(box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+                 .filter(function (el) { return !el.disabled && el.offsetParent !== null; });
       }
       function onKey(e) {
         if (e.key === 'Escape') { e.preventDefault(); close(opts.alert ? undefined : false); }
         else if (e.key === 'Enter') { e.preventDefault(); close(opts.alert ? undefined : true); }
+        else if (e.key === 'Tab') {
+          // Trap. `inert` already stops most escapes, but browsers without it
+          // (and the browser chrome's own tab order) still need the wrap.
+          var f = focusables();
+          if (!f.length) { e.preventDefault(); return; }
+          var first = f[0], last = f[f.length - 1];
+          if (e.shiftKey && (document.activeElement === first || !box.contains(document.activeElement))) {
+            e.preventDefault(); last.focus();
+          } else if (!e.shiftKey && (document.activeElement === last || !box.contains(document.activeElement))) {
+            e.preventDefault(); first.focus();
+          }
+        }
       }
 
       if (!opts.alert) {
@@ -82,6 +141,7 @@
       });
       document.addEventListener('keydown', onKey, true);
       (document.body || document.documentElement).appendChild(ov);
+      setBackgroundInert(true);
       requestAnimationFrame(function () { ov.classList.add('in'); try { ok.focus(); } catch (e) {} });
     });
   }
