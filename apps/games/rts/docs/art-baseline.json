@@ -102,8 +102,8 @@
     "peerVsSelf.infantry": 11,
     "peerVsSelf.naval": 8,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.679,
-    "iou.vehicle.mean": 0.5809,
+    "iou.groundCombat.mean": 0.6769,
+    "iou.vehicle.mean": 0.5802,
     "iou.infantry.mean": 0.6442,
     "iou.naval.mean": 0.4781,
     "iou.air.mean": 0.3025,
@@ -111,8 +111,8 @@
     "spike.belowFloor": 2,
     "spike.minThickAtZmin": 1.65,
     "spike.belowDeclaredBudget": 4,
-    "mass.groundCombatSpan": 2.317,
-    "mass.tightestBand6": 1.197
+    "mass.groundCombatSpan": 2.357,
+    "mass.tightestBand6": 1.2
   },
   "detail": {
     "counts": {
@@ -127,10 +127,10 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.5809,
+        "mean": 0.5802,
         "pairs": 78,
-        "max": 0.8367,
-        "over75": 13
+        "max": 0.8371,
+        "over75": 12
       },
       "infantry": {
         "mean": 0.6442,
@@ -151,10 +151,10 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.679,
+        "mean": 0.6769,
         "pairs": 36,
-        "max": 0.8162,
-        "over75": 8
+        "max": 0.8158,
+        "over75": 7
       },
       "sameFactionOver75": 16
     },
@@ -167,7 +167,7 @@
       {
         "a": "Chrono Miner",
         "b": "Mirage Tank",
-        "iou": 0.8367
+        "iou": 0.8371
       },
       {
         "a": "Engineer",
@@ -177,7 +177,7 @@
       {
         "a": "Mirage Tank",
         "b": "Prism Tank",
-        "iou": 0.8162
+        "iou": 0.8158
       },
       {
         "a": "Engineer",
@@ -187,12 +187,12 @@
       {
         "a": "Rhino Tank",
         "b": "Tesla Tank",
-        "iou": 0.7995
+        "iou": 0.8006
       },
       {
         "a": "Tesla Tank",
         "b": "War Miner",
-        "iou": 0.7983
+        "iou": 0.7991
       },
       {
         "a": "Conscript",
@@ -202,7 +202,7 @@
       {
         "a": "Rhino Tank",
         "b": "War Miner",
-        "iou": 0.7898
+        "iou": 0.7916
       },
       {
         "a": "Engineer",
@@ -305,7 +305,7 @@
         "aspect": 1.322,
         "selfIoU": 0.7263,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.8367,
+        "bestPeerIoU": 0.8371,
         "peersBeatingSelf": 5,
         "peers": 12,
         "spike": {
@@ -547,7 +547,7 @@
         "aspect": 1.062,
         "selfIoU": 0.6609,
         "bestPeer": "Prism Tank",
-        "bestPeerIoU": 0.7842,
+        "bestPeerIoU": 0.7824,
         "peersBeatingSelf": 9,
         "peers": 12,
         "spike": {
@@ -673,13 +673,13 @@
         "name": "Grizzly Tank",
         "group": "vehicle",
         "fac": "dir",
-        "mass": 1437,
+        "mass": 1443,
         "bboxW": 75,
         "bboxH": 51,
         "aspect": 1.53,
-        "selfIoU": 0.5911,
+        "selfIoU": 0.5925,
         "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.7754,
+        "bestPeerIoU": 0.7741,
         "peersBeatingSelf": 9,
         "peers": 12,
         "spike": {
@@ -717,20 +717,20 @@
         "name": "Apocalypse",
         "group": "vehicle",
         "fac": "col",
-        "mass": 2428,
+        "mass": 2470,
         "bboxW": 84,
         "bboxH": 63,
         "aspect": 1.334,
-        "selfIoU": 0.6521,
+        "selfIoU": 0.6455,
         "bestPeer": "MCV",
-        "bestPeerIoU": 0.7352,
+        "bestPeerIoU": 0.7417,
         "peersBeatingSelf": 3,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 20,
-          "thick": 18,
-          "atZmin": 9.9,
+          "len": 21,
+          "thick": 19,
+          "atZmin": 10.45,
           "budget": 4,
           "feature": "twin barrels >=19 px, visibly TWO — the only two-barrelled thing"
         }
@@ -745,7 +745,7 @@
         "aspect": 1.158,
         "selfIoU": 0.6535,
         "bestPeer": "Apocalypse",
-        "bestPeerIoU": 0.7352,
+        "bestPeerIoU": 0.7417,
         "peersBeatingSelf": 1,
         "peers": 12,
         "spike": {
@@ -767,7 +767,7 @@
         "aspect": 1.296,
         "selfIoU": 0.7786,
         "bestPeer": "Chrono Miner",
-        "bestPeerIoU": 0.8367,
+        "bestPeerIoU": 0.8371,
         "peersBeatingSelf": 4,
         "peers": 12,
         "spike": {
@@ -805,13 +805,13 @@
         "name": "Prism Tank",
         "group": "vehicle",
         "fac": "dir",
-        "mass": 1445,
+        "mass": 1449,
         "bboxW": 61,
         "bboxH": 48,
         "aspect": 1.16,
-        "selfIoU": 0.7378,
+        "selfIoU": 0.7365,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.8162,
+        "bestPeerIoU": 0.8158,
         "peersBeatingSelf": 5,
         "peers": 12,
         "spike": {
@@ -827,18 +827,18 @@
         "name": "Rhino Tank",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1831,
+        "mass": 1841,
         "bboxW": 73,
         "bboxH": 53,
         "aspect": 1.463,
-        "selfIoU": 0.6562,
+        "selfIoU": 0.6606,
         "bestPeer": "Tesla Tank",
-        "bestPeerIoU": 0.7995,
-        "peersBeatingSelf": 9,
+        "bestPeerIoU": 0.8006,
+        "peersBeatingSelf": 8,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 18,
+          "len": 17,
           "thick": 14,
           "atZmin": 7.7,
           "budget": 3.5,
@@ -1025,20 +1025,20 @@
         "name": "Tesla Tank",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1573,
+        "mass": 1577,
         "bboxW": 66,
         "bboxH": 43,
         "aspect": 1.39,
-        "selfIoU": 0.6907,
+        "selfIoU": 0.6928,
         "bestPeer": "Mirage Tank",
-        "bestPeerIoU": 0.8133,
-        "peersBeatingSelf": 7,
+        "bestPeerIoU": 0.8151,
+        "peersBeatingSelf": 6,
         "peers": 12,
         "spike": {
           "axis": "v",
           "len": 13,
-          "thick": 29,
-          "atZmin": 15.95,
+          "thick": 21,
+          "atZmin": 11.55,
           "budget": 3,
           "feature": "two coil columns >=9 px tall, gap >=5 px so the pair reads as two"
         }
@@ -1075,7 +1075,7 @@
         "aspect": 1.286,
         "selfIoU": 0.588,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.7016,
+        "bestPeerIoU": 0.6995,
         "peersBeatingSelf": 9,
         "peers": 12,
         "spike": {
@@ -1097,7 +1097,7 @@
         "aspect": 1.298,
         "selfIoU": 0.7296,
         "bestPeer": "Tesla Tank",
-        "bestPeerIoU": 0.7983,
+        "bestPeerIoU": 0.7991,
         "peersBeatingSelf": 5,
         "peers": 12,
         "spike": {

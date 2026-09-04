@@ -7221,22 +7221,24 @@
           deckPlate(-0.5, len * 0.60, wid * 0.42, 6.4, shade(hull, 1.08));
           isoBox(g, cx + fx * 5.6, by - 7.2 + fy * 5.6, len * 0.20, wid * 0.34, 1.3, a, deck, dark);
           isoBox(g, cx - fx * 9.6, by - 7.2 - fy * 9.6, len * 0.18, wid * 0.32, 1.3, a, deck, dark);
-          // ONE UNBROKEN band a flank, carried round the glacis at the nose
-          // and closed by a plate at the tail. Three separate segments with
-          // dark gaps between them (the previous pass) read at 1:1 as a row
-          // of bus windows; the reference's blue follows the hull line.
+          // TWO discrete house blocks, and only two: ONE applique plate a
+          // flank and ONE turret cheek, with a clear gap between them
+          // (unit-identity-reference.md 1.4 -- the blue Grizzly wears two
+          // panels, never a stripe). The band that ran the whole flank, the
+          // glacis wrap and the tail plate are gone with it: an unbroken
+          // stripe reads as PAINT and carries no shape, where two countable
+          // slabs read as bolted armour (Rule 7). Both blocks stay inside
+          // the outline the band already had: the Grizzly is the flattest
+          // thing on the ground and its own gun is a 2px sliver, so raising
+          // anything here buries the one feature that names it.
           for (sg = -1; sg <= 1; sg += 2) {
-            isoBox(g, cx + px * wid * 0.37 * sg - fx * 1.0,
-                   by - 3.0 + py * wid * 0.37 * sg - fy * 1.0,
-                   len * 0.78, 1.7, 2.6, a, panel, PEDGE);
-            isoBox(g, cx + px * wid * 0.345 * sg + fx * 4.4,
-                   by - 5.4 + py * wid * 0.345 * sg + fy * 4.4,
-                   len * 0.28, 1.3, 0.9, a, plit, PEDGE);          // lit lip, forward half
+            isoBox(g, cx + px * wid * 0.365 * sg - fx * 1.2,
+                   by - 3.0 + py * wid * 0.365 * sg - fy * 1.2,
+                   len * 0.66, 1.7, 3.3, a, panel, PEDGE);
+            isoBox(g, cx + px * wid * 0.345 * sg - fx * 1.2,
+                   by - 5.4 + py * wid * 0.345 * sg - fy * 1.2,
+                   len * 0.58, 1.3, 0.9, a, plit, PEDGE);          // lit cap on the same plate
           }
-          isoBox(g, cx + fx * len * 0.34, by - 2.8 + fy * len * 0.34,
-                 1.7, wid * 0.50, 2.4, a, panel, PEDGE);           // colour on the glacis
-          isoBox(g, cx - fx * len * 0.37, by - 2.8 - fy * len * 0.37,
-                 1.6, wid * 0.46, 2.4, a, pdark, PEDGE);           // colour tail plate
           fenders(len * 0.44, 3.2);
           bumper(len * 0.42, wid * 0.20, by - 1.4);
           lamp(cx + fx * len * 0.40 + px * wid * 0.22, by - 4.0 + fy * len * 0.40 + py * wid * 0.22);
@@ -7250,14 +7252,13 @@
           prism(tx, ty, [[6.6, -2.5], [6.6, 2.5], [1.8, 5.4], [-4.4, 4.4],
                          [-6.4, 0], [-4.4, -4.4], [1.8, -5.4]],
                 4.4, shade(hull, 0.95), dark);
-          // ONE small remap panel a cheek, set back from the mantlet. Full
-          // coloured cheeks put the Grizzly at 27% house colour and turned
-          // the turret into a painted block; the reference turret is pale
-          // grey with a patch.
+          // The SECOND of the Grizzly's two blocks: one remap cheek a side,
+          // set back from the mantlet. It carries the colour the flank band
+          // gave up, so the budget holds while the count drops to two.
           for (sg = -1; sg <= 1; sg += 2)
-            prism(tx - fx * 1.8, ty - 0.7 - fy * 1.8,
-                  [[1.4, 4.0 * sg], [-3.2, 3.5 * sg], [-3.3, 5.0 * sg], [1.4, 5.6 * sg]],
-                  2.6, panel, PEDGE);
+            prism(tx - fx * 1.8, ty - 0.4 - fy * 1.8,
+                  [[1.4, 2.9 * sg], [-3.6, 2.6 * sg], [-3.7, 5.0 * sg], [1.4, 5.6 * sg]],
+                  4.0, panel, PEDGE);
           prism(tx - fx * 0.7, ty - 4.4 - fy * 0.7,                  // chamfered cap
                 [[4.6, -1.8], [4.6, 1.8], [0.8, 3.8], [-4.4, 2.9], [-4.4, -2.9], [0.8, -3.8]],
                 1.3, shade(hull, 1.06), dark);
@@ -7294,12 +7295,14 @@
             isoBox(g, cx - fx * (7.6 + i2 * 2.0), by - 10.0 - fy * (7.6 + i2 * 2.0),
                    0.9, wid * 0.40, 0.7, a, '#2c3038', '#14171c');
           for (sg = -1; sg <= 1; sg += 2) {
-            // ONE solid owner plate per flank, and the pale guard stripe that
-            // runs above the track in the reference — the two together are
-            // what read at 1:1, where six separate panels turned to mush.
-            isoBox(g, cx + px * wid * 0.37 * sg - fx * 0.6,
-                   by - 3.6 + py * wid * 0.37 * sg - fy * 0.6,
-                   len * 0.74, 1.7, 3.8, a, panel, PEDGE);
+            // TWO owner plates per flank with a gap between them, under the
+            // pale guard stripe that runs above the track in the reference.
+            // One plate the length of the hull was a bar; two are countable,
+            // and countability is itself a shape cue.
+            for (i2 = -1; i2 <= 1; i2 += 2)
+              isoBox(g, cx + px * wid * 0.375 * sg + fx * (i2 * 6.0 - 0.6),
+                     by - 3.6 + py * wid * 0.375 * sg + fy * (i2 * 6.0 - 0.6),
+                     len * 0.32, 1.7, 4.2, a, i2 > 0 ? plit : panel, PEDGE);
             isoBox(g, cx + px * wid * 0.40 * sg - fx * 0.6,
                    by - 6.4 + py * wid * 0.40 * sg - fy * 0.6,
                    len * 0.70, 1.5, 1.1, a, '#d3d9e1', '#4b5058');
@@ -7366,31 +7369,44 @@
           for (sg = -1; sg <= 1; sg += 2) {                     // full-length skirts
             isoBox(g, cx + px * wid * 0.39 * sg, by - 3.2 + py * wid * 0.39 * sg,
                    len * 0.86, 1.8, 4.0, a, shade(hull, 0.74), dark);
-            isoBox(g, cx + px * wid * 0.40 * sg + fx * 0.5,      // ONE unbroken colour band
-                   by - 4.0 + py * wid * 0.40 * sg + fy * 0.5,
-                   len * 0.76, 1.8, 2.8, a, panel, PEDGE);
+            // The unbroken colour band that used to run this skirt is gone.
+            // On the sheet the Apocalypse's house colour IS its canister
+            // drums (unit-identity-reference.md 1.4); a bar down the skirt
+            // spent the whole budget on the one surface every other tank
+            // also has. Two short shoulder plates keep the flank from going
+            // mute, and the drums below carry the rest.
+            for (i2 = -1; i2 <= 1; i2 += 2)
+              isoBox(g, cx + px * wid * 0.40 * sg + fx * (i2 * 9.4 + 0.5),
+                     by - 4.0 + py * wid * 0.40 * sg + fy * (i2 * 9.4 + 0.5),
+                     len * 0.26, 1.8, 3.2, a, panel, PEDGE);
           }
           fenders(len * 0.44, 4.8);
           bumper(len * 0.42, wid * 0.28, by - 2.0);
           lamp(cx + fx * len * 0.40 + px * wid * 0.26, by - 5.8 + fy * len * 0.40 + py * wid * 0.26);
           lamp(cx + fx * len * 0.40 - px * wid * 0.26, by - 5.8 + fy * len * 0.40 - py * wid * 0.26);
           exhaust(cx - fx * len * 0.42 + px * wid * 0.20, by - 7.6 - fy * len * 0.42 + py * wid * 0.20);
-          // canister racks: two rows of four tubes, sorted far-to-near so the
-          // near tube always caps the one behind it
+          // THE CANISTERS. FOUR drums stacked 2x2 on the REAR DECK, each fat
+          // enough to be counted at 1:1 with a clear gap round it, and each
+          // one in the owner's hue: on `soviet-apocalypse-tank.png` the red
+          // is these drums, not a stripe, and no other unit on the field
+          // carries a countable cluster like it. Eight thin tubes strung
+          // down both flanks (the last pass) read as ribs on a skirt from
+          // two tiles away and put the tell where every tank already has a
+          // skirt; four drums standing proud of the deck put it in the
+          // OUTLINE, where a silhouette can carry it.
           var cans = [];
           for (sg = -1; sg <= 1; sg += 2)
-            for (i2 = 0; i2 < 2; i2++)
-              for (var jr = 0; jr < 2; jr++) {
-                var cu = 5.8 - i2 * 4.6, cv = sg * (5.6 + jr * 3.0);
-                cans.push([cx + fx * cu + px * cv, by - 7.8 + fy * cu + py * cv]);
-              }
+            for (i2 = 0; i2 < 2; i2++) {
+              var cu = -8.2 - i2 * 5.4, cv = sg * 3.9;
+              cans.push([cx + fx * cu + px * cv, by - 9.0 + fy * cu + py * cv]);
+            }
           cans.sort(function (m, n) { return m[1] - n[1]; });
           for (i2 = 0; i2 < cans.length; i2++) {
-            puck(cans[i2][0], cans[i2][1], 1.5, 4.0, pdark, panel, PEDGE);
-            gEllipse(cans[i2][0], cans[i2][1] - 4.0, 0.80);      // dark muzzle in the cap
+            puck(cans[i2][0], cans[i2][1], 1.85, 5.4, pdark, panel, PEDGE);
+            gEllipse(cans[i2][0], cans[i2][1] - 5.4, 0.95);      // dark muzzle in the cap
             g.fillStyle = '#1a1d22'; g.fill();
             g.fillStyle = plit;                                  // lit lip
-            gEllipse(cans[i2][0] - 0.4, cans[i2][1] - 4.4, 0.52); g.fill();
+            gEllipse(cans[i2][0] - 0.45, cans[i2][1] - 5.9, 0.62); g.fill();
           }
         }
         if (wantT) {
@@ -7586,20 +7602,20 @@
                    0.9, wid * 0.40, 0.7, a, '#2f3239', '#14171c');
           isoBox(g, cx + fx * 6.6, by - 8.0 + fy * 6.6, len * 0.16, wid * 0.36, 1.4,
                  a, deck, dark);                                    // driver's plate
-          // ONE band a flank, not two rows of six bricks. Doubling the remap
-          // down the deck edge as well as the skirt took the Rhino to 33% of
-          // its own pixels in house colour — half again over every other
-          // unit — and made it read as a painted brick.
-          for (sg = -1; sg <= 1; sg += 2) {
-            isoBox(g, cx + px * wid * 0.37 * sg - fx * 0.8,
-                   by - 3.4 + py * wid * 0.37 * sg - fy * 0.8,
-                   len * 0.78, 1.8, 3.0, a, panel, PEDGE);
-            isoBox(g, cx + px * wid * 0.35 * sg + fx * 4.6,
-                   by - 6.0 + py * wid * 0.35 * sg + fy * 4.6,
-                   len * 0.28, 1.4, 1.1, a, plit, PEDGE);           // lit lip, forward half
-          }
-          isoBox(g, cx + fx * len * 0.35, by - 3.0 + fy * len * 0.35,
-                 1.8, wid * 0.54, 2.6, a, panel, PEDGE);            // colour on the glacis
+          // THREE discrete flank panels a side, with a real gap between them
+          // — the red-owner Rhino carries three separate plates down each
+          // flank plus two on the turret cheeks, FIVE blocks, and never a
+          // stripe (unit-identity-reference.md 1.4). The single band that
+          // ran the whole flank and wrapped the glacis is gone: it held the
+          // right BUDGET and the wrong PLACEMENT, and a continuous bar
+          // carries no shape information at all. Countable plates do, which
+          // is also what separates the Rhino from the Tesla Tank's identical
+          // olive lozenge without spending a pixel more paint.
+          for (sg = -1; sg <= 1; sg += 2)
+            for (i2 = -1; i2 <= 1; i2++)
+              isoBox(g, cx + px * wid * 0.425 * sg + fx * (i2 * 7.4 - 0.6),
+                     by - 3.8 + py * wid * 0.425 * sg + fy * (i2 * 7.4 - 0.6),
+                     len * 0.155, 1.8, 3.8, a, i2 > 0 ? plit : panel, PEDGE);
           fenders(len * 0.44, 4.0);
           bumper(len * 0.42, wid * 0.24, by - 1.6);
           lamp(cx + fx * len * 0.40 + px * wid * 0.24, by - 5.0 + fy * len * 0.40 + py * wid * 0.24);
@@ -7613,12 +7629,18 @@
           prism(rtx, rty, [[6.8, -3.4], [6.8, 3.4], [2.2, 6.4], [-4.6, 5.6],
                            [-6.8, 0], [-4.6, -5.6], [2.2, -6.4]],
                 4.8, shade(hull, 0.96), dark);
-          isoBox(g, rtx + fx * 5.4, rty - 0.5 + fy * 5.4, 1.6, 6.4, 3.8,
-                 a, panel, PEDGE);                                  // plate across the turret face
-          for (sg = -1; sg <= 1; sg += 2)                           // bulged cheeks, HULL value
+          // Blocks four and five: the two turret CHEEKS. Hull-value cheeks
+          // with a bar painted across the turret face (the last pass) put
+          // the remap where nothing is shaped; the sheet puts it on the two
+          // bulges, where it counts as two more plates from every bearing.
+          for (sg = -1; sg <= 1; sg += 2) {
             prism(rtx - fx * 0.4, rty - 0.8 - fy * 0.4,
                   [[4.6, 4.8 * sg], [-4.2, 4.4 * sg], [-4.4, 6.3 * sg], [4.6, 7.0 * sg]],
-                  3.4, shade(hull, 0.88), dark);
+                  1.4, shade(hull, 0.88), dark);
+            prism(rtx - fx * 0.4, rty - 2.2 - fy * 0.4,
+                  [[4.6, 4.8 * sg], [-4.2, 4.4 * sg], [-4.4, 6.3 * sg], [4.6, 7.0 * sg]],
+                  2.2, panel, PEDGE);
+          }
           prism(rtx - fx * 0.8, rty - 4.8 - fy * 0.8,               // chamfered cap
                 [[4.8, -2.2], [4.8, 2.2], [0.8, 4.4], [-4.6, 3.4], [-4.6, -3.4], [0.8, -4.4]],
                 1.4, shade(hull, 1.08), dark);
@@ -7759,10 +7781,15 @@
                  by - 3.6 + fy * len * 0.40 + py * wid * 0.24 * l3);
         };
         var drawRig3 = function () {
-          for (sg = -1; sg <= 1; sg += 2)                           // colour band on the bed sides
-            isoBox(g, cx + px * wid * 0.36 * sg - fx * 3.6,
-                   by - 2.4 + py * wid * 0.36 * sg - fy * 3.6,
-                   len * 0.48, 1.5, 2.6, a, panel, PEDGE);
+          // Two short bed plates, not a band down the whole side. The V3's
+          // remap belongs on the missile's two ENDS (nose cone and fins,
+          // below); the truck is deliberately dull so nothing competes with
+          // that diagonal, and a bar down the bed was competing.
+          for (sg = -1; sg <= 1; sg += 2)
+            for (i2 = -1; i2 <= 1; i2 += 2)
+              isoBox(g, cx + px * wid * 0.36 * sg + fx * (i2 * 4.2 - 3.6),
+                     by - 2.4 + py * wid * 0.36 * sg + fy * (i2 * 4.2 - 3.6),
+                     len * 0.21, 1.5, 2.6, a, panel, PEDGE);
           isoBox(g, cx - fx * 3.2, by - 4.6 - fy * 3.2, len * 0.56, wid * 0.56, 1.6,
                  a, deck, dark);                                    // flat bed
           // the RAIL: two dark girders climbing from the tail to the cab, with
@@ -7927,14 +7954,17 @@
         tracks(len * 1.00, 4.2, wid * 0.30, '#b0b7c2');
         chassis(cx, by - 1.3, len * 0.86, wid * 0.76, 4.2, hull, dark, 3.2);
         deckPlate(-0.8, len * 0.58, wid * 0.48, 6.8, shade(hull, 1.08));
-        for (sg = -1; sg <= 1; sg += 2) {                      // ONE unbroken band a flank
-          isoBox(g, cx + px * wid * 0.37 * sg - fx * 1.4,
-                 by - 3.2 + py * wid * 0.37 * sg - fy * 1.4,
-                 len * 0.74, 1.7, 2.6, a, panel, PEDGE);
-          isoBox(g, cx + px * wid * 0.35 * sg + fx * 3.6,
-                 by - 5.5 + py * wid * 0.35 * sg + fy * 3.6,
-                 len * 0.24, 1.3, 0.9, a, plit, PEDGE);
-        }
+        // TWO plates a flank with a gap, not a bar: the Tesla Tank's own
+        // identity is the coil pair, so most of its remap belongs UP THERE
+        // (the feet and the cap below), and what stays on the hull is two
+        // countable plates. A single band down the skirt was the one surface
+        // it shares with the Rhino and the War Miner, which is exactly where
+        // paint buys nothing.
+        for (sg = -1; sg <= 1; sg += 2)
+          for (i2 = -1; i2 <= 1; i2 += 2)
+            isoBox(g, cx + px * wid * 0.375 * sg + fx * (i2 * 5.6 - 1.4),
+                   by - 3.2 + py * wid * 0.375 * sg + fy * (i2 * 5.6 - 1.4),
+                   len * 0.24, 1.7, 3.4, a, i2 > 0 ? plit : panel, PEDGE);
         fenders(len * 0.42, 3.4);
         bumper(len * 0.41, wid * 0.24, by - 1.5);
         var drawTail5 = function () {
@@ -7972,7 +8002,7 @@
           cols5.sort(function (m, n) { return m[1] - n[1]; });
           for (i2 = 0; i2 < cols5.length; i2++) {
             var kx5 = cols5[i2][0], ky5 = cols5[i2][1];
-            puck(kx5, ky5, 1.9, 1.2, pdark, panel, PEDGE);                // colour foot
+            puck(kx5, ky5, 2.2, 2.0, pdark, panel, PEDGE);                // colour foot
             for (var w5 = 0; w5 < 5; w5++)                                // five ring windings
               puck(kx5, ky5 - 1.1 - w5 * 1.05, 1.62 - w5 * 0.13, 1.0,
                    shade(ACCENT.teslatank, 0.60), ACCENT.teslatank, '#565d66');
@@ -8004,20 +8034,18 @@
         tracks(len * 1.00, 3.6, wid * 0.30, '#b0b7c2');
         chassis(cx, by - 1.3, len * 0.84, wid * 0.74, 3.8, hull, dark, 3.4);
         deckPlate(-0.8, len * 0.56, wid * 0.46, 5.9, shade(hull, 1.12));
-        // ONE unbroken band, held INBOARD of the track runs. Sat directly on
-        // top of them (the first attempt) it hid the tracks completely and
-        // the tank read as a coloured box hovering over its own shadow.
-        for (sg = -1; sg <= 1; sg += 2) {
-          isoBox(g, cx + px * wid * 0.36 * sg, by - 3.4 + py * wid * 0.36 * sg,
-                 len * 0.84, 1.8, 3.2, a, panel, PEDGE);
-          isoBox(g, cx + px * wid * 0.35 * sg + fx * 3.0,
-                 by - 6.0 + py * wid * 0.35 * sg + fy * 3.0,
-                 len * 0.32, 1.5, 1.0, a, plit, PEDGE);      // lit lip, forward half only
-        }
-        // the band climbs the glacis at the nose, the way the reference's
-        // blue curve wraps around the front of the hull
-        isoBox(g, cx + fx * len * 0.36, by - 3.4 + fy * len * 0.36,
-               1.8, wid * 0.58, 2.8, a, panel, PEDGE);
+        // TWO plates a flank, and the glacis wrap is gone with the band that
+        // used to run the whole hull. The Mirage's identity is the EMITTER
+        // HOUSING, so that is where the rest of its remap now sits -- the
+        // ring at its foot and the housing's own bottom plate, below.
+        // Painting the full flank instead spent the whole budget on the one
+        // shape it shares with the Chrono Miner, its worst confusion on the
+        // field at 0.837 silhouette IoU.
+        for (sg = -1; sg <= 1; sg += 2)
+          for (i2 = -1; i2 <= 1; i2 += 2)
+            isoBox(g, cx + px * wid * 0.365 * sg + fx * i2 * 5.8,
+                   by - 3.4 + py * wid * 0.365 * sg + fy * i2 * 5.8,
+                   len * 0.32, 1.8, 3.6, a, i2 > 0 ? plit : panel, PEDGE);
         fenders(len * 0.42, 3.2);
         bumper(len * 0.41, wid * 0.24, by - 1.6);
         var drawCowl = function () {
@@ -8038,9 +8066,12 @@
         };
         var drawStack = function () {
           var sx2 = cx - fx * 0.4, sy2 = by - 5.9 - fy * 0.4;
-          // The house colour climbs the assembly at its base, the way the
-          // reference's band curves up and around the front of the emitter.
-          puck(sx2, sy2 + 0.6, 4.9, 2.4, pdark, panel, PEDGE);
+          // The house colour is ON the emitter: a ring at its foot, and the
+          // bottom plate of the stack itself. The reference's housing is a
+          // mid-value shell with ONE bright mouth at the top, so the plate
+          // under that mouth is free to carry the owner instead of a third
+          // shade of white.
+          puck(sx2, sy2 + 0.6, 4.9, 2.6, pdark, panel, PEDGE);
           isoBox(g, sx2, sy2 - 1.2, len * 0.38, wid * 0.36, 8.8, a, '#2b2f37', '#12141a');
           // The fins are SLIM and mid-value. Built deep and dark (the first
           // attempt) prism's far-face shading took them to near-black and
@@ -8056,7 +8087,7 @@
           for (i2 = 0; i2 < 3; i2++)
             isoBox(g, sx2, sy2 - 1.6 - i2 * 2.45, len * 0.50 * (1 - i2 * 0.06),
                    wid * 0.46 * (1 - i2 * 0.06), 1.8, a,
-                   i2 === 2 ? ACCENT.mirage : shade(ACCENT.mirage, 0.50 + i2 * 0.14), '#5a6069');
+                   i2 === 2 ? ACCENT.mirage : (i2 ? shade(ACCENT.mirage, 0.64) : panel), '#5a6069');
           g.strokeStyle = 'rgba(236,242,250,.60)'; g.lineWidth = 1.5;   // light-catch streak
           g.lineCap = 'round';
           g.beginPath();
