@@ -160,6 +160,70 @@ spec and give each a pixel number. Fix the two ends of the hierarchy: RA2 spans 
 with six inside a ×1.38 band. Acceptance: no two same-faction units share size class
 *and* spike.
 
+> **C4 / INFANTRY — done.** `peerVsSelf.infantry` **10 → 1**, `iou.infantry.mean`
+> **0.6417 → 0.5410** (the plan's ≤0.55 target, MET), `iou.sameFactionOver75`
+> **14 → 8**. No metric regressed, and C2's colour work went UP on the way past:
+> `hue.infantryOwnerMean` 0.2323 → **0.2439**, `hue.infantryBelowBudget` **2 → 1**
+> (only the Spy left, at 6.5%), `colour.infantry.meanDist` 1.2733 → **1.2754**,
+> `hue.maxImpostor` unchanged at 0.0033.
+>
+> **What the roster was missing was SIZE CLASS.** §2.1/§2.2 give every infantryman
+> one (`i-XS` … `i-XL`) off the RA2 counterpart's measured w×h, and our fourteen came
+> out **34–39 px tall by 16–22 wide** — a ×1.15 height band where RA2 has ×1.54
+> (Rocketeer 24, Flak Trooper 37). With the same build at the same size the only
+> thing left to separate two troopers is the props, and the props are ~8% of the
+> mask, so a peer beat *nine* of them. A `STATURE` table now scales each kind on
+> `[x, y]` about its own ground anchor — one transform outside everything else, so
+> the man, his weapon and his shadow scale together and the boots stay planted. The
+> x:y ratio of each entry tracks the RA2 counterpart's own aspect against the
+> Conscript's (Yuri 0.84 vs RA2's 0.86, Tesla Trooper 1.35 vs 1.34, Rocketeer 1.30
+> vs 1.38), so nobody is stretched into a shape RA2 does not give him. Heights now
+> run 28 (Dog) → 45 (Flak Trooper), widths 14 (Yuri) → 27 (Tesla Trooper).
+>
+> Three spec'd spikes that were never actually drawn carried the rest:
+> * **Flak Trooper** — §2.2's "9–10 px of pure spike above the helmet". His muzzle
+>   stopped *level with* the helmet crown, so the gate scored his HELMET as his
+>   spike and he was not the tallest thing on the field at all. The cannon now
+>   clears the crown by ~8 px and he stands 45 px against a 36 px Conscript (RA2:
+>   37 vs 27).
+> * **Guardian GI** — §2.1's "shoulder missile tube, angled ~30° up, overhanging the
+>   head". It was lying across his chest at 20°, which put the amber warhead at the
+>   same height and reach as the Desolator's shoulder cannon; the two were each
+>   other's nearest silhouette. The tube now climbs past the helmet line.
+> * **Desolator** — §2.2's "gun muzzle >= 4 px across (fat, not a rifle)". The green
+>   disc measured 2.7 px and was the one hue nobody else on the field carries.
+>
+> **The trap, twice, and it is the Desolator-backpack trap generalised: raising a
+> thin thing clear of the body makes the THIN thing the measured spike.** The Flak
+> Trooper's 3.4-wide barrel came back at 3.3 screen px — under the 3.64 floor that
+> keeps a feature alive at `ZMIN` — the moment it cleared the helmet, so the bore
+> was widened to 4.6 (a big-bore AA gun can carry it honestly). The Guardian's tube
+> got the same problem for free from its ANGLE: `spikeOf` measures the row extent of
+> what protrudes, and a 3.4-wide tube laid at 39° is 5.4 px across a row where a
+> vertical one is 3.4. **Check `spike.*` after every protrusion you lengthen.**
+>
+> Two more colour interactions worth knowing. (1) The Flak Trooper's new cannon is
+> ~70 px of neutral steel the figure did not carry before, and it diluted his remap
+> from 22.1% to 16.7% — *under* §1.4's floor. Adding it back on the **sleeves**
+> fixed the fraction but deleted his grey-brown tunic from the hue histogram and
+> collapsed `flak|rocketeer` colour distance 0.662 → 0.488; putting it on the GUN
+> (a house band at the breech, as the Guardian's tube already carries) fixed both.
+> **Any silhouette change that adds neutral mass moves the colour metrics too.**
+> (2) Yuri's additive psychic motes sat straddling the skull edge, and once his
+> stature narrowed him they summed over the skin outline into a PINK fringe —
+> 0.2% of the sprite reading as the *other* owner's hue, `hue.maxImpostor`
+> 0.0033 → 0.0049. They sit clear of the head now.
+>
+> **Not honoured, and why.** (1) `peerVsSelf.infantry` is **1**, not 0: the Guardian
+> GI's own self-IoU across his eight bearings is **0.535**, the lowest of any
+> trooper, because a shoulder weapon's screen length swings ×2.1 from front-on to
+> profile and swaps sides on the rear facings. Beating that needs *every* peer under
+> 0.535, which no amount of sizing delivers for a big trooper with a shoulder
+> weapon — and §1.2's honest line is that RA2 has the same problem. (2) The Spy is
+> still `hue.infantryBelowBudget`'s last entry at 6.5% and his fedora still measures
+> 5 px against a 7 px budget — both are C2's recorded findings and neither is a
+> silhouette question. (3) GI vs Conscript is untouched, per §4.
+
 **C5 — `ACCENT` earns its name.** Nine of thirteen ground vehicles picked a
 near-neutral grey, and for each, *all twelve* peers carry the same colour family. The
 three with a chromatic accent — both miners and the MCV — are precisely the three

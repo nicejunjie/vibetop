@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_220 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_221 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -243,6 +243,7 @@ _220 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A paradrop was six men appearing out of nothing (2026-09-03)](#a-paradrop-was-six-men-appearing-out-of-nothing-2026-09-03)
 - [Capturing their War Factory did not buy you their tanks (2026-09-03)](#capturing-their-war-factory-did-not-buy-you-their-tanks-2026-09-03)
 - [The infantry art gate cannot see colour, and a drab zone impersonated an owner (2026-09-04)](#the-infantry-art-gate-cannot-see-colour-and-a-drab-zone-impersonated-an-owner-2026-09-04)
+- [Thirteen troopers, one size: RA2's infantry size class was the missing silhouette (2026-09-04)](#thirteen-troopers-one-size-ra2s-infantry-size-class-was-the-missing-silhouette-2026-09-04)
 
 <!-- END TOC -->
 
@@ -8906,3 +8907,69 @@ same-faction infantry share a zone layout") needs a zone segmenter that does not
 exist. The census stays a hand-run check (`§1.4`'s method: body pixels at
 HSV s > 0.40 within ±22° of the owner hue) recorded in the commit message, and
 the gate keeps scoring only what a single unit cannot fake.
+
+## Thirteen troopers, one size: RA2's infantry size class was the missing silhouette (2026-09-04)
+
+**Symptom.** After C2, ten of our fourteen infantry still had a *peer* whose
+silhouette matched them better than they matched themselves from another
+bearing, and mean pairwise infantry IoU sat at 0.6417 against a 0.55 ceiling.
+The reference (`unit-identity-reference.md` §1.2) says seven of twelve RA2
+troopers are the same black shape, so the obvious reading was "this is the
+honest limit, there is nothing left to take".
+
+**Cause.** There was, and it was not drawn on any of them: **size class.**
+§2.1/§2.2 assign every infantryman an `i-XS`…`i-XL` class off the RA2
+counterpart's measured w×h, and nobody had implemented it. Measured, our
+fourteen came out **34–39 px tall by 16–22 wide** — a ×1.15 height band where
+RA2 spans ×1.54, from a 24 px Rocketeer to a 37 px Flak Trooper, and ×1.5 on
+width from a 12 px Yuri to an 18 px Tesla Trooper. Every trooper was the same
+build at the same size, so the only thing left to tell two apart was the props,
+and the props are ~8% of the alpha mask. The IoU metric is computed on masks
+centred on their bboxes: two figures of the same build at the same size cannot
+score low no matter what you draw on them.
+
+**Fix.** A `STATURE` table of `[x, y]` scales applied about each figure's own
+ground anchor, as ONE transform outside the facing, pose and prone transforms —
+so the man, his weapon, his props and his shadow scale together and the boots
+stay planted. Nobody is re-posed or contorted; a Rocketeer is simply a shorter
+man than a Guardian GI, which is how RA2 separates them. Each entry's x:y ratio
+tracks the RA2 counterpart's own aspect against the Conscript's 13×27 (Yuri
+0.84 against RA2's 0.86, Tesla Trooper 1.35 against 1.34, Rocketeer 1.30 against
+1.38), so the sizing cannot drift into shapes RA2 does not give them. Heights
+now run 28 → 45, widths 14 → 27. With three spec'd-but-undrawn spikes alongside
+it (the Flak Trooper's barrel clearing his helmet, the Guardian GI's tube angled
+up off his chest, the Desolator's fat green muzzle), `peerVsSelf.infantry` went
+**10 → 1** and `iou.infantry.mean` **0.6417 → 0.5410**, meeting the plan's
+target, with `iou.sameFactionOver75` 14 → 8 and every colour metric up.
+
+**The trap — the Desolator-backpack trap, generalised.** *Raising a thin feature
+clear of the body makes the THIN feature the measured spike.* The Flak Trooper's
+barrel had stopped level with his helmet crown, so `spikeOf` was scoring his
+HELMET (8 px thick) as his spike; the moment the barrel cleared the crown, the
+3.4-wide barrel became the run and came back at **3.3 screen px — under the 3.64
+floor** that keeps a feature alive at `ZMIN`. The bore was widened to 4.6 (a
+big-bore AA gun carries it honestly). The Guardian GI's tube avoided the same
+fate through its ANGLE: `spikeOf` measures the ROW EXTENT of what protrudes, and
+a 3.4-wide tube laid at 39° is 5.4 px across a row where a vertical one is 3.4.
+**Re-check `spike.*` after lengthening any protrusion.**
+
+**The second trap — a silhouette change moves the COLOUR metrics.** The Flak
+Trooper's new cannon is ~70 px of neutral steel he did not carry before, and it
+diluted his owner-colour fraction 22.1% → 16.7%, under §1.4's floor. Putting the
+budget back on his **sleeves** fixed the fraction and then deleted his grey-brown
+tunic from the hue histogram, collapsing his colour distance from the Rocketeer
+0.662 → 0.488 — one metric traded for another. Putting it on the **gun** instead
+(a house band at the breech, which the Guardian's tube already carries) fixed
+both. In the same pass, Yuri's additive psychic motes — untouched art — began
+failing `hue.maxImpostor`: they straddled the skull edge, and once his stature
+narrowed him they summed over the skin outline into a PINK fringe reading as the
+*other* owner's hue (0.0033 → 0.0049). Moved clear of the head, they are 0.0033
+again. **An `alpha`-mask change and a hue census are not independent.**
+
+**Rejected: chasing `peerVsSelf.infantry` to 0.** The last one is the Guardian
+GI, whose own self-IoU across eight bearings is **0.535** — the lowest of any
+trooper — because a shoulder weapon's screen length swings ×2.1 from front-on to
+profile and swaps sides on the rear facings. Beating that needs every peer under
+0.535, which no sizing delivers for "big trooper with a shoulder weapon", and
+§1.2's honest line is that RA2 has the same problem. Flattening the weapon's
+facing response would buy the number by deleting the facing system.
