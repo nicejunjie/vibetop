@@ -11,6 +11,13 @@ or we do it and it does not look, move or behave like RA2, it is a defect. No
 detail is below the bar. When a QA agent or a reviewer lists a "nit", it goes
 on this list and gets fixed, not filed.
 
+**Open, and the biggest art gap on the field:** units are hard to tell apart on the
+map — measured, nine pixels of a Grizzly fall outside a Rhino. Evidence in
+`unit-confusability-audit.md` and `unit-identity-reference.md`; the plan is
+`unit-redesign-plan.md`. Read the plan's §1 before touching unit art: the fix is
+asymmetric (vehicles need colour PLACEMENT, infantry need twice the colour AREA),
+and §2 is a gate that voids the rest until it is settled.
+
 Companion documents: `docs/ra2-art-plan.md` (how the art was rebuilt; the
 verification harness), `docs/design-decisions.md` (why odd things are the
 way they are — colour policy, proportions, dock face, overlays).
