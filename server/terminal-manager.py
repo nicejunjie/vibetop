@@ -6177,6 +6177,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 _run_due_schedules()
                 self._drop_schedules_cache(user)
+                # Report the entry as it stands AFTER delivery. `ent` is the
+                # pre-fire snapshot, so returning it would tell the caller
+                # "pending" about a message that has already been sent — or,
+                # worse, about one that just failed.
+                for e2 in _read_schedules().get(user, []):
+                    if e2.get("id") == ent["id"]:
+                        ent = e2
+                        break
             except Exception as e:                  # never fail the queue on this
                 log.warning("immediate schedule run failed: %s", e)
         return self._json(200, {"ok": True, "id": ent["id"], "schedule": ent})
