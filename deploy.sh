@@ -25,7 +25,7 @@
 #   --help
 #
 # Order matters: terminal first (owns the nginx site + the extras include),
-# then browser/files (drop extras snippets), then landing (static UI), tunnel last.
+# then browser/files (drop extras snippets), then shell (static UI + apps), tunnel last.
 set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=tools/lib/layout.sh
@@ -169,9 +169,9 @@ fi
 # re-execs itself as $SUDO_USER to land in that person's home.
 step "5/6  Landing — desktop UI + static apps"
 if [ -n "$LEGACY_WWW" ]; then
-    "$REPO_DIR/landing/install.sh" "${DRYFLAG[@]}"
+    "$REPO_DIR/shell/install.sh" "${DRYFLAG[@]}"
 else
-    sudo -u "$VT_SVC" -H env "${INST_ENV[@]}" "$REPO_DIR/landing/install.sh" "${DRYFLAG[@]}"
+    sudo -u "$VT_SVC" -H env "${INST_ENV[@]}" "$REPO_DIR/shell/install.sh" "${DRYFLAG[@]}"
 fi
 
 step "5b/6 Claude usage — opt-in usage-capture proxy (unit installed, left off)"

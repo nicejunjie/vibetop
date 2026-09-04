@@ -66,8 +66,8 @@ after an audit reproduced them live (details in design-decisions):
 
 ## Architecture
 
-- `landing/apps/files/filesx.html` — the whole app, one file, inline JS. Hosted inside the
-  tab wrapper `landing/apps/files/files.html`, which owns the tab bar, the Native/Classic
+- `apps/everyday/files/filesx.html` — the whole app, one file, inline JS. Hosted inside the
+  tab wrapper `apps/everyday/files/files.html`, which owns the tab bar, the Native/Classic
   toggle and the in-app viewer overlay.
 - `files/fileagent.py` — the per-user agent. Ops: `home`, `list`, `stat`,
   `usage`, `read`, `mkdir`, `rename`, `move`, `copy`, `delete`, `search`,
@@ -77,7 +77,7 @@ after an audit reproduced them live (details in design-decisions):
 - Manager (`terminal/terminal-manager.py`): `/api/fs/*` proxies to the agent;
   `/api/file/image` serves image bytes and, with `&thumb=N`, a PIL-downscaled
   thumbnail with a strong mtime ETag.
-- Viewers: images → `landing/apps/imageview/imageview.html`, video → `landing/apps/video/video.html`,
+- Viewers: images → `apps/everyday/imageview/imageview.html`, video → `apps/everyday/video/video.html`,
   office → `/api/office/preview`, all opened as an overlay by the wrapper.
 
 ## What the app does today

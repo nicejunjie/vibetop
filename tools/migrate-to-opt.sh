@@ -43,7 +43,7 @@ if [ "${1:-}" = "--rollback" ]; then
   echo "== ROLLBACK: re-deploy from $DEV_DIR (operator $ADMIN_USER) =="
   rm -f /etc/vibetop/manager.env
   ( cd "$DEV_DIR" && env APP_USER="$ADMIN_USER" INSTALL_DEPS=0 ./terminal/install.sh )
-  sudo -u "$ADMIN_USER" -H "$DEV_DIR/landing/install.sh"
+  sudo -u "$ADMIN_USER" -H "$DEV_DIR/shell/install.sh"
   systemctl daemon-reload
   systemctl restart vibetop-manager
   nginx -t && systemctl reload nginx
@@ -116,8 +116,8 @@ ENVV=(APP_USER="$SVC" APP_HOME="$OPT" LANDING_DIR="$WWW"
       SECRET_FILE="$ETC/onlyoffice.secret" SESSION_SECRET_FILE="$ETC/session.secret"
       ONLYOFFICE_SECRET_FILE="$ETC/onlyoffice.secret" INSTALL_DEPS=0)
 
-echo "-- landing (shell) -> $WWW (as $SVC)"
-sudo -u "$SVC" -H env DST_DIR="$WWW" "$APP/landing/install.sh"
+echo "-- shell (desktop + apps) -> $WWW (as $SVC)"
+sudo -u "$SVC" -H env DST_DIR="$WWW" "$APP/shell/install.sh"
 echo "-- browser (xpra-patches + helpers + snippet)"
 ( cd "$APP" && env "${ENVV[@]}" INSTALL_SYSTEMD=0 ./browser/install.sh )
 echo "-- files (nginx snippet)"

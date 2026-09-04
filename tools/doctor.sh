@@ -241,7 +241,7 @@ fi
 head_ "Web root (nginx root vs where the installers deploy)"
 # The second instance of the same class as the operator checks above: the nginx
 # `root` is rendered by terminal/install.sh from LANDING_DIR, while the files are
-# put there by landing/install.sh from DST_DIR. Two resolvers, one path — and an
+# put there by shell/install.sh from DST_DIR. Two resolvers, one path — and an
 # in-app Update passes NEITHER, so both fall back to $APP_HOME/vibetop-www. A
 # deploy that once used a different value leaves a fully-populated directory that
 # nginx never serves, and the only symptom is a 404 on an injected asset (this is
@@ -259,12 +259,12 @@ else
     if [ -z "$WEBROOT" ]; then
         bad "no 'root' directive in $SITE — nginx has nothing to serve the shell from"
     elif [ ! -d "$WEBROOT" ]; then
-        bad "nginx root '$WEBROOT' does not exist — the desktop will 404 ('landing/install.sh')"
+        bad "nginx root '$WEBROOT' does not exist — the desktop will 404 ('shell/install.sh')"
     else
         ok "nginx serves $WEBROOT"
         for f in index.html sw.js; do
             [ -f "$WEBROOT/$f" ] && ok "$f present in the web root" \
-                || bad "$WEBROOT/$f missing — re-run landing/install.sh"
+                || bad "$WEBROOT/$f missing — re-run shell/install.sh"
         done
 
         # Every asset the nginx config INJECTS by sub_filter must exist at the
@@ -287,7 +287,7 @@ else
             [ -f "$WEBROOT$ref" ] || miss="$miss $ref"
         done
         [ -n "$miss" ] \
-            && bad "deployed pages reference scripts missing from the web root:$miss (re-run landing/install.sh)" \
+            && bad "deployed pages reference scripts missing from the web root:$miss (re-run shell/install.sh)" \
             || ok "deployed pages' local script refs all resolve"
 
         # An ORPHANED web root beside the served one: the signature of a deploy
@@ -307,11 +307,11 @@ else
 
         # "Bumped sw.js but never deployed" — the documented release-checklist
         # trap: without the DEPLOYED version changing, no client auto-refreshes.
-        src_sw="$(sed -n "s/^const VERSION = '\(v[0-9]*\)'.*/\1/p" "$ROOT/landing/sw.js" 2>/dev/null | head -1)"
+        src_sw="$(sed -n "s/^const VERSION = '\(v[0-9]*\)'.*/\1/p" "$ROOT/shell/sw.js" 2>/dev/null | head -1)"
         dep_sw="$(sed -n "s/^const VERSION = '\(v[0-9]*\)'.*/\1/p" "$WEBROOT/sw.js" 2>/dev/null | head -1)"
         if [ -n "$src_sw" ] && [ -n "$dep_sw" ]; then
             [ "$src_sw" = "$dep_sw" ] && ok "deployed sw.js matches the checkout ($dep_sw)" \
-                || adv "checkout has sw.js $src_sw but $dep_sw is deployed — clients won't auto-refresh until landing/install.sh runs"
+                || adv "checkout has sw.js $src_sw but $dep_sw is deployed — clients won't auto-refresh until shell/install.sh runs"
         fi
     fi
 fi

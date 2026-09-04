@@ -52,7 +52,7 @@ The tiers (each independently runnable, ~5s total):
   before shipping a change to the AI, the pathing or the unit tables:
 
   ```bash
-  RTS_SLOW=1 node --test landing/games/rts/rts.test.js       # the full tier, minutes
+  RTS_SLOW=1 node --test apps/games/rts/rts.test.js       # the full tier, minutes
   ```
 
 **Live-host smoke test** — `tools/smoke-test.sh` is the ONE tier needing the
@@ -136,7 +136,7 @@ and unit-tested with node's built-in runner (no deps):
 
 ```bash
 node --test landing/*.test.js terminal/lib/*.test.js   # all JS units
-node --test landing/shell/coach.test.js                      # one file
+node --test shell/coach.test.js                      # one file
 ```
 
 **Pass FILES, not directories.** `node --test landing/` worked on older Node but
@@ -167,7 +167,7 @@ Two rules that are not preferences:
 `terminal/lib/tab-sync.js` is the pure tab-set reconcile/`nextAvailable` math
 lifted out of `terminals.html` (which loads it via `<script src>`, content-hash
 cache-busted by `install.sh` like `terminal-kbd.js`) — its tests pin the
-open/close/poll-lag race cases behind the v1.9.x churn. `landing/shell/sw.test.js`
+open/close/poll-lag race cases behind the v1.9.x churn. `shell/sw.test.js`
 parses the **live** `BYPASS` regex + `PRECACHE` out of `sw.js` (so it tracks the
 real source, no drift) and asserts every path classifies correctly: bypass vs.
 cacheable-shell-nav vs. network-only-nav vs. SWR sub-resource.

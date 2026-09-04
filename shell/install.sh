@@ -19,6 +19,7 @@ if [ "$(id -u)" -eq 0 ] && [ -z "${DST_DIR:-}" ]; then
 fi
 
 DIR="$(dirname "$(readlink -f "$0")")"
+REPO="$(dirname "$DIR")"
 DST_DIR="${DST_DIR:-$HOME/vibetop-www}"
 DRY_RUN="${DRY_RUN:-0}"
 case "${1:-}" in --dry-run|-n) DRY_RUN=1 ;; esac
@@ -37,9 +38,9 @@ run mkdir -p "$DST_DIR"
 # hardcoded literal — and so the build number renders instantly on load with NO
 # runtime dependency (it reflects the actual shell that was deployed, which is
 # exactly what "did a fresh shell load?" wants to show).
-VERSION="$(cat "$DIR/../VERSION" 2>/dev/null | tr -d ' \t\r\n')"
+VERSION="$(cat "$REPO/VERSION" 2>/dev/null | tr -d ' \t\r\n')"
 VERSION="${VERSION:-dev}"
-SW_VERSION="$(grep -o "VERSION = 'v[0-9]\+'" "$DIR/shell/sw.js" 2>/dev/null | grep -o 'v[0-9]\+')"
+SW_VERSION="$(grep -o "VERSION = 'v[0-9]\+'" "$DIR/sw.js" 2>/dev/null | grep -o 'v[0-9]\+')"
 SW_VERSION="${SW_VERSION:-?}"
 
 # ---------------------------------------------------------------------------
@@ -61,10 +62,10 @@ SW_VERSION="${SW_VERSION:-?}"
 # src-relative-to-$DIR | destination basename | stamp mode
 RENDERED="
 shell/desktop.html|index.html|version
-diagnostics/rzdbg.html|rzdbg.html|version
-apps/services/index.html|landing.html|copy
-apps/files/files.html|files.html|apphome
-apps/files/filebrowser-patches.js|filebrowser-patches.js|apphome
+shell/diagnostics/rzdbg.html|rzdbg.html|version
+apps/utilities/services/index.html|landing.html|copy
+apps/everyday/files/files.html|files.html|apphome
+apps/everyday/files/filebrowser-patches.js|filebrowser-patches.js|apphome
 "
 
 stamp_version() {   # $1=src $2=dst — release + service-worker build for the build tag
@@ -94,12 +95,12 @@ EOF
 
 while IFS= read -r src; do
   [ -z "$src" ] && continue
-  rel="${src#"$DIR"/}"
+  rel="${src#"$REPO"/}"
   case "$PLAN" in *"$rel|"*) continue ;; esac      # already handled above
   PLAN="$PLAN$rel|$(basename "$src")|copy
 "
 done <<EOF
-$(find "$DIR/shell" "$DIR/shared" "$DIR/apps" "$DIR/games" "$DIR/diagnostics" \
+$(find "$DIR" "$REPO/shared" "$REPO/apps" \
         -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) \
         ! -name '*.test.js' ! -path '*/art/*' ! -name 'services.example.json' | sort)
 EOF
@@ -122,22 +123,22 @@ printf '%s' "$PLAN" | while IFS='|' read -r src dst mode; do
   [ -z "$src" ] && continue
   case "$mode" in
     version) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@VERSION@ -> %s, @SW_VERSION@ -> %s)\n' "$src" "$dst" "$VERSION" "$SW_VERSION"
-             else stamp_version "$DIR/$src" "$DST_DIR/$dst"; fi ;;
+             else stamp_version "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     apphome) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@APP_HOME@ -> empty)\n' "$src" "$dst"
-             else stamp_apphome "$DIR/$src" "$DST_DIR/$dst"; fi ;;
-    *)       run install -m 644 "$DIR/$src" "$DST_DIR/$dst" ;;
+             else stamp_apphome "$REPO/$src" "$DST_DIR/$dst"; fi ;;
+    *)       run install -m 644 "$REPO/$src" "$DST_DIR/$dst" ;;
   esac
 done
 
 # PWA icons + the favicon the browser probes for automatically at the web root.
 run install -d -m 755 "$DST_DIR/icons"
-run install -m 644 "$DIR/shell/icons/"*.png "$DST_DIR/icons/"
-run install -m 644 "$DIR/shell/icons/favicon.ico" "$DST_DIR/favicon.ico"
-run install -m 644 "$DIR/apps/services/services.example.json" "$DST_DIR/services.example.json"
+run install -m 644 "$DIR/icons/"*.png "$DST_DIR/icons/"
+run install -m 644 "$DIR/icons/favicon.ico" "$DST_DIR/favicon.ico"
+run install -m 644 "$REPO/apps/utilities/services/services.example.json" "$DST_DIR/services.example.json"
 # Seed services.json from the example only if the host doesn't already have one
 # (it's host-local and gitignored — never overwrite the real list on re-install).
 if [ ! -f "$DST_DIR/services.json" ]; then
-  run install -m 644 "$DIR/apps/services/services.example.json" "$DST_DIR/services.json"
+  run install -m 644 "$REPO/apps/utilities/services/services.example.json" "$DST_DIR/services.json"
   echo "Created $DST_DIR/services.json (edit to list your host's services)"
 fi
 echo "Installed $(printf '%s' "$PLAN" | grep -c .) files -> $DST_DIR (desktop = index.html, PWA = sw.js + icons/)"

@@ -6231,9 +6231,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # build number (e.g. "build v143 · <v1.11.4's date>").
         okb, bdate = self._git_as_user(["log", "-1", "--format=%cd",
                                         # Glob pathspec, not a literal path: sw.js moved
-                                        # once already (landing/ -> landing/shell/) and a
+                                        # once already (landing/ -> shell/) and a
                                         # literal here fails SILENTLY, returning no date.
-                                        "--date=short", "--", ":(glob)landing/**/sw.js"])
+                                        "--date=short", "--", ":(glob)**/sw.js"])
         if okb and bdate.strip():
             info["build_date"] = bdate.strip()
         if ok and "\t" in head:
@@ -6419,13 +6419,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 add(name, False, str(e))
 
         touched = lambda prefix: any(c.startswith(prefix) for c in changed)
-        # landing/ → static apps; run as APP_USER ($HOME must be the user's, set
-        # by sudo -H). No login shell, so no MOTD banner in the output.
-        if touched("landing/"):
+        # The web root is fed by shell/ + shared/ + apps/ (see shell/install.sh,
+        # which WALKS exactly these). Every one of them must trigger the redeploy:
+        # miss one and an Update pulls the code but never installs it, leaving the
+        # served page stale with nothing reporting it. WEB_SOURCE_DIRS is asserted
+        # against shell/install.sh's own walk in test_api_update.py — keep them in
+        # step rather than trusting this list.
+        WEB_SOURCE_DIRS = ("shell/", "shared/", "apps/")
+        # Run as APP_USER ($HOME must be the user's, set by sudo -H). No login
+        # shell, so no MOTD banner in the output.
+        if any(touched(d) for d in WEB_SOURCE_DIRS):
             try:
                 p = subprocess.run(
                     ["sudo", "-n", "-u", APP_USER, "-H",
-                     os.path.join(REPO_DIR, "landing", "install.sh")],
+                     os.path.join(REPO_DIR, "shell", "install.sh")],
                     cwd=REPO_DIR, capture_output=True, text=True, timeout=120)
                 add("deploy desktop & apps", p.returncode == 0, p.stdout + p.stderr)
             except Exception as e:
@@ -6452,7 +6459,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # keeps serving the old cached JS (stale ?v=). INSTALL_DEPS/SYSTEMD=0 keeps
         # it to config (idempotent) + nginx + a brief filebrowser restart.
         # Matched by BASENAME, not by a literal path: the patch JS moved once
-        # already (landing/ -> landing/apps/files/) and an exact-path check fails
+        # already (landing/ -> apps/everyday/files/) and an exact-path check fails
         # silently — files/install.sh would not re-run, so the ?v= cache-buster
         # would keep pointing at the old bundle and browsers keep serving it.
         if touched("files/") or any(c.endswith("/filebrowser-patches.js") for c in changed):

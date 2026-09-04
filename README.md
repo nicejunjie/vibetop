@@ -112,7 +112,7 @@ sudo ./terminal/install.sh   # nginx skeleton + manager API + ttyd
 sudo ./browser/install.sh    # xpra + Chromium (snap) + LibreOffice (office View)
 sudo ./files/install.sh      # FileBrowser at /files/
 sudo ./office/install.sh     # Docker + OnlyOffice Document Server at /onlyoffice/
-./landing/install.sh         # desktop UI + static apps (no sudo)
+./shell/install.sh         # desktop UI + static apps (no sudo)
 sudo ./tunnel/install.sh     # cloudflared (tunnel setup is interactive)
 ```
 

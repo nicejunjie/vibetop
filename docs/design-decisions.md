@@ -84,7 +84,7 @@ not a more careful default.
 
 **The web-root instance of the same class**, now covered by a second doctor
 section (*Web root*). nginx's `root` is rendered by `terminal/install.sh` from
-`LANDING_DIR`; the files are put there by `landing/install.sh` from `DST_DIR`.
+`LANDING_DIR`; the files are put there by `shell/install.sh` from `DST_DIR`.
 Two resolvers, one path — and an in-app Update passes **neither**, so both fall
 back to `$APP_HOME/vibetop-www`. A deploy that once used a different value leaves
 a fully-populated directory nginx never serves, and the only symptom is a 404 on
@@ -452,14 +452,14 @@ char); and **Chinese via pinyin typed nothing at all** while English worked.
    through `#pasteboard` does not work** (a dead end we verified before shipping).
 
 **Fix:**
-- *Diff → read-and-clear* (`landing/shell/desktop.html setupKbd`): mirror xpra's own
+- *Diff → read-and-clear* (`shell/desktop.html setupKbd`): mirror xpra's own
   `#pasteboard` handler — empty the field on every commit, so there's no stored value
   to mis-diff and no debounce window to sample mid-rewrite. Forward committed text as
   one `kbd-text` run; IME is gated by `compositionstart/end` (forward nothing until the
   commit); dictation is committed once on an idle timer (`inputType ===
   'insertDictationText'`); Enter/Backspace are suppressed mid-composition (`keyCode
   229`).
-- *CJK via SERVER-SIDE injection* (`terminal/terminal-manager.py` + `landing/shell/desktop.html`):
+- *CJK via SERVER-SIDE injection* (`terminal/terminal-manager.py` + `shell/desktop.html`):
   the shell's committed text is delivered to a manager endpoint **`POST /api/browser/type
   {text}`**, which runs **`xdotool type --file -`** (text on stdin) as the user on their
   xpra display; nav keys go via **`POST /api/browser/key`** (allowlisted xdotool keysym).
@@ -734,7 +734,7 @@ location looks correctly configured).
   per-user services (each idle user leaves ttyd + FileBrowser + **two** xpra
   displays = Xorg+Chromium resident forever, only ever stopped by explicit
   Logout), and no way to manage accounts without SSH. Both now live in a
-  sudo-gated **Config** app (`landing/apps/config/config.html` + `/api/config/*`).
+  sudo-gated **Config** app (`apps/system/config/config.html` + `/api/config/*`).
 - **Why gate on OS sudo, not `VIBETOP_ADMINS`:** the existing admin gate
   (`_is_admin`) is the app's operator list, used for features that act *as*
   `APP_USER` (Update, Claude-usage). Config instead does **OS-level** things
@@ -852,7 +852,7 @@ location looks correctly configured).
 - **Fix:** Re-baseline on a **viewport width change** — the soft keyboard shrinks
   height but never width, while rotation / Split View change width. On `w !==
   baseW`, reset `baseH = 0` so it re-climbs from the new orientation's no-keyboard
-  height. Also bound to `orientationchange`. (`landing/shell/desktop.html`, sw v145->v146.)
+  height. Also bound to `orientationchange`. (`shell/desktop.html`, sw v145->v146.)
 - **Rejected:** A timed re-measure after `orientationchange` (racy if the keyboard
   opens within the delay; could wedge `baseH` too low → bar never shows). Using
   `window.innerHeight - visualViewport.height` as the inset — dead on iOS, where
@@ -892,7 +892,7 @@ location looks correctly configured).
   claiming those are *also* poisoned did not hold here). A **reload did NOT unfreeze `svh`**
   (`reload=tried`, still 753). `vh`/`lvh` = 956 is why an earlier `100vh` swap overshot and
   cut off the taskbar (they include the opaque status-bar strip).
-- **Fix — `landing/shell/apph.js` drives the height from the CORRECT metric (`svh` is the
+- **Fix — `shell/apph.js` drives the height from the CORRECT metric (`svh` is the
   only broken one):** `body`/`html` default to `100svh` (`height: var(--app-h, 100svh)`) —
   correct in Safari and untouched there. In **standalone only**, `apph.js` sets `--app-h`
   to `max(visualViewport.height, documentElement.clientHeight)`, clamped to `screen.height`.
@@ -1686,7 +1686,7 @@ location looks correctly configured).
     comparison never actually ran.
 - **Operational gotchas hit along the way (worth caution):**
   - **`deploy.sh` must run as the user, NOT `sudo`.** `sudo ./deploy.sh` runs the
-    no-sudo `landing/install.sh` as root → web root deploys to `/root/...www`
+    no-sudo `shell/install.sh` as root → web root deploys to `/root/...www`
     instead of `~/...www`, and `/browser/` 404s/ERRs. Run `./deploy.sh` (it `sudo`s
     per-step internally).
   - **Don't deploy mismatched shells to a multi-client xpra.** Flip-flopping the
@@ -2408,7 +2408,7 @@ browser-friendly H.264+AAC, the container itself is unplayable in `<video>`. A p
 `<video>` also exposes no audio-track picker, and its native CC button is unreliable
 inside a nested app iframe.
 
-**Fix:** A dedicated in-Files player (`landing/apps/video/video.html`, opened via a `video-view`
+**Fix:** A dedicated in-Files player (`apps/everyday/video/video.html`, opened via a `video-view`
 postMessage like the office viewer) backed by three manager endpoints
 (`/api/video/{info,media,subs}`) that use ffmpeg:
 - `info` probes tracks (ffprobe → per-type audio/subtitle indices for `-map 0:a:N`/`0:s:N`).
@@ -2437,7 +2437,7 @@ iOS fallback; the app iframe gains `allow="fullscreen; autoplay"`).
 
 ## Mobile Files app: toolbar, clickable breadcrumb, folder-nav recovery (a long iteration)
 
-Related mobile-only (≤736px) fixes to the Files app (`landing/apps/files/filebrowser-patches.js`),
+Related mobile-only (≤736px) fixes to the Files app (`apps/everyday/files/filebrowser-patches.js`),
 landed v1.16.31–44 after many wrong turns. Recorded so the dead ends aren't re-explored.
 All verified on **WebKit** (the iOS engine) against the live `/files/` page (playwright +
 a `_sign_session` cookie + `add_style_tag`/route-override to test without deploying) —
@@ -3416,7 +3416,7 @@ killed every prior design:
    then clamped a correct big-window 480 to 693 → bar mid-screen at 643,
    occlusion 163 (both in the log).
 
-*Fix — `landing/shell/keybar.js` + one writer:* the desktop computes bar top AND a
+*Fix — `shell/keybar.js` + one writer:* the desktop computes bar top AND a
 **lift** from ONE instantaneous reading (`VibeKeybar.compute`, pure,
 unit-tested in `keybar.test.js` against the recorded regimes) and applies both
 itself in the same turn — the lift as `translateY` on `terminals.html`'s
@@ -4330,7 +4330,7 @@ original exact-bytes test stayed green through the whole breakage.
 - **Symptom:** Opening an image (or a text file) in Files often makes the view
   reload/"flash" — roughly every 6 seconds, up to three times — before settling.
 - **Cause:** The always-on "NFS folder shows empty until you refresh" self-heal
-  in `landing/apps/files/files.html` (v1.16.19–21) declares the active tab *stuck* when its
+  in `apps/everyday/files/files.html` (v1.16.19–21) declares the active tab *stuck* when its
   document has **no `#listing` items and no `.message`** for ~6s, then reloads it
   (capped at 3 tries per tab until a listing renders). FileBrowser's file
   **preview** (`#previewer` — images/PDF/media) and text **editor**
@@ -4686,7 +4686,7 @@ original exact-bytes test stayed green through the whole breakage.
   the trap: the control did its job, and its job was invisible to someone
   expecting a table. **A correct action nobody can see is indistinguishable
   from a dead button.**
-- **Fix:** stop implying a leaderboard and show one. `landing/shared/gamescore.js` is a
+- **Fix:** stop implying a leaderboard and show one. `shared/gamescore.js` is a
   shared top-3 table (`window.vibeScores`) on the game-over card of all four
   games — Minesweeper (fastest time, per difficulty), Solitaire (fewest moves),
   2048 and Circuit Runner (highest score). The ghost button is now plainly
@@ -4922,7 +4922,7 @@ original exact-bytes test stayed green through the whole breakage.
   truthfully reports the current version, and because that was the first hello
   the page recorded it as its own and concluded it was up to date. The stale
   shell then never refreshed, for as long as the app stayed installed.
-- **Fix:** baseline from `@SW_VERSION@`, the token `landing/install.sh` already
+- **Fix:** baseline from `@SW_VERSION@`, the token `shell/install.sh` already
   substitutes into the document — so the page knows what IT is, and the first
   hello is a comparison instead of an initialisation. `triggerRefresh()` is
   one-shot per page load so a persistent mismatch can never become a loop.
@@ -5163,7 +5163,7 @@ original exact-bytes test stayed green through the whole breakage.
 
 ## A test suite in the pre-commit hook is a shared budget, not a private one
 
-- **Symptom:** `landing/games/rts/rts.test.js` grew a set of genuinely good tests and
+- **Symptom:** `apps/games/rts/rts.test.js` grew a set of genuinely good tests and
   the whole file went from milliseconds to **4m40s** — long enough that
   `node --test` cancelled it mid-run and reported `'Promise resolution is
   still pending but the event loop has already resolved'`, which reads like a
@@ -5179,7 +5179,7 @@ original exact-bytes test stayed green through the whole breakage.
   RTS_SLOW=1' };` passed as the options argument to the five match-playing
   tests. Nothing deleted and no assertion weakened — the default run is back to
   ~0.1s (repo-wide `./run-tests.sh`: 15s) and the full tier runs on demand with
-  `RTS_SLOW=1 node --test landing/games/rts/rts.test.js`.
+  `RTS_SLOW=1 node --test apps/games/rts/rts.test.js`.
 - **Rejected:** shortening the matches until they fit. A 4-game-minute match
   does not reach the phase these tests are about (waves, expansion, decisive
   attacks), so the cheap version would have kept the cost and lost the signal.
@@ -5461,7 +5461,7 @@ original exact-bytes test stayed green through the whole breakage.
 
 ## Skewed art in `bakeBuilding` must be point math, not `g.transform`
 
-- **Symptom:** `node --test landing/games/rts/rts.test.js` died at load with
+- **Symptom:** `node --test apps/games/rts/rts.test.js` died at load with
   `TypeError: g.transform is not a function` after the Soviet yard's
   hammer-and-sickle was drawn with `g.translate/transform/scale` to lay it
   into the wall plane. The browser renders were fine, so nothing in the art
@@ -5882,7 +5882,7 @@ for the nuke, the 3x3 for the rest). Nothing has to be learned to use it.
 river you cross on two bridges. The obvious shape is a "passable overrides":
 a tile is a cliff/water tile, and a parallel structure says "…except here".
 
-**Cause.** Every mover in `landing/games/rts/rts.html` asks the same question in a
+**Cause.** Every mover in `apps/games/rts/rts.html` asks the same question in a
 different place — `astar`'s `blocked()`, `tilePassable`, the separation step,
 the harvester's seam search, the AI's approach tests. An override consulted by
 only some of them is a bug factory: a tank paths over a bridge that separation
@@ -5990,7 +5990,7 @@ platform.
 
 ## The RA2 sidebar: five things that are not obvious
 
-The build panel in `landing/games/rts/rts.html` was rebuilt from a scrolling web list of
+The build panel in `apps/games/rts/rts.html` was rebuilt from a scrolling web list of
 `cameo + name + "$800 · +200 power"` rows into RA2's command bar (roadmap
 Phase 1). Most of it is straightforward drawing; these five were not.
 
@@ -6048,7 +6048,7 @@ dims the frame and the READY stamp too; only `.em canvas` is filtered.
 - **Symptom:** RA2 gives every building four extra sprite sets — a MAKE
   build-up (`Buildup=`, 208 keys), a damaged base SHP plus a damaged twin of
   every active anim (`ActiveAnimDamaged=`, 39 keys), an unpowered/lights-out
-  look, and a death. `landing/games/rts/rts.html` had exactly one: `bakeBuilding` baked
+  look, and a death. `apps/games/rts/rts.html` had exactly one: `bakeBuilding` baked
   N idle phases and nothing else, so a structure at 45% hp was pixel-identical
   to a new one and a dead one simply vanished.
 - **Cause:** the obvious fix — hand-drawing the damaged/unpowered/build-up
@@ -6166,7 +6166,7 @@ Follow reuses it.
 ## RTS infantry facings are two transforms and five re-cut parts, not nine more branches
 
 **Symptom.** Every soldier faced the camera at all times while the tanks beside
-them were correctly oriented (`landing/games/rts/docs/gap-audit-art.md` §2, severity
+them were correctly oriented (`apps/games/rts/docs/gap-audit-art.md` §2, severity
 *blocker*). `bakeInfantry(col, kind, fac, phase)` took no direction and
 `drawUnit` never indexed one.
 
@@ -6405,7 +6405,7 @@ at all, which is why the corpse helper returns true without one.
   baked one 128 px radial gradient and the renderer drew it at
   `size * (0.4 + ff * 1.5) * 2` — so a rifle round, a shell and a dying
   Apocalypse differed only in how large the orange smudge got. The art audit
-  called it a blocker (`landing/games/rts/docs/gap-audit-art.md` §4).
+  called it a blocker (`apps/games/rts/docs/gap-audit-art.md` §4).
 - **Cause:** a scaled gradient has no *shape* over time. RA2's explosions are
   animations: they bloom, roll over, cool and turn into smoke, and rules.ini
   hands a structure five anims at once
@@ -6546,7 +6546,7 @@ only figure on the field that is not a soldier: a bald head above a long
 high-collared coat, house colour on the lapels and waist sash, arms at his
 sides, violet psychic motes at the temples. He is the only infantryman with no
 helmet dome *and* no weapon, which is enough to separate him at 1:1. Working
-rule 1 in `landing/games/rts/docs/roadmap.md` permits this exactly once an asset is shown not
+rule 1 in `apps/games/rts/docs/roadmap.md` permits this exactly once an asset is shown not
 to exist anywhere, and requires the commit to say so.
 
 **Rejected:** drawing the RA2 *cameo* portrait as a field sprite (it is a bust,
@@ -6755,7 +6755,7 @@ nobody can see across a 13-pixel band.
 
 **Symptom:** the RTS had ten synthesised effects, one 70 ms throttle and a
 master gain. A 40-tank battle was one noise, the Tesla bolt and the nuke shared
-`boom`, and `landing/games/rts/docs/gap-audit-art.md` §7 scored it a major gap against RA2's
+`boom`, and `apps/games/rts/docs/gap-audit-art.md` §7 scored it a major gap against RA2's
 501 `sound.ini` entries.
 
 **Cause:** there was no mixer. Adding forty more effects to a flat `sfx(kind)`
@@ -7166,7 +7166,7 @@ Factory) could not be drawn at all.
   for a 5×3 and started refunding its own production.
 
 **Before / after, opaque-bbox aspect vs the `docs/ra2-ref/` sprite** (the ±8%
-bar from `docs/ra2-art-plan.md`; `landing/games/rts/art/aspect.py`, new):
+bar from `docs/ra2-art-plan.md`; `apps/games/rts/art/aspect.py`, new):
 
 | structure | `Foundation=` | ref | before | after |
 |---|---|---|---|---|
@@ -7232,7 +7232,7 @@ taller superstructure. Four of the eight (`dir:lab` −39.9%, `col:radar`
 −41.5%, `col:barracks` −48.0%, `dir:power` −20.1%) were nearly half wrong,
 which is not a proportion error, it is a different building.
 
-**Cause.** `landing/games/rts/art/aspect.py` took the reference's **alpha** bbox.
+**Cause.** `apps/games/rts/art/aspect.py` took the reference's **alpha** bbox.
 Two things in `docs/ra2-ref/` are opaque and are not the sprite:
 
 1. **The palette's shadow index.** Every clean SHP rip carries the building's
@@ -7650,7 +7650,7 @@ was flagged on the very tick the order arrived. Tracing one of them (seed 555,
 unit 78) showed a dog idle with **no order at all** from tick 30659 to 36180,
 then moving on the very tick the AI gave it one. Re-measured with the clock
 started at the order: **0 of 120** were a unit that had actually held an order
-for 60 s. `landing/games/rts/docs/playtest.md` says "no unit HOLDS a move/attack order for
+for 60 s. `apps/games/rts/docs/playtest.md` says "no unit HOLDS a move/attack order for
 > 60 s without moving or firing", so the clock has to start when the order does.
 
 **Fix.** The invariant tracks an order signature (`t:id:x,y`); when it changes,

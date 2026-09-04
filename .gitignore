@@ -13,14 +13,14 @@
 # Cloudflare tunnel credentials (never commit)
 *.json
 !**/package.json
-!landing/manifest.json
+!shell/manifest.json
 cert.pem
 credentials.json
 
 # Host-local service list (real hostnames/IPs live here, never committed).
 # Only the generic example is tracked.
 services.json
-!landing/services.example.json
+!apps/utilities/services/services.example.json
 
 # Python bytecode cache
 __pycache__/
@@ -33,4 +33,4 @@ __pycache__/
 tests/matrix/logs/
 tests/matrix/.vagrant-*/
 logs/*.result
-landing/games/rts/art/out/
+apps/games/rts/art/out/
