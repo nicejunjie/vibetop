@@ -771,6 +771,20 @@
   // so the cell reverts to T_WATER and `g.bwrk` remembers the broken abutment
   // so the render can draw the torn deck ends instead of clean shoreline.
   function oreT(t) { return t === T_ORE || t === T_GEM; }
+  // Which of the theatre's two grounds a cell wears (RA2's LAT pair: grass /
+  // sand, snow / scoured earth, PAVEMENT / grit). `G.gm` is the decorative
+  // noise that picks it -- and an ore cell always overrides it to the dirt.
+  //
+  // RA2 grows ore on ground and dirt and never on `Pavement`, and `patch()`
+  // was duly fixed to refuse anything but `T_GROUND`. That did not reach the
+  // case it was written for: the urban theatre PAINTS its `T_GROUND` as
+  // concrete slabs (`bakeGroundSheet('pave', 61)`), so an urban ore field
+  // still lay on paving with the slab joints running under it. Deciding it
+  // here rather than in the generator means the LAT feather mask below sees
+  // the same answer -- the dirt blends into the surrounding pavement instead
+  // of ending on a tile edge -- and that ore which SPREADS into a new cell
+  // mid-match brings its dirt with it, with no second rule to keep in step.
+  function dirtAt(i) { return G.gm[i] || (oreT(G.terrain[i]) ? 1 : 0); }
   function waterish(t) { return t === T_WATER || t === T_BRIDGE; }   // the deck reads as water to the shoreline
 
   // ---- Mover classes (RA2 `SpeedType=` / `MovementZone=`) --------------- //
@@ -3501,19 +3515,48 @@
   }
 
   var CLIFF_H = 32, CLIFF_SH = 10;
-  function bakeCliff(mask, kind) {
+  // An array whose slots bake on first read and then become plain values --
+  // the same self-replacing-getter trick `faceSheet` uses for unit facings,
+  // hoisted here because the cliff set wants it too.
+  function lazySheet(n, make) {
+    var arr = new Array(n);
+    for (var i = 0; i < n; i++) (function (k) {
+      Object.defineProperty(arr, k, {
+        configurable: true, enumerable: true,
+        get: function () {
+          var v = make(k);
+          Object.defineProperty(arr, k, { configurable: true, enumerable: true, writable: true, value: v });
+          return v;
+        }
+      });
+    })(i);
+    return arr;
+  }
+
+  // How many rock variants each cliff mask has. A cliff cell used to be ONE
+  // sprite per neighbour mask, so a sixteen-cell ridge was the same rock
+  // sixteen times over at a one-cell period -- which is most of why cliffs
+  // read as engineered regardless of what the face itself drew.
+  var CLIFF_VAR = 3;
+  function bakeCliff(mask, kind, variant) {
     var H = CLIFF_H + TCH + CLIFF_SH;
     var s = mkCanvas(TCW, H), g = s.g, i, k;
     var cx = TCW / 2, by = CLIFF_H + TCH / 2, ty = TCH / 2;   // base centre, crown centre
+    // The snow rock is ROCK. It was a cold blue-grey (#828d95 over #3f4952)
+    // with a bright cold highlight, which under the regular strata banding
+    // below read as chromed panelling -- a glass parapet, not a cliff. RA2's
+    // snow theatre uses the same warm-neutral stone the temperate one does
+    // and puts the WHITE in the snow lying on it, so that is what the palette
+    // says now: neutral stone for the face, white only where snow settles.
     var P = kind === 'snow'
       ? { top: '#dbe8e8', top2: '#c3d2d7', crown: '#eef5f6',
-          rock: '#828d95', rockD: '#3f4952', rockL: '#bfcad1', wet: '#5b6670' }
+          rock: '#847f76', rockD: '#3a352e', rockL: '#b0a89b', wet: '#5c574f' }
       : kind === 'urban'
         ? { top: '#7b7d7e', top2: '#666a6c', crown: '#93989a',
             rock: '#8b8c88', rockD: '#43443f', rockL: '#c2c3bd', wet: '#6a6b66' }
         : { top: '#5f7038', top2: '#4a5a2a', crown: '#78873f',
             rock: '#6b5f4a', rockD: '#2f2820', rockL: '#a39273', wet: '#4a4034' };
-    bsr(2200 + mask * 37 + (kind === 'snow' ? 5 : kind === 'urban' ? 11 : 0));
+    bsr(2200 + mask * 37 + (variant | 0) * 1013 + (kind === 'snow' ? 5 : kind === 'urban' ? 11 : 0));
     var R = cx + TW / 2, L = cx - TW / 2;
     var conc = kind === 'urban';
 
@@ -3556,9 +3599,16 @@
     function face(dir) {
       var lit = dir > 0 ? 1.14 : 0.68;               // the right face takes the light
       var cols = columns(dir);
-      function pt(cl, t, d) {                        // a point on this column, including its jut
-        var q = fp(dir, t, d);
-        return [q[0] + dir * cl.jut * 2.0, q[1] + cl.jut * 1.0];
+      // A point on this column, including its jut -- which TAPERS to nothing
+      // at the cell's own two end vertices. Without the taper a column
+      // sitting at t=0 or t=1 was displaced by up to 4 px away from the
+      // shared vertex, so every tile boundary in a cliff run opened a dark
+      // slit of recess: the one thing that made a ridge read as a row of
+      // fence panels rather than as continuous rock. Tapered, neighbouring
+      // cells meet flush and the jut still does its work across the middle.
+      function pt(cl, t, d) {
+        var q = fp(dir, t, d), tp = Math.min(1, Math.min(t, 1 - t) * 5);
+        return [q[0] + dir * cl.jut * 2.0 * tp, q[1] + cl.jut * 1.0 * tp];
       }
       // 1. the recess: everything the columns do not cover reads as deep shade
       g.fillStyle = shade(P.rockD, dir > 0 ? 1.25 : 0.95);
@@ -3576,7 +3626,15 @@
           L.push(pt(cl, cl.t0 + (brnd() - 0.5) * 0.05, dq));
           Rr.push(pt(cl, cl.t1 + (brnd() - 0.5) * 0.05, dq));
         }
-        for (q = 0; q <= 3; q++) crestPts.push(pt(cl, cl.t0 + (cl.t1 - cl.t0) * (q / 3), cl.crest + (q === 0 ? 0 : (brnd() - 0.5) * 3.6)));
+        // A column's crest RUNS from `crest` at its leading edge to `crest1`
+        // at its trailing one, jittered on top. `crest1` was computed and
+        // never read, so every column's top was level at `crest` and the
+        // whole cliff carried one ruled line along it.
+        for (q = 0; q <= 3; q++) {
+          var ct = q / 3;
+          crestPts.push(pt(cl, cl.t0 + (cl.t1 - cl.t0) * ct,
+                           cl.crest + (cl.crest1 - cl.crest) * ct + (brnd() - 0.5) * 3.2));
+        }
         var a0 = crestPts[0], a1 = crestPts[crestPts.length - 1];
         var b1 = Rr[NSEG], b0 = L[NSEG];
         function colPath() {
@@ -3597,9 +3655,13 @@
           var thk = conc ? (CLIFF_H / 6) : (CLIFF_H / nb) * (0.6 + brnd() * 0.85);
           var pa = pt(cl, cl.t0, yo), pb = pt(cl, cl.t1, yo + (conc ? 0 : (brnd() - 0.5) * 2.4));
           var pc = pt(cl, cl.t1, yo + thk + (conc ? 0 : (brnd() - 0.5) * 2.4)), pd = pt(cl, cl.t0, yo + thk);
-          g.fillStyle = shade(P.rock, lit * cl.tone * (conc ? (k & 1 ? 0.97 : 1.03) : (k & 1 ? 0.82 : 1.13)));
+          // Bedding planes, not masonry courses: the alternation carries a
+          // per-band jitter and the seam under it varies in weight, so a
+          // face does not stack up as evenly-lit blocks of one height.
+          var band = conc ? (k & 1 ? 0.97 : 1.03) : (k & 1 ? 0.82 : 1.13) * (0.93 + brnd() * 0.15);
+          g.fillStyle = shade(P.rock, lit * cl.tone * band);
           g.beginPath(); g.moveTo(pa[0], pa[1]); g.lineTo(pb[0], pb[1]); g.lineTo(pc[0], pc[1]); g.lineTo(pd[0], pd[1]); g.closePath(); g.fill();
-          g.strokeStyle = shade(P.rockD, 1); g.globalAlpha = conc ? 0.30 : 0.46; g.lineWidth = conc ? 0.8 : 1.1;
+          g.strokeStyle = shade(P.rockD, 1); g.globalAlpha = conc ? 0.30 : (0.20 + brnd() * 0.34); g.lineWidth = conc ? 0.8 : 0.8 + brnd() * 0.7;
           g.beginPath(); g.moveTo(pd[0], pd[1]); g.lineTo(pc[0], pc[1]); g.stroke(); g.globalAlpha = 1;
           yo += thk;
         }
@@ -3638,14 +3700,31 @@
         for (q = 1; q < crestPts.length; q++) g.lineTo(crestPts[q][0], crestPts[q][1] + 0.6);
         g.stroke();
         g.globalAlpha = 1;
-        if (kind === 'snow') {                       // snow sitting on the crest and the ledges
-          g.fillStyle = 'rgba(246,252,252,.94)';
-          g.beginPath(); g.moveTo(a0[0], a0[1] - 1.4); g.lineTo(a1[0], a1[1] - 1.4);
-          g.lineTo(a1[0], a1[1] + 1.4 + brnd() * 2.6); g.lineTo(a0[0], a0[1] + 1.6 + brnd() * 2.4); g.closePath(); g.fill();
-          g.fillStyle = 'rgba(232,244,248,.62)';
-          for (k = 0; k < 2; k++) {
-            var lp = pt(cl, cl.t0 + brnd() * (cl.t1 - cl.t0), 6 + brnd() * (CLIFF_H - 12));
-            g.beginPath(); g.ellipse(lp[0], lp[1], 2 + brnd() * 3.4, 0.7 + brnd() * 1.1, 0, 0, 6.29); g.fill();
+        if (kind === 'snow') {
+          // Snow LIES on the rock; it is not a coping stone laid along it.
+          // The straight-edged quad this replaces ran from the column's
+          // leading crest point to its trailing one at one depth, so a run
+          // of cliff carried an unbroken ruled white line -- the single
+          // biggest reason the snow set read as a glass parapet. The load
+          // now follows the broken crest, is cut to a different depth at
+          // every point, and about one column in four is scoured bare.
+          var load = brnd();
+          if (load > 0.22) {
+            var deep = 1.1 + load * 4.4;
+            g.fillStyle = 'rgba(246,252,252,.92)';
+            g.beginPath();
+            for (q = 0; q < crestPts.length; q++)
+              g[q ? 'lineTo' : 'moveTo'](crestPts[q][0], crestPts[q][1] - 0.9 - brnd() * 1.8);
+            for (q = crestPts.length - 1; q >= 0; q--)
+              g.lineTo(crestPts[q][0], crestPts[q][1] + deep * (0.35 + brnd() * 1.25));
+            g.closePath(); g.fill();
+          }
+          // ...and it catches on the LEDGES the bedding planes cut into the
+          // face, which is what tells a snowed cliff from a grey one.
+          g.fillStyle = 'rgba(238,247,250,.55)';
+          for (k = 0; k < 3; k++) {
+            var lp = pt(cl, cl.t0 + brnd() * (cl.t1 - cl.t0), 5 + brnd() * (CLIFF_H - 9));
+            g.beginPath(); g.ellipse(lp[0], lp[1], 1.8 + brnd() * 4.4, 0.5 + brnd() * 1.3, 0, 0, 6.29); g.fill();
           }
         }
         if (conc) {                                   // tie-rod holes down the form work
@@ -3657,9 +3736,14 @@
         }
         // talus at this column's foot -- scattered up the wall as well as at
         // its base, so the bottom edge is a rubble slope and not a plinth
-        for (k = 0; k < 4; k++) {
-          var rt = cl.t0 - 0.03 + brnd() * (cl.t1 - cl.t0 + 0.06);
-          var rp = pt(cl, rt, cl.foot - 5 + brnd() * 9), rr = 1.1 + brnd() * 3.4;
+        // Seven, not four, spread over a deeper band and with the odd real
+        // boulder among the chips: a cliff ends in a scree slope that spills
+        // out onto the ground below it, and four small lumps hugging the
+        // wall left the base reading as a plinth line instead.
+        for (k = 0; k < 7; k++) {
+          var rt = cl.t0 - 0.05 + brnd() * (cl.t1 - cl.t0 + 0.10);
+          var rp = pt(cl, rt, cl.foot - 7 + brnd() * 14);
+          var rr = (k % 3 === 0 ? 2.2 + brnd() * 3.0 : 0.9 + brnd() * 2.2);
           g.fillStyle = 'rgba(16,14,9,.34)'; g.beginPath(); g.ellipse(rp[0] + 0.7, rp[1] + 0.8, rr * 1.3, rr * 0.5, 0, 0, 6.29); g.fill();
           g.fillStyle = shade(P.rock, lit * (0.95 + brnd() * 0.55)); g.beginPath(); g.ellipse(rp[0], rp[1], rr, rr * 0.62, 0, 0, 6.29); g.fill();
           if (kind === 'snow') { g.fillStyle = 'rgba(240,250,252,.5)'; g.beginPath(); g.ellipse(rp[0] - rr * 0.2, rp[1] - rr * 0.35, rr * 0.7, rr * 0.28, 0, 0, 6.29); g.fill(); }
@@ -3691,24 +3775,6 @@
     g.globalAlpha = 0.16;                               // rock showing through the thin soil
     for (i = 0; i < 7; i++) { g.fillStyle = P.rock; g.beginPath(); g.ellipse(cx - 24 + brnd() * 48, ty - 10 + brnd() * 20, 3 + brnd() * 6, 1.4 + brnd() * 2.6, 0, 0, 6.29); g.fill(); }
     g.globalAlpha = 1;
-    // the rim: one rock lump per column, so the top edge is as ragged as the
-    // face beneath it rather than a ruled diamond
-    var rims = [[mask & 1, 1], [mask & 2, -1]];
-    for (var li = 0; li < 2; li++) {
-      if (!rims[li][0]) continue;
-      var d2 = rims[li][1], cs = columns(d2);
-      for (i = 0; i < cs.length; i++) {
-        var cl2 = cs[i], tm = (cl2.t0 + cl2.t1) / 2;
-        var xE = cx + d2 * TW / 2, lx = xE + (cx - xE) * tm + d2 * cl2.jut * 2, ly = ty + (TH / 2) * tm + cl2.jut;
-        var lr = 3 + (cl2.t1 - cl2.t0) * 26;
-        g.fillStyle = shade(P.rock, 0.9 + brnd() * 0.45);
-        g.beginPath();
-        g.moveTo(lx - lr, ly + 1.6); g.lineTo(lx - lr * 0.55, ly - lr * 0.6 - 1);
-        g.lineTo(lx + lr * 0.3, ly - lr * 0.4); g.lineTo(lx + lr, ly + 1.4); g.closePath(); g.fill();
-        g.fillStyle = shade(P.rockL, 1.05); g.globalAlpha = 0.55;
-        g.beginPath(); g.ellipse(lx - lr * 0.2, ly - lr * 0.4, lr * 0.45, lr * 0.2, 0, 0, 6.29); g.fill(); g.globalAlpha = 1;
-      }
-    }
     if (kind === 'grass') {                        // tufts and a small bush on the crown
       g.strokeStyle = 'rgba(96,124,52,.8)'; g.lineWidth = 1;
       for (i = 0; i < 11; i++) {
@@ -3730,6 +3796,47 @@
       g.globalAlpha = 1;
     }
     g.restore();
+    // The rim: rock lumps along every exposed crown edge. They used to be
+    // drawn INSIDE the crown's own clip, which meant they could only bite
+    // inward -- the crown itself stayed a mathematically exact diamond and a
+    // ridge kept one ruled line along its top no matter how broken the face
+    // below it was. Unclipped, and pushed OUT over the drop, they are what
+    // finally makes the top edge ragged: two per column at different sizes,
+    // the bigger ones overhanging furthest, each with its own shadow on the
+    // face beneath so it reads as rock standing proud rather than as paint.
+    var rims = [[mask & 1, 1], [mask & 2, -1]];
+    for (var li = 0; li < 2; li++) {
+      if (!rims[li][0]) continue;
+      var d2 = rims[li][1], cs = columns(d2);
+      for (i = 0; i < cs.length; i++) {
+        var cl2 = cs[i];
+        for (var lj = 0; lj < 3; lj++) {
+          // Not every column carries one: a continuous bead of rock along the
+          // crown edge is just another ruled line in a different colour.
+          if (brnd() < 0.32) continue;
+          var tm = cl2.t0 + (cl2.t1 - cl2.t0) * (0.12 + brnd() * 0.76);
+          var lr = 1.5 + (cl2.t1 - cl2.t0) * 11 * (lj ? 0.6 : 1) + brnd() * 1.5;
+          var out = brnd() * 2.0 * (lj ? 0.45 : 1);
+          var xE = cx + d2 * TW / 2;
+          var lx = xE + (cx - xE) * tm + d2 * (cl2.jut * 2 + out);
+          var ly = ty + (TH / 2) * tm + cl2.jut + out * 0.5;
+          g.fillStyle = 'rgba(18,16,12,.26)';        // the shadow it throws down the face
+          g.beginPath(); g.ellipse(lx, ly + lr * 0.6, lr * 0.9, lr * 0.38, 0, 0, 6.29); g.fill();
+          g.fillStyle = shade(P.rock, 0.78 + brnd() * 0.42);
+          g.beginPath();
+          g.moveTo(lx - lr, ly + 1.4); g.lineTo(lx - lr * (0.4 + brnd() * 0.4), ly - lr * (0.45 + brnd() * 0.55) - 0.6);
+          g.lineTo(lx + lr * (0.1 + brnd() * 0.45), ly - lr * (0.2 + brnd() * 0.4));
+          g.lineTo(lx + lr, ly + 1.2); g.closePath(); g.fill();
+          g.strokeStyle = shade(P.rockL, 1.0); g.globalAlpha = 0.30; g.lineWidth = 0.8;
+          g.beginPath(); g.moveTo(lx - lr * 0.55, ly - lr * 0.5); g.lineTo(lx + lr * 0.2, ly - lr * 0.3); g.stroke();
+          g.globalAlpha = 1;
+          if (kind === 'snow' && brnd() < 0.7) {     // snow caps the lump too
+            g.fillStyle = 'rgba(244,251,252,.8)';
+            g.beginPath(); g.ellipse(lx - lr * 0.15, ly - lr * 0.42, lr * 0.6, lr * 0.24, 0, 0, 6.29); g.fill();
+          }
+        }
+      }
+    }
     // sharp dark rim on the back edges: the plateau ends there, the ground
     // behind is a level lower.
     g.lineWidth = 1.3; g.strokeStyle = 'rgba(30,26,18,.6)';
@@ -4096,9 +4203,18 @@
     g.globalCompositeOperation = 'source-over';
     return s;
   }
+  // How many distinct ore/gem cell sprites are baked per density level, and
+  // how far past its own diamond a cell's cluster may reach. Both exist for
+  // the same reason: an RA2 ore field is 19 overlay types (`TIB01`..`TIB19`,
+  // rules.ini:1498) and gems 9 (`GEM01`..`GEM09`, 1423), so no two cells in
+  // sight of each other repeat AND no cell's crystals stop on its own tile
+  // boundary. Four variants on a diagonal hash, each clipped flat to its
+  // diamond, is what made a field read as a honeycomb lattice.
+  var ORE_VAR = 12, OPADX = 26, OPADY = 14;
+  var OCW = TCW + OPADX, OCH = TCH + OPADY;
   function bakeOre(level, variant) {
-    var s = mkCanvas(TCW, TCH), g = s.g;
-    var cx = TCW / 2, cy = TCH / 2;
+    var s = mkCanvas(OCW, OCH), g = s.g;
+    var cx = OCW / 2, cy = OCH / 2;
     srand(1234 + level * 97 + variant * 7919);
     g.save();
     diamondT(g, cx, cy); g.clip();
@@ -4111,10 +4227,17 @@
     // on the diamond boundary and every ore cell in a field showed its own
     // tan backing square -- a checkerboard, not a seam of ore.
     feather(g, cx, cy);
-    var n = 6 + level * 5, chunks = [];
+    // The SOIL is clipped to the cell (feathered, above). The CRYSTALS are
+    // not: the cluster is scattered over an ellipse that reaches past the
+    // diamond on every side, so neighbouring cells interlock and no straight
+    // slice runs along a tile edge. `g.restore()` drops the clip first --
+    // clipped, the outermost chunks were cut flat on the diamond and those
+    // cuts lined up across a whole field into a visible lattice.
+    g.restore();
+    var n = 8 + level * 6, chunks = [];
     for (var i = 0; i < n; i++) {
       var a2 = rnd() * 6.283, r = Math.sqrt(rnd());
-      chunks.push({ x: cx + Math.cos(a2) * r * (TW / 2 - 5), y: cy + Math.sin(a2) * r * (TH / 2 - 3),
+      chunks.push({ x: cx + Math.cos(a2) * r * (TW / 2 + 6), y: cy + Math.sin(a2) * r * (TH / 2 + 3),
                     w: 3.0 + rnd() * 3.0 + level * 0.6, h: 1.8 + rnd() * 1.7 + level * 0.45 });
     }
     chunks.sort(function (p1, p2) { return p1.y - p2.y; });
@@ -4132,7 +4255,6 @@
       g.beginPath(); g.moveTo(c.x, c.y - c.h); g.lineTo(c.x, c.y + c.h * 0.1); g.stroke();
       if ((i & 2) === 0) { g.fillStyle = 'rgba(255,248,214,.6)'; g.beginPath(); g.ellipse(c.x - c.w * 0.36, c.y - c.h * 0.5, c.w * 0.22, c.h * 0.22, 0, 0, 6.29); g.fill(); }
     }
-    g.restore();
     return s;
   }
 
@@ -4411,8 +4533,13 @@
   // RA2 `[E1Sequence]` (art.ini:9655) trimmed to what reads at 1:1. Every one
   // of these is the SAME figure under a pose transform plus a small overlay —
   // never a second hand-drawn body (the structure-state rule, applied to men).
-  var INF_SEQ = { stand: 1, walk: 6, fire: 3, down: 1, up: 1, prone: 1,
-                  crawl: 6, fireprone: 2, idle1: 3, idle2: 3, cheer: 2 };
+  // `fire` and `fireprone` are SIX because art.ini says six: `FireUp=164,6,6`
+  // and `FireProne=212,6,6` (art.ini:9660, 9664) are six frames per facing,
+  // exactly as `Walk=8,6,6` is. The walk was corrected to six in an earlier
+  // pass and the fire cycle was not, so a burst played raise / recoil /
+  // settle in three steps against the walk's six and read as a twitch.
+  var INF_SEQ = { stand: 1, walk: 6, fire: 6, down: 1, up: 1, prone: 1,
+                  crawl: 6, fireprone: 6, idle1: 3, idle2: 3, cheer: 2 };
   // grid facing -> SCREEN octant. The iso projection sends d0 to SE, d1 to S,
   // d2 to SW, d3 to W, d4 to NW, d5 to N, d6 to NE, d7 to E (see "The RA2
   // vehicle sheets are FACING RINGS" in docs/design-decisions.md), and the
@@ -4530,10 +4657,16 @@
     var PRONE = (ST === 'prone' || ST === 'crawl' || ST === 'fireprone') ? 1 :
                 ((ST === 'down' || ST === 'up') ? 0.55 : 0);
     var FIRING = ST === 'fire' || ST === 'fireprone';
-    // RA2's FireUp is a raise, a recoil and a settle; the muzzle flash itself
-    // is the renderer's, so these frames only carry the body.
-    var RECOIL = FIRING ? (sph === 1 ? -1.5 : (sph === 2 ? -0.5 : 0.4)) : 0;
-    var RAISE = FIRING ? (sph === 1 ? 1 : 0.75) : 0;
+    // RA2's FireUp is a raise, a shot, a recoil and a long settle over SIX
+    // frames; the muzzle flash itself is the renderer's, so these frames only
+    // carry the body. Phase 0 is the shot (the sim sets `fireAt` on the tick
+    // the round leaves), 1-2 the kick, 3-5 the ride forward back onto the
+    // aim. Both curves are monotonic after the peak, so no two of the six
+    // phases land on the same pose.
+    var FIRE_RECOIL = [0.45, -1.50, -1.80, -1.15, -0.55, -0.10];
+    var FIRE_RAISE = [0.80, 1.00, 0.98, 0.92, 0.85, 0.78];
+    var RECOIL = FIRING ? FIRE_RECOIL[sph] : 0;
+    var RAISE = FIRING ? FIRE_RAISE[sph] : 0;
     var CHEER = ST === 'cheer' ? (sph ? 0.65 : 1) : 0;
     var IDLE = ST === 'idle1' ? 1 : (ST === 'idle2' ? 2 : 0);
     // Idle1 is "look around" (the head turns on a locked body), Idle2 is
@@ -7332,6 +7465,14 @@
       teslatank: 1.100, mirage: 1.330, spectre: 1.460, // the mid specials
       v3: 1.260, mammoth: 1.240,                       // the longest / the heaviest
       mcv: 1.320, drone: 1.0, hornet: 0.45,
+      // The Kirov is baked at the size it is DRAWN at. It used to be baked
+      // small and multiplied by 1.3 in `drawUnit` -- which unit-identity-
+      // reference.md §2.4 calls out as "a symptom of the bake being too
+      // small", and which cost real quality: the battlefield context has
+      // image smoothing on, so the largest airframe in the game was the one
+      // sprite on the field going through a bilinear upscale while every
+      // tank beside it drew 1:1.
+      kirov: 1.30,
     }[kind] || 1);
 
     // part: 'a' = hull+turret in one canvas (the fallback strip), 'h' = hull
@@ -7347,7 +7488,7 @@
       // A kind scaled UP gets a sheet scaled with it: the anchor rule is
       // (w/2, h - UPAD) whatever the size, so the only thing that must grow
       // is the room above it.
-      var s = kind === 'kirov' ? mkCanvas(176, 132)
+      var s = kind === 'kirov' ? mkCanvas(184, 152)
             : (VSC > 1 ? mkCanvas(Math.round(104 * VSC) + 8, Math.round(63 * VSC) + UPAD)
                        : unitCanvas());
       var g = s.g;
@@ -7782,7 +7923,7 @@
         // fat ellipsoid the previous pass drew came back 1.38 at the
         // down-right facing against the reference's 1.50. Harrier: the
         // fuselage is slim and the WINGS carry the silhouette.
-        var bodyL = kind === 'kirov' ? 68 : 23, bodyR = kind === 'kirov' ? 10.4 : 2.35;
+        var bodyL = kind === 'kirov' ? 58 : 23, bodyR = kind === 'kirov' ? 9.4 : 2.35;
         var C0y = by - (kind === 'kirov' ? 28 : 3);   // a parked Harrier sits on its gear at the anchor; altitude is added by the renderer
         function pt(t) { return [cx + fx * t * bodyL / 2, C0y + fy * t * bodyL / 2]; }
         // r(t): blunt nose (t=+1), tapering tail (t=-1)
@@ -7850,7 +7991,7 @@
           var lowerFin = function () { finQuad(-0.70, -0.92, 0, 1, bodyR * 0.85, bodyR + 4.5, shade(col, 0.66), shade(col, 0.36)); };
           if (tailAway) { tailCone(); lowerFin(); }
           // far side fin (behind the envelope)
-          finQuad(-0.70, -0.92, px * far, py * far, bodyR * 0.85, bodyR + 6.5, shade(col, 0.72), shade(col, 0.36));
+          finQuad(-0.70, -0.92, px * far, py * far, bodyR * 0.85, bodyR + 5.1, shade(col, 0.72), shade(col, 0.36));
           // engine pod, far side
           var epF = pt(-0.5);
           puck(epF[0] + px * far * bodyR * 0.85, epF[1] + py * far * bodyR * 0.85 + 2.5, 2.4, 4.2, shade(col, 0.7), shade(col, 0.95), shade(col, 0.36));
@@ -7911,13 +8052,20 @@
           for (rt = -0.92; rt <= 0.92; rt += 0.08) { rp = pt(rt); if (rt < -0.9) g.moveTo(rp[0], rp[1] - rad(rt)); else g.lineTo(rp[0], rp[1] - rad(rt) * 0.96); }
           g.stroke();
           g.restore();
-          // gondola under the belly: dark grey box with a window strip
+          // Gondola SLUNG under the belly, with daylight between the two.
+          // unit-identity-reference.md §2.4 asks for the pod "visibly
+          // separated below the envelope by >= 4 px", and it used to be
+          // tucked against the hull: measured, ZERO columns of the broadside
+          // frame had the pod's top below the envelope's lowest ink, so the
+          // cables it supposedly hangs on had nothing to span. KGAP is the
+          // drop, in bake units; the cables now reach the belly.
           g.globalAlpha = kGond ? 1 : 0;
-          var gp = pt(0.08), gpy = gp[1] + rad(0.08) * 0.82;
+          var KGAP = 3.4;
+          var gp = pt(0.08), gpy = gp[1] + rad(0.08) * 0.82 + KGAP;
           if (kGond && !kAir) {                               // its own sheet: the cables it hangs on
             g.strokeStyle = 'rgba(58,44,18,.85)'; g.lineWidth = 0.9;
             for (var kc = -1; kc <= 1; kc += 2) {
-              g.beginPath(); g.moveTo(gp[0] + kc * 4.2, gpy - 6.5); g.lineTo(gp[0] + kc * 5.4, gpy + 0.4); g.stroke();
+              g.beginPath(); g.moveTo(gp[0] + kc * 4.2, gpy - 6.5 - KGAP); g.lineTo(gp[0] + kc * 5.4, gpy + 0.4); g.stroke();
             }
           }
           isoBox(g, gp[0], gpy + 3.4, 12, 5.5, 5.5, a, '#5a5f68', '#23262c');
@@ -7961,7 +8109,7 @@
           var epN = pt(-0.5);
           puck(epN[0] - px * far * bodyR * 0.85, epN[1] - py * far * bodyR * 0.85 + 2.5, 2.2, 4.0, shade(col, 0.74), col, shade(col, 0.36));
           // fins: near side, top; bottom and the tail cone if the tail is toward us
-          finQuad(-0.70, -0.92, -px * far, -py * far, bodyR * 0.85, bodyR + 6.5, col, shade(col, 0.36));
+          finQuad(-0.70, -0.92, -px * far, -py * far, bodyR * 0.85, bodyR + 5.1, col, shade(col, 0.36));
           if (!tailAway) { lowerFin(); tailCone(); }
           finQuad(-0.70, -0.92, 0, -1, bodyR * 0.85, bodyR + 8, shade(col, 1.1), shade(col, 0.36));
           // In the sheet the tail is a busy RED CLUSTER — fins, struts and two
@@ -7969,14 +8117,14 @@
           // of the fins and give the crown its bulk.
           var clP = pt(-0.62);
           for (var ci = -1; ci <= 1; ci += 2)
-            puck(clP[0] + px * ci * bodyR * 1.05, clP[1] + py * ci * bodyR * 1.05 - 1.2,
+            puck(clP[0] + px * ci * bodyR * 0.98, clP[1] + py * ci * bodyR * 0.98 - 1.2,
                  1.9, 3.2, shade(col, 0.72), shade(col, 1.06), shade(col, 0.36));
           var clQ = pt(-0.86);
           puck(clQ[0], clQ[1] - bodyR * 0.95, 1.7, 2.8, shade(col, 0.78), shade(col, 1.12), shade(col, 0.36));
           g.strokeStyle = shade(col, 0.5); g.lineWidth = 1.3;      // struts back to the envelope
           for (ci = -1; ci <= 1; ci += 2) {
             g.beginPath();
-            g.moveTo(clP[0] + px * ci * bodyR * 1.05, clP[1] + py * ci * bodyR * 1.05);
+            g.moveTo(clP[0] + px * ci * bodyR * 0.98, clP[1] + py * ci * bodyR * 0.98);
             g.lineTo(clP[0] + px * ci * bodyR * 0.3, clP[1] + py * ci * bodyR * 0.3);
             g.stroke();
           }
@@ -18553,23 +18701,28 @@
   // Gems: RA2's blue-violet crystal clusters. Taller and sharper than an ore
   // shard, with a cold rim light, on stained ground.
   function bakeGem(level, variant) {
-    var s = mkCanvas(TCW, TCH), g = s.g, cx = TCW / 2, cy = TCH / 2;
+    var s = mkCanvas(OCW, OCH), g = s.g, cx = OCW / 2, cy = OCH / 2;
     srand(7700 + level * 131 + variant * 4703);
     g.save(); diamondT(g, cx, cy); g.clip();
     g.globalAlpha = 0.12 + level * 0.05; g.fillStyle = '#3b2f63';
     for (var q = 0; q < 8; q++) { g.beginPath(); g.ellipse(cx + (rnd() - 0.5) * 34, cy + (rnd() - 0.5) * 17, 5 + rnd() * 8, 2.5 + rnd() * 4, 0, 0, 6.29); g.fill(); }
     g.globalAlpha = 1;
     feather(g, cx, cy);
+    // Crystals outside the clip, as bakeOre: a gem seam interlocks with its
+    // neighbours instead of every cell ending on its own diamond.
+    g.restore();
     // Three habits, not one repeated cone: rules.ini ships GEM01..GEM09 and
     // an RA2 gem field is visibly a mix. 0 tall spires, 1 squat blocky
-    // clusters, 2 a low blue-white fan; 3 mixes them.
+    // clusters, 2 a low blue-white fan. Twelve variants cycle the three
+    // habits four times over, each on its own seed, so a field is a mix of
+    // habits AND no two cells of the same habit are the same cluster.
     var HAB = [{ w: 0.72, h: 1.34, n: 1.0, pal: ['#6f4fd0', '#8a68ee', '#5238a6', '#a487ff'] },
                { w: 1.34, h: 0.62, n: 1.3, pal: ['#7a5cc8', '#9a7cf0', '#5b45a0', '#b09aff'] },
                { w: 1.00, h: 0.92, n: 1.1, pal: ['#6455d2', '#8b7cf0', '#4a3d9c', '#ab9dff'] }][variant % 3];
-    var n = Math.round((5 + level * 4) * HAB.n), chunks = [], i;
+    var n = Math.round((6 + level * 5) * HAB.n), chunks = [], i;
     for (i = 0; i < n; i++) {
       var a2 = rnd() * 6.283, r = Math.sqrt(rnd());
-      chunks.push({ x: cx + Math.cos(a2) * r * (TW / 2 - 6), y: cy + Math.sin(a2) * r * (TH / 2 - 3),
+      chunks.push({ x: cx + Math.cos(a2) * r * (TW / 2 + 6), y: cy + Math.sin(a2) * r * (TH / 2 + 3),
                     w: (2.4 + rnd() * 2.2 + level * 0.5) * HAB.w,
                     h: (4.5 + rnd() * 4.0 + level * 1.2) * HAB.h });
     }
@@ -18589,7 +18742,6 @@
       g.fillStyle = 'rgba(240,236,255,.75)';
       g.beginPath(); g.ellipse(c.x - c.w * 0.3, c.y - c.h * 0.68, c.w * 0.24, c.h * 0.14, 0, 0, 6.29); g.fill();
     }
-    g.restore();
     return s;
   }
 
@@ -19571,11 +19723,16 @@
       }
     }
     SPR.water.urban = SPR.water.temperate;                       // a river is a river in any theatre
-    SPR.cliff = { temperate: [], snow: [], urban: [] };
-    for (var cm = 0; cm < 16; cm++) {
-      SPR.cliff.temperate[cm] = bakeCliff(cm, 'grass'); SPR.cliff.snow[cm] = bakeCliff(cm, 'snow');
-      SPR.cliff.urban[cm] = bakeCliff(cm, 'urban');
-    }
+    // Cliffs: 16 neighbour masks x CLIFF_VAR rock variants, keyed
+    // `mask | variant << 4`, baked LAZILY. A match uses one theatre and a
+    // handful of masks, so eagerly baking 48 sheets for each of three
+    // theatres would cost more load than the rest of the terrain set put
+    // together -- and every slot a match never asks for is free.
+    SPR.cliff = {};
+    ['temperate', 'snow', 'urban'].forEach(function (cth) {
+      var ck = cth === 'temperate' ? 'grass' : cth;
+      SPR.cliff[cth] = lazySheet(16 * CLIFF_VAR, function (k) { return bakeCliff(k & 15, ck, k >> 4); });
+    });
     // Roads are keyed by the neighbour mask, not by a decorative variant.
     SPR.road = { temperate: [], snow: [], urban: [] };
     for (var rv = 0; rv < 32; rv++) {
@@ -19654,8 +19811,9 @@
     SPR.oreSpark = [bakeSparkle(0, 'rgba(255,214,120,ALPHA)', 0), bakeSparkle(1, 'rgba(255,214,120,ALPHA)', 1), bakeSparkle(2, 'rgba(255,214,120,ALPHA)', 0)];
     SPR.gemSpark = [bakeSparkle(0, 'rgba(198,178,255,ALPHA)', 0), bakeSparkle(1, 'rgba(198,178,255,ALPHA)', 1), bakeSparkle(2, 'rgba(198,178,255,ALPHA)', 0)];
     for (var lv = 0; lv < 3; lv++) {
-      SPR.oreLv.push([bakeOre(lv, 0), bakeOre(lv, 1), bakeOre(lv, 2), bakeOre(lv, 3)]);
-      SPR.gemLv.push([bakeGem(lv, 0), bakeGem(lv, 1), bakeGem(lv, 2), bakeGem(lv, 3)]);
+      var oV = [], gV = [];
+      for (var ov = 0; ov < ORE_VAR; ov++) { oV.push(bakeOre(lv, ov)); gV.push(bakeGem(lv, ov)); }
+      SPR.oreLv.push(oV); SPR.gemLv.push(gV);
     }
     SPR.expl = bakeExplosions();
     SPR.decal_fx = { scorch: [bakeScorchDecal(0), bakeScorchDecal(1), bakeScorchDecal(2)],
@@ -29222,7 +29380,7 @@
     maxX = Math.min(MAP - 1, maxX); maxY = Math.min(MAP - 1, maxY);
 
     var x, y, i, px, py;
-    SPARKS.length = 0;
+    SPARKS.length = 0; ORES.length = 0;
     // The apron. RA2 maps carry real terrain past the playable border and
     // clamp the camera inside it; ending on raw black makes the world look
     // like a cut-out. The apron is the same theatre, drained and darkened,
@@ -29334,16 +29492,16 @@
         } else if (t === T_CLIFF) {
           var cm = (x + 1 < MAP && G.terrain[idx(x + 1, y)] !== T_CLIFF ? 1 : 0) | (y + 1 < MAP && G.terrain[idx(x, y + 1)] !== T_CLIFF ? 2 : 0) |
                    (y > 0 && G.terrain[idx(x, y - 1)] !== T_CLIFF ? 4 : 0) | (x > 0 && G.terrain[idx(x - 1, y)] !== T_CLIFF ? 8 : 0);
-          tile = SPR.cliff[th][cm];
+          tile = SPR.cliff[th][cm | (((h6 >>> 19) % CLIFF_VAR) << 4)];
         } else {
           // LAT. The cell wears one of the theatre's two grounds; a BASE cell
           // beside an ALT one carries the alt material feathered over its own
           // edge, which is exactly how RA2's LAT sets read.
-          var alt = G.gm[i];
+          var alt = dirtAt(i);
           tile = (alt ? SPR.groundAltT[th] : (SPR.groundT[th] || SPR.ground))[gi];
           if (!alt && t !== T_ROAD) {
-            var am = (y > 0 && G.gm[i - MAP] ? 1 : 0) | (x + 1 < MAP && G.gm[i + 1] ? 2 : 0) |
-                     (y + 1 < MAP && G.gm[i + MAP] ? 4 : 0) | (x > 0 && G.gm[i - 1] ? 8 : 0);
+            var am = (y > 0 && dirtAt(i - MAP) ? 1 : 0) | (x + 1 < MAP && dirtAt(i + 1) ? 2 : 0) |
+                     (y + 1 < MAP && dirtAt(i + MAP) ? 4 : 0) | (x > 0 && dirtAt(i - 1) ? 8 : 0);
             if (am) lat = SPR.lat[th][am];
           }
           if (t === T_ROAD) ov = SPR.road[th][roadMask(x, y) * 2 + (h6 & 1)];
@@ -29361,8 +29519,18 @@
         if (ov2) ctx.drawImage(ov2.c, px - ov2.w / 2, py - ov2.h / 2, ov2.w, ov2.h);
         if (oreT(t)) {
           var lv = G.ore[i] > 600 ? 2 : (G.ore[i] > 250 ? 1 : 0);
-          var os = (t === T_GEM ? SPR.gemLv : SPR.oreLv)[lv][(x * 5 + y * 11) & 3];
-          ctx.drawImage(os.c, px - os.w / 2, py - os.h / 2, os.w, os.h);
+          // ORE_VAR variants picked off the CELL HASH. `(x * 5 + y * 11) & 3`
+          // reduces to `(x + 3y) mod 4`, which is not a hash at all: it lays
+          // the four variants down in fixed diagonal stripes, so a gem field
+          // read as ranks of identical spires marching across the board.
+          var os = (t === T_GEM ? SPR.gemLv : SPR.oreLv)[lv][(h6 >>> 13) % ORE_VAR];
+          // Queued, not drawn here. Each ore sprite now OVERHANGS its own
+          // cell (bakeOre), and the ground loop draws tile-then-ore per cell
+          // in an order where the next cell's ground would paint over the
+          // last cell's overhang — which put the diamond seam straight back.
+          // One pass after all the ground is down, and a field's clusters run
+          // into each other the way an RA2 overlay set does.
+          ORES.push(os, px, py);
           // Glitter: an eight-step cycle offset by the cell hash, so only
           // about a third of a field is flashing at any moment.
           var gph = (((G.tick >> 3) + h6) & 7);
@@ -29375,6 +29543,14 @@
           }
         }
       }
+    }
+
+    // Ore and gems, after every ground tile in the view is down, so a cell's
+    // cluster may spill over its neighbours' diamonds instead of stopping at
+    // its own. Cheap: one drawImage each, same count as before.
+    for (i = 0; i < ORES.length; i += 3) {
+      var oS = ORES[i];
+      ctx.drawImage(oS.c, ORES[i + 1] - oS.w / 2, ORES[i + 2] - oS.h / 2, oS.w, oS.h);
     }
 
     // Gap fog. The CORE of an enemy Gap Generator's field has already had the
@@ -29432,6 +29608,18 @@
       // A decal weathers the whole time it is down; rubble only fades at the end.
       ctx.globalAlpha = rb.fx ? (1 - rf * 0.55) * (rf > 0.72 ? Math.max(0, (1 - rf) / 0.28) : 1)
                               : (rf > 0.7 ? Math.max(0, (1 - rf) / 0.3) : 1);
+      // ...and it FADES IN behind the death anims rather than appearing whole
+      // on the death tick. `killBld` pushes the rubble at `t: 0` alongside
+      // blasts of `life: 32` staggered to `t: -16`, so a decal at full opacity
+      // on tick 0 was a finished crater under a fireball still on its way up.
+      // Nothing for the first six ticks, full by the time the centre blast has
+      // burned out — RA2 hides the ground under the explosion and lets the
+      // scar appear as it clears. Shell craters and scorches (`rb.fx`) keep
+      // their own timing: those are already queued to their round's impact.
+      if (!rb.fx && rb.t < 30) {
+        var rin = Math.max(0, (rb.t - 6) / 24);
+        ctx.globalAlpha *= rin * rin * (3 - 2 * rin);
+      }
       ctx.drawImage(rs.s.c, rpx - rs.ax, rpy - rs.ay, rs.s.w, rs.s.h);
       ctx.globalAlpha = 1;
     }
@@ -30274,13 +30462,15 @@
         G.over === (u.p === P_HUMAN ? 1 : -1)) return { st: 'cheer', ph: (G.tick >> 3) & 1 };
     var firing = G.tick - (u.fireAt == null ? -999 : u.fireAt) < 13;
     if (u.prone) {
-      if (firing) return { st: 'fireprone', ph: ((G.tick - u.fireAt) >> 2) & 1 };
+      if (firing) return { st: 'fireprone', ph: Math.min(5, (G.tick - u.fireAt) >> 1) };
       if (moving) return { st: 'crawl', ph: (G.tick >> 3) % 6 };
       if (G.tick - (u.downAt || -99) < 12) return { st: 'down', ph: 0 };
       return { st: 'prone', ph: 0 };
     }
     if (G.tick - (u.upAt == null ? -99 : u.upAt) < 12) return { st: 'up', ph: 0 };
-    if (firing) return { st: 'fire', ph: Math.min(2, (G.tick - u.fireAt) >> 2) };
+    // Six frames over the 13-tick burst window, two ticks each — `FireUp`'s
+    // own length. `>>2` with a min of 2 was the three-frame cycle.
+    if (firing) return { st: 'fire', ph: Math.min(5, (G.tick - u.fireAt) >> 1) };
     if (moving || alt > 0) return { st: 'walk', ph: (G.tick >> 2) % 6 };
     var per = 480 + (u.id * 37) % 420;                     // one fidget every 8-15 s
     var ip = (G.tick + u.id * 131) % per;
@@ -30350,6 +30540,7 @@
   // the deterministic sim replays may depend on them.
   var TRACKS = [], TRACK_MAX = 140, TRACK_LIFE = 360, DUST_LIFE = 42;
   var SPARKS = [];                    // ore/gem glitter queued for one additive pass
+  var ORES = [];                      // ore/gem cells queued for one pass over the finished ground
   function drawTracks() {
     for (var i = TRACKS.length - 1; i >= 0; i--) {
       var tr = TRACKS[i], age = G.tick - tr.t;
@@ -30483,17 +30674,16 @@
       s = art.fr(is.st, u.face, is.ph);
     } else s = art;
 
-    // RA2's Kirov is the largest thing in the sky; ours read as a small red
-    // cigar. Scaled here rather than rebaked, so the airframe art stays one
-    // sprite set.
-    var uk = d.bomb && d.air ? 1.3 : 1;
-    var ox = px - s.w * uk / 2, oy = py - (s.h - UPAD) * uk - alt;
+    // The Kirov's 1.3x draw fudge is gone: it is baked at its final size
+    // (`VSC.kirov`), so the largest airframe in the game no longer goes
+    // through a bilinear upscale that nothing else on the field pays.
+    var ox = px - s.w / 2, oy = py - (s.h - UPAD) - alt;
     // A gasbag does not hold station: the Kirov rocks slowly on its long
     // axis, and the gondola hanging under it does NOT rock with it -- it
     // trails the envelope by about a quarter of a second and swings wider,
     // which is what makes the pod read as slung on cables.
     var gondDx = 0, gondDy = 0;
-    if (uk !== 1) {
+    if (d.bomb && d.air) {
       var swH = Math.sin((G.tick + u.id * 11) * 0.021);
       ox += swH * 2.4;
       if (gondS) {
@@ -30547,10 +30737,10 @@
       var BGb = SPR.bags[u.p].back;
       ctx.drawImage(BGb.c, px - BGb.w / 2, py - (BGb.h - UPAD), BGb.w, BGb.h);
     }
-    ctx.drawImage(s.c, ox, oy, s.w * uk, s.h * uk);
+    ctx.drawImage(s.c, ox, oy, s.w, s.h);
     if (submerged && u.erase <= 0) ctx.restore();
-    if (gondS) ctx.drawImage(gondS.c, ox + gondDx, oy + gondDy, gondS.w * uk, gondS.h * uk);
-    if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w * uk, turretS.h * uk);
+    if (gondS) ctx.drawImage(gondS.c, ox + gondDx, oy + gondDy, gondS.w, gondS.h);
+    if (turretS) ctx.drawImage(turretS.c, ox, oy, turretS.w, turretS.h);
     if (u.erase > 0) {
       ctx.restore();
       // ...and rings of collapsing spacetime close on it as it goes.
@@ -30606,7 +30796,7 @@
       var hurt = u.hp / u.maxhp, burning = hurt < 0.25;
       // Anchored to the hull's own ink top, so the column leaves the deck and
       // rises clear of the sprite instead of getting lost inside it.
-      var deck = s.bb ? oy + s.bb.y0 * uk + 4 : py - alt - 16;
+      var deck = s.bb ? oy + s.bb.y0 + 4 : py - alt - 16;
       for (var sk = 0; sk < 3; sk++) {
         // The three puffs are spread evenly round the cycle, so one is always
         // fresh off the deck and the column never blinks out entirely.
@@ -30645,7 +30835,6 @@
       bb = { x0: s.w / 2 - (u.prone ? 13 : 8), y0: s.h - UPAD - ibh,
              x1: s.w / 2 + (u.prone ? 13 : 8), y1: s.h - UPAD + 1 };
     } else bb = s.bb || { x0: 0, y0: 0, x1: s.w, y1: s.h };
-    if (uk !== 1) bb = { x0: bb.x0 * uk, y0: bb.y0 * uk, x1: bb.x1 * uk, y1: bb.y1 * uk };
     var top = oy + bb.y0;
 
     // RA2-style corner brackets around the sprite, drawn over it so a wide
@@ -32594,6 +32783,10 @@
            bfacOf: bfacOf, facAllows: facAllows, hasFacBld: hasFacBld,
            producerOf: producerOf, keyFac: keyFac, bspecOfB: bspecOfB,
            panelKeys: panelKeys, reqMet: reqMet,
+           // Which of the theatre's two grounds a cell wears. Exposed so the
+           // "ore never lies on pavement" guard can ask the renderer's own
+           // question instead of re-deriving it and agreeing with itself.
+           dirtAt: dirtAt,
            blocked: blocked, adjOf: adjOf, buildMask: buildMask, gateOpen: gateOpen, applyGaps: applyGaps,
            gapped: gapped, tileSeen: tileSeen, entSeen: entSeen, versesVs: versesVs, isWall: isWall, detected: detected,
            aiSwTarget: aiSwTarget, aiSwValue: aiSwValue, aiPickTarget: aiPickTarget, aiDefencePlan: aiDefencePlan,

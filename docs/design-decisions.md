@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_226 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_228 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -249,6 +249,8 @@ _226 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The Hornet was a flying ore truck (2026-09-04)](#the-hornet-was-a-flying-ore-truck-2026-09-04)
 - [Five tests certified the bugs they guarded (2026-09-04)](#five-tests-certified-the-bugs-they-guarded-2026-09-04)
 - [Ore growth: [General] GrowthRate vs [Riparius] Growth (2026-09-04)](#ore-growth-general-growthrate-vs-riparius-growth-2026-09-04)
+- [Three per-cell terrain sprites that could never break their own tile (2026-09-04)](#three-per-cell-terrain-sprites-that-could-never-break-their-own-tile-2026-09-04)
+- [A draw-time sprite scale is duplicated in the art gate (2026-09-04)](#a-draw-time-sprite-scale-is-duplicated-in-the-art-gate-2026-09-04)
 
 <!-- END TOC -->
 
@@ -9109,3 +9111,74 @@ omitted the protocol's own "*while reachable ore exists*" clause, so it reported
 legitimate ore exhaustion as a stuck-harvester violation and made the first
 reading look far worse than it was. A probe that cannot tell the two apart is
 not evidence about either.
+
+## Three per-cell terrain sprites that could never break their own tile (2026-09-04)
+**Symptom.** An ore field read as a diamond honeycomb and a cliff run as a row
+of fence panels, and neither survived more variants or better texture. Both had
+already been "fixed" once — the ore's tan backing square was feathered away, the
+cliff face was rebuilt as jointed rock columns with a broken crest — and both
+still announced one cell boundary per tile at close zoom.
+**Cause.** Three separate mechanisms, all of the same kind: *a per-cell sprite
+that is structurally unable to reach past its own cell.*
+1. **`bakeOre` / `bakeGem` clip the whole cell to its diamond.** The crystals
+   are scattered over an ellipse wider than the diamond, so the outermost ones
+   were sliced FLAT along the boundary — and those slices line up across a
+   field into a lattice. Unclipping them is necessary but not sufficient (2).
+2. **The ground loop draws tile-then-ore per cell.** Even with an oversized
+   sprite, cell (x, y)'s overhang toward the bottom of the screen is repainted
+   by the ground tile of (x+1, y) and (x, y+1), which the loop draws later. The
+   seam comes straight back, and asymmetrically — only the up-screen half of
+   each cluster survives.
+3. **`bakeCliff` drew its crown-edge rim lumps INSIDE the crown's own clip.**
+   The lumps exist precisely to make the plateau's top edge ragged; clipped,
+   they can only bite inward, so the crown stayed a mathematically exact
+   diamond and a ridge kept one ruled line along its top however broken the
+   rock face beneath it was.
+**Fix.** (1) draw the crystals after `g.restore()`, on a canvas 26 px wider
+than the tile; (2) queue ore into `ORES` and flush it in one pass after the
+whole ground loop, the same shape the glitter pass already used; (3) move the
+rim loop after the crown's `g.restore()` and push each lump outward over the
+drop. Alongside (3), each cliff column's jut now tapers to zero at the cell's
+two end vertices — without that, a column sitting at t=0 was displaced up to
+4 px from the shared vertex and every tile boundary opened a dark slit of
+recess.
+**Rejected: more variants alone.** Ore went from 4 to 12 variants and the hash
+from `(x * 5 + y * 11) & 3` — which reduces to `(x + 3y) mod 4`, fixed diagonal
+stripes rather than a hash — to a real cell hash. That removes the *repeat*; it
+does nothing about the *boundary*, and the honeycomb is the boundary.
+**Rejected: forcing ore onto dirt in the generator.** Ore lying on urban
+pavement is the same family of bug (the theatre paints `T_GROUND` as concrete
+slabs, so `patch()` refusing anything but `T_GROUND` never reached its own
+case). Setting `G.gm` at generation time would miss ore that SPREADS into a new
+cell mid-match. One renderer-side `dirtAt(i)`, read by both the tile pick and
+the LAT feather mask, keeps the dirt blending into the surrounding paving and
+needs no second rule to stay in step.
+
+## A draw-time sprite scale is duplicated in the art gate (2026-09-04)
+**Symptom.** The Kirov was baked at 132×51 and multiplied by 1.3 in `drawUnit`.
+unit-identity-reference.md §2.4 calls that scale "a symptom of the bake being
+too small"; it also costs real quality, because the battlefield context has
+`imageSmoothingEnabled` on by default, so the largest airframe in the game was
+the one sprite on the field going through a bilinear upscale while every tank
+beside it drew 1:1.
+**Cause of the trap.** `tools/art-metrics.js` composes each unit "exactly as
+`drawUnit` composes" — and it does that by RE-IMPLEMENTING the rule, including
+`const uk = (d.bomb && d.air) ? 1.3 : 1;` with the comment "the Kirov's draw
+fudge". Removing the fudge from the game therefore does not remove it from the
+gate: the harness silently starts measuring a Kirov 1.69× the size the game
+draws. Every scale-sensitive metric (`spike.*`) is then measuring fiction, and
+the divergence is invisible because the gate still prints MET.
+**Fix.** The scale moved into the bake (`VSC.kirov = 1.30`) and the fudge is
+gone from `drawUnit`; `tools/art-metrics.js:258` must lose its `? 1.3 : 1` in
+the same change. Measured with a patched copy of the harness so the numbers
+quoted are of the sprite the game actually draws: broadside 172×66 (aspect
+2.61) → 147×66 (2.23) against RA2 `[ZEP]`'s 2.24, nose-on 83×114 (0.73) →
+72×102 (0.71) against RA2's 0.71.
+**Rejected: leaving the fudge in place and only re-proportioning.** It would
+have kept the harness honest at the cost of leaving the upscale — and the
+upscale is the half of the defect a player can see.
+**Note for the next reader: `iou.air.mean` gets WORSE when the Kirov gets more
+accurate** — 0.1622 → 0.1775 against a 0.45 ceiling — because IoU is
+centre-aligned and not scale-normalised, so a Kirov 16% longer than RA2's
+scores better against the Harrier purely by being oversized. A ceiling metric
+that rewards being wrong is worth knowing about before it is used as evidence.

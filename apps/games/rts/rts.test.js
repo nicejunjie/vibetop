@@ -4927,3 +4927,252 @@ test("a veteran fires faster and moves faster than a rookie, not only an elite",
   assert.ok(s1 > s0, `a VETERAN must move faster than a rookie (${s1} vs ${s0})`);
   assert.ok(s2 > s1, `an ELITE must move faster than a veteran (${s2} vs ${s1})`);
 });
+
+// ======================================================================== //
+//  gap-audit-art.md rows 21, 23, 24, 25, 26 and 27.
+//
+//  Five of the six are TERRAIN or ANIMATION defects, which the art gate
+//  (tools/art-metrics.js) cannot see at all — it measures unit sprites at
+//  eight bearings and nothing else. So these guards go here, and each one was
+//  run against the UNFIXED build first and made to fail with the signature
+//  named in its own message.
+// ======================================================================== //
+
+// The comment-stripper the radar test above needed: a structural assertion
+// that matches source TEXT must never be able to pass by reading prose. One
+// in this suite already did exactly that once.
+const nocomment = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+// ---- row 25: infantry firing is SIX frames, as the walk already was ------ //
+// art.ini:9660 `[E1Sequence] FireUp=164,6,6` and :9664 `FireProne=212,6,6` —
+// six frames per facing, the same count as `Walk=8,6,6`. The walk was
+// corrected to six in an earlier pass; the fire cycle was left at three (and
+// fireprone at two), so a burst read as a twitch beside a six-phase stride.
+//
+// Measured on the unfixed build with a headless render of
+// `art.fr('fire', d, ph)` over eight phases: 3 distinct canvases for `fire`
+// and 2 for `fireprone`, against 6 for `walk`. After: 6, 6 and 6.
+test("infantry fire and fireprone are six frames, like FireUp and FireProne", () => {
+  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+
+  const m = src.match(/var INF_SEQ = \{([\s\S]*?)\};/);
+  assert.ok(m, "INF_SEQ is the table of RA2 sequence lengths");
+  const seq = {};
+  for (const [, k, v] of m[1].matchAll(/(\w+)\s*:\s*(\d+)/g)) seq[k] = Number(v);
+  assert.equal(seq.walk, 6, "[E1Sequence] Walk=8,6,6");
+  assert.equal(seq.fire, 6, "[E1Sequence] FireUp=164,6,6 is SIX frames, not three");
+  assert.equal(seq.fireprone, 6, "[E1Sequence] FireProne=212,6,6 is SIX frames, not two");
+
+  // A six-entry table nobody indexes past 2 is still a three-frame cycle, so
+  // the renderer's phase pick has to be checked too. `infSeqOf` is the one
+  // place that chooses a soldier's sequence and frame.
+  const i0 = src.indexOf("function infSeqOf(");
+  const i1 = src.indexOf("\n  }", i0);
+  assert.ok(i0 > 0 && i1 > i0, "found infSeqOf");
+  const body = src.slice(i0, i1);
+  for (const st of ["fire", "fireprone"]) {
+    const line = body.split("\n").find((l) => l.includes("'" + st + "'"));
+    assert.ok(line, `infSeqOf returns a ${st} state`);
+    const cap = line.match(/Math\.min\((\d+),/);
+    assert.ok(cap && Number(cap[1]) === 5,
+      `infSeqOf caps the ${st} phase at ${cap ? cap[1] : "nothing"}, so only `
+      + `${cap ? Number(cap[1]) + 1 : "?"} of the six baked frames can ever be `
+      + `asked for:\n  ${line.trim()}`);
+  }
+
+  // ...and the bake has to make six DIFFERENT bodies out of them. Both curves
+  // are read by index, so a six-long table with repeats is caught here.
+  assert.ok(src.indexOf("var FIRE_RECOIL =") > 0,
+    "bakeInfantry drives the fire pose off a per-phase table");
+  for (const name of ["FIRE_RECOIL", "FIRE_RAISE"]) {
+    const t = src.slice(src.indexOf("var " + name + " ="));
+    const arr = JSON.parse(t.slice(t.indexOf("["), t.indexOf("]") + 1));
+    assert.equal(arr.length, 6, `${name} must carry one value per FireUp frame`);
+    assert.equal(new Set(arr).size, 6, `${name} repeats a value, so two of the `
+      + `six fire frames are the same pose: ${JSON.stringify(arr)}`);
+  }
+});
+
+// ---- row 23: an ore field is not a diamond honeycomb -------------------- //
+// RA2 ships 19 ore overlays (`TIB01`..`TIB19`, rules.ini:1498) and 9 gem ones
+// (`GEM01`..`GEM09`, :1423) precisely so a field never repeats. Ours had FOUR
+// per density level, picked by `(x * 5 + y * 11) & 3` — which reduces to
+// `(x + 3y) mod 4`, not a hash but a fixed diagonal stripe — and every one of
+// them was CLIPPED to its own tile diamond, so the outermost crystals were
+// sliced flat along the cell boundary and the slices lined up across a whole
+// field into a visible lattice.
+test("ore and gem cells have many variants and overhang their own diamond", () => {
+  const S = W.__rtsTest.spr();
+  for (const set of ["oreLv", "gemLv"]) {
+    assert.ok(S[set] && S[set].length === 3, `${set} has one entry per density level`);
+    for (let lv = 0; lv < 3; lv++)
+      assert.ok(S[set][lv].length >= 9,
+        `${set}[${lv}] has ${S[set][lv].length} variants; RA2 ships 19 ore and 9 gem `
+        + `overlays so that a field never repeats, and four on a diagonal hash is `
+        + `what made one read as a lattice`);
+  }
+  // The sprite has to be BIGGER than the tile it sits on, or a cluster cannot
+  // reach across the seam however many variants there are. TW 64 + TPAD 6.
+  const TCW = 70;
+  assert.ok(S.oreLv[0][0].w > TCW && S.gemLv[0][0].w > TCW,
+    `an ore cell is ${S.oreLv[0][0].w} px wide against a ${TCW} px tile: it cannot `
+    + `overhang its neighbours, so every cell still ends on its own boundary`);
+
+  // And the renderer must pick the variant off a real hash, not off the old
+  // `(x * 5 + y * 11) & 3` diagonal, and draw ore AFTER the ground rather
+  // than tile-then-ore per cell (which repaints the previous cell's overhang).
+  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+  assert.ok(!/\(x \* 5 \+ y \* 11\) & 3/.test(src),
+    "the ore variant is still picked by the diagonal-stripe expression");
+  assert.ok(/ORES\.push\(/.test(src) && /ORES\.length = 0/.test(src),
+    "ore is still drawn inside the per-cell ground loop, where the next cell's "
+    + "ground tile paints over its overhang and restores the seam");
+});
+
+// ---- row 21: ore lies on dirt, never on the urban theatre's pavement ---- //
+// `patch()` was fixed to refuse anything but `T_GROUND`, which reads as
+// closed — but the urban theatre PAINTS its `T_GROUND` as concrete slabs
+// (`bakeGroundSheet('pave', 61)`), so the fix never reached the case it was
+// written for and an urban ore field still lay on paving, slab joints and all.
+test("an ore cell wears the theatre's dirt, never its pavement", () => {
+  const H = W.__rtsTest;
+  assert.equal(typeof API.dirtAt, "function",
+    "dirtAt must be exposed — a ground-material check that silently skips when "
+    + "the hook is missing is the same silent gap this suite exists to remove");
+
+  // River Crossing is the urban map, and it carries two ore patches.
+  const g = H.begin(7, "normal", "river");
+  const MAP = 64;
+  let ore = 0, onDirt = 0, base = 0, baseOnDirt = 0;
+  for (let i = 0; i < MAP * MAP; i++) {
+    const t = g.terrain[i];
+    if (t === 2 || t === 9) { ore++; if (API.dirtAt(i)) onDirt++; }
+    else if (t === 0) { base++; if (API.dirtAt(i)) baseOnDirt++; }
+  }
+  assert.ok(ore > 40, `the urban map should carry a real ore field (got ${ore} cells)`);
+  assert.equal(onDirt, ore,
+    `${ore - onDirt} of ${ore} urban ore cells still wear the theatre's BASE ground, `
+    + `which in the urban theatre is concrete paving`);
+  // ...and the rule is about ore, not "everything is dirt now": plain ground
+  // still follows its own noise, so most of the map is still paved.
+  assert.ok(baseOnDirt < base * 0.9,
+    "dirtAt has stopped discriminating — every cell reads as the alt material");
+});
+
+// ---- row 24: the crater fades in BEHIND the death anims ----------------- //
+// `killBld` pushes the rubble decal at `t: 0` beside blasts of `life: 32`
+// staggered back to `t: -16`, and the decal drew at full opacity from the
+// first tick — screenshotted at t=6 as a finished crater under a fireball
+// still on its way up. RA2 hides the ground under the death anims and lets
+// the scar appear as they clear.
+//
+// STRUCTURAL, and deliberately so: the alpha ramp is three lines inside the
+// render loop, this harness has no real 2D context to read `globalAlpha` back
+// from, and the behaviour itself was verified in a browser (a seven-frame
+// strip at t = 0/4/8/14/22/34/60). What is pinned here is the shape of the
+// bug — a ground decal at full opacity on the tick the structure dies.
+test("structure rubble ramps in behind the explosion instead of popping", () => {
+  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+
+  // The death still pushes at t: 0 — the fix is in the DRAW, not by delaying
+  // the decal (which would leave the crater absent instead of hidden).
+  const k0 = src.indexOf("function killBld(");
+  assert.ok(k0 > 0 && /g\.rubble\.push\(\{[^}]*t: 0/.test(src.slice(k0, k0 + 4000)),
+    "killBld should still record the rubble on the death tick");
+
+  // The ground-layer draw must scale a non-decal rubble's alpha by its age.
+  const r0 = src.indexOf("for (i = 0; i < G.rubble.length; i++)");
+  const r1 = src.indexOf("ctx.drawImage(rs.s.c", r0);
+  assert.ok(r0 > 0 && r1 > r0, "found the rubble draw");
+  const draw = src.slice(r0, r1);
+  assert.ok(/globalAlpha \*=/.test(draw) && /rb\.t/.test(draw),
+    "the rubble draw never scales its alpha by the decal's own age, so the "
+    + "crater is complete on the tick the structure dies:\n" + draw.slice(-400));
+  // The ramp must be keyed on the blast's length, not on a couple of ticks:
+  // the centre blast is `life: 32`.
+  // `rb.t < 0` (the "queued for when the shell lands" skip) is in this slice
+  // too, so take the LONGEST window rather than the first one matched.
+  const wins = [...draw.matchAll(/rb\.t < (\d+)/g)].map((w) => Number(w[1]));
+  const win = wins.length ? Math.max(...wins) : 0;
+  assert.ok(win >= 20,
+    `the ramp runs for ${win} ticks against a 32-tick blast — too short to hide `
+    + `the crater while the fireball is still rising`);
+});
+
+// ---- row 26: a cliff run is not the same rock every cell ---------------- //
+// A cliff cell used to be ONE sprite per 4-bit neighbour mask, so a
+// sixteen-cell ridge was the same rock sixteen times at a one-cell period —
+// which is most of why cliffs read as engineered whatever the face drew. The
+// snow set was worse again: a cold blue-grey blockwork under a straight white
+// coping quad, which read as a glass parapet.
+test("cliff cells have per-cell rock variants, and snow uses rock colours", () => {
+  const S = W.__rtsTest.spr();
+  for (const th of ["temperate", "snow", "urban"]) {
+    assert.ok(S.cliff[th].length >= 32,
+      `${th} cliffs have ${S.cliff[th].length} slots — 16 means one sprite per `
+      + `neighbour mask and a ridge that repeats every single cell`);
+    assert.equal(S.cliff[th].length % 16, 0, "slots are mask | variant << 4");
+  }
+
+  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+  const c0 = src.indexOf("function bakeCliff(");
+  const c1 = src.indexOf("function roadV(", c0);
+  const cliff = src.slice(c0, c1);
+  // The crest RUNS from `crest` to `crest1`. `crest1` was computed and never
+  // read, so every column's top sat level and a run carried one ruled line.
+  assert.ok((cliff.match(/crest1/g) || []).length >= 2,
+    "crest1 is still declared and never read, so every cliff column's crest is "
+    + "level at `crest` and the top of a ridge is a ruled line");
+  // The rim lumps must be drawn OUTSIDE the crown's own clip, or they can only
+  // bite inward and the crown stays an exact diamond.
+  const clipAt = cliff.indexOf("g.clip();", cliff.indexOf("diamond(g, cx, ty, TCW, TCH)"));
+  const relAt = cliff.indexOf("g.restore();", clipAt);
+  const rimAt = cliff.indexOf("var rims = ");
+  assert.ok(clipAt > 0 && relAt > clipAt && rimAt > relAt,
+    "the crown-edge rim is drawn inside the crown's clip, so it cannot overhang "
+    + "the drop and the plateau's top edge stays a mathematically exact diamond");
+  // The snow face is ROCK. A cold blue highlight over regular strata is what
+  // made it read as chrome.
+  const pal = cliff.match(/kind === 'snow'\s*\?\s*\{([^}]*)\}/);
+  assert.ok(pal, "found the snow palette");
+  const rock = pal[1].match(/rock: '#(\w{6})'/);
+  assert.ok(rock, "the snow palette names its rock colour");
+  const [rr, , bb2] = [0, 2, 4].map((k) => parseInt(rock[1].slice(k, k + 2), 16));
+  assert.ok(rr >= bb2,
+    `the snow cliff face is #${rock[1]} — blue-dominant, which under the strata `
+    + `banding reads as chromed panelling rather than as stone under snow`);
+});
+
+// ---- row 27: the Kirov is baked at the size it is drawn at -------------- //
+// unit-identity-reference.md §2.4 calls the 1.3x draw scale "a symptom of the
+// bake being too small", and §3's R6 gives the number: [ZEP] is 139x62, which
+// at our 1.067 sprite scale is 148x66 at zoom 1. The bake was 132x51 and
+// `drawUnit` multiplied it by 1.3 — so the largest airframe in the game was
+// the one sprite on the field going through a bilinear upscale (the
+// battlefield context has image smoothing on) while every tank beside it drew
+// 1:1, and at 172x66 it was 16% longer than RA2's own proportion.
+//
+// Measured headless, composed as drawUnit composes: broadside 172x66 (aspect
+// 2.61) before, 147x66 (2.23) after, against RA2's 2.24; nose-on 83x114
+// (0.73) before, 72x102 (0.71) after, against RA2's 61x86 (0.71).
+test("the Kirov is baked at its drawn size, with no per-unit draw scale", () => {
+  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+
+  // No draw-time scale survives anywhere in drawUnit.
+  assert.ok(!/d\.bomb && d\.air \? 1\.3 : 1/.test(src),
+    "drawUnit still multiplies the Kirov's sprite at draw time");
+  const d0 = src.indexOf("function drawUnit(");
+  const d1 = src.indexOf("function drawAirShadow(", d0);
+  assert.ok(d0 > 0 && d1 > d0, "found drawUnit");
+  assert.ok(!/\buk\b/.test(src.slice(d0, d1)),
+    "drawUnit still carries a per-unit sprite scale factor");
+
+  // The size moved into the bake instead.
+  const vsc = src.match(/\n\s+kirov: (\d\.\d+),/);
+  assert.ok(vsc && Number(vsc[1]) > 1.2,
+    "the Kirov's VSC does not carry the scale the draw fudge used to");
+
+  // Nothing else on the roster acquired a draw-time scale to replace it.
+  for (const [k, u] of Object.entries(T.UNITS))
+    if (u.air) assert.ok(!("drawScale" in u), `${k} carries a draw-time scale`);
+});
