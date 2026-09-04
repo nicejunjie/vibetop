@@ -105,7 +105,7 @@ if (( DRY_RUN )); then
     echo "  [dry-run] rm nginx site + snippets"
 else
     rm -f /etc/nginx/sites-enabled/vibetop /etc/nginx/sites-available/vibetop \
-          /etc/nginx/conf.d/vibetop.conf /etc/nginx/conf.d/vibetop-upgrade.conf
+          /etc/nginx/conf.d/vibetop.conf /etc/nginx/conf.d/vibetop-*.conf
     rm -f /etc/nginx/snippets/vibetop-extras.d/*.conf 2>/dev/null || true
     rmdir /etc/nginx/snippets/vibetop-extras.d 2>/dev/null || true
     if command -v nginx >/dev/null 2>&1; then

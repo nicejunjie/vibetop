@@ -284,6 +284,13 @@ if (( INSTALL_NGINX )); then
             | nginx_write "/etc/nginx/conf.d/vibetop-upgrade.conf" || NGINX_DIRTY=1
     fi
 
+    # 4a1. Rate/conn zones for /s/. UNCONDITIONAL — the site block references
+    # these zones on every host, so they cannot ride along in the conditional
+    # map fragment above (an already-defined map skipped the whole file and nginx
+    # then rejected the config with "zero size shared memory zone").
+    cat "$APP_DIR/nginx/vibetop-limits.conf" \
+        | nginx_write "/etc/nginx/conf.d/vibetop-limits.conf" || NGINX_DIRTY=1
+
     # 4a2. TLS material (self-signed by default) + config fragments. Empty vars
     # when TLS is off, so the server block renders http-only unchanged.
     lan_map=""; tls_listen=""; tls_redirect_if=""
