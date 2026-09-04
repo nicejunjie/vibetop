@@ -146,19 +146,19 @@
     "iou.vehicle.mean": 0.4227,
     "iou.infantry.mean": 0.5334,
     "iou.naval.mean": 0.3835,
-    "iou.air.mean": 0.1622,
+    "iou.air.mean": 0.1775,
     "iou.sameFactionOver75": 0,
     "spike.belowFloor": 0,
     "spike.minThickAtZmin": 2.2,
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.703,
     "mass.tightestBand6": 2.093,
-    "hue.infantryOwnerMean": 0.2946,
+    "hue.infantryOwnerMean": 0.2945,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1698,
     "hue.vehicleOwnerMax": 0.2369,
     "hue.maxImpostor": 0.0024,
-    "colour.infantry.meanDist": 1.3124,
+    "colour.infantry.meanDist": 1.3105,
     "colour.vehicle.meanDist": 0.9513,
     "colour.vehicleAchromatic": 0
   },
@@ -193,9 +193,9 @@
         "over75": 0
       },
       "air": {
-        "mean": 0.1622,
+        "mean": 0.1775,
         "pairs": 6,
-        "max": 0.3367,
+        "max": 0.4023,
         "over75": 0
       },
       "groundCombat": {
@@ -221,12 +221,17 @@
       {
         "a": "ivan",
         "b": "spy",
-        "dist": 0.315
+        "dist": 0.298
       },
       {
         "a": "flak",
         "b": "rocketeer",
         "dist": 0.413
+      },
+      {
+        "a": "rocketeer",
+        "b": "ivan",
+        "dist": 0.508
       },
       {
         "a": "conscript",
@@ -236,27 +241,22 @@
       {
         "a": "conscript",
         "b": "spy",
-        "dist": 0.586
+        "dist": 0.618
       },
       {
-        "a": "ivan",
-        "b": "cleg",
-        "dist": 0.598
-      },
-      {
-        "a": "teslatrooper",
+        "a": "flak",
         "b": "ivan",
-        "dist": 0.613
+        "dist": 0.664
+      },
+      {
+        "a": "flak",
+        "b": "tanya",
+        "dist": 0.667
       },
       {
         "a": "conscript",
         "b": "engineer",
         "dist": 0.682
-      },
-      {
-        "a": "flak",
-        "b": "tanya",
-        "dist": 0.695
       }
     ],
     "closestVehicleColourPairs": [
@@ -313,12 +313,12 @@
     ],
     "topImpostors": [
       {
-        "key": "squid",
+        "key": "yuri",
         "pct": 0.0024
       },
       {
-        "key": "yuri",
-        "pct": 0.0023
+        "key": "squid",
+        "pct": 0.0024
       },
       {
         "key": "rifle",
@@ -327,10 +327,6 @@
       {
         "key": "conscript",
         "pct": 0.0011
-      },
-      {
-        "key": "ivan",
-        "pct": 0.0004
       },
       {
         "key": "tanya",
@@ -343,6 +339,10 @@
       {
         "key": "chronominer",
         "pct": 0
+      },
+      {
+        "key": "warminer",
+        "pct": 0
       }
     ],
     "ownerPctByUnit": {
@@ -354,7 +354,7 @@
       "flak": 0.3119,
       "rocketeer": 0.3418,
       "harrier": 0.2298,
-      "kirov": 0.2664,
+      "kirov": 0.2698,
       "lancer": 0.2302,
       "mammoth": 0.1678,
       "engineer": 0.3684,
@@ -371,7 +371,7 @@
       "teslatank": 0.1441,
       "prismtank": 0.1621,
       "desolator": 0.3114,
-      "yuri": 0.2593,
+      "yuri": 0.2591,
       "cleg": 0.3187,
       "spy": 0.3198,
       "nighthawk": 0.0129,
@@ -397,26 +397,26 @@
       "flak": 0.1372,
       "rocketeer": 0.1402,
       "harrier": 0.1924,
-      "kirov": 0.3099,
+      "kirov": 0.2978,
       "lancer": 0.0863,
       "mammoth": 0.2379,
       "engineer": 0.179,
       "dog": 0.495,
       "ifv": 0.1608,
       "mirage": 0.1566,
-      "tanya": 0.228,
+      "tanya": 0.2228,
       "rhino": 0.1554,
       "flaktrack": 0.1569,
       "v3": 0.1835,
       "teslatrooper": 0.1212,
-      "ivan": 0.1857,
+      "ivan": 0.1716,
       "drone": 0.1875,
       "teslatank": 0.2104,
       "prismtank": 0.1608,
       "desolator": 0.1495,
-      "yuri": 0.2134,
+      "yuri": 0.2021,
       "cleg": 0.11,
-      "spy": 0.1413,
+      "spy": 0.1443,
       "nighthawk": 0.1394,
       "apc": 0.1396,
       "destroyer": 0.1402,
@@ -928,20 +928,20 @@
         "name": "Kirov Airship",
         "group": "air",
         "fac": "col",
-        "mass": 5938,
-        "bboxW": 172,
-        "bboxH": 114,
-        "aspect": 1.578,
-        "selfIoU": 0.4112,
+        "mass": 4785,
+        "bboxW": 147,
+        "bboxH": 102,
+        "aspect": 1.436,
+        "selfIoU": 0.4379,
         "bestPeer": "Nighthawk",
-        "bestPeerIoU": 0.3367,
+        "bestPeerIoU": 0.4023,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
           "axis": "v",
-          "len": 33,
-          "thick": 13,
-          "atZmin": 7.15,
+          "len": 31,
+          "thick": 8,
+          "atZmin": 4.4,
           "budget": 3.64,
           "lenBudget": null,
           "fails": null,
@@ -1084,7 +1084,7 @@
         "aspect": 1.546,
         "selfIoU": 0.8587,
         "bestPeer": "Kirov Airship",
-        "bestPeerIoU": 0.3367,
+        "bestPeerIoU": 0.4023,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {

@@ -82,9 +82,44 @@ function serve() {
 // Page side: compose every unit EXACTLY as drawUnit composes it (the same rule
 // art-metrics.js uses — compose it any other way and the numbers are fiction)
 // and hand back raw RGBA plus the bbox.
-function grab() {
+function grab(cfg) {
   const T = window.__rtsTest, U = window.__rtsTables.UNITS, S = T.spr();
   const out = [];
+  const CELL = cfg.CELL, GRASS = cfg.GRASS, ZOOMS = cfg.ZOOMS;
+  // Composite on grass, box-downscale to the size it is DRAWN at, centre in one
+  // CELL box so SIZE is part of the comparison. Done page-side: 40 units x 8
+  // facings x 2 zooms of raw RGBA is megabytes over the wire, thumbnails are not.
+  function thumbOf(id, W, H, zoom) {
+    let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+      if (id.data[(y * W + x) * 4 + 3] > 8) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    if (x1 < 0) return null;
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    const tw = Math.max(1, Math.round(bw * zoom)), th = Math.max(1, Math.round(bh * zoom));
+    const cell = new Uint8Array(CELL * CELL * 3);
+    for (let i = 0; i < CELL * CELL; i++) { cell[i*3] = GRASS[0]; cell[i*3+1] = GRASS[1]; cell[i*3+2] = GRASS[2]; }
+    const ox = Math.floor((CELL - tw) / 2), oy = Math.floor((CELL - th) / 2);
+    for (let ty = 0; ty < th; ty++) for (let tx = 0; tx < tw; tx++) {
+      const cy = oy + ty, cx = ox + tx;
+      if (cy < 0 || cx < 0 || cy >= CELL || cx >= CELL) continue;
+      const sx0 = x0 + Math.floor(tx * bw / tw), sx1 = x0 + Math.max(Math.floor((tx+1) * bw / tw), Math.floor(tx * bw / tw) + 1);
+      const sy0 = y0 + Math.floor(ty * bh / th), sy1 = y0 + Math.max(Math.floor((ty+1) * bh / th), Math.floor(ty * bh / th) + 1);
+      let r = 0, g2 = 0, b = 0, n = 0;
+      for (let y = sy0; y < sy1; y++) for (let x = sx0; x < sx1; x++) {
+        const i = (y * W + x) * 4, a = id.data[i + 3] / 255;
+        r += id.data[i] * a + GRASS[0] * (1 - a);
+        g2 += id.data[i+1] * a + GRASS[1] * (1 - a);
+        b += id.data[i+2] * a + GRASS[2] * (1 - a);
+        n++;
+      }
+      const o = (cy * CELL + cx) * 3;
+      cell[o] = r / n; cell[o+1] = g2 / n; cell[o+2] = b / n;
+    }
+    return { cell: Array.from(cell), w: bw, h: bh };
+  }
   function compose(d, art, face) {
     const uk = (d.bomb && d.air) ? 1.3 : 1;
     const layers = [];
@@ -108,60 +143,33 @@ function grab() {
     const art = S.unit[0][fk][key];
     const artB = S.unit[1][fk][key];                 // the SAME unit, other owner
     if (!art || !artB) continue;
-    const face = 3;                                  // broadside: where a unit is read
-    let c, cB;
-    try { c = compose(d, art, face); cB = compose(d, artB, face); } catch (e) { continue; }
-    const id = c.g.getImageData(0, 0, c.W, c.H);
-    const idB = cB.g.getImageData(0, 0, cB.W, cB.H);
-    let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
-    for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++)
-      if (id.data[(y * c.W + x) * 4 + 3] > 8) {
-        if (x < x0) x0 = x; if (x > x1) x1 = x;
-        if (y < y0) y0 = y; if (y > y1) y1 = y;
+    // ALL EIGHT FACINGS. Comparing every unit at one facing is the flattering
+    // arrangement: in a battle you never see two units at the same bearing, you
+    // see arbitrary ones, so A at facing 5 sitting next to B at facing 1 is the
+    // glance that actually happens.
+    const th = {}, thB = {}, size = {};
+    let ok = true;
+    for (const z of ZOOMS) { th[z] = []; thB[z] = []; }
+    for (let face = 0; face < 8 && ok; face++) {
+      let c, cB;
+      try { c = compose(d, art, face); cB = compose(d, artB, face); } catch (e) { ok = false; break; }
+      const id = c.g.getImageData(0, 0, c.W, c.H);
+      const idB = cB.g.getImageData(0, 0, cB.W, cB.H);
+      for (const z of ZOOMS) {
+        const t = thumbOf(id, c.W, c.H, z), tB = thumbOf(idB, cB.W, cB.H, z);
+        if (!t || !tB) { ok = false; break; }
+        th[z].push(t.cell); thB[z].push(tB.cell);
+        if (z === 1) size[face] = { w: t.w, h: t.h };
       }
-    if (x1 < 0) continue;
-    out.push({ key, name: d.name, cls: d.cls, air: !!d.air, nav: !!d.nav,
-               w: c.W, h: c.H, x0, y0, x1, y1,
-               px: Array.from(id.data), pxB: Array.from(idB.data) });
+    }
+    if (!ok) continue;
+    out.push({ key, name: d.name, cls: d.cls, air: !!d.air, nav: !!d.nav, th, thB, size });
   }
   return out;
 }
 /* c8 ignore stop */
 
 // ── image maths ───────────────────────────────────────────────────────────
-// Composite over grass, box-downscale to the play size, then normalise into one
-// CELL box so two units of different size are still compared picture-to-picture.
-function thumb(rec, zoom, other) {
-  const px = other ? rec.pxB : rec.px;
-  const bw = rec.x1 - rec.x0 + 1, bh = rec.y1 - rec.y0 + 1;
-  const tw = Math.max(1, Math.round(bw * zoom)), th = Math.max(1, Math.round(bh * zoom));
-  const small = new Float64Array(tw * th * 3);
-  for (let ty = 0; ty < th; ty++) for (let tx = 0; tx < tw; tx++) {
-    const sx0 = rec.x0 + Math.floor(tx * bw / tw), sx1 = rec.x0 + Math.max(Math.floor((tx + 1) * bw / tw), Math.floor(tx * bw / tw) + 1);
-    const sy0 = rec.y0 + Math.floor(ty * bh / th), sy1 = rec.y0 + Math.max(Math.floor((ty + 1) * bh / th), Math.floor(ty * bh / th) + 1);
-    let r = 0, g = 0, b = 0, n = 0;
-    for (let y = sy0; y < sy1; y++) for (let x = sx0; x < sx1; x++) {
-      const i = (y * rec.w + x) * 4, a = px[i + 3] / 255;
-      r += px[i] * a + GRASS[0] * (1 - a);
-      g += px[i + 1] * a + GRASS[1] * (1 - a);
-      b += px[i + 2] * a + GRASS[2] * (1 - a);
-      n++;
-    }
-    const o = (ty * tw + tx) * 3;
-    small[o] = r / n; small[o + 1] = g / n; small[o + 2] = b / n;
-  }
-  // centre it in a CELL x CELL box on grass, so SIZE is part of the comparison
-  const cell = new Float64Array(CELL * CELL * 3);
-  for (let i = 0; i < CELL * CELL; i++) { cell[i * 3] = GRASS[0]; cell[i * 3 + 1] = GRASS[1]; cell[i * 3 + 2] = GRASS[2]; }
-  const ox = Math.floor((CELL - tw) / 2), oy = Math.floor((CELL - th) / 2);
-  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-    const cy = oy + y, cx = ox + x;
-    if (cy < 0 || cx < 0 || cy >= CELL || cx >= CELL) continue;
-    const o = (cy * CELL + cx) * 3, s = (y * tw + x) * 3;
-    cell[o] = small[s]; cell[o + 1] = small[s + 1]; cell[o + 2] = small[s + 2];
-  }
-  return { cell, tw, th };
-}
 // Perceptual-ish distance: luminance carries most of "can I tell these apart"
 // at 20 px, so weight it, but keep real chroma terms or two differently
 // coloured boxes of the same shape score zero.
@@ -189,7 +197,7 @@ async function measure() {
   await page.goto(`http://127.0.0.1:${port}/rts.html`);
   await page.waitForFunction(() => !!window.__rtsTest, null, { timeout: 30000 });
   await page.evaluate(() => window.__rtsTest.begin(4242, 'normal'));
-  const recs = await page.evaluate(grab);
+  const recs = await page.evaluate(grab, { CELL, GRASS, ZOOMS });
   await browser.close(); srv.close();
   return { recs, pageErrors };
 }
@@ -209,37 +217,46 @@ const round = (v, n) => Math.round(v * 10 ** n) / 10 ** n;
 let CONFUSABLE = 0;
 
 function compute(recs) {
-  const res = { zooms: {}, worst: {}, sizes: {} };
+  const res = { zooms: {}, worst: {}, sizes: {}, anchor: {}, selfSpread: {} };
   for (const z of ZOOMS) {
-    const th = {}, thB = {};
-    for (const r of recs) { th[r.key] = thumb(r, z).cell; thB[r.key] = thumb(r, z, true).cell; }
-    // The anchor: the same unit, blue vs red. Median over the whole roster.
-    const own = recs.map((r) => dist(th[r.key], thB[r.key])).sort((a, b) => a - b);
+    // The glance that actually happens: the CLOSEST presentation of two units,
+    // over every combination of their facings. A pair is only safe if it is
+    // safe at its worst bearing, because the player does not get to pick.
+    const near = (A, B) => {
+      let m = Infinity;
+      for (let i = 0; i < A.length; i++) for (let j = 0; j < B.length; j++) {
+        const d = dist(A[i], B[j]);
+        if (d < m) m = d;
+      }
+      return m;
+    };
+    // Anchor: the same unit, blue vs red, at its worst bearing pair. Telling
+    // your unit from theirs is the floor everything else must clear.
+    const own = recs.map((r) => near(r.th[z], r.thB[z])).sort((a, b) => a - b);
     const anchor = own[own.length >> 1];
-    CONFUSABLE = anchor;
+    res.anchor[z] = round(anchor, 1);
+
     const groups = {};
-    for (const r of recs) (groups[GROUP(r)] = groups[GROUP(r)] || []).push(r.key);
+    for (const r of recs) (groups[GROUP(r)] = groups[GROUP(r)] || []).push(r);
     const per = {}, pairs = [];
-    for (const [gname, keys] of Object.entries(groups)) {
+    for (const [gname, rs] of Object.entries(groups)) {
       const ds = [];
-      for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
-        const d = dist(th[keys[i]], th[keys[j]]);
+      for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
+        const d = near(rs[i].th[z], rs[j].th[z]);
         ds.push(d);
-        pairs.push({ g: gname, a: keys[i], b: keys[j], d: round(d, 1) });
+        pairs.push({ g: gname, a: rs[i].key, b: rs[j].key, d: round(d, 1) });
       }
       ds.sort((a, b) => a - b);
-      per[gname] = { n: keys.length, pairs: ds.length, anchor: round(anchor, 1),
+      per[gname] = { n: rs.length, pairs: ds.length, anchor: round(anchor, 1),
                      mean: round(ds.reduce((a, b) => a + b, 0) / ds.length, 1),
                      min: round(ds[0], 1),
-                     confusable: ds.filter((d) => d < CONFUSABLE).length };
+                     confusable: ds.filter((d) => d < anchor).length };
     }
     pairs.sort((a, b) => a.d - b.d);
     res.zooms[z] = per;
-    res.anchor = res.anchor || {}; res.anchor[z] = round(anchor, 1);
-    res.worst[z] = pairs.slice(0, 12);
+    res.worst[z] = pairs.slice(0, 14);
   }
-  for (const r of recs)
-    res.sizes[r.key] = { w: r.x1 - r.x0 + 1, h: r.y1 - r.y0 + 1, group: GROUP(r) };
+  for (const r of recs) res.sizes[r.key] = { ...r.size[3], group: GROUP(r) };
   return res;
 }
 
@@ -254,7 +271,9 @@ function report(m) {
     L.push('    group      n   pairs   mean    min   CONFUSABLE');
     for (const [g, v] of Object.entries(m.zooms[z]))
       L.push(`    ${g.padEnd(9)} ${String(v.n).padStart(2)}   ${String(v.pairs).padStart(5)}  ${String(v.mean).padStart(5)}  ${String(v.min).padStart(5)}   ${String(v.confusable).padStart(4)}`);
-    L.push('    closest pairs: ' + m.worst[z].slice(0, 6).map((p) => `${p.a}|${p.b} ${p.d}`).join(', '));
+    L.push('    worst pairs (over every facing combination):');
+    for (const p of m.worst[z].slice(0, 8))
+      L.push(`      ${String(p.d).padStart(5)}  ${p.a} | ${p.b}${p.d < m.anchor[z] ? '   << under the friend-vs-foe floor' : ''}`);
     L.push('');
   }
   return L.join('\n');

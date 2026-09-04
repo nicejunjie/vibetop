@@ -4441,15 +4441,37 @@
   // An earlier pass ran the GI to about 45% house colour — vest, both
   // pauldrons and both sleeves — which is mass, not trim, and it is what made
   // him read as a plastic figure rather than a soldier in a uniform.
+  // THE LEG ZONE'S VALUE IS AN IDENTITY CHANNEL, and it was being wasted.
+  // Reference §1.5 rule 9 names three levers on a 12x27 man: the leg zone's
+  // value, the presence of a leg split, and one prop. At the size infantry are
+  // actually DRAWN — 14-28 px wide at zoom 1, 8-15 at ZMIN — the prop is one or
+  // two pixels and the split is barely there, so the leg value is doing most of
+  // the work on its own.
+  //
+  // Measured on a real frame with tools/legibility.js (every unit against every
+  // other at EVERY combination of their eight facings, on grass, at the size
+  // they are drawn): SIX infantry pairs came out less distinguishable than the
+  // same unit in the other owner's colours — ivan|yuri, ivan|spy, tanya|spy,
+  // conscript|tanya, tanya|ivan, conscript|spy. Every one of them is a pair
+  // sharing a leg-value band, and three of them shared a HUE as well: the
+  // Tesla Trooper, Ivan and Yuri were all navy at L 36/40/43.
+  //
+  // So the four movable ones are spread across the range, each keeping a
+  // plausible colour for who it is: Ivan to warm brown (L 50), Yuri to a purple
+  // greatcoat (70), the Spy to a lighter blue-grey suit (95), Tanya to light
+  // khaki (133). The Conscript stays tan at 114 because §2.2 pins it (it is the
+  // GI's twin and the leg hue is the whole separation), and the GI stays olive.
+  // Nobody moved more than one band, and no two of the five now sit within 18 L
+  // of each other.
   var TROOP = {
     rifle:     { coat: '#4f6136', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
     conscript: { coat: '#8f6c42', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
     rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
     rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
     engineer:  { coat: '#c6bfa6', boot: '#6d6653', skin: '#d8a878' },  // PALE hazmat legs — the only light-value body on the field (ref §2.1)
-    tanya:     { coat: '#666a44', boot: '#1c1e24', skin: '#e6b98f' },  // olive combat trousers
+    tanya:     { coat: '#8a8a5c', boot: '#1c1e24', skin: '#e6b98f' },  // LIGHT khaki combat trousers, L=133
     teslatrooper: { coat: '#1e2338', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
-    ivan:      { coat: '#232a44', boot: '#4a4e57', skin: '#dfae82' },   // navy trousers, grey boots
+    ivan:      { coat: '#3b2f26', boot: '#4a4e57', skin: '#dfae82' },   // WARM BROWN trousers, L=50, grey boots
     rocketeer: { coat: '#6f7782', boot: '#2a2e35', skin: '#d8a878' },   // grey pressure suit
     // Read off ra2-deso-RA2_Desolator_{Render,Manual_Render}: a charcoal
     // hazard suit with the house colour on the plates, heavy black boots.
@@ -4461,11 +4483,11 @@
     // hat, the lapel facings, the hem below the coat and his shoes; the coat
     // body itself is the house block (§1.5 heads his middle column "mid zone
     // (HOUSE)"), which is what took him off `hue.infantryBelowBudget`.
-    spy:       { coat: '#464b57', boot: '#191b21', skin: '#e2b78e' },
+    spy:       { coat: '#58606f', boot: '#191b21', skin: '#e2b78e' },   // a LIGHTER blue-grey suit, L=95
     // No RA2 sprite rip could be found for Yuri on the wiki (searched
     // ns:File "Yuri RA2"/"Yuri Render"/"Yuri Cameo" — nothing); built from
     // the unit's description instead: bald, pale, long high-collared coat.
-    yuri:      { coat: '#2a2436', boot: '#191622', skin: '#e6cdbd' }
+    yuri:      { coat: '#4a3f5e', boot: '#191622', skin: '#e6cdbd' }
   };
 
   // STATURE — the size class, which our roster did not have. RA2's twelve

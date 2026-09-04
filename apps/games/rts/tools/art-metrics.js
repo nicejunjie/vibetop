@@ -255,7 +255,12 @@ function pageExtract() {
 
   // Mirror of drawUnit's layer stack for a healthy, idle, undisguised unit.
   function compose(d, art, face) {
-    const uk = (d.bomb && d.air) ? 1.3 : 1;         // the Kirov's draw fudge
+    // The Kirov is baked at the size it is DRAWN (`VSC.kirov = 1.30`); there is
+    // no longer a 1.3x fudge at draw time to mirror. Leaving `uk` here
+    // re-applied it, so the harness composed a Kirov 1.3x larger than the game
+    // shows and every air metric was measured against a sprite that does not
+    // exist. Flagged by the pass that removed the fudge.
+    const uk = 1;
     const layers = [];
     if (Array.isArray(art)) {
       if (art.hull && art.turret) { layers.push(art.hull[face]); layers.push(art.turret[face]); }
