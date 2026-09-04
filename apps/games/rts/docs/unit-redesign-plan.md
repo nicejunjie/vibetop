@@ -155,9 +155,12 @@ inside RA2's 12–27% vehicle range, so no per-unit hue census regresses. Art pa
 fixed a real symptom the wrong way: the totals were fine, the placement was not.
 
 **C4 — Spikes and the mass hierarchy.** Audit every unit's spike against the reference
-spec and give each a pixel number. Fix the two ends of the hierarchy: RA2 spans 21px
-(Terror Drone) to 143px (Carrier) with no bunching; our nine combat vehicles span ×2.3
-with six inside a ×1.38 band. Acceptance: no two same-faction units share size class
+spec and give each a pixel number. Fix the two ends of the hierarchy.
+**Correction (2026-09-04):** this section originally set the span target at ×6.8,
+which is RA2's whole vehicle-**and-ship** class (Terror Drone 21px → Carrier 143px)
+applied to a metric covering only the nine ground-combat vehicles. RA2's own span
+over *those nine* is **×2.04** (Grizzly 54×23 → Prism 59×43). ×6.8 would have meant
+building a roster RA2 does not have. Acceptance: no two same-faction units share size class
 *and* spike.
 
 > **C4 / INFANTRY — done.** `peerVsSelf.infantry` **10 → 1**, `iou.infantry.mean`

@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_221 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_224 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -244,6 +244,9 @@ _221 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Capturing their War Factory did not buy you their tanks (2026-09-03)](#capturing-their-war-factory-did-not-buy-you-their-tanks-2026-09-03)
 - [The infantry art gate cannot see colour, and a drab zone impersonated an owner (2026-09-04)](#the-infantry-art-gate-cannot-see-colour-and-a-drab-zone-impersonated-an-owner-2026-09-04)
 - [Thirteen troopers, one size: RA2's infantry size class was the missing silhouette (2026-09-04)](#thirteen-troopers-one-size-ra2s-infantry-size-class-was-the-missing-silhouette-2026-09-04)
+- [Every tank was the same lozenge because they were all the same SIZE (2026-09-04)](#every-tank-was-the-same-lozenge-because-they-were-all-the-same-size-2026-09-04)
+- [A laterally-mounted pair collapses to one mast at our broadside (2026-09-04)](#a-laterally-mounted-pair-collapses-to-one-mast-at-our-broadside-2026-09-04)
+- [The Hornet was a flying ore truck (2026-09-04)](#the-hornet-was-a-flying-ore-truck-2026-09-04)
 
 <!-- END TOC -->
 
@@ -8909,14 +8912,12 @@ HSV s > 0.40 within ±22° of the owner hue) recorded in the commit message, and
 the gate keeps scoring only what a single unit cannot fake.
 
 ## Thirteen troopers, one size: RA2's infantry size class was the missing silhouette (2026-09-04)
-
 **Symptom.** After C2, ten of our fourteen infantry still had a *peer* whose
 silhouette matched them better than they matched themselves from another
 bearing, and mean pairwise infantry IoU sat at 0.6417 against a 0.55 ceiling.
 The reference (`unit-identity-reference.md` §1.2) says seven of twelve RA2
 troopers are the same black shape, so the obvious reading was "this is the
 honest limit, there is nothing left to take".
-
 **Cause.** There was, and it was not drawn on any of them: **size class.**
 §2.1/§2.2 assign every infantryman an `i-XS`…`i-XL` class off the RA2
 counterpart's measured w×h, and nobody had implemented it. Measured, our
@@ -8927,7 +8928,6 @@ build at the same size, so the only thing left to tell two apart was the props,
 and the props are ~8% of the alpha mask. The IoU metric is computed on masks
 centred on their bboxes: two figures of the same build at the same size cannot
 score low no matter what you draw on them.
-
 **Fix.** A `STATURE` table of `[x, y]` scales applied about each figure's own
 ground anchor, as ONE transform outside the facing, pose and prone transforms —
 so the man, his weapon, his props and his shadow scale together and the boots
@@ -8941,7 +8941,6 @@ it (the Flak Trooper's barrel clearing his helmet, the Guardian GI's tube angled
 up off his chest, the Desolator's fat green muzzle), `peerVsSelf.infantry` went
 **10 → 1** and `iou.infantry.mean` **0.6417 → 0.5410**, meeting the plan's
 target, with `iou.sameFactionOver75` 14 → 8 and every colour metric up.
-
 **The trap — the Desolator-backpack trap, generalised.** *Raising a thin feature
 clear of the body makes the THIN feature the measured spike.* The Flak Trooper's
 barrel had stopped level with his helmet crown, so `spikeOf` was scoring his
@@ -8952,7 +8951,6 @@ big-bore AA gun carries it honestly). The Guardian GI's tube avoided the same
 fate through its ANGLE: `spikeOf` measures the ROW EXTENT of what protrudes, and
 a 3.4-wide tube laid at 39° is 5.4 px across a row where a vertical one is 3.4.
 **Re-check `spike.*` after lengthening any protrusion.**
-
 **The second trap — a silhouette change moves the COLOUR metrics.** The Flak
 Trooper's new cannon is ~70 px of neutral steel he did not carry before, and it
 diluted his owner-colour fraction 22.1% → 16.7%, under §1.4's floor. Putting the
@@ -8965,7 +8963,6 @@ failing `hue.maxImpostor`: they straddled the skull edge, and once his stature
 narrowed him they summed over the skin outline into a PINK fringe reading as the
 *other* owner's hue (0.0033 → 0.0049). Moved clear of the head, they are 0.0033
 again. **An `alpha`-mask change and a hue census are not independent.**
-
 **Rejected: chasing `peerVsSelf.infantry` to 0.** The last one is the Guardian
 GI, whose own self-IoU across eight bearings is **0.535** — the lowest of any
 trooper — because a shoulder weapon's screen length swings ×2.1 from front-on to
@@ -8973,3 +8970,71 @@ profile and swaps sides on the rear facings. Beating that needs every peer under
 0.535, which no sizing delivers for "big trooper with a shoulder weapon", and
 §1.2's honest line is that RA2 has the same problem. Flattening the weapon's
 facing response would buy the number by deleting the facing system.
+## Every tank was the same lozenge because they were all the same SIZE (2026-09-04)
+**Symptom.** Nine ground combat vehicles with a mean pairwise silhouette IoU of
+0.679; eleven of thirteen beaten by a peer rather than by themselves at another
+bearing; nine pixels of a Grizzly falling outside a Rhino. Two commits of colour
+work (C2, C3) moved those numbers by less than 0.01 between them.
+**Cause.** The colour metrics and the shape metrics are computed off different
+things: `iou.*` and `peerVsSelf.*` read the **alpha mask**, so no amount of paint
+can move them. The shape they read was near-identical because the nine vehicles
+occupied a ×2.357 mass range with six of them inside ×1.200 — and IoU centres two
+masks on their bbox centres without normalising size, so two units of similar
+mass and similar outline *cannot* score low however their turrets differ. Size
+was the untouched variable.
+**Fix — one uniform multiplier per kind, applied about the ground anchor.**
+`bakeVehicle`'s `frame()` scales by `USC_V * VSC[kind]` instead of `USC_V`, and a
+kind scaled up gets a sheet scaled with it. Deliberately a scale and not a
+rewrite of `len`/`wid`: the per-unit aspect work (1.01–1.53 against the RA2
+references) had already landed and a uniform scale cannot disturb it. Span
+2.357 → 3.532, tightest six-unit band 1.200 → **2.009** (the target), and that
+alone carried `iou.groundCombat.mean` 0.6769 → 0.5330 and `peerVsSelf.vehicle`
+11 → 9.
+**Rejected: chasing `mass.groundCombatSpan`'s ×6.8 target.** That number is RA2's
+span across its *whole* vehicle-and-ship class (Terror Drone 21 px → Carrier
+143 px). Measured over the nine ground-combat vehicles the metric actually
+covers, **RA2's own span is ×2.04 and RA2's own tightest six-unit band is
+×1.196** — the same bunching the metric calls a defect. Reaching ×6.8 means
+building a roster RA2 does not have. The pass holds each unit near its measured
+RA2 proportion and pushes the two ends ~15% further apart than the sprites do,
+justified by our renderer going to 0.55× where RA2's never left 1.0×, and the
+remaining span debt is recorded as a target-definition problem rather than art
+debt.
+## A laterally-mounted pair collapses to one mast at our broadside (2026-09-04)
+**Symptom.** The Tesla Tank's two coil columns — its entire identity, and
+`unit-identity-reference.md` §2.4's "gap >= 5 px so the pair reads as two" —
+rendered as a single tall mast at the facing a player reads a unit from, and the
+gate scored the tank against the Mirage at 0.815.
+**Cause.** The coils were mounted abreast, at `± px * wid * 0.28`. In this
+projection `px = ISO_X * (-sin a - cos a)`, which is **exactly 0** at a = 135°
+and 315° — the two broadside bearings. A lateral offset there has no horizontal
+component at all: the two coils land in the same screen columns, separated only
+vertically, and stack.
+**Fix.** Stagger the pair fore-and-aft as well as abreast
+(`px * wid * 0.30 * sg + fx * len * 0.155 * sg`). The gap then survives all eight
+bearings. It is a small departure from the plan view and it is worth it: the
+measured spike thickness went 28 → 6.5, meaning the crown stopped being a block
+and became a spike. Any "two X side by side" feature in this renderer needs the
+same treatment — check `px` at the bearing you care about before assuming a
+lateral offset separates anything.
+## The Hornet was a flying ore truck (2026-09-04)
+**Symptom.** A ground-vehicle art change (lowering the Chrono Miner's bin) moved
+`iou.air.mean`, a metric computed only over the Harrier, Hornet, Nighthawk and
+Kirov.
+**Cause.** `bakeVehicle`'s kind chain ends in an unguarded `else` whose comment
+says it is the body "for any kind the chain does not name" — and that final arm
+is the **Chrono Miner**. `hornet` was never named in the chain, so the aircraft
+carrier's strike flight took off as three 56×28 harvesters with violet chrono
+drums for noses, flying at altitude 40. Shipped, and invisible to every review,
+because nobody renders the Hornet on its own and the fallback produced a
+perfectly healthy sprite.
+**Fix.** `hornet` joins `isAirKind` at `VSC 0.45` — the Harrier's airframe at the
+size §2.3 specifies for it ("the smallest thing that flies — half a Harrier;
+identity is size, not detail"): 21×15, mass 125 against the Harrier's 495.
+`iou.air.mean` 0.3025 → **0.1622**.
+**The lesson is about the fallback, not the Hornet.** A default arm that silently
+draws a *plausible* unit hides the gap forever; one that threw, or drew a magenta
+box, would have been caught the day the Hornet was added. The comment above it
+already records the same bug happening once before ("the Phase 8 transports …
+arrive wearing a mining bin") — twice is a pattern, and the third time should be
+prevented by making the fallback loud rather than by remembering.

@@ -124,7 +124,7 @@ const TARGETS = {
   'spike.belowFloor':            { want: 0,    dir: 'down', note: 'plan §2 option 1: every spike >=3.64 px at zoom 1 so it clears 2 px at ZMIN' },
   'spike.minThickAtZmin':        { want: SPIKE_FLOOR_ZMIN, dir: 'up', note: 'RA2 bottoms out at 2 px of thickness' },
   'spike.belowDeclaredBudget':   { want: 0,    dir: 'down', note: 'every unit meets its own §2 pixel budget' },
-  'mass.groundCombatSpan':       { want: 6.8,  dir: 'up',   note: 'reference §1.1: RA2 spans 21 -> 143 px, x6.8, with no bunching' },
+  'mass.groundCombatSpan':       { want: 2.04, dir: 'up',   note: "RA2's span over the NINE ground-combat vehicles this metric covers: Grizzly 54x23 -> Prism 59x43 = x2.04. The x6.8 originally written here was RA2's whole vehicle-AND-SHIP class (Terror Drone 21px -> Carrier 143px) applied to a metric that measures neither — a target-definition error, corrected 2026-09-04. We sit ABOVE RA2 deliberately: our renderer goes to 0.55x where RA2's never left 1.0x" },
   'mass.tightestBand6':          { want: 2.0,  dir: 'up',   note: 'six of nine ground combat vehicles sit inside a x1.38 band today (audit §5)' },
   // --- colour. Every metric above is computed off the ALPHA MASK, so none of
   // them can see a colour change at all: C2 raised the infantry remap by a
