@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_217 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_218 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -110,6 +110,7 @@ _217 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Repo-path references break SILENTLY when the tree is regrouped](#repo-path-references-break-silently-when-the-tree-is-regrouped)
 - [Browser scrolling: floor while moving, round once at rest](#browser-scrolling-floor-while-moving-round-once-at-rest)
 - [The tiled seam belonged to whoever was on top (and the "desktop gap" that wasn't)](#the-tiled-seam-belonged-to-whoever-was-on-top-and-the-desktop-gap-that-wasnt)
+- [A toggle's immediate push was a ReferenceError, swallowed by the line under it](#a-toggles-immediate-push-was-a-referenceerror-swallowed-by-the-line-under-it)
 - [Retiring the SE grip — but only where the cursor can replace it](#retiring-the-se-grip-but-only-where-the-cursor-can-replace-it)
 - [A set-once preference does not earn permanent chrome](#a-set-once-preference-does-not-earn-permanent-chrome)
 - [Where the Floating-windows switch lives: three tries, and the lesson](#where-the-floating-windows-switch-lives-three-tries-and-the-lesson)
@@ -4147,6 +4148,54 @@ tablet *and* desktop lane (phones excluded — window mode does not engage under
 apply tests predicted window positions from raw `layoutGeoms` while `applyLayout`
 has gapped its zones since `MARGIN` arrived. A skipped test is not a neutral
 placeholder: it kept a wrong explanation on file for two days.
+
+---
+
+## A toggle's immediate push was a ReferenceError, swallowed by the line under it
+
+**Symptom.** None visible — which is the point. Toggling the Claude or Codex
+usage strip is supposed to push the new state to your other devices at once; it
+never did, and the 5s heartbeat covered for it. Found by reading while planning
+the desktop.html split, not by a report.
+
+**Cause.** `pushDesktop()` is declared inside `shell/desktop.html`'s main IIFE.
+The two usage strips are *separate* IIFEs later in the same file, so the name was
+never in their scope, and nothing published it. Each toggle ended:
+
+```js
+}).then(function() { localOverrideUntil = 0; pushDesktop(); })
+  .catch(function() { localOverrideUntil = 0; });
+```
+
+The `ReferenceError` from the bare call lands in that `.catch` — which sets **the
+same state the success path sets**. So there was no console error, no failed
+request, no stuck UI: just a missing push, masked by a 5s timer. Two things had to
+be true at once for it to hide, and both were.
+
+**Fix.** `window.pushDesktop = pushDesktop` in the shell, and the call written
+`if (window.pushDesktop) window.pushDesktop()` in `shell/usage-strips.js` (the
+strips became their own module in the same release, which is how it was found).
+The publish is the load-bearing half; the guard only keeps the module honest if it
+is ever loaded without the shell.
+
+**Testing this is harder than fixing it, and the first attempt was a tautology.**
+A sandbox test that defines `pushDesktop` and asserts the toggle calls it passes
+on the *broken* source too — defining it in the sandbox is exactly the condition
+the fix creates. The runtime symptom is unobservable by construction. So the test
+targets the defect's **signature**: strip comments and string literals from the
+module, collect every function called by bare name, subtract what the module
+itself defines and the JS builtins, and require the remainder to be empty — a
+cross-file call must be written `window.x()`. A second test derives the `window.*`
+names the module calls and requires the shell to publish each. Both are derived on
+both sides, need no edit when the module changes, and were verified red against
+the bare-call version.
+
+**Rejected.** *Moving the strips into the main IIFE* — it would fix the scope and
+forfeit the unit test; they are genuinely independent features. *Publishing the
+global but leaving the bare call* — that works, but leaves the file depending on
+an invisible contract with no way to check it.
+
+---
 
 ## Retiring the SE grip — but only where the cursor can replace it
 
