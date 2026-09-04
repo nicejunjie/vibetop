@@ -7848,3 +7848,115 @@ reference crop, 8.0% on ours).
 **The generalizable lesson:** when a code comment states a fact about a
 reference sprite ("it is not a ring"), that fact was someone's reading of the
 image, not the image. Re-open the image.
+
+## `P_HUMAN` was answering three different questions (2026-09-03)
+
+**Symptom.** Seat a second person at player 1 and the game misbehaves in three
+unrelated ways at once: their sidebar shows player 0's credits and power, their
+EVA announces player 0's losses, and — worse — their deployed GIs dig in by
+themselves, pack up when told to move, and their tanks drive over infantry
+instead of stopping to shoot. The first two are cosmetic. The last is the
+simulation, so it is a desync waiting to happen.
+
+**Cause.** `P_HUMAN` appeared 198 times and meant three different things that
+only ever agreed because side 0 was the only human:
+
+1. **A side index.** `g.side[P_HUMAN]`, `newSide(P_HUMAN)`,
+   `stepSW(g, P_HUMAN); stepSW(g, P_AI)`, the win test. Structural, always 0.
+2. **"The player whose screen this is."** ~165 sites — every `eva`/`say`/`sfx`/
+   `creditPop`, the cursor, the sidebar, the minimap, the selection, the
+   shroud, the score card.
+3. **"This side is driven by the AI."** Six MUTATING branches. `u.p !== P_HUMAN`
+   was read as "the computer is driving this", which is only true while side 0
+   is the only human — and is already wrong today in AI-vs-AI runs, where
+   `g.ai2` drives seat 0. The codebase half-knew this: `g.ai2` exists, one line
+   already reads `p === P_AI ? g.ai : g.ai2`, and the GI auto-deploy had been
+   patched with `|| g.ai2` rather than fixed.
+
+**Fix.** Three names for three questions. `P_HUMAN`/`P_AI` keep meaning 0 and 1.
+`ME`/`FOE` are the seat — set by `setSeat` from `NET.active.p` in
+`netAttach`/`netBind`/`netLoad`/`netUse`, so they follow whichever client is
+stepping. `aiOf(g, p)` / `isAiSide(g, p)` answer the AI question. The radiation
+credit, which the audit had filed under (3), turned out to be neither: it is a
+side flip, and is now `otherSide(p)`.
+
+The safety argument for `ME` is that it is view state exactly like `g.seen`,
+which is already per-client and already outside `stateHash` — two clients
+disagree about `ME` by construction, so anything reading it must be outside the
+hash. That makes the classification mechanical: a `P_HUMAN` inside a function
+`applyCmd` or `simStep` can reach is a view site ONLY if the mutation sits
+outside the guard.
+
+**The one that would have bitten.** `orderUnitsTo` has
+`if (u.deployed && u.p === P_HUMAN && !opts.queue) { held++; return; }` — "a
+deployed GI does not take move orders". It reads like feedback and it is not:
+`orderUnitsTo` runs inside `applyCmd`, on EVERY client, so a `ME` there would
+have had client 0 hold a unit that client 1 moved. It is `!isAiSide(g, u.p)`.
+
+**Measured.** Single player is bit-identical: state hashes match the previous
+build tick for tick over four seeds x five game minutes with an AI on side 1 and
+a person giving orders on side 0. This is not luck —  in a skirmish `g.ai2` is
+null, so `isAiSide(g, 0)` is `false`, which is exactly what `u.p !== P_HUMAN`
+returned. The 24-match Iron Frontier gate DID move (23/24 → 22/24), because that
+harness is AI-vs-AI and seat 0 now gets the three AI behaviours it always should
+have had: most seeds finish several minutes sooner, one becomes a 30-minute
+stalemate.
+
+**Rejected.**
+- *A blanket rename of `P_HUMAN` to `ME`.* It would have been a one-line sed and
+  it would have shipped a desync: the six mutating sites and the ~30 structural
+  ones must not follow the viewer.
+- *Making `ME` a function of `NET.active` read at each use.* A module variable
+  updated at the four places a client is swapped is cheaper in the render loop
+  and, more importantly, has exactly one writer to audit.
+
+## The transport between two tabs is a BroadcastChannel, not a manager route (2026-09-03)
+
+**Symptom.** The lockstep layer had two transports and neither was a wire:
+`LocalNet` is a function call and `LoopbackNet` is an in-page bus. Every rule
+the `Transport` seam names — agree the record before tick 0, never drop a
+bundle, hold the barrier — was therefore only ever exercised against delivery
+that could not actually be late, out of order, or early.
+
+**Cause.** The obvious next step, a WebSocket endpoint in
+`terminal/terminal-manager.py`, is the wrong shape twice over: that file is the
+manager's auth and identity surface (a tick barrier has no business there), and
+it is the file every other session is editing, so a route in it cannot be
+deployed.
+
+**Fix.** `BcNet` over `BroadcastChannel`: two TABS of one browser, no server. A
+BroadcastChannel message is delivered as its own task in the other context's
+event loop, so a bundle posted during frame N cannot be read before frame N+1 —
+a genuinely asynchronous wire with real ordering and arrival hazards. The lobby
+(host publishes the match record, guest `hello`s until it hears one, acks, both
+build the identical `newState` and `netBind` at their own seat) does job (a) and
+nothing else. `barrierNet` is shared with `LoopbackNet`, so both transports run
+the same ledger and the same barrier.
+
+Two things the real wire taught that the in-page bus could not:
+
+- **A bundle can outrun the client.** The guest's world takes a few
+  milliseconds to build and the host's first bundles arrive during it. Counting
+  one into the barrier ledger and discarding its commands is the worst possible
+  outcome: the barrier opens and the orders are gone. Both the lobby and
+  `barrierNet.deliver` now BUFFER and replay.
+- **`netTick` compared before it broadcast.** The client that noticed a
+  mismatch `return`ed without sending its own fingerprint, so in two real tabs
+  only the tab that noticed stopped — the other played on into a barrier that
+  would never open, with no explanation. It now broadcasts first and compares
+  after; both tabs stop, on the same tick, each holding both hashes.
+
+**`MP_DELAY` is 4, not `SP_DELAY`'s 2.** The delay is also the pipeline: with
+delay D a client may run D-1 ticks past the last bundle it holds, so D=2 forces
+a full round trip every single tick and any jitter is a visible stutter. RA2
+grows the delay for the same reason.
+
+**Rejected.**
+- *A WebSocket route in `terminal/terminal-manager.py`.* See above. The
+  cross-machine relay is a standalone service, and it plugs in at the same seam.
+- *A room code in the lobby.* Two tabs on one machine do not need one, and a
+  text field on the front menu is chrome for a case that does not exist yet.
+- *Leaving the barrier silent when a peer goes away.* A BroadcastChannel has no
+  disconnect event, so a closed tab is indistinguishable from a slow one. The
+  loop now says "Waiting for the other player…" after a second of no progress;
+  a frozen game with no explanation is the worst thing this layer can do.
