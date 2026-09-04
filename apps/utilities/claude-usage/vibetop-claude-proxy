@@ -145,11 +145,62 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass   # quiet; errors go to stderr explicitly
 
 
+# systemd socket activation (sd_listen_fds). Every Claude Code session on this
+# host has ANTHROPIC_BASE_URL pointed at this proxy, so a plain Restart=always
+# service refuses connections for RestartSec on EVERY bounce — a redeploy, a
+# crash, an upgrade — and each refusal is an API error in someone's editor. When
+# systemd owns the listening socket it stays bound across restarts: connections
+# QUEUE in the kernel backlog instead of being refused, and a restart becomes
+# invisible rather than a visible failure.
+#
+# The protocol: systemd sets LISTEN_PID to our pid and LISTEN_FDS to a count, and
+# the sockets start at fd 3 (SD_LISTEN_FDS_START). LISTEN_PID matters — the vars
+# are inherited by children, so a fd we did not receive must not be adopted.
+SD_LISTEN_FDS_START = 3
+
+
+def _systemd_socket():
+    """The listening socket systemd passed us, or None to bind our own."""
+    try:
+        if int(os.environ.get("LISTEN_PID", 0)) != os.getpid():
+            return None
+        if int(os.environ.get("LISTEN_FDS", 0)) < 1:
+            return None
+    except ValueError:
+        return None
+    import socket as _s
+    return _s.socket(_s.AF_INET, _s.SOCK_STREAM, fileno=SD_LISTEN_FDS_START)
+
+
+class _PreboundServer(http.server.ThreadingHTTPServer):
+    """ThreadingHTTPServer over a socket systemd already bound and listened on."""
+    def __init__(self, sock, handler):
+        self.socket = sock
+        # Skip bind()/listen() — systemd did both — but run the rest of the
+        # BaseServer setup that serve_forever() depends on.
+        http.server.socketserver.BaseServer.__init__(
+            self, sock.getsockname(), handler)
+        self.server_address = sock.getsockname()
+        self.server_name, self.server_port = self.server_address[0], self.server_address[1]
+
+    def server_bind(self):   # never re-bind an inherited socket
+        pass
+
+    def server_activate(self):
+        pass
+
+
 def main():
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    sock = _systemd_socket()
+    if sock is not None:
+        httpd = _PreboundServer(sock, Handler)
+        how = "socket-activated on %s:%d" % httpd.server_address[:2]
+    else:
+        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+        how = "listening on 127.0.0.1:%d" % PORT
     httpd.daemon_threads = True
-    sys.stderr.write("[claude-proxy] listening on 127.0.0.1:%d -> %s (usage -> %s)\n"
-                     % (PORT, UPSTREAM_HOST, OUT_FILE))
+    sys.stderr.write("[claude-proxy] %s -> %s (usage -> %s)\n"
+                     % (how, UPSTREAM_HOST, OUT_FILE))
     sys.stderr.flush()
     try:
         httpd.serve_forever()

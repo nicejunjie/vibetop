@@ -1,0 +1,19 @@
+[Unit]
+Description=vibetop Claude usage proxy socket (holds :7690 across restarts)
+# systemd owns the listening socket, not the proxy. Every Claude Code session on
+# this host points ANTHROPIC_BASE_URL here, so a plain Restart=always service
+# refuses connections for RestartSec on EVERY bounce and each refusal is an API
+# error in someone's editor. With the socket held here, a restart QUEUES
+# connections in the kernel backlog and serves them when the proxy comes back —
+# a redeploy stops being visible at all.
+#
+# The service carries StartLimitBurst so this cannot become a worse failure: a
+# PERSISTENT fault (a missing binary, as on 2026-09-03) trips the limit, systemd
+# fails the socket too, and callers get a fast error and a `failed` unit anyone
+# can see — instead of hanging forever on a queue nobody is draining.
+
+[Socket]
+ListenStream=127.0.0.1:@CLAUDE_PROXY_PORT@
+
+[Install]
+WantedBy=sockets.target
