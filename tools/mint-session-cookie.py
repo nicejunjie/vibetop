@@ -26,7 +26,7 @@ import os
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_TERMINAL_DIR = os.path.join(os.path.dirname(_HERE), "terminal")
+_SERVER_DIR = os.path.join(os.path.dirname(_HERE), "server")
 
 
 def _manager_env(key):
@@ -54,9 +54,9 @@ def _load_manager():
     # terminal-manager.py has a hyphen -> load by path. Its own dir must be on
     # sys.path so its `import system_status` (and siblings) resolve. Import is
     # side-effect-free (the server only starts under `if __name__ == '__main__'`).
-    if _TERMINAL_DIR not in sys.path:
-        sys.path.insert(0, _TERMINAL_DIR)
-    path = os.path.join(_TERMINAL_DIR, "terminal-manager.py")
+    if _SERVER_DIR not in sys.path:
+        sys.path.insert(0, _SERVER_DIR)
+    path = os.path.join(_SERVER_DIR, "terminal-manager.py")
     spec = importlib.util.spec_from_file_location("terminal_manager", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
