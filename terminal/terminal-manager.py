@@ -6866,6 +6866,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path.startswith("/api/fs/"):
             return self._handle_fs()
         if self.path == "/api/update" or self.path.startswith("/api/update?"):
+            # `?build=1` is the shell's liveness poll (every client, every 15s). It
+            # wants ONE field, so it must not pay for the full payload: the normal
+            # response runs `git log` twice and inlines the whole update history
+            # (~44 KB measured) behind the history-file lock. Answer it from the
+            # deployed sw.js alone.
+            if "build=1" in urllib.parse.urlparse(self.path).query.split("&"):
+                self._json(200, {"build": _shell_version()})
+                return
             self._json(200, self._update_version_info())
             return
         if self.path == "/api/system/status":

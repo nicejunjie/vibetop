@@ -37,6 +37,10 @@ module.exports = defineConfig({
   projects: [
     { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'desktop-firefox', use: { ...devices['Desktop Firefox'] } },
+    // Desktop Safari is the only fine-pointer WebKit lane. The iPhone/iPad
+    // projects exercise touch, so they cannot catch hover/cursor regressions at
+    // iframe boundaries (the exact class of bug this lane was added for).
+    { name: 'desktop-webkit', use: { ...devices['Desktop Safari'] } },
     // iPhone lineup on the REAL WebKit engine — the iOS-fidelity lane. Chromium
     // mobile emulation misrepresents iOS (svh freeze, visualViewport keyboard, PWA
     // cookie jar), so iOS coverage rides on these WebKit profiles. Widths span the

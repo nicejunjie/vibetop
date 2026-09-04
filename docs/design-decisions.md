@@ -2097,6 +2097,34 @@ up on release) — Claude Code (Ink) emits cursor **queries** mid-render and wai
 for replies, so intercepting/buffering its byte stream risks stalling it. Not
 worth the fragility when the actual bug was our own overlay, not xterm.
 
+## Terminal latest-line recovery must yield to manual scrollback
+
+**Symptom.** After adding latest-line recovery for a newly opened/activated or
+resized terminal, scrolling into history during active Claude Code output snapped
+straight back to the bottom. It affected desktop wheel scroll and could affect the
+mobile drag path too.
+
+**Cause.** The recovery deliberately called `scrollToBottom()` for a short settle
+window because ring replay, FitAddon reflow, and a late TUI repaint can finish well
+after the first resize event. That loop had no ownership handoff: every 100ms it
+overrode xterm's perfectly valid `viewportY` after the user moved it. The wrapper
+also sent delayed retries, so merely clearing the inner interval was insufficient;
+a later retry could arm it again.
+
+**Fix.** The settle window is cancelable by real history navigation (wheel,
+PageUp/PageDown/Home/End, scrollbar interaction, or the mobile drag that calls
+`scrollLines`). All retries for one activation carry a request id; once manual
+scroll cancels that id, its remaining retries are ignored, while a later genuine
+activation gets a fresh id and may reveal the latest line. Resize/refit/re-claim
+paths snapshot whether the terminal was already live (`baseY - viewportY <= 1`)
+and restore the bottom only in that case. A viewport already in history is
+user-owned state and survives the resize.
+
+**Invariant.** Latest-line recovery may repair an accidentally stranded live
+viewport, but must never turn into permanent output-following. Do not remove the
+manual-cancel hooks or reintroduce an unconditional `armLatest()` from
+`term.onResize`; `terminal-kbd.test.js` pins both rules.
+
 ## Snap GUI apps fail on the X11 display with "Authorization required" (xhost +local: is not enough)
 
 **Symptom.** Launching a **snap** GUI app (Firefox, Chromium) from a Terminal or
@@ -3632,6 +3660,98 @@ would be maximally distinct, but it needs authored art at 1× and 2×, a keyword
 fallback per direction, and it throws away the platform's own well-understood
 resize glyphs. The one-word keyword swap gets the distinguishability that was
 actually asked for at zero risk.
+
+## A resize cursor needs an explicit handoff at iframe boundaries
+
+**Symptom.** The `row-resize` cursor appeared correctly on a horizontal window
+edge, but moving downward past the edge could leave that cursor painted deep
+inside the Terminal iframe. Moving upward into the edge worked, making the bug
+look like an oversized one-way resize zone.
+
+**Cause.** Hit-testing was correct: the straight-edge handles are still only
+18px wide, and the target below them changed to the title bar/app iframe at the
+right coordinate. The stale part was cursor painting across browsing contexts.
+Window chrome belongs to the desktop document, while app content belongs to an
+iframe (Terminal has another iframe inside that); desktop Safari 26.2 can retain
+the last parent-frame cursor during that handoff. The drag path had the same weak edge:
+`#win-dragmask` deliberately carried the resize cursor across all iframes, then
+was hidden on pointer-up without first returning its cursor to normal.
+
+**Failed first fix (v1.19.267).** Assigning `cursor:default` to the outer iframe
+element and pulsing that element for one `requestAnimationFrame` passed a
+synthetic Chromium test but made no difference on the reported Safari path. Two
+errors were hidden by that test: after the pointer enters a frame, the cursor is
+owned by an element in the child document rather than by the outer `<iframe>`;
+and a callback in the first rAF runs *before* paint, so restoring the style there
+can mean the intermediate state is never composited at all. Do not treat a
+computed-style assertion as proof of a visible cross-frame cursor transition.
+
+**Fix.** While a mouse is over a resize handle, `.rz-cursor-bridge` temporarily
+removes app iframes from pointer hit-testing. Moving downward therefore lands on
+`.win-body`/`#frames` in the same document as the handle, where an explicit normal
+cursor can be resolved. The bridge survives the first rAF so that state is
+actually painted, then is removed in the second rAF (roughly one refresh later),
+restoring iframe interaction. This works without reaching into the child frame,
+including cross-origin apps. A drag release likewise changes the still-visible
+mask to `default` and flushes that style before hiding it.
+
+**What is actually verified — and what is not (v1.19.269).** The paragraph above
+describes the mechanism, not a measurement. No browser automation exposes the
+cursor bitmap the compositor painted, so *no headless test can show that Safari
+stopped drawing `row-resize`*. The first regression test asserted
+`getComputedStyle('.win-body').cursor === 'default'`, which is set by the only
+rule that touches it — the one the fix itself added — so it was true exactly when
+the class was on and would have passed unchanged had the cursor still stranded.
+That is the same tautology that made v1.19.267 read as verified. The test now
+asserts the mechanism that IS independently observable, hit-testing: with the
+bridge up, `elementFromPoint` deep inside a window returns `.win-body`, not the
+`IFRAME`, and returns the `IFRAME` again once it releases. **The painted-cursor
+question is a device question**: `/rzdbg.html` section 2 is a two-window replica
+with the same grab-ring geometry, one window with an iframe under the handles and
+one without. Run it on the reporting Mac — slowly (landing on the title bar) and
+as a fast flick (skipping it) — before believing any further theory here. The
+premise depends on the flick case: the north grip is followed by 24px of
+`.win-titlebar` (`cursor: move`, same document), so if the pointer *rests* there
+the first handoff involves no iframe at all and this fix cannot be what repairs
+it.
+
+**Two removals that were pure cost.** `resetResizeCursor()` read an element's
+COMPUTED cursor and wrote that identical value back as an inline style — a no-op
+in every path (`.win-body`→`default`, `#frames`→`default`, `.win-titlebar`→`move`)
+whose only real effect was a forced layout. `.frames iframe { cursor: default }`
+was residue of the failed v1.19.267 attempt, kept beside its own postmortem. The
+three `.rz-cursor-bridge` rules are the entire fix.
+
+**Invariant.** Do not solve a stale cursor by shrinking the forgiving resize
+ring or dropping the drag mask—both exist for separate usability bugs. Touch/pen
+must never arm the bridge because they have no hover cursor and suppressing their
+target could eat a tap. The bridge holds EVERY app iframe out of hit-testing while
+it is up, so it must never be able to stay up: the `.win-titlebar` branch is the
+one path that neither releases it nor guarantees a further `pointermove`, and
+`BRIDGE_MAX_MS` is its backstop. Do not remove that timeout, and do not add
+another early return without one.
+
+## Window mode at a desktop viewport (the desktop-webkit lane's real find)
+
+**Symptom.** Adding a `desktop-webkit` project (Desktop Safari, 1280x720) and
+opening the `with windows open` suite to it turned four tests red: the gutter drag
+between two tiled windows resizes 0px where >40 is expected; `elementFromPoint` at
+the SE grip's own centre does not return the grip; and the taskbar layout palette
+never opens on hover.
+
+**Cause — not the one it looked like.** All four fail *identically* in
+`desktop-chromium` at the same viewport (measured). Window mode's CI coverage had
+been tablet-only (`ipad-*`, 834x1194 / 1194x834), so a 1280x720 desktop viewport
+had simply never run this suite. These are window-mode geometry gaps at desktop
+widths that predate the cursor work; the lane exercised them for the first time.
+
+**Fix.** The four are skipped on desktop lanes via `DESKTOP_WM_GAP` with the
+reason inline, so the lane is green and the debt is named rather than left red or
+silently deleted. They remain live on every tablet lane. **Open work** — these are
+real gaps, not test artefacts, and the gutter one in particular is a plausible
+user-visible bug at desktop widths: the shared gutter appears to hand its left
+half to the RIGHT window's `.win-rz-w`, so dragging it does not widen the left
+window. Investigate before removing the skips.
 
 ---
 

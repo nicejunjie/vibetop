@@ -99,7 +99,7 @@
   }
   .cu-strip .cu-asof.is-empty { visibility: hidden; }
   .cu-strip .cu-metrics {
-    display: grid; grid-template-columns: repeat(2, 260px);
+    display: grid; grid-template-columns: repeat(2, 360px);
     align-items: center; gap: 6px; min-width: 0; flex: 0 0 auto;
   }
   /* Each metric is a self-contained chip — reads cleanly on its own whether it's
@@ -835,6 +835,21 @@
     position: absolute; inset: 0; width: 100%; height: 100%;
     border: none; background: #1a1a2e; display: block;
   }
+  /* Safari can keep painting row-/col-resize when the pointer moves directly
+     from a parent-document resize handle into an iframe. While a mouse is over
+     a handle, keep app frames out of hit-testing; after it leaves, the JS below
+     holds this bridge through one actual paint so Safari first resolves the
+     cursor against .win-body/#frames in THIS document. The class is removed on
+     the following frame, restoring app interaction after roughly one refresh.
+
+     These three rules ARE the fix — a `cursor` on the <iframe> element itself is
+     not, and was tried and dropped: once the pointer is inside a frame the cursor
+     is owned by an element in the CHILD document, so the outer element's value is
+     never consulted. Removing the frame from hit-testing is what keeps the
+     resolution in this document, where a cursor we control can win. */
+  .frames.rz-cursor-bridge { cursor: default; }
+  .frames.rz-cursor-bridge iframe { pointer-events: none !important; }
+  .frames.rz-cursor-bridge .win-body { cursor: default; }
 
   /* Desktop wallpaper — the Vibetop brand mark, name, and a one-line "what it is"
      blurb. A static FIRST child of .frames, so any app iframe added after it
@@ -1207,7 +1222,7 @@
     files:    { label: 'Files',    icon: '📁', src: '/files.html',           desc: 'File manager' },
     office:   { label: 'Office',   icon: '📄', src: '/office-editor.html',   desc: 'Edit Office docs' },
     notes:    { label: 'Notes',    icon: '📝', src: '/notes.html',           desc: 'Persistent scratchpad' },
-    monitor:  { label: 'Monitor',  icon: '📊', src: '/monitor.html',         desc: 'System monitor', section: 'utilities' },
+    monitor:  { label: 'System Monitor', icon: '📊', src: '/monitor.html',  desc: 'Live CPU, memory and GPU', section: 'utilities' },
     upload:   { label: 'Upload',   icon: '⬆',  src: '/upload.html',          desc: 'Quick upload to ~/Uploads' },
     update:   { label: 'Update',   icon: '🔄', src: '/update.html',          desc: 'Pull latest & redeploy', section: 'system' },
     // System administration (idle-timeout policy + user management). Shown only
@@ -1218,8 +1233,8 @@
     // (routes Claude Code through the local capture proxy). Handled specially in
     // the Start-menu click handler — no iframe, no src. Lives under the
     // collapsible "Utilities" submenu (section 'utilities').
-    claudeusage: { label: 'Claude Usage', icon: '📈', desc: 'Off', section: 'utilities', toggle: true },
-    codexusage: { label: 'Codex Usage', icon: '◈', desc: 'Off', section: 'utilities', toggle: true },
+    claudeusage: { label: 'Claude Limit', icon: '📈', desc: 'Off', section: 'utilities', toggle: true },
+    codexusage: { label: 'Codex Limit', icon: '◈', desc: 'Off', section: 'utilities', toggle: true },
     // A normal app (iframe) under Utilities: token-consumption + estimated-cost
     // analytics parsed from Claude Code's local transcripts.
     tokenstats: { label: 'Token Stats', icon: '📊', src: '/token-stats.html', desc: 'Token use & est. cost', section: 'utilities' },
@@ -3214,6 +3229,91 @@
     var drag = null, raf = null, lastTbTap = null, btnDown = null;
     var DBL_SLOP = 10;   // px a "double-tap" may wander before it counts as a drag
 
+    // Safari can strand row-/col-resize when the mouse crosses directly from a
+    // resize handle in this document into an app iframe. Merely assigning a cursor
+    // to the iframe element does not work: once entered, cursor ownership belongs
+    // to the iframe's DOCUMENT. Instead, disable iframe hit-testing while the mouse
+    // is on a handle. On exit the pointer therefore lands on .win-body/#frames,
+    // whose `cursor: default` is resolvable in THIS document, and only then does
+    // the frame come back. This also works for cross-origin app frames.
+    //
+    // The bridge holds every app iframe out of hit-testing while it is up, so it
+    // must never be able to stay up: BRIDGE_MAX_MS is the backstop for the paths
+    // that produce no further pointermove (a pointer parked on a title bar, a
+    // scripted relayout moving an app under a stationary cursor).
+    var cursorBridgeRaf1 = 0, cursorBridgeRaf2 = 0, cursorBridgeTimer = 0;
+    var BRIDGE_MAX_MS = 1200;
+    function armResizeCursorBridge(e) {
+      // Touch/pen do not have a hover cursor, and suppressing their iframe target
+      // could eat a tap. Safari reports a real trackpad/mouse as "mouse" here.
+      if (e.pointerType && e.pointerType !== 'mouse') return;
+      if (cursorBridgeRaf1) cancelAnimationFrame(cursorBridgeRaf1);
+      if (cursorBridgeRaf2) cancelAnimationFrame(cursorBridgeRaf2);
+      cursorBridgeRaf1 = cursorBridgeRaf2 = 0;
+      clearTimeout(cursorBridgeTimer); cursorBridgeTimer = 0;
+      framesEl.classList.add('rz-cursor-bridge');
+    }
+    function clearResizeCursorBridgeNow() {
+      if (cursorBridgeRaf1) cancelAnimationFrame(cursorBridgeRaf1);
+      if (cursorBridgeRaf2) cancelAnimationFrame(cursorBridgeRaf2);
+      cursorBridgeRaf1 = cursorBridgeRaf2 = 0;
+      clearTimeout(cursorBridgeTimer); cursorBridgeTimer = 0;
+      framesEl.classList.remove('rz-cursor-bridge');
+    }
+    function advanceResizeCursorBridge(e) {
+      if (!framesEl.classList.contains('rz-cursor-bridge')) return;
+      // With iframe hit-testing disabled, this is the real parent-document target
+      // beneath the pointer rather than e.relatedTarget's stale iframe boundary.
+      var under = document.elementFromPoint(e.clientX, e.clientY);
+      // Still on a handle: the bridge is doing its job and needs no backstop.
+      if (under && under.closest && under.closest('.win-rz')) {
+        clearTimeout(cursorBridgeTimer); cursorBridgeTimer = 0;
+        return;
+      }
+      // Crossing the north edge normally enters the title bar before the app.
+      // Keep frames disabled while the pointer traverses that chrome; otherwise a
+      // slow movement could re-enable them before the actual iframe boundary and
+      // merely trade a stranded resize cursor for a stranded move cursor. This is
+      // the one branch that neither releases nor guarantees another pointermove,
+      // so it is the branch that arms the backstop.
+      if (under && under.closest && under.closest('.win-titlebar')) {
+        if (!cursorBridgeTimer) cursorBridgeTimer = setTimeout(clearResizeCursorBridgeNow, BRIDGE_MAX_MS);
+        return;
+      }
+      if (cursorBridgeRaf1 || cursorBridgeRaf2) return;
+      // One rAF is before the next paint; removing there recreates the original
+      // no-op. Keep the bridge until a SECOND rAF so a default-cursor frame is
+      // actually composited before Safari re-enters the iframe.
+      cursorBridgeRaf1 = requestAnimationFrame(function() {
+        cursorBridgeRaf1 = 0;
+        cursorBridgeRaf2 = requestAnimationFrame(function() {
+          cursorBridgeRaf2 = 0;
+          clearTimeout(cursorBridgeTimer); cursorBridgeTimer = 0;
+          framesEl.classList.remove('rz-cursor-bridge');
+        });
+      });
+    }
+    framesEl.addEventListener('pointerover', function(e) {
+      if (!e.target || !e.target.closest || !e.target.closest('.win-rz')) return;
+      armResizeCursorBridge(e);
+    }, true);
+    framesEl.addEventListener('pointerout', function(e) {
+      if (!e.target || !e.target.closest || !e.target.closest('.win-rz')) return;
+      if (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.win-rz')) return;
+      // Once a drag starts the mask deliberately owns the resize cursor. It is
+      // safe to restore iframe hit-testing immediately because the mask covers it.
+      if (drag) clearResizeCursorBridgeNow();
+      else advanceResizeCursorBridge(e);
+    }, true);
+    // While frames are disabled, movement that would normally enter them stays in
+    // this document. Wait until it reaches app content (or leaves the desktop),
+    // then run the two-frame release above.
+    document.addEventListener('pointermove', function(e) {
+      if (!drag && framesEl.classList.contains('rz-cursor-bridge')) advanceResizeCursorBridge(e);
+    }, true);
+    window.addEventListener('blur', clearResizeCursorBridgeNow);
+    document.addEventListener('mouseleave', clearResizeCursorBridgeNow);
+
     // Clicking INSIDE an app's content must focus and raise its window — the
     // baseline every window manager has. Pointer events inside an iframe never
     // bubble to us, so before this the ONLY ways to raise a window were its title
@@ -3313,7 +3413,15 @@
     }
     function onUp() {
       if (!drag) return;
-      if (mask) mask.style.display = 'none';
+      clearResizeCursorBridgeNow();
+      if (mask) {
+        // The mask owns the cursor throughout a drag. Reset it while it is still
+        // the hit target and flush that style before removing it; otherwise the
+        // last row/col-resize cursor can remain painted over the iframe below.
+        mask.style.cursor = 'default';
+        void mask.offsetWidth;
+        mask.style.display = 'none';
+      }
       if (snapEl) snapEl.style.display = 'none';
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
@@ -3888,6 +3996,36 @@
   // silently matched nothing.
   var STAMPED_SHELL_VER = '@SW_VERSION@';
   var loadedShellVer = /^v\d+$/.test(STAMPED_SHELL_VER) ? STAMPED_SHELL_VER : null;
+  // A cache-busting reload uses this transient query parameter. Remove it from
+  // the visible URL once the fresh document is running.
+  try {
+    var cleanUrl = new URL(location.href);
+    if (cleanUrl.searchParams.has('vtbuild')) {
+      cleanUrl.searchParams.delete('vtbuild');
+      history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+    }
+  } catch (_) {}
+  // Circuit breaker for the build POLL below. triggerRefresh()'s own flag bars a
+  // second reload within ONE document, but nothing stopped the sequence
+  // reload -> fresh document -> same mismatch -> reload. If the reported build can
+  // never match the served shell — a half-finished deploy, a proxy pinned to an
+  // old index.html — that is every client hard-reloading every 15s forever, with
+  // the desktop unusable in between. A refresh that leaves the stamped version
+  // unchanged achieved nothing, so count those and give up after REFRESH_MAX. The
+  // SSE path is deliberately NOT gated: it fires on a real change event, not on a
+  // comparison that can be permanently wrong.
+  var REFRESH_MAX = 3, pollRefreshBlocked = false;
+  try {
+    var refFrom = sessionStorage.getItem('vt-refresh-from');
+    if (refFrom && refFrom !== loadedShellVer) {          // the reload really moved us
+      sessionStorage.removeItem('vt-refresh-from');
+      sessionStorage.removeItem('vt-refresh-tries');
+    } else if (refFrom) {
+      var tries = (parseInt(sessionStorage.getItem('vt-refresh-tries'), 10) || 0) + 1;
+      sessionStorage.setItem('vt-refresh-tries', String(tries));
+      pollRefreshBlocked = tries >= REFRESH_MAX;
+    }
+  } catch (_) {}
   // A new shell was deployed → full refresh of the WHOLE vibetop desktop. One
   // reload pulls in every app iframe too, so a deploy reaches all of vibetop with
   // no per-app update logic. A brief notice so the reload reads as intentional.
@@ -3900,7 +4038,16 @@
       t.textContent = 'Updating vibetop to the latest version…';
       document.body.appendChild(t);
     } catch (e) {}
-    setTimeout(function() { window.location.reload(); }, 1200);
+    try { sessionStorage.setItem('vt-refresh-from', loadedShellVer || ''); } catch (_) {}
+    setTimeout(function() {
+      // A unique navigation URL bypasses both HTTP and service-worker cache
+      // entries. The new document cleans the parameter above.
+      try {
+        var u = new URL(location.href);
+        u.searchParams.set('vtbuild', Date.now());
+        window.location.replace(u.href);
+      } catch (_) { window.location.reload(); }
+    }, 1200);
   }
   function updateSW() {   // no-op without a SW (insecure origin) — guarded
     try { if (hasSW) navigator.serviceWorker.getRegistration().then(function(r) { if (r) r.update().catch(function() {}); }).catch(function() {}); } catch (e) {}
@@ -3931,6 +4078,24 @@
       });
     } catch (e) {}
   }
+  // SSE is the fast path, not the only path. Background throttling, proxy idle
+  // timeouts, or a missed reconnect must not strand a client on an old build.
+  var buildPollTimer = 0;
+  function verifyBuild() {
+    if (pollRefreshBlocked) {
+      if (buildPollTimer) { clearInterval(buildPollTimer); buildPollTimer = 0; }
+      try { console.warn('vibetop: build poll gave up after ' + REFRESH_MAX +
+                         ' reloads that did not change the shell (' + loadedShellVer + ')'); } catch (_) {}
+      return;
+    }
+    fetch('/api/update?build=1', { cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d && d.build && loadedShellVer && d.build !== loadedShellVer) triggerRefresh();
+      }).catch(function() {});
+  }
+  buildPollTimer = setInterval(verifyBuild, 15000);
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) verifyBuild(); });
   // SW-specific (secure context only): register the SW and reload when an *updated*
   // SW replaces an existing one. hadController is false on first install (its
   // clients.claim() also fires controllerchange — reloading then would throw away
@@ -3945,6 +4110,7 @@
   window.addEventListener('load', function() {
     if (hasSW) navigator.serviceWorker.register('/sw.js').catch(function() {});
     subscribeUpdates();   // always — SSE reload works without a SW
+    verifyBuild();
   });
 })();
 
@@ -4159,13 +4325,11 @@
     var rtxt = reset ? fmtReset(reset) : '';
     var rat = reset ? fmtResetAt(reset) : '';
     // Three forms, longest first, so fitSegs() can step down instead of deleting.
-    // The step that matters: the CLOCK TIME survives and the duration goes, not
-    // the other way round — "resets Thu 10:00 AM" is both shorter and the thing
-    // worth keeping. (Reported, bluntly and correctly, when the first version
-    // shed the time and kept "2d 20h".)
+    // The countdown is the primary glanceable status and must survive in the
+    // fixed-width desktop chip. Mobile usually has room for the full form.
     var full = '· resets ' + rtxt + (rat ? ' (' + rat + ')' : '');
-    var mid  = rat ? '· resets ' + rat : full;
-    var min  = rat ? '· ' + rat : ('· ' + rtxt);     // the word "resets" is the last thing to go
+    var mid  = '· resets ' + rtxt;
+    var min  = '· ' + rtxt;                         // countdown always wins at the tightest fit
     var r = rtxt ? '<span class="cu-dim" data-full="' + full + '" data-mid="' + mid +
                    '" data-min="' + min + '">' + full + '</span>' : '';
     var title = rtxt ? ' title="resets in ' + rtxt + (rat ? ' — at ' + rat : '') + '"' : '';
@@ -4221,7 +4385,7 @@
     } else {
       html += '<span class="cu-dim">waiting for first API call…</span>';
     }
-    html += '</span><span class="cu-x" id="cu-x" title="Turn off Claude Usage (all devices)">✕</span>';
+    html += '</span><span class="cu-x" id="cu-x" title="Turn off Claude Limit (all devices)">✕</span>';
     strip.innerHTML = html;
     var x = document.getElementById('cu-x');
     if (x) x.onclick = function() { window.toggleClaudeUsage(); };   // ✕ = turn the feature off everywhere
@@ -4229,19 +4393,25 @@
   }
 
   // Each chip is one line, always. When the line does not fit, shed the least
-  // useful part of it and measure again: first the absolute time in brackets
-  // (the relative "· resets 2d 20h" beside it already says when), then the reset
-  // text entirely, leaving the label, the bar and the percentage — which is the
-  // part anyone actually reads. The full text stays in the chip's title.
+  // useful part of it and measure again: first the absolute time in brackets,
+  // while retaining the relative countdown; only then use the terse exact time
+  // or finally leave label/bar/percentage. The title always retains both.
   function fitSegs() {
     var segs = strip.querySelectorAll('.cu-seg');
     for (var i = 0; i < segs.length; i++) {
       var seg = segs[i], dim = seg.querySelector('.cu-dim');
       if (!dim) continue;
+      // Desktop has fixed 360px chips specifically sized for the complete
+      // countdown + clock. Never rewrite that text based on measurements.
+      if (!window.matchMedia('(max-width: 680px)').matches) {
+        dim.hidden = false;
+        dim.textContent = dim.dataset.full;
+        continue;
+      }
       var over = function() { return seg.scrollWidth > seg.clientWidth + 1; };
       dim.hidden = false;
       dim.textContent = dim.dataset.full;             // "· resets 2d 20h (Thu 10:00 AM)"
-      if (over()) dim.textContent = dim.dataset.mid;  // "· resets Thu 10:00 AM"
+      if (over()) dim.textContent = dim.dataset.mid;  // "· resets 2d 20h"
       if (over()) dim.textContent = dim.dataset.min;  // "· Thu 10:00 AM"
       if (over()) dim.hidden = true;                  // label · bar · % only
     }
@@ -4320,8 +4490,8 @@
     var reset = resetText(value.reset);
     var at = resetAt(value.reset);
     var full = '· resets ' + reset + (at ? ' (' + at + ')' : '');
-    var mid = at ? '· resets ' + at : full;
-    var min = at ? '· ' + at : '· ' + reset;
+    var mid = '· resets ' + reset;
+    var min = '· ' + reset;                         // countdown always wins at the tightest fit
     return '<span class="cu-seg"' + (reset ? ' title="resets in ' + reset + (at ? ' — at ' + at : '') + '"' : '') + '>' +
       '<span class="cu-lbl">' + label + '</span><span class="cu-bar"><span class="cu-fill ' + cls +
       '" style="width:' + p + '%"></span></span><span class="cu-pct">' + p + '%</span>' +
@@ -4333,6 +4503,11 @@
     for (var i = 0; i < segments.length; i++) {
       var item = segments[i], dim = item.querySelector('.cu-dim');
       if (!dim) continue;
+      if (!window.matchMedia('(max-width: 680px)').matches) {
+        dim.hidden = false;
+        dim.textContent = dim.dataset.full;
+        continue;
+      }
       var over = function() { return item.scrollWidth > item.clientWidth + 1; };
       dim.hidden = false;
       dim.textContent = dim.dataset.full;
@@ -4368,7 +4543,7 @@
     } else {
       html += '<span class="cu-dim">waiting for first Codex response…</span>';
     }
-    strip.innerHTML = html + '</span><span class="cu-x" id="cx-x" title="Turn off Codex Usage (all devices)">✕</span>';
+    strip.innerHTML = html + '</span><span class="cu-x" id="cx-x" title="Turn off Codex Limit (all devices)">✕</span>';
     var close = document.getElementById('cx-x');
     if (close) close.onclick = window.toggleCodexUsage;
     fitSegments();
