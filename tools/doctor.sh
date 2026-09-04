@@ -448,8 +448,32 @@ fi
 # "I can't look" must not be reported as "it isn't there".
 vt_git() { git -c safe.directory="$ROOT" -C "$ROOT" "$@"; }
 if vt_git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    vt_git remote get-url origin >/dev/null 2>&1 && ok "repo is a full git clone with an 'origin' remote (in-app Update works)" \
-        || adv "repo has no 'origin' remote — the in-app Update can't fetch (was this a tarball, not a clone?)"
+    # Having a remote is NOT the same as being able to fetch from one, and this
+    # check used to claim "the in-app Update works" on the strength of the former.
+    # On 2026-09-04 prod's origin was an SSH URL with no key for the service
+    # account: every fetch died with "Permission denied (publickey)", the in-app
+    # Update could not have worked, and this line reported PASS throughout.
+    # Checking the URL scheme rather than doing a live fetch keeps doctor offline-
+    # safe and fast, and catches the failure that actually happened.
+    if _url=$(vt_git remote get-url origin 2>/dev/null); then
+        case "$_url" in
+            https://*|http://*|/*|file://*)
+                ok "repo is a full git clone and origin is fetchable without a key (in-app Update works)" ;;
+            *)
+                # Only a problem for the DEPLOYED tree, which fetches as the
+                # service account. A developer's own checkout uses their key and
+                # SSH there is correct — warning on it would be noise.
+                # NB: doctor runs under sudo, so `id -un` is root — compare
+                # against the human who invoked it.
+                if [ "$APP_USER" = "${SUDO_USER:-$(id -un)}" ] && [ "${ROOT#/opt/}" = "$ROOT" ]; then
+                    ok "repo is a full git clone (personal checkout; origin is SSH, which is fine here)"
+                else
+                adv "origin is '$_url' — an SSH remote needs a key the service account may not have, and the in-app Update fetches as that account. Fix: git -C $ROOT remote set-url origin https://github.com/<owner>/<repo>.git"
+                fi ;;
+        esac
+    else
+        adv "repo has no 'origin' remote — the in-app Update can't fetch (was this a tarball, not a clone?)"
+    fi
 else adv "$ROOT is not a git checkout — the in-app Update needs a full clone"; fi
 
 # ---------------------------------------------------------------------------
