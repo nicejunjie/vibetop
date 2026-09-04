@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_219 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_220 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -242,6 +242,7 @@ _219 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [W/A/S/D panned the camera AND did their own job (2026-09-03)](#wasd-panned-the-camera-and-did-their-own-job-2026-09-03)
 - [A paradrop was six men appearing out of nothing (2026-09-03)](#a-paradrop-was-six-men-appearing-out-of-nothing-2026-09-03)
 - [Capturing their War Factory did not buy you their tanks (2026-09-03)](#capturing-their-war-factory-did-not-buy-you-their-tanks-2026-09-03)
+- [The infantry art gate cannot see colour, and a drab zone impersonated an owner (2026-09-04)](#the-infantry-art-gate-cannot-see-colour-and-a-drab-zone-impersonated-an-owner-2026-09-04)
 
 <!-- END TOC -->
 
@@ -8845,3 +8846,63 @@ but it means a Rhino can roll out of an Allied hall. `techCount`/`techTotal`
 (the EVA tech chatter and the score screen's Technology column) still measure
 your OWN faction's tree on purpose — they answer "how far up did you climb",
 not "what can you build".
+
+## The infantry art gate cannot see colour, and a drab zone impersonated an owner (2026-09-04)
+
+**Symptom.** `unit-redesign-plan.md`'s C2 is a *colour* commit — RA2 puts 29–45%
+owner colour on an infantryman's torso and ours sat at half that — and the plan
+names `peerVsSelf.infantry` and `iou.infantry.mean` as its acceptance metrics.
+Raising the remap on all twelve uniformed kinds moved those two numbers by
+**zero**. A first pass that did nothing but colour work would have looked like a
+completed commit and failed its own gate.
+
+**Cause.** `tools/art-metrics.js` builds each sprite's mask as
+`alpha > 8 ? 1 : 0` (`pageExtract`) and every IoU, peer-vs-self and spike number
+is computed off that mask. **Colour is not an input to any gate metric.** The
+gate measures silhouette, and it is right to — per-unit hue is exactly the
+"number a single art commit could set by construction" that §5's trap warns
+against asserting. But it means the halves of a commit score differently: the
+colour half is invisible and only the shape half moves the ratchet.
+
+**Fix.** Read `unit-identity-reference.md` §1.5 **rule 9** as part of the colour
+spec, not as separate silhouette work. Its three levers on an infantryman are
+(a) the leg zone's *value*, (b) the presence or absence of the **leg split**, and
+(c) one prop at hand or shoulder height — and (b) and (c) are silhouette. Yuri
+and the Spy were both drawn with `legs()` and a skirt over the top, so boots came
+out below the hem and the one thing the reference says makes them instantly
+readable was thrown away. Giving both an unbroken hem (plus the Spy's fedora and
+briefcase, and the Desolator's §2.2 backpack) is what actually moved the gate:
+`peerVsSelf.infantry` 11 → 10, `iou.infantry.mean` 0.6442 → 0.6417,
+`iou.sameFactionOver75` 16 → 14, with the remap mean 22.8% → 26.8% alongside.
+
+**And the trap inside the fix.** Deleting *both* leg splits made the Spy and Yuri
+each other's nearest match at 0.85 and produced a net REGRESSION on the first
+pass — two coated figures are only distinct if they are two different coats. The
+Spy's hem tapers (a business suit), Yuri's flares a third wider at the ankle, and
+the Spy carries the briefcase §1.5 gives him. Same shape of mistake with the
+Desolator's new backpack: raised level with his helmet, the tanks became the
+widest rows on the sprite, so `spikeOf`'s 55%-of-max body cut swallowed them and
+the gate scored his HELMET as his declared spike — measured thickness 6 → 4, a
+regression on `spike.belowDeclaredBudget` caused by *adding* the very feature the
+budget asks for. The pack sits above the shoulder line and below the helmet crown
+for that reason.
+
+**Fixed on the way past — a drab zone that impersonated an owner colour.** The
+house-colour census has to be run **per owner**, not averaged. The Conscript read
+17.4% as blue and **39.0% as red**, because his fixed `#7d5148` brown-maroon
+trousers sit 11° off the red owner hue at s = 0.42: a Collective soldier whose
+*drab* zone was, to one of the two players, indistinguishable from house colour.
+The repo's standing rule is "only the owner's colour is saturated" — this is its
+mirror image, a fixed colour landing inside the owner's hue window, and a
+both-owners census is the only thing that shows it. His trousers are tan
+`#8f6c42` now, which is also what §2.2 asks for (">= 20 hue-degrees off the GI's
+olive", and the GI-vs-Conscript leg hue is the whole separation between them),
+and he reads 35.2 / 34.1 — the same figure to both players.
+
+**Rejected: adding a colour metric to the gate.** Tempting, and wrong for now.
+Owner-hue fraction is per-unit and an art commit sets it directly, so ratcheting
+it would be the tautology §5 exists to forbid; the ensemble version ("no two
+same-faction infantry share a zone layout") needs a zone segmenter that does not
+exist. The census stays a hand-run check (`§1.4`'s method: body pixels at
+HSV s > 0.40 within ±22° of the owner hue) recorded in the commit message, and
+the gate keeps scoring only what a single unit cannot fake.

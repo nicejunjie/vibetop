@@ -4177,8 +4177,8 @@
   function unitCanvas() { return mkCanvas(104, 90); }
 
   var ACCENT = {
-    rifle:     '#4f6136',   // olive fatigues under the house-colour helmet
-    conscript: '#8b929b',   // bare steel helmet — the Conscript's remap is his SCARF
+    rifle:     '#9ba2ab',   // GREY POT HELMET over the GI's house-colour torso block
+    conscript: '#2f3540',   // his DARK flat-crowned cap; the Conscript's remap is his TUNIC
     rocket:    '#ffbe45',   // amber warhead (Guardian) / amber shell drum (Flak)
     tank:      '#39415a',   // gunmetal barrel
     lancer:    '#3a3f4c',   // neutral grey deck insets on a pale hull
@@ -4224,10 +4224,10 @@
   // him read as a plastic figure rather than a soldier in a uniform.
   var TROOP = {
     rifle:     { coat: '#4f6136', boot: '#22242a', skin: '#d8a878' },  // olive fatigues
-    conscript: { coat: '#7d5148', boot: '#1e2026', skin: '#d8a878' },  // brown-maroon trousers
+    conscript: { coat: '#8f6c42', boot: '#1e2026', skin: '#d8a878' },  // TAN trousers (>=20 hue-deg off the GI's olive: ref §2.2)
     rocket:    { coat: '#49512f', boot: '#22242a', skin: '#d8a878' },  // Guardian GI: heavy olive
     rocketS:   { coat: '#575049', boot: '#22242a', skin: '#d8a878' },  // Flak Trooper: grey-brown
-    engineer:  { coat: '#8a7c4c', boot: '#26282e', skin: '#d8a878' },  // khaki work trousers
+    engineer:  { coat: '#c6bfa6', boot: '#6d6653', skin: '#d8a878' },  // PALE hazmat legs — the only light-value body on the field (ref §2.1)
     tanya:     { coat: '#666a44', boot: '#1c1e24', skin: '#e6b98f' },  // olive combat trousers
     teslatrooper: { coat: '#1e2338', boot: '#868d97', skin: '#d8a878' },// navy armour, steel greaves
     ivan:      { coat: '#232a44', boot: '#4a4e57', skin: '#dfae82' },   // navy trousers, grey boots
@@ -4625,34 +4625,56 @@
       // The sleeves are a step LIGHTER than the jacket on purpose: at the
       // jacket's own value they merged with the torso and the scarf read as
       // a slab floating between two black bricks with no arms swinging.
-      arms(5.5, by - 18.4, 2.9, 6.6, SLEEVE, function (i, x, y) {
-        g.fillStyle = shade(SLEEVE, 0.62);                          // cuff
+      // The tunic's sleeves are the tunic: RA2 remaps the Conscript down to
+      // the cuff (44.6% of the body), and drawing them in the jacket's grey
+      // left the house block looking like a bib pinned to a dark coat.
+      arms(5.5, by - 18.4, 2.9, 6.6, col, function (i, x, y) {
+        g.fillStyle = shade(SLEEVE, 0.62);                          // dark cuff, the sleeve's end
         g.beginPath(); g.roundRect(x - 1.5, y + 5.0, 3.0, 2.0, 0.8); g.fill();
       });
 
-      // The scarf is the whole remap, so it has to be a MASS, not a collar
-      // stripe: it fills the chest from the chin to the belt and spills over
-      // both shoulders. The rifle is slung up over the LEFT shoulder (as in
-      // the sprite) precisely so it does not lie across that mass — routing
-      // it across the chest hid the only house-coloured thing on the figure.
+      // THE BLOCK. The scarf used to stop at the sternum; RA2's Conscript is
+      // house colour from the collar to the BELT, one mass, 44.6% of the body
+      // (unit-identity-reference.md §1.5). It spills over both shoulders and
+      // the dark jacket survives only as the sleeves and a rim down each
+      // flank — which is what a tunic worn OVER a uniform actually looks
+      // like. The rifle is slung up over the LEFT shoulder (as in the sprite)
+      // precisely so it does not lie across that mass.
       g.fillStyle = col;
       g.beginPath();
       g.moveTo(cx - 5.0, by - 20.2); g.lineTo(cx + 5.0, by - 20.2);
-      g.lineTo(cx + 3.6, by - 14.6); g.lineTo(cx - 3.6, by - 14.6);
+      g.lineTo(cx + 4.4, by - 12.8); g.lineTo(cx - 4.4, by - 12.8);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       // Shading a house-colour panel is a trap: the blue #4aa3db clips its
       // blue channel above about f=1.3 and goes white-cyan, so a "lit" fold
       // at 1.4 stops reading as the owner's colour at all. Folds stay inside
       // 0.70..1.24 on every figure.
-      g.fillStyle = shade(col, 1.22);                               // lit fold on the scarf
-      g.fillRect(cx - 4.6, by - 20.0, 3.4, 5.6);
+      g.fillStyle = shade(col, 1.22);                               // lit fold on the tunic
+      g.fillRect(cx - 4.8, by - 20.0, 3.4, 7.0);
       g.fillStyle = shade(col, 0.76);                               // shaded right fold
-      g.fillRect(cx + 1.7, by - 19.6, 2.6, 5.2);
+      g.fillRect(cx + 1.7, by - 19.6, 2.6, 6.6);
       g.fillStyle = shade(col, 0.64);                               // chin shadow
       g.fillRect(cx - 4.8, by - 20.1, 9.6, 0.8);
       carbine(cx - 2.6, by - 13.4 + gt.sw * 0.5, cx - 8.0, by - 24.8 + gt.sw * 0.5, 1.8);
       face(by - 21.3);
-      helmet(by - 23.3, 3.15, ACCENT.conscript, 1.0);               // STEEL, not house colour
+      // THE CAP, not a helmet. §2.2: "cap silhouette flat, not domed" — a
+      // Conscript and a GI are the same 13x27 blob and RA2 separates them on
+      // exactly two things, the leg hue and the headgear. So the GI keeps the
+      // pot dome and the Conscript gets a low FLAT crown with a forward peak,
+      // in near-black: different shape AND different value, at the one place
+      // on a 20px figure a player actually looks.
+      var CCAP = ACCENT.conscript, chy2 = by - 22.4;
+      var ccx = cx + sd * 1.1 / TURN + HEADX, ccw = 3.35 * (1 - 0.16 * sd);
+      g.fillStyle = CCAP;
+      g.beginPath(); g.roundRect(ccx - ccw, chy2 - 1.5, ccw * 2, 2.6, 0.7); g.fill();
+      outline(g, shade(CCAP, 0.44));
+      g.fillStyle = shade(CCAP, 0.52);                              // forward peak
+      g.beginPath();
+      g.moveTo(ccx - ccw - 0.4, chy2 + 0.9); g.lineTo(ccx + ccw + 0.4, chy2 + 0.9);
+      g.lineTo(ccx + ccw * 0.8, chy2 + 1.9); g.lineTo(ccx - ccw * 0.8, chy2 + 1.9);
+      g.closePath(); g.fill(); outline(g, shade(CCAP, 0.32));
+      g.fillStyle = shade(CCAP, 1.55);                              // lit flat crown
+      g.fillRect(ccx - ccw + 0.4, chy2 - 1.3, ccw * 1.1, 0.8);
       g.restore();
 
     } else if (kind === 'rocketeer') {
@@ -4709,15 +4731,22 @@
       g.closePath(); g.fill(); outline(g, RSD);
       g.fillStyle = RSL; g.fillRect(cx - 5.0, by - 19.4, 1.4, 8.0);  // lit edge
       g.fillStyle = shade(RS, 0.6); g.fillRect(cx - 4.7, by - 12.6, 9.4, 1.4);   // harness belt
-      g.fillStyle = col;                                            // house chest plate
+      // The chest plate is the TORSO, not a badge: §1.5 gives the Rocketeer a
+      // dome / house chest / pack-tanks stack at 28.5% remap, and a 6x4 patch
+      // in the middle of a grey suit was carrying 15% of it.
+      g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 3.2, by - 18.8); g.lineTo(cx + 3.2, by - 18.8);
-      g.lineTo(cx + 2.5, by - 14.2); g.lineTo(cx - 2.5, by - 14.2);
+      g.moveTo(cx - 5.0, by - 19.5); g.lineTo(cx + 5.0, by - 19.5);
+      g.lineTo(cx + 4.4, by - 12.4); g.lineTo(cx - 4.4, by - 12.4);
       g.closePath(); g.fill(); outline(g, shade(col, 0.4));
-      g.fillStyle = shade(col, 1.24); g.fillRect(cx - 3.0, by - 18.6, 6.0, 1.1);
+      g.fillStyle = shade(col, 1.24); g.fillRect(cx - 4.8, by - 19.3, 3.2, 6.6);
+      g.fillStyle = shade(col, 0.76); g.fillRect(cx + 1.7, by - 18.9, 2.5, 6.0);
       arms(5.6, by - 18.2, 3.0, 6.2, RS, function (i, x, y) {
-        g.fillStyle = shade(RS, 1.12);                              // rounded pauldron
-        g.beginPath(); g.ellipse(x, y + 0.4, 2.0, 1.4, 0, 0, 6.29); g.fill(); outline(g, RSD);
+        g.fillStyle = col;                                          // house-colour pauldron
+        g.beginPath(); g.ellipse(x, y + 0.4, 2.2, 1.6, 0, 0, 6.29); g.fill();
+        outline(g, shade(col, 0.42));
+        g.fillStyle = shade(col, 1.22);
+        g.beginPath(); g.ellipse(x - 0.5, y - 0.1, 1.1, 0.7, -0.3, 0, 6.29); g.fill();
       });
       g.fillStyle = '#3a3f47';                                      // gloves
       g.beginPath(); g.roundRect(cx - 7.6, by - 12.6, 2.6, 2.2, 0.8); g.fill();
@@ -4740,6 +4769,7 @@
       // visor band, and a stubby missile tube braced on the right shoulder
       // with an AMBER warhead in the muzzle. The tube is what names him at
       // 1:1, so it is drawn long enough to break the body outline.
+      var GGI_STEEL = '#7f8894';                                    // deep steel helmet
       legs(2.7, by - 12.2, 3.6, T.coat, 4.2);
 
       g.save(); g.translate(gt.lean, gt.bob);
@@ -4754,20 +4784,24 @@
       g.beginPath(); g.roundRect(cx - 4.0, by - 11.9, 2.3, 2.3, 0.8); g.fill();
       g.beginPath(); g.roundRect(cx + 1.7, by - 11.9, 2.3, 2.3, 0.8); g.fill();
 
-      g.fillStyle = col;                                            // heavy house-colour vest
+      // The vest runs collar-to-belt, not collar-to-sternum: the Guardian's
+      // zone layout is steel helmet / house torso / olive legs, the same
+      // three zones as the GI beside him, and the TUBE is what separates the
+      // two (unit-identity-reference.md §2.1).
+      g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 5.6, by - 19.6); g.lineTo(cx + 5.6, by - 19.6);
-      g.lineTo(cx + 5.0, by - 13.4); g.lineTo(cx - 5.0, by - 13.4);
+      g.moveTo(cx - 5.6, by - 19.8); g.lineTo(cx + 5.6, by - 19.8);
+      g.lineTo(cx + 5.1, by - 12.6); g.lineTo(cx - 5.1, by - 12.6);
       g.closePath(); g.fill(); outline(g, shade(col, 0.38));
       g.fillStyle = shade(col, 1.22);                               // lit shoulder line
-      g.fillRect(cx - 5.6, by - 19.4, 11.2, 1.6);
+      g.fillRect(cx - 5.6, by - 19.6, 11.2, 1.6);
       g.fillStyle = shade(col, 0.72);                               // vest seam
       g.fillRect(cx - 0.7, by - 18.0, 1.4, 5.2);
       g.fillStyle = '#c7ac3e';                                      // brass clasp
       g.beginPath(); g.roundRect(cx - 1.6, by - 15.4, 3.2, 2.0, 0.6); g.fill();
       outline(g, '#7f6a1c');
 
-      arms(6.0, by - 18.0, 3.2, 6.4, T.coat, function (i, x, y) {
+      arms(6.0, by - 18.0, 3.2, 6.4, col, function (i, x, y) {      // house upper sleeves
         g.fillStyle = col;                                          // slab pauldron
         g.beginPath(); g.roundRect(x - 1.7, y - 1.1, 3.4, 2.6, 0.9); g.fill();
         outline(g, shade(col, 0.4));
@@ -4799,7 +4833,7 @@
       });
 
       face(by - 21.7);
-      helmet(by - 23.6, 3.3, col, 1.0);
+      helmet(by - 23.6, 3.3, GGI_STEEL, 1.0);                       // steel, so the VEST is the remap
       if (!FA.back) {                                               // dark visor band
       g.fillStyle = '#1f2429';
       g.beginPath(); g.roundRect(cx + sd * 1.1 / TURN + HEADX - 2.9, by - 22.5, 5.8, 1.6, 0.7); g.fill();
@@ -4844,13 +4878,13 @@
 
       g.fillStyle = col;                                            // house-colour chest vest
       g.beginPath();
-      g.moveTo(cx - 4.9, by - 20.3); g.lineTo(cx + 4.3, by - 20.3);
-      g.lineTo(cx + 3.5, by - 13.4); g.lineTo(cx - 4.2, by - 13.4);
+      g.moveTo(cx - 5.1, by - 20.3); g.lineTo(cx + 4.6, by - 20.3);
+      g.lineTo(cx + 3.8, by - 12.6); g.lineTo(cx - 4.6, by - 12.6);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);                               // lit left panel
-      g.fillRect(cx - 4.8, by - 19.8, 3.2, 6.2);
+      g.fillRect(cx - 4.9, by - 19.8, 3.2, 6.9);
       g.fillStyle = shade(col, 0.74);                               // shoulder-strap shadow
-      g.fillRect(cx + 1.6, by - 19.6, 2.5, 5.8);
+      g.fillRect(cx + 1.6, by - 19.6, 2.5, 6.5);
 
       wpn(function () {
       var fy = gt.bob ? 0.5 : 0;                                    // cannon rides the bob
@@ -4899,33 +4933,45 @@
       g.moveTo(cx - 5.0, by - 19.4); g.lineTo(cx + 5.0, by - 19.4);
       g.lineTo(cx + 4.6, by - 10.6); g.lineTo(cx - 4.6, by - 10.6);
       g.closePath(); g.fill(); outline(g, shade(SHIRT, 0.52));
-      g.fillStyle = '#6d5230';                                      // brown tool belt
-      g.fillRect(cx - 4.8, by - 12.6, 9.6, 1.7);
-      g.fillStyle = '#c9a94a';                                      // brass buckle
-      g.fillRect(cx - 0.9, by - 12.4, 1.9, 1.3);
-      g.fillStyle = '#8d9099';                                      // spanner on the belt
-      g.fillRect(cx + 2.6, by - 12.4, 2.4, 1.3);
-
-      // The waistcoat is TWO front panels with the shirt showing between them
-      // and over both shoulders. Painting the whole torso ran him to a third
-      // solid house-colour mass and buried the shirt that dates him as a
-      // workman rather than a soldier.
+      // The waistcoat is TWO front panels with a thin strip of shirt showing
+      // between them — the gap is what makes it a hi-vis waistcoat and not a
+      // painted torso (rule 7: discreteness is itself a shape cue), and the
+      // shirt keeps him a workman rather than a soldier. The panels reach the
+      // belt now, because a 44.6%-remap Engineer is what §1.5 measures and
+      // two short bibs were carrying half of it.
       for (var ev = -1; ev <= 1; ev += 2) {
         g.fillStyle = col;
         g.beginPath();
-        g.moveTo(cx + ev * 0.45, by - 19.6); g.lineTo(cx + ev * 5.2, by - 19.6);
-        g.lineTo(cx + ev * 4.7, by - 12.4); g.lineTo(cx + ev * 0.7, by - 12.4);
+        g.moveTo(cx + ev * 0.75, by - 19.9); g.lineTo(cx + ev * 5.3, by - 19.9);
+        g.lineTo(cx + ev * 4.8, by - 11.4); g.lineTo(cx + ev * 1.0, by - 11.4);
         g.closePath(); g.fill(); outline(g, shade(col, 0.40));
         g.fillStyle = shade(col, ev < 0 ? 1.22 : 0.76);             // lit / shaded panel
-        g.fillRect(cx + (ev < 0 ? -4.9 : 2.2), by - 19.4, 2.6, 6.6);
+        g.fillRect(cx + (ev < 0 ? -5.0 : 2.4), by - 19.6, 2.6, 7.6);
       }
+      // The tool belt is drawn OVER the waistcoat, not under it: buried, the
+      // panels lost their bottom edge and the figure read as one long bib.
+      g.fillStyle = '#6d5230';                                      // brown tool belt, over the panels
+      g.fillRect(cx - 3.4, by - 12.8, 6.8, 1.7);                    // ...but only across the middle,
+      g.fillStyle = '#c9a94a';                                      // so the waistcoat keeps its
+      g.fillRect(cx - 0.9, by - 12.6, 1.9, 1.3);                    // corners and its house colour
+      g.fillStyle = '#8d9099';                                      // spanner on the belt
+      g.fillRect(cx + 1.6, by - 12.6, 1.6, 1.3);
       g.fillStyle = SHIRT;                                          // shirt at the left collar
       g.beginPath();
       g.moveTo(cx - 5.1, by - 19.7); g.lineTo(cx - 2.6, by - 19.7);
       g.lineTo(cx - 3.9, by - 17.4); g.lineTo(cx - 5.1, by - 17.6);
       g.closePath(); g.fill();
 
-      arms(5.3, by - 18.4, 2.8, 6.4, SHIRT, function (i, x, y) {
+      // The sleeves hang OUTSIDE the waistcoat (they were overlapping it and
+      // eating a third of its width), with a hi-vis strap over each shoulder
+      // — the waistcoat goes over the shoulders on the real garment, and it
+      // is where the last of his remap budget buys the most.
+      arms(5.7, by - 18.4, 2.8, 6.4, SHIRT, function (i, x, y) {
+        g.fillStyle = col;                                          // hi-vis shoulder strap
+        g.beginPath(); g.roundRect(x - 1.6, y - 0.7, 3.2, 2.4, 0.8); g.fill();
+        outline(g, shade(col, 0.42));
+        g.fillStyle = shade(col, 1.22);
+        g.fillRect(x - 1.3, y - 0.5, 2.6, 0.8);
         g.fillStyle = '#b58a52';                                    // tan work glove
         g.beginPath(); g.roundRect(x - 1.5, y + 5.6, 3.0, 2.2, 0.8); g.fill();
         outline(g, '#6d5027');
@@ -4947,28 +4993,26 @@
 
       face(by - 21.6);
       if (sov) {
-        // soft field cap: a low crown and a long forward peak, so the
-        // silhouette is flat where every other Collective head is a dome
-        var CAP = '#7d838d';
-        g.fillStyle = CAP;
-        g.beginPath(); g.ellipse(cx, by - 22.6, 3.0, 1.75, 0, Math.PI, 0); g.fill();
-        g.fillRect(cx - 3.0, by - 22.6, 6.0, 0.85);
-        outline(g, shade(CAP, 0.42));
-        g.fillStyle = shade(CAP, 0.46);                             // forward peak
-        g.beginPath();
-        g.moveTo(cx - 3.1, by - 22.4); g.lineTo(cx + 3.1, by - 22.4);
-        g.lineTo(cx + 2.5, by - 21.4); g.lineTo(cx - 2.5, by - 21.4);
-        g.closePath(); g.fill(); outline(g, shade(CAP, 0.30));
-        g.fillStyle = shade(CAP, 0.80);
-        g.fillRect(cx - 2.9, by - 22.3, 5.8, 0.55);
-        // A brass cap badge, not a red one: on a BLUE-owned Collective
-        // engineer a red star is a saturated opposing hue on the figure's
-        // most-read surface, and friend-or-foe is worth more than the badge.
+        // A near-WHITE hard hat, and it used to be a soft grey field cap.
+        // The cap was chosen so his silhouette was flat where every other
+        // Collective head is a dome — but the Conscript now wears the flat
+        // peaked cap RA2 gives him (ref §2.2), so "flat" no longer belongs to
+        // the Engineer, and the two heads were converging. His identity is
+        // INVERTED VALUE (§2.1: the only light-value soldier on the field),
+        // so the head goes to the top of the value range and the shape goes
+        // back to a hard hat, matching the Directorate Engineer it shares a
+        // sprite with. Rule 10's one bright anchor, at the head.
+        var CAP = '#eceadf';
+        helmet(by - 23.3, 2.95, CAP, 1.05);
+        g.fillStyle = shade(CAP, 0.78);                             // moulded crest ridge
+        g.fillRect(cx - 0.7, by - 26.2, 1.4, 2.9);
+        g.fillStyle = shade(CAP, 0.62);                             // brim shadow line
+        g.fillRect(cx - 3.4, by - 22.6, 6.8, 0.65);
+        // A brass badge, not a red star: on a BLUE-owned Collective engineer
+        // a red star is a saturated OPPOSING hue on the figure's most-read
+        // surface, and friend-or-foe is worth more than the badge.
         g.fillStyle = '#b8912e';
-        g.beginPath(); g.ellipse(cx, by - 23.3, 0.85, 0.75, 0, 0, 6.29); g.fill();
-        g.fillStyle = shade(CAP, 1.34);                             // lit crown
-        g.beginPath();
-        g.ellipse(cx - 1.05, by - 23.5, 1.35, 0.65, -0.35, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(cx, by - 23.6, 0.85, 0.75, 0, 0, 6.29); g.fill();
       } else {
         helmet(by - 23.3, 2.95, ACCENT.engineer, 1.05);              // amber hard hat
         g.fillStyle = shade(ACCENT.engineer, 0.72);                 // moulded crest ridge
@@ -5008,15 +5052,22 @@
         g.fillRect(cx + tp * 3.1 - 1.1, by - 12.2, 2.2, 0.9);
       }
 
-      g.fillStyle = col;                                            // fitted house-colour top
+      // TANYA IS THE EXCEPTION, and she is the exception ON PURPOSE. RA2 puts
+      // 29-45% house colour on an infantryman; Tanya carries **14.3%**, the
+      // lowest in the game (unit-identity-reference.md §1.4), because her
+      // read is SKIN — bare arms and a bare midriff under a short top — and
+      // paint over that would delete the one figure on the field who is not
+      // in uniform. So while every other soldier's block grew in this pass,
+      // hers was CUT back to a crop top and the midriff went bare.
+      g.fillStyle = col;
       g.beginPath();
       g.moveTo(cx - 5.0, by - 20.8); g.lineTo(cx + 5.0, by - 20.8);
-      g.lineTo(cx + 3.9, by - 12.9); g.lineTo(cx - 3.9, by - 12.9);
+      g.lineTo(cx + 4.3, by - 16.3); g.lineTo(cx - 4.3, by - 16.3);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);                               // lit left panel
-      g.fillRect(cx - 4.8, by - 20.6, 3.4, 7.2);
+      g.fillRect(cx - 4.8, by - 20.6, 3.4, 3.9);
       g.fillStyle = shade(col, 0.76);                               // shaded right fold
-      g.fillRect(cx + 1.7, by - 20.2, 2.7, 6.6);
+      g.fillRect(cx + 1.9, by - 20.2, 2.5, 3.4);
       g.fillStyle = shade(col, 0.66);                               // collar shadow
       g.fillRect(cx - 4.9, by - 20.7, 9.8, 0.8);
       g.strokeStyle = '#2f3138'; g.lineWidth = 1.0; g.lineCap = 'butt';
@@ -5029,17 +5080,20 @@
         // The pistol hangs MUZZLE-DOWN at her side, canted out from the
         // thigh. Held level it merged with the other hand into one dark bar
         // straight across the hips and read as a belt, not as two guns.
-        var gxp = x + i * 0.7, gyp = y + 7.2;
+        // ...and canted OUT far enough to clear the hip: §2.1 wants each
+        // pistol breaking the outline by >=2 px, and at i*1.3 they were
+        // inside the arm's own silhouette and contributed nothing.
+        var gxp = x + i * 1.1, gyp = y + 7.2;
         g.strokeStyle = '#1b1d22'; g.lineWidth = 1.8; g.lineCap = 'butt';
         g.beginPath();
-        g.moveTo(gxp, gyp); g.lineTo(gxp + i * 1.3, gyp + 4.2); g.stroke();
+        g.moveTo(gxp, gyp); g.lineTo(gxp + i * 2.4, gyp + 4.0); g.stroke();
         g.fillStyle = '#2b2e35';                                    // grip, canted back
         g.beginPath();
         g.moveTo(gxp - i * 1.3, gyp - 0.4); g.lineTo(gxp + i * 0.5, gyp - 0.4);
         g.lineTo(gxp + i * 0.9, gyp + 1.6); g.lineTo(gxp - i * 0.7, gyp + 1.6);
         g.closePath(); g.fill();
         g.fillStyle = '#a7afba';                                    // slide glint
-        g.fillRect(gxp + i * 0.5 - 0.5, gyp + 1.0, 1.0, 2.6);
+        g.fillRect(gxp + i * 1.0 - 0.5, gyp + 1.0, 1.0, 2.6);
       });
 
       face(by - 22.0);
@@ -5201,13 +5255,13 @@
       g.fillStyle = shade(JACKET, 1.16);
       g.beginPath();
       g.moveTo(cx - 5.0, by - 14.4); g.lineTo(cx + 5.0, by - 14.4);
-      g.lineTo(cx + 6.6, by - 6.2); g.lineTo(cx + 1.2, by - 7.4);
-      g.lineTo(cx - 1.2, by - 7.4); g.lineTo(cx - 6.6, by - 6.2);
+      g.lineTo(cx + 7.8, by - 5.2); g.lineTo(cx + 1.2, by - 6.8);
+      g.lineTo(cx - 1.2, by - 6.8); g.lineTo(cx - 7.8, by - 5.2);
       g.closePath(); g.fill(); outline(g, shade(JACKET, 0.44));
       g.fillStyle = shade(JACKET, 1.46);                            // lit left skirt panel
       g.beginPath();
       g.moveTo(cx - 5.0, by - 14.2); g.lineTo(cx - 3.0, by - 14.2);
-      g.lineTo(cx - 4.0, by - 6.8); g.lineTo(cx - 6.3, by - 6.4);
+      g.lineTo(cx - 4.2, by - 6.0); g.lineTo(cx - 7.4, by - 5.4);
       g.closePath(); g.fill();
       g.fillStyle = 'rgba(0,0,0,.30)';                              // the split at the hem
       g.fillRect(cx - 0.7, by - 12.0, 1.4, 4.8);
@@ -5218,22 +5272,27 @@
       g.lineTo(cx + 5.0, by - 13.6); g.lineTo(cx - 5.0, by - 13.6);
       g.closePath(); g.fill(); outline(g, shade(JACKET, 0.52));
       g.fillStyle = SHIRTI;                                         // the shirt, between the lapels
-      g.fillRect(cx - 1.5, by - 20.0, 3.0, 6.6);
+      g.fillRect(cx - 0.9, by - 20.0, 1.8, 6.6);
       g.fillStyle = shade(SHIRTI, 0.78);
-      g.fillRect(cx - 1.5, by - 20.0, 1.1, 6.6);
+      g.fillRect(cx - 0.9, by - 20.0, 0.7, 6.6);
       g.fillStyle = '#2a2c33';                                      // belt over the shirt
       g.fillRect(cx - 5.1, by - 14.4, 10.2, 1.5);
       g.fillStyle = '#a98c3c';
       g.fillRect(cx - 0.9, by - 14.2, 1.8, 1.1);
 
-      for (var iv = -1; iv <= 1; iv += 2) {                         // the two open lapels
+      // THE MOST SATURATED MAN ON THE FIELD — 47.9% in RA2, the top of the
+      // whole roster (§2.2 asks for >=35%). The lapels used to leave a 3px
+      // shirt canyon down the middle and stop at the belt; they close to a
+      // 1.8px seam now and run to the skirt, so the coat reads as a red vest
+      // worn open rather than as two red stripes.
+      for (var iv = -1; iv <= 1; iv += 2) {
         g.fillStyle = col;
         g.beginPath();
-        g.moveTo(cx + iv * 1.4, by - 20.4); g.lineTo(cx + iv * 5.4, by - 20.4);
-        g.lineTo(cx + iv * 5.1, by - 13.7); g.lineTo(cx + iv * 1.6, by - 13.7);
+        g.moveTo(cx + iv * 0.75, by - 20.5); g.lineTo(cx + iv * 5.5, by - 20.5);
+        g.lineTo(cx + iv * 5.2, by - 13.2); g.lineTo(cx + iv * 0.95, by - 13.2);
         g.closePath(); g.fill(); outline(g, shade(col, 0.40));
         g.fillStyle = shade(col, iv < 0 ? 1.22 : 0.88);
-        g.fillRect(cx + (iv < 0 ? -5.1 : 2.5), by - 20.2, 2.4, 6.2);
+        g.fillRect(cx + (iv < 0 ? -5.2 : 2.5), by - 20.3, 2.6, 6.9);
       }
       g.fillStyle = shade(col, 0.66);                               // collar shadow
       g.fillRect(cx - 5.3, by - 20.5, 10.6, 0.9);
@@ -5291,8 +5350,8 @@
       // cheeks and the hat read as a red balaclava with a beard in it.
       for (var uf = -1; uf <= 1; uf += 2) {
         g.fillStyle = shade(col, uf < 0 ? 1.08 : 0.78);
-        g.beginPath();
-        g.roundRect(cx + uf * 2.8 - 0.75, by - 23.5, 1.5, 2.2, 0.6); g.fill();
+        g.beginPath();                                              // flap: >=2 px clear of the crown (§2.2)
+        g.roundRect(cx + uf * 3.75 - 1.15, by - 23.6, 2.3, 3.0, 0.7); g.fill();
         outline(g, shade(col, 0.36));
       }
       g.fillStyle = col;                                            // shallow fur crown
@@ -5318,6 +5377,29 @@
       legs(3.0, by - 12.2, 4.4, T.coat, 5.2);
 
       g.save(); g.translate(gt.lean, gt.bob);
+      // THE PACK, first, so the shoulders sit in front of it. §2.2 asks for a
+      // "pack >= 5w x 8h ABOVE the shoulder line" and the figure never had
+      // one: without it he was a Guardian GI with a green light, and his
+      // closest silhouette match on the whole field was a GI. They sit just
+      // ABOVE the shoulder line and BELOW the helmet crown — raised level
+      // with the head they became the widest rows on the sprite, which made
+      // the gate score the helmet as his spike instead of the pack and took
+      // its measured thickness from 6 px to 4.
+      for (var dpk = -1; dpk <= 1; dpk += 2) {
+        var pkx = cx + dpk * 4.0;
+        g.fillStyle = shade(T.coat, dpk < 0 ? 1.40 : 1.10);
+        g.beginPath(); g.roundRect(pkx - 2.1, by - 21.9, 4.2, 8.6, 1.6); g.fill();
+        outline(g, shade(T.coat, 0.40));
+        g.fillStyle = shade(T.coat, dpk < 0 ? 1.74 : 1.32);          // lit stave
+        g.fillRect(pkx - 1.6, by - 21.3, 1.2, 7.2);
+        g.fillStyle = '#2a2e34';                                     // steel cap
+        g.beginPath(); g.ellipse(pkx, by - 21.9, 2.1, 1.0, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(77,224,74,.55)';                         // the fill port glows
+        g.beginPath(); g.ellipse(pkx, by - 22.1, 0.9, 0.5, 0, 0, 6.29); g.fill();
+      }
+      g.strokeStyle = '#3a3f47'; g.lineWidth = 1.2; g.lineCap = 'round';
+      g.beginPath();                                                 // yoke across the tank tops
+      g.moveTo(cx - 4.0, by - 21.2); g.lineTo(cx + 4.0, by - 21.2); g.stroke();
       for (var dtp = -1; dtp <= 1; dtp += 2) {                       // house-colour thigh plates
         g.fillStyle = shade(col, 0.86);
         g.beginPath(); g.roundRect(cx + dtp * 3.0 - 2.1, by - 13.0, 4.2, 3.4, 1.0); g.fill();
@@ -5406,38 +5488,77 @@
       // coat, arms raised toward the temples, and a violet psychic glow at
       // the head. Everything about the silhouette is deliberately un-military:
       // no helmet dome, no weapon, a skirted coat instead of trousers.
-      legs(2.2, by - 12.6, 3.0, T.coat, 3.6);
+      //
+      // AND NO LEG SPLIT. unit-identity-reference.md §1.5 rule 9 names three
+      // levers on an infantryman, and the second is the presence or absence
+      // of the split: "Yuri and the Spy get a coat, which deletes the leg
+      // split entirely and is instantly readable." He was drawn with legs()
+      // and a skirt over the top, so two boots came out below the hem and the
+      // one thing that made him not-a-soldier was thrown away. The coat is
+      // now ONE unbroken block from the waist to the ankles — >=9 px wide
+      // with zero vertical gap over >=8 px of height, which is the §2.2
+      // budget — and it is drawn OUTSIDE the bob so the figure keeps its
+      // ground anchor with no legs to stand on.
+      var yhem = gt.swf * 0.7;                                       // the hem sways; it does not stride
+      g.fillStyle = shade(T.coat, 1.12);
+      g.beginPath();
+      g.moveTo(cx - 4.7, by - 16.0); g.lineTo(cx + 4.7, by - 16.0);
+      g.lineTo(cx + 6.6 + yhem, by - 1.4); g.lineTo(cx - 6.6 + yhem, by - 1.4);
+      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
+      g.fillStyle = shade(T.coat, 1.42);                             // lit left panel
+      g.beginPath();
+      g.moveTo(cx - 4.3, by - 15.8); g.lineTo(cx - 1.2, by - 15.8);
+      g.lineTo(cx - 1.4 + yhem, by - 1.6); g.lineTo(cx - 5.9 + yhem, by - 1.6);
+      g.closePath(); g.fill();
+      // The front SEAM, all the way down. Without it the hem is one flat
+      // wedge and the figure reads as a frock rather than a long coat — a
+      // coat is two panels that meet, and the meeting line is what says so.
+      g.fillStyle = 'rgba(0,0,0,.34)';
+      g.beginPath();
+      g.moveTo(cx - 0.7, by - 15.8); g.lineTo(cx + 0.7, by - 15.8);
+      g.lineTo(cx + 0.9 + yhem, by - 1.6); g.lineTo(cx - 0.9 + yhem, by - 1.6);
+      g.closePath(); g.fill();
+      // Two shoe caps at the very bottom of the hem, no gap above them: they
+      // say "there is a man in here" without reopening the split.
+      for (var ysh = -1; ysh <= 1; ysh += 2) {
+        g.fillStyle = T.boot;
+        g.beginPath();
+        g.roundRect(cx + ysh * 2.4 - 1.7 + yhem, by - 2.4, 3.4, 2.4, 0.8); g.fill();
+      }
+      // THE HEM BAND. RA2's Yuri carries his 26.9% remap on a collar and a
+      // hem band ONLY (§1.5) — no torso block, because he has no torso zone:
+      // the coat is one block from collar to ankle, so the colour has to
+      // bracket it top and bottom instead of filling it. It is a BAND, ~2 px:
+      // at 3+ px it stopped reading as trim and turned the coat into a dress.
+      g.fillStyle = col;
+      g.beginPath();
+      g.moveTo(cx - 6.2 + yhem, by - 3.6); g.lineTo(cx + 6.2 + yhem, by - 3.6);
+      g.lineTo(cx + 6.6 + yhem, by - 1.4); g.lineTo(cx - 6.6 + yhem, by - 1.4);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      g.fillStyle = shade(col, 1.22);
+      g.fillRect(cx - 5.9 + yhem, by - 3.4, 4.2, 1.6);
+      g.fillStyle = shade(col, 0.76);
+      g.fillRect(cx + 2.4 + yhem, by - 3.3, 3.3, 1.5);
 
       g.save(); g.translate(gt.lean, gt.bob);
-      g.fillStyle = shade(T.coat, 1.12);                             // the coat SKIRT, past the knee
-      g.beginPath();
-      g.moveTo(cx - 4.6, by - 15.0); g.lineTo(cx + 4.6, by - 15.0);
-      g.lineTo(cx + 6.2, by - 5.4); g.lineTo(cx - 6.2, by - 5.4);
-      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
-      g.fillStyle = shade(T.coat, 1.42);                             // lit front panel
-      g.beginPath();
-      g.moveTo(cx - 4.2, by - 14.8); g.lineTo(cx - 1.0, by - 14.8);
-      g.lineTo(cx - 1.8, by - 5.6); g.lineTo(cx - 5.4, by - 5.6);
-      g.closePath(); g.fill();
-      g.fillStyle = col;                                             // house-colour sash at the waist
-      g.fillRect(cx - 4.7, by - 15.6, 9.4, 1.8);
-      g.fillStyle = shade(col, 1.26);
-      g.fillRect(cx - 4.5, by - 15.5, 9.0, 0.7);
 
       g.fillStyle = shade(T.coat, 1.0);                              // torso
       g.beginPath();
       g.moveTo(cx - 4.4, by - 21.0); g.lineTo(cx + 4.4, by - 21.0);
       g.lineTo(cx + 4.8, by - 15.2); g.lineTo(cx - 4.8, by - 15.2);
       g.closePath(); g.fill(); outline(g, shade(T.coat, 0.42));
-      g.fillStyle = col;                                             // house-colour lapels
-      g.beginPath();
-      g.moveTo(cx - 4.2, by - 20.8); g.lineTo(cx - 0.6, by - 20.8);
-      g.lineTo(cx - 1.6, by - 15.6); g.lineTo(cx - 4.4, by - 15.6);
-      g.closePath(); g.fill();
-      g.beginPath();
-      g.moveTo(cx + 4.2, by - 20.8); g.lineTo(cx + 0.6, by - 20.8);
-      g.lineTo(cx + 1.6, by - 15.6); g.lineTo(cx + 4.4, by - 15.6);
-      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      // The lapels are a V that meets at the waist, not two parallel straps —
+      // as two vertical bars they read as braces worn over a shirt.
+      g.fillStyle = col;
+      for (var yl = -1; yl <= 1; yl += 2) {
+        g.beginPath();
+        g.moveTo(cx + yl * 4.4, by - 20.9); g.lineTo(cx + yl * 1.5, by - 20.9);
+        g.lineTo(cx + yl * 0.5, by - 15.4); g.lineTo(cx + yl * 3.9, by - 15.4);
+        g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+        g.fillStyle = shade(col, yl < 0 ? 1.22 : 0.78);
+        g.fillRect(cx + (yl < 0 ? -4.2 : 1.4), by - 20.6, 1.9, 4.9);
+        g.fillStyle = col;
+      }
 
       // Arms DOWN at the sides. RA2 raises them for the psychic attack; hands
       // held at the temples in every frame buried the bald head, which is the
@@ -5454,11 +5575,11 @@
       // the bald head sit in a notch rather than on a normal neck.
       g.fillStyle = shade(T.coat, 0.76);
       g.beginPath();
-      g.moveTo(cx - 4.4, by - 21.2); g.lineTo(cx - 2.6, by - 25.0);
-      g.lineTo(cx + 2.6, by - 25.0); g.lineTo(cx + 4.4, by - 21.2);
+      g.moveTo(cx - 5.4, by - 21.2); g.lineTo(cx - 3.0, by - 25.4);
+      g.lineTo(cx + 3.0, by - 25.4); g.lineTo(cx + 5.4, by - 21.2);
       g.closePath(); g.fill(); outline(g, shade(T.coat, 0.38));
-      g.fillStyle = shade(col, 0.92);
-      g.fillRect(cx - 2.6, by - 25.0, 5.2, 0.9);
+      g.fillStyle = shade(col, 0.92);                                // the collar band — half his remap
+      g.fillRect(cx - 3.0, by - 25.4, 6.0, 1.2);
 
       face(by - 24.0);
       // The bald skull: skin, not a helmet, and drawn slightly larger than a
@@ -5510,19 +5631,30 @@
       g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
       g.fillStyle = shade(T.coat, 1.62);                             // lit left half
       g.fillRect(cx - 4.8, by - 20.4, 3.2, 5.8);
-      g.fillStyle = col;                                             // house-colour yoke
+      // "Silver suit, RED TRIM" (§1.5) — he is a 24.2% unit in RA2, the low
+      // end of the infantry band, because his identity is VALUE (the palest
+      // figure on the field) and the colour is only there to say whose he is.
+      // So the yoke deepens to a real collar-and-shoulder wrap, and stops.
+      g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 5.0, by - 20.6); g.lineTo(cx + 5.0, by - 20.6);
-      g.lineTo(cx + 3.0, by - 18.0); g.lineTo(cx - 3.0, by - 18.0);
+      g.moveTo(cx - 5.6, by - 20.7); g.lineTo(cx + 5.6, by - 20.7);
+      g.lineTo(cx + 3.2, by - 16.9); g.lineTo(cx - 3.2, by - 16.9);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      g.fillStyle = shade(col, 1.22);
+      g.fillRect(cx - 5.4, by - 20.5, 3.2, 2.4);
       g.fillStyle = '#5f6a7a';                                       // chest vent slot
       g.fillRect(cx - 1.6, by - 17.4, 3.2, 1.9);
       g.fillStyle = ACCENT.cleg;
       g.fillRect(cx - 1.3, by - 17.2, 1.1, 1.4);
 
-      arms(5.2, by - 18.6, 2.6, 5.4, shade(T.coat, 1.02), function (i, x, y) {
-        g.fillStyle = shade(col, 0.90);                              // pauldron cap
-        g.beginPath(); g.roundRect(x - 1.7, y - 0.9, 3.4, 2.4, 1.0); g.fill();
+      // THE WIDEST ALLIED FOOT SILHOUETTE. §2.1 asks for a shoulder line
+      // >= 15 px — "powered-suit shoulders with no neck", >= 20% wider than a
+      // GI's 12 — and the suit was being drawn at a rifleman's 10.4, which is
+      // why his nearest silhouette match was the GI. The pauldrons are wide
+      // slabs now and the arms hang off them.
+      arms(6.3, by - 18.6, 2.9, 5.4, shade(T.coat, 1.02), function (i, x, y) {
+        g.fillStyle = shade(col, 0.90);                              // slab pauldron
+        g.beginPath(); g.roundRect(x - i * 0.35 - 2.2, y - 1.3, 4.4, 3.0, 1.0); g.fill();
         outline(g, shade(col, 0.42));
         g.fillStyle = '#4b5361';                                     // dark glove
         g.beginPath(); g.roundRect(x - 1.3, y + 4.6, 2.6, 2.2, 0.8); g.fill();
@@ -5588,7 +5720,33 @@
       // the jacket's opening, black dress shoes, and he walks with a slight
       // crouch, hands out at his sides. No helmet, no webbing, no weapon:
       // the whole read is "that man is not dressed like the others".
-      legs(2.2, by - 12.4, 3.0, T.coat, 3.4);
+      // NO LEG SPLIT, and a HAT. §2.1 gives him "hat brim >= 7 px wide,
+      // >= 1.5x the head; coat hem one unbroken block >= 8 px wide, no
+      // vertical gap" — and he had neither: split trousers and a bare head,
+      // which is why his closest silhouette match on the field was TANYA at
+      // 0.875. Rule 9's second and third levers, both of them, on the one
+      // figure in the roster that is supposed to be a civilian.
+      // The hem TAPERS. Yuri's coat is the other unbroken hem in the roster
+      // and the two collapsed onto each other the moment the Spy lost his leg
+      // split (0.85 pairwise) — so the two coats have to be different COATS:
+      // a business suit is a straight, narrow, slightly tapered line, and
+      // Yuri's is a flared robe a third wider at the ankle.
+      var shem = gt.swf * 0.6;                                       // the coat sways; no stride
+      g.fillStyle = shade(T.coat, 1.02);
+      g.beginPath();
+      g.moveTo(cx - 4.4, by - 13.0); g.lineTo(cx + 4.4, by - 13.0);
+      g.lineTo(cx + 3.7 + shem, by - 1.4); g.lineTo(cx - 3.7 + shem, by - 1.4);
+      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.42));
+      g.fillStyle = shade(T.coat, 1.30);                             // lit front of the hem
+      g.beginPath();
+      g.moveTo(cx - 4.1, by - 12.8); g.lineTo(cx - 1.2, by - 12.8);
+      g.lineTo(cx - 1.5 + shem, by - 1.6); g.lineTo(cx - 3.4 + shem, by - 1.6);
+      g.closePath(); g.fill();
+      for (var ssh = -1; ssh <= 1; ssh += 2) {                       // dress shoes at the hem
+        g.fillStyle = T.boot;
+        g.beginPath();
+        g.roundRect(cx + ssh * 1.9 - 1.5 + shem, by - 2.3, 3.0, 2.3, 0.8); g.fill();
+      }
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = shade(T.coat, 1.10);                             // jacket, skirted past the hip
@@ -5621,31 +5779,65 @@
       g.moveTo(cx + 2.2, by - 20.4); g.lineTo(cx + 0.9, by - 20.4);
       g.lineTo(cx + 1.6, by - 17.2); g.closePath(); g.fill();
 
-      arms(4.6, by - 19.4, 2.1, 6.0, shade(T.coat, 0.94), function (i, x, y) {
+      arms(4.4, by - 19.4, 2.0, 6.0, shade(T.coat, 0.94), function (i, x, y) {
         g.fillStyle = T.skin;                                        // bare hand, held out
         g.beginPath(); g.ellipse(x + i * 0.4, y + 6.4, 1.15, 1.3, 0, 0, 6.29); g.fill();
         outline(g, '#a5806a');
         g.fillStyle = '#dfe3ea';                                     // shirt cuff
         g.fillRect(x - 1.0, y + 4.9, 2.0, 0.9);
+        if (i > 0) {
+          // THE BRIEFCASE (§1.5's prop for him). A flat tan case hanging off
+          // the far hand, clear of the coat — the one thing on the field a
+          // soldier would never be carrying, and it breaks the outline on the
+          // side the hem does not.
+          var bcx2 = x + 1.7, bcy = y + 7.6;
+          g.strokeStyle = '#2a2d33'; g.lineWidth = 0.9; g.lineCap = 'round';
+          g.beginPath(); g.arc(bcx2 - 0.4, bcy - 0.6, 1.4, Math.PI, 0.1); g.stroke();
+          g.fillStyle = '#8d6a3e';
+          g.beginPath(); g.roundRect(bcx2 - 2.4, bcy, 4.8, 3.6, 0.5); g.fill();
+          outline(g, '#4a3617');
+          g.fillStyle = '#ad8a55';                                    // lit lid
+          g.fillRect(bcx2 - 2.2, bcy + 0.25, 4.4, 0.9);
+          g.fillStyle = '#c9b06a';                                    // brass catch
+          g.fillRect(bcx2 - 0.5, bcy + 1.5, 1.0, 1.1);
+        }
       });
 
       face(by - 22.2);
-      // Bare head with short dark hair — no helmet, which is the tell.
+      // THE FEDORA. A brim wider than the shoulders are deep, and a soft
+      // creased crown above it: the one head outline on the field that is
+      // neither a helmet dome nor a bare skull, and the widest thing on him.
       var shx = cx + sd * 1.1 / TURN + HEADX;
-      g.fillStyle = '#2f2620';
-      g.beginPath(); g.ellipse(shx, by - 23.2, 2.55 * (1 - 0.16 * sd), 2.35, 0, Math.PI, 0); g.fill();
-      g.fillRect(shx - 2.55 * (1 - 0.16 * sd), by - 23.3, 5.1 * (1 - 0.16 * sd), 1.0);
-      outline(g, '#150f0b');
-      g.fillStyle = 'rgba(255,255,255,.18)';
-      g.beginPath(); g.ellipse(shx - 0.9, by - 23.9, 1.2, 0.6, -0.35, 0, 6.29); g.fill();
+      var sbw = 4.9 * (1 - 0.14 * sd);                               // half-brim: 9.8 px across —
+                                                                     // §2.1 wants >=7 px of brim and
+                                                                     // >=1.5x the head, and it is the
+                                                                     // widest thing on the figure
+      g.fillStyle = '#2f2620';                                       // short dark hair under it
+      g.beginPath(); g.ellipse(shx, by - 22.9, 2.5 * (1 - 0.16 * sd), 2.1, 0, Math.PI, 0); g.fill();
+      g.fillStyle = shade(T.coat, 0.62);                             // crown
+      g.beginPath();
+      g.roundRect(shx - 2.9 * (1 - 0.16 * sd), by - 25.8, 5.8 * (1 - 0.16 * sd), 3.2, 1.0); g.fill();
+      outline(g, shade(T.coat, 0.34));
+      g.fillStyle = shade(col, 1.05);                                // house-colour hat band
+      g.fillRect(shx - 2.8 * (1 - 0.16 * sd), by - 23.4, 5.6 * (1 - 0.16 * sd), 1.0);
+      g.fillStyle = shade(T.coat, 0.74);                             // the brim, proud of the crown
+      g.beginPath(); g.ellipse(shx, by - 22.5, sbw, 1.25, 0, 0, 6.29); g.fill();
+      outline(g, shade(T.coat, 0.34));
+      g.fillStyle = shade(T.coat, 1.15);                             // lit crease along the crown
+      g.fillRect(shx - 2.1 * (1 - 0.16 * sd), by - 25.3, 1.5, 2.2);
       g.restore();
 
     } else {
-      // GI: an OLIVE soldier wearing a house-colour helmet and a narrow chest
-      // plate — colour on the two smallest surfaces, everything else
-      // (sleeves, belly, belt, trousers) drab. Elbows are tucked to the ribs
-      // and the rifle is angled up across the body, so the outline is a
-      // compact wedge instead of the symmetric T that read as a toy.
+      // GI ([E1]). The RA2 layout, and it is the OPPOSITE of what this branch
+      // used to draw: a GREY POT HELMET over a house-colour TORSO BLOCK over
+      // OLIVE legs (unit-identity-reference.md §1.5). The old pass had the
+      // colour on the helmet and a 4px chest sliver — 12-19% of the figure,
+      // which is the STRUCTURE budget applied to a man, and it left seven
+      // silhouette-identical soldiers with nothing to tell them apart
+      // (unit-redesign-plan.md §1). The torso is one block from the collar to
+      // the belt, the helmet is a distinct VALUE from both torso and legs,
+      // and the legs read olive — the only thing separating him from a
+      // Conscript, so nothing is allowed to sit on them.
       legs(2.5, by - 12.0, 3.4, T.coat, 3.9);
 
       g.save(); g.translate(gt.lean, gt.bob);
@@ -5654,31 +5846,41 @@
       g.moveTo(cx - 5.1, by - 18.6); g.lineTo(cx + 5.1, by - 18.6);
       g.lineTo(cx + 4.6, by - 10.0); g.lineTo(cx - 4.6, by - 10.0);
       g.closePath(); g.fill(); outline(g, shade(T.coat, 0.5));
-      g.fillStyle = shade(T.coat, 0.62);                            // webbing belt
-      g.fillRect(cx - 4.7, by - 12.4, 9.4, 1.5);
       g.fillStyle = '#c9a94a';                                      // ammo pouch
       g.beginPath(); g.roundRect(cx - 1.5, by - 11.8, 3.0, 2.0, 0.6); g.fill();
 
-      g.fillStyle = col;                                            // house-colour chest plate
+      // THE BLOCK: collar to belt, full shoulder width, unbroken. Only two
+      // folds and a belt shadow cut it, and they stay inside 0.70..1.24 —
+      // above about f=1.3 the blue #4aa3db clips to white-cyan and stops
+      // reading as the owner's colour at all.
+      g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 5.2, by - 19.4); g.lineTo(cx + 5.2, by - 19.4);
-      g.lineTo(cx + 3.2, by - 15.2); g.lineTo(cx - 3.2, by - 15.2);
+      g.moveTo(cx - 5.3, by - 19.6); g.lineTo(cx + 5.3, by - 19.6);
+      g.lineTo(cx + 4.8, by - 12.4); g.lineTo(cx - 4.8, by - 12.4);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
-      g.fillStyle = shade(col, 1.22);                               // lit collar edge
-      g.fillRect(cx - 5.0, by - 19.2, 10.0, 1.4);
-      g.fillStyle = shade(T.coat, 0.72);                            // olive strap over the vest
-      g.fillRect(cx - 4.6, by - 17.2, 9.2, 1.1);
+      g.fillStyle = shade(col, 1.22);                               // lit left panel
+      g.fillRect(cx - 5.1, by - 19.4, 3.4, 6.8);
+      g.fillStyle = shade(col, 0.76);                               // shaded right fold
+      g.fillRect(cx + 2.0, by - 19.0, 2.6, 6.2);
+      g.fillStyle = shade(col, 0.62);                               // collar shadow
+      g.fillRect(cx - 5.2, by - 19.5, 10.4, 0.8);
+      g.fillStyle = shade(T.coat, 0.62);                            // webbing belt, under the block
+      g.fillRect(cx - 4.9, by - 12.8, 9.8, 1.5);
       g.fillStyle = '#b09632';                                      // khaki collar scarf
-      g.beginPath(); g.roundRect(cx - 2.9, by - 20.0, 5.8, 1.2, 0.6); g.fill();
+      g.beginPath(); g.roundRect(cx - 2.9, by - 20.1, 5.8, 1.2, 0.6); g.fill();
 
-      arms(5.4, by - 17.4, 2.7, 5.4, T.coat);                       // olive sleeves, tucked in
-      g.fillStyle = shade(T.coat, 1.02);                            // forearms crossing in
+      // The block spills over the SHOULDERS, as it does on the E1 sprite: the
+      // upper sleeve is remapped and the forearm is not, which is what takes
+      // a GI from a 19% figure to RA2's 30-45% band without painting a man
+      // who then reads as a plastic figure. The elbow line is the edge.
+      arms(5.4, by - 17.4, 2.7, 5.4, col);                          // house upper sleeves
+      g.fillStyle = shade(T.coat, 1.02);                            // olive forearms crossing in
       g.beginPath(); g.roundRect(cx - 4.7, by - 12.6, 3.8, 2.2, 1.0); g.fill();
       g.beginPath(); g.roundRect(cx + 1.2, by - 14.2, 3.4, 2.1, 1.0); g.fill();
       outline(g, shade(T.coat, 0.5));
       carbine(cx - 5.2, by - 11.0 + gt.sw * 0.4, cx + 7.2, by - 15.6 - gt.sw * 0.4, 1.9);
       face(by - 21.7);
-      helmet(by - 23.5, 3.15, col, 0.95);
+      helmet(by - 23.5, 3.15, ACCENT.rifle, 0.95);                     // grey pot, NOT house colour
       g.restore();
     }
     return s;
