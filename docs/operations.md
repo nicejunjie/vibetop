@@ -48,12 +48,23 @@ loop, exhausted threads) is restarted, which the crash-only `Restart=on-failure`
 would miss. `_sd_notify` is a dependency-free sd_notify (no-op without
 `NOTIFY_SOCKET`, so local/test runs are unaffected).
 
-**Backups** — `tools/backup.sh` tars the irreplaceable host-local state
-(`~/.local/share/desktop-*`, terminal/notes/update data, FileBrowser DB, the
-OnlyOffice secret, `~/Documents`) to `~/vibetop-backups`, keeping the newest 14.
-`--dry-run` previews, `--install-timer` sets up a daily systemd timer, `--list`/
-`--restore FILE` manage archives. None of this state is in git, so it's the one
-thing a disk loss would take.
+**Backups** — `tools/backup.sh` tars the irreplaceable host-local state to
+`~/vibetop-backups`, keeping the newest 14. **Run it with `sudo`**: vibetop is
+multi-user, so a complete archive needs every registered user's home
+(`~/.local/share/desktop-*`, notes, terminal tab names, FileBrowser DB,
+`~/Documents`) **plus** the host-global state no home holds —
+`/var/lib/vibetop/{users,resources,idle,hints,schedules}.json` (the user registry
+carries the session-revocation epochs) and `/opt/vibetop/etc/*.secret` — **plus**
+the share registry and update history, which live under the *service account's*
+home. An unprivileged run still works but covers only the invoking user, and says
+so. `--dry-run` previews, `--user NAME` scopes to one, `--install-timer` sets up a
+daily `User=root` timer, `--list`/`--restore FILE` manage archives; the restore
+reads the archive's `MANIFEST` and puts each user's tree back in *their* home
+(legacy pre-manifest archives still restore the old way). None of this state is in
+git, so it is the one thing a disk loss would take — and the archive is
+secret-bearing (session secret, JWT secret, every user's documents), written 0600
+in a 0700 directory. Point `BACKUP_DIR` at encrypted storage before shipping one
+anywhere.
 
 The manager logs via a `vibetop` Python logger to **both** journald (stderr) and a
 self-rotating file `/var/log/vibetop/manager.log` (`RotatingFileHandler`,

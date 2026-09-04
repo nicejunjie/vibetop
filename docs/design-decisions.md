@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_230 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_233 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -253,6 +253,9 @@ _230 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A draw-time sprite scale is duplicated in the art gate (2026-09-04)](#a-draw-time-sprite-scale-is-duplicated-in-the-art-gate-2026-09-04)
 - [RA2's owner-colour budget and play-size legibility pull opposite ways (2026-09-04)](#ra2s-owner-colour-budget-and-play-size-legibility-pull-opposite-ways-2026-09-04)
 - [The Codex strip showed 98% the moment the limit was hit (2026-09-04)](#the-codex-strip-showed-98-the-moment-the-limit-was-hit-2026-09-04)
+- [A tool that reports success while doing nothing is worse than a missing tool](#a-tool-that-reports-success-while-doing-nothing-is-worse-than-a-missing-tool)
+- [A hard-coded prefix cannot both bound a map and admit an attacker's keys](#a-hard-coded-prefix-cannot-both-bound-a-map-and-admit-an-attackers-keys)
+- [`isdir()` follows symlinks, so a "replace this directory" repair can repair the wrong one](#isdir-follows-symlinks-so-a-replace-this-directory-repair-can-repair-the-wrong-one)
 
 <!-- END TOC -->
 
@@ -9253,3 +9256,95 @@ five hours away. The null value is per-window, so the 100% must be per-window to
 **Rejected: hiding the null window.** It would make the strip shorter the moment
 the user is blocked, and drop the reset countdown — the one piece of information
 that tells them when they can run again.
+
+## A tool that reports success while doing nothing is worse than a missing tool
+
+**Symptom.** `sudo ./uninstall.sh` printed "Removed: services, nginx config,
+OnlyOffice container, web root" on the reference host while `/opt/vibetop/vibetop-www`
+was untouched and seventeen per-user services kept running. `tools/backup.sh`
+wrote a daily archive it described as "the irreplaceable, host-local user
+data/state" that contained one of three users' homes and none of the host-global
+state at all.
+
+**Cause.** Both derived their target from `$SUDO_USER`, which was right when
+vibetop ran out of one human's home and became wrong the moment it moved to
+`/opt/vibetop` with per-user state under each user's own `_ctx_home()`. Nothing
+failed — the paths they computed simply did not exist, and "remove a directory
+that isn't there" and "archive the files that are present" both succeed loudly.
+
+**Fix.** The uninstaller asks nginx where the web root is (`vt_nginx_root` reads
+`root` from the live site file — the served root is whatever that says, which
+covers system layout, legacy home installs and a custom `LANDING_DIR` alike), and
+every `rm -rf` sits behind `vt_is_web_root`: right name, deep enough not to be a
+system directory, and actually containing a deployed shell. An unrecognised value
+deletes **nothing** and says so. The backup enumerates users from the registry the
+manager itself writes, archives `users/<name>/…` plus `system/…` under a versioned
+`MANIFEST`, and an unprivileged run states out loud that it covered one user.
+
+**Rejected: making the uninstaller take a `--web-root` flag.** It moves the
+guess to the operator, who has the same information the script does and less
+reason to be careful with it.
+
+**Rejected: keeping `$SUDO_USER` as a fallback ahead of the layout.** That is the
+bug: a fallback that resolves to *something* is indistinguishable from a correct
+answer. The order is nginx → system layout → legacy home, and a miss is a miss.
+
+**The generalisation.** Any tool whose job is "make X go away" or "keep a copy of
+X" must resolve X from a live authority and refuse when it cannot, because its
+failure mode is silence. Enumerating by glob rather than by hand-written list is
+the same rule: `vibetop-backup.timer` and `vibetop-claude-proxy.socket` survived
+every uninstall for months purely because nobody added them to a list.
+
+## A hard-coded prefix cannot both bound a map and admit an attacker's keys
+
+**Symptom.** Login throttling was keyed on the submitted username. Ten wrong
+guesses at a known name refused that account's **correct** password for five
+minutes, so any LAN peer or authorized tunnel user could deny another user their
+login at will. Meanwhile a spray of unique invalid names grew the tracking map
+without bound.
+
+**Cause.** One counter was asked to do two incompatible jobs. As a *lockout* it
+must be keyed on something the attacker controls (the target's name) — which is
+exactly what makes it a weapon. As a *bound* it was written before the name was
+validated, so any string became a key, and its 10 000-entry "cap" only evicted
+**expired** entries: during a sustained spray nothing is expired, so the map grew
+and every request past the threshold rescanned all of it.
+
+**Fix.** Split the jobs. Validate the username's shape first, so junk never
+reaches the books. The per-account counter became a saturating **delay** — real
+friction against online guessing, but the correct password always gets through,
+so it cannot be used against a victim. The **refusal** moved to the request
+source, which an attacker cannot pin on somebody else. Both books are
+`OrderedDict` LRU with a hard cap, so eviction is O(1) least-recently-touched
+whether or not anything has expired.
+
+**Rejected: raising the entry cap.** The cap was never the problem; evicting only
+expired entries was. A larger map spreads the same failure over more memory.
+
+**Rejected: keeping the account lockout and adding source limits on top.** The
+lockout is the denial-of-login primitive. Adding a second control does not remove
+the first one's abuse.
+
+## `isdir()` follows symlinks, so a "replace this directory" repair can repair the wrong one
+
+**Symptom.** `_prepare_fileagent_dir` documents that any directory which is not
+"owned by this user, 0700, a real dir" will be replaced. Against a symlink to a
+directory it replaced nothing and re-permissioned the link's **target**.
+
+**Cause.** Five steps that are each individually reasonable: `os.path.isdir(d)`
+follows the link and is True; `os.lstat` correctly reports a symlink so the
+"untrusted" branch is taken; `shutil.rmtree` **refuses to remove a symlink** and
+`ignore_errors=True` discards the error; the second `os.path.isdir(d)` is still
+True so nothing is created; and `os.chmod`/`os.chown` follow the link. The
+routine ran to completion, returned success, and changed the mode and owner of
+whatever the link pointed at.
+
+**Fix.** `os.path.lexists` + `os.lstat` to decide, an explicit `os.unlink` for
+anything that is not a real directory (`shutil.rmtree` is only correct for one),
+a re-check that the path is actually gone, and `os.fchmod`/`os.fchown` through a
+fd opened `O_NOFOLLOW` so a link that appears between the check and the change
+cannot be followed either.
+
+**Not exploitable today** — the root-owned 0755 parent stops an ordinary tenant
+creating the link. It is recorded because a security repair routine that repairs
+the wrong object is worse than no routine: it reports that the fence is intact.
