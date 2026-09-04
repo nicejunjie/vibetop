@@ -50,6 +50,44 @@ def test_codex_usage_keeps_reset_when_blocked_event_has_null_primary(mgr, tmp_pa
     assert got["weekly"] == {"pct": .74, "reset": 2000600000, "minutes": 10080}
 
 
+def _one_null_event(ts, primary, secondary):
+    """An out-of-limit event where exactly one window is null."""
+    return {"timestamp": ts, "type": "event_msg", "payload": {
+        "type": "token_count", "rate_limits": {
+            "limit_id": "premium", "primary": primary, "secondary": secondary,
+            "plan_type": "plus"}}}
+
+
+def test_codex_usage_weekly_exhausted(mgr, tmp_path):
+    """A null-secondary event marks the weekly window 100%; session keeps its value."""
+    sessions = tmp_path / ".codex/sessions/2026/09/03"
+    sessions.mkdir(parents=True)
+    rollout = sessions / "blocked.jsonl"
+    rollout.write_text(
+        json.dumps(_event("2026-09-03T18:54:51Z", 50, 100)) + "\n"
+        + json.dumps(_one_null_event("2026-09-03T18:54:52Z",
+                                    {"used_percent": 50, "window_minutes": 300,
+                                     "resets_at": 2000000000}, None)) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"] == {"pct": .50, "reset": 2000000000, "minutes": 300}
+    assert got["weekly"] == {"pct": 1.0, "reset": 2000600000, "minutes": 10080}
+
+
+def test_codex_usage_primary_exhausted(mgr, tmp_path):
+    """A null-primary event marks the session window 100%; weekly keeps its value."""
+    sessions = tmp_path / ".codex/sessions/2026/09/03"
+    sessions.mkdir(parents=True)
+    rollout = sessions / "blocked.jsonl"
+    rollout.write_text(
+        json.dumps(_event("2026-09-03T18:54:51Z", 100, 50)) + "\n"
+        + json.dumps(_one_null_event("2026-09-03T18:54:52Z", None,
+                                    {"used_percent": 50, "window_minutes": 10080,
+                                     "resets_at": 2000600000})) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"] == {"pct": 1.0, "reset": 2000000000, "minutes": 300}
+    assert got["weekly"] == {"pct": .50, "reset": 2000600000, "minutes": 10080}
+
+
 def test_codex_usage_missing_and_disabled(mgr, tmp_path):
     assert mgr._codex_usage_payload(str(tmp_path), True) == {"enabled": True}
     assert mgr._codex_usage_payload(str(tmp_path), False) == {"enabled": False}
