@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_218 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_219 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -111,6 +111,7 @@ _218 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Browser scrolling: floor while moving, round once at rest](#browser-scrolling-floor-while-moving-round-once-at-rest)
 - [The tiled seam belonged to whoever was on top (and the "desktop gap" that wasn't)](#the-tiled-seam-belonged-to-whoever-was-on-top-and-the-desktop-gap-that-wasnt)
 - [A toggle's immediate push was a ReferenceError, swallowed by the line under it](#a-toggles-immediate-push-was-a-referenceerror-swallowed-by-the-line-under-it)
+- [RA2-scale art rendered at 0.59x: why every unit art pass could pass and the field still read as mush](#ra2-scale-art-rendered-at-059x-why-every-unit-art-pass-could-pass-and-the-field-still-read-as-mush)
 - [Retiring the SE grip — but only where the cursor can replace it](#retiring-the-se-grip-but-only-where-the-cursor-can-replace-it)
 - [A set-once preference does not earn permanent chrome](#a-set-once-preference-does-not-earn-permanent-chrome)
 - [Where the Floating-windows switch lives: three tries, and the lesson](#where-the-floating-windows-switch-lives-three-tries-and-the-lesson)
@@ -4194,6 +4195,59 @@ the bare-call version.
 forfeit the unit test; they are genuinely independent features. *Publishing the
 global but leaving the bare call* — that works, but leaves the file depending on
 an invisible contract with no way to check it.
+
+---
+
+---
+
+## RA2-scale art rendered at 0.59x: why every unit art pass could pass and the field still read as mush
+
+**Symptom.** *"The buildings are okay, but all other items, especially the troops,
+tanks, flights are hardly distinguishable, they all look alike on the map."* Measured:
+nine pixels of a Grizzly (0.6% of it) fall outside a Rhino's outline; eleven of
+thirteen ground vehicles have a *peer* matching their silhouette better than they
+match themselves from another bearing. Yet every unit had already been through a 1:1
+art pass against its own RA2 sprite, and each of those passes recorded a good aspect
+ratio and a good owner-hue percentage.
+
+**Cause — the measurements were all taken at a size the player rarely sees.** RA2's
+cell is 60x30 and its renderer never scaled: the art was authored once, for one size,
+with identity spikes at a **2px floor**. Ours is `TW 64 / TH 32` with `ZMIN 0.55`
+(`rts.html:24995`), so at minimum zoom we render RA2-scale art at **0.587x** — an
+RA2-faithful 2px barrel becomes 1.1 device px and vanishes into a bilinear smear.
+Every aspect check and hue census in `apps/games/rts/docs/roadmap.md` was taken at
+1:1, **where this is invisible**. So the art passes were not wrong; they were graded
+at a magnification the game does not hold still at.
+
+**A second, independent cause in the same complaint** (recorded here because they were
+found together and are easy to conflate): art pass 8 applied a house-colour budget
+derived from STRUCTURES uniformly across the game. Measured against the sprites, RA2
+puts 11.5-27% owner colour on vehicles — which our 10.5-22.6% matches — but **29-45%
+on infantry**, because seven of twelve RA2 infantry are the *same black shape* and
+colour is the only thing separating them. Our infantry sit at 12.5-19.1%. The uniform
+rule is right for vehicles and wrong for infantry by a factor of two, and it removed
+the primary mechanism rather than merely quieting it.
+
+**Fix (the gate).** Identity spikes are authored at **>= 3.6px at zoom 1**, so they
+clear 2px at `ZMIN`. `apps/games/rts/rts-art.test.js` measures every declared spike at
+`ZMIN` and ratchets it.
+
+**Rejected.** *Raising `ZMIN` to ~0.85* — cheapest, and it works, but it takes a
+capability away from the player to compensate for an art constraint; kept as the
+documented fallback for any single unit that cannot make the floor without distorting
+its proportions. *Baking a second low-zoom sprite set with thickened spikes* — the
+most faithful to how a real sprite pipeline would solve it, and the most work; revisit
+only if (1) forces proportions away from the references. *Re-adding house colour to
+vehicles* — the vehicle budget is already inside RA2's range; only its PLACEMENT is
+wrong (RA2 uses 2-5 discrete blocks sited on the identity feature, never one unbroken
+band). Do not undo art pass 8's vehicle restraint.
+
+**The lesson worth keeping.** A fidelity metric is only as good as the viewing
+condition it is measured under. "Aspect 1.50 vs ref 1.55, owner hue 14.5%" is a true
+statement about a sprite and says nothing about whether the player can tell two units
+apart mid-battle at 0.55 zoom. The new gate asserts ENSEMBLE properties — can any unit
+be confused with a peer — precisely because per-unit fidelity numbers were all green
+while the ensemble was not.
 
 ---
 

@@ -114,7 +114,8 @@ while IFS= read -r src; do
 done <<EOF
 $(find "$DIR" "$REPO/shared" "$REPO/apps" \
         -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) \
-        ! -name '*.test.js' ! -path '*/art/*' ! -name 'services.example.json' | sort)
+        ! -name '*.test.js' ! -path '*/art/*' ! -path '*/tools/*' ! -path '*/docs/*' \
+        ! -name 'services.example.json' | sort)
 EOF
 
 # A flat web root means two grouped sources CAN collide on one URL. The old
