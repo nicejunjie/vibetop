@@ -1042,6 +1042,7 @@
 </style>
   <!-- appreg.js FIRST: buildStartMenu() reads APPS at parse time. -->
   <script src="/appreg.js"></script>
+  <script src="/deskstate.js"></script>
   <script src="/vibe-modal.js"></script>
   <script src="/coach.js"></script>
   <script src="/winmgr.js"></script>
@@ -2469,7 +2470,7 @@
   try {
     INSTANCE_ID = localStorage.getItem('vibetop-instance');
     if (!INSTANCE_ID) {
-      INSTANCE_ID = 'i-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+      INSTANCE_ID = VibeDeskState.mintInstanceId(Date.now(), Math.random());
       localStorage.setItem('vibetop-instance', INSTANCE_ID);
     }
   } catch (e) { INSTANCE_ID = 'i-' + Math.random().toString(36).slice(2, 10); }
@@ -2485,18 +2486,11 @@
   // permanently-green dot made "close on all devices" (the ⏻) look broken (the
   // window closed everywhere but the dot never went dark). The dot now honestly
   // tracks whether the Browser window is open somewhere.
+  // The decision itself lives in deskstate.js (pure, tested); this stays a
+  // one-argument wrapper so the dozen call sites below read as they always did.
   function isRunning(id) {
-    // X11 Launcher's dot tracks GUI apps RUNNING on :98 (like Terminal's tracks live
-    // sessions) — NOT merely having the launcher window open. So closing every app
-    // clears the dot even while the launcher stays open, and orphaned apps (window
-    // closed) still light it + its ⏻ close-all. Must come BEFORE the window/union
-    // checks below, which would otherwise light it just for being open. (xWinCount is
-    // fed by watchXWindows; hoisted like terminalCount.)
-    if (id === 'x11launcher') return xWinCount > 0;
-    if (openApps.indexOf(id) !== -1) return true;
-    if (runningGlobal.indexOf(id) !== -1) return true;
-    if (id === 'terminal') return terminalCount > 0;
-    return false;
+    return VibeDeskState.isRunning(id, { open: openApps, running: runningGlobal,
+                                         terminalCount: terminalCount, xWinCount: xWinCount });
   }
 
   // Handle a desktop API reply (from a push or the initial load): refresh the
@@ -2522,21 +2516,14 @@
     renderWarnings(d.warnings);   // system-health red banner (disk-full etc.), always on the heartbeat
     if (typeof d.terminals_running === 'number') terminalCount = d.terminals_running;
     if (Array.isArray(d.running)) { runningGlobal = d.running; markMenuRunning(); }
-    if (typeof d.reset_epoch === 'number') {
-      if (lastResetEpoch === null) lastResetEpoch = d.reset_epoch;
-      else if (d.reset_epoch > lastResetEpoch) { lastResetEpoch = d.reset_epoch; clearAllLocal(); }
+    switch (VibeDeskState.resetDecision(lastResetEpoch, d.reset_epoch)) {
+      case 'baseline': lastResetEpoch = d.reset_epoch; break;
+      case 'clear':    lastResetEpoch = d.reset_epoch; clearAllLocal(); break;
     }
     // Cross-device close: the server lists which instances should close which app.
     // If WE'RE a target and have it open, close it (no baseline needed — once we
     // close it and report an open-set without it, the server drops us as a target).
-    if (d.close_targets && typeof d.close_targets === 'object') {
-      for (var app in d.close_targets) {
-        var ids = d.close_targets[app];
-        if (Array.isArray(ids) && ids.indexOf(INSTANCE_ID) !== -1 && openApps.indexOf(app) !== -1) {
-          closeApp(app);
-        }
-      }
-    }
+    VibeDeskState.closeTargetsFor(d.close_targets, INSTANCE_ID, openApps).forEach(closeApp);
   }
 
   // Ask every live client to close `app` (the Start-menu "close on all devices").
