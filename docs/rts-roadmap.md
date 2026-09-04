@@ -328,9 +328,21 @@ fidelity plus reproduced player reports.
   none`, only `.swic` is clickable), so the drag-eating bug that made this
   look like a defect is gone. **Do not "fix" this by moving them to the
   sidebar.** See `docs/design-decisions.md`.
-- ☐ Still open from the playtests: soak residuals of ~16 tile stacks and ~12
-  crowd-stuck units per 24 matches. Everything else that list carried is
-  fixed: ~~structures interpenetrate~~ (Phase 2 footprints), ~~Weather Storm
+- ☑ 2026-09-03 Soak residuals — settled tile stacks and crowd-stuck units, one
+  mechanism between them. The separation push lives inside `moveAlong`, which
+  only runs while a unit is FOLLOWING A PATH, so a unit that had stopped —
+  order complete, order dropped, or never given one — settled exactly where it
+  stood and stayed there. `stepSettle` gives a unit that did not move this tick
+  the same push at a shuffle's pace, skipping anything that walked in the last
+  1.5 s or fired in the last 3 s so a firing line still holds its ground.
+  Measured over 24 hard-vs-easy Iron Frontier matches on the build carrying the
+  `isAiSide` seat-0 fix: **tile stacks 74 → 1**, **crowd-stuck 131 → 1**, units
+  standing inside a building footprint 43 → 31, frozen-army flags 8 → 2. Gates
+  level: HE 22/24 → 22/24, HN 44/48 → 43/48 across two disjoint 12-seed sets,
+  NE 18/24 → 18/24, Coastal 11/12 → 12/12. The old "~12 crowd-stuck" was also
+  being *mis-counted* — see `docs/design-decisions.md`, "A stuck detector that
+  started its clock before the order arrived". Everything else that list
+  carried is fixed: ~~structures interpenetrate~~ (Phase 2 footprints), ~~Weather Storm
   is one thin bolt~~ (Phase 5 storm timing), ~~the AI never fields
   Engineer/Tanya/Ivan/Drone/Tesla Tank/Purifier~~ (Phase 6 task forces),
   ~~a hull re-issues an order it can never complete~~ (the naval follow-up's
@@ -344,6 +356,19 @@ fidelity plus reproduced player reports.
   `dirInf`; the Collective fields `colFlood`, `colRhino` (max 2), `colMech`
   and `colDrone`. It wants its own balance pass with its own soak — it moves
   the pinned snapshots, so it must not ride inside another change.
+  **Measured 2026-09-03: this is a DEFECT, not a balance gap.** `P_HUMAN` was
+  answering three questions at once, and `advance()`, `orderUnitsTo()` and the
+  crush branch had no escape hatch for an AI sitting at seat 0 — so a seat-0
+  AI's deployed GIs could never walk again and its tanks never crushed. `dep`
+  is on the GI and nothing else, so it cost the Directorate alone, and
+  `gates.sh` puts the HARD side at seat 0. With `isAiSide` alone (feat/net) and
+  no balance change at all: hard-Directorate 20.6 → 19.1 min, hard-Collective
+  17.1 → 18.3, gap **3.5 → 0.8 min**; the hard mirror moves from dir 2 / col 19
+  to dir 7 / col 13, and the gate re-baselines to 22/24. Do NOT tune
+  `AI_TEAMS`, the Battle Lab priority or `dirGrz` on top of it: a build-order
+  pass that looked right against the *broken* baseline (tech rungs above the
+  extra War Factory) measured dir 18 / col 5 in the mirror once the seat fix
+  was in — a buff on top of a fix. Rejected; see `docs/design-decisions.md`.
 - ☑ v1.19.242 Prism Tank: `CometWH` (50% vs armour, 200% vs structures), ROF 400,
   range 10, Speed 4. *(blocker)*
 - ☑ v1.19.242 Prerequisites enforced exactly as `Prerequisite=`: Tesla Coil POWER+RADAR;

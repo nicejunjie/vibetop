@@ -24542,6 +24542,59 @@
     }
   }
 
+  // RA2 ground units do not share a cell. The separation push lives inside
+  // moveAlong, which only runs while a unit is FOLLOWING A PATH, so a unit
+  // that has STOPPED — order complete, order dropped, or never given one —
+  // settles wherever it happens to stand and stays there, on top of whatever
+  // else stopped on the same tile. The soak measured 66 settled stacks (five
+  // bodies, or three vehicles, parked on one cell) across 24 hard-vs-easy
+  // matches, 57 of them units carrying no order at all: an AI staging area,
+  // a rally point, or a wave that arrived and had nothing left to kill.
+  //
+  // This is the same push, at a shuffle's pace, for a unit that did not move
+  // on its own this tick. It deliberately does NOT touch `movedAt` or
+  // `noProg`: a shuffle is not progress, and the stuck detectors have to keep
+  // reading a jammed unit as jammed.
+  var SETTLE_R = 0.85, SETTLE_SPD = 0.02;
+  function stepSettle(g) {
+    for (var i = 0; i < g.units.length; i++) {
+      var u = g.units[i];
+      if (u.dead || u.air || u.limbo || u.warp || u.erase > 0) continue;
+      // A unit that is walking, or has walked in the last second and a half,
+      // is already sorting itself out through moveAlong's own separation.
+      if (g.tick - (u.movedAt == null ? -1e9 : u.movedAt) < 90) continue;
+      // ...and a unit in a firefight holds the ground it is shooting from.
+      // Without this the shuffle spread every firing line in the game, which
+      // is worth more to the side standing in its own base than to the side
+      // walking into it: measured on two disjoint 12-seed sets, hard vs
+      // normal fell 22/24 -> 19/24 on both.
+      if (g.tick - (u.fireAt == null ? -1e9 : u.fireAt) < 180) continue;
+      if (u.deployed || u.landed) continue;            // deployed men and parked hulls hold their ground
+      if (u.state === 'mining') continue;              // a miner on its seam stays on it
+      if (u.order && u.order.t === 'coil') continue;   // hand-feeding a Tesla Coil is a position
+      var d = UNITS[u.type];
+      if (d.nav) continue;                             // hulls keep station by their own rules
+      var sx = 0, sy = 0, n = 0;
+      near(u.x, u.y, SETTLE_R, function (o) {
+        if (o === u || o.dead || o.kind !== 'u' || o.air || o.limbo) return;
+        var ox = u.x - o.x, oy = u.y - o.y, od = Math.sqrt(ox * ox + oy * oy);
+        if (od >= SETTLE_R) return;
+        n++;
+        // Exactly co-located: the vector is zero and no push exists. Break the
+        // tie off the ids so the shove is the same on every client.
+        if (od < 1e-4) { ox = (u.id > o.id) ? 1 : -1; oy = ((u.id + o.id) & 1) ? 1 : -1; od = Math.SQRT2; }
+        sx += ox / od * (SETTLE_R - od); sy += oy / od * (SETTLE_R - od);
+      });
+      if (!n) continue;
+      var len = Math.sqrt(sx * sx + sy * sy);
+      if (len < 1e-6) continue;
+      var st = Math.min(SETTLE_SPD, len), mv = moverOf(u);
+      var nx = u.x + sx / len * st, ny = u.y + sy / len * st;
+      if (tilePassable(g, nx, u.y, u.p, mv)) u.x = Math.max(0, Math.min(MAP - 1, nx));
+      if (tilePassable(g, u.x, ny, u.p, mv)) u.y = Math.max(0, Math.min(MAP - 1, ny));
+    }
+  }
+
   function simStep(g) {
     g.tick++;
     netApplyDue(g);
@@ -24550,6 +24603,7 @@
 
     var i;
     for (i = 0; i < g.units.length; i++) if (!g.units[i].dead) stepUnit(g, g.units[i]);
+    stepSettle(g);
     for (i = 0; i < g.blds.length; i++) if (!g.blds[i].dead) stepBld(g, g.blds[i]);
     if (g.debug) {                                   // debug mode: bottomless bank, no shroud
       g.side[P_HUMAN].credits = 999999;

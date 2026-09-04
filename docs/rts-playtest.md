@@ -56,7 +56,12 @@ minutes each, and assert every minute (a violation is a finding with the
 seed, tick and entity):
 
 - No unit holds a move/attack order for > 60 s without moving or firing
-  (stuck), unless blocked by a wall of units at the target.
+  (stuck), unless blocked by a wall of units at the target. **The clock starts
+  when the ORDER does**, and "moving" means getting measurably closer to the
+  order's target — an implementation that reads `movedAt` alone fires on the
+  tick an order reaches a unit that had been idle before it, and reported 120
+  phantom stuck units per 24 matches (`docs/design-decisions.md`, "A stuck
+  detector that started its clock before the order arrived").
 - No harvester idles > 45 s while reachable ore exists and a refinery stands.
 - No production queue stays `ready` > 60 s for the AI (never placed).
 - Every AI-buildable unit and structure appears at least once across the

@@ -7401,6 +7401,114 @@ flight code to reproduce a secondary weapon.
 **Rejected.** *A global "detected" flag on the sub.* Detection is per-side: the
 owner always sees it, and one player's Dolphin must not reveal it to the other.
 
+## The Directorate's "mid-game gap" was a seat, not a faction (2026-09-03)
+
+**Symptom.** On Iron Frontier — no water, so not the naval asymmetry — a hard
+Directorate took 20.6 min on average to beat an easy Collective where a hard
+Collective took 17.1 (the roadmap's original snapshot read 19.9 vs 13.3). In a
+hard mirror the Directorate won **2 of 24**, and in the twelve of those where it
+sat at seat 0 it won **0**.
+
+**Cause.** Not balance. `P_HUMAN` was answering three different questions, and
+three AI-driven sites had no escape hatch for an AI sitting at seat 0:
+`advance()` (`u.p !== P_HUMAN … else return false` — a deployed unit could never
+walk again), `orderUnitsTo()` (seat 0's deployed units refused move orders) and
+the crush branch (seat 0's tanks never crushed infantry). `dep` is on the GI and
+on nothing else in the game, and `gates.sh` puts the HARD side at seat 0 — so
+the defect was, precisely, "the hard Directorate freezes its own GIs". Every
+Allied task force carrying GIs (`dirInf`, `dirPrism`, `dirMech`, `dirHawk`,
+`dirLand`) bled itself. Found by the multiplayer pass (`isAiSide`, feat/net) and
+confirmed here by applying that fix alone to the balance baseline: gap
+**3.5 → 0.8 min**, mirror dir 2/col 19 → dir 7/col 13, gate 23/24 → 22/24.
+
+**Fix.** `isAiSide(g, p)` at all four sites; it belongs to the multiplayer
+`ME`/`FOE`/`isAiSide` split, not to a balance pass.
+
+**Rejected — and this is the point of the entry.** A build-order pass aimed at
+the *apparent* gap: RA2 `[AI] BuildTech=NATECH,GATECH`, the observation that the
+whole Allied army above the Grizzly is gated on GATECH, and a measured ladder
+that put the hard Directorate's Air Force Command at 13:48 and its Battle Lab at
+15:47 (in a mirror, never) all argued for hoisting the tech rungs above the
+"second War Factory" rung. Against the broken baseline it looked like a clean
+win — mirror dir 2/col 19 → 12/11, gap 3.55 → 0.43 min, gate held at 23/24.
+Re-measured **with** the seat fix in place, the same change gives dir **18** /
+col 5: a large Directorate buff sitting on top of a bug fix. Backed out whole.
+
+**Rejected:** enforcing rules.ini `[AI] WarLimit=2` / `BarracksLimit=2` as hard
+ceilings (the AI was reaching five War Factories and four Barracks). It is
+genuine ground truth, but this game's `MultipleFactory` deliberately deviates
+from RA2's, and producer count is the difficulty ladder's main economic lever:
+capping it cost hard-vs-easy three matches (23/24 → 20/24) because the hard AI
+lost the edge and could not spend its bank anywhere else.
+
+**Rule.** When one side of a symmetric matchup is slow, check the *seat* before
+the faction. A harness that always puts the same difficulty in the same slot
+will launder a seat-dependent defect into a balance finding.
+
+## Separation only ran while a unit was walking (2026-09-03)
+
+**Symptom.** The soak reported ~70 *settled* tile stacks per 24 Iron Frontier
+matches — five bodies, or three vehicles, parked on one cell — plus ~40 units
+standing inside a building's own footprint. Screenshots showed rally points and
+AI staging areas as one sprite with a stack of health bars behind it.
+
+**Cause.** The separation vector is computed inside `moveAlong`, and `moveAlong`
+only runs while a unit is FOLLOWING A PATH. A unit that has *stopped* — order
+complete, order dropped, or never given one — never evaluates it again, so it
+settles wherever the last tick left it and stays there for the rest of the
+match. 57 of the 66 stacks in the first census were units carrying no order at
+all. RA2 ground units never share a cell.
+
+**Fix.** `stepSettle(g)`, one pass after the unit loop in `simStep`: a ground
+unit that did not move on its own this tick takes the same push, at 0.02 cells
+a tick, out to the same 0.85-cell radius, clamped by `tilePassable`. Exactly
+co-located units break the zero vector off their ids so every client shoves the
+same way. It deliberately does **not** touch `movedAt` or `noProg` — a shuffle
+is not progress, and the stuck detectors have to keep reading a jammed unit as
+jammed. Measured (24 hard-vs-easy matches, on the build carrying `isAiSide`):
+tile stacks 74 → 1, crowd-stuck 131 → 1, units-in-footprint 43 → 31,
+frozen-army 8 → 2. A settled blob is completely still after ~5 s (measured
+drift 0.000 cells from tick 300 on), so there is no jitter and no CPU churn.
+
+**Rejected:** *the same push with no exceptions.* It also spread every FIRING
+LINE in the game, and a spread firing line is worth more to the side standing
+in its own base than to the side walking into it: hard vs normal fell 22/24 →
+19/24 on **two disjoint 12-seed sets**. The shipped rule skips a unit that
+walked in the last 1.5 s (`movedAt`) or fired in the last 3 s (`fireAt`), which
+puts hard vs normal back to 43/48 across both sets while still taking the
+stacks to 1.
+
+**Rejected:** *setting `movedAt` when a unit shuffles.* It would silence the
+soak's stuck detectors by making every jammed unit look like it was moving —
+the measurement, not the defect.
+
+## A stuck detector that started its clock before the order arrived (2026-09-03)
+
+**Symptom.** `soakB.js` reported ~120 `B1-stuck` / `B1-stuck-in-crowd` flags per
+24 matches, all reading like real bugs: `conscript p0 order=attack->29,26 no
+move/fire for 218 s (noProg=1 path=none crowd=7)`.
+
+**Cause.** The check asked "does this unit have an order, and has it moved or
+fired in the last 60 s?" — but `movedAt` is not reset when an order is *issued*.
+A unit that stood in a staging area for three minutes and then received an order
+was flagged on the very tick the order arrived. Tracing one of them (seed 555,
+unit 78) showed a dog idle with **no order at all** from tick 30659 to 36180,
+then moving on the very tick the AI gave it one. Re-measured with the clock
+started at the order: **0 of 120** were a unit that had actually held an order
+for 60 s. `docs/rts-playtest.md` says "no unit HOLDS a move/attack order for
+> 60 s without moving or firing", so the clock has to start when the order does.
+
+**Fix.** The invariant tracks an order signature (`t:id:x,y`); when it changes,
+the clock and the best-distance-so-far reset. A flag needs 60 s since the order
+was issued *and* 60 s without getting 0.35 cells closer to it and without
+firing. On the corrected invariant the same 24 matches report **131** genuine
+crowd-stuck units on the unfixed build — more than the broken one found, and
+all of them the settled-stack mechanism above; `stepSettle` takes them to 1.
+
+**Rule.** An invariant over "has X happened recently" needs a clock that starts
+when the thing being judged starts. Clamping to `born` (which this one did) is
+not enough when the subject is an *order*, not a unit.
+
 ## A ship needs a give-up that a tank does not (2026-09-03)
 
 **Symptom.** One Destroyer on Coastal raised `B1-stuck` **419 times in a single

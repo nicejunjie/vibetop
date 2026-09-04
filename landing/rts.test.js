@@ -2823,7 +2823,7 @@ test("the default options replay a seed exactly as the game did before them", ()
   const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
   assert.deepEqual(
     { u0: r.p0units, u1: r.p1units, b0: r.p0blds, b1: r.p1blds, c0: r.p0credits, c1: r.p1credits },
-    { u0: 8, u1: 11, b0: 5, b1: 5, c0: 8407, c1: 9235 },   // re-recorded after the footprint + Tesla Reactor cost change
+    { u0: 8, u1: 11, b0: 5, b1: 5, c0: 8407, c1: 9236 },   // re-recorded after the footprint + Tesla Reactor cost change, then after stepSettle (idle units shuffle apart)
     "a default match must be bit-for-bit the recorded match",
   );
 });
@@ -3100,7 +3100,7 @@ test("adding audio did not move the simulation", () => {
   assert.equal(r.p0blds, 5);
   assert.equal(r.p1blds, 5);
   assert.equal(r.p0credits, 8407);
-  assert.equal(r.p1credits, 9235);
+  assert.equal(r.p1credits, 9236);
   assert.equal(r.p0made, 8);
   assert.equal(r.p1made, 11);
 });
@@ -4368,4 +4368,42 @@ test("[AEGIS] Prerequisite=GAYARD,GARADR — the Allied radar IS the Airforce Co
   for (const d of T.AI_TEAMS.filter((t) => t.naval && t.fac === "dir"))
     for (const f of d.force)
       assert.equal(N.aiCanMake(g, 0, f.t), true, `${d.key} can field a ${f.t}`);
+});
+
+// ==================== Settled stacks (soak residual) ==================== //
+
+test("units that have stopped moving shuffle out of each other's tile", () => {
+  // The separation vector lives inside moveAlong, which only runs while a
+  // unit is FOLLOWING A PATH. A unit that has stopped — order complete, order
+  // dropped, or never given one — used to settle exactly where it stood, so
+  // a rally point or a staging area ended up as five bodies on one cell. The
+  // soak counted 66 settled stacks across 24 hard-vs-easy matches (57 of them
+  // units carrying no order at all; re-measured on the isAiSide build it is 74
+  // stacks and 131 crowd-stuck units). stepSettle takes both to 1.
+  const H = W.__rtsTest;
+  const g = H.begin(5150, "normal", "frontier");
+  const spot = { x: Math.round(g.start[0].x) + 4, y: Math.round(g.start[0].y) + 4 };
+  const made = [];
+  for (let i = 0; i < 6; i++) made.push(H.spawn("rifle", 0, spot.x, spot.y));
+  for (let i = 0; i < 3; i++) made.push(H.spawn("lancer", 0, spot.x, spot.y));
+  for (const u of made) assert.ok(u && !u.dead, "the fixture spawned");
+  for (const u of made) assert.equal(u.order, null, "nobody has an order: this is a rally point");
+  for (let i = 0; i < 900; i++) H.step(1);
+
+  const tiles = new Map();
+  for (const u of made) {
+    const k = Math.round(u.x) + "," + Math.round(u.y);
+    tiles.set(k, (tiles.get(k) || 0) + 1);
+  }
+  const worst = Math.max.apply(null, [...tiles.values()]);
+  assert.ok(worst <= 2, `${worst} idle units are still stacked on one tile`);
+  let closest = 1e9, pair = "";
+  for (let i = 0; i < made.length; i++) for (let j = i + 1; j < made.length; j++) {
+    const d = Math.hypot(made[i].x - made[j].x, made[i].y - made[j].y);
+    if (d < closest) { closest = d; pair = made[i].type + "/" + made[j].type; }
+  }
+  assert.ok(closest > 0.45, `two idle units (${pair}) are ${closest.toFixed(2)} cells apart`);
+  // ...and the shuffle is NOT progress: a jammed unit must still read as
+  // jammed to the stuck detectors, so `movedAt` and `noProg` are untouched.
+  assert.ok(made.every((u) => g.tick - u.movedAt > 600), "settling must not refresh movedAt");
 });
