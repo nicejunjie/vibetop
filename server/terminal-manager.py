@@ -703,9 +703,16 @@ def _codex_better(cur, src):
         return cand
     if reset is None or cur[0] is None:
         return cand if cur[0] is None else cur   # prefer a reading that has a reset
-    if reset != cur[0]:
-        return cand if reset > cur[0] else cur   # newer generation wins outright
-    return cand if pct > cur[2] else cur         # same generation: the max is current
+    # `resets_at` WOBBLES by a few seconds between calls — observed 1788583390 vs
+    # 1788583393 for the same window, seconds apart. An exact comparison reads
+    # that as a new generation and lets a stale-but-later record win outright,
+    # which is the oscillation this function exists to stop. A real roll moves the
+    # reset by most of a window, so anything inside half a span is the same one.
+    span = (mins or cur[1] or 0) * 60
+    if abs(reset - cur[0]) >= max(span // 2, 60):
+        return cand if reset > cur[0] else cur   # a genuinely new generation
+    newer = max(reset, cur[0])                   # keep the latest reset we've seen
+    return (newer, mins or cur[1], max(pct, cur[2]))
 
 
 def _last_codex_rate_limit(path):
@@ -821,16 +828,26 @@ def _codex_usage_payload(home=None, enabled=True):
         silent for fifty minutes; the next record at 18:25:13 reads 0%. On a
         quieter day the strip would show 98% until the user next ran Codex.
 
-        `resets_at` is the answer, not hiding the number: past the reset, report
-        0% and roll the reset forward by whole windows to the next real one."""
+        `resets_at` is the answer: past the reset, the window is empty, so report
+        0%.
+
+        AND REPORT NO RESET. This used to project the next one as
+        `reset + n*span`, which assumes the windows tile a fixed grid. They do
+        not — measured on 2026-09-04, the 5-hour window is anchored to the first
+        use AFTER the previous one expired. The old window ended at 1788564315;
+        the projection said the next would end at 1788582315; Codex actually
+        said 1788583393, because the first request came 1078s into the gap. The
+        error is exactly the length of the idle gap, so an overnight pause would
+        have the strip counting down to resets that were never scheduled.
+
+        Until the next request there IS no next window, and the strip renders a
+        window with no reset as a bare percentage (`seg()` in usage-strips.js)."""
         if not w or not w.get("reset") or not w.get("minutes"):
             return w
-        span = int(w["minutes"]) * 60
         now = int(time.time())
-        if span <= 0 or now < w["reset"]:
+        if now < w["reset"]:
             return w
-        nxt = w["reset"] + span * (((now - w["reset"]) // span) + 1)
-        return {"pct": 0.0, "reset": nxt, "minutes": w["minutes"]}
+        return {"pct": 0.0, "reset": None, "minutes": w["minutes"]}
 
     session = rolled(window(best["primary"]))
     weekly = rolled(window(best["secondary"]))

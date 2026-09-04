@@ -234,8 +234,11 @@ def test_codex_usage_a_rolled_window_reads_zero_not_the_stale_number(mgr, tmp_pa
                                   "resets_at": weekly_future})) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
     assert got["session"]["pct"] == 0.0, "the 5-hour window rolled — it is empty, not 98%"
-    assert got["session"]["reset"] > now, "and the reset rolls forward to the next real one"
-    assert got["session"]["reset"] == past + 300 * 60
+    assert got["session"]["reset"] is None, (
+        "and it reports NO next reset: the window is anchored to the first use "
+        "after the old one expired, so until that request there is nothing to "
+        "count down to. Projecting reset+span was measurably wrong by exactly "
+        "the length of the idle gap (+18 min on 2026-09-04)")
     assert got["weekly"]["pct"] == .77, "the weekly window has NOT rolled: keep its value"
     assert got["weekly"]["reset"] == weekly_future
 
@@ -301,5 +304,36 @@ def test_the_max_rule_does_not_defeat_the_rollover(mgr, tmp_path):
     (sessions / "r.jsonl").write_text(json.dumps(ev) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
     assert got["session"]["pct"] == 0.0
-    assert got["session"]["reset"] > now
+    assert got["session"]["reset"] is None, "a window that has not started has no reset"
     assert got["weekly"]["pct"] == .40, "only the rolled window resets"
+
+
+def test_a_few_seconds_of_reset_drift_is_the_same_window(mgr, tmp_path):
+    """`resets_at` wobbles between calls — observed 1788583390 then 1788583393
+    for the same window, seconds apart. Compared exactly, the later value reads
+    as a NEW generation and wins outright, so a stale-but-later record drags the
+    number down: the very oscillation the max rule exists to stop. A real roll
+    moves the reset by most of a window."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    hi = _event("2026-09-04T23:43:13Z", 40, 92)
+    lo = _event("2026-09-04T23:43:19Z", 12, 92)          # stale, 3s later reset
+    lo["payload"]["rate_limits"]["primary"]["resets_at"] += 3
+    (sessions / "r.jsonl").write_text(json.dumps(hi) + "\n" + json.dumps(lo) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"]["pct"] == .40, "a 3-second drift was treated as a new window"
+    assert got["session"]["reset"] == 2000000003, "keep the latest reset seen"
+
+
+def test_a_real_roll_is_still_detected_across_the_idle_gap(mgr, tmp_path):
+    """The tolerance must not swallow a genuine roll. The real one moves the
+    reset by a whole window PLUS the idle gap — 5h18m in the measured case."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    old = _event("2026-09-04T23:00:00Z", 100, 92)
+    new = _event("2026-09-04T23:43:13Z", 0, 92)
+    new["payload"]["rate_limits"]["primary"]["resets_at"] += 300 * 60 + 1078
+    (sessions / "r.jsonl").write_text(json.dumps(old) + "\n" + json.dumps(new) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"]["pct"] == 0.0, "the new window's 0% must beat the old 100%"
+    assert got["session"]["reset"] == 2000000000 + 300 * 60 + 1078
