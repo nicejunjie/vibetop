@@ -22199,12 +22199,21 @@
   }
 
   // art.ini `IsAnimDelayedFire=yes` / `DelayedFireDelay=28` on [NATSLA] and
-  // [GAPRIS]: both towers visibly wind up for 28 frames before the shot.
-  var CHARGE_T = 28;
-  // rules.ini [General] PrismSupportModifier=150%, PrismSupportMax=8,
-  // PrismSupportDuration=15: idle towers in range of a firing tower beam
-  // their charge into it, and each one adds 150% to the shot.
-  var PRISM_SUP_MAX = 8, PRISM_SUP_MOD = 1.5, PRISM_SUP_DUR = 15;
+  // [GAPRIS]: both towers visibly wind up for 28 FRAMES before the shot, which
+  // at RA2's 15 fps (rules.ini:693) is 1.9 seconds — 112 ticks here. Held at
+  // the raw 28 the wind-up was under half a second and the Tesla Coil's bolt
+  // effectively arrived with no warning at all, which is the whole point of
+  // DelayedFireDelay.
+  var CHARGE_T = 112;
+  // rules.ini [General] PrismSupportModifier=150%, PrismSupportMax=8, and TWO
+  // separate keys that were being conflated:
+  //   PrismSupportDelay=60      how long supporting takes a tower OFFLINE
+  //   PrismSupportDuration=15   how long the support BEAM is visible
+  // The offline period was being computed from the beam's visibility (15 * 2 =
+  // 30 ticks), so a supporter recovered and supported again 29 ticks later and
+  // a cluster of towers never actually paid for the bonus. 60 frames at 15 fps
+  // is four seconds — 240 ticks.
+  var PRISM_SUP_MAX = 8, PRISM_SUP_MOD = 1.5, PRISM_SUP_DUR = 15, PRISM_SUP_DELAY = 240;
   function prismSupport(g, b) {
     var n = 0;
     for (var i = 0; i < g.blds.length && n < PRISM_SUP_MAX; i++) {
@@ -22214,9 +22223,10 @@
       var dx = o.cx - b.cx, dy = o.cy - b.cy, rr = BLDS.prism.rng;
       if (dx * dx + dy * dy > rr * rr) continue;
       n++;
-      o.cool = Math.max(o.cool, PRISM_SUP_DUR * 2);       // it spent its charge supporting
+      o.cool = Math.max(o.cool, PRISM_SUP_DELAY);        // [General] PrismSupportDelay=60 frames
       o.supAt = g.tick;
-      if (!headless) g.shots.push({ x: o.cx, y: o.cy, tx: b.cx, ty: b.cy, t: 0, life: CHARGE_T, link: true, id: g.nextId++ });
+      // The BEAM's own life is PrismSupportDuration=15 frames = 60 ticks.
+      if (!headless) g.shots.push({ x: o.cx, y: o.cy, tx: b.cx, ty: b.cy, t: 0, life: PRISM_SUP_DUR * 4, link: true, id: g.nextId++ });
     }
     b.sup = n;
   }
@@ -28989,6 +28999,8 @@
   // Minimap click jumps the camera.
   mini.addEventListener('pointerdown', function (e) {
     if (!G) return;
+    // A dark radar takes no input at all — see radarUp().
+    if (!radarUp()) return;
     var r = mini.getBoundingClientRect();
     // The radar is isometric, so a click has to come back through the same
     // projection — a linear x/y read would land a whole quadrant away.
@@ -31108,9 +31120,18 @@
   }
 
   var lastRadar = null;
+  // RA2: the radar is dark until you own a powered radar-class structure — and
+  // a dark radar is not a picture that happens to be black, it is a panel that
+  // does not work. This lived inline in drawMini, so the BLANKING was gated and
+  // the INPUT was not: with the panel reading "RADAR OFFLINE" a click still
+  // jumped the camera and a right-click still ordered units to a spot the
+  // player could not see. One function now answers for both.
+  function radarUp() {
+    return !!G && (G.debug
+      || ((hasBld(G, ME, 'radar') || hasBld(G, ME, 'airforce')) && powered(G, ME)));
+  }
   function drawMini() {
-    // RA2: the radar is dark until you own a powered radar-class structure.
-    var radarOn = G.debug || ((hasBld(G, ME, 'radar') || hasBld(G, ME, 'airforce')) && powered(G, ME));
+    var radarOn = radarUp();
     // RA2 chirps when the radar comes up and drops when the grid does.
     if (lastRadar !== null && radarOn !== lastRadar) sfx(radarOn ? 'radaron' : 'radaroff');
     lastRadar = radarOn;
@@ -32459,6 +32480,9 @@
     },
     deployMcv: function (u) { return G ? deployMcv(G, u) : null; },
     centerOn: function (gx, gy) { centerOn(gx, gy); },
+    // Read-only camera, so a test can tell "the view moved" from "the scene
+    // animated" — a canvas screenshot cannot.
+    cam: function () { return { x: cam.x, y: cam.y }; },
     // Cursors are CSS, so a screenshot never shows them: these let the art
     // review render the whole set as a contact sheet and assert the context
     // picker chose the right one.

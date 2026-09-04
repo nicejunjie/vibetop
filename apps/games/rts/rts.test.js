@@ -4808,3 +4808,46 @@ test("every weapon's rate is its rules.ini ROF x4", () => {
     "a weapon kept rules.ini's raw ROF instead of the roster's x4 convention, so it fires "
     + "four times too fast:\n  " + wrong.join("\n  "));
 });
+
+// ---- the radar gate is one gate, not two -------------------------------- //
+// The defect this guards was a DIVERGENCE between two code paths that both
+// answer "is the radar up?": `drawMini` computed it inline and blanked the
+// panel, and the `#mini` pointerdown handler never asked at all. So with the
+// panel reading "RADAR OFFLINE" a left-click still jumped the camera (measured:
+// 2294 px, from a base holding nothing but a Construction Yard) and a
+// right-click still ordered units to a spot the player could not see.
+//
+// This is a STRUCTURAL assertion, deliberately: the behaviour needs a real DOM
+// and a real pointer event, which this vm harness has neither of, and it is
+// verified in a browser instead. What it pins is exactly the shape of the bug —
+// two paths, one question — so a future edit cannot re-introduce a second
+// answer without tripping it.
+test("the radar's input gate and its display gate are the same function", () => {
+  const src = fs.readFileSync(SRC, "utf8");
+
+  const decl = /function radarUp\s*\(/.test(src);
+  assert.ok(decl, "radarUp() is the one place that answers whether the radar is up");
+
+  // The pointerdown handler must consult it before doing anything.
+  // From the pointerdown registration to the next registration on the same
+  // element — a brace-counting parse would be more precise and far more
+  // fragile than the thing it is checking.
+  const i0 = src.indexOf("mini.addEventListener('pointerdown'");
+  const i1 = src.indexOf("mini.addEventListener('contextmenu'", i0);
+  assert.ok(i0 > 0 && i1 > i0, "found the #mini pointerdown handler");
+  // Comments MUST be stripped first. Written without this, the test passed on a
+  // deliberately broken build because the explanatory comment above the guard
+  // says the word `radarUp()` — the assertion was reading prose, not code.
+  const decomment = (t) => t.replace(/\/\/[^\n]*/g, "");
+  const h = [decomment(src.slice(i0, i1))];
+  assert.ok(/radarUp\(\)/.test(h[0]),
+    "the #mini pointerdown handler does not consult radarUp(), so a dark radar "
+    + "still accepts clicks:\n" + h[0].slice(0, 300));
+
+  // And drawMini must consult the same one rather than recomputing it.
+  const j0 = src.indexOf("function drawMini()");
+  const d = [decomment(src.slice(j0, j0 + 400))];
+  assert.ok(j0 > 0 && /radarUp\(\)/.test(d[0]),
+    "drawMini recomputes the radar test instead of calling radarUp() — that is "
+    + "the divergence this test exists to prevent");
+});
