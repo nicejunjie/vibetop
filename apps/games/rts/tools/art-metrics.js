@@ -195,7 +195,7 @@ const TARGETS = {
   // third and moved them by zero. For infantry that is the whole mechanism
   // (ref §1.2/§1.5 — seven of twelve RA2 troopers share a silhouette), so a
   // gate blind to colour cannot grade the work it exists to grade.
-  'hue.infantryOwnerMean':       { want: 0.29, dir: 'up',   note: 'reference §1.4: RA2 puts 29-45% owner colour on infantry, as the torso block' },
+  'hue.infantryOwnerMean':       { want: 0.29, dir: 'up',   note: "reference §1.4 measures RA2's infantry rips at 14.3-47.9% owner colour with a MEDIAN of ~29%, put on the torso as one block. Two honest caveats on comparing our number to it, neither of them a reason to move the target: this is a MEAN, which §1.4 does not report, and it is taken over all fourteen kinds INCLUDING the two that hue.infantryBelowBudget exempts — so the dog and Tanya, which RA2 itself keeps drab, drag the figure that RA2's uniformed troopers set. RA2's own 14.3% low end IS Tanya, so her presence is fair; the dog is an extra our roster has and the rip set did not. detail.hue carries the median and the exempt-excluded mean beside it — close the gap on the other twelve, never by painting those two" },
   'hue.infantryBelowBudget':     { want: 0,    dir: 'down', note: "uniformed troopers under 20% owner colour. EXEMPT: dog (an animal — collar and harness only, ref §2.2) and tanya (RA2's own exception at 14.3%). The Spy is NOT exempt: a disguise argument is plausible but undocumented, so he stays visible as debt rather than quietly excused" },
   'hue.vehicleOwnerMean':        { want: 0.115, dir: 'up',  note: 'reference §1.4: RA2 vehicles 11.5-27%. Ours already sit inside it — this pins the budget so C3 stays a PLACEMENT change' },
   'hue.vehicleOwnerMax':         { want: 0.27, dir: 'down', note: 'the top of RA2 vehicle range; going over means C3 overshot into re-adding paint (plan §4)' },
@@ -672,6 +672,17 @@ function compute(recs) {
         .map((k) => [k, round(colByUnit[k].ownerPct, 4)])),
       chromaByUnit: Object.fromEntries(keys.filter((k) => colByUnit[k])
         .map((k) => [k, round(colByUnit[k].chroma, 4)])),
+      // Stated three ways, because the gate's headline is a mean over all
+      // fourteen and reference §1.4 reports a MEDIAN over RA2's rips. Nobody
+      // should have to re-derive which comparison they are looking at.
+      hue: (() => {
+        const srt = infOwner.slice().sort((x, y) => x - y);
+        const mid = srt.length % 2 ? srt[(srt.length - 1) / 2]
+                                  : (srt[srt.length / 2 - 1] + srt[srt.length / 2]) / 2;
+        const kept = inf.filter((k) => !HUE_EXEMPT.has(k)).map((k) => colByUnit[k].ownerPct);
+        return { infantryOwnerMedian: round(mid, 4), infantryOwnerMeanUnexempt: round(mean(kept), 4),
+                 exempt: [...HUE_EXEMPT], n: infOwner.length };
+      })(),
       tightestMassBand: tightAt,
       units: Object.fromEntries([...keys].sort().map((k) => [k, unit[k]])),
     },
