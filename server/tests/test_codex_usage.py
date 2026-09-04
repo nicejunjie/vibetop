@@ -37,55 +37,40 @@ def _blocked_event(ts):
             "plan_type": "plus"}}}
 
 
-def test_codex_usage_keeps_reset_when_blocked_event_has_null_primary(mgr, tmp_path):
-    """A null-primary out-of-limit event must not wipe the last valid snapshot."""
+def test_a_premium_credits_record_cannot_disturb_the_codex_numbers(mgr, tmp_path):
+    """The `limit_id: premium` record has BOTH windows null in every single case
+    -- because the credits balance is "0", not because anything is exhausted --
+    and it is written in the same instant as the codex record, so it looked like
+    the limit talking. That is where "the API returns null at the limit" came
+    from. `_is_codex_limit` filters it, and nothing about it may reach the
+    numbers.
+
+    Three tests here previously claimed to prove exhaustion handling using this
+    record. They could not: it is filtered before it reaches any of that logic,
+    and their 100% came from the ORDINARY event before it, which already carried
+    used_percent 100. All three passed with the exhaustion code deleted."""
     sessions = tmp_path / ".codex/sessions/2026/09/03"
     sessions.mkdir(parents=True)
-    rollout = sessions / "blocked.jsonl"
-    rollout.write_text(
-        json.dumps(_event("2026-09-03T18:54:51Z", 100, 74)) + "\n"
+    (sessions / "blocked.jsonl").write_text(
+        json.dumps(_event("2026-09-03T18:54:51Z", 50, 74)) + "\n"
         + json.dumps(_blocked_event("2026-09-03T18:54:52Z")) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
-    assert got["session"] == {"pct": 1.0, "reset": 2000000000, "minutes": 300}
+    # deliberately NOT 100 on either side: the only null record is not ours
+    assert got["session"] == {"pct": .50, "reset": 2000000000, "minutes": 300}
     assert got["weekly"] == {"pct": .74, "reset": 2000600000, "minutes": 10080}
 
 
-def _one_null_event(ts, primary, secondary):
-    """An out-of-limit event where exactly one window is null."""
-    return {"timestamp": ts, "type": "event_msg", "payload": {
-        "type": "token_count", "rate_limits": {
-            "limit_id": "premium", "primary": primary, "secondary": secondary,
-            "plan_type": "plus"}}}
-
-
-def test_codex_usage_weekly_exhausted(mgr, tmp_path):
-    """A null-secondary event marks the weekly window 100%; session keeps its value."""
+def test_a_real_hundred_percent_is_reported_as_a_hundred_percent(mgr, tmp_path):
+    """Measured live at the limit on 2026-09-04: Codex writes the ceiling as an
+    ordinary number. The 5-hour window went 97, 98, 99, 100.0 -- it never went
+    null. This is the path that actually carries an exhausted window."""
     sessions = tmp_path / ".codex/sessions/2026/09/03"
     sessions.mkdir(parents=True)
-    rollout = sessions / "blocked.jsonl"
-    rollout.write_text(
-        json.dumps(_event("2026-09-03T18:54:51Z", 50, 100)) + "\n"
-        + json.dumps(_one_null_event("2026-09-03T18:54:52Z",
-                                    {"used_percent": 50, "window_minutes": 300,
-                                     "resets_at": 2000000000}, None)) + "\n")
+    (sessions / "r.jsonl").write_text(
+        json.dumps(_event("2026-09-03T18:54:51Z", 100, 92)) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
-    assert got["session"] == {"pct": .50, "reset": 2000000000, "minutes": 300}
-    assert got["weekly"] == {"pct": 1.0, "reset": 2000600000, "minutes": 10080}
-
-
-def test_codex_usage_primary_exhausted(mgr, tmp_path):
-    """A null-primary event marks the session window 100%; weekly keeps its value."""
-    sessions = tmp_path / ".codex/sessions/2026/09/03"
-    sessions.mkdir(parents=True)
-    rollout = sessions / "blocked.jsonl"
-    rollout.write_text(
-        json.dumps(_event("2026-09-03T18:54:51Z", 100, 50)) + "\n"
-        + json.dumps(_one_null_event("2026-09-03T18:54:52Z", None,
-                                    {"used_percent": 50, "window_minutes": 10080,
-                                     "resets_at": 2000600000})) + "\n")
-    got = mgr._codex_usage_payload(str(tmp_path), True)
-    assert got["session"] == {"pct": 1.0, "reset": 2000000000, "minutes": 300}
-    assert got["weekly"] == {"pct": .50, "reset": 2000600000, "minutes": 10080}
+    assert got["session"]["pct"] == 1.0
+    assert got["weekly"]["pct"] == .92, "the 5h limit does not exhaust the week"
 
 
 def test_codex_usage_missing_and_disabled(mgr, tmp_path):
@@ -191,9 +176,15 @@ def test_codex_usage_does_not_cry_exhausted_on_a_low_reading(mgr, tmp_path):
     assert got["weekly"]["pct"] == .30, "a 30% window is not exhausted"
 
 
-def test_codex_usage_both_null_after_a_near_limit_reading(mgr, tmp_path):
-    """...but when one window WAS nearly there, a later null does mean it. The
-    session at 98% against a weekly at 77% is the case the strip exists for."""
+def test_a_null_codex_window_keeps_the_last_reading_and_claims_nothing(mgr, tmp_path):
+    """This asserted the opposite: that a later null on a near-limit window MEANT
+    100%. The premise was that Codex stops reporting a number once a limit is
+    hit. It does not -- 0 of 1420 real codex records carries a null, including
+    the ones written at exactly 100% -- so the inference fired only on a shape
+    the API does not produce, and would have been a guess if it ever did.
+
+    A null window now means "this event carried no reading": keep the last real
+    one and say nothing new."""
     sessions = tmp_path / ".codex/sessions/2026/09/04"
     sessions.mkdir(parents=True)
     (sessions / "r.jsonl").write_text(
@@ -204,14 +195,13 @@ def test_codex_usage_both_null_after_a_near_limit_reading(mgr, tmp_path):
                                   "resets_at": 2000600000})) + "\n"
         + json.dumps(_family_event("2026-09-04T17:35:07Z", "codex", None, None)) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
-    assert got["session"] == {"pct": 1.0, "reset": 2000000000, "minutes": 300}
+    assert got["session"] == {"pct": .98, "reset": 2000000000, "minutes": 300}
     assert got["weekly"] == {"pct": .77, "reset": 2000600000, "minutes": 10080}
 
 
-def test_codex_usage_never_invents_a_hundred_percent(mgr, tmp_path):
-    """A window we have never had a reading for is not one we watched fill up.
-    Reporting 100% on no evidence tells the user they are blocked when they are
-    not, which is the worst way for this strip to be wrong."""
+def test_a_window_never_seen_stays_absent(mgr, tmp_path):
+    """A window we have never had a reading for must report nothing at all --
+    not 0, and certainly not 100."""
     sessions = tmp_path / ".codex/sessions/2026/09/04"
     sessions.mkdir(parents=True)
     (sessions / "r.jsonl").write_text(
@@ -220,8 +210,8 @@ def test_codex_usage_never_invents_a_hundred_percent(mgr, tmp_path):
                                   "resets_at": 2000000000}, None)) + "\n"
         + json.dumps(_family_event("2026-09-04T09:00:01Z", "codex", None, None)) + "\n")
     got = mgr._codex_usage_payload(str(tmp_path), True)
-    assert got["session"]["pct"] == 1.0, "the session WAS near the limit"
-    assert got["weekly"] is None, "we have never seen a weekly reading — say nothing"
+    assert got["session"]["pct"] == .95
+    assert got["weekly"] is None
 
 
 def test_codex_usage_a_rolled_window_reads_zero_not_the_stale_number(mgr, tmp_path):
@@ -248,3 +238,68 @@ def test_codex_usage_a_rolled_window_reads_zero_not_the_stale_number(mgr, tmp_pa
     assert got["session"]["reset"] == past + 300 * 60
     assert got["weekly"]["pct"] == .77, "the weekly window has NOT rolled: keep its value"
     assert got["weekly"]["reset"] == weekly_future
+
+
+# ---- concurrent sessions disagree; the max within a generation is the truth --
+
+def test_two_live_sessions_cannot_make_the_number_go_backwards(mgr, tmp_path):
+    """Watched live on 2026-09-04: the strip read 96% -> 94% -> 99% -> 100% ->
+    99% in three minutes. Two Codex sessions were writing rollouts at once and
+    the payload took whichever record was newest BY TIMESTAMP, so a request that
+    started earlier and landed later dragged the display back down.
+
+    Within one generation of a window -- the same resets_at -- used_percent is
+    monotonically non-decreasing, so the lower reading is stale by definition."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    (sessions / "a.jsonl").write_text(
+        json.dumps(_event("2026-09-04T23:02:41Z", 96, 92)) + "\n")
+    (sessions / "b.jsonl").write_text(          # newer, but a staler snapshot
+        json.dumps(_event("2026-09-04T23:02:57Z", 94, 91)) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"]["pct"] == .96, "a later, lower reading won"
+    assert got["weekly"]["pct"] == .92
+
+
+def test_the_same_disagreement_inside_one_rollout_file(mgr, tmp_path):
+    """Same rule when both records land in one file — the per-file scanner has
+    to apply it too, not just the cross-file merge."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    (sessions / "r.jsonl").write_text(
+        json.dumps(_event("2026-09-04T23:03:44Z", 100, 92)) + "\n"
+        + json.dumps(_event("2026-09-04T23:03:45Z", 99, 92)) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"]["pct"] == 1.0, "the 99 that followed the 100 won"
+
+
+def test_a_new_generation_wins_however_low_its_number(mgr, tmp_path):
+    """The max rule holds only WITHIN a generation. A later resets_at is the
+    window having rolled, and its 3% is the truth over the old window's 100% —
+    otherwise the strip would pin at 100 forever."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    old = _event("2026-09-04T23:00:00Z", 100, 92)
+    new = _event("2026-09-04T23:10:00Z", 3, 92)
+    new["payload"]["rate_limits"]["primary"]["resets_at"] = 2000018000   # +5h
+    (sessions / "r.jsonl").write_text(
+        json.dumps(old) + "\n" + json.dumps(new) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"] == {"pct": .03, "reset": 2000018000, "minutes": 300}
+
+
+def test_the_max_rule_does_not_defeat_the_rollover(mgr, tmp_path):
+    """A generation whose resets_at has passed still reads 0 — the max is only
+    the best reading FOR that window, and `rolled` retires the window itself."""
+    import time as _t
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    now = int(_t.time())
+    ev = _event("2026-09-04T17:35:06Z", 98, 40)
+    ev["payload"]["rate_limits"]["primary"]["resets_at"] = now - 600
+    ev["payload"]["rate_limits"]["secondary"]["resets_at"] = now + 3 * 86400
+    (sessions / "r.jsonl").write_text(json.dumps(ev) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"]["pct"] == 0.0
+    assert got["session"]["reset"] > now
+    assert got["weekly"]["pct"] == .40, "only the rolled window resets"
