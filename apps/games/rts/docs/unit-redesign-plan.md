@@ -232,6 +232,144 @@ near-neutral grey, and for each, *all twelve* peers carry the same colour family
 three with a chromatic accent — both miners and the MCV — are precisely the three
 outside the confusable cluster. That is the experiment already run for us.
 
+> **C4 / VEHICLES — done.** `peerVsSelf.vehicle` **9 → 1**, `iou.vehicle.mean`
+> **0.4685 → 0.4227** (the plan's ≤0.45 target, MET), `iou.groundCombat.mean`
+> **0.5330 → 0.4774**, `peerVsSelf.total` **18 → 10**. Nothing regressed:
+> `mass.groundCombatSpan` 3.532 → **5.703**, `mass.tightestBand6` 2.009 →
+> **2.093**, `spike.belowFloor` **1** (the Landing Craft, naval, unchanged),
+> `spike.belowDeclaredBudget` **4** (all naval/infantry, unchanged),
+> `hue.vehicleOwnerMean` 0.1746 → **0.1698** (floor 0.115),
+> `hue.vehicleOwnerMax` 0.2478 → **0.2369** (ceiling 0.27), `hue.maxImpostor`
+> unchanged at 0.0033, and every naval / infantry / air number is untouched.
+>
+> **The finding is that the gate reads PLAN ASPECT, not bbox aspect.** `iou()`
+> centres two masks on their bbox centres without normalising scale, so a
+> vehicle whose ground FOOTPRINT is 2.5:1 swings its screen width by that
+> factor across the eight bearings and stops matching itself: our four
+> passing units were exactly the four with a compact plan (Mirage 24x19 =
+> 1.26 → self 0.781; IFV 17x15 = 1.13 → 0.749; Prism 1.50 → 0.743; Terror
+> Drone, radially symmetric → 0.772), and the four worst were the four most
+> elongated. Pulling the Tesla Tank 30x18 → 27x19, the Chrono Miner 33x16 →
+> 27x18 and the Rhino 33x19 → 30x21 in toward the Mirage's ratio took three
+> units from FAIL to pass in one measurement — after five earlier rounds of
+> resizing had moved the count by one. **A crown is not the only lever, and
+> on a vehicle it is the second one.**
+>
+> **The two miners were sized as tanks and in RA2 they are not.** `[CMIN]` is
+> 55x28 — aspect 1.96, the lowest body in the class — while `[HARV]` is 56x48,
+> nearly twice as tall on the same length; ours were 55x37 and 74x61, i.e. a
+> Rhino and a Mirage with bins on, and the gate scored `rhino|chronominer`
+> 0.760 and `mirage|warminer` 0.771, the two worst vehicle pairs on the field.
+> The Chrono Miner is now a long low truck with a raised bin at one end and the
+> violet drum at the other, and the War Miner is short, broad and tall — one
+> bin on tracks. Both pairs cleared, and the Chrono Miner's own self-IoU went
+> **0.685 → 0.708**, the largest single-unit gain in the pass.
+>
+> Four crowns the reference specifies and we had never actually drawn carried
+> the rest: the Apocalypse's canisters (6.2 → 9.6 units, four countable drums
+> standing in the outline instead of four lids on the deck), the Tesla Tank's
+> coils (seven ring windings → ten, so each column CLEARS the deck furniture
+> every other tank carries), the Rhino's commander cupola (a button → a tower,
+> §2.4's "hull height >= 1.25x the Grizzly's" finally drawn), and the Flak
+> Track's gun (§2.4's "raised >= 10 px above the bed line", which had stopped
+> level with the IFV's launcher box — the pair it was losing to).
+>
+> **What we tried and rejected.** (1) A tall A-FRAME GANTRY on the V3, to give
+> it standing structure. It works on the metric and is wrong on the sheet:
+> `[V3]` is 63x36, aspect 1.75, the flattest of the heavies, and the gantry
+> took ours to 77x69 = 1.19 — the same box as the Tesla Tank it was already
+> losing to. Removed. (2) LENGTHENING the Grizzly to RA2's 2.35 plan ratio
+> (36x13). Its self-IoU fell 0.551 → 0.522 and `lancer|chronominer` went UP;
+> plan aspect punishes the flattest unit hardest. (3) Growing the Rhino to
+> separate it from the Chrono Miner. It walked straight into the Tesla Tank,
+> and then into the IFV when we made it taller instead. Length and height were
+> both the wrong axis; the fix was the FOOTPRINT ratio. (4) Shortening the
+> Apocalypse's twin barrels 19.5 → 14.5 units: kept, because a 32-px-broadside
+> / 0-px-head-on pair is the mass that swings hardest, and 24 px still clears
+> §2.4's ">= 19 px, visibly two" comfortably.
+>
+> **The trap, again, and it is C4/infantry's verbatim.** Shrinking the Grizzly
+> to separate it from the Chrono Miner took its barrel to 3.4 px at zoom 1 —
+> under the 3.64 floor that keeps a feature alive at `ZMIN` — and
+> `spike.belowFloor` went 1 → 2. The TUBE got the width back (1.72 → 2.05
+> half-width) rather than the tank getting its size back, exactly as the Flak
+> Trooper's bore did. **Re-check `spike.*` after every unit you rescale, not
+> just after every protrusion you lengthen.**
+>
+> **Not honoured, and why.** (1) `peerVsSelf.vehicle` is **1**, not 0: the **V3
+> Launcher**'s own self-IoU across its eight bearings is **0.615**, the lowest
+> of any vehicle, and three peers beat it (Rhino 0.690, Mirage 0.675, Tesla
+> Tank 0.652). It is the Guardian GI's case exactly.
+> §2.4 makes the V3's identity "a white missile on a rail overhanging both ends
+> of its truck", i.e. a long thin mass lying along the GROUND axis, and its
+> screen length runs ~62 px broadside to ~16 px head-on. The truck under it is
+> already the most compact footprint of any tank we field (22x19 = 1.16) and
+> the missile is already at §2.4's minimum length (1.10x the truck), so there
+> is nothing left to compact without deleting the feature that names the unit.
+> (2) `iou.groundCombat.mean` is **0.4774** against a 0.45 target — the nine
+> combat vehicles all sit on the same track box by design and the last 0.027
+> is that shared plane. (3) The Grizzly now measures 0.60x the Rhino's mass
+> where RA2 has them at 0.79x by bbox area; the roster's span is **x5.7** by
+> pixel count (x3.0 by bbox area, against RA2's x2.04). That is a deliberate
+> overshoot on the same grounds C4 recorded — our renderer goes to 0.55x zoom
+> where RA2's never left 1.0x — but it is the one place this pass reads as
+> "not quite RA2", and a future pass that finds separation elsewhere should
+> spend it buying the Grizzly back.
+
+> **C5 — done.** `colour.vehicleAchromatic` **6 → 0** (the Grizzly is the one
+> exemption, and it went 0.0836 → 0.1178 anyway), `colour.vehicle.meanDist`
+> **0.789 → 0.979**. `hue.vehicleOwnerMean` 0.1698 and `hue.vehicleOwnerMax`
+> 0.2369 both hold, and `hue.maxImpostor` is unchanged at 0.0033: none of this
+> came out of the house-colour budget, because a fixed colour is by
+> construction not a remap pixel.
+>
+> A vehicle-only **`VACC`** table now sits immediately above `bakeVehicle`.
+> `ACCENT` stays where it is for infantry: the two rosters have different hue
+> budgets (§2.1/§2.2 against §2.3/§2.4) and one shared table had every vehicle
+> inheriting a soldier's palette. Two rules set the entries. Only the OWNER's
+> colour may be saturated as a SIDE, so every fixed accent is >= 30 hue-degrees
+> off both houses (203° blue, 356° red) — the Conscript's trousers, 11° off red
+> and reading 39% "red" to the census, are the recorded cost of getting that
+> wrong. And they are SPREAD round the two usable arcs (31-168 and 238-321)
+> rather than clustered, so no two vehicles in the confusable cluster share a
+> colour family:
+>
+> | unit | hue | where it sits |
+> |---|---|---|
+> | Tesla Tank | 28 copper | the ring windings of the two coil columns — a Tesla coil is *wound in copper* |
+> | MCV | 38 amber | the folded crane boom (unchanged; one of C5's three controls) |
+> | IFV | 55 hazard yellow | a beacon and a chevron band on the swappable launcher box |
+> | War Miner | 45 gold | the slatted ore bin (unchanged; a control) |
+> | Rhino | 101 Soviet green | the vision block, the driver's plate and the engine-deck louvres |
+> | Flak Track | 122 ordnance green | the gun shield — the one bright vertical face on a cream halftrack |
+> | Mirage | 145 holo-green | the projector mouth, its housing and its two swept fins. **It disguises itself as a TREE** |
+> | Terror Drone | 243 indigo | the eye cluster, the mandibles and the leg joints of the insect |
+> | Chrono Miner | 264 violet | the ribbed chrono drum (unchanged; a control) |
+> | Prism Tank | 302 magenta | a refraction band across the crystal's bright face |
+>
+> Three of the thirteen are deliberately NOT painted. The **V3** keeps a pure
+> white missile because §2.4 says so in as many words ("nose cone and fins in
+> house hue, midbody pure white") — its 0.127 was the TRUCK, which the same
+> section calls olive and we had drawn grey, so the truck went to a real
+> olive-drab and the unit reads 0.196. The **Apocalypse** is the same story:
+> §1.4 says "hull, tracks and the twin barrels are olive-grey", so its colour
+> is a properly saturated hull, not an invented warning ring on the canisters
+> (0.135 → 0.246). The **Grizzly** stays "two discrete panels ... on a pale
+> silver body" (§1.4) and remains `ACHROMATIC_EXEMPT`; the only chromatic thing
+> on it is a jade vision block beside the mantlet, which is 2 px and does not
+> touch the body.
+>
+> **Two things worth knowing.** (1) A hue is only as separate as its 30-degree
+> HISTOGRAM BIN. The Rhino's first accent was a 66° moss, which landed in the
+> same bin as the V3's 66° olive truck, and `rhino|v3` measured **0.093** — the
+> closest colour pair in the fleet — no matter how much moss we added. Moving
+> it to 101° took the pair to 0.135 and cost nothing. (2) **Look at the
+> sprites.** At the value the census likes, ten stacked copper rings read as
+> two BRICK CHIMNEYS on the contact sheet, and the Prism's magenta flare
+> reached above the crystal's top face and read as a PENNANT on a mast. Both
+> pass every number in the gate. The fix was two stops of value on the coil
+> sides and moving the flare down into the middle of the face.
+
 ## 4. Explicitly not in scope
 
 - **Re-adding house colour to vehicles.** The vehicle budget is right; only placement
