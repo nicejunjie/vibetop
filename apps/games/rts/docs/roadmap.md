@@ -1066,7 +1066,7 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
   EVA only its owner's lines, no `pageerror` in either tab.
 - ☐ A CROSS-MACHINE relay. `BcNet` is same-machine only. The wire for two
   browsers on two hosts is a standalone WebSocket relay — a service of its own,
-  NOT a route in `terminal/terminal-manager.py`, which is the manager's
+  NOT a route in `server/terminal-manager.py`, which is the manager's
   identity/auth surface and has no business holding a tick barrier. It plugs in
   at the same seam with the same three jobs. Still to build on top of that:
   player ids past two, reconnect/replay from the command log, latency

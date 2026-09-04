@@ -50,7 +50,7 @@ a request the container makes unauthenticated).
 | OnlyOffice JWT secret at rest | `~/.config/vibetop/onlyoffice.secret`, `chmod 0600`, owned by `APP_USER` | ✅ |
 | Self-update `{force:true}` | `git stash --include-untracked` (recoverable), not `reset --hard` | ✅ no unrecoverable data loss; runs as `APP_USER` |
 
-All of the above are covered by `terminal/tests/test_manager.py` (the scariest
+All of the above are covered by `server/tests/test_manager.py` (the scariest
 regressions — a traversal escape, an injection bypass, a JWT/HMAC forgery — fail
 the suite).
 

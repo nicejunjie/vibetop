@@ -12,7 +12,7 @@ Type=simple
 # manager reads it (CLAUDE_USAGE_FILE). Loopback-only, in-place from the checkout.
 User=@OPERATOR@
 Environment=CLAUDE_PROXY_PORT=7690
-ExecStart=@APP_DIR@/claude-usage/vibetop-claude-proxy
+ExecStart=@APP_DIR@/vibetop-claude-proxy
 Restart=always
 RestartSec=2
 NoNewPrivileges=true

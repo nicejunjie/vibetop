@@ -83,7 +83,7 @@ durable countermeasure is a single authority plus an automated agreement check �
 not a more careful default.
 
 **The web-root instance of the same class**, now covered by a second doctor
-section (*Web root*). nginx's `root` is rendered by `terminal/install.sh` from
+section (*Web root*). nginx's `root` is rendered by `server/install.sh` from
 `LANDING_DIR`; the files are put there by `shell/install.sh` from `DST_DIR`.
 Two resolvers, one path — and an in-app Update passes **neither**, so both fall
 back to `$APP_HOME/vibetop-www`. A deploy that once used a different value leaves
@@ -227,7 +227,7 @@ type (each reconnect steals focus and iOS collapses the keyboard).
 
 **Cause:** On every (re)connect, `vibetop-session` replays its **entire ring
 buffer** — up to 2 MB (`CLAUDE_SESSION_BUFSIZE`) — as one burst to rebuild
-scrollback (`terminal/vibetop-session`, `ring.read_all()` on accept). WebSocket
+scrollback (`apps/everyday/terminal/vibetop-session`, `ring.read_all()` on accept). WebSocket
 ping/pong are control frames but ride the **same ordered TCP stream** as that data,
 so on a thin link the keepalive ping sits behind the whole 2 MB burst and reaches
 the client tens of seconds late; ttyd declares the socket dead and its
@@ -459,7 +459,7 @@ char); and **Chinese via pinyin typed nothing at all** while English worked.
   commit); dictation is committed once on an idle timer (`inputType ===
   'insertDictationText'`); Enter/Backspace are suppressed mid-composition (`keyCode
   229`).
-- *CJK via SERVER-SIDE injection* (`terminal/terminal-manager.py` + `shell/desktop.html`):
+- *CJK via SERVER-SIDE injection* (`server/terminal-manager.py` + `shell/desktop.html`):
   the shell's committed text is delivered to a manager endpoint **`POST /api/browser/type
   {text}`**, which runs **`xdotool type --file -`** (text on stdin) as the user on their
   xpra display; nav keys go via **`POST /api/browser/key`** (allowlisted xdotool keysym).
@@ -555,7 +555,7 @@ connection after the early rejection (progress counts bytes *written*, not
 *accepted*).
 
 **Fix:** add `client_max_body_size 5G;` inside the `location = /internal/authcheck`
-block (in `terminal/install.sh`, which generates the site). Every protected
+block (in `server/install.sh`, which generates the site). Every protected
 location shares this one auth subrequest, so the single line fixes uploads through
 all of them; `/api/` already allowed 5G, and the body isn't sent to the manager
 regardless, so raising it here is free of security cost. Verified: a 2 MB POST
@@ -1023,7 +1023,7 @@ location looks correctly configured).
 - **The one real exception — snap browsers:** `firefox`/`chromium` (snap) **exit** on the
   private bus: snap-confine creates a transient systemd scope via `org.freedesktop.systemd1`
   which the activation-free bus doesn't provide (`cannot create transient scope: …
-  ServiceUnknown`). So `terminal/realbus-shim.sh` is installed as `/usr/local/bin/firefox`
+  ServiceUnknown`). So `apps/everyday/terminal/realbus-shim.sh` is installed as `/usr/local/bin/firefox`
   and `/usr/local/bin/chromium` (ahead of `/snap/bin` on PATH); it puts the real user bus
   back and hands off to the snap. Only names that are *actually* snaps here get shadowed
   (the installer removes a stale shim otherwise), so a non-snap firefox/chromium is
@@ -1072,7 +1072,7 @@ location looks correctly configured).
   `/api/x/windows` and auto-opens the X11 Launcher when a new window appears.
   (`XDG_RUNTIME_DIR` silences/fixes Qt apps like gnuplot's qt terminal.)
   Note: this is a systemd-unit change — it only lands on a full deploy /
-  `terminal/install.sh`, and only for **newly started** sessions.
+  `server/install.sh`, and only for **newly started** sessions.
 
 ## eog/evince single-instance hand-off
 
@@ -1091,7 +1091,7 @@ location looks correctly configured).
 - **Symptom:** A *fresh* install would render `Environment=BASE_PORT=@BASE_PORT@`
   in `vibetop-ttyd@.service`; `ttyd-run.sh`'s `$(( @BASE_PORT@ + N ))` is a
   syntax error → ttyd never binds → terminals fail.
-- **Cause:** The unit-render loop in `terminal/install.sh` only substituted
+- **Cause:** The unit-render loop in `server/install.sh` only substituted
   `@APP_USER@`/`@APP_DIR@`, not `@BASE_PORT@`. Masked on existing hosts because
   the in-app Update runs `install.sh` with `INSTALL_SYSTEMD=0` (doesn't re-render
   units), so they keep their old correctly-rendered files.
@@ -1337,7 +1337,7 @@ location looks correctly configured).
   (stale) probes are dropped, so a reconnect never re-answers. Color/cursor *set*
   sequences (real screen state, e.g. `OSC 11;rgb:…` with no `?`, and a window
   title that merely *contains* a `?`) are deliberately preserved. Pure function,
-  unit-tested in `terminal/tests/test_claude_session.py` (strip-vs-preserve table).
+  unit-tested in `server/tests/test_claude_session.py` (strip-vs-preserve table).
 - **Rejected:** stripping queries from what's *stored* in the ring (a probe split
   across two `os.read()` chunks could be written non-contiguously — strip at replay
   time instead, where `read_all()` is one contiguous snapshot); de-duplicating the
@@ -1373,7 +1373,7 @@ location looks correctly configured).
   the native copy has something to grab (more moving parts than just
   preventDefaulting and doing our own `execCommand('copy')`). Lives in the
   `sub_filter` (inline, no-store on `/tN/`), so it ships on the next
-  `terminal/install.sh` / in-app Update + nginx reload — no cache-bust needed.
+  `server/install.sh` / in-app Update + nginx reload — no cache-bust needed.
 
 ## Closing a tab killed detached processes (ssh ControlPersist, tmux, nohup)
 
@@ -1409,7 +1409,7 @@ location looks correctly configured).
   (still SIGKILLs the whole cgroup at the end — no better than control-group for
   this); leaving it and documenting the wrapper (the platform should behave like a
   terminal, not require per-user setup). **Deploy:** unit change ⇒ needs a full
-  `terminal/install.sh` (systemd) + `daemon-reload`, *not* the in-app Updater (it
+  `server/install.sh` (systemd) + `daemon-reload`, *not* the in-app Updater (it
   skips units); after daemon-reload even existing terminals stop gently. The
   serve-daemon SIGHUP tweak only affects *new* sessions (daemons aren't restarted),
   but `KillMode=process` alone already does the job via the kernel PTY hangup.
@@ -1516,7 +1516,7 @@ location looks correctly configured).
   a few times." None of this reproduced in the Browser/Notes overlays.
 - **Cause:** Three independent bugs in the touch input path (the transparent
   overlay `terminal-kbd.js` + the `focusin` guard injected by
-  `terminal/install.sh`), root-caused with an ultracode multi-agent workflow:
+  `server/install.sh`), root-caused with an ultracode multi-agent workflow:
   1. **Blur-to-nothing.** The guard's job is to stop xterm's hidden
      `.xterm-helper-textarea` from raising the keyboard on load, so it blurred
      the helper whenever it took focus. But it blurred to **`document.body`** —
@@ -1853,13 +1853,13 @@ process predated the directive being loaded; restarting it activated the
 restriction for the first time. (The same directive silently breaks the X11
 Launcher's snap-app launches — Firefox/Chromium on `:98`.)
 
-*Fix:* remove `RestrictNamespaces` from `terminal/systemd/vibetop-manager.service`.
+*Fix:* remove `RestrictNamespaces` from `server/systemd/vibetop-manager.service`.
 The manager already turns OFF `NoNewPrivileges`/`ProtectHome`/`PrivateTmp`
 on purpose (they'd break `su`/home/session-sockets); `RestrictNamespaces` belongs
 in that same "incompatible with what this service must do" bucket, because the
 service's job includes launching confined **snap** apps. A unit change needs
 `daemon-reload` + manager restart (the in-app Update runs with `INSTALL_SYSTEMD=0`,
-so it will NOT pick this up — a full `deploy.sh`/`terminal/install.sh` or manual
+so it will NOT pick this up — a full `deploy.sh`/`server/install.sh` or manual
 unit edit is required).
 
 *How it was found:* isolate manager-vs-manual by handing the URL off directly and
@@ -2224,7 +2224,7 @@ to a non-dotfile the snap can read — more moving parts than a one-line ACL gra
   JWT, multipart, sd_notify). `_pam_authenticate` loads `libpam.so.0` via ctypes and
   runs a single-shot conversation (`pam_authenticate` + `pam_acct_mgmt`) against the
   `vibetop` PAM service (`/etc/pam.d/vibetop` → `common-auth`/`common-account`, dropped
-  by `terminal/install.sh`). The session cookie **reuses `_jwt_sign`/`_jwt_verify`**
+  by `server/install.sh`). The session cookie **reuses `_jwt_sign`/`_jwt_verify`**
   (one signing primitive) over `{u, exp}`, keyed by a root-owned
   `/etc/vibetop/session.secret`. `_authenticate` is a seam tests monkeypatch, so the
   whole flow is hermetic (no real creds).
@@ -2296,7 +2296,7 @@ to a non-dotfile the snap can read — more moving parts than a one-line ACL gra
   the unit died instantly with `Failed to execute …/vibetop-session: Permission
   denied` (status **203/EXEC**). Cause: the checkout lives in the operator's `$HOME`
   (mode **0750**), so *another* Linux user can't traverse in to exec `vibetop-session`
-  / `ttyd-run.sh`. Fix: `terminal/install.sh` installs **root-owned 0755 copies** to
+  / `ttyd-run.sh`. Fix: `server/install.sh` installs **root-owned 0755 copies** to
   `/usr/local/lib/vibetop/` (matching the existing `browser-loop.sh` precedent) and
   the manager execs them from there (`_term_helper`, falling back to the checkout for
   dev/tests). This is the *minimum* of the `docs/multi-user.md` `/opt/vibetop` move —
@@ -2612,7 +2612,7 @@ falsely PASSed, `755` falsely WARNed).
   selected); keep only a long (6 s) safety flush for iOS *dictation*, which composes
   for many seconds without ending — far beyond any real candidate-selection pause.
 - **Durable fix (the real answer to "stop it recurring"):** the whole value-diff +
-  IME/dictation state machine is extracted into `terminal/lib/kbd-input.js` (DOM-free),
+  IME/dictation state machine is extracted into `apps/everyday/terminal/lib/kbd-input.js` (DOM-free),
   which `terminal-kbd.js` loads via the sub_filter `<script src>` and which is pinned
   by `terminal/lib/kbd-input.test.js` (9 cases; the cardinal one: *pinyin must never
   reach the PTY mid-composition*). This is the project's established "extract the
@@ -4498,7 +4498,7 @@ original exact-bytes test stayed green through the whole breakage.
   as the agent user. No APP_USER fallback anywhere in the family.
 - **Why it was not caught:** the endpoints had zero HTTP-level tests — all
   the Files-native coverage sat below them, against the agent protocol.
-  `terminal/tests/test_api_fs.py` now pins 401-without-a-session for every
+  `server/tests/test_api_fs.py` now pins 401-without-a-session for every
   verb, and that the authenticated user (not APP_USER) is the one proxied.
 - **Rule this generalizes:** on this host, "loopback" is not a trust
   boundary. Any endpoint that acts on files or runs a command must take its
@@ -4592,7 +4592,7 @@ original exact-bytes test stayed green through the whole breakage.
   path HMAC — a test now pins that they must NOT return 401.
 - **Why the tests did not catch it — and were part of the problem:** the whole
   endpoint suite called these APIs *without a cookie*, so 45 tests encoded the
-  vulnerable behaviour as expected. `terminal/tests/test_api_image.py`, which I
+  vulnerable behaviour as expected. `server/tests/test_api_image.py`, which I
   had written days earlier for the thumbnail work, asserted a cookieless 200
   outright. The harness now sends a valid session by DEFAULT and a test that
   means to be anonymous says `cookie=ANON` — the safe thing is the default and
@@ -8224,7 +8224,7 @@ bundle, hold the barrier — was therefore only ever exercised against delivery
 that could not actually be late, out of order, or early.
 
 **Cause.** The obvious next step, a WebSocket endpoint in
-`terminal/terminal-manager.py`, is the wrong shape twice over: that file is the
+`server/terminal-manager.py`, is the wrong shape twice over: that file is the
 manager's auth and identity surface (a tick barrier has no business there), and
 it is the file every other session is editing, so a route in it cannot be
 deployed.
@@ -8257,7 +8257,7 @@ a full round trip every single tick and any jitter is a visible stutter. RA2
 grows the delay for the same reason.
 
 **Rejected.**
-- *A WebSocket route in `terminal/terminal-manager.py`.* See above. The
+- *A WebSocket route in `server/terminal-manager.py`.* See above. The
   cross-machine relay is a standalone service, and it plugs in at the same seam.
 - *A room code in the lobby.* Two tabs on one machine do not need one, and a
   text field on the front menu is chrome for a case that does not exist yet.

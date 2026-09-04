@@ -138,7 +138,7 @@ auth) follows from them.
 
 # Identity model as implemented
 
-Vibetop runs each of the host's **real Linux users** as themselves (Option B, implemented — `docs/multi-user.md`). Three distinct identities in `terminal/terminal-manager.py`, do not conflate them:
+Vibetop runs each of the host's **real Linux users** as themselves (Option B, implemented — `docs/multi-user.md`). Three distinct identities in `server/terminal-manager.py`, do not conflate them:
 
 - **`APP_USER`** — the service/code owner that runs deploys and owns the checkout (`vibetop` on prod). Only appears as the request user on a cookieless loopback call (trusted local tooling).
 - **`OPERATOR` / `ADMIN_USERS`** — the *human* admin(s), named in **`VIBETOP_ADMINS`** (comma-separated, loaded from `/etc/vibetop/manager.env`; defaults to `[APP_USER]` so a home-owned single-user install behaves as before). `OPERATOR = ADMIN_USERS[0]`. `_is_admin()` gates the operator-only surfaces (**Claude-usage**, **Update**) — everything else is per-user.

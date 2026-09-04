@@ -84,7 +84,7 @@ def _setup_logging():
 log = _setup_logging()
 
 # Upper bound on terminal instances. Reads MAX_INSTANCES so it can't drift from
-# the installer's nginx port map (terminal/install.sh generates /tN/ routes for
+# the installer's nginx port map (server/install.sh generates /tN/ routes for
 # 1..MAX_INSTANCES); a hardcoded 50 here would reject terminals the nginx map
 # happily routes when the installer is run with a higher MAX_INSTANCES.
 try:
@@ -862,17 +862,20 @@ def _video_cache_sweep_loop():
         except Exception:
             time.sleep(VIDEO_CACHE_SWEEP_INTERVAL)
 
-# The git checkout this manager runs from: <repo>/terminal/terminal-manager.py.
+# The git checkout this manager runs from: <repo>/server/terminal-manager.py.
 # The Update app pulls + redeploys from here.
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TERMINAL_DIR = os.path.dirname(os.path.abspath(__file__))   # vibetop-session, ttyd-run.sh
+# The Terminal APP's own directory — vibetop-session and ttyd-run.sh live with the
+# app, not with the server. Only a FALLBACK: _term_helper prefers the
+# world-readable copies in TERM_HELPER_DIR that the installer makes.
+TERMINAL_DIR = os.path.join(REPO_DIR, "apps", "everyday", "terminal")
 # World-readable/executable copies of the per-user helper scripts. Multi-user: a
 # terminal runs AS the logged-in user, so the scripts it execs (vibetop-session,
 # ttyd-run.sh) must be reachable by every user — NOT inside the operator's 0750
-# home where the checkout lives. terminal/install.sh copies them here (0755).
+# home where the checkout lives. server/install.sh copies them here (0755).
 TERM_HELPER_DIR = "/usr/local/lib/vibetop"
 # The xdg-open/$BROWSER shim that routes a terminal's "open a browser" into the
-# user's vibetop Browser (installed by terminal/install.sh). A long-lived per-user
+# user's vibetop Browser (installed by server/install.sh). A long-lived per-user
 # token exported into the terminal env lets the shim authenticate the browser-open.
 XDG_OPEN_SHIM = "/usr/local/bin/xdg-open"
 BROWSER_TOKEN_TTL = 3650 * 24 * 3600            # ~10y — the token lives with the terminal
@@ -999,7 +1002,7 @@ def _selinux_props():
     unconfined_service_t is what an ordinary, policy-uncovered service gets, and
     it can allocate PTYs. It requires the helper scripts to be labelled bin_t —
     this domain cannot exec lib_t, which is what /usr/local/lib gives them, and
-    the unit would fail 203/EXEC instead. terminal/install.sh sets that label.
+    the unit would fail 203/EXEC instead. server/install.sh sets that label.
 
     Trade-off worth stating: these per-user units are then SELinux-unconfined.
     They already run as the target user with that user's uid, and Unix
@@ -1624,7 +1627,7 @@ def _user_terminal_setenvs(user):
         pass
     # Route "open a browser" (OAuth logins, xdg-open, $BROWSER) into THIS user's
     # vibetop Browser app: a long-lived per-user token the shim presents to the
-    # manager's /api/browser/open (see terminal/xdg-open-shim.sh). Best-effort.
+    # manager's /api/browser/open (see apps/everyday/terminal/xdg-open-shim.sh). Best-effort.
     try:
         envs.append("VIBETOP_SESSION=" + _sign_session(user, ttl=BROWSER_TOKEN_TTL))
         envs.append(f"VIBETOP_MGR_PORT={BASE_PORT}")
@@ -6442,8 +6445,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         base_env = {"APP_USER": APP_USER, "INSTALL_DEPS": "0", "INSTALL_SYSTEMD": "0"}
         if touched("apps/everyday/browser/"):
             deploy("deploy browser", ["./apps/everyday/browser/install.sh"], base_env)
-        if touched("terminal/"):
-            deploy("deploy terminal & nginx", ["./terminal/install.sh"], base_env)
+        if touched("server/") or touched("apps/everyday/terminal/"):
+            deploy("deploy terminal & nginx", ["./server/install.sh"], base_env)
         # office/ → just re-render the /onlyoffice/ nginx snippet. INSTALL_CONTAINER=0
         # keeps the live OnlyOffice container (an in-app update must not tear it down
         # — that drops open editors + ~1-2 min downtime); container/image changes
@@ -6472,11 +6475,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Restart the manager out-of-band (via a transient timer so it survives
         # our own death) only if its code changed — after the response is sent.
-        # Any .py directly under terminal/ is a manager module (terminal-manager.py
-        # and its siblings like system_status.py); tests/ and the path-independent
-        # vibetop-session are excluded.
-        restart = any(c.startswith("terminal/") and c.endswith(".py")
-                      and "/" not in c[len("terminal/"):] for c in changed)
+        # Any .py directly under server/ is a manager module (terminal-manager.py
+        # and its siblings like system_status.py); tests/ is excluded by the
+        # no-slash check, and the Terminal app's own runtime is a separate app.
+        restart = any(c.startswith("server/") and c.endswith(".py")
+                      and "/" not in c[len("server/"):] for c in changed)
         # A redeploy step (install.sh) can fail after the pull succeeded — the
         # code is on disk but not actually deployed (nginx not reloaded, units
         # not re-rendered). Surface that as ok:false so the Update app doesn't

@@ -14,7 +14,7 @@
 
 **One command — `./run-tests.sh`** runs the whole hermetic regression suite (no
 root/systemd/nginx/Docker; external processes are stubbed): the two Python roots
-(`terminal/tests/` + `apps/utilities/claude-usage/tests/`) and every JS unit (`node --test`).
+(`server/tests/` + `apps/utilities/claude-usage/tests/`) and every JS unit (`node --test`).
 `--live` additionally runs the live-host smoke test (below). It's a **dev-only
 tool** — no installer runs it and it deploys nothing; CI (`.github/workflows/
 tests.yml`) and the pre-commit hook both call it, so the suites can't drift.
@@ -26,7 +26,7 @@ tests.yml`) and the pre-commit hook both call it, so the suites can't drift.
 ```
 
 The tiers (each independently runnable, ~5s total):
-- **Endpoint contracts** (`terminal/tests/test_api_*.py`) — a hermetic in-process
+- **Endpoint contracts** (`server/tests/test_api_*.py`) — a hermetic in-process
   HTTP harness (`conftest.py`'s `client` fixture boots `mgr.Handler` on an
   ephemeral socket with a tmp HOME + stubbed systemctl/su/git/wmctrl/libreoffice)
   asserts every `/api/*` endpoint's request→response **and** on-disk side effect:
@@ -81,9 +81,9 @@ in CI. `--no-office` / `--base URL` / `--cookie` / `--user`.
 > Browser / X11 / FileBrowser if they're down — it is not read-only on a live host.
 
 **Python** — unit/smoke tests for the manager's security-critical and pure logic
-live in `terminal/tests/` (pytest). They run without root or any of the systemd/
+live in `server/tests/` (pytest). They run without root or any of the systemd/
 nginx/Docker stack — `conftest.py` loads the hyphenated `terminal-manager.py` via
-`importlib` and puts `terminal/` on `sys.path` so its `import system_status`
+`importlib` and puts `server/` on `sys.path` so its `import system_status`
 resolves:
 
 ```bash
@@ -164,7 +164,7 @@ Two rules that are not preferences:
   the browser/xpra + OnlyOffice stack — i.e. the heavy, most breakage-prone half —
   so a green lean run proves much less than it looks like it does.
 
-`terminal/lib/tab-sync.js` is the pure tab-set reconcile/`nextAvailable` math
+`apps/everyday/terminal/lib/tab-sync.js` is the pure tab-set reconcile/`nextAvailable` math
 lifted out of `terminals.html` (which loads it via `<script src>`, content-hash
 cache-busted by `install.sh` like `terminal-kbd.js`) — its tests pin the
 open/close/poll-lag race cases behind the v1.9.x churn. `shell/sw.test.js`
@@ -202,6 +202,6 @@ VT_COOKIE=$(sudo tools/mint-session-cookie.py junjie) node tests/kbd/keybar-occl
 curl -X POST -H "Cookie: vt_session=$VT_COOKIE" http://127.0.0.1/api/terminals/41/stop
 ```
 
-It injects `terminal/terminal-kbd.js` from the **working tree** via `page.route`,
+It injects `apps/everyday/terminal/terminal-kbd.js` from the **working tree** via `page.route`,
 so you can iterate without deploying. Drop that route to watch it fail the way the
 bug did.

@@ -1,4 +1,4 @@
-"""Shared fixtures for the terminal-manager unit tests.
+"""Shared fixtures for the manager unit tests (server/).
 
 `terminal-manager.py` has a hyphen, so it can't be `import`ed by name. Load it
 once from its file path and expose it as the `mgr` fixture. Importing it is
@@ -12,14 +12,17 @@ import sys
 import pytest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_TERMINAL_DIR = os.path.dirname(_HERE)
-_MANAGER = os.path.join(_TERMINAL_DIR, "terminal-manager.py")
+_SERVER_DIR = os.path.dirname(_HERE)
+_REPO = os.path.dirname(_SERVER_DIR)
+_MANAGER = os.path.join(_SERVER_DIR, "terminal-manager.py")
+# The Terminal APP's runtime (vibetop-session) lives with the app, not the server.
+_TERM_APP_DIR = os.path.join(_REPO, "apps", "everyday", "terminal")
 
 # terminal-manager.py does `import system_status` (a sibling). At runtime the
 # script's own dir is sys.path[0]; mirror that here so both the manager load and
 # a direct `import system_status` resolve.
-if _TERMINAL_DIR not in sys.path:
-    sys.path.insert(0, _TERMINAL_DIR)
+if _SERVER_DIR not in sys.path:
+    sys.path.insert(0, _SERVER_DIR)
 
 
 def _load():
@@ -47,7 +50,7 @@ def csession():
     Its `if __name__ == '__main__'` guard means import only defines functions/
     classes — no daemon/socket side effects."""
     import importlib.machinery
-    path = os.path.join(_TERMINAL_DIR, "vibetop-session")
+    path = os.path.join(_TERM_APP_DIR, "vibetop-session")
     loader = importlib.machinery.SourceFileLoader("claude_session", path)
     spec = importlib.util.spec_from_loader("claude_session", loader)
     module = importlib.util.module_from_spec(spec)

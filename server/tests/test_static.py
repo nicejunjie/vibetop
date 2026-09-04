@@ -35,7 +35,7 @@ def _walk(patterns, root=_REPO):
 def _python_files():
     files = _walk(["**/*.py"])
     # The two extensionless Python programs (no .py, so glob misses them).
-    for extra in ("terminal/vibetop-session", "apps/utilities/claude-usage/vibetop-claude-proxy"):
+    for extra in ("apps/everyday/terminal/vibetop-session", "apps/utilities/claude-usage/vibetop-claude-proxy"):
         p = os.path.join(_REPO, extra)
         if os.path.isfile(p):
             files.append(p)
@@ -371,8 +371,8 @@ def test_subfilter_injected_scripts_exist():
     # 404 for injected JS (broken terminal keyboard / xpra / filebrowser UI).
     for rel in ("apps/everyday/browser/xpra-patches.js",
                 "apps/everyday/files/filebrowser-patches.js",
-                "terminal/terminal-kbd.js", "shell/coach.js",
-                "terminal/lib/tab-sync.js"):
+                "apps/everyday/terminal/terminal-kbd.js", "shell/coach.js",
+                "apps/everyday/terminal/lib/tab-sync.js"):
         assert os.path.isfile(os.path.join(_REPO, rel)), f"missing {rel}"
 
 
@@ -433,9 +433,9 @@ def test_login_location_sets_frame_ancestors():
     # `location = /login.html` has its own add_header, so nginx drops every
     # inherited one: the ONE page that takes a Linux password would otherwise be
     # framable by any origin (clickjacked credential capture).
-    src = open(os.path.join(_REPO, "terminal", "install.sh")).read()
+    src = open(os.path.join(_REPO, "server", "install.sh")).read()
     block = re.search(r"location = /login\.html \{(.*?)\n    \}", src, re.S)
-    assert block, "terminal/install.sh: no `location = /login.html` block"
+    assert block, "server/install.sh: no `location = /login.html` block"
     assert "frame-ancestors 'self'" in block.group(1), \
         "the login page location must set Content-Security-Policy frame-ancestors"
 
@@ -447,7 +447,7 @@ def test_nginx_conf_string_has_no_backticks():
     `location /` mid-render: "location: command not found", the config silently
     truncated, and the whole terminal/nginx deploy step failed — while `bash -n`
     stayed happy, because it is valid syntax. That shipped in v1.19.30."""
-    src = open(os.path.join(_REPO, "terminal", "install.sh")).read()
+    src = open(os.path.join(_REPO, "server", "install.sh")).read()
     start = src.index('site_config="')
     # The string ends at the first line that is exactly a lone closing quote.
     end = src.index('\n"\n', start)
@@ -469,8 +469,8 @@ def test_keybar_lift_chain_is_intact():
     per-tab under/over-scroll bug). Break any link and the symptom returns
     silently. See docs/design-decisions.md, the key-bar saga."""
     desktop = open(_web("desktop.html")).read()
-    relay = open(os.path.join(_REPO, "terminal", "terminals.html")).read()
-    kbd = open(os.path.join(_REPO, "terminal", "terminal-kbd.js")).read()
+    relay = open(os.path.join(_REPO, "apps", "everyday", "terminal", "terminals.html")).read()
+    kbd = open(os.path.join(_REPO, "apps", "everyday", "terminal", "terminal-kbd.js")).read()
     keybar = open(_web("keybar.js")).read()
 
     assert "VibeKeybar" in keybar and "function compute" in keybar, \

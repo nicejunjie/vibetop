@@ -76,7 +76,7 @@ const pg = await ctx.newPage();
 // proves the edit without touching the user's live stack.
 await pg.route('**/terminal-kbd.js*', route => route.fulfill({
   status: 200, contentType: 'application/javascript',
-  body: fs.readFileSync('/home/junjie/vibe-coding/vibetop/terminal/terminal-kbd.js', 'utf8') }));
+  body: fs.readFileSync('/home/junjie/vibe-coding/vibetop/apps/everyday/terminal/terminal-kbd.js', 'utf8') }));
 // Make sure the throwaway terminal exists before loading it.
 await fetch('http://127.0.0.1/api/terminals/41/start', { method: 'POST', headers: { Cookie: 'vt_session=' + C } }).catch(() => {});
 await new Promise(r => setTimeout(r, 1500));

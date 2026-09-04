@@ -34,8 +34,8 @@ const SCRIPTS = [
   ...["shell", "shared", "apps"].flatMap((d) => walk(path.join(REPO, d), /\.js$/))
       .filter((f) => !f.endsWith(".test.js")),
   "apps/everyday/browser/xpra-patches.js",
-  "terminal/terminal-kbd.js",
-  "terminal/lib/tab-sync.js",
+  "apps/everyday/terminal/terminal-kbd.js",
+  "apps/everyday/terminal/lib/tab-sync.js",
 ].sort();
 for (const rel of SCRIPTS) {
   test(`parses: ${rel}`, () => {
@@ -61,7 +61,7 @@ test("patch bundles are wrapped for graceful degradation", () => {
 // shows is this test, made permanent.
 const PAGES = [
   ...["shell", "shared", "apps"].flatMap((d) => walk(path.join(REPO, d), /\.html$/)),
-  "terminal/terminals.html",
+  "apps/everyday/terminal/terminals.html",
 ].sort();
 {
   for (const rel of PAGES) {

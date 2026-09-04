@@ -22,7 +22,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Resolve the install user the way the manager does: $APP_USER, else the owner of
 # the manager script, else whoever's running this.
-APP_USER="${APP_USER:-$(stat -c '%U' "$ROOT/terminal/terminal-manager.py" 2>/dev/null || id -un)}"
+APP_USER="${APP_USER:-$(stat -c '%U' "$ROOT/server/terminal-manager.py" 2>/dev/null || id -un)}"
 APP_HOME="$(getent passwd "$APP_USER" 2>/dev/null | cut -d: -f6)"
 [ -n "$APP_HOME" ] || APP_HOME="/home/$APP_USER"
 IS_ROOT=0; [ "$(id -u)" = 0 ] && IS_ROOT=1
@@ -240,7 +240,7 @@ fi
 # ---------------------------------------------------------------------------
 head_ "Web root (nginx root vs where the installers deploy)"
 # The second instance of the same class as the operator checks above: the nginx
-# `root` is rendered by terminal/install.sh from LANDING_DIR, while the files are
+# `root` is rendered by server/install.sh from LANDING_DIR, while the files are
 # put there by shell/install.sh from DST_DIR. Two resolvers, one path — and an
 # in-app Update passes NEITHER, so both fall back to $APP_HOME/vibetop-www. A
 # deploy that once used a different value leaves a fully-populated directory that
@@ -253,7 +253,7 @@ head_ "Web root (nginx root vs where the installers deploy)"
 PROXIED_RE='^/(api|browser|x11-display|office|onlyoffice|t[0-9]|terminals|files|fileview|cdn-cgi|s)/'
 
 if [ ! -f "$SITE" ]; then
-    adv "no vibetop nginx site found — is terminal/install.sh deployed?"
+    adv "no vibetop nginx site found — is server/install.sh deployed?"
 else
     WEBROOT="$(sed -n 's/^[[:space:]]*root[[:space:]]\{1,\}\([^;]*\);.*/\1/p' "$SITE" | head -1)"
     if [ -z "$WEBROOT" ]; then

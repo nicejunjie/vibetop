@@ -113,7 +113,7 @@ check the real behaviour.
    self-heal (verify the expected port is listening before reusing an "active" unit).
 2. **Chinese / IME input in the mobile terminal.** Type pinyin (e.g. `shou ji`), watch
    the candidate bar, select 手机 — the shell must show **只有 手机**, never the raw
-   `shou ji` mid-composition. Guarded by `terminal/lib/kbd-input.test.js`, but IME
+   `shou ji` mid-composition. Guarded by `apps/everyday/terminal/lib/kbd-input.test.js`, but IME
    itself only reproduces on a device.
 3. **iOS standalone-PWA viewport.** After backgrounding the installed PWA and
    reopening (repeat a few times), the terminal's active bottom line must stay

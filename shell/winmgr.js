@@ -1,6 +1,6 @@
 /* winmgr.js — pure geometry math for the desktop's floating window mode.
  *
- * DOM-free (like terminal/lib/tab-sync.js) so it's unit-tested with
+ * DOM-free (like apps/everyday/terminal/lib/tab-sync.js) so it's unit-tested with
  * `node --test landing/winmgr.test.js`. desktop.html loads it via <script src>
  * and does the DOM/pointer glue; every clamp/resize/placement decision lives
  * here where it's testable. window.VibeWin in the browser, module.exports in node.
