@@ -3731,6 +3731,41 @@ one path that neither releases it nor guarantees a further `pointermove`, and
 `BRIDGE_MAX_MS` is its backstop. Do not remove that timeout, and do not add
 another early return without one.
 
+## Browser scrolling: floor while moving, round once at rest
+
+**Symptom.** In the Browser (xpra) app a fine trackpad nudge did nothing at all —
+the page would not move however long you kept nudging. Normal scrolling was fine.
+
+**Cause.** `on_mousescroll` accumulates `delta / PX_PER_CLICK` and emits
+`Math.abs(acc) | 0` whole notches, carrying the remainder. That floor is right
+for steady scrolling (it is what made speed proportional to pixels travelled
+instead of inflating at a per-event floor), but a gesture whose ENTIRE travel
+stays under one notch — ~45px — floors to zero on every event and emits nothing.
+
+**Rejected: rounding in the hot path.** A 2026-06-28 WIP (found stashed on prod,
+never landed) changed the emit to `Math.round`. That does fix the nudge, but
+`round(0.5) = 1` then subtracts 1, leaving the accumulator at **-0.5**: the next
+notch costs 1.5x and steady-state speed is no longer the tuned `PX_PER_CLICK`.
+It also paired this with a 100ms idle flush at a 0.2-notch threshold — ~9px of
+travel, which the remote Chromium amplifies to ~3 lines, so a stray twitch became
+a visible jump.
+
+**Fix.** Keep the floor while the gesture is moving — every scroll that works
+today is bit-identical — and round up exactly once, at rest: 120ms after the last
+wheel event, if the gesture emitted NOTHING and the carried remainder is at least
+half a notch (~22px), emit one notch. Below that bar the remainder is kept, so
+genuinely slow scrolling still accumulates across events as before.
+
+**Invariant.** The `_wheelMoved` guard is load-bearing: without it a normal
+scroll gains a notch ~120ms after the user stops, which reads as the page
+drifting on its own. Do not lower `FLUSH_MIN` toward the WIP's 0.2 — one notch is
+~3 lines on the remote. `browser/xpra-patches.test.js` drives the real installed
+`on_mousescroll` in a vm sandbox and pins all of this; three of its cases fail
+against the pre-fix bundle (verified), and the rest pass on both, which is what
+shows steady state was not touched.
+
+---
+
 ## Window mode at a desktop viewport (the desktop-webkit lane's real find)
 
 **Symptom.** Adding a `desktop-webkit` project (Desktop Safari, 1280x720) and

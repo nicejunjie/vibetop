@@ -104,13 +104,48 @@
         if (n === 0) return;
         var btn = self[accKey] > 0 ? btnPos : btnNeg;
         self[accKey] -= (self[accKey] > 0 ? n : -n);               // keep the fraction
+        self._wheelMoved = true;                                   // see the idle flush below
         for (var i = 0; i < n; i++) {
           self.send([PACKET_TYPES.button_action, wid, btn, true, coords, modifiers, []]);
           self.send([PACKET_TYPES.button_action, wid, btn, false, coords, modifiers, []]);
         }
       }
+      // A NEW gesture (no idle flush still pending) starts with a clean slate for
+      // the "did this gesture actually move the page?" flag.
+      if (!self._wheelIdle) self._wheelMoved = false;
       emitWheel(dy, '_wheelAccY', 4, 5);
       emitWheel(dx, '_wheelAccX', 6, 7);
+      // Floor while the gesture is MOVING (above); round it up once at REST (here).
+      // A gesture whose WHOLE travel stays under one notch — a fine trackpad nudge,
+      // a Magic Mouse — floors to zero every event and the page never moves at all
+      // ("slow scrolling does nothing"). Rounding in the hot path instead would
+      // overshoot and leave a NEGATIVE remainder, so the next notch would cost 1.5x
+      // and steady-state speed would no longer be the tuned PX_PER_CLICK; doing it
+      // once, at rest, leaves every scroll that already works bit-identical.
+      //
+      // Deliberately guarded by _wheelMoved: only a gesture that emitted NOTHING is
+      // rescued. Flushing after a normal scroll would add a notch ~120ms after the
+      // user stopped, which reads as the page drifting on its own.
+      //
+      // FLUSH_MIN is half a notch (~22px). Lower is tempting but wrong: the remote
+      // Chromium amplifies one click to ~3 lines, so a 9px twitch would become a
+      // visible jump. Under the threshold the remainder is KEPT, so genuinely slow
+      // scrolling still accumulates across events exactly as it does today.
+      var IDLE_MS = 120, FLUSH_MIN = 0.5;
+      clearTimeout(self._wheelIdle);
+      self._wheelIdle = setTimeout(function() {
+        self._wheelIdle = null;
+        if (self._wheelMoved) return;                 // the gesture already scrolled
+        var ay = self._wheelAccY || 0, ax = self._wheelAccX || 0, btn = null;
+        if (Math.abs(ay) >= FLUSH_MIN && Math.abs(ay) >= Math.abs(ax)) {
+          btn = ay > 0 ? 5 : 4; self._wheelAccY = 0;
+        } else if (Math.abs(ax) >= FLUSH_MIN) {
+          btn = ax > 0 ? 7 : 6; self._wheelAccX = 0;
+        }
+        if (btn === null) return;                     // under the bar — keep carrying
+        self.send([PACKET_TYPES.button_action, wid, btn, true, coords, modifiers, []]);
+        self.send([PACKET_TYPES.button_action, wid, btn, false, coords, modifiers, []]);
+      }, IDLE_MS);
       e.preventDefault();
       return false;
     };
