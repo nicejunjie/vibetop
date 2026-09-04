@@ -588,9 +588,47 @@ def _set_claude_usage(on):
 # ---- Codex plan-usage strip (opt-in display) -------------------------------
 # Codex already records account rate-limit snapshots in token_count events in
 # ~/.codex/sessions. Enabling this only controls whether Vibetop displays them.
+# How close to the limit a window must have been for a later null to mean
+# "exhausted" rather than "not reported". The user's own instinct, and the
+# right one: the exhausted window's last-known number is really close to 100.
+CODEX_EXHAUSTED_PCT = 90.0
 CODEX_USAGE_STALE_SEC = 15 * 60
 _codex_rate_cache = {}
 _codex_rate_cache_lock = threading.Lock()
+
+
+# Codex writes SEVERAL families of rate-limit record into the same rollout, and
+# only one of them is the 5-hour/weekly pair this strip shows. Measured over
+# 1225 real `token_count` events in ~/.codex/sessions:
+#
+#   limit_id=codex                 1220  primary 300 min + secondary 10080 min
+#   limit_id=premium                  3  BOTH null - a credits limit
+#                                        (`has_credits: false, balance: "0"`)
+#   limit_id=base_model_inference     2  primary 10080 min, secondary null
+#                                        (`limit_name: "gpt-reserve"`)
+#
+# Reading whichever record happened to be newest is what made the null handling
+# dangerous: a `premium` record has both windows null for reasons that have
+# nothing to do with usage, and `base_model_inference` puts a WEEKLY window in
+# the PRIMARY slot, which the strip would have drawn as the 5-hour figure. In
+# the real trace the premium record lands two seconds after the last codex one,
+# so it wins on timestamp exactly when the numbers matter most.
+#
+# `limit_id` is the test. Older Codex builds may not carry it, so a record with
+# no id is accepted only if its windows are the right SHAPE.
+_CODEX_SESSION_MIN, _CODEX_WEEKLY_MIN = 300, 10080
+
+
+def _is_codex_limit(limits):
+    lid = limits.get("limit_id")
+    if lid is not None:
+        return lid == "codex"
+    def mins(key):
+        src = limits.get(key)
+        return src.get("window_minutes") if isinstance(src, dict) else None
+    return (mins("primary") in (None, _CODEX_SESSION_MIN)
+            and mins("secondary") in (None, _CODEX_WEEKLY_MIN)
+            and (mins("primary") is not None or mins("secondary") is not None))
 
 
 def _last_codex_rate_limit(path):
@@ -631,6 +669,8 @@ def _last_codex_rate_limit(path):
             payload = event.get("payload") or {}
             limits = payload.get("rate_limits")
             if payload.get("type") != "token_count" or not isinstance(limits, dict):
+                continue
+            if not _is_codex_limit(limits):
                 continue
             stamp = event.get("timestamp")
             updated = int(datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp())
@@ -697,9 +737,14 @@ def _codex_usage_payload(home=None, enabled=True):
 
     def exhausted_window(last):
         """A null window is a 100% reading; keep its reset/minutes from the last
-        event that carried a real value for that window (None if we never saw one)."""
+        event that carried a real value for that window.
+
+        With no last-known value at all we return None (unknown) rather than
+        100%: a window we have never had a reading for is not a window we have
+        watched fill up, and claiming the user is out of quota on no evidence is
+        the worst way to be wrong."""
         if not last:
-            return {"pct": 1.0, "reset": None, "minutes": None}
+            return None
         _, src = last
         return {"pct": 1.0, "reset": src.get("resets_at"),
                 "minutes": src.get("window_minutes")}
@@ -718,11 +763,18 @@ def _codex_usage_payload(home=None, enabled=True):
         # closest to 100%.
         pp = last_primary[1].get("used_percent") if last_primary else None
         ps = last_secondary[1].get("used_percent") if last_secondary else None
-        if pp is None and ps is None:
-            exhausted = "both"           # no last-known value: both exhausted
+        # A window only counts as exhausted if we watched it get NEARLY there.
+        # Without that floor a quiet event with both windows null declares
+        # whichever side happened to be higher — 30% beating 12% — to be out of
+        # quota, which is a false alarm in the one direction that matters.
+        hi_p = pp is not None and pp >= CODEX_EXHAUSTED_PCT
+        hi_s = ps is not None and ps >= CODEX_EXHAUSTED_PCT
+        if not hi_p and not hi_s:
+            exhausted = None             # nothing was close: do not guess
+        elif hi_p and hi_s:
+            exhausted = "primary" if pp >= ps else "secondary"
         else:
-            exhausted = "primary" if (ps is None or (pp is not None and pp >= ps)) \
-                else "secondary"
+            exhausted = "primary" if hi_p else "secondary"
 
     def resolve(key, last):
         if valid(limits.get(key)):
