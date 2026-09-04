@@ -156,6 +156,35 @@ VIBETOP_MATRIX_FULL=1 tests/matrix/run.sh ubuntu-24.04 rocky-9   # selected rows
 VIBETOP_MATRIX_FULL=1 tests/matrix/run.sh --all -j3              # 3 rows at a time (~8GB RAM each)
 ```
 
+### The fast lane: shell-only specs against the live host (~1-2 min, no VM)
+
+The VM is for anything that touches a real per-user app. **Shell-only** specs — the
+desktop UI itself, window mode, the taskbar — need none of it and run straight at
+the installed host in a minute or two, which is what makes them worth running while
+you work rather than at the end:
+
+```bash
+C=$(sudo python3 tools/mint-session-cookie.py junjie --value-only)   # ~131 chars
+cd tests/e2e && VIBETOP_BASE_URL=http://127.0.0.1 VIBETOP_E2E_COOKIE="$C" \
+  npx playwright test tests/window-mode.spec.js --project=ipad-pro-11-landscape --retries=0
+```
+
+Three things bite here:
+- **`VIBETOP_BASE_URL` defaults to `http://localhost:8080`.** Omit it and every test
+  fails in setup waiting for `#start-btn`, which looks exactly like a broken shell.
+- **Do not wrap the minter in `bash -lc`** — the login MOTD lands in the cookie and
+  the manager answers 400. A good token is ~131 characters.
+- **Never drive the Browser/xpra app this way.** It leaves the shared `:99` canvas
+  stale for whoever is using the host. Shell-only means shell-only.
+
+They test the DEPLOYED tree, so deploy before you trust a green run — and only one
+Playwright run at a time against a host, or they fight over the session.
+
+**e2e is not in CI.** `.github/workflows/tests.yml` runs the hermetic tiers only, so
+nothing runs these unless a human does. That is how v1.19.201/.202 shipped two
+window-mode regressions that failed on every viewport (see design-decisions, "The
+tiled seam belonged to whoever was on top"). If you change the shell, run the lane.
+
 Two rules that are not preferences:
 - **`tests/e2e/run.sh` is the container path — do NOT use it.** It runs systemd as
   PID 1 in a `--privileged` container sharing the host kernel; it once forced a
