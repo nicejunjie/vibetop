@@ -153,7 +153,21 @@ def home(mgr, monkeypatch, tmp_path):
         mgr._session_secret_cache = None
     if hasattr(mgr, "_login_fails"):        # don't bleed lockout state across tests
         mgr._login_fails.clear()
+        mgr._login_src_fails.clear()
     return h
+
+
+@pytest.fixture(autouse=True)
+def _fresh_login_books(mgr):
+    """Login throttling now counts per SOURCE as well as per username, and every
+    in-process test request arrives from the same 127.0.0.1 — so without this the
+    source counter accumulates across the whole session and unrelated tests start
+    seeing 429. Clear both books around each test."""
+    mgr._login_fails.clear()
+    mgr._login_src_fails.clear()
+    yield
+    mgr._login_fails.clear()
+    mgr._login_src_fails.clear()
 
 
 @pytest.fixture(autouse=True)

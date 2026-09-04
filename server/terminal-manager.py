@@ -14,6 +14,7 @@ Endpoints:
 """
 
 import base64
+import collections
 import ctypes
 import ctypes.util
 import hashlib
@@ -440,6 +441,55 @@ SHARE_MAX = 500                    # cap the registry so it can't grow unbounded
 # skipped while zipping, same fence as a file share.
 SHARE_ZIP_MAX_FILES = int(os.environ.get("SHARE_ZIP_MAX_FILES", "50000"))
 SHARE_ZIP_MAX_BYTES = int(os.environ.get("SHARE_ZIP_MAX_BYTES", str(10 * 1024**3)))  # 10 GiB
+# ...and bound the WORK, not just one archive. /s/<token> is deliberately
+# unauthenticated — possession of the capability URL is the only prerequisite —
+# and the manager is a ThreadingHTTPServer shared by every user with no
+# connection limit. Without a ceiling, one leaked folder link lets a recipient
+# multiply compression CPU, temp-disk and manager threads until the API is
+# degraded for everybody. The per-token gate is the tighter one: legitimate use
+# is one person clicking Download, so a second concurrent build of the SAME
+# archive is always either a double-click or an attack, and either way the right
+# answer is 503 + Retry-After rather than a second walk of the same tree.
+SHARE_ZIP_MAX_CONCURRENT = int(os.environ.get("SHARE_ZIP_MAX_CONCURRENT", "2"))
+SHARE_ZIP_PER_TOKEN = int(os.environ.get("SHARE_ZIP_PER_TOKEN", "1"))
+_zip_gate_lock = threading.Lock()
+_zip_active = 0
+_zip_active_token = {}
+
+
+class _ZipBusy(Exception):
+    pass
+
+
+class _zip_slot:
+    """Reserve a global + per-token archive slot, or raise _ZipBusy."""
+
+    def __init__(self, token):
+        self.token = token or "-"
+
+    def __enter__(self):
+        global _zip_active
+        with _zip_gate_lock:
+            if _zip_active >= SHARE_ZIP_MAX_CONCURRENT:
+                raise _ZipBusy("host busy")
+            if _zip_active_token.get(self.token, 0) >= SHARE_ZIP_PER_TOKEN:
+                raise _ZipBusy("this share is already being built")
+            _zip_active += 1
+            _zip_active_token[self.token] = _zip_active_token.get(self.token, 0) + 1
+        return self
+
+    def __exit__(self, *exc):
+        global _zip_active
+        with _zip_gate_lock:
+            _zip_active = max(0, _zip_active - 1)
+            n = _zip_active_token.get(self.token, 0) - 1
+            if n > 0:
+                _zip_active_token[self.token] = n
+            else:
+                _zip_active_token.pop(self.token, None)
+        return False
+
+
 # Shareable files are fenced to this root (+ no dotfiles); default = the OWNER's
 # home, NOT FileBrowser's "/", so a public link can never publish /etc/* or a
 # dot-secret. `user` = the share owner (create: the authenticated user; serve: the
@@ -1894,18 +1944,37 @@ def _prepare_fileagent_dir(user):
     try:
         os.makedirs(FILEAGENT_RUN_DIR, mode=0o755, exist_ok=True)
         os.chmod(FILEAGENT_RUN_DIR, 0o755)
-        if os.path.isdir(d):
+        # lexists, not isdir: for a SYMLINK to a directory os.path.isdir follows
+        # it and is True, shutil.rmtree refuses to remove a symlink (and
+        # ignore_errors swallowed the refusal), the second isdir is still True —
+        # so the chmod/chown below followed the link and re-permissioned its
+        # TARGET. A repair routine that repairs the wrong directory is worse than
+        # none. Unlink anything that is not a real directory, explicitly.
+        if os.path.lexists(d):
             st = os.lstat(d)
-            # Anything not exactly "owned by this user, 0700, a real dir" is
-            # untrusted — replace it rather than reuse it.
-            if (not stat.S_ISDIR(st.st_mode) or st.st_uid != pw.pw_uid
-                    or (st.st_mode & 0o077)):
+            bad = (not stat.S_ISDIR(st.st_mode) or st.st_uid != pw.pw_uid
+                   or (st.st_mode & 0o077))
+            if bad:
                 log.warning("fileagent dir %s is not a private dir owned by %s — recreating", d, user)
-                shutil.rmtree(d, ignore_errors=True)
-        if not os.path.isdir(d):
+                if stat.S_ISDIR(st.st_mode):
+                    shutil.rmtree(d, ignore_errors=True)
+                else:
+                    try:
+                        os.unlink(d)              # symlink, socket, plain file…
+                    except OSError:
+                        pass
+                if os.path.lexists(d):
+                    return f"cannot replace {d} (still present after repair)"
+        if not os.path.lexists(d):
             os.mkdir(d, 0o700)
-        os.chmod(d, 0o700)
-        os.chown(d, pw.pw_uid, pw.pw_gid)
+        # O_NOFOLLOW via the fd: never chmod/chown through a link that appeared
+        # between the check above and here.
+        fd = os.open(d, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fchmod(fd, 0o700)
+            os.fchown(fd, pw.pw_uid, pw.pw_gid)
+        finally:
+            os.close(fd)
     except OSError as e:
         return f"cannot prepare {d}: {e}"
     return None
@@ -2487,6 +2556,33 @@ def _sigterm_browser_chromium(user, profile):
                     os.kill(int(pid), signal.SIGTERM)
         except (OSError, ProcessLookupError, ValueError):
             continue
+
+
+# ---- Content-Disposition ---------------------------------------------------
+# ONE constructor for every download header. A Linux filename may contain CR and
+# LF, and BaseHTTPRequestHandler.send_header does not reject control characters —
+# it latin-1 encodes whatever it is given — so interpolating a raw basename into
+# a quoted filename= let a crafted name emit extra response-header lines:
+#
+#   Content-Disposition: attachment; filename="report<CR><LF>X-Audit: injected"
+#
+# Nginx may reject the upstream response or may parse the injected line as a
+# header; either way the bytes are attacker-chosen. On the public /s/ share path
+# an authenticated user could mint a capability URL that served that response to
+# somebody else.
+#
+# The ASCII fallback keeps only printable non-separator characters; the RFC 5987
+# filename* carries the real (percent-encoded) name, and every modern browser
+# prefers it.
+_CD_UNSAFE = re.compile(r'[^\x20-\x7e]|["\\;,]')
+
+
+def _content_disposition(name, inline=False):
+    name = os.path.basename(name or "") or "download"
+    ascii_fb = _CD_UNSAFE.sub("_", name).strip() or "download"
+    return '%s; filename="%s"; filename*=UTF-8\'\'%s' % (
+        "inline" if inline else "attachment", ascii_fb[:255],
+        urllib.parse.quote(name, safe=""))
 
 
 def _atomic_write(path, text, owner=None):
@@ -3341,42 +3437,81 @@ def _authenticate(user, password):
     return _pam_authenticate(user, password, PAM_SERVICE)
 
 
-# Login brute-force lockout: per-username failed-attempt tracking. After
-# LOGIN_MAX_FAILS failures within LOGIN_FAIL_WINDOW seconds, further attempts are
-# refused (429) for the rest of the window — cheap defense on top of PAM (the
-# server is threaded, so attempts would otherwise parallelize freely).
+# Login brute-force throttling. Two counters, because one username counter is
+# both too weak and too strong:
+#
+#   * too strong — ten wrong guesses at a KNOWN name locked that account for five
+#     minutes including the correct password, so any LAN peer or authorized
+#     tunnel user could deny another user their login at will. The account
+#     counter now only slows attempts down (a growing delay); it never refuses
+#     the real password outright.
+#   * too weak — the counter was keyed on the SUBMITTED string and inserted
+#     before the name was even validated, so a spray of unique invalid names
+#     grew the map without bound (the 10 000 "bound" only evicted *expired*
+#     entries, and during a sustained spray nothing is expired), and every
+#     request past the threshold rescanned the whole map. The refusal that
+#     matters is now per-SOURCE, and both maps are hard-capped LRU.
 LOGIN_MAX_FAILS = int(os.environ.get("LOGIN_MAX_FAILS", "10"))
 LOGIN_FAIL_WINDOW = int(os.environ.get("LOGIN_FAIL_WINDOW", "300"))
-_login_fails = {}
+LOGIN_SRC_MAX_FAILS = int(os.environ.get("LOGIN_SRC_MAX_FAILS", "30"))
+LOGIN_TRACK_MAX = 4096            # hard ceiling per map; oldest-touched evicted
+LOGIN_MAX_DELAY = 4.0             # seconds; the per-account brake's ceiling
+_login_fails = collections.OrderedDict()      # username -> [timestamps]
+_login_src_fails = collections.OrderedDict()  # source addr -> [timestamps]
 _login_fails_lock = threading.Lock()
 
 
-def _login_recent_fails(user, now):
-    return [t for t in _login_fails.get(user, []) if now - t < LOGIN_FAIL_WINDOW]
+def _login_recent(book, key, now):
+    return [t for t in book.get(key, ()) if now - t < LOGIN_FAIL_WINDOW]
 
 
-def _login_locked(user, now=None):
+def _login_touch(book, key, fails):
+    """Insert/refresh `key` and enforce the hard cap. An OrderedDict moved to the
+    end on touch makes eviction O(1) least-recently-touched — so a spray of
+    unique names costs a bounded amount of memory and no rescan, whether or not
+    anything has expired yet."""
+    book[key] = fails
+    book.move_to_end(key)
+    while len(book) > LOGIN_TRACK_MAX:
+        book.popitem(last=False)
+
+
+def _login_delay(user, now=None):
+    """Seconds of friction for the next attempt at `user`. Grows with recent
+    failures and saturates — it does NOT refuse, so a correct password always
+    gets through and an attacker cannot lock a victim out."""
     now = time.time() if now is None else now
     with _login_fails_lock:
-        fails = _login_recent_fails(user, now)
-        _login_fails[user] = fails
-        return len(fails) >= LOGIN_MAX_FAILS
+        n = len(_login_recent(_login_fails, user, now))
+    if n < LOGIN_MAX_FAILS:
+        return 0.5
+    return min(LOGIN_MAX_DELAY, 0.5 * (2 ** min(n - LOGIN_MAX_FAILS + 1, 6)))
 
 
-def _login_record_fail(user, now=None):
+def _login_src_blocked(src, now=None):
+    """The refusal. Keyed on the request source, which an attacker cannot pin on
+    somebody else the way a username can be."""
     now = time.time() if now is None else now
     with _login_fails_lock:
-        fails = _login_recent_fails(user, now)
-        fails.append(now)
-        _login_fails[user] = fails
-        if len(_login_fails) > 10000:      # bound the map against username spraying
-            for k in [k for k, v in _login_fails.items() if not _login_recent_fails(k, now)]:
-                _login_fails.pop(k, None)
+        return len(_login_recent(_login_src_fails, src, now)) >= LOGIN_SRC_MAX_FAILS
 
 
-def _login_clear(user):
+def _login_record_fail(user, src=None, now=None):
+    now = time.time() if now is None else now
+    with _login_fails_lock:
+        for book, key in ((_login_fails, user), (_login_src_fails, src)):
+            if key is None:
+                continue
+            fails = _login_recent(book, key, now)
+            fails.append(now)
+            _login_touch(book, key, fails)
+
+
+def _login_clear(user, src=None):
     with _login_fails_lock:
         _login_fails.pop(user, None)
+        if src is not None:
+            _login_src_fails.pop(src, None)
 
 
 # Paths reachable WITHOUT a session — the allowlist that the nginx auth_request
@@ -4093,24 +4228,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pw = data.get("password", "")
         if not isinstance(user, str) or not isinstance(pw, str) or not user or not pw:
             return self._json(400, {"error": "username and password required"})
-        if _login_locked(user):
-            log.warning("login locked (too many failures) for %r from %s",
-                        user, self.address_string())
+        src = self.address_string()
+        # VALIDATE BEFORE RECORDING. The old order called the tracker with the
+        # raw submitted string, so every unique junk name — of any length — got a
+        # map entry before anyone checked whether it could even be a login name.
+        # Reject the malformed shape first and it never reaches the books.
+        if not _USERNAME_RE.match(user) or len(pw) > 1024:
+            _login_record_fail(None, src)         # counts against the SOURCE only
+            time.sleep(0.5)
+            return self._json(401, {"error": "invalid credentials"})
+        if _login_src_blocked(src):
+            log.warning("login refused: too many failures from %s", src)
             time.sleep(0.5)
             return self._json(429, {"error": "too many failed attempts — "
                                              "try again in a few minutes"})
+        # A brake, not a lock: the correct password always gets through, so an
+        # attacker cannot deny a known user their login by guessing at them.
+        time.sleep(_login_delay(user))
         ok = False
-        if _USERNAME_RE.match(user) and len(pw) <= 1024:
-            try:
-                ok = bool(_authenticate(user, pw))
-            except Exception as e:                # never let an auth backend error 500
-                log.warning("auth backend error for %r: %s", user, e)
+        try:
+            ok = bool(_authenticate(user, pw))
+        except Exception as e:                    # never let an auth backend error 500
+            log.warning("auth backend error for %r: %s", user, e)
         if not ok:
-            _login_record_fail(user)
-            time.sleep(0.5)                       # per-attempt friction
-            log.warning("failed login for %r from %s", user, self.address_string())
+            _login_record_fail(user, src)
+            log.warning("failed login for %r from %s", user, src)
             return self._json(401, {"error": "invalid credentials"})
-        _login_clear(user)                        # reset on success
+        _login_clear(user, src)                   # reset on success
         tok = _sign_session(user)
         cookie = (f"{SESSION_COOKIE}={tok}; Path=/; HttpOnly; SameSite=Lax; "
                   f"Max-Age={SESSION_TTL}")
@@ -5641,8 +5785,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if head.get("size") is not None and header_req["op"] == "download":
                 self.send_header("Content-Length", str(head["size"]))
             self.send_header("Content-Disposition",
-                             ("inline" if inline else "attachment") +
-                             "; filename*=UTF-8''" + urllib.parse.quote(name))
+                             _content_disposition(name, inline))
             self.end_headers()
             if rest:
                 self.wfile.write(rest)
@@ -5769,8 +5912,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "private, max-age=300")
             if params.get("dl"):
                 self.send_header("Content-Disposition",
-                                 "attachment; filename*=UTF-8''" +
-                                 urllib.parse.quote(os.path.basename(src)))
+                                 _content_disposition(src))
             self.end_headers()
             if self.command != "HEAD":
                 with open(src, "rb") as f:
@@ -5987,6 +6129,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
         cfg["token"] = _jwt_sign(cfg, secret)
         self._json(200, cfg)
 
+    def _stream_file(self, path, extra_headers=()):
+        """Send `path` in bounded chunks. The two office handlers used to
+        `f.read()` the whole file into memory first — in the SHARED, PRIVILEGED
+        manager, for a file whose only requirement is an office extension, with
+        no size bound. Any user with a terminal can make a 20 GiB .docx, and a
+        few concurrent downloads then swap or OOM the process that serves every
+        user's API. stat + Content-Length + a 64 KiB loop costs the same to the
+        client and a constant to us."""
+        try:
+            size = os.path.getsize(path)
+            f = open(path, "rb")
+        except OSError:
+            self.send_error(404)
+            return
+        with f:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(size))
+            for k, v in extra_headers:
+                self.send_header(k, v)
+            self.end_headers()
+            if self.command == "HEAD":
+                return
+            try:
+                while True:
+                    chunk = f.read(65536)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+            except (OSError, BrokenPipeError, ConnectionError):
+                pass
+
     def _handle_office_doc(self):
         # GET ?path=&u=&t= -> raw file bytes for the OnlyOffice container to load.
         # Cookieless (container->host): the owner comes from u=, authorized by the
@@ -5998,19 +6172,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if (not src or not secret or not OFFICE_RE.search(src)
                 or not hmac.compare_digest(_onlyoffice_sig(secret, owner, rel), tok)):
             return self.send_error(403)
-        try:
-            with open(src, "rb") as f:
-                body = f.read()
-        except OSError:
-            return self.send_error(404)
-        self.send_response(200)
-        self.send_header("Content-Type", "application/octet-stream")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        try:
-            self.wfile.write(body)
-        except Exception:
-            pass
+        return self._stream_file(src)
 
     def _handle_office_download(self):
         # Loopback is NOT a trust boundary here: nginx's auth_request gates the
@@ -6025,23 +6187,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         src = _resolve_under_home(rel)
         if not src or not OFFICE_RE.search(src):
             return self.send_error(404)
-        try:
-            with open(src, "rb") as f:
-                body = f.read()
-        except OSError:
-            return self.send_error(404)
-        fn = os.path.basename(src)
-        self.send_response(200)
-        self.send_header("Content-Type", "application/octet-stream")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Content-Disposition",
-                         "attachment; filename=\"%s\"; filename*=UTF-8''%s"
-                         % (fn.replace('"', ''), urllib.parse.quote(fn)))
-        self.end_headers()
-        try:
-            self.wfile.write(body)
-        except Exception:
-            pass
+        return self._stream_file(
+            src, (("Content-Disposition", _content_disposition(src)),))
 
     def _handle_office_callback(self):
         # POST ?path=&t= -> OnlyOffice save notifications. status 2/6 means the
@@ -6812,7 +6959,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not target or kind != ent.get("kind", "file"):
             return self.send_error(404)
         if kind == "dir":
-            return self._serve_share_zip(target, ent.get("name") or "share", owner)
+            return self._serve_share_zip(target, ent.get("name") or "share", owner,
+                                         token=token)
         return self._serve_share_file(target, ent.get("name") or os.path.basename(target),
                                       force_dl, self.headers.get("Range"))
 
@@ -6849,10 +6997,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Accept-Ranges", "bytes")
         if partial:
             self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
-        self.send_header("Content-Disposition",
-                         "%s; filename=\"%s\"; filename*=UTF-8''%s"
-                         % ("inline" if inline else "attachment",
-                            name.replace('"', ''), urllib.parse.quote(name)))
+        self.send_header("Content-Disposition", _content_disposition(name, inline))
         self._share_safety_headers()
         self.end_headers()
         if self.command == "HEAD":
@@ -6870,15 +7015,44 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (OSError, BrokenPipeError, ConnectionError):
             pass
 
-    def _serve_share_zip(self, absdir, name, owner=None):
+    def _serve_share_zip(self, absdir, name, owner=None, token=None):
         # A shared FOLDER -> an on-the-fly .zip (built to a temp file on disk, then
         # streamed). Skips dotfiles/dot-dirs and any symlink escaping the owner's root.
+        #
+        # HEAD ANSWERS WITHOUT BUILDING. The `self.command == "HEAD"` check used to
+        # sit AFTER the walk, the compression and the getsize — so a request that
+        # costs a client one packet cost the shared root manager a full archive of
+        # a tree up to 50k files / 10 GiB. A HEAD on a folder share now reports the
+        # type and that the length is unknown, which is what an on-the-fly archive
+        # honestly is.
+        if self.command == "HEAD":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Disposition",
+                             _content_disposition((name or "share") + ".zip"))
+            self.send_header("Accept-Ranges", "none")
+            self._share_safety_headers()
+            self.end_headers()
+            return
         base = os.path.realpath(_share_root(owner))
         tmpdir = _office_cache_dir(owner)
         try:
             os.makedirs(tmpdir, exist_ok=True)
         except OSError:
             tmpdir = None
+        try:
+            gate = _zip_slot(token).__enter__()
+        except _ZipBusy as e:
+            # 503 + Retry-After, not a queue: a waiting thread is still a held
+            # thread, and the point is to stop one link occupying the manager.
+            self.send_response(503)
+            self.send_header("Retry-After", "10")
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self._share_safety_headers()
+            self.end_headers()
+            self.wfile.write(("Archive busy (%s) — retry in a few seconds.\n"
+                              % e).encode())
+            return
         fd, tmppath = tempfile.mkstemp(prefix=".share-", suffix=".zip", dir=tmpdir)
         os.close(fd)
         try:
@@ -6915,13 +7089,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/zip")
             self.send_header("Content-Length", str(zsize))
-            self.send_header("Content-Disposition",
-                             "attachment; filename=\"%s\"; filename*=UTF-8''%s"
-                             % (fn.replace('"', ''), urllib.parse.quote(fn)))
+            self.send_header("Content-Disposition", _content_disposition(fn))
             self._share_safety_headers()
             self.end_headers()
-            if self.command == "HEAD":
-                return
             with open(tmppath, "rb") as f:
                 while True:
                     chunk = f.read(65536)
@@ -6933,6 +7103,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except (OSError, BrokenPipeError, ConnectionError):
             pass
         finally:
+            # Both the slot and the temp file must be released even when the
+            # client disconnects mid-stream — otherwise a few aborted downloads
+            # wedge the gate closed for everyone.
+            gate.__exit__(None, None, None)
             try:
                 os.unlink(tmppath)
             except OSError:

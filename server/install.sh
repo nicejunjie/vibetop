@@ -481,6 +481,13 @@ $tls_redirect_if        auth_request /internal/authcheck;
     # or the link hits the login page. Read-only downloads: buffering off so a large
     # file/zip streams straight through instead of spooling in nginx.
     location /s/ {
+        # See conf.d/vibetop-upgrade.conf for the zones. burst+nodelay so a page
+        # of thumbnails or a double-click is absorbed rather than rejected; the
+        # manager's per-token semaphore is what actually stops a folder-zip flood.
+        limit_req zone=vt_share_req burst=20 nodelay;
+        limit_conn vt_share_conn 8;
+        limit_req_status 429;
+        limit_conn_status 429;
         proxy_pass http://127.0.0.1:$BASE_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;

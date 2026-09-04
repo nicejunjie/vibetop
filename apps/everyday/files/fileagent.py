@@ -175,10 +175,19 @@ def op_read(req):
     path = req.get("path") or ""
     if not path.startswith("/"):
         return {"ok": False, "error": "path must be absolute", "code": "einval"}
+    # Clamp BOTH bounds before the open. `min(int(max), MAX_READ)` alone let a
+    # negative value through to f.read(limit + 1) — and read(-1) reads the WHOLE
+    # file, so max=-2 slurped an arbitrarily large file into this per-user agent
+    # before the later slice threw it away, defeating the documented 1 MiB guard.
+    # `or MAX_READ` also silently turned max=0 into the default; a caller asking
+    # for nothing gets nothing.
     try:
-        limit = min(int(req.get("max") or MAX_READ), MAX_READ)
+        limit = int(req["max"]) if req.get("max") is not None else MAX_READ
     except (TypeError, ValueError):
         limit = MAX_READ
+    if isinstance(req.get("max"), bool):          # True == 1 is never a real ask
+        limit = MAX_READ
+    limit = max(0, min(limit, MAX_READ))
     try:
         size = os.path.getsize(path)
         with open(path, "rb") as f:
