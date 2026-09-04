@@ -348,7 +348,7 @@ fidelity plus reproduced player reports.
   ~~a hull re-issues an order it can never complete~~ (the naval follow-up's
   `g.wzone` water bodies — 419 of those stuck flags came from one Destroyer
   ordered to a beach).
-- ☐ **The Directorate is slower than the Collective through the mid game.**
+- ☑ 2026-09-03 **The Directorate is slower than the Collective through the mid game — closed as a DEFECT, with no balance change.**
   Found while chasing the Coastal asymmetry, and it is not naval: on Iron
   Frontier, which has no water at all, hard-Directorate takes 19.9 min on
   average against the same seeds hard-Collective closes in 13.3. Between the
