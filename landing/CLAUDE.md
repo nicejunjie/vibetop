@@ -2,24 +2,57 @@
 
 Unified desktop UI and supporting static pages. Deployed via `./install.sh` (no sudo).
 
-## Files
+## Layout
 
-- `desktop.html` — main desktop UI at `/` (Start menu, iframe viewport, status bar, server-side state via `/api/desktop`)
-- `index.html` — Services app at `/landing.html`: auto-discovering network-service dashboard (renders `GET /api/services/discover`)
-- `notes.html` — scratchpad at `/notes.html` (Notes app)
-- `monitor.html` — live system dashboard at `/monitor.html` (Monitor app; CPU/MEM/GPU charts, htop-style load average, process list)
-- `upload.html` — quick-sync drop zone at `/upload.html` (Upload app; per-file progress, In-folder listing with Clear-all + Open-in-Files deep link, sequential XHR uploads to `/api/upload`)
-- `filebrowser-patches.js` — UI enhancements injected into FileBrowser via nginx `sub_filter` (permanent toolbar buttons, mobile flex-wrap for the header, hides `#file-selection` and `.context-menu` popups). The **Share** button is custom: it opens vibetop's passwordless **public link** flow (`/api/share` → a self-contained modal with copy/expiry/revoke/manage), for files and folders (folder → `.zip`) — not FileBrowser's native share. See `docs/apps.md` / `docs/design-decisions.md`
-- `apph.js` — viewport-height fix for the iOS **standalone PWA** only: after a Cloudflare Access login WebKit freezes the `svh` unit too short (black band below the taskbar), while `visualViewport.height`/`clientHeight`/`dvh` stay correct (confirmed on-device). In standalone it sets `--app-h` = `max(visualViewport.height, clientHeight)` (the true usable height — keyboard-safe via a running max reset on rotation, and can't overshoot into the status-bar strip like `100vh` did); Safari keeps the `100svh` default via `body{height:var(--app-h,100svh)}`. Diagnostic overlay: `#vhdbg` or `localStorage.vhdbg='1'`. See `docs/desktop.md` / `docs/design-decisions.md`
-- `coach.js` — shared coach-tip banner (`window.vibeCoach(tips, opts)`): show-every-open-until-tapped (tap anywhere on the banner dismisses; no ×), max-3 cap, versioned keys, one-at-a-time, rotation. Loaded on the desktop shell + X11 Launcher and injected into `/tN/` pages before `terminal-kbd.js`. Tips live on 4 surfaces (terminal, Files, Browser, cross-device ⏻) — see `docs/desktop.md`
-- `rzdbg.html` — standalone cursor/hit-test diagnostic at `/rzdbg.html` (kept out of the service worker's shell set on purpose: network-only, never stale). For device-specific cursor reports; see `docs/design-decisions.md`
-- `manifest.json` / `sw.js` / `icons/` — PWA: web manifest, service worker (caches the shell for instant loads; bypasses live/auth paths), and home-screen icons (regenerate with `icons/generate-icons.py`)
-- `install.sh` — copies files to `~/vibetop-www/`
+One directory per Start-menu item. The **source tree is grouped; the web root
+stays FLAT** — every page keeps the URL it always had (`/notes.html`, `/rts.html`,
+`/landing.html`). Nothing outside `install.sh` knows where a file lives in the
+repo, which is why this could be reorganised without touching a single URL, the
+`sw.js` PRECACHE list, the `APPS` map, or an nginx location. **Keep it that way:**
+move a file freely, but do not change what it deploys to.
+
+```
+shell/        the desktop itself + its modules and auth surfaces
+  desktop.html   the shell at `/` (Start menu, iframe viewport, status bar,
+                 server-side state via /api/desktop) — also holds the APPS registry
+  sw.js         PWA service worker; its VERSION is BOTH the cache key and the
+                deploy signal /api/events watches (see the root CLAUDE.md)
+  manifest.json icons/ login.html loggedout.html
+  winmgr.js coach.js apph.js keybar.js   (+ their .test.js)
+shared/       used by MANY pages — vibe-modal.js (11), gamescore.js (5)
+apps/<item>/  one per Start-menu app: services, notes, upload, monitor,
+              tokenstats, update, config, video, imageview, x11launcher,
+              files (files.html + filesx.html + filebrowser-patches.js), office
+games/<item>/ minesweeper, solitaire, game2048, circuit, and rts/ — the game,
+              its tests, its art pipeline (art/) and its docs (docs/) together
+diagnostics/  rzdbg.html — cursor/hit-test probe, deliberately NOT in the sw
+              shell set: network-only, so it can never be served stale
+install.sh    deploys by WALKING the tree — see below
+js-syntax.test.js   cross-cutting parse guard for every deployed/injected script
+```
+
+### install.sh deploys by walking, not by a list
+
+Adding a page needs no install line, and deleting one cannot leave a file behind
+in the web root. The old hand-written list had to be edited for both, and when
+that was forgotten the web root kept serving a file the repo no longer had —
+`mario.html` survived months that way, reachable long after Circuit Runner
+replaced it. Only genuine exceptions are declared, in the `RENDERED` table:
+a different destination name (`shell/desktop.html` → `index.html`,
+`apps/services/index.html` → `landing.html`) or a `@TOKEN@` to stamp
+(`@VERSION@`/`@SW_VERSION@`, `@APP_HOME@`).
+
+Because the web root is flat, two grouped sources **can** collide on one URL —
+something the old list made impossible by construction. `install.sh` checks for
+duplicate destination basenames and fails loudly rather than letting one page
+silently overwrite another at deploy time. `test_static.py` resolves pages by
+basename through the same assumption.
 
 ## Updating
 
 1. Edit the source file(s) here.
 2. Run `./install.sh` (without sudo — sudo resolves `$HOME` to `/root/`).
+   `DRY_RUN=1 ./install.sh` prints the full source → web-root plan without writing.
 3. Reload the browser. No nginx reload needed — served as static files.
 
 Full architecture: [`../docs/desktop.md`](../docs/desktop.md) (shell) and

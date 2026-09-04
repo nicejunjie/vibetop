@@ -176,7 +176,7 @@ def test_filebrowser_patch_home_stamped_in_both_installers():
     # under landing/, but its cache-buster is computed by files/install.sh — so
     # BOTH files/install.sh and landing/install.sh must stamp @APP_HOME@ or one
     # clobbers the other's stamped copy with a literal placeholder.
-    patch = os.path.join(_REPO, "landing", "filebrowser-patches.js")
+    patch = _landing("filebrowser-patches.js")
     if "@APP_HOME@" not in open(patch).read():
         pytest.skip("filebrowser-patches.js no longer uses @APP_HOME@")
     for inst in ("files/install.sh", "landing/install.sh"):
@@ -250,7 +250,7 @@ def test_doctor_proxied_prefixes_cover_the_sw_bypass_list():
                 out.add(tok.replace("\\", "").rstrip("/"))
         return out
 
-    sw = open(os.path.join(_REPO, "landing", "sw.js")).read()
+    sw = open(_landing("sw.js")).read()
     m = re.search(r"const BYPASS = /\^\\/\((.*?)\)/", sw)
     assert m, "could not find BYPASS in sw.js"
     sw_prefixes = prefixes(m.group(1))
@@ -270,23 +270,49 @@ def test_doctor_proxied_prefixes_cover_the_sw_bypass_list():
 # ---- Service-worker PRECACHE integrity -------------------------------------
 
 def _sw_precache():
-    src = open(os.path.join(_REPO, "landing", "sw.js")).read()
+    src = open(_landing("sw.js")).read()
     m = re.search(r"const PRECACHE\s*=\s*\[(.*?)\]", src, re.S)
     assert m, "could not find PRECACHE in sw.js"
     return re.findall(r"'([^']+)'", m.group(1))
 
 
+# The web root is flat but landing/ is grouped (shell/, shared/, apps/<item>/,
+# games/<item>/), so a deployed URL no longer names its source path. Resolve by
+# basename across the tree — which is exactly what landing/install.sh does, and
+# its duplicate-basename guard is what keeps this lookup unambiguous.
+def _landing_sources():
+    out = {}
+    for f in _walk(["landing/**/*.html", "landing/**/*.js", "landing/**/*.json",
+                    "landing/**/*.png", "landing/**/*.ico"]):
+        if f.endswith(".test.js") or "/art/" in f:
+            continue
+        out.setdefault(os.path.basename(f), f)
+    return out
+
+
+def _landing(name):
+    """A landing/ source file by BASENAME, wherever the grouped tree keeps it.
+
+    Tests name pages the way the product does (desktop.html, keybar.js) rather
+    than by directory, so a future regroup does not break them again.
+    """
+    src = _landing_sources().get(name)
+    assert src, f"no landing/ source named {name}"
+    return src
+
+
 def _resolve_precache(entry):
     """Map a deployed web-root path to its landing/ source file."""
+    src = _landing_sources()
     if entry == "/":
-        return os.path.join(_REPO, "landing", "desktop.html")   # served as index.html
+        return src.get("desktop.html", "")          # served as index.html
     if entry == "/landing.html":
-        return os.path.join(_REPO, "landing", "index.html")     # Services dashboard
-    return os.path.join(_REPO, "landing", entry.lstrip("/"))
+        return src.get("index.html", "")            # Services dashboard
+    return src.get(os.path.basename(entry), "")
 
 
 def test_sw_version_parses():
-    src = open(os.path.join(_REPO, "landing", "sw.js")).read()
+    src = open(_landing("sw.js")).read()
     assert re.search(r"const VERSION\s*=\s*'v\d+'", src), "sw.js VERSION malformed"
 
 
@@ -312,7 +338,7 @@ def test_landing_html_parses_and_local_refs_resolve():
                     self.refs.append(v)
 
     broken = []
-    for htmlf in _walk(["landing/*.html"]):
+    for htmlf in _walk(["landing/**/*.html"]):
         text = open(htmlf).read()
         p = P()
         p.feed(text)                        # raises on malformed markup
@@ -327,7 +353,11 @@ def test_landing_html_parses_and_local_refs_resolve():
             ref = ref.split("?")[0].split("#")[0]
             if not ref:
                 continue
-            if not os.path.isfile(os.path.join(_REPO, "landing", ref)):
+            # Relative refs resolve against the page's OWN directory now that
+            # landing/ is grouped; fall back to the flat web root, where a
+            # sibling page's asset actually lands at deploy time.
+            here = os.path.join(os.path.dirname(htmlf), ref)
+            if not os.path.isfile(here) and os.path.basename(ref) not in _landing_sources():
                 broken.append(f"{os.path.basename(htmlf)} -> {ref}")
     assert not broken, "landing HTML relative refs that don't resolve: %r" % broken
 
@@ -335,8 +365,9 @@ def test_landing_html_parses_and_local_refs_resolve():
 def test_subfilter_injected_scripts_exist():
     # The nginx sub_filter injects these by ?v=<hash>; a missing file means a
     # 404 for injected JS (broken terminal keyboard / xpra / filebrowser UI).
-    for rel in ("browser/xpra-patches.js", "landing/filebrowser-patches.js",
-                "terminal/terminal-kbd.js", "landing/coach.js",
+    for rel in ("browser/xpra-patches.js",
+                "landing/apps/files/filebrowser-patches.js",
+                "terminal/terminal-kbd.js", "landing/shell/coach.js",
                 "terminal/lib/tab-sync.js"):
         assert os.path.isfile(os.path.join(_REPO, rel)), f"missing {rel}"
 
@@ -349,7 +380,7 @@ def test_subfilter_injected_scripts_exist():
 # heartbeats). Three guards, all greppable — see docs/design-decisions.md.
 
 def test_login_page_never_renders_framed():
-    src = open(os.path.join(_REPO, "landing", "login.html")).read()
+    src = open(_landing("login.html")).read()
     assert "window.top === window.self" in src, \
         "login.html lost its frame guard — a framed sign-in nests the desktop"
     # It must hand the sign-in to the TOP window, and WITHOUT ?next= (next points
@@ -359,7 +390,7 @@ def test_login_page_never_renders_framed():
 
 
 def test_desktop_refuses_to_be_nested():
-    src = open(os.path.join(_REPO, "landing", "desktop.html")).read()
+    src = open(_landing("desktop.html")).read()
     guard = src.split("Auth guard", 1)[0]      # must run BEFORE the auth probe
     assert "window.top === window.self" in guard and \
         re.search(r"window\.top\.location\.replace\(\s*'/'\s*\)", guard), \
@@ -372,7 +403,7 @@ def test_window_mode_switch_lives_only_in_the_taskbar():
     found), flyout + button (the same switch in two places, reported as "two window
     control buttons"), and menu-row only (v1.19.42 removed the wrong one). Final
     shape: one icon, one place, no Start-menu row."""
-    src = open(os.path.join(_REPO, "landing", "desktop.html")).read()
+    src = open(_landing("desktop.html")).read()
     assert 'id="wm-btn"' in src, "the 🗔 taskbar toggle is missing"
     assert "body.wm-capable .wm-btn" in src, \
         "the 🗔 button lost its capability-gated visibility"
@@ -433,10 +464,10 @@ def test_keybar_lift_chain_is_intact():
     relayed-figure design desynced when iOS flipped viewport regimes (the
     per-tab under/over-scroll bug). Break any link and the symptom returns
     silently. See docs/design-decisions.md, the key-bar saga."""
-    desktop = open(os.path.join(_REPO, "landing", "desktop.html")).read()
+    desktop = open(_landing("desktop.html")).read()
     relay = open(os.path.join(_REPO, "terminal", "terminals.html")).read()
     kbd = open(os.path.join(_REPO, "terminal", "terminal-kbd.js")).read()
-    keybar = open(os.path.join(_REPO, "landing", "keybar.js")).read()
+    keybar = open(_landing("keybar.js")).read()
 
     assert "VibeKeybar" in keybar and "function compute" in keybar, \
         "keybar.js no longer provides VibeKeybar.compute (the pure bar+lift math)"

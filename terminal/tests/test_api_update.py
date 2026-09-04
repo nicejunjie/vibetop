@@ -15,7 +15,7 @@ class GitFake:
         self.fetch_ok = True
         self.dirty = ""                 # `git status --porcelain` output
         self.matches_upstream = True    # `git diff --quiet origin/main` result
-        self.changed = ["landing/desktop.html"]
+        self.changed = ["landing/shell/desktop.html"]
         self.calls = []
 
     def __call__(self, args, timeout=60):
@@ -67,11 +67,11 @@ def test_update_already_up_to_date(client, mgr, stubs, monkeypatch, op_cookie):
 
 def test_update_clean_fast_forward(client, mgr, stubs, monkeypatch, op_cookie):
     g = GitFake()
-    g.changed = ["landing/desktop.html"]
+    g.changed = ["landing/shell/desktop.html"]
     monkeypatch.setattr(mgr, "_git", g)
     status, body = client.post("/api/update", {}, cookie=op_cookie)
     assert status == 200 and body["ok"] is True
-    assert body["changed"] == ["landing/desktop.html"]
+    assert body["changed"] == ["landing/shell/desktop.html"]
     assert body["restart"] is False              # no terminal/*.py changed
     assert _step(body["log"], "git pull")["ok"] is True
 
@@ -97,9 +97,9 @@ def test_update_restart_when_manager_module_changes(client, mgr, stubs, monkeypa
 
 def test_update_rsync_redundant_tree_is_reset(client, mgr, stubs, monkeypatch, op_cookie):
     g = GitFake()
-    g.dirty = " M landing/x.html"                # dirty, but...
+    g.dirty = " M landing/apps/notes/notes.html"                # dirty, but...
     g.matches_upstream = True                    # ...content already == origin/main
-    g.changed = ["landing/desktop.html"]
+    g.changed = ["landing/shell/desktop.html"]
     monkeypatch.setattr(mgr, "_git", g)
     status, body = client.post("/api/update", {}, cookie=op_cookie)
     assert status == 200 and body["ok"] is True
@@ -121,7 +121,7 @@ def test_update_force_stashes_then_updates(client, mgr, stubs, monkeypatch, op_c
     g = GitFake()
     g.dirty = " M terminal/terminal-manager.py"
     g.matches_upstream = False
-    g.changed = ["landing/desktop.html"]
+    g.changed = ["landing/shell/desktop.html"]
     monkeypatch.setattr(mgr, "_git", g)
     status, body = client.post("/api/update", {"force": True}, cookie=op_cookie)
     assert status == 200 and body["ok"] is True
