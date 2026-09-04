@@ -517,6 +517,10 @@ def test_a_due_message_is_delivered_by_the_request_itself(client, mgr, home, op_
     assert sent[0][1] == 1 and sent[0][2] == "continue"
     ent = [e for lst in mgr._read_schedules().values() for e in lst][0]
     assert ent["status"] == "sent" and ent["fired"]
+    # And the REPLY says so too — returning the pre-fire snapshot would report
+    # "pending" for a message that has already gone out.
+    assert body["schedule"]["status"] == "sent"
+    assert body["schedule"]["fired"]
 
 
 def test_a_future_message_is_left_for_the_sweeper(client, mgr, home, op_cookie, monkeypatch):
@@ -541,13 +545,16 @@ def test_a_failed_immediate_send_is_reported_not_swallowed(client, mgr, home, op
     sees instead of a false "Sent."."""
     monkeypatch.setattr(mgr, "_inject_terminal",
                         lambda user, n, text: (False, "terminal 3 is not running"))
-    status, _ = client.post("/api/terminals/schedules",
-                            {"term": 3, "text": "continue", "at": time.time()},
-                            cookie=op_cookie)
+    status, body = client.post("/api/terminals/schedules",
+                               {"term": 3, "text": "continue", "at": time.time()},
+                               cookie=op_cookie)
     assert status == 200
     ent = [e for lst in mgr._read_schedules().values() for e in lst][0]
     assert ent["status"] == "failed"
     assert "not running" in ent["error"]
+    # The reply must carry the failure too, not a stale "pending".
+    assert body["schedule"]["status"] == "failed"
+    assert "not running" in body["schedule"]["error"]
 
 
 def test_an_injector_that_raises_does_not_fail_the_queue(client, mgr, home, op_cookie,
