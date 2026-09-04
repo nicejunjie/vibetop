@@ -77,16 +77,25 @@ def test_rejects_a_time_that_has_passed(client, home, op_cookie):
     assert status == 400 and "already passed" in body["error"]
 
 
-def test_accepts_now_despite_the_pickers_minute_granularity(client, mgr, home, op_cookie):
+def test_accepts_now_despite_the_pickers_minute_granularity(client, mgr, home, op_cookie,
+                                                           monkeypatch):
     """The UI defaults the field to NOW, and datetime-local only resolves to the
     minute — so a "send it now" submit arrives already up to ~59s in the past.
-    Inside SCHED_PAST_TOLERANCE that must be accepted and fire on the next tick."""
+    Inside SCHED_PAST_TOLERANCE that must be accepted.
+
+    It used to be accepted and left for the next sweeper tick; since the Send-now
+    button it is delivered by the request itself, so this asserts it was acted on
+    rather than that it is still waiting."""
+    sent = []
+    monkeypatch.setattr(mgr, "_inject_terminal",
+                        lambda user, n, text: (sent.append(text), (True, None))[1])
     at = time.time() - (mgr.SCHED_PAST_TOLERANCE - 15)
     status, body = client.post("/api/terminals/schedules",
                                {"term": 1, "text": "continue", "at": at},
                                cookie=op_cookie)
     assert status == 200
-    assert mgr._due_schedules(mgr._read_schedules(), time.time())   # due right away
+    assert sent == ["continue"]
+    assert not mgr._due_schedules(mgr._read_schedules(), time.time())   # nothing left over
 
 
 def test_rejects_beyond_the_horizon(client, mgr, home, op_cookie):
@@ -488,3 +497,67 @@ def test_reaper_spares_terminals_of_a_user_with_a_pending_schedule(mgr, home, mo
     mgr._write_schedules({})                      # no pending -> normal behavior
     assert mgr._reap_idle_users() == ["alice"]
     assert seen["terms"] is True
+
+
+# --- "Send now": a message already due fires on arrival, not on the next tick ---
+
+def test_a_due_message_is_delivered_by_the_request_itself(client, mgr, home, op_cookie,
+                                                          monkeypatch):
+    """The panel's "Send now" button posts at=now. The sweeper ticks every 15s, so
+    without firing in-request a button labelled "now" sits there looking broken for
+    up to fifteen seconds. Assert delivery happened during the POST — no tick run."""
+    sent = []
+    monkeypatch.setattr(mgr, "_inject_terminal",
+                        lambda user, n, text: (sent.append((user, n, text)), (True, None))[1])
+    status, body = client.post("/api/terminals/schedules",
+                               {"term": 1, "text": "continue", "at": time.time()},
+                               cookie=op_cookie)
+    assert status == 200
+    assert sent, "the message was queued but not delivered by the request"
+    assert sent[0][1] == 1 and sent[0][2] == "continue"
+    ent = [e for lst in mgr._read_schedules().values() for e in lst][0]
+    assert ent["status"] == "sent" and ent["fired"]
+
+
+def test_a_future_message_is_left_for_the_sweeper(client, mgr, home, op_cookie, monkeypatch):
+    """The other half of the same rule — scheduling must not fire early. Without
+    this, the in-request run could quietly deliver anything it found ripe."""
+    sent = []
+    monkeypatch.setattr(mgr, "_inject_terminal",
+                        lambda user, n, text: (sent.append(text), (True, None))[1])
+    status, _ = client.post("/api/terminals/schedules",
+                            {"term": 1, "text": "later", "at": time.time() + 3600},
+                            cookie=op_cookie)
+    assert status == 200
+    assert not sent, "a future message must not be delivered by its own request"
+    ent = [e for lst in mgr._read_schedules().values() for e in lst][0]
+    assert ent["status"] == "pending" and not ent["fired"]
+
+
+def test_a_failed_immediate_send_is_reported_not_swallowed(client, mgr, home, op_cookie,
+                                                           monkeypatch):
+    """Send now into a terminal that is not running must record the failure on the
+    entry — the client re-reads the list straight after, so this is what the user
+    sees instead of a false "Sent."."""
+    monkeypatch.setattr(mgr, "_inject_terminal",
+                        lambda user, n, text: (False, "terminal 3 is not running"))
+    status, _ = client.post("/api/terminals/schedules",
+                            {"term": 3, "text": "continue", "at": time.time()},
+                            cookie=op_cookie)
+    assert status == 200
+    ent = [e for lst in mgr._read_schedules().values() for e in lst][0]
+    assert ent["status"] == "failed"
+    assert "not running" in ent["error"]
+
+
+def test_an_injector_that_raises_does_not_fail_the_queue(client, mgr, home, op_cookie,
+                                                         monkeypatch):
+    """The message is already saved by the time we try to deliver it. A blow-up in
+    delivery must not turn a stored schedule into a 500 the user reads as "lost"."""
+    def boom(user, n, text):
+        raise RuntimeError("pty exploded")
+    monkeypatch.setattr(mgr, "_inject_terminal", boom)
+    status, body = client.post("/api/terminals/schedules",
+                               {"term": 1, "text": "continue", "at": time.time()},
+                               cookie=op_cookie)
+    assert status == 200 and body.get("ok")

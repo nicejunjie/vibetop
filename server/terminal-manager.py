@@ -6167,6 +6167,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._drop_schedules_cache(user)
         log.info("schedule %s queued: %s term %d in %ds", ent["id"], user, n,
                  int(at - now))
+        # Already due (the UI's "Send now", or a time inside SCHED_PAST_TOLERANCE)?
+        # Fire this pass instead of waiting for the sweeper. The tick is 15s, so
+        # without this a button labelled "now" would sit there for up to fifteen
+        # seconds looking broken. Same code path the sweeper uses, so the entry is
+        # recorded and reported identically; a failure here is already captured on
+        # the entry's own status, which the client re-reads straight after.
+        if at <= now:
+            try:
+                _run_due_schedules()
+                self._drop_schedules_cache(user)
+            except Exception as e:                  # never fail the queue on this
+                log.warning("immediate schedule run failed: %s", e)
         return self._json(200, {"ok": True, "id": ent["id"], "schedule": ent})
 
     def _handle_schedule_cancel(self):
