@@ -1,0 +1,1136 @@
+{
+  "_": "Recorded by apps/games/rts/tools/art-metrics.js — do not hand-edit except to RE-RECORD after a deliberate art improvement (node apps/games/rts/tools/art-metrics.js --record). `metrics` is ratcheted by apps/games/rts/rts-art.test.js: a regression fails, and so does an improvement, which is what makes progress stick. `detail` is informational only.",
+  "recorded": "2026-09-04",
+  "env": {
+    "dpr": 1,
+    "zoom": 1,
+    "ZMIN": 0.55,
+    "spikeFloorAtZoom1": 3.64,
+    "units": 41,
+    "sprites": 328,
+    "scene": {
+      "spawned": 24,
+      "zoom": 1
+    },
+    "framePng": "apps/games/rts/art/out/art-gate-frame.png"
+  },
+  "targets": {
+    "peerVsSelf.total": {
+      "want": 0,
+      "dir": "down",
+      "note": "reference §1.2/§0 bar: no unit beaten by a peer"
+    },
+    "peerVsSelf.vehicle": {
+      "want": 0,
+      "dir": "down",
+      "note": "audit §2: 11 of 13 today"
+    },
+    "peerVsSelf.infantry": {
+      "want": 0,
+      "dir": "down",
+      "note": "audit §2: 11 of 14 today"
+    },
+    "peerVsSelf.naval": {
+      "want": 0,
+      "dir": "down",
+      "note": "audit §2: 8 of 10 today"
+    },
+    "peerVsSelf.air": {
+      "want": 0,
+      "dir": "down",
+      "note": "audit §2: 0 of 4 — the control that says this is real"
+    },
+    "iou.groundCombat.mean": {
+      "want": 0.45,
+      "dir": "down",
+      "note": "plan §0 headline 0.679; 0.45 is the air groups 0.30 with slack for a shared ground plane"
+    },
+    "iou.vehicle.mean": {
+      "want": 0.45,
+      "dir": "down",
+      "note": "as above, over all 13 ground vehicles"
+    },
+    "iou.infantry.mean": {
+      "want": 0.55,
+      "dir": "down",
+      "note": "RA2 infantry share a silhouette by design (ref §1.2); colour carries them, so the ceiling is looser"
+    },
+    "iou.naval.mean": {
+      "want": 0.45,
+      "dir": "down",
+      "note": ""
+    },
+    "iou.air.mean": {
+      "want": 0.45,
+      "dir": "down",
+      "note": "already met — the control group"
+    },
+    "iou.sameFactionOver75": {
+      "want": 0,
+      "dir": "down",
+      "note": "plan §5: no same-roster pair over the 0.75 ceiling"
+    },
+    "spike.belowFloor": {
+      "want": 0,
+      "dir": "down",
+      "note": "plan §2 option 1: every spike >=3.64 px at zoom 1 so it clears 2 px at ZMIN"
+    },
+    "spike.minThickAtZmin": {
+      "want": 2,
+      "dir": "up",
+      "note": "RA2 bottoms out at 2 px of thickness"
+    },
+    "spike.belowDeclaredBudget": {
+      "want": 0,
+      "dir": "down",
+      "note": "every unit meets its own §2 pixel budget"
+    },
+    "mass.groundCombatSpan": {
+      "want": 6.8,
+      "dir": "up",
+      "note": "reference §1.1: RA2 spans 21 -> 143 px, x6.8, with no bunching"
+    },
+    "mass.tightestBand6": {
+      "want": 2,
+      "dir": "up",
+      "note": "six of nine ground combat vehicles sit inside a x1.38 band today (audit §5)"
+    }
+  },
+  "metrics": {
+    "peerVsSelf.total": 30,
+    "peerVsSelf.vehicle": 11,
+    "peerVsSelf.infantry": 11,
+    "peerVsSelf.naval": 8,
+    "peerVsSelf.air": 0,
+    "iou.groundCombat.mean": 0.679,
+    "iou.vehicle.mean": 0.5809,
+    "iou.infantry.mean": 0.6442,
+    "iou.naval.mean": 0.4781,
+    "iou.air.mean": 0.3025,
+    "iou.sameFactionOver75": 16,
+    "spike.belowFloor": 2,
+    "spike.minThickAtZmin": 1.65,
+    "spike.belowDeclaredBudget": 4,
+    "mass.groundCombatSpan": 2.317,
+    "mass.tightestBand6": 1.197
+  },
+  "detail": {
+    "counts": {
+      "units": 41,
+      "sprites": 328,
+      "perGroup": {
+        "vehicle": 13,
+        "infantry": 14,
+        "naval": 10,
+        "air": 4
+      }
+    },
+    "iouGroups": {
+      "vehicle": {
+        "mean": 0.5809,
+        "pairs": 78,
+        "max": 0.8367,
+        "over75": 13
+      },
+      "infantry": {
+        "mean": 0.6442,
+        "pairs": 91,
+        "max": 0.8752,
+        "over75": 17
+      },
+      "naval": {
+        "mean": 0.4781,
+        "pairs": 45,
+        "max": 0.7524,
+        "over75": 1
+      },
+      "air": {
+        "mean": 0.3025,
+        "pairs": 6,
+        "max": 0.5861,
+        "over75": 0
+      },
+      "groundCombat": {
+        "mean": 0.679,
+        "pairs": 36,
+        "max": 0.8162,
+        "over75": 8
+      },
+      "sameFactionOver75": 16
+    },
+    "worstSameFactionPairs": [
+      {
+        "a": "Spy",
+        "b": "Tanya",
+        "iou": 0.8752
+      },
+      {
+        "a": "Chrono Miner",
+        "b": "Mirage Tank",
+        "iou": 0.8367
+      },
+      {
+        "a": "Engineer",
+        "b": "Crazy Ivan",
+        "iou": 0.8188
+      },
+      {
+        "a": "Mirage Tank",
+        "b": "Prism Tank",
+        "iou": 0.8162
+      },
+      {
+        "a": "Engineer",
+        "b": "Tanya",
+        "iou": 0.806
+      },
+      {
+        "a": "Rhino Tank",
+        "b": "Tesla Tank",
+        "iou": 0.7995
+      },
+      {
+        "a": "Tesla Tank",
+        "b": "War Miner",
+        "iou": 0.7983
+      },
+      {
+        "a": "Conscript",
+        "b": "Engineer",
+        "iou": 0.7922
+      },
+      {
+        "a": "Rhino Tank",
+        "b": "War Miner",
+        "iou": 0.7898
+      },
+      {
+        "a": "Engineer",
+        "b": "Yuri",
+        "iou": 0.7819
+      },
+      {
+        "a": "Engineer",
+        "b": "Spy",
+        "iou": 0.7791
+      },
+      {
+        "a": "Chrono Legionnaire",
+        "b": "GI",
+        "iou": 0.7773
+      }
+    ],
+    "tightestMassBand": [
+      "V3 Launcher",
+      "Flak Track",
+      "Mirage Tank",
+      "Grizzly Tank",
+      "Prism Tank",
+      "Tesla Tank"
+    ],
+    "units": {
+      "aegis": {
+        "name": "Aegis Cruiser",
+        "group": "naval",
+        "fac": "dir",
+        "mass": 1780,
+        "bboxW": 85,
+        "bboxH": 56,
+        "aspect": 1.374,
+        "selfIoU": 0.5118,
+        "bestPeer": "Destroyer",
+        "bestPeerIoU": 0.7524,
+        "peersBeatingSelf": 6,
+        "peers": 9,
+        "spike": {
+          "axis": "v",
+          "len": 17,
+          "thick": 9,
+          "atZmin": 4.95,
+          "budget": 8,
+          "feature": "a vertical flat-panel radar face >=8x8 px, explicitly no barrel"
+        }
+      },
+      "apc": {
+        "name": "Amphibious Transport",
+        "group": "naval",
+        "fac": "col",
+        "mass": 1666,
+        "bboxW": 54,
+        "bboxH": 55,
+        "aspect": 1.043,
+        "selfIoU": 0.7211,
+        "bestPeer": "Landing Craft",
+        "bestPeerIoU": 0.6567,
+        "peersBeatingSelf": 0,
+        "peers": 9,
+        "spike": {
+          "axis": "h",
+          "len": 10,
+          "thick": 23,
+          "atZmin": 12.65,
+          "budget": 4,
+          "feature": "a continuous inflatable skirt round a house-hued open deck"
+        }
+      },
+      "carrier": {
+        "name": "Aircraft Carrier",
+        "group": "naval",
+        "fac": "dir",
+        "mass": 2839,
+        "bboxW": 111,
+        "bboxH": 64,
+        "aspect": 1.628,
+        "selfIoU": 0.4836,
+        "bestPeer": "Dreadnought",
+        "bestPeerIoU": 0.7445,
+        "peersBeatingSelf": 4,
+        "peers": 9,
+        "spike": {
+          "axis": "h",
+          "len": 23,
+          "thick": 19,
+          "atZmin": 10.45,
+          "budget": 4,
+          "feature": "a flat flight deck >=80% of length with 3 parked airframes"
+        }
+      },
+      "chronominer": {
+        "name": "Chrono Miner",
+        "group": "vehicle",
+        "fac": "dir",
+        "mass": 1345,
+        "bboxW": 55,
+        "bboxH": 42,
+        "aspect": 1.322,
+        "selfIoU": 0.7263,
+        "bestPeer": "Mirage Tank",
+        "bestPeerIoU": 0.8367,
+        "peersBeatingSelf": 5,
+        "peers": 12,
+        "spike": {
+          "axis": "h",
+          "len": 12,
+          "thick": 14,
+          "atZmin": 7.7,
+          "budget": 4,
+          "feature": "ribbed violet chrono drum for a nose; zero turret mass"
+        }
+      },
+      "cleg": {
+        "name": "Chrono Legionnaire",
+        "group": "infantry",
+        "fac": "dir",
+        "mass": 352,
+        "bboxW": 18,
+        "bboxH": 35,
+        "aspect": 0.479,
+        "selfIoU": 0.7365,
+        "bestPeer": "GI",
+        "bestPeerIoU": 0.7773,
+        "peersBeatingSelf": 5,
+        "peers": 13,
+        "spike": {
+          "axis": "h",
+          "len": 6,
+          "thick": 6.5,
+          "atZmin": 3.58,
+          "budget": 9,
+          "feature": "powered-suit shoulder line >=15 px + a long level rifle"
+        }
+      },
+      "conscript": {
+        "name": "Conscript",
+        "group": "infantry",
+        "fac": "col",
+        "mass": 354,
+        "bboxW": 18,
+        "bboxH": 36,
+        "aspect": 0.444,
+        "selfIoU": 0.728,
+        "bestPeer": "Engineer",
+        "bestPeerIoU": 0.7922,
+        "peersBeatingSelf": 5,
+        "peers": 13,
+        "spike": {
+          "axis": "v",
+          "len": 7,
+          "thick": 6,
+          "atZmin": 3.3,
+          "budget": 3,
+          "feature": "flat peaked cap over tan trousers (the GI twin; legs carry the read)"
+        }
+      },
+      "desolator": {
+        "name": "Desolator",
+        "group": "infantry",
+        "fac": "col",
+        "mass": 381,
+        "bboxW": 19,
+        "bboxH": 36,
+        "aspect": 0.507,
+        "selfIoU": 0.6614,
+        "bestPeer": "GI",
+        "bestPeerIoU": 0.7961,
+        "peersBeatingSelf": 7,
+        "peers": 13,
+        "spike": {
+          "axis": "v",
+          "len": 7,
+          "thick": 6,
+          "atZmin": 3.3,
+          "budget": 5,
+          "feature": "backpack tank above the shoulder line + a fat beam muzzle"
+        }
+      },
+      "destroyer": {
+        "name": "Destroyer",
+        "group": "naval",
+        "fac": "dir",
+        "mass": 1635,
+        "bboxW": 89,
+        "bboxH": 57,
+        "aspect": 1.527,
+        "selfIoU": 0.435,
+        "bestPeer": "Aegis Cruiser",
+        "bestPeerIoU": 0.7524,
+        "peersBeatingSelf": 7,
+        "peers": 9,
+        "spike": {
+          "axis": "v",
+          "len": 13,
+          "thick": 4,
+          "atZmin": 2.2,
+          "budget": 5,
+          "feature": "a forward gun turret and an aft helipad on a 101 px hull"
+        }
+      },
+      "dog": {
+        "name": "Attack Dog",
+        "group": "infantry",
+        "fac": null,
+        "mass": 420,
+        "bboxW": 39,
+        "bboxH": 28,
+        "aspect": 1.063,
+        "selfIoU": 0.5406,
+        "bestPeer": "Rocketeer",
+        "bestPeerIoU": 0.4495,
+        "peersBeatingSelf": 0,
+        "peers": 13,
+        "spike": {
+          "axis": "h",
+          "len": 8,
+          "thick": 6.5,
+          "atZmin": 3.58,
+          "budget": 4,
+          "feature": "quadruped: horizontal spine, aspect 1.4 against everyone else 0.45"
+        }
+      },
+      "dolphin": {
+        "name": "Dolphin",
+        "group": "naval",
+        "fac": "dir",
+        "mass": 395,
+        "bboxW": 39,
+        "bboxH": 25,
+        "aspect": 1.485,
+        "selfIoU": 0.6055,
+        "bestPeer": "Giant Squid",
+        "bestPeerIoU": 0.6757,
+        "peersBeatingSelf": 1,
+        "peers": 9,
+        "spike": {
+          "axis": "v",
+          "len": 7,
+          "thick": 9,
+          "atZmin": 4.95,
+          "budget": 3,
+          "feature": "a dorsal fin >=3 px above an organic back, no orthogonal edges"
+        }
+      },
+      "dread": {
+        "name": "Dreadnought",
+        "group": "naval",
+        "fac": "col",
+        "mass": 2425,
+        "bboxW": 99,
+        "bboxH": 65,
+        "aspect": 1.527,
+        "selfIoU": 0.5021,
+        "bestPeer": "Aircraft Carrier",
+        "bestPeerIoU": 0.7445,
+        "peersBeatingSelf": 5,
+        "peers": 9,
+        "spike": {
+          "axis": "v",
+          "len": 11,
+          "thick": 24,
+          "atZmin": 13.2,
+          "budget": 10,
+          "feature": "two countable missile boxes >=10x10 px standing on the deck"
+        }
+      },
+      "drone": {
+        "name": "Terror Drone",
+        "group": "vehicle",
+        "fac": "col",
+        "mass": 218,
+        "bboxW": 26,
+        "bboxH": 18,
+        "aspect": 1.337,
+        "selfIoU": 0.7866,
+        "bestPeer": "IFV",
+        "bestPeerIoU": 0.2115,
+        "peersBeatingSelf": 0,
+        "peers": 12,
+        "spike": {
+          "axis": "h",
+          "len": 7,
+          "thick": 3,
+          "atZmin": 1.65,
+          "budget": 3,
+          "feature": "four splayed blade legs reaching >=4 px beyond a tiny core"
+        }
+      },
+      "engineer": {
+        "name": "Engineer",
+        "group": "infantry",
+        "fac": null,
+        "mass": 350,
+        "bboxW": 18,
+        "bboxH": 36,
+        "aspect": 0.417,
+        "selfIoU": 0.7704,
+        "bestPeer": "Crazy Ivan",
+        "bestPeerIoU": 0.8188,
+        "peersBeatingSelf": 5,
+        "peers": 13,
+        "spike": {
+          "axis": "v",
+          "len": 8,
+          "thick": 6,
+          "atZmin": 3.3,
+          "budget": 3,
+          "feature": "inverted value — the only light-value soldier; toolbox at hand height"
+        }
+      },
+      "flak": {
+        "name": "Flak Trooper",
+        "group": "infantry",
+        "fac": "col",
+        "mass": 413,
+        "bboxW": 20,
+        "bboxH": 37,
+        "aspect": 0.493,
+        "selfIoU": 0.6795,
+        "bestPeer": "Desolator",
+        "bestPeerIoU": 0.7404,
+        "peersBeatingSelf": 6,
+        "peers": 13,
+        "spike": {
+          "axis": "v",
+          "len": 3,
+          "thick": 8,
+          "atZmin": 4.4,
+          "budget": 2.5,
+          "feature": "flak barrel raised 45-60°, 9-10 px of spike above the helmet"
+        }
+      },
+      "flaktrack": {
+        "name": "Flak Track",
+        "group": "vehicle",
+        "fac": "col",
+        "mass": 1335,
+        "bboxW": 53,
+        "bboxH": 47,
+        "aspect": 1.062,
+        "selfIoU": 0.6609,
+        "bestPeer": "Prism Tank",
+        "bestPeerIoU": 0.7842,
+        "peersBeatingSelf": 9,
+        "peers": 12,
+        "spike": {
+          "axis": "v",
+          "len": 15,
+          "thick": 16,
+          "atZmin": 8.8,
+          "budget": 3,
+          "feature": "a gun raised >=10 px off the bed of the only square vehicle"
+        }
+      },
+      "harrier": {
+        "name": "Harrier",
+        "group": "air",
+        "fac": "dir",
+        "mass": 495,
+        "bboxW": 45,
+        "bboxH": 33,
+        "aspect": 1.686,
+        "selfIoU": 0.4287,
+        "bestPeer": "Hornet",
+        "bestPeerIoU": 0.3242,
+        "peersBeatingSelf": 0,
+        "peers": 3,
+        "spike": {
+          "axis": "h",
+          "len": 22,
+          "thick": 9,
+          "atZmin": 4.95,
+          "budget": 5,
+          "feature": "a broad swept delta wing, >=5 px chord at the root"
+        }
+      },
+      "hornet": {
+        "name": "Hornet",
+        "group": "air",
+        "fac": "dir",
+        "mass": 1482,
+        "bboxW": 61,
+        "bboxH": 43,
+        "aspect": 1.445,
+        "selfIoU": 0.7037,
+        "bestPeer": "Nighthawk",
+        "bestPeerIoU": 0.5861,
+        "peersBeatingSelf": 0,
+        "peers": 3,
+        "spike": {
+          "axis": "h",
+          "len": 13,
+          "thick": 13,
+          "atZmin": 7.15,
+          "budget": 3,
+          "feature": "the smallest thing that flies — identity is size, not detail"
+        }
+      },
+      "ifv": {
+        "name": "IFV",
+        "group": "vehicle",
+        "fac": "dir",
+        "mass": 1048,
+        "bboxW": 47,
+        "bboxH": 44,
+        "aspect": 1.007,
+        "selfIoU": 0.7094,
+        "bestPeer": "Flak Track",
+        "bestPeerIoU": 0.702,
+        "peersBeatingSelf": 0,
+        "peers": 12,
+        "spike": {
+          "axis": "v",
+          "len": 16,
+          "thick": 14.5,
+          "atZmin": 7.98,
+          "budget": 8,
+          "feature": "a boxy turret >=45% of total height on a near-square body"
+        }
+      },
+      "ivan": {
+        "name": "Crazy Ivan",
+        "group": "infantry",
+        "fac": "col",
+        "mass": 386,
+        "bboxW": 20,
+        "bboxH": 35,
+        "aspect": 0.443,
+        "selfIoU": 0.824,
+        "bestPeer": "Tanya",
+        "bestPeerIoU": 0.8579,
+        "peersBeatingSelf": 1,
+        "peers": 13,
+        "spike": {
+          "axis": "h",
+          "len": 4,
+          "thick": 11.5,
+          "atZmin": 6.33,
+          "budget": 2,
+          "feature": "ushanka flaps breaking the head outline >=2 px each side"
+        }
+      },
+      "kirov": {
+        "name": "Kirov Airship",
+        "group": "air",
+        "fac": "col",
+        "mass": 5938,
+        "bboxW": 172,
+        "bboxH": 114,
+        "aspect": 1.578,
+        "selfIoU": 0.4112,
+        "bestPeer": "Nighthawk",
+        "bestPeerIoU": 0.3367,
+        "peersBeatingSelf": 0,
+        "peers": 3,
+        "spike": {
+          "axis": "v",
+          "len": 33,
+          "thick": 13,
+          "atZmin": 7.15,
+          "budget": 4,
+          "feature": "mass — and a gondola separated below the envelope by >=4 px"
+        }
+      },
+      "lancer": {
+        "name": "Grizzly Tank",
+        "group": "vehicle",
+        "fac": "dir",
+        "mass": 1437,
+        "bboxW": 75,
+        "bboxH": 51,
+        "aspect": 1.53,
+        "selfIoU": 0.5911,
+        "bestPeer": "Rhino Tank",
+        "bestPeerIoU": 0.7754,
+        "peersBeatingSelf": 9,
+        "peers": 12,
+        "spike": {
+          "axis": "h",
+          "len": 16,
+          "thick": 13,
+          "atZmin": 7.15,
+          "budget": 2.2,
+          "feature": "a 13 x 2.2 px gun barrel overhanging 24% of the flattest hull"
+        }
+      },
+      "lcraft": {
+        "name": "Landing Craft",
+        "group": "naval",
+        "fac": "dir",
+        "mass": 1373,
+        "bboxW": 63,
+        "bboxH": 44,
+        "aspect": 1.493,
+        "selfIoU": 0.594,
+        "bestPeer": "Aegis Cruiser",
+        "bestPeerIoU": 0.6591,
+        "peersBeatingSelf": 4,
+        "peers": 9,
+        "spike": {
+          "axis": "h",
+          "len": 9,
+          "thick": 3,
+          "atZmin": 1.65,
+          "budget": 4,
+          "feature": "an open bow ramp, a plane distinct from the deck"
+        }
+      },
+      "mammoth": {
+        "name": "Apocalypse",
+        "group": "vehicle",
+        "fac": "col",
+        "mass": 2428,
+        "bboxW": 84,
+        "bboxH": 63,
+        "aspect": 1.334,
+        "selfIoU": 0.6521,
+        "bestPeer": "MCV",
+        "bestPeerIoU": 0.7352,
+        "peersBeatingSelf": 3,
+        "peers": 12,
+        "spike": {
+          "axis": "h",
+          "len": 20,
+          "thick": 18,
+          "atZmin": 9.9,
+          "budget": 4,
+          "feature": "twin barrels >=19 px, visibly TWO — the only two-barrelled thing"
+        }
+      },
+      "mcv": {
+        "name": "MCV",
+        "group": "vehicle",
+        "fac": null,
+        "mass": 2928,
+        "bboxW": 80,
+        "bboxH": 72,
+        "aspect": 1.158,
+        "selfIoU": 0.6535,
+        "bestPeer": "Apocalypse",
+        "bestPeerIoU": 0.7352,
+        "peersBeatingSelf": 1,
+        "peers": 12,
+        "spike": {
+          "axis": "v",
+          "len": 26,
+          "thick": 27,
+          "atZmin": 14.85,
+          "budget": 4,
+          "feature": "amber folded crane boom on a slab works body; zero barrel"
+        }
+      },
+      "mirage": {
+        "name": "Mirage Tank",
+        "group": "vehicle",
+        "fac": "dir",
+        "mass": 1428,
+        "bboxW": 59,
+        "bboxH": 42,
+        "aspect": 1.296,
+        "selfIoU": 0.7786,
+        "bestPeer": "Chrono Miner",
+        "bestPeerIoU": 0.8367,
+        "peersBeatingSelf": 4,
+        "peers": 12,
+        "spike": {
+          "axis": "v",
+          "len": 11,
+          "thick": 19,
+          "atZmin": 10.45,
+          "budget": 6,
+          "feature": "a wide flat emitter housing proud of the deck, and NO long gun"
+        }
+      },
+      "nighthawk": {
+        "name": "Nighthawk",
+        "group": "air",
+        "fac": "dir",
+        "mass": 2144,
+        "bboxW": 74,
+        "bboxH": 48,
+        "aspect": 1.546,
+        "selfIoU": 0.8587,
+        "bestPeer": "Hornet",
+        "bestPeerIoU": 0.5861,
+        "peersBeatingSelf": 0,
+        "peers": 3,
+        "spike": {
+          "axis": "h",
+          "len": 13,
+          "thick": 18,
+          "atZmin": 9.9,
+          "budget": 2,
+          "feature": "tandem rotor discs — 1-2 px blade lines past the fuselage"
+        }
+      },
+      "prismtank": {
+        "name": "Prism Tank",
+        "group": "vehicle",
+        "fac": "dir",
+        "mass": 1445,
+        "bboxW": 61,
+        "bboxH": 48,
+        "aspect": 1.16,
+        "selfIoU": 0.7378,
+        "bestPeer": "Mirage Tank",
+        "bestPeerIoU": 0.8162,
+        "peersBeatingSelf": 5,
+        "peers": 12,
+        "spike": {
+          "axis": "v",
+          "len": 19,
+          "thick": 15,
+          "atZmin": 8.25,
+          "budget": 5,
+          "feature": "the upright prism crystal, >=10 px tall x >=5 px wide"
+        }
+      },
+      "rhino": {
+        "name": "Rhino Tank",
+        "group": "vehicle",
+        "fac": "col",
+        "mass": 1831,
+        "bboxW": 73,
+        "bboxH": 53,
+        "aspect": 1.463,
+        "selfIoU": 0.6562,
+        "bestPeer": "Tesla Tank",
+        "bestPeerIoU": 0.7995,
+        "peersBeatingSelf": 9,
+        "peers": 12,
+        "spike": {
+          "axis": "h",
+          "len": 18,
+          "thick": 14,
+          "atZmin": 7.7,
+          "budget": 3.5,
+          "feature": "a gun 1.6x the Grizzly barrel thickness on a taller hull"
+        }
+      },
+      "rifle": {
+        "name": "GI",
+        "group": "infantry",
+        "fac": "dir",
+        "mass": 344,
+        "bboxW": 19,
+        "bboxH": 36,
+        "aspect": 0.479,
+        "selfIoU": 0.6551,
+        "bestPeer": "Desolator",
+        "bestPeerIoU": 0.7961,
+        "peersBeatingSelf": 11,
+        "peers": 13,
+        "spike": {
+          "axis": "v",
+          "len": 8,
+          "thick": 6,
+          "atZmin": 3.3,
+          "budget": 3,
+          "feature": "grey pot helmet over a house torso block (no usable silhouette)"
+        }
+      },
+      "rocket": {
+        "name": "Guardian GI",
+        "group": "infantry",
+        "fac": "dir",
+        "mass": 390,
+        "bboxW": 21,
+        "bboxH": 37,
+        "aspect": 0.534,
+        "selfIoU": 0.5728,
+        "bestPeer": "Desolator",
+        "bestPeerIoU": 0.7906,
+        "peersBeatingSelf": 7,
+        "peers": 13,
+        "spike": {
+          "axis": "v",
+          "len": 9,
+          "thick": 6,
+          "atZmin": 3.3,
+          "budget": 2.5,
+          "feature": "shoulder missile tube, ~30° up, clearing the helmet by >=4 px"
+        }
+      },
+      "rocketeer": {
+        "name": "Rocketeer",
+        "group": "infantry",
+        "fac": "dir",
+        "mass": 357,
+        "bboxW": 18,
+        "bboxH": 34,
+        "aspect": 0.493,
+        "selfIoU": 0.7003,
+        "bestPeer": "Chrono Legionnaire",
+        "bestPeerIoU": 0.715,
+        "peersBeatingSelf": 2,
+        "peers": 13,
+        "spike": {
+          "axis": "v",
+          "len": 9,
+          "thick": 6,
+          "atZmin": 3.3,
+          "budget": 4,
+          "feature": "airborne: altitude offset + pack tanks behind the shoulders"
+        }
+      },
+      "seascorp": {
+        "name": "Sea Scorpion",
+        "group": "naval",
+        "fac": "col",
+        "mass": 934,
+        "bboxW": 55,
+        "bboxH": 34,
+        "aspect": 1.442,
+        "selfIoU": 0.6092,
+        "bestPeer": "Landing Craft",
+        "bestPeerIoU": 0.6477,
+        "peersBeatingSelf": 2,
+        "peers": 9,
+        "spike": {
+          "axis": "v",
+          "len": 7,
+          "thick": 22,
+          "atZmin": 12.1,
+          "budget": 3,
+          "feature": "the Flak Track gun on the fleet smallest armed hull"
+        }
+      },
+      "spy": {
+        "name": "Spy",
+        "group": "infantry",
+        "fac": "dir",
+        "mass": 307,
+        "bboxW": 16,
+        "bboxH": 35,
+        "aspect": 0.414,
+        "selfIoU": 0.7997,
+        "bestPeer": "Tanya",
+        "bestPeerIoU": 0.8752,
+        "peersBeatingSelf": 1,
+        "peers": 13,
+        "spike": {
+          "axis": "v",
+          "len": 6,
+          "thick": 5,
+          "atZmin": 2.75,
+          "budget": 7,
+          "feature": "fedora brim >=7 px wide over an unbroken coat hem"
+        }
+      },
+      "squid": {
+        "name": "Giant Squid",
+        "group": "naval",
+        "fac": "col",
+        "mass": 569,
+        "bboxW": 40,
+        "bboxH": 25,
+        "aspect": 1.605,
+        "selfIoU": 0.7332,
+        "bestPeer": "Dolphin",
+        "bestPeerIoU": 0.6757,
+        "peersBeatingSelf": 0,
+        "peers": 9,
+        "spike": {
+          "axis": "h",
+          "len": 6,
+          "thick": 8,
+          "atZmin": 4.4,
+          "budget": 3,
+          "feature": ">=4 tentacles resolvable at 3 px each; zero straight edges"
+        }
+      },
+      "sub": {
+        "name": "Typhoon Attack Sub",
+        "group": "naval",
+        "fac": "col",
+        "mass": 1009,
+        "bboxW": 81,
+        "bboxH": 44,
+        "aspect": 1.802,
+        "selfIoU": 0.3832,
+        "bestPeer": "Sea Scorpion",
+        "bestPeerIoU": 0.6266,
+        "peersBeatingSelf": 7,
+        "peers": 9,
+        "spike": {
+          "axis": "v",
+          "len": 12,
+          "thick": 9.5,
+          "atZmin": 5.23,
+          "budget": 4,
+          "feature": "a conning tower — the only vertical mass on a 5.36-aspect hull"
+        }
+      },
+      "tanya": {
+        "name": "Tanya",
+        "group": "infantry",
+        "fac": "dir",
+        "mass": 341,
+        "bboxW": 18,
+        "bboxH": 35,
+        "aspect": 0.429,
+        "selfIoU": 0.8161,
+        "bestPeer": "Spy",
+        "bestPeerIoU": 0.8752,
+        "peersBeatingSelf": 2,
+        "peers": 13,
+        "spike": {
+          "axis": "h",
+          "len": 4,
+          "thick": 17,
+          "atZmin": 9.35,
+          "budget": 2,
+          "feature": "two pistols out to the sides, breaking the outline >=2 px each"
+        }
+      },
+      "teslatank": {
+        "name": "Tesla Tank",
+        "group": "vehicle",
+        "fac": "col",
+        "mass": 1573,
+        "bboxW": 66,
+        "bboxH": 43,
+        "aspect": 1.39,
+        "selfIoU": 0.6907,
+        "bestPeer": "Mirage Tank",
+        "bestPeerIoU": 0.8133,
+        "peersBeatingSelf": 7,
+        "peers": 12,
+        "spike": {
+          "axis": "v",
+          "len": 13,
+          "thick": 29,
+          "atZmin": 15.95,
+          "budget": 3,
+          "feature": "two coil columns >=9 px tall, gap >=5 px so the pair reads as two"
+        }
+      },
+      "teslatrooper": {
+        "name": "Tesla Trooper",
+        "group": "infantry",
+        "fac": "col",
+        "mass": 428,
+        "bboxW": 21,
+        "bboxH": 39,
+        "aspect": 0.404,
+        "selfIoU": 0.8208,
+        "bestPeer": "Crazy Ivan",
+        "bestPeerIoU": 0.7556,
+        "peersBeatingSelf": 0,
+        "peers": 13,
+        "spike": {
+          "axis": "h",
+          "len": 5,
+          "thick": 14,
+          "atZmin": 7.7,
+          "budget": 3,
+          "feature": "pauldrons — the widest infantry, shoulder line >=18 px"
+        }
+      },
+      "v3": {
+        "name": "V3 Launcher",
+        "group": "vehicle",
+        "fac": "col",
+        "mass": 1314,
+        "bboxW": 61,
+        "bboxH": 50,
+        "aspect": 1.286,
+        "selfIoU": 0.588,
+        "bestPeer": "Grizzly Tank",
+        "bestPeerIoU": 0.7016,
+        "peersBeatingSelf": 9,
+        "peers": 12,
+        "spike": {
+          "axis": "h",
+          "len": 15,
+          "thick": 13,
+          "atZmin": 7.15,
+          "budget": 3,
+          "feature": "a white missile overhanging the truck >=5 px at the nose"
+        }
+      },
+      "warminer": {
+        "name": "War Miner",
+        "group": "vehicle",
+        "fac": "col",
+        "mass": 1807,
+        "bboxW": 63,
+        "bboxH": 49,
+        "aspect": 1.298,
+        "selfIoU": 0.7296,
+        "bestPeer": "Tesla Tank",
+        "bestPeerIoU": 0.7983,
+        "peersBeatingSelf": 5,
+        "peers": 12,
+        "spike": {
+          "axis": "v",
+          "len": 12,
+          "thick": 24,
+          "atZmin": 13.2,
+          "budget": 6,
+          "feature": "a >=6x6 turret on the bin shoulder — a harvester that shoots"
+        }
+      },
+      "yuri": {
+        "name": "Yuri",
+        "group": "infantry",
+        "fac": "col",
+        "mass": 379,
+        "bboxW": 16,
+        "bboxH": 38,
+        "aspect": 0.382,
+        "selfIoU": 0.8378,
+        "bestPeer": "Engineer",
+        "bestPeerIoU": 0.7819,
+        "peersBeatingSelf": 0,
+        "peers": 13,
+        "spike": {
+          "axis": "v",
+          "len": 4,
+          "thick": 4.5,
+          "atZmin": 2.48,
+          "budget": 4,
+          "feature": "bald dome over one unbroken coat hem — no leg split"
+        }
+      }
+    }
+  }
+}

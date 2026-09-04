@@ -138,6 +138,16 @@ it asserts, over the whole roster:
 - every declared identity spike clears the §2 pixel floor at `ZMIN`;
 - the mass hierarchy has no bunching band tighter than the reference allows.
 
+**Implemented.** The harness is permanent and opt-in:
+`apps/games/rts/tools/art-metrics.js` measures (and `--record`s) the numbers;
+`apps/games/rts/rts-art.test.js` is the gate, skipped in milliseconds by
+`./run-tests.sh` and run with `RTS_ART=1 node --test apps/games/rts/rts-art.test.js`;
+`apps/games/rts/docs/art-baseline.json` is the recorded state, and every metric is
+**ratcheted** against it — a regression fails, and so does an improvement, which is
+what makes each commit's gain stick. Each unit's identity feature and pixel budget
+live in the tool's `SPIKES` table, derived from `unit-identity-reference.md` §2; a
+unit with no entry fails the gate rather than being skipped.
+
 **The trap.** Two of this repo's recorded failures apply directly. First: a test whose
 assertion is made true by the very line the fix adds proves nothing — so assert
 *ensemble* properties (pairwise separation, peer-vs-self) rather than per-unit numbers

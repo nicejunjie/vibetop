@@ -22,6 +22,10 @@ credentials.json
 services.json
 !apps/utilities/services/services.example.json
 
+# The RTS art gate's recorded measurements — a tracked baseline, written by
+# apps/games/rts/tools/art-metrics.js and ratcheted by apps/games/rts/rts-art.test.js.
+!apps/games/rts/docs/art-baseline.json
+
 # Python bytecode cache
 __pycache__/
 *.pyc
