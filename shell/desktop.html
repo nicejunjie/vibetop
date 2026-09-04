@@ -728,29 +728,43 @@
      and the cursor change on approach is the affordance (the visible SE grip
      below is for touch, which has no hover). All eight directions work.
 
-     The ring reaches 10px OUTSIDE the window (12px on touch) as well as in. That
-     is what makes the DIVIDER between two tiled windows grabbable: Tidy insets
-     each tile by GAP=8, so adjacent tiles have a 16px gutter that belonged to
-     neither window — `elementFromPoint` there returned bare #frames, which is
-     why "I can't resize from the left or right" while the top/bottom edges (at
-     the frame boundary, with no neighbour) felt fine. Two 8px outside rings meet
-     in the middle of that gutter — 10 and not 8 because the window's 1px border
-     eats one on each side, and 8 left a literal ONE-PIXEL dead seam down the
-     middle of the gutter (measured; the first attempt landed a test drag exactly
-     on it). At 10 the two rings overlap and the whole gutter is live. Requires
-     .win.floating NOT to clip its children — see the overflow note above.
+     The ring also reaches OUTSIDE the window. That is what makes the DIVIDER
+     between two tiled windows grabbable at all: the seam between tiles belongs
+     to neither window, and `elementFromPoint` there used to return bare #frames
+     — which is why "I can't resize from the left or right" while the top/bottom
+     edges (at the frame boundary, with no neighbour) felt fine.
+
+     HOW FAR OUTSIDE IS NOT A FREE CHOICE. The seam is VibeWin.MARGIN / 2 (5px
+     today), and the two neighbouring rings must tile it EXACTLY — with b = the
+     1px border and s = the seam:
+
+         (r_e - b) + (r_w - b) = s      no overlap, and no dead pixel
+         r_e - b = ceil(s / 2)          an odd seam gives the extra px to e/s
+         r_w - b = floor(s / 2)         (leading edges, reading order)
+
+     Overlap is not harmless: reach too far and each ring covers the whole seam
+     PLUS several px inside its neighbour, and CSS stacking hands every contested
+     pixel to the higher-z window — so dragging the divider silently resized the
+     wrong window and a window's own corner grip hit-tested to its neighbour's
+     opposite corner. Too little and a one-pixel dead seam comes back (both
+     measured). This block used to say "10 and not 8" for a 16px gutter; that
+     gutter stopped existing when MARGIN was tuned 20 -> 12 -> 10, and nothing
+     failed, which is the whole reason shell/winrz-css.test.js now derives these
+     numbers from VibeWin.MARGIN. Change MARGIN and that test tells you.
+
+     Requires .win.floating NOT to clip its children — see the overflow note above.
 
      INVARIANT: the corner's INSIDE reach (size - outside) must stay below the
      title bar's padding-right, or the × falls inside the corner grab zone again:
-     desktop 26-10=16 < 18, touch 38-12=26 < 28. */
-  .win-rz-n { top: -10px; left: -10px; right: -10px; height: 18px; cursor: ns-resize; }
-  .win-rz-s { bottom: -10px; left: -10px; right: -10px; height: 18px; cursor: ns-resize; }
-  .win-rz-e { right: -10px; top: -10px; bottom: -10px; width: 18px; cursor: ew-resize; }
-  .win-rz-w { left: -10px; top: -10px; bottom: -10px; width: 18px; cursor: ew-resize; }
-  .win-rz-ne { top: -10px; right: -10px; width: 26px; height: 26px; cursor: nesw-resize; z-index: 4; }
-  .win-rz-nw { top: -10px; left: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
-  .win-rz-se { bottom: -10px; right: -10px; width: 26px; height: 26px; cursor: nwse-resize; z-index: 4; }
-  .win-rz-sw { bottom: -10px; left: -10px; width: 26px; height: 26px; cursor: nesw-resize; z-index: 4; }
+     desktop 20-4=16 < 18, touch 22-4=18 < 28. */
+  .win-rz-n { top: -3px; left: -3px; right: -4px; height: 11px; cursor: ns-resize; }
+  .win-rz-s { bottom: -4px; left: -3px; right: -4px; height: 12px; cursor: ns-resize; }
+  .win-rz-e { right: -4px; top: -3px; bottom: -4px; width: 12px; cursor: ew-resize; }
+  .win-rz-w { left: -3px; top: -3px; bottom: -4px; width: 11px; cursor: ew-resize; }
+  .win-rz-ne { top: -3px; right: -4px; width: 20px; height: 19px; cursor: nesw-resize; z-index: 4; }
+  .win-rz-nw { top: -3px; left: -3px; width: 19px; height: 19px; cursor: nwse-resize; z-index: 4; }
+  .win-rz-se { bottom: -4px; right: -4px; width: 20px; height: 20px; cursor: nwse-resize; z-index: 4; }
+  .win-rz-sw { bottom: -4px; left: -3px; width: 19px; height: 20px; cursor: nesw-resize; z-index: 4; }
   /* macOS Safari: the straight edges get col-/row-resize instead. "Works in
      Chrome, not in Safari" (same Mac) is a cursor-MAPPING failure, not a support
      one: WebKit's CursorMac.mm routes every directional resize keyword — the
@@ -800,14 +814,14 @@
      Corners keep a larger target (30px) but the same 12px inside reach limit as the
      edges once the title bar is accounted for: 18px < the 28px padding-right that
      keeps them off the ×/▢/– as well. */
-  body.is-touch .win-rz-n { top: -12px; height: 24px; }
-  body.is-touch .win-rz-s { bottom: -12px; height: 24px; }
-  body.is-touch .win-rz-e { right: -12px; width: 24px; }
-  body.is-touch .win-rz-w { left: -12px; width: 24px; }
-  body.is-touch .win-rz-ne { top: -12px; right: -12px; width: 30px; height: 30px; }
-  body.is-touch .win-rz-nw { top: -12px; left: -12px; width: 30px; height: 30px; }
-  body.is-touch .win-rz-se { bottom: -12px; right: -12px; width: 30px; height: 30px; }
-  body.is-touch .win-rz-sw { bottom: -12px; left: -12px; width: 30px; height: 30px; }
+  body.is-touch .win-rz-n { top: -3px; height: 15px; }
+  body.is-touch .win-rz-s { bottom: -4px; height: 16px; }
+  body.is-touch .win-rz-e { right: -4px; width: 16px; }
+  body.is-touch .win-rz-w { left: -3px; width: 15px; }
+  body.is-touch .win-rz-ne { top: -3px; right: -4px; width: 22px; height: 21px; }
+  body.is-touch .win-rz-nw { top: -3px; left: -3px; width: 21px; height: 21px; }
+  body.is-touch .win-rz-se { bottom: -4px; right: -4px; width: 22px; height: 22px; }
+  body.is-touch .win-rz-sw { bottom: -4px; left: -3px; width: 21px; height: 22px; }
   body.is-touch .win-titlebar .wt-min, body.is-touch .win-titlebar .wt-max,
   body.is-touch .win-titlebar .wt-close { width: 34px; height: 32px; font-size: 17px; }
   /* The SE corner used to draw a visible diagonal-lines grip as a "this window
