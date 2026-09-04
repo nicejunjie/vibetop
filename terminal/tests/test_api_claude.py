@@ -56,3 +56,9 @@ def test_stats_shape(client):
     assert "windows" in body and "all" in body["windows"]
     for k in ("in", "out", "tokens", "cost", "req"):
         assert k in body["windows"]["all"]
+
+
+def test_codex_stats_shape(client):
+    status, body = client.get("/api/codex/stats")
+    assert status == 200 and body["provider"] == "codex"
+    assert len(body["byDay"]) == 30 and len(body["byHour"]) == 48

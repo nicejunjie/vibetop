@@ -49,3 +49,43 @@ test("horizontal trackpad slide sends emacs char-move, not arrows", () => {
   assert.equal(b.CtrlF, "\x06");
   assert.equal(b.CtrlB, "\x02");
 });
+
+test("tab activation tells xterm to reveal the latest output", () => {
+  assert.match(SRC, /type === 'vibetop-show-latest'/);
+  assert.match(SRC, /window\.term\.scrollToBottom\(\)/);
+  assert.match(SRC, /followLatestUntil = Date\.now\(\) \+ 10000/);
+  assert.match(SRC, /followLatestTimer = setInterval\(function \(\)/,
+    'resize settling must continuously follow the bottom, not rely on fixed delays');
+  assert.match(SRC, /requestAnimationFrame\(revealLatest\)/,
+    "ring-buffer replay must keep following the bottom while activation is armed");
+  const sharedHandler = SRC.indexOf("type === 'vibetop-show-latest'");
+  const desktopReturn = SRC.indexOf('if (!isTouch) {');
+  assert.ok(sharedHandler >= 0 && sharedHandler < desktopReturn,
+    'show-latest listener must be registered before the desktop early return');
+});
+
+test("manual history navigation cancels activation's bottom-follow settle window", () => {
+  assert.match(SRC, /function cancelLatest\(\) \{[\s\S]*?clearInterval\(followLatestTimer\)/);
+  assert.match(SRC, /addEventListener\('wheel', cancelLatest/,
+    'mouse-wheel scrollback must immediately stop bottom-following');
+  assert.match(SRC, /while \(acc > 18\) \{ cancelLatest\(\); t\.scrollLines\(-1\)/,
+    'touch scrollback must immediately stop bottom-following');
+  assert.match(SRC, /requestId <= cancelledLatestThrough\) return/,
+    'late retries from any already-started activation must not re-arm after a user scroll');
+});
+
+test("terminal wrapper follows the live bottom after resize reflow", () => {
+  const wrapper = fs.readFileSync(path.join(__dirname, 'terminals.html'), 'utf8');
+  assert.match(wrapper, /wasAtLatest = \(b\.baseY - b\.viewportY\) <= 1/);
+  assert.match(wrapper, /if \(wasAtLatest\) showLatest\(active\);/,
+    'resize must preserve deliberate scrollback and only restore a previously live viewport');
+  assert.doesNotMatch(wrapper, /resizeLatestTimer/,
+    'resize must not create a fresh reveal request after the user has had time to scroll');
+});
+
+test("the terminal's own resize paths follow the live bottom", () => {
+  assert.match(SRC, /function claimSize\(\) \{[\s\S]*?if \(atLatest\(\)\) armLatest\(\);[\s\S]*?var c = t\.cols/,
+    'two-finger and double-click resize should follow only a live viewport');
+  assert.doesNotMatch(SRC, /t\.onResize\(function \(\) \{\s*armLatest\(\);/,
+    'a late resize event must not yank an already-scrolled viewport to the bottom');
+});

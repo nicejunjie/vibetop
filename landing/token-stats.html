@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Claude Token Usage</title>
+<title>Token Stats</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -13,13 +13,19 @@
   }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 16px 16px 40px; }
   h1 { font-size: 18px; margin: 0; font-weight: 650; display: flex; align-items: center; gap: 10px; }
+  #pageTitle { flex: 0 0 160px; white-space: nowrap; }
   h1 .tag { font-size: 11px; font-weight: 600; color: #d2902a; border: 1px solid #4a3a1a;
-            background: #241d10; padding: 1px 7px; border-radius: 999px; }
+            background: #241d10; padding: 1px 7px; border-radius: 999px; white-space: nowrap; flex: 0 0 auto; }
   .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
   .sub { color: #7a8a9a; font-size: 12px; margin: 2px 0 16px; }
   .sub a, .refresh { color: #58a6ff; cursor: pointer; }
   .refresh { font-size: 12px; user-select: none; }
   .refresh:hover { text-decoration: underline; }
+  .tabs { display: inline-flex; gap: 3px; padding: 3px; margin: 12px 0 16px;
+          border: 1px solid #2a3040; border-radius: 10px; background: #10151c; }
+  .tabs button { border: 0; border-radius: 7px; padding: 7px 16px; background: transparent;
+                 color: #8b9bad; font: 600 12px system-ui; cursor: pointer; }
+  .tabs button.on { color: #fff; background: #283444; box-shadow: 0 1px 4px #0005; }
 
   /* Summary cards */
   .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
@@ -56,6 +62,10 @@
   .bars.hourly { gap: 2px; }
   .bar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; position: relative; }
   .bar > i { display: block; width: 100%; background: #3a7adb; border-radius: 2px 2px 0 0; min-height: 1px; transition: height .3s; }
+  .bar > i + i { border-radius: 0; }
+  .legend { display: inline-flex; gap: 10px; color: #8a9aaa; font-size: 10px; font-weight: 400; }
+  .legend[hidden] { display: none; }
+  .legend b { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
   .bar.dim > i { background: #24303f; }
   .bar:hover > i { filter: brightness(1.25); }
   .bar .tip { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
@@ -79,10 +89,14 @@
   .axis i.r { right: 0; }
 
   /* Model table */
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; table-layout: fixed; }
   th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid #20262f; white-space: nowrap; }
   th { color: #7a8a9a; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
   td:first-child, th:first-child { text-align: left; }
+  th:first-child { width: 38%; }
+  .model-cell { min-width: 0; overflow: hidden; }
+  .model-name { display: inline-block; max-width: calc(100% - 20px); overflow: hidden;
+                vertical-align: middle; white-space: nowrap; }
   .mdot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 8px; vertical-align: middle; }
   .costbar { height: 5px; border-radius: 3px; margin-top: 4px; background: #3a7adb; }
   .muted { color: #7a8a9a; }
@@ -93,16 +107,22 @@
     table { font-size: 12px; }
     th, td { padding: 6px 5px; }
     .hide-sm { display: none; }
+    th:first-child { width: 52%; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top">
-    <h1>Claude Token Usage <span class="tag">estimated cost</span></h1>
+    <h1><span id="pageTitle">Combined usage</span> <span class="tag">API-equivalent estimate</span></h1>
     <span class="refresh" id="refresh">↻ refresh</span>
   </div>
   <div class="sub" id="sub">Loading…</div>
+  <div class="tabs" id="providerTabs" role="tablist">
+    <button class="on" data-provider="combined">Combined</button>
+    <button data-provider="claude">Claude</button>
+    <button data-provider="codex">Codex</button>
+  </div>
 
   <div class="cards" id="cards"></div>
 
@@ -113,6 +133,7 @@
 
   <div class="panel">
     <h2>Per day (last 30 days)
+      <span class="legend" id="dayLegend" hidden><span><b style="background:#d2902a"></b>Claude</span><span><b style="background:#34a8a0"></b>Codex</span></span>
       <span class="seg" id="daymode"><button data-m="cost" class="on">Cost</button><button data-m="tokens">Tokens</button></span>
     </h2>
     <div class="chart-box">
@@ -125,7 +146,7 @@
   </div>
 
   <div class="panel">
-    <h2>Per hour (last 48 h)</h2>
+    <h2>Per hour (last 48 h) <span class="legend" id="hourLegend" hidden><span><b style="background:#d2902a"></b>Claude</span><span><b style="background:#34a8a0"></b>Codex</span></span></h2>
     <div class="chart-box">
       <div class="chart-y" id="hourY"></div>
       <div class="chart-main">
@@ -157,7 +178,7 @@ function tier(m){ m=(m||'').toLowerCase();
   if (m.indexOf('sonnet')>=0) return 'sonnet';
   if (m.indexOf('fable')>=0||m.indexOf('mythos')>=0) return 'fable';
   return 'opus'; }
-function color(m){ return MODEL_COLOR[tier(m)] || '#3a7adb'; }
+function color(m){ m=m||''; return (m.indexOf('Codex ·')===0 || m.toLowerCase().indexOf('gpt-')===0) ? '#34a8a0' : MODEL_COLOR[tier(m)] || '#3a7adb'; }
 function fmtTok(n){
   if (n >= 1e9) return (n/1e9).toFixed(2)+'B';
   if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
@@ -165,6 +186,15 @@ function fmtTok(n){
   return String(n||0);
 }
 function fmtCostFull(c){ return '$'+(c||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function esc(s){ return String(s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+}); }
+function middleEllipsis(s, max){
+  s=String(s||'');
+  if(s.length<=max) return s;
+  var left=Math.ceil((max-1)/2), right=Math.floor((max-1)/2);
+  return s.slice(0,left)+'…'+s.slice(s.length-right);
+}
 // Short axis-tick label for cost — natural round values ($0, $100, $1.5k).
 function axisCost(v){
   if (v >= 1000) return '$' + +(v/1000).toFixed(1) + 'k';
@@ -173,6 +203,31 @@ function axisCost(v){
 
 var dayMode = 'cost';
 var lastData = null;
+var providerData = null;
+var currentProvider = 'combined';
+
+function addRows(a,b){
+  var out={}; ['in','out','cw','cr','tokens','cost','req'].forEach(function(k){ out[k]=(a[k]||0)+(b[k]||0); });
+  out.cost=Math.round(out.cost*10000)/10000; return out;
+}
+function combine(claude,codex){
+  var keys=['today','yesterday','d7','d30','all'], windows={};
+  keys.forEach(function(k){ windows[k]=addRows(claude.windows[k]||{},codex.windows[k]||{}); });
+  var days=claude.byDay.map(function(x,i){ var y=codex.byDay[i]||{};
+    return Object.assign(addRows(x,y),{date:x.date,claudeCost:x.cost||0,codexCost:y.cost||0,
+      claudeTokens:x.tokens||0,codexTokens:y.tokens||0}); });
+  var hours=claude.byHour.map(function(x,i){ var y=codex.byHour[i]||{}; return {h:x.h,tokens:(x.tokens||0)+(y.tokens||0),cost:(x.cost||0)+(y.cost||0),
+    claudeCost:x.cost||0,codexCost:y.cost||0,claudeTokens:x.tokens||0,codexTokens:y.tokens||0}; });
+  var models=claude.byModel.map(function(x){ return Object.assign({},x,{model:'Claude · '+x.model}); })
+    .concat(codex.byModel.map(function(x){ return Object.assign({},x,{model:'Codex · '+x.model}); }))
+    .sort(function(a,b){ return b.cost-a.cost; });
+  var weight=(claude.windows.all.tokens||0)+(codex.windows.all.tokens||0);
+  var hit=weight ? ((claude.cacheHitRate||0)*(claude.windows.all.tokens||0)+(codex.cacheHitRate||0)*(codex.windows.all.tokens||0))/weight : 0;
+  return {updated:Math.min(claude.updated,codex.updated),provider:'combined',windows:windows,byDay:days,byHour:hours,
+    byModel:models,sessions:claude.sessions+codex.sessions,activeDays:Math.max(claude.activeDays,codex.activeDays),
+    firstDay:[claude.firstDay,codex.firstDay].filter(Boolean).sort()[0]||null,
+    spanDays:Math.max(claude.spanDays,codex.spanDays),cacheHitRate:hit};
+}
 
 // Round a raw data max up to a "nice" axis with natural tick steps
 // (1/2/2.5/5 ×10ⁿ), aiming for ~4 intervals. Returns {max, ticks:[0..max]}.
@@ -269,8 +324,16 @@ function renderDayBars(days){
     var h = Math.max(1, Math.round(v/max*100));
     var lbl = dayMode==='cost'? fmtCostFull(d.cost) : fmtTok(d.tokens)+' tok';
     var dim = v>0? '' : ' dim';
-    return '<div class="bar'+dim+'"><span class="tip">'+d.date+'<br>'+lbl+'</span>'
-         + '<i style="height:'+h+'%"></i></div>';
+    var stack = currentProvider === 'combined';
+    var a = stack ? (dayMode==='cost' ? d.claudeCost : d.claudeTokens) : v;
+    var b = stack ? (dayMode==='cost' ? d.codexCost : d.codexTokens) : 0;
+    var ah = stack ? Math.max(a ? .5 : 0, a/max*100) : h;
+    var bh = stack ? Math.max(b ? .5 : 0, b/max*100) : 0;
+    var tip = stack ? d.date+'<br>Claude '+(dayMode==='cost'?fmtCostFull(a):fmtTok(a)+' tok')+' · Codex '+(dayMode==='cost'?fmtCostFull(b):fmtTok(b)+' tok') : lbl;
+    var singleColor = currentProvider === 'codex' ? '#34a8a0' : '#d2902a';
+    return '<div class="bar'+dim+'"><span class="tip">'+tip+'</span>'
+         + '<i style="height:'+ah+'%;background:'+(stack?'#d2902a':singleColor)+'"></i>'
+         + (stack ? '<i style="height:'+bh+'%;background:#34a8a0"></i>' : '') + '</div>';
   }).join('');
   buildXAxis('dayAxis', days.length, 7, function(i){ return days[i].date.slice(5); }, false, 52);
 }
@@ -284,8 +347,14 @@ function renderHourBars(hours){
     var d = new Date(h.h*3600*1000);
     var label = d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric'});
     var dim = h.tokens>0? '' : ' dim';
-    return '<div class="bar'+dim+'"><span class="tip">'+label+'<br>'+fmtTok(h.tokens)+' tok · '+fmtCostFull(h.cost)+'</span>'
-         + '<i style="height:'+height+'%;background:#7a5cff"></i></div>';
+    var stack = currentProvider === 'combined';
+    var ah = stack ? Math.max(h.claudeTokens ? .5 : 0, h.claudeTokens/max*100) : height;
+    var bh = stack ? Math.max(h.codexTokens ? .5 : 0, h.codexTokens/max*100) : 0;
+    var tip = stack ? label+'<br>Claude '+fmtTok(h.claudeTokens)+' tok · Codex '+fmtTok(h.codexTokens)+' tok' : label+'<br>'+fmtTok(h.tokens)+' tok · '+fmtCostFull(h.cost);
+    var singleColor = currentProvider === 'codex' ? '#34a8a0' : '#d2902a';
+    return '<div class="bar'+dim+'"><span class="tip">'+tip+'</span>'
+         + '<i style="height:'+ah+'%;background:'+(stack?'#d2902a':singleColor)+'"></i>'
+         + (stack ? '<i style="height:'+bh+'%;background:#34a8a0"></i>' : '') + '</div>';
   }).join('');
   var last = hours.length - 1;
   buildXAxis('hourAxis', hours.length, 7, function(i){
@@ -301,8 +370,11 @@ function renderModels(models){
   models.forEach(function(m){ if (m.cost>maxCost) maxCost=m.cost; });
   document.getElementById('modelRows').innerHTML = models.map(function(m){
     var c = color(m.model);
+    var full = String(m.model || 'Unknown model');
+    var shown = middleEllipsis(full, window.innerWidth <= 720 ? 28 : 48);
     return '<tr>'
-      + '<td><span class="mdot" style="background:'+c+'"></span>'+m.model+'</td>'
+      + '<td class="model-cell"><span class="mdot" style="background:'+c+'"></span>'
+      + '<span class="model-name" title="'+esc(full)+'">'+esc(shown)+'</span></td>'
       + '<td>'+(m.req||0).toLocaleString()+'</td>'
       + '<td class="hide-sm">'+fmtTok(m.in)+'</td>'
       + '<td class="hide-sm">'+fmtTok(m.out)+'</td>'
@@ -320,19 +392,16 @@ function render(d){
   renderDayBars(d.byDay);
   renderHourBars(d.byHour);
   renderModels(d.byModel);
+  document.getElementById('dayLegend').hidden = currentProvider !== 'combined';
+  document.getElementById('hourLegend').hidden = currentProvider !== 'combined';
   document.getElementById('cacheStat').textContent =
     '· cache hit ' + Math.round((d.cacheHitRate||0)*100) + '% · ' + d.sessions + ' sessions';
   var ago = Math.max(0, Math.round((Date.now()/1000) - d.updated));
-  var retain = '';
-  if (d.firstDay) {
-    var fd = new Date(d.firstDay + 'T00:00:00');
-    retain = ' Covers the ' + (d.spanDays||0) + ' days Claude Code still retains on disk (since '
-      + fd.toLocaleDateString(undefined,{month:'short',day:'numeric'})
-      + '); older transcripts are auto-deleted, so there is no reliable all-time total.';
-  }
+  document.getElementById('pageTitle').textContent = currentProvider === 'combined' ? 'Combined usage' :
+    (currentProvider === 'claude' ? 'Claude usage' : 'Codex usage');
   document.getElementById('sub').innerHTML =
-    'Reconstructed from local Claude Code transcripts; cost is an <b>estimate</b> at public per-token rates.'
-    + retain + ' Updated ' + (ago<60? ago+'s' : Math.round(ago/60)+'m') + ' ago.';
+    'Local transcripts · costs are <b>API-equivalent estimates</b>, not subscription charges · updated '
+    + (ago<60? ago+'s' : Math.round(ago/60)+'m') + ' ago.';
 }
 
 // The tick count is measured, so a rotation or a resized window has to re-measure.
@@ -344,9 +413,9 @@ window.addEventListener('resize', function(){
 
 function load(){
   document.getElementById('refresh').textContent = '↻ …';
-  fetch('/api/claude/stats', { cache: 'no-store' })
-    .then(function(r){ return r.json(); })
-    .then(render)
+  Promise.all([fetch('/api/claude/stats', {cache:'no-store'}),fetch('/api/codex/stats', {cache:'no-store'})])
+    .then(function(rs){ return Promise.all(rs.map(function(r){ if(!r.ok) throw Error(r.status); return r.json(); })); })
+    .then(function(ds){ providerData={claude:ds[0],codex:ds[1]}; providerData.combined=combine(ds[0],ds[1]); render(providerData[currentProvider]); })
     .catch(function(){ document.getElementById('sub').textContent = 'Failed to load stats.'; })
     .then(function(){ document.getElementById('refresh').textContent = '↻ refresh'; });
 }
@@ -358,6 +427,11 @@ document.getElementById('daymode').addEventListener('click', function(e){
   if (lastData) renderDayBars(lastData.byDay);
 });
 document.getElementById('refresh').addEventListener('click', load);
+document.getElementById('providerTabs').addEventListener('click',function(e){
+  var b=e.target.closest('button'); if(!b)return; currentProvider=b.dataset.provider;
+  [].forEach.call(this.querySelectorAll('button'),function(x){x.classList.toggle('on',x===b);});
+  if(providerData) render(providerData[currentProvider]);
+});
 document.addEventListener('visibilitychange', function(){ if (!document.hidden) load(); });
 
 load();
