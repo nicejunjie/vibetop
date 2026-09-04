@@ -521,7 +521,9 @@ $tls_redirect_if        auth_request /internal/authcheck;
         gzip on;
         gzip_proxied any;
         # text/html is ALWAYS gzipped by nginx and is implicit in gzip_types;
-        # naming it emits `duplicate MIME type "text/html"` on every config test.
+        # naming it emits a duplicate-MIME-type warning on every config test.
+        # (No backticks in this heredoc: it is a double-quoted shell string, so
+        # they would run as command substitution at install time.)
         gzip_types text/javascript application/javascript text/css application/json;
         gzip_min_length 1024;
 
