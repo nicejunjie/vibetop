@@ -4202,7 +4202,7 @@
     rocketeer: '#9aa3ae',   // steel flight suit; the jets are the loud part
     desolator: '#4de04a',   // the rad cannon's green muzzle glow — his one loud surface
     cleg:      '#cfe4f5',   // the bone-white helmet dome and the rifle's cold coil
-    spy:       '#d8d2c4',   // the pale shirt strip down the dark suit
+    spy:       '#d8d2c4',   // the pale shirt strip down the house-colour overcoat
     yuri:      '#a86ff0'    // psychic violet at the temples
   };
 
@@ -4238,8 +4238,10 @@
     // Read off ra2-cleg-CC_Legion_Chrono_Legionnaire + the sprite animation:
     // a PALE suit — bone-white plate over pale blue-grey underlayer.
     cleg:      { coat: '#8f97a6', boot: '#40454f', skin: '#dcae84' },
-    // Read off ra2-spy-RA2_Spy_Manual_Render: a charcoal business suit,
-    // black shoes, bare head. He is the only man on the field in a suit.
+    // Read off ra2-spy-RA2_Spy_Manual_Render. `coat` is his DRAB zone — the
+    // hat, the lapel facings, the hem below the coat and his shoes; the coat
+    // body itself is the house block (§1.5 heads his middle column "mid zone
+    // (HOUSE)"), which is what took him off `hue.infantryBelowBudget`.
     spy:       { coat: '#464b57', boot: '#191b21', skin: '#e2b78e' },
     // No RA2 sprite rip could be found for Yuri on the wiki (searched
     // ns:File "Yuri RA2"/"Yuri Render"/"Yuri Cameo" — nothing); built from
@@ -4280,7 +4282,17 @@
   // into a shape RA2 does not give him, they are only sized apart.
   var STATURE = {
     flak:         [0.87, 0.98],   // i-XL by BARREL: a narrow man under a tall gun
-    rocket:       [1.10, 1.14],   // i-M 15x30 — the Guardian is the heavy one
+    rocket:       [1.12, 1.03],   // i-M 15x30 — the Guardian is the heavy one, and
+                                  // deliberately NOT a tall one: §2.1/§2.2 put him at
+                                  // 30 px against the Flak Trooper's 37 (a ratio of
+                                  // 0.81), and once his missile tube was raised clear
+                                  // of his helmet he stood 45 rows — level with the
+                                  // Flak Trooper, whose entire identity is being the
+                                  // tallest man in the game. Two tall figures with a
+                                  // long weapon over the right shoulder are ONE
+                                  // silhouette: they became each other's nearest match
+                                  // at 0.605 and both failed peer-vs-self. He is 41
+                                  // rows now against the Flak Trooper's 45.
     yuri:         [0.87, 1.02],   // i-L 12x29 — the tallest man carrying no weapon
     desolator:    [1.32, 0.98],   // i-M — the bulk of a sealed hazard suit
     teslatrooper: [1.30, 0.95],   // i-M 18x28 — THE widest, and NOT the tallest
@@ -4289,7 +4301,13 @@
     cleg:         [1.22, 0.84],   // i-M 15x26 — the widest Directorate shoulders
     tanya:        [0.94, 0.94],   // i-M 13x26, and the pistols keep her wide
     ivan:         [0.80, 0.88],   // i-S 12x25 — the narrowest of the Collective
-    engineer:     [0.99, 0.86],   // i-S 13x25 — a workman, not a soldier
+    engineer:     [1.06, 0.82],   // i-S 13x25 — a workman, not a soldier: broader in
+                                  // the shoulder and a little shorter than he was
+                                  // (0.99 x 0.86). He is shared, so he stands in BOTH
+                                  // rosters and pairs with every trooper in the game,
+                                  // and at 19x31 he sat between Tanya (20x33) and the
+                                  // Spy (19x30) — TWO same-faction pairs over the 0.75
+                                  // ceiling, both of them his. 21x30 clears both.
     spy:          [0.88, 0.82],   // i-S 13x25 — the slightest figure on the field
     rocketeer:    [1.12, 0.86],   // i-S 16x24 — the shortest, broadened by the pack
     dog:          [1.00, 1.00],   // i-XS, quadruped: already the one that reads
@@ -4696,17 +4714,17 @@
       // precisely so it does not lie across that mass.
       g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 5.0, by - 20.2); g.lineTo(cx + 5.0, by - 20.2);
-      g.lineTo(cx + 4.4, by - 12.8); g.lineTo(cx - 4.4, by - 12.8);
+      g.moveTo(cx - 5.2, by - 20.3); g.lineTo(cx + 5.2, by - 20.3);
+      g.lineTo(cx + 4.7, by - 11.5); g.lineTo(cx - 4.7, by - 11.5);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       // Shading a house-colour panel is a trap: the blue #4aa3db clips its
       // blue channel above about f=1.3 and goes white-cyan, so a "lit" fold
       // at 1.4 stops reading as the owner's colour at all. Folds stay inside
       // 0.70..1.24 on every figure.
       g.fillStyle = shade(col, 1.22);                               // lit fold on the tunic
-      g.fillRect(cx - 4.8, by - 20.0, 3.4, 7.0);
+      g.fillRect(cx - 5.0, by - 20.1, 3.5, 8.2);
       g.fillStyle = shade(col, 0.76);                               // shaded right fold
-      g.fillRect(cx + 1.7, by - 19.6, 2.6, 6.6);
+      g.fillRect(cx + 1.7, by - 19.7, 2.8, 7.8);
       g.fillStyle = shade(col, 0.64);                               // chin shadow
       g.fillRect(cx - 4.8, by - 20.1, 9.6, 0.8);
       carbine(cx - 2.6, by - 13.4 + gt.sw * 0.5, cx - 8.0, by - 24.8 + gt.sw * 0.5, 1.8);
@@ -4834,9 +4852,17 @@
       g.closePath(); g.fill(); outline(g, shade(T.coat, 0.46));
       g.fillStyle = shade(T.coat, 0.58);                            // utility belt
       g.fillRect(cx - 5.0, by - 12.6, 10.0, 1.7);
-      g.fillStyle = '#7d8794';                                      // thigh armour plates
-      g.beginPath(); g.roundRect(cx - 4.0, by - 11.9, 2.3, 2.3, 0.8); g.fill();
-      g.beginPath(); g.roundRect(cx + 1.7, by - 11.9, 2.3, 2.3, 0.8); g.fill();
+      // Thigh plates in HOUSE colour, not steel. Adding a missile tube that
+      // clears the helmet put ~40 px of neutral metal on him and took his
+      // remap from 24.0% to 21.8% — under §1.4's floor for a uniformed
+      // trooper, the Flak Trooper's cannon problem exactly. Armour plates are
+      // where RA2 puts the budget back (rule 6: on the named part, in discrete
+      // blocks), and they leave the olive leg zone reading as legs.
+      g.fillStyle = shade(col, 0.92);                                // thigh armour plates
+      g.beginPath(); g.roundRect(cx - 4.3, by - 12.2, 3.0, 3.0, 0.9); g.fill();
+      outline(g, shade(col, 0.42));
+      g.beginPath(); g.roundRect(cx + 1.3, by - 12.2, 3.0, 3.0, 0.9); g.fill();
+      outline(g, shade(col, 0.42));
 
       // The vest runs collar-to-belt, not collar-to-sternum: the Guardian's
       // zone layout is steel helmet / house torso / olive legs, the same
@@ -4844,8 +4870,8 @@
       // two (unit-identity-reference.md §2.1).
       g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 5.6, by - 19.8); g.lineTo(cx + 5.6, by - 19.8);
-      g.lineTo(cx + 5.1, by - 12.6); g.lineTo(cx - 5.1, by - 12.6);
+      g.moveTo(cx - 6.1, by - 20.1); g.lineTo(cx + 6.1, by - 20.1);
+      g.lineTo(cx + 5.5, by - 11.4); g.lineTo(cx - 5.5, by - 11.4);
       g.closePath(); g.fill(); outline(g, shade(col, 0.38));
       g.fillStyle = shade(col, 1.22);                               // lit shoulder line
       g.fillRect(cx - 5.6, by - 19.6, 11.2, 1.6);
@@ -4857,12 +4883,30 @@
 
       arms(6.0, by - 18.0, 3.2, 6.4, col, function (i, x, y) {      // house upper sleeves
         g.fillStyle = col;                                          // slab pauldron
-        g.beginPath(); g.roundRect(x - 1.7, y - 1.1, 3.4, 2.6, 0.9); g.fill();
+        g.beginPath(); g.roundRect(x - 1.8, y - 1.3, 3.6, 2.9, 0.9); g.fill();
         outline(g, shade(col, 0.4));
         g.fillStyle = shade(col, 1.22);
-        g.fillRect(x - 1.4, y - 0.9, 2.8, 0.9);
+        g.fillRect(x - 1.5, y - 1.1, 3.0, 1.0);
+        g.fillStyle = shade(col, 0.86);                             // armoured gauntlet — pauldron,
+        g.beginPath(); g.roundRect(x - 1.6, y + 5.0, 3.2, 2.6, 0.9); g.fill();   // vest, thigh, cuff:
+        outline(g, shade(col, 0.42));                               // four discrete blocks (rule 6)
       });
 
+      // ...and it stays inside `wpn`, which is the RE-TESTED half of C4's
+      // "the Guardian cannot win peer-vs-self" verdict. `wpn` gives a weapon
+      // its full length back as the man turns to profile, and that ×2.1 swing
+      // is why his own cross-bearing self-IoU is the lowest of any trooper
+      // (0.482) and why a peer always beats it. Drawing the tube in BODY space
+      // the way the Chrono Legionnaire's rifle now is takes his self-IoU to
+      // 0.627 and `peerVsSelf.infantry` to **0** — the first time any pass has
+      // reached it. It was rejected for two reasons, both measured: the tube
+      // stops being the thing that makes him unlike everyone else, so
+      // `iou.infantry.mean` goes 0.5334 -> 0.5486, a REGRESSION that lands
+      // 0.0014 under the 0.55 ceiling and would leave no room for the next
+      // pass; and the physics is wrong — a launcher braced on the shoulder and
+      // aimed along the facing really does foreshorten head-on and open out at
+      // profile, which is the case `wpn` exists for. (A rifle held across the
+      // chest is the opposite case, and that is why the CLeg moved.)
       wpn(function () {
       var ry = gt.bob ? 0.4 : 0;                                    // launcher rides the bob
       // BRACED AND ANGLED UP, not carried level. §2.1 gives the Guardian "the
@@ -4874,38 +4918,59 @@
       // the Desolator's stays level, which is the difference between a
       // launcher aimed at aircraft and a beam gun aimed at the ground.
       //
-      // 39 deg, not steeper: `spikeOf` measures the row EXTENT of whatever
-      // protrudes, and a 3.4-wide tube laid at 39 deg is 5.4 px across a row
-      // where a vertical one would be 3.4 — the Flak Trooper's barrel had to
-      // be widened for exactly this reason, and the angle buys it here free.
+      // 42 deg, and CLEARING THE HELMET. §2.1's budget is "tube ... clearing
+      // the helmet by >= 4 px", and at 39 deg the amber warhead topped out at
+      // by-25.4 while the helmet crown stood at by-26.9 — the tube did not
+      // clear the helmet at all, it stopped a pixel and a half short of it, so
+      // the gate measured 3 rows of protrusion. The muzzle now finishes well
+      // ABOVE the crown (and the crown came down a little to meet it, so he
+      // does not out-top the Flak Trooper, whose whole identity in §2.2 is
+      // being the tallest thing on the field).
+      //
+      // TWO SHAPES OF THE SAME TRAP, both paid for here. (1) Angle: `spikeOf`
+      // measures the row EXTENT of what protrudes, and a 3.4-wide tube laid at
+      // 42 deg is 5.1 px across a row where a vertical one would be 3.4. (2)
+      // The warhead was a POINTED TRIANGLE, so the first rows of the newly
+      // cleared spike were its 1-2 px tip and the measured thickness fell from
+      // 10 to 2.5 — below the 3.64 floor — the instant the tube got clear of
+      // the helmet. A missile nose is blunt: it is a fat round-capped stroke
+      // now, 5.0 wide, so the topmost row it owns is already 4 px across.
       g.strokeStyle = '#33383f'; g.lineWidth = 3.4; g.lineCap = 'round';
       g.beginPath();                                                // missile tube
-      g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 7.4, by - 23.6 - ry); g.stroke();
+      g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 8.4, by - 26.0 - ry); g.stroke();
       g.strokeStyle = '#6b7480'; g.lineWidth = 1.3;                 // tube glint
       g.beginPath();
-      g.moveTo(cx - 3.9, by - 14.9 + ry); g.lineTo(cx + 6.6, by - 23.4 - ry); g.stroke();
+      g.moveTo(cx - 3.9, by - 14.9 + ry); g.lineTo(cx + 7.5, by - 25.5 - ry); g.stroke();
       g.strokeStyle = col; g.lineWidth = 3.6; g.lineCap = 'butt';   // house-colour trim band
       g.beginPath();
-      g.moveTo(cx + 1.9, by - 19.2); g.lineTo(cx + 3.1, by - 20.2); g.stroke();
+      g.moveTo(cx + 1.9, by - 19.7); g.lineTo(cx + 3.3, by - 21.0); g.stroke();
       g.lineCap = 'round';
       g.fillStyle = '#2a2e34';                                      // pistol grip + rear vent
       g.beginPath(); g.roundRect(cx - 1.6, by - 14.3 + ry, 2.1, 2.8, 0.7); g.fill();
-      g.fillStyle = ACCENT.rocket;                                  // amber warhead
+      g.strokeStyle = ACCENT.rocket; g.lineWidth = 5.0;             // amber warhead: BLUNT, and
+      g.lineCap = 'round';                                          // standing above the crown
       g.beginPath();
-      g.moveTo(cx + 6.6, by - 25.4 - ry); g.lineTo(cx + 9.6, by - 23.6 - ry);
-      g.lineTo(cx + 7.0, by - 22.2 - ry); g.closePath(); g.fill();
-      outline(g, '#6a4a10');
-      g.fillStyle = shade(ACCENT.rocket, 1.28);
-      g.fillRect(cx + 7.0, by - 24.6 - ry, 1.7, 0.9);
+      g.moveTo(cx + 7.5, by - 25.2 - ry); g.lineTo(cx + 9.2, by - 27.2 - ry); g.stroke();
+      g.strokeStyle = '#6a4a10'; g.lineWidth = 0.8;
+      g.beginPath();
+      g.moveTo(cx + 7.5, by - 25.2 - ry); g.lineTo(cx + 9.2, by - 27.2 - ry); g.stroke();
+      g.strokeStyle = shade(ACCENT.rocket, 1.28); g.lineWidth = 1.5;
+      g.beginPath();
+      g.moveTo(cx + 7.9, by - 26.4 - ry); g.lineTo(cx + 9.2, by - 27.9 - ry); g.stroke();
       });
 
-      face(by - 21.7);
-      helmet(by - 23.6, 3.3, GGI_STEEL, 1.0);                       // steel, so the VEST is the remap
+      face(by - 21.3);
+      // The crown sits at by-26.2, a whole pixel lower than it did: the tube
+      // has to clear it by 4 rows and the Flak Trooper has to stay the tallest
+      // man in the game, and there is not room in a 45-row sprite for both
+      // unless the helmet gives some back. A Guardian's helmet is a deep pot
+      // pulled down over the eyes anyway.
+      helmet(by - 23.1, 3.1, GGI_STEEL, 1.0);                       // steel, so the VEST is the remap
       if (!FA.back) {                                               // dark visor band
       g.fillStyle = '#1f2429';
-      g.beginPath(); g.roundRect(cx + sd * 1.1 / TURN + HEADX - 2.9, by - 22.5, 5.8, 1.6, 0.7); g.fill();
+      g.beginPath(); g.roundRect(cx + sd * 1.1 / TURN + HEADX - 2.9, by - 22.1, 5.8, 1.6, 0.7); g.fill();
       g.fillStyle = 'rgba(200,225,255,.30)';
-      g.fillRect(cx + sd * 1.1 / TURN + HEADX - 2.4, by - 22.3, 2.3, 0.65);
+      g.fillRect(cx + sd * 1.1 / TURN + HEADX - 2.4, by - 21.9, 2.3, 0.65);
       }
       g.restore();
 
@@ -4938,23 +5003,25 @@
 
       arms(5.7, by - 18.0, 3.0, 6.6, T.coat, function (i, x, y) {
         g.fillStyle = col;                                          // house-colour shoulder pad
-        g.beginPath(); g.roundRect(x - 2.1, y - 1.4, 4.2, 3.6, 1.1); g.fill();
+        g.beginPath(); g.roundRect(x - 2.3, y - 1.6, 4.6, 4.2, 1.1); g.fill();
         outline(g, shade(col, 0.42));
         g.fillStyle = shade(col, 1.22);
-        g.fillRect(x - 1.8, y - 1.2, 3.6, 1.1);
+        g.fillRect(x - 2.0, y - 1.4, 4.0, 1.2);
         g.fillStyle = '#2b2d33';                                    // dark glove
-        g.beginPath(); g.roundRect(x - 1.5, y + 5.0, 3.0, 2.2, 0.9); g.fill();
+        g.beginPath(); g.roundRect(x - 1.5, y + 5.4, 3.0, 2.0, 0.9); g.fill();
+        g.fillStyle = shade(col, 0.88);                             // house cuff above it
+        g.fillRect(x - 1.7, y + 4.2, 3.4, 1.6);
       });
 
       g.fillStyle = col;                                            // house-colour chest vest
       g.beginPath();                                                // collar to BELOW the belt, as
-      g.moveTo(cx - 5.3, by - 20.3); g.lineTo(cx + 4.9, by - 20.3);  // the Conscript's tunic is
-      g.lineTo(cx + 4.2, by - 11.6); g.lineTo(cx - 4.9, by - 11.6);
+      g.moveTo(cx - 5.9, by - 20.5); g.lineTo(cx + 5.5, by - 20.5);  // the Conscript's tunic is
+      g.lineTo(cx + 4.8, by - 10.2); g.lineTo(cx - 5.5, by - 10.2);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);                               // lit left panel
-      g.fillRect(cx - 5.1, by - 19.8, 3.3, 7.9);
+      g.fillRect(cx - 5.4, by - 19.9, 3.5, 8.8);
       g.fillStyle = shade(col, 0.74);                               // shoulder-strap shadow
-      g.fillRect(cx + 1.6, by - 19.6, 2.6, 7.5);
+      g.fillRect(cx + 1.6, by - 19.7, 2.8, 8.4);
 
       wpn(function () {
       var fy = gt.bob ? 0.5 : 0;                                    // cannon rides the bob
@@ -5030,7 +5097,13 @@
       // the Directorate's amber hard hat (with the moulded crest ridge that
       // names it at 1:1), the Collective's soft grey field cap.
       var SHIRT = '#d8d4c6';
-      legs(2.5, by - 12.2, 3.5, T.coat, 4.0);
+      // A PLANTED STANCE, wider than any soldier's. The Engineer, the Spy and
+      // Tanya are three same-size two-legged figures — RA2 cannot separate
+      // them as black shapes either (§1.2) — and the two levers §1.5 leaves
+      // are the leg split and the prop. His is the widest split on the field
+      // (a workman stands over his work); the Spy's is no split at all under a
+      // hard-tapered coat. That pair sat at 0.765 and it is 0.74 now.
+      legs(3.5, by - 12.2, 3.8, T.coat, 4.6);
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = SHIRT;                                          // light work shirt
@@ -5232,11 +5305,17 @@
       legs(3.1, by - 11.9, 4.6, T.coat, 5.4);
 
       g.save(); g.translate(gt.lean, gt.bob);
-      g.fillStyle = '#5d5a2e';                                      // olive hip pouches
-      g.beginPath(); g.roundRect(cx - 6.0, by - 13.4, 12.0, 3.0, 1.0); g.fill();
-      outline(g, '#2f2d16');
-      g.fillStyle = '#7e7a3c';
-      g.fillRect(cx - 5.6, by - 13.2, 11.2, 0.9);
+      // HOUSE-COLOURED HIP ARMOUR. He was the lowest uniformed trooper in the
+      // roster at 20.6%, and §2.2 spoke for his chest — "carapace value >= 0.70
+      // (silver) across >= 40% of the torso" — so the budget cannot go there
+      // (C2 declined to re-split it and that call still stands). It goes on the
+      // hips and the gauntlet cuff instead, which is the same three-block
+      // pattern RA2 gives an armoured unit: shoulders steel, chest, hips.
+      g.fillStyle = shade(col, 0.88);                               // house hip armour
+      g.beginPath(); g.roundRect(cx - 6.2, by - 13.6, 12.4, 3.4, 1.0); g.fill();
+      outline(g, shade(col, 0.40));
+      g.fillStyle = shade(col, 1.22);
+      g.fillRect(cx - 5.8, by - 13.4, 11.6, 1.0);
       g.fillStyle = '#8f96a1';                                      // waist ring of the suit
       g.fillRect(cx - 5.8, by - 14.6, 11.6, 1.5);
 
@@ -5293,8 +5372,8 @@
           g.fillStyle = '#7d848f';                                  // the fist itself
           g.beginPath(); g.roundRect(gux - 2.1, guy, 4.2, 3.4, 1.2); g.fill();
           outline(g, '#3c414a');
-          g.fillStyle = ACCENT.teslatrooper;
-          g.fillRect(gux - 1.7, guy + 0.3, 3.4, 1.0);
+          g.fillStyle = col;                                        // house cuff on the gauntlet
+          g.fillRect(gux - 1.9, guy + 0.1, 3.8, 1.4);
           g.fillStyle = '#5b626c';                                  // knuckle ridge
           g.fillRect(gux - 1.7, guy + 2.0, 3.4, 0.8);
           g.strokeStyle = '#c8d0da'; g.lineWidth = 1.0; g.lineCap = 'round';
@@ -5312,6 +5391,8 @@
           g.fillStyle = '#6f767f';                                  // plain steel fist
           g.beginPath(); g.roundRect(x - 1.7, y + 5.5, 3.4, 2.8, 1.0); g.fill();
           outline(g, '#3c414a');
+          g.fillStyle = col;                                        // ...with the same house cuff
+          g.fillRect(x - 1.7, y + 5.4, 3.4, 1.3);
         }
       });
 
@@ -5393,11 +5474,11 @@
       for (var iv = -1; iv <= 1; iv += 2) {
         g.fillStyle = col;
         g.beginPath();
-        g.moveTo(cx + iv * 0.75, by - 20.5); g.lineTo(cx + iv * 5.5, by - 20.5);
-        g.lineTo(cx + iv * 5.2, by - 13.2); g.lineTo(cx + iv * 0.95, by - 13.2);
+        g.moveTo(cx + iv * 0.75, by - 20.6); g.lineTo(cx + iv * 5.6, by - 20.6);
+        g.lineTo(cx + iv * 5.4, by - 11.6); g.lineTo(cx + iv * 1.05, by - 11.6);
         g.closePath(); g.fill(); outline(g, shade(col, 0.40));
         g.fillStyle = shade(col, iv < 0 ? 1.22 : 0.88);
-        g.fillRect(cx + (iv < 0 ? -5.2 : 2.5), by - 20.3, 2.6, 6.9);
+        g.fillRect(cx + (iv < 0 ? -5.3 : 2.6), by - 20.4, 2.7, 8.4);
       }
       g.fillStyle = shade(col, 0.66);                               // collar shadow
       g.fillRect(cx - 5.3, by - 20.5, 10.6, 0.9);
@@ -5490,21 +5571,34 @@
       // with the head they became the widest rows on the sprite, which made
       // the gate score the helmet as his spike instead of the pack and took
       // its measured thickness from 6 px to 4.
+      // ...and the way they came to meet §2.2's "pack >= 5w x 8h ABOVE the
+      // shoulder line" is the C4 note's trap read backwards. The gate scored 7
+      // rows of protrusion, not 8, and the obvious move — raise the tanks — is
+      // the one that makes it WORSE: at the profile facings the body is
+      // squeezed 0.66 but the tanks are not, so lifting them into the helmet's
+      // rows takes that band over the 55% body cut and the run gets SHORTER.
+      // Raising the HELMET a unit and dropping the tanks half of one buys the
+      // eighth row, because what is measured is the number of rows that stay
+      // NARROW, not how high the widest thing sits. Sweep: +2.0 -> 4 rows,
+      // +1.0 -> 6, 0 -> 7, -1.0 -> 8.
       for (var dpk = -1; dpk <= 1; dpk += 2) {
         var pkx = cx + dpk * 4.0;
         g.fillStyle = shade(T.coat, dpk < 0 ? 1.40 : 1.10);
-        g.beginPath(); g.roundRect(pkx - 2.1, by - 21.9, 4.2, 8.6, 1.6); g.fill();
+        g.beginPath(); g.roundRect(pkx - 2.1, by - 21.6, 4.2, 9.2, 1.6); g.fill();
         outline(g, shade(T.coat, 0.40));
         g.fillStyle = shade(T.coat, dpk < 0 ? 1.74 : 1.32);          // lit stave
-        g.fillRect(pkx - 1.6, by - 21.3, 1.2, 7.2);
-        g.fillStyle = '#2a2e34';                                     // steel cap
-        g.beginPath(); g.ellipse(pkx, by - 21.9, 2.1, 1.0, 0, 0, 6.29); g.fill();
+        g.fillRect(pkx - 1.6, by - 21.0, 1.2, 7.8);
+        g.fillStyle = shade(col, 0.90);                              // house band round the tank —
+        g.fillRect(pkx - 2.1, by - 19.6, 4.2, 2.2);                  // the budget goes ON the named
+        outline(g, shade(col, 0.42));                                // part (rule 6), as the Flak
+        g.fillStyle = '#2a2e34';                                     // Trooper's breech band does
+        g.beginPath(); g.ellipse(pkx, by - 21.6, 2.1, 1.0, 0, 0, 6.29); g.fill();
         g.fillStyle = 'rgba(77,224,74,.55)';                         // the fill port glows
-        g.beginPath(); g.ellipse(pkx, by - 22.1, 0.9, 0.5, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(pkx, by - 21.8, 0.9, 0.5, 0, 0, 6.29); g.fill();
       }
       g.strokeStyle = '#3a3f47'; g.lineWidth = 1.2; g.lineCap = 'round';
       g.beginPath();                                                 // yoke across the tank tops
-      g.moveTo(cx - 4.0, by - 21.2); g.lineTo(cx + 4.0, by - 21.2); g.stroke();
+      g.moveTo(cx - 4.0, by - 20.9); g.lineTo(cx + 4.0, by - 20.9); g.stroke();
       for (var dtp = -1; dtp <= 1; dtp += 2) {                       // house-colour thigh plates
         g.fillStyle = shade(col, 0.86);
         g.beginPath(); g.roundRect(cx + dtp * 3.0 - 2.1, by - 13.0, 4.2, 3.4, 1.0); g.fill();
@@ -5524,18 +5618,18 @@
       g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
       g.fillStyle = col;                                             // house-colour chest plate
       g.beginPath();
-      g.moveTo(cx - 3.6, by - 20.2); g.lineTo(cx + 3.6, by - 20.2);
-      g.lineTo(cx + 2.6, by - 15.4); g.lineTo(cx - 2.6, by - 15.4);
+      g.moveTo(cx - 5.0, by - 20.3); g.lineTo(cx + 5.0, by - 20.3);
+      g.lineTo(cx + 3.6, by - 15.0); g.lineTo(cx - 3.6, by - 15.0);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.24);
-      g.fillRect(cx - 3.4, by - 20.1, 6.8, 1.2);
+      g.fillRect(cx - 4.8, by - 20.2, 9.6, 1.2);
       // rivets down the plate — the render's studded seam
       g.fillStyle = 'rgba(20,22,26,.55)';
       for (var drv = 0; drv < 3; drv++) g.fillRect(cx - 0.5, by - 19.0 - drv * 1.5, 1.0, 0.8);
 
       arms(5.5, by - 18.4, 2.9, 5.6, shade(T.coat, 0.92), function (i, x, y) {
         g.fillStyle = shade(col, 0.94);                              // armoured gauntlet
-        g.beginPath(); g.roundRect(x - 1.5, y + 4.9, 3.0, 2.5, 0.9); g.fill();
+        g.beginPath(); g.roundRect(x - 1.6, y + 4.7, 3.2, 2.7, 0.9); g.fill();
         outline(g, shade(col, 0.42));
       });
 
@@ -5569,9 +5663,11 @@
         g.quadraticCurveTo(cx - 3.4, gy0 + 5.0, cx - 2.6, gy0 + 7.0); g.stroke();
       });
 
-      // A sealed helmet, not a face: a domed shell with a green visor band.
+      // A sealed helmet, not a face: a domed shell with a green visor band. It
+      // stands a unit higher than it did — see the pack note above; the extra
+      // helmet-only band is what carries the pack's eighth row of protrusion.
       g.fillStyle = shade(T.coat, 1.28);
-      var dhy = by - 22.4;
+      var dhy = by - 23.3;
       g.beginPath(); g.ellipse(cx + sd * 1.1 / TURN, dhy, 3.4 * (1 - 0.16 * sd), 3.5, 0, Math.PI, 0); g.fill();
       g.fillRect(cx + sd * 1.1 / TURN - 3.4 * (1 - 0.16 * sd), dhy, 6.8 * (1 - 0.16 * sd), 1.9);
       outline(g, shade(T.coat, 0.42));
@@ -5686,8 +5782,9 @@
       g.moveTo(cx - 5.4, by - 21.2); g.lineTo(cx - 3.0, by - 25.4);
       g.lineTo(cx + 3.0, by - 25.4); g.lineTo(cx + 5.4, by - 21.2);
       g.closePath(); g.fill(); outline(g, shade(T.coat, 0.38));
-      g.fillStyle = shade(col, 0.92);                                // the collar band — half his remap
-      g.fillRect(cx - 3.0, by - 25.4, 6.0, 1.2);
+      g.fillStyle = shade(col, 0.92);                                // the collar band — half his
+      g.fillRect(cx - 3.2, by - 25.5, 6.4, 1.5);                     // remap, and RA2 has him at
+                                                                     // 26.9% where we sat at 25.5
 
       face(by - 24.0);
       // The bald skull: skin, not a helmet, and drawn slightly larger than a
@@ -5713,11 +5810,17 @@
       // (the `hue.maxImpostor` trap the Conscript's trousers were caught by).
       // Beside the head it sums over the background instead, and an aura
       // floating off the temples is the better read anyway.
+      // ...and a little further out again, with a tighter halo. The additive
+      // blend is the whole trap here: wherever the glow lands on the figure it
+      // SUMS with the skin under it and the sum is pink — the other owner's
+      // hue on a blue Yuri. He is `hue.maxImpostor`'s top infantry entry and
+      // sits a thousandth under the game's worst (the Squid), so every pixel
+      // of overlap counts.
       for (var ypi = -1; ypi <= 1; ypi += 2) {
-        g.fillStyle = 'rgba(168,111,240,.30)';
-        g.beginPath(); g.ellipse(yhx + ypi * 4.3, by - 24.8, 1.05, 1.05, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(168,111,240,.26)';
+        g.beginPath(); g.ellipse(yhx + ypi * 4.7, by - 24.8, 0.95, 0.95, 0, 0, 6.29); g.fill();
         g.fillStyle = ACCENT.yuri;
-        g.beginPath(); g.ellipse(yhx + ypi * 4.3, by - 24.8, 0.55, 0.55, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(yhx + ypi * 4.7, by - 24.8, 0.55, 0.55, 0, 0, 6.29); g.fill();
       }
       g.restore();
       g.restore();
@@ -5785,34 +5888,62 @@
 
       // The neutron rifle: a long slab receiver with a glowing coil ring
       // near the muzzle and a stubby emitter fork at the end.
-      wpn(function () {
+      // THE NEUTRON RIFLE, and it is NOT drawn through `wpn()` any more.
+      // `wpn` models a weapon that points along the facing — a shoulder tube,
+      // a rad cannon — so it gives the piece its full length back as the man
+      // turns to profile (`wl = (0.82 + 0.33*sd) / TURN`). The Chrono
+      // Legionnaire's rifle is held ACROSS the body, which is the opposite
+      // case: front-on you see all of it, end-on you see almost none. Under
+      // `wpn` it grew by half at the profile facings, and when §2.1's "rifle
+      // >= 9 px LONG" was finally enforced and it got longer still, that swing
+      // took his own cross-bearing self-IoU from 0.707 to 0.631 and handed him
+      // to the Rocketeer as a peer-vs-self failure. Drawn in body space it
+      // narrows WITH the shoulders, which is both what a rifle across a chest
+      // actually does and what keeps his eight bearings the same man.
+      // ...and it does not swap hands front-to-back either. `wpn`'s `GSIDE`
+      // mirror is right for a piece that points along the facing; a rifle held
+      // across the chest is BEHIND the man on the three rear facings, so which
+      // screen side it lands on there is arbitrary — and flipping it cost
+      // another 0.03 of self-IoU for nothing a player can see at 26 px. The
+      // outer `MIR` still swaps it left-for-right with the facing, so the
+      // muzzle always leads the way he is walking.
+      (function () {
         // Carried across the body and CANTED — the muzzle drops toward the
         // leading hip. Level, an 8-unit slab at waist height read as a belt.
+        //
+        // A LONG rifle, and that is the whole budget. §2.1 asks for a "rifle
+        // >= 9 px LONG held horizontal"; the gate's `budget` field means the
+        // THIN dimension, so the 9 had been entered as a demand for a NINE
+        // PIXEL THICK weapon, which is a fence post. Corrected, the number is
+        // an extent: the receiver runs 9.2 units (12 px) and the emitter fork
+        // carries it another 2.6, so 9 columns of it stand clear of the body.
         var ry = by - 16.2;
+        g.save();
         g.save();
         g.translate(cx, ry); g.rotate(0.30); g.translate(-cx, -ry);
         g.fillStyle = '#3f4753';
-        g.beginPath(); g.roundRect(cx - 3.0, ry, 7.6, 2.2, 0.8); g.fill();
+        g.beginPath(); g.roundRect(cx - 2.2, ry, 10.8, 2.2, 0.8); g.fill();
         outline(g, '#1c2026');
         g.fillStyle = '#7c8694';                                     // lit spine
-        g.fillRect(cx - 2.7, ry + 0.25, 7.0, 0.8);
+        g.fillRect(cx - 1.9, ry + 0.25, 10.2, 0.8);
         g.fillStyle = '#272d36';                                     // grip
-        g.beginPath(); g.roundRect(cx - 1.1, ry + 1.9, 1.6, 2.4, 0.5); g.fill();
+        g.beginPath(); g.roundRect(cx - 0.4, ry + 1.9, 1.6, 2.4, 0.5); g.fill();
         g.fillStyle = '#272d36';                                     // fore grip
-        g.beginPath(); g.roundRect(cx + 2.4, ry + 1.9, 1.3, 1.8, 0.5); g.fill();
+        g.beginPath(); g.roundRect(cx + 4.2, ry + 1.9, 1.3, 1.8, 0.5); g.fill();
         g.save();                                                    // the coil, drawn as light
         g.globalCompositeOperation = 'lighter';
         g.fillStyle = 'rgba(120,190,255,.45)';
-        g.beginPath(); g.ellipse(cx + 4.0, ry + 1.0, 2.1, 2.0, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(cx + 6.8, ry + 1.0, 2.1, 2.0, 0, 0, 6.29); g.fill();
         g.fillStyle = ACCENT.cleg;
-        g.fillRect(cx + 3.4, ry - 0.5, 1.3, 3.2);
+        g.fillRect(cx + 6.2, ry - 0.5, 1.3, 3.2);
         g.restore();
-        g.strokeStyle = '#9fb2c6'; g.lineWidth = 1.0;                // emitter fork
+        g.strokeStyle = '#9fb2c6'; g.lineWidth = 1.3;                // emitter fork
         g.beginPath();
-        g.moveTo(cx + 4.9, ry + 1.1); g.lineTo(cx + 6.6, ry - 0.3);
-        g.moveTo(cx + 4.9, ry + 1.1); g.lineTo(cx + 6.6, ry + 2.5); g.stroke();
+        g.moveTo(cx + 8.4, ry + 1.1); g.lineTo(cx + 11.9, ry - 0.7);
+        g.moveTo(cx + 8.4, ry + 1.1); g.lineTo(cx + 11.9, ry + 3.0); g.stroke();
         g.restore();
-      });
+        g.restore();
+      }());
 
       // A sealed dome, a dark faceplate and the hose down to the chest.
       var chy = by - 22.3, chx = cx + sd * 1.1 / TURN + HEADX;
@@ -5838,11 +5969,24 @@
 
     } else if (kind === 'spy') {
       // SPY ([SPY]), read off docs/ra2-ref/ra2-spy-RA2_Spy_Manual_Render: a
-      // man in a CHARCOAL BUSINESS SUIT — the only civilian silhouette in the
-      // army. Bare dark head, pale shirt strip and a house-colour tie down
-      // the jacket's opening, black dress shoes, and he walks with a slight
+      // man in a long OVERCOAT — the only civilian silhouette in the army.
+      // Bare dark head under a fedora, pale shirt strip and a dark tie down
+      // the coat's opening, black dress shoes, and he walks with a slight
       // crouch, hands out at his sides. No helmet, no webbing, no weapon:
       // the whole read is "that man is not dressed like the others".
+      //
+      // THE COAT IS THE HOUSE ZONE. §1.5's table gives the Spy
+      // `fedora / long coat / coat hem, no split legs / briefcase`, and the
+      // middle column of that table is headed "mid zone (HOUSE)" — RA2 remaps
+      // the coat, exactly as it remaps a GI's torso. He was drawn in a fixed
+      // charcoal suit with a house-colour TIE, which is a 2 px stripe, and he
+      // came in at **6.5% owner colour** — the lowest uniformed figure in the
+      // game and the only entry left in `hue.infantryBelowBudget`. The coat
+      // body is house colour now, over the same unbroken charcoal hem, with
+      // charcoal lapels, hat and shoes: three zones, the GI's own layout worn
+      // by a man in a hat. The tie went dark for the same reason a red star
+      // came off the Collective engineer's hat — a saturated note that used
+      // to be the owner's colour has to stop being it once the coat is.
       // NO LEG SPLIT, and a HAT. §2.1 gives him "hat brim >= 7 px wide,
       // >= 1.5x the head; coat hem one unbroken block >= 8 px wide, no
       // vertical gap" — and he had neither: split trousers and a bare head,
@@ -5857,31 +6001,38 @@
       var shem = gt.swf * 0.6;                                       // the coat sways; no stride
       g.fillStyle = shade(T.coat, 1.02);
       g.beginPath();
-      g.moveTo(cx - 4.4, by - 13.0); g.lineTo(cx + 4.4, by - 13.0);
-      g.lineTo(cx + 3.7 + shem, by - 1.4); g.lineTo(cx - 3.7 + shem, by - 1.4);
+      g.moveTo(cx - 4.0, by - 13.0); g.lineTo(cx + 4.0, by - 13.0);
+      g.lineTo(cx + 3.0 + shem, by - 1.4); g.lineTo(cx - 3.0 + shem, by - 1.4);
       g.closePath(); g.fill(); outline(g, shade(T.coat, 0.42));
       g.fillStyle = shade(T.coat, 1.30);                             // lit front of the hem
       g.beginPath();
-      g.moveTo(cx - 4.1, by - 12.8); g.lineTo(cx - 1.2, by - 12.8);
-      g.lineTo(cx - 1.5 + shem, by - 1.6); g.lineTo(cx - 3.4 + shem, by - 1.6);
+      g.moveTo(cx - 3.7, by - 12.8); g.lineTo(cx - 1.1, by - 12.8);
+      g.lineTo(cx - 1.3 + shem, by - 1.6); g.lineTo(cx - 2.8 + shem, by - 1.6);
       g.closePath(); g.fill();
       for (var ssh = -1; ssh <= 1; ssh += 2) {                       // dress shoes at the hem
         g.fillStyle = T.boot;
         g.beginPath();
-        g.roundRect(cx + ssh * 1.9 - 1.5 + shem, by - 2.3, 3.0, 2.3, 0.8); g.fill();
+        g.roundRect(cx + ssh * 1.5 - 1.4 + shem, by - 2.3, 2.8, 2.3, 0.8); g.fill();
       }
 
       g.save(); g.translate(gt.lean, gt.bob);
-      g.fillStyle = shade(T.coat, 1.10);                             // jacket, skirted past the hip
+      // The overcoat's SHOULDER LINE is padded and square — 1940s tailoring,
+      // and it is also what lets the fedora measure (see the hat below): the
+      // gate's body cut is 55% of the widest row, and until the shoulders
+      // beat the contact shadow the widest row was the shadow, which put the
+      // cut so low that a 7 px hat crown counted as body instead of spike.
+      g.fillStyle = col;                                             // the coat, skirted past the hip
       g.beginPath();
-      g.moveTo(cx - 4.6, by - 20.4); g.lineTo(cx + 4.6, by - 20.4);
-      g.lineTo(cx + 5.0, by - 11.6); g.lineTo(cx - 5.0, by - 11.6);
-      g.closePath(); g.fill(); outline(g, shade(T.coat, 0.44));
-      g.fillStyle = shade(T.coat, 1.38);                             // lit lapel side
-      g.beginPath();
-      g.moveTo(cx - 4.4, by - 20.2); g.lineTo(cx - 1.2, by - 20.2);
-      g.lineTo(cx - 1.9, by - 11.8); g.lineTo(cx - 4.7, by - 11.8);
+      g.moveTo(cx - 6.1, by - 20.4); g.lineTo(cx + 6.1, by - 20.4);
+      g.lineTo(cx + 4.0, by - 9.8); g.lineTo(cx - 4.0, by - 9.8);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      g.fillStyle = shade(col, 1.22);                                // lit lapel side (folds stay
+      g.beginPath();                                                 // inside 0.70..1.24: above ~1.3
+      g.moveTo(cx - 5.7, by - 20.2); g.lineTo(cx - 1.2, by - 20.2);  // #4aa3db clips to white-cyan)
+      g.lineTo(cx - 1.9, by - 10.0); g.lineTo(cx - 3.8, by - 10.0);
       g.closePath(); g.fill();
+      g.fillStyle = shade(col, 0.76);                                // shaded right panel
+      g.fillRect(cx + 2.0, by - 19.8, 3.2, 9.6);
       g.fillStyle = ACCENT.spy;                                      // pale shirt strip
       g.beginPath();
       g.moveTo(cx - 2.0, by - 20.6); g.lineTo(cx + 2.0, by - 20.6);
@@ -5889,25 +6040,27 @@
       g.closePath(); g.fill(); outline(g, '#8d8a7e');
       g.fillStyle = '#f4f1e8';                                       // lit collar wings
       g.fillRect(cx - 2.0, by - 20.7, 4.0, 1.1);
-      g.fillStyle = shade(col, 1.10);                                // house-colour tie
+      g.fillStyle = '#22252c';                                       // dark tie
       g.beginPath();
       g.moveTo(cx - 1.0, by - 20.4); g.lineTo(cx + 1.0, by - 20.4);
       g.lineTo(cx + 0.65, by - 14.2); g.lineTo(cx - 0.65, by - 14.2);
-      g.closePath(); g.fill(); outline(g, shade(col, 0.44));
-      g.fillStyle = shade(T.coat, 0.66);                             // lapel notches
+      g.closePath(); g.fill(); outline(g, '#0e1014');
+      g.fillStyle = shade(T.coat, 0.66);                             // charcoal lapel facings —
+      g.beginPath();                                                 // rule 7: the house block wants
+      g.moveTo(cx - 2.6, by - 20.5); g.lineTo(cx - 0.9, by - 20.4);  // an edge, not a soft fade
+      g.lineTo(cx - 1.6, by - 16.6); g.closePath(); g.fill();
       g.beginPath();
-      g.moveTo(cx - 2.2, by - 20.4); g.lineTo(cx - 0.9, by - 20.4);
-      g.lineTo(cx - 1.6, by - 17.2); g.closePath(); g.fill();
-      g.beginPath();
-      g.moveTo(cx + 2.2, by - 20.4); g.lineTo(cx + 0.9, by - 20.4);
-      g.lineTo(cx + 1.6, by - 17.2); g.closePath(); g.fill();
+      g.moveTo(cx + 2.6, by - 20.5); g.lineTo(cx + 0.9, by - 20.4);
+      g.lineTo(cx + 1.6, by - 16.6); g.closePath(); g.fill();
 
-      arms(4.4, by - 19.4, 2.0, 6.0, shade(T.coat, 0.94), function (i, x, y) {
+      arms(6.2, by - 19.4, 2.6, 6.0, shade(col, 0.86), function (i, x, y) {
         g.fillStyle = T.skin;                                        // bare hand, held out
         g.beginPath(); g.ellipse(x + i * 0.4, y + 6.4, 1.15, 1.3, 0, 0, 6.29); g.fill();
         outline(g, '#a5806a');
-        g.fillStyle = '#dfe3ea';                                     // shirt cuff
-        g.fillRect(x - 1.0, y + 4.9, 2.0, 0.9);
+        g.fillStyle = shade(col, 0.80);                              // coat cuff, then a shirt
+        g.fillRect(x - 1.4, y + 4.4, 2.8, 1.4);                      // cuff showing under it
+        g.fillStyle = '#dfe3ea';
+        g.fillRect(x - 1.0, y + 5.5, 2.0, 0.7);
         if (i > 0) {
           // THE BRIEFCASE (§1.5's prop for him). A flat tan case hanging off
           // the far hand, clear of the coat — the one thing on the field a
@@ -5927,27 +6080,56 @@
       });
 
       face(by - 22.2);
-      // THE FEDORA. A brim wider than the shoulders are deep, and a soft
-      // creased crown above it: the one head outline on the field that is
-      // neither a helmet dome nor a bare skull, and the widest thing on him.
+      // THE FEDORA, redrawn to real hat proportions — and that is what makes
+      // it measure. `spikeOf('v')` calls a row BODY once it reaches 55% of the
+      // sprite's widest row and scores the SPIKE as the median width of what
+      // stands above that line. The brim is wide, so the brim is body; the run
+      // above it is the CROWN alone. At 5.8 units the crown was 5.6 screen px
+      // against a 7 px budget — and C2 read that as "reaching 7 needs a crown
+      // wide enough to be a bowler". It does not: a real fedora's crown is
+      // 0.60-0.70 of its brim (the brim is a 1-1.5 px lip round it), and 5.8
+      // over a 9.8 brim was 0.59 — a TOP HAT's proportion, a narrow tube on a
+      // wide plate. Crown 7.4 under a 12.0 brim is 0.62, which is a fedora,
+      // and it clears 7 px on screen.
+      //
+      // The other half of the sum is the CUT — 55% of the widest row — and the
+      // widest row on an infantryman is the CONTACT SHADOW (an rx-6.0 blob,
+      // ~12 px), not his shoulders. That put the cut at 6.6, so a 7 px crown
+      // would have counted as BODY and taken the spike to zero. Two changes
+      // pay for it: the overcoat's padded 1940s shoulder now beats the shadow,
+      // and the hat is drawn at its TRUE screen width.
+      //
+      // A HAT DOES NOT TURN WITH THE MAN. The body is under a `scale(TURN, 1)`
+      // that projects the shoulder line onto the body's depth as the figure
+      // turns away — but a brim and a crown are round in PLAN, so they present
+      // the same width from every compass bearing; only the head under them
+      // rotates. Drawn inside the squeeze, the fedora lost a quarter of itself
+      // at the three-quarter facings and the gate scored it there, at 5 px.
+      // The x terms divide by TURN for exactly the reason `carbine` and `wpn`
+      // do, and the sd foreshortening is gone with them.
       var shx = cx + sd * 1.1 / TURN + HEADX;
-      var sbw = 4.9 * (1 - 0.14 * sd);                               // half-brim: 9.8 px across —
-                                                                     // §2.1 wants >=7 px of brim and
-                                                                     // >=1.5x the head, and it is the
-                                                                     // widest thing on the figure
+      var sbw = 5.8 / TURN;                                          // half-brim: 11.6 units across,
+                                                                     // 2.4x the head — §2.1 wants
+                                                                     // >=7 px of brim and >=1.5x
+      var scw = 3.8 / TURN;                                          // half-crown: 7.6 units, 0.66 of
+                                                                     // the brim — a fedora's own
+                                                                     // proportion, and >=7 px on screen
       g.fillStyle = '#2f2620';                                       // short dark hair under it
       g.beginPath(); g.ellipse(shx, by - 22.9, 2.5 * (1 - 0.16 * sd), 2.1, 0, Math.PI, 0); g.fill();
-      g.fillStyle = shade(T.coat, 0.62);                             // crown
-      g.beginPath();
-      g.roundRect(shx - 2.9 * (1 - 0.16 * sd), by - 25.8, 5.8 * (1 - 0.16 * sd), 3.2, 1.0); g.fill();
+      g.fillStyle = shade(T.coat, 0.62);                             // crown — LOW and soft, so what
+      g.beginPath();                                                 // stands above the brim is
+      g.roundRect(shx - scw, by - 25.6, scw * 2, 3.1, 0.9); g.fill();// crown-width, not a tube
       outline(g, shade(T.coat, 0.34));
-      g.fillStyle = shade(col, 1.05);                                // house-colour hat band
-      g.fillRect(shx - 2.8 * (1 - 0.16 * sd), by - 23.4, 5.6 * (1 - 0.16 * sd), 1.0);
+      g.fillStyle = shade(T.coat, 0.42);                             // the pinch crease, two dents in
+      g.fillRect(shx - scw * 0.80, by - 25.6, 0.9 / TURN, 1.6);      // the front of the crown: a
+      g.fillRect(shx + scw * 0.42, by - 25.6, 0.9 / TURN, 1.6);      // fedora, not a bowler
+      g.fillStyle = '#1c1e24';                                       // dark grosgrain hat band
+      g.fillRect(shx - scw, by - 23.5, scw * 2, 1.1);
       g.fillStyle = shade(T.coat, 0.74);                             // the brim, proud of the crown
-      g.beginPath(); g.ellipse(shx, by - 22.5, sbw, 1.25, 0, 0, 6.29); g.fill();
+      g.beginPath(); g.ellipse(shx, by - 22.4, sbw, 1.35, 0, 0, 6.29); g.fill();
       outline(g, shade(T.coat, 0.34));
       g.fillStyle = shade(T.coat, 1.15);                             // lit crease along the crown
-      g.fillRect(shx - 2.1 * (1 - 0.16 * sd), by - 25.3, 1.5, 2.2);
+      g.fillRect(shx - scw * 0.52, by - 25.2, 1.5 / TURN, 2.0);
       g.restore();
 
     } else {
@@ -5978,15 +6160,15 @@
       // reading as the owner's colour at all.
       g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 5.3, by - 19.6); g.lineTo(cx + 5.3, by - 19.6);
-      g.lineTo(cx + 4.8, by - 12.4); g.lineTo(cx - 4.8, by - 12.4);
+      g.moveTo(cx - 5.8, by - 19.8); g.lineTo(cx + 5.8, by - 19.8);
+      g.lineTo(cx + 5.2, by - 11.0); g.lineTo(cx - 5.2, by - 11.0);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);                               // lit left panel
-      g.fillRect(cx - 5.1, by - 19.4, 3.4, 6.8);
+      g.fillRect(cx - 5.3, by - 19.5, 3.5, 7.9);
       g.fillStyle = shade(col, 0.76);                               // shaded right fold
-      g.fillRect(cx + 2.0, by - 19.0, 2.6, 6.2);
+      g.fillRect(cx + 2.0, by - 19.1, 2.8, 7.3);
       g.fillStyle = shade(col, 0.62);                               // collar shadow
-      g.fillRect(cx - 5.2, by - 19.5, 10.4, 0.8);
+      g.fillRect(cx - 5.6, by - 19.6, 11.2, 0.9);
       g.fillStyle = shade(T.coat, 0.62);                            // webbing belt, under the block
       g.fillRect(cx - 4.9, by - 12.8, 9.8, 1.5);
       g.fillStyle = '#b09632';                                      // khaki collar scarf
@@ -5996,10 +6178,10 @@
       // upper sleeve is remapped and the forearm is not, which is what takes
       // a GI from a 19% figure to RA2's 30-45% band without painting a man
       // who then reads as a plastic figure. The elbow line is the edge.
-      arms(5.4, by - 17.4, 2.7, 5.4, col);                          // house upper sleeves
+      arms(5.5, by - 17.4, 2.9, 6.3, col);                          // house sleeves to the cuff
       g.fillStyle = shade(T.coat, 1.02);                            // olive forearms crossing in
-      g.beginPath(); g.roundRect(cx - 4.7, by - 12.6, 3.8, 2.2, 1.0); g.fill();
-      g.beginPath(); g.roundRect(cx + 1.2, by - 14.2, 3.4, 2.1, 1.0); g.fill();
+      g.beginPath(); g.roundRect(cx - 4.5, by - 12.4, 3.4, 2.1, 1.0); g.fill();
+      g.beginPath(); g.roundRect(cx + 1.4, by - 14.0, 3.0, 2.0, 1.0); g.fill();
       outline(g, shade(T.coat, 0.5));
       carbine(cx - 5.2, by - 11.0 + gt.sw * 0.4, cx + 7.2, by - 15.6 - gt.sw * 0.4, 1.9);
       face(by - 21.7);

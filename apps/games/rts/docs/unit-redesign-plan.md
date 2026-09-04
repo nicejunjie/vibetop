@@ -227,6 +227,117 @@ building a roster RA2 does not have. Acceptance: no two same-faction units share
 > 5 px against a 7 px budget — both are C2's recorded findings and neither is a
 > silhouette question. (3) GI vs Conscript is untouched, per §4.
 
+> **C2 / C4 — infantry colour — done.** `hue.infantryOwnerMean` **0.2439 →
+> 0.2946** (the ≥0.29 target, MET), `hue.infantryBelowBudget` **1 → 0**,
+> `iou.sameFactionOver75` **3 → 1** (the survivor is Aegis|Destroyer, naval),
+> `spike.belowDeclaredBudget` **4 → 2** (the survivors are the Destroyer and the
+> Landing Craft, naval). Nothing regressed, and two metrics improved on the way
+> past: `iou.infantry.mean` **0.5410 → 0.5334** and `colour.infantry.meanDist`
+> **1.2754 → 1.3124**. `hue.maxImpostor` unchanged at 0.0033, and every
+> non-infantry number is byte-identical.
+>
+> Per kind: Spy 6.5→32.0, Tesla Trooper 20.6→33.7, Guardian GI 24.0→30.1,
+> Desolator 24.7→31.1, Flak Trooper 24.8→31.2, Yuri 25.5→25.9, GI 27.4→33.0,
+> Chrono Legionnaire 31.6→31.9, Ivan 31.7→35.8 (§2.2 asks ≥35), Conscript
+> 32.0→34.6, Rocketeer 34.2 and Engineer 36.6 untouched. **Dog and Tanya were
+> not painted** — the mean is over all fourteen including the two the budget
+> metric exempts, which is a real tension worth stating: RA2 itself keeps those
+> two drab, so the 0.29 has to be earned entirely on the other twelve, and it
+> was.
+>
+> **The Spy was the biggest single win, and it was a misreading rather than a
+> shortfall.** §1.5's infantry table heads its middle column *"mid zone
+> (HOUSE)"* and gives the Spy `fedora / long coat / unbroken hem / briefcase` —
+> RA2 remaps the **coat**. Ours was a fixed charcoal suit with a house-colour
+> TIE, a 2 px stripe, and he came in at 6.5%, the lowest uniformed figure in the
+> game. The coat body is the house block now over the same unbroken charcoal
+> hem, with charcoal lapels, hat and shoes: three zones, the GI's own layout
+> worn by a man in a hat. The tie went dark for the same reason the Collective
+> Engineer's red star did — a saturated note has to stop being the owner's
+> colour once the garment beside it is.
+>
+> **The fedora, and why C2's "reaching 7 needs a bowler" was wrong.**
+> `spikeOf('v')` calls a row BODY at 55% of the widest row and scores the median
+> width of what stands above it, so the wide brim is body and the run above it is
+> the CROWN alone. Neither of the two faults was the brim. (1) The crown was 5.8
+> units under a 9.8 brim — **0.59, which is a top hat's proportion.** A real
+> fedora's crown is 0.60–0.70 of its brim, because the brim is a 1–1.5 px lip
+> round it; 7.6 under 11.6 is 0.66, and it measures **9 px against a budget of
+> 7**. (2) The widest row on an infantryman is the **contact-shadow blob**
+> (rx 6.0 → ~13.2 × `STATURE[0]` px), not his shoulders, so the cut sat at 6.6
+> and a 7 px crown would have counted as body and taken the spike to zero. The
+> overcoat's padded 1940s shoulder now beats the shadow, and **the hat is drawn
+> at true screen width** — a brim and a crown are round in PLAN, so they present
+> the same width from every compass bearing while the man under them turns.
+> Inside the body's `scale(TURN, 1)` the fedora lost a quarter of itself at the
+> three-quarter facings, and that is exactly where the gate was scoring it.
+>
+> **`wpn()` is a model, not a wrapper, and it is wrong for a weapon held ACROSS
+> the body.** It gives a piece its full length back as the man turns to profile,
+> which is right for a shoulder tube pointing along the facing and backwards for
+> a rifle across the chest. Enforcing §2.1's *"rifle ≥ 9 px **long**"* on the
+> Chrono Legionnaire under `wpn` swung his weapon enough to take his own
+> cross-bearing self-IoU 0.707 → 0.631 and hand him to the Rocketeer as a
+> peer-vs-self failure; drawn in body space it narrows with his shoulders, and he
+> is len 7 → 9 at thick 10 with self-IoU 0.678. (The outer `MIR` still swaps it
+> left-for-right with the facing; the extra front-to-back `GSIDE` flip was
+> dropped, because a rifle across the chest is *behind* him on the rear facings
+> and which screen side it lands on there is arbitrary.)
+>
+> **The Desolator's pack is the C4 trap read backwards.** The gate wanted 8 rows
+> of protrusion and measured 7, and the obvious move — raise the tanks — makes it
+> **worse**: at the profile facings the body is squeezed 0.66 and the tanks are
+> not, so lifting them into the helmet's rows takes that band over the 55% cut and
+> the run gets SHORTER. Measured sweep: +2.0 → 4 rows, +1.0 → 6, 0 → 7, **−1.0 →
+> 8**. What is counted is how many rows stay NARROW, not how high the widest thing
+> sits. The helmet went up a unit and the tanks down half of one.
+>
+> **The Guardian GI, twice.** §2.1 asks the tube to clear the helmet by ≥4 px and
+> it stopped a pixel and a half SHORT of the crown. Raising it dropped the
+> measured thickness **10 → 2.5**, under the 3.64 floor, because the rows it
+> newly exposed were the warhead's pointed 1–2 px TIP — the same trap the Flak
+> Trooper's barrel and the Desolator's backpack each fell into once. A missile
+> nose is blunt: it is a 5.0-wide round-capped stroke now and the topmost row it
+> owns is already 4 px across. Then he had to come DOWN — at 45 rows he stood
+> level with the Flak Trooper, whose whole identity in §2.2 is being the tallest
+> man in the game, and **two tall figures with a long weapon over the right
+> shoulder are one silhouette**: they became each other's nearest match at 0.605
+> and both failed peer-vs-self. `STATURE` 1.10×1.14 → 1.12×1.03, 42 rows against
+> the Flak Trooper's 45.
+>
+> **Engineer|Spy 0.7647 → 0.7374 and Engineer|Tanya 0.7519 → 0.6951**, bought
+> with §1.5's own rule 9 rather than by shrinking anyone. The Spy's overcoat
+> TAPERS hard — a business coat against Yuri's flared robe — and has no leg split
+> at all; the Engineer gets the widest planted stance on the field, a workman
+> standing over his work. And the Engineer is **shared**, so he stands in both
+> rosters and pairs with all thirteen: at 19×31 he sat between Tanya (20×33) and
+> the Spy (19×29) and owned BOTH failing pairs. 1.06×0.82 (21×30) clears them.
+>
+> **Not honoured, and why.** (1) `peerVsSelf.infantry` is still **1**, the
+> Guardian GI — but C4's verdict is now measured rather than assumed, and it is
+> **reachable**. Drawing his tube in body space the way the CLeg's rifle now is
+> takes his self-IoU 0.482 → 0.627 and `peerVsSelf.infantry` to **0**, the first
+> time any pass has reached it. Rejected on two measurements: the tube stops being
+> what makes him unlike everyone else, so `iou.infantry.mean` goes 0.5334 →
+> **0.5486** — a regression that lands 0.0014 under the 0.55 ceiling and leaves
+> the next pass nowhere to stand — and the physics is wrong, because a launcher
+> braced on the shoulder and aimed *along* the facing genuinely does foreshorten
+> head-on and open out at profile, which is the case `wpn` exists for. If a later
+> pass finds room under the ceiling, this is a one-line change. (2) The Tesla
+> Trooper's chest is still one house block, against §2.2's *"silver carapace
+> value ≥ 0.70 across ≥ 40% of the torso"*. C2 declined to re-split it and that
+> call stands; his budget went on the HIPS and the gauntlet cuffs instead, which
+> is the same three-block armour pattern and took him 20.6 → 33.7 without
+> touching the biggest remapped mass in the game. (3) GI vs Conscript untouched,
+> per §4. (4) The GI is at 33.0% where RA2's E1 measures 45.2%, and the Conscript
+> 34.6% against 44.6%. The headroom is real but the code's own record is that a
+> 45%-remap GI *"read as a plastic figure rather than a soldier in a uniform"*,
+> and 30–35% is where he still reads as a man in a uniform. Part of the gap is
+> also an artefact worth writing down: **our masks include the contact-shadow
+> blob (~18% of a sprite, pure neutral) and §1.4's RA2 census had the SHP shadow
+> index masked out**, so our percentages are measured against a larger
+> denominator than RA2's were.
+
 **C5 — `ACCENT` earns its name.** Nine of thirteen ground vehicles picked a
 near-neutral grey, and for each, *all twelve* peers carry the same colour family. The
 three with a chromatic accent — both miners and the MCV — are precisely the three
