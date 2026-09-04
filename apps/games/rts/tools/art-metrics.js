@@ -40,6 +40,7 @@ const FRAME_PNG = path.join(RTS, 'art', 'out', 'art-gate-frame.png');
 const ZMIN = 0.55;              // rts.html:24995
 const SPIKE_FLOOR_ZMIN = 2.0;   // RA2's own floor: 2 px of thickness
 const SPIKE_FLOOR = SPIKE_FLOOR_ZMIN / ZMIN;   // => 3.64 px at zoom 1 (plan §2 option 1)
+const FLOOR = Math.round(SPIKE_FLOOR * 100) / 100;   // the budget when §2 names no number
 // A unit whose fixed (non-owner) pixels average less than this much saturation
 // is painted in greys: it reads as "a machine" and never as "THAT machine".
 // 0.14 is just above the census's own s > 0.12 noise floor, so a unit only
@@ -47,12 +48,26 @@ const SPIKE_FLOOR = SPIKE_FLOOR_ZMIN / ZMIN;   // => 3.64 px at zoom 1 (plan §2
 const ACHROMATIC = 0.14;
 
 // ── SPIKES ────────────────────────────────────────────────────────────────
-// One entry per key in the UNITS map. `feature` and `budget` come straight out
-// of unit-identity-reference.md §2's per-unit spec (the "identity feature" and
-// "pixel budget" columns); `budget` is the THIN dimension of that feature at
-// zoom 1, which is the dimension that dies first when the renderer scales to
-// ZMIN. `axis` says which way the spike protrudes, and so which profile
-// measures it:
+// One entry per key in the UNITS map, and every number is TRACEABLE: `src`
+// quotes the sentence in unit-identity-reference.md §2 the number comes from,
+// so a budget can be checked rather than believed.
+//
+// `budget` is the THIN dimension — what `spikeOf` returns as `thick`, the
+// dimension that dies first when the renderer scales to ZMIN. `len` is the
+// spike's extent ALONG the axis, which is a different number and was being
+// conflated with the thin one (2026-09-04 audit): §2.1 asks the Chrono
+// Legionnaire for a "rifle >= 9 px LONG held horizontal", and that 9 was
+// entered as a 9 px THICKNESS, demanding a slab where the reference asks for a
+// rifle. Same class of error as the `mass.groundCombatSpan` x6.8 corrected
+// above. A unit is below its declared budget if it fails EITHER.
+//
+// Where §2 gives no pixel number at all, the budget is `FLOOR` and `src` says
+// so. Four budgets were previously invented rather than transcribed (the
+// Destroyer's 5, the Landing Craft's 4, the MCV's 4, the Kirov's 4) — an
+// invented number is worse than the floor, because it fails a unit for missing
+// a bar nobody set. The floor is the honest bar: 2 px at ZMIN, RA2's own.
+//
+// `axis` says which way the spike protrudes, and so which profile measures it:
 //   'h' — it breaks the outline sideways (a barrel, a missile, a rotor span,
 //         a dog's spine): measured off the column profile, as the run of thin
 //         columns beyond the body (unit-identity-reference.md §1.3's method).
@@ -63,50 +78,94 @@ const ACHROMATIC = 0.14;
 // failure mode this gate exists to remove.
 const SPIKES = {
   // ── Directorate infantry (reference §2.1)
-  rifle:        { axis: 'v', budget: 3,   feature: 'grey pot helmet over a house torso block (no usable silhouette)' },
-  rocket:       { axis: 'v', budget: 2.5, feature: 'shoulder missile tube, ~30° up, clearing the helmet by >=4 px' },
-  rocketeer:    { axis: 'v', budget: 4,   feature: 'airborne: altitude offset + pack tanks behind the shoulders' },
-  engineer:     { axis: 'v', budget: 3,   feature: 'inverted value — the only light-value soldier; toolbox at hand height' },
-  dog:          { axis: 'h', budget: 4,   feature: 'quadruped: horizontal spine, aspect 1.4 against everyone else 0.45' },
-  tanya:        { axis: 'h', budget: 2,   feature: 'two pistols out to the sides, breaking the outline >=2 px each' },
-  cleg:         { axis: 'h', budget: 9,   feature: 'powered-suit shoulder line >=15 px + a long level rifle' },
-  spy:          { axis: 'v', budget: 7,   feature: 'fedora brim >=7 px wide over an unbroken coat hem' },
+  rifle:        { axis: 'v', budget: 5,   len: null, src: 'helmet >= 5x3',
+                  feature: 'grey pot helmet over a house torso block (no usable silhouette)' },
+  rocket:       { axis: 'v', budget: 2.5, len: 4,    src: 'tube >= 8 px long x 2.5 px thick, clearing the helmet by >= 4 px',
+                  feature: 'shoulder missile tube, ~30° up, clearing the helmet by >=4 px' },
+  rocketeer:    { axis: 'v', budget: 4,   len: 6,    src: 'pack >= 4w x 6h and strictly below the helmet crown',
+                  feature: 'airborne: altitude offset + pack tanks behind the shoulders' },
+  engineer:     { axis: 'v', budget: FLOOR, len: null, src: 'NONE — the toolbox is at hand height, not a crown; the floor applies',
+                  feature: 'inverted value — the only light-value soldier; toolbox at hand height' },
+  // The 19 px in §2.1 is the BODY's length, and `spikeOf` measures only what
+  // protrudes PAST the body — entering it as a spike length would repeat the
+  // very conflation this table was rewritten to remove.
+  dog:          { axis: 'h', budget: FLOOR, len: null, src: 'NONE — its numbers are a body length (19) and a height MAXIMUM (<= 9)',
+                  feature: 'quadruped: horizontal spine, aspect 1.4 against everyone else 0.45' },
+  tanya:        { axis: 'h', budget: FLOOR, len: 2,  src: 'pistols break the outline by >= 2 px each side',
+                  feature: 'two pistols out to the sides, breaking the outline >=2 px each' },
+  cleg:         { axis: 'h', budget: FLOOR, len: 9,  src: 'rifle >= 9 px LONG held horizontal — a length, not a thickness',
+                  feature: 'powered-suit shoulder line >=15 px + a long level rifle' },
+  spy:          { axis: 'v', budget: 7,   len: null, src: 'hat brim >= 7 px wide, >= 1.5x the head',
+                  feature: 'fedora brim >=7 px wide over an unbroken coat hem' },
   // ── Collective infantry (reference §2.2)
-  conscript:    { axis: 'v', budget: 3,   feature: 'flat peaked cap over tan trousers (the GI twin; legs carry the read)' },
-  flak:         { axis: 'v', budget: 2.5, feature: 'flak barrel raised 45-60°, 9-10 px of spike above the helmet' },
-  teslatrooper: { axis: 'h', budget: 3,   feature: 'pauldrons — the widest infantry, shoulder line >=18 px' },
-  ivan:         { axis: 'h', budget: 2,   feature: 'ushanka flaps breaking the head outline >=2 px each side' },
-  desolator:    { axis: 'v', budget: 5,   feature: 'backpack tank above the shoulder line + a fat beam muzzle' },
-  yuri:         { axis: 'v', budget: 4,   feature: 'bald dome over one unbroken coat hem — no leg split' },
+  conscript:    { axis: 'v', budget: FLOOR, len: null, src: 'NONE — "cap silhouette flat, not domed" gives no number; the floor applies',
+                  feature: 'flat peaked cap over tan trousers (the GI twin; legs carry the read)' },
+  flak:         { axis: 'v', budget: 2.5, len: 8,    src: 'barrel >= 10 px long x 2.5 px thick, clearing the helmet crown by >= 8 px',
+                  feature: 'flak barrel raised 45-60°, 9-10 px of spike above the helmet' },
+  teslatrooper: { axis: 'h', budget: FLOOR, len: null, src: 'NONE — "shoulder line >= 18 px" is the BODY, not a protrusion; the floor applies',
+                  feature: 'pauldrons — the widest infantry, shoulder line >=18 px' },
+  ivan:         { axis: 'h', budget: FLOOR, len: 2,  src: 'ushanka flaps break the head outline >= 2 px each side',
+                  feature: 'ushanka flaps breaking the head outline >=2 px each side' },
+  desolator:    { axis: 'v', budget: 5,   len: 8,    src: 'pack >= 5w x 8h above the shoulder line',
+                  feature: 'backpack tank above the shoulder line + a fat beam muzzle' },
+  yuri:         { axis: 'v', budget: FLOOR, len: null, src: 'NONE — "hem block >= 9 px wide" is the body; the bare dome carries no number',
+                  feature: 'bald dome over one unbroken coat hem — no leg split' },
   // ── Directorate vehicles / aircraft (reference §2.3)
-  lancer:       { axis: 'h', budget: 2.2, feature: 'a 13 x 2.2 px gun barrel overhanging 24% of the flattest hull' },
-  ifv:          { axis: 'v', budget: 8,   feature: 'a boxy turret >=45% of total height on a near-square body' },
-  mirage:       { axis: 'v', budget: 6,   feature: 'a wide flat emitter housing proud of the deck, and NO long gun' },
-  prismtank:    { axis: 'v', budget: 5,   feature: 'the upright prism crystal, >=10 px tall x >=5 px wide' },
-  chronominer:  { axis: 'h', budget: 4,   feature: 'ribbed violet chrono drum for a nose; zero turret mass' },
-  nighthawk:    { axis: 'h', budget: 2,   feature: 'tandem rotor discs — 1-2 px blade lines past the fuselage' },
-  harrier:      { axis: 'h', budget: 5,   feature: 'a broad swept delta wing, >=5 px chord at the root' },
-  hornet:       { axis: 'h', budget: 3,   feature: 'the smallest thing that flies — identity is size, not detail' },
-  mcv:          { axis: 'v', budget: 4,   feature: 'amber folded crane boom on a slab works body; zero barrel' },
-  destroyer:    { axis: 'v', budget: 5,   feature: 'a forward gun turret and an aft helipad on a 101 px hull' },
-  aegis:        { axis: 'v', budget: 8,   feature: 'a vertical flat-panel radar face >=8x8 px, explicitly no barrel' },
-  carrier:      { axis: 'h', budget: 4,   feature: 'a flat flight deck >=80% of length with 3 parked airframes' },
-  dolphin:      { axis: 'v', budget: 3,   feature: 'a dorsal fin >=3 px above an organic back, no orthogonal edges' },
-  lcraft:       { axis: 'h', budget: 4,   feature: 'an open bow ramp, a plane distinct from the deck' },
+  lancer:       { axis: 'h', budget: 2.2, len: 13,   src: 'barrel >= 13 px x 2.2 px, entirely clear of the hull',
+                  feature: 'a 13 x 2.2 px gun barrel overhanging 24% of the flattest hull' },
+  ifv:          { axis: 'v', budget: 8,   len: 8,    src: 'four turret models visually distinct at >= 8x8 px each',
+                  feature: 'a boxy turret >=45% of total height on a near-square body' },
+  mirage:       { axis: 'v', budget: FLOOR, len: 6,  src: 'housing >= 6 px tall (its WIDTH is given as 60% of hull, not an absolute)',
+                  feature: 'a wide flat emitter housing proud of the deck, and NO long gun' },
+  prismtank:    { axis: 'v', budget: 5,   len: 10,   src: 'crystal >= 10 px tall x >= 5 px wide',
+                  feature: 'the upright prism crystal, >=10 px tall x >=5 px wide' },
+  chronominer:  { axis: 'h', budget: FLOOR, len: 8,  src: 'nose drum >= 8 px LONG, violet',
+                  feature: 'ribbed violet chrono drum for a nose; zero turret mass' },
+  nighthawk:    { axis: 'h', budget: 2,   len: null, src: 'blades 2 px with >= 40% value contrast',
+                  feature: 'tandem rotor discs — 1-2 px blade lines past the fuselage' },
+  harrier:      { axis: 'h', budget: 5,   len: null, src: 'wing >= 5 px chord at the root',
+                  feature: 'a broad swept delta wing, >=5 px chord at the root' },
+  hornet:       { axis: 'h', budget: FLOOR, len: null, src: 'NONE — its budget is a MAXIMUM ("<= 0.45x the Harrier, add no detail")',
+                  feature: 'the smallest thing that flies — identity is size, not detail' },
+  mcv:          { axis: 'v', budget: FLOOR, len: null, src: 'NONE — its budget is "zero barrel, zero turret ring"; the floor applies',
+                  feature: 'amber folded crane boom on a slab works body; zero barrel' },
+  destroyer:    { axis: 'v', budget: FLOOR, len: null, src: 'NONE — "one turret forward of amidships" gives no pixel number',
+                  feature: 'a forward gun turret and an aft helipad on a 101 px hull' },
+  aegis:        { axis: 'v', budget: 8,   len: 8,    src: 'radar panel >= 8x8 px, vertical, explicitly no barrel',
+                  feature: 'a vertical flat-panel radar face >=8x8 px, explicitly no barrel' },
+  carrier:      { axis: 'h', budget: FLOOR, len: null, src: 'NONE — the deck spec is a PROPORTION (>= 80% of length)',
+                  feature: 'a flat flight deck >=80% of length with 3 parked airframes' },
+  dolphin:      { axis: 'v', budget: FLOOR, len: 3,  src: 'fin >= 3 px ABOVE the back — a height, not a thickness',
+                  feature: 'a dorsal fin >=3 px above an organic back, no orthogonal edges' },
+  lcraft:       { axis: 'h', budget: FLOOR, len: null, src: 'NONE — "ramp plane distinct from the deck" gives no pixel number',
+                  feature: 'an open bow ramp, a plane distinct from the deck' },
   // ── Collective vehicles / aircraft (reference §2.4)
-  rhino:        { axis: 'h', budget: 3.5, feature: 'a gun 1.6x the Grizzly barrel thickness on a taller hull' },
-  mammoth:      { axis: 'h', budget: 4,   feature: 'twin barrels >=19 px, visibly TWO — the only two-barrelled thing' },
-  teslatank:    { axis: 'v', budget: 3,   feature: 'two coil columns >=9 px tall, gap >=5 px so the pair reads as two' },
-  v3:           { axis: 'h', budget: 3,   feature: 'a white missile overhanging the truck >=5 px at the nose' },
-  flaktrack:    { axis: 'v', budget: 3,   feature: 'a gun raised >=10 px off the bed of the only square vehicle' },
-  warminer:     { axis: 'v', budget: 6,   feature: 'a >=6x6 turret on the bin shoulder — a harvester that shoots' },
-  drone:        { axis: 'h', budget: 3,   feature: 'four splayed blade legs reaching >=4 px beyond a tiny core' },
-  apc:          { axis: 'h', budget: 4,   feature: 'a continuous inflatable skirt round a house-hued open deck' },
-  kirov:        { axis: 'v', budget: 4,   feature: 'mass — and a gondola separated below the envelope by >=4 px' },
-  sub:          { axis: 'v', budget: 4,   feature: 'a conning tower — the only vertical mass on a 5.36-aspect hull' },
-  seascorp:     { axis: 'v', budget: 3,   feature: 'the Flak Track gun on the fleet smallest armed hull' },
-  dread:        { axis: 'v', budget: 10,  feature: 'two countable missile boxes >=10x10 px standing on the deck' },
-  squid:        { axis: 'h', budget: 3,   feature: '>=4 tentacles resolvable at 3 px each; zero straight edges' },
+  rhino:        { axis: 'h', budget: 3.5, len: null, src: 'gun >= 1.6x the Grizzly barrel thickness (1.6 x 2.2 = 3.5)',
+                  feature: 'a gun 1.6x the Grizzly barrel thickness on a taller hull' },
+  mammoth:      { axis: 'h', budget: FLOOR, len: 19, src: 'twin barrels >= 19 px LONG, visibly two, tapering',
+                  feature: 'twin barrels >=19 px, visibly TWO — the only two-barrelled thing' },
+  teslatank:    { axis: 'v', budget: 3,   len: 9,    src: 'each column >= 9 px tall x 3 px wide',
+                  feature: 'two coil columns >=9 px tall, gap >=5 px so the pair reads as two' },
+  v3:           { axis: 'h', budget: FLOOR, len: 5,  src: 'missile overhanging >= 5 px at the nose — a reach, not a thickness',
+                  feature: 'a white missile overhanging the truck >=5 px at the nose' },
+  flaktrack:    { axis: 'v', budget: FLOOR, len: 10, src: 'gun raised >= 10 px above the bed line — a height',
+                  feature: 'a gun raised >=10 px off the bed of the only square vehicle' },
+  warminer:     { axis: 'v', budget: 6,   len: 6,    src: 'turret >= 6x6 px on the bin shoulder',
+                  feature: 'a >=6x6 turret on the bin shoulder — a harvester that shoots' },
+  drone:        { axis: 'h', budget: FLOOR, len: 4,  src: 'legs >= 4 px REACH beyond the core, tapered blades not wires',
+                  feature: 'four splayed blade legs reaching >=4 px beyond a tiny core' },
+  apc:          { axis: 'h', budget: FLOOR, len: null, src: 'NONE — "a continuous rounded band" gives no pixel number',
+                  feature: 'a continuous inflatable skirt round a house-hued open deck' },
+  kirov:        { axis: 'v', budget: FLOOR, len: null, src: 'NONE — its 4 px is the GAP BELOW the envelope, which no crown measures',
+                  feature: 'mass — and a gondola separated below the envelope by >=4 px' },
+  sub:          { axis: 'v', budget: FLOOR, len: null, src: 'NONE — "height <= 0.20 x length" is a MAXIMUM on the hull',
+                  feature: 'a conning tower — the only vertical mass on a 5.36-aspect hull' },
+  seascorp:     { axis: 'v', budget: FLOOR, len: null, src: 'NONE — "gun matches the Flak Track silhouette" names no number of its own',
+                  feature: 'the Flak Track gun on the fleet smallest armed hull' },
+  dread:        { axis: 'v', budget: 10,  len: 10,   src: 'two launch boxes >= 10x10 px, countable, standing proud of the deck',
+                  feature: 'two countable missile boxes >=10x10 px standing on the deck' },
+  squid:        { axis: 'h', budget: 3,   len: null, src: '>= 4 tentacles resolvable at 3 px each',
+                  feature: '>=4 tentacles resolvable at 3 px each; zero straight edges' },
 };
 
 // ── TARGETS ───────────────────────────────────────────────────────────────
@@ -513,10 +572,14 @@ function compute(recs) {
     // where a unit is read (reference §1.6.3 licenses the head-on collapse).
     let best = { len: -1, thick: 0 };
     for (const o of OCT) { const s = spikeOf(M(k, o), sp.axis); if (s.len > best.len) best = s; }
+    const thin = best.thick < sp.budget;
+    const short = sp.len != null && best.len < sp.len;
     unit[k].spike = { axis: sp.axis, len: best.len, thick: round(best.thick, 2),
-                      atZmin: round(best.thick * ZMIN, 2), budget: sp.budget, feature: sp.feature };
+                      atZmin: round(best.thick * ZMIN, 2), budget: sp.budget, lenBudget: sp.len,
+                      fails: thin ? (short ? 'thin+short' : 'thin') : (short ? 'short' : null),
+                      src: sp.src, feature: sp.feature };
     if (best.thick < SPIKE_FLOOR) below++;
-    if (best.thick < sp.budget) belowBudget++;
+    if (thin || short) belowBudget++;
     if (best.thick * ZMIN < worst) worst = round(best.thick * ZMIN, 2);
   }
   if (!Number.isFinite(worst)) worst = 0;

@@ -150,7 +150,7 @@
     "iou.sameFactionOver75": 3,
     "spike.belowFloor": 1,
     "spike.minThickAtZmin": 1.65,
-    "spike.belowDeclaredBudget": 4,
+    "spike.belowDeclaredBudget": 5,
     "mass.groundCombatSpan": 3.532,
     "mass.tightestBand6": 2.009,
     "hue.infantryOwnerMean": 0.2439,
@@ -475,6 +475,9 @@
           "thick": 9,
           "atZmin": 4.95,
           "budget": 8,
+          "lenBudget": 8,
+          "fails": null,
+          "src": "radar panel >= 8x8 px, vertical, explicitly no barrel",
           "feature": "a vertical flat-panel radar face >=8x8 px, explicitly no barrel"
         }
       },
@@ -496,7 +499,10 @@
           "len": 10,
           "thick": 23,
           "atZmin": 12.65,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — \"a continuous rounded band\" gives no pixel number",
           "feature": "a continuous inflatable skirt round a house-hued open deck"
         }
       },
@@ -518,7 +524,10 @@
           "len": 23,
           "thick": 19,
           "atZmin": 10.45,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — the deck spec is a PROPORTION (>= 80% of length)",
           "feature": "a flat flight deck >=80% of length with 3 parked airframes"
         }
       },
@@ -540,7 +549,10 @@
           "len": 11,
           "thick": 12,
           "atZmin": 6.6,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": 8,
+          "fails": null,
+          "src": "nose drum >= 8 px LONG, violet",
           "feature": "ribbed violet chrono drum for a nose; zero turret mass"
         }
       },
@@ -562,7 +574,10 @@
           "len": 7,
           "thick": 5,
           "atZmin": 2.75,
-          "budget": 9,
+          "budget": 3.64,
+          "lenBudget": 9,
+          "fails": "short",
+          "src": "rifle >= 9 px LONG held horizontal — a length, not a thickness",
           "feature": "powered-suit shoulder line >=15 px + a long level rifle"
         }
       },
@@ -584,7 +599,10 @@
           "len": 5,
           "thick": 6,
           "atZmin": 3.3,
-          "budget": 3,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — \"cap silhouette flat, not domed\" gives no number; the floor applies",
           "feature": "flat peaked cap over tan trousers (the GI twin; legs carry the read)"
         }
       },
@@ -607,6 +625,9 @@
           "thick": 7,
           "atZmin": 3.85,
           "budget": 5,
+          "lenBudget": 8,
+          "fails": "short",
+          "src": "pack >= 5w x 8h above the shoulder line",
           "feature": "backpack tank above the shoulder line + a fat beam muzzle"
         }
       },
@@ -628,7 +649,10 @@
           "len": 13,
           "thick": 4,
           "atZmin": 2.2,
-          "budget": 5,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — \"one turret forward of amidships\" gives no pixel number",
           "feature": "a forward gun turret and an aft helipad on a 101 px hull"
         }
       },
@@ -650,7 +674,10 @@
           "len": 8,
           "thick": 6.5,
           "atZmin": 3.58,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — its numbers are a body length (19) and a height MAXIMUM (<= 9)",
           "feature": "quadruped: horizontal spine, aspect 1.4 against everyone else 0.45"
         }
       },
@@ -672,7 +699,10 @@
           "len": 7,
           "thick": 9,
           "atZmin": 4.95,
-          "budget": 3,
+          "budget": 3.64,
+          "lenBudget": 3,
+          "fails": null,
+          "src": "fin >= 3 px ABOVE the back — a height, not a thickness",
           "feature": "a dorsal fin >=3 px above an organic back, no orthogonal edges"
         }
       },
@@ -695,6 +725,9 @@
           "thick": 24,
           "atZmin": 13.2,
           "budget": 10,
+          "lenBudget": 10,
+          "fails": null,
+          "src": "two launch boxes >= 10x10 px, countable, standing proud of the deck",
           "feature": "two countable missile boxes >=10x10 px standing on the deck"
         }
       },
@@ -716,7 +749,10 @@
           "len": 7,
           "thick": 7,
           "atZmin": 3.85,
-          "budget": 3,
+          "budget": 3.64,
+          "lenBudget": 4,
+          "fails": null,
+          "src": "legs >= 4 px REACH beyond the core, tapered blades not wires",
           "feature": "four splayed blade legs reaching >=4 px beyond a tiny core"
         }
       },
@@ -738,7 +774,10 @@
           "len": 6,
           "thick": 6,
           "atZmin": 3.3,
-          "budget": 3,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — the toolbox is at hand height, not a crown; the floor applies",
           "feature": "inverted value — the only light-value soldier; toolbox at hand height"
         }
       },
@@ -761,6 +800,9 @@
           "thick": 5,
           "atZmin": 2.75,
           "budget": 2.5,
+          "lenBudget": 8,
+          "fails": null,
+          "src": "barrel >= 10 px long x 2.5 px thick, clearing the helmet crown by >= 8 px",
           "feature": "flak barrel raised 45-60°, 9-10 px of spike above the helmet"
         }
       },
@@ -782,7 +824,10 @@
           "len": 19,
           "thick": 12,
           "atZmin": 6.6,
-          "budget": 3,
+          "budget": 3.64,
+          "lenBudget": 10,
+          "fails": null,
+          "src": "gun raised >= 10 px above the bed line — a height",
           "feature": "a gun raised >=10 px off the bed of the only square vehicle"
         }
       },
@@ -805,6 +850,9 @@
           "thick": 9,
           "atZmin": 4.95,
           "budget": 5,
+          "lenBudget": null,
+          "fails": null,
+          "src": "wing >= 5 px chord at the root",
           "feature": "a broad swept delta wing, >=5 px chord at the root"
         }
       },
@@ -826,7 +874,10 @@
           "len": 10,
           "thick": 4.5,
           "atZmin": 2.48,
-          "budget": 3,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — its budget is a MAXIMUM (\"<= 0.45x the Harrier, add no detail\")",
           "feature": "the smallest thing that flies — identity is size, not detail"
         }
       },
@@ -849,6 +900,9 @@
           "thick": 17,
           "atZmin": 9.35,
           "budget": 8,
+          "lenBudget": 8,
+          "fails": null,
+          "src": "four turret models visually distinct at >= 8x8 px each",
           "feature": "a boxy turret >=45% of total height on a near-square body"
         }
       },
@@ -870,7 +924,10 @@
           "len": 3,
           "thick": 11,
           "atZmin": 6.05,
-          "budget": 2,
+          "budget": 3.64,
+          "lenBudget": 2,
+          "fails": null,
+          "src": "ushanka flaps break the head outline >= 2 px each side",
           "feature": "ushanka flaps breaking the head outline >=2 px each side"
         }
       },
@@ -892,7 +949,10 @@
           "len": 33,
           "thick": 13,
           "atZmin": 7.15,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — its 4 px is the GAP BELOW the envelope, which no crown measures",
           "feature": "mass — and a gondola separated below the envelope by >=4 px"
         }
       },
@@ -915,6 +975,9 @@
           "thick": 8,
           "atZmin": 4.4,
           "budget": 2.2,
+          "lenBudget": 13,
+          "fails": null,
+          "src": "barrel >= 13 px x 2.2 px, entirely clear of the hull",
           "feature": "a 13 x 2.2 px gun barrel overhanging 24% of the flattest hull"
         }
       },
@@ -936,7 +999,10 @@
           "len": 9,
           "thick": 3,
           "atZmin": 1.65,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": "thin",
+          "src": "NONE — \"ramp plane distinct from the deck\" gives no pixel number",
           "feature": "an open bow ramp, a plane distinct from the deck"
         }
       },
@@ -958,7 +1024,10 @@
           "len": 28,
           "thick": 19,
           "atZmin": 10.45,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": 19,
+          "fails": null,
+          "src": "twin barrels >= 19 px LONG, visibly two, tapering",
           "feature": "twin barrels >=19 px, visibly TWO — the only two-barrelled thing"
         }
       },
@@ -980,7 +1049,10 @@
           "len": 30,
           "thick": 32,
           "atZmin": 17.6,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — its budget is \"zero barrel, zero turret ring\"; the floor applies",
           "feature": "amber folded crane boom on a slab works body; zero barrel"
         }
       },
@@ -1002,7 +1074,10 @@
           "len": 10,
           "thick": 23,
           "atZmin": 12.65,
-          "budget": 6,
+          "budget": 3.64,
+          "lenBudget": 6,
+          "fails": null,
+          "src": "housing >= 6 px tall (its WIDTH is given as 60% of hull, not an absolute)",
           "feature": "a wide flat emitter housing proud of the deck, and NO long gun"
         }
       },
@@ -1025,6 +1100,9 @@
           "thick": 18,
           "atZmin": 9.9,
           "budget": 2,
+          "lenBudget": null,
+          "fails": null,
+          "src": "blades 2 px with >= 40% value contrast",
           "feature": "tandem rotor discs — 1-2 px blade lines past the fuselage"
         }
       },
@@ -1047,6 +1125,9 @@
           "thick": 19.5,
           "atZmin": 10.73,
           "budget": 5,
+          "lenBudget": 10,
+          "fails": null,
+          "src": "crystal >= 10 px tall x >= 5 px wide",
           "feature": "the upright prism crystal, >=10 px tall x >=5 px wide"
         }
       },
@@ -1069,6 +1150,9 @@
           "thick": 13,
           "atZmin": 7.15,
           "budget": 3.5,
+          "lenBudget": null,
+          "fails": null,
+          "src": "gun >= 1.6x the Grizzly barrel thickness (1.6 x 2.2 = 3.5)",
           "feature": "a gun 1.6x the Grizzly barrel thickness on a taller hull"
         }
       },
@@ -1090,7 +1174,10 @@
           "len": 14,
           "thick": 5,
           "atZmin": 2.75,
-          "budget": 3,
+          "budget": 5,
+          "lenBudget": null,
+          "fails": null,
+          "src": "helmet >= 5x3",
           "feature": "grey pot helmet over a house torso block (no usable silhouette)"
         }
       },
@@ -1113,6 +1200,9 @@
           "thick": 10,
           "atZmin": 5.5,
           "budget": 2.5,
+          "lenBudget": 4,
+          "fails": "short",
+          "src": "tube >= 8 px long x 2.5 px thick, clearing the helmet by >= 4 px",
           "feature": "shoulder missile tube, ~30° up, clearing the helmet by >=4 px"
         }
       },
@@ -1135,6 +1225,9 @@
           "thick": 6.5,
           "atZmin": 3.58,
           "budget": 4,
+          "lenBudget": 6,
+          "fails": null,
+          "src": "pack >= 4w x 6h and strictly below the helmet crown",
           "feature": "airborne: altitude offset + pack tanks behind the shoulders"
         }
       },
@@ -1156,7 +1249,10 @@
           "len": 7,
           "thick": 22,
           "atZmin": 12.1,
-          "budget": 3,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — \"gun matches the Flak Track silhouette\" names no number of its own",
           "feature": "the Flak Track gun on the fleet smallest armed hull"
         }
       },
@@ -1179,6 +1275,9 @@
           "thick": 5,
           "atZmin": 2.75,
           "budget": 7,
+          "lenBudget": null,
+          "fails": "thin",
+          "src": "hat brim >= 7 px wide, >= 1.5x the head",
           "feature": "fedora brim >=7 px wide over an unbroken coat hem"
         }
       },
@@ -1201,6 +1300,9 @@
           "thick": 8,
           "atZmin": 4.4,
           "budget": 3,
+          "lenBudget": null,
+          "fails": null,
+          "src": ">= 4 tentacles resolvable at 3 px each",
           "feature": ">=4 tentacles resolvable at 3 px each; zero straight edges"
         }
       },
@@ -1222,7 +1324,10 @@
           "len": 12,
           "thick": 9.5,
           "atZmin": 5.23,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — \"height <= 0.20 x length\" is a MAXIMUM on the hull",
           "feature": "a conning tower — the only vertical mass on a 5.36-aspect hull"
         }
       },
@@ -1244,7 +1349,10 @@
           "len": 5,
           "thick": 6,
           "atZmin": 3.3,
-          "budget": 2,
+          "budget": 3.64,
+          "lenBudget": 2,
+          "fails": null,
+          "src": "pistols break the outline by >= 2 px each side",
           "feature": "two pistols out to the sides, breaking the outline >=2 px each"
         }
       },
@@ -1267,6 +1375,9 @@
           "thick": 6.5,
           "atZmin": 3.58,
           "budget": 3,
+          "lenBudget": 9,
+          "fails": null,
+          "src": "each column >= 9 px tall x 3 px wide",
           "feature": "two coil columns >=9 px tall, gap >=5 px so the pair reads as two"
         }
       },
@@ -1288,7 +1399,10 @@
           "len": 6,
           "thick": 13,
           "atZmin": 7.15,
-          "budget": 3,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — \"shoulder line >= 18 px\" is the BODY, not a protrusion; the floor applies",
           "feature": "pauldrons — the widest infantry, shoulder line >=18 px"
         }
       },
@@ -1310,7 +1424,10 @@
           "len": 18,
           "thick": 17,
           "atZmin": 9.35,
-          "budget": 3,
+          "budget": 3.64,
+          "lenBudget": 5,
+          "fails": null,
+          "src": "missile overhanging >= 5 px at the nose — a reach, not a thickness",
           "feature": "a white missile overhanging the truck >=5 px at the nose"
         }
       },
@@ -1333,6 +1450,9 @@
           "thick": 38,
           "atZmin": 20.9,
           "budget": 6,
+          "lenBudget": 6,
+          "fails": null,
+          "src": "turret >= 6x6 px on the bin shoulder",
           "feature": "a >=6x6 turret on the bin shoulder — a harvester that shoots"
         }
       },
@@ -1354,7 +1474,10 @@
           "len": 4,
           "thick": 4.5,
           "atZmin": 2.48,
-          "budget": 4,
+          "budget": 3.64,
+          "lenBudget": null,
+          "fails": null,
+          "src": "NONE — \"hem block >= 9 px wide\" is the body; the bare dome carries no number",
           "feature": "bald dome over one unbroken coat hem — no leg split"
         }
       }
