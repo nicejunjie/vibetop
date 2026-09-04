@@ -8068,3 +8068,55 @@ grows the delay for the same reason.
   disconnect event, so a closed tab is indistinguishable from a slow one. The
   loop now says "Waiting for the other player…" after a second of no progress;
   a frozen game with no explanation is the worst thing this layer can do.
+
+## W/A/S/D panned the camera AND did their own job (2026-09-03)
+
+**Symptom.** (user) "remove awsd control, those keys shouldn't move navigation,
+d should deploy GI."
+
+**Cause.** `camScroll` read `keys.a / keys.d / keys.w / keys.s` alongside the
+arrows, and `keys[e.key.toLowerCase()] = true` is set at the TOP of the keydown
+handler — before the deploy branch returns. So holding **D** deployed a GI *and*
+scrolled the view right; **S** stopped a unit and scrolled down; **W** picked the
+Defence tab and scrolled up. The file's own comment admitted it: "this file
+already doubles S (stop) and D (deploy) with the pan keys, so the tab keys
+follow the same rule rather than inventing a second one" — a collision that had
+been written down and then justified rather than fixed.
+
+**Fix.** Arrows only. Every letter key now does exactly one thing. Measured in
+a real browser: holding each of W/A/S/D moves the camera by **0.000**, each
+arrow still pans ~400px, D deploys and a second D packs up, and the camera is
+identical either side of the deploy.
+
+**Also:** the help card never mentioned **D** at all, so the one key the user
+had to know about was undocumented. It has its own row now, and the Camera row
+no longer claims WASD scrolls.
+
+## A paradrop was six men appearing out of nothing (2026-09-03)
+
+**Symptom.** (user) "paratroops should come from the sky and drop down with
+parachutes, not instantly appear like ghost."
+
+**Cause.** Two things. `stepDrops` called `spawnUnit` the moment a man was
+scheduled, so he was standing on the ground before anything was drawn. And the
+`g.fx.push({ ..., chute: 1 })` beside it set a flag that **no renderer ever
+read** — grepping `.chute` finds the push and nothing else. There was no
+parachute in the game at all.
+
+**Fix.** The descent is real and lives in the SIM, so a headless replay lands a
+stick on the same tick a rendered one does: `dr.men` holds the sticks still
+under canopy, each counted down `PARA_FALL = 96` ticks, and `spawnUnit` runs at
+touchdown onto a tile re-checked for occupancy (it may have filled during the
+fall). The renderer draws each faller between the explosions and the nuke pass:
+a lit canopy with the owner's colour banded across it, five shrouds, a trooper
+with a house-coloured chest, a sway that damps as he descends, and a ground
+shadow that tightens on the tile he is going to land on so the drop telegraphs
+itself the way RA2's does.
+
+**Regression test proved against the unfixed build:** "a paradrop puts men under
+canopy first and on the ground only when they land" fails on the shipped build
+with `the stick hangs under canopy (peak in air 0)`.
+
+**Left open.** A man under canopy is not yet targetable — in RA2 you can shoot
+paratroopers out of the air. Making him a real airborne unit touches targeting,
+`blocked()` and `stateHash`, so it wants its own change and its own soak.
