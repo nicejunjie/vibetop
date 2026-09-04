@@ -186,16 +186,80 @@ def test_login_no_secure_flag_on_http(mgr, client, monkeypatch):
     assert "Secure" not in headers.get("Set-Cookie", "")
 
 
-def test_login_lockout_after_repeated_failures(mgr, client, monkeypatch):
+def test_a_wrong_guess_never_locks_the_real_user_out(mgr, client, monkeypatch):
+    """This test used to ASSERT the weakness: that after N wrong guesses the
+    correct password was refused with 429. That made every account a denial-of-
+    login target for anyone who knew its name — a LAN peer or any authorized
+    tunnel user. Guessing must slow an account down, never close it."""
     monkeypatch.setattr(mgr, "LOGIN_MAX_FAILS", 3)
+    monkeypatch.setattr(mgr, "LOGIN_MAX_DELAY", 0.0)      # keep the test quick
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: False)
+    for _ in range(6):
+        assert client.post("/api/login", {"username": "alice", "password": "x"})[0] == 401
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: True)
+    assert client.post("/api/login", {"username": "alice", "password": "pw"})[0] == 200
+
+
+def test_repeated_failures_do_slow_the_account_down(mgr, monkeypatch):
+    """The brake is still real — the delay grows with recent failures and
+    saturates, so an online guessing run is throttled without ever refusing."""
+    monkeypatch.setattr(mgr, "LOGIN_MAX_FAILS", 3)
+    now = 1_000_000.0
+    first = mgr._login_delay("alice", now)
+    for _ in range(8):
+        mgr._login_record_fail("alice", "1.2.3.4", now)
+    later = mgr._login_delay("alice", now)
+    assert later > first
+    assert later <= mgr.LOGIN_MAX_DELAY
+
+
+def test_the_refusal_is_per_source_not_per_account(mgr, client, monkeypatch):
+    """A source that has failed enough times IS refused — that is the counter an
+    attacker cannot pin on somebody else."""
+    monkeypatch.setattr(mgr, "LOGIN_SRC_MAX_FAILS", 3)
+    monkeypatch.setattr(mgr, "LOGIN_MAX_DELAY", 0.0)
     monkeypatch.setattr(mgr, "_authenticate", lambda u, p: False)
     for _ in range(3):
         assert client.post("/api/login", {"username": "alice", "password": "x"})[0] == 401
-    # further attempts for this user are locked out (429), even with the right pw
     monkeypatch.setattr(mgr, "_authenticate", lambda u, p: True)
-    assert client.post("/api/login", {"username": "alice", "password": "pw"})[0] == 429
-    # a different username is unaffected
-    assert client.post("/api/login", {"username": "bob", "password": "pw"})[0] == 200
+    # same source, ANY username, now refused
+    assert client.post("/api/login", {"username": "bob", "password": "pw"})[0] == 429
+
+
+def test_a_successful_login_clears_both_counters(mgr, client, monkeypatch):
+    monkeypatch.setattr(mgr, "LOGIN_SRC_MAX_FAILS", 5)
+    monkeypatch.setattr(mgr, "LOGIN_MAX_DELAY", 0.0)
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: False)
+    for _ in range(3):
+        client.post("/api/login", {"username": "alice", "password": "x"})
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: True)
+    assert client.post("/api/login", {"username": "alice", "password": "pw"})[0] == 200
+    assert "alice" not in mgr._login_fails
+    assert not mgr._login_src_fails
+
+
+def test_a_username_spray_cannot_grow_the_tracking_maps(mgr, monkeypatch):
+    """The old map inserted an entry for every SUBMITTED string, before the name
+    was validated, and its 10 000 "bound" only evicted *expired* entries — during
+    a sustained spray nothing is expired, so it grew without limit and every
+    request past the threshold rescanned all of it. Both books are hard-capped
+    LRU now."""
+    monkeypatch.setattr(mgr, "LOGIN_TRACK_MAX", 64)
+    now = 2_000_000.0
+    for i in range(5000):
+        mgr._login_record_fail("user%d" % i, "1.2.3.4", now)
+    assert len(mgr._login_fails) <= 64
+    assert len(mgr._login_src_fails) == 1          # one source, however many names
+
+
+def test_a_malformed_username_never_reaches_the_account_book(mgr, client, monkeypatch):
+    """An arbitrary-length arbitrary-content string is not a login name; it must
+    be rejected on shape, before anything is stored under it."""
+    monkeypatch.setattr(mgr, "_authenticate", lambda u, p: True)
+    junk = "A" * 4000 + "\x00;DROP"
+    assert client.post("/api/login", {"username": junk, "password": "pw"})[0] == 401
+    assert junk not in mgr._login_fails
+    assert not mgr._login_fails, "no account entry may be created for a junk name"
 
 
 # --- /api/authcheck (nginx auth_request target) -----------------------------
