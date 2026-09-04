@@ -993,14 +993,46 @@ every sound is oscillators and one baked noise buffer, no files, no libraries.
   minutes of scripted play, and a command corrupted on one side only is caught
   by the check. The AI is NOT a peer — it runs inside `simStep` on every
   client from the same seed and sends nothing.
-- ☐ A real transport in the `Transport` seam. The server has three jobs and no
-  others: agree the seed / map / options / factions / player ids before tick
-  0; relay command bundles without dropping any (it may reorder them, since
-  each is stamped with its due tick and issuer); and hold the tick barrier so
-  no client steps T until it holds every player's bundle for T. It simulates
-  nothing and stores no game state. Still to build on top: lobby and player
-  ids past two, reconnect/replay from the command log, latency adaptation
-  (RA2 grows the delay rather than stalling), and the Beacon.
+- ☑ 2026-09-03 A real transport in the `Transport` seam, and the player-identity
+  split that a second human forces. `P_HUMAN` was doing three unrelated jobs at
+  once and they only agreed because side 0 was the only human: a SIDE INDEX
+  (`g.side[p]`, `stepSW(g, P_HUMAN)`, the win test — unchanged), "the player
+  whose screen this is" (~165 feedback sites: every eva/say/sfx/creditPop, the
+  cursor, the sidebar, the minimap, the selection, the shroud, the score card —
+  now `ME`/`FOE`, which follow the local client's seat and touch nothing
+  `stateHash` covers, exactly like `g.seen`), and "this side is driven by the
+  AI" — six MUTATING branches, where a wrong answer is a desync rather than a
+  cosmetic slip: the GI auto-deploy and the tanks-crush branch in `stepUnit`,
+  the deploy-pack in `stepHarvester`, the undeploy-to-walk in `advance`, the
+  deployed-unit hold in `orderUnitsTo` (this last one is inside `applyCmd`, so
+  a view answer there would have desynced immediately), plus the radiation
+  credit, which was never a view or an AI question at all and is now
+  `otherSide(p)`. The predicate is `aiOf(g, p)` / `isAiSide(g, p)`, which the
+  code already expressed ad hoc as `p === P_AI ? g.ai : g.ai2`. Single player
+  is BIT-IDENTICAL (state hashes match the previous build tick for tick over
+  four seeds x five game minutes); AI-vs-AI changes, because seat 0 driven by
+  `g.ai2` finally gets the three AI behaviours it always should have had.
+  **BcNet** is the transport: a `BroadcastChannel` carrying bundles between two
+  TABS of one browser. Delivery is a separate task in the other context's event
+  loop, so unlike `LoopbackNet` it is a genuinely asynchronous wire, and it
+  needs no server. It does the three jobs and nothing else — the lobby agrees
+  the match record (seed, map, difficulty, options, factions, colours, player
+  ids, `LOCKSTEP_DELAY`) before tick 0, `send`/`onWire` relay bundles without
+  dropping any (a bundle that outruns the client being built is buffered and
+  replayed), and `ready(t)` holds the barrier. It simulates nothing and stores
+  no game state. Reachable from the front menu: a **Players** row —
+  One player / Host / Join — above Opponent, no hotkey and no room code.
+  `MP_DELAY` is 4, not 2: the delay is also the pipeline, and 2 forces a full
+  round trip every single tick. Measured in two real tabs: nineteen 60-tick
+  hash checkpoints identical, each sidebar its own credits and power, each
+  EVA only its owner's lines, no `pageerror` in either tab.
+- ☐ A CROSS-MACHINE relay. `BcNet` is same-machine only. The wire for two
+  browsers on two hosts is a standalone WebSocket relay — a service of its own,
+  NOT a route in `terminal/terminal-manager.py`, which is the manager's
+  identity/auth surface and has no business holding a tick barrier. It plugs in
+  at the same seam with the same three jobs. Still to build on top of that:
+  player ids past two, reconnect/replay from the command log, latency
+  adaptation (RA2 grows the delay rather than stalling), and the Beacon.
 
 Roughly 29 builder batches at two in parallel. Phases 0–1 change how the
 game plays and reads immediately; 2–3 make it look like RA2 in motion; 4–5

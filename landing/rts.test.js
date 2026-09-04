@@ -4080,6 +4080,159 @@ test("a corrupted command on one client is caught by the desync check", () => {
   M.end();
 });
 
+// ------------------------------------------- two humans, two seats, one wire //
+//
+// `P_HUMAN` used to answer three different questions. These four tests pin the
+// two a second human breaks: "is this side driven by the AI" (a MUTATING
+// question, so a wrong answer is a desync, not a cosmetic slip) and "whose
+// screen is this" (a VIEW question, which must follow the seat and must never
+// reach the state hash).
+
+test("a person at seat 1 plays by the same rules as a person at seat 0", () => {
+  // Nothing here is about the network. It is about `u.p !== P_HUMAN` having
+  // been read as "the computer is driving this", which is only true while side
+  // 0 is the only human. Side 1 with no AI attached is a PERSON.
+  const H = W.__rtsTest, N = W.__rtsNet;
+  const g = H.begin(7401, "normal");
+  assert.equal(N.aiSide(g, 0), false, "seat 0 has no AI attached");
+  assert.equal(N.aiSide(g, 1), false, "and neither has seat 1");
+
+  // 1. A deployed GI refuses a move order on BOTH sides — in RA2 you press D
+  //    to pack him up first, and only the computer undeploys itself to walk.
+  const dug = H.spawn("rifle", 1, 30, 30);
+  dug.deployed = true;
+  H.orderMove([dug], 40, 40);
+  assert.equal(dug.order, null, "a person's deployed GI at seat 1 stays put");
+
+  // 2. Nor does he dig in by himself when something wanders into range.
+  const gi0 = H.spawn("rifle", 0, 60, 60), bait0 = H.spawn("conscript", 1, 62, 60);
+  const gi1 = H.spawn("rifle", 1, 70, 70), bait1 = H.spawn("conscript", 0, 72, 70);
+  H.step(30);
+  assert.equal(!!gi0.deployed, false, "seat 0's GI waits to be told");
+  assert.equal(!!gi1.deployed, false, "and so does seat 1's");
+  assert.ok(!bait0.dead || !bait1.dead, "the bait is only there to be seen");
+
+  // 3. A person's tank stops and shoots. It does not drive over infantry.
+  const tank = H.spawn("rhino", 1, 20, 50), man = H.spawn("rifle", 0, 23, 50);
+  const x0 = tank.x;
+  H.orderAttack([tank], man);
+  H.step(60);
+  assert.ok(Math.abs(tank.x - x0) < 0.5,
+    `seat 1's tank engaged from range rather than closing to crush (moved ${(tank.x - x0).toFixed(2)})`);
+  assert.equal(man.crushed, undefined);
+});
+
+test("a side the AI drives behaves like the AI whichever seat it sits in", () => {
+  // The mirror image, and the reason the predicate had to be EXTRACTED rather
+  // than renamed: `g.ai2` drives seat 0 in an AI-vs-AI run, and seat 0 used to
+  // be hard-coded as "the human" in the same mutating branches.
+  const H = W.__rtsTest, N = W.__rtsNet;
+  const g = H.begin(7402, "normal");
+  H.attachAI(0, "normal");                      // g.ai2 — the computer at seat 0
+  assert.equal(N.aiSide(g, 0), true, "seat 0 is now AI-driven");
+  assert.equal(N.aiSide(g, 1), false, "seat 1 still is not");
+
+  const dug = H.spawn("rifle", 0, 30, 30);
+  dug.deployed = true;
+  H.orderMove([dug], 40, 40);
+  assert.ok(dug.order, "an AI-driven deployed GI packs up and takes the order");
+  H.step(5);                                    // the sandbags come down in `advance`
+  assert.equal(dug.deployed, false, "and is on his feet again");
+
+  const tank = H.spawn("rhino", 0, 20, 50), man = H.spawn("conscript", 1, 23, 50);
+  const x0 = tank.x;
+  H.orderAttack([tank], man);
+  H.step(60);
+  assert.ok(tank.x - x0 > 0.5,
+    `and an AI-driven tank drives through infantry (moved ${(tank.x - x0).toFixed(2)})`);
+});
+
+test("two clients seated as players 0 and 1 both issue orders and stay hash-identical for five game minutes", () => {
+  const N = W.__rtsNet;
+  // The very transport the two tabs use, over a scriptable channel group:
+  // bundles are posted, never echoed to their sender, and land a beat later.
+  // Neither seat has an AI — two people, and both of them give orders.
+  const M = N.match(9101, { wire: "bc", lat: [0, 2], diff: "normal", facA: "dir", facB: "col" });
+  assert.equal(M.wire(), "bc", "this really is the BroadcastChannel transport");
+  assert.equal(M.hash(0), M.hash(1), "the two worlds start identical");
+  assert.deepEqual(M.seat(0), { me: 0, foe: 1, p: 0 }, "client 0 sits at seat 0");
+  assert.deepEqual(M.seat(1), { me: 1, foe: 0, p: 1 }, "client 1 sits at seat 1");
+
+  const MINUTES = 5, orders = [0, 0];
+  for (let m = 0; m < MINUTES; m++) {
+    M.run(3600, (c, tick, i) => {
+      // Each seat orders its OWN army, on its own cadence.
+      if (tick % 200 === 23 + i * 40) {
+        const mine = c.g.units.filter((u) => !u.dead && u.p === i && !u.air).slice(0, 6);
+        if (mine.length) {
+          M.as(i, "move", { u: mine.map((u) => u.id), x: 18 + ((tick + i * 7) % 44), y: 20 + (tick % 36), queue: 0, ore: 0 });
+          orders[i]++;
+        }
+      }
+      if (tick % 700 === 91 + i * 13) { M.as(i, "queue", { k: "power", lane: "b" }); orders[i]++; }
+    });
+    assert.equal(M.desync(), null, `no desync by minute ${m + 1}`);
+    assert.equal(M.game(0).tick, M.game(1).tick, "both clients are on the same tick");
+    assert.equal(M.hash(0), M.hash(1), `state hashes agree at minute ${m + 1}`);
+    // The seat is VIEW state, so it must not have leaked into that hash — and
+    // each screen has to read its own bank rather than seat 0's twice.
+    assert.equal(M.view(0).credits, M.game(0).side[0].credits, "seat 0's sidebar reads side 0");
+    assert.equal(M.view(1).credits, M.game(1).side[1].credits, "seat 1's sidebar reads side 1");
+    assert.notEqual(M.view(1).credits, M.view(0).credits, "and the two sidebars are not the same sidebar");
+  }
+  assert.ok(orders[0] > 20 && orders[1] > 20, `both seats really issued orders (${orders})`);
+  M.end();
+});
+
+test("a bundle that reaches the transport before its client is replayed, not dropped", () => {
+  // Rule (b): the relay may reorder and it may be late, but it may not drop.
+  // In the page the guest's world takes a few milliseconds to build and the
+  // host's first bundles can beat it there; counting one into the barrier
+  // ledger and discarding its commands is the worst of both outcomes.
+  const N = W.__rtsNet;
+  const bus = N.bcbus([0, 0]);
+  const a = bus.link(2), b = bus.link(2);
+  const got = [];
+  a.send({ p: 0, at: 5, cmds: [{ t: "move", p: 0, seq: 1, at: 5 }] });
+  bus.pump();                                   // lands on b, which has no client yet
+  b.join({ n: 2, recv: (x) => got.push(x) });
+  assert.equal(got.length, 1, "the early bundle was held and replayed on join");
+  assert.equal(got[0].cmds[0].t, "move");
+  assert.equal(b.ready(5), false, "and seat 1's own bundle for that tick is still owed");
+});
+
+test("a desync over the two-tab transport stops BOTH clients, on the same tick, with both fingerprints", () => {
+  // Measured in two real browser tabs before this was fixed: the client that
+  // noticed the mismatch stopped and the OTHER one played on into a barrier
+  // that never opened, because the finder returned before broadcasting its own
+  // fingerprint. A half-stopped match is worse than a stopped one — the player
+  // still moving has no idea why nothing responds.
+  const N = W.__rtsNet;
+  const M = N.match(9102, { wire: "bc", lat: [0, 1], diff: "normal", facA: "dir", facB: "col" });
+  M.run(120);
+  assert.equal(M.desync(), null, "clean so far");
+
+  let armed = false;
+  M.run(900, (c, tick, i) => {
+    if (i === 0 && tick === 130) {
+      const mine = c.g.units.filter((u) => !u.dead && u.p === 0 && !u.air).slice(0, 4);
+      M.as(0, "move", { u: mine.map((u) => u.id), x: 30, y: 30, queue: 0, ore: 0 });
+    }
+    if (i === 0 && tick === 131 && !armed) {
+      armed = M.corrupt(0, (cmd) => { if (cmd.t === "move") { cmd.x = 44; cmd.y = 44; return true; } return false; });
+    }
+  });
+  assert.ok(armed, "the tamper landed on a queued command");
+  const d0 = M.clients[0].desync, d1 = M.clients[1].desync;
+  assert.ok(d0, "client 0 stopped");
+  assert.ok(d1, "client 1 stopped too");
+  assert.equal(d0.tick, d1.tick, "both name the same tick");
+  assert.equal(d0.mine, d1.theirs, "and each holds the other's fingerprint");
+  assert.equal(d1.mine, d0.theirs);
+  assert.notEqual(d0.mine, d0.theirs);
+  M.end();
+});
+
 test("the AI screens against aircraft the enemy CAN field, not only ones it has been hit by", () => {
   // The old rule waited for `ai.airAt` — the tick an enemy aircraft was seen
   // or felt. An easy Directorate could therefore open an Airforce Command and
