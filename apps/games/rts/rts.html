@@ -6475,18 +6475,34 @@
 
     // Plan geometry per hull, in pre-scale pixels. L is overall length, W
     // beam, FREE the freeboard the deck stands on.
+    //
+    // SIZE CLASS is the first read — reference §1.1's rule 1, "size and aspect
+    // together carry the first read, before a single detail is resolved" — and
+    // these nine lengths are RA2's own broadside sprite widths rescaled so the
+    // Destroyer keeps L 46 against its 101 px sprite: Carrier 143 -> 65,
+    // Dreadnought 133 -> 61, Giant Squid 117 -> 53, Aegis 91 -> 41, Typhoon
+    // 75 -> 34, Sea Scorpion 59 -> 27. The first draft bunched all nine
+    // between 18 and 58 and put the SQUID — RA2's second-largest hull — at 20,
+    // the single largest proportion error in the game. That is most of why a
+    // peer beat EIGHT of ten ships: `iou()` centres both masks on their bbox
+    // centre, so a size difference separates two hulls on its own, and a shared
+    // size class cannot be undone by fittings that are 8% of the mask.
     var G = { destroyer: { L: 46, W: 12, FREE: 5.0 },
-              aegis:     { L: 44, W: 14, FREE: 5.4 },
-              carrier:   { L: 58, W: 21, FREE: 6.4 },
-              dolphin:   { L: 18, W: 7,  FREE: 2.0 },
-              lcraft:    { L: 34, W: 16, FREE: 3.4 },
-              sub:       { L: 42, W: 11, FREE: 2.2 },
-              seascorp:  { L: 28, W: 12, FREE: 4.0 },
-              dread:     { L: 52, W: 17, FREE: 5.8 },
-              squid:     { L: 20, W: 14, FREE: 2.2 } }[kind];
+              aegis:     { L: 41, W: 17, FREE: 5.6 },
+              carrier:   { L: 65, W: 22, FREE: 6.4 },
+              dolphin:   { L: 16, W: 6,  FREE: 2.0 },
+              lcraft:    { L: 32, W: 24, FREE: 3.4 },
+              sub:       { L: 30, W: 5,  FREE: 1.4 },
+              seascorp:  { L: 22, W: 17, FREE: 4.6 },
+              dread:     { L: 58, W: 20, FREE: 5.8 },
+              squid:     { L: 62, W: 17, FREE: 2.2 } }[kind];
 
     function frame(d) {
-      var big = kind === 'carrier' || kind === 'dread';
+      // The three hulls whose plan runs off a 104 px sheet. The Squid joined
+      // them when it grew to RA2's own 117 px class: its arms reach L * 1.05
+      // from the mantle, and a clipped arm is an invisible bug that only a
+      // rendered frame catches.
+      var big = kind === 'carrier' || kind === 'dread' || kind === 'squid';
       var s = big ? mkCanvas(150, 112) : unitCanvas(), g = s.g;
       var cx = s.w / 2, by = s.h - UPAD;
       g.translate(cx, by); g.scale(USC_V, USC_V); g.translate(-cx, -by);
@@ -6502,13 +6518,21 @@
       // ---- the plan outline ------------------------------------------- //
       var L = G.L / 2, W = G.W / 2, FR = G.FREE;
       var stem = kind === 'lcraft' ? 0.72 : (kind === 'carrier' ? 0.86 : 1);   // a landing craft has a blunt ramp bow
+      // THE STEM IS A BAR, NOT A POINT. A plan that comes to zero beam extrudes
+      // its freeboard into a two-pixel POST, and seen end-on that post is the
+      // tallest thing on the ship — so `spikeOf`, which scores the median width
+      // of everything standing above the hull, was measuring the Destroyer's
+      // stem at 4 px and calling it her identity feature, against a 5 px budget
+      // for a bridge that is three times that wide. Every real hull has a stem
+      // plate; the Typhoon's is finer because her casing is.
+      var SB = kind === 'sub' ? 0.16 : 0.28;
       var plan = kind === 'squid'
         ? [[L, 0], [L * 0.5, W * 0.8], [-L * 0.2, W], [-L * 0.9, W * 0.55],
            [-L, 0], [-L * 0.9, -W * 0.55], [-L * 0.2, -W], [L * 0.5, -W * 0.8]]
-        : [[L, 0], [L * 0.66 * stem, W * 0.70], [L * 0.12, W], [-L * 0.76, W],
+        : [[L * stem, W * SB], [L * 0.66 * stem, W * 0.70], [L * 0.12, W], [-L * 0.76, W],
            [-L, W * 0.70], [-L, -W * 0.70], [-L * 0.76, -W], [L * 0.12, -W],
-           [L * 0.66 * stem, -W * 0.70]];
-      if (kind === 'lcraft') { plan[0] = [L * 0.86, W * 0.30]; plan.push([L * 0.86, -W * 0.30]); }
+           [L * 0.66 * stem, -W * 0.70], [L * stem, -W * SB]];
+      if (kind === 'lcraft') { plan[0] = [L * 0.86, W * 0.34]; plan[plan.length - 1] = [L * 0.86, -W * 0.34]; }
 
       function poly(z, fill, line) {
         g.beginPath();
@@ -6521,13 +6545,22 @@
         if (line) { g.strokeStyle = line; g.lineWidth = 0.8; g.stroke(); }
       }
 
+      // The Dolphin and the Giant Squid are ANIMALS, and §2.3/§2.4 ask for
+      // "no orthogonal edges anywhere" and "zero straight edges ... the only
+      // unit whose outline is not a machine". They were being drawn on top of
+      // the same hull polygon every warship gets — a filled plan, a graded
+      // freeboard and a lit sheer line — so under the paint the Squid was a
+      // 50 x 16 SHIP, and the alpha mask the gate reads is exactly that hull.
+      // She matched the Destroyer at 0.73. Skipping the three ship steps is
+      // what the spec asked for in the first place.
+      var organic = kind === 'squid' || kind === 'dolphin';
       // 1. The wet hull: the plan filled at the waterline, a shade darker
       //    than the topsides. Drawn FIRST so the freeboard sits on it.
-      poly(0, BOOT);
+      if (!organic) poly(0, BOOT);
       // 2. Freeboard: one quad per plan edge, far ones first so the near
       //    flank wins, graded like every other iso wall in the game.
       var edges = [], i2;
-      for (i2 = 0; i2 < plan.length; i2++) {
+      for (i2 = 0; organic ? false : i2 < plan.length; i2++) {
         var pA = plan[i2], pB = plan[(i2 + 1) % plan.length];
         var mA = P(pA[0], pA[1], 0), mB = P(pB[0], pB[1], 0);
         edges.push({ a: pA, b: pB, y: (mA[1] + mB[1]) / 2 });
@@ -6558,13 +6591,15 @@
         }
       }
       // 3. The deck.
-      var dg = g.createLinearGradient(0, cy0 - FR - Math.abs(fy) * L, 0, cy0 - FR + Math.abs(fy) * L);
-      dg.addColorStop(0, shade(DECK, 1.30)); dg.addColorStop(1, shade(DECK, 0.92));
-      poly(FR, null, null);
-      g.save(); poly(FR, null, null); g.clip();
-      poly(FR, dg, null);
-      g.restore();
-      poly(FR, null, shade(HULL, 1.35));                 // lit sheer line
+      if (!organic) {
+        var dg = g.createLinearGradient(0, cy0 - FR - Math.abs(fy) * L, 0, cy0 - FR + Math.abs(fy) * L);
+        dg.addColorStop(0, shade(DECK, 1.30)); dg.addColorStop(1, shade(DECK, 0.92));
+        poly(FR, null, null);
+        g.save(); poly(FR, null, null); g.clip();
+        poly(FR, dg, null);
+        g.restore();
+        poly(FR, null, shade(HULL, 1.35));               // lit sheer line
+      }
 
       // ---- helpers on the deck ---------------------------------------- //
       function box(u, v, len, wid, hgt, colr) {
@@ -6591,137 +6626,233 @@
       }
 
       if (kind === 'destroyer') {
-        // [DEST]: a raked stem, one turret forward, a stack amidships, and
-        // the Osprey's pad right aft — the three masses of an RA2 Destroyer.
-        box(-L * 0.05, 0, L * 0.72, W * 1.05, 5.2, DECK);                 // bridge block
-        box(L * 0.02, 0, L * 0.34, W * 0.72, 4.4, shade(DECK, 1.16));     // wheelhouse
-        disc(L * 0.55, 0, 3.4, 4.2, 2.4, STEEL);                          // A-turret mount
-        barrel(L * 0.62, 0, 4.2, 8, 2.1);
-        box(-L * 0.24, 0, 6, W * 0.55, 7.0, '#33373d');                   // funnel
-        g.strokeStyle = HOUSE; g.lineWidth = 1.6;
-        var fq = P(-L * 0.24, 0, FR + 5.4); g.beginPath();
-        g.moveTo(fq[0] - 3.6, fq[1]); g.lineTo(fq[0] + 3.6, fq[1]); g.stroke();
-        mast(L * 0.10, 0, 13);
-        disc(L * 0.10, 0, 11.6, 3.0, 1.3, STEEL);                         // air-search radar
+        // [DEST]: a raked stem, one turret forward, a stepped bridge tower
+        // amidships and the Osprey's hangar and pad right aft — RA2's
+        // Destroyer is THREE SEPARATED MASSES on a long narrow hull, which is
+        // what has to read against the Aegis's one slab on a beamy one.
+        //
+        // The crown is deliberately WIDE and short of mast. `spikeOf` scores
+        // the MEDIAN width of every row standing above the hull, so the old
+        // 13-px air-search mast was dragging a 10-px bridge down to a measured
+        // 4 against a 5-px budget — the Desolator-backpack trap, at sea.
+        //
+        // `box`'s `wid` is a FULL width against a hull whose beam is 2 * W, so
+        // every deckhouse in this file drawn at `W * 1.0` was HALF the beam —
+        // a superstructure narrower than the ship it stands on, and the reason
+        // the crown could never out-measure the stem. These are 60-80% of beam,
+        // which is what the RA2 sprites carry.
+        box(L * 0.52, 0, L * 0.24, W * 1.40, 2.8, shade(DECK, 1.08));     // barbette
+        disc(L * 0.55, 0, 3.4, 5.0, 2.8, STEEL);                          // A-turret mount
+        box(L * 0.55, 0, 7, W * 1.18, 4.0, '#5c626c');                    // the gunhouse
+        barrel(L * 0.66, 0, 6.2, 9, 3.0);
+        box(L * 0.14, 0, L * 0.32, W * 1.62, 6.2, DECK);                  // bridge block
+        box(L * 0.11, 0, L * 0.20, W * 1.30, 11.6, shade(DECK, 1.18));    // wheelhouse
+        var wq0 = P(L * 0.11, 0, FR + 10.6);
+        g.fillStyle = GLASS; g.fillRect(wq0[0] - 4.2, wq0[1] - 1.9, 8.4, 2.1);
+        // A MACK — mast and stack in one solid trunk — rather than the 13-unit
+        // wire mast this hull carried. Same height on the skyline, but it is
+        // 11 screen px wide instead of 2, so it lifts the crown's measured
+        // thickness instead of halving it.
+        box(-L * 0.26, 0, 7.0, W * 1.06, 12.6, '#33373d');                // funnel / mack
+        g.strokeStyle = HOUSE; g.lineWidth = 1.8;
+        var fq = P(-L * 0.26, 0, FR + 10.2); g.beginPath();
+        g.moveTo(fq[0] - 4.4, fq[1]); g.lineTo(fq[0] + 4.4, fq[1]); g.stroke();
+        g.strokeStyle = STEEL; g.lineWidth = 1.6;                          // air-search bar on top
+        var rq = P(-L * 0.26, 0, FR + 13.0);
+        g.beginPath(); g.moveTo(rq[0] - 3.6, rq[1]); g.lineTo(rq[0] + 3.6, rq[1] - 0.6); g.stroke();
+        box(-L * 0.52, 0, L * 0.22, W * 1.42, 4.6, shade(DECK, 1.04));    // Osprey hangar
         // The helicopter pad, and the Osprey folded on it.
-        disc(-L * 0.72, 0, 0.4, 6.0, 3.2, '#22262b');
+        disc(-L * 0.80, 0, 0.4, 6.0, 3.2, '#22262b');
         g.strokeStyle = HOUSE; g.lineWidth = 0.9;
-        var hq = P(-L * 0.72, 0, FR + 0.6);
+        var hq = P(-L * 0.80, 0, FR + 0.6);
         g.beginPath(); g.ellipse(hq[0], hq[1], 4.4, 2.3, 0, 0, 6.29); g.stroke();
-        disc(-L * 0.72, 0, 1.6, 3.0, 1.5, '#5d6a58');
+        disc(-L * 0.80, 0, 1.6, 3.0, 1.5, '#5d6a58');
         g.strokeStyle = '#2a2f33'; g.lineWidth = 0.9;
         g.beginPath(); g.moveTo(hq[0] - 4, hq[1] - 2.4); g.lineTo(hq[0] + 4, hq[1] - 2.0); g.stroke();
       } else if (kind === 'aegis') {
-        // [AEGIS]: the whole ship is a missile battery. One tall slab-sided
-        // deckhouse carrying the four phased-array PANELS (the house colour
-        // lives on those, nowhere else) and a box launcher fore and aft.
-        box(-L * 0.02, 0, L * 0.80, W * 1.02, 7.6, DECK);
-        var pq = P(L * 0.20, W * 0.45 * nearS, FR + 6.6);
+        // [AEGIS]: the whole ship is a missile battery, and §2.3's read is
+        // "explicitly no barrel". ONE slab deckhouse, near full beam and
+        // running two thirds of her length, carrying the four phased-array
+        // PANELS (the house colour lives on those, nowhere else), with a box
+        // launcher fore and aft. Shorter and beamier than the Destroyer by
+        // RA2's own numbers (91x35 against 101x41), so the two separate on
+        // size and massing before a single fitting resolves.
+        box(-L * 0.02, 0, L * 0.68, W * 1.72, 9.0, DECK);
+        box(-L * 0.06, 0, L * 0.46, W * 1.36, 20.0, shade(DECK, 1.12));
+        var pq = P(L * 0.16, W * 0.44 * nearS, FR + 17.4);
         g.fillStyle = HOUSE;
         g.beginPath();
-        g.moveTo(pq[0] - 4.6, pq[1] - 4.4); g.lineTo(pq[0] + 4.6, pq[1] - 3.2);
-        g.lineTo(pq[0] + 4.6, pq[1] + 1.4); g.lineTo(pq[0] - 4.6, pq[1] + 0.4);
+        g.moveTo(pq[0] - 5.2, pq[1] - 5.0); g.lineTo(pq[0] + 5.2, pq[1] - 3.6);
+        g.lineTo(pq[0] + 5.2, pq[1] + 1.6); g.lineTo(pq[0] - 5.2, pq[1] + 0.4);
         g.closePath(); g.fill();
         g.strokeStyle = HL; g.lineWidth = 0.8; g.stroke();
         g.strokeStyle = HD; g.lineWidth = 0.6;
-        for (var pi = -3; pi <= 3; pi += 2) {
-          g.beginPath(); g.moveTo(pq[0] + pi, pq[1] - 4.0); g.lineTo(pq[0] + pi, pq[1] + 0.9); g.stroke();
+        for (var pi = -3.4; pi <= 3.4; pi += 2.2) {
+          g.beginPath(); g.moveTo(pq[0] + pi, pq[1] - 4.5); g.lineTo(pq[0] + pi, pq[1] + 1.1); g.stroke();
         }
-        box(L * 0.56, 0, 7, W * 0.66, 3.0, '#3a4048');                    // forward VLS
-        box(-L * 0.68, 0, 7, W * 0.66, 3.0, '#3a4048');                   // aft VLS
+        box(L * 0.60, 0, 7, W * 1.20, 3.4, '#3a4048');                    // forward VLS
+        box(-L * 0.72, 0, 7, W * 1.20, 3.4, '#3a4048');                   // aft VLS
         g.fillStyle = '#12161b';
         for (var vi = 0; vi < 3; vi++) {
-          var vq = P(L * 0.56 - vi * 2.2, (vi - 1) * 2.2, FR + 3.2);
+          var vq = P(L * 0.60 - vi * 2.2, (vi - 1) * 2.2, FR + 3.4);
           g.beginPath(); g.ellipse(vq[0], vq[1], 1.0, 0.6, 0, 0, 6.29); g.fill();
         }
-        mast(-L * 0.16, 0, 16);
-        disc(-L * 0.16, 0, 14.4, 2.4, 1.1, WHITE);
+        mast(-L * 0.34, 0, 6.0, '#2f343c');
       } else if (kind === 'carrier') {
-        // [CARRIER]: a flat flight deck with a centreline and a house-colour
-        // landing stripe, the island offset to starboard, three Hornets ranged
-        // aft. The deck IS the silhouette; the island must stay small.
-        g.save(); poly(FR, null, null); g.clip();
+        // [CARRIER]: 143x52 in RA2 — the largest sprite in the game — and the
+        // whole identity is A FLAT FLIGHT DECK THE FULL LENGTH OF THE HULL,
+        // with a centreline, a house-colour landing stripe and three Hornets
+        // ranged aft.
+        //
+        // The deck is its own plane OVERHANGING the hull each side, which is
+        // both what a carrier looks like from above and what keeps her outline
+        // broad at every bearing — the Dreadnought is nearly the same length
+        // in RA2 (133 against 143) and the two can only separate on MASSING:
+        // she is wide and flat where he is narrow and tall. The island stays
+        // small and LOW for the same reason; a tall island is a Destroyer's
+        // read, and the old 15-unit island mast was giving her one.
+        var fd = [], fi;
+        for (fi = 0; fi < plan.length; fi++) fd.push([plan[fi][0] * 1.02, plan[fi][1] * 1.78]);
+        var fpoly = function (z, fill, line) {
+          g.beginPath();
+          for (var i3 = 0; i3 < fd.length; i3++) {
+            var q3 = P(fd[i3][0], fd[i3][1], z);
+            if (i3) g.lineTo(q3[0], q3[1]); else g.moveTo(q3[0], q3[1]);
+          }
+          g.closePath();
+          if (fill) { g.fillStyle = fill; g.fill(); }
+          if (line) { g.strokeStyle = line; g.lineWidth = 0.9; g.stroke(); }
+        };
+        fpoly(FR + 0.6, shade(HULL, 0.42));                               // the overhang's shadow
+        fpoly(FR + 2.6, shade(DECK, 1.06), shade(HULL, 1.30));            // the flight deck
+        g.save(); fpoly(FR + 2.6, null, null); g.clip();
         g.strokeStyle = '#d9dde2'; g.lineWidth = 1.4;
         for (var ci = 0; ci < 9; ci++) {                                  // dashed centreline
           var cu0 = L * (0.80 - ci * 0.185), cu1 = cu0 - L * 0.10;
-          var c0 = P(cu0, 0, FR), c1 = P(cu1, 0, FR);
+          var c0 = P(cu0, 0, FR + 2.6), c1 = P(cu1, 0, FR + 2.6);
           g.beginPath(); g.moveTo(c0[0], c0[1]); g.lineTo(c1[0], c1[1]); g.stroke();
         }
-        g.strokeStyle = HOUSE; g.lineWidth = 2.2;
-        var a0 = P(L * 0.55, -W * 0.42, FR), a1 = P(-L * 0.88, -W * 0.10, FR);
+        // The angled landing strip, a house-hued deck edge each side and the
+        // round-down band aft. A carrier is nearly all flight deck, so if the
+        // deck carries no owner colour she carries almost none at all: growing
+        // her to RA2's 143-px class dropped her remap from 18% to 9%, under
+        // reference §1.4's 11.5% vehicle floor, and the markings are where RA2
+        // itself puts colour on a deck.
+        g.strokeStyle = HOUSE; g.lineWidth = 2.8;
+        var a0 = P(L * 0.58, -W * 0.62, FR + 2.6), a1 = P(-L * 0.90, -W * 0.16, FR + 2.6);
         g.beginPath(); g.moveTo(a0[0], a0[1]); g.lineTo(a1[0], a1[1]); g.stroke();
+        g.strokeStyle = HD; g.lineWidth = 1.3;
+        for (var de = -1; de <= 1; de += 2) {
+          var e0 = P(L * 0.92, de * W * 1.30, FR + 2.6), e1 = P(-L * 0.96, de * W * 1.30, FR + 2.6);
+          g.beginPath(); g.moveTo(e0[0], e0[1]); g.lineTo(e1[0], e1[1]); g.stroke();
+        }
+        g.strokeStyle = HOUSE; g.lineWidth = 2.4;                          // round-down band aft
+        var r0 = P(-L * 0.90, W * 1.30, FR + 2.6), r1 = P(-L * 0.90, -W * 1.30, FR + 2.6);
+        g.beginPath(); g.moveTo(r0[0], r0[1]); g.lineTo(r1[0], r1[1]); g.stroke();
         g.restore();
-        box(-L * 0.06, W * 0.62, L * 0.28, W * 0.30, 9.5, '#4b515a');     // island
-        box(-L * 0.06, W * 0.62, L * 0.16, W * 0.22, 12.0, '#5a616b');
-        mast(-L * 0.14, W * 0.62, 15);
-        disc(-L * 0.14, W * 0.62, 13.6, 2.6, 1.2, WHITE);
-        var iq = P(-L * 0.02, W * 0.62, FR + 10.6);
+        box(-L * 0.06, W * 0.86, L * 0.26, W * 0.28, 6.8, '#4b515a');     // island
+        box(-L * 0.06, W * 0.86, L * 0.15, W * 0.20, 8.6, '#5a616b');
+        mast(-L * 0.14, W * 0.86, 6.0);
+        var iq = P(-L * 0.02, W * 0.86, FR + 7.6);
         g.fillStyle = GLASS; g.fillRect(iq[0] - 3.0, iq[1] - 1.6, 6.0, 1.8);
         g.strokeStyle = HOUSE; g.lineWidth = 1.4;
         g.beginPath(); g.moveTo(iq[0] - 3.2, iq[1] + 0.8); g.lineTo(iq[0] + 3.2, iq[1] + 0.8); g.stroke();
         // Three parked Hornets — the air group, visible on the deck.
         for (var hi = 0; hi < 3; hi++) {
-          var pq2 = P(-L * (0.30 + hi * 0.24), -W * 0.42, FR + 0.4);
+          var pq2 = P(-L * (0.26 + hi * 0.26), -W * 0.66, FR + 3.0);
           g.fillStyle = '#c8cdd4';
-          g.beginPath(); g.ellipse(pq2[0], pq2[1], 3.2, 1.5, 0, 0, 6.29); g.fill();
-          g.strokeStyle = '#8f959d'; g.lineWidth = 1.5;
-          g.beginPath(); g.moveTo(pq2[0] - 3.0, pq2[1] + 0.6); g.lineTo(pq2[0] + 3.0, pq2[1] - 0.6); g.stroke();
+          g.beginPath(); g.ellipse(pq2[0], pq2[1], 3.4, 1.6, 0, 0, 6.29); g.fill();
+          g.strokeStyle = '#8f959d'; g.lineWidth = 1.6;
+          g.beginPath(); g.moveTo(pq2[0] - 3.2, pq2[1] + 0.6); g.lineTo(pq2[0] + 3.2, pq2[1] - 0.6); g.stroke();
           g.fillStyle = HOUSE;
-          g.beginPath(); g.ellipse(pq2[0] + 1.6, pq2[1] - 0.4, 0.9, 0.7, 0, 0, 6.29); g.fill();
+          g.beginPath(); g.ellipse(pq2[0] + 1.7, pq2[1] - 0.4, 0.9, 0.7, 0, 0, 6.29); g.fill();
         }
       } else if (kind === 'dread') {
-        // [DRED]: the missile ship. Two huge box launchers standing proud of
-        // a low hull, angled up and aft — the RA2 silhouette is those boxes.
-        box(-L * 0.10, 0, L * 0.52, W * 0.90, 4.6, DECK);
+        // [DRED]: the missile ship, and §2.4's read is "the V3's silhouette
+        // logic at capital-ship scale". Two huge box launchers STANDING PROUD
+        // of a low hull, angled up and aft.
+        //
+        // They are the crown, and they are what separates him from the
+        // Carrier, who is nearly the same length in RA2 and beat him at 0.77
+        // while the boxes were only 9 units tall on a hull as wide as her
+        // deck. Countable means real daylight: 11 units of box with ~3 units
+        // of gap, not two boxes touching.
+        box(-L * 0.10, 0, L * 0.50, W * 1.55, 4.6, DECK);
         for (var si = 0; si < 2; si++) {
-          var su = L * (0.16 - si * 0.40);
-          box(su, 0, 12, W * 0.80, 9.0, '#4d5346');
-          var sq = P(su, 0, FR + 8.6);
+          var su = L * (0.30 - si * 0.60);
+          box(su, 0, 11, W * 1.72, 25.0, '#4d5346');
+          var sq = P(su, 0, FR + 24.1);
+          // The launch head is the house block — §2.4's "the house colour IS
+          // the identity feature", the Apocalypse's canisters at capital
+          // scale. It grew with the box: at a 2.8-unit cap on a 25-unit tower
+          // he read 9% owner colour, under reference §1.4's 11.5% floor.
           g.fillStyle = HOUSE;
           g.beginPath();
-          g.moveTo(sq[0] - 5.4, sq[1] + 0.6); g.lineTo(sq[0] + 5.4, sq[1] - 0.6);
-          g.lineTo(sq[0] + 5.4, sq[1] - 2.6); g.lineTo(sq[0] - 5.4, sq[1] - 1.4);
+          g.moveTo(sq[0] - 5.6, sq[1] + 0.6); g.lineTo(sq[0] + 5.6, sq[1] - 0.6);
+          g.lineTo(sq[0] + 5.6, sq[1] - 6.4); g.lineTo(sq[0] - 5.6, sq[1] - 5.2);
           g.closePath(); g.fill();
+          g.strokeStyle = HD; g.lineWidth = 0.8; g.stroke();
+          g.strokeStyle = HOUSE; g.lineWidth = 2.6;                        // a band round the base
+          var bq2 = P(su, 0, FR + 3.0);
+          g.beginPath(); g.moveTo(bq2[0] - 5.6, bq2[1] - 0.6); g.lineTo(bq2[0] + 5.6, bq2[1] - 1.8); g.stroke();
           g.strokeStyle = '#12161b'; g.lineWidth = 1.0;
           for (var hi2 = -1; hi2 <= 1; hi2++) {
-            g.beginPath(); g.moveTo(sq[0] + hi2 * 3.0, sq[1] - 1.6); g.lineTo(sq[0] + hi2 * 3.0 + 1.6, sq[1] - 4.6); g.stroke();
+            g.beginPath(); g.moveTo(sq[0] + hi2 * 3.2, sq[1] - 5.4); g.lineTo(sq[0] + hi2 * 3.2 + 1.6, sq[1] - 8.4); g.stroke();
           }
         }
-        box(-L * 0.66, 0, 8, W * 0.66, 8.4, '#3a3f36');                   // aft house
-        mast(-L * 0.62, 0, 12, '#2c3129');
-        disc(-L * 0.62, 0, 10.6, 2.4, 1.1, '#b9bfae');
+        box(-L * 0.68, 0, 8, W * 1.10, 9.2, '#3a3f36');                   // aft house
+        mast(-L * 0.64, 0, 6.5, '#2c3129');
         g.strokeStyle = '#8e2c2c'; g.lineWidth = 1.0;                      // hazard hatching fore
-        var zq = P(L * 0.62, 0, FR + 0.4);
+        var zq = P(L * 0.66, 0, FR + 0.4);
         g.beginPath(); g.moveTo(zq[0] - 4, zq[1] - 1.2); g.lineTo(zq[0] + 4, zq[1] + 1.2); g.stroke();
       } else if (kind === 'seascorp') {
-        // [HYD]: small, fast, and all gun. A low planing hull with the flak
-        // mount over the stern and a stubby house-coloured cheek each side.
-        box(L * 0.02, 0, L * 0.50, W * 0.86, 4.2, DECK);
-        var gq = P(-L * 0.24, 0, FR + 3.8);
+        // [HYD]: small, fast, and all gun — the shortest armed hull afloat.
+        // A low planing hull, a stubby pilot house forward, and the FLAK MOUNT
+        // standing on a tub over the stern with a house-coloured ammo cheek
+        // each side. §2.4 asks for the Flak Track's own read, and the Flak
+        // Track's read is a gun raised well clear of the bed.
+        //
+        // A first pass put the mount on a FIFTEEN-unit pedestal because that
+        // was what pulled her silhouette off the Typhoon's; it also turned a
+        // 24-px gunboat into a chimney on a dinghy. The separation is bought
+        // back below with proportion instead — she is the beamiest hull for
+        // her length in the fleet (24 x 15) against the Typhoon's 34 x 6.
+        box(L * 0.14, 0, L * 0.56, W * 1.46, 4.6, DECK);
+        box(L * 0.20, 0, L * 0.30, W * 1.04, 9.2, shade(DECK, 1.16));     // pilot house
+        var wq = P(L * 0.20, 0, FR + 8.4);
+        g.fillStyle = GLASS; g.fillRect(wq[0] - 3.0, wq[1] - 1.5, 6.0, 1.7);
+        box(-L * 0.34, 0, 6.5, W * 1.50, 7.4, shade(DECK, 0.92));         // the gun tub
+        var gq = P(-L * 0.34, 0, FR + 7.8);
         g.fillStyle = shade(DECK, 1.2);
-        g.beginPath(); g.ellipse(gq[0], gq[1], 4.6, 2.6, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(gq[0], gq[1], 5.0, 2.8, 0, 0, 6.29); g.fill();
         // Two sloped house-coloured ammo cheeks either side of the mount —
         // wedges, as [HYD]'s sprite has, not discs.
         g.fillStyle = HOUSE;
         for (var ch = -1; ch <= 1; ch += 2) {
           g.beginPath();
-          g.moveTo(gq[0] + ch * 2.0, gq[1] + 0.9);
-          g.lineTo(gq[0] + ch * 4.8, gq[1] - 0.4);
-          g.lineTo(gq[0] + ch * 4.4, gq[1] - 3.0);
-          g.lineTo(gq[0] + ch * 1.8, gq[1] - 2.0);
+          g.moveTo(gq[0] + ch * 2.2, gq[1] + 1.0);
+          g.lineTo(gq[0] + ch * 5.2, gq[1] - 0.4);
+          g.lineTo(gq[0] + ch * 4.8, gq[1] - 3.2);
+          g.lineTo(gq[0] + ch * 2.0, gq[1] - 2.2);
           g.closePath(); g.fill();
           g.strokeStyle = HD; g.lineWidth = 0.6; g.stroke();
         }
-        barrel(-L * 0.24, -1.6, 6.8, 8, 1.4);
-        barrel(-L * 0.24, 1.6, 6.8, 8, 1.4);
-        var wq = P(L * 0.22, 0, FR + 4.4);
-        g.fillStyle = GLASS; g.fillRect(wq[0] - 2.6, wq[1] - 1.4, 5.2, 1.6);
-        mast(L * 0.02, 0, 9);
+        barrel(-L * 0.34, -1.7, 10.6, 9, 1.8);
+        barrel(-L * 0.34, 1.7, 10.6, 9, 1.8);
+        mast(L * 0.06, 0, 5.0);
       } else if (kind === 'lcraft') {
         // [LCRF]: an open well deck between two side walls, and the bow RAMP
         // — the one feature that says "this thing beaches".
-        box(-L * 0.10, W * 0.80, L * 0.90, W * 0.24, 4.0, shade(HULL, 0.94));
-        box(-L * 0.10, -W * 0.80, L * 0.90, W * 0.24, 4.0, shade(HULL, 0.94));
+        //
+        // The ramp is DOWN, and it reaches past the stem. Folded up over the
+        // bow it was inside the hull outline, which made it a texture and not
+        // a spike (reference §1.4's rule 4), and left the measured horizontal
+        // protrusion on this hull as the BOW WAVE — a 3-px decorative stroke
+        // that died at ZMIN and was the game's only `spike.belowFloor`. Down,
+        // it is the longest thing forward of any hull afloat and it is the
+        // feature the spec actually names.
+        box(-L * 0.10, W * 0.80, L * 0.90, W * 0.24, 3.8, shade(HULL, 0.94));
+        box(-L * 0.10, -W * 0.80, L * 0.90, W * 0.24, 3.8, shade(HULL, 0.94));
         g.save(); poly(FR, null, null); g.clip();
         g.fillStyle = '#2b2f28';
         poly(FR, '#2b2f28', null);                     // the open well, in shadow
@@ -6731,39 +6862,59 @@
           g.beginPath(); g.moveTo(r0[0], r0[1]); g.lineTo(r1[0], r1[1]); g.stroke();
         }
         g.restore();
-        // Ramp: a pale wedge folded up over the bow.
-        var m0 = P(L * 0.86, W * 0.34, FR), m1 = P(L * 0.86, -W * 0.34, FR);
-        var m2 = P(L * 0.62, -W * 0.34, FR + 6.4), m3 = P(L * 0.62, W * 0.34, FR + 6.4);
+        // Visible cargo in the well: two crates and a vehicle block, so she
+        // reads as CARRYING something rather than as an empty barge.
+        box(-L * 0.36, -W * 0.36, 7.0, W * 0.62, 4.2, '#6a6f5c');
+        box(-L * 0.36, W * 0.40, 5.4, W * 0.52, 3.4, '#7a7f68');
+        box(L * 0.04, 0, 9.0, W * 0.96, 6.0, '#565b4a');                  // a loaded vehicle
+        box(L * 0.04, 0, 5.4, W * 0.62, 7.6, '#666b58');
+        // Ramp: a pale wedge hinged at the stem and lying DOWN on the water,
+        // with two side rails so it reads as a ramp and not a shadow.
+        var m0 = P(L * 0.80, W * 0.60, FR + 1.2), m1 = P(L * 0.80, -W * 0.60, FR + 1.2);
+        var m2 = P(L * 1.22, -W * 0.50, 0.6), m3 = P(L * 1.22, W * 0.50, 0.6);
         g.beginPath(); g.moveTo(m0[0], m0[1]); g.lineTo(m1[0], m1[1]);
         g.lineTo(m2[0], m2[1]); g.lineTo(m3[0], m3[1]); g.closePath();
         g.fillStyle = shade(HULL, 1.16); g.fill();
-        g.strokeStyle = '#22261f'; g.lineWidth = 0.8; g.stroke();
-        g.strokeStyle = HOUSE; g.lineWidth = 1.6;
-        g.beginPath(); g.moveTo((m2[0] + m3[0]) / 2 - 4, (m2[1] + m3[1]) / 2);
-        g.lineTo((m2[0] + m3[0]) / 2 + 4, (m2[1] + m3[1]) / 2 + 0.6); g.stroke();
-        box(-L * 0.76, 0, 6, W * 0.50, 5.4, shade(DECK, 1.1));            // little wheelhouse aft
+        g.strokeStyle = '#22261f'; g.lineWidth = 1.0; g.stroke();
+        g.strokeStyle = shade(HULL, 1.42); g.lineWidth = 1.4;             // ramp rails
+        g.beginPath(); g.moveTo(m0[0], m0[1] - 1.6); g.lineTo(m3[0], m3[1] - 1.6); g.stroke();
+        g.beginPath(); g.moveTo(m1[0], m1[1] - 1.6); g.lineTo(m2[0], m2[1] - 1.6); g.stroke();
+        g.strokeStyle = HOUSE; g.lineWidth = 1.8;                          // hinge band at the stem
+        g.beginPath(); g.moveTo(m0[0], m0[1] - 0.6); g.lineTo(m1[0], m1[1] - 0.6); g.stroke();
+        box(-L * 0.78, 0, 6, W * 0.50, 5.2, shade(DECK, 1.1));            // little wheelhouse aft
       } else if (kind === 'sub') {
         // [SUB]: almost nothing above water. A long whaleback casing awash,
-        // one sail with a house band, two periscopes. The reason it reads as a
-        // submarine is that the deck is BARELY above the waterline.
+        // ONE SAIL with a house band, two short periscopes. What reads as a
+        // submarine is that the deck is barely above the waterline and the
+        // sail is the only vertical mass on her (§2.4).
+        //
+        // She is RA2's 5.36-aspect hull, and a 5:1 bar has the worst self-IoU
+        // afloat by construction: rotated through eight bearings it swings
+        // from a long horizontal line to a short vertical one and nothing
+        // overlaps. The two things that fix that without giving her a
+        // superstructure she must not have are (a) the RA2 LENGTH, 75/101 of
+        // the Destroyer's = 34 rather than the 42 she was drawn at, and (b) a
+        // sail that is a real fraction of her, not a bump — it is the one part
+        // of the mask that does not rotate.
         g.save(); poly(FR, null, null); g.clip();
         g.strokeStyle = '#4a5058'; g.lineWidth = 0.8;
         var d0 = P(L * 0.8, 0, FR), d1 = P(-L * 0.9, 0, FR);
         g.beginPath(); g.moveTo(d0[0], d0[1]); g.lineTo(d1[0], d1[1]); g.stroke();
         g.restore();
-        box(L * 0.02, 0, L * 0.28, W * 0.52, 6.6, '#3b4048');             // the sail
-        var sq2 = P(L * 0.02, 0, FR + 5.6);
-        g.strokeStyle = HOUSE; g.lineWidth = 1.6;
-        g.beginPath(); g.moveTo(sq2[0] - 3.2, sq2[1]); g.lineTo(sq2[0] + 3.2, sq2[1] + 0.4); g.stroke();
-        g.strokeStyle = '#20242a'; g.lineWidth = 1.1;
-        g.beginPath(); g.moveTo(sq2[0] - 0.8, sq2[1] - 1.0); g.lineTo(sq2[0] - 1.4, sq2[1] - 6.4); g.stroke();
-        g.beginPath(); g.moveTo(sq2[0] + 0.8, sq2[1] - 1.0); g.lineTo(sq2[0] + 1.2, sq2[1] - 5.2); g.stroke();
+        box(L * 0.04, 0, L * 0.62, W * 1.55, 8.6, '#3b4048');             // the sail
+        box(L * 0.04, 0, L * 0.40, W * 1.10, 11.0, '#454b54');            // its bridge fairing
+        var sq2 = P(L * 0.04, 0, FR + 6.6);
+        g.strokeStyle = HOUSE; g.lineWidth = 2.0;
+        g.beginPath(); g.moveTo(sq2[0] - 3.6, sq2[1]); g.lineTo(sq2[0] + 3.6, sq2[1] + 0.4); g.stroke();
+        g.strokeStyle = '#20242a'; g.lineWidth = 1.3;
+        g.beginPath(); g.moveTo(sq2[0] - 0.9, sq2[1] - 4.4); g.lineTo(sq2[0] - 1.5, sq2[1] - 8.2); g.stroke();
+        g.beginPath(); g.moveTo(sq2[0] + 0.9, sq2[1] - 4.4); g.lineTo(sq2[0] + 1.3, sq2[1] - 7.0); g.stroke();
         // Torpedo tube caps in the bow, and the stern planes.
         g.fillStyle = '#171a1f';
         var tq = P(L * 0.80, 0, FR - 0.6);
         g.beginPath(); g.ellipse(tq[0], tq[1], 1.6, 1.0, 0, 0, 6.29); g.fill();
         g.strokeStyle = '#2b3038'; g.lineWidth = 1.6;
-        var e0 = P(-L * 0.88, W * 1.3, 1.2), e1 = P(-L * 0.88, -W * 1.3, 1.2);
+        var e0 = P(-L * 0.86, W * 1.15, 1.0), e1 = P(-L * 0.86, -W * 1.15, 1.0);
         g.beginPath(); g.moveTo(e0[0], e0[1]); g.lineTo(e1[0], e1[1]); g.stroke();
       } else if (kind === 'dolphin') {
         // [DLPH]: an animal, not a boat. The plan gives the body; on top of it
@@ -6794,30 +6945,46 @@
       } else if (kind === 'squid') {
         // [SQD]: a mantle and eight arms. No deck, no fittings — the only
         // straight line on it would kill the read.
+        //
+        // Every radius here is a multiple of `ss`, the hull's length against
+        // the 20-px draft this was first drawn at. The animal was authored at
+        // Dolphin scale while RA2's `[SQD]` is 117x30 — the second-longest
+        // sprite in the game, longer than a Destroyer — so it sat inside the
+        // Dolphin's size class and the two were each other's nearest match.
+        // It now carries its own class, and the arms carry the outline.
+        var ss = G.L / 20;
         var mq = P(0, 0, FR);
         g.fillStyle = HULL;
-        g.beginPath(); g.ellipse(mq[0], mq[1] - 2.4, 6.6, 4.4, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(mq[0], mq[1] - 2.4 * ss, 6.6 * ss, 4.4 * ss, 0, 0, 6.29); g.fill();
         g.fillStyle = shade(HULL, 1.22);
-        g.beginPath(); g.ellipse(mq[0] - 0.6, mq[1] - 3.8, 4.6, 2.6, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(mq[0] - 0.6 * ss, mq[1] - 3.8 * ss, 4.6 * ss, 2.6 * ss, 0, 0, 6.29); g.fill();
         var tipq = P(-L * 1.0, 0, FR);
         g.fillStyle = shade(HULL, 0.78);
         g.beginPath();
-        g.moveTo(mq[0], mq[1] - 5.6); g.lineTo(tipq[0], tipq[1] - 2.4); g.lineTo(mq[0], mq[1] + 0.6);
+        g.moveTo(mq[0], mq[1] - 5.6 * ss); g.lineTo(tipq[0], tipq[1] - 2.4 * ss);
+        g.lineTo(mq[0], mq[1] + 0.6 * ss);
         g.closePath(); g.fill();
-        g.strokeStyle = shade(HULL, 0.72); g.lineWidth = 2.3; g.lineCap = 'round';
+        // Eight arms RADIATING, with daylight between them — thick enough
+        // that three survive ZMIN and splayed wide enough that the count is
+        // readable. They were a tight forward fan, which filled in as one more
+        // solid lozenge; a starburst is the one outline in the fleet that is
+        // mostly holes, and holes are what stop a mask matching a hull.
+        g.strokeStyle = shade(HULL, 0.72); g.lineWidth = 2.0 + 0.9 * ss; g.lineCap = 'round';
         for (var ti = 0; ti < 8; ti++) {
           var ang = (ti / 8) * 6.283 + 0.4;
-          var aq = P(L * (0.55 + Math.cos(ang) * 0.5), W * Math.sin(ang) * 0.85, FR);
+          var aq = P(L * (0.38 + Math.cos(ang) * 0.70), W * Math.sin(ang) * 2.30, FR);
           g.beginPath();
-          g.moveTo(mq[0], mq[1] - 1.6);
-          g.quadraticCurveTo((mq[0] + aq[0]) / 2 + Math.sin(ang) * 3, (mq[1] + aq[1]) / 2 - 3.4, aq[0], aq[1] - 0.4);
+          g.moveTo(mq[0], mq[1] - 1.6 * ss);
+          g.quadraticCurveTo((mq[0] + aq[0]) / 2 + Math.sin(ang) * 5 * ss,
+                             (mq[1] + aq[1]) / 2 - 3.0 * ss, aq[0], aq[1] - 0.4 * ss);
           g.stroke();
         }
         g.lineCap = 'butt';
+        var eyx = mq[0] + 2.2 * ss * (head > 0 ? 1 : -1), eyy = mq[1] - 2.6 * ss;
         g.fillStyle = '#f2e27a';                                           // the eye
-        g.beginPath(); g.ellipse(mq[0] + 3.0 * (head > 0 ? 1 : -1), mq[1] - 2.6, 1.5, 1.2, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(eyx, eyy, 1.5 * ss * 0.7, 1.2 * ss * 0.7, 0, 0, 6.29); g.fill();
         g.fillStyle = '#141018';
-        g.beginPath(); g.ellipse(mq[0] + 3.0 * (head > 0 ? 1 : -1), mq[1] - 2.6, 0.7, 0.9, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(eyx, eyy, 0.7 * ss * 0.7, 0.9 * ss * 0.7, 0, 0, 6.29); g.fill();
       }
       // A bow wave on every surface hull: two pale chevrons off the stem, on
       // the water, so a ship reads as sitting IN something.
@@ -6829,12 +6996,21 @@
         // to the camera the hull's projected width collapses while the wave's
         // does not, which pulled the whole chevron off the ship. Anchoring
         // the arms on the stem makes that impossible at any bearing.
+        //
+        // How far outboard the wave throws is set by the ship's LENGTH, not by
+        // her beam alone. A flat `W * 1.96` gave the Landing Craft — the
+        // beamiest hull afloat and the slowest — a wake half again her own
+        // width, and end-on that 1-px stroke became the longest horizontal
+        // protrusion on the sprite, so the gate scored her bow WAVE as her
+        // identity feature at 3 px instead of her ramp. Same class of bug as
+        // the Desolator's backpack: the thin decorative thing wins.
+        var WV = Math.min(W, L * 0.30);
         g.strokeStyle = 'rgba(232,244,252,.34)'; g.lineWidth = 1.0;
         var stemQ = P(L * 0.97, 0, 0);
         for (var wi = 0; wi < 2; wi++) {
           for (var sgn = -1; sgn <= 1; sgn += 2) {
-            var bwT = P(L * (0.34 - wi * 0.30), sgn * W * (1.10 + wi * 0.48), 0);
-            var bwC = P(L * (0.86 - wi * 0.10), sgn * W * (0.86 + wi * 0.30), 0);
+            var bwT = P(L * (0.30 - wi * 0.34), sgn * (W + WV * (0.34 + wi * 0.62)), 0);
+            var bwC = P(L * (0.86 - wi * 0.10), sgn * (W + WV * (0.00 + wi * 0.40)), 0);
             g.beginPath(); g.moveTo(stemQ[0], stemQ[1]);
             g.quadraticCurveTo(bwC[0], bwC[1], bwT[0], bwT[1]); g.stroke();
           }
