@@ -11,7 +11,7 @@ set -uo pipefail
 DONE=/home/e2e/.vibetop-deployed
 [ -f "$DONE" ] && { echo "already deployed"; exit 0; }
 
-cd /home/e2e/vibetop
+cd /home/e2e/vibetop || exit 1
 # Lean stack: no xpra/Chromium, no OnlyOffice/Docker — the shell smoke suite needs
 # only nginx + manager + ttyd + FileBrowser. deploy.sh restarts the manager and
 # reloads nginx as its final steps; let it finish before we touch anything.

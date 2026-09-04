@@ -104,7 +104,7 @@ build step). Everything below lives in it.
 | Bakes everything at load | `bakeAll()` | search `SPR.bld = [{ dir:` |
 
 `bakeBuilding` opens with a shared preamble (palette consts, platform, and the
-local helpers `stackR` / `pylon` / `apron`), then a flat
+local helpers `pylon` / `apron`), then a flat
 `if (key === 'base') { … } else if (key === 'power') { … } …` chain. Each
 branch begins `if (sov) { …Soviet… } else { …Allied… }` where
 `var sov = fac === 'col'`.
@@ -138,7 +138,7 @@ facePatch(g, F, cx, cy, hw, hh, lift, t0,t1, v0,v1, fill, edge)   → quad on a 
 chevrons(g, F, …, n, cA, cB)                       → hazard stripes on a wall
 lattice(g, x0,y0, x1,y1, w, col)                   → girder truss
 railing / pipeRun / streak / floodlight / drums / crates / steam
-stackR(x, y, r, h)   pylon(x, y, r, h)   apron(x, y, hw, hh)      (local to bakeBuilding)
+pylon(x, y, r, h)    apron(x, y, hw, hh)                          (local to bakeBuilding)
 ```
 
 ### 3.3 Hard rules

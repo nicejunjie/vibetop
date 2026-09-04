@@ -3066,20 +3066,6 @@
     p.x = kx * TS + TS - p.w / 2;
     SFX.pipe(); stopMusic();
   }
-  function tryPipeSide(p) {
-    var cx = Math.floor((p.x + p.w) / TS), cy = Math.floor((p.y + p.h - 2) / TS);
-    for (var dy = 0; dy < 2; dy++) {
-      var t = L.get(cx, cy - dy);
-      if (t === T_PIPE_TL || t === T_PIPE_L) {
-        var to = L.exitPipes[cx + ',' + (cy - dy)] || L.exitPipes[cx + ',' + (cy - dy - 1)];
-        if (to) {
-          p.mode = 'pipe'; p.modeT = 40; p.pipeDir = 2; p.warpTo = to; p.vx = 0; p.vy = 0;
-          SFX.pipe(); stopMusic();
-          return;
-        }
-      }
-    }
-  }
   function pipeStep() {
     var p = P;
     p.modeT--;

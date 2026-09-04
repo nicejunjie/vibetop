@@ -122,3 +122,40 @@ vt_existing_home_install() {
         *) : ;;
     esac
 }
+
+
+# vt_nginx_root [site...] — the web root nginx is ACTUALLY serving, read from the
+# live site file, or nothing if there is no vibetop site. This is the only
+# authoritative answer: the system layout, a legacy home install and a custom
+# LANDING_DIR all end up here, and guessing from $SUDO_USER instead is how
+# `sudo ./uninstall.sh` came to print "Removed: ... web root" on a prod host
+# while /opt/vibetop/vibetop-www was never touched.
+# The site file is at sites-available/ on Debian and conf.d/ on RHEL.
+vt_nginx_root() {
+    local site root=""
+    local sites=("$@")
+    [ ${#sites[@]} -gt 0 ] || sites=(/etc/nginx/sites-available/vibetop
+                                     /etc/nginx/conf.d/vibetop.conf)
+    for site in "${sites[@]}"; do
+        [ -r "$site" ] || continue
+        root="$(sed -n 's/^[[:space:]]*root[[:space:]]\+\([^;]*\);.*/\1/p' "$site" | head -1)"
+        [ -n "$root" ] && { printf '%s' "$root"; return 0; }
+    done
+    return 1
+}
+
+# vt_is_web_root <dir> — true only for something that really looks like a
+# DEPLOYED vibetop web root. The sole gate in front of `rm -rf`, so it is
+# deliberately paranoid: right name, deep enough not to be a system directory,
+# and actually containing a deployed shell. An unrecognised value must make the
+# caller delete NOTHING and say so, never fall back to a guess.
+vt_is_web_root() {
+    local d="${1:-}"
+    [ -n "$d" ] || return 1
+    case "$d" in */vibetop-www|*/vibetop-www/|*/www|*/www/) ;; *) return 1 ;; esac
+    d="${d%/}"
+    [ -d "$d" ] || return 1
+    # /www and /opt/www are too shallow to be anything but a mistake.
+    [ "$(printf '%s' "$d" | tr -cd / | wc -c)" -ge 2 ] || return 1
+    [ -e "$d/index.html" ] || [ -e "$d/sw.js" ] || return 1
+}

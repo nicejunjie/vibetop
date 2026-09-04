@@ -21,7 +21,6 @@ set -euo pipefail
 REPO="${VIBETOP_REPO:-https://github.com/nicejunjie/vibetop.git}"
 REF="${VIBETOP_REF:-main}"
 DIR="${VIBETOP_DIR:-$HOME/vibetop}"
-REPO_RAW="https://raw.githubusercontent.com/nicejunjie/vibetop/${REF}/bootstrap.sh"
 
 say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }

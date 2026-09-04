@@ -10797,18 +10797,6 @@
     plot(g, cx, baseY - 2, fw * 1.94, fh * 1.94);
     g.fillStyle = shade(PLAT, 1.16); g.fill(); outline(g, PLAT_E);
 
-    // A thick stack: dark barrel, lighter bands, open mouth, blue collar.
-    function stackR(sx2, sy2, r2, h2) {
-      cylinder(g, sx2, sy2, r2, h2, shade(STK, 0.86), shade(STK, 1.1), PLAT_E);
-      g.fillStyle = BLU;                                     // collar at the base
-      g.fillRect(sx2 - r2 - 1, sy2 - 4, (r2 + 1) * 2, 4);
-      g.fillStyle = shade(STK, 1.22);                        // banded upper section
-      g.fillRect(sx2 - r2, sy2 - h2 + 3, r2 * 2, 5);
-      g.fillStyle = STK_T;                                   // open mouth
-      g.beginPath(); g.ellipse(sx2, sy2 - h2, r2 * 0.72, r2 * 0.30, 0, 0, 6.29); g.fill();
-      steam(g, sx2, sy2 - h2 - 5, r2 * 0.8, 3);
-    }
-
     // Power-plant pylon: grey column, broad blue band, purple capsule, glowing rod.
     function pylon(px2, py2, r2, h2) {
       cylinder(g, px2, py2, r2 * 1.55, h2 * 0.30, '#25417a', '#37589c', PLAT_E);   // drum base
@@ -23900,14 +23888,6 @@
     var i = ai.teams.indexOf(t);
     if (i >= 0) ai.teams.splice(i, 1);
   }
-  function aiInTeam(ai, u) {
-    for (var i = 0; i < ai.teams.length; i++) {
-      if (ai.teams[i].def.prod) continue;
-      if (ai.teams[i].units.indexOf(u) >= 0) return ai.teams[i];
-    }
-    return null;
-  }
-
   // [AITriggerTypes]: every pass reads every trigger, rolls its weight and
   // creates the teams that come up. TeamDelays is the interval between passes,
   // TotalAITeamCap the ceiling on live teams, Minimum/MaximumAIDefensiveTeams
@@ -27093,7 +27073,6 @@
   // Kept for the two call sites outside sfx() and for anything that wants a
   // bare tone; the old signatures still work.
   function tone(freq, dur, type, v, to) { if (soundOn && AC && !headless) try { op(AC, BUS.sfx, AC.currentTime, freq, to || 0, dur, v == null ? 0.2 : v, type || 'square'); } catch (e) {} }
-  function noiseBurst(dur, v) { if (soundOn && AC && !headless) try { nz(AC, BUS.sfx, AC.currentTime, dur, v == null ? 0.18 : v, 1600, 300, 1.0); } catch (e) {} }
 
   // ------------------------------------------------------------------- //
   //  Unit voices — a radio, not a speech synthesiser.

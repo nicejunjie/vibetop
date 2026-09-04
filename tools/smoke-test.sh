@@ -165,8 +165,9 @@ fi
 # healthy stack. (Steady-state cold starts measure ~0.16s, so this is about the
 # first-init outlier, not normal latency.)
 http_is() {
-    local name="$1" path="$2" want="$3" got="" i
-    for i in 1 2 3 4 5 6; do
+    local name="$1" path="$2" want="$3" got="" tries=0
+    while [ "$tries" -lt 6 ]; do
+        tries=$((tries + 1))
         got="$(fetch --max-time 20 -o /dev/null -w '%{http_code}' "$BASE$path" 2>/dev/null || echo 000)"
         [ "$got" = "$want" ] && break
         # Only a cold start is worth waiting for; a definite wrong answer is final.

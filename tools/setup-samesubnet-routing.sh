@@ -77,7 +77,9 @@ done
 
 # NetworkManager only fires the dispatcher on events, so apply it now for every
 # currently-up real interface.
-for IFACE in $(ls /sys/class/net | grep -vE "$SKIP_RE"); do
+for IFACE in /sys/class/net/*; do
+  IFACE="${IFACE##*/}"
+  echo "$IFACE" | grep -qE "$SKIP_RE" && continue
   [ "$(cat "/sys/class/net/$IFACE/operstate" 2>/dev/null)" = up ] && "$DISP" "$IFACE" up || true
 done
 

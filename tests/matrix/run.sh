@@ -86,7 +86,13 @@ declare -a ROWS=()
 supported_failed=0
 
 run_one() {   # run_one <name> <box> <tier>
-    local name="$1" box="$2" tier="$3" log="$LOGDIR/$name.log" rc=0 result="" detail=""
+    local name="$1" box="$2" tier="$3" rc=0 result="" detail=""
+    # SEPARATE `local` on purpose: bash expands a declaration's right-hand
+    # sides BEFORE the new locals in the SAME command take effect, so the
+    # one-liner form resolved $name to the caller's (empty) value and every
+    # row logged to "$LOGDIR/.log" — one shared file that -j rows truncate
+    # under each other, then grep for their own PASS/FAIL. (ShellCheck SC2318.)
+    local log="$LOGDIR/$name.log"
     echo
     echo "════════════════════════════════════════════════════════════"
     echo "  $name   ($box, $tier)"

@@ -84,7 +84,6 @@
   var list = null, idx = -1;   // sibling images in the folder (names, sorted)
   var img = null;
 
-  function enc(p) { return p.split('/').map(encodeURIComponent).join('/'); }
   // Fully native: bytes from /api/file/image, the prev/next folder listing
   // from /api/fs/list (the per-user file agent) — zero FileBrowser API
   // involvement (v1.19.93; the FB resources call + its JWT dance are gone).

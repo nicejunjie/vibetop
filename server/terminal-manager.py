@@ -1530,17 +1530,6 @@ def _set_unix_password(username, password):
     return True, None
 
 
-def _drop_user_from_registry(user):
-    with _users_lock:
-        reg = _read_users_registry()
-        if reg.pop(user, None) is not None:
-            try:
-                os.makedirs(os.path.dirname(USERS_REGISTRY), exist_ok=True)
-                _atomic_write(USERS_REGISTRY, json.dumps(reg))
-            except OSError:
-                pass
-
-
 def _tombstone_user_in_registry(user):
     """On user removal: strip the slot/heartbeat but KEEP the (already-bumped)
     token_epoch as a tombstone, so every session ever issued to `user` stays
@@ -7176,10 +7165,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                   "mtime": int(st.st_mtime)})
             # Newest first — quick-sync users care about what just landed.
             files.sort(key=lambda f: f["mtime"], reverse=True)
-            # Compute path relative to APP_USER's home so the client can deep-
-            # link into FileBrowser (which is rooted at ~).
-            home = os.path.expanduser(f"~{APP_USER}").rstrip("/") + "/"
-            rel = _upload_dir()[len(home):] if _upload_dir().startswith(home) else None
+            # Compute the path relative to the REQUEST user's home so the client
+            # can deep-link into Files (which is rooted at ~). It must be
+            # _ctx_home(), not ~APP_USER: APP_USER is the no-login service
+            # account (/opt/vibetop on prod), so measuring against it made
+            # rel_to_home None for every real user and left the Upload app's
+            # "Open in Files" button permanently disabled. realpath() on both
+            # sides so a symlinked /home doesn't defeat the prefix test.
+            rel = None
+            try:
+                home = os.path.realpath(_ctx_home())
+                up = os.path.realpath(_upload_dir())
+                if up.startswith(home.rstrip("/") + os.sep):
+                    rel = up[len(home.rstrip("/")) + 1:]
+            except OSError:
+                pass
             self._json(200, {"dir": _upload_dir(), "rel_to_home": rel, "files": files})
             return
         if self.path == "/api/health":
