@@ -963,64 +963,76 @@
   // RA2 armour classes and warhead Verses (rules.ini): a hit deals
   // damage * VERSES[warhead][target armour] / 100. Infantry are none/flak/plate,
   // vehicles light/medium/heavy, structures wood/steel/concrete.
-  var ARMOURS = ['none', 'flak', 'plate', 'light', 'medium', 'heavy', 'wood', 'steel', 'concrete'];
+  // rules.ini:19086 spells the column order out: "-vs- None, Flak, Plate //infantry
+  // / Light, Medium, Heavy //units / Wood, Steel, Concrete //buildings /
+  // Special_1, Special_2". The last two were missing here, so every Verses
+  // row was nine wide against RA2's eleven and the two special classes had
+  // nowhere to live. rules.ini says what they are, in its own comments:
+  //   Special_1 — "the Terror Drone's 'I'm a unit with infantry
+  //                vulnerabilities' armor" (and [DRON] Armor=special_1)
+  //   Special_2 — "spawn rockets' armor, to keep them from blowing each
+  //                other up when shot"
+  // We field no spawn rockets, so special_2 exists only to keep the columns
+  // aligned with RA2's; nothing is assigned it.
+  var ARMOURS = ['none', 'flak', 'plate', 'light', 'medium', 'heavy', 'wood', 'steel', 'concrete',
+                 'special_1', 'special_2'];
   var VERSES = {
-    SA:           [100,  80,  70,  50,  25,  25,  75,  50,  25],
-    SSA:          [100, 100,  70,  60,  40,  40,  75,  50,  25],
-    AP:           [ 25,  25,  25,  75, 100, 100,  65,  45,  60],
-    ApocAP:       [ 25,  25,  25,  75, 100, 100, 100, 100,  70],
-    HE:           [100,  90,  80,  70,  35,  35,  75,  40,  20],
-    Shock:        [100, 100, 100,  85, 100, 100,  50,  50,  50],
-    Electric:     [100, 100, 100,  85, 100, 100,  50,  50,  50],
-    IonWH:        [100, 100, 100, 100, 100, 100, 100, 100,   3],   // the lightning storm ([IonWH]): everything but concrete
-    CometWH:      [100, 100, 100,  75,  50,  50, 200, 200, 200],   // Prism Tank: a siege gun, double vs structures, half vs armour
-    FlakGuyWH:    [150, 100,  50,  80,  20,  20,   0,   0,   0],   // Flak Trooper's AA gun (rulesmd.ini)
-    NukeWH:       [100, 100, 100, 100, 100, 100, 100, 100, 100],   // a nuke does not care what you are made of
-    HollowPoint:  [200, 100, 100,   1,   1,   1,   1,   1,   1],
-    Super:        [100, 100, 100, 100, 100, 100, 100, 100, 100],
-    IvanBomb:     [100, 100, 100, 100, 100, 100, 100, 100, 100],
-    Parasite:     [100, 100, 100, 100, 100, 100,   0,   0,   0],
-    MirageWH:     [100, 100,  80, 100, 100, 100,  30,  20,  20],
-    PrismWarhead: [200, 100, 100, 100, 100, 100,  50,  50,  50],
-    GUARDWH:      [ 20,  20,  20, 100,  50, 100,  10,  10,  10],
-    FlakTWH:      [150, 100,  50,  60,  10,  10,  30,  20,  10],
-    FlakWH:       [150,  80,  50, 100,  20,  20,   0,   0,   0],
-    SAMWH:        [100, 100, 100, 100, 100, 100,   0,   0,   0],
-    ORCAAP:       [100, 100, 100, 100, 100, 100, 100, 100,  75],
-    BlimpHE:      [100, 100, 100,  70,  35,  35,  85,  75,  50],
+    SA: [100,  80,  70,  50,  25,  25,  75,  50,  25, 100, 100],
+    SSA: [100, 100,  70,  60,  40,  40,  75,  50,  25, 100, 100],
+    AP: [ 25,  25,  25,  75, 100, 100,  65,  45,  60, 100, 100],
+    ApocAP: [ 25,  25,  25,  75, 100, 100, 100, 100,  70, 100, 100],
+    HE: [100,  90,  80,  70,  35,  35,  75,  40,  20, 100, 100],
+    Shock: [100, 100, 100,  85, 100, 100,  50,  50,  50, 100, 100],
+    Electric: [100, 100, 100,  85, 100, 100,  50,  50,  50, 100, 100],
+    IonWH: [100, 100, 100, 100, 100, 100, 100, 100,   3, 100, 100],   // the lightning storm ([IonWH]): everything but concrete
+    CometWH: [100, 100, 100,  75,  50,  50, 200, 200, 200, 100, 100],   // Prism Tank: a siege gun, double vs structures, half vs armour
+    FlakGuyWH: [150, 100,  50,  80,  20,  20,   0,   0,   0, 100, 100],   // Flak Trooper's AA gun (rulesmd.ini)
+    NukeWH: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],   // a nuke does not care what you are made of
+    HollowPoint: [200, 100, 100,   1,   1,   1,   1,   1,   1,   1, 100],
+    Super: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+    IvanBomb: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+    Parasite: [100, 100, 100, 100, 100, 100,   0,   0,   0, 100, 100],
+    MirageWH: [100, 100,  80, 100, 100, 100,  30,  20,  20, 100, 100],
+    PrismWarhead: [200, 100, 100, 100, 100, 100,  50,  50,  50, 100, 100],
+    GUARDWH: [ 20,  20,  20, 100,  50, 100,  10,  10,  10, 100, 100],
+    FlakTWH: [150, 100,  50,  60,  10,  10,  30,  20,  10, 100, 100],
+    FlakWH: [150,  80,  50, 100,  20,  20,   0,   0,   0, 100, 100],
+    SAMWH: [100, 100, 100, 100, 100, 100,   0,   0,   0, 100, 100],
+    ORCAAP: [100, 100, 100, 100, 100, 100, 100, 100,  75, 100, 100],
+    BlimpHE: [100, 100, 100,  70,  35,  35,  85,  75,  50, 100, 100],
     // [ParasiteDog] Verses=100,100,100,0,0,0,0,0,0 — a dog's teeth are for men
     // and nothing else. Parasite=yes on top of that means the leap does not
     // wound the man, it takes him off the board (see fire()).
-    ParasiteDog:  [100, 100, 100,   0,   0,   0,   0,   0,   0],
+    ParasiteDog: [100, 100, 100,   0,   0,   0,   0,   0,   0, 100, 100],
     // [GrandCannonWH] Verses=...,50%,100%,50% on wood/steel/concrete.
-    GrandCannonWH:[100, 100, 100, 100, 100, 100,  50, 100,  50],
+    GrandCannonWH: [100, 100, 100, 100, 100, 100,  50, 100,  50, 100, 100],
     // [HARVWH] — the War Miner's 20mm. Good on men and light skins, useless
     // on armour, and (Verses[9]=200%) it chews wooden structures.
-    HARVWH:       [100,  80,  70,  50,  20,  20,  20,  15,  10],
+    HARVWH: [100,  80,  70,  50,  20,  20,  20,  15,  10, 100, 100],
     // [RadBeamWarhead] / [RadSite] — the Desolator's beam and the pool it
     // leaves. Infantry only: 20%/15%/10% against armour, nothing on buildings.
-    RadBeamWH:    [100, 100, 100,  20,  15,  10,   0,   0,   0],
-    RadSite:      [100, 100, 100,  50,  10,  10,   0,   0,   0],
+    RadBeamWH: [100, 100, 100,  20,  15,  10,   0,   0,   0, 100, 100],
+    RadSite: [100, 100, 100,  50,  10,  10,   0,   0,   0, 100, 100],
     // [ChronoBeam] Temporal=yes — the Verses row is 100% across the board
     // because it never does damage at all; it erases (see fire()).
-    ChronoBeam:   [100, 100, 100, 100, 100, 100, 100, 100, 100],
+    ChronoBeam: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
     // [Controller] MindControl=yes — same story: it skips damage entirely.
-    Controller:   [100, 100, 100, 100, 100, 100,   0,   0,   0],
+    Controller: [100, 100, 100, 100, 100, 100,   0,   0,   0, 100, 100],
     // [IvanWH] — the bomb going off, not the bomb being placed.
-    IvanWH:       [100, 100, 100, 100, 100, 100, 100, 250,  20],
+    IvanWH: [100, 100, 100, 100, 100, 100, 100, 250,  20, 100, 100],
     // [PsiPulse] PsychicDamage=yes, CellSpread=3 — a Yuri in an IFV throws a
     // wave that only minds feel: 0% against anything with a hull or a wall.
-    PsiPulse:     [100, 100, 100,   0,   0,   0,   0,   0,   0],
+    PsiPulse: [100, 100, 100,   0,   0,   0,   0,   0,   0, 100, 100],
     // ---- naval warheads, read straight off rules.ini ------------------ //
     // [ARTYHE] (the Destroyer's 155mm), [APSplash] (Typhoon torpedo and the
     // Destroyer's depth charge), [SonicWarhead] (the Dolphin's sonic zap).
-    ARTYHE:       [100,  80,  60, 100,  60,  60, 100,  80,  60],
-    APSplash:     [ 25,  25,  25,  75, 100, 100,  65,  65,  60],
-    SonicWH:      [100, 100, 100, 100,  80,  80, 100,  60,  60],
+    ARTYHE: [100,  80,  60, 100,  60,  60, 100,  80,  60, 100, 100],
+    APSplash: [ 25,  25,  25,  75, 100, 100,  65,  65,  60, 100, 100],
+    SonicWH: [100, 100, 100, 100,  80,  80, 100,  60,  60, 100, 100],
     // [DredWH] — the Dreadnought's missile. A siege warhead: it is aimed at
     // the shore, and everything it lands on is a building or standing beside
     // one. Same shape as [HE] with the structure rows opened up.
-    DredWH:       [100,  90,  80,  80,  60,  60, 100,  90,  60]
+    DredWH: [100,  90,  80,  80,  60,  60, 100,  90,  60, 100, 100]
   };
   // rules.ini per-warhead `Wall=`: a warhead without it cannot scratch a wall
   // segment. Taken verbatim from the 37 sections that carry `Wall=yes` — note
@@ -1104,10 +1116,26 @@
   }
   // RA2 veterancy ([General]): VeteranCombat=1.1 firepower and VeteranArmor=1.5 per rank.
   function vetFire(rank) { return Math.pow(1.1, rank || 0); }
+  // [General] lists FOUR veteran multipliers and calls them "per level":
+  // VeteranCombat=1.1, VeteranArmor=1.5, VeteranROF=0.6, VeteranSpeed=1.2,
+  // with VeteranCap=2. Combat and Armor were compounded per rank here from the
+  // start; ROF and Speed were written as `rank === 2 ? x : 1`, i.e. elite-only,
+  // so a veteran got half the promotion RA2 gives it and rank 1 was worth much
+  // less than rank 2. `VeteranAbilities=` is per unit and does vary (the GI has
+  // ROF and FASTER at rank 1, some units do not) — transcribing all forty rows
+  // is a separate job; applying the [General] defaults per level is what the
+  // other two already do and is far closer than elite-only.
+  function vetRof(rank) { return Math.pow(0.6, rank || 0); }
+  function vetSpeed(rank) { return Math.pow(1.2, rank || 0); }
   // A unit's ground speed after the [Powerups] Speed crate (x1.2). Every
   // mover reads it through here so one crate cannot be applied twice or
   // missed on one of the fifteen advance() call sites.
-  function uspd(u) { var m = UNITS[u.type].spd; return u.spMul ? m * u.spMul : m; }
+  // [General] VeteranSpeed=1.2 per level goes HERE, not in advance(): the
+  // comment above is the file's own rule — every mover reads speed through
+  // uspd so a multiplier cannot be applied twice or missed on one of the
+  // fifteen advance() call sites. The elite-only form this replaces sat in
+  // advance() and had exactly that shape of risk.
+  function uspd(u) { var m = UNITS[u.type].spd * vetSpeed(u.rank); return u.spMul ? m * u.spMul : m; }
   function vetArmour(rank) { return Math.pow(1.5, rank || 0); }
   // Structures that differ per faction (Allied Power Plant $800/+200 vs Tesla Reactor $600/+150).
   var _bspec = {};
@@ -1204,7 +1232,9 @@
       // RA2 ORCA. Aircraft lane: lives on an Airforce Command pad (4 per HQ),
       // flies out with `ammo` missiles, fires them all, returns to reload.
       name: 'Harrier', em: '✈️', cost: 1200, build: 50, cls: 'a', fac: 'dir', req: 'airforce',
-      hp: 150, spd: 0.182, sight: 8, armour: 'light', air: true, alt: 46, ammo: 2, reload: 150,
+      // [General] ReloadRate=.3 — MINUTES to reload each ammo point, so 18 s
+      // (1080 ticks), not the 150 that made a sortie cost 2.5 s on the pad.
+      hp: 150, spd: 0.182, sight: 8, armour: 'light', air: true, alt: 46, ammo: 2, reload: 1080,
       shadow: [17, 7],
       dmg: 150, rate: 40, rng: 6, splash: 0.4,   // [Maverick] Range=6
       wh: 'ORCAAP',
@@ -1350,7 +1380,11 @@
       // shoot a vehicle, it CLIMBS INSIDE and is removed from the map.
       parasite: true, psiImmune: true, radImmune: true,
       name: 'Terror Drone', em: '🕷️', cost: 500, build: 21, cls: 'v', fac: 'col',
-      hp: 100, spd: 0.130, sight: 4, armour: 'light',
+      // [DRON] Armor=special_1 — rules.ini's own comment calls it "a unit with
+      // infantry vulnerabilities". As `light` it took 50% from small arms and
+      // 60% from the heavier infantry gun, i.e. riflemen could barely hurt the
+      // one thing RA2 designed them to answer.
+      hp: 100, spd: 0.130, sight: 4, armour: 'special_1',
       dmg: 50, rate: 240, rng: 1.83, splash: 0,
       wh: 'Parasite',
       cap: 0, mine: 0, w: 10, h: 9, desc: 'Fast, tears vehicles apart up close'
@@ -1508,7 +1542,7 @@
       // [HORNET] Str 75 / light / Speed 12 / Ammo 1, Spawned=yes, TechLevel -1
       // — it is never on a build list, it comes off the deck.
       name: 'Hornet', em: '🛩️', cost: 50, build: 2, cls: 'a', fac: 'dir', spawned: true,
-      hp: 75, spd: 0.156, sight: 2, armour: 'light', air: true, alt: 40, ammo: 1, reload: 150,
+      hp: 75, spd: 0.156, sight: 2, armour: 'light', air: true, alt: 40, ammo: 1, reload: 1080,   // [General] ReloadRate=.3 minutes
       shadow: [13, 6],
       dmg: 40, rate: 12, rng: 5, splash: 0.3, wh: 'ORCAAP',
       cap: 0, mine: 0, w: 20, h: 14, desc: 'Carrier-borne bomber'
@@ -1562,7 +1596,10 @@
       // The V3's big brother: it bombards the shore from open water.
       name: 'Dreadnought', em: '🚀', cost: 2000, build: 84, cls: 'n', fac: 'col', nav: 1, req: 'lab',
       hp: 800, spd: 0.052, sight: 7, armour: 'heavy', passive: true,
-      dmg: 100, burst: 2, rate: 200, rng: 25, minRng: 8, splash: 1.2, wh: 'DredWH',
+      // [General] DMislDamage=300 — the DMisl detonates for 300, and
+      // [DredLauncher] Burst=2 sends two. 100 was the launcher's own Damage=50
+      // doubled, which is the projectile's launch value, not its warhead's.
+      dmg: 300, burst: 2, rate: 200, rng: 25, minRng: 8, splash: 1.2, wh: 'DredWH',
       cap: 0, mine: 0, w: 34, h: 17, desc: 'Two long-range missiles per salvo; cannot fire inside 8 cells'
     },
     squid: {
@@ -2401,7 +2438,9 @@
       bridges: [], bwrk: new Uint8Array(MAP * MAP),   // spans + torn-deck memory
       bspan: new Int16Array(MAP * MAP),           // cell -> span index + 1, 0 = not a bridge
       wzone: new Int16Array(MAP * MAP),           // connected body of water per cell, 0 = dry (see labelWater)
-      neut: [], drops: [], spread: 0,             // neutral spawn list, paradrops in flight, ore-spread pass
+      neut: [], drops: [], spread: 0, grow: 0,   // neutral spawn list, paradrops in flight,
+                                                  // and the ore SPREAD and GROWTH pass counters
+                                                  // (both feed hash3, so both must be state)
       // [Radiation]: a per-cell radiation LEVEL plus who put it there (kill
       // credit). `radAny` is the "is any cell hot" flag that keeps the whole
       // pass free when nothing on the map is irradiated, which is most of
@@ -20646,7 +20685,7 @@
 
   function fire(g, src, tgt) {
     var spec = weaponFor(src.kind === 'b' ? BLDS[src.type] : UNITS[src.type], tgt, src);
-    src.cool = spec.rate * (src.rank === 2 ? 0.6 : 1);   // EliteAbilities=ROF (VeteranROF=0.6)
+    src.cool = spec.rate * vetRof(src.rank);            // [General] VeteranROF=0.6 per level
     // Prism support: every tower that beamed into this one adds 150%.
     var supMul = 1;
     if (src.kind === 'b' && src.type === 'prism' && src.sup) { supMul = 1 + PRISM_SUP_MOD * src.sup; src.sup = 0; }
@@ -21650,7 +21689,6 @@
   }
 
   function advance(g, u, tx, ty, spd, refresh) {
-    if (u.rank === 2) spd *= 1.2;                       // EliteAbilities=FASTER (VeteranSpeed=1.2)
     if (u.prone) {
       // A short shuffle is a crawl (art.ini `Crawl=86,6,6`, and it is slow);
       // anything that is actually going somewhere gets him back on his feet.
@@ -22362,7 +22400,7 @@
       if (o.cool > 0) { o.cool--; continue; }
       var t = garrisonTarget(g, b, d);
       if (!t) continue;
-      o.cool = d.rate * (o.rank === 2 ? 0.6 : 1);
+      o.cool = d.rate * vetRof(o.rank);          // [General] VeteranROF=0.6 per level
       fired = t;
       if (!headless) {
         var pt = GARRISON_PORTS[o.port % GARRISON_PORTS.length];
@@ -22601,6 +22639,14 @@
   // into one empty neighbour. Gems do not spread at all — [Cruentus] has
   // SpreadPercentage=0 — so a gem field is finite, and that is the point of it.
   var ORE_SPREAD_T = 2200 * 4;                    // 2200 RA2 frames at our 60Hz tick
+  // [Riparius] Growth=2200 — ore's OWN growth period, the sibling of the
+  // Spread=2200 the line above already uses, at the same 15 fps. [General]
+  // GrowthRate=5 is the global logic timer; pairing it with a per-overlay
+  // GrowthPercentage mixed two scales, and the overlay's own key is the more
+  // specific reading. Measured over 24 matches: the 5-minute reading left 3
+  // undecided and the map dry from 18:00; this is the same mechanism at ore's
+  // documented period.
+  var ORE_GROW_T = ORE_SPREAD_T;                  // [Riparius] Growth=2200 frames
   function stepOreSpread(g) {
     var pass = ++g.spread, ter = g.terrain, ore = g.ore, i, n;
     var DIRS = [-1, 1, -MAP, MAP];
@@ -25800,10 +25846,19 @@
     if (g.ai) stepAI(g, g.ai, P_AI, P_HUMAN);
     if (g.ai2) stepAI(g, g.ai2, P_HUMAN, P_AI);
     if ((g.tick % 6) === 1 || g.tick <= 2) { applyGaps(g); revealFor(g, ME); }
-    if ((g.tick % 60) === 30) {
-      // Ore regrows slowly on existing seams ([Riparius] Growth=2200).
-      var ore = g.ore, ter = g.terrain;
-      for (var oi = 0; oi < ore.length; oi++) if (oreT(ter[oi]) && ore[oi] < 900) ore[oi] = Math.min(900, ore[oi] + 2);
+    // Ore regrows on existing seams. [General] GrowthRate=5 is FIVE MINUTES
+    // between growth passes, and [Riparius] GrowthPercentage=.06 is the chance
+    // a given cell thickens on each pass. This ran every SECOND at +2, which
+    // refilled a mined-out seam from 120 to full in about six minutes and made
+    // ore effectively infinite — the spread code beside it already had the
+    // period right, which is what made the growth rate stand out.
+    if ((g.tick % ORE_GROW_T) === (ORE_GROW_T - 1)) {
+      var ore = g.ore, ter = g.terrain, gpass = ++g.grow;
+      for (var oi = 0; oi < ore.length; oi++) {
+        if (!oreT(ter[oi]) || ore[oi] >= 900) continue;
+        if (hash3(g.seed, oi, gpass + 4177) >= 0.06) continue;    // GrowthPercentage=.06
+        ore[oi] = Math.min(900, ore[oi] + 75);                    // one of RA2's twelve density stages
+      }
     }
     // ...and, far more slowly, throws a seam into the ground next to it.
     if ((g.tick % ORE_SPREAD_T) === (ORE_SPREAD_T - 1)) stepOreSpread(g);
@@ -31927,13 +31982,27 @@
 
   var pauseBtn = document.getElementById('pauseBtn');
   var pausedEl = document.getElementById('paused');
+  // EVA is speech synthesis, and speech synthesis outlives whatever queued it:
+  // nothing ever cancelled it, so a base collapsing kept reading out over the
+  // score card and on into the front menu, and pausing the match did not pause
+  // the voice. `evaHush` is the one place that stops it.
+  function evaHush(pause) {
+    try {
+      if (typeof speechSynthesis === 'undefined') return;
+      if (pause === true) speechSynthesis.pause();
+      else if (pause === false) speechSynthesis.resume();
+      else speechSynthesis.cancel();
+    } catch (e) { /* no TTS, or the browser refuses mid-utterance: not fatal */ }
+  }
   function togglePause(force) {
     if (state === 'play' && (force === undefined || force === true)) {
       state = 'paused'; pauseBtn.innerHTML = PLAY_SVG;
       pausedEl.classList.add('show');
+      evaHush(true);                                   // the voice pauses with the match
     } else if (state === 'paused' && force !== true) {
       state = 'play'; pauseBtn.innerHTML = PAUSE_SVG;
       pausedEl.classList.remove('show');
+      evaHush(false);
       say('Resumed');
     }
   }
@@ -31978,6 +32047,7 @@
 
   function menu() {
     state = 'menu';
+    evaHush();                                         // nothing from the last match talks over the menu
     MUS.set('menu');
     mpClose();
     onA = function () { if (mpMode === 'one') { hideCard(); startMatch(); } else mpStart(); };
@@ -32280,6 +32350,7 @@
 
   function finish(won) {
     state = 'over';
+    evaHush();                                         // the score card is not read over
     var secs = Math.floor(G.tick / 60);
     if (window.vibeScores && !G.debug && !G.mp) {       // a cheated game is not a record, nor is a two-player one
       window.vibeScores.finish('rts', difficulty, won, {});
@@ -32667,7 +32738,7 @@
     },
     rad: function (x, y) { return G ? radAt(G, x, y) : 0; },
     bombs: function () { return G ? G.bombs : []; },
-    api3: { infest: infest, popDrone: popDrone, killDrone: killDrone,
+    api3: { infest: infest, popDrone: popDrone, killDrone: killDrone, uspd: uspd,
             plantBomb: plantBomb, defuseBomb: defuseBomb, engineerDefuse: engineerDefuse,
             mindControl: mindControl, releaseMind: releaseMind, psiImmune: psiImmune,
             startErase: startErase, beginWarp: beginWarp, chronoDelayFor: chronoDelayFor,

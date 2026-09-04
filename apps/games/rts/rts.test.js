@@ -1285,8 +1285,12 @@ test("a Harrier strike kills a lone harvester and returns to its pad to reload",
   const slot = H.padSlot(afc, h.slot);
   const harv = H.spawn("harvester", 1, s0.x + 9, s0.y + 9);
   assert.equal(H.orderAttack([h], harv), 1);
+  // [General] ReloadRate=.3 is MINUTES per ammo point, so a two-missile
+  // Harrier spends 36 s on the pad between sorties, not the 5 s the old
+  // `reload: 150` gave it. A 1000-hp harvester needs several sorties, so the
+  // budget is the reload rate times the sorties, not a round number.
   let ticks = 0, sorties = 0, wasOut = false;
-  while (!harv.dead && ticks < 6000) {
+  while (!harv.dead && ticks < 30000) {
     H.step(1); ticks++;
     if (!h.landed) wasOut = true;
     if (wasOut && h.landed) { sorties++; wasOut = false; }
@@ -1294,7 +1298,7 @@ test("a Harrier strike kills a lone harvester and returns to its pad to reload",
   assert.ok(harv.dead, `the harvester should die (hp ${harv.hp} after ${ticks} ticks)`);
   assert.ok(sorties >= 1, "it went home to reload between strikes");
   // Target gone: it comes home, lands on ITS slot, and rearms fully.
-  for (let i = 0; i < 1500 && !(h.landed && h.ammo === T.UNITS.harrier.ammo); i++) H.step(1);
+  for (let i = 0; i < 4000 && !(h.landed && h.ammo === T.UNITS.harrier.ammo); i++) H.step(1);
   assert.ok(h.landed, "back on the pad");
   assert.equal(h.ammo, T.UNITS.harrier.ammo, "rearmed");
   assert.ok(Math.abs(h.x - slot.x) < 0.05 && Math.abs(h.y - slot.y) < 0.05, "parked on its own slot");
@@ -2838,7 +2842,7 @@ test("the default options replay a seed exactly as the game did before them", ()
   const r = W.__rtsSim(4242, "normal", "normal", 60 * 60 * 3, "dir", "col");
   assert.deepEqual(
     { u0: r.p0units, u1: r.p1units, b0: r.p0blds, b1: r.p1blds, c0: r.p0credits, c1: r.p1credits },
-    { u0: 8, u1: 11, b0: 5, b1: 5, c0: 8407, c1: 9236 },   // re-recorded after the footprint + Tesla Reactor cost change, then after stepSettle (idle units shuffle apart)
+    { u0: 8, u1: 11, b0: 5, b1: 5, c0: 8201, c1: 9335 },   // re-recorded 2026-09-04 for the RA2 economy/weapon sweep: ore GROWTH moved from every second to [General] GrowthRate=5 MINUTES, so both sides bank less by minute three
     "a default match must be bit-for-bit the recorded match",
   );
 });
@@ -3114,8 +3118,11 @@ test("adding audio did not move the simulation", () => {
   assert.equal(r.p1units, 11);
   assert.equal(r.p0blds, 5);
   assert.equal(r.p1blds, 5);
-  assert.equal(r.p0credits, 8407);
-  assert.equal(r.p1credits, 9236);
+  // Re-recorded 2026-09-04: ore GROWTH went from every second at +2 to
+  // [General] GrowthRate=5 MINUTES at [Riparius] GrowthPercentage=.06, which
+  // is a SIM change and so is exactly when these are allowed to move.
+  assert.equal(r.p0credits, 8201);
+  assert.equal(r.p1credits, 9335);
   assert.equal(r.p0made, 8);
   assert.equal(r.p1made, 11);
 });
@@ -4850,4 +4857,73 @@ test("the radar's input gate and its display gate are the same function", () => 
   assert.ok(j0 > 0 && /radarUp\(\)/.test(d[0]),
     "drawMini recomputes the radar test instead of calling radarUp() — that is "
     + "the divergence this test exists to prevent");
+});
+
+// ---- RA2's Verses table is ELEVEN columns wide, not nine ----------------- //
+// rules.ini:19086 lists the order: "None, Flak, Plate //infantry / Light,
+// Medium, Heavy //units / Wood, Steel, Concrete //buildings / Special_1,
+// Special_2". `ARMOURS` carried nine, so the last two had nowhere to live and
+// every `Verses=` row in the game was silently truncated.
+//
+// The one that mattered is Special_1, which rules.ini's own comment defines as
+// "the Terror Drone's 'I'm a unit with infantry vulnerabilities' armor" and
+// [DRON] Armor=special_1 assigns. Ours was `light`, so a rifleman did 50% and
+// the heavier infantry gun 60% to the one unit RA2 designed infantry to answer.
+test("the Terror Drone carries RA2's special_1 armour, and infantry can hurt it", () => {
+  assert.equal(T.ARMOURS.length, 11, "RA2's Verses rows are eleven wide");
+  assert.deepEqual(T.ARMOURS.slice(9), ["special_1", "special_2"]);
+  for (const [k, row] of Object.entries(T.VERSES))
+    assert.equal(row.length, 11, `VERSES.${k} is not eleven columns wide`);
+
+  assert.equal(T.UNITS.drone.armour, "special_1", "[DRON] Armor=special_1");
+
+  // The behaviour, not the table: a rifleman's SA and the Guardian's SSA now
+  // land in full on a drone, where `light` gave them half.
+  assert.equal(T.verses("SA", "special_1"), 1, "small arms hurt a drone in full");
+  assert.ok(T.verses("SA", "special_1") > T.verses("SA", "light"),
+    "special_1 must be softer to small arms than light armour, or the class buys nothing");
+  // ...and RA2 keeps HollowPoint useless against it: [HollowPoint] sp1=1%.
+  assert.equal(T.verses("HollowPoint", "special_1"), 0.01,
+    "[HollowPoint] Verses column 10 is 1% — Tanya does not counter drones");
+});
+
+// ---- veteran promotions are PER LEVEL, all four of them ------------------ //
+// [General] lists four veteran multipliers and the ini calls them "per level":
+// VeteranCombat=1.1, VeteranArmor=1.5, VeteranROF=0.6, VeteranSpeed=1.2, with
+// VeteranCap=2. Combat and Armor were compounded per rank here from the start;
+// ROF and Speed were written `rank === 2 ? x : 1` — elite-only — so a veteran
+// got half the promotion RA2 gives it and rank 1 was worth far less than rank 2.
+//
+// Asserted as a RELATIONSHIP between ranks, not as the constants themselves:
+// the multipliers are what the fix sets, so pinning them would prove nothing.
+test("a veteran fires faster and moves faster than a rookie, not only an elite", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(9711, "normal");
+  const spec = T.UNITS.rhino;
+
+  const cool = (rank) => {
+    const u = H.spawn("rhino", 0, 20 + rank * 2, 20);
+    u.rank = rank;
+    const foe = H.spawn("rhino", 1, 20 + rank * 2, 24);
+    u.cool = 0;
+    H.api3.fire(g, u, foe);
+    return u.cool;
+  };
+  const c0 = cool(0), c1 = cool(1), c2 = cool(2);
+  assert.ok(c1 < c0, `a VETERAN must reload faster than a rookie (${c1} vs ${c0})`);
+  assert.ok(c2 < c1, `an ELITE must reload faster than a veteran (${c2} vs ${c1})`);
+  assert.equal(c0, spec.rate, "a rookie reloads at the unmodified rate");
+
+  // Speed, same shape. `uspd` is the one place every mover reads.
+  assert.equal(typeof H.api3.uspd, "function",
+    "uspd must be exposed — a speed check that silently skips when the hook is "
+    + "missing is the same silent gap this suite exists to remove");
+  const spd = (rank) => {
+    const u = H.spawn("rhino", 0, 30 + rank * 2, 30);
+    u.rank = rank;
+    return H.api3.uspd(u);
+  };
+  const s0 = spd(0), s1 = spd(1), s2 = spd(2);
+  assert.ok(s1 > s0, `a VETERAN must move faster than a rookie (${s1} vs ${s0})`);
+  assert.ok(s2 > s1, `an ELITE must move faster than a veteran (${s2} vs ${s1})`);
 });

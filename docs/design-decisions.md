@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_224 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_226 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -247,6 +247,8 @@ _224 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Every tank was the same lozenge because they were all the same SIZE (2026-09-04)](#every-tank-was-the-same-lozenge-because-they-were-all-the-same-size-2026-09-04)
 - [A laterally-mounted pair collapses to one mast at our broadside (2026-09-04)](#a-laterally-mounted-pair-collapses-to-one-mast-at-our-broadside-2026-09-04)
 - [The Hornet was a flying ore truck (2026-09-04)](#the-hornet-was-a-flying-ore-truck-2026-09-04)
+- [Five tests certified the bugs they guarded (2026-09-04)](#five-tests-certified-the-bugs-they-guarded-2026-09-04)
+- [Ore growth: [General] GrowthRate vs [Riparius] Growth (2026-09-04)](#ore-growth-general-growthrate-vs-riparius-growth-2026-09-04)
 
 <!-- END TOC -->
 
@@ -9038,3 +9040,72 @@ box, would have been caught the day the Hornet was added. The comment above it
 already records the same bug happening once before ("the Phase 8 transports …
 arrive wearing a mining bin") — twice is a pattern, and the third time should be
 prevented by making the fallback loud rather than by remembering.
+## Five tests certified the bugs they guarded (2026-09-04)
+**Symptom.** A sweep against `/tmp/RA2inis` found sixteen weapons firing four
+times too fast, a duplicated `VERSES` row, an Iron Curtain lasting 20 s against
+RA2's 50, and three more constants derived from a frame rate RA2 does not run
+at. Every one of them had a green test over it.
+**Cause.** The tests asserted the wrong values. `wm.rate === 20`,
+`desolator.rate === 50`, `yuri.rate === 200`, `IVAN_BOMB_T === 900`, and an Iron
+Curtain test whose own **title** said "twenty seconds" — each pinned the buggy
+number, several of them on the same line as a comment citing the rules.ini value
+that contradicted it. A test that pins a derived RESULT cannot notice that the
+derivation is wrong.
+**Fix.** Put the derivation in the assertion, not the result: the new guard
+asserts `rate === ROF × 4` against the rules.ini ROF each weapon's own comment
+cites, so the test and the source have to agree about the SPEC rather than about
+each other. Same shape for the frame rate — rules.ini settles it in Westwood's
+own words beside `IronCurtainDuration` (line 693): *"In frames 900 is a minute
+for 15fps"*.
+**The rule that falls out.** When a fix makes an old test fail, read the old
+assertion against its own cited source before assuming the fix is wrong. Here
+all five were the test being wrong. Two others needed only a longer tick budget,
+because the behaviour was correctly slower rather than broken — that is a
+different failure and worth telling apart.
+**Rejected: re-recording the five as a batch.** They looked like golden-master
+drift, and this file has two REAL golden masters beside them (the pinned
+three-minute match) whose documented procedure is exactly to re-record on a sim
+change. Treating all seven the same way would have re-pinned five bugs.
+
+## Ore growth: [General] GrowthRate vs [Riparius] Growth (2026-09-04)
+**Symptom.** Ore densified every second at +2 per cell, unconditionally, which
+refilled a mined-out seam from 120 to full in about six minutes and made ore
+effectively infinite. The audit cited `[General] GrowthRate=5` — five MINUTES.
+**Cause and the fork.** rules.ini has two keys that could drive this.
+`[General] GrowthRate=5` is the global growth LOGIC timer; `[Riparius]
+Growth=2200` (frames, at 15 fps = 146 s) is the ore overlay's own growth period,
+and it sits next to `Spread=2200`, which the spread code beside this already
+uses. Pairing the [General] timer with the per-overlay `GrowthPercentage=.06`
+mixes two scales; the overlay's own key is the more specific reading and keeps
+growth and spread on one convention.
+**Measured, 24 matches × 30 game-minutes, three builds.**
+
+| build | mean length | undecided | real violations | matches reaching exhaustion |
+|---|---|---|---|---|
+| before (ore effectively infinite) | 18.1 min | 1 | 0 | 0 |
+| `[General] GrowthRate=5` (300 s) | 17.6 min | 3 | 0 | 3 |
+| `[Riparius] Growth=2200` (146 s) | 17.5 min | 2 | 1 | 3 |
+
+The single "real" violation in the last row is ONE harvester at one sampled
+minute in a match that still finished with a winner — noise, not a stall.
+
+**So the honest accounting is that the correction costs one to two extra
+undecided matches in twenty-four, and neither cited reading avoids it.** The map
+carries 206 ore cells / ~100k density units, which supports roughly eighteen
+minutes of four-harvester mining a side; RA2 compensates with far larger fields,
+and it has no ore-producing structure either (there is no `[CAMINE]` in v1.006).
+**The map budget is the real lever and not the growth rate** — that is the
+follow-up, and it belongs in the generator, not in a constant tuned to hide the
+symptom.
+**Fix.** `ORE_GROW_T = ORE_SPREAD_T`, i.e. ore's own `Growth=2200`, same
+mechanism (periodic, `GrowthPercentage=.06`, one of RA2's twelve density stages
+per hit) at ore's documented period.
+**Rejected: tuning the period by feel** to whatever cleared the stalemates. The
+number would then have been mine rather than RA2's, and this file has already
+paid for one invented target (`mass.groundCombatSpan` ×6.8). Choosing between
+two CITED readings is a different act from inventing a third.
+**Also rejected: leaving the invariant as it was.** The soak's harvester check
+omitted the protocol's own "*while reachable ore exists*" clause, so it reported
+legitimate ore exhaustion as a stuck-harvester violation and made the first
+reading look far worse than it was. A probe that cannot tell the two apart is
+not evidence about either.
