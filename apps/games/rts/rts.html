@@ -4247,6 +4247,55 @@
     yuri:      { coat: '#2a2436', boot: '#191622', skin: '#e6cdbd' }
   };
 
+  // STATURE — the size class, which our roster did not have. RA2's twelve
+  // infantry span 24 px (Rocketeer) to 37 px (Flak Trooper) tall and 12 px
+  // (GI, Ivan, Yuri) to 18 px (Tesla Trooper) wide; ours all came out
+  // 34-39 x 16-22, a x1.15 height band where RA2 has x1.54. That is why
+  // seven of them had a PEER matching their outline better than they matched
+  // themselves from another bearing: with the same build at the same size,
+  // the only thing left to tell two troopers apart is the props, and the
+  // props are 8% of the mask.
+  //
+  // So every kind gets an [x, y] scale about its own ground anchor, chosen so
+  // the roster reproduces RA2's RELATIVE proportions (unit-identity-reference
+  // §2.1/§2.2's `size class` and the counterpart's measured w x h, normalised
+  // to our own scale: about 1.43x on width and 1.30x on height). It is one
+  // transform on the whole figure, applied outside everything else, so the
+  // man, his weapon and his shadow scale together and the boots stay planted
+  // — nobody is re-posed and nobody is contorted. A shorter man is a shorter
+  // man, which is exactly how RA2 makes a Rocketeer not a Guardian GI.
+  //
+  // The three units NOT scaled to their RA2 number:
+  //   * `flak` stays a normal-sized man. RA2's Flak Trooper is 37 px because
+  //     of the CANNON above his helmet, not because he is a giant; his extra
+  //     height is bought in the barrel below, and scaling him 1.30 would have
+  //     made a nine-foot soldier instead.
+  //   * `tanya` and `dog` keep their width — hers is the two pistols held out
+  //     to the sides (§2.1's own budget) and his is the quadruped spine, the
+  //     one infantry silhouette that already reads.
+  // Tallest first, which is the order a player reads them in. The x:y ratio
+  // of each pair also tracks the RA2 counterpart's own aspect against the
+  // Conscript's (13x27): Yuri 0.84 against RA2's 0.86, the Tesla Trooper 1.35
+  // against 1.34, the Rocketeer 1.30 against 1.38 — so nobody is stretched
+  // into a shape RA2 does not give him, they are only sized apart.
+  var STATURE = {
+    flak:         [0.87, 0.98],   // i-XL by BARREL: a narrow man under a tall gun
+    rocket:       [1.10, 1.14],   // i-M 15x30 — the Guardian is the heavy one
+    yuri:         [0.87, 1.02],   // i-L 12x29 — the tallest man carrying no weapon
+    desolator:    [1.32, 0.98],   // i-M — the bulk of a sealed hazard suit
+    teslatrooper: [1.30, 0.95],   // i-M 18x28 — THE widest, and NOT the tallest
+    rifle:        [0.92, 0.99],   // i-M 12x28 — narrow; the baseline soldier
+    conscript:    [1.00, 1.05],   // i-M 13x27 — the reference figure
+    cleg:         [1.22, 0.84],   // i-M 15x26 — the widest Directorate shoulders
+    tanya:        [0.94, 0.94],   // i-M 13x26, and the pistols keep her wide
+    ivan:         [0.80, 0.88],   // i-S 12x25 — the narrowest of the Collective
+    engineer:     [0.99, 0.86],   // i-S 13x25 — a workman, not a soldier
+    spy:          [0.88, 0.82],   // i-S 13x25 — the slightest figure on the field
+    rocketeer:    [1.12, 0.86],   // i-S 16x24 — the shortest, broadened by the pack
+    dog:          [1.00, 1.00],   // i-XS, quadruped: already the one that reads
+    _:            [1.00, 1.00],
+  };
+
   // THE WALK. RA2's `[E1Sequence] Walk=8,6,6` (art.ini:9659) is SIX frames per
   // facing, so the cycle is baked at six phases and drawUnit steps one every
   // five ticks. The cycle is one continuous sine: `swf` is the stride (which
@@ -4364,7 +4413,12 @@
     // the anchor); the head, the hip line and the hand props are then re-cut
     // per branch, because a uniform squeeze cannot fix a head that is too big
     // in BOTH axes.
-    g.translate(cx, by); g.scale(0.90, 1); g.translate(-cx, -by);
+    // ...and then the kind's own STATURE (see the table): the size class RA2
+    // gives this man against the rest of the roster, as one scale about the
+    // same ground anchor, so the whole figure — weapon, props and shadow —
+    // grows or shrinks together and the boots stay on the floor.
+    var STA = STATURE[kind] || STATURE._;
+    g.translate(cx, by); g.scale(0.90 * STA[0], STA[1]); g.translate(-cx, -by);
 
     // ---- FACING + POSE -------------------------------------------------
     // A turned figure is the SAME art under two transforms, not nine more
@@ -4811,25 +4865,38 @@
 
       wpn(function () {
       var ry = gt.bob ? 0.4 : 0;                                    // launcher rides the bob
+      // BRACED AND ANGLED UP, not carried level. §2.1 gives the Guardian "the
+      // shoulder missile tube, angled ~30 deg up, overhanging the head by 5-6
+      // px" and it was lying flat across his chest at 20 deg, which put its
+      // amber warhead at the same height and reach as the Desolator's
+      // shoulder cannon — the two of them were each other's nearest
+      // silhouette on the field. The tube now climbs past the helmet line and
+      // the Desolator's stays level, which is the difference between a
+      // launcher aimed at aircraft and a beam gun aimed at the ground.
+      //
+      // 39 deg, not steeper: `spikeOf` measures the row EXTENT of whatever
+      // protrudes, and a 3.4-wide tube laid at 39 deg is 5.4 px across a row
+      // where a vertical one would be 3.4 — the Flak Trooper's barrel had to
+      // be widened for exactly this reason, and the angle buys it here free.
       g.strokeStyle = '#33383f'; g.lineWidth = 3.4; g.lineCap = 'round';
       g.beginPath();                                                // missile tube
-      g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 6.8, by - 18.2 - ry); g.stroke();
+      g.moveTo(cx - 4.9, by - 13.8 + ry); g.lineTo(cx + 7.4, by - 23.6 - ry); g.stroke();
       g.strokeStyle = '#6b7480'; g.lineWidth = 1.3;                 // tube glint
       g.beginPath();
-      g.moveTo(cx - 3.9, by - 14.5 + ry); g.lineTo(cx + 6.0, by - 18.3 - ry); g.stroke();
+      g.moveTo(cx - 3.9, by - 14.9 + ry); g.lineTo(cx + 6.6, by - 23.4 - ry); g.stroke();
       g.strokeStyle = col; g.lineWidth = 3.6; g.lineCap = 'butt';   // house-colour trim band
       g.beginPath();
-      g.moveTo(cx + 2.0, by - 16.0); g.lineTo(cx + 3.2, by - 16.4); g.stroke();
+      g.moveTo(cx + 1.9, by - 19.2); g.lineTo(cx + 3.1, by - 20.2); g.stroke();
       g.lineCap = 'round';
       g.fillStyle = '#2a2e34';                                      // pistol grip + rear vent
       g.beginPath(); g.roundRect(cx - 1.6, by - 14.3 + ry, 2.1, 2.8, 0.7); g.fill();
       g.fillStyle = ACCENT.rocket;                                  // amber warhead
       g.beginPath();
-      g.moveTo(cx + 6.4, by - 19.7 - ry); g.lineTo(cx + 9.1, by - 18.8 - ry);
-      g.lineTo(cx + 6.4, by - 17.3 - ry); g.closePath(); g.fill();
+      g.moveTo(cx + 6.6, by - 25.4 - ry); g.lineTo(cx + 9.6, by - 23.6 - ry);
+      g.lineTo(cx + 7.0, by - 22.2 - ry); g.closePath(); g.fill();
       outline(g, '#6a4a10');
       g.fillStyle = shade(ACCENT.rocket, 1.28);
-      g.fillRect(cx + 6.7, by - 19.2 - ry, 1.6, 0.8);
+      g.fillRect(cx + 7.0, by - 24.6 - ry, 1.7, 0.9);
       });
 
       face(by - 21.7);
@@ -4850,7 +4917,10 @@
       // barrel rising past the helmet and out of the body outline.
       // Laying that barrel horizontally across the hip (the first attempt)
       // turned him into a man carrying a broom and lost the tell entirely.
-      legs(2.6, by - 12.5, 3.5, '#7a5138', 4.0);
+      legs(3.0, by - 12.5, 3.9, '#7a5138', 4.4);   // a wider stance: he is squeezed
+                                                   // to RA2's 12 px of width and at
+                                                   // the rifleman's 2.6 his two legs
+                                                   // closed into one brown post
 
       g.save(); g.translate(gt.lean, gt.bob);
       g.fillStyle = T.coat;                                         // dark tunic, flared
@@ -4877,32 +4947,67 @@
       });
 
       g.fillStyle = col;                                            // house-colour chest vest
-      g.beginPath();
-      g.moveTo(cx - 5.1, by - 20.3); g.lineTo(cx + 4.6, by - 20.3);
-      g.lineTo(cx + 3.8, by - 12.6); g.lineTo(cx - 4.6, by - 12.6);
+      g.beginPath();                                                // collar to BELOW the belt, as
+      g.moveTo(cx - 5.3, by - 20.3); g.lineTo(cx + 4.9, by - 20.3);  // the Conscript's tunic is
+      g.lineTo(cx + 4.2, by - 11.6); g.lineTo(cx - 4.9, by - 11.6);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);                               // lit left panel
-      g.fillRect(cx - 4.9, by - 19.8, 3.2, 6.9);
+      g.fillRect(cx - 5.1, by - 19.8, 3.3, 7.9);
       g.fillStyle = shade(col, 0.74);                               // shoulder-strap shadow
-      g.fillRect(cx + 1.6, by - 19.6, 2.5, 6.5);
+      g.fillRect(cx + 1.6, by - 19.6, 2.6, 7.5);
 
       wpn(function () {
       var fy = gt.bob ? 0.5 : 0;                                    // cannon rides the bob
-      var bx0 = cx + 2.4, by0 = by - 12.8 + fy;                     // grip, at the right hip
-      var bx1 = cx + 5.6, by1 = by - 26.4 - fy;                     // muzzle, above the helmet
-      g.strokeStyle = '#23262c'; g.lineWidth = 3.4; g.lineCap = 'butt';
+      // THE SPIKE, and the reason he is the tallest thing on the field.
+      // §2.2 asks for "9-10 px of pure spike above the helmet" and a total
+      // height >= 1.25x a Conscript's; the muzzle used to stop level with the
+      // helmet CROWN, so the tell was a barrel you could not see over the man
+      // and the gate scored his helmet as his spike. It now clears the crown
+      // by about 8 screen px at zoom 1, which is what makes a 12x37 Flak
+      // Trooper stand a head-and-a-half over a 13x27 Conscript in RA2.
+      //
+      // The bore is FAT on purpose. The barrel is what protrudes, so it is
+      // the run `spikeOf` measures, and a 3.4-wide stroke came back at 3.3
+      // screen px — under the 3.64 floor that keeps a feature alive at ZMIN
+      // (this is the Desolator's backpack trap in reverse: raise a thin thing
+      // clear of the body and the THIN thing becomes the measured spike). A
+      // flak cannon is a big-bore AA gun and can carry the width honestly.
+      // Carried OUTBOARD of the head, not across it: braced at the right hip
+      // and rising past the shoulder, so the man's helmet and face stay clear
+      // of the bore. Run up the centre line and the barrel drew a bar over
+      // his face and the figure stopped reading as a soldier at all.
+      var bx0 = cx + 3.4, by0 = by - 12.8 + fy;                     // grip, at the right hip
+      var bx1 = cx + 8.2, by1 = by - 33.2 - fy;                     // muzzle, a head above the helmet
+      g.strokeStyle = '#23262c'; g.lineWidth = 4.6; g.lineCap = 'butt';
       g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
-      g.strokeStyle = '#a9b2bd'; g.lineWidth = 2.1;                 // pale steel barrel
+      g.strokeStyle = '#a9b2bd'; g.lineWidth = 2.6;                 // pale steel barrel
       g.beginPath(); g.moveTo(bx0, by0); g.lineTo(bx1, by1); g.stroke();
-      g.strokeStyle = '#e2e8ef'; g.lineWidth = 1.0;                 // left-edge highlight
-      g.beginPath();
-      g.moveTo(bx0 - 0.8, by0 - 0.4); g.lineTo(bx1 - 0.8, by1 + 0.6); g.stroke();
+      g.strokeStyle = '#d3dae2'; g.lineWidth = 1.0;                 // one edge highlight, no more:
+      g.beginPath();                                                // rungs of cooling rings up a
+      g.moveTo(bx0 - 0.7, by0 - 0.4);                               // pale bore turned the cannon
+      g.lineTo(bx1 - 0.7, by1 + 0.6); g.stroke();                   // into a LADDER
       g.fillStyle = '#dde3ea';                                      // muzzle brake
-      g.beginPath(); g.roundRect(bx1 - 1.7, by1 - 0.8, 3.4, 2.2, 0.7); g.fill();
+      g.beginPath(); g.roundRect(bx1 - 2.4, by1 - 1.0, 4.8, 2.6, 0.8); g.fill();
       outline(g, '#4a5058');
+      g.fillStyle = '#3b414a';                                      // a single collar at the breech
+      g.beginPath(); g.roundRect(bx0 + 0.4, by0 - 6.4, 4.6, 2.0, 0.6); g.fill();
       g.fillStyle = '#2c2f35';                                      // receiver box
       g.beginPath(); g.roundRect(cx + 0.5, by - 15.2 + fy, 3.7, 3.6, 1.0); g.fill();
       outline(g, '#15171a');
+      // A house band round the breech. The raised cannon is ~70 px of neutral
+      // steel the figure did not carry before, and it took his remap from
+      // 22.1% of the sprite to 16.7% — under §1.4's floor for a uniformed
+      // trooper. Putting the budget back on the GUN (as the Guardian GI's
+      // tube already carries a trim band) rather than on the sleeves keeps
+      // his grey-brown tunic in the picture, which is the drab hue that
+      // separates him from the Rocketeer's orange-lit flight suit.
+      g.fillStyle = col;
+      g.beginPath();
+      g.moveTo(cx + 1.1, by - 17.6 + fy); g.lineTo(cx + 4.7, by - 18.3 + fy);
+      g.lineTo(cx + 5.5, by - 15.0 + fy); g.lineTo(cx + 1.9, by - 14.3 + fy);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.40));
+      g.fillStyle = shade(col, 1.22);
+      g.fillRect(cx + 1.5, by - 17.4 + fy, 3.2, 1.0);
       g.fillStyle = ACCENT.rocket;                                  // amber shell drum
       g.beginPath(); g.ellipse(cx + 0.2, by - 14.0 + fy, 1.2, 1.45, 0.2, 0, 6.29); g.fill();
       outline(g, '#6a4a10');
@@ -5448,13 +5553,16 @@
         g.fillStyle = '#2e3238';                                     // shoulder yoke
         g.beginPath(); g.roundRect(cx - 2.1, gy0 + 0.5, 2.1, 3.2, 0.9); g.fill();
         // the muzzle: a green disc with a soft bloom, his one loud surface
-        g.fillStyle = 'rgba(77,224,74,.28)';
-        g.beginPath(); g.ellipse(cx + 5.9, gy0 + 1.7, 2.1, 2.1, 0, 0, 6.29); g.fill();
+        // WIDE-MOUTHED, as §2.2 asks: "gun muzzle >= 4 px across (fat, not a
+        // rifle)". The green disc measured 2.7 px at zoom 1 and was the one
+        // hue on the field nobody else carries — too small to do either job.
+        g.fillStyle = 'rgba(77,224,74,.30)';
+        g.beginPath(); g.ellipse(cx + 6.0, gy0 + 1.7, 2.6, 2.6, 0, 0, 6.29); g.fill();
         g.fillStyle = ACCENT.desolator;
-        g.beginPath(); g.ellipse(cx + 5.9, gy0 + 1.7, 1.25, 1.35, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(cx + 6.0, gy0 + 1.7, 1.95, 2.05, 0, 0, 6.29); g.fill();
         outline(g, '#1f5c1e');
         g.fillStyle = '#d6ffd0';
-        g.beginPath(); g.ellipse(cx + 5.6, gy0 + 1.3, 0.55, 0.55, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(cx + 5.5, gy0 + 1.1, 0.7, 0.7, 0, 0, 6.29); g.fill();
         // the ribbed feed hose running back to the pack
         g.strokeStyle = '#4a5058'; g.lineWidth = 1.1;
         g.beginPath(); g.moveTo(cx - 0.6, gy0 + 2.9);
@@ -5599,11 +5707,17 @@
       // they read as light rather than as paint.
       g.save();
       g.globalCompositeOperation = 'lighter';
+      // Clear of the skull, not straddling it. Sat on the temple the additive
+      // glow landed half on the skin outline and summed to a PINK fringe
+      // — 0.2% of the sprite reading as the other owner's hue on a blue Yuri
+      // (the `hue.maxImpostor` trap the Conscript's trousers were caught by).
+      // Beside the head it sums over the background instead, and an aura
+      // floating off the temples is the better read anyway.
       for (var ypi = -1; ypi <= 1; ypi += 2) {
-        g.fillStyle = 'rgba(168,111,240,.40)';
-        g.beginPath(); g.ellipse(yhx + ypi * 3.2, by - 24.8, 1.25, 1.25, 0, 0, 6.29); g.fill();
+        g.fillStyle = 'rgba(168,111,240,.30)';
+        g.beginPath(); g.ellipse(yhx + ypi * 4.3, by - 24.8, 1.05, 1.05, 0, 0, 6.29); g.fill();
         g.fillStyle = ACCENT.yuri;
-        g.beginPath(); g.ellipse(yhx + ypi * 3.2, by - 24.8, 0.55, 0.55, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(yhx + ypi * 4.3, by - 24.8, 0.55, 0.55, 0, 0, 6.29); g.fill();
       }
       g.restore();
       g.restore();
@@ -5638,10 +5752,19 @@
       g.fillStyle = col;
       g.beginPath();
       g.moveTo(cx - 5.6, by - 20.7); g.lineTo(cx + 5.6, by - 20.7);
-      g.lineTo(cx + 3.2, by - 16.9); g.lineTo(cx - 3.2, by - 16.9);
+      g.lineTo(cx + 3.4, by - 15.9); g.lineTo(cx - 3.4, by - 15.9);
       g.closePath(); g.fill(); outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);
       g.fillRect(cx - 5.4, by - 20.5, 3.2, 2.4);
+      // ...and one trim band round each greave. He was the last uniformed
+      // trooper under §1.4's 20% floor at 19.4%, and "red trim" (§1.5) is
+      // exactly what a knee band is — it does not touch the bone-white plate
+      // that is his actual identity.
+      for (var clk = -1; clk <= 1; clk += 2) {
+        g.fillStyle = shade(col, 0.94);
+        g.beginPath(); g.roundRect(cx + clk * 2.7 - 2.0, by - 8.6, 4.0, 2.0, 0.6); g.fill();
+        outline(g, shade(col, 0.44));
+      }
       g.fillStyle = '#5f6a7a';                                       // chest vent slot
       g.fillRect(cx - 1.6, by - 17.4, 3.2, 1.9);
       g.fillStyle = ACCENT.cleg;

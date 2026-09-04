@@ -127,28 +127,28 @@
     }
   },
   "metrics": {
-    "peerVsSelf.total": 29,
+    "peerVsSelf.total": 20,
     "peerVsSelf.vehicle": 11,
-    "peerVsSelf.infantry": 10,
+    "peerVsSelf.infantry": 1,
     "peerVsSelf.naval": 8,
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.6769,
     "iou.vehicle.mean": 0.5802,
-    "iou.infantry.mean": 0.6417,
+    "iou.infantry.mean": 0.541,
     "iou.naval.mean": 0.4781,
     "iou.air.mean": 0.3025,
-    "iou.sameFactionOver75": 14,
+    "iou.sameFactionOver75": 8,
     "spike.belowFloor": 2,
     "spike.minThickAtZmin": 1.65,
     "spike.belowDeclaredBudget": 4,
     "mass.groundCombatSpan": 2.357,
     "mass.tightestBand6": 1.2,
-    "hue.infantryOwnerMean": 0.2323,
-    "hue.infantryBelowBudget": 2,
+    "hue.infantryOwnerMean": 0.2439,
+    "hue.infantryBelowBudget": 1,
     "hue.vehicleOwnerMean": 0.1698,
     "hue.vehicleOwnerMax": 0.2506,
     "hue.maxImpostor": 0.0033,
-    "colour.infantry.meanDist": 1.2733
+    "colour.infantry.meanDist": 1.2754
   },
   "detail": {
     "counts": {
@@ -169,10 +169,10 @@
         "over75": 12
       },
       "infantry": {
-        "mean": 0.6417,
+        "mean": 0.541,
         "pairs": 91,
-        "max": 0.836,
-        "over75": 15
+        "max": 0.7935,
+        "over75": 4
       },
       "naval": {
         "mean": 0.4781,
@@ -192,7 +192,7 @@
         "max": 0.8158,
         "over75": 7
       },
-      "sameFactionOver75": 14
+      "sameFactionOver75": 8
     },
     "worstSameFactionPairs": [
       {
@@ -201,19 +201,9 @@
         "iou": 0.8371
       },
       {
-        "a": "Spy",
-        "b": "Tanya",
-        "iou": 0.836
-      },
-      {
         "a": "Mirage Tank",
         "b": "Prism Tank",
         "iou": 0.8158
-      },
-      {
-        "a": "Engineer",
-        "b": "Tanya",
-        "iou": 0.8037
       },
       {
         "a": "Rhino Tank",
@@ -226,86 +216,76 @@
         "iou": 0.7991
       },
       {
-        "a": "Engineer",
-        "b": "Spy",
-        "iou": 0.7945
-      },
-      {
         "a": "Rhino Tank",
         "b": "War Miner",
         "iou": 0.7916
       },
       {
         "a": "Engineer",
-        "b": "Crazy Ivan",
-        "iou": 0.7911
-      },
-      {
-        "a": "Chrono Legionnaire",
-        "b": "GI",
-        "iou": 0.759
-      },
-      {
-        "a": "Crazy Ivan",
-        "b": "Yuri",
-        "iou": 0.7535
+        "b": "Spy",
+        "iou": 0.7647
       },
       {
         "a": "Aegis Cruiser",
         "b": "Destroyer",
         "iou": 0.7524
+      },
+      {
+        "a": "Engineer",
+        "b": "Tanya",
+        "iou": 0.7519
       }
     ],
     "closestColourPairs": [
       {
         "a": "engineer",
         "b": "dog",
-        "dist": 0.105
+        "dist": 0.047
       },
       {
         "a": "ivan",
         "b": "spy",
-        "dist": 0.236
+        "dist": 0.207
       },
       {
         "a": "teslatrooper",
         "b": "ivan",
-        "dist": 0.31
+        "dist": 0.336
       },
       {
         "a": "teslatrooper",
         "b": "cleg",
-        "dist": 0.41
-      },
-      {
-        "a": "teslatrooper",
-        "b": "spy",
-        "dist": 0.418
-      },
-      {
-        "a": "rifle",
-        "b": "rocket",
-        "dist": 0.424
-      },
-      {
-        "a": "ivan",
-        "b": "cleg",
-        "dist": 0.654
-      },
-      {
-        "a": "conscript",
-        "b": "spy",
-        "dist": 0.656
+        "dist": 0.378
       },
       {
         "a": "flak",
         "b": "rocketeer",
-        "dist": 0.662
+        "dist": 0.49
+      },
+      {
+        "a": "rifle",
+        "b": "rocket",
+        "dist": 0.528
+      },
+      {
+        "a": "teslatrooper",
+        "b": "spy",
+        "dist": 0.534
+      },
+      {
+        "a": "ivan",
+        "b": "cleg",
+        "dist": 0.621
+      },
+      {
+        "a": "rocketeer",
+        "b": "spy",
+        "dist": 0.688
       },
       {
         "a": "conscript",
-        "b": "engineer",
-        "dist": 0.687
+        "b": "spy",
+        "dist": 0.69
       }
     ],
     "topImpostors": [
@@ -318,59 +298,59 @@
         "pct": 0.0027
       },
       {
+        "key": "conscript",
+        "pct": 0.0007
+      },
+      {
+        "key": "tanya",
+        "pct": 0.0004
+      },
+      {
+        "key": "rifle",
+        "pct": 0.0004
+      },
+      {
+        "key": "rocket",
+        "pct": 0.0002
+      },
+      {
         "key": "seascorp",
         "pct": 0.0001
       },
       {
         "key": "chronominer",
         "pct": 0
-      },
-      {
-        "key": "warminer",
-        "pct": 0
-      },
-      {
-        "key": "rifle",
-        "pct": 0
-      },
-      {
-        "key": "conscript",
-        "pct": 0
-      },
-      {
-        "key": "rocket",
-        "pct": 0
       }
     ],
     "ownerPctByUnit": {
       "chronominer": 0.1455,
       "warminer": 0.1816,
-      "rifle": 0.2743,
-      "conscript": 0.31,
-      "rocket": 0.2459,
-      "flak": 0.2212,
-      "rocketeer": 0.3433,
+      "rifle": 0.2737,
+      "conscript": 0.3201,
+      "rocket": 0.2396,
+      "flak": 0.2477,
+      "rocketeer": 0.3418,
       "harrier": 0.2298,
       "kirov": 0.2664,
       "lancer": 0.1532,
       "mammoth": 0.1359,
-      "engineer": 0.3678,
+      "engineer": 0.3659,
       "dog": 0.0665,
       "ifv": 0.1821,
       "mirage": 0.1409,
-      "tanya": 0.14,
+      "tanya": 0.1536,
       "rhino": 0.133,
       "flaktrack": 0.1958,
       "v3": 0.1557,
-      "teslatrooper": 0.2183,
-      "ivan": 0.3129,
+      "teslatrooper": 0.2062,
+      "ivan": 0.3169,
       "drone": 0.1913,
       "teslatank": 0.1594,
       "prismtank": 0.1823,
-      "desolator": 0.2422,
-      "yuri": 0.2579,
-      "cleg": 0.1935,
-      "spy": 0.0581,
+      "desolator": 0.2466,
+      "yuri": 0.255,
+      "cleg": 0.3162,
+      "spy": 0.0646,
       "nighthawk": 0.0129,
       "apc": 0.0735,
       "destroyer": 0.1634,
@@ -486,20 +466,20 @@
         "name": "Chrono Legionnaire",
         "group": "infantry",
         "fac": "dir",
-        "mass": 370,
-        "bboxW": 20,
-        "bboxH": 35,
-        "aspect": 0.493,
-        "selfIoU": 0.7321,
-        "bestPeer": "Desolator",
-        "bestPeerIoU": 0.7637,
-        "peersBeatingSelf": 2,
+        "mass": 377,
+        "bboxW": 24,
+        "bboxH": 30,
+        "aspect": 0.683,
+        "selfIoU": 0.7073,
+        "bestPeer": "Rocketeer",
+        "bestPeerIoU": 0.7048,
+        "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "h",
-          "len": 6,
-          "thick": 6.5,
-          "atZmin": 3.58,
+          "len": 7,
+          "thick": 5,
+          "atZmin": 2.75,
           "budget": 9,
           "feature": "powered-suit shoulder line >=15 px + a long level rifle"
         }
@@ -508,18 +488,18 @@
         "name": "Conscript",
         "group": "infantry",
         "fac": "col",
-        "mass": 342,
+        "mass": 361,
         "bboxW": 18,
-        "bboxH": 34,
-        "aspect": 0.482,
-        "selfIoU": 0.7218,
-        "bestPeer": "Spy",
-        "bestPeerIoU": 0.7387,
-        "peersBeatingSelf": 2,
+        "bboxH": 36,
+        "aspect": 0.444,
+        "selfIoU": 0.7387,
+        "bestPeer": "Tanya",
+        "bestPeerIoU": 0.7181,
+        "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
-          "len": 4,
+          "len": 5,
           "thick": 6,
           "atZmin": 3.3,
           "budget": 3,
@@ -530,20 +510,20 @@
         "name": "Desolator",
         "group": "infantry",
         "fac": "col",
-        "mass": 396,
-        "bboxW": 19,
-        "bboxH": 36,
-        "aspect": 0.507,
-        "selfIoU": 0.6742,
-        "bestPeer": "Guardian GI",
-        "bestPeerIoU": 0.7789,
-        "peersBeatingSelf": 4,
+        "mass": 512,
+        "bboxW": 25,
+        "bboxH": 35,
+        "aspect": 0.679,
+        "selfIoU": 0.6713,
+        "bestPeer": "Tesla Trooper",
+        "bestPeerIoU": 0.6567,
+        "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
-          "len": 5,
-          "thick": 6,
-          "atZmin": 3.3,
+          "len": 7,
+          "thick": 7,
+          "atZmin": 3.85,
           "budget": 5,
           "feature": "backpack tank above the shoulder line + a fat beam muzzle"
         }
@@ -580,7 +560,7 @@
         "aspect": 1.063,
         "selfIoU": 0.5406,
         "bestPeer": "Rocketeer",
-        "bestPeerIoU": 0.4489,
+        "bestPeerIoU": 0.4879,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -662,18 +642,18 @@
         "name": "Engineer",
         "group": "infantry",
         "fac": null,
-        "mass": 359,
+        "mass": 310,
         "bboxW": 19,
-        "bboxH": 36,
-        "aspect": 0.424,
-        "selfIoU": 0.7679,
-        "bestPeer": "Tanya",
-        "bestPeerIoU": 0.8037,
-        "peersBeatingSelf": 3,
+        "bboxH": 31,
+        "aspect": 0.492,
+        "selfIoU": 0.7716,
+        "bestPeer": "Spy",
+        "bestPeerIoU": 0.7647,
+        "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
-          "len": 8,
+          "len": 6,
           "thick": 6,
           "atZmin": 3.3,
           "budget": 3,
@@ -684,20 +664,20 @@
         "name": "Flak Trooper",
         "group": "infantry",
         "fac": "col",
-        "mass": 414,
+        "mass": 439,
         "bboxW": 20,
-        "bboxH": 37,
-        "aspect": 0.493,
-        "selfIoU": 0.6802,
-        "bestPeer": "Desolator",
-        "bestPeerIoU": 0.7378,
-        "peersBeatingSelf": 5,
+        "bboxH": 45,
+        "aspect": 0.417,
+        "selfIoU": 0.5569,
+        "bestPeer": "Guardian GI",
+        "bestPeerIoU": 0.5505,
+        "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
-          "len": 3,
-          "thick": 8,
-          "atZmin": 4.4,
+          "len": 11,
+          "thick": 5,
+          "atZmin": 2.75,
           "budget": 2.5,
           "feature": "flak barrel raised 45-60°, 9-10 px of spike above the helmet"
         }
@@ -794,20 +774,20 @@
         "name": "Crazy Ivan",
         "group": "infantry",
         "fac": "col",
-        "mass": 411,
-        "bboxW": 21,
-        "bboxH": 35,
-        "aspect": 0.45,
-        "selfIoU": 0.8318,
-        "bestPeer": "Tanya",
-        "bestPeerIoU": 0.8222,
+        "mass": 299,
+        "bboxW": 17,
+        "bboxH": 32,
+        "aspect": 0.414,
+        "selfIoU": 0.8296,
+        "bestPeer": "Spy",
+        "bestPeerIoU": 0.7935,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "h",
-          "len": 4,
-          "thick": 14.5,
-          "atZmin": 7.98,
+          "len": 3,
+          "thick": 11,
+          "atZmin": 6.05,
           "budget": 2,
           "feature": "ushanka flaps breaking the head outline >=2 px each side"
         }
@@ -1014,20 +994,20 @@
         "name": "GI",
         "group": "infantry",
         "fac": "dir",
-        "mass": 345,
-        "bboxW": 19,
+        "mass": 325,
+        "bboxW": 17,
         "bboxH": 36,
-        "aspect": 0.479,
-        "selfIoU": 0.657,
-        "bestPeer": "Desolator",
-        "bestPeerIoU": 0.7783,
-        "peersBeatingSelf": 9,
+        "aspect": 0.451,
+        "selfIoU": 0.6174,
+        "bestPeer": "Yuri",
+        "bestPeerIoU": 0.6147,
+        "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
-          "len": 8,
-          "thick": 6,
-          "atZmin": 3.3,
+          "len": 14,
+          "thick": 5,
+          "atZmin": 2.75,
           "budget": 3,
           "feature": "grey pot helmet over a house torso block (no usable silhouette)"
         }
@@ -1036,20 +1016,20 @@
         "name": "Guardian GI",
         "group": "infantry",
         "fac": "dir",
-        "mass": 390,
-        "bboxW": 21,
-        "bboxH": 37,
-        "aspect": 0.534,
-        "selfIoU": 0.5733,
+        "mass": 507,
+        "bboxW": 24,
+        "bboxH": 42,
+        "aspect": 0.542,
+        "selfIoU": 0.5351,
         "bestPeer": "Desolator",
-        "bestPeerIoU": 0.7789,
-        "peersBeatingSelf": 7,
+        "bestPeerIoU": 0.6131,
+        "peersBeatingSelf": 3,
         "peers": 13,
         "spike": {
           "axis": "v",
-          "len": 9,
-          "thick": 6,
-          "atZmin": 3.3,
+          "len": 3,
+          "thick": 10,
+          "atZmin": 5.5,
           "budget": 2.5,
           "feature": "shoulder missile tube, ~30° up, clearing the helmet by >=4 px"
         }
@@ -1058,20 +1038,20 @@
         "name": "Rocketeer",
         "group": "infantry",
         "fac": "dir",
-        "mass": 358,
-        "bboxW": 20,
-        "bboxH": 34,
-        "aspect": 0.507,
-        "selfIoU": 0.699,
+        "mass": 342,
+        "bboxW": 22,
+        "bboxH": 29,
+        "aspect": 0.664,
+        "selfIoU": 0.7167,
         "bestPeer": "Chrono Legionnaire",
-        "bestPeerIoU": 0.7176,
-        "peersBeatingSelf": 2,
+        "bestPeerIoU": 0.7048,
+        "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
-          "len": 9,
-          "thick": 6,
-          "atZmin": 3.3,
+          "len": 8,
+          "thick": 6.5,
+          "atZmin": 3.58,
           "budget": 4,
           "feature": "airborne: altitude offset + pack tanks behind the shoulders"
         }
@@ -1102,18 +1082,18 @@
         "name": "Spy",
         "group": "infantry",
         "fac": "dir",
-        "mass": 357,
-        "bboxW": 17,
-        "bboxH": 35,
-        "aspect": 0.421,
-        "selfIoU": 0.8029,
-        "bestPeer": "Tanya",
-        "bestPeerIoU": 0.836,
-        "peersBeatingSelf": 2,
+        "mass": 265,
+        "bboxW": 16,
+        "bboxH": 30,
+        "aspect": 0.433,
+        "selfIoU": 0.7954,
+        "bestPeer": "Crazy Ivan",
+        "bestPeerIoU": 0.7935,
+        "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
-          "len": 4,
+          "len": 6,
           "thick": 5,
           "atZmin": 2.75,
           "budget": 7,
@@ -1168,20 +1148,20 @@
         "name": "Tanya",
         "group": "infantry",
         "fac": "dir",
-        "mass": 348,
-        "bboxW": 22,
-        "bboxH": 35,
-        "aspect": 0.457,
-        "selfIoU": 0.8129,
-        "bestPeer": "Spy",
-        "bestPeerIoU": 0.836,
-        "peersBeatingSelf": 2,
+        "mass": 312,
+        "bboxW": 20,
+        "bboxH": 33,
+        "aspect": 0.439,
+        "selfIoU": 0.7827,
+        "bestPeer": "Crazy Ivan",
+        "bestPeerIoU": 0.777,
+        "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "h",
-          "len": 6,
-          "thick": 10,
-          "atZmin": 5.5,
+          "len": 5,
+          "thick": 6,
+          "atZmin": 3.3,
           "budget": 2,
           "feature": "two pistols out to the sides, breaking the outline >=2 px each"
         }
@@ -1212,20 +1192,20 @@
         "name": "Tesla Trooper",
         "group": "infantry",
         "fac": "col",
-        "mass": 428,
-        "bboxW": 21,
-        "bboxH": 39,
-        "aspect": 0.404,
-        "selfIoU": 0.8208,
-        "bestPeer": "Engineer",
-        "bestPeerIoU": 0.7513,
+        "mass": 526,
+        "bboxW": 27,
+        "bboxH": 37,
+        "aspect": 0.554,
+        "selfIoU": 0.8101,
+        "bestPeer": "Desolator",
+        "bestPeerIoU": 0.6567,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "h",
-          "len": 5,
-          "thick": 14,
-          "atZmin": 7.7,
+          "len": 6,
+          "thick": 13,
+          "atZmin": 7.15,
           "budget": 3,
           "feature": "pauldrons — the widest infantry, shoulder line >=18 px"
         }
@@ -1278,13 +1258,13 @@
         "name": "Yuri",
         "group": "infantry",
         "fac": "col",
-        "mass": 408,
-        "bboxW": 16,
-        "bboxH": 38,
-        "aspect": 0.382,
-        "selfIoU": 0.845,
-        "bestPeer": "Spy",
-        "bestPeerIoU": 0.7899,
+        "mass": 369,
+        "bboxW": 14,
+        "bboxH": 39,
+        "aspect": 0.321,
+        "selfIoU": 0.8503,
+        "bestPeer": "Tanya",
+        "bestPeerIoU": 0.7013,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
