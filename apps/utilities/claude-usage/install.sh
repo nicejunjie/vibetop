@@ -15,7 +15,7 @@
 #
 # Configurable via env vars (all optional):
 #   APP_USER         system user Claude Code runs as   (default: invoking user)
-#   APP_DIR          repo checkout dir                 (default: repo root)
+#   APP_DIR          dir holding this installer        (default: this script's dir)
 #   INSTALL_SYSTEMD  render the systemd unit           (default 1)
 #   DRY_RUN          print actions without executing   (default 0)
 set -euo pipefail
@@ -38,7 +38,7 @@ if [ -z "${VIBETOP_ADMINS:-}" ] && [ -r "$VT_ENV_FILE" ]; then
 fi
 OPERATOR="${OPERATOR:-${VIBETOP_ADMINS:-$APP_USER}}"
 OPERATOR="${OPERATOR%%,*}"
-# APP_DIR = repo root (this script lives in <repo>/claude-usage/)
+# APP_DIR = the dir this script lives in (<repo>/apps/utilities/claude-usage)
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist on this system" >&2; exit 1

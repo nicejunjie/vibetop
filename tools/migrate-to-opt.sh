@@ -35,14 +35,14 @@ BK="/etc/vibetop/pre-opt-backup"
 
 # Dev tree + operator (admin) = this script's repo + the checkout owner.
 DEV_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-ADMIN_USER="${ADMIN_USER:-$(stat -c %U "$DEV_DIR/terminal/terminal-manager.py")}"
+ADMIN_USER="${ADMIN_USER:-$(stat -c %U "$DEV_DIR/server/terminal-manager.py")}"
 ADMIN_HOME="$(getent passwd "$ADMIN_USER" | cut -d: -f6)"
 
 # ---- rollback: repoint prod back at the home checkout ----------------------
 if [ "${1:-}" = "--rollback" ]; then
   echo "== ROLLBACK: re-deploy from $DEV_DIR (operator $ADMIN_USER) =="
   rm -f /etc/vibetop/manager.env
-  ( cd "$DEV_DIR" && env APP_USER="$ADMIN_USER" INSTALL_DEPS=0 ./terminal/install.sh )
+  ( cd "$DEV_DIR" && env APP_USER="$ADMIN_USER" INSTALL_DEPS=0 ./server/install.sh )
   sudo -u "$ADMIN_USER" -H "$DEV_DIR/shell/install.sh"
   systemctl daemon-reload
   systemctl restart vibetop-manager
@@ -125,7 +125,7 @@ echo "-- files (nginx snippet)"
 echo "-- office (snippet; container + secret untouched)"
 ( cd "$APP" && env "${ENVV[@]}" INSTALL_CONTAINER=0 ./apps/everyday/office/install.sh )
 echo "-- terminal (main nginx site: root -> $WWW + systemd units -> $APP)"
-( cd "$APP" && env "${ENVV[@]}" ./terminal/install.sh )
+( cd "$APP" && env "${ENVV[@]}" ./server/install.sh )
 
 # 8) reload systemd + swing the manager onto the /opt tree
 echo "-- daemon-reload + restart vibetop-manager (now execs from $APP)"

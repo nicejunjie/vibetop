@@ -48,7 +48,7 @@ that changes nothing won't reload — which would otherwise sever live terminal/
 Browser WebSockets; `nginx_write` returns the change as its pipe exit status):
 
 ```bash
-sudo ./terminal/install.sh   # 1. nginx site skeleton (extras include) + manager API + ttyd
+sudo ./server/install.sh   # 1. nginx site skeleton (extras include) + manager API + ttyd
 sudo ./apps/everyday/browser/install.sh    # 2. xpra + Chromium (snap) + LibreOffice (office View) — extras snippet
 sudo ./apps/everyday/files/install.sh      # 3. FileBrowser at /files/ (binary + noauth config + extras snippet)
 sudo ./apps/everyday/office/install.sh     # 4. Docker + OnlyOffice Document Server at /onlyoffice/ (office Edit)
@@ -85,7 +85,7 @@ sudo ./uninstall.sh                   # everything; re-deploy with ./deploy.sh
 Sub-projects also keep their own idempotent `uninstall.sh` (leave apt packages + user data in place):
 
 ```bash
-sudo ./terminal/uninstall.sh          # stops units, removes nginx site
+sudo ./server/uninstall.sh          # stops units, removes nginx site
 sudo ./apps/everyday/browser/uninstall.sh           # stops units, removes nginx snippet
 sudo ./apps/everyday/office/uninstall.sh            # removes the OnlyOffice container + nginx snippet
 sudo ./tunnel/uninstall.sh            # N/A — uninstall cloudflared manually

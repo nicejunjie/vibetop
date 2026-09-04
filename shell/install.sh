@@ -10,10 +10,10 @@ set -euo pipefail
 # human (legacy home install), or refuse.
 if [ "$(id -u)" -eq 0 ] && [ -z "${DST_DIR:-}" ]; then
   if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ]; then
-    echo "landing/install.sh: running as root with no DST_DIR — re-executing as \$SUDO_USER ($SUDO_USER) so files land in that user's home" >&2
+    echo "shell/install.sh: running as root with no DST_DIR — re-executing as \$SUDO_USER ($SUDO_USER) so files land in that user's home" >&2
     exec sudo -u "$SUDO_USER" -H "$0" "$@"
   fi
-  echo "landing/install.sh: running as root with no DST_DIR — it would deploy to /root." >&2
+  echo "shell/install.sh: running as root with no DST_DIR — it would deploy to /root." >&2
   echo "Pass DST_DIR=<web root> (deploy.sh does this), or run it as your normal user." >&2
   exit 1
 fi
@@ -111,7 +111,7 @@ EOF
 # overwrite another at deploy time.
 DUPES="$(printf '%s' "$PLAN" | awk -F'|' 'NF{print $2}' | sort | uniq -d)"
 if [ -n "$DUPES" ]; then
-  echo "landing/install.sh: two sources map to the same web-root name:" >&2
+  echo "shell/install.sh: two sources map to the same web-root name:" >&2
   for d in $DUPES; do
     echo "  $d  <-  $(printf '%s' "$PLAN" | awk -F'|' -v d="$d" '$2==d{printf "%s ", $1}')" >&2
   done

@@ -433,7 +433,7 @@
 
     // This overlay is THE terminal input on touch. xterm's hidden helper textarea
     // keeps grabbing focus (on WS-connect, renders, etc.); the focusin guard in
-    // terminal/install.sh bounces that stolen focus BACK here — but ONLY while
+    // server/install.sh bounces that stolen focus BACK here — but ONLY while
     // "armed" (after the user has genuinely tapped to type), so the keyboard
     // doesn't pop up on page load. Before this, the guard blurred the helper to
     // <body>, leaving NO focused input, so keystrokes were silently dropped (the
@@ -881,7 +881,7 @@
     }, { passive: false });
 
     // Coach tips for the terminal's undiscoverable gestures, via the SHARED vibeCoach
-    // helper (coach.js, injected before this script by terminal/install.sh's sub_filter).
+    // helper (coach.js, injected before this script by server/install.sh's sub_filter).
     // Three touch tips ROTATE (one per open) so each gets airtime — one banner at a
     // time. Each shows every open until its × is tapped (persists 'done'), with a
     // max-showings cap. The two-finger tip keeps its original key ('…:2fingerhint:v2')

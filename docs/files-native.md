@@ -74,7 +74,7 @@ after an audit reproduced them live (details in design-decisions):
   `hash`, plus the streaming `upload` / `download` / `zip`. Idle-exits after
   `FILEAGENT_IDLE` (900 s) and is restarted on demand; `apps/everyday/files/install.sh` stops
   running agents on deploy so a release takes effect immediately.
-- Manager (`terminal/terminal-manager.py`): `/api/fs/*` proxies to the agent;
+- Manager (`server/terminal-manager.py`): `/api/fs/*` proxies to the agent;
   `/api/file/image` serves image bytes and, with `&thumb=N`, a PIL-downscaled
   thumbnail with a strong mtime ETag.
 - Viewers: images → `apps/everyday/imageview/imageview.html`, video → `apps/everyday/video/video.html`,
@@ -114,11 +114,11 @@ there is room.
   card shipped whose content had a `min-width` larger than the card's
   `max-width`: every behavioural check passed, because they asserted what the
   controls did and never where they were.
-- `terminal/tests/test_api_fs.py` — the HTTP layer: 401 without a session for
+- `server/tests/test_api_fs.py` — the HTTP layer: 401 without a session for
   every verb, the authenticated user is the one proxied, impostor sockets get
   zero bytes. This suite exists because the fs endpoints had NO http-level
   coverage, which is exactly how the missing auth gate shipped.
-- `terminal/tests/test_api_image.py`, `terminal/tests/test_fileagent.py`.
+- `server/tests/test_api_image.py`, `server/tests/test_fileagent.py`.
 
 Every one of these was first run against the code that predates it and observed
 to FAIL; a test that is only ever green proves nothing.

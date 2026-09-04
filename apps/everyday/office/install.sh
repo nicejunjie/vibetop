@@ -211,7 +211,7 @@ fi
 # 4. nginx snippet
 if (( INSTALL_NGINX )); then
     if ! [ -d /etc/nginx/snippets/vibetop-extras.d ]; then
-        echo "   /etc/nginx/snippets/vibetop-extras.d missing — run terminal/install.sh first." >&2
+        echo "   /etc/nginx/snippets/vibetop-extras.d missing — run server/install.sh first." >&2
         exit 1
     fi
     echo "== installing nginx snippet =="

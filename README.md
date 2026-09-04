@@ -108,7 +108,7 @@ idempotent, `--dry-run`-able, env-var configurable, and only reloads nginx when
 its config actually changed — so a re-run won't blip live terminals):
 
 ```bash
-sudo ./terminal/install.sh   # nginx skeleton + manager API + ttyd
+sudo ./server/install.sh   # nginx skeleton + manager API + ttyd
 sudo ./apps/everyday/browser/install.sh    # xpra + Chromium (snap) + LibreOffice (office View)
 sudo ./apps/everyday/files/install.sh      # FileBrowser at /files/
 sudo ./apps/everyday/office/install.sh     # Docker + OnlyOffice Document Server at /onlyoffice/

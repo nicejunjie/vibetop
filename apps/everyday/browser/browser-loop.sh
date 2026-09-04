@@ -19,7 +19,7 @@ set -u
 # spun forever on "No such file or directory" and the Browser app was a blank
 # desktop — while /browser/ still answered 200, because xpra's HTML5 server is up
 # regardless of whether its child started. Keep this candidate list and the
-# profile rule identical to _chromium_for_user() in terminal/terminal-manager.py:
+# profile rule identical to _chromium_for_user() in server/terminal-manager.py:
 # /api/browser/open must reuse the SAME --user-data-dir or a forwarded URL opens
 # in a different instance.
 if [ -z "${BROWSER_BIN:-}" ]; then

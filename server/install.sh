@@ -31,6 +31,11 @@ TTYD_VERSION="${TTYD_VERSION:-1.7.7}"
 TTYD_BIN="${TTYD_BIN:-/usr/local/bin/ttyd}"
 APP_USER="${APP_USER:-${SUDO_USER:-$(id -un)}}"
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+# The Terminal APP (front end, per-user runtime and its unit templates) lives with
+# the other apps; this installer stays in server/ because it also generates the
+# GLOBAL nginx site config, which is nobody's app. Two directories, two @APP_DIR@
+# substitutions — the manager unit points here, the session/ttyd units point there.
+TERM_APP_DIR="${TERM_APP_DIR:-$(cd "$APP_DIR/../apps/everyday/terminal" && pwd)}"
 # Everything that differs between distro families (package names, nginx layout,
 # PAM stack names, SELinux) lives in one place — see tools/lib/osdeps.sh.
 # shellcheck source=../tools/lib/osdeps.sh
@@ -81,7 +86,7 @@ if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist on this system" >&2
     exit 1
 fi
-if ! [ -f "$APP_DIR/ttyd-run.sh" ]; then
+if ! [ -f "$TERM_APP_DIR/ttyd-run.sh" ]; then
     echo "ttyd-run.sh not found under APP_DIR=$APP_DIR" >&2
     exit 1
 fi
@@ -184,7 +189,7 @@ if (( INSTALL_DEPS )); then
 fi
 
 # 2. ttyd-run.sh executable bit ---------------------------------------------
-run chmod +x "$APP_DIR/ttyd-run.sh" "$APP_DIR/vibetop-session"
+run chmod +x "$TERM_APP_DIR/ttyd-run.sh" "$TERM_APP_DIR/vibetop-session"
 
 # 2b. World-readable copies of the per-user helper scripts -------------------
 # Multi-user: a terminal runs AS the logged-in user via systemd-run, so the
@@ -194,22 +199,22 @@ run chmod +x "$APP_DIR/ttyd-run.sh" "$APP_DIR/vibetop-session"
 # a shared dir the manager execs from (TERM_HELPER_DIR). Re-copied on every deploy
 # (incl. the in-app Update) so they track the checkout.
 run sudo install -d -m 0755 /usr/local/lib/vibetop
-run sudo install -m 0755 "$APP_DIR/vibetop-session" /usr/local/lib/vibetop/vibetop-session
-run sudo install -m 0755 "$APP_DIR/ttyd-run.sh" /usr/local/lib/vibetop/ttyd-run.sh
+run sudo install -m 0755 "$TERM_APP_DIR/vibetop-session" /usr/local/lib/vibetop/vibetop-session
+run sudo install -m 0755 "$TERM_APP_DIR/ttyd-run.sh" /usr/local/lib/vibetop/ttyd-run.sh
 # Must follow the installs: restorecon only relabels files that exist. Without
 # this the per-user session unit fails 203/EXEC on SELinux hosts.
 run vt_selinux_label_helpers /usr/local/lib/vibetop
 # xdg-open shim: ahead of /usr/bin on PATH + used as $BROWSER in terminals, so a
 # CLI "open a browser" (OAuth logins) opens in the user's vibetop Browser. Defers
 # to the real /usr/bin/xdg-open outside vibetop terminals (no VIBETOP_SESSION).
-run sudo install -m 0755 "$APP_DIR/xdg-open-shim.sh" /usr/local/bin/xdg-open
+run sudo install -m 0755 "$TERM_APP_DIR/xdg-open-shim.sh" /usr/local/bin/xdg-open
 
 # real-bus shim for SNAP browsers. The vibetop terminal points D-Bus at the private
 # activation-free bus so GNOME/GTK apps launch fast; snaps can't use that bus (they
 # need org.freedesktop.systemd1 for a transient scope), so /usr/local/bin/{firefox,
 # chromium} (ahead of /snap/bin) hand them the REAL user bus. Only shadow a name
 # that is actually a snap here, so a non-snap firefox/chromium is left untouched.
-run sudo install -m 0755 "$APP_DIR/realbus-shim.sh" /usr/local/lib/vibetop/realbus-shim.sh
+run sudo install -m 0755 "$TERM_APP_DIR/realbus-shim.sh" /usr/local/lib/vibetop/realbus-shim.sh
 for snapapp in firefox chromium; do
     if [[ -x "/snap/bin/$snapapp" ]]; then
         run sudo ln -sf /usr/local/lib/vibetop/realbus-shim.sh "/usr/local/bin/$snapapp"
@@ -225,11 +230,11 @@ if (( INSTALL_SYSTEMD )); then
     for unit in vibetop-session@.service vibetop-ttyd@.service; do
         rendered="$(sed \
             -e "s|@APP_USER@|$APP_USER|g" \
-            -e "s|@APP_DIR@|$APP_DIR|g" \
+            -e "s|@APP_DIR@|$TERM_APP_DIR|g" \
             -e "s|@BASE_PORT@|$BASE_PORT|g" \
             -e "s|@X11_DISPLAY@|$X11_DISPLAY|g" \
             -e "s|@APP_UID@|$APP_UID|g" \
-            "$APP_DIR/systemd/$unit")"
+            "$TERM_APP_DIR/systemd/$unit")"
         echo "$rendered" | write_root "/etc/systemd/system/$unit"
     done
 
@@ -252,7 +257,7 @@ if (( INSTALL_SYSTEMD )); then
     # the Debian names on RHEL makes every login 401 with
     # "_pam_load_conf_file: unable to open config for common-auth".
     printf '%s\n' \
-        '# Managed by vibetop terminal/install.sh — Linux-account login for /api/login.' \
+        '# Managed by vibetop server/install.sh — Linux-account login for /api/login.' \
         "auth     include $(vt_pam_auth_stack)" \
         "account  include $(vt_pam_account_stack)" \
         | write_root "/etc/pam.d/vibetop"
@@ -266,10 +271,10 @@ if (( INSTALL_NGINX )); then
     # Editing the file changes the hash → the ?v= changes → browsers (and the
     # service worker) fetch the new copy. This makes "forgot to bump the version"
     # impossible — the whole reason a stale injected script could ever ship.
-    KBD_VER=$([ -f "$APP_DIR/terminal-kbd.js" ] && md5sum "$APP_DIR/terminal-kbd.js" | cut -c1-10 || echo 0)
+    KBD_VER=$([ -f "$TERM_APP_DIR/terminal-kbd.js" ] && md5sum "$TERM_APP_DIR/terminal-kbd.js" | cut -c1-10 || echo 0)
     # kbd-input.js — the DOM-free, unit-tested input/IME state machine terminal-kbd.js
     # depends on (must load BEFORE it). Same content-hash cache-buster convention.
-    KBDIN_VER=$([ -f "$APP_DIR/lib/kbd-input.js" ] && md5sum "$APP_DIR/lib/kbd-input.js" | cut -c1-10 || echo 0)
+    KBDIN_VER=$([ -f "$TERM_APP_DIR/lib/kbd-input.js" ] && md5sum "$TERM_APP_DIR/lib/kbd-input.js" | cut -c1-10 || echo 0)
 
     # 4a. $connection_upgrade map (only if not defined elsewhere)
     if sudo grep -rqsE 'map[[:space:]]+\$http_upgrade[[:space:]]+\$connection_upgrade' /etc/nginx/; then
@@ -616,20 +621,20 @@ PYEOF
     # Content-hash cache-buster, same convention as terminal-kbd.js — editing the
     # JS changes its hash → the ?v= changes → nginx + the service worker fetch the
     # new copy. Unit-tested in terminal/lib/tab-sync.test.js (node --test).
-    if [ -f "$APP_DIR/lib/tab-sync.js" ]; then
+    if [ -f "$TERM_APP_DIR/lib/tab-sync.js" ]; then
         run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
-            "$APP_DIR/lib/tab-sync.js" "$LANDING_DIR/tab-sync.js"
+            "$TERM_APP_DIR/lib/tab-sync.js" "$LANDING_DIR/tab-sync.js"
     fi
-    SYNC_VER=$([ -f "$APP_DIR/lib/tab-sync.js" ] && md5sum "$APP_DIR/lib/tab-sync.js" | cut -c1-10 || echo 0)
+    SYNC_VER=$([ -f "$TERM_APP_DIR/lib/tab-sync.js" ] && md5sum "$TERM_APP_DIR/lib/tab-sync.js" | cut -c1-10 || echo 0)
 
     # Install terminals.html to the landing dir for /terminals/ route, stamping
     # the tab-sync.js cache-buster into its <script src="/tab-sync.js?v=@SYNC_VER@">.
-    if [ -f "$APP_DIR/terminals.html" ]; then
+    if [ -f "$TERM_APP_DIR/terminals.html" ]; then
         if (( DRY_RUN )); then
             echo "+ would render terminals.html (@SYNC_VER@ -> $SYNC_VER) -> $LANDING_DIR/terminals.html"
         else
             tmp_th="$(mktemp)"
-            sed "s/@SYNC_VER@/$SYNC_VER/g" "$APP_DIR/terminals.html" > "$tmp_th"
+            sed "s/@SYNC_VER@/$SYNC_VER/g" "$TERM_APP_DIR/terminals.html" > "$tmp_th"
             sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
                 "$tmp_th" "$LANDING_DIR/terminals.html"
             rm -f "$tmp_th"
@@ -638,15 +643,15 @@ PYEOF
 
     # kbd-input.js — the unit-tested input/IME state machine terminal-kbd.js uses.
     # Deploy it FIRST (the sub_filter loads it before terminal-kbd.js).
-    if [ -f "$APP_DIR/lib/kbd-input.js" ]; then
+    if [ -f "$TERM_APP_DIR/lib/kbd-input.js" ]; then
         run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
-            "$APP_DIR/lib/kbd-input.js" "$LANDING_DIR/kbd-input.js"
+            "$TERM_APP_DIR/lib/kbd-input.js" "$LANDING_DIR/kbd-input.js"
     fi
     # Mobile keyboard/dictation patch (loaded into /tN/ via the sub_filter
     # <script src>; a no-op on non-touch devices).
-    if [ -f "$APP_DIR/terminal-kbd.js" ]; then
+    if [ -f "$TERM_APP_DIR/terminal-kbd.js" ]; then
         run sudo install -o "$APP_USER" -g "$APP_USER" -m 0644 \
-            "$APP_DIR/terminal-kbd.js" "$LANDING_DIR/terminal-kbd.js"
+            "$TERM_APP_DIR/terminal-kbd.js" "$LANDING_DIR/terminal-kbd.js"
     fi
 
     # Must run BEFORE the reload: with SELinux enforcing, nginx may not connect to

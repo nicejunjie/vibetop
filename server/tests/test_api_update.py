@@ -80,7 +80,7 @@ def test_update_clean_fast_forward(client, mgr, stubs, monkeypatch, op_cookie):
 
 def test_update_restart_when_manager_module_changes(client, mgr, stubs, monkeypatch, op_cookie):
     g = GitFake()
-    g.changed = ["terminal/system_status.py"]
+    g.changed = ["server/system_status.py"]
     monkeypatch.setattr(mgr, "_git", g)
     status, body = client.post("/api/update", {}, cookie=op_cookie)
     assert status == 200 and body["ok"] is True
@@ -110,7 +110,7 @@ def test_update_rsync_redundant_tree_is_reset(client, mgr, stubs, monkeypatch, o
 
 def test_update_genuine_dirty_is_blocked(client, mgr, stubs, monkeypatch, op_cookie):
     g = GitFake()
-    g.dirty = " M terminal/terminal-manager.py"
+    g.dirty = " M server/terminal-manager.py"
     g.matches_upstream = False                   # real local edits, not upstream
     monkeypatch.setattr(mgr, "_git", g)
     status, body = client.post("/api/update", {}, cookie=op_cookie)   # force omitted
@@ -121,7 +121,7 @@ def test_update_genuine_dirty_is_blocked(client, mgr, stubs, monkeypatch, op_coo
 
 def test_update_force_stashes_then_updates(client, mgr, stubs, monkeypatch, op_cookie):
     g = GitFake()
-    g.dirty = " M terminal/terminal-manager.py"
+    g.dirty = " M server/terminal-manager.py"
     g.matches_upstream = False
     g.changed = ["shell/desktop.html"]
     monkeypatch.setattr(mgr, "_git", g)
@@ -198,7 +198,7 @@ def test_web_redeploy_trigger_covers_every_dir_the_installer_walks():
     for tok in re.findall(r'"\$(?:DIR|REPO/)([A-Za-z_]*)"', m.group(1)):
         walked.add((tok or "shell") + "/")
 
-    manager = open(os.path.join(repo, "terminal", "terminal-manager.py")).read()
+    manager = open(os.path.join(repo, "server", "terminal-manager.py")).read()
     dirs = re.search(r'WEB_SOURCE_DIRS = \(([^)]*)\)', manager)
     assert dirs, "WEB_SOURCE_DIRS missing from the manager"
     triggered = set(re.findall(r'"([^"]+)"', dirs.group(1)))

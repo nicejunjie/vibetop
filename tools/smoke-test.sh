@@ -112,7 +112,7 @@ detect_probe_user() {
         u="$(sed -n 's/^[[:space:]]*VIBETOP_ADMINS=//p' /etc/vibetop/manager.env \
              | tr -d '"'"'"' ' | cut -d, -f1 | head -1)"
     fi
-    [ -n "$u" ] || u="$(stat -c %U "$REPO/terminal/terminal-manager.py" 2>/dev/null || true)"
+    [ -n "$u" ] || u="$(stat -c %U "$REPO/server/terminal-manager.py" 2>/dev/null || true)"
     [ -n "$u" ] || u="${SUDO_USER:-}"
     printf '%s' "$u"
 }

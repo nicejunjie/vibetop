@@ -5,7 +5,7 @@
 # same reach as their Terminal), no auth (Cloudflare Access or the LAN boundary is
 # the gate). Idempotent and re-runnable. --dry-run previews.
 #
-# Run AFTER terminal/install.sh (which creates the nginx extras dir + include).
+# Run AFTER server/install.sh (which creates the nginx extras dir + include).
 #
 # Configurable via env vars (all optional):
 #   APP_USER         system user that owns the files          (default: invoking user)
@@ -143,7 +143,7 @@ fi
 if (( INSTALL_NGINX )); then
     echo "== installing /files/ nginx snippet =="
     if ! [ -d "$NGINX_EXTRAS" ]; then
-        echo "   $NGINX_EXTRAS does not exist — run terminal/install.sh first" >&2
+        echo "   $NGINX_EXTRAS does not exist — run server/install.sh first" >&2
         exit 1
     fi
     # Cache-buster for the injected filebrowser-patches.js, derived from its

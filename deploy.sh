@@ -141,7 +141,7 @@ fi
 INST_ENV=(); [ -n "$LEGACY_WWW" ] || INST_ENV=("${VT_ENV_ARRAY[@]}")
 
 step "1/6  Terminal — nginx site + manager + ttyd"
-env "${INST_ENV[@]}" "$REPO_DIR/terminal/install.sh" "${DRYFLAG[@]}"
+env "${INST_ENV[@]}" "$REPO_DIR/server/install.sh" "${DRYFLAG[@]}"
 
 if (( DO_BROWSER )); then
     step "2/6  Browser — xpra + Chromium"

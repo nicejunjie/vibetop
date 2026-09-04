@@ -33,8 +33,10 @@ apps/
 ```
 
 Apps whose backend is more than a page still own a top-level sub-project
-(`terminal/`, `browser/`, `files/`, `office/`, `claude-usage/`) for their
-installer, nginx fragment and daemon; folding those in is staged work.
+own an `install.sh`, an nginx fragment and a daemon inside their app directory.
+The one exception is `server/` — the manager, which is the backend for EVERY app
+and generates the global nginx site config, so it is not an app and does not live
+under `apps/`.
 
 ### install.sh deploys by walking, not by a list
 
