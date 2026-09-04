@@ -49,6 +49,8 @@ fi
 INSTALL_SYSTEMD="${INSTALL_SYSTEMD:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 UNIT=vibetop-claude-proxy.service
+SOCKET_UNIT=vibetop-claude-proxy.socket
+PROXY_PORT="${CLAUDE_PROXY_PORT:-7690}"
 
 for arg in "$@"; do
     case "$arg" in
@@ -94,16 +96,30 @@ if (( INSTALL_SYSTEMD )); then
         echo "every Claude Code session routed through the proxy." >&2
         exit 1
     fi
-    echo "== installing systemd unit (disabled until the feature is turned on) =="
+    echo "== installing systemd units (disabled until the feature is turned on) =="
+    # The SOCKET carries the listener; the SERVICE carries the proxy. Install the
+    # socket first so the service's Requires= can always be satisfied.
+    sed -e "s|@CLAUDE_PROXY_PORT@|$PROXY_PORT|g" \
+        "$APP_DIR/systemd/$SOCKET_UNIT" \
+        | write_root "/etc/systemd/system/$SOCKET_UNIT"
     sed -e "s|@APP_USER@|$APP_USER|g" \
         -e "s|@OPERATOR@|$OPERATOR|g" \
         -e "s|@APP_DIR@|$APP_DIR|g" \
         "$APP_DIR/systemd/$UNIT" \
         | write_root "/etc/systemd/system/$UNIT"
     run sudo systemctl daemon-reload
-    # Do NOT enable/start — opt-in. But if it's already running (feature on),
-    # restart to pick up new proxy code. try-restart is a no-op when inactive.
-    run sudo systemctl try-restart "$UNIT" 2>/dev/null || true
+    # Do NOT enable/start — opt-in. But if the feature is already ON, hand the
+    # port over to the socket: stop the service (which may still hold :7690
+    # itself, from before socket activation), start the socket, then re-arm the
+    # service. Ordering matters — the socket cannot bind a port the old service
+    # still owns.
+    if [ "$(systemctl is-active "$UNIT" 2>/dev/null)" = active ] \
+       || [ "$(systemctl is-enabled "$UNIT" 2>/dev/null)" = enabled ]; then
+        run sudo systemctl stop "$UNIT" 2>/dev/null || true
+        run sudo systemctl reset-failed "$UNIT" "$SOCKET_UNIT" 2>/dev/null || true
+        run sudo systemctl start "$SOCKET_UNIT" 2>/dev/null || true
+        run sudo systemctl start "$UNIT" 2>/dev/null || true
+    fi
 
     # Post-condition: the identity we just rendered must actually be able to
     # store a capture. The proxy resolves ~/.local/share from its OWN uid, so a

@@ -3,6 +3,17 @@ Description=vibetop Claude usage proxy (captures Max-plan rate-limit headers)
 Documentation=https://github.com/nicejunjie/vibetop
 After=network-online.target
 Wants=network-online.target
+# systemd holds the listening socket (see the .socket unit), so a restart queues
+# connections instead of refusing them.
+Requires=vibetop-claude-proxy.socket
+After=vibetop-claude-proxy.socket
+# ...but a PERSISTENT fault must fail fast and visibly rather than queue forever:
+# five failed starts in a minute trips the limit, which fails the socket too, so
+# callers get an immediate error and a unit in `failed` state that doctor.sh and
+# `systemctl status` both report. Without this, a missing binary crash-looped 357
+# times in 13 minutes on 2026-09-03 with nothing surfacing it.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -19,3 +30,4 @@ NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
+Also=vibetop-claude-proxy.socket
