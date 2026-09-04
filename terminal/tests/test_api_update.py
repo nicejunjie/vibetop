@@ -3,6 +3,7 @@ history), POST /api/update across all git branches (up-to-date, clean fast-
 forward, rsync-redundant reset, genuine-dirty blocked, force-stash), and
 POST /api/update/history/clear. git is replaced with a scriptable fake; deploy
 subprocesses are stubbed."""
+import os
 import json
 
 
@@ -155,3 +156,28 @@ def test_history_clear(client, mgr, monkeypatch, op_cookie):
     assert status == 200 and body["ok"] is True
     with open(mgr.UPDATE_HISTORY_FILE) as f:
         assert json.load(f) == []
+
+
+# REGRESSION (2026-09-03): the landing/ regroup moved filebrowser-patches.js from
+# landing/ to landing/apps/files/, and this trigger was an EXACT path match. It
+# kept passing every test while silently no longer firing — files/install.sh would
+# not re-run, so the nginx ?v= cache-buster kept pointing at the old bundle and
+# browsers kept serving stale patch JS. Matched by basename now; pinned here so a
+# future move cannot reintroduce it.
+def test_filebrowser_patch_change_still_triggers_the_files_redeploy():
+    src = open(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "terminal-manager.py")).read()
+    assert 'c.endswith("/filebrowser-patches.js")' in src, (
+        "the FileBrowser patch redeploy trigger must match by BASENAME — an exact "
+        "path breaks silently whenever the file moves")
+    assert '"landing/filebrowser-patches.js" in changed' not in src
+
+
+def test_sw_build_date_lookup_survives_a_move():
+    src = open(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "terminal-manager.py")).read()
+    assert '":(glob)landing/**/sw.js"' in src, (
+        "the sw.js build-date git lookup must use a glob pathspec — a literal path "
+        "returns an empty date silently once sw.js moves")
