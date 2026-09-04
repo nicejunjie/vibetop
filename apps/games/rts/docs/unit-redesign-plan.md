@@ -88,12 +88,63 @@ put the numbers in the commit message.
 spike declaration; no art changes yet beyond what the floor forces. Acceptance: every
 unit's declared spike measures ≥2px at `ZMIN` in the harness.
 
-**C2 — Infantry colour zones.** Raise owner colour to RA2's 29–45% **on the torso as
-one block**, and give each kind the 2–3 zone layout from the reference spec (torso /
-legs / prop). This is the single highest-value change in the plan: it is the mechanism
-RA2 uses for the seven units that share a silhouette. Tanya's 14.3% is RA2's
-deliberate exception — keep it. Acceptance: infantry colour-off IoU collapse falls
-from 36%; every kind separable at 1:1 by the §0 bar.
+**C2 — Infantry colour zones.** ☑ **Done.** Raise owner colour to RA2's 29–45% **on
+the torso as one block**, and give each kind the 2–3 zone layout from the reference
+spec (torso / legs / prop). This is the single highest-value change in the plan: it is
+the mechanism RA2 uses for the seven units that share a silhouette. Tanya's 14.3% is
+RA2's deliberate exception — keep it. Acceptance: infantry colour-off IoU collapse
+falls from 36%; every kind separable at 1:1 by the §0 bar.
+
+> **What shipped.** Owner-hue mean over the twelve uniformed kinds went **22.8% →
+> 26.8%** (Dog and Spy excluded — the reference gives them a collar/harness and a
+> coat, not a torso block; over all fourteen it is 20.0% → 23.4%). Per kind:
+> Rocketeer 15.0→31.9, Yuri 13.9→27.8, GI 25.9→32.9, CLeg 16.6→22.3, Conscript
+> 28.2→34.7, Engineer 28.6→30.8, Guardian GI 26.6→29.0, Ivan 24.9→27.6, Flak
+> 21.8→24.2, Tesla Trooper and Desolator unchanged at 21.1 / 26.9, **Tanya 22.6→12.1**
+> (down, on purpose). `peerVsSelf.infantry` **11 → 10**, `iou.infantry.mean`
+> **0.6442 → 0.6417**, `iou.sameFactionOver75` **16 → 14**; no metric regressed.
+>
+> Census method is §1.4's: body pixels at HSV s > 0.40 within ±22° of the owner hue,
+> front-on standing frame, averaged over both owners. Measuring it **per owner** found
+> a real bug on the way past: the Conscript read 17.4% blue but **39.0% red**, because
+> his fixed `#7d5148` brown-maroon trousers sit 11° off red — a Collective unit whose
+> *drab* zone impersonated one owner's colour. They are tan `#8f6c42` now, which is
+> also what §2.2 asks for (">= 20 hue-degrees off the GI's olive"), and he reads
+> 35.2 / 34.1 — the same figure to both players.
+>
+> **The finding that mattered.** The gate's IoU and peer-vs-self metrics are computed
+> off the ALPHA MASK — colour is not in them at all. So raising the remap, which is
+> what C2 is *for*, moves neither target metric by one digit. What moved them is
+> §1.5's **rule 9**, which is part of the same zone spec and is easy to read past:
+> the three levers on an infantryman are (a) the LEG ZONE's value, (b) the presence or
+> absence of the **leg split**, and (c) one prop. (b) and (c) are silhouette. Yuri and
+> the Spy were both drawn with split legs under a skirt, throwing away the one thing
+> §1.5 says makes them instantly readable; giving both an unbroken hem is most of the
+> gain here. Anyone doing C3/C4 should expect the same split: the colour half of a
+> commit is invisible to the gate, and only the shape half of it scores.
+>
+> **The trap inside that fix.** Deleting both leg splits made the Spy and Yuri each
+> other's nearest match at 0.85 and cost a *net* regression on the first pass. Two
+> coated figures need to be two different COATS — the Spy's tapers (a business suit),
+> Yuri's flares, and the Spy carries §1.5's briefcase. Same shape for the Desolator's
+> new backpack: raised level with the helmet it became the widest rows on the sprite
+> and the gate scored his HELMET as his spike, dropping its measured thickness 6 → 4.
+> It sits above the shoulder line and below the helmet crown for that reason.
+>
+> **Not honoured, and why.** (1) Tanya's *"blonde head, brightest 2x2"* (§1.5) —
+> our art reads black hair off `Tanya_animation.gif`, which is the measured rip and
+> beats the table; she keeps it, and her remap was CUT to 12% (RA2 14.3%) by taking
+> her top back to a crop and baring the midriff. (2) The Spy's *"hat brim >= 7 px"*
+> spike budget measures as 5.5 — the brim is 9.8 px, but `spikeOf` takes the MEDIAN
+> row width above the body and the crown pulls it down; reaching 7 needs a crown wide
+> enough to be a bowler, so `spike.belowDeclaredBudget` stays at 4. (3) The Tesla
+> Trooper's *"silver carapace with a red chest"* — his chest is the biggest single
+> remapped mass in the game and he is one of the four infantry NO peer beats;
+> re-splitting it is a real risk for no measured gain, so he was left alone at 21%.
+> (4) The Conscript's flat cap collided with the Collective Engineer's flat field cap,
+> so the Engineer went to a near-WHITE hard hat — which serves his own identity
+> better anyway (§2.1: the only light-value soldier), and his trousers went pale with
+> it.
 
 **C3 — Vehicle colour placement.** Break each vehicle's house colour into RA2's 2–5
 **discrete blocks sited on the identity feature**, not one unbroken flank band. Rhino:
