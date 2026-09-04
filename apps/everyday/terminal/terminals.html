@@ -165,6 +165,10 @@
   }
   .sp-go:hover { background: #5ed67a; }
   .sp-actions { display: flex; align-items: center; gap: 8px; }
+  /* Secondary to Schedule: same size, quieter fill. "Send now" is the shortcut,
+     scheduling is still what the panel is for. */
+  .sp-now { background: #24243c; color: #9fd3ae; }
+  .sp-now:hover { background: #2f2f4d; }
   .sp-err { flex: 1 1 auto; min-width: 0; color: #ff9b9b; font-size: 11.5px; }
   .sp-err.ok { color: #9fd3ae; }
 
@@ -206,6 +210,8 @@
     </div>
     <div class="sp-actions">
       <span class="sp-err" id="sp-err"></span>
+      <button type="button" class="sp-go sp-now" id="sp-now"
+              title="Type this into the terminal right now">Send now</button>
       <button type="button" class="sp-go" id="sp-go">Schedule</button>
     </div>
   </div>
@@ -594,7 +600,11 @@
     spErr.className = 'sp-err'; spErr.textContent = '';
   }
 
-  function submitSchedule() {
+  // `now` = the Send-now button: skip the time field entirely and fire at once.
+  // Same path as a scheduled message on purpose — it is typed into the terminal
+  // by the SERVER, so it reaches the right session even when that tab is not the
+  // one on screen, and it is recorded in the list like any other message.
+  function submitSchedule(now) {
     // The box accepts line breaks so a long command can be typed for clarity, but
     // a scheduled message is TYPED INTO THE TERMINAL as one line — a raw newline
     // would submit early and chain past what was reviewed (the server rejects
@@ -607,9 +617,14 @@
       .filter(function (s) { return s; })
       .join('; ');
     if (!text) { spErr.className = 'sp-err'; spErr.textContent = 'Type a message first.'; return; }
-    if (!spAt.value) { spErr.className = 'sp-err'; spErr.textContent = 'Pick a time.'; return; }
-    var at = new Date(spAt.value).getTime() / 1000;
-    if (!isFinite(at)) { spErr.className = 'sp-err'; spErr.textContent = 'That time is not valid.'; return; }
+    var at;
+    if (now) {
+      at = Date.now() / 1000;
+    } else {
+      if (!spAt.value) { spErr.className = 'sp-err'; spErr.textContent = 'Pick a time.'; return; }
+      at = new Date(spAt.value).getTime() / 1000;
+      if (!isFinite(at)) { spErr.className = 'sp-err'; spErr.textContent = 'That time is not valid.'; return; }
+    }
     spErr.className = 'sp-err'; spErr.textContent = '';
     var ed = editing;
     // Cancel-then-create, not create-then-cancel: the transient extra entry
@@ -630,7 +645,8 @@
       var edited = !!ed;
       stopEdit();
       spErr.className = 'sp-err ok';
-      spErr.textContent = (edited ? 'Updated — fires ' : 'Scheduled ') + fmtIn(at) + '.';
+      spErr.textContent = now ? 'Sent.'
+                              : (edited ? 'Updated — fires ' : 'Scheduled ') + fmtIn(at) + '.';
       refreshSchedules();
     }).catch(function () { spErr.textContent = 'Could not reach the server.'; });
   }
@@ -639,7 +655,10 @@
   schedBtn.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSched(); }
   });
-  document.getElementById('sp-go').addEventListener('click', submitSchedule);
+  // Explicit args, not the bare handler: a click Event as the first argument
+  // would be truthy and silently turn every Schedule press into a Send now.
+  document.getElementById('sp-go').addEventListener('click', function () { submitSchedule(false); });
+  document.getElementById('sp-now').addEventListener('click', function () { submitSchedule(true); });
   // The message box is a textarea that starts one line tall and grows to fit
   // what's typed (up to the CSS max-height, then it scrolls). spTextBase is the
   // single-line height, captured live whenever the box is empty, so "grown past
