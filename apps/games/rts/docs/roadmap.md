@@ -182,6 +182,82 @@ Status: ☐ open · ◐ in progress · ☑ done (with version)
   `VPOW` fix, and the three with no usable wiki asset are listed by name with
   the reason.
 
+### C3 — vehicle colour PLACEMENT (`unit-redesign-plan.md` §3)
+
+Art pass 8 collapsed every vehicle's house colour into one unbroken flank band
+and put the turret cheeks back to hull value. Measured against the sprites that
+fixed a real symptom the wrong way round: **the totals were fine, the placement
+was not.** Our vehicles already sit inside RA2's 11.5–27% remap range, and
+`unit-identity-reference.md` §1.4 is blunt about the rest — RA2 never paints an
+unbroken band. It paints **2–5 discrete blocks sited ON the identity feature**,
+because two plates with a gap are *countable* and a stripe carries no shape at
+all (Rule 7). So this pass moves paint; it does not add any.
+
+Owner-hue percentages below are body-pixel censuses over all 8 bearings at
+zoom 1, blue owner / red owner, by `unit-identity-reference.md` §0's rule
+(s > 0.40, hue within ±22° of the owner). They are a different measurement from
+the single-facing numbers in the art-pass-8 entries above, so compare them only
+with each other.
+
+- ☑ Grizzly (`lancer`) — **two blocks, and only two**: one hull-flank plate and
+  one turret cheek, with the gap between them (ref §1.4's blue Grizzly). The
+  band's glacis wrap and tail plate are gone — that wrap was what made it one
+  continuous stripe round the hull. Both blocks stay strictly inside the
+  outline the band already had: the Grizzly's own gun is a 2px sliver and
+  anything raised here buries it. 15.4/11.1% → **13.7/10.7%**.
+- ☑ Rhino (`rhino`) — **five blocks**: three flank plates a side, bolted
+  applique standing on the track guard with a ≥3px gap, plus the two turret
+  cheeks, which go from hull value to house colour (the bar painted across the
+  turret face is gone — it put remap where nothing is shaped). This is the one
+  unit whose plates deliberately stand PROUD: countable notches on the flank
+  are what separate it from the Tesla Tank's identical olive lozenge without
+  spending a pixel more paint. 12.6/9.3% → **12.3/9.3%**.
+- ☑ Apocalypse (`mammoth`) — **the house colour IS the canisters**. The
+  unbroken skirt band is gone; in its place four fat drums stacked 2×2 on the
+  REAR DECK, individually countable with a lit cap and a dark muzzle, plus two
+  short shoulder plates so the flank is not mute. The eight thin tubes strung
+  down both flanks read as ribs on a skirt from two tiles away and put the tell
+  on the one surface every tank already has. 13.6/10.9% → **13.1/11.1%**.
+- ☑ Mirage (`mirage`) — two flank plates and no glacis wrap; the remap moved UP
+  onto the **emitter housing**, which is what names the unit: the ring at its
+  foot, and the bottom plate of the stack itself (the reference's housing is a
+  mid-value shell with ONE bright mouth at the top, so the plate under that
+  mouth is free to carry the owner). Painting the full flank spent the whole
+  budget on the shape it shares with the Chrono Miner — its worst confusion on
+  the field at 0.837 IoU. 12.3/9.7% → **12.1/8.8%**.
+- ☑ Prism Tank (`prismtank`) — the one hull-length plate a flank became two with
+  a gap, under the pale guard stripe; the turret band and the cowl trim on the
+  crystal housing stay, so it reads as four blocks with the colour on the
+  identity feature. 17.5/12.6% → **17.0/12.2%**.
+- ☑ Tesla Tank (`teslatank`) — two flank plates instead of a bar, and a fatter
+  house-colour foot under each coil column: the coil pair is the identity, so
+  that is where the remap belongs. 14.5/11.3% → **14.2/10.7%**.
+- ☑ V3 (`v3`) — the bed band became two short plates. The reference's V3 is a
+  white missile with a red nose cone and red fins and *nothing else coloured*;
+  a bar down the truck bed was competing with the one diagonal that names it.
+  15.5/12.8% → **14.9/12.1%**.
+- Untouched, because they already carry discrete blocks: Flak Track, IFV,
+  Chrono Miner, War Miner, MCV, Terror Drone (all ±0.0%).
+
+Gate (`RTS_ART=1 node --test apps/games/rts/rts-art.test.js`), before → after:
+`iou.groundCombat.mean` 0.679 → **0.6769**, `iou.vehicle.mean` 0.5809 →
+**0.5802**, `mass.groundCombatSpan` 2.317 → **2.357**, `mass.tightestBand6`
+1.197 → **1.200**; every other metric unchanged, none regressed.
+
+**What did NOT move, and why.** `peerVsSelf.vehicle` (11 of 13) and
+`iou.sameFactionOver75` (16) are pure ALPHA-silhouette measurements, and the
+five same-faction vehicle pairs over the ceiling — Chrono Miner|Mirage 0.837,
+Mirage|Prism 0.816, Rhino|Tesla 0.801, Tesla|War Miner 0.799, Rhino|War Miner
+0.790 — all need ≥0.04 of separation. A colour-placement commit at a constant
+budget cannot buy that: the audit's own finding is that the shared track-box
+lozenge carries 88–92% of every ground vehicle's outline. That is **C4**'s work
+(spikes and the mass hierarchy), and doing it here would have meant either
+re-adding paint (plan §4 forbids it) or silhouette surgery under a colour
+commit. One experiment worth recording: giving *every* tank the same
+proud-applique treatment made `iou.vehicle.mean` WORSE (0.5801 → 0.5808) — a
+shared visual language is a shared silhouette. Only the Rhino keeps it, and the
+counts differ per unit on purpose.
+
 ### Controls and UX
 - ☑ v1.19.194 Selection brackets, primary building, hover name card
 - ☑ v1.19.198 Mouse-wheel zoom about the cursor
