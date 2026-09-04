@@ -4407,3 +4407,38 @@ test("units that have stopped moving shuffle out of each other's tile", () => {
   // jammed to the stuck detectors, so `movedAt` and `noProg` are untouched.
   assert.ok(made.every((u) => g.tick - u.movedAt > 600), "settling must not refresh movedAt");
 });
+
+// --------------------------------------------------------------------- //
+//  Paratroopers fall. They used to be spawned on the ground the instant
+//  the run-in ended, with a `chute` flag pushed on top that nothing drew.
+// --------------------------------------------------------------------- //
+
+test("a paradrop puts men under canopy first and on the ground only when they land", () => {
+  const H = W.__rtsTest;
+  const g = H.startWith(4242, "normal", "frontier", {});
+  const s = g.start[0];
+  const before = g.units.filter((u) => u.p === 0 && !u.dead).length;
+  g.drops.push({ p: 0, x: s.x + 5, y: s.y + 5, type: "rifle", left: 6, t: 0, next: 0, men: [] });
+
+  const air = () => g.drops.reduce((a, d) => a + d.men.length, 0);
+  const ground = () => g.units.filter((u) => u.p === 0 && !u.dead).length;
+
+  // Run-in: nobody has jumped and nobody is on the ground yet.
+  for (let i = 0; i < 39; i++) H.step(1);
+  assert.equal(air(), 0, "nobody jumps during the run-in");
+  assert.equal(ground(), before, "and nobody has arrived");
+
+  // The whole stick is in the air before the first man reaches the ground —
+  // this is the assertion that fails on the old build, where each man was
+  // spawned the moment he was scheduled.
+  let peakAir = 0;
+  for (let i = 0; i < 60; i++) { H.step(1); peakAir = Math.max(peakAir, air()); }
+  assert.ok(peakAir >= 5, `the stick hangs under canopy (peak in air ${peakAir})`);
+  assert.equal(ground(), before, `still nobody on the ground while ${air()} are falling`);
+
+  // And they all arrive.
+  for (let i = 0; i < 200; i++) H.step(1);
+  assert.equal(air(), 0, "every canopy has landed");
+  assert.equal(ground(), before + 6, "all six troopers arrived");
+  assert.equal(g.drops.length, 0, "the drop record is cleared");
+});

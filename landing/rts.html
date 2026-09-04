@@ -613,7 +613,8 @@
       <dt>Select</dt><dd>Left-click a unit, or left-drag a box. Double-click selects every visible unit of that type.</dd>
       <dt>Order</dt><dd>Right-click: move there, attack an enemy, or send a harvester to an ore patch. <b>Ctrl</b>+right-click <b>force-fires</b> at a spot (or at your own units); <b>Ctrl+Shift</b>+right-click is an <b>attack-move</b> — they advance and engage whatever they meet. <b>F</b> then click a friendly unit to <b>follow</b> it.</dd>
       <dt>Hold ground</dt><dd><b>S</b> stops dead — the unit fires at what comes into range but never moves. <b>G</b> guards: it leaves its post by up to two cells to engage, then walks back. <b>X</b> scatters.</dd>
-      <dt>Camera</dt><dd><b>Right-drag</b> (or middle-drag) grabs the map and looks around — it never gives an order, whatever is selected. WASD / arrow keys, mouse to a screen edge, or click the minimap to jump.</dd>
+      <dt>Deploy</dt><dd><b>D</b> digs a GI in behind sandbags — longer reach and double the rate of fire, and it will not move again until you press <b>D</b> to pack up. The same key unfolds an MCV into a Construction Yard and empties a garrisoned building.</dd>
+      <dt>Camera</dt><dd><b>Right-drag</b> (or middle-drag) grabs the map and looks around — it never gives an order, whatever is selected. <b>Arrow keys</b>, mouse to a screen edge, or click the minimap to jump.</dd>
       <dt>Teams</dt><dd><b>Ctrl+1…0</b> stores the selection, <b>1…0</b> recalls it, <b>Shift+digit</b> adds to it, <b>Alt+digit</b> jumps the camera to it.</dd>
       <dt>Views</dt><dd><b>Ctrl+F1…F4</b> saves a camera bookmark, <b>F1…F4</b> returns to it. <b>N</b> steps through everything you own. <b>Ctrl+C</b> saves a screenshot of the field.</dd>
       <dt>Settings</dt><dd><b>Game settings</b> on the front menu carries RA2's skirmish options — starting credits and units, game speed, Bases, Short Game, Crates, Superweapons, and your house colour out of the eight. <b>Esc</b> in a match pauses and opens the same card with three <b>save slots</b>, the speed slider and Restart.</dd>
@@ -21454,25 +21455,41 @@
   function paraDrop(g, p, gx, gy) {
     var fk = facOf(g, p);
     var n = fk === 'col' ? 9 : 6, type = FACTIONS[fk].inf;
-    g.drops.push({ p: p, x: gx, y: gy, type: type, left: n, t: 0, next: 0 });
+    g.drops.push({ p: p, x: gx, y: gy, type: type, left: n, t: 0, next: 0, men: [] });
     if (p === ME) eva('Reinforcements have arrived', 4000);
     return true;
   }
+  // How long a stick hangs under the canopy, in ticks. The men used to be
+  // spawned on the ground the instant the run-in finished and a `chute` fx
+  // pushed on top of them — and nothing ever DREW that flag, so a drop was
+  // six soldiers appearing out of nothing. They now fall: `dr.men` holds the
+  // sticks still in the air, each one counted down in the SIM (so a headless
+  // replay lands them on the same tick a rendered one does) and spawned only
+  // when its canopy touches the ground.
+  var PARA_FALL = 96, PARA_H = 132;        // ticks under canopy, and its height in px
   function stepDrops(g) {
     for (var i = g.drops.length - 1; i >= 0; i--) {
       var dr = g.drops[i];
       dr.t++;
-      if (dr.t < 40) continue;                        // the run-in
-      if (dr.t < dr.next) continue;
-      dr.next = dr.t + 7;
-      var ang = dr.left * 1.9, rr = 0.6 + (dr.left % 3) * 0.7;
-      var tx = Math.round(dr.x + Math.cos(ang) * rr), ty = Math.round(dr.y + Math.sin(ang) * rr);
-      var sp = freeTileNear(g, Math.max(1, Math.min(MAP - 2, tx)), Math.max(1, Math.min(MAP - 2, ty)));
-      if (sp) {
-        spawnUnit(g, dr.type, dr.p, sp.x, sp.y);
-        if (!headless) g.fx.push({ x: sp.x, y: sp.y, t: 0, life: 34, chute: 1 });
+      // Men already under canopy come down whether or not any are left to jump.
+      for (var m = dr.men.length - 1; m >= 0; m--) {
+        var man = dr.men[m];
+        if (--man.fall > 0) continue;
+        dr.men.splice(m, 1);
+        // The tile it was aimed at may have filled while it was in the air.
+        var land = freeTileNear(g, man.x, man.y) || { x: man.x, y: man.y };
+        spawnUnit(g, dr.type, dr.p, land.x, land.y);
+        if (!headless) g.fx.push({ x: land.x, y: land.y, t: 0, life: 16, size: 7 });
       }
-      if (--dr.left <= 0) g.drops.splice(i, 1);
+      if (dr.left > 0 && dr.t >= 40 && dr.t >= dr.next) {   // the run-in, then one man every 7 ticks
+        dr.next = dr.t + 7;
+        var ang = dr.left * 1.9, rr = 0.6 + (dr.left % 3) * 0.7;
+        var tx = Math.round(dr.x + Math.cos(ang) * rr), ty = Math.round(dr.y + Math.sin(ang) * rr);
+        var sp = freeTileNear(g, Math.max(1, Math.min(MAP - 2, tx)), Math.max(1, Math.min(MAP - 2, ty)));
+        if (sp) dr.men.push({ x: sp.x, y: sp.y, fall: PARA_FALL, sway: (dr.left * 2.3) % 6.283 });
+        dr.left--;
+      }
+      if (dr.left <= 0 && !dr.men.length) g.drops.splice(i, 1);
     }
   }
 
@@ -26908,10 +26925,8 @@
 
     // ---- keyboard.ini's sidebar keys -------------------------------------
     // Q/W/E/R pick the four tabs, T is TypeSelect, K/L are the Repair and
-    // Sell toggles, Z is PlanningMode. W/A/S/D still pan: RA2 scrolled with
-    // the arrows, and this file already doubles S (stop) and D (deploy) with
-    // the pan keys, so the tab keys follow the same rule rather than
-    // inventing a second one.
+    // Sell toggles, Z is PlanningMode. These are unambiguous now that W/A/S/D
+    // no longer pan the camera — a letter key does ONE thing.
     var lk = e.key.toLowerCase();
     if (state === 'play' && !e.ctrlKey && !e.metaKey && !e.altKey) {
       var TABK = { q: 'b', w: 'd', e: 'i', r: 'v' };
@@ -27883,11 +27898,17 @@
     var wx = 0, wy = 0;
 
     if (state === 'play' || state === 'paused') {
+      // ARROWS ONLY. W/A/S/D used to pan as well, which meant every letter
+      // key that does something to the SELECTION also dragged the camera:
+      // `keys[...]` is set at the top of the keydown handler, before the
+      // deploy branch returns, so holding D deployed a GI *and* scrolled
+      // right. S (stop) and W (defence tab) collided the same way. RA2
+      // scrolls with the arrows, the mouse at a screen edge, or the minimap.
       var kx = 0, ky = 0;
-      if (keys.a || keys.arrowleft) kx -= 1;
-      if (keys.d || keys.arrowright) kx += 1;
-      if (keys.w || keys.arrowup) ky -= 1;
-      if (keys.s || keys.arrowdown) ky += 1;
+      if (keys.arrowleft) kx -= 1;
+      if (keys.arrowright) kx += 1;
+      if (keys.arrowup) ky -= 1;
+      if (keys.arrowdown) ky += 1;
       if (kx || ky) {
         var kl = Math.sqrt(kx * kx + ky * ky);
         wx += kx / kl * KEY_SPEED * scrollMul(); wy += ky / kl * KEY_SPEED * scrollMul();
@@ -28839,6 +28860,58 @@
       if (EF.core[ek]) ctx.drawImage(EF.core[ek].c, ex0, ey0, ed, ed);
     }
     ctx.globalCompositeOperation = 'source-over';
+
+    // Sticks under canopy. Drawn after the explosions and before the nuke so
+    // a chute reads over the field but under the HUD. The man hangs from the
+    // apex, the canopy breathes as it swings, and a shadow tightens on the
+    // tile he is going to land on so the player can read WHERE before he
+    // arrives — RA2's drop telegraphs itself the same way.
+    for (i = 0; i < G.drops.length; i++) {
+      var dp = G.drops[i];
+      for (var mi = 0; mi < dp.men.length; mi++) {
+        var mn = dp.men[mi];
+        var fall = 1 - mn.fall / PARA_FALL;                 // 0 = jumped, 1 = touching down
+        var gxp = sx(mn.x, mn.y), gyp = sy(mn.x, mn.y);
+        var swing = Math.sin(mn.sway + G.tick * 0.055) * (10 * (1 - fall));
+        var px = gxp + swing, py = gyp - PARA_H * (1 - fall);
+        var col = COL[dp.p] || COL[0], scale = 0.72 + 0.28 * fall;
+
+        // Ground shadow: wide and faint when he is high, tight when he is not.
+        ctx.fillStyle = 'rgba(0,0,0,' + (0.10 + 0.22 * fall).toFixed(2) + ')';
+        ctx.beginPath();
+        ctx.ellipse(gxp, gyp, 13 * (1.5 - 0.5 * fall) * 0.5, 6 * (1.5 - 0.5 * fall) * 0.5, 0, 0, 6.283);
+        ctx.fill();
+
+        // Shrouds, then the man, then the canopy over both.
+        var cw = 24 * scale, ch = 13 * scale, hang = 20 * scale;
+        ctx.strokeStyle = 'rgba(228,233,240,.75)'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (var sh = -2; sh <= 2; sh++) {
+          ctx.moveTo(px + sh * cw * 0.36, py - hang + ch * 0.35);
+          ctx.lineTo(px, py - 2);
+        }
+        ctx.stroke();
+        // The trooper: a dark torso with the owner's colour across the chest.
+        ctx.fillStyle = '#2b3038';
+        ctx.fillRect(px - 2.6 * scale, py - 8 * scale, 5.2 * scale, 9 * scale);
+        ctx.fillStyle = col;
+        ctx.fillRect(px - 2.6 * scale, py - 6.5 * scale, 5.2 * scale, 3.2 * scale);
+        ctx.fillStyle = '#d8c9a8';
+        ctx.fillRect(px - 1.8 * scale, py - 11 * scale, 3.6 * scale, 3.2 * scale);   // helmet
+        // Canopy: a lit dome with a house-coloured band and a shaded underside.
+        var cy0 = py - hang;
+        var cg = ctx.createLinearGradient(px - cw / 2, cy0 - ch, px + cw / 2, cy0 + ch);
+        cg.addColorStop(0, '#f2f5f9'); cg.addColorStop(0.55, '#cfd6e0'); cg.addColorStop(1, '#93a0b2');
+        ctx.fillStyle = cg;
+        ctx.beginPath(); ctx.ellipse(px, cy0, cw / 2, ch, 0, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = col;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath(); ctx.ellipse(px, cy0, cw / 2, ch * 0.34, 0, Math.PI, 0); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(30,36,46,.45)';
+        ctx.beginPath(); ctx.ellipse(px, cy0, cw / 2, ch * 0.26, 0, 0, Math.PI); ctx.fill();
+      }
+    }
 
     // A missile in flight: the target ring pulses for the whole ten seconds,
     // then the warhead comes down out of the top of the screen.
