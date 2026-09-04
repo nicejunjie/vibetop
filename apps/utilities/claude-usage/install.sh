@@ -78,6 +78,22 @@ EOF
 run chmod +x "$APP_DIR/vibetop-claude-proxy"
 
 if (( INSTALL_SYSTEMD )); then
+    # This unit is load-bearing for the HOST, not just for vibetop: turning the
+    # Claude-usage feature on writes ANTHROPIC_BASE_URL=http://127.0.0.1:7690 into
+    # ~/.claude/settings.json, so EVERY Claude Code session on this machine then
+    # talks to the API through this proxy. Rendering a unit whose ExecStart does
+    # not exist, then try-restart'ing it, would crash-loop the proxy (Restart=always,
+    # RestartSec=2) and take the user's Claude Code with it.
+    #
+    # A running proxy survives its file being renamed (it holds the inode), so the
+    # danger is not the move itself — it is writing a WRONG path and then
+    # restarting. Check what we are about to render before we render it.
+    if [ ! -x "$APP_DIR/vibetop-claude-proxy" ]; then
+        echo "ERROR: $APP_DIR/vibetop-claude-proxy is missing or not executable." >&2
+        echo "Refusing to write a unit whose ExecStart would crash-loop and break" >&2
+        echo "every Claude Code session routed through the proxy." >&2
+        exit 1
+    fi
     echo "== installing systemd unit (disabled until the feature is turned on) =="
     sed -e "s|@APP_USER@|$APP_USER|g" \
         -e "s|@OPERATOR@|$OPERATOR|g" \
