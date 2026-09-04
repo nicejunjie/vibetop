@@ -283,3 +283,53 @@ def test_backup_restore_no_longer_points_at_a_removed_unit():
     exists — FileBrowser is a transient per-user service now."""
     body = (REPO_ROOT / "tools" / "backup.sh").read_text()
     assert "vibetop-filebrowser" not in body
+
+
+# ---- nginx fragments: a conditional file cannot carry a hard dependency ----
+
+def test_every_zone_the_site_uses_is_installed_unconditionally():
+    """The /s/ limit_req zones first shipped inside vibetop-upgrade.conf, which
+    the installer skips ENTIRELY whenever a $connection_upgrade map already
+    exists anywhere under /etc/nginx — true on every host that has ever been
+    installed. The zones never landed, the site block still referenced them, and
+    nginx rejected the config with "zero size shared memory zone". Any zone the
+    generated site uses must come from a fragment written on every run."""
+    import re
+    install = (REPO_ROOT / "server" / "install.sh").read_text()
+    used = set(re.findall(r"zone=([A-Za-z0-9_]+)", install))
+    # zone=name:size declarations are the definitions, not the uses
+    used = {z for z in used if f"zone={z}:" not in install}
+    assert used, "no zones referenced — has the /s/ limiting been removed?"
+
+    # Which fragments does install.sh write unconditionally? A `cat FRAG |
+    # nginx_write` inside an if/else is conditional; at top level it is not.
+    frag_dir = REPO_ROOT / "server" / "nginx"
+    unconditional = set()
+    for line in install.splitlines():
+        m = re.search(r'nginx/([a-z0-9-]+\.conf)"', line)
+        if m and not line.startswith((" " * 8, "\t\t")):
+            unconditional.add(m.group(1))
+    declared = set()
+    for f in unconditional:
+        p = frag_dir / f
+        if p.exists():
+            declared |= set(re.findall(r"zone=([A-Za-z0-9_]+):", p.read_text()))
+    missing = used - declared
+    assert not missing, (
+        f"site uses zone(s) {sorted(missing)} that no unconditionally-installed "
+        f"fragment declares (unconditional: {sorted(unconditional)})")
+
+
+def test_the_conditional_map_fragment_declares_nothing_the_site_needs():
+    """vibetop-upgrade.conf is skipped when the map is already defined; it must
+    therefore contain ONLY that map."""
+    frag = (REPO_ROOT / "server" / "nginx" / "vibetop-upgrade.conf").read_text()
+    assert "connection_upgrade" in frag
+    assert "limit_req_zone" not in frag and "limit_conn_zone" not in frag
+
+
+def test_uninstall_removes_every_nginx_fragment_by_glob():
+    """Same hand-written-list failure as the systemd units: a new fragment that
+    nobody adds to the removal list survives every uninstall."""
+    body = (REPO_ROOT / "uninstall.sh").read_text()
+    assert "/etc/nginx/conf.d/vibetop-*.conf" in body
