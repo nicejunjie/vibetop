@@ -109,7 +109,7 @@ _217 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [The host's Claude Code runs through vibetop — a repo edit can take it down](#the-hosts-claude-code-runs-through-vibetop-a-repo-edit-can-take-it-down)
 - [Repo-path references break SILENTLY when the tree is regrouped](#repo-path-references-break-silently-when-the-tree-is-regrouped)
 - [Browser scrolling: floor while moving, round once at rest](#browser-scrolling-floor-while-moving-round-once-at-rest)
-- [Window mode at a desktop viewport (the desktop-webkit lane's real find)](#window-mode-at-a-desktop-viewport-the-desktop-webkit-lanes-real-find)
+- [The tiled seam belonged to whoever was on top (and the "desktop gap" that wasn't)](#the-tiled-seam-belonged-to-whoever-was-on-top-and-the-desktop-gap-that-wasnt)
 - [Retiring the SE grip — but only where the cursor can replace it](#retiring-the-se-grip-but-only-where-the-cursor-can-replace-it)
 - [A set-once preference does not earn permanent chrome](#a-set-once-preference-does-not-earn-permanent-chrome)
 - [Where the Floating-windows switch lives: three tries, and the lesson](#where-the-floating-windows-switch-lives-three-tries-and-the-lesson)
@@ -4076,29 +4076,77 @@ shows steady state was not touched.
 
 ---
 
-## Window mode at a desktop viewport (the desktop-webkit lane's real find)
+## The tiled seam belonged to whoever was on top (and the "desktop gap" that wasn't)
 
 **Symptom.** Adding a `desktop-webkit` project (Desktop Safari, 1280x720) and
 opening the `with windows open` suite to it turned four tests red: the gutter drag
-between two tiled windows resizes 0px where >40 is expected; `elementFromPoint` at
-the SE grip's own centre does not return the grip; and the taskbar layout palette
-never opens on hover.
+between two tiled windows resized 0px where >40 was expected; `elementFromPoint` at
+the SE grip's own centre did not return the grip; and the layout palette never
+opened. They failed identically in `desktop-chromium`, so on 2026-09-03 they were
+recorded as window-mode geometry gaps at desktop widths and skipped on desktop
+lanes via `DESKTOP_WM_GAP`.
 
-**Cause — not the one it looked like.** All four fail *identically* in
-`desktop-chromium` at the same viewport (measured). Window mode's CI coverage had
-been tablet-only (`ipad-*`, 834x1194 / 1194x834), so a 1280x720 desktop viewport
-had simply never run this suite. These are window-mode geometry gaps at desktop
-widths that predate the cursor work; the lane exercised them for the first time.
+**That diagnosis was wrong, and the skip hid it.** They are not desktop gaps and
+not viewport-dependent. Re-running the *tablet* lanes — which the entry had assumed
+green — showed five failures there too. These are two ordinary regressions that
+shipped on 2026-09-01 and that no lane was run against afterwards.
 
-**Fix.** The four are skipped on desktop lanes via `DESKTOP_WM_GAP` with the
-reason inline, so the lane is green and the debt is named rather than left red or
-silently deleted. They remain live on every tablet lane. **Open work** — these are
-real gaps, not test artefacts, and the gutter one in particular is a plausible
-user-visible bug at desktop widths: the shared gutter appears to hand its left
-half to the RIGHT window's `.win-rz-w`, so dragging it does not widen the left
-window. Investigate before removing the skips.
+**Cause A — the rings and the seam were tuned independently.** Two tiled windows
+are separated by a seam of `VibeWin.MARGIN / 2`. Each window's resize ring reaches
+some distance *outside* its own box, so the seam is grabbable at all (bare `#frames`
+underneath is not). Those two numbers live in different files. The rings were sized
+in v1.19.35 to meet inside a **16px gutter**; then `MARGIN` was introduced
+(v1.19.199) and tuned 20 → 12 (v1.19.201) → 10 (v1.19.208), taking the seam to
+**5px** while the rings still reached **10px** out (12 on touch). Each ring then
+covered the entire seam *plus ~5px inside its neighbour*, and CSS stacking handed
+every contested pixel to the higher-z (focused) window. So dragging the divider
+resized the wrong window — on every device — and a window's own corner grip
+hit-tested to its neighbour's opposite corner. Nothing failed, because nothing
+coupled the CSS to `MARGIN`.
 
----
+**Cause B — the palette's gesture moved and its tests didn't.** v1.19.201 moved the
+snap-layout palette from hover-to-open to right-click ("Hover popped the palette
+just from passing over the icon"). The tests kept calling `.hover()`. There is no
+hover path any more, so `showLayouts` was never *called* — it never "declined at
+1280x720", which is what the desktop-gap reading assumed.
+
+**Fix.** The rings now tile the seam exactly. With `b` = the window's 1px border
+and `s` = the seam:
+
+```
+(r_e - b) + (r_w - b) = s      # no overlap, and no dead pixel
+r_e - b = ceil(s / 2)          # an odd seam gives the extra px to e/s
+r_w - b = floor(s / 2)         # (leading edges, in reading order)
+```
+
+`s = 5` gives 4px outside on e/s and 3px on w/n. **Inside** reach is untouched (8px
+edges, 16px corners; 12/18 on touch), so every "resizes from the X edge" test and
+the v1.19.35 titlebar-clearance invariant still hold. `shell/winrz-css.test.js` is
+the coupling that never existed: it reads `MARGIN` from `winmgr.js`, parses the
+offsets out of `desktop.html` **and** `rzdbg.html`, and asserts the rule — so
+tuning `MARGIN` again fails there instead of silently breaking the divider. Against
+the unfixed build it fails `(10-1)+(10-1) != 5`. It also caught an older flaw: the
+touch `n`/`s` rings spanned `left:-10` while the touch `w` ring reached `-12`, so
+~2px near each touch corner belonged to nobody.
+
+**Rejected.** *Symmetric 4px* — the middle pixel still goes to z-order; the drag
+still measured 0px. *Symmetric 3px* — a one-pixel dead seam with cursor `auto`, the
+exact v1.19.35 bug returning. *Widening the seam back out* so 10px rings cannot
+overlap — the gap was deliberately tuned down three times. *Arbitrating in JS at
+pointerdown* — the cursor is CSS hit-testing, so the lower window's corner would
+still show its neighbour's opposite diagonal; fixes the drag, not the bug. *A linked
+seam drag* (moving the divider resizes both windows, tiling-WM style) is a genuine
+feature idea and would make seam ownership moot, but it changes semantics and is a
+user decision, not a bug fix.
+
+**What the incident is really about.** Both regressions failed on every viewport,
+and both survived because **window mode's e2e coverage was tablet-only** and e2e is
+not in CI at all. Two follow-ons: the `with windows open` suite now runs on every
+tablet *and* desktop lane (phones excluded — window mode does not engage under
+600x900), and fixing Cause B unmasked a third stale assertion beneath it, where the
+apply tests predicted window positions from raw `layoutGeoms` while `applyLayout`
+has gapped its zones since `MARGIN` arrived. A skipped test is not a neutral
+placeholder: it kept a wrong explanation on file for two days.
 
 ## Retiring the SE grip — but only where the cursor can replace it
 

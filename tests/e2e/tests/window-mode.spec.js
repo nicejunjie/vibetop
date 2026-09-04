@@ -1,11 +1,13 @@
 // @ts-check
 // Window mode (v1.19.x) — the floating window manager.
 //
-// Runs on the TABLET lanes, the form factor window mode is actually built for
-// (its gate needs >= 600 on the short side AND >= 900 on the long one, so phones
-// stay full-screen). This is the coverage that did not exist while v1.19.5–.9
+// Runs on every TABLET and DESKTOP lane — window mode's gate needs >= 600 on the
+// short side AND >= 900 on the long one, so phones stay full-screen and are the
+// only lanes excluded. This is the coverage that did not exist while v1.19.5–.9
 // shipped five consecutive hit-testing bugs — each found by ad-hoc iPad
-// emulation, none by a test.
+// emulation, none by a test. It was still tablet-ONLY until v1.19.271, which is
+// how v1.19.201/.202 shipped two more (the seam overlap and hover->right-click)
+// that failed on every viewport with nobody watching.
 //
 // Window mode is per-DEVICE (localStorage 'vibetop:wm'), never server state, so
 // each test enables it in an init script and no test can leak into another
@@ -15,17 +17,6 @@ const { test, expect } = require('@playwright/test');
 const { openApp, openStartMenu } = require('../helpers');
 
 const TABLET = ['ipad-pro-11', 'ipad-pro-11-landscape', 'ipad-gen-11'];
-
-// Window mode was tablet-only in CI until the desktop-webkit lane was added, so a
-// 1280x720 desktop viewport had never run this suite. Four tests fail there — and
-// they fail IDENTICALLY in desktop-chromium (measured: the gutter drag resizes 0px
-// where >40 is expected; the SE grip does not hit-test to itself; the layout
-// palette never opens). That makes them desktop-GEOMETRY gaps in window mode, not
-// engine bugs and nothing to do with the resize-cursor work that added the lane.
-// Skipped on desktop lanes with the debt recorded rather than left red — see
-// docs/design-decisions.md, "Window mode at a desktop viewport".
-const DESKTOP_WM_GAP =
-  'known desktop-viewport gap — fails in Chromium too; see docs/design-decisions.md';
 
 // Enable window mode before any script on the page runs, so the first render is
 // already in window mode (toggling afterwards races the desktop-state fetch).
@@ -92,8 +83,13 @@ test.describe('window mode', () => {
 
   test.describe('with windows open', () => {
     test.beforeEach(async ({ page }, info) => {
-      test.skip(!TABLET.includes(info.project.name) && info.project.name !== 'desktop-webkit',
-                'tablet or fine-pointer WebKit lanes only');
+      // Every lane but the phones. This used to be tablet-only, which is exactly how
+      // two regressions shipped unseen: the seam overlap and the hover->right-click
+      // move both failed on EVERY viewport, but nothing ran window mode outside the
+      // iPads. Phones are excluded because window mode does not engage there
+      // (windowModeCapable() needs >=600x900).
+      test.skip(!TABLET.includes(info.project.name) && !info.project.name.startsWith('desktop'),
+                'window mode needs a tablet or desktop viewport');
       await page.goto('/');
       await openApp(page, 'notes');
       await openApp(page, 'upload');
@@ -929,7 +925,11 @@ test.describe('window mode', () => {
       await expect(page.locator('#win-layouts')).toHaveClass(/open/, { timeout: 3000 });
       const zones = await page.evaluate((key) => {
         const f = document.getElementById('frames').getBoundingClientRect();
-        return window.VibeWin.layoutGeoms(key, { w: Math.round(f.width), h: Math.round(f.height) });
+        // gapZones too — applyLayout insets MARGIN at the frame and MARGIN/2
+        // between windows, so raw layoutGeoms mispredicts by up to a MARGIN.
+        const box = { w: Math.round(f.width), h: Math.round(f.height) };
+        return window.VibeWin.gapZones(window.VibeWin.layoutGeoms(key, box), box,
+                                       window.VibeWin.MARGIN, window.VibeWin.MARGIN / 2);
       }, offered[0]);
       const fr = await page.evaluate(() => {
         const r = document.getElementById('frames').getBoundingClientRect();
