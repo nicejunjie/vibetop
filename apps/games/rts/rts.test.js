@@ -4927,3 +4927,56 @@ test("a veteran fires faster and moves faster than a rookie, not only an elite",
   assert.ok(s1 > s0, `a VETERAN must move faster than a rookie (${s1} vs ${s0})`);
   assert.ok(s2 > s1, `an ELITE must move faster than a veteran (${s2} vs ${s1})`);
 });
+
+// ---- the AI's assault order already fights its way in -------------------- //
+// A gap audit reported "the AI never attack-moves" from a count of orders whose
+// `t` is `amove`, which is 0 and always has been: `amove` is a PLAYER command
+// (ctrl+shift click), and `aiOrderAttack` issues a target-directed `attack`
+// instead. The behaviour those two produce is what matters, and it is the same
+// — an `attack` order at a distant objective falls through to `findTarget`,
+// which picks up whatever is in reach on the way and stops to kill it.
+//
+// This test exists so the counter is never "fixed" by bolting `amove` onto the
+// AI: that would change the number and nothing else. If the two columns below
+// ever diverge, THEN there is something to fix.
+test("a target-directed attack engages what it passes, exactly as attack-move does", () => {
+  const H = W.__rtsTest;
+  const trial = (kind) => {
+    const g = H.begin(6161, "normal");
+    H.give(0, 999999); H.give(1, 999999);
+    const far = H.build("power", 0, 44, 20); far.make = 0;
+    const box = H.build("sentry", 0, 30, 20); box.make = 0;   // squarely on the path
+    const hp0 = box.hp;
+    const tanks = [];
+    for (let i = 0; i < 4; i++) tanks.push(H.spawn("rhino", 1, 18, 19 + i));
+    if (kind === "attack") H.orderAttack(tanks, far);
+    else tanks.forEach((t) => { t.order = { t: "amove", x: 44, y: 20, id: 0 }; t.repathAt = -999; });
+    for (let i = 0; i < 3000 && !box.dead; i++) H.step(1);
+    return { hurt: box.hp < hp0, dead: !!box.dead };
+  };
+  const a = trial("attack"), m = trial("amove");
+  assert.ok(m.hurt, "the control: an attack-move column must engage the defence it passes");
+  assert.deepEqual(a, m,
+    "a target-directed `attack` order must engage en route exactly as `amove` does — "
+    + `attack: ${JSON.stringify(a)} vs amove: ${JSON.stringify(m)}`);
+});
+
+// ---- every map has something to garrison -------------------------------- //
+// Garrisoning a civilian block is a whole mechanic — the player has it, the AI
+// has code for it, and both are tested. It was unreachable on three of the
+// seven maps (Frozen Front, Chokepoint Pass, Gem Valley placed no `occCap`
+// structure at all), and because the headless sim generates one of those by
+// default, a gap audit measured "the AI never garrisons" over twelve matches on
+// a map with nothing to garrison. The mechanic was fine; the content was not.
+test("every map places at least one garrisonable structure", () => {
+  const H = W.__rtsTest;
+  const bare = [];
+  for (const key of Object.keys(T.MAPS)) {
+    const g = H.startWith(4242, "normal", key);
+    const n = g.blds.filter((b) => !b.dead && T.BLDS[b.type].occCap).length;
+    if (!n) bare.push(`${key} (${T.MAPS[key].name})`);
+  }
+  assert.deepEqual(bare, [],
+    "these maps place nothing a soldier can garrison, so the mechanic does not "
+    + "exist on them:\n  " + bare.join("\n  "));
+});

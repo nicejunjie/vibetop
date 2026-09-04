@@ -2500,16 +2500,22 @@
   // --------------------------------------------------------------------- //
   // Maps. Each generator lays terrain on a mirrored (180°) 64x64 board so the
   // two starts are fair by construction; `theatre` picks the ground palette.
+  // Every map carries at least one garrisonable civilian structure. Frozen
+  // Front, Chokepoint Pass and Gem Valley had NONE, which made garrisoning
+  // unreachable on three of the seven maps and, because the headless sim
+  // generates one of them by default, produced a gap-audit finding that "the
+  // AI never garrisons" — measured over twelve matches on a map with zero
+  // blocks to garrison. Given blocks, the AI garrisons on its own.
   var MAPS = {
     frontier: { name: 'Iron Frontier', theatre: 'temperate', light: { mul: '#fff0d0', a: 0.12 }, blurb: 'Open plains, rock outcrops, a road between the bases',
                 gen: function (g) { g.tech2 = 'airport'; genCore(g, 26, null); mapRoad(g); mapFarms(g); mapTrees(g, 14); } },
     lake:     { name: 'Lake Divide',   theatre: 'temperate', light: { mul: '#cbd6e6', a: 0.20 }, blurb: 'A lake splits the middle; cliff ridges guard the flanks',
                 gen: function (g) { g.tech2 = 'hospital'; genCore(g, 14, function () { mapLake(g, 31.5, 31.5, 11, 7); mapLake(g, 19, 19, 4, 3); mapRidge(g, 12, 40, 26, 40, 3); mapRidge(g, 44, 18, 44, 30, 3); }); mapFarms(g); mapTrees(g, 10); } },
     tundra:   { name: 'Frozen Front',  theatre: 'snow',      light: { mul: '#bfcfe8', a: 0.24 }, blurb: 'Snowfield with frozen lakes and cliff ridges',
-                gen: function (g) { g.tech2 = 'hospital'; genCore(g, 18, function () { mapLake(g, 20, 44, 5, 3.2); mapRidge(g, 21, 4, 21, 16, 3); mapRidge(g, 34, 44, 46, 44, 3); }); mapTrees(g, 12); } },
+                gen: function (g) { g.tech2 = 'hospital'; genCore(g, 18, function () { mapLake(g, 20, 44, 5, 3.2); mapRidge(g, 21, 4, 21, 16, 3); mapRidge(g, 34, 44, 46, 44, 3); }); mapFarms(g); mapTrees(g, 12); } },
     choke:    { name: 'Chokepoint Pass', theatre: 'temperate', light: { mul: '#ffb07a', a: 0.24, add: '#2a1424', aa: 0.09 }, blurb: 'One cliff wall across the middle; two ramps decide the game',
                 gen: function (g) { g.tech2 = 'airport'; genCore(g, 16, function () { mapWall(g); },
-                  function (mp) { mp(14, 45, 3.2, 900); mp(22, 45, 3.0, 860); }); mapTrees(g, 9); } },
+                  function (mp) { mp(14, 45, 3.2, 900); mp(22, 45, 3.0, 860); }); mapFarms(g); mapTrees(g, 9); } },
     river:    { name: 'River Crossing', theatre: 'urban',     light: { mul: '#ffcbbe', a: 0.20, add: '#26142c', aa: 0.07 }, blurb: 'A city river, two bridges, civilian blocks along the streets',
                 gen: function (g) { g.tech2 = 'hospital'; genCore(g, 7, function () { mapRiver(g); },
                   function (mp) { mp(24, 24, 3.0, 840); mp(40, 25, 3.0, 820); }); mapCity(g); mapTrees(g, 6); } },
@@ -2518,7 +2524,7 @@
                   function (mp, gp) { gp(31.5, 31.5, 3.0, 900); mp(31.5, 31.5, 4.6, 700); }); mapFarms(g); mapTrees(g, 8); } },
     gems:     { name: 'Gem Valley',     theatre: 'temperate', light: { mul: '#fff7e4', a: 0.08 }, blurb: 'A gem plateau ringed by cliffs — two ramps in, and everyone wants them',
                 gen: function (g) { g.tech2 = 'airport'; genCore(g, 13, function () { mapPlateau(g); },
-                  function (mp, gp) { gp(31.5, 27, 3.4, 560); gp(27, 31.5, 3.0, 480); mp(19, 17, 3.0, 820); }); mapTrees(g, 10); } }
+                  function (mp, gp) { gp(31.5, 27, 3.4, 560); gp(27, 31.5, 3.0, 480); mp(19, 17, 3.0, 820); }); mapFarms(g); mapTrees(g, 10); } }
   };
   function genMap(g) { (MAPS[g.mapId] || MAPS.frontier).gen(g); }
   function setT(g, x, y, t) { if (inMap(x, y) && g.terrain[idx(x, y)] === T_GROUND) g.terrain[idx(x, y)] = t; }
