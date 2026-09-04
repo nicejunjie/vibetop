@@ -46,7 +46,7 @@ run sudo rm -f /usr/local/lib/vibetop/browser-loop.sh
 # the browser became per-user (xpra-app.sh + transient units). Nothing generates
 # either any more; removed so an old host does not keep a unit pointing at a script
 # that is no longer installed.
-run sudo rm -f /usr/local/lib/vibetop-browser/browser-loop.sh
+run sudo rm -f /usr/local/lib/vibetop-apps/everyday/browser/browser-loop.sh
 run sudo rmdir /usr/local/lib/vibetop-browser 2>/dev/null || true
 
 echo "== removing nginx snippet =="

@@ -109,9 +109,9 @@ its config actually changed — so a re-run won't blip live terminals):
 
 ```bash
 sudo ./terminal/install.sh   # nginx skeleton + manager API + ttyd
-sudo ./browser/install.sh    # xpra + Chromium (snap) + LibreOffice (office View)
-sudo ./files/install.sh      # FileBrowser at /files/
-sudo ./office/install.sh     # Docker + OnlyOffice Document Server at /onlyoffice/
+sudo ./apps/everyday/browser/install.sh    # xpra + Chromium (snap) + LibreOffice (office View)
+sudo ./apps/everyday/files/install.sh      # FileBrowser at /files/
+sudo ./apps/everyday/office/install.sh     # Docker + OnlyOffice Document Server at /onlyoffice/
 ./shell/install.sh         # desktop UI + static apps (no sudo)
 sudo ./tunnel/install.sh     # cloudflared (tunnel setup is interactive)
 ```
@@ -123,7 +123,7 @@ release binary, and **Docker** (`docker.io`) for the OnlyOffice container
 site, and the www-data home-dir ACL. Validated end-to-end on AMD+NVIDIA and
 AMD+AMD Ubuntu 24.04 hosts. Remotely-deployed hosts are full installs — they
 self-update code from the Start menu like the primary box (heavy deps like the
-OnlyOffice image are installed only by `deploy.sh`/`office/install.sh`, not the
+OnlyOffice image are installed only by `deploy.sh`/`apps/everyday/office/install.sh`, not the
 in-app Update).
 
 See [`CLAUDE.md`](CLAUDE.md) for the doc index and the rules that bind every

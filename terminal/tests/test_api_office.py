@@ -15,7 +15,7 @@ def _setup(mgr, home, ext="docx"):
         f.write("test-secret-123")
     docs = os.path.join(str(home), "Documents")
     os.makedirs(docs, exist_ok=True)
-    tmpl = os.path.join(mgr.REPO_DIR, "office", "templates", f"new.{ext}")
+    tmpl = os.path.join(mgr.REPO_DIR, "apps", "everyday", "office", "templates", f"new.{ext}")
     dst = os.path.join(docs, f"file.{ext}")
     shutil.copyfile(tmpl, dst)
     return f"Documents/file.{ext}", "test-secret-123"

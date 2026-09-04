@@ -7,7 +7,7 @@
 #
 #   * Python — terminal-manager endpoint contracts + pure logic + static/
 #     integrity checks (terminal/tests/), loaded in-process.
-#   * Python — the claude-usage proxy (claude-usage/tests/).
+#   * Python — the claude-usage proxy (apps/utilities/claude-usage/tests/).
 #   * JavaScript — service-worker routing, tab-sync, coach tips, terminal-kbd
 #     key map, and a syntax guard over every injected/deployed script
 #     (node's built-in runner, no deps).
@@ -48,8 +48,8 @@ if command -v python >/dev/null 2>&1 && python -m pytest --version >/dev/null 2>
     hr "pytest — terminal manager (terminal/tests)"
     if ( cd terminal && python -m pytest tests/ -q ); then ok "terminal manager"; else no "terminal manager"; fi
 
-    hr "pytest — claude-usage proxy (claude-usage/tests)"
-    if ( cd claude-usage && python -m pytest tests/ -q ); then ok "claude-usage proxy"; else no "claude-usage proxy"; fi
+    hr "pytest — claude-usage proxy (apps/utilities/claude-usage/tests)"
+    if ( cd apps/utilities/claude-usage && python -m pytest tests/ -q ); then ok "claude-usage proxy"; else no "claude-usage proxy"; fi
 else
     echo "pytest unavailable — skipping Python suites." >&2
 fi
@@ -58,7 +58,7 @@ fi
 if command -v node >/dev/null 2>&1; then
     hr "node --test — JS units (sw / tab-sync / coach / kbd / syntax)"
     # Discover every *.test.js outside .claude/ (worktrees carry stale copies).
-    mapfile -t JS_TESTS < <(find shell shared apps browser terminal -name '*.test.js' \
+    mapfile -t JS_TESTS < <(find shell shared apps terminal -name '*.test.js' \
         -not -path '*/.claude/*' 2>/dev/null | sort)
     if [ "${#JS_TESTS[@]}" -eq 0 ]; then
         no "no JS test files found"

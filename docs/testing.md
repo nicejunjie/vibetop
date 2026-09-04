@@ -14,7 +14,7 @@
 
 **One command — `./run-tests.sh`** runs the whole hermetic regression suite (no
 root/systemd/nginx/Docker; external processes are stubbed): the two Python roots
-(`terminal/tests/` + `claude-usage/tests/`) and every JS unit (`node --test`).
+(`terminal/tests/` + `apps/utilities/claude-usage/tests/`) and every JS unit (`node --test`).
 `--live` additionally runs the live-host smoke test (below). It's a **dev-only
 tool** — no installer runs it and it deploys nothing; CI (`.github/workflows/
 tests.yml`) and the pre-commit hook both call it, so the suites can't drift.
@@ -35,7 +35,7 @@ The tiers (each independently runnable, ~5s total):
 - **Static/integrity** (`test_static.py`) — `py_compile` every `.py`, `bash -n` +
   `shellcheck -S error` every `.sh`, the `@PLACEHOLDER@`-stamping invariant, sw.js
   PRECACHE-source existence, and HTML asset-ref resolution.
-- **claude-usage proxy** (`claude-usage/tests/`) — header capture (`_record`),
+- **claude-usage proxy** (`apps/utilities/claude-usage/tests/`) — header capture (`_record`),
   fail-open relay, atomic write; importlib-loads the hyphenated proxy.
 - **JavaScript** (`node --test`) — service-worker routing (`sw.test.js`), tab-set
   reconcile (`tab-sync.test.js`), coach-tip state machine (`coach.test.js`), the

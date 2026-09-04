@@ -39,7 +39,7 @@ number, which is far worse than an error: the surface looked alive.
 The unit template already guards this with `User=@OPERATOR@`. The stamping is
 where it went wrong, and it took **two scripts each doing something reasonable**:
 
-- `claude-usage/install.sh` resolved `OPERATOR` from `$VIBETOP_ADMINS` **in its
+- `apps/utilities/claude-usage/install.sh` resolved `OPERATOR` from `$VIBETOP_ADMINS` **in its
   environment**, falling back to `APP_USER`. But that value lives in
   `/etc/vibetop/manager.env`, which it never read.
 - `tools/lib/layout.sh`'s `vt_installer_env_array` — the one shared "install into
@@ -56,7 +56,7 @@ every subsequent deploy re-rendered it the same way.
 1. **One authority.** `vt_installer_env_array` now reads `VIBETOP_ADMINS` from
    the manager env file it itself writes, and passes it to *every* installer —
    not just the one that happened to need it today.
-2. **Belt.** `claude-usage/install.sh` also reads the env file directly when the
+2. **Belt.** `apps/utilities/claude-usage/install.sh` also reads the env file directly when the
    variable isn't in its environment (the lookup `tools/smoke-test.sh` already
    used), validates the resolved operator exists, and prints it in the banner —
    the banner previously showed only `APP_USER`, which is *why* a wrong operator
@@ -404,7 +404,7 @@ mobile UA renders sites' real mobile layouts at phone width — Wikipedia served
 Minerva mobile skin instead of the squeezed desktop Vector skin.)
 
 **Fix — "shape-claim":** ONE per-user Chromium that **reshapes to the device viewing
-it**. `browser/browser-loop.sh` reads `$PROFILE/vibetop-shape` (`mobile`|`desktop`) each
+it**. `apps/everyday/browser/browser-loop.sh` reads `$PROFILE/vibetop-shape` (`mobile`|`desktop`) each
 (re)spawn and picks the flag set (mobile: mobile UA + `--touch-events` + overlay
 scrollbars; desktop: as before). On connect, `xpra-patches.js` patch 11 POSTs
 `/api/browser/shape` with `mobile` on touch / `desktop` otherwise; the manager writes
@@ -491,14 +491,14 @@ appeared by default and stacked above iOS's native keyboard; typing via the ⌨ 
 was dead, taps stole focus (closing the iOS keyboard), paste/reconnect/size-reclaim all
 gone. It *looked* like a keyboard-logic regression.
 
-**Cause:** `browser/xpra-patches.js` (all 10 patches — the `.simple-keyboard{display:none}`
+**Cause:** `apps/everyday/browser/xpra-patches.js` (all 10 patches — the `.simple-keyboard{display:none}`
 hide, touch routing, keystroke forwarding, paste, auto-reconnect, keymap-force) was
 **404ing** on the live host, so the Browser page ran completely unpatched. The web root
 had forked: `tools/migrate-to-opt.sh` set it up at `/opt/vibetop/www`, but every
 installer **defaults** `LANDING_DIR`/`DST_DIR` to `<APP_HOME>/vibetop-www` =
 `/opt/vibetop/vibetop-www`. The first in-app Update after migration that touched
 `landing/` + `terminal/` (but not `browser/`) re-rendered the nginx root to
-`vibetop-www` and re-deployed the landing files there — but `browser/install.sh`
+`vibetop-www` and re-deployed the landing files there — but `apps/everyday/browser/install.sh`
 didn't run (its dir was unchanged), so `xpra-patches.js` stayed orphaned in the old
 `/opt/vibetop/www`. nginx's `location = /xpra-patches.js` used `add_header … always`,
 so the **404 itself was cached for 24 h** on the phone. The `.simple-keyboard` OSK is
@@ -509,7 +509,7 @@ uncovered the real 404-driven double-keyboard.)
 
 **Fix (defense in depth, since the single point of failure was one 404):**
 1. **Deploy the file to the right root** — any `browser/` change makes the Update run
-   `browser/install.sh`, which installs `xpra-patches.js` into `vibetop-www` and
+   `apps/everyday/browser/install.sh`, which installs `xpra-patches.js` into `vibetop-www` and
    recomputes its `?v=` md5 (auto-busting the cached 404 via a new URL).
 2. **nginx sub_filter now also hides `.simple-keyboard`** (both `/browser/` and
    `/x11-display/`) — the OSK can't appear even if the JS 404s again.
@@ -631,7 +631,7 @@ location looks correctly configured).
   *substituting podman for docker* in the Office installer without testing it;
   *creating `sites-available`/`sites-enabled` on RHEL* — the directories are not
   the problem, the missing `include` is.
-- **Also fixed in passing, and NOT RPM-specific:** `files/install.sh` installed
+- **Also fixed in passing, and NOT RPM-specific:** `apps/everyday/files/install.sh` installed
   ffmpeg as `run apt-get update && run apt-get install -y ffmpeg`. As a
   non-final element of an `&&` list it was exempt from `set -e`, so on any distro
   lacking the package the failure was **silent** and the installer reported
@@ -1585,7 +1585,7 @@ location looks correctly configured).
   only registers in a secure context, but its scope is `/onlyoffice/<version>/`,
   so it never touches the `/onlyoffice/cache/` path.)
 - **Fix:** Forward the **external** scheme: `proxy_set_header X-Forwarded-Proto
-  $http_x_forwarded_proto;` in `office/nginx/onlyoffice.conf`. `cloudflared` sends
+  $http_x_forwarded_proto;` in `apps/everyday/office/nginx/onlyoffice.conf`. `cloudflared` sends
   `X-Forwarded-Proto: https`, so the DS now builds `https://` URLs over the
   tunnel; on a direct LAN request the header is absent → nginx omits it → the DS's
   own nginx (`http-common.conf`'s `$the_scheme` map) falls back to its `http`
@@ -1603,7 +1603,7 @@ location looks correctly configured).
   found + closed alongside this: the in-app Updater redeployed
   `landing/`/`browser/`/`terminal/` but **not** `office/`, so this fix wouldn't
   have reached a host that updates via the app. The Updater now runs
-  `office/install.sh` on an `office/` change — with the new `INSTALL_CONTAINER=0`
+  `apps/everyday/office/install.sh` on an `office/` change — with the new `INSTALL_CONTAINER=0`
   knob so it only re-renders the nginx snippet and **leaves the live OnlyOffice
   container running** (tearing it down would drop open editors + cost ~1-2 min);
   container arg/image changes still need a full `deploy.sh`, exactly like
@@ -1758,7 +1758,7 @@ location looks correctly configured).
   `…-7d-utilization` = weekly, `…-representative-claim` = which limit binds). ccusage
   gives token/cost estimates, not the real plan %. So the only way to the real
   numbers is to **observe Claude Code's own traffic**.
-- **Design:** an opt-in pass-through proxy (`claude-usage/vibetop-claude-proxy`,
+- **Design:** an opt-in pass-through proxy (`apps/utilities/claude-usage/vibetop-claude-proxy`,
   stdlib streaming, loopback) forwards every request to `api.anthropic.com` verbatim
   and records the usage headers to `~/.local/share/vibetop-claude-usage.json`. Claude
   Code is pointed at it via `ANTHROPIC_BASE_URL=http://127.0.0.1:7690`, set in
@@ -2146,11 +2146,11 @@ protocol specified`** — even though the unit already runs `xhost +local:` and 
 
 **Fix.** Use the **server-interpreted local-user** grant, not `local:`:
 `--start="xhost +si:localuser:@APP_USER@"` in `vibetop-x11-xpra.service`
-(`browser/install.sh` renders `@APP_USER@`). `si:localuser:` uses the socket peer's
+(`apps/everyday/browser/install.sh` renders `@APP_USER@`). `si:localuser:` uses the socket peer's
 credentials (`getpeereid`) and reliably grants that user with no cookie. Tighter
 than `+local:` too (one user, not any local user) and safe here (loopback-only,
 single-user, behind Access). Native apps are unaffected — they read the cookie.
-NB: a unit change only lands on a full deploy / `browser/install.sh`
+NB: a unit change only lands on a full deploy / `apps/everyday/browser/install.sh`
 (`INSTALL_SYSTEMD=1`), **not** the in-app Update (`INSTALL_SYSTEMD=0`); patch the
 installed unit + `daemon-reload` (no restart needed — a live `xhost` on the
 running display holds until it restarts) to fix an existing host in place.
@@ -3731,6 +3731,48 @@ one path that neither releases it nor guarantees a further `pointermove`, and
 `BRIDGE_MAX_MS` is its backstop. Do not remove that timeout, and do not add
 another early return without one.
 
+## Repo-path references break SILENTLY when the tree is regrouped
+
+**Symptom.** Reorganising the source tree (landing/ → shell/ + shared/ + apps/,
+then browser|files|office|claude-usage → apps/) broke nine separate things, and
+**not one of them raised an error**. Each simply stopped doing its job:
+
+| Reference | What stopped happening |
+|---|---|
+| `touched("landing/")` | the Update pulled code and never redeployed the web root |
+| `"landing/filebrowser-patches.js" in changed` | the FileBrowser `?v=` cache-buster stopped being recomputed |
+| `git log -- landing/sw.js` | the build date silently became empty |
+| `doctor.sh` reading `landing/sw.js` | the deployed-vs-checkout version check stopped comparing |
+| `FB_PATCH_FILE=$APP_DIR/../landing/...` with `|| echo 0` | `?v=0` — a CONSTANT, so every later edit would serve stale JS forever |
+| `AGENT = REPO/files/fileagent.py` | 34 tests errored as "agent never bound its socket" |
+| office `templates/` path | six tests failed on FileNotFoundError |
+
+**Cause.** The web root is flat while the source tree is grouped, so only
+`shell/install.sh` maps source → URL. That decoupling is what let 100+ files move
+without touching a single URL — but it also means **anything that addresses a file
+by REPO path has no test telling it the file moved.** Worse, the common idioms all
+degrade quietly: `str.startswith(prefix)` returns False, `x in list` returns False,
+`git log -- <path>` prints nothing and exits 0, and `[ -f x ] && ... || echo 0`
+substitutes a default. A URL typo 404s loudly; a repo-path typo does nothing.
+
+**Fix — three habits, in order of value.**
+1. **Derive, don't restate.** `WEB_SOURCE_DIRS` in the manager is asserted against
+   `shell/install.sh`'s own `find` walk, so adding a source directory the installer
+   reads makes the test name the directory whose changes would never deploy.
+   Proven by dropping `apps/` and watching it fail with exactly that message.
+2. **Never default a path lookup.** The `|| echo 0` fallback turned a missing file
+   into a permanently-broken cache-buster. The installer now exits non-zero.
+3. **Prefer a glob when there is exactly one match.** The sw.js build date uses an
+   unanchored `:(glob)**/sw.js`, which survived a second move that a literal —
+   and even an anchored glob — did not.
+
+**Invariant.** Before any further regroup, grep for literal repo paths in
+`terminal-manager.py`, `deploy.sh`, `tools/*.sh`, every `install.sh` and every
+test — and treat "the tests still pass" as no evidence at all until you have
+checked that something actually asserts each path.
+
+---
+
 ## Browser scrolling: floor while moving, round once at rest
 
 **Symptom.** In the Browser (xpra) app a fine trackpad nudge did nothing at all —
@@ -4484,7 +4526,7 @@ original exact-bytes test stayed green through the whole breakage.
      **before a single byte is sent** — so a request, and in particular an
      upload body, can never reach an impostor. A mismatch unlinks the bad
      socket and logs `SECURITY:`.
-- **Migration:** `files/install.sh` already stops running agent units on
+- **Migration:** `apps/everyday/files/install.sh` already stops running agent units on
   deploy, and `_ensure_fileagent` now stops-and-recreates a unit that
   "already exists" but whose socket never answers — a transient unit re-runs
   its ORIGINAL argv, so an old agent would otherwise keep serving the old

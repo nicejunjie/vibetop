@@ -73,8 +73,8 @@ head_ "Required tools"
 for tool in ttyd nginx xpra wmctrl git setfacl; do
     if have "$tool"; then ok "$tool present"; else bad "$tool MISSING — core dependency (re-run the installer)"; fi
 done
-if have filebrowser || [ -x /usr/local/bin/filebrowser ]; then ok "filebrowser present"; else bad "filebrowser MISSING (files/install.sh)"; fi
-if have chromium || [ -x /snap/bin/chromium ]; then ok "chromium present"; else adv "chromium not found — the Browser app needs snap chromium (browser/install.sh)"; fi
+if have filebrowser || [ -x /usr/local/bin/filebrowser ]; then ok "filebrowser present"; else bad "filebrowser MISSING (apps/everyday/files/install.sh)"; fi
+if have chromium || [ -x /snap/bin/chromium ]; then ok "chromium present"; else adv "chromium not found — the Browser app needs snap chromium (apps/everyday/browser/install.sh)"; fi
 if have soffice || have libreoffice; then ok "libreoffice present (Office View)"; else adv "libreoffice not found — Office 'View' (PDF preview) disabled"; fi
 have docker && ok "docker present (Office Edit / OnlyOffice)" || adv "docker not found — OnlyOffice (Office Edit) disabled"
 have cloudflared && ok "cloudflared present (tunnel)" || info "cloudflared not found — tunnel not installed (LAN-only is fine)"
@@ -169,7 +169,7 @@ fi
 # 5. The private apps D-Bus bus — GNOME/GTK launcher apps hang ~33s on portal
 #    activation timeouts without it.
 if unit_exists vibetop-x11-dbus.service; then ok "vibetop-x11-dbus present (GNOME apps skip the 33s portal hang)"
-elif unit_exists vibetop-x11-xpra.service; then adv "X11 display present but vibetop-x11-dbus missing — GTK apps may start slowly (browser/install.sh)"; fi
+elif unit_exists vibetop-x11-xpra.service; then adv "X11 display present but vibetop-x11-dbus missing — GTK apps may start slowly (apps/everyday/browser/install.sh)"; fi
 
 # 6. xhost line in the X11 xpra unit — snap apps on the X11 display need it
 #    (confined snaps can't read ~/.Xauthority) or fail 'cannot open display'.
@@ -203,7 +203,7 @@ else
     # The operator must be a real human login, never the service account: the
     # service account's home is /opt/vibetop, which has no ~/.claude to observe.
     if [ "$OPERATOR" = "$APP_USER" ] && [ "${APP_HOME#/opt/}" != "$APP_HOME" ]; then
-        bad "operator == APP_USER ($APP_USER), whose home is $APP_HOME — the operator must be the HUMAN admin; set VIBETOP_ADMINS in $VT_ENV and re-run claude-usage/install.sh"
+        bad "operator == APP_USER ($APP_USER), whose home is $APP_HOME — the operator must be the HUMAN admin; set VIBETOP_ADMINS in $VT_ENV and re-run apps/utilities/claude-usage/install.sh"
     fi
 fi
 
@@ -215,7 +215,7 @@ if unit_exists vibetop-claude-proxy.service; then
     elif [ -z "$OPERATOR" ]; then
         skip "vibetop-claude-proxy User=$PU (no operator named — nothing to compare against)"
     elif [ "$PU" != "$OPERATOR" ]; then
-        bad "vibetop-claude-proxy runs as '$PU' but the operator is '$OPERATOR' — its usage capture lands in the WRONG home and the desktop strip freezes. Fix: 'sudo env APP_USER=$APP_USER APP_DIR=$ROOT $ROOT/claude-usage/install.sh'"
+        bad "vibetop-claude-proxy runs as '$PU' but the operator is '$OPERATOR' — its usage capture lands in the WRONG home and the desktop strip freezes. Fix: 'sudo env APP_USER=$APP_USER APP_DIR=$ROOT $ROOT/apps/utilities/claude-usage/install.sh'"
     else
         ok "vibetop-claude-proxy User=$PU matches the operator"
     fi
@@ -322,7 +322,7 @@ if have xpra; then
     xv="$(xpra --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -1)"
     xmaj="${xv%%.*}"
     if [ -z "$xv" ]; then adv "could not parse xpra version"
-    elif [ "${xmaj:-0}" -lt 4 ]; then bad "xpra $xv is too old (no HTML5 client) — install from the xpra.org apt repo (browser/install.sh)"
+    elif [ "${xmaj:-0}" -lt 4 ]; then bad "xpra $xv is too old (no HTML5 client) — install from the xpra.org apt repo (apps/everyday/browser/install.sh)"
     elif printf '%s' "$xv" | grep -qE '^6\.5(\.|$)'; then adv "xpra $xv — the 6.5 line has a click-offset regression (clicks land ~1 line low). Pin 6.4.4 (see docs/design-decisions.md)"
     else ok "xpra $xv (>=4, not the 6.5 regression)"; fi
 else

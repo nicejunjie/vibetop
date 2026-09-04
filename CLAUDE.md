@@ -38,14 +38,14 @@ Six sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.
 
 **It is multi-user** (Option B — see the identity rules below): each of the host's **real Linux users** logs in with their PAM (username+password) credentials and gets their own terminals / Files / Browser / X11 running **as themselves** in their real `$HOME`; Unix permissions are the isolation boundary (a Terminal ≡ SSH as *that* user). Prod on the reference host (`z20`) runs from `/opt/vibetop/` owned by a no-login `vibetop` service account, with the human admin(s) named in `VIBETOP_ADMINS`. The only operator-only surfaces are **Claude-usage** and **Update** (gated by `_is_admin()`); every other surface is per-user.
 
-| Sub-project | URL path | What |
+| Directory | URL path | What |
 |---|---|---|
-| terminal | `/t1/`..`/t50/`, `/terminals/`, `/api/` | Dynamic persistent bash terminals (ttyd + vibetop-session) + manager API |
-| browser | `/browser/`, `/x11-display/` | Persistent Chromium via xpra HTML5 (`:99`) + a second xpra display (`:98`) for the X11 Launcher's GUI apps |
-| landing | `/` | Unified desktop UI with taskbar, iframe viewport, and status bar |
-| files | `/files/` | FileBrowser file manager rooted at `/` (whole filesystem, as the authenticated user) |
-| office | `/onlyoffice/` | OnlyOffice Document Server (Docker) — in-browser Office editing via the manager's `/api/office/*` |
-| claude-usage | `/api/claude/usage` | Opt-in pass-through proxy that captures the real Claude Max-plan usage headers for the desktop's usage strip |
+| `terminal/` | `/t1/`..`/t50/`, `/terminals/`, `/api/` | Dynamic persistent bash terminals (ttyd + vibetop-session) + manager API |
+| `apps/everyday/browser/` | `/browser/`, `/x11-display/` | Persistent Chromium via xpra HTML5 (`:99`) + a second xpra display (`:98`) for the X11 Launcher's GUI apps |
+| `shell/` + `apps/` | `/` | Unified desktop UI with taskbar, iframe viewport, and status bar; `apps/<section>/<item>/` mirrors the Start menu |
+| `apps/everyday/files/` | `/files/` | FileBrowser file manager rooted at `/` (whole filesystem, as the authenticated user) |
+| `apps/everyday/office/` | `/onlyoffice/` | OnlyOffice Document Server (Docker) — in-browser Office editing via the manager's `/api/office/*` |
+| `apps/utilities/claude-usage/` | `/api/claude/usage` | Opt-in pass-through proxy that captures the real Claude Max-plan usage headers for the desktop's usage strip |
 | tunnel | — | Cloudflare Tunnel + Access config for public HTTPS |
 
 **Canonical app inventory** (source of truth: the `APPS` map in `shell/desktop.html` — the README groups these more loosely):
@@ -73,7 +73,7 @@ more centralized than that suggests. Four facts explain most of the layout:
   flat `if self.path == …` ladder (~line 4040).
 - **Root proxies, per-user daemons act.** The manager never touches a user's files
   itself: it launches per-user `systemd-run` transient units and proxies bytes to
-  them over AF_UNIX/ports — `files/fileagent.py` (file ops), `vibetop-session` +
+  them over AF_UNIX/ports — `apps/everyday/files/fileagent.py` (file ops), `vibetop-session` +
   ttyd (terminals), xpra, FileBrowser. Unix permissions are the entire authorization
   fence, so *anything* that reads or writes user data belongs in the per-user
   daemon, never in the root process.
@@ -123,7 +123,7 @@ transient units, per-user ports, the auth gate) is in `docs/multi-user.md`.
 
 ## Versioning & commits
 
-- The root **`VERSION`** file (e.g. `1.5.6`) is a hand-maintained release number — it is **not** read by any build/deploy script (the `VERSION` strings in `browser/install.sh`/`files/install.sh` are the OS `VERSION_CODENAME` and `FB_VERSION`, unrelated). Bump it when cutting a user-visible release and commit with a `vX.Y.Z: <summary>` subject (see `git log -- VERSION`).
+- The root **`VERSION`** file (e.g. `1.5.6`) is a hand-maintained release number — it is **not** read by any build/deploy script (the `VERSION` strings in `apps/everyday/browser/install.sh`/`apps/everyday/files/install.sh` are the OS `VERSION_CODENAME` and `FB_VERSION`, unrelated). Bump it when cutting a user-visible release and commit with a `vX.Y.Z: <summary>` subject (see `git log -- VERSION`).
 - **Bump `VERSION` in `shell/sw.js` for ANY user-visible change**, not only cached-shell ones. That string is two things: the PWA cache key *and* the deploy signal the SSE stream (`/api/events`) watches — clients only reload when it changes. Skip it and a page that is `no-store`/sw-bypassed (`/terminals/`, `/tN/`) still ships stale to every already-open tab, because nothing tells them to refresh (this bit v1.19.12 and v1.19.16). The convention is a `(sw vNN->vNN)` suffix on the commit subject. Sub-resource JS injected via `sub_filter` (`xpra-patches.js`, `filebrowser-patches.js`, `terminal-kbd.js`) is content-hash cache-busted automatically — never bump those by hand.
 - **Release checklist (order matters):** 1) bump `VERSION` **and** `shell/sw.js`'s `VERSION` (if the cached shell changed), 2) **commit + push**, 3) **then deploy** — via the in-app **Update** app or `./deploy.sh`. The SSE auto-refresh (`/api/events`) only pushes a `reload` when the **deployed** `sw.js` VERSION changes, so deploying *before* the sw bump is committed leaves every client stale. If you bump-then-deploy out of order, redeploy landing (`./shell/install.sh`).
 

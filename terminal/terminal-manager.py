@@ -1806,7 +1806,7 @@ def _fileagent_unit(user):
 
 
 def _fileagent_bin():
-    return os.path.join(REPO_DIR, "files", "fileagent.py")
+    return os.path.join(REPO_DIR, "apps", "everyday", "files", "fileagent.py")
 
 
 def _fs_call(user, req, timeout=10.0):
@@ -5784,7 +5784,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not spec:
             return self._json(400, {"error": "unknown document type"})
         ext, label = spec
-        tmpl = os.path.join(REPO_DIR, "office", "templates", f"new.{ext}")
+        tmpl = os.path.join(REPO_DIR, "apps", "everyday", "office", "templates", f"new.{ext}")
         if not os.path.isfile(tmpl):
             return self._json(500, {"error": "blank template missing"})
         try:
@@ -6440,8 +6440,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # browser/ and terminal/ touch nginx → run as root (manager is root) with
         # APP_USER passed in; skip apt/systemd, just redeploy files + reload nginx.
         base_env = {"APP_USER": APP_USER, "INSTALL_DEPS": "0", "INSTALL_SYSTEMD": "0"}
-        if touched("browser/"):
-            deploy("deploy browser", ["./browser/install.sh"], base_env)
+        if touched("apps/everyday/browser/"):
+            deploy("deploy browser", ["./apps/everyday/browser/install.sh"], base_env)
         if touched("terminal/"):
             deploy("deploy terminal & nginx", ["./terminal/install.sh"], base_env)
         # office/ → just re-render the /onlyoffice/ nginx snippet. INSTALL_CONTAINER=0
@@ -6450,8 +6450,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # need a full deploy, same as systemd-unit changes for browser/terminal. The
         # bundled new-doc templates (office/templates/) need no step — the manager
         # reads them straight from the checkout.
-        if touched("office/"):
-            deploy("deploy office (nginx)", ["./office/install.sh"],
+        if touched("apps/everyday/office/"):
+            deploy("deploy office (nginx)", ["./apps/everyday/office/install.sh"],
                    {**base_env, "INSTALL_CONTAINER": "0"})
         # files/ — or the FileBrowser patch JS. The patch JS lives under landing/
         # but its nginx ?v= cache-buster is computed by files/install.sh, so a
@@ -6462,13 +6462,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # already (landing/ -> apps/everyday/files/) and an exact-path check fails
         # silently — files/install.sh would not re-run, so the ?v= cache-buster
         # would keep pointing at the old bundle and browsers keep serving it.
-        if touched("files/") or any(c.endswith("/filebrowser-patches.js") for c in changed):
-            deploy("deploy files & nginx", ["./files/install.sh"], base_env)
+        if touched("apps/everyday/files/") or any(c.endswith("/filebrowser-patches.js") for c in changed):
+            deploy("deploy files & nginx", ["./apps/everyday/files/install.sh"], base_env)
         # claude-usage/ — the opt-in usage proxy runs in-place from the checkout,
         # so install.sh (INSTALL_SYSTEMD=0) just re-renders nothing and try-restarts
         # the proxy IF it's running (feature on), picking up new proxy code.
-        if touched("claude-usage/"):
-            deploy("deploy claude-usage", ["./claude-usage/install.sh"], base_env)
+        if touched("apps/utilities/claude-usage/"):
+            deploy("deploy claude-usage", ["./apps/utilities/claude-usage/install.sh"], base_env)
 
         # Restart the manager out-of-band (via a transient timer so it survives
         # our own death) only if its code changed — after the response is sent.
