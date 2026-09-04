@@ -604,8 +604,12 @@ test.describe('window mode', () => {
     // arranges EVERY window, so a control sitting on window A silently moved B and
     // C — "all windows can be controlled from another window". Scope matches
     // location now; ▢ is plain maximize again. See docs/design-decisions.md.
-    test('hovering the taskbar 🗔 offers exactly the layouts that fit the open windows', async ({ page }, info) => {
-      test.skip(info.project.name.startsWith('desktop'), DESKTOP_WM_GAP);
+    //
+    // THE GESTURE IS RIGHT-CLICK (long-press on touch), not hover. v1.19.201 moved
+    // it: "Hover popped the palette just from passing over the icon". These tests
+    // kept calling .hover() and went red on every engine and viewport — which was
+    // then misread as a desktop-viewport gap. Left-click still toggles window mode.
+    test('right-clicking the taskbar 🗔 offers exactly the layouts that fit the open windows', async ({ page }) => {
       await openApp(page, 'files');            // three windows
       await page.waitForTimeout(600);
 
@@ -619,7 +623,7 @@ test.describe('window mode', () => {
           .map((l) => l.name);
       });
 
-      await page.locator('#wm-btn').hover();
+      await page.locator('#wm-btn').click({ button: 'right' });
       const palette = page.locator('#win-layouts');
       if (!expected.length) {                  // nothing fits here — the palette must stay shut
         await page.waitForTimeout(900);
@@ -667,8 +671,7 @@ test.describe('window mode', () => {
     // already sit in a layout's zones, who is where NOW). The palette STAGES:
     // a tile click selects, Apply commits, and the preview cannot lie because
     // Apply commits exactly the painted board.
-    test('the palette previews who goes where; select + Apply commits it', async ({ page }, info) => {
-      test.skip(info.project.name.startsWith('desktop'), DESKTOP_WM_GAP);
+    test('the palette previews who goes where; select + Apply commits it', async ({ page }) => {
       await openApp(page, 'files');            // notes, upload, files -> three windows
       await page.waitForTimeout(600);
       const offered = await page.evaluate(() => {
@@ -683,7 +686,7 @@ test.describe('window mode', () => {
       await page.locator('#task-apps .task-app[data-id="notes"]').click();
       await page.waitForTimeout(300);
 
-      await page.locator('#wm-btn').hover();
+      await page.locator('#wm-btn').click({ button: 'right' });
       const palette = page.locator('#win-layouts');
       await expect(palette).toHaveClass(/open/, { timeout: 3000 });
       const grid = palette.locator('.wl-opt').first().locator('.wl-grid');
@@ -708,9 +711,16 @@ test.describe('window mode', () => {
       await expect(palette).toHaveClass(/open/);
       expect(await geom(page, 'notes')).toEqual(before);   // staged only
 
+      // Derived from the SAME pure geometry applyLayout uses — including gapZones,
+      // which it has applied since MARGIN arrived (v1.19.199/.201): zones are inset
+      // MARGIN at the frame and MARGIN/2 between windows, so a raw layoutGeoms
+      // comparison is off by exactly one MARGIN. Still orthogonal to the DOM: this
+      // predicts where the window must land, it does not read where it did.
       const zones = await page.evaluate((key) => {
         const f = document.getElementById('frames').getBoundingClientRect();
-        return window.VibeWin.layoutGeoms(key, { w: Math.round(f.width), h: Math.round(f.height) });
+        const box = { w: Math.round(f.width), h: Math.round(f.height) };
+        const raw = window.VibeWin.layoutGeoms(key, box);
+        return window.VibeWin.gapZones(raw, box, window.VibeWin.MARGIN, window.VibeWin.MARGIN / 2);
       }, offered[0]);
       const fr = await page.evaluate(() => {
         const r = document.getElementById('frames').getBoundingClientRect();
@@ -727,13 +737,48 @@ test.describe('window mode', () => {
       // Re-open: the applied layout's tile previews REALITY and opens SELECTED,
       // so Apply-with-no-edits is a visible no-op.
       await page.mouse.move(10, 10);
-      await page.locator('#wm-btn').hover();
+      await page.locator('#wm-btn').click({ button: 'right' });
       await expect(palette).toHaveClass(/open/, { timeout: 3000 });
       const grid2 = palette.locator('.wl-opt').first().locator('.wl-grid');
       await expect(grid2).toHaveClass(/wl-sel/);
       expect(await grid2.locator('.wl-zone[data-zone="0"]').evaluate((el) => el.innerHTML))
         .toBe(notesIcon);
       await expect(palette.locator('#wl-apply')).toBeEnabled();
+    });
+
+    // Green on HEAD by construction — it exists to stop hover-to-open coming BACK,
+    // which is the only direction this can regress. Passing over the icon on the way
+    // to the clock must never pop a palette.
+    test('hover alone never opens the palette — right-click is the gesture', async ({ page }) => {
+      await page.locator('#wm-btn').hover();
+      await page.waitForTimeout(800);
+      await expect(page.locator('#win-layouts')).not.toHaveClass(/open/);
+      await page.locator('#wm-btn').click({ button: 'right' });
+      await expect(page.locator('#win-layouts')).toHaveClass(/open/, { timeout: 3000 });
+    });
+
+    // NEW coverage, not a regression test: the touch path (500ms long-press) had no
+    // test at all, which is why nothing noticed when the mouse path moved off hover.
+    // Dispatched synthetically because Playwright's tap() cannot hold a press.
+    test('touch: a long-press opens the palette, and the release does not toggle the mode', async ({ page }) => {
+      const wasOn = await page.evaluate(() => document.body.classList.contains('wm'));
+      expect(wasOn, 'precondition: window mode is on').toBe(true);
+      await page.evaluate(() => {
+        const b = document.getElementById('wm-btn');
+        const at = b.getBoundingClientRect();
+        const opt = { bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 1,
+                      clientX: at.left + at.width / 2, clientY: at.top + at.height / 2 };
+        b.dispatchEvent(new PointerEvent('pointerdown', opt));
+        window.__wmBtnOpt = opt;
+      });
+      await expect(page.locator('#win-layouts')).toHaveClass(/open/, { timeout: 3000 });
+      await page.evaluate(() => {
+        const b = document.getElementById('wm-btn');
+        b.dispatchEvent(new PointerEvent('pointerup', window.__wmBtnOpt));
+        b.click();                       // the lift's own click, which `held` must swallow
+      });
+      await page.waitForTimeout(300);
+      await expect(page.locator('body')).toHaveClass(/wm/);   // still on: the press was not a toggle
     });
 
     test('▢ is plain maximize — it must not open the palette', async ({ page }) => {
@@ -880,7 +925,7 @@ test.describe('window mode', () => {
       });
       test.skip(!offered.length, 'no 3-window layout fits this lane');
       await page.mouse.move(10, 10);
-      await page.locator('#wm-btn').hover();
+      await page.locator('#wm-btn').click({ button: 'right' });
       await expect(page.locator('#win-layouts')).toHaveClass(/open/, { timeout: 3000 });
       const zones = await page.evaluate((key) => {
         const f = document.getElementById('frames').getBoundingClientRect();
