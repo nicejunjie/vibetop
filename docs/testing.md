@@ -135,7 +135,7 @@ Upload's invisible file input dragging a scrollbar behind it).
 and unit-tested with node's built-in runner (no deps):
 
 ```bash
-node --test landing/*.test.js terminal/lib/*.test.js   # all JS units
+node --test shell/*.test.js shared/*.test.js apps/everyday/terminal/lib/*.test.js  # all JS units
 node --test shell/coach.test.js                      # one file
 ```
 
