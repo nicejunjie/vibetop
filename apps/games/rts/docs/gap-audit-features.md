@@ -1,298 +1,456 @@
 # Iron Frontier (`apps/games/rts/rts.html`) vs Red Alert 2 v1.006 — feature gap audit
 
-Ground truth: `/tmp/RA2inis/{rules,ai,eva,keyboard,ui}.ini`, `/tmp/YRinis/rulesmd.ini`.
-Code refs are line numbers in `/home/junjie/vibe-coding/vibetop/apps/games/rts/rts.html` (17 267 lines).
-Roster tables: `UNITS` L617, `BLDS` L813, `SW` L1018. Verified live against
-`http://127.0.0.1:8121/rts.html` (Playwright, `__rtsTables` / `__rtsTest`); the page loads
-with **zero console/page errors**.
+Audited **2026-09-04** against `apps/games/rts/rts.html` at **32 272 lines**, git HEAD **`448fe32`**
+(`v1.19.279`). Line numbers are as of that commit. Ground truth is `/tmp/RA2inis/{rules,art,ai,eva,
+keyboard,ui,sound,theme}.ini` and `/tmp/YRinis/rulesmd.ini` — **both directories still exist**, so
+every citation below was re-read from the file rather than inherited from the previous audit. (The
+inis are CRLF; a naive `awk '$0=="[SECTION]"'` returns nothing, which is why a first pass looks like
+the sections are missing.)
 
-Conversion factors established from the data (they hold consistently, so deviations below are
-real, not unit confusion): **ROF frames × 4 = game `rate`**; **RA2 `Speed` × 0.013 = game `spd`**;
-Cost/Strength/Armor/Sight/Range are 1:1.
+The game was verified **live**: a loopback server feeding `rts.html` to headless Chromium (the
+pattern in `apps/games/rts/tools/art-metrics.js`), driving `window.__rtsTest`, `window.__rtsTables`
+and `window.__rtsSim`. Fire rates were measured by watching `u.cool` reset over 1 200 ticks; the
+Iron Curtain's duration by damaging an ironed tank every tick until damage landed; Tanya's C4 by
+ordering her onto a real Barracks and reading its hit points 3 000 ticks later. The page loads with
+**zero console and zero page errors**; a 15-minute hard-vs-easy `__rtsSim` replay runs clean in
+4.2 s. Rows marked *read code* or *grep only* are weaker evidence on purpose — the audit this one
+replaces was misled by exactly that.
+
+Roster tables: `ARMOURS` L966, `VERSES` L967, `UNITS` L1144, `BLDS` L1686, `SW` L2265, `MAPS` L2437,
+`FACTIONS` L2086, `AI_TEAMS` L22738.
+
+Conversion factors, which are the file's **own** convention and are stated in its comments:
+**RA2 `ROF` frames × 4 = game `rate` ticks** (`u.cool` counts down one per tick, rts.html:21140);
+**`Speed` × 0.013 = `spd`**; Cost / Strength / Armor / Sight / Range 1:1.
+
+---
+
+## What the previous audit got wrong
+
+The 2026-09-02 audit was written against a 17 267-line file. It is now 32 272 lines, and **all 25 of
+its ranked gaps have been built**. Its headline blocker is fixed outright. Four were closed with a
+defect this audit re-opens at a lower severity (the radar gate, the War Miner's gun, veterancy, and
+Prism support) — those are in "Present but broken" below, not here. The record, so the correction is
+visible rather than quietly erased:
+
+| Marked | Actually |
+|---|---|
+| **blocker** — "the Prism Tank fires `PrismWarhead` (200 % vs infantry, 50 % vs structures) instead of `CometWH`" | `UNITS.prismtank` is `CometWH`, ROF 400, range 10, Speed 4 — exactly `[SREF]`/`[Comet]` |
+| **major ×7** — seven prerequisite rows (Tesla Coil, Pillbox/Sentry, Patriot/Flak Cannon, Tesla Tank, Flak Trooper, Refinery/Barracks/War Factory, Battle Lab) | **All prerequisites now match `Prerequisite=` exactly** — structures and units, both factions, land and naval. §2c is closed outright |
+| **major ×6** — Battle Lab power, Barracks armour, Iron Curtain **charge**, Harrier range, Flak Trooper AA secondary, Flak Track AA range, Apocalypse `MammothTusk` | All fixed. **Every** `Cost`/`Strength`/`Armor`/`Power`/`Sight` in `BLDS` now matches its rules.ini section |
+| **major** — "veterancy promotes on kill count, not `VeteranRatio=3.0`" | Promotion is on kill **value** against the unit's own cost (19712), cap 2 |
+| **major** — "no force-fire, no attack-move" | Both present: Ctrl+right-click force-fires at an entity or bare ground, Ctrl+Shift+right-click is `amove`. Follow (F) and planning mode (Z) landed with them |
+| **major** — "minimap draws from tick 0 with no radar and no power check" | Gated at 30553 — but the gate is **cosmetic**; see the art audit §6 |
+| **major** — "the War Miner has no gun" | It has one — and it fires four times too fast; see §2a |
+| **major** — "no skirmish starting-credits option" | Credits, starting units, game speed, Bases, Short Game, Crates and Superweapons are all there and all work — and the drawer that holds them is undiscoverable; see the art audit §6 |
+| **major** — "no Attack Dog", "no crates", "civilians not garrisonable", "no walls or gates", "no Gap Generator", "no Prism support chain", "23 of eva.ini's 120 lines", "no transports and no naval layer" | All implemented. EVA is **66 unique lines over 74 call sites**, including every line the old audit named |
+| **major** — "no team types / task forces" | `AI_TEAMS` (22738) is a real `ai.ini`-shaped layer; a 22-minute hard-vs-hard sim fired 16 distinct team keys |
+| **major** — "no >2 players; no multiplayer" | Partly: a real lockstep layer ships (command queue, `LOCKSTEP_DELAY`, state hashing, desync detection) with Host/Join in the menu. Still two seats and still same-browser only |
+| **the one reproducible bug** — "all four superweapons declare `cat` twice, so lane and tab disagree" | Fixed. Each carries a single `cat: 'def'`; `laneOfBld` routes them to the Defence lane and `defenceOrderFor` lists them on the Defence tab |
+| **"the sidebar understates the Nuclear Reactor by 4×"** | `power: 2000` with `desc: '+2000 power'` |
+| **"the Pillbox is blacked out on low power"** | `[GAPILL]` has no `Powered=` key and the Pillbox now keeps firing; `[NALASR] Powered=yes` goes dark (22143) |
+
+**Two of its RA2 citations were simply wrong, and the code is right where the audit called it wrong.**
+The old §3 said RA2's chronoshifted units "come back after `ChronoDelay` unless dropped on land" —
+that was Red Alert 1. `ChronoDelay` is the post-teleport immobilisation; the game's one-way shift is
+correct. And the old art §1 attributed `Turret=yes`/`TurretAnim=LASER` to the Prism Tower; those
+lines are inside `[NALASR]`, the Soviet Sentry Gun. `[ATESLA]` and `[TESLA]` both say `Turret=no`.
 
 ---
 
-## 1. Roster
+## Read this first — the systemic findings
 
-RA2 buildable set taken from `[InfantryTypes]`/`[VehicleTypes]`/`[AircraftTypes]`/`[BuildingTypes]`
-filtered to `TechLevel != -1` and an Allied/Soviet `Owner=`. YR-only additions the game already
-carries (GGI, FLAKT) are in scope.
+The old audit's causes (unenforced prerequisites, a handful of role-inverting stats) are gone. Two
+new ones account for most of what is left, and each is one sweep rather than a list of chores.
 
-### 1a. Allied (Directorate)
+**1. The file states RA2's frame rate twice, and the two statements disagree.** rts.html:19929 says
+*"One rules frame is four of our ticks (a Grizzly's `ROF=60` is our `rate: 240`)"* — 15 fps, and
+`rules.ini` confirms it twice in its own comments (`SpyPowerBlackout=1000 ; Frame time a spy shuts
+down power for (900 = 1 minute)`, and `IronCurtainDuration=750 ;gs In frames 900 is a minute for
+15fps`). But the whole "Phase 4c" special-mechanics block asserts **30 fps** in as many words —
+`PARASITE_ROF` (20646), `IVAN_BOMB_T` (20696), the radiation constants (20775) — and halves every
+duration it converts. `CHRONO_DELAY` (20425) and `IRON_T` (2287) land on the same halving. Six rows
+below are that one mistake: the Iron Curtain lasts 20 s instead of 50, a Terror Drone eats its host
+in 12 s instead of 24, Ivan's fuse is 15 s instead of 30, the Chronosphere warps in 2 s instead of 4,
+and radiation both applies and clears twice as fast. A single pass over the timing constants against
+×4 closes all of them.
 
-| Gap | RA2 behaviour (rules.ini key) | What the game does now | Severity | Effort |
-|---|---|---|---|---|
-| Attack Dog | `[ADOG]` $200, Str 100, Speed 8, Sight 9, `Primary=GoodTeeth` (30 dmg, ROF 30, Rng 1.5, `ParasiteDog` — 100% vs infantry, 0% vs everything else); `Prerequisite=Barracks`, TL2. Only unit that detects a disguised Spy/Mirage | **missing** — no dog in `UNITS` (L617-812) | major | S |
-| Spy | `[SPY]` $1000, Str 100, flak, Speed 4, Sight 9, `Primary=MakeupKit` (`Snapshot` warhead, `MakesDisguise=yes`); `Prerequisite=GAPILE,GATECH`. Infiltration effects driven by `[General] SpyMoneyStealPercent=.5`, `SpyPowerBlackout=1000` | **missing** — no disguise system, no infiltration | major | L |
-| Chrono Legionnaire | `[CLEG]` $1500, Str 125, Speed 5, Sight 8, teleport locomotor `{4A582747…}`, `Primary=NeutronRifle` (8 dmg, ROF 120, Rng 5, `ChronoBeam` — erases the target rather than damaging it); `Prerequisite=GAPILE,TECH` | **missing** (roadmap L135/137 lists it open) | major | M |
-| Navy SEAL | `[GHOST]` Name=SEAL, `TechLevel=-1` in vanilla rules.ini (YR `[GHOST]` TL9, $1000, `Primary=MP5`, `Secondary=Sapper`) | **missing** — arguably out of scope for v1.006 skirmish (TL −1), in scope only under the YR carve-out | minor | S |
-| Sniper | `[SNIPE]` $600, Str 125, `Primary=AWP` (125 dmg, ROF 150, **Range 14**, `HollowPoint`), `Prerequisite=GAPILE,RADAR`, TL1 (British) | **missing** — country-specific unit, no country layer at all | minor | M |
-| Tank Destroyer | `[TNKD]` $900, Str 400, heavy, Speed 5, `Primary=SABOT` (150 dmg, ROF 70, Rng 5, `UltraAP` — 100% vs light/heavy, 40% vs medium, 2% vs infantry AND structures), `Prerequisite=GAWEAP,RADAR` (German) | **missing** | minor | M |
-| Black Eagle | `[BEAG]` $1200, Str 200, `Primary=Maverick2` (200 dmg vs the Harrier's 150), TL3 (Korean) | **missing** | minor | S |
-| Nighthawk / BlackHawk Transport | `[SHAD]` $1000, Str 175, Speed 14, `Passengers=5`, `Primary=BlackHawkCannon`, `Prerequisite=GAWEAP` | **missing** — no transports of any kind | major | L |
-| Allied Shipyard + all Allied navy | `[GAYARD]` $1000 Str 1500 `Adjacent=12`; `[DEST]` $1000, `[AEGIS]` $1200, `[CARRIER]` $2000, `[DLPH]` $500, `[LCRF]` $900 | **missing** — `solidT()` (L517) makes `T_WATER` impassable to everything; no naval layer | major | L |
-| SpySat Uplink | `[GASPYSAT]` $1500, Str 1000, wood, Power −100, `Prerequisite=GATECH,GACNST`, TL9 — reveals the whole map | **present** (Phase 4b) | — | — |
-| Gap Generator | `[GAGAP]` $1000, Str 600, wood, Power −100, `GapGenerator=yes`, `Prerequisite=GATECH`, TL7 | **missing** — no shroud-*re*-imposition mechanic exists (`g.seen` is a one-way latch, L14470-14481) | major | M |
-| Grand Cannon | `[GTGCAN]` $2000, Str 900, steel, Power −100, Sight 10, `Primary=GrandCannonWeapon` (150 dmg, ROF 120, **Range 15, MinimumRange 3**, `GrandCannonWH`), `Prerequisite=RADAR`, TL7 | **missing** — the Allies have no long-range defence at all | major | M |
-| Allied Wall | `[GAWALL]` $100/segment, Str 300, concrete, `Adjacent=8`, `Repairable=false`, `Prerequisite=GAPILE`; `[General] WallBuildSpeedCoefficient=3.0`, `WallTower=GACTWR` | **missing** — no wall/gate at all | major | M |
-| Guardian GI | YR `[GGI]` — present | **present** (L638) but with real stat/mechanic errors, see §2 and §3 | — | — |
-| Chrono Miner teleport-home | `[CMIN] Locomotor={4A582747…}` (teleport) — it warps back to the refinery when full; `[General] ChronoDelay=60`, `ChronoHarvTooFarDistance=50` | **partial** — the Chrono Miner exists (`UNITS.harvester` with `capCol` split, L618) but drives home like the War Miner (`stepHarvester` `state==='toref'`, L13228-13260). No warp, and the Allied/Soviet miners are the *same* `type`, so they cannot diverge behaviourally | major | M |
-| GI / Engineer / Rocketeer / Grizzly / IFV / Mirage / Prism Tank / Tanya / MCV / Harrier / Chronosphere / Weather Control / Pillbox / Patriot / Prism Tower / all six Allied economy+tech structures | — | **present** | — | — |
+**2. Range is measured centre-to-centre, so a short weapon cannot reach a big building at all.**
+`rngVs` (2034) returns the raw range and `dist` (19575) measures to a structure's *centre*, with no
+allowance for its footprint. RA2 measures to the nearest occupied cell. The consequence is not
+subtle: **Tanya cannot damage any building 2×2 or larger** and **Crazy Ivan cannot plant on one** —
+both measured, both zero damage over thousands of ticks — and against the 4×4 Construction Yard
+every attacker with range ≤ 3 stalls at 3.01 cells and does nothing at all. The fix already exists
+in the file: `atRefinery` (20419) adds `max(gw, gh) / 2 + 1.9` for exactly this reason.
 
-### 1b. Soviet (Collective)
-
-| Gap | RA2 behaviour (rules.ini key) | What the game does now | Severity | Effort |
-|---|---|---|---|---|
-| Attack Dog | `[DOG]` $200, `Primary=BadTeeth`, `Prerequisite=Barracks`, TL2 | **missing** | major | S |
-| Desolator | `[DESO]` $600, Str 150, plate, Sight 6, `Deployer=yes`/`DeployFire=yes`, `Primary=RadBeamWeapon` (125 dmg, ROF 50, Rng 6, `RadBeamWarhead` 100/100/100/20/15/10/0/0/0), `Secondary=RadEruptionWeapon`, `SelfHealing=yes`, `Prerequisite=NAHAND,RADAR`, TL8. Leaves radiation (`[Radiation] RadLevelMax=500`) | **missing** — and there is no radiation/ground-hazard system to hang it on | major | L |
-| Yuri | `[YURI]` $1200, Sight 12, `Primary=MindControl` (`Controller` warhead, `MindControl=yes`), `Prerequisite=NAHAND,NATECH`, TL10 | **missing** — no mind control; ownership transfer only exists for structures via engineer (L13391) | major | L |
-| Terrorist | `[TERROR]` $200, Str 75, flak, Speed 6, `Primary=TerrorBomb` (225 dmg, `TerrorBombWH` CellSpread 2), `Explodes=yes` (Cuba) | **missing** | minor | S |
-| Demolition Truck | `[DTRUCK]` $1500, `Primary=Demobomb` (300 dmg, `DemobombWH` **CellSpread 8**), `Explodes=yes` (Libya) | **missing** | minor | S |
-| Amphibious Transport | `[SAPC]` $900, Str 300, heavy, `Passengers=12`, `Prerequisite=NAYARD` | **missing** | major | L |
-| Soviet Shipyard + navy | `[NAYARD]` $1000 TL2; `[SUB]` $1000, `[HYD]` $600, `[DRED]` $2000, `[SQD]` $1000 | **missing** | major | L |
-| Cloning Vats | `[NACLON]` $2500, Str 1000, Power −200, `Prerequisite=NATECH`, TL9 — doubles infantry output | **present** (Phase 4b) | — | — |
-| Psychic Sensor | `[NAPSIS]` $1000, Str 750, Power −50, Sight 10, `SensorArray=yes`, `Prerequisite=NATECH`, TL10 | **present** (Phase 4b) — enemy intent lines inside `PsychicDetectionRadius=15` | — | — |
-| Soviet Wall | `[NAWALL]` $100, Str 300, concrete, `Adjacent=8`, `Prerequisite=NAHAND` | **missing** | major | M |
-| War Miner's gun | `[HARV] Primary=20mmRapid` — 30 dmg, ROF 20, Rng 5.5, `HARVWH`; the Soviet miner shoots back | **missing** — `UNITS.harvester` (L618) is `dmg: 0` for both factions | major | S |
-| Terror Drone armour class | `[DRON] Armor=special_1` | **partial** — game uses `light` (L779). `ARMOURS` (L551) has no `special_1`/`special_2` slot, so every warhead's 10th/11th Verses column is discarded | minor | M |
-| Conscript / Flak Trooper / Engineer / Shock ("Tesla") Trooper / Crazy Ivan / Rhino / Flak Track / V3 / Terror Drone / Apocalypse / Tesla Tank / SMCV / Kirov / Sentry Gun / Flak Cannon / Tesla Coil / Iron Curtain / Nuke Silo / all Soviet economy+tech structures | — | **present** | — | — |
-
-### 1c. Neutral / map objects
-
-| Gap | RA2 behaviour | What the game does now | Severity | Effort |
-|---|---|---|---|---|
-| Tech Oil Derrick | `[CAOILD]` Str 1000, steel, `Capturable=yes`, `Unsellable=yes` — capture for a cash trickle | **present** (Phase 4b) — `BLDS.oilderrick`, house −1, `ProduceCashStartup=1000` + 20/100 ticks | — | — |
-| Tech Airport / Hospital / Outpost | `[CAAIRP]` Str 800 (paradrop), `[CATHOSP]`/`[CAHOSP]` Str 800 (heals infantry), `[CAOUTP]` Str 2000 | **present** (Phase 4b) for Airport + Hospital; Outpost (`UnitRepair`/turret) still missing | minor | S |
-| Garrisonable civilian buildings | 155 sections carry `CanBeOccupied=yes` with `MaxNumberOccupants` 1-10 (e.g. `[CACITY01]`=10, `[CAEUR1]`=3); `[General] ThreatPerOccupant=10` | **present** (Phase 4b) — four block types, caps 10/6/3/2, `Occupier=yes` on GI + Conscript only, window ports, ThreatPerOccupant, engineer eviction | — | — |
-| Bridges destructible + `[CABHUT]` repair hut | Bridge cells collapse under fire; `[CABHUT]` Str 2000 rebuilds them; `EVA_BridgeRepaired` exists in eva.ini (#46) | **present** (Phase 4b) — per-column spans at `BridgeStrength=1500`, torn-deck art, engineer-in-hut repair | — | — |
-| Crates | `[CrateRules]` `CrateMaximum=255 CrateMinimum=1 CrateRadius=3.0 CrateRegen=3 FreeMCV=yes`; `[Powerups]` Money 2000 / Veteran / Firepower ×2.0 / Armor ×1.5 / Speed ×1.2 / Reveal / HealBase / Unit | **present** (Phase 4b) — all eight weighted powerups, FreeMCV, crate art + pickup glyph | — | — |
-| Ore spreading | `[General] TiberiumSpreads=yes`, `[Riparius] Spread=2200 SpreadPercentage=.06 Growth=2200 Value=25`; `[Cruentus] Value=50` | **present** (Phase 4b) — `stepOreSpread` seeds a neighbour at 6% a pass; gems do not spread | — | — |
+A third, smaller pattern is worth naming because it has now bitten twice: **a duplicated key in an
+object literal silently discards the correct value.** The old audit's one reproducible bug was
+`cat:` declared twice on all four superweapons. That is fixed — and `VERSES` now declares
+`FlakGuyWH` twice (977 and 988), where the annotated, RA2-correct row loses to a wrong one nine
+lines later. Nothing in the test suite looks for this.
 
 ---
+
+## 1. Roster — closed, except the country layer
+
+RA2's buildable set is `[BuildingTypes]`/`[InfantryTypes]`/`[VehicleTypes]`/`[AircraftTypes]`
+filtered to `TechLevel != -1` with an Allied or Soviet `Owner=`. Enumerated from `rules.ini` that is
+**36 structures, 21 infantry, 28 vehicles, 2 aircraft**. Diffed against `__rtsTables` live:
+
+| Class | RA2 | Game | Missing |
+|---|---|---|---|
+| Structures | 36 (`AMRADR` is `GAAIRC`'s American twin) | 43 `BLDS` keys, 29 buildable + 14 neutral | **none** |
+| Infantry | 21 | 14 kinds + the YR Guardian GI | `SNIPE`, `TERROR` (country); `CCOMAND`, `PTROOP`, `CIVAN`, `YURIPR` (campaign/hero) |
+| Vehicles | 28 | 25 + Hornet + MCV | `TNKD`, `DTRUCK` (country) |
+| Aircraft | 2 | Harrier | `BEAG` (country) |
+
+Every remaining row of the old §1a/§1b is closed — Attack Dog, Spy, Chrono Legionnaire, Nighthawk,
+both Shipyards and all eleven hulls, Gap Generator, Grand Cannon, walls and gates, Desolator, Yuri,
+Terrorist-adjacent mechanics, the War Miner's gun, the Chrono Miner split, SpySat, Psychic Sensor,
+Cloning Vats, the whole neutral house. Verified live: `panelKeys(G, 0, tab)` for a Directorate side
+reaches every Directorate item on `b`/`d`/`i`/`v`, ships included.
+
+| Gap | RA2 behaviour (rules.ini key) | What the game does now | Severity | Effort |
+|---|---|---|---|---|
+| **No country layer at all.** RA2 has nine countries, each with one unique unit or power, chosen under the side | `Owner=` narrows five sections to one country each: `[SNIPE]` British, `[TERROR]` Cuban, `[TNKD]` German, `[DTRUCK]` Libyan, `[BEAG]` Korean; `[General] AllyParaDropInf=E1 AllyParaDropNum=6` / `SovParaDropInf=E2 SovParaDropNum=9` is the American/Russian power | `FACTIONS` (rts.html:2086) has exactly two entries, `dir` and `col`; there is no country field on a side. The three country units the game *does* carry — Grand Cannon (French), Tesla Tank (Russian), Desolator (Iraqi) — are unrestricted, so every Directorate player gets the French wall and every Collective player gets both the Russian and the Iraqi unit at once. Verified live (`__rtsTables.FACTIONS`) | major | M |
+| Chrono Commando / Psi-Corps Trooper / Chrono Ivan / Yuri Prime | `[CCOMAND]` TL9, `[PTROOP]` TL9, `[CIVAN]` TL9, `[YURIPR]` TL9 `BuildLimit=1` | missing. All four are campaign units — RA2 does not offer them in skirmish either, so this is scope, not a gap | nit | — |
 
 ## 2. Stats fidelity
 
-### 2a. Twelve units (spot-check)
+The conversion factors the previous audit established still hold and are the file's own convention,
+stated in its comments: **RA2 `ROF` frames × 4 = game `rate` ticks** (`u.cool` counts down one per
+tick, rts.html:21140), **`Speed` × 0.013 = `spd`**, Cost/Strength/Armor/Sight/Range 1:1. `rules.ini`
+itself pins the frame rate the ×4 comes from: `IronCurtainDuration=750 ;gs In frames 900 is a minute
+for 15fps`.
+
+### 2a. Units
+
+Every unit was re-checked against its own `[SECTION]` and its `Primary=`/`Secondary=` weapon.
+**The whole of the previous audit's §2a is fixed** — Prism Tank (`CometWH`, ROF 400, range 10,
+Speed 4), Kirov Speed 5, harvester sight 4, Harrier range 6, Apocalypse `MammothTusk` 2×50/320/8,
+Flak Track AA range 10, the Flak Trooper's `FlakGuyAAGun` secondary, Guardian GI 160/8, Tanya's
+C4 at ROF 400, the deployed GI's `Para` at 60/5, Terror Drone range 1.83, V3 and IFV
+`MinimumRange`. What is left:
 
 | Gap | RA2 behaviour (rules.ini key) | What the game does now | Severity | Effort |
 |---|---|---|---|---|
-| **Prism Tank warhead is inverted** | `[SREF] Primary=Comet`; `[Comet]` Damage 100, **ROF 100** (→400), **Range 10**, **Warhead=CometWH**; `[CometWH] Verses=100,100,100,75,50,50,**200,200,200**` — a *siege* gun: double vs every structure, half vs armour | `UNITS.prismtank` (L790-799) `rate: 240`, `rng: 8`, `wh:'PrismWarhead'` — `VERSES.PrismWarhead` (L568) is 200% vs infantry / **50% vs all structures**. Exactly the opposite role | **blocker** | S |
-| Prism Tank speed | `[SREF] Speed=4` → 0.052 | `spd: 0.078` (L794) = Speed 6; the in-code comment even claims "Speed 6" | major | S |
-| Kirov speed | `[ZEP] Speed=5` → 0.065 | `spd: 0.045` (L675) = Speed 3.5 | minor | S |
-| Harvester sight | `[HARV] Sight=4`, `[CMIN] Sight=4` | `sight: 5` (L620) | nit | S |
-| Harrier missile range | `[Maverick] Range=6`, ROF 10 (→40), Damage 150, Burst 2 | `rng: 3.2` (L668) — nearly half. Forces the jet to fly into Patriot/Flak range | major | S |
-| Apocalypse AA missile | `[MammothTusk]` Damage 50 **Burst 2** (=100/volley), **ROF 80** (→320), **Range 8** | `aaW: { dmg: 50, rate: 100, rng: 6, aaRng: 6 }` (L707) — 3.2× too fast, 2 tiles short, half the volley | major | S |
-| Flak Track AA range | `[FlakTrackAAGun] Range=10`, Damage 35, ROF 25 (→100) | `aaW.aaRng: 6.5` (L752). Damage/ROF correct | major | S |
-| Flak Trooper has no AA weapon | `[FLAKT] Secondary=FlakGuyAAGun` — Damage 20, ROF 25 (→100), **Range 8**, warhead `FlakGuyWH` (150/100/50/80/20/20/0/0/0) | `UNITS.flak` (L645) has no `aaW`; it shoots aircraft with its ground `FlakTWH` burst at `aaRng: 6`. `weaponFor` (L582) therefore never swaps | major | S |
-| Guardian GI missile | YR `[MissileLauncher]` Damage 40, **ROF 40** (→160), **Range 8**, `GUARDWH` (20/20/20/**100**/50/**100**/10/10/10) | `w2: { dmg:40, rate:200, rng:6 … }` (L642) — 25% too slow, 2 tiles short. `VERSES.GUARDWH` (L570) is correct | minor | S |
-| Tanya C4 | `[Sapper]` Damage 2500, **ROF 100** (→400), Range 1.5, `Super` | `w2: { dmg:2500, rate:200, rng:1.2 … }` (L736) — twice RA2's rate | minor | S |
-| Deployed-GI weapon | `[Para]` Damage 15, **ROF 15** (→60), **Range 5**, `SSA` | `dep: { dmg:15, rate:40, rng:6 … }` (L628) — 50% too fast, 1 tile too far | minor | S |
-| Terror Drone attack range | `[DroneJump] Range=1.83` | `rng: 1.5` (L780) | nit | S |
-| V3 minimum range | `[V3Launcher] MinimumRange=5` (plus `[General] V3RocketDamage=200`, ROF 150→600, Range 18 — all correct in-game) | no `MinimumRange` concept anywhere; a V3 can fire point-blank (L755-760) | major | S |
-| IFV minimum range | `[HoverMissile] MinimumRange=1` | not modelled (L718) | nit | S |
-| **Correct**: GI, Conscript, Engineer, Rhino, Grizzly, Apocalypse main gun (100 dmg × Burst 2 = the game's 200), Mirage, Tesla Tank, Tesla Trooper, Crazy Ivan, MCV, Rocketeer, Kirov bomb, IFV, V3 — cost/HP/armour/speed/sight/ROF/range/warhead all match | | | | |
+| **Three units carry the raw RA2 `ROF` where the file's own convention is `ROF × 4`, so they fire four times too fast.** Each one's comment cites the right number and the field beside it contradicts it | `[20mmRapid] ROF=20` (War Miner), `[RadBeamWeapon] ROF=50` (Desolator), `[BlackHawkCannon] ROF=40` (Nighthawk) → `rate` 80 / 200 / 160 | `warminer rate: 20` (rts.html:1162), `desolator rate: 50` (1386), `nighthawk rate: 40` (rts.html:1435). **Measured live**: the War Miner's `cool` resets every **20** ticks against a GI's correct 80 and a Grizzly's correct 240; the Desolator every **50**, so its 125-damage rad beam does 4× RA2's DPS; the Nighthawk every **40** on an explicit attack order | major | S |
+| Yuri's mind-control acquisition is four times too fast | `[MindControl] ROF=200` → 800 | `yuri rate: 200` (rts.html:1397). Milder than the three above because control is permanent and single-target, so the rate only gates re-grabbing | minor | S |
+| **`VERSES` declares `FlakGuyWH` twice, and the annotated-correct row loses** | `[FlakGuyWH] Verses=150%,100%,50%,80%,**20%**,20%,0%,0%,0%` | rts.html:977 has that row exactly, commented "Flak Trooper's AA gun (rulesmd.ini)"; rts.html:988 re-declares `FlakGuyWH: [150,100,50,80,**80**,20,0,0,0]` and, being later in the same object literal, wins. Verified live: `__rtsTables.verses('FlakGuyWH','medium')` returns **0.8**. The Flak Trooper's AA burst does four times RA2's damage to medium armour — which is what both harvesters are made of | major | S |
+| **`ARMOURS` has nine slots; RA2's `Verses=` rows have eleven** | `[DRON] Armor=special_1`. `[Electric]`/`[Shock]` are **200%** vs `special_1` and `[HARVWH]` is **200%** — the Tesla weapons and the War Miner's own gun are RA2's designed answers to a Terror Drone | `ARMOURS` (rts.html:966) stops at `concrete`; the drone is `armour: 'light'` (rts.html:1354), so Tesla is 85% and the War Miner 50% against it. Verified live. The file's own `HARVWH` comment ("Verses[9]=200% — it chews wooden structures") misreads that column: index 9 is `special_1`, not wood | minor | S |
+| **The Iron Curtain lasts 20 s; RA2's lasts 50** | `[General] IronCurtainDuration=750` with the ini's own note "In frames 900 is a minute for 15fps" | `IRON_T = 20 * 60` (rts.html:2287). `STORM_T` on the same line converts `LightningStormDuration=180` at the same 15 fps and is right, so this is a one-constant slip, not a convention difference | major | S |
+| **Aircraft rearm 7× too fast** | `[General] ReloadRate=.3` — 0.3 minutes, i.e. **18 s** per ammo point | `reload: 150` ticks = **2.5 s** (rts.html:1208, applied at 21630 `u.ammo++`). A Harrier is back over the target almost as soon as it lands | minor | S |
+| Harrier fires two separate missiles instead of RA2's one two-round burst | `[ORCA] Ammo=1` + `[Maverick] Burst=2` — one attack run delivers 2×150 and the jet goes home | `ammo: 2` with no `burst` (rts.html:1208). The file *has* a `burst` field and uses it on the Dreadnought (1566), so the jet loiters over the target for two shots and eats twice the AA | minor | S |
+| **Dreadnought salvo is a third of RA2's** | `[DredLauncher] Damage=50` is a launcher stub exactly as `[V3Launcher] Damage=1` is; the real number is `[General] DMislDamage=300`, `Burst=2` → **600** a salvo | `dmg: 100, burst: 2` = 200 (rts.html:1566). The file already follows this convention for the V3 (`V3RocketDamage=200` → `dmg: 200`) and not here | minor | S |
+| Flak Cannon sight and adjacency | `[NAFLAK] Sight=5`, `Adjacent=2` | `sight: 10`, `adj: 8`. The file carries every `Adjacent=` at +4 by decision, which would make it 6 | nit | S |
+| Two `InfDeath` rows disagree with the warhead | `[SonicWarhead] InfDeath=3` (flying death), `[IvanWH] InfDeath=6` | `INF_DEATH` (rts.html:1058-1066) has `SonicWH: 5` and `IvanWH: 2`. The `RadBeamWH`/`RadSite` 7→4 fold is documented in the comment and is a decision | nit | S |
+| Guardian GI missile has no minimum range | `[MissileLauncher] MinimumRange=1` | `rocket.w2` (rts.html:1183) carries no `minRng`, though the IFV and V3 both do | nit | S |
+| **Veteran rank gets neither the ROF nor the speed bonus** | `VeteranAbilities=` lists `ROF` on 27 of 49 sections and `FASTER` on 45 of 49 — **at rank 1**. `VeteranROF=0.6`, `VeteranSpeed=1.2` | rts.html:20097 and 21091 gate both on `rank === 2`, while `vetFire`/`vetArmour` (1107, 1112) compound per level with `Math.pow`. A veteran is tougher and hits harder but shoots and moves at a rookie's pace | minor | S |
+| **Elite units never swap to their elite weapon** | 34 sections carry an `ElitePrimary=` — `20mmRapidE`, `NeutronRifleE`, `SuperComet`, `MaverickE` — a different weapon, not a multiplier | no `ElitePrimary` handling anywhere; elite is only ×1.21 damage / ×0.6 ROF / ×1.2 speed / self-heal | minor | M |
 
-### 2b. Eight structures (spot-check)
+### 2b. Structures — closed
 
-| Gap | RA2 behaviour (rules.ini key) | What the game does now | Severity | Effort |
-|---|---|---|---|---|
-| Barracks armour | `[GAPILE]`/`[NAHAND] Armor=steel` | `BLDS.barracks.armour='wood'` (L831). Under `VERSES.AP` (L556) that is 65% vs 45% — the barracks takes ~44% more tank damage than it should | major | S |
-| War Factory power | `[GAWEAP]`/`[NAWEAP] Power=-25` | `power: -50` (L836) — double | minor | S |
-| Service Depot power | `[GADEPT] Power=-25`, `[NADEPT] Power=-20` | `power: -50` (L866), same for both factions | minor | S |
-| Battle Lab power | `[GATECH]`/`[NATECH] Power=-100` | `power: -200` (L871) — double, and it is the single biggest early power hit in the game | major | S |
-| Construction Yard sight | `[GACNST]`/`[NACNST] Sight=8` | `sight: 6` (L817) | nit | S |
-| Airforce Command sight | `[GAAIRC] Sight=5` | `sight: 9` (L857) — nearly double | minor | S |
-| Refinery / Battle Lab / War Factory sight | `[GAREFN] Sight=6`, `[GATECH] Sight=6`, `[GAWEAP] Sight=4` | 5 / 5 / 5 (L826, L871, L836) | nit | S |
-| Superweapon HP | `[GACSPH]`/`[NAIRON] Strength=750` (Weather/Nuke are 1000) | all four `hp: 1000` (L918-941) | nit | S |
-| Nuclear Reactor description | `[NANRCT] Power=2000` — the game's value is right | `desc: '+500 power'` (L882) with `power: 2000` — the sidebar lies to the player by 4× | minor | S |
-| Iron Curtain charge time | `[IronCurtainSpecial] RechargeTime=5` (Chrono 7, Storm 10, Nuke 10) | `SW.curtain.charge = 60*60*7` (L1027) — 40% too long; verified live (`swCharge.curtain === 7`) | major | S |
-| **Correct**: Power Plant (800/750/wood/+200/4), Tesla Reactor (600/+150), Refinery (2000/1000/wood/−50), Radar Tower (1000/1000/wood/−50/10), Pillbox (500/400/steel, Vulcan2 50/26→104/5.5), Sentry Gun (idem, Vulcan), Tesla Coil (1500/600/steel/−75, CoilBolt 200/120→480/7), Prism Tower (1500/600/steel/−75, PrismShot 120/60→240/8), Patriot (1000/900/−50, RedEye2 75/55→220/12), Flak Cannon (1000/900/−50, FlakWeapon 40/20→80/12), Ore Purifier (2500/900/−200, `PurifierBonus=.25`) | | | | |
+Every `Cost`/`Strength`/`Armor`/`Power`/`Sight` in `BLDS` now matches its `rules.ini` section, both
+factions, including the fourteen structures added since the last audit. The previous audit's whole
+§2b list is fixed: Barracks armour `steel`, War Factory −25, Service Depot −25/−20, Battle Lab −100,
+Construction Yard sight 8, Airforce Command 5, Refinery/Lab 6, War Factory 4, superweapon HP 750,
+the Nuclear Reactor's `+2000 power` description, Iron Curtain recharge 5 minutes. All five
+superweapon charge times match `RechargeTime=` exactly (Chrono 7, Storm 10, Curtain 5, Nuke 10,
+Paradrop 4 — verified live off `__rtsTables.SW`). The only survivors are the Flak Cannon's sight and
+adjacency, listed in §2a.
 
-### 2c. Prerequisites (`Prerequisite=` vs `spec.req`, L1049 `reqMet`)
+### 2c. Prerequisites — closed
 
-| Gap | RA2 behaviour | What the game does now | Severity | Effort |
-|---|---|---|---|---|
-| Tesla Coil needs Radar | `[TESLA] Prerequisite=POWER,RADAR,NACNST`, TL5 | `BLDS.tesla` (L846) has **no `req`** — a $1500 coil is buildable from the opening Construction Yard | major | S |
-| Pillbox / Sentry Gun need Barracks | `[GAPILL]`/`[NALASR] Prerequisite=BARRACKS,*CNST` | no `req` (L839, L891) | minor | S |
-| Patriot / Flak Cannon need only Barracks | `[NASAM] Prerequisite=BARRACKS,GACNST` TL4; `[NAFLAK] Prerequisite=BARRACKS,NACNST` TL4 | gated behind `airforce` / `radar` (L901, L909) — AA arrives a whole tier late | major | S |
-| Tesla Tank needs Radar, not Lab | `[TTNK] Prerequisite=NAWEAP,NARADR` | `req: 'lab'` (L783) | major | S |
-| Flak Trooper needs Radar | `[FLAKT] Prerequisite=NAHAND,NARADR` | no `req` (L645) — buildable off the bare Barracks | minor | S |
-| Refinery / Barracks need Power; War Factory needs Refinery + Barracks; Battle Lab needs War Factory | `[GAREFN] Prerequisite=POWER`; `[GAPILE] Prerequisite=POWER`; `[GAWEAP] Prerequisite=PROC,GAPILE`; `[GATECH] Prerequisite=GAWEAP,RADAR` | none of these are enforced (L824, L829, L834, L869) — you can open straight into a War Factory | major | S |
-| **Correct**: MCV (`GAWEAP,GADEPT`→`req:'depot'`), Rocketeer, V3, Crazy Ivan, Apocalypse, Kirov, Mirage, Prism Tank, Tanya, Nuclear Reactor, Ore Purifier, Service Depot, Airforce Command, Radar Tower, all four superweapons (`*TECH`) | | | | |
+Every `req` / `reqAll` in `UNITS` and `BLDS` was diffed against `Prerequisite=`, structures and units,
+both factions, land and naval. **All match.** The previous audit's seven rows are all fixed
+(Tesla Coil `POWER,RADAR`; Pillbox/Sentry `BARRACKS`; Patriot/Flak Cannon `BARRACKS` only; Tesla Tank
+`NARADR`; Flak Trooper `NARADR`; Refinery/Barracks `POWER`; War Factory `PROC,GAPILE`; Battle Lab
+`GAWEAP,RADAR`). The naval additions are right too: `[AEGIS] GAYARD,RADAR`, `[CARRIER]`/`[DLPH]`
+`GATECH`, `[HYD] NARADR`, `[DRED]`/`[SQD] NATECH`.
 
----
+### 2d. Warhead table — closed but for one duplicate key
+
+All 36 `VERSES` rows were diffed against `Verses=`. Every warhead that exists in `rules.ini` matches
+on all nine shared columns. The two exceptions are in §2a: the duplicated `FlakGuyWH` key and the two
+missing `special_1`/`special_2` columns.
 
 ## 3. Mechanics
 
+Every row of the old §3 was re-driven through the game's own API. **Twenty-eight of its thirty-one
+rows are implemented**: garrisoning, engineer capture/repair/defusal, the IFV's thirteen `IFVMode=`
+weapons over four turrets, Terror Drone infestation, Ivan's timed bombs, Tesla Troopers crewing a
+coil, Chrono Legionnaire erasure, Spy infiltration, kill-*value* veterancy, `RepairPercent=15%`,
+ore spread, crates, tech buildings, destructible bridges with `[CABHUT]`, the Gap Generator, the
+radar/power minimap gate, Prism support chaining, the whole naval layer, transports, walls and gates
+with the `Wall=` warhead flag, attack-move, force-fire, Follow, planning mode, Guard-distinct-from-
+Stop, and control groups 1-0 with Ctrl/Shift/Alt. What survives is almost entirely **timing**.
+
 | Gap | RA2 behaviour (rules.ini key/section) | What the game does now | Severity | Effort |
 |---|---|---|---|---|
-| Garrisoning civilian buildings | `CanBeOccupied=yes` + `MaxNumberOccupants` on 155 civilian sections; occupants fire from windows; `[General] ThreatPerOccupant=10`; EVA `StructureGarrisoned`/`StructureAbandoned` | **missing** — `T_CIV` is impassable scenery (L514-517) | major | M |
-| Engineer capture | Engineer walks in, is consumed, building keeps its damage; also **repairs** a damaged own/allied structure to full and defuses Ivan bombs (`[DefuseKit] Warhead=BombDisarm`) | **partial** — capture works (`stepUnit` `order.t==='capture'`, L13391-13407). No repair-by-engineer, no bomb defusal, no multi-engineer rule | minor | M |
-| IFV weapon swap by passenger | `[FV] Passengers=1`; the turret changes with the occupant (10+ variants) | **missing** — no transports at all; roadmap L135 lists it open | major | L |
-| Terror Drone infesting | `[DroneJump] Warhead=Parasite`, `Parasite=yes` — the drone *enters* a vehicle and kills it from inside; only a Service Depot or a Desolator's rad can clear it | **partial** — plain 50-damage melee every 240 ticks (L776-782); no infestation state | major | M |
-| Mirage disguise | `[General] DefaultMirageDisguises=TREE01..TREE04` | **present** — `isDisguised` (L12705), 120-tick idle, 1.5-tile reveal, drops on fire (`findTarget` L12735) | — | — |
-| Tanya C4 on buildings | `[Sapper]` 2500/`Super` on `use:'bld'` | **present** (L736) but ROF is 2× (see §2a) | nit | S |
-| Crazy Ivan bombs | `[IvanBomber]` plants a **timed** bomb (`[IvanBomb] IvanBomb=yes`, `BombTickingSound`); bombs stick to units, can be defused, and can be planted on your own units to make suicide carriers | **partial** — instant 400 damage at range 1.5 (L769-775); no timer, no attachment, no defusal | major | M |
-| Tesla Trooper charging coils | Shock Trooper next to a Tesla Coil boosts/powers it (`[TESLA] Secondary=OPCoilBolt` in YR; vanilla behaviour is the same charge mechanic) | **missing** | minor | M |
-| Chrono Legionnaire erasure | `[ChronoBeam] Temporal=yes` — target is erased over time, not damaged | **missing** | major | M |
-| Spy infiltration effects | `SpyMoneyStealPercent=.5`, `SpyPowerBlackout=1000`; EVA #88-95 cover tech/radar/cash/power sabotage | **missing** | major | L |
-| Crushing | `Crusher=yes` on all tanks, `Crushable=yes` on infantry; `[SHK] Crushable=no`, `[DRON] Crusher=no` | **present and correct** — `crusher()`/`crushable()`/`crush()` L13262-13264 | — | — |
-| Veterancy thresholds | `[General] VeteranRatio=3.0` — promotion at 3× **the unit's own cost in kill value**, `VeteranCap=2` | **partial** — flat kill *count*: 3 kills = veteran, 6 = elite (`damage()` L12766-12769). A GI that kills three Conscripts promotes as fast as an Apocalypse that kills three MCVs | minor | S |
-| Veterancy bonuses | `VeteranCombat=1.1`, `VeteranArmor=1.5`, **`VeteranROF=0.6`**, **`VeteranSpeed=1.2`**, `VeteranSight=0.0` | **partial** — `vetFire`/`vetArmour` (L599-600) applied in `fire()`/`damage()`. **ROF and speed bonuses are absent**; the elite self-heal (L13377) has no rules.ini basis | major | S |
-| Structure repair (wrench) | `[General] RepairPercent=15%`, `RepairRate=.016`, `RepairStep=8` — a full repair costs 15% of build cost | **partial** — `stepBld` (L13574-13579) charges **30%** of cost for a full repair, at 0.5% maxhp per 6 ticks | minor | S |
-| Service Depot repair | `[General] RepairBay=GADEPT,NADEPT`, `IRepairRate=.001`, `IRepairStep=20`; free | **present** (L13581-13589), rate is a house number (2% maxhp/0.5 s) not the rules one | nit | S |
-| Sell | `[General] RefundPercent=50%` | **present** — `sellBld` L13379-13383. RA2 also refunds **units** produced from the sold structure and lets you sell a *unit* at the Service Depot (`EVA_UnitSold`); neither exists | nit | S |
-| Low-power effects | `MinLowPowerProductionSpeed=.5`, `MaxLowPowerProductionSpeed=.8`, `LowPowerPenaltyModifier=1`; `Powered=yes` buildings go dark | **present** — `prodSpeed()` L13680-13684 implements the curve exactly. But `powered()` (L12540) is all-or-nothing per side and `stepBld` (L13590) darkens **every** defence — RA2's `[GAPILL]` has no `Powered=` key, so the Pillbox keeps firing in a blackout while `[NALASR] Powered=yes` does not. Also RA2 scales a damaged power plant's output with its health; the game does not (L12529-12538) | minor | S |
-| Ore growth | `TiberiumGrows=yes`, `TiberiumSpreads=yes`, `GrowthRate=5`, `[Riparius] Value=25`, `[Cruentus] Value=50` | **partial** — grows to a 900 cap, never spreads (L14512) | minor | S |
-| Crates | see §1c | **missing** | major | M |
-| Tech buildings | Oil Derrick / Airport / Hospital, all `Capturable=yes Unsellable=yes` | **missing** | major | M |
-| Bridges | destructible cells + `[CABHUT]` repair hut | **missing** — `T_BRIDGE` is indestructible (L515-520) | major | M |
-| Shroud | `[General] FogOfWar=no`, `[AudioVisual] ShroudGrow=no` — RA2 vanilla has shroud only, and it does **not** regrow | **present and correct** (`revealFor`/`tileSeen` L14470-14488) | — | — |
-| Gap Generator | `[GAGAP] GapGenerator=yes` re-shrouds a radius on the enemy's map | **missing** — `g.seen` is a one-way `Uint8Array` latch, so there is no mechanism to un-see | major | M |
-| Radar / minimap gating | `[NARADR] Powered=true`; the minimap is black without a powered radar building. `RadarOn`/`RadarOff` sounds in `[AudioVisual]` | **missing** — `drawMini()` (L16488) renders from tick 0 with no radar building and no power check. Radar is currently *only* a tech-tree gate | major | S |
-| Chronosphere rules | `[GACSPH] SuperWeapon=ChronoSphereSpecial`, `RechargeTime=7`, `IsPowered=true`, `PreClick=yes`; `[General] ChronoDelay=60`, `ChronoDistanceFactor=48`, `ChronoRangeMinimum=0`, `ChronoTrigger=yes`. In RA2 the shifted units come **back** after `ChronoDelay` unless dropped on land; infantry chronoshifted are killed | **partial** — `swFire` key `'chrono'` (L12970-12989): 3×3, ≤9 vehicles, infantry die (correct), instant one-way move. No return trip, no distance-scaled delay, no per-unit warp-in animation timing | minor | M |
-| Iron Curtain | `RechargeTime=5`, invulnerability for a fixed window, kills infantry it covers | **present** — `ironed()` L1047, `damage()` voids the hit L12746. Charge time wrong (7 vs 5) | major | S |
-| Lightning Storm | `[General] LightningDamage=250`, `LightningStormDuration=180` frames, `LightningCellSpread=10`, `LightningSeparation=3`, `LightningHitDelay=10`, `LightningWarhead=IonWH` (100% everything except **3% vs concrete**) | **partial** — `stepStorm` (L12879-12899): 10 bolts / 20 s / 3×3 / **200** damage on a bespoke `WeatherWH` that is 100% vs concrete (L563). RA2's damage is 250 and its warhead barely scratches concrete | minor | S |
-| Nuclear missile | `[NAMISL] SuperWeapon=MultiSpecial`, `RechargeTime=10`, `WeaponType=NukeCarrier`; radiation crater afterwards (`[Radiation]`) | **present** — `stepNuke` L12903-12934, 10 s flight, per-cell falloff, ore vaporised, shroud burned. No lingering radiation field | minor | M |
-| Prism Tower support chain | `[General] PrismType=ATESLA`, `PrismSupportMax=8`, `PrismSupportModifier=150%`, `PrismSupportDelay=60`, `PrismSupportDuration=15`, `PrismSupportHeight=420`; `[PrismSupport]` 200 dmg Rng 8 | **missing** — towers fire independently (`stepBld` L13590-13593). This is the single defining Allied defence mechanic | major | M |
-| Naval combat | see §1 | **missing** | major | L |
-| Air combat — ammo/pads | `[ORCA] Ammo=1`; `[Maverick] Burst=2`; `[General] PadAircraft=ORCA,BEAG`, `ReloadRate=.3`, `AircraftFogReveal=6`, `AttackingAircraftSightRange=2` | **present** — `stepAircraft` L13517, `findPad` L13496, 4 pads/HQ (`PAD_SLOTS` L972). Game fires 2 separate missiles where RA2 fires one 2-round burst; range is 3.2 vs 6 | minor | S |
-| Air combat — Kirov bombs, AA | `[BlimpBomb]` 250/`BlimpHE` CellSpread 2 | **present and correct** (L672-680, `canHit` L948, `rngVs` L954) | — | — |
-| Transports (Flak Track 5, IFV 1, SAPC 12, LCRF 12, Nighthawk 5) | `Passengers=` on each | **missing entirely** — no load/unload, no passenger list | major | L |
-| Harvester auto-return | correct | **present** (`stepHarvester` L13095-13260), plus a flee-under-fire behaviour RA2 does not have | — | — |
-| Building placement adjacency | `Adjacent=2` on most structures, `4` on Pillbox/Sentry/Patriot, `8` on walls, `12` on shipyards, `[General] AINavalYardAdjacency=20` | **partial** — one global `BUILD_RADIUS = 6` (L13797) for everything, and it is measured from the *whole* footprint box, not RA2's cell adjacency. Defences cannot be pushed 4 cells out, walls cannot chain | minor | S |
-| MCV deploy | `[AMCV] DeploysInto=GACNST`; `[General] BaseUnit=AMCV,SMCV`, `AIAutoDeployFrameDelay=15,25,100` | **present and correct** — `deployMcv`, D key (L15095), double-click (L15272), `canPlace(...{anywhere:true})` | — | — |
-| Walls and gates | `[General] GDIGateOne=GAGATE_A`, `NodGateOne=NAGATE_A`, `WallTower=GACTWR`, `WallBuildSpeedCoefficient=3.0`; walls block movement and most warheads honour `Wall=yes` | **missing** — no walls, no gates; `VERSES` ignores the `Wall=` flag entirely | major | M |
-| GI deploy | `[E1] Deployer=yes`, secondary `Para` | **present** (L15353-15360, `weaponFor` L589) with the stat errors in §2a. **RA2's `[GGI] Deployer=yes DeployFire=yes` means the Guardian GI's missile only fires deployed** — the game fires it while walking | minor | S |
-| Rally points | `EVA_NewRallyPointEstablished` (#100) | **present** — `makeRally` L15651, draws the routed path. Only Barracks/War Factory accept one; RA2 lets any production structure (incl. Shipyard) take one | nit | S |
-| Waypoints | `[General] MaxWaypointPathLength=15`, `[AudioVisual] WaypointAnimationSpeed=10` | **present** — shift-right-click queue + `Path` mode (L15546, L15572) | — | — |
-| Formation move | RA2 `Ctrl`-drag formation / "F" follow | **partial** — `orderUnitsTo` spreads a group over a ring (L15559-15563) but there is no formation-preserving move and no Follow command | minor | M |
-| Guard / Scatter / Stop | `GuardObject=G`, `ScatterObject=X`, `StopObject=S`; `[General] GuardModeStray=2.0`, `GuardAreaTargetingDelay=36` | **present** (L15085-15105, `unitsCmd` L15334) though "Guard" and "Stop" are the *same* code path — RA2's Guard actively engages inside `GuardModeStray` and returns to post; Stop does not | minor | S |
-| Control groups | `TeamCreate_1..10` (Ctrl+digit), `TeamSelect_1..10`, `TeamAddSelect` (Shift+digit), `TeamCenter` (Alt+digit) | **partial** — only groups **1-5** (`/^[1-5]$/` L15108), no add-to-group, no centre-on-group | minor | S |
-| Attack-move | `AttackMove` is a supported `[AdvancedCommandBar]` button in ui.ini | **missing** — no attack-move order type; `orderAttack` (L15630) needs a target entity | major | M |
-| Force-fire | RA2 Ctrl+click force-fires at ground/own units | **missing** — `rightOrder` (L15580) has no modifier path; Shift is waypoint-queue only | major | S |
-| Planning mode | `PlanningMode=Z` in keyboard.ini, in the default `[AdvancedCommandBar] ButtonList` | **missing** | minor | M |
-
----
+| **Weapon range is measured centre-to-centre with no footprint allowance, so short-range weapons cannot reach a large building at all.** This kills Tanya's and Crazy Ivan's entire reason to exist | RA2 measures a weapon's reach to the target's nearest occupied cell, which is why `[Sapper] Range=1.5` is enough to C4 a 4×4 Construction Yard | `rngVs` (rts.html:2034) returns the raw range and `dist` (19575) is centre-to-centre. **Measured live**: Tanya ordered onto a 3×2 Barracks closes to **1.87** against her `w2.rng` of 1.2, stands there for 3 000 ticks and does **zero** damage (hp 500 → 500); on a 2×2 Power Plant she reaches 1.69, also zero; on a 1×1 Sentry Gun she reaches 1.19 and one-shots it. Crazy Ivan (rng 1.5) reaches 1.51 on the same Barracks and never plants. Against the 4×4 Construction Yard **every** short-range attacker stalls at 3.01 — Tanya, Ivan and even the Tesla Trooper (rng 3) all do nothing. The fix pattern is already in the file 800 lines away: `atRefinery` (20419) uses `max(gw,gh)/2 + 1.9` | **blocker** | S |
+| **Prism support beams cost the supporting tower 30 ticks where RA2 takes it offline for 240** | `[General] PrismSupportDelay=60` — "*Firing a support beam takes a Prism offline for this long*". `PrismSupportDuration=15` is a different key: "*A support beam is visible for this long*" | `o.cool = Math.max(o.cool, PRISM_SUP_DUR * 2)` (rts.html:21657) uses the *duration* key, ×2, and never references `PrismSupportDelay`. Measured live with three towers on one Apocalypse: 480 damage at t=29 and another **240 at t=58** — a supporter fully recovered and supported again 29 ticks later. The four-second dead weight is the entire tactical cost of the mechanic | major | S |
+| **The Terror Drone eats its host twice as fast as RA2** | `[DroneJump] ROF=60` frames = 4 s | `PARASITE_ROF = 120` (rts.html:20648), commented "RA2 runs its logic at 30 fps, so that is 50 points every TWO seconds". Measured: damage lands at 120 / 240 / 360, and a 300-hp Grizzly dies in 720 ticks instead of 1 440. The approach weapon (`drone.rate: 240`) is right; only the gnaw is wrong | major | S |
+| **The Iron Curtain lasts 20 s; RA2's lasts 50** | `[General] IronCurtainDuration=750`, whose own comment reads "*In frames 900 is a minute for 15fps*" | `IRON_T = 20 * 60` (rts.html:2287). Measured live by damaging an ironed Rhino every tick until damage landed: **1 200 ticks exactly**. `BLDS.curtain.desc` has been written to match the bug ("invulnerable for 20 seconds"). The charge time next to it *is* right at 5 minutes | major | S |
+| Crazy Ivan's fuse is 15 s; RA2's is 30 | `[General] IvanTimedDelay=450` frames | `IVAN_BOMB_T = 900` (rts.html:20699), same 30 fps premise in the comment. The player-facing countdown at 20707 prints the wrong number from the wrong constant | minor | S |
+| The Chronosphere's warp delay is half RA2's, and `ChronoDistanceFactor` is unused | `[General] ChronoDelay=60` frames = 4 s; `ChronoTrigger=yes` + `ChronoDistanceFactor=48` + `ChronoMinimumDelay` scale it by distance | `CHRONO_DELAY = 60 * 2` = 120 ticks (rts.html:20425), applied flat at 20078. The distance-scaling helper `chronoDelayFor` (20416) exists but is wired only to the Chrono Legionnaire. *(The old audit's claim that RA2's shifted units "come back" is wrong — that was RA1. The one-way shift is correct.)* | minor | S |
+| Radiation applies and decays twice as fast as RA2 | `[Radiation] RadApplicationDelay=16` frames, `RadDurationMultiple=1` (a site lives `Level` frames) | `RAD_APPLY = 32`, `RAD_DECAY_T = 10`, `RAD_DECAY = 5` (rts.html:20778) — a 500-level pool lives ~1 000 ticks where RA2's lives 2 000. Measured: 485 → 385 over 200 ticks, gone by ~1 000 | minor | S |
+| The Spy's blackout is 10 % short | `[General] SpyPowerBlackout=1000` frames, and the same line documents "*900 = 1 minute*" — so 66.7 s | `SPY_BLACKOUT = 3600` (rts.html:20948) = 60 s. The money steal beside it (`SPY_STEAL = 0.5`) is exact | nit | S |
+| **A damaged power plant produces full output** | RA2 scales a power plant's output with its health, which is why bombing the plants browns out a base before it destroys anything | `recalcPower` (rts.html:19352) reads `bspecOfB(g, b).power` with no hp term. Measured: a plant at 25 % hp still contributed the full 200 | minor | S |
+| Ore densifies about 300× too fast | `[General] GrowthRate=5` — **5 minutes** between growth steps | `stepOre` (rts.html:25231) adds +2 every 60 ticks to a 900 cap. The *spread* beside it is exact (`ORE_SPREAD_T = 2200 * 4`, 6 %, gems excluded, rts.html:22028) | minor | S |
+| Structure repair runs about 6× RA2's rate | `[General] RepairRate=.016` minutes between steps, `RepairStep=8` hp — roughly two minutes for a full structure | `stepBld` (rts.html:22119) heals 0.5 % of max hp every 6 ticks: a full repair in ~20 s. The *price* is exact (`0.15 × cost`, `RepairPercent=15%`) | nit | S |
+| The Guardian GI fires its missile while walking | `[GGI] Deployer=yes DeployFire=yes` — the missile only fires deployed | `UNITS.rocket` (rts.html:1180) has a `w2` and no `dep`, so the missile is always live. The GI's own deploy beside it is correct | minor | S |
+| `MaxWaypointPathLength=15` is unenforced | `[General] MaxWaypointPathLength=15` | `(u.wp || (u.wp = [])).push(...)` (rts.html:28095) — the queue is unbounded | nit | S |
+| No formation-preserving move | RA2 Ctrl-drag holds the group's shape | `spreadSpot` (rts.html:22460) gives each unit its own cell on a ring. Follow (F) is implemented (27542) | minor | M |
+| No unit-sell at the Service Depot, and selling a producer does not refund its queue | `EVA_UnitSold`; `[General] RefundPercent=50%` applies to units too | `sellBld` (rts.html:27861) refunds structures only | nit | S |
+| `GuardAreaTargetingDelay=36` and `BaseDefenseDelay=.25` have no counterpart | `[General]` | behaviour is immediate. Grep only | nit | S |
+| Air combat: pads, ammo and reload | `[ORCA] Ammo=1`, `[Maverick] Burst=2`, `[General] ReloadRate=.3`, `PadAircraft`, `AircraftFogReveal=6` | Pads, the sortie cycle and the corrected range 6 are all right; the two-missile structure and the 2.5 s rearm are in §2a | minor | S |
 
 ## 4. Match flow
 
+Almost all of the old §4 is closed, and verified by driving it: starting credits
+(5 000 / 10 000 / 20 000, all applied), starting units (0 → 2 entities, 3 → 5, 10 → 12), Short Game
+on/off, Crates on/off, Bases off (0 buildings, an MCV instead), Superweapons off (honoured in both
+`panelKeys` and `canBuild`, per `DisableableFromShell=yes`), and RA2's 1-6 game-speed slider that
+changes ticks per second and not the tick, so determinism holds. EVA coverage went from 23 lines to
+**66 unique lines over 74 call sites**, including every line the old audit listed by name. The score
+screen is a per-side comparison table with Leadership / Economy / Technology. Save/load round-trips
+exactly — credits, unit count, building count and seed all restored, and the sim keeps stepping.
+
 | Gap | RA2 behaviour | What the game does now | Severity | Effort |
 |---|---|---|---|---|
-| Skirmish: starting credits | RA2 skirmish credits selector | **missing** — hard-coded $10 000 (`newSide` L1086) | major | S |
-| Skirmish: unit count | RA2 "Units" slider seeds each player's opening force | **missing** — always 1 yard + 2 harvesters + 3 infantry (`startMatch` L16982-16997) | minor | S |
-| Skirmish: Short Game | ends the match when a player has no structures **and** no MCV | **partial** — that is the *only* win rule the game has (L14544-14557); there is no long-game "kill every unit too" mode and no toggle | minor | S |
-| Skirmish: Crates on/off | `[CrateRules]` | **missing** (no crates) | minor | S |
-| Skirmish: Bases on/off | RA2 "Bases" option starts you with units only | **missing** | minor | S |
-| Skirmish: Superweapons on/off | `DisableableFromShell=yes` on all four `[*Special]` sections | **missing** — always on | minor | S |
-| Skirmish: Game speed | `[General] GameSpeedBias=1.6`; RA2 has a speed slider | **missing** — `STEP = 1000/60` fixed (L500), no in-match speed control | minor | S |
-| Skirmish: map preview | RA2 shows a preview + spawn dots | **present** — `mapThumb`/`buildMapRow` (L16762-16803), six maps, theatre glyphs | — | — |
-| Skirmish: more than 2 players / teams / colours | RA2 skirmish is up to 8 | **missing** — hard 2-player (`P_HUMAN=0, P_AI=1`, L522) | major | L |
-| Win/lose conditions | short game = all structures + MCV | **present** and slightly better (`economyDead` L14561 breaks stalemates). Note the MCV clause counts "*could* still buy one" (L14553), which is not an RA2 rule | — | — |
-| EVA lines | `eva.ini [DialogList]` lists **120** skirmish-relevant events | **partial** — the game fires 23 (grep `eva(` → L12759, 12760, 12768, 12770, 12860, 12932, 12946-12951, 12966-12967, 12987-12988, 13402-13403, 13706, 13717, 14977, 15033, 15347, 15382, 15485). Missing high-frequency ones: `NewConstructionOptions` (#49 — fires on every tech unlock, one of RA2's most recognisable lines), `Building` (#52), `OnHold` (#56), `Canceled` (#51), `Repairing` (#57), `UnitRepaired` (#70), `UnitSold` (#71), `BaseDefensesOffLine` (#59), `BuildingOffLine`/`OnLine` (#60/61), `CannotDeployHere` (#63), `SelectTarget` (#65), `Training` (#66), `UnableToComply` (#47), `NewRallyPointEstablished` (#100), `BattlefieldControlOnline` (#120), `BattleControlTerminated` (#15), `YouAreVictorious`/`YouHaveLost` (#22/23), `NuclearSiloDetected`/`IronCurtainDetected`/`ChronosphereDetected` (#1/4/7 — fired when the enemy **builds** one, not when it fires), `EnemyAirArmadaDetected` (#96), `ArmorBattallianDetected` (#98), `StructureGarrisoned` (#107), `ChronoMinerOffline` (#109), `NewTechnologyAcquired` (#74) | major | M |
-| Score screen | RA2 shows a per-player breakdown (buildings/units/harvested, leadership/economy/technology, ranked) with `ScoreAnimSound` | **partial** — `finish()` (L17009-17032) shows a one-line "units built / lost / killed" plus the leaderboard. No harvested total, no ranking, no per-side comparison | minor | M |
-| Pause | RA2 pauses via Options (Esc) | **present** — P key + button (L15107, L16915) | — | — |
-| Save / load | RA2 saves skirmish games | **missing** — no serialisation anywhere | minor | L |
-| Multiplayer | RA2 is lockstep-deterministic | **missing**. The sim *is* deterministic: `srand`/`rnd` is a seeded xorshift (L528-536), `__rtsSim` (L17148) replays a whole match headlessly from a seed, and `simStep` (L14493) is the only mutator. Two obstacles: (a) `stepUnit`/`aiTactics` read `performance.now()`-free but rendering-side state (`headless` guards are already in place, good), (b) there is no command-queue/lockstep layer and no `Beacon` (roadmap L112 says "Beacon pending multiplayer") | major | L |
+| **Two seats only, and the multiplayer wire is same-browser** | RA2 skirmish is up to 8, over a real network | `side: [newSide(P_HUMAN), newSide(P_AI)]` (rts.html:2393). The lockstep core is real and tested — command queue, `LOCKSTEP_DELAY`, `netMayStep`, 60-tick state hashing, desync detection (24485), Host/Join in the front menu — but the transport is a `BroadcastChannel` between two tabs of one browser. A cross-machine relay, player ids past two, reconnect-from-log and latency adaptation are all open | major | L |
+| **The skirmish options drawer is undiscoverable** | — | Implemented, works, and cannot be seen — the defect is in the art audit §6 because it is a layout bug, but it belongs to this section's feature | major | S |
+| The options card has no Delete for a save slot | RA2's in-game menu is Load / Save / **Delete** / Restart / Abort / Settings | `buildSlotRows` (rts.html:31035) | nit | S |
+| Skirmish options, EVA coverage, score screen, save/load, pause, map preview, win/lose | | All present and correct | — | — |
 
----
+## 5. Hotkeys — `keyboard.ini [Hotkey]` vs the `keydown` handler (rts.html:27445)
 
-## 5. Hotkeys — `keyboard.ini [Hotkey]` vs the `keydown` handler (L15068-15121)
-
-Decoding: value & 0xFF = VK code; +256 = Shift, +512 = Ctrl, +1024 = Alt, +2048 = extended.
+**Every row of the old §5 is closed**, and every one was verified by driving a real key press:
+`Q`/`W`/`E`/`R` select tabs 0-3, `T` type-selects ("All visible Chrono Miners: 2"), `K`/`L` enter
+repair and sell mode, `Z` toggles planning mode, `N` steps the next object ("2/6 · Chrono Miner"),
+`F` enters follow mode, `Space` reports the last radar event separately from `H` (base), `Delete`
+self-destructs the selection, `F1`-`F4` recall views with `Ctrl+F1`-`F4` to set them, and `Ctrl+C`
+downloads a PNG where RA2 wrote a `.pcx`. Teams are 1-9 and 0 with Ctrl to create, **Shift to add**
+and **Alt to centre** — all ten, all four modifiers (27551-27568). Bindings were diffed 1:1 against
+`keyboard.ini`'s VK codes.
 
 | Gap | RA2 behaviour (keyboard.ini) | What the game does now | Severity | Effort |
 |---|---|---|---|---|
-| `P` collides | `CombatantSelect=80` = **P** (select all combat units on screen) | **P = pause** (L15107). RA2 pauses from the Options key (Esc) | minor | S |
-| Type-select key | `TypeSelect=84` = **T** | button only ("Same", L15396); no key | minor | S |
-| Sidebar tabs | `StructureTab=81` **Q**, `UnitTab=82` **R**, `InfantryTab=69` **E**, `DefenseTab=87` **W** | **missing**; W/A/S/D are camera pan, so Q/E/R are free and W conflicts | minor | S |
-| Repair / Sell modes | `ToggleRepair=75` **K**, `ToggleSell=76` **L** | button only (`setCmdMode`, L15303) | minor | S |
-| Next object | `NextObject=78` **N** | **missing** | minor | S |
-| Follow | `Follow=70` **F** | **missing** | minor | M |
-| Alliance / Beacon / Cheer / Page user | `ToggleAlliance=65` **A**, `PlaceBeacon=66` **B**, `AllToCheer=67` **C**, `PageUser=85` **U** | **missing** (all multiplayer-adjacent; `A` conflicts with camera pan) | nit | M |
-| Planning mode | `PlanningMode=90` **Z** | **missing** | minor | M |
-| View bookmarks | `View1..4=112..115` **F1-F4**; `SetView1..4=624..627` **Ctrl+F1-F4** | **missing** | minor | S |
-| Teams 6-10 | `TeamSelect_10=48` **0**, `_6..9=54..57` **6-9**; `TeamCreate_*=560..569` **Ctrl+digit**; `TeamAddSelect_*=304..313` **Shift+digit**; `TeamCenter_*=1072..1081` **Alt+digit** | only 1-5 select and Ctrl+1-5 assign (L15108-15120); no Shift-add, no Alt-centre | minor | S |
-| Centre view / radar event | `CenterView=12` (numpad 5), `CenterOnRadarEvent=32` **Space**, `CenterBase=72` **H** | **Space and H both go home** (L15081-15082). RA2's Space centres on the *last radar event*, H centres on base — the "where did that explosion happen" key is missing | minor | S |
-| Delete / Options | `Delete=46`, `Options=27` **Esc** | Esc cancels (L15072-15080) ✓; Delete (self-destruct selection) missing | nit | S |
-| Sidebar scroll | `SidebarUp/Down=2086/2088` (arrow keys), `PageUp/PageDown/Home/End` | arrows pan the camera; the build list scrolls only with the mouse | nit | S |
-| Screen capture | `ScreenCapture=579` Ctrl+C | **missing** | nit | S |
-| **Present**: Esc, Space/H home, S stop, G guard, D deploy, X scatter, 1-5 / Ctrl+1-5, WASD+arrows pan, wheel zoom | | | | |
-
----
-
+| **No `Beacon`, now that multiplayer ships** | `ui.ini [MultiplayerAdvancedCommandBar] ButtonList=…,Beacon` is a **seven**-button bar in MP; `PlaceBeacon=66` is `B` | `#cmdbar` (rts.html:663-670) is a static six with no MP branch in `refreshCmdbar` (27886) | minor | M |
+| `AllToCheer=67` **C** | RA2 makes the whole army cheer | missing. `INF_SEQ` has the cheer animation and fires it on victory, so only the key and the order are absent | nit | S |
+| `ToggleAlliance=65` **A**, `PageUser=85` **U** | multiplayer diplomacy | missing, and moot at 1v1 | nit | M |
+| `CenterView=12` (numpad 5) | centres on the selection | missing; `Space` and `H` cover the two cases a player reaches for | nit | S |
+| Sidebar scroll is on PageUp/PageDown/Home/End, not the arrows | `SidebarUp/Down=2086/2088` are the arrow keys | Deliberate and commented (rts.html:27484) — the arrows pan the camera, as they do in RA2 | — | — |
+| Every other binding | | Present and matching `keyboard.ini` | — | — |
 ## 6. AI
 
-RA2's skirmish AI is data-driven: `ai.ini` holds **241 sections** — `[TaskForces]` (fixed unit
-compositions), `[ScriptTypes]` (move/attack/guard scripts) and `[TeamTypes]` bound to
-per-difficulty trigger weights. Tuning lives in `rules.ini [General]`.
+The old §6's headline row is closed: `AI_TEAMS` (rts.html:22738) is a real task-force layer modelled
+on `ai.ini`, and a 22-minute hard-vs-hard `__rtsSim` fired **16 distinct team keys**. `TeamDelays`,
+`TotalAITeamCap=30`, `DissolveUnfilledTeamDelay`, `Min/MaximumAIDefensiveTeams`,
+`Allied/SovietBaseDefenseCounts`, `AIHateDelays`, `AISafeDistance=20`, `HarvestersPerRefinery=2`,
+`AINavalYardAdjacency=20` and the whole `AIIonCannon*Value` superweapon table are all carried in at
+their rules.ini values. `AIBuildsWalls=no` is honoured on purpose (`AI_BUILDS_WALLS = false`,
+rts.html:22715), so an AI that builds no walls is **correct**, not a gap.
 
 | Gap | RA2 behaviour (rules.ini / ai.ini key) | What the game does now | Severity | Effort |
 |---|---|---|---|---|
-| Team types / task forces | `ai.ini [TaskForces]` + `[TeamTypes]`; `[General] TeamDelays=2000,2500,3500`, `TotalAITeamCap=30,30,30`, `DissolveUnfilledTeamDelay=5000`, `FillEarliestTeamProbability=100,100,100` | **missing** — one monolithic `ai.wave` array (`aiTactics` L14344-14468). No named compositions, no per-team scripts, no team cap | major | L |
-| Trigger weighting / learning | `AITriggerSuccessWeightDelta=20`, `AITriggerFailureWeightDelta=-50`, `AITriggerTrackRecordCoefficient=1` | **missing** — posture is recomputed from army value only (`stepAI` L13985-13996) | minor | M |
-| Defensive team counts | `MinimumAIDefensiveTeams=1,1,1`, `MaximumAIDefensiveTeams=2,2,2`, `AlliedBaseDefenseCounts=25,20,6`, `SovietBaseDefenseCounts=25,22,6`, `BaseDefenseDelay=.25`, `UseMinDefenseRule=yes` | **partial** — a flat 3 (5 when defending) defence cap (L14140), one `ai.garrison` list (L14425-14449). No per-difficulty defence budget | minor | S |
-| Base defence placement | `AIPickWallDefensePercent=50,25,10`, `AIBuildsWalls=no`/`NodAIBuildsWalls=no`, `BaseBias=2`, `AISafeDistance=20` | **partial** — `aiPlace` (L14244) biases defences toward the enemy and spaces the base by `crowding()`. No wall logic (nothing to build) | nit | S |
-| Difficulty knobs | RA2 varies via the `x,y,z` triples throughout `[General]` (`AIHateDelays=30,50,70`, `AIVirtualPurifiers=4,2,0`, `MultiplayerAICM=400,0,0`, `CampaignMoneyDelta*`) — i.e. brutal gets **free virtual ore purifiers and a cash multiplier** | **different by design** — `DIFF` (L13860-13863) handicaps only the AI's own play (react/apm/group/opening) and explicitly refuses economy bonuses. Defensible, but it is not RA2's curve: RA2's Brutal is materially advantaged | minor | M |
-| Harvester harassment | RA2 teams target harvesters via `TargetSpecialThreatCoefficient` | **present** — `cfg.harass` on hard (L13862), `findTarget` weights harvesters +12 (L12744) | — | — |
-| Engineer captures | RA2 AI fields engineer teams to grab tech buildings and enemy structures | **missing** — `aiProduce` (L14009-14172) never queues an engineer; `canBuild` allows it but no branch picks it | major | M |
-| MCV redeploy / base rebuild | `[General] BaseUnit=AMCV,SMCV`, `AIAutoDeployFrameDelay=15,25,100` | **present and good** — L14013-14036 | — | — |
-| Superweapon targeting | `AIIonCannon*Value` table weights War Factory 100, Power 60, Base Defense 35, Helipad 20, ConYard 10, harvester/MCV/engineer 1; `AIMinorSuperReadyPercent=.7` | **partial** — `aiSwTarget` (L14184-14199) scores by *cluster density* with refineries ×2.5. RA2's table would rank a **War Factory** highest and a Refinery not at all. Curtain-the-wave and chrono-to-refinery (L14208-14232) are good RA2-flavoured touches with no rules.ini basis | minor | S |
-| Harvesters per refinery | `[General] HarvestersPerRefinery=2` | **partial** — `wantHarv = min(1+cfg.expand, nRef+1)` (L14160), i.e. 2-4 total rather than 2 per refinery | nit | S |
-| Aircraft / naval AI | RA2 uses aircraft teams and naval teams | **partial** — fills Harrier pads and sends Kirovs (L14150-14152, L14196); no naval (nothing to build) | nit | S |
-| AI does not use: garrison, crates, tech buildings, walls, transports, attack-move | — | **missing** — all downstream of §1/§3 | major | L |
-
----
-
-## Top 25 gaps by impact
-
-Ordered by severity, then by effort (cheapest first inside a band).
-
-1. **(blocker, S)** §2a — Prism Tank fires `PrismWarhead` (200% vs infantry, 50% vs structures) instead of RA2's `CometWH` (50% vs armour, **200% vs structures**), at ROF 240 not 400 and Range 8 not 10. The Allied siege tank is currently an anti-infantry gun.
-2. **(major, S)** §2c — Tesla Coil has no prerequisite: a $1500 coil is buildable off the opening Construction Yard. RA2 needs `POWER,RADAR`.
-3. **(major, S)** §2c — Patriot Missile and Flak Cannon are gated behind Airforce/Radar; RA2 needs only `BARRACKS` (TL4). AA arrives a full tier late for both sides.
-4. **(major, S)** §2c — Refinery/Barracks (need POWER), War Factory (needs PROC+Barracks) and Battle Lab (needs War Factory) have no prerequisites; the whole opening build order is unconstrained.
-5. **(major, S)** §3 — Minimap draws from tick 0 with no radar building and no power check (`drawMini` L16488). RA2 blacks it out without a powered radar.
-6. **(major, S)** §2b — Battle Lab draws −200 power (RA2 −100) and Barracks armour is `wood` not `steel`; both distort the whole mid-game.
-7. **(major, S)** §2b — Iron Curtain charges for 7 min; `[IronCurtainSpecial] RechargeTime=5`.
-8. **(major, S)** §2a — Harrier missile range 3.2 vs RA2's 6; the jet must fly into AA to shoot.
-9. **(major, S)** §2a — Flak Trooper has no `FlakGuyAAGun` secondary (20 dmg, Rng 8, `FlakGuyWH`); it engages aircraft with its ground burst at 6 tiles.
-10. **(major, S)** §2a — Flak Track AA range 6.5 vs RA2's 10; Apocalypse `MammothTusk` at rate 100/range 6 vs RA2's 320/8.
-11. **(major, S)** §3 — Veterancy has no `VeteranROF=0.6` or `VeteranSpeed=1.2`, and promotes on kill *count* not `VeteranRatio=3.0` kill value.
-12. **(major, S)** §3 — No force-fire (Ctrl+click). `rightOrder` (L15580) has no modifier path at all.
-13. **(major, S)** §2c — Tesla Tank gated behind the Battle Lab; RA2 needs only `NARADR`.
-14. **(major, S)** §1b — The Soviet War Miner has no gun (`[HARV] Primary=20mmRapid`, 30/20/5.5, `HARVWH`).
-15. **(major, S)** §4 — No skirmish starting-credits option; $10 000 is hard-coded.
-16. **(major, S)** §2a — V3 Launcher has no `MinimumRange=5`; it snipes at point-blank.
-17. **(major, M)** §3 — Prism Tower support chaining (`PrismSupportMax=8`, `+150%`) is absent; the Allied defence has no identity.
-18. **(major, M)** §3 — No attack-move order.
-19. **(major, M)** §1c/§3 — No crates (`[CrateRules]`/`[Powerups]`).
-20. **(major, M)** §1a/§1b — No Attack Dog on either side (the only spy/Mirage detector, and the cheapest anti-infantry unit in the game).
-21. **(major, M)** §1c/§3 — Civilian buildings are not garrisonable (155 RA2 sections carry `CanBeOccupied=yes`); the urban theatre's ten `T_CIV` blocks are inert.
-22. **(major, M)** §1/§3 — No walls or gates (`[GAWALL]`/`[NAWALL]` $100, `Adjacent=8`), and `VERSES` ignores every warhead's `Wall=` flag.
-23. **(major, M)** §1a — No Gap Generator, and no mechanism for it: `g.seen` is a one-way latch.
-24. **(major, M)** §4 — 23 of eva.ini's 120 skirmish lines are implemented; `NewConstructionOptions`, `Building`, `OnHold`, `Canceled`, `BaseDefensesOffLine`, `CannotDeployHere` and the three "*Detected*" superweapon warnings are the ones a player notices immediately.
-25. **(major, L)** §1/§3 — No transports and no naval layer at all: Shipyards, 11 ship classes, `[HTK] Passengers=5`, `[FV] Passengers=1` (and therefore the IFV turret swap, roadmap L135), Nighthawk, amphibious APC.
+| **The AI never garrisons, never loads a transport and never attack-moves** — three mechanics that exist, work for the player, and are in `ai.ini`'s own team scripts | `ai.ini` pairs `LoadOntoTransport` with the Move in its `[ScriptTypes]`; garrisoned civilians are worth `ThreatPerOccupant=10` each; `AttackMove` is a `[ScriptTypes]` action | Measured over a 22-minute hard-vs-hard sim: **garrisons 0, transports 0, attack-moves 0**, against 29 tech captures and 20 defensive teams. `AI_TEAMS` carries `dirHawk` and `dirLand` with `drop: true` and neither fired | major | M |
+| No per-trigger track record | `AITriggerSuccessWeightDelta=20`, `AITriggerFailureWeightDelta=-50`, `AITriggerTrackRecordCoefficient=1` — RA2's AI *learns* which teams work against you | rts.html:23131-23134 nudges a weight by `+20` for a matching posture, but nothing accumulates across the match; weights are static per difficulty | minor | M |
+| `MultiplayerAICM=400` is a one-off grant, not an income coefficient | `[General] MultiplayerAICM=400,0,0` — "Coefficient of Money" for the AI in multiplayer | rts.html:23191 pays a single +$400 at match start. Against a $10 000 opening that is a rounding error | minor | S |
+| Content is thin on four of the seven maps | RA2 maps carry civilians, bridges and tech buildings everywhere | Sampled all seven `MAPS`: `tundra` / `choke` / `gems` have **no** garrisonable civilian blocks, only `river` has bridges or a Bridge Repair Hut, `coastal` has no tech buildings, and the Tech Hospital was not seen placed on any sampled map. Half the neutral-house work is unreachable in a normal game | minor | M |
+| Naval task forces never fire on the land maps | `AINavalYardAdjacency=20` | Correct by design — `dirFleet`/`dirCV`/`colSub` are gated on a reachable shore, and Iron Frontier has none. Recorded so it is not mistaken for a gap | — | — |
+| Task forces, defensive counts, placement bias, difficulty knobs, harvester harassment, engineer captures, MCV redeploy, superweapon targeting, harvesters per refinery, aircraft lane | | All present and matching their rules.ini values | — | — |
 
 ---
 
 ## Present but broken
 
-The one outright *bug* I could reproduce is a superweapon lane/tab split. All four superweapon
-entries in `BLDS` are written `{ cat: 'def', fac: …, cat: 'str', … }` (L918, L924, L930, L936) —
-the key is declared **twice**, so the later `'str'` wins and `laneOfBld()` (L13646) routes them into
-the **structures** lane `'b'`, while `defenceOrderFor()` (L1001) lists them on the **Defence** tab.
-Verified live: clicking Chronosphere on the Defence tab pushes `'chrono'` onto `side[0].queues.b`,
-it finishes as `queues.b.ready`, and `refreshPanel()` (L15012) then flags the **Structures** tab
-`hasready` while `say(...)` tells the player to "click it under Structures" (L15025-15029) — where
-there is no Chronosphere row. The finished $2500 building is only clickable on the tab that is not
-flashing, and a queued superweapon also silently blocks the entire structures queue, which is why
-the Defence lane's whole reason for existing (L13640-13644: "a Sentry Gun never delays a Refinery")
-does not apply to the most expensive item in the game. Two smaller live-verified defects sit
-beside it: `BLDS.reactor` carries `power: 2000` (correct per `[NANRCT]`) with `desc: '+500 power'`
-(L882), so the sidebar understates the Nuclear Reactor by 4×; and `stepBld` (L13590) blacks out
-*every* defence on low power, including the Pillbox, which in RA2 has no `Powered=` key and keeps
-firing (only `[NALASR] Powered=yes` and the coil/tower/AA sites go dark). Everything else I checked
-that is claimed done in `apps/games/rts/docs/roadmap.md` — crushing, Mirage disguise, MCV deploy, the low-power
-production curve, shroud, waypoints, veterancy chevrons, pad-based aircraft, the four superweapon
-effects — behaves as described.
+Ordered by how much of a feature the defect eats. All were reproduced live.
+
+| What | Where | Evidence |
+|---|---|---|
+| **Tanya's C4 can never damage a building of 2×2 or larger, and Crazy Ivan can never plant on one.** Both units exist to kill structures; both are inert against every structure worth killing | `rngVs` rts.html:2034, `dist` 19575 — centre-to-centre with no footprint term | Measured: Tanya on a 3×2 Barracks, 3 000 ticks, hp **500 → 500**, closest approach 1.87 vs her C4's 1.2; on a 2×2 Power Plant 1.69, also zero; on a 1×1 Sentry Gun she closes to 1.19 and one-shots it (hp −2 100). Ivan on the same Barracks reaches 1.51 against his 1.5 and never plants. On the 4×4 Construction Yard **every** attacker with range ≤ 3 stalls at 3.01 — Tanya, Ivan and the Tesla Trooper alike |
+| **`VERSES` declares `FlakGuyWH` twice; the annotated-correct row loses.** rts.html:977 carries `[150,100,50,80,20,20,0,0,0]` — RA2's row exactly, with the comment naming its source. rts.html:988 re-declares it as `[150,100,50,80,**80**,20,0,0,0]` and, being later in the same object literal, wins | rts.html:977 and 988 | Verified live: `__rtsTables.verses('FlakGuyWH','medium')` returns **0.8** where `[FlakGuyWH] Verses=` col 5 is 20 %. Both harvesters are `medium` |
+| **Three units carry the raw RA2 `ROF` where their own comment cites it and the file's convention is `ROF × 4`** — the War Miner, the Desolator and the Nighthawk fire four times too fast | rts.html:1162, 1386, 1435 | Measured: the War Miner's `cool` resets every **20** ticks against a GI's correct 80 and a Grizzly's correct 240; the Desolator every **50**, so its 125-damage rad beam does 4× RA2's DPS; the Nighthawk every **40** on an attack order. *(The Chrono Legionnaire's `rate: 120` looks like the same bug and is not — `fire()`'s `ChronoBeam` branch overrides `cool` to 8, so the field is dead code.)* |
+| **A Prism support beam takes its tower offline for 30 ticks where `PrismSupportDelay=60` is 240** — the code uses `PrismSupportDuration`, the key for how long the beam is *visible* | rts.html:21657 | Measured with three towers on one Apocalypse: 480 damage at t=29 and another **240 at t=58**. A supporter recovered and supported again 29 ticks later; RA2's four-second dead weight is the mechanic's entire cost |
+| **The Iron Curtain lasts 20 s against RA2's 50, and the sidebar text was written to match the bug** | `IRON_T = 20 * 60` rts.html:2287; `BLDS.curtain.desc` says "invulnerable for 20 seconds" | Measured by damaging an ironed Rhino every tick until damage landed: **1 200 ticks exactly**. `IronCurtainDuration=750` at the 15 fps the ini documents on that very line is 3 000 ticks. `STORM_T` on the same source line converts `LightningStormDuration=180` at 15 fps and is right |
+| **The Terror Drone eats its host twice as fast as RA2** | `PARASITE_ROF = 120` rts.html:20648 | Measured: damage at 120 / 240 / 360, a 300-hp Grizzly dead in 720 ticks instead of 1 440. The approach weapon (`drone.rate: 240`) is correct — only the post-infest gnaw is not |
+| **A second Ore Purifier is buildable, costs $2 500 and 200 power, and does nothing.** `[GAOREP] BuildLimit=1`; `BLDS.purifier` has no `max`, so `canBuild` (22189) never blocks it, while the income code caps the bonus at one (`hasBld(...) ? 1 : 0`, 20610) | rts.html:1765, 20610, 22189 | Placed three live, all succeeded |
+| **A damaged power plant produces full output** | `recalcPower` rts.html:19352 reads `bspecOfB(g, b).power` with no hp term | Measured: a plant at 25 % hp still contributed 200. RA2 scales output with health, which is why bombing the plants browns out a base before it destroys anything |
+| **The Nuclear Reactor's footprint is read off the wrong art.ini section.** It cites `[NAAPWR] Foundation=2x3`; `[NAAPWR]` has **no rules.ini section at all** — it is unused art. The building's own section is `[NANRCT]`, whose `Foundation=4x4` | rts.html:1774 | Every other footprint in the table matches. Verified against art.ini and rules.ini |
+| **The Guardian GI fires its missile while walking** | `UNITS.rocket` rts.html:1180 has a `w2` and no `dep` | `[GGI] Deployer=yes DeployFire=yes` — the missile should require the deploy. The GI's own deploy beside it is correct |
+| **The AI never garrisons, never loads a transport and never attack-moves** — three mechanics that exist and work for the player, and that `ai.ini`'s own `[ScriptTypes]` pair with the move | `AI_TEAMS` rts.html:22738; `dirHawk` and `dirLand` carry `drop: true` and never fired | Measured over a 22-minute hard-vs-hard `__rtsSim`: garrisons 0, transports 0, attack-moves 0, against 29 tech captures and 20 defensive teams |
+| **Half the neutral-house work is unreachable in a normal game.** Sampled all seven maps: `tundra`, `choke` and `gems` have no garrisonable civilian blocks; only `river` has bridges or a Bridge Repair Hut; `coastal` has no tech buildings; the Tech Hospital was not seen placed on any sampled map | `placeNeutrals` | Sampled live across `MAPS` |
+
+---
+
+## What is actually left, by impact
+
+**This list is shared and deduplicated across both gap audits** — `gap-audit-art.md` and
+`gap-audit-features.md` end with the same block, so there is one place to read the remaining work.
+The section tag says which document carries the row's detail. Severity and effort use the same
+scales as the rest of both files.
+
+### Closed since this audit was written (2026-09-04)
+
+Rows 1-7, 17, 18 and part of 12 below are **done**, and row 8 **did not reproduce**. They are
+annotated in place rather than deleted, so the record shows what was found and what was
+actually true. Two of the audit's own citations were wrong and are corrected here.
+
+| was | what shipped | commit |
+|---|---|---|
+| 1 | `edgeDist()` — range and MinimumRange are both measured to the target's WALL. Tanya and Ivan now destroy the 4x4 yard, the 5x3 factory, the 4x3 refinery, the 3x2 barracks and the 2x2 power plant; before, zero damage to any of them | `f088a16` |
+| 2 | The ROF x4 sweep found **sixteen** weapons, not three: the War Miner, Desolator, Nighthawk, **Yuri**, **Chrono Legionnaire**, and **eleven of the thirteen `IFV_MODES` rows** — every passenger mode except the one that was already converted | `f2889ff` |
+| 3 | The duplicate `FlakGuyWH` is gone, and a test now walks the whole file for duplicate object keys so the class of bug cannot recur silently. `__rtsTest.step` was doubled the same way | `f088a16` |
+| 4, 6, 12 | One frame-rate correction closes all three. rules.ini settles it beside `IronCurtainDuration` (line 693): *"In frames 900 is a minute for 15fps"*. Iron Curtain 20 s -> **50 s**, Terror Drone 120 -> **240** ticks per bite, Ivan's fuse 900 -> **1800**, radiation apply 32 -> **64** | `f2889ff` |
+| 5 | `PrismSupportDelay=60` (240 ticks) now sets the offline window; `PrismSupportDuration` sets only the beam's life. `CHARGE_T` was the same raw-frames mistake: 28 -> **112** | `e74154b` |
+| 7 | One `radarUp()`, called by both `drawMini` and the `#mini` pointerdown handler. Measured: 2294 px of camera jump on a dead radar before, 0 after | `e74154b` |
+| 17 | **The citation was wrong.** `[GAOREP]` has no `BuildLimit` line — RA2 does not limit the Ore Purifier either, and a useless second one is RA2's own behaviour. No change made | — |
+| 18 | Nuclear Reactor 2x3 -> **4x4**. `[NAAPWR]` is dead art with no rules.ini section at all; `Name=Nuclear Reactor` is on `[NANRCT]` (rules.ini:15992) | this commit |
+| 8 | **Did not reproduce.** Measured at both 1400x900 and 1500x950: opening the drawer takes `scrollTop` 0 -> 120 and 0 -> 70, the toggle stays on screen, and Start Game is inside the card's box in every state. Either it was fixed between the audit and the sweep, or the original measurement read a different element | — |
+
+Five tests asserted the old wrong values and so certified the bugs they guarded (`wm.rate === 20`,
+`desolator.rate === 50`, `yuri.rate === 200`, `IVAN_BOMB_T === 900`, and the Iron Curtain test's own
+title said "twenty seconds"); each now carries the rules.ini line it agrees with. Every new guard was
+run against the BROKEN build first and made to fail with the expected signature — one of them passed
+on a broken build at first because it was matching a word inside a comment, which is recorded in the
+test itself.
+
+The 24-match soak (6 seeds x 4 difficulty/faction combos, 30 game-minutes each) is clean through all
+of this: zero invariant violations, zero page errors, mean match length unmoved (17.8 -> 18.2 min).
+
+### Blocker
+
+1. **(features §3, S) Weapon range is measured centre-to-centre with no footprint allowance.**
+   Tanya cannot damage *any* building 2×2 or larger — measured: 3 000 ticks against a 3×2 Barracks,
+   hp 500 → 500, closest approach 1.87 against her C4's range of 1.2. Crazy Ivan cannot plant on
+   one either. Against the 4×4 Construction Yard every attacker with range ≤ 3 stalls at 3.01 and
+   does nothing, the Tesla Trooper included. Two units' entire reason to exist is unreachable. The
+   fix pattern is already in the file: `atRefinery` (20419) adds `max(gw,gh)/2 + 1.9`; `rngVs`
+   (2034) does not.
+
+### Major
+
+2. **(features §2a, S)** Three units carry the raw RA2 `ROF` where the file's own convention —
+   stated in the comment beside each of them — is `ROF × 4`. The **War Miner**, **Desolator** and
+   **Nighthawk** fire four times too fast. Measured live.
+3. **(features §2a, S)** `VERSES` declares **`FlakGuyWH` twice** (977 and 988); the annotated-correct
+   RA2 row loses to the later wrong one, so the Flak Trooper's AA burst does 4× RA2's damage to
+   medium armour — which is what both harvesters are made of.
+4. **(features §3, S)** The **Iron Curtain lasts 20 s**; `IronCurtainDuration=750` at the frame rate
+   the ini itself documents is 50. Measured: 1 200 ticks.
+5. **(features §3, S)** A **Prism support beam costs its tower 30 ticks**, not `PrismSupportDelay`'s
+   240 — the code uses `PrismSupportDuration` ×2, the key for how long the beam is *visible*. The
+   four-second dead weight is the entire tactical cost of the mechanic.
+6. **(features §3, S)** The **Terror Drone eats its host twice as fast as RA2** — 120 ticks per bite
+   against `[DroneJump] ROF=60`'s 240.
+7. **(art §6, S)** **The radar gate is cosmetic.** `drawMini` blanks the panel to `NO RADAR`, but the
+   `mini` pointerdown handler has no such guard — a left-click on the black panel still jumps the
+   camera and a right-click still issues a move order to that cell. A player with no Radar keeps
+   full map navigation, which is precisely what RA2's gate exists to deny.
+8. **(art §6, S)** **"Game settings" expands into nothing you can see.** Measured at 1500×950:
+   clicking the disclosure grows `#ovCard`'s `scrollHeight` 922 → 1149 and leaves `scrollTop` at 0,
+   so the entire drawer — starting credits, units, speed, Bases, Short Game, Crates, Superweapons —
+   stays below the fold, and the row you just clicked is gone behind the sticky footer. The biggest
+   match-flow gap the old audit filed is now fully implemented, works, and is undiscoverable.
+9. **(features §6, M)** The AI **never garrisons a civilian block, never loads a transport and never
+   attack-moves** — three mechanics that exist and work for the player. Measured over a 22-minute
+   hard-vs-hard sim: 0 / 0 / 0, against 29 tech captures.
+10. **(features §1, M)** **No country layer.** RA2 has nine countries with one unique unit or power
+    each; the game has two factions and no country field. Five units are therefore missing (Sniper,
+    Terrorist, Tank Destroyer, Demolition Truck, Black Eagle) and three that *should* be
+    country-locked — Grand Cannon, Tesla Tank, Desolator — are open to everyone.
+11. **(features §4, L)** **Two seats only**, and the multiplayer wire is a same-browser
+    `BroadcastChannel`. The lockstep core (command queue, barrier, state hashing, desync detection)
+    is real and tested; a cross-machine relay and player ids past two are not.
+
+### Minor
+
+12. **(features §3, S) One timing sweep closes four rows at once.** Ivan's fuse (15 s vs 30), the
+    Chronosphere's warp delay (2 s vs 4) and radiation's apply and decay are all halved by the same
+    mistaken premise — and rows 4 and 5 above are the same family. See the systemic finding.
+13. **(features §2a, S)** Aircraft rearm in 2.5 s where `ReloadRate=.3` is 18, and the Harrier fires
+    two separate missiles where `[ORCA] Ammo=1` + `[Maverick] Burst=2` is one two-round attack.
+14. **(features §3, S)** A **damaged power plant produces full output**; RA2 scales it with health.
+15. **(art §6, S)** **Cameos never wear the player's house colour.** `cameoFor` hard-codes the accent
+    from the *faction* under a comment claiming it is the house's, and `cameoCache` is not keyed on
+    colour or cleared by `applyHouse` — so the army on the field is green and every sidebar cameo
+    and superweapon clock is still blue.
+16. **(features §2a, S)** `ARMOURS` has nine slots where RA2's `Verses=` rows have eleven, so
+    `special_1` is gone and with it RA2's designed counters to the Terror Drone (Tesla and the War
+    Miner's own gun are 200 % against it; here they are 85 % and 50 %).
+17. **(features §2b, S)** The **Ore Purifier has no `BuildLimit=1`**. A second one is buildable,
+    costs $2 500 and 200 power, and does nothing — the income bonus is capped at one internally.
+18. **(art §1, M)** The **Nuclear Reactor's footprint is read off the wrong art.ini section** —
+    `[NAAPWR]`'s 2×3, where the building's own `[NANRCT]` is **4×4**.
+19. **(features §2a, S/M)** A **veteran gets neither `VeteranROF` nor `VeteranSpeed`** (both fire only
+    at elite, though `VeteranAbilities=` lists them at rank 1 on most units), and an elite never
+    swaps to its `ElitePrimary` — 34 units have one.
+20. **(features §3, S)** Ore densifies every second; `GrowthRate=5` is five **minutes**. The spread
+    beside it is exact.
+21. **(art §5, S)** **Ore still lies on pavement** in the urban theatre — `patch()` was fixed to
+    refuse anything but `T_GROUND`, but urban `T_GROUND` is painted as concrete slabs.
+22. **(features §6 / art §5, M)** Content is thin on four of seven maps: three have no garrisonable
+    civilians, only one has bridges or a repair hut, one has no tech buildings. Half the neutral-house
+    work is unreachable in a normal game.
+23. **(art §4, M)** Ore and gem fields read as a **diamond honeycomb** at close zoom — the backing
+    square is gone, the per-cell cluster boundary is not.
+24. **(art §1, S)** The **rubble decal pops in at full opacity on the death tick**, so the crater is
+    fully painted under a fireball that has not peaked.
+25. **(art §2, S)** Infantry **firing is 3 phases** where `[E1Sequence] FireUp=164,6,6` is six. The
+    walk was fixed to six; the fire cycle was not.
+26. **(art §5, S/M)** **Snow cliffs are markedly worse than temperate ones**, and cliffs generally
+    still read engineered — uniform course height, flat top line, no talus.
+27. **(art §3, M)** The **Kirov's art was never re-proportioned** — head-on it still collapses to
+    aspect 0.74 against 1.43 broadside, the previous audit's exact numbers.
+28. **(features §2a, S)** The **Dreadnought's salvo is 200** where `[General] DMislDamage=300` ×
+    `Burst=2` is 600 — and the file already follows that convention for the V3.
+29. **(art §7, M)** **Music is four loops with no rotation** against `theme.ini`'s 18 tracks, and
+    **EVA is still `speechSynthesis`** (unit voices are a real synth; EVA is not).
+30. **(art §6, M/L)** Fonts are `system-ui` throughout — 17 sites, no bitmap face — and cameos,
+    though now framed and skied, are still auto-crops of the in-game sprite rather than art.
+31. **(art §5, L)** Tile-set variety is still a fraction of RA2's 82 / 75 / 110 per theatre.
+32. **(features §3, S)** The **Guardian GI fires its missile while walking**; `[GGI] DeployFire=yes`.
+33. **(features §6, M/S)** No per-trigger success/failure track record
+    (`AITriggerSuccessWeightDelta`), and `MultiplayerAICM=400` is implemented as a one-off +$400.
+34. **(features §3, M)** No formation-preserving move.
+35. **(art §7, S)** **EVA speech is never cancelled** — a base collapse keeps reading out over the
+    score card and the front menu, and pause does not pause the voice.
+36. **(features §5, M)** No **`Beacon`** button or `B` key, now that multiplayer ships;
+    `ui.ini [MultiplayerAdvancedCommandBar]` is a seven-button bar and `#cmdbar` is a static six.
+
+### Nits
+
+37. **(art §1)** Fire ports are always three where every 1×1 defence has one `DamageFireOffset0=`;
+    the Pillbox traverses a turret `[GAPILL]` does not have; the apron is still painted inside each
+    building's canvas rather than as a shared `BibShape=` ground layer; the Prism-support comment
+    cites `PrismSupportDuration` for the offline window.
+38. **(art §2/§4)** `T_CIV` is declared, tested in `solidT()`, given a minimap colour and exported to
+    the test surface — and **never assigned by anything**; the explosion draw is still introduced by
+    the comment describing the single-blob code that replaced it; `INF_SEQ` has no `panic`, so a
+    future `fr('panic', …)` silently renders a standing man.
+39. **(features §2/§3)** Flak Cannon sight 10 vs `[NAFLAK] Sight=5` and adjacency 8 vs the file's own
+    +4 rule; `SonicWH` and `IvanWH` carry the wrong `InfDeath`; the Guardian GI's missile has no
+    `MinimumRange=1`; the Spy's blackout is 10 % short; structure repair runs ~6× RA2's rate (the
+    price is exact); `MaxWaypointPathLength=15` is unenforced; no unit-sell at the Service Depot;
+    `GuardAreaTargetingDelay` and `BaseDefenseDelay` are unmodelled.
+40. **(art §6/§7)** The Dolphin and the Giant Squid have no acknowledgement lines at all; `lastRadar`
+    is module-level and never reset, so a new match can chirp `radaroff` on its first frame; the
+    options card has no Delete for a save slot and no tooltips toggle; the power meter is the one
+    sidebar control with neither a readout nor a tooltip; the superweapon clocks are the last native
+    `title=` tooltips left in the game.
+
+### Explicitly NOT gaps — standing decisions, do not "fix" these
+
+- **Structures have no build-up, no MCV unpack and no sell fold-away.** `MAKE_T = 0` (19188),
+  `MCV_T = 0` (18905). `bakeMake`, the reverse-play sell and `unpackOf`'s four-frame MCV fold-out are
+  all fully built behind those constants. The user asked for instant structures twice.
+- **Superweapon and paradrop clocks stay top-left over the battlefield**, not on their sidebar cameos.
+- **`P` is Pause**, not RA2's `CombatantSelect`.
+- **The AI builds no walls** — `AIBuildsWalls=no` is honoured on purpose; `AIPickWallDefensePercent`
+  is wired and dormant, as in RA2.
+- **Sidebar scrolling is on PageUp/PageDown/Home/End**, not the arrows, because the arrows pan.
+- **Naval task forces never fire on the land maps** — `AINavalYardAdjacency=20` gates them and Iron
+  Frontier has no shore.
+- **The Grand Cannon has one idle frame** where other structures have six; `[GTGCAN]` has no
+  `ActiveAnim=`, so that matches RA2.

@@ -1770,8 +1770,12 @@
     reactor: {
       fac: 'col', cat: 'str', req: 'lab',
       name: 'Nuclear Reactor', em: '☢️', cost: 1000, build: 42,
-      // art.ini [NAAPWR] Foundation=2x3 — deep, not wide.
-      armour: 'concrete', gw: 2, gh: 3, hp: 1000, power: 2000, sight: 5, makes: null, desc: '+2000 power'
+      // art.ini [NANRCT] Foundation=4x4. The 2x3 here was read off [NAAPWR],
+      // which has art but NO rules.ini section at all — dead art. rules.ini's
+      // `Name=Nuclear Reactor` is on [NANRCT] (line 15992), and that is the
+      // 4x4. Being a third of its real footprint made the Collective's biggest
+      // structure the same size as a Radar Tower.
+      armour: 'concrete', gw: 4, gh: 4, hp: 1000, power: 2000, sight: 5, makes: null, desc: '+2000 power'
     },
     prism: {
       cat: 'def', req: 'airforce',
@@ -17684,6 +17688,7 @@
     if (SPR.unit) bakeOwned();                 // before the first bakeAll there is nothing to redo
     lineupCache = {};                          // the menu line-ups are painted in the player's colour
     thumbDots = {};                            // ...and so are the map preview's start dots
+    cameoCache = {};                           // ...and so is every sidebar cameo's frame
     return true;
   }
 
@@ -27448,7 +27453,11 @@
   }
   function cameoFor(key, isBld, fac, ownFac) {
     var own = ownFac || fac;
-    var ck = (isBld ? 'b:' : 'u:') + fac + ':' + own + ':' + key;
+    // The frame wears the PLAYER'S house colour, so the cache has to be keyed
+    // on it: without this a player who picks green kept a sidebar full of the
+    // blue frames baked before the pick, and applyHouse() cleared the line-up
+    // and map-dot caches beside this one but never this one.
+    var ck = (isBld ? 'b:' : 'u:') + fac + ':' + own + ':' + COL[ME] + ':' + key;
     if (cameoCache[ck]) return cameoCopy(cameoCache[ck]);
     var src = null, sw, sh, sc, kb = 1;
     try {
@@ -27461,7 +27470,13 @@
     // in the frame — the art itself is never repainted.
     var W = 60, H = 48, c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2; c.style.width = W + 'px'; c.style.height = H + 'px';
     var g = c.getContext('2d'); g.scale(2, 2);
-    var acc = own === 'col' ? [216, 67, 77] : [74, 163, 219];   // the HOUSE's colour, never the item's
+    // RA2 tints the cameo plate with the HOUSE colour. This read the FACTION
+    // instead and hard-coded Soviet red / Allied blue under a comment claiming
+    // otherwise, so an army fielded in green, gold or teal still had a sidebar
+    // of blue plates and a blue superweapon clock. COL[ME] is the seat's own
+    // colour, which is what the player actually picked.
+    var hx = COL[ME] || COL[0], hn = parseInt(String(hx).slice(1), 16);
+    var acc = [(hn >> 16) & 255, (hn >> 8) & 255, hn & 255];
     var sky = g.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, 'rgb(' + Math.round(acc[0] * 0.30 + 24) + ',' + Math.round(acc[1] * 0.30 + 28) + ',' + Math.round(acc[2] * 0.30 + 34) + ')');
     sky.addColorStop(1, '#0b0f16');

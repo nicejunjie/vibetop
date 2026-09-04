@@ -1,33 +1,78 @@
 # Iron Frontier (`apps/games/rts/rts.html`) — art & presentation gap audit vs Red Alert 2
 
-Audited 2026-09-02 against `apps/games/rts/rts.html` @ 17267 lines (HEAD `0dfab90`), served
-at `http://127.0.0.1:8121/rts.html`. RA2 facts are grepped from `/tmp/RA2inis/`
-(`art.ini`, `rules.ini`, `temperat.ini`, `snow.ini`, `urban.ini`, `sound.ini`,
-`ui.ini`) — no fact below is from memory. Screenshots referenced by filename all
-live in `/home/junjie/.claude/jobs/dcf15416/tmp/gap/` and were looked at, not
-assumed.
+Audited **2026-09-04** against `apps/games/rts/rts.html` at **32 272 lines**, git HEAD **`448fe32`**
+(`v1.19.279`). Line numbers are as of that commit. RA2 ground truth is `/tmp/RA2inis/` and
+`/tmp/YRinis/` — **both still exist**, so every citation below was re-read from the file rather than
+inherited from the previous audit. (The inis are CRLF; a naive `awk '$0=="[X]"'` returns nothing.)
 
-**Read this first — the two systemic findings.** Almost every row below is
-downstream of one of two things:
+The game was verified **live**, not grepped: a loopback server feeding `rts.html` to headless
+Chromium (the pattern in `apps/games/rts/tools/art-metrics.js`), driving `window.__rtsTest` /
+`window.__rtsTables`, counting baked frames off `__rtsTest.spr()`, and screenshotting driven
+set-pieces — buildings at 45 % and 18 % hp, buildings dying, infantry killed by six different
+warheads, a nuke, a gem plateau, contact sheets of trees and cliffs. The page loads with **zero
+console and zero page errors** in every run. Rows marked *grep only* are weaker evidence on purpose:
+the audit this one replaces was misled by exactly that — it counted `scorch`, found the word in a
+comment, and filed a blocker.
 
-1. **A structure sprite has exactly one state.** `bakeBuilding(key, col, fac, bph)`
-   (rts.html:5250) bakes N idle phases and nothing else. RA2 gives every building
-   a MAKE build-up (208 `Buildup=` keys in art.ini), a **damaged** variant of the
-   base SHP *and* of every active anim (39 `ActiveAnimDamaged=`), fixed fire
-   attachment points on the damaged art (174 `DamageFireOffset0=`), a firing /
-   charge anim (`SpecialAnim`), door anims, and a death that leaves craters and
-   debris. We have none of those six.
-2. **Infantry have no facings.** `bakeInfantry(col, kind, fac, phase)`
-   (rts.html:2207) takes no direction and bakes one front-on canvas;
-   `drawUnit` (rts.html:16268) never indexes a facing. Every soldier on the field
-   faces the camera at all times (`k_inf.png`). RA2's `[E1Sequence]`
-   (art.ini:9655) is 8 facings × {Ready, Guard, Walk 6f, FireUp 6f, Prone,
-   Crawl 6f, FireProne 6f, Down, Up, Idle1 15f, Idle2 14f, Die1 15f, Die2 15f,
-   Die3/4/5, Cheer, Panic}.
+---
 
-Sprite *shape* work is genuinely far along — the roadmap's per-item passes hold up
-at 1:1 (`fsheet.png`, `art.png`, `art_col.png`). What is missing is almost entirely
-**state, motion and the frame around the game**, not silhouette.
+## What the previous audit got wrong
+
+The 2026-09-02 audit was written against a 17 267-line file. It is now 32 272 lines and **34 of its
+44 art rows are implemented**. Both of its "systemic findings" — the two claims every other row hung
+off — are gone. The record, so the correction is visible rather than quietly erased:
+
+| Marked | Actually |
+|---|---|
+| **blocker** — "a structure sprite has exactly one state" | Five state sets are baked lazily per key: damaged (`bakeDamaged` 18595, 6 frames measured on 10 structures), unpowered (`bakeUnpowered` 18651 — desaturated *and* the idle animation frozen), 32 aiming bearings (`aimOf` 18935), 7 door frames (`doorOf` 18912), and build-up (`bakeMake` 18697, deliberately gated off) |
+| **blocker** — "infantry have no facings" | `bakeInfantry(col, kind, fac, phase, dir, state)` (4403) bakes per direction and per state; 8 distinct stand canvases measured per kind; 11 sequences (`INF_SEQ` 4330) |
+| **blocker** — "no infantry death animations" | `INF_DEATH` (1058) maps the killing warhead to RA2's `InfDeath=` 1-6; `infCorpse` (19741) plays twirl / mist / flying / burn / electro / crush-splat |
+| **blocker** — "explosions are one baked radial blob" | Four size families × 11 frames (`bakeExplosionFamily` 17500, `famOf` 17573), body plus an additive hot core; a building death queues five at once, matching `Explosion=TWLT070,S_BANG48,…` |
+| **blocker** — "no RA2 cursor set, five CSS cursors" | 17 canvas-drawn cursors (`__rtsTest.cursorSet()`), animated on a 150 ms beat |
+| **blocker** — "T3 and Sell render outside the sidebar and cannot be clicked" | Fixed 2026-09-02 (v1.19.240); the command bar is `ui.ini`'s six |
+| **blocker** — "the sidebar is a modern scrolling web list" | Rebuilt as RA2's command bar: radar bezel, power meter, credits ticker, cameo grid, clock wipe |
+| **major** — "buildings vanish on death" | `killBld` (19288) stages five blasts, throws ballistic debris, stands a smoke column, and lays a rubble/crater decal that weathers over 90 s |
+| **major** — "no craters and no scorch; grep finds 0/1 and the 1 is a comment" | `bakeScorchDecal` (17581), `bakeCraterDecal` (17600), `decal()` (19765), size-gated at 14/24 per `Crater=`/`Scorch=` |
+| **major** — "defences never aim" | 32 bearing frames per aiming defence (`AIMED` 18934) — **and the audit's own citation was wrong**, see below |
+| **major** — "footprints are systematically one tile smaller than RA2's" | Every `Foundation=` matches, per faction, verified against `art.ini` |
+| **major** — "no height levels" | `computeHeight` (2787) derives a real per-cell height field; `sy()` (25513) lifts ground, ore, trees, structures, units, decals, shots and blasts together, and `screenToGrid` inverts it |
+| **major** — "no LAT transitions", "cliffs are grey brick", "roads have no connectors", "shroud edge is a hard black diamond", "nuke is a brown mud column", "ore does not glitter", "unpowered is a ⚡ emoji", "vehicles never smoke", "8 facings" | All implemented. Vehicles now render **32** bearings, not 8 — measured as 32 distinct hull *and* 32 distinct turret canvases on the Rhino |
+| **major** — "Prism Tower has neither a charge anim nor support links", "no Tesla charge-up" | `CHARGE_T = 28` (21643) matching `DelayedFireDelay=28`; `PRISM_SUP_MAX=8 / MOD=1.5 / DUR=15` (21647) with drawn beams |
+
+**One citation in the old audit was simply misread, and the code is right where the audit called it
+wrong.** The row "Defences never aim" cited "`Turret=yes` + `TurretAnim=LASER` … on the Prism
+(rules.ini:10393-10395)". Those lines are inside **`[NALASR]`, the Soviet Sentry Gun**. `[ATESLA]`
+(Prism Cannon) says **`Turret=no`**, `[TESLA]` says `Turret=no`, and `[GAPILL]` has no `Turret=` key
+at all. RA2's Prism Tower and Tesla Coil do not rotate — they play a `SpecialAnim` wind-up, which is
+exactly what the game does. `AIMED` correctly lists only `[NALASR]`, `[NASAM]`, `[NAFLAK]` and
+`[GTGCAN]`, the four that really carry `Turret=yes`.
+
+**One row is a DECISION, not a gap, and must never be listed as work.** Structures have no build-up,
+no MCV unpack animation and no sell fold-away: `MAKE_T = 0` (19188) and `MCV_T = 0` (18905). The
+machinery is fully built behind those constants — `bakeMake` (18697), the reverse-play sell, and
+`unpackOf` (18858), a real four-frame MCV fold-out. The user asked for instant structures twice.
+
+---
+
+## Read this first — what the systemic findings are now
+
+The old audit's two causes are closed. What is left is not one big thing; it is **a long tail of
+small deviations plus five stale comments and dead branches left behind by the rebuild**. Two
+patterns are worth naming:
+
+1. **The art overshot the ini in a few places and nobody checked back.** `firePorts` (18567) always
+   emits three fire ports, where every 1×1 defence in art.ini carries exactly one
+   `DamageFireOffset0=` and no `…1=`/`…2=`. `AIMED` gives the Pillbox a traversing turret RA2's
+   `[GAPILL]` does not have. Neither is a bug you can see fail — which is why they survived.
+2. **Comments now describe code that was replaced.** The explosion draw is still introduced by
+   "The blast is one baked radial-gradient sprite scaled per fx" (29211-29214), twelve lines above
+   the four-family frame draw that replaced it (29453-29461). `T_CIV` (761) is declared, tested in
+   `solidT()`, given a minimap colour and exported to the test surface — and **never assigned by
+   anything**, a vestige of the obstacle-only civilian system the neutral `civ*` structures replaced.
+   These cost nothing at runtime and mislead every reader after.
+
+Shape and state work is genuinely done. What remains is regularity — ore fields, gems, tree
+silhouettes and snow cliffs still read as a grid or a repeat at high zoom — plus the ini nits above.
 
 ---
 
@@ -35,187 +80,278 @@ at 1:1 (`fsheet.png`, `art.png`, `art_col.png`). What is missing is almost entir
 
 | Gap | RA2 (citation) | Game now | Severity | Effort |
 |---|---|---|---|---|
-| **No damaged state.** A structure at 45 % and at 18 % hp is pixel-identical to a full-health one; the only change is smoke/fire particles floated over it | Every building SHP carries a damaged frame, and every active anim has a damaged twin — 39 `ActiveAnimDamaged=` in art.ini (`[GAPOWR] ActiveAnimDamaged=GAPOWR_AD`, art.ini:1908; `[GAWEAP] ActiveAnimDamaged=GAWEAP_AD` + `ActiveAnimTwoDamaged`, art.ini:843) | `drawBld` rts.html:16374-16387 — only `G.fx.push({smoke})` / `{fire}`. `a_damaged.png`: six structures at 45 %/18 % hp, all visually pristine | **blocker** | L |
-| **Fire on a hurt building is one wandering ember, not RA2's fixed fire ports** | 174 `DamageFireOffset0=` in art.ini, up to three per building (`[GAWEAP] DamageFireOffset0=-10,-10 / 1=27,30 / 2=0,70`, art.ini:857-859) — the flames sit on the same holes every time | rts.html:16378 picks one of three offsets from `[-0.3,0.25,0.05]×gw` — a generic jitter, not per-structure art | major | M |
-| **No destruction at all.** A killed building simply disappears — no rubble, no crater, no scorch, no debris, no collapse | `[GAPRIS] Explosion=TWLT070,S_BANG48,S_BRNL58,S_CLSN58,S_TUMU60` — five simultaneous anims; `DebrisAnims=DBRIS1LG,DBRIS1SM,DBRIS4LG,…` with `MinDebris=2/MaxDebris=3` (rules.ini:10390-10393); 88 `DebrisAnims=` lines; 12 crater SHPs `[CRATER01]`…`[CRATER12]` (art.ini:8835-8868); `Crater=yes`/`Scorch=yes` per anim (art.ini:10346-10348). temperat.ini even ships `SetName = RA2 rubble farm / rubble mobile / rubble mexican` | `killBld` rts.html:12521 clears occupancy and returns; `damage()` rts.html:12771 calls `boom(g,b.cx,b.cy,26)` — one radial blob. `c_destroy_after.png`: five buildings deleted, bare grass left | **blocker** | M |
-| **No MAKE build-up.** Placement snaps a finished building into existence | 208 `Buildup=` entries in art.ini — one MAKE SHP per structure (`Buildup=GAWEAPMK`, `NAHANDMK`, `GAPRISMK`, …), plus `FreeBuildup=true`. A faithful version = one extra baked frame set per key: the same art masked by a rising horizontal wipe with a scaffold/crane silhouette drawn in the uncovered band, 6-10 phases, played once on `b.builtAt` | Deliberately removed — see the comment at rts.html:16369-16372 ("the old clipped-rise behind a drawn scaffold read as a wireframe glitch"). No replacement | major | M |
-| **Footprints are systematically one tile smaller than RA2's**, which changes base density and makes the long RA2 halls impossible to draw | `Foundation=` in art.ini: Construction Yard 4×4 (`[GACNST]`/`[NACNST]`), War Factory **5×3** (`[GAWEAP]`:843), Refinery 4×3, Allied Barracks 3×2 (`[GAPILE]`), Airforce Command 3×2 (`[GAAIRC]`), Allied Battle Lab 3×2 / Soviet 3×3 (`[GATECH]`/`[NATECH]`), Tesla Reactor 3×2 (`[NAPOWR]`), Nuclear Reactor 2×3 (`[NAAPWR]`:1947), Chronosphere 4×3 (`[GACSPH]`) | `BLDS` rts.html:817-939: base 3×3, factory 3×3, refinery 3×2, barracks 2×2, airforce 2×2, lab 2×2, power 2×2, reactor 2×2, chrono 3×3. Only depot 3×3, radar 2×2, nuke 3×3, Soviet Barracks 2×2 and the 1×1 defences match | major | L |
-| **No "bib" concrete apron** as a separate, shared, ground-layer shape under the vehicle structures | 11 `BibShape=` keys — exactly the buildings a vehicle drives onto: `GAWEAPBB, NAWEAPBB, GAREFNBB, NAREFNBB, GAHPADBB, NAHPADBB, GAAIRCBB, GADEPTBB, NADEPTBB, CAOUTPBB, NAWASTBB` (art.ini:843, 889, 1106, 1163, 1267, 1283, 1326, 2396, 2432, 2932, 8037) | Each branch paints its own pad inside its sprite (`apron()` rts.html:5358) — so aprons differ per building, never tile against neighbours, and are clipped by the sprite canvas rather than lying on the ground layer | minor | M |
-| **Defences never aim.** Tesla Coil, Prism Tower, Patriot, Flak Cannon, Sentry Gun and Pillbox play a fixed idle slew loop regardless of where the target is | `Turret=yes` + `TurretAnim=SAM` / `TurretAnim=LASER`, `TurretAnimIsVoxel=true` on `[NASAM]` (rules.ini:10472-10474) and the Prism (rules.ini:10393-10395) — a real rotating voxel turret | `tface`/`aimAt` exist only on units (rts.html:12463, 13453); `drawBld` rts.html:16372 picks `art.frames[(tick/5 + b.id*2) % n]` — a time-driven idle, never a bearing. The Sentry Gun's twin barrels "slew on its trunnion" on a timer (roadmap §Sentry Gun) | major | M |
-| **No Tesla Coil charge-up.** The bolt just appears | `[NATSLA_B]` is a 10-frame firing anim (art.ini:3006-3015) gated by `IsAnimDelayedFire=yes` / `DelayedFireDelay=28` (art.ini:2977-2978) with its own sound `Report=TeslaCoilPowerUp` — the coil visibly winds up for 28 frames before the shot lands | `fire()` rts.html:12995 pushes the bolt on the same tick as `damage()`; no charge state on the building | major | S |
-| **No Prism Tower charge, and no support links** | `[GAPRIS] SpecialAnim=GAPRIS_A`, `IsAnimDelayedFire=yes`, `DelayedFireDelay=28` (art.ini:2130-2140). `PrismSupportModifier=150%`, `PrismSupportMax=8`, `PrismSupportDuration=15`, `PrismSupportHeight=420` (rules.ini:134-138) — neighbouring towers fire visible support beams into the firing tower | Neither exists; `s.beam` is one instant lance from `-86 px` (rts.html:16019) | major | M |
-| **Patriot fires from one point, not alternating tubes** | `[NASAM] PrimaryFireFLH=90,50,100` and `SecondaryFireFLH=90,-50,100` (art.ini:2884-2885) — ±50 leptons, i.e. the launcher alternates left/right tubes | `BLDS.patriot.launch: 34` (rts.html:903), single origin (rts.html:16011) | minor | S |
-| **Unpowered = a red `⚡` emoji floating over the roof**, not RA2's dead building | `ActiveAnimPowered=no` / `SpecialAnimPowered=no` on `[NATSLA]` (art.ini:2968-2971) and `[GAPRIS]` — the animation *stops* and the lights go out; `WorkingSound=PowerOn` / `NotWorkingSound=PowerOff` (rules.ini:10485-10486) | `drawBld` rts.html:16394-16400 `ctx.fillText('⚡', …)`. The sprite is unchanged and its idle animation keeps running. Visible in `art_col.png` (three bolts hanging over the base) and `e_f3.png` | major | S |
-| **Repair = a `🔧` emoji glyph** | RA2 draws an animated spinning wrench sprite over the building | rts.html:16402-16405 `ctx.fillText('🔧', …)` | minor | S |
-| **No garrison.** Infantry cannot enter civilian structures | RA2 urban theatre garrisonable civilians (`Occupiable`, muzzle ports); temperat.ini `SetName = Civilian Buildings` (line 323), urban.ini has 110 tilesets | `T_CIV` is in `solidT()` (rts.html:517) — pure obstacle; four `bakeCiv(0..3)` blocks (rts.html:12159, 12369), no interaction | minor | L |
-| **No production door animation** — units teleport out of the Barracks/War Factory | `[GAWEAP] DoorAnim`, `UnderDoorAnim=GAWEAP_1`, `RoofDeployingAnim=GAWEAP_3`, `UnderRoofDoorAnim=GAWEAP_4`, `DeployingAnim=GAWEAP_2` (art.ini:846-861) — the roof opens and the vehicle rises out | Nothing; `spawnUnit` puts the unit on the spawn tile | minor | M |
-| Idle animation coverage is good but partial | Every RA2 structure with machinery has an `ActiveAnim` | `A.frames` cycling is implemented for base/refinery/factory/barracks/power/airforce/radar/depot/lab/purifier and the defences (roadmap §Per-item polish). The four superweapons + `reactor` also animate. No structure is animation-less | — | — |
-| Owner-colour remap policy is correct | RA2 remaps only the house-colour palette range | Verified in the roadmap's per-item hue census (12-18 % owner hue, 0 % opposing) and visible side-by-side in `fsheet.png` — this one is genuinely done | — | — |
-
----
+| **Fire ports are over-applied.** Every structure gets three flame sources when hurt, including the 1×1 defences | art.ini gives each 1×1 defence exactly one port and no more: `[GTGCAN] DamageFireOffset0=-1,28`, `[NASAM] 1,20`, `[NAFLAK] -5,13`, `[NALASR] -5,15` — there is no `DamageFireOffset1=` on any of them | `firePorts` (rts.html:18567) always returns 3, scanned off the roofline; `portsOf` (18782) memoises them. Three fires on a one-cell tower over-reads. Verified live (`ports:3` on every structure measured) | nit | S |
+| **The Pillbox traverses a turret RA2 does not give it** | `[GAPILL]` has no `Turret=` key; `[NALASR]`, `[NASAM]`, `[NAFLAK]`, `[GTGCAN]` all have `Turret=yes` with a named `TurretAnim=`. art.ini flags `[GAPILL] Recoilless=yes` — it is the *example* of a fixed emplacement | `AIMED = { sentry: 1, sentrygun: 1, patriot: 1, flakcannon: 1, grandcannon: 1 }` (rts.html:18934) — `sentry` is the Pillbox (1730). Read code | nit | S |
+| **The Nuclear Reactor's footprint is cited off the wrong art.ini section.** It is 2×3 where RA2's is 4×4 — the biggest structure in the game drawn at a third of its area | The Soviet Nuclear Reactor is `[NANRCT]` (rules.ini: Cost 1000, Power 2000, Strength 1000, TechLevel 9) and `art.ini [NANRCT] Foundation=4x4`. `[NAAPWR]` — which has `Foundation=2x3` — has **no rules.ini section at all**; it is unused art | `BLDS.reactor` `gw: 2, gh: 3` with the comment "art.ini `[NAAPWR]` Foundation=2x3 — deep, not wide" (rts.html:1774). Every other footprint in the table is right; this one reads the wrong key. Verified against art.ini and rules.ini | minor | M |
+| **The rubble decal pops in at full opacity on the death tick**, so the crater is fully painted under a fireball that has not peaked yet | RA2 hides the ground under the death anims and the scar appears as they clear | `killBld` (rts.html:19322) pushes the rubble at `t: 0` and it draws immediately, while the sprite is removed the same tick. Verified live — screenshotted at t=6 with a complete crater under a still-blooming blast. A ~10-tick alpha ramp closes it | minor | S |
+| **The concrete apron is still painted inside each building's own canvas, not on the ground layer** | 11 `BibShape=` keys — `GAWEAPBB, NAWEAPBB, GAREFNBB, NAREFNBB, GAHPADBB, NAHPADBB, GAAIRCBB, GADEPTBB, NADEPTBB, CAOUTPBB, NAWASTBB` (art.ini:843, 889, 1106, 1163, 1267, 1283, 1326, 2396, 2432, 2932, 8037) — a separate shared ground-layer shape | `plot()` (rts.html:9438) now traces the true cell parallelogram, so an apron matches its owned cells exactly and neighbours no longer read as growing through each other. It still cannot tile against an adjacent building's apron. Read code — severity dropped from the old audit's `minor/M` | nit | S |
+| **Prism support cites `PrismSupportDuration` where the offline period is `PrismSupportDelay`** | rules.ini:136-137: `PrismSupportDelay=60` — "*Firing a support beam takes a Prism offline for this long*"; `PrismSupportDuration=15` — "*A support beam is visible for this long*" | `o.cool = PRISM_SUP_DUR * 2` (rts.html:21657) = 30, commented "it spent its charge supporting"; the beam's own `life` is `CHARGE_T` (28), not 15. `PrismSupportDelay` is never referenced. A constant/comment mismatch, not a crash | nit | S |
+| Damaged art, destruction, aiming, doors, Tesla/Prism charge, alternating Patriot tubes, unpowered, the repair wrench, garrison, footprints | | All present and correct — see the correction table above | — | — |
 
 ## 2. Infantry
 
 | Gap | RA2 (citation) | Game now | Severity | Effort |
 |---|---|---|---|---|
-| ~~**Zero facings — every soldier always faces the camera**~~ **— FIXED, this row is stale (2026-09-04).** `bakeInfantry(col, kind, fac, phase, dir, state)` takes a direction and maps it through `INF_OCT`; measured infantry self-IoU across bearings is 0.57–0.84, as much variation as the vehicles have. See `unit-confusability-audit.md`. | `[E1Sequence] Walk=8,6,6` etc. (art.ini:9659) — every sequence is authored for 8 facings | `bakeInfantry(col, kind, fac, phase)` rts.html:2207 has no direction argument; `SPR.unit[p][fac][type]` is a single canvas; `drawUnit` rts.html:16269 `s = art.walk[(tick>>3)%3]`. See `k_inf.png` (all nine kinds, one pose) and `j_sel.png` (two GIs facing the camera while the tanks beside them are correctly oriented) | **blocker** | L |
-| **No death animations of any kind** — a killed trooper vanishes into a generic 12-px blast | `rules.ini:19096`: *"InfDeath = which death animation to use: 0=instant, 1=twirl, 2=explodes, 3=flying death, 4=burn death, 5=electro, 6=Yuri head explode, 7=Nuke Melt"* — assigned per warhead (`[Fire] InfDeath=4`, `[IonWH] InfDeath=5`, `[HE] InfDeath=2`, `[AP] InfDeath=3`, `[SA] InfDeath=1`); the SHP carries `Die1=134,15,0` and `Die2=149,15,0` (art.ini:9667-9668), 15 frames each, and shared anims `[ELECTRO]` (art.ini:10951) / `[FLAMEGUY]` (art.ini:14316) cover the rest | `damage()` rts.html:12773: `tgt.dead = true; boom(g,tgt.x,tgt.y,12)`. Nothing else. Crushing (`crush()` rts.html:13264) also leaves no splat | **blocker** | L |
-| **No firing frames** — a GI shooting looks exactly like a GI standing | `FireUp=164,6,6` and `FireProne=212,6,6` (art.ini:9660, 9664) — 6 frames each × 8 facings | `drawUnit` rts.html:16268 chooses only between `art` (idle) and `art.walk[0..2]` (moving) | major | M |
-| **No prone / crawl.** RA2 infantry drop flat under fire and crawl, and `ProneDamage` halves what they take | `Prone=86,1,6`, `Crawl=86,6,6`, `Down=260,2,2`, `Up=276,2,2` (art.ini:9658-9663); `ProneDamage` per warhead (rules.ini:19102) | Not modelled at all | major | L |
-| **No idle fidgets** | `Idle1=56,15,0,W` and `Idle2=71,14,0,E` (art.ini:9665-9666) — two 14/15-frame loops, direction-locked | Standing infantry are a static frame | minor | M |
-| **Walk cycle is 3 frames, RA2's is 6** | `Walk=8,6,6` (art.ini:9659) | `art.walk[((G.tick>>3)%3)]` rts.html:16270, baked from `gait(phase)` rts.html:2201 | minor | S |
-| No `Cheer` / `Panic` states | `Cheer=56,15,0,W`, `Panic=8,6,6` (art.ini:9672, 9674) | absent | nit | M |
-| Deployed GI sandbags | RA2 E1 deploy | Done — `bakeSandbags(col)` rts.html:3062, drawn over the trooper (rts.html:16281). Roadmap still flags the art as a placeholder; it now reads as a three-course parapet, which is fine | — | — |
-| Veterancy chevrons, selection brackets, shadows, 8-facing air infantry | RA2 gold chevrons at the sprite corner | All present: chevrons rts.html:16298-16306, corner brackets rts.html:16287, `shadowBlob` rts.html:2234 (Rocketeer's shadow is deferred to the ground pass, correctly) | — | — |
-| Selection box is the *sprite bbox*, so a Tesla Trooper's brackets are visibly bigger than a GI's | RA2 sizes the bracket from the unit's `Size`, so all infantry read the same | rts.html:16287 uses `s.bb` | nit | S |
-
----
+| **Firing is 3 phases where RA2's is 6** | `[E1Sequence] FireUp=164,6,6` (art.ini:9660) — six frames per facing; `FireProne=212,6,6` (9664) | `INF_SEQ` (rts.html:4330) `fire: 3`, `fireprone: 2`; drawn at 29641. The walk *was* fixed to 6 (`(G.tick>>2)%6`, 29642) and measured as 6 distinct phases, so the fire cycle is the one that did not follow | minor | S |
+| **`panic` has no sequence and fails silently** | `[E1Sequence] Panic=8,6,6` (art.ini:9674) | `INF_SEQ` (rts.html:4330) has `cheer` but no `panic`; `fr()` (6027) does `if (!INF_SEQ[st]) st = 'stand'`, so a future `fr('panic', …)` renders a standing man rather than erroring. Cheer itself works (2 phases on `G.over`, 29630) | nit | M |
+| Facings, deaths, prone/crawl + `ProneDamage`, idle fidgets, 6-frame walk, selection bracket from unit size | | All present and correct — 8 stand canvases per kind measured, six `InfDeath` styles screenshotted, `proneMul` (1054) applied in `damage()` | — | — |
 
 ## 3. Vehicles / aircraft
 
 | Gap | RA2 (citation) | Game now | Severity | Effort |
 |---|---|---|---|---|
-| **8 facings, RA2 voxels render 32** — a turning tank snaps in 45° steps | RA2 vehicles are voxels rasterised per-frame at the unit's actual facing; turret and hull both | `bakeVehicle(col, kind, fac, anim)` rts.html:3124 bakes 8; `u.face` is `round(atan2/(π/4))` (rts.html:13453). `l_veh.png` | major | L |
-| **No damaged smoke or damaged art on vehicles** — a tank at 10 % hp looks new | RA2 vehicles trail black smoke below 50 % and show a damaged voxel/`ExtraDamageStage` | `drawUnit` rts.html:16238-16325 has no hp branch at all; only structures smoke | major | S |
-| **No recoil** on any gun | RA2 tanks visibly rock back on firing (`Recoilless=yes` is called out as the *exception* on `[GAPILL]`, art.ini:2113) | `grep -c recoil apps/games/rts/rts.html` = 0 | minor | M |
-| **No track marks and no dust behind a moving vehicle** | RA2 lays tread decals on the ground and kicks dust | `grep -c trackmark/tread-decal` = 0; the only `dust` fx is harvester mining (rts.html:13207) | minor | M |
-| **MCV unpack is an instant swap** | `[GACNST] Buildup=GACNSTMK` — deploying an MCV plays the Construction Yard's MAKE anim | `deployMcv` rts.html:12509: `u.dead = true; placeBld(...)` on the same tick | major | M |
-| **Harrier landing is a one-tick pop from cruise altitude to zero** | RA2 Harriers descend onto the pad | `stepAircraft` rts.html:13553 `u.landed = true` and `altOf()` (rts.html:960) returns 0 immediately. Take-off *is* smoothed, but only for a newly built aircraft (`born`/`CLIMB`, rts.html:958) — a sortie off the pad also pops | minor | S |
-| **IFV never changes turret** | RA2's IFV swaps its whole turret voxel per passenger (10 variants) | Roadmap "Air layer follow-ups, part 2" — open; no transports exist | minor | L |
-| **Kirov reads small and has no bomb-bay motion**; head-on facings 1 and 5 collapse to aspect 0.73 vs 1.43 broadside | RA2's Kirov is the largest thing in the sky with an animated gondola | `airsheet.js` output: `kirov p0 [[110,77,1.43],[64,88,0.73],…]`; visible in `f_x4.png` as a small red cigar sitting near ground level | minor | M |
-| Vehicle wrecks | RA2 vehicles explode without a wreck; only aircraft leave a falling airframe | Correct — `crashAircraft` rts.html:12786 tumbles the airframe through its facings behind a smoke trail and detonates on landing. Ground vehicles just `boom` | — | — |
-| Turret independent of hull, muzzle flash at the barrel, harvester mining frames, Harrier empty-rack variant, Kirov prop frames, Rocketeer hover, ground shadows for air units, altitude bob | | All present: rts.html:16263-16266 (hull/turret split), 16070-16074 (`SPR.flash`), `art.mine` (16259), `art.empty` (16261), `art.anim` (16260), `hoverIdle` 13330, `drawAirShadow` 16349, `altOf` bob 960 | — | — |
-
----
+| **The Kirov's art was never re-proportioned** — head-on it collapses to aspect 0.74 against 1.43 broadside, the exact numbers the previous audit measured | RA2's Kirov is the largest thing in the sky and reads long from every bearing | `bakeVehicle`'s Kirov branch (rts.html:7322). The gondola *is* now its own layer with a bomb bay that opens on `u.fireAt`, and at 110×77 it is the largest sprite measured (Apocalypse 81×57, MCV 95×74) — so "reads small" is answered by comparison, but the bbox is bit-identical to the old audit's. Verified live | minor | M |
+| 32 facings, damaged smoke and flame, recoil, track marks and dust, Harrier descent *and* take-off ramp, IFV turret swap | | All present — 32 distinct hull and 32 distinct turret canvases measured on the Rhino | — | — |
 
 ## 4. Effects
 
 | Gap | RA2 (citation) | Game now | Severity | Effort |
 |---|---|---|---|---|
-| **Explosions are one baked radial-gradient blob scaled up** — no frames, no smoke ball, no fireball, no size families | `[EXPLOLRG] / [EXPLOMED] / [EXPLOSML] / [EXPLOLB]` (art.ini:11611-11678), the `[TWLT026…TWLT100I]` family (art.ini:11150-11200), `[S_BANG16/24/34/48]`, `[S_BRNL20/30/40/58]`, `[S_CLSN16…58]`, `[S_TUMU22…60]` (art.ini:11329-11452) — and 358 `Explosion=` lines assign **five at once** to a building death | `bakeExplosionSprite()` rts.html:11925 → one sprite; render rts.html:16205 `ctx.drawImage(SPR.boom.c, …)` scaled by `fx.size`. In `g2_fx.png` the *large* (size 26) blast is a 40-px orange smudge | **blocker** | M |
-| **No craters and no scorch marks.** The ground is untouched after any explosion | 12 crater SHPs `[CRATER01]`…`[CRATER12]` (art.ini:8835-8868); `Crater=yes` / `Scorch=yes` flags on the anims (art.ini:10346-10348, 11155-11163); `Deform`/`DeformThreshhold` per warhead (rules.ini:19099-19100) | `grep -c crater/scorch` = 0/1 (the one is a word in a comment). `c_destroy_after.png` — five buildings destroyed, ground pristine | major | M |
-| **No flying debris** | `DebrisAnims=DBRIS1LG,DBRIS1SM,DBRIS2LG,…` on 88 entries with `MinDebris`/`MaxDebris` up to 10 (`[CAOUTP]`, rules.ini) | absent | minor | M |
-| **Nuke mushroom is a brown mud column with a flat brown cap** — no fire core, no white flash column, no rolling cloud | RA2's nuke is a multi-second scripted anim with a white-hot core, a rising cap and a ground shock ring | rts.html:16144-16158; look at `g2_fx.png` / `g_fx.png` — a brown ellipse stack drawn straight through the War Factory | major | M |
-| **Rockets have no smoke trail** | RA2 missiles trail `[FIRE01/02/03]`-family smoke puffs behind them | rts.html:16044-16053 — a stroked line with a glow pass, nothing persistent | minor | S |
-| **V3 has no distinct projectile** | `[V3WH]`/`[V3EWH]` are their own warheads with their own anims | `fire()` rts.html:13006 classifies it as generic `rocket: splash > 0.2` | minor | S |
-| **Ore does not glitter or animate; ore tiles show as a hard rectangular grid inside a field** | RA2 ore is 19 overlay types `TIB01`…`TIB19` and gems `GEM01`…`GEM09` (rules.ini:1498-1516, 1423-1431); ore also *spreads* (`[Riparius] Growth=2200, Spread=2200, GrowthPercentage=.06`) | `bakeOre(level, variant)` rts.html:1993 → 3 density levels × 4 variants, static. Very visible in `h_close_tundra.png`: each ore cell shows its own tan backing square, so the field reads as a checkerboard. Gems are ~700 identical purple cones (`h_close_gems.png`) | major | M |
-| **Shroud edge is a hard black diamond per tile** — a staircase, not RA2's soft ragged border | RA2 draws shroud with a dedicated edge-shape set (half/corner/inner-corner tiles), giving a feathered, dithered boundary | rts.html:15823-15828 `ctx.fillStyle='#05070b'; diamond(…); fill()`. See `art.png` / `art_col.png` | major | M |
-| **No Gap Generator / fog** | RA2's Gap Generator re-shrouds a radius | Absent (roadmap: "Patriot/Flak Cannon/**Gap Generator** wait for air units and fog" — the first two shipped, the Gap Generator did not) | minor | M |
-| Fire on buildings is two ellipses, no flame licks or heat shimmer | `[FIRE01]`/`[FIRE02]`/`[FIRE03]`/`[FIRE3]` (art.ini:11479-11539) | rts.html:16097-16107 | minor | S |
-| Tracer, Tesla bolt, Prism lance, flak burst, Kirov bomb, storm bolt, chrono flash, Iron Curtain shimmer, muzzle flash, Mirage tree disguise, water animation | | All present and reasonable — rts.html:15990-16078 (shots), 16211 (`ironGlow`), 16244 (Mirage draws a real theatre tree), `SPR.water` 4 phase frames (rts.html:12336-12343). Verified in `g2_fx.png` | — | — |
-
----
+| **Ore and gem fields read as a diamond honeycomb at close zoom.** The tan backing square is gone, but each cell's cluster still stops at its own diamond, so a field is a visible lattice — worst on gems, ~700 near-identical cones on a regular grid | RA2 ore is 19 overlay types `TIB01`…`TIB19` and gems `GEM01`…`GEM09` (rules.ini:1498-1516, 1423-1431), so no two cells repeat | `bakeOre` (rts.html:4033); glitter is real (`bakeSparkle` 3980, additive pass 28731/28767) and the seam is feathered. Verified live at zoom 1.6-2.2 — the cluster boundaries are legible | minor | M |
+| Explosion families, craters and scorch, debris, the nuke, rocket trails, the V3's own projectile, feathered shroud, gap fog, four-layer building fire | | All present and correct | — | — |
 
 ## 5. Terrain
 
 | Gap | RA2 (citation) | Game now | Severity | Effort |
 |---|---|---|---|---|
-| **No height levels.** A "cliff" is a wall on flat ground; the plateau behind it draws at the same screen height as the ground below it | RA2 terrain is 2-level per cliff and up to 15 levels per map; `SetName = Cliff Set`, `ZMM Cliff Set`, `Destroyable Cliffs`, `Slope Set Pieces`, `ZSlope Set Pieces`, `New MM Height Pieces`, `Newest MM Height`, `Obsolete Height Pieces` (temperat.ini:310, 460, 860, 497, 509, 544, 816, 284) | Only the cliff tile itself is lifted — `s.lift = (CLIFF_H - CLIFF_SH)/2` at rts.html:1898 is the **only** `lift` assigned to any tile. `h_close_gems.png`: the gem plateau interior sits at the same elevation as the field outside its wall | major | L |
-| **Cliffs read as a regular grey brick retaining wall**, not rock | RA2 cliff faces are irregular shadowed rock with a mottled top | `bakeCliff(mask, kind)` rts.html:1753 — 16 edge masks of stacked quads. `h_close_gems.png` | major | M |
-| **Ramps read as a wooden boardwalk**, not a rock slope | `SetName = Ramps` / `ZMM Ramps` / `DirtRoads Slopes` / `Paved Road Slopes` / `Water slopes` (temperat.ini:295, 268, 472, 759, 735) | `bakeRamp(kind, dir)` rts.html:12021 — plank-striped strips. `h_close_gems.png` top-right and left | minor | M |
-| **No LAT (linked-adjacent-tile) transitions.** Grass→rock, grass→sand, snow→rock all meet on a hard tile diamond, quilted | temperate alone has `LAT Grass`, `LAT Grass, thick`, `LAT Grass Rough`, `LAT Sand`, `LAT Pavement`, plus `GrassThick Individual`, `GrassRough Individual`, `Sand Individual`, `Pavement Individual` (temperat.ini:173, 347, 590, 685, 748, 359, 604, 699, 662) | Only a 16-mask `bakeScree` pebble fringe (rts.html:1722). `h_close_tundra.png` shows the snow/rock quilt | major | M |
-| **Roads have no junction/bend/end/slope connectors** | `DirtRoads Bendy`, `DirtRoads Junctions`, `DirtRoads Straight`, `DirtRoads Slopes`, `Paved Roads`, `Paved Road Ends`, `Paved road bits`, `Paved Road Slopes` — 8 distinct road tilesets (temperat.ini:385-411, 435-447, 626, 674, 759) | `bakeRoad(kind, v)` rts.html:1905 — 8 *decorative variants*, chosen by hash, not by neighbour mask; roads simply butt together | minor | M |
-| **Tile-set variety is a tiny fraction of RA2's** | 82 tilesets in temperat.ini, 75 in snow.ini, **110** in urban.ini | 64 position-indexed ground tiles from one seamless sheet per theatre + 64 rock, 8 decals, 16 shore, 16 shallow, 16 scree, 16 cliff, 8 road, 4 water positions × 4 phases (`bakeAll` rts.html:12319-12360) | major | L |
-| **4 tree variants per theatre; RA2 temperate ships ~30 terrain objects** and none of our snow trees carry snow | temperat.ini `SetName = Ice Flow`, `House`, `Ruins`, `Farm Crops`, `Dead Oil Tanker`, `Waterfalls`(A-D), `Water Caves`, `Scrin Wreckage`, `RA2 uss arizona`, plus the TREE/TC terrain objects | `SPR.tree` = 4 per theatre (rts.html:12360); `h_close_tundra.png` shows identical dark-green conifers on snow | minor | M |
-| **Civilian buildings: 4 blocks, shared across all theatres, never garrisonable, never destructible** | `SetName = Civilian Buildings` + `Misc Buildings` + `House` + `Ruins` (temperat.ini:323, 187, 241, 532); urban.ini has 110 tilesets | `SPR.civ = [bakeCiv(0..3)]` rts.html:12369, indexed by hash; `T_CIV` is in `solidT()` rts.html:517. `h_map_river.png` — the same four beige boxes repeated across the city | minor | M |
-| **Ore spawns on urban pavement** | RA2 ore only grows on ground/dirt | `genCore`'s `patch()` rts.html:1237 doesn't exclude `T_ROAD`/pavement. `h_close_river.png`: ore fields all over the asphalt | minor | S |
-| **Map border is raw black** — the playable diamond just ends | RA2 maps continue past the visible border with real terrain and clamp the camera inside it | rts.html:15794 `ctx.fillStyle='#0b0e14'; fillRect(…)` then nothing outside the grid. Every wide shot (`art.png`, `h_map_river.png`) | minor | S |
-| **No map lighting / ambient.** Every theatre is lit identically; there is no per-map ambient tint or per-cell lighting | RA2 maps carry `[Lighting]` (Ambient/Red/Green/Blue/Level) and RA2 darkens the whole tactical view under a Lightning Storm — which we *do* do (rts.html:16197) but nowhere else | Only the storm/nuke full-screen washes (rts.html:16196-16197) | minor | M |
-| Water animation, shorelines, shallows, bridges, gems as a 2× ore variant, 6 maps × 3 theatres, mirrored fairness | | All present and working (`bakeWaterSheet` 1593, `bakeShore` 1674, `bakeShallow` 1705, `bakeBridge` 12070, `T_GEM` 12122, `MAPS` 1108) | — | — |
-
----
+| **Ore still spawns on pavement in the urban theatre — the cause moved, the symptom did not** | RA2 ore grows on ground and dirt, never on `Pavement` | `patch()` (rts.html:2702) now refuses anything but `T_GROUND`/ore, which reads as fixed. But the urban theatre paints `T_GROUND` as concrete slabs — `bakeGroundSheet('pave', 61)` (18953) — so an urban ore field still lies on paving. Verified live | minor | S |
+| **Snow cliffs are markedly worse than temperate ones** | RA2's snow cliffs are the same irregular rock under snow, not a different construction | `bakeCliff` (rts.html:3438) — the temperate branch reads as jointed rock with a boulder-strewn crest; the snow branch is still very regular grey blockwork with a cap. Verified live against a contact sheet | minor | S |
+| **Cliffs still read engineered rather than cut** even in the best theatre — uniform course height, a flat top line, no talus | `SetName = Cliff Set`, `Destroyable Cliffs`, `ZMM Cliff Set` (temperat.ini:310, 860, 460) | `bakeCliff` (rts.html:3438). No longer "a grey brick retaining wall" — the old row's severity of `major` is wrong now | minor | M |
+| **Ramps read paved, not as a rock slope** | `SetName = Ramps` / `ZMM Ramps` / `DirtRoads Slopes` (temperat.ini:295, 268, 472) | `bakeRamp(kind, dir, flat, walls)` (rts.html:17767) — a stone slope with side walls, no longer planks, but still parallel-striped | nit | S |
+| **Tree silhouettes barely vary.** The count went 4 → 8 per theatre, but the *shape* variety is about three (tree / dead trunk / boulder); the five living variants share one canopy blob at different sizes | temperat.ini ships ~30 terrain objects | `bakeTree(v, snow)` (rts.html:3794), 8 per theatre at 19015-19026. Snow variants do now carry snow load. Verified live off a contact sheet | nit | M |
+| **Tile-set variety is still a fraction of RA2's** | 82 tilesets in temperat.ini, 75 in snow.ini, **110** in urban.ini | 64 ground + 64 alt ground + 15 LAT + 64 apron + 16 cliff + 32 road + 16 shore + 16 shallow + 16 scree + 8 decal + 8 terrain objects, per theatre (rts.html:18942-19026). Much wider than the old audit found, still well under RA2 | minor | L |
+| Height levels, LAT transitions, road masks, civilian sets, map-border continuation, per-map lighting, snow trees | | All present and correct — `computeHeight` (2787), `bakeLat` (3377), `bakeRoad` (3728), ten civilian types (18010), `bakeApronSheet` (3106), `MAPS[].light` (2438) | — | — |
 
 ## 6. UI / HUD
 
+The old §6 is closed almost entirely, and its two blockers were fixed the day it was written.
+Measured with `getBoundingClientRect` at 1100×620, 1280×720, 1500×950 and 1920×1080: **no element
+overflows `#side` at any size**. `#cmdbar` and `#sbtools` are both `repeat(3, minmax(0,1fr))`
+(rts.html:215, 130) — the exact fix the old audit prescribed. The command bar is `ui.ini`'s six and
+nothing else (verified live: `Team 1, Team 2, Same, Deploy, Guard, Plan` =
+`[AdvancedCommandBar] ButtonList=Team01,Team02,TypeSelect,Deploy,Guard,PlanningMode`), with
+Sell / Repair / Power moved to `#sbtools` under the radar as RA2 has them. The radar draws through
+the same isometric matrix as the field with a true four-corner viewport quad (30539); the power
+meter, the credits ticker, the clock wipe over the cameo, icon tabs, pip health bars, the top-left
+EVA rail, eight house colours, the in-game options card and a drawn `#ptip` tooltip panel are all
+present. There are **17 canvas-drawn cursors**, 33 frames, verified live off `cursorSet()`.
+
 | Gap | RA2 (citation) | Game now | Severity | Effort |
 |---|---|---|---|---|
-| **The sidebar is a modern web list, not RA2's command bar.** Wide scrolling rows of `cameo + name + "$800 · +200 power"` prose | RA2's sidebar is a fixed metal panel: a two-column grid of 60×48 cameos with **no text**, the radar in a bezel above, tabs as icon buttons | `#side { width:186px }` rts.html:88-92; `.pit` rows rts.html:105-118; `buildPanel()` rts.html:14890. See `i_sidebar.png`, `j_q_side.png` | **blocker** | L |
-| **Two command-bar buttons are rendered entirely outside the sidebar and cannot be clicked.** Measured: sidebar right edge = 1375 px; `T3` occupies 1375→1400 and `Sell` occupies 1375→1400 | — | `#cmdbar { grid-template-columns: repeat(5, 1fr) }` rts.html:82 — `1fr` is `minmax(auto,1fr)`, so `Scatter`/`Deploy` min-content blows the tracks past the 174 px content box. Fix is `minmax(0,1fr)`. `j_q_side.png`, and the measurement in this audit | **blocker** | S |
-| **The command bar mixes two different RA2 UI regions and has 11 buttons where RA2 has 6** | `ui.ini [AdvancedCommandBar] ButtonList=Team01,Team02,TypeSelect,Deploy,Guard,PlanningMode` (+`Beacon` in MP). **Sell / Repair / Power are the three toggle buttons on the sidebar itself**, not command-bar entries; Stop is the S key | rts.html `#cmdbar` holds Same, Path, T1, T2, T3, Guard, Stop, Scatter, Deploy, Sell, Repair — and wraps onto three rows | major | S |
-| **No power bar.** Power is a text pill in the browser-chrome top bar | RA2 puts a vertical power meter down the left of the sidebar with a moving needle, green→yellow→red | `.stat` tiles rts.html:38-46; `updateHUD()` rts.html:14867 | major | M |
-| **Credits are a top-bar pill, not a sidebar ticker**, and there is no digit-by-digit count with the RA2 tick | RA2 counts the credit total up/down one unit per tick with the coin sound | `shownCred` rts.html:14757, `sfx('cash')` = one 880→1320 Hz sine (rts.html:14741) | minor | S |
-| **Build progress is a translucent fill sweeping across the row; RA2 wipes a clock over the cameo** | RA2 draws a radial clock-hand wipe over the cameo, then the cameo flashes "READY" | `.pit .fill` rts.html:119-122; the READY stamp (rts.html:124-138) covers the whole row instead of the cameo. `j_q_side.png` | major | M |
-| **Cameos are auto-crops of the in-game sprite at 60×44**, no faction frame, no bevel art | RA2 cameos are hand-drawn 60×48 PCX art with a house-styled frame | `cameoFor()` rts.html:14942-14963 — `W=60, H=44`, `strokeRect` border | major | L |
-| **Tabs are text labels** ("Structures Defence Infantry Units") | RA2's four sidebar tabs are icon buttons | `.ptab div` rts.html:96-102 | minor | S |
-| **The radar is drawn in grid space (axis-aligned squares) while the world is isometric**, and the viewport marker on it is a diamond — the radar is rotated 45° relative to what you see | RA2's radar is isometric, same orientation as the battlefield | `drawMini()` rts.html:16488-16532 `mctx.fillRect(x*sc, y*sc, …)`; viewport drawn from `screenToGrid` corners → a diamond. `i_mini.png` | major | M |
-| **The radar always works** — no Radar/Airforce Command required, no power gating, no bezel, no sweep pulse | RA2's radar is dark until you own a radar structure *and* have power | no radar/power gate anywhere near `drawMini`; `#mini` rts.html:94 is a bare canvas with a 1-px border | major | S |
-| **No RA2 cursor set.** Five CSS cursors total | RA2 has an animated cursor per intent: move, no-move, attack, force-fire, select, sell, repair, deploy, enter, guard, waypoint, chrono, nuke, beacon | rts.html:74-76 (`default`, `crosshair`, `not-allowed`) plus `pointer` (rts.html:15305) and `grabbing` (15217). `grep -c cursor` finds nothing else | **blocker** | M |
-| **Health bar is a solid tri-colour rectangle, not RA2's pip bar** | RA2 draws a bracketed bar of discrete pips over the unit, green/yellow/red | `hpBar()` rts.html:16470-16476 — `fillRect` | minor | S |
-| **EVA text appears as a bottom-centre web toast** | RA2 prints EVA/game messages top-left inside the tactical view in its own yellow bitmap font | `#tip` rts.html:180-186 (`bottom:10px`, `translateX(-50%)`) | minor | S |
-| **Superweapon clocks use emoji glyphs**, greyscale-filtered | RA2 stacks the superweapon's own cameo with a clock wipe | `mkSwIcon` rts.html:14810 `em.textContent = SW[k].em`; `.swic .em { filter: grayscale(1) }` rts.html:170. The conic charge sweep itself is right | minor | M |
-| **Two house colours only** (blue / red) | RA2 has 8 selectable house colours | `var COL = ['#4aa3db','#e5646c']` rts.html:11920 | minor | M |
-| **Fonts are `system-ui` / `ui-monospace` throughout** | RA2 uses its own bitmap font everywhere | rts.html:12, 42, 47 and ~30 `ctx.font = '… system-ui'` sites | minor | M |
-| **No in-game options menu.** Pause is a button; "New" → a confirm card → the front menu | RA2's in-game menu has Load / Save / Delete / Restart Mission / Abort Mission / Game Settings (scroll rate, volumes, tooltips) | `togglePause` rts.html:16915, `newBtn` handler rts.html:16938-16951, `menu()` rts.html:16953 | minor | M |
-| **Panel tooltips are the browser's native `title=`** | RA2 draws its own tooltip box with the name, cost and power draw | `b.title = …` rts.html:14911; the in-world hover card (`#hov` rts.html:187-191, `j_hov.png`) is a modern dark chip with a 👇 emoji | nit | S |
-| Rally flag with a routed dashed line, numbered waypoint markers, selection brackets, build-ready tab dot, minimap superweapon flash, placement mask | | All present and good: `drawRally` 16418, waypoints 16308-16324, `brackets` 16227, `.ptab div.hasready` 149, `mmPing` 12993, build mask 15895 | — | — |
-
----
+| **The radar gate is cosmetic — a dead radar is still a live map-jump and order surface** | `[NARADR] Powered=true`; RA2 blacks the radar out *and* takes the map away with it | `drawMini` (rts.html:30553) computes `radarOn` as a **local**, blanks the canvas and prints `NO RADAR`. The `mini` pointerdown handler (28430-28446) has no such guard: a left-click on the black panel still `centerOn()`s that cell and a right-click still emits `cmd('move', {x, y})` to it. Verified live against a panel showing only the `NO RADAR` text. Hoisting `radarOn` into a shared predicate closes it | major | S |
+| **"Game settings" expands into nothing you can see** | — | `setTog`'s handler (rts.html:31265) flips `setGrid.hidden` and never scrolls the revealed content into view; `#ovCard` is `overflow-y:auto` with no visible scrollbar. **Measured at 1500×950**: `scrollHeight` 922 → 1149 with `scrollTop` still 0, and the screenshot after the click shows *nothing new* — starting credits, units, speed, Bases, Short Game, Crates and Superweapons are all below the fold, and the disclosure row you just clicked has gone behind the sticky footer. Same at 1920×1080. The audit's biggest match-flow gap is implemented, works, and is undiscoverable | major | S |
+| **Cameos never wear the player's house colour — two independent causes** | RA2 tints the cameo frame with the house colour | (a) `cameoFor` (rts.html:26894) sets `var acc = own === 'col' ? [216,67,77] : [74,163,219]` from the **faction**, under a comment reading "the HOUSE's colour, never the item's". (b) `cameoCache` (26872) is keyed `(b\|u):fac:own:key` with no colour component and `applyHouse` (17134) clears `lineupCache` and `thumbDots` but **not** `cameoCache`. So a green army fields green sprites while every sidebar cameo — and every superweapon clock, which calls `cameoFor` — stays blue | minor | S |
+| **Cameos are still auto-crops of the in-game sprite** | RA2's cameos are hand-drawn 60×48 PCX art | `cameoFor` (rts.html:26879) now composes 60×48 with a sky wash, a ground line and a house bevel, which is a real improvement — but the subject is the baked sprite | minor | L |
+| **Fonts are `system-ui` / `ui-monospace` throughout** | RA2 uses its own bitmap font everywhere | 17 `system-ui` sites (rts.html:12, 42, …), no `@font-face`, no bitmap face anywhere | minor | M |
+| The options card has no Delete for a save slot, and no tooltips toggle | RA2's in-game menu is Load / Save / **Delete** / Restart / Abort / Game Settings | `buildSlotRows` (rts.html:31035) builds Save and Load only | nit | S |
+| The power meter is the one sidebar control with neither a readout nor a tooltip | RA2's meter is numberless too, so this is a consistency nit, not a fidelity one | every `.pit`, `#cmdbar` and `#sbtools` control draws a `#ptip`; `#pwr` (rts.html:652) draws nothing | nit | S |
+| The superweapon clocks are the last native `title=` tooltips left | RA2 draws its own | rts.html:26712, 26741 — everything else moved to the canvas panel | nit | S |
+| `lastRadar` is module-level and never reset between matches | — | rts.html:30550. A match that ended with the radar up, followed by one that starts without, chirps `radaroff` on the new match's first `drawMini` | nit | S |
+| Sidebar, command bar, power meter, credits ticker, clock wipe, icon tabs, isometric radar, 17 cursors, pip health bar, EVA rail, superweapon cameos, eight house colours, options card, drawn tooltips | | All present and correct | — | — |
 
 ## 7. Audio
 
-No real RA2 assets may be used — everything below assumes synthesis or original
-recording. **Nothing in the game plays a sampled sound; every effect is an
-oscillator or a white-noise burst.**
+No RA2 assets are used; everything is synthesis. The old §7 said ten effects, no music, no
+per-weapon reports and TTS for everything. Measured live by rendering each entry into an
+`OfflineAudioContext` and taking its RMS: **`SPEC` has ~65 sound kinds and not one of them is
+silent**; `REPORT` (rts.html:25888) maps 30 unit types to distinct weapon reports; structure and
+economy sounds are all there; unit acknowledgements are a formant-vocoder radio (`VOX`, 26244) with
+separate select / move / attack / deploy / harvest line sets for 40 units, verified as different
+waveforms rather than assumed.
 
 | Gap | RA2 (citation) | Game now | Severity | Effort |
 |---|---|---|---|---|
-| **10 synthesised effects cover the entire game** | sound.ini declares **501** sound entries; rules.ini carries 705 `Sound=`/`VoiceSelect`/`VoiceMove`/`VoiceAttack`/`DieSound` assignments | `sfx(kind)` rts.html:14732-14747: `shot, cannon, die, boom, cash, ready, click, place, no, promote` — that is the whole set | major | L |
-| **No per-weapon sounds.** Every gun is either `shot` (40 ms noise) or `cannon`; the Tesla bolt, prism beam, flak burst, V3, Kirov bomb and nuke all reuse them | RA2 has a distinct report per weapon plus `Report=TeslaCoilPowerUp` on the charge anim (art.ini:3014) | `fire()` rts.html:13019 `sfx(src.type === 'rifle' ? 'shot' : 'cannon')` | major | M |
-| **No structure sounds** — nothing plays on power up/down, on selling, on capturing, or when a building is placed on the ground | `WorkingSound=PowerOn` / `NotWorkingSound=PowerOff` appear 11× in rules.ini (e.g. `[NASAM]`, rules.ini:10485-10486) | only `sfx('place')` and `sfx('ready')` | minor | S |
-| **No music.** RA2 ships 18 tracks | theme.ini declares 18 `[…]` track entries | no music path in the file at all | major | M |
-| **EVA and unit voices are browser `SpeechSynthesis`** — pitch-shifted TTS, availability and voice vary by OS, and `speechSynthesis.getVoices()` is often empty on first use | RA2's EVA is a recorded voice per faction; unit acknowledgements are per-unit recorded lines with 3-5 variants each | `eva()` rts.html:14678-14694, `unitAck()` rts.html:14713-14730. The `ACK` table (rts.html:14698-14711) has good coverage — 13 unit types × move/attack/deploy — but it is TTS, and only 13 of the ~25 unit types have any lines (no engineer, tanya, tesla trooper, ivan, drone, v3, flak track, mirage, IFV, terror drone) | major | M |
-| No select-vs-move-vs-attack distinction in unit voices | RA2 has separate `VoiceSelect` / `VoiceMove` / `VoiceAttack` per unit | `unitAck` handles `move`/`attack`/`harvest`/`deploy` — there is no *select* line | minor | S |
-| Sound is globally rate-limited to 70 ms per kind and the whole master gain is 0.32 | | rts.html:14735, 14646 — fine, but with only two weapon sounds a 40-tank battle is a monotone | minor | S |
-| EVA line coverage is good | | unit ready, construction complete, low power, base/miner under attack, unit/structure lost, insufficient funds, primary building, promotion, superweapon ready + enemy launch warnings | — | — |
+| **EVA is still browser `SpeechSynthesis`** | RA2's EVA is a recorded voice per faction | `eva()` (rts.html:26480). It is no longer silent when `getVoices()` is empty — there is a real `evachime` plus the message rail as a fallback — but the voice itself is the OS's, so it varies by platform and does not match the radio the units now speak on. Downgraded from the old audit's `major` | minor | M |
+| **EVA speech is never cancelled** | — | no `speechSynthesis.cancel()` anywhere; `clearEva` (rts.html:26654) clears the rail and the throttle map only. A base collapse queues several lines that keep reading out over the score card and the front menu, and pause does not pause the voice | minor | S |
+| **Music has no track rotation** — one ~90 s loop per theatre | `theme.ini` declares 18 tracks and rotates the ones marked `Normal=yes` within a match | `MUS.set(G.theatre)` (rts.html:31084, 31402) picks one of four loops (temperate / snow / urban / menu). The score itself is real and has a combat-intensity layer; measured RMS 0.021-0.045 on all four | minor | M |
+| The Dolphin and the Giant Squid have no acknowledgement lines at all | `rules.ini [DLPH]` and `[SQD]` each carry `VoiceSelect`/`VoiceMove`/`VoiceAttack`/`VoiceFeedback`/`DieSound` | `VOX.dolphin` and `VOX.squid` (rts.html:26290-26291) are `{f:0, s:[], m:[], a:[]}`, and `unitAck` (26333) special-cases only the dog's bark and the drone's clatter — so selecting or ordering either is silent | nit | S |
+| 65 sounds, per-weapon reports, structure and economy sounds, generative music with an intensity layer, a synth radio for 40 units' voices, select/move/attack distinction, `Limit`/`Priority`/`Range`/`MinVolume` from sound.ini | | All present and correct | — | — |
 
 ---
 
-## Top 25 art gaps by impact
-
-Ordered by severity, then by effort (cheapest first within a band).
-
-1. **(6, S)** Two command-bar buttons — `T3` and `Sell` — render outside the sidebar and cannot be clicked; `grid-template-columns: repeat(5,1fr)` needs `minmax(0,1fr)` (rts.html:82).
-2. **(4, M)** Explosions are a single scaled radial blob; RA2 fires five named anims at once from four size families.
-3. **(1, M)** Buildings vanish on death — no rubble, no crater, no scorch, no debris, no collapse.
-4. **(6, M)** No RA2 cursor set: five CSS cursors stand in for a dozen animated intent cursors.
-5. **(1, L)** No damaged structure state — a building at 18 % hp is pixel-identical to a new one.
-6. **(2, L)** Infantry have no facings; every soldier faces the camera in every situation.
-7. **(2, L)** Infantry have no death animations; RA2 has six selected per warhead (`InfDeath=0..7`).
-8. **(6, L)** The sidebar is a modern scrolling list of prose rows, not RA2's cameo grid + radar bezel.
-9. **(1, S)** Unpowered structures show a red `⚡` emoji instead of going dark and stopping their animation.
-10. **(1, S)** Tesla Coil has no 28-frame charge-up before the bolt.
-11. **(6, S)** The radar is always live — no Radar building or power required, no bezel, no sweep.
-12. **(3, S)** Vehicles never smoke or show damage art below half health.
-13. **(6, S)** The command bar has 11 buttons where RA2's `ui.ini` lists 6, mixing sidebar toggles into it.
-14. **(1, M)** Defences never aim — turret art is a time-driven idle loop, not a bearing.
-15. **(1, M)** No MAKE build-up on placement (208 per-structure MAKE anims in RA2).
-16. **(1, M)** Prism Tower has neither a charge anim nor RA2's support-beam links between towers.
-17. **(4, M)** Nuke mushroom is a brown mud column with a flat cap — no fire, no white core, no shock cloud.
-18. **(4, M)** Ore/gems are static and tile visibly as a rectangular grid inside a field.
-19. **(4, M)** Shroud edge is a hard black diamond staircase, not RA2's soft feathered border.
-20. **(6, M)** Build progress sweeps across the row instead of wiping a clock over the cameo.
-21. **(6, M)** Radar draws in axis-aligned grid space while the world is isometric — a 45° orientation mismatch.
-22. **(5, M)** No LAT transitions: every ground-type boundary is a hard tile diamond.
-23. **(5, M)** Cliffs read as a grey brick retaining wall; ramps read as a boardwalk.
-24. **(5, L)** No terrain height levels — a plateau draws at the same elevation as the ground outside it.
-25. **(7, L)** Ten synthesised sounds and no music cover a game RA2 gives 501 sound entries and 18 tracks.
-
-*(Just below the line, and cheap: `(1,L)` footprints one tile smaller than RA2's across every production structure; `(3,M)` MCV unpack is an instant swap; `(6,S)` health bar is a solid rect, not a pip bar; `(2,M)` no infantry firing frames.)*
-
----
-
-## Present but visibly broken in the screenshots
+## Present but visibly broken
 
 | What | Where | Evidence |
 |---|---|---|
-| **`T3` and `Sell` command buttons sit entirely outside the sidebar (x 1375→1400 against a right edge of 1375) and are unclickable**; `Repair` is stranded alone on a third row; the bar's 111 px height also clips the last build row (`Ore Purifier`) mid-word | `#cmdbar` CSS rts.html:82-83 | `j_q_side.png`, `i_sidebar.png`, `art.png` (bottom-right), and the DOM measurement |
-| **The minimap viewport marker is a diamond drawn over an axis-aligned square map** — with most of the map shrouded it reads as a stray white arrow poking out of the radar | `drawMini` rts.html:16525-16531 | `i_sidebar.png` (top), `art.png` (top-right) |
-| **The nuke mushroom cloud renders as an opaque brown mud pillar drawn straight through the building in front of it** — no additive blending, no fire, and it z-fights the structure | rts.html:16144-16158 (`globalCompositeOperation='source-over'` for the whole mushroom) | `g_fx.png`, `g2_fx.png` |
-| **Ore cells show their own tan backing rectangle**, so an ore field is a visible checkerboard of squares rather than a seam | `bakeOre` rts.html:1993, drawn at rts.html:15873-15877 | `h_close_tundra.png` (most obvious on snow), `h_close_gems.png` |
-| **Ore and gem fields spawn on urban pavement and roads** | `patch()` rts.html:1237 does not exclude `T_ROAD` | `h_close_river.png`, `h_map_river.png` |
-| **Six damaged structures (three at 45 %, three at 18 % hp) are indistinguishable from full-health ones** in a still frame — the only tell is the 30-px hp bar | `drawBld` rts.html:16374 | `a_damaged.png` |
-| **Five destroyed structures leave completely clean grass** | `killBld` rts.html:12521 | `b_destroy_t0.png` → `c_destroy_after.png` |
-| **The gem plateau's cliff ring is a low grey brick wall around ground that is at the same elevation as the field outside it**; the two ramps into it read as wooden decking | `bakeCliff` rts.html:1753, `bakeRamp` rts.html:12021 | `h_close_gems.png` |
-| **The whole infantry roster renders in one front-facing pose**, side by side with correctly-oriented vehicles in the same screenshot | `bakeInfantry` rts.html:2207 | `k_inf.png`, `j_sel.png` |
-| **`⚡` emoji glyphs float over every unpowered structure** in the Collective opening scene | `drawBld` rts.html:16397 | `art_col.png`, `e_f3.png` |
-| **`fsheet.js` clips the entire Collective row** — the 2600 px canvas only fits the Directorate set plus four Collective items, so the harness silently under-reports | `apps/games/rts/art/fsheet.js` (fixed `height: 2600`) | `fsheet.png` bottom, `fsheet_col.png` |
+| **The radar's "NO RADAR" panel still jumps the camera and still takes move orders.** With the panel blank, a left-click centres the view on that cell and a right-click orders the selection there | `drawMini` rts.html:30553 vs the `mini` pointerdown at 28430 | Read code; agent-verified live against a panel drawing only the `NO RADAR` text |
+| **Expanding "Game settings" reveals nothing.** `#ovCard` gains 227 px of content and stays at `scrollTop: 0`; the disclosure row disappears behind the sticky footer and no setting becomes visible | `setTog` handler rts.html:31265 | Measured live at 1500×950 (922 → 1149 scrollHeight, scrollTop 0) and screenshotted before/after; same at 1920×1080 |
+| **Every sidebar cameo and superweapon clock is the wrong colour once the player picks a house.** The field army repaints; the cameos do not | `cameoFor` rts.html:26894, `cameoCache` 26872, `applyHouse` 17134 | Read code — the accent is derived from the faction, and the cache has no colour in its key and is not invalidated |
+| **The rubble decal is fully painted before the first explosion frame peaks** | `killBld` rts.html:19322 pushes it at `t: 0` | Screenshotted at t=6 of a structure death: a complete crater under a still-blooming fireball |
+| **Ore fields still lie on urban pavement.** `patch()` was fixed to refuse anything but `T_GROUND`; the urban theatre's `T_GROUND` *is* concrete | `patch()` rts.html:2702, `bakeGroundSheet('pave', 61)` 18953 | Read code + live render |
+| **`T_CIV` can never exist.** Declared at 761, tested in `solidT()` at 769, given a minimap colour at 30518, exported to `__rtsTables.TER` at 32245 — and assigned by nothing. A test could assert against a terrain type the map generator cannot produce | rts.html:761 | Four occurrences in the file, all reads |
+| **The explosion draw is introduced by the comment for the code that replaced it** — "The blast is one baked radial-gradient sprite scaled per fx", twelve lines above the four-family, eleven-frame draw | rts.html:29211-29214 vs 29453-29461 | Read code |
+| **The Pillbox traverses a turret RA2 does not give it**, and every structure gets three fire ports where the 1×1 defences have one | `AIMED` rts.html:18934, `firePorts` 18567 | Read code + art.ini: `[GAPILL]` has no `Turret=`; no 1×1 defence has a `DamageFireOffset1=` |
+| **A new match can chirp `radaroff` on its first frame** because `lastRadar` survives the match that set it | rts.html:30550 | Read code |
+
+---
+
+## What is actually left, by impact
+
+**This list is shared and deduplicated across both gap audits** — `gap-audit-art.md` and
+`gap-audit-features.md` end with the same block, so there is one place to read the remaining work.
+The section tag says which document carries the row's detail. Severity and effort use the same
+scales as the rest of both files.
+
+### Closed since this audit was written (2026-09-04)
+
+Rows 1-7, 17, 18 and part of 12 below are **done**, and row 8 **did not reproduce**. They are
+annotated in place rather than deleted, so the record shows what was found and what was
+actually true. Two of the audit's own citations were wrong and are corrected here.
+
+| was | what shipped | commit |
+|---|---|---|
+| 1 | `edgeDist()` — range and MinimumRange are both measured to the target's WALL. Tanya and Ivan now destroy the 4x4 yard, the 5x3 factory, the 4x3 refinery, the 3x2 barracks and the 2x2 power plant; before, zero damage to any of them | `f088a16` |
+| 2 | The ROF x4 sweep found **sixteen** weapons, not three: the War Miner, Desolator, Nighthawk, **Yuri**, **Chrono Legionnaire**, and **eleven of the thirteen `IFV_MODES` rows** — every passenger mode except the one that was already converted | `f2889ff` |
+| 3 | The duplicate `FlakGuyWH` is gone, and a test now walks the whole file for duplicate object keys so the class of bug cannot recur silently. `__rtsTest.step` was doubled the same way | `f088a16` |
+| 4, 6, 12 | One frame-rate correction closes all three. rules.ini settles it beside `IronCurtainDuration` (line 693): *"In frames 900 is a minute for 15fps"*. Iron Curtain 20 s -> **50 s**, Terror Drone 120 -> **240** ticks per bite, Ivan's fuse 900 -> **1800**, radiation apply 32 -> **64** | `f2889ff` |
+| 5 | `PrismSupportDelay=60` (240 ticks) now sets the offline window; `PrismSupportDuration` sets only the beam's life. `CHARGE_T` was the same raw-frames mistake: 28 -> **112** | `e74154b` |
+| 7 | One `radarUp()`, called by both `drawMini` and the `#mini` pointerdown handler. Measured: 2294 px of camera jump on a dead radar before, 0 after | `e74154b` |
+| 17 | **The citation was wrong.** `[GAOREP]` has no `BuildLimit` line — RA2 does not limit the Ore Purifier either, and a useless second one is RA2's own behaviour. No change made | — |
+| 18 | Nuclear Reactor 2x3 -> **4x4**. `[NAAPWR]` is dead art with no rules.ini section at all; `Name=Nuclear Reactor` is on `[NANRCT]` (rules.ini:15992) | this commit |
+| 8 | **Did not reproduce.** Measured at both 1400x900 and 1500x950: opening the drawer takes `scrollTop` 0 -> 120 and 0 -> 70, the toggle stays on screen, and Start Game is inside the card's box in every state. Either it was fixed between the audit and the sweep, or the original measurement read a different element | — |
+
+Five tests asserted the old wrong values and so certified the bugs they guarded (`wm.rate === 20`,
+`desolator.rate === 50`, `yuri.rate === 200`, `IVAN_BOMB_T === 900`, and the Iron Curtain test's own
+title said "twenty seconds"); each now carries the rules.ini line it agrees with. Every new guard was
+run against the BROKEN build first and made to fail with the expected signature — one of them passed
+on a broken build at first because it was matching a word inside a comment, which is recorded in the
+test itself.
+
+The 24-match soak (6 seeds x 4 difficulty/faction combos, 30 game-minutes each) is clean through all
+of this: zero invariant violations, zero page errors, mean match length unmoved (17.8 -> 18.2 min).
+
+### Blocker
+
+1. **(features §3, S) Weapon range is measured centre-to-centre with no footprint allowance.**
+   Tanya cannot damage *any* building 2×2 or larger — measured: 3 000 ticks against a 3×2 Barracks,
+   hp 500 → 500, closest approach 1.87 against her C4's range of 1.2. Crazy Ivan cannot plant on
+   one either. Against the 4×4 Construction Yard every attacker with range ≤ 3 stalls at 3.01 and
+   does nothing, the Tesla Trooper included. Two units' entire reason to exist is unreachable. The
+   fix pattern is already in the file: `atRefinery` (20419) adds `max(gw,gh)/2 + 1.9`; `rngVs`
+   (2034) does not.
+
+### Major
+
+2. **(features §2a, S)** Three units carry the raw RA2 `ROF` where the file's own convention —
+   stated in the comment beside each of them — is `ROF × 4`. The **War Miner**, **Desolator** and
+   **Nighthawk** fire four times too fast. Measured live.
+3. **(features §2a, S)** `VERSES` declares **`FlakGuyWH` twice** (977 and 988); the annotated-correct
+   RA2 row loses to the later wrong one, so the Flak Trooper's AA burst does 4× RA2's damage to
+   medium armour — which is what both harvesters are made of.
+4. **(features §3, S)** The **Iron Curtain lasts 20 s**; `IronCurtainDuration=750` at the frame rate
+   the ini itself documents is 50. Measured: 1 200 ticks.
+5. **(features §3, S)** A **Prism support beam costs its tower 30 ticks**, not `PrismSupportDelay`'s
+   240 — the code uses `PrismSupportDuration` ×2, the key for how long the beam is *visible*. The
+   four-second dead weight is the entire tactical cost of the mechanic.
+6. **(features §3, S)** The **Terror Drone eats its host twice as fast as RA2** — 120 ticks per bite
+   against `[DroneJump] ROF=60`'s 240.
+7. **(art §6, S)** **The radar gate is cosmetic.** `drawMini` blanks the panel to `NO RADAR`, but the
+   `mini` pointerdown handler has no such guard — a left-click on the black panel still jumps the
+   camera and a right-click still issues a move order to that cell. A player with no Radar keeps
+   full map navigation, which is precisely what RA2's gate exists to deny.
+8. **(art §6, S)** **"Game settings" expands into nothing you can see.** Measured at 1500×950:
+   clicking the disclosure grows `#ovCard`'s `scrollHeight` 922 → 1149 and leaves `scrollTop` at 0,
+   so the entire drawer — starting credits, units, speed, Bases, Short Game, Crates, Superweapons —
+   stays below the fold, and the row you just clicked is gone behind the sticky footer. The biggest
+   match-flow gap the old audit filed is now fully implemented, works, and is undiscoverable.
+9. **(features §6, M)** The AI **never garrisons a civilian block, never loads a transport and never
+   attack-moves** — three mechanics that exist and work for the player. Measured over a 22-minute
+   hard-vs-hard sim: 0 / 0 / 0, against 29 tech captures.
+10. **(features §1, M)** **No country layer.** RA2 has nine countries with one unique unit or power
+    each; the game has two factions and no country field. Five units are therefore missing (Sniper,
+    Terrorist, Tank Destroyer, Demolition Truck, Black Eagle) and three that *should* be
+    country-locked — Grand Cannon, Tesla Tank, Desolator — are open to everyone.
+11. **(features §4, L)** **Two seats only**, and the multiplayer wire is a same-browser
+    `BroadcastChannel`. The lockstep core (command queue, barrier, state hashing, desync detection)
+    is real and tested; a cross-machine relay and player ids past two are not.
+
+### Minor
+
+12. **(features §3, S) One timing sweep closes four rows at once.** Ivan's fuse (15 s vs 30), the
+    Chronosphere's warp delay (2 s vs 4) and radiation's apply and decay are all halved by the same
+    mistaken premise — and rows 4 and 5 above are the same family. See the systemic finding.
+13. **(features §2a, S)** Aircraft rearm in 2.5 s where `ReloadRate=.3` is 18, and the Harrier fires
+    two separate missiles where `[ORCA] Ammo=1` + `[Maverick] Burst=2` is one two-round attack.
+14. **(features §3, S)** A **damaged power plant produces full output**; RA2 scales it with health.
+15. **(art §6, S)** **Cameos never wear the player's house colour.** `cameoFor` hard-codes the accent
+    from the *faction* under a comment claiming it is the house's, and `cameoCache` is not keyed on
+    colour or cleared by `applyHouse` — so the army on the field is green and every sidebar cameo
+    and superweapon clock is still blue.
+16. **(features §2a, S)** `ARMOURS` has nine slots where RA2's `Verses=` rows have eleven, so
+    `special_1` is gone and with it RA2's designed counters to the Terror Drone (Tesla and the War
+    Miner's own gun are 200 % against it; here they are 85 % and 50 %).
+17. **(features §2b, S)** The **Ore Purifier has no `BuildLimit=1`**. A second one is buildable,
+    costs $2 500 and 200 power, and does nothing — the income bonus is capped at one internally.
+18. **(art §1, M)** The **Nuclear Reactor's footprint is read off the wrong art.ini section** —
+    `[NAAPWR]`'s 2×3, where the building's own `[NANRCT]` is **4×4**.
+19. **(features §2a, S/M)** A **veteran gets neither `VeteranROF` nor `VeteranSpeed`** (both fire only
+    at elite, though `VeteranAbilities=` lists them at rank 1 on most units), and an elite never
+    swaps to its `ElitePrimary` — 34 units have one.
+20. **(features §3, S)** Ore densifies every second; `GrowthRate=5` is five **minutes**. The spread
+    beside it is exact.
+21. **(art §5, S)** **Ore still lies on pavement** in the urban theatre — `patch()` was fixed to
+    refuse anything but `T_GROUND`, but urban `T_GROUND` is painted as concrete slabs.
+22. **(features §6 / art §5, M)** Content is thin on four of seven maps: three have no garrisonable
+    civilians, only one has bridges or a repair hut, one has no tech buildings. Half the neutral-house
+    work is unreachable in a normal game.
+23. **(art §4, M)** Ore and gem fields read as a **diamond honeycomb** at close zoom — the backing
+    square is gone, the per-cell cluster boundary is not.
+24. **(art §1, S)** The **rubble decal pops in at full opacity on the death tick**, so the crater is
+    fully painted under a fireball that has not peaked.
+25. **(art §2, S)** Infantry **firing is 3 phases** where `[E1Sequence] FireUp=164,6,6` is six. The
+    walk was fixed to six; the fire cycle was not.
+26. **(art §5, S/M)** **Snow cliffs are markedly worse than temperate ones**, and cliffs generally
+    still read engineered — uniform course height, flat top line, no talus.
+27. **(art §3, M)** The **Kirov's art was never re-proportioned** — head-on it still collapses to
+    aspect 0.74 against 1.43 broadside, the previous audit's exact numbers.
+28. **(features §2a, S)** The **Dreadnought's salvo is 200** where `[General] DMislDamage=300` ×
+    `Burst=2` is 600 — and the file already follows that convention for the V3.
+29. **(art §7, M)** **Music is four loops with no rotation** against `theme.ini`'s 18 tracks, and
+    **EVA is still `speechSynthesis`** (unit voices are a real synth; EVA is not).
+30. **(art §6, M/L)** Fonts are `system-ui` throughout — 17 sites, no bitmap face — and cameos,
+    though now framed and skied, are still auto-crops of the in-game sprite rather than art.
+31. **(art §5, L)** Tile-set variety is still a fraction of RA2's 82 / 75 / 110 per theatre.
+32. **(features §3, S)** The **Guardian GI fires its missile while walking**; `[GGI] DeployFire=yes`.
+33. **(features §6, M/S)** No per-trigger success/failure track record
+    (`AITriggerSuccessWeightDelta`), and `MultiplayerAICM=400` is implemented as a one-off +$400.
+34. **(features §3, M)** No formation-preserving move.
+35. **(art §7, S)** **EVA speech is never cancelled** — a base collapse keeps reading out over the
+    score card and the front menu, and pause does not pause the voice.
+36. **(features §5, M)** No **`Beacon`** button or `B` key, now that multiplayer ships;
+    `ui.ini [MultiplayerAdvancedCommandBar]` is a seven-button bar and `#cmdbar` is a static six.
+
+### Nits
+
+37. **(art §1)** Fire ports are always three where every 1×1 defence has one `DamageFireOffset0=`;
+    the Pillbox traverses a turret `[GAPILL]` does not have; the apron is still painted inside each
+    building's canvas rather than as a shared `BibShape=` ground layer; the Prism-support comment
+    cites `PrismSupportDuration` for the offline window.
+38. **(art §2/§4)** `T_CIV` is declared, tested in `solidT()`, given a minimap colour and exported to
+    the test surface — and **never assigned by anything**; the explosion draw is still introduced by
+    the comment describing the single-blob code that replaced it; `INF_SEQ` has no `panic`, so a
+    future `fr('panic', …)` silently renders a standing man.
+39. **(features §2/§3)** Flak Cannon sight 10 vs `[NAFLAK] Sight=5` and adjacency 8 vs the file's own
+    +4 rule; `SonicWH` and `IvanWH` carry the wrong `InfDeath`; the Guardian GI's missile has no
+    `MinimumRange=1`; the Spy's blackout is 10 % short; structure repair runs ~6× RA2's rate (the
+    price is exact); `MaxWaypointPathLength=15` is unenforced; no unit-sell at the Service Depot;
+    `GuardAreaTargetingDelay` and `BaseDefenseDelay` are unmodelled.
+40. **(art §6/§7)** The Dolphin and the Giant Squid have no acknowledgement lines at all; `lastRadar`
+    is module-level and never reset, so a new match can chirp `radaroff` on its first frame; the
+    options card has no Delete for a save slot and no tooltips toggle; the power meter is the one
+    sidebar control with neither a readout nor a tooltip; the superweapon clocks are the last native
+    `title=` tooltips left in the game.
+
+### Explicitly NOT gaps — standing decisions, do not "fix" these
+
+- **Structures have no build-up, no MCV unpack and no sell fold-away.** `MAKE_T = 0` (19188),
+  `MCV_T = 0` (18905). `bakeMake`, the reverse-play sell and `unpackOf`'s four-frame MCV fold-out are
+  all fully built behind those constants. The user asked for instant structures twice.
+- **Superweapon and paradrop clocks stay top-left over the battlefield**, not on their sidebar cameos.
+- **`P` is Pause**, not RA2's `CombatantSelect`.
+- **The AI builds no walls** — `AIBuildsWalls=no` is honoured on purpose; `AIPickWallDefensePercent`
+  is wired and dormant, as in RA2.
+- **Sidebar scrolling is on PageUp/PageDown/Home/End**, not the arrows, because the arrows pan.
+- **Naval task forces never fire on the land maps** — `AINavalYardAdjacency=20` gates them and Iron
+  Frontier has no shore.
+- **The Grand Cannon has one idle frame** where other structures have six; `[GTGCAN]` has no
+  `ActiveAnim=`, so that matches RA2.
