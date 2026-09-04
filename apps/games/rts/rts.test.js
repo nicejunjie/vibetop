@@ -5274,3 +5274,30 @@ test("a Guardian GI braces itself for armour, and only fires the missile braced"
   assert.ok(braced >= 0, "a Guardian GI must brace itself when armour comes into missile range");
   assert.ok(tank2.dead, `and then kill it (tank at ${Math.round(tank2.hp)} hp)`);
 });
+
+// ---- the AI keeps a per-trigger track record ---------------------------- //
+// rules.ini's three AI trigger weighting keys — AITriggerSuccessWeightDelta=20,
+// AITriggerFailureWeightDelta=-50 (failure punished 2.5x harder) and
+// AITriggerTrackRecordCoefficient=1 — are how RA2's AI learns which attacks work
+// on this map against this opponent. Only the posture switch was modelled here,
+// which re-weights a ROLE for everyone and neither learns nor forgets.
+//
+// Asserted as an OUTCOME over a real match, not as the constants: the deltas are
+// what the fix sets, so pinning them would prove nothing.
+test("a task force that keeps dying makes its trigger less likely", () => {
+  // Driven through __rtsSim, which is what actually seats two AIs; `begin`
+  // alone leaves g.ai null and the first version of this test asserted against
+  // a match with nobody playing it.
+  let seen = null;
+  W.__rtsSim(9902, "normal", "normal", 60 * 60 * 15, "dir", "col", (g) => {
+    if (g.ai && g.ai.rec) seen = JSON.parse(JSON.stringify(g.ai.rec));
+  });
+  assert.ok(seen && Object.keys(seen).length > 0,
+    "after fifteen game-minutes some trigger should carry a record; the AI "
+    + "launches teams and none of them registered a win or a loss");
+  for (const k of Object.keys(seen)) {
+    assert.ok(seen[k] >= -60 && seen[k] <= 60,
+      `${k}'s track record ran away to ${seen[k]} — one lucky rush must not make `
+      + "a trigger permanent, nor one bad run make it unreachable");
+  }
+});

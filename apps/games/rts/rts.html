@@ -23880,6 +23880,22 @@
     if (r === 'harass') return 38;
     return 50;                                       // attack
   }
+  // rules.ini's AI trigger weighting, all three keys:
+  //   AITriggerSuccessWeightDelta=20   a trigger whose team achieved something
+  //   AITriggerFailureWeightDelta=-50  ...and failure is punished 2.5x harder
+  //   AITriggerTrackRecordCoefficient=1
+  // RA2's AI keeps a per-TRIGGER record and re-weights it, so it learns which
+  // attacks work on this map against this opponent. Only the posture switch
+  // was modelled here (a global +20 to siege when the enemy out-guns a push),
+  // which is a different thing: it re-weights a ROLE for everyone, and forgets
+  // nothing and learns nothing.
+  var AI_TRIG_WIN = 20, AI_TRIG_LOSS = -50, AI_TRIG_COEF = 1;
+  function aiRec(ai, key, delta) {
+    if (!ai.rec) ai.rec = {};
+    // Bounded, or one lucky rush makes a trigger permanent and one bad one
+    // makes it unreachable for the rest of the match.
+    ai.rec[key] = Math.max(-60, Math.min(60, (ai.rec[key] || 0) + delta));
+  }
   function aiReleaseTeam(ai, t) {
     var i = ai.teams.indexOf(t);
     if (i >= 0) ai.teams.splice(i, 1);
@@ -23982,6 +23998,11 @@
       if (ai.siege && d.role === 'siege') w += 20;
       if (ai.siege && d.role === 'attack') w = Math.max(1, w - 2);
       if (ai.posture === 'defend' && d.role === 'defend') w += 10;
+      // ...and the TRIGGER's own track record, which is the part rules.ini
+      // actually describes. Floored at 1 rather than 0: a trigger that has had
+      // a bad run should become unlikely, never impossible, or the AI can talk
+      // itself out of its whole roster on one unlucky map.
+      w = Math.max(1, w + (ai.rec ? (ai.rec[d.key] || 0) : 0) * AI_TRIG_COEF);
       cand.push({ d: d, w: w }); total += w;
     }
     if (nDef < cfg.defMin) {
@@ -24939,7 +24960,10 @@
     for (i = ai.teams.length - 1; i >= 0; i--) {
       t = ai.teams[i];
       t.units = t.units.filter(function (w) { return w && !w.dead; });
-      if (!t.def.prod && t.launched && !t.units.length) { aiReleaseTeam(ai, t); ai.failed++; ai.lastFail = g.tick; }
+      if (!t.def.prod && t.launched && !t.units.length) {
+        aiRec(ai, t.def.key, AI_TRIG_LOSS);            // AITriggerFailureWeightDelta
+        aiReleaseTeam(ai, t); ai.failed++; ai.lastFail = g.tick;
+      }
     }
     aiRecruit(g, ai, me);
 
@@ -25190,12 +25214,16 @@
     // 129 units without taking a single building.
     if (t.units.length < t.n0 * cfg.give) {
       t.mode = 'retreat'; t.retreatAt = g.tick;
+      aiRec(ai, t.def.key, AI_TRIG_LOSS);              // AITriggerFailureWeightDelta
       ai.failed++; ai.lastFail = g.tick;
       aiMoveSpread(g, t.units, aiStaging(g, me, foe));
       return budget - t.units.length;
     }
     var centre = aiArmyCentre(t.units) || stage;
     var cur = entById(g, t.tgt);
+    if (t.tgt && (!cur || cur.dead) && t.units.length) {
+      aiRec(ai, def.key, AI_TRIG_WIN);                  // AITriggerSuccessWeightDelta
+    }
     if (!cur || cur.dead) cur = aiPickTarget(g, ai, me, foe, def.tgt, centre);
     if (!cur) { aiReleaseTeam(ai, t); return budget; }
     t.tgt = cur.id;
