@@ -39,7 +39,7 @@ fi
 OPERATOR="${OPERATOR:-${VIBETOP_ADMINS:-$APP_USER}}"
 OPERATOR="${OPERATOR%%,*}"
 # APP_DIR = repo root (this script lives in <repo>/claude-usage/)
-APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 if ! id "$APP_USER" >/dev/null 2>&1; then
     echo "APP_USER '$APP_USER' does not exist on this system" >&2; exit 1
 fi
@@ -75,14 +75,14 @@ claude-usage install
 EOF
 
 # Make the proxy executable in the checkout (git may not preserve +x on some paths).
-run chmod +x "$APP_DIR/apps/utilities/claude-usage/vibetop-claude-proxy"
+run chmod +x "$APP_DIR/vibetop-claude-proxy"
 
 if (( INSTALL_SYSTEMD )); then
     echo "== installing systemd unit (disabled until the feature is turned on) =="
     sed -e "s|@APP_USER@|$APP_USER|g" \
         -e "s|@OPERATOR@|$OPERATOR|g" \
         -e "s|@APP_DIR@|$APP_DIR|g" \
-        "$APP_DIR/apps/utilities/claude-usage/systemd/$UNIT" \
+        "$APP_DIR/systemd/$UNIT" \
         | write_root "/etc/systemd/system/$UNIT"
     run sudo systemctl daemon-reload
     # Do NOT enable/start — opt-in. But if it's already running (feature on),
