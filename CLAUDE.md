@@ -26,6 +26,7 @@ re-derive it here, and put new detail in the area doc rather than growing this f
 | **Why** something odd is the way it is (Symptom→Cause→Fix→Rejected) | `docs/design-decisions.md` |
 | **QA / review / e2e — binding scope** (correctness *and* experience) | `docs/qa-charter.md` |
 | Security review of the manager's auth paths + trust model | `docs/security-review.md` |
+| Full-codebase audit (2026-09) + what was fixed, and the one thing deliberately not | `docs/code-audit-2026-09.md` |
 | Network topology options · dual-homed host · tunnel setup | `docs/single-port-options.md` · `docs/dual-homed-network.md` · `tunnel/README.md` |
 | End-to-end / real-app testing (host-safe KVM VM, Playwright) | `tests/e2e/README.md` |
 

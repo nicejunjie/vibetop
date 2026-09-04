@@ -76,11 +76,14 @@ One nginx site at `/etc/nginx/sites-available/vibetop` (`listen 80 default_serve
 
 ## Uninstall
 
-Top-level `uninstall.sh` tears down the WHOLE runtime in one shot (services, nginx site + snippets, the OnlyOffice container, web root), keeping the repo, user data (`~/.local/share`, `~/Documents`, `~/Uploads`), the JWT secret, and the ~2 GB image:
+Top-level `uninstall.sh` tears down the WHOLE runtime in one shot — the **transient per-user services** (`vibetop-uterm-*`, `-uttyd-*`, `-fileagent-*`, `-ufiles-*`, `-ubrowser-*`, `-ux11-*`, `-ux11dbus-*`: independent `systemd-run --collect` units with no `PartOf=`, so stopping the manager does NOT stop them), the static services, nginx site + snippets, the OnlyOffice container, `/run/vibetop`, and the deployed web root — keeping the checkout, every user's data (`~/.local/share`, `~/Documents`, `~/Uploads`), `/opt/vibetop/{etc,var}`, and the ~2 GB image:
 
 ```bash
+sudo ./uninstall.sh --dry-run         # print what would happen, touch nothing
 sudo ./uninstall.sh                   # everything; re-deploy with ./deploy.sh
 ```
+
+**It finds the web root by asking nginx** (`root` in the live site file), then the system layout, then a legacy home install — never from `$SUDO_USER`, which on the system layout is the invoking human's home and is how it once reported removing a web root it had never touched. Anything that doesn't look like a deployed root (right name, deep enough, containing `index.html`/`sw.js`) is **skipped with a message**, not guessed at.
 
 Sub-projects also keep their own idempotent `uninstall.sh` (leave apt packages + user data in place):
 
