@@ -64,12 +64,24 @@ RENDERED="
 shell/desktop.html|index.html|version
 shell/diagnostics/rzdbg.html|rzdbg.html|version
 apps/utilities/services/index.html|landing.html|copy
+apps/everyday/files/filesx.html|filesx.html|fsxver
 apps/everyday/files/files.html|files.html|apphome
 apps/everyday/files/filebrowser-patches.js|filebrowser-patches.js|apphome
 "
 
 stamp_version() {   # $1=src $2=dst — release + service-worker build for the build tag
   sed -e "s/@VERSION@/$VERSION/g" -e "s/@SW_VERSION@/$SW_VERSION/g" "$1" > "$2"
+  chmod 644 "$2"
+}
+stamp_fsxver() {    # $1=src $2=dst — content hash of filesx-core.js as its cache key
+  # A CONSTANT cache key is worse than none: every later edit to the module would
+  # be served stale forever. Hash the file we are actually deploying, the same
+  # way files/install.sh busts filebrowser-patches.js.
+  local core="$REPO/apps/everyday/files/filesx-core.js"
+  [ -f "$core" ] || { echo "shell/install.sh: missing $core (filesx.html needs it)" >&2; exit 1; }
+  local ver
+  ver=$(md5sum "$core" | cut -c1-10)
+  sed -e "s/@FSX_VER@/$ver/g" "$1" > "$2"
   chmod 644 "$2"
 }
 stamp_apphome() {   # $1=src $2=dst
@@ -124,6 +136,8 @@ printf '%s' "$PLAN" | while IFS='|' read -r src dst mode; do
   case "$mode" in
     version) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@VERSION@ -> %s, @SW_VERSION@ -> %s)\n' "$src" "$dst" "$VERSION" "$SW_VERSION"
              else stamp_version "$REPO/$src" "$DST_DIR/$dst"; fi ;;
+    fsxver)  if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@FSX_VER@ -> core hash)\n' "$src" "$dst"
+             else stamp_fsxver "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     apphome) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@APP_HOME@ -> empty)\n' "$src" "$dst"
              else stamp_apphome "$REPO/$src" "$DST_DIR/$dst"; fi ;;
     *)       run install -m 644 "$REPO/$src" "$DST_DIR/$dst" ;;

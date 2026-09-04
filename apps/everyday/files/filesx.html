@@ -884,7 +884,13 @@
     <pre class="pv-body" id="pv-body"></pre>
   </div>
 
+<!-- The pure half (paths, formatting, type tables): see filesx-core.js. -->
+<script src="/filesx-core.js?v=@FSX_VER@"></script>
 <script>
+  // Path/format/type helpers live in filesx-core.js (pure, tested). Bound to the
+  // same local names so the call sites below read exactly as they always did.
+  var OFF_RE = FilesxCore.OFF_RE, IMG_RE = FilesxCore.IMG_RE, VID_RE = FilesxCore.VID_RE,
+      AUD_RE = FilesxCore.AUD_RE, ARC_RE = FilesxCore.ARC_RE, KIND_MAP = FilesxCore.KIND_MAP;
 (function() {
   // Native Files view (Files-native phases 1-4a — docs/files-native.md).
   // Loaded by files.html's tab wrapper with #/abs/path; listing/stat/read and
@@ -893,13 +899,8 @@
   // clipboard, uploads (files + folders + OS drag-and-drop), new file/folder,
   // editor, search, share, info (kind/perms/dimensions/checksums), open-in-
   // browser + office-edit handoffs. FileBrowser remains reachable via Manage.
-  var IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif|ico|heic|heif|tiff?)$/i;
-  var VID_RE = /\.(mp4|m4v|mov|mkv|webm|avi|wmv|flv|ogv|mpg|mpeg|ts|m2ts|3gp)$/i;
   // Kept in step with OFFICE_RE in terminal/terminal-manager.py — a narrower
   // list here meant .csv/.rtf/.docm/.xlsm/… had no viewer and no Edit at all.
-  var OFF_RE = /\.(docx?|docm|dotx?|dotm|xlsx?|xlsm|xlsb|xltx?|xltm|pptx?|pptm|ppsx?|ppsm|potx?|potm|odt|ods|odp|ott|ots|otp|rtf|csv|tsv)$/i;
-  var AUD_RE = /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i;
-  var ARC_RE = /\.(zip|tar|gz|tgz|xz|bz2|7z|rar|zst)$/i;
   var READ_MAX = 1048576;   // 1MB text-preview cap (server-enforced too)
 
   var crumbsEl = document.getElementById('crumbs');
@@ -984,43 +985,11 @@
   function joinPath(dir, name) { return (dir === '/' ? '' : dir) + '/' + name; }
   // Light client-side normalize: ~ → home, relative → against the current
   // folder, collapse //, resolve . and .. — so the address bar takes anything.
-  function normPath(input) {
-    var p = (input || '').trim();
-    if (!p) return null;
-    if (p === '~') p = HOME || '/';
-    else if (p.slice(0, 2) === '~/') p = (HOME || '') + p.slice(1);
-    if (p.charAt(0) !== '/') p = (path === '/' || !path ? '' : path) + '/' + p;
-    var out = [];
-    p.split('/').forEach(function(seg) {
-      if (!seg || seg === '.') return;
-      if (seg === '..') { out.pop(); return; }
-      out.push(seg);
-    });
-    return '/' + out.join('/');
-  }
+  function normPath(input) { return FilesxCore.normPath(input, path, HOME); }
 
   // ---- formatting ----
-  function fmtSize(n) {
-    if (n < 1024) return n + ' B';
-    var u = ['KB', 'MB', 'GB', 'TB'], i = -1;
-    do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
-    return (n < 10 ? n.toFixed(1) : Math.round(n)) + ' ' + u[i];
-  }
-  function fmtRel(ts, short) {
-    if (exactDates) return new Date(ts * 1000).toLocaleString();
-    // short (mobile): "2d" not "2d ago", compact old dates — the name column
-    // gets the room.
-    var s = Date.now() / 1000 - ts;
-    if (s < 45) return short ? 'now' : 'just now';
-    if (s < 3600) return Math.round(s / 60) + 'm' + (short ? '' : ' ago');
-    if (s < 86400) return Math.round(s / 3600) + 'h' + (short ? '' : ' ago');
-    if (s < 86400 * 7) return Math.round(s / 86400) + 'd' + (short ? '' : ' ago');
-    var d = new Date(ts * 1000), now = new Date();
-    if (d.getFullYear() === now.getFullYear())
-      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    return short ? d.toLocaleDateString(undefined, { year: '2-digit', month: 'numeric', day: 'numeric' })
-                 : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  }
+  function fmtSize(n) { return FilesxCore.fmtSize(n); }
+  function fmtRel(ts, short) { return FilesxCore.fmtRel(ts, short, exactDates); }
   // Listing icon: images get a REAL thumbnail (lazy server-side downscale via
   // /api/file/image&thumb= — the emoji placeholder looked like a toy next to
   // the classic app's previews), everything else the type emoji.
@@ -1038,18 +1007,7 @@
     }
     return ic;
   }
-  function iconFor(name, isDir) {
-    if (isDir) return '📁';
-    if (IMG_RE.test(name)) return '🖼️';
-    if (VID_RE.test(name)) return '🎬';
-    if (AUD_RE.test(name)) return '🎵';
-    if (ARC_RE.test(name)) return '📦';
-    if (/\.pdf$/i.test(name)) return '📕';
-    if (/\.(docx?|odt)$/i.test(name)) return '📘';
-    if (/\.(xlsx?|ods|csv)$/i.test(name)) return '📗';
-    if (/\.(pptx?|odp)$/i.test(name)) return '📙';
-    return '📄';
-  }
+  function iconFor(name, isDir) { return FilesxCore.iconFor(name, isDir); }
 
   // ---- fetch + render ----
   function api(url) {
@@ -2317,10 +2275,7 @@
       return api('/api/fs/stat?path=' + encodeURIComponent(joinPath(dir, cand))).then(function(d) {
         if (!d || !d.ok) return cand;               // enoent → free
         if (n > 99) return cand;                    // give up, let the server decide
-        var dot = name.lastIndexOf('.');
-        var next = dot > 0 ? name.slice(0, dot) + ' (' + n + ')' + name.slice(dot)
-                           : name + ' (' + n + ')';
-        return probe(next, n + 1);
+        return probe(FilesxCore.nextName(name, n), n + 1);
       }).catch(function() { return cand; });
     }
     return probe(name, 2);
@@ -2956,39 +2911,8 @@
   // ---- Info dialog (per-selection action / 'i') — a real OS Get Info card:
   //      Kind, Where, exact size, exact modified time, permissions, image
   //      dimensions, and lazy click-to-copy checksums via /api/fs/hash. ----
-  var KIND_MAP = {
-    png: 'PNG image', jpg: 'JPEG image', jpeg: 'JPEG image', gif: 'GIF image',
-    webp: 'WebP image', svg: 'SVG image', heic: 'HEIC image', bmp: 'Bitmap image',
-    tif: 'TIFF image', tiff: 'TIFF image', ico: 'Icon image', avif: 'AVIF image',
-    mp4: 'MPEG-4 video', mkv: 'Matroska video', mov: 'QuickTime video',
-    avi: 'AVI video', webm: 'WebM video',
-    mp3: 'MP3 audio', flac: 'FLAC audio', wav: 'WAV audio', m4a: 'M4A audio', ogg: 'Ogg audio',
-    pdf: 'PDF document', doc: 'Word document', docx: 'Word document',
-    xls: 'Excel spreadsheet', xlsx: 'Excel spreadsheet',
-    ppt: 'PowerPoint presentation', pptx: 'PowerPoint presentation',
-    odt: 'OpenDocument text', ods: 'OpenDocument spreadsheet', odp: 'OpenDocument presentation',
-    txt: 'Plain text', md: 'Markdown text', csv: 'CSV text', json: 'JSON file',
-    yaml: 'YAML file', yml: 'YAML file', log: 'Log file', ipynb: 'Jupyter notebook',
-    zip: 'ZIP archive', tar: 'tar archive', gz: 'gzip archive', tgz: 'gzip archive',
-    xz: 'xz archive', bz2: 'bzip2 archive', '7z': '7-Zip archive', rar: 'RAR archive',
-    py: 'Python script', sh: 'Shell script', js: 'JavaScript file', ts: 'TypeScript file',
-    c: 'C source', h: 'C header', cpp: 'C++ source', go: 'Go source', rs: 'Rust source',
-    java: 'Java source', html: 'HTML file', css: 'CSS file',
-    iso: 'Disk image', deb: 'Debian package', rpm: 'RPM package',
-    exe: 'Windows program', dmg: 'macOS disk image'
-  };
-  function kindOf(name, isDir) {
-    if (isDir) return 'Folder';
-    var dot = (name || '').lastIndexOf('.');
-    var ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
-    if (KIND_MAP[ext]) return KIND_MAP[ext];
-    return ext ? ext.toUpperCase() + ' file' : 'File';
-  }
-  function fmtMode(mode) {                          // low 9 bits → "rwxr-xr-x"
-    var s = '', ch = 'rwx';
-    for (var i = 8; i >= 0; i--) s += ((mode >> i) & 1) ? ch[(8 - i) % 3] : '-';
-    return s;
-  }
+  function kindOf(name, isDir) { return FilesxCore.kindOf(name, isDir); }
+  function fmtMode(mode) { return FilesxCore.fmtMode(mode); }
   function fmtExact(ts) {
     return new Date(ts * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   }
@@ -3419,12 +3343,7 @@
     document.getElementById('sm-content').classList.toggle('on', m === 'content');
     if (searchActive) runSearch();                           // re-run an active search
   }
-  function relParent(abs) {
-    var dir = abs.slice(0, abs.lastIndexOf('/')) || '/';
-    if (dir === path) return '';
-    var root = path === '/' ? '/' : path + '/';
-    return dir.indexOf(root) === 0 ? dir.slice(root.length) : dir;
-  }
+  function relParent(abs) { return FilesxCore.relParent(abs, path); }
   // Highlight q inside text with <mark> — DOM-built, never innerHTML.
   function markify(parent, text, q) {
     var lower = text.toLowerCase(), lq = (q || '').toLowerCase(), i = 0;
