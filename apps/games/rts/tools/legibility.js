@@ -54,7 +54,11 @@ const RTS = path.join(ROOT, 'apps', 'games', 'rts');
 const OUT = path.join(RTS, 'art', 'out');
 
 const ZOOMS = [1, 0.55];          // the game's default, and ZMIN
-const GRASS = [92, 110, 62];      // the temperate ground the units stand on
+const GRASS = [92, 110, 62];      // the temperate ground land units stand on
+// ...and ships do not stand on grass. `terrCol` gives temperate water as
+// #2c5d86; comparing a hull against grass measured a picture the game never
+// draws, and it is the background that dominates a small thumbnail.
+const WATER = [44, 93, 134];
 const CELL = 28;                  // the box every unit is normalised into
 
 function playwright() {
@@ -85,11 +89,11 @@ function serve() {
 function grab(cfg) {
   const T = window.__rtsTest, U = window.__rtsTables.UNITS, S = T.spr();
   const out = [];
-  const CELL = cfg.CELL, GRASS = cfg.GRASS, ZOOMS = cfg.ZOOMS;
+  const CELL = cfg.CELL, ZOOMS = cfg.ZOOMS;
   // Composite on grass, box-downscale to the size it is DRAWN at, centre in one
   // CELL box so SIZE is part of the comparison. Done page-side: 40 units x 8
   // facings x 2 zooms of raw RGBA is megabytes over the wire, thumbnails are not.
-  function thumbOf(id, W, H, zoom) {
+  function thumbOf(id, W, H, zoom, GRASS) {
     let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
       if (id.data[(y * W + x) * 4 + 3] > 8) {
@@ -156,7 +160,8 @@ function grab(cfg) {
       const id = c.g.getImageData(0, 0, c.W, c.H);
       const idB = cB.g.getImageData(0, 0, cB.W, cB.H);
       for (const z of ZOOMS) {
-        const t = thumbOf(id, c.W, c.H, z), tB = thumbOf(idB, cB.W, cB.H, z);
+        const bg = d.nav ? cfg.WATER : cfg.GRASS;   // a hull is read on water
+        const t = thumbOf(id, c.W, c.H, z, bg), tB = thumbOf(idB, cB.W, cB.H, z, bg);
         if (!t || !tB) { ok = false; break; }
         th[z].push(t.cell); thB[z].push(tB.cell);
         if (z === 1) size[face] = { w: t.w, h: t.h };
@@ -197,7 +202,7 @@ async function measure() {
   await page.goto(`http://127.0.0.1:${port}/rts.html`);
   await page.waitForFunction(() => !!window.__rtsTest, null, { timeout: 30000 });
   await page.evaluate(() => window.__rtsTest.begin(4242, 'normal'));
-  const recs = await page.evaluate(grab, { CELL, GRASS, ZOOMS });
+  const recs = await page.evaluate(grab, { CELL, GRASS, WATER, ZOOMS });
   await browser.close(); srv.close();
   return { recs, pageErrors };
 }
