@@ -39,82 +39,105 @@ run mkdir -p "$DST_DIR"
 # exactly what "did a fresh shell load?" wants to show).
 VERSION="$(cat "$DIR/../VERSION" 2>/dev/null | tr -d ' \t\r\n')"
 VERSION="${VERSION:-dev}"
-SW_VERSION="$(grep -o "VERSION = 'v[0-9]\+'" "$DIR/sw.js" 2>/dev/null | grep -o 'v[0-9]\+')"
+SW_VERSION="$(grep -o "VERSION = 'v[0-9]\+'" "$DIR/shell/sw.js" 2>/dev/null | grep -o 'v[0-9]\+')"
 SW_VERSION="${SW_VERSION:-?}"
-if [ "$DRY_RUN" = 1 ]; then
-  printf '+ install index.html (sed @VERSION@ -> %s, @SW_VERSION@ -> %s)\n' "$VERSION" "$SW_VERSION"
-else
-  sed -e "s/@VERSION@/$VERSION/g" -e "s/@SW_VERSION@/$SW_VERSION/g" "$DIR/desktop.html" > "$DST_DIR/index.html"
-  chmod 644 "$DST_DIR/index.html"
-fi
-if [ "$DRY_RUN" = 1 ]; then
-  printf '+ install rzdbg.html (sed @VERSION@ -> %s, @SW_VERSION@ -> %s)\n' "$VERSION" "$SW_VERSION"
-else
-  # Standalone cursor-diagnostic page — deliberately NOT in the service worker's
-  # shell set, so it is network-only and can never be served stale.
-  sed -e "s/@VERSION@/$VERSION/g" -e "s/@SW_VERSION@/$SW_VERSION/g" "$DIR/rzdbg.html" > "$DST_DIR/rzdbg.html"
-  chmod 644 "$DST_DIR/rzdbg.html"
-fi
-run install -m 644 "$DIR/index.html" "$DST_DIR/landing.html"
-if [ "$DRY_RUN" = 1 ]; then
-  printf '+ install filebrowser-patches.js (sed @APP_HOME@ -> %s)\n' "$HOME"
-else
+
+# ---------------------------------------------------------------------------
+# Source tree is GROUPED (shell/ shared/ apps/<item>/ games/<item>/), but the web
+# root stays FLAT: every page keeps the URL it has always had (/notes.html,
+# /rts.html, ...). Nothing outside this script knows where a file lives in the
+# repo, which is exactly why the tree could be reorganised without touching a
+# single URL, the sw.js PRECACHE list, the APPS map or an nginx location.
+#
+# Deployment is a WALK, not a hand-written list. The old list had to be edited
+# for every added or removed page, and when that was forgotten the web root kept
+# serving a file the repo no longer had (mario.html survived months that way,
+# reachable at /mario.html long after Circuit Runner replaced it).
+#
+# RENDERED holds the handful of files that are not a plain copy: a different
+# destination name, or a @TOKEN@ that must be stamped. Everything else is found.
+# ---------------------------------------------------------------------------
+
+# src-relative-to-$DIR | destination basename | stamp mode
+RENDERED="
+shell/desktop.html|index.html|version
+diagnostics/rzdbg.html|rzdbg.html|version
+apps/services/index.html|landing.html|copy
+apps/files/files.html|files.html|apphome
+apps/files/filebrowser-patches.js|filebrowser-patches.js|apphome
+"
+
+stamp_version() {   # $1=src $2=dst — release + service-worker build for the build tag
+  sed -e "s/@VERSION@/$VERSION/g" -e "s/@SW_VERSION@/$SW_VERSION/g" "$1" > "$2"
+  chmod 644 "$2"
+}
+stamp_apphome() {   # $1=src $2=dst
   # Multi-user: each user's FileBrowser is rooted at THEIR home, so the app's
   # "home" IS the FileBrowser root — stamp @APP_HOME@ empty (home = "/"). MUST
   # stamp here too: deploy.sh runs landing/install.sh AFTER files/install.sh, so a
   # raw copy would clobber files/install.sh's stamped copy with a literal @APP_HOME@.
-  sed -e "s|@APP_HOME@||g" "$DIR/filebrowser-patches.js" > "$DST_DIR/filebrowser-patches.js"
-  chmod 644 "$DST_DIR/filebrowser-patches.js"
+  sed -e "s|@APP_HOME@||g" "$1" > "$2"
+  chmod 644 "$2"
+}
+
+# Build src->dst for every deployable file: the special cases above, then a walk
+# of the grouped tree for everything else. Tests, docs and the art pipeline are
+# source-only and never reach the web root.
+PLAN=""
+while IFS='|' read -r src dst mode; do
+  [ -z "$src" ] && continue
+  PLAN="$PLAN$src|$dst|$mode
+"
+done <<EOF
+$(printf '%s' "$RENDERED")
+EOF
+
+while IFS= read -r src; do
+  [ -z "$src" ] && continue
+  rel="${src#"$DIR"/}"
+  case "$PLAN" in *"$rel|"*) continue ;; esac      # already handled above
+  PLAN="$PLAN$rel|$(basename "$src")|copy
+"
+done <<EOF
+$(find "$DIR/shell" "$DIR/shared" "$DIR/apps" "$DIR/games" "$DIR/diagnostics" \
+        -type f \( -name '*.html' -o -name '*.js' -o -name '*.json' \) \
+        ! -name '*.test.js' ! -path '*/art/*' ! -name 'services.example.json' | sort)
+EOF
+
+# A flat web root means two grouped sources CAN collide on one URL. The old
+# hand-written list made that impossible by construction; a walk does not, so
+# check it explicitly and fail loudly rather than let one page silently
+# overwrite another at deploy time.
+DUPES="$(printf '%s' "$PLAN" | awk -F'|' 'NF{print $2}' | sort | uniq -d)"
+if [ -n "$DUPES" ]; then
+  echo "landing/install.sh: two sources map to the same web-root name:" >&2
+  for d in $DUPES; do
+    echo "  $d  <-  $(printf '%s' "$PLAN" | awk -F'|' -v d="$d" '$2==d{printf "%s ", $1}')" >&2
+  done
+  echo "Rename one, or give it an explicit destination in RENDERED." >&2
+  exit 1
 fi
-run install -m 644 "$DIR/vibe-modal.js" "$DST_DIR/vibe-modal.js"
-run install -m 644 "$DIR/coach.js" "$DST_DIR/coach.js"
-run install -m 644 "$DIR/winmgr.js" "$DST_DIR/winmgr.js"
-run install -m 644 "$DIR/keybar.js" "$DST_DIR/keybar.js"
-run install -m 644 "$DIR/apph.js" "$DST_DIR/apph.js"
-run install -m 644 "$DIR/gamescore.js" "$DST_DIR/gamescore.js"
-run install -m 644 "$DIR/monitor.html" "$DST_DIR/monitor.html"
-run install -m 644 "$DIR/token-stats.html" "$DST_DIR/token-stats.html"
-run install -m 644 "$DIR/notes.html" "$DST_DIR/notes.html"
-run install -m 644 "$DIR/upload.html" "$DST_DIR/upload.html"
-run install -m 644 "$DIR/imageview.html" "$DST_DIR/imageview.html"
-run install -m 644 "$DIR/filesx.html" "$DST_DIR/filesx.html"
-# Games (Start ▸ Games) — self-contained pages, loaded on demand (not precached).
-run install -m 644 "$DIR/minesweeper.html" "$DST_DIR/minesweeper.html"
-run install -m 644 "$DIR/solitaire.html" "$DST_DIR/solitaire.html"
-run install -m 644 "$DIR/game2048.html" "$DST_DIR/game2048.html"
-run install -m 644 "$DIR/circuit.html" "$DST_DIR/circuit.html"
-run install -m 644 "$DIR/rts.html" "$DST_DIR/rts.html"
-if [ "$DRY_RUN" = 1 ]; then
-  printf '+ install files.html (sed @APP_HOME@ -> %s)\n' "$HOME"
-else
-  # Multi-user: FileBrowser is rooted at each user's home, so the default folder
-  # is the FileBrowser root — stamp @APP_HOME@ empty (HOME = '/files/files/').
-  sed -e "s|@APP_HOME@||g" "$DIR/files.html" > "$DST_DIR/files.html"
-  chmod 644 "$DST_DIR/files.html"
-fi
-run install -m 644 "$DIR/x11launcher.html" "$DST_DIR/x11launcher.html"
-run install -m 644 "$DIR/update.html" "$DST_DIR/update.html"
-run install -m 644 "$DIR/config.html" "$DST_DIR/config.html"
-run install -m 644 "$DIR/office-editor.html" "$DST_DIR/office-editor.html"
-run install -m 644 "$DIR/video.html" "$DST_DIR/video.html"
-run install -m 644 "$DIR/loggedout.html" "$DST_DIR/loggedout.html"
-run install -m 644 "$DIR/login.html" "$DST_DIR/login.html"
-# PWA: manifest, service worker, and home-screen icons
-run install -m 644 "$DIR/manifest.json" "$DST_DIR/manifest.json"
-run install -m 644 "$DIR/sw.js" "$DST_DIR/sw.js"
+
+printf '%s' "$PLAN" | while IFS='|' read -r src dst mode; do
+  [ -z "$src" ] && continue
+  case "$mode" in
+    version) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@VERSION@ -> %s, @SW_VERSION@ -> %s)\n' "$src" "$dst" "$VERSION" "$SW_VERSION"
+             else stamp_version "$DIR/$src" "$DST_DIR/$dst"; fi ;;
+    apphome) if [ "$DRY_RUN" = 1 ]; then printf '+ render %s -> %s (@APP_HOME@ -> empty)\n' "$src" "$dst"
+             else stamp_apphome "$DIR/$src" "$DST_DIR/$dst"; fi ;;
+    *)       run install -m 644 "$DIR/$src" "$DST_DIR/$dst" ;;
+  esac
+done
+
+# PWA icons + the favicon the browser probes for automatically at the web root.
 run install -d -m 755 "$DST_DIR/icons"
-run install -m 644 "$DIR/icons/"*.png "$DST_DIR/icons/"
-# favicon at the web root so the browser's automatic /favicon.ico probe resolves
-run install -m 644 "$DIR/icons/favicon.ico" "$DST_DIR/favicon.ico"
-run install -m 644 "$DIR/services.example.json" "$DST_DIR/services.example.json"
+run install -m 644 "$DIR/shell/icons/"*.png "$DST_DIR/icons/"
+run install -m 644 "$DIR/shell/icons/favicon.ico" "$DST_DIR/favicon.ico"
+run install -m 644 "$DIR/apps/services/services.example.json" "$DST_DIR/services.example.json"
 # Seed services.json from the example only if the host doesn't already have one
 # (it's host-local and gitignored — never overwrite the real list on re-install).
 if [ ! -f "$DST_DIR/services.json" ]; then
-  run install -m 644 "$DIR/services.example.json" "$DST_DIR/services.json"
+  run install -m 644 "$DIR/apps/services/services.example.json" "$DST_DIR/services.json"
   echo "Created $DST_DIR/services.json (edit to list your host's services)"
 fi
-echo "Installed desktop -> $DST_DIR/index.html"
-echo "Installed landing -> $DST_DIR/landing.html"
-echo "Installed filebrowser-patches.js -> $DST_DIR/filebrowser-patches.js"
-echo "Installed monitor -> $DST_DIR/monitor.html"
-echo "Installed PWA -> $DST_DIR/manifest.json, sw.js, icons/"
+echo "Installed $(printf '%s' "$PLAN" | grep -c .) files -> $DST_DIR (desktop = index.html, PWA = sw.js + icons/)"

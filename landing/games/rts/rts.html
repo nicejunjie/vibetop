@@ -31497,7 +31497,7 @@
     spr: function () { return SPR; },
     // An ISOLATED wall/gate segment. `SPR.bld[..].wall` is the four-way
     // cameo piece, which is not what the RA2 SHP frame shows, so the art
-    // harness measures this instead (tools/rts-art/cmp.js -> aspect.py).
+    // harness measures this instead (landing/games/rts/art/cmp.js -> aspect.py).
     wallSeg: function (p, fk, mask) { return wallSprite(p, fk, mask || 0); },
     gateSeg: function (p, fk, vert, openF) { return gateSprite(p, fk, !!vert, openF || 0); },
 

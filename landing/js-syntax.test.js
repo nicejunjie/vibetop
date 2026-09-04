@@ -18,21 +18,24 @@ const vm = require("node:vm");
 
 const REPO = path.join(__dirname, "..");
 
-// Deployed + injected scripts (repo-relative). Not .test.js (dev-only).
+// Walk the grouped landing tree instead of listing files: a new shared module or
+// app script is covered the day it lands, with no registration step (the same
+// reason landing/install.sh deploys by walking). Injected scripts that live
+// outside landing/ stay explicit — there are three and they are load-bearing.
+function walk(dir, pat, out = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) { if (e.name !== "art" && e.name !== "icons") walk(full, pat, out); }
+    else if (pat.test(e.name)) out.push(path.relative(REPO, full));
+  }
+  return out;
+}
 const SCRIPTS = [
-  "landing/coach.js",
-  "landing/vibe-modal.js",
-  "landing/winmgr.js",
-  "landing/keybar.js",
-  "landing/apph.js",
-  "landing/gamescore.js",
-  "landing/filebrowser-patches.js",
-  "landing/sw.js",
+  ...walk(path.join(REPO, "landing"), /\.js$/).filter((f) => !f.endsWith(".test.js")),
   "browser/xpra-patches.js",
   "terminal/terminal-kbd.js",
   "terminal/lib/tab-sync.js",
-];
-
+].sort();
 for (const rel of SCRIPTS) {
   test(`parses: ${rel}`, () => {
     const src = fs.readFileSync(path.join(REPO, rel), "utf8");
@@ -42,7 +45,7 @@ for (const rel of SCRIPTS) {
 }
 
 test("patch bundles are wrapped for graceful degradation", () => {
-  for (const rel of ["browser/xpra-patches.js", "landing/filebrowser-patches.js"]) {
+  for (const rel of ["browser/xpra-patches.js", "landing/apps/files/filebrowser-patches.js"]) {
     const src = fs.readFileSync(path.join(REPO, rel), "utf8");
     assert.ok(/try\s*\{/.test(src) && /catch\s*\(/.test(src),
       `${rel} should keep its try/catch degradation guard`);
@@ -55,14 +58,12 @@ test("patch bundles are wrapped for graceful degradation", () => {
 // page's inline script previously shipped silently and broke that app at
 // runtime; every ad-hoc pre-release `new Function()` check this repo's history
 // shows is this test, made permanent.
-const PAGE_DIRS = [
-  ["landing", /\.html$/],
-  ["terminal", /^terminals\.html$/],
-];
-for (const [dir, pat] of PAGE_DIRS) {
-  const files = fs.readdirSync(path.join(REPO, dir)).filter((f) => pat.test(f)).sort();
-  for (const f of files) {
-    const rel = `${dir}/${f}`;
+const PAGES = [
+  ...walk(path.join(REPO, "landing"), /\.html$/),
+  "terminal/terminals.html",
+].sort();
+{
+  for (const rel of PAGES) {
     test(`inline scripts parse: ${rel}`, () => {
       const src = fs.readFileSync(path.join(REPO, rel), "utf8");
       const blocks = [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)];

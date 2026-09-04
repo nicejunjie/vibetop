@@ -12,7 +12,7 @@
  * padding-top, positionCaret) and this document is deliberately unscrollable;
  * keeping the active line above the soft keyboard / key bar is the DESKTOP's
  * job (a translateY it applies to terminals.html's .frames — see
- * landing/desktop.html syncBar and docs/design-decisions.md). xterm's
+ * landing/shell/desktop.html syncBar and docs/design-decisions.md). xterm's
  * own textarea is blocked from taking focus on touch (the focusin guard in the
  * sub_filter), so only this input raises the keyboard. Vertical drags pass
  * through as scrollback.
@@ -391,7 +391,7 @@
     // rides the xterm cursor row via a dynamic padding-top (positionCaret). It is
     // EXACTLY frame-height, so this document has no scroll range at all — keeping
     // the active line clear of the desktop's key bar is the DESKTOP's job now (a
-    // translateY on terminals.html's .frames; see landing/desktop.html syncBar).
+    // translateY on terminals.html's .frames; see landing/shell/desktop.html syncBar).
     // Only the top frame can see the soft keyboard (a nested iframe's
     // visualViewport never shrinks for it), and every design that relayed a
     // measured figure down here for this document to scroll went stale the

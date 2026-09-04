@@ -1,4 +1,4 @@
-# Iron Frontier (landing/rts.html) — standing requirement and roadmap
+# Iron Frontier (landing/games/rts/rts.html) — standing requirement and roadmap
 
 ## The requirement, in the user's words
 
@@ -267,9 +267,9 @@ theatre inis, `eva.ini`, `keyboard.ini`, `ui.ini`), with every claim cited and
 verified in the running game. They are the execution documents for this plan;
 read the relevant section before starting any item:
 
-- **`docs/rts-gap-audit-features.md`** — roster, stats, mechanics, match flow,
+- **`landing/games/rts/docs/gap-audit-features.md`** — roster, stats, mechanics, match flow,
   hotkeys, AI. 25 ranked gaps; one blocker.
-- **`docs/rts-gap-audit-art.md`** — structures, infantry, vehicles, effects,
+- **`landing/games/rts/docs/gap-audit-art.md`** — structures, infantry, vehicles, effects,
   terrain, HUD, audio. 25 ranked gaps; two systemic causes.
 
 The two systemic findings that most rows fall out of: **a structure sprite has
@@ -304,7 +304,7 @@ fidelity plus reproduced player reports.
   promotion (`VeteranRatio=3`); 15% repair; radar-gated minimap; V3/IFV
   minimum range. Not done from the list: War Miner gun (needs a shooting
   harvester state — moved to Phase 4), isometric minimap (Phase 1 sidebar).
-- ☑ 2026-09-03 Playtest pass 1 (`docs/rts-playtest-2026-09-03-{human,soak}.md`,
+- ☑ 2026-09-03 Playtest pass 1 (`playtest-2026-09-03-{human,soak}.md`,
   144 soak matches + 10 human scenarios). Fixed: move orders that could never
   give up (dead `repathAt` test, truthy empty path); armies stacked on one
   tile (spawn steps off the door, idle units and group orders take one cell

@@ -4,7 +4,7 @@
 finds in minute twelve of a real match: a frozen superweapon clock, a harvester
 idling beside ore, an AI that never attacks, a unit that will not path. The
 user cannot be the only playtester of a project this size. Every phase merge in
-`docs/rts-roadmap.md` is followed by a playtest pass, and the findings go into
+`landing/games/rts/docs/roadmap.md` is followed by a playtest pass, and the findings go into
 Phase 0 of the plan as reproduced, scripted issues.
 
 Two complementary passes, run by two agents in parallel:
@@ -78,6 +78,6 @@ by one.
 
 ## Output
 
-Each pass writes `docs/rts-playtest-<date>.md`: a table of findings (severity,
+Each pass writes `landing/games/rts/docs/playtest-<date>.md`: a table of findings (severity,
 scenario, repro, screenshot path) and the invariant violations. Everything
-reproduced goes into `docs/rts-roadmap.md` Phase 0 with a ☐.
+reproduced goes into `landing/games/rts/docs/roadmap.md` Phase 0 with a ☐.

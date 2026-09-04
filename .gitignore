@@ -33,4 +33,4 @@ __pycache__/
 tests/matrix/logs/
 tests/matrix/.vagrant-*/
 logs/*.result
-tools/rts-art/out/
+landing/games/rts/art/out/

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Opaque-bbox aspect of each baked structure vs its docs/ra2-ref/ sprite.
 
-Run `node tools/rts-art/cmp.js` first (it dumps mine_<fac>_<key>.png into
-RTS_OUT).  Usage:  python3 tools/rts-art/aspect.py <dir-with-mine_*.png>
+Run `node landing/games/rts/art/cmp.js` first (it dumps mine_<fac>_<key>.png into
+RTS_OUT).  Usage:  python3 landing/games/rts/art/aspect.py <dir-with-mine_*.png>
 The reference column is the RA2 asset the structure was rebuilt against; a
 match inside +-8% is the bar set in docs/ra2-art-plan.md.
 """

@@ -3047,7 +3047,7 @@ test("every weapon in the game has its own report", () => {
   assert.deepEqual(missing, [], "armed things with no Report=");
   // The four cannon weights and the four explosion bands must all be distinct
   // sounds, or a 40-tank battle is a monotone again — the exact finding in
-  // docs/rts-gap-audit-art.md §7.
+  // landing/games/rts/docs/gap-audit-art.md §7.
   const guns = new Set(Object.values(A.REPORT));
   assert.ok(guns.size >= 14, `only ${guns.size} distinct reports across the roster`);
 });
