@@ -139,3 +139,39 @@ test("VERSION is bumped to a vNNN string", () => {
   const m = SRC.match(/const VERSION\s*=\s*['"](v\d+)['"]/);
   assert.ok(m, "sw.js VERSION must be a 'vNNN' literal");
 });
+
+// -- the shell's own script tags must survive an offline cold load ----------
+//
+// desktop.html loads its modules with plain <script src>, and the SW precaches
+// the shell for offline/instant loads. A tag that is NOT in PRECACHE gets the
+// cache-first sub-resource branch: fine while the network is up, a blank desktop
+// when it isn't, and nothing anywhere says so. This test is the noise. It matters
+// most when a module is EXTRACTED from desktop.html — the tag lands, the PRECACHE
+// entry is forgotten, and only an offline user finds out.
+
+test("every <script src> in desktop.html is precached", () => {
+  const html = fs.readFileSync(path.join(__dirname, "desktop.html"), "utf8");
+  const srcs = [...html.matchAll(/<script\s+src="(\/[^"?]+\.js)"/g)].map((m) => m[1]);
+  assert.ok(srcs.length >= 5, `expected the shell's module tags, found ${srcs.length}`);
+  for (const src of srcs) {
+    assert.ok(PRECACHE.includes(src),
+      `${src} is loaded by desktop.html but missing from sw.js PRECACHE — it would ` +
+      `not be available offline. Add it to PRECACHE and bump VERSION.`);
+  }
+});
+
+// shell/install.sh substitutes @TOKEN@ placeholders only for files in its RENDERED
+// table. Move a block that contains one into a plain-copied .js and the literal
+// ships to the browser, where it is not an error — just a string that is wrong
+// forever (@SW_VERSION@ compared against a real version never matches).
+test("no deployed shell script carries an unstamped @TOKEN@", () => {
+  const files = fs.readdirSync(__dirname)
+    .filter((f) => f.endsWith(".js") && !f.endsWith(".test.js"));
+  assert.ok(files.length >= 5, "expected the shell's modules to be found");
+  for (const f of files) {
+    const src = fs.readFileSync(path.join(__dirname, f), "utf8");
+    const tok = src.match(/@[A-Z_]{3,}@/);
+    assert.ok(!tok, `shell/${f} contains the unstamped token ${tok && tok[0]} — ` +
+      `install.sh only substitutes files in its RENDERED table.`);
+  }
+});
