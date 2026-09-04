@@ -2,7 +2,7 @@
 
 > This file is self-contained. A fresh Claude Code session should be able to
 > read only this file (plus the reference images it points at) and execute the
-> whole job. Written 2026-09-01, against `landing/games/rts/rts.html` at v1.19.192 /
+> whole job. Written 2026-09-01, against `apps/games/rts/rts.html` at v1.19.192 /
 > sw v455.
 
 ---
@@ -91,7 +91,7 @@ and upscale with PIL (`Image.NEAREST`) to study it.
 
 ## 3. The code you will be editing
 
-**One file: `landing/games/rts/rts.html`** (~4300 lines, single inline `<script>`, no
+**One file: `apps/games/rts/rts.html`** (~4300 lines, single inline `<script>`, no
 build step). Everything below lives in it.
 
 ### 3.1 Where the art is
@@ -160,18 +160,18 @@ stackR(x, y, r, h)   pylon(x, y, r, h)   apron(x, y, hw, hh)      (local to bake
 ## 4. Verification harness
 
 A local static server plus Playwright. **Always look at a render — never judge
-sprite work by reading code.** Scripts live in `landing/games/rts/art/` (see its
+sprite work by reading code.** Scripts live in `apps/games/rts/art/` (see its
 README); they take `RTS_PORT` / `RTS_URL` for the server and `RTS_OUT` for the
-output directory (default `landing/games/rts/art/out/`, gitignored).
+output directory (default `apps/games/rts/art/out/`, gitignored).
 
 ```bash
 cd landing && python3 -m http.server 8099 --bind 127.0.0.1 &
-node landing/games/rts/art/one.js power 4   # one structure: rows = faction, cols = player colour; canvas bound drawn
-node landing/games/rts/art/fsheet.js        # every structure, both factions
-node landing/games/rts/art/vsheet.js        # 8 facings of each vehicle, both harvesters
-node landing/games/rts/art/usheet.js        # every unit, both factions x both player colours
-node landing/games/rts/art/shot.js          # in-game 1:1 scene as Directorate (art.png) and Collective (art_col.png)
-node landing/games/rts/art/cmp.js           # each structure to its own PNG, for side-by-sides
+node apps/games/rts/art/one.js power 4   # one structure: rows = faction, cols = player colour; canvas bound drawn
+node apps/games/rts/art/fsheet.js        # every structure, both factions
+node apps/games/rts/art/vsheet.js        # 8 facings of each vehicle, both harvesters
+node apps/games/rts/art/usheet.js        # every unit, both factions x both player colours
+node apps/games/rts/art/shot.js          # in-game 1:1 scene as Directorate (art.png) and Collective (art_col.png)
+node apps/games/rts/art/cmp.js           # each structure to its own PNG, for side-by-sides
 ```
 
 Each launches chromium, loads `rts.html`, waits for `window.__rts`, reads
@@ -208,7 +208,7 @@ check.** Structure it as four waves.
 ### Wave 1 — build, in parallel (7 subagents)
 
 **Conflict avoidance is the whole design problem here.** Every branch lives in
-the same file, so agents must not edit `landing/games/rts/rts.html` concurrently. Give
+the same file, so agents must not edit `apps/games/rts/rts.html` concurrently. Give
 each builder `isolation: "worktree"` — each gets its own checkout, edits only
 its own branch, renders, iterates, and reports. The main session then splices
 each finished branch back into the real file. Splicing is mechanical because
@@ -244,7 +244,7 @@ visual judgement, not find-and-replace):
 
 ### Wave 2 — integrate (main session)
 
-Splice each returned branch into `landing/games/rts/rts.html`. Then:
+Splice each returned branch into `apps/games/rts/rts.html`. Then:
 
 - `./run-tests.sh` must pass (the pre-commit hook runs it; never `--no-verify`).
 - Render the full contact sheet and the in-game scene; eyeball for clipping,
@@ -269,13 +269,13 @@ Feed their findings back into a short Wave-4 fix pass in the main session.
 
 ### Ship
 
-Bump `VERSION` **and** `landing/shell/sw.js`'s `VERSION` (both, always — the sw
+Bump `VERSION` **and** `shell/sw.js`'s `VERSION` (both, always — the sw
 string is the deploy signal the SSE stream watches). Commit, merge to `main`,
 push, then deploy:
 
 ```bash
 sudo -u vibetop git -C /opt/vibetop/app pull --ff-only
-sudo -u vibetop /opt/vibetop/app/landing/install.sh
+sudo -u vibetop /opt/vibetop/app/shell/install.sh
 sudo systemctl restart vibetop-manager
 grep -o "v4[0-9][0-9]" /opt/vibetop/vibetop-www/sw.js | head -1   # confirm
 ```
@@ -497,7 +497,7 @@ Each of these cost a real debugging cycle. Do not rediscover them.
   them a couple of pixels.
 - **Tracks pushed past ~0.42 of hull width** detach from the hull.
 - **A test that renders the headless canvas stub** needs any new ctx method
-  added to it in `landing/games/rts/rts.test.js` (`quadraticCurveTo`, `createLinearGradient`
+  added to it in `apps/games/rts/rts.test.js` (`quadraticCurveTo`, `createLinearGradient`
   were both added this way).
 
 ## 9. Quick orientation for a fresh session
@@ -505,7 +505,7 @@ Each of these cost a real debugging cycle. Do not rediscover them.
 ```bash
 cd /home/junjie/vibe-coding/vibetop
 git log --oneline -8            # recent art history
-sed -n '1628,1700p' landing/games/rts/rts.html   # top of bakeBuilding
+sed -n '1628,1700p' apps/games/rts/rts.html   # top of bakeBuilding
 ls docs/ra2-ref/                # the reference images
 cd landing && python3 -m http.server 8099 --bind 127.0.0.1 &
 ```

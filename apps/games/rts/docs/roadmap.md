@@ -1,4 +1,4 @@
-# Iron Frontier (landing/games/rts/rts.html) — standing requirement and roadmap
+# Iron Frontier (apps/games/rts/rts.html) — standing requirement and roadmap
 
 ## The requirement, in the user's words
 
@@ -267,9 +267,9 @@ theatre inis, `eva.ini`, `keyboard.ini`, `ui.ini`), with every claim cited and
 verified in the running game. They are the execution documents for this plan;
 read the relevant section before starting any item:
 
-- **`landing/games/rts/docs/gap-audit-features.md`** — roster, stats, mechanics, match flow,
+- **`apps/games/rts/docs/gap-audit-features.md`** — roster, stats, mechanics, match flow,
   hotkeys, AI. 25 ranked gaps; one blocker.
-- **`landing/games/rts/docs/gap-audit-art.md`** — structures, infantry, vehicles, effects,
+- **`apps/games/rts/docs/gap-audit-art.md`** — structures, infantry, vehicles, effects,
   terrain, HUD, audio. 25 ranked gaps; two systemic causes.
 
 The two systemic findings that most rows fall out of: **a structure sprite has

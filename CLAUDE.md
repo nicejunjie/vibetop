@@ -20,7 +20,7 @@ re-derive it here, and put new detail in the area doc rather than growing this f
 | Files, Notes, Upload, Update, Config, Claude-usage, Token Stats, Services, Tunnel | `docs/apps.md` |
 | Multi-user / identity (`APP_USER` vs `OPERATOR` vs the request user) | `docs/multi-user.md` |
 | Files-native project (replacing FileBrowser; phases, security invariant) | `docs/files-native.md` |
-| **RTS game (`landing/games/rts/rts.html`): the standing "true RA2 experience" requirement + roadmap** | `landing/games/rts/docs/roadmap.md` (then `docs/ra2-art-plan.md`) |
+| **RTS game (`apps/games/rts/rts.html`): the standing "true RA2 experience" requirement + roadmap** | `apps/games/rts/docs/roadmap.md` (then `docs/ra2-art-plan.md`) |
 | Non-obvious traps that bite on real hosts | `docs/gotchas.md` |
 | **Why** something odd is the way it is (Symptom→Cause→Fix→Rejected) | `docs/design-decisions.md` |
 | **QA / review / e2e — binding scope** (correctness *and* experience) | `docs/qa-charter.md` |
@@ -48,12 +48,12 @@ Six sub-projects deliver a unified "mini-OS" desktop experience on myhost (`192.
 | claude-usage | `/api/claude/usage` | Opt-in pass-through proxy that captures the real Claude Max-plan usage headers for the desktop's usage strip |
 | tunnel | — | Cloudflare Tunnel + Access config for public HTTPS |
 
-**Canonical app inventory** (source of truth: the `APPS` map in `landing/shell/desktop.html` — the README groups these more loosely):
+**Canonical app inventory** (source of truth: the `APPS` map in `shell/desktop.html` — the README groups these more loosely):
 
 | Start-menu section | Apps |
 |---|---|
 | Everyday (un-sectioned) | Terminal, Browser, X11 Launcher, Files, Office, Notes, Upload |
-| **Games** flyout | Minesweeper, Solitaire, 2048, Circuit Runner (self-contained pages, `landing/*.html`) |
+| **Games** flyout | Minesweeper, Solitaire, 2048, Circuit Runner (self-contained pages, `apps/games/<item>/`) |
 | **Utilities** flyout | Services (`home`), Monitor, Token Stats + the Claude-Usage / System-Stats **toggles** |
 | **System** | Update, Config (sudo-gated) |
 | *(not in the menu)* | **Floating windows** — a 🗔 toggle in the **taskbar**, its only surface (no menu row); | **Video player** (`video`, `hidden:true`) — opened by Files on a video double-click, registered only so the taskbar/title can render it |
@@ -85,19 +85,20 @@ more centralized than that suggests. Four facts explain most of the layout:
   fragments in `*/nginx/*.conf`.
 - **No build step.** There is no bundler, no root `package.json`, no transpile —
   installers `cp` HTML/JS verbatim. Each frontend is one self-contained file
-  (`landing/shell/desktop.html` ~4k lines is the entire shell, `APPS` map included;
-  `landing/apps/files/filesx.html` the Files app). Enhancements to third-party UIs are injected
+  (`shell/desktop.html` ~4k lines is the entire shell, `APPS` map included;
+  `apps/everyday/files/filesx.html` the Files app). Enhancements to third-party UIs are injected
   by nginx `sub_filter` (`filebrowser-patches.js`, `xpra-patches.js`,
   `terminal-kbd.js`) — which is why those are content-hash cache-busted, not
   versioned by hand.
-- **`landing/` is grouped, the web root is FLAT.** One directory per Start-menu
-  item (`landing/apps/<item>/`, `landing/games/<item>/`, plus `shell/`, `shared/`,
-  `diagnostics/`), but every page still deploys to the URL it always had —
-  `/notes.html`, `/rts.html`. Only `landing/install.sh` knows the mapping, and it
+- **The tree is grouped, the web root is FLAT.** `shell/` is the desktop itself,
+  `shared/` the modules many pages use, and `apps/<section>/<item>/` mirrors the
+  Start menu's own sections (everyday, games, utilities, system) — but every page
+  still deploys to the URL it always had —
+  `/notes.html`, `/rts.html`. Only `shell/install.sh` knows the mapping, and it
   deploys by **walking** the tree rather than from a hand-written list, so adding
   or deleting a page needs no install edit. Move sources freely; **never change
   what a page deploys to** — the `sw.js` PRECACHE list, the `APPS` map, nginx
-  locations and `sub_filter` all address pages by URL. Detail: `landing/CLAUDE.md`.
+  locations and `sub_filter` all address pages by URL. Detail: `shell/CLAUDE.md`.
 
 ## Identity model — three users, never interchangeable
 
@@ -118,13 +119,13 @@ transient units, per-user ports, the auth gate) is in `docs/multi-user.md`.
 - **Dev/prod flow (reference host `z20`):** dev work lives on **`main`** (a home checkout that only edits/commits/pushes — it is NOT what runs). The long-lived `multi-user` branch was merged into `main` and deleted on 2026-09-03; there is no separate dev branch any more. Prod runs from `/opt/vibetop/app` as the `vibetop` service account and self-updates by fast-forwarding to **`origin/main`**. Committed work reaches prod only via push to `main` → the in-app **Update** (or `tools/migrate-to-opt.sh`); **a push alone deploys nothing**.
 - **Tests:** `./run-tests.sh` runs every hermetic tier (what CI + the pre-commit hook run). `--live` adds `tools/smoke-test.sh` (run it with `sudo`). See `docs/testing.md`.
 - **QA scope is two pillars** — correctness **and** experience, judged as a very picky experienced user (`docs/qa-charter.md`). A review reporting only correctness findings is incomplete.
-- **Per-sub-project `CLAUDE.md` files** (`terminal/`, `browser/`, `landing/`) are thin pointers back here and to `docs/` — keep edits in `docs/`, not duplicated there.
+- **Per-sub-project `CLAUDE.md` files** (`terminal/`, `browser/`, `shell/`) are thin pointers back here and to `docs/` — keep edits in `docs/`, not duplicated there.
 
 ## Versioning & commits
 
 - The root **`VERSION`** file (e.g. `1.5.6`) is a hand-maintained release number — it is **not** read by any build/deploy script (the `VERSION` strings in `browser/install.sh`/`files/install.sh` are the OS `VERSION_CODENAME` and `FB_VERSION`, unrelated). Bump it when cutting a user-visible release and commit with a `vX.Y.Z: <summary>` subject (see `git log -- VERSION`).
-- **Bump `VERSION` in `landing/shell/sw.js` for ANY user-visible change**, not only cached-shell ones. That string is two things: the PWA cache key *and* the deploy signal the SSE stream (`/api/events`) watches — clients only reload when it changes. Skip it and a page that is `no-store`/sw-bypassed (`/terminals/`, `/tN/`) still ships stale to every already-open tab, because nothing tells them to refresh (this bit v1.19.12 and v1.19.16). The convention is a `(sw vNN->vNN)` suffix on the commit subject. Sub-resource JS injected via `sub_filter` (`xpra-patches.js`, `filebrowser-patches.js`, `terminal-kbd.js`) is content-hash cache-busted automatically — never bump those by hand.
-- **Release checklist (order matters):** 1) bump `VERSION` **and** `landing/shell/sw.js`'s `VERSION` (if the cached shell changed), 2) **commit + push**, 3) **then deploy** — via the in-app **Update** app or `./deploy.sh`. The SSE auto-refresh (`/api/events`) only pushes a `reload` when the **deployed** `sw.js` VERSION changes, so deploying *before* the sw bump is committed leaves every client stale. If you bump-then-deploy out of order, redeploy landing (`./landing/install.sh`).
+- **Bump `VERSION` in `shell/sw.js` for ANY user-visible change**, not only cached-shell ones. That string is two things: the PWA cache key *and* the deploy signal the SSE stream (`/api/events`) watches — clients only reload when it changes. Skip it and a page that is `no-store`/sw-bypassed (`/terminals/`, `/tN/`) still ships stale to every already-open tab, because nothing tells them to refresh (this bit v1.19.12 and v1.19.16). The convention is a `(sw vNN->vNN)` suffix on the commit subject. Sub-resource JS injected via `sub_filter` (`xpra-patches.js`, `filebrowser-patches.js`, `terminal-kbd.js`) is content-hash cache-busted automatically — never bump those by hand.
+- **Release checklist (order matters):** 1) bump `VERSION` **and** `shell/sw.js`'s `VERSION` (if the cached shell changed), 2) **commit + push**, 3) **then deploy** — via the in-app **Update** app or `./deploy.sh`. The SSE auto-refresh (`/api/events`) only pushes a `reload` when the **deployed** `sw.js` VERSION changes, so deploying *before* the sw bump is committed leaves every client stale. If you bump-then-deploy out of order, redeploy landing (`./shell/install.sh`).
 
 ## Command cheat-sheet
 
@@ -140,7 +141,7 @@ sudo ./uninstall.sh                          # tear down the runtime (keeps repo
 ./run-tests.sh --live                        # + live-host smoke test
 cd terminal && python -m pytest tests/test_auth.py -q          # one Python file
 cd terminal && python -m pytest tests/ -q -k tamper            # by name substring
-node --test landing/shell/coach.test.js            # one JS file (pass FILES, never a dir)
+node --test shell/coach.test.js            # one JS file (pass FILES, never a dir)
 tests/e2e/run-vm.sh                          # real-app click-through in a KVM VM (never run.sh)
 VIBETOP_MATRIX_FULL=1 tests/matrix/run.sh    # install matrix (always with FULL=1)
 

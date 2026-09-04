@@ -1,4 +1,4 @@
-# Iron Frontier — soak pass (landing/games/rts/docs/playtest.md §B)
+# Iron Frontier — soak pass (apps/games/rts/docs/playtest.md §B)
 
 144 headless matches, 30 game-minute cap each, invariants asserted **every tick**
 (not every minute — see "harness" below). Repo untouched; everything lives in
@@ -136,6 +136,6 @@ node repro-emptypath2.js# blocker #1, mechanism B (empty path array)
 
 `soakB.js` installs its observer by replacing `g.over` with an accessor — the sim's own
 `while (… && !g.over)` and `simStep`'s `if (!g.over)` read it once per tick after the
-reap, which gives a per-tick hook without touching `landing/games/rts/rts.html`. One process per
+reap, which gives a per-tick hook without touching `apps/games/rts/rts.html`. One process per
 match is mandatory (finding #12). The full 144-match sweep takes ~4 minutes at 8-way
 parallelism.

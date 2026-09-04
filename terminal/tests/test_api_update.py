@@ -4,6 +4,7 @@ forward, rsync-redundant reset, genuine-dirty blocked, force-stash), and
 POST /api/update/history/clear. git is replaced with a scriptable fake; deploy
 subprocesses are stubbed."""
 import os
+import re
 import json
 
 
@@ -16,7 +17,7 @@ class GitFake:
         self.fetch_ok = True
         self.dirty = ""                 # `git status --porcelain` output
         self.matches_upstream = True    # `git diff --quiet origin/main` result
-        self.changed = ["landing/shell/desktop.html"]
+        self.changed = ["shell/desktop.html"]
         self.calls = []
 
     def __call__(self, args, timeout=60):
@@ -68,11 +69,11 @@ def test_update_already_up_to_date(client, mgr, stubs, monkeypatch, op_cookie):
 
 def test_update_clean_fast_forward(client, mgr, stubs, monkeypatch, op_cookie):
     g = GitFake()
-    g.changed = ["landing/shell/desktop.html"]
+    g.changed = ["shell/desktop.html"]
     monkeypatch.setattr(mgr, "_git", g)
     status, body = client.post("/api/update", {}, cookie=op_cookie)
     assert status == 200 and body["ok"] is True
-    assert body["changed"] == ["landing/shell/desktop.html"]
+    assert body["changed"] == ["shell/desktop.html"]
     assert body["restart"] is False              # no terminal/*.py changed
     assert _step(body["log"], "git pull")["ok"] is True
 
@@ -98,9 +99,9 @@ def test_update_restart_when_manager_module_changes(client, mgr, stubs, monkeypa
 
 def test_update_rsync_redundant_tree_is_reset(client, mgr, stubs, monkeypatch, op_cookie):
     g = GitFake()
-    g.dirty = " M landing/apps/notes/notes.html"                # dirty, but...
+    g.dirty = " M apps/everyday/notes/notes.html"                # dirty, but...
     g.matches_upstream = True                    # ...content already == origin/main
-    g.changed = ["landing/shell/desktop.html"]
+    g.changed = ["shell/desktop.html"]
     monkeypatch.setattr(mgr, "_git", g)
     status, body = client.post("/api/update", {}, cookie=op_cookie)
     assert status == 200 and body["ok"] is True
@@ -122,7 +123,7 @@ def test_update_force_stashes_then_updates(client, mgr, stubs, monkeypatch, op_c
     g = GitFake()
     g.dirty = " M terminal/terminal-manager.py"
     g.matches_upstream = False
-    g.changed = ["landing/shell/desktop.html"]
+    g.changed = ["shell/desktop.html"]
     monkeypatch.setattr(mgr, "_git", g)
     status, body = client.post("/api/update", {"force": True}, cookie=op_cookie)
     assert status == 200 and body["ok"] is True
@@ -159,7 +160,7 @@ def test_history_clear(client, mgr, monkeypatch, op_cookie):
 
 
 # REGRESSION (2026-09-03): the landing/ regroup moved filebrowser-patches.js from
-# landing/ to landing/apps/files/, and this trigger was an EXACT path match. It
+# landing/ to apps/everyday/files/ (and the tree moved again after), and this trigger was an EXACT path match. It
 # kept passing every test while silently no longer firing — files/install.sh would
 # not re-run, so the nginx ?v= cache-buster kept pointing at the old bundle and
 # browsers kept serving stale patch JS. Matched by basename now; pinned here so a
@@ -178,6 +179,32 @@ def test_sw_build_date_lookup_survives_a_move():
     src = open(os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         "terminal-manager.py")).read()
-    assert '":(glob)landing/**/sw.js"' in src, (
+    assert '":(glob)**/sw.js"' in src, (
         "the sw.js build-date git lookup must use a glob pathspec — a literal path "
         "returns an empty date silently once sw.js moves")
+
+
+# The redeploy triggers and the installer's own walk must not drift apart. When
+# landing/ was split into shell/ + shared/ + apps/, `touched("landing/")` matched
+# nothing any more: an Update would pull the code and never install it, serving a
+# stale page with nothing reporting the miss. Derive both sides and compare.
+def test_web_redeploy_trigger_covers_every_dir_the_installer_walks():
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    installer = open(os.path.join(repo, "shell", "install.sh")).read()
+    # shell/install.sh walks: find "$DIR" "$REPO/shared" "$REPO/apps" ...
+    walked = set()
+    m = re.search(r'\$\(find ([^\n]*(?:\\\n[^\n]*)*)', installer)
+    assert m, "could not find the installer's walk"
+    for tok in re.findall(r'"\$(?:DIR|REPO/)([A-Za-z_]*)"', m.group(1)):
+        walked.add((tok or "shell") + "/")
+
+    manager = open(os.path.join(repo, "terminal", "terminal-manager.py")).read()
+    dirs = re.search(r'WEB_SOURCE_DIRS = \(([^)]*)\)', manager)
+    assert dirs, "WEB_SOURCE_DIRS missing from the manager"
+    triggered = set(re.findall(r'"([^"]+)"', dirs.group(1)))
+
+    missing = walked - triggered
+    assert not missing, (
+        "shell/install.sh deploys from %r but the Update redeploy trigger only "
+        "fires on %r — a change under %r would be pulled and never installed"
+        % (sorted(walked), sorted(triggered), sorted(missing)))

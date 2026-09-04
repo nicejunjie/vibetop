@@ -1,6 +1,6 @@
 // Shared bits for the rts art harness. Configure with env:
 //   RTS_URL  full page URL (default http://127.0.0.1:${RTS_PORT||8099}/rts.html)
-//   RTS_OUT  output directory (default landing/games/rts/art/out, gitignored)
+//   RTS_OUT  output directory (default apps/games/rts/art/out, gitignored)
 const path = require('path'), fs = require('fs');
 let pw;
 try { pw = require('playwright'); }

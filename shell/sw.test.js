@@ -1,6 +1,6 @@
 /* Tests for the service-worker fetch-routing rules (sw.js).
  *
- *   node --test landing/        (or: cd landing && node --test)
+ *   node --test shell/
  *
  * The SW decides, per request, between three behaviours:
  *   bypass    — live/auth paths: network only, never cached (/api, /tN, /browser…)

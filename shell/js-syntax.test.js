@@ -18,9 +18,9 @@ const vm = require("node:vm");
 
 const REPO = path.join(__dirname, "..");
 
-// Walk the grouped landing tree instead of listing files: a new shared module or
+// Walk the grouped tree instead of listing files: a new shared module or
 // app script is covered the day it lands, with no registration step (the same
-// reason landing/install.sh deploys by walking). Injected scripts that live
+// reason shell/install.sh deploys by walking). Injected scripts that live
 // outside landing/ stay explicit — there are three and they are load-bearing.
 function walk(dir, pat, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -31,7 +31,8 @@ function walk(dir, pat, out = []) {
   return out;
 }
 const SCRIPTS = [
-  ...walk(path.join(REPO, "landing"), /\.js$/).filter((f) => !f.endsWith(".test.js")),
+  ...["shell", "shared", "apps"].flatMap((d) => walk(path.join(REPO, d), /\.js$/))
+      .filter((f) => !f.endsWith(".test.js")),
   "browser/xpra-patches.js",
   "terminal/terminal-kbd.js",
   "terminal/lib/tab-sync.js",
@@ -45,7 +46,7 @@ for (const rel of SCRIPTS) {
 }
 
 test("patch bundles are wrapped for graceful degradation", () => {
-  for (const rel of ["browser/xpra-patches.js", "landing/apps/files/filebrowser-patches.js"]) {
+  for (const rel of ["browser/xpra-patches.js", "apps/everyday/files/filebrowser-patches.js"]) {
     const src = fs.readFileSync(path.join(REPO, rel), "utf8");
     assert.ok(/try\s*\{/.test(src) && /catch\s*\(/.test(src),
       `${rel} should keep its try/catch degradation guard`);
@@ -59,7 +60,7 @@ test("patch bundles are wrapped for graceful degradation", () => {
 // runtime; every ad-hoc pre-release `new Function()` check this repo's history
 // shows is this test, made permanent.
 const PAGES = [
-  ...walk(path.join(REPO, "landing"), /\.html$/),
+  ...["shell", "shared", "apps"].flatMap((d) => walk(path.join(REPO, d), /\.html$/)),
   "terminal/terminals.html",
 ].sort();
 {

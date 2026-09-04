@@ -58,7 +58,7 @@ fi
 if command -v node >/dev/null 2>&1; then
     hr "node --test — JS units (sw / tab-sync / coach / kbd / syntax)"
     # Discover every *.test.js outside .claude/ (worktrees carry stale copies).
-    mapfile -t JS_TESTS < <(find browser landing terminal -name '*.test.js' \
+    mapfile -t JS_TESTS < <(find shell shared apps browser terminal -name '*.test.js' \
         -not -path '*/.claude/*' 2>/dev/null | sort)
     if [ "${#JS_TESTS[@]}" -eq 0 ]; then
         no "no JS test files found"

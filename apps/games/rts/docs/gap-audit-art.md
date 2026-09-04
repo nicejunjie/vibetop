@@ -1,6 +1,6 @@
-# Iron Frontier (`landing/games/rts/rts.html`) — art & presentation gap audit vs Red Alert 2
+# Iron Frontier (`apps/games/rts/rts.html`) — art & presentation gap audit vs Red Alert 2
 
-Audited 2026-09-02 against `landing/games/rts/rts.html` @ 17267 lines (HEAD `0dfab90`), served
+Audited 2026-09-02 against `apps/games/rts/rts.html` @ 17267 lines (HEAD `0dfab90`), served
 at `http://127.0.0.1:8121/rts.html`. RA2 facts are grepped from `/tmp/RA2inis/`
 (`art.ini`, `rules.ini`, `temperat.ini`, `snow.ini`, `urban.ini`, `sound.ini`,
 `ui.ini`) — no fact below is from memory. Screenshots referenced by filename all
@@ -77,7 +77,7 @@ at 1:1 (`fsheet.png`, `art.png`, `art_col.png`). What is missing is almost entir
 |---|---|---|---|---|
 | **8 facings, RA2 voxels render 32** — a turning tank snaps in 45° steps | RA2 vehicles are voxels rasterised per-frame at the unit's actual facing; turret and hull both | `bakeVehicle(col, kind, fac, anim)` rts.html:3124 bakes 8; `u.face` is `round(atan2/(π/4))` (rts.html:13453). `l_veh.png` | major | L |
 | **No damaged smoke or damaged art on vehicles** — a tank at 10 % hp looks new | RA2 vehicles trail black smoke below 50 % and show a damaged voxel/`ExtraDamageStage` | `drawUnit` rts.html:16238-16325 has no hp branch at all; only structures smoke | major | S |
-| **No recoil** on any gun | RA2 tanks visibly rock back on firing (`Recoilless=yes` is called out as the *exception* on `[GAPILL]`, art.ini:2113) | `grep -c recoil landing/games/rts/rts.html` = 0 | minor | M |
+| **No recoil** on any gun | RA2 tanks visibly rock back on firing (`Recoilless=yes` is called out as the *exception* on `[GAPILL]`, art.ini:2113) | `grep -c recoil apps/games/rts/rts.html` = 0 | minor | M |
 | **No track marks and no dust behind a moving vehicle** | RA2 lays tread decals on the ground and kicks dust | `grep -c trackmark/tread-decal` = 0; the only `dust` fx is harvester mining (rts.html:13207) | minor | M |
 | **MCV unpack is an instant swap** | `[GACNST] Buildup=GACNSTMK` — deploying an MCV plays the Construction Yard's MAKE anim | `deployMcv` rts.html:12509: `u.dead = true; placeBld(...)` on the same tick | major | M |
 | **Harrier landing is a one-tick pop from cruise altitude to zero** | RA2 Harriers descend onto the pad | `stepAircraft` rts.html:13553 `u.landed = true` and `altOf()` (rts.html:960) returns 0 immediately. Take-off *is* smoothed, but only for a newly built aircraft (`born`/`CLIMB`, rts.html:958) — a sortie off the pad also pops | minor | S |
@@ -218,4 +218,4 @@ Ordered by severity, then by effort (cheapest first within a band).
 | **The gem plateau's cliff ring is a low grey brick wall around ground that is at the same elevation as the field outside it**; the two ramps into it read as wooden decking | `bakeCliff` rts.html:1753, `bakeRamp` rts.html:12021 | `h_close_gems.png` |
 | **The whole infantry roster renders in one front-facing pose**, side by side with correctly-oriented vehicles in the same screenshot | `bakeInfantry` rts.html:2207 | `k_inf.png`, `j_sel.png` |
 | **`⚡` emoji glyphs float over every unpowered structure** in the Collective opening scene | `drawBld` rts.html:16397 | `art_col.png`, `e_f3.png` |
-| **`fsheet.js` clips the entire Collective row** — the 2600 px canvas only fits the Directorate set plus four Collective items, so the harness silently under-reports | `landing/games/rts/art/fsheet.js` (fixed `height: 2600`) | `fsheet.png` bottom, `fsheet_col.png` |
+| **`fsheet.js` clips the entire Collective row** — the 2600 px canvas only fits the Directorate set plus four Collective items, so the harness silently under-reports | `apps/games/rts/art/fsheet.js` (fixed `height: 2600`) | `fsheet.png` bottom, `fsheet_col.png` |

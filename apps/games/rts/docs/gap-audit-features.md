@@ -1,7 +1,7 @@
-# Iron Frontier (`landing/games/rts/rts.html`) vs Red Alert 2 v1.006 — feature gap audit
+# Iron Frontier (`apps/games/rts/rts.html`) vs Red Alert 2 v1.006 — feature gap audit
 
 Ground truth: `/tmp/RA2inis/{rules,ai,eva,keyboard,ui}.ini`, `/tmp/YRinis/rulesmd.ini`.
-Code refs are line numbers in `/home/junjie/vibe-coding/vibetop/landing/games/rts/rts.html` (17 267 lines).
+Code refs are line numbers in `/home/junjie/vibe-coding/vibetop/apps/games/rts/rts.html` (17 267 lines).
 Roster tables: `UNITS` L617, `BLDS` L813, `SW` L1018. Verified live against
 `http://127.0.0.1:8121/rts.html` (Playwright, `__rtsTables` / `__rtsTest`); the page loads
 with **zero console/page errors**.
@@ -293,6 +293,6 @@ beside it: `BLDS.reactor` carries `power: 2000` (correct per `[NANRCT]`) with `d
 (L882), so the sidebar understates the Nuclear Reactor by 4×; and `stepBld` (L13590) blacks out
 *every* defence on low power, including the Pillbox, which in RA2 has no `Powered=` key and keeps
 firing (only `[NALASR] Powered=yes` and the coil/tower/AA sites go dark). Everything else I checked
-that is claimed done in `landing/games/rts/docs/roadmap.md` — crushing, Mirage disguise, MCV deploy, the low-power
+that is claimed done in `apps/games/rts/docs/roadmap.md` — crushing, Mirage disguise, MCV deploy, the low-power
 production curve, shroud, waypoints, veterancy chevrons, pad-based aircraft, the four superweapon
 effects — behaves as described.
