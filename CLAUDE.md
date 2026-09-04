@@ -22,6 +22,7 @@ re-derive it here, and put new detail in the area doc rather than growing this f
 | Files-native project (replacing FileBrowser; phases, security invariant) | `docs/files-native.md` |
 | **RTS game (`apps/games/rts/rts.html`): the standing "true RA2 experience" requirement + roadmap** | `apps/games/rts/docs/roadmap.md` (then `docs/ra2-art-plan.md`) |
 | Non-obvious traps that bite on real hosts | `docs/gotchas.md` |
+| Planned-but-not-started work (verdict + ordered steps, one file per effort) | `docs/plans/` |
 | **Why** something odd is the way it is (Symptom→Cause→Fix→Rejected) | `docs/design-decisions.md` |
 | **QA / review / e2e — binding scope** (correctness *and* experience) | `docs/qa-charter.md` |
 | Security review of the manager's auth paths + trust model | `docs/security-review.md` |
