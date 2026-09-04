@@ -35,7 +35,7 @@ def _walk(patterns, root=_REPO):
 def _python_files():
     files = _walk(["**/*.py"])
     # The two extensionless Python programs (no .py, so glob misses them).
-    for extra in ("terminal/vibetop-session", "claude-usage/vibetop-claude-proxy"):
+    for extra in ("terminal/vibetop-session", "apps/utilities/claude-usage/vibetop-claude-proxy"):
         p = os.path.join(_REPO, extra)
         if os.path.isfile(p):
             files.append(p)
@@ -98,8 +98,8 @@ def test_x11_dbus_template_ready_for_listen_injection():
     XML-comment parse failure AND the missing <listen> — plus the design invariant
     (a session bus with deliberately NO <servicedir>, so portal/a11y fail fast)."""
     import xml.dom.minidom
-    p = os.path.join(_REPO, "browser", "dbus", "x11-dbus.conf")
-    assert os.path.isfile(p), "browser/dbus/x11-dbus.conf must exist"
+    p = os.path.join(_REPO, "apps", "everyday", "browser", "dbus", "x11-dbus.conf")
+    assert os.path.isfile(p), "the browser app's dbus/x11-dbus.conf must exist"
     tpl = open(p, encoding="utf-8").read()
     assert "<busconfig>" in tpl, "template needs a <busconfig> anchor for injection"
     base = xml.dom.minidom.parseString(tpl)          # raises if the '--' comment bug returns
@@ -173,13 +173,13 @@ def test_every_template_placeholder_is_stamped():
 
 def test_filebrowser_patch_home_stamped_in_both_installers():
     # Documented gotcha: filebrowser-patches.js carries @APP_HOME@ and lives
-    # with the Files app, but its cache-buster is computed by files/install.sh — so
-    # BOTH files/install.sh and shell/install.sh must stamp @APP_HOME@ or one
+    # with the Files app, but its cache-buster is computed by its install.sh — so
+    # BOTH apps/everyday/files/install.sh and shell/install.sh must stamp @APP_HOME@ or one
     # clobbers the other's stamped copy with a literal placeholder.
     patch = _web("filebrowser-patches.js")
     if "@APP_HOME@" not in open(patch).read():
         pytest.skip("filebrowser-patches.js no longer uses @APP_HOME@")
-    for inst in ("files/install.sh", "shell/install.sh"):
+    for inst in ("apps/everyday/files/install.sh", "shell/install.sh"):
         with open(os.path.join(_REPO, inst)) as f:
             assert "@APP_HOME@" in f.read(), f"{inst} must stamp @APP_HOME@"
 
@@ -197,7 +197,7 @@ def test_claude_proxy_unit_renders_the_operator_not_app_user(tmp_path):
     Drive the real installer in --dry-run (writes nothing) against a fake env
     file and assert the identity it would render.
     """
-    inst = os.path.join(_REPO, "claude-usage", "install.sh")
+    inst = os.path.join(_REPO, "apps", "utilities", "claude-usage", "install.sh")
     env_file = tmp_path / "manager.env"
     me = subprocess.run(["id", "-un"], capture_output=True, text=True).stdout.strip()
     env_file.write_text("VIBETOP_ADMINS=%s,someone-else\n" % me)
@@ -366,7 +366,7 @@ def test_landing_html_parses_and_local_refs_resolve():
 def test_subfilter_injected_scripts_exist():
     # The nginx sub_filter injects these by ?v=<hash>; a missing file means a
     # 404 for injected JS (broken terminal keyboard / xpra / filebrowser UI).
-    for rel in ("browser/xpra-patches.js",
+    for rel in ("apps/everyday/browser/xpra-patches.js",
                 "apps/everyday/files/filebrowser-patches.js",
                 "terminal/terminal-kbd.js", "shell/coach.js",
                 "terminal/lib/tab-sync.js"):
@@ -494,3 +494,21 @@ def test_keybar_lift_chain_is_intact():
     # that a single TUI repaint destroyed.
     assert "KBD_BAR_RESERVE" not in kbd, \
         "KBD_BAR_RESERVE is back — the fixed-guess design was replaced on purpose"
+
+
+def test_filebrowser_cache_buster_is_content_derived_and_fails_loudly():
+    """The ?v= for the injected patch JS must hash a file that actually exists.
+
+    It used to be reached as "$APP_DIR/../landing/filebrowser-patches.js" with an
+    `|| echo 0` fallback. Regrouping the tree broke that path, and the fallback
+    made the breakage both invisible and permanent: ?v=0 is a constant, so every
+    later edit to the patch bundle would serve stale JS forever.
+    """
+    inst = os.path.join(_REPO, "apps", "everyday", "files", "install.sh")
+    src = open(inst).read()
+    code = "\n".join(l for l in src.splitlines() if not l.lstrip().startswith("#"))
+    assert "|| echo 0" not in code, "a constant cache-buster fallback hides a broken path"
+    m = re.search(r'FB_PATCH_FILE="([^"]+)"', src)
+    assert m, "FB_PATCH_FILE not found"
+    resolved = m.group(1).replace("$APP_DIR", os.path.dirname(inst))
+    assert os.path.isfile(resolved), f"cache-buster hashes a nonexistent file: {m.group(1)}"

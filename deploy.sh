@@ -145,21 +145,21 @@ env "${INST_ENV[@]}" "$REPO_DIR/terminal/install.sh" "${DRYFLAG[@]}"
 
 if (( DO_BROWSER )); then
     step "2/6  Browser — xpra + Chromium"
-    env "${INST_ENV[@]}" "$REPO_DIR/browser/install.sh" "${DRYFLAG[@]}"
+    env "${INST_ENV[@]}" "$REPO_DIR/apps/everyday/browser/install.sh" "${DRYFLAG[@]}"
 else
     step "2/6  Browser — skipped (--no-browser)"
 fi
 
 if (( DO_FILES )); then
     step "3/6  Files — FileBrowser"
-    env "${INST_ENV[@]}" "$REPO_DIR/files/install.sh" "${DRYFLAG[@]}"
+    env "${INST_ENV[@]}" "$REPO_DIR/apps/everyday/files/install.sh" "${DRYFLAG[@]}"
 else
     step "3/6  Files — skipped (--no-files)"
 fi
 
 if (( DO_OFFICE )); then
     step "4/6  Office — OnlyOffice Document Server (docker, ~2GB)"
-    env "${INST_ENV[@]}" "$REPO_DIR/office/install.sh" "${DRYFLAG[@]}"
+    env "${INST_ENV[@]}" "$REPO_DIR/apps/everyday/office/install.sh" "${DRYFLAG[@]}"
 else
     step "4/6  Office — skipped (--no-office)"
 fi
@@ -175,7 +175,7 @@ else
 fi
 
 step "5b/6 Claude usage — opt-in usage-capture proxy (unit installed, left off)"
-env "${INST_ENV[@]}" "$REPO_DIR/claude-usage/install.sh" "${DRYFLAG[@]}"
+env "${INST_ENV[@]}" "$REPO_DIR/apps/utilities/claude-usage/install.sh" "${DRYFLAG[@]}"
 
 if (( DO_TUNNEL )); then
     step "6/6  Tunnel — Cloudflare (interactive)"

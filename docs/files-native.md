@@ -45,7 +45,7 @@ FileBrowser runs AS the user; Unix permissions are the isolation boundary
   serves bytes only after an as-the-user read check — the video/office/image
   precedent).
 - **Everything else — listing, stat, mutations, zip, search, hash — runs AS THE
-  USER** in a per-user **file agent** (`files/fileagent.py`): a Python daemon
+  USER** in a per-user **file agent** (`apps/everyday/files/fileagent.py`): a Python daemon
   spawned like the other per-user units (`systemd-run` transient, `--uid`),
   speaking JSON over a per-user unix socket the manager proxies. The manager
   never performs a mutation with root's authority on a user's behalf.
@@ -69,10 +69,10 @@ after an audit reproduced them live (details in design-decisions):
 - `apps/everyday/files/filesx.html` — the whole app, one file, inline JS. Hosted inside the
   tab wrapper `apps/everyday/files/files.html`, which owns the tab bar, the Native/Classic
   toggle and the in-app viewer overlay.
-- `files/fileagent.py` — the per-user agent. Ops: `home`, `list`, `stat`,
+- `apps/everyday/files/fileagent.py` — the per-user agent. Ops: `home`, `list`, `stat`,
   `usage`, `read`, `mkdir`, `rename`, `move`, `copy`, `delete`, `search`,
   `hash`, plus the streaming `upload` / `download` / `zip`. Idle-exits after
-  `FILEAGENT_IDLE` (900 s) and is restarted on demand; `files/install.sh` stops
+  `FILEAGENT_IDLE` (900 s) and is restarted on demand; `apps/everyday/files/install.sh` stops
   running agents on deploy so a release takes effect immediately.
 - Manager (`terminal/terminal-manager.py`): `/api/fs/*` proxies to the agent;
   `/api/file/image` serves image bytes and, with `&thumb=N`, a PIL-downscaled

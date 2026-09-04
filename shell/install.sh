@@ -75,7 +75,7 @@ stamp_version() {   # $1=src $2=dst — release + service-worker build for the b
 stamp_apphome() {   # $1=src $2=dst
   # Multi-user: each user's FileBrowser is rooted at THEIR home, so the app's
   # "home" IS the FileBrowser root — stamp @APP_HOME@ empty (home = "/"). MUST
-  # stamp here too: deploy.sh runs landing/install.sh AFTER files/install.sh, so a
+  # stamp here too: deploy.sh runs shell/install.sh AFTER the Files installer, so a
   # raw copy would clobber files/install.sh's stamped copy with a literal @APP_HOME@.
   sed -e "s|@APP_HOME@||g" "$1" > "$2"
   chmod 644 "$2"

@@ -136,10 +136,20 @@ if (( INSTALL_NGINX )); then
         exit 1
     fi
     # Cache-buster for the injected filebrowser-patches.js, derived from its
-    # CONTENT (the file lives in landing/), so editing it always changes the ?v=
-    # and busts nginx + the service worker — no manual bump to forget.
-    FB_PATCH_FILE="$APP_DIR/../landing/filebrowser-patches.js"
-    PATCH_VER=$([ -f "$FB_PATCH_FILE" ] && md5sum "$FB_PATCH_FILE" | cut -c1-10 || echo 0)
+    # CONTENT, so editing it always changes the ?v= and busts nginx + the service
+    # worker — no manual bump to forget. The patch JS is a FILE OF THIS APP and
+    # now sits beside this installer; it used to live under landing/ and be
+    # reached with ../, which broke silently when the tree was regrouped.
+    #
+    # Refuse to continue if it is missing. The old `|| echo 0` fallback made that
+    # case invisible AND permanent: ?v=0 is a constant, so every later edit would
+    # have served stale JS forever with nothing reporting it.
+    FB_PATCH_FILE="$APP_DIR/filebrowser-patches.js"
+    if [ ! -f "$FB_PATCH_FILE" ]; then
+        echo "ERROR: $FB_PATCH_FILE missing — refusing to write a constant ?v= cache-buster." >&2
+        exit 1
+    fi
+    PATCH_VER=$(md5sum "$FB_PATCH_FILE" | cut -c1-10)
     sed -e "s|@APP_HOME@|$APP_HOME|g" \
         -e "s|@APP_USER@|$APP_USER|g" \
         -e "s|@PATCH_VER@|$PATCH_VER|g" \

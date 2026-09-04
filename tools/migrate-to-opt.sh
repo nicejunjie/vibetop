@@ -119,11 +119,11 @@ ENVV=(APP_USER="$SVC" APP_HOME="$OPT" LANDING_DIR="$WWW"
 echo "-- shell (desktop + apps) -> $WWW (as $SVC)"
 sudo -u "$SVC" -H env DST_DIR="$WWW" "$APP/shell/install.sh"
 echo "-- browser (xpra-patches + helpers + snippet)"
-( cd "$APP" && env "${ENVV[@]}" INSTALL_SYSTEMD=0 ./browser/install.sh )
+( cd "$APP" && env "${ENVV[@]}" INSTALL_SYSTEMD=0 ./apps/everyday/browser/install.sh )
 echo "-- files (nginx snippet)"
-( cd "$APP" && env "${ENVV[@]}" INSTALL_SYSTEMD=0 ./files/install.sh )
+( cd "$APP" && env "${ENVV[@]}" INSTALL_SYSTEMD=0 ./apps/everyday/files/install.sh )
 echo "-- office (snippet; container + secret untouched)"
-( cd "$APP" && env "${ENVV[@]}" INSTALL_CONTAINER=0 ./office/install.sh )
+( cd "$APP" && env "${ENVV[@]}" INSTALL_CONTAINER=0 ./apps/everyday/office/install.sh )
 echo "-- terminal (main nginx site: root -> $WWW + systemd units -> $APP)"
 ( cd "$APP" && env "${ENVV[@]}" ./terminal/install.sh )
 

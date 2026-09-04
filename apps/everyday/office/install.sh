@@ -158,7 +158,7 @@ if (( INSTALL_DEPS )); then
         done
         if (( ! pull_ok )); then
             echo "ERROR: could not pull $ONLYOFFICE_IMAGE after 4 attempts" \
-                 "(network/registry issue?). Re-run office/install.sh to retry." >&2
+                 "(network/registry issue?). Re-run apps/everyday/office/install.sh to retry." >&2
             exit 1
         fi
     fi

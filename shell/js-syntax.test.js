@@ -33,7 +33,7 @@ function walk(dir, pat, out = []) {
 const SCRIPTS = [
   ...["shell", "shared", "apps"].flatMap((d) => walk(path.join(REPO, d), /\.js$/))
       .filter((f) => !f.endsWith(".test.js")),
-  "browser/xpra-patches.js",
+  "apps/everyday/browser/xpra-patches.js",
   "terminal/terminal-kbd.js",
   "terminal/lib/tab-sync.js",
 ].sort();
@@ -46,7 +46,7 @@ for (const rel of SCRIPTS) {
 }
 
 test("patch bundles are wrapped for graceful degradation", () => {
-  for (const rel of ["browser/xpra-patches.js", "apps/everyday/files/filebrowser-patches.js"]) {
+  for (const rel of ["apps/everyday/browser/xpra-patches.js", "apps/everyday/files/filebrowser-patches.js"]) {
     const src = fs.readFileSync(path.join(REPO, rel), "utf8");
     assert.ok(/try\s*\{/.test(src) && /catch\s*\(/.test(src),
       `${rel} should keep its try/catch degradation guard`);

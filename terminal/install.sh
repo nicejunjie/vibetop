@@ -40,7 +40,7 @@ NGINX_SITE_NAME="${NGINX_SITE_NAME:-vibetop}"
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 APP_UID="$(id -u "$APP_USER" 2>/dev/null || true)"
 # xpra X display the session shells export (so X11 apps started from a terminal
-# render on the X11 desktop). Matches browser/install.sh's X11_DISPLAY_NUM (:98).
+# render on the X11 desktop). Matches apps/everyday/browser/install.sh's X11_DISPLAY_NUM (:98).
 X11_DISPLAY="${X11_DISPLAY:-:98}"
 LANDING_DIR="${LANDING_DIR:-$APP_HOME/vibetop-www}"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
@@ -136,7 +136,7 @@ echo
 # NO package in Debian ("E: Package 'ttyd' has no installation candidate"), which
 # meant a distro we document as supported did not install at all. So prefer the
 # distro package and fall back to the pinned upstream static binary — the same
-# pattern files/install.sh already uses for FileBrowser, and the portable answer
+# pattern apps/everyday/files/install.sh already uses for FileBrowser, and the portable answer
 # for any distro whose repos lack it.
 install_ttyd_binary() {
     local arch url sums tmp want got

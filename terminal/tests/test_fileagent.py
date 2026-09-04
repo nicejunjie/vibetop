@@ -1,4 +1,4 @@
-"""files/fileagent.py + the manager's /api/fs proxy plumbing (Files-native
+"""apps/everyday/files/fileagent.py + the manager's /api/fs proxy plumbing (Files-native
 phase 1, docs/files-native.md).
 
 The agent is exercised FOR REAL: spawned as the current user (no systemd —
@@ -24,7 +24,11 @@ import pytest
 import conftest as _c  # noqa: F401  (mgr fixture module path setup)
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-AGENT = os.path.join(REPO, "files", "fileagent.py")
+AGENT = os.path.join(REPO, "apps", "everyday", "files", "fileagent.py")
+# Fail on the REAL cause. When the tree was regrouped this path went stale and
+# every test here errored with "agent never bound its socket" — the agent had
+# simply never started, and the symptom pointed at the socket instead.
+assert os.path.isfile(AGENT), f"fileagent not found at {AGENT}"
 
 
 @pytest.fixture()

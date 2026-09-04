@@ -75,14 +75,14 @@ claude-usage install
 EOF
 
 # Make the proxy executable in the checkout (git may not preserve +x on some paths).
-run chmod +x "$APP_DIR/claude-usage/vibetop-claude-proxy"
+run chmod +x "$APP_DIR/apps/utilities/claude-usage/vibetop-claude-proxy"
 
 if (( INSTALL_SYSTEMD )); then
     echo "== installing systemd unit (disabled until the feature is turned on) =="
     sed -e "s|@APP_USER@|$APP_USER|g" \
         -e "s|@OPERATOR@|$OPERATOR|g" \
         -e "s|@APP_DIR@|$APP_DIR|g" \
-        "$APP_DIR/claude-usage/systemd/$UNIT" \
+        "$APP_DIR/apps/utilities/claude-usage/systemd/$UNIT" \
         | write_root "/etc/systemd/system/$UNIT"
     run sudo systemctl daemon-reload
     # Do NOT enable/start — opt-in. But if it's already running (feature on),

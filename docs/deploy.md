@@ -49,9 +49,9 @@ Browser WebSockets; `nginx_write` returns the change as its pipe exit status):
 
 ```bash
 sudo ./terminal/install.sh   # 1. nginx site skeleton (extras include) + manager API + ttyd
-sudo ./browser/install.sh    # 2. xpra + Chromium (snap) + LibreOffice (office View) — extras snippet
-sudo ./files/install.sh      # 3. FileBrowser at /files/ (binary + noauth config + extras snippet)
-sudo ./office/install.sh     # 4. Docker + OnlyOffice Document Server at /onlyoffice/ (office Edit)
+sudo ./apps/everyday/browser/install.sh    # 2. xpra + Chromium (snap) + LibreOffice (office View) — extras snippet
+sudo ./apps/everyday/files/install.sh      # 3. FileBrowser at /files/ (binary + noauth config + extras snippet)
+sudo ./apps/everyday/office/install.sh     # 4. Docker + OnlyOffice Document Server at /onlyoffice/ (office Edit)
 ./shell/install.sh         # 5. desktop UI + static apps (no sudo — $HOME must resolve to the user's)
 sudo ./tunnel/install.sh     # 6. cloudflared (tunnel setup is interactive — see tunnel/README.md)
 ```
@@ -86,8 +86,8 @@ Sub-projects also keep their own idempotent `uninstall.sh` (leave apt packages +
 
 ```bash
 sudo ./terminal/uninstall.sh          # stops units, removes nginx site
-sudo ./browser/uninstall.sh           # stops units, removes nginx snippet
-sudo ./office/uninstall.sh            # removes the OnlyOffice container + nginx snippet
+sudo ./apps/everyday/browser/uninstall.sh           # stops units, removes nginx snippet
+sudo ./apps/everyday/office/uninstall.sh            # removes the OnlyOffice container + nginx snippet
 sudo ./tunnel/uninstall.sh            # N/A — uninstall cloudflared manually
 ```
 
