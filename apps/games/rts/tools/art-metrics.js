@@ -40,6 +40,11 @@ const FRAME_PNG = path.join(RTS, 'art', 'out', 'art-gate-frame.png');
 const ZMIN = 0.55;              // rts.html:24995
 const SPIKE_FLOOR_ZMIN = 2.0;   // RA2's own floor: 2 px of thickness
 const SPIKE_FLOOR = SPIKE_FLOOR_ZMIN / ZMIN;   // => 3.64 px at zoom 1 (plan §2 option 1)
+// A unit whose fixed (non-owner) pixels average less than this much saturation
+// is painted in greys: it reads as "a machine" and never as "THAT machine".
+// 0.14 is just above the census's own s > 0.12 noise floor, so a unit only
+// clears it by carrying real chroma over a real area, not by one bright pixel.
+const ACHROMATIC = 0.14;
 
 // ── SPIKES ────────────────────────────────────────────────────────────────
 // One entry per key in the UNITS map. `feature` and `budget` come straight out
@@ -137,6 +142,27 @@ const TARGETS = {
   'hue.vehicleOwnerMax':         { want: 0.27, dir: 'down', note: 'the top of RA2 vehicle range; going over means C3 overshot into re-adding paint (plan §4)' },
   'hue.maxImpostor':             { want: 0.02, dir: 'down', note: "a FIXED colour sitting on the other owner's hue reads as their unit — the Conscript's #7d5148 trousers were 39% red" },
   'colour.infantry.meanDist':    { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between infantry kinds: what actually separates them' },
+  // C5 ("ACCENT earns its name") had NO measurement at all until 2026-09-04,
+  // which is why nine of thirteen ground vehicles could quietly settle on the
+  // same near-neutral grey: the hue histogram only bins pixels at s > 0.12, so
+  // a grey accent contributes nothing and two grey vehicles sit at distance ~0.
+  // Every other metric in this file is computed off the alpha mask, so none of
+  // them could see it either.
+  //
+  // The 0.45 target is BORROWED from the infantry metric above, not measured
+  // off RA2 — no rip-derived vehicle figure exists, and inventing one would
+  // repeat the `mass.groundCombatSpan` x6.8 mistake corrected earlier in this
+  // file. Its job is to make C5's work stick under the ratchet, not to encode
+  // an RA2 fact; if a vehicle number is ever measured from the sprites, replace
+  // this and say so here.
+  'colour.vehicle.meanDist':     { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between ground-vehicle kinds. C5: a fixed ACCENT that is near-neutral grey on nine of thirteen vehicles carries no identity, because it never enters the histogram at all' },
+  // The mean above is carried by the three vehicles that DO have a chromatic
+  // accent (both miners and the MCV), which is precisely why C5 could go
+  // unnoticed: the average looks healthy while nine of thirteen vehicles sit at
+  // a pairwise distance of 0.03-0.24 from each other. C5's claim is a COUNT,
+  // so this counts it directly, off the un-normalised saturation of a unit's
+  // own fixed colours.
+  'colour.vehicleAchromatic':    { want: 0,    dir: 'down', note: "plan C5, made falsifiable: ground vehicles whose FIXED colours carry no hue — mean saturation of their non-remap pixels below " + ACHROMATIC + ". Seven of thirteen on 2026-09-04 (Grizzly .084, Flak Track .106, Mirage .115, IFV .121, V3 .127, Terror Drone .134, Apocalypse .135) against the three the plan named as chromatic (War Miner .280, Chrono Miner .252, MCV .183). EXEMPT: units the reference explicitly paints a neutral — see ACHROMATIC_EXEMPT. NOTE the target is 0 only for the unexempted set; do not force paint onto a unit RA2 keeps grey, cite the reference and exempt it instead" },
 };
 
 // ── the page under test, served from a throwaway loopback server ──────────
@@ -265,8 +291,15 @@ function pageExtract() {
         let impostor = 0;
         for (const q of px) if (q.s > 0.25 && q.v > 0.15 && hueGap(q.h, ownerHueB) < 18) impostor++;
         let hs = 0; for (let k = 0; k < 12; k++) hs += hist[k];
+        // CHROMA — the saturation the unit's own FIXED colours carry, per
+        // opaque pixel. `hist` is normalised below, which throws this away, so
+        // a vehicle painted entirely in greys and one painted in a real hue
+        // look identical to every histogram metric. C5's claim ("nine of
+        // thirteen ground vehicles picked a near-neutral grey") is a statement
+        // about exactly this number, so it has to survive normalisation.
         col = { ownerPct: opaque ? remap / opaque : 0,
                 impostorPct: opaque ? impostor / opaque : 0,
+                chroma: opaque ? hs / opaque : 0,
                 hist: Array.from(hist, (v) => (hs ? v / hs : 0)) };
       } catch (e) { errors.push(key + '@' + face + ' colour census threw: ' + e); }
 
@@ -379,6 +412,14 @@ function groupOf(r) {
 // Anything not named here is measured, so an unjustified drab trooper shows up
 // as debt instead of hiding behind an average.
 const HUE_EXEMPT = new Set(['dog', 'tanya']);
+// Vehicles whose FIXED colour the reference explicitly names as a neutral, so
+// a grey reading is the spec being honoured rather than C5 debt. Keep this set
+// as small as the evidence allows: an entry needs a sentence in
+// unit-identity-reference.md naming the colour, not an argument that grey suits
+// the unit. Today that is one sentence, §1.4's Grizzly:
+//   "**Grizzly Tank** (blue owner): two discrete panels ... on a PALE SILVER body"
+// Everything else on the field is debt until its own citation turns up.
+const ACHROMATIC_EXEMPT = new Set(['lancer']);
 const GROUND_COMBAT = ['lancer', 'rhino', 'mammoth', 'mirage', 'prismtank',
                        'teslatank', 'flaktrack', 'ifv', 'v3'];
 const round = (v, n) => Math.round(v * 10 ** n) / 10 ** n;
@@ -500,7 +541,8 @@ function compute(recs) {
     const avg = (f) => cs.reduce((a, c) => a + f(c), 0) / cs.length;
     const hist = new Array(12).fill(0);
     for (const c of cs) for (let i = 0; i < 12; i++) hist[i] += c.hist[i] / cs.length;
-    colByUnit[k] = { ownerPct: avg((c) => c.ownerPct), impostorPct: avg((c) => c.impostorPct), hist };
+    colByUnit[k] = { ownerPct: avg((c) => c.ownerPct), impostorPct: avg((c) => c.impostorPct),
+                     chroma: avg((c) => c.chroma), hist };
   }
   const inf = keys.filter((k) => grp[k] === 'infantry' && colByUnit[k]);
   const veh = keys.filter((k) => grp[k] === 'vehicle' && colByUnit[k]);
@@ -508,14 +550,22 @@ function compute(recs) {
   const infOwner = inf.map((k) => colByUnit[k].ownerPct);
   const vehOwner = veh.map((k) => colByUnit[k].ownerPct);
   // Manhattan distance between normalised hue histograms, 0..2 -> report as is.
-  let cd = [], worstColourPairs = [];
-  for (let i = 0; i < inf.length; i++) for (let j = i + 1; j < inf.length; j++) {
-    const a = colByUnit[inf[i]].hist, b = colByUnit[inf[j]].hist;
-    let d = 0; for (let n = 0; n < 12; n++) d += Math.abs(a[n] - b[n]);
-    cd.push(d);
-    worstColourPairs.push({ a: inf[i], b: inf[j], dist: round(d, 3) });
-  }
-  worstColourPairs.sort((x, y) => x.dist - y.dist);
+  // Two units whose fixed colours are the same family score ~0 here even when
+  // their masks are wholly different, which is the ONLY way C3/C5's placement
+  // work is visible to this gate.
+  const histDist = (ks) => {
+    const d = [], pairs = [];
+    for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) {
+      const a = colByUnit[ks[i]].hist, b = colByUnit[ks[j]].hist;
+      let s = 0; for (let n = 0; n < 12; n++) s += Math.abs(a[n] - b[n]);
+      d.push(s);
+      pairs.push({ a: ks[i], b: ks[j], dist: round(s, 3) });
+    }
+    pairs.sort((x, y) => x.dist - y.dist);
+    return { d, pairs };
+  };
+  const infD = histDist(inf), vehD = histDist(veh);
+  const cd = infD.d, worstColourPairs = infD.pairs;
   const impostorAll = keys.filter((k) => colByUnit[k])
     .map((k) => ({ key: k, pct: colByUnit[k].impostorPct }))
     .sort((a, b) => b.pct - a.pct);
@@ -544,6 +594,8 @@ function compute(recs) {
       'hue.vehicleOwnerMax': round(Math.max(...vehOwner), 4),
       'hue.maxImpostor': round(impostorAll.length ? impostorAll[0].pct : 0, 4),
       'colour.infantry.meanDist': round(mean(cd), 4),
+      'colour.vehicle.meanDist': round(mean(vehD.d), 4),
+      'colour.vehicleAchromatic': veh.filter((k) => !ACHROMATIC_EXEMPT.has(k) && colByUnit[k].chroma < ACHROMATIC).length,
     },
     detail: {
       counts: { units: keys.length, sprites: recs.length,
@@ -551,9 +603,12 @@ function compute(recs) {
       iouGroups: ioum,
       worstSameFactionPairs: overList.slice(0, 12),
       closestColourPairs: worstColourPairs.slice(0, 10),
+      closestVehicleColourPairs: vehD.pairs.slice(0, 10),
       topImpostors: impostorAll.slice(0, 8).map((r) => ({ key: r.key, pct: round(r.pct, 4) })),
       ownerPctByUnit: Object.fromEntries(keys.filter((k) => colByUnit[k])
         .map((k) => [k, round(colByUnit[k].ownerPct, 4)])),
+      chromaByUnit: Object.fromEntries(keys.filter((k) => colByUnit[k])
+        .map((k) => [k, round(colByUnit[k].chroma, 4)])),
       tightestMassBand: tightAt,
       units: Object.fromEntries([...keys].sort().map((k) => [k, unit[k]])),
     },

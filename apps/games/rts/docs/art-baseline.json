@@ -124,6 +124,16 @@
       "want": 0.45,
       "dir": "up",
       "note": "mean pairwise hue-histogram distance between infantry kinds: what actually separates them"
+    },
+    "colour.vehicle.meanDist": {
+      "want": 0.45,
+      "dir": "up",
+      "note": "mean pairwise hue-histogram distance between ground-vehicle kinds. C5: a fixed ACCENT that is near-neutral grey on nine of thirteen vehicles carries no identity, because it never enters the histogram at all"
+    },
+    "colour.vehicleAchromatic": {
+      "want": 0,
+      "dir": "down",
+      "note": "plan C5, made falsifiable: ground vehicles whose FIXED colours carry no hue — mean saturation of their non-remap pixels below 0.14. Seven of thirteen on 2026-09-04 (Grizzly .084, Flak Track .106, Mirage .115, IFV .121, V3 .127, Terror Drone .134, Apocalypse .135) against the three the plan named as chromatic (War Miner .280, Chrono Miner .252, MCV .183). EXEMPT: units the reference explicitly paints a neutral — see ACHROMATIC_EXEMPT. NOTE the target is 0 only for the unexempted set; do not force paint onto a unit RA2 keeps grey, cite the reference and exempt it instead"
     }
   },
   "metrics": {
@@ -148,7 +158,9 @@
     "hue.vehicleOwnerMean": 0.1746,
     "hue.vehicleOwnerMax": 0.2478,
     "hue.maxImpostor": 0.0033,
-    "colour.infantry.meanDist": 1.2754
+    "colour.infantry.meanDist": 1.2754,
+    "colour.vehicle.meanDist": 0.789,
+    "colour.vehicleAchromatic": 6
   },
   "detail": {
     "counts": {
@@ -263,6 +275,58 @@
         "dist": 0.69
       }
     ],
+    "closestVehicleColourPairs": [
+      {
+        "a": "lancer",
+        "b": "drone",
+        "dist": 0.031
+      },
+      {
+        "a": "mammoth",
+        "b": "rhino",
+        "dist": 0.048
+      },
+      {
+        "a": "ifv",
+        "b": "drone",
+        "dist": 0.052
+      },
+      {
+        "a": "lancer",
+        "b": "ifv",
+        "dist": 0.06
+      },
+      {
+        "a": "mirage",
+        "b": "prismtank",
+        "dist": 0.081
+      },
+      {
+        "a": "ifv",
+        "b": "mirage",
+        "dist": 0.153
+      },
+      {
+        "a": "lancer",
+        "b": "mirage",
+        "dist": 0.174
+      },
+      {
+        "a": "mirage",
+        "b": "drone",
+        "dist": 0.19
+      },
+      {
+        "a": "ifv",
+        "b": "prismtank",
+        "dist": 0.228
+      },
+      {
+        "a": "lancer",
+        "b": "prismtank",
+        "dist": 0.242
+      }
+    ],
     "topImpostors": [
       {
         "key": "squid",
@@ -339,6 +403,49 @@
       "dread": 0.1382,
       "squid": 0,
       "mcv": 0.2478
+    },
+    "chromaByUnit": {
+      "chronominer": 0.2515,
+      "warminer": 0.2802,
+      "rifle": 0.1618,
+      "conscript": 0.1967,
+      "rocket": 0.1878,
+      "flak": 0.1609,
+      "rocketeer": 0.1402,
+      "harrier": 0.1924,
+      "kirov": 0.3099,
+      "lancer": 0.0836,
+      "mammoth": 0.1347,
+      "engineer": 0.1727,
+      "dog": 0.495,
+      "ifv": 0.1209,
+      "mirage": 0.1151,
+      "tanya": 0.228,
+      "rhino": 0.1501,
+      "flaktrack": 0.106,
+      "v3": 0.127,
+      "teslatrooper": 0.1558,
+      "ivan": 0.1991,
+      "drone": 0.1339,
+      "teslatank": 0.1487,
+      "prismtank": 0.1513,
+      "desolator": 0.1584,
+      "yuri": 0.2149,
+      "cleg": 0.1102,
+      "spy": 0.1827,
+      "nighthawk": 0.1394,
+      "apc": 0.1396,
+      "destroyer": 0.1229,
+      "aegis": 0.1368,
+      "carrier": 0.1113,
+      "hornet": 0.1893,
+      "dolphin": 0.2071,
+      "lcraft": 0.0748,
+      "sub": 0.1939,
+      "seascorp": 0.0616,
+      "dread": 0.0747,
+      "squid": 0.3262,
+      "mcv": 0.1831
     },
     "tightestMassBand": [
       "IFV",
