@@ -94,6 +94,36 @@
       "want": 2,
       "dir": "up",
       "note": "six of nine ground combat vehicles sit inside a x1.38 band today (audit §5)"
+    },
+    "hue.infantryOwnerMean": {
+      "want": 0.29,
+      "dir": "up",
+      "note": "reference §1.4: RA2 puts 29-45% owner colour on infantry, as the torso block"
+    },
+    "hue.infantryBelowBudget": {
+      "want": 0,
+      "dir": "down",
+      "note": "uniformed troopers under 20% owner colour. EXEMPT: dog (an animal — collar and harness only, ref §2.2) and tanya (RA2's own exception at 14.3%). The Spy is NOT exempt: a disguise argument is plausible but undocumented, so he stays visible as debt rather than quietly excused"
+    },
+    "hue.vehicleOwnerMean": {
+      "want": 0.115,
+      "dir": "up",
+      "note": "reference §1.4: RA2 vehicles 11.5-27%. Ours already sit inside it — this pins the budget so C3 stays a PLACEMENT change"
+    },
+    "hue.vehicleOwnerMax": {
+      "want": 0.27,
+      "dir": "down",
+      "note": "the top of RA2 vehicle range; going over means C3 overshot into re-adding paint (plan §4)"
+    },
+    "hue.maxImpostor": {
+      "want": 0.02,
+      "dir": "down",
+      "note": "a FIXED colour sitting on the other owner's hue reads as their unit — the Conscript's #7d5148 trousers were 39% red"
+    },
+    "colour.infantry.meanDist": {
+      "want": 0.45,
+      "dir": "up",
+      "note": "mean pairwise hue-histogram distance between infantry kinds: what actually separates them"
     }
   },
   "metrics": {
@@ -112,7 +142,13 @@
     "spike.minThickAtZmin": 1.65,
     "spike.belowDeclaredBudget": 4,
     "mass.groundCombatSpan": 2.317,
-    "mass.tightestBand6": 1.197
+    "mass.tightestBand6": 1.197,
+    "hue.infantryOwnerMean": 0.2323,
+    "hue.infantryBelowBudget": 2,
+    "hue.vehicleOwnerMean": 0.1728,
+    "hue.vehicleOwnerMax": 0.2506,
+    "hue.maxImpostor": 0.0033,
+    "colour.infantry.meanDist": 1.2733
   },
   "detail": {
     "counts": {
@@ -220,6 +256,135 @@
         "iou": 0.7524
       }
     ],
+    "closestColourPairs": [
+      {
+        "a": "engineer",
+        "b": "dog",
+        "dist": 0.105
+      },
+      {
+        "a": "ivan",
+        "b": "spy",
+        "dist": 0.236
+      },
+      {
+        "a": "teslatrooper",
+        "b": "ivan",
+        "dist": 0.31
+      },
+      {
+        "a": "teslatrooper",
+        "b": "cleg",
+        "dist": 0.41
+      },
+      {
+        "a": "teslatrooper",
+        "b": "spy",
+        "dist": 0.418
+      },
+      {
+        "a": "rifle",
+        "b": "rocket",
+        "dist": 0.424
+      },
+      {
+        "a": "ivan",
+        "b": "cleg",
+        "dist": 0.654
+      },
+      {
+        "a": "conscript",
+        "b": "spy",
+        "dist": 0.656
+      },
+      {
+        "a": "flak",
+        "b": "rocketeer",
+        "dist": 0.662
+      },
+      {
+        "a": "conscript",
+        "b": "engineer",
+        "dist": 0.687
+      }
+    ],
+    "topImpostors": [
+      {
+        "key": "squid",
+        "pct": 0.0033
+      },
+      {
+        "key": "yuri",
+        "pct": 0.0027
+      },
+      {
+        "key": "seascorp",
+        "pct": 0.0001
+      },
+      {
+        "key": "chronominer",
+        "pct": 0
+      },
+      {
+        "key": "warminer",
+        "pct": 0
+      },
+      {
+        "key": "rifle",
+        "pct": 0
+      },
+      {
+        "key": "conscript",
+        "pct": 0
+      },
+      {
+        "key": "rocket",
+        "pct": 0
+      }
+    ],
+    "ownerPctByUnit": {
+      "chronominer": 0.1455,
+      "warminer": 0.1816,
+      "rifle": 0.2743,
+      "conscript": 0.31,
+      "rocket": 0.2459,
+      "flak": 0.2212,
+      "rocketeer": 0.3433,
+      "harrier": 0.2298,
+      "kirov": 0.2664,
+      "lancer": 0.1686,
+      "mammoth": 0.1417,
+      "engineer": 0.3678,
+      "dog": 0.0665,
+      "ifv": 0.1821,
+      "mirage": 0.1338,
+      "tanya": 0.14,
+      "rhino": 0.1409,
+      "flaktrack": 0.1958,
+      "v3": 0.1634,
+      "teslatrooper": 0.2183,
+      "ivan": 0.3129,
+      "drone": 0.1913,
+      "teslatank": 0.1692,
+      "prismtank": 0.1818,
+      "desolator": 0.2422,
+      "yuri": 0.2579,
+      "cleg": 0.1935,
+      "spy": 0.0581,
+      "nighthawk": 0.0129,
+      "apc": 0.0735,
+      "destroyer": 0.1634,
+      "aegis": 0.1709,
+      "carrier": 0.1824,
+      "hornet": 0.1371,
+      "dolphin": 0.0615,
+      "lcraft": 0.1585,
+      "sub": 0.0323,
+      "seascorp": 0.2098,
+      "dread": 0.1382,
+      "squid": 0,
+      "mcv": 0.2506
+    },
     "tightestMassBand": [
       "V3 Launcher",
       "Flak Track",

@@ -126,6 +126,17 @@ const TARGETS = {
   'spike.belowDeclaredBudget':   { want: 0,    dir: 'down', note: 'every unit meets its own §2 pixel budget' },
   'mass.groundCombatSpan':       { want: 6.8,  dir: 'up',   note: 'reference §1.1: RA2 spans 21 -> 143 px, x6.8, with no bunching' },
   'mass.tightestBand6':          { want: 2.0,  dir: 'up',   note: 'six of nine ground combat vehicles sit inside a x1.38 band today (audit §5)' },
+  // --- colour. Every metric above is computed off the ALPHA MASK, so none of
+  // them can see a colour change at all: C2 raised the infantry remap by a
+  // third and moved them by zero. For infantry that is the whole mechanism
+  // (ref §1.2/§1.5 — seven of twelve RA2 troopers share a silhouette), so a
+  // gate blind to colour cannot grade the work it exists to grade.
+  'hue.infantryOwnerMean':       { want: 0.29, dir: 'up',   note: 'reference §1.4: RA2 puts 29-45% owner colour on infantry, as the torso block' },
+  'hue.infantryBelowBudget':     { want: 0,    dir: 'down', note: "uniformed troopers under 20% owner colour. EXEMPT: dog (an animal — collar and harness only, ref §2.2) and tanya (RA2's own exception at 14.3%). The Spy is NOT exempt: a disguise argument is plausible but undocumented, so he stays visible as debt rather than quietly excused" },
+  'hue.vehicleOwnerMean':        { want: 0.115, dir: 'up',  note: 'reference §1.4: RA2 vehicles 11.5-27%. Ours already sit inside it — this pins the budget so C3 stays a PLACEMENT change' },
+  'hue.vehicleOwnerMax':         { want: 0.27, dir: 'down', note: 'the top of RA2 vehicle range; going over means C3 overshot into re-adding paint (plan §4)' },
+  'hue.maxImpostor':             { want: 0.02, dir: 'down', note: "a FIXED colour sitting on the other owner's hue reads as their unit — the Conscript's #7d5148 trousers were 39% red" },
+  'colour.infantry.meanDist':    { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between infantry kinds: what actually separates them' },
 };
 
 // ── the page under test, served from a throwaway loopback server ──────────
@@ -176,10 +187,29 @@ function pageExtract() {
     return { g, W, H, uk };
   }
 
+  // Owner colour, defined EMPIRICALLY. The palette is not exposed to the test
+  // hook, and it does not need to be: bake the same unit as owner 0 and owner 1
+  // and the pixels that CHANGE are, by construction, exactly the remap. That
+  // also hands us each owner's real hue (the mean hue of its own changed
+  // pixels), which is what catches a fixed drab colour impersonating an owner.
+  function rgb2hs(r, g, b) {
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), dv = mx - mn;
+    let h = 0;
+    if (dv) {
+      if (mx === r) h = ((g - b) / dv + 6) % 6;
+      else if (mx === g) h = (b - r) / dv + 2;
+      else h = (r - g) / dv + 4;
+      h *= 60;
+    }
+    return { h, s: mx ? dv / mx : 0, v: mx / 255 };
+  }
+  function hueGap(a, b) { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+
   for (const key of Object.keys(U)) {
     const d = U[key];
     const fk = d.fac || 'dir';
     const art = S.unit[0][fk][key];
+    const artB = S.unit[1][fk][key];
     if (!art) { errors.push('no art for ' + key); continue; }
     for (let oct = 0; oct < 8; oct++) {
       const face = oct * 4;
@@ -202,9 +232,47 @@ function pageExtract() {
         m[y * bw + x] = id[((y + y0) * cm.W + (x + x0)) * 4 + 3] > 8 ? 1 : 0;
       let bin = '';
       for (let i = 0; i < m.length; i += 0x8000) bin += String.fromCharCode.apply(null, m.subarray(i, i + 0x8000));
+      // --- colour census, from the owner-0 vs owner-1 difference -----------
+      let col = null;
+      try {
+        const cb = compose(d, artB, face);
+        const ib = cb.g.getImageData(0, 0, cb.W, cb.H).data;
+        let opaque = 0, remap = 0, ha = 0, hb = 0, hn = 0;
+        const hist = new Float64Array(12);
+        const px = [];
+        for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+          const i = ((y + y0) * cm.W + (x + x0)) * 4;
+          if (id[i + 3] <= 8) continue;
+          opaque++;
+          const dr = Math.abs(id[i] - ib[i]), dg = Math.abs(id[i + 1] - ib[i + 1]),
+                db = Math.abs(id[i + 2] - ib[i + 2]);
+          const changed = (dr + dg + db) > 24;
+          const A = rgb2hs(id[i], id[i + 1], id[i + 2]);
+          if (changed) {
+            remap++;
+            const B = rgb2hs(ib[i], ib[i + 1], ib[i + 2]);
+            if (A.s > 0.15) { ha += A.h; hn++; }
+            if (B.s > 0.15) { hb += B.h; }
+          } else {
+            px.push(A);
+            if (A.s > 0.12) hist[Math.min(11, Math.floor(A.h / 30))] += A.s;
+          }
+        }
+        const ownerHueA = hn ? ha / hn : 0, ownerHueB = hn ? hb / hn : 0;
+        // A NON-remap pixel that sits on the OTHER owner's hue reads as that
+        // player's unit. This is the Conscript's #7d5148 trousers: drab, fixed,
+        // and 11 degrees off red — 39% "red" to anyone scanning by colour.
+        let impostor = 0;
+        for (const q of px) if (q.s > 0.25 && q.v > 0.15 && hueGap(q.h, ownerHueB) < 18) impostor++;
+        let hs = 0; for (let k = 0; k < 12; k++) hs += hist[k];
+        col = { ownerPct: opaque ? remap / opaque : 0,
+                impostorPct: opaque ? impostor / opaque : 0,
+                hist: Array.from(hist, (v) => (hs ? v / hs : 0)) };
+      } catch (e) { errors.push(key + '@' + face + ' colour census threw: ' + e); }
+
       recs.push({
         key, name: d.name, cls: d.cls, fac: d.fac || null, air: !!d.air, nav: !!d.nav,
-        oct, bw, bh, mask: btoa(bin),
+        oct, bw, bh, mask: btoa(bin), col,
       });
     }
   }
@@ -307,6 +375,10 @@ function groupOf(r) {
 }
 // audit §2's "ground combat vehicles" set: the ground vehicles a player reads
 // in a fight — no MCV, no miners, no drone.
+// Infantry that are SUPPOSED to carry little owner colour, with the reason.
+// Anything not named here is measured, so an unjustified drab trooper shows up
+// as debt instead of hiding behind an average.
+const HUE_EXEMPT = new Set(['dog', 'tanya']);
 const GROUND_COMBAT = ['lancer', 'rhino', 'mammoth', 'mirage', 'prismtank',
                        'teslatank', 'flaktrack', 'ifv', 'v3'];
 const round = (v, n) => Math.round(v * 10 ** n) / 10 ** n;
@@ -417,6 +489,37 @@ function compute(recs) {
     if (r < tight) { tight = r; tightAt = gc.slice(i, i + 6).map((k) => unit[k].name); }
   }
 
+  // ── colour aggregates ────────────────────────────────────────────────────
+  // Per UNIT, not per sprite: average each unit's census over its 8 bearings,
+  // then aggregate across units, so a unit with an unusual facing cannot skew a
+  // group. Sprites whose census failed are skipped rather than counted as zero.
+  const colByUnit = {};
+  for (const k of keys) {
+    const cs = recs.filter((r) => r.key === k && r.col).map((r) => r.col);
+    if (!cs.length) continue;
+    const avg = (f) => cs.reduce((a, c) => a + f(c), 0) / cs.length;
+    const hist = new Array(12).fill(0);
+    for (const c of cs) for (let i = 0; i < 12; i++) hist[i] += c.hist[i] / cs.length;
+    colByUnit[k] = { ownerPct: avg((c) => c.ownerPct), impostorPct: avg((c) => c.impostorPct), hist };
+  }
+  const inf = keys.filter((k) => grp[k] === 'infantry' && colByUnit[k]);
+  const veh = keys.filter((k) => grp[k] === 'vehicle' && colByUnit[k]);
+  const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+  const infOwner = inf.map((k) => colByUnit[k].ownerPct);
+  const vehOwner = veh.map((k) => colByUnit[k].ownerPct);
+  // Manhattan distance between normalised hue histograms, 0..2 -> report as is.
+  let cd = [], worstColourPairs = [];
+  for (let i = 0; i < inf.length; i++) for (let j = i + 1; j < inf.length; j++) {
+    const a = colByUnit[inf[i]].hist, b = colByUnit[inf[j]].hist;
+    let d = 0; for (let n = 0; n < 12; n++) d += Math.abs(a[n] - b[n]);
+    cd.push(d);
+    worstColourPairs.push({ a: inf[i], b: inf[j], dist: round(d, 3) });
+  }
+  worstColourPairs.sort((x, y) => x.dist - y.dist);
+  const impostorAll = keys.filter((k) => colByUnit[k])
+    .map((k) => ({ key: k, pct: colByUnit[k].impostorPct }))
+    .sort((a, b) => b.pct - a.pct);
+
   return {
     metrics: {
       'peerVsSelf.total': peerVsSelf.total,
@@ -435,12 +538,22 @@ function compute(recs) {
       'spike.belowDeclaredBudget': belowBudget,
       'mass.groundCombatSpan': round(span, 3),
       'mass.tightestBand6': round(tight, 3),
+      'hue.infantryOwnerMean': round(mean(infOwner), 4),
+      'hue.infantryBelowBudget': inf.filter((k) => !HUE_EXEMPT.has(k) && colByUnit[k].ownerPct < 0.20).length,
+      'hue.vehicleOwnerMean': round(mean(vehOwner), 4),
+      'hue.vehicleOwnerMax': round(Math.max(...vehOwner), 4),
+      'hue.maxImpostor': round(impostorAll.length ? impostorAll[0].pct : 0, 4),
+      'colour.infantry.meanDist': round(mean(cd), 4),
     },
     detail: {
       counts: { units: keys.length, sprites: recs.length,
                 perGroup: Object.fromEntries(groups.map((g) => [g, keys.filter((k) => grp[k] === g).length])) },
       iouGroups: ioum,
       worstSameFactionPairs: overList.slice(0, 12),
+      closestColourPairs: worstColourPairs.slice(0, 10),
+      topImpostors: impostorAll.slice(0, 8).map((r) => ({ key: r.key, pct: round(r.pct, 4) })),
+      ownerPctByUnit: Object.fromEntries(keys.filter((k) => colByUnit[k])
+        .map((k) => [k, round(colByUnit[k].ownerPct, 4)])),
       tightestMassBand: tightAt,
       units: Object.fromEntries([...keys].sort().map((k) => [k, unit[k]])),
     },
