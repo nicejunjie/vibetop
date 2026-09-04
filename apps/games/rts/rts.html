@@ -1099,6 +1099,12 @@
     // Osprey's depth charge is what answers one.
     if (spec.asw && isSub(tgt)) return spec.asw;
     var w2 = spec.w2;
+    // [GGI] Deployer=yes + DeployFire=yes: the Guardian GI's missile is a
+    // DEPLOYED weapon. Standing up he is an ordinary rifleman; braced, he is
+    // an anti-armour and anti-air emplacement. Ours fired the missile while
+    // walking, which made the deploy state decorative and the unit strictly
+    // better than RA2's.
+    if (w2 && spec.depFire && !(u && u.deployed)) w2 = null;
     if (w2) { var a = armourOf(tgt); if ((w2.use === 'veh' && isVehArmour(a)) || (w2.use === 'bld' && isBldArmour(a)) || (w2.use === 'inf' && isInfArmour(a)) || (w2.use === 'ship' && isNaval(tgt))) return w2; }
     if (u && u.deployed && spec.dep) return spec.dep;       // a deployed GI fires from its sandbags
     return spec;
@@ -1108,11 +1114,28 @@
   var GUARD_STRAY = 2.0;
   function reachOf(spec, u) {
     if (spec.ifv && u && u.pax && u.pax.length) spec = ifvSpec(u);
-    var r = spec.w2 && spec.w2.rng > spec.rng ? spec.w2.rng : spec.rng;
+    var w2r = spec.w2 && (!spec.depFire || (u && u.deployed)) ? spec.w2.rng : 0;
+    var r = w2r > spec.rng ? w2r : spec.rng;
     if (spec.aaW) { var ar = spec.aaW.aaRng || spec.aaW.rng; if (ar > r) r = ar; }
     if (spec.asw && spec.asw.rng > r) r = spec.asw.rng;
     if (u && u.deployed && spec.dep && spec.dep.rng > r) r = spec.dep.rng;
     return r;
+  }
+  // What a DeployFire unit braces FOR: the nearest live enemy inside the
+  // deployed weapon's range that the deployed weapon is actually for —
+  // vehicles and aircraft, for the Guardian GI's [MissileLauncher]. Kept
+  // separate from findTarget on purpose; see the caller.
+  function depFireTarget(g, u, rng) {
+    var best = null, bd = rng * rng;
+    for (var i = 0; i < g.units.length; i++) {
+      var o = g.units[i];
+      if (o.dead || o.limbo || o.p === u.p || neutral(o.p)) continue;
+      if (!isAir(o) && !isVehArmour(armourOf(o))) continue;
+      if (isDisguised(g, o) || isSub(o)) continue;
+      var dx = o.x - u.x, dy = o.y - u.y, dd = dx * dx + dy * dy;
+      if (dd <= bd) { bd = dd; best = o; }
+    }
+    return best;
   }
   // RA2 veterancy ([General]): VeteranCombat=1.1 firepower and VeteranArmor=1.5 per rank.
   function vetFire(rank) { return Math.pow(1.1, rank || 0); }
@@ -1207,6 +1230,8 @@
       name: 'Guardian GI', em: '🚀', cost: 400, build: 17, cls: 'i', fac: 'dir',
       hp: 100, spd: 0.039, sight: 6, armour: 'none', aa: true, aaRng: 8,   // RA2 GGI: the missile is dual-purpose
       dmg: 15, rate: 80, rng: 4, splash: 0,
+      // [GGI] Deployer=yes, DeployFire=yes — the missile only fires braced.
+      depFire: true,
       wh: 'SA', w2: { dmg: 40, rate: 160, rng: 8, wh: 'GUARDWH', splash: 0, use: 'veh' },   // [MissileLauncher] ROF 40, Range 8
       cap: 0, mine: 0, w: 10, h: 14, desc: 'Rifle vs infantry, missile vs armour and aircraft'
     },
@@ -22057,6 +22082,24 @@
       if (tgt) u.tgtAt = g.tick;
       if (!u.deployed && !(u.order && u.order.t !== 'attack') && (tgt || findTarget(g, u, d.dep.rng))) u.deployed = true;
       else if (u.deployed && !tgt && g.tick - (u.tgtAt || 0) > 300) u.deployed = false;
+    }
+    // A DeployFire unit braces ITSELF, on both sides. rules.ini's [GGI] carries
+    // a commented-out DeployTime whose note says the explicit state machine was
+    // dropped "b/c of autodeploy" — so RA2 does this for the player too, and it
+    // has to: a Guardian GI that only fires its missile after the player
+    // notices a tank and presses D is a unit nobody would use.
+    //
+    // It CANNOT go through findTarget. That filters every candidate by the
+    // weapon the unit has right now, which while packed is the 4-cell rifle —
+    // so a tank at 6 cells is invisible, and a Guardian who cannot see it never
+    // braces and therefore never sees it. `depFireTarget` scans on the MISSILE'S
+    // range for the armour and aircraft the missile is for, and nothing else.
+    if (d.depFire && d.w2) {
+      var av = depFireTarget(g, u, d.w2.rng);
+      if (av) u.tgtAt = g.tick;
+      if (!u.deployed && av && !(u.order && u.order.t === 'move')) u.deployed = true;
+      else if (u.deployed && !av && g.tick - (u.tgtAt || 0) > 180) u.deployed = false;
+      if (u.deployed && !tgt) tgt = av;                  // braced: the missile can reach it now
     }
 
     if (tgt) {

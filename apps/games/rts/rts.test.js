@@ -4980,3 +4980,48 @@ test("every map places at least one garrisonable structure", () => {
     "these maps place nothing a soldier can garrison, so the mechanic does not "
     + "exist on them:\n  " + bare.join("\n  "));
 });
+
+// ---- [GGI] DeployFire: the missile only fires braced ---------------------- //
+// rulesmd.ini's [GGI] carries `Deployer=yes` and `DeployFire=yes`: standing up
+// the Guardian GI is an ordinary rifleman, braced he is an anti-armour and
+// anti-air emplacement. Ours fired the missile while WALKING, which made the
+// deploy state decorative and the unit strictly better than RA2's.
+//
+// The autodeploy half is not a nicety — RA2 does it for the player too (the
+// commented-out DeployTime in [GGI] says the explicit state machine was dropped
+// "b/c of autodeploy"), and without it the change is a pure nerf: a Guardian
+// who only fires after the player notices a tank and presses D is unusable.
+test("a Guardian GI braces itself for armour, and only fires the missile braced", () => {
+  const H = W.__rtsTest;
+  const spec = T.UNITS.rocket;
+  assert.ok(spec.depFire && spec.w2, "[GGI] Deployer=yes + DeployFire=yes");
+
+  // The weapon gate: the same unit, the same target, deployed or not.
+  const g = H.begin(7312, "normal");
+  const ggi = H.spawn("rocket", 0, 20, 20);
+  const tank = H.spawn("rhino", 1, 26, 20);
+  const inf = H.spawn("conscript", 1, 24, 20);
+  ggi.deployed = false;
+  assert.equal(H.api.weaponFor(spec, tank, ggi).wh, "SA",
+    "packed up, a Guardian answers a tank with his RIFLE");
+  assert.equal(H.api.weaponFor(spec, inf, ggi).wh, "SA",
+    "...and infantry are shot standing up, as they always were");
+  ggi.deployed = true;
+  assert.equal(H.api.weaponFor(spec, tank, ggi).wh, "GUARDWH",
+    "braced, the missile is what answers armour");
+
+  // The autodeploy half, driven: a HUMAN-side Guardian must brace on its own
+  // and actually kill the tank, or the gate above is a pure nerf.
+  const g2 = H.begin(7311, "normal");
+  void g2;
+  const ggi2 = H.spawn("rocket", 0, 20, 20);
+  const tank2 = H.spawn("rhino", 1, 26, 20);
+  tank2.stopped = true;
+  let braced = -1;
+  for (let i = 0; i < 2400 && !tank2.dead; i++) {
+    H.step(1);
+    if (braced < 0 && ggi2.deployed) braced = i;
+  }
+  assert.ok(braced >= 0, "a Guardian GI must brace itself when armour comes into missile range");
+  assert.ok(tank2.dead, `and then kill it (tank at ${Math.round(tank2.hp)} hp)`);
+});
