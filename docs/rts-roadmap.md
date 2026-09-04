@@ -616,6 +616,19 @@ per state, for every structure and defence, both factions.
   - **Engineer extras.** Entering one of your OWN damaged buildings puts it
     straight back to full and spends him; the garrison eviction and the
     bridge-hut repair are unchanged.
+  - ☑ **Captured production.** A structure now carries the faction that BUILT
+    it (`b.fac`, stamped by `placeBld`, never rewritten), so an Engineer takes
+    a Soviet War Factory rather than turning it into an Allied one: it keeps
+    its Soviet plate — in its holder's colour — its `byFac` footprint and its
+    power draw, and it rolls Rhinos for whoever holds it. rules.ini roots
+    every build list at the producing structure (`[HTNK] Prerequisite=NAWEAP`,
+    `[E2] NAHAND`, `[SAPC] NAYARD`, Soviet structures `...,NACNST`) and gives
+    those buildings an all-nine-country `Owner=`, so the gate is what you HOLD,
+    not what side you are. One predicate — `facAllows` — answers for
+    `canBuild`, `aiCanMake`, the sidebar tab, the cameo and the hover card.
+    Depth is not free: the Apocalypse still wants their Battle Lab
+    (`[APOC] NAWEAP,NATECH`), the Radar Tower their refinery
+    (`[NARADR] NAREFN,NACNST`). See `docs/design-decisions.md`.
   - **Tesla Trooper charges coils.** Up to three ([SHK]) hold one Tesla Coil:
     it fires with the grid completely down and swaps its bolt for
     `[OPCoilBolt]` (300 against the coil's own 200). Right-click the coil with

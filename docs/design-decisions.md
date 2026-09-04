@@ -8120,3 +8120,112 @@ with `the stick hangs under canopy (peak in air 0)`.
 **Left open.** A man under canopy is not yet targetable — in RA2 you can shoot
 paratroopers out of the air. Making him a real airborne unit touches targeting,
 `blocked()` and `stateHash`, so it wants its own change and its own soak.
+
+## Capturing their War Factory did not buy you their tanks (2026-09-03)
+
+**Symptom.** (user) "capturing opponent's construction yard, but I can't build
+their units."
+
+**Cause.** A structure carried **no record of what built it**. `facOf(g, p)`
+derived a building's faction entirely from its *current owner*, and capture was
+one line — `var oldP = cb.p; cb.p = u.p;` — so an Engineer did not take a Soviet
+War Factory, he **turned it into an Allied one**: its art, its `byFac`
+footprint, its power draw and its build list all flipped with the deed. The
+build gate then asked the wrong question: `canBuild` tested
+`ownedBy(spec, s.fac)` — *what side are you* — so a Directorate player standing
+in a captured Soviet hall was still told Rhinos were not his.
+
+**What rules.ini actually says.** Grepped, not guessed:
+
+- **42 of the 47 `[BuildingTypes]` carry an all-nine-country `Owner=`**
+  (`[NAWEAP] Owner=British,French,Germans,Americans,Alliance,Russians,
+  Confederation,Africans,Arabs`). Only `GACNST`/`NACNST` — the two Construction
+  Yards — are faction-locked. `Owner=` is therefore **not** the faction gate for
+  production buildings.
+- The gate is **entirely the `Prerequisite=` chain, and every chain is rooted at
+  the producing structure**: `[HTNK] Prerequisite=NAWEAP`, `[E2] NAHAND`,
+  `[SAPC] NAYARD`, `[ORCA] RADAR`, and every Soviet *structure* ends
+  `...,NACNST`. RA2 asks what you **hold**, never what side you are — which is
+  exactly why an Engineer on their War Factory buys you their tanks.
+- **Depth is not free.** `[APOC] Prerequisite=NAWEAP,NATECH`,
+  `[V3] NAWEAP,NARADR`, `[DRED] NAYARD,NATECH`, `[NARADR] NAREFN,NACNST`,
+  `[NALASR] NAHAND` — the *Soviet* lab, radar, refinery, barracks. Taking one
+  building opens the tier that building roots and no more.
+- **No power requirement.** `NAWEAP`, `GAWEAP`, `NAHAND`, `GAPILE`, `NATECH`,
+  `GATECH`, `GAAIRC` have **no `Powered=` line** at all; only `NARADR` and the
+  two shipyards are `Powered=true`. A captured War Factory unlocks its list in a
+  blackout — low power only slows the build bar, which this game already models.
+- Both-sides items are written against RA2's **generic alias**
+  (`[ENGINEER] Prerequisite=BARRACKS`, `[General] PrerequisiteBarracks=NAHAND,
+  GAPILE`), i.e. *either* faction's shed will do.
+
+**Fix.** `placeBld` stamps `b.fac` once — the key's own faction where the key
+belongs to one side (a Tesla Coil is Soviet whoever puts it down), otherwise the
+builder's — and nothing ever rewrites it. `bfacOf(g, b)` reads it; the art, the
+resolved `byFac` spec, the power draw, the name and the sell refund all go
+through `bspecOfB(g, b)`/`bfacOf` so a captured Soviet Barracks keeps its 2×2
+`[NAHAND]` footprint and its Soviet plate — **in its holder's colour**, because
+only the owner's colour is ever saturated. Then one predicate replaces three:
+
+```js
+function producerOf(spec, isBld) { /* rules.ini Factory=, by class */ }
+function hasFacBld(g, p, type, fac) { /* fac null = either, RA2's alias */ }
+function facAllows(g, p, spec, isBld) {
+  return hasFacBld(g, p, producerOf(spec, isBld), spec.fac);
+}
+```
+
+`canBuild`, `aiCanMake`, the sidebar listing (`panelKeys`), the cameo and the
+hover card all ask **that** and nothing else — three predicates that could
+disagree is how "capture their yard and still no Rhinos" survived. `reqMet`
+became faction-aware the same way, so a captured War Factory yields Rhinos and
+Flak Tracks but not the Apocalypse until you also hold their Battle Lab. In an
+ordinary match every one of these is a **no-op**, because every building a
+house owns already carries that house's faction: HE 22/24 and NE 18/24, both
+exactly the pre-change score.
+
+**Neutral structures are deliberately NOT stamped** (`b.fac = null`). A derrick,
+a hospital, an airport, a city block and a bridge hut belong to no side, produce
+nothing, and draw through `drawNeutral`, which never reads a faction. Unstamped
+they fall through to `facOf` and behave exactly as they always have — including
+after an Engineer takes one, when they become plainly the new owner's — and
+nothing can mistake one for a producer, because their types are not producer
+types. (`facOf` already special-cased the neutral house; killing a derrick used
+to throw there.)
+
+**Rejected: making `Owner=` the gate, as the ini literally writes it for units.**
+`[HTNK] Owner=Russians,Confederation,Africans,Arabs` is a *country* list, and
+RA2 has nine countries inside two sides. Iron Frontier has sides and no
+countries, so mapping that list onto "the side you started as" is precisely the
+bug — it makes captured production ornamental. The producer's faction is the
+faithful translation, because in RA2 the only thing that list ever does is keep
+a British player from building an American-only unit *within one side*.
+
+**Regression tests, each proved against the unfixed build first:**
+
+| test | how it failed on 4153fb1 |
+|---|---|
+| a captured War Factory rolls ITS faction's tanks | `a Soviet War Factory rolls Rhinos for whoever holds it` — `canBuild(…,'rhino')` `false !== true` |
+| a captured Barracks trains ITS faction's men | `their Barracks trains their Conscripts` — `false !== true` |
+| a captured structure keeps its own artwork and spec | `built Soviet` — `b.fac` was `undefined !== 'col'` |
+| a captured structure draws ITS faction's power | `a captured Soviet slip must draw 20, not 25` |
+| capturing their Construction Yard opens their list | `their yard, their Reactor` — `false !== true` |
+| an ordinary match never sees the rule (guard) | `API.facAllows is not a function` — the predicate did not exist |
+
+**Fixed on the way past.** A Spy's stolen blueprint was in `canBuild` but never
+in the sidebar: `buildPanel` filtered the list with `ownedBy(UNITS[k], myFac)`,
+which threw out the very item `unitOrderFor` had just appended. One predicate
+everywhere fixes it.
+
+**Left open.** Shared *keys* (Barracks, War Factory, Battle Lab, Shipyard,
+Service Depot, Power Plant) still resolve to your own flavour when you BUILD
+one, so capturing their yard does not let you put down a second, Soviet
+Barracks beside your Allied one — the sidebar would need two rows under one key
+and the queue would have to carry a faction. It costs nothing in practice,
+because capturing their Barracks already unlocks their infantry. Production
+also still comes out of whichever factory is PRIMARY regardless of faction,
+which is what RA2 does (the primary flag is per `Factory=` type, not per side),
+but it means a Rhino can roll out of an Allied hall. `techCount`/`techTotal`
+(the EVA tech chatter and the score screen's Technology column) still measure
+your OWN faction's tree on purpose — they answer "how far up did you climb",
+not "what can you build".

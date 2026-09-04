@@ -1118,7 +1118,14 @@
     var o = {}; for (var k in b) o[k] = b[k]; for (k in b.byFac[fac]) o[k] = b.byFac[fac][k];
     return (_bspec[ck] = o);
   }
-  function bspecOf(g, key, p) { return bspecFor(key, facOf(g, p)); }   // facOf handles the neutral house (-1): killing a derrick used to throw here
+  // The spec of an item ABOUT TO BE BUILT: its own faction where the key is
+  // one side's alone, else the builder's. (facOf handles the neutral house
+  // (-1): killing a derrick used to throw here.)
+  function bspecOf(g, key, p) { return bspecFor(key, keyFac(g, p, key, true)); }
+  // The spec of a structure that EXISTS — read off ITS faction, not its
+  // holder's, so a captured Soviet Barracks keeps the 2x2 [NAHAND] footprint
+  // it was placed on and a captured Soviet slip keeps [NAYARD]'s power draw.
+  function bspecOfB(g, b) { return bspecFor(b.type, bfacOf(g, b)); }
   function ucap(g, u) { var d = UNITS[u.type]; return g.side[u.p].fac === 'col' && d.capCol ? d.capCol : d.cap; }
   // RA2 has no unit called "harvester" — it has a Chrono Miner and a War
   // Miner. The word survives here as the ROLE, resolved to the faction's
@@ -2088,6 +2095,64 @@
   function facOf(g, p) { return neutral(p) ? 'dir' : g.side[p].fac; }
   function ownedBy(spec, fac) { return !spec.fac || spec.fac === fac; }
 
+  // ---- RA2's captured-production rule ---------------------------------- //
+  //
+  // A structure's faction is NOT its owner's. It is stamped by placeBld from
+  // the faction that built it and is never rewritten, so an Engineer changes
+  // who holds a War Factory, not what a War Factory is.
+  //
+  // This is how rules.ini does it. Every faction production building carries
+  // an all-nine-country `Owner=` ([NAWEAP] Owner=British,French,Germans,
+  // Americans,Alliance,Russians,Confederation,Africans,Arabs — 42 of the 47
+  // BuildingTypes are all-nine; only GACNST/NACNST are faction-locked). The
+  // faction gate is ENTIRELY the `Prerequisite=` chain, and every chain is
+  // rooted at the producing structure: [HTNK] Prerequisite=NAWEAP, [E2]
+  // NAHAND, [SAPC] NAYARD, [ORCA] RADAR, and every Soviet STRUCTURE ends
+  // ...,NACNST. RA2 asks what you HOLD, never what side you are — which is
+  // exactly why an Engineer on their War Factory buys you their tanks.
+  //
+  // Neutral-house structures are deliberately left UNSTAMPED. A derrick, a
+  // hospital, an airport, a city block and a bridge hut belong to no side,
+  // produce nothing, and draw through drawNeutral, which never reads a
+  // faction. Unstamped they fall through to facOf and behave exactly as they
+  // always have (including after capture, when they are plainly the new
+  // owner's) — and nothing can mistake one for a producer, because their
+  // types are not producer types.
+  function bfacOf(g, b) { return (b && b.fac) || facOf(g, b ? b.p : P_NEUT); }
+  // The faction a NEW item of this key belongs to: its own if the key is one
+  // faction's alone (a Tesla Coil is Soviet whoever puts it down), else the
+  // builder's (a Barracks is your Barracks).
+  function keyFac(g, p, key, isBld) {
+    var sp = (isBld ? BLDS : UNITS)[key];
+    return (sp && sp.fac) || facOf(g, p);
+  }
+  // Which structure makes this? rules.ini's `Factory=` line, by class.
+  function producerOf(spec, isBld) {
+    if (isBld) return 'base';                                   // Factory=BuildingType
+    return spec.cls === 'i' ? 'barracks'                        // Factory=InfantryType
+         : spec.cls === 'a' ? 'airforce'                        // Factory=AircraftType
+         : spec.cls === 'n' ? 'shipyard' : 'factory';           // Factory=UnitType (Naval=yes -> the slip)
+  }
+  // Do we hold a standing `type` of faction `fac`? `fac` null = either
+  // faction's will do, which is RA2's generic BARRACKS/TECH/RADAR alias
+  // ([General] PrerequisiteBarracks=NAHAND,GAPILE) and is what every
+  // both-sides item ([ENGINEER] Prerequisite=BARRACKS) is written against.
+  function hasFacBld(g, p, type, fac) {
+    for (var i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (b.dead || b.p !== p || b.type !== type) continue;
+      if (!fac || bfacOf(g, b) === fac) return true;
+    }
+    return false;
+  }
+  // THE faction gate. canBuild, the sidebar listing, the cameo, the hover
+  // card and the AI all ask this one predicate — three that could disagree
+  // is how "capture their yard and you still cannot build their units"
+  // survived in the first place.
+  function facAllows(g, p, spec, isBld) {
+    return hasFacBld(g, p, producerOf(spec, isBld), spec.fac);
+  }
+
   // Structures and defences share ONE construction queue (as in RA2 — the
   // yard builds one thing at a time); they are only listed separately, so the
   // list you are scanning is the list you meant to scan.
@@ -2138,6 +2203,57 @@
       }
     }
     return a;
+  }
+
+  // The sidebar's four tabs as DATA: the keys this house may put on `tab`
+  // right now — its own faction's list first, in RA2's order, then anything
+  // a CAPTURED producer has unlocked appended behind it. buildPanel renders
+  // exactly this, so the list you see, the cameos drawn on it, the hover
+  // cards and what canBuild will actually take are one rule and not four.
+  // Your own list is always listed (greyed when it is not yet affordable or
+  // unlocked, as it always has been); the other side's appears only when you
+  // hold the shed that makes it.
+  function panelListFor(fac, tab, side) {
+    var isBld = (tab === 'b' || tab === 'd');
+    var ks = isBld ? (tab === 'b' ? buildOrderFor(fac) : defenceOrderFor(fac))
+                   : unitOrderFor(fac, tab, side);
+    var out = [];
+    for (var i = 0; i < ks.length; i++) {
+      var k = ks[i], spec = isBld ? BLDS[k] : UNITS[k];
+      if (!spec) continue;
+      out.push({ k: k, lane: isBld ? laneOfBld(k) : spec.cls, fac: spec.fac || fac });
+    }
+    return out;
+  }
+  function panelKeys(g, p, tab) {
+    var fac = g.side[p].fac, oth = fac === 'col' ? 'dir' : 'col', i;
+    var out = panelListFor(fac, tab, g.side[p]), seen = {};
+    for (i = 0; i < out.length; i++) seen[out[i].k] = 1;
+    var more = panelListFor(oth, tab, null);
+    for (i = 0; i < more.length; i++) {
+      var it = more[i], isBld = isBldLane(it.lane), spec = isBld ? BLDS[it.k] : UNITS[it.k];
+      if (seen[it.k]) continue;
+      if (isBld && !g.opt.supers && swBld(it.k)) continue;   // DisableableFromShell=yes
+      if (!isBld && spec.spawned) continue;                  // TechLevel=-1: off a deck
+      if (!facAllows(g, p, spec, isBld)) continue;
+      seen[it.k] = 1; out.push(it);
+    }
+    return out;
+  }
+  // Which producers of which faction we hold, as a string. Capture one and
+  // the sidebar has to grow rows; lose it and they have to go. refreshPanel
+  // runs every frame, so this is the cheapest thing that can notice.
+  function facSig(g, p) {
+    var have = {}, i;                                  // ONE walk: this runs ten times a second
+    for (i = 0; i < g.blds.length; i++) {
+      var b = g.blds[i];
+      if (b.dead || b.p !== p) continue;
+      have[b.type + ':' + bfacOf(g, b)] = 1;
+    }
+    var ts = ['base', 'barracks', 'factory', 'airforce', 'shipyard'], out = '';
+    for (i = 0; i < ts.length; i++)
+      out += (have[ts[i] + ':dir'] ? 'D' : '-') + (have[ts[i] + ':col'] ? 'C' : '-');
+    return out + '|' + ((g.side[p].stolen || []).join(','));
   }
 
   // --------------------------------------------------------------------- //
@@ -2191,11 +2307,22 @@
   // Prerequisite check (RA2 tech tree): spec.req is one key or a list, any of.
   // `req` = any one of these (the faction's radar-class building); `reqAll` =
   // every one of these — rules.ini's Prerequisite= list is an AND.
+  //
+  // A faction-exclusive item's prerequisites are ITS faction's buildings:
+  // rules.ini writes [APOC] Prerequisite=NAWEAP,NATECH — the SOVIET Battle
+  // Lab, not the generic TECH alias — so an Engineer on their War Factory
+  // buys their Rhinos and not their Apocalypse. Keys only one faction has
+  // (`radar`, `airforce`) already say which; the shared ones (barracks, lab,
+  // depot, shipyard, power) are the ones that had to be asked. A both-sides
+  // item (fac null) keeps RA2's generic alias and takes either.
+  // In an ordinary match this is a no-op: every building a house owns carries
+  // that house's faction.
   function reqMet(g, p, spec) {
-    if (spec.reqAll) for (var j = 0; j < spec.reqAll.length; j++) if (!hasBld(g, p, spec.reqAll[j])) return false;
+    var fac = spec.fac || null;
+    if (spec.reqAll) for (var j = 0; j < spec.reqAll.length; j++) if (!hasFacBld(g, p, spec.reqAll[j], fac)) return false;
     if (!spec.req) return true;
     var rs = [].concat(spec.req);
-    for (var i = 0; i < rs.length; i++) if (hasBld(g, p, rs[i])) return true;
+    for (var i = 0; i < rs.length; i++) if (hasFacBld(g, p, rs[i], fac)) return true;
     return false;
   }
   function reqName(spec, fac) {
@@ -18627,9 +18754,16 @@
   function placeBld(g, key, p, gx, gy) {
     // The faction-resolved spec, not the raw table: footprints differ by
     // faction (RA2 Foundation=), so a Soviet Battle Lab must occupy 3x3.
-    var d = bspecFor(key, facOf(g, p));
+    // The faction is the STRUCTURE'S, stamped here once and never rewritten:
+    // its own where the key belongs to one side, otherwise its builder's.
+    // Everything about the building afterwards — its art, its footprint, its
+    // power draw, its name, and whether it unlocks a build list — reads this
+    // stamp, so an Engineer changes the owner and nothing else. The neutral
+    // house is not stamped (see bfacOf).
+    var fk = neutral(p) ? null : keyFac(g, p, key, true);
+    var d = bspecFor(key, fk || facOf(g, p));
     var b = {
-      id: g.nextId++, kind: 'b', type: key, p: p,
+      id: g.nextId++, kind: 'b', type: key, p: p, fac: fk,
       x: gx, y: gy, gw: d.gw, gh: d.gh,
       hp: d.hp, maxhp: d.hp, dead: false,
       cool: 0, target: null, sel: false,
@@ -18770,7 +18904,7 @@
       var b = g.blds[i];
       if (b.dead || b.p !== p) continue;
       if (b.offline) continue;      // switched off by the player (RA2's Power toggle)
-      var pw = bspecOf(g, b.type, b.p).power;
+      var pw = bspecOfB(g, b).power;
       if (pw > 0) made += pw; else use += -pw;
     }
     g.side[p].powerMade = made;
@@ -19128,7 +19262,7 @@
         src.kills = (src.kills || 0) + 1;
         // [General] VeteranRatio=3: promotion at 3x the unit's OWN cost in kill
         // value (elite at 6x), so a GI does not rank up on three Conscripts.
-        var tc = tgt.kind === 'b' ? bspecOf(g, tgt.type, tgt.p).cost : UNITS[tgt.type].cost, oc = UNITS[src.type].cost || 1;
+        var tc = tgt.kind === 'b' ? bspecOfB(g, tgt).cost : UNITS[tgt.type].cost, oc = UNITS[src.type].cost || 1;
         src.kv = (src.kv || 0) + tc;
         var nr = src.kv >= oc * 6 ? 2 : (src.kv >= oc * 3 ? 1 : 0);
         if (nr > (src.rank || 0)) { src.rank = nr; if (src.p === ME) { sfx('promote'); eva(nr === 2 ? 'Unit promoted to elite' : 'Unit promoted', 3000); } }
@@ -20385,11 +20519,11 @@
       // RA2: a spied production building turns out VETERAN units from then on.
       if (key === 'barracks') mine.vetInf = true; else mine.vetVeh = true;
       if (yours) { eva('Unit promoted to veteran', 6000); say('Spy stole their training — new ' + (key === 'barracks' ? 'infantry' : 'vehicles') + ' come out veteran'); }
-      if (theirs) { eva('Building infiltrated', 8000); say('A spy has been in our ' + bspecOf(g, key, b.p).name, true, 300); }
+      if (theirs) { eva('Building infiltrated', 8000); say('A spy has been in our ' + bspecOfB(g, b).name, true, 300); }
     } else if (key === 'lab') {
       // eva.ini #88/#92 "Technology stolen": the enemy's Battle Lab unit
       // joins YOUR build list.
-      var loot = facOf(g, b.p) === 'col' ? 'teslatank' : 'mirage';
+      var loot = bfacOf(g, b) === 'col' ? 'teslatank' : 'mirage';   // the LAB's technology, not its holder's
       (mine.stolen || (mine.stolen = [])).indexOf(loot) < 0 && mine.stolen.push(loot);
       if (yours) { eva('Technology stolen', 8000); say('Technology stolen — the ' + UNITS[loot].name + ' is on your list now'); if (!headless) refreshPanel(); }
       if (theirs) { eva('Building infiltrated: technology stolen', 8000); say('A spy has stolen our technology', true, 300); }
@@ -20403,7 +20537,7 @@
   // A short name for the EVA/status lines above, without the hp tail that
   // describe() adds (which the sim has no business computing headless).
   function describeShort(e) {
-    return e.kind === 'b' ? bspecOf(G || { side: [{ fac: 'dir' }, { fac: 'col' }] }, e.type, e.p).name
+    return e.kind === 'b' ? bspecOfB(G || { side: [{ fac: 'dir' }, { fac: 'col' }] }, e).name
                           : UNITS[e.type].name;
   }
 
@@ -20707,7 +20841,7 @@
           cb.hp = cb.maxhp; cb.repair = false;
           u.dead = true; u.order = null;
           if (u.sel) dropFromSel(u);
-          if (u.p === ME) { eva('Structure repaired', 3000); say(bspecOf(g, cb.type, cb.p).name + ' repaired'); }
+          if (u.p === ME) { eva('Structure repaired', 3000); say(bspecOfB(g, cb).name + ' repaired'); }
           return;
         }
         // [CABHUT] BridgeRepairHut=yes — the engineer is spent rebuilding the
@@ -20740,7 +20874,17 @@
         if (cbd.neut) {
           if (u.p === ME) eva('Tech building captured', 3000);          // eva.ini #105
           else if (oldP === ME) eva('Tech building lost', 3000);        // eva.ini #106
-        } else if (u.p === ME) eva('Structure captured', 3000);
+        } else if (u.p === ME) {
+          eva('Structure captured', 3000);
+          // A captured production building is the one capture that changes
+          // what you can BUILD, and nothing else on screen says so.
+          var cfk = bfacOf(g, cb);
+          if (cbd.makes && cfk !== g.side[u.p].fac) {
+            var what = { b: 'structures', i: 'infantry', v: 'vehicles', a: 'aircraft', n: 'ships' }[cbd.makes];
+            say(FACTIONS[cfk].name + ' ' + bspecOfB(g, cb).name + ' captured — their ' + what +
+                ' are on your sidebar now', false, 300);
+          }
+        }
         else if (oldP === ME) eva('Structure captured by the enemy', 3000);
         return;
       }
@@ -21579,9 +21723,14 @@
     var spec = isBld ? BLDS[key] : UNITS[key];
     if (!spec) return false;
     if (!isBld && spec.spawned) return false;      // TechLevel=-1: it comes off a deck, not off a list
-    // A Spy's stolen blueprint is exactly the exception to "you can only
-    // build your own faction's list" ([General] eva.ini #92 Technology stolen).
-    if (!ownedBy(spec, s.fac) && !(!isBld && s.stolen && s.stolen.indexOf(key) >= 0)) return false;
+    // The faction gate and "do you have the shed" are ONE question in RA2:
+    // [HTNK] Prerequisite=NAWEAP. Hold a Soviet War Factory — built or taken
+    // — and the Rhino is yours; hold only an Allied one and it is not.
+    // A Spy's stolen blueprint is the single exception to "of that faction"
+    // ([General] eva.ini #92 Technology stolen) — he brings the plans, not
+    // the assembly hall, so the shed itself is still required.
+    var stolen = !isBld && !!(s.stolen && s.stolen.indexOf(key) >= 0);
+    if (!hasFacBld(g, p, producerOf(spec, isBld), stolen ? null : spec.fac)) return false;
     // Skirmish "Superweapons" off: RA2 sets DisableableFromShell=yes on all
     // four [*Special] sections, which takes the STRUCTURE off the build list.
     if (isBld && !g.opt.supers && swBld(key)) return false;
@@ -21589,16 +21738,11 @@
     if (!reqMet(g, p, spec)) return false;
     if (!isBld && spec.max && countUnit(g, p, key) + queuedCount(s, key) >= spec.max) return false;
     if (isBld && spec.max && countBld(g, p, key) + queuedCount(s, key) >= spec.max) return false;
-    if (isBld) return hasBld(g, p, 'base');
-    if (UNITS[key].cls === 'i') return hasBld(g, p, 'barracks');
-    if (UNITS[key].cls === 'a') {
-      // One aircraft per pad: four Harriers per Airforce Command, as in RA2.
-      return hasBld(g, p, 'airforce') && countUnit(g, p, key) + queuedCount(s, key) < padCapacity(g, p);
-    }
-    // `Naval=yes` + Prerequisite=*YARD: a hull is built at the Shipyard, in
-    // its own lane, and nowhere else.
-    if (UNITS[key].cls === 'n') return hasBld(g, p, 'shipyard');
-    return hasBld(g, p, 'factory');
+    // The producing structure was checked at the top (hasFacBld above); the
+    // only thing left that depends on it is the pad count.
+    // One aircraft per pad: four Harriers per Airforce Command, as in RA2.
+    if (!isBld && spec.cls === 'a') return countUnit(g, p, key) + queuedCount(s, key) < padCapacity(g, p);
+    return true;
   }
 
   function queuedCount(s, key) {
@@ -22001,7 +22145,7 @@
   // your base is gone. opts.ignore: a unit that does not block the footprint
   // (the deploying MCV itself is standing on the centre tile).
   function canPlace(g, p, key, gx, gy, opts) {
-    var d = bspecFor(key, facOf(g, p));
+    var d = bspecFor(key, keyFac(g, p, key, true));
     var mask = buildMask(g, p, key), inRange = !!(opts && opts.anywhere);
     // [GAYARD]/[NAYARD] `WaterBound=yes`: the whole footprint must be OPEN
     // WATER, and RA2 only ever lays one against a shore — so at least one
@@ -22371,14 +22515,14 @@
   // folds the price in, which would make a team ineligible for the whole match
   // simply because the AI happened to be broke at the tick the trigger fired.
   function aiCanMake(g, p, key) {
-    var s = g.side[p], spec = UNITS[key];
+    var spec = UNITS[key];
     if (!spec) return false;
-    if (!ownedBy(spec, s.fac)) return false;
-    if (!reqMet(g, p, spec)) return false;
-    if (spec.cls === 'i') return hasBld(g, p, 'barracks');
-    if (spec.cls === 'a') return hasBld(g, p, 'airforce');
-    if (spec.cls === 'n') return hasBld(g, p, 'shipyard');   // a hull comes off a slip, not a factory floor
-    return hasBld(g, p, 'factory');
+    // The same one predicate canBuild uses, so a house that took an enemy
+    // War Factory may field its tanks and a house that never captured
+    // anything behaves exactly as before. AI_TEAMS only ever names its own
+    // faction's units, so this widens what the AI CAN do without changing
+    // what it asks for — it cannot queue something it has no shed for.
+    return facAllows(g, p, spec, false) && reqMet(g, p, spec);
   }
   function aiTeamCount(ai, key) {
     var n = 0;
@@ -23139,7 +23283,7 @@
   function aiPlace(g, ai, me, foe) {
     var s = g.side[me];
     var rl = readyLane(s), key = s.queues[rl].ready;
-    var d = bspecFor(key, s.fac);                  // per-faction Foundation=
+    var d = bspecFor(key, keyFac(g, me, key, true));   // per-faction Foundation=
     var home = g.start[me];
     // Turrets go toward the enemy; everything else hugs the base.
     var aim = (key === 'sentry' || key === 'tesla' || key === 'sentrygun' || key === 'prism')
@@ -24355,7 +24499,7 @@
             u.guard = false; u.stopped = false; u.wp = null;
             u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
             requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy));
-            nown++; what = 'Engineer will repair ' + bspecOf(g, tgt.type, tgt.p).name;
+            nown++; what = 'Engineer will repair ' + bspecOfB(g, tgt).name;
           } else if (ud.ivan && !tgt.bomb) {
             u.guard = false; u.stopped = false; u.wp = null;
             u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: 1 }; u.repathAt = -999; u.path = null;
@@ -24377,7 +24521,7 @@
           u.order = { t: 'garrison', x: 0, y: 0, id: tgt.id }; u.repathAt = -999;
           requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy)); ng++;
         });
-        if (local && ng) { say('Entering ' + bspecOf(g, tgt.type, tgt.p).name); sfx('click'); unitAck(us, 'move'); }
+        if (local && ng) { say('Entering ' + bspecOfB(g, tgt).name); sfx('click'); unitAck(us, 'move'); }
         return;
 
       case 'rally':
@@ -24524,7 +24668,7 @@
         recalcPower(g, tgt.p);
         if (!local) return;
         eva(tgt.offline ? 'Building offline' : 'Building online', 3000);   // eva.ini #60 / #61
-        say((tgt.offline ? 'Powered down ' : 'Powered up ') + bspecOf(g, tgt.type, tgt.p).name);
+        say((tgt.offline ? 'Powered down ' : 'Powered up ') + bspecOfB(g, tgt).name);
         sfx(tgt.offline ? 'powoff' : 'powon', tgt.cx, tgt.cy);
         return;
 
@@ -26216,21 +26360,22 @@
   // --------------------------------------------------------------------- //
   var plist = document.getElementById('plist');
   var panelRows = {};
+  var panelSig = null;                    // facSig() at the moment the rows were made
 
   function buildPanel() {
     hideTip();
     plist.innerHTML = '';
     panelRows = {};
-    var items = [];
-    var myFac = G ? G.side[ME].fac : 'dir';
-    if (panel === 'b' || panel === 'd') {
-      var order = panel === 'b' ? buildOrderFor(myFac) : defenceOrderFor(myFac);
-      items = order.map(function (k) { return { k: k, lane: laneOfBld(k), spec: bspecFor(k, myFac) }; });
-    } else {
-      unitOrderFor(myFac, panel).forEach(function (k) {
-        if (UNITS[k] && ownedBy(UNITS[k], myFac)) items.push({ k: k, lane: UNITS[k].cls, spec: UNITS[k] });
-      });
-    }
+    var myFac = G ? G.side[ME].fac : (FACTIONS[faction] ? faction : 'dir');
+    // ONE list. panelKeys is the same predicate canBuild honours, so a
+    // captured Soviet Barracks puts Conscripts on the Infantry tab with
+    // their own cameos and their own hover cards, and losing it takes them
+    // straight back off.
+    panelSig = G ? facSig(G, ME) : null;
+    var items = (G ? panelKeys(G, ME, panel) : panelListFor(myFac, panel, null)).map(function (it) {
+      return { k: it.k, lane: it.lane, fac: it.fac,
+               spec: isBldLane(it.lane) ? bspecFor(it.k, it.fac) : UNITS[it.k] };
+    });
     items.forEach(function (it) {
       var b = document.createElement('button');
       b.className = 'pit';
@@ -26247,10 +26392,13 @@
         ev.preventDefault();
         cmd('cancel', { lane: it.lane, k: it.k });
       });
-      b.addEventListener('pointerenter', function () { showItemTip(b, it, myFac); });
+      b.addEventListener('pointerenter', function () { showItemTip(b, it, it.fac); });
       b.addEventListener('pointerleave', hideTip);
       // RA2-style cameo: the item's own baked sprite framed in a dark bevel.
-      var cam = cameoFor(it.k, isBldLane(it.lane), myFac);
+      // The item's own faction picks the ART; the HOUSE picks the colour.
+      // A captured Rhino is a Rhino in our blue, not a red plate on our
+      // sidebar — there is no fixed faction paint anywhere in this game.
+      var cam = cameoFor(it.k, isBldLane(it.lane), it.fac, myFac);
       if (cam) b.querySelector('.em').appendChild(cam); else b.querySelector('.em').textContent = it.spec.em;
       plist.appendChild(b);
       panelRows[it.k] = { el: b, it: it };
@@ -26279,8 +26427,9 @@
     c.style.width = src.style.width; c.style.height = src.style.height;
     c.getContext('2d').drawImage(src, 0, 0); return c;
   }
-  function cameoFor(key, isBld, fac) {
-    var ck = (isBld ? 'b:' : 'u:') + fac + ':' + key;
+  function cameoFor(key, isBld, fac, ownFac) {
+    var own = ownFac || fac;
+    var ck = (isBld ? 'b:' : 'u:') + fac + ':' + own + ':' + key;
     if (cameoCache[ck]) return cameoCopy(cameoCache[ck]);
     var src = null, sw, sh, sc, kb = 1;
     try {
@@ -26293,7 +26442,7 @@
     // in the frame — the art itself is never repainted.
     var W = 60, H = 48, c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2; c.style.width = W + 'px'; c.style.height = H + 'px';
     var g = c.getContext('2d'); g.scale(2, 2);
-    var acc = fac === 'col' ? [216, 67, 77] : [74, 163, 219];
+    var acc = own === 'col' ? [216, 67, 77] : [74, 163, 219];   // the HOUSE's colour, never the item's
     var sky = g.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, 'rgb(' + Math.round(acc[0] * 0.30 + 24) + ',' + Math.round(acc[1] * 0.30 + 28) + ',' + Math.round(acc[2] * 0.30 + 34) + ')');
     sky.addColorStop(1, '#0b0f16');
@@ -26404,7 +26553,7 @@
     }
     if (!canBuild(G, ME, it.k, isBldLane(it.lane))) {
       if (s.credits < it.spec.cost) { say('Not enough credits for ' + it.spec.name + ' ($' + it.spec.cost + ')', true); eva('Insufficient funds', 4000); }
-      else if (!reqMet(G, ME, it.spec)) say(it.spec.name + ' requires ' + reqName(it.spec, G.side[ME].fac), true);
+      else if (!reqMet(G, ME, it.spec)) say(it.spec.name + ' requires ' + reqName(it.spec, it.fac), true);
       else if (it.spec.max) say('Only ' + it.spec.max + ' ' + it.spec.name + ' at a time', true);
       else if (it.lane === 'i') say('Build a Barracks first', true);
       else if (it.lane === 'v') say('Build a War Factory first', true);
@@ -26420,12 +26569,15 @@
   function refreshPanel() {
     if (!G) return;
     var s = G.side[ME];
+    // An Engineer just changed what this house can build (or a captured shed
+    // just fell): the tab has to be rebuilt, not merely re-greyed.
+    if (facSig(G, ME) !== panelSig) { buildPanel(); return; }
     for (var rk in panelRows) {
       var pr = panelRows[rk], lock = !reqMet(G, ME, pr.it.spec);
       if (pr.el.classList.contains('locked') !== lock) {
         pr.el.classList.toggle('locked', lock);
         var ct = pr.el.querySelector('.ct');
-        if (ct) ct.textContent = '$' + pr.it.spec.cost + ' · ' + (lock ? 'requires ' + reqName(pr.it.spec, G.side[ME].fac) : pr.it.spec.desc);
+        if (ct) ct.textContent = '$' + pr.it.spec.cost + ' · ' + (lock ? 'requires ' + reqName(pr.it.spec, pr.it.fac) : pr.it.spec.desc);
       }
     }
 
@@ -26769,7 +26921,7 @@
                         : (swMode.key === 'storm' ? 'storm'
                         : (swMode.key === 'para' ? 'deploy' : 'curtain')));
     else if (placing) {
-      var pd = bspecFor(placing, facOf(G, ME));
+      var pd = bspecFor(placing, keyFac(G, ME, placing, true));
       k = canPlace(G, ME, placing, hoverTile.x - Math.floor((pd.gw - 1) / 2),
                    hoverTile.y - Math.floor((pd.gh - 1) / 2)) ? 'deploy' : 'nomove';
     }
@@ -27269,9 +27421,9 @@
     if (local !== false) { sfx('sell'); eva('Structure sold', 2000); }
   }
   function finishSell(g, b) {
-    var refund = Math.round(bspecOf(g, b.type, b.p).cost * 0.5);
+    var refund = Math.round(bspecOfB(g, b).cost * 0.5);
     g.side[b.p].credits += refund; b.sell = false; b.make = 0; killBld(g, b, true); b.sel = false;
-    if (b.p === ME) say('Sold ' + bspecOf(g, b.type, b.p).name + ' for $' + refund);
+    if (b.p === ME) say('Sold ' + bspecOfB(g, b).name + ' for $' + refund);
   }
   function cmdButtons() {
     var a = [];
@@ -27380,7 +27532,7 @@
         // rules.ini `Unsellable=yes` / `ClickRepairable=no`: a captured tech
         // building or a held city block is neither sold nor patched up.
         if (BLDS[e.type].neut && cmdMode !== 'power') {
-          say(bspecOf(G, e.type, e.p).name + ' is not yours to sell or repair — it came with the map', true);
+          say(bspecOfB(G, e).name + ' is not yours to sell or repair — it came with the map', true);
           eva('Unable to comply', 5000); sfx('no');               // eva.ini #47
         }
         else if (cmdMode === 'sell') { if (e.type === 'base' && countBld(G, ME, 'base') < 2) say('Cannot sell your only Construction Yard', true); else cmd('sell', { id: e.id }); }
@@ -27790,7 +27942,7 @@
   }
   function tryPlace(px, py) {
     var gp = screenToGrid(px, py);
-    var d = bspecFor(placing, facOf(G, ME));
+    var d = bspecFor(placing, keyFac(G, ME, placing, true));
     var gx = Math.round(gp.x - (d.gw - 1) / 2), gy = Math.round(gp.y - (d.gh - 1) / 2);
     if (d.wall) {
       // The queued segment is the paid one; the drag charges for the rest.
@@ -28220,7 +28372,7 @@
     // squares made you place a Refinery and only then discover which way it
     // faced and how much of the view it ate.
     if (placing) {
-      var d = bspecFor(placing, facOf(G, ME));
+      var d = bspecFor(placing, keyFac(G, ME, placing, true));
       var ggx = hoverTile.x - Math.floor((d.gw - 1) / 2), ggy = hoverTile.y - Math.floor((d.gh - 1) / 2);
       var ok = canPlace(G, ME, placing, ggx, ggy);
       ctx.globalAlpha = 0.5;
@@ -28412,7 +28564,7 @@
     // The placement ghost sits ON TOP of the world: buried behind the very
     // Construction Yard you are building next to, it answered nothing.
     if (ghostAt) {
-      var gart = SPR.bld[ME] && SPR.bld[ME][facOf(G, ME) || 'dir'][ghostAt.key];
+      var gart = SPR.bld[ME] && SPR.bld[ME][keyFac(G, ME, ghostAt.key, true) || 'dir'][ghostAt.key];
       if (gart) {
         ctx.globalAlpha = 0.66;
         ctx.drawImage(ghostSprite(ghostAt.key, ghostAt.ok, gart),
@@ -29688,7 +29840,7 @@
     if (bd0.wall || bd0.gate) {
       var wpx = sx(b.cx, b.cy), wpy = sy(b.cx, b.cy);
       if (wpx < VX0 - 120 || wpy < VY0 - 120 || wpx > VX1 + 120 || wpy > VY1 + 120) return;
-      var wfk = facOf(G, b.p) || 'dir', wm2 = wallMask(G, b), wa;
+      var wfk = bfacOf(G, b) || 'dir', wm2 = wallMask(G, b), wa;
       if (bd0.gate) {
         // The run's axis: a gate between two N/S neighbours stands across the
         // NW-SE grid line, otherwise across the other one.
@@ -29713,13 +29865,15 @@
       if (b.sel) hpBar(wpx, wpy - 24, 20, b.hp / b.maxhp);
       return;
     }
-    var art = SPR.bld[b.p][facOf(G, b.p) || 'dir'][b.type];
+    // [owner][the STRUCTURE'S faction]: the holder's colour on the
+    // structure's own shape, so a captured Soviet hall stays a Soviet hall.
+    var art = SPR.bld[b.p][bfacOf(G, b) || 'dir'][b.type];
     var px = sx(b.cx, b.cy), py = sy(b.cx, b.cy);
     if (px < VX0 - 260 || py < VY0 - 260 || px > VX1 + 260 || py > VY1 + 260) return;
 
     var bb = art.s.bb || { x0: 0, y0: 0, x1: art.s.w, y1: art.s.h };
     var ox = px - art.ax, oy = py - art.ay;
-    var fk = facOf(G, b.p) || 'dir';
+    var fk = bfacOf(G, b) || 'dir';
     var frac = b.hp / b.maxhp;
     var hurt = frac <= 0.5;
     // No power on this side (or switched off at the sidebar): RA2 stops the
@@ -31317,6 +31471,11 @@
            countUnit: countUnit, hasBld: hasBld, genMap: genMap, newState: newState, findOre: findOre, canHit: canHit, isAir: isAir, altOf: altOf, countBld: countBld,
            findTarget: findTarget, isDisguised: isDisguised, prodSpeed: prodSpeed, weaponFor: weaponFor, reachOf: reachOf,
            canBuild: canBuild, swBld: swBld, techCount: techCount,
+           // RA2's captured-production rule: the one faction gate, the
+           // structure's own faction, and the sidebar list that follows it.
+           bfacOf: bfacOf, facAllows: facAllows, hasFacBld: hasFacBld,
+           producerOf: producerOf, keyFac: keyFac, bspecOfB: bspecOfB,
+           panelKeys: panelKeys, reqMet: reqMet,
            blocked: blocked, adjOf: adjOf, buildMask: buildMask, gateOpen: gateOpen, applyGaps: applyGaps,
            gapped: gapped, tileSeen: tileSeen, entSeen: entSeen, versesVs: versesVs, isWall: isWall, detected: detected,
            aiSwTarget: aiSwTarget, aiSwValue: aiSwValue, aiPickTarget: aiPickTarget, aiDefencePlan: aiDefencePlan,

@@ -1364,6 +1364,10 @@ test("aircraft fly straight over water and cliffs where a tank must path around"
 test("the AI answers an air attack by building anti-air", () => {
   const { H, g, s1 } = bareMatch(16);
   H.attachAI(1, "normal");
+  // The faction goes on FIRST: a structure is stamped with the faction that
+  // built it, so a yard laid down while the house still reads Directorate is
+  // an Allied yard and will not unlock [NALASR]/[NASAM].
+  g.side[1].fac = "col";
   H.build("base", 1, s1.x - 1, s1.y - 1);
   // A working Soviet base with the radar the Flak Cannon needs, and money.
   const place = (k, dx, dy) => {
@@ -1374,7 +1378,6 @@ test("the AI answers an air attack by building anti-air", () => {
     }
     return null;
   };
-  g.side[1].fac = "col";
   for (const [k, dx, dy] of [["power", 4, -2], ["power", 4, 2], ["refinery", -5, 2], ["barracks", -4, -4], ["factory", 4, 5], ["radar", -6, -1]])
     assert.ok(place(k, dx, dy), `placed ${k}`);
   for (let i = 0; i < 3; i++) H.spawn("harvester", 1, s1.x + 3, s1.y + 8 + i);
@@ -4441,4 +4444,189 @@ test("a paradrop puts men under canopy first and on the ground only when they la
   assert.equal(air(), 0, "every canopy has landed");
   assert.equal(ground(), before + 6, "all six troopers arrived");
   assert.equal(g.drops.length, 0, "the drop record is cleared");
+});
+
+// --------------------------------------------------------------------- //
+//  RA2's captured-production rule. rules.ini gates every build list on a
+//  `Prerequisite=` chain rooted at the PRODUCING structure ([HTNK]
+//  Prerequisite=NAWEAP, [E2] NAHAND, [SAPC] NAYARD, and every Soviet
+//  structure ends its chain at NACNST) -- and every one of those production
+//  buildings carries an all-nine-country `Owner=`. RA2 asks what you HOLD,
+//  never what side you are. A captured Soviet War Factory therefore stays a
+//  Soviet War Factory and rolls Rhinos for whoever holds it.
+// --------------------------------------------------------------------- //
+
+// A Directorate house with its whole base standing, and a Collective one
+// whose production buildings are there to be taken.
+function capFixture(H, seed) {
+  const g = H.begin(seed, "normal");
+  fullBase(H, g, 0, "dir");
+  fullBase(H, g, 1, "col", ["radar"]);
+  for (const b of g.blds) b.make = 0;
+  return g;
+}
+function takeover(H, g, b, p) {
+  assert.ok(b, "there is a structure to take");
+  // Stand him on the first clear tile spiralling out of the doorway, then
+  // send him in through the real order path.
+  let spot = null;
+  for (let r = 2; r < 12 && !spot; r++)
+    for (let oy = -r; oy <= r && !spot; oy++) for (let ox = -r; ox <= r && !spot; ox++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      const x = Math.round(b.cx) + ox, y = Math.round(b.cy) + oy;
+      if (x < 2 || y < 2 || x > T.MAP - 3 || y > T.MAP - 3) continue;
+      if (!API.blocked(g, x, y)) spot = { x, y };
+    }
+  assert.ok(spot, "there is somewhere to stand");
+  const eng = H.spawn("engineer", p, spot.x, spot.y);
+  assert.equal(H.orderCapture([eng], b), 1, "the Engineer took the order");
+  for (let i = 0; i < 1800 && b.p !== p; i++) H.step(1);
+  assert.equal(b.p, p, "the structure changed hands");
+  return b;
+}
+const theirs = (g, type) => g.blds.find((b) => !b.dead && b.p === 1 && b.type === type);
+
+test("a captured War Factory rolls ITS faction's tanks, and losing it takes them back", () => {
+  const H = W.__rtsTest;
+  const g = capFixture(H, 9601);
+  const wf = theirs(g, "factory");
+
+  assert.equal(API.canBuild(g, 0, "rhino", false), false, "no Rhino before the capture");
+  assert.equal(API.canBuild(g, 0, "lancer", false), true, "our own Grizzly, as always");
+
+  takeover(H, g, wf, 0);
+
+  assert.equal(API.canBuild(g, 0, "rhino", false), true,
+    "a Soviet War Factory rolls Rhinos for whoever holds it");
+  assert.equal(API.canBuild(g, 0, "flaktrack", false), true, "and its Flak Tracks");
+  assert.equal(API.canBuild(g, 0, "lancer", false), true, "our own factory still rolls Grizzlies");
+  // Deeper Soviet armour is NOT free: [APOC] Prerequisite=NAWEAP,NATECH wants
+  // the SOVIET Battle Lab, which we did not take.
+  assert.equal(API.canBuild(g, 0, "mammoth", false), false, "the Apocalypse still needs their Battle Lab");
+  // Infantry comes out of a different shed: [E2] Prerequisite=NAHAND.
+  assert.equal(API.canBuild(g, 0, "conscript", false), false, "a War Factory trains no Conscripts");
+
+  H.killBld(wf);
+  assert.equal(API.canBuild(g, 0, "rhino", false), false, "lose the factory and the Rhino goes with it");
+  assert.equal(API.canBuild(g, 0, "lancer", false), true, "our own lane is untouched");
+});
+
+test("a captured Barracks trains ITS faction's men, and the sidebar lists them", () => {
+  const H = W.__rtsTest;
+  const g = capFixture(H, 9602);
+
+  assert.equal(API.canBuild(g, 0, "conscript", false), false, "not before the capture");
+  takeover(H, g, theirs(g, "barracks"), 0);
+  assert.equal(API.canBuild(g, 0, "conscript", false), true, "their Barracks trains their Conscripts");
+  assert.equal(API.canBuild(g, 0, "rifle", false), true, "our own GI is still there");
+  // A Desolator wants their Barracks AND their Radar ([DESO] NAHAND,RADAR).
+  assert.equal(API.canBuild(g, 0, "desolator", false), false, "their Radar Tower is still theirs");
+  takeover(H, g, theirs(g, "radar"), 0);
+  assert.equal(API.canBuild(g, 0, "desolator", false), true, "both halves of the chain now held");
+
+  // ONE predicate: the Infantry tab lists exactly what canBuild will take.
+  const listed = API.panelKeys(g, 0, "i").map((it) => it.k);
+  assert.ok(listed.indexOf("conscript") >= 0, "the Infantry tab shows the Conscript: " + listed.join(","));
+  assert.ok(listed.indexOf("rifle") >= 0, "and still shows the GI");
+  for (const it of API.panelKeys(g, 0, "i"))
+    assert.ok(API.facAllows(g, 0, T.UNITS[it.k], false), `${it.k} is listed but the faction gate says no`);
+});
+
+test("a captured structure keeps its own artwork and its own spec", () => {
+  const H = W.__rtsTest;
+  const g = capFixture(H, 9603);
+  const bar = theirs(g, "barracks");
+  const soviet = API.bspecFor("barracks", "col"), allied = API.bspecFor("barracks", "dir");
+  // [NAHAND] Foundation=2x2 against [GAPILE] 3x2: two different structures
+  // that happen to share a name.
+  assert.notDeepEqual([soviet.gw, soviet.gh], [allied.gw, allied.gh], "the two halls are different shapes");
+  assert.deepEqual([bar.gw, bar.gh], [soviet.gw, soviet.gh], "it was built as the Soviet one");
+
+  // A structure remembers what BUILT it. On the old build it remembered
+  // nothing and became whatever its holder was.
+  assert.equal(bar.fac, "col", "built Soviet");
+  takeover(H, g, bar, 0);
+  assert.equal(bar.p, 0, "ours now");
+  assert.equal(bar.fac, "col", "still a SOVIET Barracks");
+  assert.equal(API.bfacOf(g, bar), "col");
+  assert.deepEqual([API.bspecFor(bar.type, API.bfacOf(g, bar)).gw, API.bspecFor(bar.type, API.bfacOf(g, bar)).gh],
+    [bar.gw, bar.gh], "the spec the game resolves still matches the cells it occupies");
+
+  // The renderer picks [owner][structure's faction]: the owner's COLOUR, the
+  // structure's SHAPE.
+  const SPR = H.spr();
+  assert.notEqual(SPR.bld[0].col.barracks.s.c, SPR.bld[0].dir.barracks.s.c,
+    "the two are genuinely different plates");
+  assert.equal(SPR.bld[bar.p][API.bfacOf(g, bar)].barracks, SPR.bld[0].col.barracks,
+    "a captured Soviet Barracks draws the Soviet plate in OUR colour");
+});
+
+test("a captured structure draws ITS faction's power, not its holder's", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(9606, "normal");
+  fullBase(H, g, 0, "dir");
+  fullBase(H, g, 1, "col", ["shipyard"]);
+  for (const b of g.blds) b.make = 0;
+  const yard = theirs(g, "shipyard");
+  // [NAYARD] draws -20 where [GAYARD] draws -25.
+  const sov = API.bspecFor("shipyard", "col").power, all = API.bspecFor("shipyard", "dir").power;
+  assert.notEqual(sov, all, "the two slips draw different power");
+  const before = g.side[0].powerUse;
+  takeover(H, g, yard, 0);
+  assert.equal(g.side[0].powerUse - before, -sov,
+    `a captured Soviet slip must draw ${-sov}, not ${-all}`);
+});
+
+test("capturing their Construction Yard opens their structure list", () => {
+  const H = W.__rtsTest;
+  const g = H.begin(9604, "normal");
+  fullBase(H, g, 0, "dir");
+  fullBase(H, g, 1, "col");
+  for (const b of g.blds) b.make = 0;
+
+  assert.equal(API.canBuild(g, 0, "radar", true), false, "no Radar Tower before");
+  assert.equal(API.canBuild(g, 0, "airforce", true), true, "our own Airforce Command, as always");
+  takeover(H, g, theirs(g, "base"), 0);
+
+  // [NARADR] Prerequisite=NAREFN,NACNST — their yard AND their refinery.
+  assert.equal(API.canBuild(g, 0, "radar", true), false, "their refinery is still theirs");
+  takeover(H, g, theirs(g, "refinery"), 0);
+  assert.equal(API.canBuild(g, 0, "radar", true), true, "both halves of the chain now held");
+  assert.equal(API.canBuild(g, 0, "airforce", true), true, "ours is still ours");
+  // [NAAPWR] Prerequisite=NATECH,NACNST — a Nuclear Reactor still wants the
+  // SOVIET Battle Lab, which nobody has built.
+  assert.equal(API.canBuild(g, 0, "reactor", true), false, "the Reactor still needs their Battle Lab");
+
+  const str = API.panelKeys(g, 0, "b").map((it) => it.k);
+  assert.ok(str.indexOf("radar") >= 0 && str.indexOf("airforce") >= 0,
+    "both lists are on the Structures tab: " + str.join(","));
+  assert.ok(API.panelKeys(g, 0, "d").map((it) => it.k).indexOf("tesla") >= 0,
+    "and their Defence tab came with the yard");
+});
+
+test("an ordinary match never sees the captured-production rule", () => {
+  const H = W.__rtsTest;
+  // Every buildable, for a house with its whole base standing and no capture:
+  // the new faction gate must agree with the old `Owner=`-style one, key for
+  // key, on both sides. This one is a GUARD -- it passes before and after.
+  for (const [p, fac] of [[0, "dir"], [1, "col"]]) {
+    const g = H.begin(9605 + p, "normal");
+    // Its OWN radar-class building, not both: an Allied Airforce Command
+    // standing in a Collective base is a captured one, which is the case
+    // this test is the control for.
+    fullBase(H, g, p, fac, [fac === "col" ? "radar" : "airforce", "shipyard", "depot", "lab"]);
+    for (const b of g.blds) b.make = 0;
+    for (const k of Object.keys(T.UNITS)) {
+      const spec = T.UNITS[k];
+      if (spec.spawned) continue;
+      assert.equal(API.facAllows(g, p, spec, false), !spec.fac || spec.fac === fac,
+        `${fac}: unit ${k} (fac ${spec.fac}) disagrees with the old owner rule`);
+    }
+    for (const k of Object.keys(T.BLDS)) {
+      const spec = T.BLDS[k];
+      if (spec.neut) continue;
+      assert.equal(API.facAllows(g, p, spec, true), !spec.fac || spec.fac === fac,
+        `${fac}: structure ${k} (fac ${spec.fac}) disagrees with the old owner rule`);
+    }
+  }
 });
