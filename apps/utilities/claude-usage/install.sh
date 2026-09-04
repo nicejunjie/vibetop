@@ -115,6 +115,11 @@ if (( INSTALL_SYSTEMD )); then
     # still owns.
     if [ "$(systemctl is-active "$UNIT" 2>/dev/null)" = active ] \
        || [ "$(systemctl is-enabled "$UNIT" 2>/dev/null)" = enabled ]; then
+        # Enable the socket explicitly. [Install] Also= only fires on a FRESH
+        # `enable`, so on a host where the service was already enabled before
+        # socket activation existed, the socket stays disabled and nothing binds
+        # :7690 after a reboot until something happens to start the service.
+        run sudo systemctl enable "$SOCKET_UNIT" 2>/dev/null || true
         run sudo systemctl stop "$UNIT" 2>/dev/null || true
         run sudo systemctl reset-failed "$UNIT" "$SOCKET_UNIT" 2>/dev/null || true
         run sudo systemctl start "$SOCKET_UNIT" 2>/dev/null || true
