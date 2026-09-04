@@ -48,6 +48,74 @@
   }
   function _barShow() { try { _barEl().classList.add('on'); } catch (_) {} }
   function _barHide() { try { if (_bar) _bar.classList.remove('on'); } catch (_) {} }
+  var followLatestUntil = 0;
+  var followLatestTimer = null;
+  var highestLatestRequest = 0;
+  var cancelledLatestThrough = 0;
+  function atLatest() {
+    try {
+      var b = window.term && window.term.buffer && window.term.buffer.active;
+      return !b || (b.baseY - b.viewportY) <= 1;
+    } catch (_) { return true; }
+  }
+  function revealLatest() {
+    try { if (window.term) window.term.scrollToBottom(); } catch (_) {}
+  }
+  function cancelLatest() {
+    followLatestUntil = 0;
+    // More than one reveal request can overlap (tab activation + outer app
+    // activation + resize). Cancel every request already seen, not merely the
+    // last one, so none of their delayed retries can take control back.
+    cancelledLatestThrough = Math.max(cancelledLatestThrough, highestLatestRequest);
+    if (followLatestTimer) clearInterval(followLatestTimer);
+    followLatestTimer = null;
+  }
+  function armLatest(requestId) {
+    // showLatest retries one activation while a new iframe/replay comes up. Once
+    // the user scrolls, ignore the remaining retries from THAT activation; a
+    // later tab/app activation gets a new id and may reveal latest normally.
+    if (requestId != null) {
+      requestId = +requestId;
+      if (requestId <= cancelledLatestThrough) return;
+      highestLatestRequest = Math.max(highestLatestRequest, requestId);
+    }
+    followLatestUntil = Date.now() + 10000;
+    revealLatest();
+    if (followLatestTimer) clearInterval(followLatestTimer);
+    // Reflow and full-screen TUIs can repaint well after FitAddon reports its
+    // resize. Follow continuously through the settle window so no late repaint
+    // can restore an obsolete viewport row.
+    followLatestTimer = setInterval(function () {
+      if (Date.now() >= followLatestUntil) {
+        clearInterval(followLatestTimer); followLatestTimer = null; return;
+      }
+      revealLatest();
+    }, 100);
+  }
+  // Yield to deliberate history navigation immediately. Without this, the
+  // short post-resize/replay settle loop wins every 100ms and makes scrollback
+  // unusable while a TUI such as Claude Code is actively repainting.
+  window.addEventListener('wheel', cancelLatest, { capture: true, passive: true });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End') cancelLatest();
+  }, true);
+  window.addEventListener('pointerdown', function (e) {
+    var vp = document.querySelector('.xterm-viewport');
+    if (!vp) return;
+    var r = vp.getBoundingClientRect();
+    if (e.clientX >= r.right - 20) cancelLatest();   // scrollbar click/drag
+  }, true);
+  window.__vibetopShowLatest = armLatest;
+  // Shared by desktop and touch. This must stay ABOVE the desktop early return
+  // below; putting it with the touch-only message handlers made desktop tab
+  // activation silently ignore the request.
+  window.addEventListener('message', function (e) {
+    if (e.data && e.data.type === 'vibetop-show-latest') armLatest(e.data.requestId);
+  }, false);
+  // A genuine viewport resize can reach /tN/ without the wrapper's synthetic
+  // nudge. Ignore synthetic resize events (used by reFit itself) to avoid a
+  // feedback loop. Preserve history when the user was already scrolled up.
+  window.addEventListener('resize', function (e) { if (e.isTrusted && atLatest()) armLatest(); });
   function loadingBar(ws) {
     var idle = null, cap = null, done = false;
     var show = setTimeout(_barShow, 160);   // don't flash on an instant connect
@@ -55,9 +123,14 @@
       if (done) return; done = true;
       clearTimeout(show); if (idle) clearTimeout(idle); if (cap) clearTimeout(cap);
       _barHide();
+      if (Date.now() < followLatestUntil) revealLatest();
       try { ws.removeEventListener('message', onmsg); } catch (_) {}
     }
-    function onmsg() { if (idle) clearTimeout(idle); idle = setTimeout(fin, 300); }  // replay burst ended
+    function onmsg() {
+      if (idle) clearTimeout(idle);
+      if (Date.now() < followLatestUntil) requestAnimationFrame(revealLatest);
+      idle = setTimeout(fin, 300);
+    }  // replay burst ended
     try {
       ws.addEventListener('message', onmsg);
       ws.addEventListener('close', fin);
@@ -80,7 +153,11 @@
   function reFit() {
     try {
       var t = window.term;
-      if (t && t.element && t.element.clientWidth > 0) window.dispatchEvent(new Event('resize'));
+      if (t && t.element && t.element.clientWidth > 0) {
+        var follow = atLatest();
+        window.dispatchEvent(new Event('resize'));
+        if (follow) armLatest();
+      }
     } catch (_) {}
   }
   var _refitT = null;
@@ -114,6 +191,11 @@
   // sees mis-shaped (too-narrow / too-wide) output until it re-claims.
   function claimSize() {
     var t = window.term; if (!t) return;
+    // The SIGWINCH redraw triggered by a two-finger/mobile or double-click/
+    // desktop claim can restore an old viewport row. This is the resize action
+    // itself, so arm bottom-following here rather than relying on outer layout
+    // resize events that the gesture does not emit.
+    if (atLatest()) armLatest();
     var c = t.cols, r = t.rows, c0 = Math.max(2, c - 1);
     // Send the resize STRAIGHT to ttyd's socket (RESIZE_TERMINAL="1" +
     // {columns,rows}) so the PTY is re-shaped without resizing the visible xterm
@@ -281,7 +363,8 @@
     dbgEl.textContent = dbgBuf.join(''); dbgEl.scrollTop = dbgEl.scrollHeight;
   }
   window.addEventListener('message', function (e) {
-    if (!e.data || e.data.type !== 'xdbg') return;
+    if (!e.data) return;
+    if (e.data.type !== 'xdbg') return;
     if (dbgEl) { dbgEl.remove(); dbgEl = null; return; }
     dbgEl = document.createElement('div');
     dbgEl.style.cssText = 'position:fixed;top:0;left:0;right:0;max-height:34vh;overflow:auto;z-index:2147483647;background:rgba(0,0,0,.9);color:#6f6;font:11px ui-monospace,monospace;padding:6px;white-space:pre-wrap;word-break:break-all';
@@ -740,8 +823,8 @@
       var dy = y - prevY; prevY = y; acc += dy;     // else scroll the scrollback
       var t = window.term;
       if (t && t.scrollLines) {
-        while (acc > 18) { t.scrollLines(-1); acc -= 18; didScroll = true; }
-        while (acc < -18) { t.scrollLines(1); acc += 18; didScroll = true; }
+        while (acc > 18) { cancelLatest(); t.scrollLines(-1); acc -= 18; didScroll = true; }
+        while (acc < -18) { cancelLatest(); t.scrollLines(1); acc += 18; didScroll = true; }
       }
       if (moved) e.preventDefault();
     }, { passive: false });

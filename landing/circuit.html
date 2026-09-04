@@ -383,7 +383,7 @@
         <h3>Worth knowing</h3>
         <ul>
           <li>Jumping while running goes further — momentum carries</li>
-          <li>Crush a glitch to leave its core; kick the core to bowl over a row</li>
+          <li>Crush a sentinel to expose its core; kick the core to bowl over a row</li>
           <li>A block struck from below flips anything standing on it</li>
           <li>In coolant, each press of jump is one thruster pulse — holding does nothing</li>
           <li>You can't crush a coolant jelly. Shoot it, or swim around it</li>
@@ -493,15 +493,25 @@
 
   // Recolour a baked sprite (fire suit, star flashes, red koopas…). Cheap:
   // done once at load / once per palette, never per frame.
-  function recolor(rows, w, map) {
+  function recolor(rows, w, map, base) {
     var pal = {};
-    for (var k in PAL) pal[k] = PAL[k];
+    for (var k in (base || PAL)) pal[k] = (base || PAL)[k];
     for (var j in map) pal[j] = map[j];
     return bake(w, rows, pal);
   }
 
   var ART = {};      // name -> rows
   var SPR = {};      // name -> baked {c,f,w,h}
+
+  // Relay is a courier, not a generic appliance: violet field suit, warm
+  // signal jacket, cyan mono-visor and graphite boots. Keeping this palette
+  // local prevents the hero's identity colours leaking into tiles or foes.
+  var HERO_PAL = {};
+  for (var hp in PAL) HERO_PAL[hp] = PAL[hp];
+  HERO_PAL.W = '#6957d9'; HERO_PAL.B = '#9b8cff';
+  HERO_PAL.R = '#ffb33f'; HERO_PAL.r = '#b96020';
+  HERO_PAL.S = '#34415f'; HERO_PAL.s = '#202943';
+  HERO_PAL.K = '#12182f'; HERO_PAL.N = '#62efff'; HERO_PAL.n = '#26bdd8';
 
   // ---- the unit, small (16x16) ----------------------------------------- //
   // A character, not a box: antenna, a head NARROWER than the shoulders so it
@@ -871,40 +881,40 @@
   ];
 
   // ---- hostiles -------------------------------------------------------- //
-  ART.goomba1 = [                       // crawler: a low, wide beetle
+  ART.goomba1 = [                       // scrap mite: wedge shell + tread feet
     '................',
     '................',
-    '.....KKKKKK.....',
-    '...KKEEEEEEKK...',
-    '..KEEEEEEEEEEK..',
-    '.KEENNEEEENNEEK.',
-    '.KEENWEEEEWNEEK.',
-    '.KEEEEEEEEEEEEK.',
-    '.KEWWEEEEEEWWEK.',
-    '.KEEEEEEEEEEEEK.',
-    '..KKEEEEEEEEKK..',
+    '.......KK.......',
+    '.....KKOOKK.....',
+    '...KKOOOOOOKK...',
+    '..KOOOKKKKOOOK..',
+    '.KOOOKNNNNKOOOK.',
+    'KOOOOKNWWNKOOOOK',
+    'KOOOOOKNNKOOOOOK',
+    '.KOOOOOOOOOOOOK.',
+    '..KKOOOOOOOOOK..',
     '...KKKKKKKKKK...',
-    '..KK.KK..KK.KK..',
-    '.KK..KK..KK..KK.',
-    'KK...K....K...KK',
+    '..KSSK....KSSK..',
+    '.KSSSSK..KSSSSK.',
+    'KKKKKKK..KKKKKKK',
     '................'
   ];
   ART.goomba2 = [
     '................',
     '................',
-    '.....KKKKKK.....',
-    '...KKEEEEEEKK...',
-    '..KEEEEEEEEEEK..',
-    '.KEENNEEEENNEEK.',
-    '.KEENWEEEEWNEEK.',
-    '.KEEEEEEEEEEEEK.',
-    '.KEWWEEEEEEWWEK.',
-    '.KEEEEEEEEEEEEK.',
-    '..KKEEEEEEEEKK..',
+    '.......KK.......',
+    '.....KKOOKK.....',
+    '...KKOOOOOOKK...',
+    '..KOOOKKKKOOOK..',
+    '.KOOOKNNNNKOOOK.',
+    'KOOOOKNWWNKOOOOK',
+    'KOOOOOKNNKOOOOOK',
+    '.KOOOOOOOOOOOOK.',
+    '..KKOOOOOOOOOK..',
     '...KKKKKKKKKK...',
-    '.KK..KK..KK..KK.',
-    'KK...KK..KK...KK',
-    '.K...K....K...K.',
+    '.KSSK......KSSK.',
+    'KSSSSK....KSSSSK',
+    'KKKKKK....KKKKKK',
     '................'
   ];
   ART.goombaFlat = [
@@ -919,13 +929,13 @@
     '................',
     '................',
     '...KKKKKKKKKK...',
-    '..KEENNEENNEEK..',
-    '.KEEEEEEEEEEEEK.',
-    '.KEWWEEEEEEWWEK.',
-    '.KKKKKKKKKKKKKK.',
-    '..KK..KK..KK....'
+    '..KOOOOOOOOOOK..',
+    '.KOOOKNNKOOOOK..',
+    'KOOOOOOOOOOOOOOK',
+    'KKKKKKKKKKKKKKKK',
+    '..KSSK....KSSK..'
   ];
-  // glitch: a tall angular hostile with an exposed core
+  // sentinel: a tall angular hostile with an exposed core
   ART.koopa1 = [
     '.....KKKKKK.....',
     '....KRRRRRRK....',
@@ -1432,17 +1442,19 @@
     boss1: 24, boss2: 24
   };
 
-  for (var nm in ART) SPR[nm] = bake(SPRW[nm], ART[nm]);
+  for (var nm in ART) {
+    SPR[nm] = bake(SPRW[nm], ART[nm], nm.indexOf('pS_') === 0 || nm.indexOf('pB_') === 0 ? HERO_PAL : PAL);
+  }
 
   // Fire suit = white where the cap/shirt was red, red where the overalls
   // were blue. One recolour pass over the same pixel data, at load.
-  var FIRE_MAP = { R: '#f4f4f4', r: '#b9bcc6', B: '#e03a20', b: '#9c1c08' };
+  var FIRE_MAP = { R: '#fff4c7', r: '#dc6a24', W: '#e94b55', B: '#ff8b55', N: '#fff7e5' };
   var FIRE = {};
   ['pS_idle', 'pS_walk1', 'pS_walk2', 'pS_walk3', 'pS_jump', 'pS_skid', 'pS_dead',
    'pS_swim1', 'pS_swim2', 'pS_climb1', 'pS_climb2',
    'pB_up', 'pB_stand', 'pB_walk1', 'pB_walk2', 'pB_walk3', 'pB_jump', 'pB_crouch',
    'pB_swim', 'pB_climb']
-    .forEach(function (k) { FIRE[k] = recolor(ART[k], SPRW[k], FIRE_MAP); });
+    .forEach(function (k) { FIRE[k] = recolor(ART[k], SPRW[k], FIRE_MAP, HERO_PAL); });
 
   // Star power cycles three loud palettes over the normal suit.
   var STAR_MAPS = [
@@ -1456,7 +1468,7 @@
      'pS_swim1', 'pS_swim2', 'pS_climb1', 'pS_climb2',
      'pB_up', 'pB_stand', 'pB_walk1', 'pB_walk2', 'pB_walk3', 'pB_jump', 'pB_crouch',
      'pB_swim', 'pB_climb']
-      .forEach(function (k) { o[k] = recolor(ART[k], SPRW[k], m); });
+      .forEach(function (k) { o[k] = recolor(ART[k], SPRW[k], m, HERO_PAL); });
     return o;
   });
   // Red koopas (the ones that refuse to walk off a ledge) and their shells.
@@ -1467,7 +1479,7 @@
   });
   // the 1-up is the mushroom in green — same drawing, so they cannot drift
   SPR.oneup = recolor(ART.mushroom, 16, { R: '#3fae3f', W: '#dfffdf' });
-  var RED_MAP = { G: '#e03a20', g: '#9c1c08' };
+  var RED_MAP = { R: '#e03a20', r: '#9c1c08', G: '#e03a20', g: '#9c1c08' };
   var REDK = {};
   ['koopa1', 'koopa2', 'shell', 'shell2'].forEach(function (k) {
     REDK[k] = recolor(ART[k], SPRW[k], RED_MAP);
@@ -2935,10 +2947,21 @@
     p.vy += g;
     if (p.vy > MAX_FALL) p.vy = MAX_FALL;
 
+    var wasGround = p.onGround, landingSpeed = p.vy;
     p.hitWall = 0;
     p.x += p.vx; collideX(p);
     p.y += p.vy; collideY(p, true);
     platformCollide(p);
+    if (!wasGround && p.onGround && landingSpeed > 2.4) {
+      for (var ld = -1; ld <= 1; ld += 2) {
+        parts.push({ kind: 'dust', x: p.x + p.w / 2 + ld * 3, y: p.y + p.h - 2,
+                     vx: ld * (0.35 + Math.min(0.8, landingSpeed / 10)), vy: -0.25, t: 0 });
+      }
+    }
+    if (p.onGround && Math.abs(p.vx) > 1.5 && ((p.vx > 0) !== p.faceR) && frame % 6 === 0) {
+      parts.push({ kind: 'dust', x: p.x + p.w / 2, y: p.y + p.h - 2,
+                   vx: p.faceR ? 0.8 : -0.8, vy: -0.15, t: 0 });
+    }
     if (p.onGround) p.jumping = p.jumping && p.vy < 0;
 
     if (p.x < cam.x) { p.x = cam.x; p.vx = Math.max(0, p.vx); }
@@ -3988,6 +4011,19 @@
     var s = playerSprite();
     var sx = p.x - cam.x + (p.w - 16) / 2;
     var set = p.fire ? FIRE : SPR;
+    // The signal ribbon breaks up the old square silhouette and responds to
+    // speed. It sits behind the body, so every existing pose benefits.
+    if (p.mode !== 'dead' && p.mode !== 'climb') {
+      var back = p.faceR ? -1 : 1;
+      var shoulderX = sx + (p.faceR ? 3 : 12);
+      var shoulderY = p.y + (big ? 10 : 8);
+      var trail = 3 + Math.min(5, Math.round(Math.abs(p.vx) * 1.5));
+      ctx.fillStyle = p.fire ? '#fff4c7' : '#ffb33f';
+      ctx.fillRect(Math.round(shoulderX), Math.round(shoulderY), 2, 2);
+      ctx.fillRect(Math.round(back < 0 ? shoulderX - trail : shoulderX), Math.round(shoulderY + 2), trail, 2);
+      ctx.fillStyle = p.fire ? '#dc6a24' : '#b96020';
+      ctx.fillRect(Math.round(back < 0 ? shoulderX - trail - 2 : shoulderX + trail), Math.round(shoulderY + 3), 3, 2);
+    }
     // `big` differs from p.big ONLY during the grow/shrink flicker. This used
     // to read `if (!big)`, which is true for every frame a SMALL player is
     // ever drawn — so small Mario drew pS_idle and nothing else: no walk
@@ -4160,6 +4196,7 @@
       else if (p.kind === 'spark') { p.y += p.vy; if (p.t > 12) p.remove = true; }
       else if (p.kind === 'puff') { if (p.t > 14) p.remove = true; }
       else if (p.kind === 'drop') { p.vy += 0.22; p.x += p.vx; p.y += p.vy; if (p.t > 26) p.remove = true; }
+      else if (p.kind === 'dust') { p.x += p.vx; p.y += p.vy; p.vx *= 0.88; if (p.t > 14) p.remove = true; }
       else if (p.kind === 'fw') { p.x += p.vx; p.y += p.vy; p.vy += 0.04; if (p.t > 30) p.remove = true; }
     }
     parts = parts.filter(function (p) { return !p.remove; });
@@ -4279,6 +4316,9 @@
         draw(ctx, SPR.puff, px, pa.y);
       } else if (pa.kind === 'drop') {
         rect(px, pa.y, 2, 3, '#9ff0e4');
+      } else if (pa.kind === 'dust') {
+        var ds = pa.t < 5 ? 3 : pa.t < 10 ? 2 : 1;
+        rect(px, pa.y, ds, ds, L.theme === 'underground' || L.theme === 'castle' ? '#8791a8' : '#e8d7ad');
       } else if (pa.kind === 'fw') {
         var fade = pa.t > 20 ? 2 : 3;
         rect(px, pa.y, fade - 1, fade - 1,

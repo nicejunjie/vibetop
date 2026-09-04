@@ -723,6 +723,7 @@
 
   function activate(n) {
     active = n;
+    var justLoaded = false;
     tabs.querySelectorAll('.tab').forEach(function(t) {
       t.classList.toggle('active', +t.dataset.n === n);
     });
@@ -732,15 +733,46 @@
     if (!loaded[n]) {
       document.getElementById('frame-' + n).src = '/t' + n + '/';
       loaded[n] = true;
+      justLoaded = true;
     }
     try { localStorage.setItem('active-terminal', n); } catch (e) {}
     document.title = tabLabel(n) + ' — Vibetop';
     renderSchedules();          // badge + panel are scoped to the active terminal
     focusTerminal(n);
+    showLatest(n, justLoaded);
     // Tab switched -> the newly active terminal's content bottom decides the
     // keyboard lift. Nudge the desktop to recompute NOW (same-origin direct
     // call) instead of waiting for its next viewport event / 300ms tick.
     try { if (window.parent !== window && window.parent.__syncKeybar) window.parent.__syncKeybar(); } catch (e) {}
+  }
+
+  // Switching tabs means "take me to this conversation now", not "restore the
+  // scrollback row this hidden iframe happened to retain". Ask the inner xterm
+  // to follow its live bottom after visibility/layout settles. The load hook
+  // covers a terminal opened for the first time; the inner handler also retries
+  // while ttyd finishes replaying its ring buffer.
+  var latestRequestSeq = 0;
+  function showLatest(n, waitForLoad) {
+    var iframe = document.getElementById('frame-' + n);
+    if (!iframe) return;
+    var requestId = ++latestRequestSeq;
+    function send() {
+      if (+n !== +active || !iframe.contentWindow) return;
+      // Same-origin direct fallback: do not make correct desktop positioning
+      // depend solely on the injected helper having registered its listener.
+      try {
+        var helper = iframe.contentWindow.__vibetopShowLatest;
+        if (helper) { helper(requestId); return; }
+        var term = iframe.contentWindow.term;
+        if (term && term.scrollToBottom) term.scrollToBottom();
+      } catch (_) {}
+      try { iframe.contentWindow.postMessage({ type: 'vibetop-show-latest', requestId: requestId }, location.origin); } catch (_) {}
+    }
+    send();
+    setTimeout(send, 200);
+    setTimeout(send, 1200);
+    setTimeout(send, 3000);
+    if (waitForLoad) iframe.addEventListener('load', send, { once: true });
   }
 
   // Auto-focusing the xterm textarea pops up the on-screen keyboard on mobile.
@@ -918,7 +950,7 @@
     if (!e.data) return;
     if (e.data.type === 'focus-terminal') {
       syncStatus();                 // app just activated → reconcile the set now
-      if (active) focusTerminal(active);
+      if (active) { focusTerminal(active); showLatest(active); }
     }
     // Relay the desktop's system key bar (arrows/Esc/Tab/^C) DOWN to the active
     // terminal's /tN/ iframe, where terminal-kbd.js turns it into PTY bytes.
@@ -938,6 +970,16 @@
     if (!active) return;
     var f = document.getElementById('frame-' + active);
     if (!f) return;
+    // A resize should restore the live bottom only when this viewport was
+    // already following it. Deliberate scrollback is user-owned state.
+    var wasAtLatest = true;
+    try {
+      var b = f.contentWindow.term && f.contentWindow.term.buffer.active;
+      if (b) wasAtLatest = (b.baseY - b.viewportY) <= 1;
+    } catch (_) {}
+    // Arm before changing geometry: showLatest's own settle loop and delayed
+    // retries span the reflow, all under one cancelable request id.
+    if (wasAtLatest) showLatest(active);
     // Force a real geometry change so the inner window fires its own resize
     // event — synthetic dispatch alone misses ResizeObserver-based listeners
     // (ttyd/xterm.js fit-addon uses one). The 1px nudge is briefly visible

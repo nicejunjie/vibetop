@@ -131,6 +131,14 @@ def test_compute_basic_aggregation(tmp_path):
     assert r["byModel"][0]["cost"] == 5.0
 
 
+def test_compute_preserves_reported_model_value(tmp_path):
+    blob = "/usr/share/ollama/.ollama/models/blobs/sha256-" + "a" * 64
+    _write_transcript(tmp_path, "blob.jsonl", [
+        _entry(model=blob, tin=10),
+    ])
+    assert claude_stats._compute(str(tmp_path))["byModel"][0]["model"] == blob
+
+
 def test_compute_dedupes_by_message_and_request_id(tmp_path):
     # The SAME (message.id, requestId) re-logged across a resume/fork must count
     # once — the whole reason get_stats can't just sum raw lines.
