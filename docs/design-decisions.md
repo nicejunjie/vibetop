@@ -3731,6 +3731,48 @@ one path that neither releases it nor guarantees a further `pointermove`, and
 `BRIDGE_MAX_MS` is its backstop. Do not remove that timeout, and do not add
 another early return without one.
 
+## The host's Claude Code runs through vibetop — a repo edit can take it down
+
+**Symptom (2026-09-03, measured).** During the `apps/` restructure, every Claude
+Code session on z20 started failing with API errors. `journalctl -u
+vibetop-claude-proxy` shows **357 `status=203/EXEC` failures between 23:06:21 and
+23:19:33** — thirteen minutes of crash-loop at `RestartSec=2`. Nothing surfaced
+it: the desktop was fine, the tests were green, and the only visible symptom was
+in a different program entirely.
+
+**Cause — two facts that are harmless alone.**
+1. With the Claude-Limit toggle on, the manager writes
+   `ANTHROPIC_BASE_URL=http://127.0.0.1:7690` into `~/.claude/settings.json`. So
+   **every Claude Code session on the host talks to the API through
+   `apps/utilities/claude-usage/vibetop-claude-proxy`** — including the session
+   doing the work on vibetop itself.
+2. The proxy's systemd unit had `ExecStart=/home/junjie/vibe-coding/vibetop/...`
+   — the **dev checkout**, not `/opt/vibetop/app`. The dev/prod split that
+   `docs/deploy.md` describes did not hold for this one unit.
+
+Together: a plain `git mv` in the dev checkout deleted a running service's binary,
+systemd could no longer exec it, and the operator's Claude Code lost its endpoint.
+A running process survives its file being *renamed* (it holds the inode) — which
+is why this looked survivable and was not: systemd restarts on its own schedule
+and the restart is what re-execs the vanished path.
+
+**Fix.** The unit points at the deployed tree. `tools/doctor.sh` now asserts both
+halves — ExecStart exists and is executable, and it is not under `/home` or
+`/root` — with the remediation naming the *deployed* directory rather than
+`$ROOT` (doctor may itself be running from the home checkout, and telling someone
+to re-point the unit at the offending tree is worse than silence). The installer
+refuses to render the unit when the binary is missing.
+
+**Invariant.** Anything under `apps/utilities/claude-usage/` is part of the
+operator's API path, not just a vibetop feature. Before moving, renaming or
+redeploying it, know that you are editing your own connection to the API — and
+never let a system unit's ExecStart point into a home checkout. If a deploy of
+this app must happen mid-session, expect a restart window and prefer socket
+activation (systemd holding the listening socket) over `Restart=always`, which
+refuses connections for `RestartSec` on every bounce.
+
+---
+
 ## Repo-path references break SILENTLY when the tree is regrouped
 
 **Symptom.** Reorganising the source tree (landing/ → shell/ + shared/ + apps/,

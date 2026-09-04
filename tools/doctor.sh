@@ -219,6 +219,32 @@ if unit_exists vibetop-claude-proxy.service; then
     else
         ok "vibetop-claude-proxy User=$PU matches the operator"
     fi
+    # ExecStart must be a path that (a) EXISTS and (b) is the DEPLOYED tree, not a
+    # developer's home checkout. This unit is load-bearing for the whole host:
+    # with the Claude-Limit toggle on, ~/.claude/settings.json points
+    # ANTHROPIC_BASE_URL at this proxy, so EVERY Claude Code session on the machine
+    # goes through it. Pointed at a home checkout, an ordinary `git mv` in that
+    # checkout deletes the binary out from under a running service — systemd then
+    # crash-loops it at RestartSec=2 and every Claude Code session gets
+    # connection-refused until someone notices. That is not hypothetical: it
+    # happened on 2026-09-03 for 13 minutes and 357 failed execs during a repo
+    # restructure, and nothing reported it.
+    PX="$(sed -n 's/^ExecStart=//p' /etc/systemd/system/vibetop-claude-proxy.service | head -1 | awk '{print $1}')"
+    if [ -z "$PX" ]; then
+        adv "vibetop-claude-proxy has no ExecStart"
+    elif [ ! -x "$PX" ]; then
+        bad "vibetop-claude-proxy ExecStart does not exist or is not executable: $PX — the proxy is crash-looping and EVERY Claude Code session on this host is getting API errors. Fix: 'sudo env APP_USER=$APP_USER APP_DIR=$ROOT $ROOT/apps/utilities/claude-usage/install.sh'"
+    else
+        case "$PX" in
+          /home/*|/root/*)
+            # Name the DEPLOYED tree in the fix, not $ROOT — doctor may itself be
+            # running from the home checkout, and telling someone to re-point the
+            # unit at the very tree that is the problem is worse than saying nothing.
+            DEP="$ROOT"; [ -d /opt/vibetop/app ] && DEP=/opt/vibetop/app
+            bad "vibetop-claude-proxy runs from a HOME checkout ($PX), not the deployed tree — editing or moving files there takes down every Claude Code session on this host. Fix: 'cd $DEP && sudo env APP_USER=$APP_USER APP_DIR=$DEP $DEP/apps/utilities/claude-usage/install.sh'" ;;
+          *) ok "vibetop-claude-proxy ExecStart exists and is outside any home checkout" ;;
+        esac
+    fi
     # Cheap corroboration: the symptom itself, straight from the proxy's journal.
     # Scoped to THIS run of the unit (not a flat -24h window) — otherwise the
     # failures logged before a fix keep the check red long after it's repaired,
