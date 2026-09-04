@@ -638,10 +638,6 @@ def _set_claude_usage(on):
 # ---- Codex plan-usage strip (opt-in display) -------------------------------
 # Codex already records account rate-limit snapshots in token_count events in
 # ~/.codex/sessions. Enabling this only controls whether Vibetop displays them.
-# How close to the limit a window must have been for a later null to mean
-# "exhausted" rather than "not reported". The user's own instinct, and the
-# right one: the exhausted window's last-known number is really close to 100.
-CODEX_EXHAUSTED_PCT = 90.0
 CODEX_USAGE_STALE_SEC = 15 * 60
 _codex_rate_cache = {}
 _codex_rate_cache_lock = threading.Lock()
@@ -681,9 +677,40 @@ def _is_codex_limit(limits):
             and (mins("primary") is not None or mins("secondary") is not None))
 
 
+# One window's best-known reading, as (resets_at, window_minutes, used_percent).
+#
+# WHY "BEST" AND NOT "NEWEST". Several Codex sessions write rollout files at the
+# same time, and their snapshots of the same window disagree: a request that
+# started earlier can land later carrying a staler number. Measured live on
+# 2026-09-04 the strip read 96% -> 94% -> 99% -> 100% -> 99% within three
+# minutes, flipping between two sessions, because the payload took whichever
+# record happened to be newest by timestamp.
+#
+# Within ONE generation of a window -- the same `resets_at` -- used_percent is
+# monotonically non-decreasing, so a lower reading is stale BY DEFINITION and
+# the maximum is the truth. A later `resets_at` is a new generation and always
+# wins outright, however low its number: that is the window having rolled.
+def _codex_better(cur, src):
+    if not isinstance(src, dict) or src.get("used_percent") is None:
+        return cur                              # no reading here; keep what we have
+    reset, mins = src.get("resets_at"), src.get("window_minutes")
+    try:
+        pct = float(src["used_percent"])
+    except (TypeError, ValueError):
+        return cur
+    cand = (reset, mins, pct)
+    if cur is None:
+        return cand
+    if reset is None or cur[0] is None:
+        return cand if cur[0] is None else cur   # prefer a reading that has a reset
+    if reset != cur[0]:
+        return cand if reset > cur[0] else cur   # newer generation wins outright
+    return cand if pct > cur[2] else cur         # same generation: the max is current
+
+
 def _last_codex_rate_limit(path):
-    """Return and retain the newest rate-limit event in one rollout file, plus
-    the most recent real value for each window (primary/secondary).
+    """Scan one rollout file: the newest rate-limit event (for plan/age) plus the
+    best reading per window, as `_codex_better` defines best.
 
     A capped tail read lost the useful 100%-and-reset snapshot when error or
     tool records appended enough text after the final successful response.
@@ -691,11 +718,9 @@ def _last_codex_rate_limit(path):
     keep returning the last valid limit while Codex is blocked. On a manager
     restart the first call scans the complete rollout once.
 
-    Out-of-limit events (a window's value is null) are NOT skipped: they are
-    the newest state and tell us *which* window is exhausted. The per-window
-    last-valid values let `_codex_usage_payload` turn a null window into a 100%
-    reading while keeping its reset/minutes from the last event that carried a
-    real value.
+    A window whose value is null contributes NOTHING and is simply passed over —
+    it is an event that carried no reading, not a signal about quota. Only
+    `limit_id: codex` records are considered at all (`_is_codex_limit`).
     """
     try:
         size = os.path.getsize(path)
@@ -710,7 +735,7 @@ def _last_codex_rate_limit(path):
     except OSError:
         return None
     state = cached[1] if cached and start else {
-        "newest": None, "last_primary": None, "last_secondary": None}
+        "newest": None, "primary": None, "secondary": None}
     for line in raw.splitlines():
         if b'"rate_limits"' not in line or b'"token_count"' not in line:
             continue
@@ -726,9 +751,7 @@ def _last_codex_rate_limit(path):
             updated = int(datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp())
             state["newest"] = (updated, limits)
             for key in ("primary", "secondary"):
-                src = limits.get(key)
-                if isinstance(src, dict) and src.get("used_percent") is not None:
-                    state["last_" + key] = (updated, src)
+                state[key] = _codex_better(state[key], limits.get(key))
         except (ValueError, TypeError, AttributeError):
             continue
     with _codex_rate_cache_lock:
@@ -739,12 +762,21 @@ def _last_codex_rate_limit(path):
 def _codex_usage_payload(home=None, enabled=True):
     """Latest Codex 5-hour/weekly usage snapshot for the requesting user.
 
-    A null window in the newest event means that limit is exhausted (Codex stops
-    reporting a number once a limit is hit). We turn that window into a 100%
-    reading, pulling its reset/minutes from the last event that carried a real
-    value. When both windows are null the event can't say which limit tripped,
-    so the exhausted one is the window whose last-known value was closest to
-    100%; the other keeps its last-known value.
+    Read from the rollout logs under ~/.codex/sessions. Only `limit_id: codex`
+    records are consulted (`_is_codex_limit`); each window reports the best
+    reading for its current generation (`_codex_better`); and a window whose
+    `resets_at` has passed reads 0% (`rolled`).
+
+    A NULL WINDOW MEANS "NO READING", NOT 100%. This used to infer exhaustion
+    from a null `used_percent` -- Codex was believed to stop reporting a number
+    once a limit was hit. Measured at the limit on 2026-09-04, it does not: the
+    5-hour window went 97, 98, 99, 100.0 as ordinary numbers, and across 1420
+    codex records not one has ever carried a null. The nulls that prompted the
+    inference belong to the `limit_id: premium` credits record, which is null in
+    every single case because the balance is "0" and has nothing to do with
+    usage -- it arrives in the same instant as the codex record, so it looked
+    like the limit talking. `_is_codex_limit` is what keeps those out, and it is
+    the part actually doing the work.
     """
     out = {"enabled": bool(enabled)}
     if not enabled:
@@ -754,99 +786,40 @@ def _codex_usage_payload(home=None, enabled=True):
                       recursive=True)
     paths.sort(key=lambda p: os.path.getmtime(p) if os.path.exists(p) else 0,
                reverse=True)
-    # Combine the per-file state: the newest event overall, and the most recent
-    # valid value for each window (primary/secondary) across all files.
-    newest = None          # (updated, limits)
-    last_primary = None    # (updated, src)
-    last_secondary = None  # (updated, src)
+    newest = None                      # (updated, limits) -- for plan_type + age
+    best = {"primary": None, "secondary": None}
     for path in paths[:32]:
         state = _last_codex_rate_limit(path)
         if not state:
             continue
         if state["newest"] and (newest is None or state["newest"][0] > newest[0]):
             newest = state["newest"]
-        if state["last_primary"] and (last_primary is None
-                                      or state["last_primary"][0] > last_primary[0]):
-            last_primary = state["last_primary"]
-        if state["last_secondary"] and (last_secondary is None
-                                       or state["last_secondary"][0] > last_secondary[0]):
-            last_secondary = state["last_secondary"]
+        for key in ("primary", "secondary"):
+            got = state.get(key)
+            if got is not None:
+                best[key] = _codex_better(
+                    best[key], {"used_percent": got[2], "window_minutes": got[1],
+                                "resets_at": got[0]})
     if not newest:
         return out
     updated, limits = newest
 
-    def valid(src):
-        return isinstance(src, dict) and src.get("used_percent") is not None
-
-    def window(src):
-        if not valid(src):
+    def window(got):
+        if not got:
             return None
-        return {"pct": max(0.0, min(1.0, float(src["used_percent"]) / 100.0)),
-                "reset": src.get("resets_at"),
-                "minutes": src.get("window_minutes")}
-
-    def exhausted_window(last):
-        """A null window is a 100% reading; keep its reset/minutes from the last
-        event that carried a real value for that window.
-
-        With no last-known value at all we return None (unknown) rather than
-        100%: a window we have never had a reading for is not a window we have
-        watched fill up, and claiming the user is out of quota on no evidence is
-        the worst way to be wrong."""
-        if not last:
-            return None
-        _, src = last
-        return {"pct": 1.0, "reset": src.get("resets_at"),
-                "minutes": src.get("window_minutes")}
-
-    # Determine which window (if any) is exhausted.
-    p_live = valid(limits.get("primary"))
-    s_live = valid(limits.get("secondary"))
-    if p_live and s_live:
-        exhausted = None
-    elif p_live:
-        exhausted = "secondary"          # secondary is the null one
-    elif s_live:
-        exhausted = "primary"            # primary is the null one
-    else:
-        # Both null: the exhausted one is the window whose last-known value was
-        # closest to 100%.
-        pp = last_primary[1].get("used_percent") if last_primary else None
-        ps = last_secondary[1].get("used_percent") if last_secondary else None
-        # A window only counts as exhausted if we watched it get NEARLY there.
-        # Without that floor a quiet event with both windows null declares
-        # whichever side happened to be higher — 30% beating 12% — to be out of
-        # quota, which is a false alarm in the one direction that matters.
-        hi_p = pp is not None and pp >= CODEX_EXHAUSTED_PCT
-        hi_s = ps is not None and ps >= CODEX_EXHAUSTED_PCT
-        if not hi_p and not hi_s:
-            exhausted = None             # nothing was close: do not guess
-        elif hi_p and hi_s:
-            exhausted = "primary" if pp >= ps else "secondary"
-        else:
-            exhausted = "primary" if hi_p else "secondary"
-
-    def resolve(key, last):
-        if valid(limits.get(key)):
-            return window(limits.get(key))
-        if exhausted in (key, "both"):
-            return exhausted_window(last)
-        return window(last[1]) if last else None
-
-    session = resolve("primary", last_primary)
-    weekly = resolve("secondary", last_secondary)
+        reset, mins, pct = got
+        return {"pct": max(0.0, min(1.0, pct / 100.0)), "reset": reset,
+                "minutes": mins}
 
     def rolled(w):
         """A stale reading is only true until its window turns over.
 
-        Usage never falls DURING a window, so a last-known number stays a valid
-        lower bound however old it gets — but the moment `resets_at` passes, the
-        window has rolled and that number is simply wrong. Measured on the real
-        trace: 98% at 17:35 with resets_at ~18:24:39, then Codex silent for
-        fifty minutes; the next record at 18:25:13 reads 0%. For those last
-        thirty-four seconds the strip was showing 98% of a window that had
-        already emptied, and on a quieter day it would show it until the user
-        next ran Codex — which could be hours.
+        Within a generation usage never falls, so a last-known number stays a
+        valid lower bound however old it gets -- but the moment `resets_at`
+        passes, the window has rolled and that number is simply wrong. Measured
+        on the real trace: 98% at 17:35 with resets_at ~18:24:39, then Codex
+        silent for fifty minutes; the next record at 18:25:13 reads 0%. On a
+        quieter day the strip would show 98% until the user next ran Codex.
 
         `resets_at` is the answer, not hiding the number: past the reset, report
         0% and roll the reset forward by whole windows to the next real one."""
@@ -859,13 +832,14 @@ def _codex_usage_payload(home=None, enabled=True):
         nxt = w["reset"] + span * (((now - w["reset"]) // span) + 1)
         return {"pct": 0.0, "reset": nxt, "minutes": w["minutes"]}
 
-    session, weekly = rolled(session), rolled(weekly)
-
+    session = rolled(window(best["primary"]))
+    weekly = rolled(window(best["secondary"]))
     age = max(0, int(time.time()) - updated)
     out.update({"session": session, "weekly": weekly,
                 "plan": limits.get("plan_type"), "updated": updated,
                 "ageSec": age, "stale": age > CODEX_USAGE_STALE_SEC})
     return out
+
 
 # ---- Office (Word/Excel/PPT) view & edit -----------------------------------
 # View: convert to PDF with headless LibreOffice (cached) and serve it inline.
