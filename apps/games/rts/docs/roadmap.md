@@ -258,6 +258,135 @@ proud-applique treatment made `iou.vehicle.mean` WORSE (0.5801 → 0.5808) — a
 shared visual language is a shared silhouette. Only the Rhino keeps it, and the
 counts differ per unit on purpose.
 
+### C4 — spikes and the mass hierarchy, GROUND VEHICLES (`unit-redesign-plan.md` §3)
+
+C3 finished by naming what it could not buy: `peerVsSelf.vehicle` stuck at 11 of
+13, and five same-faction vehicle pairs over the 0.75 ceiling, because the
+shared track-box lozenge carries 88–92% of every ground vehicle's outline and a
+colour commit cannot touch that. This is the silhouette commit. Two levers, and
+they are used **differently per unit on purpose** — C3 already measured that a
+uniform treatment makes the ensemble worse, because a shared visual language is
+a shared silhouette.
+
+**Lever 1 — a per-kind SIZE class (`VSC`).** One uniform multiplier per kind
+applied about the ground anchor inside `bakeVehicle`'s `frame()`, so size moves
+and not one proportion moves with it (the audit's aspect work, 1.01–1.53 against
+the RA2 references, had to survive intact). A kind scaled up gets a sheet scaled
+with it; the anchor rule `(w/2, h - UPAD)` is unchanged, so nothing downstream
+of the bake knows. Numbers come from reference §1.1's measured broadside bodies
+× our 1.067 scale — Grizzly 54×23 the flattest and lightest, Flak Track and IFV
+a class down from the tank line, V3 the longest, Apocalypse the heaviest.
+
+> **The honest caveat on `mass.groundCombatSpan`.** The target is ×6.8, and that
+> figure is RA2's span across its **whole** vehicle-and-ship class, Terror Drone
+> 21 px to Aircraft Carrier 143 px. Measured over the nine GROUND-COMBAT
+> vehicles the metric actually covers, **RA2's own span is ×2.04 by broadside
+> bbox area** (Grizzly 1242 → Prism 2537) and **RA2's own `tightestBand6` is
+> ×1.196** — i.e. essentially identical to the ×1.200 this commit inherited.
+> The target is not reachable without building a roster RA2 does not have. What
+> this pass does instead: hold each unit near its measured RA2 proportion and
+> push the two ENDS about 15% further apart than the sprites do, on the grounds
+> that RA2's renderer never went below 1.0× and ours goes to 0.55×. That yields
+> span **3.532** and band **2.009** — the band target met, the span materially
+> better, and the remaining span debt is a target-definition problem rather than
+> art debt. Say so rather than chasing it into caricature.
+
+**Lever 2 — one distinct CROWN per unit.** Every tank wore a squat blob of
+roughly the same width above the deck. Now: nothing at all (Grizzly), a fat
+rounded dome with a stubby gun (Rhino), a notched twin-barrel + four canisters
+(Apocalypse), two thin separated masts (Tesla), one tall narrow shard (Prism),
+one wide low lid (Mirage), a steep thin stick (Flak Track), a big box (IFV), a
+long diagonal (V3), no crown and splayed legs (Terror Drone).
+
+- ☑ **Grizzly (`lancer`)** `VSC 0.750` — the smallest and flattest thing that
+  drives, 60×24 broadside against RA2's 54×23. Barrel out to 19.5 units. Its
+  tube is authored at **3.4 px, not the reference's 2.2**: the scale gate (plan
+  §2 option 1) outranks the sprite, because a faithful 2 px barrel is 1.1 device
+  px at `ZMIN` and smears away, and the gun is the whole unit. Mass 1443 → 844.
+- ☑ **Rhino (`rhino`)** `VSC 0.884` — 63×33: hull 1.38× the Grizzly's height on
+  a shorter body, and the gun goes **13.2 × 2.35** against the Grizzly's
+  19.5 × 1.72, so the Collective barrel is 1.8× the thickness over 0.6× the
+  reach (ref §2.4 asks 1.6×). Mass 1841 → 1454.
+- ☑ **Apocalypse (`mammoth`)** `VSC 1.135`, `len 34→27`, `wid 22→25` — it was
+  1.87 aspect broadside against RA2's 1.37, i.e. 40% too long for its height. It
+  is chunky now, and the heaviest thing on the ground. Canisters grew with it
+  (r 1.85→2.20, h 5.4→6.2) so "each ≥6×6 px and countable" survives the rescale
+  and the remap budget holds. Mass 2470 → 2946.
+- ☑ **Tesla Tank (`teslatank`)** `VSC 1.041` — the coil pair is **staggered
+  fore-and-aft as well as abreast**, and that is a deliberate departure from the
+  plan view. Our isometric puts `px` at exactly 0 on the two broadside bearings,
+  so two coils mounted abreast land in the SAME screen columns and stack into
+  one mast — which is what the gate was scoring when it put the Tesla Tank
+  against the Mirage at 0.815. Seven windings instead of five, the central core
+  block cut from 4.6 to 2.8 so the coils lead, and the arc redrawn as lightning
+  between the two heads. Its measured spike thickness fell **28 → 6.5**: the
+  crown stopped being a block and became a spike.
+- ☑ **Prism Tank (`prismtank`)** `VSC 1.323` — the crystal housing goes 7.2 →
+  9.8 units tall and narrows as it rises (`PW 1.95`). The tallest tank profile
+  in the game, and the only crown that is tall AND thin. Mass 1449 → 2588.
+- ☑ **Mirage (`mirage`)** `VSC 1.272` — the anti-Prism: the 8.8-unit emitter
+  tower became a **wide low shell** 3.2 units tall over a 6.0-radius house-colour
+  ring, three stepped plates instead of a chimney, and the gun cut from 8.0 to
+  **3.6 units** because "any longer and it reads as a Grizzly" (ref §2.3). Wide
+  and low against tall and narrow is the whole Mirage/Prism separation.
+- ☑ **Flak Track (`flaktrack`)** `VSC 0.820`, `len 27→23` — square, at 1.003
+  mean aspect against RA2's 1.00, and the smallest armed thing on tracks. Its
+  gun is steeper and higher (tip `ky-14.8`). Its remap had to come DOWN with the
+  size — shrinking a sprite loses detail pixels faster than it loses paint, and
+  it went 19.6% → 26.3% before the flank band and bed coaming were trimmed.
+- ☑ **IFV (`ifv`)** `VSC 1.109` — 49×42, near-square, and its declared spike now
+  measures 17 against a budget of 8 (it was 14.5).
+- ☑ **V3 (`v3`)** `VSC 1.256` — the longest land vehicle, 76×42.
+- ☑ **Terror Drone (`drone`)** — the one vehicle **below the scale floor**
+  (3.0 px, floor 3.64). `spikeOf` measures a horizontal spike as the median
+  COLUMN HEIGHT outside the body, and a straight strut down to a claw leaves 2–3
+  px columns out there. The legs are **arched** now — knee carried high and
+  pushed out past the shoulder, blade 2.3/1.9 wide — which puts knee and shin in
+  the same column and doubles it: **7.0 px**, clear at `ZMIN`. It is also what
+  the sprite has; the reference drone crouches with its knees above its back.
+- ☑ **Chrono Miner (`harv`, Allied)** `VSC 0.90`, `len 26→30`, bin 7.6→5.8, cab
+  6.6→5.0 — RA2 measures it 55×28, aspect 1.96, "height ≤ 0.55 × length"; ours
+  read 45×30. It is a low truck now (50×26), which is the read against both the
+  War Miner and the Rhino.
+- ☑ **War Miner (`harv`, Soviet)** `VSC 1.160`, bin 12.8×12.4×10.2 →
+  11.4×12.0×13.2 — taller than it is long, the opposite of the Chrono Miner's
+  truck and of the Mirage's low slab. RA2: 56×48 against the Chrono Miner's
+  55×28, the same length and nearly twice the height, and that is the entire
+  difference between the two harvesters.
+- ☑ **MCV (`mcv`)** `VSC 1.190` — "the biggest ground vehicle that is not a
+  ship" and "≥1.20× the widest tank" was not true: it was the same 87 px wide as
+  the Apocalypse. 95×85 now (still only 1.09×, so the spec is not fully met).
+
+**The bug this pass fell over: the Hornet was a flying ore truck.**
+`bakeVehicle`'s kind chain ends in an unguarded `else` that draws a Chrono Miner
+"for any kind the chain does not name" — and `hornet` was never named. The
+carrier's strike flight took off as three 56 px harvesters with violet drums for
+noses, at altitude 40. It is `isAirKind` now at `VSC 0.45`, i.e. the Harrier's
+airframe at the reference's own spec for it ("the smallest thing that flies —
+half a Harrier; identity is size, not detail", §2.3): 21×15, mass 125 against
+the Harrier's 495. `iou.air.mean` **0.3025 → 0.1622**. It was found because
+lowering the Chrono Miner moved the AIR metric, which is the only reason anyone
+would ever have looked.
+
+Gate (`RTS_ART=1 node --test apps/games/rts/rts-art.test.js`), before → after:
+`peerVsSelf.vehicle` 11 → **9**, `peerVsSelf.total` 29 → **27**,
+`iou.groundCombat.mean` 0.6769 → **0.5330**, `iou.vehicle.mean` 0.5802 →
+**0.4685**, `iou.air.mean` 0.3025 → **0.1622**, `iou.sameFactionOver75` 14 →
+**9**, `spike.belowFloor` 2 → **1**, `mass.groundCombatSpan` 2.357 → **3.532**,
+`mass.tightestBand6` 1.200 → **2.009 (target met)**, `hue.vehicleOwnerMean`
+0.1698 → **0.1746**, `hue.vehicleOwnerMax` 0.2506 → **0.2478**. Nothing
+regressed. **Zero ground-combat pairs remain over 0.75** (max 0.7133, was
+0.816); all nine survivors of `sameFactionOver75` are infantry or naval.
+
+**What did NOT move, and why.** `spike.belowFloor` and `spike.minThickAtZmin`
+still carry the **Landing Craft** (3.0 px), and `spike.belowDeclaredBudget` is
+the same four — Chrono Legionnaire, Destroyer, Landing Craft, Spy. All four are
+infantry or naval, i.e. outside this commit. `peerVsSelf.vehicle` is 9 rather
+than 0 because four units (V3 0.591, Grizzly 0.549, Apocalypse 0.639, MCV 0.656)
+have a **self**-IoU across their own bearings low enough that almost any peer
+clears it — the price of a strongly asymmetric silhouette, and the metric has no
+way to credit that.
+
 ### Controls and UX
 - ☑ v1.19.194 Selection brackets, primary building, hover name card
 - ☑ v1.19.198 Mouse-wheel zoom about the cursor
