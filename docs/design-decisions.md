@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_229 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_230 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -252,6 +252,7 @@ _229 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Three per-cell terrain sprites that could never break their own tile (2026-09-04)](#three-per-cell-terrain-sprites-that-could-never-break-their-own-tile-2026-09-04)
 - [A draw-time sprite scale is duplicated in the art gate (2026-09-04)](#a-draw-time-sprite-scale-is-duplicated-in-the-art-gate-2026-09-04)
 - [RA2's owner-colour budget and play-size legibility pull opposite ways (2026-09-04)](#ra2s-owner-colour-budget-and-play-size-legibility-pull-opposite-ways-2026-09-04)
+- [The Codex strip showed 98% the moment the limit was hit (2026-09-04)](#the-codex-strip-showed-98-the-moment-the-limit-was-hit-2026-09-04)
 
 <!-- END TOC -->
 
@@ -9222,3 +9223,33 @@ the silhouette is not colour work — keep a remap block inside the body.
 of them: he is mid-sized, mid-value and mid-remap, so he sits between everyone.
 He is also the unit that renders as an enemy rifleman while disguised (§2.1
 calls him "mostly moot in play"), which is why he has not been reshaped around.
+## The Codex strip showed 98% the moment the limit was hit (2026-09-04)
+**Symptom.** The Codex plan-usage strip kept its last best-known percentage the
+instant a limit was reached — so the strip read "98%" while Codex was already
+refusing to run. A number that close to the ceiling, frozen, is indistinguishable
+from "still has a little left," which is exactly the wrong thing to believe at
+the moment you most need to know you are blocked.
+**Cause.** When a window is exhausted Codex stops reporting a number for it — the
+`token_count` event carries `primary: null` (or `secondary: null`) instead of a
+`used_percent`. The parser's job was to *keep the last valid snapshot* so the
+reset countdown and window length survive a blocked session, and it did that by
+holding the last real value for every window. That is correct for the window that
+is NOT exhausted, but for the one that IS exhausted the last real value is a
+stale 98%, not a 100%.
+**Fix.** A null window in the newest event now means "that limit is exhausted,"
+and `_codex_usage_payload` turns that one window into a 100% reading, pulling its
+`resets_at`/`window_minutes` from the last event that carried a real value for
+that window (so the countdown and window length are preserved, not lost). The
+other window keeps its last-known value. When BOTH windows are null the event
+cannot say which limit tripped, so the exhausted one is the window whose
+last-known value was closest to 100% — the one that was about to hit — and the
+other keeps its last-known value. `server/tests/test_codex_usage.py` covers all
+four shapes: both-valid, primary-null, secondary-null, and both-null.
+**Rejected: setting BOTH windows to 100% when only one is exhausted.** It is the
+obvious one-liner and it is wrong: hitting the 5-hour session limit does not
+exhaust the 7-day weekly limit, and a strip that shows "week 100%" when the week
+is really at 40% would send the user to wait a week for a reset that is only
+five hours away. The null value is per-window, so the 100% must be per-window too.
+**Rejected: hiding the null window.** It would make the strip shorter the moment
+the user is blocked, and drop the reset countdown — the one piece of information
+that tells them when they can run again.

@@ -594,13 +594,20 @@ _codex_rate_cache_lock = threading.Lock()
 
 
 def _last_codex_rate_limit(path):
-    """Return and retain the newest rate-limit event in one rollout file.
+    """Return and retain the newest rate-limit event in one rollout file, plus
+    the most recent real value for each window (primary/secondary).
 
     A capped tail read lost the useful 100%-and-reset snapshot when error or
     tool records appended enough text after the final successful response.
     Cache by byte offset instead: new calls inspect only appended records, but
     keep returning the last valid limit while Codex is blocked. On a manager
     restart the first call scans the complete rollout once.
+
+    Out-of-limit events (a window's value is null) are NOT skipped: they are
+    the newest state and tell us *which* window is exhausted. The per-window
+    last-valid values let `_codex_usage_payload` turn a null window into a 100%
+    reading while keeping its reset/minutes from the last event that carried a
+    real value.
     """
     try:
         size = os.path.getsize(path)
@@ -614,7 +621,8 @@ def _last_codex_rate_limit(path):
             raw = f.read()
     except OSError:
         return None
-    newest = cached[1] if cached and start else None
+    state = cached[1] if cached and start else {
+        "newest": None, "last_primary": None, "last_secondary": None}
     for line in raw.splitlines():
         if b'"rate_limits"' not in line or b'"token_count"' not in line:
             continue
@@ -624,24 +632,30 @@ def _last_codex_rate_limit(path):
             limits = payload.get("rate_limits")
             if payload.get("type") != "token_count" or not isinstance(limits, dict):
                 continue
-            primary = limits.get("primary")
-            # Out-of-limit events carry primary=null (limit_id flips to
-            # "premium"); skip them so the last valid 100%-and-reset snapshot
-            # is retained while Codex is blocked.
-            if not isinstance(primary, dict) or primary.get("used_percent") is None:
-                continue
             stamp = event.get("timestamp")
             updated = int(datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp())
-            newest = (updated, limits)
+            state["newest"] = (updated, limits)
+            for key in ("primary", "secondary"):
+                src = limits.get(key)
+                if isinstance(src, dict) and src.get("used_percent") is not None:
+                    state["last_" + key] = (updated, src)
         except (ValueError, TypeError, AttributeError):
             continue
     with _codex_rate_cache_lock:
-        _codex_rate_cache[path] = (size, newest)
-    return newest
+        _codex_rate_cache[path] = (size, state)
+    return state
 
 
 def _codex_usage_payload(home=None, enabled=True):
-    """Latest Codex 5-hour/weekly usage snapshot for the requesting user."""
+    """Latest Codex 5-hour/weekly usage snapshot for the requesting user.
+
+    A null window in the newest event means that limit is exhausted (Codex stops
+    reporting a number once a limit is hit). We turn that window into a 100%
+    reading, pulling its reset/minutes from the last event that carried a real
+    value. When both windows are null the event can't say which limit tripped,
+    so the exhausted one is the window whose last-known value was closest to
+    100%; the other keeps its last-known value.
+    """
     out = {"enabled": bool(enabled)}
     if not enabled:
         return out
@@ -650,25 +664,78 @@ def _codex_usage_payload(home=None, enabled=True):
                       recursive=True)
     paths.sort(key=lambda p: os.path.getmtime(p) if os.path.exists(p) else 0,
                reverse=True)
-    newest = None
+    # Combine the per-file state: the newest event overall, and the most recent
+    # valid value for each window (primary/secondary) across all files.
+    newest = None          # (updated, limits)
+    last_primary = None    # (updated, src)
+    last_secondary = None  # (updated, src)
     for path in paths[:32]:
-        got = _last_codex_rate_limit(path)
-        if got and (newest is None or got[0] > newest[0]):
-            newest = got
+        state = _last_codex_rate_limit(path)
+        if not state:
+            continue
+        if state["newest"] and (newest is None or state["newest"][0] > newest[0]):
+            newest = state["newest"]
+        if state["last_primary"] and (last_primary is None
+                                      or state["last_primary"][0] > last_primary[0]):
+            last_primary = state["last_primary"]
+        if state["last_secondary"] and (last_secondary is None
+                                       or state["last_secondary"][0] > last_secondary[0]):
+            last_secondary = state["last_secondary"]
     if not newest:
         return out
     updated, limits = newest
 
+    def valid(src):
+        return isinstance(src, dict) and src.get("used_percent") is not None
+
     def window(src):
-        if not isinstance(src, dict) or src.get("used_percent") is None:
+        if not valid(src):
             return None
         return {"pct": max(0.0, min(1.0, float(src["used_percent"]) / 100.0)),
                 "reset": src.get("resets_at"),
                 "minutes": src.get("window_minutes")}
 
+    def exhausted_window(last):
+        """A null window is a 100% reading; keep its reset/minutes from the last
+        event that carried a real value for that window (None if we never saw one)."""
+        if not last:
+            return {"pct": 1.0, "reset": None, "minutes": None}
+        _, src = last
+        return {"pct": 1.0, "reset": src.get("resets_at"),
+                "minutes": src.get("window_minutes")}
+
+    # Determine which window (if any) is exhausted.
+    p_live = valid(limits.get("primary"))
+    s_live = valid(limits.get("secondary"))
+    if p_live and s_live:
+        exhausted = None
+    elif p_live:
+        exhausted = "secondary"          # secondary is the null one
+    elif s_live:
+        exhausted = "primary"            # primary is the null one
+    else:
+        # Both null: the exhausted one is the window whose last-known value was
+        # closest to 100%.
+        pp = last_primary[1].get("used_percent") if last_primary else None
+        ps = last_secondary[1].get("used_percent") if last_secondary else None
+        if pp is None and ps is None:
+            exhausted = "both"           # no last-known value: both exhausted
+        else:
+            exhausted = "primary" if (ps is None or (pp is not None and pp >= ps)) \
+                else "secondary"
+
+    def resolve(key, last):
+        if valid(limits.get(key)):
+            return window(limits.get(key))
+        if exhausted in (key, "both"):
+            return exhausted_window(last)
+        return window(last[1]) if last else None
+
+    session = resolve("primary", last_primary)
+    weekly = resolve("secondary", last_secondary)
+
     age = max(0, int(time.time()) - updated)
-    out.update({"session": window(limits.get("primary")),
-                "weekly": window(limits.get("secondary")),
+    out.update({"session": session, "weekly": weekly,
                 "plan": limits.get("plan_type"), "updated": updated,
                 "ageSec": age, "stale": age > CODEX_USAGE_STALE_SEC})
     return out
