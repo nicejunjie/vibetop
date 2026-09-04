@@ -30,7 +30,10 @@ re-derive it here, and put new detail in the area doc rather than growing this f
 
 **Whenever you solve a new non-obvious problem** (surprising bug, external-tool
 workaround, a design fork with a rejected alternative), add an entry to
-`docs/design-decisions.md`. Read it before re-litigating a design that looks odd.
+`docs/design-decisions.md`, then run `python3 tools/gen-dd-toc.py` to refresh its
+index (a test fails if you forget). Read it before re-litigating a design that
+looks odd — it is 200+ entries, so start from the **Contents** list at the top
+rather than scrolling.
 
 ## Overview
 
