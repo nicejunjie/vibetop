@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_228 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_229 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -251,6 +251,7 @@ _228 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Ore growth: [General] GrowthRate vs [Riparius] Growth (2026-09-04)](#ore-growth-general-growthrate-vs-riparius-growth-2026-09-04)
 - [Three per-cell terrain sprites that could never break their own tile (2026-09-04)](#three-per-cell-terrain-sprites-that-could-never-break-their-own-tile-2026-09-04)
 - [A draw-time sprite scale is duplicated in the art gate (2026-09-04)](#a-draw-time-sprite-scale-is-duplicated-in-the-art-gate-2026-09-04)
+- [RA2's owner-colour budget and play-size legibility pull opposite ways (2026-09-04)](#ra2s-owner-colour-budget-and-play-size-legibility-pull-opposite-ways-2026-09-04)
 
 <!-- END TOC -->
 
@@ -9182,3 +9183,42 @@ accurate** — 0.1622 → 0.1775 against a 0.45 ceiling — because IoU is
 centre-aligned and not scale-normalised, so a Kirov 16% longer than RA2's
 scores better against the Harrier purely by being oversized. A ceiling metric
 that rewards being wrong is worth knowing about before it is used as evidence.
+## RA2's owner-colour budget and play-size legibility pull opposite ways (2026-09-04)
+**Symptom.** A reported complaint — "the troops all look alike on the map" —
+survived three art passes that took the silhouette gate's `peerVsSelf` from 18
+to 3.
+**Cause.** The gate grades ONE sprite, ALONE, on an empty canvas, by its ALPHA
+SILHOUETTE, at bake resolution. The player sees a crowd, in colour, at play
+size, where infantry are 14-28 px wide and 8-15 px at `ZMIN`.
+`tools/legibility.js` measures that instead: every unit against every other at
+every combination of their eight facings (a pair is only safe at its WORST
+bearing — the player does not choose), on the game's ground, with the threshold
+taken from the game's own friend-vs-foe requirement rather than picked.
+**Fix that worked.** Every confusable infantry pair shared a leg-zone VALUE
+band, and three shared a hue (Tesla Trooper, Ivan and Yuri all navy at L
+36/40/43). Reference §1.5 rule 9 names the leg zone's value as one of three
+levers, and at 8-15 px the other two — a leg split and one prop — are one or two
+pixels, so it was carrying the load alone and four units were wasting it.
+Spreading Ivan (brown, L 50), Yuri (purple, 70), the Spy (blue-grey, 95) and
+Tanya (khaki, 133) took **zoom 1 from 1 confusable pair to 0** and ZMIN from 6
+to 4.
+**Rejected, and this is the interesting half: spreading the OWNER-COLOUR
+fraction toward RA2's own range made it WORSE.** Eleven of twelve uniformed
+troopers sat inside a six-point band (25.9-36.8%) where RA2's measured range is
+14.3-47.9%, so pushing Crazy Ivan to RA2's 47.9%, the Conscript to 44.6% and the
+GI to 44% looked like pure fidelity. Measured, `ivan|spy` went **17.0 -> 15.6**
+at ZMIN and a confusable pair appeared at zoom 1 where there had been none. The
+reason is obvious afterwards: **more owner colour means more of every unit is
+the same blue.** RA2 can afford a 33-point spread because it separates infantry
+by colour ZONES at 1:1; we are asking the same sprites to work at 0.55x, where
+the remap is most of the visible pixels. Reverted, and `hue.infantryOwnerMean`
+stays at the mean RA2's median supports rather than at its range.
+**A second trap inside the same attempt.** Widening Ivan's vest to 6.0 put it
+outside the torso outline, which changed his ALPHA MASK and cost Tanya her
+peer-vs-self by a hair (0.783 against her own 0.783). Colour work that leaves
+the silhouette is not colour work — keep a remap block inside the body.
+**What is left, honestly.** Four pairs remain confusable at ZMIN
+(`ivan|spy`, `tanya|spy`, `ivan|yuri`, `conscript|spy`) and the Spy is in three
+of them: he is mid-sized, mid-value and mid-remap, so he sits between everyone.
+He is also the unit that renders as an enemy rifleman while disguised (§2.1
+calls him "mostly moot in play"), which is why he has not been reshaped around.
