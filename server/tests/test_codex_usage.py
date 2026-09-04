@@ -111,3 +111,114 @@ def test_codex_usage_keeps_limit_snapshot_after_large_error_output(mgr, tmp_path
     blocked = mgr._codex_usage_payload(str(tmp_path), True)
     assert blocked["session"]["pct"] == 1.0
     assert blocked["session"]["reset"] == 2000000000
+
+
+# --- the real rollout carries more than one limit FAMILY ------------------- #
+# Measured over 1225 real token_count events in ~/.codex/sessions:
+#   limit_id=codex                 1220   primary 300 min + secondary 10080 min
+#   limit_id=premium                  3   BOTH null — a credits limit
+#   limit_id=base_model_inference     2   primary 10080 min, secondary null
+# Zero codex records had a null window. So a null seen in a rollout is far more
+# likely to be a different family than an exhausted codex window, and reading
+# whichever record is newest is what made that dangerous.
+
+def _family_event(stamp, limit_id, primary, secondary, extra=None):
+    limits = {"limit_id": limit_id, "limit_name": None,
+              "primary": primary, "secondary": secondary}
+    if extra:
+        limits.update(extra)
+    return {"timestamp": stamp,
+            "payload": {"type": "token_count", "rate_limits": limits}}
+
+
+def test_codex_usage_ignores_the_premium_credits_record(mgr, tmp_path):
+    """A `premium` record has BOTH windows null because it is a credits limit —
+    `has_credits: false, balance: "0"` — and says nothing about the 5h/weekly
+    pair. In the real trace it lands TWO SECONDS after the last codex reading,
+    so on timestamp alone it wins exactly when the numbers matter most."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    (sessions / "r.jsonl").write_text(
+        json.dumps(_family_event("2026-09-04T17:35:06Z", "codex",
+                                 {"used_percent": 98, "window_minutes": 300,
+                                  "resets_at": 1788546279},
+                                 {"used_percent": 77, "window_minutes": 10080,
+                                  "resets_at": 1788891174})) + "\n"
+        + json.dumps(_family_event("2026-09-04T17:35:08Z", "premium", None, None,
+                                   {"credits": {"has_credits": False,
+                                                "unlimited": False, "balance": "0"}})) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"] == {"pct": .98, "reset": 1788546279, "minutes": 300}
+    assert got["weekly"] == {"pct": .77, "reset": 1788891174, "minutes": 10080}
+
+
+def test_codex_usage_ignores_the_gpt_reserve_record(mgr, tmp_path):
+    """`base_model_inference` puts a WEEKLY window (10080) in the PRIMARY slot.
+    Read as a codex record it would be drawn as the 5-hour figure."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    (sessions / "r.jsonl").write_text(
+        json.dumps(_family_event("2026-09-04T17:00:00Z", "codex",
+                                 {"used_percent": 12, "window_minutes": 300,
+                                  "resets_at": 1788546279},
+                                 {"used_percent": 40, "window_minutes": 10080,
+                                  "resets_at": 1788891174})) + "\n"
+        + json.dumps(_family_event("2026-09-04T17:00:01Z", "base_model_inference",
+                                   {"used_percent": 0, "window_minutes": 10080,
+                                    "resets_at": 1789081387}, None)) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"]["minutes"] == 300, "the 5-hour slot must stay the 5-hour window"
+    assert got["session"]["pct"] == .12
+    assert got["weekly"]["pct"] == .40
+
+
+def test_codex_usage_does_not_cry_exhausted_on_a_low_reading(mgr, tmp_path):
+    """Both windows null with nothing near the limit is not evidence of
+    exhaustion — it is an event that carried no numbers. Declaring whichever
+    side happened to be higher (30% beating 12%) to be out of quota is a false
+    alarm in the one direction that matters."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    (sessions / "r.jsonl").write_text(
+        json.dumps(_family_event("2026-09-04T10:00:00Z", "codex",
+                                 {"used_percent": 12, "window_minutes": 300,
+                                  "resets_at": 1788546279},
+                                 {"used_percent": 30, "window_minutes": 10080,
+                                  "resets_at": 1788891174})) + "\n"
+        + json.dumps(_family_event("2026-09-04T10:00:05Z", "codex", None, None)) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"]["pct"] == .12, "a 12% window is not exhausted"
+    assert got["weekly"]["pct"] == .30, "a 30% window is not exhausted"
+
+
+def test_codex_usage_both_null_after_a_near_limit_reading(mgr, tmp_path):
+    """...but when one window WAS nearly there, a later null does mean it. The
+    session at 98% against a weekly at 77% is the case the strip exists for."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    (sessions / "r.jsonl").write_text(
+        json.dumps(_family_event("2026-09-04T17:35:06Z", "codex",
+                                 {"used_percent": 98, "window_minutes": 300,
+                                  "resets_at": 1788546279},
+                                 {"used_percent": 77, "window_minutes": 10080,
+                                  "resets_at": 1788891174})) + "\n"
+        + json.dumps(_family_event("2026-09-04T17:35:07Z", "codex", None, None)) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"] == {"pct": 1.0, "reset": 1788546279, "minutes": 300}
+    assert got["weekly"] == {"pct": .77, "reset": 1788891174, "minutes": 10080}
+
+
+def test_codex_usage_never_invents_a_hundred_percent(mgr, tmp_path):
+    """A window we have never had a reading for is not one we watched fill up.
+    Reporting 100% on no evidence tells the user they are blocked when they are
+    not, which is the worst way for this strip to be wrong."""
+    sessions = tmp_path / ".codex/sessions/2026/09/04"
+    sessions.mkdir(parents=True)
+    (sessions / "r.jsonl").write_text(
+        json.dumps(_family_event("2026-09-04T09:00:00Z", "codex",
+                                 {"used_percent": 95, "window_minutes": 300,
+                                  "resets_at": 1788546279}, None)) + "\n"
+        + json.dumps(_family_event("2026-09-04T09:00:01Z", "codex", None, None)) + "\n")
+    got = mgr._codex_usage_payload(str(tmp_path), True)
+    assert got["session"]["pct"] == 1.0, "the session WAS near the limit"
+    assert got["weekly"] is None, "we have never seen a weekly reading — say nothing"
