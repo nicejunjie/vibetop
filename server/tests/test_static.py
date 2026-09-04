@@ -143,6 +143,25 @@ def test_shellcheck_finds_no_errors():
     assert not errors, "shellcheck errors:\n" + "\n".join(errors)
 
 
+def test_shellcheck_finds_no_warnings():
+    """The -S error gate above is too coarse: SC2318 is only a *warning*, and it
+    silently sent every distro-matrix row's log to one shared "$LOGDIR/.log"
+    (bash expands a `local` declaration's right-hand sides before the locals in
+    that same command exist), so parallel rows truncated each other's file and
+    then grepped it for their own PASS/FAIL. A clean-at-warning tree is cheap to
+    hold and catches that whole class. If a new warning appears, FIX it or add
+    an inline `# shellcheck disable=SCxxxx` with the reason — don't relax this."""
+    if not shutil.which("shellcheck"):
+        pytest.skip("shellcheck not installed")
+    out = []
+    for p in _shell_files():
+        r = subprocess.run(["shellcheck", "-S", "warning", "-f", "gcc", p],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            out.append(r.stdout.strip())
+    assert not out, "shellcheck warnings:\n" + "\n".join(out)
+
+
 # ---- @PLACEHOLDER@ stamping invariant --------------------------------------
 
 _TOKEN_RE = re.compile(r"@[A-Z0-9_]+@")

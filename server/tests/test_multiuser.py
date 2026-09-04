@@ -97,6 +97,19 @@ def test_uploads_land_in_requesting_users_home(client, mgr, users):
     assert [f["name"] for f in a_list] == ["a.txt"]
 
 
+def test_upload_list_rel_to_home_is_the_request_users_home(client, mgr, users):
+    """rel_to_home drives the Upload app's "Open in Files" button, which the UI
+    disables whenever it is null. It was measured against ~APP_USER — the
+    no-login service account, whose home is /opt/vibetop on prod — so no real
+    user's ~/Uploads ever matched and the button was dead for everyone. It must
+    be relative to the REQUESTING user's home."""
+    (_alice_home, alice_ck) = users["alice"]
+    (_bob_home, bob_ck) = users["bob"]
+    for ck in (alice_ck, bob_ck):
+        body = client.get("/api/upload/list", cookie=ck)[1]
+        assert body["rel_to_home"] == "Uploads", body["rel_to_home"]
+
+
 # --- shares (global registry, per-owner fence + visibility) -----------------
 
 def _make_file(home, rel, content="hello"):

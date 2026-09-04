@@ -15,7 +15,6 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VMDIR="$HERE/vm"
-PORT=8091
 E2E_USER="${E2E_USER:-e2e}"
 KEEP=0; UP_ONLY=0; PW_ARGS=()
 while [ $# -gt 0 ]; do

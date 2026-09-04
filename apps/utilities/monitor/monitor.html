@@ -321,12 +321,6 @@
     if (pct > 70) return '#c0935a';
     return null;
   }
-  function tempColor(t) {
-    if (t == null) return '#6a7a8a';
-    if (t >= 90) return '#b85c5c';
-    if (t >= 75) return '#c0935a';
-    return '#5aad8a';
-  }
   function fmtRate(b) {
     if (b >= 1073741824) return (b / 1073741824).toFixed(1) + ' GB/s';
     if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB/s';
