@@ -985,7 +985,6 @@
     GUARDWH:      [ 20,  20,  20, 100,  50, 100,  10,  10,  10],
     FlakTWH:      [150, 100,  50,  60,  10,  10,  30,  20,  10],
     FlakWH:       [150,  80,  50, 100,  20,  20,   0,   0,   0],
-    FlakGuyWH:    [150, 100,  50,  80,  80,  20,   0,   0,   0],
     SAMWH:        [100, 100, 100, 100, 100, 100,   0,   0,   0],
     ORCAAP:       [100, 100, 100, 100, 100, 100, 100, 100,  75],
     BlimpHE:      [100, 100, 100,  70,  35,  35,  85,  75,  50],
@@ -2034,6 +2033,24 @@
   function rngVs(spec, tgt) { return isAir(tgt) && spec.aaRng ? spec.aaRng : spec.rng; }
   // MinimumRange= (V3 5, IFV 1): inside it the weapon simply cannot fire.
   function tooClose(spec, d) { return !!(spec.minRng && d < spec.minRng); }
+  // RA2 measures weapon range to the target's NEAREST CELL. `dist()` is
+  // centre-to-centre, so a structure's own footprint lies between the shooter
+  // and the wall it is aiming at: 1.5 cells on a 3x2 Barracks, 2 on the 4x4
+  // Construction Yard. Any weapon with a shorter range than that could never
+  // reach ANY building -- measured 2026-09-04, Tanya's C4 (rng 1.2) and Crazy
+  // Ivan's bomb (rng 1.5) each did ZERO damage to a Barracks over 3000 ticks
+  // while closing to 1.90 and 1.62 of its centre. Those are both units' whole
+  // reason to exist. `atRefinery` has always carried this allowance so a
+  // harvester could dock; nothing on the weapon path did.
+  //
+  // Only the TARGET's footprint is allowed for, not the shooter's: that is the
+  // half that fixes the defect, and giving every 1x1 defence extra reach as
+  // well would be a balance change nobody asked for.
+  function footAllow(t) { return t && t.kind === 'b' ? Math.max(t.gw, t.gh) / 2 : 0; }
+  // Distance from `a` to the WALL of `b`. Range AND MinimumRange must both be
+  // tested against this one number, or the two ends disagree about what range
+  // means and a V3's dead zone lands in a different place from its reach.
+  function edgeDist(a, b) { return Math.max(0, dist(a, b) - footAllow(b)); }
   // Screen-pixel altitude of a unit right now: 0 on the ground or on a pad,
   // else the type's cruise height plus a slow bob (a Kirov wallows, a
   // Rocketeer bounces on his jets).
@@ -19642,7 +19659,8 @@
       if (w.wh === 'Controller' && psiImmune(o)) return;
       if (w.wh === 'ChronoBeam' && isWall(o)) return;
       var mult = w.wh ? versesVs(w.wh, o) : 1;
-      if (mult <= 0 || d > rngVs(w, o) || tooClose(w, d)) return;   // this weapon cannot hurt / reach it
+      var de = edgeDist(e, o);                                    // range is to the WALL, not the centre
+      if (mult <= 0 || de > rngVs(w, o) || tooClose(w, de)) return;   // this weapon cannot hurt / reach it
       var score;
       if (g.focusFor[e.p]) {
         // Prefer what we hurt most, then what is closest to dying: focus fire
@@ -21347,7 +21365,8 @@
       var am = findTarget(g, u, reachOf(d, u));
       if (am) {
         var amd = dist(u, am), amw = weaponFor(d, am, u);
-        if (amd <= rngVs(amw, am) && !tooClose(amw, amd)) {
+        var ame = edgeDist(u, am);
+        if (ame <= rngVs(amw, am) && !tooClose(amw, ame)) {
           u.path = null;
           var aax = (am.kind === 'b' ? am.cx : am.x) - u.x, aay = (am.kind === 'b' ? am.cy : am.y) - u.y;
           var aaf = faceOf(aay, aax), amRot = rotOf(u.type);
@@ -21435,7 +21454,8 @@
     if (u.order && u.order.t === 'attack') {
       ordered = entById(g, u.order.id);
       if (!ordered || !canHit(d, ordered, u)) { u.order = null; ordered = null; }
-      else if (dist(u, ordered) <= rngVs(weaponFor(d, ordered, u), ordered) && !tooClose(weaponFor(d, ordered, u), dist(u, ordered))) tgt = ordered;
+      else if (edgeDist(u, ordered) <= rngVs(weaponFor(d, ordered, u), ordered)
+               && !tooClose(weaponFor(d, ordered, u), edgeDist(u, ordered))) tgt = ordered;
     }
     // [RepairBullet]: an IFV with an Engineer aboard has no gun, it has a
     // welding arm, and it uses it on the vehicles around it.
@@ -21457,11 +21477,12 @@
       // shrugs off shells (ProneDamage 50%) but not 30 tons of Grizzly. Human
       // tanks keep RA2's stop-and-shoot unless force-moved.
       if (isAiSide(g, u.p) && tgt.kind === 'u' && crusher(u) && crushable(tgt) && dd > 0.8) {
-        if (dd <= rngVs(weaponFor(d, tgt, u), tgt) && u.cool <= 0) fire(g, u, tgt);
+        if (edgeDist(u, tgt) <= rngVs(weaponFor(d, tgt, u), tgt) && u.cool <= 0) fire(g, u, tgt);
         advance(g, u, Math.round(tgt.x), Math.round(tgt.y), uspd(u), 30);
         return;
       }
-      if (dd <= rngVs(weaponFor(d, tgt, u), tgt) && !tooClose(weaponFor(d, tgt, u), dd)) {
+      var dde = edgeDist(u, tgt);                       // to the wall, not the centre
+      if (dde <= rngVs(weaponFor(d, tgt, u), tgt) && !tooClose(weaponFor(d, tgt, u), dde)) {
         u.path = null;
         var ax = (tgt.kind === 'b' ? tgt.cx : tgt.x) - u.x;
         var ay = (tgt.kind === 'b' ? tgt.cy : tgt.y) - u.y;
@@ -31893,7 +31914,6 @@
     zoom: function (z) { if (z) setZoom(z, cvW / 2, cvH / 2); return zoom; },
     isPrimary: function (b) { return G ? isPrimary(G, b) : false; },
     killBld: function (b) { if (G) killBld(G, b); },
-    step: function (n) { for (var i = 0; i < (n || 1); i++) simStep(G); },
     kill: function (p) {
       if (!G) return;
       G.blds.forEach(function (b) { if (b.p === p && !b.dead) killBld(G, b); });

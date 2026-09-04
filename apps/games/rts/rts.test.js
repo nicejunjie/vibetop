@@ -4630,3 +4630,118 @@ test("an ordinary match never sees the captured-production rule", () => {
     }
   }
 });
+
+// ---- duplicate object keys ---------------------------------------------- //
+// A repeated key in an object literal is legal JavaScript and completely
+// silent: the LAST one wins and the earlier value is discarded. That is a
+// uniquely bad failure mode for this file, because the game's balance lives in
+// object literals — `VERSES`, `UNITS`, `BLDS`, `SW` — and the discarded value
+// is usually the annotated, RA2-cited one somebody took care over.
+//
+// It has bitten twice. `VERSES.FlakGuyWH` was declared at line 977 with the
+// RA2 row and again nine lines later with a wrong `medium` column, so
+// `verses('FlakGuyWH','medium')` returned 0.8 where rulesmd.ini says 0.2 —
+// a Flak Trooper did four times its documented damage to every medium-armour
+// vehicle in the game, and the comment beside the correct row made it look
+// verified. `__rtsTest.step` was declared twice in the same object as well.
+//
+// Nothing in the suite looked for either. Now something does, over the whole
+// file rather than over a list of tables somebody has to remember to extend.
+test("no object literal declares the same key twice", () => {
+  const src = fs.readFileSync(SRC, "utf8");
+
+  // Strip comments and string literals first, so a `key:` inside prose or a
+  // template string cannot register, then walk the stream once. `prev` is
+  // tracked incrementally: slicing the prefix at each step is quadratic on a
+  // 1.3 MB file and takes minutes.
+  let s = "", i = 0, line = 1;
+  const lineOf = [];
+  let inS = null, inBlock = false, inLine = false;
+  while (i < src.length) {
+    const c = src[i], d = src[i + 1];
+    if (c === "\n") line++;
+    if (inLine) { if (c === "\n") { inLine = false; s += c; lineOf.push(line); } i++; continue; }
+    if (inBlock) { if (c === "*" && d === "/") { inBlock = false; i += 2; continue; } i++; continue; }
+    if (inS) {
+      if (c === "\\") { i += 2; continue; }
+      if (c === inS) inS = null;
+      i++; continue;
+    }
+    if (c === "/" && d === "*") { inBlock = true; i += 2; continue; }
+    if (c === "/" && d === "/") { inLine = true; i += 2; continue; }
+    if (c === '"' || c === "'" || c === "`") { inS = c; i++; continue; }
+    s += c; lineOf.push(line); i++;
+  }
+
+  // `null` on the stack marks a bracket that is NOT an object scope, so a
+  // `cond ? a : b` inside an array cannot be mistaken for a key.
+  const stack = [], dups = [];
+  const KEY = /^([A-Za-z_$][\w$]*|\d+)\s*:/;
+  let prev = "";
+  for (let j = 0; j < s.length; j++) {
+    const c = s[j], p0 = prev;
+    if (!/\s/.test(c)) prev = c;
+    if (c === "{") { stack.push(new Map()); continue; }
+    if (c === "}") { stack.pop(); continue; }
+    if (c === "(" || c === "[") { stack.push(null); continue; }
+    if (c === ")" || c === "]") { stack.pop(); continue; }
+    if (!stack.length || !stack[stack.length - 1]) continue;
+    // A key can only begin immediately after `{` or `,`. That single rule is
+    // what keeps labels, ternaries and `default:` out of the results.
+    if (p0 !== "{" && p0 !== ",") continue;
+    const m = KEY.exec(s.slice(j, j + 64));
+    if (!m) continue;
+    const set = stack[stack.length - 1];
+    if (set.has(m[1])) dups.push(`${m[1]}: line ${lineOf[j]} silently overrides line ${set.get(m[1])}`);
+    else set.set(m[1], lineOf[j]);
+    j += m[0].length - 1;
+    prev = ":";
+  }
+  assert.deepEqual(dups, [],
+    "an object literal declares the same key twice — the LAST one wins and the "
+    + "earlier value, usually the annotated one, is silently discarded:\n  "
+    + dups.join("\n  "));
+});
+
+// ---- weapon range is measured to the target's WALL ---------------------- //
+// RA2 measures range to the nearest occupied CELL. `dist()` here is
+// centre-to-centre, so a structure's own footprint sits between the shooter and
+// the wall it is aiming at — 1.5 cells on a 3x2 Barracks, 2 on a 4x4
+// Construction Yard. Every weapon whose range is shorter than that allowance
+// could never touch ANY building: measured 2026-09-04, Tanya's C4 (rng 1.2) and
+// Crazy Ivan's bomb (rng 1.5) each did ZERO damage to a Barracks over 3000
+// ticks while standing 1.90 and 1.62 from its centre. Demolishing a building is
+// the entire point of both units, and nothing in this suite noticed, because
+// every other test drives units whose range already exceeds the allowance.
+//
+// The assertion is deliberately about the SHORT-RANGE units only, and about
+// damage dealt rather than about the arithmetic the fix added: `edgeDist` is
+// the line that makes it true, so asserting `edgeDist` would prove nothing.
+test("a demolition unit can reach a building it is standing next to", () => {
+  const H = W.__rtsTest;
+  for (const unit of ["tanya", "ivan", "rifle"]) {
+    const g = H.begin(8801, "normal");
+    fullBase(H, g, 1, "col");                       // something with a real footprint to attack
+    // The BIGGEST footprint in the base — the Collective Barracks is only 2x2,
+    // and the defect only bites when half the footprint exceeds the weapon's
+    // range (Tanya's C4 is 1.2, so anything 3 cells across or more).
+    const bld = g.blds.filter((b) => b.p === 1 && !b.dead)
+      .sort((a, b) => Math.max(b.gw, b.gh) - Math.max(a.gw, a.gh))[0];
+    assert.ok(bld, `${unit}: the fixture base has no structures`);
+    for (const b of g.blds) b.make = 0;
+    assert.ok(Math.max(bld.gw, bld.gh) >= 3,
+      "the fixture needs a footprint wider than any short weapon's range");
+
+    const u = H.spawn(unit, 0, bld.cx, bld.cy + 4);
+    assert.ok(u, `${unit}: spawn failed`);
+    const hp0 = bld.hp;
+    H.orderAttack([u], bld);
+    for (let i = 0; i < 2000 && !bld.dead && !u.dead; i++) H.step(1);
+
+    const dealt = hp0 - bld.hp;
+    assert.ok(dealt > 0 || bld.dead,
+      `${unit} ordered to attack a ${bld.gw}x${bld.gh} ${bld.type} dealt ${dealt} damage in 2000 ticks. `
+      + "Range is being measured to the building's CENTRE, so its own footprint puts the wall "
+      + "out of reach and the unit stands next to a structure it can never touch.");
+  }
+});
