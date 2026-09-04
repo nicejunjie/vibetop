@@ -520,7 +520,9 @@ $tls_redirect_if        auth_request /internal/authcheck;
         # WebSocket frames are unaffected.
         gzip on;
         gzip_proxied any;
-        gzip_types text/html text/javascript application/javascript text/css application/json;
+        # text/html is ALWAYS gzipped by nginx and is implicit in gzip_types;
+        # naming it emits `duplicate MIME type "text/html"` on every config test.
+        gzip_types text/javascript application/javascript text/css application/json;
         gzip_min_length 1024;
 
         sub_filter 'fontSize:13,' 'fontSize:13,scrollback:$SCROLLBACK,cursorStyle:\"bar\",cursorInactiveStyle:\"bar\",';

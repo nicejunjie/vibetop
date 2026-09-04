@@ -122,7 +122,7 @@ transient units, per-user ports, the auth gate) is in `docs/multi-user.md`.
 - **Dev/prod flow (reference host `z20`):** dev work lives on **`main`** (a home checkout that only edits/commits/pushes — it is NOT what runs). The long-lived `multi-user` branch was merged into `main` and deleted on 2026-09-03; there is no separate dev branch any more. Prod runs from `/opt/vibetop/app` as the `vibetop` service account and self-updates by fast-forwarding to **`origin/main`**. Committed work reaches prod only via push to `main` → the in-app **Update** (or `tools/migrate-to-opt.sh`); **a push alone deploys nothing**.
 - **Tests:** `./run-tests.sh` runs every hermetic tier (what CI + the pre-commit hook run). `--live` adds `tools/smoke-test.sh` (run it with `sudo`). See `docs/testing.md`.
 - **QA scope is two pillars** — correctness **and** experience, judged as a very picky experienced user (`docs/qa-charter.md`). A review reporting only correctness findings is incomplete.
-- **Per-sub-project `CLAUDE.md` files** (`apps/everyday/terminal/`, `apps/everyday/browser/`, `shell/`) are thin pointers back here and to `docs/` — keep edits in `docs/`, not duplicated there.
+- **Per-sub-project `CLAUDE.md` files** (`server/`, `apps/everyday/terminal/`, `apps/everyday/browser/`, `shell/`) are thin pointers back here and to `docs/` — keep edits in `docs/`, not duplicated there.
 
 ## Versioning & commits
 
