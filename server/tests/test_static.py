@@ -17,6 +17,7 @@ import py_compile
 import re
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -535,3 +536,17 @@ def test_installers_find_the_repo_root_by_search_not_by_dots():
     assert not bad, (
         "installers reaching tools/lib by a fixed number of '..' — they break on "
         "the next move: %r" % bad)
+
+
+def test_design_decisions_toc_is_current():
+    """docs/design-decisions.md's index must match its headings.
+
+    That file is 8k+ lines and 200+ entries, and CLAUDE.md tells every session to
+    read it before re-litigating a design — which only works if entries can be
+    FOUND. An index that drifts is worse than none, because it looks
+    authoritative while missing the entry you need, so regenerating it is a test,
+    not a habit: `python3 tools/gen-dd-toc.py`.
+    """
+    gen = os.path.join(_REPO, "tools", "gen-dd-toc.py")
+    r = subprocess.run([sys.executable, gen, "--check"], capture_output=True, text=True)
+    assert r.returncode == 0, (r.stderr or r.stdout).strip()
