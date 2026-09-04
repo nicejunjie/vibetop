@@ -227,6 +227,128 @@ building a roster RA2 does not have. Acceptance: no two same-faction units share
 > 5 px against a 7 px budget — both are C2's recorded findings and neither is a
 > silhouette question. (3) GI vs Conscript is untouched, per §4.
 
+> **C6 — NAVAL — done.** `peerVsSelf.naval` **8 → 1**, `iou.naval.mean`
+> **0.4781 → 0.3835** (the plan's ≤0.45 target, MET with room),
+> `iou.sameFactionOver75` **3 → 2** — Aegis|Destroyer was the naval entry at
+> 0.7524 and is now **0.6235**, the worst naval pair of any kind is 0.673, and the
+> two that remain are C2/C4's infantry pairs. `spike.belowFloor` **1 → 0** and
+> `spike.minThickAtZmin` **1.65 → 2.20**, both of which were the Landing Craft.
+> `spike.belowDeclaredBudget` **4 → 2** (the two left are the Chrono Legionnaire
+> and the Spy — infantry). `hue.maxImpostor` 0.0033 → **0.0027**. Nothing outside
+> the group moved by one digit: `peerVsSelf.vehicle/infantry/air`,
+> `iou.groundCombat/vehicle/infantry/air`, `mass.*` and every `hue.*` are byte-equal
+> to the pre-change run, which is what you expect when the diff is confined to
+> `bakeShip`.
+>
+> Per ship, self-IoU / best peer / peers beating self:
+>
+> | ship | selfIoU | best peer | beat |
+> |---|---|---|---|
+> | Sea Scorpion | 0.801 | Amph Transport 0.673 | 0 |
+> | Landing Craft | 0.694 | Amph Transport 0.665 | 0 |
+> | Aegis Cruiser | 0.647 | Destroyer 0.623 | 0 |
+> | Dolphin | 0.632 | Typhoon Sub 0.340 | 0 |
+> | Aircraft Carrier | 0.614 | Giant Squid 0.581 | 0 |
+> | Giant Squid | 0.590 | Aircraft Carrier 0.581 | 0 |
+> | Dreadnought | 0.573 | Aircraft Carrier 0.543 | 0 |
+> | Typhoon Sub | 0.458 | Sea Scorpion 0.448 | 0 |
+> | **Destroyer** | **0.476** | Landing Craft 0.626 | **5** |
+>
+> **The lever was SIZE CLASS, exactly as C4 found for infantry, and the second
+> lever was that no two crowns may be the same HEIGHT.** Our nine hull lengths were
+> bunched between 18 and 58 pre-scale px, and the Giant Squid — RA2's `[SQD]` is
+> **117x30**, the second-longest sprite in the game — was drawn at **20**, inside
+> the Dolphin's class. The `G` table is now RA2's own broadside widths rescaled so
+> the Destroyer keeps L 46 against its 101 px sprite. That alone moved
+> `iou.naval.mean` 0.4781 → 0.4640 and took Aegis|Destroyer under the ceiling.
+>
+> The rest came from crown HEIGHT. `iou()` centres both masks on their bbox centre,
+> so a crown that both ships share at the same height is pure overlap: the Destroyer
+> and the Aegis each carried a ~12-unit block amidships and matched at 0.73 no
+> matter what the hulls did. Dropping the Destroyer to a low 11.6-unit wheelhouse
+> and taking the Aegis to a 20-unit slab tower — which is also what RA2's two look
+> like, a low destroyer and a blocky cruiser — took the pair to 0.593 in one edit
+> and closed the Aegis outright. The fleet's crowns now run 25 (Dreadnought) → 20
+> (Aegis) → 11.6 (Destroyer) → 10.6 (Carrier island) → 9.2 (Sea Scorpion) → 7.6
+> (Landing Craft) → ~7 (Typhoon sail), and each is the feature §2.3/§2.4 names.
+>
+> **Four bugs found on the way, each of which was the art lying about itself:**
+> * **The Squid and the Dolphin were being drawn on a warship's hull.** Every kind
+>   ran the same three ship steps — filled plan at the waterline, graded freeboard,
+>   lit sheer line — so under the paint the Squid was a 50x16 SHIP, and the alpha
+>   mask the gate reads is exactly that hull. §2.4 asks for "zero straight edges …
+>   the only unit whose outline is not a machine". Skipping the three steps for the
+>   two animals dropped Squid|Destroyer **0.726 → 0.563** on its own.
+> * **`box(u, v, len, wid, hgt)` takes a FULL width, and the hull's beam is `2 * W`.**
+>   Every deckhouse in the file was written as `W * 1.0`, i.e. *half* the beam — a
+>   superstructure narrower than the ship under it. They are 60-80% of beam now,
+>   which is what the RA2 sprites carry, and it is why no crown could ever
+>   out-measure the hull.
+> * **The Landing Craft's ramp was folded UP over the bow**, inside the hull
+>   outline — a texture, not a spike (§1.3 rule 4). So the longest horizontal
+>   protrusion on her sprite was the **bow WAVE**, a 1-px decorative stroke, and the
+>   gate scored *that* as her identity feature at 3.00 px: the game's only
+>   `spike.belowFloor`. The ramp is down and reaches past the stem now, and measures
+>   **11.0**.
+> * **The Destroyer's measured spike was her own STEM POST.** A plan that comes to
+>   zero beam extrudes its freeboard into a 2-px column, and seen end-on that column
+>   is the tallest thing on the ship. Giving every hull a real stem plate
+>   (`W * 0.28`, the Typhoon's finer at 0.16) plus replacing her 13-unit wire mast
+>   with a solid mack took her from 4.00 to **16.0**.
+>
+> **The trap, and it is C4's trap at sea: the thin decorative thing wins.**
+> `spikeOf` picks the bearing with the LONGEST run past the body and then takes the
+> MEDIAN cross-extent of it, so a 1-px wake that runs nine columns outboard beats a
+> ten-px ramp that runs six. The bow wave's outboard throw is now scaled by
+> `min(W, L * 0.30)` rather than by beam alone — a fat slow barge does not throw a
+> wake half again her own width — which is both truer and what let the ramp win.
+> Worth recording the other direction too: **the wake HELPS**. Narrowing it cost
+> `iou.naval.mean` 0.0030 and re-opened a ship, because a size-proportional halo
+> round a hull is facing-invariant mass, which is the same thing a crown is.
+>
+> Two colour interactions, both C4's "any silhouette change that adds neutral mass
+> moves the colour metrics" rule: growing the **Carrier** to RA2's 143-px class and
+> the **Dreadnought**'s launch boxes to 25 units diluted their remap to **9.2%** and
+> **9.2%**, under §1.4's 11.5% vehicle floor. Fixed where RA2 puts colour on those
+> two — the Carrier's deck markings (landing strip, deck edges, round-down band:
+> 20.9%) and the Dreadnought's launch heads, which §2.4 says *are* the house colour
+> (16.7%). Naval is not inside `hue.vehicleOwnerMean` (the group is `naval`), so
+> neither showed up as a gate movement; they were only visible per unit.
+>
+> **Not honoured, and why.** (1) `peerVsSelf.naval` is **1**, not 0: the
+> **Destroyer**'s own self-IoU across her eight bearings is **0.476**, the lowest
+> afloat, and five peers sit between 0.51 and 0.63. Closing her needs either her
+> self above 0.626 or all five peers under 0.476, and neither is reachable — a
+> 46 x 12 hull swings from an 89 x 62 broadside to a 36-wide end-on, and every route
+> to raising her self is a taller crown, which is precisely what puts Aegis|Destroyer
+> back over 0.70 (measured: a 20-unit wheelhouse gives 0.729). This is the Guardian
+> GI's problem with a longer hull: §1.6.3 records that RA2 accepts the head-on
+> collapse, and RA2's own `[DEST]` and `[AEGIS]` are 101x41 and 91x35 — an 11%
+> length difference, which is not a silhouette separation either. (2) The **Typhoon
+> Sub**'s bbox height is 0.67 of her length against §2.4's "height ≤ 0.20 x length".
+> That ratio is an ELEVATION measured off a 75x14 RA2 sprite; our isometric bbox
+> folds the beam into the height, and a hull with zero superstructure at this beam
+> already measures 0.45. She is the flattest thing afloat by a wide margin, carries
+> the sail as her only vertical mass, and her plan aspect is **6.0** against RA2's
+> 5.36 — the spec's intent is met, its literal number is not measurable here.
+> (3) The **Sea Scorpion** is L 22 against an RA2-implied 27, and the **Landing
+> Craft** L 32 x W 24 rather than the ~36 x 16 the rescale implies. Both are
+> deliberate: the Scorpion has to stop matching the Typhoon (a 15-unit gun pedestal
+> did it too, and turned a 45-px gunboat into a chimney on a dinghy — the proportion
+> is the honest version of that fix), and the barge has to stop matching the
+> Amphibious Transport, whose 30x21 footprint is not mine to move. Both keep their
+> spec'd identity: shortest armed hull afloat, and the beamiest thing in the game.
+> (4) The **Squid** has no owner colour at all and the fleet's fixed chroma is the
+> lowest of any group (min 0.062 / mean 0.145 / max 0.326). That is the spec — haze
+> grey and olive-slate hulls, §2.4's sea monster — and no crown added here made it
+> worse.
+>
+> Checked with a real rendered frame, per §5: all ten hulls spawned on the Coastal
+> map's bay at zoom 1 and driven through the live renderer, not the bake canvas.
+> The size ladder reads at a glance — Carrier, Dreadnought, Squid, Destroyer/Aegis,
+> Landing Craft, Sea Scorpion, Typhoon, Dolphin — and no two hulls in the frame
+> could be mistaken for each other. No page errors, no bake errors.
+
 **C5 — `ACCENT` earns its name.** Nine of thirteen ground vehicles picked a
 near-neutral grey, and for each, *all twelve* peers carry the same colour family. The
 three with a chromatic accent — both miners and the MCV — are precisely the three
