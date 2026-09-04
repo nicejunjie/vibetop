@@ -1658,7 +1658,7 @@ test("a nuclear missile flattens what it lands on and spares what stands off", (
   assert.equal(H.sw(0).nuke.t, 0, "firing resets the countdown");
 });
 
-test("the Iron Curtain makes a tank untouchable for its twenty seconds, and kills the infantry under it", () => {
+test("the Iron Curtain makes a tank untouchable for its fifty seconds, and kills the infantry under it", () => {
   const H = W.__rtsTest;
   H.begin(77103, "normal");
   const rhino = H.spawn("rhino", 0, 20, 20);
@@ -1671,7 +1671,11 @@ test("the Iron Curtain makes a tank untouchable for its twenty seconds, and kill
   H.orderAttack([foe], rhino);
   H.step(300);
   assert.equal(rhino.hp, rhino.maxhp, "nothing may touch a curtained unit");
-  H.step(1100);                                   // the twenty seconds run out
+  // [General] IronCurtainDuration=750 frames, and rules.ini:693 says in
+  // Westwood's own words "In frames 900 is a minute for 15fps" — so the
+  // window is FIFTY seconds, 3000 ticks. This step was 1100 and the title
+  // said twenty, which is what the code had and neither 15 nor 30 fps gives.
+  H.step(2900);                                   // the fifty seconds run out
   const foe2 = H.spawn("rhino", 1, 23, 20);       // the first one lost the duel it started
   H.orderAttack([foe2], rhino);
   H.step(300);
@@ -2393,7 +2397,10 @@ test("the miner is two units: a Chrono Miner that warps home and a War Miner tha
   assert.equal(cm.cap, 500, "Chrono Miner Storage=20 bails at $25");
   assert.equal(wm.cap, 1000, "War Miner Storage=40 bails at $25");
   assert.equal(cm.dmg, 0, "[CMIN] Primary=none");
-  assert.equal(wm.dmg, 30); assert.equal(wm.rate, 20); assert.equal(wm.rng, 5.5);
+  // [20mmRapid] ROF 20 x4 = 80. This assertion carried the raw 20 and so
+  // certified the bug it was written to guard: the War Miner's gun fired four
+  // times too fast for as long as the test was green.
+  assert.equal(wm.dmg, 30); assert.equal(wm.rate, 80); assert.equal(wm.rng, 5.5);
   assert.equal(wm.wh, "HARVWH", "[20mmRapid] Warhead=HARVWH");
   assert.ok(cm.chronoHome && !wm.chronoHome, "only the Chrono Miner teleports");
   // The legacy role name still resolves per faction, everywhere.
@@ -2468,8 +2475,10 @@ test("a Terror Drone climbs inside a tank, grinds it down, and a Service Depot k
   assert.equal(H.api.findTarget(g, witness, 6), null,
     "a limboed drone cannot be shot at");
   const hp0 = tank.hp;
-  H.step(400);
-  // [DroneJump] Damage=50 / ROF=60 frames at RA2's 30 fps = 50 every 2 s.
+  H.step(800);
+  // [DroneJump] Damage=50 / ROF=60 frames at RA2's 15 fps = 50 every FOUR
+  // seconds (rules.ini:693). At the 30 fps this comment used to claim, the
+  // drone ate its host twice as fast as RA2 lets it.
   assert.ok(tank.hp <= hp0 - 3 * A.PARASITE_DMG, `Parasite damage never landed (${tank.hp}/${hp0})`);
 
   // The depot: RA2's only cure.
@@ -2493,7 +2502,9 @@ test("a drone whose host dies climbs back out onto the map", () => {
   A.fire(g, dr, tank);
   assert.ok(dr.limbo);
   tank.hp = 1;
-  H.step(200);
+  // One Parasite bite is now 240 ticks, not 120 ([DroneJump] ROF=60 at RA2's
+  // 15 fps), so 200 ticks was less than a single bite.
+  H.step(400);
   assert.ok(tank.dead, "the drone finishes the tank off");
   assert.ok(!dr.dead && !dr.limbo, "and pops out alive");
 });
@@ -2501,8 +2512,9 @@ test("a drone whose host dies climbs back out onto the map", () => {
 test("Crazy Ivan plants a timed bomb, an Engineer defuses it, and it levels what it is on", () => {
   const H = W.__rtsTest, A = H.api3;
   const g = H.begin(9406, "normal");
-  // [General] IvanTimedDelay=450 frames at RA2's 30 fps = 15 seconds.
-  assert.equal(A.IVAN_BOMB_T, 900);
+  // [General] IvanTimedDelay=450 frames at RA2's 15 fps = THIRTY seconds
+  // (rules.ini:693). The 30 fps this comment used to claim halved the fuse.
+  assert.equal(A.IVAN_BOMB_T, 1800);
   const ivan = H.spawn("ivan", 1, 30, 30);
   const tank = H.spawn("lancer", 0, 30.8, 30);
   A.fire(g, ivan, tank);
@@ -2560,7 +2572,7 @@ test("a Desolator floods the ground with radiation that kills infantry and leave
   assert.equal(T.UNITS.desolator.hp, 150);
   assert.equal(T.UNITS.desolator.armour, "plate");
   assert.equal(T.UNITS.desolator.dmg, 125);          // [RadBeamWeapon]
-  assert.equal(T.UNITS.desolator.rate, 50);
+  assert.equal(T.UNITS.desolator.rate, 200);         // [RadBeamWeapon] ROF 50 x4
   assert.equal(T.UNITS.desolator.rng, 6);
   assert.equal(H.deploy([deso], true), 1);
   H.step(120);
@@ -2602,7 +2614,7 @@ test("Yuri takes one unit at a time, and killing him gives it back", () => {
   assert.equal(T.UNITS.yuri.cost, 1200);
   assert.equal(T.UNITS.yuri.sight, 12);
   assert.equal(T.UNITS.yuri.rng, 7);                 // [MindControl] Range=7
-  assert.equal(T.UNITS.yuri.rate, 200);              // ...ROF=200
+  assert.equal(T.UNITS.yuri.rate, 800);              // ...ROF=200, x4
   const yuri = H.spawn("yuri", 1, 30, 30);
   const tank = H.spawn("lancer", 0, 33, 30);
   A.fire(g, yuri, tank);
@@ -3500,7 +3512,10 @@ test("an Engineer's IFV welds friendly vehicles instead of shooting", () => {
   const hurt = H.spawn("lancer", 0, st.x + 7, st.y + 6);
   hurt.hp = 100;
   hurt.stopped = true; ifv.stopped = true;
-  for (let i = 0; i < 300; i++) H.step(1);
+  // [RepairBullet] ROF=80 x4 = 320 ticks between welds, so 300 ticks is under
+  // ONE weld. The old 300-tick budget only passed because the arm was running
+  // at rules.ini's raw ROF, i.e. four times too fast.
+  for (let i = 0; i < 1200; i++) H.step(1);
   assert.ok(hurt.hp > 150, `the arm repaired it (${Math.round(hurt.hp)} of ${hurt.maxhp})`);
   assert.ok(hurt.hp <= hurt.maxhp, "and never past full");
 });
@@ -4744,4 +4759,52 @@ test("a demolition unit can reach a building it is standing next to", () => {
       + "Range is being measured to the building's CENTRE, so its own footprint puts the wall "
       + "out of reach and the unit stands next to a structure it can never touch.");
   }
+});
+
+// ---- the ROF x4 conversion is a convention, so enforce it ---------------- //
+// The UNITS/IFV_MODES tables state it in their own comments: "Every ROF below
+// is rules.ini's x4, the conversion the whole roster uses (RA2 runs at 15 fps,
+// we tick at 60)." `rate` is used raw as a cooldown in ticks, so a row that
+// keeps rules.ini's number fires FOUR TIMES too fast and nothing says so.
+//
+// Found 2026-09-04: the War Miner (ROF 20), Desolator (50), Nighthawk (40),
+// Yuri (200) and Chrono Legionnaire (120) all carried the raw value, and
+// eleven of the thirteen IFV_MODES rows did too — every passenger mode except
+// the empty hull's missile, which is the one row that was converted. An IFV
+// with a Tesla Trooper aboard was doing four times its documented DPS.
+//
+// The table below is the RA2 ROF each weapon's own comment cites, so this test
+// and the source must agree about rules.ini rather than about each other.
+test("every weapon's rate is its rules.ini ROF x4", () => {
+  const U = T.UNITS;
+  const ROF4 = (n) => n * 4;
+  const check = [];
+  const push = (label, got, rof) => check.push({ label, got, want: ROF4(rof) });
+
+  push("War Miner [20mmRapid]", U.warminer.rate, 20);
+  push("Desolator [RadBeamWeapon]", U.desolator.rate, 50);
+  push("Nighthawk [BlackHawkCannon]", U.nighthawk.rate, 40);
+  push("Yuri [MindControl]", U.yuri.rate, 200);
+  push("Chrono Legionnaire [NeutronRifle]", U.cleg.rate, 120);
+  // Controls — these were already right, and must stay right.
+  push("GI deployed [Para]", U.rifle.dep.rate, 15);
+  push("Guardian GI [MissileLauncher]", U.rocket.w2.rate, 40);
+  push("Tanya [Sapper]", U.tanya.w2.rate, 100);
+  push("Apocalypse [MammothTusk]", U.mammoth.aaW.rate, 80);
+  push("Prism Tank [Comet]", U.prismtank.rate, 100);
+
+  // IFV_MODES, by rules.ini index. 0 and 12 cite no ROF, so they are skipped.
+  const M = T.IFV_MODES;
+  assert.ok(Array.isArray(M) && M.length >= 12, "__rtsTables.IFV_MODES is exposed");
+  const ifvRof = { 1: 80, 2: 15, 3: 15, 4: 20, 5: 60, 6: 45, 7: 80, 8: 10, 9: 30, 10: 120, 11: 10 };
+  for (const [i, rof] of Object.entries(ifvRof)) {
+    push(`IFV_MODES[${i}] ${M[i].n}`, M[i].rate, rof);
+    if (M[i].aaW) push(`IFV_MODES[${i}] ${M[i].n} (AA barrel)`, M[i].aaW.rate, rof);
+  }
+
+  const wrong = check.filter((c) => c.got !== c.want)
+    .map((c) => `${c.label}: rate ${c.got}, but its own comment cites rules.ini ROF ${c.want / 4} => ${c.want}`);
+  assert.deepEqual(wrong, [],
+    "a weapon kept rules.ini's raw ROF instead of the roster's x4 convention, so it fires "
+    + "four times too fast:\n  " + wrong.join("\n  "));
 });

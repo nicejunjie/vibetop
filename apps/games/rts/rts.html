@@ -1158,7 +1158,7 @@
     warminer: { harv: true, turret: true,
       name: 'War Miner', em: '🚛', cost: 1400, build: 59, cls: 'v', fac: 'col',
       hp: 1000, spd: 0.052, sight: 4, armour: 'medium', psiImmune: true, radImmune: true,
-      dmg: 30, rate: 20, rng: 5.5, splash: 0, wh: 'HARVWH',   // [20mmRapid] 30 / ROF 20 / Range 5.5, HARVWH
+      dmg: 30, rate: 80, rng: 5.5, splash: 0, wh: 'HARVWH',   // [20mmRapid] 30 / ROF 20 / Range 5.5, HARVWH
       cap: 1000, mine: 0.42, w: 15, h: 12, desc: 'Mines ore and shoots back with a 20mm gun'
     },
     rifle: {
@@ -1382,7 +1382,7 @@
       name: 'Desolator', em: '☢️', cost: 600, build: 25, cls: 'i', fac: 'col',
       reqAll: ['barracks', 'radar'], selfHeal: true, radImmune: true, deployRad: true,
       hp: 150, spd: 0.052, sight: 6, armour: 'plate',
-      dmg: 125, rate: 50, rng: 6, splash: 0,
+      dmg: 125, rate: 200, rng: 6, splash: 0,
       wh: 'RadBeamWH',
       cap: 0, mine: 0, w: 10, h: 15, desc: 'Radiation beam; deploys (D) to flood the ground with radiation'
     },
@@ -1393,7 +1393,7 @@
       name: 'Yuri', em: '🧠', cost: 1200, build: 50, cls: 'i', fac: 'col',
       reqAll: ['barracks', 'lab'], psiImmune: true, mind: true,
       hp: 100, spd: 0.052, sight: 12, armour: 'none',
-      dmg: 10, rate: 200, rng: 7, splash: 0,
+      dmg: 10, rate: 800, rng: 7, splash: 0,
       wh: 'Controller',
       cap: 0, mine: 0, w: 9, h: 14, desc: 'Takes permanent control of one enemy unit; needs a Battle Lab'
     },
@@ -1404,7 +1404,7 @@
       name: 'Chrono Legionnaire', em: '⏳', cost: 1500, build: 63, cls: 'i', fac: 'dir',
       reqAll: ['barracks', 'lab'], teleport: true, temporal: true,
       hp: 125, spd: 0.065, sight: 8, armour: 'none',
-      dmg: 8, rate: 120, rng: 5, splash: 0,
+      dmg: 8, rate: 480, rng: 5, splash: 0,
       wh: 'ChronoBeam',
       cap: 0, mine: 0, w: 10, h: 15, desc: 'Warps instead of walking; erases what it shoots instead of damaging it'
     },
@@ -1431,7 +1431,7 @@
       name: 'Nighthawk', em: '🚁', cost: 1000, build: 42, cls: 'v', fac: 'dir',
       hp: 175, spd: 0.182, sight: 7, armour: 'light', air: true, alt: 40,
       pax: 5, paxInf: true, passive: true, shadow: [16, 7],
-      dmg: 35, rate: 40, rng: 6, splash: 0,
+      dmg: 35, rate: 160, rng: 6, splash: 0,
       wh: 'SA',
       cap: 0, mine: 0, w: 20, h: 14, desc: 'Carries five infantry; lands on any clear ground to load and unload (D)'
     },
@@ -1616,40 +1616,40 @@
     // 1 — [RepairBullet] Damage=-50, ROF=80, Range=1.8, Warhead=Mechanical.
     //     A negative-damage weapon: it welds friendly vehicles, it has no gun.
     { n: 'Repair arm',   tur: IFV_TUR_ARM, rep: 'repairifv', repair: 50,
-      dmg: 0, rate: 80, rng: 1.8, splash: 0, wh: null },
+      dmg: 0, rate: 320, rng: 1.8, splash: 0, wh: null },
     // 2 — [CRM60] 20 / ROF 15 / Range 6 / SSA. GI, Conscript, Spy.
     { n: 'Machine gun',  tur: IFV_TUR_GUN, rep: 'mg',
-      dmg: 20, rate: 15, rng: 6, splash: 0, wh: 'SSA' },
+      dmg: 20, rate: 60, rng: 6, splash: 0, wh: 'SSA' },
     // 3 — [CRFlakGuyGun] 30 / ROF 15 / Range 7 / FlakTWH. Flak Trooper, Rocketeer.
     { n: 'Flak cannon',  tur: IFV_TUR_GUN, rep: 'flak',
-      dmg: 30, rate: 15, rng: 7, splash: 1, wh: 'FlakTWH', aa: true, aaRng: 7,
-      aaW: { dmg: 30, rate: 15, rng: 7, aaRng: 7, splash: 0.6, wh: 'FlakWH', aa: true, flak: true }, flak: true },
+      dmg: 30, rate: 60, rng: 7, splash: 1, wh: 'FlakTWH', aa: true, aaRng: 7,
+      aaW: { dmg: 30, rate: 60, rng: 7, aaRng: 7, splash: 0.6, wh: 'FlakWH', aa: true, flak: true }, flak: true },
     // 4 — [CRMP5] 125 / ROF 20 / Range 6 / HollowPoint3. SEAL, Tanya.
     { n: 'Sub-machine gun', tur: IFV_TUR_GUN, rep: 'shot',
-      dmg: 125, rate: 20, rng: 6, splash: 0, wh: 'HollowPoint' },
+      dmg: 125, rate: 80, rng: 6, splash: 0, wh: 'HollowPoint' },
     // 5 — [AWPE] 125 / ROF 60 / Range 14 / HollowPoint. (No Sniper on the
     //     roster yet; the row is here because the mode index has to line up.)
     { n: 'Sniper rifle', tur: IFV_TUR_GUN, rep: 'shot',
-      dmg: 125, rate: 60, rng: 14, splash: 0, wh: 'HollowPoint' },
+      dmg: 125, rate: 240, rng: 14, splash: 0, wh: 'HollowPoint' },
     // 6 — [CRElectricBolt] 60 / ROF 45 / Range 6 / Shock. Tesla Trooper.
     { n: 'Tesla coil',   tur: IFV_TUR_TECH, rep: 'tesla',
-      dmg: 60, rate: 45, rng: 6, splash: 0, wh: 'Shock' },
+      dmg: 60, rate: 180, rng: 6, splash: 0, wh: 'Shock' },
     // 7 — [CRNuke] 200 / ROF 80 / Range 1 / CRNUKEWH, Suicide=yes, and
     //     [FV] DeathWeapon=CRNuke: an Ivan aboard blows the hull up as well.
     { n: 'Demolition charge', tur: IFV_TUR_TECH, rep: 'ivantick', suicide: true,
-      dmg: 200, rate: 80, rng: 1.5, splash: 1.5, wh: 'IvanWH' },
+      dmg: 200, rate: 320, rng: 1.5, splash: 1.5, wh: 'IvanWH' },
     // 8 — [CRMindControl] 200 / ROF 10 / Range 1 / PsiPulse, AreaFire. Yuri.
     { n: 'Psychic blast', tur: IFV_TUR_TECH, rep: 'psy',
-      dmg: 200, rate: 10, rng: 1, splash: 3, wh: 'PsiPulse' },
+      dmg: 200, rate: 40, rng: 1, splash: 3, wh: 'PsiPulse' },
     // 9 — [CRRadBeamWeapon] 175 / ROF 30 / Range 7 / RadBeamWarhead. Desolator.
     { n: 'Radiation beam', tur: IFV_TUR_TECH, rep: 'deso',
-      dmg: 175, rate: 30, rng: 7, splash: 0, wh: 'RadBeamWH' },
+      dmg: 175, rate: 120, rng: 7, splash: 0, wh: 'RadBeamWH' },
     // 10 — [CRNeutronRifle] 10 / ROF 120 / Range 6 / ChronoBeam (Temporal=yes).
     { n: 'Neutron rifle', tur: IFV_TUR_TECH, rep: 'cleg', temporal: true,
-      dmg: 10, rate: 120, rng: 6, splash: 0, wh: 'ChronoBeam' },
+      dmg: 10, rate: 480, rng: 6, splash: 0, wh: 'ChronoBeam' },
     // 11 — [CRTerrorBomb] 250 / ROF 10 / Range 1.5, Suicide=yes. (No Terrorist.)
     { n: 'Terror bomb',  tur: IFV_TUR_TECH, rep: 'ivantick', suicide: true,
-      dmg: 250, rate: 10, rng: 1.5, splash: 1.5, wh: 'IvanWH' },
+      dmg: 250, rate: 40, rng: 1.5, splash: 1.5, wh: 'IvanWH' },
     // 12 — [CowShot]. Livestock. Kept so the index matches rules.ini.
     { n: 'Cow',          tur: IFV_TUR_TECH, rep: 'shot',
       dmg: 1, rate: 200, rng: 2, splash: 0, wh: 'SSA' }
@@ -1869,7 +1869,7 @@
       cat: 'def', fac: 'col', req: 'lab', sw: 'curtain',
       name: 'Iron Curtain', em: '\ud83d\udee1\ufe0f', cost: 2500, build: 105,
       armour: 'concrete', gw: 3, gh: 3, hp: 750, power: -200, sight: 6, makes: null, max: 1,
-      desc: 'Makes your units invulnerable for 20 seconds'
+      desc: 'Makes your units invulnerable for fifty seconds'
     },
     nuke: {
       cat: 'def', fac: 'col', req: 'lab', sw: 'nuke',
@@ -2301,7 +2301,13 @@
                hint: 'Paratrooper Drop \u2014 click where the stick should land. Esc cancels.' }
   };
   var SW_KEYS = ['chrono', 'storm', 'curtain', 'nuke', 'para'];
-  var IRON_T = 20 * 60, STORM_T = 12 * 60, NUKE_FLIGHT = 10 * 60;   // [General] LightningStormDuration=180 frames
+  // [General] IronCurtainDuration=750 frames and LightningStormDuration=180.
+  // rules.ini:693 says in Westwood's own words "In frames 900 is a minute for
+  // 15fps", so 750 frames is FIFTY seconds, not twenty. STORM_T was already
+  // derived at 15 fps (180/15 = 12 s); IRON_T matched neither 15 nor 30 and
+  // was simply short, which made the Collective's answer to a defended base
+  // less than half the window RA2 gives it.
+  var IRON_T = 50 * 60, STORM_T = 12 * 60, NUKE_FLIGHT = 10 * 60;
   function swInit() {
     var o = {};
     for (var i = 0; i < SW_KEYS.length; i++) o[SW_KEYS[i]] = { t: 0, ready: false, fired: 0, armed: false };
@@ -20593,7 +20599,7 @@
         b.ironUntil = g.tick + IRON_T; n++;
       }
       sfx('curtain', x, y);
-      if (mine) { eva('Iron Curtain activated', 20000); say('Iron Curtain — ' + n + ' invulnerable for 20 seconds', false, 260); }
+      if (mine) { eva('Iron Curtain activated', 20000); say('Iron Curtain — ' + n + ' invulnerable for fifty seconds', false, 260); }
       else { eva('Warning: enemy Iron Curtain activated', 20000); mmPing(g, x, y); }
     } else if (key === 'chrono') {
       var lift = [];
@@ -21182,11 +21188,14 @@
   // from the map at the moment it fires and puts it INSIDE the victim, where
   // it grinds the vehicle down until one of them is finished. A Service Depot
   // is the only cure, and a drone whose host died climbs back out.
-  // [DroneJump] Damage=50, ROF=60 frames. RA2 runs its logic at 30 fps, so
-  // that is 50 points every TWO seconds — 120 ticks here, not 60. Left at 60
-  // the drone chewed at twice RA2's rate and a pair of them could carry a
-  // whole match on their own.
-  var PARASITE_DMG = 50, PARASITE_ROF = 120;
+  // [DroneJump] Damage=50, ROF=60 frames. RA2 runs its logic at 15 fps, which rules.ini states in its own
+  // comment beside IronCurtainDuration (line 693): "In frames 900 is a
+  // minute for 15fps". This file said 30 fps in three places and 15 in the
+  // rest, and every constant derived from the 30 was half what RA2 gives.
+  // At 15 fps ROF 60 is 50 points every FOUR seconds — 240 ticks here. At 120
+  // the drone chewed at twice RA2's rate (a 300-hp Grizzly died in 720 ticks
+  // instead of 1440) and a pair of them could carry a whole match.
+  var PARASITE_DMG = 50, PARASITE_ROF = 240;
   var SQUID_DMG = 100, SQUID_ROF = 60;
   function infest(g, dr, v) {
     if (v.drone || dr.limbo) return false;
@@ -21233,11 +21242,14 @@
   }
 
   // ---- Crazy Ivan ([IVAN] / [IvanBomber] / [IvanBomb] IvanBomb=yes) -------
-  // [General] IvanTimedDelay=450 frames; RA2 runs its logic at 30 fps, so the
-  // fuse is 15 seconds — 900 ticks here. The bomb is PLACED (the warhead does
-  // no damage at all); what goes off is [IvanWH]: 400 damage, CellSpread 1.5,
-  // PercentAtMax=.25.
-  var IVAN_BOMB_T = 900, IVAN_DMG = 400, IVAN_SPREAD = 1.5, IVAN_ATMAX = 0.25;
+  // [General] IvanTimedDelay=450 frames. RA2 runs its logic at 15 fps, which rules.ini states in its own
+  // comment beside IronCurtainDuration (line 693): "In frames 900 is a
+  // minute for 15fps". This file said 30 fps in three places and 15 in the
+  // rest, and every constant derived from the 30 was half what RA2 gives.
+  // At 15 fps the fuse is THIRTY seconds — 1800 ticks here, twice what it was.
+  // The bomb is PLACED (the warhead does no damage at all); what goes off is
+  // [IvanWH]: 400 damage, CellSpread 1.5, PercentAtMax=.25.
+  var IVAN_BOMB_T = 1800, IVAN_DMG = 400, IVAN_SPREAD = 1.5, IVAN_ATMAX = 0.25;
   var DEFUSE_RNG = 1.5;                            // [DefuseKit] Range=1.5
   function plantBomb(g, u, tgt) {
     if (tgt.bomb || tgt.dead) return false;
@@ -21313,10 +21325,14 @@
   // ---- Desolator + the radiation layer ([Radiation]) ---------------------
   // rules.ini [Radiation]: RadLevelMax=500, RadLevelFactor=0.2 (damage per
   // level), RadApplicationDelay=16 frames, RadDurationMultiple=1 (the site
-  // lasts Level frames), RadColor=0,255,0. At 30 fps that is an application
-  // roughly twice a second and a full-strength pool that lives ~17 seconds;
-  // doubled for our 60-tick second.
-  var RAD_MAX = 500, RAD_FACTOR = 0.2, RAD_APPLY = 32, RAD_DECAY_T = 10, RAD_DECAY = 5;
+  // lasts Level frames), RadColor=0,255,0. RA2 runs its logic at 15 fps, which rules.ini states in its own
+  // comment beside IronCurtainDuration (line 693): "In frames 900 is a
+  // minute for 15fps". This file said 30 fps in three places and 15 in the
+  // rest, and every constant derived from the 30 was half what RA2 gives.
+  // At 15 fps RadApplicationDelay=16 is one application about every SECOND —
+  // 64 ticks here, not 32. The decay pair below is ours, not RA2's, and is
+  // left alone: RadDurationMultiple is a per-level lifetime we do not model.
+  var RAD_MAX = 500, RAD_FACTOR = 0.2, RAD_APPLY = 64, RAD_DECAY_T = 10, RAD_DECAY = 5;
   var DESO_RAD_LEVEL = 90, DESO_RAD_R = 3, DESO_RAD_T = 30;
   function addRad(g, cx, cy, level, radius) {
     var x0 = Math.max(0, Math.floor(cx - radius)), x1 = Math.min(MAP - 1, Math.ceil(cx + radius));
@@ -32785,7 +32801,7 @@
 
   window.__rtsBuildFactor = function (lane) { return G ? buildFactor(G, ME, lane) : 1; };
 
-  window.__rtsTables = { AI_TEAMS: AI_TEAMS, SW: SW, SW_KEYS: SW_KEYS, UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS, TER: { GROUND: T_GROUND, ROCK: T_ROCK, ORE: T_ORE, WATER: T_WATER, CLIFF: T_CLIFF, TREE: T_TREE, ROAD: T_ROAD, RAMP: T_RAMP, BRIDGE: T_BRIDGE, GEM: T_GEM, CIV: T_CIV }, VERSES: VERSES, ARMOURS: ARMOURS, verses: verses, weaponFor: weaponFor, bspecFor: bspecFor };
+  window.__rtsTables = { AI_TEAMS: AI_TEAMS, SW: SW, SW_KEYS: SW_KEYS, UNITS: UNITS, BLDS: BLDS, DIFF: DIFF, MAP: MAP, FACTIONS: FACTIONS, MAPS: MAPS, TER: { GROUND: T_GROUND, ROCK: T_ROCK, ORE: T_ORE, WATER: T_WATER, CLIFF: T_CLIFF, TREE: T_TREE, ROAD: T_ROAD, RAMP: T_RAMP, BRIDGE: T_BRIDGE, GEM: T_GEM, CIV: T_CIV }, VERSES: VERSES, ARMOURS: ARMOURS, IFV_MODES: IFV_MODES, verses: verses, weaponFor: weaponFor, bspecFor: bspecFor };
 
   // --------------------------------------------------------------------- //
   //  Boot
