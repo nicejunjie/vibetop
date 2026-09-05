@@ -676,7 +676,8 @@
     spList.innerHTML = rows.join('');
     capListHeight();
   }
-  // Show SP_LIST_ROWS entries plus a sliver of the next, then scroll. Measured
+  // Show SP_LIST_ROWS entries plus a sliver of the next ("seven and a half"),
+  // then scroll. Measured
   // from the rows actually rendered, so the count holds whatever mix of one- and
   // two-line rows the queue happens to contain.
   //
@@ -685,8 +686,8 @@
   // rest, so a cut exactly on the sixth row makes forty queued messages look like
   // six. Half a row hanging below the fold cannot be misread, needs no chrome,
   // and survives whatever the platform does with scrollbars.
-  var SP_LIST_ROWS = 6;
-  var SP_LIST_PEEK = 20;        // px of row 7 left showing
+  var SP_LIST_ROWS = 7;
+  var SP_LIST_PEEK = 20;        // px of the next row left showing
   function capListHeight() {
     var kids = spList.children;
     if (kids.length <= SP_LIST_ROWS) { spList.style.maxHeight = ''; return; }
