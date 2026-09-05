@@ -9691,6 +9691,17 @@ screen-reader association, and the arming gesture at once — focus is what arms
 row, which means the normal act of clicking the field you want to change already
 does the right thing and most people never think about the mechanic at all.
 
+**And the label must aim the row without OPENING the field.** `<label for>` was
+the right choice for the association and the wrong one for the click: a label
+forwards its click to its control, and Chromium opens the date picker on a click
+anywhere in a `datetime-local` (and the popup on a `select`). So pointing the
+buttons at `until` threw a calendar over the panel — the switch worked, but every
+use of it cost a dismissal. Fixed by cancelling the forwarded click and moving
+focus in JS instead: `focus()` alone opens no picker, focus is already what arms
+a row, so the lit label and the focused control still cannot disagree, and the
+`for` attribute — hence everything assistive tech reads — is untouched. Clicking
+the field itself is deliberately left alone: *that* is a request to open it.
+
 Two details that only look small: `Now` **disables** rather than hides while the
 cadence is armed (an interval has no "now", but hiding it would reflow the very
 row you are aiming at), and nudging the cadence inserts an ad-hoc `<option>` for
