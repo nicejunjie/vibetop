@@ -4867,6 +4867,24 @@
     // earlier pass moved him off Ivan, the Conscript and Tanya, and RA2's own
     // Spy plate is a man in a DARK suit — and that is a two-unit change with
     // its own sweep, not something one unit's pass should land blind.
+    //
+    // THAT SWEEP HAS NOW BEEN RUN, and it is NOT a two-unit change. Darkening
+    // the Spy does free the Rocketeer exactly as predicted — `rocketeer|spy`
+    // goes 12.4 -> 13.2/13.3 against the 12.2 floor, comfortably clear, and
+    // BOTH units move TOWARD their RA2 plates rather than away. But all three
+    // candidates break a pair nobody had listed, `engineer|spy`, which the
+    // pale Spy was holding open:
+    //     spy[0.40,0.42,0.50] rocketeer[0.86,0.88,0.92] -> engineer|spy  8.3 (floor 8.9) X
+    //     spy[0.34,0.36,0.44] rocketeer[0.82,0.86,0.94] -> engineer|spy  8.3 (floor 8.9) X
+    //     spy[0.46,0.44,0.40] rocketeer[0.90,0.90,0.90] -> engineer|spy  8.7 (floor 8.9) X
+    // (all at CELL 96 ZMIN, each against that window's own floor.) The
+    // Engineer is "brightest in either army, and neutral", so he sits at the
+    // pale end with nothing but the Spy's own paleness between them — move the
+    // Spy anywhere dark and the Engineer inherits the collision.
+    //
+    // So it is a THREE-unit re-plan: Rocketeer, Spy AND Engineer, swept
+    // together. Recorded rather than attempted, because a three-way sweep that
+    // lands half-done is worse than the brown suit.
     rocketeer: [0.50, 0.70, 1.05],   //  a light CREAM pressure suit
     cleg:      [0.74, 0.71, 0.64],   //  bone-white plate over blue-grey
     tanya:     [0.45, 0.58, 0.70],   //  warm khaki, bare arms, blonde
