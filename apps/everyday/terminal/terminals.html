@@ -143,11 +143,20 @@
     line-height: 1.4; max-height: 40vh;
   }
   .sched-panel input:focus, .sched-panel textarea:focus { outline: none; border-color: #4ec36a; }
-  .sp-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  /* ONE LINE, at any panel width. Measured at 340px: the seven controls wanted
+     328px inside a 314px row, so "5h" wrapped alone onto a second line — and a
+     fixed padding that fits here would wrap again on a 320px phone, where the
+     panel is only 304px. So: nowrap, and let the buttons SHRINK. The labels are
+     two or three characters, so there is nothing to truncate; they simply sit
+     closer together as the panel narrows. */
+  .sp-quick { display: flex; flex-wrap: nowrap; gap: 5px; margin-bottom: 8px; }
   .sp-quick button, .sp-go {
     font: inherit; font-size: 12px; cursor: pointer; border-radius: 5px;
     padding: 5px 9px; color: #cfe; background: #2c2c4a; border: 1px solid #3f3f63;
   }
+  .sp-quick > * { flex: 0 1 auto; min-width: 0; }
+  .sp-quick button { padding: 5px 7px; white-space: nowrap; }
+  .sp-sign { flex-shrink: 0; }                 /* the +/- pair never squeezes */
   .sp-quick button:hover { background: #3a3a5e; }
   /* Segmented +/- direction toggle: one control that flips every magnitude
      button below it, so the number of "time" tags never has to double. */
