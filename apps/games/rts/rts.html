@@ -3022,6 +3022,74 @@
                     Math.min(255, Math.max(0, Math.round(b * f))) + ')';
   }
 
+  // ---- THE INFANTRY VALUE LADDER ------------------------------------- //
+  // A gamma applied to a FINISHED infantry sprite, and the inverse applied to
+  // the house colour before it is drawn, so a trooper can be moved up or down
+  // the field's value range as ONE object while his owner block stays exactly
+  // where it was.
+  //
+  // Why it exists. `tools/legibility.js` at its uncropped window put ELEVEN
+  // infantry pairs under the friend-vs-foe floor: eight kinds inside 11
+  // luminance points of each other at 14-22 px wide. The measured lever there
+  // is plate VALUE -- pushing owner-colour AREA was tried and made map
+  // legibility worse -- and the per-kind palettes could not deliver it:
+  // measured, moving `TROOP.ivan.coat` by 29 L moved the man by 1.8 (his coat
+  // body is the shared JACKET, not his trousers) and moving `TROOP.spy.coat`
+  // by 60 L moved him by 16. The trousers are 6-27% of a trooper; a value
+  // ladder needs the whole figure, and the whole figure is a hundred hard-coded
+  // shades spread over fourteen branches.
+  //
+  // Gamma rather than a multiply, for two reasons that both matter at this
+  // size: it maps 0->0 and 255->255, so nothing clips into a flat white or a
+  // flat black however far a kind is moved, and it is invertible EXACTLY, so
+  // the house block is recoverable. Pre-dividing `col` by the same curve and
+  // then applying it is an identity on the owner's colour, which is the one
+  // thing on a trooper that must not move: telling your man from theirs is the
+  // floor every other distance is measured against.
+  // ONE gamma per CHANNEL, not one for the sprite, because the roster needs
+  // two axes and this buys the second one free. The distance the tool measures
+  // is a luminance term plus two chroma-opponent terms at 0.35 weight each, so
+  // a hue step of 40 in (r-b) is worth about as much as 30 points of value --
+  // and with fourteen men to keep apart in one value range, several of them
+  // have to share a rung and separate on tone instead. Equal channels are a
+  // pure value move; unequal ones tilt the whole figure warm or cool without
+  // touching where it sits on the ladder. Off-axis drab tones only: the field
+  // rule is that the OWNER's colour is the only saturated thing on a sprite,
+  // and the pre-divide above keeps that block exactly where it was.
+  var VLUT = {};
+  function gam3(gm) { return typeof gm === 'number' ? [gm, gm, gm] : gm; }
+  function valueLut(g1) {
+    var k = g1.toFixed(4);
+    if (VLUT[k]) return VLUT[k];
+    var t = new Uint8Array(256);
+    for (var i = 0; i < 256; i++) t[i] = Math.round(255 * Math.pow(i / 255, g1));
+    return (VLUT[k] = t);
+  }
+  function rgbOf(c) {
+    if (c.charAt(0) === '#') {
+      var n = parseInt(c.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    var m = c.match(/[\d.]+/g);
+    return [+m[0], +m[1], +m[2]];
+  }
+  // The colour that BECOMES `c` after valuePass(gm) has run over it.
+  function valuePre(c, gm) {
+    var q = rgbOf(c), G = gam3(gm), o = [];
+    for (var i = 0; i < 3; i++) o[i] = Math.round(255 * Math.pow(q[i] / 255, 1 / G[i]));
+    return 'rgb(' + o[0] + ',' + o[1] + ',' + o[2] + ')';
+  }
+  function valuePass(s, gm) {
+    var G = gam3(gm);
+    var id = s.g.getImageData(0, 0, s.c.width, s.c.height), d = id.data;
+    var tr = valueLut(G[0]), tg = valueLut(G[1]), tb = valueLut(G[2]);
+    for (var i = 0; i < d.length; i += 4) {
+      if (!d[i + 3]) continue;
+      d[i] = tr[d[i]]; d[i + 1] = tg[d[i + 1]]; d[i + 2] = tb[d[i + 2]];
+    }
+    s.g.putImageData(id, 0, 0);
+  }
+
   // Blend two colours. RA2 keeps house colour as a TINT on grey machinery
   // rather than painting the machine; `mixc(col, STEEL, 0.5)` is that tint.
   function mixc(a, b, t) {
@@ -4510,6 +4578,54 @@
     yuri:      { coat: '#4a3f5e', boot: '#191622', skin: '#e6cdbd' }
   };
 
+  // WHERE EACH KIND SITS ON THE VALUE LADDER — the gamma `valuePass` applies
+  // to the finished sprite (>1 darker, <1 lighter; 1 or absent = untouched).
+  // See the note on `valuePass` for why this is a whole-figure transform and
+  // not fourteen palette edits.
+  //
+  // The ladder is READ OFF the measurement, then checked against who the man
+  // is. Before it, fourteen kinds sat between mean L 69 and L 120 with nine of
+  // them inside twenty points, and `legibility.js` reported eleven pairs less
+  // distinguishable than a colour swap of one unit. Each number below is the
+  // one that separates that kind from the kinds it was measured against, and
+  // each is a value the unit can plausibly wear:
+  //
+  //   Ivan       darkest man on the field  — a civilian in a heavy dark
+  //              greatcoat and a fur hat, and the one kind in FIVE of the
+  //              eleven failing pairs
+  //   Desolator  a charcoal hazard suit, per its own reference render
+  //   Conscript  dark khaki: the Directorate GI's twin, told apart by value
+  //              first and the tan/olive leg hue second
+  //   Rifle      mid olive-drab — the roster's reference value, unmoved
+  //   Spy        LIGHT: a pale trench coat and hat is what a spy wears, and
+  //              it takes him off Ivan, the Conscript and Tanya at once
+  //   Rocketeer  a pale pressure suit (already his palette, now his whole
+  //              figure), which is also what lifts him off the GI
+  //   Chrono Leg bone-white plate, as `ra2-cleg-CC_Legion` shows it
+  //   Tanya      the lightest soldier: light khaki, bare arms, blonde
+  //   Engineer   brightest thing in either army, which is the point of him
+  //
+  // Untouched, because the measurement does not ask: the Guardian GI, the
+  // Flak Trooper, the Tesla Trooper, Yuri and the dog (whose 0.57 saturation
+  // already separates him from every man in the game).
+  var INF_VALUE = {
+    ivan:      [1.73, 1.60, 1.43],   // darkest man on the field; the uneven
+                                     //  channels DESATURATE as they darken -- a
+                                     //  flat gamma turns his brown coat into a dark
+                                     //  RED one, which is the enemy's hue
+    desolator: 1.14,                 //  a charcoal hazard suit
+    conscript: [1.16, 1.20, 1.28],   //  dark, and TAN against the GI's olive
+    rifle:     [1.04, 0.98, 1.07],   //  unmoved in value, pushed onto olive
+    yuri:      0.95,                 //  a step up from Ivan in value alone: his coat
+                                     //  is already violet, and tilting it further
+                                     //  lands on one owner's hue or the other's
+    spy:       [0.72, 0.69, 0.62],   //  light, and COOL: a pale trench coat
+    rocketeer: [0.50, 0.70, 1.05],   //  a light CREAM pressure suit
+    cleg:      [0.74, 0.71, 0.64],   //  bone-white plate over blue-grey
+    tanya:     [0.45, 0.58, 0.70],   //  warm khaki, bare arms, blonde
+    engineer:  [0.62, 0.64, 0.60],   //  brightest in either army, and neutral
+  };
+
   // STATURE — the size class, which our roster did not have. RA2's twelve
   // infantry span 24 px (Rocketeer) to 37 px (Flak Trooper) tall and 12 px
   // (GI, Ivan, Yuri) to 18 px (Tesla Trooper) wide; ours all came out
@@ -4778,6 +4894,12 @@
     if (isFlak) { kind = 'rocket'; sov = true; }
     var tkey = (kind === 'rocket' && sov) ? 'rocketS' : kind;
     var T = TROOP[tkey] || TROOP.rifle;
+    // The kind's rung on the value ladder. `col` is pre-divided by the same
+    // curve the finished sprite is put through, so the house block comes out
+    // of the pass at exactly the colour it went in as and friend-vs-foe is
+    // untouched however far the man himself moves.
+    var VG = INF_VALUE[tkey] || 1;
+    if (VG !== 1) col = valuePre(col, VG);
     var GUN = '#22242a';
     var JACKET = '#252a38';        // Conscript's near-black tunic
     var SLEEVE = '#3b4256';        // ...his sleeves, one step lighter so they read
@@ -6460,6 +6582,7 @@
       helmet(by - 23.5, 3.15, ACCENT.rifle, 0.95);                     // grey pot, NOT house colour
       g.restore();
     }
+    if (VG !== 1) valuePass(s, VG);       // the kind's rung on the value ladder
     return s;
   }
 
@@ -7491,7 +7614,14 @@
     else if (kind === 'drone')     { hull = '#9aa1ac'; deck = '#5a606b'; } // bare metal carapace
     else if (kind === 'teslatank') { hull = '#7e8163'; deck = '#4a4c3b'; } // olive, like the Rhino's kin
     else if (kind === 'mcv')     { hull = '#8e959f'; deck = '#41464f'; }   // grey works-vehicle body
-    else if (kind === 'nighthawk') { hull = '#31353d'; deck = '#1b1e23'; } // black-ops matte charcoal
+    // NIGHTHAWK. This was '#31353d' matte charcoal, which put it at the SAME
+    // value as the Harrier's airframe -- the one pair that failed
+    // `tools/legibility.js` under all three windows. `docs/ra2-ref/cameos/
+    // nighthawk.png` is not a black helicopter: it is a MID-TONE grey-tan
+    // machine over pale ground, against a Harrier plate that is nearly a black
+    // silhouette. Value, not hue, is what separates two grey aircraft at 20 px,
+    // so the chopper carries the light end of the pair and the jet the dark.
+    else if (kind === 'nighthawk') { hull = '#6d747e'; deck = '#363b43'; } // gunship grey, LIGHTER than the jet
     else if (kind === 'apc')       { hull = '#8a8d76'; deck = '#4d5042'; } // olive-grey hovercraft
     else                         { hull = sov ? '#4c515a' : '#40454e'; deck = '#2a2e35'; }
     var dark = shade(hull, 0.40);
@@ -8207,7 +8337,13 @@
           // white belly and nose, swept wings, a tall house-colour fin and
           // house wingtips, a bubble canopy. Two Maverick missiles ride under
           // the wings until fired (`empty` set).
-          var JET = '#343b47', JETL = '#626a78', JETD = '#1c2027', BELLY = '#d5dae2', NOSE = '#eef1f5';
+          // In `docs/ra2-ref/cameos/harrier.png` the jet is nearly a BLACK
+          // silhouette against sky -- far darker than the Nighthawk plate. The
+          // airframe was '#343b47', a hair off the chopper's own charcoal, and
+          // the two read as one grey aircraft at map size. The jet takes the
+          // dark end of the pair; the pale belly and nose stay, because that
+          // top-to-bottom value break is the Harrier's own read.
+          var JET = '#222732', JETL = '#4d5462', JETD = '#0e1116', BELLY = '#d5dae2', NOSE = '#eef1f5';
           var farH = py < 0 ? 1 : -1;
           var wingTop = shade(JET, 1.08), wingEdge = JETD;
           // A swept wing: root from t0 to t1, tip from tt0 to tt1 at `span`
@@ -9621,7 +9757,9 @@
             var b1x = cx - fx * bmB, b1y = hy - 4.6 - fy * bmB;
             g.strokeStyle = shade(hull, 0.84); g.lineWidth = 3.0; g.lineCap = 'round';
             g.beginPath(); g.moveTo(b0x, b0y); g.lineTo(b1x, b1y); g.stroke();
-            g.strokeStyle = shade(hull, 1.55); g.lineWidth = 0.9;         // lit upper edge
+            // 1.55 was tuned against a charcoal hull; on the gunship grey it
+            // clips to white and the boom out-glares the cabin it hangs off.
+            g.strokeStyle = shade(hull, 1.18); g.lineWidth = 0.9;         // lit upper edge
             g.beginPath(); g.moveTo(b0x, b0y - 1.2); g.lineTo(b1x, b1y - 1.2); g.stroke();
             // horizontal stabiliser
             g.strokeStyle = shade(hull, 1.02); g.lineWidth = 1.8;
@@ -9655,7 +9793,10 @@
             for (sg = -1; sg <= 1; sg += 2) {
               // the sliding door a side, with the owner's band over it
               isoBox(g, kx + px * wid * 0.34 * sg, ky - 3.0 + py * wid * 0.34 * sg,
-                     len * 0.18, 0.9, 3.6, a, '#151920', PEDGE);
+                     len * 0.18, 0.9, 3.6, a, shade(hull, 0.52), PEDGE);   // was flat '#151920': on the
+              // charcoal hull it vanished, on the grey one it made the cabin a
+              // black wedge hanging off a pale boom. Tied to the hull it stays
+              // a shadowed door however the airframe is valued.
               isoBox(g, kx + px * wid * 0.34 * sg, ky - 5.6 + py * wid * 0.34 * sg,
                      len * 0.20, 1.0, 1.2, a, panel, PEDGE);
               puck(kx - fx * 1.8 + px * wid * 0.42 * sg, ky - 3.4 - fy * 1.8 + py * wid * 0.42 * sg,
@@ -9669,20 +9810,54 @@
           // mast and main rotor, over everything
           var mrx = cx + fx * 2.0, mry = hy - 9.6 + fy * 2.0;
           puck(mrx, mry + 1.4, 1.2, 2.0, shade(hull, 0.72), STEEL, PEDGE);
+          // Span stays at 19.0. Widening it to 21 to buy back the 2 px the
+          // feathered rim costs made the disc round enough that an air PEER
+          // matched the Nighthawk's mask better than it matched its own other
+          // bearings (`peerVsSelf.air` 0 -> 1). The rim is held above the
+          // alpha floor instead, below.
           var mrPh = anim === 'prop' ? 0.7854 : 0, mrR = 19.0;
           g.lineCap = 'round';
-          g.fillStyle = 'rgba(150,160,176,.09)';                          // the disc it sweeps
-          g.beginPath();
-          g.ellipse(mrx, mry, mrR * ISO_X * 1.4142, mrR * ISO_Y * 1.4142, 0, 0, 6.29); g.fill();
+          // THE DISC IS THE UNIT. A helicopter's one unmistakable read from
+          // above is the bright blur it sweeps, and ours was drawn at alpha
+          // .09 -- 1400-odd pixels sitting 3 luminance points off the grass
+          // under them, i.e. an invisible smear that still counted as body.
+          // That is exactly why `harrier | nighthawk` was the union-footprint
+          // window's only failure: most of the chopper's footprint was a patch
+          // of ground. `docs/ra2-ref/cameos/nighthawk.png` shows the blade as a
+          // bright streak clear of the airframe. Drawn the way a real blur
+          // looks: the RIM is brightest, because that is where tip speed puts
+          // the most blade per unit area, and the hub end is nearly clear.
+          var rx = mrR * ISO_X * 1.4142, ry = mrR * ISO_Y * 1.4142;
+          g.save();
+          g.translate(mrx, mry); g.scale(1, ry / rx);       // circle space, then squash to the iso ellipse
+          var mrg = g.createRadialGradient(0, 0, 0, 0, 0, rx);
+          mrg.addColorStop(0.00, 'rgba(206,214,226,.05)');  // nearly clear at the hub
+          mrg.addColorStop(0.55, 'rgba(206,214,226,.22)');
+          mrg.addColorStop(0.90, 'rgba(224,231,242,.42)');  // densest just inside the tip
+          mrg.addColorStop(1.00, 'rgba(224,231,242,.09)');  // and feathered off it -- but not
+          // to nothing: a rim that reaches zero alpha loses the outer 2 px of
+          // span off the bounding box, and this airframe's whole RA2 spec is
+          // rotor span. 5% is under the eye and over the measurement's floor.
+          g.fillStyle = mrg;
+          g.beginPath(); g.arc(0, 0, rx, 0, 6.29); g.fill();
+          g.restore();
+          // Two blades, not a four-armed cross: a cross centred on the mast
+          // reads as a gunsight, and the phase below never lets the pair sit
+          // on the sprite's own axes.
           for (i2 = 0; i2 < 4; i2++) {
-            var mra = mrPh + i2 * 1.5708;
-            g.strokeStyle = 'rgba(214,222,232,.32)'; g.lineWidth = 1.1;
-            g.beginPath(); g.moveTo(mrx, mry);
-            g.lineTo(mrx + Math.cos(mra) * mrR * ISO_X * 1.4142,
-                     mry + Math.sin(mra) * mrR * ISO_Y * 1.4142);
+            var mra = mrPh + 0.42 + i2 * 1.5708;
+            g.strokeStyle = i2 % 2 ? 'rgba(226,233,242,.22)' : 'rgba(232,239,248,.40)';
+            g.lineWidth = i2 % 2 ? 1.0 : 1.3;
+            g.beginPath();
+            g.moveTo(mrx + Math.cos(mra) * rx * 0.22, mry + Math.sin(mra) * ry * 0.22);
+            g.lineTo(mrx + Math.cos(mra) * rx * 0.94, mry + Math.sin(mra) * ry * 0.94);
             g.stroke();
           }
-          g.fillStyle = '#c34a2c';                                        // anti-collision lamp
+          // A saturated red bead sat here. On the light hull it now reads at
+          // map size, and a saturated red mark on the BLUE player's aircraft
+          // is the one thing the palette rule forbids: only the owner's colour
+          // is saturated. A warm off-white still reads as a lamp.
+          g.fillStyle = '#e3d3b6';                                        // anti-collision lamp
           g.beginPath(); g.ellipse(mrx - fx * 2.4, mry + 1.6 - fy * 2.4, 0.8, 0.7, 0, 0, 6.29); g.fill();
         }
       }

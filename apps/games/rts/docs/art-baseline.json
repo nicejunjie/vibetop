@@ -1,6 +1,6 @@
 {
   "_": "Recorded by apps/games/rts/tools/art-metrics.js — do not hand-edit except to RE-RECORD after a deliberate art improvement (node apps/games/rts/tools/art-metrics.js --record). `metrics` is ratcheted by apps/games/rts/rts-art.test.js: a regression fails, and so does an improvement, which is what makes progress stick. `detail` is informational only.",
-  "recorded": "2026-09-04",
+  "recorded": "2026-09-05",
   "env": {
     "dpr": 1,
     "zoom": 1,
@@ -146,19 +146,19 @@
     "iou.vehicle.mean": 0.4227,
     "iou.infantry.mean": 0.5334,
     "iou.naval.mean": 0.3835,
-    "iou.air.mean": 0.1775,
+    "iou.air.mean": 0.177,
     "iou.sameFactionOver75": 0,
     "spike.belowFloor": 0,
     "spike.minThickAtZmin": 2.2,
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.703,
     "mass.tightestBand6": 2.093,
-    "hue.infantryOwnerMean": 0.2945,
+    "hue.infantryOwnerMean": 0.294,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1698,
     "hue.vehicleOwnerMax": 0.2369,
     "hue.maxImpostor": 0.0024,
-    "colour.infantry.meanDist": 1.3105,
+    "colour.infantry.meanDist": 1.3865,
     "colour.vehicle.meanDist": 0.9513,
     "colour.vehicleAchromatic": 0
   },
@@ -193,9 +193,9 @@
         "over75": 0
       },
       "air": {
-        "mean": 0.1775,
+        "mean": 0.177,
         "pairs": 6,
-        "max": 0.4023,
+        "max": 0.4003,
         "over75": 0
       },
       "groundCombat": {
@@ -209,54 +209,54 @@
     "worstSameFactionPairs": [],
     "closestColourPairs": [
       {
-        "a": "engineer",
-        "b": "dog",
-        "dist": 0.084
+        "a": "rocketeer",
+        "b": "engineer",
+        "dist": 0.07
       },
       {
         "a": "teslatrooper",
         "b": "cleg",
-        "dist": 0.207
+        "dist": 0.135
       },
       {
-        "a": "ivan",
-        "b": "spy",
-        "dist": 0.298
-      },
-      {
-        "a": "flak",
-        "b": "rocketeer",
-        "dist": 0.413
+        "a": "engineer",
+        "b": "dog",
+        "dist": 0.138
       },
       {
         "a": "rocketeer",
-        "b": "ivan",
-        "dist": 0.508
-      },
-      {
-        "a": "conscript",
-        "b": "rocket",
-        "dist": 0.551
-      },
-      {
-        "a": "conscript",
-        "b": "spy",
-        "dist": 0.618
-      },
-      {
-        "a": "flak",
-        "b": "ivan",
-        "dist": 0.664
-      },
-      {
-        "a": "flak",
-        "b": "tanya",
-        "dist": 0.667
+        "b": "dog",
+        "dist": 0.156
       },
       {
         "a": "conscript",
         "b": "engineer",
-        "dist": 0.682
+        "dist": 0.191
+      },
+      {
+        "a": "conscript",
+        "b": "rocketeer",
+        "dist": 0.192
+      },
+      {
+        "a": "ivan",
+        "b": "spy",
+        "dist": 0.265
+      },
+      {
+        "a": "conscript",
+        "b": "dog",
+        "dist": 0.313
+      },
+      {
+        "a": "ivan",
+        "b": "cleg",
+        "dist": 0.487
+      },
+      {
+        "a": "teslatrooper",
+        "b": "spy",
+        "dist": 0.499
       }
     ],
     "closestVehicleColourPairs": [
@@ -313,24 +313,20 @@
     ],
     "topImpostors": [
       {
-        "key": "yuri",
-        "pct": 0.0024
-      },
-      {
         "key": "squid",
         "pct": 0.0024
       },
       {
         "key": "rifle",
-        "pct": 0.0017
+        "pct": 0.0021
       },
       {
-        "key": "conscript",
-        "pct": 0.0011
-      },
-      {
-        "key": "tanya",
+        "key": "yuri",
         "pct": 0.0004
+      },
+      {
+        "key": "nighthawk",
+        "pct": 0.0002
       },
       {
         "key": "mirage",
@@ -343,43 +339,47 @@
       {
         "key": "warminer",
         "pct": 0
+      },
+      {
+        "key": "conscript",
+        "pct": 0
       }
     ],
     "ownerPctByUnit": {
       "chronominer": 0.1189,
       "warminer": 0.1721,
-      "rifle": 0.3302,
-      "conscript": 0.3464,
+      "rifle": 0.3291,
+      "conscript": 0.3453,
       "rocket": 0.3007,
       "flak": 0.3119,
-      "rocketeer": 0.3418,
+      "rocketeer": 0.3457,
       "harrier": 0.2298,
       "kirov": 0.2698,
       "lancer": 0.2302,
       "mammoth": 0.1678,
-      "engineer": 0.3684,
+      "engineer": 0.3705,
       "dog": 0.0665,
       "ifv": 0.1391,
       "mirage": 0.1478,
-      "tanya": 0.1536,
+      "tanya": 0.1566,
       "rhino": 0.1673,
       "flaktrack": 0.1624,
       "v3": 0.1501,
       "teslatrooper": 0.3369,
-      "ivan": 0.3582,
+      "ivan": 0.3407,
       "drone": 0.2091,
       "teslatank": 0.1441,
       "prismtank": 0.1621,
-      "desolator": 0.3114,
-      "yuri": 0.2591,
-      "cleg": 0.3187,
-      "spy": 0.3198,
-      "nighthawk": 0.0129,
+      "desolator": 0.3063,
+      "yuri": 0.2625,
+      "cleg": 0.3209,
+      "spy": 0.322,
+      "nighthawk": 0.0123,
       "apc": 0.0735,
       "destroyer": 0.1434,
       "aegis": 0.1573,
       "carrier": 0.2095,
-      "hornet": 0.2793,
+      "hornet": 0.2812,
       "dolphin": 0.0862,
       "lcraft": 0.1367,
       "sub": 0.0762,
@@ -391,38 +391,38 @@
     "chromaByUnit": {
       "chronominer": 0.2623,
       "warminer": 0.2762,
-      "rifle": 0.1412,
-      "conscript": 0.1906,
+      "rifle": 0.1626,
+      "conscript": 0.1862,
       "rocket": 0.2121,
       "flak": 0.1372,
-      "rocketeer": 0.1402,
-      "harrier": 0.1924,
+      "rocketeer": 0.3058,
+      "harrier": 0.2356,
       "kirov": 0.2978,
       "lancer": 0.0863,
       "mammoth": 0.2379,
-      "engineer": 0.179,
+      "engineer": 0.106,
       "dog": 0.495,
       "ifv": 0.1608,
       "mirage": 0.1566,
-      "tanya": 0.2228,
+      "tanya": 0.2773,
       "rhino": 0.1554,
       "flaktrack": 0.1569,
       "v3": 0.1835,
       "teslatrooper": 0.1212,
-      "ivan": 0.1716,
+      "ivan": 0.2819,
       "drone": 0.1875,
       "teslatank": 0.2104,
       "prismtank": 0.1608,
-      "desolator": 0.1495,
-      "yuri": 0.2021,
-      "cleg": 0.11,
-      "spy": 0.1443,
-      "nighthawk": 0.1394,
+      "desolator": 0.1667,
+      "yuri": 0.1932,
+      "cleg": 0.1254,
+      "spy": 0.1504,
+      "nighthawk": 0.0403,
       "apc": 0.1396,
       "destroyer": 0.1402,
       "aegis": 0.1511,
       "carrier": 0.1212,
-      "hornet": 0.1893,
+      "hornet": 0.2369,
       "dolphin": 0.1867,
       "lcraft": 0.0819,
       "sub": 0.1942,
@@ -432,8 +432,8 @@
       "mcv": 0.1569
     },
     "hue": {
-      "infantryOwnerMedian": 0.3192,
-      "infantryOwnerMeanUnexempt": 0.3253,
+      "infantryOwnerMedian": 0.3215,
+      "infantryOwnerMeanUnexempt": 0.3244,
       "exempt": [
         "dog",
         "tanya"
@@ -934,7 +934,7 @@
         "aspect": 1.436,
         "selfIoU": 0.4379,
         "bestPeer": "Nighthawk",
-        "bestPeerIoU": 0.4023,
+        "bestPeerIoU": 0.4003,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
@@ -1078,13 +1078,13 @@
         "name": "Nighthawk",
         "group": "air",
         "fac": "dir",
-        "mass": 2144,
-        "bboxW": 74,
+        "mass": 2142,
+        "bboxW": 73,
         "bboxH": 48,
-        "aspect": 1.546,
-        "selfIoU": 0.8587,
+        "aspect": 1.538,
+        "selfIoU": 0.8509,
         "bestPeer": "Kirov Airship",
-        "bestPeerIoU": 0.4023,
+        "bestPeerIoU": 0.4003,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {

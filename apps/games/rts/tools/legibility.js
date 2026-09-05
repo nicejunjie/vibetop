@@ -256,7 +256,81 @@ function distUnion(a, b, ma, mb, n) {
 // Backwards-compatible name: the shipped 28 px window.
 function dist(a, b) { return distBox(a, b, CELL); }
 
-async function measure() {
+/* c8 ignore start */
+// THE SHEET. The header has promised `--sheet` since this file was written and
+// never had it, which is how three art passes closed the numbers while the
+// screen stayed a blue mass. A number is a proxy; the sheet is the thing. Each
+// group is laid out on its own ground at the size it is DRAWN, once at 1:1 and
+// once magnified, so a pair the table calls close can be looked at.
+function sheet(cfg) {
+  const T = window.__rtsTest, U = window.__rtsTables.UNITS, S = T.spr();
+  const SC = cfg.SC, GRASS = cfg.GRASS, WATER = cfg.WATER;
+  const groups = { infantry: [], vehicle: [], air: [], naval: [] };
+  for (const key of Object.keys(U)) {
+    const d = U[key];
+    if (d.spawned) continue;
+    const art = S.unit[0][d.fac || 'dir'][key];
+    if (!art) continue;
+    const g = d.nav ? 'naval' : d.cls === 'i' ? 'infantry' : d.air ? 'air' : 'vehicle';
+    const uk = (d.bomb && d.air) ? 1.3 : 1;
+    let a;
+    if (art.fr) a = art.fr('stand', 3, 0);
+    else if (Array.isArray(art)) a = art[3];
+    else if (art.hull) a = art.hull[3];
+    else if (art.lay) a = art.lay().hull[3];
+    else a = art;
+    const turret = (!art.fr && art.turret) ? art.turret[3] : null;
+    groups[g].push({ key, a, turret, uk, name: d.name });
+  }
+  const rows = [];
+  for (const g of ['infantry', 'vehicle', 'air', 'naval']) if (groups[g].length) rows.push([g, groups[g]]);
+  // A cell per GROUP, not one for the sheet: sized off the Kirov, a trooper is
+  // four percent of his own box and the row is unreadable.
+  let cwT = 0, chT = 0, wide = 0;
+  for (const row of rows) {
+    let W = 0, H = 0;
+    for (const r of row[1]) { W = Math.max(W, r.a.w * r.uk); H = Math.max(H, r.a.h * r.uk); }
+    row[2] = Math.ceil(W) + 4; row[3] = Math.ceil(H) + 4;
+    cwT = Math.max(cwT, row[2] * row[1].length + row[1].length * 6);
+    chT += row[3] * SC + row[3] + 30;
+    wide = Math.max(wide, row[1].length);
+  }
+  const c = document.createElement('canvas');
+  c.width = 16; c.height = 12;
+  for (const row of rows) c.width = Math.max(c.width, row[1].length * (row[2] * SC + 6) + 16);
+  c.height = 12; for (const row of rows) c.height += row[3] * SC + row[3] + 30;
+  const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+  g2.fillStyle = '#20240f'; g2.fillRect(0, 0, c.width, c.height);
+  let y = 6;
+  for (const [gname, rs, cw, ch] of rows) {
+    const bg = gname === 'naval' ? WATER : GRASS;
+    g2.fillStyle = `rgb(${bg[0]},${bg[1]},${bg[2]})`;
+    g2.fillRect(0, y, c.width, ch * SC + ch + 8);
+    let x = 8;
+    for (const r of rs) {                                  // magnified
+      g2.drawImage(r.a.c, x, y + 2, r.a.w * r.uk * SC, r.a.h * r.uk * SC);
+      if (r.turret) g2.drawImage(r.turret.c, x, y + 2, r.turret.w * r.uk * SC, r.turret.h * r.uk * SC);
+      x += cw * SC + 6;
+    }
+    x = 8;
+    for (const r of rs) {                                  // and at 1:1, the size a player sees
+      const ox = x + cw * SC / 2 - r.a.w * r.uk / 2, oy = y + ch * SC + 4;
+      g2.drawImage(r.a.c, ox, oy, r.a.w * r.uk, r.a.h * r.uk);
+      if (r.turret) g2.drawImage(r.turret.c, ox, oy, r.turret.w * r.uk, r.turret.h * r.uk);
+      x += cw * SC + 6;
+    }
+    y += ch * SC + ch + 8;
+    g2.fillStyle = '#cdd6bb'; g2.font = 'bold 13px monospace';
+    x = 8;
+    for (const r of rs) { g2.fillText(r.key.slice(0, 12), x + 2, y + 15); x += cw * SC + 6; }
+    y += 22;
+  }
+  return c.toDataURL('image/png').slice(22);
+}
+/* c8 ignore stop */
+
+async function measure(opts) {
+  opts = opts || {};
   const pw = playwright();
   const srv = await serve();
   const port = srv.address().port;
@@ -269,8 +343,10 @@ async function measure() {
   await page.evaluate(() => window.__rtsTest.begin(4242, 'normal'));
   // Capture ONCE at the wide window; the narrow views are derived node-side.
   const recs = await page.evaluate(grab, { CELL: CELL_FIT, GRASS, WATER, ZOOMS });
+  let sheetPng = null;
+  if (opts.sheet) sheetPng = await page.evaluate(sheet, { SC: 4, GRASS, WATER });
   await browser.close(); srv.close();
-  return { recs, pageErrors };
+  return { recs, pageErrors, sheetPng };
 }
 
 const GROUP = (r) => (r.nav ? 'naval' : r.cls === 'i' ? 'infantry' : r.air ? 'air' : 'vehicle');
@@ -400,10 +476,17 @@ function report(ms) {
 }
 
 async function main() {
-  const { recs, pageErrors } = await measure();
+  const wantSheet = process.argv.includes('--sheet');
+  const { recs, pageErrors, sheetPng } = await measure({ sheet: wantSheet });
   if (pageErrors.length) { console.error('PAGE ERRORS:\n  ' + pageErrors.join('\n  ')); process.exitCode = 1; }
   const ms = VIEWS.map((v) => compute(recs, v));
   console.log(report(ms));
+  if (sheetPng) {
+    fs.mkdirSync(OUT, { recursive: true });
+    const f = path.join(OUT, 'legibility-sheet.png');
+    fs.writeFileSync(f, Buffer.from(sheetPng, 'base64'));
+    console.log('  contact sheet: ' + f + '  — LOOK AT IT');
+  }
   const m = ms[0];                       // --json keeps the shipped window's shape
   const jsonAt = process.argv.indexOf('--json');
   if (jsonAt >= 0 && process.argv[jsonAt + 1]) {

@@ -1,9 +1,9 @@
 # RTS — the execution plan
 
 > **Status 2026-09-05.** Phases 1, 2, 3 and 4 are DONE and deployed; Phase 8's
-> two riders are done. Phase 5 (map art) and Phase 6 (ElitePrimary) are in
-> flight in separate worktrees. Phase 7 (cliff seams) is not started, and waits
-> on the map-art merge because it touches the same file.
+> two riders are done. Phase 5 (map art) is DONE and merged.
+> Phase 6 (ElitePrimary) and Phase 7 (cliff seams) are in flight in separate
+> worktrees.
 >
 > Two things found along the way that were NOT in this plan when it was written:
 > **two corners of every building were dead to clicks** (`pickAt` tested a
@@ -204,26 +204,63 @@ Run after 3.1, re-measuring between each so every step's gain is attributable.
 
 ---
 
-## Phase 5 — map art · BLOCKED on 3.2
+## Phase 5 — map art · P3 and P2 DONE (2026-09-05); P4 still free
 
-- **P3 — `harrier | nighthawk`.** *(a day or two)* The only pair that fails under
+**Status.** 3.2 landed, and with the fixed tool P3 and P2 were both executed.
+Measured with `node apps/games/rts/tools/legibility.js`, pairs under the
+friend-vs-foe floor, before -> after:
+
+| window | zoom 1 | ZMIN |
+|---|---|---|
+| CELL 28 *(shipped)* | 1 naval -> 1 naval | 0 -> 0 |
+| CELL 96 *(uncropped)* | **11 infantry** -> **0** | **8 infantry** -> **0** |
+| union footprint | **1 air** -> **0** | **1 air** -> **0** |
+
+`harrier | nighthawk` now clears every window at both zooms (union 40.2 -> 51.7
+at zoom 1, 38.1 -> 49.3 at ZMIN). The infantry ladder is `INF_VALUE` +
+`valuePass` — a per-channel gamma on the finished sprite with the inverse
+pre-applied to the house colour, so the owner block is untouched; see
+`docs/design-decisions.md`. `legibility.js` also grew the `--sheet` its own
+header had promised since it was written.
+
+**What is NOT closed.** The margins are thin — three infantry pairs sit 1-2%
+over the floor at CELL 96 (`ivan|yuri` 12.35, `rifle|conscript` 12.45 at zoom 1;
+`rifle|conscript` 8.98 at ZMIN against 8.91). Any future infantry change must
+re-run the tool. The Nighthawk's bbox is 1 px narrower than it was (73x48 vs
+74x48, aspect 1.538 vs 1.546) — an aspect already 2x off RA2's 3.05, and the two
+obvious ways to buy it back both cost more than the pixel is worth (see the
+design-decisions entry). And the `--sheet` is a roster line-up, not a battle:
+"do not read a pass here as *vehicles are fine on the map*" still stands.
+
+- **P3 — `harrier | nighthawk`. DONE.** The only pair that fails under
   **every** window: 41.6 vs 42.2 (union footprint, zoom 1), 39.5 vs 41.7 at ZMIN,
   and 30.3 in the Directorate cameo list. Two grey aircraft of similar span.
   RA2's own plates show a swept-delta jet at altitude against blue versus a squat
   twin-rotor helicopter over ground — a distinction we have flattened. **Both
   surfaces improve from the same work**, so it is the best value here after P1.
-- **P2 — infantry silhouette and value.** *(weeks; the largest item on the board)*
+- **P2 — infantry silhouette and value. DONE (value; silhouette untouched).**
   Eight kinds within **11 luminance points and 0.08 saturation** of each other at
   14–22 px wide. The measured lever is **plate value, not more owner colour** —
   pushing owner-colour area was already tried and made map legibility worse. This
   is `unit-identity-reference.md` §3 R1–R6. **Do not start before 3.2:** grading
   infantry with a tool that crops the head off is how three art passes closed the
   metrics while the screen stayed a blue mass.
+  **Closed on VALUE alone**, which is all the measurement asked for. **R5's
+  silhouette work and the STATURE table were NOT touched** — deliberately: every
+  infantry bounding box is byte-identical before and after, because the value
+  pass changes no alpha, and the STATURE numbers are derived from RA2's own
+  measured sizes. If a future pass wants outline mass as a second lever, it
+  starts from an unspent budget.
 - **P4 — `aegis | squid`: re-measure, do NOT redraw.** *(free)* The shipped
   tool's only failure, but both are drawn at 54×65 and 79×69 — far outside the
   28 px window — so 27.6 compares their middles. It passes under CELL 64 (27.2 vs
   18.3) and is not in the union-footprint worst eight. **This is a week of hull
   work the measurement does not justify.** Re-run after 3.2, then decide.
+  **Re-measured 2026-09-05 and unchanged:** 27.6 against a CELL 28 floor that
+  has risen to 34.1, and it is now the ONLY unit pair under any floor in any
+  window at either zoom. It clears the union footprint comfortably (56.1 vs
+  43.0 at zoom 1, 54.1 vs 39.6 at ZMIN) and does not appear in the CELL 96
+  worst-16 at all. Verdict stands: do not redraw.
 
 ---
 
