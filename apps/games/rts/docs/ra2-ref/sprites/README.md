@@ -37,6 +37,8 @@ directory exists to prevent.
 |---|---|---|---|
 | `grand-cannon.png` | `File:RA2 Grand Cannon.gif` | 117x85 | Looked at. A fat rounded armoured dome on a splayed steel turntable with three round outrigger pads and bright bosses, and a SHORT thick gun off its shoulder — which independently confirms the `key === 'grandcannon'` comment's 1:1 re-read, and confirms that lengthening its barrel to match the CAMEO would have been wrong |
 | `prism-tower.png` | `File:C&C-RA2-ggprisdm.gif` | 272x256 | Looked at. The Allied Prism Tower: a slender tower with a crystal-cluster crown on a red-trimmed base, on a BLUE chroma key. Note this is the TOWER, not the Prism Tank |
+| `terror-drone.png` | `File:RA2 Terror Drone.png` | 258x222 | Looked at. **EIGHT BEARINGS** on snow — the most useful shape a rip can take. A SMALL red body on legs that splay well beyond it, which independently confirms the 2026-09-05 leg-reach extension (4.7/3.9 -> 5.9/4.9): RA2's drone really is mostly legs |
+| `allied-barracks.png` | `File:RA2 Allied Barracks.png` | 172x142 | Looked at. Two ribbed Quonset barrels side by side with dark arched openings, a watch drum with a silver dome and a flag, yellow hazard plates on the apron. Confirms the barracks comment's own description down to the hazard plates |
 
 Note the Grand Cannon here is 117x85 where the code comment cites 181x133 — the
 same subject at a different resolution, so use it for SHAPE and PROPORTION, not
