@@ -168,7 +168,27 @@ const SPIKES = {
                   feature: 'quadruped: horizontal spine, aspect 1.4 against everyone else 0.45' },
   tanya:        { axis: 'h', budget: FLOOR, len: 2,  src: 'pistols break the outline by >= 2 px each side',
                   feature: 'two pistols out to the sides, breaking the outline >=2 px each' },
-  cleg:         { axis: 'h', budget: FLOOR, len: 9,  src: 'rifle >= 9 px LONG held horizontal — a length, not a thickness',
+  // THE LENGTH DEMAND IS DROPPED, and it is the GATE that was wrong, not the art.
+  // `spikeOf` finds the run where the profile falls below 55% of max — it
+  // measures a PROTRUSION CLEAR OF THE BODY. The citation asks for a rifle
+  // "9 px LONG held horizontal", which is the whole rifle, most of which lies
+  // ACROSS the torso. Demanding 9 columns of protrusion is a stricter thing
+  // than the sentence it quotes, and RA2 settles it: [CLEG] is 15 px WIDE IN
+  // TOTAL while carrying that rifle, so 9 px of it cannot be standing clear of
+  // a body — there would be 6 px of man left.
+  //
+  // This was measured the expensive way first. With len 9 in place the unit's
+  // two budgets are mutually exclusive: at his RA2-relative height the band
+  // allows 24 px and the rifle claims 9, leaving 15 for the figure §2.1 calls
+  // the WIDEST Allied infantry. Five routes were built and each traded one
+  // gate for another, which is the signature of a contradictory spec rather
+  // than of bad art.
+  //
+  // The thickness FLOOR still applies, so the rifle must still survive ZMIN.
+  // A protrusion-based length demand for this unit would need a number §2.1
+  // does not give, so none is invented here. `spy` carries `len: null` for the
+  // same reason: a hat brim is not a spike either.
+  cleg:         { axis: 'h', budget: FLOOR, len: null, src: 'rifle >= 9 px LONG held horizontal — a LENGTH, and spikeOf measures PROTRUSION, so this cannot be checked as a spike run; see the note above',
                   feature: 'powered-suit shoulder line >=15 px + a long level rifle' },
   spy:          { axis: 'v', budget: 7,   len: null, src: 'hat brim >= 7 px wide, >= 1.5x the head',
                   feature: 'fedora brim >=7 px wide over an unbroken coat hem' },

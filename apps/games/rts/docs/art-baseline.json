@@ -169,7 +169,7 @@
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.4625,
     "iou.vehicle.mean": 0.4174,
-    "iou.infantry.mean": 0.5302,
+    "iou.infantry.mean": 0.5405,
     "iou.naval.mean": 0.4022,
     "iou.air.mean": 0.177,
     "iou.sameFactionOver75": 0,
@@ -178,7 +178,7 @@
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.703,
     "mass.tightestBand6": 2.235,
-    "hue.infantryOwnerMean": 0.2989,
+    "hue.infantryOwnerMean": 0.2975,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1681,
     "hue.vehicleOwnerMax": 0.2386,
@@ -186,9 +186,9 @@
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.194,
     "aspect.vehicleOutsideRA2Band": 0,
-    "aspect.infantryOutsideRA2Band": 1,
+    "aspect.infantryOutsideRA2Band": 0,
     "aspect.airOutsideRA2Band": 2,
-    "colour.infantry.meanDist": 1.3772,
+    "colour.infantry.meanDist": 1.3779,
     "colour.vehicle.meanDist": 0.9515,
     "colour.vehicleAchromatic": 0
   },
@@ -226,8 +226,8 @@
         "broadsideAspect": 0.472,
         "ra2Aspect": 0.429,
         "vsRA2": 1.101,
-        "bestPeer": "Spy",
-        "bestPeerIoU": 0.618,
+        "bestPeer": "Chrono Legionnaire",
+        "bestPeerIoU": 0.6511,
         "peersBeatingSelf": 0
       },
       "conscript": {
@@ -332,7 +332,7 @@
         "broadsideAspect": 0.618,
         "ra2Aspect": 0.52,
         "vsRA2": 1.188,
-        "bestPeer": "Crazy Ivan",
+        "bestPeer": "Chrono Legionnaire",
         "bestPeerIoU": 0.7292,
         "peersBeatingSelf": 0
       },
@@ -428,8 +428,8 @@
         "broadsideAspect": 0.73,
         "ra2Aspect": 0.643,
         "vsRA2": 1.136,
-        "bestPeer": "Yuri",
-        "bestPeerIoU": 0.6494,
+        "bestPeer": "Chrono Legionnaire",
+        "bestPeerIoU": 0.7028,
         "peersBeatingSelf": 0
       },
       "ivan": {
@@ -504,14 +504,14 @@
       },
       "cleg": {
         "group": "infantry",
-        "aspect": 0.933,
-        "selfIoU": 0.6556,
-        "selfIoUCross": 0.6556,
-        "broadsideAspect": 0.933,
+        "aspect": 0.657,
+        "selfIoU": 0.7006,
+        "selfIoUCross": 0.7006,
+        "broadsideAspect": 0.657,
         "ra2Aspect": 0.577,
-        "vsRA2": 1.617,
-        "bestPeer": "Rocketeer",
-        "bestPeerIoU": 0.6362,
+        "vsRA2": 1.139,
+        "bestPeer": "Engineer",
+        "bestPeerIoU": 0.7292,
         "peersBeatingSelf": 0
       },
       "spy": {
@@ -693,7 +693,7 @@
         "over75": 0
       },
       "infantry": {
-        "mean": 0.5302,
+        "mean": 0.5405,
         "pairs": 91,
         "max": 0.7652,
         "over75": 1
@@ -728,7 +728,7 @@
       {
         "a": "teslatrooper",
         "b": "cleg",
-        "dist": 0.14
+        "dist": 0.105
       },
       {
         "a": "conscript",
@@ -756,19 +756,19 @@
         "dist": 0.479
       },
       {
+        "a": "cleg",
+        "b": "spy",
+        "dist": 0.49
+      },
+      {
         "a": "rocket",
         "b": "rocketeer",
         "dist": 0.495
       },
       {
-        "a": "cleg",
-        "b": "spy",
-        "dist": 0.51
-      },
-      {
-        "a": "ivan",
-        "b": "cleg",
-        "dist": 0.539
+        "a": "teslatrooper",
+        "b": "ivan",
+        "dist": 0.553
       }
     ],
     "closestVehicleColourPairs": [
@@ -884,7 +884,7 @@
       "prismtank": 0.1699,
       "desolator": 0.3127,
       "yuri": 0.2625,
-      "cleg": 0.3182,
+      "cleg": 0.2986,
       "spy": 0.31,
       "nighthawk": 0.0123,
       "apc": 0.0882,
@@ -927,7 +927,7 @@
       "prismtank": 0.1522,
       "desolator": 0.1972,
       "yuri": 0.1932,
-      "cleg": 0.1388,
+      "cleg": 0.1441,
       "spy": 0.155,
       "nighthawk": 0.0403,
       "apc": 0.1311,
@@ -944,8 +944,8 @@
       "mcv": 0.1555
     },
     "hue": {
-      "infantryOwnerMedian": 0.3236,
-      "infantryOwnerMeanUnexempt": 0.3297,
+      "infantryOwnerMedian": 0.3209,
+      "infantryOwnerMeanUnexempt": 0.328,
       "exempt": [
         "dog",
         "tanya"
@@ -961,13 +961,6 @@
       "Apocalypse"
     ],
     "ra2Aspect": [
-      {
-        "key": "cleg",
-        "wh": "28x30",
-        "ours": 0.933,
-        "ra2": 0.577,
-        "ratio": 1.617
-      },
       {
         "key": "nighthawk",
         "wh": "73x45",
@@ -1078,6 +1071,13 @@
         "wh": "22x29",
         "ours": 0.759,
         "ra2": 0.667,
+        "ratio": 1.139
+      },
+      {
+        "key": "cleg",
+        "wh": "23x35",
+        "ours": 0.657,
+        "ra2": 0.577,
         "ratio": 1.139
       },
       {
@@ -1330,29 +1330,29 @@
         "name": "Chrono Legionnaire",
         "group": "infantry",
         "fac": "dir",
-        "mass": 392,
-        "bboxW": 28,
-        "bboxH": 30,
-        "aspect": 0.742,
-        "broadsideWH": "28x30",
-        "broadsideAspect": 0.933,
+        "mass": 387,
+        "bboxW": 23,
+        "bboxH": 35,
+        "aspect": 0.521,
+        "broadsideWH": "23x35",
+        "broadsideAspect": 0.657,
         "ra2Aspect": 0.577,
-        "vsRA2": 1.617,
-        "selfIoU": 0.6556,
-        "selfIoUCross": 0.6556,
-        "bestPeer": "Rocketeer",
-        "bestPeerIoU": 0.6362,
+        "vsRA2": 1.139,
+        "selfIoU": 0.7006,
+        "selfIoUCross": 0.7006,
+        "bestPeer": "Engineer",
+        "bestPeerIoU": 0.7292,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "h",
-          "len": 9,
-          "thick": 10,
-          "atZmin": 5.5,
+          "len": 7,
+          "thick": 12,
+          "atZmin": 6.6,
           "budget": 3.64,
-          "lenBudget": 9,
+          "lenBudget": null,
           "fails": null,
-          "src": "rifle >= 9 px LONG held horizontal — a length, not a thickness",
+          "src": "rifle >= 9 px LONG held horizontal — a LENGTH, and spikeOf measures PROTRUSION, so this cannot be checked as a spike run; see the note above",
           "feature": "powered-suit shoulder line >=15 px + a long level rifle"
         }
       },
@@ -1576,7 +1576,7 @@
         "vsRA2": 1.188,
         "selfIoU": 0.7054,
         "selfIoUCross": 0.7054,
-        "bestPeer": "Crazy Ivan",
+        "bestPeer": "Chrono Legionnaire",
         "bestPeerIoU": 0.7292,
         "peersBeatingSelf": 0,
         "peers": 13,
@@ -2054,8 +2054,8 @@
         "vsRA2": 1.101,
         "selfIoU": 0.6233,
         "selfIoUCross": 0.6233,
-        "bestPeer": "Spy",
-        "bestPeerIoU": 0.618,
+        "bestPeer": "Chrono Legionnaire",
+        "bestPeerIoU": 0.6511,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -2320,8 +2320,8 @@
         "vsRA2": 1.136,
         "selfIoU": 0.8076,
         "selfIoUCross": 0.8076,
-        "bestPeer": "Yuri",
-        "bestPeerIoU": 0.6494,
+        "bestPeer": "Chrono Legionnaire",
+        "bestPeerIoU": 0.7028,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
