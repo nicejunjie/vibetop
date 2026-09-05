@@ -96,72 +96,122 @@ falls out is a follow-on commit, not part of this phase.
 
 ---
 
-## Phase 3 — settle the map metric BEFORE any more map art · blocking decision
+## Phase 3 — the two false premises · cheap, and they unblock everything else
 
-**Why this blocks.** The art study questioned `legibility.js` itself and built a
-second metric that keeps relative size instead of normalising every unit into a
-28 px box. The two disagree sharply:
+Both are hours, both are our own code or tooling asserting something untrue, and
+both were found by the art study (`art-legibility-plan.md`). **The menu track and
+the map track are independent and do not block each other** — that is the study's
+finding, and it is why these two sit together rather than one gating the other.
 
-| metric | infantry confusable | worst pair |
+### 3.1 M1 — print the item's name on the cameo *(menu; user-visible)*
+**The premise we built on is false.** `rts.html:27751` reads:
+
+> `// No prose on the cameo — RA2 puts none there.`
+
+RA2 puts one on **every shipped-style plate**: an outlined-white-caps detector
+finds a caption on 59 of the 74-plate corpus, a 60th uses grey text the detector
+misses, and the remaining 14 are visibly pre-release alpha/beta plates in another
+style. **Verified by eye** in `docs/ra2-ref/cameo-ours-vs-ra2.png` — "G.I.",
+"GUARDIAN G.I.", "AEGIS CRUISER", "FLAK-TROOPER", "대공포". Today our name lives
+only in the hover tooltip: it costs a hover and a wait, which is exactly the
+learned-not-discoverable pattern this project rejects everywhere else.
+
+**Edit.** In `cameoFor()`, after the sprite and before the bevel, draw the name
+across the bottom of the 60×48 plate — bold condensed caps, white over a ~2.5 px
+black stroke, wrapping to two lines when needed. Use **RA2's own caption
+strings** read off the corpus, not our internal `spec.name` (RA2 says WEATHER
+MACHINE, not "Weather Control Device"). Delete the false comment. Keep the
+`.nm`/`.ct` spans and the tooltip — RA2 has both.
+
+**Expected, prototyped on the real pixels:** worst pair **27.2 → 41.1** (DIR,
++51%) and **23.1 → 42.3** (COL, +83%); 5th pct 36.7 → 52.8 and 32.5 → 52.3;
+greyed 12.2 → 21.1 and 11.0 → 24.0.
+
+**Exit.** Every `min` and `5th pct` in `cameo-legibility.js` moves by at least
+those amounts, in both sidebars **and** the greyed row; then look at `--sheet` at
+1:1 and confirm the caption is legible without burying the subject.
+
+### 3.2 P1 — fix the measurement window before any more map art *(tooling only)*
+**`legibility.js` normalises into a `CELL = 28` box and centre-crops everything
+larger** — all 13 vehicles, all 10 ships, and 4 px off each end of every trooper
+(a GI is 16×36, the Aircraft Carrier 84×74). Three windows give three verdicts:
+
+| window | threshold | infantry under the floor |
 |---|---|---|
-| normalise-to-28px (current) | **11** | `ivan\|spy` 16.1 |
-| union-footprint | **0** | `harrier\|nighthawk` 41.6 |
+| CELL = 28 *(as shipped)* | 32.0 | **0** infantry, 1 naval |
+| CELL = 64 *(nothing cropped)* | 18.3 | **11** infantry, 0 naval |
+| union-footprint | 42.2 | 0 infantry, 1 air |
 
-`aegis|squid` — the pair carried for weeks as the last outstanding one — does not
-even appear in the union-footprint worst list. **Size difference is itself a
-cue, and the current metric throws it away.** If that holds, some past map
-ratcheting optimised an artefact, and any further map art would too.
+The crop throws away the head, the weapon and the feet — **where infantry
+identity lives** — and keeps the torso, where it does not. At CELL 64 the worst
+pairs are `ivan|spy` 16.1, `ivan|yuri` 16.6, `conscript|tanya` 17.6, `tanya|ivan`
+17.8 … eleven under the floor. **That list is the owner's complaint, in numbers,
+and the shipped report does not contain it.**
 
-**Work.** Decide which metric describes what a player sees; fix or replace
-`legibility.js`; **regenerate `art-baseline.json`** against the chosen metric;
-rewrite this plan's map items against the new numbers. One `CELL=96` run OOM'd
-node — finish that leg or record why it cannot be run.
+**Edit.** Make `CELL` env-overridable; default it to at least the largest drawn
+unit; document that padding dilutes distances uniformly so the threshold moves
+with the window and only same-window comparisons mean anything; and report the
+**union-footprint** variant as a second column so no one cites one number in
+isolation again. A CELL 96 run OOM'd node — raise `--max-old-space-size` or store
+thumbnails as `Uint8Array`.
 
-**Exit.** One metric, written down with its reason, and a baseline regenerated
-under it. Only then does map art resume.
+**Exit.** The three tables above reproduce. No art changes.
+
+**This gates the MAP track only (Phase 5). It does not gate the menu track.**
 
 ---
 
-## Phase 4 — cameo legibility · the largest player-visible win
+## Phase 4 — the rest of the menu · measured, in order of gain
 
-**Evidence, measured against a real bar** (74 RA2 cameos, 2701 pairs — min 58.5,
-5th pct 81.7, median 100.5):
+Run after 3.1, re-measuring between each so every step's gain is attributable.
 
-| | RA2 | Directorate | Collective |
-|---|---|---|---|
-| min pair | 58.5 | **27.2** | 23.1 |
-| 5th pct | 81.7 | 36.7 | 32.5 |
+- **M2 — one background per item, not one wash for eighty.** *(2–4 days)*
+  Across-plate luminance SD is **10.2 / 8.2** against RA2's **22.6**, and only
+  34% of our plate is picture against RA2's 76%. The existing subject-mean tint
+  was already the attempted fix and the measurement says it failed, because
+  nearly every sprite is grey-blue steel. Replace it with a small vocabulary of
+  **category scenes** — sky for air, sea horizon for naval, ground-and-horizon
+  for vehicles and structures, a close dark backdrop for infantry — varying hue
+  *and plate value* per item. With M1 this measured **53.5 / 51.9** worst pair
+  and **69.2 / 64.7** at the 5th pct, against RA2's floor of 58.5. **Risk is
+  taste:** the unconstrained prototype is a rainbow and looks wrong. Build one
+  category, put one tab in front of a human, then extend.
+- **M3 — crop infantry to RA2's portrait.** *(~2 days)* Infantry plates are 30%
+  subject. A ×2.2 crop measured 28.9 → **38.7** (DIR) and 25.8 → **42.8** (COL).
+  **Do M1 and M2 first and re-measure** — our troopers are ~16×36 at bake
+  resolution and a hard crop will expose that a helmet is four pixels, which may
+  pull sprite rework in behind it.
+- **M4 — reconsider the greyed style.** *(hours, after M1–M3)*
+  `grayscale(.65) brightness(.6)` roughly halves every distance, and the early
+  game is **mostly** greyed cameos — the dominant reading condition, not an edge
+  case. Keep the caption at full white, which needs it on a CSS overlay or a
+  canvas-side desaturation that skips the caption band.
+- **M5 — the Nighthawk plate.** *(mostly free after M1–M2)* Five of the eight
+  worst Directorate pairs contain it. Re-measure first; M2's air category may
+  already fix it.
 
-**All 780 of our pairs sit under RA2's 5th percentile.** Greyed-out rows collapse
-to **12.2**. Two numbers name the cause, and colour is **not** it — ours are
-*more* saturated (0.29 vs 0.21) and *less* legible:
+---
 
-- **`subjectFill`: RA2 75.7%, ours 31%** — our subjects float in an empty plate.
-- **cross-plate brightness spread: RA2 22.6, ours 10.2** — every plate is the
-  same overall value.
+## Phase 5 — map art · BLOCKED on 3.2
 
-**Prototyped and measured, so the order is by measured gain:**
-
-| variant | min | 5th pct | median |
-|---|---|---|---|
-| base | 27.2 | 36.7 | 51.2 |
-| + name banner | 41.1 | 52.8 | 63.7 |
-| + per-item background | 44.3 | 58.5 | 80.6 |
-| **+ both** | **53.5** | **69.2** | **88.1** |
-
-Plus portrait-cropping infantry ×2.2, which lifts that tab's 5th pct 32 → 58.4.
-
-**Ship in that order, measuring after each** — banner, then per-item background,
-then the infantry crop — so each step's gain is attributable. Target: clear
-RA2's **min 58.5**; stretch: its 5th pct 81.7. Re-measure the **greyed** state
-every time; it is the worst case and the one the tool must gate on.
-
-**Cross-surface note:** `Nighthawk` is the worst offender on **both** surfaces —
-5 of the 8 worst cameo pairs, and the worst map pair under the new metric. Fix it
-once, in the silhouette, and both improve.
-
-*(Supersede this phase with the study's ranked plan when it lands; the numbers
-above are its own in-flight measurements.)*
+- **P3 — `harrier | nighthawk`.** *(a day or two)* The only pair that fails under
+  **every** window: 41.6 vs 42.2 (union footprint, zoom 1), 39.5 vs 41.7 at ZMIN,
+  and 30.3 in the Directorate cameo list. Two grey aircraft of similar span.
+  RA2's own plates show a swept-delta jet at altitude against blue versus a squat
+  twin-rotor helicopter over ground — a distinction we have flattened. **Both
+  surfaces improve from the same work**, so it is the best value here after P1.
+- **P2 — infantry silhouette and value.** *(weeks; the largest item on the board)*
+  Eight kinds within **11 luminance points and 0.08 saturation** of each other at
+  14–22 px wide. The measured lever is **plate value, not more owner colour** —
+  pushing owner-colour area was already tried and made map legibility worse. This
+  is `unit-identity-reference.md` §3 R1–R6. **Do not start before 3.2:** grading
+  infantry with a tool that crops the head off is how three art passes closed the
+  metrics while the screen stayed a blue mass.
+- **P4 — `aegis | squid`: re-measure, do NOT redraw.** *(free)* The shipped
+  tool's only failure, but both are drawn at 54×65 and 79×69 — far outside the
+  28 px window — so 27.6 compares their middles. It passes under CELL 64 (27.2 vs
+  18.3) and is not in the union-footprint worst eight. **This is a week of hull
+  work the measurement does not justify.** Re-run after 3.2, then decide.
 
 ---
 
@@ -222,15 +272,29 @@ cell boundary — and **not more texture**. Everything else in pass 26 shipped
 ## Sequence, and why
 
 ```
-Phase 1  orders + veterancy      ── one release, small, unblocks nothing but is cheap and real
-Phase 2  hardened probe          ── investigation; gates any order fix that follows
-Phase 3  settle the map metric   ── BLOCKS all map art; a wrong metric mis-aims Phase 4/6
-Phase 4  cameos                  ── largest measured player-visible win
-Phase 5  ElitePrimary            ── one change, five steps, biggest single body of work
-Phase 6  cliff seams             ── terrain, standalone
-Phase 7  riders + blocked
+Phase 1  orders + veterancy      ── one release; small, real, unblocks nothing
+Phase 2  hardened probe          ── investigation; gates any order fix after it
+Phase 3  the two false premises  ── M1 name on plate (menu) + P1 fix the tool
+                                    hours each; M1 is the best gain/cost on the board
+Phase 4  rest of the menu        ── M2 backgrounds, M3 crop, M4 greyed, M5 Nighthawk
+Phase 5  map art  [blocked 3.2]  ── P3 harrier|nighthawk, then P2 infantry (weeks)
+Phase 6  ElitePrimary            ── one change, five steps
+Phase 7  cliff seams
+Phase 8  riders + blocked
 ```
 
-Phase 3 is early **only** because it is a gate. Phase 4 carries the biggest
-measured win and would be first otherwise — its map-side sibling would be aimed
-by the wrong ruler if the metric were still unsettled.
+Phase 3 is early because it is **both** the cheapest work on the board and the
+gate. Its two halves are independent: **M1 is the single best gain-per-hour item
+anywhere in this plan** (+51% / +83% on the worst pair, for hours of work,
+because it deletes a false premise rather than adding art), and P1 unblocks the
+whole map track. Menu and map are separate tracks — only Phase 5 waits.
+
+**A correction this study forced.** An earlier reading of these numbers had the
+artefact backwards: it credited the **shipped** tool with reporting 11
+confusable infantry pairs and the union-footprint metric with reporting 0, and
+concluded the old metric was over-reporting because it discarded size as a cue.
+The opposite is true. The shipped `CELL = 28` tool reports **0** infantry
+failures; it is **hiding** the problem by cropping off exactly the head, weapon
+and feet that separate one trooper from another. Infantry map art (P2) is
+therefore real, expensive, outstanding work — not something the measurement
+argues away.
