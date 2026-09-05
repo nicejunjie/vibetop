@@ -9674,10 +9674,35 @@ list reaches cadences the additive row never did conveniently (2h, 12h, a day).
 Editing an entry whose cadence predates the picker **inserts an option for that
 exact value** instead of snapping a running loop to the nearest listed one.
 
+**Third shape, and the first correct one: say which target (same day).** User:
+*"can there be a neat way to leverage the button for both?"* — and yes, because
+the defect in shape one was never the reuse, it was that the reuse was
+**implicit**. Giving the row a single target (shape two) bought predictability by
+paying for it in capability; what it actually needed was to answer "which field
+am I aiming at" on screen, at all times.
+
+The switch is the two words that were already there. `every` and `until` are the
+field labels, so making them the target selector costs **no new element and no
+width** — and width is not academic here: at 320px the quick row is already
+*exactly* full, its buttons shrunk to 28px, so a target indicator inside the row
+was never available. The lit label is the indicator, and the labels are real
+`<label for>` elements, so one attribute buys the click-to-focus, the
+screen-reader association, and the arming gesture at once — focus is what arms a
+row, which means the normal act of clicking the field you want to change already
+does the right thing and most people never think about the mechanic at all.
+
+Two details that only look small: `Now` **disables** rather than hides while the
+cadence is armed (an interval has no "now", but hiding it would reflow the very
+row you are aiming at), and nudging the cadence inserts an ad-hoc `<option>` for
+the exact value and prunes the previous one — walking `5h → 5h 30m → 6h` with the
+buttons otherwise grows a junk entry in the list per tap.
+
 **The general lesson.** "This control can already express the new value" is a
 statement about the data, not about the user. Before reusing a control, say out
 loud what its users believe it does — here, *"it moves the field above it"* — and
-check the new mode against **that** sentence, not against the value type.
+check the new mode against **that** sentence. When the answer is "it would move a
+different field", the fix is rarely to abandon the reuse; it is to make the
+target visible, and to look for the indicator among the labels you already have.
 
 **Server: one entry the sweeper re-arms.** A loop is not N queued messages — it
 is one row whose `at` moves to the next slot while it stays `pending`, so it
