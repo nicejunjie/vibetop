@@ -140,3 +140,60 @@ better: the infantry crop cost 4% of pairs-under-RA2's-bar because showing more
 of each man makes the men more alike. The metric cannot see "reads as a G.I.".
 Keep both instruments; when they disagree, the picture wins and the trade gets
 written down.
+
+---
+
+# Where the art stands, 2026-09-05
+
+## The map: DONE by the measure we have
+
+**Zero confusable pairs in every group, in all three windows, at both zooms.**
+Not one vehicle, trooper, aircraft or hull is closer to a peer than a player is
+to telling friend from foe. `aegis | squid`, carried for weeks, is gone —
+closed by PROPORTION once the fleet was measured on the rendered frame instead
+of on plan geometry.
+
+## The sidebar: most of the way, and the rest is the medium
+
+|  | at the start | now | RA2 |
+|---|---|---|---|
+| worst pair | 27.2 | **53.6** | 58.5 |
+| 5th percentile | 36.7 | **68.4** | 81.7 |
+| median | 51.2 | **82.6** | 100.5 |
+| greyed floor | 12.2 | **35.1** | — |
+| pairs under RA2's bar | 780 / 780 | **372** | — |
+| at DPR 2 | 717 | **150** | — |
+| plate luminance SD | 10.2 | ~21 | 22.6 |
+
+Four of RA2's five differences are closed: the NAME is on the plate, each plate
+has its own ENVIRONMENT, the subject FILLS the frame, and the CAMERA varies by
+class (infantry front-on portraits, everything else three-quarter). What is
+left is the medium — RA2's plates are painted scenes and ours are our own
+sprites, well framed.
+
+## The current worst pair, and a measured dead end
+
+`GI | Spy` 53.6. Both read as a pale head over a blue torso at 60x48.
+Brightening the rifle's barrel glint (#5c636e -> #a7aeb9) to make the G.I.'s
+weapon read — RA2's plate is dominated by it — made the pair **worse**, 53.6 ->
+53.4: the extra pale pixels push him TOWARD the pale-hatted Spy. Reverted.
+
+It also arrived as a deliberate trade: it was 56.1 before the Rocketeer
+whitening and the stature moves, which took the MAP to zero confusable infantry.
+The two surfaces do not always move together, and when they disagree the map is
+the one being played.
+
+## The rule this whole pass earned
+
+**A CAMEO IS NOT A SPRITE.** It cost three near-misses to learn and one to
+un-learn:
+  * the *Psychic Sensor* looked like an inverted proportion — RA2's in-game
+    sensor is a squat drum, and its plate is a low-angle hero shot;
+  * the *Grand Cannon*'s enormous plate barrel had ALREADY been built and undone
+    once against the in-game render;
+  * the *Spy* looked blue where RA2's plate is a dark suit — his coat IS the
+    house zone, by reference;
+  * and the *V3*, where the raised rail was RIGHT, because its sprite really
+    does carry the missile high.
+The plate cannot tell you which. Only the sprite rip can. Read plates for
+composition, lighting and identifying feature; read rips for proportion.
