@@ -257,6 +257,27 @@ blind to.
 | infantry death | correct — upright at the instant of the hit, prone corpses by t=30, as RA2 does |
 | vehicle wrecks | scorch plus small debris; no persistent husk. Left alone, not investigated as a defect |
 
+**A FOURTH "defect" that was not one, and it nearly cost a fix to working
+code.** I rendered four Grizzlies at 100 / 60 / 30 / 10% health, looked at the
+frame, and concluded they were pixel-identical — no smoke, no fire, no damage
+state at all — with `fx: 0` after 120 ticks as apparent confirmation. The code
+for it already exists (`u.hp < u.maxhp * 0.5`, smoke below half, flames below a
+quarter) so I went looking for why it was disabled: `art.fr` (infantry only,
+not vehicles — gate is correct), `oy` in scope (it is), an early return (none),
+NaN arc coordinates (none).
+
+The answer is that it was never broken. Rendering the SAME tank at full health
+and at 20% and diffing the two images gives **594 differing pixels in a 28x47
+box directly above the hull** — and magnified, the damaged tank plainly carries
+orange flames at the hull and a dark smoke column above it. `fx: 0` was a red
+herring: this is drawn straight to the canvas each frame, not pushed onto the
+`fx` list.
+
+I could not see it in a 2x downscaled crop of a four-unit scene. **A diff of two
+renders is worth more than a careful look at one**, and it took four eliminations
+to reach for it. The look is what finds defects; the diff is what confirms one
+is real before you touch working code.
+
 **The harness matters more than any one fix.** It captures on the CONDITION
 that a shot or effect exists rather than on a timer, and it is parameterised per
 weapon — so the remaining warheads, damage smoke and naval wakes are inspectable
