@@ -123,3 +123,31 @@ either one picks the mechanism; guessing picks a rewrite.
 4. §2.1 target-picking probe for the depot
 5. §5 art plan, once merged (likely the largest player-visible win)
 6. §4 ElitePrimary, as one change, in its five sub-steps
+7. §7.1 cliff seams (the largest remaining terrain gap)
+8. §7.2 the two keyboard nits, whenever a keyboard pass happens anyway
+
+---
+
+## 7. Fidelity gaps recorded elsewhere, folded in 2026-09-04
+
+These were in `gap-audit-art.md` / `gap-audit-features.md` and **not** in this
+queue's first draft. A queue assembled from one session's findings is not a
+backlog; these came out of a sweep of the audits.
+
+### 7.1 Cliff runs still read as one panel per tile
+`gap-audit-art.md` #26 states plainly what pass 26 did **not** close: each cliff
+cell bakes its own columns with independent juts, so **the two sides of a shared
+vertex do not match** and a ridge reads as tiled panels. The fix is seam-matched
+cliff construction — carrying the crest and jut across the cell boundary — and
+the audit is explicit that it is **not more texture**. Largest remaining terrain
+gap; the rest of pass 26 (16 masks x 3 variants, sloped crests, unclipped rim
+lumps, seven-boulder talus) already shipped.
+
+### 7.2 Two keyboard commands from keyboard.ini
+- `CenterView=12` (numpad 5) — centres on the selection. Recorded as a nit
+  because `Space` and `H` cover the two cases a player reaches for.
+- `AllToCheer=67` — `INF_SEQ` **already has** the cheer animation and fires it on
+  victory, so only the key binding and the ordering are absent.
+
+Both are genuinely nits. They are listed so the queue is complete, not because
+they should jump the order.
