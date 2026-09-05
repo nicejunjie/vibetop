@@ -168,7 +168,7 @@
     "peerVsSelf.naval": 5,
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.4625,
-    "iou.vehicle.mean": 0.417,
+    "iou.vehicle.mean": 0.4174,
     "iou.infantry.mean": 0.5258,
     "iou.naval.mean": 0.4022,
     "iou.air.mean": 0.177,
@@ -180,8 +180,8 @@
     "mass.tightestBand6": 2.235,
     "hue.infantryOwnerMean": 0.2915,
     "hue.infantryBelowBudget": 0,
-    "hue.vehicleOwnerMean": 0.168,
-    "hue.vehicleOwnerMax": 0.237,
+    "hue.vehicleOwnerMean": 0.1681,
+    "hue.vehicleOwnerMax": 0.2386,
     "hue.maxImpostor": 0.0051,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.194,
@@ -189,7 +189,7 @@
     "aspect.infantryOutsideRA2Band": 4,
     "aspect.airOutsideRA2Band": 2,
     "colour.infantry.meanDist": 1.3644,
-    "colour.vehicle.meanDist": 0.9507,
+    "colour.vehicle.meanDist": 0.9515,
     "colour.vehicleAchromatic": 0
   },
   "detail": {
@@ -665,13 +665,13 @@
       "mcv": {
         "group": "vehicle",
         "aspect": 1.18,
-        "selfIoU": 0.6922,
-        "selfIoUCross": 0.6922,
+        "selfIoU": 0.693,
+        "selfIoUCross": 0.693,
         "broadsideAspect": 1.18,
         "ra2Aspect": 1.468,
         "vsRA2": 0.804,
         "bestPeer": "Prism Tank",
-        "bestPeerIoU": 0.6495,
+        "bestPeerIoU": 0.6539,
         "peersBeatingSelf": 0
       }
     },
@@ -687,7 +687,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.417,
+        "mean": 0.4174,
         "pairs": 78,
         "max": 0.7255,
         "over75": 0
@@ -785,7 +785,7 @@
       {
         "a": "ifv",
         "b": "mcv",
-        "dist": 0.291
+        "dist": 0.302
       },
       {
         "a": "teslatank",
@@ -805,7 +805,7 @@
       {
         "a": "chronominer",
         "b": "mcv",
-        "dist": 0.449
+        "dist": 0.457
       },
       {
         "a": "ifv",
@@ -898,7 +898,7 @@
       "seascorp": 0.2077,
       "dread": 0.2401,
       "squid": 0,
-      "mcv": 0.237
+      "mcv": 0.2386
     },
     "chromaByUnit": {
       "chronominer": 0.2644,
@@ -941,7 +941,7 @@
       "seascorp": 0.0688,
       "dread": 0.0742,
       "squid": 0.3231,
-      "mcv": 0.1573
+      "mcv": 0.1555
     },
     "hue": {
       "infantryOwnerMedian": 0.3154,
@@ -1894,7 +1894,7 @@
         "name": "MCV",
         "group": "vehicle",
         "fac": null,
-        "mass": 5264,
+        "mass": 5227,
         "bboxW": 105,
         "bboxH": 95,
         "aspect": 1.077,
@@ -1902,10 +1902,10 @@
         "broadsideAspect": 1.18,
         "ra2Aspect": 1.468,
         "vsRA2": 0.804,
-        "selfIoU": 0.6922,
-        "selfIoUCross": 0.6922,
+        "selfIoU": 0.693,
+        "selfIoUCross": 0.693,
         "bestPeer": "Prism Tank",
-        "bestPeerIoU": 0.6495,
+        "bestPeerIoU": 0.6539,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
