@@ -5898,9 +5898,9 @@ test("two cliff cells that share a vertex compute the SAME crest and jut there",
 });
 
 test("the RA2 aspect gate matches the reference table it was transcribed from", () => {
-  // `RA2_ASPECT` in tools/art-metrics.js is the ONLY art metric with an
-  // external reference, and it is what caught a whole fleet of tugboats that
-  // every ensemble metric missed. It is also 32 numbers typed out of a
+  // `RA2_BBOX` in tools/art-metrics.js is the ONLY art reference that is
+  // EXTERNAL, and it is what caught a whole fleet of tugboats that every
+  // ensemble metric missed. It is also 35 numbers typed out of a
   // markdown table by hand, and a single transposed digit would silently aim
   // every future proportion fix at the wrong target — the same failure mode
   // that made a set of wrongly-fetched sprite rips worth deleting rather than
@@ -5918,9 +5918,16 @@ test("the RA2 aspect gate matches the reference table it was transcribed from", 
   }
   assert.ok(doc.size >= 20, `expected the reference bbox tables, found ${doc.size} rows`);
 
-  const blk = toolSrc.slice(toolSrc.indexOf("const RA2_ASPECT = {"),
+  // The table holds RAW BBOXES since 2026-09-05 (`k: [w, h]`), not the
+  // pre-divided ratio it started as, so that the aspect gate and the SIZE gate
+  // added that day read one source of truth instead of two. This parser moved
+  // with it — and the move is why it is asserted to find >= 30 rows rather
+  // than just checking the rows it happens to match: the format change made an
+  // older regex silently parse ZERO entries, which passed every check about
+  // the rows it found because it had found none.
+  const blk = toolSrc.slice(toolSrc.indexOf("const RA2_BBOX = {"),
                             toolSrc.indexOf("const RA2_ASPECT_BAND"));
-  const entRe = /^\s*(\w+):\s*([\d.]+)\s*\/\s*([\d.]+),\s*\/\/\s*\[(\w+)\]/gm;
+  const entRe = /^\s*(\w+):\s*\[\s*(\d+)\s*,\s*(\d+)\s*\],\s*\/\/\s*\[(\w+)\]/gm;
   const bad = [];
   let n = 0;
   for (let m; (m = entRe.exec(blk)); ) {
