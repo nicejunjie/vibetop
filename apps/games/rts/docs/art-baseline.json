@@ -18,7 +18,7 @@
     "peerVsSelf.total": {
       "want": 0,
       "dir": "down",
-      "note": "reference §1.2/§0 bar: no unit beaten by a peer"
+      "note": "reference §1.2/§0 bar: no unit beaten by a peer. SEE THE NOTE ABOVE — the residue is elongation, not art"
     },
     "peerVsSelf.vehicle": {
       "want": 0,
@@ -140,6 +140,31 @@
       "dir": "down",
       "note": "The Harrier was CLOSED at span 13.4 (1.21 -> 0.98). The wing() call is genuinely shared with the Hornet — both fall through the same `else` off `kind === kirov` — so the Hornet moves too, 0.97 -> 0.89, still well inside the band; total error across the pair 0.24 -> 0.13, and harrier|nighthawk in the union window IMPROVES 51.7 -> 52.4. An earlier pass refused this change on numbers from a BROKEN sweep that widened only the far wing of four calls, producing an asymmetric jet whose widest bearing flipped. || The NIGHTHAWK closed last, 1.622 -> 2.606 (0.53 -> 0.86 of RA2), and it took three wrong causes first. It was NOT the disc: mrR 15/19/23 moves the aspect 1.585/1.622/1.755, because an iso-squashed circle is 2:1 by construction and shrinking it loses width as fast as height. It was NOT `len`: sweeping 34/42/50 does not move the third decimal, because `len` sizes only the cabin (`len * 0.30`). It was the TAIL BOOM, a separate constant (`bmB`), which ended under the disc at 16.5 — plus a landing gear splayed 5 px under the belly and a cabin as deep as it was long. Boom 26 / gear tucked to `by-4.4` / cabin 6.4 -> 5.0 / mast 9.6 -> 8.0 / mrR 19 -> 16 (derived: a UH-60 rotor is 0.83 of overall length, and the airframe now runs 38 units). The sheet had to grow to 136 px with it — at 26 units the boom reached 48 px from the anchor and octants 3 and 7 came back with the fin sliced flat against a 104 px canvas, so the FIRST measurement of the fix was of a clipped sprite. || the same check for AIRCRAFT. The Nighthawk was 1.62 against RA2's 3.05 — the single worst offender on the whole board at 0.53 of reference, a helicopter drawn barely half as long as it should be"
     },
+    "size.navalOutsideRA2Band": {
+      "want": 0,
+      "dir": "down",
+      "note": "the fleet is the proof this standard is REACHABLE rather than a wish: 7 hulls, spread 1.06x, every one within 5% of the group scale, and it was 0 the day the metric was written. That is what a group rebuilt by proportion looks like"
+    },
+    "size.vehicleOutsideRA2Band": {
+      "want": 0,
+      "dir": "down",
+      "note": "the same check for GROUND vehicles; spread 1.66x and 1 outside on the day it was added — the Apocalypse at +25%, drawn 89 px against RA2's 56 where the group scale says 71. Note the Prism Tank (+21%), Chrono Miner (-21%), Drone (+20%) and MCV (+20%) sit just inside the band, so this group is the least uniform after air"
+    },
+    "size.infantryOutsideRA2Band": {
+      "want": 0,
+      "dir": "down",
+      "note": "the same check for INFANTRY; spread 1.59x and 1 outside — the DOG at +31%, 39 px against RA2's 21 where the group scale says 30. Every man is within 18%, so the dog is the outlier among its own kind, not evidence the scale is wrong"
+    },
+    "size.airOutsideRA2Band": {
+      "want": 0,
+      "dir": "down",
+      "note": "the WORST group on this axis: spread 1.83x. The Nighthawk left the 2026-09-05 aspect pass at 86 px broadside against the Harrier's 52, where RA2 has [SHAD] 64 against [ORCA] 71 — ours 1.65x the jet where RA2 draws it 0.90x. The aspect pass that produced it was correct and this number is why it was not the whole story: a unit can reach the right SHAPE at the wrong SIZE and no scale-invariant gate will ever say so"
+    },
+    "size.worstOffGroupScale": {
+      "want": 0.25,
+      "dir": "down",
+      "note": "the furthest any unit sits from its own group's scale, as |ours/RA2 / groupMedian - 1|; 0.38 (the Nighthawk) on the day the metric was added"
+    },
     "aspect.navalWorstOffRA2": {
       "want": 0.2,
       "dir": "down",
@@ -188,6 +213,11 @@
     "aspect.vehicleOutsideRA2Band": 0,
     "aspect.infantryOutsideRA2Band": 0,
     "aspect.airOutsideRA2Band": 0,
+    "size.navalOutsideRA2Band": 0,
+    "size.vehicleOutsideRA2Band": 1,
+    "size.infantryOutsideRA2Band": 1,
+    "size.airOutsideRA2Band": 1,
+    "size.worstOffGroupScale": 0.3807,
     "colour.infantry.meanDist": 1.3779,
     "colour.vehicle.meanDist": 0.9515,
     "colour.vehicleAchromatic": 0
@@ -1207,6 +1237,364 @@
         "ratio": 0.995
       }
     ],
+    "ra2Size": [
+      {
+        "key": "nighthawk",
+        "group": "air",
+        "ours": 86,
+        "ra2": 64,
+        "ra2WH": "64x21",
+        "scale": 1.3438,
+        "groupScale": 0.9733,
+        "dev": 0.3807
+      },
+      {
+        "key": "dog",
+        "group": "infantry",
+        "ours": 39,
+        "ra2": 21,
+        "ra2WH": "21x15",
+        "scale": 1.8571,
+        "groupScale": 1.4167,
+        "dev": 0.3109
+      },
+      {
+        "key": "mammoth",
+        "group": "vehicle",
+        "ours": 89,
+        "ra2": 56,
+        "ra2WH": "56x41",
+        "scale": 1.5893,
+        "groupScale": 1.2698,
+        "dev": 0.2516
+      },
+      {
+        "key": "harrier",
+        "group": "air",
+        "ours": 52,
+        "ra2": 71,
+        "ra2WH": "71x44",
+        "scale": 0.7324,
+        "groupScale": 0.9733,
+        "dev": -0.2475
+      },
+      {
+        "key": "flaktrack",
+        "group": "vehicle",
+        "ours": 43,
+        "ra2": 45,
+        "ra2WH": "45x45",
+        "scale": 0.9556,
+        "groupScale": 1.2698,
+        "dev": -0.2474
+      },
+      {
+        "key": "lancer",
+        "group": "vehicle",
+        "ours": 52,
+        "ra2": 54,
+        "ra2WH": "54x23",
+        "scale": 0.963,
+        "groupScale": 1.2698,
+        "dev": -0.2416
+      },
+      {
+        "key": "prismtank",
+        "group": "vehicle",
+        "ours": 91,
+        "ra2": 59,
+        "ra2WH": "59x43",
+        "scale": 1.5424,
+        "groupScale": 1.2698,
+        "dev": 0.2147
+      },
+      {
+        "key": "chronominer",
+        "group": "vehicle",
+        "ours": 55,
+        "ra2": 55,
+        "ra2WH": "55x28",
+        "scale": 1,
+        "groupScale": 1.2698,
+        "dev": -0.2125
+      },
+      {
+        "key": "drone",
+        "group": "vehicle",
+        "ours": 32,
+        "ra2": 21,
+        "ra2WH": "21x14",
+        "scale": 1.5238,
+        "groupScale": 1.2698,
+        "dev": 0.2
+      },
+      {
+        "key": "mcv",
+        "group": "vehicle",
+        "ours": 105,
+        "ra2": 69,
+        "ra2WH": "69x47",
+        "scale": 1.5217,
+        "groupScale": 1.2698,
+        "dev": 0.1984
+      },
+      {
+        "key": "yuri",
+        "group": "infantry",
+        "ours": 14,
+        "ra2": 12,
+        "ra2WH": "12x29",
+        "scale": 1.1667,
+        "groupScale": 1.4167,
+        "dev": -0.1765
+      },
+      {
+        "key": "ifv",
+        "group": "vehicle",
+        "ours": 53,
+        "ra2": 50,
+        "ra2WH": "50x45",
+        "scale": 1.06,
+        "groupScale": 1.2698,
+        "dev": -0.1652
+      },
+      {
+        "key": "engineer",
+        "group": "infantry",
+        "ours": 21,
+        "ra2": 13,
+        "ra2WH": "13x25",
+        "scale": 1.6154,
+        "groupScale": 1.4167,
+        "dev": 0.1403
+      },
+      {
+        "key": "hornet",
+        "group": "air",
+        "ours": 24,
+        "ra2": 27,
+        "ra2WH": "27x15",
+        "scale": 0.8889,
+        "groupScale": 0.9733,
+        "dev": -0.0867
+      },
+      {
+        "key": "kirov",
+        "group": "air",
+        "ours": 147,
+        "ra2": 139,
+        "ra2WH": "139x62",
+        "scale": 1.0576,
+        "groupScale": 0.9733,
+        "dev": 0.0867
+      },
+      {
+        "key": "rhino",
+        "group": "vehicle",
+        "ours": 65,
+        "ra2": 56,
+        "ra2WH": "56x28",
+        "scale": 1.1607,
+        "groupScale": 1.2698,
+        "dev": -0.0859
+      },
+      {
+        "key": "cleg",
+        "group": "infantry",
+        "ours": 23,
+        "ra2": 15,
+        "ra2WH": "15x26",
+        "scale": 1.5333,
+        "groupScale": 1.4167,
+        "dev": 0.0823
+      },
+      {
+        "key": "teslatank",
+        "group": "vehicle",
+        "ours": 70,
+        "ra2": 52,
+        "ra2WH": "52x37",
+        "scale": 1.3462,
+        "groupScale": 1.2698,
+        "dev": 0.0602
+      },
+      {
+        "key": "teslatrooper",
+        "group": "infantry",
+        "ours": 27,
+        "ra2": 18,
+        "ra2WH": "18x28",
+        "scale": 1.5,
+        "groupScale": 1.4167,
+        "dev": 0.0588
+      },
+      {
+        "key": "flak",
+        "group": "infantry",
+        "ours": 18,
+        "ra2": 12,
+        "ra2WH": "12x37",
+        "scale": 1.5,
+        "groupScale": 1.4167,
+        "dev": 0.0588
+      },
+      {
+        "key": "carrier",
+        "group": "naval",
+        "ours": 132,
+        "ra2": 143,
+        "ra2WH": "143x52",
+        "scale": 0.9231,
+        "groupScale": 0.8814,
+        "dev": 0.0473
+      },
+      {
+        "key": "mirage",
+        "group": "vehicle",
+        "ours": 78,
+        "ra2": 59,
+        "ra2WH": "59x39",
+        "scale": 1.322,
+        "groupScale": 1.2698,
+        "dev": 0.0411
+      },
+      {
+        "key": "warminer",
+        "group": "vehicle",
+        "ours": 69,
+        "ra2": 56,
+        "ra2WH": "56x48",
+        "scale": 1.2321,
+        "groupScale": 1.2698,
+        "dev": -0.0297
+      },
+      {
+        "key": "rocketeer",
+        "group": "infantry",
+        "ours": 22,
+        "ra2": 16,
+        "ra2WH": "16x24",
+        "scale": 1.375,
+        "groupScale": 1.4167,
+        "dev": -0.0294
+      },
+      {
+        "key": "tanya",
+        "group": "infantry",
+        "ours": 18,
+        "ra2": 13,
+        "ra2WH": "13x26",
+        "scale": 1.3846,
+        "groupScale": 1.4167,
+        "dev": -0.0227
+      },
+      {
+        "key": "conscript",
+        "group": "infantry",
+        "ours": 18,
+        "ra2": 13,
+        "ra2WH": "13x27",
+        "scale": 1.3846,
+        "groupScale": 1.4167,
+        "dev": -0.0227
+      },
+      {
+        "key": "aegis",
+        "group": "naval",
+        "ours": 82,
+        "ra2": 91,
+        "ra2WH": "91x35",
+        "scale": 0.9011,
+        "groupScale": 0.8814,
+        "dev": 0.0224
+      },
+      {
+        "key": "dread",
+        "group": "naval",
+        "ours": 116,
+        "ra2": 133,
+        "ra2WH": "133x45",
+        "scale": 0.8722,
+        "groupScale": 0.8814,
+        "dev": -0.0104
+      },
+      {
+        "key": "squid",
+        "group": "naval",
+        "ours": 104,
+        "ra2": 117,
+        "ra2WH": "117x30",
+        "scale": 0.8889,
+        "groupScale": 0.8814,
+        "dev": 0.0085
+      },
+      {
+        "key": "sub",
+        "group": "naval",
+        "ours": 66,
+        "ra2": 75,
+        "ra2WH": "75x14",
+        "scale": 0.88,
+        "groupScale": 0.8814,
+        "dev": -0.0016
+      },
+      {
+        "key": "destroyer",
+        "group": "naval",
+        "ours": 89,
+        "ra2": 101,
+        "ra2WH": "101x41",
+        "scale": 0.8812,
+        "groupScale": 0.8814,
+        "dev": -0.0002
+      },
+      {
+        "key": "v3",
+        "group": "vehicle",
+        "ours": 80,
+        "ra2": 63,
+        "ra2WH": "63x36",
+        "scale": 1.2698,
+        "groupScale": 1.2698,
+        "dev": 0
+      },
+      {
+        "key": "ivan",
+        "group": "infantry",
+        "ours": 17,
+        "ra2": 12,
+        "ra2WH": "12x25",
+        "scale": 1.4167,
+        "groupScale": 1.4167,
+        "dev": 0
+      },
+      {
+        "key": "rifle",
+        "group": "infantry",
+        "ours": 17,
+        "ra2": 12,
+        "ra2WH": "12x28",
+        "scale": 1.4167,
+        "groupScale": 1.4167,
+        "dev": 0
+      },
+      {
+        "key": "seascorp",
+        "group": "naval",
+        "ours": 52,
+        "ra2": 59,
+        "ra2WH": "59x32",
+        "scale": 0.8814,
+        "groupScale": 0.8814,
+        "dev": 0
+      }
+    ],
+    "ra2GroupScale": {
+      "vehicle": 1.2698,
+      "air": 0.9732500000000001,
+      "infantry": 1.4167,
+      "naval": 0.8814
+    },
     "units": {
       "aegis": {
         "name": "Aegis Cruiser",

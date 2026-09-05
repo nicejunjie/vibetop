@@ -80,47 +80,57 @@ const ACHROMATIC = 0.14;
 // its Flak Track 45x45 = 1.00. Both are as square as ours. The measured
 // negative result that says "do not lengthen the IFV" was right for a reason
 // nobody had written down — RA2's IFV really is nearly square.
-const RA2_ASPECT = {
+const RA2_BBOX = {
   // ---- vehicles (unit-identity-reference.md §1.1) ----
-  drone:       21 / 14,  // [DRON]    21x14
-  hornet:      27 / 15,  // [HORNET]  27x15
-  flaktrack:   45 / 45,  // [HTK]     45x45 — square, and so is ours
-  ifv:         50 / 45,  // [FV]      50x45
-  teslatank:   52 / 37,  // [TTNK]    52x37
-  lancer:      54 / 23,  // [GTNK]    54x23 — the Grizzly
-  chronominer: 55 / 28,  // [CMIN]    55x28
-  rhino:       56 / 28,  // [HTNK]    56x28
-  mammoth:     56 / 41,  // [MTNK]    56x41 — the Apocalypse
-  warminer:    56 / 48,  // [HARV]    56x48
-  mirage:      59 / 39,  // [RTNK]    59x39
-  prismtank:   59 / 43,  // [SREF]    59x43
-  v3:          63 / 36,  // [V3]      63x36
-  nighthawk:   64 / 21,  // [SHAD]    64x21
-  mcv:         69 / 47,  // [AMCV]    69x47
-  harrier:     71 / 44,  // [ORCA]    71x44 — measured by SPAN, wings out
-  kirov:      139 / 62,  // [ZEP]    139x62 — the largest airframe in the game
+  drone: [21, 14],  // [DRON]    21x14
+  hornet: [27, 15],  // [HORNET]  27x15
+  flaktrack: [45, 45],  // [HTK]     45x45 — square, and so is ours
+  ifv: [50, 45],  // [FV]      50x45
+  teslatank: [52, 37],  // [TTNK]    52x37
+  lancer: [54, 23],  // [GTNK]    54x23 — the Grizzly
+  chronominer: [55, 28],  // [CMIN]    55x28
+  rhino: [56, 28],  // [HTNK]    56x28
+  mammoth: [56, 41],  // [MTNK]    56x41 — the Apocalypse
+  warminer: [56, 48],  // [HARV]    56x48
+  mirage: [59, 39],  // [RTNK]    59x39
+  prismtank: [59, 43],  // [SREF]    59x43
+  v3: [63, 36],  // [V3]      63x36
+  nighthawk: [64, 21],  // [SHAD]    64x21
+  mcv: [69, 47],  // [AMCV]    69x47
+  harrier: [71, 44],  // [ORCA]    71x44 — measured by SPAN, wings out
+  kirov: [139, 62],  // [ZEP]    139x62 — the largest airframe in the game
   // ---- infantry (same table) ----
-  dog:         21 / 15,  // [ADOG]    21x15, running
-  ivan:        12 / 25,  // [IVAN]    12x25
-  engineer:    13 / 25,  // [ENGINEER]13x25
-  rocketeer:   16 / 24,  // [JUMPJET] 16x24
-  cleg:        15 / 26,  // [CLEG]    15x26
-  tanya:       13 / 26,  // [TANY]    13x26
-  conscript:   13 / 27,  // [E2]      13x27
-  rifle:       12 / 28,  // [E1]      12x28
-  teslatrooper:18 / 28,  // [SHK]     18x28
-  yuri:        12 / 29,  // [YURI]    12x29
-  flak:        12 / 37,  // [FLAKT]   12x37, gun up
+  dog: [21, 15],  // [ADOG]    21x15, running
+  ivan: [12, 25],  // [IVAN]    12x25
+  engineer: [13, 25],  // [ENGINEER]13x25
+  rocketeer: [16, 24],  // [JUMPJET] 16x24
+  cleg: [15, 26],  // [CLEG]    15x26
+  tanya: [13, 26],  // [TANY]    13x26
+  conscript: [13, 27],  // [E2]      13x27
+  rifle: [12, 28],  // [E1]      12x28
+  teslatrooper: [18, 28],  // [SHK]     18x28
+  yuri: [12, 29],  // [YURI]    12x29
+  flak: [12, 37],  // [FLAKT]   12x37, gun up
   // ---- naval ----
-  destroyer: 101 / 41,   // [DEST]  101x41
-  aegis:      91 / 35,   // [AEGIS]  91x35
-  carrier:   143 / 52,   // [CARRIER] 143x52 — the largest sprite in RA2
-  dread:     133 / 45,   // [DRED]  133x45
-  squid:     117 / 30,   // [SQD]   117x30
-  sub:        75 / 14,   // [SUB]    75x14 — the flattest hull afloat
-  seascorp:   59 / 32,   // [HYD]    59x32
+  destroyer: [101, 41],   // [DEST]  101x41
+  aegis: [91, 35],   // [AEGIS]  91x35
+  carrier: [143, 52],   // [CARRIER] 143x52 — the largest sprite in RA2
+  dread: [133, 45],   // [DRED]  133x45
+  squid: [117, 30],   // [SQD]   117x30
+  sub: [75, 14],   // [SUB]    75x14 — the flattest hull afloat
+  seascorp: [59, 32],   // [HYD]    59x32
 };
+// Derived, so the bbox above is the single source of truth for both the shape
+// check (this) and the SIZE check further down. RA2_BBOX is what the reference
+// document actually records; an aspect is a thing we compute from it.
+const RA2_ASPECT = Object.fromEntries(
+  Object.entries(RA2_BBOX).map(([k, [w, h]]) => [k, w / h]));
 const RA2_ASPECT_BAND = 0.20;
+// Wider than the aspect band: a unit's SIZE carries real design intent (a
+// Kirov should dwarf a Hornet) and the group median is a coarser reference
+// than a per-unit one, so 0.25 flags the mis-drawn without arguing about the
+// merely large.
+const RA2_SIZE_BAND = 0.25;
 
 // ── SPIKES ────────────────────────────────────────────────────────────────
 // One entry per key in the UNITS map, and every number is TRACEABLE: `src`
@@ -318,6 +328,16 @@ const TARGETS = {
   'aspect.vehicleOutsideRA2Band':{ want: 0,    dir: 'down', note: 'the same external check for GROUND vehicles, whose RA2 bboxes were sitting unused in reference §1.1 while only the fleet was gated. 4 of 14 outside on the day it was added: Rhino 1.39 vs 2.00, V3 1.22 vs 1.75, Chrono Miner 1.49 vs 1.96, Prism Tank 1.05 vs 1.37 — all SHORTER than RA2, the same direction the fleet was. Note the IFV comes out at 0.97 of RA2 and the Flak Track 0.88, which is why the measured "do not lengthen the IFV" result was right: RA2 draws both nearly square' },
   'aspect.infantryOutsideRA2Band':{ want: 0,   dir: 'down', note: 'the same check for INFANTRY, and the fault runs the other way: ours are too WIDE, not too short. 4 of 11 outside — Engineer 0.86 vs 0.52, Chrono Legionnaire 0.93 vs 0.58, Tanya 0.71 vs 0.50, Flak Trooper 0.44 vs 0.32. A camera cannot widen a man, so unlike the vehicles this is not explained by the isometric projection' },
   'aspect.airOutsideRA2Band':    { want: 0,    dir: 'down', note: 'The Harrier was CLOSED at span 13.4 (1.21 -> 0.98). The wing() call is genuinely shared with the Hornet — both fall through the same `else` off `kind === kirov` — so the Hornet moves too, 0.97 -> 0.89, still well inside the band; total error across the pair 0.24 -> 0.13, and harrier|nighthawk in the union window IMPROVES 51.7 -> 52.4. An earlier pass refused this change on numbers from a BROKEN sweep that widened only the far wing of four calls, producing an asymmetric jet whose widest bearing flipped. || The NIGHTHAWK closed last, 1.622 -> 2.606 (0.53 -> 0.86 of RA2), and it took three wrong causes first. It was NOT the disc: mrR 15/19/23 moves the aspect 1.585/1.622/1.755, because an iso-squashed circle is 2:1 by construction and shrinking it loses width as fast as height. It was NOT `len`: sweeping 34/42/50 does not move the third decimal, because `len` sizes only the cabin (`len * 0.30`). It was the TAIL BOOM, a separate constant (`bmB`), which ended under the disc at 16.5 — plus a landing gear splayed 5 px under the belly and a cabin as deep as it was long. Boom 26 / gear tucked to `by-4.4` / cabin 6.4 -> 5.0 / mast 9.6 -> 8.0 / mrR 19 -> 16 (derived: a UH-60 rotor is 0.83 of overall length, and the airframe now runs 38 units). The sheet had to grow to 136 px with it — at 26 units the boom reached 48 px from the anchor and octants 3 and 7 came back with the fin sliced flat against a 104 px canvas, so the FIRST measurement of the fix was of a clipped sprite. || the same check for AIRCRAFT. The Nighthawk was 1.62 against RA2\'s 3.05 — the single worst offender on the whole board at 0.53 of reference, a helicopter drawn barely half as long as it should be' },
+  // SIZE, the axis every gate above is blind to (aspect is scale-invariant).
+  // Per-unit reference is RA2's own bbox width; normalisation is the GROUP's
+  // median of ours/RA2, so our deliberate per-group scales are respected and
+  // only a unit mis-drawn against its OWN peers is flagged. Full rationale at
+  // the ra2Size block.
+  'size.navalOutsideRA2Band':    { want: 0,    dir: 'down', note: 'the fleet is the proof this standard is REACHABLE rather than a wish: 7 hulls, spread 1.06x, every one within 5% of the group scale, and it was 0 the day the metric was written. That is what a group rebuilt by proportion looks like' },
+  'size.vehicleOutsideRA2Band':  { want: 0,    dir: 'down', note: 'the same check for GROUND vehicles; spread 1.66x and 1 outside on the day it was added — the Apocalypse at +25%, drawn 89 px against RA2\'s 56 where the group scale says 71. Note the Prism Tank (+21%), Chrono Miner (-21%), Drone (+20%) and MCV (+20%) sit just inside the band, so this group is the least uniform after air' },
+  'size.infantryOutsideRA2Band': { want: 0,    dir: 'down', note: 'the same check for INFANTRY; spread 1.59x and 1 outside — the DOG at +31%, 39 px against RA2\'s 21 where the group scale says 30. Every man is within 18%, so the dog is the outlier among its own kind, not evidence the scale is wrong' },
+  'size.airOutsideRA2Band':      { want: 0,    dir: 'down', note: 'the WORST group on this axis: spread 1.83x. The Nighthawk left the 2026-09-05 aspect pass at 86 px broadside against the Harrier\'s 52, where RA2 has [SHAD] 64 against [ORCA] 71 — ours 1.65x the jet where RA2 draws it 0.90x. The aspect pass that produced it was correct and this number is why it was not the whole story: a unit can reach the right SHAPE at the wrong SIZE and no scale-invariant gate will ever say so' },
+  'size.worstOffGroupScale':     { want: 0.25, dir: 'down', note: "the furthest any unit sits from its own group's scale, as |ours/RA2 / groupMedian - 1|; 0.38 (the Nighthawk) on the day the metric was added" },
   'aspect.navalWorstOffRA2':     { want: 0.20, dir: 'down', note: "the furthest any hull sits from RA2's aspect, as |ours/RA2 - 1|; 0.60 (the Typhoon, 2.15 against 5.36) before that pass" },
   'colour.infantry.meanDist':    { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between infantry kinds: what actually separates them' },
   // C5 ("ACCENT earns its name") had NO measurement at all until 2026-09-04,
@@ -828,6 +848,55 @@ function compute(recs) {
              airOutside: cnt(byG('air')), airWorst: wor(byG('air')) };
   })();
 
+  // ── broadside SIZE against RA2's own sprites (reference §1.1) ───────────
+  // Aspect is scale-INVARIANT, so every gate above is blind to a unit drawn at
+  // the wrong size: double a sprite and not one number moves. That blindness
+  // hid a real defect — the Nighthawk left the 2026-09-05 aspect pass at 86 px
+  // broadside against the Harrier's 52, where RA2 has [SHAD] 64 against
+  // [ORCA] 71. Ours was 1.65x the jet where RA2 draws it 0.90x, and nothing
+  // could see it.
+  //
+  // The check is a HYBRID and deliberately so: the per-unit reference is
+  // EXTERNAL (RA2's own bbox width), while the normalisation is our own
+  // ensemble (the group's median of ours/RA2). Scaling the whole game up or
+  // down moves no number, which is right — our pixels-per-unit is our choice.
+  // Normalising per GROUP is also a choice: our infantry sit at 1.42x RA2 and
+  // our fleet at 0.88x, a 1.6x difference that is deliberate (men have to stay
+  // legible at ZMIN; hulls have to fit the map). Per-group means those
+  // decisions are respected instead of being reported as 30 faults.
+  //
+  // What it therefore CANNOT see: a whole group scaled wrong together, because
+  // the median moves with it. That is the same blind spot the peer metrics
+  // have, and the same answer applies — it is why RA2_BBOX exists at all.
+  const ra2Size = (() => {
+    const med = (xs) => { const a = [...xs].sort((x, y) => x - y);
+      return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2; };
+    const rows = [];
+    for (const [k, [rw, rh]] of Object.entries(RA2_BBOX)) {
+      if (!unit[k]) continue;
+      const ow = Number(String(unit[k].broadsideWH).split('x')[0]);
+      rows.push({ key: k, group: unit[k].group, ours: ow, ra2: rw,
+                  ra2WH: rw + 'x' + rh, scale: round(ow / rw, 4) });
+    }
+    const scaleOf = {};
+    for (const g of new Set(rows.map((r) => r.group)))
+      scaleOf[g] = med(rows.filter((r) => r.group === g).map((r) => r.scale));
+    for (const r of rows) { r.groupScale = round(scaleOf[r.group], 4);
+                            r.dev = round(r.scale / scaleOf[r.group] - 1, 4); }
+    rows.sort((a, b) => Math.abs(b.dev) - Math.abs(a.dev));
+    const byG = (g) => rows.filter((r) => r.group === g);
+    const cnt = (rs) => rs.filter((r) => Math.abs(r.dev) > RA2_SIZE_BAND).length;
+    const spread = (rs) => (rs.length
+      ? round(Math.max(...rs.map((r) => r.scale)) / Math.min(...rs.map((r) => r.scale)), 3) : 1);
+    return { rows, groupScale: scaleOf,
+             outside: cnt(rows),
+             worstOff: rows.length ? round(Math.abs(rows[0].dev), 4) : 0,
+             navalOutside: cnt(byG('naval')), navalSpread: spread(byG('naval')),
+             vehOutside: cnt(byG('vehicle')), vehSpread: spread(byG('vehicle')),
+             infOutside: cnt(byG('infantry')), infSpread: spread(byG('infantry')),
+             airOutside: cnt(byG('air')), airSpread: spread(byG('air')) };
+  })();
+
   return {
     metrics: {
       'peerVsSelf.total': peerVsSelf.total,
@@ -856,6 +925,11 @@ function compute(recs) {
       'aspect.vehicleOutsideRA2Band': ra2Asp.vehOutside,
       'aspect.infantryOutsideRA2Band': ra2Asp.infOutside,
       'aspect.airOutsideRA2Band': ra2Asp.airOutside,
+      'size.navalOutsideRA2Band': ra2Size.navalOutside,
+      'size.vehicleOutsideRA2Band': ra2Size.vehOutside,
+      'size.infantryOutsideRA2Band': ra2Size.infOutside,
+      'size.airOutsideRA2Band': ra2Size.airOutside,
+      'size.worstOffGroupScale': ra2Size.worstOff,
       'colour.infantry.meanDist': round(mean(cd), 4),
       'colour.vehicle.meanDist': round(mean(vehD.d), 4),
       'colour.vehicleAchromatic': veh.filter((k) => !ACHROMATIC_EXEMPT.has(k) && colByUnit[k].chroma < ACHROMATIC).length,
@@ -896,6 +970,8 @@ function compute(recs) {
       })(),
       tightestMassBand: tightAt,
       ra2Aspect: ra2Asp.rows,
+      ra2Size: ra2Size.rows,
+      ra2GroupScale: ra2Size.groupScale,
       units: Object.fromEntries([...keys].sort().map((k) => [k, unit[k]])),
     },
     missing, orphan,
