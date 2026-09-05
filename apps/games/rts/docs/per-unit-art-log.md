@@ -355,9 +355,26 @@ fidelity gap, so the size debt stays.
 
 What is KEPT from that commit: `bakeDog` now reads `STATURE.dog`. The row had
 existed forever with nothing reading it, and the lever works now — it is simply
-parked at 1.00. Whoever attacks this next should go at the COLOUR axis instead:
-a tan dog and a Tanya whose own §2 row asks for ">= 30% of body px in skin
-tone" are two tan masses of a size, and separating them there costs no length.
+parked at 1.00. My first guidance here was to attack the COLOUR axis instead - a tan dog and a
+Tanya whose own §2 row asks for ">= 30% of body px in skin tone" are two tan
+masses of a size. **That was tested the same day and it is WRONG.** Deepening
+the dog's black saddle down the flank moved his composition by a measurable
+amount - dark 24.1% -> 26.1%, tan 63.9% -> 61.8%, and the edit was grepped to
+prove it landed - and moved `dog | tanya` by 0.1 at zoom 1 and by NOTHING at
+ZMIN (12.5 -> 12.6, 9.5 -> 9.5).
+
+The reason is arithmetic, and it applies to every future attempt in this
+window. CELL 96 pads both sprites into a 96x96 = 9216 px cell that a ~1100 px
+dog fills about 12% of. The distance is an RMS over the whole cell, so 88% of
+it is background contributing zero and any difference INSIDE the silhouette is
+diluted roughly eightfold. A size change alters which pixels are covered at
+all, which is why length moves this metric and paint does not.
+
+So CELL 96 is a FOOTPRINT window, not a colour one, and `dog | tanya` cannot be
+separated there by repainting either animal. The options that remain are
+honest ones: leave the size debt (current choice), or change the dog's
+footprint in a way that is not a uniform shrink - a longer, lower dog was tried
+and fails the aspect band. Do not spend another pass on paint.
 
 The wider lesson, and the reason this is written up rather than quietly fixed:
 **a size sweep that never opens `legibility.js` is not a finished sweep.** The
