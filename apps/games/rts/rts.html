@@ -28705,6 +28705,27 @@
       return;
     }
     if (e.key.toLowerCase() === 'h') { goHome(); return; }
+    // keyboard.ini CenterView=12 — numpad 5 centres on the SELECTION, which is
+    // the one thing Space (last radar event) and H (your base) do not do.
+    if (e.code === 'Numpad5' && state === 'play') {
+      e.preventDefault();
+      var live = sel.filter(function (o) { return !o.dead; });
+      if (!live.length) { say('Nothing selected to centre on', true); sfx('no'); return; }
+      var mx = 0, my = 0;
+      live.forEach(function (o) { mx += entX(o); my += entY(o); });
+      centerOn(mx / live.length, my / live.length); clampCam();
+      camVel.x = camVel.y = 0;
+      say(live.length === 1 ? 'Centred on your selection'
+                            : 'Centred on ' + live.length + ' selected units');
+      return;
+    }
+    // keyboard.ini AllToCheer=67 (C) — plain C, since Ctrl+C is ScreenCapture.
+    if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey && state === 'play') {
+      if (!G) return;
+      G.cheerUntil = G.tick + 100;
+      say('The army cheers'); sfx('click');
+      return;
+    }
     // keyboard.ini Delete=46 — self-destruct the selection. RA2 asks nothing.
     if (e.key === 'Delete' && state === 'play') {
       var dl = sel.filter(function (o) { return !o.dead && o.p === ME; });
@@ -30942,6 +30963,10 @@
     }
     if (G.over && G.overAt != null && G.tick - G.overAt < 180 &&
         G.over === (u.p === P_HUMAN ? 1 : -1)) return { st: 'cheer', ph: (G.tick >> 3) & 1 };
+    // keyboard.ini AllToCheer=67 (C): the whole army cheers on command. The
+    // animation was already here and already fired on victory — only the key
+    // and the ordering were missing.
+    if (u.p === ME && G.cheerUntil && G.tick < G.cheerUntil) return { st: 'cheer', ph: (G.tick >> 3) & 1 };
     var firing = G.tick - (u.fireAt == null ? -999 : u.fireAt) < 13;
     if (u.prone) {
       if (firing) return { st: 'fireprone', ph: Math.min(5, (G.tick - u.fireAt) >> 1) };
