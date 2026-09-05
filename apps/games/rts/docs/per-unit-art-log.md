@@ -483,16 +483,28 @@ already RA2's own figure.
 So there is no Spy work and no Tanya work. Checking the recorded design cost two
 lookups; doing it would have cost two units moved away from RA2.
 
-## Open, with agents
+## Open — re-checked 2026-09-05
 
-- **Naval** — the Aegis is drawn 54x65 at zoom 1, i.e. TALLER THAN WIDE, where
-  RA2's cruiser is long and low. A proportion defect, and very likely why
-  `aegis | squid` has been the one stubborn confusable pair for weeks.
-- **Infantry specialists have lost their ENERGY SIGNATURE**, which in RA2 IS
-  the identity. The Desolator's plate is dominated by a yellow-green
-  radioactive glow; ours is a dark figure with one small green dot. The Tesla
-  Trooper's is dominated by electric arcs; ours has **none at all** — which our
-  own Tesla Tank shows we know how to draw.
+Two of the three items that stood here are CLOSED, and were verified rather
+than assumed before being struck:
+
+- ~~The Aegis is drawn 54x65, TALLER THAN WIDE~~ — **closed.** She measures
+  82x37, aspect 2.216, 0.852 of RA2's cruiser, inside the band. `aegis | squid`
+  is no longer a confusable pair in any window.
+- ~~The Tesla Trooper has no electric arc at all~~ — **closed.** He carries a
+  live arc across the gauntlets (`TT_STUD`), and the carapace pass of
+  2026-09-05 deliberately restored it to full strength, paying 45.6% -> 43.3%
+  of chest silver for a readable bolt.
+
+Still open:
+
+- **The Desolator has no ENERGY SIGNATURE**, and in RA2 that IS his identity —
+  his plate is dominated by a yellow-green radioactive glow. Measured on ours:
+  the glow is **5.4% of the figure**, and he is the DARKEST infantryman on the
+  board (4.7% of torso+legs above value 0.75, last of thirteen). The colour is
+  defined and named in the code as "his one loud surface"; it is simply not
+  loud. He is the clearest remaining instance of the large-areas principle,
+  and the Engineer pass is the worked example of how to close it.
 
 ## Measured NEGATIVE results — recorded so nobody re-runs them
 
