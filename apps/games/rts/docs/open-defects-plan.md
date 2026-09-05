@@ -198,9 +198,13 @@ Run after 3.1, re-measuring between each so every step's gain is attributable.
   game is **mostly** greyed cameos — the dominant reading condition, not an edge
   case. Keep the caption at full white, which needs it on a CSS overlay or a
   canvas-side desaturation that skips the caption band.
-- **M5 — the Nighthawk plate.** *(mostly free after M1–M2)* Five of the eight
-  worst Directorate pairs contain it. Re-measure first; M2's air category may
-  already fix it.
+- **M5 — the Nighthawk plate. CLOSED 2026-09-05 without being done.** Five of
+  the eight worst Directorate pairs used to contain it. After P3 fixed the
+  Harrier/Nighthawk *silhouette* on the map, **no Harrier or Nighthawk pair
+  appears in either sidebar's worst list at all** — re-measured in the merged
+  build. This is the "fix it once, both surfaces improve" prediction paying out:
+  the cause was shared (two grey aircraft of similar span, and a rotor drawn at
+  alpha .09 that read as body to every mask metric), so one fix cleared both.
 
 ---
 
