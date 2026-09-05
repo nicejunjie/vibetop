@@ -342,6 +342,10 @@ const TARGETS = {
   'size.infantryOutsideRA2Band': { want: 0,    dir: 'down', note: 'the same check for INFANTRY; spread 1.59x and 1 outside — the DOG at +31%, 39 px against RA2\'s 21 where the group scale says 30. Every man is within 18%, so the dog is the outlier among its own kind, not evidence the scale is wrong' },
   'size.airOutsideRA2Band':      { want: 0,    dir: 'down', note: 'the WORST group on this axis: spread 1.83x. The Nighthawk left the 2026-09-05 aspect pass at 86 px broadside against the Harrier\'s 52, where RA2 has [SHAD] 64 against [ORCA] 71 — ours 1.65x the jet where RA2 draws it 0.90x. The aspect pass that produced it was correct and this number is why it was not the whole story: a unit can reach the right SHAPE at the wrong SIZE and no scale-invariant gate will ever say so' },
   // Integrity, not aesthetics: does the sprite we measured survive its own sheet?
+  // The Engineer's ONE read, which had no measurement until 2026-09-05.
+  'value.soldiersLighterThanEngineer':{ want: 0, dir: 'down', note: '§2.2 calls the Engineer "the ONLY light-value soldier on the field" and every other infantryman "mid-to-dark" — so this is his identity stated as a number, and the number was 2 on the day it was written: the Tesla Trooper at 32.3% of torso+legs above value 0.75 and Tanya at 27.9%, against the Engineer\'s 26.0%. His SPIKES entry measures the TOOLBOX, so the read that actually names him was never checked. The dog is excluded: he is not a soldier and his coat is a fixed tan' },
+  'value.engineerLightPct':          { want: 0.55, dir: 'up', note: 'the same clause as a fraction — §2.2 asks "body value >= 0.75 across >= 55% of the torso+legs". Measured over the whole sprite here, which is the quantity the bake can see; the helmet makes it read slightly high against the row\'s torso+legs wording, so treat 0.55 as a floor rather than a match. Kept alongside the ordering because they fail differently: a roster that goes pale WITH him leaves him first and still unreadable' },
+  'value.engineerMarginOverNext':    { want: 0.15, dir: 'up', note: 'how far clear of the second-lightest infantryman he stands. The read is a CONTRAST, so a dead heat is a failure even when he wins it — coming first by a point would satisfy the ordering and still leave a player unable to pick him out of a squad, which is the whole job of an inverted value' },
   'clip.unitsTouchingSheetEdge':  { want: 0,    dir: 'down', note: 'units with at least one bearing whose opaque bbox touches the border of its sheet cell — i.e. art the canvas CUT. Every other metric in this file is downstream of the bake, so a clipped sprite makes aspect, IoU, spike and size all precise and all wrong, with nothing to show for it: the sprite still renders and still looks plausible. The Nighthawk shipped an entire measured pass this way on 2026-09-05 — a 26-unit tail boom reached 48 px on a 104 px sheet and octants 3 and 7 came back with the fin flat against the edge — and it was caught by a hand-written probe, not by anything standing. This is that probe, made standing' },
   'clip.unitsClippedOnGatedOctant':{ want: 0,   dir: 'down', note: "the subset clipped on the unit's own BROADSIDE bearing — the one the aspect and size gates actually read, so a clip there corrupts a headline number rather than a footnote. Per-unit, not a fixed pair: the Nighthawk's broadside is octant 3/7, the Apocalypse's is 0, and a first draft of this metric hardcoded 3 and 7 and would have reported a clean sheet for a unit clipped anywhere else" },
   'size.worstOffGroupScale':     { want: 0.25, dir: 'down', note: "the furthest any unit sits from its own group's scale, as |ours/RA2 / groupMedian - 1|; 0.38 (the Nighthawk) on the day the metric was added" },
@@ -484,13 +488,18 @@ function pageExtract() {
       try {
         const cb = compose(d, artB, face);
         const ib = cb.g.getImageData(0, 0, cb.W, cb.H).data;
-        let opaque = 0, remap = 0, ha = 0, hb = 0, hn = 0;
+        let opaque = 0, remap = 0, ha = 0, hb = 0, hn = 0, light = 0;
         const hist = new Float64Array(12);
         const px = [];
         for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
           const i = ((y + y0) * cm.W + (x + x0)) * 4;
           if (id[i + 3] <= 8) continue;
           opaque++;
+          // VALUE census. §2.2 gives the Engineer one silhouette feature and it
+          // is a value one — "a near-white/orange hazmat body where every other
+          // infantryman is mid-to-dark, the ONLY light-value soldier on the
+          // field". Nothing measured it, and when it finally was he came THIRD.
+          if (rgb2hs(id[i], id[i + 1], id[i + 2]).v >= 0.75) light++;
           const dr = Math.abs(id[i] - ib[i]), dg = Math.abs(id[i + 1] - ib[i + 1]),
                 db = Math.abs(id[i + 2] - ib[i + 2]);
           const changed = (dr + dg + db) > 24;
@@ -519,6 +528,7 @@ function pageExtract() {
         // thirteen ground vehicles picked a near-neutral grey") is a statement
         // about exactly this number, so it has to survive normalisation.
         col = { ownerPct: opaque ? remap / opaque : 0,
+                lightPct: opaque ? light / opaque : 0,
                 impostorPct: opaque ? impostor / opaque : 0,
                 chroma: opaque ? hs / opaque : 0,
                 hist: Array.from(hist, (v) => (hs ? v / hs : 0)) };
@@ -819,7 +829,7 @@ function compute(recs) {
     const hist = new Array(12).fill(0);
     for (const c of cs) for (let i = 0; i < 12; i++) hist[i] += c.hist[i] / cs.length;
     colByUnit[k] = { ownerPct: avg((c) => c.ownerPct), impostorPct: avg((c) => c.impostorPct),
-                     chroma: avg((c) => c.chroma), hist };
+                     chroma: avg((c) => c.chroma), lightPct: avg((c) => c.lightPct), hist };
   }
   const inf = keys.filter((k) => grp[k] === 'infantry' && colByUnit[k]);
   const veh = keys.filter((k) => grp[k] === 'vehicle' && colByUnit[k]);
@@ -923,6 +933,36 @@ function compute(recs) {
              airOutside: cnt(byG('air')), airSpread: spread(byG('air')) };
   })();
 
+  // ── INVERTED VALUE: the Engineer's whole silhouette feature ─────────────
+  // §2.2 gives every unit ONE read, and the Engineer's is not a shape at all:
+  // "a near-white/orange hazmat body where every other infantryman is
+  // mid-to-dark. The only light-value soldier on the field." His SPIKES entry
+  // measures the toolbox against the floor, so the read that actually names
+  // him had no measurement behind it — and the first time it was measured he
+  // came THIRD, at 26% of torso+legs against a clause asking 55%, behind the
+  // Tesla Trooper's 32.3% and Tanya's 27.9%.
+  //
+  // The fraction and the ORDERING are both kept, because they fail differently:
+  // a light-enough Engineer in a roster that went pale with him still has no
+  // read, and being the lightest at 26% is not the "near-white body" the row
+  // describes. The ordering is the sharper of the two and the one that is
+  // robust to where exactly the torso is judged to start.
+  const valueRead = (() => {
+    const inf = keys.filter((k) => grp[k] === 'infantry' && colByUnit[k] && k !== 'dog');
+    const lit = inf.map((k) => ({ key: k, name: meta.get(k).name,
+                                  lightPct: round(colByUnit[k].lightPct, 4) }))
+                   .sort((a, b) => b.lightPct - a.lightPct);
+    const eng = lit.find((r) => r.key === 'engineer');
+    return { rows: lit, engineer: eng ? eng.lightPct : 0,
+             lighterThanEngineer: eng ? lit.filter((r) => r.lightPct > eng.lightPct).length : 0,
+             // how far clear of the SECOND-lightest he stands; the read is a
+             // contrast, so a dead heat is a failure even if he wins it
+             marginOverNext: eng
+               ? round(eng.lightPct - Math.max(...lit.filter((r) => r.key !== 'engineer')
+                                                     .map((r) => r.lightPct)), 4)
+               : 0 };
+  })();
+
   // ── SHEET CLIPPING ─────────────────────────────────────────────────────
   // Not a judgement about art — a check that the thing every other metric
   // measured actually IS the sprite. A bbox touching its sheet cell's border
@@ -987,6 +1027,9 @@ function compute(recs) {
       'size.worstOffGroupScale': ra2Size.worstOff,
       'clip.unitsTouchingSheetEdge': clip.units.length,
       'clip.unitsClippedOnGatedOctant': clip.onGated.length,
+      'value.soldiersLighterThanEngineer': valueRead.lighterThanEngineer,
+      'value.engineerLightPct': valueRead.engineer,
+      'value.engineerMarginOverNext': valueRead.marginOverNext,
       'colour.infantry.meanDist': round(mean(cd), 4),
       'colour.vehicle.meanDist': round(mean(vehD.d), 4),
       'colour.vehicleAchromatic': veh.filter((k) => !ACHROMATIC_EXEMPT.has(k) && colByUnit[k].chroma < ACHROMATIC).length,
@@ -1028,6 +1071,7 @@ function compute(recs) {
       tightestMassBand: tightAt,
       ra2Aspect: ra2Asp.rows,
       ra2Size: ra2Size.rows,
+      valueRead: valueRead.rows,
       clipped: clip.hits,
       ra2GroupScale: ra2Size.groupScale,
       units: Object.fromEntries([...keys].sort().map((k) => [k, unit[k]])),

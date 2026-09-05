@@ -160,6 +160,21 @@
       "dir": "down",
       "note": "the WORST group on this axis: spread 1.83x. The Nighthawk left the 2026-09-05 aspect pass at 86 px broadside against the Harrier's 52, where RA2 has [SHAD] 64 against [ORCA] 71 — ours 1.65x the jet where RA2 draws it 0.90x. The aspect pass that produced it was correct and this number is why it was not the whole story: a unit can reach the right SHAPE at the wrong SIZE and no scale-invariant gate will ever say so"
     },
+    "value.soldiersLighterThanEngineer": {
+      "want": 0,
+      "dir": "down",
+      "note": "§2.2 calls the Engineer \"the ONLY light-value soldier on the field\" and every other infantryman \"mid-to-dark\" — so this is his identity stated as a number, and the number was 2 on the day it was written: the Tesla Trooper at 32.3% of torso+legs above value 0.75 and Tanya at 27.9%, against the Engineer's 26.0%. His SPIKES entry measures the TOOLBOX, so the read that actually names him was never checked. The dog is excluded: he is not a soldier and his coat is a fixed tan"
+    },
+    "value.engineerLightPct": {
+      "want": 0.55,
+      "dir": "up",
+      "note": "the same clause as a fraction — §2.2 asks \"body value >= 0.75 across >= 55% of the torso+legs\". Measured over the whole sprite here, which is the quantity the bake can see; the helmet makes it read slightly high against the row's torso+legs wording, so treat 0.55 as a floor rather than a match. Kept alongside the ordering because they fail differently: a roster that goes pale WITH him leaves him first and still unreadable"
+    },
+    "value.engineerMarginOverNext": {
+      "want": 0.15,
+      "dir": "up",
+      "note": "how far clear of the second-lightest infantryman he stands. The read is a CONTRAST, so a dead heat is a failure even when he wins it — coming first by a point would satisfy the ordering and still leave a player unable to pick him out of a squad, which is the whole job of an inverted value"
+    },
     "clip.unitsTouchingSheetEdge": {
       "want": 0,
       "dir": "down",
@@ -230,6 +245,9 @@
     "size.worstOffGroupScale": 0.3807,
     "clip.unitsTouchingSheetEdge": 0,
     "clip.unitsClippedOnGatedOctant": 0,
+    "value.soldiersLighterThanEngineer": 2,
+    "value.engineerLightPct": 0.1939,
+    "value.engineerMarginOverNext": -0.0745,
     "colour.infantry.meanDist": 1.3788,
     "colour.vehicle.meanDist": 0.9487,
     "colour.vehicleAchromatic": 0
@@ -1599,6 +1617,73 @@
         "scale": 0.8814,
         "groupScale": 0.8814,
         "dev": 0
+      }
+    ],
+    "valueRead": [
+      {
+        "key": "teslatrooper",
+        "name": "Tesla Trooper",
+        "lightPct": 0.2684
+      },
+      {
+        "key": "rocketeer",
+        "name": "Rocketeer",
+        "lightPct": 0.2178
+      },
+      {
+        "key": "engineer",
+        "name": "Engineer",
+        "lightPct": 0.1939
+      },
+      {
+        "key": "cleg",
+        "name": "Chrono Legionnaire",
+        "lightPct": 0.1928
+      },
+      {
+        "key": "flak",
+        "name": "Flak Trooper",
+        "lightPct": 0.1485
+      },
+      {
+        "key": "tanya",
+        "name": "Tanya",
+        "lightPct": 0.1372
+      },
+      {
+        "key": "rocket",
+        "name": "Guardian GI",
+        "lightPct": 0.1095
+      },
+      {
+        "key": "conscript",
+        "name": "Conscript",
+        "lightPct": 0.1056
+      },
+      {
+        "key": "desolator",
+        "name": "Desolator",
+        "lightPct": 0.099
+      },
+      {
+        "key": "spy",
+        "name": "Spy",
+        "lightPct": 0.0877
+      },
+      {
+        "key": "yuri",
+        "name": "Yuri",
+        "lightPct": 0.0811
+      },
+      {
+        "key": "rifle",
+        "name": "GI",
+        "lightPct": 0.0731
+      },
+      {
+        "key": "ivan",
+        "name": "Crazy Ivan",
+        "lightPct": 0.0372
       }
     ],
     "clipped": [],

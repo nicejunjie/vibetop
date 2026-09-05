@@ -80,6 +80,53 @@ Headroom for the fix: he is at 0.343 owner share in an infantry field running
 0.063 (dog) to 0.401 (engineer), so giving the chest back to silver leaves him
 mid-pack rather than starved.
 
+## The Engineer has no identity at all (2026-09-05)
+
+Worth stating plainly because it is the largest single art defect found today,
+and it was found by asking a question nobody had asked: **which of §2's budget
+clauses does any gate actually check?**
+
+Inventory: §2 states **96 clauses** across 41 units. Every unit has exactly one
+SPIKES entry. **55 clauses have no measurement behind them.**
+
+The Engineer's row is the one that matters, because his ONE read is not a shape:
+
+> **Inverted value** — a near-white/orange hazmat body where every other
+> infantryman is mid-to-dark. **The only light-value soldier on the field.**
+> budget: body value >= 0.75 across >= 55% of the torso+legs
+
+His SPIKES entry measures the TOOLBOX. So the thing that names him was never
+checked. Measuring torso+legs above value 0.75 across the whole roster:
+
+| | unit | light |
+|---|---|---|
+| 1 | Tesla Trooper | 32.3% |
+| 2 | Tanya | 27.9% |
+| **3** | **Engineer** | **26.0%** |
+| 4 | Rocketeer | 24.1% |
+| ... | ... | ... |
+| 13 | Desolator | 4.7% |
+
+He is **third**, at 26% against a clause asking 55%. "The only light-value
+soldier" is not merely under-delivered, it is false. And the roster runs 4.7%
+to 32.3%, so nobody is light — the inversion the design turns on does not exist
+for anyone, which is why he cannot stand out by having it.
+
+Gated now, three ways, because they fail differently:
+
+- `value.soldiersLighterThanEngineer` (want 0, is **2**) — the identity claim
+  stated as a number, and robust to where the torso is judged to start.
+- `value.engineerLightPct` (want >= 0.55, is **0.194** whole-sprite) — the
+  clause as a fraction. A roster that goes pale WITH him would leave him first
+  and still unreadable.
+- `value.engineerMarginOverNext` (want >= 0.15, is **-0.0745**) — the read is a
+  CONTRAST. Coming first by a point satisfies the ordering and still leaves a
+  player unable to pick him out of a squad.
+
+Not fixed here: the fix is a repaint, and he already carries the HIGHEST owner
+share of any infantry (0.401 in a field of 0.063-0.401), so light body against
+owner colour is a real trade that needs its own measured pass.
+
 ## Recorded disagreement, NOT changed
 
 - **Mirage Tank** — RA2's plate shows a clear gun barrel; ours has essentially
