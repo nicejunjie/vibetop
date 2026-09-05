@@ -44,6 +44,28 @@ Note the Grand Cannon here is 117x85 where the code comment cites 181x133 — th
 same subject at a different resolution, so use it for SHAPE and PROPORTION, not
 for absolute pixel counts.
 
+## The reference table has now been CHECKED AGAINST A REAL SPRITE
+
+`RA2_ASPECT` is transcribed from `unit-identity-reference.md` §1.1, and a test
+verifies the transcription — but until now nothing verified the DOCUMENT. The
+Terror Drone sheet is the first chance to close that loop, because it carries
+all eight bearings.
+
+Segmenting the eight drones off the snow and measuring each bounding box:
+
+    widest bearings   27x18  ->  aspect 1.50
+    narrowest         24x18  ->  aspect 1.33
+    the table says    21x14  ->  aspect 1.50
+
+**The broadside aspect matches the table exactly.** The absolute pixel counts
+differ — this render is at a different scale and my segmentation includes the
+drop shadow — which is precisely why the gate compares RATIOS and not sizes.
+
+Two things are validated at once: the number in §1.1, and the convention
+`art-metrics.js` uses of taking the WIDEST bearing as the broadside. A unit
+whose aspect swings 1.33-1.50 across its own facings needs that convention to
+be stated, and it turns out to be the right one.
+
 ## The standing rule this supports
 
 **A cameo is not a sprite.** RA2's plates are painted hero shots; its sprites
