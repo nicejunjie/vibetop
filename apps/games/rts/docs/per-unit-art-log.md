@@ -164,6 +164,32 @@ The wider lesson, and the reason this is written up rather than quietly fixed:
 **a size sweep that never opens `legibility.js` is not a finished sweep.** The
 art gates are not independent.
 
+## The ratio clauses, checked against measured bboxes (2026-09-05)
+
+Six of §2's unmeasured clauses state a plain ratio, so they can be checked
+against `broadsideWH` with no new machinery. **These are INDICATIVE, not
+verdicts** — a bbox includes turret, load and barrel, and most of these clauses
+name a sub-part.
+
+| unit | clause | measured | verdict |
+|---|---|---|---|
+| `lancer` | hull height <= 0.45 x length | 0.42 | ok |
+| `ifv` | body aspect 1.0-1.2 | 1.08 | ok |
+| `chronominer` | height <= 0.55 x length | **0.60** | over by 9% |
+| `nighthawk` | fuselage height <= 0.35 x length | 0.38 | not a fair test — the clause says FUSELAGE and the bbox is dominated by the rotor disc |
+| `flaktrack` | body aspect 0.95-1.10 | 0.88 | already-documented deliberate choice — its near-vertical barrel is measured and recorded above; do not "fix" |
+| `sub` | height <= 0.20 x length | 0.23 | conning tower is inside the bbox |
+
+**Nothing changed.** The one real candidate is the Chrono Miner at 0.60 against
+0.55, and it was looked at on both surfaces: long low body, violet ribbed drum
+nose, tan bin behind, no turret — it matches its row, and its broadside aspect
+sits inside the RA2 band at 0.849. A 9% overshoot on a clause whose bbox
+includes the raised bin sides is not enough to deform art that reads correctly.
+Recorded so the next pass starts from a measurement instead of re-deriving it.
+
+The useful part is the method: of the 55 unmeasured clauses, the ratio-shaped
+ones cost nothing to check, and doing so cleared four units in one pass.
+
 ## Recorded disagreement, NOT changed
 
 - **Mirage Tank** — RA2's plate shows a clear gun barrel; ours has essentially
