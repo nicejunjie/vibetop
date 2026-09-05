@@ -21943,7 +21943,19 @@
         t: 0, life: src.type === 'tesla' ? 12 : (src.type === 'grandcannon' ? 26 : (src.kind === 'u' && src.type === 'v3' ? 30 : (spec.bomb ? 14 : (isAir(tgt) ? 9 : 7)))), id: g.nextId++,
         shell: src.type === 'grandcannon',
         v3: src.kind === 'u' && src.type === 'v3',
-        tesla: src.type === 'tesla', beam: src.type === 'prism' || src.type === 'prismtank',
+        // A TESLA TANK ARCS LIGHTNING TOO. The flag was `src.type === 'tesla'`,
+        // i.e. the Tesla COIL only, so the tank fired a plain bullet tracer and
+        // nothing at all appeared between it and its target — which is what a
+        // rendered firefight showed, and no static roster ever could.
+        tesla: src.type === 'tesla' || src.type === 'teslatank',
+        beam: src.type === 'prism' || src.type === 'prismtank',
+        // ...AND THE EMITTER IS WHERE THE EMITTER IS. Both beam branches
+        // subtracted a fixed height — 104 for the coil's electrode, 86 for the
+        // prism crown's hub — which are BUILDING heights. Fired by a TANK the
+        // bolt or beam therefore started ~90 px above the vehicle, off the top
+        // of the frame, so the Prism Tank's beam appeared to come out of the
+        // sky and the Tesla Tank's went nowhere. Carry the height on the shot.
+        oz: src.kind === 'b' ? (src.type === 'tesla' ? 104 : 86) : 15,
         rocket: src.kind === 'u' && UNITS[src.type] && UNITS[src.type].splash > 0.2 ||
                 src.type === 'rocket' || src.type === 'patriot' || src.type === 'harrier',
         bomb: !!spec.bomb, flak: !!spec.flak && isAir(tgt),
@@ -31517,7 +31529,7 @@
       }
       if (s.beam) {
         // Prism beam: an instant white-cyan lance from the tower head.
-        ax = sx(s.x, s.y); ay = sy(s.x, s.y) - 86;   // the prism crown's hub
+        ax = sx(s.x, s.y); ay = sy(s.x, s.y) - (s.oz == null ? 86 : s.oz);   // emitter height: crown hub, or a tank's turret
         var sup2 = s.sup ? Math.min(3.2, 1 + (s.sup - 1) * 0.28) : 1;   // supported shots are fatter
         ctx.strokeStyle = 'rgba(160,240,255,' + (0.5 * (1 - f)) + ')'; ctx.lineWidth = 6 * sup2; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
@@ -31528,7 +31540,7 @@
       if (s.tesla) {
         // Tesla bolt: a jagged arc from the coil's head to the target, redrawn
         // with a different jitter each tick so it crawls, over a soft glow.
-        ax = sx(s.x, s.y); ay = sy(s.x, s.y) - 104;  // the Tesla Coil's electrode
+        ax = sx(s.x, s.y); ay = sy(s.x, s.y) - (s.oz == null ? 104 : s.oz);  // electrode, or a Tesla Tank's coil
         var segs = 9, k;
         for (var pass2 = 0; pass2 < 2; pass2++) {
           ctx.strokeStyle = pass2 ? 'rgba(235,240,255,' + (0.95 * (1 - f)) + ')' : 'rgba(150,180,255,' + (0.45 * (1 - f)) + ')';
