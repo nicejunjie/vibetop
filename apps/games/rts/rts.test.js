@@ -5896,3 +5896,42 @@ test("two cliff cells that share a vertex compute the SAME crest and jut there",
       `edge (${ax},${ay})-(${bx},${by}) must hash the same traversed either way`);
   }
 });
+
+test("the RA2 aspect gate matches the reference table it was transcribed from", () => {
+  // `RA2_ASPECT` in tools/art-metrics.js is the ONLY art metric with an
+  // external reference, and it is what caught a whole fleet of tugboats that
+  // every ensemble metric missed. It is also 32 numbers typed out of a
+  // markdown table by hand, and a single transposed digit would silently aim
+  // every future proportion fix at the wrong target — the same failure mode
+  // that made a set of wrongly-fetched sprite rips worth deleting rather than
+  // committing. So the transcription is checked, not trusted.
+  const toolSrc = fs.readFileSync(
+    path.join(__dirname, "tools", "art-metrics.js"), "utf8");
+  const docSrc = fs.readFileSync(
+    path.join(__dirname, "docs", "unit-identity-reference.md"), "utf8");
+
+  // every "| Name | `RA2ID` | WxH |" row of the reference's own bbox tables
+  const doc = new Map();
+  const rowRe = /\|\s*([^|]+?)\s*\|\s*`([A-Z0-9]+)`\s*\|\s*\*{0,2}(\d+)\*{0,2}x\*{0,2}(\d+)\*{0,2}\s*\|/g;
+  for (let m; (m = rowRe.exec(docSrc)); ) {
+    doc.set(m[2], { w: Number(m[3]), h: Number(m[4]) });
+  }
+  assert.ok(doc.size >= 20, `expected the reference bbox tables, found ${doc.size} rows`);
+
+  const blk = toolSrc.slice(toolSrc.indexOf("const RA2_ASPECT = {"),
+                            toolSrc.indexOf("const RA2_ASPECT_BAND"));
+  const entRe = /^\s*(\w+):\s*([\d.]+)\s*\/\s*([\d.]+),\s*\/\/\s*\[(\w+)\]/gm;
+  const bad = [];
+  let n = 0;
+  for (let m; (m = entRe.exec(blk)); ) {
+    n++;
+    const [, key, w, h, id] = m;
+    const d = doc.get(id);
+    if (!d) { bad.push(`${key}: [${id}] is not in the reference tables`); continue; }
+    if (Number(w) !== d.w || Number(h) !== d.h) {
+      bad.push(`${key} [${id}]: gate says ${w}x${h}, reference says ${d.w}x${d.h}`);
+    }
+  }
+  assert.ok(n >= 30, `expected the whole roster in RA2_ASPECT, parsed ${n} rows`);
+  assert.equal(bad.length, 0, bad.join("\n  "));
+});
