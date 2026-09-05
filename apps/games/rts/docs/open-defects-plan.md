@@ -1,5 +1,17 @@
 # RTS — the execution plan
 
+> **Status 2026-09-05.** Phases 1, 2, 3 and 4 are DONE and deployed; Phase 8's
+> two riders are done. Phase 5 (map art) and Phase 6 (ElitePrimary) are in
+> flight in separate worktrees. Phase 7 (cliff seams) is not started, and waits
+> on the map-art merge because it touches the same file.
+>
+> Two things found along the way that were NOT in this plan when it was written:
+> **two corners of every building were dead to clicks** (`pickAt` tested a
+> screen-space circle against an isometric diamond footprint), and the Service
+> Depot **repaired by coincidence** on a 0.02-cell margin. Both fixed. And the
+> plan's own Phase 2 premise was wrong: `pickAt` *did* return the depot — see
+> `order-target-audit.md`.
+
 Written 2026-09-04 after the order-target pass closed two cases and left six
 unsettled; extended the same day with the two gaps the first draft missed
 (swept out of `gap-audit-art.md` / `gap-audit-features.md`).
