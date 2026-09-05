@@ -263,6 +263,49 @@ Recorded so the next pass starts from a measurement instead of re-deriving it.
 The useful part is the method: of the 55 unmeasured clauses, the ratio-shaped
 ones cost nothing to check, and doing so cleared four units in one pass.
 
+## Why the G.I. is in five of the sidebar's eight worst pairs (2026-09-05)
+
+The Directorate sidebar's worst pairs are not a scatter — they are a HUB:
+
+    53.6  GI | Spy                    61.4  Battle Lab | GI
+    58.8  GI | Rocketeer              62.2  GI | Chrono Legionnaire
+    59.7  GI | Engineer
+
+Looked at side by side, the five plates are one picture: an owner-blue torso
+filling the centre of the frame, head-and-shoulders, same framing, same value
+range, with identity carried by a small low-contrast prop — a rifle, a
+briefcase, a cap, a chrono gun. The props are what a *reader* is asked to
+compare; the *metric*, and the eye at sidebar size, sees the blue.
+
+Measured — owner-hue blue as a fraction of the plate's centre band:
+
+| unit | centre blue | in a worst pair? |
+|---|---|---|
+| Chrono Legionnaire | 54.8% | yes |
+| Spy | 50.8% | yes |
+| **G.I.** | **47.6%** | **yes, five times** |
+| Rocketeer | 38.3% | yes |
+| Engineer | 37.6% | yes |
+| Crazy Ivan | 30.7% | no |
+| Yuri | 21.2% | no |
+| Flak Trooper | 19.6% | no |
+| Tanya | 15.0% | no |
+
+The cut is clean at about 35%, and their blue FOOTPRINTS overlap too — Jaccard
+0.36 on a 4 px grid for `spy|engineer`, `rifle|engineer`, `spy|cleg`,
+`rifle|spy`. Same colour, same place, same size.
+
+**This is one defect with many names, not five pairs to tune.** And the two
+fixes made today are both instances of the cure rather than one-offs: the Tesla
+Trooper's silver carapace and the Engineer's coming light body each break the
+shared blue centre mass with a large-area feature of their own. Tanya at 15% is
+the existence proof — she is the least owner-coloured uniformed figure on the
+board and she is in none of the worst pairs.
+
+So the principle for the next passes, and it is the same one §2 states unit by
+unit: **identity has to live in the LARGE areas.** A plate whose centre half is
+the same blue as its neighbour's cannot be rescued by a better briefcase.
+
 ## Recorded disagreement, NOT changed
 
 - **Mirage Tank** — RA2's plate shows a clear gun barrel; ours has essentially
@@ -1026,6 +1069,49 @@ with seats in it".
   in the fleet and the number `aspect.navalWorstOffRA2` (0.194 against a 0.2
   ceiling) is reporting** — so nothing on this hull's proportions should be
   touched without moving that gate first.
+
+## Why the G.I. is in five of the sidebar's eight worst pairs (2026-09-05)
+
+The Directorate sidebar's worst pairs are not a scatter — they are a HUB:
+
+    53.6  GI | Spy                    61.4  Battle Lab | GI
+    58.8  GI | Rocketeer              62.2  GI | Chrono Legionnaire
+    59.7  GI | Engineer
+
+Looked at side by side, the five plates are one picture: an owner-blue torso
+filling the centre of the frame, head-and-shoulders, same framing, same value
+range, with identity carried by a small low-contrast prop — a rifle, a
+briefcase, a cap, a chrono gun. The props are what a *reader* is asked to
+compare; the *metric*, and the eye at sidebar size, sees the blue.
+
+Measured — owner-hue blue as a fraction of the plate's centre band:
+
+| unit | centre blue | in a worst pair? |
+|---|---|---|
+| Chrono Legionnaire | 54.8% | yes |
+| Spy | 50.8% | yes |
+| **G.I.** | **47.6%** | **yes, five times** |
+| Rocketeer | 38.3% | yes |
+| Engineer | 37.6% | yes |
+| Crazy Ivan | 30.7% | no |
+| Yuri | 21.2% | no |
+| Flak Trooper | 19.6% | no |
+| Tanya | 15.0% | no |
+
+The cut is clean at about 35%, and their blue FOOTPRINTS overlap too — Jaccard
+0.36 on a 4 px grid for `spy|engineer`, `rifle|engineer`, `spy|cleg`,
+`rifle|spy`. Same colour, same place, same size.
+
+**This is one defect with many names, not five pairs to tune.** And the two
+fixes made today are both instances of the cure rather than one-offs: the Tesla
+Trooper's silver carapace and the Engineer's coming light body each break the
+shared blue centre mass with a large-area feature of their own. Tanya at 15% is
+the existence proof — she is the least owner-coloured uniformed figure on the
+board and she is in none of the worst pairs.
+
+So the principle for the next passes, and it is the same one §2 states unit by
+unit: **identity has to live in the LARGE areas.** A plate whose centre half is
+the same blue as its neighbour's cannot be rescued by a better briefcase.
 
 ## Recorded disagreement, NOT changed
 
