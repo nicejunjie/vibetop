@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_235 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_237 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -258,6 +258,8 @@ _235 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [`isdir()` follows symlinks, so a "replace this directory" repair can repair the wrong one](#isdir-follows-symlinks-so-a-replace-this-directory-repair-can-repair-the-wrong-one)
 - [A blank terminal that still has a live socket is a renderer, not a connection (2026-09-04)](#a-blank-terminal-that-still-has-a-live-socket-is-a-renderer-not-a-connection-2026-09-04)
 - [A comment asserted RA2 puts no text on a cameo; RA2 puts text on every cameo](#a-comment-asserted-ra2-puts-no-text-on-a-cameo-ra2-puts-text-on-every-cameo)
+- [Fourteen troopers shared one value, and the palette entry that was supposed to fix it moves 6% of a man](#fourteen-troopers-shared-one-value-and-the-palette-entry-that-was-supposed-to-fix-it-moves-6-of-a-man)
+- [A rotor blur nobody could see still counted as the helicopter's body](#a-rotor-blur-nobody-could-see-still-counted-as-the-helicopters-body)
 
 <!-- END TOC -->
 
@@ -9447,3 +9449,93 @@ RA2 76%) and cross-plate luminance spread (ours 10.2, RA2 22.6).
 **The general lesson.** A comment that asserts what an external reference does
 is a claim, and this one was load-bearing for an entire surface. Check the
 reference before building on the claim — the corpus was two hours of fetching.
+
+---
+
+## Fourteen troopers shared one value, and the palette entry that was supposed to fix it moves 6% of a man
+
+**Symptom.** `apps/games/rts/tools/legibility.js`, at the uncropped window it
+grew in Phase 3, put **eleven infantry pairs** under the friend-vs-foe floor at
+zoom 1 and eight at ZMIN — `ivan|spy` 10.8, `ivan|yuri` 11.1, `conscript|tanya`
+11.8 against a floor of 12.2. On the map that is the reported complaint: a
+squad reads as one blue mass. Eight kinds sat inside 11 luminance points and
+0.08 saturation of each other at 14-22 px wide.
+
+**Cause.** Two, and the second is why three previous passes did not close it.
+
+The lever is **plate value** — the established finding is that pushing
+owner-colour *area* was already tried and made map legibility worse. But the
+per-kind palette cannot deliver value. `TROOP[kind]` carries `coat`, `boot`,
+`skin`, and `coat` is the **trousers**. MEASURED: moving `TROOP.ivan.coat` by 29
+L moved the composited man by **1.8** — his coat body is the shared `JACKET`
+constant, not his trousers — and moving `TROOP.spy.coat` by 60 L moved him by
+16. Trousers are 6-27% of a trooper. The rest is a hundred hard-coded shades
+spread over fourteen `bakeInfantry` branches.
+
+**Fix.** A gamma applied to the **finished sprite**, with the inverse applied to
+the house colour before it is drawn (`INF_VALUE` + `valuePre`/`valuePass`).
+Gamma, not a multiply, for two reasons that both matter: it maps 0->0 and
+255->255, so no kind clips into a flat white or black however far it moves; and
+it inverts *exactly*, so pre-dividing `col` and then applying the pass is an
+identity on the owner's block — the one thing on a trooper that must not move,
+because friend-vs-foe is the floor every other distance is measured against.
+Eleven pairs -> **zero**, in all three windows at both zooms.
+
+**One gamma per CHANNEL, not one per sprite.** The metric is a luminance term
+plus two chroma-opponent terms at 0.35 weight, so a 40-point hue step is worth
+about 30 points of value — and fourteen men do not fit on one value range.
+Equal channels are a pure value move; unequal ones tilt warm or cool without
+changing the rung.
+
+**The trap that second axis also repaired: a flat gamma DARKENS BY RAISING
+SATURATION.** `(59,47,38)` at gamma 1.5 becomes `(28,20,15)` — saturation 0.36
+-> 0.48. Ivan's brown greatcoat became a dark **red** one, and `hue.maxImpostor`
+(the other owner's hue showing on a sprite) went 0.0024 -> **0.0141**. Channels
+that darken red hardest desaturate as they darken: `[1.73, 1.60, 1.43]` puts him
+at the bottom of the ladder and takes him off the impostor list entirely.
+
+**Rejected.** *Per-branch palette surgery* — the honest version, and it is weeks:
+fourteen branches, no shared base colour, and `JACKET` worn by two different
+men. *A hue test to exclude owner pixels from the pass* — skin is orange, the
+Collective's hue is red, so the mask would have differed between the two owners
+and made a red trooper's skin a different colour from a blue one's. *Restating
+the ladder in `TROOP.coat`* — measured at 6-27% transfer, it cannot reach.
+*Widening the owner-colour budget (`unit-identity-reference.md` R2)* — the map
+measurement says the opposite; that rule is about the menu and the sprite sheet.
+
+---
+
+## A rotor blur nobody could see still counted as the helicopter's body
+
+**Symptom.** `harrier | nighthawk` was the single pair failing `legibility.js`
+under **every** window — and by far the worst on the union-footprint metric,
+40.2 against a 43.0 floor at zoom 1. Two grey aircraft, but the union number was
+oddly bad: much worse than the other two windows suggested.
+
+**Cause.** The Nighthawk's main rotor was drawn as a flat `rgba(150,160,176,.09)`
+ellipse. At 9% alpha over grass that is a patch of ground three luminance points
+off the terrain — invisible. But it is **1400-odd pixels of it**, and every
+metric in the tool counts a pixel as body at alpha > 0.03. The union-footprint
+metric averages only over pixels where either unit has a body, so two thirds of
+the compared area was Nighthawk-disc-against-Harrier-grass at a per-pixel
+distance of ~46 where the airframes were scoring in the thousands. The disc was
+dragging the mean down by its own area.
+
+**Fix.** Draw the blur the way one looks — a radial gradient in circle space
+squashed to the iso ellipse, nearly clear at the hub, densest just inside the
+tip where blade-per-area is highest — plus two weights of blade streak on a
+phase that never lets them settle into a gunsight cross. 40.2 -> 51.7 at zoom 1
+and 38.1 -> 49.3 at ZMIN, and the helicopter now reads as a helicopter at 1:1
+instead of as a dark crate.
+
+**Rejected.** *Feathering the rim to zero alpha* — costs the outer 2 px of span
+off the bounding box (74x48 -> 72x48), and `unit-identity-reference.md` 2.3
+grades [SHAD] on rotor span above everything else. The rim is held at 9%
+instead. *Widening the disc to compensate* — a disc that round matches from
+every bearing, and `peerVsSelf.air` went 0 -> 1: an air peer began matching the
+Nighthawk's mask better than it matched its own other bearings.
+
+**The general lesson.** An element with alpha under about 0.12 is invisible to
+the player and fully present to every mask-based measurement. Check what a
+decorative overlay does to the footprint before trusting a number that averages
+over it.
