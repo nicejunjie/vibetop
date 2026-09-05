@@ -9434,7 +9434,11 @@
         // Splayed along the forward axis rather than across it: the
         // reference bbox is markedly WIDE and FLAT, and a square stance
         // stood the drone up on stilts a third taller than the real one.
-        var legsD = [[4.7, -3.9], [4.7, 3.9], [-4.8, -4.0], [-4.8, 4.0]];
+        // Reach EXTENDED about a quarter (4.7/3.9 -> 5.9/4.9). Beside RA2's own
+        // plate ours read as a squat body with stubby legs; theirs is a spider
+        // whose splayed legs ARE the silhouette. The arch above is unchanged,
+        // because that is what carries the scale gate.
+        var legsD = [[5.9, -4.9], [5.9, 4.9], [-6.0, -5.0], [-6.0, 5.0]];
         var legOrder = [];
         for (i2 = 0; i2 < 4; i2++)
           legOrder.push([fy * legsD[i2][0] + py * legsD[i2][1], legsD[i2]]);

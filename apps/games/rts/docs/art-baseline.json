@@ -143,7 +143,7 @@
     "peerVsSelf.naval": 1,
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.4744,
-    "iou.vehicle.mean": 0.4206,
+    "iou.vehicle.mean": 0.4253,
     "iou.infantry.mean": 0.5334,
     "iou.naval.mean": 0.3835,
     "iou.air.mean": 0.177,
@@ -155,11 +155,11 @@
     "mass.tightestBand6": 2.093,
     "hue.infantryOwnerMean": 0.294,
     "hue.infantryBelowBudget": 0,
-    "hue.vehicleOwnerMean": 0.1691,
+    "hue.vehicleOwnerMean": 0.1678,
     "hue.vehicleOwnerMax": 0.2369,
     "hue.maxImpostor": 0.0024,
     "colour.infantry.meanDist": 1.3865,
-    "colour.vehicle.meanDist": 0.9551,
+    "colour.vehicle.meanDist": 0.9543,
     "colour.vehicleAchromatic": 0
   },
   "detail": {
@@ -175,7 +175,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.4206,
+        "mean": 0.4253,
         "pairs": 78,
         "max": 0.7255,
         "over75": 0
@@ -303,7 +303,7 @@
       {
         "a": "lancer",
         "b": "drone",
-        "dist": 0.533
+        "dist": 0.518
       },
       {
         "a": "lancer",
@@ -367,7 +367,7 @@
       "v3": 0.1411,
       "teslatrooper": 0.3369,
       "ivan": 0.3407,
-      "drone": 0.2091,
+      "drone": 0.1914,
       "teslatank": 0.1441,
       "prismtank": 0.1621,
       "desolator": 0.3063,
@@ -410,7 +410,7 @@
       "v3": 0.188,
       "teslatrooper": 0.1212,
       "ivan": 0.2819,
-      "drone": 0.1875,
+      "drone": 0.1947,
       "teslatank": 0.2104,
       "prismtank": 0.1608,
       "desolator": 0.1667,
@@ -728,18 +728,18 @@
         "name": "Terror Drone",
         "group": "vehicle",
         "fac": "col",
-        "mass": 277,
-        "bboxW": 26,
-        "bboxH": 19,
-        "aspect": 1.256,
-        "selfIoU": 0.7723,
+        "mass": 340,
+        "bboxW": 32,
+        "bboxH": 22,
+        "aspect": 1.349,
+        "selfIoU": 0.7092,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.409,
+        "bestPeerIoU": 0.4664,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 7,
+          "len": 10,
           "thick": 7,
           "atZmin": 3.85,
           "budget": 3.64,
