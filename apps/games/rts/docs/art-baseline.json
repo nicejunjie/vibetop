@@ -221,7 +221,7 @@
     "iou.vehicle.mean": 0.4192,
     "iou.infantry.mean": 0.5376,
     "iou.naval.mean": 0.4022,
-    "iou.air.mean": 0.1806,
+    "iou.air.mean": 0.1859,
     "iou.sameFactionOver75": 0,
     "spike.belowFloor": 0,
     "spike.minThickAtZmin": 2.2,
@@ -241,8 +241,8 @@
     "size.navalOutsideRA2Band": 0,
     "size.vehicleOutsideRA2Band": 0,
     "size.infantryOutsideRA2Band": 0,
-    "size.airOutsideRA2Band": 1,
-    "size.worstOffGroupScale": 0.3807,
+    "size.airOutsideRA2Band": 0,
+    "size.worstOffGroupScale": 0.2474,
     "clip.unitsTouchingSheetEdge": 0,
     "clip.unitsClippedOnGatedOctant": 0,
     "value.soldiersLighterThanEngineer": 2,
@@ -338,14 +338,14 @@
       },
       "harrier": {
         "group": "air",
-        "aspect": 1.576,
-        "selfIoU": 0.4062,
-        "selfIoUCross": 0.4062,
-        "broadsideAspect": 1.576,
+        "aspect": 1.579,
+        "selfIoU": 0.4082,
+        "selfIoUCross": 0.4082,
+        "broadsideAspect": 1.579,
         "ra2Aspect": 1.614,
-        "vsRA2": 0.977,
+        "vsRA2": 0.979,
         "bestPeer": "Nighthawk",
-        "bestPeerIoU": 0.2784,
+        "bestPeerIoU": 0.3827,
         "peersBeatingSelf": 0
       },
       "kirov": {
@@ -357,7 +357,7 @@
         "ra2Aspect": 2.242,
         "vsRA2": 0.993,
         "bestPeer": "Nighthawk",
-        "bestPeerIoU": 0.345,
+        "bestPeerIoU": 0.2754,
         "peersBeatingSelf": 0
       },
       "lancer": {
@@ -586,14 +586,14 @@
       },
       "nighthawk": {
         "group": "air",
-        "aspect": 2.606,
-        "selfIoU": 0.4817,
-        "selfIoUCross": 0.4817,
-        "broadsideAspect": 2.606,
+        "aspect": 2.621,
+        "selfIoU": 0.4702,
+        "selfIoUCross": 0.4702,
+        "broadsideAspect": 2.621,
         "ra2Aspect": 3.048,
-        "vsRA2": 0.855,
-        "bestPeer": "Kirov Airship",
-        "bestPeerIoU": 0.345,
+        "vsRA2": 0.86,
+        "bestPeer": "Harrier",
+        "bestPeerIoU": 0.3827,
         "peersBeatingSelf": 0
       },
       "apc": {
@@ -651,7 +651,7 @@
         "ra2Aspect": 1.8,
         "vsRA2": 0.889,
         "bestPeer": "Harrier",
-        "bestPeerIoU": 0.2403,
+        "bestPeerIoU": 0.1851,
         "peersBeatingSelf": 0
       },
       "dolphin": {
@@ -765,9 +765,9 @@
         "over75": 0
       },
       "air": {
-        "mean": 0.1806,
+        "mean": 0.1859,
         "pairs": 6,
-        "max": 0.345,
+        "max": 0.3827,
         "over75": 0
       },
       "groundCombat": {
@@ -889,16 +889,16 @@
         "pct": 0.0051
       },
       {
+        "key": "nighthawk",
+        "pct": 0.004
+      },
+      {
         "key": "rifle",
         "pct": 0.0021
       },
       {
         "key": "dog",
         "pct": 0.0012
-      },
-      {
-        "key": "nighthawk",
-        "pct": 0.001
       },
       {
         "key": "yuri",
@@ -925,7 +925,7 @@
       "rocket": 0.2998,
       "flak": 0.338,
       "rocketeer": 0.3368,
-      "harrier": 0.2254,
+      "harrier": 0.22,
       "kirov": 0.2698,
       "lancer": 0.2302,
       "mammoth": 0.1907,
@@ -946,7 +946,7 @@
       "yuri": 0.2625,
       "cleg": 0.2986,
       "spy": 0.31,
-      "nighthawk": 0.0181,
+      "nighthawk": 0.033,
       "apc": 0.0882,
       "destroyer": 0.1434,
       "aegis": 0.196,
@@ -968,7 +968,7 @@
       "rocket": 0.2213,
       "flak": 0.1324,
       "rocketeer": 0.0821,
-      "harrier": 0.24,
+      "harrier": 0.2433,
       "kirov": 0.2978,
       "lancer": 0.0863,
       "mammoth": 0.2342,
@@ -989,7 +989,7 @@
       "yuri": 0.1932,
       "cleg": 0.1441,
       "spy": 0.155,
-      "nighthawk": 0.051,
+      "nighthawk": 0.0489,
       "apc": 0.1311,
       "destroyer": 0.1402,
       "aegis": 0.1344,
@@ -1099,18 +1099,18 @@
         "ratio": 0.852
       },
       {
-        "key": "nighthawk",
-        "wh": "86x33",
-        "ours": 2.606,
-        "ra2": 3.048,
-        "ratio": 0.855
-      },
-      {
         "key": "rhino",
         "wh": "65x38",
         "ours": 1.711,
         "ra2": 2,
         "ratio": 0.856
+      },
+      {
+        "key": "nighthawk",
+        "wh": "76x29",
+        "ours": 2.621,
+        "ra2": 3.048,
+        "ratio": 0.86
       },
       {
         "key": "destroyer",
@@ -1233,10 +1233,10 @@
       },
       {
         "key": "harrier",
-        "wh": "52x33",
-        "ours": 1.576,
+        "wh": "60x38",
+        "ours": 1.579,
         "ra2": 1.614,
-        "ratio": 0.977
+        "ratio": 0.979
       },
       {
         "key": "drone",
@@ -1269,26 +1269,6 @@
     ],
     "ra2Size": [
       {
-        "key": "nighthawk",
-        "group": "air",
-        "ours": 86,
-        "ra2": 64,
-        "ra2WH": "64x21",
-        "scale": 1.3438,
-        "groupScale": 0.9733,
-        "dev": 0.3807
-      },
-      {
-        "key": "harrier",
-        "group": "air",
-        "ours": 52,
-        "ra2": 71,
-        "ra2WH": "71x44",
-        "scale": 0.7324,
-        "groupScale": 0.9733,
-        "dev": -0.2475
-      },
-      {
         "key": "flaktrack",
         "group": "vehicle",
         "ours": 43,
@@ -1307,6 +1287,16 @@
         "scale": 0.963,
         "groupScale": 1.2698,
         "dev": -0.2416
+      },
+      {
+        "key": "nighthawk",
+        "group": "air",
+        "ours": 76,
+        "ra2": 64,
+        "ra2WH": "64x21",
+        "scale": 1.1875,
+        "groupScale": 0.9733,
+        "dev": 0.2201
       },
       {
         "key": "prismtank",
@@ -1387,6 +1377,16 @@
         "scale": 1.6154,
         "groupScale": 1.4167,
         "dev": 0.1403
+      },
+      {
+        "key": "harrier",
+        "group": "air",
+        "ours": 60,
+        "ra2": 71,
+        "ra2WH": "71x44",
+        "scale": 0.8451,
+        "groupScale": 0.9733,
+        "dev": -0.1317
       },
       {
         "key": "dog",
@@ -2172,27 +2172,27 @@
         "name": "Harrier",
         "group": "air",
         "fac": "dir",
-        "mass": 523,
-        "bboxW": 52,
-        "bboxH": 33,
-        "aspect": 1.701,
-        "broadsideWH": "52x33",
-        "broadsideAspect": 1.576,
+        "mass": 673,
+        "bboxW": 60,
+        "bboxH": 38,
+        "aspect": 1.739,
+        "broadsideWH": "60x38",
+        "broadsideAspect": 1.579,
         "ra2Aspect": 1.614,
-        "vsRA2": 0.977,
-        "selfIoU": 0.4062,
-        "selfIoUCross": 0.4062,
+        "vsRA2": 0.979,
+        "selfIoU": 0.4082,
+        "selfIoUCross": 0.4082,
         "bestPeer": "Nighthawk",
-        "bestPeerIoU": 0.2784,
+        "bestPeerIoU": 0.3827,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
           "axis": "h",
-          "len": 24,
-          "thick": 9,
+          "len": 27,
+          "thick": 11,
           "budget": 5,
           "floor": 3.64,
-          "atZmin": 4.95,
+          "atZmin": 6.05,
           "floorAtZmin": 2,
           "lenBudget": null,
           "fails": null,
@@ -2215,7 +2215,7 @@
         "selfIoU": 0.4757,
         "selfIoUCross": 0.4757,
         "bestPeer": "Harrier",
-        "bestPeerIoU": 0.2403,
+        "bestPeerIoU": 0.1851,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
@@ -2311,7 +2311,7 @@
         "selfIoU": 0.4379,
         "selfIoUCross": 0.4379,
         "bestPeer": "Nighthawk",
-        "bestPeerIoU": 0.345,
+        "bestPeerIoU": 0.2754,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
@@ -2490,27 +2490,27 @@
         "name": "Nighthawk",
         "group": "air",
         "fac": "dir",
-        "mass": 1656,
-        "bboxW": 86,
-        "bboxH": 52,
+        "mass": 1284,
+        "bboxW": 76,
+        "bboxH": 46,
         "aspect": 1.78,
-        "broadsideWH": "86x33",
-        "broadsideAspect": 2.606,
+        "broadsideWH": "76x29",
+        "broadsideAspect": 2.621,
         "ra2Aspect": 3.048,
-        "vsRA2": 0.855,
-        "selfIoU": 0.4817,
-        "selfIoUCross": 0.4817,
-        "bestPeer": "Kirov Airship",
-        "bestPeerIoU": 0.345,
+        "vsRA2": 0.86,
+        "selfIoU": 0.4702,
+        "selfIoUCross": 0.4702,
+        "bestPeer": "Harrier",
+        "bestPeerIoU": 0.3827,
         "peersBeatingSelf": 0,
         "peers": 3,
         "spike": {
           "axis": "h",
-          "len": 33,
-          "thick": 8,
+          "len": 28,
+          "thick": 6.5,
           "budget": 2,
           "floor": 3.64,
-          "atZmin": 4.4,
+          "atZmin": 3.58,
           "floorAtZmin": 2,
           "lenBudget": null,
           "fails": null,

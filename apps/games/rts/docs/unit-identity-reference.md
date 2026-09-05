@@ -372,6 +372,16 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 > baked at a fixed blade phase and a near-vertical arm puts the height straight
 > back. Shipped 2026-09-05 at aspect 2.606 (0.86 of RA2), fuselage height
 > 24/79 = 0.30, rotor span 0.84L. Full working: `per-unit-art-log.md`.
+>
+> **Its SIZE is a separate clause and it has its own ceiling.** RA2 draws
+> [ORCA] at 1.11x [SHAD]; ours drew the Nighthawk at 1.65x the Harrier,
+> because aspect is scale-invariant and nothing measured it until
+> `size.airOutsideRA2Band` existed. Closed 2026-09-05 to 76 px against 60
+> (`VSC` 0.88 / 1.15), which takes that gate to 0 and the air group's spread
+> from 1.835 to 1.405. It stops there, not at the RA2-correct 62/69, because
+> `peerVsSelf.air` binds first: the two masks are alike enough that once
+> their sizes converge the Nighthawk beats the Harrier's own rotations. The
+> spread's arithmetic floor is 1.190, the Hornet:Kirov ratio.
 
 ### 2.4 Collective vehicles and aircraft
 
