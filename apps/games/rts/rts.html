@@ -29173,7 +29173,21 @@
     // to. Looked at beside RA2's own G.I. plate, where the rifle across the
     // chest is most of the picture, that is the whole difference.
     var k = fill ? Math.min((H - 4) / ph, (W - 3) / pw * 1.55)
-                 : Math.min((W - 3) / pw, (H - 4) / ph);
+                 // RA2 CROPS ITS VEHICLES AND STRUCTURES HARD TOO — the
+                 // Grizzly's hull runs off both edges of its plate. M3 gave
+                 // infantry that treatment and left everything else fitting
+                 // politely inside its frame with margins, at about 40% of the
+                 // plate as picture against RA2's 76%. This overfills by 1.35
+                 // so the subject reaches the edges.
+                 //
+                 // 1.35 is measured, not chosen by eye alone: the sweep runs
+                 // 1.00 / 1.18 / 1.35 / 1.55 -> pairs under RA2's bar 541 /
+                 // 462 / 372 / 300, so it keeps improving all the way. 1.55 is
+                 // where it starts cutting identity out: the Airforce Command
+                 // and the Gap Generator become top fragments and the Power
+                 // Plant loses its base. 1.35 is the last step where every
+                 // structure still reads whole.
+                 : Math.min((W - 3) / pw, (H - 4) / ph) * 1.35;
     var kcap = fill ? 4.4 : 3.0; if (k > kcap) k = kcap;
     var dw = pw * k, dh = ph * k;
     // A PORTRAIT CROP MUST NOT BE INTERPOLATED. The infantry crop scales a
