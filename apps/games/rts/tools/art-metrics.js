@@ -343,7 +343,7 @@ const TARGETS = {
   'size.airOutsideRA2Band':      { want: 0,    dir: 'down', note: 'the WORST group on this axis: spread 1.83x. The Nighthawk left the 2026-09-05 aspect pass at 86 px broadside against the Harrier\'s 52, where RA2 has [SHAD] 64 against [ORCA] 71 — ours 1.65x the jet where RA2 draws it 0.90x. The aspect pass that produced it was correct and this number is why it was not the whole story: a unit can reach the right SHAPE at the wrong SIZE and no scale-invariant gate will ever say so' },
   // Integrity, not aesthetics: does the sprite we measured survive its own sheet?
   'clip.unitsTouchingSheetEdge':  { want: 0,    dir: 'down', note: 'units with at least one bearing whose opaque bbox touches the border of its sheet cell — i.e. art the canvas CUT. Every other metric in this file is downstream of the bake, so a clipped sprite makes aspect, IoU, spike and size all precise and all wrong, with nothing to show for it: the sprite still renders and still looks plausible. The Nighthawk shipped an entire measured pass this way on 2026-09-05 — a 26-unit tail boom reached 48 px on a 104 px sheet and octants 3 and 7 came back with the fin flat against the edge — and it was caught by a hand-written probe, not by anything standing. This is that probe, made standing' },
-  'clip.unitsClippedOnGatedOctant':{ want: 0,   dir: 'down', note: 'the subset clipped on octant 3 or 7 — the broadside pair the aspect and size gates actually read, so a clip here corrupts a headline number rather than a footnote' },
+  'clip.unitsClippedOnGatedOctant':{ want: 0,   dir: 'down', note: "the subset clipped on the unit's own BROADSIDE bearing — the one the aspect and size gates actually read, so a clip there corrupts a headline number rather than a footnote. Per-unit, not a fixed pair: the Nighthawk's broadside is octant 3/7, the Apocalypse's is 0, and a first draft of this metric hardcoded 3 and 7 and would have reported a clean sheet for a unit clipped anywhere else" },
   'size.worstOffGroupScale':     { want: 0.25, dir: 'down', note: "the furthest any unit sits from its own group's scale, as |ours/RA2 / groupMedian - 1|; 0.38 (the Nighthawk) on the day the metric was added" },
   'aspect.navalWorstOffRA2':     { want: 0.20, dir: 'down', note: "the furthest any hull sits from RA2's aspect, as |ours/RA2 - 1|; 0.60 (the Typhoon, 2.15 against 5.36) before that pass" },
   'colour.infantry.meanDist':    { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between infantry kinds: what actually separates them' },
@@ -929,9 +929,15 @@ function compute(recs) {
                   bbox: r.bw + 'x' + r.bh, cell: r.cellW + 'x' + r.cellH });
     }
     const units = [...new Set(hits.map((h) => h.key))].sort();
-    // Octants 3 and 7 are the broadside pair the aspect and size gates read,
-    // so a clip there corrupts a headline number rather than a footnote.
-    const onGated = [...new Set(hits.filter((h) => h.oct === 3 || h.oct === 7)
+    // The BROADSIDE octant is what the aspect and size gates read, so a clip
+    // there corrupts a headline number rather than a footnote. It is per-unit,
+    // not a fixed pair: the Nighthawk's is 3/7, the Apocalypse's is 0. An
+    // earlier draft of this metric hardcoded 3 and 7 and would have reported a
+    // clean sheet for any unit clipped on any other bearing.
+    const widest = {};
+    for (const r of recs)
+      if (!widest[r.key] || r.bw > widest[r.key].bw) widest[r.key] = r;
+    const onGated = [...new Set(hits.filter((h) => widest[h.key].oct === h.oct)
                                     .map((h) => h.key))].sort();
     return { hits, units, onGated };
   })();
@@ -1062,6 +1068,12 @@ async function measure(opts) {
     out.env = { dpr: raw.dpr, zoom: raw.zoom, ZMIN, spikeFloorAtZoom1: round(SPIKE_FLOOR, 2),
                 units: raw.units, sprites: raw.recs.length,
                 scene, framePng: path.relative(ROOT, FRAME_PNG) };
+    // Raw per-bearing records, kept on the result (never serialised into the
+    // baseline) so a pass can ask WHERE a sprite's height lives instead of
+    // inferring it from the drawing code. That inference is unreliable: the
+    // Apocalypse's turret mast is the topmost thing in the source and
+    // shortening it moves the bbox by zero.
+    out.recs = raw.recs;
     out.bakeErrors = raw.errors;
     out.pageErrors = pageErrs;
     return out;
