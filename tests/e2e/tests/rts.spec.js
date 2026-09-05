@@ -718,6 +718,56 @@ test.describe('rts', () => {
     }
   });
 
+  test('the Kirov keeps RA2 proportion AND hangs its gondola clear', async ({ page }) => {
+    // unit-identity-reference.md §2.4 asks two things of [ZEP] (139x62) at once:
+    // span >= 2.0x the Harrier's, and "gondola visibly separated below the
+    // envelope by >= 4 px". The art gate measures neither — it reads alpha
+    // silhouettes at eight bearings and says nothing about internal daylight —
+    // so gap-audit row 27 recorded "0 px of daylight in every bearing" and left
+    // it open. That was measured before KGAP landed. It is now 7 px on the
+    // broadside with a >= 4 px column on all 32 frames.
+    //
+    // Raising the drop does NOT buy more: at KGAP 5.8 the profile is identical
+    // (6 columns, max 7, median 1) and the sprite grows to 147x70, taking the
+    // aspect from 2.227 to 2.100 against RA2's 2.24. The daylight is bounded by
+    // the pod/envelope geometry, so this pins BOTH numbers — a future attempt to
+    // buy separation by dropping the pod further will fail here on aspect.
+    await boot(page);
+    const k = await page.evaluate(() => {
+      const arr = window.__rtsTest.spr().unit[1].col.kirov;
+      const measure = (f) => {
+        const W = f.w || f.c.width, H = f.h || f.c.height;
+        const d = f.g.getImageData(0, 0, W, H).data;
+        const A = (x, y) => d[(y * W + x) * 4 + 3] > 24;
+        let minX = W, maxX = -1, minY = H, maxY = -1, maxGap = 0;
+        for (let x = 0; x < W; x++) {
+          let y = 0; const runs = [];
+          while (y < H) {
+            while (y < H && !A(x, y)) y++;
+            if (y >= H) break;
+            const s0 = y;
+            while (y < H && A(x, y)) y++;
+            runs.push([s0, y - 1]);
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (s0 < minY) minY = s0; if (y - 1 > maxY) maxY = y - 1;
+          }
+          if (runs.length >= 2) maxGap = Math.max(maxGap, runs[1][0] - runs[0][1] - 1);
+        }
+        return { bw: maxX - minX + 1, bh: maxY - minY + 1, maxGap };
+      };
+      const all = arr.map(measure).filter((o) => o.bw > 1);
+      let bi = 0; all.forEach((o, i) => { if (o.bw > all[bi].bw) bi = i; });
+      return { broadside: all[bi], withGap: all.filter((o) => o.maxGap >= 4).length,
+               total: all.length };
+    });
+    expect(k.withGap, 'the gondola hangs clear on every bearing').toBe(k.total);
+    expect(k.broadside.maxGap, '§2.4 wants >= 4 px of daylight').toBeGreaterThanOrEqual(4);
+    // RA2's [ZEP] broadside is 139x62 = 2.24. Hold within 5%.
+    const aspect = k.broadside.bw / k.broadside.bh;
+    expect(aspect, 'broadside aspect against RA2 2.24').toBeGreaterThan(2.13);
+    expect(aspect, 'and not stretched the other way').toBeLessThan(2.35);
+  });
+
   test('winning ends the match and records a time on the board', async ({ page }) => {
     await page.goto('/rts.html');
     await page.waitForFunction(() => !!window.__rts, null, { timeout: 15000 });
