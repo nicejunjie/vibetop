@@ -26308,7 +26308,29 @@
   var cvW = 800, cvH = 600;
   var cam = { x: 0, y: 0 };
   var zoom = 1;                       // mouse-wheel zoom, about the cursor
-  var ZMIN = 0.55, ZMAX = 2.0;
+  // ZMIN 0.55 was the single thing voiding every other art measurement.
+  // unit-identity-reference.md R1: RA2 authored its identity spikes at a 2 px
+  // floor for a renderer that NEVER scales — RA2 has no zoom at all — so at 0.55
+  // an RA2-faithful 2 px feature is 1.1 device px and smears away. Measured with
+  // tools/legibility.js, which composites each unit at the size it is actually
+  // drawn, on the game's ground, and compares pictures rather than alpha masks:
+  //
+  //     ZMIN   threshold   infantry min   pairs under the friend-vs-foe floor
+  //     0.55      19.1         17.0                   4
+  //     0.65      22.6         21.4                   2
+  //     0.75      24.5         25.7                   0
+  //     0.85      28.5         30.1                   0
+  //
+  // 0.75 is the measured minimum that clears every pair; the plan guessed 0.85
+  // and that costs more view than it needs to. R1's other two options were tried
+  // first and are not enough on their own — every spike IS authored past the
+  // 3.64 px floor now, and ivan|spy, ivan|yuri, tanya|spy and conscript|tanya
+  // still sat under the floor at 0.55.
+  //
+  // The cost is real and bounded: the player still sees ~1.8x RA2's field of
+  // view at full zoom-out (against 3.3x before), and the minimap carries the
+  // strategic overview exactly as it does in RA2.
+  var ZMIN = 0.75, ZMAX = 2.0;
   // Screen px -> the unzoomed screen space that sx()/sy() work in.
   function unzoom(px, py) {
     return { x: (px - cvW / 2) / zoom + cvW / 2, y: (py - cvH / 2) / zoom + cvH / 2 };

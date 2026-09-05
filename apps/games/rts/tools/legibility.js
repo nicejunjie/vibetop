@@ -53,7 +53,7 @@ const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const RTS = path.join(ROOT, 'apps', 'games', 'rts');
 const OUT = path.join(RTS, 'art', 'out');
 
-const ZOOMS = [1, 0.55];          // the game's default, and ZMIN
+const ZOOMS = (process.env.LEG_ZOOMS || "1,0.75").split(",").map(Number);   // the game default and ZMIN; override to sweep
 const GRASS = [92, 110, 62];      // the temperate ground land units stand on
 // ...and ships do not stand on grass. `terrCol` gives temperate water as
 // #2c5d86; comparing a hull against grass measured a picture the game never

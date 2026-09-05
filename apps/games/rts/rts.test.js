@@ -5301,3 +5301,30 @@ test("a task force that keeps dying makes its trigger less likely", () => {
       + "a trigger permanent, nor one bad run make it unreachable");
   }
 });
+
+// ---- the zoom floor that every art measurement rests on --------------------
+
+test("ZMIN stays at or above the measured legibility floor", () => {
+  // RA2 has no zoom at all: it authored its identity spikes at a 2 px floor for
+  // a renderer that never scales. Scaling below ~0.75 smears an RA2-faithful
+  // feature to under 2 device px, and unit-identity-reference.md R1 says that
+  // silently voids EVERY other art measurement — all of which were taken at 1:1.
+  //
+  // Measured with tools/legibility.js (composites each unit at the size it is
+  // actually drawn, on the game's ground, and compares pictures not masks),
+  // counting pairs below the friend-vs-foe threshold:
+  //
+  //     ZMIN 0.55 -> 4 infantry pairs under the floor (ivan|spy 17.0 worst)
+  //     ZMIN 0.65 -> 2
+  //     ZMIN 0.75 -> 0, in every group
+  //
+  // Lowering this again re-opens all four. If more zoom-out is wanted, the
+  // honest route is R1's option (c) — bake a low-zoom sprite set with thickened
+  // spikes — not moving this number.
+  const src = fs.readFileSync(SRC, "utf8");
+  const m = src.match(/var ZMIN = ([0-9.]+)/);
+  assert.ok(m, "ZMIN is declared");
+  assert.ok(parseFloat(m[1]) >= 0.75,
+    `ZMIN is ${m[1]}; below 0.75 the infantry pairs ivan|spy, ivan|yuri, `
+    + "tanya|spy and conscript|tanya drop under the friend-vs-foe floor");
+});
