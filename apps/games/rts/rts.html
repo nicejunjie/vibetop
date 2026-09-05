@@ -1162,6 +1162,9 @@
   // ROF and FASTER at rank 1, some units do not) — transcribing all forty rows
   // is a separate job; applying the [General] defaults per level is what the
   // other two already do and is far closer than elite-only.
+  // Ticks per idle-animation frame. Six baked phases, so a full cycle is
+  // IDLE_T * 6 ticks -> 5.0 s at 60 fps. See drawBld for why.
+  var IDLE_T = 50;
   function vetRof(rank) { return Math.pow(0.6, rank || 0); }
   function vetSpeed(rank) { return Math.pow(1.2, rank || 0); }
   // A unit's ground speed after the [Powerups] Speed crate (x1.2). Every
@@ -21355,8 +21358,12 @@
       u.cargoV += take * (g.terrain[mi] === T_GEM ? GEM_MULT : 1);
       // Visible work: a puff of ore dust off the seam every third of a
       // second (render-only; skipped headless so balance runs stay identical).
-      if (!headless && (g.tick % 12) === 0) {
-        var jx = ((g.tick / 12) % 3) - 1;
+      // 12 ticks is every FIFTH of a second at 60 fps, not a third — and with
+      // several harvesters mining at once that is a lot of small motion in the
+      // corner of the eye for no information. 20 ticks is what the line above
+      // always said it was.
+      if (!headless && (g.tick % 20) === 0) {
+        var jx = ((g.tick / 20) % 3) - 1;
         g.fx.push({ x: u.mineAt.x + jx * 0.22, y: u.mineAt.y - jx * 0.18, t: 0, life: 30, size: 0, dust: true });
       }
       if (g.ore[mi] <= 0.5) { g.terrain[mi] = T_GROUND; g.ore[mi] = 0; u.mineAt = null; }
@@ -31354,11 +31361,23 @@
         set = hurt ? aimDmgOf(art, b.type, b.p, fk) : aimOf(art, b.type, b.p, fk);
         tag = (hurt ? 'ad' : 'a') + aimI; fi = aimI;
       } else {
-        // Hurt machinery runs slow (one third speed); healthy runs at pace.
+        // IDLE ANIMATION RATE. This was 5 ticks a frame: six phases in 30 ticks,
+        // so at 60 fps every animated structure ran a FULL sine cycle twice a
+        // second. The yard's crane luffed through its whole arc 4x in 2 seconds
+        // — measured off a filmstrip — and every `anS`/`anC` consumer went with
+        // it, including glows written as `0.5 + 0.5 * anC`, which at 2 Hz is a
+        // strobe rather than a pulse.
+        //
+        // Ambient motion is not free: the eye is drawn to it pre-attentively,
+        // and in an RTS the player is scanning for threats. Anything looping
+        // faster than about 1 Hz reads as an alert; slower than about 0.2 Hz
+        // reads as ambience. A real gantry crane cycles in 10-30 s, so 5 s
+        // keeps the character of working machinery without competing with the
+        // battlefield. Hurt machinery stays slower still, as it was.
         set = hurt ? dmgSetOf(art, b.type) : (art.frames || [art.s]);
         tag = hurt ? 'd' : 'i';
         // Dead metal does not move: an unpowered structure freezes on frame 0.
-        fi = dark ? 0 : ((G.tick / (hurt ? 15 : 5) + b.id * 2) | 0) % set.length;
+        fi = dark ? 0 : ((G.tick / (hurt ? IDLE_T * 2 : IDLE_T) + b.id * 2) | 0) % set.length;
         tag += fi;
       }
       artC = (dark ? offOf(art, tag, set[fi]) : set[fi]).c;
