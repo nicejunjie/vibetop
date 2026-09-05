@@ -498,13 +498,29 @@ than assumed before being struck:
 
 Still open:
 
-- **The Desolator has no ENERGY SIGNATURE**, and in RA2 that IS his identity —
-  his plate is dominated by a yellow-green radioactive glow. Measured on ours:
-  the glow is **5.4% of the figure**, and he is the DARKEST infantryman on the
-  board (4.7% of torso+legs above value 0.75, last of thirteen). The colour is
-  defined and named in the code as "his one loud surface"; it is simply not
-  loud. He is the clearest remaining instance of the large-areas principle,
-  and the Engineer pass is the worked example of how to close it.
+- ~~The Desolator has no ENERGY SIGNATURE~~ — **closed, and the item was
+  measuring the wrong thing.** The complaint compared our CAMEO to RA2's plate,
+  which is dominated by a yellow-green glow. But §2.2 does not ask his body for
+  a glow at all. It asks for "charcoal hazard suit with house-colour plates",
+  and puts the green somewhere else entirely: *"Deployed: crouched inside a
+  green radiation pool — **the pool is the silhouette**"*, budget `deployed
+  pool >= 1 tile`.
+  That clause is MET, and implemented with care: `DESO_RAD_R = 3` tiles, drawn
+  as shimmering green tile diamonds plus motes lifting off the hottest cells,
+  `source-over` rather than `lighter` for a recorded reason (under `lighter` a
+  1 px bleed doubled every shared edge and the pool read as a green wireframe
+  grid instead of a wash).
+  **A body glow was built, measured and thrown away.** `source-atop` green
+  underlighting from the emitters took the hue from 5.4% to 29% of the figure
+  and `colour.infantry.meanDist` from 1.3898 to 1.4175 — every number liked it
+  — and he came out a green blob with the charcoal suit and the house plates
+  both swamped. That is the row violated in order to satisfy a requirement the
+  row never made. Backing it down to 11% left the sprite defensible and the
+  CAMEO still over-green, because the portrait crop takes the top of the figure
+  where the emitters are.
+  The lesson is the one this file keeps re-learning from the other end: **read
+  the row before believing the complaint.** "Ours does not look like RA2's
+  plate" is a statement about a cameo; the clause was about the ground.
 
 ## Measured NEGATIVE results — recorded so nobody re-runs them
 
