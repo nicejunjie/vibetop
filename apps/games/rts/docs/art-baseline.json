@@ -154,7 +154,7 @@
     "peerVsSelf.air": 0,
     "iou.groundCombat.mean": 0.4744,
     "iou.vehicle.mean": 0.4253,
-    "iou.infantry.mean": 0.5286,
+    "iou.infantry.mean": 0.5258,
     "iou.naval.mean": 0.4031,
     "iou.air.mean": 0.177,
     "iou.sameFactionOver75": 0,
@@ -163,14 +163,14 @@
     "spike.belowDeclaredBudget": 0,
     "mass.groundCombatSpan": 5.703,
     "mass.tightestBand6": 2.093,
-    "hue.infantryOwnerMean": 0.296,
+    "hue.infantryOwnerMean": 0.2915,
     "hue.infantryBelowBudget": 0,
     "hue.vehicleOwnerMean": 0.1678,
     "hue.vehicleOwnerMax": 0.2369,
     "hue.maxImpostor": 0.0051,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.194,
-    "colour.infantry.meanDist": 1.3899,
+    "colour.infantry.meanDist": 1.3644,
     "colour.vehicle.meanDist": 0.9543,
     "colour.vehicleAchromatic": 0
   },
@@ -199,8 +199,8 @@
         "aspect": 0.472,
         "selfIoU": 0.6233,
         "selfIoUCross": 0.6233,
-        "bestPeer": "Yuri",
-        "bestPeerIoU": 0.6129,
+        "bestPeer": "Spy",
+        "bestPeerIoU": 0.618,
         "peersBeatingSelf": 0
       },
       "conscript": {
@@ -208,8 +208,8 @@
         "aspect": 0.5,
         "selfIoU": 0.7395,
         "selfIoUCross": 0.7395,
-        "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7172,
+        "bestPeer": "Spy",
+        "bestPeerIoU": 0.7463,
         "peersBeatingSelf": 0
       },
       "rocket": {
@@ -236,7 +236,7 @@
         "selfIoU": 0.7167,
         "selfIoUCross": 0.7167,
         "bestPeer": "Engineer",
-        "bestPeerIoU": 0.6729,
+        "bestPeerIoU": 0.6942,
         "peersBeatingSelf": 0
       },
       "harrier": {
@@ -277,11 +277,11 @@
       },
       "engineer": {
         "group": "infantry",
-        "aspect": 0.7,
-        "selfIoU": 0.7544,
-        "selfIoUCross": 0.7544,
-        "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.7409,
+        "aspect": 0.857,
+        "selfIoU": 0.7498,
+        "selfIoUCross": 0.7498,
+        "bestPeer": "Rocketeer",
+        "bestPeerIoU": 0.6942,
         "peersBeatingSelf": 0
       },
       "dog": {
@@ -313,11 +313,11 @@
       },
       "tanya": {
         "group": "infantry",
-        "aspect": 0.606,
-        "selfIoU": 0.7827,
-        "selfIoUCross": 0.7827,
+        "aspect": 0.71,
+        "selfIoU": 0.7765,
+        "selfIoUCross": 0.7765,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.7753,
+        "bestPeerIoU": 0.7308,
         "peersBeatingSelf": 0
       },
       "rhino": {
@@ -362,7 +362,7 @@
         "selfIoU": 0.8264,
         "selfIoUCross": 0.8264,
         "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7753,
+        "bestPeerIoU": 0.7308,
         "peersBeatingSelf": 0
       },
       "drone": {
@@ -406,8 +406,8 @@
         "aspect": 0.359,
         "selfIoU": 0.8524,
         "selfIoUCross": 0.8524,
-        "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7012,
+        "bestPeer": "Spy",
+        "bestPeerIoU": 0.7258,
         "peersBeatingSelf": 0
       },
       "cleg": {
@@ -416,16 +416,16 @@
         "selfIoU": 0.6556,
         "selfIoUCross": 0.6556,
         "bestPeer": "Engineer",
-        "bestPeerIoU": 0.6538,
+        "bestPeerIoU": 0.6656,
         "peersBeatingSelf": 0
       },
       "spy": {
         "group": "infantry",
-        "aspect": 0.655,
-        "selfIoU": 0.7615,
-        "selfIoUCross": 0.7615,
-        "bestPeer": "Engineer",
-        "bestPeerIoU": 0.7374,
+        "aspect": 0.457,
+        "selfIoU": 0.778,
+        "selfIoUCross": 0.778,
+        "bestPeer": "Conscript",
+        "bestPeerIoU": 0.7463,
         "peersBeatingSelf": 0
       },
       "nighthawk": {
@@ -564,10 +564,10 @@
         "over75": 0
       },
       "infantry": {
-        "mean": 0.5286,
+        "mean": 0.5258,
         "pairs": 91,
-        "max": 0.7753,
-        "over75": 1
+        "max": 0.7463,
+        "over75": 0
       },
       "naval": {
         "mean": 0.4031,
@@ -592,14 +592,9 @@
     "worstSameFactionPairs": [],
     "closestColourPairs": [
       {
-        "a": "rocketeer",
-        "b": "engineer",
-        "dist": 0.07
-      },
-      {
         "a": "engineer",
         "b": "dog",
-        "dist": 0.138
+        "dist": 0.117
       },
       {
         "a": "teslatrooper",
@@ -607,24 +602,14 @@
         "dist": 0.14
       },
       {
-        "a": "rocketeer",
-        "b": "dog",
-        "dist": 0.156
-      },
-      {
         "a": "conscript",
         "b": "engineer",
-        "dist": 0.191
-      },
-      {
-        "a": "conscript",
-        "b": "rocketeer",
-        "dist": 0.192
+        "dist": 0.204
       },
       {
         "a": "ivan",
         "b": "spy",
-        "dist": 0.286
+        "dist": 0.246
       },
       {
         "a": "conscript",
@@ -632,9 +617,24 @@
         "dist": 0.313
       },
       {
+        "a": "conscript",
+        "b": "rocketeer",
+        "dist": 0.465
+      },
+      {
         "a": "teslatrooper",
         "b": "spy",
-        "dist": 0.499
+        "dist": 0.479
+      },
+      {
+        "a": "rocket",
+        "b": "rocketeer",
+        "dist": 0.495
+      },
+      {
+        "a": "cleg",
+        "b": "spy",
+        "dist": 0.51
       },
       {
         "a": "ivan",
@@ -735,16 +735,16 @@
       "conscript": 0.3453,
       "rocket": 0.2998,
       "flak": 0.3119,
-      "rocketeer": 0.3457,
+      "rocketeer": 0.3368,
       "harrier": 0.2298,
       "kirov": 0.2698,
       "lancer": 0.2302,
       "mammoth": 0.1678,
-      "engineer": 0.3705,
+      "engineer": 0.3425,
       "dog": 0.0665,
       "ifv": 0.1391,
       "mirage": 0.1478,
-      "tanya": 0.1566,
+      "tanya": 0.1429,
       "rhino": 0.1673,
       "flaktrack": 0.1624,
       "v3": 0.1411,
@@ -756,7 +756,7 @@
       "desolator": 0.3127,
       "yuri": 0.2625,
       "cleg": 0.3182,
-      "spy": 0.322,
+      "spy": 0.31,
       "nighthawk": 0.0123,
       "apc": 0.0882,
       "destroyer": 0.1434,
@@ -778,16 +778,16 @@
       "conscript": 0.1862,
       "rocket": 0.2213,
       "flak": 0.1372,
-      "rocketeer": 0.3058,
+      "rocketeer": 0.0821,
       "harrier": 0.2356,
       "kirov": 0.2978,
       "lancer": 0.0863,
       "mammoth": 0.2379,
-      "engineer": 0.106,
+      "engineer": 0.1012,
       "dog": 0.495,
       "ifv": 0.1608,
       "mirage": 0.1566,
-      "tanya": 0.2773,
+      "tanya": 0.277,
       "rhino": 0.1554,
       "flaktrack": 0.1569,
       "v3": 0.188,
@@ -799,7 +799,7 @@
       "desolator": 0.1972,
       "yuri": 0.1932,
       "cleg": 0.1388,
-      "spy": 0.1504,
+      "spy": 0.155,
       "nighthawk": 0.0403,
       "apc": 0.1311,
       "destroyer": 0.1402,
@@ -815,8 +815,8 @@
       "mcv": 0.1569
     },
     "hue": {
-      "infantryOwnerMedian": 0.3201,
-      "infantryOwnerMeanUnexempt": 0.3267,
+      "infantryOwnerMedian": 0.3154,
+      "infantryOwnerMeanUnexempt": 0.3226,
       "exempt": [
         "dog",
         "tanya"
@@ -1012,7 +1012,7 @@
         "selfIoU": 0.6556,
         "selfIoUCross": 0.6556,
         "bestPeer": "Engineer",
-        "bestPeerIoU": 0.6538,
+        "bestPeerIoU": 0.6656,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -1039,8 +1039,8 @@
         "broadsideAspect": 0.5,
         "selfIoU": 0.7395,
         "selfIoUCross": 0.7395,
-        "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7172,
+        "bestPeer": "Spy",
+        "bestPeerIoU": 0.7463,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -1231,23 +1231,23 @@
         "name": "Engineer",
         "group": "infantry",
         "fac": null,
-        "mass": 322,
-        "bboxW": 21,
-        "bboxH": 30,
-        "aspect": 0.533,
-        "broadsideWH": "21x30",
-        "broadsideAspect": 0.7,
-        "selfIoU": 0.7544,
-        "selfIoUCross": 0.7544,
-        "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.7409,
+        "mass": 347,
+        "bboxW": 24,
+        "bboxH": 28,
+        "aspect": 0.652,
+        "broadsideWH": "24x28",
+        "broadsideAspect": 0.857,
+        "selfIoU": 0.7498,
+        "selfIoUCross": 0.7498,
+        "bestPeer": "Rocketeer",
+        "bestPeerIoU": 0.6942,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
           "len": 6,
-          "thick": 6,
-          "atZmin": 3.3,
+          "thick": 10,
+          "atZmin": 5.5,
           "budget": 3.64,
           "lenBudget": null,
           "fails": null,
@@ -1408,7 +1408,7 @@
         "selfIoU": 0.8264,
         "selfIoUCross": 0.8264,
         "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7753,
+        "bestPeerIoU": 0.7308,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -1687,8 +1687,8 @@
         "broadsideAspect": 0.472,
         "selfIoU": 0.6233,
         "selfIoUCross": 0.6233,
-        "bestPeer": "Yuri",
-        "bestPeerIoU": 0.6129,
+        "bestPeer": "Spy",
+        "bestPeerIoU": 0.618,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -1744,7 +1744,7 @@
         "selfIoU": 0.7167,
         "selfIoUCross": 0.7167,
         "bestPeer": "Engineer",
-        "bestPeerIoU": 0.6729,
+        "bestPeerIoU": 0.6942,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
@@ -1793,23 +1793,23 @@
         "name": "Spy",
         "group": "infantry",
         "fac": "dir",
-        "mass": 300,
-        "bboxW": 19,
-        "bboxH": 29,
-        "aspect": 0.509,
-        "broadsideWH": "19x29",
-        "broadsideAspect": 0.655,
-        "selfIoU": 0.7615,
-        "selfIoUCross": 0.7615,
-        "bestPeer": "Engineer",
-        "bestPeerIoU": 0.7374,
+        "mass": 325,
+        "bboxW": 16,
+        "bboxH": 35,
+        "aspect": 0.357,
+        "broadsideWH": "16x35",
+        "broadsideAspect": 0.457,
+        "selfIoU": 0.778,
+        "selfIoUCross": 0.778,
+        "bestPeer": "Conscript",
+        "bestPeerIoU": 0.7463,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "v",
-          "len": 2,
-          "thick": 9,
-          "atZmin": 4.95,
+          "len": 3,
+          "thick": 8,
+          "atZmin": 4.4,
           "budget": 7,
           "lenBudget": null,
           "fails": null,
@@ -1881,23 +1881,23 @@
         "name": "Tanya",
         "group": "infantry",
         "fac": "dir",
-        "mass": 312,
-        "bboxW": 20,
-        "bboxH": 33,
-        "aspect": 0.439,
-        "broadsideWH": "20x33",
-        "broadsideAspect": 0.606,
-        "selfIoU": 0.7827,
-        "selfIoUCross": 0.7827,
+        "mass": 320,
+        "bboxW": 22,
+        "bboxH": 31,
+        "aspect": 0.532,
+        "broadsideWH": "22x31",
+        "broadsideAspect": 0.71,
+        "selfIoU": 0.7765,
+        "selfIoUCross": 0.7765,
         "bestPeer": "Crazy Ivan",
-        "bestPeerIoU": 0.7753,
+        "bestPeerIoU": 0.7308,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {
           "axis": "h",
           "len": 5,
-          "thick": 6,
-          "atZmin": 3.3,
+          "thick": 5,
+          "atZmin": 2.75,
           "budget": 3.64,
           "lenBudget": 2,
           "fails": null,
@@ -2029,8 +2029,8 @@
         "broadsideAspect": 0.359,
         "selfIoU": 0.8524,
         "selfIoUCross": 0.8524,
-        "bestPeer": "Tanya",
-        "bestPeerIoU": 0.7012,
+        "bestPeer": "Spy",
+        "bestPeerIoU": 0.7258,
         "peersBeatingSelf": 0,
         "peers": 13,
         "spike": {

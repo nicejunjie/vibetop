@@ -4910,7 +4910,7 @@
     // area, more white plate — which is R1-R6 silhouette-and-zone work on one
     // unit, with the owner-signal floor (hue.infantryOwnerMean >= 0.29) as the
     // binding constraint. Do not reach for the ladder again.
-    rocketeer: [0.50, 0.70, 1.05],   //  a light CREAM pressure suit
+    rocketeer: [0.74, 0.74, 0.76],   //  a light CREAM pressure suit
     cleg:      [0.74, 0.71, 0.64],   //  bone-white plate over blue-grey
     tanya:     [0.45, 0.58, 0.70],   //  warm khaki, bare arms, blonde
     engineer:  [0.62, 0.64, 0.60],   //  brightest in either army, and neutral
@@ -4966,16 +4966,16 @@
     rifle:        [0.92, 0.99],   // i-M 12x28 — narrow; the baseline soldier
     conscript:    [1.00, 1.05],   // i-M 13x27 — the reference figure
     cleg:         [1.22, 0.84],   // i-M 15x26 — the widest Directorate shoulders
-    tanya:        [0.94, 0.94],   // i-M 13x26, and the pistols keep her wide
+    tanya:        [1.04, 0.88],   // i-M 13x26, and the pistols keep her wide
     ivan:         [0.80, 0.88],   // i-S 12x25 — the narrowest of the Collective
-    engineer:     [1.06, 0.82],   // i-S 13x25 — a workman, not a soldier: broader in
+    engineer:     [1.22, 0.76],   // i-S 13x25 — a workman, not a soldier: broader in
                                   // the shoulder and a little shorter than he was
                                   // (0.99 x 0.86). He is shared, so he stands in BOTH
                                   // rosters and pairs with every trooper in the game,
                                   // and at 19x31 he sat between Tanya (20x33) and the
                                   // Spy (19x30) — TWO same-faction pairs over the 0.75
                                   // ceiling, both of them his. 21x30 clears both.
-    spy:          [0.88, 0.82],   // i-S 13x25 — the slightest figure on the field
+    spy:          [0.76, 1.00],   // i-S 13x25 — the slightest figure on the field
     rocketeer:    [1.12, 0.86],   // i-S 16x24 — the shortest, broadened by the pack
     dog:          [1.00, 1.00],   // i-XS, quadruped: already the one that reads
     _:            [1.00, 1.00],
@@ -5450,7 +5450,14 @@
       // shin guards — as the sprite remaps them. The three "walk" frames are
       // the jet flame: it flickers instead of striding, and drawUnit runs the
       // cycle for as long as he is airborne.
-      var RS = '#8d959f', RSD = shade(RS, 0.64), RSL = shade(RS, 1.22);
+      // THE SUIT IS WHITE. RA2's Rocketeer is the whitest thing in the Allied
+      // roster — white armour against white cloud — and ours was a mid grey
+      // (#8d959f) carrying 34.6% owner colour, one of the highest on the
+      // board. Three passes tried to fix that with the VALUE LADDER and could
+      // not: a multiplier on `coat` moves almost nothing, because what you
+      // see of him is mostly owner colour and this suit const, neither of
+      // which the ladder touches. The lever is here.
+      var RS = '#ccd3db', RSD = shade(RS, 0.64), RSL = shade(RS, 1.22);
       var fl = [5.2, 7.4, 6.2, 8.0, 5.6, 6.9][gt.ph], fw2 = [2.0, 2.5, 2.2, 2.6, 2.1, 2.4][gt.ph];
       // jet flames first, behind the legs: white-blue core in an orange sheath
       for (ar = -1; ar <= 1; ar += 2) {
@@ -5503,8 +5510,13 @@
       g.moveTo(cx - 5.0, by - 19.5); g.lineTo(cx + 5.0, by - 19.5);
       g.lineTo(cx + 4.4, by - 12.4); g.lineTo(cx - 4.4, by - 12.4);
       g.closePath(); g.fill(); outline(g, shade(col, 0.4));
-      g.fillStyle = shade(col, 1.24); g.fillRect(cx - 4.8, by - 19.3, 3.2, 6.6);
-      g.fillStyle = shade(col, 0.76); g.fillRect(cx + 1.7, by - 18.9, 2.5, 6.0);
+      // The breastplate halves are WHITE ARMOUR with an owner band down each,
+      // not solid owner slabs: that is how the sprite remaps him, and it is
+      // most of the 34.6% -> target ~28% owner budget this pass spends.
+      g.fillStyle = RSL; g.fillRect(cx - 4.8, by - 19.3, 3.2, 6.6);
+      g.fillStyle = shade(RS, 0.88); g.fillRect(cx + 1.7, by - 18.9, 2.5, 6.0);
+      g.fillStyle = shade(col, 1.24); g.fillRect(cx - 4.4, by - 19.3, 1.1, 6.6);
+      g.fillStyle = shade(col, 0.76); g.fillRect(cx + 2.3, by - 18.9, 1.0, 6.0);
       arms(5.6, by - 18.2, 3.0, 6.2, RS, function (i, x, y) {
         g.fillStyle = col;                                          // house-colour pauldron
         g.beginPath(); g.ellipse(x, y + 0.4, 2.2, 1.6, 0, 0, 6.29); g.fill();
