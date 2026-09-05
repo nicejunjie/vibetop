@@ -24,7 +24,9 @@ def _mk(mgr, user, **kw):
     ent = {"id": kw.get("id", "x1"), "term": kw.get("term", 1),
            "text": kw.get("text", "continue"),
            "at": kw.get("at", time.time() + 60), "created": time.time(),
-           "status": kw.get("status", "pending"), "fired": None, "error": None}
+           "status": kw.get("status", "pending"), "fired": None, "error": None,
+           "every": kw.get("every"), "until": kw.get("until"),
+           "runs": kw.get("runs", 0)}
     return ent
 
 
@@ -238,8 +240,13 @@ def test_run_marks_missed_past_the_grace_window(mgr, home, monkeypatch):
     monkeypatch.setattr(mgr, "_inject_terminal",
                         lambda *a: called.append(a) or (True, None))
     mgr._run_due_schedules(now)
-    assert mgr._read_schedules()["u"][0]["status"] == "missed"
+    ent = mgr._read_schedules()["u"][0]
+    assert ent["status"] == "missed"
     assert not called                       # nothing typed into the terminal
+    # ...and it must still be READABLE tomorrow: _prune_schedules ages history
+    # from `fired`, so a resolved entry without one is swept out of the panel
+    # immediately and the user never learns the message did not go.
+    assert ent["fired"] == now
 
 
 def test_one_bad_entry_does_not_abort_the_pass(mgr, home, monkeypatch):
@@ -295,6 +302,146 @@ def test_idle_pass_does_not_rewrite_when_nothing_expired(mgr, home, monkeypatch)
                         lambda reg: (writes.append(1), real_write(reg))[1])
     assert mgr._prune_expired_schedules() is False
     assert writes == []
+
+
+# ---- loops (every + until) --------------------------------------------------
+# A loop is ONE registry entry that the sweeper re-arms, not N queued messages:
+# it counts once against the pending cap, keeps the idle reaper off the terminal
+# for its whole life, and is cancelled with one ×.
+
+def test_create_accepts_a_loop_and_stores_its_shape(client, mgr, home, op_cookie):
+    now = time.time()
+    status, body = client.post("/api/terminals/schedules",
+                               {"term": 1, "text": "continue", "at": now + 300,
+                                "every": 300, "until": now + 3600},
+                               cookie=op_cookie)
+    assert status == 200
+    ent = _read_reg(mgr)[mgr.APP_USER][0]
+    assert ent["every"] == 300 and ent["runs"] == 0
+    assert abs(ent["until"] - (now + 3600)) < 1
+
+
+def test_a_one_shot_still_records_no_loop(client, mgr, home, op_cookie):
+    """The added fields must not change what a plain scheduled message is."""
+    client.post("/api/terminals/schedules",
+                {"term": 1, "text": "continue", "at": time.time() + 300},
+                cookie=op_cookie)
+    ent = _read_reg(mgr)[mgr.APP_USER][0]
+    assert ent["every"] is None and ent["until"] is None
+
+
+@pytest.mark.parametrize("extra,frag", [
+    ({"every": "soon", "until": 1}, "every must be a number"),
+    ({"every": 30, "until": 1}, "at most once every"),
+    ({"every": 300}, "needs an end time"),
+    ({"every": 300, "until": "later"}, "needs an end time"),
+    ({"every": 300, "until": 0}, "before the first run"),
+    ({"every": 300, "until": 4 * 10 ** 9}, "days out"),
+    ({"every": 60, "until": 10 ** 9}, "at most"),          # runs cap
+])
+def test_rejects_bad_loop_input(client, home, op_cookie, extra, frag):
+    body = {"term": 1, "text": "x", "at": time.time() + 300}
+    body.update(extra)
+    if body.get("until") in (10 ** 9, 4 * 10 ** 9):
+        body["until"] = time.time() + (86400 if body["until"] == 10 ** 9 else 60 * 86400)
+    status, resp = client.post("/api/terminals/schedules", body, cookie=op_cookie)
+    assert status == 400 and frag in resp["error"]
+
+
+def test_next_slot_walks_the_grid_not_the_wall_clock(mgr):
+    # A pass that runs 7s late must still re-arm on the original minute.
+    assert mgr._sched_next_slot(1000.0, 300, 1007.0) == 1300.0
+    assert mgr._sched_next_slot(1000.0, 300, 1300.0) == 1600.0   # exactly on a slot
+    assert mgr._sched_next_slot(1000.0, 300, 900.0) == 1000.0    # not due yet
+    # A long outage collapses to ONE future slot, not a backlog of firings.
+    assert mgr._sched_next_slot(1000.0, 300, 99000.0) == 99100.0
+
+
+def test_a_corrupt_interval_cannot_make_a_tight_fire_loop(mgr):
+    """`every` is re-armed to `at + every`, so 0 (or a hand-edited 1) would make
+    the entry due again every single tick. Below the floor it is not a loop."""
+    assert mgr._sched_every({"every": 0}) is None
+    assert mgr._sched_every({"every": 1}) is None
+    assert mgr._sched_every({"every": "x"}) is None
+    assert mgr._sched_every({"every": mgr.SCHED_MIN_INTERVAL}) == mgr.SCHED_MIN_INTERVAL
+
+
+def test_a_loop_re_arms_instead_of_finishing(mgr, home, monkeypatch):
+    now = time.time()
+    mgr._write_schedules({"u": [_mk(mgr, "u", id="L", at=now - 1, every=300,
+                                    until=now + 3600)]})
+    sent = []
+    monkeypatch.setattr(mgr, "_inject_terminal",
+                        lambda user, n, text: (sent.append(text), (True, None))[1])
+    mgr._run_due_schedules(now)
+    ent = mgr._read_schedules()["u"][0]
+    assert sent == ["continue"]
+    assert ent["status"] == "pending"                  # still armed
+    assert ent["runs"] == 1 and ent["fired"]
+    assert ent["at"] == pytest.approx((now - 1) + 300)
+
+
+def test_a_loop_finishes_on_its_last_slot(mgr, home, monkeypatch):
+    now = time.time()
+    mgr._write_schedules({"u": [_mk(mgr, "u", id="L", at=now - 1, every=300,
+                                    until=now + 60, runs=4)]})
+    monkeypatch.setattr(mgr, "_inject_terminal", lambda *a: (True, None))
+    mgr._run_due_schedules(now)
+    ent = mgr._read_schedules()["u"][0]
+    assert ent["status"] == "sent" and ent["runs"] == 5   # next slot is past `until`
+
+
+def test_a_failed_run_does_not_end_the_loop(mgr, home, monkeypatch):
+    """The terminal may simply be stopped right now and back before the next
+    slot — a one-shot gives up, a loop keeps its appointment."""
+    now = time.time()
+    mgr._write_schedules({"u": [_mk(mgr, "u", id="L", at=now - 1, every=300,
+                                    until=now + 3600)]})
+    monkeypatch.setattr(mgr, "_inject_terminal",
+                        lambda *a: (False, "terminal 1 is not running"))
+    mgr._run_due_schedules(now)
+    ent = mgr._read_schedules()["u"][0]
+    assert ent["status"] == "pending" and "not running" in ent["error"]
+    assert ent["at"] == pytest.approx((now - 1) + 300)
+
+
+def test_a_loop_skips_slots_it_slept_through_instead_of_machine_gunning(
+        mgr, home, monkeypatch):
+    """Wake a laptop after two days and a 5m loop owes ~576 messages. It must
+    type NONE of them and simply re-arm on the next future slot."""
+    now = time.time()
+    start = now - 2 * 86400
+    mgr._write_schedules({"u": [_mk(mgr, "u", id="L", at=start, every=300,
+                                    until=now + 3600, runs=3)]})
+    called = []
+    monkeypatch.setattr(mgr, "_inject_terminal",
+                        lambda *a: called.append(a) or (True, None))
+    mgr._run_due_schedules(now)
+    ent = mgr._read_schedules()["u"][0]
+    assert not called                       # nothing typed into the terminal
+    assert ent["status"] == "pending" and ent["runs"] == 3
+    assert ent["at"] > now and ent["at"] == pytest.approx(
+        mgr._sched_next_slot(start, 300, now))
+
+
+def test_a_loop_that_slept_past_its_end_is_missed_not_sent(mgr, home, monkeypatch):
+    now = time.time()
+    mgr._write_schedules({"u": [_mk(mgr, "u", id="L", at=now - 2 * 86400, every=300,
+                                    until=now - 86400)]})
+    monkeypatch.setattr(mgr, "_inject_terminal", lambda *a: (True, None))
+    mgr._run_due_schedules(now)
+    assert mgr._read_schedules()["u"][0]["status"] == "missed"
+
+
+def test_a_pending_loop_counts_once_against_the_cap_and_the_reaper(
+        client, mgr, home, op_cookie):
+    now = time.time()
+    client.post("/api/terminals/schedules",
+                {"term": 1, "text": "continue", "at": now + 300,
+                 "every": 300, "until": now + 30 * 3600}, cookie=op_cookie)
+    reg = _read_reg(mgr)
+    assert len(reg[mgr.APP_USER]) == 1
+    assert mgr._user_has_pending_schedule(mgr.APP_USER)
 
 
 # ---- injection (real socket) ------------------------------------------------

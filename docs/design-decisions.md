@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_238 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_239 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -261,6 +261,7 @@ _238 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Fourteen troopers shared one value, and the palette entry that was supposed to fix it moves 6% of a man](#fourteen-troopers-shared-one-value-and-the-palette-entry-that-was-supposed-to-fix-it-moves-6-of-a-man)
 - [A rotor blur nobody could see still counted as the helicopter's body](#a-rotor-blur-nobody-could-see-still-counted-as-the-helicopters-body)
 - [RA2's veteran multipliers apply ONCE, not once per rank — and the elite weapon stacks on top](#ra2s-veteran-multipliers-apply-once-not-once-per-rank-and-the-elite-weapon-stacks-on-top)
+- [A repeat schedule needed one new button, because the quick row was already an interval dialer (2026-09-05)](#a-repeat-schedule-needed-one-new-button-because-the-quick-row-was-already-an-interval-dialer-2026-09-05)
 
 <!-- END TOC -->
 
@@ -9597,3 +9598,61 @@ un-RA2 and the thing that hides a dropped `Burst=`.
 **The general lesson.** "Cumulative" in a spec means cumulative over
 *something*; find out what before implementing it. Phobos's own docs repeat the
 same ambiguous wording, so the trap survives being read twice.
+
+## A repeat schedule needed one new button, because the quick row was already an interval dialer (2026-09-05)
+
+**Ask.** "Add a loop option to the terminal scheduler — the time becomes the
+interval, and it needs an end time. Minimum buttons added, maximum reuse."
+
+**The observation that decides the design.** The panel's
+`+/− · Now · 1m · 5m · 30m · 1h · 5h` row does not set a *time*; it sets an
+**offset**, which it then folds into the `datetime-local` above it. An interval
+is that same offset with the folding removed. So loop mode is not a new control
+surface — it is the existing one, minus a conversion:
+
+| | one-shot | 🔁 loop |
+|---|---|---|
+| quick row | offset, folded into the date | **the interval** (`every 5h` chip) |
+| `datetime-local` | `at` | **`until`** |
+| `Now` | reset the date to this minute | *hidden* — an interval has no "now" |
+
+**Fix.** One `🔁` toggle in the action row (not the quick row: that row is
+measured to the pixel at 320px, and an eighth control wraps it). Zero new
+inputs. The chip is deliberately a **read-out, not a field** — a second way to
+type the interval is a second thing to keep in sync with the buttons that
+already set it. The `at`→`until` relabel is load-bearing rather than decoration:
+one input carrying two meanings with nothing on screen saying which is how you
+schedule a message for the moment you meant it to *stop*.
+
+**Rejected.** *A second `datetime-local` for the end time* — honest, but it adds
+an input to say what the existing one can say, and leaves the quick row still
+folding an offset into a date that is now called "first run". *Making the quick
+row act on whichever field has focus* — free end-time editing, but tapping `+5h`
+meaning the interval while `until` quietly holds focus changes the wrong number
+with no feedback. *Keeping the loop on after a successful create* — inheriting a
+time was already judged a hazard here (the panel resets it on purpose);
+inheriting a **loop** turns the next quick one-off into a repeating one.
+
+**The two bugs that only a rendered frame showed.** Tapping `+5h` then `🔁` read
+`every 4h 59m`. The carry-over measured `field − Date.now()`, but the field
+resolves to the *minute*, so it is already up to 59s behind a live clock; the
+offset must be measured from the current **minute**. And the first cut set
+`fired` only on a real injection attempt — which silently broke the *existing*
+one-shot `missed` path, since `_prune_schedules` ages history from `fired`, so a
+missed message would have been swept out of the panel before anyone read it.
+
+**Server: one entry the sweeper re-arms.** A loop is not N queued messages — it
+is one row whose `at` moves to the next slot while it stays `pending`, so it
+counts once against the pending cap, holds the idle reaper off its terminal for
+its whole life, and is cancelled with one `×`. `_sched_next_slot` steps the
+`at + k·every` **grid** rather than adding to the wall clock: a pass running 7s
+late still re-arms on the original minute, and a two-day suspend collapses to
+the next *future* slot in one step instead of typing 576 owed messages into the
+shell. A failed injection does **not** end a loop (unlike a one-shot) — the
+terminal may simply be stopped now and back before the next slot.
+
+**The safety valve.** `_sched_every()` re-validates the stored interval on every
+read, not just at creation, because the re-arm is `at + every`: a corrupt or
+hand-edited `0` would make the entry due again on every 15s tick — a message
+typed into someone's PTY four times a minute, forever. Below the floor it is not
+a loop, so it fires once and finishes.
