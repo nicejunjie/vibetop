@@ -574,11 +574,42 @@ function compute(recs) {
 
   // ── peer-vs-self: is a unit's best silhouette match a PEER, or itself at
   //    another bearing? No threshold to tune — audit §2's most diagnostic line.
+  //
+  // IT USED TO MEASURE ASPECT, NOT IDENTITY, and it took a fleet of tugboats
+  // to expose it. The two sides were not the same quantity:
+  //   self  = mean over the 28 pairs of DIFFERENT bearings
+  //   peer  = mean over the 8 bearings, SAME bearing for both units
+  // Rotating an elongated hull changes its mask enormously, so its self term
+  // collapses while the peer term does not. For a centred rectangle of aspect
+  // a the orthogonal term is exactly 1/(2a-1) — 1.00 at a=1, 0.26 at a=2.4.
+  // MEASURED over all 41 units before this fix: corr(aspect, selfIoU) = -0.737
+  // and corr(aspect, peersBeatingSelf) = +0.529; flagged units averaged aspect
+  // 2.29 against 1.13 for the rest. In other words it punished units for being
+  // DIRECTIONAL, which is the property that makes a silhouette readable, and
+  // it would have argued against every correct proportion fix forever.
+  //
+  // Both sides now average over the SAME set of cross-bearing pairs, so the
+  // aspect term appears on both and cancels. The question it asks is unchanged
+  // in spirit — "across every relative orientation, is a peer's shape closer to
+  // mine than my own rotations are?" — and it still has no threshold to tune.
+  const crossPair = new Map();
+  const ckey = (a, b) => a + '>' + b;
+  const crossIoU = (a, b) => {
+    const ck = ckey(a, b);
+    if (crossPair.has(ck)) return crossPair.get(ck);
+    let s2 = 0, n2 = 0;
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) {
+      if (a === b && i === j) continue;          // self at its own bearing is 1 by definition
+      s2 += iou(M(a, i), M(b, j)); n2++;
+    }
+    const v2 = s2 / n2; crossPair.set(ck, v2); return v2;
+  };
+  for (const k of keys) unit[k].selfIoUCross = round(crossIoU(k, k), 4);
   const peerVsSelf = { total: 0, vehicle: 0, infantry: 0, naval: 0, air: 0 };
   for (const k of keys) {
     const peers = keys.filter((j) => j !== k && grp[j] === grp[k]);
     if (!peers.length) continue;
-    const beaten = peers.filter((j) => P(k, j) > unit[k].selfIoU);
+    const beaten = peers.filter((j) => crossIoU(k, j) > unit[k].selfIoUCross);
     const best = peers.reduce((x, j) => (P(k, j) > P(k, x) ? j : x), peers[0]);
     unit[k].bestPeer = unit[best].name;
     unit[k].bestPeerIoU = round(P(k, best), 4);
@@ -727,6 +758,16 @@ function compute(recs) {
       'colour.vehicleAchromatic': veh.filter((k) => !ACHROMATIC_EXEMPT.has(k) && colByUnit[k].chroma < ACHROMATIC).length,
     },
     detail: {
+      // Per-unit numbers, exported so the METRICS themselves can be audited.
+      // Without these you cannot ask "is this metric measuring identity, or is
+      // it measuring aspect?" — which is exactly the question the naval pass
+      // raised and could not answer from the tool's own output.
+      perUnit: Object.fromEntries(keys.map((k) => [k, {
+        group: grp[k], aspect: unit[k].broadsideAspect, selfIoU: unit[k].selfIoU,
+        selfIoUCross: unit[k].selfIoUCross,
+        bestPeer: unit[k].bestPeer, bestPeerIoU: unit[k].bestPeerIoU,
+        peersBeatingSelf: unit[k].peersBeatingSelf,
+      }])),
       counts: { units: keys.length, sprites: recs.length,
                 perGroup: Object.fromEntries(groups.map((g) => [g, keys.filter((k) => grp[k] === g).length])) },
       iouGroups: ioum,
