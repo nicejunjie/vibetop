@@ -5144,7 +5144,14 @@
                                   // by his §1.5 levers now, not by his proportions.
     spy:          [0.76, 1.00],   // i-S 13x25 — the slightest figure on the field
     rocketeer:    [1.12, 0.86],   // i-S 16x24 — the shortest, broadened by the pack
-    dog:          [1.00, 1.00],   // i-XS, quadruped: already the one that reads
+    dog:          [0.84, 0.84],   // i-XS quadruped. RA2 draws [ADOG] 21 wide against
+                                  // [E1]'s 12 — 1.75x the man. Ours was 39 against 17,
+                                  // 2.29x, the widest thing in the infantry group by
+                                  // 31%. This row existed all along and NOTHING read
+                                  // it: STATURE is applied on the humanoid path and a
+                                  // quadruped does not take it, so [1.00,1.00] read as
+                                  // a deliberate "leave him be" instead of dead config.
+                                  // bakeDog reads it now.
     _:            [1.00, 1.00],
   };
 
@@ -7434,6 +7441,17 @@
   function bakeDog(col, fac, phase, dir, state) {
     var s = unitCanvas(), g = s.g, cx = s.w / 2, by = s.h - UPAD;
     g.translate(cx, by); g.scale(USC_I, USC_I); g.translate(-cx, -by);
+    // ...and the dog's own STATURE, about the same ground anchor, so coat,
+    // legs, tail and shadow all move together and the paws stay on the floor.
+    // The table has carried a `dog` row since it was written and NOTHING read
+    // it: the humanoid path applies STATURE, and a quadruped does not go
+    // through the humanoid path. It sat at [1.00, 1.00], so it looked like a
+    // deliberate "leave him alone" rather than the dead config it was. Setting
+    // it to anything at all moved not one pixel, which is a bad way to find
+    // out — the sweep that found this had to prove the EDIT had landed before
+    // it could trust its own null result.
+    var DSTA = STATURE.dog || STATURE._;
+    g.translate(cx, by); g.scale(DSTA[0], DSTA[1]); g.translate(-cx, -by);
 
     var oct = INF_OCT[(((dir | 0) % 8) + 8) % 8];
     var oa = oct * Math.PI / 4;
