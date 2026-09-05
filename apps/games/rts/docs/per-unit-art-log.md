@@ -831,3 +831,209 @@ and the picture metric disagreed about this change, and the picture won.
 Live frames at zoom 1 and ZMIN with four of each airframe: no page errors, and
 the three Directorate aircraft still separate instantly at furthest zoom (the
 rotor disc is the tell).
+---
+
+# The eight nobody had ever looked at — six naval, two Collective infantry
+
+Amphibious Transport, Aircraft Carrier, Dolphin, Dreadnought, Landing Craft,
+Sea Scorpion, Conscript, Crazy Ivan. Both surfaces each, against their own §2
+rows, with the clause measured wherever it could be measured rather than
+judged. **Two real defects, six units correct, three findings recorded and not
+acted on.** New instrument: `tools/unit-probe.js` — see its header; the ASCII
+map is what found the first defect, and no contact sheet would have.
+
+## FIXED — the Dolphin's eye was baking as a detached blob in the water
+
+`[DLPH]`, §2.3: *"Organic — a curved body with a dorsal fin, no straight
+lines"*, budget *"no orthogonal edges anywhere; fin >= 3 px above the back."*
+
+The fin is fine (6 rows clear of the back against a 3 px budget). The eye was
+not. It was drawn as
+
+    var nq = P(L * 0.98, 0, FR + 1.2);            // her BEAK, in plan space
+    g.ellipse(nq[0] - 4.0, nq[1] - 1.8, ...)      // ...then shoved 4 SCREEN px left
+
+so the offset points the same way on the monitor whichever way the animal is
+pointing. At every bearing where her snout runs leftward it walks straight off
+her. Measured on the baked sheet, octant by octant:
+
+| octant | before | after |
+|---|---|---|
+| 3 (broadside, the gated one) | **44**x15, eye a detached 2x3 blob 4 px clear | **38**x15 |
+| 4 | 34x19, blob detached | 28x19 |
+| 5 | 13x23, blob detached | 12x22 |
+| 0 / 1 / 2 / 6 / 7 | attached | unchanged |
+
+So at the octant the aspect and IoU gates actually read, **16% of the Dolphin's
+measured width was a bug** — a floating black rectangle, which is also the one
+orthogonal edge on the animal her §2.3 row forbids.
+
+**The block's own header is a paragraph about exactly this class of bug** — the
+body and fin were moved out of screen space *because* they never turned — and
+the eye was missed in that pass. It is now `P(L * 0.70, nearS * W * 0.30,
+FR + 2.4)`: just abaft the melon, inside the 0.475 half-beam the DOL profile
+has there, on whichever flank the camera can see.
+
+Effect on the gates: `iou.naval.mean` 0.4022 -> **0.4018**, nothing else moved;
+`peerVsSelf.naval` still 5, `aspect.navalOutsideRA2Band` and
+`size.navalOutsideRA2Band` still 0. Honest note: the Typhoon's own
+`peersBeatingSelf` went 1 -> 2 on a 0.0012 IoU move, because a Dolphin without a
+6-px spur is a slightly cleaner lozenge. The headline count is unchanged and
+0.0012 is noise, but it is recorded rather than hidden.
+
+## FIXED — the Amphibious Transport's cargo well was painted near-black
+
+`[SAPC]`, §2.4: *"An open-topped hovercraft — a fat inflatable skirt round a
+**RED (HOUSE) INNER DECK** with visible seat blocks"*, budget *"skirt a
+continuous rounded band round the whole hull; **deck cavity visible as a
+house-hued interior**."*
+
+The skirt is right — a real `stadium()` band round the whole plan. The interior
+was one flat plate of `#1d201a`: **value 0.11, the darkest thing on the craft.**
+The named identity feature was painted black, and every blue pixel a player
+could see was on the two rubbing strakes and the bridge roof — so at 13.0%
+owner colour she read as an olive hull with trim stripes, which is the Landing
+Craft's read, not a troop hovercraft's.
+
+**This is the Tesla Trooper's carapace again, one day later.** The comment sat
+directly above the line and named the part correctly — `// the open cargo well,
+to starboard of the bridge` — and the fill under it was black. A §2 clause with
+no measurement behind it went unmet, and the code knew what the part was.
+
+The dark box stays as the COAMING (a cavity needs a rim or the colour is just
+another stripe) with an owner-coloured floor inside it and two thwarts across
+that floor, which is the "visible seat blocks" half of the same sentence. All of
+it sits inside the hull outline at z ~ +1, so **not one silhouette pixel moves**
+and no mask metric can see it: ownerPct 0.1303 -> **0.1567**, against a 0.27
+ceiling; `hue.maxImpostor` unchanged at 0.0051. On the cameo the change is the
+whole difference between "olive thing with an arrow on it" and "an open well
+with seats in it".
+
+## Looked at, and deliberately LEFT ALONE — six of eight
+
+* **Crazy Ivan** `[IVAN]`. All three clauses measured MET, and it is worth
+  recording the numbers because two of the three read like they would fail.
+  *House fraction >= 35%*: **37.45%** (RA2's own is 47.9%, but 35 is what the
+  row asks). *Ushanka flaps break the head outline >= 2 px each side*: crown
+  ellipse `rx 2.8`, flaps reach 4.9 — **2.1 px clear each side**, and the code
+  carries `// flap: >=2 px clear of the crown (§2.2)` on the line that does it.
+  *Bundle >= 4x3 at waist height*: three sticks spanning 3.98 with a 4.4
+  lashing band, 4.9 tall — measured on the sheet as a **4x5 tan block at rows
+  13-17**. The block also records why the bundle is neutral tan (red is a house
+  colour here) and why it sits at belt height (at hand height it collided with
+  Tanya's pistols and cost a peer-vs-self). Nothing to do.
+* **Conscript** `[E2]`. *Legs >= 20 hue-degrees off the GI's olive*: measured
+  off both sheets, the Conscript's trousers run **h30-33** (`#654621`,
+  `#342310`, `#7e552c`) and the G.I.'s **h84-92** (`#232d14`, `#2f421e`,
+  `#475f2e`) — a **56-degree** gap against a 20-degree budget. *Cap flat, not
+  domed*: his cap is **7 px wide over 5 rows**; the G.I.'s pot helmet beside it
+  is **5 px wide over 7 rows**. The two are inverted, which is exactly the
+  separation the row asks for. Correct.
+* **Aircraft Carrier** `[CARRIER]`. *Deck a single unbroken flat plane >= 80%
+  of length*: one `fpoly` plane at `FR + 2.6` running the full plan at 1.02 of
+  its length, ~88% of the sprite's width at broadside, with the dashed
+  centreline and the angled landing strip clipped inside it. *3 visible parked
+  airframes*: three, countable, on both surfaces — the cameo shows all three.
+  Correct, and the block's comment already records the 1.78 -> 1.42 deck-width
+  correction that got it there.
+* **Dreadnought** `[DRED]`. *Two launch boxes >= 10x10 px, countable, standing
+  proud of the deck*: measured at broadside, **two boxes 32 px x 14 px with 2 px
+  of daylight between them** over rows 6-13, each with a house-coloured launch
+  head and three exhaust tubes. Comfortably over budget and plainly countable on
+  both surfaces. The boxes being wider than tall is a **recorded decision** —
+  the block explains that 25-unit towers rendered 109x67 (aspect 1.63 against
+  RA2's 2.96) and "read as a container ship, not a battleship". Not overridden.
+* **Landing Craft** `[LCRF]`. *Ramp plane distinct from the deck*: the ramp
+  bakes at value **0.6-0.7** against a deck at **0.1-0.3** — the strongest value
+  step on the hull. *Visible cargo when loaded*: drawn. Both clauses MET on the
+  sprite. Its cameo is a separate finding, below.
+* **Sea Scorpion** `[HYD]`. *Shortest armed hull afloat*: 52 px broadside
+  against the Typhoon's 66 and the Destroyer's 89 — the shortest armed hull, by
+  a class. Its gun is the finding below. Its aspect is **0.806 of RA2, the worst
+  in the fleet and the number `aspect.navalWorstOffRA2` (0.194 against a 0.2
+  ceiling) is reporting** — so nothing on this hull's proportions should be
+  touched without moving that gate first.
+
+## Recorded disagreement, NOT changed
+
+**The Sea Scorpion's gun does not match the Flak Track's, and both are
+deliberate.** §2.4 asks `[HYD]` for *"the same gun read as the Flak Track"* and
+*"gun matches the Flak Track's silhouette"*. Measured off the two baked sheets
+at the same bearing:
+
+| | barrels | elevation off horizontal |
+|---|---|---|
+| Flak Track | **one**, fat (3.6 px stroke) | **~77°**, near-vertical |
+| Sea Scorpion | **two**, thin (2.4 px) | **~48°** |
+
+Neither is careless. The Sea Scorpion's block cites `[HYD]`'s own sprite —
+*"the two tubes standing at roughly 45 degrees off the tub"* — and the Flak
+Track's near-vertical jib is the entry already in this log's "left alone"
+section, where the shallower angle *"left its crown the same fat box the IFV
+wears — the two lightest vehicles in the game, and the pair the gate scored at
+0.709."* Two cited decisions that satisfy everything except each other, and the
+clause that asks them to match has no measurement behind it. Changing either
+one undoes a measured result to satisfy a sentence. Written down instead.
+
+**The Landing Craft's ONE identity feature is not in its cameo.** §2.3 gives it
+*"an open bow ramp"* and nothing else; the sprite delivers it. The plate does
+not. At the shared cameo bearing (`ICON_FACE_SIDE = 0`) the bow points to the
+**bottom-right**, which is the one corner the caption bar owns. Measured: bbox
+68x43, so `k = min(57/68, 44/43) x 1.35 = 1.13`, drawn 77 px wide on a 60 px
+plate — **27% of the ramp is cropped off the right edge and ~29% of what is
+left is under "LANDING CRAFT"**. What a player sees is a pile of olive boxes on
+a dark hull with a blue band, which is why she is in **three of the Directorate
+sidebar's worst pairs** (Chrono Miner 41.8 greyed, Aegis Cruiser 43.5 greyed /
+63.0 lit) — the Chrono Miner is also a low hull with a boxy load and the Aegis
+is also a long dark hull with a blue band.
+
+The obvious lever is a per-unit cameo bearing in `iconFaceOf`, and it is one
+line. **It was not taken, because per-class camera is a shipped design
+decision** — this log's own scoreboard counts "the CAMERA varies by class
+(infantry front-on portraits, everything else three-quarter)" as one of the four
+RA2 differences that were closed. One ship facing the other way in a grid of
+forty breaks it. If it is ever revisited, revisit it for the whole ship class at
+once, and measure the sidebar before and after.
+
+## MEASURED — "fitted items are barely rescaled" is false for six units
+
+`cameoFor` turns interpolation OFF only on the infantry portrait path
+(`g.imageSmoothingEnabled = !fill`), justified by *"Fitted items are barely
+rescaled, so they keep the smoothing."* The Dolphin's cameo is visibly MUSH
+beside the Sea Scorpion's and the Dreadnought's — a soft grey smear where every
+other plate is crisp pixel art. It is the same defect this log's "Fixed" table
+records for infantry (*"a grey smear for a helmet"*), and the nearest-neighbour
+cure was scoped to `fill` only.
+
+So the premise was measured. `k = min((57)/w, (44)/h) x 1.35`, capped at 3.0,
+over every non-infantry unit's own oct-0 bbox:
+
+| unit | bbox | k |
+|---|---|---|
+| Hornet | 20x14 | **3.00** |
+| **Dolphin** | 30x20 | **2.56** |
+| Terror Drone | 32x21 | **2.40** |
+| Grizzly | 43x27 | **1.79** |
+| Harrier | 44x29 | **1.75** |
+| **Sea Scorpion** | 46x33 | **1.67** |
+| Typhoon | 52x27 | 1.48 |
+| *(the other 20)* | | 0.63 - 1.43 |
+
+**Six of twenty-seven are smoothed upscales, three of them past 2.4x.** The fix
+is one clause — `!fill && k < 1.5` — but it is a SHARED path, and two of the six
+are air units another agent holds right now. It belongs in one deliberate pass
+over all six with `cameo-legibility.js` measured either side, not smuggled in
+under a naval review. Recorded with the table so nobody has to re-derive it.
+
+## The thing that nearly became a seventh finding
+
+Every ship's baked sprite includes its **bow wave**, and it is large: 8-13 rows
+of near-white foam below the hull, which is 20-25% of the Carrier's measured
+height. The first read is "every naval aspect number is measured off a mask
+that is a quarter wake". It is not a defect. It is deliberate and documented
+(*"A bow wave on every surface hull ... so a ship reads as sitting IN
+something"*), it applies uniformly to all nine hulls, the whole fleet's
+proportions were tuned with it in, and the block already records the one time it
+DID cause a bug — the Landing Craft's wave becoming her widest protrusion and
+being scored as her identity feature. Read the fleet's numbers knowing the wake
+is in them; do not take it out to make an aspect look better.
