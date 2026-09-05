@@ -5369,3 +5369,71 @@ test("every VERSES row matches rules.ini exactly", () => {
   assert.ok(n >= 20, `only ${n} warhead rows matched by name — the parser drifted`);
   assert.deepStrictEqual(wrong, [], "warhead rows disagree with rules.ini:\n" + wrong.join("\n"));
 });
+
+// ---- Phase 1: a rank or an order that silently does not apply ---------- //
+
+test("force-firing at bare ground honours VETERAN rate of fire, not just elite", () => {
+  // `fireGround` carried `(u.rank === 2 ? 0.6 : 1)` — an ELITE-ONLY multiplier
+  // left behind when the rest of the file moved to [General] VeteranROF=0.6
+  // PER LEVEL (vetRof, used at both real fire sites). So a rank-1 veteran
+  // force-firing at the ground reloaded at rookie cadence while the same unit
+  // shooting a target did not. Same unit, same weapon, two different rules.
+  //
+  // Measured as the INTERVAL BETWEEN SHOTS, not as `u.cool` at some instant:
+  // rate of fire is the observable, and the cooldown field decays every tick.
+  const H = W.__rtsTest, N = W.__rtsNet;
+  const g = H.begin(7311, "normal");
+  H.give(0, 20000);
+  const gap = (rank) => {
+    const u = H.spawn("lancer", 0, 20 + rank * 5, 20);
+    u.rank = rank;
+    H.step(2);
+    N.emit("ffire", { u: [u.id], x: u.x + 2, y: u.y });
+    H.step(N.delay() + 1);
+    const at = [];
+    let last = -1;
+    for (let i = 0; i < 4000 && at.length < 3; i++) {
+      H.step(1);
+      if (u.fireAt !== last) { last = u.fireAt; at.push(u.fireAt); }
+    }
+    assert.ok(at.length >= 3, `rank ${rank} should get off three shots`);
+    return at[2] - at[1];                      // a settled interval, not the first
+  };
+  const base = gap(0);
+  assert.ok(base > 1, "a rookie has a real reload gap to compare against");
+  // RA2 [General] VeteranROF=0.6 per level, VeteranCap=2.
+  const vet = gap(1);
+  assert.ok(Math.abs(vet - base * 0.6) <= 1,
+    `a VETERAN must reload 0.6x (expected ~${base * 0.6}, got ${vet}) — the bug gave it the full rookie gap`);
+  const elite = gap(2);
+  assert.ok(Math.abs(elite - base * 0.36) <= 1,
+    `an elite reloads 0.6^2 (expected ~${base * 0.36}, got ${elite}), the same compounding both real fire paths use`);
+});
+
+test("an aircraft with missiles left can still be ordered home to its own Airforce Command", () => {
+  // MEASURED before the fix, twice: the click produced `order: null`. There was
+  // no `wantsOwn` rung for aircraft, so a right-click on your own Airforce
+  // Command fell through to a plain `move`, and that move is discarded for an
+  // aircraft in its pad cycle. A click that does nothing and says nothing.
+  //
+  // The test deliberately leaves a missile on the rack. With EMPTY racks the
+  // auto-return already fires (`u.ammo <= 0 && pad -> u.rtb = true`), so an
+  // out-of-ammo assertion passes with or without the fix — it proves nothing.
+  // Holding ammo is the case where the order is the ONLY thing that can send
+  // it home, which is exactly what RA2 lets you do.
+  const H = W.__rtsTest, N = W.__rtsNet;
+  const g = H.begin(7312, "normal");
+  H.give(0, 20000);
+  const s0 = g.start[0];
+  const afc = H.build("airforce", 0, s0.x + 2, s0.y + 2);
+  assert.ok(afc, "airforce command placed");
+  const h = H.spawn("harrier", 0, s0.x, s0.y);
+  assert.ok(h.landed, "it starts parked");
+  h.landed = false; h.rtb = false; h.ammo = 1;      // airborne, one missile left
+  h.x = s0.x + 8; h.y = s0.y + 8;
+  H.step(2);
+  assert.equal(h.rtb, false, "with ammo left it loiters — nothing sends it home on its own");
+  N.emit("own", { u: [h.id], id: afc.id });
+  H.step(N.delay() + 1);
+  assert.equal(h.rtb, true, "the order sends it home to rearm instead of silently doing nothing");
+});

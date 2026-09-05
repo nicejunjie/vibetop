@@ -25839,6 +25839,13 @@
             u.repathAt = -999; u.path = null;
             requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy));
             nown++; what = 'Going in for repairs';
+          } else if (ud.ammo && u.pad && tgt.kind === 'b' && tgt.type === 'airforce') {
+            // `rtb` is the same flag the auto-return and a Stop order both set;
+            // the pad cycle does the rest (fly home, land on its own slot,
+            // rearm one missile per `reload` ticks).
+            u.guard = false; u.stopped = false; u.wp = null; u.order = null;
+            u.rtb = true; u.path = null; u.repathAt = -999;
+            nown++; what = u.ammo ? 'Returning to rearm' : 'Out of missiles — heading home';
           } else if (ud.ivan && !tgt.bomb) {
             u.guard = false; u.stopped = false; u.wp = null;
             u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: 1 }; u.repathAt = -999; u.path = null;
@@ -29146,7 +29153,7 @@
   function fireGround(g, u, gx, gy) {
     var d = UNITS[u.type];
     var spec = (u.deployed && d.dep) ? d.dep : d;    // ground fire is always the primary weapon
-    u.cool = spec.rate * (u.rank === 2 ? 0.6 : 1);
+    u.cool = spec.rate * vetRof(u.rank);         // [General] VeteranROF=0.6 per level, as both real fire paths do
     u.fireAt = g.tick;
     if (!headless) {
       g.shots.push({ x: u.x, y: u.y, tx: gx, ty: gy, t: 0, life: spec.bomb ? 14 : 7, id: g.nextId++,
@@ -29243,7 +29250,15 @@
                // sent to a depot stopped 3.0 cells off the pad and was never
                // repaired, because the depot only treats what is touching it.
                (isHarv(u) && tgt.kind === 'b' && tgt.type === 'refinery') ||
-               (ud.cls === 'v' && !u.air && tgt.kind === 'b' && tgt.type === 'depot');
+               (ud.cls === 'v' && !u.air && tgt.kind === 'b' && tgt.type === 'depot') ||
+               // A pad aircraft sent home. RA2 lets you recall a plane at any
+               // time; ours had no rung at all, so the click fell through to a
+               // plain `move` — which is then discarded for an aircraft already
+               // in its pad cycle, leaving `order: null` and no feedback.
+               // MEASURED twice before the fix. With EMPTY racks the auto-return
+               // masks it (`u.ammo <= 0 && pad`); with missiles left the order is
+               // the only thing that can send it home.
+               (ud.ammo && u.pad && tgt.kind === 'b' && tgt.type === 'airforce');
       });
       if (wantsOwn) { cmd('own', { u: idsOf(units), id: tgt.id }); return; }
     }
