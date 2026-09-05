@@ -23,6 +23,7 @@ unit came back "(not in the panel)" — the rig's fault, not the art's).
 | **Grizzly** (and all vehicles) | cameo used `ICON_FACE 4`, "front-on" — a tank becomes a symmetrical lump with no barrel and no hull. Our own side bearings read as tanks instantly | bearing is per class now: vehicles 3/4 side, infantry front-on (RA2 shoots infantry as portraits) |
 | **V3 Launcher** | missile lay near-flat on the bed and read as a truck with a pipe; RA2 raises it to ~40° and that diagonal IS the unit. The code comment already said "an angled rail… so nothing competes with that diagonal" — the geometry just never delivered it (25°) | rail, jack strut and rocket raised together |
 | **Terror Drone** | a squat body with stubby legs; RA2's splayed spider legs ARE the silhouette | leg reach +25%, arch deliberately unchanged (it is what carries the scale gate at ZMIN) |
+| **Tesla Trooper** | §2.2 asks for a silver carapace over >= 40% of the torso; the chest measured 7-8% silver and 74% house colour, and the block's own comment said the budget "cannot go there" while drawing house colour there | torso split horizontally — silver yoke + steel pauldrons and vambraces over a house breastplate; the owner colour moved to a neck gorget and new thigh plates. 43.3% |
 | **superweapon clocks** | M1's caption was baked onto the 56x42 clock icon, straight across the countdown numerals | `cameoFor(..., noCap)`, cache key carries it |
 
 ## Looked at, and deliberately LEFT ALONE
@@ -40,23 +41,11 @@ Not inventing work is part of the job.
   its crown "the same fat box the IFV wears — the two lightest vehicles in the
   game, and the pair the gate scored at 0.709". Do not "fix" it.
 
-## MEASURED spec violation — Tesla Trooper's carapace (2026-09-05)
+## FIXED — Tesla Trooper's carapace, §2.2's one unmeasured clause (2026-09-05)
 
 §2.2's budget for `[SHK]` is **"carapace value >= 0.70 (silver) across >= 40%
-of the torso"**. Measured off the in-play sprite, segmenting the figure off the
-ground and splitting it into bands by fraction of its own height:
-
-| band | px | silver (v>=0.70, s<0.20) | saturated (owner paint) |
-|---|---|---|---|
-| helmet 0-22% | 1280 | 33.8% | 20.6% |
-| **CHEST 24-44%** | 2712 | **8.0%** | **88.6%** |
-| hips 44-60% | 2224 | 2.2% | 86.3% |
-| legs 60-100% | 3204 | 0.0% | 72.3% |
-
-The chest is 8% silver where the spec asks 40%, and is otherwise house colour.
-
-**What makes this worth writing down is that the code already knew.** The
-drawing block carries both of these, a few lines apart:
+of the torso"**. It was not met, and **the code already knew**: the drawing
+block carried both of these, a few lines apart —
 
 > "a barrel chest in solid house colour with rounded shoulder caps"
 
@@ -64,21 +53,105 @@ drawing block carries both of these, a few lines apart:
 > for his chest — *carapace value >= 0.70 (silver) across >= 40% of the torso*
 > — so the budget cannot go there"
 
-The second sentence states the constraint correctly and routes the house colour
-to the hips because of it. The first describes the chest as house colour. The
-pixels agree with the first. So the constraint was read, written down, honoured
-in the reasoning about where to put NEW owner colour — and the chest that was
-being protected was already painted.
+The second sentence states the constraint correctly and routes NEW house colour
+to the hips *because of it*. The first describes the chest as house colour. The
+pixels agreed with the first. No gate saw it: his spike is the shoulder LINE
+(thick 13.5 against a 3.64 floor) and nothing measured the carapace.
 
-No gate sees it: the Tesla Trooper's spike is the shoulder LINE (thick 13.5
-against a 3.64 floor, comfortably passing), and nothing measures the carapace
-clause. This is the second time today a spec clause with no measurement behind
-it turned out to be unmet — the first was `[MTNK]`'s aspect, hidden behind a
-wrong reference row.
+**Measured, banding the sprite by fraction of its own height** (8 octants x both
+owner bakes; silver = `v >= 0.70 && s < 0.20`; owner = pixels that CHANGE
+between the owner-0 and owner-1 bake):
 
-Headroom for the fix: he is at 0.343 owner share in an infantry field running
-0.063 (dog) to 0.401 (engineer), so giving the chest back to silver leaves him
-mid-pack rather than starved.
+| band | silver before | silver AFTER | owner before | owner AFTER |
+|---|---|---|---|---|
+| helmet 0-22% | 28.4% | 30.3% | 9.1% | 19.8% |
+| **CHEST 24-44%** | **7.3%** | **43.3%** | 74.4% | 15.4% |
+| hips 44-60% | 1.0% | 3.2% | 88.1% | 88.5% |
+| legs 60-100% | 0.0% | 0.0% | 0.0% | 37.5% |
+
+43.3% against the clause's 40%, and 41.7% under the stricter mapping that cuts
+the contact shadow out of the bbox before banding. On value alone (the clause's
+own words, without the saturation half of the log's probe) the chest is 75.4%.
+
+**Nothing regressed and three things improved.** `spike.belowFloor` 0,
+`aspect/size.infantryOutsideRA2Band` 0, `clip` 0/0, `peerVsSelf.infantry` 0, and
+he is still 27 px broadside — the widest infantry, unchanged, bbox 27x37 and
+aspect 0.73 identical to before. `iou.infantry.mean` 0.5376 -> 0.5375,
+`colour.infantry.meanDist` 1.3788 -> 1.3904, `hue.infantryOwnerMean` 0.2972 ->
+0.2976. His own owner share went **UP**, 0.3429 -> 0.3488 — mid-pack in a field
+running 0.063 to 0.401, and near RA2's own 32.1% for `[SHK]` (§1.1). Every
+legibility mean improved and no min moved; the Collective sidebar went 79.4 ->
+79.7 mean with 476 -> 465 pairs under RA2's bar.
+
+### What the fix is
+
+The torso splits **HORIZONTALLY**: a silver yoke over the pectorals and the
+shoulder line, a house-colour breastplate under it running into the hip armour.
+The pauldron caps are steel throughout (§2.2: *"armoured pauldrons ... over a
+silver carapace"*), the forearms get steel vambraces, and the owner colour the
+chest gave up lands on a **house gorget at the neck** and **house thigh plates**
+(a new optional 6th argument to `legs()`, cut from the leg's own quad so it
+tapers and swings with the stride).
+
+### The three measurements that actually decided it
+
+**1. The chest's flanks are COVERED, so a vertical plastron paints nothing.**
+The first version drew a house plastron down the middle with silver either
+side, which is the obvious armour idiom. It moved the chest **7.3% -> 8.8%**.
+The arms sit at `sp 6.5` and the pauldron caps reach `cx±4.0`, so the shell is
+hidden from `cx±4.0` outward and the VISIBLE torso is only ~9.6 units wide —
+the silver was painted behind the arms. Horizontal is the only division this
+figure has room for.
+
+**2. The band is the WHOLE chest slab, not its top.** Derived from the drawing
+geometry, §2.2's 24-44% looked like the upper chest, and a yoke placed there
+measured 8.8%. It is not: the bbox is 37 px and includes the **contact shadow**
+below the boots, and the anchor is not `h - UPAD`. Measured off the bake instead
+— a per-row profile printing each row's silver and owner counts — the band is
+sprite rows 38-45, which is by-21.6 to by-13.6 in drawing coordinates, i.e.
+essentially the entire chest polygon. **Read the band off the rows, never off
+the source.**
+
+**3. ANTI-ALIASING is most of the budget.** With the yoke in the right place the
+chest still measured 38.9% while looking silver, because at ~9 px of visible
+torso a facet is 2-3 px and every outline beside it is 1 px of near-black plus
+its blend. Those blends land at v 0.55-0.65 — they look like silver and measure
+as not-silver. Taking the carapace's and the arm plates' outlines from `#565d68`
+to a mid `#98a0ae` moved the chest **38.9% -> 45.6%** on its own, more than any
+geometry change in the pass.
+
+### Levers tried, with what each one did
+
+| lever | chest silver |
+|---|---|
+| vertical house plastron, silver flanks | 7.3 -> 8.8 (**inert** — behind the arms) |
+| horizontal yoke at `by-18.2` + brighter steel | 8.8 -> 19.4 |
+| yoke to `by-16.0`, bolt amplitude cut, wash .20 -> .12 | -> 24.0 |
+| steel vambraces on the forearms, steel fist | -> 29.4 |
+| pauldron skirt steel instead of house | -> 34.9 (only once the steel cleared v 0.70 — at `#9ba3af`, v 0.686, it did nothing) |
+| yoke to `by-15.2`, deeper hips, longer thigh plates | -> 41.2 |
+| carapace + arm-plate outlines `#565d68` -> `#98a0ae` | 38.9 -> **45.6** |
+| arc restored to full strength (halo .32, mid `#2b96e0`) | 45.6 -> **43.3** (the price of a readable bolt, paid deliberately) |
+
+**Measured NEGATIVES, recorded so nobody re-runs them:**
+* *A steel SLEEVE colour passed to `arms()` does nothing.* `arms()` shades the
+  far arm to 0.66 and the near one to 0.76, so no base bright enough to survive
+  0.66x and still measure silver exists. It moved the chest 38.6 -> 38.9. The
+  arm silver has to be a plate drawn at full value in the callback.
+* *Softening the tesla arc is not free in the direction you expect.* Cutting
+  the additive wash from .12 to .07 LOWERED the chest 34.9 -> 34.0: the wash is
+  drawn `lighter`, so it was raising value faster than it was raising
+  saturation. It is tuned as a pair with the halo, not independently.
+
+### Why he is not starved
+
+His owner colour moved rather than shrank. The chest band is 15.4% owner where
+it was 74.4%, but the neck gorget (0.21 of the figure's height — **above** the
+measured band, so it costs the carapace nothing) and the thigh plates put it
+back: the legs were 34% of his mass at **0% remap** and are now 37.5%. The
+sidebar crops an infantry cameo to its top 72%, which is why the gorget matters
+more than its area suggests — without it his plate is a grey man in a grey
+helmet.
 
 ## The Engineer has no identity at all (2026-09-05)
 

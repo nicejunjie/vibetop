@@ -5404,7 +5404,7 @@
     // ground, and it is drawn narrower and darker because it is behind.
     // Splaying BOTH feet outward (the first attempt) just made a straddle
     // that read as standing with the feet apart in every frame.
-    function legs(sp, hipY, w, trousers, bootW) {
+    function legs(sp, hipY, w, trousers, bootW, thigh) {
       bootW = bootW || w + 0.5;
       var order = gt.sw === 0 ? [-1, 1] : [-gt.sw, gt.sw];   // trailing leg first
       // Turning swaps the stride's AXIS. Head-on the legs scissor sideways
@@ -5427,6 +5427,22 @@
         g.lineTo(fx + lw / 2 - 0.3, by - 2.4 - lift);
         g.lineTo(fx - lw / 2 + 0.3, by - 2.4 - lift);
         g.closePath(); g.fill(); outline(g, shade(trousers, 0.46));
+        // An optional armoured THIGH PLATE in house colour, cut from the same
+        // quad so it tapers and swings with the leg instead of floating on the
+        // hip. Only the Tesla Trooper asks for one: his carapace is silver by
+        // §2.2, and the owner colour the chest gave up has to land somewhere
+        // the figure currently has NONE — the legs are 34% of his mass and
+        // were 0% remap.
+        if (thigh) {
+          var uu = 0.68, ay2 = by - 2.4 - lift;
+          var ty2 = hipY + (ay2 - hipY) * uu;
+          var tx2 = hx + (fx - hx) * uu, tw2 = (w + (lw - w) * uu) * 0.94;
+          g.fillStyle = shade(thigh, lead > 0 ? 1.06 : lead < 0 ? 0.66 : 0.92);
+          g.beginPath();
+          g.moveTo(hx - w / 2 + 0.2, hipY); g.lineTo(hx + w / 2 - 0.2, hipY);
+          g.lineTo(tx2 + tw2 / 2, ty2); g.lineTo(tx2 - tw2 / 2, ty2);
+          g.closePath(); g.fill(); outline(g, shade(thigh, 0.42));
+        }
         var bw = bootW * (lead < 0 ? 0.84 : 1);
         g.fillStyle = lead < 0 ? shade(T.boot, 0.74) : T.boot;
         g.beginPath();
@@ -6261,8 +6277,8 @@
     } else if (kind === 'teslatrooper') {
       // TESLA TROOPER, read off soviet-tesla-trooper-frames: not a man in a
       // uniform but a man inside a SUIT. Everything is one size class up —
-      // a barrel chest in solid house colour with rounded shoulder caps, a
-      // bare STEEL bowl helmet with no face under it, navy limbs, and steel
+      // a SILVER carapace with rounded shoulder caps over a house-colour
+      // breastplate, a bare STEEL bowl helmet with no face under it, and steel
       // greaves on the shins. The one asymmetry is the tesla gauntlet: a
       // chunky steel glove with two prongs and a small spark arcing between
       // them, carried on the leading hand.
@@ -6270,48 +6286,106 @@
       // Bulk is drawn into the SILHOUETTE, not into the height: he is the
       // same 20-odd px tall as the Conscript beside him but nearly half
       // again as wide, which is what stops "armoured" reading as "giant".
-      legs(3.1, by - 11.9, 4.6, T.coat, 5.4);
+      legs(3.1, by - 11.9, 4.6, T.coat, 5.4, col);
 
       g.save(); g.translate(gt.lean, gt.bob);
-      // HOUSE-COLOURED HIP ARMOUR. He was the lowest uniformed trooper in the
-      // roster at 20.6%, and §2.2 spoke for his chest — "carapace value >= 0.70
-      // (silver) across >= 40% of the torso" — so the budget cannot go there
-      // (C2 declined to re-split it and that call still stands). It goes on the
-      // hips and the gauntlet cuff instead, which is the same three-block
-      // pattern RA2 gives an armoured unit: shoulders steel, chest, hips.
+      // HOUSE-COLOURED HIP ARMOUR, and above it §2.2's CARAPACE, which for a
+      // long time this block described correctly and then painted over.
+      //
+      // The clause is "carapace value >= 0.70 (silver) across >= 40% of the
+      // torso". The previous version reasoned about it — it routed NEW house
+      // colour to the hips rather than the chest *because of* the clause — and
+      // then drew "a barrel chest in solid house colour" anyway. Measured by
+      // banding the sprite by fraction of its own height, the chest came out
+      // 7-8% silver against the 40% asked for, and 74% owner paint. No gate
+      // saw it: his spike is the shoulder LINE, and nothing measures carapace.
+      //
+      // So the torso splits HORIZONTALLY: a silver YOKE over the pectorals
+      // and the shoulder line, a house-colour BREASTPLATE under it running
+      // into the hips. A vertical plastron was drawn and measured first and
+      // it is the wrong division for this figure — the arms sit at sp 6.5
+      // and the pauldron caps reach cx±4.0, so the shell's flanks are
+      // COVERED and the visible torso is only ~9.6 units wide. Splitting
+      // that vertically leaves 2-3 px stripes; splitting it horizontally
+      // gives two blocks the width of the whole chest. (Measured: the
+      // plastron moved the chest 7.3% -> 8.8% silver, i.e. almost nothing,
+      // because the silver it painted was behind the arms.)
+      //
+      // The yoke also pays for itself twice. It puts the silver ON the
+      // shoulder line, which is his identity spike; and the tesla arc, which
+      // an earlier pass costed at 33.7% -> 28.8% owner colour because it lies
+      // across his house block, now lies across STEEL and costs nothing.
+      //
+      // Every steel tone below has to clear v >= 0.70 to COUNT as carapace,
+      // which is the trap in drawing this: a shaded facet picked by eye
+      // (#8d95a1, v 0.63) looks like silver and measures as "not silver", so
+      // the whole flank would have been spent for nothing.
+      var TT_SHELL = '#d0d8e2';                                     // v 0.89 s 0.08
+      var TT_LIT = '#e5ebf3';                                       // v 0.95 s 0.06
+      var TT_DK = '#bac3cf';                                        // v 0.81 s 0.10 — still silver
+      var TT_EDGE = '#98a0ae';
+      var TT_YOKE = by - 15.2;                                      // silver above, house below
       g.fillStyle = shade(col, 0.88);                               // house hip armour
-      g.beginPath(); g.roundRect(cx - 6.2, by - 13.6, 12.4, 3.4, 1.0); g.fill();
+      g.beginPath(); g.roundRect(cx - 6.4, by - 13.9, 12.8, 4.3, 1.0); g.fill();
       outline(g, shade(col, 0.40));
       g.fillStyle = shade(col, 1.22);
-      g.fillRect(cx - 5.8, by - 13.4, 11.6, 1.0);
-      g.fillStyle = '#8f96a1';                                      // waist ring of the suit
-      g.fillRect(cx - 5.8, by - 14.6, 11.6, 1.5);
+      g.fillRect(cx - 6.0, by - 13.7, 12.0, 1.0);
 
       // The barrel chest. Two clipped corners top and bottom turn the slab
       // into a rounded carapace — squared off it read as a sandwich board.
-      g.fillStyle = col;
+      g.fillStyle = TT_SHELL;
       g.beginPath();
       g.moveTo(cx - 5.7, by - 21.6); g.lineTo(cx + 5.7, by - 21.6);
       g.lineTo(cx + 7.4, by - 19.4); g.lineTo(cx + 6.8, by - 15.0);
       g.lineTo(cx + 4.6, by - 13.6); g.lineTo(cx - 4.6, by - 13.6);
       g.lineTo(cx - 6.8, by - 15.0); g.lineTo(cx - 7.4, by - 19.4);
-      g.closePath(); g.fill(); outline(g, shade(col, 0.38));
-      g.fillStyle = shade(col, 1.22);                               // lit left shoulder mass
+      g.closePath(); g.fill(); outline(g, TT_EDGE);
+
+      // THE HOUSE BREASTPLATE, hung under the yoke and carried down into the
+      // hip armour so the owner colour is one unbroken block rather than two
+      // bands with steel between them.
+      g.fillStyle = col;
       g.beginPath();
-      g.moveTo(cx - 5.2, by - 21.2); g.lineTo(cx - 1.2, by - 21.2);
-      g.lineTo(cx - 1.2, by - 14.0); g.lineTo(cx - 6.1, by - 14.4);
-      g.closePath(); g.fill();
-      g.fillStyle = shade(col, 0.74);                               // shaded right flank
-      g.fillRect(cx + 2.8, by - 20.6, 3.3, 6.4);
-      g.fillStyle = shade(col, 0.66);                               // neck shadow under the bowl
-      g.fillRect(cx - 3.6, by - 21.3, 7.2, 1.0);
+      g.moveTo(cx - 6.9, TT_YOKE); g.lineTo(cx + 6.9, TT_YOKE);
+      g.lineTo(cx + 6.8, by - 15.0); g.lineTo(cx + 4.6, by - 13.6);
+      g.lineTo(cx - 4.6, by - 13.6); g.lineTo(cx - 6.8, by - 15.0);
+      g.closePath(); g.fill(); outline(g, shade(col, 0.56));
+      g.fillStyle = shade(col, 1.22);                               // lit left of the plate
+      g.fillRect(cx - 6.3, TT_YOKE + 0.3, 4.0, 1.6);
+      g.fillStyle = shade(col, 0.74);                               // shaded right of the plate
+      g.fillRect(cx + 2.9, TT_YOKE + 0.4, 3.2, 1.4);
       g.strokeStyle = shade(col, 0.62); g.lineWidth = 0.9; g.lineCap = 'butt';
-      g.beginPath();                                                // centre seam of the carapace
-      g.moveTo(cx, by - 20.9); g.lineTo(cx, by - 14.2); g.stroke();
-      g.strokeStyle = shade(col, 1.24); g.lineWidth = 1.0;          // rim light round the shell
+      g.beginPath();                                                // centre seam of the plate
+      g.moveTo(cx, TT_YOKE + 0.4); g.lineTo(cx, by - 14.2); g.stroke();
+
+      // The yoke's own modelling, kept INSIDE cx±4.8 — outside that the arms
+      // and the pauldron caps cover it, so a facet drawn there is invisible
+      // (this is the same measurement that killed the vertical plastron).
+      //
+      // It also has to survive ANTI-ALIASING, which at this size is most of
+      // the problem: the visible torso is ~9 px across, and a 2 px facet with
+      // a near-black line beside it comes out of the bake as a blend that
+      // measures BELOW v 0.70 however silver it looked in the source. So the
+      // facets are wide, every outline on the carapace and the arm plates is
+      // a MID grey rather than a dark one (that one change moved the chest
+      // 38.9% -> 45.6% silver on its own), and nothing dark is drawn inside
+      // the yoke: the neck shadow is a dim silver, and the joint down to the
+      // breastplate is the breastplate's own outline, not a stroke of its own.
+      g.fillStyle = TT_LIT;                                         // lit left pectoral
+      g.fillRect(cx - 4.8, by - 21.2, 3.2, 5.0);
+      g.fillStyle = TT_DK;                                          // shaded right pectoral
+      g.fillRect(cx + 2.0, by - 20.9, 2.8, 4.6);
+      g.strokeStyle = '#9aa3b0'; g.lineWidth = 0.6; g.lineCap = 'butt';
+      g.beginPath();                                                // pectoral panel seam
+      g.moveTo(cx - 4.4, by - 18.6); g.lineTo(cx + 4.4, by - 18.6); g.stroke();
+      g.fillStyle = '#aeb7c3';                                      // neck shadow under the bowl
+      g.fillRect(cx - 3.6, by - 21.3, 7.2, 0.8);
+      g.strokeStyle = '#eef2f8'; g.lineWidth = 1.0;                 // rim light round the shell
       g.beginPath();
       g.moveTo(cx - 4.6, by - 21.1); g.lineTo(cx - 6.6, by - 19.2);
-      g.lineTo(cx - 6.1, by - 15.2); g.stroke();
+      g.lineTo(cx - 6.4, TT_YOKE); g.stroke();
+      g.fillStyle = TT_DK;                                          // waist ring of the suit
+      g.fillRect(cx - 5.4, by - 14.6, 10.8, 1.1);
       g.strokeStyle = shade(col, 0.70); g.lineWidth = 1.2;          // shadow under the chest
       g.beginPath();
       g.moveTo(cx - 4.4, by - 13.9); g.lineTo(cx + 4.4, by - 13.9); g.stroke();
@@ -6328,7 +6402,7 @@
       // path: a wide soft halo, a mid stroke, and a hot white core. One pass
       // is a blue scribble; three read as a discharge at 1:1.
       function bolt(pts, k) {
-        var pass = [[2.6 * k, 'rgba(96,168,255,.30)'], [1.5 * k, '#7fd2ff'], [0.7 * k, '#ffffff']];
+        var pass = [[2.2 * k, 'rgba(120,190,252,.32)'], [1.35 * k, '#2b96e0'], [0.75 * k, '#ffffff']];
         g.lineCap = 'round'; g.lineJoin = 'round';
         for (var bp = 0; bp < 3; bp++) {
           g.lineWidth = pass[bp][0]; g.strokeStyle = pass[bp][1];
@@ -6338,7 +6412,7 @@
         }
       }
       var TT_STUD = [];                                             // the coil terminals, for the arc
-      arms(6.5, by - 19.6, 3.4, 6.8, T.coat, function (i, x, y) {
+      arms(6.5, by - 19.6, 3.4, 6.8, '#5b6478', function (i, x, y) {
         // The cap is an ELLIPSE that hugs the shoulder, not a slab beside
         // it: as a rounded rectangle it stood clear of the torso on both
         // sides and the trooper walked around carrying two suitcases.
@@ -6346,28 +6420,38 @@
         g.beginPath();
         g.ellipse(x - i * 0.5, y + 0.3, 2.0, 1.8, 0, Math.PI, 0); g.fill();
         g.fillRect(x - i * 0.5 - 2.0, y + 0.3, 4.0, 1.3);
-        outline(g, '#4a505a');
-        // House band at the cap's skirt. This is where the bolt's cost comes
-        // back from: the arc lies on his chest, which is the largest remapped
-        // mass on any figure in the game, and it took him from 33.7% owner
-        // colour to 28.8%. §2.2's three-block pattern for an armoured unit is
-        // shoulders / chest / hips, so the skirt of the steel cap is exactly
-        // where RA2 would have put it — and the cap itself stays steel, which
-        // was the point of the earlier call not to paint the whole pauldron.
-        g.fillStyle = shade(col, 0.86);
-        g.fillRect(x - i * 0.5 - 2.0, y + 1.0, 4.0, 2.0);
-        outline(g, shade(col, 0.42));
-        g.fillStyle = shade(col, 1.16);
-        g.fillRect(x - i * 0.5 - 1.8, y + 1.05, 3.6, 0.6);
+        outline(g, '#98a0ae');
+        // The cap's SKIRT is steel too. It carried a house band for a while,
+        // to pay back what the tesla arc cost the chest; with the carapace
+        // itself silver that band became a fifth horizontal stripe on a
+        // figure that already had four, and §2.2's row is explicit —
+        // "armoured pauldrons ... over a silver carapace". The owner colour
+        // it was carrying moved down to the thigh plates.
+        g.fillStyle = '#bcc4d0';
+        g.fillRect(x - i * 0.5 - 2.0, y + 1.5, 4.0, 1.4);
+        outline(g, '#8992a0');
         g.fillStyle = '#eef2f7';
         g.beginPath();
         g.ellipse(x - i * 0.5 - 0.6, y - 0.6, 1.15, 0.7, -0.3, 0, 6.29); g.fill();
+        // A STEEL VAMBRACE down the forearm, which the block has claimed since
+        // it was written ("Steel arms") and never drew — arms() was handed
+        // T.coat and painted both sleeves navy. It cannot be fixed inside
+        // arms(): that helper shades the far arm to 0.66 and the near one to
+        // 0.76, so no base colour bright enough to survive 0.66 x and still be
+        // silver exists. Drawn here at full value instead, it is both the
+        // right thing for a powered suit and where §2.2's carapace budget
+        // finds the rows the tesla arc takes off the chest.
+        g.fillStyle = '#ccd4de';
+        g.beginPath(); g.roundRect(x - 2.0, y + 2.8, 4.0, 3.5, 1.1); g.fill();
+        outline(g, '#98a0ae');
+        g.fillStyle = '#dbe2eb';
+        g.fillRect(x - 1.6, y + 3.1, 1.4, 2.4);
         // A COIL TERMINAL on the cap — a ceramic insulator and a steel stud.
         // It sits BELOW the helmet crown on purpose: this man is the widest
         // trooper in the roster and deliberately not the tallest, so his
         // electricity is not allowed to buy height.
-        g.fillStyle = '#23272e';
-        g.beginPath(); g.roundRect(x - i * 0.5 - 1.25, y - 1.5, 2.5, 1.7, 0.6); g.fill();
+        g.fillStyle = '#6d7580';
+        g.beginPath(); g.roundRect(x - i * 0.5 - 1.25, y - 1.4, 2.5, 1.4, 0.6); g.fill();
         g.fillStyle = '#c9d2dd';
         g.beginPath(); g.ellipse(x - i * 0.5, y - 1.6, 1.05, 0.72, 0, 0, 6.29); g.fill();
         TT_STUD.push([x - i * 0.5, y - 1.9]);
@@ -6377,7 +6461,7 @@
           // glow big enough to see across the field washed out the chest
           // and made every trooper look like he was already firing.
           var gux = x + 0.5, guy = y + 5.4;
-          g.fillStyle = '#7d848f';                                  // the fist itself
+          g.fillStyle = '#aeb7c2';                                  // the fist itself
           g.beginPath(); g.roundRect(gux - 2.1, guy, 4.2, 3.4, 1.2); g.fill();
           outline(g, '#3c414a');
           g.fillStyle = col;                                        // house cuff on the gauntlet
@@ -6393,7 +6477,7 @@
           bolt([[gux - 1.7, guy - 2.3], [gux - 0.5, guy - 1.3],
                 [gux + 0.5, guy - 2.7], [gux + 1.7, guy - 2.2]], 0.85);
         } else {
-          g.fillStyle = '#6f767f';                                  // plain steel fist
+          g.fillStyle = '#a3acb8';                                  // plain steel fist
           g.beginPath(); g.roundRect(x - 1.7, y + 5.5, 3.4, 2.8, 1.0); g.fill();
           outline(g, '#3c414a');
           g.fillStyle = col;                                        // ...with the same house cuff
@@ -6428,8 +6512,16 @@
         g.fillStyle = 'rgba(30,34,40,.5)';                          // nape of the bowl
         g.beginPath(); g.ellipse(cx, hby + 1.1, 2.9, 1.5, 0, 0, Math.PI); g.fill();
       }
-      g.fillStyle = '#6c737d';                                      // collar ring
+      // A HOUSE-COLOUR GORGET at the neck. With the carapace silver the
+      // owner colour had all fallen below his waist, and the sidebar crops an
+      // infantry cameo to its top 72% — so a Tesla Trooper's plate would have
+      // been a grey man in a grey helmet. The ring sits at 0.21 of the
+      // figure's height, ABOVE §2.2's chest band, so it buys the team read
+      // back without spending any of the carapace budget.
+      g.fillStyle = shade(col, 0.98);                               // collar ring
       g.fillRect(cx - 3.3, hby + 2.0, 6.6, 1.4);
+      g.fillStyle = shade(col, 1.24);
+      g.fillRect(cx - 3.1, hby + 2.1, 6.2, 0.5);
 
       // THE ARC ACROSS THE CHEST, terminal to terminal, drawn LAST so it
       // crackles in front of everything the way RA2's plate does.
@@ -6461,21 +6553,21 @@
           // its own baseline four times and drops one short fork.
           var ty0 = Math.min(la[1], ra[1]);
           bolt([[la[0], la[1]],
-                [mx0 - sp0 * 0.30, ty0 + 2.7], [mx0 - sp0 * 0.13, ty0 - 0.1],
-                [mx0 + sp0 * 0.06, ty0 + 3.0], [mx0 + sp0 * 0.26, ty0 + 0.4],
+                [mx0 - sp0 * 0.30, ty0 + 2.0], [mx0 - sp0 * 0.13, ty0 - 0.1],
+                [mx0 + sp0 * 0.06, ty0 + 2.3], [mx0 + sp0 * 0.26, ty0 + 0.3],
                 [ra[0], ra[1]]], 1);
-          bolt([[mx0 + sp0 * 0.06, ty0 + 3.0], [mx0 + sp0 * 0.15, ty0 + 5.2]], 0.7);
+          bolt([[mx0 + sp0 * 0.06, ty0 + 2.3], [mx0 + sp0 * 0.15, ty0 + 3.8]], 0.7);
           // and the light it throws on the carapace under it, KEPT SHORT: an
           // additive wash over a house-colour chest lifts BOTH owners' bakes
           // toward the same blue, so the pixels stop differing and the census
           // stops counting them as owner colour at all.
           g.save();
           g.globalCompositeOperation = 'lighter';
-          var twg = g.createLinearGradient(0, ty0, 0, ty0 + 3.4);
-          twg.addColorStop(0, 'rgba(58,132,214,.20)');
-          twg.addColorStop(1, 'rgba(58,132,214,0)');
+          var twg = g.createLinearGradient(0, ty0, 0, ty0 + 3.2);
+          twg.addColorStop(0, 'rgba(120,190,255,.14)');
+          twg.addColorStop(1, 'rgba(120,190,255,0)');
           g.fillStyle = twg;
-          g.fillRect(la[0] - 1, ty0, sp0 + 2, 3.4);
+          g.fillRect(la[0] - 1, ty0, sp0 + 2, 3.2);
           g.restore();
         }
       }
