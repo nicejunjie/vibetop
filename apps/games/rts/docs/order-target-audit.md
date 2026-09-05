@@ -42,23 +42,28 @@ Enemy-side interactions ride the `attack` command and were already wired:
 Engineer capture (`UNITS[u.type].capture` in the attack path) and Spy infiltrate
 (`[SPY] Infiltrate=yes`).
 
-## Still open, in the same class — NOT yet verified
+## The five candidates — measured 2026-09-04
 
-These are candidates found by reading, not by measurement. Each needs the same
-treatment: drive it in a browser, watch what the order actually does, and only
-then decide.
+Driven through the REAL click path (click the unit, right-click the target) with
+each case on its own patch of ground. Two harness traps cost several runs and are
+recorded so the next probe does not repeat them: `__rtsScreen()` returns
+CANVAS-relative coordinates while `page.mouse` takes PAGE coordinates, and the
+app's top bar sits above the canvas — every click landed ~40 px high until the
+canvas bounding box was added; and spawning every case at the same offset stacked
+the units so the click selected whichever was on top.
 
-- [ ] **Aircraft -> own Airforce Command / helipad.** `ReloadRate` exists as a
-      timer (rearm was corrected to 1080 ticks in the gap audit), but whether a
-      right-click can *send* a plane home to rearm is unchecked.
-- [ ] **Any unit -> own Repair Depot when already full health.** Should be a
-      no-op with feedback, not a silent walk.
-- [ ] **Terror Drone -> own vehicle.** RA2 forbids it; ours may allow the walk.
-- [ ] **MCV -> ground.** Deploy is on `D`; a right-click currently just moves.
-      RA2 behaves the same way, so this is probably correct — confirm, don't
-      assume.
-- [ ] **Chrono Legionnaire, Yuri/Psi-Corps -> own units.** Erase and mind-control
-      are enemy-only in RA2; check ours refuses rather than silently moving.
+| case | target confirmed | result | verdict |
+|---|---|---|---|
+| Harrier (ammo 0) -> own Airforce Command | `airforce`, built | **no order at all**, both runs | **DEFECT.** A click that does nothing and says nothing. Whether RA2 lets you send a plane home to rearm is a separate question; a silent no-op is wrong either way |
+| Vehicle -> own Service Depot | `depot`, built | plain `move` | **UNRESOLVED.** The predicate itself is correct — tested directly in-page: `cls 'v'`, `air false`, depot `kind 'b'`, **predicate true** — so `wantsOwn` is wired right and the click's target resolution did not return the depot in that run. Needs a target-picking probe, not another order probe |
+| Terror Drone -> our own tank | `lancer` | `move` in one run, none in another | **NOT ESTABLISHED** — results varied between runs |
+| MCV -> ground | ground | `move`, no deploy | Consistent with RA2 (deploy is its own command). Probably correct; not a defect |
+| Chrono Legionnaire -> our own tank | `lancer` | varied | **NOT ESTABLISHED** |
+| Yuri -> our own tank | `lancer` | varied | **NOT ESTABLISHED** |
+
+Four of the six are reported as unestablished rather than guessed at. The probe
+needs to settle the unit before clicking (units drift, and the click chases a
+stale screen position) before those four mean anything.
 
 ## The rule this leaves behind
 
