@@ -9,6 +9,7 @@ Endpoints:
   POST /api/terminals/{n}/stop    — stop ttyd + session for instance N
   GET  /api/terminals/status      — {"running": [1, 3, 5, ...], "schedules": [...]}
   GET/POST /api/terminals/schedules — messages queued to be typed into a terminal
+                                    (one-shot, or a loop with every+until)
   POST /api/terminals/schedules/cancel — drop one queued message
   GET  /api/system/status         — CPU, memory, uptime, terminal count
 """
@@ -2852,6 +2853,8 @@ SCHED_LATE_GRACE = 2 * 3600         # fire up to 2h late (manager restart), else
 SCHED_TICK = 15                     # sweeper period -> ±15s accuracy
 SCHED_TEXT_MAX = 2000
 SCHED_KEEP_DONE = 24 * 3600         # keep fired/failed entries this long (UI history)
+SCHED_MIN_INTERVAL = 60             # a loop repeats at most once a minute
+SCHED_MAX_RUNS = 500                # cap on the firings ONE loop may schedule
 INJECT_DRAIN = 0.75                 # per-connection read-to-EOF bound — see _inject_terminal
 INJECT_ENTER_GAP = 0.3              # beat between the text and the Enter — see _inject_terminal
 _schedules_lock = threading.Lock()
@@ -2974,6 +2977,36 @@ def _valid_schedule_text(text):
     if any(ord(c) < 0x20 or ord(c) == 0x7f for c in t):
         return None
     return t
+
+
+def _sched_every(ent):
+    """The entry's repeat interval in seconds, or None for a one-shot.
+
+    Sanitising here rather than trusting the stored value is load-bearing: the
+    sweeper re-arms a recurring entry to `at + every`, so an `every` of 0 (or a
+    corrupt tiny value) would make the entry due again on the very next tick
+    forever — a message typed into someone's PTY every 15s. Anything below the
+    creation-time floor is treated as "not a loop" and fires once."""
+    try:
+        every = int(ent.get("every") or 0)
+    except (TypeError, ValueError):
+        return None
+    return every if every >= SCHED_MIN_INTERVAL else None
+
+
+def _sched_next_slot(at, every, now):
+    """The first slot strictly after `now` on the `at + k*every` grid.
+
+    Stepping the GRID rather than adding `every` to the wall clock keeps a loop
+    on the minute it was scheduled for (a 5h loop from 19:00 stays at 00:00,
+    05:00, ... even though each pass runs a few seconds late), and it collapses a
+    backlog: after a two-day suspend the entry lands on the next FUTURE slot in
+    one step instead of firing once per missed slot."""
+    if every <= 0:
+        return None
+    if at > now:
+        return at
+    return at + (int((now - at) // every) + 1) * every
 
 
 def _term_socket(user, n):
@@ -3124,6 +3157,10 @@ def _run_due_schedules(now=None):
     """One sweeper pass: fire everything due, record the outcome. Returns the list
     of entries acted on (for tests/logging).
 
+    A recurring entry (`every` set) is RE-ARMED rather than finished: its `at`
+    moves to the next slot and it stays `pending`, so one registry row carries the
+    whole loop and the pending cap / idle-reaper reprieve keep counting it once.
+
     The injection happens OUTSIDE the registry lock (a wedged session daemon would
     otherwise block every /api/terminals/schedules request behind it), then the
     statuses are applied in one locked read-modify-write keyed by entry id."""
@@ -3139,30 +3176,63 @@ def _run_due_schedules(now=None):
     results = {}
     for user, ent in due:
         eid, n, text = ent.get("id"), ent.get("term"), ent.get("text") or ""
-        if now - (ent.get("at") or 0) > SCHED_LATE_GRACE:
-            # The host was down/asleep long past the point where firing would
-            # still be what the user meant.
-            results[eid] = ("missed", "missed by more than "
-                                      f"{SCHED_LATE_GRACE // 3600}h")
+        at, every = ent.get("at") or 0, _sched_every(ent)
+        # Too late to be what the user meant: the host was down or asleep. A
+        # one-shot gives up; a LOOP just skips the slot and re-arms, so waking a
+        # laptop after two days does not machine-gun the terminal with a backlog.
+        late = (now - at) > SCHED_LATE_GRACE
+        if late:
+            ok, err = False, f"missed by more than {SCHED_LATE_GRACE // 3600}h"
             log.warning("schedule %s (%s term %s) missed", eid, user, n)
-            continue
-        try:
-            ok, err = _inject_terminal(user, n, text)
-        except Exception as e:                      # never let one bad entry kill the pass
-            ok, err = False, str(e)
-        results[eid] = ("sent", None) if ok else ("failed", err)
-        log.info("schedule %s fired: %s term %s -> %s", eid, user, n,
-                 "sent" if ok else "failed: %s" % err)
+        else:
+            try:
+                ok, err = _inject_terminal(user, n, text)
+            except Exception as e:                  # never let one bad entry kill the pass
+                ok, err = False, str(e)
+            log.info("schedule %s fired: %s term %s -> %s", eid, user, n,
+                     "sent" if ok else "failed: %s" % err)
+        upd = {"error": None if ok else err}
+        if not late:
+            upd["fired"] = now          # a real attempt; a skipped slot keeps the old one
+        if every is None:
+            upd["status"] = "missed" if late else ("sent" if ok else "failed")
+        else:
+            nxt = _sched_next_slot(at, every, now)
+            until = ent.get("until")
+            if not late:
+                upd["runs"] = 1                     # a DELTA, applied under the lock
+            if nxt is not None and (until is None or nxt <= until):
+                # Still inside the window: stay pending, armed for the next slot.
+                # A failed injection does NOT end the loop — the terminal may
+                # simply be stopped right now and back before the next slot.
+                upd["status"], upd["at"] = "pending", nxt
+                if late:
+                    log.info("schedule %s (%s term %s) skipped a late slot -> %s",
+                             eid, user, n, nxt)
+            else:
+                # Last slot done: the loop's own outcome is its last run's.
+                ran = (ent.get("runs") or 0) + (0 if late else 1)
+                upd["status"] = ("sent" if ok else "failed") if ran else "missed"
+        # `fired` is what _prune_schedules ages history from, so every entry that
+        # reaches a terminal status needs one — including a `missed` we never
+        # attempted, or it is swept out of the panel before anyone reads it.
+        if upd["status"] != "pending":
+            upd["fired"] = now
+        results[eid] = upd
     fired = []
     with _schedules_lock:
         reg = _read_schedules()
         for user, lst in reg.items():
             for ent in lst:
-                res = results.get(ent.get("id"))
-                if res and ent.get("status") == "pending":
-                    ent["status"], ent["error"] = res
-                    ent["fired"] = now
-                    fired.append(ent)
+                upd = results.get(ent.get("id"))
+                if not upd or ent.get("status") != "pending":
+                    continue
+                if "runs" in upd:
+                    ent["runs"] = (ent.get("runs") or 0) + upd["runs"]
+                for k in ("at", "fired", "error", "status"):
+                    if k in upd:
+                        ent[k] = upd[k]
+                fired.append(ent)
         _prune_schedules(reg, now)
         try:
             _write_schedules(reg)
@@ -6376,8 +6446,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             _cache.pop("schedules:" + user, None)
 
     def _handle_schedule_create(self):
-        """POST /api/terminals/schedules {term, text, at} — queue a message to be
-        typed into one of THIS user's terminals at an absolute time.
+        """POST /api/terminals/schedules {term, text, at[, every, until]} — queue a
+        message to be typed into one of THIS user's terminals at an absolute time.
+
+        With `every` (seconds) + `until` (epoch) it is a LOOP: the same message at
+        that cadence from `at` until the end time, carried by this single entry —
+        the sweeper re-arms it instead of finishing it. `every` absent/None is the
+        one-shot this endpoint has always been.
 
         The owner is the authenticated user, never a body field: the sweeper runs
         as root and writes into whichever user's PTY the entry names."""
@@ -6417,10 +6492,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if at > now + SCHED_MAX_HORIZON:
             return self._json(400, {
                 "error": f"can't schedule more than {SCHED_MAX_HORIZON // 86400} days out"})
+        # A loop: `every` seconds from `at` until `until` (both required together).
+        every = until = None
+        if data.get("every") not in (None, ""):
+            try:
+                every = int(float(data.get("every")))
+            except (TypeError, ValueError):
+                return self._json(400, {"error": "every must be a number of seconds"})
+            if every < SCHED_MIN_INTERVAL:
+                return self._json(400, {
+                    "error": f"repeat at most once every {SCHED_MIN_INTERVAL}s"})
+            try:
+                until = float(data.get("until"))
+            except (TypeError, ValueError):
+                return self._json(400, {"error": "a repeating message needs an end time"})
+            if until < at:
+                return self._json(400, {"error": "the end time is before the first run"})
+            if until > now + SCHED_MAX_HORIZON:
+                return self._json(400, {
+                    "error": f"can't schedule more than {SCHED_MAX_HORIZON // 86400} days out"})
+            # Bound the whole loop, not just its cadence: "every 1m for 30 days" is
+            # 43200 messages typed into someone's shell, which is a mistake rather
+            # than a plan. The cap names both escapes so the fix is obvious.
+            runs = int((until - at) // every) + 1
+            if runs > SCHED_MAX_RUNS:
+                return self._json(400, {
+                    "error": f"that repeats {runs} times — at most {SCHED_MAX_RUNS}; "
+                             "use a longer interval or an earlier end time"})
         user = _ctx_user()
         ent = {"id": secrets.token_urlsafe(8), "term": n, "text": text,
                "at": at, "created": now, "status": "pending",
-               "fired": None, "error": None}
+               "fired": None, "error": None,
+               "every": every, "until": until, "runs": 0}
         with _schedules_lock:
             reg = _read_schedules()
             lst = reg.setdefault(user, [])
@@ -6436,8 +6539,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 log.warning("schedule write failed: %s", e)
                 return self._json(500, {"error": "could not save the schedule"})
         self._drop_schedules_cache(user)
-        log.info("schedule %s queued: %s term %d in %ds", ent["id"], user, n,
-                 int(at - now))
+        log.info("schedule %s queued: %s term %d in %ds%s", ent["id"], user, n,
+                 int(at - now),
+                 "" if every is None else f", every {every}s until {int(until)}")
         # Already due (the UI's "Send now", or a time inside SCHED_PAST_TOLERANCE)?
         # Fire this pass instead of waiting for the sweeper. The tick is 15s, so
         # without this a button labelled "now" would sit there for up to fifteen
