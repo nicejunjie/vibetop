@@ -32330,7 +32330,17 @@
     if (u.air && !alt) drawAirShadow(u);                                   // parked: shadow under it
     // Tread marks and a dust kick behind a moving ground vehicle; a wake
     // behind a moving hull.
-    if (!art.fr && !d.air && moving && G.tick - (u.trkAt == null ? -99 : u.trkAt) >= 5) {
+    // A WAKE IS LAID DENSER THAN A TREAD MARK. Both used one 5-tick interval,
+    // and at ship speed that leaves visible gaps: the comment below promises
+    // "a widening V of foam" and what was drawn was a chain of separate beads.
+    // A hull moves further between samples than a tank does, so water gets a
+    // 2-tick interval and the beads overlap into a continuous V. Ground tracks
+    // keep 5 — they were never gappy, and halving them would only cost TRACKS
+    // slots that the wake now needs.
+    var _wet = inMap(Math.round(u.x), Math.round(u.y)) &&
+               G.terrain[idx(Math.round(u.x), Math.round(u.y))] === T_WATER;
+    if (!art.fr && !d.air && moving &&
+        G.tick - (u.trkAt == null ? -99 : u.trkAt) >= (_wet ? 2 : 5)) {
       u.trkAt = G.tick;
       if (TRACKS.length >= TRACK_MAX) TRACKS.shift();
       var tgi = inMap(Math.round(u.x), Math.round(u.y)) ? G.terrain[idx(Math.round(u.x), Math.round(u.y))] : -1;
