@@ -31599,8 +31599,21 @@
       // Muzzle flash sits at the end of the barrel, not on the hull centre.
       var dlen = Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay)) || 1;
       var mfx = ax + (bx - ax) / dlen * 11, mfy = ay + (by - ay) / dlen * 11;
-      var hx = mfx + (bx - mfx) * Math.max(0, f - 0.25), hy = mfy + (by - mfy) * Math.max(0, f - 0.25);
+      // A TRACER IS A DASH, NOT A BEAM. The trail used to run from f-0.25 to f,
+      // i.e. its length was a QUARTER OF THE WHOLE FLIGHT — so the further a
+      // weapon shot, the longer its streak, and a Conscript's rifle at range 5
+      // drew a white line more than a cell long. Caught by rendering a real
+      // firefight rather than a roster: at ZMIN it read as a laser, which is
+      // not what RA2 gives small arms.
+      //
+      // The visible trail is now a fixed SCREEN length, clamped so it can
+      // never be longer than the distance the round has actually covered
+      // (otherwise a shot just leaving the muzzle draws behind the barrel).
       var tx2 = mfx + (bx - mfx) * f, ty2 = mfy + (by - mfy) * f;
+      var trail = s.rocket ? 20 : 11;
+      var mlen = Math.sqrt((bx - mfx) * (bx - mfx) + (by - mfy) * (by - mfy)) || 1;
+      var back = Math.min(trail, mlen * f);
+      var hx = tx2 - (bx - mfx) / mlen * back, hy = ty2 - (by - mfy) / mlen * back;
       var glow = s.rocket ? 'rgba(232,140,40,' : 'rgba(150,200,255,';
       var core = s.rocket ? 'rgba(255,225,150,' : 'rgba(230,245,255,';
       ctx.strokeStyle = glow + (0.35 * (1 - f)) + ')';
