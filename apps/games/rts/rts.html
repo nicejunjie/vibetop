@@ -22990,12 +22990,32 @@
         var v = g.units[di];
         if (v.dead || v.p !== b.p || UNITS[v.type].cls !== 'v' || v.air) continue;
         if (v.hp >= v.maxhp && !v.drone) continue;
-        if (Math.abs(v.x - b.cx) > b.gw / 2 + 0.6 || Math.abs(v.y - b.cy) > b.gh / 2 + 0.6) continue;
+        // TWO reaches, deliberately, because they answer different questions.
+        //
+        // "Touching the pad" (gw/2 + 0.6) is the ambient rule and stays exactly
+        // as it was: a vehicle that happens to be parked against the depot gets
+        // patched, and nothing further out does. Widening THAT would quietly
+        // turn the depot into a field hospital for anything fighting nearby.
+        //
+        // "I was SENT here" (`v.dockB`) is the ordered rule, and it has to
+        // reach further for a mechanical reason: the order can only aim at a
+        // cell OUTSIDE the footprint (the pathfinder cannot enter a building),
+        // that ring sits gw/2 + 0.5 out, and a move COMPLETES within 1.183 of
+        // its target — so an obedient vehicle legitimately comes to rest up to
+        // gw/2 + 1.7 from the centre. MEASURED: aiming at the pad centre
+        // instead made the order impossible to complete, so it was abandoned by
+        // the noProg branch and the vehicle stalled at 1.912-2.145 against a
+        // 2.1 reach. It worked 89.9% of the time by coincidence on a live page,
+        // and 2 of 8 approaches in this suite.
+        var sent = v.dockB === b.id;
+        var reach = sent ? 1.8 : 0.6;
+        if (Math.abs(v.x - b.cx) > b.gw / 2 + reach || Math.abs(v.y - b.cy) > b.gh / 2 + reach) continue;
         // RA2's only cure for a Terror Drone: the bay shakes it out and
         // crushes it before it touches the repair itself.
         if (v.drone) { killDrone(g, v); if (v.p === ME) { eva('Terror Drone destroyed', 4000); say('Service Depot killed the Terror Drone'); } }
         var _was = v.hp;
         v.hp = Math.min(v.maxhp, v.hp + v.maxhp * 0.02);
+        if (v.hp >= v.maxhp) v.dockB = 0;                 // the errand is done
         if (v.p === ME && _was < v.maxhp && v.hp >= v.maxhp) eva('Unit repaired', 4000);   // eva.ini #70
       }
     }
@@ -25839,13 +25859,41 @@
             u.homeRef = tgt; u.state = 'toref'; u.path = null; u.repathAt = -999; u.noProg = 0;
             nown++; what = u.cargo ? 'Returning to the refinery' : 'Heading for the refinery';
           } else if (UNITS[u.type].cls === 'v' && !u.air && tgt.kind === 'b' && tgt.type === 'depot') {
-            // The depot repairs what TOUCHES it (|dx| <= gw/2 + 0.6), so aim at
-            // the pad centre; stopping short is what left this unusable.
-            u.guard = false; u.stopped = false; u.wp = null;
-            u.order = { t: 'move', x: Math.round(tgt.cx), y: Math.round(tgt.cy) };
-            u.repathAt = -999; u.path = null;
-            requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy));
-            nown++; what = 'Going in for repairs';
+            // AIM AT A CELL THE UNIT CAN ACTUALLY REACH.
+            //
+            // This used to aim at round(cx),round(cy) — the pad centre, which is
+            // a cell INSIDE the footprint that the pathfinder cannot enter. The
+            // move's arrival test is dist < 1.183, and from outside a 3x3 the
+            // nearest reachable cell centre is 2.0 away, so the order could
+            // never COMPLETE: it was abandoned by the noProg branch and the
+            // vehicle stopped wherever it happened to stall. MEASURED over 8
+            // depots x 12 angles on a live page, that landed between 1.912 and
+            // 2.145 cells out against a repair reach of gw/2 + 0.6 = 2.1 — so
+            // it worked 89.9% of the time BY COINCIDENCE, on a 0.02-cell
+            // margin, and the headless sweep here fails 6 of 8 approaches.
+            //
+            // So: pick the nearest PASSABLE cell on the ring just outside the
+            // footprint and drive to that. The order can complete, and where it
+            // completes is known rather than accidental.
+            var dgw = tgt.gw, dgh = tgt.gh, bestC = null, bestD = 1e9;
+            var rx0 = Math.round(tgt.cx), ry0 = Math.round(tgt.cy);
+            var hx = Math.floor(dgw / 2) + 1, hy = Math.floor(dgh / 2) + 1;
+            for (var ry = -hy; ry <= hy; ry++) for (var rx = -hx; rx <= hx; rx++) {
+              if (Math.abs(rx) !== hx && Math.abs(ry) !== hy) continue;   // the ring only
+              var cxx = rx0 + rx, cyy = ry0 + ry;
+              if (blocked(g, cxx, cyy, u.p, UNITS[u.type].mv)) continue;
+              var dd = (cxx - u.x) * (cxx - u.x) + (cyy - u.y) * (cyy - u.y);
+              if (dd < bestD) { bestD = dd; bestC = { x: cxx, y: cyy }; }
+            }
+            if (!bestC) { what = what || 'No way in to the Service Depot'; }
+            else {
+              u.guard = false; u.stopped = false; u.wp = null;
+              u.order = { t: 'move', x: bestC.x, y: bestC.y };
+              u.repathAt = -999; u.path = null;
+              u.dockB = tgt.id;                       // "I was sent here" — see stepBld
+              requestPath(g, u, bestC.x, bestC.y);
+              nown++; what = 'Going in for repairs';
+            }
           } else if (ud.ammo && u.pad && tgt.kind === 'b' && tgt.type === 'airforce') {
             // `rtb` is the same flag the auto-return and a Stop order both set;
             // the pad cycle does the rest (fly home, land on its own slot,
@@ -26449,7 +26497,13 @@
   function syFlat(gx, gy) { return worldY(gx, gy) - cam.y + cvH / 2; }
   function screenToGrid(px, py) {
     var u = unzoom(px, py);
-    var wx = u.x - cvW / 2 + cam.x, wy = u.y - cvH / 2 + cam.y;
+    return gridFromW(u.x, u.y);
+  }
+  // The same inverse from ALREADY-UNZOOMED coordinates, so pickAtW can ask
+  // "which tile is under this pixel" with the identical rounding the movement
+  // orders use. One implementation, or the two drift.
+  function gridFromW(ux, uy) {
+    var wx = ux - cvW / 2 + cam.x, wy = uy - cvH / 2 + cam.y;
     var p = gridAt(wx, wy);
     // Inverting a raised tile: add the height back and re-project. Two passes
     // settle it because height is constant over a plateau's interior.
@@ -29123,7 +29177,12 @@
   }
 
   function pickAt(px, py) {
-    var uz = unzoom(px, py); px = uz.x; py = uz.y;
+    var uz = unzoom(px, py); return pickAtW(uz.x, uz.y);
+  }
+  // The same pick, in already-unzoomed space. Split out so a test can hand it
+  // the exact screen point a grid cell projects to, which is the only way to
+  // check the footprint geometry without driving a browser.
+  function pickAtW(px, py) {
     var best = null, bd = 1e9;
     var i, e, ex, ey, d;
     for (i = 0; i < G.units.length; i++) {
@@ -29134,14 +29193,27 @@
       if (d < 22 * 22 && d < bd) { bd = d; best = e; }
     }
     if (best) return best;
+    // A BUILDING IS A FOOTPRINT, NOT A CIRCLE. This used to test a screen-space
+    // circle of radius max(gw,gh)*22 about the centre — but a footprint
+    // projects to an isometric DIAMOND, and its anti-diagonal corners fall far
+    // outside any circle that fits the near ones: for a 3x3 the corner is
+    // (1.5 - -1.5) * TW/2 = 96 px out against a 66 px radius. MEASURED with a
+    // hover sweep on a live page, the far corners of a 3x3 Service Depot and a
+    // 4x3 Ore Refinery picked NOTHING — two corners of every building in the
+    // game were dead to clicks and to hover alike, which reads as "my click did
+    // nothing" and is indistinguishable from a broken order.
+    //
+    // Now the clicked PIXEL is inverted to a tile and tested against the
+    // footprint rectangle, which is the shape the building actually occupies.
+    var gp = gridFromW(px, py);
     for (i = 0; i < G.blds.length; i++) {
       e = G.blds[i];
       if (e.dead || !entSeen(G, e)) continue;
       if (BLDS[e.type].wall) continue;         // [GAWALL] Selectable=no
+      if (Math.abs(gp.x - e.cx) > e.gw / 2 || Math.abs(gp.y - e.cy) > e.gh / 2) continue;
       ex = sx(e.cx, e.cy); ey = sy(e.cx, e.cy);
       d = (ex - px) * (ex - px) + (ey - py) * (ey - py);
-      var rad = Math.max(e.gw, e.gh) * 22;
-      if (d < rad * rad && d < bd) { bd = d; best = e; }
+      if (d < bd) { bd = d; best = e; }        // nearest centre breaks any overlap
     }
     return best;
   }
@@ -33168,6 +33240,9 @@
     orderMove: function (units, gx, gy) { return G ? orderUnitsTo(G, units, gx, gy) : 0; },
     orderAttack: function (units, tgt) { return G ? orderAttack(G, units, tgt) : 0; },
     padSlot: padSlot,
+    // Pick whatever is under the CENTRE of a grid cell, the way a click on
+    // that cell would. Exposed for the footprint-geometry test.
+    pickCell: function (gx, gy) { return pickAtW(sx(gx, gy), sy(gx, gy)); },
     zoom: function (z) { if (z) setZoom(z, cvW / 2, cvH / 2); return zoom; },
     isPrimary: function (b) { return G ? isPrimary(G, b) : false; },
     killBld: function (b) { if (G) killBld(G, b); },

@@ -5438,3 +5438,91 @@ test("an aircraft with missiles left can still be ordered home to its own Airfor
   H.step(N.delay() + 1);
   assert.equal(h.rtb, true, "the order sends it home to rearm instead of silently doing nothing");
 });
+
+test("every point inside a building's footprint is clickable, not just a circle inside it", () => {
+  // `pickAt` tested buildings with a screen-space CIRCLE of radius
+  // max(gw,gh)*22 about the centre. A footprint does not project to a circle —
+  // it projects to an isometric DIAMOND, and its anti-diagonal corners fall
+  // well outside any circle that fits the near ones: for a 3x3 the corner sits
+  // (1.5 - -1.5) * TW/2 = 96 px out against a 66 px radius. MEASURED on a live
+  // page with a 7x7 hover sweep, the far corners of a 3x3 Service Depot and a
+  // 4x3 Ore Refinery returned NOTHING, to clicks and to hover alike.
+  //
+  // Sampling CELL CENTRES is not enough to catch it — at +-1 cell the corner is
+  // only 64 px out and slips inside the circle. The dead band is the OUTER part
+  // of each corner cell, which is why this walks the footprint area.
+  const H = W.__rtsTest;
+  const g = H.begin(7313, "normal");
+  H.give(0, 40000);
+  const s0 = g.start[0];
+  for (const [type, gw, gh] of [["depot", 3, 3], ["refinery", 4, 3]]) {
+    const b = H.build(type, 0, s0.x + 8, s0.y + 8);
+    assert.ok(b, `${type} placed`);
+    H.centerOn(b.cx, b.cy);
+    const ex = gw / 2 - 0.12, ey = gh / 2 - 0.12;      // just inside the edge
+    const miss = [];
+    for (let dy = -ey; dy <= ey + 1e-9; dy += 0.25)
+      for (let dx = -ex; dx <= ex + 1e-9; dx += 0.25) {
+        const hit = H.pickCell(b.cx + dx, b.cy + dy);
+        if (hit !== b) miss.push(`(${dx.toFixed(2)},${dy.toFixed(2)})`);
+      }
+    assert.equal(miss.length, 0,
+      `${type}: ${miss.length} points inside its own footprint do not pick it — ${miss.slice(0, 8).join(" ")}`);
+    H.killBld(b);
+  }
+});
+
+test("a damaged vehicle sent to a Service Depot is actually repaired, from any approach", () => {
+  // MEASURED before the fix, over 8 depots x 12 approach angles on a live page:
+  // 62 of 69 trials repaired — 89.9%, and the successes were a COINCIDENCE. The
+  // order aimed at round(cx),round(cy), a cell INSIDE the footprint that the
+  // pathfinder cannot enter, so the move's arrival test (dist < 1.183) could
+  // never trip from outside a 3x3. The order was never completed, it was
+  // ABANDONED by the noProg branch, and the vehicle stopped wherever it
+  // stalled: 1.912 to 2.145 out against a repair reach of gw/2 + 0.6 = 2.1.
+  // The 7 failures overshot by 0.002 to 0.045 of a cell. Headless, 6 of 8.
+  //
+  // Every approach is sanity-checked FIRST with a plain move: a spawn point the
+  // unit cannot path out of at all is a bad fixture, not a game defect, and
+  // counting it as one would have sent this chasing the wrong bug (it did).
+  const H = W.__rtsTest, N = W.__rtsNet;
+  const g = H.begin(7314, "normal");
+  H.give(0, 60000);
+  const s0 = g.start[0];
+  H.build("power", 0, s0.x - 6, s0.y - 6);
+  H.build("power", 0, s0.x - 6, s0.y - 3);
+  const dep = H.build("depot", 0, s0.x + 10, s0.y + 10);
+  assert.ok(dep, "depot placed");
+  const R = 7, fails = [], usable = [];
+  for (let a = 0; a < 8; a++) {
+    const ang = (a / 8) * Math.PI * 2;
+    const ux = Math.round(dep.cx + Math.cos(ang) * R), uy = Math.round(dep.cy + Math.sin(ang) * R);
+    // Can anything move from here at all?
+    const probe = H.spawn("lancer", 0, ux, uy);
+    if (!probe) continue;
+    H.step(4);
+    const px0 = probe.x, py0 = probe.y;
+    N.emit("move", { u: [probe.id], x: dep.cx, y: dep.cy - 4, queue: 0, ore: 0 });
+    H.step(N.delay() + 1);
+    for (let i = 0; i < 400; i++) H.step(1);
+    const moved = Math.abs(probe.x - px0) + Math.abs(probe.y - py0) > 0.5;
+    probe.dead = true;
+    if (!moved) continue;                       // unusable fixture point, not a defect
+    usable.push(a);
+
+    const u = H.spawn("lancer", 0, ux, uy);
+    u.hp = u.maxhp * 0.4;
+    const hp0 = u.hp;
+    H.step(4);
+    N.emit("own", { u: [u.id], id: dep.id });
+    for (let i = 0; i < 2600 && u.hp <= hp0 + 1; i++) H.step(1);
+    if (u.hp <= hp0 + 1) {
+      fails.push(`angle ${a}: hp ${Math.round(u.hp)}/${u.maxhp}, rest |dx| ` +
+        `${Math.abs(u.x - dep.cx).toFixed(2)} |dy| ${Math.abs(u.y - dep.cy).toFixed(2)}`);
+    }
+    u.dead = true;
+  }
+  assert.ok(usable.length >= 6, `need a real spread of approaches, got ${usable.length}`);
+  assert.equal(fails.length, 0,
+    `${fails.length} of ${usable.length} usable approaches never got repaired — ${fails.join(" | ")}`);
+});

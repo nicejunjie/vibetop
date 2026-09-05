@@ -76,3 +76,77 @@ The cheapest guard against regression is the e2e test added with this pass
 (`right-clicking your own refinery sends a loaded miner home`), which asserts the
 miner ends up with a `homeRef` and in a docking state — proved red against the
 pre-fix build, where it came back `homeRef:false`.
+
+---
+
+# Settled, 2026-09-05 — and the audit above was wrong about the depot
+
+A rebuilt probe closed every open row. The lever that finally made it
+deterministic was **`G.opt.speed = 0`**: the raf loop computes
+`_step = STEP / (opt.speed/4)`, so speed 0 gives `Infinity` and the world only
+moves when the probe calls `step(n)`. Drift is then not *settled*, it is
+impossible. Four runs across two processes were byte-identical.
+
+Five more traps had to be paid, none of them in the plan, and each produced a
+plausible wrong answer first:
+
+1. `begin()` sets `state='play'` but leaves the **title overlay** covering the
+   canvas, so every click is swallowed and everything reads `order: null`.
+2. A bare match has **no enemy**, so `g.over = 1` on tick 0 and `finish()` fires
+   180 ticks later; after that `pointerdown` returns early and the probe
+   **silently measures nothing**. This is why only the first case ever worked.
+3. RA2's **select-all-of-type**: two clicks on the same unit type within 380 ms
+   select every visible one, so two consecutive cases ordered each other's units.
+4. Reading a target's position from the fixture rather than live.
+5. **`order.t === 'move'` is not proof of a fall-through.** See below.
+
+## The depot: the earlier inference was wrong
+
+The audit above says *"`pickAt` did not return the depot"*. **It did.** Measured
+with a 7x7 hover sweep over the whole footprint, every sampled point inside it
+returned the Service Depot. `wantsOwn` was true and `cmd('own', …)` fired all
+along. What looked like a fall-through was **the depot rung's own handler
+writing a `move`** — the two are told apart by the `id` field (`orderUnitsTo`
+always writes `id: 0`; the own-handler does not) and by `say()`:
+
+| case | order | `id` | say |
+|---|---|---|---|
+| vehicle -> own depot | `{t:"move",x:46,y:14}` | absent -> own handler | "Going in for repairs" |
+| vehicle -> bare ground | `{t:"move",x:22,y:7,id:0}` | present -> fall-through | "Moving" |
+| miner -> own refinery | `null`, `state:'toref'` | — | "Returning to the refinery" |
+
+**The real defect was one layer down: the order fired and the vehicle was still
+never repaired.** The order aimed at `round(cx),round(cy)` — a cell *inside* the
+footprint, which the pathfinder cannot enter — and a move completes only within
+1.183 cells, which from outside a 3x3 can never trip. So the order was never
+completed, it was **abandoned** by the `noProg` branch, and the vehicle stopped
+wherever it happened to stall: 1.912 to 2.145 cells out, against a repair reach
+of `gw/2 + 0.6` = 2.1. **It worked 89.9% of the time by coincidence, on a
+0.02-cell margin** (62 of 69 live trials; 2 of 8 headless).
+
+Fixed by aiming at the nearest **passable** cell on the ring outside the
+footprint, so the order can complete, plus a `dockB` flag that says "I was sent
+here" — the ambient "touching the pad" reach stays at 0.6 so the depot does not
+quietly become a field hospital for anything fighting nearby.
+
+## Two corners of every building were dead to clicks
+
+Found on the way, and worse than the thing being looked for. `pickAt` tested
+buildings with a screen-space **circle** of radius `max(gw,gh) * 22`, but a
+footprint projects to an isometric **diamond**: for a 3x3 the anti-diagonal
+corners sit `(1.5 - -1.5) * TW/2 = 96` px out against a 66 px radius. Confirmed
+on the 4x3 refinery too (112 vs 88). The clicked pixel is now inverted to a tile
+and tested against the footprint rectangle.
+
+Sampling cell CENTRES does not catch this — at +-1 cell the corner is only 64 px
+out and slips inside the circle. The regression test walks the footprint *area*.
+
+## The three "not established" rows: settled, and not defects
+
+Terror Drone, Chrono Legionnaire and Yuri right-clicking **our own tank** all
+give a fall-through `move` (`id: 0`, say "Moving"), and the unit acknowledges and
+moves. These are orders to your own **unit**, not your own **building**, so the
+rule this document sets does not bite, and the click is not silent. *(Inferred:
+RA2 agrees — a Terror Drone only infests hostile vehicles, `Temporal` is not
+offered on friendlies, Yuri cannot control his own side, and none of the three
+has an `AttackCursorOnFriendlies` equivalent, unlike `[IVAN]`.)* No fix.
