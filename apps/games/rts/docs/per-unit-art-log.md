@@ -40,6 +40,46 @@ Not inventing work is part of the job.
   its crown "the same fat box the IFV wears — the two lightest vehicles in the
   game, and the pair the gate scored at 0.709". Do not "fix" it.
 
+## MEASURED spec violation — Tesla Trooper's carapace (2026-09-05)
+
+§2.2's budget for `[SHK]` is **"carapace value >= 0.70 (silver) across >= 40%
+of the torso"**. Measured off the in-play sprite, segmenting the figure off the
+ground and splitting it into bands by fraction of its own height:
+
+| band | px | silver (v>=0.70, s<0.20) | saturated (owner paint) |
+|---|---|---|---|
+| helmet 0-22% | 1280 | 33.8% | 20.6% |
+| **CHEST 24-44%** | 2712 | **8.0%** | **88.6%** |
+| hips 44-60% | 2224 | 2.2% | 86.3% |
+| legs 60-100% | 3204 | 0.0% | 72.3% |
+
+The chest is 8% silver where the spec asks 40%, and is otherwise house colour.
+
+**What makes this worth writing down is that the code already knew.** The
+drawing block carries both of these, a few lines apart:
+
+> "a barrel chest in solid house colour with rounded shoulder caps"
+
+> "He was the lowest uniformed trooper in the roster at 20.6%, and §2.2 spoke
+> for his chest — *carapace value >= 0.70 (silver) across >= 40% of the torso*
+> — so the budget cannot go there"
+
+The second sentence states the constraint correctly and routes the house colour
+to the hips because of it. The first describes the chest as house colour. The
+pixels agree with the first. So the constraint was read, written down, honoured
+in the reasoning about where to put NEW owner colour — and the chest that was
+being protected was already painted.
+
+No gate sees it: the Tesla Trooper's spike is the shoulder LINE (thick 13.5
+against a 3.64 floor, comfortably passing), and nothing measures the carapace
+clause. This is the second time today a spec clause with no measurement behind
+it turned out to be unmet — the first was `[MTNK]`'s aspect, hidden behind a
+wrong reference row.
+
+Headroom for the fix: he is at 0.343 owner share in an infantry field running
+0.063 (dog) to 0.401 (engineer), so giving the chest back to silver leaves him
+mid-pack rather than starved.
+
 ## Recorded disagreement, NOT changed
 
 - **Mirage Tank** — RA2's plate shows a clear gun barrel; ours has essentially
