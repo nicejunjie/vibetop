@@ -412,6 +412,38 @@ The other eight (Rhino 0.70, V3 0.70, Chrono Miner 0.76, Prism Tank 0.77,
 Engineer 1.65, Chrono Legionnaire 1.62, Tanya 1.42, Flak Trooper 1.37) have no
 such conflict on record and are the place to start.
 
+## THE RULE'S OWN PRECONDITION IS MISSING — the sprite rips are not in the repo
+
+The lesson this pass earned three times over is **"a cameo is not a sprite —
+check the rip"**. It cannot currently be followed.
+
+`docs/ra2-ref/` contains the 74-plate CAMEO corpus and nothing else. Every
+sprite rip the code cites by filename is ABSENT:
+`allied-grand-cannon.png` (quoted as 181x133, "the in-game render"),
+`soviet-terror-drone.png`, `allied-ore-refinery-idle.png`,
+`soviet-barracks-idle.png`, `nighthawk.png`. Those comments record real
+measurements someone once made against real images, and the images are gone —
+so the numbers can be trusted only as far as the person who wrote them.
+
+**And a naive re-fetch does NOT recover them.** I tried the obvious thing: the
+C&C wiki file search, the same API that fetched the cameo corpus successfully.
+It is unreliable for sprites because the filenames are inconsistent —
+    "Nighthawk"    -> File:RA2 Allied Battle Lab.gif      (a different BUILDING)
+    "Rhino Tank"   -> File:C&C-RA2-ggprisdm.gif           (same file as Prism Tank)
+    "V3 Launcher"  -> File:RA2 V3 Launcher Icons.png      (60x48 — a cameo, not a sprite)
+Only "Grand Cannon" returned something plausible, and at 117x85 it does not
+match the 181x133 the code cites, so even that one is unconfirmed.
+
+**The fetched files were DELETED rather than committed.** A wrong reference
+sprite is worse than none: it does not fail loudly, it silently anchors every
+future proportion decision to the wrong unit — which is exactly the failure
+mode this whole section exists to warn about.
+
+Recovering them needs per-unit verification (open the image, confirm it is the
+unit and the theatre) rather than a search loop. Until then, `RA2_ASPECT` in
+`art-metrics.js` is the trustworthy reference: its numbers come from
+unit-identity-reference.md §1.1, which cites bboxes rather than files.
+
 ## The rule this whole pass earned
 
 **A CAMEO IS NOT A SPRITE.** It cost three near-misses to learn and one to
