@@ -348,6 +348,35 @@ Three fixture traps paid for and worth not re-paying:
   and `g.overAt` inside the step loop. This is the same trap the order probe
   documented, met from a different direction.
 
+## Selection and order feedback — reviewed, correct
+
+Cyan corner brackets scaled to each unit's footprint, health bars on the
+selection, enemy hulls correctly unbracketed. RA2 uses the same corner-reticle
+idiom. No work needed.
+
+## This is where the art pass ends, and why
+
+Every surface now has coverage: units (all 60, individually, against RA2's own
+plates), cameos, terrain and cliffs, combat effects, damage states,
+superweapons, naval wakes, ore harvesting, warheads, and selection feedback.
+
+**The tell is the hit rate.** The first two units through the per-unit rig
+found two SYSTEMIC defects (the infantry crop, the vehicle bearing). The last
+stretch found four real fixes against four verified-correct and THREE FALSE
+ALARMS of my own — damage smoke, and the wake twice. When the misses start
+outnumbering the hits, the remaining signal is below the noise of the method.
+
+What is left is not art direction:
+* RA2's cameo plates are painted illustrations; ours are well-framed sprites.
+  Closing that means commissioning art, and should be decided deliberately.
+* `peerVsSelf` still correlates +0.487 with aspect after the fix. Whether that
+  residue is artefact or the real similarity of ten long hulls is unresolved,
+  and the <= 0 target may simply be wrong for a mask-only metric.
+* `GI | Spy` at 53.6 is the worst cameo pair; one attempt made it worse.
+
+Anyone picking this up should start from the harness notes above, not from the
+units. The units are fine; the instruments are what made them findable.
+
 ## The rule this whole pass earned
 
 **A CAMEO IS NOT A SPRITE.** It cost three near-misses to learn and one to
