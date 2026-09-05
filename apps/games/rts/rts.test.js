@@ -25,7 +25,8 @@ function stubCtx() {
   return {
     fillStyle: "", strokeStyle: "", lineWidth: 1, font: "", textAlign: "left",
     globalAlpha: 1, globalCompositeOperation: "source-over",
-    fillRect: noop, strokeRect: noop, clearRect: noop, fillText: noop,
+    fillRect: noop, strokeRect: noop, clearRect: noop, fillText: noop, strokeText: noop,
+    lineJoin: "miter", miterLimit: 10, textBaseline: "alphabetic",
     beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
     fill: noop, stroke: noop, arc: noop, ellipse: noop, roundRect: noop, clip: noop,
     quadraticCurveTo: noop, bezierCurveTo: noop, arcTo: noop, rect: noop,

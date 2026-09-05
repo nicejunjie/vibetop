@@ -27755,7 +27755,9 @@
     items.forEach(function (it) {
       var b = document.createElement('button');
       b.className = 'pit';
-      // No prose on the cameo — RA2 puts none there. The `.nm` / `.ct` spans
+      // The NAME is drawn onto the cameo itself (see CAMEO_CAPTION) — RA2
+      // prints one on every shipped plate; a comment here used to claim the
+      // opposite and cost the sidebar most of its legibility. The `.nm`/`.ct` spans
       // stay in the DOM but are display:none: they are the accessible name of
       // the button (a 60x48 picture otherwise announces nothing) and the text
       // refreshPanel keeps current. What you SEE is the drawn tooltip.
@@ -27803,6 +27805,78 @@
     c.style.width = src.style.width; c.style.height = src.style.height;
     c.getContext('2d').drawImage(src, 0, 0); return c;
   }
+  // RA2 PRINTS THE ITEM'S NAME ON THE PLATE. This file used to assert the
+  // opposite, in a comment, and the whole sidebar was built on it:
+  //
+  //     "No prose on the cameo — RA2 puts none there."
+  //
+  // That was false, and it was the most expensive line in the sidebar. An
+  // outlined-white-caps detector finds a caption on 59 of the 74 real cameos
+  // in docs/ra2-ref/cameos/; a 60th uses grey text the detector misses, and
+  // the remaining 14 are visibly pre-release alpha plates in another style.
+  // It is plainly visible in docs/ra2-ref/cameo-ours-vs-ra2.png — "G.I.",
+  // "GUARDIAN G.I.", "AEGIS CRUISER", "FLAK-TROOPER", "POWER PLANT".
+  //
+  // The cost of not having it, MEASURED against the real corpus at the size
+  // the sidebar actually draws (60x48): every one of our 1560 cameo pairs sat
+  // under RA2's 5th percentile, and our MEDIAN pair was below RA2's CLOSEST
+  // pair. Prototyped on the real pixels, a caption alone takes the worst pair
+  // 27.2 -> 41.1 (Directorate) and 23.1 -> 42.3 (Collective).
+  //
+  // The name existed only in the hover tooltip, i.e. it cost a hover and a
+  // wait — the learned-not-discoverable pattern this project rejects.
+  //
+  // Where RA2's plate says something different from our internal name, RA2
+  // wins: this is its lettering, not ours. Add rows here as more plates are
+  // read off the corpus.
+  var CAMEO_CAPTION = {
+    rifle: 'G.I.', guardian: 'GUARDIAN G.I.',
+    weather: 'WEATHER MACHINE', apc: 'ARMORED TRANSPORT',
+    flaktrooper: 'FLAK-TROOPER'
+  };
+  function captionFor(key, isBld, fac) {
+    if (CAMEO_CAPTION[key]) return CAMEO_CAPTION[key];
+    var sp = null;
+    try { sp = isBld ? bspecFor(key, fac) : UNITS[key]; } catch (e) { return null; }
+    return sp && sp.name ? String(sp.name).toUpperCase() : null;
+  }
+  // Bold condensed caps, white over a hard black stroke, across the bottom —
+  // wrapping to two lines when one will not fit, which is what RA2 does for
+  // CHRONO LEGIONNAIRE. Drawn INTO the plate, so it survives cameoCopy and the
+  // cache like the rest of the picture.
+  function drawCameoCaption(g, text, W, H) {
+    var size = 9, fit;
+    // Shrink a little before wrapping: two lines cost more of the subject than
+    // one point of type does.
+    for (; size >= 7; size--) {
+      g.font = '800 ' + size + 'px "Arial Narrow", "Roboto Condensed", system-ui, sans-serif';
+      if (g.measureText(text).width <= W - 6) break;
+    }
+    g.font = '800 ' + size + 'px "Arial Narrow", "Roboto Condensed", system-ui, sans-serif';
+    var lines = [text];
+    if (g.measureText(text).width > W - 6) {
+      // Break at the space that leaves the two halves most even.
+      var parts = text.split(' '), best = -1, bestD = 1e9, i2;
+      for (i2 = 1; i2 < parts.length; i2++) {
+        var a = parts.slice(0, i2).join(' '), b = parts.slice(i2).join(' ');
+        var d = Math.abs(g.measureText(a).width - g.measureText(b).width);
+        if (d < bestD) { bestD = d; best = i2; }
+      }
+      if (best > 0) lines = [parts.slice(0, best).join(' '), parts.slice(best).join(' ')];
+    }
+    var lh = size + 1, base = H - 2 - (lines.length - 1) * lh;
+    g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    g.lineJoin = 'round'; g.miterLimit = 2;
+    for (var li = 0; li < lines.length; li++) {
+      var y = base + li * lh;
+      g.strokeStyle = 'rgba(0,0,0,.92)'; g.lineWidth = 2.5;
+      g.strokeText(lines[li], W / 2, y);
+      g.fillStyle = '#fff';
+      g.fillText(lines[li], W / 2, y);
+    }
+    g.textAlign = 'left'; g.lineWidth = 1;
+  }
+
   function cameoFor(key, isBld, fac, ownFac) {
     var own = ownFac || fac;
     // The frame wears the PLAYER'S house colour, so the cache has to be keyed
@@ -27885,6 +27959,9 @@
     // bb is CSS px; the bitmap is `kb` times larger (baked at DPR), so the
     // SOURCE rect is scaled by the sprite's own ratio.
     g.drawImage(src, sc.x * kb, sc.y * kb, sw * kb, sh * kb, (W - dw) / 2, (H - dh) / 2 + 1, dw, dh);
+    // The name, RA2's way — see CAMEO_CAPTION above for why this is here.
+    var capTxt = captionFor(key, isBld, fac);
+    if (capTxt) drawCameoCaption(g, capTxt, W, H);
     // Bevel: light top-left, dark bottom-right, house colour on the outside.
     g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 1;
     g.beginPath(); g.moveTo(0.5, H - 1); g.lineTo(0.5, 0.5); g.lineTo(W - 1, 0.5); g.stroke();
