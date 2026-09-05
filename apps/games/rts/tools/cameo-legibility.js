@@ -106,13 +106,38 @@ function grabCameos(cfg) {
     }
     return out;
   }
+  // The caption rides on its OWN transparent canvas above the plate, outside
+  // the grey filter (`canvas:not(.cap)`), so it has to be sampled WITH alpha
+  // and composited after greying — otherwise this tool measures a DOM that no
+  // longer exists and reports no change for a change that is plainly visible.
+  function shrinkA(cv, W, H) {
+    const g = cv.getContext('2d');
+    const id = g.getImageData(0, 0, cv.width, cv.height);
+    const sx = cv.width / W, sy = cv.height / H;
+    const out = new Array(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let r = 0, gg = 0, b = 0, a = 0, n = 0;
+      const y0 = Math.floor(y * sy), y1 = Math.max(Math.floor((y + 1) * sy), y0 + 1);
+      const x0 = Math.floor(x * sx), x1 = Math.max(Math.floor((x + 1) * sx), x0 + 1);
+      for (let yy = y0; yy < y1 && yy < cv.height; yy++) for (let xx = x0; xx < x1 && xx < cv.width; xx++) {
+        const i = (yy * cv.width + xx) * 4, al = id.data[i + 3] / 255;
+        r += id.data[i] * al; gg += id.data[i + 1] * al; b += id.data[i + 2] * al;
+        a += al; n++;
+      }
+      const o = (y * W + x) * 4;
+      out[o] = a > 0 ? r / a : 0; out[o + 1] = a > 0 ? gg / a : 0;
+      out[o + 2] = a > 0 ? b / a : 0; out[o + 3] = a / n;
+    }
+    return out;
+  }
   const recs = [];
   for (const tab of cfg.TABS) {
     const t = document.querySelector('.ptab div[data-tab="' + tab + '"]');
     if (t) t.click();
     const pits = document.querySelectorAll('#plist .pit');
     for (const pit of pits) {
-      const cv = pit.querySelector('.em canvas');
+      const cv = pit.querySelector('.em canvas:not(.cap)');
+      const cap = pit.querySelector('.em canvas.cap');
       if (!cv) continue;
       const nm = pit.querySelector('.nm');
       recs.push({
@@ -122,6 +147,7 @@ function grabCameos(cfg) {
         cssw: cv.style.width, cssh: cv.style.height,
         px: shrink(cv, cfg.CW, cfg.CH),          // what a DPR-1 screen shows
         px2: shrink(cv, cfg.CW * 2, cfg.CH * 2), // what a DPR-2 screen shows
+        cap: cap ? shrinkA(cap, cfg.CW, cfg.CH) : null,
       });
     }
   }
@@ -178,13 +204,24 @@ function dist(a, b, n) {
 
 // The `.pit.dis` / `.pit.locked` rule, in numbers: grayscale(.65) then
 // brightness(.6), in CSS filter order.
-function greyed(px) {
+function greyed(px, cap) {
   const out = new Array(px.length);
   for (let i = 0; i < px.length; i += 3) {
     const l = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
     out[i]     = (px[i]     * 0.35 + l * 0.65) * 0.6;
     out[i + 1] = (px[i + 1] * 0.35 + l * 0.65) * 0.6;
     out[i + 2] = (px[i + 2] * 0.35 + l * 0.65) * 0.6;
+  }
+  // ...and the name goes back on top at full strength. The CSS excludes
+  // `.cap` from the filter, so the plate greys and the caption does not.
+  if (cap) {
+    for (let i = 0, j = 0; i < out.length; i += 3, j += 4) {
+      const a = cap[j + 3];
+      if (a <= 0) continue;
+      out[i]     = cap[j]     * a + out[i]     * (1 - a);
+      out[i + 1] = cap[j + 1] * a + out[i + 1] * (1 - a);
+      out[i + 2] = cap[j + 2] * a + out[i + 2] * (1 - a);
+    }
   }
   return out;
 }
@@ -276,7 +313,7 @@ function compute({ byFac, refs }) {
     const recs = byFac[fac];
     if (!recs || !recs.length) continue;
     if (!res.sizes) res.sizes = { bitmap: recs[0].bw + 'x' + recs[0].bh, css: recs[0].cssw + ' x ' + recs[0].cssh };
-    const grey = recs.map((r) => ({ ...r, px: greyed(r.px) }));
+    const grey = recs.map((r) => ({ ...r, px: greyed(r.px, r.cap) }));
     const n = CW * CH, n2 = CW * CH * 4;
     const whole = pairsOf(recs, 'px', n);
     const wholeG = pairsOf(grey, 'px', n);

@@ -186,9 +186,16 @@
   .slot { width: 64px; height: 52px; border: 1px solid #2a3240; border-radius: 2px;
           background: rgba(255,255,255,.018); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
   .pit .em, .pit .em canvas { display: block; width: 60px; height: 48px; }
+  .pit .em { position: relative; }
+  .pit .em canvas.cap { position: absolute; left: 0; top: 0; }
   .pit .nm, .pit .ct { display: none; }   /* kept for the tooltip's text, never rendered */
   /* Locked / unaffordable: RA2 greys a cameo out, it never fades it away. */
-  .pit.locked .em canvas, .pit.dis .em canvas { filter: grayscale(.65) brightness(.6); }
+  /* The PLATE greys when you cannot afford the row; the NAME does not. Greying
+     roughly halves every pairwise distance (mean 52.0 -> 26.8 when this was one
+     filter over the whole plate), and the early game is MOSTLY unaffordable
+     rows — so this is the dominant reading condition, not an edge case. The
+     caption is a second canvas layered over the plate and excluded here. */
+  .pit.locked .em canvas:not(.cap), .pit.dis .em canvas:not(.cap) { filter: grayscale(.65) brightness(.6); }
   /* Build progress is RA2's clock wipe: a dark sector sweeping clockwise. */
   .pit .fill { position: absolute; inset: 0; pointer-events: none; display: none; }
   .pit .qn {
@@ -27777,7 +27784,11 @@
       // A captured Rhino is a Rhino in our blue, not a red plate on our
       // sidebar — there is no fixed faction paint anywhere in this game.
       var cam = cameoFor(it.k, isBldLane(it.lane), it.fac, myFac);
-      if (cam) b.querySelector('.em').appendChild(cam); else b.querySelector('.em').textContent = it.spec.em;
+      if (cam) {
+        b.querySelector('.em').appendChild(cam);
+        var capL = cameoCapLayer(it.k, isBldLane(it.lane), it.fac);
+        if (capL) { capL.className = 'cap'; b.querySelector('.em').appendChild(capL); }
+      } else b.querySelector('.em').textContent = it.spec.em;
       plist.appendChild(b);
       panelRows[it.k] = { el: b, it: it };
     });
@@ -27877,6 +27888,24 @@
     g.textAlign = 'left'; g.lineWidth = 1;
   }
 
+  // The caption on its own transparent plate, so CSS can grey the picture
+  // underneath without greying the name with it. Same text and metrics as the
+  // baked one, drawn directly on top of it — the greyed copy below is covered
+  // exactly, so nothing shimmers.
+  var capLayerCache = {};
+  function cameoCapLayer(key, isBld, fac) {
+    var txt = captionFor(key, isBld, fac);
+    if (!txt) return null;
+    var ck2 = (isBld ? 'b:' : 'u:') + fac + ':' + key;
+    if (!capLayerCache[ck2]) {
+      var W2 = 60, H2 = 48, cc = document.createElement('canvas');
+      cc.width = W2 * 2; cc.height = H2 * 2; cc.style.width = W2 + 'px'; cc.style.height = H2 + 'px';
+      var gg = cc.getContext('2d'); gg.scale(2, 2);
+      drawCameoCaption(gg, txt, W2, H2);
+      capLayerCache[ck2] = cc;
+    }
+    return cameoCopy(capLayerCache[ck2]);
+  }
   function cameoFor(key, isBld, fac, ownFac) {
     var own = ownFac || fac;
     // The frame wears the PLAYER'S house colour, so the cache has to be keyed
