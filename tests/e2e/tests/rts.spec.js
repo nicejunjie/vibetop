@@ -539,6 +539,59 @@ test.describe('rts', () => {
       .toBeLessThan(3);
   });
 
+  // Reported: "there is no way I can let miner to go back to refinery, refinery
+  // isn't an end point". Right-clicking your own building fell through to a
+  // plain `move` onto tiles the building occupies, so the miner stopped 4.0
+  // cells short, state 'idle', and never docked. The auto-return machinery
+  // (homeRef + state 'toref') already existed; nothing could reach it.
+  test('right-clicking your own refinery sends a loaded miner home', async ({ page }) => {
+  await page.goto('/rts.html');
+  await page.waitForFunction(() => !!window.__rts, null, { timeout: 15000 });
+  await page.locator('#ovA').click();
+  await expect.poll(async () => page.evaluate(() => window.__rts().state), { timeout: 12000 }).toBe('play');
+  const setup = await page.evaluate(() => {
+    const H = window.__rtsTest, g = H.get();
+    H.give(0, 30000); g.seen.fill(1);
+    const base = g.blds.find((b) => b.p === 0 && b.type === 'base');
+    if (!g.blds.some((b) => b.p === 0 && b.type === 'refinery'))
+      for (let r = 2; r < 10; r++) { let done = false;
+        for (let dy = -r; dy <= r && !done; dy++) for (let dx = -r; dx <= r && !done; dx++)
+          if (H.api.canPlace(g, 0, 'refinery', base.x + dx, base.y + dy)) { H.build('refinery', 0, base.x + dx, base.y + dy); done = true; }
+        if (done) break; }
+    H.step(5);
+    const ref = g.blds.find((b) => b.p === 0 && b.type === 'refinery');
+    const harv = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
+    harv.cargo = window.__rtsTables.UNITS[harv.type].cap || 100; harv.cargoV = 500; harv.state = 'idle'; harv.order = null; harv.path = null;
+    harv.x = ref.cx + 6; harv.y = ref.cy + 5;
+    H.centerOn(Math.round(ref.cx), Math.round(ref.cy));
+    // select the miner the way a player does
+    window.__rtsTest.select ? window.__rtsTest.select([harv]) : null;
+    return { ref: { x: Math.round(ref.cx), y: Math.round(ref.cy) }, harv: harv.type,
+             sel: !!window.__rtsTest.select };
+  });
+  console.log('  ' + JSON.stringify(setup));
+  // box-select the miner, then right-click the refinery on screen
+  const p = await page.evaluate((r) => window.__rtsScreen(r.x, r.y), setup.ref);
+  const hp = await page.evaluate(() => {
+    const g = window.__rtsTest.get();
+    const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
+    return window.__rtsScreen(h.x, h.y);
+  });
+  await page.mouse.click(hp.x, hp.y);          // click the miner itself
+  await page.waitForTimeout(250);
+  const selN = await page.evaluate(() => window.__rts().sel);
+  await page.mouse.move(p.x, p.y);
+  await page.mouse.down({ button: 'right' }); await page.mouse.up({ button: 'right' });
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => {
+    const g = window.__rtsTest.get();
+    const h = g.units.find((u) => window.__rtsTables.UNITS[u.type].harv && u.p === 0);
+    return { state: h.state, homeRef: !!h.homeRef };
+  });
+  expect(after.homeRef, 'the miner was given a refinery to go to').toBe(true);
+  expect(['toref', 'unload', 'tomine', 'warp']).toContain(after.state);
+  });
+
   test('a rally point is visible, routed, and actually used', async ({ page }) => {
     await boot(page);
     await page.evaluate(() => window.__rtsTest.give(0, 20000));

@@ -25824,6 +25824,21 @@
             u.order = { t: 'capture', x: 0, y: 0, id: tgt.id }; u.repathAt = -999; u.path = null;
             requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy));
             nown++; what = 'Engineer will repair ' + bspecOfB(g, tgt).name;
+          } else if (isHarv(u) && tgt.kind === 'b' && tgt.type === 'refinery') {
+            // Reuse the auto-return path verbatim — `homeRef` + state 'toref' is
+            // exactly what a full harvester sets for itself, including the
+            // unload and the walk back to the seam.
+            u.guard = false; u.stopped = false; u.wp = null; u.order = null;
+            u.homeRef = tgt; u.state = 'toref'; u.path = null; u.repathAt = -999; u.noProg = 0;
+            nown++; what = u.cargo ? 'Returning to the refinery' : 'Heading for the refinery';
+          } else if (UNITS[u.type].cls === 'v' && !u.air && tgt.kind === 'b' && tgt.type === 'depot') {
+            // The depot repairs what TOUCHES it (|dx| <= gw/2 + 0.6), so aim at
+            // the pad centre; stopping short is what left this unusable.
+            u.guard = false; u.stopped = false; u.wp = null;
+            u.order = { t: 'move', x: Math.round(tgt.cx), y: Math.round(tgt.cy) };
+            u.repathAt = -999; u.path = null;
+            requestPath(g, u, Math.round(tgt.cx), Math.round(tgt.cy));
+            nown++; what = 'Going in for repairs';
           } else if (ud.ivan && !tgt.bomb) {
             u.guard = false; u.stopped = false; u.wp = null;
             u.order = { t: 'attack', x: 0, y: 0, id: tgt.id, force: 1 }; u.repathAt = -999; u.path = null;
@@ -29217,7 +29232,18 @@
         var ud = UNITS[u.type];
         return (ud.coiler && tgt.kind === 'b' && tgt.type === 'tesla') ||
                (ud.capture && tgt.kind === 'b' && tgt.hp < tgt.maxhp && !BLDS[tgt.type].hut) ||
-               (ud.ivan && !tgt.bomb);
+               (ud.ivan && !tgt.bomb) ||
+               // A miner sent to a refinery, and a damaged vehicle sent to a
+               // Service Depot. Both mechanics already existed and neither had
+               // an ORDER that reached them: a right-click on your own building
+               // fell through to a plain `move` onto tiles the building
+               // occupies, so the unit stopped several cells short and nothing
+               // happened. Measured: a miner told to move to its refinery ended
+               // 4.0 cells away, state 'idle', never docked; a damaged vehicle
+               // sent to a depot stopped 3.0 cells off the pad and was never
+               // repaired, because the depot only treats what is touching it.
+               (isHarv(u) && tgt.kind === 'b' && tgt.type === 'refinery') ||
+               (ud.cls === 'v' && !u.air && tgt.kind === 'b' && tgt.type === 'depot');
       });
       if (wantsOwn) { cmd('own', { u: idsOf(units), id: tgt.id }); return; }
     }
