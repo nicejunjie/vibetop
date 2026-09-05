@@ -137,3 +137,42 @@ test("the plan's remaining art debt is reported, not hidden", art, async () => {
     + `plan's targets; baseline recorded ${BASE ? BASE.recorded : "?"}.`);
   console.log(`  Look at the frame: ${REL(AM.FRAME_PNG)}\n`);
 });
+
+// ── The gates are NOT independent ─────────────────────────────────────────
+// Added 2026-09-05, after a shipped fix had to be reverted for exactly this.
+//
+// A pass shrank the Attack Dog to close `size.infantryOutsideRA2Band`, measured
+// the size gate, the spike and the IoU means, and never ran legibility.js. It
+// had pushed `dog | tanya` under the friend-vs-foe floor in the CELL 96 window
+// at BOTH zooms. Nothing failed. It shipped, and was found by a different pass
+// reading the legibility output for an unrelated unit.
+//
+// The cause is structural, not carelessness: art-metrics.js and legibility.js
+// are separate programs with separate entry points, so "all gates green" has
+// never meant what it sounds like. This binds them — a unit's SIZE or SHAPE
+// cannot be traded for RA2 fidelity if the trade makes two units confusable.
+//
+// Asserted as a hard ZERO rather than ratcheted against the baseline, because
+// the floor is not an art target that improves over time: it is the median
+// distance between the SAME unit in two owners' colours, i.e. the point where
+// a player can no longer tell a friend from a foe. There is no acceptable
+// number of pairs on the wrong side of that.
+test("no two units are confusable, in any window, at any zoom", art, async () => {
+  const leg = require("./tools/legibility.js");
+  const { recs, pageErrors } = await leg.measure({});
+  assert.deepEqual(pageErrors, [], "the legibility bake logged page errors");
+  const bad = [];
+  for (const view of leg.VIEWS) {
+    const m = leg.compute(recs, view);
+    for (const [zoom, groups] of Object.entries(m.zooms)) {
+      for (const [group, v] of Object.entries(groups)) {
+        if (v.confusable > 0) {
+          const worst = (m.worst || {})[zoom] || {};
+          bad.push(`${m.view} @ zoom ${zoom} / ${group}: ${v.confusable} confusable `
+                 + `(min ${v.min})` + (worst[group] ? ` — worst ${worst[group]}` : ""));
+        }
+      }
+    }
+  }
+  assert.deepEqual(bad, [], "units a player cannot tell apart:\n  " + bad.join("\n  "));
+});

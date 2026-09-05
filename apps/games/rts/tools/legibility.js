@@ -496,4 +496,4 @@ async function main() {
   }
 }
 if (require.main === module) main();
-module.exports = { measure, compute, report, CONFUSABLE, ZOOMS };
+module.exports = { measure, compute, report, CONFUSABLE, ZOOMS, VIEWS };
