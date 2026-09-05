@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_238 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_239 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -261,6 +261,7 @@ _238 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [Fourteen troopers shared one value, and the palette entry that was supposed to fix it moves 6% of a man](#fourteen-troopers-shared-one-value-and-the-palette-entry-that-was-supposed-to-fix-it-moves-6-of-a-man)
 - [A rotor blur nobody could see still counted as the helicopter's body](#a-rotor-blur-nobody-could-see-still-counted-as-the-helicopters-body)
 - [RA2's veteran multipliers apply ONCE, not once per rank — and the elite weapon stacks on top](#ra2s-veteran-multipliers-apply-once-not-once-per-rank-and-the-elite-weapon-stacks-on-top)
+- [The whole fleet was too tall, and every ensemble art metric was blind to it](#the-whole-fleet-was-too-tall-and-every-ensemble-art-metric-was-blind-to-it)
 
 <!-- END TOC -->
 
@@ -9597,3 +9598,81 @@ un-RA2 and the thing that hides a dropped `Burst=`.
 **The general lesson.** "Cumulative" in a spec means cumulative over
 *something*; find out what before implementing it. Phobos's own docs repeat the
 same ambiguous wording, so the trap survives being read twice.
+
+## The whole fleet was too tall, and every ensemble art metric was blind to it
+
+**Symptom.** `aegis | squid` had been the single stubborn confusable pair for
+weeks: 27.6 in `legibility.js`'s shipped 28-px window against a 34.1
+friend-vs-foe floor, the only pair anywhere in the game under a floor. Two
+audits (`gap-audit-art.md` row "new", `gap-audit-features.md` row 347) had
+looked at it, tried an owner-colour explanation, disproved it, and concluded
+"the paint is not the problem and neither is the size — the bake dims are
+already RA2-proportioned".
+
+**Cause.** The size WAS the problem, and the check that said otherwise compared
+the wrong numbers. Those audits compared the *plan* geometry — `G.aegis` is
+`L41/W17`, so 2.41 against `[AEGIS]`'s 91x35 = 2.60, near enough. But a plan is
+not a sprite: everything the ship carries ABOVE the deck lands in the rendered
+height and in no plan number at all. Measured on the rendered broadside frame,
+where RA2's own 91x35 is measured, the Aegis was **78x58, aspect 1.34 against
+2.60** — a cruiser drawn as a tugboat, under a 20-unit deckhouse slab on a
+5.6-unit freeboard. Five of the seven hulls with an RA2 sprite were outside a
++-20% band; the Typhoon sub, RA2's flattest hull afloat at 5.36, was 2.15.
+
+Two of the errors were single mis-readings that then set a ship's whole massing:
+
+* The Aegis's block read `91x35 against 101x41` as "shorter and BEAMIER than
+  the Destroyer" and gave her beam 17 against the Destroyer's 12. Those are
+  isometric SCREEN HEIGHTS: beam and superstructure are the only things in
+  them, so the Aegis being 6 px shorter than the Destroyer says she is
+  narrower and lower, not fatter.
+* The Squid's mantle and the Dolphin's body were `g.ellipse` calls at fixed
+  SCREEN radii — identical at all 32 bearings, so the one part of each animal
+  that should foreshorten never did, and both rendered as round blobs whatever
+  way they faced.
+
+**Why nothing caught it.** `iou`, `spike`, `hue` and `colour` are all invariant
+to a hull being half as long as it should be, provided the whole fleet is wrong
+together — which it was. `legibility.js` saw the symptom and named no cause,
+because "two tall blobs match each other" is what it measures, not why they are
+tall. There was no metric anywhere that compared our art to an EXTERNAL number.
+
+**Fix.** Every hull rebuilt to its RA2 broadside aspect (all seven now inside
++-20%, worst 0.194), and a new gate — `aspect.navalOutsideRA2Band` and
+`aspect.navalWorstOffRA2` in `tools/art-metrics.js` — that compares the
+*broadside* frame, not the mean over bearings, against the `w x h` table in
+`unit-identity-reference.md` §1.1. It is not plan §5's tautology because the
+reference is external: no art commit can move 101x41. Proved red on the
+unfixed build first (5 outside the band, worst 0.599) via a new `ART_HTML` env
+var that points the tool at another build of the page.
+
+**The trade, and it is a real one.** `peerVsSelf.naval` went 1 -> 9 and was
+re-recorded deliberately. `selfIoU` is the mean IoU of a unit against its own
+other bearings with both masks centred, and for a rectangle of aspect *a* the
+0-vs-90-degree term is exactly `1/(2a-1)` — 1.00 at a=1, 0.26 at a=2.4. **The
+metric's "self" term is a decreasing function of aspect, so it rewards ROUND
+ships**, which is the defect that was just removed. The natural experiment is in
+the numbers: over the 10 hulls before and after, corr(aspect, selfIoU) = -0.57,
+and the two hulls whose aspect did not change — Destroyer 1.405, Landing Craft
+1.664 — have selfIoU *identical* to four decimal places (0.4763, 0.6944) while
+every hull that got longer lost some. What the player actually looks at
+improved: in the shipped 28-px window at zoom 1 the naval minimum went
+27.6 -> 43.5 against a 35.0 floor, the group mean 55.0 -> 59.5, and the game's
+last confusable pair closed.
+
+**Rejected.** *Re-rounding the ships to keep `peerVsSelf`* — that is tuning the
+art to the instrument. *Changing `peerVsSelf` to suit naval* — editing the
+metric in the same commit that needs it to pass is exactly the tautology the
+gate's own header warns about; it is left standing, failing, and explained.
+
+**The general lesson.** An ensemble metric cannot see an error the whole
+ensemble shares. At least one number has to come from outside the codebase.
+
+**Still open.** `bakeShip`'s big sheet (150x112) gave the three largest hulls
+more width and headroom but not more room BELOW the ground anchor — that margin
+is `UPAD`, 27 px, for every sheet size, because the renderer places every frame
+at `py - (s.h - UPAD)`. Measured against a probe build with `UPAD` at 60, the
+Carrier loses ~6 px of her near deck corner on 16 of 32 bearings and the
+Dreadnought ~1 px. Pre-existing (it clipped 14 Carrier bearings before this
+pass); fixing it properly means raising `UPAD` and every canvas height together,
+which touches all eight `s.h - UPAD` call sites.
