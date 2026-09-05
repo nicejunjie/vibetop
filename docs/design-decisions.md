@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_241 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_242 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -264,6 +264,7 @@ _241 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A repeat schedule needed one new button, because the quick row was already an interval dialer (2026-09-05)](#a-repeat-schedule-needed-one-new-button-because-the-quick-row-was-already-an-interval-dialer-2026-09-05)
 - [The whole fleet was too tall, and every ensemble art metric was blind to it](#the-whole-fleet-was-too-tall-and-every-ensemble-art-metric-was-blind-to-it)
 - [Three levers, three honest sweeps, three wrong causes — the Nighthawk was pinned by a constant nobody swept (2026-09-05)](#three-levers-three-honest-sweeps-three-wrong-causes-the-nighthawk-was-pinned-by-a-constant-nobody-swept-2026-09-05)
+- [A silver spec clause the code quoted and then painted over, and the anti-aliasing that ate the fix (2026-09-05)](#a-silver-spec-clause-the-code-quoted-and-then-painted-over-and-the-anti-aliasing-that-ate-the-fix-2026-09-05)
 
 <!-- END TOC -->
 
@@ -9882,3 +9883,61 @@ cause and never what is. Three true negative results in a row do not add up to a
 positive one, and the fourth lever may simply be a constant no one has looked
 for — in this case, one the surrounding comment already claimed was doing the
 job.
+
+## A silver spec clause the code quoted and then painted over, and the anti-aliasing that ate the fix (2026-09-05)
+
+**Symptom.** `unit-identity-reference.md` §2.2 gives the Tesla Trooper *"carapace
+value >= 0.70 (silver) across >= 40% of the torso"*. Measured off the baked
+sprite, banded by fraction of its own height, his chest was **7.3% silver and
+74% house colour**. The drawing block quoted the clause **correctly**, a few
+lines under a comment describing the same chest as *"a barrel chest in solid
+house colour"* — it routed NEW owner colour to the hips *because of* the clause
+and left the chest it was protecting already painted. No gate saw it: his spike
+is the shoulder LINE, and nothing measures a carapace.
+
+**Cause, three of them, and only the third is about art.**
+
+1. *A vertical plastron paints nothing.* The obvious armour idiom — house colour
+   down the middle, silver either side — moved the chest 7.3% -> **8.8%**. The
+   arms sit at `sp 6.5` and the pauldron caps reach `cx±4.0`, so the shell's
+   flanks are covered and the VISIBLE torso is ~9.6 units wide. The silver was
+   painted behind the arms.
+2. *The band is not where the source says it is.* Derived from drawing
+   coordinates, "24-44% of the height" looks like the upper chest. It is not:
+   the bbox includes the **contact shadow** below the boots, and the anchor is
+   not `h - UPAD`. Read off a per-row profile of the bake instead, 24-44% is
+   sprite rows 38-45 — `by-21.6` to `by-13.6`, i.e. essentially the whole chest
+   polygon. A yoke placed by the source geometry measured 8.8%.
+3. *Anti-aliasing is most of the budget.* With the yoke finally in the right
+   place the chest measured 38.9% while looking silver. At ~9 px of visible
+   torso a facet is 2-3 px and every outline beside it is a 1 px near-black
+   stroke plus its blend; those blends land at v 0.55-0.65 — they look like
+   silver and measure as not-silver.
+
+**Fix.** Torso split HORIZONTALLY (silver yoke + steel pauldrons and vambraces
+over a house breastplate), and **every outline on the carapace and the arm
+plates taken from `#565d68` to a mid `#98a0ae`** — that one change moved the
+chest 38.9% -> 45.6%, more than any geometry in the pass. Owner colour moved
+rather than shrank: a house gorget at the neck (at 0.21 of the height, ABOVE the
+measured band, so it costs the carapace nothing, and the sidebar crops an
+infantry cameo to its top 72%) and house thigh plates on legs that were 34% of
+his mass at 0% remap. Chest **7.3% -> 43.3% silver**; owner share 0.343 ->
+**0.349**, i.e. it went UP; every infantry legibility mean improved and no min
+moved. Full walk, including the lever-by-lever table, in
+`apps/games/rts/docs/per-unit-art-log.md`.
+
+**Rejected.** *Passing a steel sleeve colour to `arms()`* — that helper shades
+the far arm to 0.66 and the near one to 0.76, so no base bright enough to
+survive 0.66x and still measure silver exists; it moved the chest 0.3 points.
+Arm silver has to be a plate drawn at full value in the callback. *Softening the
+tesla arc to buy rows* — it backfires: the glow is drawn `lighter`, so cutting
+it from .12 to .07 alpha LOWERED the chest 34.9 -> 34.0 by removing more value
+than saturation. *Lifting the arc off the chest onto the collar* — already tried
+and rejected by an earlier pass for looking like a pale yoke across his
+shoulders; still true, and now it would fuse with a silver carapace as well.
+
+**The general lesson.** A spec clause with **no measurement behind it** is not a
+constraint, it is a comment — this is the second one in a day found unmet while
+being quoted correctly a few lines away. And when the drawn thing is under about
+ten pixels wide, *the outline colour is a first-class design decision*, not
+trim: it can own more of the measured area than the shape it outlines.
