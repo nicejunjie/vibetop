@@ -27879,7 +27879,7 @@
     // no structure of its own to crop (it comes off a captured Airport), and
     // its emoji (U+1FA82) is missing from most font sets — it rendered as a
     // tofu box. Draw the canopy instead.
-    var cam = k === 'para' ? bakeParaIcon() : (G ? cameoFor(SW[k].bld, true, G.side[ME].fac) : null);
+    var cam = k === 'para' ? bakeParaIcon() : (G ? cameoFor(SW[k].bld, true, G.side[ME].fac, null, true) : null);
     if (cam) em.appendChild(cam); else em.textContent = SW[k].em;
     var cd = document.createElement('span'); cd.className = 'cd';
     el.appendChild(arc); el.appendChild(em); el.appendChild(cd);
@@ -28135,13 +28135,17 @@
     }
     return cameoCopy(capLayerCache[ck2]);
   }
-  function cameoFor(key, isBld, fac, ownFac) {
+  // `noCap` suppresses the baked name. The build sidebar wants it; the
+  // SUPERWEAPON CLOCK does not — that icon is 56x42, sits over the battlefield,
+  // and already carries a countdown, so a squeezed caption lands straight on
+  // top of the numerals and buries the one thing the clock exists to show.
+  function cameoFor(key, isBld, fac, ownFac, noCap) {
     var own = ownFac || fac;
     // The frame wears the PLAYER'S house colour, so the cache has to be keyed
     // on it: without this a player who picks green kept a sidebar full of the
     // blue frames baked before the pick, and applyHouse() cleared the line-up
     // and map-dot caches beside this one but never this one.
-    var ck = (isBld ? 'b:' : 'u:') + fac + ':' + own + ':' + COL[ME] + ':' + key;
+    var ck = (isBld ? 'b:' : 'u:') + fac + ':' + own + ':' + COL[ME] + ':' + (noCap ? 'n:' : 'c:') + key;
     if (cameoCache[ck]) return cameoCopy(cameoCache[ck]);
     var src = null, sw, sh, sc, kb = 1;
     try {
@@ -28311,7 +28315,7 @@
     g.drawImage(src, px0 * kb, py0 * kb, pw * kb, ph * kb,
                 (W - dw) / 2, fill ? -1 : (H - dh) / 2 + 1, dw, dh);
     // The name, RA2's way — see CAMEO_CAPTION above for why this is here.
-    var capTxt = captionFor(key, isBld, fac);
+    var capTxt = noCap ? null : captionFor(key, isBld, fac);
     if (capTxt) drawCameoCaption(g, capTxt, W, H);
     // Bevel: light top-left, dark bottom-right, house colour on the outside.
     g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = 1;
