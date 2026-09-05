@@ -65,7 +65,50 @@ const ACHROMATIC = 0.14;
 // The band is +-20%. RA2's own seven span 1.84 to 5.36, so 20% cannot let two
 // size classes swap; and our isometric camera is not bit-identical to RA2's,
 // so a tighter band would fail on projection error rather than on art.
+// EXTERNAL REFERENCE, and the only kind of metric that can catch an error the
+// WHOLE ENSEMBLE shares. A fleet of tugboats sat here for weeks because every
+// other metric is a comparison between our own units: if they are all wrong
+// the same way, they all still separate, and nothing complains. This table
+// came from RA2's own sprite bboxes and is the one thing that noticed.
+//
+// It covered NAVAL ONLY. Vehicles and infantry had no external check at all,
+// so the same class of drift could sit in the tanks or the troopers unseen —
+// and the numbers to close that were already in the repo, in
+// docs/unit-identity-reference.md §1.1, unused. They are below.
+//
+// NOTE what this table settles retroactively: RA2's IFV is 50x45 = 1.11 and
+// its Flak Track 45x45 = 1.00. Both are as square as ours. The measured
+// negative result that says "do not lengthen the IFV" was right for a reason
+// nobody had written down — RA2's IFV really is nearly square.
 const RA2_ASPECT = {
+  // ---- vehicles (unit-identity-reference.md §1.1) ----
+  drone:       21 / 14,  // [DRON]    21x14
+  hornet:      27 / 15,  // [HORNET]  27x15
+  flaktrack:   45 / 45,  // [HTK]     45x45 — square, and so is ours
+  ifv:         50 / 45,  // [FV]      50x45
+  teslatank:   52 / 37,  // [TTNK]    52x37
+  lancer:      54 / 23,  // [GTNK]    54x23 — the Grizzly
+  chronominer: 55 / 28,  // [CMIN]    55x28
+  rhino:       56 / 28,  // [HTNK]    56x28
+  mammoth:     56 / 41,  // [MTNK]    56x41 — the Apocalypse
+  warminer:    56 / 48,  // [HARV]    56x48
+  mirage:      59 / 39,  // [RTNK]    59x39
+  prismtank:   59 / 43,  // [SREF]    59x43
+  v3:          63 / 36,  // [V3]      63x36
+  nighthawk:   64 / 21,  // [SHAD]    64x21
+  // ---- infantry (same table) ----
+  dog:         21 / 15,  // [ADOG]    21x15, running
+  ivan:        12 / 25,  // [IVAN]    12x25
+  engineer:    13 / 25,  // [ENGINEER]13x25
+  rocketeer:   16 / 24,  // [JUMPJET] 16x24
+  cleg:        15 / 26,  // [CLEG]    15x26
+  tanya:       13 / 26,  // [TANY]    13x26
+  conscript:   13 / 27,  // [E2]      13x27
+  rifle:       12 / 28,  // [E1]      12x28
+  teslatrooper:18 / 28,  // [SHK]     18x28
+  yuri:        12 / 29,  // [YURI]    12x29
+  flak:        12 / 37,  // [FLAKT]   12x37, gun up
+  // ---- naval ----
   destroyer: 101 / 41,   // [DEST]  101x41
   aegis:      91 / 35,   // [AEGIS]  91x35
   carrier:   143 / 52,   // [CARRIER] 143x52 — the largest sprite in RA2
@@ -230,6 +273,9 @@ const TARGETS = {
   'hue.vehicleOwnerMax':         { want: 0.27, dir: 'down', note: 'the top of RA2 vehicle range; going over means C3 overshot into re-adding paint (plan §4)' },
   'hue.maxImpostor':             { want: 0.02, dir: 'down', note: "a FIXED colour sitting on the other owner's hue reads as their unit — the Conscript's #7d5148 trousers were 39% red" },
   'aspect.navalOutsideRA2Band':  { want: 0,    dir: 'down', note: 'every hull with an RA2 sprite in reference §1.1 within +-20% of its broadside aspect; 5 of 7 were outside it before the 2026-09-05 pass — the Typhoon at 0.40 of RA2, the Dreadnought 0.50, the Aegis 0.52' },
+  'aspect.vehicleOutsideRA2Band':{ want: 0,    dir: 'down', note: 'the same external check for GROUND vehicles, whose RA2 bboxes were sitting unused in reference §1.1 while only the fleet was gated. 4 of 14 outside on the day it was added: Rhino 1.39 vs 2.00, V3 1.22 vs 1.75, Chrono Miner 1.49 vs 1.96, Prism Tank 1.05 vs 1.37 — all SHORTER than RA2, the same direction the fleet was. Note the IFV comes out at 0.97 of RA2 and the Flak Track 0.88, which is why the measured "do not lengthen the IFV" result was right: RA2 draws both nearly square' },
+  'aspect.infantryOutsideRA2Band':{ want: 0,   dir: 'down', note: 'the same check for INFANTRY, and the fault runs the other way: ours are too WIDE, not too short. 4 of 11 outside — Engineer 0.86 vs 0.52, Chrono Legionnaire 0.93 vs 0.58, Tanya 0.71 vs 0.50, Flak Trooper 0.44 vs 0.32. A camera cannot widen a man, so unlike the vehicles this is not explained by the isometric projection' },
+  'aspect.airOutsideRA2Band':    { want: 0,    dir: 'down', note: 'the same check for AIRCRAFT. The Nighthawk is 1.62 against RA2\'s 3.05 — the single worst offender on the whole board at 0.53 of reference, a helicopter drawn barely half as long as it should be' },
   'aspect.navalWorstOffRA2':     { want: 0.20, dir: 'down', note: "the furthest any hull sits from RA2's aspect, as |ours/RA2 - 1|; 0.60 (the Typhoon, 2.15 against 5.36) before that pass" },
   'colour.infantry.meanDist':    { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between infantry kinds: what actually separates them' },
   // C5 ("ACCENT earns its name") had NO measurement at all until 2026-09-04,
@@ -723,9 +769,21 @@ function compute(recs) {
     }
     const off = (r) => Math.abs(r.ratio - 1);
     rows.sort((a, b) => off(b) - off(a));
+    // Per GROUP, because the two directions are different faults with
+    // different causes: our vehicles and hulls are systematically SHORTER than
+    // RA2's (the naval pass measured a consistent ~15% that is the isometric
+    // camera, not the art), while our infantry are systematically WIDER, which
+    // is not a camera effect at all.
+    const byG = (g) => rows.filter((r) => (unit[r.key] || {}).group === g);
+    const cnt = (rs) => rs.filter((r) => off(r) > RA2_ASPECT_BAND).length;
+    const wor = (rs) => (rs.length ? round(Math.max(...rs.map(off)), 4) : 0);
     return { rows,
              outside: rows.filter((r) => off(r) > RA2_ASPECT_BAND).length,
-             worstOff: rows.length ? round(off(rows[0]), 4) : 0 };
+             worstOff: rows.length ? round(off(rows[0]), 4) : 0,
+             navalOutside: cnt(byG('naval')), navalWorst: wor(byG('naval')),
+             vehOutside: cnt(byG('vehicle')), vehWorst: wor(byG('vehicle')),
+             infOutside: cnt(byG('infantry')), infWorst: wor(byG('infantry')),
+             airOutside: cnt(byG('air')), airWorst: wor(byG('air')) };
   })();
 
   return {
@@ -751,8 +809,11 @@ function compute(recs) {
       'hue.vehicleOwnerMean': round(mean(vehOwner), 4),
       'hue.vehicleOwnerMax': round(Math.max(...vehOwner), 4),
       'hue.maxImpostor': round(impostorAll.length ? impostorAll[0].pct : 0, 4),
-      'aspect.navalOutsideRA2Band': ra2Asp.outside,
-      'aspect.navalWorstOffRA2': ra2Asp.worstOff,
+      'aspect.navalOutsideRA2Band': ra2Asp.navalOutside,
+      'aspect.navalWorstOffRA2': ra2Asp.navalWorst,
+      'aspect.vehicleOutsideRA2Band': ra2Asp.vehOutside,
+      'aspect.infantryOutsideRA2Band': ra2Asp.infOutside,
+      'aspect.airOutsideRA2Band': ra2Asp.airOutside,
       'colour.infantry.meanDist': round(mean(cd), 4),
       'colour.vehicle.meanDist': round(mean(vehD.d), 4),
       'colour.vehicleAchromatic': veh.filter((k) => !ACHROMATIC_EXEMPT.has(k) && colByUnit[k].chroma < ACHROMATIC).length,
@@ -765,6 +826,7 @@ function compute(recs) {
       perUnit: Object.fromEntries(keys.map((k) => [k, {
         group: grp[k], aspect: unit[k].broadsideAspect, selfIoU: unit[k].selfIoU,
         selfIoUCross: unit[k].selfIoUCross,
+        broadsideAspect: unit[k].broadsideAspect, ra2Aspect: unit[k].ra2Aspect, vsRA2: unit[k].vsRA2,
         bestPeer: unit[k].bestPeer, bestPeerIoU: unit[k].bestPeerIoU,
         peersBeatingSelf: unit[k].peersBeatingSelf,
       }])),

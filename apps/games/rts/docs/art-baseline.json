@@ -125,6 +125,21 @@
       "dir": "down",
       "note": "every hull with an RA2 sprite in reference §1.1 within +-20% of its broadside aspect; 5 of 7 were outside it before the 2026-09-05 pass — the Typhoon at 0.40 of RA2, the Dreadnought 0.50, the Aegis 0.52"
     },
+    "aspect.vehicleOutsideRA2Band": {
+      "want": 0,
+      "dir": "down",
+      "note": "the same external check for GROUND vehicles, whose RA2 bboxes were sitting unused in reference §1.1 while only the fleet was gated. 4 of 14 outside on the day it was added: Rhino 1.39 vs 2.00, V3 1.22 vs 1.75, Chrono Miner 1.49 vs 1.96, Prism Tank 1.05 vs 1.37 — all SHORTER than RA2, the same direction the fleet was. Note the IFV comes out at 0.97 of RA2 and the Flak Track 0.88, which is why the measured \"do not lengthen the IFV\" result was right: RA2 draws both nearly square"
+    },
+    "aspect.infantryOutsideRA2Band": {
+      "want": 0,
+      "dir": "down",
+      "note": "the same check for INFANTRY, and the fault runs the other way: ours are too WIDE, not too short. 4 of 11 outside — Engineer 0.86 vs 0.52, Chrono Legionnaire 0.93 vs 0.58, Tanya 0.71 vs 0.50, Flak Trooper 0.44 vs 0.32. A camera cannot widen a man, so unlike the vehicles this is not explained by the isometric projection"
+    },
+    "aspect.airOutsideRA2Band": {
+      "want": 0,
+      "dir": "down",
+      "note": "the same check for AIRCRAFT. The Nighthawk is 1.62 against RA2's 3.05 — the single worst offender on the whole board at 0.53 of reference, a helicopter drawn barely half as long as it should be"
+    },
     "aspect.navalWorstOffRA2": {
       "want": 0.2,
       "dir": "down",
@@ -170,6 +185,9 @@
     "hue.maxImpostor": 0.0051,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.194,
+    "aspect.vehicleOutsideRA2Band": 4,
+    "aspect.infantryOutsideRA2Band": 4,
+    "aspect.airOutsideRA2Band": 1,
     "colour.infantry.meanDist": 1.3644,
     "colour.vehicle.meanDist": 0.9543,
     "colour.vehicleAchromatic": 0
@@ -181,6 +199,9 @@
         "aspect": 1.486,
         "selfIoU": 0.7076,
         "selfIoUCross": 0.7076,
+        "broadsideAspect": 1.486,
+        "ra2Aspect": 1.964,
+        "vsRA2": 0.757,
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.6946,
         "peersBeatingSelf": 0
@@ -190,6 +211,9 @@
         "aspect": 1.095,
         "selfIoU": 0.7323,
         "selfIoUCross": 0.7323,
+        "broadsideAspect": 1.095,
+        "ra2Aspect": 1.167,
+        "vsRA2": 0.939,
         "bestPeer": "Mirage Tank",
         "bestPeerIoU": 0.7255,
         "peersBeatingSelf": 0
@@ -199,6 +223,9 @@
         "aspect": 0.472,
         "selfIoU": 0.6233,
         "selfIoUCross": 0.6233,
+        "broadsideAspect": 0.472,
+        "ra2Aspect": 0.429,
+        "vsRA2": 1.101,
         "bestPeer": "Spy",
         "bestPeerIoU": 0.618,
         "peersBeatingSelf": 0
@@ -208,6 +235,9 @@
         "aspect": 0.5,
         "selfIoU": 0.7395,
         "selfIoUCross": 0.7395,
+        "broadsideAspect": 0.5,
+        "ra2Aspect": 0.481,
+        "vsRA2": 1.038,
         "bestPeer": "Spy",
         "bestPeerIoU": 0.7463,
         "peersBeatingSelf": 0
@@ -217,6 +247,7 @@
         "aspect": 0.643,
         "selfIoU": 0.4824,
         "selfIoUCross": 0.4824,
+        "broadsideAspect": 0.643,
         "bestPeer": "Desolator",
         "bestPeerIoU": 0.5981,
         "peersBeatingSelf": 0
@@ -226,6 +257,9 @@
         "aspect": 0.444,
         "selfIoU": 0.5543,
         "selfIoUCross": 0.5543,
+        "broadsideAspect": 0.444,
+        "ra2Aspect": 0.324,
+        "vsRA2": 1.369,
         "bestPeer": "Guardian GI",
         "bestPeerIoU": 0.5447,
         "peersBeatingSelf": 0
@@ -235,6 +269,9 @@
         "aspect": 0.759,
         "selfIoU": 0.7167,
         "selfIoUCross": 0.7167,
+        "broadsideAspect": 0.759,
+        "ra2Aspect": 0.667,
+        "vsRA2": 1.139,
         "bestPeer": "Engineer",
         "bestPeerIoU": 0.6942,
         "peersBeatingSelf": 0
@@ -244,6 +281,7 @@
         "aspect": 1.957,
         "selfIoU": 0.4287,
         "selfIoUCross": 0.4287,
+        "broadsideAspect": 1.957,
         "bestPeer": "Hornet",
         "bestPeerIoU": 0.2441,
         "peersBeatingSelf": 0
@@ -253,6 +291,7 @@
         "aspect": 2.227,
         "selfIoU": 0.4379,
         "selfIoUCross": 0.4379,
+        "broadsideAspect": 2.227,
         "bestPeer": "Nighthawk",
         "bestPeerIoU": 0.4003,
         "peersBeatingSelf": 0
@@ -262,6 +301,9 @@
         "aspect": 2.364,
         "selfIoU": 0.5496,
         "selfIoUCross": 0.5496,
+        "broadsideAspect": 2.364,
+        "ra2Aspect": 2.348,
+        "vsRA2": 1.007,
         "bestPeer": "Chrono Miner",
         "bestPeerIoU": 0.5193,
         "peersBeatingSelf": 0
@@ -271,6 +313,9 @@
         "aspect": 1.271,
         "selfIoU": 0.693,
         "selfIoUCross": 0.693,
+        "broadsideAspect": 1.271,
+        "ra2Aspect": 1.366,
+        "vsRA2": 0.931,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.6625,
         "peersBeatingSelf": 0
@@ -280,6 +325,9 @@
         "aspect": 0.857,
         "selfIoU": 0.7498,
         "selfIoUCross": 0.7498,
+        "broadsideAspect": 0.857,
+        "ra2Aspect": 0.52,
+        "vsRA2": 1.648,
         "bestPeer": "Rocketeer",
         "bestPeerIoU": 0.6942,
         "peersBeatingSelf": 0
@@ -289,6 +337,9 @@
         "aspect": 1.393,
         "selfIoU": 0.5406,
         "selfIoUCross": 0.5406,
+        "broadsideAspect": 1.393,
+        "ra2Aspect": 1.4,
+        "vsRA2": 0.995,
         "bestPeer": "Rocketeer",
         "bestPeerIoU": 0.4879,
         "peersBeatingSelf": 0
@@ -298,6 +349,9 @@
         "aspect": 1.082,
         "selfIoU": 0.7492,
         "selfIoUCross": 0.7492,
+        "broadsideAspect": 1.082,
+        "ra2Aspect": 1.111,
+        "vsRA2": 0.974,
         "bestPeer": "Rhino Tank",
         "bestPeerIoU": 0.6879,
         "peersBeatingSelf": 0
@@ -307,6 +361,9 @@
         "aspect": 1.529,
         "selfIoU": 0.7869,
         "selfIoUCross": 0.7869,
+        "broadsideAspect": 1.529,
+        "ra2Aspect": 1.513,
+        "vsRA2": 1.011,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.7255,
         "peersBeatingSelf": 0
@@ -316,6 +373,9 @@
         "aspect": 0.71,
         "selfIoU": 0.7765,
         "selfIoUCross": 0.7765,
+        "broadsideAspect": 0.71,
+        "ra2Aspect": 0.5,
+        "vsRA2": 1.42,
         "bestPeer": "Crazy Ivan",
         "bestPeerIoU": 0.7308,
         "peersBeatingSelf": 0
@@ -325,6 +385,9 @@
         "aspect": 1.391,
         "selfIoU": 0.7006,
         "selfIoUCross": 0.7006,
+        "broadsideAspect": 1.391,
+        "ra2Aspect": 2,
+        "vsRA2": 0.696,
         "bestPeer": "Chrono Miner",
         "bestPeerIoU": 0.6946,
         "peersBeatingSelf": 0
@@ -334,6 +397,9 @@
         "aspect": 0.878,
         "selfIoU": 0.6273,
         "selfIoUCross": 0.6273,
+        "broadsideAspect": 0.878,
+        "ra2Aspect": 1,
+        "vsRA2": 0.878,
         "bestPeer": "IFV",
         "bestPeerIoU": 0.6088,
         "peersBeatingSelf": 0
@@ -343,6 +409,9 @@
         "aspect": 1.222,
         "selfIoU": 0.5857,
         "selfIoUCross": 0.5857,
+        "broadsideAspect": 1.222,
+        "ra2Aspect": 1.75,
+        "vsRA2": 0.698,
         "bestPeer": "Tesla Tank",
         "bestPeerIoU": 0.6667,
         "peersBeatingSelf": 3
@@ -352,6 +421,9 @@
         "aspect": 0.73,
         "selfIoU": 0.8076,
         "selfIoUCross": 0.8076,
+        "broadsideAspect": 0.73,
+        "ra2Aspect": 0.643,
+        "vsRA2": 1.136,
         "bestPeer": "Yuri",
         "bestPeerIoU": 0.6494,
         "peersBeatingSelf": 0
@@ -361,6 +433,9 @@
         "aspect": 0.531,
         "selfIoU": 0.8264,
         "selfIoUCross": 0.8264,
+        "broadsideAspect": 0.531,
+        "ra2Aspect": 0.48,
+        "vsRA2": 1.106,
         "bestPeer": "Tanya",
         "bestPeerIoU": 0.7308,
         "peersBeatingSelf": 0
@@ -370,6 +445,9 @@
         "aspect": 1.524,
         "selfIoU": 0.7092,
         "selfIoUCross": 0.7092,
+        "broadsideAspect": 1.524,
+        "ra2Aspect": 1.5,
+        "vsRA2": 1.016,
         "bestPeer": "Grizzly Tank",
         "bestPeerIoU": 0.4664,
         "peersBeatingSelf": 0
@@ -379,6 +457,9 @@
         "aspect": 1.186,
         "selfIoU": 0.6753,
         "selfIoUCross": 0.6753,
+        "broadsideAspect": 1.186,
+        "ra2Aspect": 1.405,
+        "vsRA2": 0.844,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.6711,
         "peersBeatingSelf": 0
@@ -388,6 +469,9 @@
         "aspect": 1.052,
         "selfIoU": 0.7433,
         "selfIoUCross": 0.7433,
+        "broadsideAspect": 1.052,
+        "ra2Aspect": 1.372,
+        "vsRA2": 0.767,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.5881,
         "peersBeatingSelf": 0
@@ -397,6 +481,7 @@
         "aspect": 0.722,
         "selfIoU": 0.6561,
         "selfIoUCross": 0.6561,
+        "broadsideAspect": 0.722,
         "bestPeer": "Tesla Trooper",
         "bestPeerIoU": 0.6391,
         "peersBeatingSelf": 0
@@ -406,6 +491,9 @@
         "aspect": 0.359,
         "selfIoU": 0.8524,
         "selfIoUCross": 0.8524,
+        "broadsideAspect": 0.359,
+        "ra2Aspect": 0.414,
+        "vsRA2": 0.868,
         "bestPeer": "Spy",
         "bestPeerIoU": 0.7258,
         "peersBeatingSelf": 0
@@ -415,6 +503,9 @@
         "aspect": 0.933,
         "selfIoU": 0.6556,
         "selfIoUCross": 0.6556,
+        "broadsideAspect": 0.933,
+        "ra2Aspect": 0.577,
+        "vsRA2": 1.617,
         "bestPeer": "Engineer",
         "bestPeerIoU": 0.6656,
         "peersBeatingSelf": 0
@@ -424,6 +515,7 @@
         "aspect": 0.457,
         "selfIoU": 0.778,
         "selfIoUCross": 0.778,
+        "broadsideAspect": 0.457,
         "bestPeer": "Conscript",
         "bestPeerIoU": 0.7463,
         "peersBeatingSelf": 0
@@ -433,6 +525,9 @@
         "aspect": 1.622,
         "selfIoU": 0.8509,
         "selfIoUCross": 0.8509,
+        "broadsideAspect": 1.622,
+        "ra2Aspect": 3.048,
+        "vsRA2": 0.532,
         "bestPeer": "Kirov Airship",
         "bestPeerIoU": 0.4003,
         "peersBeatingSelf": 0
@@ -442,6 +537,7 @@
         "aspect": 1.538,
         "selfIoU": 0.7037,
         "selfIoUCross": 0.7037,
+        "broadsideAspect": 1.538,
         "bestPeer": "Landing Craft",
         "bestPeerIoU": 0.7255,
         "peersBeatingSelf": 0
@@ -451,6 +547,9 @@
         "aspect": 2.119,
         "selfIoU": 0.4763,
         "selfIoUCross": 0.4763,
+        "broadsideAspect": 2.119,
+        "ra2Aspect": 2.463,
+        "vsRA2": 0.86,
         "bestPeer": "Aegis Cruiser",
         "bestPeerIoU": 0.724,
         "peersBeatingSelf": 3
@@ -460,6 +559,9 @@
         "aspect": 2.216,
         "selfIoU": 0.5129,
         "selfIoUCross": 0.5129,
+        "broadsideAspect": 2.216,
+        "ra2Aspect": 2.6,
+        "vsRA2": 0.852,
         "bestPeer": "Destroyer",
         "bestPeerIoU": 0.724,
         "peersBeatingSelf": 2
@@ -469,6 +571,9 @@
         "aspect": 2.444,
         "selfIoU": 0.524,
         "selfIoUCross": 0.524,
+        "broadsideAspect": 2.444,
+        "ra2Aspect": 2.75,
+        "vsRA2": 0.889,
         "bestPeer": "Dreadnought",
         "bestPeerIoU": 0.6121,
         "peersBeatingSelf": 0
@@ -478,6 +583,9 @@
         "aspect": 1.75,
         "selfIoU": 0.4931,
         "selfIoUCross": 0.4931,
+        "broadsideAspect": 1.75,
+        "ra2Aspect": 1.8,
+        "vsRA2": 0.972,
         "bestPeer": "Harrier",
         "bestPeerIoU": 0.2441,
         "peersBeatingSelf": 0
@@ -487,6 +595,7 @@
         "aspect": 2.933,
         "selfIoU": 0.4245,
         "selfIoUCross": 0.4245,
+        "broadsideAspect": 2.933,
         "bestPeer": "Typhoon Attack Sub",
         "bestPeerIoU": 0.4808,
         "peersBeatingSelf": 0
@@ -496,6 +605,7 @@
         "aspect": 1.795,
         "selfIoU": 0.6944,
         "selfIoUCross": 0.6944,
+        "broadsideAspect": 1.795,
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.7255,
         "peersBeatingSelf": 0
@@ -505,6 +615,9 @@
         "aspect": 4.4,
         "selfIoU": 0.3228,
         "selfIoUCross": 0.3228,
+        "broadsideAspect": 4.4,
+        "ra2Aspect": 5.357,
+        "vsRA2": 0.821,
         "bestPeer": "Dolphin",
         "bestPeerIoU": 0.4808,
         "peersBeatingSelf": 1
@@ -514,6 +627,9 @@
         "aspect": 1.486,
         "selfIoU": 0.6558,
         "selfIoUCross": 0.6558,
+        "broadsideAspect": 1.486,
+        "ra2Aspect": 1.844,
+        "vsRA2": 0.806,
         "bestPeer": "Amphibious Transport",
         "bestPeerIoU": 0.6255,
         "peersBeatingSelf": 0
@@ -523,6 +639,9 @@
         "aspect": 2.417,
         "selfIoU": 0.4602,
         "selfIoUCross": 0.4602,
+        "broadsideAspect": 2.417,
+        "ra2Aspect": 2.956,
+        "vsRA2": 0.818,
         "bestPeer": "Aircraft Carrier",
         "bestPeerIoU": 0.6121,
         "peersBeatingSelf": 2
@@ -532,6 +651,9 @@
         "aspect": 3.467,
         "selfIoU": 0.3044,
         "selfIoUCross": 0.3044,
+        "broadsideAspect": 3.467,
+        "ra2Aspect": 3.9,
+        "vsRA2": 0.889,
         "bestPeer": "Aegis Cruiser",
         "bestPeerIoU": 0.5924,
         "peersBeatingSelf": 6
@@ -541,6 +663,7 @@
         "aspect": 1.18,
         "selfIoU": 0.692,
         "selfIoUCross": 0.692,
+        "broadsideAspect": 1.18,
         "bestPeer": "Apocalypse",
         "bestPeerIoU": 0.6307,
         "peersBeatingSelf": 0
@@ -833,6 +956,69 @@
     ],
     "ra2Aspect": [
       {
+        "key": "engineer",
+        "wh": "24x28",
+        "ours": 0.857,
+        "ra2": 0.52,
+        "ratio": 1.648
+      },
+      {
+        "key": "cleg",
+        "wh": "28x30",
+        "ours": 0.933,
+        "ra2": 0.577,
+        "ratio": 1.617
+      },
+      {
+        "key": "nighthawk",
+        "wh": "73x45",
+        "ours": 1.622,
+        "ra2": 3.048,
+        "ratio": 0.532
+      },
+      {
+        "key": "tanya",
+        "wh": "22x31",
+        "ours": 0.71,
+        "ra2": 0.5,
+        "ratio": 1.42
+      },
+      {
+        "key": "flak",
+        "wh": "20x45",
+        "ours": 0.444,
+        "ra2": 0.324,
+        "ratio": 1.369
+      },
+      {
+        "key": "rhino",
+        "wh": "64x46",
+        "ours": 1.391,
+        "ra2": 2,
+        "ratio": 0.696
+      },
+      {
+        "key": "v3",
+        "wh": "66x54",
+        "ours": 1.222,
+        "ra2": 1.75,
+        "ratio": 0.698
+      },
+      {
+        "key": "chronominer",
+        "wh": "55x37",
+        "ours": 1.486,
+        "ra2": 1.964,
+        "ratio": 0.757
+      },
+      {
+        "key": "prismtank",
+        "wh": "81x77",
+        "ours": 1.052,
+        "ra2": 1.372,
+        "ratio": 0.767
+      },
+      {
         "key": "seascorp",
         "wh": "52x35",
         "ours": 1.486,
@@ -854,6 +1040,13 @@
         "ratio": 0.821
       },
       {
+        "key": "teslatank",
+        "wh": "70x59",
+        "ours": 1.186,
+        "ra2": 1.405,
+        "ratio": 0.844
+      },
+      {
         "key": "aegis",
         "wh": "82x37",
         "ours": 2.216,
@@ -868,6 +1061,34 @@
         "ratio": 0.86
       },
       {
+        "key": "rocketeer",
+        "wh": "22x29",
+        "ours": 0.759,
+        "ra2": 0.667,
+        "ratio": 1.139
+      },
+      {
+        "key": "teslatrooper",
+        "wh": "27x37",
+        "ours": 0.73,
+        "ra2": 0.643,
+        "ratio": 1.136
+      },
+      {
+        "key": "yuri",
+        "wh": "14x39",
+        "ours": 0.359,
+        "ra2": 0.414,
+        "ratio": 0.868
+      },
+      {
+        "key": "flaktrack",
+        "wh": "43x49",
+        "ours": 0.878,
+        "ra2": 1,
+        "ratio": 0.878
+      },
+      {
         "key": "carrier",
         "wh": "132x54",
         "ours": 2.444,
@@ -880,6 +1101,83 @@
         "ours": 3.467,
         "ra2": 3.9,
         "ratio": 0.889
+      },
+      {
+        "key": "ivan",
+        "wh": "17x32",
+        "ours": 0.531,
+        "ra2": 0.48,
+        "ratio": 1.106
+      },
+      {
+        "key": "rifle",
+        "wh": "17x36",
+        "ours": 0.472,
+        "ra2": 0.429,
+        "ratio": 1.101
+      },
+      {
+        "key": "mammoth",
+        "wh": "89x70",
+        "ours": 1.271,
+        "ra2": 1.366,
+        "ratio": 0.931
+      },
+      {
+        "key": "warminer",
+        "wh": "69x63",
+        "ours": 1.095,
+        "ra2": 1.167,
+        "ratio": 0.939
+      },
+      {
+        "key": "conscript",
+        "wh": "18x36",
+        "ours": 0.5,
+        "ra2": 0.481,
+        "ratio": 1.038
+      },
+      {
+        "key": "hornet",
+        "wh": "21x12",
+        "ours": 1.75,
+        "ra2": 1.8,
+        "ratio": 0.972
+      },
+      {
+        "key": "ifv",
+        "wh": "53x49",
+        "ours": 1.082,
+        "ra2": 1.111,
+        "ratio": 0.974
+      },
+      {
+        "key": "drone",
+        "wh": "32x21",
+        "ours": 1.524,
+        "ra2": 1.5,
+        "ratio": 1.016
+      },
+      {
+        "key": "mirage",
+        "wh": "78x51",
+        "ours": 1.529,
+        "ra2": 1.513,
+        "ratio": 1.011
+      },
+      {
+        "key": "lancer",
+        "wh": "52x22",
+        "ours": 2.364,
+        "ra2": 2.348,
+        "ratio": 1.007
+      },
+      {
+        "key": "dog",
+        "wh": "39x28",
+        "ours": 1.393,
+        "ra2": 1.4,
+        "ratio": 0.995
       }
     ],
     "units": {
@@ -981,6 +1279,8 @@
         "aspect": 1.501,
         "broadsideWH": "55x37",
         "broadsideAspect": 1.486,
+        "ra2Aspect": 1.964,
+        "vsRA2": 0.757,
         "selfIoU": 0.7076,
         "selfIoUCross": 0.7076,
         "bestPeer": "Rhino Tank",
@@ -1009,6 +1309,8 @@
         "aspect": 0.742,
         "broadsideWH": "28x30",
         "broadsideAspect": 0.933,
+        "ra2Aspect": 0.577,
+        "vsRA2": 1.617,
         "selfIoU": 0.6556,
         "selfIoUCross": 0.6556,
         "bestPeer": "Engineer",
@@ -1037,6 +1339,8 @@
         "aspect": 0.444,
         "broadsideWH": "18x36",
         "broadsideAspect": 0.5,
+        "ra2Aspect": 0.481,
+        "vsRA2": 1.038,
         "selfIoU": 0.7395,
         "selfIoUCross": 0.7395,
         "bestPeer": "Spy",
@@ -1123,6 +1427,8 @@
         "aspect": 1.063,
         "broadsideWH": "39x28",
         "broadsideAspect": 1.393,
+        "ra2Aspect": 1.4,
+        "vsRA2": 0.995,
         "selfIoU": 0.5406,
         "selfIoUCross": 0.5406,
         "bestPeer": "Rocketeer",
@@ -1209,6 +1515,8 @@
         "aspect": 1.349,
         "broadsideWH": "32x21",
         "broadsideAspect": 1.524,
+        "ra2Aspect": 1.5,
+        "vsRA2": 1.016,
         "selfIoU": 0.7092,
         "selfIoUCross": 0.7092,
         "bestPeer": "Grizzly Tank",
@@ -1237,6 +1545,8 @@
         "aspect": 0.652,
         "broadsideWH": "24x28",
         "broadsideAspect": 0.857,
+        "ra2Aspect": 0.52,
+        "vsRA2": 1.648,
         "selfIoU": 0.7498,
         "selfIoUCross": 0.7498,
         "bestPeer": "Rocketeer",
@@ -1265,6 +1575,8 @@
         "aspect": 0.422,
         "broadsideWH": "20x45",
         "broadsideAspect": 0.444,
+        "ra2Aspect": 0.324,
+        "vsRA2": 1.369,
         "selfIoU": 0.5543,
         "selfIoUCross": 0.5543,
         "bestPeer": "Guardian GI",
@@ -1293,6 +1605,8 @@
         "aspect": 0.815,
         "broadsideWH": "43x49",
         "broadsideAspect": 0.878,
+        "ra2Aspect": 1,
+        "vsRA2": 0.878,
         "selfIoU": 0.6273,
         "selfIoUCross": 0.6273,
         "bestPeer": "IFV",
@@ -1349,6 +1663,8 @@
         "aspect": 1.573,
         "broadsideWH": "21x12",
         "broadsideAspect": 1.75,
+        "ra2Aspect": 1.8,
+        "vsRA2": 0.972,
         "selfIoU": 0.4931,
         "selfIoUCross": 0.4931,
         "bestPeer": "Harrier",
@@ -1377,6 +1693,8 @@
         "aspect": 0.934,
         "broadsideWH": "53x49",
         "broadsideAspect": 1.082,
+        "ra2Aspect": 1.111,
+        "vsRA2": 0.974,
         "selfIoU": 0.7492,
         "selfIoUCross": 0.7492,
         "bestPeer": "Rhino Tank",
@@ -1405,6 +1723,8 @@
         "aspect": 0.414,
         "broadsideWH": "17x32",
         "broadsideAspect": 0.531,
+        "ra2Aspect": 0.48,
+        "vsRA2": 1.106,
         "selfIoU": 0.8264,
         "selfIoUCross": 0.8264,
         "bestPeer": "Tanya",
@@ -1461,6 +1781,8 @@
         "aspect": 1.535,
         "broadsideWH": "52x22",
         "broadsideAspect": 2.364,
+        "ra2Aspect": 2.348,
+        "vsRA2": 1.007,
         "selfIoU": 0.5496,
         "selfIoUCross": 0.5496,
         "bestPeer": "Chrono Miner",
@@ -1517,6 +1839,8 @@
         "aspect": 1.251,
         "broadsideWH": "89x70",
         "broadsideAspect": 1.271,
+        "ra2Aspect": 1.366,
+        "vsRA2": 0.931,
         "selfIoU": 0.693,
         "selfIoUCross": 0.693,
         "bestPeer": "War Miner",
@@ -1573,6 +1897,8 @@
         "aspect": 1.439,
         "broadsideWH": "78x51",
         "broadsideAspect": 1.529,
+        "ra2Aspect": 1.513,
+        "vsRA2": 1.011,
         "selfIoU": 0.7869,
         "selfIoUCross": 0.7869,
         "bestPeer": "War Miner",
@@ -1601,6 +1927,8 @@
         "aspect": 1.538,
         "broadsideWH": "73x45",
         "broadsideAspect": 1.622,
+        "ra2Aspect": 3.048,
+        "vsRA2": 0.532,
         "selfIoU": 0.8509,
         "selfIoUCross": 0.8509,
         "bestPeer": "Kirov Airship",
@@ -1629,6 +1957,8 @@
         "aspect": 0.923,
         "broadsideWH": "81x77",
         "broadsideAspect": 1.052,
+        "ra2Aspect": 1.372,
+        "vsRA2": 0.767,
         "selfIoU": 0.7433,
         "selfIoUCross": 0.7433,
         "bestPeer": "War Miner",
@@ -1657,6 +1987,8 @@
         "aspect": 1.306,
         "broadsideWH": "64x46",
         "broadsideAspect": 1.391,
+        "ra2Aspect": 2,
+        "vsRA2": 0.696,
         "selfIoU": 0.7006,
         "selfIoUCross": 0.7006,
         "bestPeer": "Chrono Miner",
@@ -1685,6 +2017,8 @@
         "aspect": 0.451,
         "broadsideWH": "17x36",
         "broadsideAspect": 0.472,
+        "ra2Aspect": 0.429,
+        "vsRA2": 1.101,
         "selfIoU": 0.6233,
         "selfIoUCross": 0.6233,
         "bestPeer": "Spy",
@@ -1741,6 +2075,8 @@
         "aspect": 0.664,
         "broadsideWH": "22x29",
         "broadsideAspect": 0.759,
+        "ra2Aspect": 0.667,
+        "vsRA2": 1.139,
         "selfIoU": 0.7167,
         "selfIoUCross": 0.7167,
         "bestPeer": "Engineer",
@@ -1887,6 +2223,8 @@
         "aspect": 0.532,
         "broadsideWH": "22x31",
         "broadsideAspect": 0.71,
+        "ra2Aspect": 0.5,
+        "vsRA2": 1.42,
         "selfIoU": 0.7765,
         "selfIoUCross": 0.7765,
         "bestPeer": "Crazy Ivan",
@@ -1915,6 +2253,8 @@
         "aspect": 1.081,
         "broadsideWH": "70x59",
         "broadsideAspect": 1.186,
+        "ra2Aspect": 1.405,
+        "vsRA2": 0.844,
         "selfIoU": 0.6753,
         "selfIoUCross": 0.6753,
         "bestPeer": "War Miner",
@@ -1943,6 +2283,8 @@
         "aspect": 0.554,
         "broadsideWH": "27x37",
         "broadsideAspect": 0.73,
+        "ra2Aspect": 0.643,
+        "vsRA2": 1.136,
         "selfIoU": 0.8076,
         "selfIoUCross": 0.8076,
         "bestPeer": "Yuri",
@@ -1971,6 +2313,8 @@
         "aspect": 1.014,
         "broadsideWH": "66x54",
         "broadsideAspect": 1.222,
+        "ra2Aspect": 1.75,
+        "vsRA2": 0.698,
         "selfIoU": 0.5857,
         "selfIoUCross": 0.5857,
         "bestPeer": "Tesla Tank",
@@ -1999,6 +2343,8 @@
         "aspect": 1.106,
         "broadsideWH": "69x63",
         "broadsideAspect": 1.095,
+        "ra2Aspect": 1.167,
+        "vsRA2": 0.939,
         "selfIoU": 0.7323,
         "selfIoUCross": 0.7323,
         "bestPeer": "Mirage Tank",
@@ -2027,6 +2373,8 @@
         "aspect": 0.321,
         "broadsideWH": "14x39",
         "broadsideAspect": 0.359,
+        "ra2Aspect": 0.414,
+        "vsRA2": 0.868,
         "selfIoU": 0.8524,
         "selfIoUCross": 0.8524,
         "bestPeer": "Spy",
