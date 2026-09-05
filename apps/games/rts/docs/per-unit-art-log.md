@@ -384,8 +384,30 @@ Extending the external RA2 aspect gate to the whole roster (see
 turned out to be a conflict between two measured fixes, which is worth knowing
 before anyone spends a day on it.
 
-**Nighthawk, 1.62 against RA2's 3.05 — the worst on the board — is PINNED BY
-ITS ROTOR DISC, and the disc is right.**
+**Nighthawk, 1.62 against RA2's 3.05, is pinned — but NOT by the disc. That
+first reading was wrong and is corrected below.**
+
+MEASURED, by sweeping each lever instead of inferring from one:
+* The DISC sets the SYMMETRY, not the aspect. mrR 15 / 19 / 23 moves selfIoU
+  0.722 / 0.851 / 0.943 — it is what makes the mask look the same from every
+  bearing — while the aspect barely stirs, 1.585 / 1.622 / 1.755. An
+  iso-squashed disc already has an aspect near 2, so scaling it cannot pull the
+  unit toward 3.05. (mrR 23 also trips `peerVsSelf.air` 0 -> 1, which is the
+  regression the earlier pass recorded when it tried widening to 21.)
+* The MAST sets the aspect. Dropping `mry = hy - 9.6` to -6.6 / -3.6 / -1.6
+  gives 1.825 / 2.028 / 2.086 — and then it SATURATES. Even with the rotor
+  sitting on the fuselage, an absurd helicopter, the unit reaches 0.68 of RA2
+  and never enters the 0.80 band.
+* So the remaining height is neither disc nor mast: it is the tail, the gear
+  and the disc's own iso thickness. Closing the gap means REDRAWING the
+  airframe flatter, which is what RA2's 64x21 actually is.
+
+The original claim — "pinned by its rotor disc" — was inferred from `len` not
+moving the number, and `len` not moving it says only that the hull is not the
+bbox. It named the wrong part. The disc is still worth keeping for the reason
+the earlier pass gives (drawn at alpha .09 it was ~1400 invisible pixels that
+every mask metric counted as body, which is why `harrier | nighthawk` failed
+the union window); it simply is not what holds the aspect.
 * `len` does not move it. Swept 34 / 42 / 50: the aspect stays 1.622 to three
   decimals at every value. The hull length is not what the bbox measures.
 * The bbox is the DISC. Its `selfIoU` is **0.852**, against the Harrier's 0.429
