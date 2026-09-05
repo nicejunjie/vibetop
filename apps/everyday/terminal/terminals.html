@@ -153,11 +153,19 @@
     color: #8b93a6; font-size: 11.5px;
   }
   .sp-when input[type=datetime-local] { flex: 1 1 auto; min-width: 0; width: auto; margin-bottom: 0; }
-  /* The interval is a READ-OUT, not a field: the +/- quick row below already
-     dials it, so a second way to type it in would just be a second thing to
-     keep in sync. Dashes until a magnitude is tapped. */
-  .sp-ival { flex: 1 1 auto; color: #9fd3ae; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .sp-ival.none { color: #8b93a6; font-weight: 400; }
+  /* The interval gets its OWN control rather than borrowing the quick row.
+     Letting those buttons mean "offset" in one mode and "interval" in the other
+     made them feel unreliable — you could not tell what a tap would move without
+     first checking which mode you were in. Now they only ever move the time box,
+     and this says how often. A list also reaches cadences the +N buttons never
+     did conveniently: 2h, 12h, a day. */
+  .sched-panel select {
+    width: 100%; padding: 7px 8px; font: inherit; font-size: 13px;
+    color: #eee; background: #17172c; border: 1px solid #3a3a5a; border-radius: 5px;
+    color-scheme: dark;                        /* so the popup is dark too */
+  }
+  .sched-panel select:focus { outline: none; border-color: #4ec36a; }
+  .sp-when select { flex: 1 1 auto; min-width: 0; width: auto; }
   /* ONE LINE, at any panel width. Measured at 340px: the seven controls wanted
      328px inside a 314px row, so "5h" wrapped alone onto a second line — and a
      fixed padding that fits here would wrap again on a 320px phone, where the
@@ -251,12 +259,13 @@
     <div class="hint">Typed into the terminal and submitted at the time you pick —
       whether or not this page is open. Handy when a session stops at its token limit.
       Line breaks are for readability — they’re sent as “;”, so it stays one command.
-      <b>Repeat</b> sends it over and over: the quick buttons set how often, the
-      date field when to stop.</div>
+      <b>Repeat</b> sends it over and over — pick how often, and the date field
+      becomes when to stop.</div>
     <ul class="sp-list" id="sp-list"></ul>
     <textarea id="sp-text" rows="1" maxlength="2000" placeholder="Message to send, e.g. continue"></textarea>
     <div class="sp-when" id="sp-row-every" hidden>
-      <span class="sp-lab">every</span><span class="sp-ival none" id="sp-ival">&mdash;</span>
+      <span class="sp-lab">every</span>
+      <select id="sp-every" aria-label="How often to repeat"><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="600">10 min</option><option value="900">15 min</option><option value="1800">30 min</option><option value="2700">45 min</option><option value="3600">1 hour</option><option value="7200">2 hours</option><option value="10800">3 hours</option><option value="14400">4 hours</option><option value="18000" selected>5 hours</option><option value="21600">6 hours</option><option value="28800">8 hours</option><option value="43200">12 hours</option><option value="86400">1 day</option></select>
     </div>
     <div class="sp-when">
       <span class="sp-lab" id="sp-lab">at</span>
@@ -278,7 +287,7 @@
     <div class="sp-actions">
       <span class="sp-err" id="sp-err"></span>
       <button type="button" class="sp-loop" id="sp-loop" aria-pressed="false"
-              title="Repeat: the quick buttons set how often, the date field when to stop"><svg class="sp-ico" viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 2 21 6 17 10"/><path d="M3 12V10a4 4 0 0 1 4-4h14"/><polyline points="7 22 3 18 7 14"/><path d="M21 12v2a4 4 0 0 1-4 4H3"/></svg>Repeat</button>
+              title="Repeat until an end time"><svg class="sp-ico" viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 2 21 6 17 10"/><path d="M3 12V10a4 4 0 0 1 4-4h14"/><polyline points="7 22 3 18 7 14"/><path d="M21 12v2a4 4 0 0 1-4 4H3"/></svg>Repeat</button>
       <button type="button" class="sp-go" id="sp-go">Schedule</button>
     </div>
   </div>
@@ -521,19 +530,22 @@
   var schedules = [];
 
   // ---- Loop mode -----------------------------------------------------------
-  // One toggle, no new inputs. The quick row below the fields was ALREADY an
-  // interval dialer (+1h, +5h, ... applied to a date); loop mode just stops
-  // folding that offset into a date and keeps it as the interval, which frees
-  // the date input to mean the end time. Both meanings are stashed separately,
-  // so flipping Repeat back and forth never loses what you typed.
+  // One toggle. Repeat hands the date field a second meaning — "until" instead
+  // of "at" — and reveals the interval picker; both values are stashed
+  // separately, so flipping Repeat back and forth never loses what you typed.
+  //
+  // What Repeat deliberately does NOT change is the quick row. It first shipped
+  // re-pointed at the interval, and that made the buttons feel unreliable: you
+  // could not tell what a tap would move without checking the mode first. They
+  // move the time box, in both modes, always — so "Now, +5h" reads as "until 5h
+  // from now" exactly as it reads as "at 5h from now".
   var spLoop = document.getElementById('sp-loop');
-  var spNow = document.getElementById('sp-now');
-  var spIvalRow = document.getElementById('sp-row-every');
-  var spIval = document.getElementById('sp-ival');
+  var spEveryRow = document.getElementById('sp-row-every');
+  var spEvery = document.getElementById('sp-every');
   var spLab = document.getElementById('sp-lab');
+  var LOOP_DEFAULT_EVERY = '18000';            // 5h — the token-limit case
   var LOOP_DEFAULT_UNTIL = 24 * 3600 * 1000;   // a day out, so Repeat is valid on one tap
   var loopOn = false;
-  var loopEvery = 0;      // seconds between runs (loop mode)
   var loopUntil = '';     // the end time, parked here while loop mode is OFF
   var oneShotAt = '';     // the one-shot time, parked here while loop mode is ON
 
@@ -681,11 +693,8 @@
 
   function renderLoop() {
     spLoop.setAttribute('aria-pressed', loopOn ? 'true' : 'false');
-    spIvalRow.hidden = !loopOn;
-    spNow.hidden = loopOn;          // there is no "now" for an interval
+    spEveryRow.hidden = !loopOn;
     spLab.textContent = loopOn ? 'until' : 'at';
-    spIval.textContent = loopEvery ? fmtDur(loopEvery) : '—';
-    spIval.className = 'sp-ival' + (loopEvery ? '' : ' none');
   }
   // Flip the meaning of the shared date field, parking the value it gives up so
   // the other direction can hand it straight back. `keep` is for callers that
@@ -695,30 +704,34 @@
     if (!keep && on !== loopOn) {
       if (on) {
         oneShotAt = spAt.value;
-        // Whatever offset was already dialled in IS the interval the user wanted
-        // — carrying it over means "+5h then Repeat" reads as "every 5h", instead of
-        // silently starting from nothing.
-        if (!loopEvery && spAt.value) {
-          var base = new Date(spAt.value).getTime();
-          // Measure the offset from the CURRENT MINUTE, not the current instant:
-          // the field only resolves to the minute, so "+5h" is already up to 59s
-          // in the past against a live clock and rounds to "every 4h 59m" — which
-          // then silently drifts the whole loop by a minute a run.
-          var nowMin = Math.floor(Date.now() / 60000) * 60000;
-          if (isFinite(base)) loopEvery = Math.max(0, Math.round((base - nowMin) / 60000)) * 60;
-        }
         spAt.value = loopUntil || toLocalInput(new Date(Date.now() + LOOP_DEFAULT_UNTIL));
       } else {
         loopUntil = spAt.value;
+        // Back to the time the one-shot had, unless it has since gone stale.
         spAt.value = (oneShotAt && new Date(oneShotAt).getTime() > Date.now())
-          ? oneShotAt : toLocalInput(new Date(Date.now() + loopEvery * 1000));
+          ? oneShotAt : toLocalInput(new Date());
       }
     }
     loopOn = on;
     renderLoop();
   }
+  // Select an interval, adding an option for it when the list has none. Entries
+  // queued before this picker existed carry arbitrary cadences (the old +N row
+  // could build "every 4h 30m"), and silently snapping one to the nearest listed
+  // value would change a running loop behind the user's back on any edit.
+  function selectEvery(secs) {
+    var opt = spEvery.querySelector('option[value="' + secs + '"]');
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.value = secs;
+      opt.textContent = fmtDur(secs);
+      spEvery.insertBefore(opt, spEvery.firstChild);
+    }
+    spEvery.value = String(secs);
+  }
   function resetLoop() {
-    loopEvery = 0; loopUntil = ''; oneShotAt = '';
+    loopUntil = ''; oneShotAt = '';
+    spEvery.value = LOOP_DEFAULT_EVERY;
     setLoop(false, true);
   }
   function startEdit(e) {
@@ -727,7 +740,7 @@
     autoGrowText();                 // a saved multi-line message opens grown
     // Load the entry's own shape, loop and all — `keep` because both fields are
     // being written here, not converted from the other mode.
-    loopEvery = +e.every || 0;
+    if (e.every) selectEvery(+e.every);
     loopUntil = e.every ? toLocalInput(new Date(e.until * 1000)) : '';
     oneShotAt = '';
     spAt.value = e.every ? loopUntil : toLocalInput(new Date(e.at * 1000));
@@ -776,8 +789,7 @@
     // limited NOW — firing immediately would burn a run).
     var at = picked, every = null, until = null;
     if (loopOn) {
-      if (loopEvery < 60) { fail('Tap 1m or more to set how often it repeats.'); return; }
-      every = loopEvery;
+      every = +spEvery.value;
       until = picked;
       at = Math.round(Date.now() / 1000) + every;
       if (until < at) { fail('That ends before the first run — it would never fire.'); return; }
@@ -873,14 +885,6 @@
     if (s) { setQuickSign(+s.dataset.sign); return; }
     var b = e.target.closest('button[data-min]');
     if (!b) return;
-    if (loopOn) {
-      // Same additive gesture, applied to the interval instead of a date: +1h
-      // then +30m is "every 1h 30m". Floored at zero — a negative cadence is not
-      // a thing, and the Schedule button explains an empty one.
-      loopEvery = Math.max(0, loopEvery + quickSign * (+b.dataset.min) * 60);
-      renderLoop();
-      return;
-    }
     // Additive: each tap moves the time already in the field, so +1h then +30m
     // is 1h30m out, not 30m. openSched seeds the field to now, so the first tap
     // still lands on now + N; an empty or stale (past) value falls back to now.
