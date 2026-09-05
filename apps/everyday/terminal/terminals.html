@@ -288,17 +288,21 @@
   <div class="sched-panel" id="sched-panel" hidden>
     <h3>Scheduled for <span id="sp-term">this terminal</span></h3>
     <div class="hint">Typed into the terminal at the time you pick, even with this
-      page closed. Line breaks become “;”. <b>Repeat</b> re-sends until a date; the
-      quick buttons move the highlighted row.</div>
+      page closed. Line breaks become “;”. <b>Repeat</b> adds an interval and an end
+      time; the quick buttons move the highlighted row.</div>
     <ul class="sp-list" id="sp-list"></ul>
     <textarea id="sp-text" rows="1" maxlength="2000" placeholder="Message to send, e.g. continue"></textarea>
+    <div class="sp-when" id="sp-row-at">
+      <label class="sp-lab" id="sp-lab" for="sp-at">at</label>
+      <input type="datetime-local" id="sp-at">
+    </div>
     <div class="sp-when" id="sp-row-every" hidden>
       <label class="sp-lab" for="sp-every">every</label>
       <select id="sp-every" aria-label="How often to repeat"><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="600">10 min</option><option value="900">15 min</option><option value="1800">30 min</option><option value="2700">45 min</option><option value="3600">1 hour</option><option value="7200">2 hours</option><option value="10800">3 hours</option><option value="14400">4 hours</option><option value="18000" selected>5 hours</option><option value="21600">6 hours</option><option value="28800">8 hours</option><option value="43200">12 hours</option><option value="86400">1 day</option></select>
     </div>
-    <div class="sp-when" id="sp-row-at">
-      <label class="sp-lab" id="sp-lab" for="sp-at">at</label>
-      <input type="datetime-local" id="sp-at">
+    <div class="sp-when" id="sp-row-until" hidden>
+      <label class="sp-lab" for="sp-until">until</label>
+      <input type="datetime-local" id="sp-until">
     </div>
     <div class="sp-quick">
       <div class="sp-sign" role="group" aria-label="Adjust direction">
@@ -582,10 +586,20 @@
   var LOOP_DEFAULT_EVERY = '18000';            // 5h — the token-limit case
   var LOOP_DEFAULT_UNTIL = 24 * 3600 * 1000;   // a day out, so Repeat is valid on one tap
   var spAtRow = document.getElementById('sp-row-at');
+  var spUntilRow = document.getElementById('sp-row-until');
+  var spUntil = document.getElementById('sp-until');
   var loopOn = false;
-  var loopUntil = '';     // the end time, parked here while loop mode is OFF
-  var oneShotAt = '';     // the one-shot time, parked here while loop mode is ON
-  var quickTarget = 'at'; // 'at' (the time box) | 'every' — what the quick row moves
+  // Which row the quick buttons move: 'at' | 'every' | 'until'.
+  var quickTarget = 'at';
+  // The three loop rows, in reading order. One table drives the arming, the
+  // painting and the quick row, so a fourth row would be one entry, not four
+  // parallel edits.
+  var LOOP_ROWS = [
+    { key: 'at',    row: spAtRow,    ctrl: null },     // ctrl set below (spAt)
+    { key: 'every', row: spEveryRow, ctrl: spEvery },
+    { key: 'until', row: spUntilRow, ctrl: spUntil }
+  ];
+  LOOP_ROWS[0].ctrl = spAt;
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -734,6 +748,7 @@
     resetLoop();
     spText.value = '';
     spAt.value = '';
+    spUntil.value = '';
     spErr.textContent = '';
   }
   function toggleSched() { schedPanel.hidden ? openSched() : closeSched(); }
@@ -756,14 +771,18 @@
     spLoop.setAttribute('aria-pressed', loopOn ? 'true' : 'false');
     schedPanel.classList.toggle('looping', loopOn);   // reveals the row carets
     spEveryRow.hidden = !loopOn;
-    spLab.textContent = loopOn ? 'until' : 'at';
+    spUntilRow.hidden = !loopOn;
+    // The date field never changes meaning any more: it is when the message
+    // fires, called "at" for a one-shot and "start" for the first run of a loop.
+    // That is why there is nothing to stash when Repeat is toggled.
+    spLab.textContent = loopOn ? 'start' : 'at';
     if (!loopOn) quickTarget = 'at';        // with one field there is no choice
-    var onEvery = quickTarget === 'every';
-    spEveryRow.classList.toggle('armed', onEvery);
-    spAtRow.classList.toggle('armed', !onEvery);
+    LOOP_ROWS.forEach(function (r) {
+      r.row.classList.toggle('armed', r.key === quickTarget);
+    });
     // "Now" is a point in time; an interval has no now. Disabled rather than
     // hidden, so arming a row never reflows the row you are aiming at.
-    spNow.disabled = onEvery;
+    spNow.disabled = quickTarget === 'every';
   }
   function armQuick(which) {
     if (quickTarget === which) return;
@@ -772,39 +791,45 @@
   }
   // Focus is the arming gesture — clicking the field you want to change is what
   // a person does anyway, so for most uses this never has to be thought about.
-  spEveryRow.addEventListener('focusin', function () { armQuick('every'); });
-  spAtRow.addEventListener('focusin', function () { armQuick('at'); });
+  LOOP_ROWS.forEach(function (r) {
+    r.row.addEventListener('focusin', function () { armQuick(r.key); });
+  });
   // Clicking a label AIMS the row; it must not open the field. The browser pops
   // the calendar for two separate reasons — the click a <label for> forwards to
   // its control, and user-initiated focus (a .focus() inside a click handler
   // counts) — so both are cancelled and nothing is focused. Clicking the FIELD
   // is untouched: that is a request to open it.
   Array.prototype.forEach.call(schedPanel.querySelectorAll('.sp-lab'), function (lab) {
-    var want = lab.htmlFor === 'sp-every' ? 'every' : 'at';
+    var want = lab.htmlFor.replace('sp-', '');       // sp-at | sp-every | sp-until
     lab.addEventListener('mousedown', function (e) { e.preventDefault(); });
     lab.addEventListener('click', function (e) {
       e.preventDefault();
       armQuick(want);
       // If the OTHER row's control still holds focus, drop it — otherwise the
       // lit label and the control the keyboard would edit disagree.
+      // If a DIFFERENT row's control still holds focus, drop it — otherwise the
+      // lit label and the control the keyboard would edit disagree.
       var a = document.activeElement;
-      if ((want === 'every' && a === spAt) || (want === 'at' && a === spEvery)) a.blur();
+      LOOP_ROWS.forEach(function (r) { if (r.ctrl === a && r.key !== want) a.blur(); });
     });
   });
-  // Flip the meaning of the shared date field, parking the value it gives up so
-  // the other direction can hand it straight back. `keep` is for callers that
-  // set every field themselves (edit, reset) and only want the chrome updated.
+  // `keep` is for callers that set every field themselves (edit, reset) and only
+  // want the chrome updated.
   function setLoop(on, keep) {
     on = !!on;
-    if (!keep && on !== loopOn) {
-      if (on) {
-        oneShotAt = spAt.value;
-        spAt.value = loopUntil || toLocalInput(new Date(Date.now() + LOOP_DEFAULT_UNTIL));
-      } else {
-        loopUntil = spAt.value;
-        // Back to the time the one-shot had, unless it has since gone stale.
-        spAt.value = (oneShotAt && new Date(oneShotAt).getTime() > Date.now())
-          ? oneShotAt : toLocalInput(new Date());
+    if (!keep && on && !loopOn) {
+      // Seed the two rows Repeat reveals, and only if they are empty/stale — a
+      // second toggle must not walk over what was typed the first time.
+      if (!spUntil.value || new Date(spUntil.value).getTime() <= Date.now()) {
+        spUntil.value = toLocalInput(new Date(Date.now() + LOOP_DEFAULT_UNTIL));
+      }
+      // A loop is turned on because you are rate-limited NOW, so the first run
+      // defaults to one interval out rather than immediately. Only when `start`
+      // is still sitting on the "now" the panel seeded — an explicit time the
+      // user picked is theirs, not ours to push.
+      var at = spAt.value ? new Date(spAt.value).getTime() : 0;
+      if (!at || at <= Date.now() + 60000) {
+        spAt.value = toLocalInput(new Date(Date.now() + (+spEvery.value || 0) * 1000));
       }
     }
     loopOn = on;
@@ -831,7 +856,7 @@
     });
   }
   function resetLoop() {
-    loopUntil = ''; oneShotAt = ''; quickTarget = 'at';
+    spUntil.value = ''; quickTarget = 'at';
     Array.prototype.forEach.call(spEvery.querySelectorAll('option.adhoc'),
                                  function (o) { o.remove(); });
     spEvery.value = LOOP_DEFAULT_EVERY;
@@ -844,9 +869,9 @@
     // Load the entry's own shape, loop and all — `keep` because both fields are
     // being written here, not converted from the other mode.
     if (e.every) selectEvery(+e.every);
-    loopUntil = e.every ? toLocalInput(new Date(e.until * 1000)) : '';
-    oneShotAt = '';
-    spAt.value = e.every ? loopUntil : toLocalInput(new Date(e.at * 1000));
+    spUntil.value = e.every ? toLocalInput(new Date(e.until * 1000)) : '';
+    spAt.value = toLocalInput(new Date(e.at * 1000));   // the NEXT run, either way
+    quickTarget = 'at';
     setLoop(!!e.every, true);
     goBtn.textContent = 'Save';
     spErr.className = 'sp-err ok';
@@ -884,18 +909,16 @@
       .join('; ');
     function fail(msg) { spErr.className = 'sp-err'; spErr.textContent = msg; }
     if (!text) { fail('Type a message first.'); return; }
-    if (!spAt.value) { fail(loopOn ? 'Pick an end time.' : 'Pick a time.'); return; }
-    var picked = new Date(spAt.value).getTime() / 1000;
-    if (!isFinite(picked)) { fail('That time is not valid.'); return; }
-    // One-shot: the field is the time. Loop: the field is the END, and the first
-    // run lands one interval from now (you turn a loop on because you are rate-
-    // limited NOW — firing immediately would burn a run).
-    var at = picked, every = null, until = null;
+    if (!spAt.value) { fail(loopOn ? 'Pick a start time.' : 'Pick a time.'); return; }
+    var at = new Date(spAt.value).getTime() / 1000;
+    if (!isFinite(at)) { fail('That start time is not valid.'); return; }
+    var every = null, until = null;
     if (loopOn) {
+      if (!spUntil.value) { fail('Pick an end time.'); return; }
+      until = new Date(spUntil.value).getTime() / 1000;
+      if (!isFinite(until)) { fail('That end time is not valid.'); return; }
       every = +spEvery.value;
-      until = picked;
-      at = Math.round(Date.now() / 1000) + every;
-      if (until < at) { fail('That ends before the first run — it would never fire.'); return; }
+      if (until < at) { fail('It ends before it starts — it would never fire.'); return; }
     }
     spErr.className = 'sp-err'; spErr.textContent = '';
     var ed = editing;
@@ -918,11 +941,12 @@
       // next quick one-off into a repeating one without anyone asking.
       resetLoop();
       spAt.value = toLocalInput(new Date());
+      spUntil.value = '';
       var edited = !!ed;
       stopEdit();
       spErr.className = 'sp-err ok';
       spErr.textContent = (edited ? 'Updated — ' : 'Scheduled — ') +
-        (every ? 'every ' + fmtDur(every) + ', first ' : 'fires ') + fmtIn(at) + '.';
+        (every ? 'every ' + fmtDur(every) + ', starting ' : 'fires ') + fmtIn(at) + '.';
       refreshSchedules();
     }).catch(function () { spErr.textContent = 'Could not reach the server.'; });
   }
@@ -979,8 +1003,8 @@
     });
   }
   schedPanel.querySelector('.sp-quick').addEventListener('click', function (e) {
-    if (e.target.closest('button[data-now]')) {   // reset the field to this minute
-      spAt.value = toLocalInput(new Date());
+    if (e.target.closest('button[data-now]')) {   // reset the armed date row to this minute
+      (quickTarget === 'until' ? spUntil : spAt).value = toLocalInput(new Date());
       spErr.className = 'sp-err'; spErr.textContent = '';
       return;
     }
@@ -995,16 +1019,17 @@
       selectEvery(Math.max(60, (+spEvery.value || 0) + quickSign * (+b.dataset.min) * 60));
       return;
     }
+    var field = quickTarget === 'until' ? spUntil : spAt;
     // Additive: each tap moves the time already in the field, so +1h then +30m
     // is 1h30m out, not 30m. openSched seeds the field to now, so the first tap
     // still lands on now + N; an empty or stale (past) value falls back to now.
     // The minute of slack absorbs that seed's truncation to whole minutes, which
     // reads as up to 59s in the past.
-    var base = spAt.value ? new Date(spAt.value).getTime() : NaN;
+    var base = field.value ? new Date(field.value).getTime() : NaN;
     if (!isFinite(base) || base < Date.now() - 60000) base = Date.now();
     // Subtracting can't push the time into the past — a scheduled-for-then message
     // would be rejected — so clamp the floor to now.
-    spAt.value = toLocalInput(new Date(Math.max(Date.now(), base + quickSign * (+b.dataset.min) * 60000)));
+    field.value = toLocalInput(new Date(Math.max(Date.now(), base + quickSign * (+b.dataset.min) * 60000)));
   });
   spList.addEventListener('click', function (e) {
     var li = e.target.closest('li[data-id]');
