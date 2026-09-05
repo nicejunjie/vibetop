@@ -96,6 +96,9 @@ const RA2_ASPECT = {
   prismtank:   59 / 43,  // [SREF]    59x43
   v3:          63 / 36,  // [V3]      63x36
   nighthawk:   64 / 21,  // [SHAD]    64x21
+  mcv:         69 / 47,  // [AMCV]    69x47
+  harrier:     71 / 44,  // [ORCA]    71x44 — measured by SPAN, wings out
+  kirov:      139 / 62,  // [ZEP]    139x62 — the largest airframe in the game
   // ---- infantry (same table) ----
   dog:         21 / 15,  // [ADOG]    21x15, running
   ivan:        12 / 25,  // [IVAN]    12x25
