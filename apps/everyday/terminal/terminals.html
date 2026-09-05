@@ -154,10 +154,19 @@
      association comes free. Zero new controls, and zero width taken from the
      quick row, which at 320px is already exactly full. */
   .sp-when .sp-lab {
-    flex: 0 0 auto; width: 34px; text-align: right; cursor: pointer;
+    flex: 0 0 auto; width: 48px; text-align: right; cursor: pointer;
     color: #8b93a6; font-size: 11.5px;
   }
-  .sp-when.armed .sp-lab { color: #9fd3ae; font-weight: 600; }
+  /* Only inside loop mode: with one row there is no choice, and lighting up the
+     sole label emphasises a decision the user does not have. */
+  .sched-panel.looping .sp-when.armed .sp-lab { color: #9fd3ae; font-weight: 600; }
+  /* A caret on BOTH rows is what says "these two are a choice" — one alone reads
+     as decoration. It is space-reserved rather than absent outside loop mode
+     (visibility, not display), so turning Repeat on never shifts the labels or
+     resizes the field beside them. */
+  .sp-when .sp-lab::before { content: "\25B8"; visibility: hidden; margin-right: 4px; }
+  .sched-panel.looping .sp-when .sp-lab::before { visibility: visible; }
+  .sched-panel.looping .sp-when.armed .sp-lab::before { color: #4ec36a; }
   .sp-quick button:disabled { opacity: .35; cursor: default; }
   .sp-quick button:disabled:hover { background: #2c2c4a; }
   .sp-when input[type=datetime-local] { flex: 1 1 auto; min-width: 0; width: auto; margin-bottom: 0; }
@@ -709,6 +718,7 @@
 
   function renderLoop() {
     spLoop.setAttribute('aria-pressed', loopOn ? 'true' : 'false');
+    schedPanel.classList.toggle('looping', loopOn);   // reveals the row carets
     spEveryRow.hidden = !loopOn;
     spLab.textContent = loopOn ? 'until' : 'at';
     if (!loopOn) quickTarget = 'at';        // with one field there is no choice
