@@ -349,7 +349,7 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 | `mirage` Mirage Tank | `[RTNK]`, 59x39 | **A wide flat emitter housing over the deck and NO long gun** (a stub only) — the anti-Grizzly. Plus the tree-disguise state. | M | housing >= 60% of hull width, >= 6 px tall, sitting proud of the deck; gun stub <= 6 px (any longer and it reads as a Grizzly) |
 | `prismtank` Prism Tank | `[SREF]`, 59x**43** | **The tallest tank profile** — an upright prism crystal block on a low box turret, the top 10 px of the silhouette. | M, tallest tank | crystal >= 10 px tall x >= 5 px wide, standing above the turret roof; total height >= 1.15x the Mirage's |
 | `chronominer` Chrono Miner | `[CMIN]`, 55x28, aspect **1.96** | **A long low body with a ribbed chrono drum for a nose** (violet, fixed hue) and a big tan ore bin behind. No turret — that is the read against the War Miner. | M | height <= 0.55 x length; nose drum >= 8 px long, violet and unmistakably not house hue; zero turret mass |
-| `nighthawk` Nighthawk | `[SHAD]`, 64x**21**, aspect **3.05** | **The flattest airframe** — two overlapping tandem rotor discs whose blades are 1-2 px lines spanning past the fuselage. | L | rotor span >= 1.25x fuselage length; blades 2 px with >= 40% value contrast; fuselage height <= 0.35 x length |
+| `nighthawk` Nighthawk | `[SHAD]`, 64x**21**, aspect **3.05** | **The flattest airframe** — two overlapping tandem rotor discs whose blades are 1-2 px lines spanning past the fuselage. | L | ~~rotor span >= 1.25x fuselage length~~ (**impossible with our blur disc, see below**); blades 2 px with >= 40% value contrast; fuselage height <= 0.35 x length |
 | `harrier` Harrier | `[ORCA]`, 71x44 span | **A broad swept delta wing**, no rotor — the only fixed-wing Directorate airframe. Empty racks after firing are a second state. | L | wing span >= 1.5x fuselage width; wing >= 5 px chord at the root; nose cone >= 4 px |
 | `hornet` Hornet | `[HORNET]`, 27x15, **not remapped** | **The smallest thing that flies** — half a Harrier. Identity is size, not detail. | XS | total span <= 0.45x the Harrier's; do not add detail it cannot carry |
 | `mcv` MCV (shared) | `[AMCV]`, 69x47 | **The biggest ground vehicle that is not a ship** — a slab-sided works body, no weapon, no turret. | L | >= 1.20x the widest tank; zero barrel, zero turret ring |
@@ -358,6 +358,20 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 | `carrier` Aircraft Carrier | `[CARRIER]`, **143x52** — the largest sprite in RA2 | **A flat flight deck the full length of the hull** with three Hornets parked on it. | XL, largest | deck a single unbroken flat plane >= 80% of length; 3 visible parked airframes |
 | `dolphin` Dolphin | `[DLPH]`, `Voxel=no` (SHP) | **Organic** — a curved body with a dorsal fin, no straight lines; submerged most of the time (only the wake ring shows, `rts.html:29355-29360`). | S | no orthogonal edges anywhere; fin >= 3 px above the back |
 | `lcraft` Landing Craft | `[LCRF]` | **An open bow ramp** — a flat rectangular deck with a hinged front, carrying visible cargo. | L | ramp plane distinct from the deck; visible cargo when loaded |
+
+> **The Nighthawk's struck clause.** Its three requirements cannot all hold at
+> once for us, and the proof is arithmetic rather than a matter of skill: a
+> ground circle under this camera projects to an ellipse of aspect exactly 2,
+> so a rotor of span `>= 1.25L` is `>= 0.625L` TALL and caps the whole unit at
+> aspect 1.6 — against the 3.05 the same row demands. RA2 escapes it by drawing
+> the rotor as 1-2 px blade lines rather than a swept disc. **We draw the disc
+> on purpose**: at alpha .09 it was ~1400 px sitting three luminance points off
+> the grass — invisible to a player, counted as body by every mask metric — and
+> that is exactly why `harrier | nighthawk` failed the union window. Lengthening
+> the blades alone does not buy the clause back either, because the sheet is
+> baked at a fixed blade phase and a near-vertical arm puts the height straight
+> back. Shipped 2026-09-05 at aspect 2.606 (0.86 of RA2), fuselage height
+> 24/79 = 0.30, rotor span 0.84L. Full working: `per-unit-art-log.md`.
 
 ### 2.4 Collective vehicles and aircraft
 
