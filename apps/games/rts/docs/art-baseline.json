@@ -123,7 +123,7 @@
     "aspect.navalOutsideRA2Band": {
       "want": 0,
       "dir": "down",
-      "note": "every hull with an RA2 sprite in reference §1.1 within +-20% of its broadside aspect; 6 of 7 were outside it before the 2026-09-05 pass, the Aegis by 42%"
+      "note": "every hull with an RA2 sprite in reference §1.1 within +-20% of its broadside aspect; 5 of 7 were outside it before the 2026-09-05 pass — the Typhoon at 0.40 of RA2, the Dreadnought 0.50, the Aegis 0.52"
     },
     "aspect.navalWorstOffRA2": {
       "want": 0.2,
@@ -152,8 +152,8 @@
     "peerVsSelf.infantry": 1,
     "peerVsSelf.naval": 9,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.4774,
-    "iou.vehicle.mean": 0.4227,
+    "iou.groundCombat.mean": 0.4744,
+    "iou.vehicle.mean": 0.4253,
     "iou.infantry.mean": 0.5334,
     "iou.naval.mean": 0.4031,
     "iou.air.mean": 0.177,
@@ -165,13 +165,13 @@
     "mass.tightestBand6": 2.093,
     "hue.infantryOwnerMean": 0.294,
     "hue.infantryBelowBudget": 0,
-    "hue.vehicleOwnerMean": 0.1698,
+    "hue.vehicleOwnerMean": 0.1678,
     "hue.vehicleOwnerMax": 0.2369,
     "hue.maxImpostor": 0.0051,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.194,
     "colour.infantry.meanDist": 1.3865,
-    "colour.vehicle.meanDist": 0.9513,
+    "colour.vehicle.meanDist": 0.9543,
     "colour.vehicleAchromatic": 0
   },
   "detail": {
@@ -187,7 +187,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.4227,
+        "mean": 0.4253,
         "pairs": 78,
         "max": 0.7255,
         "over75": 0
@@ -211,9 +211,9 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.4774,
+        "mean": 0.4744,
         "pairs": 36,
-        "max": 0.69,
+        "max": 0.6879,
         "over75": 0
       },
       "sameFactionOver75": 0
@@ -275,7 +275,7 @@
       {
         "a": "rhino",
         "b": "v3",
-        "dist": 0.135
+        "dist": 0.123
       },
       {
         "a": "lancer",
@@ -294,6 +294,11 @@
       },
       {
         "a": "mammoth",
+        "b": "v3",
+        "dist": 0.397
+      },
+      {
+        "a": "mammoth",
         "b": "rhino",
         "dist": 0.422
       },
@@ -303,11 +308,6 @@
         "dist": 0.427
       },
       {
-        "a": "mammoth",
-        "b": "v3",
-        "dist": 0.455
-      },
-      {
         "a": "ifv",
         "b": "teslatank",
         "dist": 0.469
@@ -315,12 +315,12 @@
       {
         "a": "lancer",
         "b": "drone",
-        "dist": 0.533
+        "dist": 0.518
       },
       {
-        "a": "flaktrack",
-        "b": "v3",
-        "dist": 0.556
+        "a": "lancer",
+        "b": "ifv",
+        "dist": 0.562
       }
     ],
     "topImpostors": [
@@ -376,10 +376,10 @@
       "tanya": 0.1566,
       "rhino": 0.1673,
       "flaktrack": 0.1624,
-      "v3": 0.1501,
+      "v3": 0.1411,
       "teslatrooper": 0.3369,
       "ivan": 0.3407,
-      "drone": 0.2091,
+      "drone": 0.1914,
       "teslatank": 0.1441,
       "prismtank": 0.1621,
       "desolator": 0.3063,
@@ -419,10 +419,10 @@
       "tanya": 0.2773,
       "rhino": 0.1554,
       "flaktrack": 0.1569,
-      "v3": 0.1835,
+      "v3": 0.188,
       "teslatrooper": 0.1212,
       "ivan": 0.2819,
-      "drone": 0.1875,
+      "drone": 0.1947,
       "teslatank": 0.2104,
       "prismtank": 0.1608,
       "desolator": 0.1667,
@@ -455,8 +455,8 @@
     "tightestMassBand": [
       "IFV",
       "Rhino Tank",
-      "V3 Launcher",
       "Tesla Tank",
+      "V3 Launcher",
       "Mirage Tank",
       "Prism Tank"
     ],
@@ -821,20 +821,20 @@
         "name": "Terror Drone",
         "group": "vehicle",
         "fac": "col",
-        "mass": 277,
-        "bboxW": 26,
-        "bboxH": 19,
-        "aspect": 1.256,
-        "broadsideWH": "26x19",
-        "broadsideAspect": 1.368,
-        "selfIoU": 0.7723,
+        "mass": 340,
+        "bboxW": 32,
+        "bboxH": 22,
+        "aspect": 1.349,
+        "broadsideWH": "32x21",
+        "broadsideAspect": 1.524,
+        "selfIoU": 0.7092,
         "bestPeer": "Grizzly Tank",
-        "bestPeerIoU": 0.409,
+        "bestPeerIoU": 0.4664,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 7,
+          "len": 10,
           "thick": 7,
           "atZmin": 3.85,
           "budget": 3.64,
@@ -1556,20 +1556,20 @@
         "name": "V3 Launcher",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1859,
+        "mass": 2046,
         "bboxW": 66,
-        "bboxH": 59,
-        "aspect": 1.152,
-        "broadsideWH": "66x45",
-        "broadsideAspect": 1.467,
-        "selfIoU": 0.6151,
-        "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.69,
-        "peersBeatingSelf": 3,
+        "bboxH": 68,
+        "aspect": 1.014,
+        "broadsideWH": "66x54",
+        "broadsideAspect": 1.222,
+        "selfIoU": 0.5857,
+        "bestPeer": "Tesla Tank",
+        "bestPeerIoU": 0.6667,
+        "peersBeatingSelf": 4,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 21,
+          "len": 24,
           "thick": 15,
           "atZmin": 8.25,
           "budget": 3.64,
