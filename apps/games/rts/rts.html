@@ -29462,7 +29462,13 @@
       // map running away on its own.
     }
 
-    var k = Math.min(1, dt * 16);             // velocity easing
+    // Velocity easing, frame-rate INDEPENDENT. `Math.min(1, dt * 16)` saturates
+    // to 1 on any frame longer than 62 ms, so on a loaded machine the pan
+    // snapped straight to full speed — no ramp at all, exactly when smooth
+    // scrolling matters most. The exponential form is the same 62 ms time
+    // constant at 60 fps (0.234 against 0.267) and still eases on a long
+    // frame (0.80 at dt = 100 ms, where the old form gave 1.00).
+    var k = 1 - Math.exp(-dt * 16);
     camVel.x += (wx - camVel.x) * k;
     camVel.y += (wy - camVel.y) * k;
     if (Math.abs(camVel.x) < 1) camVel.x = 0;

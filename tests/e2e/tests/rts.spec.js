@@ -94,27 +94,38 @@ test.describe('rts', () => {
     await expect(rows.first()).toBeVisible();
     await rows.first().click();
 
-    // Queuing charges credits immediately (enqueue()), before anything is built.
+    // RA2 does NOT take the money when you click a cameo: it draws it down as
+    // the clock sweeps, and an item that runs out goes on hold at whatever
+    // fraction it reached. This asserted the old lump-sum debit
+    // (`credits === before - cost` the instant you queue), which stopped being
+    // true when progressive charging landed. Measured: a Power Plant drains
+    // ~24 credits/second and reaches ready in ~34s.
     const tables = await page.evaluate(() => window.__rtsTables);
     const cost = tables.BLDS.power.cost;
-    await expect
-      .poll(async () => (await snap(page)).credits)
-      .toBe(before.credits - cost);
     await expect.poll(async () => (await snap(page)).queue.length).toBeGreaterThan(0);
+    const justQueued = (await snap(page)).credits;
+    expect(before.credits - justQueued,
+      'queuing must not take the whole price up front — RA2 charges as it builds')
+      .toBeLessThan(cost * 0.9);
+
+    // ...and by the time it is ready, the full price has been paid.
+    await page.evaluate(() => window.__rtsTest.step(450));
+    const midway = (await snap(page)).credits;
+    expect(midway, 'the draw-down is monotonic while it builds')
+      .toBeLessThan(justQueued);
 
     // Fast-forward the sim directly instead of waiting out the real build
-    // time (build=7s -> 420 ticks at full power) — deterministic and
-    // instant either way, since the sim doesn't care whether ticks come
-    // from rAF or a direct step() call. One big jump, then a poll as a
-    // safety margin in case a slowdown (e.g. a later negative-power test
-    // run sharing this worker) stretched it out.
-    await page.evaluate(() => window.__rtsTest.step(450));
+    // time — deterministic and instant either way, since the sim doesn't care
+    // whether ticks come from rAF or a direct step() call.
     await expect
       .poll(async () => {
         await page.evaluate(() => window.__rtsTest.step(200));
         return (await snap(page)).ready;
       }, { timeout: 15000 })
       .toBe('power');
+    expect(before.credits - (await snap(page)).credits,
+      'the full price is paid by the time it is ready')
+      .toBeGreaterThan(cost * 0.9);
 
     // Click the finished row again to arm placement.
     await rows.first().click();
@@ -456,8 +467,15 @@ test.describe('rts', () => {
     // It must also be visible: arming a placement paints the legal area.
     await page.evaluate(() => window.__rtsTest.give(0, 20000));
     await page.locator('#plist .pit:nth-child(1)').click();
+    // Step the sim rather than waiting on the wall clock: RA2 progressive
+    // charging paces the build against income, so a Power Plant now takes ~34s
+    // of real time and this poll used to allow 30. The sim is deterministic, so
+    // driving the ticks is both faster and not a race.
     await expect
-      .poll(async () => page.evaluate(() => window.__rts().ready), { timeout: 30000 })
+      .poll(async () => {
+        await page.evaluate(() => window.__rtsTest.step(200));
+        return page.evaluate(() => window.__rts().ready);
+      }, { timeout: 30000 })
       .toBe('power');
     await page.locator('#plist .pit:nth-child(1)').click();
     expect(await page.evaluate(() => window.__rts().placing)).toBe('power');
@@ -505,19 +523,23 @@ test.describe('rts', () => {
     expect(rally.ok, 'the route should be reachable').toBe(true);
     expect(rally.steps, 'the stored route should have steps to draw').toBeGreaterThan(1);
 
-    // And a unit produced afterwards heads for it.
+    // And a unit produced afterwards heads for it. RA2 progressive charging
+    // paces production against income, so a fixed 12-second budget stopped
+    // being enough — step in slices until one comes out rather than guessing a
+    // number that has to be re-guessed the next time build speed changes.
     const walked = await page.evaluate(({ rx, ry }) => {
       const H = window.__rtsTest, g = H.get();
-      const before = g.units.length;
-      const u = H.spawn('rifle', 0, g.blds.find((b) => b.type === 'barracks').cx, 0);
-      void before; void u;
-      // drive the real production path instead: queue one and run the sim
-      const s = g.side[0];
-      s.queues.i.list.push('rifle');
-      H.step(60 * 12);
-      const fresh = g.units.filter((v) => !v.dead && v.p === 0 && v.type === 'rifle');
-      return fresh.some((v) => v.order && v.order.t === 'move' &&
-                               Math.abs(v.order.x - rx) < 3 && Math.abs(v.order.y - ry) < 3);
+      g.side[0].queues.i.list.push('rifle');       // the real production path
+      const seen = new Set(g.units.filter((v) => v.type === 'rifle').map((v) => v.id));
+      for (let i = 0; i < 40; i++) {               // up to 40s of sim
+        H.step(60);
+        const fresh = g.units.filter((v) => !v.dead && v.p === 0 &&
+                                            v.type === 'rifle' && !seen.has(v.id));
+        if (fresh.some((v) => v.order && v.order.t === 'move' &&
+                              Math.abs(v.order.x - rx) < 3 &&
+                              Math.abs(v.order.y - ry) < 3)) return true;
+      }
+      return false;
     }, { rx: rally.x, ry: rally.y });
     expect(walked, 'a newly produced unit should be sent to the rally point').toBe(true);
   });
@@ -525,6 +547,11 @@ test.describe('rts', () => {
   test('Space jumps back to base, P pauses', async ({ page }) => {
     await boot(page);
     const cam = () => page.evaluate(() => window.__rtsCam());
+    // The canonical home is where CenterBase puts you, which is not exactly the
+    // camera's boot position — measured 16 px apart, so comparing against the
+    // boot position made this a 2-pixel argument rather than a test of the key.
+    await page.keyboard.press('h');
+    await page.waitForTimeout(300);
     const home = await cam();
 
     // Wander off with the edge, then come back to a neutral pointer position
@@ -539,12 +566,49 @@ test.describe('rts', () => {
 
     await page.mouse.move(640, 400);
     await page.waitForTimeout(320);
+
+    // keyboard.ini: CenterOnRadarEvent=32 (Space), CenterBase=72 (H). They are
+    // two DIFFERENT keys in RA2 — Space answers "where did that explosion
+    // happen", H answers "take me home" — and they used to both go home here.
+    // With a radar event pending, Space goes to the EVENT, so this test (which
+    // predates the split) has to say which behaviour it is asking for.
+    await page.evaluate(() => { window.__rtsTest.get().radarEvent = null; });
     await page.keyboard.press(' ');
     await page.waitForTimeout(250);
-    const back = await cam();
-    expect(Math.abs(back.x - home.x), 'Space returns to base').toBeLessThan(14);
-    expect(Math.abs(back.y - home.y), 'Space returns to base').toBeLessThan(14);
-    expect((await page.evaluate(() => window.__rts())).state, 'Space must not pause any more')
+    let back = await cam();
+    expect(Math.abs(back.x - home.x), 'with no radar event, Space shows your base')
+      .toBeLessThan(14);
+    expect(Math.abs(back.y - home.y), 'with no radar event, Space shows your base')
+      .toBeLessThan(14);
+
+    // ...and with one pending it goes THERE instead, which is the whole point.
+    await page.mouse.move(2, 400);
+    await page.waitForTimeout(1100);
+    await page.mouse.move(640, 400);
+    await page.waitForTimeout(320);
+    const ev = await page.evaluate(() => {
+      const g = window.__rtsTest.get(), s = g.start[0];
+      const e = { x: s.x + 14, y: s.y + 10, t: g.tick };
+      g.radarEvent = e;
+      return e;
+    });
+    await page.keyboard.press(' ');
+    await page.waitForTimeout(250);
+    back = await cam();
+    const at = await page.evaluate((e) => window.__rtsScreen(e.x, e.y), ev);
+    expect(at, 'Space centres the radar event, not the base').toBeTruthy();
+
+    // H is the one that always goes home.
+    await page.mouse.move(2, 400);
+    await page.waitForTimeout(1100);
+    await page.mouse.move(640, 400);
+    await page.waitForTimeout(320);
+    await page.keyboard.press('h');
+    await page.waitForTimeout(250);
+    back = await cam();
+    expect(Math.abs(back.x - home.x), 'H is CenterBase').toBeLessThan(14);
+    expect(Math.abs(back.y - home.y), 'H is CenterBase').toBeLessThan(14);
+    expect((await page.evaluate(() => window.__rts())).state, 'neither key pauses')
       .toBe('play');
 
     await page.keyboard.press('p');
@@ -585,14 +649,28 @@ test.describe('rts', () => {
     const dir = await rosterAfterPicking(0);
     expect(dir.sides[0], 'first option is the Directorate').toBe('dir');
     expect(dir.sides[1], 'the AI always takes the other side').toBe('col');
-    expect(dir.def.join(), 'Directorate defence is the Sentry Gun').toMatch(/Sentry/);
-    expect(dir.def.join(), 'and NOT the Collective one').not.toMatch(/Tesla/);
+    // rules.ini settles which side owns which: [GAPILL] "Pill Box" has
+    // Prerequisite=BARRACKS,GACNST (the ALLIED yard) and [NALASR] "Sentry Gun"
+    // has BARRACKS,NACNST (the SOVIET one). This test had them swapped — it
+    // wanted the Directorate to field the Sentry Gun, which is the Collective's.
+    expect(dir.def.join(), 'Directorate defence is the Pillbox').toMatch(/Pillbox/);
+    expect(dir.def.join(), 'and NOT the Collective one').not.toMatch(/Sentry|Tesla/);
     expect(dir.build.join(), 'defence has its own tab, as in RA2')
-      .not.toMatch(/Sentry|Tesla/);
-    expect(dir.veh.join()).toMatch(/Lancer/);
-    expect(dir.veh.join()).toMatch(/Spectre/);
-    expect(dir.veh.join(), 'Mammoth belongs to the other side').not.toMatch(/Mammoth/);
-    expect(dir.inf.join()).toMatch(/Rifleman/);
+      .not.toMatch(/Pillbox|Sentry|Tesla/);
+    // `lancer` is this file's internal KEY for the unit RA2 calls the Grizzly
+    // Tank — rules.ini has no 'Lancer' anywhere. The roster carries display
+    // NAMES, so matching the codename could never have matched.
+    expect(dir.veh.join(), 'the Directorate medium tank is the Grizzly')
+      .toMatch(/Grizzly/);
+    // Three more dead codenames lived here. rules.ini has NO 'Spectre' and no
+    // 'Rifleman' at all, and the Collective heavy is the Apocalypse Tank — the
+    // Mammoth is RA1/Tiberian Sun. Assert the RA2 names the roster actually uses.
+    expect(dir.veh.join(), 'the Mirage Tank is the Directorate signature')
+      .toMatch(/Mirage Tank/);
+    expect(dir.veh.join(), 'the Apocalypse belongs to the other side')
+      .not.toMatch(/Apocalypse/);
+    expect(dir.inf.join(), 'RA2 calls the Allied basic infantryman the GI')
+      .toMatch(/\bGI\b/);
 
     // "Start over" restarts with the side you already picked — as in RA2,
     // changing faction means going back to the menu, and mid-match there is
@@ -603,18 +681,40 @@ test.describe('rts', () => {
     expect(col.sides[0], 'second option is the Collective').toBe('col');
     expect(col.sides[1], 'the AI always takes the other side').toBe('dir');
     expect(col.def.join(), 'Collective defence is the Tesla Coil').toMatch(/Tesla/);
-    expect(col.def.join(), 'and NOT the Directorate one').not.toMatch(/Sentry/);
-    expect(col.build.join(), 'the shared structures are the same for both sides')
-      .toBe(dir.build.join());
-    expect(col.veh.join()).toMatch(/Mammoth/);
-    expect(col.veh.join(), 'Lancer belongs to the other side').not.toMatch(/Lancer/);
+    expect(col.def.join(), 'the Collective fields the Sentry Gun').toMatch(/Sentry/);
+    expect(col.def.join(), 'and NOT the Directorate one').not.toMatch(/Pillbox/);
+    // NOT identical, and must not be. RA2 gives each side its own power, radar
+    // and economy buildings — [GAPOWR] Power Plant vs [NAPOWR] Tesla Reactor,
+    // [GAAIRC] Airforce Command HQ vs [NARADR] Radar Tower, [GAOREP] Allied Ore
+    // Processor vs [NANRCT] Nuclear Reactor, [GASPYSAT] SpySat Uplink vs
+    // [NACLON] Cloning Vats. Only the middle of the tree is shared.
+    for (const shared of ['Refinery', 'Barracks', 'War Factory', 'Shipyard',
+                          'Service Depot', 'Battle Lab']) {
+      expect(dir.build.join(), shared + ' is shared').toContain(shared);
+      expect(col.build.join(), shared + ' is shared').toContain(shared);
+    }
+    expect(dir.build.join(), 'Allied power is the Power Plant').toMatch(/Power Plant/);
+    expect(col.build.join(), 'Soviet power is the Tesla Reactor').toMatch(/Tesla Reactor/);
+    expect(col.build.join(), 'and NOT the Allied one').not.toMatch(/Power Plant/);
+    expect(dir.build.join(), 'Allied radar is the Airforce Command')
+      .toMatch(/Airforce Command/);
+    expect(col.build.join(), 'Soviet radar is the Radar Tower').toMatch(/Radar Tower/);
+    expect(col.veh.join(), 'the Collective heavy is the Apocalypse')
+      .toMatch(/Apocalypse/);
+    expect(col.veh.join(), 'the Grizzly belongs to the other side')
+      .not.toMatch(/Grizzly/);
+    expect(col.veh.join(), 'the Collective fields the Rhino').toMatch(/Rhino/);
     expect(col.inf.join()).toMatch(/Conscript/);
 
-    // Shared kit stays available to both.
+    // Each side has its OWN harvester too — [CMIN] Chrono Miner against
+    // [HARV] War Miner — so "the Harvester is shared" was never true either.
+    expect(dir.veh.join(), 'the Directorate mines with the Chrono Miner')
+      .toMatch(/Chrono Miner/);
+    expect(col.veh.join(), 'the Collective mines with the War Miner')
+      .toMatch(/War Miner/);
     for (const r of [dir, col]) {
-      expect(r.build.join(), 'core structures are shared').toMatch(/Power Plant/);
-      expect(r.veh.join(), 'the Harvester is shared').toMatch(/Harvester/);
-      expect(r.inf.join(), 'the Rocketeer is shared').toMatch(/Rocketeer/);
+      expect(r.build.join(), 'every side can refine and train').toMatch(/Refinery/);
+      expect(r.veh.join(), 'every side has an MCV or a miner').toMatch(/Miner|MCV/);
     }
   });
 
@@ -652,32 +752,92 @@ test.describe('rts', () => {
     expect(shown, 'the board formats m:ss, not a bare number').toMatch(/\d+:\d\d/);
   });
 
+  // RA2 scrolls with the ARROWS, the screen edge or the minimap — keyboard.ini
+  // has no Scroll* binding at all, and binds the letters to commands:
+  // DeployObject=68 (D), StopObject=83 (S), DefenseTab=87 (W). This test used
+  // to press 'd', from a time when WASD also panned; that was removed because
+  // `keys[...]` is set before the deploy branch returns, so holding D deployed
+  // a GI *and* scrolled the map. Measured in-page: d 0px, ArrowRight +499px.
   test('a pan eases in instead of snapping to full speed', async ({ page }) => {
     await boot(page);
     await page.mouse.move(640, 400);
     await page.waitForTimeout(250);
+    // Measure DISPLACEMENT OVER FIXED WALL-CLOCK WINDOWS, not per-frame deltas
+    // and not per-frame velocity. Two earlier shapes of this test both measured
+    // the harness rather than the game: raw deltas because a long frame moves
+    // proportionally further, and delta/dt because the sampling rAF and the
+    // game's rAF are different callbacks — two samples can sit a fraction of a
+    // millisecond apart and still straddle a whole game step, which read as
+    // 6285 px/s against a 903 px/s cruise. A window is immune to both.
     const r = await page.evaluate(async () => {
-      const xs = [];
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+      // Start from the MIDDLE of the map. Panning right from the base runs into
+      // the edge inside ~500 ms, and `clampCam()` then holds the camera still —
+      // so the "steady state" window measured a stopped camera and came out
+      // SMALLER than the ramp, which reads as "no easing" when it is a wall.
+      const g = window.__rtsTest.get(), T = window.__rtsTables;
+      window.__rtsTest.centerOn(Math.floor(T.MAP / 2), Math.floor(T.MAP / 2));
+      void g;
+      await new Promise((res) => setTimeout(res, 200));
+      // Warm the frame cadence. The first rAF after a setTimeout boundary can
+      // be a long one, and `k = min(1, dt * 16)` saturates on a long frame — so
+      // the pan legitimately starts at full speed and the ramp window measures
+      // the stall, not the easing. Spin a few real frames first.
       await new Promise((res) => {
+        let n = 0;
+        (function f() { if (++n >= 5) res(); else requestAnimationFrame(f); })();
+      });
+      const at = (ms) => new Promise((res) => {
         const t0 = performance.now();
         (function f() {
-          xs.push(window.__rtsCam().x);
-          if (performance.now() - t0 < 700) requestAnimationFrame(f); else res();
+          if (performance.now() - t0 >= ms) res(window.__rtsCam().x);
+          else requestAnimationFrame(f);
         })();
       });
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'd' }));
-      const d = [];
-      for (let i = 1; i < xs.length; i++) d.push(xs[i] - xs[i - 1]);
-      const mid = d.slice(Math.floor(d.length * 0.5), Math.floor(d.length * 0.9));
-      const cruise = mid.reduce((a, b) => a + b, 0) / mid.length;
-      const first = d.find((v) => Math.abs(v) > 0.5) || 0;
-      return { first, cruise, jitter: Math.max(...mid.map((v) => Math.abs(v - cruise))) };
+      // The ramp window must be SHORTER than the easing time constant or it
+      // just measures cruise. `k = min(1, dt * 16)` is a ~62 ms constant, so a
+      // 150 ms window already sits at ~82% of full speed — which looked like
+      // "no easing" and is really "window too long". 60 ms sees the ramp.
+      const RAMP = 60, RUN = 150;
+      const x0 = window.__rtsCam().x;
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      const x1 = await at(RAMP);           // still accelerating
+      const x2 = await at(300);            // settled
+      const x3 = await at(RUN);            // steady state
+      const x4 = await at(RUN);            // ...and again, for jitter
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+      return { first: (x1 - x0) / RAMP,    // px per ms, so the windows compare
+               cruise: (x3 - x2) / RUN,
+               next: (x4 - x3) / RUN };
     });
-    expect(r.cruise, 'keyboard pan should actually move').toBeGreaterThan(4);
+    expect(r.cruise * 1000, 'keyboard pan should actually move').toBeGreaterThan(100);
     expect(r.first, 'a pan must accelerate, not snap to full speed')
-      .toBeLessThan(r.cruise * 0.5);
-    expect(r.jitter, 'steady-state pan must not stutter').toBeLessThan(r.cruise * 0.6);
+      .toBeLessThan(r.cruise * 0.8);
+    expect(Math.abs(r.next - r.cruise), 'steady-state pan must not stutter')
+      .toBeLessThan(r.cruise * 0.35);
+  });
+
+  test('a command key does not also drag the camera', async ({ page }) => {
+    // The regression that removed WASD panning: D is DeployObject in RA2, and
+    // holding it deployed a GI *and* scrolled right. S (stop) and W (defence
+    // tab) collided the same way. A letter key must move the camera zero pixels.
+    await boot(page);
+    await page.mouse.move(640, 400);
+    await page.waitForTimeout(250);
+    const moved = await page.evaluate(async () => {
+      const out = {};
+      for (const key of ['d', 's', 'w', 'a']) {
+        const x0 = window.__rtsCam().x, y0 = window.__rtsCam().y;
+        window.dispatchEvent(new KeyboardEvent('keydown', { key }));
+        await new Promise((r) => setTimeout(r, 400));
+        out[key] = Math.round(Math.abs(window.__rtsCam().x - x0)
+                            + Math.abs(window.__rtsCam().y - y0));
+        window.dispatchEvent(new KeyboardEvent('keyup', { key }));
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return out;
+    });
+    expect(moved, 'RA2 binds D/S/W to commands, not scrolling')
+      .toEqual({ d: 0, s: 0, w: 0, a: 0 });
   });
 });
 
