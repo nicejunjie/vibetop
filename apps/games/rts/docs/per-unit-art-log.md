@@ -524,6 +524,39 @@ Still open:
 
 ## Measured NEGATIVE results — recorded so nobody re-runs them
 
+- **`peerVsSelf.naval` measures ELONGATION, and the aspect gate demands
+  elongation (2026-09-05).** This debt has been carried for a long time and it
+  is worth knowing what it is before spending another pass on it.
+  `selfIoU` is a unit's mean silhouette overlap across its own eight bearings.
+  For a long low hull that number is inherently small — a destroyer seen bow-on
+  and a destroyer seen broadside genuinely ARE different shapes under a 2:1 iso
+  camera — so `peersBeatingSelf` fires as soon as any neighbour overlaps more
+  than the unit overlaps itself. Correlation of broadside aspect against
+  selfIoU: **−0.893 across the ten hulls, −0.759 across all 41 units.**
+
+  | hull | aspect | selfIoU | peers beating |
+  |---|---|---|---|
+  | Typhoon | 4.40 | 0.3228 | 2 |
+  | Giant Squid | 3.47 | 0.3044 | 6 |
+  | Dreadnought | 2.42 | 0.4602 | 2 |
+  | Aegis | 2.22 | 0.5129 | 2 |
+  | Destroyer | 2.12 | 0.4763 | 3 |
+  | Landing Craft | 1.79 | 0.6944 | **0** |
+  | Amph. Transport | 1.54 | 0.7052 | **0** |
+  | Sea Scorpion | 1.49 | 0.6558 | **0** |
+
+  The three hulls that pass are the three LEAST elongated on the board. Every
+  hull above aspect ~2.1 fails, and `aspect.navalOutsideRA2Band` is what put
+  them there: RA2's fleet is long and low, and the 2026 naval pass rebuilt ours
+  to match. **Driving `peerVsSelf.naval` to 0 means making the fleet stubbier,
+  which is the fidelity work undone.**
+  Not "fixed", and the target deliberately NOT moved — moving a target to make
+  a number go green is the thing this whole file exists to prevent. What is
+  warranted is knowing that this debt is a property of the METRIC meeting a
+  correct fleet, not of the art. If it is ever worth closing, the change is to
+  the comparison (bearing-matched, the way `crossIoU` already works), not to
+  the hulls.
+
 - **The SPIKES budgets are NOT quietly weakened to the generic floor (2026-09-05).**
   24 of 41 units carry `budget: 3.64`, the generic floor, and that looks at
   first like 24 specific clauses replaced by a default. It is not. Of those 24,
