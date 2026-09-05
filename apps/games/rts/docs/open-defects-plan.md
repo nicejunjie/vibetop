@@ -1,16 +1,30 @@
 # RTS — the execution plan
 
-> **Status 2026-09-05.** Phases 1, 2, 3 and 4 are DONE and deployed; Phase 8's
-> two riders are done. Phase 5 (map art) is DONE and merged.
-> Phase 6 (ElitePrimary) and Phase 7 (cliff seams) are in flight in separate
-> worktrees.
+> **Status 2026-09-05 — ALL EIGHT PHASES DONE and deployed.**
 >
-> Two things found along the way that were NOT in this plan when it was written:
-> **two corners of every building were dead to clicks** (`pickAt` tested a
-> screen-space circle against an isometric diamond footprint), and the Service
-> Depot **repaired by coincidence** on a 0.02-cell margin. Both fixed. And the
-> plan's own Phase 2 premise was wrong: `pickAt` *did* return the depot — see
-> `order-target-audit.md`.
+> 1 orders+veterancy · 2 hardened probe · 3 the two false premises · 4 the rest
+> of the menu · 5 map art · 6 ElitePrimary · 7 cliff seams · 8 riders.
+>
+> Four things found along the way that were NOT in this plan when it was
+> written, and each was worth more than the item that uncovered it:
+>   * **two corners of every building were dead to clicks** — `pickAt` tested a
+>     screen-space circle against an isometric diamond footprint;
+>   * **the Service Depot repaired by coincidence**, on a 0.02-cell margin;
+>   * **eight of ten hulls were wrong, not just the Aegis** — earlier audits had
+>     closed `aegis|squid` by comparing PLAN geometry, and a plan is not a
+>     sprite;
+>   * **peer-vs-self was measuring aspect, not identity** — it compared
+>     different-bearing self against same-bearing peer, so it punished units for
+>     being directional and would have argued against every proportion fix.
+>
+> The plan's own Phase 2 premise was also wrong: `pickAt` *did* return the
+> depot. See `order-target-audit.md`.
+>
+> What remains is in `per-unit-art-log.md`, not here: the Spy is still blue
+> where RA2's is dark-suited (his coat is owner colour, so he needs the
+> Rocketeer's fix, and `hue.infantryOwnerMean` has 0.0015 of headroom left), and
+> `bakeShip`'s sheet clips the bottom of the two largest hulls on some bearings
+> (pre-existing, needs `UPAD` raised across 8 call sites).
 
 Written 2026-09-04 after the order-target pass closed two cases and left six
 unsettled; extended the same day with the two gaps the first draft missed
