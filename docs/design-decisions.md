@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_235 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_236 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -258,6 +258,7 @@ _235 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [`isdir()` follows symlinks, so a "replace this directory" repair can repair the wrong one](#isdir-follows-symlinks-so-a-replace-this-directory-repair-can-repair-the-wrong-one)
 - [A blank terminal that still has a live socket is a renderer, not a connection (2026-09-04)](#a-blank-terminal-that-still-has-a-live-socket-is-a-renderer-not-a-connection-2026-09-04)
 - [A comment asserted RA2 puts no text on a cameo; RA2 puts text on every cameo](#a-comment-asserted-ra2-puts-no-text-on-a-cameo-ra2-puts-text-on-every-cameo)
+- [RA2's veteran multipliers apply ONCE, not once per rank — and the elite weapon stacks on top](#ra2s-veteran-multipliers-apply-once-not-once-per-rank-and-the-elite-weapon-stacks-on-top)
 
 <!-- END TOC -->
 
@@ -9447,3 +9448,61 @@ RA2 76%) and cross-plate luminance spread (ours 10.2, RA2 22.6).
 **The general lesson.** A comment that asserts what an external reference does
 is a claim, and this one was load-bearing for an entire surface. Check the
 reference before building on the claim — the corpus was two hours of fetching.
+
+## RA2's veteran multipliers apply ONCE, not once per rank — and the elite weapon stacks on top
+
+**Symptom.** Two questions had to be answered before `ElitePrimary=` could be
+modelled at all, and both had a plausible wrong answer already written down in
+the file. `rts.html` compounded the four `[General]` veteran scalars
+(`Math.pow(k, rank)`), so an elite was x1.21 firepower / x0.36 reload / x1.44
+speed / x2.25 armour. `gap-audit-features.md` row 19 had blocked the elite
+weapon on a *third* claim: that a unit with both `ElitePrimary` and a
+`FIREPOWER` ability would be "double-buffed".
+
+**Cause.** Both readings mis-take what a promotion IS. RA2 grants **abilities**
+— named flags from the list `rules.ini:2997-3000` documents
+(`[FASTER,STRONGER,FIREPOWER,SCATTER,ROF,SIGHT,...]`). The four `[General]`
+numbers are the *size* of a flag, not an exponent. Three things in the ini
+settle it without recourse to any outside source:
+
+1. In the same seven-line comment block, exactly one key is annotated
+   `[per level]` — `VeteranRatio=3.0` (`rules.ini:15`), the **kill threshold**.
+   The four combat scalars on the next four lines are not.
+2. `EliteAbilities` is "cumulative with veteran abilities" (`:2996`) —
+   cumulative over the **set**. `[XCOMET]` is the proof: it has
+   `VeteranAbilities` and no `EliteAbilities` at all, so without a union rule
+   its elite would *lose* firepower. 48 of the 49 units re-list `FIREPOWER` in
+   both, which under a compounding rule would make x1.21 universal and the key
+   pointless.
+3. A flag cannot be held twice.
+
+And `ElitePrimary` / `EliteAbilities` are independent keys (`:2963` vs `:2996`):
+`VeteranCombat` is documented as "multiplier to damage" — damage *dealt*, by
+whatever weapon is equipped, which at rank 2 is the elite one. So they **stack**,
+and the "double-buffed" blocker was never real.
+
+**Fix.** `vetFire/vetRof/vetSpeed/vetArmour` return the flat scalar at any rank
+above 0. `ROF` is the one ability that genuinely varies per unit (29 of 49 grant
+it at rank 1, 18 only at elite, `[XCOMET]`/`[HORNET]` never), so units carry a
+`rofAt` and every fire path reads `vetRofU(u)`. `ElitePrimary=` is a sparse
+`elite: {}` on a weapon spec, baked at load into a complete weapon and swapped
+in by `eliteOf()` at whichever weapon `weaponFor` resolved.
+
+**Why the order mattered.** Under the compounding rule an elite out-damaged a
+veteran by 1.83x *whatever weapon it held*, so the "elite is never weaker than
+veteran" guard — the one failure a player notices instantly — would have been
+true by construction. It only bites once the scalars stop compounding: with
+them flat, `[HARV]`'s elite gun (`ROF 20 -> 50` for `Damage 30 -> 50`) is a net
+**0.67x**, and is rescued only by `[HARV]` having no `ROF` in
+`VeteranAbilities`. That interaction is what `rofAt` exists for, and the guard
+was proved to catch it by deleting the field and watching it name the unit.
+
+**Rejected.** *Elite REPLACES the multiplied weapon* — under it, 11 of 32 units
+come out weaker at elite than at veteran (Tanya, the Navy SEAL and the
+Harvester among them). Westwood shipped no such promotion. *Keeping the
+compounding* — it makes rank 2 worth 1.83x rank 1 on every unit, which is both
+un-RA2 and the thing that hides a dropped `Burst=`.
+
+**The general lesson.** "Cumulative" in a spec means cumulative over
+*something*; find out what before implementing it. Phobos's own docs repeat the
+same ambiguous wording, so the trap survives being read twice.
