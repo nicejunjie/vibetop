@@ -4882,9 +4882,34 @@
     // pale end with nothing but the Spy's own paleness between them — move the
     // Spy anywhere dark and the Engineer inherits the collision.
     //
-    // So it is a THREE-unit re-plan: Rocketeer, Spy AND Engineer, swept
-    // together. Recorded rather than attempted, because a three-way sweep that
-    // lands half-done is worse than the brown suit.
+    // The three-way sweep was then RUN, and it settles the question in a way
+    // no rung candidate could:
+    //
+    //   * Colour alone never clears it. Three engineer rungs (bright, warm,
+    //     gold) all leave engineer|spy at 8.0-8.3 against the 8.9 floor. The
+    //     Engineer and the Spy are the same size class — both "i-S 13x25",
+    //     both plain standing men with a small prop — so the pale Spy was
+    //     compensating for a SHAPE collision with colour.
+    //   * STATURE does clear it. engineer[1.22,0.76] + spy[0.76,1.00] +
+    //     tanya[1.04,0.88] reaches ZERO confusable infantry at both zooms
+    //     (CELL 96 min 12.2 / 9.0 against floors 12.2 / 8.9).
+    //   * AND IT BUYS NOTHING, because the roster was ALREADY at zero
+    //     confusable. It cost CELL 96 z1 min 12.4 -> 12.2 and
+    //     hue.infantryOwnerMean 0.296 -> 0.292 for no gain. Reverted.
+    //
+    // THE REAL BLOCKER, and it is not the Spy at all: THE LADDER CANNOT
+    // WHITEN HIM. Looked at beside RA2's plate after the whitest rung, our
+    // Rocketeer is still blue-grey and our Spy still blue — because what a
+    // player sees of either figure is mostly OWNER COLOUR, not coat, so a
+    // multiplier on the coat moves almost nothing. This is the same finding
+    // the value-ladder pass measured from the other end (moving ivan.coat by
+    // 29 L moves the composited man by 1.8).
+    //
+    // So whitening the Rocketeer is not a rung problem and not a three-unit
+    // problem. It needs his OWNER-COLOUR BUDGET redistributed — less blue
+    // area, more white plate — which is R1-R6 silhouette-and-zone work on one
+    // unit, with the owner-signal floor (hue.infantryOwnerMean >= 0.29) as the
+    // binding constraint. Do not reach for the ladder again.
     rocketeer: [0.50, 0.70, 1.05],   //  a light CREAM pressure suit
     cleg:      [0.74, 0.71, 0.64],   //  bone-white plate over blue-grey
     tanya:     [0.45, 0.58, 0.70],   //  warm khaki, bare arms, blonde
