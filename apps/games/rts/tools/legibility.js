@@ -59,7 +59,25 @@ const GRASS = [92, 110, 62];      // the temperate ground land units stand on
 // #2c5d86; comparing a hull against grass measured a picture the game never
 // draws, and it is the background that dominates a small thumbnail.
 const WATER = [44, 93, 134];
-const CELL = 28;                  // the box every unit is normalised into
+// THE MEASUREMENT WINDOW. This used to be a bare `const CELL = 28`, and it was
+// doing most of the judging: 28 px centre-CROPS every unit drawn larger than
+// that — all 13 vehicles, all 10 ships, and 4 px off each end of every trooper
+// (a GI is 16x36 at zoom 1, the Aircraft Carrier 84x74). The crop throws away
+// the head, the weapon and the feet, which is where infantry identity lives,
+// and keeps the torso, where it does not. Changing the window flips the
+// infantry verdict from 0 confusable pairs to 11.
+//
+// So the tool now reports THREE numbers side by side and names each one:
+//   CELL 28  the shipped window, kept so the historical baseline stays readable
+//   CELL <fit>  nothing cropped. Padding dilutes every distance UNIFORMLY, so
+//            the threshold moves with the window — only same-window comparisons
+//            mean anything.
+//   union    distance over pixels where EITHER unit has a body: free of both
+//            the crop bias and the padding bias.
+// Cite one in isolation and you will re-learn this the expensive way.
+const CELL = Number(process.env.LEG_CELL || 28);   // the "shipped" window
+// Big enough that nothing is cropped at zoom 1 (largest drawn unit 84x74).
+const CELL_FIT = Number(process.env.LEG_CELL_FIT || 96);
 
 function playwright() {
   try { return require('playwright'); }
@@ -104,6 +122,7 @@ function grab(cfg) {
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
     const tw = Math.max(1, Math.round(bw * zoom)), th = Math.max(1, Math.round(bh * zoom));
     const cell = new Uint8Array(CELL * CELL * 3);
+    const mask = new Uint8Array(CELL * CELL);          // 1 where this unit has a body
     for (let i = 0; i < CELL * CELL; i++) { cell[i*3] = GRASS[0]; cell[i*3+1] = GRASS[1]; cell[i*3+2] = GRASS[2]; }
     const ox = Math.floor((CELL - tw) / 2), oy = Math.floor((CELL - th) / 2);
     for (let ty = 0; ty < th; ty++) for (let tx = 0; tx < tw; tx++) {
@@ -111,18 +130,26 @@ function grab(cfg) {
       if (cy < 0 || cx < 0 || cy >= CELL || cx >= CELL) continue;
       const sx0 = x0 + Math.floor(tx * bw / tw), sx1 = x0 + Math.max(Math.floor((tx+1) * bw / tw), Math.floor(tx * bw / tw) + 1);
       const sy0 = y0 + Math.floor(ty * bh / th), sy1 = y0 + Math.max(Math.floor((ty+1) * bh / th), Math.floor(ty * bh / th) + 1);
-      let r = 0, g2 = 0, b = 0, n = 0;
+      let r = 0, g2 = 0, b = 0, n = 0, av = 0;
       for (let y = sy0; y < sy1; y++) for (let x = sx0; x < sx1; x++) {
         const i = (y * W + x) * 4, a = id.data[i + 3] / 255;
         r += id.data[i] * a + GRASS[0] * (1 - a);
         g2 += id.data[i+1] * a + GRASS[1] * (1 - a);
         b += id.data[i+2] * a + GRASS[2] * (1 - a);
-        n++;
+        av += a; n++;
       }
       const o = (cy * CELL + cx) * 3;
       cell[o] = r / n; cell[o+1] = g2 / n; cell[o+2] = b / n;
+      if (av / n > 0.03) mask[cy * CELL + cx] = 1;
     }
-    return { cell: Array.from(cell), w: bw, h: bh };
+    // base64, not Array.from: a plain array of 96*96*3 numbers per facing per
+    // zoom per unit is what ran node out of heap at the wider window.
+    var b64 = function (u8) {
+      var str = '', CH = 0x8000;
+      for (var i = 0; i < u8.length; i += CH) str += String.fromCharCode.apply(null, u8.subarray(i, i + CH));
+      return btoa(str);
+    };
+    return { cell: b64(cell), mask: b64(mask), w: bw, h: bh };
   }
   function compose(d, art, face) {
     const uk = (d.bomb && d.air) ? 1.3 : 1;
@@ -163,7 +190,7 @@ function grab(cfg) {
         const bg = d.nav ? cfg.WATER : cfg.GRASS;   // a hull is read on water
         const t = thumbOf(id, c.W, c.H, z, bg), tB = thumbOf(idB, cB.W, cB.H, z, bg);
         if (!t || !tB) { ok = false; break; }
-        th[z].push(t.cell); thB[z].push(tB.cell);
+        th[z].push(t); thB[z].push(tB);
         if (z === 1) size[face] = { w: t.w, h: t.h };
       }
     }
@@ -178,18 +205,56 @@ function grab(cfg) {
 // Perceptual-ish distance: luminance carries most of "can I tell these apart"
 // at 20 px, so weight it, but keep real chroma terms or two differently
 // coloured boxes of the same shape score zero.
-function dist(a, b) {
-  let s = 0;
-  for (let i = 0; i < CELL * CELL; i++) {
-    const o = i * 3;
-    const la = 0.299 * a[o] + 0.587 * a[o + 1] + 0.114 * a[o + 2];
-    const lb = 0.299 * b[o] + 0.587 * b[o + 1] + 0.114 * b[o + 2];
-    const dr = (a[o] - a[o + 2]) - (b[o] - b[o + 2]);       // red-blue opponent
-    const dg = (a[o + 1] - a[o + 2]) - (b[o + 1] - b[o + 2]); // green-blue opponent
-    s += (la - lb) * (la - lb) * 1.0 + dr * dr * 0.35 + dg * dg * 0.35;
+//
+// THREE WINDOWS, from ONE capture. Everything is captured at CELL_FIT (nothing
+// cropped) and the narrower views are derived, so the browser is driven once.
+const un64 = (b) => new Uint8Array(Buffer.from(b, 'base64'));
+
+// Centre-crop a CELL_FIT cell down to `n`, reproducing what a bare
+// `const CELL = n` build would have produced.
+function cropCell(cell, n) {
+  const o = Math.floor((CELL_FIT - n) / 2), out = new Uint8Array(n * n * 3);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const si = ((y + o) * CELL_FIT + (x + o)) * 3, di = (y * n + x) * 3;
+    out[di] = cell[si]; out[di+1] = cell[si+1]; out[di+2] = cell[si+2];
   }
-  return Math.sqrt(s / (CELL * CELL));
+  return out;
 }
+function cropMask(mask, n) {
+  const o = Math.floor((CELL_FIT - n) / 2), out = new Uint8Array(n * n);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++)
+    out[y * n + x] = mask[(y + o) * CELL_FIT + (x + o)];
+  return out;
+}
+
+// The pixel term, shared by every window so the three numbers differ only in
+// WHICH pixels they average over.
+function px2(a, b, o) {
+  const la = 0.299 * a[o] + 0.587 * a[o + 1] + 0.114 * a[o + 2];
+  const lb = 0.299 * b[o] + 0.587 * b[o + 1] + 0.114 * b[o + 2];
+  const dr = (a[o] - a[o + 2]) - (b[o] - b[o + 2]);         // red-blue opponent
+  const dg = (a[o + 1] - a[o + 2]) - (b[o + 1] - b[o + 2]); // green-blue opponent
+  return (la - lb) * (la - lb) * 1.0 + dr * dr * 0.35 + dg * dg * 0.35;
+}
+// A fixed box: every pixel counts, background included. Padding therefore
+// dilutes uniformly — the threshold moves with the window.
+function distBox(a, b, n) {
+  let s = 0;
+  for (let i = 0; i < n * n; i++) s += px2(a, b, i * 3);
+  return Math.sqrt(s / (n * n));
+}
+// Union footprint: only pixels where EITHER unit has a body. Free of the crop
+// bias AND the padding bias, because the shared background is never counted.
+function distUnion(a, b, ma, mb, n) {
+  let s = 0, k = 0;
+  for (let i = 0; i < n * n; i++) {
+    if (!ma[i] && !mb[i]) continue;
+    s += px2(a, b, i * 3); k++;
+  }
+  return k ? Math.sqrt(s / k) : 0;
+}
+// Backwards-compatible name: the shipped 28 px window.
+function dist(a, b) { return distBox(a, b, CELL); }
 
 async function measure() {
   const pw = playwright();
@@ -202,7 +267,8 @@ async function measure() {
   await page.goto(`http://127.0.0.1:${port}/rts.html`);
   await page.waitForFunction(() => !!window.__rtsTest, null, { timeout: 30000 });
   await page.evaluate(() => window.__rtsTest.begin(4242, 'normal'));
-  const recs = await page.evaluate(grab, { CELL, GRASS, WATER, ZOOMS });
+  // Capture ONCE at the wide window; the narrow views are derived node-side.
+  const recs = await page.evaluate(grab, { CELL: CELL_FIT, GRASS, WATER, ZOOMS });
   await browser.close(); srv.close();
   return { recs, pageErrors };
 }
@@ -221,8 +287,42 @@ const round = (v, n) => Math.round(v * 10 ** n) / 10 ** n;
 // and that was the `mass.groundCombatSpan` x6.8 mistake all over again.
 let CONFUSABLE = 0;
 
-function compute(recs) {
-  const res = { zooms: {}, worst: {}, sizes: {}, anchor: {}, selfSpread: {} };
+// The three windows this tool reports. Same capture, same pixel maths — they
+// differ ONLY in which pixels are averaged. See the CELL comment at the top.
+const VIEWS = [
+  { key: 'cell28', n: CELL,     kind: 'box',
+    label: `CELL ${CELL} (the shipped window — CROPS anything drawn bigger)` },
+  { key: 'fit',    n: CELL_FIT, kind: 'box',
+    label: `CELL ${CELL_FIT} (nothing cropped; padding dilutes, so the threshold moves with it)` },
+  { key: 'union',  n: CELL_FIT, kind: 'union',
+    label: 'union footprint (only pixels where either unit has a body)' },
+];
+
+// Decode the base64 capture into the arrays one view needs. Done per view so a
+// wide run never holds three copies of every thumbnail at once.
+function prepare(recs, view) {
+  return recs.map((r) => {
+    const th = {}, thB = {};
+    for (const z of ZOOMS) {
+      const conv = (t) => {
+        const cell = un64(t.cell), mask = un64(t.mask);
+        return view.n === CELL_FIT
+          ? { c: cell, m: mask }
+          : { c: cropCell(cell, view.n), m: cropMask(mask, view.n) };
+      };
+      th[z] = r.th[z].map(conv); thB[z] = r.thB[z].map(conv);
+    }
+    return { ...r, th, thB };
+  });
+}
+
+function compute(recs0, view) {
+  view = view || VIEWS[0];
+  const recs = prepare(recs0, view);
+  const pairDist = (a, b) => view.kind === 'union'
+    ? distUnion(a.c, b.c, a.m, b.m, view.n)
+    : distBox(a.c, b.c, view.n);
+  const res = { view: view.key, label: view.label, zooms: {}, worst: {}, sizes: {}, anchor: {}, selfSpread: {} };
   for (const z of ZOOMS) {
     // The glance that actually happens: the CLOSEST presentation of two units,
     // over every combination of their facings. A pair is only safe if it is
@@ -230,13 +330,15 @@ function compute(recs) {
     const near = (A, B) => {
       let m = Infinity;
       for (let i = 0; i < A.length; i++) for (let j = 0; j < B.length; j++) {
-        const d = dist(A[i], B[j]);
+        const d = pairDist(A[i], B[j]);
         if (d < m) m = d;
       }
       return m;
     };
     // Anchor: the same unit, blue vs red, at its worst bearing pair. Telling
-    // your unit from theirs is the floor everything else must clear.
+    // your unit from theirs is the floor everything else must clear. It is
+    // computed PER VIEW, because a window that dilutes distances dilutes the
+    // floor with them — which is exactly why cross-window comparison is void.
     const own = recs.map((r) => near(r.th[z], r.thB[z])).sort((a, b) => a - b);
     const anchor = own[own.length >> 1];
     res.anchor[z] = round(anchor, 1);
@@ -265,30 +367,44 @@ function compute(recs) {
   return res;
 }
 
-function report(m) {
+function reportOne(m) {
   const L = [];
-  L.push('unit legibility — the picture, at the size it is DRAWN, on the game\'s ground');
-  L.push(`  ${Object.keys(m.sizes).length} units. THRESHOLD = the median distance between the SAME`);
-  L.push('  unit in the two owners\' colours — a pair of different units scoring below it is');
-  L.push('  less distinguishable than friend-from-foe, which the player must do every second.\n');
+  L.push(`  ── ${m.label}`);
   for (const z of ZOOMS) {
-    L.push(`  zoom ${z}${z === 1 ? '  (the game default)' : '  (ZMIN)'}   threshold ${m.anchor[z]}`);
-    L.push('    group      n   pairs   mean    min   CONFUSABLE');
+    L.push(`    zoom ${z}${z === 1 ? '  (the game default)' : '  (ZMIN)'}   threshold ${m.anchor[z]}`);
+    L.push('      group      n   pairs   mean    min   CONFUSABLE');
     for (const [g, v] of Object.entries(m.zooms[z]))
-      L.push(`    ${g.padEnd(9)} ${String(v.n).padStart(2)}   ${String(v.pairs).padStart(5)}  ${String(v.mean).padStart(5)}  ${String(v.min).padStart(5)}   ${String(v.confusable).padStart(4)}`);
-    L.push('    worst pairs (over every facing combination):');
+      L.push(`      ${g.padEnd(9)} ${String(v.n).padStart(2)}   ${String(v.pairs).padStart(5)}  ${String(v.mean).padStart(5)}  ${String(v.min).padStart(5)}   ${String(v.confusable).padStart(4)}`);
+    L.push('      worst pairs (over every facing combination):');
     for (const p of m.worst[z].slice(0, 8))
-      L.push(`      ${String(p.d).padStart(5)}  ${p.a} | ${p.b}${p.d < m.anchor[z] ? '   << under the friend-vs-foe floor' : ''}`);
+      L.push(`        ${String(p.d).padStart(5)}  ${p.a} | ${p.b}${p.d < m.anchor[z] ? '   << under the friend-vs-foe floor' : ''}`);
     L.push('');
   }
+  return L.join('\n');
+}
+
+function report(ms) {
+  const L = [];
+  L.push('unit legibility — the picture, at the size it is DRAWN, on the game\'s ground');
+  L.push(`  ${Object.keys(ms[0].sizes).length} units. THRESHOLD = the median distance between the SAME`);
+  L.push('  unit in the two owners\' colours — a pair of different units scoring below it is');
+  L.push('  less distinguishable than friend-from-foe, which the player must do every second.');
+  L.push('');
+  L.push('  THREE WINDOWS. They disagree, and that is the point: the shipped 28 px box');
+  L.push('  centre-crops every unit drawn bigger than it, throwing away the head, the');
+  L.push('  weapon and the feet. Each window carries its OWN threshold, so a number from');
+  L.push('  one says nothing about a number from another. Never cite one alone.');
+  L.push('');
+  for (const m of ms) L.push(reportOne(m));
   return L.join('\n');
 }
 
 async function main() {
   const { recs, pageErrors } = await measure();
   if (pageErrors.length) { console.error('PAGE ERRORS:\n  ' + pageErrors.join('\n  ')); process.exitCode = 1; }
-  const m = compute(recs);
-  console.log(report(m));
+  const ms = VIEWS.map((v) => compute(recs, v));
+  console.log(report(ms));
+  const m = ms[0];                       // --json keeps the shipped window's shape
   const jsonAt = process.argv.indexOf('--json');
   if (jsonAt >= 0 && process.argv[jsonAt + 1]) {
     fs.mkdirSync(path.dirname(process.argv[jsonAt + 1]), { recursive: true });
