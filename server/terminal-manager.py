@@ -6565,9 +6565,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self._json(200, {"ok": True, "id": ent["id"], "schedule": ent})
 
     def _handle_schedule_cancel(self):
-        """POST /api/terminals/schedules/cancel {id} — drop one of this user's
+        """POST /api/terminals/schedules/cancel {id} — stop one of this user's
         entries. Scoped to the caller's own list, so an id alone reveals nothing
-        about (and can't touch) another user's schedules."""
+        about (and can't touch) another user's schedules.
+
+        Cancelling a LOOP THAT HAS ALREADY FIRED keeps it, as `stopped`, instead
+        of deleting it: those runs happened: messages were typed into a terminal,
+        and erasing the only record of that on a Cancel click loses history the
+        user may need (which of the eight went out before I killed it?). `runs`
+        is the whole test — a one-shot is cancelled before it ever fires, and a
+        loop that never reached its first slot has nothing to remember. Deleting
+        a row that is ALREADY history stays a delete: there the × means "clear
+        this line", which is the only way to tidy the list."""
         raw = self._read_body(64 * 1024)
         if raw is None:
             return self._json(400, {"error": "invalid or too-large body"})
@@ -6582,21 +6591,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with _schedules_lock:
             reg = _read_schedules()
             lst = reg.get(user) or []
-            keep = [e for e in lst if e.get("id") != eid]
-            if len(keep) == len(lst):
+            ent = next((e for e in lst if e.get("id") == eid), None)
+            if ent is None:
                 return self._json(404, {"error": "no such scheduled message"})
-            if keep:
-                reg[user] = keep
+            kept = ent.get("status") == "pending" and (ent.get("runs") or 0) > 0
+            if kept:
+                ent["status"] = "stopped"
+                ent["error"] = None
+                ent["fired"] = ent.get("fired") or time.time()   # ages the history
             else:
-                reg.pop(user, None)
+                lst = [e for e in lst if e.get("id") != eid]
+                if lst:
+                    reg[user] = lst
+                else:
+                    reg.pop(user, None)
             try:
                 _write_schedules(reg)
             except OSError as e:
                 log.warning("schedule write failed: %s", e)
                 return self._json(500, {"error": "could not save the schedule"})
         self._drop_schedules_cache(user)
-        log.info("schedule %s cancelled by %s", eid, user)
-        return self._json(200, {"ok": True})
+        log.info("schedule %s %s by %s", eid, "stopped" if kept else "cancelled", user)
+        return self._json(200, {"ok": True, "kept": kept})
 
     # ---- Update (git pull + redeploy) -------------------------------------
     def _git_as_user(self, args, timeout=60):

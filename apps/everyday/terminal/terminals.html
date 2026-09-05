@@ -659,13 +659,17 @@
       (+e.term === +active ? mine : others).push(e);
     });
     var rows = mine.concat(others).slice(0, 40).map(function (e) {
-      var cls = e.status === 'pending' ? '' : (e.status === 'sent' ? 'done' : 'bad');
+      // 'stopped' is a loop the user cancelled after it had already run: history,
+      // not a failure — it must not render in the red 'bad' style.
+      var done = e.status === 'sent' || e.status === 'stopped';
+      var cls = e.status === 'pending' ? '' : (done ? 'done' : 'bad');
       var when = e.status === 'pending'
         ? fmtClock(e.at) + ' · ' + fmtIn(e.at)
         : fmtClock(e.at);
       var runs = e.runs || 0;
       var note = '';
       if (e.status === 'sent') note = e.every ? 'done — ' + runs + ' sent' : 'sent';
+      else if (e.status === 'stopped') note = 'stopped — ' + runs + ' sent';
       else if (e.status === 'missed') note = 'missed — the host was down';
       else if (e.status === 'failed') note = e.error || 'failed';
       else if (e.every) note = 'until ' + fmtClock(e.until) + (runs ? ' · ' + runs + ' sent' : '');
@@ -678,13 +682,17 @@
       // into the compose form (user request — before this, fixing a typo or a
       // time meant delete + retype).
       var ed = e.status === 'pending' ? '<span class="ed" title="Edit">✎</span>' : '';
+      // A loop that has already run is STOPPED, not erased — its runs are kept as
+      // history. Everything else the × really does remove.
+      var xTitle = (e.status === 'pending' && e.every && runs)
+        ? 'Stop (keeps what already ran)' : 'Cancel';
       return '<li class="' + cls + '" data-id="' + esc(e.id) + '">' +
                '<span class="when">' + esc(when) + '</span>' +
                '<span class="what">' + tag + esc(e.text) +
                  (note ? '<span class="note">' + esc(note) + '</span>' : '') +
                '</span>' +
                ed +
-               '<span class="x" title="Cancel">×</span>' +
+               '<span class="x" title="' + xTitle + '">×</span>' +
              '</li>';
     });
     spList.innerHTML = rows.join('');
