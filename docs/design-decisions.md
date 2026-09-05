@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_234 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_235 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -257,6 +257,7 @@ _234 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [A hard-coded prefix cannot both bound a map and admit an attacker's keys](#a-hard-coded-prefix-cannot-both-bound-a-map-and-admit-an-attackers-keys)
 - [`isdir()` follows symlinks, so a "replace this directory" repair can repair the wrong one](#isdir-follows-symlinks-so-a-replace-this-directory-repair-can-repair-the-wrong-one)
 - [A blank terminal that still has a live socket is a renderer, not a connection (2026-09-04)](#a-blank-terminal-that-still-has-a-live-socket-is-a-renderer-not-a-connection-2026-09-04)
+- [A comment asserted RA2 puts no text on a cameo; RA2 puts text on every cameo](#a-comment-asserted-ra2-puts-no-text-on-a-cameo-ra2-puts-text-on-every-cameo)
 
 <!-- END TOC -->
 
@@ -9405,3 +9406,44 @@ event read back the `calc(100% - 1px)` sentinel the first had just set, and its
 rAF "restored" it permanently — leaving the frame one pixel short of its
 container for the rest of the session. The original width is now parked on the
 element (`f.__nudgeW`) and captured once per in-flight nudge.
+
+## A comment asserted RA2 puts no text on a cameo; RA2 puts text on every cameo
+
+**Symptom.** The build sidebar was hard to scan — "troops and units are not
+unique enough under that small size in the menu". Measured against a corpus of
+74 real RA2 cameos at the size we actually draw (60x48), **every one of our 1560
+pairs sat under RA2's 5th percentile**, and our *median* pair was below RA2's
+*closest* pair. Greyed out — which is most of the early game — the floor was 11.0.
+
+**Cause.** `rts.html` carried this, and the sidebar was built on it:
+
+> `// No prose on the cameo — RA2 puts none there.`
+
+It is false. An outlined-white-caps detector finds a caption on **59 of the 74**
+corpus plates; a 60th uses grey text the detector misses; the remaining 14 are
+visibly pre-release alpha art in a different style. It is plainly visible in
+`apps/games/rts/docs/ra2-ref/cameo-ours-vs-ra2.png` — "G.I.", "GUARDIAN G.I.",
+"AEGIS CRUISER", "FLAK-TROOPER", "POWER PLANT". The name existed only in the
+hover tooltip, i.e. it cost a hover and a wait: the learned-not-discoverable
+pattern this project rejects everywhere else.
+
+**Fix.** `cameoFor()` draws the name across the bottom of the plate — bold
+condensed caps, white over a hard black stroke, wrapping to two lines when one
+will not fit, which is what RA2 does for CHRONO LEGIONNAIRE. A `CAMEO_CAPTION`
+table holds the cases where RA2's own plate disagrees with our internal name
+(WEATHER MACHINE, not "Weather Control Device"; ARMORED TRANSPORT, not
+"Amphibious Transport"), because it is RA2's lettering, not ours. MEASURED
+after: worst pair 27.2 -> 41.8 (Directorate) and 23.1 -> 40.7 (Collective);
+greyed 12.2 -> 21.7 and 11.0 -> 23.1; and 11 pairs now clear RA2's bar where
+none did.
+
+**Rejected.** *More house colour on the plate* — already tried, and it made the
+icons MORE alike (mean pairwise 29.8 -> 27.2), because a background every icon
+shares carries no information. *Colour generally* — ours are already **more**
+saturated than RA2's (0.29 vs 0.21) and less legible, so saturation is not the
+lever. The two numbers that name the real cause are `subjectFill` (ours 31%,
+RA2 76%) and cross-plate luminance spread (ours 10.2, RA2 22.6).
+
+**The general lesson.** A comment that asserts what an external reference does
+is a claim, and this one was load-bearing for an entire surface. Check the
+reference before building on the claim — the corpus was two hours of fetching.
