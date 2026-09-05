@@ -728,6 +728,21 @@
   // a person does anyway, so for most uses this never has to be thought about.
   spEveryRow.addEventListener('focusin', function () { armQuick('every'); });
   spAtRow.addEventListener('focusin', function () { armQuick('at'); });
+  // ...but aiming the row must not also OPEN the field. A <label for> forwards
+  // its click to the control, and Chromium opens the date picker on a click
+  // anywhere in a datetime-local (and the popup on a select) — so clicking
+  // "until" to point the buttons at it threw a calendar over the panel. Cancel
+  // the forwarded click and move focus ourselves: focus alone opens no picker,
+  // and focus is what arms the row, so the lit label and the focused control
+  // can never disagree. The `for` attribute stays, so the label/control
+  // association assistive tech reads is untouched.
+  Array.prototype.forEach.call(schedPanel.querySelectorAll('.sp-lab'), function (lab) {
+    lab.addEventListener('click', function (e) {
+      e.preventDefault();
+      var ctrl = document.getElementById(lab.htmlFor);
+      if (ctrl) ctrl.focus();
+    });
+  });
   // Flip the meaning of the shared date field, parking the value it gives up so
   // the other direction can hand it straight back. `keep` is for callers that
   // set every field themselves (edit, reset) and only want the chrome updated.
