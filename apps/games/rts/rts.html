@@ -8223,9 +8223,27 @@
         var h0 = P(L * 0.30, W * 1.10, FR + 1.4), h1 = P(L * 0.30, -W * 1.10, FR + 1.4);
         g.strokeStyle = HOUSE; g.lineWidth = 2.2;
         g.beginPath(); g.moveTo(h0[0], h0[1] - 1.0); g.lineTo(h1[0], h1[1] - 1.0); g.stroke();
-        var nq = P(L * 0.98, 0, FR + 1.2);
+        // THE EYE WAS THE ONE PART LEFT IN SCREEN SPACE, and it is the same
+        // bug the paragraph above this block was written about: the body and
+        // fin were moved to PLAN space so they foreshorten with her, and this
+        // was missed. `P(L * 0.98, 0, ...)` is her BEAK, and the eye was then
+        // shoved four SCREEN pixels to the left of it whichever way she was
+        // pointing — so at every bearing where the snout runs leftward the
+        // offset walks straight off the animal. Measured on the baked sheet:
+        // at octants 3, 4 and 5 the eye bakes as a DETACHED 2x3 black blob
+        // sitting 4-12 px clear of her in open water, and at the broadside
+        // octant the gate reads it as part of her, stretching the bbox from
+        // 38 px to 44 (16%). §2.3 asks the Dolphin for "no orthogonal edges
+        // anywhere"; a floating black rectangle is the only one she had.
+        //
+        // Placed in plan space it turns with her. `L * 0.70` is just abaft
+        // the melon, and `W * 0.30` on the NEAR flank keeps it inside the
+        // 0.475 half-beam the DOL profile has there, so it never touches an
+        // edge; `nearS` picks the flank the camera can see, which is what a
+        // side-on animal actually shows.
+        var eyq = P(L * 0.70, nearS * W * 0.30, FR + 2.4);
         g.fillStyle = '#101418';                                          // the eye
-        g.beginPath(); g.ellipse(nq[0] - 4.0, nq[1] - 1.8, 0.7, 0.6, 0, 0, 6.29); g.fill();
+        g.beginPath(); g.ellipse(eyq[0], eyq[1], 0.7, 0.6, 0, 0, 6.29); g.fill();
       } else if (kind === 'squid') {
         // [SQD]: a mantle and eight arms. No deck, no fittings — the only
         // straight line on it would kill the read.
@@ -11032,9 +11050,30 @@
           for (sg = -1; sg <= 1; sg += 2)
             isoBox(g, cx + px * wid * 0.32 * sg, by - 6.4 + py * wid * 0.32 * sg,
                    len * 0.70, 0.9, 1.5, a, panel, PEDGE);
-          // the open cargo well, to starboard of the bridge
-          isoBox(g, cx + fx * 1.0 - px * wid * 0.16, by - 9.0 + fy * 1.0 - py * wid * 0.16,
-                 len * 0.50, wid * 0.24, 1.0, a, '#1d201a', PEDGE);
+          // THE OPEN CARGO WELL, to starboard of the bridge — and §2.4 does
+          // not merely mention it, it IS the unit: "a fat inflatable skirt
+          // round a RED (HOUSE) INNER DECK with visible seat blocks", budget
+          // "deck cavity visible as a house-hued INTERIOR". This was one flat
+          // #1d201a plate — value 0.11, the darkest thing on the craft — so
+          // the named identity feature was painted near-black, and every blue
+          // pixel a player could see was on the two rubbing strakes and the
+          // bridge roof. At 13.0% owner colour she read as an olive hull with
+          // trim stripes, which is the Landing Craft's read, not a troop
+          // hovercraft's. (Same shape of miss as the Tesla Trooper's carapace:
+          // a clause with no measurement behind it, and the comment beside it
+          // already naming the part correctly.)
+          //
+          // The dark box stays as the COAMING — a cavity needs a rim or the
+          // colour is just another stripe — and the floor inside it goes to
+          // the owner, with two thwarts across it so it reads as a well with
+          // seats and not as a painted panel. All of it sits inside the hull
+          // outline at z ~ +1, so not one silhouette pixel moves.
+          var wlx = cx + fx * 1.0 - px * wid * 0.16, wly = by - 9.0 + fy * 1.0 - py * wid * 0.16;
+          isoBox(g, wlx, wly, len * 0.50, wid * 0.24, 1.0, a, '#1d201a', PEDGE);
+          isoBox(g, wlx, wly - 0.9, len * 0.44, wid * 0.15, 0.5, a, panel, PEDGE);
+          for (i2 = -1; i2 <= 1; i2 += 2)                              // two seat thwarts
+            isoBox(g, wlx + fx * len * 0.13 * i2, wly - 1.2 + fy * len * 0.13 * i2,
+                   1.1, wid * 0.15, 1.1, a, shade(deck, 0.72), PEDGE);
           // the bridge block, running fore-and-aft along the port side
           var brx = cx - fx * 2.4 + px * wid * 0.20, bry = by - 8.6 - fy * 2.4 + py * wid * 0.20;
           isoBox(g, brx, bry, len * 0.46, wid * 0.26, 4.2, a, shade(hull, 0.88), PEDGE);
