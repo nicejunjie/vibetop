@@ -165,10 +165,13 @@
   }
   .sp-go:hover { background: #5ed67a; }
   .sp-actions { display: flex; align-items: center; gap: 8px; }
-  /* Secondary to Schedule: same size, quieter fill. "Send now" is the shortcut,
-     scheduling is still what the panel is for. */
-  .sp-now { background: #24243c; color: #9fd3ae; }
-  .sp-now:hover { background: #2f2f4d; }
+  /* "Now" is the ORIGIN the +/- magnitudes count from, so it sits in that row
+     and reads as a sibling of them — quieter, because it is a reset rather than
+     an amount. It used to be a "Send now" submit sitting next to Schedule: a
+     non-submitting control among submit controls is a mis-click waiting to
+     happen, and this panel already carries a comment about exactly that hazard. */
+  .sp-nowbtn { color: #9fd3ae; border-color: #4a4a70; }
+  .sp-nowbtn:hover { background: #3a3a5e; }
   .sp-err { flex: 1 1 auto; min-width: 0; color: #ff9b9b; font-size: 11.5px; }
   .sp-err.ok { color: #9fd3ae; }
 
@@ -202,6 +205,8 @@
         <button type="button" data-sign="1" class="on" aria-pressed="true" title="Add time">+</button>
         <button type="button" data-sign="-1" aria-pressed="false" title="Subtract time">&minus;</button>
       </div>
+      <button type="button" class="sp-nowbtn" id="sp-now" data-now="1"
+              title="Reset the time to right now">Now</button>
       <button type="button" data-min="1">1m</button>
       <button type="button" data-min="5">5m</button>
       <button type="button" data-min="30">30m</button>
@@ -210,8 +215,6 @@
     </div>
     <div class="sp-actions">
       <span class="sp-err" id="sp-err"></span>
-      <button type="button" class="sp-go sp-now" id="sp-now"
-              title="Type this into the terminal right now">Send now</button>
       <button type="button" class="sp-go" id="sp-go">Schedule</button>
     </div>
   </div>
@@ -604,7 +607,13 @@
   // Same path as a scheduled message on purpose — it is typed into the terminal
   // by the SERVER, so it reaches the right session even when that tab is not the
   // one on screen, and it is recorded in the list like any other message.
-  function submitSchedule(now) {
+  // No `now` argument any more: the panel's second button used to be "Send now"
+  // and passed true here to schedule for Date.now(). It is a time RESET now, so
+  // nothing can reach that branch. A dead truthy-first-argument path in a submit
+  // handler is precisely the hazard the comment on the Schedule wiring warns
+  // about — "a click Event as the first argument would be truthy" — so it goes
+  // rather than sits here waiting to be re-wired by accident.
+  function submitSchedule() {
     // The box accepts line breaks so a long command can be typed for clarity, but
     // a scheduled message is TYPED INTO THE TERMINAL as one line — a raw newline
     // would submit early and chain past what was reviewed (the server rejects
@@ -617,14 +626,9 @@
       .filter(function (s) { return s; })
       .join('; ');
     if (!text) { spErr.className = 'sp-err'; spErr.textContent = 'Type a message first.'; return; }
-    var at;
-    if (now) {
-      at = Date.now() / 1000;
-    } else {
-      if (!spAt.value) { spErr.className = 'sp-err'; spErr.textContent = 'Pick a time.'; return; }
-      at = new Date(spAt.value).getTime() / 1000;
-      if (!isFinite(at)) { spErr.className = 'sp-err'; spErr.textContent = 'That time is not valid.'; return; }
-    }
+    if (!spAt.value) { spErr.className = 'sp-err'; spErr.textContent = 'Pick a time.'; return; }
+    var at = new Date(spAt.value).getTime() / 1000;
+    if (!isFinite(at)) { spErr.className = 'sp-err'; spErr.textContent = 'That time is not valid.'; return; }
     spErr.className = 'sp-err'; spErr.textContent = '';
     var ed = editing;
     // Cancel-then-create, not create-then-cancel: the transient extra entry
@@ -645,8 +649,7 @@
       var edited = !!ed;
       stopEdit();
       spErr.className = 'sp-err ok';
-      spErr.textContent = now ? 'Sent.'
-                              : (edited ? 'Updated — fires ' : 'Scheduled ') + fmtIn(at) + '.';
+      spErr.textContent = (edited ? 'Updated — fires ' : 'Scheduled ') + fmtIn(at) + '.';
       refreshSchedules();
     }).catch(function () { spErr.textContent = 'Could not reach the server.'; });
   }
@@ -657,8 +660,7 @@
   });
   // Explicit args, not the bare handler: a click Event as the first argument
   // would be truthy and silently turn every Schedule press into a Send now.
-  document.getElementById('sp-go').addEventListener('click', function () { submitSchedule(false); });
-  document.getElementById('sp-now').addEventListener('click', function () { submitSchedule(true); });
+  document.getElementById('sp-go').addEventListener('click', function () { submitSchedule(); });
   // The message box is a textarea that starts one line tall and grows to fit
   // what's typed (up to the CSS max-height, then it scrolls). spTextBase is the
   // single-line height, captured live whenever the box is empty, so "grown past
@@ -700,6 +702,11 @@
     });
   }
   schedPanel.querySelector('.sp-quick').addEventListener('click', function (e) {
+    if (e.target.closest('button[data-now]')) {   // reset the field to this minute
+      spAt.value = toLocalInput(new Date());
+      spErr.className = 'sp-err'; spErr.textContent = '';
+      return;
+    }
     var s = e.target.closest('button[data-sign]');
     if (s) { setQuickSign(+s.dataset.sign); return; }
     var b = e.target.closest('button[data-min]');
