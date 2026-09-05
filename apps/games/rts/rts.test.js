@@ -5144,6 +5144,31 @@ test("cliff cells have per-cell rock variants, and snow uses rock colours", () =
     + `banding reads as chromed panelling rather than as stone under snow`);
 });
 
+test("cliff face boundaries come from shared grid vertices, not the cell RNG", () => {
+  const src = nocomment(fs.readFileSync(SRC, "utf8"));
+  const c0 = src.indexOf("function bakeCliff(");
+  const c1 = src.indexOf("function roadV(", c0);
+  const cliff = src.slice(c0, c1);
+  const sig = cliff.match(/^function bakeCliff\(([^)]*)\)/);
+  assert.ok(sig && sig[1].split(",").length >= 4,
+    "bakeCliff receives only mask/theatre/cell-variant, so it cannot know the "
+    + "shared grid vertices whose crest and jut both cells must reproduce");
+
+  const cols0 = cliff.indexOf("function columns(");
+  const cols1 = cliff.indexOf("function face(", cols0);
+  const columns = cliff.slice(cols0, cols1);
+  assert.ok(!/crest:\s*cr[\s\S]{0,180}jut:[^\n]*brnd\(\)/.test(columns),
+    "column boundary crest/jut still come from the cell's private random stream; "
+    + "the next cell therefore starts from different geometry at the same vertex");
+
+  const d0 = src.indexOf("} else if (t === T_CLIFF)");
+  const d1 = src.indexOf("} else {", d0);
+  const draw = src.slice(d0, d1);
+  assert.ok(/cliffSeams\(x,\s*y,\s*cm\)/.test(draw) && /\.get\(cseam\.key,\s*cseam\)/.test(draw),
+    "the renderer still selects a finished cell sprite without supplying its grid "
+    + "position to a bounded seam-profile cache");
+});
+
 // ---- row 27: the Kirov is baked at the size it is drawn at -------------- //
 // unit-identity-reference.md §2.4 calls the 1.3x draw scale "a symptom of the
 // bake being too small", and §3's R6 gives the number: [ZEP] is 139x62, which
