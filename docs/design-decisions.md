@@ -21,7 +21,7 @@ and why it lost).
 
 ## Contents
 
-_240 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
+_241 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 
 - [The Claude-usage strip froze for a day: a config value with two resolvers](#the-claude-usage-strip-froze-for-a-day-a-config-value-with-two-resolvers)
 - [Scheduled terminal messages ("resume when the token limit resets")](#scheduled-terminal-messages-resume-when-the-token-limit-resets)
@@ -263,6 +263,7 @@ _240 entries. Generated — run `python3 tools/gen-dd-toc.py` after adding one._
 - [RA2's veteran multipliers apply ONCE, not once per rank — and the elite weapon stacks on top](#ra2s-veteran-multipliers-apply-once-not-once-per-rank-and-the-elite-weapon-stacks-on-top)
 - [A repeat schedule needed one new button, because the quick row was already an interval dialer (2026-09-05)](#a-repeat-schedule-needed-one-new-button-because-the-quick-row-was-already-an-interval-dialer-2026-09-05)
 - [The whole fleet was too tall, and every ensemble art metric was blind to it](#the-whole-fleet-was-too-tall-and-every-ensemble-art-metric-was-blind-to-it)
+- [Three levers, three honest sweeps, three wrong causes — the Nighthawk was pinned by a constant nobody swept (2026-09-05)](#three-levers-three-honest-sweeps-three-wrong-causes-the-nighthawk-was-pinned-by-a-constant-nobody-swept-2026-09-05)
 
 <!-- END TOC -->
 
@@ -9815,3 +9816,69 @@ Carrier loses ~6 px of her near deck corner on 16 of 32 bearings and the
 Dreadnought ~1 px. Pre-existing (it clipped 14 Carrier bearings before this
 pass); fixing it properly means raising `UPAD` and every canvas height together,
 which touches all eight `s.h - UPAD` call sites.
+
+## Three levers, three honest sweeps, three wrong causes — the Nighthawk was pinned by a constant nobody swept (2026-09-05)
+
+**Symptom.** `aspect.airOutsideRA2Band` sat at 1 for weeks with one unit in it:
+the Nighthawk at 1.622 broadside against [SHAD]'s 3.048, i.e. **0.53 of RA2**,
+the worst proportion on the whole board. Two separate passes measured it, wrote
+up their findings, and concluded it could not be closed — once "pinned by the
+rotor disc", once "pinned by the tail, the gear and the disc's iso thickness".
+
+**Cause.** Each sweep was correct and each conclusion was not.
+* `len` 34 / 42 / 50 does not move the aspect in the third decimal — because in
+  the Nighthawk's block `len` sizes only the CABIN (`len * 0.30`), not the
+  airframe.
+* `mrR` 15 / 19 / 23 moves the aspect only 1.585 / 1.622 / 1.755 — because a
+  ground circle under a 2:1 iso camera projects to an ellipse of aspect exactly
+  2, so a disc that owns the bbox pins the unit near 2 at ANY radius, and while
+  it overhangs the airframe, shrinking it loses width as fast as height.
+* the mast `hy-9.6` -> `-1.6` reaches 2.086 and saturates — because it stops
+  paying the moment the disc's top meets the cabin roof, so what it was really
+  measuring was the cabin's depth.
+
+The actual length lever was **`bmB`, the tail boom**, a separate constant that
+none of the sweeps had touched. At 16.5 it ended *underneath* the rotor disc —
+the block's own comment promised "a long slim TAIL BOOM running most of the
+sprite's length" and no such boom was drawn. On its own, `bmB` 16.5 -> 20 / 24 /
+28 moves the aspect 1.622 -> 1.778 / 1.933 / 2.022.
+
+**Fix.** Boom 16.5 -> 26 (the fin clear of the disc), gear tucked from `by-0.6`
+to `by-4.4` (8 rows -> 2), cabin 6.4 -> 5.0 deep with the roof 8.0 -> 6.4, mast
+9.6 -> 8.0, and only THEN `mrR` 19 -> 16 — which pays now that the boom owns the
+width, and is derived rather than tuned (a UH-60's rotor is 0.83 of overall
+length; the redrawn airframe is 38 units, so 0.83 x 38 / 2 = 15.8). The boom is
+redrawn as a tapered quad across the screen normal instead of a constant-width
+stroke, because at 26 units a 3 px line with a box on the end reads as an
+aerial. **1.622 -> 2.606, 0.53 -> 0.86 of RA2**, `peerVsSelf.air` still 0, and
+`harrier | nighthawk` IMPROVES in four of the six legibility windows (union at
+zoom 1: 52.4 -> 58.5 against a 42.5 floor; the two cell-96 windows give back 0.3
+and 0.5 against floors of 12 and 8.6). Traded: `iou.air.mean` 0.1796 -> 0.1806
+against a 0.45 ceiling, re-recorded deliberately.
+
+**The trap that made the first measurement of the fix a fiction.** A 26-unit
+boom reaches `26 x 1.2649 x USC_V` = 48 px from the ground anchor and the shared
+vehicle sheet is 104 px wide, so octants 3 and 7 — *the two broadside facings,
+the only two the aspect gate reads* — came back with the fin sliced flat against
+the canvas edge. The number looked like a win and was measured off a clipped
+sprite. The Nighthawk now has its own 136 px sheet, the same fix the Apocalypse's
+barrels and the Kirov already carry. **Anything that lengthens a unit must check
+the sheet**; `tools/` grew a throwaway clip probe for this and it is worth
+rewriting when the next unit gets longer.
+
+**Rejected.** *Extending the blades to keep `unit-identity-reference.md` §2.3's
+"rotor span >= 1.25x fuselage length"* — with a filled blur disc that clause is
+arithmetically incompatible with the same row's aspect 3.05 (span >= 1.25L is
+>= 0.625L tall, capping aspect at 1.6), and the sheet is baked at a fixed blade
+phase so a near-vertical arm puts the height straight back. The clause is struck
+in the reference with the proof beside it. *Making the blur fainter to win
+height* — that is the exact defect the entry above this one fixed. *Scaling the
+whole unit down via `VSC` to undo the 73 -> 86 px growth* — right idea, wrong
+commit: the boom tip is 2.9 px and the spike floor is 3.64 px at zoom 1, so it
+needs its own measured pass. Recorded as open in `per-unit-art-log.md`.
+
+**The general lesson.** *"Lever X does not move it"* identifies what is NOT the
+cause and never what is. Three true negative results in a row do not add up to a
+positive one, and the fourth lever may simply be a constant no one has looked
+for — in this case, one the surrounding comment already claimed was doing the
+job.
