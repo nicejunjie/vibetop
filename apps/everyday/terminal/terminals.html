@@ -676,16 +676,26 @@
     spList.innerHTML = rows.join('');
     capListHeight();
   }
-  // Show at most SP_LIST_ROWS entries; the rest scroll. Measured from the rows
-  // actually rendered, so the count holds whatever mix of one- and two-line rows
-  // the queue happens to contain.
+  // Show SP_LIST_ROWS entries plus a sliver of the next, then scroll. Measured
+  // from the rows actually rendered, so the count holds whatever mix of one- and
+  // two-line rows the queue happens to contain.
+  //
+  // The peek is the overflow cue, and it is deliberately not left to the
+  // scrollbar: this panel's list gets an overlay scrollbar, which is invisible at
+  // rest, so a cut exactly on the sixth row makes forty queued messages look like
+  // six. Half a row hanging below the fold cannot be misread, needs no chrome,
+  // and survives whatever the platform does with scrollbars.
   var SP_LIST_ROWS = 6;
+  var SP_LIST_PEEK = 14;        // px of row 7 left showing
   function capListHeight() {
     var kids = spList.children;
     if (kids.length <= SP_LIST_ROWS) { spList.style.maxHeight = ''; return; }
     var h = 0;
     for (var i = 0; i < SP_LIST_ROWS; i++) h += kids[i].getBoundingClientRect().height;
-    spList.style.maxHeight = Math.ceil(h) + 'px';
+    // Never peek more of row 7 than row 7 has — with a short last row a fixed
+    // sliver would show the whole thing and read as seven rows, not six-and-more.
+    var next = kids[SP_LIST_ROWS].getBoundingClientRect().height;
+    spList.style.maxHeight = Math.ceil(h + Math.min(SP_LIST_PEEK, next * 0.5)) + 'px';
   }
 
   function openSched() {
