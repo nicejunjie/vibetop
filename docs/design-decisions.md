@@ -9642,6 +9642,20 @@ offset must be measured from the current **minute**. And the first cut set
 one-shot `missed` path, since `_prune_schedules` ages history from `fired`, so a
 missed message would have been swept out of the panel before anyone read it.
 
+**The emoji was wrong art (same day).** Shipped as `🔁`, and it read as a
+sticker dropped on the panel: an emoji renders at the font's own size in the
+font's own palette, so it was visibly small beside 13px text and stayed orange
+while every other engaged control in the panel turns green. Replaced with a
+stroked SVG on `currentColor` — same stroke weight as the label, inherits every
+state — plus the word **Repeat**, and the body copy and list pills lost their
+glyphs too (`🔁 5h` → `every 5h`, the word the form itself uses). Two follow-on
+nits the pixels showed: an icon button sizes itself off its glyph and landed 29px
+against Schedule's 32px (one shared `line-height` fixes it), and the toggle's
+"on" state used the panel's solid `#4ec36a` — which is *Schedule's* colour, so
+two identical green pills sat side by side and you had to work out which one
+submitted. The engaged state is now the tinted `#2a4a35` the ⏱ button already
+uses when its own panel is open.
+
 **Server: one entry the sweeper re-arms.** A loop is not N queued messages — it
 is one row whose `at` moves to the next slot while it stays `pending`, so it
 counts once against the pending cap, holds the idle reaper off its terminal for
