@@ -160,6 +160,16 @@
       "dir": "down",
       "note": "the WORST group on this axis: spread 1.83x. The Nighthawk left the 2026-09-05 aspect pass at 86 px broadside against the Harrier's 52, where RA2 has [SHAD] 64 against [ORCA] 71 — ours 1.65x the jet where RA2 draws it 0.90x. The aspect pass that produced it was correct and this number is why it was not the whole story: a unit can reach the right SHAPE at the wrong SIZE and no scale-invariant gate will ever say so"
     },
+    "clip.unitsTouchingSheetEdge": {
+      "want": 0,
+      "dir": "down",
+      "note": "units with at least one bearing whose opaque bbox touches the border of its sheet cell — i.e. art the canvas CUT. Every other metric in this file is downstream of the bake, so a clipped sprite makes aspect, IoU, spike and size all precise and all wrong, with nothing to show for it: the sprite still renders and still looks plausible. The Nighthawk shipped an entire measured pass this way on 2026-09-05 — a 26-unit tail boom reached 48 px on a 104 px sheet and octants 3 and 7 came back with the fin flat against the edge — and it was caught by a hand-written probe, not by anything standing. This is that probe, made standing"
+    },
+    "clip.unitsClippedOnGatedOctant": {
+      "want": 0,
+      "dir": "down",
+      "note": "the subset clipped on octant 3 or 7 — the broadside pair the aspect and size gates actually read, so a clip here corrupts a headline number rather than a footnote"
+    },
     "size.worstOffGroupScale": {
       "want": 0.25,
       "dir": "down",
@@ -218,6 +228,8 @@
     "size.infantryOutsideRA2Band": 1,
     "size.airOutsideRA2Band": 1,
     "size.worstOffGroupScale": 0.3807,
+    "clip.unitsTouchingSheetEdge": 0,
+    "clip.unitsClippedOnGatedOctant": 0,
     "colour.infantry.meanDist": 1.3779,
     "colour.vehicle.meanDist": 0.9515,
     "colour.vehicleAchromatic": 0
@@ -1589,6 +1601,7 @@
         "dev": 0
       }
     ],
+    "clipped": [],
     "ra2GroupScale": {
       "vehicle": 1.2698,
       "air": 0.9732500000000001,

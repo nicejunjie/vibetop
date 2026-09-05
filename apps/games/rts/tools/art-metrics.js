@@ -337,6 +337,9 @@ const TARGETS = {
   'size.vehicleOutsideRA2Band':  { want: 0,    dir: 'down', note: 'the same check for GROUND vehicles; spread 1.66x and 1 outside on the day it was added — the Apocalypse at +25%, drawn 89 px against RA2\'s 56 where the group scale says 71. Note the Prism Tank (+21%), Chrono Miner (-21%), Drone (+20%) and MCV (+20%) sit just inside the band, so this group is the least uniform after air' },
   'size.infantryOutsideRA2Band': { want: 0,    dir: 'down', note: 'the same check for INFANTRY; spread 1.59x and 1 outside — the DOG at +31%, 39 px against RA2\'s 21 where the group scale says 30. Every man is within 18%, so the dog is the outlier among its own kind, not evidence the scale is wrong' },
   'size.airOutsideRA2Band':      { want: 0,    dir: 'down', note: 'the WORST group on this axis: spread 1.83x. The Nighthawk left the 2026-09-05 aspect pass at 86 px broadside against the Harrier\'s 52, where RA2 has [SHAD] 64 against [ORCA] 71 — ours 1.65x the jet where RA2 draws it 0.90x. The aspect pass that produced it was correct and this number is why it was not the whole story: a unit can reach the right SHAPE at the wrong SIZE and no scale-invariant gate will ever say so' },
+  // Integrity, not aesthetics: does the sprite we measured survive its own sheet?
+  'clip.unitsTouchingSheetEdge':  { want: 0,    dir: 'down', note: 'units with at least one bearing whose opaque bbox touches the border of its sheet cell — i.e. art the canvas CUT. Every other metric in this file is downstream of the bake, so a clipped sprite makes aspect, IoU, spike and size all precise and all wrong, with nothing to show for it: the sprite still renders and still looks plausible. The Nighthawk shipped an entire measured pass this way on 2026-09-05 — a 26-unit tail boom reached 48 px on a 104 px sheet and octants 3 and 7 came back with the fin flat against the edge — and it was caught by a hand-written probe, not by anything standing. This is that probe, made standing' },
+  'clip.unitsClippedOnGatedOctant':{ want: 0,   dir: 'down', note: 'the subset clipped on octant 3 or 7 — the broadside pair the aspect and size gates actually read, so a clip here corrupts a headline number rather than a footnote' },
   'size.worstOffGroupScale':     { want: 0.25, dir: 'down', note: "the furthest any unit sits from its own group's scale, as |ours/RA2 / groupMedian - 1|; 0.38 (the Nighthawk) on the day the metric was added" },
   'aspect.navalWorstOffRA2':     { want: 0.20, dir: 'down', note: "the furthest any hull sits from RA2's aspect, as |ours/RA2 - 1|; 0.60 (the Typhoon, 2.15 against 5.36) before that pass" },
   'colour.infantry.meanDist':    { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between infantry kinds: what actually separates them' },
@@ -457,6 +460,15 @@ function pageExtract() {
       }
       if (x1 < 0) { errors.push('EMPTY sprite ' + key + '@' + face); continue; }
       const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+      // CLIPPING. The composed canvas IS the sheet cell, so opaque pixels on
+      // its border mean the art ran out of sheet and the sprite we are about
+      // to measure is a CUT one. This is not hypothetical: the Nighthawk's
+      // lengthened tail boom reached 48 px from the anchor on a 104 px sheet,
+      // and octants 3 and 7 — the two the aspect gate actually reads — came
+      // back with the fin sliced flat against the canvas edge. The first
+      // measurement of that fix was of a sprite that does not exist.
+      const edges = (x0 === 0 ? 'L' : '') + (y0 === 0 ? 'T' : '')
+                  + (x1 === cm.W - 1 ? 'R' : '') + (y1 === cm.H - 1 ? 'B' : '');
       // one byte per pixel of the bbox: 0 or 1. Masks are all the metrics need.
       const m = new Uint8Array(bw * bh);
       for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++)
@@ -510,7 +522,7 @@ function pageExtract() {
 
       recs.push({
         key, name: d.name, cls: d.cls, fac: d.fac || null, air: !!d.air, nav: !!d.nav,
-        oct, bw, bh, mask: btoa(bin), col,
+        oct, bw, bh, mask: btoa(bin), col, edges, cellW: cm.W, cellH: cm.H,
       });
     }
   }
@@ -897,6 +909,29 @@ function compute(recs) {
              airOutside: cnt(byG('air')), airSpread: spread(byG('air')) };
   })();
 
+  // ── SHEET CLIPPING ─────────────────────────────────────────────────────
+  // Not a judgement about art — a check that the thing every other metric
+  // measured actually IS the sprite. A bbox touching its sheet cell's border
+  // means the art was cut off by the canvas, and then aspect, IoU, spike and
+  // size are all measuring a shape the bake invented. It is silent by nature:
+  // a clipped sprite renders, looks plausible at a glance, and returns a
+  // perfectly precise wrong number. The Nighthawk shipped a whole measured
+  // pass this way before a clip probe caught it by hand.
+  const clip = (() => {
+    const hits = [];
+    for (const r of recs) {
+      if (!r.edges) continue;
+      hits.push({ key: r.key, oct: r.oct, edges: r.edges,
+                  bbox: r.bw + 'x' + r.bh, cell: r.cellW + 'x' + r.cellH });
+    }
+    const units = [...new Set(hits.map((h) => h.key))].sort();
+    // Octants 3 and 7 are the broadside pair the aspect and size gates read,
+    // so a clip there corrupts a headline number rather than a footnote.
+    const onGated = [...new Set(hits.filter((h) => h.oct === 3 || h.oct === 7)
+                                    .map((h) => h.key))].sort();
+    return { hits, units, onGated };
+  })();
+
   return {
     metrics: {
       'peerVsSelf.total': peerVsSelf.total,
@@ -930,6 +965,8 @@ function compute(recs) {
       'size.infantryOutsideRA2Band': ra2Size.infOutside,
       'size.airOutsideRA2Band': ra2Size.airOutside,
       'size.worstOffGroupScale': ra2Size.worstOff,
+      'clip.unitsTouchingSheetEdge': clip.units.length,
+      'clip.unitsClippedOnGatedOctant': clip.onGated.length,
       'colour.infantry.meanDist': round(mean(cd), 4),
       'colour.vehicle.meanDist': round(mean(vehD.d), 4),
       'colour.vehicleAchromatic': veh.filter((k) => !ACHROMATIC_EXEMPT.has(k) && colByUnit[k].chroma < ACHROMATIC).length,
@@ -971,6 +1008,7 @@ function compute(recs) {
       tightestMassBand: tightAt,
       ra2Aspect: ra2Asp.rows,
       ra2Size: ra2Size.rows,
+      clipped: clip.hits,
       ra2GroupScale: ra2Size.groupScale,
       units: Object.fromEntries([...keys].sort().map((k) => [k, unit[k]])),
     },
