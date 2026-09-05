@@ -128,7 +128,41 @@ row where that showed. The other twelve vehicle rows carry the same risk and
 have not been checked against a real sheet, so **extending this rip set is the
 highest-value reference work available.** The method is above.
 
-## Fetching is currently BLOCKED (2026-09-05)
+## NOT a fetching problem — the vehicles have no canonical sprite at all
+
+Filed first as "fetching is blocked" when the wiki started returning 403s. That
+framing was wrong, and the answer was on this machine the whole time. RA2's own
+`art.ini`:
+
+    HTNK Voxel=yes   MTNK Voxel=yes   GTNK Voxel=yes   SREF Voxel=yes
+    RTNK Voxel=yes   FV   Voxel=yes   HTK  Voxel=yes   TTNK Voxel=yes
+    CMIN Voxel=yes   HARV Voxel=yes   V3   Voxel=yes   SHAD Voxel=yes
+    DRON Voxel=NO
+
+**Eleven of the thirteen vehicle rows in §1.1 describe VOXEL models.** A voxel
+has no sprite and therefore no bounding box: every number in that block is
+somebody's measurement of one RENDERED FRAME, at a bearing nobody wrote down.
+No amount of downloading fixes that, because the artefact being sought does not
+exist.
+
+And this explains the two results that were otherwise just luck:
+
+| unit | art.ini | doc vs my measurement |
+|---|---|---|
+| Terror Drone `[DRON]` | **Voxel=no** — an SHP, so it HAS one canonical sprite | matched **exactly**, 1.50 vs 1.50 |
+| Apocalypse `[MTNK]` | Voxel=yes | did NOT match; the doc's figure was a mid bearing |
+
+The row that agreed is the only one with a real sprite behind it. The row that
+disagreed is a voxel, and disagreed for exactly that reason.
+
+**So the rule for §1.1's vehicle block is:** treat those numbers as one
+rendered bearing, not as ground truth, and when a unit's aspect is in question
+resolve it by rendering the voxel across all eight bearings and taking the
+widest — which is what the Rhino and Apocalypse sheets in this directory are.
+The infantry and naval rows are not affected in the same way; check `Voxel=`
+before trusting any row as a sprite measurement.
+
+## The old note, kept for the record: fetching was ALSO blocked (2026-09-05)
 
 An attempt to extend this set with eight more vehicle sheets — Grizzly, Prism
 Tank, Mirage, IFV, Flak Track, Tesla Tank, Chrono Miner, War Miner — returned
