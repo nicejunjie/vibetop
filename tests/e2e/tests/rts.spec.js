@@ -481,6 +481,64 @@ test.describe('rts', () => {
     expect(await page.evaluate(() => window.__rts().placing)).toBe('power');
   });
 
+  test('arming a placement paints the buildable area, not one cell', async ({ page }) => {
+    // The overlay builds ONE path out of every legal cell and fills it once.
+    // `diamond()` calls beginPath, so a loop of diamond() + one fill painted
+    // only the LAST cell — at 5.5% alpha, invisible — while the game went on
+    // telling you to "click anywhere in the green area". Measured: a patch
+    // inside the radius changed 0% of its pixels when a placement was armed.
+    //
+    // Assert the AREA, not the call: screenshot with the ghost armed and again
+    // after Esc, and require a real patch inside the radius to differ while a
+    // patch outside it does not.
+    await boot(page);
+    await page.evaluate(() => {
+      const H = window.__rtsTest, g = H.get();
+      H.give(0, 20000); g.seen.fill(1);
+      const b = g.blds.find((x) => x.p === 0 && x.type === 'base');
+      H.centerOn(b.cx, b.cy);
+    });
+    await page.locator('#plist .pit:nth-child(1)').click();
+    await expect.poll(async () => {
+      await page.evaluate(() => window.__rtsTest.step(200));
+      return page.evaluate(() => window.__rts().ready);
+    }, { timeout: 30000 }).toBe('power');
+    await page.locator('#plist .pit:nth-child(1)').click();
+    await page.mouse.move(600, 400);
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => window.__rts().placing)).toBe('power');
+    const armed = await page.locator('#cv').screenshot();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    const bare = await page.locator('#cv').screenshot();
+
+    const diff = await page.evaluate(async ({ a, b }) => {
+      const load = (d) => new Promise((res) => {
+        const i = new Image(); i.onload = () => res(i); i.src = 'data:image/png;base64,' + d;
+      });
+      const [ia, ib] = await Promise.all([load(a), load(b)]);
+      const px = (img, x, y, w, h) => {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
+        return c.getContext('2d').getImageData(0, 0, w, h).data;
+      };
+      const pct = (x, y, w, h) => {
+        const A = px(ia, x, y, w, h), B = px(ib, x, y, w, h);
+        let n = 0;
+        for (let i = 0; i < A.length; i += 4)
+          if (Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]) > 2) n++;
+        return Math.round(n * 100 / (w * h));
+      };
+      return { inside: pct(470, 470, 150, 90), outside: pct(60, 600, 140, 60) };
+    }, { a: armed.toString('base64'), b: bare.toString('base64') });
+
+    expect(diff.inside, 'the buildable area is painted across many cells')
+      .toBeGreaterThan(10);
+    expect(diff.outside, 'and nothing is painted outside the radius')
+      .toBeLessThan(3);
+  });
+
   test('a rally point is visible, routed, and actually used', async ({ page }) => {
     await boot(page);
     await page.evaluate(() => window.__rtsTest.give(0, 20000));

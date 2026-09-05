@@ -3053,6 +3053,16 @@
   var TCW = TW + TPAD, TCH = TH + TPAD;
   var SHW = TW * 4, SHH = TH * 4;                // seamless sheet: 256 x 128
 
+  // Same shape, but WITHOUT beginPath: for building one path out of many cells
+  // and filling once. `diamond` resets the path on every call, so a loop that
+  // called it N times and filled afterwards painted only the LAST cell — which
+  // is exactly how the buildable-area grid disappeared.
+  function diamondAdd(g, cx, cy, w, h) {
+    g.moveTo(cx, cy - h / 2); g.lineTo(cx + w / 2, cy);
+    g.lineTo(cx, cy + h / 2); g.lineTo(cx - w / 2, cy);
+    g.closePath();
+  }
+
   function diamondT(g, cx, cy) { diamond(g, cx, cy, TCW, TCH); }
 
   // Run `fn(ox, oy)` for the 9 wrap offsets so anything drawn near a sheet
@@ -29789,14 +29799,17 @@
       // colour, so you could not see what you were building onto. One path,
       // a barely-there fill and a crisp edge, is the same information at a
       // fifth of the tint.
-      var mask = buildMask(G, ME);
+      // `placing` matters: the radius depends on WHAT is being built (a wall is
+      // adj 12, a defence 8, everything else ADJ_DEFAULT 6), and this call used
+      // to omit it — so the wash showed the default radius whatever you held.
+      var mask = buildMask(G, ME, placing);
       ctx.beginPath();
       for (y = minY; y <= maxY; y++) {
         for (x = minX; x <= maxX; x++) {
           if (!mask[idx(x, y)]) continue;
           var ti = idx(x, y);
           if (!buildableT(G.terrain[ti]) || G.occ[ti] !== 0) continue;
-          diamond(ctx, sx(x, y), sy(x, y), TW - 3, TH - 1.5);
+          diamondAdd(ctx, sx(x, y), sy(x, y), TW - 3, TH - 1.5);
         }
       }
       ctx.fillStyle = 'rgba(110,231,168,.055)'; ctx.fill();
