@@ -278,6 +278,12 @@ renders is worth more than a careful look at one**, and it took four elimination
 to reach for it. The look is what finds defects; the diff is what confirms one
 is real before you touch working code.
 
+**Superweapons reviewed too, and both are correct.** The nuke shows a target
+reticle for its 600-tick flight, then a mushroom cloud with a white-hot core,
+an expanding green radiation ring and a scorched crater with a lingering
+fallout tint. The lightning storm lays real cloud cover, darkens the ground
+under it and damages what stands there. Neither needed work.
+
 **The harness matters more than any one fix.** It captures on the CONDITION
 that a shot or effect exists rather than on a timer, and it is parameterised per
 weapon — so the remaining warheads, damage smoke and naval wakes are inspectable
@@ -291,6 +297,12 @@ Three fixture traps paid for and worth not re-paying:
   reads `src.kind`.
 * Spawn victims on YOUR side or the whole scene is under fog and only the
   explosions show through it.
+* `swFire` returns false unless `side.sw[key].ready` is set — charge it first.
+* A bare match sets `g.over = 1` on TICK 0 (no enemy base), and `finish()` fires
+  180 ticks later, so any capture past ~180 ticks lands on the SCORE SCREEN. Building
+  an enemy structure does not help; the flag is already set. Re-zero `g.over`
+  and `g.overAt` inside the step loop. This is the same trap the order probe
+  documented, met from a different direction.
 
 ## The rule this whole pass earned
 
