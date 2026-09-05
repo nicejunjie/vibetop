@@ -9306,13 +9306,13 @@
           // a jack strut under the high end
           for (sg = -1; sg <= 1; sg += 2) {
             var r0x = cx - fx * 10.6 + px * 2.6 * sg, r0y = by - 5.2 - fy * 10.6 + py * 2.6 * sg;
-            var r1x = cx + fx * 5.0 + px * 2.6 * sg, r1y = by - 12.4 + fy * 5.0 + py * 2.6 * sg;
+            var r1x = cx + fx * 4.6 + px * 2.6 * sg, r1y = by - 16.2 + fy * 4.6 + py * 2.6 * sg;
             g.strokeStyle = '#2b2f36'; g.lineWidth = 2.6; g.lineCap = 'round';
             g.beginPath(); g.moveTo(r0x, r0y); g.lineTo(r1x, r1y); g.stroke();
             g.strokeStyle = '#7d848f'; g.lineWidth = 1.0;
             g.beginPath(); g.moveTo(r0x, r0y - 0.9); g.lineTo(r1x, r1y - 0.9); g.stroke();
           }
-          isoBox(g, cx + fx * 4.6, by - 10.2 + fy * 4.6, 1.8, wid * 0.44, 5.2,
+          isoBox(g, cx + fx * 4.2, by - 12.6 + fy * 4.2, 1.8, wid * 0.44, 7.4,
                  a, STEEL, '#3f444c');                              // jack strut
           exhaust(cx - fx * len * 0.40, by - 4.4 - fy * len * 0.40);
         };
@@ -9320,7 +9320,12 @@
           // One tapered white body along the rail. Drawn as a plain stroke it
           // read as a pipe, so it is built from three widths: a wide midbody,
           // a shoulder, and a house-colour cone.
-          var tu = 12.0, tv = -17.0, hu = -12.6, hv = -5.2;
+          // THE ANGLE IS THE UNIT. RA2's V3 carries its missile on a rail
+          // raised to about 40 degrees, and that diagonal is what you
+          // recognise across a battlefield. Ours ran -5.2 to -17.0 over a
+          // 24.6 chord — a 25 degree lean that read as a pipe lying on a
+          // flatbed, which is exactly how it looked beside RA2's own plate.
+          var tu = 11.0, tv = -22.4, hu = -12.6, hv = -5.2;
           var tipx = cx + fx * tu, tipy = by + tv + fy * tu;
           var tlx = cx + fx * hu, tly = by + hv + fy * hu;
           var vx = tipx - tlx, vy = tipy - tly, vl = Math.hypot(vx, vy) || 1;

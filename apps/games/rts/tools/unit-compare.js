@@ -60,9 +60,13 @@ async function main() {
   await page.goto(`http://127.0.0.1:${srv.address().port}/rts.html`);
   await page.waitForFunction(() => !!window.__rtsTest, null, { timeout: 30000 });
 
-  // A base with every prerequisite, so the panel can show anything.
-  await page.evaluate(() => {
+  // A base with every prerequisite, so the panel can show anything. The FACTION
+  // has to follow the unit: half the roster is Collective, and a Directorate
+  // base simply never lists it — the first Collective unit through here came
+  // back "(not in the panel)", which is the rig's fault, not the art's.
+  const setup = async (fac) => page.evaluate((f) => {
     const H = window.__rtsTest, g = H.begin(4242, 'normal');
+    g.side[0].fac = f;
     H.give(0, 9999999);
     const s = g.start[0];
     ['base', 'power', 'power', 'power', 'power', 'barracks', 'factory', 'radar',
@@ -71,9 +75,16 @@ async function main() {
     });
     const ov = document.getElementById('ov'); if (ov) ov.classList.remove('show');
     H.step(40);
-  });
+  }, fac);
 
+  let curFac = null;
   for (const key of keys) {
+    const want = await page.evaluate((k) => {
+      const T = window.__rtsTables;
+      const d = T.UNITS[k] || T.BLDS[k];
+      return d && d.fac === 'col' ? 'col' : 'dir';
+    }, key);
+    if (want !== curFac) { await setup(want); curFac = want; }
     const refFile = path.join(REF, key + '.png');
     const refB64 = fs.existsSync(refFile) ? fs.readFileSync(refFile).toString('base64') : null;
     const ok = await page.evaluate(async (cfg) => {

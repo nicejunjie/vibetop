@@ -142,8 +142,8 @@
     "peerVsSelf.infantry": 1,
     "peerVsSelf.naval": 1,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.4774,
-    "iou.vehicle.mean": 0.4227,
+    "iou.groundCombat.mean": 0.4744,
+    "iou.vehicle.mean": 0.4206,
     "iou.infantry.mean": 0.5334,
     "iou.naval.mean": 0.3835,
     "iou.air.mean": 0.177,
@@ -155,11 +155,11 @@
     "mass.tightestBand6": 2.093,
     "hue.infantryOwnerMean": 0.294,
     "hue.infantryBelowBudget": 0,
-    "hue.vehicleOwnerMean": 0.1698,
+    "hue.vehicleOwnerMean": 0.1691,
     "hue.vehicleOwnerMax": 0.2369,
     "hue.maxImpostor": 0.0024,
     "colour.infantry.meanDist": 1.3865,
-    "colour.vehicle.meanDist": 0.9513,
+    "colour.vehicle.meanDist": 0.9551,
     "colour.vehicleAchromatic": 0
   },
   "detail": {
@@ -175,7 +175,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.4227,
+        "mean": 0.4206,
         "pairs": 78,
         "max": 0.7255,
         "over75": 0
@@ -199,9 +199,9 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.4774,
+        "mean": 0.4744,
         "pairs": 36,
-        "max": 0.69,
+        "max": 0.6879,
         "over75": 0
       },
       "sameFactionOver75": 0
@@ -263,7 +263,7 @@
       {
         "a": "rhino",
         "b": "v3",
-        "dist": 0.135
+        "dist": 0.123
       },
       {
         "a": "lancer",
@@ -282,6 +282,11 @@
       },
       {
         "a": "mammoth",
+        "b": "v3",
+        "dist": 0.397
+      },
+      {
+        "a": "mammoth",
         "b": "rhino",
         "dist": 0.422
       },
@@ -289,11 +294,6 @@
         "a": "chronominer",
         "b": "mcv",
         "dist": 0.427
-      },
-      {
-        "a": "mammoth",
-        "b": "v3",
-        "dist": 0.455
       },
       {
         "a": "ifv",
@@ -306,9 +306,9 @@
         "dist": 0.533
       },
       {
-        "a": "flaktrack",
-        "b": "v3",
-        "dist": 0.556
+        "a": "lancer",
+        "b": "ifv",
+        "dist": 0.562
       }
     ],
     "topImpostors": [
@@ -364,7 +364,7 @@
       "tanya": 0.1566,
       "rhino": 0.1673,
       "flaktrack": 0.1624,
-      "v3": 0.1501,
+      "v3": 0.1411,
       "teslatrooper": 0.3369,
       "ivan": 0.3407,
       "drone": 0.2091,
@@ -407,7 +407,7 @@
       "tanya": 0.2773,
       "rhino": 0.1554,
       "flaktrack": 0.1569,
-      "v3": 0.1835,
+      "v3": 0.188,
       "teslatrooper": 0.1212,
       "ivan": 0.2819,
       "drone": 0.1875,
@@ -443,8 +443,8 @@
     "tightestMassBand": [
       "IFV",
       "Rhino Tank",
-      "V3 Launcher",
       "Tesla Tank",
+      "V3 Launcher",
       "Mirage Tank",
       "Prism Tank"
     ],
@@ -1403,18 +1403,18 @@
         "name": "V3 Launcher",
         "group": "vehicle",
         "fac": "col",
-        "mass": 1859,
+        "mass": 2046,
         "bboxW": 66,
-        "bboxH": 59,
-        "aspect": 1.152,
-        "selfIoU": 0.6151,
-        "bestPeer": "Rhino Tank",
-        "bestPeerIoU": 0.69,
-        "peersBeatingSelf": 3,
+        "bboxH": 68,
+        "aspect": 1.014,
+        "selfIoU": 0.5857,
+        "bestPeer": "Tesla Tank",
+        "bestPeerIoU": 0.6667,
+        "peersBeatingSelf": 4,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 21,
+          "len": 24,
           "thick": 15,
           "atZmin": 8.25,
           "budget": 3.64,
