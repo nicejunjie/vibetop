@@ -148,10 +148,18 @@
      front of it is the only thing that says which — never leave it implicit. */
   .sp-when { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .sp-when[hidden] { display: none; }          /* [hidden] loses to display:flex */
+  /* The label is also the target switch for the quick row below: the buttons act
+     on the row whose label is lit. It is a real <label for>, so clicking it
+     focuses that field — which is what arms it — and the keyboard/screen-reader
+     association comes free. Zero new controls, and zero width taken from the
+     quick row, which at 320px is already exactly full. */
   .sp-when .sp-lab {
-    flex: 0 0 auto; width: 34px; text-align: right;
+    flex: 0 0 auto; width: 34px; text-align: right; cursor: pointer;
     color: #8b93a6; font-size: 11.5px;
   }
+  .sp-when.armed .sp-lab { color: #9fd3ae; font-weight: 600; }
+  .sp-quick button:disabled { opacity: .35; cursor: default; }
+  .sp-quick button:disabled:hover { background: #2c2c4a; }
   .sp-when input[type=datetime-local] { flex: 1 1 auto; min-width: 0; width: auto; margin-bottom: 0; }
   /* The interval gets its OWN control rather than borrowing the quick row.
      Letting those buttons mean "offset" in one mode and "interval" in the other
@@ -259,16 +267,16 @@
     <div class="hint">Typed into the terminal and submitted at the time you pick —
       whether or not this page is open. Handy when a session stops at its token limit.
       Line breaks are for readability — they’re sent as “;”, so it stays one command.
-      <b>Repeat</b> sends it over and over — pick how often, and the date field
-      becomes when to stop.</div>
+      <b>Repeat</b> sends it again and again until the date you pick — and the
+      quick buttons below move whichever row is highlighted.</div>
     <ul class="sp-list" id="sp-list"></ul>
     <textarea id="sp-text" rows="1" maxlength="2000" placeholder="Message to send, e.g. continue"></textarea>
     <div class="sp-when" id="sp-row-every" hidden>
-      <span class="sp-lab">every</span>
+      <label class="sp-lab" for="sp-every">every</label>
       <select id="sp-every" aria-label="How often to repeat"><option value="60">1 min</option><option value="120">2 min</option><option value="300">5 min</option><option value="600">10 min</option><option value="900">15 min</option><option value="1800">30 min</option><option value="2700">45 min</option><option value="3600">1 hour</option><option value="7200">2 hours</option><option value="10800">3 hours</option><option value="14400">4 hours</option><option value="18000" selected>5 hours</option><option value="21600">6 hours</option><option value="28800">8 hours</option><option value="43200">12 hours</option><option value="86400">1 day</option></select>
     </div>
-    <div class="sp-when">
-      <span class="sp-lab" id="sp-lab">at</span>
+    <div class="sp-when" id="sp-row-at">
+      <label class="sp-lab" id="sp-lab" for="sp-at">at</label>
       <input type="datetime-local" id="sp-at">
     </div>
     <div class="sp-quick">
@@ -534,20 +542,28 @@
   // of "at" — and reveals the interval picker; both values are stashed
   // separately, so flipping Repeat back and forth never loses what you typed.
   //
-  // What Repeat deliberately does NOT change is the quick row. It first shipped
-  // re-pointed at the interval, and that made the buttons feel unreliable: you
-  // could not tell what a tap would move without checking the mode first. They
-  // move the time box, in both modes, always — so "Now, +5h" reads as "until 5h
-  // from now" exactly as it reads as "at 5h from now".
+  // The quick row serves BOTH fields, and says which. Its target is the row
+  // whose label is lit, and a label is a real <label for> — so clicking it (or
+  // the field itself) focuses that field, and focus is what arms it. There is
+  // nothing to learn beyond "the buttons act on the lit row", and nothing to
+  // mis-tap silently: the label changes colour before you reach the buttons.
+  //
+  // What it must never be is IMPLICIT. The first cut re-pointed the row at the
+  // interval on Repeat with no on-screen tell, and the buttons stopped being
+  // predictable — you could not know what a tap would move without first
+  // recalling which mode you were in.
   var spLoop = document.getElementById('sp-loop');
+  var spNow = document.getElementById('sp-now');
   var spEveryRow = document.getElementById('sp-row-every');
   var spEvery = document.getElementById('sp-every');
   var spLab = document.getElementById('sp-lab');
   var LOOP_DEFAULT_EVERY = '18000';            // 5h — the token-limit case
   var LOOP_DEFAULT_UNTIL = 24 * 3600 * 1000;   // a day out, so Repeat is valid on one tap
+  var spAtRow = document.getElementById('sp-row-at');
   var loopOn = false;
   var loopUntil = '';     // the end time, parked here while loop mode is OFF
   var oneShotAt = '';     // the one-shot time, parked here while loop mode is ON
+  var quickTarget = 'at'; // 'at' (the time box) | 'every' — what the quick row moves
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -695,7 +711,23 @@
     spLoop.setAttribute('aria-pressed', loopOn ? 'true' : 'false');
     spEveryRow.hidden = !loopOn;
     spLab.textContent = loopOn ? 'until' : 'at';
+    if (!loopOn) quickTarget = 'at';        // with one field there is no choice
+    var onEvery = quickTarget === 'every';
+    spEveryRow.classList.toggle('armed', onEvery);
+    spAtRow.classList.toggle('armed', !onEvery);
+    // "Now" is a point in time; an interval has no now. Disabled rather than
+    // hidden, so arming a row never reflows the row you are aiming at.
+    spNow.disabled = onEvery;
   }
+  function armQuick(which) {
+    if (quickTarget === which) return;
+    quickTarget = which;
+    renderLoop();
+  }
+  // Focus is the arming gesture — clicking the field you want to change is what
+  // a person does anyway, so for most uses this never has to be thought about.
+  spEveryRow.addEventListener('focusin', function () { armQuick('every'); });
+  spAtRow.addEventListener('focusin', function () { armQuick('at'); });
   // Flip the meaning of the shared date field, parking the value it gives up so
   // the other direction can hand it straight back. `keep` is for callers that
   // set every field themselves (edit, reset) and only want the chrome updated.
@@ -725,12 +757,20 @@
       opt = document.createElement('option');
       opt.value = secs;
       opt.textContent = fmtDur(secs);
+      opt.className = 'adhoc';
       spEvery.insertBefore(opt, spEvery.firstChild);
     }
     spEvery.value = String(secs);
+    // Walking the cadence with the quick row passes through many values; keep
+    // only the one in use, or the list grows a junk entry per tap.
+    Array.prototype.forEach.call(spEvery.querySelectorAll('option.adhoc'), function (o) {
+      if (o !== opt) o.remove();
+    });
   }
   function resetLoop() {
-    loopUntil = ''; oneShotAt = '';
+    loopUntil = ''; oneShotAt = ''; quickTarget = 'at';
+    Array.prototype.forEach.call(spEvery.querySelectorAll('option.adhoc'),
+                                 function (o) { o.remove(); });
     spEvery.value = LOOP_DEFAULT_EVERY;
     setLoop(false, true);
   }
@@ -885,6 +925,13 @@
     if (s) { setQuickSign(+s.dataset.sign); return; }
     var b = e.target.closest('button[data-min]');
     if (!b) return;
+    if (quickTarget === 'every') {
+      // Same additive gesture, on the cadence: +1h then +30m is every 1h 30m.
+      // Floored at the server's minimum rather than at zero, so the row can
+      // never dial a value the Schedule button would have to reject.
+      selectEvery(Math.max(60, (+spEvery.value || 0) + quickSign * (+b.dataset.min) * 60));
+      return;
+    }
     // Additive: each tap moves the time already in the field, so +1h then +30m
     // is 1h30m out, not 30m. openSched seeds the field to now, so the first tap
     // still lands on now + N; an empty or stale (past) value falls back to now.
