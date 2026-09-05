@@ -305,6 +305,26 @@ of a harvest cycle over a thousand long, so it can only be caught by
 conditioning the capture on `g.fx.some(f => f.chrono)` — a fixed tick count
 misses it every time, which is how I first concluded there was no effect at all.
 
+**Warheads reviewed — the last surface with no coverage. No defect.**
+* **Radiation** ([RadSite], a dug-in Desolator) is unmistakable: bright green
+  irradiated ground spreading round the pit, with anything standing in it
+  taking damage. Very visible, correct.
+* **Flak** ([FlakWH] vs an aircraft) is a short dark tracer up and then a small
+  grey puff that hangs at the target — exactly what its own comment describes.
+  It is SUBTLE, and RA2's is more prominent, but it exists and is placed
+  correctly. Not called a defect: after three false alarms in this stretch the
+  bar for "this is wrong" is higher than "I would have drawn it bigger".
+
+**THE LAST FIXTURE TRAP, and the nastiest.** The page's own requestAnimationFrame
+loop KEEPS RUNNING after `page.evaluate()` returns, and it steps the sim. A
+`waitForTimeout(60)` before the screenshot therefore advances the game by
+several frames. A flak shot's whole life is **9 ticks, about 150 ms**, so the
+wait ate it and the frame came back empty — I chased that through pinning the
+aircraft, matching the shot's target coordinates (12.45,10.01 against the
+Harrier's 12,10 — they agreed) and re-deriving the burst geometry before the
+answer turned out to be the 60 ms. **For any effect shorter than ~15 ticks,
+screenshot with NO delay after the evaluate.**
+
 **The harness matters more than any one fix.** It captures on the CONDITION
 that a shot or effect exists rather than on a timer, and it is parameterised per
 weapon — so the remaining warheads, damage smoke and naval wakes are inspectable
