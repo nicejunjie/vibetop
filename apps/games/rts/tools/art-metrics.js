@@ -269,7 +269,26 @@ const SPIKES = {
 // baseline toward them and prints the remaining gap every run so the debt stays
 // visible instead of quietly becoming the new normal.
 const TARGETS = {
-  'peerVsSelf.total':            { want: 0,    dir: 'down', note: 'reference §1.2/§0 bar: no unit beaten by a peer' },
+  // THE <= 0 TARGET IS UNREACHABLE FOR ELONGATED GROUPS, and there is now
+  // evidence rather than suspicion. When the fleet was wrong this could not be
+  // told apart from a real fault; now that every naval, vehicle and infantry
+  // unit sits INSIDE RA2's aspect band, the units still flagged are:
+  //     aegis, destroyer, dread, squid, sub, v3
+  // — the six longest on the board, mean aspect 2.68 against 1.22 for the 35
+  // that are clean. Their proportions are verified correct against RA2's own
+  // sprite bboxes, so the flag cannot be reporting a proportion fault.
+  //
+  // corr(aspect, peersBeatingSelf) is +0.477 AFTER the metric's asymmetry was
+  // repaired (it was +0.529 before, +0.487 immediately after). The repair made
+  // both sides average over the same bearing pairs, which removed the
+  // indefensible part; what remains is that ten long low hulls genuinely do
+  // resemble each other BY MASK. legibility.js — which sees colour, value and
+  // superstructure — finds ZERO confusable naval pairs in all three windows.
+  //
+  // So this debt is a property of a MASK-ONLY comparison of a correctly
+  // proportioned fleet, not unfinished art. Do not "close" it by making ships
+  // rounder: that is exactly the tugboat error the aspect gate exists to catch.
+  'peerVsSelf.total':            { want: 0,    dir: 'down', note: 'reference §1.2/§0 bar: no unit beaten by a peer. SEE THE NOTE ABOVE — the residue is elongation, not art' },
   'peerVsSelf.vehicle':          { want: 0,    dir: 'down', note: 'audit §2: 11 of 13 today' },
   'peerVsSelf.infantry':         { want: 0,    dir: 'down', note: 'audit §2: 11 of 14 today' },
   'peerVsSelf.naval':            { want: 0,    dir: 'down', note: 'audit §2: 8 of 10 today' },
