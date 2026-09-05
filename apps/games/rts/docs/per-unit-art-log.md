@@ -240,6 +240,37 @@ is a property of the colour pair and the terrain, not of our art — and it is
 the player who picks the colour. Recorded so the next person who sees it in a
 desert frame does not go looking for an asymmetry that is not there.
 
+## COMBAT ART — reviewed for the first time, and it held two real defects
+
+Every check this project had was a STATIC ROSTER: units standing still, one
+facing, isolated. None of it fires a weapon, so none of it could see a weapon
+effect. Rendering actual firefights found three defects in an hour that
+`legibility.js`, `art-metrics.js` and `cameo-legibility.js` are all structurally
+blind to.
+
+| effect | verdict |
+|---|---|
+| **tracers** | **FIXED.** Trail ran `f-0.25` to `f`, so its length was a QUARTER OF THE FLIGHT — tracer length scaled with the weapon's RANGE. Now a fixed screen dash (11 px, 20 for rockets), clamped to the distance actually covered |
+| **Tesla Tank bolt** | **FIXED.** The `tesla` flag was `src.type === 'tesla'` — the COIL BUILDING only — so the tank fired an invisible bullet and drew no arc at all |
+| **Prism Tank beam** | **FIXED.** Both beam branches subtracted a fixed BUILDING emitter height (104 coil / 86 prism crown), so a tank's beam started ~90 px above itself, off the top of the frame, and appeared to come out of the sky |
+| explosions | correct — orange burst over a dark core, resolving to proportionate scorch marks |
+| infantry death | correct — upright at the instant of the hit, prone corpses by t=30, as RA2 does |
+| vehicle wrecks | scorch plus small debris; no persistent husk. Left alone, not investigated as a defect |
+
+**The harness matters more than any one fix.** It captures on the CONDITION
+that a shot or effect exists rather than on a timer, and it is parameterised per
+weapon — so the remaining warheads, damage smoke and naval wakes are inspectable
+the same way. `scratchpad/frame/{fight,fx,death}.js`.
+
+Three fixture traps paid for and worth not re-paying:
+* `H.begin(seed, diff)` sets `headless = !arguments[4]`, and a HEADLESS SIM
+  NEVER PUSHES SHOTS OR FX. The first pass "found no combat art" because it had
+  rendered none. Pass a fifth truthy argument.
+* `damage(g, src, tgt, amount, wh)` — src is second and may NOT be null; it
+  reads `src.kind`.
+* Spawn victims on YOUR side or the whole scene is under fog and only the
+  explosions show through it.
+
 ## The rule this whole pass earned
 
 **A CAMEO IS NOT A SPRITE.** It cost three near-misses to learn and one to
