@@ -100,7 +100,21 @@
   .sched-panel h3 { flex-shrink: 0; font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 2px; }
   .sched-panel .hint { flex-shrink: 0; color: #8b93a6; font-size: 11.5px; line-height: 1.45; margin-bottom: 10px; }
   .sched-panel > .sp-when, .sched-panel > textarea, .sp-quick, .sp-actions { flex-shrink: 0; }
-  .sp-list { list-style: none; margin-bottom: 10px; flex: 0 1 auto; overflow-y: auto; }
+  /* Six rows, then scroll. The cap is set in JS from the real row heights rather
+     than as a pixel guess, because a row is one line or two depending on whether
+     it carries a note ("until 9/6 17:33 · 2 sent"), so any fixed height shows six
+     of one kind and four of the other. flex still shrinks it further on a short
+     viewport — max-height is a ceiling, not a floor. */
+  .sp-list {
+    list-style: none; margin-bottom: 10px; flex: 0 1 auto; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: #4a4a70 transparent;
+  }
+  /* A classic (always-drawn) scrollbar, not the overlay one: at rest the overlay
+     is invisible, so a queue of forty reads as if it simply ends at the sixth. */
+  .sp-list::-webkit-scrollbar { width: 8px; }
+  .sp-list::-webkit-scrollbar-track { background: transparent; }
+  .sp-list::-webkit-scrollbar-thumb { background: #4a4a70; border-radius: 4px; }
+  .sp-list::-webkit-scrollbar-thumb:hover { background: #5c5c88; }
   .sp-list:empty { display: none; }
   .sp-list li {
     display: flex; align-items: baseline; gap: 8px;
@@ -273,11 +287,9 @@
        overflow-x:auto, which would clip an absolutely-positioned child. -->
   <div class="sched-panel" id="sched-panel" hidden>
     <h3>Scheduled for <span id="sp-term">this terminal</span></h3>
-    <div class="hint">Typed into the terminal and submitted at the time you pick —
-      whether or not this page is open. Handy when a session stops at its token limit.
-      Line breaks are for readability — they’re sent as “;”, so it stays one command.
-      <b>Repeat</b> sends it again and again until the date you pick — and the
-      quick buttons below move whichever row is highlighted.</div>
+    <div class="hint">Typed into the terminal at the time you pick, even with this
+      page closed. Line breaks become “;”. <b>Repeat</b> re-sends until a date; the
+      quick buttons move the highlighted row.</div>
     <ul class="sp-list" id="sp-list"></ul>
     <textarea id="sp-text" rows="1" maxlength="2000" placeholder="Message to send, e.g. continue"></textarea>
     <div class="sp-when" id="sp-row-every" hidden>
@@ -444,6 +456,7 @@
     iframe.id = 'frame-' + n;
     iframe.dataset.n = n;
     iframe.allow = 'clipboard-read; clipboard-write';
+    iframe.addEventListener('load', function () { wireFrameDismiss(iframe); });
     frames.appendChild(iframe);
     saveTabOrder();
   }
@@ -661,6 +674,18 @@
              '</li>';
     });
     spList.innerHTML = rows.join('');
+    capListHeight();
+  }
+  // Show at most SP_LIST_ROWS entries; the rest scroll. Measured from the rows
+  // actually rendered, so the count holds whatever mix of one- and two-line rows
+  // the queue happens to contain.
+  var SP_LIST_ROWS = 6;
+  function capListHeight() {
+    var kids = spList.children;
+    if (kids.length <= SP_LIST_ROWS) { spList.style.maxHeight = ''; return; }
+    var h = 0;
+    for (var i = 0; i < SP_LIST_ROWS; i++) h += kids[i].getBoundingClientRect().height;
+    spList.style.maxHeight = Math.ceil(h) + 'px';
   }
 
   function openSched() {
@@ -989,6 +1014,22 @@
     if (schedPanel.contains(e.target) || schedBtn.contains(e.target)) return;
     closeSched();
   }, true);
+  // ...and a tap in the TERMINAL counts as outside. A listener on this document
+  // never sees a click inside an iframe, and the terminal iframe is nearly the
+  // whole window — so "click away to dismiss" was true everywhere except the one
+  // place you actually click. The frames are same-origin (/tN/), so each one's
+  // document gets the same handler, re-attached on every load because ttyd
+  // replaces the document when it reconnects.
+  function wireFrameDismiss(f) {
+    try {
+      var d = f.contentDocument;
+      if (!d || d.__schedDismiss) return;
+      d.__schedDismiss = true;
+      d.addEventListener('pointerdown', function () {
+        if (!schedPanel.hidden) closeSched();
+      }, true);
+    } catch (_) {}          // not ready, or not ours to touch
+  }
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !schedPanel.hidden) closeSched();
   });
