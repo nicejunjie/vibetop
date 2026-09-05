@@ -168,7 +168,7 @@
     "clip.unitsClippedOnGatedOctant": {
       "want": 0,
       "dir": "down",
-      "note": "the subset clipped on octant 3 or 7 — the broadside pair the aspect and size gates actually read, so a clip here corrupts a headline number rather than a footnote"
+      "note": "the subset clipped on the unit's own BROADSIDE bearing — the one the aspect and size gates actually read, so a clip there corrupts a headline number rather than a footnote. Per-unit, not a fixed pair: the Nighthawk's broadside is octant 3/7, the Apocalypse's is 0, and a first draft of this metric hardcoded 3 and 7 and would have reported a clean sheet for a unit clipped anywhere else"
     },
     "size.worstOffGroupScale": {
       "want": 0.25,
@@ -202,8 +202,8 @@
     "peerVsSelf.infantry": 0,
     "peerVsSelf.naval": 5,
     "peerVsSelf.air": 0,
-    "iou.groundCombat.mean": 0.4625,
-    "iou.vehicle.mean": 0.4174,
+    "iou.groundCombat.mean": 0.466,
+    "iou.vehicle.mean": 0.4192,
     "iou.infantry.mean": 0.5405,
     "iou.naval.mean": 0.4022,
     "iou.air.mean": 0.1806,
@@ -211,16 +211,16 @@
     "spike.belowFloor": 0,
     "spike.minThickAtZmin": 2.2,
     "spike.belowDeclaredBudget": 0,
-    "mass.groundCombatSpan": 5.703,
-    "mass.tightestBand6": 2.235,
+    "mass.groundCombatSpan": 5.633,
+    "mass.tightestBand6": 2.208,
     "hue.infantryOwnerMean": 0.2975,
     "hue.infantryBelowBudget": 0,
-    "hue.vehicleOwnerMean": 0.1681,
+    "hue.vehicleOwnerMean": 0.1698,
     "hue.vehicleOwnerMax": 0.2386,
     "hue.maxImpostor": 0.0051,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.194,
-    "aspect.vehicleOutsideRA2Band": 1,
+    "aspect.vehicleOutsideRA2Band": 0,
     "aspect.infantryOutsideRA2Band": 0,
     "aspect.airOutsideRA2Band": 0,
     "size.navalOutsideRA2Band": 0,
@@ -231,7 +231,7 @@
     "clip.unitsTouchingSheetEdge": 0,
     "clip.unitsClippedOnGatedOctant": 0,
     "colour.infantry.meanDist": 1.3779,
-    "colour.vehicle.meanDist": 0.9515,
+    "colour.vehicle.meanDist": 0.9487,
     "colour.vehicleAchromatic": 0
   },
   "detail": {
@@ -356,14 +356,14 @@
       },
       "mammoth": {
         "group": "vehicle",
-        "aspect": 1.271,
-        "selfIoU": 0.693,
-        "selfIoUCross": 0.693,
-        "broadsideAspect": 1.271,
+        "aspect": 1.582,
+        "selfIoU": 0.6734,
+        "selfIoUCross": 0.6734,
+        "broadsideAspect": 1.582,
         "ra2Aspect": 1.735,
-        "vsRA2": 0.732,
+        "vsRA2": 0.912,
         "bestPeer": "War Miner",
-        "bestPeerIoU": 0.6625,
+        "bestPeerIoU": 0.6805,
         "peersBeatingSelf": 0
       },
       "engineer": {
@@ -460,7 +460,7 @@
         "vsRA2": 0.831,
         "bestPeer": "Tesla Tank",
         "bestPeerIoU": 0.6321,
-        "peersBeatingSelf": 4
+        "peersBeatingSelf": 5
       },
       "teslatrooper": {
         "group": "infantry",
@@ -518,8 +518,8 @@
         "broadsideAspect": 1.152,
         "ra2Aspect": 1.372,
         "vsRA2": 0.84,
-        "bestPeer": "Apocalypse",
-        "bestPeerIoU": 0.6573,
+        "bestPeer": "MCV",
+        "bestPeerIoU": 0.6539,
         "peersBeatingSelf": 0
       },
       "desolator": {
@@ -729,7 +729,7 @@
     },
     "iouGroups": {
       "vehicle": {
-        "mean": 0.4174,
+        "mean": 0.4192,
         "pairs": 78,
         "max": 0.7255,
         "over75": 0
@@ -753,7 +753,7 @@
         "over75": 0
       },
       "groundCombat": {
-        "mean": 0.4625,
+        "mean": 0.466,
         "pairs": 36,
         "max": 0.6688,
         "over75": 0
@@ -837,12 +837,12 @@
       {
         "a": "mammoth",
         "b": "v3",
-        "dist": 0.408
+        "dist": 0.39
       },
       {
         "a": "mammoth",
         "b": "rhino",
-        "dist": 0.447
+        "dist": 0.428
       },
       {
         "a": "chronominer",
@@ -910,7 +910,7 @@
       "harrier": 0.2254,
       "kirov": 0.2698,
       "lancer": 0.2302,
-      "mammoth": 0.1678,
+      "mammoth": 0.1907,
       "engineer": 0.4007,
       "dog": 0.0665,
       "ifv": 0.1391,
@@ -953,7 +953,7 @@
       "harrier": 0.24,
       "kirov": 0.2978,
       "lancer": 0.0863,
-      "mammoth": 0.2379,
+      "mammoth": 0.2342,
       "engineer": 0.0987,
       "dog": 0.495,
       "ifv": 0.1608,
@@ -999,17 +999,10 @@
       "Tesla Tank",
       "V3 Launcher",
       "Mirage Tank",
-      "Prism Tank",
-      "Apocalypse"
+      "Apocalypse",
+      "Prism Tank"
     ],
     "ra2Aspect": [
-      {
-        "key": "mammoth",
-        "wh": "89x70",
-        "ours": 1.271,
-        "ra2": 1.735,
-        "ratio": 0.732
-      },
       {
         "key": "mcv",
         "wh": "105x89",
@@ -1186,6 +1179,13 @@
         "ratio": 1.09
       },
       {
+        "key": "mammoth",
+        "wh": "87x55",
+        "ours": 1.582,
+        "ra2": 1.735,
+        "ratio": 0.912
+      },
+      {
         "key": "warminer",
         "wh": "69x63",
         "ours": 1.095,
@@ -1341,16 +1341,6 @@
         "dev": 0.1984
       },
       {
-        "key": "mammoth",
-        "group": "vehicle",
-        "ours": 89,
-        "ra2": 59,
-        "ra2WH": "59x34",
-        "scale": 1.5085,
-        "groupScale": 1.2698,
-        "dev": 0.188
-      },
-      {
         "key": "yuri",
         "group": "infantry",
         "ours": 14,
@@ -1369,6 +1359,16 @@
         "scale": 1.06,
         "groupScale": 1.2698,
         "dev": -0.1652
+      },
+      {
+        "key": "mammoth",
+        "group": "vehicle",
+        "ours": 87,
+        "ra2": 59,
+        "ra2WH": "59x34",
+        "scale": 1.4746,
+        "groupScale": 1.2698,
+        "dev": 0.1613
       },
       {
         "key": "engineer",
@@ -2265,25 +2265,25 @@
         "name": "Apocalypse",
         "group": "vehicle",
         "fac": "col",
-        "mass": 3610,
-        "bboxW": 89,
-        "bboxH": 70,
-        "aspect": 1.251,
-        "broadsideWH": "89x70",
-        "broadsideAspect": 1.271,
+        "mass": 3445,
+        "bboxW": 87,
+        "bboxH": 69,
+        "aspect": 1.223,
+        "broadsideWH": "87x55",
+        "broadsideAspect": 1.582,
         "ra2Aspect": 1.735,
-        "vsRA2": 0.732,
-        "selfIoU": 0.693,
-        "selfIoUCross": 0.693,
+        "vsRA2": 0.912,
+        "selfIoU": 0.6734,
+        "selfIoUCross": 0.6734,
         "bestPeer": "War Miner",
-        "bestPeerIoU": 0.6625,
+        "bestPeerIoU": 0.6805,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
           "axis": "h",
-          "len": 28,
-          "thick": 22.5,
-          "atZmin": 12.38,
+          "len": 23,
+          "thick": 24,
+          "atZmin": 13.2,
           "budget": 3.64,
           "lenBudget": 19,
           "fails": null,
@@ -2395,8 +2395,8 @@
         "vsRA2": 0.84,
         "selfIoU": 0.7995,
         "selfIoUCross": 0.7995,
-        "bestPeer": "Apocalypse",
-        "bestPeerIoU": 0.6573,
+        "bestPeer": "MCV",
+        "bestPeerIoU": 0.6539,
         "peersBeatingSelf": 0,
         "peers": 12,
         "spike": {
@@ -2753,7 +2753,7 @@
         "selfIoUCross": 0.5352,
         "bestPeer": "Tesla Tank",
         "bestPeerIoU": 0.6321,
-        "peersBeatingSelf": 4,
+        "peersBeatingSelf": 5,
         "peers": 12,
         "spike": {
           "axis": "h",

@@ -8688,19 +8688,29 @@
       // 81 px wide against 77 tall, aspect 1.052 where RA2's is 1.37, very
       // nearly square. Note the direction of this fix versus the IFV's above:
       // the ban is on adding to the crowded 22-24 LENGTH band, and beam is a
-      // free axis. It moves the aspect the same way (a ground diamond's w/h
+      // free axis for SEPARATION: it took `iou.groundCombat.mean` 0.4744 ->
+      // 0.4625 and `mass.tightestBand6` 2.093 -> 2.235.
+      // But the aspect claim that came with it -- "a ground diamond's w/h
       // rises toward the projection's own 2.0 as the footprint grows either
-      // way) at no cost to the ladder, and it took `iou.groundCombat.mean`
-      // 0.4744 -> 0.4625 and `mass.tightestBand6` 2.093 -> 2.235.
+      // way" -- is BACKWARDS, and it cost the Apocalypse its silhouette.
+      // Under 2:1 iso a ground rectangle's BROADSIDE aspect is 2L/W, so beam
+      // is the denominator: widening it flattens the aspect, it does not
+      // raise it. Measured on the Apocalypse 2026-09-05, one lever at a time:
+      //   wid 25 -> 21   aspect 1.271 -> 1.527      (and the sprite got
+      //   wid 25 -> 18   aspect 1.271 -> 1.585       NARROWER, 89 -> 84)
+      //   len 27 -> 32   aspect 1.271 -> 1.311 only, and 89 -> 97 wide
+      // Beam is roughly five times the lever length is, in the opposite
+      // direction to the one written here. Grow beam for separation with open
+      // eyes; do not grow it expecting aspect.
       var len = kind === 'harv' ? (sov ? 26 : 27) : (kind === 'ifv' ? 17 :
                 (kind === 'drone' ? 9 : (kind === 'spectre' ? 24 :
-                (kind === 'flaktrack' ? 23 : (kind === 'mammoth' ? 27 :
+                (kind === 'flaktrack' ? 23 : (kind === 'mammoth' ? 29 :
                 (kind === 'rhino' ? 30 : (kind === 'v3' ? 22 :
                 (kind === 'mirage' ? 24 : (kind === 'lancer' ? 28 :
                 (kind === 'teslatank' ? 27 : 30))))))))));
       var wid = kind === 'harv' ? (sov ? 25 : 18) : (kind === 'ifv' ? 15 :
                 (kind === 'drone' ? 8 : (kind === 'spectre' ? 22 :
-                (kind === 'mammoth' ? 25 : (kind === 'harv' ? (sov ? 22 : 18) :
+                (kind === 'mammoth' ? 21 : (kind === 'harv' ? (sov ? 22 : 18) :
                 (kind === 'lancer' ? 15 : (kind === 'ifv' ? 15 :
                 (kind === 'mirage' ? 19 : (kind === 'rhino' ? 21 :
                 (kind === 'flaktrack' ? 15 : (kind === 'v3' ? 19 :
