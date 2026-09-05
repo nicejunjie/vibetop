@@ -18,6 +18,9 @@ set -euo pipefail
 
 SYSCTL=/etc/sysctl.d/99-vibetop-arp.conf
 DISP=/etc/NetworkManager/dispatcher.d/50-vibetop-samesubnet-routing
+REASSERT=/usr/local/lib/vibetop/samesubnet-reassert.sh
+SVC=/etc/systemd/system/vibetop-samesubnet-routing.service
+TIMER=/etc/systemd/system/vibetop-samesubnet-routing.timer
 SKIP_RE='^(lo|docker|veth|br-|virbr)'
 
 cat > "$SYSCTL" <<'EOF'
@@ -83,7 +86,74 @@ for IFACE in /sys/class/net/*; do
   [ "$(cat "/sys/class/net/$IFACE/operstate" 2>/dev/null)" = up ] && "$DISP" "$IFACE" up || true
 done
 
+# A NetworkManager event is a one-shot: if the dispatcher misses one (a WiFi
+# reconnect/roam that races it, NM restarting, a manual `ip rule` flush), the
+# interface keeps its IP and loses its rule — and stays that way. The failure is
+# SILENT and total for clients that land on that NIC: replies leave the wrong
+# interface and every long-lived WebSocket dies ~10s in while plain HTTP still
+# works. That is exactly how this rotted once already (2026-09-04: rule 103 for
+# the WiFi IP was simply gone while the sysctls and this dispatcher were both
+# still in place, so the setup LOOKED applied).
+#
+# So don't rely on events alone — re-assert on a timer. The dispatcher is
+# idempotent (`ip route replace`, delete-then-add for the rule), so a periodic
+# run is a no-op when things are already correct and a repair when they are not.
+mkdir -p "$(dirname "$REASSERT")"
+# A real script, NOT an inline `sh -c` in ExecStart: systemd expands $VAR itself,
+# so `${i##*/}` there is parsed as an environment variable and the unit dies with
+# "Invalid environment variable name" — while STILL exiting 0, i.e. failing
+# silently. That is the precise failure mode this timer exists to prevent.
+cat > "$REASSERT" <<EOF
+#!/bin/sh
+# Re-assert same-subnet source routing for every up interface. Idempotent: the
+# dispatcher uses \`ip route replace\` and delete-then-add for its rule, so this
+# is a no-op when correct and a repair when not.
+DISP=$DISP
+SKIP_RE='$SKIP_RE'
+EOF
+cat >> "$REASSERT" <<'EOF'
+[ -x "$DISP" ] || exit 0
+rc=0
+for i in /sys/class/net/*; do
+  n=${i##*/}
+  echo "$n" | grep -qE "$SKIP_RE" && continue
+  [ "$(cat "/sys/class/net/$n/operstate" 2>/dev/null)" = up ] || continue
+  "$DISP" "$n" up || rc=1
+done
+exit $rc
+EOF
+chmod 755 "$REASSERT"; chown root:root "$REASSERT"
+
+cat > "$SVC" <<EOF
+[Unit]
+Description=vibetop same-subnet source routing (re-assert)
+After=network.target NetworkManager.service
+ConditionPathExists=$REASSERT
+
+[Service]
+Type=oneshot
+ExecStart=$REASSERT
+EOF
+
+cat > "$TIMER" <<'EOF'
+[Unit]
+Description=Re-assert vibetop same-subnet source routing every few minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now vibetop-samesubnet-routing.timer >/dev/null 2>&1 || true
+
 echo "installed: $SYSCTL"
 echo "installed: $DISP"
+echo "installed: $REASSERT"
+echo "installed: $TIMER (re-asserts every 5min; a missed NM event can no longer rot silently)"
 echo "active source-routing rules:"
 ip rule show | grep -E 'lookup 1[0-9][0-9]' || echo "  (none — single-homed host, nothing to route)"
