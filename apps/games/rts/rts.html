@@ -993,11 +993,11 @@
   var VERSES = {
     SA: [100,  80,  70,  50,  25,  25,  75,  50,  25, 100, 100],
     SSA: [100, 100,  70,  60,  40,  40,  75,  50,  25, 100, 100],
-    AP: [ 25,  25,  25,  75, 100, 100,  65,  45,  60, 100, 100],
-    ApocAP: [ 25,  25,  25,  75, 100, 100, 100, 100,  70, 100, 100],
-    HE: [100,  90,  80,  70,  35,  35,  75,  40,  20, 100, 100],
-    Shock: [100, 100, 100,  85, 100, 100,  50,  50,  50, 100, 100],
-    Electric: [100, 100, 100,  85, 100, 100,  50,  50,  50, 100, 100],
+    AP: [ 25,  25,  25,  75, 100, 100,  65,  45,  60,  60, 100],
+    ApocAP: [ 25,  25,  25,  75, 100, 100, 100, 100,  70,  60, 100],
+    HE: [100,  90,  80,  70,  35,  35,  75,  40,  20,  80, 100],
+    Shock: [100, 100, 100,  85, 100, 100,  50,  50,  50, 200, 100],
+    Electric: [100, 100, 100,  85, 100, 100,  50,  50,  50, 200, 100],
     IonWH: [100, 100, 100, 100, 100, 100, 100, 100,   3, 100, 100],   // the lightning storm ([IonWH]): everything but concrete
     CometWH: [100, 100, 100,  75,  50,  50, 200, 200, 200, 100, 100],   // Prism Tank: a siege gun, double vs structures, half vs armour
     FlakGuyWH: [150, 100,  50,  80,  20,  20,   0,   0,   0, 100, 100],   // Flak Trooper's AA gun (rulesmd.ini)
@@ -1005,9 +1005,9 @@
     HollowPoint: [200, 100, 100,   1,   1,   1,   1,   1,   1,   1, 100],
     Super: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
     IvanBomb: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
-    Parasite: [100, 100, 100, 100, 100, 100,   0,   0,   0, 100, 100],
+    Parasite: [100, 100, 100, 100, 100, 100,   0,   0,   0,   0,   0],
     MirageWH: [100, 100,  80, 100, 100, 100,  30,  20,  20, 100, 100],
-    PrismWarhead: [200, 100, 100, 100, 100, 100,  50,  50,  50, 100, 100],
+    PrismWarhead: [200, 100, 100, 100, 100, 100,  50,  50,  50, 200, 100],
     GUARDWH: [ 20,  20,  20, 100,  50, 100,  10,  10,  10, 100, 100],
     FlakTWH: [150, 100,  50,  60,  10,  10,  30,  20,  10, 100, 100],
     FlakWH: [150,  80,  50, 100,  20,  20,   0,   0,   0, 100, 100],
@@ -1017,12 +1017,12 @@
     // [ParasiteDog] Verses=100,100,100,0,0,0,0,0,0 — a dog's teeth are for men
     // and nothing else. Parasite=yes on top of that means the leap does not
     // wound the man, it takes him off the board (see fire()).
-    ParasiteDog: [100, 100, 100,   0,   0,   0,   0,   0,   0, 100, 100],
+    ParasiteDog: [100, 100, 100,   0,   0,   0,   0,   0,   0,   0,   0],
     // [GrandCannonWH] Verses=...,50%,100%,50% on wood/steel/concrete.
     GrandCannonWH: [100, 100, 100, 100, 100, 100,  50, 100,  50, 100, 100],
     // [HARVWH] — the War Miner's 20mm. Good on men and light skins, useless
     // on armour, and (Verses[9]=200%) it chews wooden structures.
-    HARVWH: [100,  80,  70,  50,  20,  20,  20,  15,  10, 100, 100],
+    HARVWH: [100,  80,  70,  50,  20,  20,  20,  15,  10, 200, 100],
     // [RadBeamWarhead] / [RadSite] — the Desolator's beam and the pool it
     // leaves. Infantry only: 20%/15%/10% against armour, nothing on buildings.
     RadBeamWH: [100, 100, 100,  20,  15,  10,   0,   0,   0, 100, 100],
@@ -1036,12 +1036,12 @@
     IvanWH: [100, 100, 100, 100, 100, 100, 100, 250,  20, 100, 100],
     // [PsiPulse] PsychicDamage=yes, CellSpread=3 — a Yuri in an IFV throws a
     // wave that only minds feel: 0% against anything with a hull or a wall.
-    PsiPulse: [100, 100, 100,   0,   0,   0,   0,   0,   0, 100, 100],
+    PsiPulse: [100, 100, 100,   0,   0,   0,   0,   0,   0,   0,   0],
     // ---- naval warheads, read straight off rules.ini ------------------ //
     // [ARTYHE] (the Destroyer's 155mm), [APSplash] (Typhoon torpedo and the
     // Destroyer's depth charge), [SonicWarhead] (the Dolphin's sonic zap).
     ARTYHE: [100,  80,  60, 100,  60,  60, 100,  80,  60, 100, 100],
-    APSplash: [ 25,  25,  25,  75, 100, 100,  65,  65,  60, 100, 100],
+    APSplash: [ 25,  25,  25,  75, 100, 100,  65,  65,  60,  25, 100],
     SonicWH: [100, 100, 100, 100,  80,  80, 100,  60,  60, 100, 100],
     // [DredWH] — the Dreadnought's missile. A siege warhead: it is aimed at
     // the shore, and everything it lands on is a building or standing beside

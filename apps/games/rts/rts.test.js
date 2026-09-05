@@ -5328,3 +5328,44 @@ test("ZMIN stays at or above the measured legibility floor", () => {
     `ZMIN is ${m[1]}; below 0.75 the infantry pairs ivan|spy, ivan|yuri, `
     + "tanya|spy and conscript|tanya drop under the friend-vs-foe floor");
 });
+
+// ---- the warhead table against RA2's own Verses rows -----------------------
+
+test("every VERSES row matches rules.ini exactly", () => {
+  // When ARMOURS was widened from 9 columns to RA2's 11, the two new ones
+  // (special_1, special_2) were filled with a placeholder 100 rather than the
+  // real values, and 11 of 27 rows carried it. special_1 is the Terror Drone's
+  // armour, so the placeholder meant: tank shells did 100% where RA2 says 60
+  // (AP, ApocAP) or 25 (APSplash) or 80 (HE); Tesla, Prism and the War Miner's
+  // gun did 100% where RA2 says 200; and Parasite, ParasiteDog and PsiPulse did
+  // 100% where RA2 says 0 — so a Terror Drone could be mind-controlled and
+  // parasited, which RA2 forbids outright.
+  //
+  // Skipped rather than failed when the RA2 inis are not on this machine: they
+  // are a local reference, not a repo asset.
+  const INI = "/tmp/RA2inis/rules.ini";
+  if (!fs.existsSync(INI)) return;                 // no reference here; nothing to check
+  const ini = {};
+  let sec = null;
+  for (const ln of fs.readFileSync(INI, "latin1").split("\n")) {
+    const h = ln.match(/^\[([^\]]+)\]/);
+    if (h) { sec = h[1]; continue; }
+    const v = ln.match(/^Verses=(.*?)\s*(;.*)?$/);
+    if (!v || !sec) continue;
+    const parts = v[1].split(",").map((x) => x.trim().replace(/%$/, ""));
+    if (parts.length === 11 && parts.every((x) => x !== "" && !isNaN(+x)))
+      ini[sec] = parts.map((x) => Math.round(+x));
+  }
+  const src = fs.readFileSync(SRC, "utf8");
+  const wrong = [];
+  let n = 0;
+  for (const m of src.matchAll(/^ {4}(\w+): \[([\d,\s]+)\],$/gm)) {
+    const key = m[1], ours = m[2].split(",").map((x) => +x.trim());
+    if (ours.length !== 11 || !ini[key]) continue;
+    n++;
+    if (ours.join() !== ini[key].join())
+      wrong.push(`${key}: ours [${ours}] vs rules.ini [${ini[key]}]`);
+  }
+  assert.ok(n >= 20, `only ${n} warhead rows matched by name — the parser drifted`);
+  assert.deepStrictEqual(wrong, [], "warhead rows disagree with rules.ini:\n" + wrong.join("\n"));
+});
