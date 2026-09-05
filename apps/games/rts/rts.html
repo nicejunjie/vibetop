@@ -3884,7 +3884,59 @@
   // sixteen times over at a one-cell period -- which is most of why cliffs
   // read as engineered regardless of what the face itself drew.
   var CLIFF_VAR = 3;
-  function bakeCliff(mask, kind, variant) {
+  // Four bounded vertex profiles are enough to carry a broken crest without
+  // turning the atlas into a per-map cache. A profile is selected from the
+  // absolute GRID VERTEX (in doubled coordinates, so half-cell corners stay
+  // integral), not from either cell that meets there. Thus both sides bake
+  // the exact same crest, jut vector and foot at their common endpoint.
+  var CLIFF_SEAM_VAR = 4;
+  function cliffVertexId(x2, y2) {
+    var h = Math.imul(x2 ^ 0x51ed270b, 0x85ebca6b) ^ Math.imul(y2 ^ 0x68bc21eb, 0xc2b2ae35);
+    h ^= h >>> 16; h = Math.imul(h, 0x27d4eb2d); h ^= h >>> 15;
+    return (h >>> 0) % CLIFF_SEAM_VAR;
+  }
+  function cliffEdgeId(ax, ay, bx, by) {
+    // Canonical endpoint order: the two cells on an edge must get the same
+    // interior profile even if they name its ends in opposite directions.
+    if (ax > bx || (ax === bx && ay > by)) { var tx = ax, ty = ay; ax = bx; ay = by; bx = tx; by = ty; }
+    var h = Math.imul(ax ^ 0x7f4a7c15, 0x9e3779b1) ^ Math.imul(ay ^ 0x94d049bb, 0x85ebca77) ^
+            Math.imul(bx ^ 0x2545f491, 0xc2b2ae3d) ^ Math.imul(by ^ 0x369dea0f, 0x27d4eb2f);
+    h ^= h >>> 16; h = Math.imul(h, 0x45d9f3b); h ^= h >>> 15;
+    return (h >>> 0) % CLIFF_SEAM_VAR;
+  }
+  function cliffSeams(x, y, mask) {
+    // Tile-centre (x,y) has visible diamond vertices at these half-cell grid
+    // coordinates: east (+.5,-.5), front (+.5,+.5), west (-.5,+.5).
+    // Ignore vertices a mask does not draw so they cannot multiply cache keys.
+    var ex = x * 2 + 1, ey = y * 2 - 1, sx2 = x * 2 + 1, sy2 = y * 2 + 1;
+    var wx = x * 2 - 1, wy = y * 2 + 1;
+    var e = mask & 1 ? cliffVertexId(ex, ey) : 0;
+    var s = mask & 3 ? cliffVertexId(sx2, sy2) : 0;
+    var w = mask & 2 ? cliffVertexId(wx, wy) : 0;
+    var er = mask & 1 ? cliffEdgeId(ex, ey, sx2, sy2) : 0;
+    var wr = mask & 2 ? cliffEdgeId(wx, wy, sx2, sy2) : 0;
+    return { east: e, south: s, west: w, right: er, left: wr,
+             key: e | (s << 2) | (w << 4) | (er << 6) | (wr << 8) };
+  }
+  function cliffBank(mask, kind, variant) {
+    var cache = Object.create(null), count = 0;
+    return {
+      get: function (key, seam) {
+        var hit = cache[key];
+        if (hit) return hit;
+        count++;
+        return (cache[key] = bakeCliff(mask, kind, variant, seam));
+      },
+      stats: function () {
+        var bytes = 0, keys = [];
+        for (var k in cache) {
+          var v = cache[k]; keys.push(+k); bytes += v.c.width * v.c.height * 4;
+        }
+        return { slots: count, bytes: bytes, keys: keys.sort(function (a, b) { return a - b; }) };
+      }
+    };
+  }
+  function bakeCliff(mask, kind, variant, seam) {
     var H = CLIFF_H + TCH + CLIFF_SH;
     var s = mkCanvas(TCW, H), g = s.g, i, k;
     var cx = TCW / 2, by = CLIFF_H + TCH / 2, ty = TCH / 2;   // base centre, crown centre
@@ -3922,21 +3974,85 @@
     // other. That is the whole difference between the RA2 cliff set and a
     // retaining wall, so the columns are built first and everything else --
     // strata, crest, crown rim, talus -- hangs off them.
+    seam = seam || { east: 0, south: 0, west: 0 };
+    // Values are deliberately geometry only. Colour, strata, snow load and
+    // talus keep using the cell variant; adding any of them here would merely
+    // texture the seam instead of joining it.
+    var VERT = [
+      { crest: -1.6, ox: -1.4, oy:  0.3, foot: CLIFF_H + 3.0 },
+      { crest:  1.2, ox:  0.8, oy: -0.9, foot: CLIFF_H + 7.0 },
+      { crest:  5.7, ox:  1.5, oy:  1.1, foot: CLIFF_H + 4.5 },
+      { crest:  3.3, ox: -0.5, oy:  1.6, foot: CLIFF_H + 9.0 }
+    ];
+    function vertex(id) {
+      var v = VERT[id % CLIFF_SEAM_VAR];
+      return conc
+        ? { crest: -0.5 + (v.crest + 1.6) * 0.15, ox: v.ox * 0.18, oy: v.oy * 0.18, foot: CLIFF_H + 1 }
+        : v;
+    }
+
     var COLS = {};
     function columns(dir) {
       if (COLS[dir]) return COLS[dir];
-      var cuts = [0], acc = 0;
-      while (acc < 0.82) { acc += 0.09 + brnd() * 0.26; cuts.push(Math.min(1, acc)); }
-      cuts[cuts.length - 1] = 1;
-      var out = [];
+      var edge = dir > 0 ? [vertex(seam.east), vertex(seam.south)]
+                         : [vertex(seam.west), vertex(seam.south)];
+      var detail = dir > 0 ? seam.right : seam.left;
+      // Symmetric cut sets mean an edge traversed from its other endpoint
+      // still constructs the same column boundaries in reverse.
+      var CUTS = [
+        [0, 0.16, 0.38, 0.62, 0.84, 1],
+        [0, 0.22, 0.40, 0.60, 0.78, 1],
+        [0, 0.13, 0.32, 0.50, 0.68, 0.87, 1],
+        [0, 0.19, 0.36, 0.64, 0.81, 1]
+      ];
+      var SHAPE = [
+        { crest: -2.1, crest2:  1.0, jut: -0.7, jut2:  0.5, foot: -2.0 },
+        { crest:  2.8, crest2: -1.4, jut:  1.5, jut2: -0.4, foot:  2.4 },
+        { crest: -0.4, crest2:  2.2, jut:  0.2, jut2:  1.0, foot: -0.8 },
+        { crest:  1.5, crest2:  0.7, jut: -1.1, jut2: -0.8, foot:  1.2 }
+      ];
+      var cuts = CUTS[detail || 0], shape = SHAPE[detail || 0];
+      function shapeAt(t) {
+        t = Math.max(0, Math.min(1, t));
+        var arc = Math.sin(Math.PI * t), wave = Math.cos(Math.PI * 2 * t);
+        var baseC = edge[0].crest + (edge[1].crest - edge[0].crest) * t;
+        var baseX = edge[0].ox + (edge[1].ox - edge[0].ox) * t;
+        var baseY = edge[0].oy + (edge[1].oy - edge[0].oy) * t;
+        var baseF = edge[0].foot + (edge[1].foot - edge[0].foot) * t;
+        var jut = (conc ? 0.18 : 1) * arc * (shape.jut + shape.jut2 * wave);
+        return { crest: baseC + (conc ? 0.15 : 1) * arc * (shape.crest + shape.crest2 * wave),
+                 ox: baseX + dir * jut * 2, oy: baseY + jut,
+                 foot: baseF + (conc ? 0.1 : 1) * arc * shape.foot };
+      }
+      var knots = [], out = [], NSEG = 5;
+      // One shared knot per column boundary. Previously each column invented
+      // one constant jut and two crest values in isolation; now neighbouring
+      // columns share their boundary, and the first/last knots are the
+      // renderer-supplied grid vertices. Local variation fades to zero only
+      // at those endpoints, where exact agreement matters.
+      for (var n = 0; n < cuts.length; n++) {
+        var t = cuts[n], arc = Math.sin(Math.PI * t), kn = shapeAt(t);
+        kn = { t: t, crest: kn.crest, ox: kn.ox, oy: kn.oy, foot: kn.foot, side: [] };
+        // The vertical outline is shared too. Its small wander is suppressed
+        // at a tile endpoint so the entire boundary, not only its crest pixel,
+        // lands on the same points in both sprites.
+        for (var q = 0; q <= NSEG; q++) {
+          var tq = Math.max(0, Math.min(1, t + Math.sin((detail + 1) * 19.17 + t * (1 - t) * 37.1 + q * 11.7) * 0.025 * arc));
+          var dq = kn.crest + (kn.foot - kn.crest) * (q / NSEG);
+          var qp = fp(dir, tq, dq);
+          kn.side.push([qp[0] + kn.ox, qp[1] + kn.oy]);
+        }
+        knots.push(kn);
+      }
       for (var c = 0; c < cuts.length - 1; c++) {
-        var cr = conc ? -0.5 + brnd() * 1.8 : -2 + brnd() * 10;
-        out.push({ t0: cuts[c], t1: cuts[c + 1],
-                   crest: cr,
-                   crest1: cr + (conc ? 0 : (brnd() - 0.5) * 5),
-                   jut: (conc ? 0.8 : 3.4) * (brnd() - 0.42),
+        var a = knots[c], b = knots[c + 1];
+        out.push({ t0: a.t, t1: b.t,
+                   crest: a.crest, crest1: b.crest,
+                   ox0: a.ox, ox1: b.ox, oy0: a.oy, oy1: b.oy,
+                   foot0: a.foot, foot1: b.foot, L: a.side, R: b.side,
+                   geom: shapeAt,
                    tone: 0.66 + brnd() * 0.66,
-                   foot: CLIFF_H + (conc ? 1 : 1 + brnd() * 9) });
+                   foot: (a.foot + b.foot) / 2 });
       }
       COLS[dir] = out;
       return out;
@@ -3945,20 +4061,22 @@
     function face(dir) {
       var lit = dir > 0 ? 1.14 : 0.68;               // the right face takes the light
       var cols = columns(dir);
-      // A point on this column, including its jut -- which TAPERS to nothing
-      // at the cell's own two end vertices. Without the taper a column
-      // sitting at t=0 or t=1 was displaced by up to 4 px away from the
-      // shared vertex, so every tile boundary in a cliff run opened a dark
-      // slit of recess: the one thing that made a ridge read as a row of
-      // fence panels rather than as continuous rock. Tapered, neighbouring
-      // cells meet flush and the jut still does its work across the middle.
+      // A point on this column. Offset endpoints are the shared vertex
+      // vectors; interpolation carries their crest/jut construction through
+      // the cell instead of erasing it at every tile boundary.
       function pt(cl, t, d) {
-        var q = fp(dir, t, d), tp = Math.min(1, Math.min(t, 1 - t) * 5);
-        return [q[0] + dir * cl.jut * 2.0 * tp, q[1] + cl.jut * 1.0 * tp];
+        var q = fp(dir, t, d), v = cl.geom(t);
+        return [q[0] + v.ox, q[1] + v.oy];
       }
+      function crestAt(cl, t) { return cl.geom(t).crest; }
+      function footAt(cl, t) { return cl.geom(t).foot; }
       // 1. the recess: everything the columns do not cover reads as deep shade
       g.fillStyle = shade(P.rockD, dir > 0 ? 1.25 : 0.95);
-      var r0 = fp(dir, 0, -2), r1 = fp(dir, 1, -2), r2 = fp(dir, 1, CLIFF_H + 4), r3 = fp(dir, 0, CLIFF_H + 4);
+      var rv0 = cols[0].geom(0), rv1 = cols[0].geom(1);
+      var r0 = fp(dir, 0, rv0.crest - 2), r1 = fp(dir, 1, rv1.crest - 2);
+      var r2 = fp(dir, 1, rv1.foot + 4), r3 = fp(dir, 0, rv0.foot + 4);
+      r0[0] += rv0.ox; r0[1] += rv0.oy; r1[0] += rv1.ox; r1[1] += rv1.oy;
+      r2[0] += rv1.ox; r2[1] += rv1.oy; r3[0] += rv0.ox; r3[1] += rv0.oy;
       g.beginPath(); g.moveTo(r0[0], r0[1]); g.lineTo(r1[0], r1[1]); g.lineTo(r2[0], r2[1]); g.lineTo(r3[0], r3[1]); g.closePath(); g.fill();
 
       for (var c = 0; c < cols.length; c++) {
@@ -3966,20 +4084,15 @@
         // The column is NOT a parallelogram: its two sides wander in and out
         // over the drop and its crest is broken. A ruled quad with a dark seam
         // beside it is what made this read as a palisade rather than as rock.
-        var NSEG = 5, q, L = [], Rr = [], crestPts = [];
-        for (q = 0; q <= NSEG; q++) {
-          var dq = cl.crest + (cl.foot - cl.crest) * (q / NSEG);
-          L.push(pt(cl, cl.t0 + (brnd() - 0.5) * 0.05, dq));
-          Rr.push(pt(cl, cl.t1 + (brnd() - 0.5) * 0.05, dq));
-        }
+        var NSEG = 5, q, L = cl.L, Rr = cl.R, crestPts = [];
         // A column's crest RUNS from `crest` at its leading edge to `crest1`
         // at its trailing one, jittered on top. `crest1` was computed and
         // never read, so every column's top was level at `crest` and the
         // whole cliff carried one ruled line along it.
         for (q = 0; q <= 3; q++) {
           var ct = q / 3;
-          crestPts.push(pt(cl, cl.t0 + (cl.t1 - cl.t0) * ct,
-                           cl.crest + (cl.crest1 - cl.crest) * ct + (brnd() - 0.5) * 3.2));
+          var ctt = cl.t0 + (cl.t1 - cl.t0) * ct;
+          crestPts.push(pt(cl, ctt, crestAt(cl, ctt)));
         }
         var a0 = crestPts[0], a1 = crestPts[crestPts.length - 1];
         var b1 = Rr[NSEG], b0 = L[NSEG];
@@ -3995,12 +4108,14 @@
         g.fillStyle = shade(P.rock, lit * cl.tone); g.fill();
         g.clip();
         // strata (rock) or form-board courses (concrete)
-        var yo = cl.crest;
+        var yo = 0;
         var nb = conc ? 6 : 4 + bint(3);
         for (k = 0; k < nb; k++) {
           var thk = conc ? (CLIFF_H / 6) : (CLIFF_H / nb) * (0.6 + brnd() * 0.85);
-          var pa = pt(cl, cl.t0, yo), pb = pt(cl, cl.t1, yo + (conc ? 0 : (brnd() - 0.5) * 2.4));
-          var pc = pt(cl, cl.t1, yo + thk + (conc ? 0 : (brnd() - 0.5) * 2.4)), pd = pt(cl, cl.t0, yo + thk);
+          var pa = pt(cl, cl.t0, cl.crest + yo);
+          var pb = pt(cl, cl.t1, cl.crest1 + yo + (conc ? 0 : (brnd() - 0.5) * 2.4));
+          var pc = pt(cl, cl.t1, cl.crest1 + yo + thk + (conc ? 0 : (brnd() - 0.5) * 2.4));
+          var pd = pt(cl, cl.t0, cl.crest + yo + thk);
           // Bedding planes, not masonry courses: the alternation carries a
           // per-band jitter and the seam under it varies in weight, so a
           // face does not stack up as evenly-lit blocks of one height.
@@ -4023,12 +4138,12 @@
         if (brnd() < 0.45) {
           g.globalAlpha = 0.22; g.strokeStyle = P.wet; g.lineWidth = 1.6 + brnd() * 2;
           var wt = cl.t0 + brnd() * (cl.t1 - cl.t0);
-          var w0 = pt(cl, wt, cl.crest + 2), w1 = pt(cl, wt, cl.crest + 8 + brnd() * (CLIFF_H - 12));
+          var w0 = pt(cl, wt, crestAt(cl, wt) + 2), w1 = pt(cl, wt, crestAt(cl, wt) + 8 + brnd() * (CLIFF_H - 12));
           g.beginPath(); g.moveTo(w0[0], w0[1]); g.lineTo(w1[0], w1[1]); g.stroke(); g.globalAlpha = 1;
         }
         // foot shadow inside the column
         g.globalAlpha = 0.42; g.fillStyle = '#000';
-        var f0 = pt(cl, cl.t0, cl.foot - 7), f1 = pt(cl, cl.t1, cl.foot - 7);
+        var f0 = pt(cl, cl.t0, cl.foot0 - 7), f1 = pt(cl, cl.t1, cl.foot1 - 7);
         g.beginPath(); g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]); g.lineTo(b1[0], b1[1]); g.lineTo(b0[0], b0[1]); g.closePath(); g.fill();
         g.globalAlpha = 1;
         g.restore();
@@ -4088,7 +4203,7 @@
         // wall left the base reading as a plinth line instead.
         for (k = 0; k < 7; k++) {
           var rt = cl.t0 - 0.05 + brnd() * (cl.t1 - cl.t0 + 0.10);
-          var rp = pt(cl, rt, cl.foot - 7 + brnd() * 14);
+          var rp = pt(cl, rt, footAt(cl, rt) - 7 + brnd() * 14);
           var rr = (k % 3 === 0 ? 2.2 + brnd() * 3.0 : 0.9 + brnd() * 2.2);
           g.fillStyle = 'rgba(16,14,9,.34)'; g.beginPath(); g.ellipse(rp[0] + 0.7, rp[1] + 0.8, rr * 1.3, rr * 0.5, 0, 0, 6.29); g.fill();
           g.fillStyle = shade(P.rock, lit * (0.95 + brnd() * 0.55)); g.beginPath(); g.ellipse(rp[0], rp[1], rr, rr * 0.62, 0, 0, 6.29); g.fill();
@@ -4097,7 +4212,11 @@
       }
     }
     function faceShade(dir) {                    // light falls off down the drop
-      var p0 = fp(dir, 0, 0), p1 = fp(dir, 1, 0), p2 = fp(dir, 1, CLIFF_H + 6), p3 = fp(dir, 0, CLIFF_H + 6);
+      var cs = columns(dir), v0 = cs[0].geom(0), v1 = cs[0].geom(1);
+      var p0 = fp(dir, 0, v0.crest), p1 = fp(dir, 1, v1.crest);
+      var p2 = fp(dir, 1, v1.foot + 6), p3 = fp(dir, 0, v0.foot + 6);
+      p0[0] += v0.ox; p0[1] += v0.oy; p1[0] += v1.ox; p1[1] += v1.oy;
+      p2[0] += v1.ox; p2[1] += v1.oy; p3[0] += v0.ox; p3[1] += v0.oy;
       var gd = g.createLinearGradient(0, ty, 0, ty + CLIFF_H + TH / 2);
       gd.addColorStop(0, 'rgba(0,0,0,0)'); gd.addColorStop(0.55, 'rgba(0,0,0,.10)'); gd.addColorStop(1, 'rgba(0,0,0,.30)');
       g.fillStyle = gd;
@@ -4107,8 +4226,10 @@
     if (mask & 2) { face(-1); faceShade(-1); }
     // outside corner: the two faces meet at the front vertex
     if ((mask & 3) === 3) {
+      var sv = vertex(seam.south);
       g.strokeStyle = shade(P.rockD, 0.9); g.globalAlpha = 0.4; g.lineWidth = 1.6;
-      g.beginPath(); g.moveTo(cx, ty + TH / 2); g.lineTo(cx, by + TH / 2); g.stroke(); g.globalAlpha = 1;
+      g.beginPath(); g.moveTo(cx + sv.ox, ty + TH / 2 + sv.crest + sv.oy);
+      g.lineTo(cx + sv.ox, ty + TH / 2 + sv.foot + sv.oy); g.stroke(); g.globalAlpha = 1;
     }
 
     // crown: the theatre's own surface, mottled, with a broken rocky rim on
@@ -4163,9 +4284,9 @@
           var tm = cl2.t0 + (cl2.t1 - cl2.t0) * (0.12 + brnd() * 0.76);
           var lr = 1.5 + (cl2.t1 - cl2.t0) * 11 * (lj ? 0.6 : 1) + brnd() * 1.5;
           var out = brnd() * 2.0 * (lj ? 0.45 : 1);
-          var xE = cx + d2 * TW / 2;
-          var lx = xE + (cx - xE) * tm + d2 * (cl2.jut * 2 + out);
-          var ly = ty + (TH / 2) * tm + cl2.jut + out * 0.5;
+          var cv = cl2.geom(tm), cp = fp(d2, tm, cv.crest);
+          var lx = cp[0] + cv.ox + d2 * out;
+          var ly = cp[1] + cv.oy + out * 0.5;
           g.fillStyle = 'rgba(18,16,12,.26)';        // the shadow it throws down the face
           g.beginPath(); g.ellipse(lx, ly + lr * 0.6, lr * 0.9, lr * 0.38, 0, 0, 6.29); g.fill();
           g.fillStyle = shade(P.rock, 0.78 + brnd() * 0.42);
@@ -20674,7 +20795,7 @@
     SPR.cliff = {};
     ['temperate', 'snow', 'urban'].forEach(function (cth) {
       var ck = cth === 'temperate' ? 'grass' : cth;
-      SPR.cliff[cth] = lazySheet(16 * CLIFF_VAR, function (k) { return bakeCliff(k & 15, ck, k >> 4); });
+      SPR.cliff[cth] = lazySheet(16 * CLIFF_VAR, function (k) { return cliffBank(k & 15, ck, k >> 4); });
     });
     // Roads are keyed by the neighbour mask, not by a decorative variant.
     SPR.road = { temperate: [], snow: [], urban: [] };
@@ -30922,7 +31043,8 @@
         } else if (t === T_CLIFF) {
           var cm = (x + 1 < MAP && G.terrain[idx(x + 1, y)] !== T_CLIFF ? 1 : 0) | (y + 1 < MAP && G.terrain[idx(x, y + 1)] !== T_CLIFF ? 2 : 0) |
                    (y > 0 && G.terrain[idx(x, y - 1)] !== T_CLIFF ? 4 : 0) | (x > 0 && G.terrain[idx(x - 1, y)] !== T_CLIFF ? 8 : 0);
-          tile = SPR.cliff[th][cm | (((h6 >>> 19) % CLIFF_VAR) << 4)];
+          var cseam = cliffSeams(x, y, cm);
+          tile = SPR.cliff[th][cm | (((h6 >>> 19) % CLIFF_VAR) << 4)].get(cseam.key, cseam);
         } else {
           // LAT. The cell wears one of the theatre's two grounds; a BASE cell
           // beside an ALT one carries the alt material feathered over its own
@@ -34195,6 +34317,10 @@
     orderMove: function (units, gx, gy) { return G ? orderUnitsTo(G, units, gx, gy) : 0; },
     orderAttack: function (units, tgt) { return G ? orderAttack(G, units, tgt) : 0; },
     padSlot: padSlot,
+    // Cliff seam profiles, exposed so the seam property can be tested as a
+    // PROPERTY rather than by pattern-matching the source text.
+    cliffSeams: function (x, y, mask) { return cliffSeams(x, y, mask); },
+    cliffEdgeId: function (ax, ay, bx, by) { return cliffEdgeId(ax, ay, bx, by); },
     // Pick whatever is under the CENTRE of a grid cell, the way a click on
     // that cell would. Exposed for the footprint-geometry test.
     pickCell: function (gx, gy) { return pickAtW(sx(gx, gy), sy(gx, gy)); },

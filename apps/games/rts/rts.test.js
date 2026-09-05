@@ -5154,18 +5154,6 @@ test("cliff cells have per-cell rock variants, and snow uses rock colours", () =
     + `banding reads as chromed panelling rather than as stone under snow`);
 });
 
-// ---- row 27: the Kirov is baked at the size it is drawn at -------------- //
-// unit-identity-reference.md §2.4 calls the 1.3x draw scale "a symptom of the
-// bake being too small", and §3's R6 gives the number: [ZEP] is 139x62, which
-// at our 1.067 sprite scale is 148x66 at zoom 1. The bake was 132x51 and
-// `drawUnit` multiplied it by 1.3 — so the largest airframe in the game was
-// the one sprite on the field going through a bilinear upscale (the
-// battlefield context has image smoothing on) while every tank beside it drew
-// 1:1, and at 172x66 it was 16% longer than RA2's own proportion.
-//
-// Measured headless, composed as drawUnit composes: broadside 172x66 (aspect
-// 2.61) before, 147x66 (2.23) after, against RA2's 2.24; nose-on 83x114
-// (0.73) before, 72x102 (0.71) after, against RA2's 61x86 (0.71).
 test("the Kirov is baked at its drawn size, with no per-unit draw scale", () => {
   const src = nocomment(fs.readFileSync(SRC, "utf8"));
 
@@ -5880,4 +5868,31 @@ test("the elite weapons whose Damage drives a mechanism other than damage still 
   const e1 = erase(1), e2 = erase(2);
   assert.ok(e1 > 20 && e2 > 5, `both ranks must take real time (${e1}, ${e2})`);
   assert.ok(Math.abs(e1 / e2 - 2) < 0.15, `an elite Chrono Legionnaire erases twice as fast (${e1} -> ${e2} ticks)`);
+});
+
+test("two cliff cells that share a vertex compute the SAME crest and jut there", () => {
+  // The seam defect, as a PROPERTY rather than as a shape of source text.
+  //
+  // A cliff cell's geometry along an edge must be a function of that EDGE, not
+  // of the cell, or the two cells either side of it disagree and every tile
+  // boundary reads as a panel join. In grid terms, cell (x,y)'s SOUTH vertex
+  // is the same point as cell (x+1,y)'s WEST vertex and cell (x,y+1)'s EAST
+  // vertex — three cells meeting at one place, which must therefore agree.
+  const H = W.__rtsTest;
+  H.begin(7411, "normal");
+  for (const [x, y] of [[10, 10], [11, 7], [3, 19], [24, 16]]) {
+    const a = H.cliffSeams(x, y, 3);
+    const east = H.cliffSeams(x + 1, y, 3);
+    const south = H.cliffSeams(x, y + 1, 3);
+    assert.equal(a.south, east.west,
+      `(${x},${y}) south vertex must equal (${x + 1},${y}) west vertex — they are the same point`);
+    assert.equal(a.south, south.east,
+      `(${x},${y}) south vertex must equal (${x},${y + 1}) east vertex — they are the same point`);
+  }
+  // ...and an edge must be identified the same way from either end, or the two
+  // cells sharing it pick different profiles for the same run of rock.
+  for (const [ax, ay, bx, by] of [[21, 19, 21, 21], [7, 3, 9, 5], [-1, 5, 1, 7]]) {
+    assert.equal(H.cliffEdgeId(ax, ay, bx, by), H.cliffEdgeId(bx, by, ax, ay),
+      `edge (${ax},${ay})-(${bx},${by}) must hash the same traversed either way`);
+  }
 });
