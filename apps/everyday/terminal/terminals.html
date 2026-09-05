@@ -728,19 +728,21 @@
   // a person does anyway, so for most uses this never has to be thought about.
   spEveryRow.addEventListener('focusin', function () { armQuick('every'); });
   spAtRow.addEventListener('focusin', function () { armQuick('at'); });
-  // ...but aiming the row must not also OPEN the field. A <label for> forwards
-  // its click to the control, and Chromium opens the date picker on a click
-  // anywhere in a datetime-local (and the popup on a select) — so clicking
-  // "until" to point the buttons at it threw a calendar over the panel. Cancel
-  // the forwarded click and move focus ourselves: focus alone opens no picker,
-  // and focus is what arms the row, so the lit label and the focused control
-  // can never disagree. The `for` attribute stays, so the label/control
-  // association assistive tech reads is untouched.
+  // Clicking a label AIMS the row; it must not open the field. The browser pops
+  // the calendar for two separate reasons — the click a <label for> forwards to
+  // its control, and user-initiated focus (a .focus() inside a click handler
+  // counts) — so both are cancelled and nothing is focused. Clicking the FIELD
+  // is untouched: that is a request to open it.
   Array.prototype.forEach.call(schedPanel.querySelectorAll('.sp-lab'), function (lab) {
+    var want = lab.htmlFor === 'sp-every' ? 'every' : 'at';
+    lab.addEventListener('mousedown', function (e) { e.preventDefault(); });
     lab.addEventListener('click', function (e) {
       e.preventDefault();
-      var ctrl = document.getElementById(lab.htmlFor);
-      if (ctrl) ctrl.focus();
+      armQuick(want);
+      // If the OTHER row's control still holds focus, drop it — otherwise the
+      // lit label and the control the keyboard would edit disagree.
+      var a = document.activeElement;
+      if ((want === 'every' && a === spAt) || (want === 'at' && a === spEvery)) a.blur();
     });
   });
   // Flip the meaning of the shared date field, parking the value it gives up so
