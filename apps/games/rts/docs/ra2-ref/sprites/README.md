@@ -66,7 +66,7 @@ Two things are validated at once: the number in §1.1, and the convention
 whose aspect swings 1.33-1.50 across its own facings needs that convention to
 be stated, and it turns out to be the right one.
 
-## A DISCREPANCY the sprites found in the reference itself
+## A discrepancy the sprites found in the reference — and CORRECTED
 
 Measuring three units off their own eight-bearing sheets, by segmenting each
 sprite off the snow and taking the widest bounding box:
@@ -82,16 +82,51 @@ figure exactly. So §1.1's Apocalypse row is not its BROADSIDE; it is a taller,
 narrower facing.
 
 **This matters, because `art-metrics.js` compares our WIDEST bearing against
-that number.** For the Apocalypse the two sides of the comparison are different
-facings. Our Apocalypse currently reads 1.27 against a reference of 1.37 —
-comfortably in band at 0.93 — but against a true broadside of 1.74 it would be
-0.73, i.e. OUTSIDE. The gate may be passing that unit for the wrong reason.
+that number** — for aspect, and since 2026-09-05 for SIZE as well. For the
+Apocalypse the two sides of the comparison were different facings.
 
-Not changed unilaterally: one segmentation of one sheet is thinner evidence
-than the document, and my blob detector includes drop shadows (which is why the
-Rhino comes out 51x26 where §1.1 says 56x28). What is warranted is the flag.
-Re-deriving `[MTNK]` — and spot-checking the other rows the same way — needs
-more sheets, and the method is above.
+### Why it was corrected rather than left flagged
+
+The first pass flagged this and declined to change it, on the grounds that one
+segmentation is thinner evidence than the document and that the blob detector
+includes drop shadows. Both objections were then tested, and both fail:
+
+- **Threshold sweep.** Re-segmenting at value cuts of 150/165/180/190/200/210
+  returns 59x34 = 1.74 and exactly eight blobs at EVERY cut. The measurement is
+  threshold-insensitive, so shadow contamination is not deciding it.
+- **The full bearing set** comes out `[0.71, 0.76, 1.28, 1.28, 1.34, 1.37,
+  1.69, 1.74]`. The document's 1.37 is the sixth of eight — a mid facing. Two
+  bearings are TALLER than wide (bow-on and stern-on, barrels up-screen), which
+  is what a broadside convention exists to exclude.
+- **The convention holds on the other two sheets** — the Drone matches the
+  document exactly and the Rhino to 2%. Two units support "widest = the
+  document's number"; the Apocalypse is the one that breaks it.
+
+`[MTNK]` is therefore recorded as **59x34 = 1.74**, in `unit-identity-reference.md`
+§1.1 and §2.1 and in `RA2_BBOX`. This is the only row in the table backed by a
+measurement of the actual sprite rather than by transcription.
+
+### What the correction changes, honestly
+
+It does not make a problem go away — it MOVES it, and to the truer place:
+
+| gate | with 56x41 | with 59x34 |
+|---|---|---|
+| `aspect.vehicleOutsideRA2Band` | 0 (ours 1.27 vs 1.37 = 0.93) | **1** (ours 1.27 vs 1.74 = 0.73) |
+| `size.vehicleOutsideRA2Band` | 1 (89/56 = +25%) | **0** (89/59 = +19%) |
+
+So our Apocalypse is not too BIG, as the size gate briefly said. It is too
+SQUAT: 89x70 where the proportion should be nearer 1.74. That is a real and
+actionable defect, and the old row was hiding it behind a passing gate.
+
+### The systematic risk this exposes
+
+RA2's tanks are VOXELS, not SHPs. There is no canonical sprite bbox for them at
+all — every number in §1.1's vehicle block is somebody's measurement of one
+rendered frame, at a bearing nobody wrote down. The Apocalypse is simply the
+row where that showed. The other twelve vehicle rows carry the same risk and
+have not been checked against a real sheet, so **extending this rip set is the
+highest-value reference work available.** The method is above.
 
 ## The standing rule this supports
 

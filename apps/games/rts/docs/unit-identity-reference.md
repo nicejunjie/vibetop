@@ -89,7 +89,7 @@ pixels.** That is the entire canvas the game has to work with, and it is
 | | Grizzly Tank | `GTNK` | **54x23** | **2.35** |
 | | Chrono Miner | `CMIN` | 55x28 | 1.96 |
 | | Rhino Tank | `HTNK` | **56x28** | 2.00 |
-| | Apocalypse | `MTNK` | 56x41 | 1.37 |
+| | Apocalypse | `MTNK` | **59x34** | **1.74** |
 | | War Miner | `HARV` | 56x48 | 1.17 |
 | | Mirage Tank | `RTNK` | 59x39 | 1.51 |
 | | Prism Tank | `SREF` | 59x**43** | 1.37 |
@@ -378,7 +378,7 @@ is gone at `ZMIN = 0.55`; see requirement R1.
 | our unit | RA2 counterpart | the ONE silhouette feature | size class | pixel budget |
 |---|---|---|---|---|
 | `rhino` Rhino Tank | `[HTNK]`, 56x28, 886 body px | A thicker, shorter gun than the Grizzly's on a **taller** hull, and **five** house blocks (three flank panels + two turret cheeks) against the Grizzly's two. | M | hull height >= 1.25x the Grizzly's; 5 discrete house blocks, each 4-6 px, gaps >= 3 px; gun >= 1.6x the Grizzly's barrel thickness |
-| `mammoth` Apocalypse | `[MTNK]`, 56x41 | **Four house-coloured canister drums stacked 2x2 on the rear deck**, plus **twin** barrels — the only two-barrelled thing on the field. | M, heaviest | each canister >= 6x6 px and individually countable (gaps >= 2 px); twin barrels >= 19 px, visibly two, tapering |
+| `mammoth` Apocalypse | `[MTNK]`, 59x34 | **Four house-coloured canister drums stacked 2x2 on the rear deck**, plus **twin** barrels — the only two-barrelled thing on the field. | M, heaviest | each canister >= 6x6 px and individually countable (gaps >= 2 px); twin barrels >= 19 px, visibly two, tapering |
 | `teslatank` Tesla Tank | `[TTNK]`, 52x37 | **Two coil columns standing above the deck with an arc between them** — the only paired vertical masts on a hull. | M | each column >= 9 px tall x 3 px wide; gap between them >= 5 px so the pair reads as two |
 | `v3` V3 Launcher | `[V3]`, **63x36** — the longest land vehicle | **A white missile on a rail overhanging both ends of its truck**, with a red nose cone and red tail fins and nothing else coloured. | L | missile >= 1.10x the truck length, overhanging >= 5 px at the nose; nose cone and fins in house hue, midbody pure white |
 | `flaktrack` Flak Track | `[HTK]`, **45x45**, aspect **1.00** | **The only square vehicle** — a short open-bed halftrack with a gun raised off the bed. | S | body aspect 0.95-1.10; gun raised >= 10 px above the bed line |

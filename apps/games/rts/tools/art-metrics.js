@@ -90,7 +90,11 @@ const RA2_BBOX = {
   lancer: [54, 23],  // [GTNK]    54x23 — the Grizzly
   chronominer: [55, 28],  // [CMIN]    55x28
   rhino: [56, 28],  // [HTNK]    56x28
-  mammoth: [56, 41],  // [MTNK]    56x41 — the Apocalypse
+  mammoth: [59, 34],  // [MTNK]    59x34 — the Apocalypse. CORRECTED 2026-09-05 from
+                      // the 56x41 the document carried: that is a mid bearing, not the
+                      // broadside. Measured off the real eight-bearing sheet, and the
+                      // sheet also contains a 59x43 = 1.37 frame, which is where the old
+                      // number came from. See docs/ra2-ref/sprites/README.md
   warminer: [56, 48],  // [HARV]    56x48
   mirage: [59, 39],  // [RTNK]    59x39
   prismtank: [59, 43],  // [SREF]    59x43

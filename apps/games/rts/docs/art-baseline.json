@@ -220,11 +220,11 @@
     "hue.maxImpostor": 0.0051,
     "aspect.navalOutsideRA2Band": 0,
     "aspect.navalWorstOffRA2": 0.194,
-    "aspect.vehicleOutsideRA2Band": 0,
+    "aspect.vehicleOutsideRA2Band": 1,
     "aspect.infantryOutsideRA2Band": 0,
     "aspect.airOutsideRA2Band": 0,
     "size.navalOutsideRA2Band": 0,
-    "size.vehicleOutsideRA2Band": 1,
+    "size.vehicleOutsideRA2Band": 0,
     "size.infantryOutsideRA2Band": 1,
     "size.airOutsideRA2Band": 1,
     "size.worstOffGroupScale": 0.3807,
@@ -360,8 +360,8 @@
         "selfIoU": 0.693,
         "selfIoUCross": 0.693,
         "broadsideAspect": 1.271,
-        "ra2Aspect": 1.366,
-        "vsRA2": 0.931,
+        "ra2Aspect": 1.735,
+        "vsRA2": 0.732,
         "bestPeer": "War Miner",
         "bestPeerIoU": 0.6625,
         "peersBeatingSelf": 0
@@ -1004,6 +1004,13 @@
     ],
     "ra2Aspect": [
       {
+        "key": "mammoth",
+        "wh": "89x70",
+        "ours": 1.271,
+        "ra2": 1.735,
+        "ratio": 0.732
+      },
+      {
         "key": "mcv",
         "wh": "105x89",
         "ours": 1.18,
@@ -1179,13 +1186,6 @@
         "ratio": 1.09
       },
       {
-        "key": "mammoth",
-        "wh": "89x70",
-        "ours": 1.271,
-        "ra2": 1.366,
-        "ratio": 0.931
-      },
-      {
         "key": "warminer",
         "wh": "69x63",
         "ours": 1.095,
@@ -1271,16 +1271,6 @@
         "dev": 0.3109
       },
       {
-        "key": "mammoth",
-        "group": "vehicle",
-        "ours": 89,
-        "ra2": 56,
-        "ra2WH": "56x41",
-        "scale": 1.5893,
-        "groupScale": 1.2698,
-        "dev": 0.2516
-      },
-      {
         "key": "harrier",
         "group": "air",
         "ours": 52,
@@ -1349,6 +1339,16 @@
         "scale": 1.5217,
         "groupScale": 1.2698,
         "dev": 0.1984
+      },
+      {
+        "key": "mammoth",
+        "group": "vehicle",
+        "ours": 89,
+        "ra2": 59,
+        "ra2WH": "59x34",
+        "scale": 1.5085,
+        "groupScale": 1.2698,
+        "dev": 0.188
       },
       {
         "key": "yuri",
@@ -2271,8 +2271,8 @@
         "aspect": 1.251,
         "broadsideWH": "89x70",
         "broadsideAspect": 1.271,
-        "ra2Aspect": 1.366,
-        "vsRA2": 0.931,
+        "ra2Aspect": 1.735,
+        "vsRA2": 0.732,
         "selfIoU": 0.693,
         "selfIoUCross": 0.693,
         "bestPeer": "War Miner",
