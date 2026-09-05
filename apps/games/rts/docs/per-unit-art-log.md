@@ -127,6 +127,43 @@ Not fixed here: the fix is a repaint, and he already carries the HIGHEST owner
 share of any infantry (0.401 in a field of 0.063-0.401), so light body against
 owner colour is a real trade that needs its own measured pass.
 
+## The dog's size and `dog | tanya` pull the same lever (2026-09-05) — REVERTED
+
+Commit a7759b1 shrank the Attack Dog to [0.84, 0.84], closing
+`size.infantryOutsideRA2Band`. **It has been reverted**: it pushed
+`dog | tanya` under the friend-vs-foe floor in the CELL 96 window at both
+zooms, and that was caught by another pass reading the legibility output, not
+by the run that shipped it — the size sweep never opened `legibility.js`.
+
+The two gates pull on ONE lever, in opposite directions. A dog's LENGTH is
+exactly what separates a quadruped from an upright figure, and RA2 fidelity
+wants that length shorter. Measured, cell96 zoom 1 / zoom 0.75 against floors
+of 12 / 8.6:
+
+| STATURE.dog | z1 | z0.75 | size dev |
+|---|---|---|---|
+| **[1.00, 1.00]** | **12.5** | **9.5** | **+31%** |
+| [0.94, 0.94] | 12.0 | 8.5 | +24% |
+| [0.90, 0.90] | 12.1 | 8.5 | +18% |
+| [0.84, 0.84] | 11.7 | 8.5 | +11% |
+| [0.94, 0.86] | 11.8 | 8.3 | +24% |
+| [1.00, 0.86] | 12.0 | 8.7 | +31% |
+
+**Nothing below full width clears ZMIN.** Flattening him does not rescue it
+either — and the one flattened row that passes does so by keeping full width,
+so it buys no size at all. A legibility floor is player-facing and outranks a
+fidelity gap, so the size debt stays.
+
+What is KEPT from that commit: `bakeDog` now reads `STATURE.dog`. The row had
+existed forever with nothing reading it, and the lever works now — it is simply
+parked at 1.00. Whoever attacks this next should go at the COLOUR axis instead:
+a tan dog and a Tanya whose own §2 row asks for ">= 30% of body px in skin
+tone" are two tan masses of a size, and separating them there costs no length.
+
+The wider lesson, and the reason this is written up rather than quietly fixed:
+**a size sweep that never opens `legibility.js` is not a finished sweep.** The
+art gates are not independent.
+
 ## Recorded disagreement, NOT changed
 
 - **Mirage Tank** — RA2's plate shows a clear gun barrel; ours has essentially

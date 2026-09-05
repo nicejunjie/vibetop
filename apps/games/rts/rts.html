@@ -5144,14 +5144,32 @@
                                   // by his §1.5 levers now, not by his proportions.
     spy:          [0.76, 1.00],   // i-S 13x25 — the slightest figure on the field
     rocketeer:    [1.12, 0.86],   // i-S 16x24 — the shortest, broadened by the pack
-    dog:          [0.84, 0.84],   // i-XS quadruped. RA2 draws [ADOG] 21 wide against
+    dog:          [1.00, 1.00],  // i-XS quadruped. RA2 draws [ADOG] 21 wide against
                                   // [E1]'s 12 — 1.75x the man. Ours was 39 against 17,
                                   // 2.29x, the widest thing in the infantry group by
                                   // 31%. This row existed all along and NOTHING read
                                   // it: STATURE is applied on the humanoid path and a
                                   // quadruped does not take it, so [1.00,1.00] read as
                                   // a deliberate "leave him be" instead of dead config.
-                                  // bakeDog reads it now.
+                                  // bakeDog reads it now — but the value is back
+                                  // at 1.00, because shrinking him BREAKS
+                                  // `dog | tanya`. His length is the very thing
+                                  // that separates a quadruped from an upright
+                                  // figure, so the size gate and the friend-vs-foe
+                                  // floor pull on the same lever in opposite
+                                  // directions. Measured, cell96 zoom1 / zoom0.75
+                                  // against floors of 12 / 8.6:
+                                  //   [1.00,1.00]  12.5 / 9.5   size dev +31%
+                                  //   [0.94,0.94]  12.0 / 8.5   dev +24%
+                                  //   [0.90,0.90]  12.1 / 8.5   dev +18%
+                                  //   [0.84,0.84]  11.7 / 8.5   dev +11%
+                                  //   [0.94,0.86]  11.8 / 8.3   dev +24%, flatter
+                                  //   [1.00,0.86]  12.0 / 8.7   dev +31%, no gain
+                                  // Nothing below full width clears ZMIN. Flattening
+                                  // does not rescue it either. A legibility floor is
+                                  // player-facing and outranks a fidelity gap, so the
+                                  // debt stays until the pair is separated on COLOUR
+                                  // instead — both are tan masses of a size.
     _:            [1.00, 1.00],
   };
 
