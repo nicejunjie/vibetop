@@ -524,6 +524,24 @@ Still open:
 
 ## Measured NEGATIVE results — recorded so nobody re-runs them
 
+- **`iou.groundCombat.mean` 0.466 is not a legibility failure (2026-09-05).**
+  Checked before spending a pass on it. The worst vehicle pair on the entire
+  board is `mirage | warminer` at 0.7255 — the group maximum, with `over75: 0`
+  — and the next three are Apocalypse, Tesla Tank and Prism Tank against the
+  War Miner and the MCV. So the combat tanks' closest relatives are the SUPPORT
+  vehicles, not each other, and `iou.groundCombat.mean` is computed over combat
+  pairs only, which means it structurally cannot see the pairs that are
+  actually closest. (The same shape of error as the GI hub and the greyed
+  sidebar bar: the SET being measured excludes the thing that matters.)
+  But it is not a defect either, because **IoU is a silhouette metric and the
+  player is not colour-blind.** `legibility.js`, which weights luminance and
+  hue and is the player-facing gate, reports **0 confusable vehicle pairs in
+  all six windows**. A Mirage Tank and a War Miner are both "a big box on a
+  tracked hull" in mask terms and are told apart instantly by a tan ore bin.
+  So: do not chase 0.466 by deforming hulls. If this is ever worth closing, the
+  honest move is to widen the ground-combat SET to include the support vehicles
+  a player actually has to tell tanks from, not to make the tanks less alike.
+
 - **`peerVsSelf.naval` measures ELONGATION, and the aspect gate demands
   elongation (2026-09-05).** This debt has been carried for a long time and it
   is worth knowing what it is before spending another pass on it.
