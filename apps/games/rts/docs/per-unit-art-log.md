@@ -377,62 +377,105 @@ What is left is not art direction:
 Anyone picking this up should start from the harness notes above, not from the
 units. The units are fine; the instruments are what made them findable.
 
-## The nine aspect outliers — and why the worst one is a TRADE, not a bug
+## The nine aspect outliers — and the Nighthawk, which took three wrong causes
 
 Extending the external RA2 aspect gate to the whole roster (see
-`art-metrics.js`) named nine units and their directions. The first one I took
-turned out to be a conflict between two measured fixes, which is worth knowing
-before anyone spends a day on it.
+`art-metrics.js`) named nine units and their directions. The last one left was
+the Nighthawk, and it is worth reading end to end: it was called "pinned" twice
+on evidence that did not support it, and the thing actually holding it was a
+constant nobody had swept.
 
-**Nighthawk, 1.62 against RA2's 3.05, is pinned — but NOT by the disc. That
-first reading was wrong and is corrected below.**
+**CLOSED 2026-09-05: 73x45 / 1.622 / 0.53 of RA2 -> 86x33 / 2.606 / 0.86.**
 
-MEASURED, by sweeping each lever instead of inferring from one:
-* The DISC sets the SYMMETRY, not the aspect. mrR 15 / 19 / 23 moves selfIoU
-  0.722 / 0.851 / 0.943 — it is what makes the mask look the same from every
-  bearing — while the aspect barely stirs, 1.585 / 1.622 / 1.755. An
-  iso-squashed disc already has an aspect near 2, so scaling it cannot pull the
-  unit toward 3.05. (mrR 23 also trips `peerVsSelf.air` 0 -> 1, which is the
-  regression the earlier pass recorded when it tried widening to 21.)
-* The MAST sets the aspect. Dropping `mry = hy - 9.6` to -6.6 / -3.6 / -1.6
-  gives 1.825 / 2.028 / 2.086 — and then it SATURATES. Even with the rotor
-  sitting on the fuselage, an absurd helicopter, the unit reaches 0.68 of RA2
-  and never enters the 0.80 band.
-* So the remaining height is neither disc nor mast: it is the tail, the gear
-  and the disc's own iso thickness. Closing the gap means REDRAWING the
-  airframe flatter, which is what RA2's 64x21 actually is.
+### The three wrong causes, and what each one really proved
 
-The original claim — "pinned by its rotor disc" — was inferred from `len` not
-moving the number, and `len` not moving it says only that the hull is not the
-bbox. It named the wrong part. The disc is still worth keeping for the reason
-the earlier pass gives (drawn at alpha .09 it was ~1400 invisible pixels that
-every mask metric counted as body, which is why `harrier | nighthawk` failed
-the union window); it simply is not what holds the aspect.
-* `len` does not move it. Swept 34 / 42 / 50: the aspect stays 1.622 to three
-  decimals at every value. The hull length is not what the bbox measures.
-* The bbox is the DISC. Its `selfIoU` is **0.852**, against the Harrier's 0.429
-  and the Hornet's 0.493 — it looks nearly the same from every bearing, which
-  is the signature of a rotationally symmetric shape dominating the mask.
-* The disc is already drawn correctly, squashed by `ISO_X`/`ISO_Y` into a
-  proper isometric ellipse, and its span was ALREADY tried: widening 19 -> 21
-  made it round enough that an air peer matched the Nighthawk better than it
-  matched its own other bearings (`peerVsSelf.air` 0 -> 1). Rejected then.
-* And the blur itself is a fix, not decoration: the rotor used to be drawn at
-  alpha .09 — ~1400 px three luminance points off the grass, invisible to a
-  player but counted as BODY by every mask metric — and that is precisely why
-  `harrier | nighthawk` was the union window's only failure.
+* **"It is the hull length."** `len` swept 34 / 42 / 50 does not move the
+  aspect in the third decimal. TRUE, and it means only that `len` is not the
+  bbox — in this block `len` sizes the CABIN and nothing else (`len * 0.30`
+  long, `len * 0.24` for the roof). It says nothing about the airframe's
+  length, which is a different constant.
+* **"It is the rotor disc."** mrR 15 / 19 / 23 moves `selfIoU` 0.722 / 0.851 /
+  0.943 but the aspect only 1.585 / 1.622 / 1.755, and 15 is WORSE than 19.
+  Also true, and for a reason that is arithmetic rather than art: a ground
+  circle under a 2:1 isometric camera projects to an ellipse of aspect exactly
+  2, so a disc that owns the bbox pins the whole unit near 2 whatever its
+  radius — and while it overhangs the airframe, shrinking it loses width as
+  fast as height. (mrR 23 also trips `peerVsSelf.air` 0 -> 1, the regression an
+  earlier pass hit widening 19 -> 21. That still stands: do not go up.)
+* **"Then it is the mast."** Dropping `mry = hy - 9.6` to -6.6 / -3.6 / -1.6
+  gives 1.825 / 2.028 / 2.086 and saturates at 0.68 of RA2, with the rotor
+  sunk into the cabin. True again, and the saturation is the tell: the mast
+  stops paying once the disc's top reaches the cabin roof, so the number it was
+  really measuring was the CABIN's depth.
 
-So RA2 reaches 3.05 with a long tail boom and a rotor drawn as thin blades;
-we reach 1.62 with a bright swept disc that a player can actually see. **The
-two goals genuinely conflict**, and the aspect gate flagging this unit is the
-gate working, not the art failing. Closing it means re-drawing the rotor as
-discrete blades and lengthening the boom TOGETHER, then re-checking
-`harrier | nighthawk` in the union window — a deliberate piece of work, not a
-number to nudge.
+Three levers, three honest measurements, three wrong conclusions — because
+"lever X does not move it" identifies what is not the cause and never what is.
+
+### What actually held it
+
+The **TAIL BOOM**, `bmB`, a constant the sweeps had never touched. At 16.5 it
+ended *underneath* the rotor disc, so the airframe was a cabin with a stub and
+the disc was the widest thing on the sprite — the block's own comment promised
+"a long slim TAIL BOOM running most of the sprite's length" and the code did
+not draw one. `bmB` 16.5 -> 20 / 24 / 28 moves the aspect 1.622 -> 1.778 /
+1.933 / 2.022 on its own.
+
+The rest is height, and it decomposes cleanly (measured by baking the parts
+separately):
+
+| part | rows of the 45 | fix |
+|---|---|---|
+| landing gear, splayed 5 px below a belly at `by - 5.4` | 8 | rails to `by - 4.4`, shortened; **2 rows** |
+| the disc standing above the airframe | 15 | mrR 19 -> 16, mast `hy-9.6` -> `hy-8.0`; **9 rows** |
+| cabin as deep as it was long | — | depth 6.4 -> 5.0, roof 8.0 -> 6.4 |
+
+mrR 16 is derived, not tuned: a UH-60's rotor is 16.36 m across a 19.76 m
+overall length (0.83), and the redrawn airframe runs 38 units nose to tail
+rotor, so 0.83 x 38 / 2 = 15.8. The disc only starts paying once the boom owns
+the width — alone it does not, which is exactly why the second wrong cause
+measured what it did.
+
+### The trap that made the first measurement of the fix a fiction
+
+A 26-unit boom reaches 26 x 1.2649 x `USC_V` = 48 px from the ground anchor,
+and the shared vehicle sheet is 104 px wide. Octants 3 and 7 — the two
+broadside facings, i.e. the two the gate measures — came back with the fin
+sliced flat against the canvas edge, and the aspect was being read off a
+clipped sprite. The Nighthawk now gets its own 136 px sheet, the same fix (and
+the same reasoning) the Apocalypse's barrels and the Kirov already have.
+
+### The one budget clause this cannot honour
+
+`unit-identity-reference.md` §2.3 asks for three things at once: aspect 3.05,
+fuselage height <= 0.35 x length, and **rotor span >= 1.25 x fuselage length**.
+With a rotor drawn as a filled blur disc the third is impossible, and provably
+so: an iso disc of span S is S/2 tall, so span >= 1.25L forces height >= 0.625L
+and aspect <= 1.6. RA2 gets all three because it draws the rotor as 1-2 px
+BLADE LINES, not a disc. We draw the disc on purpose — at alpha .09 it was
+~1400 px three luminance points off the grass, invisible to a player but
+counted as body by every mask metric, and that is why `harrier | nighthawk`
+was the union window's only failure. Extending the blades alone does not
+recover the clause either: the sheet is baked at a fixed blade phase, so a
+blade at 1.25L reaches 0.91 x its radius in SCREEN Y on the near-vertical
+arms and puts the height straight back.
+
+So the budget is met on two of three clauses (aspect 0.86 of RA2, fuselage
+height 24/79 = 0.30) and knowingly missed on the third, at 0.84 x fuselage.
+
+### Not fixed here
+
+**Absolute size.** The unit is 86 px broadside against the Harrier's 52, where
+RA2 has [SHAD] at 64 and [ORCA] at 71 — i.e. ours is 1.65x the jet where RA2 is
+0.90x, and the change made it worse (73 -> 86). Aspect is scale-invariant so
+the gate cannot see it, and `VSC` is the documented tool for exactly this
+("a vehicle's SIZE moves without a single proportion moving with it"). It was
+left alone deliberately: a uniform 0.86 would put the boom tip's 2.9 px at
+2.5 and the spike floor is 3.64 px at zoom 1, so it needs its own measured
+pass rather than a number appended to this one.
 
 The other eight (Rhino 0.70, V3 0.70, Chrono Miner 0.76, Prism Tank 0.77,
-Engineer 1.65, Chrono Legionnaire 1.62, Tanya 1.42, Flak Trooper 1.37) have no
-such conflict on record and are the place to start.
+Engineer 1.65, Chrono Legionnaire 1.62, Tanya 1.42, Flak Trooper 1.37) closed
+in their own passes.
 
 ## THE RULE'S OWN PRECONDITION IS MISSING — the sprite rips are not in the repo
 
