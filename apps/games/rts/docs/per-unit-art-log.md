@@ -462,7 +462,7 @@ arms and puts the height straight back.
 So the budget is met on two of three clauses (aspect 0.86 of RA2, fuselage
 height 24/79 = 0.30) and knowingly missed on the third, at 0.84 x fuselage.
 
-### Not fixed here
+### Not fixed here — CLOSED as far as it goes, see "the air group's SIZE" below
 
 **Absolute size.** The unit is 86 px broadside against the Harrier's 52, where
 RA2 has [SHAD] at 64 and [ORCA] at 71 — i.e. ours is 1.65x the jet where RA2 is
@@ -472,6 +472,11 @@ the gate cannot see it, and `VSC` is the documented tool for exactly this
 left alone deliberately: a uniform 0.86 would put the boom tip's 2.9 px at
 2.5 and the spike floor is 3.64 px at zoom 1, so it needs its own measured
 pass rather than a number appended to this one.
+
+*That pass was taken and is written up at the end of this file. The spike fear
+above did NOT reproduce — the redrawn boom measures 8 px of thickness, not 2.9,
+so scale was never what the floor was protecting. The thing that actually
+binds is `peerVsSelf.air`.*
 
 The other eight (Rhino 0.70, V3 0.70, Chrono Miner 0.76, Prism Tank 0.77,
 Engineer 1.65, Chrono Legionnaire 1.62, Tanya 1.42, Flak Trooper 1.37) closed
@@ -548,3 +553,131 @@ un-learn:
     does carry the missile high.
 The plate cannot tell you which. Only the sprite rip can. Read plates for
 composition, lighting and identifying feature; read rips for proportion.
+
+## The air group's SIZE — closed to its ceiling, and the ceiling is a different gate
+
+**86 x 52 -> 76 x 60.** `size.airOutsideRA2Band` 1 -> 0, air spread 1.835 ->
+1.405, and `size.worstOffGroupScale` 0.3807 -> 0.2474, which takes the size
+gate GREEN across the whole roster for the first time (the Nighthawk was the
+last unit over the 0.25 band; the worst is now the Flak Track at -0.2474).
+Everything else held: 33 of 36 metrics did not move at all.
+
+| unit | RA2 | before | after | scale/group | aspect vs RA2 |
+|---|---|---|---|---|---|
+| nighthawk | `[SHAD]` 64 | 86 | **76** | +0.381 -> **+0.220** | 0.855 -> 0.860 |
+| harrier | `[ORCA]` 71 | 52 | **60** | -0.248 -> **-0.132** | 0.977 -> 0.979 |
+| hornet | `[HORNET]` 27 | 24 | 24 | -0.087 | 0.889 |
+| kirov | `[ZEP]` 139 | 147 | 147 | +0.087 | 0.993 |
+
+`VSC` is the whole change: `harrier: 1.150, nighthawk: 0.880`. No geometry
+moved, so no proportion moved with it — which is the point of that lever.
+
+### The trap the brief predicted, and what it actually was
+
+**The shared `wing()` call is real but `VSC` routes around it.** The Harrier
+and the Hornet do fall through the same `else`, so growing the wing geometry
+grows both. `VSC` is keyed per KIND and applied as a canvas transform, so the
+Hornet stayed at exactly 24 px through every sweep — verified after each one.
+Its span/Harrier ratio goes 0.46 -> 0.40, i.e. TOWARD RA2's own 27/71 = 0.38,
+so the growth improves the clause rather than straining it.
+
+**The spike floor was not the obstacle.** The prediction was that a uniform
+shrink would starve the identity spike, from a measurement of a 2.9 px boom
+tip. The boom was redrawn since: it measures `thick` **8.0** px at zoom 1
+against a 3.64 floor, i.e. 2.2x of room. At 0.88 it is 6.5 (1.8x); it survives
+0.73 (5.9) and even 0.68. `spike.belowFloor` stayed 0 in every one of the ~40
+configurations swept, and `spike.minThickAtZmin` never moved off 2.2. **A
+uniform scale was never the thing that could not work.**
+
+**Sheet clipping never fired**, because both moves were checked against a
+purpose-built probe before any number was trusted, and then against the clip
+gate that landed mid-pass. The Harrier's sheet grows with it automatically
+(`VSC > 1` -> `104*VSC+8`), 104x103 -> 128x112, min slack 32 px. The Nighthawk
+keeps its 136 px sheet and still needs it: its airframe is not centred on the
+ground anchor, and octant 3 reaches 47 px right of it against a 104 px sheet's
+52 — four pixels, which is not a margin.
+
+### The ceiling: `peerVsSelf.air`, and it is bought with the size error
+
+The RA2-correct sizes are Nighthawk ~62 px and Harrier ~69 px. They are
+reachable on every gate except one:
+
+    harrier VSC x nighthawk VSC, 16 cells:  size.airOutsideRA2Band = 0
+    for every nhVSC <= 0.88, and peerVsSelf.air = 1 for every cell where the
+    two get closer in size than about 76:60.
+
+The discriminator is `crossIoU(harrier, nighthawk)` against the **Harrier's own
+`selfIoUCross`, 0.401-0.408** — the lowest of the four aircraft, because a
+broad swept delta changes shape more between bearings than anything else that
+flies. That number is scale-INVARIANT (measured at VSC 1.00 / 1.10 / 1.20 /
+1.33: 0.4062 / 0.4028 / 0.4049 / 0.4014 — pure rasterisation noise, +-0.007).
+Meanwhile the cross term rises monotonically as the two converge in size:
+
+| nighthawk px (harrier 68) | 86 | 82 | 78 | 73 | 70 | 63 | 52 |
+|---|---|---|---|---|---|---|---|
+| crossIoU vs harrier | .278 | .318 | .351 | .401 | .437 | .443 | .452 |
+
+So the 0 we have today is **purchased by the very defect this pass closes**.
+The shipped 76/60 sits at margin +0.024 against noise of +-0.007; 1.18/0.87
+and 1.15/0.84 also pass the gate but at +0.0035 and +0.0057, inside the noise,
+and were rejected for that reason rather than taken for the better spread.
+
+**The arithmetic floor on the spread.** With the Hornet (0.889) and the Kirov
+(1.058) held as anchors, no configuration can beat **1.190** — that is their
+own ratio. 1.405 is what `peerVsSelf.air` leaves on the table; the remaining
+0.215 is not art, it is that gate.
+
+### Levers swept, with what each one measured — including the ones that failed
+
+* **`VSC` uniform, both units.** Reaches the target sizes exactly (Nighthawk 63,
+  Harrier 68 at 1.33/0.73), aspect and spike and clip all still 0. Breaks
+  `peerVsSelf.air`. This is the honest answer to "why not just scale them".
+* **`mrR`, the rotor disc, 16/14/12/10/8.** A SEE-SAW, and the clearest negative
+  result of the pass. Shrinking the disc drops crossIoU (.443 -> .299) and
+  rescues the Harrier — but it collapses the Nighthawk's OWN `selfIoUCross`
+  (.476 -> .233), because without the disc the airframe becomes strongly
+  directional, and then the Harrier beats *it*. Margins at mrR 16 / 14 / 12:
+  harrier -.042 / -.006 / +.039 while nighthawk +.033 / -.006 / -.036. They
+  cross at 14 with BOTH at zero. There is no window anywhere on this axis.
+* **`bmB`, the tail boom, 26/30/34/38 at VSC 0.73.** Same see-saw from the
+  other direction, and it costs more to learn: a longer boom is exactly what
+  §2.3 asks for (aspect vsRA2 0.83 -> 0.97 -> 1.04, i.e. it reaches RA2's own
+  3.05 at bmB 38) and the Nighthawk's selfIoUCross falls .476 -> .326 -> .268
+  as it does. **The aspect gate and `peerVsSelf` pull in opposite directions
+  for this unit** — which is the residual aspect bias `art-metrics.js` already
+  records as unresolved ("corr(aspect, peersBeatingSelf) +0.487"), met here as
+  a hard blocker rather than a footnote.
+* **Raising the Harrier's `selfIoUCross`.** Not attempted, and deliberately.
+  Its 28-pair matrix is FLAT (0.33-0.56, no bad pair to repair); the one
+  structural asymmetry — octant 1 at 68x45 against octant 5's 68x34 — is the
+  vertical fin, which projects screen-upward at every bearing because that is
+  what a vertical surface does under this camera. Making the jet read the same
+  from every angle is the opposite of identity.
+* **Hollowing the rotor blur so its core falls under the mask's alpha
+  threshold.** Costed, not run. The gradient's hub stop is 5% against a 3.1%
+  threshold, so reaching a real hole needs the whole inner ramp flattened —
+  about 25% of the disc's area for maybe 0.03-0.05 of crossIoU. That is
+  blinding the gate rather than moving the art, and the disc's alpha is a
+  deliberate prior decision. Recorded so nobody re-costs it.
+
+### Both surfaces, looked at
+
+**The cameo is size-INVARIANT by construction and this is worth knowing.**
+`cameoFor` fits the sprite's bbox with `min((W-3)/pw, (H-4)/ph) * 1.35`, so the
+drawn width is `(W-3)*1.35` whatever the source measures — the Harrier's plate
+is pixel-for-pixel the same composition at 52 px and at 60 px, only sharper.
+So "a cameo is not a sprite" cuts the other way here: a pure SIZE change cannot
+show up on the cameo at all, and checking it is a check that nothing else
+broke, not a check of the fix.
+
+In play, both read better. The Harrier's delta, white nose and cyan wingtips
+carry more pixels; the Nighthawk is no longer the longest thing in the sky
+after the Kirov. `harrier | nighthawk` improved in ALL SIX legibility windows
+— 60.3 -> 64.8, 49.9 -> 57.2, 25.0 -> 25.6, 17.8 -> 18.9, 58.5 -> 66.5,
+55.3 -> 64.7 — which is the opposite of what "make them the same size" sounds
+like it should do, and is worth taking as the warning it is: the mask metric
+and the picture metric disagreed about this change, and the picture won.
+
+Live frames at zoom 1 and ZMIN with four of each airframe: no page errors, and
+the three Directorate aircraft still separate instantly at furthest zoom (the
+rotor disc is the tell).

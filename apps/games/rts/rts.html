@@ -8619,6 +8619,25 @@
       teslatank: 1.100, mirage: 1.330, spectre: 1.460, // the mid specials
       v3: 1.260, mammoth: 1.240,                       // the longest / the heaviest
       mcv: 1.320, drone: 1.0, hornet: 0.45,
+      // THE TWO AIRCRAFT, sized against RA2 rather than against each other.
+      // Aspect is scale-INVARIANT, so the whole art gate was blind to a unit
+      // drawn at the wrong SIZE until `size.*OutsideRA2Band` existed: RA2
+      // draws [ORCA] at 71 px broadside against [SHAD]'s 64, i.e. the jet is
+      // 1.11x the chopper, and ours were 52 against 86 — the Nighthawk 1.65x
+      // the Harrier, the relationship INVERTED by 1.83x. The air group was
+      // the worst of the four on this axis (spread 1.83 against naval's 1.06).
+      // VSC is the right lever because it is PER KIND: the Harrier and the
+      // Hornet share one `wing()` call and one `bodyL`/`bodyR`, so touching
+      // that geometry moves both, and the Hornet's whole identity is "the
+      // smallest thing that flies". Scaling here leaves it at 24 px untouched
+      // — and its span/Harrier ratio goes 0.46 -> 0.40, TOWARD RA2's own 0.38.
+      // 1.15 / 0.88 and not the 1.33 / 0.73 that would land both on the group
+      // median: `peerVsSelf.air` is the ceiling and it binds hard. See the
+      // per-unit art log — the two aircraft's masks are similar enough that
+      // once their sizes converge the Nighthawk beats the Harrier's own
+      // rotations, and the 0 we have today was being bought by the very size
+      // error this closes. These are the largest moves that keep it at 0.
+      harrier: 1.150, nighthawk: 0.880,
       // The Kirov is baked at the size it is DRAWN at. It used to be baked
       // small and multiplied by 1.3 in `drawUnit` -- which unit-identity-
       // reference.md §2.4 calls out as "a symptom of the bake being too
@@ -8645,9 +8664,13 @@
       // The Nighthawk gets a WIDER sheet for the same reason the Apocalypse's
       // guns did: at the two broadside facings the forward axis is worth 1.26
       // screen px per unit BEFORE `USC_V` multiplies it by another 1.46, so a
-      // 26-unit tail boom reaches 48 px from the anchor and ran straight off
+      // 26-unit tail boom reached 48 px from the anchor and ran straight off
       // the 104 px sheet — MEASURED, octants 3 and 7 came back with the fin
-      // sliced flat against the edge. Height is untouched; only the room
+      // sliced flat against the edge. It STILL needs this sheet at
+      // `VSC.nighthawk` 0.88: the airframe is not centred on its ground
+      // anchor (boom aft, disc forward), and octant 3's opaque box measures
+      // 47 px to the RIGHT of the anchor against a 104 px sheet's 52 — four
+      // pixels of margin, which is not a margin. Height is untouched; only the room
       // either side of the anchor grows, and `h - UPAD` is unchanged, so no
       // draw-side code moves (every call site is `px - s.w/2`).
       var s = kind === 'kirov' ? mkCanvas(184, 125 + UPAD)
