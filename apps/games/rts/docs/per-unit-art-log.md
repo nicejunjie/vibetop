@@ -466,6 +466,31 @@ unit and the theatre) rather than a search loop. Until then, `RA2_ASPECT` in
 `art-metrics.js` is the trustworthy reference: its numbers come from
 unit-identity-reference.md §1.1, which cites bboxes rather than files.
 
+## GI | Spy, the standing worst cameo pair — investigated and LEFT
+
+53.6 against RA2's floor of 58.5, and it is the last number on the board that
+looks like it wants fixing. It does not.
+
+* Both units MEET THEIR SPECS. `spike.belowDeclaredBudget` and
+  `spike.belowFloor` are both 0, so the Spy's fedora brim already satisfies
+  §2.1's ">= 7 px wide, >= 1.5x the head" and the G.I.'s rifle its own budget.
+  There is no compliance failure to repair.
+* They are VISUALLY DISTINCT. Looked at side by side at 2x: green plate against
+  pink, helmet against fedora, and the Spy carries a tan briefcase the G.I. has
+  no equivalent of. The confusion the number describes is not one a player
+  meets.
+* The one lever I tried made it WORSE. Brightening the rifle's barrel glint
+  (#5c636e -> #a7aeb9) to make the G.I.'s weapon read took the pair 53.6 ->
+  53.4, because the extra pale pixels push him TOWARD the pale-hatted Spy.
+* And the bar is unusually high here. 58.5 is RA2's own CLOSEST pair out of
+  2701 — the hardest single number in the whole corpus — while our median sits
+  at 82 against their 100.5. Being 5 points under the tightest pair Westwood
+  ever shipped is a different situation from being broadly worse.
+
+It also arrived as a deliberate trade: it was 56.1 before the Rocketeer
+whitening and the infantry stature work, both of which took the MAP to zero
+confusable pairs. Recorded, not chased.
+
 ## The rule this whole pass earned
 
 **A CAMEO IS NOT A SPRITE.** It cost three near-misses to learn and one to
