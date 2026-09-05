@@ -4827,9 +4827,20 @@
   //     vehicle's near track corner was shaved off. UPAD and the canvas
   //     height moved together (h - UPAD is unchanged at 63), so the sprites
   //     sit exactly where they always did and drawUnit needs no edit.
-  var UPAD = 27;
+  //   * HEIGHT, again, for the FLEET. The room ABOVE the anchor scales with a
+  //     kind (`63 * VSC`) but the room below it was a flat 27 for everything,
+  //     so the biggest hulls ran off the bottom of their own sheet: MEASURED,
+  //     the Aircraft Carrier lost about 6 px of her near deck corner on 16 of
+  //     32 bearings and the Dreadnought about 1. It predates the naval pass —
+  //     14 Carrier bearings clipped before it — and was left alone then only
+  //     because it collided with concurrent work. 27 -> 40, with every sheet
+  //     height written as (room above) + UPAD so one constant governs both
+  //     and `h - UPAD` is unchanged: the sprites sit exactly where they did
+  //     and drawUnit still needs no edit, which is the same trick the width
+  //     fix above used.
+  var UPAD = 40;
   var USC_I = 1.22, USC_V = 1.46;
-  function unitCanvas() { return mkCanvas(104, 90); }
+  function unitCanvas() { return mkCanvas(104, 63 + UPAD); }
 
   var ACCENT = {
     rifle:     '#9ba2ab',   // GREY POT HELMET over the GI's house-colour torso block
@@ -8491,7 +8502,7 @@
       // A kind scaled UP gets a sheet scaled with it: the anchor rule is
       // (w/2, h - UPAD) whatever the size, so the only thing that must grow
       // is the room above it.
-      var s = kind === 'kirov' ? mkCanvas(184, 152)
+      var s = kind === 'kirov' ? mkCanvas(184, 125 + UPAD)
             : (VSC > 1 ? mkCanvas(Math.round(104 * VSC) + 8, Math.round(63 * VSC) + UPAD)
                        : unitCanvas());
       var g = s.g;
