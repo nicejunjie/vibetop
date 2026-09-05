@@ -128,6 +128,22 @@ row where that showed. The other twelve vehicle rows carry the same risk and
 have not been checked against a real sheet, so **extending this rip set is the
 highest-value reference work available.** The method is above.
 
+## Fetching is currently BLOCKED (2026-09-05)
+
+An attempt to extend this set with eight more vehicle sheets — Grizzly, Prism
+Tank, Mirage, IFV, Flak Track, Tesla Tank, Chrono Miner, War Miner — returned
+Cloudflare's interstitial for every title:
+
+    HTTP 403  text/html  "<title>Just a moment...</title>"
+
+The control proves it is the HOST and not the titles: re-fetching
+`RA2_Rhino_Tank.png`, which downloaded cleanly earlier the same day, now
+returns the same 403. So the exact-title method above is still correct and
+still the one to use; the source is simply challenging this host now. Back off
+and try later from a different network rather than retrying in a loop, and do
+NOT fall back to a fuzzy search — that is what produced the wrong-unit rips
+this file exists to warn about.
+
 ## The standing rule this supports
 
 **A cameo is not a sprite.** RA2's plates are painted hero shots; its sprites

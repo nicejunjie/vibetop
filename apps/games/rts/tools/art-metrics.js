@@ -778,8 +778,18 @@ function compute(recs) {
     for (const o of OCT) { const s = spikeOf(M(k, o), sp.axis); if (s.len > best.len) best = s; }
     const thin = best.thick < sp.budget;
     const short = sp.len != null && best.len < sp.len;
+    // `thick`, `budget` and `floor` are all ZOOM-1 px and compare directly.
+    // `atZmin` is a DIFFERENT SPACE (thick * ZMIN, i.e. what the player sees
+    // at furthest zoom, floor 2.0) and compares to nothing else on this line.
+    // Printed next to `budget` it reads like a failing comparison whenever the
+    // two happen to be close: the dog's 'atZmin 3.58, budget 3.64' cost a pass
+    // that concluded its spike had no headroom and could not be shrunk, when
+    // the real comparison is thick 6.5 against a 3.64 floor -- 1.79x of room,
+    // and the shrink was fine. Hence the explicit floors on both.
     unit[k].spike = { axis: sp.axis, len: best.len, thick: round(best.thick, 2),
-                      atZmin: round(best.thick * ZMIN, 2), budget: sp.budget, lenBudget: sp.len,
+                      budget: sp.budget, floor: round(SPIKE_FLOOR, 2),
+                      atZmin: round(best.thick * ZMIN, 2), floorAtZmin: SPIKE_FLOOR_ZMIN,
+                      lenBudget: sp.len,
                       fails: thin ? (short ? 'thin+short' : 'thin') : (short ? 'short' : null),
                       src: sp.src, feature: sp.feature };
     if (best.thick < SPIKE_FLOOR) below++;
