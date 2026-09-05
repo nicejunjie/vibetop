@@ -4748,6 +4748,14 @@
   // The bearing the cameos, the menu line-up and the placement ghost crop
   // from: due south, front-on to the camera (grid facing 1 of the old eight).
   var ICON_FACE = 4;
+  // ...but a VEHICLE is not shot front-on. RA2's Grizzly plate is a 3/4 side
+  // hero shot: the hull runs across the frame, the treads show their length and
+  // the barrel points out of it. Front-on, a tank is a symmetrical blob with no
+  // barrel and no hull — which is exactly what ours were, while our OWN side
+  // bearings read as tanks instantly. Infantry stay front-on, because RA2
+  // shoots them as portraits and a face is a face.
+  var ICON_FACE_SIDE = 0;
+  function iconFaceOf(d) { return (d && d.cls === 'i') ? ICON_FACE : ICON_FACE_SIDE; }
   function faceOf(dy, dx) { return ((Math.round(Math.atan2(dy, dx) / FANG) % NFACE) + NFACE) % NFACE; }
   function octOf(f) { return (((f | 0) + 2) >> 2) & 7; }
   // Shortest signed step from a to b around the 32-facing ring, in facings.
@@ -28150,7 +28158,7 @@
     var src = null, sw, sh, sc, kb = 1;
     try {
       if (isBld) { var A = SPR.bld[0][fac][key]; if (!A) return null; src = A.s.c; var bb = A.s.bb || { x0: 0, y0: 0, x1: A.s.w, y1: A.s.h }; sw = bb.x1 - bb.x0; sh = bb.y1 - bb.y0; sc = { x: bb.x0, y: bb.y0 }; kb = src.width / A.s.w; }
-      else { var U = SPR.unit[0][fac][key]; if (!U) return null; var f = Array.isArray(U) ? U[ICON_FACE] : U; src = f.c; var ub = f.bb || { x0: 0, y0: 0, x1: f.w, y1: f.h }; sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; sc = { x: ub.x0, y: ub.y0 }; kb = src.width / f.w; }
+      else { var U = SPR.unit[0][fac][key]; if (!U) return null; var f = Array.isArray(U) ? U[iconFaceOf(UNITS[key])] : U; src = f.c; var ub = f.bb || { x0: 0, y0: 0, x1: f.w, y1: f.h }; sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; sc = { x: ub.x0, y: ub.y0 }; kb = src.width / f.w; }
     } catch (e) { return null; }
     if (!src || sw <= 0 || sh <= 0) return null;
     // RA2's cameos are 60x48 PCX plates in a house-tinted frame: a lit sky
@@ -32390,7 +32398,7 @@
         } else {
           var U = SPR.unit[0][k][key];
           if (!U) continue;
-          var fr = Array.isArray(U) ? U[ICON_FACE] : U;
+          var fr = Array.isArray(U) ? U[iconFaceOf(UNITS[key])] : U;
           src = fr.c; kb = src.width / fr.w;
           var ub = fr.bb || { x0: 0, y0: 0, x1: fr.w, y1: fr.h };
           sw = ub.x1 - ub.x0; sh = ub.y1 - ub.y0; ox = ub.x0; oy = ub.y0;
