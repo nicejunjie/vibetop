@@ -48,6 +48,32 @@ Not inventing work is part of the job.
   cited readings disagree; changing it against a prior deliberate decision
   needs better evidence than one plate, so it is written down instead.
 
+## The Spy is CORRECT — I was reading the cameo again (third time)
+
+I recorded, in a commit message, that "the Spy is still BLUE where RA2's is a
+man in a dark suit" and that he needs the Rocketeer's fix. **That is wrong.**
+The code says why, citing the identity reference:
+
+> "THE COAT IS THE HOUSE ZONE. §1.5's table gives the Spy `fedora / long coat /
+> coat hem, no split legs / briefcase`, and the middle column of that table is
+> headed 'mid zone (HOUSE)' — RA2 remaps the coat, exactly as it remaps a GI's
+> torso."
+
+His coat is blue because it is the house zone, by design and by reference. RA2's
+*painted plate* shows a dark suit; RA2's *sprite* remaps. Same trap as the Grand
+Cannon and the Psychic Sensor, and I walked into it a third time — after writing
+the rule down twice.
+
+**And the budget move I was going to make to pay for it is also forbidden.**
+Tanya sits at 15.7% owner colour, second-lowest after the dog, so raising her
+looked like free headroom. She is EXEMPT on purpose: `hue.infantryBelowBudget`
+is **0**, and its note reads *"RA2's own 14.3% low end IS Tanya"* and *"close
+the gap on the other twelve, never by painting those two."* Ours at 15.7% is
+already RA2's own figure.
+
+So there is no Spy work and no Tanya work. Checking the recorded design cost two
+lookups; doing it would have cost two units moved away from RA2.
+
 ## Open, with agents
 
 - **Naval** — the Aegis is drawn 54x65 at zoom 1, i.e. TALLER THAN WIDE, where
