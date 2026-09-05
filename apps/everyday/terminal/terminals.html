@@ -686,7 +686,7 @@
   // six. Half a row hanging below the fold cannot be misread, needs no chrome,
   // and survives whatever the platform does with scrollbars.
   var SP_LIST_ROWS = 6;
-  var SP_LIST_PEEK = 14;        // px of row 7 left showing
+  var SP_LIST_PEEK = 20;        // px of row 7 left showing
   function capListHeight() {
     var kids = spList.children;
     if (kids.length <= SP_LIST_ROWS) { spList.style.maxHeight = ''; return; }
