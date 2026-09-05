@@ -823,14 +823,12 @@
       if (!spUntil.value || new Date(spUntil.value).getTime() <= Date.now()) {
         spUntil.value = toLocalInput(new Date(Date.now() + LOOP_DEFAULT_UNTIL));
       }
-      // A loop is turned on because you are rate-limited NOW, so the first run
-      // defaults to one interval out rather than immediately. Only when `start`
-      // is still sitting on the "now" the panel seeded — an explicit time the
-      // user picked is theirs, not ours to push.
-      var at = spAt.value ? new Date(spAt.value).getTime() : 0;
-      if (!at || at <= Date.now() + 60000) {
-        spAt.value = toLocalInput(new Date(Date.now() + (+spEvery.value || 0) * 1000));
-      }
+      // `start` is left exactly as it is — which is now, the time the panel seeds
+      // on open. Repeat used to push it one interval out, on the theory that you
+      // turn a loop on while rate-limited and firing at once would burn a run.
+      // That was reasonable while the start was INVISIBLE; with the row on screen
+      // it just meant the field showed a time nobody chose. A default you can
+      // read beats a clever one, and "start later" is one tap on this row.
     }
     loopOn = on;
     renderLoop();
