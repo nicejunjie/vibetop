@@ -26,6 +26,11 @@ const OUT = path.join(RTS, 'art', 'out');
 const REF = path.join(RTS, 'docs', 'ra2-ref', 'cameos');
 const ZOOM = Number(process.env.CMP_ZOOM || 1);
 const MAG = Number(process.env.CMP_MAG || 4);
+// Half the naval roster is Collective, and seat 0 was hard-wired to the
+// Directorate — so `dread`, `sub`, `seascorp`, `squid` and `apc` printed
+// "(not in the panel)" where their cameo should be and the whole point of the
+// rig (BOTH surfaces) quietly became one surface. Set per unit from its own
+// `fac`, with CMP_FAC to force it.
 
 function playwright() {
   try { return require('playwright'); }
@@ -60,13 +65,11 @@ async function main() {
   await page.goto(`http://127.0.0.1:${srv.address().port}/rts.html`);
   await page.waitForFunction(() => !!window.__rtsTest, null, { timeout: 30000 });
 
-  // A base with every prerequisite, so the panel can show anything. The FACTION
-  // has to follow the unit: half the roster is Collective, and a Directorate
-  // base simply never lists it — the first Collective unit through here came
-  // back "(not in the panel)", which is the rig's fault, not the art's.
-  const setup = async (fac) => page.evaluate((f) => {
+  // A base with every prerequisite, so the panel can show anything. Rebuilt
+  // per faction, because the build panel only lists the seat's own roster.
+  const buildBase = async (fac) => await page.evaluate((f) => {
     const H = window.__rtsTest, g = H.begin(4242, 'normal');
-    g.side[0].fac = f;
+    g.side[0].fac = f; g.side[1].fac = f === 'col' ? 'dir' : 'col';
     H.give(0, 9999999);
     const s = g.start[0];
     ['base', 'power', 'power', 'power', 'power', 'barracks', 'factory', 'radar',
@@ -77,14 +80,14 @@ async function main() {
     H.step(40);
   }, fac);
 
-  let curFac = null;
+  let baseFac = null;
   for (const key of keys) {
-    const want = await page.evaluate((k) => {
+    const want = process.env.CMP_FAC || await page.evaluate((k) => {
       const T = window.__rtsTables;
-      const d = T.UNITS[k] || T.BLDS[k];
-      return d && d.fac === 'col' ? 'col' : 'dir';
+      const d = (T.UNITS[k] || T.BLDS[k] || {});
+      return d.fac === 'col' ? 'col' : 'dir';
     }, key);
-    if (want !== curFac) { await setup(want); curFac = want; }
+    if (want !== baseFac) { await buildBase(want); baseFac = want; }
     const refFile = path.join(REF, key + '.png');
     const refB64 = fs.existsSync(refFile) ? fs.readFileSync(refFile).toString('base64') : null;
     const ok = await page.evaluate(async (cfg) => {

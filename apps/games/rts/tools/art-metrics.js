@@ -47,6 +47,35 @@ const FLOOR = Math.round(SPIKE_FLOOR * 100) / 100;   // the budget when §2 name
 // clears it by carrying real chroma over a real area, not by one bright pixel.
 const ACHROMATIC = 0.14;
 
+// ── RA2'S OWN BROADSIDE ASPECT ────────────────────────────────────────────
+// The one art property with a hard EXTERNAL number: unit-identity-reference.md
+// §1.1 tabulates each ship's RA2 sprite as `w x h` measured broadside with the
+// shadow removed, and w/h is a ratio, so it survives our renderer being 0.59x
+// - 2.13x of RA2's scale. Nothing an art commit writes can move the reference,
+// which is what keeps this from being plan §5's tautology.
+//
+// It exists because the fleet went unmeasured on the one axis that decides a
+// ship's first read. The Aegis shipped at 78x58 — aspect 1.34 against [AEGIS]'s
+// 2.60, a cruiser drawn as a tugboat — and stayed that way for weeks while
+// every ensemble metric passed: `iou`, `spike` and `hue` are all invariant to
+// a hull being half as long as it should be, so long as the whole fleet is
+// wrong together. `legibility.js` saw the SYMPTOM (`aegis | squid` under the
+// friend-vs-foe floor, two tall blobs) and named neither cause.
+//
+// The band is +-20%. RA2's own seven span 1.84 to 5.36, so 20% cannot let two
+// size classes swap; and our isometric camera is not bit-identical to RA2's,
+// so a tighter band would fail on projection error rather than on art.
+const RA2_ASPECT = {
+  destroyer: 101 / 41,   // [DEST]  101x41
+  aegis:      91 / 35,   // [AEGIS]  91x35
+  carrier:   143 / 52,   // [CARRIER] 143x52 — the largest sprite in RA2
+  dread:     133 / 45,   // [DRED]  133x45
+  squid:     117 / 30,   // [SQD]   117x30
+  sub:        75 / 14,   // [SUB]    75x14 — the flattest hull afloat
+  seascorp:   59 / 32,   // [HYD]    59x32
+};
+const RA2_ASPECT_BAND = 0.20;
+
 // ── SPIKES ────────────────────────────────────────────────────────────────
 // One entry per key in the UNITS map, and every number is TRACEABLE: `src`
 // quotes the sentence in unit-identity-reference.md §2 the number comes from,
@@ -200,6 +229,8 @@ const TARGETS = {
   'hue.vehicleOwnerMean':        { want: 0.115, dir: 'up',  note: 'reference §1.4: RA2 vehicles 11.5-27%. Ours already sit inside it — this pins the budget so C3 stays a PLACEMENT change' },
   'hue.vehicleOwnerMax':         { want: 0.27, dir: 'down', note: 'the top of RA2 vehicle range; going over means C3 overshot into re-adding paint (plan §4)' },
   'hue.maxImpostor':             { want: 0.02, dir: 'down', note: "a FIXED colour sitting on the other owner's hue reads as their unit — the Conscript's #7d5148 trousers were 39% red" },
+  'aspect.navalOutsideRA2Band':  { want: 0,    dir: 'down', note: 'every hull with an RA2 sprite in reference §1.1 within +-20% of its broadside aspect; 5 of 7 were outside it before the 2026-09-05 pass — the Typhoon at 0.40 of RA2, the Dreadnought 0.50, the Aegis 0.52' },
+  'aspect.navalWorstOffRA2':     { want: 0.20, dir: 'down', note: "the furthest any hull sits from RA2's aspect, as |ours/RA2 - 1|; 0.60 (the Typhoon, 2.15 against 5.36) before that pass" },
   'colour.infantry.meanDist':    { want: 0.45, dir: 'up',   note: 'mean pairwise hue-histogram distance between infantry kinds: what actually separates them' },
   // C5 ("ACCENT earns its name") had NO measurement at all until 2026-09-04,
   // which is why nine of thirteen ground vehicles could quietly settle on the
@@ -226,7 +257,9 @@ const TARGETS = {
 
 // ── the page under test, served from a throwaway loopback server ──────────
 const SERVE = {
-  '/rts.html':      [path.join(RTS, 'rts.html'), 'text/html'],
+  // ART_HTML points the tool at a DIFFERENT build of the page, which is how a
+  // new metric is proved RED against the unfixed one before it is recorded.
+  '/rts.html':      [process.env.ART_HTML || path.join(RTS, 'rts.html'), 'text/html'],
   '/gamescore.js':  [path.join(ROOT, 'shared', 'gamescore.js'), 'text/javascript'],
   '/vibe-modal.js': [path.join(ROOT, 'shared', 'vibe-modal.js'), 'text/javascript'],
 };
@@ -510,6 +543,17 @@ function compute(recs) {
       mass: round(mean(ms), 0), bboxW: Math.max(...ws), bboxH: Math.max(...hs),
       aspect: round(mean(ws.map((w, i) => w / hs[i])), 3),
     };
+    // BROADSIDE, not the mean over bearings. RA2's §1.1 numbers are measured
+    // on the broadside frame; the mean mixes it with the bow-on one, where a
+    // ship is short by definition, so the two are not the same quantity and
+    // comparing them would compare nothing.
+    const bs = OCT.reduce((a, o) => (M(k, o).w > M(k, a).w ? o : a), 0);
+    unit[k].broadsideWH = M(k, bs).w + 'x' + M(k, bs).h;
+    unit[k].broadsideAspect = round(M(k, bs).w / M(k, bs).h, 3);
+    if (RA2_ASPECT[k]) {
+      unit[k].ra2Aspect = round(RA2_ASPECT[k], 3);
+      unit[k].vsRA2 = round(unit[k].broadsideAspect / RA2_ASPECT[k], 3);
+    }
   }
   // self-IoU across a unit's own 8 bearings
   for (const k of keys) {
@@ -638,6 +682,21 @@ function compute(recs) {
     .map((k) => ({ key: k, pct: colByUnit[k].impostorPct }))
     .sort((a, b) => b.pct - a.pct);
 
+  // ── broadside aspect against RA2's own sprites (reference §1.1) ─────────
+  const ra2Asp = (() => {
+    const rows = [];
+    for (const k of Object.keys(RA2_ASPECT)) {
+      if (!unit[k]) continue;
+      rows.push({ key: k, wh: unit[k].broadsideWH, ours: unit[k].broadsideAspect,
+                  ra2: round(RA2_ASPECT[k], 3), ratio: unit[k].vsRA2 });
+    }
+    const off = (r) => Math.abs(r.ratio - 1);
+    rows.sort((a, b) => off(b) - off(a));
+    return { rows,
+             outside: rows.filter((r) => off(r) > RA2_ASPECT_BAND).length,
+             worstOff: rows.length ? round(off(rows[0]), 4) : 0 };
+  })();
+
   return {
     metrics: {
       'peerVsSelf.total': peerVsSelf.total,
@@ -661,6 +720,8 @@ function compute(recs) {
       'hue.vehicleOwnerMean': round(mean(vehOwner), 4),
       'hue.vehicleOwnerMax': round(Math.max(...vehOwner), 4),
       'hue.maxImpostor': round(impostorAll.length ? impostorAll[0].pct : 0, 4),
+      'aspect.navalOutsideRA2Band': ra2Asp.outside,
+      'aspect.navalWorstOffRA2': ra2Asp.worstOff,
       'colour.infantry.meanDist': round(mean(cd), 4),
       'colour.vehicle.meanDist': round(mean(vehD.d), 4),
       'colour.vehicleAchromatic': veh.filter((k) => !ACHROMATIC_EXEMPT.has(k) && colByUnit[k].chroma < ACHROMATIC).length,
@@ -689,6 +750,7 @@ function compute(recs) {
                  exempt: [...HUE_EXEMPT], n: infOwner.length };
       })(),
       tightestMassBand: tightAt,
+      ra2Aspect: ra2Asp.rows,
       units: Object.fromEntries([...keys].sort().map((k) => [k, unit[k]])),
     },
     missing, orphan,
