@@ -9696,11 +9696,19 @@ the right choice for the association and the wrong one for the click: a label
 forwards its click to its control, and Chromium opens the date picker on a click
 anywhere in a `datetime-local` (and the popup on a `select`). So pointing the
 buttons at `until` threw a calendar over the panel — the switch worked, but every
-use of it cost a dismissal. Fixed by cancelling the forwarded click and moving
-focus in JS instead: `focus()` alone opens no picker, focus is already what arms
-a row, so the lit label and the focused control still cannot disagree, and the
-`for` attribute — hence everything assistive tech reads — is untouched. Clicking
-the field itself is deliberately left alone: *that* is a request to open it.
+use of it cost a dismissal.
+
+Cancelling the forwarded click fixed **half** of it and the calendar kept coming,
+because the browser opens that picker for *two* independent reasons: the
+forwarded click, **and** user-initiated focus — and a `.focus()` called inside a
+click handler counts as user-initiated. The working fix is to let the label touch
+the control not at all: cancel `mousedown` (no focus transfer), cancel `click`
+(no forwarded click), arm the row directly, and drop focus if the other row's
+control still held it. Verified by spying on the control for `mousedown`/`focus`/
+`click` and on `.focus()` itself: a label click delivers **none** of them, while
+clicking the field still delivers all three. The `for` attribute stays, so the
+association assistive tech reads is untouched, and clicking the field is
+deliberately left alone — *that* is a request to open it.
 
 Two details that only look small: `Now` **disables** rather than hides while the
 cadence is armed (an interval has no "now", but hiding it would reflow the very
